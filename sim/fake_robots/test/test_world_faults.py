@@ -13,7 +13,8 @@ from fake_robots.world import (
     Stuck,
     ZoneWorld,
 )
-from world_helpers import nav, quiet_world, results, states
+from fleet_core.common.commands import RetreatCmd
+from world_helpers import follow, nav, quiet_world, results, states
 
 
 def _trace(seed):
@@ -73,6 +74,35 @@ def test_removal_clears_its_zones_and_reinstate_puts_it_back():
     assert world.manager.of("reinstate")[0][1][:2] == ("pinky1", "EMPTY")
     assert world.robots["pinky1"].pose == world.site.node_pose("P-2")
     assert max(t for t, _ in states(world)) >= 3.0
+
+
+def test_a_reinstate_onto_a_taken_spot_puts_the_robot_on_the_nearest_free_one():
+    """운영자는 다른 로봇이 선 자리에 로봇을 겹쳐 놓지 않는다."""
+    world = quiet_world(robots={"pinky1": "P-1", "pinky2": "P-2"},
+                        injections=[Removal("pinky1", 1.0), Reinstate("pinky1", 3.0, "P-2")])
+    world.run(4.0)
+    spot = world.robots["pinky1"].pose
+    assert spot != world.site.node_pose("P-2")
+    assert any(spot == world.site.node_pose(n) for n in world.site.nodes
+               if world.site.can_wait(n))
+    assert not [v for v in world.violations if v.code == "I6_TOO_CLOSE"]
+
+
+def test_a_retreat_out_of_a_dock_is_counted_apart_from_other_retreats():
+    world = quiet_world(robots={"pinky1": "W"})
+    world.robots["pinky1"].docked_at = "WORK"
+    x, y = world.site.node_pose("W")
+    world.send(RetreatCmd("pinky1", 1, 0.2, 0.05, ((x, y, 0.0), (x + 0.2, y, 0.0))))
+    world.send(RetreatCmd("pinky1", 2, 0.1, 0.05, ()))
+    assert (world.metrics.dock_exits, world.metrics.retreats) == (1, 1)
+
+
+def test_a_stuck_robot_standing_in_a_junction_is_not_an_invariant_violation():
+    """계약 7절 5번은 교통 층이 로봇을 세워 둔 경우다. 고장 주입으로 선 로봇은 빼고 본다."""
+    world = quiet_world(robots={"pinky1": "X_W"}, injections=[Stuck("pinky1", 0.0)])
+    world.send(follow(world, "pinky1", 1, ["X_W", "W"]))
+    world.run(8.0)
+    assert not [v for v in world.violations if v.code == "I5_STANDING"]
 
 
 def test_a_stuck_robot_does_not_move_and_its_move_times_out():

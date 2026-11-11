@@ -137,7 +137,8 @@ class ZoneWorld(Commands, Link):
         for item in self.manager.tick():
             self.send(item)
         present, grants = self.present(), self.grants()
-        quiet = {n: (r.run is not None and r.run.blocked) or not r.comm_up
+        # 5번에서 뺀다: BLOCKED, 끊김, 그리고 고장 주입으로 멈춘 로봇(교통 층이 세운 것이 아니다)
+        quiet = {n: (r.run is not None and r.run.blocked) or not r.comm_up or r.stuck
                  for n, r in present.items()}
         views = self.views()
         self.invariants.check(self.t, grants, present, views, quiet)
@@ -167,11 +168,25 @@ class ZoneWorld(Commands, Link):
                     held = list(grants.held_by(item.robot)) if grants is not None else []
                     self.manager.confirm_clear(item.robot, held, "removed from the floor")
             elif isinstance(item, Reinstate):
-                r.x, r.y = self.site.node_pose(item.node)
-                r.yaw = self.site.nodes[item.node].yaw or 0.0
+                node = self._free_spot(item.node, item.robot)
+                r.x, r.y = self.site.node_pose(node)
+                r.yaw = self.site.nodes[node].yaw or 0.0
                 r.removed, r.run, r.docked_at = False, None, ""
                 r.has_basket, r.basket = item.basket == "EMPTY", {}
                 self.manager.reinstate(item.robot, item.basket, "put back")
+
+    def _free_spot(self, node: str, robot: str) -> str:
+        """node에 다른 로봇이 있으면 가장 가까운 빈 대기 지점(운영자는 겹쳐 놓지 않는다)."""
+        others = [o.pose for n, o in self.present().items() if n != robot]
+        gap = 2 * self.params.robot_radius_m
+
+        def free(n):
+            return all(math.dist(self.site.node_pose(n), p) >= gap for p in others)
+        if free(node):
+            return node
+        spots = [n for n in self.site.nodes if self.site.can_wait(n) and free(n)]
+        here = self.site.node_pose(node)
+        return min(spots, key=lambda n: math.dist(here, self.site.node_pose(n)), default=node)
 
     def _move(self) -> None:
         for name, r in self.robots.items():

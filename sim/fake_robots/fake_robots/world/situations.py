@@ -79,9 +79,13 @@ def build(name: str, layout: str = "d2") -> Situation:
         return Situation(name, "세 대가 갈림목에 동시에", robots=_near_work(layout),
                          orders=six_orders(count=3))
     if name == "pose_jumps":
+        # 20초 동안 보고가 0.30 m 옆으로 밀린다(위치 잡기가 틀어짐). OUTSIDE_ZONE은 보고가 쥔
+        # 구역들 밖으로 outside_zone_samples번 이어져야 나온다. 넓은 구역이나 쥔 줄 안에서 밀리면
+        # 안 나오므로 세기만 한다. 밀린 보고로 도착을 못 믿어 NOT_AT_TARGET 재시도 끝에 격리되면
+        # 그 로봇은 재시도 사이에 갈림목에 서 있을 수 있고(5번), 남은 주문은 못 끝날 수 있다(c).
         return Situation(name, "위치가 크게 튐",
-                         injections=[NoisyPose("pinky1", 20.0, 40.0, sigma_m=0.03, jump_m=0.10)],
-                         need_events={"OUTSIDE_ZONE": 1})
+                         injections=[NoisyPose("pinky1", 20.0, 40.0, sigma_m=0.03, jump_m=0.30)],
+                         finish_all=False, allowed=("I5_STANDING",))
     raise KeyError(f"no situation {name!r}")
 
 

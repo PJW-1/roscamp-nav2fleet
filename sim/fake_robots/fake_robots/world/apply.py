@@ -26,7 +26,8 @@ class Commands:
 
     def send(self, item) -> None:
         """관제의 출력 하나를 세계에 넣는다. 시험이 명령을 직접 줄 때도 쓴다."""
-        self.metrics.on_output(item)
+        r = self.robots.get(getattr(item, "robot", ""))
+        self.metrics.on_output(item, docked=r is not None and bool(r.docked_at))
         if isinstance(item, EventOut):
             self.events.append((self.t, item))
             self.metrics.on_event(item)
