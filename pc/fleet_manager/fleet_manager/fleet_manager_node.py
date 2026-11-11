@@ -18,6 +18,7 @@ from fleet_core.common.commands import (
     EventOut,
     FillCmd,
     MoveCmd,
+    MoveOrderCmd,
     ReportOrderCmd,
     RetreatCmd,
     SwapCmd,
@@ -36,6 +37,7 @@ from fleet_interfaces.msg import (
     ZoneStateArray,
 )
 from fleet_interfaces.srv import ConfirmClear, Reinstate, ReportOrder
+from rcl_interfaces.msg import ParameterDescriptor
 from rclpy.action import ActionClient
 from rclpy.clock import Clock, ClockType
 from rclpy.node import Node
@@ -44,6 +46,7 @@ from std_msgs.msg import Header
 
 from fleet_manager import adapters
 from fleet_manager.goal_tracker import GoalTracker, ReportOutbox
+from fleet_manager.order_goals import FeedbackFilter, apply_overrides
 
 
 class FleetManagerNode(Node):
@@ -54,15 +57,21 @@ class FleetManagerNode(Node):
         self.declare_parameter("map_file", "")
         self.declare_parameter("params_file", "")
         self.declare_parameter("tick_hz", 10.0)
+        # 주지 않으면 params 파일의 값이다. 준 값만 파일 값을 덮는다(order 모델)
+        unset = ParameterDescriptor(dynamic_typing=True)
+        self.declare_parameter("use_order_model", None, unset)
+        self.declare_parameter("lookahead_s", None, unset)
         robots = list(self.get_parameter("robots").value)
 
         contract_file = self.get_parameter("contract_file").value or (
             get_package_share_directory("fleet_interfaces") + "/contract.yaml")
         self.contract = load_contract(contract_file)
         self.site = load_site(self.get_parameter("map_file").value or None)
-        self.core = FleetManager(
-            self.site, load_params(self.get_parameter("params_file").value or None),
-            robots, self._now)
+        params = apply_overrides(
+            load_params(self.get_parameter("params_file").value or None),
+            self.get_parameter("use_order_model").value,
+            self.get_parameter("lookahead_s").value)
+        self.core = FleetManager(self.site, params, robots, self._now)
         self._record_file = None
         if record:
             self.core.check_recordable()  # 거부될 기록이 옛 파일을 지우지 않게 먼저 본다
@@ -72,13 +81,13 @@ class FleetManagerNode(Node):
 
         self._goals = GoalTracker()
         self._reports = ReportOutbox()
+        self._order_feedback = FeedbackFilter()
         self._reached = set()
         self._last_zones = None
         self._last_assignments = None
         self._create_interfaces(robots)
         self.create_timer(1.0 / self.get_parameter("tick_hz").value, self._on_tick)
         self.create_timer(1.0, self._publish_robots)
-        params = self.core.params
         # 이전 FMS의 goal을 수행 중인 로봇은 heartbeat가 timeout만큼 끊기면 멈춘다.
         # 그때까지 이 FMS는 아무것도 보내지 않고 보고도 받지 않는다. 실제 시계를 쓴다.
         # 프로세스를 보는 것이고, 시뮬레이션 시간은 부하 걸린 머신의 메시지보다 앞서가기 때문이다.
@@ -230,6 +239,12 @@ class FleetManagerNode(Node):
         if isinstance(command, MoveCmd):
             self._send(self._move[command.robot], adapters.move_goal(command),
                        (command.robot, command.goal_id), self._move_done, self._robot_rejected)
+        elif isinstance(command, MoveOrderCmd):
+            # update도 새 goal이다. 이전 goal은 취소하지 않는다. 로봇이 SUPERSEDED로 끝낸다
+            key = (command.robot, command.goal_id)
+            self._send(self._move[command.robot], adapters.move_order_goal(command), key,
+                       self._move_done, self._robot_rejected,
+                       feedback=partial(self._on_move_feedback, key))
         elif isinstance(command, DockCmd):
             self._send(self._dock[command.robot], adapters.dock_goal(command),
                        (command.robot, command.goal_id), self._dock_done, self._robot_rejected)
@@ -263,7 +278,12 @@ class FleetManagerNode(Node):
             self.get_logger().info(text)
 
     # ------------------------------------------------------------------ action plumbing
-    def _send(self, client, goal, key, on_result, on_rejected) -> None:
+    def _on_move_feedback(self, key, msg) -> None:
+        values = adapters.move_feedback(msg.feedback)
+        if self._order_feedback.changed(key, values):
+            self.core.on_move_feedback(key[0], key[1], *values)
+
+    def _send(self, client, goal, key, on_result, on_rejected, feedback=None) -> None:
         if not client.server_is_ready():
             if on_rejected == self._robot_rejected:
                 self.core.on_goal_not_sent(key[0], key[1])  # 실패한 시도가 아니다
@@ -271,7 +291,8 @@ class FleetManagerNode(Node):
                 on_rejected(key)
             return
         self._goals.sent(key)
-        future = client.send_goal_async(goal)
+        future = (client.send_goal_async(goal, feedback_callback=feedback) if feedback
+                  else client.send_goal_async(goal))
         future.add_done_callback(partial(self._goal_response, key, on_result, on_rejected))
 
     def _goal_response(self, key, on_result, on_rejected, future) -> None:
@@ -291,6 +312,7 @@ class FleetManagerNode(Node):
             partial(self._goal_result, key, on_result, on_rejected))
 
     def _goal_result(self, key, on_result, on_rejected, future) -> None:
+        self._order_feedback.forget(key)
         try:
             result = adapters.goal_result(future.result())
         except Exception as exc:
