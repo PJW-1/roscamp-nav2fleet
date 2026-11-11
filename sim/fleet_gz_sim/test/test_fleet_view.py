@@ -21,6 +21,10 @@ class Status:
     order_id: str = ""
     fault: str = "NONE"
     fault_reason: str = ""
+    x: float = 0.0
+    y: float = 0.0
+    base: list = field(default_factory=list)
+    horizon: list = field(default_factory=list)
 
 
 @dataclass
@@ -126,6 +130,54 @@ def test_each_robot_shows_its_goal_node_or_station_dock_with_a_line():
     assert goals == {"pinky1 -> N_W": (0.40, 0.65), "pinky2 -> OUTBOUND": (1.80, 0.89)}
     [line] = by_ns(specs, "goal_line")
     assert line.points == ((0.13, 0.15), (0.40, 0.65))
+
+
+# ---- base와 horizon -------------------------------------------------------------------------
+
+
+def _pairs(points):
+    return [(points[i], points[i + 1]) for i in range(0, len(points), 2)]
+
+
+def test_base_is_a_solid_line_from_the_robot_and_horizon_a_lighter_dashed_one():
+    """RobotStatus.base/horizon(order-model 95b5215): 쥔 길은 실선, 아직 안 받은 길은 옅은 점선."""
+    view = fv.FleetView(SITE)
+    view.set_statuses([Status("pinky1", "MOVING", x=0.40, y=0.65, base=["X_W", "W"],
+                              horizon=["X_E"])])
+    specs = view.specs(now=0.0)
+    [base] = by_ns(specs, "way_base")
+    [horizon] = by_ns(specs, "way_horizon")
+    assert base.kind == horizon.kind == "LINE_LIST"
+    assert _pairs(base.points) == [((0.40, 0.65), (0.40, 0.89)), ((0.40, 0.89), (0.18, 0.89))]
+    assert base.color[:3] == fv.robot_color("pinky1")[:3] and base.color[3] == 1.0
+    assert horizon.color[3] < base.color[3] and horizon.scale[0] < base.scale[0]
+    # the horizon starts where the base ends and is cut into dashes along W -> X_E
+    dashes = _pairs(horizon.points)
+    assert dashes[0][0] == pytest.approx((0.18, 0.89))
+    assert len(dashes) > 3
+    assert all(abs(a[1] - 0.89) < 1e-9 and abs(b[1] - 0.89) < 1e-9 for a, b in dashes)
+    covered = sum(abs(b[0] - a[0]) for a, b in dashes)
+    assert covered < 0.8 * (1.58 - 0.18)  # gaps between the dashes
+
+
+def test_no_way_ahead_draws_nothing_and_a_horizon_alone_starts_at_the_robot():
+    view = fv.FleetView(SITE)
+    view.set_statuses([Status("pinky1"), Status("pinky2", x=0.13, y=0.15, horizon=["N_W"])])
+    specs = view.specs(now=0.0)
+    assert not by_ns(specs, "way_base")
+    [horizon] = by_ns(specs, "way_horizon")
+    assert horizon.points[0] == pytest.approx((0.13, 0.15))
+
+
+def test_a_status_without_base_fields_and_an_unknown_node_are_skipped():
+    @dataclass
+    class Old:
+        robot_id: str = "pinky1"
+        fsm_state: str = "IDLE"
+    view = fv.FleetView(SITE)
+    view.set_statuses([Old(), Status("pinky2", base=["nowhere", "W"])])
+    [base] = by_ns(view.specs(now=0.0), "way_base")
+    assert _pairs(base.points) == [((0.0, 0.0), (0.18, 0.89))]
 
 
 # ---- 로봇 ----------------------------------------------------------------------------------
