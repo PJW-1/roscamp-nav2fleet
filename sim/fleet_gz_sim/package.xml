@@ -2,7 +2,7 @@
 <package format="3">
   <name>fleet_gz_sim</name>
   <version>0.1.0</version>
-  <description>Gazebo simulation: one Pinky with Nav2 and pinky_fsm (three-robot fleet launch is still a placeholder)</description>
+  <description>Gazebo simulation of the nav2fleet arenas (layouts d2, d, c): worlds, Nav2 maps and keepout masks from the fleet map, one or three Pinkys with Nav2 and pinky_fsm</description>
   <maintainer email="team@example.com">team-2</maintainer>
   <license>Apache-2.0</license>
   <exec_depend>launch</exec_depend>

@@ -58,7 +58,9 @@ class Views:
         }
 
     def status_view(self, robot) -> dict:
-        m = self._robots[robot]
+        m = self._robots.get(robot)
+        if m is None:
+            return {}
         want = self._wants.get(robot)
         blockers = (self.grants.blockers(robot, want.zones, want.nodes, want.lanes)
                     if want is not None else {})

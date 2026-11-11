@@ -28,10 +28,6 @@ WAITING = {
         "test_judge.py", "test_safety_meter.py", "test_scenario.py", "test_ros_arm.py",
         "test_ros_central.py", "test_ros_check_interfaces.py", "test_ros_monitor.py",
         "test_ros_pinky.py", "test_ros_workcell.py")), NEEDS_FLEET_MAP),
-    **dict.fromkeys((("fleet_gz_sim", name) for name in (
-        "test_arena.py", "test_dock_stub.py", "test_fleet_check.py", "test_fleet_setup.py",
-        "test_fleet_view.py", "test_launch_wiring.py", "test_obstacles.py",
-        "test_stand_in_battery.py")), NEEDS_FLEET_MAP),
     **dict.fromkeys((("fleet_manager", name) for name in (
         "test_node_wiring.py", "test_fms_restart.py", "test_scenario_integration.py")),
         NEEDS_ZONE_TRAFFIC),

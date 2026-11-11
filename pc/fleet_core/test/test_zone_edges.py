@@ -152,3 +152,85 @@ def test_a_robot_blocked_while_backing_out_waits_and_then_fails():
     view = world.view("pinky1")
     assert (view["state"], view["fault"]) == ("ERROR", "ERROR")
     assert "ZONE_MARKED_BLOCKED" not in world.codes("pinky1"), "there is no other way out"
+
+
+# ---- 세계 시험이 찾은 것(B1, B2, B3) ----
+
+def test_a_nav_goal_keeps_every_zone_it_may_cross_until_it_ends():
+    """Nav2는 잡아 준 통로 안에서 어느 길로든 돌아올 수 있다. 지나온 넓은 구역도 goal이 끝날
+    때까지 쥔다."""
+    world = Harness("d", starts={"pinky1": "W", "pinky2": "P-1", "pinky3": "P-3"})
+    world.report()
+    world.call("WORK", "pinky1")  # 도크에 서 있다. 곧바로 도킹하고 도크를 쥔다
+    call = world.call("WORK", "pinky3")  # 도크가 찼다. 서쪽 마당의 대기 자리로 건너온다
+    world.step()
+    bot = world.bots["pinky3"]
+    assert world.run_until(lambda: 0.9 < bot.x < 1.0, 60.0)
+    assert world.site.zone_at(bot.x, bot.y) in ("CORR_M", "CORR_S"), "it crosses by a corridor"
+    assert world.sent(MoveCmd, "pinky3")[-1].mode == "nav_goal"
+    assert "HALL_E" in world.view("pinky3")["held"], "the yard behind it is not given back"
+    world.traffic.on_release("pinky1")
+    assert world.run_until(lambda: world.result_of(call) is not None, 200.0)
+    assert world.result_of(call).success and not world.problems
+    assert "HALL_E" not in world.view("pinky3")["held"], "given back after the goal ended"
+
+
+def test_a_robot_that_nav2_took_into_another_yard_zone_takes_that_zone():
+    world = Harness("d")
+    world.report()
+    world.call("WORK", "pinky1")
+    world.step()
+    assert world.sent(MoveCmd, "pinky1")[-1].mode == "nav_goal"
+    assert "CORR_S" not in world.view("pinky1")["held"]
+    world.traffic.take_output()
+    for _ in range(world.params.outside_zone_samples + 1):
+        world.traffic.on_robot_state("pinky1", 0.75, 0.20, 0.0, "MOVING")
+    codes = [e.code for e in world.traffic.take_output()]
+    assert codes == ["OUTSIDE_ZONE", "OUTSIDE_ZONE"], "seen, then it takes the zone it is in"
+    assert "CORR_S" in world.view("pinky1")["held"]
+    assert world.view("pinky1")["goal_id"] is not None, "the goal goes on"
+
+
+def test_the_status_of_an_unknown_robot_is_empty():
+    world = Harness()
+    assert world.traffic.status_view("ghost") == {}
+
+
+def test_an_isolated_robot_gives_back_the_zones_it_never_reached():
+    world = Harness()
+    world.step()
+    world.call("WORK", "pinky1")
+    world.run(1.0)
+    assert world.view("pinky1")["held"] == ["HALL", "J_W", "WORK_DOCK"]
+    world.traffic.on_robot_fault("pinky1", "MOTOR")
+    world.run(2.0)
+    assert world.view("pinky1")["held"] == ["HALL"], "it stands in the yard"
+    returned = [e.detail for e in world.events if e.code == "ZONES_RETURNED"]
+    assert returned == ["gives back ['J_W', 'WORK_DOCK'] it did not reach, keeps ['HALL']"]
+    other = world.call("WORK")
+    assert world.run_until(lambda: world.result_of(other) is not None, 60.0)
+    assert world.result_of(other).success, "the others still serve the work dock"
+
+
+def test_a_robot_isolated_inside_the_junction_keeps_the_junction():
+    world = reported({"pinky1": "W", "pinky2": "P-2", "pinky3": "P-3"})
+    world.call("OUTBOUND", "pinky1")
+    bot = world.bots["pinky1"]
+    assert world.run_until(lambda: bot.x > 0.36, 30.0)  # 후진으로 갈림목 안에 들어섰다
+    world.traffic.on_robot_fault("pinky1", "MOTOR")
+    world.run(2.0)
+    held = world.view("pinky1")["held"]
+    assert "J_W" in held, "it stands there"
+    assert "J_E" not in held and "OUT_DOCK" not in held, "the far end of the trip goes back"
+    assert set(held) <= {"WORK_DOCK", "J_W", "EXPRESS"}, "at most what it stands next to"
+
+
+def test_a_silent_robot_gives_nothing_back():
+    world = Harness()
+    world.step()
+    world.call("WORK", "pinky1")
+    world.run(1.0)
+    world.silent.add("pinky1")
+    world.run(10.0)
+    assert world.view("pinky1")["comm"] == "COMM_LOST"
+    assert world.view("pinky1")["held"] == ["HALL", "J_W", "WORK_DOCK"]
