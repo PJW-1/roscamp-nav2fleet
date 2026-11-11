@@ -1,0 +1,408 @@
+"""직선 이동, 자세 잡음, 고장 일정."""
+import math
+import random
+
+import pytest
+from fake_robots.motion import (
+    ArmFaults,
+    DelayLine,
+    FaultSchedule,
+    Motion,
+    abort_at_shutdown,
+    drifted,
+    finish_action,
+    noisy_pose,
+    path_gap,
+)
+from fake_robots.scenario import Fault
+
+
+def test_moves_toward_target_at_speed():
+    m = Motion(0.0, 0.0)
+    m.set_target(1.0, 0.0)
+    m.step(1.0, 0.2)
+    assert (m.x, m.y) == pytest.approx((0.2, 0.0))
+    assert m.remaining() == pytest.approx(0.8)
+    assert m.moving
+
+
+def test_arrival_snaps_and_stops():
+    m = Motion(0.0, 0.0)
+    m.set_target(0.0, 0.1)
+    m.step(10.0, 0.2)
+    assert (m.x, m.y) == (0.0, 0.1) and m.remaining() == 0.0 and not m.moving
+
+
+def test_no_target_means_no_motion():
+    m = Motion(1.0, 1.0)
+    m.step(5.0, 1.0)
+    assert (m.x, m.y) == (1.0, 1.0)
+
+
+def test_yaw_follows_heading():
+    m = Motion(0.0, 0.0)
+    m.set_target(0.0, 1.0)
+    m.step(0.1, 0.2)
+    assert m.yaw == pytest.approx(1.5707963, abs=1e-6)
+
+
+def test_a_path_is_followed_segment_by_segment():
+    """path 모드: 모서리를 가로지르지 않고 선분을 차례로 간다."""
+    m = Motion(0.0, 0.0)
+    m.set_target(1.0, 1.0, via=[(1.0, 0.0)])
+    assert m.remaining() == pytest.approx(2.0)
+    m.step(1.0, 0.5)
+    assert (m.x, m.y) == pytest.approx((0.5, 0.0))
+    m.step(1.0, 1.0)  # 모서리를 돌아 0.5 m 더 간다
+    assert (m.x, m.y) == pytest.approx((1.0, 0.5))
+    assert m.yaw == pytest.approx(1.5707963, abs=1e-6)
+    assert m.remaining() == pytest.approx(0.5)
+    m.step(5.0, 1.0)
+    assert (m.x, m.y) == (1.0, 1.0) and not m.moving
+
+
+def test_a_point_just_behind_is_skipped_not_driven_back_to():
+    m = Motion(1.0, 0.1)  # 모서리 (1, 0)을 지나 위로 0.1 m
+    m.set_target(1.0, 1.0, via=[(1.0, 0.0)])
+    m.step(0.1, 1.0)
+    assert (m.x, m.y) == pytest.approx((1.0, 0.2))
+
+
+def test_a_corner_ahead_on_the_lane_in_is_kept():
+    m = Motion(0.9, 0.0)  # 모서리 (1, 0) 앞 0.1 m
+    m.set_target(1.0, 1.0, via=[(1.0, 0.0)])
+    m.step(0.1, 1.0)
+    assert (m.x, m.y) == pytest.approx((1.0, 0.0))
+
+
+def test_clearing_the_target_drops_the_path():
+    m = Motion(0.0, 0.0)
+    m.set_target(1.0, 1.0, via=[(1.0, 0.0)])
+    m.clear_target()
+    m.set_target(0.0, 1.0)
+    m.step(10.0, 1.0)
+    assert (m.x, m.y) == (0.0, 1.0)
+
+
+def test_noise_is_seeded_and_zero_sigma_is_exact():
+    a = noisy_pose(1.0, 2.0, 0.03, random.Random(5))
+    b = noisy_pose(1.0, 2.0, 0.03, random.Random(5))
+    assert a == b and a != (1.0, 2.0)
+    assert noisy_pose(1.0, 2.0, 0.0, random.Random(5)) == (1.0, 2.0)
+
+
+def test_what_goes_in_a_delay_line_comes_out_late_and_in_order():
+    line = DelayLine(0.5)
+    line.push(1.0, "a")
+    line.push(1.1, "b")
+    assert line.due(1.4) == []
+    assert line.due(1.5) == ["a"]
+    assert line.due(1.7) == ["b"]
+    assert line.due(9.0) == []
+
+
+def test_a_delay_line_with_no_delay_lets_it_straight_through():
+    line = DelayLine(0.0)
+    line.push(1.0, "a")
+    assert line.due(1.0) == ["a"]
+
+
+def test_what_is_still_in_a_cleared_delay_line_is_lost():
+    line = DelayLine(0.5)
+    line.push(1.0, "a")
+    line.clear()
+    assert line.due(2.0) == []
+
+
+def faults():
+    return [
+        Fault(at_s=40, robot="pinky2", type="comm_loss", duration_s=20, count=1),
+        Fault(at_s=75, robot="pinky2", type="nav_abort", duration_s=0, count=2),
+        Fault(at_s=90, robot="pinky2", type="stuck", duration_s=0, count=1),
+        Fault(at_s=10, robot="pinky1", type="stuck", duration_s=0, count=1),
+    ]
+
+
+def test_comm_loss_window():
+    s = FaultSchedule(faults(), "pinky2")
+    assert [s.comms_down(t) for t in (39.9, 40.0, 59.9, 60.0)] == [False, True, True, False]
+
+
+def test_nav_abort_consumes_count_after_start_time():
+    s = FaultSchedule(faults(), "pinky2")
+    assert s.take_nav_abort(74.0) is False
+    assert [s.take_nav_abort(80.0) for _ in range(3)] == [True, True, False]
+
+
+def test_a_nav_abort_given_back_is_taken_by_the_next_goal():
+    """중단 전에 대체되거나 취소된 목표는 고장 횟수를 돌려준다."""
+    s = FaultSchedule(faults(), "pinky2")
+    assert [s.take_nav_abort(80.0) for _ in range(2)] == [True, True]
+    s.give_back_nav_abort(s.last_taken)
+    assert [s.take_nav_abort(81.0) for _ in range(2)] == [True, False]
+
+
+def test_a_nav_abort_is_given_back_to_the_schedule_that_goal_used():
+    """일정이 겹치면 조건에 맞는 첫 일정이 아니라 그 목표가 쓴 일정에 돌려준다(Codex 5)."""
+    s = FaultSchedule([Fault(at_s=0, robot="pinky1", type="nav_abort", count=1),
+                       Fault(at_s=0, robot="pinky1", type="nav_abort", count=1, target="F2")],
+                      "pinky1")
+    assert s.take_nav_abort(1.0, "F2") is True  # 첫 일정(대상 없음)
+    assert s.take_nav_abort(2.0, "F2") is True  # F2 일정
+    s.give_back_nav_abort(s.last_taken)  # 두 번째 목표가 대체됐다
+    assert s.take_nav_abort(3.0, "W") is False, "the plain schedule was used up"
+    assert s.take_nav_abort(4.0, "F2") is True
+
+
+def test_nav_abort_with_a_target_hits_only_goals_to_that_waypoint():
+    s = FaultSchedule([Fault(at_s=0, robot="pinky1", type="nav_abort", count=2, target="F2")],
+                      "pinky1")
+    assert s.take_nav_abort(5.0, "F1") is False
+    assert s.take_nav_abort(6.0, "F2") is True
+    assert s.take_nav_abort(7.0, "W") is False
+    assert [s.take_nav_abort(8.0, "F2") for _ in range(2)] == [True, False]
+
+
+def test_nav_abort_without_a_target_hits_any_goal():
+    s = FaultSchedule(faults(), "pinky2")
+    assert s.take_nav_abort(80.0, "W") is True
+
+
+def test_stuck_never_recovers_and_is_per_robot():
+    s = FaultSchedule(faults(), "pinky2")
+    assert not s.stuck(89.0) and s.stuck(90.0) and s.stuck(1e6)
+    assert FaultSchedule(faults(), "pinky3").stuck(1e6) is False
+
+
+def test_an_obstacle_is_there_for_its_window_and_only_for_its_robot():
+    s = FaultSchedule([Fault(at_s=8, robot="pinky1", type="blocked", duration_s=15)], "pinky1")
+    assert [s.obstacle(t) for t in (7.9, 8.0, 22.9, 23.0)] == [False, True, True, False]
+    assert not s.comms_down(10.0) and not s.stuck(10.0)
+    other = FaultSchedule([Fault(at_s=8, robot="pinky1", type="blocked", duration_s=15)], "pinky2")
+    assert not other.obstacle(10.0)
+
+
+def test_an_obstacle_stays_where_the_robot_was_taken_off_the_course():
+    """치운 뒤에는 앞 물체가 따라오지 않는다(수정 리뷰)."""
+    block = Fault(at_s=8, robot="pinky1", type="blocked", duration_s=15)
+    removed = FaultSchedule([block, Fault(at_s=10, robot="pinky1", type="operator_remove")],
+                            "pinky1")
+    assert [removed.obstacle(t) for t in (9.0, 10.0, 12.0)] == [True, False, False]
+    assert FaultSchedule([block], "pinky1").obstacle(12.0)
+    later = FaultSchedule([Fault(at_s=5, robot="pinky1", type="operator_remove"), block],
+                          "pinky1")
+    assert later.obstacle(12.0), "a block after the removal still counts"
+
+
+def test_operator_remove_is_per_robot_and_lasts():
+    s = FaultSchedule([Fault(at_s=60, robot="pinky1", type="operator_remove")], "pinky1")
+    assert not s.removed(59.9) and s.removed(60.0) and s.removed(1e6)
+    other = FaultSchedule([Fault(at_s=60, robot="pinky1", type="operator_remove")], "pinky2")
+    assert not other.removed(1e6)
+
+
+def test_operator_reinstate_ends_a_removal_until_the_next_one():
+    own = [Fault(at_s=60, robot="pinky1", type="operator_remove"),
+           Fault(at_s=100, robot="pinky1", type="operator_reinstate", start=(3, 4)),
+           Fault(at_s=200, robot="pinky1", type="operator_remove")]
+    s = FaultSchedule(own, "pinky1")
+    assert s.removed(60.0) and s.removed(99.9)
+    assert not s.removed(100.0) and not s.removed(199.9)
+    assert s.removed(200.0) and s.removed(1e6)
+    assert s.put_back(99.9) is None and s.put_back(100.0) == (3, 4)
+    assert s.put_back(150.0) == (3, 4) and s.put_back(200.0) is None
+    assert FaultSchedule(own, "pinky2").put_back(150.0) is None
+
+
+def test_a_reinstate_ends_a_stuck_before_it_and_not_one_after_it():
+    """운영자가 고쳐 다시 넣었다. 그 뒤의 stuck은 다시 멈춘다(리뷰 5번)."""
+    own = [Fault(at_s=5, robot="pinky1", type="stuck"),
+           Fault(at_s=10, robot="pinky1", type="operator_remove"),
+           Fault(at_s=20, robot="pinky1", type="operator_reinstate", start=(3, 4)),
+           Fault(at_s=30, robot="pinky1", type="stuck")]
+    s = FaultSchedule(own, "pinky1")
+    assert s.stuck(5.0) and s.stuck(19.9)
+    assert not s.stuck(20.0) and not s.stuck(29.9)
+    assert s.stuck(30.0)
+
+
+def test_arm_fail_counts_down_per_arm_after_its_start_time():
+    f = ArmFaults([Fault(at_s=5, type="arm_fail", arm="arm1", count=2)])
+    assert f.take_arm_fail("arm1", 4.9, 1) is None
+    assert f.take_arm_fail("arm2", 6.0, 1) is None
+    assert [f.take_arm_fail("arm1", 6.0, 1) for _ in range(3)] == [0, 0, None]
+
+
+def test_arm_fail_is_not_used_up_by_a_goal_too_short_to_reach_it():
+    f = ArmFaults([Fault(at_s=0, type="arm_fail", arm="arm1", after_items=1)])
+    assert f.take_arm_fail("arm1", 1.0, 1) is None
+    assert f.take_arm_fail("arm1", 1.0, 2) == 1
+    assert f.take_arm_fail("arm1", 1.0, 2) is None
+
+
+def test_swap_partial_counts_down_after_its_start_time():
+    f = ArmFaults([Fault(at_s=5, type="swap_partial", count=1)])
+    assert f.take_swap_partial(4.0) is False
+    assert [f.take_swap_partial(6.0) for _ in range(2)] == [True, False]
+
+
+class _Handle:
+    def __init__(self, cancel_requested):
+        self.is_cancel_requested = cancel_requested
+        self.calls = []
+
+    def canceled(self):
+        self.calls.append("canceled")
+
+    def succeed(self):
+        self.calls.append("succeed")
+
+    def abort(self):
+        self.calls.append("abort")
+
+
+def test_goal_that_already_succeeded_is_not_reported_as_canceled():
+    handle = _Handle(cancel_requested=True)
+    finish_action(handle, success=True)
+    assert handle.calls == ["succeed"]
+
+
+def test_canceled_and_failed_goals_keep_their_action_status():
+    handle = _Handle(cancel_requested=True)
+    finish_action(handle, success=False)
+    assert handle.calls == ["canceled"]
+    handle = _Handle(cancel_requested=False)
+    finish_action(handle, success=False)
+    assert handle.calls == ["abort"]
+
+
+def test_abort_at_shutdown_survives_a_context_that_is_already_gone():
+    class Gone:
+        aborted = False
+
+        def abort(self):
+            self.aborted = True
+            raise RuntimeError("feedback publisher is invalid")
+
+    handle = Gone()
+    abort_at_shutdown(handle)
+    assert handle.aborted
+
+
+def test_drift_pushes_the_report_only_inside_its_window_and_per_robot():
+    drift = [Fault(at_s=10, robot="pinky1", type="drift", duration_s=5, offset_m=0.3)]
+    s = FaultSchedule(drift, "pinky1")
+    assert [s.drift(t) for t in (9.9, 10.0, 14.9, 15.0)] == [0.0, 0.3, 0.3, 0.0]
+    assert FaultSchedule(drift, "pinky2").drift(12.0) == 0.0
+
+
+def test_a_drifted_report_is_to_the_left_of_the_heading():
+    assert drifted(1.0, 2.0, 0.0, 0.3) == pytest.approx((1.0, 2.3))
+    assert drifted(1.0, 2.0, math.pi / 2, 0.3) == pytest.approx((0.7, 2.0))
+    assert drifted(1.0, 2.0, 1.0, 0.0) == (1.0, 2.0)
+
+
+def test_path_gap_is_the_distance_to_the_nearest_segment_of_the_path():
+    """지시서 7.5의 연결 검사: 로봇 자리에서 받은 path까지의 수직 거리."""
+    assert path_gap(0.5, 0.1, [(0.0, 0.0), (1.0, 0.0)]) == pytest.approx(0.1)
+    assert path_gap(1.0, 0.5, [(0.0, 0.0), (1.0, 0.0), (1.0, 1.0)]) == pytest.approx(0.0)
+    assert path_gap(2.0, 0.0, [(0.0, 0.0), (1.0, 0.0)]) == pytest.approx(1.0)  # 끝을 지남
+    assert path_gap(0.0, 0.3, [(0.0, 0.0)]) == pytest.approx(0.3)  # 점 하나
+
+
+def test_travelled_is_the_length_driven_along_the_path_since_the_goal():
+    m = Motion(0.0, 0.0)
+    m.set_target(1.0, 1.0, via=[(1.0, 0.0)])
+    assert m.travelled == 0.0
+    m.step(1.0, 1.2)
+    assert m.travelled == pytest.approx(1.2)
+    m.set_target(1.0, 2.0)  # 새 목표는 지금 자리에서 다시 잰다
+    assert m.travelled == 0.0
+
+
+def test_backing_up_retraces_the_path_round_a_corner_and_drives_it_again():
+    m = Motion(0.0, 0.0)
+    m.set_target(1.0, 1.0, via=[(1.0, 0.0)])
+    m.step(1.0, 1.2)
+    yaw = m.yaw
+    m.back(0.3)
+    assert (m.x, m.y) == pytest.approx((0.9, 0.0))
+    assert m.travelled == pytest.approx(0.9)
+    assert m.yaw == yaw, "it backs up without turning"
+    assert m.remaining() == pytest.approx(1.1)
+    m.step(1.0, 0.3)
+    assert (m.x, m.y) == pytest.approx((1.0, 0.2))
+
+
+def test_backing_up_never_goes_past_where_the_goal_started():
+    m = Motion(0.5, 0.0)
+    m.set_target(2.0, 0.0)
+    m.step(1.0, 0.2)
+    m.back(1.0)
+    assert (m.x, m.y) == pytest.approx((0.5, 0.0)) and m.travelled == 0.0
+
+
+def test_a_step_can_be_limited_to_a_distance():
+    m = Motion(0.0, 0.0)
+    m.set_target(2.0, 0.0)
+    m.step(1.0, 0.5, limit=0.1)
+    assert m.x == pytest.approx(0.1)
+
+
+def flat(points):
+    return [c for p in points for c in p]
+
+
+def test_the_way_back_is_the_path_behind_the_robot():
+    m = Motion(0.0, 0.0)
+    m.set_target(1.0, 1.0, via=[(1.0, 0.0)])
+    m.step(1.0, 1.2)
+    assert flat(m.way_back(0.3)) == pytest.approx([1.0, 0.2, 1.0, 0.0, 0.9, 0.0])
+    assert flat(m.way_back(0.1)) == pytest.approx([1.0, 0.2, 1.0, 0.1])
+
+
+def test_an_obstacle_behind_is_there_for_its_window_at_its_distance():
+    s = FaultSchedule([Fault(at_s=5, robot="pinky1", type="obstacle_behind", duration_s=10,
+                             distance_m=0.2)], "pinky1")
+    assert [s.behind(t) for t in (4.9, 5.0, 14.9, 15.0)] == [None, 0.2, 0.2, None]
+    assert not s.obstacle(10.0), "it is not ahead"
+
+
+def test_the_distance_from_the_last_vertex_passed():
+    m = Motion(0.0, 0.0)
+    m.set_target(1.0, 1.0, via=[(1.0, 0.0)])
+    assert m.since_vertex == 0.0
+    m.step(1.0, 0.6)
+    assert m.since_vertex == pytest.approx(0.6)  # path 첫 점(로봇 자리)부터
+    m.step(1.0, 0.6)
+    assert m.since_vertex == pytest.approx(0.2)  # 모서리 (1, 0)부터
+    m.back(0.3)
+    assert m.since_vertex == pytest.approx(0.9)
+
+
+def test_a_path_that_starts_behind_the_robot_counts_from_its_first_point():
+    """path 모드: 첫 점과 이미 지난 꼭짓점도 지나온 꼭짓점이다."""
+    m = Motion(0.3, 0.0)
+    m.set_target(2.0, 0.0, start=(0.0, 0.0))
+    assert m.since_vertex == pytest.approx(0.3)
+    m = Motion(1.0, 0.2)
+    m.set_target(1.0, 1.0, via=[(1.0, 0.0)], start=(0.0, 0.0))  # 모서리는 이미 지났다
+    assert m.since_vertex == pytest.approx(0.2)
+    assert m.travelled == pytest.approx(1.2)
+
+
+def test_a_robot_two_vertices_on_starts_on_its_own_segment():
+    """path 위 가장 가까운 점으로 시작한다(pinky_fsm과 같다). 지난 꼭짓점을 되돌아가지 않는다."""
+    m = Motion(1.5, 1.0)
+    m.set_target(2.0, 1.0, via=[(1.0, 0.0), (1.0, 1.0)], start=(0.0, 0.0))
+    assert m.via == []
+    assert m.since_vertex == pytest.approx(0.5)  # 꼭짓점 (1, 1)부터
+    assert m.travelled == pytest.approx(2.5)
+    m.step(1.0, 0.1)
+    assert (m.x, m.y) == pytest.approx((1.6, 1.0))
+
+
+def test_a_robot_on_a_vertex_counts_it_as_passed():
+    m = Motion(1.0, 0.0)
+    m.set_target(1.0, 1.0, via=[(1.0, 0.0)], start=(0.0, 0.0))
+    assert m.via == [] and m.since_vertex == 0.0

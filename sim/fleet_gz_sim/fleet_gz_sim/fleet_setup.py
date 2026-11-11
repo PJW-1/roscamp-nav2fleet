@@ -1,0 +1,118 @@
+"""gz.launch.py가 시나리오에서 정하는 것. ROS 없이 돈다(fleet_core, fake_robots의 순수 파이썬만).
+
+- 핑키를 놓는 자리: 시나리오의 시작 지점. 방향은 그 지점으로 들어오는 레인 방향
+  (대기 줄을 따라 들어와 섰다).
+- 돌릴 수 없는 시나리오: 로봇 고장이 있는 것(가짜 핑키가 일으키는 고장이라 진짜 pinky_fsm에는
+  일으킬 곳이 없다). low_battery는 된다: sim_stand_in이 배터리 토픽으로 낸다.
+- 경기장: 시나리오의 `map`이 없으면 lane_arena(기본 레인 지도), 있으면 그 이름의 월드·지도·레인
+  지도(arena_for).
+"""
+from __future__ import annotations
+
+import math
+from dataclasses import dataclass
+from pathlib import Path
+
+import yaml
+from fake_robots.scenario import ROBOT_FAULTS, load_scenario, scenario_map_file
+from fleet_core.traffic.lane_map import load_lane_map
+
+
+def load_zone_space(lane_map_file: str = "", params_file: str = ""):
+    """What /fleet/zones names mean for the run: the lane map, or lane map + free-floor cells.
+
+    Follows traffic_mode in the fleet params file, as fleet_manager does. Empty means installed.
+    """
+    from fleet_core.common.params import load_params
+    from fleet_core.traffic.modes import zone_space
+    return zone_space(load_lane_map(lane_map_file or None), load_params(params_file or None))
+
+
+class ScenarioUnfit(RuntimeError):
+    """Gazebo 경기장에서 돌릴 수 없는 시나리오."""
+
+
+def scenario_path(value: str, *shares: str | Path) -> Path:
+    """파일 경로이거나, 주어진 패키지 share의 scenarios 폴더에 있는 이름(앞 share가 먼저)."""
+    path = Path(value)
+    if path.is_file():
+        return path
+    name = value if value.endswith(".yaml") else value + ".yaml"
+    folders = [Path(share) / "scenarios" for share in shares]
+    for folder in folders:
+        if (folder / name).is_file():
+            return folder / name
+    where = ", ".join(str(folder) for folder in folders)
+    raise ScenarioUnfit(f"scenario {value!r} is nowhere: not a file and not in {where}")
+
+
+def obstacles_path(value: str, share: str | Path) -> str:
+    """gz.launch.py의 obstacles 인자. 비면 장애물 없음, 아니면 파일이나 share/obstacles의 이름."""
+    from fleet_gz_sim.obstacles import ScheduleError
+    if not value:
+        return ""
+    if Path(value).is_file():
+        return value
+    name = value if value.endswith(".yaml") else value + ".yaml"
+    path = Path(share) / "obstacles" / name
+    if not path.is_file():
+        raise ScheduleError(f"obstacle schedule {value!r} is nowhere: not a file and not in "
+                            f"{path.parent}")
+    return str(path)
+
+
+@dataclass(frozen=True)
+class Arena:
+    """시나리오가 돌 경기장: Gazebo 월드, Nav2 지도 둘, 관제 레인 지도(""는 기본 지도)."""
+    name: str
+    world: str
+    nav_map: str
+    nav_map_fine: str
+    lane_map: str
+
+
+def arena_for(scenario_file, gz_share: str | Path, fake_share: str | Path) -> Arena:
+    """시나리오의 `map`이 없으면 lane_arena, 있으면 arena.py가 sites/<map>.yaml로 만든 월드와
+    지도, 그리고 fake_robots/maps/<map>.yaml 레인 지도."""
+    data = yaml.safe_load(Path(scenario_file).read_text(encoding="utf-8")) or {}
+    name = data.get("map") or ""
+    gz = Path(gz_share)
+    arena = name or "lane_arena"
+    found = Arena(arena, str(gz / "worlds" / f"{arena}.sdf"), str(gz / "maps" / f"{arena}.yaml"),
+                  str(gz / "maps" / f"{arena}_fine.yaml"),
+                  str(Path(fake_share) / "maps" / f"{name}.yaml") if name else "")
+    missing = [p for p in (found.world, found.nav_map, found.nav_map_fine, found.lane_map)
+               if p and not Path(p).is_file()]
+    if missing:
+        raise ScenarioUnfit(f"{Path(scenario_file).name} wants map {name!r}, but there is no "
+                            f"{', '.join(missing)} (python3 -m fleet_gz_sim.arena --site {name})")
+    return found
+
+
+ARENA_FAULTS = ("low_battery",)  # 경기장에서도 일으킬 수 있는 로봇 고장(sim_stand_in)
+
+
+def load(path, lane_map_file: str = "", seed: int | None = None):
+    """(레인 지도, 시나리오). 레인 지도는 lane_map_file, 비면 시나리오의 map(fake_robots의
+    지도), 그것도 없으면 기본 지도. seed: random 블록을 풀 seed(None이면 파일의 seed).
+    경기장에서 돌릴 수 없으면 ScenarioUnfit."""
+    name = Path(path).name
+    site = load_lane_map(lane_map_file or scenario_map_file(path) or None)
+    scenario = load_scenario(path, site, seed)
+    faults = sorted({f.type for f in scenario.faults
+                     if f.type in ROBOT_FAULTS and f.type not in ARENA_FAULTS})
+    if faults:
+        raise ScenarioUnfit(f"{name} has robot faults {faults}; only fake pinkys can make them")
+    return site, scenario
+
+
+def start_poses(site, scenario) -> dict[str, tuple[float, float, float]]:
+    """로봇마다 (x, y, yaw). 들어오는 레인이 없으면 나가는 레인 방향, 둘 다 없으면 0."""
+    poses = {}
+    for robot, cfg in scenario.robots.items():
+        x, y = site.waypoint_pose(cfg.start)
+        lanes = ([lane for lane in site.lanes.values() if lane.b == cfg.start]
+                 or [lane for lane in site.lanes.values() if lane.a == cfg.start])
+        yaw = math.atan2(lanes[0].uy, lanes[0].ux) if lanes else 0.0
+        poses[robot] = (x, y, yaw)
+    return poses
