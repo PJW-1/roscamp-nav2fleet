@@ -1,0 +1,5 @@
+# 급행 한가운데(X_W-X_E의 절반, (0.99, 0.89))에 0.08 m 상자 하나를 처음부터 600 s 동안 둔다.
+# 충돌 검사가 고정 경로 위 장애물 앞에서 로봇을 세우는지 보는 데 쓴다(one_pinky obstacles:=d2_express_box).
+size_m: [0.08, 0.08, 0.25]
+obstacles:
+  - {at_s: 1, link: [X_W, X_E], fraction: 0.5, duration_s: 600}

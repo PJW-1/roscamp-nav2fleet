@@ -143,6 +143,20 @@ def test_every_controller_checks_collisions_even_if_the_base_file_turned_it_off(
         assert _rpp(sim, name)["use_collision_detection"] is True, name
 
 
+def test_overrides_go_deep_and_cannot_turn_the_collision_check_off(tmp_path):
+    local = {"resolution": 0.01, "obstacle_layer": {"scan": {"obstacle_min_range": 0.1}}}
+    overrides = {"local_costmap": {"local_costmap": {"ros__parameters": local}},
+                 "controller_server": {"ros__parameters": {
+                     "FollowPath": {"use_collision_detection": False}}}}
+    sim = yaml.safe_load(launch_parts.sim_nav_params(NAV, tmp_path / "o.yaml", overrides=overrides)
+                         .read_text(encoding="utf-8"))
+    params = sim["local_costmap"]["local_costmap"]["ros__parameters"]
+    assert params["resolution"] == 0.01
+    assert params["obstacle_layer"]["scan"]["obstacle_min_range"] == 0.1
+    assert params["obstacle_layer"]["scan"]["topic"]  # the rest of the layer stays
+    assert _rpp(sim, "FollowPath")["use_collision_detection"] is True
+
+
 def test_a_base_file_without_one_of_the_controllers_is_refused(tmp_path):
     base = yaml.safe_load(NAV.read_text(encoding="utf-8"))
     del base["controller_server"]["ros__parameters"]["FollowPathGoal"]
