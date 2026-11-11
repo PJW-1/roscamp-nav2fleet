@@ -179,6 +179,7 @@ def move_goal(cmd) -> MoveTo.Goal:
     goal.target_pose.y = float(cmd.y)
     goal.target_pose.theta = float(cmd.yaw)
     goal.path = _poses(cmd.path)  # 비면 점 목표
+    goal.mode = cmd.mode  # follow_path 또는 nav_goal(계약 0.11-draft 제안)
     return goal
 
 

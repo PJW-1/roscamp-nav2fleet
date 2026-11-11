@@ -92,6 +92,25 @@ class FleetParams:
     floor_retreat_after_s: float = 10.0  # 이만큼 막혀 서 있으면 물러난다
     floor_retreat_speed_mps: float = 0.05  # 물러나는 속도
     floor_retreat_max_m: float = 1.0  # 한 번에 물러나는 가장 긴 거리
+    # 구역 교통 층(traffic/zone). 모두 제안값이고 실측 전이다
+    nav_speed_mps: float = 0.12  # 넓은 구역(Nav2 goal)의 ETA와 길 비용에 쓰는 속도
+    follow_speed_mps: float = 0.12  # 고정 경로(FollowPath)의 같은 값
+    retreat_speed_mps: float = 0.05  # 후진(Retreat) 속도
+    zone_clear_m: float = 0.10  # 보고 위치가 뒤 구역에서 이만큼 벗어나면 그 구역을 놓는다
+    node_clear_m: float = 0.20  # 뒤 지점에서 이만큼 멀어지면 그 지점을 놓는다
+    lane_follow_gap_s: float = 4.0  # 앞 로봇이 한 줄 구역에 들어간 뒤 이만큼 지나야 뒤따른다
+    lane_hysteresis_s: float = 5.0  # 반대쪽이 이만큼 더 빨리 닿을 때만 방향을 바꾼다
+    lane_handover_s: float = 30.0  # 이만큼 기다린 쪽에 방향을 넘긴다
+    dock_wait_estimate_s: float = 30.0  # 찬 도크를 기다리는 예상 시간(길 비용)
+    blocked_retry_s: float = 60.0  # 막힘으로 표시한 연결을 이만큼 뒤 다시 써 본다
+    near_m: float = 0.30  # 넓은 구역에서 두 로봇이 이만큼 가까이
+    near_stuck_s: float = 5.0  # 이만큼 못 나아가면 우선순위 낮은 쪽이 비킨다
+    outside_zone_m: float = 0.05  # 쥔 구역 밖으로 이만큼 벗어난 보고가
+    outside_zone_samples: int = 5  # 이만큼 이어지면 OUTSIDE_ZONE
+    # order 모델(VDA 5050의 base/horizon, 추가 지시서). 끄면 조각 하나씩 보낸다
+    use_order_model: bool = False
+    lookahead_s: float = 2.0  # base 끝까지 이만큼 남으면 다음 구역을 잡아 본다
+    comm_base_hold_extra_s: float = 3.0  # 끊긴 로봇의 base 구역을 base 끝 ETA + 이만큼 쥔다
 
 
 def load_params(path=None) -> FleetParams:

@@ -93,5 +93,9 @@ def load_fleet_map(layout=None) -> FleetMap:
         path = DATA / f"fleet_map_{name}.yaml"
     if not path.is_file():
         raise FleetMapError(f"no fleet map at {path}")
-    text = path.read_text(encoding="utf-8")
+    return fleet_map_from_text(path.read_text(encoding="utf-8"))
+
+
+def fleet_map_from_text(text: str) -> FleetMap:
+    """지도 파일의 본문으로 만든다. 기록 첫 줄의 지도(source_text)로 재생할 때 쓴다."""
     return FleetMap(yaml.safe_load(text), source_text=text)

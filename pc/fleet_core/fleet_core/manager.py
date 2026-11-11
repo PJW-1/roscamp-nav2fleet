@@ -1,4 +1,6 @@
-"""주문, 교통, 팔 작업 코어를 직접 호출로 잇는다. 셋 사이 명령은 밖에 안 나가고 나머지는 tick()으로 나간다.
+"""주문, 교통, 팔 작업 코어를 직접 호출로 잇는다.
+
+셋 사이 명령은 밖에 안 나가고 나머지는 tick()으로 나간다.
 
 주문이 위에서 정하고 교통(로봇 이동)과 팔 작업(fill, swap)에 요청한다. 교통과 팔은 서로 모른다.
 
@@ -211,7 +213,10 @@ class FleetManager:
             self._pump()
 
     def on_retreat_result(self, robot, goal_id, success, reason="") -> None:
-        """Retreat(물러나기)의 결과. reason: OBSTACLE_BEHIND, TIMEOUT, CANCELED, FAILED(성공은 빈 값)."""
+        """Retreat(물러나기)의 결과.
+
+        reason: OBSTACLE_BEHIND, TIMEOUT, CANCELED, FAILED(성공은 빈 값).
+        """
         self._input("on_retreat_result", robot, goal_id, success, reason)
         if not self._robot_refused("retreat result", robot):
             self.traffic.on_retreat_result(robot, goal_id, success, reason)
@@ -398,6 +403,8 @@ class FleetManager:
                 del fields["path"]  # point 모드 줄은 path가 없던 기록과 같게 쓴다
             if isinstance(item, MoveCmd) and item.final_goal:
                 del fields["final_goal"]  # 마지막 표시는 이 필드가 없던 기록과 같게 쓴다
+            if isinstance(item, MoveCmd) and item.mode == "follow_path":
+                del fields["mode"]  # 기본 방식은 이 필드가 없던 기록과 같게 쓴다
             self._write(json.dumps({"t": self._time, kind: type(item).__name__, **fields}))
 
     def _next_goal_id(self) -> int:

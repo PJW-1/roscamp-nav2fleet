@@ -29,6 +29,9 @@ class MoveCmd:
     path: tuple = ()
     # 끝이 임무의 마지막 지점인가(버전 2 4절 horizon 최소판, 계약 0.8-draft 제안)
     final_goal: bool = True
+    # 가는 방식(계약 0.11-draft 제안). follow_path: path를 FollowPath로 따른다.
+    # nav_goal: (x, y, yaw)로 Nav2 goal을 보내고 로봇이 길을 짠다. path는 비운다
+    mode: str = "follow_path"
 
 
 @dataclass(frozen=True)
