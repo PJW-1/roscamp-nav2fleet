@@ -7,6 +7,7 @@
 | `params/nav2_params.yaml` | 제조사 `pinky_navigation` 설정(pinky_pro 014a09f) 위에 전달사항의 nav2_overrides 값을 덮었다. 바꾼 줄마다 이유가 있다 |
 | `bt/navigate_to_pose_w_replanning_and_recovery_goal.xml` | `navigate_to_pose`용 BT(MoveTo mode `nav_goal`, 계약 0.11-draft 제안). Jazzy 기본 BT를 그대로 옮기고 controller만 `FollowPathGoal`로 바꿨다. 1 Hz 재계획, 복구(지도 지우기, Spin, Wait, BackUp)가 있다(사용자 결정 2026-11-12: `nav_goal`에서만) |
 | `params/keepout.yaml` | keepout 덧붙임(제안). `keepout_mask`가 있을 때만 launch가 덧붙인다: global costmap의 keepout 필터와 두 서버 설정 |
+| `params/vision_obstacles.yaml` | 비전 장애물 자리(제안, 기본 꺼짐). `vision_obstacles:=true`일 때만 launch가 덧붙인다: 두 costmap의 장애물 층에 `/<로봇>/vision_obstacles`(PointCloud2)를 관측원으로 더한다. 값은 회피 담당이 정한다 |
 | `launch/nav2.launch.py` | 지도 서버 둘, AMCL, controller, planner, behavior, bt_navigator, lifecycle manager 둘. `keepout_mask`가 있으면 keepout 마스크 서버, 필터 정보 서버, 그 lifecycle manager를 더한다 |
 | `rviz/pinky_nav.rviz` | 지도, 로봇, 라이다, costmap, AMCL 입자, 따라가는 경로. `<robot_namespace>`는 띄울 때 바꾼다 |
 
@@ -31,6 +32,8 @@ ros2 launch pinky_nav_config nav2.launch.py namespace:=pinky1 \
 ```
 
 `keepout_mask:=<마스크.yaml>`(map_server 형식, 막힌 칸이 keepout)을 주면 keepout을 켠다. 비면(기본) 노드와 파라미터가 keepout 전과 같다.
+
+`vision_obstacles:=true`를 주면 비전 장애물 관측원을 더한다. 기본(false)은 노드와 파라미터가 전과 같다. 마스크는 `python3 tools/make_keepout.py --layout d2 --map <지도.yaml>`로 실제 지도에 맞춰 만든다.
 
 `use_composition:=true`를 주면 노드 아홉(keepout이면 열둘)을 컨테이너(`component_container_isolated`) 한 프로세스에 올린다. 한 PC에 Gazebo 핑키 여럿을 띄우면 LOCALHOST discovery가 볼 수 있는 프로세스 수(약 32)를 넘기 때문이다. 이름, 파라미터, TF remap은 같고 기본값(false)은 노드마다 프로세스다.
 
