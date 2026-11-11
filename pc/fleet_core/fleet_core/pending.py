@@ -18,19 +18,16 @@ WAITING = {
     **dict.fromkeys((("fleet_core", name) for name in (
         "test_auto_isolation.py", "test_battery_charge.py", "test_deadlock_cycle.py",
         "test_final_goal.py", "test_fleet_e2e.py", "test_fleet_fuzz.py", "test_fleet_unit.py",
-        "test_goal_retry.py", "test_idle_watch.py", "test_input_reject.py", "test_manager.py",
+        "test_goal_retry.py", "test_idle_watch.py",
         "test_path_connection.py", "test_queue_exit.py", "test_record_replay.py",
         "test_reinstate.py", "test_retreat_plumbing.py", "test_self_recovery.py",
         "test_sim_battery.py", "test_sim_world_object.py", "test_sim_world_retreat.py",
         "test_stall_watch.py", "test_traffic_controller.py")), NEEDS_ZONE_TRAFFIC),
     ("fleet_core", "test_selector.py"): NEEDS_FLEET_MAP,
-    **dict.fromkeys((("fake_robots", name) for name in (
-        "test_judge.py", "test_safety_meter.py", "test_scenario.py", "test_ros_arm.py",
-        "test_ros_central.py", "test_ros_check_interfaces.py", "test_ros_monitor.py",
-        "test_ros_pinky.py", "test_ros_workcell.py")), NEEDS_FLEET_MAP),
+    # 구역 교통 층에서 돌려 본 결과: 시나리오 기대(주차 판정, 사건 수)가 옛 차선 관제의 것이다.
+    # 무엇이 틀리는지는 world 보고서에 있다.
     **dict.fromkeys((("fleet_manager", name) for name in (
-        "test_node_wiring.py", "test_fms_restart.py", "test_scenario_integration.py")),
-        NEEDS_ZONE_TRAFFIC),
+        "test_fms_restart.py", "test_scenario_integration.py")), NEEDS_ZONE_TRAFFIC),
 }
 
 

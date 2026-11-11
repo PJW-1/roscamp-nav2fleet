@@ -3,7 +3,7 @@
 # pinky2는 이미 OUTBOUND에 도킹해 O-002를 출고한 뒤, 빈 바구니로 도크에서 AVENUE를 기다린다.
 # pinky3은 O-003을 쥔 채 채움 도크에서 AVENUE를 기다려 찬 바구니가 나가지 못한다.
 # 더는 출고할 수 없다: 출고 2건, 로봇에 걸린 것 1건, 미배정 3건.
-# 플릿 매니저는 경고(pinky1은 COMM_LOST, 뒤의 둘은 ZONE_WAIT_LONG)를 내고 구역을 계속 쥐어야 한다.
+# 플릿 매니저는 경고(pinky1은 COMM_LOST, 뒤의 둘은 ZONE_WAIT)를 내고 구역을 계속 쥐어야 한다.
 seed: 5
 speed_factor: 5.0
 timeout_s: 400
@@ -16,9 +16,9 @@ orders:
   - {at_s: 40, id: O-005, items: {B: 2, C: 2}}
   - {at_s: 60, id: O-006, items: {D: 1}}
 robots:
-  pinky1: {start: P-6, speed_mps: 0.20, pose_noise_m: 0.03}
-  pinky2: {start: P-5, speed_mps: 0.18, pose_noise_m: 0.03}
-  pinky3: {start: P-4, speed_mps: 0.20, pose_noise_m: 0.03}
+  pinky1: {start: P-1, speed_mps: 0.20, pose_noise_m: 0.03}
+  pinky2: {start: P-2, speed_mps: 0.18, pose_noise_m: 0.03}
+  pinky3: {start: P-3, speed_mps: 0.20, pose_noise_m: 0.03}
 arm: {seconds_per_item: 4.0, swap_seconds: 8.0, fail_rate: 0.0}
 dock: {duration_s: 3.0, error_cm: 1.0}
 faults:
@@ -34,7 +34,7 @@ expect:
   zone_holder_max: 1
   released_without_position_check: 0
   unheld_zone_pose: 0
-  events_include: [COMM_LOST, ZONE_WAIT_LONG]
-  event_counts: {COMM_LOST: 1, ZONE_WAIT_LONG: 2, ROBOT_NOT_REPORTING: 0}
+  events_include: [COMM_LOST, ZONE_WAIT]
+  event_counts: {COMM_LOST: 1, ROBOT_NOT_REPORTING: 0}
   timed_out: true
   order_results: {O-001: SHIPPED, O-002: SHIPPED}

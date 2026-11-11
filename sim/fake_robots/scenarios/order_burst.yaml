@@ -19,9 +19,9 @@ orders:
   - {at_s: 120, id: O-009, items: {C: 1, B: 1}}
   - {at_s: 120, id: O-010, items: {D: 2}}
 robots:
-  pinky1: {start: P-6, speed_mps: 0.20, pose_noise_m: 0.03}
-  pinky2: {start: P-5, speed_mps: 0.18, pose_noise_m: 0.03}
-  pinky3: {start: P-4, speed_mps: 0.20, pose_noise_m: 0.03}
+  pinky1: {start: P-1, speed_mps: 0.20, pose_noise_m: 0.03}
+  pinky2: {start: P-2, speed_mps: 0.18, pose_noise_m: 0.03}
+  pinky3: {start: P-3, speed_mps: 0.20, pose_noise_m: 0.03}
 arm: {seconds_per_item: 4.0, swap_seconds: 8.0, fail_rate: 0.0}
 dock: {duration_s: 3.0, error_cm: 1.0}
 faults: []
@@ -38,6 +38,6 @@ expect:
   direct_returns_min: 7
   parked_while_backlog: 0
   events_include: [ORDER_BOUND, ORDER_SHIPPED]
-  event_counts: {ORDER_BOUND: 10, COMM_LOST: 0, GOAL_RETRY: 0, ZONE_WAIT_LONG: 0, ROBOT_NOT_REPORTING: 0}
+  event_counts: {ORDER_BOUND: 10, COMM_LOST: 0, GOAL_RETRY: 0, ROBOT_NOT_REPORTING: 0}
   order_results: {O-001: SHIPPED, O-002: SHIPPED, O-003: SHIPPED, O-004: SHIPPED, O-005: SHIPPED,
                   O-006: SHIPPED, O-007: SHIPPED, O-008: SHIPPED, O-009: SHIPPED, O-010: SHIPPED}

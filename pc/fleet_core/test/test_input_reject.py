@@ -12,10 +12,10 @@ import pytest
 from core_helpers import cmds, codes
 from fleet_core.common.commands import DispatchResult, OrderRecord
 from fleet_core.common.params import load_params
+from fleet_core.fleet_map import load_fleet_map
 from fleet_core.manager import FleetManager
 from fleet_core.orders.orchestrator import OrderOrchestrator
-from fleet_core.traffic.controller import TrafficController
-from fleet_core.traffic.lane_map import load_lane_map
+from fleet_core.traffic.zone.controller import ZoneTraffic
 
 REPO = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(REPO / "tools"))
@@ -24,22 +24,22 @@ import replay  # noqa: E402
 
 O1 = OrderRecord("O-001", {"A": 1})
 O2 = OrderRecord("O-002", {"B": 2})
-SPOTS = {"pinky1": "P-6", "pinky2": "P-5"}
+SPOTS = {"pinky1": "P-1", "pinky2": "P-2"}  # 둘 다 HALL
 
 
 def make(robots=SPOTS, board=True):
     now = [0.0]
-    core = FleetManager(load_lane_map(), load_params(), list(robots), lambda: now[0])
-    for robot, waypoint in robots.items():
-        report(core, robot, waypoint)
+    core = FleetManager(load_fleet_map("d2"), load_params(), list(robots), lambda: now[0])
+    for robot, node in robots.items():
+        report(core, robot, node)
     if board:
         core.on_order_board("RUN", [])
     core.tick()
     return core, now
 
 
-def report(core, robot, waypoint, robot_id=None):
-    x, y = core.site.waypoint_pose(waypoint)
+def report(core, robot, node, robot_id=None):
+    x, y = core.site.node_pose(node)
     for _ in range(core.params.release_confirm_samples):
         if robot_id is None:
             core.on_robot_state(robot, x, y, 0.0, "IDLE", 90.0)
@@ -64,7 +64,7 @@ def pose_of(core, robot):
 def test_clear_of_an_unknown_robot_is_refused_with_a_reason_and_input_rejected():
     core, _ = make()
     held = core.zones.held_by("pinky1")
-    assert core.confirm_clear("pinky9", ["P-6"], "typo") is None
+    assert core.confirm_clear("pinky9", ["HALL"], "typo") is None
     assert core.last_clear_reason
     assert core.zones.held_by("pinky1") == held
     out = core.tick()
@@ -105,15 +105,15 @@ def test_clear_with_no_zones_while_holding_some_stays_clear_refused_with_a_reaso
 def test_an_accepted_clear_has_no_reason():
     core, _ = make()
     core.confirm_clear("pinky1", ["NOPE"], "typo")
-    assert core.confirm_clear("pinky1", core.zones.held_by("pinky1"), "lifted") == ["P-6"]
+    assert core.confirm_clear("pinky1", core.zones.held_by("pinky1"), "lifted") == ["HALL"]
     assert core.last_clear_reason == ""
 
 
 @pytest.mark.parametrize("robot, zones", [
-    (None, ["P-6"]),
-    (7, ["P-6"]),
+    (None, ["HALL"]),
+    (7, ["HALL"]),
     ("pinky1", None),
-    ("pinky1", "P-6"),
+    ("pinky1", "HALL"),
     ("pinky1", [None]),
     ("pinky1", [""]),
 ])
@@ -127,9 +127,9 @@ def test_clear_with_arguments_of_the_wrong_shape_is_refused(robot, zones):
 
 
 def test_traffic_alone_refuses_an_unknown_robot_or_zone_without_raising():
-    site, params = load_lane_map(), load_params()
-    traffic = TrafficController(site, params, ["pinky1"], lambda: 0.0)
-    assert traffic.confirm_clear("pinky9", ["P-6"]) is None
+    site, params = load_fleet_map("d2"), load_params()
+    traffic = ZoneTraffic(site, params, ["pinky1"], lambda: 0.0)
+    assert traffic.confirm_clear("pinky9", ["HALL"]) is None
     assert traffic.confirm_clear("pinky1", ["NOPE"]) is None
     out = traffic.take_output()
     assert [e.code for e in cmds(out, "EventOut")] == ["INPUT_REJECTED", "INPUT_REJECTED"]
@@ -180,7 +180,7 @@ def test_reinstate_while_the_robot_still_holds_a_zone_is_refused():
     """위치로 풀리지 않는 구역이 남았다. confirm_clear로 먼저 풀어야 한다."""
     core, _ = make()
     core.confirm_clear("pinky2", [], "kept its zone")  # 쥔 구역이 있어 CLEAR_REFUSED
-    core.confirm_clear("pinky2", ["P-3"], "a zone it does not hold")
+    core.confirm_clear("pinky2", ["J_W"], "a zone it does not hold")
     assert core.robot_view("pinky2")["state"] == "OUT_OF_SERVICE"
     assert core.zones.held_by("pinky2")
     assert core.reinstate("pinky2", "EMPTY", "too early") is False
@@ -225,9 +225,9 @@ def test_a_pose_that_is_not_a_number_or_off_the_map_is_dropped(bad):
     assert len(events) == 1 and events[0].robot == "pinky1"
 
 
-def test_a_pose_just_outside_the_waypoints_but_within_the_margin_is_taken():
+def test_a_pose_just_outside_the_map_but_within_the_margin_is_taken():
     core, _ = make()
-    lowest_x = min(x for x, _ in map(core.site.waypoint_pose, core.site.zone_of))
+    lowest_x = core.site.bounds()[0]
     margin = core.params.input_pose_margin_m
     core.on_robot_state("pinky1", lowest_x - margin / 2, 1.0, 0.0, "IDLE", 90.0)
     assert pose_of(core, "pinky1")[0] == lowest_x - margin / 2
@@ -236,7 +236,7 @@ def test_a_pose_just_outside_the_waypoints_but_within_the_margin_is_taken():
 
 def test_a_report_naming_another_robot_is_dropped():
     core, _ = make()
-    x, y = core.site.waypoint_pose("P-4")
+    x, y = core.site.node_pose("P-3")
     before = pose_of(core, "pinky1")
     core.on_robot_state("pinky1", x, y, 0.0, "IDLE", 90.0, "pinky2")
     assert pose_of(core, "pinky1") == before
@@ -246,8 +246,8 @@ def test_a_report_naming_another_robot_is_dropped():
 
 def test_a_report_with_its_own_name_or_none_is_taken():
     core, _ = make()
-    report(core, "pinky1", "P-6", "pinky1")
-    report(core, "pinky1", "P-6", "")
+    report(core, "pinky1", "P-1", "pinky1")
+    report(core, "pinky1", "P-1", "")
     assert not rejected(core.tick())
 
 
@@ -262,7 +262,7 @@ def test_an_unknown_robot_state_is_dropped_and_said_once():
 def test_an_unknown_state_string_and_any_battery_are_still_taken():
     """BLOCKED는 뒤 파트에서 더한다. 배터리는 여기서 판단하지 않는다."""
     core, _ = make()
-    x, y = core.site.waypoint_pose("P-6")
+    x, y = core.site.node_pose("P-1")
     core.on_robot_state("pinky1", x, y, 0.0, "BLOCKED", math.nan)
     assert core.traffic.status_view("pinky1")["fsm_state"] == "BLOCKED"
     assert not rejected(core.tick())
@@ -270,7 +270,7 @@ def test_an_unknown_state_string_and_any_battery_are_still_taken():
 
 def test_a_bad_state_source_is_said_once_until_it_sends_a_good_one():
     core, _ = make()
-    x, y = core.site.waypoint_pose("P-6")
+    x, y = core.site.node_pose("P-1")
     for _ in range(3):
         core.on_robot_state("pinky1", math.nan, y, 0.0, "IDLE", 90.0)
     core.on_robot_state("pinky1", x, y, 0.0, "IDLE", 90.0, "pinky2")  # 다른 이유, 같은 연속
@@ -330,7 +330,7 @@ def test_stop_is_applied_even_with_a_malformed_order():
     core.on_order_board("RUN", [O1])
     for _ in range(3):
         core.tick()
-    assert core.traffic._missions["pinky1"].goal or core.traffic._missions["pinky2"].goal
+    assert any(core.traffic.robot_view(r)["goal_id"] is not None for r in SPOTS)
     core.on_order_board("STOP", [OrderRecord("O-001", {"A": 0})])
     out = core.tick()
     assert not core.traffic.running
@@ -390,8 +390,8 @@ def test_views_of_an_unknown_robot_do_not_raise():
 
 
 def test_traffic_ignores_an_unknown_robot_everywhere():
-    site, params = load_lane_map(), load_params()
-    traffic = TrafficController(site, params, ["pinky1"], lambda: 0.0)
+    site, params = load_fleet_map("d2"), load_params()
+    traffic = ZoneTraffic(site, params, ["pinky1"], lambda: 0.0)
     traffic.on_robot_state("ghost", 1.0, 1.0, 0.0, "IDLE")
     traffic.on_release("ghost")
     traffic.on_robot_fault("ghost", "why")
@@ -402,14 +402,18 @@ def test_traffic_ignores_an_unknown_robot_everywhere():
     traffic.step("ghost")
     assert traffic.available("ghost") is False
     assert traffic.robot_view("ghost") == {}
-    assert traffic.status_view("ghost") == {}
     traffic.on_dispatch(5, "OUTBOUND", "ghost")
     assert traffic.take_output() == [DispatchResult(5, False, "ghost", "NO_SUCH_ROBOT")]
     assert traffic.robots == ["pinky1"]
 
 
+def test_the_status_of_an_unknown_robot_is_empty():
+    traffic = ZoneTraffic(load_fleet_map("d2"), load_params(), ["pinky1"], lambda: 0.0)
+    assert traffic.status_view("ghost") == {}
+
+
 def test_orchestrator_ignores_an_unknown_robot_everywhere():
-    site, params = load_lane_map(), load_params()
+    site, params = load_fleet_map("d2"), load_params()
     orders = OrderOrchestrator(site.stations, params, ["pinky1"], lambda: 0.0)
     orders.on_dispatch_result(5, True, "ghost")
     orders.on_robot_removed("ghost")
@@ -424,11 +428,11 @@ def test_orchestrator_ignores_an_unknown_robot_everywhere():
 
 def test_a_run_with_rejected_inputs_plays_back_the_same(tmp_path):
     now = [0.0]
-    core = FleetManager(load_lane_map(), load_params(), list(SPOTS), lambda: now[0])
+    core = FleetManager(load_fleet_map("d2"), load_params(), list(SPOTS), lambda: now[0])
     lines = []
     core.record_to(lines.append)
-    for robot, waypoint in SPOTS.items():
-        report(core, robot, waypoint, robot)
+    for robot, node in SPOTS.items():
+        report(core, robot, node, robot)
     core.on_order_board("RUN", [O1])
     core.on_robot_state("pinky1", math.nan, 1.0, 0.0, "IDLE", 90.0, "pinky1")
     core.on_robot_state("pinky1", 1.0, 1.0, math.inf, "IDLE", 90.0, "pinky2")
@@ -451,11 +455,11 @@ def test_a_run_with_rejected_inputs_plays_back_the_same(tmp_path):
 def _recorded():
     """기록을 켜고 주문 하나로 시작한 코어."""
     now = [0.0]
-    core = FleetManager(load_lane_map(), load_params(), list(SPOTS), lambda: now[0])
+    core = FleetManager(load_fleet_map("d2"), load_params(), list(SPOTS), lambda: now[0])
     lines = []
     core.record_to(lines.append)
-    for robot, waypoint in SPOTS.items():
-        report(core, robot, waypoint)
+    for robot, node in SPOTS.items():
+        report(core, robot, node)
     core.on_order_board("RUN", [O1])
     for _ in range(3):
         now[0] += 0.1
@@ -499,7 +503,7 @@ def test_a_board_of_the_wrong_shape_plays_back_the_same(tmp_path, orders):
 
 def test_a_robot_id_that_is_not_a_string_plays_back_the_same(tmp_path):
     core, now, lines = _recorded()
-    x, y = core.site.waypoint_pose("P-6")
+    x, y = core.site.node_pose("P-1")
     core.on_robot_state("pinky1", x, y, 0.0, "IDLE", 90.0, 0)
     assert len(rejected(core.tick())) == 1
     result = _play(tmp_path, lines)
@@ -599,7 +603,7 @@ ODD_CALLS = {
     "a robot in a result": lambda c: c.on_move_result(_Spiteful("pinky1"), 1, True, ""),
     "a run mode": lambda c: c.on_order_board(_Spiteful("STOP"), [O1]),
     "a zone": lambda c: c.confirm_clear("pinky1", [_Unprintable()], "lifted"),
-    "a robot to clear": lambda c: c.confirm_clear(_Spiteful("pinky1"), ["P-6"], "lifted"),
+    "a robot to clear": lambda c: c.confirm_clear(_Spiteful("pinky1"), ["HALL"], "lifted"),
     "a note": lambda c: c.confirm_clear("pinky1", ["NO-SUCH-ZONE"], _Unprintable()),
     "a robot to reinstate": lambda c: c.reinstate(_Spiteful("pinky1"), "EMPTY", "back"),
     "a basket": lambda c: c.reinstate("pinky1", _Spiteful("EMPTY"), "back"),
@@ -632,9 +636,9 @@ def test_stop_with_an_order_that_cannot_be_checked_is_still_applied(orders):
 def test_a_state_that_cannot_be_compared_is_kept_as_plain_text():
     """state는 거부하지 않는다. 비교가 실패하는 값이 tick까지 가면 안 된다."""
     now = [0.0]
-    core = FleetManager(load_lane_map(), load_params(), list(SPOTS), lambda: now[0])
-    for robot, waypoint in SPOTS.items():
-        x, y = core.site.waypoint_pose(waypoint)
+    core = FleetManager(load_fleet_map("d2"), load_params(), list(SPOTS), lambda: now[0])
+    for robot, node in SPOTS.items():
+        x, y = core.site.node_pose(node)
         for _ in range(core.params.release_confirm_samples):
             core.on_robot_state(robot, x, y, 0.0, _Incomparable("IDLE"), 90.0)
     assert not rejected(core.tick())

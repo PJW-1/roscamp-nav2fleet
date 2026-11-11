@@ -1,16 +1,16 @@
 """SafetyMeter: 실제 자세로 로봇이 얼마나 가까워졌는지 잰다. ROS를 쓰지 않는다.
 
-레인 시뮬레이션(05_관제_시뮬레이션_레인.html)과 같은 두 수치다. 심판은 그대로 두고
-이 값은 요약 옆 safety.json에 둔다.
-  early: 몸이 구역에서 반지름 안에 있는데 구역을 풀었다.
+심판은 그대로 두고 이 값은 요약 옆 safety.json에 둔다.
+  early: 몸이 구역에서 반지름 안에 있는데 그 로봇의 구역을 풀었다(구역 경계에서 잰다).
   near: 두 로봇이 반지름 두 배보다 가까워졌다. 쌍마다 일어날 때마다 한 번 센다.
+구역 하나를 여러 로봇이 쥘 수 있다(/fleet/zones의 holder는 이름을 쉼표로 이은 것).
 """
 from __future__ import annotations
 
 import itertools
 import math
 
-from fake_robots.judge import is_pseudo_holder
+from fake_robots.judge import holder_set
 
 
 class SafetyMeter:
@@ -19,7 +19,7 @@ class SafetyMeter:
         self.radius_m = radius_m
         self.on_course = on_course
         self.poses: dict[str, tuple[float, float]] = {}
-        self.holders: dict[str, str] = {}
+        self.holders: dict[str, frozenset[str]] = {}
         self.early = 0
         self.near = 0
         self.releases = 0
@@ -32,16 +32,17 @@ class SafetyMeter:
         self.poses[robot] = (x, y)
 
     def on_zones(self, t: float, holders: dict[str, str]) -> None:
-        for zone, new in holders.items():
-            old = self.holders.get(zone, "")
+        for zone, text in holders.items():
+            new = holder_set(text)
+            old = self.holders.get(zone, frozenset())
             self.holders[zone] = new
-            if (old and old != new and not is_pseudo_holder(old)
-                    and old in self.poses):
-                self._on_release(t, zone, old)
+            for robot in sorted(old - new):
+                if robot in self.poses:
+                    self._on_release(t, zone, robot)
 
     def _on_release(self, t: float, zone: str, robot: str) -> None:
         x, y = self.poses[robot]
-        gap = self.site.distance_to_zone(x, y, zone) + self.site.half_width  # 중심선 기준 거리
+        gap = self.site.distance_to_zone(x, y, zone)
         self.releases += 1
         self.min_release_m = min(self.min_release_m, gap)
         if gap < self.radius_m:
