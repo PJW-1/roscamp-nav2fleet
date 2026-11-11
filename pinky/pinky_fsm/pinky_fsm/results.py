@@ -20,6 +20,10 @@ CANCELED = "CANCELED"
 TIMEOUT = "TIMEOUT"
 HEARTBEAT_LOST = "HEARTBEAT_LOST"
 PATH_NOT_CONNECTED = "PATH_NOT_CONNECTED"
+# order 모델(계약 0.11-draft 제안). SUPERSEDED는 실패가 아니다(update가 goal을 넘겨받았다)
+SUPERSEDED = "SUPERSEDED"
+ORDER_UPDATE_REJECTED = "ORDER_UPDATE_REJECTED"  # reason은 "ORDER_UPDATE_REJECTED: <이유>"
+HORIZON_INVALID = "HORIZON_INVALID"  # feedback horizon_warning의 앞말. 결과가 아니다
 DOCK_UNAVAILABLE = "DOCK_UNAVAILABLE"  # Dock 결과에는 reason이 없다. 로그에만 남는다
 
 
@@ -28,3 +32,4 @@ class Finish:
     goal_id: Hashable
     success: bool
     reason: str
+    last_done_seq_id: int = 0  # order 모델(계약 0.11-draft 제안). order가 아니면 0
