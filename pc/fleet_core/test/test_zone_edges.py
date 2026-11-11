@@ -326,3 +326,15 @@ def test_a_robot_isolated_for_not_being_where_it_says_gives_nothing_back(later):
     for _ in range(6):
         world.traffic.on_robot_state("pinky1", bot.x, bot.y, 0.0, "IDLE")
     assert world.view("pinky1")["held"] == ["HALL", "J_W", "WORK_DOCK"], "its position is in doubt"
+
+
+def test_the_start_up_wait_counts_from_the_first_tick_so_a_record_plays_back():
+    """재생은 시계가 0일 때 코어를 만들고 기록의 시각으로 건너뛴다. 만든 시각에서 세면 첫 tick에
+    ROBOT_NOT_REPORTING이 나와 기록과 달라진다(world의 B4)."""
+    world = Harness()
+    world.silent = set(world.bots)
+    world.now = 1_000_000.0  # 코어를 만든 뒤에 시계가 크게 뛴다
+    world.step()
+    assert "ROBOT_NOT_REPORTING" not in world.codes()
+    world.run(world.params.startup_wait_s + 1.0)
+    assert world.codes().count("ROBOT_NOT_REPORTING") == 1
