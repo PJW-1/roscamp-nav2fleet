@@ -25,7 +25,7 @@ from fleet_core.common.commands import (
 from fleet_core.common.contract import load_contract, to_ros_qos
 from fleet_core.common.params import load_params
 from fleet_core.manager import FleetManager
-from fleet_core.traffic.lane_map import load_lane_map
+from fleet_core.traffic.site import load_site
 from fleet_interfaces.action import Dock, FillBasket, MoveTo, Retreat, SwapBasket
 from fleet_interfaces.msg import (
     AssignmentArray,
@@ -59,7 +59,7 @@ class FleetManagerNode(Node):
         contract_file = self.get_parameter("contract_file").value or (
             get_package_share_directory("fleet_interfaces") + "/contract.yaml")
         self.contract = load_contract(contract_file)
-        self.site = load_lane_map(self.get_parameter("map_file").value or None)
+        self.site = load_site(self.get_parameter("map_file").value or None)
         self.core = FleetManager(
             self.site, load_params(self.get_parameter("params_file").value or None),
             robots, self._now)

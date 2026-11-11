@@ -12,7 +12,7 @@ import os
 from ament_index_python.packages import get_package_share_directory
 from fake_robots.common import split_fake_arms
 from fake_robots.scenario import scenario_map_file
-from fleet_core.traffic.lane_map import load_lane_map
+from fleet_core.traffic.site import load_site
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, OpaqueFunction, Shutdown
 from launch.substitutions import LaunchConfiguration
@@ -70,7 +70,7 @@ def _setup(context):
         actions.append(node("fake_pinky_node", f"fake_{robot}", robot_id=robot,
                             params_file=arg["params_file"]))
     workcell, vision_arms, swap_arms = split_fake_arms(
-        arg["fake_arms"], load_lane_map(arg["map_file"] or None))
+        arg["fake_arms"], load_site(arg["map_file"] or None))
     if workcell:
         actions.append(node("fake_workcell_node", "fake_workcell"))
     for arm in vision_arms:
@@ -101,7 +101,7 @@ def generate_launch_description():
         declare("use_sim_clock", "true", "run the sim clock and use sim time everywhere"),
         declare("result_dir", "sim_result", "where the monitor writes summary.json and CSVs"),
         declare("monitor", "true", "run the scenario monitor, which shuts the launch down"),
-        declare("map_file", "", "site map YAML (default: the one in fleet_core)"),
+        declare("map_file", "", "fleet map YAML (default: the one in fleet_core, stage 2)"),
         declare("contract_file", "", "contract YAML (default: the installed one)"),
         declare("params_file", "", "fleet parameters YAML, for basket capacity and release limits"),
         OpaqueFunction(function=_setup),

@@ -1,13 +1,12 @@
 """테스트용 FleetCore 보조 함수."""
 from fleet_core.common.params import load_params
-from grid_map import grid_site
 from legacy_core import FleetCore
 
 
-def make_core(robots, params=None):
-    """코어와 가짜 시간(원소 하나짜리 리스트)을 돌려준다."""
+def make_core(robots, params=None, *, site):
+    """코어와 가짜 시간(원소 하나짜리 리스트)을 돌려준다. 지도(site)는 꼭 넘긴다."""
     now = [0.0]
-    core = FleetCore(grid_site(), params or load_params(), list(robots), lambda: now[0])
+    core = FleetCore(site, params or load_params(), list(robots), lambda: now[0])
     return core, now
 
 

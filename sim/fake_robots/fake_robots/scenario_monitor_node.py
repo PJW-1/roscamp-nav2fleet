@@ -13,8 +13,6 @@ from pathlib import Path
 
 import rclpy
 from fleet_core.common.contract import to_ros_qos
-from fleet_core.common.params import load_params
-from fleet_core.traffic.modes import zone_space
 from fleet_interfaces.msg import (
     ArmState,
     AssignmentArray,
@@ -31,9 +29,9 @@ from fake_robots.common import (
     TRUTH_TOPIC,
     ScenarioClock,
     load_contract_param,
-    load_lane_map_param,
     load_params_param,
     load_scenario_param,
+    load_site_param,
 )
 from fake_robots.judge import ScenarioJudge
 from fake_robots.operator_clear import OperatorClear
@@ -54,18 +52,17 @@ class ScenarioMonitorNode(Node):
         self.declare_parameter("margin_m", -1.0)
         self.declare_parameter("grace_s", 2.0)
         contract = load_contract_param(self)
-        site = load_lane_map_param(self)
+        site = load_site_param(self)
         scenario = load_scenario_param(self, site)
         params = load_params_param(self)
-        space = zone_space(site, load_params(self.get_parameter("params_file").value or None))
         radius = float(params["robot_radius_m"])
         margin = float(self.get_parameter("margin_m").value)
         self.judge = ScenarioJudge(
-            space, scenario,
+            site, scenario,
             margin_m=margin if margin >= 0 else radius + float(params["release_margin_extra_m"]),
             grace_s=float(self.get_parameter("grace_s").value),
             radius_m=radius)
-        self.safety = SafetyMeter(space, radius,
+        self.safety = SafetyMeter(site, radius,
                                   on_course=lambda robot: not self.judge.off_course(robot))
         self._sc = ScenarioClock(self)
         self._result_dir = Path(self.get_parameter("result_dir").value)

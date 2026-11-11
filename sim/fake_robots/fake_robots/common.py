@@ -6,15 +6,14 @@ from pathlib import Path
 
 import yaml
 from fleet_core.common.contract import load_contract
-from fleet_core.traffic.lane_map import DEFAULT_MAP, load_lane_map
+from fleet_core.common.params import DEFAULT_PARAMS
+from fleet_core.traffic.site import load_site
 
 from fake_robots.scenario import load_scenario
 
 # 계약에 일부러 넣지 않은 가짜 내부 토픽.
 STOCK_TOPIC = "/sim/stock/{arm}"  # 팔 하나의 실제 재고(JSON)
 TRUTH_TOPIC = "/sim/truth/{robot}"  # 심판용 잡음 없는 자세
-
-DEFAULT_PARAMS = DEFAULT_MAP.parent / "fleet_params.yaml"
 
 
 def node_name(prefix: str, key: str, overrides) -> str:
@@ -34,12 +33,13 @@ def load_contract_param(node):
     return load_contract(path)
 
 
-def load_lane_map_param(node):
+def load_site_param(node):
+    """map_file 파라미터의 지도. 비면 기본 배치. 지도 모듈(2단계)이 없으면 NoFleetMap."""
     node.declare_parameter("map_file", "")
-    return load_lane_map(node.get_parameter("map_file").value or None)
+    return load_site(node.get_parameter("map_file").value or None)
 
 
-def load_scenario_param(node, lane_map):
+def load_scenario_param(node, site):
     """scenario_seed: random 블록을 풀 seed. -1(기본)이면 파일의 seed. 같은 파일을 읽는 노드는
     모두 같은 값을 받아야 같은 시간표를 본다."""
     for name, default in (("scenario_file", ""), ("scenario_seed", -1)):
@@ -49,7 +49,7 @@ def load_scenario_param(node, lane_map):
     if not path:
         raise ValueError("parameter scenario_file is required")
     seed = int(node.get_parameter("scenario_seed").value)
-    return load_scenario(path, lane_map, None if seed < 0 else seed)
+    return load_scenario(path, site, None if seed < 0 else seed)
 
 
 def load_fleet_params(path=None) -> dict:

@@ -5,7 +5,7 @@
         (또는 pc.launch.py에 record:=run.jsonl)
     python3 tools/replay.py run.jsonl
 
-첫 줄은 코어를 띄운 설정이다(로봇, 파라미터, 맵 본문, 양방향 설정).
+첫 줄은 코어를 띄운 설정이다(로봇, 파라미터, 지도 본문).
 이후 줄은 모두 시각 `t`와 아래 중 하나를 가진다.
 
     {"t": 12.5, "in": "on_robot_state", "args": ["pinky1", 1.2, 2.0, 0.0, "MOVING", 90.0]}
@@ -37,15 +37,14 @@ import sys
 from dataclasses import dataclass
 from pathlib import Path
 
-import yaml
-
 REPO = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO / "pc" / "fleet_core"))
 
 from fleet_core.common.commands import OrderRecord  # noqa: E402
 from fleet_core.common.params import FleetParams  # noqa: E402
 from fleet_core.manager import FleetManager  # noqa: E402
-from fleet_core.traffic.lane_map import LaneMap  # noqa: E402
+from fleet_core.traffic.modes import NoZoneTraffic  # noqa: E402
+from fleet_core.traffic.site import NoFleetMap, site_from_text  # noqa: E402
 
 
 @dataclass(frozen=True)
@@ -98,7 +97,7 @@ def start_core(head: dict, clock) -> FleetManager:
         params = FleetParams(**head["params"])
     except TypeError as error:
         raise ValueError(f"these parameters do not fit this code: {error}") from error
-    site = LaneMap(yaml.safe_load(head["map"]), head["map"], head.get("bundle_two_way"))
+    site = site_from_text(head["map"])  # 지도 모듈(2단계)이 없으면 NoFleetMap
     return FleetManager(site, params, head["robots"], clock)
 
 
@@ -138,7 +137,7 @@ def main() -> int:
     parser.add_argument("record", help="the JSONL file the fleet manager node wrote with --record")
     try:
         result = replay(parser.parse_args().record)
-    except (ValueError, OSError) as error:
+    except (ValueError, OSError, NoFleetMap, NoZoneTraffic) as error:
         print(f"cannot play this back: {error}")
         return 2
     print(f"{result.inputs} inputs, {result.inside} inside calls, {result.commands} commands")

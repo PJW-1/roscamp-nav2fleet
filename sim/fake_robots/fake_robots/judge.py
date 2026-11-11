@@ -45,9 +45,9 @@ def is_pseudo_holder(holder: str) -> bool:
 
 
 class ScenarioJudge:
-    def __init__(self, lane_map, scenario, margin_m: float = 0.13, grace_s: float = 2.0,
+    def __init__(self, site, scenario, margin_m: float = 0.13, grace_s: float = 2.0,
                  radius_m: float = 0.08):
-        self.site = lane_map
+        self.site = site
         self.scenario = scenario
         self.margin_m = margin_m
         self.radius_m = radius_m
@@ -94,7 +94,7 @@ class ScenarioJudge:
         self.board: list[str] = []
         self._bound_now: set[str] = set()
         # 팔
-        fill_arms = [a for s in lane_map.stations.values() if s.action == "fill" for a in s.arms]
+        fill_arms = [a for s in site.stations.values() if s.action == "fill" for a in s.arms]
         self._placing: dict[str, list[tuple[float, float]]] = {a: [] for a in fill_arms}
         self._placing_open: dict[str, float | None] = dict.fromkeys(fill_arms)
         self._placing_seen: set[str] = set()
@@ -102,7 +102,7 @@ class ScenarioJudge:
         # 바퀴
         self._work_zones = self._station_zones("fill")
         self._out_zones = self._station_zones("swap")
-        self._waiting_zones = {lane_map.zone_of[c] for c in lane_map.parking}
+        self._waiting_zones = {site.zone_of[c] for c in site.parking}
         self._last_zone: dict[str, str] = {}
         self._from_outbound: set[str] = set()
         self.direct_returns = 0

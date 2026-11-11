@@ -14,9 +14,9 @@ from rclpy.node import Node
 from fake_robots.common import (
     ScenarioClock,
     load_contract_param,
-    load_lane_map_param,
     load_params_param,
     load_scenario_param,
+    load_site_param,
 )
 
 MODES = (OrderBoard.MODE_RUN, OrderBoard.MODE_PAUSE, OrderBoard.MODE_STOP)
@@ -43,7 +43,7 @@ class FakeCentralNode(Node):
     def __init__(self, parameter_overrides=None, **kwargs):
         super().__init__("fake_central", parameter_overrides=parameter_overrides, **kwargs)
         contract = load_contract_param(self)
-        site = load_lane_map_param(self)
+        site = load_site_param(self)
         scenario = load_scenario_param(self, site)
         self._capacity = int(load_params_param(self)["basket_capacity"])
         self._sc = ScenarioClock(self)

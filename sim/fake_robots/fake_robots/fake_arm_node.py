@@ -16,8 +16,8 @@ from rclpy.node import Node
 from fake_robots.common import (
     ScenarioClock,
     load_contract_param,
-    load_lane_map_param,
     load_scenario_param,
+    load_site_param,
     node_name,
     station_with_action,
 )
@@ -36,7 +36,7 @@ class FakeArmNode(Node):
         self.declare_parameter("arm_id", "arm3")
         self.arm_id = self.get_parameter("arm_id").value
         contract = load_contract_param(self)
-        site = load_lane_map_param(self)
+        site = load_site_param(self)
         scenario = load_scenario_param(self, site)
         if self.arm_id not in station_with_action(site, "swap").arms:
             raise ValueError(f"{self.arm_id} does not swap baskets, FakeWorkcell runs the others")

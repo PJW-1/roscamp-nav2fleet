@@ -25,8 +25,8 @@ from fake_robots.common import (
     STOCK_TOPIC,
     ScenarioClock,
     load_contract_param,
-    load_lane_map_param,
     load_scenario_param,
+    load_site_param,
     station_with_action,
 )
 from fake_robots.motion import ArmFaults, abort_at_shutdown, finish_action
@@ -58,7 +58,7 @@ class FakeWorkcellNode(Node):
     def __init__(self, parameter_overrides=None, **kwargs):
         super().__init__("fake_workcell", parameter_overrides=parameter_overrides, **kwargs)
         contract = load_contract_param(self)
-        site = load_lane_map_param(self)
+        site = load_site_param(self)
         scenario = load_scenario_param(self, site)
         self._arms = list(station_with_action(site, "fill").arms)
         self._cfg = scenario.arm

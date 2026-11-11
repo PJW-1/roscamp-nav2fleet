@@ -193,23 +193,23 @@ def _not_negative(data: dict, key: str) -> float:
     return float(value)
 
 
-def _resolve_start(raw, lane_map) -> tuple[int, int]:
+def _resolve_start(raw, site) -> tuple[int, int]:
     if isinstance(raw, str):
-        waypoints = lane_map.zones.get(raw)
+        waypoints = site.zones.get(raw)
         if waypoints is None or len(waypoints) != 1:
             raise ScenarioError(f"start {raw!r} is not a zone of one waypoint")
         return next(iter(waypoints))
     if isinstance(raw, (list, tuple)) and len(raw) == 2:
         # 변환한 격자 지도의 지점을 옛 [열, 행]으로 부른 것.
         waypoint = (int(raw[0]), int(raw[1]))
-        if waypoint not in lane_map.zone_of:
+        if waypoint not in site.zone_of:
             raise ScenarioError(f"start waypoint {waypoint} is on no route")
         return waypoint
     raise ScenarioError(f"start must be a zone name or [col, row], got {raw!r}")
 
 
-def _arms_with(lane_map, action: str) -> list[str]:
-    return [arm for s in lane_map.stations.values() if s.action == action for arm in s.arms]
+def _arms_with(site, action: str) -> list[str]:
+    return [arm for s in site.stations.values() if s.action == action for arm in s.arms]
 
 
 def _counts(raw, what: str, minimum: int) -> dict:
@@ -224,8 +224,8 @@ def _counts(raw, what: str, minimum: int) -> dict:
     return out
 
 
-def _parse_stock(data: dict, lane_map) -> dict:
-    fill_arms = _arms_with(lane_map, "fill")
+def _parse_stock(data: dict, site) -> dict:
+    fill_arms = _arms_with(site, "fill")
     stock = {arm: {} for arm in fill_arms}
     for arm, items in (data.get("stock") or {}).items():
         if arm not in fill_arms:
@@ -260,13 +260,13 @@ def _parse_orders(data: dict) -> list[OrderCfg]:
     return sorted(orders, key=lambda o: o.at_s)  # 안정 정렬: at_s가 같으면 파일 순서 유지
 
 
-def _parse_fault(raw: dict, robots: dict, lane_map) -> Fault:
+def _parse_fault(raw: dict, robots: dict, site) -> Fault:
     kind = raw.get("type")
     if kind not in FAULT_TYPES:
         raise ScenarioError(f"unknown fault type in {raw}")
     if kind in ROBOT_FAULTS and raw.get("robot") not in robots:
         raise ScenarioError(f"fault for unknown robot in {raw}")
-    if kind == "arm_fail" and raw.get("arm") not in _arms_with(lane_map, "fill"):
+    if kind == "arm_fail" and raw.get("arm") not in _arms_with(site, "fill"):
         raise ScenarioError(f"arm_fail needs a workspace arm in {raw}")
     if "at_s" not in raw:
         raise ScenarioError(f"fault has no at_s: {raw}")
@@ -278,7 +278,7 @@ def _parse_fault(raw: dict, robots: dict, lane_map) -> Fault:
         _positive(raw, "duration_s")
         _positive(raw, "distance_m")
     if kind == "object":
-        x, y, radius = _object_place(raw, lane_map)
+        x, y, radius = _object_place(raw, site)
     else:
         if any(key in raw for key in OBJECT_KEYS):
             raise ScenarioError(f"{', '.join(OBJECT_KEYS)} belong to an object fault: {raw}")
@@ -287,13 +287,13 @@ def _parse_fault(raw: dict, robots: dict, lane_map) -> Fault:
     if kind == "operator_reinstate":
         if "start" not in raw:
             raise ScenarioError(f"operator_reinstate needs a start: {raw}")
-        start = _resolve_start(raw["start"], lane_map)
+        start = _resolve_start(raw["start"], site)
         if basket not in REINSTATE_BASKETS:
             raise ScenarioError(f"operator_reinstate basket must be one of {REINSTATE_BASKETS}")
     if kind == "drift" and not (raw.get("duration_s", 0) > 0 and raw.get("offset_m", 0) != 0):
         raise ScenarioError(f"drift needs a positive duration_s and a nonzero offset_m: {raw}")
     target = str(raw.get("target", ""))
-    if target and (kind != "nav_abort" or target not in lane_map.zone_of):
+    if target and (kind != "nav_abort" or target not in site.zone_of):
         raise ScenarioError(f"target needs nav_abort and a waypoint of the map in {raw}")
     return Fault(float(raw["at_s"]), raw.get("robot", ""), kind,
                  float(raw.get("duration_s", 0.0)), int(raw.get("count", 1)),
@@ -303,7 +303,7 @@ def _parse_fault(raw: dict, robots: dict, lane_map) -> Fault:
                  distance_m=float(raw.get("distance_m", 0.0)), x=x, y=y, radius_m=radius)
 
 
-def _object_place(raw: dict, lane_map) -> tuple[float, float, float]:
+def _object_place(raw: dict, site) -> tuple[float, float, float]:
     """object 고장의 (x, y, 반지름). 로봇에 묶이지 않고, 웨이포인트 범위 가까이에 있어야 한다."""
     if raw.get("robot"):
         raise ScenarioError(f"an object is not tied to a robot: {raw}")
@@ -319,7 +319,7 @@ def _object_place(raw: dict, lane_map) -> tuple[float, float, float]:
     if numbers["at_s"] < 0:
         raise ScenarioError(f"object at_s must not be negative: {raw}")
     place = [numbers["x"], numbers["y"]]
-    x0, y0, x1, y1 = lane_map.bounds()
+    x0, y0, x1, y1 = site.bounds()
     m = OBJECT_MAP_MARGIN_M
     if not (x0 - m <= place[0] <= x1 + m and y0 - m <= place[1] <= y1 + m):
         raise ScenarioError(f"object at {tuple(place)} is far off the map: {raw}")
@@ -408,7 +408,7 @@ def expand_random(data: dict, seed: int | None = None) -> dict:
     return out
 
 
-def parse_scenario(data: dict, lane_map, seed: int | None = None) -> Scenario:
+def parse_scenario(data: dict, site, seed: int | None = None) -> Scenario:
     """seed: random 블록을 풀 seed. None이면 파일의 seed."""
     data = expand_random(data, seed)
     unknown = set(data) - TOP_LEVEL_KEYS
@@ -420,7 +420,7 @@ def parse_scenario(data: dict, lane_map, seed: int | None = None) -> Scenario:
         if "start" not in raw:
             raise ScenarioError(f"robot {name} has no start")
         robots[name] = RobotCfg(
-            start=_resolve_start(raw["start"], lane_map),
+            start=_resolve_start(raw["start"], site),
             speed_mps=_positive(raw, "speed_mps", 0.2),
             pose_noise_m=float(raw.get("pose_noise_m", 0.0)),
             report_delay_s=_not_negative(raw, "report_delay_s"),
@@ -430,8 +430,8 @@ def parse_scenario(data: dict, lane_map, seed: int | None = None) -> Scenario:
     if not robots:
         raise ScenarioError("scenario has no robots")
 
-    stock = _parse_stock(data, lane_map)
-    faults = [_parse_fault(raw, robots, lane_map) for raw in data.get("faults") or []]
+    stock = _parse_stock(data, site)
+    faults = [_parse_fault(raw, robots, site) for raw in data.get("faults") or []]
     _check_reinstates(faults)
     arm = data.get("arm") or {}
     dock = data.get("dock") or {}
@@ -451,9 +451,9 @@ def parse_scenario(data: dict, lane_map, seed: int | None = None) -> Scenario:
     )
 
 
-def load_scenario(path, lane_map=None, seed: int | None = None) -> Scenario:
-    if lane_map is None:
-        from fleet_core.traffic.lane_map import load_lane_map
-        lane_map = load_lane_map(scenario_map_file(path) or None)
-    return parse_scenario(yaml.safe_load(Path(path).read_text(encoding="utf-8")), lane_map,
+def load_scenario(path, site=None, seed: int | None = None) -> Scenario:
+    if site is None:
+        from fleet_core.traffic.site import load_site
+        site = load_site(scenario_map_file(path) or None)
+    return parse_scenario(yaml.safe_load(Path(path).read_text(encoding="utf-8")), site,
                           seed)

@@ -14,8 +14,8 @@ from std_msgs.msg import String
 from fake_robots.common import (
     STOCK_TOPIC,
     load_contract_param,
-    load_lane_map_param,
     load_scenario_param,
+    load_site_param,
     node_name,
     station_with_action,
 )
@@ -32,7 +32,7 @@ class FakeVisionNode(Node):
         self.declare_parameter("arm_id", "arm1")
         self._arm = self.get_parameter("arm_id").value
         contract = load_contract_param(self)
-        site = load_lane_map_param(self)
+        site = load_site_param(self)
         scenario = load_scenario_param(self, site)
         station = station_with_action(site, "fill")
         if self._arm not in station.arms:

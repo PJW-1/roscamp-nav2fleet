@@ -53,7 +53,7 @@ from fleet_core.traffic.mission import (
     TO_OUTBOUND,
     TO_WORK,
 )
-from fleet_core.traffic.modes import LANES, build_traffic
+from fleet_core.traffic.modes import build_traffic
 
 
 def _recordable(value):
@@ -118,9 +118,12 @@ class FleetManager:
         return self.orchestrator.shipped
 
     def check_recordable(self) -> None:
-        """기록할 수 없으면 ValueError. 기록 파일을 열기 전에 부른다(옛 파일을 지우지 않게)."""
-        if self.params.traffic_mode != LANES:
-            raise ValueError(f"replay knows only lane traffic, not {self.params.traffic_mode}")
+        """기록할 수 없으면 ValueError. 기록 파일을 열기 전에 부른다(옛 파일을 지우지 않게).
+
+        재생은 지도를 첫 줄의 본문으로 다시 만든다(traffic/site.py의 site_from_text).
+        """
+        if not getattr(self.site, "source_text", ""):
+            raise ValueError("a record needs the text of the map, and this map has none")
 
     def record_to(self, write) -> None:
         """모든 입력과 결과를 한 줄씩 JSON으로 `write`에 넘긴다.
@@ -130,12 +133,9 @@ class FleetManager:
         self.check_recordable()
         if self._fed:
             raise RuntimeError("a record has to start before the first input")
-        if not self.site.source_text:
-            raise ValueError("a record needs the text of the map, and this map has none")
         self._write = write
         write(json.dumps({"recorded": True, "robots": self.traffic.robots,
-                          "params": asdict(self.params), "map": self.site.source_text,
-                          "bundle_two_way": self.site.bundle_two_way}))
+                          "params": asdict(self.params), "map": self.site.source_text}))
 
     # ---- inputs -------------------------------------------------------------------------
 

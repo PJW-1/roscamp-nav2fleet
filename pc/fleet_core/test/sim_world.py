@@ -30,8 +30,6 @@ from fleet_core.common.commands import (
     SwapCmd,
 )
 from fleet_core.common.params import load_params
-from fleet_core.traffic.lane_map import _point_segment
-from grid_map import grid_site
 from legacy_core import FleetCore
 
 DT = 0.1
@@ -49,6 +47,14 @@ DEFAULT_ROBOTS = {
     "pinky3": {"start": "P-4", "speed_mps": 0.20, "pose_noise_m": 0.03},
 }
 DEFAULT_STOCK = {"A": 20, "B": 20, "C": 20, "D": 20}
+
+
+def _point_segment(x, y, ax, ay, bx, by) -> float:
+    """(x, y)에서 선분 (ax, ay)-(bx, by)까지의 거리. 지운 lane_map.py에서 옮겼다."""
+    vx, vy = bx - ax, by - ay
+    denom = vx * vx + vy * vy
+    t = max(0.0, min(1.0, ((x - ax) * vx + (y - ay) * vy) / denom)) if denom else 0.0
+    return math.hypot(x - (ax + t * vx), y - (ay + t * vy))
 
 
 def path_gap(x, y, points):
@@ -182,13 +188,14 @@ class SimWorld:
     dock_s: float = 2.0
     params: object = None
     gaussian_noise: bool = False  # 한계 없는 잡음. 실제 위치추정과 ROS 가짜 노드가 그렇다
-    site: object = None  # 예전 테스트는 셀 배치를 쓴다
+    site: object = None  # 지도. 꼭 넘긴다(지도는 2단계, 레인 지도의 읽기를 쓴다)
     report_heading: bool = False  # 보고 yaw가 실제 진행 방향이다. 끄면 예전처럼 0
 
     def __post_init__(self):
         self.t = 0.0
         self.rng = random.Random(self.seed)
-        self.site = self.site or grid_site()
+        if self.site is None:
+            raise ValueError("SimWorld needs a site (the map is an argument; there is no default)")
         self.params = self.params or load_params()
         self.total_items = sum(self.stock.values())
         self.shipped_items: dict[str, int] = {}

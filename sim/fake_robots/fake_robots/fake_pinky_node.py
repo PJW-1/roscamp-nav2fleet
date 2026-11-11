@@ -28,9 +28,9 @@ from fake_robots.common import (
     TRUTH_TOPIC,
     ScenarioClock,
     load_contract_param,
-    load_lane_map_param,
     load_params_param,
     load_scenario_param,
+    load_site_param,
     node_name,
 )
 from fake_robots.motion import (
@@ -103,7 +103,7 @@ class FakePinkyNode(Node):
         self.declare_parameter("heartbeat_timeout_s", -1.0)  # <0: 파일 값, 0: 안 멈춤
         self.robot_id = self.get_parameter("robot_id").value
         contract = load_contract_param(self)
-        site = load_lane_map_param(self)
+        site = load_site_param(self)
         scenario = load_scenario_param(self, site)
         cfg = scenario.robots[self.robot_id]
         self._cfg, self._dock_cfg = cfg, scenario.dock
