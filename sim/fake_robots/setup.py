@@ -11,7 +11,6 @@ setup(
         ('share/fake_robots', ['package.xml']),
         ('share/fake_robots/launch', glob('launch/*.py')),
         ('share/fake_robots/scenarios', glob('scenarios/*.yaml')),
-        ('share/fake_robots/maps', glob('maps/*.yaml')),
     ],
     install_requires=['setuptools'],
     tests_require=['pytest'],

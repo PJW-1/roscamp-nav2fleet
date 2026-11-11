@@ -50,15 +50,6 @@ class FleetParams:
     blocked_timeout_s: float = 60.0
     blocked_rejoin_s: float = 10.0
     queue_gap_m: float = 0.6
-    # 우회(지시서 5번). 이 값이 없던 기록은 우회 없이 재생한다. 파일의 기본은 true다
-    detour_enabled: bool = False
-    station_wait_estimate_s: float = 30.0
-    detour_speed_mps: float = 0.2
-    off_lane_timeout_s: float = 20.0
-    # path: 레인 폴리라인(FollowPath), point: 지점 하나(비교용). 이 값이 없던 기록은 point였다.
-    lane_goal_mode: str = "point"
-    # 해제 보강: 구역의 다른 바닥 선에서도 d 이상(예각 합류). 이 값이 없던 기록은 예전 규칙
-    release_clear_of_floor: bool = False
     # H1: after DEADLOCK_UNRESOLVED, the same wait cycle lasting this long isolates one robot.
     deadlock_unresolved_s: float = 30.0
     # 조용히 서 있는 로봇 감시(1.1 지시서 H2). 0이면 끈다. 이 값이 없던 기록은 감시 없이 재생한다
@@ -79,8 +70,9 @@ class FleetParams:
     # Proposal (version 2 section 4, contract 0.8-draft MoveTo.final_goal): mark goals that end
     # at a lock boundary as not final. Records without it replay with every move final
     mark_final_goal: bool = False
-    # Which traffic layer runs. lanes is the lane control as it was.
-    traffic_mode: str = "lanes"
+    # Which traffic layer runs (traffic/modes.py). zones is the only one: zone permissions on a
+    # graph of points and zones, built in stage 3
+    traffic_mode: str = "zones"
     # ETA와 도크 접근 시간창(제안, 실측 전). eta_*는 버전 2 공식 ETA와 같은 값
     eta_speed_mps: float = 0.2
     eta_turn_s_per_rad: float = 1.0  # 제자리 회전 초/rad. 0이면 회전을 안 셈
