@@ -131,4 +131,4 @@ class TrafficApi(Protocol):
 
     def status_view(self, robot) -> dict:
         """/fleet/robots의 교통 몫. 키: fsm_state, fault, fault_reason, wait_zone, wait_robots,
-        battery, x, y, yaw."""
+        battery, x, y, yaw, base, horizon(앞에 남은 길의 지점 이름: 허락받은 것과 아닌 것)."""

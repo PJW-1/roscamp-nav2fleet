@@ -117,6 +117,22 @@ def test_with_the_dock_busy_the_base_ends_at_the_wait_spot_and_the_rest_is_horiz
     assert not world.problems and not [e for e in world.events if e.level == "ERROR"]
 
 
+def test_a_report_of_a_segment_beyond_the_base_is_not_believed():
+    world, _ = queued_for_outbound()
+    world.step()
+    goal_id = world.view("pinky1")["goal_id"]
+    world.traffic.on_move_feedback("pinky1", goal_id, 5, False)  # 4번과 5번은 horizon이다
+    view = world.view("pinky1")
+    assert view["node"] != "O" and view["horizon"] == ["N_E", "X_E", "O"]
+    assert view["base"] == ["X_W", "N_W", "O_Q"], "nothing of the base counts as done either"
+    world.step()
+    codes = world.codes("pinky1")
+    assert codes.count("SEGMENT_BEYOND_BASE") == 1 and "SEGMENT_DONE" not in codes
+    world.traffic.on_move_feedback("pinky1", goal_id, 5, False)
+    world.step()
+    assert world.codes("pinky1").count("SEGMENT_BEYOND_BASE") == 1, "once for an order"
+
+
 def test_the_base_is_always_inside_the_zones_the_robot_holds():
     world, call = queued_for_outbound()
     seen = 0

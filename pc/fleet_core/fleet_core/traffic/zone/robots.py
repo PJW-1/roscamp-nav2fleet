@@ -34,6 +34,7 @@ class MoveOrder:
     broken: bool = False  # update가 거절됐다. 지금 base가 끝나면 새 order로 잇는다
     horizon_at: float = 0.0  # horizon을 마지막으로 정한 시각
     warned: bool = False  # HORIZON_INVALID를 냈다
+    overrun: bool = False  # base 밖의 조각을 끝냈다는 보고를 이미 알렸다
 
 
 @dataclass
