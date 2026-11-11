@@ -92,6 +92,8 @@ class Goals:
             if not links:
                 continue
             trip = Trip(goal, links)
+            if queued and self.params.use_order_model:
+                trip = self._through(m, trip)  # 대기 자리를 거쳐 도크까지. 도크 쪽은 horizon이다
             want = self._take(m, trip)
             if want is None:
                 if queued and not m.queued:

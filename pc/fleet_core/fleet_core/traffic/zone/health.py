@@ -27,7 +27,8 @@ class Health:
                 m.called = False
                 self._stop_wanting(m)
                 self._event("WARN", "COMM_LOST", f"no state for {now - m.last_seen:.1f} s, keeps "
-                            f"{list(self.grants.held_by(m.name))}", m.name)
+                            f"{list(self.grants.held_by(m.name))}{self._hold_base(m, now)}",
+                            m.name)
 
     def _begin_recovery(self, m) -> None:
         m.comm = RECOVERING
@@ -71,12 +72,17 @@ class Health:
                         name if name in self._robots else "")
             return None
         held = self.grants.held_by(robot)
-        refusal = f"no zones listed while it holds {list(held)}" if held and not zone_ids else ""
+        m = self._robots[robot]
+        left = m.base_until - self._clock()
+        if m.comm == COMM_LOST and left > 0:
+            refusal = f"it may still be driving to the end of its base for {left:.0f} s"
+        else:
+            refusal = (f"no zones listed while it holds {list(held)}"
+                       if held and not zone_ids else "")
         self.clear_reason = refusal
         if refusal:
             self._event("WARN", "CLEAR_REFUSED", f"{refusal}: {note}", robot)
             return None
-        m = self._robots[robot]
         released = [zone for zone in zone_ids if self.grants.release_zone(robot, zone)]
         for node in self.grants.nodes_of(robot):
             self.grants.release_node(robot, node)

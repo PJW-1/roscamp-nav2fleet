@@ -5,8 +5,8 @@
 """
 from __future__ import annotations
 
-from fleet_core.fleet_map import SHARED
-from fleet_core.traffic.mission import BLOCKED, DOCK, MOVE, RETREAT, SELF_RECOVERING
+from fleet_core.fleet_map import RETREAT, SHARED
+from fleet_core.traffic.mission import BLOCKED, DOCK, SELF_RECOVERING
 
 from .base import HERE
 
@@ -30,9 +30,10 @@ class Blocked:
             self._event("INFO", "BLOCKED_WAIT", f"stands before something on the way to "
                         f"{m.goal.end}", m.name)
         waited = now - m.blocked_since
-        if m.goal.kind == MOVE and waited >= p.blocked_mark_s:
+        backing = self._via(m) == RETREAT
+        if not backing and waited >= p.blocked_mark_s:
             self._mark_blocked(m, now)
-        elif m.goal.kind == RETREAT and waited >= p.blocked_timeout_s:
+        elif backing and waited >= p.blocked_timeout_s:
             # 물러나는 길이 막혔다. 다른 길이 없으니 운영자에게 넘긴다
             self._event("ERROR", "GOAL_FAILED", f"blocked for {waited:.0f} s while backing out",
                         m.name)

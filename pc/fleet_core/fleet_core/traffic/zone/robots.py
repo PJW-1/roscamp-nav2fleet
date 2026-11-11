@@ -15,6 +15,25 @@ class Goal:
     via: str = ""  # nav_goal, follow_path, retreat
 
 
+ORDER = "order"  # Goal.via: order 모델의 goal(조각 여러 개를 한 goal로 보냈다)
+
+
+@dataclass
+class MoveOrder:
+    """order 모델로 보낸 이동 하나(VDA 5050의 order). 주문과는 다른 것이다."""
+    id: str
+    cuts: list  # 이동 전체의 조각: (번호, 첫 연결, 끝 연결의 다음)
+    given: int = 0  # base로 준 조각 수(앞에서부터)
+    done_seq: int = 0  # 로봇이 끝냈다고 알린 마지막 조각
+    update: int = 0
+    waiting: bool = False  # 로봇이 base 끝에 서서 update를 기다린다
+    waited: bool = False  # 이번 기다림에 BASE_END_WAIT를 냈다
+    before: tuple | None = None  # update를 보낸 뒤: (그 전 goal id, 그 전 base의 연결 수)
+    broken: bool = False  # update가 거절됐다. 지금 base가 끝나면 새 order로 잇는다
+    horizon_at: float = 0.0  # horizon을 마지막으로 정한 시각
+    warned: bool = False  # HORIZON_INVALID를 냈다
+
+
 @dataclass
 class Dispatch:
     goal_id: int
@@ -41,6 +60,8 @@ class Robot:
     dest: str | None = None  # 가는 중이거나 도킹한 스테이션
     trip: object = None  # trips.Trip
     goal: Goal | None = None
+    move_order: MoveOrder | None = None  # order 모델로 달리는 중이면 그 order
+    base_until: float = 0.0  # 통신이 끊겼다: 이 시각까지는 base 끝으로 달리는 중일 수 있다
     attempts: int = 0
     retry_at: float = 0.0  # 이 시각 전에는 새 명령을 내지 않는다
     settle_until: float = 0.0  # goal을 거둔 뒤 이 시각까지는 잡은 것을 놓지 않는다

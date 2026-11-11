@@ -19,13 +19,11 @@ class Results:
             return None
         return m
 
-    def on_move_feedback(self, robot, goal_id, last_done_seq, waiting_at_base_end,
-                         horizon_warning="") -> None:
-        """order 모델의 피드백. order가 아닌 goal의 것은 버린다."""
-
     def on_move_result(self, robot, goal_id, success, reason, last_done_seq=0) -> None:
         m = self._active(robot, goal_id, MOVE)
         if m is None:
+            return  # 넘겨준 이전 goal의 SUPERSEDED도 여기서 버려진다
+        if m.move_order is not None and self._order_result(m, success, reason, last_done_seq):
             return
         if success:
             self._succeeded(m)
@@ -104,6 +102,7 @@ class Results:
     def _segment_done(self, m) -> None:
         goal = m.goal
         m.goal = None
+        m.move_order = None
         m.arrival_by = None
         m.attempts = 0
         m.not_sent_warned = False
@@ -116,6 +115,7 @@ class Results:
 
     def _forget_goal(self, m) -> None:
         m.goal = None
+        m.move_order = None
         m.arrival_by = None
         if m.trip is not None:
             m.trip.sent = m.trip.done

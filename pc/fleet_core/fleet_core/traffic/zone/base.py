@@ -11,7 +11,7 @@ from fleet_core.traffic.selector import RobotSelector
 
 from .grants import ZoneGrants
 from .lane_policy import LanePolicy
-from .robots import Robot
+from .robots import ORDER, Robot
 
 HERE = "@"  # 막힘 표시에서 "이 로봇이 지금 선 자리"를 가리키는 머리말
 
@@ -43,6 +43,7 @@ class ZoneBase:
         self._cycle_since = 0.0
         self._cycle_acted = False
         self._near: dict = {}  # (로봇, 로봇) -> (가까워진 시각, 그때의 두 자리)
+        self.order_fault = ""  # 시험용: "stitch"면 다음 update의 이음 지점을 틀리게 보낸다
         self.clear_reason = ""
         self.station_left = None  # FleetManager가 station_left_s(robot)를 넣어 준다
 
@@ -58,6 +59,15 @@ class ZoneBase:
         """마지막으로 닿은 지점에 아직 서 있는가(보고 자세로 본다)."""
         return bool(m.node) and self._gap(m, m.node) <= self.params.arrival_tolerance_m
 
+    def _via(self, m) -> str:
+        """지금 달리는 방식. order goal이면 지금 조각의 방식이다."""
+        goal, trip = m.goal, m.trip
+        if goal is None:
+            return ""
+        if goal.via != ORDER or trip is None or trip.done >= len(trip.links):
+            return goal.via
+        return trip.links[trip.done].via
+
     def _priority(self, m) -> int:
         return priority(self.params, m.phase == AT_STATION, m.dispatch is not None)
 
@@ -66,6 +76,7 @@ class ZoneBase:
             return
         self._out.append(CancelCmd(m.name, m.goal.id))
         m.goal = None
+        m.move_order = None
         m.arrival_by = None
         m.settle_until = self._clock() + self.params.arrival_settle_s  # 취소가 닿을 때까지
         if m.trip is not None:

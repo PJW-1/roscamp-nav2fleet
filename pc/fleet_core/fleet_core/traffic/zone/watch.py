@@ -24,7 +24,8 @@ class Watch:
     def _watch_stall(self, m, now: float) -> None:
         """goal이 열린 채 제자리이면 거두고 실패한 시도로 센다."""
         p = self.params
-        if (m.goal is None or self._run_mode != RUN or m.arrival_by is not None
+        waiting = m.move_order is not None and m.move_order.waiting  # base 끝에 서 있다
+        if (m.goal is None or self._run_mode != RUN or m.arrival_by is not None or waiting
                 or m.robot_state in (BLOCKED, SELF_RECOVERING)):
             m.stall_from = None
             return
@@ -76,7 +77,7 @@ class Watch:
         p = self.params
         moving = [m for m in self._robots.values()
                   if m.available and m.goal is not None and m.goal.kind == MOVE
-                  and m.goal.via == NAV_GOAL]
+                  and self._via(m) == NAV_GOAL]
         seen = set()
         for index, a in enumerate(moving):
             for b in moving[index + 1:]:
