@@ -81,3 +81,14 @@ def test_the_tool_writes_a_mask_next_to_a_map(tmp_path):
     info = yaml.safe_load((tmp_path / "room_keepout.yaml").read_text(encoding="utf-8"))
     assert info["image"] == "room_keepout.pgm" and info["origin"] == [-0.5, -0.4, 0.0]
     assert pgm_size((tmp_path / "room_keepout.pgm").read_bytes()) == (300, 200)
+
+
+def test_the_tool_refuses_a_turned_map(tmp_path):
+    (tmp_path / "room.pgm").write_bytes(b"P5\n30 20\n255\n" + bytes(600))
+    (tmp_path / "room.yaml").write_text(
+        "image: room.pgm\nresolution: 0.01\norigin: [-0.5, -0.4, 0.3]\n", encoding="utf-8")
+    done = subprocess.run(
+        [sys.executable, str(REPO / "tools" / "make_keepout.py"), "--layout", "d2",
+         "--map", str(tmp_path / "room.yaml")], capture_output=True, text=True, check=False)
+    assert done.returncode == 2 and "yaw" in done.stderr
+    assert not (tmp_path / "room_keepout.yaml").exists(), "no mask for a grid it cannot match"

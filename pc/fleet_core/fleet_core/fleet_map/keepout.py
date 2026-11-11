@@ -1,7 +1,8 @@
 """keepout 마스크: 넓은 구역이 아닌 구역(급행, 도크, 갈림목)을 Nav2 goal 경로에서 막는 그림.
 
 Nav2의 keepout 필터는 map_server 형식(yaml과 그림)의 마스크를 읽고, 막힌 칸이 keepout이다.
-필터는 벽 여유(inflation) 뒤에 얹혀 둘레가 부풀지 않으므로 몸 반폭만큼 넓혀 만든다.
+필터는 벽 여유(inflation) 뒤에 얹혀 둘레가 부풀지 않으므로 몸 반폭만큼 넓혀 만든다. 반폭은 곧게
+선 몸의 것이다: 45도로 선 몸의 모서리는 0.085 m까지 나간다.
 어떤 지도든 그 지도의 크기, 원점, 칸 크기에 맞춰 만든다. ROS를 쓰지 않는다.
 """
 from __future__ import annotations
@@ -23,7 +24,10 @@ def keepout_rects(site, pad: float = BODY_HALF_WIDTH_M) -> list[tuple]:
 
 def mask(site, width: int, height: int, resolution: float, origin,
          pad: float = BODY_HALF_WIDTH_M) -> list[list[bool]]:
-    """keepout 칸이 참인 격자. 줄은 아래(y 작은 쪽)부터이고, origin은 왼쪽 아래 구석이다."""
+    """keepout 칸이 참인 격자. 줄은 아래(y 작은 쪽)부터이고, origin은 왼쪽 아래 구석이다.
+
+    격자는 축에 맞춘 것이다(지도 origin의 yaw는 0이어야 한다).
+    """
     grid = [[False] * width for _ in range(height)]
 
     def cells(lo: float, hi: float, start: float, count: int) -> range:

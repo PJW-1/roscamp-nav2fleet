@@ -10,7 +10,10 @@
 `keepout_mask:=`에 넘긴다.
 
 막는 넓이는 구역보다 몸 반폭(`--pad`, 기본 0.06 m)만큼 넓다: keepout 필터는 둘레를 부풀리지
-않으므로 몸이 구역에 걸치지 않게 하려는 것이다.
+않으므로 곧게 선 몸이 구역에 걸치지 않게 하려는 것이다. 45도로 선 몸의 모서리는 0.085 m까지
+나가므로, 어느 방향에서도 걸치지 않게 하려면 `--pad 0.085`를 준다.
+
+지도의 origin에 회전(yaw)이 있으면 만들지 않는다: 마스크는 축에 맞춘 격자로만 그린다.
 """
 import argparse
 import sys
@@ -44,6 +47,10 @@ def main(argv=None) -> int:
         width, height = pgm_size(picture)
     except ValueError as problem:
         print(f"{args.map.parent / info['image']}: {problem}", file=sys.stderr)
+        return 2
+    if len(info["origin"]) > 2 and abs(info["origin"][2]) > 1e-9:
+        print(f"{args.map}: the origin has a yaw of {info['origin'][2]}; this tool only "
+              "draws masks for maps that are not turned", file=sys.stderr)
         return 2
     origin = tuple(info["origin"][:2])
     grid = mask(load_fleet_map(args.layout), width, height, info["resolution"], origin, args.pad)
