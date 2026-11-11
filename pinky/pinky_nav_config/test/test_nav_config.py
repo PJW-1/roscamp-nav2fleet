@@ -2,14 +2,21 @@
 
 근거: Drive 핑키_FSM_Nav2_구현_안내_2026-11-07(3절), 핑키_제어파트_전달사항_2026-11-06(R4, R12~R15).
 """
+import math
 import xml.etree.ElementTree as ET
 from pathlib import Path
 
+import pytest
 import yaml
 
 PKG = Path(__file__).resolve().parents[1]
 PARAMS = yaml.safe_load((PKG / "params" / "nav2_params.yaml").read_text(encoding="utf-8"))
-BT = ET.parse(PKG / "bt" / "plan_once_no_recovery.xml")
+BT_FILE = PKG / "bt" / "navigate_to_pose_w_replanning_and_recovery_goal.xml"
+BT = ET.parse(BT_FILE)
+# Nav2 Jazzy's own tree, the original of BT_FILE (only there when ROS 2 Jazzy is installed)
+NAV2_BT = Path("/opt/ros/jazzy/share/nav2_bt_navigator/behavior_trees/"
+               "navigate_to_pose_w_replanning_and_recovery.xml")
+KEEPOUT = yaml.safe_load((PKG / "params" / "keepout.yaml").read_text(encoding="utf-8"))
 
 
 def params(node, sub=None):
@@ -19,7 +26,8 @@ def params(node, sub=None):
 
 def test_controller_uses_rpp_with_the_agreed_start_values():
     c = params("controller_server")
-    assert c["controller_plugins"] == ["FollowPath", "FollowPathThrough", "FollowPathReverse"]
+    assert c["controller_plugins"] == ["FollowPath", "FollowPathThrough", "FollowPathReverse",
+                                       "FollowPathGoal"]
     assert c["failure_tolerance"] == 1.0
     rpp = c["FollowPath"]
     assert rpp["plugin"] == "nav2_regulated_pure_pursuit_controller::RegulatedPurePursuitController"
@@ -125,26 +133,151 @@ def test_amcl_reads_the_fine_map():
     assert amcl["base_frame_id"] == "base_footprint" and amcl["scan_topic"] == "scan"
 
 
-def test_backup_exists_only_as_a_behavior_server_plugin():
+def test_the_goal_controller_is_an_rpp_with_the_collision_check_on():
+    """MoveTo mode nav_goal (contract 0.11-draft proposal): the Nav2 tree drives with
+    FollowPathGoal. It starts as a copy of FollowPath; a teammate may swap in MPPI or DWB, so only
+    the name is fixed. The three FollowPath controllers stay as they were."""
+    c = params("controller_server")
+    goal = c["FollowPathGoal"]
+    assert goal["plugin"] == c["FollowPath"]["plugin"]
+    assert goal["use_collision_detection"] is True
+    assert goal == c["FollowPath"]
+
+
+def test_behavior_server_offers_what_the_tree_and_pinky_fsm_call():
+    """Nav2's tree recovers with Spin, Wait and BackUp (user decision 2026-11-12, nav_goal only);
+    pinky_fsm's follow_path self-recovery and Retreat use backup."""
     b = params("behavior_server")
-    assert b["behavior_plugins"] == ["backup"]
-    assert b["backup"]["plugin"] == "nav2_behaviors::BackUp"
+    assert b["behavior_plugins"] == ["spin", "backup", "wait"]
+    assert {name: b[name]["plugin"] for name in b["behavior_plugins"]} == {
+        "spin": "nav2_behaviors::Spin", "backup": "nav2_behaviors::BackUp",
+        "wait": "nav2_behaviors::Wait"}
+    server_of = {"Spin": "spin", "BackUp": "backup", "Wait": "wait"}
+    for tag, server in server_of.items():
+        for node in BT.getroot().iter(tag):
+            assert node.get("server_name", server) in b["behavior_plugins"]
 
 
 def test_bt_navigator_serves_only_navigate_to_pose():
     assert params("bt_navigator")["navigators"] == ["navigate_to_pose"]
 
 
-def test_behavior_tree_plans_once_without_recovery():
+def test_the_tree_replans_at_1_hz_and_recovers_like_nav2s_default():
     tags = [el.tag for el in BT.iter()]
-    for banned in ("Spin", "BackUp", "Wait", "RecoveryNode", "RoundRobin",
-                   "ClearEntireCostmap", "RateController", "DistanceController"):
-        assert banned not in tags  # R14, 안내 5절
-    [planner] = BT.getroot().iter("GoalUpdatedController")
-    assert [child.tag for child in planner] == ["ComputePathToPose"]
-    [follow] = BT.getroot().iter("FollowPath")
-    assert follow.get("controller_id") == "FollowPath"
-    assert follow.get("goal_checker_id") == "general_goal_checker"
+    for kept in ("Spin", "BackUp", "Wait", "ClearEntireCostmap", "RecoveryNode", "RoundRobin"):
+        assert kept in tags
+    [rate] = BT.getroot().iter("RateController")
+    assert float(rate.get("hz")) == 1.0
+    [planner] = BT.getroot().iter("ComputePathToPose")
+    assert params("planner_server")["planner_plugins"] == ["GridBased"]
+    [select] = BT.getroot().iter("PlannerSelector")
+    assert select.get("default_planner") == "GridBased" and planner is not None
+    [controller] = BT.getroot().iter("ControllerSelector")
+    assert controller.get("default_controller") == "FollowPathGoal"
+
+
+def _canon(tree):
+    return [(el.tag, sorted(el.attrib.items())) for el in tree.iter()]
+
+
+@pytest.mark.skipif(not NAV2_BT.exists(), reason="ROS 2 Jazzy nav2_bt_navigator not installed")
+def test_the_tree_is_nav2s_default_tree_with_only_the_goal_controller_changed():
+    ours = ET.parse(BT_FILE)
+    [select] = ours.getroot().iter("ControllerSelector")
+    select.set("default_controller", "FollowPath")
+    assert _canon(ours) == _canon(ET.parse(NAV2_BT))
+
+
+def test_the_old_plan_once_tree_is_gone():
+    assert not (PKG / "bt" / "plan_once_no_recovery.xml").exists()
+
+
+# ---- global costmap for Nav2 goals --------------------------------------------------------
+
+LETHAL, INSCRIBED = 254, 253
+
+
+def _inflated(free_cells: int, glob: dict) -> list[int]:
+    """Nav2 inflation costs across a straight passage of free_cells cells between two wall cells
+    (InflationLayer: inscribed within the inscribed radius, then 252 * exp(-k (d - r)))."""
+    res = glob["resolution"]
+    half = max(abs(v) for pt in yaml.safe_load(glob["footprint"]) for v in pt)
+    inscribed = half + glob["footprint_padding"]
+    infl = glob["inflation_layer"]
+    out = []
+    for i in range(1, free_cells + 1):
+        d = min(i, free_cells + 1 - i) * res
+        if d <= inscribed:
+            out.append(INSCRIBED)
+        elif d <= infl["inflation_radius"]:
+            out.append(int(252 * math.exp(-infl["cost_scaling_factor"] * (d - inscribed))))
+        else:
+            out.append(0)
+    return out
+
+
+@pytest.mark.parametrize("free_cells", [6, 7])
+def test_navfn_finds_a_way_through_a_0_38_m_passage(free_cells):
+    """0.38 m on a 5 cm map is 6 or 7 free cells, depending on how the walls fall on the grid.
+    NavFn treats cells at or above INSCRIBED (253) as walls; at least one cell must be below and
+    the middle must be the cheapest, so goal paths keep to the middle of the passage."""
+    glob = params("global_costmap", "global_costmap")
+    costs = _inflated(free_cells, glob)
+    assert min(costs) < INSCRIBED
+    middle = costs[(free_cells - 1) // 2]
+    assert middle == min(costs)
+
+
+def test_the_wide_yard_has_cost_free_room_in_the_middle():
+    glob = params("global_costmap", "global_costmap")
+    assert 0 in _inflated(int(0.775 / glob["resolution"]), glob)
+
+
+def test_goal_paths_in_the_yard_keep_away_from_walls_and_shelves():
+    """Cells 0.20 m from a wall still cost something, so NavFn keeps goal paths about 0.25 m off
+    walls, shelves and seen robots where there is room (the robot edge then clears by ~0.19 m)."""
+    glob = params("global_costmap", "global_costmap")
+    costs = _inflated(int(0.775 / glob["resolution"]), glob)
+    assert costs[3] > 0  # the fourth free cell: 0.20 m from the wall cell
+
+
+def test_the_local_costmap_that_followpath_uses_is_unchanged():
+    local = params("local_costmap", "local_costmap")
+    assert local["inflation_layer"] == {"plugin": "nav2_costmap_2d::InflationLayer",
+                                        "cost_scaling_factor": 3.0, "inflation_radius": 0.15}
+    assert "filters" not in local
+
+
+# ---- keepout (express lane, dock zones) for Nav2 goals only -------------------------------
+
+
+def test_the_base_params_have_no_keepout():
+    """keepout_mask empty = no filter and no servers: nothing else changes."""
+    assert "filters" not in params("global_costmap", "global_costmap")
+    assert "costmap_filter_info_server" not in PARAMS and "keepout_mask_server" not in PARAMS
+
+
+def test_the_keepout_overlay_filters_only_the_global_costmap():
+    assert set(KEEPOUT) == {"global_costmap", "costmap_filter_info_server",
+                            "keepout_mask_server"}
+    glob = KEEPOUT["global_costmap"]["global_costmap"]["ros__parameters"]
+    assert glob["filters"] == ["keepout_filter"]
+    assert glob["keepout_filter"]["plugin"] == "nav2_costmap_2d::KeepoutFilter"
+    assert set(glob) == {"filters", "keepout_filter"}
+
+
+def test_the_keepout_topics_meet():
+    """The costmap filter resolves relative topics inside the costmap node (Jazzy), so the
+    filter side names absolute topics; both servers run in the robot namespace."""
+    glob = KEEPOUT["global_costmap"]["global_costmap"]["ros__parameters"]
+    info = KEEPOUT["costmap_filter_info_server"]["ros__parameters"]
+    mask = KEEPOUT["keepout_mask_server"]["ros__parameters"]
+    assert glob["keepout_filter"]["filter_info_topic"] == "<robot_namespace>/" + \
+        info["filter_info_topic"]
+    assert info["mask_topic"] == "<robot_namespace>/" + mask["topic_name"]
+    assert info["type"] == 0  # keepout
+    assert (info["base"], info["multiplier"]) == (0.0, 1.0)
+    assert mask["frame_id"] == "map"
 
 
 def test_no_velocity_smoother_or_collision_monitor_between_controller_and_cmd_vel():
