@@ -28,7 +28,7 @@ WAITING = {
         "test_situation_express.py", "test_situation_faults.py", "test_situation_hall.py",
         "test_situation_stations.py")), NEEDS_ZONE_TRAFFIC),
     **dict.fromkeys((("fake_robots", name) for name in (
-        "test_judge.py", "test_safety_meter.py", "test_scenario.py", "test_ros_arm.py",
+        "test_ros_arm.py",
         "test_ros_central.py", "test_ros_check_interfaces.py", "test_ros_monitor.py",
         "test_ros_pinky.py", "test_ros_workcell.py")), NEEDS_FLEET_MAP),
     **dict.fromkeys((("fleet_gz_sim", name) for name in (

@@ -1,6 +1,7 @@
 """ScenarioJudge: 시나리오 실행이 통과했는지 판정한다. ROS를 쓰지 않는다.
 
-구역 메시지는 구역마다 보유자가 하나라 이중 예약이 거기에 드러나지 않는다. 그래서
+구역 메시지의 holder는 그 구역을 쥔 로봇들의 이름을 쉼표로 이은 것이다(넓은 구역과 한 줄
+구역은 여러 대가 쥔다). 이중 예약은 그것만으로 드러나지 않으므로
 물리적으로 검사한다: 로봇이 실제로 어디에 있는지, 보유자가 누구였는지. 가짜 로봇은 이를 위해
 잡음 없는 위치를 내보낸다. 보고 한 번은 표준편차 몇 배씩 틀려 정상 실행을 떨어뜨릴 수 있고
 통신 두절 중에는 끊긴다. 실제 로봇은 보고로 판정한다.
@@ -10,7 +11,10 @@
 """
 from __future__ import annotations
 
+import math
 import re
+
+from fleet_core.fleet_map import DOCK, SHARED
 
 RATE_PERIOD_S = 0.5  # robots.csv는 2 Hz로 줄여 쓴다
 OFF_LANE_GRACE_S = 1.0  # drift 시작부터 FMS가 연속 보고로 알아챌 때까지의 여유
@@ -18,6 +22,7 @@ EPS = 1e-9
 PLACING = "PLACING"
 FINAL_CODES = {"ORDER_SHIPPED": "SHIPPED", "ORDER_PARTIAL": "PARTIAL", "ORDER_HELD": "HELD"}
 ORDER_ID = re.compile(r"[^\s:,;]+")
+PARK_NEAR_M = 0.10  # 주차 지점에서 이 안이면 주차 자리에 있다
 
 
 def order_id_of(detail: str) -> str:
@@ -44,6 +49,12 @@ def is_pseudo_holder(holder: str) -> bool:
     return holder.startswith("#")
 
 
+def holder_set(text: str) -> frozenset[str]:
+    """/fleet/zones의 holder("pinky1,pinky3", 빈 값이면 아무도)에서 로봇 이름들. '#'는 뺀다."""
+    return frozenset(name.strip() for name in (text or "").split(",")
+                     if name.strip() and not is_pseudo_holder(name.strip()))
+
+
 class ScenarioJudge:
     def __init__(self, site, scenario, margin_m: float = 0.13, grace_s: float = 2.0,
                  radius_m: float = 0.08):
@@ -54,7 +65,7 @@ class ScenarioJudge:
         self.grace_s = grace_s
         self.poses: dict[str, tuple[float, float, str]] = {}
         self.truth: dict[str, tuple[float, float]] = {}
-        self.holders: dict[str, str] = {}
+        self.holders: dict[str, frozenset[str]] = {}
         self.events_seen: set[str] = set()
         self.event_counts: dict[str, int] = {}
         self.violations: list[str] = []
@@ -102,7 +113,7 @@ class ScenarioJudge:
         # 바퀴
         self._work_zones = self._station_zones("fill")
         self._out_zones = self._station_zones("swap")
-        self._waiting_zones = {site.zone_of[c] for c in site.parking}
+        self._parking = [site.node_pose(n) for n in site.parking]
         self._last_zone: dict[str, str] = {}
         self._from_outbound: set[str] = set()
         self.direct_returns = 0
@@ -120,7 +131,7 @@ class ScenarioJudge:
         self.robot_idle = 0  # 1.1 지시서 H2: 목적지가 있는데 goal도 구역 대기표도 없이 섰다
 
     def _station_zones(self, action: str) -> set[str]:
-        return {self.site.zone_of[s.dock] for s in self.site.stations.values()
+        return {self.site.nodes[s.dock].zone for s in self.site.stations.values()
                 if s.action == action}
 
     # -- inputs -------------------------------------------------------------------------
@@ -135,14 +146,16 @@ class ScenarioJudge:
         self.truth[robot] = (x, y)
 
     def on_zones(self, t: float, holders: dict[str, str]) -> None:
-        for zone, new in holders.items():
-            old = self.holders.get(zone, "")
+        """holders: 구역 -> /fleet/zones의 holder 글(쉼표로 이은 이름들)."""
+        for zone, text in holders.items():
+            new = holder_set(text)
+            old = self.holders.get(zone, frozenset())
             if new == old:
                 continue
             self.holders[zone] = new
-            self.zone_rows.append((t, zone, old, new))
-            if old and not is_pseudo_holder(old):
-                self._check_release(t, zone, old)
+            self.zone_rows.append((t, zone, ",".join(sorted(old)), ",".join(sorted(new))))
+            for robot in sorted(old - new):
+                self._check_release(t, zone, robot)
 
     def on_event(self, t: float, level: str, source: str, code: str, detail: str) -> None:
         self.events_seen.add(code)
@@ -160,10 +173,10 @@ class ScenarioJudge:
         elif code == "ZONES_CLEARED" and source in self._isolated:
             self._operator_came = True
             self._standing_isolated.discard(source)
-        elif code == "DETOUR":
-            holders = set(re.findall(r"held by ([^,;\s]+)", detail))
-            if holders & self._standing_isolated:  # 이벤트 하나는 한 번
-                self.detours_around_isolated += 1
+        elif code == "REROUTE" and self._standing_isolated - {source}:
+            # 계약 4절: detail은 자유 글이라 코드와 로봇만 본다. 격리된 로봇이 아직 서 있을 때
+            # 다른 로봇이 길을 바꾼 수
+            self.detours_around_isolated += 1
         order = order_id_of(detail)
         if code == "ORDER_ACCEPTED" and order not in self.registered:
             self.registered.append(order)  # 시나리오 주문은 처음부터 등록돼 있다
@@ -202,18 +215,18 @@ class ScenarioJudge:
         """events.csv에 남기되 플릿 이벤트로 세면 안 되는 것을 기록한다."""
         self.event_rows.append((t, "NOTE", source, code, detail))
 
-    def put_back(self, t: float, robot: str, waypoint) -> None:
+    def put_back(self, t: float, robot: str, node) -> None:
         """관리자가 로봇을 이 지점에 다시 놓았다. 매니저가 잡을 grace_s 동안만 면제한다.
 
         시작 칸 면제는 더 쓰지 않는다. 못 잡으면 유예가 끝나는 시각에 바로 센다.
         """
-        self._put_back[robot] = (waypoint, t, t + self.grace_s)
+        self._put_back[robot] = (node, t, t + self.grace_s)
         self._left_start.add(robot)
 
     def _put_back_spot(self, robot: str, x: float, y: float):
         """놓인 지점에 아직 서 있으면 (지점, 놓은 시각, 유예 끝), 떠났으면 지우고 None."""
         spot = self._put_back.get(robot)
-        if spot is not None and self.site.nearest_waypoint(x, y) != spot[0]:
+        if spot is not None and self.site.nearest_node(x, y) != spot[0]:
             del self._put_back[robot]
             return None
         return spot
@@ -237,8 +250,16 @@ class ScenarioJudge:
 
     # -- checks -------------------------------------------------------------------------
 
-    def _zone_of_pose(self, x: float, y: float) -> str:
-        return self.site.zone_of[self.site.nearest_waypoint(x, y)]
+    def _zones_at(self, x: float, y: float) -> list[str]:
+        """이 점을 품은 구역들(경계 위면 둘 이상)."""
+        return [z for z in self.site.zones if self.site.distance_to_zone(x, y, z) <= EPS]
+
+    def _outside_m(self, x: float, y: float) -> float:
+        """가장 가까운 구역까지(어느 구역 안이면 0)."""
+        return min(self.site.distance_to_zone(x, y, z) for z in self.site.zones)
+
+    def _parked_at(self, x: float, y: float) -> bool:
+        return any(math.dist((x, y), spot) <= PARK_NEAR_M for spot in self._parking)
 
     def _position(self, robot: str) -> tuple[float, float] | None:
         if robot in self.truth:
@@ -254,11 +275,10 @@ class ScenarioJudge:
         position = self._position(robot)
         if position is None:
             return False
-        zone = self._zone_of_pose(*position)
-        return self.site.distance_to_zone(position[0], position[1], zone) > self.margin_m
+        return self._outside_m(*position) > self.margin_m
 
     def held_by(self, robot: str) -> list[str]:
-        return sorted(z for z, holder in self.holders.items() if holder == robot)
+        return sorted(z for z, holders in self.holders.items() if robot in holders)
 
     def _check_release(self, t: float, zone: str, robot: str) -> None:
         self._check_off_lane_release(t, zone, robot)
@@ -292,38 +312,52 @@ class ScenarioJudge:
     def tick(self, t: float) -> None:
         by_zone: dict[str, list[str]] = {}
         for robot, (x, y) in self._positions().items():
-            zone = self._zone_of_pose(x, y)
-            if self.site.distance_to_zone(x, y, zone) <= EPS:
+            zone = self.site.zone_at(x, y)
+            if zone is not None:
                 by_zone.setdefault(zone, []).append(robot)
-                self._track_lap(t, robot, zone)
+            self._track_lap(t, robot, self._place(x, y, zone))
         for zone, robots in by_zone.items():
-            self.max_occupancy = max(self.max_occupancy, len(robots))
+            spec = self.site.zones[zone]
+            # zone_holder_max는 한 대 구역(도크, 갈림목)에서 잰다. 여러 대가 들어가는 구역에
+            # 있는 로봇은 1로 센다(어딘가에 있었다는 것만).
+            seen = len(robots) if spec.kind == DOCK else 1
+            self.max_occupancy = max(self.max_occupancy, seen)
+            capacity = 1 if spec.kind == DOCK else spec.capacity
             key = (zone, *sorted(robots))
-            if len(robots) > 1 and key not in self._over:
+            if spec.kind != SHARED and len(robots) > capacity and key not in self._over:
                 self._over.add(key)
                 self._violate(t, f"{', '.join(sorted(robots))} are in {zone} at the same time")
         self._check_unheld(t)
 
+    def _place(self, x: float, y: float, zone) -> str:
+        """한 바퀴 추적의 자리: out, work, park 또는 빈 값."""
+        if zone in self._out_zones:
+            return "out"
+        if zone in self._work_zones:
+            return "work"
+        return "park" if self._parked_at(x, y) else ""
+
     def _unbound_on_board(self) -> int:
         return sum(order not in self._bound_now for order in self.board)
 
-    def _track_lap(self, t: float, robot: str, zone: str) -> None:
-        """출고 구역에서 나머지 둘 중 먼저 닿는 곳까지 로봇을 따라간다.
+    def _track_lap(self, t: float, robot: str, place: str) -> None:
+        """출고 도크 구역에서 작업 도크 구역과 주차 자리 중 먼저 닿는 곳까지 로봇을 따라간다.
 
         미배정 주문이 로봇 수 이상이면 모든 로봇이 호출되므로
-        대기 루프에 들어갈 까닭이 없다.
+        주차 자리로 갈 까닭이 없다.
         """
-        if self._last_zone.get(robot) == zone:
+        if not place or self._last_zone.get(robot) == place:
             return
-        self._last_zone[robot] = zone
-        if zone in self._out_zones:
+        self._last_zone[robot] = place
+        zone = place
+        if place == "out":
             self._from_outbound.add(robot)
         elif robot not in self._from_outbound:
             return
-        elif zone in self._work_zones:
+        elif place == "work":
             self._from_outbound.discard(robot)
             self.direct_returns += 1
-        elif zone in self._waiting_zones:
+        elif place == "park":
             self._from_outbound.discard(robot)
             unbound = self._unbound_on_board()
             if unbound >= len(self.scenario.robots):
@@ -336,7 +370,7 @@ class ScenarioJudge:
         cfg = self.scenario.robots.get(robot)
         if robot in self._left_start or cfg is None:
             return False
-        if self.site.nearest_waypoint(x, y) == cfg.start:
+        if self.site.nearest_node(x, y) == cfg.start:
             return True
         self._left_start.add(robot)
         return False
@@ -347,11 +381,13 @@ class ScenarioJudge:
             spot = self._put_back_spot(robot, x, y)
             if spot is None and self._still_on_start_cell(robot, x, y):
                 continue
-            zone = self._zone_of_pose(x, y)
-            if self.holders.get(zone) == robot and spot is not None:
+            inside = self._zones_at(x, y)
+            held = any(robot in self.holders.get(z, ()) for z in inside)
+            if held and spot is not None:
                 del self._put_back[robot]  # 잡았다
-            if self.site.distance_to_zone(x, y, zone) > EPS or self.holders.get(zone) == robot:
+            if not inside or held:
                 continue
+            zone = inside[0]
             if spot is not None and t < spot[2]:
                 continue
             key = (robot, zone)
@@ -361,8 +397,8 @@ class ScenarioJudge:
             if t - since >= self.grace_s and key not in self._unheld_counted:
                 self._unheld_counted.add(key)
                 self.unheld_violations += 1
-                self._violate(t, f"{robot} is in {zone} but the holder is "
-                                 f"{self.holders.get(zone) or 'nobody'}")
+                holders = ",".join(sorted(self.holders.get(zone, ()))) or "nobody"
+                self._violate(t, f"{robot} is in {zone} but the holders are {holders}")
         for key in list(self._unheld_since):
             if key not in current:
                 del self._unheld_since[key]
@@ -437,8 +473,7 @@ class ScenarioJudge:
             pose = self.poses.get(robot)
             if pose is None or pose[2] != "IDLE":
                 return False
-            position = self._position(robot)
-            if self._zone_of_pose(*position) not in self._waiting_zones:
+            if not self._parked_at(*self._position(robot)):
                 return False
         return True
 

@@ -21,9 +21,9 @@ orders:
   - {at_s: 30, id: O-006, items: {B: 2}}
   - {at_s: 40, id: O-007, items: {A: 5}}
 robots:
-  pinky1: {start: P-6, speed_mps: 0.20, pose_noise_m: 0.03}
-  pinky2: {start: P-5, speed_mps: 0.18, pose_noise_m: 0.03}
-  pinky3: {start: P-4, speed_mps: 0.20, pose_noise_m: 0.03}
+  pinky1: {start: P-1, speed_mps: 0.20, pose_noise_m: 0.03}
+  pinky2: {start: P-2, speed_mps: 0.18, pose_noise_m: 0.03}
+  pinky3: {start: P-3, speed_mps: 0.20, pose_noise_m: 0.03}
 arm: {seconds_per_item: 4.0, swap_seconds: 8.0, fail_rate: 0.0}
 dock: {duration_s: 3.0, error_cm: 1.0}
 faults: []
