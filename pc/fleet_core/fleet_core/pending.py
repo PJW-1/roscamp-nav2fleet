@@ -28,9 +28,6 @@ WAITING = {
         "test_arena.py", "test_dock_stub.py", "test_fleet_check.py", "test_fleet_setup.py",
         "test_fleet_view.py", "test_launch_wiring.py", "test_obstacles.py",
         "test_stand_in_battery.py")), NEEDS_FLEET_MAP),
-    **dict.fromkeys((("fleet_manager", name) for name in (
-        "test_node_wiring.py", "test_fms_restart.py", "test_scenario_integration.py")),
-        NEEDS_ZONE_TRAFFIC),
 }
 
 

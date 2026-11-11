@@ -85,7 +85,7 @@ def build(name: str, layout: str = "d2") -> Situation:
         # 그 로봇은 재시도 사이에 갈림목에 서 있을 수 있고(5번), 남은 주문은 못 끝날 수 있다(c).
         return Situation(name, "위치가 크게 튐",
                          injections=[NoisyPose("pinky1", 20.0, 40.0, sigma_m=0.03, jump_m=0.30)],
-                         finish_all=False, allowed=("I5_STANDING",))
+                         finish_all=layout != "c", allowed=("I5_STANDING",))
     raise KeyError(f"no situation {name!r}")
 
 

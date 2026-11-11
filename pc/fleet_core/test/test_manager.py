@@ -165,19 +165,20 @@ def _filled_and_leaving(robot="r1"):
     out = drive(core, robot, lambda: core.robot_view(robot)["order"] == "O-001")
     core.on_fill_result(cmds(out, "FillCmd")[0].goal_id, True, {"A": 1}, {}, "")
     report(core, robot, "W", "DOCKED")
-    core.tick()
-    return core, now
+    leaving = core.tick()
+    return core, now, leaving
 
 
 def test_a_real_fill_opens_the_trip_out_by_name():
-    core, _ = _filled_and_leaving()
+    core, _, leaving = _filled_and_leaving()
+    assert [c for c in leaving if isinstance(c, (MoveCmd, RetreatCmd)) and c.robot == "r1"]
     assert core.robot_view("r1")["basket"] == "FULL"
     assert core.robot_view("r1")["destination"] == "OUTBOUND"
 
 
 def test_recovery_after_a_real_fill_still_heads_to_outbound():
     """test_fleet_unit은 legacy_core로 같은 상황을 강제하고, 여기서는 실제 입력을 쓴다."""
-    core, now = _filled_and_leaving()
+    core, now, _ = _filled_and_leaving()
     now[0] += core.params.comm_timeout_s + 0.1
     core.tick()
     assert core.robot_view("r1")["state"] == "COMM_LOST"
@@ -262,6 +263,11 @@ def test_a_waiting_robot_shows_the_zone_and_who_is_in_the_way():
     view = status(core, "b")
     assert view.wait_zone == "J_W" and view.wait_robots == ("a",)
     assert status(core, "a").wait_zone == ""
+    core.confirm_clear("a", core.zones.held_by("a"), "lifted off")
+    core.tick()
+    core.tick()
+    assert (status(core, "b").wait_zone, status(core, "b").wait_robots) == ("", ())
+    assert "J_W" in core.zones.held_by("b")
 
 
 def test_sr17_every_robot_state_can_be_told_apart():

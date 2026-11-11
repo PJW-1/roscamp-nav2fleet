@@ -389,8 +389,6 @@ def test_views_of_an_unknown_robot_do_not_raise():
 # ---- the cores on their own -------------------------------------------------------------------
 
 
-@pytest.mark.xfail(strict=True, raises=KeyError,
-                   reason="traffic_bugs B2: ZoneTraffic.status_view of an unknown robot raises")
 def test_traffic_ignores_an_unknown_robot_everywhere():
     site, params = load_fleet_map("d2"), load_params()
     traffic = ZoneTraffic(site, params, ["pinky1"], lambda: 0.0)
@@ -404,10 +402,16 @@ def test_traffic_ignores_an_unknown_robot_everywhere():
     traffic.step("ghost")
     assert traffic.available("ghost") is False
     assert traffic.robot_view("ghost") == {}
-    assert traffic.status_view("ghost") == {}
     traffic.on_dispatch(5, "OUTBOUND", "ghost")
     assert traffic.take_output() == [DispatchResult(5, False, "ghost", "NO_SUCH_ROBOT")]
     assert traffic.robots == ["pinky1"]
+
+
+@pytest.mark.xfail(strict=True, raises=KeyError,
+                   reason="traffic_bugs B2: ZoneTraffic.status_view of an unknown robot raises")
+def test_the_status_of_an_unknown_robot_is_empty():
+    traffic = ZoneTraffic(load_fleet_map("d2"), load_params(), ["pinky1"], lambda: 0.0)
+    assert traffic.status_view("ghost") == {}
 
 
 def test_orchestrator_ignores_an_unknown_robot_everywhere():
