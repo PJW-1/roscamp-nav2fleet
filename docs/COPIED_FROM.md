@@ -33,4 +33,4 @@ git rev-parse 9375a80:pc              # roscamp-freefloor
 | `ebef4bf` 자유바닥 | `pc/fleet_core/fleet_core/traffic/floor/`(칸 잠금, 칸 길 찾기, 지름길, 교차 상자, 통로 비우기), `data/floor_map*.yaml`, `data/feature_floor_map.yaml`, `data/*.pgm`, `data/fleet_params_real_arena.yaml`, 자유바닥 전용 파라미터, 심판과 안전 측정의 자유바닥 갈래, `tools/floor_view.py`, `tools/compare_floor.py`, `tools/scenarios/`, 자유바닥 시험 | Nav2가 길을 짜므로 필요 없다 |
 | `9c90d6d` 레인 전용 | `traffic/controller.py`(레인 제어기), `lane_map.py`, `lane_path.py`, `blocking.py`, `detour.py`, `off_lane.py`, `release_floor.py`, `data/lane_map.yaml`, `sim/fake_robots/maps/`(옛 지도 전부), 옛 지도에 묶인 시나리오(`feature_*`, `warehouse_rush`, `off_lane`), `tools/model_check.py`, `tools/pressure_sweep.py`, `tools/convert_grid_map.py`, `tools/baseline.py`, 시험 지도(`test/grid_map.py`, `test/data/grid_cells.yaml`), 레인 전용 파라미터, 그 코드의 시험 | 새 그래프·구역 층이 대신한다 |
 
-남긴 시나리오 8개(`basic_orders` 등)는 고장 종류와 형식의 본보기다. 지운 레인 지도의 지점 이름(`P-6` 등)을 쓰므로 새 지도에 맞춰 고쳐야 돈다. `sim/fleet_gz_sim`은 다른 트랙이 따로 정리한다.
+남긴 시나리오 9개(`basic_orders` 등)는 고장 종류와 형식의 본보기다. 지운 레인 지도의 지점 이름(`P-6` 등)을 쓰므로 새 지도에 맞춰 고쳐야 돈다. `sim/fleet_gz_sim`은 다른 트랙이 따로 정리한다.
