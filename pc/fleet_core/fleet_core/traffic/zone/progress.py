@@ -10,9 +10,7 @@ from fleet_core.traffic.mission import (
     ERROR,
     IDLE,
     LOCALIZING,
-    NOT_AT_TARGET,
     NOT_PLACEABLE,
-    ON_A_GOAL,
     OUT_OF_SERVICE,
     PARKED,
     PLACEMENT_CONFLICT,
@@ -33,6 +31,7 @@ class Progress:
         m.robot_state = state
         self._note_battery(m, battery)
         if state == LOCALIZING:
+            m.clear_n.clear()  # 벗어난 보고는 이어져야 한다
             return  # 위치를 아직 못 잡았다. 자세를 믿지 않는다
         m.x, m.y, m.yaw = x, y, yaw
         m.heard_since_success = True
@@ -134,12 +133,13 @@ class Progress:
         """고장으로 세운 로봇이 계속 보고한다. 서 있는 자리 밖의 구역(가던 길에 잡아 둔 것)은
         돌려준다. 말이 끊긴 로봇의 것은 돌려주지 않는다: 어디 있는지 모른다.
 
-        로봇이 아직 goal을 수행한다고 보고하거나(취소가 닿지 않았다), 선 자리가 고장 났을 때의
-        자리와 다르거나, 위치를 못 믿어 세운 것(NOT_AT_TARGET)이면 돌려주지 않는다.
+        로봇이 goal 없이 서 있다고 보고하지 않거나(취소가 닿지 않았을 수 있다. 막혀 선 것도
+        goal은 살아 있다), 선 자리가 고장 났을 때의 자리와 다르거나, 위치를 못 믿어 세운 적이
+        있으면(NOT_AT_TARGET) 돌려주지 않는다.
         """
         moved = m.fault_xy is None or math.dist(m.fault_xy, (m.x, m.y)) > (
             self.params.arrival_tolerance_m)
-        if m.robot_state in ON_A_GOAL or moved or m.fault_reason == NOT_AT_TARGET:
+        if m.robot_state in NOT_PLACEABLE or moved or m.pose_doubt:
             m.clear_n.clear()
             return
         released = self._release_behind(m, keep_trip=False)
