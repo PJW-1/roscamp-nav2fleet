@@ -234,3 +234,70 @@ def test_a_silent_robot_gives_nothing_back():
     world.run(10.0)
     assert world.view("pinky1")["comm"] == "COMM_LOST"
     assert world.view("pinky1")["held"] == ["HALL", "J_W", "WORK_DOCK"]
+
+
+def test_a_full_yard_zone_is_taken_as_soon_as_there_is_room():
+    world = Harness("d")
+    world.report()
+    world.call("WORK", "pinky1")
+    world.step()
+    grants = world.traffic.grants
+    assert grants.force("pinky2", ["CORR_S"], [])  # 통로는 한 대만 든다
+    world.traffic.take_output()
+    for _ in range(world.params.outside_zone_samples + 3):
+        world.traffic.on_robot_state("pinky1", 0.75, 0.20, 0.0, "MOVING")
+    assert "CORR_S" not in world.view("pinky1")["held"], "no room yet"
+    grants.release_zone("pinky2", "CORR_S")
+    world.traffic.on_robot_state("pinky1", 0.75, 0.20, 0.0, "MOVING")
+    assert "CORR_S" in world.view("pinky1")["held"]
+    codes = [e.code for e in world.traffic.take_output()]
+    assert codes == ["OUTSIDE_ZONE", "OUTSIDE_ZONE"], "noted once, then taken"
+
+
+def test_the_reports_that_let_go_of_a_zone_must_follow_each_other():
+    world = reported({"pinky1": "W", "pinky2": "P-2", "pinky3": "P-3"})
+    assert world.traffic.grants.force("pinky1", ["HALL"], [])
+    yard, elsewhere = (1.0, 0.40), (1.0, 0.89)  # 마당 안, 쥐지 않은 급행 안
+    for _ in range(world.params.release_confirm_samples - 1):
+        world.traffic.on_robot_state("pinky1", *yard, 0.0, "IDLE")
+    world.traffic.on_robot_state("pinky1", *elsewhere, 0.0, "IDLE")  # 위치가 튀었다
+    world.traffic.on_robot_state("pinky1", *yard, 0.0, "IDLE")
+    assert "WORK_DOCK" in world.view("pinky1")["held"], "the count starts again after the jump"
+    for _ in range(world.params.release_confirm_samples):
+        world.traffic.on_robot_state("pinky1", *yard, 0.0, "IDLE")
+    assert "WORK_DOCK" not in world.view("pinky1")["held"]
+
+
+def isolated_in_the_yard(reason="MOTOR"):
+    world = Harness()
+    world.step()
+    world.call("WORK", "pinky1")
+    world.run(1.0)
+    world.traffic.on_robot_fault("pinky1", reason)
+    world.step()
+    world.now += 2.0  # 취소가 닿을 시간은 지났다
+    return world, world.bots["pinky1"]
+
+
+def test_an_isolated_robot_that_still_reports_a_goal_gives_nothing_back():
+    world, bot = isolated_in_the_yard()
+    for _ in range(6):
+        world.traffic.on_robot_state("pinky1", bot.x, bot.y, 0.0, "MOVING")
+    assert world.view("pinky1")["held"] == ["HALL", "J_W", "WORK_DOCK"], "the cancel has not landed"
+    for _ in range(6):
+        world.traffic.on_robot_state("pinky1", bot.x, bot.y, 0.0, "IDLE")
+    assert world.view("pinky1")["held"] == ["HALL"]
+
+
+def test_an_isolated_robot_whose_report_moved_gives_nothing_back():
+    world, bot = isolated_in_the_yard()
+    for _ in range(6):
+        world.traffic.on_robot_state("pinky1", bot.x + 0.30, bot.y, 0.0, "IDLE")
+    assert world.view("pinky1")["held"] == ["HALL", "J_W", "WORK_DOCK"], "it is not where it failed"
+
+
+def test_a_robot_isolated_for_not_being_where_it_says_gives_nothing_back():
+    world, bot = isolated_in_the_yard("NOT_AT_TARGET")
+    for _ in range(6):
+        world.traffic.on_robot_state("pinky1", bot.x, bot.y, 0.0, "IDLE")
+    assert world.view("pinky1")["held"] == ["HALL", "J_W", "WORK_DOCK"], "its position is in doubt"

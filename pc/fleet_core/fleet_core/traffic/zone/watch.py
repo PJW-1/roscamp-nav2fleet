@@ -52,11 +52,13 @@ class Watch:
             m.outside_noted = False
             return
         m.outside_n += 1
-        if m.outside_n >= p.outside_zone_samples and not m.outside_noted:
+        if m.outside_n < p.outside_zone_samples:
+            return
+        if not m.outside_noted:
             m.outside_noted = True
             self._event("WARN", "OUTSIDE_ZONE", f"at ({m.x:.2f}, {m.y:.2f}), {gap:.2f} m outside "
                         f"{list(held)} for {m.outside_n} reports", m.name)
-            self._take_where_it_stands(m)
+        self._take_where_it_stands(m)  # 자리가 없었으면 보고마다 다시 본다
 
     def _take_where_it_stands(self, m) -> None:
         """쥔 구역 밖의 넓은 구역에 있는 로봇에게 그 구역을 쥐게 한다. 자리가 없으면 기록뿐이다.

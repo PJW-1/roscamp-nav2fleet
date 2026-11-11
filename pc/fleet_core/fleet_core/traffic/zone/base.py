@@ -100,6 +100,8 @@ class ZoneBase:
     def _fail(self, m, reason: str) -> None:
         """로봇을 ERROR로 세운다. 구역은 쥔 채 두고 운영자가 푼다(confirm_clear)."""
         first = m.fault != ERROR
+        if first:
+            m.fault_xy = (m.x, m.y)
         m.fault = ERROR
         m.fault_reason = reason
         m.called = False
