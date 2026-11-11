@@ -65,6 +65,8 @@ ARGS = {
     "scenario_seed": ("", "시나리오 random 블록을 풀 seed(정수). 비면 파일의 seed"),
     "battery_low_pct": ("", "관제 battery_low_pct(0~100). 주면 그 값을 넣은 파라미터 사본"
                             "(result_dir/fleet_params.yaml)으로 돈다. 비우면 파일 그대로"),
+    "use_order_model": ("", "true/false: 관제의 use_order_model 파라미터(order 모델이 있는"
+                            " 관제만 읽는다). 비우면 params 파일의 값"),
 }
 ARMS = "arm1 arm2 arm3"
 
@@ -141,10 +143,11 @@ def params_for(params_file: str, result_dir: str, battery_low_pct: str = "") -> 
 
 def fleet(scenario_file: str, robots: list[str], result_dir: str, monitor: bool,
           layout: str, params_file: str = "", obstacles_file: str = "", check: bool = True,
-          scenario_seed: int | None = None) -> list:
+          scenario_seed: int | None = None, use_order_model: bool | None = None) -> list:
     """진짜 관제와 가짜 작업셀·비전·출고 팔·central·모니터, 장애물(있으면). 모두 Gazebo 시계.
     layout: 관제와 가짜들의 map_file(배치 이름).
-    scenario_seed: 시나리오를 읽는 노드에 넘길 seed. None이면 넘기지 않는다(파일의 seed)."""
+    scenario_seed: 시나리오를 읽는 노드에 넘길 seed. None이면 넘기지 않는다(파일의 seed).
+    use_order_model: 관제 노드 파라미터 use_order_model. None이면 넘기지 않는다(파일의 값)."""
     from fake_robots.common import split_fake_arms
     from fleet_core.fleet_map import load_fleet_map
     map_file = {"map_file": layout}
@@ -158,7 +161,9 @@ def fleet(scenario_file: str, robots: list[str], result_dir: str, monitor: bool,
     actions = [Node(package="fleet_manager", executable="fleet_manager_node", name="fleet_manager",
                     output="screen",
                     parameters=[{"use_sim_time": True, "robots": robots,
-                                 "params_file": params_file, **map_file}])]
+                                 "params_file": params_file, **map_file,
+                                 **({} if use_order_model is None
+                                    else {"use_order_model": use_order_model})}])]
     workcell, vision_arms, swap_arms = split_fake_arms(ARMS, load_fleet_map(layout))
     if workcell:
         actions.append(fake("fake_workcell_node", "fake_workcell"))
@@ -271,12 +276,14 @@ def _start(context):
     wait = Node(package="fleet_gz_sim", executable="wait_ready", name="wait_ready",
                 output="screen", parameters=[{"robots": robots}])
     monitor = flag(value("monitor"), "monitor")
+    order = (None if not value("use_order_model").strip()
+             else flag(value("use_order_model"), "use_order_model"))
 
     def after_wait(event, _context):
         if event.returncode != 0:
             return [LogInfo(msg="fleet_gz_sim: 로봇이 IDLE이 되지 않아 끝낸다"), Shutdown()]
         return fleet(scenario_file, robots, value("result_dir"), monitor, layout,
-                     params_file, obstacles_file, check, scenario_seed)
+                     params_file, obstacles_file, check, scenario_seed, order)
 
     actions += [wait, RegisterEventHandler(OnProcessExit(target_action=wait, on_exit=after_wait))]
     return actions

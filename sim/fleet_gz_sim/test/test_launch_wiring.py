@@ -305,6 +305,17 @@ def test_obstacles_take_a_link_schedule_checked_against_the_layout(made):
         run(made, obstacles="no_such_schedule")
 
 
+@pytest.mark.parametrize("text, value", [("true", True), ("false", False), ("", None)])
+def test_use_order_model_reaches_the_fleet_manager_only_when_given(made, text, value):
+    [manager] = nodes(after_wait(run(made, use_order_model=text)), "fleet_manager_node")
+    assert params(manager).get("use_order_model") == value
+
+
+def test_a_use_order_model_typo_stops_the_launch(made):
+    with pytest.raises(ValueError, match="use_order_model"):
+        run(made, use_order_model="yes")
+
+
 def test_one_rviz_shows_the_whole_fleet_by_default(made):
     actions = run(made)
     [view] = nodes(actions, "fleet_view")
