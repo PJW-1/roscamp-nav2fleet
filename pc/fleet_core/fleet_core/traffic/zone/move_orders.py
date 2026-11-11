@@ -120,10 +120,7 @@ class MoveOrders:
             return
         if mo.before is not None:  # 앞의 update에 로봇이 아직 답하지 않았다
             if self._clock() - mo.asked_at >= UPDATE_ANSWER_S:
-                self._event("WARN", "ORDER_UPDATE_REJECTED", f"{mo.id} update {mo.update}: no "
-                            f"answer in {UPDATE_ANSWER_S:.0f} s, ends both goals", m.name)
-                self._cancel_goal(m)
-                m.retry_at = self._clock() + self.params.move_retry_wait_s
+                self._end_both(m, f"no answer in {UPDATE_ANSWER_S:.0f} s")
             return
         if mo.broken or trip.stale:
             # 거절된 order는 base 끝에 선 뒤에, 목적이 바뀐 order는 넓은 구역에 나오는 대로 거둔다.

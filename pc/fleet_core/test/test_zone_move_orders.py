@@ -214,13 +214,21 @@ def test_an_update_nobody_answers_ends_both_goals_and_a_new_order_follows():
     assert world.result_of(call).success and not world.problems
 
 
-@pytest.mark.parametrize("fault", ["on_goal_rejected", "on_goal_not_sent", "on_goal_lost"])
-def test_an_update_goal_that_never_reached_the_robot_leaves_the_old_goal_running(fault):
+@pytest.mark.parametrize(("fault", "reached_unknown"), [
+    ("on_goal_not_sent", False),  # 서버가 준비되지 않았다. 닿지 않은 것이 확실하다
+    ("on_goal_rejected", True),  # 거절이거나 결과를 잃었다. 붙었는지 알 수 없다
+    ("on_goal_lost", True),
+])
+def test_an_update_goal_that_failed_on_the_way_is_followed_by_a_new_order(fault, reached_unknown):
     world, call = waiting_at_the_queue_spot()
     first = orders(world, "pinky1")[-1]
     world.goal_fault["pinky1"] = fault
     world.traffic.on_release("pinky2")
     assert world.run_until(lambda: "ORDER_UPDATE_REJECTED" in world.codes("pinky1"), 60.0)
+    update = orders(world, "pinky1")[-1]
+    world.step()
+    cancelled = {c.goal_id for c in world.sent(CancelCmd, "pinky1")}
+    assert (update.goal_id in cancelled) == reached_unknown, "both goals end when it is unclear"
     assert world.run_until(lambda: world.result_of(call) is not None, 120.0)
     codes = world.codes("pinky1")
     assert "GOAL_RETRY" not in codes and "GOAL_STALLED" not in codes
@@ -277,4 +285,10 @@ def test_the_base_time_also_guards_a_robot_that_has_just_started_talking_again()
     world.step()
     assert world.view("pinky2")["comm"] == "RECOVERING"
     assert world.traffic.confirm_clear("pinky2", held, "carried away") is None
+    assert "base" in world.traffic.clear_reason
+    world.run(world.params.recover_check_s + 0.5)
+    assert world.view("pinky2")["comm"] == "", "the check is over"
+    held = world.view("pinky2")["held"]
+    assert world.traffic.confirm_clear("pinky2", held, "carried away") is None, (
+        "whether the cancel reached the robot is still unknown")
     assert "base" in world.traffic.clear_reason

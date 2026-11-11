@@ -59,7 +59,7 @@ class Results:
 
     def on_goal_rejected(self, robot, goal_id) -> None:
         m = self._active(robot, goal_id, MOVE, RETREAT, DOCK)
-        if m is None or self._update_lost(m, "the goal was rejected"):
+        if m is None or self._update_unclear(m, "the goal was rejected or lost its result"):
             return
         if m.goal.kind == DOCK:
             m.goal = None
@@ -80,7 +80,7 @@ class Results:
 
     def on_goal_lost(self, robot, goal_id) -> None:
         m = self._active(robot, goal_id, MOVE, RETREAT, DOCK)
-        if m is not None and not self._update_lost(m, "the goal was lost"):
+        if m is not None and not self._update_unclear(m, "the goal was lost"):
             self._forget_goal(m)
 
     # ---- 끝난 조각 ----

@@ -87,6 +87,21 @@ class OrderAnswers:
         self._update_failed(m, why)
         return True
 
+    def _update_unclear(self, m, why: str) -> bool:
+        """update의 goal이 로봇에 붙었는지 알 수 없으면 두 goal을 모두 거두고 True."""
+        if m.move_order is None or m.move_order.before is None:
+            return False
+        self._end_both(m, why)
+        return True
+
+    def _end_both(self, m, why: str) -> None:
+        """이전 goal과 update의 goal을 모두 거둔다. 잠시 뒤 서 있는 자리에서 새 order로 잇는다."""
+        mo = m.move_order
+        self._event("WARN", "ORDER_UPDATE_REJECTED",
+                    f"{mo.id} update {mo.update}: {why}, ends both goals", m.name)
+        self._cancel_goal(m)
+        m.retry_at = self._clock() + self.params.move_retry_wait_s
+
     def _update_failed(self, m, why: str) -> None:
         """update가 붙지 못했다. 로봇은 이전 goal로 지금 base를 간다. 끝나면 새 order로 잇는다."""
         mo = m.move_order
