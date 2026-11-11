@@ -268,6 +268,16 @@ def test_the_reports_that_let_go_of_a_zone_must_follow_each_other():
     assert "WORK_DOCK" not in world.view("pinky1")["held"]
 
 
+def test_a_report_without_a_position_restarts_the_count_too():
+    world = reported({"pinky1": "W", "pinky2": "P-2", "pinky3": "P-3"})
+    assert world.traffic.grants.force("pinky1", ["HALL"], [])
+    for _ in range(world.params.release_confirm_samples - 1):
+        world.traffic.on_robot_state("pinky1", 1.0, 0.40, 0.0, "IDLE")
+    world.traffic.on_robot_state("pinky1", 1.0, 0.40, 0.0, "LOCALIZING")
+    world.traffic.on_robot_state("pinky1", 1.0, 0.40, 0.0, "IDLE")
+    assert "WORK_DOCK" in world.view("pinky1")["held"]
+
+
 def isolated_in_the_yard(reason="MOTOR"):
     world = Harness()
     world.step()
@@ -279,10 +289,11 @@ def isolated_in_the_yard(reason="MOTOR"):
     return world, world.bots["pinky1"]
 
 
-def test_an_isolated_robot_that_still_reports_a_goal_gives_nothing_back():
+@pytest.mark.parametrize("state", ["MOVING", "BLOCKED", "RECOVERING", "LOCALIZING"])
+def test_an_isolated_robot_that_still_reports_a_goal_gives_nothing_back(state):
     world, bot = isolated_in_the_yard()
     for _ in range(6):
-        world.traffic.on_robot_state("pinky1", bot.x, bot.y, 0.0, "MOVING")
+        world.traffic.on_robot_state("pinky1", bot.x, bot.y, 0.0, state)
     assert world.view("pinky1")["held"] == ["HALL", "J_W", "WORK_DOCK"], "the cancel has not landed"
     for _ in range(6):
         world.traffic.on_robot_state("pinky1", bot.x, bot.y, 0.0, "IDLE")
@@ -296,8 +307,11 @@ def test_an_isolated_robot_whose_report_moved_gives_nothing_back():
     assert world.view("pinky1")["held"] == ["HALL", "J_W", "WORK_DOCK"], "it is not where it failed"
 
 
-def test_a_robot_isolated_for_not_being_where_it_says_gives_nothing_back():
+@pytest.mark.parametrize("later", ["", "MOTOR"])
+def test_a_robot_isolated_for_not_being_where_it_says_gives_nothing_back(later):
     world, bot = isolated_in_the_yard("NOT_AT_TARGET")
+    if later:
+        world.traffic.on_robot_fault("pinky1", later)  # 다른 고장이 뒤따라도 위치는 못 믿는다
     for _ in range(6):
         world.traffic.on_robot_state("pinky1", bot.x, bot.y, 0.0, "IDLE")
     assert world.view("pinky1")["held"] == ["HALL", "J_W", "WORK_DOCK"], "its position is in doubt"

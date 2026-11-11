@@ -36,6 +36,7 @@ class Robot:
     fault: str = ""  # ERROR 또는 OUT_OF_SERVICE
     fault_reason: str = ""
     fault_xy: tuple | None = None  # ERROR가 될 때의 보고 위치
+    pose_doubt: bool = False  # 위치를 못 믿어 세운 적이 있다(NOT_AT_TARGET). 다시 투입될 때까지
     comm: str = ""  # COMM_LOST 또는 RECOVERING
     recover_at: float = 0.0
     node: str = ""  # 서 있거나 마지막으로 떠난 지점

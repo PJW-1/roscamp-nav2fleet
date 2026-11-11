@@ -6,7 +6,7 @@ import math
 
 from fleet_core.common.commands import CancelCmd, DispatchResult, EventOut, RobotIsolated
 from fleet_core.traffic.deadlock import priority
-from fleet_core.traffic.mission import AT_STATION, ERROR, FILL, RUN, SWAP
+from fleet_core.traffic.mission import AT_STATION, ERROR, FILL, NOT_AT_TARGET, RUN, SWAP
 from fleet_core.traffic.selector import RobotSelector
 
 from .grants import ZoneGrants
@@ -92,6 +92,7 @@ class ZoneBase:
         first = m.fault != ERROR
         if first:
             m.fault_xy = (m.x, m.y)
+        m.pose_doubt = m.pose_doubt or reason == NOT_AT_TARGET
         m.fault = ERROR
         m.fault_reason = reason
         m.called = False
