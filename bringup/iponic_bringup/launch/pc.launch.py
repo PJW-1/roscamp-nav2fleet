@@ -30,6 +30,16 @@ def _scenario_map(scenario: str) -> str:
     return scenario_map_file(path) if os.path.isfile(path) else ""
 
 
+def _order_params(get) -> dict:
+    """order 모델 인자. 비워 두면 노드 파라미터를 주지 않아 params 파일의 값이 간다."""
+    out = {}
+    if get("use_order_model"):
+        out["use_order_model"] = get("use_order_model").lower() == "true"
+    if get("lookahead_s"):
+        out["lookahead_s"] = float(get("lookahead_s"))
+    return out
+
+
 def _setup(context):
     get = lambda name: LaunchConfiguration(name).perform(context)  # noqa: E731
     use_fake = get("use_fake").lower() == "true"
@@ -52,6 +62,8 @@ def _setup(context):
                 "map_file": map_file,
                 "params_file": get("params_file"),
                 "contract_file": get("contract_file"),
+                **_order_params(lambda name: LaunchConfiguration(name, default="").perform(
+                    context)),
             }],
         ),
     ]
@@ -88,6 +100,8 @@ def generate_launch_description():
         "params_file": "",
         "contract_file": "",
         "record": "",
+        "use_order_model": "",  # true/false. 비우면 params 파일의 값
+        "lookahead_s": "",  # 초. 비우면 params 파일의 값
     }
     declared = [DeclareLaunchArgument(k, default_value=v) for k, v in defaults.items()]
     return LaunchDescription([*declared, OpaqueFunction(function=_setup)])
