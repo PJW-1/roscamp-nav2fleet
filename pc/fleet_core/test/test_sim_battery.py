@@ -8,7 +8,7 @@ import yaml
 REPO = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(REPO / "tools"))
 
-import compare_floor  # noqa: E402
+import baseline  # noqa: E402
 from sim_world import SimWorld  # noqa: E402
 
 pytest.importorskip("fake_robots")
@@ -49,7 +49,7 @@ def test_robots_without_a_low_battery_report_as_before():
 
 
 def random_scenario(tmp_path) -> str:
-    data = compare_floor.baseline.load_scenario("basic_orders")
+    data = baseline.load_scenario("basic_orders")
     data["random"] = {"order_gap_s": [5, 40],
                       "low_battery": {"from_s": 20, "to_s": 150, "charge_s": 30}}
     data["expect"] = {**(data.get("expect") or {}), "orders_shipped_min": 1}
@@ -58,37 +58,10 @@ def random_scenario(tmp_path) -> str:
     return str(path)
 
 
-def test_compare_floor_draws_a_new_timetable_for_every_seed(tmp_path):
-    scenario = random_scenario(tmp_path)
-    tables = set()
-    for seed in range(1, 21):
-        row, world = compare_floor.run("lane_map", scenario, seed, "lanes", timeout_s=0.2)
-        assert world is not None, row["error"]
-        lows = tuple(sorted((f["robot"], f["at_s"]) for f in world.faults
-                            if f["type"] == "low_battery"))
-        assert len(lows) == len(world.robots)
-        tables.add((tuple(o["at_s"] for o in world.orders), lows))
-    assert len(tables) == 20
-    again = compare_floor.run("lane_map", scenario, 3, "lanes", timeout_s=0.2)[1]
-    first = compare_floor.run("lane_map", scenario, 3, "lanes", timeout_s=0.2)[1]
-    assert again.orders == first.orders and again.faults == first.faults
-
-
 def test_baseline_runs_also_draw_the_timetable_with_the_run_seed(tmp_path):
     scenario = random_scenario(tmp_path)
-    worlds = [compare_floor.baseline.run_with_world("lane_map", scenario, seed, "path",
+    worlds = [baseline.run_with_world("lane_map", scenario, seed, "path",
                                                     timeout_s=0.2)[1] for seed in (1, 2)]
     assert all(w is not None for w in worlds)
     assert worlds[0].orders != worlds[1].orders
     assert all(sum(f["type"] == "low_battery" for f in w.faults) == 3 for w in worlds)
-
-
-def test_the_free_floor_world_reports_the_battery_too(tmp_path):
-    scenario = random_scenario(tmp_path)
-    row, world = compare_floor.run("lane_map", scenario, 4, "freefloor", timeout_s=0.2)
-    assert world is not None, row["error"]
-    [low] = [f for f in world.faults if f["type"] == "low_battery" and f["robot"] == "pinky1"]
-    world.faults, world.pending_faults = [], []
-    seen = batteries(world, 1.0)
-    assert set(seen["pinky1"]) == {90.0}  # 고장 시각 전
-    assert low["at_s"] >= 20.0

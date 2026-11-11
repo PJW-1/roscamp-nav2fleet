@@ -1,4 +1,4 @@
-"""traffic_mode 스위치(자유바닥 실험 P0): 교통 층만 갈아 끼운다. lanes는 지금 코드 그대로다."""
+"""traffic_mode 스위치: 교통 층만 갈아 끼운다. lanes는 지금 코드 그대로다."""
 from dataclasses import asdict, replace
 
 import pytest
@@ -6,7 +6,6 @@ import yaml
 from fleet_core.common.params import DEFAULT_PARAMS, FleetParams, load_params
 from fleet_core.manager import FleetManager
 from fleet_core.traffic.controller import TrafficController
-from fleet_core.traffic.floor.controller import FloorController
 from fleet_core.traffic.lane_map import load_lane_map
 
 ROBOTS = ["pinky1", "pinky2", "pinky3"]
@@ -32,32 +31,11 @@ def test_lanes_builds_the_lane_controller_itself():
     assert type(manager().traffic) is TrafficController
 
 
-def test_freefloor_builds_the_floor_controller():
-    traffic = manager(traffic_mode="freefloor").traffic
-    assert isinstance(traffic, FloorController)
-
-
 def test_an_unknown_mode_is_refused_with_the_known_ones():
-    with pytest.raises(ValueError, match="lanes.*freefloor"):
+    with pytest.raises(ValueError, match="lanes"):
         manager(traffic_mode="roads")
-
-
-def test_the_manager_api_is_the_same_in_both_modes():
-    lanes, floor = manager(), manager(traffic_mode="freefloor")
-    for name in ("on_robot_state", "tick", "zones_view", "robots_view", "confirm_clear",
-                 "reinstate", "assignments_view"):
-        assert callable(getattr(lanes, name)) and callable(getattr(floor, name))
-    assert floor.tick() == []  # nothing reported yet: nothing moves
-
-
-def test_a_freefloor_record_is_refused_until_replay_knows_the_floor():
-    floor = manager(traffic_mode="freefloor")
-    with pytest.raises(ValueError, match="freefloor"):
-        floor.record_to(lambda line: None)
 
 
 def test_the_record_check_runs_before_anything_is_written():
     """노드는 이 검사를 기록 파일을 열기 전에 부른다. 거부될 기록이 옛 파일을 지우면 안 된다."""
     manager().check_recordable()  # lanes: fine
-    with pytest.raises(ValueError, match="freefloor"):
-        manager(traffic_mode="freefloor").check_recordable()

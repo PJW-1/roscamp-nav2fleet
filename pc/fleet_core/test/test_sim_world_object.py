@@ -8,7 +8,6 @@ import math
 
 import pytest
 from fleet_core.traffic.lane_map import load_lane_map
-from floor_world import FloorWorld
 from sim_world import SimWorld
 
 ONE = {"pinky1": {"start": "P-6", "speed_mps": 0.2, "pose_noise_m": 0.0}}
@@ -43,16 +42,12 @@ def lane_world(faults):
     return SimWorld(seed=3, robots=dict(ONE), orders=list(ORDER), faults=faults)
 
 
-def floor_world(faults):
-    return FloorWorld(seed=3, robots=dict(ONE), orders=list(ORDER), faults=faults)
-
-
 def an_object(x, y, at_s, duration_s, radius=RADIUS):
     return {"type": "object", "at_s": at_s, "duration_s": duration_s, "x": x, "y": y,
             "radius_m": radius}
 
 
-@pytest.mark.parametrize("make", [lane_world, floor_world], ids=["lanes", "freefloor"])
+@pytest.mark.parametrize("make", [lane_world], ids=["lanes"])
 def test_an_object_far_from_every_route_changes_nothing(make):
     plain = make([])
     far = make([an_object(-0.9, -0.9, 1.0, 1000.0)])  # 웨이포인트 범위 밖, 아무도 안 간다
@@ -66,7 +61,7 @@ def test_an_object_far_from_every_route_changes_nothing(make):
     assert plain.reports == far.reports
 
 
-@pytest.mark.parametrize("make", [lane_world, floor_world], ids=["lanes", "freefloor"])
+@pytest.mark.parametrize("make", [lane_world], ids=["lanes"])
 def test_a_box_left_on_the_route_stops_the_robot_which_recovers_then_reports_blocked(make):
     x, y = place_on_the_route(make, 4.0, 1.0)
     world = make([an_object(x, y, 4.0, 30.0)])
@@ -105,7 +100,7 @@ def test_far_from_a_corner_the_robot_backs_up_a_little_before_it_tries_again():
     assert world.min_object_gap >= 0.0
 
 
-@pytest.mark.parametrize("make", [lane_world, floor_world], ids=["lanes", "freefloor"])
+@pytest.mark.parametrize("make", [lane_world], ids=["lanes"])
 def test_the_robot_goes_on_when_the_box_is_gone(make):
     x, y = place_on_the_route(make, 4.0, 1.0)
     world = make([an_object(x, y, 4.0, 30.0)])
@@ -116,7 +111,7 @@ def test_the_robot_goes_on_when_the_box_is_gone(make):
     assert [r.status for r in world.reports] == ["SHIPPED"]
 
 
-@pytest.mark.parametrize("make", [lane_world, floor_world], ids=["lanes", "freefloor"])
+@pytest.mark.parametrize("make", [lane_world], ids=["lanes"])
 def test_a_person_walking_through_only_holds_the_robot_a_moment(make):
     x, y = place_on_the_route(make, 4.0, 1.0)
     world = make([an_object(x, y, 4.0, 0.5)])

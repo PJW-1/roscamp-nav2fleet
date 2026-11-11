@@ -1,4 +1,4 @@
-"""SimWorld와 FloorWorld가 RetreatCmd를 핑키처럼 실행한다.
+"""SimWorld가 RetreatCmd를 핑키처럼 실행한다.
 
 path가 비면 보는 방향 그대로 뒤로 곧게(Nav2 BackUp), 있으면 그 꺾은선을 후진으로 따라간다
 (로봇은 돌아서지 않는다). 달리던 이동은 먼저 서고 CANCELED로 끝난다. 남은 길에서 몸이 다른 로봇이나
@@ -8,7 +8,6 @@ import math
 
 import pytest
 from fleet_core.common.commands import RetreatCmd
-from floor_world import FloorWorld
 from sim_world import SimWorld
 
 ONE = {"r1": {"start": "P-1", "speed_mps": 0.2, "pose_noise_m": 0.0}}
@@ -230,49 +229,3 @@ def test_a_path_whose_length_is_not_its_distance_breaks_the_world():
     path = ((r.x, r.y, 0.0), (r.x - 0.2, r.y, 0.0))
     with pytest.raises(AssertionError, match="length"):
         w._apply(RetreatCmd("r1", 1, 0.3, 0.1, path))
-
-
-# ---- free floor ---------------------------------------------------------------------------
-
-FLOOR_ONE = {"pinky1": {"start": "P-6", "speed_mps": 0.2, "pose_noise_m": 0.0}}
-
-
-def floor_world():
-    w = FloorWorld(orders=[], robots=FLOOR_ONE, run_mode="PAUSE")
-    for _ in range(5):
-        w.step()
-    return w
-
-
-def grant_way(w, robot, points):
-    """시험이 관제 대신 지나갈 칸을 잠근다."""
-    r = w.virtual[robot]
-    cells = set()
-    for a, b in zip(points, points[1:], strict=False):
-        for k in range(21):
-            x = a[0] + (b[0] - a[0]) * k / 20
-            y = a[1] + (b[1] - a[1]) * k / 20
-            cells |= w._footprint(x, y, r.heading, turning=True)
-    for cell in sorted(cells):
-        assert w.core.zones.request(robot, cell), cell
-
-
-def test_the_floor_world_backs_a_robot_along_its_path_on_cells_it_holds():
-    w = floor_world()
-    seen = results(w)
-    r = w.virtual["pinky1"]
-    x, y = r.x, r.y
-    path = ((x, y, 0.0), (x - 0.2, y, 0.0), (x - 0.2, y - 0.2, 0.0))
-    grant_way(w, "pinky1", [p[:2] for p in path])
-    w._apply(RetreatCmd("pinky1", 920, 0.4, 0.1, path))
-    w.run(5.0)
-    assert seen == [("pinky1", 920, True, "")]
-    assert math.dist((r.x, r.y), (x - 0.2, y - 0.2)) < 1e-9
-
-
-def test_the_floor_world_refuses_a_retreat_over_cells_the_robot_does_not_hold():
-    w = floor_world()
-    r = w.virtual["pinky1"]
-    r.heading = 0.0
-    with pytest.raises(AssertionError, match="does not hold"):
-        w._apply(RetreatCmd("pinky1", 921, 0.5, 0.1))

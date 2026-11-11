@@ -79,16 +79,9 @@ class FleetParams:
     # Proposal (version 2 section 4, contract 0.8-draft MoveTo.final_goal): mark goals that end
     # at a lock boundary as not final. Records without it replay with every move final
     mark_final_goal: bool = False
-    # Free-floor experiment (P0): which traffic layer runs. lanes is the lane control as it was;
-    # freefloor is fleet_core/traffic/floor. Records from before this value replay with lanes
+    # Which traffic layer runs. lanes is the lane control as it was.
     traffic_mode: str = "lanes"
-    # Free-floor traffic only (traffic/floor). Proposals from the experiment order, not measured
-    floor_lock_ahead_m: float = 0.5  # cells locked ahead of the robot along its route
-    floor_extend_step_m: float = 0.1  # a shorter all-or-nothing try when the full one fails
-    floor_replan_s: float = 1.0  # a robot whose lock cannot grow looks for another route
-    floor_plan_window_s: float = 8.0  # reservations of other robots looked at this far ahead
-    floor_pass_wait_s: float = 4.0  # 지나가는 로봇에 막히면 다른 길을 찾기 전에 이만큼 서서 기다린다
-    # 자유바닥 ETA와 접근선 시간창(제안, 실측 전). eta_*는 버전 2 공식 ETA와 같은 값
+    # ETA와 도크 접근 시간창(제안, 실측 전). eta_*는 버전 2 공식 ETA와 같은 값
     eta_speed_mps: float = 0.2
     eta_turn_s_per_rad: float = 1.0  # 제자리 회전 초/rad. 0이면 회전을 안 셈
     eta_turn_min_rad: float = 0.25  # 이보다 작은 꺾임은 달리면서 지남(RPP 회전 기준)
@@ -102,14 +95,8 @@ class FleetParams:
     floor_dock_schedule: bool = False
     floor_pre_admit_margin_s: float = 1.0  # 딱 맞는 때보다 이만큼 먼저 출발
     floor_dock_aging_s: float = 30.0  # 이만큼 기다리면 다시 먼저 온 순서(굶김 방지)
-    # 끔: 지도의 지름길(shortcuts)을 없는 것으로 본다. 켬: 접근선 대신 탈 수 있을 때 탄다
-    floor_shortcut: bool = False
-    # 끔: 갈림길도 다른 곳처럼 굴려 잠근다. 켬: 한 방향 선이 만나는 갈림길(교차 상자) 구간을
-    # 통째로 잡거나 그 앞에 선다(갈림길 교착은 없어지지만 잠금이 0.6 m쯤으로 길어진다)
-    floor_junction_box: bool = False
     # 관제가 시키는 물러나기(Retreat, 제안, 실측 전). 끄면 전과 같다. 이 값이 없던 기록은 끈 채로
     floor_block_retreat: bool = False  # 막혀(BLOCKED) 오래 선 로봇을 물러나게 한다
-    floor_corridor_clear: bool = False  # 좁은 통로를 막고 선 로봇을 물러나게 해 길을 연다
     floor_retreat_after_s: float = 10.0  # 이만큼 막혀 서 있으면 물러난다
     floor_retreat_speed_mps: float = 0.05  # 물러나는 속도
     floor_retreat_max_m: float = 1.0  # 한 번에 물러나는 가장 긴 거리

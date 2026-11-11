@@ -73,8 +73,7 @@ def _recorded_orders(orders):
 
 
 class FleetManager:
-    def __init__(self, site, params, robots, clock, floor=None):
-        """floor는 traffic_mode가 freefloor일 때 쓰는 바닥 지도다(실험)."""
+    def __init__(self, site, params, robots, clock):
         self.site = site
         self.params = params
         self._clock = clock
@@ -82,13 +81,12 @@ class FleetManager:
         self._write = None
         self._fed = False
         self._goal_seq = 0
-        self.traffic = build_traffic(site, params, robots, self._frozen, self._next_goal_id,
-                                     floor)
+        self.traffic = build_traffic(site, params, robots, self._frozen, self._next_goal_id)
         self.orchestrator = OrderOrchestrator(site.stations, params, robots, self._frozen)
         self.arm = ArmJobs(site.stations, params, robots, self._frozen, self._next_goal_id)
         self._work = next(s.id for s in site.stations.values() if s.action == FILL)
         if hasattr(self.traffic, "station_left"):
-            self.traffic.station_left = self.station_left_s  # 자유바닥 ETA
+            self.traffic.station_left = self.station_left_s  # 스테이션 작업 ETA를 쓰는 교통 층
         self._outbound = next(s.id for s in site.stations.values() if s.action == SWAP)
         self._out: list = []
         self._bounds = site.bounds()

@@ -817,7 +817,7 @@ class SimWorld:
         r.goal_elapsed = 0.0
 
     def _check_retreat_way(self, r, cmd, way):
-        """FloorWorld는 지나갈 칸을 쥐었는지 본다. 레인 세계는 구역 불변식이 매 단계 본다."""
+        """하위 세계가 지나갈 길을 검사하는 자리. 레인 세계는 구역 불변식이 매 단계 본다."""
 
     def _start_dock(self, cmd):
         r = self.virtual[cmd.robot]

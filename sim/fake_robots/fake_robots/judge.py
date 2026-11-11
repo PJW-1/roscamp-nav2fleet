@@ -10,7 +10,6 @@
 """
 from __future__ import annotations
 
-import math
 import re
 
 RATE_PERIOD_S = 0.5  # robots.csv는 2 Hz로 줄여 쓴다
@@ -19,8 +18,6 @@ EPS = 1e-9
 PLACING = "PLACING"
 FINAL_CODES = {"ORDER_SHIPPED": "SHIPPED", "ORDER_PARTIAL": "PARTIAL", "ORDER_HELD": "HELD"}
 ORDER_ID = re.compile(r"[^\s:,;]+")
-WORK_TASKS = frozenset({"TO_WORK", "FILL"})  # Assignment task types bound for work
-PARKED_RADIUS_M = 0.15  # free floor: the manager's arrival_tolerance_m around a parking spot
 
 
 def order_id_of(detail: str) -> str:
@@ -47,21 +44,10 @@ def is_pseudo_holder(holder: str) -> bool:
     return holder.startswith("#")
 
 
-def with_missing_released(previous: dict[str, str], holders: dict[str, str]) -> dict[str, str]:
-    """Free-floor /fleet/zones is sparse: a cell held before and absent now was released."""
-    merged = dict(holders)
-    for zone, old in previous.items():
-        if old and zone not in holders:
-            merged[zone] = ""
-    return merged
-
-
 class ScenarioJudge:
     def __init__(self, lane_map, scenario, margin_m: float = 0.13, grace_s: float = 2.0,
                  radius_m: float = 0.08):
         self.site = lane_map
-        # free-floor zone space: /fleet/zones holds cell names, not lane zone ids
-        self.floor_zones = hasattr(lane_map, "is_cell")
         self.scenario = scenario
         self.margin_m = margin_m
         self.radius_m = radius_m
@@ -119,7 +105,6 @@ class ScenarioJudge:
         self._waiting_zones = {lane_map.zone_of[c] for c in lane_map.parking}
         self._last_zone: dict[str, str] = {}
         self._from_outbound: set[str] = set()
-        self._tasks: dict[str, str] = {}  # latest manager task per robot (free floor laps)
         self.direct_returns = 0
         self.parked_while_backlog = 0
         # 자동 격리: 첫 ROBOT_ISOLATED부터 격리된 로봇의 첫 ZONES_CLEARED 전까지 출고한 수
@@ -150,8 +135,6 @@ class ScenarioJudge:
         self.truth[robot] = (x, y)
 
     def on_zones(self, t: float, holders: dict[str, str]) -> None:
-        if self.floor_zones:
-            holders = with_missing_released(self.holders, holders)
         for zone, new in holders.items():
             old = self.holders.get(zone, "")
             if new == old:
@@ -235,27 +218,6 @@ class ScenarioJudge:
             return None
         return spot
 
-    def on_assignments(self, t: float, tasks: dict[str, str]) -> None:
-        """Latest task type per robot from /fleet/assignments.
-
-        Free floor laps: the task after SWAP at the outbound dock decides. A work task is a
-        direct return; WAIT while every robot could be called is parking with a backlog.
-        """
-        if self.floor_zones:
-            for robot, task in tasks.items():
-                prev = self._tasks.get(robot)
-                if prev != "SWAP" or task == prev:
-                    continue
-                if task in WORK_TASKS:
-                    self.direct_returns += 1
-                elif task == "WAIT":
-                    unbound = self._unbound_on_board()
-                    if unbound >= len(self.scenario.robots):
-                        self.parked_while_backlog += 1
-                        self._violate(t, f"{robot} sent to WAIT after outbound with {unbound} "
-                                         "unbound orders waiting")
-        self._tasks = dict(tasks)
-
     def on_board(self, order_ids: list[str]) -> None:
         self.board = list(order_ids)
 
@@ -292,9 +254,6 @@ class ScenarioJudge:
         position = self._position(robot)
         if position is None:
             return False
-        if self.floor_zones:
-            # free floor: off course only outside the map or on a cell that is not drivable
-            return self.site.floor.cell_of(*position) not in self.site.floor.free
         zone = self._zone_of_pose(*position)
         return self.site.distance_to_zone(position[0], position[1], zone) > self.margin_m
 
@@ -337,13 +296,6 @@ class ScenarioJudge:
             if self.site.distance_to_zone(x, y, zone) <= EPS:
                 by_zone.setdefault(zone, []).append(robot)
                 self._track_lap(t, robot, zone)
-        if self.floor_zones:
-            # lane zones are not reserved on the free floor; count bodies per floor cell
-            by_zone = {}
-            for robot, (x, y) in self._positions().items():
-                cell = self.site.floor.cell_of(x, y)
-                if self.site.floor.inside(cell):  # robots taken off the map are not on a cell
-                    by_zone.setdefault(self.site.floor.cell_id(cell), []).append(robot)
         for zone, robots in by_zone.items():
             self.max_occupancy = max(self.max_occupancy, len(robots))
             key = (zone, *sorted(robots))
@@ -361,8 +313,6 @@ class ScenarioJudge:
         미배정 주문이 로봇 수 이상이면 모든 로봇이 호출되므로
         대기 루프에 들어갈 까닭이 없다.
         """
-        if self.floor_zones:
-            return  # free-floor routes cross zones freely; laps come from on_assignments
         if self._last_zone.get(robot) == zone:
             return
         self._last_zone[robot] = zone
@@ -392,8 +342,6 @@ class ScenarioJudge:
         return False
 
     def _check_unheld(self, t: float) -> None:
-        if self.floor_zones:
-            return  # holders are cells, so a lane zone has no holder by design
         current = set()
         for robot, (x, y) in self._positions().items():
             spot = self._put_back_spot(robot, x, y)
@@ -490,12 +438,7 @@ class ScenarioJudge:
             if pose is None or pose[2] != "IDLE":
                 return False
             position = self._position(robot)
-            if self.floor_zones:
-                # docking error is often wider than the lane half width (then a lane end)
-                spot = self.site.nearest_waypoint(*position, waypoints=self.site.parking)
-                if math.dist(position, self.site.waypoint_pose(spot)) > PARKED_RADIUS_M:
-                    return False
-            elif self._zone_of_pose(*position) not in self._waiting_zones:
+            if self._zone_of_pose(*position) not in self._waiting_zones:
                 return False
         return True
 

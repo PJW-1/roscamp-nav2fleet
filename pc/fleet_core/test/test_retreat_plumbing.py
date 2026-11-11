@@ -14,7 +14,7 @@ from fleet_core.traffic.lane_map import load_lane_map
 from fleet_core.traffic.mission import RETREAT, _Goal
 
 ROBOTS = ["pinky1", "pinky2", "pinky3"]
-MODES = ["lanes", "freefloor"]
+MODES = ["lanes"]
 
 
 def manager(mode):
@@ -112,14 +112,14 @@ def test_the_stall_watch_rests_while_a_robot_retreats(mode):
     assert m.goal == _Goal(RETREAT, 900)
 
 
-RETREAT_PARAMS = {"floor_block_retreat": False, "floor_corridor_clear": False,
+RETREAT_PARAMS = {"floor_block_retreat": False,
                   "floor_retreat_after_s": 10.0, "floor_retreat_speed_mps": 0.05,
                   "floor_retreat_max_m": 1.0}
 
 
-@pytest.mark.parametrize("name", ["fleet_params.yaml", "fleet_params_real_arena.yaml"])
+@pytest.mark.parametrize("name", ["fleet_params.yaml"])
 def test_the_shipped_params_keep_retreat_off(name):
-    """제안값. 둘 다 꺼져 있어 아무것도 바뀌지 않는다(arena_v4도 fleet_params_real_arena를 쓴다)."""
+    """제안값. 꺼져 있어 아무것도 바뀌지 않는다."""
     shipped = yaml.safe_load((DEFAULT_PARAMS.parent / name).read_text(encoding="utf-8"))
     assert {k: shipped.get(k) for k in RETREAT_PARAMS} == RETREAT_PARAMS
     params = load_params(DEFAULT_PARAMS.parent / name)

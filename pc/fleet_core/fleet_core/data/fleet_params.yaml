@@ -56,15 +56,9 @@ battery_low_pct: 0.0          # 제안: 보고한 배터리(0-100)가 이 값 �
 battery_charged_pct: 80.0     # 제안: 이 값 이상이 되면 다시 일을 받는다
 dispatch_retry_wait_s: 2.0    # 제안: 출고 호출이 실패하면 이만큼 뒤 다시 보낸다
 dispatch_retry_limit: 3       # 제안: 출고 호출 실패가 이 수를 넘으면 ERROR(DISPATCH_FAILED)
-mark_final_goal: true         # 제안(버전 2 4절, 계약 0.8-draft): 잠금 경계에서 끝나는 이동은 final_goal 거짓(핑키가 설 수 있는 속도로만 줄인다). 자유바닥은 칸 잠금 끝의 MoveTo가 모두 거짓
+mark_final_goal: true         # 제안(버전 2 4절, 계약 0.8-draft): 잠금 경계에서 끝나는 이동은 final_goal 거짓(핑키가 설 수 있는 속도로만 줄인다).
 self_recovery_limit_s: 45.0   # 제안: 로봇이 RECOVERING(자가 복구)을 이만큼 넘게 이어 보내면 BLOCKED로 본다. 핑키 FSM의 두 번 시도는 길어야 약 35 s
-traffic_mode: lanes           # 실험: lanes(레인 관제) 또는 freefloor(자유바닥, traffic/floor). 기본은 lanes
-# 자유바닥(traffic_mode: freefloor)에서만 쓴다. 지시서 제안값, 실측 전
-floor_lock_ahead_m: 0.5       # 제안: 경로를 따라 이만큼 앞 칸까지 미리 잠근다. 제동 거리 v·τ + v²/2a + 여유 이상
-floor_extend_step_m: 0.1      # 제안: 다 못 잡으면 이만큼 짧게 다시 한꺼번에 시도한다(감속)
-floor_replan_s: 1.0           # 제안: 잠금이 늘지 않으면 이 주기로 다른 길을 찾는다
-floor_plan_window_s: 8.0      # 제안: 다른 로봇의 예약을 이만큼 앞까지 본다(협조 계획)
-floor_pass_wait_s: 4.0        # 제안: 지나가는 로봇에 막히면 다른 길을 찾기 전에 이만큼 서서 기다린다(0.2 m/s로 몸 + 앞 잠금을 지나는 시간)
+traffic_mode: lanes           # 교통 층: lanes(레인 관제)
 eta_speed_mps: 0.2            # 추정(버전 2 ETA): ETA에 쓰는 평균 속도
 eta_turn_s_per_rad: 1.0       # 추정: 제자리 회전 시간(초/rad). RPP rotate_to_heading_angular_vel 1.0
 eta_turn_min_rad: 0.25        # 추정: 이보다 작은 꺾임은 달리면서 지난다(RPP rotate_to_heading_min_angle)
@@ -77,10 +71,7 @@ floor_leave_s: 2.5            # 추정: 도크를 떠나기 시작해서 접근�
 floor_dock_schedule: false    # 제안: 켜면 접근선 순서를 ETA로 정하고, 앞 로봇이 비울 때에 맞춰 다음 로봇을 미리 출발시킨다
 floor_pre_admit_margin_s: 1.0 # 제안: 딱 맞는 때보다 이만큼 먼저 출발시킨다
 floor_dock_aging_s: 30.0      # 제안: 이만큼 기다린 로봇은 다시 먼저 온 순서로 앞에 둔다(굶김 방지)
-floor_shortcut: false         # 제안: 켜면 지도에 그린 지름길(shortcuts)을 탄다. 끄면 지름길이 없는 지도와 같다(Gazebo에서 arena_v4 지름길이 물체 3 모서리에 걸림, 2026-11-11)
-floor_junction_box: false     # 제안: 켜면 한 방향 선이 만나는 갈림길(교차 상자) 구간을 통째로 잡거나 그 앞에 선다. 갈림길 교착은 없어지지만 잠금이 0.6 m쯤으로 길어진다(arena_v4 가운데 통로). 끄면 다른 곳처럼 굴려 잠근다
 floor_block_retreat: false    # 제안: 켜면 막혀(BLOCKED) 오래 선 로봇을 Retreat로 물러나게 한다
-floor_corridor_clear: false   # 제안: 켜면 좁은 통로를 막고 선 로봇을 Retreat로 물러나게 해 다른 로봇의 길을 연다
 floor_retreat_after_s: 10.0   # 제안: 이만큼 막혀 서 있으면 물러난다
 floor_retreat_speed_mps: 0.05 # 제안: 물러나는(후진) 속도
 floor_retreat_max_m: 1.0      # 제안: 한 번에 물러나는 가장 긴 거리

@@ -10,7 +10,7 @@ from __future__ import annotations
 import itertools
 import math
 
-from fake_robots.judge import is_pseudo_holder, with_missing_released
+from fake_robots.judge import is_pseudo_holder
 
 
 class SafetyMeter:
@@ -32,8 +32,6 @@ class SafetyMeter:
         self.poses[robot] = (x, y)
 
     def on_zones(self, t: float, holders: dict[str, str]) -> None:
-        if hasattr(self.site, "is_cell"):  # free floor: /fleet/zones is sparse
-            holders = with_missing_released(self.holders, holders)
         for zone, new in holders.items():
             old = self.holders.get(zone, "")
             self.holders[zone] = new
@@ -41,15 +39,9 @@ class SafetyMeter:
                     and old in self.poses):
                 self._on_release(t, zone, old)
 
-    def _is_cell(self, zone: str) -> bool:
-        is_cell = getattr(self.site, "is_cell", None)  # only the free-floor zone space has it
-        return bool(is_cell and is_cell(zone))
-
     def _on_release(self, t: float, zone: str, robot: str) -> None:
         x, y = self.poses[robot]
-        gap = self.site.distance_to_zone(x, y, zone)
-        if not self._is_cell(zone):
-            gap += self.site.half_width  # lane centreline width; a cell square has none
+        gap = self.site.distance_to_zone(x, y, zone) + self.site.half_width  # 중심선 기준 거리
         self.releases += 1
         self.min_release_m = min(self.min_release_m, gap)
         if gap < self.radius_m:

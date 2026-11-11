@@ -109,19 +109,6 @@ def test_on_lanes_a_charging_robot_at_the_front_of_the_queue_is_not_overtaken():
 
 
 
-def test_on_the_free_floor_a_charging_robot_does_not_hold_up_the_robots_behind_it():
-    """자유바닥은 대기 지점에서 곧장 나간다: 충전 중인 로봇은 호출만 받지 않는다."""
-    from fleet_core.manager import FleetManager
-    from fleet_core.traffic.lane_map import load_lane_map
-    site = load_lane_map()
-    params = replace(load_params(), traffic_mode="freefloor", battery_low_pct=20.0)
-    core = FleetManager(site, params, ["a"], lambda: 0.0)
-    core.on_robot_state("a", *site.waypoint_pose(site.parking[-1]), 0.0, "IDLE", 10.0)
-    info = core.traffic._robot_info(core.traffic._missions["a"])
-    assert core.traffic._missions["a"].charge
-    assert not info.eligible and info.available
-
-
 # ---- 리뷰(f19f2a9)에서 고친 것 -------------------------------------------------------------
 
 def test_a_called_robot_past_the_commit_zone_keeps_its_call_when_its_battery_runs_low():

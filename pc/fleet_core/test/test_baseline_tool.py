@@ -258,16 +258,6 @@ def test_an_object_reaches_the_world_and_its_row_measures_object_time(tmp_path):
     assert (result["object_hits"], result["object_still_s"]) == (0, 0.0)
 
 
-def test_compare_floor_runs_objects_and_reports_the_heading_only_for_retreats(monkeypatch):
-    import compare_floor
-    data = {**baseline.load_scenario("basic_orders"), "faults": [dict(OFF_ROUTE)]}
-    world = compare_floor.build(data, "lane_map", 1, "freefloor")
-    assert world.objects and not world.report_heading
-    for switch in ("floor_block_retreat", "floor_corridor_clear"):
-        monkeypatch.setattr(compare_floor, "OVERRIDES", {switch: True})
-        assert compare_floor.build(data, "lane_map", 1, "freefloor").report_heading, switch
-
-
 # ---- CSV and summary ------------------------------------------------------------------------
 
 
