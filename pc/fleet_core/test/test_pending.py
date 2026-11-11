@@ -6,7 +6,8 @@ from fleet_core.pending import NEEDS_FLEET_MAP, NEEDS_ZONE_TRAFFIC, WAITING, wai
 
 REPO = Path(__file__).resolve().parents[3]
 PACKAGES = {"fleet_core": REPO / "pc" / "fleet_core", "fake_robots": REPO / "sim" / "fake_robots",
-            "fleet_manager": REPO / "pc" / "fleet_manager"}
+            "fleet_manager": REPO / "pc" / "fleet_manager",
+            "fleet_gz_sim": REPO / "sim" / "fleet_gz_sim"}
 
 
 def test_the_two_reasons_are_the_shared_ones():

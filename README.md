@@ -52,6 +52,6 @@ cd pc/fleet_core && python3 -m pytest -q test      # 패키지 폴더마다 같�
 | 있는 것 | 비어 있는 것 |
 |---|---|
 | 주문, 팔, 명령 구조, ROS 껍데기, 가짜 로봇과 머리 없는 세계 | 교통 층: `traffic_mode`는 `zones` 하나이고 `fleet_core/traffic/zone/controller.py`(3단계)를 부른다. 바깥 API는 `traffic/api.py` |
-| 구역 잠금, 대기 그래프, 통신 끊김·격리·재투입·조용히 선 로봇 감시(교통 층이 쓸 재료) | 지도: `fleet_core/traffic/fleet_map.py`(2단계). 파일에서 지도를 읽는 곳은 `traffic/site.py`를 거친다 |
+| 구역 잠금, 대기 그래프, 통신 끊김·격리·재투입·조용히 선 로봇 감시(교통 층이 쓸 재료) | 지도: `fleet_core/traffic/fleet_map.py`(2단계). `pc/`와 `sim/fake_robots`, `tools`에서 파일로 지도를 읽는 곳은 `traffic/site.py`를 거친다. `sim/fleet_gz_sim`은 아직 지운 `lane_map`을 부르며 다른 트랙에서 정리한다 |
 
 복사한 곳과 지운 것: [docs/COPIED_FROM.md](docs/COPIED_FROM.md)
