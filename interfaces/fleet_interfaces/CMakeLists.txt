@@ -3,6 +3,7 @@ project(fleet_interfaces)
 find_package(ament_cmake REQUIRED)
 find_package(rosidl_default_generators REQUIRED)
 find_package(geometry_msgs REQUIRED)
+find_package(nav_msgs REQUIRED)
 find_package(builtin_interfaces REQUIRED)
 rosidl_generate_interfaces(${PROJECT_NAME}
       "msg/RobotState.msg"
@@ -18,6 +19,7 @@ rosidl_generate_interfaces(${PROJECT_NAME}
       "msg/ZoneState.msg"
       "msg/ZoneStateArray.msg"
       "msg/FleetEvent.msg"
+      "msg/Segment.msg"
       "action/MoveTo.action"
       "action/Dock.action"
       "action/FillBasket.action"
@@ -28,7 +30,7 @@ rosidl_generate_interfaces(${PROJECT_NAME}
       "srv/SubmitOrder.srv"
       "srv/ConfirmClear.srv"
       "srv/Reinstate.srv"
-      DEPENDENCIES geometry_msgs builtin_interfaces)
+      DEPENDENCIES geometry_msgs nav_msgs builtin_interfaces)
 install(FILES contract.yaml DESTINATION share/${PROJECT_NAME})
 ament_export_dependencies(rosidl_default_runtime)
 ament_package()
