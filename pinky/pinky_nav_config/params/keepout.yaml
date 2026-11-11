@@ -1,0 +1,35 @@
+# keepout(제안, 팀 합의 전, 계약 0.11-draft): 급행 레인과 도크 구역을 Nav2 goal 경로에서 막는다.
+# launch/nav2.launch.py가 인자 keepout_mask(map_server 형식의 마스크 yaml)가 있을 때만 이 파일을
+# nav2_params.yaml 위에 덧붙이고 두 서버(keepout_mask_server, costmap_filter_info_server)와 그
+# lifecycle manager를 띄운다. 비면 아무것도 바뀌지 않는다.
+#
+# - global costmap에만 건다: NavigateToPose의 planner(NavFn)만 그 구역을 피한다. FollowPath 셋은
+#   controller의 local costmap만 쓰므로 관제가 준 급행·도크 경로는 그대로 간다.
+# - Jazzy costmap 필터는 상대 토픽을 costmap 노드 안으로 풀므로 필터 쪽은 절대 이름을 쓴다
+#   (<robot_namespace>는 launch가 /pinky1처럼 바꾼다). 두 서버는 로봇 namespace 안에서 돈다.
+# - 마스크는 track "sites"가 구역 지도에서 만든다. 마스크에서 막힌 칸(occupied)이 keepout이다.
+#   필터는 inflation 뒤에 얹히므로 막힌 칸 둘레는 부풀지 않는다: 몸이 구역에 걸치지 않게 하려면
+#   마스크를 몸 반폭(0.06 m)만큼 넓혀 만든다.
+
+global_costmap:
+  global_costmap:
+    ros__parameters:
+      filters: ["keepout_filter"]
+      keepout_filter:
+        plugin: "nav2_costmap_2d::KeepoutFilter"
+        enabled: true
+        filter_info_topic: <robot_namespace>/costmap_filter_info
+
+costmap_filter_info_server:
+  ros__parameters:
+    type: 0  # keepout
+    filter_info_topic: costmap_filter_info
+    mask_topic: <robot_namespace>/keepout_filter_mask
+    base: 0.0
+    multiplier: 1.0
+
+keepout_mask_server:
+  ros__parameters:
+    topic_name: keepout_filter_mask
+    frame_id: map
+    yaml_filename: ""  # launch 인자 keepout_mask
