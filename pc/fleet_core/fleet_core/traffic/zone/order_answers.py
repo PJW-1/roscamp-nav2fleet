@@ -43,8 +43,15 @@ class OrderAnswers:
             self._event("WARN", "HORIZON_INVALID", horizon_warning, m.name)
 
     def _order_progress(self, m, seq: int) -> None:
-        """로봇이 seq번 조각까지 끝냈다. 지난 지점을 따라간다."""
+        """로봇이 seq번 조각까지 끝냈다. 지난 지점을 따라간다. base 밖의 번호는 믿지 않는다."""
         trip, mo = m.trip, m.move_order
+        last = mo.cuts[mo.given - 1][0]
+        if seq > last:  # 허락하지 않은 조각이다. 잘못된 보고로 보고 진행을 바꾸지 않는다
+            if not mo.overrun:
+                mo.overrun = True
+                self._event("WARN", "SEGMENT_BEYOND_BASE",
+                            f"{mo.id} reports seq {seq} done, the base ends at seq {last}", m.name)
+            return
         for number, first, end in mo.cuts:
             if mo.done_seq < number <= seq:
                 via = trip.links[first].via

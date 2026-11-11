@@ -31,7 +31,7 @@ class ZoneBase:
         self._open_calls: list[int] = []
         self._out: list = []
         self._run_mode = RUN
-        self._started = clock()
+        self._started = None  # 첫 tick의 시각. 만들 때의 시계는 읽지 않는다(재생은 그때 0이다)
         self._startup_warned = False
         self._no_robot_warned = False
         self._joining: set[str] = set()  # 다시 투입되어 첫 보고를 기다리는 로봇

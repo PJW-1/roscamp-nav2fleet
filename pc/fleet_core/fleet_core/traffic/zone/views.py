@@ -44,9 +44,7 @@ class Views:
         m = self._robots.get(robot)
         if m is None:
             return {}
-        trip = m.trip
-        route = trip.route() if trip is not None else []
-        granted = trip.granted - trip.done if trip is not None else 0
+        route, granted = self._ahead(m)
         return {
             "state": m.state, "phase": m.phase, "on_map": m.placed, "fault": m.fault,
             "comm": m.comm, "called": m.called, "charging": m.charge,
@@ -57,10 +55,19 @@ class Views:
             "attempts": m.attempts, "blocked_lane": None, "x": m.x, "y": m.y,
         }
 
+    @staticmethod
+    def _ahead(m) -> tuple[list[str], int]:
+        """앞에 남은 지점들과, 그 가운데 구역을 허락받은 수."""
+        trip = m.trip
+        if trip is None:
+            return [], 0
+        return trip.route(), trip.granted - trip.done
+
     def status_view(self, robot) -> dict:
         m = self._robots.get(robot)
         if m is None:
             return {}
+        route, granted = self._ahead(m)
         want = self._wants.get(robot)
         blockers = (self.grants.blockers(robot, want.zones, want.nodes, want.lanes)
                     if want is not None else {})
@@ -71,4 +78,5 @@ class Views:
             "wait_zone": m.wait_for[0] if m.wait_for else "",
             "wait_robots": tuple(sorted({name for group in blockers.values() for name in group})),
             "battery": m.battery, "x": m.x, "y": m.y, "yaw": m.yaw,
+            "base": tuple(route[:granted]), "horizon": tuple(route[granted:]),
         }
