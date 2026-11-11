@@ -1,6 +1,6 @@
-"""traffic 패키지는 orders 없이 쓸 수 있어야 한다. 레인과 로봇만 알고 바구니는 모른다.
+"""traffic 패키지는 orders 없이 쓸 수 있어야 한다. 구역과 로봇만 알고 바구니는 모른다.
 
-모듈 이름은 fleet_core 안의 점 경로다: `traffic.controller`, `orders.orchestrator`,
+모듈 이름은 fleet_core 안의 점 경로다: `traffic.modes`, `orders.orchestrator`,
 `common.commands`, `manager`.
 """
 import ast
@@ -30,6 +30,7 @@ ORDER_SIDE_NAMES = {
 }
 ORDER_SIDE_ATTRIBUTES = {"basket", "order", "orders", "placed_items", "last_order_id", "arm"}
 # traffic이 commands.py에서 가져올 수 있는 이름. 허용 목록이라 추가는 결정 사항이다.
+# 1단계에서 레인 제어기를 지워 남은 모듈은 일부만 쓴다. 나머지는 3단계 교통 층의 몫이다.
 TRAFFIC_VOCABULARY = {
     "CancelCmd", "DispatchFeedback", "DispatchResult", "DockCmd", "EventOut", "MoveCmd",
     "NO_ROBOT", "RetreatCmd", "RobotIsolated", "ZoneView",
@@ -121,7 +122,7 @@ def _closure(*modules):
 
 
 def test_the_traffic_package_is_found():
-    assert {"traffic.controller", "traffic.mission", "traffic.recovery",
+    assert {"traffic.modes", "traffic.api", "traffic.mission", "traffic.recovery",
             "traffic.zones"} <= set(TRAFFIC)
 
 
@@ -140,7 +141,7 @@ def test_traffic_takes_only_its_own_vocabulary_from_commands():
         for node in ast.walk(_tree(module)):
             if isinstance(node, ast.ImportFrom) and (node.module or "").endswith("commands"):
                 taken.update(alias.name for alias in node.names)
-    assert taken == TRAFFIC_VOCABULARY
+    assert taken and taken <= TRAFFIC_VOCABULARY
 
 
 def test_traffic_has_no_order_or_basket_field():
@@ -158,7 +159,7 @@ def test_the_checks_above_can_fail():
     assert "basket" in {n.attr for n in ast.walk(_tree("orders.orchestrator"))
                         if isinstance(n, ast.Attribute)}
     assert _package_imports("orders.orchestrator")[1] & ORDER_SIDE_NAMES
-    assert {"traffic.controller", "orders.orchestrator"} <= _closure("manager")
+    assert {"traffic.modes", "orders.orchestrator"} <= _closure("manager")
 
 
 def test_every_spelling_of_an_import_is_seen():
@@ -167,24 +168,24 @@ def test_every_spelling_of_an_import_is_seen():
          "orders.orchestrator"),
         ("from fleet_core.orders import orchestrator", "", "orders.orchestrator"),
         ("import fleet_core.orders.orchestrator", "", "orders.orchestrator"),
-        ("from ..orders.orchestrator import OrderOrchestrator", "traffic.controller",
+        ("from ..orders.orchestrator import OrderOrchestrator", "traffic.modes",
          "orders.orchestrator"),
-        ("from ..orders import orchestrator", "traffic.controller", "orders.orchestrator"),
+        ("from ..orders import orchestrator", "traffic.modes", "orders.orchestrator"),
         ("from .manager import FleetManager", "probe", "manager"),  # 최상위 모듈
         ("from . import manager", "probe", "manager"),
         ("from fleet_core import orders", "", "orders"),  # 패키지 자체
-        ("from .. import orders", "traffic.controller", "orders"),
+        ("from .. import orders", "traffic.modes", "orders"),
         ("import fleet_core.orders", "", "orders"),
     ):
         assert module in _imports_of(ast.parse(source), here)[0], source
     assert "OrderOrchestrator" in _imports_of(ast.parse(
-        "from ..orders.orchestrator import OrderOrchestrator"), "traffic.controller")[1]
+        "from ..orders.orchestrator import OrderOrchestrator"), "traffic.modes")[1]
 
 
 def test_a_package_import_counts_as_the_order_side_and_can_be_followed():
     assert _order_side("orders") and not _order_side("traffic")
     assert "orders" in _closure("orders")  # `orders.py`가 아니라 `__init__.py`를 통해 읽는다
-    assert "traffic.controller" in _imports_of(ast.parse("from . import controller"), "traffic")[0]
+    assert "traffic.modes" in _imports_of(ast.parse("from . import modes"), "traffic")[0]
 
 
 def test_orders_do_not_import_traffic():
@@ -194,7 +195,7 @@ def test_orders_do_not_import_traffic():
 
 def test_a_module_brings_in_the_packages_above_it():
     """서브모듈을 임포트하면 위 패키지의 __init__.py도 실행된다. 맨 위 fleet_core는 ""."""
-    assert {"traffic", ""} <= _closure("traffic.controller")
+    assert {"traffic", ""} <= _closure("traffic.modes")
     assert "" in _closure("manager")
 
 

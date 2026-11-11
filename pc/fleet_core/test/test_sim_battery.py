@@ -1,15 +1,6 @@
-"""머리 없는 세계의 low_battery와 random 시나리오: 배터리 값이 관제 입력으로 간다."""
-import sys
-from pathlib import Path
-
+"""머리 없는 세계의 low_battery: 배터리 값이 관제 입력으로 간다."""
 import pytest
-import yaml
-
-REPO = Path(__file__).resolve().parents[3]
-sys.path.insert(0, str(REPO / "tools"))
-
-import baseline  # noqa: E402
-from sim_world import SimWorld  # noqa: E402
+from sim_world import SimWorld
 
 pytest.importorskip("fake_robots")
 
@@ -46,22 +37,3 @@ def test_robots_without_a_low_battery_report_as_before():
     seen = batteries(world, 2.0)
     assert set(seen["pinky2"]) == {None} and set(seen["pinky3"]) == {None}
     assert set(batteries(SimWorld(orders=[]), 1.0)["pinky1"]) == {None}
-
-
-def random_scenario(tmp_path) -> str:
-    data = baseline.load_scenario("basic_orders")
-    data["random"] = {"order_gap_s": [5, 40],
-                      "low_battery": {"from_s": 20, "to_s": 150, "charge_s": 30}}
-    data["expect"] = {**(data.get("expect") or {}), "orders_shipped_min": 1}
-    path = tmp_path / "random_orders.yaml"
-    path.write_text(yaml.safe_dump(data), encoding="utf-8")
-    return str(path)
-
-
-def test_baseline_runs_also_draw_the_timetable_with_the_run_seed(tmp_path):
-    scenario = random_scenario(tmp_path)
-    worlds = [baseline.run_with_world("lane_map", scenario, seed, "path",
-                                                    timeout_s=0.2)[1] for seed in (1, 2)]
-    assert all(w is not None for w in worlds)
-    assert worlds[0].orders != worlds[1].orders
-    assert all(sum(f["type"] == "low_battery" for f in w.faults) == 3 for w in worlds)

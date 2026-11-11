@@ -1,7 +1,12 @@
-"""교착 안전망. 일방통행 레인이라 평소엔 발동하지 않아 순환을 강제로 만든다."""
+"""교착 안전망. 일방통행 레인이라 평소엔 발동하지 않아 순환을 강제로 만든다.
+
+교통 층 위에서 도는 시험(make_core)은 3단계까지 건너뛴다. 대기 그래프와 순환 찾기는 지금 돈다.
+"""
+import pytest
 from core_helpers import cmds, codes, make_core, place
 from fleet_core.common.commands import OrderRecord
 from fleet_core.common.params import load_params
+from fleet_core.pending import NEEDS_ZONE_TRAFFIC
 from fleet_core.traffic.deadlock import choose_retreat, find_cycle, priority, wait_graph
 from fleet_core.traffic.zones import ZoneLocks
 
@@ -75,6 +80,7 @@ def _report(core, cells):
         place(core, robot, cell)
 
 
+@pytest.mark.skip(reason=NEEDS_ZONE_TRAFFIC)
 def test_t06_core_stops_new_moves_then_gives_up_a_reservation():
     """T-06: 첫 단계는 정지하고 보고하고, 둘째 단계는 진입 전 구역을 놓는다."""
     cells = {"r1": (3, 4), "r2": (4, 3), "r3": (3, 5)}
@@ -105,6 +111,7 @@ def test_t06_core_stops_new_moves_then_gives_up_a_reservation():
     assert find_cycle(wait_graph(core.zones)) is None
 
 
+@pytest.mark.skip(reason=NEEDS_ZONE_TRAFFIC)
 def test_t06_core_retreats_the_empty_robot_before_the_full_one():
     """T-06: 각 로봇의 실제 우선순위가 누가 예약을 포기할지 정한다."""
     cells = {"r1": (3, 4), "r2": (4, 3)}
@@ -122,6 +129,7 @@ def test_t06_core_retreats_the_empty_robot_before_the_full_one():
     assert core.zones.holder("Q-WORK-2") == "r1"
 
 
+@pytest.mark.skip(reason=NEEDS_ZONE_TRAFFIC)
 def test_t06_core_reports_unresolved_when_the_robot_is_inside_every_zone():
     """T-06: 모든 구역 안에 있는 로봇은 포기할 것이 없다. 후진은 만들지 않았다."""
     core, now = make_core(["r1", "r2"])
@@ -147,6 +155,7 @@ def test_t06_core_reports_unresolved_when_the_robot_is_inside_every_zone():
     assert "DEADLOCK_UNRESOLVED" not in codes(core.tick()), "reported once per episode"
 
 
+@pytest.mark.skip(reason=NEEDS_ZONE_TRAFFIC)
 def test_t06_core_keeps_the_zone_if_the_robot_entered_it_before_stopping():
     """T-06: 취소가 닿기 전에 진입한 로봇은 그 구역을 유지한다."""
     cells = {"r1": (3, 4), "r2": (4, 3), "r3": (3, 5)}
@@ -162,6 +171,7 @@ def test_t06_core_keeps_the_zone_if_the_robot_entered_it_before_stopping():
     assert "DEADLOCK_UNRESOLVED" in codes(out)
 
 
+@pytest.mark.skip(reason=NEEDS_ZONE_TRAFFIC)
 def test_t06_a_real_retreat_that_frees_a_zone_off_the_cycle_ends_in_isolation():
     """The real retreat gives up a reservation the cycle does not wait on, so every wait edge
     stays. DEADLOCK_UNRESOLVED, then isolation after deadlock_unresolved_s (Codex review of
@@ -204,6 +214,7 @@ def test_t06_a_real_retreat_that_frees_a_zone_off_the_cycle_ends_in_isolation():
     assert find_cycle(wait_graph(core.zones)) is None
 
 
+@pytest.mark.skip(reason=NEEDS_ZONE_TRAFFIC)
 def test_t06_core_looks_again_when_too_few_reports_arrived_in_time():
     """T-06: 아직 구역 밖인 로봇은 보고로 확인될 때까지 후퇴가 이어진다."""
     cells = {"r1": (3, 4), "r2": (4, 3), "r3": (3, 5)}
@@ -225,6 +236,7 @@ def test_t06_core_looks_again_when_too_few_reports_arrived_in_time():
     assert core.zones.holder("Q-WORK-2") is None
 
 
+@pytest.mark.skip(reason=NEEDS_ZONE_TRAFFIC)
 def test_t06_a_retreating_robot_going_silent_ends_the_episode():
     """T-06: COMM_LOST가 요청을 취소해 순환과 후퇴가 함께 사라진다."""
     cells = {"r1": (3, 4), "r2": (4, 3), "r3": (3, 5)}

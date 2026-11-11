@@ -25,8 +25,8 @@ from fleet_core.common.commands import (
 )
 from fleet_core.common.params import load_params
 from fleet_core.orders.orchestrator import OrderOrchestrator
-from grid_map import grid_site
 from orders_and_arm import OrdersAndArm
+from stations import STATIONS
 
 O1 = OrderRecord("O-001", {"A": 1, "C": 1})
 ASK_FILL = ArmFillCmd("r1", "WORK", "O-001", {"A": 1, "C": 1})
@@ -35,7 +35,7 @@ ASK_SWAP = ArmSwapCmd("r1", "OUTBOUND", "O-001", take_full=True, put_empty=True)
 
 def arm(params=None):
     now = [0.0]
-    jobs = ArmJobs(grid_site().stations, params or load_params(), ["r1", "r2"], lambda: now[0])
+    jobs = ArmJobs(STATIONS, params or load_params(), ["r1", "r2"], lambda: now[0])
     return jobs, now
 
 
@@ -174,7 +174,7 @@ def test_the_arm_ignores_a_robot_it_does_not_know():
 
 def test_the_orders_ask_the_arm_and_send_no_goal_themselves():
     now = [0.0]
-    orders = OrderOrchestrator(grid_site().stations, load_params(), ["r1"], lambda: now[0])
+    orders = OrderOrchestrator(STATIONS, load_params(), ["r1"], lambda: now[0])
     orders.on_order_board("RUN", [O1])
     orders.on_dispatch_result(orders._open_calls[0], True, "r1")
     orders.take_output()
@@ -194,7 +194,7 @@ def test_the_orders_ask_the_arm_and_send_no_goal_themselves():
 
 def joined_swapping():
     now = [0.0]
-    core = OrdersAndArm(grid_site().stations, load_params(), ["r1", "r2"], lambda: now[0])
+    core = OrdersAndArm(STATIONS, load_params(), ["r1", "r2"], lambda: now[0])
     core.on_order_board("RUN", [O1])
     core.on_dispatch_result(core._open_calls[0], True, "r1")
     core.step("r1")

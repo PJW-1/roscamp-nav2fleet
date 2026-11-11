@@ -8,8 +8,8 @@ from fleet_core.common.commands import (
     RobotFaultCmd,
 )
 from fleet_core.common.params import load_params
-from grid_map import grid_site
 from orders_and_arm import OrdersAndArm
+from stations import STATIONS
 
 WORK = "WORK"
 OUTBOUND = "OUTBOUND"
@@ -20,7 +20,7 @@ O3 = OrderRecord("O-003", {"D": 2})
 
 def make(orders=(), robots=("r1", "r2"), params=None):
     now = [0.0]
-    core = OrdersAndArm(grid_site().stations, params or load_params(), list(robots),
+    core = OrdersAndArm(STATIONS, params or load_params(), list(robots),
                             lambda: now[0])
     core.on_order_board("RUN", list(orders))
     return core, now
