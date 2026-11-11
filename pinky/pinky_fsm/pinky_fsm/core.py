@@ -10,6 +10,9 @@
   멈추고(둘 다 cmd_vel) 자가 복구와 같은 BackUp을 낸다. 결과는 backup.reason_of로 만든다.
   path가 있으면(자유바닥, 계약 0.9-draft 제안) BackUp 대신 그 경로를 후진 controller로 보낸다
   (SendPath reverse).
+- nav_goal = MoveTo mode nav_goal(계약 0.11-draft 제안): Nav2 NavigateToPose로 간다. 판단은
+  nav_goal.py에 있고 여기는 잇기만 한다. 다른 Nav2 서버(FollowPath, BackUp)의 움직임과 바꿀 때는
+  앞 움직임을 멈추고 결과가 오고 바퀴가 설 때까지 기다린다(물러나기와 같은 규칙).
 
 시각은 모두 벽시계 초다(heartbeat는 벽시계로 재야 하고, 나머지도 같은 축을 쓴다).
 노드는 SendPath를 Nav2 FollowPath 목표로, CancelNav를 그 취소로, Finish를 액션 결과로 옮긴다.
@@ -30,24 +33,26 @@ from pinky_fsm.backup import (
     reason_of,
 )
 from pinky_fsm.geometry import Point, Polyline, Pose, poses_along, poses_backing
+from pinky_fsm.nav_goal import MODE_NAV_GOAL, MODES, NavGoal, NavGoals
+from pinky_fsm.nav_moves import NavGoalMoves
+from pinky_fsm.results import (  # noqa: F401 - 상태와 결과 이름은 core에서도 내보낸다
+    BLOCKED,
+    CANCELED,
+    DOCK_UNAVAILABLE,
+    DOCKED,
+    DOCKING,
+    HEARTBEAT_LOST,
+    IDLE,
+    LOCALIZING,
+    MOVING,
+    NAV_ABORTED,
+    PATH_NOT_CONNECTED,
+    RECOVERING,
+    TIMEOUT,
+    Finish,
+)
 
-# RobotState.STATE_* 와 같은 값
-IDLE = "IDLE"
-MOVING = "MOVING"
-DOCKING = "DOCKING"
-DOCKED = "DOCKED"
-BLOCKED = "BLOCKED"
-LOCALIZING = "LOCALIZING"
-RECOVERING = "RECOVERING"  # 2026-11-09 제안: 자가 복구 중
-
-# MoveTo.Result.REASON_* 와 같은 값
-NAV_ABORTED = "NAV_ABORTED"
-CANCELED = "CANCELED"
-TIMEOUT = "TIMEOUT"
 RETREAT_REASONS = (OBSTACLE_BEHIND, TIMEOUT, CANCELED, FAILED)  # 계약 0.9 Retreat.action
-HEARTBEAT_LOST = "HEARTBEAT_LOST"
-PATH_NOT_CONNECTED = "PATH_NOT_CONNECTED"
-DOCK_UNAVAILABLE = "DOCK_UNAVAILABLE"  # Dock 결과에는 reason이 없다. 로그에만 남는다
 
 Obstacle = Callable[[list[Point]], bool]
 
@@ -105,6 +110,10 @@ class FsmParams:
     # speed_limit topic, RPP cycle). Assumed, not measured: at horizon_cap_mps this keeps
     # horizon_cap_mps * horizon_latency_s (0.075 m) of the distance left out of sqrt(2 a d)
     horizon_latency_s: float = 0.3
+    # mode nav_goal(계약 0.11-draft 제안): 이만큼 진전이 없으면 BLOCKED(goal은 그대로). 진전은
+    # nav_progress_m 이상 움직인 것이다(nav_goal.py). 숫자는 제안이다
+    blocked_after_s: float = 5.0
+    nav_progress_m: float = 0.05
 
 
 @dataclass(frozen=True)
@@ -135,13 +144,6 @@ class ClearCostmap:
     """local costmap을 비운다. 다음 라이다 스캔이 지금 있는 물체를 다시 그린다."""
 
 
-@dataclass(frozen=True)
-class Finish:
-    goal_id: Hashable
-    success: bool
-    reason: str
-
-
 @dataclass
 class _Move:
     goal_id: Hashable
@@ -156,6 +158,8 @@ class _Move:
     far_successes: int = 0
     waiting_since: float | None = None  # when Nav2 stopped for an obstacle; resend when clear
     blocked_since: float | None = None  # when this goal became blocked (block_timeout_s)
+    # 앞 NavigateToPose가 끝나기를 기다린 때부터(아직 FollowPath를 보내지 않았다). None이면 간다
+    handover_since: float | None = None
 
 
 @dataclass
@@ -190,10 +194,12 @@ class _Retreat:
     route: Polyline | None = None
 
 
-class PinkyFsm:
+class PinkyFsm(NavGoalMoves):
     def __init__(self, params: FsmParams):
         self.p = params
-        self._active: _Move | _Dock | None = None
+        self._active: _Move | _Dock | _Retreat | NavGoal | None = None
+        self._goals = NavGoals(params.blocked_after_s, params.nav_progress_m,
+                               params.nav_result_grace_s)
         self._rest = IDLE
         self._localized = False
         self._pose: Sequence[float] | None = None  # 마지막으로 받은 자세
@@ -227,16 +233,16 @@ class PinkyFsm:
             return LOCALIZING
         if self._recovery is not None:
             return RECOVERING
-        if self._blocked:
+        if self._blocked or (isinstance(self._active, NavGoal) and self._active.blocked):
             return BLOCKED
-        if isinstance(self._active, (_Move, _Retreat)):
+        if isinstance(self._active, (_Move, _Retreat, NavGoal)):
             return MOVING
         if isinstance(self._active, _Dock):
             return DOCKING
         return self._rest
 
     def current_goal(self) -> str:
-        if isinstance(self._active, _Move):
+        if isinstance(self._active, (_Move, NavGoal)):
             return self._active.target_id
         if isinstance(self._active, _Dock):
             return self._active.dock_id
@@ -244,6 +250,8 @@ class PinkyFsm:
 
     def distance_remaining(self, pose: Sequence[float] | None) -> float:
         g = self._active
+        if isinstance(g, NavGoal):
+            return NavGoals.distance_remaining(g, pose)
         if not isinstance(g, _Move):
             return 0.0
         s = self._track(g, pose) if pose is not None else g.s
@@ -263,10 +271,12 @@ class PinkyFsm:
 
     def move(self, goal_id: Hashable, now: float, target_id: str, target: Pose,
              path: Sequence[Point], pose: Sequence[float] | None,
-             final_goal: bool = True) -> list:
+             final_goal: bool = True, mode: str = "") -> list:
         self._alive = max(self._alive, now)  # 목표 수락도 관제가 살아 있다는 증거(계약 3절 5번)
-        if pose is None:
+        if pose is None or mode not in MODES:
             return self._end_active(CANCELED, stop=True) + [Finish(goal_id, False, NAV_ABORTED)]
+        if mode == MODE_NAV_GOAL:
+            return self._move_nav(goal_id, now, target_id, target, pose)
         here = (float(pose[0]), float(pose[1]))
         tx, ty, tyaw = (float(v) for v in target)
         if path:
@@ -281,11 +291,17 @@ class PinkyFsm:
                 points.append((tx, ty))
         else:
             points = [here, (tx, ty)]  # 점 목표: 지금 자리에서 곧게
-        cmds = self._end_active(CANCELED, stop=False)  # 안내 2.1: 서지 않고 새 경로로
+        # 안내 2.1: 서지 않고 새 경로로. 단 NavigateToPose가 돌 수 있으면 멈추고 끝나기를 기다린다
+        # (BT의 FollowPath와 이 FollowPath가 같은 controller를 두고 다툰다)
+        handover = self._goals.busy(now)
+        cmds = self._end_active(CANCELED, stop=handover)
         g = _Move(goal_id, target_id, (tx, ty, tyaw), Polyline(points), final_goal=final_goal)
         g.s, _ = g.route.project(here)  # 가장 가까운 점부터(계약 2절)
         self._active = g
         self._stopped_since = None
+        if handover:
+            g.handover_since = now
+            return cmds
         return cmds + self._send_rest(g, now)
 
     def dock(self, goal_id: Hashable, now: float, dock_id: str) -> list:
@@ -302,7 +318,7 @@ class PinkyFsm:
         self._alive = max(self._alive, now)
         # 결과가 안 온 BackUp도 기다린다. 같은 behavior_server라 바로 보내면 앞 후진이 다 서기
         # 전에 새 후진이 이어진다(V2 교차 검수 1)
-        was_driving = self._nav_running or self._nav_busy(now) or self._backup_busy(now)
+        was_driving = self._driving(now)
         cmds = self._end_active(CANCELED, stop=True)
         route = None
         if path:
@@ -472,10 +488,15 @@ class PinkyFsm:
             g = None
         if isinstance(g, _Move) and pose is not None:
             g.s = self._track(g, pose)
+        if self._handing_over(g):
+            cmds += self._hand_over(now, g, pose, speed)
+            if self._handing_over(self._active):
+                return cmds + self._limit_speed()  # 아직 앞 움직임이 끝나지 않았다
+            g = self._active
+        if isinstance(g, NavGoal):
+            self._goals.watch(g, now, pose)
         if isinstance(g, _Retreat) and g.seq == 0:
-            lin, ang = speed
-            stopped = abs(lin) < self.p.stopped_speed_mps and abs(ang) < self.p.stopped_turn_rps
-            if stopped and not self._nav_busy(now) and not self._backup_busy(now):
+            if self._motion_ended(now, speed):
                 cmds += self._start_retreat(g, now, pose)
             elif now - g.since >= g.allowance_s:
                 cmds += self._end_active(TIMEOUT, stop=True)  # 서지 않는다. 물러나지 않는다
@@ -682,6 +703,8 @@ class PinkyFsm:
         if stop and self._nav_running:
             self._nav_running = False
             cmds.append(CancelNav())
+        if stop:
+            cmds += self._goals.stop()
         self._recovery = None
         if self._backup_running:  # 새 목표로 바뀔 때도 멈춘다: 둘 다 cmd_vel을 낸다
             self._backup_running = False
