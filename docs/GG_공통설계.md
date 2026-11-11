@@ -270,7 +270,7 @@ FMS 내부 호출 (파이썬, `fleet_core` 패키지):
 - `/cmd_vel`(Nav2, pinky_dock → pinky_bringup), `/scan`, `/odom`(pinky_bringup → Nav2): 핑키 안의 연결이다. 제조사 패키지와 Nav2의 일반적인 이름이고 contract.yaml에는 없다. 3대를 namespace로 나누는 구성은 시험 전이다
 
 새로 더한 바깥 인터페이스 (팀 합의 전. 코드와 `contract.yaml`에는 들어 있다. `/fleet/robots`는 11-05 제안, `/fleet/heartbeat`는 관제 요구):
-- `/fleet/robots` RobotStatusArray 토픽(LATCHED, 1 Hz): FMS → central. 로봇마다 robot_id, fsm_state(핑키 보고 그대로), task_type, order_id, fault(NONE, ERROR, COMM_LOST, OUT_OF_SERVICE, RECOVERING), fault_reason, wait_zone, wait_robots, battery, x, y, yaw. `/fleet/assignments`와 `/fleet/zones`는 호환을 위해 유지한다. 위치, 배터리, fsm_state는 마지막 보고 값이다
+- `/fleet/robots` RobotStatusArray 토픽(LATCHED, 1 Hz): FMS → central. 로봇마다 robot_id, fsm_state(핑키 보고 그대로), task_type, order_id, fault(NONE, ERROR, COMM_LOST, OUT_OF_SERVICE, RECOVERING), fault_reason, wait_zone, wait_robots, battery, x, y, yaw, base, horizon(뒤의 둘은 제안: 앞에 남은 길의 지점 이름으로, 구역을 허락받은 부분과 아직 허락받지 않은 부분). `/fleet/assignments`와 `/fleet/zones`는 호환을 위해 유지한다. 위치, 배터리, fsm_state는 마지막 보고 값이다
 - `/fleet/heartbeat` std_msgs/Header 토픽(HEARTBEAT QoS: reliable, volatile, depth 1. 0.4-draft에서 STATE에서 바꿨다(지시서 1.5, 제안, FSM 담당 확인 전). 2 Hz, `heartbeat_period_s` 0.5 s): FMS → 핑키. 토픽과 핑키 쪽 동작 모두 관제가 요구하는 것이다(팀 합의 전, 핑키 계약 3절 5번). **핑키에 요구하는 것:**
   - 이동 또는 도킹 목표를 실행 중일 때, 마지막 heartbeat 또는 목표 수락에서 `heartbeat_timeout_s`(1.5 s, heartbeat 3번)가 지나면 그 목표를 취소하고 정지한다. move_to는 `reason=HEARTBEAT_LOST`로 끝낸다(11-06). 목표 수락도 FMS가 살아 있다는 증거로 친다. 새 FMS의 첫 목표가 첫 heartbeat보다 먼저 올 수 있기 때문이다.
   - 할 일이 없는 로봇은 heartbeat가 없어도 아무것도 하지 않고 상태 보고를 계속한다. 멈춘 뒤 온 새 목표는 받는다.

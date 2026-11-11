@@ -104,6 +104,8 @@ def test_with_the_dock_busy_the_base_ends_at_the_wait_spot_and_the_rest_is_horiz
     view = world.view("pinky1")
     assert (view["node"], view["held"]) == ("O_Q", ["HALL"]), "nothing of the next stretch is taken"
     assert view["base"] == [] and view["horizon"] == ["N_E", "X_E", "O"]
+    status = world.traffic.status_view("pinky1")
+    assert (status["base"], status["horizon"]) == ((), ("N_E", "X_E", "O")), "for the fleet screen"
     assert "GOAL_STALLED" not in world.codes("pinky1"), "standing at the base end is not a stall"
     world.traffic.on_release("pinky2")
     assert world.run_until(lambda: world.result_of(call) is not None, 120.0)

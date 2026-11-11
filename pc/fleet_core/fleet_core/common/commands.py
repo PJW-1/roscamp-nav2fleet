@@ -157,6 +157,8 @@ class RobotStatusView:
     x: float
     y: float
     yaw: float
+    base: tuple[str, ...] = ()  # 앞에 남은 길 가운데 구역을 허락받은 지점들
+    horizon: tuple[str, ...] = ()  # 아직 허락받지 않은 지점들
 
 
 # ---- inside the FMS: orders -> traffic --------------------------------------------------------

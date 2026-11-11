@@ -1,7 +1,8 @@
 """핑키 한 대의 Nav2를 로봇 namespace 안에 띄운다.
 
     ros2 launch pinky_nav_config nav2.launch.py map:=<지도.yaml> map_fine:=<1cm 지도.yaml> \
-        initial_x:=0.35 initial_y:=1.55 initial_yaw:=1.5708 [keepout_mask:=<마스크.yaml>]
+        initial_x:=0.35 initial_y:=1.55 initial_yaw:=1.5708 [keepout_mask:=<마스크.yaml>] \
+        [vision_obstacles:=true]
 
 - 노드: map_server(5 cm, map), map_server_fine(1 cm, map_fine), amcl, controller_server,
   planner_server, behavior_server, bt_navigator와 lifecycle manager 둘.
@@ -15,6 +16,8 @@
   params/keepout.yaml을 파라미터에 덧붙여 global costmap에 keepout 필터를 걸고,
   keepout_mask_server, costmap_filter_info_server와 lifecycle_manager_keepout을 더 띄운다.
   비면(기본) 아무것도 바뀌지 않는다.
+- vision_obstacles:=true면 params/vision_obstacles.yaml을 덧붙여 두 costmap의 장애물 층에
+  /{namespace}/vision_obstacles(PointCloud2)를 관측원으로 더한다(회피 담당의 자리, 기본 꺼짐).
 - use_composition:=true면 같은 노드들을 컨테이너(component_container_isolated) 한 프로세스에
   올린다. 한 PC에 로봇 여럿을 띄울 때 DDS 참가자(프로세스) 수를 줄인다.
   기본은 false(노드마다 프로세스).
@@ -49,22 +52,31 @@ def _merge(base: dict, extra: dict) -> None:
             base[key] = value
 
 
-class WithKeepout(Substitution):
-    """파라미터 파일 경로. mask가 있으면 params/keepout.yaml을 덧붙인 임시 파일, 없으면 그대로."""
+class WithOverlays(Substitution):
+    """파라미터 파일 경로. 켜진 덧붙임을 얹은 임시 파일이고, 켜진 것이 없으면 그대로다.
 
-    def __init__(self, source, mask):
+    mask가 있으면 params/keepout.yaml을, vision이 true면 params/vision_obstacles.yaml을 얹는다.
+    """
+
+    def __init__(self, source, mask, vision):
         super().__init__()
         self._source = normalize_to_list_of_substitutions(source)
         self._mask = normalize_to_list_of_substitutions(mask)
+        self._vision = normalize_to_list_of_substitutions(vision)
 
     def perform(self, context) -> str:
         source = perform_substitutions(context, self._source)
-        if not perform_substitutions(context, self._mask):
+        overlays = []
+        if perform_substitutions(context, self._mask):
+            overlays.append("keepout.yaml")
+        if perform_substitutions(context, self._vision).lower() == "true":
+            overlays.append("vision_obstacles.yaml")
+        if not overlays:
             return source
         data = yaml.safe_load(Path(source).read_text(encoding="utf-8"))
-        _merge(data, yaml.safe_load((SHARE / "params" / "keepout.yaml").read_text(
-            encoding="utf-8")))
-        with tempfile.NamedTemporaryFile("w", suffix=".yaml", prefix="nav2_keepout_",
+        for name in overlays:
+            _merge(data, yaml.safe_load((SHARE / "params" / name).read_text(encoding="utf-8")))
+        with tempfile.NamedTemporaryFile("w", suffix=".yaml", prefix="nav2_overlay_",
                                          delete=False, encoding="utf-8") as out:
             yaml.safe_dump(data, out, sort_keys=False, allow_unicode=True)
         return out.name
@@ -77,8 +89,9 @@ def generate_launch_description():
     # costmap 층의 절대 토픽 이름(<robot_namespace>/scan)을 채운 뒤
     # 노드 이름 키를 namespace 아래에 넣는다
     params = ParameterFile(RewrittenYaml(
-        source_file=ReplaceString(source_file=WithKeepout(arg("params_file"),
-                                                          arg("keepout_mask")),
+        source_file=ReplaceString(source_file=WithOverlays(arg("params_file"),
+                                                           arg("keepout_mask"),
+                                                           arg("vision_obstacles")),
                                   replacements={"<robot_namespace>": ("/", namespace)}),
         root_key=namespace, param_rewrites={}, convert_types=True), allow_substs=True)
     log = ["--ros-args", "--log-level", arg("log_level")]
@@ -170,6 +183,9 @@ def generate_launch_description():
         DeclareLaunchArgument("keepout_mask", default_value="",
                               description="급행·도크 구역 keepout 마스크 yaml(map_server 형식)."
                                           " 비면 keepout 필터와 그 서버를 띄우지 않는다"),
+        DeclareLaunchArgument("vision_obstacles", default_value="false",
+                              description="true면 두 costmap의 장애물 층에"
+                                          " /<로봇>/vision_obstacles(PointCloud2)를 더한다"),
         DeclareLaunchArgument("initial_x", default_value="0.0"),
         DeclareLaunchArgument("initial_y", default_value="0.0"),
         DeclareLaunchArgument("initial_yaw", default_value="0.0"),
