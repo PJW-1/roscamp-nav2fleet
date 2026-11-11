@@ -43,6 +43,8 @@ class Progress:
             self._release_behind(m)
             self._watch_outside(m)
             self._watch_blocked(m, now)
+        elif m.fault == ERROR and not m.comm and m.goal is None:
+            self._return_unreached(m)
 
     def _place(self, m) -> None:
         """첫 보고(또는 다시 투입된 뒤의 보고)로 로봇을 지도에 올린다."""
@@ -89,30 +91,48 @@ class Progress:
         if links:
             crossed = links[0].zones
             here = self.site.zone_at(m.x, m.y)
-            zones.update(crossed[crossed.index(here):] if here in crossed else crossed)
+            if links[0].via != NAV_GOAL and here in crossed:
+                # 고정 경로는 지나온 구역으로 돌아가지 않는다. Nav2 goal은 잡아 준 구역 안에서
+                # 어느 길로든 돌아올 수 있으므로 goal이 끝날 때까지 모두 쥔다
+                crossed = crossed[crossed.index(here):]
+            zones.update(crossed)
             for link in links[1:]:
                 zones.update(link.zones)
             nodes.update(link.b for link in links)
         return zones, nodes
 
-    def _release_behind(self, m) -> None:
-        """뒤에 남은 구역과 지점을 놓는다: 벗어난 보고가 release_confirm_samples번 이어질 때."""
+    def _release_behind(self, m, keep_trip: bool = True) -> list[str]:
+        """뒤에 남은 구역과 지점을 놓는다: 벗어난 보고가 release_confirm_samples번 이어질 때.
+
+        keep_trip이 거짓이면 가던 길에 잡아 둔 것도 남기지 않는다. 놓은 구역을 돌려준다.
+        """
         p, site, grants = self.params, self.site, self.grants
         if self._clock() < m.settle_until:
-            return  # 방금 goal을 거뒀다. 취소가 로봇에 닿기 전일 수 있다
+            return []  # 방금 goal을 거뒀다. 취소가 로봇에 닿기 전일 수 있다
         held = grants.held_by(m.name)
         if all(site.distance_to_zone(m.x, m.y, zone) > p.outside_zone_m for zone in held):
-            return  # 보고 위치가 쥔 구역 밖이다(위치가 튀었다). 이 보고로는 아무것도 놓지 않는다
-        zones, nodes = self._still_needed(m)
+            return []  # 보고 위치가 쥔 구역 밖이다(위치가 튀었다). 이 보고로는 아무것도 놓지 않는다
+        zones, nodes = self._still_needed(m) if keep_trip else (set(), set())
+        released = []
         for zone in held:
             clear = (zone not in zones
                      and site.distance_to_zone(m.x, m.y, zone) >= p.zone_clear_m - 1e-9)
-            if self._counted(m, zone, clear):
-                grants.release_zone(m.name, zone)
+            if self._counted(m, zone, clear) and grants.release_zone(m.name, zone):
+                released.append(zone)
         for node in grants.nodes_of(m.name):
             clear = node not in nodes and self._gap(m, node) >= p.node_clear_m
             if self._counted(m, NODE_KEY + node, clear):
                 grants.release_node(m.name, node)
+        return released
+
+    def _return_unreached(self, m) -> None:
+        """고장으로 세운 로봇이 계속 보고한다. 서 있는 자리 밖의 구역(가던 길에 잡아 둔 것)은
+        돌려준다. 말이 끊긴 로봇의 것은 돌려주지 않는다: 어디 있는지 모른다."""
+        released = self._release_behind(m, keep_trip=False)
+        if released:
+            m.trip = None  # 가던 길은 버렸다. 다시 투입되면 새로 고른다
+            self._event("INFO", "ZONES_RETURNED", f"gives back {released} it did not reach, "
+                        f"keeps {list(self.grants.held_by(m.name))}", m.name)
 
     def _counted(self, m, key: str, clear: bool) -> bool:
         if not clear:

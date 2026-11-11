@@ -58,17 +58,21 @@ class Watch:
             self._take_where_it_stands(m)
 
     def _take_where_it_stands(self, m) -> None:
-        """서 있는 로봇이 쥔 구역 밖의 넓은 구역에 있으면 그 구역을 쥐게 한다.
+        """쥔 구역 밖의 넓은 구역에 있는 로봇에게 그 구역을 쥐게 한다. 자리가 없으면 기록뿐이다.
 
-        그래야 뒤에 남은 구역과 지점이 놓인다(progress._release_behind). 달리는 중이거나 고정
-        구간 안이면 손대지 않는다: 운영자가 본다.
+        서 있는 로봇은 그래야 뒤에 남은 구역과 지점이 놓인다(progress._release_behind). Nav2
+        goal로 달리는 로봇은 Nav2가 잡아 준 통로 밖으로 돌아간 것이다: 장부를 몸이 있는 곳에
+        맞춘다. 고정 구간을 달리는 중이거나 넓은 구역이 아니면 손대지 않는다: 운영자가 본다.
         """
         zone = self.site.zone_at(m.x, m.y)
-        if m.goal is not None or zone is None or self.site.zones[zone].kind != SHARED:
+        if zone is None or self.site.zones[zone].kind != SHARED:
+            return
+        if m.goal is not None and self._via(m) != NAV_GOAL:
             return
         if self.grants.force(m.name, [zone], []):
-            inside = [name for name, spec in self.site.nodes.items() if spec.zone == zone]
-            m.node = self.site.nearest_node(m.x, m.y, inside) or m.node
+            if m.goal is None:
+                inside = [name for name, spec in self.site.nodes.items() if spec.zone == zone]
+                m.node = self.site.nearest_node(m.x, m.y, inside) or m.node
             self._event("WARN", "OUTSIDE_ZONE", f"takes {zone} where it stands", m.name)
 
     def _watch_near(self, now: float) -> None:

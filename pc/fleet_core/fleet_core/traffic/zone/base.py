@@ -58,6 +58,10 @@ class ZoneBase:
         """마지막으로 닿은 지점에 아직 서 있는가(보고 자세로 본다)."""
         return bool(m.node) and self._gap(m, m.node) <= self.params.arrival_tolerance_m
 
+    def _via(self, m) -> str:
+        """지금 달리는 방식(goal이 없으면 빈 문자열)."""
+        return m.goal.via if m.goal is not None else ""
+
     def _priority(self, m) -> int:
         return priority(self.params, m.phase == AT_STATION, m.dispatch is not None)
 
