@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import math
 
-from fleet_core.fleet_map import NAV_GOAL
+from fleet_core.fleet_map import NAV_GOAL, SHARED
 from fleet_core.traffic.deadlock import choose_retreat, find_cycle
 from fleet_core.traffic.mission import (
     BLOCKED,
@@ -51,10 +51,31 @@ class Watch:
             m.outside_noted = False
             return
         m.outside_n += 1
-        if m.outside_n >= p.outside_zone_samples and not m.outside_noted:
+        if m.outside_n < p.outside_zone_samples:
+            return
+        if not m.outside_noted:
             m.outside_noted = True
             self._event("WARN", "OUTSIDE_ZONE", f"at ({m.x:.2f}, {m.y:.2f}), {gap:.2f} m outside "
                         f"{list(held)} for {m.outside_n} reports", m.name)
+        self._take_where_it_stands(m)  # 자리가 없었으면 보고마다 다시 본다
+
+    def _take_where_it_stands(self, m) -> None:
+        """쥔 구역 밖의 넓은 구역에 있는 로봇에게 그 구역을 쥐게 한다. 자리가 없으면 기록뿐이다.
+
+        서 있는 로봇은 그래야 뒤에 남은 구역과 지점이 놓인다(progress._release_behind). Nav2
+        goal로 달리는 로봇은 Nav2가 잡아 준 통로 밖으로 돌아간 것이다: 장부를 몸이 있는 곳에
+        맞춘다. 고정 구간을 달리는 중이거나 넓은 구역이 아니면 손대지 않는다: 운영자가 본다.
+        """
+        zone = self.site.zone_at(m.x, m.y)
+        if zone is None or self.site.zones[zone].kind != SHARED:
+            return
+        if m.goal is not None and self._via(m) != NAV_GOAL:
+            return
+        if self.grants.force(m.name, [zone], []):
+            if m.goal is None:
+                inside = [name for name, spec in self.site.nodes.items() if spec.zone == zone]
+                m.node = self.site.nearest_node(m.x, m.y, inside) or m.node
+            self._event("WARN", "OUTSIDE_ZONE", f"takes {zone} where it stands", m.name)
 
     def _watch_near(self, now: float) -> None:
         """넓은 구역에서 두 대가 가까이서 못 나아가면 우선순위 낮은 쪽을 잠시 세운다."""
@@ -102,8 +123,11 @@ class Watch:
             self._cycle, self._cycle_since, self._cycle_acted = cycle, now, False
             self._event("WARN", "DEADLOCK_SEEN", f"wait cycle {' -> '.join(cycle)}")
         elif not self._cycle_acted and now - self._cycle_since >= self.params.deadlock_grace_s:
-            victim = choose_retreat(list(cycle), lambda name: self._priority(self._robots[name]))
-            self._cycle_acted = self._evade(self._robots[victim])  # 못 했으면 다음에 다시 본다
+            rest = list(cycle)
+            while rest and not self._cycle_acted:  # 비킬 수 있는 로봇이 나올 때까지. 없으면 다음에
+                victim = choose_retreat(rest, lambda name: self._priority(self._robots[name]))
+                self._cycle_acted = self._evade(self._robots[victim])
+                rest.remove(victim)
         return frozenset()
 
     def _evade(self, m) -> bool:

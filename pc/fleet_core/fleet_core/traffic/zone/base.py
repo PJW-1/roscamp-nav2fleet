@@ -6,7 +6,7 @@ import math
 
 from fleet_core.common.commands import CancelCmd, DispatchResult, EventOut, RobotIsolated
 from fleet_core.traffic.deadlock import priority
-from fleet_core.traffic.mission import AT_STATION, ERROR, FILL, RUN, SWAP
+from fleet_core.traffic.mission import AT_STATION, ERROR, FILL, NOT_AT_TARGET, RUN, SWAP
 from fleet_core.traffic.selector import RobotSelector
 
 from .grants import ZoneGrants
@@ -58,6 +58,10 @@ class ZoneBase:
         """마지막으로 닿은 지점에 아직 서 있는가(보고 자세로 본다)."""
         return bool(m.node) and self._gap(m, m.node) <= self.params.arrival_tolerance_m
 
+    def _via(self, m) -> str:
+        """지금 달리는 방식(goal이 없으면 빈 문자열)."""
+        return m.goal.via if m.goal is not None else ""
+
     def _priority(self, m) -> int:
         return priority(self.params, m.phase == AT_STATION, m.dispatch is not None)
 
@@ -67,6 +71,7 @@ class ZoneBase:
         self._out.append(CancelCmd(m.name, m.goal.id))
         m.goal = None
         m.arrival_by = None
+        m.settle_until = self._clock() + self.params.arrival_settle_s  # 취소가 닿을 때까지
         if m.trip is not None:
             m.trip.sent = m.trip.done  # 남은 조각은 다시 보낸다
 
@@ -85,6 +90,9 @@ class ZoneBase:
     def _fail(self, m, reason: str) -> None:
         """로봇을 ERROR로 세운다. 구역은 쥔 채 두고 운영자가 푼다(confirm_clear)."""
         first = m.fault != ERROR
+        if first:
+            m.fault_xy = (m.x, m.y)
+        m.pose_doubt = m.pose_doubt or reason == NOT_AT_TARGET
         m.fault = ERROR
         m.fault_reason = reason
         m.called = False

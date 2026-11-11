@@ -1,27 +1,19 @@
-"""교통 층 결함의 재현(구역 세계에서). 고쳐지면 strict xfail이 빨개지므로 그때 지운다.
+"""구역 세계가 찾은 교통 층 결함(B1, B3)의 회귀 시험. nav2-base 0e9d454에서 고쳐졌다.
 
 설명과 사건 기록은 교통 층 담당에게 보낸 traffic_bugs.md에 있다.
 """
-import pytest
 from fake_robots.world import NoisyPose, ZoneWorld
 from fake_robots.world.table import run_situation
 
 
-@pytest.mark.xfail(strict=True, raises=AssertionError,
-                   reason="B1: a nav_goal robot drives back into a shared zone it has released "
-                          "(invariant 3)")
 def test_b1_no_robot_is_ever_outside_the_zones_it_holds():
     world = ZoneWorld("d", seed=2, injections=[
         NoisyPose("pinky1", 20.0, 40.0, sigma_m=0.03, jump_m=0.10)])
     world.run(65.0)
-    # 결함은 주입이 없는 pinky2에서 난다(주입은 때만 바꾼다)
-    assert not [v for v in world.violations
-                if v.code == "I3_OUTSIDE_HELD" and v.robot == "pinky2"]
+    # 결함은 주입이 없는 pinky2에서 났다(주입은 때만 바꾼다)
+    assert not [v for v in world.violations if v.code.startswith("I3") and v.robot == "pinky2"]
 
 
-@pytest.mark.xfail(strict=True, raises=AssertionError,
-                   reason="B3: an isolated robot keeps the dock zones it never reached, so the "
-                          "station stays busy for ever")
 def test_b3_a_robot_stuck_in_the_yard_does_not_stop_the_others():
     outcome = run_situation("front_robot_stuck", "d2", 1)
     # pinky1은 HALL에 서 있다. 가지 못할 길의 J_W와 WORK_DOCK은 놓아야 한다

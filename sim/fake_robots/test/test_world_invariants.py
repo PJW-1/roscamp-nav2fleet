@@ -46,6 +46,33 @@ def test_a_robot_outside_its_held_zones():
     assert _check(inv2, g, robots, views=off) == []
 
 
+def test_a_short_stay_in_a_shared_zone_not_held_is_only_counted():
+    """Nav2 goal은 공유 구역을 가로질러 갈 수 있다. 교통 층은 자리가 나면 그 구역을 잡는다.
+    자리가 있는데도 2초 넘게 안 잡히면 그때 3번 위반이다."""
+    inv, g = Invariants(SITE, PARAMS), FakeGrants()
+    g.give("pinky1", "J_W")
+    robots = {"pinky1": SimRobot("pinky1", *SITE.node_pose("P-1"))}  # HALL 안
+    assert _check(inv, g, robots, t=0.1) == []
+    assert _check(inv, g, robots, t=2.0) == []
+    assert inv.shared_outside == 1
+    assert _check(inv, g, robots, t=2.2) == [OUTSIDE]
+    g.give("pinky1", "HALL")
+    _check(inv, g, robots, t=2.3)
+    g.take("pinky1", "HALL")
+    _check(inv, g, robots, t=2.4)
+    assert inv.shared_outside == 2
+
+
+def test_a_stay_in_a_full_shared_zone_is_no_violation():
+    inv, g = Invariants(SITE, PARAMS), FakeGrants()
+    g.give("pinky1", "J_W")
+    for i in range(SITE.zones["HALL"].capacity):
+        g.give(f"other{i}", "HALL")
+    robots = {"pinky1": SimRobot("pinky1", *SITE.node_pose("P-1"))}
+    for t in (0.1, 1.0, 2.5, 4.0):
+        assert _check(inv, g, robots, t=t) == []
+
+
 def test_two_robots_in_the_lane_driving_opposite_ways():
     inv = Invariants(SITE, PARAMS)
     a, b = SimRobot("pinky1", 0.8, 0.89), SimRobot("pinky2", 1.2, 0.89)

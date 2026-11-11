@@ -390,6 +390,9 @@ class ScenarioJudge:
             zone = inside[0]
             if spot is not None and t < spot[2]:
                 continue
+            spec = self.site.zones[zone]
+            if spec.kind == SHARED and len(self.holders.get(zone, ())) >= spec.capacity:
+                continue  # 교통 층은 자리가 나면 잡는다(Nav2 goal이 가로지른 공유 구역)
             key = (robot, zone)
             current.add(key)
             # 놓인 뒤 계속 못 잡았으면 놓은 시각부터 잰다

@@ -1,6 +1,6 @@
 """관제 화면 노드(시뮬레이션 전용): 함대 전체를 RViz 하나에 마커로 그린다.
 
-/fleet/robots, /fleet/zones, /central/events, 로봇마다 /<robot>/state(current_goal)와
+/fleet/robots, /fleet/zones, 로봇마다 /<robot>/state(current_goal)와
 자세(기본은 Gazebo 실제 위치 /<robot>/sim/truth, map 기준)를 받아 /fleet_view/markers에
 5 Hz로 낸다.
 로봇 TF는 네임스페이스 안에 있으므로 전역 /tf_static에 map -> fleet_view를 내서
@@ -11,7 +11,8 @@ import math
 import rclpy
 from ament_index_python.packages import get_package_share_directory
 from fleet_core.common.contract import load_contract, to_ros_qos
-from fleet_interfaces.msg import FleetEvent, RobotState, RobotStatusArray, ZoneStateArray
+from fleet_core.traffic.site import load_site
+from fleet_interfaces.msg import RobotState, RobotStatusArray, ZoneStateArray
 from geometry_msgs.msg import Point, TransformStamped
 from nav_msgs.msg import Odometry
 from rclpy.executors import ExternalShutdownException
@@ -20,7 +21,6 @@ from rclpy.qos import qos_profile_sensor_data
 from tf2_ros.static_transform_broadcaster import StaticTransformBroadcaster
 from visualization_msgs.msg import Marker, MarkerArray
 
-from fleet_gz_sim.fleet_setup import load_zone_space
 from fleet_gz_sim.fleet_view import FleetView
 
 FRAME = "map"
@@ -52,8 +52,7 @@ class FleetViewNode(Node):
     def __init__(self):
         super().__init__("fleet_view")
         self.declare_parameter("robots", ["pinky1", "pinky2", "pinky3"])
-        self.declare_parameter("lane_map", "")
-        self.declare_parameter("params_file", "")  # free-floor draws held cells
+        self.declare_parameter("map_file", "")  # layout name (d2, d, c) or file, "" = d2
         self.declare_parameter("pose_source", "truth")
         self.declare_parameter("contract_file", "")
         robots = list(self.get_parameter("robots").value)
@@ -62,8 +61,7 @@ class FleetViewNode(Node):
             raise ValueError(f"pose_source must be truth or fleet, not {self.pose_source}")
         contract = load_contract(self.get_parameter("contract_file").value or (
             get_package_share_directory("fleet_interfaces") + "/contract.yaml"))
-        self.view = FleetView(load_zone_space(self.get_parameter("lane_map").value,
-                                              self.get_parameter("params_file").value))
+        self.view = FleetView(load_site(self.get_parameter("map_file").value or None))
 
         def sub(msg_type, key, callback):
             self.create_subscription(msg_type, contract.name(key), callback,
@@ -71,8 +69,6 @@ class FleetViewNode(Node):
 
         sub(RobotStatusArray, "robots", self._on_robots)
         sub(ZoneStateArray, "zones", lambda msg: self.view.set_zones(msg.zones))
-        sub(FleetEvent, "events",
-            lambda msg: self.view.on_event(msg.code, msg.source, msg.detail))
         for robot in robots:  # current_goal: where each pinky is heading now
             self.create_subscription(
                 RobotState, contract.name("robot_state", pinky=robot),

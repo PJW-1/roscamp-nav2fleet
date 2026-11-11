@@ -24,10 +24,6 @@ WAITING = {
         "test_sim_battery.py", "test_sim_world_object.py", "test_sim_world_retreat.py",
         "test_stall_watch.py", "test_traffic_controller.py")), NEEDS_ZONE_TRAFFIC),
     ("fleet_core", "test_selector.py"): NEEDS_FLEET_MAP,
-    **dict.fromkeys((("fleet_gz_sim", name) for name in (
-        "test_arena.py", "test_dock_stub.py", "test_fleet_check.py", "test_fleet_setup.py",
-        "test_fleet_view.py", "test_launch_wiring.py", "test_obstacles.py",
-        "test_stand_in_battery.py")), NEEDS_FLEET_MAP),
 }
 
 

@@ -35,6 +35,8 @@ class Robot:
     phase: str = IDLE
     fault: str = ""  # ERROR 또는 OUT_OF_SERVICE
     fault_reason: str = ""
+    fault_xy: tuple | None = None  # ERROR가 될 때의 보고 위치
+    pose_doubt: bool = False  # 위치를 못 믿어 세운 적이 있다(NOT_AT_TARGET). 다시 투입될 때까지
     comm: str = ""  # COMM_LOST 또는 RECOVERING
     recover_at: float = 0.0
     node: str = ""  # 서 있거나 마지막으로 떠난 지점
@@ -43,6 +45,7 @@ class Robot:
     goal: Goal | None = None
     attempts: int = 0
     retry_at: float = 0.0  # 이 시각 전에는 새 명령을 내지 않는다
+    settle_until: float = 0.0  # goal을 거둔 뒤 이 시각까지는 잡은 것을 놓지 않는다
     arrival_by: float | None = None  # 성공이 자세보다 먼저 왔다. 이 시각까지 보고를 기다린다
     heard_since_success: bool = False
     not_sent_warned: bool = False

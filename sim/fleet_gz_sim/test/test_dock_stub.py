@@ -257,7 +257,7 @@ def _docking_stub(ros, monkeypatch, sim_of_wall, duration=0.0):
                         SimpleNamespace(monotonic=wall.monotonic, sleep=wall.sleep))
     monkeypatch.setattr(stand_in_node, "stub_may_answer", lambda active, now: True)
     monkeypatch.setattr(node, "_now", lambda: sim_of_wall(wall.t))
-    x, y = node._site.waypoint_pose(node._site.stations["WORK"].dock)[:2]
+    x, y = node._site.node_pose(node._site.stations["WORK"].dock)[:2]
     node._pose["pinky1"] = (x, y, 0.0)
     return node, wall
 

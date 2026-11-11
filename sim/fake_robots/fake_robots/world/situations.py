@@ -65,8 +65,10 @@ def build(name: str, layout: str = "d2") -> Situation:
         return Situation(name, "출고 도크 오래 씀", injections=[SlowStation("OUTBOUND", 6.0)],
                          timeout_s=1500.0)
     if name == "front_robot_stuck":
+        # 멈춘 로봇은 서 있지 않은 구역을 돌려주고(ZONES_RETURNED) 그 주문은 다른 로봇에 간다.
+        # c는 작업 도크로 가는 갈림목이 하나라 거기서 멈추면 아무것도 못 끝낸다.
         return Situation(name, "앞 로봇 고장", injections=[Stuck("pinky1", 20.0)],
-                         finish_all=False, need_events={"ROBOT_ISOLATED": 1})
+                         finish_all=layout != "c", need_events={"ROBOT_ISOLATED": 1})
     if name == "order_burst":
         return Situation(name, "주문 몰림", orders=six_orders(gap_s=2.0, count=10),
                          timeout_s=1500.0)

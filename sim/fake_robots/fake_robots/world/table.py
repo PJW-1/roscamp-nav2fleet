@@ -8,7 +8,8 @@ from .situations import build
 from .world import ZoneWorld, default_manager
 
 HEADER = ("상황", "배치", "씨드", "완료", "종료 시각", "대기", "로봇 사이 최소 거리", "교착",
-          "구역 밖", "Retreat(+도크 나오기)","급행 사용과 방향 전환", "위반", "판정")
+          "구역 밖(OUTSIDE_ZONE / 공유 구역 들어감)", "Retreat(+도크 나오기)",
+          "급행 사용과 방향 전환", "위반", "판정")
 
 
 @dataclass
@@ -53,7 +54,8 @@ def row(s, layout, seed, world, failures) -> tuple:
     waits = "/".join(f"{m.wait_s[n]:.0f}" for n in sorted(m.wait_s))
     gap = f"{m.min_gap:.3f}" if math.isfinite(m.min_gap) else "-"
     return (s.title, layout, seed, f"{world.central.finished}/{world.central.total}", end,
-            waits, gap, m.count("DEADLOCK_SEEN"), m.count("OUTSIDE_ZONE"),
+            waits, gap, m.count("DEADLOCK_SEEN"),
+            f"{m.count('OUTSIDE_ZONE')} / {world.invariants.shared_outside}",
             f"{m.retreats} (+{m.dock_exits})",
             f"{m.lane_uses} / {m.direction_changes}", len(world.violations),
             "통과" if not failures else "실패")

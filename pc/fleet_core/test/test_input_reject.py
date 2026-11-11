@@ -407,8 +407,6 @@ def test_traffic_ignores_an_unknown_robot_everywhere():
     assert traffic.robots == ["pinky1"]
 
 
-@pytest.mark.xfail(strict=True, raises=KeyError,
-                   reason="traffic_bugs B2: ZoneTraffic.status_view of an unknown robot raises")
 def test_the_status_of_an_unknown_robot_is_empty():
     traffic = ZoneTraffic(load_fleet_map("d2"), load_params(), ["pinky1"], lambda: 0.0)
     assert traffic.status_view("ghost") == {}

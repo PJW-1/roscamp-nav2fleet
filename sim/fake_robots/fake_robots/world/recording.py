@@ -20,6 +20,14 @@ class FakeGrants:
             if robot not in self.zone_holders.get(zone, ()):
                 self.zone_holders[zone] = self.zone_holders.get(zone, ()) + (robot,)
 
+    def take(self, robot: str, *zones: str) -> None:
+        """robot이 zones를 놓는다."""
+        mine = self.robot_zones.get(robot, ())
+        self.robot_zones[robot] = tuple(z for z in mine if z not in zones)
+        for zone in zones:
+            others = self.zone_holders.get(zone, ())
+            self.zone_holders[zone] = tuple(r for r in others if r != robot)
+
     def holders(self, zone):
         return self.zone_holders.get(zone, ())
 

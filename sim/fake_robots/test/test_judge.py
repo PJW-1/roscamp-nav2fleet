@@ -134,6 +134,21 @@ def test_pose_in_unheld_zone_counts_after_grace_only():
     assert check(j, "unheld_zone_pose", 4.0)["value"] == 1
 
 
+def test_a_full_shared_zone_not_held_is_no_violation():
+    """교통 층은 Nav2 goal로 들어간 공유 구역을 자리가 날 때 잡는다. 꽉 찬 동안은 세지 않는다."""
+    j = judge()
+    full = ",".join(f"r{i}" for i in range(SITE.zones["HALL"].capacity))
+    j.on_zones(1.0, {"HALL": full})
+    put(j, 1.0, "pinky1", "N_E")  # HALL 안
+    j.tick(1.0)
+    j.tick(5.0)
+    assert check(j, "unheld_zone_pose", 5.0)["value"] == 0
+    j.on_zones(5.0, {"HALL": "r0"})  # 자리가 났는데 계속 안 잡는다
+    j.tick(5.5)
+    j.tick(7.0)
+    assert check(j, "unheld_zone_pose", 7.0)["value"] == 1
+
+
 def test_a_robot_that_has_not_left_its_start_cell_is_not_counted():
     j = judge()
     put(j, 1.0, "pinky1", WAITING[1])  # pinky1은 P-1에서 시작

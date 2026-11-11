@@ -1,4 +1,5 @@
-"""Sim-only Nav2 parameters: AMCL takes sim values, the real robot's file stays as it is."""
+"""Sim-only Nav2 parameters: AMCL takes sim values, every controller checks collisions, the
+speed cap reaches every forward controller, and the real robot's file stays as it is."""
 from pathlib import Path
 
 import pytest
@@ -8,6 +9,7 @@ launch = pytest.importorskip("launch")
 from fleet_gz_sim import launch_parts  # noqa: E402
 
 REPO = Path(__file__).resolve().parents[3]
+MAPS = {"nav_map": "/m/arena_d2.yaml", "nav_map_fine": "/m/arena_d2_fine.yaml"}
 NAV = REPO / "pinky" / "pinky_nav_config" / "params" / "nav2_params.yaml"
 
 
@@ -63,7 +65,7 @@ def test_each_pinky_starts_nav2_with_the_sim_params(tmp_path, monkeypatch):
         return perform_substitutions(context, normalize_to_list_of_substitutions(value))
 
     for ns in ("pinky1", "pinky2"):
-        includes = [a for a in launch_parts.pinky(ns, 0.5, 0.5, 0.0, fsm=False)
+        includes = [a for a in launch_parts.pinky(ns, 0.5, 0.5, 0.0, fsm=False, **MAPS)
                     if isinstance(a, IncludeLaunchDescription)]
         args = [{text(k): text(v) for k, v in a.launch_arguments} for a in includes]
         nav = next(a for a in args if "map_fine" in a)
@@ -87,7 +89,7 @@ def test_one_pinky_sends_lock_boundary_paths_to_the_through_rpp_by_default(tmp_p
         return perform_substitutions(context, normalize_to_list_of_substitutions(value))
 
     def fsm_args(**kw):
-        includes = [a for a in launch_parts.pinky("pinky1", 0.5, 0.5, 0.0, **kw)
+        includes = [a for a in launch_parts.pinky("pinky1", 0.5, 0.5, 0.0, **MAPS, **kw)
                     if isinstance(a, IncludeLaunchDescription)]
         args = [{text(k): text(v) for k, v in a.launch_arguments} for a in includes]
         return next(a for a in args if "heartbeat_timeout_s" in a)
@@ -96,21 +98,24 @@ def test_one_pinky_sends_lock_boundary_paths_to_the_through_rpp_by_default(tmp_p
     assert fsm_args(through_controller_id="")["through_controller_id"] == ""
     # A speed cap also caps the FSM's lock-boundary speed limit: RPP takes that limit as its
     # desired_linear_vel, so a limit above the cap would speed the robot up again.
-    assert "horizon_cap_mps" not in fsm_args()
-    assert fsm_args(nav_max_speed=0.12)["horizon_cap_mps"] == "0.12"
+    assert fsm_args()["horizon_cap_mps"] == str(launch_parts.DEFAULT_SPEED_MPS)
+    assert fsm_args(nav_max_speed=0.14)["horizon_cap_mps"] == "0.14"
 
 
 def _rpp(data: dict, name: str) -> dict:
     return data["controller_server"]["ros__parameters"][name]
 
 
-def test_sim_params_can_cap_both_rpp_speeds_and_change_nothing_else(tmp_path):
-    """A small arena runs slower (real_arena: 0.12 m/s): both RPPs get the cap, nothing else."""
+def test_sim_params_cap_every_forward_controller_and_change_nothing_else(tmp_path):
+    """The arena runs at 0.12 to 0.15 m/s; the reverse controller keeps its slower 0.05 m/s."""
     capped = yaml.safe_load(launch_parts.sim_nav_params(
         NAV, tmp_path / "capped.yaml", max_speed=0.12).read_text(encoding="utf-8"))
     plain = yaml.safe_load(launch_parts.sim_nav_params(
         NAV, tmp_path / "plain.yaml").read_text(encoding="utf-8"))
-    for name in (launch_parts.THROUGH_CONTROLLER, "FollowPath"):
+    for name in launch_parts.CONTROLLERS:
+        if name == launch_parts.REVERSE_CONTROLLER:
+            assert _rpp(capped, name)["desired_linear_vel"] == 0.05
+            continue
         assert _rpp(capped, name)["desired_linear_vel"] == 0.12
         assert _rpp(plain, name)["desired_linear_vel"] == 0.25
         _rpp(plain, name)["desired_linear_vel"] = 0.12
@@ -123,21 +128,36 @@ def test_a_speed_cap_must_be_a_number_between_zero_and_the_robot_speed(tmp_path,
         launch_parts.sim_nav_params(NAV, tmp_path / "a.yaml", max_speed=bad)
 
 
-def test_sim_params_can_turn_the_rpp_collision_check_off_and_change_nothing_else(tmp_path):
-    """real_arena: gaps of 0.25 m leave 5 cm beside the footprint, and lidar noise (2 cm) marks
-    the wall inside it; RPP then stops for a collision ahead that is not there."""
-    off = yaml.safe_load(launch_parts.sim_nav_params(
-        NAV, tmp_path / "off.yaml", collision_detection=False).read_text(encoding="utf-8"))
-    plain = yaml.safe_load(launch_parts.sim_nav_params(
-        NAV, tmp_path / "plain.yaml").read_text(encoding="utf-8"))
-    for name in (launch_parts.THROUGH_CONTROLLER, "FollowPath"):
-        assert _rpp(off, name)["use_collision_detection"] is False
-        assert _rpp(plain, name)["use_collision_detection"] is True
-        _rpp(plain, name)["use_collision_detection"] = False
-    assert off == plain
+def test_every_controller_checks_collisions_even_if_the_base_file_turned_it_off(tmp_path):
+    """Instruction 3: the collision check is on in every run (it was off on the last arena)."""
+    base = yaml.safe_load(NAV.read_text(encoding="utf-8"))
+    for name in launch_parts.CONTROLLERS:
+        _rpp(base, name)["use_collision_detection"] = False
+    off = tmp_path / "off.yaml"
+    off.write_text(yaml.safe_dump(base), encoding="utf-8")
+    sim = yaml.safe_load(launch_parts.sim_nav_params(off, tmp_path / "sim.yaml")
+                         .read_text(encoding="utf-8"))
+    assert launch_parts.CONTROLLERS == ("FollowPath", "FollowPathThrough", "FollowPathReverse",
+                                        "FollowPathGoal")
+    for name in launch_parts.CONTROLLERS:
+        assert _rpp(sim, name)["use_collision_detection"] is True, name
 
 
-@pytest.mark.parametrize("bad", ["false", 0, 1, "no"])
-def test_the_collision_switch_takes_true_or_false_only(tmp_path, bad):
-    with pytest.raises(ValueError, match="collision_detection"):
-        launch_parts.sim_nav_params(NAV, tmp_path / "a.yaml", collision_detection=bad)
+def test_a_base_file_without_one_of_the_controllers_is_refused(tmp_path):
+    base = yaml.safe_load(NAV.read_text(encoding="utf-8"))
+    del base["controller_server"]["ros__parameters"]["FollowPathGoal"]
+    path = tmp_path / "old.yaml"
+    path.write_text(yaml.safe_dump(base), encoding="utf-8")
+    with pytest.raises(ValueError, match="FollowPathGoal"):
+        launch_parts.sim_nav_params(path, tmp_path / "sim.yaml")
+
+
+@pytest.mark.parametrize("text, value", [("", 0.12), ("0.12", 0.12), ("0.15", 0.15)])
+def test_the_launch_speed_is_the_arena_range(text, value):
+    assert launch_parts.speed_of(text) == value
+
+
+@pytest.mark.parametrize("bad", ["0.11", "0.16", "0.25", "fast", "nan", "inf"])
+def test_a_launch_speed_outside_the_arena_range_is_refused(bad):
+    with pytest.raises(ValueError, match="nav_max_speed"):
+        launch_parts.speed_of(bad)

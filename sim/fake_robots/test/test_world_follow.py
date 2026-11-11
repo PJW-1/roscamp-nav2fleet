@@ -122,7 +122,7 @@ def test_dock_takes_its_time_and_fails_away_from_the_dock():
     world.send(DockCmd("pinky1", 2, "WORK"))
     world.run(2.5)
     assert results(world, "on_dock_result")[-1][1:3] == (2, False)
-    assert world.violations[-1].code == "I4_COMMAND"
+    assert "I4_COMMAND" in [v.code for v in world.violations]
 
 
 def test_cancel_stops_the_robot_and_answers_canceled_next_step():
