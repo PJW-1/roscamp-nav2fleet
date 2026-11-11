@@ -139,8 +139,9 @@ class ZoneWorld(Commands, Link):
         present, grants = self.present(), self.grants()
         quiet = {n: (r.run is not None and r.run.blocked) or not r.comm_up
                  for n, r in present.items()}
-        self.invariants.check(self.t, grants, present, self.views(), quiet)
-        self.metrics.step(self.t, DT, grants, present, self.orders_done())
+        views = self.views()
+        self.invariants.check(self.t, grants, present, views, quiet)
+        self.metrics.step(self.t, DT, grants, present, self.orders_done(), views)
 
     def run(self, seconds: float) -> None:
         for _ in range(round(seconds / DT)):
