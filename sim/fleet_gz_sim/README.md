@@ -60,24 +60,21 @@ export ROS_DOMAIN_ID=47 ROS_AUTOMATIC_DISCOVERY_RANGE=LOCALHOST RMW_IMPLEMENTATI
 ```
 
 ```bash
-# 기본: Gazebo 화면 + 3대를 한 RViz에, 시나리오 basic_orders, 도킹은 진짜 pinky_fsm(실패)
+# 기본: D2 배치, Gazebo 화면 + 3대를 한 RViz에, 시나리오 gz_d2(주문 8개), 도킹은 진짜 pinky_fsm(실패)
 ros2 launch fleet_gz_sim gz.launch.py
 
-# 주행 확인 추천: 24분 순환 운행, 임무를 끝까지(도킹 대역), 레인 장애물
-ros2 launch fleet_gz_sim gz.launch.py scenario:=gz_roam sim_dock_stub:=true obstacles:=roam
+# 임무를 끝까지(도킹 대역), 마당과 급행에 상자를 놓았다 치우는 일정
+ros2 launch fleet_gz_sim gz.launch.py sim_dock_stub:=true obstacles:=d2_yard_express
 
-# 창고(포트폴리오): 6 x 4 m 창고, 랙, 작업대 위 팔 3대, 21분 동안 30 s마다 주문, 레인 장애물
-ros2 launch fleet_gz_sim gz.launch.py scenario:=gz_warehouse sim_dock_stub:=true obstacles:=warehouse
-
-# 화면 없이(느린 컴퓨터, 원격)
-ros2 launch fleet_gz_sim gz.launch.py scenario:=gz_roam sim_dock_stub:=true gui:=false rviz:=none
+# 다른 배치, 한 대만, 화면 없이
+ros2 launch fleet_gz_sim gz.launch.py layout:=c scenario:=gz_c_one gui:=false rviz:=none
 ```
 
-경기장은 시나리오의 `map`이 고른다. `map`이 없으면 `lane_arena`, `map: warehouse`면 `worlds/warehouse.sdf`, `maps/warehouse[_fine].yaml`, 관제 레인 지도 `fake_robots/maps/warehouse.yaml`. 월드와 지도는 `sites/<이름>.yaml`에서 `python3 -m fleet_gz_sim.arena --site <이름>`(소스 폴더에서)으로 만들어 저장소에 넣는다.
+배치(`layout`)는 `d2`(기본), `d`, `c`이고 구역 지도는 `fleet_core`의 `load_fleet_map(<배치>)`다. 배치마다 월드 `worlds/arena_<배치>.sdf`, Nav2 지도 `maps/arena_<배치>[_fine].yaml`, keepout 마스크 `maps/arena_<배치>_keepout.yaml`을 쓴다. 시나리오의 `map`은 배치와 같아야 한다. 핑키는 시나리오의 `start`(지점 이름)에, 없으면 주차 지점(P-1, P-2, P-3)에 차례로 놓인다. 관제는 같은 배치를 `map_file`로 받고 교통 방식은 `zones`다.
 
 WSL2에서 화면이 느리면 GPU를 쓰게 한다: `export GALLIUM_DRIVER=d3d12 MESA_D3D12_DEFAULT_ADAPTER_NAME=NVIDIA`(그래픽 카드 이름).
 
-뜨는 순서: Gazebo 월드(`lane_arena`) → 브리지 하나 → 로봇마다 모델, Nav2(프로세스 하나), `pinky_fsm` → 세 대가 모두 IDLE이 되면(`wait_ready`, 보통 1분 안) 관제, 가짜 작업셀·비전·출고 팔·central, `fleet_check`, 장애물 노드, 시나리오 모니터. 3분 안에 IDLE이 안 되면 launch가 끝난다. 시나리오 주문 시각은 Gazebo 시계 0부터 센다.
+뜨는 순서: Gazebo 월드(`arena`) → 브리지 하나 → 로봇마다 모델, Nav2(프로세스 하나), `pinky_fsm` → 세 대가 모두 IDLE이 되면(`wait_ready`, 보통 1분 안) 관제, 가짜 작업셀·비전·출고 팔·central, `fleet_check`, 장애물 노드, 시나리오 모니터. 3분 안에 IDLE이 안 되면 launch가 끝난다. 시나리오 주문 시각은 Gazebo 시계 0부터 센다.
 
 끝내기: Ctrl-C 한 번, 다 내려갈 때까지(10~30 s) 기다린다. 남은 것이 있는지 본다.
 
@@ -89,11 +86,14 @@ pgrep -af "gz sim|ruby|component_container|pinky_fsm_node|fleet_manager_node"   
 
 | 인자 | 기본 | 뜻 |
 |---|---|---|
-| `scenario` | `basic_orders` | 시나리오 이름(`fleet_gz_sim/scenarios`, 다음에 `fake_robots/scenarios`에서 찾음)이나 파일. 로봇 고장이 든 시나리오는 거부한다. `gz_roam`은 40 s마다 주문 하나씩 24분 |
+| `layout` | `d2` | 배치: `d2`, `d`, `c` |
+| `scenario` | `gz_<배치>` | 시나리오 이름(`fleet_gz_sim/scenarios`, 다음에 `fake_robots/scenarios`에서 찾음)이나 파일. 로봇 고장이 든 시나리오는 거부한다. `gz_<배치>`는 3대와 주문 8개, `gz_<배치>_one`은 한 대 |
 | `gui` | `true` | Gazebo 화면 |
 | `rviz` | `fleet` | `fleet`: 3대를 한 RViz에(로봇, 쥔 구역, 주문). 로봇 이름(`pinky2`)이면 그 로봇의 Nav2 화면. `none`이면 없음 |
 | `sim_dock_stub` | `false` | 시뮬 전용 도킹 대역(아래 "도킹") |
-| `obstacles` | 없음 | 레인에 상자를 놓았다 치우는 일정(`fleet_gz_sim/obstacles`의 이름이나 파일). `roam`은 300 s마다 4개, 25~30 s씩 |
+| `obstacles` | 없음 | 지점 사이 연결(`link`)에 상자를 놓았다 치우는 일정(`fleet_gz_sim/obstacles`의 이름이나 파일). `d2_yard_express`는 300 s마다 마당 하나, 급행 하나를 120 s씩 |
+| `nav_max_speed` | `0.12` | 앞으로 가는 controller들의 최고 속도(m/s). 0.12~0.15만 받는다 |
+| `keepout` | `true` | Nav2 global costmap의 keepout 필터(shared가 아닌 구역) |
 | `fleet_check` | `true` | 주행 지표를 `result_dir/fleet_check.json`에(아래 "결과 확인") |
 | `monitor` | `true` | 시나리오 판정. 시나리오가 끝나면 `summary.json`을 쓰고 launch를 끝낸다 |
 | `result_dir` | `gz_result` | 결과 폴더(launch를 띄운 폴더 기준) |
@@ -136,7 +136,7 @@ pgrep -af "gz sim|ruby|component_container|pinky_fsm_node|fleet_manager_node"   
 
 ### 알려진 한계
 
-- 무겁다: Gazebo + Nav2 3대 + 관제로 16코어 PC에서도 CPU를 많이 쓴다. 다른 무거운 작업과 같이 돌리지 않는다. 실시간 비율(`fleet_check.json`의 `real_time_factor`)이 1보다 많이 낮으면 Nav2 controller가 주기를 놓치고(`Control loop missed its desired rate`) 로봇이 레인에서 벗어나 관제가 세우고 격리할 수 있다(`LANE_ERROR`, `ROBOT_ISOLATED OFF_LANE`). 2026-11-08에 다른 작업과 같이 돌린 한 번(실시간 비율 0.56)에서 두 대가 이렇게 격리됐다. 숫자는 개인 브랜치 worklog에 있다.
+- 무겁다: Gazebo + Nav2 3대 + 관제로 16코어 PC에서도 CPU를 많이 쓴다. 다른 무거운 작업과 같이 돌리지 않는다. 실시간 비율(`fleet_check.json`의 `real_time_factor`)이 1보다 많이 낮으면 Nav2 controller가 주기를 놓치고(`Control loop missed its desired rate`) 로봇이 고정 경로에서 벗어날 수 있다.
 - DDS 참여자: LOCALHOST 탐색에서는 32개 정도만 서로 보인다. 노드를 더하면 `test_launch_wiring.py`의 프로세스 수 시험이 알려 준다. 돌아가는 동안 `ros2` 명령을 여러 개 띄우면 그 수도 들어간다.
 
 ## 핑키 한 대 (`one_pinky.launch.py`)
@@ -153,53 +153,37 @@ source ~/pinky_deps_ws/install/local_setup.bash   # pinky_description
 source ~/fleet_ws/install/local_setup.bash
 export ROS_DOMAIN_ID=47 ROS_AUTOMATIC_DISCOVERY_RANGE=LOCALHOST RMW_IMPLEMENTATION=rmw_fastrtps_cpp
 
-ros2 launch fleet_gz_sim one_pinky.launch.py                          # Gazebo 화면 + RViz
+ros2 launch fleet_gz_sim one_pinky.launch.py                          # D2, P-1, Gazebo 화면 + RViz
 ros2 launch fleet_gz_sim one_pinky.launch.py gui:=false rviz:=false   # 화면 없이
 ```
 
-인자: `namespace`(pinky1), `x`·`y`·`yaw`(기본 P-3 (0.35, 1.55), P-4 쪽), `gui`, `rviz`, `fsm`, `heartbeat_timeout_s`(1.5), `nav_log_level`(warn).
+인자: `namespace`(pinky1), `layout`(d2), `start`(P-1, 지점 이름이고 방향은 그 지점의 yaw), `gui`, `rviz`, `fsm`, `heartbeat_timeout_s`(1.5), `nav_log_level`(warn), `nav_max_speed`(0.12), `keepout`(true), `still_pinky`(`x,y,yaw`를 주면 Nav2 없이 서 있기만 하는 `pinky_still`을 놓는다).
 
 로봇이 IDLE이 되면(약 10 s) 다른 터미널에서 같은 환경으로 주행시킨다.
 
 ```bash
-ros2 run fleet_gz_sim drive_check                         # 관제 흉내: 한 바퀴 + heartbeat 끊기, 지표 출력
-ros2 run fleet_gz_sim drive_check --laps 3 --no-heartbeat-cut
-ros2 run fleet_gz_sim drive_check --whole --no-heartbeat-cut  # 비교용: 주행마다 경로 전체를 한 번에
+ros2 run fleet_gz_sim drive_check --layout d2 --plan stage2 --json stage2.json
+ros2 run fleet_gz_sim drive_check --plan cross     # P-1 -> P-3 -> P-1 Nav2 goal(둘째 핑키 확인용)
 ```
 
-`drive_check`는 로봇이 서 있는 정지 지점(P-3, W, O 중 하나)에서 출발해 P-3 → W → O → P-3 순서로 돈다. 관제처럼 `move_to`를 보내고, 로봇이 구간 중간을 지날 때마다 경로를 늘린 새 `move_to`를 보낸다(안내 2.1). `/fleet/heartbeat`는 2 Hz로 보낸다. 마지막에 heartbeat와 목표를 끊고 정지까지 시간을 잰 뒤, 마지막으로 지난 지점부터 남은 길을 다시 보낸다.
+`drive_check`는 관제 없이 로봇에 바로 이동을 보낸다(`fleet_gz_sim/stage2_plan.py`). `stage2`는 P-1에서 출발해 Nav2 goal로 N_W, `work_in`(FollowPath)으로 작업 도크 W, Retreat로 X_W, 급행 왕복, `j_w_down`으로 N_W, 그리고 마당을 가로지르는 Nav2 goal 셋(P-3, N_E, P-1)이다. 구간마다 결과, 걸린 시간(벽시계, 시뮬), 끝 위치와 방향 오차, 고정 경로에서 벗어난 최대 거리, Nav2 계획이 지난 keepout 구역을 적는다. `/fleet/heartbeat`는 2 Hz로 보낸다.
 
-지표와 2026-11-07 측정값(한 바퀴 + heartbeat 끊기):
-
-| 지표 | 기준(안내 4절) | 화면 없이 | Gazebo 화면 + RViz |
-|---|---|---|---|
-| 경로 연장 직후 0.5 s 안에 `cmd_vel` 선속도·각속도가 모두 0인 채 0.1 s 넘게 | 0 | 연장 17회 중 0 | 15회 중 0 |
-| 끝 0.15 m 안에 들어와 성공까지 | 6 s 넘는 일 0(R13) | 최대 2.47 s | 최대 2.61 s |
-| 성공 때 실제 위치와 목표 거리 | 0.15 m 안(R4) | 최대 0.045 m | 최대 0.065 m |
-| heartbeat 마지막 신호부터 `cmd_vel` 0까지 / 실제 정지까지(그동안 이동) | 1.5 s 안(R10) | 1.555 s / 1.832 s(0.353 m) | 1.565 s / 1.805 s(0.364 m) |
-| `PATH_NOT_CONNECTED` | 정상 주행에서 0 | 0 | 0 |
-| 보고 위치 오차 ε(AMCL) 평균 / p95 / 최대 | 작을수록 좋음(R3, 추정 0.03 m) | 0.029 / 0.050 / 0.059 m | 0.023 / 0.040 / 0.051 m |
-| 실시간 비율 | | 1.0 | 0.965 |
-
-heartbeat는 끊김 판단 시간(`heartbeat_timeout_s` 1.5 s) 뒤 다음 판단 주기(20 Hz)에 멈추므로 `cmd_vel` 0이 1.5 s를 조금 넘고, 실제 정지는 감속만큼 더 걸린다.
-
-선속도만 0이 되는 것은 모서리 제자리 회전(R12)이다. 측정에서 선속도 0 구간 30개 중 29개가 레인 꼭짓점 0.15 m 안, 1개가 0.22 m 앞이었고, 경로를 한 번에 보낸 주행(`--whole`)도 같은 모서리에서 섰다. RPP는 모서리에서 회전과 주행을 몇 번 오가기도 한다(연장 여부와 관계없음).
-
-RViz의 2D Goal Pose로도 보낼 수 있다. 이것은 `bt_navigator`(한 번 계획, 복구 없음)로 가고 `pinky_fsm`을 거치지 않는다.
+RViz의 2D Goal Pose로도 보낼 수 있다. 이것은 `bt_navigator`로 가고 `pinky_fsm`을 거치지 않는다.
 
 ### 구성
 
 | 것 | 이름 |
 |---|---|
-| 월드 | `worlds/lane_arena.sdf`. 월드 좌표 = 지도 좌표 = `lane_map.yaml` 좌표. 레인은 바닥 그림, 벽·상자는 레인에서 0.25 m 넘게 떨어짐 |
-| 지도 | `maps/lane_arena.yaml`(5 cm, costmap), `maps/lane_arena_fine.yaml`(1 cm, AMCL) |
+| 월드 | `worlds/arena_<배치>.sdf`. 월드 좌표 = 지도 좌표 = 구역 지도 좌표. 안쪽 바닥 1.98 x 0.99 m를 벽이 두르고, 선반은 두께 1.5 cm, 높이 0.15 m 이상. 고정 경로는 바닥 그림 |
+| 지도 | `maps/arena_<배치>.yaml`(5 cm, costmap), `maps/arena_<배치>_fine.yaml`(1 cm, AMCL), `maps/arena_<배치>_keepout.yaml`(1 cm, shared가 아닌 구역을 몸 반폭 0.06 m만큼 넓힘) |
 | 로봇 모델 | `urdf/pinky_sim.urdf.xacro`: 제조사 모델 + DiffDrive, 라이다, 실제 위치. 제조사 `pinky_gz.urdf.xacro`의 램프 플러그인과 카메라는 뺐다 |
 | 토픽 | `/pinky1/scan`, `/pinky1/odom`, `/pinky1/cmd_vel`, `/pinky1/joint_states`, `/pinky1/tf`, `/pinky1/tf_static`, `/clock` |
 | 실제 위치 | `/pinky1/sim/truth`(`nav_msgs/Odometry`, map 좌표). 시험 도구만 읽는다 |
 | 프레임 | `map`, `odom`, `base_footprint`, `rplidar_link`(접두사 없음, TF가 namespace로 나뉨) |
 
-월드와 지도는 같은 기하(`fleet_gz_sim/arena.py`)에서 만든다. `lane_map.yaml`이나 벽을 바꾸면 다시 만든다. 시험이 저장소 파일과 생성 결과가 같은지 본다.
+월드와 지도는 구역 지도에서 만든다(`fleet_gz_sim/arena.py`, `arena_maps.py`, `arena_world.py`). 구역 지도를 바꾸면 다시 만든다. 시험이 저장소 파일과 생성 결과가 같은지 본다.
 
 ```bash
-cd sim/fleet_gz_sim && PYTHONPATH=../../pc/fleet_core:. python3 -m fleet_gz_sim.arena
+cd sim/fleet_gz_sim && PYTHONPATH=../../pc/fleet_core:. python3 -m fleet_gz_sim.arena            # 세 배치 모두
+cd sim/fleet_gz_sim && PYTHONPATH=../../pc/fleet_core:. python3 -m fleet_gz_sim.arena --layout d2
 ```
