@@ -195,7 +195,10 @@ class FleetView:
         specs = []
         for i, robot in enumerate(sorted(self._status)):
             status = self._status[robot]
-            start = (float(getattr(status, "x", 0.0)), float(getattr(status, "y", 0.0)))
+            if robot in self._pose:  # 몸을 그리는 자리(기본은 Gazebo 실제 위치)
+                start = self._pose[robot][:2]
+            else:
+                start = (float(getattr(status, "x", 0.0)), float(getattr(status, "y", 0.0)))
             base = [self.site.node_pose(n) for n in getattr(status, "base", ())
                     if n in self.site.nodes]
             horizon = [self.site.node_pose(n) for n in getattr(status, "horizon", ())

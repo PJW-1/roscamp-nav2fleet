@@ -169,6 +169,15 @@ def test_no_way_ahead_draws_nothing_and_a_horizon_alone_starts_at_the_robot():
     assert horizon.points[0] == pytest.approx((0.13, 0.15))
 
 
+def test_the_way_starts_at_the_drawn_robot_when_a_pose_is_known():
+    """로봇 몸은 set_pose(기본 Gazebo 실제 위치)로 그리므로 앞길도 거기서 시작한다."""
+    view = fv.FleetView(SITE)
+    view.set_statuses([Status("pinky1", x=0.40, y=0.60, base=["X_W"])])
+    view.set_pose("pinky1", 0.41, 0.66, 1.57, now=0.0)
+    [base] = by_ns(view.specs(now=0.0), "way_base")
+    assert base.points[0] == (0.41, 0.66)
+
+
 def test_a_status_without_base_fields_and_an_unknown_node_are_skipped():
     @dataclass
     class Old:
