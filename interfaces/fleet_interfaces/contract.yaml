@@ -1,6 +1,12 @@
 # 이름, 타입, QoS의 유일한 기준. 코드는 `key`로 찾으므로 이름이나 QoS는 여기만 고친다.
 # 팀 합의 전까지 모두 초안이다. QoS depth는 실제 Wi-Fi에서 측정해야 한다.
-version: 0.9-draft
+version: 0.11-draft
+# 0.11 (2026-11-12, nav2fleet, 제안(팀 합의 전)): MoveTo goal에 string mode를 더했다(MODE_FOLLOW_PATH
+# "follow_path", MODE_NAV_GOAL "nav_goal", 비면 follow_path). nav_goal이면 핑키는 target_pose로
+# /{pinky}/navigate_to_pose(Nav2 NavigateToPose)를 보내고 path와 final_goal은 쓰지 않는다. 결과와
+# feedback 형식은 그대로다. nav_goal에서는 blocked_after_s(5 s) 동안 진전이 없으면 BLOCKED이고, 복구는
+# Nav2 기본 BT가 한다(R14는 follow_path에만). 핑키 계약 2절, 3절 7번, 4절.
+# 0.10은 일부러 건너뛰었다: 옛 레포의 다른 가지가 그 번호를 이 레포에 없는 장애물 보고에 썼다.
 # 0.9 (2026-11-11, freefloor 가지, 제안(팀 합의 전)): 액션 /{pinky}/retreat(fleet_interfaces/action/Retreat).
 # 개인 레포 main 계약 0.7의 Retreat(distance_m, speed_mps로 뒤로 곧게, Nav2 BackUp)에
 # geometry_msgs/Pose[] path를 더했다. path가 있으면 핑키는 지나온 길을 거꾸로 적은 그 경로를 후진
@@ -55,12 +61,13 @@ actions:
   # 결과 reason에 HEARTBEAT_LOST(heartbeat가 끊겨 스스로 섬)를 더했다.
   # 0.4: 결과 reason에 PATH_NOT_CONNECTED(path가 로봇 위치를 지나지 않음)를 더했다(제안).
   # goal에 path(레인 폴리라인, geometry_msgs/Pose[])를 더했다(11-06 지시서 7번). 비면 점 목표다.
+  # 0.11(제안): goal에 mode(follow_path | nav_goal, 비면 follow_path)를 더했다.
   - {key: move_to, name: "/{pinky}/move_to", type: fleet_interfaces/action/MoveTo}
   - {key: dock, name: "/{pinky}/dock", type: fleet_interfaces/action/Dock}
   # 작업 팔 두 대가 액션 하나를 쓴다. 바구니 공간 분담은 팔 팀이 정한다.
   - {key: fill_basket, name: "/workcell/fill_basket", type: fleet_interfaces/action/FillBasket}
   - {key: swap_basket, name: "/{arm}/swap_basket", type: fleet_interfaces/action/SwapBasket, instances: {arm: [arm3]}}
-  # 실물 로봇에만 있어서 가짜 로봇 검사는 건너뛴다.
+  # 실물 로봇에만 있어서 가짜 로봇 검사는 건너뛴다. 0.11부터 MoveTo mode nav_goal에서 핑키가 부른다.
   - {key: navigate_to_pose, name: "/{pinky}/navigate_to_pose", type: nav2_msgs/action/NavigateToPose, real_only: true}
   # path 모드에서 핑키가 레인 폴리라인을 따를 때 쓴다. 관제는 부르지 않는다.
   - {key: follow_path, name: "/{pinky}/follow_path", type: nav2_msgs/action/FollowPath, real_only: true}
