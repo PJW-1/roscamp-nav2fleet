@@ -202,6 +202,14 @@ def test_every_field_of_the_robot_status_reaches_the_message():
     assert (out.fault, out.fault_reason) == (RobotStatus.FAULT_ERROR, "DOCK_FAILED")
     assert (out.wait_zone, list(out.wait_robots)) == ("AVENUE", ["pinky1", "pinky3"])
     assert (out.battery, out.x, out.y, out.yaw) == (87.5, 1.5, 2.5, 0.25)
+    assert (list(out.base), list(out.horizon)) == ([], []), "no way ahead unless the view has one"
+
+
+def test_the_granted_and_the_ungranted_way_ahead_reach_the_message():
+    view = RobotStatusView("pinky2", "MOVING", "TO_OUTBOUND", "O-003", "NONE", "", "", (),
+                           87.5, 1.5, 2.5, 0.25, base=("X_W", "N_W", "O_Q"), horizon=("N_E", "O"))
+    out = adapters.robots_to_msg([view], 0.0).robots[0]
+    assert (list(out.base), list(out.horizon)) == (["X_W", "N_W", "O_Q"], ["N_E", "O"])
 
 
 

@@ -191,6 +191,17 @@ def test_a_robot_that_nav2_took_into_another_yard_zone_takes_that_zone():
     assert world.view("pinky1")["goal_id"] is not None, "the goal goes on"
 
 
+def test_the_status_names_the_nodes_ahead_that_are_granted_and_those_that_are_not():
+    world = Harness()
+    world.step()
+    world.call("WORK")
+    world.step()
+    status, view = world.traffic.status_view("pinky2"), world.view("pinky2")
+    assert status["base"] == tuple(view["base"]) and status["base"][-1] == "W"
+    assert status["horizon"] == ()
+    assert world.traffic.status_view("pinky1")["base"] == (), "a standing robot has no way ahead"
+
+
 def test_the_status_of_an_unknown_robot_is_empty():
     world = Harness()
     assert world.traffic.status_view("ghost") == {}

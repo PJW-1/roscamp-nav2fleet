@@ -83,6 +83,7 @@ def robots_to_msg(views, now: float) -> RobotStatusArray:
         RobotStatus(robot_id=v.robot_id, fsm_state=v.fsm_state, task_type=v.task_type,
                     order_id=v.order_id, fault=v.fault, fault_reason=v.fault_reason,
                     wait_zone=v.wait_zone, wait_robots=list(v.wait_robots),
+                    base=list(v.base), horizon=list(v.horizon),
                     battery=float(v.battery), x=float(v.x), y=float(v.y), yaw=float(v.yaw))
         for v in views
     ]
