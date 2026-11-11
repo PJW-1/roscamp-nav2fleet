@@ -1,6 +1,8 @@
 """로봇의 상태 보고: 지도에 올리기, 지난 지점 따라가기, 뒤에 남은 구역과 지점 놓기."""
 from __future__ import annotations
 
+import math
+
 from fleet_core.fleet_map import NAV_GOAL, SHARED
 from fleet_core.traffic.mission import (
     COMM_LOST,
@@ -8,7 +10,9 @@ from fleet_core.traffic.mission import (
     ERROR,
     IDLE,
     LOCALIZING,
+    NOT_AT_TARGET,
     NOT_PLACEABLE,
+    ON_A_GOAL,
     OUT_OF_SERVICE,
     PARKED,
     PLACEMENT_CONFLICT,
@@ -107,11 +111,12 @@ class Progress:
         keep_trip이 거짓이면 가던 길에 잡아 둔 것도 남기지 않는다. 놓은 구역을 돌려준다.
         """
         p, site, grants = self.params, self.site, self.grants
-        if self._clock() < m.settle_until:
-            return []  # 방금 goal을 거뒀다. 취소가 로봇에 닿기 전일 수 있다
         held = grants.held_by(m.name)
-        if all(site.distance_to_zone(m.x, m.y, zone) > p.outside_zone_m for zone in held):
-            return []  # 보고 위치가 쥔 구역 밖이다(위치가 튀었다). 이 보고로는 아무것도 놓지 않는다
+        if (self._clock() < m.settle_until  # 방금 goal을 거뒀다. 취소가 닿기 전일 수 있다
+                or all(site.distance_to_zone(m.x, m.y, zone) > p.outside_zone_m
+                       for zone in held)):  # 보고 위치가 쥔 구역 밖이다(위치가 튀었다)
+            m.clear_n.clear()  # 이 보고로는 아무것도 놓지 않는다. 벗어난 보고는 이어져야 한다
+            return []
         zones, nodes = self._still_needed(m) if keep_trip else (set(), set())
         released = []
         for zone in held:
@@ -127,7 +132,16 @@ class Progress:
 
     def _return_unreached(self, m) -> None:
         """고장으로 세운 로봇이 계속 보고한다. 서 있는 자리 밖의 구역(가던 길에 잡아 둔 것)은
-        돌려준다. 말이 끊긴 로봇의 것은 돌려주지 않는다: 어디 있는지 모른다."""
+        돌려준다. 말이 끊긴 로봇의 것은 돌려주지 않는다: 어디 있는지 모른다.
+
+        로봇이 아직 goal을 수행한다고 보고하거나(취소가 닿지 않았다), 선 자리가 고장 났을 때의
+        자리와 다르거나, 위치를 못 믿어 세운 것(NOT_AT_TARGET)이면 돌려주지 않는다.
+        """
+        moved = m.fault_xy is None or math.dist(m.fault_xy, (m.x, m.y)) > (
+            self.params.arrival_tolerance_m)
+        if m.robot_state in ON_A_GOAL or moved or m.fault_reason == NOT_AT_TARGET:
+            m.clear_n.clear()
+            return
         released = self._release_behind(m, keep_trip=False)
         if released:
             m.trip = None  # 가던 길은 버렸다. 다시 투입되면 새로 고른다
