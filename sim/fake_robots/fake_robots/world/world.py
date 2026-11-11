@@ -20,10 +20,12 @@ from ..battery import Battery
 from .apply import Commands
 from .free_space import FreeSpace
 from .geom import segment_gap
-from .injections import LowBattery, Reinstate, Removal, Schedule
+from .injections import LowBattery, OrderFault, Reinstate, Removal, Schedule
 from .invariants import Invariants
 from .link import Link
 from .metrics import Metrics
+from .order_metrics import OrderMetrics
+from .order_run import OrderRun
 from .robot import Imperfections, SimRobot, profile_for
 from .runs import DOCK, Result
 from .stations import Arms, Central, six_orders
@@ -76,6 +78,7 @@ class ZoneWorld(Commands, Link):
         self.guard_stops = 0  # 몸이 닿기 직전에 세계가 세운 수(충돌 검사가 놓친 것)
         self.invariants = Invariants(self.site, self.params)
         self.metrics = Metrics(self.site, self.robots)
+        self.order_metrics = OrderMetrics(self.site, self.robots)
         self.central = Central(six_orders() if orders is None else orders, self._violation)
         self.arms = Arms(self.site, stock or DEFAULT_STOCK, arm_s_per_item, swap_step_s,
                          self._violation)
@@ -143,6 +146,7 @@ class ZoneWorld(Commands, Link):
         views = self.views()
         self.invariants.check(self.t, grants, present, views, quiet)
         self.metrics.step(self.t, DT, grants, present, self.orders_done(), views)
+        self.order_metrics.step(self.t, DT, present, views)
 
     def run(self, seconds: float) -> None:
         for _ in range(round(seconds / DT)):
@@ -160,6 +164,9 @@ class ZoneWorld(Commands, Link):
             r.comm_up = not self.schedule.comm_down(name, self.t)
             r.stuck = self.schedule.stuck(name, self.t)
         for item in self.schedule.due(self.t):
+            if isinstance(item, OrderFault):
+                self.traffic.order_fault = item.kind
+                continue
             r = self.robots[item.robot]
             if isinstance(item, Removal):
                 r.removed, r.run = True, None
@@ -202,7 +209,11 @@ class ZoneWorld(Commands, Link):
             result = run.step(self, r)
             if result is not None:
                 r.run = None
+                view = self.traffic.robot_view(name) if self.traffic is not None else {}
+                self.order_metrics.run_ended(self.t, name, run, result, r, view)
                 self._finished(name, result)
+            elif isinstance(run, OrderRun):
+                self._feedback(name, run)
 
     def clear_to(self, r, new) -> bool:
         """r이 지금 자리에서 new까지 곧게 가는 동안 다른 로봇 몸에 닿지 않는다
