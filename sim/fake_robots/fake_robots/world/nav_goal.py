@@ -9,9 +9,9 @@ from __future__ import annotations
 
 import math
 
-from .geom import advance, heading
+from .geom import heading
 from .planner import plan
-from .runs import LOOK_M, Run, Turning, blocked_ahead, end_offset, jittered
+from .runs import LOOK_M, Run, Turning, blocked_ahead, end_offset, jittered, move_along
 
 REPLAN_S = 1.0  # 막혔을 때 다시 계획하는 주기(NavigateToPose 기본 BT 1 Hz)
 PLAN_GAP_M = 0.03  # 계획할 때 다른 로봇과 물체를 이만큼 더 키운다(격자 반 칸 + 충돌 검사 틈)
@@ -76,7 +76,7 @@ class NavGoalRun(Run):
                 self._progress(ctx, robot)
                 return None
             robot.yaw = heading(self.way[0], self.way[1], robot.yaw)
-            (robot.x, robot.y), self.way, _ = advance(self.way, step)
+            self.way, _ = move_along(ctx, robot, self.way, step)
             self._progress(ctx, robot)
             return None
         if self.way is None:  # 지금은 길이 없다(다른 로봇, 물체): 서서 다시 계획한다

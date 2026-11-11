@@ -69,10 +69,10 @@ class Commands:
         r = self.robots[cmd.robot]
         grants = self.grants()
         if isinstance(cmd, MoveCmd):
-            self.invariants.check_command(self.t, grants, cmd, cmd.mode)
+            self.invariants.check_command(self.t, grants, cmd, cmd.mode, (r.x, r.y))
             run = self._move_run(r, cmd)
         elif isinstance(cmd, RetreatCmd):
-            self.invariants.check_command(self.t, grants, cmd, "retreat")
+            self.invariants.check_command(self.t, grants, cmd, "retreat", (r.x, r.y, r.yaw))
             run = RetreatRun(cmd.goal_id, cmd.path, cmd.distance_m, cmd.speed_mps,
                              self.params.lane_error_warn_m)
         else:

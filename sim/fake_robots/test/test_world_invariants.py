@@ -68,6 +68,24 @@ def test_standing_in_a_lane_or_junction_unless_blocked():
     assert [(v.code, v.robot) for v in inv.violations] == [(STANDING, "pinky1")]
 
 
+def test_a_robot_creeping_slowly_through_the_lane_is_not_standing():
+    inv = Invariants(SITE, PARAMS)
+    a = SimRobot("pinky1", 0.6, 0.89)
+    for k in range(1, 100):
+        a.x += 0.004  # 0.04 m/s
+        _check(inv, None, {"pinky1": a}, t=k * 0.1)
+    assert inv.violations == []
+
+
+def test_a_one_point_follow_path_is_checked_from_where_the_robot_stands():
+    inv, g = Invariants(SITE, PARAMS), FakeGrants()
+    g.give("pinky1", "HALL")
+    xw = SITE.node_pose("X_W")
+    cmd = MoveCmd("pinky1", 1, "X_W", *xw, 0.0)
+    inv.check_command(0.1, g, cmd, "follow_path", SITE.node_pose("N_W"))
+    assert [v.code for v in inv.violations] == [COMMAND]
+
+
 def test_robots_closer_than_two_radii():
     inv = Invariants(SITE, PARAMS)
     a, b = SimRobot("pinky1", 1.0, 0.4), SimRobot("pinky2", 1.0 + 0.15, 0.4)

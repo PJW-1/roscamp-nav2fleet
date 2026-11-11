@@ -2,7 +2,7 @@
 뒤가 막히면 OBSTACLE_BEHIND."""
 import math
 
-from fake_robots.world import Obstacle
+from fake_robots.world import Imperfections, Obstacle
 from fake_robots.world.geom import path_gap
 from fleet_core.common.commands import CancelCmd, DockCmd, RetreatCmd
 from world_helpers import follow, place, quiet_world, results, states
@@ -53,6 +53,32 @@ def test_not_final_goal_does_not_turn_at_the_end():
     world.send(follow(world, "pinky1", 1, ["N_W", "X_W"], yaw=math.pi, final=False))
     assert world.run_until(lambda: results(world, "on_move_result"), timeout_s=10)
     assert abs(world.robots["pinky1"].yaw - math.pi / 2) < 1e-9  # 북쪽을 보고 달려 왔다
+
+
+def test_a_robot_starting_beside_the_line_comes_back_to_it_and_ends_on_it():
+    world = quiet_world(robots={"pinky1": "N_W"},
+                        imperfect=Imperfections(0.0, 0.0, 0.01, 0.0, 0.0, 1.0))
+    place(world, "pinky1", 0.41, 0.65)
+    world.send(follow(world, "pinky1", 1, ["N_W", "X_W", "W"], yaw=math.pi))
+    line = _line(world, "N_W", "X_W", "W")
+    gaps = []
+    while not results(world, "on_move_result") and world.t < 30:
+        world.step()
+        gaps.append(path_gap(world.robots["pinky1"].pose, line))
+    assert results(world, "on_move_result")[0][2] is True
+    assert max(gaps) <= 0.01 + 1e-9
+    assert abs(world.robots["pinky1"].y - 0.89) < 1e-9  # 마지막 선분 위(지나치면 그 연장선 위)
+    assert math.dist(world.robots["pinky1"].pose, world.site.node_pose("W")) <= 0.01 + 1e-9
+
+
+def test_the_world_refuses_a_step_that_would_cross_another_body():
+    world = quiet_world(robots={"pinky1": "N_W", "pinky2": "N_E"})
+    place(world, "pinky1", 1.0, 0.4)
+    place(world, "pinky2", 1.1, 0.4)
+    r = world.robots["pinky1"]
+    assert not world.clear_to(r, (1.2, 0.4))  # 몸을 지나 멀어지는 걸음도 막는다
+    assert world.clear_to(r, (0.9, 0.4))
+    assert world.guard_stops == 1
 
 
 def _retreat(world, goal_id, nodes):

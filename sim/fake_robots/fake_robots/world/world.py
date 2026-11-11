@@ -19,6 +19,7 @@ from fleet_core.fleet_map import load_fleet_map
 from ..battery import Battery
 from .apply import Commands
 from .free_space import FreeSpace
+from .geom import segment_gap
 from .injections import LowBattery, Reinstate, Removal, Schedule
 from .invariants import Invariants
 from .link import Link
@@ -182,22 +183,21 @@ class ZoneWorld(Commands, Link):
                     r.run = None
                     self._finished(name, Result(run.kind, run.goal_id, False, "TIMEOUT"))
                 continue
-            before = r.pose
             result = run.step(self, r)
-            if self._touching(r, before):
-                r.x, r.y = before
-                self.guard_stops += 1
             if result is not None:
                 r.run = None
                 self._finished(name, result)
 
-    def _touching(self, r, before) -> bool:
-        """움직인 뒤 다른 로봇에 2r보다 가깝고, 전보다 가까워졌다."""
+    def clear_to(self, r, new) -> bool:
+        """r이 지금 자리에서 new까지 곧게 가는 동안 다른 로봇 몸에 닿지 않는다
+        (2r 밖이거나 멀어진다).
+        닿으면 세계가 그 걸음을 막고 센다: 충돌 검사(blocked_ahead)가 놓친 것이다."""
         least = 2 * self.radius
         for o in self.robots.values():
             if o is r or o.removed:
                 continue
-            now = math.dist(r.pose, o.pose)
-            if now < least and now < math.dist(before, o.pose) - 1e-12:
-                return True
-        return False
+            gap = segment_gap(o.pose, r.pose, new)
+            if gap < least - 1e-9 and gap < math.dist(r.pose, o.pose) - 1e-12:
+                self.guard_stops += 1
+                return False
+        return True

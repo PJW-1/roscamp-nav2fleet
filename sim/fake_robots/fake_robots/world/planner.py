@@ -15,7 +15,8 @@ _STEPS = [(1, 0, 1.0), (-1, 0, 1.0), (0, 1, 1.0), (0, -1, 1.0),
 
 
 def plan(space, cells, start, goal):
-    """start에서 goal까지의 꺾은선, 길이 없으면 None. 첫 점은 start, 끝 점은 goal."""
+    """start에서 goal까지의 꺾은선, 길이 없으면 None. 첫 점은 start, 끝 점은 goal이나
+    (goal 칸이 막혔으면) GOAL_SNAP_M 안의 빈 칸이다."""
     entry = start if space.free(cells, *start) else space.nearest_free(cells, *start,
                                                                        START_SNAP_M)
     if entry is None:
@@ -24,12 +25,12 @@ def plan(space, cells, start, goal):
     if end is None:
         return None
     if space.line_free(cells, entry, end):
-        return _dedupe([start, entry, end, goal])
+        return _dedupe([start, entry, end])
     cells_path = _astar(space, cells, space.cell(*entry), space.cell(*end))
     if cells_path is None:
         return None
     points = [entry, *(space.centre(ix, iy) for ix, iy in cells_path[1:-1]), end]
-    return _dedupe([start, *_shortcut(space, cells, points), goal])
+    return _dedupe([start, *_shortcut(space, cells, points)])
 
 
 def _astar(space, cells, a, b):

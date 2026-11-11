@@ -14,7 +14,7 @@ from fleet_core.fleet_map.geometry import sample
 
 INSIDE_TOL_M = 0.01  # 3번: 쥔 구역 밖 허용
 STILL_S = 5.0  # 5번: 한 줄 구역이나 갈림목에 이만큼 넘게 서 있으면 위반
-STILL_M = 0.005  # 한 걸음에 이보다 덜 움직이면 서 있다
+STILL_M = 0.02  # 선 자리에서 이보다 덜 움직였으면 아직 서 있다
 CAPACITY, LANE_WAY, OUTSIDE, COMMAND, STANDING, TOUCH = (
     "I1_CAPACITY", "I2_LANE_DIRECTION", "I3_OUTSIDE_HELD", "I4_COMMAND", "I5_STANDING",
     "I6_TOO_CLOSE")
@@ -35,7 +35,7 @@ class Invariants:
         self._active: set = set()
         self._now: set = set()
         self._prev: dict[str, tuple[float, float]] = {}
-        self._still: dict[str, float] = {}
+        self._still: dict[str, tuple[float, tuple[float, float]]] = {}  # 선 시각, 선 자리
         # 갈림목: pass 지점이 있는 구역
         self._junctions = {n.zone for n in site.nodes.values() if n.kind == PASS}
         self._lanes = [z for z in site.zones.values() if z.kind == LANE]
@@ -97,11 +97,14 @@ class Invariants:
             kind = self.site.zones[zone].kind if zone else SHARED
             view = views.get(name) or {}
             excused = quiet.get(name) or view.get("fault") or view.get("comm")
-            moved = math.dist(r.pose, self._prev.get(name, r.pose))
-            if not (kind == LANE or zone in self._junctions) or excused or moved > STILL_M:
+            since, spot = self._still.get(name, (t, r.pose))
+            if (not (kind == LANE or zone in self._junctions) or excused
+                    or math.dist(r.pose, spot) > STILL_M):
                 self._still.pop(name, None)
+                if not excused and (kind == LANE or zone in self._junctions):
+                    self._still[name] = (t, r.pose)  # 움직였다: 여기서 다시 잰다
                 continue
-            since = self._still.setdefault(name, t)
+            self._still[name] = (since, spot)
             if t - since > STILL_S:
                 self._flag(t, STANDING, name, f"{name} stands in {zone} since {since:.1f}", name)
 
@@ -114,8 +117,9 @@ class Invariants:
 
     # ---- 4번: 명령을 받을 때 ----
 
-    def check_command(self, t, grants, cmd, mode) -> None:
-        """mode: nav_goal, follow_path, retreat. grants가 없으면 보지 않는다."""
+    def check_command(self, t, grants, cmd, mode, start=None) -> None:
+        """mode: nav_goal, follow_path, retreat. grants가 없으면 보지 않는다.
+        start: 로봇의 지금 자리. 점이 둘보다 적은 path는 거기서 곧게 가는 것으로 본다."""
         if grants is None:
             return
         held = grants.held_by(cmd.robot)
@@ -127,8 +131,14 @@ class Invariants:
                     t, COMMAND, f"nav_goal {cmd.goal_id} to {cmd.target_id} in {zone}, "
                     f"holds {held}", cmd.robot))
             return
-        points = [tuple(p[:2]) for p in cmd.path] or ([(cmd.x, cmd.y)] if mode != "retreat"
-                                                       else [])
+        points = [tuple(p[:2]) for p in cmd.path]
+        if len(points) < 2 and start is not None:
+            if mode == "retreat":
+                yaw = start[2] if len(start) > 2 else 0.0
+                points = [start[:2], (start[0] - math.cos(yaw) * cmd.distance_m,
+                                      start[1] - math.sin(yaw) * cmd.distance_m)]
+            else:
+                points = [start[:2], (cmd.x, cmd.y)]
         for a, b in zip(points, points[1:], strict=False):
             for x, y in sample(a, b, 0.02):
                 if min((self.site.distance_to_zone(x, y, z) for z in held),

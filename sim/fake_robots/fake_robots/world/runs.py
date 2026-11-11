@@ -40,6 +40,35 @@ def jittered(ctx, speed: float) -> float:
     return speed * (1.0 + ctx.rng.uniform(-spread, spread)) if spread else speed
 
 
+def move_along(ctx, robot, way, step):
+    """way를 따라 step만큼 간다. 그 걸음이 다른 로봇 몸에 닿으면(2r 안) 가지 않는다.
+    (남은 way, 갔는가)."""
+    new, rest, _ = advance(way, step)
+    if not ctx.clear_to(robot, new):
+        return way, False
+    robot.x, robot.y = new
+    return rest, True
+
+
+def foot(p, a, b):
+    """p에서 선분 ab에 내린 발."""
+    vx, vy = b[0] - a[0], b[1] - a[1]
+    span = vx * vx + vy * vy
+    t = max(0.0, min(1.0, ((p[0] - a[0]) * vx + (p[1] - a[1]) * vy) / span)) if span else 0.0
+    return (a[0] + t * vx, a[1] + t * vy)
+
+
+def end_along(rng, error_m: float, way):
+    """도착 오차: 마지막 점을 마지막 선분 방향으로 error_m 안에서 앞이나 뒤로 민다.
+    선을 떠나지 않는다."""
+    if error_m <= 0.0 or len(way) < 2 or math.dist(way[-2], way[-1]) <= 1e-9:
+        return way
+    (ax, ay), (bx, by) = way[-2], way[-1]
+    span = math.dist(way[-2], way[-1])
+    shift = max(-0.5 * span, rng.uniform(-error_m, error_m))
+    return [*way[:-1], (bx + (bx - ax) / span * shift, by + (by - ay) / span * shift)]
+
+
 def end_offset(rng, error_m: float, target):
     """도착 오차: 목표에서 error_m 안의 아무 자리."""
     if error_m <= 0.0:
@@ -92,17 +121,15 @@ class FollowRun(Run):
 
     def _start(self, ctx, robot) -> Result | None:
         self.started = True
-        if not self.points:
-            self.way = [robot.pose, self.target]
-            return None
-        if path_gap(robot.pose, self.points) > self.connect_m:
+        if self.points and path_gap(robot.pose, self.points) > self.connect_m:
             return self.done(False, "PATH_NOT_CONNECTED")
-        if len(self.points) == 1:
-            self.way = [robot.pose, self.target]
-            return None
-        i = nearest_index(robot.pose, self.points)
-        self.way = [robot.pose, *self.points[i + 1:]]
-        self.way[-1] = end_offset(ctx.rng, ctx.imperfect.arrival_error_m, self.way[-1])
+        if len(self.points) < 2:
+            way = [robot.pose, self.target]
+        else:  # 선 위 가장 가까운 자리로 돌아와 선을 따른다(pinky_fsm처럼 지난 꼭짓점은 건너뛴다)
+            i = nearest_index(robot.pose, self.points)
+            way = [robot.pose, foot(robot.pose, *self.points[i:i + 2]), *self.points[i + 1:]]
+        way = [p for k, p in enumerate(way) if k == 0 or math.dist(p, way[k - 1]) > 1e-9]
+        self.way = end_along(ctx.rng, ctx.imperfect.arrival_error_m, way)
         return None
 
     def step(self, ctx, robot) -> Result | None:
@@ -116,9 +143,13 @@ class FollowRun(Run):
                 self.stood += ctx.dt
                 self.blocked = self.stood >= FOLLOW_BLOCKED_S
                 return None
-            self.stood, self.blocked = 0.0, False
             robot.yaw = heading(self.way[0], self.way[1], robot.yaw)
-            (robot.x, robot.y), self.way, _ = advance(self.way, step)
+            self.way, moved = move_along(ctx, robot, self.way, step)
+            if not moved:
+                self.stood += ctx.dt
+                self.blocked = self.stood >= FOLLOW_BLOCKED_S
+                return None
+            self.stood, self.blocked = 0.0, False
             if len(self.way) > 1:
                 return None
         if self.turn_at_end and not Turning.toward(ctx, robot, self.yaw):
@@ -157,7 +188,7 @@ class RetreatRun(Run):
             step = jittered(ctx, self.speed) * ctx.dt
             if blocked_ahead(ctx, robot, self.way, LOOK_M + step):
                 return self.done(False, "OBSTACLE_BEHIND")
-            (robot.x, robot.y), self.way, _ = advance(self.way, step)
+            self.way, _ = move_along(ctx, robot, self.way, step)
             if len(self.way) > 1:
                 return None
         return self.done(True)

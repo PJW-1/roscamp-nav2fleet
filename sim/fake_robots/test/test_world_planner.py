@@ -59,6 +59,14 @@ def test_layout_c_has_no_floor_way_between_north_and_south():
     assert plan(space, space.static, site.node_pose("N_W"), site.node_pose("S_W")) is None
 
 
+def test_a_goal_inside_the_grown_wall_ends_at_the_nearest_free_cell(d2):
+    _, space = d2
+    goal = (0.06, 0.40)
+    way = plan(space, space.static, (0.40, 0.40), goal)
+    assert way[-1] != goal and math.dist(way[-1], goal) <= 0.05
+    assert space.free(space.static, *way[-1])
+
+
 @pytest.mark.parametrize("layout", ["d2", "d", "c"])
 def test_every_node_of_a_shared_zone_is_floor(layout):
     site = load_fleet_map(layout)
