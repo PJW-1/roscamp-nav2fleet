@@ -116,15 +116,18 @@ class DriveCheck(Node):
             if step.kind != NAV_GOAL:
                 goal.path = [_pose(*p) for p in step.poses]
             client = self.move
-        record = {"done": False}
+        record = {"done": False, "handle": None}
         fut = client.send_goal_async(goal)
         end = time.monotonic() + 5.0
         while not fut.done() and time.monotonic() < end:
             time.sleep(0.01)
+        if not fut.done():  # a late acceptance must not leave the robot driving
+            fut.add_done_callback(lambda f: f.result().accepted and f.result().cancel_goal_async())
         handle = fut.result() if fut.done() else None
         if handle is None or not handle.accepted:
             record.update(done=True, success=False, reason="NOT_ACCEPTED")
             return record
+        record["handle"] = handle
 
         def finished(f, record=record):
             res = f.result().result
@@ -148,8 +151,10 @@ def run_step(node: DriveCheck, site, step, timeout: float) -> dict:
         first = len(node.truth)
     wall = time.monotonic()
     record = node.send(step)
-    wait_for(lambda: record["done"], timeout, 0.1)
+    if not wait_for(lambda: record["done"], timeout, 0.1) and record["handle"] is not None:
+        record["handle"].cancel_goal_async()  # stop the robot instead of leaving the goal running
     wall_s = time.monotonic() - wall
+    ended = node.last_truth()  # sim time of the result; the settle wait below is wall time
     time.sleep(SETTLE_S)
     with node.lock:
         truth, states, plans = node.truth[first:], list(node.states), list(node.plans)
@@ -159,7 +164,8 @@ def run_step(node: DriveCheck, site, step, timeout: float) -> dict:
         t0 = truth[0][0]
         t1, x, y, yaw = truth[-1]
         tx, ty, tyaw = step.target
-        out.update(sim_s=round(t1 - t0 - SETTLE_S, 2), final=[round(x, 3), round(y, 3)],
+        sim_end = ended[0] if ended is not None else t1
+        out.update(sim_s=round(sim_end - t0, 2), final=[round(x, 3), round(y, 3)],
                    pos_error_m=round(math.dist((x, y), (tx, ty)), 3),
                    yaw_error_deg=round(math.degrees(yaw_error(yaw, tyaw)), 1))
         if step.kind == NAV_GOAL:
