@@ -1,0 +1,78 @@
+# 배치 C: 가운데 급행 (지시서 5절). 벽 안쪽 1.98 x 0.99 m.
+# 진열대 둘 사이가 급행이고, 그 양 끝에 갈림목과 도크가 있다. 도크 띠(y 0.395~0.595)가 바닥을 북쪽과
+# 남쪽으로 가르므로, 북쪽과 남쪽을 오가는 길은 갈림목을 건너는 고정 경로뿐이다.
+# 넓은 곳은 구석 넷(HALL_NW, HALL_NE, HALL_SW, HALL_SE)과 통로 둘(폭 0.38 m, 한 대만)이다.
+#
+#   y
+#  0.99 +---------------+---------------------------+---------------+
+#       |  P-2   N_W    |          CORR_N           |    N_E   P-3  |  y 0.84, 0.75
+#  0.61 |   HALL_NW     +===========================+    HALL_NE    |  진열대 y 0.595~0.61
+#       |   W   | X_W   |          EXPRESS          |  X_E  |   O   |  급행 중심선 y 0.495
+#  0.38 |   HALL_SW     +===========================+    HALL_SE    |  진열대 y 0.38~0.395
+#       |  P-1   S_W    |          CORR_S           |    S_E   O_Q  |  y 0.24, 0.15
+#  0    +---------------+---------------------------+---------------+
+#       0  0.18 0.30 0.44 0.58                    1.40 1.54 1.68 1.80  1.98  x
+#
+# 구석이 좁아(0.58 x 0.395 m) 작업 도크의 대기 자리를 따로 두지 못했다: 주차 자리 P-2, P-1에서 기다린다.
+name: arena_c
+bounds: [0.0, 0.0, 1.98, 0.99]
+shelves:
+  - [0.58, 0.38, 1.40, 0.395]
+  - [0.58, 0.595, 1.40, 0.61]
+zones:
+  HALL_NW: {kind: shared, capacity: 2, rects: [[0.0, 0.595, 0.58, 0.99]]}
+  HALL_NE: {kind: shared, capacity: 2, rects: [[1.40, 0.595, 1.98, 0.99]]}
+  HALL_SW: {kind: shared, capacity: 2, rects: [[0.0, 0.0, 0.58, 0.395]]}
+  HALL_SE: {kind: shared, capacity: 2, rects: [[1.40, 0.0, 1.98, 0.395]]}
+  CORR_N: {kind: shared, capacity: 1, rects: [[0.58, 0.61, 1.40, 0.99]]}
+  CORR_S: {kind: shared, capacity: 1, rects: [[0.58, 0.0, 1.40, 0.38]]}
+  WORK_DOCK: {kind: dock, rects: [[0.0, 0.395, 0.30, 0.595]]}
+  J_W: {kind: dock, rects: [[0.30, 0.395, 0.58, 0.595]]}
+  EXPRESS: {kind: lane, capacity: 2, rects: [[0.58, 0.395, 1.40, 0.595]]}
+  J_E: {kind: dock, rects: [[1.40, 0.395, 1.68, 0.595]]}
+  OUT_DOCK: {kind: dock, rects: [[1.68, 0.395, 1.98, 0.595]]}
+nodes:
+  W: {x: 0.18, y: 0.495, kind: dock, yaw_deg: 180}
+  O: {x: 1.80, y: 0.495, kind: dock, yaw_deg: 0}
+  X_W: {x: 0.44, y: 0.495, kind: pass}
+  X_E: {x: 1.54, y: 0.495, kind: pass}
+  N_W: {x: 0.44, y: 0.75, kind: fork}
+  S_W: {x: 0.44, y: 0.24, kind: fork}
+  N_E: {x: 1.54, y: 0.75, kind: fork}
+  S_E: {x: 1.54, y: 0.24, kind: fork}
+  O_Q: {x: 1.85, y: 0.15, kind: wait, yaw_deg: 90}      # 출고 도크 대기 자리
+  P-1: {x: 0.13, y: 0.15, kind: parking, yaw_deg: 90}
+  P-2: {x: 0.13, y: 0.84, kind: parking, yaw_deg: -90}
+  P-3: {x: 1.85, y: 0.84, kind: parking, yaw_deg: -90}
+paths:
+  j_w_from_n: {points: [N_W, X_W]}
+  j_w_from_s: {points: [S_W, X_W]}
+  work_in: {points: [X_W, W]}
+  work_out: {points: [W, X_W], reverse: true}
+  j_w_to_n: {points: [X_W, N_W]}
+  j_w_to_s: {points: [X_W, S_W]}
+  j_e_from_n: {points: [N_E, X_E]}
+  j_e_from_s: {points: [S_E, X_E]}
+  out_in: {points: [X_E, O]}
+  out_out: {points: [O, X_E], reverse: true}
+  j_e_to_n: {points: [X_E, N_E]}
+  j_e_to_s: {points: [X_E, S_E]}
+  express: {points: [X_W, X_E], two_way: true}
+nav:
+  - {nodes: [N_W, P-2]}
+  - {nodes: [N_E, P-3]}
+  - {nodes: [S_W, P-1]}
+  - {nodes: [S_E, O_Q]}
+  # 통로를 건너는 Nav2 goal: 곧은 선이 그 통로 안을 지나는 쌍
+  - {nodes: [N_W, N_E], zones: [HALL_NW, CORR_N, HALL_NE]}
+  - {nodes: [P-2, N_E], zones: [HALL_NW, CORR_N, HALL_NE]}
+  - {nodes: [N_W, P-3], zones: [HALL_NW, CORR_N, HALL_NE]}
+  - {nodes: [P-2, P-3], zones: [HALL_NW, CORR_N, HALL_NE]}
+  - {nodes: [S_W, S_E], zones: [HALL_SW, CORR_S, HALL_SE]}
+  - {nodes: [P-1, S_E], zones: [HALL_SW, CORR_S, HALL_SE]}
+  - {nodes: [S_W, O_Q], zones: [HALL_SW, CORR_S, HALL_SE]}
+  - {nodes: [P-1, O_Q], zones: [HALL_SW, CORR_S, HALL_SE]}
+stations:
+  WORK: {dock: W, queue: [P-2, P-1], server: workcell, arms: [arm1, arm2], action: fill}
+  OUTBOUND: {dock: O, queue: [O_Q], server: arm3, arms: [arm3], action: swap}
+parking: [P-1, P-2, P-3]
