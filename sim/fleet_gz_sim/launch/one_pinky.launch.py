@@ -34,6 +34,8 @@ ARGS = {
     "nav_overrides": ("", "Nav2 설정 위에 덮을 yaml 파일(시뮬 전용, 비교용). 비면 없음"),
     "obstacles": ("", "상자를 놓았다 치우는 일정(fleet_gz_sim/obstacles의 이름이나 파일)"),
     "lidar_noise": ("", "라이다 거리 잡음 표준편차(m, 비교용). 비면 모델 기본값 0.02"),
+    "fixed_line_collision_check": ("true", "시뮬 전용. false면 고정 경로 controller 셋의 충돌"
+                                           " 검사를 끈다. 마당 goal(FollowPathGoal)은 켬"),
 }
 STILL = "pinky_still"
 
@@ -61,6 +63,9 @@ def _start(context):
         return LaunchConfiguration(name).perform(context)
 
     on = {name: value(name).lower() in ("true", "1") for name in ("gui", "rviz", "fsm", "keepout")}
+    fixed_check = value("fixed_line_collision_check").strip().lower()
+    if fixed_check not in ("true", "false", "1", "0"):  # 오타가 '끔'으로 바뀌지 않게
+        raise ValueError(f"fixed_line_collision_check must be true or false, got {fixed_check!r}")
     layout = layout_of(value("layout"))
     site = load_fleet_map(layout)
     arena = arena_for(layout, launch_parts.share("fleet_gz_sim"))
@@ -83,6 +88,7 @@ def _start(context):
                                    nav_log_level=value("nav_log_level"),
                                    nav_max_speed=launch_parts.speed_of(value("nav_max_speed")),
                                    fsm=on["fsm"], rviz=on["rviz"], nav_overrides=overrides,
+                                   fixed_line_check=fixed_check in ("true", "1"),
                                    lidar_noise=(float(value("lidar_noise"))
                                                 if value("lidar_noise") else None))]
     if obstacles_file:

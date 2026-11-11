@@ -217,6 +217,18 @@ def test_every_controller_checks_collisions_and_keeps_the_speed_cap(made):
             assert controllers["FollowPathReverse"]["desired_linear_vel"] == 0.05
 
 
+def test_the_fixed_line_check_can_be_turned_off_for_every_robot(made):
+    navs = includes(run(made, fixed_line_collision_check="false"), "nav2.launch.py")
+    assert len(navs) == 3
+    for nav in navs:
+        controllers = _controllers(launch_args(nav)["params_file"])
+        assert [controllers[n]["use_collision_detection"] for n in
+                ("FollowPath", "FollowPathThrough", "FollowPathReverse", "FollowPathGoal")] == [
+            False, False, False, True]
+    with pytest.raises(ValueError, match="fixed_line_collision_check"):
+        run(made, fixed_line_collision_check="off")
+
+
 @pytest.mark.parametrize("bad", ["0.25", "0.1", "fast", "nan"])
 def test_a_speed_outside_the_arena_range_stops_the_launch(made, bad):
     with pytest.raises(ValueError, match="nav_max_speed"):

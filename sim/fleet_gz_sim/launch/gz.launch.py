@@ -65,7 +65,9 @@ ARGS = {
     "scenario_seed": ("", "시나리오 random 블록을 풀 seed(정수). 비면 파일의 seed"),
     "battery_low_pct": ("", "관제 battery_low_pct(0~100). 주면 그 값을 넣은 파라미터 사본"
                             "(result_dir/fleet_params.yaml)으로 돈다. 비우면 파일 그대로"),
-    "use_order_model": ("", "true/false: 관제의 use_order_model 파라미터(order 모델이 있는"
+    "fixed_line_collision_check": ("true", "시뮬 전용. false면 고정 경로 controller 셋(FollowPath,"
+                                           " Through, Reverse)의 충돌 검사를 끈다. 마당 goal은 켬"),
+    "use_order_model": ("","true/false: 관제의 use_order_model 파라미터(order 모델이 있는"
                             " 관제만 읽는다). 비우면 params 파일의 값"),
 }
 ARMS = "arm1 arm2 arm3"
@@ -244,6 +246,7 @@ def _start(context):
     check = flag(value("fleet_check"), "fleet_check")
     through = flag(value("nav_pass_through"), "nav_pass_through")
     keepout = flag(value("keepout"), "keepout")
+    fixed_check = flag(value("fixed_line_collision_check"), "fixed_line_collision_check")
     params_file = params_for(params_file_of(value("fleet_params_file")), value("result_dir"),
                              value("battery_low_pct"))
     max_speed = launch_parts.speed_of(value("nav_max_speed"))
@@ -261,7 +264,7 @@ def _start(context):
                                       nav_composition=composed,
                                       through_controller_id=(launch_parts.THROUGH_CONTROLLER
                                                              if through else ""),
-                                      nav_max_speed=max_speed,
+                                      nav_max_speed=max_speed, fixed_line_check=fixed_check,
                                       battery_topic=(launch_parts.BATTERY_TOPIC.format(robot=robot)
                                                      if battery else ""))
     if value("rviz") == "fleet":
