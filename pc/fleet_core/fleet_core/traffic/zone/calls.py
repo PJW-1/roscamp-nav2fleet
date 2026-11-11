@@ -1,0 +1,183 @@
+"""배차와 호출: 주문 쪽이 로봇을 스테이션으로 부르고, 놓아 주고, 거둔다."""
+from __future__ import annotations
+
+import math
+
+from fleet_core.common.commands import NO_ROBOT, DispatchFeedback, DispatchResult
+from fleet_core.fleet_map import FILL, NAV_GOAL, route
+from fleet_core.traffic.mission import (
+    AT_STATION,
+    DOCK,
+    IDLE,
+    MOVE,
+    OUT_OF_SERVICE,
+    PARKED,
+    STOP,
+    TO_OUTBOUND,
+    TO_PARK,
+    TO_WORK,
+)
+from fleet_core.traffic.selector import RobotInfo
+
+from .robots import Dispatch
+
+
+class Calls:
+    def on_run_mode(self, run_mode) -> None:
+        if run_mode == STOP and self._run_mode != STOP:
+            for m in self._robots.values():
+                if m.goal and not m.comm:  # 말 없는 로봇의 취소는 복구 때 보낸다
+                    self._cancel_goal(m)
+        if run_mode != self._run_mode:
+            for m in self._robots.values():
+                m.stall_from = None  # 모드가 바뀌면 멈춤 시계를 다시 잰다
+        self._run_mode = run_mode
+
+    def on_dispatch(self, goal_id, station_id, robot_id="") -> None:
+        if not robot_id:
+            if station_id != self._work:
+                raise ValueError(f"only the fill station takes open calls, not {station_id}")
+            self._open_calls.append(goal_id)
+            return
+        m = self._robots.get(robot_id)
+        if m is None:
+            self._out.append(DispatchResult(goal_id, False, robot_id, "NO_SUCH_ROBOT"))
+        elif not self.available(robot_id):
+            self._out.append(DispatchResult(goal_id, False, robot_id, "NOT_AVAILABLE"))
+        elif m.dispatch:
+            self._out.append(DispatchResult(goal_id, False, robot_id, "BUSY"))
+        else:
+            m.dispatch = Dispatch(goal_id, station_id)
+            if m.phase == AT_STATION and m.dest == station_id:
+                self._finish_dispatch(m)
+            else:
+                m.hold = False
+                self._head_for(m, self._leg_of(station_id), station_id)
+
+    def on_dispatch_cancel(self, goal_id) -> None:
+        if goal_id in self._open_calls:
+            self._open_calls.remove(goal_id)
+            return
+        for m in self._robots.values():
+            if m.dispatch and m.dispatch.goal_id == goal_id:
+                m.dispatch = None
+                self._out.append(DispatchResult(goal_id, False, m.name, "CANCELED"))
+                if m.goal and m.goal.kind == DOCK:
+                    self._cancel_goal(m)
+                if m.available:
+                    self._head_for(m, TO_PARK, None)
+                return
+
+    def on_release(self, robot) -> None:
+        m = self._robots.get(robot)
+        if m is not None:
+            m.hold = False
+
+    def on_robot_fault(self, robot, reason="") -> None:
+        m = self._robots.get(robot)
+        if m is not None:
+            self._fail(m, reason)
+
+    # ---- 호출할 로봇 고르기 ----
+
+    def tick_pick(self, stopped: frozenset = frozenset()) -> None:
+        pool = [m for m in self._robots.values() if m.placed and m.fault != OUT_OF_SERVICE]
+        self._warn_if_no_robot()
+        chosen = self.selector.pick(len(self._open_calls),
+                                    [self._robot_info(m, m.name in stopped) for m in pool])
+        for m in pool:
+            m.called = m.name in chosen
+        for m in pool:  # 모든 로봇의 목적을 먼저 정한다. 길은 그 뒤에 고른다(step)
+            if m.available:
+                self._redirect(m)
+
+    def _robot_info(self, m, stopped: bool) -> RobotInfo:
+        node = m.trip.goal if m.trip is not None and m.phase == TO_PARK else m.node
+        eligible = (self.available(m.name) and not m.hold and m.dispatch is None and not stopped
+                    and (not m.charge or (m.called and self._committed(m))))
+        return RobotInfo(m.name, node, m.called or self._committed(m), eligible)
+
+    def _committed(self, m) -> bool:
+        """채우기 도크의 구역을 잡은 로봇은 방향을 바꾸지 않는다."""
+        dock = self.site.stations[self._work].dock
+        return m.phase == TO_WORK and self.site.nodes[dock].zone in self.grants.held_by(m.name)
+
+    def _warn_if_no_robot(self) -> None:
+        """호출이 남았는데 운영자가 손대기 전에는 올 로봇이 없다. 멈출 때마다 한 번 알린다."""
+        stalled = bool(self._open_calls) and not any(m.live for m in self._robots.values())
+        if stalled and not self._no_robot_warned:
+            self._out.append(DispatchFeedback(self._open_calls[0], "", NO_ROBOT))
+        self._no_robot_warned = stalled
+
+    def _redirect(self, m) -> None:
+        """지금의 호출과 배차에 맞게 로봇의 목적을 바꾼다."""
+        if m.phase == AT_STATION:
+            self._leave_station(m)
+        elif m.phase in (PARKED, IDLE):
+            if m.dispatch or (m.called and not m.charge) or m.phase == IDLE:
+                self._next_work(m)
+        elif m.phase not in (TO_WORK, TO_PARK) or m.dispatch or self._committed(m):
+            return
+        elif m.called and m.phase != TO_WORK:
+            self._head_for(m, TO_WORK, self._work)
+        elif not m.called and m.phase == TO_WORK:
+            self._head_for(m, TO_PARK, None)
+
+    # ---- 목적 바꾸기 ----
+
+    def _leg_of(self, station_id: str) -> str:
+        return TO_WORK if self.site.stations[station_id].action == FILL else TO_OUTBOUND
+
+    def _head_for(self, m, phase: str, station_id) -> None:
+        """로봇의 목적(가는 단계와 스테이션)을 바꾼다. 가던 길은 다시 고른다."""
+        if (m.phase, m.dest) == (phase, station_id):
+            return
+        m.phase, m.dest = phase, station_id
+        m.asked_at = self._clock() if station_id else None
+        m.asked_gap = self._metres_to_dock(m, station_id) if station_id else 0.0
+        m.attempts = 0
+        self._stop_wanting(m)
+        goal = m.goal
+        if goal is None:
+            self._drop_trip(m)
+        elif goal.kind == MOVE and goal.via == NAV_GOAL:
+            self._cancel_goal(m)  # 넓은 구역 안에서는 바로 세우고 다시 고른다
+            self._drop_trip(m)
+        elif m.trip is not None:  # 고정 구간 안: 서지 않는다. 다음 지점에서 갈아탄다(drive._switch)
+            del m.trip.links[m.trip.granted:]
+            m.trip.stale = True
+
+    def _metres_to_dock(self, m, station_id: str) -> float:
+        way = route(self.site, m.node, self.site.stations[station_id].dock)
+        return math.inf if way is None else sum(link.length for link in way)
+
+    def _finish_dispatch(self, m, error_x_cm=0.0, error_y_cm=0.0, error_yaw_deg=0.0) -> None:
+        """도크에 섰다. 부른 쪽에 답하고 다음 지시를 기다린다."""
+        if m.dispatch:
+            goal_id, m.dispatch = m.dispatch.goal_id, None
+        elif m.dest == self._work and self._open_calls:
+            goal_id = self._open_calls.pop(0)
+        else:
+            return  # 이제 이 로봇을 기다리는 쪽이 없다. 다음 선택에서 도크를 비운다
+        m.hold = True
+        self._out.append(DispatchResult(goal_id, True, m.name, "", error_x_cm, error_y_cm,
+                                        error_yaw_deg))
+
+    def _leave_station(self, m) -> None:
+        if m.hold:
+            return
+        if m.called and m.dest == self._work and self._open_calls:
+            self._finish_dispatch(m)  # 불린 도크에 이미 서 있다
+        else:
+            self._next_work(m)
+
+    def _next_work(self, m) -> None:
+        """다음 일을 위해 도크나 주차 자리를 떠난다."""
+        if m.dispatch:
+            self._head_for(m, self._leg_of(m.dispatch.station_id), m.dispatch.station_id)
+        elif m.called:
+            self._head_for(m, TO_WORK, self._work)
+        elif m.node in self.site.parking and self._on_node(m):
+            m.phase, m.dest = PARKED, None
+        else:
+            self._head_for(m, TO_PARK, None)
