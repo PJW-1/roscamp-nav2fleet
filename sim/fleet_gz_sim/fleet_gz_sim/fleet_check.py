@@ -7,7 +7,7 @@ reports, and the zone holders the fleet publishes. It keeps:
     after moving faster than MOVING_MPS. Stops while the robot reports MOVING are also counted
     apart (a halt in the middle of a move_to)
   - pose samples outside every zone the fleet holds for that robot (farther than margin_m from
-    the zone floor, fleet_core LaneMap.distance_to_zone), and apart from those the samples while
+    the zone floor, fleet_core FleetMap.distance_to_zone), and apart from those the samples while
     the robot holds no zone at all. Counted only after the first zone message, so the time
     before the fleet starts does not count
   - sim and wall time spans and their ratio (real-time factor)
@@ -50,7 +50,7 @@ class FleetCheck:
         self.stop_min_s = stop_min_s
         self.sync_s = sync_s
         self.margin_m = margin_m
-        self.holders: dict[str, str] | None = None
+        self.holders: dict[str, tuple[str, ...]] | None = None
         self.min_gap: tuple[float, float, str, str] | None = None  # (m, sim t, one, other)
         self.first: tuple[float, float] | None = None  # (sim t, wall t)
         self.last: tuple[float, float] | None = None
@@ -60,7 +60,9 @@ class FleetCheck:
             self.robots[robot].state = state
 
     def on_zones(self, holders: dict[str, str]) -> None:
-        self.holders = dict(holders)
+        """zone -> holder as /fleet/zones gives it: several robots joined by a comma."""
+        self.holders = {zone: tuple(name for name in holder.split(",") if name)
+                        for zone, holder in holders.items()}
 
     def on_truth(self, robot: str, t: float, x: float, y: float, speed: float, turn: float,
                  wall: float | None = None) -> None:
@@ -107,7 +109,7 @@ class FleetCheck:
         if self.holders is None:
             return
         me.zone_samples += 1
-        held = [zone for zone, holder in self.holders.items() if holder == robot]
+        held = [zone for zone, holders in self.holders.items() if robot in holders]
         if not held:
             me.no_zone += 1
             return

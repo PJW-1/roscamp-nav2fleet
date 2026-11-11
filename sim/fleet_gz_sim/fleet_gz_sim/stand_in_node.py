@@ -28,8 +28,7 @@ from fake_robots.battery import Battery
 from fake_robots.common import (
     TRUTH_TOPIC,
     load_contract_param,
-    load_lane_map_param,
-    load_scenario_param,
+    load_site_param,
 )
 from fleet_core.common.contract import to_ros_qos
 from fleet_interfaces.action import Dock
@@ -51,6 +50,7 @@ from fleet_gz_sim.dock_stand_in import (
     require_dock_stub_allowed,
     stub_may_answer,
 )
+from fleet_gz_sim.fleet_setup import stand_in_inputs
 from fleet_gz_sim.launch_parts import BATTERY_TOPIC
 from fleet_gz_sim.ready import everyone_idle
 
@@ -76,11 +76,13 @@ class SimStandIn(Node):
                                       workdir=Path.cwd())
             self.add_on_set_parameters_callback(self._keep_sim_time)
         contract = load_contract_param(self)
-        self._site = load_lane_map_param(self)
-        self.declare_parameter("scenario_file", "")
-        scenario = (load_scenario_param(self, self._site)
-                    if stub or self.get_parameter("scenario_file").value else None)
-        self._duration = scenario.dock.duration_s if stub else 0.0
+        self._site = load_site_param(self)
+        path = self.declare_parameter("scenario_file", "").value
+        seed = int(self.declare_parameter("scenario_seed", -1).value)
+        if stub and not path:
+            raise ValueError("parameter scenario_file is required with dock_stub")
+        scenario = stand_in_inputs(path, None if seed < 0 else seed) if path else None
+        self._duration = scenario.dock_s if stub else 0.0
         self._lock = threading.Lock()
         self._pose: dict[str, tuple[float, float, float]] = {}
         self._batteries: dict[str, tuple[Battery, object]] = {}  # 로봇: (모형, 발행자)
@@ -94,8 +96,8 @@ class SimStandIn(Node):
             self.create_subscription(Odometry, f"/{robot}/sim/truth",
                                      lambda msg, r=robot, p=pub: self._on_truth(r, p, msg), 10)
             if scenario is not None:
-                spots = [self._site.waypoint_pose(w) for w in self._site.parking]
-                mine = [f for f in scenario.faults if f.robot == robot]
+                spots = [self._site.node_pose(w) for w in self._site.parking]
+                mine = [f for f in scenario.faults if f.get("robot") == robot]
                 self._batteries[robot] = (Battery(mine, spots), self.create_publisher(
                     BatteryState, BATTERY_TOPIC.format(robot=robot), qos_profile_sensor_data))
             if not stub:
@@ -162,7 +164,7 @@ class SimStandIn(Node):
             self.get_logger().warn(f"{robot}: dock {handle.request.dock_id!r} is not a station")
             handle.abort()
             return Dock.Result(success=False)
-        target = self._site.waypoint_pose(station.dock)
+        target = self._site.node_pose(station.dock)
         start, phase = self._now(), ""
         watch = ClockWatch(CLOCK_STALL_S)
         while rclpy.ok():

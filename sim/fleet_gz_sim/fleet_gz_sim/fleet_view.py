@@ -1,33 +1,34 @@
 """관제 화면(시뮬레이션 전용): 관제가 보는 함대를 마커 명세로 바꾼다. rclpy를 쓰지 않는다.
 
-레인과 지점, 로봇(몸, 방향, 상태 글), 쥔 구역(소유자 색 굵은 선), 막힌 레인(빨강)을 그린다.
-구역 id는 맵의 잠금 단위 이름이다. 지점 하나(W, N, ...), 양방향 묶음(AVENUE),
-또는 맵 `units:`의 이름이다. 구역의 바닥은 그 지점들과 그 지점에서 끝나는 레인이다.
-교차 쌍은 따로 된 id가 없고 구역 두 개가 서로 잠글 뿐이라 각 구역으로 그린다.
-자유바닥(traffic_mode: freefloor)에서는 구역 id가 칸 이름(c12_17)이라 쥔 칸을 소유자 색
-사각형으로 그린다. 물체 앞을 막은 칸(소유자 #blocked)은 빨강.
-로봇마다 지금 가는 곳(핑키가 보고한 current_goal의 지점이나 스테이션 도크)을 로봇 색 깃대와
-로봇에서 그곳까지의 가는 선으로 그린다.
+구역 지도(fleet_core.fleet_map)를 그린다.
+- 구역: 종류마다 옅은 바닥색(shared 회색, lane 파랑, dock 호박색).
+- 고정 경로(FollowPath, Retreat)는 얇은 선, 지점은 점과 이름.
+- 쥔 구역: 구역 바닥을 쥔 로봇 색으로 덮는다. 여러 대가 쥔 구역(shared, lane: holder가
+  "pinky1,pinky3")은 흰 테두리와 이름 글로 그린다. 기다리는 로봇이 있으면 그 목록도 글로.
+- 로봇: 몸, 방향, 상태 글. 지금 가는 곳(핑키가 보고한 current_goal의 지점이나 스테이션 도크)은
+  로봇 색 깃대와 로봇에서 그곳까지의 가는 선.
 """
 from __future__ import annotations
 
-import re
 from dataclasses import dataclass
+
+from fleet_core.fleet_map import DOCK, FOLLOW_PATH, LANE, RETREAT, SHARED
 
 STALE_S = 3.0  # 이만큼 자세가 없으면 회색
 
 GRAY = (0.55, 0.55, 0.55, 1.0)
 RED = (1.0, 0.1, 0.1, 1.0)
 AMBER = (1.0, 0.75, 0.0, 1.0)
+WHITE = (1.0, 1.0, 1.0, 1.0)
 LABEL = (0.95, 0.95, 0.95, 1.0)
+ZONE_COLORS = {SHARED: (0.6, 0.6, 0.6, 0.15), LANE: (0.2, 0.4, 1.0, 0.25),
+               DOCK: (1.0, 0.65, 0.1, 0.25)}
 ROBOT_COLORS = {
     "pinky1": (0.2, 0.45, 1.0, 1.0),
     "pinky2": (0.1, 0.8, 0.25, 1.0),
     "pinky3": (1.0, 0.6, 0.0, 1.0),
 }
 _SPARE = ((0.8, 0.3, 0.9, 1.0), (0.0, 0.8, 0.8, 1.0), (0.9, 0.9, 0.2, 1.0))
-
-_LANE_RE = re.compile(r"^(\(.*?\)|\S+) to (\(.*?\)|\S+)")
 
 
 @dataclass(frozen=True)
@@ -53,41 +54,59 @@ def _faded(color: tuple, alpha: float) -> tuple:
     return (*color[:3], alpha)
 
 
-def lane_specs(lane_map) -> list[Spec]:
-    """레인은 얇은 회색 선(양방향 쌍은 하나), 지점은 점과 이름."""
-    points = []
-    seen = set()
-    for (a, b), lane in lane_map.lanes.items():
-        if frozenset((a, b)) in seen:
+def holders_of(holder: str) -> list[str]:
+    """ZoneView.holder("" 또는 "pinky1,pinky3")를 이름 목록으로."""
+    return [name for name in holder.split(",") if name]
+
+
+def _rect_center(rect) -> tuple[float, float]:
+    x0, y0, x1, y1 = rect
+    return (x0 + x1) / 2, (y0 + y1) / 2
+
+
+def _outline(rect) -> tuple:
+    """LINE_LIST 점: 사각형 네 변."""
+    x0, y0, x1, y1 = rect
+    corners = [(x0, y0), (x1, y0), (x1, y1), (x0, y1)]
+    return tuple(p for a, b in zip(corners, corners[1:] + corners[:1], strict=True)
+                 for p in (a, b))
+
+
+def zone_cubes(rects, z: float) -> list[tuple]:
+    """사각형마다 (중심, 크기)."""
+    return [(_rect_center(r), (r[2] - r[0], r[3] - r[1], z)) for r in rects]
+
+
+def map_specs(site) -> list[Spec]:
+    """구역 바닥(종류별 색), 고정 경로 선, 지점 점과 이름."""
+    specs = []
+    i = 0
+    for zone in sorted(site.zones.values(), key=lambda z: z.id):
+        for (cx, cy), size in zone_cubes(zone.rects, 0.002):
+            specs.append(Spec("zones", i, "CUBE", (cx, cy, 0.001, 0.0), size,
+                              ZONE_COLORS[zone.kind]))
+            i += 1
+        cx, cy = _rect_center(zone.rects[0])
+        specs.append(Spec("zone_labels", len(specs), "TEXT", (cx, cy, 0.03, 0.0),
+                          (0.0, 0.0, 0.04), _faded(LABEL, 0.6), text=zone.id))
+    seen, points = set(), []
+    for link in site.links():
+        key = frozenset((link.a, link.b))
+        if link.via not in (FOLLOW_PATH, RETREAT) or key in seen:
             continue
-        seen.add(frozenset((a, b)))
-        points += [(lane.ax, lane.ay), (lane.bx, lane.by)]
-    waypoints = sorted(lane_map.zone_of, key=lane_map.waypoint_id)
-    poses = [lane_map.waypoint_pose(w) for w in waypoints]
-    specs = [
-        Spec("lanes", 0, "LINE_LIST", (0.0, 0.0, 0.005, 0.0), (0.01, 0.0, 0.0),
-             _faded(GRAY, 0.8), tuple(points)),
-        Spec("waypoints", 0, "SPHERE_LIST", (0.0, 0.0, 0.01, 0.0), (0.04, 0.04, 0.04),
-             GRAY, tuple(poses)),
-    ]
-    for i, (w, (x, y)) in enumerate(zip(waypoints, poses, strict=True)):
-        specs.append(Spec("waypoint_labels", i, "TEXT", (x + 0.06, y + 0.06, 0.05, 0.0),
-                          (0.0, 0.0, 0.06), LABEL, text=lane_map.waypoint_id(w)))
+        seen.add(key)
+        for p, q in zip(link.points, link.points[1:], strict=False):
+            points += [tuple(p), tuple(q)]
+    specs.append(Spec("paths", 0, "LINE_LIST", (0.0, 0.0, 0.005, 0.0), (0.008, 0.0, 0.0),
+                      _faded(GRAY, 0.9), tuple(points)))
+    names = sorted(site.nodes)
+    poses = [site.node_pose(n) for n in names]
+    specs.append(Spec("nodes", 0, "SPHERE_LIST", (0.0, 0.0, 0.01, 0.0), (0.03, 0.03, 0.03),
+                      GRAY, tuple(poses)))
+    for j, (name, (x, y)) in enumerate(zip(names, poses, strict=True)):
+        specs.append(Spec("node_labels", j, "TEXT", (x + 0.04, y + 0.04, 0.05, 0.0),
+                          (0.0, 0.0, 0.045), LABEL, text=name))
     return specs
-
-
-def zone_geometry(lane_map, zone_id: str):
-    """구역의 (지점 좌표 목록, 레인 선분 목록). 모르는 id는 None."""
-    if zone_id not in lane_map.zones:
-        return None
-    members = sorted(lane_map.zones[zone_id], key=lane_map.waypoint_id)
-    points = [lane_map.waypoint_pose(w) for w in members]
-    keys = lane_map.lanes_of_zone(zone_id)
-    lines = [((lane.ax, lane.ay), (lane.bx, lane.by))
-             for key, lane in sorted(lane_map.lanes.items(),
-                                     key=lambda item: tuple(map(lane_map.waypoint_id, item[0])))
-             if key in keys]
-    return points, lines
 
 
 def robot_label(status, stale: bool) -> tuple[str, tuple]:
@@ -119,17 +138,12 @@ class _NoStatus:
 class FleetView:
     """받은 상태를 모아 두고 그릴 때마다 명세 목록을 만든다. 시각은 초(호출하는 쪽 시계)."""
 
-    def __init__(self, lane_map):
-        self.lane_map = lane_map
-        lanes = lane_specs(lane_map)
-        # free floor: robots leave the lanes, so only the named spots are drawn
-        self._lanes = [s for s in lanes if s.ns != "lanes"] if hasattr(lane_map, "is_cell") \
-            else lanes
-        self._by_name = {str(w): w for w in lane_map.zone_of}
+    def __init__(self, site):
+        self.site = site
+        self._map = map_specs(site)
         self._status: dict = {}
         self._pose: dict = {}  # 로봇 -> (x, y, yaw, 시각)
         self._zones: list = []
-        self._blocked: dict = {}  # 로봇 -> 막힌 레인 (a, b)
         self._goal: dict = {}  # robot -> current_goal as the robot reports it
 
     def set_statuses(self, statuses) -> None:
@@ -142,95 +156,44 @@ class FleetView:
         self._goal[robot] = goal
 
     def goal_pose(self, goal: str):
-        """(x, y) of a MoveTo/DockTo target, None if unknown. Free-floor ids are 'W~1.25'."""
-        name = goal.split("~", 1)[0]
-        if name in self._by_name:
-            return self.lane_map.waypoint_pose(self._by_name[name])
-        station = self.lane_map.stations.get(name)
-        return self.lane_map.waypoint_pose(station.dock) if station else None
+        """(x, y) of a MoveTo target node or a Dock station, None if unknown."""
+        if goal in self.site.nodes:
+            return self.site.node_pose(goal)
+        station = self.site.stations.get(goal)
+        return self.site.node_pose(station.dock) if station else None
 
     def set_zones(self, zones) -> None:
         self._zones = list(zones)
 
-    def on_event(self, code: str, source: str, detail: str) -> None:
-        """LANE_BLOCKED는 '{a} to {b} blocked ...', LANE_CLEARED는 '{a} to {b} ...'."""
-        if code not in ("LANE_BLOCKED", "LANE_CLEARED"):
-            return
-        lane = self._parse_lane(detail)
-        if lane is None:
-            return
-        if code == "LANE_BLOCKED":
-            self._blocked[source] = lane
-        elif self._blocked.get(source) == lane:
-            del self._blocked[source]
-
-    def _parse_lane(self, detail: str):
-        found = _LANE_RE.match(detail or "")
-        if not found:
-            return None
-        key = (self._by_name.get(found.group(1)), self._by_name.get(found.group(2)))
-        return key if key in self.lane_map.lanes else None
-
-    def blocked_lanes(self) -> set:
-        return set(self._blocked.values())
-
     def specs(self, now: float) -> list[Spec]:
-        return [*self._lanes, *self._zone_specs(), *self._blocked_specs(),
-                *self._goal_specs(), *self._robot_specs(now)]
+        return [*self._map, *self._zone_specs(), *self._goal_specs(), *self._robot_specs(now)]
 
     def _zone_specs(self) -> list[Spec]:
-        specs = self._cell_specs()
-        for i, zone in enumerate(self._zones):
-            geometry = zone_geometry(self.lane_map, zone.zone_id)
-            if geometry is None:
-                continue
-            points, lines = geometry
-            if zone.holder:
-                color = _faded(robot_color(zone.holder), 0.7)
-                specs.append(Spec("zone_lanes", i, "LINE_LIST", (0.0, 0.0, 0.01, 0.0),
-                                  (0.04, 0.0, 0.0), color,
-                                  tuple(p for line in lines for p in line)))
-                specs.append(Spec("zone_points", i, "SPHERE_LIST", (0.0, 0.0, 0.015, 0.0),
-                                  (0.09, 0.09, 0.09), color, tuple(points)))
-            if zone.queue:
-                x, y = points[0]
-                specs.append(Spec("zone_queue", i, "TEXT", (x, y - 0.08, 0.05, 0.0),
-                                  (0.0, 0.0, 0.05), LABEL,
-                                  text=f"{zone.zone_id} wait: {' '.join(zone.queue)}"))
-        return specs
-
-    def _cell_specs(self) -> list[Spec]:
-        """Free-floor: one flat square list per holder. A plain lane map has no cells."""
-        cell_box = getattr(self.lane_map, "cell_box", None)
-        if cell_box is None:
-            return []
-        by_holder: dict[str, list] = {}
-        size = 0.0
-        for zone in self._zones:
-            box = cell_box(zone.zone_id) if zone.holder else None
-            if box is None:
-                continue
-            x0, y0, x1, y1 = box
-            size = x1 - x0
-            by_holder.setdefault(zone.holder, []).append(((x0 + x1) / 2, (y0 + y1) / 2))
         specs = []
-        for i, holder in enumerate(sorted(by_holder)):
-            # holders starting with '#' are not robots (cells in front of an object)
-            color = RED if holder.startswith("#") else robot_color(holder)
-            specs.append(Spec("zone_cells", i, "CUBE_LIST", (0.0, 0.0, 0.005, 0.0),
-                              (size, size, 0.01), _faded(color, 0.45),
-                              tuple(by_holder[holder])))
+        for i, view in enumerate(self._zones):
+            zone = self.site.zones.get(view.zone_id)
+            if zone is None:
+                continue
+            names = holders_of(view.holder)
+            cx, cy = _rect_center(zone.rects[0])
+            if len(names) == 1:
+                color = _faded(robot_color(names[0]), 0.45)
+                for j, ((x, y), size) in enumerate(zone_cubes(zone.rects, 0.004)):
+                    specs.append(Spec("zone_held", i * 10 + j, "CUBE", (x, y, 0.003, 0.0),
+                                      size, color))
+            elif names:
+                specs.append(Spec("zone_shared_by", i, "LINE_LIST", (0.0, 0.0, 0.006, 0.0),
+                                  (0.012, 0.0, 0.0), WHITE,
+                                  tuple(p for r in zone.rects for p in _outline(r))))
+            if names:
+                specs.append(Spec("zone_holder", i, "TEXT", (cx, cy - 0.05, 0.05, 0.0),
+                                  (0.0, 0.0, 0.045), WHITE,
+                                  text=f"{zone.id}: {', '.join(names)}"))
+            if view.queue:
+                specs.append(Spec("zone_queue", i, "TEXT", (cx, cy - 0.10, 0.05, 0.0),
+                                  (0.0, 0.0, 0.045), LABEL,
+                                  text=f"{zone.id} wait: {' '.join(view.queue)}"))
         return specs
-
-    def _blocked_specs(self) -> list[Spec]:
-        points = []
-        for a, b in sorted(self.blocked_lanes(), key=str):
-            lane = self.lane_map.lanes[(a, b)]
-            points += [(lane.ax, lane.ay), (lane.bx, lane.by)]
-        if not points:
-            return []
-        return [Spec("blocked", 0, "LINE_LIST", (0.0, 0.0, 0.02, 0.0), (0.05, 0.0, 0.0),
-                     RED, tuple(points))]
 
     def _goal_specs(self) -> list[Spec]:
         specs = []
@@ -244,7 +207,7 @@ class FleetView:
             specs += [
                 Spec("goal", i, "CYLINDER", (gx, gy, 0.1, 0.0), (0.03, 0.03, 0.2), color),
                 Spec("goal_text", i, "TEXT", (gx, gy, 0.26, 0.0), (0.0, 0.0, 0.06), color,
-                     text=f"{robot} -> {goal.split('~', 1)[0]}"),
+                     text=f"{robot} -> {goal}"),
             ]
             if robot in self._pose:
                 x, y = self._pose[robot][:2]

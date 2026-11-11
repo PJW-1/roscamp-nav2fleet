@@ -21,7 +21,7 @@ def scenario_file(tmp_path, faults) -> str:
     data = {"seed": 1, "timeout_s": 100,
             "stock": {"arm1": {"A": 3}, "arm2": {"C": 3}},
             "orders": [{"at_s": 0, "id": "O-1", "items": {"A": 1}}],
-            "robots": {"pinky1": {"start": "P-6"}, "pinky2": {"start": "P-5"}},
+            "robots": {"pinky1": {"start": "P-1"}, "pinky2": {"start": "P-2"}},
             "faults": faults, "expect": {"orders_shipped_min": 1}}
     path = tmp_path / "s.yaml"
     path.write_text(yaml.safe_dump(data), encoding="utf-8")
@@ -43,7 +43,7 @@ def test_without_a_scenario_file_there_is_no_battery(ros):
 
 
 def test_the_battery_follows_gazebo_time_and_charges_at_the_parking_spot(ros, tmp_path):
-    from fleet_core.traffic.lane_map import load_lane_map
+    from fleet_core.fleet_map import load_fleet_map
     from nav_msgs.msg import Odometry
     from rclpy.executors import MultiThreadedExecutor
     from rclpy.qos import qos_profile_sensor_data
@@ -61,7 +61,7 @@ def test_the_battery_follows_gazebo_time_and_charges_at_the_parking_spot(ros, tm
                                   qos_profile_sensor_data)
     clock = probe.create_publisher(Clock, "/clock", 10)
     truth = {r: probe.create_publisher(Odometry, f"/{r}/sim/truth", 10) for r in seen}
-    site = load_lane_map()
+    site = load_fleet_map("d2")
     executor = MultiThreadedExecutor()
     executor.add_node(node)
     executor.add_node(probe)
@@ -74,10 +74,10 @@ def test_the_battery_follows_gazebo_time_and_charges_at_the_parking_spot(ros, tm
             stamp = Clock()
             stamp.clock.sec, stamp.clock.nanosec = int(sim_t), int((sim_t % 1.0) * 1e9)
             clock.publish(stamp)
-            for robot, start in (("pinky1", "P-6"), ("pinky2", "P-5")):
+            for robot, start in (("pinky1", "P-1"), ("pinky2", "P-2")):
                 odom = Odometry()
                 odom.header.frame_id = "map"
-                odom.pose.pose.position.x, odom.pose.pose.position.y = site.waypoint_pose(start)
+                odom.pose.pose.position.x, odom.pose.pose.position.y = site.node_pose(start)
                 odom.pose.pose.orientation.w = 1.0
                 truth[robot].publish(odom)
             time.sleep(0.01)

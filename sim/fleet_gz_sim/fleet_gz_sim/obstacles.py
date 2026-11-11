@@ -1,7 +1,7 @@
-"""시뮬 장애물 일정: 정한 시각에 레인 위에 상자를 놓고 정한 시간 뒤에 치운다.
+"""시뮬 장애물 일정: 정한 시각에 구역 지도의 연결 위에 상자를 놓고 정한 시간 뒤에 치운다.
 
 ROS도 Gazebo도 부르지 않는다. 노드(obstacle_node)가 시각과 로봇 위치를 넘기고, 여기서
-돌려준 gz service 명령을 실행한다. 일정 파일 형식은 obstacles/roam.yaml 머리말에 있다.
+돌려준 gz service 명령을 실행한다. 일정 파일 형식은 obstacles/d2_yard_express.yaml 머리말에 있다.
 시각은 시뮬 시각(초)이다.
 """
 from __future__ import annotations
@@ -22,8 +22,8 @@ PLACED = "placed"  # Gazebo answered yes
 SKIPPED = "skipped"  # a robot came close before the call; nothing was sent
 UNKNOWN = "unknown"  # no clear answer: the box may or may not be there
 TOP_KEYS = {"repeat_every_s", "size_m", "obstacles"}
-ENTRY_KEYS = {"at_s", "lane", "fraction", "duration_s"}
-REQUIRED_KEYS = {"at_s", "lane", "duration_s"}
+ENTRY_KEYS = {"at_s", "link", "fraction", "duration_s"}
+REQUIRED_KEYS = {"at_s", "link", "duration_s"}
 
 
 class ScheduleError(ValueError):
@@ -33,7 +33,7 @@ class ScheduleError(ValueError):
 @dataclass(frozen=True)
 class Obstacle:
     at_s: float
-    lane: tuple  # (from, to) 지점
+    link: tuple  # (from, to) 지점
     fraction: float
     duration_s: float
     x: float
@@ -42,7 +42,7 @@ class Obstacle:
 
     @property
     def label(self) -> str:
-        return f"{self.lane[0]}->{self.lane[1]}"
+        return f"{self.link[0]}->{self.link[1]}"
 
 
 @dataclass(frozen=True)
@@ -78,18 +78,14 @@ def _number(raw, what: str) -> float:
     return float(raw)
 
 
-def _waypoint(raw):
-    return tuple(int(v) for v in raw) if isinstance(raw, (list, tuple)) else str(raw)
-
-
-def lane_point(lane_map, lane: tuple, fraction: float) -> tuple[float, float, float]:
-    """레인 a→b 직선에서 fraction만큼 간 (x, y)와 레인 방향 yaw."""
-    (ax, ay), (bx, by) = lane_map.waypoint_pose(lane[0]), lane_map.waypoint_pose(lane[1])
+def link_point(site, link: tuple, fraction: float) -> tuple[float, float, float]:
+    """지점 a→b 직선에서 fraction만큼 간 (x, y)와 그 방향 yaw."""
+    (ax, ay), (bx, by) = site.node_pose(link[0]), site.node_pose(link[1])
     return (ax + fraction * (bx - ax), ay + fraction * (by - ay),
             math.atan2(by - ay, bx - ax))
 
 
-def _entry(raw, i: int, lane_map) -> Obstacle:
+def _entry(raw, i: int, site) -> Obstacle:
     where = f"obstacles[{i}]"
     if not isinstance(raw, dict):
         raise ScheduleError(f"{where} must be a mapping")
@@ -108,17 +104,17 @@ def _entry(raw, i: int, lane_map) -> Obstacle:
     fraction = _number(raw.get("fraction", 0.5), f"{where}.fraction")
     if not 0.0 < fraction < 1.0:
         raise ScheduleError(f"{where}.fraction must be between 0 and 1, got {fraction}")
-    lane = raw["lane"]
-    if not isinstance(lane, (list, tuple)) or len(lane) != 2:
-        raise ScheduleError(f"{where}.lane must be [from, to]")
-    lane = (_waypoint(lane[0]), _waypoint(lane[1]))
-    # 상자는 바닥 위 선분에 놓이므로 어느 방향 레인이든 있으면 된다
-    if lane not in lane_map.lanes and lane[::-1] not in lane_map.lanes:
-        raise ScheduleError(f"{where}: lane {lane[0]}->{lane[1]} is not on the map")
-    return Obstacle(at_s, lane, fraction, duration_s, *lane_point(lane_map, lane, fraction))
+    link = raw["link"]
+    if not isinstance(link, (list, tuple)) or len(link) != 2:
+        raise ScheduleError(f"{where}.link must be [from, to]")
+    link = (str(link[0]), str(link[1]))
+    # 상자는 바닥 위 선분에 놓이므로 어느 방향 연결이든 있으면 된다
+    if site.link(*link) is None and site.link(*link[::-1]) is None:
+        raise ScheduleError(f"{where}: link {link[0]}->{link[1]} is not on the map")
+    return Obstacle(at_s, link, fraction, duration_s, *link_point(site, link, fraction))
 
 
-def parse_schedule(data, lane_map) -> Schedule:
+def parse_schedule(data, site) -> Schedule:
     if not isinstance(data, dict):
         raise ScheduleError("the schedule must be a mapping")
     unknown = set(data) - TOP_KEYS
@@ -138,7 +134,7 @@ def parse_schedule(data, lane_map) -> Schedule:
     size = tuple(_number(v, "size_m") for v in size)
     if min(size) <= 0:
         raise ScheduleError("size_m must be positive")
-    found = sorted((_entry(one, i, lane_map) for i, one in enumerate(raw)),
+    found = sorted((_entry(one, i, site) for i, one in enumerate(raw)),
                    key=lambda o: o.at_s)
     for one in found:
         # 다음 주기의 같은 항목과 겹치지 않게 한 주기 안에서 끝나야 한다
@@ -146,15 +142,15 @@ def parse_schedule(data, lane_map) -> Schedule:
             raise ScheduleError(f"{one.label} at {one.at_s:g} s ends after repeat_every_s")
     for i, one in enumerate(found):
         for other in found[i + 1:]:
-            same = frozenset(one.lane) == frozenset(other.lane)
+            same = frozenset(one.link) == frozenset(other.link)
             if same and other.at_s < one.at_s + one.duration_s:
                 raise ScheduleError(f"{one.label} at {one.at_s:g} s and {other.label} at "
-                                    f"{other.at_s:g} s overlap on the same lane")
+                                    f"{other.at_s:g} s overlap on the same link")
     return Schedule(tuple(found), repeat, size)
 
 
-def load_schedule(path, lane_map) -> Schedule:
-    return parse_schedule(yaml.safe_load(Path(path).read_text(encoding="utf-8")), lane_map)
+def load_schedule(path, site) -> Schedule:
+    return parse_schedule(yaml.safe_load(Path(path).read_text(encoding="utf-8")), site)
 
 
 def occurrences(schedule: Schedule) -> Iterator[Occurrence]:

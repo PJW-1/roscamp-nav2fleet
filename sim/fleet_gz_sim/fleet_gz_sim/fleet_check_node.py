@@ -17,6 +17,7 @@ from pathlib import Path
 
 import rclpy
 from fleet_core.common.contract import load_contract, to_ros_qos
+from fleet_core.traffic.site import load_site
 from fleet_interfaces.msg import RobotState, ZoneStateArray
 from nav_msgs.msg import Odometry
 from rclpy.clock import Clock, ClockType
@@ -25,15 +26,13 @@ from rclpy.node import Node
 from rclpy.qos import qos_profile_sensor_data
 
 from fleet_gz_sim.fleet_check import MARGIN_M, FleetCheck
-from fleet_gz_sim.fleet_setup import load_zone_space
 
 
 class FleetCheckNode(Node):
     def __init__(self):
         super().__init__("fleet_check")
         robots = list(self.declare_parameter("robots", ["pinky1", "pinky2", "pinky3"]).value)
-        lane_map = self.declare_parameter("lane_map", "").value
-        params_file = self.declare_parameter("params_file", "").value  # its traffic_mode
+        map_file = self.declare_parameter("map_file", "").value  # layout name or file, "" = d2
         contract_file = self.declare_parameter("contract_file", "").value
         self.output = Path(self.declare_parameter("output", "fleet_check.json").value)
         period = float(self.declare_parameter("period_s", 10.0).value)
@@ -50,7 +49,7 @@ class FleetCheckNode(Node):
             self.probe = RecoveryProbeNode(
                 robots, self.declare_parameter("result_dir", "").value,
                 float(self.declare_parameter("settle_s", 2.0).value))
-        self.check = FleetCheck(load_zone_space(lane_map, params_file), robots, margin_m=margin)
+        self.check = FleetCheck(load_site(map_file or None), robots, margin_m=margin)
         for robot in robots:
             self.create_subscription(Odometry, f"/{robot}/sim/truth",
                                      lambda msg, r=robot: self._on_truth(r, msg),
