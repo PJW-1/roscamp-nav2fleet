@@ -20,6 +20,18 @@ ABORT_AFTER_S = 0.5  # 지도 위에 길이 없을 때 이만큼 뒤 NAV_ABORTED
 GIVE_UP_S = 60.0  # 이만큼 못 나아가면 NAV_ABORTED(Nav2 복구 여섯 번쯤)
 
 
+def plan_around(space, radius, start, target, others):
+    """다른 로봇과 물체(others: (x, y, 반지름))를 피한 길, 없으면 None.
+
+    목표 위의 것은 빼고 계획한다(목표 위에 선 로봇은 비킬 것으로 본다). 빼도 충돌 검사가
+    바로 앞에서 세운다. 발밑까지 닿는 것은 로봇 바로 앞까지만 키운다(출발 칸을 비운다).
+    """
+    discs = [(x, y, radius + r + PLAN_GAP_M) for x, y, r in others]
+    discs = [(x, y, min(reach, math.dist((x, y), start) - 0.5 * space.res))
+             for x, y, reach in discs if math.dist((x, y), target) >= reach]
+    return plan(space, space.with_discs(discs), start, target)
+
+
 class NavGoalRun(Run):
     def __init__(self, goal_id, target, yaw, speed, blocked_after_s):
         super().__init__(goal_id)
@@ -42,13 +54,7 @@ class NavGoalRun(Run):
 
     def _replan(self, ctx, robot) -> None:
         self.planned_at = ctx.t
-        discs = [(x, y, ctx.radius + r + PLAN_GAP_M) for x, y, r in ctx.discs(robot)]
-        # 목표 위의 것은 빼고 계획한다(목표 위에 선 로봇은 비킬 것으로 본다). 빼도 충돌 검사가
-        # 바로 앞에서 세운다. 발밑까지 닿는 것은 로봇 바로 앞까지만 키운다(출발 칸을 비운다)
-        discs = [(x, y, min(reach, math.dist((x, y), robot.pose) - 0.5 * ctx.space.res))
-                 for x, y, reach in discs if math.dist((x, y), self.target) >= reach]
-        cells = ctx.space.with_discs(discs)
-        self.way = plan(ctx.space, cells, robot.pose, self.target)
+        self.way = plan_around(ctx.space, ctx.radius, robot.pose, self.target, ctx.discs(robot))
 
     def _progress(self, ctx, robot) -> None:
         if math.dist(self.mark, robot.pose) >= PROGRESS_M:

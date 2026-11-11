@@ -183,14 +183,14 @@ class ScenarioMonitorNode(Node):
         """
         waiting = []
         for item in self._reinstates:
-            at_s, robot, waypoint, basket = item
+            at_s, robot, node, basket = item
             if (at_s > t or not self._operator.ready(robot, self.judge.held_by(robot), t)
                     or self.judge.off_course(robot)
                     or not self._reinstate.service_is_ready()):
                 waiting.append(item)
                 continue
             self._operator.reinstated(robot)
-            self.judge.put_back(t, robot, waypoint)
+            self.judge.put_back(t, robot, node)
             self.judge.note(t, robot, "OPERATOR_REINSTATE", f"basket={basket}")
             future = self._reinstate.call_async(Reinstate.Request(
                 robot_id=robot, basket=basket, note="operator_reinstate"))

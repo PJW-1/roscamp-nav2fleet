@@ -45,7 +45,7 @@ EXPECT_DEFAULTS = {
     "events_include": [],
     "event_counts": {},  # 코드: 정확히 몇 번 나와야 하는지
     "shipped_before_operator_min": 0,  # 격리 뒤 confirm_clear 전 출고(지시서 5.5)
-    "detours_around_isolated_min": 0,  # 격리된 로봇을 피한 DETOUR(치우기 전)
+    "detours_around_isolated_min": 0,  # 격리된 로봇이 서 있는 동안의 REROUTE(치우기 전)
     "released_while_off_lane": 0,  # drift로 레인 밖이라 보고하는 동안 그 로봇이 놓은 구역 수
     "path_not_connected": 0,  # 관제가 처리한 PATH_NOT_CONNECTED 실패 수(지시서 7.5). null이면 안 봄
     "robot_idle": 0,  # ROBOT_IDLE 이벤트 수(1.1 지시서 H2). 정상이면 0, null이면 안 봄

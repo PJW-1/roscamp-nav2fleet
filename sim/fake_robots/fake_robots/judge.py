@@ -122,7 +122,7 @@ class ScenarioJudge:
         self.shipped_before_operator = 0
         self._isolated: set[str] = set()  # source가 로봇이다
         self._operator_came = False
-        # 격리된 로봇(치우기 전)이 쥔 구역을 피한 DETOUR 수. detail의 'held by <로봇>'으로 본다
+        # 격리된 로봇(치우기 전)이 서 있는 동안 다른 로봇의 REROUTE 수(계약 4절: 코드와 로봇만 본다)
         self.detours_around_isolated = 0
         self._standing_isolated: set[str] = set()
         # 지시서 7.5: 관제가 처리한 이 이유의 실패. 실패 한 번은 GOAL_RETRY나 GOAL_FAILED 하나다.
