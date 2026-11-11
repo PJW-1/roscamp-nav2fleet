@@ -4,6 +4,7 @@
 """
 import pytest
 from fake_robots.world import NoisyPose, ZoneWorld
+from fake_robots.world.table import run_situation
 
 
 @pytest.mark.xfail(strict=True, raises=AssertionError,
@@ -14,3 +15,11 @@ def test_b1_no_robot_is_ever_outside_the_zones_it_holds():
         NoisyPose("pinky1", 20.0, 40.0, sigma_m=0.03, jump_m=0.10)])
     world.run(65.0)
     assert not [v for v in world.violations if v.code == "I3_OUTSIDE_HELD"]
+
+
+@pytest.mark.xfail(strict=True, raises=AssertionError,
+                   reason="B3: an isolated robot keeps the dock zones it never reached, so the "
+                          "station stays busy for ever")
+def test_b3_a_robot_stuck_in_the_yard_does_not_stop_the_others():
+    outcome = run_situation("front_robot_stuck", "d2", 1)
+    assert outcome.world.central.finished >= 5  # 6건 중 멈춘 로봇의 것 하나는 운영자를 기다린다
