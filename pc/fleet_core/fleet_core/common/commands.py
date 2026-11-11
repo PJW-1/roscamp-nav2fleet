@@ -47,6 +47,36 @@ class RetreatCmd:
 
 
 @dataclass(frozen=True)
+class SegmentOut:
+    """order 모델의 조각 하나(계약 0.11-draft 제안의 Segment). 좌표는 map 프레임이다."""
+    seq_id: int  # 이동 안에서 1부터. update를 거쳐도 이어진다
+    mode: str  # follow_path / nav_goal / retreat
+    end_node: str  # 이 조각이 끝나는 지점
+    zones: tuple = ()  # 지나는 구역(표시와 검사용)
+    path: tuple = ()  # follow_path와 retreat: (x, y, yaw)들. 첫 점은 앞 조각의 끝(또는 로봇 위치)
+    x: float = 0.0  # nav_goal의 목표
+    y: float = 0.0
+    yaw: float = 0.0
+    controller_id: str = ""  # FollowPath / FollowPathReverse. nav_goal이면 빈 값
+
+
+@dataclass(frozen=True)
+class MoveOrderCmd:
+    """order 모델의 이동(목적지 하나까지) 또는 그 update. order_id가 있는 MoveTo goal 하나로 간다.
+
+    이름의 order는 VDA 5050의 order다. 주문(OrderRecord)과는 다른 것이다. update도 새 goal로
+    보낸다: 로봇은 이음 조건이 맞으면 이전 goal을 SUPERSEDED로 끝내고 새 goal 아래에서 이어 간다.
+    """
+    robot: str
+    goal_id: int
+    order_id: str
+    update_id: int  # 처음 0, update마다 1씩
+    stitch_node: str  # update일 때 이전 base의 마지막 지점. 처음이면 빈 값
+    base: tuple = ()  # 새로 허락하는 SegmentOut들. 비면 horizon만 바꾸는 update
+    horizon: tuple = ()  # 아직 허락하지 않은 SegmentOut들. 매번 통째로 바꾼다
+
+
+@dataclass(frozen=True)
 class DockCmd:
     robot: str
     goal_id: int

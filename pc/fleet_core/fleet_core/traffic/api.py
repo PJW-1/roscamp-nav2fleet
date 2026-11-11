@@ -42,7 +42,12 @@ class TrafficApi(Protocol):
     def on_robot_fault(self, robot, reason="") -> None:
         """주문 쪽이 알린 고장. 로봇을 ERROR로 두고 격리한다(구역은 쥔 채)."""
 
-    def on_move_result(self, robot, goal_id, success, reason) -> None:
+    def on_move_feedback(self, robot, goal_id, last_done_seq, waiting_at_base_end,
+                         horizon_warning="") -> None:
+        """order 모델(MoveOrderCmd)의 피드백: 끝낸 마지막 조각, base 끝에서 기다리는가, horizon
+        미리 검사의 경고("HORIZON_INVALID: ..." 또는 빈 값). order가 아닌 goal에는 오지 않는다."""
+
+    def on_move_result(self, robot, goal_id, success, reason, last_done_seq=0) -> None:
         """MoveTo 결과. 지금 goal id가 아니면 버린다. 실패는 재시도 수로 센다."""
 
     def on_goal_rejected(self, robot, goal_id) -> None:

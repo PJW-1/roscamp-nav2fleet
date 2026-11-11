@@ -31,9 +31,11 @@ ORDER_SIDE_NAMES = {
 ORDER_SIDE_ATTRIBUTES = {"basket", "order", "orders", "placed_items", "last_order_id", "arm"}
 # traffic이 commands.py에서 가져올 수 있는 이름. 허용 목록이라 추가는 결정 사항이다.
 # 1단계에서 레인 제어기를 지워 남은 모듈은 일부만 쓴다. 나머지는 3단계 교통 층의 몫이다.
+# MoveOrderCmd와 SegmentOut은 order 모델(VDA 5050의 order: 이동 하나의 조각 목록)의 명령이다.
+# 주문(OrderRecord)과는 다른 것이라 교통 층의 어휘에 넣었다(order 추가지시서 2절).
 TRAFFIC_VOCABULARY = {
     "CancelCmd", "DispatchFeedback", "DispatchResult", "DockCmd", "EventOut", "MoveCmd",
-    "NO_ROBOT", "RetreatCmd", "RobotIsolated", "ZoneView",
+    "MoveOrderCmd", "NO_ROBOT", "RetreatCmd", "RobotIsolated", "SegmentOut", "ZoneView",
 }
 
 

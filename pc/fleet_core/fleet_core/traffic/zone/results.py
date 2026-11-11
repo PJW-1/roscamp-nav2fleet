@@ -19,7 +19,11 @@ class Results:
             return None
         return m
 
-    def on_move_result(self, robot, goal_id, success, reason) -> None:
+    def on_move_feedback(self, robot, goal_id, last_done_seq, waiting_at_base_end,
+                         horizon_warning="") -> None:
+        """order 모델의 피드백. order가 아닌 goal의 것은 버린다."""
+
+    def on_move_result(self, robot, goal_id, success, reason, last_done_seq=0) -> None:
         m = self._active(robot, goal_id, MOVE)
         if m is None:
             return
