@@ -18,7 +18,7 @@ WAITING = {
     **dict.fromkeys((("fleet_core", name) for name in (
         "test_auto_isolation.py", "test_battery_charge.py", "test_deadlock_cycle.py",
         "test_final_goal.py", "test_fleet_e2e.py", "test_fleet_fuzz.py", "test_fleet_unit.py",
-        "test_goal_retry.py", "test_idle_watch.py", "test_manager.py",
+        "test_goal_retry.py", "test_idle_watch.py",
         "test_path_connection.py", "test_queue_exit.py", "test_record_replay.py",
         "test_reinstate.py", "test_retreat_plumbing.py", "test_self_recovery.py",
         "test_sim_battery.py", "test_sim_world_object.py", "test_sim_world_retreat.py",
