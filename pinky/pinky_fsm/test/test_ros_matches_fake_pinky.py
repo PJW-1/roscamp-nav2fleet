@@ -16,6 +16,9 @@ pytest.importorskip("rclpy")
 pytest.importorskip("nav2_msgs.action")
 pytest.importorskip("fake_robots.fake_pinky_node")
 
+# 1단계(뼈대)에는 지도가 없어 FakePinky를 띄울 수 없다. 2단계에서 구역 지도로 되살린다
+pytestmark = pytest.mark.skip(reason="needs a fleet map (stage 2)")
+
 from conftest import CONTRACT, Harness, wait_until  # noqa: E402
 from fake_nav import FakeNav  # noqa: E402
 from fleet_interfaces.action import Dock  # noqa: E402
