@@ -42,3 +42,16 @@ def test_file_overrides_are_forwarded_to_the_fake_launch():
 
     forwarded = {text(k): text(v) for k, v in include.launch_arguments}
     assert {k: forwarded.get(k) for k in FILES} == FILES
+
+
+def test_order_arguments_become_node_parameters_only_when_given():
+    spec = importlib.util.spec_from_file_location("pc_launch", PC_LAUNCH)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    declared = {a.name for a in module.generate_launch_description().entities
+                if hasattr(a, "default_value")}
+    assert {"use_order_model", "lookahead_s"} <= declared
+    assert module._order_params(lambda name: "") == {}
+    given = {"use_order_model": "true", "lookahead_s": "3.5"}
+    assert module._order_params(given.get) == {"use_order_model": True, "lookahead_s": 3.5}
+    assert module._order_params({"use_order_model": "false"}.get) == {"use_order_model": False}

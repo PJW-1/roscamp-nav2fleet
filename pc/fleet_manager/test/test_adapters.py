@@ -14,10 +14,12 @@ from fleet_core.common.commands import (  # noqa: E402
     EventOut,
     FillCmd,
     MoveCmd,
+    MoveOrderCmd,
     OrderRecord,
     ReportOrderCmd,
     RetreatCmd,
     RobotStatusView,
+    SegmentOut,
     SwapCmd,
     ZoneView,
 )
@@ -205,7 +207,7 @@ def test_every_field_of_the_robot_status_reaches_the_message():
 
 def test_action_results_are_read_here_and_not_in_the_node():
     move = MoveTo.Result(success=False, reason=MoveTo.Result.REASON_TIMEOUT)
-    assert adapters.move_result(move) == (False, MoveTo.Result.REASON_TIMEOUT)
+    assert adapters.move_result(move) == (False, MoveTo.Result.REASON_TIMEOUT, 0)
     retreat = Retreat.Result(success=False, reason=Retreat.Result.REASON_OBSTACLE_BEHIND)
     assert adapters.retreat_result(retreat) == (False, Retreat.Result.REASON_OBSTACLE_BEHIND)
     dock = Dock.Result(success=True, error_x_cm=1.0, error_y_cm=2.0, error_yaw_deg=3.0)
@@ -320,3 +322,60 @@ def test_a_refused_clear_carries_its_reason():
     assert response.accepted is False and response.reason == "no such zone"
     accepted = adapters.confirm_clear_response(ConfirmClear.Response(), ["P-6"], "")
     assert accepted.accepted is True and accepted.reason == ""
+
+
+def _order_cmd(update_id=0, base=None, horizon=()):
+    if base is None:
+        base = (
+            SegmentOut(1, "follow_path", "N_W", ("LANE",), ((0.1, 0.2, 0.0), (0.4, 0.2, 0.0)),
+                       controller_id="FollowPath"),
+            SegmentOut(2, "nav_goal", "C3", ("WIDE",), x=1.0, y=0.5, yaw=math.pi),
+        )
+    return MoveOrderCmd("pinky1", 9, "M-1", update_id, "N_W" if update_id else "", base, horizon)
+
+
+def test_an_order_goal_carries_ids_base_and_horizon_as_segments():
+    horizon = (SegmentOut(3, "retreat", "H", (), ((1.0, 0.5, 0.0), (0.8, 0.5, 0.0)),
+                          controller_id="FollowPathReverse"),)
+    goal = adapters.move_order_goal(_order_cmd(2, horizon=horizon))
+    assert (goal.order_id, goal.order_update_id, goal.stitch_node_id) == ("M-1", 2, "N_W")
+    follow, nav = goal.base
+    assert (follow.seq_id, follow.mode, follow.controller_id) == (1, "follow_path", "FollowPath")
+    assert (follow.end_node_id, list(follow.zone_ids)) == ("N_W", ["LANE"])
+    assert follow.path.header.frame_id == "map"
+    assert [(p.pose.position.x, p.pose.position.y) for p in follow.path.poses] == [
+        (0.1, 0.2), (0.4, 0.2)]
+    assert follow.path.poses[0].header.frame_id == "map"
+    assert (nav.seq_id, nav.mode, nav.controller_id, nav.end_node_id) == (2, "nav_goal", "", "C3")
+    assert nav.target_pose.header.frame_id == "map"
+    assert (nav.target_pose.pose.position.x, nav.target_pose.pose.position.y) == (1.0, 0.5)
+    assert nav.target_pose.pose.orientation.z == pytest.approx(1.0)
+    (back,) = goal.horizon
+    assert (back.seq_id, back.mode, back.controller_id) == (3, "retreat", "FollowPathReverse")
+    assert len(back.path.poses) == 2
+
+
+def test_an_order_goal_fills_the_legacy_fields_from_the_last_base_segment():
+    goal = adapters.move_order_goal(_order_cmd())
+    assert goal.target_id == "C3"
+    assert (goal.target_pose.x, goal.target_pose.y) == (1.0, 0.5)
+    assert goal.target_pose.theta == pytest.approx(math.pi)
+    assert goal.mode == "" and goal.order_update_id == 0 and goal.stitch_node_id == ""
+
+
+def test_a_horizon_only_update_has_an_empty_base_and_target():
+    goal = adapters.move_order_goal(_order_cmd(1, base=(), horizon=(
+        SegmentOut(4, "nav_goal", "D", x=0.2, y=0.3),)))
+    assert len(goal.base) == 0 and len(goal.horizon) == 1
+    assert goal.target_id == ""
+
+
+def test_a_move_result_carries_the_last_done_segment():
+    result = MoveTo.Result(success=False, reason="SUPERSEDED", last_done_seq_id=4)
+    assert adapters.move_result(result) == (False, "SUPERSEDED", 4)
+
+
+def test_move_feedback_values_are_the_three_order_fields():
+    feedback = MoveTo.Feedback(last_done_seq_id=3, waiting_at_base_end=True,
+                               horizon_warning="HORIZON_INVALID: x")
+    assert adapters.move_feedback(feedback) == (3, True, "HORIZON_INVALID: x")
