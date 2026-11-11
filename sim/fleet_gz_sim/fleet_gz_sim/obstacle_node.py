@@ -22,7 +22,7 @@ from concurrent.futures import ThreadPoolExecutor
 
 import rclpy
 from ament_index_python.packages import get_package_share_directory
-from fleet_core.traffic.lane_map import load_lane_map
+from fleet_core.traffic.site import load_site
 from nav_msgs.msg import Odometry
 from rclpy.executors import ExternalShutdownException
 from rclpy.node import Node
@@ -30,6 +30,7 @@ from rclpy.qos import DurabilityPolicy, QoSProfile, ReliabilityPolicy, qos_profi
 from visualization_msgs.msg import Marker, MarkerArray
 
 from fleet_gz_sim import obstacles
+from fleet_gz_sim.arena import WORLD
 
 TICK_S = 0.2
 CALL_LIMIT_S = 5.0  # gz service 자체 한도(3 s)에 여유를 둔다
@@ -46,16 +47,16 @@ class ObstacleNode(Node):
         super().__init__("sim_obstacles")
         robots = self.declare_parameter("robots", ["pinky1", "pinky2", "pinky3"]).value
         path = self.declare_parameter("obstacles_file", "").value
-        lane_map_path = self.declare_parameter("lane_map", "").value
-        self.world = self.declare_parameter("world", "lane_arena").value
+        map_file = self.declare_parameter("map_file", "").value  # layout name or file, "" = d2
+        self.world = self.declare_parameter("world", WORLD).value
         self.clearance_m = obstacles.check_clearance(
             float(self.declare_parameter("clearance_m", 0.35).value))
         self.max_delay_s = float(self.declare_parameter("max_delay_s", 20.0).value)
         if not math.isfinite(self.max_delay_s) or self.max_delay_s < 0:  # same rule as Planner
             raise ValueError(f"max_delay_s must be a finite number >= 0, got {self.max_delay_s}")
         if not path:
-            path = f"{get_package_share_directory('fleet_gz_sim')}/obstacles/roam.yaml"
-        self.schedule = obstacles.load_schedule(path, load_lane_map(lane_map_path or None))
+            path = f"{get_package_share_directory('fleet_gz_sim')}/obstacles/d2_yard_express.yaml"
+        self.schedule = obstacles.load_schedule(path, load_site(map_file or None))
         self.robots = list(robots)
         self.truth: dict[str, tuple[tuple[float, float], float]] = {}  # (x, y), wall time
         for robot in self.robots:
