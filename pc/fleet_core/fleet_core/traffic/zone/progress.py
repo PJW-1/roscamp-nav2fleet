@@ -98,6 +98,8 @@ class Progress:
     def _release_behind(self, m) -> None:
         """뒤에 남은 구역과 지점을 놓는다: 벗어난 보고가 release_confirm_samples번 이어질 때."""
         p, site, grants = self.params, self.site, self.grants
+        if self._clock() < m.settle_until:
+            return  # 방금 goal을 거뒀다. 취소가 로봇에 닿기 전일 수 있다
         held = grants.held_by(m.name)
         if all(site.distance_to_zone(m.x, m.y, zone) > p.outside_zone_m for zone in held):
             return  # 보고 위치가 쥔 구역 밖이다(위치가 튀었다). 이 보고로는 아무것도 놓지 않는다

@@ -43,6 +43,7 @@ class Robot:
     goal: Goal | None = None
     attempts: int = 0
     retry_at: float = 0.0  # 이 시각 전에는 새 명령을 내지 않는다
+    settle_until: float = 0.0  # goal을 거둔 뒤 이 시각까지는 잡은 것을 놓지 않는다
     arrival_by: float | None = None  # 성공이 자세보다 먼저 왔다. 이 시각까지 보고를 기다린다
     heard_since_success: bool = False
     not_sent_warned: bool = False

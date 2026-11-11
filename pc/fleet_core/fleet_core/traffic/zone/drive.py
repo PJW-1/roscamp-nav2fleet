@@ -46,7 +46,7 @@ class Drive:
     def _drive(self, m) -> None:
         trip = m.trip
         if trip is not None:
-            if trip.stale and self._switch(m):
+            if trip.stale and not trip.finished and self._switch(m):
                 return
             if trip.sent < trip.granted:
                 self._send(m)

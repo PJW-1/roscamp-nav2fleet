@@ -67,6 +67,7 @@ class ZoneBase:
         self._out.append(CancelCmd(m.name, m.goal.id))
         m.goal = None
         m.arrival_by = None
+        m.settle_until = self._clock() + self.params.arrival_settle_s  # 취소가 닿을 때까지
         if m.trip is not None:
             m.trip.sent = m.trip.done  # 남은 조각은 다시 보낸다
 
