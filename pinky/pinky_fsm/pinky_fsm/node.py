@@ -7,7 +7,8 @@
   (잠금 경계 목표만, 버전 2 4절 제안)
 - 구독: 계약의 heartbeat, odom(속도), local costmap(BLOCKED 판단)
 - 액션 클라이언트: Nav2 controller의 follow_path(FollowPath), behavior_server의
-  backup(BackUp, 자가 복구. 핑키_계약 3절 7번 2026-11-09 제안)
+  backup(BackUp, 자가 복구. 핑키_계약 3절 7번 2026-11-09 제안), bt_navigator의
+  navigate_to_pose(NavigateToPose, MoveTo mode nav_goal. 계약 0.11-draft 제안, nav_goal_ros.py)
 - 서비스 클라이언트: local costmap 비우기(ClearEntireCostmap, 자가 복구)
 - 위치: TF map → base_footprint(AMCL). 시간이 지난 TF는 위치를 모르는 것으로 친다
 
@@ -56,6 +57,8 @@ from pinky_fsm.core import (
 )
 from pinky_fsm.costmap import Grid, obstacle_on, to_frame
 from pinky_fsm.geometry import quaternion_yaw, yaw_quaternion
+from pinky_fsm.nav_goal import CancelNavGoal, SendNavGoal
+from pinky_fsm.nav_goal_ros import NavGoalRunner
 
 FEEDBACK_PERIOD_S = 0.2
 UNKNOWN_BATTERY = -1.0  # 배터리 토픽이 없을 때. 관제는 보여 주기만 한다
@@ -75,7 +78,9 @@ _FLOAT_PARAMS = (
     # 관제가 시키는 물러나기(버전 2 1-A, 경로 물러나기)
     "retreat_stop_wait_s", "reverse_speed_mps", "nav_result_grace_s",
     # 잠금 경계 목표의 속도 제한(버전 2 4절 horizon 최소판)
-    "horizon_decel_mps2", "horizon_min_mps", "horizon_cap_mps", "horizon_latency_s")
+    "horizon_decel_mps2", "horizon_min_mps", "horizon_cap_mps", "horizon_latency_s",
+    # mode nav_goal의 BLOCKED(계약 0.11-draft 제안)
+    "blocked_after_s", "nav_progress_m")
 _INT_PARAMS = ("recovery_attempts",)
 
 
@@ -100,6 +105,7 @@ class PinkyFsmNode(Node):
         declare("base_frame", "base_footprint")
         declare("follow_path_action", "follow_path")
         declare("backup_action", "backup")
+        declare("navigate_to_pose_action", "navigate_to_pose")  # MoveTo mode nav_goal
         declare("clear_costmap_service", "local_costmap/clear_entirely_local_costmap")
         declare("controller_id", "FollowPath")
         # Controller for paths that end at a lock boundary (MoveTo.final_goal false): an RPP
@@ -144,6 +150,7 @@ class PinkyFsmNode(Node):
         self._cancel_on_accept: set[int] = set()
         self._late: list[tuple[int, str]] = []  # 다음 주기에 core에 넘길 FollowPath 결과
         self._late_backup: list[tuple[int, str]] = []  # 다음 주기에 넘길 BackUp 결과
+        self._late_goal: list[int] = []  # 다음 주기에 거절로 넘길 NavigateToPose(서버 없음)
         self._speed = (0.0, 0.0)
         self._costmap: tuple[Grid, str] | None = None  # (격자, 틀). 한 번에 바꿔 짝이 맞게 둔다
         self._battery = UNKNOWN_BATTERY
@@ -170,6 +177,9 @@ class PinkyFsmNode(Node):
                                  callback_group=group)
         self._backup = BackUpRunner(self, get("backup_action").value, self._on_backup_result,
                                     callback_group=group)
+        self._goals = NavGoalRunner(self, get("navigate_to_pose_action").value, self._map_frame,
+                                    self._on_goal_feedback, self._on_goal_result,
+                                    self._on_goal_cancel, callback_group=group)
         self._clear = self.create_client(ClearEntireCostmap, get("clear_costmap_service").value,
                                          callback_group=group)
         self._move_server = self._server(MoveTo, contract.name("move_to", pinky=self.robot_id),
@@ -203,6 +213,7 @@ class PinkyFsmNode(Node):
             self._alive = False
             self._cancel_all_nav()
             self._backup.cancel_all()
+            self._goals.cancel_all()
 
     def destroy_node(self):
         self.stop()
@@ -211,6 +222,7 @@ class PinkyFsmNode(Node):
         self._retreat_server.destroy()
         self._nav.destroy()
         self._backup.destroy()
+        self._goals.destroy()
         return super().destroy_node()
 
     # -- 입력 ------------------------------------------------------------------------------
@@ -275,7 +287,7 @@ class PinkyFsmNode(Node):
                 t = req.target_pose
                 path = [(p.position.x, p.position.y) for p in req.path]
                 cmds = self._fsm.move(key, now, req.target_id, (t.x, t.y, t.theta), path, here,
-                                      final_goal=req.final_goal)
+                                      final_goal=req.final_goal, mode=req.mode)
             elif kind == "retreat":
                 path = [(p.position.x, p.position.y) for p in req.path]
                 cmds = self._fsm.retreat(key, now, req.distance_m, req.speed_mps, path, here)
@@ -341,6 +353,12 @@ class PinkyFsmNode(Node):
                     self._late_backup.append((cmd.seq, "rejected"))
             elif isinstance(cmd, CancelBackUp):
                 self._backup.cancel_all()
+            elif isinstance(cmd, SendNavGoal):
+                if not self._goals.send(cmd.seq, cmd.pose):
+                    self.get_logger().warn("navigate_to_pose server is not available")
+                    self._late_goal.append(cmd.seq)
+            elif isinstance(cmd, CancelNavGoal):
+                self._goals.cancel_all()
             elif isinstance(cmd, ClearCostmap):
                 self._clear_costmap()
             elif isinstance(cmd, LimitSpeed):
@@ -398,6 +416,20 @@ class PinkyFsmNode(Node):
             pose = self._pose()
             self._run(self._fsm.backup_result(seq, outcome, time.monotonic(),
                                               pose[:3] if pose else None, error_code))
+
+    def _on_goal_feedback(self, seq: int, distance: float) -> None:
+        with self._lock:
+            self._fsm.nav_goal_feedback(seq, distance)
+
+    def _on_goal_result(self, seq: int, outcome: str, lost: bool) -> None:
+        with self._lock:
+            pose = self._pose()
+            self._run(self._fsm.nav_goal_result(seq, outcome, time.monotonic(),
+                                                pose[:3] if pose else None, lost=lost))
+
+    def _on_goal_cancel(self, seq: int) -> None:
+        with self._lock:
+            self._run(self._fsm.nav_goal_cancel_accepted(seq, time.monotonic()))
 
     def _cancel_all_nav(self) -> None:
         for seq, handle in self._nav_handles.items():
@@ -480,6 +512,9 @@ class PinkyFsmNode(Node):
             late_backup, self._late_backup = self._late_backup, []
             for seq, outcome in late_backup:
                 self._run(self._fsm.backup_result(seq, outcome, now, here))
+            late_goal, self._late_goal = self._late_goal, []
+            for seq in late_goal:
+                self._run(self._fsm.nav_goal_result(seq, "rejected", now, here))
             self._run(self._fsm.tick(now, here, self._speed, self._obstacle))
             self._log_state()
 

@@ -11,6 +11,10 @@ controller_id가 FollowPathReverse면 RPP allow_reversing처럼 돌지 않고 �
 behavior_server의 backup(BackUp)도 흉내 낸다: 바라보는 방향의 반대로 곧게 물러나고, 뒤에
 벽(wall_behind_m)이 있으면 거기서 서고 COLLISION_AHEAD로 끝낸다. local costmap 비우기
 (ClearEntireCostmap)는 부른 시각만 적는다.
+
+bt_navigator의 navigate_to_pose(NavigateToPose, MoveTo mode nav_goal)도 흉내 낸다: 목표 자세까지
+곧게 가며 feedback에 남은 거리를 내고, 앞에 물체가 있으면 서서 기다린다(Nav2 BT가 복구하며 계속
+해 보는 것처럼 실패로 끝내지 않는다). 새 goal은 FollowPath와 같이 옛 goal을 ABORTED로 끝낸다.
 """
 from __future__ import annotations
 
@@ -19,7 +23,7 @@ import threading
 import time
 
 from geometry_msgs.msg import TransformStamped
-from nav2_msgs.action import BackUp, FollowPath
+from nav2_msgs.action import BackUp, FollowPath, NavigateToPose
 from nav2_msgs.msg import SpeedLimit
 from nav2_msgs.srv import ClearEntireCostmap
 from nav_msgs.msg import OccupancyGrid, Odometry
@@ -49,6 +53,9 @@ class FakeNav(Node):
         self.goals = []  # (시각, 점 수)
         self.controller_ids = []  # FollowPath controller_id of each accepted goal
         self.reversing = False  # 지금 목표가 후진 controller다
+        self.navigating = False  # 지금 목표가 NavigateToPose다(막혀도 실패로 끝내지 않는다)
+        self.nav_goals = []  # (시각, (x, y, yaw)) of each accepted NavigateToPose
+        self.nav_goal_cancels = []  # 시각
         self.cancels = []  # 시각
         self.speed_log = []  # (시각, 선속도)
         self.obstacle: tuple[float, float] | None = None
@@ -87,6 +94,11 @@ class FakeNav(Node):
             goal_callback=lambda _g: GoalResponse.ACCEPT,
             cancel_callback=lambda _h: CancelResponse.ACCEPT,
             handle_accepted_callback=self._accepted_backup, callback_group=group)
+        self._nav_goal_server = ActionServer(
+            self, NavigateToPose, "navigate_to_pose", execute_callback=self._execute_nav_goal,
+            goal_callback=lambda _g: GoalResponse.ACCEPT,
+            cancel_callback=self._on_nav_goal_cancel,
+            handle_accepted_callback=self._accepted_nav_goal, callback_group=group)
         self.create_service(ClearEntireCostmap, "local_costmap/clear_entirely_local_costmap",
                             self._on_clear, callback_group=group)
         self.create_timer(1.0 / STEP_HZ, self._step, callback_group=group)
@@ -117,10 +129,43 @@ class FakeNav(Node):
             self.goals.append((time.monotonic(), len(self.path)))
             self.controller_ids.append(handle.request.controller_id)
             self.reversing = handle.request.controller_id == REVERSE_CONTROLLER
+            self.navigating = False
             self._blocked_since = None
         handle.execute()
 
     def _execute(self, handle):
+        return self._run_goal(handle, FollowPath.Result)
+
+    def _on_nav_goal_cancel(self, _handle):
+        with self.lock:
+            self.nav_goal_cancels.append(time.monotonic())
+        return CancelResponse.ACCEPT
+
+    def _accepted_nav_goal(self, handle):
+        p = handle.request.pose.pose
+        target = (p.position.x, p.position.y, 2 * math.atan2(p.orientation.z, p.orientation.w))
+        with self.lock:
+            old = self.current
+            if old is not None:
+                self._outcome[id(old)] = "preempted"
+            self.current = handle
+            self.path, self.index = [target], 0
+            self.nav_goals.append((time.monotonic(), target))
+            self.reversing, self.navigating = False, True
+            self._blocked_since = None
+        handle.execute()
+
+    def _execute_nav_goal(self, handle):
+        p = handle.request.pose.pose.position
+
+        def feedback():
+            fb = NavigateToPose.Feedback()
+            fb.distance_remaining = float(math.hypot(p.x - self.pose[0], p.y - self.pose[1]))
+            handle.publish_feedback(fb)
+        return self._run_goal(handle, NavigateToPose.Result, feedback)
+
+    def _run_goal(self, handle, result_type, feedback=None):
+        last_fb = 0.0
         while True:
             with self.lock:
                 outcome = self._outcome.pop(id(handle), None)
@@ -130,13 +175,16 @@ class FakeNav(Node):
                     if self.current is handle:
                         self.current, self.v = None, 0.0
                     handle.canceled()
-                    return FollowPath.Result()
+                    return result_type()
+                if feedback is not None and outcome is None and time.monotonic() - last_fb > 0.1:
+                    last_fb = time.monotonic()
+                    feedback()
             if outcome == "preempted":
                 handle.abort()
-                return FollowPath.Result()
+                return result_type()
             if outcome == "done":
                 handle.succeed()
-                return FollowPath.Result()
+                return result_type()
             if outcome == "failed":
                 handle.abort()
                 return FollowPath.Result(error_code=FollowPath.Result.NO_VALID_CONTROL,
@@ -223,7 +271,7 @@ class FakeNav(Node):
                 if self._blocked():
                     if self._blocked_since is None:
                         self._blocked_since = now
-                    elif now - self._blocked_since >= FAIL_AFTER_S:
+                    elif now - self._blocked_since >= FAIL_AFTER_S and not self.navigating:
                         self._outcome[id(handle)] = "failed"
                         self.current = None
                 else:
