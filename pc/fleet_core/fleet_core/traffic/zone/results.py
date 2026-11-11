@@ -20,9 +20,12 @@ class Results:
         return m
 
     def on_move_result(self, robot, goal_id, success, reason, last_done_seq=0) -> None:
+        m = self._robots.get(robot)
+        if m is not None and m.move_order is not None and self._old_goal_result(m, goal_id, reason):
+            return
         m = self._active(robot, goal_id, MOVE)
         if m is None:
-            return  # 넘겨준 이전 goal의 SUPERSEDED도 여기서 버려진다
+            return
         if m.move_order is not None and self._order_result(m, success, reason, last_done_seq):
             return
         if success:
@@ -56,7 +59,7 @@ class Results:
 
     def on_goal_rejected(self, robot, goal_id) -> None:
         m = self._active(robot, goal_id, MOVE, RETREAT, DOCK)
-        if m is None:
+        if m is None or self._update_lost(m, "the goal was rejected"):
             return
         if m.goal.kind == DOCK:
             m.goal = None
@@ -66,7 +69,7 @@ class Results:
 
     def on_goal_not_sent(self, robot, goal_id) -> None:
         m = self._active(robot, goal_id, MOVE, RETREAT, DOCK)
-        if m is None:
+        if m is None or self._update_lost(m, "the goal was not sent"):
             return
         self._forget_goal(m)
         m.retry_at = self._clock() + self.params.move_retry_wait_s
@@ -77,7 +80,7 @@ class Results:
 
     def on_goal_lost(self, robot, goal_id) -> None:
         m = self._active(robot, goal_id, MOVE, RETREAT, DOCK)
-        if m is not None:
+        if m is not None and not self._update_lost(m, "the goal was lost"):
             self._forget_goal(m)
 
     # ---- 끝난 조각 ----

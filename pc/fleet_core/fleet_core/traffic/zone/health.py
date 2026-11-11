@@ -47,6 +47,7 @@ class Health:
     def _resume(self, m) -> None:
         """말이 없던 동안 지난 지점을 따라잡고 가던 길을 잇는다."""
         m.comm = ""
+        m.base_until = 0.0
         m.stall_from = None
         trip = m.trip
         if trip is None:
@@ -74,7 +75,7 @@ class Health:
         held = self.grants.held_by(robot)
         m = self._robots[robot]
         left = m.base_until - self._clock()
-        if m.comm == COMM_LOST and left > 0:
+        if m.comm and left > 0:  # 말이 돌아온 직후에도 취소가 닿았는지는 아직 모른다
             refusal = f"it may still be driving to the end of its base for {left:.0f} s"
         else:
             refusal = (f"no zones listed while it holds {list(held)}"

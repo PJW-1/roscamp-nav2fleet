@@ -2,8 +2,10 @@
 import math
 from dataclasses import replace
 
-from fleet_core.common.commands import MoveCmd, MoveOrderCmd, RetreatCmd
+import pytest
+from fleet_core.common.commands import CancelCmd, MoveCmd, MoveOrderCmd, RetreatCmd
 from fleet_core.common.params import load_params
+from fleet_core.traffic.zone import move_orders
 from zone_harness import Harness
 
 ON = replace(load_params(), use_order_model=True)
@@ -23,6 +25,12 @@ def queued_for_outbound(release_at=None):
     world.report()
     world.call("OUTBOUND", "pinky2")  # 도크에 서 있으므로 곧바로 도킹한다
     return world, world.call("OUTBOUND", "pinky1")
+
+
+def waiting_at_the_queue_spot():
+    world, call = queued_for_outbound()
+    assert world.run_until(lambda: "BASE_END_WAIT" in world.codes("pinky1"), 60.0)
+    return world, call
 
 
 def base_zones_are_held(world, robot):
@@ -162,11 +170,76 @@ def test_a_refused_update_is_followed_by_a_new_order_from_the_base_end():
     assert world.run_until(lambda: "ORDER_UPDATE_REJECTED" in world.codes("pinky1"), 60.0)
     assert world.view("pinky1")["node"] == "O_Q", "the robot stays at the end of its base"
     assert world.run_until(lambda: world.result_of(call) is not None, 120.0)
+    codes = world.codes("pinky1")
+    assert "GOAL_STALLED" not in codes and "GOAL_RETRY" not in codes, "not a failed attempt"
     first, bad, again = orders(world, "pinky1")[-3:]
     assert (bad.order_id, bad.update_id, bad.stitch_node) == (first.order_id, 1, "?")
     assert again.update_id == 0 and again.order_id != first.order_id
     assert ends(again.base) == [(1, "nav_goal", "N_E"), (2, "follow_path", "O")]
     assert world.result_of(call).success and not world.problems
+
+
+# ---- update의 답이 오기 전 ----
+
+def test_no_second_update_goes_out_before_the_robot_answers_the_first(monkeypatch):
+    monkeypatch.setattr(move_orders, "UPDATE_ANSWER_S", 60.0)
+    world, call = waiting_at_the_queue_spot()
+    world.traffic.on_release("pinky2")
+    world.run(1.0)
+    world.hold_answers = True
+    world.traffic._blocked[("N_E", "X_E")] = world.now + 300.0  # horizon이 바뀐다
+    world.run(15.0)  # 그사이 출고 도크가 비어 다음 구간을 잡을 수 있게 된다
+    assert world.view("pinky2")["held"] == ["HALL"]
+    assert [o.update_id for o in orders(world, "pinky1")] == [0, 1], "update 1 is unanswered"
+    world.hold_answers = False
+    assert world.run_until(lambda: world.result_of(call) is not None, 120.0)
+    assert [o.update_id for o in orders(world, "pinky1")] == [0, 1, 2]
+    assert world.result_of(call).success and not world.problems
+
+
+def test_an_update_nobody_answers_ends_both_goals_and_a_new_order_follows():
+    world, call = waiting_at_the_queue_spot()
+    first = orders(world, "pinky1")[-1]
+    world.hold_answers = True
+    world.traffic.on_release("pinky2")
+    assert world.run_until(lambda: len(orders(world, "pinky1")) == 2, 30.0)
+    update = orders(world, "pinky1")[-1]
+    world.run(move_orders.UPDATE_ANSWER_S + 0.5)
+    cancelled = {c.goal_id for c in world.sent(CancelCmd, "pinky1")}
+    assert {first.goal_id, update.goal_id} <= cancelled, "the old goal may still be the live one"
+    assert "ORDER_UPDATE_REJECTED" in world.codes("pinky1")
+    world.hold_answers = False
+    assert world.run_until(lambda: world.result_of(call) is not None, 120.0)
+    assert orders(world, "pinky1")[-1].update_id == 0
+    assert world.result_of(call).success and not world.problems
+
+
+@pytest.mark.parametrize("fault", ["on_goal_rejected", "on_goal_not_sent", "on_goal_lost"])
+def test_an_update_goal_that_never_reached_the_robot_leaves_the_old_goal_running(fault):
+    world, call = waiting_at_the_queue_spot()
+    first = orders(world, "pinky1")[-1]
+    world.goal_fault["pinky1"] = fault
+    world.traffic.on_release("pinky2")
+    assert world.run_until(lambda: "ORDER_UPDATE_REJECTED" in world.codes("pinky1"), 60.0)
+    assert world.run_until(lambda: world.result_of(call) is not None, 120.0)
+    codes = world.codes("pinky1")
+    assert "GOAL_RETRY" not in codes and "GOAL_STALLED" not in codes
+    again = orders(world, "pinky1")[-1]
+    assert again.update_id == 0 and again.order_id != first.order_id
+    assert first.goal_id in {c.goal_id for c in world.sent(CancelCmd, "pinky1")}
+    assert world.result_of(call).success and not world.problems
+
+
+def test_the_old_goal_failing_before_the_update_is_answered_counts_as_its_failure():
+    world, call = waiting_at_the_queue_spot()
+    first = orders(world, "pinky1")[-1]
+    world.hold_answers = True
+    world.traffic.on_release("pinky2")
+    assert world.run_until(lambda: len(orders(world, "pinky1")) == 2, 30.0)
+    world.traffic.on_move_result("pinky1", first.goal_id, False, "NAV_ABORTED", 3)
+    world.step()
+    assert "GOAL_RETRY" in world.codes("pinky1"), "the running order failed, the fleet saw it"
+    assert world.view("pinky1")["goal_id"] is None
 
 
 # ---- 통신이 끊긴 로봇 ----
@@ -190,3 +263,18 @@ def test_a_silent_robot_drives_to_its_base_end_and_its_zones_stay_until_then():
     world.silent.discard("pinky2")
     assert world.run_until(lambda: world.result_of(call) is not None, 60.0)
     assert world.result_of(call).robot_id == "pinky2" and not world.problems
+
+
+def test_the_base_time_also_guards_a_robot_that_has_just_started_talking_again():
+    world = Harness(params=ON)
+    world.step()
+    world.call("WORK")
+    world.run(2.0)
+    world.silent.add("pinky2")
+    assert world.run_until(lambda: world.view("pinky2")["state"] == "COMM_LOST", 10.0)
+    held = world.view("pinky2")["held"]
+    world.silent.discard("pinky2")  # 말이 돌아왔다. 취소가 닿았는지는 아직 모른다
+    world.step()
+    assert world.view("pinky2")["comm"] == "RECOVERING"
+    assert world.traffic.confirm_clear("pinky2", held, "carried away") is None
+    assert "base" in world.traffic.clear_reason

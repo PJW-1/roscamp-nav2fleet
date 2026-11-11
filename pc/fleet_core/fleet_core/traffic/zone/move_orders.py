@@ -8,6 +8,8 @@
 - 앞길이 바뀌면 base가 빈 update로 horizon만 바꾼다. 이미 준 base는 줄이지 않는다. 줄여야 하면
   이동을 거둔다(막힘, 목적 바뀜).
 - update가 거절되면 로봇이 지금 base를 끝낸 뒤 그 자리에서 새 order로 잇는다.
+- update를 보낸 뒤 로봇의 답(이전 goal의 SUPERSEDED나 새 goal의 피드백)이 오기 전에는 다음
+  update를 보내지 않는다. 그동안 로봇에서 살아 있는 goal은 이전 것일 수도, 새것일 수도 있다.
 """
 from __future__ import annotations
 
@@ -19,9 +21,7 @@ from .robots import ORDER, Goal, MoveOrder
 from .trips import Trip, left_s, move_command, retreat_command, segment_end, stretch_end
 
 HORIZON_HOLD_S = 5.0  # horizon을 바꾼 뒤 이만큼은 다시 바꾸지 않는다(가정)
-COMM_BASE_MARGIN_S = 3.0  # 끊긴 로봇이 base 끝에 닿을 예상 시각에 더하는 여유
-REJECTED = "ORDER_UPDATE_REJECTED"
-SUPERSEDED = "SUPERSEDED"
+UPDATE_ANSWER_S = 2.0  # update를 보낸 뒤 로봇의 답을 기다리는 시간(가정)
 CONTROLLER = {FOLLOW_PATH: "FollowPath", RETREAT: "FollowPathReverse", NAV_GOAL: ""}
 
 
@@ -104,7 +104,9 @@ class MoveOrders:
         if self.order_fault == "stitch":  # 시험용: 이음 지점을 일부러 틀리게 보낸다
             stitch, self.order_fault = "?", ""
         mo.update += 1
-        mo.before = before
+        mo.before, mo.asked_at = (*before, mo.waiting), self._clock()
+        if base:  # 로봇이 다시 달린다
+            mo.waiting = mo.waited = False
         self._out.append(MoveOrderCmd(m.name, goal_id, mo.id, mo.update, stitch, base,
                                       self._horizon(m, trip)))
         self._order_goal(m, goal_id)
@@ -115,6 +117,13 @@ class MoveOrders:
         """base 끝이 가까워졌거나 로봇이 거기 서 있으면 다음 구간을 잡아 update를 보낸다."""
         trip, mo = m.trip, m.move_order
         if trip is None or mo is None:
+            return
+        if mo.before is not None:  # 앞의 update에 로봇이 아직 답하지 않았다
+            if self._clock() - mo.asked_at >= UPDATE_ANSWER_S:
+                self._event("WARN", "ORDER_UPDATE_REJECTED", f"{mo.id} update {mo.update}: no "
+                            f"answer in {UPDATE_ANSWER_S:.0f} s, ends both goals", m.name)
+                self._cancel_goal(m)
+                m.retry_at = self._clock() + self.params.move_retry_wait_s
             return
         if mo.broken or trip.stale:
             # 거절된 order는 base 끝에 선 뒤에, 목적이 바뀐 order는 넓은 구역에 나오는 대로 거둔다.
@@ -142,7 +151,6 @@ class MoveOrders:
             self._wants[m.name] = want
             self._note_wait(m, want)
             return
-        mo.waiting = mo.waited = False
         self._send_update(m, before, self._fresh_base(m, trip))
         self._event("INFO", "ORDER_UPDATED",
                     f"{mo.id} update {mo.update}: base to {m.goal.end}", m.name)
@@ -172,63 +180,3 @@ class MoveOrders:
         self._event("INFO", "HORIZON_CHANGED", f"{mo.id} update {mo.update}: now by "
                     f"{' '.join(k.b for k in fresh)}", m.name)
         return True
-
-    # ---- 로봇이 알려 온 것 ----
-
-    def on_move_feedback(self, robot, goal_id, last_done_seq, waiting_at_base_end,
-                         horizon_warning="") -> None:
-        m = self._active(robot, goal_id, MOVE)
-        if m is None or m.move_order is None:
-            return
-        mo = m.move_order
-        self._order_progress(m, last_done_seq)
-        mo.waiting = bool(waiting_at_base_end)
-        if mo.waiting and not mo.waited:
-            mo.waited = True
-            self._event("INFO", "BASE_END_WAIT",
-                        f"stands at {m.node}, the next stretch is not taken yet", m.name)
-        if horizon_warning and not mo.warned:
-            mo.warned = True
-            self._event("WARN", "HORIZON_INVALID", horizon_warning, m.name)
-
-    def _order_progress(self, m, seq: int) -> None:
-        """로봇이 seq번 조각까지 끝냈다. 지난 지점을 따라간다."""
-        trip, mo = m.trip, m.move_order
-        for number, first, end in mo.cuts:
-            if mo.done_seq < number <= seq:
-                via = trip.links[first].via
-                trip.done = max(trip.done, end)
-                m.node = trip.links[end - 1].b
-                self._event("INFO", "SEGMENT_DONE", f"{mo.id} seq {number} ({via}) to {m.node}",
-                            m.name)
-                if via == RETREAT:
-                    m.retreat_to = ""
-                    self._event("INFO", "RETREAT_DONE", f"stands at {m.node}", m.name)
-        mo.done_seq = max(mo.done_seq, seq)
-
-    def _order_result(self, m, success: bool, reason: str, last_done_seq: int) -> bool:
-        """order goal의 결과. 여기서 다 다뤘으면 True, 여느 이동처럼 마저 다룰 것이면 False."""
-        mo, trip = m.move_order, m.trip
-        if reason.startswith(REJECTED):  # 이 update만 끝났다. 로봇은 이전 goal로 지금 base를 간다
-            self._event("WARN", "ORDER_UPDATE_REJECTED", f"{mo.id} update {mo.update}: {reason}",
-                        m.name)
-            goal_id, links = mo.before
-            m.goal = Goal(MOVE, goal_id, links, trip.links[links - 1].b, ORDER)
-            trip.sent = links
-            mo.broken = True
-            return True
-        if reason == SUPERSEDED:  # 실패가 아니다
-            return True
-        self._order_progress(m, last_done_seq)
-        return False
-
-    # ---- 통신이 끊긴 로봇 ----
-
-    def _hold_base(self, m, now: float) -> str:
-        """끊긴 로봇은 base 끝까지 간다. 그 예상 시각과 여유가 지날 때까지 구역을 풀지 않는다."""
-        trip = m.trip
-        if m.move_order is None or trip is None or m.goal is None:
-            return ""
-        left = left_s(self.params, trip.links[trip.done:trip.granted], m.x, m.y)
-        m.base_until = now + left + COMM_BASE_MARGIN_S
-        return f", drives on to {m.goal.end} (about {left:.0f} s)"

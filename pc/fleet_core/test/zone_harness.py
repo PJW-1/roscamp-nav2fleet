@@ -57,6 +57,8 @@ class Harness:
         self.problems: list[str] = []
         self.log: list[str] = []  # 시각을 붙인 사건과 명령. 실패한 시험을 읽을 때 쓴다
         self._late: list = []  # 다음 걸음에 관제에 닿을 로봇의 답 (로봇, 메서드 이름, 인자)
+        self.hold_answers = False  # 켜면 로봇의 답이 관제에 닿지 않고 쌓인다
+        self.goal_fault: dict[str, str] = {}  # 로봇 -> 다음 update goal에 일어날 일(on_goal_*)
         self._ids = iter(range(1000, 100000))
 
     # ---- 시험이 부르는 것 ----
@@ -74,7 +76,9 @@ class Harness:
 
     def step(self) -> None:
         self.now = round(self.now + DT, 6)
-        late, self._late = self._late, []
+        late = [] if self.hold_answers else self._late
+        if late:
+            self._late = []
         for name, method, args in late:
             if name not in self.silent:
                 getattr(self.traffic, method)(name, *args)
@@ -188,6 +192,10 @@ class Harness:
         run = bot.run
         if cmd.update_id == 0:
             bot.run, bot.cmd, bot.points = OrderRun(cmd), None, []
+            return
+        fault = self.goal_fault.pop(bot.name, "")
+        if fault:  # 이 goal은 로봇에 닿지 못했다
+            self._late.append((bot.name, fault, (cmd.goal_id,)))
             return
         why = "no running order" if run is None else run.refusal(cmd)
         done = run.done_seq if run is not None else 0

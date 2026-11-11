@@ -28,7 +28,9 @@ class MoveOrder:
     update: int = 0
     waiting: bool = False  # 로봇이 base 끝에 서서 update를 기다린다
     waited: bool = False  # 이번 기다림에 BASE_END_WAIT를 냈다
-    before: tuple | None = None  # update를 보낸 뒤: (그 전 goal id, 그 전 base의 연결 수)
+    # 로봇의 답을 기다리는 update가 있으면: (그 전 goal id, 그 전 base의 연결 수, 그때의 waiting)
+    before: tuple | None = None
+    asked_at: float = 0.0  # 그 update를 보낸 시각
     broken: bool = False  # update가 거절됐다. 지금 base가 끝나면 새 order로 잇는다
     horizon_at: float = 0.0  # horizon을 마지막으로 정한 시각
     warned: bool = False  # HORIZON_INVALID를 냈다

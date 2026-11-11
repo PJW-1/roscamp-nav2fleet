@@ -75,6 +75,9 @@ class ZoneBase:
         if m.goal is None:
             return
         self._out.append(CancelCmd(m.name, m.goal.id))
+        if m.move_order is not None and m.move_order.before is not None:
+            # update의 답이 오기 전이다. 로봇에서는 이전 goal이 아직 달리고 있을 수 있다
+            self._out.append(CancelCmd(m.name, m.move_order.before[0]))
         m.goal = None
         m.move_order = None
         m.arrival_by = None

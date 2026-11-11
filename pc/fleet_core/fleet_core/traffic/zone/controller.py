@@ -17,6 +17,7 @@
 | watch | 멈춤, 구역 밖, 서로 막음, 대기 순환 |
 | calls | 배차와 호출 |
 | move_orders | order 모델(use_order_model): 조각 목록, base와 horizon, update |
+| order_answers | order 모델에서 로봇이 알려 온 것: 피드백, 결과, 붙지 못한 update |
 | views | 밖에서 읽는 것 |
 """
 from __future__ import annotations
@@ -28,14 +29,15 @@ from .drive import Drive
 from .goals import Goals
 from .health import Health
 from .move_orders import MoveOrders
+from .order_answers import OrderAnswers
 from .progress import Progress
 from .results import Results
 from .views import Views
 from .watch import Watch
 
 
-class ZoneTraffic(Calls, Goals, Drive, MoveOrders, Results, Progress, Blocked, Health, Watch,
-                  Views, ZoneBase):
+class ZoneTraffic(Calls, Goals, Drive, MoveOrders, OrderAnswers, Results, Progress, Blocked,
+                  Health, Watch, Views, ZoneBase):
     def tick(self) -> list:
         """한 주기 전체. FleetManager 없이 교통 층만 돌릴 때 쓴다."""
         now = self._clock()
