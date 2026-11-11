@@ -144,6 +144,17 @@ Visualization Manager:
         Durability Policy: Volatile
         History Policy: Keep Last
         Reliability Policy: Reliable
+    - Class: rviz_default_plugins/MarkerArray
+      Name: Order (base solid, horizon dashed)
+      Enabled: true
+      Namespaces:
+        {}
+      Topic:
+        Value: <robot_namespace>/order_markers
+        Depth: 5
+        Durability Policy: Transient Local
+        History Policy: Keep Last
+        Reliability Policy: Reliable
   Enabled: true
   Global Options:
     Background Color: 48; 48; 48

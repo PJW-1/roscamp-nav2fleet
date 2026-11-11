@@ -479,8 +479,7 @@ class PinkyFsm(NavGoalMoves):
             self._pose = pose
         cmds: list = []
         g = self._active
-        if (g is not None and self.p.heartbeat_timeout_s > 0
-                and now - self._alive >= self.p.heartbeat_timeout_s):
+        if g is not None and self._heartbeat_lost(now) and self._stops_on_heartbeat_loss():
             cmds += self._end_active(HEARTBEAT_LOST, stop=True)
             g = None
         if g is not None and pose is None:
@@ -520,6 +519,13 @@ class PinkyFsm(NavGoalMoves):
         return cmds + self._limit_speed()
 
     # -- 안쪽 -----------------------------------------------------------------------------
+
+    def _heartbeat_lost(self, now: float) -> bool:
+        return self.p.heartbeat_timeout_s > 0 and now - self._alive >= self.p.heartbeat_timeout_s
+
+    def _stops_on_heartbeat_loss(self) -> bool:
+        """heartbeat가 끊기면 목표를 끝내고 선다(계약 3절 5번). order_fsm은 base 끝까지 간다."""
+        return True
 
     def _watch_obstacle(self, now, g, pose, speed, obstacle: Obstacle) -> list:
         """계약 4절. 움직이는 목표 중 1초 서 있고 앞 0.5 m에 물체가 있으면 자가 복구를 하고,
