@@ -58,7 +58,7 @@ def _walk(entities, context, found):
         _walk(entity.visit(context) or [], context, found)
 
 
-def _expand(use_composition, use_sim_time="true", keepout_mask=None):
+def _expand(use_composition, use_sim_time="true", keepout_mask=None, vision_obstacles=None):
     context = launch.LaunchContext()
     context.launch_configurations.update({
         "use_composition": use_composition, "use_sim_time": use_sim_time,
@@ -67,6 +67,8 @@ def _expand(use_composition, use_sim_time="true", keepout_mask=None):
     })
     if keepout_mask is not None:
         context.launch_configurations["keepout_mask"] = keepout_mask
+    if vision_obstacles is not None:
+        context.launch_configurations["vision_obstacles"] = vision_obstacles
     found = []
     _walk(_launch_description().entities, context, found)
     return context, found
@@ -204,3 +206,39 @@ def test_the_composed_container_carries_the_keepout_filter_for_the_costmap_sub_n
     assert _global_costmap(container)["filters"] == ["keepout_filter"]
     _, [(container, _)] = _expand("true")
     assert "filters" not in _global_costmap(container)
+
+
+# ---- vision obstacles (a slot for the avoidance teammate's point cloud) -------------------
+
+def _obstacle_layers(found):
+    nodes = [node for node, _ in found]
+    layers = {}
+    for name, which in (("controller_server", "local"), ("planner_server", "global")):
+        costmap = _param_files(nodes[NAMES.index(name)])["pinky1"][f"{which}_costmap"]
+        layers[which] = costmap[f"{which}_costmap"]["ros__parameters"]["obstacle_layer"]
+    return layers
+
+
+@pytest.mark.parametrize("value", [None, "false"])
+def test_without_vision_obstacles_the_costmaps_read_only_the_scan(value):
+    _, found = _expand("false", vision_obstacles=value)
+    for layer in _obstacle_layers(found).values():
+        assert layer["observation_sources"] == "scan" and "vision" not in layer
+
+
+def test_vision_obstacles_adds_the_point_cloud_to_both_costmaps():
+    _, found = _expand("false", vision_obstacles="true")
+    for layer in _obstacle_layers(found).values():
+        assert layer["observation_sources"] == "scan vision"
+        assert layer["vision"]["topic"] == "/pinky1/vision_obstacles"
+        assert layer["vision"]["data_type"] == "PointCloud2"
+        assert layer["vision"]["expected_update_rate"] == 0.0, "a silent topic stops nothing"
+        assert layer["scan"]["topic"] == "/pinky1/scan", "the scan stays as it was"
+
+
+def test_vision_obstacles_and_keepout_work_together():
+    _, found = _expand("false", keepout_mask=MASK, vision_obstacles="true")
+    planner = [node for node, _ in found][NAMES.index("planner_server")]
+    glob = _global_costmap(planner)
+    assert glob["filters"] == ["keepout_filter"]
+    assert glob["obstacle_layer"]["observation_sources"] == "scan vision"
