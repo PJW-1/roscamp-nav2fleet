@@ -26,13 +26,13 @@ class OrderAnswers:
         if mo is None or m.goal is None:
             return
         if mo.before is not None and goal_id == mo.before[0]:  # 이전 goal이 아직 말한다
-            self._order_progress(m, last_done_seq)
+            self._order_progress(m, last_done_seq, mo.before[1])
             mo.before = (*mo.before[:2], bool(waiting_at_base_end))
             return
         if m.goal.id != goal_id:
             return
         mo.before = None  # 새 goal이 말한다: update가 붙었다
-        self._order_progress(m, last_done_seq)
+        self._order_progress(m, last_done_seq, m.goal.links)
         mo.waiting = bool(waiting_at_base_end)
         if mo.waiting and not mo.waited:
             mo.waited = True
@@ -42,10 +42,13 @@ class OrderAnswers:
             mo.warned = True
             self._event("WARN", "HORIZON_INVALID", horizon_warning, m.name)
 
-    def _order_progress(self, m, seq: int) -> None:
-        """로봇이 seq번 조각까지 끝냈다. 지난 지점을 따라간다. base 밖의 번호는 믿지 않는다."""
+    def _order_progress(self, m, seq: int, links: int) -> None:
+        """로봇이 seq번 조각까지 끝냈다. 지난 지점을 따라간다.
+
+        links는 말하는 goal이 허락한 연결 수다. 그 밖의 조각 번호는 믿지 않는다.
+        """
         trip, mo = m.trip, m.move_order
-        last = mo.cuts[mo.given - 1][0]
+        last = max((number for number, _, end in mo.cuts if end <= links), default=0)
         if seq > last:  # 허락하지 않은 조각이다. 잘못된 보고로 보고 진행을 바꾸지 않는다
             if not mo.overrun:
                 mo.overrun = True
@@ -73,7 +76,7 @@ class OrderAnswers:
         if reason == SUPERSEDED:  # 실패가 아니다
             return True
         mo.before = None
-        self._order_progress(m, last_done_seq)
+        self._order_progress(m, last_done_seq, m.goal.links)
         return False
 
     def _old_goal_result(self, m, goal_id: int, reason: str) -> bool:

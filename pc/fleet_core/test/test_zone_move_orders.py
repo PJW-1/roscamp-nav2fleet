@@ -133,6 +133,34 @@ def test_a_report_of_a_segment_beyond_the_base_is_not_believed():
     assert world.codes("pinky1").count("SEGMENT_BEYOND_BASE") == 1, "once for an order"
 
 
+def test_the_old_goal_cannot_report_what_only_the_unanswered_update_allows(monkeypatch):
+    monkeypatch.setattr(move_orders, "UPDATE_ANSWER_S", 60.0)
+    world, _ = waiting_at_the_queue_spot()
+    old = world.view("pinky1")["goal_id"]
+    world.hold_answers = True
+    world.traffic.on_release("pinky2")
+    assert world.run_until(lambda: len(orders(world, "pinky1")) == 2, 30.0)
+    world.traffic.on_move_feedback("pinky1", old, 5, True)  # 4번과 5번은 update의 base다
+    world.step()
+    assert world.view("pinky1")["node"] == "O_Q"
+    assert "SEGMENT_BEYOND_BASE" in world.codes("pinky1")
+
+
+def test_after_a_refused_update_the_old_goal_is_held_to_its_own_base():
+    world, _ = queued_for_outbound()
+    assert world.run_until(lambda: world.view("pinky1")["target"] == "O_Q"
+                           and world.view("pinky1")["node"] == "N_W", 60.0)
+    old = world.view("pinky1")["goal_id"]
+    world.traffic.order_fault = "stitch"
+    world.traffic.on_release("pinky2")  # 달리는 중에 다음 구간이 열려 update가 나가고, 거절된다
+    assert world.run_until(lambda: "ORDER_UPDATE_REJECTED" in world.codes("pinky1"), 60.0)
+    assert world.view("pinky1")["goal_id"] == old, "the robot goes on under the old goal"
+    world.traffic.on_move_feedback("pinky1", old, 5, False)  # 4번과 5번은 붙지 못한 update의 것이다
+    world.step()
+    assert world.view("pinky1")["node"] != "O"
+    assert "SEGMENT_BEYOND_BASE" in world.codes("pinky1")
+
+
 def test_the_base_is_always_inside_the_zones_the_robot_holds():
     world, call = queued_for_outbound()
     seen = 0
