@@ -3,6 +3,8 @@
 retreat(버전 2 1-A, 계약 0.9-draft 제안)는 보는 방향 그대로 뒤로 간다. path가 없으면 곧게,
 있으면 그 꺾은선(첫 점은 로봇 자리, 끝 점은 설 곳)을 따라 시킨 속도로 간다. 뒤에 다른 로봇이나
 물체가 있으면 그 자리에 서서 OBSTACLE_BEHIND로 끝낸다(자기 복구의 뒤 보기와 같은 검사).
+
+MoveTo mode가 nav_goal이면 path를 쓰지 않고 스스로 길을 짠다(nav_goal_drive.py, 계약 5절).
 """
 from __future__ import annotations
 
@@ -43,7 +45,9 @@ from fake_robots.motion import (
     noisy_pose,
     path_gap,
 )
+from fake_robots.nav_goal_drive import NavGoalDrive
 from fake_robots.recovery import ObstacleRecovery, RecoveryParams
+from fake_robots.world.free_space import FreeSpace
 
 NAV_ABORT_DELAY_S = 0.2  # 해제 거리(0.2 m)를 지나기 전, 관제가 선을 늘리기 전에 중단한다
 OFF_COURSE_M = 1.0  # 운영자가 치운 로봇이 가는 곳(지도 모서리 밖)
@@ -87,6 +91,7 @@ class _Goal:
         self.target_id = ""  # target_id of a move, dock_id of a dock (current_goal)
         self.left = 0.0  # retreat: 남은 거리
         self.speed = 0.0
+        self.nav: NavGoalDrive | None = None  # move의 nav_goal 모드
 
     def finish(self, success: bool, reason: str = "") -> None:
         if not self.done.is_set():
@@ -111,17 +116,19 @@ class FakePinkyNode(Node):
         self._faults = FaultSchedule(scenario.faults, self.robot_id)
         # 충전 자리는 주차 지점이다. low_battery가 없으면 늘 90
         self._battery = Battery([f for f in scenario.faults if f.robot == self.robot_id],
-                                [site.waypoint_pose(w) for w in site.parking])
-        x, y = site.waypoint_pose(cfg.start)
+                                [site.node_pose(n) for n in site.parking])
+        x, y = site.node_pose(cfg.start)
         self._motion = Motion(x, y)
         self._reports = DelayLine(cfg.report_delay_s)
-        self._off_course = (site.origin[0] - OFF_COURSE_M, site.origin[1] - OFF_COURSE_M)
+        x0, y0, _, _ = site.bounds()
+        self._off_course = (x0 - OFF_COURSE_M, y0 - OFF_COURSE_M)
         self._site = site
         self._removed = False
         # 앞 물체와 자기 복구(제안). 값은 노드 파라미터로 바꾼다(recovery_attempts 0: 복구 없음)
         self._recovery = ObstacleRecovery(RecoveryParams(**{
             f.name: self.declare_parameter(f.name, f.default).value
             for f in fields(RecoveryParams)}))
+        self._space = FreeSpace(site, self._recovery.p.robot_radius_m)  # nav_goal 모드의 길 찾기
         self._others = {}  # 다른 로봇의 진실 자세. 뒤에 있으면 후진하지 않는다
         self._sc = ScenarioClock(self)
         self._lock = threading.RLock()
@@ -237,7 +244,14 @@ class FakePinkyNode(Node):
                 pose = handle.request.target_pose
                 goal.target_id = handle.request.target_id
                 path = [(p.position.x, p.position.y) for p in handle.request.path]
-                if path and self._path_misses_me(t, path):
+                if handle.request.mode == MoveTo.Goal.MODE_NAV_GOAL:
+                    m = self._motion
+                    m.clear_target()
+                    target = noisy_pose(pose.x, pose.y, self._cfg.stop_error_m, self._rng)
+                    goal.nav = NavGoalDrive(self._space, self._recovery.p.robot_radius_m,
+                                            target, t, (m.x, m.y))
+                    self._take_nav_abort(t, goal, math.dist((m.x, m.y), target))
+                elif path and self._path_misses_me(t, path):
                     # 지시서 7.5: 따라가지 않고 실패한다. 이전 목표는 위에서 끝났으니 선다(R6)
                     self._end(goal, False, MoveTo.Result.REASON_PATH_NOT_CONNECTED)
                 else:
@@ -245,10 +259,7 @@ class FakePinkyNode(Node):
                     self._motion.set_target(*noisy_pose(pose.x, pose.y, self._cfg.stop_error_m,
                                                         self._rng), via=path[1:-1],
                                             start=path[0] if path else None)
-                    if self._faults.take_nav_abort(t, goal.target_id):
-                        eta = self._motion.remaining() / self._cfg.speed_mps
-                        goal.abort_at = t + min(NAV_ABORT_DELAY_S, eta / 2)  # 도착 전에 중단
-                        goal.abort_from = self._faults.last_taken
+                    self._take_nav_abort(t, goal, self._motion.remaining())
             elif kind == "retreat":
                 self._start_retreat(t, goal, handle.request)
             else:
@@ -257,6 +268,16 @@ class FakePinkyNode(Node):
                 goal.end_at = t + self._dock_cfg.duration_s
             self._goals[bytes(handle.goal_id.uuid)] = goal
         handle.execute()
+
+    def _take_nav_abort(self, t: float, goal: _Goal, remaining: float) -> None:
+        if self._faults.take_nav_abort(t, goal.target_id):
+            eta = remaining / self._cfg.speed_mps
+            goal.abort_at = t + min(NAV_ABORT_DELAY_S, eta / 2)  # 도착 전에 중단
+            goal.abort_from = self._faults.last_taken
+
+    def _others_discs(self) -> list[tuple[float, float, float]]:
+        radius = self._recovery.p.robot_radius_m
+        return [(x, y, radius) for x, y in list(self._others.values())]
 
     def _start_retreat(self, t: float, goal: _Goal, request) -> None:
         """보는 방향 그대로 뒤로. 갈 길을 지나온 선(trail)으로 두고 Motion.back으로 간다.
@@ -376,6 +397,10 @@ class FakePinkyNode(Node):
                 self._end(goal, False, MoveTo.Result.REASON_HEARTBEAT_LOST)
                 return
             if goal.kind == "move":
+                others = self._others_discs()
+                if goal.nav is not None and goal.nav.update(t, self._motion, others):
+                    self._end(goal, False, MoveTo.Result.REASON_NAV_ABORTED)
+                    return
                 if goal.abort_at is not None and t >= goal.abort_at:
                     if self._recovery.nav_aborted(t, self._motion, self._faults.behind(t)):
                         self._end(goal, False, MoveTo.Result.REASON_NAV_ABORTED)
@@ -385,12 +410,13 @@ class FakePinkyNode(Node):
                 if (goal.aborting and goal.abort_at is None
                         and not self._recovery.backing_up):
                     goal.abort_at = t + NAV_ABORT_DELAY_S  # 다시 보낸 FollowPath도 중단된다
-                # 물체가 있으면 선다. 시도가 남았으면 후진하고 다시 가 보고, 없으면 BLOCKED
-                radius = self._recovery.p.robot_radius_m
-                self._recovery.drive(t, dt, self._motion, self._cfg.speed_mps,
-                                     [(x, y, radius) for x, y in list(self._others.values())],
-                                     self._faults.behind(t))
-                if not self._motion.moving:
+                # 물체가 있으면 선다. 시도가 남았으면 후진하고 다시 가 보고, 없으면 BLOCKED.
+                # nav_goal 모드는 바로 앞에 다른 로봇이 있어도 선다(충돌 검사를 켠 Nav2)
+                if goal.nav is None or goal.nav.clear_ahead(
+                        self._motion, self._cfg.speed_mps * dt, others):
+                    self._recovery.drive(t, dt, self._motion, self._cfg.speed_mps, others,
+                                         self._faults.behind(t))
+                if not self._motion.moving and (goal.nav is None or goal.nav.has_way):
                     self._recovery.succeeded()
                     self._end(goal, True)
             elif goal.kind == "retreat":
@@ -412,11 +438,11 @@ class FakePinkyNode(Node):
         self._motion.x, self._motion.y = self._off_course
         self._recovery.forget()  # 앞 물체는 들어낸 자리에 두고 간다
 
-    def _put_back(self, waypoint) -> None:
+    def _put_back(self, node) -> None:
         """운영자가 로봇을 이 지점에 다시 놓고 켰다. 바구니는 시나리오가 정한 대로다."""
         self._removed = False
         self._motion.clear_target()
-        self._motion.x, self._motion.y = self._site.waypoint_pose(waypoint)
+        self._motion.x, self._motion.y = self._site.node_pose(node)
         self._rest = RobotState.STATE_IDLE
         self._reports.clear()
 
@@ -447,7 +473,7 @@ class FakePinkyNode(Node):
     def _push_report(self, t: float, goal: _Goal | None, busy: bool, battery: float) -> None:
         if busy and goal.kind == "move" and self._recovery.recovering:
             state = RobotState.STATE_RECOVERING  # 명세 8번: LOCALIZING 다음
-        elif self._recovery.blocked:
+        elif self._recovery.blocked or (busy and goal.nav is not None and goal.nav.blocked(t)):
             state = RobotState.STATE_BLOCKED
         elif busy:
             state = RobotState.STATE_DOCKING if goal.kind == "dock" else RobotState.STATE_MOVING
