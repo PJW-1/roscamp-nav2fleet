@@ -6,7 +6,7 @@
 from __future__ import annotations
 
 from fleet_core.fleet_map import SHARED
-from fleet_core.traffic.mission import BLOCKED, MOVE, SELF_RECOVERING
+from fleet_core.traffic.mission import BLOCKED, DOCK, MOVE, RETREAT, SELF_RECOVERING
 
 from .base import HERE
 
@@ -18,25 +18,25 @@ class Blocked:
         long_recovery = (m.self_recovery_since is not None
                          and now - m.self_recovery_since > p.self_recovery_limit_s)
         stuck = m.robot_state == BLOCKED or long_recovery
-        if not stuck or m.goal is None or m.goal.kind != MOVE:
+        if not stuck or m.goal is None or m.goal.kind == DOCK:
             if not stuck:
-                m.blocked_first = m.blocked_since = None
+                m.blocked_since = None
                 m.blocked_noted = False
             return
-        if m.blocked_first is None:
-            m.blocked_first = now
         if m.blocked_since is None or m.blocked_goal != m.goal.id:
             m.blocked_since, m.blocked_goal = now, m.goal.id  # 새 goal의 막힘은 새로 잰다
         if not m.blocked_noted:
             m.blocked_noted = True
             self._event("INFO", "BLOCKED_WAIT", f"stands before something on the way to "
                         f"{m.goal.end}", m.name)
-        if now - m.blocked_first >= p.blocked_timeout_s:
-            self._event("ERROR", "GOAL_FAILED",
-                        f"blocked for {now - m.blocked_first:.0f} s", m.name)
-            self._fail(m, BLOCKED)
-        elif now - m.blocked_since >= p.blocked_mark_s:
+        waited = now - m.blocked_since
+        if m.goal.kind == MOVE and waited >= p.blocked_mark_s:
             self._mark_blocked(m, now)
+        elif m.goal.kind == RETREAT and waited >= p.blocked_timeout_s:
+            # 물러나는 길이 막혔다. 다른 길이 없으니 운영자에게 넘긴다
+            self._event("ERROR", "GOAL_FAILED", f"blocked for {waited:.0f} s while backing out",
+                        m.name)
+            self._fail(m, BLOCKED)
 
     def _mark_blocked(self, m, now: float) -> None:
         """지금 달리던 연결을 막힘으로 표시하고 다른 길을 찾게 한다."""
@@ -54,7 +54,7 @@ class Blocked:
                     f"{link.a or 'here'}->{link.b} in {zone}, tried again in "
                     f"{p.blocked_retry_s:.0f} s", m.name)
         self._cancel_goal(m)
-        m.blocked_since = m.blocked_first = None  # 다른 길을 가 보는 동안은 새로 잰다
+        m.blocked_since = None
         if link.a and zone is not None and site.zones[zone].kind != SHARED:
             m.retreat_to = link.a  # 고정 구간 안: 지나온 지점까지 물러난다
             self._event("INFO", "REROUTE", f"backs out to {link.a}, then another way", m.name)

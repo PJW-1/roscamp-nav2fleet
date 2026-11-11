@@ -23,22 +23,17 @@ class Results:
         m = self._active(robot, goal_id, MOVE)
         if m is None:
             return
-        m.last_result = "SUCCEEDED" if success else reason
-        if not success:
+        if success:
+            self._succeeded(m)
+        else:
             self._move_failed(m, reason)
-        elif self._gap(m, m.goal.end) <= self.params.arrival_tolerance_m:
-            self._segment_done(m)
-        else:  # 성공이 자세보다 먼저 왔다. 새 보고를 기다린다
-            m.arrival_by = self._clock() + self.params.arrival_settle_s
-            m.heard_since_success = False
 
     def on_retreat_result(self, robot, goal_id, success, reason="") -> None:
         m = self._active(robot, goal_id, RETREAT)
         if m is None:
             return
-        m.last_result = "SUCCEEDED" if success else reason
         if success:
-            self._segment_done(m)
+            self._succeeded(m)
         else:
             self._move_failed(m, reason or "RETREAT_FAILED")
 
@@ -84,6 +79,14 @@ class Results:
             self._forget_goal(m)
 
     # ---- 끝난 조각 ----
+
+    def _succeeded(self, m) -> None:
+        """성공 결과. 보고 위치가 목표에 닿았을 때만 조각을 끝낸다."""
+        if self._gap(m, m.goal.end) <= self.params.arrival_tolerance_m:
+            self._segment_done(m)
+        else:  # 성공이 자세보다 먼저 왔다. 새 보고를 기다린다
+            m.arrival_by = self._clock() + self.params.arrival_settle_s
+            m.heard_since_success = False
 
     def _judge_arrival(self, m, now: float) -> None:
         """성공 뒤에 온 보고로 정말 닿았는지 본다."""

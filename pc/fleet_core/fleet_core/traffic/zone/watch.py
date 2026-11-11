@@ -102,15 +102,14 @@ class Watch:
             self._cycle, self._cycle_since, self._cycle_acted = cycle, now, False
             self._event("WARN", "DEADLOCK_SEEN", f"wait cycle {' -> '.join(cycle)}")
         elif not self._cycle_acted and now - self._cycle_since >= self.params.deadlock_grace_s:
-            self._cycle_acted = True
             victim = choose_retreat(list(cycle), lambda name: self._priority(self._robots[name]))
-            self._evade(self._robots[victim])
+            self._cycle_acted = self._evade(self._robots[victim])  # 못 했으면 다음에 다시 본다
         return frozenset()
 
-    def _evade(self, m) -> None:
-        """대기 순환을 풀려고 이 로봇을 빈 주차 자리로 보낸다. 목적은 그대로다."""
+    def _evade(self, m) -> bool:
+        """대기 순환을 풀려고 이 로봇을 빈 주차 자리로 보낸다. 목적은 그대로다. 보냈으면 True."""
         if m.goal is not None:
-            return
+            return False
         free = [spot for spot in self.site.parking
                 if self.grants.node_holder(spot) in ("", m.name)]
         for spot in sorted(free, key=lambda spot: (self._gap(m, spot), spot)):
@@ -122,7 +121,8 @@ class Watch:
                 m.trip = trip
                 self._event("WARN", "DEADLOCK_SEEN", f"{m.name} gives way to {spot}", m.name)
                 self._send(m)
-                return
+                return True
+        return False
 
     def _watch_idle(self, m, now: float) -> None:
         """갈 곳이 있는데 goal도 없고 기다리는 것도 없이 서 있으면 알린다."""

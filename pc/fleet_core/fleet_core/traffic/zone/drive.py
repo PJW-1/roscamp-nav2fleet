@@ -46,6 +46,8 @@ class Drive:
     def _drive(self, m) -> None:
         trip = m.trip
         if trip is not None:
+            if trip.stale and self._switch(m):
+                return
             if trip.sent < trip.granted:
                 self._send(m)
                 return
@@ -60,6 +62,17 @@ class Drive:
         if trip is not None:
             m.trip = trip
             self._send(m)
+
+    def _switch(self, m) -> bool:
+        """목적이 바뀐 로봇이 지금 자리에서 새 목적의 길을 잡으면 갈아탄다. 못 잡으면 잡아 둔
+        구간의 끝(설 수 있는 지점)까지 그대로 간다: 갈림목이나 한 줄 구역 안에 서지 않는다."""
+        fresh = self._choose(m)
+        if fresh is None:
+            self._stop_wanting(m)
+            return False
+        m.trip = fresh
+        self._send(m)
+        return True
 
     def _at_purpose(self, m) -> bool:
         """이 단계의 목적지에 서 있는가."""

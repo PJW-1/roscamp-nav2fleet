@@ -49,7 +49,6 @@ class Robot:
     called: bool = False
     dispatch: Dispatch | None = None
     hold: bool = False  # 놓아 줄 때까지 스테이션에 둔다
-    last_result: str = ""
     asked_at: float | None = None  # 지금 스테이션을 바라기 시작한 시각(먼저 온 순서)
     asked_gap: float = 0.0  # 그때 도크까지의 길 길이(m). 같은 시각에 바란 로봇의 순서다
     wait_since: float | None = None  # 구역을 못 잡아 서 있기 시작한 시각
@@ -60,7 +59,6 @@ class Robot:
     stall_since: float = 0.0
     blocked_since: float | None = None  # BLOCKED 보고가 이어지기 시작한 시각
     blocked_noted: bool = False  # BLOCKED_WAIT를 냈다
-    blocked_first: float | None = None  # 풀리지 않고 이어진 막힘의 처음 시각
     blocked_goal: int = 0  # blocked_since를 잰 goal
     idle_since: float | None = None  # 할 일 없이 서 있기 시작한 시각
     self_recovery_since: float | None = None

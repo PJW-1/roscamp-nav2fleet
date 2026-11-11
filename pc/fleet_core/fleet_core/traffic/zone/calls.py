@@ -143,9 +143,9 @@ class Calls:
         elif goal.kind == MOVE and goal.via == NAV_GOAL:
             self._cancel_goal(m)  # 넓은 구역 안에서는 바로 세우고 다시 고른다
             self._drop_trip(m)
-        elif m.trip is not None:
-            del m.trip.links[goal.links:]  # 고정 구간은 끝까지 가서 다시 고른다
-            m.trip.granted = min(m.trip.granted, goal.links)
+        elif m.trip is not None:  # 고정 구간 안: 서지 않는다. 다음 지점에서 갈아탄다(drive._switch)
+            del m.trip.links[m.trip.granted:]
+            m.trip.stale = True
 
     def _metres_to_dock(self, m, station_id: str) -> float:
         way = route(self.site, m.node, self.site.stations[station_id].dock)

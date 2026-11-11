@@ -71,16 +71,9 @@ class ZoneBase:
             m.trip.sent = m.trip.done  # 남은 조각은 다시 보낸다
 
     def _drop_trip(self, m) -> None:
-        """가던 길을 버린다. 몸이 있는 구역과 가까운 지점만 남기고 잡은 것을 놓는다."""
+        """가던 길을 버린다. 잡아 둔 구역과 지점은 여기서 놓지 않는다: 보고 위치가 벗어난 것을
+        확인한 뒤에 놓는다(progress._release_behind). 취소가 로봇에 닿기 전일 수 있어서다."""
         m.trip = None
-        p = self.params
-        for zone in self.grants.held_by(m.name):
-            if self.site.distance_to_zone(m.x, m.y, zone) >= p.robot_radius_m:
-                self.grants.release_zone(m.name, zone)
-        for node in self.grants.nodes_of(m.name):
-            if self._gap(m, node) >= p.node_clear_m:
-                self.grants.release_node(m.name, node)
-        m.clear_n.clear()
 
     def _stop_wanting(self, m) -> None:
         self._wants.pop(m.name, None)

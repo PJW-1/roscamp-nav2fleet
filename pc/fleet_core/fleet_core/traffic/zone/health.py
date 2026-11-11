@@ -21,7 +21,7 @@ class Health:
 
     def _check_comm(self, now: float) -> None:
         for m in self._robots.values():
-            if (m.placed and not m.fault and not m.comm
+            if (m.placed and not m.fault and m.comm != COMM_LOST
                     and now - m.last_seen > self.params.comm_timeout_s):
                 m.comm = COMM_LOST
                 m.called = False
@@ -37,8 +37,10 @@ class Health:
         self._event("INFO", "COMM_RESTORED", "checks where it stands", m.name)
 
     def _finish_recoveries(self, now: float) -> None:
+        fresh = self.params.recover_check_s / 2  # 상태 보고는 10 Hz다. 이보다 오래됐으면 또 끊겼다
         for m in self._robots.values():
-            if m.comm == RECOVERING and now >= m.recover_at and m.robot_state != LOCALIZING:
+            if (m.comm == RECOVERING and now >= m.recover_at and m.robot_state != LOCALIZING
+                    and now - m.last_seen <= fresh):
                 self._resume(m)
 
     def _resume(self, m) -> None:
