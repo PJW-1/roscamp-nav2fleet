@@ -216,14 +216,14 @@ class ZoneWorld(Commands, Link):
             run = r.run
             if r.removed or run is None:
                 continue
-            if r.stuck and run.kind != DOCK:
+            if isinstance(run, OrderRun) and stops_for_lost_contact(self.params, r, self.t):
+                result = run.done(False, HEARTBEAT_LOST)  # 멈춘 로봇도 heartbeat 끊김은 안다
+            elif r.stuck and run.kind != DOCK:
                 run.stuck_s = getattr(run, "stuck_s", 0.0) + DT
                 if run.stuck_s >= STUCK_TIMEOUT_S - 1e-9:
                     r.run = None
                     self._finished(name, Result(run.kind, run.goal_id, False, "TIMEOUT"))
                 continue
-            if isinstance(run, OrderRun) and stops_for_lost_contact(self.params, r, self.t):
-                result = run.done(False, HEARTBEAT_LOST)
             else:
                 result = run.step(self, r)
             if result is not None:

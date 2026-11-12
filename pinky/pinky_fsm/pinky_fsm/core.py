@@ -73,6 +73,7 @@ class PinkyFsm(NavGoalMoves, RetreatMoves, SelfRecovery):
         # 동안은 끝이 없고(inf), 물러나기가 취소하면 그때부터 nav_result_grace_s다
         self._nav_live: dict[int, float] = {}
         self._alive = -math.inf  # 마지막 heartbeat나 목표 수락
+        self._lost_contact = False  # 이번 tick에 heartbeat 끊김으로 끝냈다
         self._stopped_since: float | None = None
         self._blocked = False
         self._clear_since: float | None = None
@@ -239,11 +240,13 @@ class PinkyFsm(NavGoalMoves, RetreatMoves, SelfRecovery):
              obstacle: Obstacle) -> list:
         """주기 판단. speed = (선속도 m/s, 각속도 rad/s)."""
         self._localized = pose is not None
+        self._lost_contact = False
         if pose is not None:
             self._pose = pose
         cmds: list = []
         g = self._active
         if g is not None and self._heartbeat_lost(now) and self._stops_on_heartbeat_loss():
+            self._lost_contact = True  # order_fsm가 Retreat의 FAILED 대신 HEARTBEAT_LOST로 끝낸다
             cmds += self._end_active(HEARTBEAT_LOST, stop=True)
             g = None
         if g is not None and pose is None:
