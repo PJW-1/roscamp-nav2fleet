@@ -31,9 +31,10 @@
 | base 끝이 `lookahead_s` 안으로 다가옵니다 | 그다음 안전 지점까지의 구역을 한꺼번에 잡을 수 있으면 update로 base를 늘립니다. 새로 허락한 조각만 보냅니다 | `ORDER_UPDATED` |
 | 구역을 못 잡았습니다 | 아무것도 보내지 않습니다. 로봇은 base 끝에서 서서 기다리고, 구역이 비면 그때 update를 보냅니다 | `BASE_END_WAIT`, `ZONE_WAIT` |
 | 가려는 도크가 차 있습니다 | 기다리는 자리(O_Q, W_Q)까지를 base로, 도크로 들어가는 조각을 horizon으로 보냅니다. 차례가 오고 도크가 비면 update를 보냅니다 | `DOCK_QUEUED` |
-| base 뒤의 길이 달라졌습니다 | horizon만 바꾸는 update를 보냅니다(base는 비움). 5 s에 한 번을 넘지 않습니다 | `HORIZON_CHANGED` |
+| base 뒤의 길이 달라졌습니다 | base 끝이 `lookahead_s` 안으로 다가왔거나 로봇이 base 끝에 서 있을 때 그 뒤의 길을 다시 구합니다. 달라졌으면 horizon만 바꾸는 update를 보냅니다(base는 비움). 5 s에 한 번을 넘지 않습니다 | `HORIZON_CHANGED` |
 | base를 줄여야 합니다(목적이 바뀜) | base는 줄이지 않습니다. 로봇이 넓은 구역에 나오면 order를 취소하고 새 order를 보냅니다. 갈림목이나 급행 안에서는 취소하지 않습니다 | `ORDER_SENT`(새 order) |
-| 조각 하나가 끝났습니다 | 지나온 구역을 돌려받습니다 | `SEGMENT_DONE` |
+| 조각 하나가 끝났습니다 | 진행을 기록합니다. 지나온 구역은 조각이 끝날 때가 아니라, 위치 보고가 그 구역을 벗어난 것이 `release_confirm_samples`번 이어질 때 돌려받습니다(order 모델을 꺼도 같습니다) | `SEGMENT_DONE` |
+| 로봇이 base 밖의 조각을 끝냈다고 보고했습니다 | 믿지 않습니다. 진행을 바꾸지 않고 기록만 합니다(같은 order에 한 번) | `SEGMENT_BEYOND_BASE` |
 | 로봇이 horizon을 미리 보고 경고했습니다 | 기록만 합니다(같은 order에 한 번) | `HORIZON_INVALID` |
 | 통신이 끊겼습니다 | base의 구역을 "base 끝 예상 도착 + 3 s"까지 잡아 둡니다. 그때까지는 운영자의 치움 확인도 받지 않습니다 | `COMM_LOST` |
 

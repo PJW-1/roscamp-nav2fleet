@@ -117,6 +117,50 @@ def test_with_the_dock_busy_the_base_ends_at_the_wait_spot_and_the_rest_is_horiz
     assert not world.problems and not [e for e in world.events if e.level == "ERROR"]
 
 
+def test_a_report_of_a_segment_beyond_the_base_is_not_believed():
+    world, _ = queued_for_outbound()
+    world.step()
+    goal_id = world.view("pinky1")["goal_id"]
+    world.traffic.on_move_feedback("pinky1", goal_id, 5, False)  # 4번과 5번은 horizon이다
+    view = world.view("pinky1")
+    assert view["node"] != "O" and view["horizon"] == ["N_E", "X_E", "O"]
+    assert view["base"] == ["X_W", "N_W", "O_Q"], "nothing of the base counts as done either"
+    world.step()
+    codes = world.codes("pinky1")
+    assert codes.count("SEGMENT_BEYOND_BASE") == 1 and "SEGMENT_DONE" not in codes
+    world.traffic.on_move_feedback("pinky1", goal_id, 5, False)
+    world.step()
+    assert world.codes("pinky1").count("SEGMENT_BEYOND_BASE") == 1, "once for an order"
+
+
+def test_the_old_goal_cannot_report_what_only_the_unanswered_update_allows(monkeypatch):
+    monkeypatch.setattr(move_orders, "UPDATE_ANSWER_S", 60.0)
+    world, _ = waiting_at_the_queue_spot()
+    old = world.view("pinky1")["goal_id"]
+    world.hold_answers = True
+    world.traffic.on_release("pinky2")
+    assert world.run_until(lambda: len(orders(world, "pinky1")) == 2, 30.0)
+    world.traffic.on_move_feedback("pinky1", old, 5, True)  # 4번과 5번은 update의 base다
+    world.step()
+    assert world.view("pinky1")["node"] == "O_Q"
+    assert "SEGMENT_BEYOND_BASE" in world.codes("pinky1")
+
+
+def test_after_a_refused_update_the_old_goal_is_held_to_its_own_base():
+    world, _ = queued_for_outbound()
+    assert world.run_until(lambda: world.view("pinky1")["target"] == "O_Q"
+                           and world.view("pinky1")["node"] == "N_W", 60.0)
+    old = world.view("pinky1")["goal_id"]
+    world.traffic.order_fault = "stitch"
+    world.traffic.on_release("pinky2")  # 달리는 중에 다음 구간이 열려 update가 나가고, 거절된다
+    assert world.run_until(lambda: "ORDER_UPDATE_REJECTED" in world.codes("pinky1"), 60.0)
+    assert world.view("pinky1")["goal_id"] == old, "the robot goes on under the old goal"
+    world.traffic.on_move_feedback("pinky1", old, 5, False)  # 4번과 5번은 붙지 못한 update의 것이다
+    world.step()
+    assert world.view("pinky1")["node"] != "O"
+    assert "SEGMENT_BEYOND_BASE" in world.codes("pinky1")
+
+
 def test_the_base_is_always_inside_the_zones_the_robot_holds():
     world, call = queued_for_outbound()
     seen = 0
@@ -240,16 +284,19 @@ def test_an_update_goal_that_failed_on_the_way_is_followed_by_a_new_order(fault,
     assert world.result_of(call).success and not world.problems
 
 
-def test_the_old_goal_failing_before_the_update_is_answered_counts_as_its_failure():
+def test_the_old_goal_failing_before_the_update_is_answered_is_taken_as_that_goals_result():
     world, call = waiting_at_the_queue_spot()
     first = orders(world, "pinky1")[-1]
     world.hold_answers = True
     world.traffic.on_release("pinky2")
     assert world.run_until(lambda: len(orders(world, "pinky1")) == 2, 30.0)
     world.traffic.on_move_result("pinky1", first.goal_id, False, "NAV_ABORTED", 3)
+    assert world.view("pinky1")["goal_id"] is None, "the running order ended, the fleet saw it"
     world.step()
-    assert "GOAL_RETRY" in world.codes("pinky1"), "the running order failed, the fleet saw it"
-    assert world.view("pinky1")["goal_id"] is None
+    codes = world.codes("pinky1")
+    # 로봇은 그 goal의 끝(기다리는 자리)에 서 있다. 실패한 시도가 아니라 닿은 것으로 본다
+    assert "GOAL_ENDED_AT_TARGET" in codes and "GOAL_RETRY" not in codes
+    assert world.view("pinky1")["node"] == "O_Q"
 
 
 # ---- 통신이 끊긴 로봇 ----

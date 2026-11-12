@@ -24,8 +24,7 @@ LANE_CONTROLLER_API = {
 }
 ALSO_CALLED = {"zones", "confirm_clear", "clear_reason", "reinstate", "reinstate_refusal"}
 OPTIONAL = {"station_left"}  # FleetManager가 있을 때만 채운다(hasattr)
-KEPT = ("mission", "selector", "deadlock", "zones", "recovery", "isolation", "reinstate",
-        "idle_watch", "modes", "api")
+KEPT = ("mission", "selector", "deadlock", "modes", "api", "site", "zone.controller")
 
 
 def declared() -> set[str]:

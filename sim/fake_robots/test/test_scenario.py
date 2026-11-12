@@ -2,7 +2,6 @@
 from pathlib import Path
 
 import pytest
-from conftest import GRID_MAP
 from fake_robots.common import load_fleet_params, split_fake_arms
 from fake_robots.scenario import (
     OBJECT_RADIUS_M,
@@ -12,17 +11,16 @@ from fake_robots.scenario import (
     parse_scenario,
     scenario_map_file,
 )
-from fleet_core.traffic.lane_map import load_lane_map
+from fleet_core.fleet_map import load_fleet_map
 
 SCENARIOS = Path(__file__).parents[1] / "scenarios"
 SIX = {"basic_orders", "order_burst", "shared_lane_failure", "stock_shortage", "stuck_robot",
-       "operator_recovery", "blocked_lane", "feature_basic_orders", "feature_blocked_lane",
-       "auto_isolation", "feature_auto_isolation", "off_lane", "reinstate", "warehouse_rush"}
+       "operator_recovery", "blocked_lane", "auto_isolation", "reinstate"}
 
 
 @pytest.fixture(scope="module")
 def site():
-    return load_lane_map(GRID_MAP)
+    return load_fleet_map("d2")
 
 
 def minimal(**over):
@@ -32,7 +30,7 @@ def minimal(**over):
         "timeout_s": 100,
         "stock": {"arm1": {"A": 2}, "arm2": {"C": 1}},
         "orders": [{"at_s": 0, "id": "O-1", "items": {"A": 1}}],
-        "robots": {"pinky1": {"start": "P-6", "speed_mps": 0.2, "pose_noise_m": 0.0}},
+        "robots": {"pinky1": {"start": "P-1", "speed_mps": 0.2, "pose_noise_m": 0.0}},
     }
     data.update(over)
     return data
@@ -49,14 +47,14 @@ def test_defaults_are_filled(site):
 
 
 def test_a_robot_can_report_late_and_stop_off_target(site):
-    robots = {"pinky1": {"start": "P-6", "report_delay_s": 0.5, "stop_error_m": 0.02}}
+    robots = {"pinky1": {"start": "P-1", "report_delay_s": 0.5, "stop_error_m": 0.02}}
     cfg = parse_scenario(minimal(robots=robots), site).robots["pinky1"]
     assert (cfg.report_delay_s, cfg.stop_error_m) == (0.5, 0.02)
 
 
 @pytest.mark.parametrize("key", ["report_delay_s", "stop_error_m"])
 def test_a_negative_delay_or_stop_error_is_refused(site, key):
-    robots = {"pinky1": {"start": "P-6", key: -0.1}}
+    robots = {"pinky1": {"start": "P-1", key: -0.1}}
     with pytest.raises(ScenarioError, match=key):
         parse_scenario(minimal(robots=robots), site)
 
@@ -80,18 +78,18 @@ def test_orders_are_in_registration_order(site):
     assert sc.order_ids == ["first", "second", "late"]
 
 
-def test_start_zone_name_and_cell_both_resolve(site):
-    by_zone = parse_scenario(minimal(), site).robots["pinky1"].start
-    assert by_zone == (3, 4)
+def test_start_is_a_node_name(site):
+    assert parse_scenario(minimal(), site).robots["pinky1"].start == "P-1"
     data = minimal()
-    data["robots"]["pinky1"]["start"] = [3, 4]
-    assert parse_scenario(data, site).robots["pinky1"].start == (3, 4)
+    data["robots"]["pinky1"]["start"] = "W_Q"
+    assert parse_scenario(data, site).robots["pinky1"].start == "W_Q"
 
 
-def test_multi_cell_zone_is_not_a_valid_start(site):
+@pytest.mark.parametrize("start", ["HALL", "X_W", "N_E", [3, 4], "NOPE"])
+def test_a_zone_a_node_to_pass_through_or_a_cell_is_not_a_valid_start(site, start):
     data = minimal()
-    data["robots"]["pinky1"]["start"] = "Z-R1"
-    with pytest.raises(ScenarioError):
+    data["robots"]["pinky1"]["start"] = start
+    with pytest.raises(ScenarioError, match="start"):
         parse_scenario(data, site)
 
 
@@ -121,7 +119,7 @@ def test_multi_cell_zone_is_not_a_valid_start(site):
      "expect": {"orders_shipped_min": 1}},
     {"faults": [{"at_s": 5, "robot": "pinky1", "type": "obstacle_behind", "distance_m": 0.2}],
      "expect": {"orders_shipped_min": 1}},
-    {"robots": {"pinky1": {"start": "P-6", "localizing_s": -1.0}}},
+    {"robots": {"pinky1": {"start": "P-1", "localizing_s": -1.0}}},
     {"faults": [{"at_s": 5, "robot": "pinky1", "type": "drift", "offset_m": 0.3}],
      "expect": {"orders_shipped_min": 1}},
     {"faults": [{"at_s": 5, "robot": "pinky1", "type": "drift", "duration_s": 5}],
@@ -162,8 +160,8 @@ def test_fault_fields_for_arms(site):
 
 def test_gone_robots_are_the_stuck_and_the_removed(site):
     sc = parse_scenario(minimal(
-        robots={r: {"start": s} for r, s in (("pinky1", "P-6"), ("pinky2", "P-5"),
-                                             ("pinky3", "P-4"))},
+        robots={r: {"start": s} for r, s in (("pinky1", "P-1"), ("pinky2", "P-2"),
+                                             ("pinky3", "P-3"))},
         expect={"orders_shipped_min": 1},
         faults=[{"at_s": 1, "robot": "pinky1", "type": "stuck"},
                 {"at_s": 1, "robot": "pinky2", "type": "operator_remove"},
@@ -172,17 +170,17 @@ def test_gone_robots_are_the_stuck_and_the_removed(site):
 
 
 def _with_reinstate(*extra, basket=None):
-    back = {"at_s": 20, "robot": "pinky1", "type": "operator_reinstate", "start": "P-6"}
+    back = {"at_s": 20, "robot": "pinky1", "type": "operator_reinstate", "start": "P-1"}
     if basket is not None:
         back["basket"] = basket
     return minimal(expect={"orders_shipped_min": 1}, faults=[
         {"at_s": 10, "robot": "pinky1", "type": "operator_remove"}, back, *extra])
 
 
-def test_operator_reinstate_puts_a_removed_robot_back_on_a_waypoint(site):
+def test_operator_reinstate_puts_a_removed_robot_back_on_a_node(site):
     sc = parse_scenario(_with_reinstate(), site)
     back = sc.faults[1]
-    assert back.type == "operator_reinstate" and back.start == (3, 4)
+    assert back.type == "operator_reinstate" and back.start == "P-1"
     assert back.basket == "EMPTY"
     assert parse_scenario(_with_reinstate(basket="NONE"), site).faults[1].basket == "NONE"
     assert sc.gone_robots == set(), "a robot put back is not gone"
@@ -237,9 +235,9 @@ def shipped():
 
 
 def site_of(path, default):
-    """시나리오가 `map`으로 고른 지도, 없으면 기본 지도."""
+    """시나리오가 `map`으로 고른 배치, 없으면 기본 배치."""
     chosen = scenario_map_file(path)
-    return load_lane_map(chosen) if chosen else default
+    return load_fleet_map(chosen) if chosen else default
 
 
 def test_exactly_the_six_scenarios_are_shipped(site):
@@ -248,19 +246,19 @@ def test_exactly_the_six_scenarios_are_shipped(site):
         load_scenario(f, site_of(f, site))
 
 
-def test_a_scenario_can_choose_a_map_from_the_maps_folder():
+@pytest.mark.parametrize("layout", ["d2", "d", "c"])
+def test_a_scenario_can_choose_a_layout(tmp_path, layout):
     assert scenario_map_file(SCENARIOS / "basic_orders.yaml") == ""
-    chosen = Path(scenario_map_file(SCENARIOS / "feature_basic_orders.yaml"))
-    assert chosen == (SCENARIOS.parent / "maps" / "feature_map.yaml").resolve()
-    assert load_scenario(SCENARIOS / "feature_blocked_lane.yaml").robots["pinky1"].start
+    path = tmp_path / "x.yaml"
+    path.write_text(f"map: {layout}\n", encoding="utf-8")
+    assert scenario_map_file(path) == layout
+    assert load_fleet_map(layout).parking
 
 
-def test_only_the_drift_scenario_leaves_path_not_connected_unchecked(site):
-    """지시서 7.5: 정상이면 PATH_NOT_CONNECTED는 0이다. drift가 막 시작된 순간 옛 보고로 만든
-    path는 로봇이 거절할 수 있다(로봇은 밀린 자리를 제 자리로 안다). 그 시나리오만 세지 않는다."""
+def test_every_scenario_checks_path_not_connected(site):
+    """지시서 7.5: 정상이면 PATH_NOT_CONNECTED는 0이다."""
     expected = {name: load_scenario(f, site_of(f, site)).expect.path_not_connected
                 for name, f in shipped().items()}
-    assert expected.pop("off_lane") is None
     assert set(expected.values()) == {0}
 
 
@@ -269,11 +267,6 @@ def test_only_the_fault_scenarios_leave_robot_idle_unchecked(site):
     for name, f in shipped().items():
         sc = load_scenario(f, site_of(f, site))
         assert sc.expect.robot_idle == (None if sc.faults else 0), name
-
-
-def test_the_feature_block_scenario_expects_a_detour():
-    sc = load_scenario(SCENARIOS / "feature_blocked_lane.yaml")
-    assert "DETOUR" in sc.expect.events_include
 
 
 def test_an_unknown_map_name_is_refused(tmp_path):
@@ -315,9 +308,7 @@ def test_shared_lane_failure_has_both_faults(site):
     assert {f.type for f in sc.faults} == {"comm_loss", "nav_abort"}
 
 
-def test_nav_abort_target_must_be_a_waypoint_and_only_for_nav_abort():
-    site = load_lane_map(SCENARIOS.parent / "maps" / "feature_map.yaml")
-
+def test_nav_abort_target_must_be_a_node_and_only_for_nav_abort(site):
     def with_fault(fault):
         robots = {"pinky1": {"start": "P-3", "speed_mps": 0.2, "pose_noise_m": 0.0}}
         return minimal(robots=robots, faults=[fault], expect={"orders_shipped": 1})
@@ -364,7 +355,7 @@ def test_stock_shortage_derivation_matches_the_expected_counts(site):
 def test_stuck_scenario_expects_warnings_and_unfinished_orders(site):
     sc = load_scenario(SCENARIOS / "stuck_robot.yaml", site)
     assert sc.expect.all_orders_finished is False and sc.expect.orders_shipped == 2
-    assert {"COMM_LOST", "ZONE_WAIT_LONG"} <= set(sc.expect.events_include)
+    assert {"COMM_LOST", "ZONE_WAIT"} <= set(sc.expect.events_include)
 
 
 def test_operator_recovery_fails_three_times_then_clears(site):
@@ -389,18 +380,6 @@ def test_auto_isolation_ships_before_the_operator_and_requeues_once(site):
     assert sc.expect.event_counts["ORDER_REQUEUED"] == 1, "the clear does not requeue again"
     assert sc.expect.event_counts["ROBOT_ISOLATED"] == 1
     assert sc.expect.orders_shipped == len(sc.orders)
-
-
-def test_feature_auto_isolation_stops_mid_lane_and_ships_without_the_operator():
-    sc = load_scenario(SCENARIOS / "feature_auto_isolation.yaml")
-    abort = next(f for f in sc.faults if f.type == "nav_abort")
-    remove = next(f for f in sc.faults if f.type == "operator_remove")
-    assert abort.robot == remove.robot and abort.count == 3 and remove.at_s > abort.at_s
-    assert abort.target == "F2", "the abort hits the F1->F2 lane, not a time"
-    assert sc.expect.shipped_before_operator_min >= 4 and sc.expect.orders_shipped == len(sc.orders)
-    assert "DETOUR" in sc.expect.events_include
-    assert sc.expect.detours_around_isolated_min >= 1
-    assert sc.expect.event_counts["ROBOT_ISOLATED"] == 1
 
 
 def test_params_file_gives_the_basket_capacity():
@@ -440,7 +419,7 @@ def test_only_the_stuck_scenario_may_run_out_of_time(site):
 
 
 def test_order_results_must_name_a_scenario_order_and_a_known_result(site):
-    data = {"robots": {"pinky1": {"start": "P-6"}},
+    data = {"robots": {"pinky1": {"start": "P-1"}},
             "orders": [{"id": "O-1", "items": {"A": 1}}]}
     for bad in ({"O-9": "SHIPPED"}, {"O-1": "LOST"}):
         with pytest.raises(ScenarioError):
@@ -450,12 +429,12 @@ def test_order_results_must_name_a_scenario_order_and_a_known_result(site):
 def test_a_slow_cancel_is_an_arm_option(site):
     sc = load_scenario(SCENARIOS / "operator_recovery.yaml", site)
     assert sc.arm.cancel_seconds > 0
-    assert parse_scenario({"robots": {"pinky1": {"start": "P-6"}}}, site).arm.cancel_seconds == 0.0
+    assert parse_scenario({"robots": {"pinky1": {"start": "P-1"}}}, site).arm.cancel_seconds == 0.0
 
 
 def test_blocked_and_localizing_are_read(site):
     sc = parse_scenario(minimal(
-        robots={"pinky1": {"start": "P-6", "localizing_s": 2.0}},
+        robots={"pinky1": {"start": "P-1", "localizing_s": 2.0}},
         expect={"orders_shipped_min": 1},
         faults=[{"at_s": 8, "robot": "pinky1", "type": "blocked", "duration_s": 15}]), site)
     (block,) = sc.faults
@@ -474,7 +453,7 @@ def test_an_obstacle_behind_is_read(site):
     assert not sc.gone_robots
 
 
-def test_blocked_lane_blocks_one_robot_long_enough_to_mark_the_lane(site):
+def test_blocked_lane_blocks_one_robot_long_enough_to_mark_the_way(site):
     sc = load_scenario(SCENARIOS / "blocked_lane.yaml", site)
     (block,) = sc.faults
     params = load_fleet_params()
@@ -482,8 +461,7 @@ def test_blocked_lane_blocks_one_robot_long_enough_to_mark_the_lane(site):
     assert block.duration_s > params["blocked_mark_s"] + 2.0
     assert block.duration_s < params["blocked_timeout_s"]
     assert any(r.localizing_s > 0 for r in sc.robots.values())
-    assert sc.expect.event_counts["LANE_BLOCKED"] == 1
-    assert sc.expect.event_counts["LANE_CLEARED"] == 1
+    assert "ZONE_MARKED_BLOCKED" in sc.expect.events_include
 
 
 def test_drift_fields_are_read(site):
@@ -495,23 +473,11 @@ def test_drift_fields_are_read(site):
     assert not sc.gone_robots, "a drifting robot comes back"
 
 
-def test_off_lane_drifts_one_robot_and_expects_it_back_with_nothing_released(site):
-    sc = load_scenario(SCENARIOS / "off_lane.yaml", site)
-    (drift,) = sc.faults
-    assert drift.type == "drift"
-    assert abs(drift.offset_m) > load_fleet_params()["lane_error_warn_m"]
-    assert drift.duration_s < load_fleet_params()["off_lane_timeout_s"], "it must come back"
-    ex = sc.expect
-    assert ex.released_while_off_lane == 0 and ex.all_orders_finished
-    assert ex.event_counts["LANE_ERROR"] == 1 and ex.event_counts["BACK_ON_LANE"] == 1
-    assert ex.event_counts["OFF_LANE"] == 0
-
-
 # -- low_battery와 random ------------------------------------------------------------------
 
 FIVE_ORDERS = [{"at_s": 0, "id": f"O-{i}", "items": {"A": 1}} for i in range(1, 6)]
-THREE_ROBOTS = {"pinky1": {"start": "P-6"}, "pinky2": {"start": "P-5"},
-                "pinky3": {"start": "P-4"}}
+THREE_ROBOTS = {"pinky1": {"start": "P-1"}, "pinky2": {"start": "P-2"},
+                "pinky3": {"start": "P-3"}}
 SOME_SHIPPED = {"orders_shipped_min": 1}
 
 
@@ -567,7 +533,7 @@ def test_expand_random_is_reproducible_and_seeded():
 def test_expand_random_draws_orders_first_then_robots_by_name():
     import random as stdlib_random
     data = random_data()
-    data["robots"] = {"pinky3": {"start": "P-4"}, "pinky1": {"start": "P-6"}}
+    data["robots"] = {"pinky3": {"start": "P-3"}, "pinky1": {"start": "P-1"}}
     rng = stdlib_random.Random(9)
     times, t = [], 0.0
     for _ in FIVE_ORDERS:

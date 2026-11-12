@@ -11,6 +11,8 @@ from .robots import Robot
 class Health:
     def _check_startup(self, now: float) -> bool:
         """모든 로봇이 지도에 올랐는가. 오래 안 오르면 한 번 알린다."""
+        if self._started is None:
+            self._started = now
         missing = [m.name for m in self._robots.values()
                    if not m.placed and m.fault != OUT_OF_SERVICE and m.name not in self._joining]
         if (missing and not self._startup_warned

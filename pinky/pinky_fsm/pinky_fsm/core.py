@@ -20,21 +20,21 @@
 from __future__ import annotations
 
 import math
-from collections.abc import Callable, Hashable, Sequence
-from dataclasses import dataclass, field
+from collections.abc import Hashable, Sequence
+from dataclasses import dataclass
 
-from pinky_fsm.backup import (
-    FAILED,
-    OBSTACLE_BEHIND,
-    BackUp,
-    CancelBackUp,
-    backup_distance,
-    keep_lateral,
-    reason_of,
+from pinky_fsm.backup import FAILED, CancelBackUp, reason_of
+from pinky_fsm.commands import (  # noqa: F401 - 명령 이름은 core에서도 내보낸다
+    CancelNav,
+    ClearCostmap,
+    LimitSpeed,
+    SendPath,
 )
-from pinky_fsm.geometry import Point, Polyline, Pose, poses_along, poses_backing
+from pinky_fsm.geometry import Point, Polyline, Pose, poses_along
 from pinky_fsm.nav_goal import MODE_NAV_GOAL, MODES, NavGoal, NavGoals
 from pinky_fsm.nav_moves import NavGoalMoves
+from pinky_fsm.records import _Dock, _Move, _Recovery
+from pinky_fsm.recovery import Obstacle, SelfRecovery
 from pinky_fsm.results import (  # noqa: F401 - 상태와 결과 이름은 core에서도 내보낸다
     BLOCKED,
     CANCELED,
@@ -51,10 +51,7 @@ from pinky_fsm.results import (  # noqa: F401 - 상태와 결과 이름은 core�
     TIMEOUT,
     Finish,
 )
-
-RETREAT_REASONS = (OBSTACLE_BEHIND, TIMEOUT, CANCELED, FAILED)  # 계약 0.9 Retreat.action
-
-Obstacle = Callable[[list[Point]], bool]
+from pinky_fsm.retreat import RETREAT_REASONS, RetreatMoves, _Retreat
 
 
 @dataclass(frozen=True)
@@ -116,85 +113,8 @@ class FsmParams:
     nav_progress_m: float = 0.05
 
 
-@dataclass(frozen=True)
-class SendPath:
-    """Nav2 FollowPath에 이 경로를 보낸다. 달리는 목표는 취소하지 않는다(안내 2.1)."""
-    seq: int
-    poses: list[Pose] = field(compare=False)
-    # False when the path ends at a lock boundary, not at the mission end (MoveTo.final_goal).
-    # The node may then use a controller without the approach slow-down
-    final_goal: bool = True
-    # 참이면 뒤로 따른다(Retreat.path). 노드는 후진 controller(reverse_controller_id)를 쓴다
-    reverse: bool = False
 
-
-@dataclass(frozen=True)
-class CancelNav:
-    """Nav2 FollowPath 목표를 취소한다. controller가 속도 0을 내고 선다."""
-
-
-@dataclass(frozen=True)
-class LimitSpeed:
-    """Nav2 controller의 속도 제한(m/s). 0이면 제한이 없다(nav2_msgs/SpeedLimit)."""
-    mps: float
-
-
-@dataclass(frozen=True)
-class ClearCostmap:
-    """local costmap을 비운다. 다음 라이다 스캔이 지금 있는 물체를 다시 그린다."""
-
-
-@dataclass
-class _Move:
-    goal_id: Hashable
-    target_id: str
-    target: Pose
-    route: Polyline
-    s: float = 0.0  # 로봇이 선 위에서 간 거리
-    final_goal: bool = True  # 끝이 임무의 마지막 지점인가(계약 0.8-draft 제안)
-    seq: int = 0  # 마지막으로 보낸 FollowPath 순번
-    nav_running: bool = False
-    last_send: float = 0.0
-    far_successes: int = 0
-    waiting_since: float | None = None  # when Nav2 stopped for an obstacle; resend when clear
-    blocked_since: float | None = None  # when this goal became blocked (block_timeout_s)
-    # 앞 NavigateToPose가 끝나기를 기다린 때부터(아직 FollowPath를 보내지 않았다). None이면 간다
-    handover_since: float | None = None
-
-
-@dataclass
-class _Recovery:
-    """자가 복구 한 번. 시도마다 막힌 곳(stuck_s, 선 위 거리)을 새로 잡는다."""
-    stuck_s: float
-    backup_seq: int | None = None  # 물러나는 중이면 그 BackUp 순번
-    backup_since: float = 0.0
-    follow_since: float = 0.0  # 남은 선을 다시 보낸 시각
-
-
-@dataclass
-class _Dock:
-    goal_id: Hashable
-    dock_id: str
-
-
-@dataclass
-class _Retreat:
-    """관제가 시킨 물러나기(버전 2 1-A). BackUp 하나를 내고 그 결과로 끝난다. route가 있으면
-    BackUp 대신 그 경로를 후진으로 따르는 FollowPath 하나다(seq는 FollowPath 순번).
-
-    달리던 이동이나 결과가 안 온 BackUp이 있었으면 로봇이 설 때까지(stopped_speed) BackUp을
-    미룬다(seq 0).
-    """
-    goal_id: Hashable
-    seq: int
-    since: float
-    allowance_s: float
-    distance_m: float = 0.0
-    speed_mps: float = 0.0
-    route: Polyline | None = None
-
-
-class PinkyFsm(NavGoalMoves):
+class PinkyFsm(NavGoalMoves, RetreatMoves, SelfRecovery):
     def __init__(self, params: FsmParams):
         self.p = params
         self._active: _Move | _Dock | _Retreat | NavGoal | None = None
@@ -309,102 +229,6 @@ class PinkyFsm(NavGoalMoves):
         self._alive = max(self._alive, now)
         cmds = self._end_active(CANCELED, stop=True)
         return cmds + [Finish(goal_id, False, DOCK_UNAVAILABLE)]
-
-    def retreat(self, goal_id: Hashable, now: float, distance_m: float,
-                speed_mps: float, path: Sequence[Sequence[float]] = (),
-                pose: Sequence[float] | None = None) -> list:
-        """뒤로 곧게 distance_m. path(점 (x, y, ...))가 있으면 그 경로를 후진으로 따른다.
-        달리던 이동과 자가 복구 후진을 먼저 멈춘다."""
-        self._alive = max(self._alive, now)
-        # 결과가 안 온 BackUp도 기다린다. 같은 behavior_server라 바로 보내면 앞 후진이 다 서기
-        # 전에 새 후진이 이어진다(V2 교차 검수 1)
-        was_driving = self._driving(now)
-        cmds = self._end_active(CANCELED, stop=True)
-        route = None
-        if path:
-            route = Polyline([(float(q[0]), float(q[1])) for q in path])
-            # MoveTo의 연결 확인(안내 2.2)과 같다: 로봇에서 시작하지 않는 경로는 따르지 않는다
-            if (pose is None or route.length <= 0.0
-                    or route.project(pose[:2])[1] > self.p.connect_tolerance_m
-                    or self._too_short(route, pose)):
-                return cmds + [Finish(goal_id, False, FAILED)]
-        if not (distance_m > 0.0 and speed_mps > 0.0):
-            return cmds + [Finish(goal_id, False, FAILED)]
-        self._stopped_since = None
-        if was_driving:
-            # FollowPath나 BackUp이 끝나고(결과) 바퀴가 설 때까지 기다린다
-            # (둘 다 cmd_vel, 1-A Codex 1)
-            self._active = _Retreat(goal_id, 0, now, self.p.retreat_stop_wait_s,
-                                    float(distance_m), float(speed_mps), route)
-            return cmds
-        self._active = _Retreat(goal_id, 0, now, 0.0, float(distance_m), float(speed_mps), route)
-        return cmds + self._start_retreat(self._active, now, pose)
-
-    def _start_retreat(self, g: _Retreat, now: float, pose: Sequence[float] | None) -> list:
-        if g.route is not None:
-            return self._start_reverse_path(g, now, pose)
-        self._bseq += 1
-        allowance = g.distance_m / g.speed_mps * 2.0 + 2.0  # 가속·감속과 멈칫거림까지 넉넉히
-        g.seq, g.since, g.allowance_s = self._bseq, now, allowance
-        self._backup_running = True
-        self._backup_unanswered[g.seq] = now + allowance + self.p.backup_result_grace_s
-        return [BackUp(g.seq, g.distance_m, g.speed_mps, allowance)]
-
-    def _start_reverse_path(self, g: _Retreat, now: float, pose: Sequence[float] | None) -> list:
-        """로봇에서 가장 가까운 점부터 끝까지 후진 FollowPath 하나를 보낸다."""
-        if pose is not None and self._too_short(g.route, pose):
-            return self._end_active(FAILED, stop=True)  # 기다리는 동안 끝에 닿았다
-        s = g.route.project(pose[:2])[0] if pose is not None else 0.0
-        rest = g.route.rest(s)
-        self._seq += 1
-        speed = min(g.speed_mps, self.p.reverse_speed_mps)
-        allowance = Polyline(rest).length / speed * 2.0 + 2.0  # BackUp과 같은 여유
-        g.seq, g.since, g.allowance_s = self._seq, now, allowance
-        self._nav_running = True
-        self._nav_live[g.seq] = math.inf
-        poses = poses_backing(rest, self.p.path_step_m)
-        # 남은 제한(잠금 경계 이동)을 먼저 바꾼다. RPP는 제한을 그대로 속도로 쓴다
-        return self._limit_speed() + [SendPath(g.seq, poses, final_goal=True, reverse=True)]
-
-    def _too_short(self, route: Polyline, pose: Sequence[float]) -> bool:
-        """가장 가까운 점부터 남은 길이 backup_min_m보다 짧다. 점 하나짜리 FollowPath를 보내지
-        않고 FAILED로 끝낸다(Codex 리뷰 3: 끝 근처의 로봇도 연결 허용 거리는 지난다)."""
-        return route.length - route.project(pose[:2])[0] < self.p.backup_min_m
-
-    def nav_cancel_accepted(self, seq: int, now: float) -> list:
-        """FollowPath 취소 요청이 받아들여졌다. 그때부터 nav_result_grace_s 안에 결과가 안 와도
-        그 goal은 잊는다(Codex 재검토 1). 취소가 거절되거나 답이 없으면 계속 기다리고, 그동안
-        온 Retreat는 retreat_stop_wait_s 뒤 TIMEOUT이다. 서 있는 것만으로는 끝났다고 보지 않는다."""
-        if self._nav_live.get(seq) == math.inf:
-            self._nav_live[seq] = now + self.p.nav_result_grace_s
-        return []
-
-    def nav_lost(self, seq: int, now: float, pose: Sequence[float] | None,
-                 obstacle: Obstacle) -> list:
-        """FollowPath 결과 future가 오류로 끝났다. goal은 아직 돌 수 있다(Codex 재검토 2).
-        실행 중인 목표에는 aborted처럼 다루되, 그 FollowPath는 노드가 보낸 취소가 받아들여질
-        때까지(nav_cancel_accepted) 잊지 않는다."""
-        until = self._nav_live.get(seq)
-        cmds = self.nav_result(seq, "aborted", now, pose, obstacle)
-        if until is not None:
-            self._nav_live[seq] = until
-        return cmds
-
-    def _nav_busy(self, now: float) -> bool:
-        """결과가 안 온 FollowPath가 아직 돌 수 있다. 취소가 받아들여진 뒤 여유가 지난 것은
-        잊는다."""
-        for seq, until in list(self._nav_live.items()):
-            if now >= until:
-                del self._nav_live[seq]
-        return bool(self._nav_live)
-
-    def _backup_busy(self, now: float) -> bool:
-        """결과가 안 온 BackUp이 아직 움직이고 있을 수 있다. time_allowance(+ 여유)가 지난 것은
-        nav2가 이미 세웠으므로 잊는다. 결과를 잃어도 다음 Retreat가 늘 TIMEOUT으로 끝나지 않는다."""
-        for seq, until in list(self._backup_unanswered.items()):
-            if now >= until:
-                del self._backup_unanswered[seq]
-        return bool(self._backup_unanswered)
 
     def cancel(self, goal_id: Hashable, now: float) -> list:
         if not self.is_running(goal_id):
@@ -578,81 +402,6 @@ class PinkyFsm(NavGoalMoves):
         return []
 
     # -- 자가 복구 -------------------------------------------------------------------------
-
-    def _can_recover(self, pose) -> bool:
-        return pose is not None and self._attempts < self.p.recovery_attempts
-
-    def _start_attempt(self, g: _Move, now: float, pose: Sequence[float]) -> list:
-        """FollowPath를 멈추고(BackUp과 둘 다 cmd_vel을 낸다) 물러난다. 물러날 자리가 없으면
-        바로 지도를 비우고 다시 보낸다."""
-        self._attempts += 1
-        if self._attempt_origin is None:
-            self._attempt_origin = (float(pose[0]), float(pose[1]))
-        g.s = self._track(g, pose)
-        r = self._recovery = _Recovery(stuck_s=g.s)
-        self._blocked, self._clear_since = False, None
-        g.waiting_since = g.blocked_since = None
-        cmds: list = []
-        if self._nav_running:
-            self._nav_running = g.nav_running = False
-            cmds.append(CancelNav())
-        d = self._backup_distance(g, pose)
-        if d < self.p.backup_min_m:
-            return cmds + self._follow_again(g, r, now, pose)
-        self._bseq += 1
-        r.backup_seq, r.backup_since = self._bseq, now
-        self._backup_running = True
-        self._backup_unanswered[self._bseq] = (now + self.p.backup_time_allowance_s
-                                               + self.p.backup_result_grace_s)
-        return cmds + [BackUp(self._bseq, d, self.p.backup_speed_mps,
-                              self.p.backup_time_allowance_s)]
-
-    def _backup_distance(self, g: _Move, pose: Sequence[float]) -> float:
-        """마지막으로 지난 경로 꼭짓점(경로 시작 포함)에서 온 거리로 정하고(backup_distance),
-        레인 옆 거리가 커지지 않게 줄인다."""
-        d = backup_distance(g.s - g.route.vertex_before(g.s), self.p.backup_max_m,
-                            self.p.release_distance_m + self.p.backup_margin_m)
-        qx, qy = g.route.point_at(g.s)
-        phi = g.route.heading_at(g.s)
-        lateral = -(pose[0] - qx) * math.sin(phi) + (pose[1] - qy) * math.cos(phi)
-        err = math.atan2(math.sin(pose[2] - phi), math.cos(pose[2] - phi))
-        return keep_lateral(d, lateral, err, self.p.backup_lateral_limit_m)
-
-    def _follow_again(self, g: _Move, r: _Recovery, now: float, pose) -> list:
-        r.backup_seq = None
-        r.follow_since = now
-        self._stopped_since = None
-        return [ClearCostmap()] + self._send_rest(g, now, pose)
-
-    def _watch_recovery(self, now: float, g, pose, obstacle: Obstacle) -> list:
-        """복구가 끝났는지, 시간이 다 됐는지 본다. 복구 밖에서는 시도 수를 지울지 본다."""
-        r = self._recovery
-        if r is None:
-            if (self._attempt_origin is not None and pose is not None
-                    and math.dist(pose[:2], self._attempt_origin) >= self.p.recovery_reset_m):
-                self._attempts, self._attempt_origin = 0, None
-            return []
-        if not isinstance(g, _Move) or pose is None:
-            return []
-        if r.backup_seq is not None:
-            limit = self.p.backup_time_allowance_s + self.p.backup_result_grace_s
-            if now - r.backup_since < limit:
-                return []
-            self._backup_running = False
-            return [CancelBackUp()] + self._follow_again(g, r, now, pose)
-        if g.s >= r.stuck_s + self.p.recovery_pass_m:
-            self._recovery = None  # 막힌 곳을 지났다. 시도 수는 recovery_reset_m 뒤에 지운다
-            return []
-        if now - r.follow_since < self.p.recovery_timeout_s:
-            return []
-        if self._can_recover(pose):
-            return self._start_attempt(g, now, pose)
-        self._recovery = None
-        if obstacle(self._ahead(g, pose)):
-            self._blocked = True
-            g.blocked_since = now
-            return []
-        return self._end_active(NAV_ABORTED, stop=True)
 
     def _track(self, g: _Move, pose: Sequence[float]) -> float:
         s, _ = g.route.project(pose[:2], s_min=g.s - self.p.track_back_m,

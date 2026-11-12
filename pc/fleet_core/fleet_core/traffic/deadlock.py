@@ -2,21 +2,6 @@
 from __future__ import annotations
 
 
-def wait_graph(zone_manager) -> dict[str, set[str]]:
-    """대기자 -> 요청한 구역과의 사이를 막는 로봇들.
-
-    소유자만이 아니다. 충돌 쌍에서는 맨 앞 대기자가 빈 구역에서도 기다릴 수 있어
-    그 뒤 대기열을 지나는 순환이 생길 수 있다.
-    """
-    graph: dict[str, set[str]] = {}
-    for zone, entry in zone_manager.snapshot().items():
-        for waiter in entry["queue"]:
-            blockers = zone_manager.blockers(waiter, zone)
-            if blockers:
-                graph.setdefault(waiter, set()).update(blockers)
-    return graph
-
-
 def find_cycle(graph: dict[str, set[str]]) -> list[str] | None:
     """대기 순환 하나의 로봇들, 없으면 None. 같은 그래프면 결과도 같다."""
     done: set[str] = set()
@@ -38,22 +23,6 @@ def find_cycle(graph: dict[str, set[str]]) -> list[str] | None:
         if cycle:
             return cycle
     return None
-
-
-def cycle_members(graph: dict[str, set[str]]) -> frozenset[str]:
-    """Every robot that lies on some wait cycle (it can reach itself), across all cycles."""
-    def reaches(start: str, goal: str) -> bool:
-        seen, todo = set(), list(graph.get(start, ()))
-        while todo:
-            robot = todo.pop()
-            if robot == goal:
-                return True
-            if robot not in seen:
-                seen.add(robot)
-                todo.extend(graph.get(robot, ()))
-        return False
-
-    return frozenset(robot for robot in graph if reaches(robot, robot))
 
 
 def priority(params, at_station: bool, carrying: bool) -> int:

@@ -31,6 +31,16 @@ flowchart LR
 
 판단(`pc/fleet_core`, `pinky/pinky_fsm/pinky_fsm/core.py`)은 ROS를 모르고, ROS 노드는 메시지만 옮긴다.
 
+## 배치
+
+경기장은 1.98 × 0.99 m이고 세 가지 배치를 지도로 넣었다(`pc/fleet_core/fleet_core/data/fleet_map_<배치>.yaml`). 어느 것을 쓸지는 아직 정하지 않았다. 비교표는 [작업 기록](docs/worklog_nav2base_2026-11-12.md)에 있다.
+
+| 배치 | 모양 | 넓은 구역 | 급행(폭 0.20 m) |
+|---|---|---|---|
+| `d2`(기본) | 북쪽 벽을 따라 급행, 그 아래는 통째로 마당 | `HALL` 하나(3대) | 진열대 뒤, y 0.79~0.99 |
+| `d` | `d2`에 가운데 진열대를 더해 마당을 서쪽, 동쪽과 그 사이 통로 둘로 나눔 | `HALL_W`, `HALL_E`(3대씩), 통로 `CORR_M`, `CORR_S`(1대씩) | `d2`와 같음 |
+| `c` | 가운데에 급행, 위아래로 통로 | 네 모퉁이 마당(2대씩), 통로 `CORR_N`, `CORR_S`(1대씩) | 가운데, y 0.395~0.595 |
+
 ## 빌드와 시험 (WSL, ROS 2 Jazzy)
 
 ```bash
@@ -43,15 +53,53 @@ cd pc/fleet_core && python3 -m pytest -q test      # 패키지 폴더마다 같�
 
 - 핑키 패키지는 벤더 의존(`iponic.repos`의 `pinky_pro`)이 함께 빌드되어 있어야 한다.
 - `fleet_manager` 시험은 ROS 도메인 50~59를 코드에서 쓴다. 한 기계에서 한 번에 하나만 돌린다.
-- 지도나 교통 층을 기다리는 시험은 건너뛴다. 이유는 둘이다: `needs a fleet map (stage 2)`, `needs the zone traffic layer (stage 3)`. 목록은 `pc/fleet_core/fleet_core/pending.py`에 있다.
+- 건너뛰는 시험 모듈은 `pc/fleet_core/fleet_core/pending.py`의 표에 이유와 함께 적혀 있다.
+
+## 돌려 보기
+
+```bash
+# 머리 없는 세계(ROS 없음): 상황 열 가지 x 배치 x 씨드의 결과 표
+python3 tools/situations.py -l d2 d c --seeds 1 2 3
+
+# Gazebo: 핑키 3대와 관제, 배치 d2, 주문 8개
+ros2 launch fleet_gz_sim gz.launch.py layout:=d2
+
+# Gazebo: 핑키 한 대만(관제 없음), 다른 터미널에서 정해진 구간을 달리게 한다
+ros2 launch fleet_gz_sim one_pinky.launch.py gui:=false rviz:=false
+ros2 run fleet_gz_sim drive_check --layout d2 --plan stage2
+
+# 실제 지도에 맞춘 keepout 마스크 만들기
+python3 tools/make_keepout.py --layout d2 --map <지도.yaml>
+```
+
+Gazebo 쪽 인자와 장애물 일정은 [sim/fleet_gz_sim/README.md](sim/fleet_gz_sim/README.md)에 있다.
+
+## order 모델 (제안, 기본 꺼짐)
+
+이동 하나를 조각 목록으로 한 번에 보내는 방식이다(VDA 5050의 order). 관제가 구역을 잡아 준 조각이 base이고, 아직 잡지 않은 조각이 horizon이다. 로봇은 base 안에서는 서지 않고 다음 조각으로 넘어간다. 관제는 로봇이 base 끝에 닿기 2초 전에 다음 구역을 잡아 update로 base를 늘리고, 못 잡으면 로봇이 base 끝에서 기다린다. 통신이 끊겨도 로봇은 base 끝까지만 간다.
+
+```bash
+ros2 launch fleet_gz_sim gz.launch.py layout:=d2 use_order_model:=true   # Gazebo
+python3 tools/order_situations.py --seeds 1 2 3                          # 머리 없는 세계에서 끄고 켠 표
+```
+
+`use_order_model`을 끄면(기본) 관제가 내는 명령과 사건은 전과 같다. 규칙과 정한 값은 [docs/order_모델.md](docs/order_모델.md)에, 측정은 [작업 기록](docs/worklog_nav2base_2026-11-12.md) 8절에 있다.
 
 ## 지금 상태
 
-1단계 뼈대: 교통 층과 지도는 다음 단계다.
-
-| 있는 것 | 비어 있는 것 |
+| 있는 것 | 아직 없는 것 |
 |---|---|
-| 주문, 팔, 명령 구조, ROS 껍데기, 가짜 로봇과 머리 없는 세계 | 교통 층: `traffic_mode`는 `zones` 하나이고 `fleet_core/traffic/zone/controller.py`(3단계)를 부른다. 바깥 API는 `traffic/api.py` |
-| 구역 잠금, 대기 그래프, 통신 끊김·격리·재투입·조용히 선 로봇 감시(교통 층이 쓸 재료) | 지도: `fleet_core/traffic/fleet_map.py`(2단계). `pc/`와 `sim/fake_robots`, `tools`에서 파일로 지도를 읽는 곳은 `traffic/site.py`를 거친다. `sim/fleet_gz_sim`은 아직 지운 `lane_map`을 부르며 다른 트랙에서 정리한다 |
+| 구역 교통 층: 구역 허락, 급행 방향, 도크 줄, 막힘 처리(기다림, 표시, 돌아가기, Retreat), 교착 감시 | 실물에서의 확인: 아무것도 실물에서 재지 않았다 |
+| 핑키: MoveTo `mode`(`follow_path`, `nav_goal`), Retreat, keepout 필터, 비전 장애물 자리(기본 꺼짐) | 충돌 검사를 켠 채 고정 경로 주행: Gazebo에서 통과하는 설정을 찾지 못했다 |
+| 시험 환경: 머리 없는 세계(상황 열 가지), Gazebo 세 배치 | 회피(라이다와 비전으로 피하기)는 팀원 몫이고 자리만 있다 |
 
-복사한 곳과 지운 것: [docs/COPIED_FROM.md](docs/COPIED_FROM.md)
+## 문서
+
+| 문서 | 내용 |
+|---|---|
+| [docs/관제_구역교통.md](docs/관제_구역교통.md) | 교통 규칙, 사건 코드, 값 |
+| [docs/회피_약속.md](docs/회피_약속.md) | 관제와 회피가 나눠 맡는 선(제안) |
+| [docs/핑키_계약.md](docs/핑키_계약.md) | 핑키와 관제 사이의 계약(0.11-draft는 제안) |
+| [docs/order_모델.md](docs/order_모델.md) | order 모델의 규칙, 켜는 법, 정한 값(제안) |
+| [docs/worklog_nav2base_2026-11-12.md](docs/worklog_nav2base_2026-11-12.md) | 만든 것, 측정, 가정, 남은 일 |
+| [docs/COPIED_FROM.md](docs/COPIED_FROM.md) | 복사한 곳과 지운 것 |

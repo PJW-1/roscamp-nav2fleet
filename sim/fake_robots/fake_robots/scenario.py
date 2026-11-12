@@ -21,7 +21,8 @@ FAULT_TYPES = ROBOT_FAULTS + ARM_FAULTS + WORLD_FAULTS
 GONE_FAULTS = ("stuck", "operator_remove")
 OBJECT_RADIUS_M = 0.10  # object 고장의 기본 반지름: 사람 다리나 작은 상자
 OBJECT_KEYS = ("x", "y", "radius_m")
-OBJECT_MAP_MARGIN_M = 1.0  # 물체는 웨이포인트 범위에서 이만큼 안에 있어야 한다(오타 막기)
+OBJECT_MAP_MARGIN_M = 1.0  # 물체는 지도 범위에서 이만큼 안에 있어야 한다(오타 막기)
+LAYOUTS = ("d2", "d", "c")  # map: 으로 고르는 배치(fleet_core/data/fleet_map_<배치>.yaml)
 REINSTATE_BASKETS = ("EMPTY", "NONE")  # operator_reinstate가 관리자 대신 알리는 바구니
 EXPECT_DEFAULTS = {
     "all_orders_finished": True,
@@ -44,7 +45,7 @@ EXPECT_DEFAULTS = {
     "events_include": [],
     "event_counts": {},  # 코드: 정확히 몇 번 나와야 하는지
     "shipped_before_operator_min": 0,  # 격리 뒤 confirm_clear 전 출고(지시서 5.5)
-    "detours_around_isolated_min": 0,  # 격리된 로봇을 피한 DETOUR(치우기 전)
+    "detours_around_isolated_min": 0,  # 격리된 로봇이 서 있는 동안의 REROUTE(치우기 전)
     "released_while_off_lane": 0,  # drift로 레인 밖이라 보고하는 동안 그 로봇이 놓은 구역 수
     "path_not_connected": 0,  # 관제가 처리한 PATH_NOT_CONNECTED 실패 수(지시서 7.5). null이면 안 봄
     "robot_idle": 0,  # ROBOT_IDLE 이벤트 수(1.1 지시서 H2). 정상이면 0, null이면 안 봄
@@ -56,15 +57,17 @@ LOW_BATTERY_KEYS = {"from_s", "to_s", "charge_s"}
 
 
 def scenario_map_file(scenario_path) -> str:
-    """시나리오의 `map`(maps 폴더의 지도 이름)을 절대 경로로. 없으면 빈 값(기본 지도)."""
+    """시나리오의 `map`: 배치 이름(d2, d, c). 없으면 빈 값(기본 배치 d2).
+
+    load_site와 load_fleet_map이 이 이름을 그대로 받는다.
+    """
     path = Path(scenario_path)
     name = (yaml.safe_load(path.read_text(encoding="utf-8")) or {}).get("map")
     if not name:
         return ""
-    found = path.resolve().parent.parent / "maps" / f"{name}.yaml"
-    if not found.is_file():
-        raise ScenarioError(f"map {name!r} is not in {found.parent}")
-    return str(found)
+    if name not in LAYOUTS:
+        raise ScenarioError(f"map {name!r} is not one of {list(LAYOUTS)}")
+    return str(name)
 
 
 class ScenarioError(ValueError):
@@ -73,7 +76,7 @@ class ScenarioError(ValueError):
 
 @dataclass(frozen=True)
 class RobotCfg:
-    start: tuple[int, int]
+    start: str  # 지도의 지점
     speed_mps: float = 0.2
     pose_noise_m: float = 0.0
     report_delay_s: float = 0.0  # 측정하고 이만큼 지난 뒤에 보고가 나간다
@@ -111,7 +114,7 @@ class Fault:
     count: int = 1
     arm: str = ""  # arm_fail의 대상
     after_items: int = 0  # arm_fail: 한 목표에서 몇 개를 놓은 뒤 실패하는지
-    start: tuple | None = None  # operator_reinstate: 로봇을 다시 놓는 지점
+    start: str | None = None  # operator_reinstate: 로봇을 다시 놓는 지점
     basket: str = "EMPTY"  # operator_reinstate: 관리자가 알리는 바구니
     target: str = ""  # nav_abort: 이 지점으로 가는 목표만 중단. 비면 모든 목표
     offset_m: float = 0.0  # drift: 보고 위치를 진행 방향 왼쪽으로 미는 거리(음수면 오른쪽)
@@ -193,19 +196,14 @@ def _not_negative(data: dict, key: str) -> float:
     return float(value)
 
 
-def _resolve_start(raw, site) -> tuple[int, int]:
-    if isinstance(raw, str):
-        waypoints = site.zones.get(raw)
-        if waypoints is None or len(waypoints) != 1:
-            raise ScenarioError(f"start {raw!r} is not a zone of one waypoint")
-        return next(iter(waypoints))
-    if isinstance(raw, (list, tuple)) and len(raw) == 2:
-        # 변환한 격자 지도의 지점을 옛 [열, 행]으로 부른 것.
-        waypoint = (int(raw[0]), int(raw[1]))
-        if waypoint not in site.zone_of:
-            raise ScenarioError(f"start waypoint {waypoint} is on no route")
-        return waypoint
-    raise ScenarioError(f"start must be a zone name or [col, row], got {raw!r}")
+def _resolve_start(raw, site) -> str:
+    """출발 자리는 로봇이 서서 기다려도 되는 지점(도크, 대기 자리, 주차)이다."""
+    if not isinstance(raw, str) or raw not in site.nodes:
+        raise ScenarioError(f"start must be a node of the map, got {raw!r}")
+    if not site.can_wait(raw):
+        raise ScenarioError(f"start {raw!r} is a {site.nodes[raw].kind} node; a robot waits "
+                            "only on a dock, wait or parking node")
+    return raw
 
 
 def _arms_with(site, action: str) -> list[str]:
@@ -293,8 +291,8 @@ def _parse_fault(raw: dict, robots: dict, site) -> Fault:
     if kind == "drift" and not (raw.get("duration_s", 0) > 0 and raw.get("offset_m", 0) != 0):
         raise ScenarioError(f"drift needs a positive duration_s and a nonzero offset_m: {raw}")
     target = str(raw.get("target", ""))
-    if target and (kind != "nav_abort" or target not in site.zone_of):
-        raise ScenarioError(f"target needs nav_abort and a waypoint of the map in {raw}")
+    if target and (kind != "nav_abort" or target not in site.nodes):
+        raise ScenarioError(f"target needs nav_abort and a node of the map in {raw}")
     return Fault(float(raw["at_s"]), raw.get("robot", ""), kind,
                  float(raw.get("duration_s", 0.0)), int(raw.get("count", 1)),
                  raw.get("arm", ""), int(raw.get("after_items", 0)),
@@ -304,7 +302,7 @@ def _parse_fault(raw: dict, robots: dict, site) -> Fault:
 
 
 def _object_place(raw: dict, site) -> tuple[float, float, float]:
-    """object 고장의 (x, y, 반지름). 로봇에 묶이지 않고, 웨이포인트 범위 가까이에 있어야 한다."""
+    """object 고장의 (x, y, 반지름). 로봇에 묶이지 않고, 지도 범위 가까이에 있어야 한다."""
     if raw.get("robot"):
         raise ScenarioError(f"an object is not tied to a robot: {raw}")
     _positive(raw, "duration_s")  # 물체가 있는 시간

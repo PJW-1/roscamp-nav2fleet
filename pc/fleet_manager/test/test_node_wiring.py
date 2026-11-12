@@ -19,7 +19,7 @@ pytest.importorskip("fleet_interfaces")
 
 from fleet_core.common.commands import EventOut, RetreatCmd  # noqa: E402
 from fleet_core.common.contract import to_ros_qos  # noqa: E402
-from fleet_core.traffic.lane_map import load_lane_map  # noqa: E402
+from fleet_core.fleet_map import load_fleet_map  # noqa: E402
 from fleet_interfaces.action import Dock, FillBasket, MoveTo, Retreat, SwapBasket  # noqa: E402
 from fleet_interfaces.msg import (  # noqa: E402
     AssignmentArray,
@@ -54,14 +54,14 @@ def items(counts):
 
 
 class World(Node):
-    """시키는 대로 즉시 하는 로봇 하나, 팔 서버 둘, central."""
+    """시키는 대로 즉시 하는 로봇 하나, 팔 서버 둘, central. 로봇은 지도의 node에서 선다."""
 
-    def __init__(self, contract, site, cell, robot="pinky1", robot_servers=True):
+    def __init__(self, contract, site, node, robot="pinky1", robot_servers=True):
         super().__init__("wiring_world")
         self.robot = robot
         group = ReentrantCallbackGroup()
         self.site = site
-        self.pose = site.waypoint_pose(cell)
+        self.pose = site.node_pose(node)
         self.fills = []
         self.swaps = []
         self.reports = []
@@ -117,6 +117,8 @@ class World(Node):
                          callback_group=group),
             ActionServer(self, Dock, name("dock", pinky=self.robot), self._on_dock,
                          callback_group=group),
+            ActionServer(self, Retreat, name("retreat", pinky=self.robot), self._on_retreat,
+                         callback_group=group),
         ]
 
     def _publish_state(self):
@@ -128,6 +130,13 @@ class World(Node):
         self.pose = (handle.request.target_pose.x, handle.request.target_pose.y)
         handle.succeed()
         return MoveTo.Result(success=True)
+
+    def _on_retreat(self, handle):
+        if handle.request.path:
+            end = handle.request.path[-1].position
+            self.pose = (end.x, end.y)
+        handle.succeed()
+        return Retreat.Result(success=True)
 
     def _on_dock(self, handle):
         handle.succeed()
@@ -170,7 +179,7 @@ class World(Node):
 def graph():
     rclpy.init(args=["--ros-args", "-p", "robots:=[pinky1]", "-p", "tick_hz:=50.0"])
     node = FleetManagerNode()
-    world = World(node.contract, load_lane_map(), "Q")
+    world = World(node.contract, load_fleet_map("d2"), "P-1")
     world.fms = node
     executor = MultiThreadedExecutor(num_threads=4)
     executor.add_node(node)
@@ -247,7 +256,7 @@ def test_a_robot_counts_only_once_its_goals_can_reach_it():
     """
     rclpy.init(args=["--ros-args", "-p", "robots:=[pinky3]", "-p", "tick_hz:=50.0"])
     node = FleetManagerNode()
-    world = World(node.contract, load_lane_map(), "Q", robot="pinky3", robot_servers=False)
+    world = World(node.contract, load_fleet_map("d2"), "P-1", robot="pinky3", robot_servers=False)
     executor = MultiThreadedExecutor(num_threads=4)
     executor.add_node(node)
     executor.add_node(world)
@@ -277,7 +286,7 @@ def test_a_record_of_the_running_node_plays_back_to_the_same_commands(tmp_path):
     record = tmp_path / "fms.jsonl"
     rclpy.init(args=["--ros-args", "-p", "robots:=[pinky1]", "-p", "tick_hz:=50.0"])
     node = FleetManagerNode(record=record)
-    world = World(node.contract, load_lane_map(), "Q")
+    world = World(node.contract, load_fleet_map("d2"), "P-1")
     executors = [SingleThreadedExecutor(), MultiThreadedExecutor(num_threads=4)]
     executors[0].add_node(node)
     executors[1].add_node(world)
@@ -476,6 +485,7 @@ def test_a_lost_result_of_a_canceled_robot_goal_is_no_rejection():
         if canceled:
             goals.cancel(key, 0.0)
         node = SimpleNamespace(_goals=goals, _robot_rejected=robot_rejected,
+                               _order_feedback=SimpleNamespace(forget=lambda key: None),
                                get_logger=lambda: SimpleNamespace(error=lambda msg: None))
         rejected = []
         FleetManagerNode._goal_result(node, key, lambda k, r: None, on_rejected,
