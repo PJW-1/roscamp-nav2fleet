@@ -168,6 +168,12 @@ def test_zone_at_names_the_zone_under_a_point():
     assert site.zone_at(3.0, 0.5) is None
 
 
+def test_nodes_in_lists_the_nodes_of_one_zone_in_map_order():
+    site = build()
+    assert site.nodes_in("HALL") == ["N_W", "N_E", "W_Q", "O_Q", "P-1", "P-2"]
+    assert site.nodes_in("EXPRESS") == []
+
+
 def test_distance_to_zone_is_zero_inside_and_grows_outside():
     site = build()
     assert site.distance_to_zone(1.0, 0.9, "EXPRESS") == 0.0

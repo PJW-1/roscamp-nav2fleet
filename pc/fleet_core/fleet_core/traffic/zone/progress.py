@@ -77,7 +77,7 @@ class Progress:
         m.placed = True
         # 지점 없이 오른 로봇은 그 구역의 가까운 지점 이름을 달아 둔다. 빈 지점이 없으면 남이 쥔
         # 지점의 이름이다: 가까워도 그 위에 선 것으로 보지 않는다(_on_node)
-        inside = [name for name, spec in site.nodes.items() if spec.zone == zone]
+        inside = site.nodes_in(zone)
         free = [name for name in inside if self._free(m, name)]
         m.node = (node or site.nearest_node(m.x, m.y, free)
                   or site.nearest_node(m.x, m.y, inside) or "")
@@ -112,8 +112,7 @@ class Progress:
         if node is None or self._free(m, node) or self._gap(m, node) <= tolerance / 2:
             return node
         here = site.zone_at(m.x, m.y)
-        free = [name for name, spec in site.nodes.items()
-                if spec.zone == here and self._free(m, name)]
+        free = [name for name in site.nodes_in(here) if self._free(m, name)]
         return site.nearest_node(m.x, m.y, free, radius=tolerance)
 
     def _placement_refused(self, m, why: str) -> None:
