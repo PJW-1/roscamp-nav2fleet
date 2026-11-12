@@ -140,6 +140,12 @@ def _on_rounded(corners: Sequence[Corner], s: float) -> float:
     return s - lost
 
 
+def rounded_at(route: Polyline, s: float, radius: float) -> float:
+    """route 위의 거리 s에 맞는, route를 둥글게 한 선 위의 거리."""
+    _, corners = _rounded_with_corners(route.points, radius, ARC_STEP_M)
+    return _on_rounded(corners, min(max(s, 0.0), route.length))
+
+
 def _piece_end(corners: Sequence[Corner], s: float, length: float) -> float:
     """s가 놓인 조각(곧은 구간이나 호 하나)이 끝나는 s."""
     for start, end, _ in corners:

@@ -9,6 +9,7 @@ from pinky_fsm.geometry import (
     poses_backing,
     quaternion_yaw,
     rounded,
+    rounded_at,
     rounded_rest,
     yaw_quaternion,
 )
@@ -249,6 +250,14 @@ def test_a_short_step_back_is_not_taken_for_the_pass_before_it():
     route = Polyline([(0.0, 0.0), (1.0, 0.0), (0.9, 0.0), (1.9, 0.0), (1.9, 1.0)])
     rest = rounded_rest(route, 1.15, 0.5)  # 세 번째 선분 위 x 0.95
     assert rest[0] == pytest.approx((0.95, 0.0)) and rest[1] == pytest.approx((1.4, 0.0))
+
+
+def test_rounded_at_is_the_distance_on_the_rounded_line():
+    arc = Polyline(rounded(LANE.points, 0.10))
+    assert rounded_at(LANE, 0.30, 0.10) == pytest.approx(0.30)
+    assert rounded_at(LANE, 0.69, 0.10) == pytest.approx(0.59 + (arc.length - 0.66) / 2.0)
+    assert rounded_at(LANE, LANE.length, 0.10) == pytest.approx(arc.length)
+    assert rounded_at(LANE, 0.69, 0.0) == pytest.approx(0.69)
 
 
 def test_the_join_does_not_cut_across_a_turnaround():

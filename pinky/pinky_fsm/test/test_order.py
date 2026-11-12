@@ -329,6 +329,10 @@ def test_an_order_stretched_while_nav2_stands_forgets_the_path_sent_before():
     assert fsm._active.sent is not None and not fsm._active.nav_running
     cmds = order(fsm, "g2", 2.5, [S2], [S3], update=1, stitch="N1", pose=(0.5, 0.3, 0.0))
     assert not of(cmds, SendPath) and fsm._active.sent is None
+    seen = []
+    fsm.heartbeat(3.0)
+    fsm.tick(3.0, (0.5, 0.3, 0.0), STILL, lambda points: seen.extend(points) or True)
+    assert max(x for x, _ in seen) > 0.9, "the way ahead goes on past the old end at 0.8"
 
 
 def test_the_order_fsm_is_a_pinky_fsm():

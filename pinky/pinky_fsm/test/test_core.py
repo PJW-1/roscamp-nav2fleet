@@ -1538,6 +1538,26 @@ def test_on_a_line_that_comes_back_the_way_ahead_is_the_pass_the_robot_is_on():
     assert seen and all(x <= 0.7 + 1e-6 for x, _ in seen), "towards the end, not back to the turn"
 
 
+def test_after_many_corners_the_way_ahead_still_starts_at_the_robot():
+    """Every arc makes the sent path shorter than the line the progress is measured on."""
+    stairs = [(0.0, 0.0)]
+    for i in range(1, 6):  # 0.5 m씩 오른쪽, 위로: 직각 아홉 번
+        stairs += [(0.5 * i, 0.5 * (i - 1)), (0.5 * i, 0.5 * i)]
+    stairs[-1] = (2.5, 3.0)
+    fsm = ready(pose=(0.0, 0.0, 0.0))
+    fsm.move("g1", 0.0, "X", (2.5, 3.0, NORTH), stairs, (0.0, 0.0, 0.0))
+    t = 0.0
+    for (ax, ay), (bx, by) in zip(stairs[:-2], stairs[1:-1], strict=True):
+        t += 1.0
+        fsm.heartbeat(t)
+        fsm.tick(t, ((ax + bx) / 2.0, (ay + by) / 2.0, 0.0), DRIVING, no_obstacle)
+    seen = []
+    for dt in (1.0, 2.5):  # 마지막 선분 위 (2.5, 2.5)에 서 있다
+        fsm.heartbeat(t + dt)
+        fsm.tick(t + dt, (2.5, 2.5, NORTH), STILL, lambda points: seen.extend(points) or False)
+    assert seen[0] == pytest.approx((2.5, 2.5))
+
+
 def test_the_join_can_be_switched_off():
     fsm = ready(pose=BESIDE, join_slope=0.0)
     [send] = sends(move(fsm, "g1", 1.0, path=(P3, P4), target=P4, pose=BESIDE))
