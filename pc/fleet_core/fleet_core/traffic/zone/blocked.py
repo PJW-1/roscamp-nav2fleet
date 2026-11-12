@@ -157,12 +157,29 @@ class Blocked:
                 return True
         return False
 
+    def _note_local_yield(self, m, now: float) -> None:
+        if m.local_yield:
+            if m.local_yield_since is None:
+                m.local_yield_since = now
+            if m.local_yield != m.local_yield_noted:
+                m.local_yield_noted = m.local_yield
+                self._event("INFO", "LOCAL_YIELD", m.local_yield, m.name)
+            return
+        self._event("INFO", "LOCAL_YIELD", f"ends {m.robot_state or '?'} after "
+                    f"{now - m.local_yield_since:.0f} s", m.name)
+        m.local_yield_since, m.local_yield_noted = None, ""
+
     def _expire_blocked(self, now: float) -> None:
         for key in [key for key, until in self._blocked.items() if until <= now]:
             del self._blocked[key]
 
     def _note_self_recovery(self, m, now: float) -> None:
-        """로봇이 스스로 짧게 물러났다 다시 가는 동안(RECOVERING)을 사건으로 남긴다."""
+        """로봇이 스스로 짧게 물러났다 다시 가는 동안(RECOVERING)을 사건으로 남긴다.
+        로봇단 교착 처리(local_yield가 있음, 추가 지시서 3의 7-4)는 단계가 바뀔 때마다와 끝날 때
+        LOCAL_YIELD로 남긴다. 어느 쪽이든 움직임은 정하지 않는다(BLOCKED 뒤에 정한다)."""
+        if m.local_yield or m.local_yield_since is not None:
+            self._note_local_yield(m, now)
+            return
         if m.robot_state == SELF_RECOVERING:
             if m.self_recovery_since is None:
                 m.self_recovery_since = now

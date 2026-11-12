@@ -79,4 +79,5 @@ class Views:
             "wait_robots": tuple(sorted({name for group in blockers.values() for name in group})),
             "battery": m.battery, "x": m.x, "y": m.y, "yaw": m.yaw,
             "base": tuple(route[:granted]), "horizon": tuple(route[granted:]),
+            "priority": m.sent_priority,
         }

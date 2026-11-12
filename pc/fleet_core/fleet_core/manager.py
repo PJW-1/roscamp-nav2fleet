@@ -19,6 +19,7 @@ import math
 from fleet_core.arm.jobs import ArmJobs
 from fleet_core.common.commands import (
     FILL,
+    LOCAL_YIELD_STEPS,
     OBSTACLE_KINDS,
     SWAP,
     EventOut,
@@ -89,17 +90,23 @@ class FleetManager(ManagerRoute, ManagerViews, ManagerRecord):
     # ---- inputs -------------------------------------------------------------------------
 
     def on_robot_state(self, robot, x, y, yaw, state, battery=0.0, robot_id="",
-                       obstacle_x=math.nan, obstacle_y=math.nan, obstacle_kind="") -> None:
+                       obstacle_x=math.nan, obstacle_y=math.nan, obstacle_kind="",
+                       local_yield="") -> None:
         """robot은 토픽의 로봇, robot_id는 메시지에 적힌 이름(빈 값 가능).
 
         obstacle_*는 BLOCKED와 함께 온 막은 것의 위치와 종류다(추가 지시서 3의 4-1). 모르면 NaN.
+        local_yield는 RECOVERING일 때 로봇단 교착 처리의 단계다(7-4, 계약 0.13-draft). 모르는 값은
+        빈 값으로 본다(거부하지 않는다).
         """
-        # 받은 그대로 기록한다. robot_id나 장애물 위치가 없던 기록도 똑같이 읽힌다.
+        # 받은 그대로 기록한다. robot_id, 장애물 위치, 단계가 없던 기록도 똑같이 읽힌다.
         no_id = isinstance(robot_id, str) and text(robot_id) == ""
         seen = [obstacle_x, obstacle_y, obstacle_kind]
         no_obstacle = all(isinstance(v, float) and math.isnan(v) for v in seen[:2]) and (
             isinstance(obstacle_kind, str) and text(obstacle_kind) == "")
-        tail = [] if no_obstacle else [robot_id, *seen]
+        no_step = isinstance(local_yield, str) and text(local_yield) == ""
+        tail = [] if no_obstacle and no_step else [robot_id, *seen]
+        if not no_step:
+            tail.append(local_yield)
         self._input("on_robot_state", robot, x, y, yaw, state, battery,
                     *(tail or ([] if no_id else [robot_id])))
         # 위치를 못 잡은 보고의 자세는 쓰지 않으니 검사하지 않는다.
@@ -117,7 +124,9 @@ class FleetManager(ManagerRoute, ManagerViews, ManagerRecord):
                                    self.params.input_pose_margin_m, OBSTACLE_KINDS)
         except Exception:
             obstacle = None
-        self.traffic.on_robot_state(robot, x, y, yaw, text(state), battery, obstacle)
+        step = text(local_yield) if isinstance(local_yield, str) else ""
+        self.traffic.on_robot_state(robot, x, y, yaw, text(state), battery, obstacle,
+                                    step if step in LOCAL_YIELD_STEPS else "")
         self._pump()
 
     def on_clear_check(self, robot, check_id, answer) -> None:

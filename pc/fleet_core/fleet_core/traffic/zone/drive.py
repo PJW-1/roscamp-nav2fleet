@@ -111,7 +111,8 @@ class Drive:
             self._event("INFO", "RETREAT_START", f"backs to {target}", m.name)
         else:
             after = trip.links[end] if end < len(trip.links) else None
-            self._out.append(move_command(self.site, m.name, goal_id, links, m.x, m.y, after))
+            self._out.append(move_command(self.site, m.name, goal_id, links, m.x, m.y, after,
+                                          self._goal_priority(m)))
             code = "NAV_GOAL_SENT" if via == NAV_GOAL else "FOLLOW_SENT"
             self._event("INFO", code, f"to {target}", m.name)
         m.goal = Goal(RETREAT if via == RETREAT else MOVE, goal_id, end, target, via)

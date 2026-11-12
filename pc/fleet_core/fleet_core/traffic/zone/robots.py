@@ -103,6 +103,12 @@ class Robot:
     start_since: float = 0.0
     start_done: bool = False  # 그 goal은 다 보았다
     self_recovery_since: float | None = None
+    # 로봇단 교착 처리(추가 지시서 3의 7-4): 마지막 보고의 단계(wait/backup/retry), 이번 처리의
+    # 시작, 마지막으로 LOCAL_YIELD를 낸 단계
+    local_yield: str = ""
+    local_yield_since: float | None = None
+    local_yield_noted: str = ""
+    sent_priority: int = -1  # 마지막으로 보낸 MoveTo의 priority(/fleet/robots에 보인다)
     clear_n: dict = field(default_factory=dict)  # 뒤의 구역이나 지점 -> 벗어난 연속 보고 수
     outside_n: int = 0  # 쥔 구역 밖으로 벗어난 연속 보고 수
     outside_noted: bool = False

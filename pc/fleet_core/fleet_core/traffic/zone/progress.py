@@ -12,6 +12,7 @@ from fleet_core.traffic.mission import (
     LOCALIZING,
     NOT_PLACEABLE,
     OUT_OF_SERVICE,
+    SELF_RECOVERING,
 )
 
 from .trips import passed
@@ -25,8 +26,10 @@ def release_gap(p) -> float:
 
 
 class Progress:
-    def on_robot_state(self, robot, x, y, yaw, state, battery=0.0, obstacle=None) -> None:
-        """obstacle은 막은 것의 (x, y, 종류)다. 로봇이 모르면 None이다(block_marks.py)."""
+    def on_robot_state(self, robot, x, y, yaw, state, battery=0.0, obstacle=None,
+                       local_yield="") -> None:
+        """obstacle은 막은 것의 (x, y, 종류)다. 로봇이 모르면 None이다(block_marks.py).
+        local_yield는 로봇단 교착 처리의 단계다(blocked.py의 _note_self_recovery가 남긴다)."""
         m = self._robots.get(robot)
         if m is None:
             return
@@ -34,6 +37,7 @@ class Progress:
         m.last_seen = now
         m.robot_state = state
         m.obstacle = obstacle
+        m.local_yield = local_yield if state == SELF_RECOVERING else ""
         self._note_battery(m, battery)
         if state == LOCALIZING:
             m.clear_n.clear()  # 벗어난 보고는 이어져야 한다

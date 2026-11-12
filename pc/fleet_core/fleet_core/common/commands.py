@@ -32,6 +32,9 @@ class MoveCmd:
     # 가는 방식(계약 0.11-draft 제안). follow_path: path를 FollowPath로 따른다.
     # nav_goal: (x, y, yaw)로 Nav2 goal을 보내고 로봇이 길을 짠다. path는 비운다
     mode: str = "follow_path"
+    # 로봇단 교착 처리의 우선순위(계약 0.13-draft, 추가 지시서 3의 7-4). deadlock.priority와
+    # 같다. -1이면 비었다
+    priority: int = -1
 
 
 @dataclass(frozen=True)
@@ -61,6 +64,7 @@ CLEAR = "clear"  # 그 점에서 radius_m 안에 장애물 칸이 없다
 BLOCKED_AT = "blocked"  # 있다
 UNKNOWN = "unknown"  # 그 점이 센서나 local costmap 밖이다(묻지 못한 경우도 이것으로 본다)
 OBSTACLE_KINDS = ("unknown", "person", "object", "robot")  # RobotState.obstacle_kind
+LOCAL_YIELD_STEPS = ("wait", "backup", "retry")  # RobotState.local_yield(계약 0.13-draft)
 
 
 @dataclass(frozen=True)
@@ -91,6 +95,7 @@ class MoveOrderCmd:
     stitch_node: str  # update일 때 이전 base의 마지막 지점. 처음이면 빈 값
     base: tuple = ()  # 새로 허락하는 SegmentOut들. 비면 horizon만 바꾸는 update
     horizon: tuple = ()  # 아직 허락하지 않은 SegmentOut들. 매번 통째로 바꾼다
+    priority: int = -1  # MoveCmd.priority와 같다(계약 0.13-draft)
 
 
 @dataclass(frozen=True)
@@ -176,6 +181,7 @@ class RobotStatusView:
     yaw: float
     base: tuple[str, ...] = ()  # 앞에 남은 길 가운데 구역을 허락받은 지점들
     horizon: tuple[str, ...] = ()  # 아직 허락받지 않은 지점들
+    priority: int = -1  # 마지막으로 보낸 MoveTo의 priority(계약 0.13-draft). 보낸 적 없으면 -1
 
 
 # ---- inside the FMS: orders -> traffic --------------------------------------------------------

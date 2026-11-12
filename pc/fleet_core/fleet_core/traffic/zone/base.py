@@ -91,6 +91,11 @@ class ZoneBase:
     def _priority(self, m) -> int:
         return priority(self.params, m.phase == AT_STATION, m.dispatch is not None)
 
+    def _goal_priority(self, m) -> int:
+        """MoveTo에 실을 priority(계약 0.13-draft). /fleet/robots가 같은 값을 보이도록 남긴다."""
+        m.sent_priority = self._priority(m)
+        return m.sent_priority
+
     def _cancel_goal(self, m) -> None:
         if m.goal is None:
             return
