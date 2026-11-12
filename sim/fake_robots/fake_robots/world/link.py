@@ -34,6 +34,7 @@ class Link:
     def _setup_link(self) -> None:
         self.queued: list = []  # 다음 걸음 처음에 낼 결과 (로봇, Result)
         self.queued_arm: list = []
+        self.queued_checks: list = []  # 다음 걸음에 낼 CheckClear 답 (로봇, 번호, 답)
         self._early: list = []
         self._late: list = []
         self._lines = {name: _Delay(r.profile.report_delay_s) for name, r in self.robots.items()}
@@ -69,6 +70,10 @@ class Link:
         queued, self.queued = self.queued, []
         for name, result in queued:
             self._deliver(name, result)
+        checks, self.queued_checks = self.queued_checks, []
+        for name, check_id, answer in checks:
+            if self._reachable(name):
+                self.manager.on_clear_check(name, check_id, answer)
         arms, self.queued_arm = self.queued_arm, []
         for job, reason in arms:
             if isinstance(job.cmd, FillCmd):

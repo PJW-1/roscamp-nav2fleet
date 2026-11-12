@@ -5,6 +5,7 @@ import math
 
 from fleet_core.common.commands import (
     CancelCmd,
+    CheckClearCmd,
     DockCmd,
     EventOut,
     FillCmd,
@@ -18,6 +19,7 @@ from fleet_core.common.commands import (
 from .avoid import Avoidance
 from .invariants import COMMAND, Violation
 from .nav_goal import NavGoalRun
+from .obstacle_view import clear_answer
 from .order_run import OrderRun, refusal
 from .runs import MOVE, DockRun, FollowRun, Result, RetreatRun
 
@@ -53,8 +55,19 @@ class Commands:
             self._start(item)
         elif isinstance(item, MoveOrderCmd):
             self._order(item)
+        elif isinstance(item, CheckClearCmd):
+            self._check_clear(item, r)
         else:
             self._violation(f"unknown output {item!r}")
+
+    def _check_clear(self, cmd, r) -> None:
+        """CheckClear 흉내(추가 지시서 3의 4-3): 지금 자리에서 답하고 다음 걸음에 돌려준다."""
+        if r is None or r.removed or not r.comm_up:
+            return  # 서비스가 답하지 않았다. 관제는 간격 뒤 다시 묻는다
+        answer = clear_answer(r.pose, (cmd.x, cmd.y), cmd.radius_m,
+                              self.schedule.objects_now(self.t), self.site.shelves,
+                              self.params.check_range_m)
+        self.queued_checks.append((cmd.robot, cmd.check_id, answer))
 
     def _violation(self, detail, robot="") -> None:
         self.invariants.violations.append(Violation(self.t, COMMAND, detail, robot))

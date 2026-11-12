@@ -36,6 +36,8 @@ ORDER_SIDE_ATTRIBUTES = {"basket", "order", "orders", "placed_items", "last_orde
 TRAFFIC_VOCABULARY = {
     "CancelCmd", "DispatchFeedback", "DispatchResult", "DockCmd", "EventOut", "MoveCmd",
     "MoveOrderCmd", "NO_ROBOT", "RetreatCmd", "RobotIsolated", "SegmentOut", "ZoneView",
+    # 막힘 처리 보완(추가 지시서 3의 4-3): 관제가 로봇에게 묻는 CheckClear와 그 답
+    "BLOCKED_AT", "CLEAR", "CheckClearCmd",
 }
 
 
