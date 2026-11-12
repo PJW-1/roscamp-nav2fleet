@@ -7,9 +7,13 @@ from __future__ import annotations
 
 import math
 
+from .laps import PARK_NEAR_M
+
 FULL_PCT = 90.0  # 고장 전과 충전이 끝난 뒤
 LOW_PCT = 10.0  # low_battery 시각부터
-CHARGE_NEAR_M = 0.12  # 충전 자리에서 이 거리 안이면 자리 위
+# 충전 자리에서 이 거리 안이면 자리 위. 심판의 주차 판정 거리와 같다: 더 좁으면 심판이 주차했다고
+# 본 로봇이 충전하지 않는다
+CHARGE_NEAR_M = PARK_NEAR_M
 
 
 def _get(fault, key: str, default=None):

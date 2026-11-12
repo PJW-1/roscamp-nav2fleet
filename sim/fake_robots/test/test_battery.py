@@ -53,6 +53,11 @@ def test_moving_or_leaving_the_spot_pauses_the_charge():
     assert b.percent(35.0, *SPOT, True) == FULL_PCT
 
 
+def test_a_robot_the_judge_takes_as_parked_also_charges():
+    from fake_robots.laps import PARK_NEAR_M
+    assert CHARGE_NEAR_M == PARK_NEAR_M
+
+
 def test_near_means_within_charge_near_m_of_any_spot():
     other = (5.0, 5.0)
     b = Battery([low(0.0, 10.0)], [SPOT, other])
