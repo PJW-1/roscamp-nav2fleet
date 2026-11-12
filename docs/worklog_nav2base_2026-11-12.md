@@ -676,6 +676,34 @@
 | 시험 | 새 `pc/fleet_core/test/test_zone_localization.py`(11), `test_zone_failures.py`의 도킹 시험(`test_a_failed_docking_*`, `test_a_reapproach*`, `test_a_rejected_docking_*`, `test_the_wait_for_the_way_out_*`, `test_a_robot_*`) | |
 | 문서 | `docs/관제_구역교통.md`의 사건 표(`LOCALIZATION_SUSPECT`, `DOCK_REAPPROACH`) | |
 
+### 10.5 이음 정밀도 (지시서 2-4절)
+
+지시서의 두 방법 가운데 둘째(로봇이 선 자리에서 시작하는 경로)를 골랐습니다.
+
+| 무엇 | 결과 |
+|---|---|
+| 고른 방법 | Nav2에 보내는 경로를 로봇의 실제 위치에서 시작합니다. 로봇이 받은 선에서 `join_min_off_m`(0.02 m) 넘게 벗어나 있으면, 벗어난 거리의 `join_slope`(3)배 앞에서 선에 붙는 조각을 경로 앞에 넣습니다. 들어가는 각은 18° 이하입니다 |
+| 고르지 않은 방법과 까닭 | 넓은 구역의 Nav2 goal 도착 허용 오차를 goal마다 줄이는 방법입니다. BT와 컨트롤러(회피 담당의 `FollowPathGoal`)를 고쳐야 하고, 위치 추정 잡음보다 허용 오차가 작으면 goal이 끝나지 않을 수 있습니다. 고른 방법은 `pinky_fsm` 안의 순수 함수 하나로 끝나고 Nav2 설정을 건드리지 않습니다 |
+| 붙는 곳의 한계 | 붙는 곳은 지금 조각(곧은 구간이나 호 하나)의 끝을 넘지 않습니다. 꺾이는 곳과 되돌아가는 꼭짓점을 가로지르는 지름길은 내지 않습니다. 선의 끝에 닿았거나 지나친 로봇에게는 끝 점만 보냅니다 |
+| 진행 거리와 도착 판정 | 그대로입니다. 진행 거리 `s`는 관제가 보낸 꺾은선 위에서 재고, 둥근 선과 붙는 조각은 Nav2에 보낼 때만 씁니다 |
+| 앞 보기(막힘 판정) | Nav2에 실제로 보낸 선(`_Move.sent`) 위에서 봅니다. 붙는 조각 위의 물체도 막힌 것으로 칩니다. 보낸 선 위의 로봇 자리는 진행 거리를 둥근 선 위의 거리로 바꿔서(`rounded_at`) 그 둘레에서만 찾습니다 |
+| 끄는 법 | `join_slope`를 0으로 주면 예전처럼 선 위의 점에서 시작합니다 |
+| 시험 | `pinky_fsm` 270 passed 6 skipped(Windows, 222002c), WSL `pinky_fsm` 312 passed 6 skipped(222002c), ruff 통과. 7-4 브랜치와 합친 뒤(7e30ee9) Windows 329 passed 7 skipped. Gazebo에서의 끝 오차는 2-5절 표에 적습니다 |
+| 검수(Codex) 다섯 번에서 나와 고친 것(마지막 검수는 지적 없음) | ① 호 옆에 선 로봇에게 붙는 곳이 호의 다음 점으로 잡혔습니다. ② 선의 끝을 지난 로봇에게 되돌아가는 조각을 붙였습니다. ③ 막힘 판정이 받은 선 위에서만 보아 붙는 조각 위의 물체를 놓쳤습니다. ④ 같은 곳을 두 번 지나는 선에서 이미 지난 쪽을 골랐습니다(투영 대신 지나온 호를 세는 `_on_rounded`). ⑤ 둥글게 못 하는 되돌아가는 꼭짓점을 붙는 조각이 가로질렀습니다. ⑥ order가 늘어난 뒤에도 늘리기 전에 보낸 선으로 앞을 보았습니다. ⑦ 호가 줄인 길이가 쌓이면(직각 다섯 번쯤) 앞 보기가 로봇 바로 앞을 건너뛰었습니다. ⑧ 붙는 조각이 그것이 대신하는 구간보다 길면 앞 보기가 로봇 자리를 놓쳤습니다(`joined_rest`가 붙는 조각의 길이를 함께 내고, 로봇이 아직 붙는 조각 위에 있으면 조각 전체에서 찾습니다) |
+| 고치지 않은 지적 | 호의 거리를 겹친 점을 지우기 전에 더해 2e-7 m쯤 어긋납니다. 영향이 없어 두었습니다 |
+
+바꾼 파일과 함수입니다.
+
+| 파일 | 함수와 값 | 무엇 |
+|---|---|---|
+| `pinky/pinky_fsm/pinky_fsm/geometry.py` | 바꿈 `rounded_rest`(인자 `here`, `join_min_off`, `join_slope`), 바꿈 `rounded`, 새 `joined_rest`(점들, 선에 붙는 곳의 거리, 붙는 조각의 길이), 새 `rounded_at`, 새 `_rounded_with_corners`, `_on_rounded`, `_piece_end`, `_straight`, 새 값 `ARC_STEP_M`, 새 타입 `Corner` | 둥근 선을 만들면서 꺾이는 곳(시작 s, 끝 s, 꼭짓점에서 자른 거리)을 함께 내고, 받은 선 위의 거리를 둥근 선 위의 거리로 바꾸고, 로봇 자리에서 선에 붙는 조각을 넣습니다 |
+| `pinky/pinky_fsm/pinky_fsm/core.py` | 바꿈 `move`, `_send_rest`, `_ahead` | 첫 전송에도 로봇 자세를 넘기고, 보낸 선과 그 시작 거리를 적고, 앞을 보낸 선 위에서 봅니다 |
+| `pinky/pinky_fsm/pinky_fsm/order_fsm.py` | 바꿈 `_extend` | 경로를 늘리면 늘리기 전에 보낸 선을 잊습니다 |
+| `pinky/pinky_fsm/pinky_fsm/records.py` | 새 값 `_Move.sent`, `_Move.sent_from`, `_Move.sent_lead` | 마지막으로 보낸 선, 그 선이 둥근 선에 붙는 곳의 거리, 붙는 조각의 길이 |
+| `pinky/pinky_fsm/pinky_fsm/params.py`, `node.py` | 새 `join_min_off_m`(0.02), `join_slope`(3.0) | ROS 파라미터로도 받습니다 |
+| 시험 | `test/test_geometry.py`의 이음 시험 16개(`test_a_robot_beside_the_line_*`, `test_the_join_*`, `test_beside_an_arc_*`, `test_a_line_that_comes_back_*`, `test_a_short_step_back_*`, `test_rounded_at_*`), `test/test_core.py`의 8개(`test_a_robot_beside_the_path_*`, `test_the_way_ahead_is_watched_on_the_path_that_was_sent`, `test_on_a_line_that_comes_back_*`, `test_after_many_corners_*`), `test/test_order.py`의 `test_an_order_stretched_while_nav2_stands_*` | |
+| 문서 | `docs/핑키_계약.md` 3절 13번 "이음 정밀도" | |
+
 ### 10.9 가정 (추가 지시서 3에 없어서 정한 것)
 
 | 무엇 | 정한 것 | 까닭 |
@@ -683,3 +711,127 @@
 | 기능 브랜치를 모으는 곳 | `stage3` 브랜치 하나에 절마다의 브랜치를 병합 커밋으로 합치고, `stage3` → `main` PR을 열어 둡니다 | 뒤 절이 앞 절 위에 서므로(7-4는 2절의 설정, 5절은 4절의 규칙) 절마다 `main`에서 따로 따면 서로를 쓰지 못합니다. `main`은 사용자가 병합할 때까지 f305dc1 그대로입니다 |
 | 도킹 실패 뒤의 "위치 재추정"(2-3절) | 관제가 로봇을 도크 앞 지점까지 물렸다가 다시 들여보냅니다. AMCL을 다시 초기화하지는 않습니다 | `pinky_dock`은 빈 패키지이고 도킹은 시뮬레이션의 흉내입니다. 로봇 쪽에서 위치를 다시 잡게 할 코드가 없습니다. 점대칭 경기장에서 전역 재추정을 하면 뒤집힌 자세로 붙을 수 있어 하지 않았습니다 |
 | `redock_wait_s` | 10 s | 재지 않은 추정값입니다. 물러날 길을 쥔 로봇이 떠나지 않는 경우에 도크에서 끝없이 기다리지 않게 하려는 한도입니다 |
+| 이음 정밀도의 방법(2-4절) | 지시서의 두 방법 가운데 둘째(로봇이 선 자리에서 시작하는 경로)입니다 | 10.5절에 적었습니다. Nav2 설정과 회피 담당의 컨트롤러를 건드리지 않습니다 |
+| 회피 담당 파일의 모양(7-1절) | Nav2 파라미터 파일 모양이 아니고 키 둘(`follow_path_goal`, `vision_obstacles`)만 가진 파일입니다 | "다른 키가 있으면 실패"를 시험 하나로 끝내기 위해서입니다(10.10절) |
+| 비전 입력의 기준(7-3절) | QoS(sensor data), `frame_id`(로봇 TF 안의 프레임, 접두사 없음), `header.stamp`(찍은 시각), 주기(5 Hz 이상 권장), 높이(0.0~2.0 m)를 사용자 기준으로 적었습니다 | 지시서는 "표로 적음"만 정했습니다. 지금 costmap 설정과 맞는 값입니다. 회피 담당과 맞춰 본 값이 아닙니다 |
+| `blocked_after_s`(7-4절) | 5초에서 10초로 올렸습니다 | 섬 1초 + 기다림 2초 + 물러남 약 2초 + 다시 가서 또 섬 약 2초에 여유 3초입니다. Gazebo에서 재지 않았습니다 |
+| 로봇단 물러나기의 방식(7-4절) | 지나온 경로를 따라 후진하는 대신, Nav2의 BackUp으로 곧게 물러나되 거리를 지나온 길 안으로 제한했습니다 | 지시서는 "지나온 경로를 따라 후진"입니다. 0.10 m 이하의 짧은 거리여서 곧은 후진으로 두었고, 넓은 구역에서는 지나온 자취가 곧게 이어진 만큼만 물러납니다 |
+| 회귀 시험에서 원인 "회피"(7-3절) | 표에 찍기만 하고 실패로 치지 않습니다 | 지시서 2-5의 기준이 "주행" 원인 0건입니다. 실패로 칠지는 사용자가 정합니다 |
+| keepout 침범 깊이에서 빼는 구역(7-3절) | 로봇이 쥐고 있거나 5초 안에 쥐었던 구역 | 그 구역에서 나오는 중인 몸의 꼬리를 침범으로 세지 않기 위해서입니다. 5초는 재지 않은 값입니다 |
+
+### 10.10 설정의 주인: Nav2 설정을 두 파일로 (지시서 7-1절)
+
+| 무엇 | 결과 |
+|---|---|
+| 나눈 방법 | 사용자 파일 `params/nav2_params.yaml`은 Nav2 파라미터 파일 그대로 두고, `FollowPathGoal` 컨트롤러 안의 값과 비전 관측원의 값만 회피 담당 파일 `params/avoidance.yaml`로 옮겼습니다. 회피 담당 파일에는 키가 둘뿐입니다: `follow_path_goal`, `vision_obstacles` |
+| 까닭 | 회피 담당 파일을 Nav2 파라미터 파일 모양으로 두면 `local_costmap` 같은 사용자 소유 키를 얼마든지 넣을 수 있고, 그것을 걸러 내려면 허용 경로 목록을 따로 관리해야 합니다. 키를 둘로 못 박으면 "다른 키가 있으면 실패"라는 시험 하나로 끝납니다 |
+| 사용자 소유 키가 들어 있으면 | `nav2.launch.py`가 `ValueError`로 뜨지 않고, `test_nav_config.py`의 `test_a_user_owned_key_in_the_avoidance_file_is_refused`(키 일곱 가지)가 실패합니다 |
+| 사용자 파일에 회피 담당의 값이 있으면 | `test_the_users_file_holds_no_avoidance_values`가 실패합니다. 값의 자리는 하나입니다 |
+| 로봇이 받는 값 | 나누기 전과 같습니다. 나눈 커밋(223a42f)에서 옛 시험(`FollowPathGoal`이 고정 경로 값 셋을 뺀 `FollowPath`와 같다)이 합친 설정으로 그대로 통과했고, 그 뒤에 그 시험을 회피 기준만 보는 것으로 바꿨습니다(28ae84c) |
+| 비전 켜기 | launch 인자 `vision_obstacles:=true`는 그대로입니다. 덧붙임 파일 `params/vision_obstacles.yaml`은 지웠고, 값은 회피 담당 파일에서 옵니다 |
+| 시뮬레이션 | `sim_nav_params`가 회피 담당 파일의 `FollowPathGoal`을 먼저 넣은 뒤 속도 상한(`nav_max_speed`)과 충돌 검사 켬을 덮습니다. `nav2.launch.py`는 이미 들어 있는 `FollowPathGoal`을 그대로 둡니다. `FollowPathGoal`이 RPP가 아니면 이 두 값(RPP의 키)을 넣지 않습니다: 그때 속도 상한은 회피 담당 파일이 스스로 지켜야 합니다 |
+| 시험 | Windows `pinky_nav_config` 39 passed 1 skipped, WSL `pinky_nav_config` 55 passed, `fleet_gz_sim` 334 passed, ruff 통과(28ae84c) |
+| 검수(Codex)에서 나와 고친 것 둘 | ① `FollowPathGoal`을 RPP가 아닌 플러그인으로 바꾸면 시뮬레이션의 속도 상한 계산이 `KeyError`로 멈췄습니다. ② 옛 시험이 회피 담당의 값을 `FollowPath`와 같게 고정해서, 회피 담당이 허용된 값을 바꿔도 사용자 쪽 시험이 실패했습니다 |
+| 고치지 않은 지적 | ① "나누기 전의 전체 파라미터와 같은지를 고정하는 시험이 없다"는 지적입니다. 한 번만 필요한 확인이어서 위의 방법으로 확인하고 시험으로 남기지 않았습니다. ② `FollowPathGoal`이 RPP가 아니면 시뮬레이션이 `nav_max_speed`를 넣어 주지 못합니다. 회피 담당 파일이 스스로 지켜야 하고(`회피_약속.md` 2절), 다음 후보는 `pinky_fsm`이 넓은 구역에서도 `speed_limit` 토픽을 내는 것입니다. ③ 시뮬레이션 연결 시험 몇 개가 RPP의 키를 전제로 해서, 플러그인을 바꾸면 실패합니다. 플러그인이 바뀐 것을 알리는 경보로 두었습니다 |
+| 합친 뒤의 시험(18fc990: 7-4와 2-1 브랜치를 합침) | Windows `pinky_nav_config` 39 passed 1 skipped, WSL `pinky_nav_config` 59 passed, `pinky_scan_filter` 10 passed, `fleet_gz_sim` 335 passed. scan 거르개 덧붙임(`params/scan_filter.yaml`)은 회피 담당 파일과 keepout 덧붙임 뒤에 얹습니다 |
+
+바꾼 파일과 함수입니다.
+
+| 파일 | 함수와 값 | 무엇 |
+|---|---|---|
+| `pinky/pinky_nav_config/launch/pinky_nav_params.py`(새 파일) | 새 `with_avoidance`, `foreign_keys`, `avoidance_values_in`, `merge`, 새 값 `AVOIDANCE_KEYS`, `GOAL_CONTROLLER`, `VISION_SOURCE`, `COSTMAPS` | 두 파일을 모으고, 회피 담당 파일의 남의 키와 사용자 파일의 회피 값을 찾습니다. ROS 없이 돕니다 |
+| `pinky/pinky_nav_config/params/avoidance.yaml`(새 파일) | 키 `follow_path_goal`, `vision_obstacles` | 회피 담당의 값 |
+| `pinky/pinky_nav_config/params/nav2_params.yaml` | 지움 `FollowPathGoal` 블록 | 이름만 `controller_plugins`에 남습니다 |
+| `pinky/pinky_nav_config/params/vision_obstacles.yaml` | 지운 파일 | 값은 `avoidance.yaml`로 옮겼습니다 |
+| `pinky/pinky_nav_config/launch/nav2.launch.py` | 바꿈 `WithOverlays`(인자 `avoidance`), 새 `_read`, 지움 `_merge`, 새 launch 인자 `avoidance_params_file` | 사용자 파일에 회피 담당 파일과 keepout 덧붙임을 얹은 임시 파일을 냅니다 |
+| `sim/fleet_gz_sim/fleet_gz_sim/launch_parts.py` | 바꿈 `sim_nav_params`, 새 값 `AVOIDANCE_FILE`, `GOAL_CONTROLLER_KEY` | 회피 담당 파일의 `FollowPathGoal`을 먼저 넣고, RPP일 때만 속도 상한과 충돌 검사를 덮습니다 |
+| 시험 | `pinky_nav_config/test/test_nav_config.py`의 "설정의 주인" 시험 12개와 바꾼 `test_the_goal_controller_is_named_and_stops_when_blocked`, `test_nav2_launch.py`의 2개, `fleet_gz_sim/test/test_sim_nav_params.py`의 2개와 도우미 `_base` | |
+| 문서 | `pinky/pinky_nav_config/README.md`, `docs/회피_약속.md` | |
+
+### 10.11 회피 쪽 기준과 회귀 시험 (지시서 7-3절)
+
+| 무엇 | 결과 |
+|---|---|
+| 기준 문서 | `docs/회피_약속.md`를 사용자 기준으로 다시 썼습니다. 머리말에 "사용자 기준이며, 회피 담당은 이 기준에 맞춥니다"를 적었고, 1절 맡는 범위, 2절 설정의 주인(7-1), 3절 scan 거르기(7-2), 4절 지켜야 할 기준과 비전 입력 표와 회귀 시험 명령(7-3), 5절 로봇단 교착 처리(7-4), 7절 예전 Gazebo 측정으로 나눴습니다 |
+| 한 명령 | `tools/avoid_regression.sh`입니다. ① 머리 없는 세계의 매장 상황(`tools/situations.py --store --avoid all`) ② Gazebo 한 대, 고정 경로 충돌 검사를 켠 채 구간 종류마다 세 번(`drive_check`) ③ Gazebo 세 대 경기 세 판(씨드 1, 2, 3)을 차례로 돌립니다. 한 단계가 실패해도 나머지를 돌리고, 하나라도 실패하면 1로 끝납니다 |
+| 판정 | `tools/avoid_regression.py`(ROS 없이 돕니다). 한 대 주행: 모든 이동이 성공하고, Nav2 계획과 로봇 중심이 keepout 구역에 들어가지 않아야 합니다. 세 대 경기: 끝나지 않은 주문의 원인(`tools/triage`)에 "주행"이 없고, keepout 침범 깊이가 `keepout_intrusion_max_m`(0.02 m) 이하여야 합니다. 끝까지 돌지 못한 경기(`summary.json` 없음, 시간 한도), 주문이 없는 기록, 깊이를 재지 못한 경기는 통과로 치지 않습니다 |
+| keepout 침범 깊이 | `fleet_check`에 새로 넣었습니다(`fleet_check.json`의 `keepout_depth_m`). Gazebo의 실제 자세와 Nav2 발자국으로, 로봇 중심이 넓은 구역에 있을 때 몸 둘레의 점(0.5 cm 간격)이 그 로봇이 쥐지 않은 좁은 구역으로 들어간 깊이를 잽니다. 쥐고 있거나 5초 안에 쥐었던 구역은 세지 않습니다 |
+| 경기 기록 | `gz.launch.py`에 인자 `fleet_record`(기본 false)를 더했습니다. true면 관제 기록(`fleet_manager --record`)이 `result_dir/fleet_record.jsonl`에 남아 `tools/triage`가 Gazebo 경기를 읽습니다. 그전에는 저장소 밖의 기록기로 재야 했습니다 |
+| 시험 | Windows: `tools/test` 48 passed, `fleet_check` 26 passed, ruff 통과(f219503). WSL `fleet_gz_sim` 343 passed(1c43d46 기준, 검수 수정 뒤 WSL은 통합 뒤에 다시 돌립니다) |
+| 아직 하지 않은 것 | 스크립트 전체를 한 번 돌리는 것입니다. 1단계는 4절 브랜치의 `--store`가 합쳐져야 돌고, 2·3단계는 Gazebo가 비어야 합니다 |
+
+검수(Codex)에서 나온 것입니다.
+
+| 지적 | 처리 |
+|---|---|
+| 기록이 비었거나 경기가 일찍 죽어도 통과했습니다 | 고쳤습니다(`record_problems`: `summary.json`과 주문이 있어야 합니다) |
+| 재지 못했는데 깊이가 0으로 나왔습니다 | 고쳤습니다(측정한 표본이 없으면 `None`, 판정은 실패) |
+| 몸의 꼭짓점만 봐서 구역 모서리가 변을 파고드는 경우를 놓쳤습니다 | 고쳤습니다(둘레의 점 0.5 cm 간격) |
+| 시간 한도나 launch 실패가 실패로 잡히지 않았습니다 | 고쳤습니다 |
+| 두 자세 표본 사이에만 쥔 구역이 "방금 쥔 구역"에서 빠졌습니다 | 고쳤습니다(구역 메시지에서도 기록) |
+| 깊이를 mm로 반올림한 뒤 견줬습니다 | 고쳤습니다(1 µm) |
+| 중단할 때 띄운 launch가 남고, 남의 `gz sim`까지 끝냈습니다 | 고쳤습니다(자기 프로세스 그룹만, INT/TERM trap) |
+| 계획 수가 없는 주행 요약이 통과했습니다 | 고쳤습니다 |
+| (재검수) 첫 자세 표본 전에 구역을 잡았다 놓으면 기록이 남지 않습니다 | 남겼습니다. 관제는 로봇이 준비된 뒤에 뜨고 자세는 Gazebo가 뜰 때부터 옵니다 |
+| (재검수) 1 µm 반올림의 경계, trap을 걸기 전 아주 짧은 틈 | 남겼습니다 |
+
+가정(가정 표에 옮길 것):
+- 회귀의 세 대 경기에서 원인 "회피"는 표에 찍기만 하고 실패로 치지 않습니다(지시서 2-5의 기준이 "주행" 0건). 실패로 칠지는 사용자가 정합니다.
+- keepout 침범 깊이에서 "쥐고 있거나 5초 안에 쥐었던 구역"을 뺐습니다(구역에서 나오는 몸의 꼬리). 5초는 임의로 정한 값입니다.
+
+바꾼 파일과 함수입니다.
+
+| 파일 | 함수와 값 | 무엇 |
+|---|---|---|
+| `tools/avoid_regression.sh`(새 파일) | | 세 단계를 돌리는 한 명령 |
+| `tools/avoid_regression.py`(새 파일) | 새 `drive_rows`, `drive_markdown`, `drive_problems`, `record_problems`, `game_problems`, `main`, 새 값 `KEEPOUT_MAX_M` | 판정과 표 |
+| `sim/fleet_gz_sim/fleet_gz_sim/fleet_check.py` | 새 `footprint_of`, `outline_points`, `_depth`, `FleetCheck._keepout`, 바꿈 `__init__`(인자 `body`, `left_s`), `on_zones`, `on_truth`(인자 `yaw`), `summary`(칸 `keepout_depth_m`, `keepout_zone`, `keepout_robot`, `keepout_at_s`, 로봇별 `keepout_samples`, `keepout_checked_samples`), 새 값 `LEFT_S`, `EDGE_STEP_M` | keepout 침범 깊이 |
+| `sim/fleet_gz_sim/fleet_gz_sim/fleet_check_node.py` | 새 `_body`, 바꿈 `_on_truth` | Nav2 발자국을 읽고 방향을 넘깁니다 |
+| `sim/fleet_gz_sim/launch/gz.launch.py` | 새 인자 `fleet_record`, 바꿈 `fleet`(인자 `record`) | 관제 기록을 결과 폴더에 |
+| 시험 | 새 `tools/test/test_avoid_regression.py`(14개), `test_fleet_check.py`의 keepout 시험 10개, `test_launch_wiring.py`의 1개 | |
+| 문서 | `docs/회피_약속.md` 전체 | |
+
+### 10.12 로봇단 교착 처리 (지시서 7-4절, 계약 0.13-draft)
+
+| 무엇 | 결과 |
+|---|---|
+| 누가 물러나게 하나 | `pinky_fsm` 하나입니다. 고정 경로(`follow_path`)와 넓은 구역(`nav_goal`) 두 모드 모두에서 기다림, 물러나기, `BLOCKED`를 `pinky_fsm`이 정합니다. Nav2의 행동 트리는 지도 지우기와 Wait만 합니다: Spin과 BackUp을 트리에서 뺐고, `behavior_plugins`에서도 `spin`을 뺐습니다. 그래서 트리와 `pinky_fsm`이 함께 물러나는 일이 없습니다 |
+| 순서 | 물체 앞에 1초 서면 `RECOVERING`(`local_yield=wait`)으로 `local_wait_s`(2초) 기다립니다 → 앞을 막은 것이 다른 로봇이고 내가 낮은 쪽이면 물러납니다(`backup`) → 다시 갑니다(`retry`) → 또 막히면 `BLOCKED`. 물러나지 않는 쪽은 기다린 뒤 바로 `BLOCKED`입니다. 한 자리에서 한 번만 합니다 |
+| 앞을 막은 로봇 찾기 | `pinky_fsm`이 `/fleet/robots`를 듣습니다. 가던 길 앞 0.5 m의 점에서 `local_peer_near_m`(0.20 m) 안에 중심이 있는 가장 가까운 다른 로봇입니다. 3초(`peers_timeout_s`)보다 오래된 줄은 쓰지 않습니다(그러면 물러나지 않습니다). `obstacle_kind=robot`은 누구인지 알려 주지 않아서 쓰지 않았습니다 |
+| 대칭 깨기 | `(priority, 로봇 이름)`이 작은 쪽이 물러납니다. 둘 중 하나라도 priority가 없거나(-1) 같으면 이름 순입니다. 관제의 `choose_retreat`와 같은 규칙입니다. 관제는 `deadlock.priority`를 MoveTo의 새 칸 `priority`에 싣고, 마지막으로 보낸 값을 `/fleet/robots`의 `priority`로 보입니다. 로봇은 자기 priority도 같은 `/fleet/robots` 메시지의 자기 줄에서 읽어서, 두 로봇이 같은 값을 견줍니다 |
+| 물러나는 거리 | 다음 가운데 가장 작은 값입니다: `local_backup_m`(0.10 m), 예전 자가 복구의 한도(마지막 꼭짓점에서 0.23 m 남김, 옆으로 0.03 m), 지금 goal에서 지나온 거리, `nav_goal`에서는 지나온 자취를 따라 곧게 물러날 수 있는 거리. goal을 막 시작해 지나온 거리가 0이면 물러나지 않고 기다린 뒤 `BLOCKED`입니다 |
+| `blocked_after_s` | 5초에서 10초로 올렸습니다. 선 때부터 `BLOCKED`까지의 상한입니다: 섬 1초 + 기다림 2초 + 물러남 약 2초 + 다시 가서 또 섬 약 2초 = 7초에 여유 3초. 이 한도를 넘으면 어느 단계에서든 `BLOCKED`이고, 하던 BackUp은 취소합니다. 계약(0.13-draft)과 `params.py`에 적었습니다 |
+| 관제와의 순서 | 로봇단 처리가 먼저입니다. 관제는 `RECOVERING` 동안 막힌 시간을 세지 않고 사건 `LOCAL_YIELD`(단계가 바뀔 때마다, 끝날 때 "ends <상태> after N s")로 남기기만 합니다. `HALL_YIELD`와 규칙 7은 `BLOCKED` 뒤에 움직입니다(`관제_구역교통.md` 규칙 7a) |
+| 끄는 법 | `pinky_fsm` 파라미터 `local_yield`(기본 켬)를 끄면 0.12의 동작(예전 자가 복구)입니다. 다만 `blocked_after_s` 10초와 Spin·BackUp 없는 트리는 그대로입니다 |
+| 시험(b3698da) | Windows `pinky_fsm` 306 passed 7 skipped, `fleet_core` 598 passed 2 failed, ruff 통과. WSL `pinky_fsm` 350 passed 6 skipped, `pinky_nav_config` 41 passed. `fleet_core`의 실패 둘(`test_zone_block_marks.py`)은 이 브랜치에 합친 2-1 브랜치와 4절 브랜치 사이의 것이고 이 변경에서 나온 것이 아닙니다 |
+| Gazebo에서 볼 것 | 고정 경로에서 마주 선 두 대(낮은 쪽만 0.10 m 물러남), `nav_goal`에서 같은 상황, `BLOCKED`가 10초 안에 나오는지, 트리가 `pinky_fsm` 모르게 로봇을 움직이지 않는지, 관제 로그의 `LOCAL_YIELD` |
+
+검수(Codex)에서 나온 것 가운데 고친 것과 남긴 것입니다.
+
+| 지적 | 처리 |
+|---|---|
+| priority가 바뀌는 동안 두 로봇이 서로 다른 값을 견줄 수 있습니다 | 고쳤습니다(자기 priority도 `/fleet/robots`의 자기 줄에서 읽습니다). 두 로봇이 서로 다른 메시지를 읽는 짧은 틈은 남습니다(계약에 적었습니다) |
+| 계약 글이 코드와 달랐습니다(물러나기 횟수, `nav_goal` 기본 복구) | 고쳤습니다 |
+| 고정 경로에서 FollowPath를 취소한 뒤 멈췄는지 확인하지 않고 2초 뒤에 BackUp을 보냅니다 | 남겼습니다. 예전 자가 복구는 취소와 BackUp을 같은 순간에 보냈으므로 전보다는 낫습니다. Gazebo에서 2초가 충분한지 봅니다 |
+| BackUp이 시간 초과되거나 `nav_goal`에서 선점·`BLOCKED`가 될 때 취소와 새 주행 명령이 함께 나갑니다 | 남겼습니다. 계약이 예전 코드에 대해 이미 적어 둔 위험과 같습니다 |
+| 고정 경로의 한도 "지나온 거리"는 받은 선 위의 거리이고 실제 자취가 아닙니다 | 남겼습니다. 옆으로 0.03 m 한도가 막아 줍니다 |
+
+바꾼 파일과 함수입니다.
+
+| 파일 | 함수와 값 | 무엇 |
+|---|---|---|
+| `pinky/pinky_fsm/pinky_fsm/local_yield.py`(새 파일) | 새 `Peer`, `peers_from`, `blocking_peer`, `yields_to`, `straight_back_m`, `extend_trail` | 순수 함수: 앞을 막은 로봇, 누가 물러나는지, 곧게 물러날 수 있는 거리, 지나온 자취 |
+| `pinky/pinky_fsm/pinky_fsm/yield_moves.py`(새 파일) | 새 믹스인 `LocalYield`: `see_peers`, `local_yield_step`, `_start_yield`, `_watch_yield`, `_yield_backup_m`, `_backs_up`, `_yield_blocked` | 고정 경로에서의 순서 |
+| `pinky/pinky_fsm/pinky_fsm/yield_nav.py`(새 파일) | 새 믹스인 `NavYield`: `_watch_nav_yield`, `_ray`, `_nav_backup_m`, `_nav_backup`, `_nav_follow_again`, `_nav_backup_result`, `_nav_yield_blocked` | 넓은 구역(`nav_goal`)에서의 순서 |
+| `pinky/pinky_fsm/pinky_fsm/params.py` | 바꿈 `blocked_after_s` 10.0, 새 `local_yield`, `local_wait_s`, `local_backup_m`, `local_peer_near_m`, `peers_timeout_s` | |
+| `pinky/pinky_fsm/pinky_fsm/records.py`, `nav_goal.py` | 새 값 `_Move.s_start`, `_Recovery.local`·`wait_until`·`stood_since`·`backup_m`, `NavGoal.trail`·`driven` | goal에서 지나온 거리와 자취 |
+| `pinky/pinky_fsm/pinky_fsm/core.py`, `recovery.py`, `nav_moves.py`, `order_fsm.py` | 바꿈 `PinkyFsm.__init__`(인자 `robot_id`), `move`(인자 `priority`), `nav_result`, `_watch_obstacle`, `tick`, `backup_result`, `_can_recover`, `_start_attempt`, `_watch_recovery`, `nav_goal_result`, `OrderFsm._start_run` | 새 순서를 부르고, order goal의 priority를 run마다 넘깁니다 |
+| `pinky/pinky_fsm/pinky_fsm/node.py`, `server_ros.py` | 새 `_on_fleet_robots`, `/fleet/robots` 구독, `local_yield` 발행, `priority` 전달 | ROS 연결 |
+| `interfaces/fleet_interfaces` | 새 `MoveTo.priority`, `RobotState.local_yield`와 상수, `RobotStatus.priority`, `contract.yaml` 0.13-draft | |
+| `pc/fleet_core/fleet_core/common/commands.py` | 새 `priority`(`MoveCmd`, `MoveOrderCmd`, `RobotStatusView`), 새 값 `LOCAL_YIELD_STEPS` | |
+| `pc/fleet_core/fleet_core/traffic/zone/` | 새 `_goal_priority`(`base.py`), `_note_local_yield`(`blocked.py`), 바꿈 `_note_self_recovery`, `on_robot_state`(`progress.py`, 인자 `local_yield`), `status_view`, `drive.py`·`move_orders.py`·`trips.move_command`(priority 전달) | priority를 싣고, `LOCAL_YIELD`를 남기기만 합니다 |
+| `pc/fleet_core/fleet_core/manager.py`, `api.py` | 바꿈 `on_robot_state`(끝에 인자 추가) | |
+| `pc/fleet_manager` | 바꿈 `adapters.py`의 `move_goal`, `move_order_goal`, `robots_to_msg`, 새 `robot_local_yield` | |
+| `pinky/pinky_nav_config` | 지움 BT의 Spin과 BackUp, `behavior_plugins`의 `spin` | |
+| 시험 | 새 `pinky_fsm/test/test_local_yield.py`, `test_yield_core.py`, `test_yield_nav.py`, `test_ros_local_yield.py`, `fleet_core/test/test_zone_local_yield.py`. 예전 `test_core.py`, `test_nav_goal.py`, `test_ros_fsm.py`의 도우미는 `local_yield`를 끄고 돕니다 | |
+| 문서 | `docs/핑키_계약.md`, `docs/관제_구역교통.md`(규칙 7a) | |
