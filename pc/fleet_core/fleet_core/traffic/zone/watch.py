@@ -44,6 +44,7 @@ class Watch:
         if at_end:  # 끝 지점에 서 있다: 열린 goal만 거두고 닿은 것으로 본다
             m.goal = goal
             self._arrived_anyway(m, STALLED)
+            m.retry_at = now + p.arrival_settle_s  # 취소가 닿은 뒤에 다음 goal을 낸다
         else:
             self._goal_failed(m, STALLED)
 
