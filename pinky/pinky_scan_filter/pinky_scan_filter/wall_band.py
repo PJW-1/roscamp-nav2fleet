@@ -94,5 +94,6 @@ def filter_ranges(band: WallBand, ranges, angle_min, angle_increment, range_min,
 
 
 def origin_yaw(qz: float, qw: float) -> float:
-    """지도 원점 자세(z축 회전만인 사원수)의 yaw."""
-    return 2.0 * math.atan2(qz, qw)
+    """지도 원점 자세(z축 회전만인 사원수)의 yaw, (-pi, pi]. (0, -1)도 0이다."""
+    yaw = 2.0 * math.atan2(qz, qw)
+    return math.atan2(math.sin(yaw), math.cos(yaw))
