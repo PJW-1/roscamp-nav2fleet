@@ -84,6 +84,10 @@ python3 tools/order_situations.py --seeds 1 2 3                          # 머�
 
 `use_order_model`을 끄면(기본) 관제가 내는 명령과 사건은 전과 같다. 규칙과 정한 값은 [docs/order_모델.md](docs/order_모델.md)에, 측정은 [작업 기록](docs/worklog_nav2base_2026-11-12.md) 8절에 있다.
 
+![RViz의 관제 화면: 굵은 실선이 base](docs/img/order_base_horizon.png)
+
+관제 화면(`rviz:=fleet`, 기본)은 로봇마다 base를 굵은 실선으로, horizon을 반투명 점선으로 그린다. 위 그림은 Gazebo 세 대 경기(D2, order 모델 켬)를 시작하고 110초 뒤의 화면이다. pinky1(파랑)의 base가 N_E에서 X_E로, pinky2(초록)의 base가 P-3에서 W_Q 쪽으로 보인다. 이 순간에는 horizon이 짧아 잘 보이지 않고, 처음 카메라 자리 때문에 경기장 서쪽 끝이 잘렸다.
+
 ## 지금 상태
 
 | 있는 것 | 아직 없는 것 |
