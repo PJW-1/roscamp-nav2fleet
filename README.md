@@ -74,6 +74,17 @@ python3 tools/make_keepout.py --layout d2 --map <지도.yaml>
 
 Gazebo 쪽 인자와 장애물 일정은 [sim/fleet_gz_sim/README.md](sim/fleet_gz_sim/README.md)에 있다.
 
+## order 모델 (제안, 기본 꺼짐)
+
+이동 하나를 조각 목록으로 한 번에 보내는 방식이다(VDA 5050의 order). 관제가 구역을 잡아 준 조각이 base이고, 아직 잡지 않은 조각이 horizon이다. 로봇은 base 안에서는 서지 않고 다음 조각으로 넘어간다. 관제는 로봇이 base 끝에 닿기 2초 전에 다음 구역을 잡아 update로 base를 늘리고, 못 잡으면 로봇이 base 끝에서 기다린다. 통신이 끊겨도 로봇은 base 끝까지만 간다.
+
+```bash
+ros2 launch fleet_gz_sim gz.launch.py layout:=d2 use_order_model:=true   # Gazebo
+python3 tools/order_situations.py --seeds 1 2 3                          # 머리 없는 세계에서 끄고 켠 표
+```
+
+`use_order_model`을 끄면(기본) 관제가 내는 명령과 사건은 전과 같다. 규칙과 정한 값은 [docs/order_모델.md](docs/order_모델.md)에, 측정은 [작업 기록](docs/worklog_nav2base_2026-11-12.md) 8절에 있다.
+
 ## 지금 상태
 
 | 있는 것 | 아직 없는 것 |
@@ -89,5 +100,6 @@ Gazebo 쪽 인자와 장애물 일정은 [sim/fleet_gz_sim/README.md](sim/fleet_
 | [docs/관제_구역교통.md](docs/관제_구역교통.md) | 교통 규칙, 사건 코드, 값 |
 | [docs/회피_약속.md](docs/회피_약속.md) | 관제와 회피가 나눠 맡는 선(제안) |
 | [docs/핑키_계약.md](docs/핑키_계약.md) | 핑키와 관제 사이의 계약(0.11-draft는 제안) |
+| [docs/order_모델.md](docs/order_모델.md) | order 모델의 규칙, 켜는 법, 정한 값(제안) |
 | [docs/worklog_nav2base_2026-11-12.md](docs/worklog_nav2base_2026-11-12.md) | 만든 것, 측정, 가정, 남은 일 |
 | [docs/COPIED_FROM.md](docs/COPIED_FROM.md) | 복사한 곳과 지운 것 |
