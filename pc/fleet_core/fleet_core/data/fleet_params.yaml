@@ -14,7 +14,7 @@ release_confirm_samples: 3    # 해제 전에 그 거리를 지난 연속 보고
 lane_error_warn_m: 0.15       # 가짜 로봇: 받은 path 첫 점이 이보다 멀면 따라가지 않는다(PATH_NOT_CONNECTED). 레인 이탈 감시는 지웠다
 move_retry_limit: 2           # 첫 실패 뒤 재시도 수, 모두 세 번 시도
 move_retry_wait_s: 2.0        # 추정: 세 번 시도가 comm_timeout_s보다 길어 통신 끊김이 먼저 보인다
-stall_s: 6.0                  # 목표가 열린 채 이만큼 제자리면 멈춤. pinky_multi_sim과 같은 값
+stall_s: 12.0                 # 목표가 열린 채 이만큼 제자리면 멈춤. 핑키의 blocked_after_s(10 s, 계약 0.13-draft)보다 2 s 길어야 한다: 짧으면 선 로봇이 BLOCKED를 보고하기 전에 goal을 거둔다(0.12까지 6 s)
 stall_move_m: 0.05            # 보고 위치가 이보다 덜 움직이면 제자리. 위치 잡음 σ 0.03 m에도 버틴다
 dock_stall_s: 15.0            # 추정: 도킹은 천천히 맞추므로 더 길게 본다
 blocked_mark_s: 10.0          # 추정: BLOCKED가 이만큼 이어지면 그 연결을 막힘으로 표시하고 다른 길을 고른다(잠깐 지나가는 사람 8 s보다 길게)

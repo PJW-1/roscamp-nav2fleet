@@ -49,14 +49,15 @@ def _wall(t0=0.0, t1=math.inf):
     return [Obstacle(1.0, y / 100, 0.05, t0, t1) for y in range(0, 80, 4)]
 
 
-def test_stops_reports_blocked_after_five_seconds_and_goes_on_when_the_way_opens():
-    world = quiet_world(robots={"pinky1": "N_W"}, injections=_wall(0.0, 20.0))
+def test_stops_reports_blocked_after_ten_seconds_and_goes_on_when_the_way_opens():
+    world = quiet_world(robots={"pinky1": "N_W"}, injections=_wall(0.0, 30.0))
     world.send(nav(world, "pinky1", 1, "N_E"))
-    world.run(19.0)
+    world.run(29.0)
     seen = states(world)
     first_blocked = next(t for t, s in seen if s == "BLOCKED")
     stood = next(t for t, s in seen if s == "MOVING")
-    assert first_blocked >= stood + 5.0 - 1.0  # 서고 나서 5 s(벽까지 가는 시간 안쪽)
+    # 서고 나서 10 s(계약 0.13-draft의 blocked_after_s. 벽까지 가는 시간 안쪽)
+    assert first_blocked >= stood + 10.0 - 1.0
     assert seen[-1][1] == "BLOCKED"
     assert not results(world, "on_move_result")
     assert world.robots["pinky1"].x < 1.0 - 0.05 - world.radius

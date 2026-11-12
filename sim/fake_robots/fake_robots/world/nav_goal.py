@@ -18,6 +18,9 @@ from .runs import LOOK_M, Run, Turning, blocked_ahead, end_offset, jittered, mov
 REPLAN_S = 1.0  # 막혔을 때 다시 계획하는 주기(NavigateToPose 기본 BT 1 Hz)
 PLAN_GAP_M = 0.03  # 계획할 때 다른 로봇과 물체를 이만큼 더 키운다(격자 반 칸 + 충돌 검사 틈)
 PROGRESS_M = 0.02  # 이만큼 움직이면 나아간 것으로 본다
+# 이만큼 못 나아가면 BLOCKED. 핑키의 blocked_after_s(계약 0.13-draft)와 같아야 한다
+# (fleet_gz_sim의 test_timing_agreement.py가 본다)
+BLOCKED_AFTER_S = 10.0
 ABORT_AFTER_S = 0.5  # 지도 위에 길이 없을 때 이만큼 뒤 NAV_ABORTED
 GIVE_UP_S = 60.0  # 이만큼 못 나아가면 NAV_ABORTED(Nav2 복구 여섯 번쯤)
 

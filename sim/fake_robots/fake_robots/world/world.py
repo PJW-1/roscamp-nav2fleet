@@ -25,6 +25,7 @@ from .injections import LowBattery, OrderFault, Reinstate, Removal, Schedule
 from .invariants import Invariants
 from .link import Link
 from .metrics import Metrics
+from .nav_goal import BLOCKED_AFTER_S
 from .order_metrics import OrderMetrics
 from .order_run import OrderRun, stops_for_lost_contact
 from .reaction import ReactionWatch
@@ -33,7 +34,6 @@ from .runs import DOCK, HEARTBEAT_LOST, Result
 from .stations import Arms, Central, six_orders
 
 DT = 0.1
-BLOCKED_AFTER_S = 5.0  # nav_goal: 이만큼 못 나아가면 BLOCKED(지시서 4절)
 STUCK_TIMEOUT_S = 10.0  # 멈춘 로봇의 이동은 이만큼 뒤 TIMEOUT
 DEFAULT_STOCK = {"A": 20, "B": 20, "C": 20, "D": 20}
 
