@@ -154,14 +154,15 @@ def sim_nav_params(base: Path, out: Path, amcl: dict | None = None,
     """base(실물 Nav2 설정)에 시뮬 값을 덮어 out에 쓴다. base는 바꾸지 않는다.
 
     - AMCL: SIM_AMCL(또는 amcl).
-    - overrides: Nav2 설정 위에 깊이 덮을 값(merge). launch 인자 nav_overrides(yaml 파일).
+    - overrides: 그 위에 깊이 덮을 값(merge). launch 인자 nav_overrides(yaml 파일). AMCL 값도
+      바꾼다.
     - controller 넷(CONTROLLERS) 모두 충돌 검사를 켠다(지시서 3절: 모든 실행에서 켬). overrides로도
       끌 수 없다. fixed_line_check가 거짓일 때만 FIXED_LINE_CONTROLLERS의 검사를 끈다.
     - max_speed가 있으면 controller마다 desired_linear_vel을 max_speed와 원래 값 중 작은 것으로
       (후진 FollowPathReverse 0.05 m/s는 그대로 남는다)."""
     data = yaml.safe_load(base.read_text(encoding="utf-8"))
-    merge(data, overrides or {})
     data["amcl"]["ros__parameters"].update(SIM_AMCL if amcl is None else amcl)
+    merge(data, overrides or {})
     controllers = data["controller_server"]["ros__parameters"]
     missing = [name for name in CONTROLLERS if name not in controllers]
     if missing:
@@ -214,7 +215,8 @@ def pinky(ns: str, x, y, yaw, *, nav_map: str, nav_map_fine: str, keepout_mask: 
     dock_aside: pinky_fsm의 dock 서버를 /<ns>/dock_fsm으로 비켜 둔다(시뮬 전용 도크 대역용).
     nav_composition: Nav2 노드들을 프로세스 하나(component container)로 띄운다.
     through_controller_id: 잠금 경계 경로에 쓸 controller(pinky_fsm). 비우면 모든 경로가
-    FollowPath로 간다. Nav2는 controller 넷(CONTROLLERS)을 늘 띄우고 모두 충돌 검사를 켠다.
+    FollowPath로 간다. Nav2는 controller 넷(CONTROLLERS)을 늘 띄운다. 충돌 검사는 넷 모두 켜고,
+    fixed_line_check가 거짓일 때만 고정 경로 셋을 끈다.
     nav_max_speed: controller들의 최고 속도(m/s). pinky_fsm이 잠금 경계에서 내는 속도 제한의
     상한(horizon_cap_mps)도 이 값으로: RPP는 그 제한을 속도로 쓴다.
     battery_topic: pinky_fsm이 볼 BatteryState 토픽(sim_stand_in의 BATTERY_TOPIC). 비면 없음.

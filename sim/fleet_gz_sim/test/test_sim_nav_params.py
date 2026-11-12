@@ -158,6 +158,15 @@ def test_overrides_go_deep_and_cannot_turn_the_collision_check_off(tmp_path):
     assert _rpp(sim, "FollowPath")["use_collision_detection"] is True
 
 
+def test_overrides_win_over_the_sim_amcl_values(tmp_path):
+    """nav_overrides로 AMCL 값도 바꿀 수 있다(위치 추정을 조사할 때 쓴다)."""
+    overrides = {"amcl": {"ros__parameters": {"z_hit": 0.5}}}
+    sim = yaml.safe_load(launch_parts.sim_nav_params(NAV, tmp_path / "a.yaml", overrides=overrides)
+                         .read_text(encoding="utf-8"))
+    assert _amcl(sim)["z_hit"] == 0.5
+    assert _amcl(sim)["max_beams"] == launch_parts.SIM_AMCL["max_beams"]
+
+
 def test_the_fixed_line_check_can_be_turned_off_and_the_yard_check_stays_on(tmp_path):
     """Lead decision 2026-11-12 (G1 not achieved): fixed lines without the RPP check, yard goals
     with it. The default still equals the real settings."""
