@@ -2,7 +2,8 @@
 
 - 받는 것: `scan`(LaserScan), `map_fine`(OccupancyGrid, 1 cm 지도, latched), TF map <- 라이다.
 - 내는 것: `scan_filtered`(LaserScan). 지운 빔은 거리를 inf로 둔다. costmap 장애물 층은
-  inf_is_valid가 거짓이라 그 빔으로 칠하지도 지우지도 않는다. AMCL은 원래 `scan`을 그대로 읽는다.
+  inf_is_valid가 참이라(pinky_nav_config scan_filter.yaml) 그 빔으로 칸을 지우기만 하고
+  찍지는 않는다. AMCL은 원래 `scan`을 그대로 읽는다.
 - 파라미터: `wall_band_m`(0.05. 지시서 제안 0.04, Gazebo D2 측정으로 고름),
   `strips`("x0,y0,x1,y1; ..." 좁은 띠 사각형).
   `strips`가 비었거나, 지도를 아직 못 받았거나, 지도 원점이 돌아가 있거나(yaw가 0이 아님), TF를 못

@@ -216,6 +216,19 @@ def test_costmap_topics_are_absolute_inside_the_robot_namespace():
     assert glob["static_layer"]["map_topic"] == "<robot_namespace>/map"
 
 
+def test_the_filtered_scan_clears_along_the_beams_the_filter_dropped():
+    """거르개가 지운 빔(inf)도 칸을 지운다(세 대 경기 l3g1, l3g2: 모퉁이 앞에 남은 잡음 칸에 격리).
+
+    거르개를 켤 때 덧붙는 scan_filter.yaml에만 있다. 기본(거르개 끔)은 Nav2 기본(false) 그대로다.
+    """
+    added = yaml.safe_load((PKG / "params" / "scan_filter.yaml").read_text(encoding="utf-8"))
+    for costmap in ("local_costmap", "global_costmap"):
+        scan = added[costmap][costmap]["ros__parameters"]["obstacle_layer"]["scan"]
+        assert scan["topic"] == "<robot_namespace>/scan_filtered"
+        assert scan["inf_is_valid"] is True
+        assert "inf_is_valid" not in params(costmap, costmap)["obstacle_layer"]["scan"]
+
+
 def test_global_costmap_has_the_lidar_layer_for_version_2_detours():
     glob = params("global_costmap", "global_costmap")
     assert glob["plugins"] == ["static_layer", "obstacle_layer", "inflation_layer"]
