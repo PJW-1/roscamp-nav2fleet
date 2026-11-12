@@ -17,6 +17,7 @@
 | watch | 멈춤, 구역 밖, 서로 막음, 대기 순환 |
 | silent | 할 일 없이 섬, 조용히 멈춤(갈 곳이 있는데 관제가 말이 없음) |
 | nostart | goal을 받고 움직이기 시작하지 않음 |
+| capacity | 시작 때 넓은 구역 정원의 합과 로봇 수 |
 | backoff | 서로 막은 로봇을 뒤로 조금 물리기(기본 꺼짐) |
 | calls | 배차와 호출 |
 | views | 밖에서 읽는 것 |
@@ -27,6 +28,7 @@ from .backoff import Backoff
 from .base import ZoneBase
 from .blocked import Blocked
 from .calls import Calls
+from .capacity import Capacity
 from .drive import Drive
 from .goals import Goals
 from .health import Health
@@ -39,7 +41,7 @@ from .watch import Watch
 
 
 class ZoneTraffic(Calls, Goals, Drive, Results, Progress, Blocked, Health, Watch, Backoff,
-                  Silent, NoStart, Views, ZoneBase):
+                  Silent, NoStart, Capacity, Views, ZoneBase):
     def tick(self) -> list:
         """한 주기 전체. FleetManager 없이 교통 층만 돌릴 때 쓴다."""
         now = self._clock()
@@ -53,6 +55,7 @@ class ZoneTraffic(Calls, Goals, Drive, Results, Progress, Blocked, Health, Watch
         return self.take_output()
 
     def tick_begin(self, now: float) -> bool:
+        self._check_capacity()
         everyone_here = self._check_startup(now)
         self._check_comm(now)
         self._finish_recoveries(now)
