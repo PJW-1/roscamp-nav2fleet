@@ -99,6 +99,15 @@ def test_the_store_person_situations_judge_the_same_window(name):
     assert run_situation(name, "d2", 3).failures == []
 
 
+@pytest.mark.parametrize("mode", ["perfect", "none"])
+def test_a_box_that_stays_lets_a_robot_wait_in_the_express(mode):
+    """상자가 600 s 그대로면 막힌 로봇이 급행 안에서 도크의 로봇이 나가기를 기다린다(정한 동작).
+    이 기다림이 불변식 5번으로 실패하면 회귀 명령(avoid_regression.sh)의 1단계가 늘 1로 끝난다."""
+    s = build("box_stays", "d2").for_mode(mode)
+    assert "I5_STANDING" in s.allowed
+    assert run_situation("box_stays", "d2", 1, avoid_mode=mode).failures == []
+
+
 def test_a_silent_stall_fails_every_mode_as_a_safety_rule():
     for mode in ("none", "perfect"):
         outcome = run_situation("person_passing", "d2", 1, manager_factory=RecordingManager,

@@ -109,6 +109,11 @@ def test_the_script_sends_the_first_goal_only_after_nav2_is_active():
     waiter = script[script.index("nav2_active() {"):script.index("drive_stage() {")]
     assert "/pinky1/lifecycle_manager_navigation/is_active" in waiter
     assert "success=True" in waiter
+    # ros2 service call waits for the service and for the answer without a limit of its own
+    assert re.search(r"timeout \d+ ros2 service call", waiter)
+    # no goal without the answer: the stage fails and the launch is stopped
+    before_check = stage[:stage.index("ros2 run fleet_gz_sim drive_check")]
+    assert re.search(r"if ! nav2_active; then.*failed\+=.*stop_launch.*return", before_check, re.S)
 
 
 def test_the_drive_command_ends_with_one_on_a_problem(tmp_path, capsys):

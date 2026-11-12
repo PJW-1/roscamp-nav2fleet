@@ -13,6 +13,8 @@ hall_obstacle을 4절 규칙으로 다시 돌린다. 라이다보다 낮은 상�
 """
 from __future__ import annotations
 
+from dataclasses import replace
+
 from fleet_core.fleet_map import SHARED
 
 from .injections import Obstacle
@@ -69,8 +71,13 @@ def build_store(name, layout, site, lane, situation):
                          injections=[Obstacle(*lane, BOX_R, 20.0, 140.0)], timeout_s=1500.0,
                          at_least_s=300.0)
     if name == "box_stays":
-        return situation(name, "상자 그대로",
-                         orders=six_orders(gap_s=40.0, count=15),
-                         injections=[Obstacle(*lane, BOX_R, 20.0, 620.0)], timeout_s=1800.0,
-                         at_least_s=640.0)
+        # 막혀 표시한 로봇은 급행 안에서 도크의 로봇이 나가기를 기다린다(RETREAT_WAIT, 정한 동작).
+        # 그 기다림은 불변식 5번(급행 안에 5 s 넘게 섬)에 걸리므로 이 상황에서만 허용한다
+        waits = ("I5_STANDING",)
+        s = situation(name, "상자 그대로",
+                      orders=six_orders(gap_s=40.0, count=15),
+                      injections=[Obstacle(*lane, BOX_R, 20.0, 620.0)], timeout_s=1800.0,
+                      at_least_s=640.0, allowed=waits)
+        s.rough = replace(s.rough, allowed=waits)
+        return s
     raise KeyError(f"no situation {name!r}")
