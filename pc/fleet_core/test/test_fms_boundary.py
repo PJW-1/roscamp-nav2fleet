@@ -124,8 +124,8 @@ def _closure(*modules):
 
 
 def test_the_traffic_package_is_found():
-    assert {"traffic.modes", "traffic.api", "traffic.mission", "traffic.recovery",
-            "traffic.zones"} <= set(TRAFFIC)
+    assert {"traffic.modes", "traffic.api", "traffic.mission", "traffic.zone.controller",
+            "traffic.zone.base"} <= set(TRAFFIC)
 
 
 def test_traffic_does_not_reach_the_order_side_through_any_import():
@@ -203,7 +203,7 @@ def test_a_module_brings_in_the_packages_above_it():
 
 def test_both_sides_include_their_package_init():
     assert "traffic" in TRAFFIC and "orders" in ORDERS
-    assert _traffic_side("traffic") and _traffic_side("traffic.zones")
+    assert _traffic_side("traffic") and _traffic_side("traffic.zone.base")
     assert not _traffic_side("orders") and not _traffic_side("")
 
 

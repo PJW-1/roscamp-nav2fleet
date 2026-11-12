@@ -1,12 +1,23 @@
 """막힘(지시서 2-2의 7번): 기다리고, 안 풀리면 그 연결을 막힘으로 표시하고 다른 길을 고른다.
 
 넓은 구역 안이면 goal을 거두고 다른 지점을 거쳐 간다. 한 줄 구역이나 도크 구역 안이면 지나온
-지점까지 후진(Retreat)으로 물러난 뒤 다른 길로 간다.
+지점까지 후진(Retreat)으로 물러난 뒤 다른 길로 간다. 넓은 구역에서 막힌 로봇의 길에 다른 로봇이
+goal 없이 서 있으면 그 로봇을 주차 자리로 보낸다.
 """
 from __future__ import annotations
 
+import math
+
 from fleet_core.fleet_map import RETREAT, SHARED
-from fleet_core.traffic.mission import BLOCKED, DOCK, SELF_RECOVERING
+from fleet_core.fleet_map.geometry import point_segment_distance
+from fleet_core.traffic.mission import (
+    BLOCKED,
+    DOCK,
+    SELF_RECOVERING,
+    TO_OUTBOUND,
+    TO_PARK,
+    TO_WORK,
+)
 
 from .base import HERE
 
@@ -61,7 +72,31 @@ class Blocked:
             self._event("INFO", "REROUTE", f"backs out to {link.a}, then another way", m.name)
         else:
             self._event("INFO", "REROUTE", f"another way to {m.trip.goal}", m.name)
+            self._make_way(m, link.b)
         self._drop_trip(m)
+
+    def _make_way(self, m, node: str) -> None:
+        """넓은 구역에서 막힌 로봇의 길 가까이에 goal 없이 서 있는 로봇 하나를 주차 자리로 보낸다.
+
+        차례를 기다리며 선 로봇은 구역 대기 그래프에 없다. 그래서 허락을 쥔 로봇의 길을 몸으로
+        막아도 대기 순환으로 보이지 않는다(Gazebo 3대 경기). 주차한 로봇은 보내지 않는다.
+        """
+        site, here = self.site, (m.x, m.y)
+        end = site.node_pose(node)
+
+        def in_the_way(other) -> bool:
+            zone = site.zone_at(other.x, other.y)
+            return (other is not m and other.available and other.goal is None
+                    and other.phase in (TO_WORK, TO_OUTBOUND, TO_PARK)
+                    and zone is not None and site.zones[zone].kind == SHARED
+                    and point_segment_distance((other.x, other.y), here, end)
+                    <= self.params.near_m)
+
+        standing = [other for other in self._robots.values() if in_the_way(other)]
+        for other in sorted(standing, key=lambda o: (math.dist(here, (o.x, o.y)), o.name)):
+            if self._to_parking(other, "INFO", "HALL_YIELD",
+                                f"out of the way of {m.name}, goes to", clear_of=m):
+                return
 
     def _expire_blocked(self, now: float) -> None:
         for key in [key for key, until in self._blocked.items() if until <= now]:

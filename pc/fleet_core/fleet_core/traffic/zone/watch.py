@@ -138,11 +138,20 @@ class Watch:
         return frozenset()
 
     def _evade(self, m) -> bool:
-        """대기 순환을 풀려고 이 로봇을 빈 주차 자리로 보낸다. 목적은 그대로다. 보냈으면 True."""
+        """대기 순환을 풀려고 이 로봇을 빈 주차 자리로 보낸다. 보냈으면 True."""
+        return self._to_parking(m, "WARN", "DEADLOCK_SEEN", f"{m.name} gives way to")
+
+    def _to_parking(self, m, level: str, code: str, why: str, clear_of=None) -> bool:
+        """goal이 없는 로봇을 가까운 빈 주차 자리로 보낸다. 목적은 그대로다. 보냈으면 True.
+
+        clear_of가 있으면 그 로봇에 더 가까운 자리는 고르지 않는다: 그 앞을 다시 지나게 된다.
+        """
         if m.goal is not None:
             return False
+        waited = self.grants.waiting().get(m.name)
         free = [spot for spot in self.site.parking
-                if self.grants.node_holder(spot) in ("", m.name)]
+                if self.grants.node_holder(spot) in ("", m.name)
+                and (clear_of is None or self._gap(m, spot) < self._gap(clear_of, spot))]
         for spot in sorted(free, key=lambda spot: (self._gap(m, spot), spot)):
             links = self._way(m, spot)
             if not links:
@@ -150,9 +159,10 @@ class Watch:
             trip = Trip(spot, links)
             if self._take(m, trip) is None:
                 m.trip = trip
-                self._event("WARN", "DEADLOCK_SEEN", f"{m.name} gives way to {spot}", m.name)
+                self._event(level, code, f"{why} {spot}", m.name)
                 self._send(m)
                 return True
+        self.grants.note_waiting(m.name, waited)  # 잡아 보기만 했다: 주차 길을 기다리는 것이 아니다
         return False
 
     def _watch_idle(self, m, now: float) -> None:
