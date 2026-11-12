@@ -1,4 +1,4 @@
-# keepout(제안, 팀 합의 전, 계약 0.11-draft): 급행 레인과 도크 구역을 Nav2 goal 경로에서 막는다.
+# keepout(사용자 기준, 계약 0.11-draft): 급행 레인과 도크 구역을 Nav2 goal 경로에서 막는다.
 # launch/nav2.launch.py가 인자 keepout_mask(map_server 형식의 마스크 yaml)가 있을 때만 이 파일을
 # nav2_params.yaml 위에 덧붙이고 두 서버(keepout_mask_server, costmap_filter_info_server)와 그
 # lifecycle manager를 띄운다. 비면 아무것도 바뀌지 않는다.

@@ -182,7 +182,7 @@ controller_server:
       use_cancel_deceleration: false
       cancel_deceleration: 3.2
 
-    # Retreat with a path (계약 제안, 팀 합의 전): pinky_fsm sends the driven way reversed here
+    # Retreat with a path (계약, 사용자 기준): pinky_fsm sends the driven way reversed here
     # (pinky_fsm reverse_controller_id). RPP drives backwards when the carrot is behind the robot
     # (allow_reversing), and the collision check looks along that motion, so something behind
     # stops it (FollowPath NO_VALID_CONTROL -> Retreat OBSTACLE_BEHIND). It stays loaded in every

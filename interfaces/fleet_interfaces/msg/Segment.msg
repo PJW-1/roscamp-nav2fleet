@@ -1,4 +1,4 @@
-# 제안(팀 합의 전, 계약 0.11): order 모델의 조각 하나. MoveTo의 base와 horizon에 담는다.
+# 기준(사용자, 계약 0.11): order 모델의 조각 하나. MoveTo의 base와 horizon에 담는다.
 # 이동 안에서 1부터 늘어나는 번호. update를 거쳐도 이어진다
 uint32 seq_id
 # follow_path / nav_goal / retreat

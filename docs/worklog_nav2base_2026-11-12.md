@@ -589,3 +589,34 @@
 | `blocked_mark_s`, `blocked_retry_s` | 10 s, 60 s | none 모드에서는 막힌 로봇이 이 시간만큼 서 있다가 다른 길로 갑니다. 실제 회피의 성공률을 보고 정합니다 |
 | 실패한 Nav2 goal을 닿은 것으로 보는 거리 | 0.075 m(`arrival_tolerance_m`의 절반. 따로 둔 값이 아니고 코드의 계산식입니다) | 로봇의 정지 오차와 위치 보고의 흔들림을 실물에서 잰 뒤에 따로 값으로 뺄지 정합니다 |
 | 지도에 올릴 때와 다시 지점 위로 볼 때의 거리 | 지점 위 0.15 m, 지점 옆으로 보는 거리와 경로를 거절한 로봇을 다시 지점 위로 보는 거리 0.075 m, 겹친 보고 0.085 m(`footprint_radius_m`) | 같은 까닭입니다. 위치 추정이 흔들리는 폭을 실물에서 재고, 관제의 "지점 위"를 로봇의 "경로에 붙음"(0.15 m)보다 좁힐지 정합니다 |
+
+## 10. main 병합, 주행 마무리, 막힘 처리 보완, 매장 상황 (추가 지시서 3)
+
+지시서는 `새관제_추가지시서3_병합_주행마무리_막힘_2026-11-12_2.md`입니다. 순서는 그 8절을 따릅니다. 절마다 "바꾼 파일과 함수" 표를 둡니다.
+
+### 10.1 main 병합 (지시서 1절)
+
+| 무엇 | 결과 |
+|---|---|
+| `nav2-base` → `main` | 병합 커밋 8b7c0db입니다(2f85e41까지) |
+| `order-model` → `main` | PR #1(https://github.com/PJW-1/roscamp-nav2fleet/pull/1)의 base를 `main`으로 바꿔 병합했습니다. 병합 커밋 f305dc1입니다(7cb5502까지). 병합 뒤 `main`의 파일은 `order-model`과 같습니다(`git diff` 0줄) |
+| `use_order_model` 기본값 | false 그대로입니다(`fleet_params.yaml`, `common/params.py`) |
+| 꺼짐이 예전과 같음 | `pc/fleet_core/test/test_zone_order_off.py` 2 passed |
+| `main`에서 여섯 패키지(WSL, ROS 2 Jazzy, 한 번) | `fleet_core` 552 passed, `fleet_gz_sim` 332 passed, `pinky_fsm` 283 passed 6 skipped, `pinky_nav_config` 39 passed, `fake_robots` 949 passed, `fleet_manager` 1 failed 119 passed(681.56 s) |
+| 실패한 시험 하나 | `test_scenario_integration.py`의 `auto_isolation` 시나리오입니다. 시나리오 판정은 통과했지만, 따로 재는 거리 기록(`safety.json`)에 가짜 핑키 두 대가 160.9 s에 0.158 m까지 가까워졌다고 한 번 적혔습니다(한계는 반지름의 두 배 0.16 m). 같은 빌드에서 이 시나리오만 6번 다시 돌리면 6번 모두 통과했습니다. 원인은 찾지 못했고 고치지 않았습니다 |
+| 병합 전의 Windows 시험(`order-model` f9e3c10) | `fleet_core` 552 passed, 머리 없는 세계 829 passed 6 skipped, 도구 34 passed, ruff 통과 |
+| 이후 작업의 브랜치 | `main`에서 딴 `stage3`에 모읍니다. 절마다 `s3/<절>-<이름>` 브랜치에서 만들고 `stage3`에 병합 커밋으로 합칩니다. `stage3`을 `main`에 합치는 것은 사용자가 정합니다(10.9의 가정) |
+| 팀 레포 첫 올리기 준비 | `docs/팀레포_옮기기.md`(계약 첫 판, 올릴 묶음 셋, order 모델을 켤 때 필요한 것) |
+| 문서의 말 | 계약과 회피 쪽 경계에 적었던 "제안(팀 합의 전)"을 "기준(사용자)"로 바꿨습니다(지시서 규칙). `docs/GG_공통설계.md`의 팀 구조 줄(v17 계층, FMS 담당)과 지난 측정 기록은 그대로 두었습니다 |
+
+| 바꾼 파일 | 무엇 |
+|---|---|
+| `docs/팀레포_옮기기.md` | 새로 만들었습니다 |
+| `docs/핑키_계약.md`, `docs/order_모델.md`, `docs/회피_약속.md`, `docs/GG_공통설계.md`, `interfaces/fleet_interfaces/contract.yaml`, `action/MoveTo.action`, `action/Retreat.action`, `msg/Segment.msg`, `msg/RobotStatus.msg`, `srv/ConfirmClear.srv`, `srv/Reinstate.srv`, `pinky_fsm/nav_goal.py`, `pinky_nav_config`의 `params/*.yaml`, `fleet_manager/adapters.py` | 주석과 문서의 말만 바꿨습니다("기준(사용자)"). 동작은 그대로입니다 |
+
+### 10.9 가정 (추가 지시서 3에 없어서 정한 것)
+
+| 무엇 | 정한 것 | 까닭 |
+|---|---|---|
+| 기능 브랜치를 모으는 곳 | `stage3` 브랜치 하나에 절마다의 브랜치를 병합 커밋으로 합치고, `stage3` → `main` PR을 열어 둡니다 | 뒤 절이 앞 절 위에 서므로(7-4는 2절의 설정, 5절은 4절의 규칙) 절마다 `main`에서 따로 따면 서로를 쓰지 못합니다. `main`은 사용자가 병합할 때까지 f305dc1 그대로입니다 |
+

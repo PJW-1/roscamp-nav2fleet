@@ -19,7 +19,7 @@ float32 battery
 float64 x
 float64 y
 float64 yaw
-# 제안(팀 합의 전): 앞에 남은 길의 지점 이름. base는 구역을 허락받은 부분, horizon은 아직
+# 기준(사용자): 앞에 남은 길의 지점 이름. base는 구역을 허락받은 부분, horizon은 아직
 # 허락받지 않은 부분이다. 화면이 둘을 다르게 그리는 데 쓴다. 갈 길이 없으면 둘 다 빈다
 string[] base
 string[] horizon
