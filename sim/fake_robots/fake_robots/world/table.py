@@ -1,15 +1,21 @@
-"""상황을 돌리고 결과 표(지시서 6-2)의 한 줄과 못 지킨 기대를 만든다."""
+"""상황을 돌리고 결과 표(지시서 6-2)의 한 줄과 못 지킨 기대를 만든다.
+
+회피 흉내 모드(avoid.py)마다 돌릴 수 있다. "끝나지 않은 주문 원인" 칸은 비워 둔다
+(원인 분류가 채운다).
+"""
 from __future__ import annotations
 
 import math
 from dataclasses import dataclass
 
+from .avoid import PERFECT
 from .situations import build
 from .world import ZoneWorld, default_manager
 
-HEADER = ("상황", "배치", "씨드", "완료", "종료 시각", "대기", "로봇 사이 최소 거리", "교착",
+HEADER = ("상황", "배치", "씨드", "회피 모드", "완료", "종료 시각", "대기", "로봇 사이 최소 거리",
+          "교착",
           "구역 밖(OUTSIDE_ZONE / 공유 구역 들어감)", "Retreat(+도크 나오기)",
-          "급행 사용과 방향 전환", "위반", "판정")
+          "급행 사용과 방향 전환", "위반", "판정", "끝나지 않은 주문 원인")
 
 
 @dataclass
@@ -20,10 +26,11 @@ class Outcome:
 
 
 def run_situation(name, layout="d2", seed=1, overrides=None,
-                  manager_factory=default_manager) -> Outcome:
+                  manager_factory=default_manager, avoid_mode=PERFECT) -> Outcome:
     s = build(name, layout)
     world = ZoneWorld(layout, seed=seed, overrides=overrides, robots=s.robots, orders=s.orders,
-                      injections=s.injections, manager_factory=manager_factory)
+                      injections=s.injections, manager_factory=manager_factory,
+                      avoid_mode=avoid_mode)
     world.run_until(world.orders_done, timeout_s=s.timeout_s)
     failures = judge(s, world)
     return Outcome(world, row(s, layout, seed, world, failures), failures)
@@ -53,12 +60,13 @@ def row(s, layout, seed, world, failures) -> tuple:
     end = f"{m.end_t:.1f}" if m.end_t is not None else f"> {world.t:.0f}"
     waits = "/".join(f"{m.wait_s[n]:.0f}" for n in sorted(m.wait_s))
     gap = f"{m.min_gap:.3f}" if math.isfinite(m.min_gap) else "-"
-    return (s.title, layout, seed, f"{world.central.finished}/{world.central.total}", end,
+    return (s.title, layout, seed, world.avoid_mode,
+            f"{world.central.finished}/{world.central.total}", end,
             waits, gap, m.count("DEADLOCK_SEEN"),
             f"{m.count('OUTSIDE_ZONE')} / {world.invariants.shared_outside}",
             f"{m.retreats} (+{m.dock_exits})",
             f"{m.lane_uses} / {m.direction_changes}", len(world.violations),
-            "통과" if not failures else "실패")
+            "통과" if not failures else "실패", "")
 
 
 def markdown(rows) -> str:
