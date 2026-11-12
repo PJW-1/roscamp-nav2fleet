@@ -349,3 +349,15 @@ def test_ros_process_budget_leaves_room_under_the_localhost_limit(made):
         count += 1 if launch_args(nav)["use_composition"] == "true" else NAV2_NODES
     count += len(includes(actions, "pinky_fsm.launch.py"))
     assert count + SPARE <= LOCALHOST_PARTICIPANTS
+
+
+def test_the_fleet_record_is_kept_in_the_result_folder_only_when_asked(made, tmp_path):
+    """tools/triage and tools/avoid_regression.py read the record of a Gazebo game."""
+    [manager] = nodes(after_wait(run(made)), "fleet_manager_node")
+    assert not manager.kw.get("arguments")
+    out = tmp_path / "result"
+    [manager] = nodes(after_wait(run(made, fleet_record="true", result_dir=str(out))),
+                      "fleet_manager_node")
+    assert manager.kw["arguments"] == ["--record", str(out / "fleet_record.jsonl")]
+    with pytest.raises(ValueError, match="fleet_record"):
+        run(made, fleet_record="yes")

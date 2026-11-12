@@ -187,3 +187,82 @@ def test_a_name_that_only_starts_like_a_holder_is_not_one():
     c.on_zones({ZONE_W: "pinky10"})
     c.on_truth("pinky1", 1.0, *W, 0.0, 0.0)
     assert c.summary()["robots"]["pinky1"]["no_zone_held_samples"] == 1
+
+
+# keepout 침범 깊이(추가 지시서 3의 7-3): 마당에 있는 몸이 쥐지 않은 좁은 구역에 걸친 깊이
+
+BODY = [(0.06, 0.06), (-0.06, 0.06), (-0.06, -0.06), (0.06, -0.06)]
+
+
+def body_check(**kw):
+    return FleetCheck(SITE, ROBOTS, body=BODY, **kw)
+
+
+def test_a_body_corner_inside_a_zone_the_robot_does_not_hold_is_a_keepout_intrusion():
+    """J_W is x 0.30..0.50, y 0.79..0.99. A robot in the yard at (0.40, 0.76) facing east has its
+    north corners at y 0.82: 0.03 m inside."""
+    c = body_check()
+    c.on_zones({"HALL": "pinky1"})
+    c.on_truth("pinky1", 1.0, 0.40, 0.60, 0.0, 0.0, yaw=0.0)
+    assert c.summary()["keepout_depth_m"] == 0.0
+    c.on_truth("pinky1", 2.0, 0.40, 0.76, 0.0, 0.0, yaw=0.0)
+    s = c.summary()
+    assert s["keepout_depth_m"] == pytest.approx(0.03)
+    assert (s["keepout_zone"], s["keepout_robot"], s["keepout_at_s"]) == ("J_W", "pinky1", 2.0)
+    assert s["robots"]["pinky1"]["keepout_samples"] == 1
+    assert s["robots"]["pinky1"]["keepout_depth_m"] == pytest.approx(0.03)
+    assert s["robots"]["pinky2"]["keepout_depth_m"] == 0.0
+
+
+def test_the_keepout_depth_follows_the_heading():
+    c = body_check()
+    c.on_zones({"HALL": "pinky1"})
+    c.on_truth("pinky1", 1.0, 0.40, 0.72, 0.0, 0.0, yaw=math.pi / 4)
+    assert c.summary()["keepout_depth_m"] == pytest.approx(
+        0.72 + 0.06 * math.sqrt(2) - 0.79, abs=1e-3)
+
+
+def test_a_zone_the_robot_holds_or_has_just_left_is_no_intrusion():
+    c = body_check(left_s=5.0)
+    c.on_zones({"HALL": "pinky1", "J_W": "pinky1"})
+    c.on_truth("pinky1", 1.0, 0.40, 0.76, 0.0, 0.0, yaw=0.0)
+    c.on_zones({"HALL": "pinky1", "J_W": ""})
+    c.on_truth("pinky1", 4.0, 0.40, 0.76, 0.0, 0.0, yaw=0.0)  # its tail is still leaving
+    assert c.summary()["keepout_depth_m"] == 0.0
+    c.on_truth("pinky1", 7.0, 0.40, 0.76, 0.0, 0.0, yaw=0.0)
+    assert c.summary()["keepout_depth_m"] == pytest.approx(0.03)
+
+
+def test_a_robot_on_a_fixed_line_is_not_measured_against_the_next_zone():
+    """Its centre is in J_W (not a yard): what its nose does there is fixed-line driving."""
+    c = body_check()
+    c.on_zones({"J_W": "pinky1"})
+    c.on_truth("pinky1", 1.0, 0.46, 0.89, 0.0, 0.0, yaw=0.0)  # nose 0.02 m into EXPRESS
+    assert c.summary()["keepout_depth_m"] == 0.0
+
+
+def test_the_keepout_depth_counts_only_after_the_fleet_publishes_zones():
+    c = body_check()
+    c.on_truth("pinky1", 1.0, 0.40, 0.76, 0.0, 0.0, yaw=0.0)
+    assert c.summary()["keepout_depth_m"] == 0.0
+
+
+def test_without_a_body_the_keepout_depth_is_not_measured():
+    c = check()
+    c.on_zones({"HALL": "pinky1"})
+    c.on_truth("pinky1", 1.0, 0.40, 0.76, 0.0, 0.0, yaw=0.0)
+    assert c.summary()["keepout_depth_m"] is None
+
+
+def test_the_body_is_the_footprint_nav2_runs_with():
+    from pathlib import Path
+
+    import yaml
+    from fleet_gz_sim.fleet_check import footprint_of
+    repo = Path(__file__).resolve().parents[3]
+    nav = yaml.safe_load((repo / "pinky/pinky_nav_config/params/nav2_params.yaml")
+                         .read_text(encoding="utf-8"))
+    body = footprint_of(nav)
+    assert len(body) >= 4 and all(len(p) == 2 for p in body)
+    assert max(abs(y) for _, y in body) == pytest.approx(0.056)
+    assert footprint_of({}) is None

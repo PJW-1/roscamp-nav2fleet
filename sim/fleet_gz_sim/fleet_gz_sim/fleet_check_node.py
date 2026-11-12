@@ -11,11 +11,13 @@ With recovery_probe:=true it also hosts the recovery_probe node (parameters resu
 from __future__ import annotations
 
 import json
+import math
 import os
 import time
 from pathlib import Path
 
 import rclpy
+import yaml
 from fleet_core.common.contract import load_contract, to_ros_qos
 from fleet_core.traffic.site import load_site
 from fleet_interfaces.msg import RobotState, ZoneStateArray
@@ -25,7 +27,7 @@ from rclpy.executors import ExternalShutdownException, SingleThreadedExecutor
 from rclpy.node import Node
 from rclpy.qos import qos_profile_sensor_data
 
-from fleet_gz_sim.fleet_check import MARGIN_M, FleetCheck
+from fleet_gz_sim.fleet_check import MARGIN_M, FleetCheck, footprint_of
 
 
 class FleetCheckNode(Node):
@@ -49,7 +51,8 @@ class FleetCheckNode(Node):
             self.probe = RecoveryProbeNode(
                 robots, self.declare_parameter("result_dir", "").value,
                 float(self.declare_parameter("settle_s", 2.0).value))
-        self.check = FleetCheck(load_site(map_file or None), robots, margin_m=margin)
+        self.check = FleetCheck(load_site(map_file or None), robots, margin_m=margin,
+                                body=self._body())
         for robot in robots:
             self.create_subscription(Odometry, f"/{robot}/sim/truth",
                                      lambda msg, r=robot: self._on_truth(r, msg),
@@ -63,11 +66,24 @@ class FleetCheckNode(Node):
         self.create_timer(period, self.write, clock=Clock(clock_type=ClockType.STEADY_TIME))
         self.get_logger().info(f"fleet check for {robots} -> {self.output}")
 
+    def _body(self):
+        """The Nav2 footprint of pinky_nav_config (keepout depth). None if it is not there."""
+        from ament_index_python.packages import PackageNotFoundError, get_package_share_directory
+        try:
+            share = Path(get_package_share_directory("pinky_nav_config"))
+            nav = yaml.safe_load((share / "params" / "nav2_params.yaml").read_text("utf-8"))
+        except (PackageNotFoundError, OSError):
+            self.get_logger().warn("no pinky_nav_config footprint: keepout depth is not measured")
+            return None
+        return footprint_of(nav)
+
     def _on_truth(self, robot: str, msg: Odometry) -> None:
         p, v, w = msg.pose.pose.position, msg.twist.twist.linear, msg.twist.twist.angular
+        q = msg.pose.pose.orientation
+        yaw = math.atan2(2.0 * (q.w * q.z + q.x * q.y), 1.0 - 2.0 * (q.y * q.y + q.z * q.z))
         t = msg.header.stamp.sec + msg.header.stamp.nanosec * 1e-9
         self.check.on_truth(robot, t, p.x, p.y, (v.x * v.x + v.y * v.y) ** 0.5, w.z,
-                            wall=time.monotonic())
+                            wall=time.monotonic(), yaw=yaw)
 
     def _on_zones(self, msg: ZoneStateArray) -> None:
         self.check.on_zones({z.zone_id: z.holder for z in msg.zones})

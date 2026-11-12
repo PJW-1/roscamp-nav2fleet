@@ -71,6 +71,9 @@ ARGS = {
                             "(pinky_scan_filter, 추가지시서3 7-2). false면 띄우지 않는다(비교용)"),
     "wall_band_m": ("0.05", "스캔 거르개: 벽·진열대에서 이만큼 안의 점을 지운다(m)."
                             " 0.05는 D2 측정으로 고른 값(fixed_line_results.md)"),
+    "fleet_record": ("false", "true면 관제 기록(fleet_manager --record)을"
+                              " result_dir/fleet_record.jsonl에 남긴다. tools/triage,"
+                              " tools/avoid_regression.py, tools/replay.py가 읽는다"),
     "use_order_model": ("","true/false: 관제의 use_order_model 파라미터(order 모델이 있는"
                             " 관제만 읽는다). 비우면 params 파일의 값"),
 }
@@ -149,8 +152,10 @@ def params_for(params_file: str, result_dir: str, battery_low_pct: str = "") -> 
 
 def fleet(scenario_file: str, robots: list[str], result_dir: str, monitor: bool,
           layout: str, params_file: str = "", obstacles_file: str = "", check: bool = True,
-          scenario_seed: int | None = None, use_order_model: bool | None = None) -> list:
+          scenario_seed: int | None = None, use_order_model: bool | None = None,
+          record: str = "") -> list:
     """진짜 관제와 가짜 작업셀·비전·출고 팔·central·모니터, 장애물(있으면). 모두 Gazebo 시계.
+    record: 관제 기록 파일(fleet_manager --record). 비면 남기지 않는다.
     layout: 관제와 가짜들의 map_file(배치 이름).
     scenario_seed: 시나리오를 읽는 노드에 넘길 seed. None이면 넘기지 않는다(파일의 seed).
     use_order_model: 관제 노드 파라미터 use_order_model. None이면 넘기지 않는다(파일의 값)."""
@@ -165,7 +170,7 @@ def fleet(scenario_file: str, robots: list[str], result_dir: str, monitor: bool,
                     parameters=[{**common, **extra}])
 
     actions = [Node(package="fleet_manager", executable="fleet_manager_node", name="fleet_manager",
-                    output="screen",
+                    output="screen", arguments=["--record", record] if record else [],
                     parameters=[{"use_sim_time": True, "robots": robots,
                                  "params_file": params_file, **map_file,
                                  **({} if use_order_model is None
@@ -287,6 +292,8 @@ def _start(context):
     wait = Node(package="fleet_gz_sim", executable="wait_ready", name="wait_ready",
                 output="screen", parameters=[{"robots": robots}])
     monitor = flag(value("monitor"), "monitor")
+    record = (str(Path(value("result_dir")) / "fleet_record.jsonl")
+              if flag(value("fleet_record"), "fleet_record") else "")
     order = (None if not value("use_order_model").strip()
              else flag(value("use_order_model"), "use_order_model"))
 
@@ -294,7 +301,7 @@ def _start(context):
         if event.returncode != 0:
             return [LogInfo(msg="fleet_gz_sim: 로봇이 IDLE이 되지 않아 끝낸다"), Shutdown()]
         return fleet(scenario_file, robots, value("result_dir"), monitor, layout,
-                     params_file, obstacles_file, check, scenario_seed, order)
+                     params_file, obstacles_file, check, scenario_seed, order, record)
 
     actions += [wait, RegisterEventHandler(OnProcessExit(target_action=wait, on_exit=after_wait))]
     return actions
