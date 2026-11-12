@@ -125,10 +125,9 @@ class Blocked:
         end = site.node_pose(node)
 
         def in_the_way(other) -> bool:
-            zone = site.zone_at(other.x, other.y)
             return (other is not m and other.available and other.goal is None
                     and other.phase in (TO_WORK, TO_OUTBOUND, TO_PARK)
-                    and zone is not None and site.zones[zone].kind == SHARED
+                    and self._in_yard(other)
                     and point_segment_distance((other.x, other.y), here, end)
                     <= self.params.near_m)
 

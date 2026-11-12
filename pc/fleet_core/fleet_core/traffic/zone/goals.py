@@ -101,7 +101,7 @@ class Goals:
         memo = self.__dict__.setdefault("_reach_memo", {})  # 지도는 바뀌지 않으니 구역마다 한 번
         if zone not in memo:
             site = self.site
-            inside = {name: (zone,) for name, node in site.nodes.items() if node.zone == zone}
+            inside = {name: (zone,) for name in site.nodes_in(zone)}
             if inside:
                 memo[zone] = inside
             else:

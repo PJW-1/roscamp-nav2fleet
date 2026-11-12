@@ -12,7 +12,8 @@
 | turns | 목적지 후보(도크, 대기 자리, 주차), 도크 차례 |
 | drive | 로봇 한 대의 한 걸음, 명령 내기 |
 | results | 명령의 결과 |
-| progress | 상태 보고: 지도에 올리기, 뒤 구역 놓기 |
+| progress | 상태 보고: 뒤 구역 놓기 |
+| placement | 로봇을 지도에 올리기: 선 지점 고르기, 겹친 보고, 거절 |
 | blocked | 막힘: 기다림, 표시, 다른 길, 후진 |
 | health | 통신 끊김과 복구, 치움, 다시 투입 |
 | watch | 멈춤, 구역 밖, 서로 막음, 대기 순환 |
@@ -38,6 +39,7 @@ from .health import Health
 from .move_orders import MoveOrders
 from .nostart import NoStart
 from .order_answers import OrderAnswers
+from .placement import Placement
 from .progress import Progress
 from .results import Results
 from .silent import Silent
@@ -46,8 +48,9 @@ from .views import Views
 from .watch import Watch
 
 
-class ZoneTraffic(Calls, Goals, Turns, Drive, MoveOrders, OrderAnswers, Results, Progress, Blocked,
-                  Health, Watch, Backoff, Silent, NoStart, Capacity, Views, ZoneBase):
+class ZoneTraffic(Calls, Goals, Turns, Drive, MoveOrders, OrderAnswers, Results, Progress,
+                  Placement, Blocked, Health, Watch, Backoff, Silent, NoStart, Capacity, Views,
+                  ZoneBase):
     def tick(self) -> list:
         """한 주기 전체. FleetManager 없이 교통 층만 돌릴 때 쓴다."""
         now = self._clock()

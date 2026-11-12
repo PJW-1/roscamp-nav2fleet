@@ -70,6 +70,9 @@ class FleetMap:
                 return zone.id
         return None
 
+    def nodes_in(self, zone: str) -> list[str]:
+        return [name for name, spec in self.nodes.items() if spec.zone == zone]
+
     def distance_to_zone(self, x: float, y: float, zone: str) -> float:
         """점에서 구역까지. 안이면 0. 모르는 구역 이름이면 KeyError."""
         return min(point_rect_distance(rect, x, y) for rect in self.zones[zone].rects)

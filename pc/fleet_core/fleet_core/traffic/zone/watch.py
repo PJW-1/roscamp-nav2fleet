@@ -86,7 +86,7 @@ class Watch:
             return
         if self.grants.force(m.name, [zone], []):
             if m.goal is None:
-                inside = [name for name, spec in self.site.nodes.items() if spec.zone == zone]
+                inside = self.site.nodes_in(zone)
                 m.node = self.site.nearest_node(m.x, m.y, inside) or m.node
             self._event("WARN", "OUTSIDE_ZONE", f"takes {zone} where it stands", m.name)
 
