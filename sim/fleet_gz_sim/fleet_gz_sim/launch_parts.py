@@ -208,7 +208,8 @@ def pinky(ns: str, x, y, yaw, *, nav_map: str, nav_map_fine: str, keepout_mask: 
           dock_aside=False, nav_composition=False, through_controller_id=THROUGH_CONTROLLER,
           nav_max_speed: float = DEFAULT_SPEED_MPS, battery_topic: str = "",
           nav_overrides: dict | None = None, lidar_noise: float | None = None,
-          fixed_line_check: bool = True) -> list:
+          fixed_line_check: bool = True, narrow_strips: str = "",
+          wall_band_m: float = 0.05) -> list:
     """핑키 한 대: 모델, Nav2, pinky_fsm, RViz. 브리지는 bridge()에 이 로봇 이름을 넣는다.
 
     nav_map, nav_map_fine: Nav2 지도 둘(배치의 5 cm, 1 cm 지도, fleet_setup.Arena).
@@ -222,7 +223,9 @@ def pinky(ns: str, x, y, yaw, *, nav_map: str, nav_map_fine: str, keepout_mask: 
     상한(horizon_cap_mps)도 이 값으로: RPP는 그 제한을 속도로 쓴다.
     battery_topic: pinky_fsm이 볼 BatteryState 토픽(sim_stand_in의 BATTERY_TOPIC). 비면 없음.
     nav_overrides: Nav2 설정 위에 덮을 값(sim_nav_params overrides).
-    fixed_line_check: 거짓이면 고정 경로 controller 셋의 충돌 검사를 끈다(시뮬 전용)."""
+    fixed_line_check: 거짓이면 고정 경로 controller 셋의 충돌 검사를 끈다(시뮬 전용).
+    narrow_strips, wall_band_m: 스캔 거르개(pinky_scan_filter, 추가지시서3 7-2)의 좁은 띠와 띠 폭.
+    narrow_strips가 비면 거르개를 띄우지 않고 costmap은 원래 scan을 읽는다."""
     nav = share("pinky_nav_config")
     x, y, yaw = str(x), str(y), str(yaw)
     actions = [
@@ -234,6 +237,7 @@ def pinky(ns: str, x, y, yaw, *, nav_map: str, nav_map_fine: str, keepout_mask: 
                 "map": nav_map, "map_fine": nav_map_fine, "keepout_mask": keepout_mask,
                 "initial_x": x, "initial_y": y, "initial_yaw": yaw,
                 "log_level": nav_log_level,
+                "narrow_strips": narrow_strips, "wall_band_m": str(wall_band_m),
                 "use_composition": "true" if nav_composition else "false",
                 "params_file": str(sim_nav_params(
                     nav / "params" / "nav2_params.yaml",

@@ -50,7 +50,7 @@ def test_an_order_carries_the_whole_trip_and_its_base_is_what_was_taken():
     assert (order.update_id, order.stitch_node, order.horizon) == (0, "", ())
     assert ends(order.base) == [(1, "nav_goal", "N_W"), (2, "follow_path", "W")]
     assert [s.controller_id for s in order.base] == ["", "FollowPath"]
-    assert [(x, y) for x, y, _ in order.base[1].path] == [(0.40, 0.65), (0.40, 0.89), (0.18, 0.89)]
+    assert [(x, y) for x, y, _ in order.base[1].path] == [(0.35, 0.65), (0.35, 0.89), (0.18, 0.89)]
     assert world.view("pinky2")["held"] == ["HALL", "J_W", "WORK_DOCK"]
     assert base_zones_are_held(world, "pinky2")
     assert world.run_until(lambda: world.result_of(call) is not None, 60.0)
@@ -66,7 +66,7 @@ def test_a_retreat_out_of_the_dock_is_the_first_segment():
     call = world.call("OUTBOUND", "pinky1")
     world.step()
     [order] = orders(world, "pinky1")
-    assert ends(order.base) == [(1, "retreat", "X_W"), (2, "follow_path", "O")]
+    assert ends(order.base) == [(1, "retreat", "N_W"), (2, "follow_path", "O")]
     assert order.base[0].controller_id == "FollowPathReverse"
     assert world.run_until(lambda: world.result_of(call) is not None, 60.0)
     codes = world.codes("pinky1")
@@ -78,7 +78,7 @@ def test_a_purpose_changed_inside_a_fixed_stretch_ends_the_order_in_the_yard():
     world = Harness(starts={"pinky1": "W", "pinky2": "P-2", "pinky3": "P-3"}, params=ON)
     world.report()
     assert world.run_until(lambda: orders(world, "pinky1"), 10.0)
-    assert ends(orders(world, "pinky1")[0].base)[0] == (1, "retreat", "X_W")
+    assert ends(orders(world, "pinky1")[0].base)[0] == (1, "retreat", "N_W")
     world.run(1.0)
     call = world.call("OUTBOUND", "pinky1")
     assert world.run_until(lambda: len(orders(world, "pinky1")) == 2, 30.0)
@@ -96,9 +96,8 @@ def test_with_the_dock_busy_the_base_ends_at_the_wait_spot_and_the_rest_is_horiz
     world, call = queued_for_outbound()
     world.step()
     order = orders(world, "pinky1")[-1]
-    assert ends(order.base) == [(1, "retreat", "X_W"), (2, "follow_path", "N_W"),
-                                (3, "nav_goal", "O_Q")]
-    assert ends(order.horizon) == [(4, "nav_goal", "N_E"), (5, "follow_path", "O")]
+    assert ends(order.base) == [(1, "retreat", "N_W"), (2, "nav_goal", "O_Q")]
+    assert ends(order.horizon) == [(3, "nav_goal", "N_E"), (4, "follow_path", "O")]
     assert world.run_until(lambda: "BASE_END_WAIT" in world.codes("pinky1"), 60.0)
     world.run(5.0)
     view = world.view("pinky1")
@@ -111,7 +110,7 @@ def test_with_the_dock_busy_the_base_ends_at_the_wait_spot_and_the_rest_is_horiz
     assert world.run_until(lambda: world.result_of(call) is not None, 120.0)
     update = orders(world, "pinky1")[-1]
     assert (update.order_id, update.update_id, update.stitch_node) == (order.order_id, 1, "O_Q")
-    assert ends(update.base) == [(4, "nav_goal", "N_E"), (5, "follow_path", "O")]
+    assert ends(update.base) == [(3, "nav_goal", "N_E"), (4, "follow_path", "O")]
     assert update.horizon == ()
     assert world.codes("pinky1").count("ORDER_UPDATED") == 1
     assert not world.problems and not [e for e in world.events if e.level == "ERROR"]
@@ -121,10 +120,10 @@ def test_a_report_of_a_segment_beyond_the_base_is_not_believed():
     world, _ = queued_for_outbound()
     world.step()
     goal_id = world.view("pinky1")["goal_id"]
-    world.traffic.on_move_feedback("pinky1", goal_id, 5, False)  # 4번과 5번은 horizon이다
+    world.traffic.on_move_feedback("pinky1", goal_id, 4, False)  # 3번과 4번은 horizon이다
     view = world.view("pinky1")
     assert view["node"] != "O" and view["horizon"] == ["N_E", "X_E", "O"]
-    assert view["base"] == ["X_W", "N_W", "O_Q"], "nothing of the base counts as done either"
+    assert view["base"] == ["N_W", "O_Q"], "nothing of the base counts as done either"
     world.step()
     codes = world.codes("pinky1")
     assert codes.count("SEGMENT_BEYOND_BASE") == 1 and "SEGMENT_DONE" not in codes
@@ -200,7 +199,7 @@ def test_a_changed_route_ahead_replaces_only_the_horizon():
     world.run(6.0)
     change = orders(world, "pinky1")[-1]
     assert (change.update_id, change.stitch_node, change.base) == (1, "O_Q", ())
-    assert ends(change.horizon) == [(4, "nav_goal", "N_W"), (5, "follow_path", "O")]
+    assert ends(change.horizon) == [(3, "nav_goal", "N_W"), (4, "follow_path", "O")]
     assert world.codes("pinky1").count("HORIZON_CHANGED") == 1
     assert world.view("pinky1")["held"] == held, "the base stays as it was"
     world.traffic.on_release("pinky2")

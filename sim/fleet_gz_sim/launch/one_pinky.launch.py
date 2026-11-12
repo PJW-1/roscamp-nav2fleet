@@ -34,6 +34,10 @@ ARGS = {
     "nav_overrides": ("", "Nav2 설정 위에 덮을 yaml 파일(시뮬 전용, 비교용). 비면 없음"),
     "obstacles": ("", "상자를 놓았다 치우는 일정(fleet_gz_sim/obstacles의 이름이나 파일)"),
     "lidar_noise": ("", "라이다 거리 잡음 표준편차(m, 비교용). 비면 모델 기본값 0.02"),
+    "scan_filter": ("true", "좁은 띠 안에서 벽·진열대에 붙은 라이다 점을 costmap에서 지우는 거르개"
+                            "(pinky_scan_filter, 추가지시서3 7-2). false면 띄우지 않는다(비교용)"),
+    "wall_band_m": ("0.05", "스캔 거르개: 벽·진열대에서 이만큼 안의 점을 지운다(m)."
+                            " 0.05는 D2 측정으로 고른 값(fixed_line_results.md)"),
     "fixed_line_collision_check": ("true", "시뮬 전용. false면 고정 경로 controller 셋의 충돌"
                                            " 검사를 끈다. 마당 goal(FollowPathGoal)은 켬"),
 }
@@ -55,14 +59,21 @@ def _start(context):
     require_isolated(os.environ, rmw=get_rmw_implementation_identifier(), workdir=Path.cwd())
     import yaml
     from fleet_core.fleet_map import load_fleet_map
-    from fleet_gz_sim.fleet_setup import arena_for, layout_of, obstacles_path, start_poses
+    from fleet_gz_sim.fleet_setup import (
+        arena_for,
+        layout_of,
+        narrow_strips,
+        obstacles_path,
+        start_poses,
+    )
     from fleet_gz_sim.obstacles import load_schedule
     from launch_ros.actions import Node
 
     def value(name):
         return LaunchConfiguration(name).perform(context)
 
-    on = {name: value(name).lower() in ("true", "1") for name in ("gui", "rviz", "fsm", "keepout")}
+    on = {name: value(name).lower() in ("true", "1")
+          for name in ("gui", "rviz", "fsm", "keepout", "scan_filter")}
     fixed_check = value("fixed_line_collision_check").strip().lower()
     if fixed_check not in ("true", "false", "1", "0"):  # 오타가 '끔'으로 바뀌지 않게
         raise ValueError(f"fixed_line_collision_check must be true or false, got {fixed_check!r}")
@@ -89,6 +100,8 @@ def _start(context):
                                    nav_max_speed=launch_parts.speed_of(value("nav_max_speed")),
                                    fsm=on["fsm"], rviz=on["rviz"], nav_overrides=overrides,
                                    fixed_line_check=fixed_check in ("true", "1"),
+                                   narrow_strips=narrow_strips(site) if on["scan_filter"] else "",
+                                   wall_band_m=float(value("wall_band_m")),
                                    lidar_noise=(float(value("lidar_noise"))
                                                 if value("lidar_noise") else None))]
     if obstacles_file:

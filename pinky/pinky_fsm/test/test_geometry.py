@@ -8,6 +8,8 @@ from pinky_fsm.geometry import (
     poses_along,
     poses_backing,
     quaternion_yaw,
+    rounded,
+    rounded_rest,
     yaw_quaternion,
 )
 
@@ -118,3 +120,50 @@ def test_vertex_before_is_the_last_vertex_at_or_behind_the_point():
     assert line.vertex_before(1.2) == pytest.approx(1.0)
     assert line.vertex_before(2.0) == pytest.approx(2.0)
     assert Polyline([(2.0, 3.0)]).vertex_before(0.5) == 0.0
+
+
+# ---- 꺾이는 곳을 호로(추가 지시서 3의 2-1: 좁은 띠 안에서 제자리 회전을 하지 않는다) ----
+
+
+def _turns(points):
+    """이웃 선분 사이의 방향 바뀜(rad)."""
+    heads = [math.atan2(b[1] - a[1], b[0] - a[0]) for a, b in pairwise(points)]
+    return [abs(math.remainder(h2 - h1, math.tau)) for h1, h2 in pairwise(heads)]
+
+
+def test_rounded_replaces_a_corner_with_an_arc_of_the_radius():
+    line = rounded([(0.35, 0.65), (0.35, 0.89), (0.18, 0.89)], radius=0.10, step=0.01)
+    assert line[0] == (0.35, 0.65) and line[-1] == (0.18, 0.89)
+    assert max(_turns(line)) < 0.15, "no sharp vertex is left for the robot to pivot on"
+    centre = (0.25, 0.79)
+    arc = [p for p in line if p[0] < 0.35 - 1e-9 and p[1] < 0.89 - 1e-9]
+    assert arc and all(math.dist(p, centre) == pytest.approx(0.10) for p in arc)
+    corner_gap = min(math.dist(p, (0.35, 0.89)) for p in line)
+    assert corner_gap == pytest.approx(0.10 * (math.sqrt(2) - 1), abs=2e-3)
+
+
+def test_rounded_shrinks_the_arc_to_fit_short_segments():
+    line = rounded([(0.0, 0.0), (0.4, 0.0), (0.4, 0.06), (0.8, 0.06)], radius=0.10, step=0.01)
+    assert max(_turns(line)) < 0.4
+    assert min(y for _, y in line) >= -1e-9 and max(y for _, y in line) <= 0.06 + 1e-9
+    assert line[-1] == (0.8, 0.06)
+
+
+def test_rounded_keeps_straight_lines_and_turnarounds_and_zero_radius():
+    straight = [(0.0, 0.0), (0.5, 0.0), (1.0, 0.0)]
+    assert rounded(straight, 0.1) == straight
+    back = [(0.0, 0.0), (0.5, 0.0), (0.2, 0.0)]
+    assert rounded(back, 0.1) == back, "a reversal cannot be rounded and stays as it is"
+    corner = [(0.0, 0.0), (0.5, 0.0), (0.5, 0.5)]
+    assert rounded(corner, 0.0) == corner
+
+
+def test_rounded_rest_follows_the_arc_from_where_the_robot_is():
+    route = Polyline([(0.35, 0.65), (0.35, 0.89), (0.18, 0.89)])
+    whole = rounded_rest(route, 0.0, 0.10)
+    assert whole[0] == pytest.approx((0.35, 0.65)) and whole[-1] == pytest.approx((0.18, 0.89))
+    near = rounded_rest(route, 0.23, 0.10)
+    assert max(_turns(near)) < 0.15, "a robot close to the corner still gets the arc, not a pivot"
+    assert near[0][0] < 0.35 and near[-1] == pytest.approx((0.18, 0.89))
+    assert rounded_rest(Polyline([(0.0, 0.0), (1.0, 0.0)]), 0.4, 0.1) == [
+        pytest.approx((0.4, 0.0)), (1.0, 0.0)]

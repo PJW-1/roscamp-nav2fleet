@@ -222,7 +222,8 @@ def test_success_far_from_the_target_sends_the_rest_again():
     cmds = fsm.nav_result(send.seq, "succeeded", 5.0, (0.35, 1.90, NORTH), no_obstacle)
     [again] = sends(cmds)
     assert kinds(cmds) == ["SendPath"] and again.seq > send.seq
-    assert again.poses[0][:2] == pytest.approx((0.35, 1.90), abs=1e-6)
+    # 0.05 m 앞이 꺾이는 곳이라 다시 보낸 선은 그 자리에서 가장 가까운 호 위의 점에서 시작한다(2-1)
+    assert again.poses[0][:2] == pytest.approx((0.35, 1.90), abs=0.01)
     assert fsm.state() == MOVING
 
 
@@ -1088,6 +1089,28 @@ def test_a_retreat_with_a_path_backs_along_it_instead_of_backing_up_straight():
     # 끝 점 방향이 진행 방향이면 Nav2 goal checker가 끝에서 돌기를 기다린다
     assert all(yaw == pytest.approx(NORTH) for _, _, yaw in send.poses)
     assert fsm.state() == MOVING and fsm.is_running("r1")
+
+
+def _sharpest(poses):
+    heads = [math.atan2(b[1] - a[1], b[0] - a[0]) for a, b in pairwise(poses)]
+    return max(abs(math.remainder(h2 - h1, math.tau)) for h1, h2 in pairwise(heads))
+
+
+def test_a_corner_of_the_lane_is_sent_as_an_arc_so_the_robot_does_not_pivot_on_it():
+    """추가 지시서 3의 2-1(기준(사용자)): 꺾이는 곳은 turn_radius_m의 호로 지난다."""
+    (send,) = sends(move(ready(), "g1", 1.0))
+    assert _sharpest(send.poses) < 0.3
+    assert min(math.dist(p[:2], P4) for p in send.poses) > 0.02, "the corner itself is cut"
+    (sharp,) = sends(move(ready(turn_radius_m=0.0), "g1", 1.0))
+    assert min(math.dist(p[:2], P4) for p in sharp.poses) == pytest.approx(0.0)
+
+
+def test_a_retreat_round_a_corner_backs_along_an_arc():
+    fsm = ready(pose=(*P5, math.atan2(0.10, 0.45)))
+    cmds = fsm.retreat("r1", 1.0, 0.86, 0.05, path=[P5, P4, P3], pose=(*P5, 0.2))
+    (send,) = reverse_sends(cmds)
+    assert _sharpest(send.poses) < 0.3
+    assert send.poses[-1][:2] == pytest.approx(P3)
 
 
 def test_moves_never_go_to_the_reverse_controller():

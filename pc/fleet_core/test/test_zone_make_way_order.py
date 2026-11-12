@@ -23,7 +23,7 @@ def waiting_at_the_base_end_in_the_way():
     assert world.run_until(lambda: "BASE_END_WAIT" in world.codes("pinky2"), 30.0), world.log
     assert world.traffic._robots["pinky2"].goal is not None, "its order goal stays open"
     bot = world.bots["pinky2"]
-    bot.x, bot.y = 1.64, 0.55  # 대기 자리에서 0.14 m 비켜 서서 N_E 앞을 막는다
+    bot.x, bot.y = 1.69, 0.55  # 대기 자리에서 0.14 m 비켜 서서 N_E 앞을 막는다
     return world, first, second
 
 

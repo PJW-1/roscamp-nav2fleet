@@ -109,6 +109,70 @@ def test_a_reverse_path_is_driven_as_a_retreat():
     assert (out.via, out.path, out.zones) == ("retreat", "work_out", ("DOCK_W", "J_W"))
 
 
+def test_a_path_may_bend_at_a_point_that_is_not_a_node():
+    paths = edited("paths", "work_out", points=["W", [0.4, 0.9], "N_W"])
+    site = build(paths=paths)
+    out = site.link("W", "N_W")
+    assert (out.via, out.zones) == ("retreat", ("DOCK_W", "J_W", "HALL"))
+    assert out.points == ((0.2, 0.9), (0.4, 0.9), (0.4, 0.6))
+    assert out.length == pytest.approx(0.5)
+    assert site.link("W", "X_W") is None
+
+
+def test_a_bend_is_a_pair_of_numbers_between_two_nodes():
+    refused("bend", paths=edited("paths", "work_out", points=["W", [0.4], "N_W"]))
+    refused("node", paths=edited("paths", "work_out", points=[[0.3, 0.9], "W", "N_W"]))
+
+
+def test_room_beside_the_shelves_is_checked_on_every_piece_of_a_bent_path():
+    near_shelf = ["W", [0.47, 0.9], [0.47, 0.6], "N_W"]
+    refused("shelf", paths=edited("paths", "work_out", points=near_shelf))
+
+
+def test_a_line_that_goes_round_a_shelf_end_too_close_is_a_warning():
+    site = build(turn_radius_m=0.0)  # 곧은 선만 본다. 호는 아래 시험
+    near = [w for w in site.warnings if "end of the shelf" in w]
+    assert any("work_in from N_W to X_W" in w for w in near)
+    assert any("j_e_down from X_E to N_E" in w for w in near)
+    assert not any("express" in w for w in near), "the express runs beside the shelf, not round it"
+    assert build(shelf_end_clear_m=0.10, turn_radius_m=0.0).warnings == site.warnings[len(near):]
+
+
+def test_a_retreat_that_ends_inside_a_narrow_strip_is_a_warning():
+    site = build()
+    assert any("work_out ends at X_W" in w and "turn" in w for w in site.warnings)
+    paths = edited("paths", "work_out", points=["W", [0.4, 0.9], "N_W"])
+    assert not any("work_out ends" in w for w in build(paths=paths).warnings)
+
+
+def test_a_fixed_line_that_leaves_a_zone_and_comes_back_into_it_is_refused():
+    """구역 쥐기는 한 연결이 구역을 한 번 지난다고 본다(Codex 검토 1): 다시 들어오면 받지 않는다."""
+    refused("leaves DOCK_W and comes back into it",
+            paths=edited("paths", "work_out", points=["W", [0.4, 0.9], [0.25, 0.85], "X_W"]))
+
+
+def test_a_fixed_line_that_turns_back_or_crosses_itself_is_refused():
+    """진행 자리는 가장 가까운 조각에 내린다(Codex 검토 2): 되돌아가거나 스스로 건너는 선은
+    받지 않는다."""
+    refused("turns back", paths=edited("paths", "work_out",
+                                       points=["W", [0.45, 0.9], [0.35, 0.92], "N_W"]))
+    refused("crosses itself", paths=edited("paths", "work_in",
+                                           points=["N_W", [0.4, 0.95], [0.45, 0.95], [0.45, 0.85],
+                                                   [0.35, 0.85], [0.35, 0.9], "X_W", "W"]))
+    assert build(paths=edited("paths", "work_out", points=["W", [0.4, 0.9], "N_W"]))
+
+
+def test_the_shelf_end_check_measures_the_arc_the_robot_drives_at_a_corner():
+    """핑키는 꺾이는 곳을 turn_radius_m 호로 돈다(Codex 검토 4). 진열대 끝 밖에 놓인 호의 점도
+    잰다."""
+    site = build()
+    corner = [w for w in site.warnings if "corner" in w]
+    # 급행에서 갈림목으로 내려가는 호의 가운데는 진열대 모서리 (0.5, 0.8)이고 반지름은 0.10이다
+    assert any("express from X_E to X_W, then j_w_down at X_W" in w and "0.100 m" in w
+               for w in corner), corner
+    assert not any("corner" in w for w in build(turn_radius_m=0.0).warnings)
+
+
 def test_a_two_way_path_gives_a_link_each_way_and_names_the_lane_it_crosses():
     site = build()
     east, west = site.link("X_W", "X_E"), site.link("X_E", "X_W")
@@ -316,8 +380,12 @@ def test_d2_is_the_default_and_matches_the_instruction():
     assert site.shelves == ((0.50, 0.775, 1.48, 0.79),)
     assert site.node_pose("W") == (0.18, 0.89) and site.node_pose("O") == (1.80, 0.89)
     assert site.zones["HALL"].capacity == 3
-    assert [link.b for link in route(site, "W", "O")] == ["X_W", "X_E", "O"]
-    assert sum(link.length for link in route(site, "W", "O")) == pytest.approx(1.62)
+    assert [link.b for link in route(site, "W", "O")] == ["N_W", "X_W", "X_E", "O"]
+    # 곧은 선은 진열대 끝에서 0.15 m다. 급행과 갈림목 사이의 호(반지름 0.10)는 0.115 m까지 다가간다.
+    # 갈림목 선을 더 옮기면 도크 W, O와 너무 가까워지므로 남겨 둔 경고다(2-1, 사용자 결정 거리)
+    assert len(site.warnings) == 4
+    assert all("corner" in w and "0.115 m" in w for w in site.warnings), site.warnings
+    assert not any("ends at" in w for w in site.warnings), "D2 backs into the hall"
 
 
 def test_load_accepts_a_path(tmp_path):

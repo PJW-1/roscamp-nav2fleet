@@ -38,7 +38,7 @@ def queued_in_the_way():
     world.step()
     assert not world.sent(MoveCmd, "pinky2"), "it waits at the queue spot where it stands"
     bot = world.bots["pinky2"]
-    bot.x, bot.y = 1.64, 0.55  # 관제의 도착 허용치(0.15 m) 안이지만 N_E로 가는 길 위다
+    bot.x, bot.y = 1.69, 0.55  # 관제의 도착 허용치(0.15 m) 안이지만 N_E로 가는 길 위다
     return world, first, second
 
 

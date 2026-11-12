@@ -67,13 +67,24 @@ def heading(a, b) -> float:
     return math.atan2(b[1] - a[1], b[0] - a[0])
 
 
+def _pieces(link) -> list:
+    """연결의 선을 이루는 곧은 조각들(길이 0인 것은 뺀다). 꺾는 점이 없으면 하나다."""
+    return [(a, b) for a, b in zip(link.points, link.points[1:], strict=False)
+            if math.dist(a, b) > 0.0]
+
+
 def along(link, x: float, y: float) -> float:
-    """(x, y)를 연결의 선에 내린 자리. a에서부터의 거리이고 0과 길이 사이다."""
-    (ax, ay), (bx, by) = link.points[0], link.points[-1]
-    if link.length <= 0.0:
-        return 0.0
-    s = ((x - ax) * (bx - ax) + (y - ay) * (by - ay)) / link.length
-    return min(max(s, 0.0), link.length)
+    """(x, y)를 연결의 선(꺾은선)에 내린 자리. a에서부터의 거리이고 0과 길이 사이다."""
+    best, best_gap, start = 0.0, math.inf, 0.0
+    for (ax, ay), (bx, by) in _pieces(link):
+        span = math.dist((ax, ay), (bx, by))
+        t = ((x - ax) * (bx - ax) + (y - ay) * (by - ay)) / (span * span)
+        t = min(max(t, 0.0), 1.0)
+        gap = math.hypot(x - ax - t * (bx - ax), y - ay - t * (by - ay))
+        if gap < best_gap - 1e-12:
+            best, best_gap = start + t * span, gap
+        start += span
+    return min(max(best, 0.0), link.length)
 
 
 def passed(link, x: float, y: float) -> bool:
@@ -81,14 +92,32 @@ def passed(link, x: float, y: float) -> bool:
     return along(link, x, y) >= link.length - ON_NODE_M
 
 
-def _start_point(link, x: float, y: float) -> tuple[float, float]:
-    """꺾은선의 첫 점: 로봇이 연결의 시작 지점에 있으면 그 지점, 달리던 중이면 선 위의 지금 자리."""
+def _from_here(link, x: float, y: float) -> tuple[list, list]:
+    """연결의 남은 선: (점들, 조각마다의 방향). 첫 점은 로봇이 연결의 시작 지점에 있으면 그 지점,
+    달리던 중이면 선 위의 지금 자리다."""
+    pieces = _pieces(link)
     s = along(link, x, y)
-    (ax, ay), (bx, by) = link.points[0], link.points[-1]
-    if s <= ON_NODE_M:
-        return (ax, ay)
-    t = s / link.length
-    return (ax + (bx - ax) * t, ay + (by - ay) * t)
+    start, first, point = 0.0, 0, pieces[0][0]
+    if s > ON_NODE_M:
+        for index, (a, b) in enumerate(pieces):
+            span = math.dist(a, b)
+            if s < start + span - 1e-9 or index == len(pieces) - 1:
+                t = min((s - start) / span, 1.0)
+                first, point = index, (a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t)
+                break
+            start += span
+    rest = pieces[first:]
+    return [point, *(b for _, b in rest)], [heading(a, b) for a, b in rest]
+
+
+def _line(links, x: float, y: float) -> tuple[list, list]:
+    """조각 하나(links)의 꺾은선: (점들, 조각마다 달리는 방향)."""
+    points, yaws = _from_here(links[0], x, y)
+    for link in links[1:]:
+        for a, b in _pieces(link):
+            points.append(b)
+            yaws.append(heading(a, b))
+    return points, yaws
 
 
 def move_command(site, robot: str, goal_id: int, links, x: float, y: float,
@@ -103,12 +132,11 @@ def move_command(site, robot: str, goal_id: int, links, x: float, y: float,
         if node.yaw is not None:
             yaw = node.yaw
         elif after is not None and after.via == FOLLOW_PATH:
-            yaw = heading(after.points[0], after.points[-1])
+            yaw = heading(*_pieces(after)[0])
         else:
             yaw = heading((x, y), (node.x, node.y))
         return MoveCmd(robot, goal_id, node.id, node.x, node.y, yaw, (), True, NAV_GOAL)
-    points = [_start_point(links[0], x, y), *(link.points[-1] for link in links)]
-    yaws = [heading(link.points[0], link.points[-1]) for link in links]
+    points, yaws = _line(links, x, y)
     end_yaw = node.yaw if node.yaw is not None else yaws[-1]
     path = tuple((px, py, yaw) for (px, py), yaw in zip(points, [*yaws, end_yaw], strict=True))
     return MoveCmd(robot, goal_id, node.id, node.x, node.y, end_yaw, path, True, FOLLOW_PATH)
@@ -116,8 +144,8 @@ def move_command(site, robot: str, goal_id: int, links, x: float, y: float,
 
 def retreat_command(params, robot: str, goal_id: int, links, x: float, y: float) -> RetreatCmd:
     """조각 하나(후진 연결들)를 뒤로 달리는 RetreatCmd. 로봇은 가는 쪽의 반대를 본다."""
-    points = [_start_point(links[0], x, y), *(link.points[-1] for link in links)]
-    facing = [heading(link.points[-1], link.points[0]) for link in links]
+    points, yaws = _line(links, x, y)
+    facing = [math.remainder(yaw + math.pi, math.tau) for yaw in yaws]
     path = tuple((px, py, yaw) for (px, py), yaw in zip(points, [facing[0], *facing],
                                                          strict=True))
     distance = sum(math.dist(a, b) for a, b in zip(points, points[1:], strict=False))

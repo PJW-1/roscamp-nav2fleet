@@ -15,6 +15,7 @@ from pathlib import Path
 
 import yaml
 from fleet_core.fleet_map import load_fleet_map
+from fleet_core.fleet_map.model import SHARED
 
 from fleet_gz_sim.arena import LAYOUTS
 
@@ -150,6 +151,16 @@ def start_nodes(site, data: dict) -> dict[str, str]:
     if len(set(out.values())) != len(out):
         raise ScenarioUnfit(f"two robots start on one node: {out}")
     return out
+
+
+def narrow_strips(site) -> str:
+    """스캔 거르개의 좁은 띠(넓은 구역이 아닌 구역의 사각형)를 "x0,y0,x1,y1; ..." 글로.
+
+    pinky_nav_config nav2.launch.py의 narrow_strips 인자 꼴이다(추가지시서3 7-2). 차례는 x0, y0 순.
+    """
+    rects = sorted(rect for zone in site.zones.values() if zone.kind != SHARED
+                   for rect in zone.rects)
+    return "; ".join(",".join(f"{v:g}" for v in rect) for rect in rects)
 
 
 def start_poses(site, starts: dict[str, str]) -> dict[str, tuple[float, float, float]]:

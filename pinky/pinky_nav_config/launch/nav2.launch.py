@@ -2,7 +2,7 @@
 
     ros2 launch pinky_nav_config nav2.launch.py map:=<지도.yaml> map_fine:=<1cm 지도.yaml> \
         initial_x:=0.35 initial_y:=1.55 initial_yaw:=1.5708 [keepout_mask:=<마스크.yaml>] \
-        [vision_obstacles:=true]
+        [vision_obstacles:=true] [narrow_strips:="x0,y0,x1,y1; ..." wall_band_m:=0.05]
 
 - 노드: map_server(5 cm, map), map_server_fine(1 cm, map_fine), amcl, controller_server,
   planner_server, behavior_server, bt_navigator와 lifecycle manager 둘.
@@ -18,6 +18,9 @@
   비면(기본) 아무것도 바뀌지 않는다.
 - vision_obstacles:=true면 params/vision_obstacles.yaml을 덧붙여 두 costmap의 장애물 층에
   /{namespace}/vision_obstacles(PointCloud2)를 관측원으로 더한다(회피 담당의 자리, 기본 꺼짐).
+- narrow_strips(좁은 띠 사각형들)를 주면 pinky_scan_filter 노드를 띄우고 params/scan_filter.yaml을
+  덧붙여 두 costmap의 장애물 층이 거른 스캔(scan_filtered)을 읽게 한다(추가지시서3 7-2).
+  AMCL은 원래 scan을 읽는다. 비면(기본) 아무것도 바뀌지 않는다. 거르개는 컨테이너에 넣지 않는다.
 - use_composition:=true면 같은 노드들을 컨테이너(component_container_isolated) 한 프로세스에
   올린다. 한 PC에 로봇 여럿을 띄울 때 DDS 참가자(프로세스) 수를 줄인다.
   기본은 false(노드마다 프로세스).
@@ -55,14 +58,16 @@ def _merge(base: dict, extra: dict) -> None:
 class WithOverlays(Substitution):
     """파라미터 파일 경로. 켜진 덧붙임을 얹은 임시 파일이고, 켜진 것이 없으면 그대로다.
 
-    mask가 있으면 params/keepout.yaml을, vision이 true면 params/vision_obstacles.yaml을 얹는다.
+    mask가 있으면 params/keepout.yaml을, vision이 true면 params/vision_obstacles.yaml을,
+    strips가 있으면 params/scan_filter.yaml을 얹는다.
     """
 
-    def __init__(self, source, mask, vision):
+    def __init__(self, source, mask, vision, strips):
         super().__init__()
         self._source = normalize_to_list_of_substitutions(source)
         self._mask = normalize_to_list_of_substitutions(mask)
         self._vision = normalize_to_list_of_substitutions(vision)
+        self._strips = normalize_to_list_of_substitutions(strips)
 
     def perform(self, context) -> str:
         source = perform_substitutions(context, self._source)
@@ -71,6 +76,8 @@ class WithOverlays(Substitution):
             overlays.append("keepout.yaml")
         if perform_substitutions(context, self._vision).lower() == "true":
             overlays.append("vision_obstacles.yaml")
+        if perform_substitutions(context, self._strips).strip():
+            overlays.append("scan_filter.yaml")
         if not overlays:
             return source
         data = yaml.safe_load(Path(source).read_text(encoding="utf-8"))
@@ -86,12 +93,14 @@ def generate_launch_description():
     arg = LaunchConfiguration
     namespace = arg("namespace")
     keepout = IfCondition(NotEqualsSubstitution(arg("keepout_mask"), ""))
+    filtered = IfCondition(NotEqualsSubstitution(arg("narrow_strips"), ""))
     # costmap 층의 절대 토픽 이름(<robot_namespace>/scan)을 채운 뒤
     # 노드 이름 키를 namespace 아래에 넣는다
     params = ParameterFile(RewrittenYaml(
         source_file=ReplaceString(source_file=WithOverlays(arg("params_file"),
                                                            arg("keepout_mask"),
-                                                           arg("vision_obstacles")),
+                                                           arg("vision_obstacles"),
+                                                           arg("narrow_strips")),
                                   replacements={"<robot_namespace>": ("/", namespace)}),
         root_key=namespace, param_rewrites={}, convert_types=True), allow_substs=True)
     log = ["--ros-args", "--log-level", arg("log_level")]
@@ -168,6 +177,11 @@ def generate_launch_description():
         composable_node_descriptions=(components(nav_nodes) + manager_components(managers)
                                       + components(keepout_nodes)
                                       + manager_components(keepout_manager)))
+    scan_filter = Node(
+        package="pinky_scan_filter", executable="scan_filter", name="scan_filter",
+        output="screen", arguments=log, remappings=TF_REMAPS, condition=filtered,
+        parameters=[{"wall_band_m": ParameterValue(arg("wall_band_m"), value_type=float),
+                     "strips": ParameterValue(arg("narrow_strips"), value_type=str)}])
     use_composition = arg("use_composition")
     return LaunchDescription([
         DeclareLaunchArgument("namespace", default_value="pinky1"),
@@ -186,6 +200,12 @@ def generate_launch_description():
         DeclareLaunchArgument("vision_obstacles", default_value="false",
                               description="true면 두 costmap의 장애물 층에"
                                           " /<로봇>/vision_obstacles(PointCloud2)를 더한다"),
+        DeclareLaunchArgument("narrow_strips", default_value="",
+                              description="좁은 띠 사각형 \"x0,y0,x1,y1; ...\"(map 좌표)."
+                                          " 주면 스캔 거르개를 띄우고"
+                                          " costmap이 거른 스캔을 읽는다"),
+        DeclareLaunchArgument("wall_band_m", default_value="0.05",
+                              description="스캔 거르개: 벽·진열대에서 이만큼 안의 점을 지운다"),
         DeclareLaunchArgument("initial_x", default_value="0.0"),
         DeclareLaunchArgument("initial_y", default_value="0.0"),
         DeclareLaunchArgument("initial_yaw", default_value="0.0"),
@@ -204,4 +224,9 @@ def generate_launch_description():
             SetParameter("use_sim_time", arg("use_sim_time")),
             container,
         ], condition=IfCondition(use_composition)),
+        GroupAction([
+            PushRosNamespace(namespace),
+            SetParameter("use_sim_time", arg("use_sim_time")),
+            scan_filter,
+        ]),
     ])

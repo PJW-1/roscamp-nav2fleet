@@ -58,7 +58,7 @@ def test_not_final_goal_does_not_turn_at_the_end():
 def test_a_robot_starting_beside_the_line_comes_back_to_it_and_ends_on_it():
     world = quiet_world(robots={"pinky1": "N_W"},
                         imperfect=Imperfections(0.0, 0.0, 0.01, 0.0, 0.0, 1.0))
-    place(world, "pinky1", 0.41, 0.65)
+    place(world, "pinky1", 0.36, 0.65)
     world.send(follow(world, "pinky1", 1, ["N_W", "X_W", "W"], yaw=math.pi))
     line = _line(world, "N_W", "X_W", "W")
     gaps = []
@@ -94,7 +94,7 @@ def test_retreat_backs_along_the_path_facing_the_same_way():
     assert world.run_until(lambda: results(world, "on_retreat_result"), timeout_s=10)
     (t, goal, ok, _), = results(world, "on_retreat_result")
     assert (goal, ok) == (1, True)
-    assert 0.22 / 0.05 - 0.2 <= t <= 0.22 / 0.05 + 0.2
+    assert 0.17 / 0.05 - 0.2 <= t <= 0.17 / 0.05 + 0.2  # W에서 X_W까지 0.17 m
     r = world.robots["pinky1"]
     assert math.dist(r.pose, world.site.node_pose("X_W")) < 1e-9 and r.yaw == math.pi
 

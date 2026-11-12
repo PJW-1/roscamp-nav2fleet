@@ -29,7 +29,7 @@ from pinky_fsm.commands import (  # noqa: F401 - 명령 이름은 core에서도 
     LimitSpeed,
     SendPath,
 )
-from pinky_fsm.geometry import Point, Polyline, Pose, poses_along
+from pinky_fsm.geometry import Point, Polyline, Pose, poses_along, rounded_rest
 from pinky_fsm.nav_goal import MODE_NAV_GOAL, MODES, NavGoal, NavGoals
 from pinky_fsm.nav_moves import NavGoalMoves
 from pinky_fsm.params import FsmParams
@@ -380,7 +380,8 @@ class PinkyFsm(NavGoalMoves, RetreatMoves, SelfRecovery):
         g.last_send = now
         self._nav_running = True
         self._nav_live[g.seq] = math.inf
-        poses = poses_along(g.route.rest(g.s), g.target[2], self.p.path_step_m)
+        rest = rounded_rest(g.route, g.s, self.p.turn_radius_m)  # 꺾이는 곳은 호로(2-1)
+        poses = poses_along(rest, g.target[2], self.p.path_step_m)
         return [SendPath(g.seq, poses, final_goal=g.final_goal)]
 
     def _end_active(self, reason: str, stop: bool) -> list:

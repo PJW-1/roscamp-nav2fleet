@@ -110,11 +110,13 @@ controller_server:
     FollowPath:
       plugin: "nav2_regulated_pure_pursuit_controller::RegulatedPurePursuitController"
       desired_linear_vel: 0.25  # 전달사항(제조사 0.2)
-      lookahead_dist: 0.15  # 전달사항(제조사 0.6)
-      min_lookahead_dist: 0.10  # 전달사항(제조사 0.3)
-      max_lookahead_dist: 0.25  # 전달사항(제조사 0.9)
+      # 추가 지시서 3의 2-1 3번: 앞보기 0.10 m 고정(제조사 0.6, 전달사항 0.15 속도 비례). 속도 비례
+      # 앞보기(0.12 m/s에서 0.18 m)는 모퉁이 9 cm 앞에서 돌기 시작했다(작업 기록 4.2)
+      lookahead_dist: 0.10
+      min_lookahead_dist: 0.10  # 전달사항(제조사 0.3). 속도 비례를 끄면 쓰지 않는다
+      max_lookahead_dist: 0.25  # 전달사항(제조사 0.9). 속도 비례를 끄면 쓰지 않는다
       lookahead_time: 1.5
-      use_velocity_scaled_lookahead_dist: true
+      use_velocity_scaled_lookahead_dist: false
       rotate_to_heading_angular_vel: 1.0
       transform_tolerance: 0.2
       min_approach_linear_velocity: 0.05
@@ -127,11 +129,14 @@ controller_server:
       use_cost_regulated_linear_velocity_scaling: true
       regulated_linear_scaling_min_radius: 0.5
       regulated_linear_scaling_min_speed: 0.05
-      # R12: 제자리 회전 각도 0.25 유지(제조사 0.35. 0.8은 Gazebo 충돌 경고 8 → 717건).
-      # use_rotate_to_heading과 allow_reversing은 함께 켤 수 없어 후진은 BackUp으로 한다(안내 3절)
+      # use_rotate_to_heading과 allow_reversing은 함께 켤 수 없어 후진은 BackUp으로 한다(안내 3절).
+      # 추가 지시서 3의 2-1: 0.70(R12의 0.25에서 올림). pinky_fsm이 꺾이는 곳을 반지름 0.10 m 호로
+      # 보내므로 호 위의 앞보기 점은 asin(0.10 / 0.20) = 0.52 rad 옆에 있다. 0.25면 호 위에서 서서
+      # 돌기를 되풀이한다. R12의 0.8(충돌 경고 717건)은 꺾인 선을 곡선으로 질러 가던 때의 값이다.
+      # 선의 시작에서 0.70보다 많이 어긋나면 지금처럼 서서 돈다(넓은 구역에서만 일어난다)
       use_rotate_to_heading: true
       allow_reversing: false
-      rotate_to_heading_min_angle: 0.25
+      rotate_to_heading_min_angle: 0.70
       max_angular_accel: 3.2
       max_robot_pose_search_dist: 1.4875
       # 0.05 (user, 2026-11-10; was 0.6): RPP reads d >= the 0.06 m inscribed radius until the
@@ -151,11 +156,13 @@ controller_server:
     FollowPathThrough:
       plugin: "nav2_regulated_pure_pursuit_controller::RegulatedPurePursuitController"
       desired_linear_vel: 0.25  # 전달사항(제조사 0.2)
-      lookahead_dist: 0.15  # 전달사항(제조사 0.6)
-      min_lookahead_dist: 0.10  # 전달사항(제조사 0.3)
-      max_lookahead_dist: 0.25  # 전달사항(제조사 0.9)
+      # 추가 지시서 3의 2-1 3번: 앞보기 0.10 m 고정(제조사 0.6, 전달사항 0.15 속도 비례). 속도 비례
+      # 앞보기(0.12 m/s에서 0.18 m)는 모퉁이 9 cm 앞에서 돌기 시작했다(작업 기록 4.2)
+      lookahead_dist: 0.10
+      min_lookahead_dist: 0.10  # 전달사항(제조사 0.3). 속도 비례를 끄면 쓰지 않는다
+      max_lookahead_dist: 0.25  # 전달사항(제조사 0.9). 속도 비례를 끄면 쓰지 않는다
       lookahead_time: 1.5
-      use_velocity_scaled_lookahead_dist: true
+      use_velocity_scaled_lookahead_dist: false
       rotate_to_heading_angular_vel: 1.0
       transform_tolerance: 0.2
       min_approach_linear_velocity: 0.05
@@ -168,11 +175,14 @@ controller_server:
       use_cost_regulated_linear_velocity_scaling: true
       regulated_linear_scaling_min_radius: 0.5
       regulated_linear_scaling_min_speed: 0.05
-      # R12: 제자리 회전 각도 0.25 유지(제조사 0.35. 0.8은 Gazebo 충돌 경고 8 → 717건).
-      # use_rotate_to_heading과 allow_reversing은 함께 켤 수 없어 후진은 BackUp으로 한다(안내 3절)
+      # use_rotate_to_heading과 allow_reversing은 함께 켤 수 없어 후진은 BackUp으로 한다(안내 3절).
+      # 추가 지시서 3의 2-1: 0.70(R12의 0.25에서 올림). pinky_fsm이 꺾이는 곳을 반지름 0.10 m 호로
+      # 보내므로 호 위의 앞보기 점은 asin(0.10 / 0.20) = 0.52 rad 옆에 있다. 0.25면 호 위에서 서서
+      # 돌기를 되풀이한다. R12의 0.8(충돌 경고 717건)은 꺾인 선을 곡선으로 질러 가던 때의 값이다.
+      # 선의 시작에서 0.70보다 많이 어긋나면 지금처럼 서서 돈다(넓은 구역에서만 일어난다)
       use_rotate_to_heading: true
       allow_reversing: false
-      rotate_to_heading_min_angle: 0.25
+      rotate_to_heading_min_angle: 0.70
       max_angular_accel: 3.2
       max_robot_pose_search_dist: 1.4875
       cost_scaling_dist: 0.05
@@ -191,11 +201,13 @@ controller_server:
     FollowPathReverse:
       plugin: "nav2_regulated_pure_pursuit_controller::RegulatedPurePursuitController"
       desired_linear_vel: 0.05  # 물러나기는 천천히(제안)
-      lookahead_dist: 0.15  # 전달사항(제조사 0.6)
-      min_lookahead_dist: 0.10  # 전달사항(제조사 0.3)
-      max_lookahead_dist: 0.25  # 전달사항(제조사 0.9)
+      # 추가 지시서 3의 2-1 3번: 앞보기 0.10 m 고정(제조사 0.6, 전달사항 0.15 속도 비례). 속도 비례
+      # 앞보기(0.12 m/s에서 0.18 m)는 모퉁이 9 cm 앞에서 돌기 시작했다(작업 기록 4.2)
+      lookahead_dist: 0.10
+      min_lookahead_dist: 0.10  # 전달사항(제조사 0.3). 속도 비례를 끄면 쓰지 않는다
+      max_lookahead_dist: 0.25  # 전달사항(제조사 0.9). 속도 비례를 끄면 쓰지 않는다
       lookahead_time: 1.5
-      use_velocity_scaled_lookahead_dist: true
+      use_velocity_scaled_lookahead_dist: false
       rotate_to_heading_angular_vel: 1.0
       transform_tolerance: 0.2
       min_approach_linear_velocity: 0.05
@@ -212,7 +224,7 @@ controller_server:
       # 끄고 후진을 켠다: 지나온 길을 거꾸로 적은 경로를 돌지 않고 뒤로 따른다
       use_rotate_to_heading: false
       allow_reversing: true
-      rotate_to_heading_min_angle: 0.25
+      rotate_to_heading_min_angle: 0.70  # 쓰지 않는다. FollowPath와 같게 둔다
       max_angular_accel: 3.2
       max_robot_pose_search_dist: 1.4875
       cost_scaling_dist: 0.05
@@ -268,7 +280,11 @@ local_costmap:
       width: 3
       height: 3
       resolution: 0.025  # 전달사항(제조사 0.05)
-      footprint: "[[0.06, 0.06], [0.06, -0.06], [-0.06, -0.06], [-0.06, 0.06]]"
+      # 추가 지시서 3의 2-1 2번: 사각형 0.12 x 0.12 m 대신 몸 모양에 가까운 다각형(base_footprint 틀).
+      # pinky_description base_link 충돌 메시의 바닥 윤곽(x -0.0745~0.0387, y -0.041~0.047)과 바퀴
+      # (x ±0.028, y ±0.055)를 1~2 mm 넉넉히 덮는다. 회전 중심(바퀴 축)이 앞쪽이라 뒤 모서리까지
+      # 0.0845 m다. FollowPath 셋의 충돌 검사와 pinky_fsm의 막힘 판단이 이 발자국을 쓴다
+      footprint: "[[0.040, 0.021], [0.036, 0.031], [0.029, 0.056], [-0.029, 0.056], [-0.049, 0.049], [-0.071, 0.042], [-0.076, 0.037], [-0.076, -0.037], [-0.071, -0.042], [-0.049, -0.049], [-0.029, -0.056], [0.029, -0.056], [0.036, -0.031], [0.040, -0.021]]"
       # 제조사는 voxel_layer. 라이다가 2D라 같은 일을 하는 obstacle_layer로 쓴다
       plugins: ["obstacle_layer", "inflation_layer"]
       obstacle_layer:
@@ -299,6 +315,8 @@ global_costmap:
       publish_frequency: 1.0
       global_frame: map
       robot_base_frame: base_footprint
+      # 사각형 그대로 둔다(추가 지시서 3의 2-1 가정): NavFn은 점으로 계획하고 이 발자국은 inscribed
+      # 반지름으로만 쓴다. 바꾸면 마당 Nav2 goal 경로가 벽에 더 붙는다
       footprint: "[[0.06, 0.06], [0.06, -0.06], [-0.06, -0.06], [-0.06, 0.06]]"
       footprint_padding: 0.03
       resolution: 0.05

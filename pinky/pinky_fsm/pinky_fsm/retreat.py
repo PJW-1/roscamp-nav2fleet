@@ -11,7 +11,7 @@ from dataclasses import dataclass
 
 from pinky_fsm.backup import FAILED, OBSTACLE_BEHIND, BackUp
 from pinky_fsm.commands import SendPath
-from pinky_fsm.geometry import Polyline, poses_backing
+from pinky_fsm.geometry import Polyline, poses_backing, rounded_rest
 from pinky_fsm.recovery import Obstacle
 from pinky_fsm.results import CANCELED, TIMEOUT, Finish
 
@@ -88,7 +88,7 @@ class RetreatMoves:
         g.seq, g.since, g.allowance_s = self._seq, now, allowance
         self._nav_running = True
         self._nav_live[g.seq] = math.inf
-        poses = poses_backing(rest, self.p.path_step_m)
+        poses = poses_backing(rounded_rest(g.route, s, self.p.turn_radius_m), self.p.path_step_m)
         # 남은 제한(잠금 경계 이동)을 먼저 바꾼다. RPP는 제한을 그대로 속도로 쓴다
         return self._limit_speed() + [SendPath(g.seq, poses, final_goal=True, reverse=True)]
 

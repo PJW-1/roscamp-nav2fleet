@@ -41,8 +41,10 @@ def path_segments(site) -> list[tuple[tuple[float, float], tuple[float, float], 
         if link.via not in (FOLLOW_PATH, RETREAT) or key in seen:
             continue
         seen.add(key)
-        for p, q in zip(link.points, link.points[1:], strict=False):
-            out.append((tuple(p), tuple(q), f"{link.a}-{link.b}"))
+        pieces = list(zip(link.points, link.points[1:], strict=False))
+        for index, (p, q) in enumerate(pieces):  # 꺾는 점이 있으면 조각마다 이름이 다르다
+            name = f"{link.a}-{link.b}" if len(pieces) == 1 else f"{link.a}-{link.b}-{index + 1}"
+            out.append((tuple(p), tuple(q), name))
     return out
 
 
