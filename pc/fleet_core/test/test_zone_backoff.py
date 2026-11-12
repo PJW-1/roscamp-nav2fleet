@@ -1,5 +1,6 @@
 """마당 물러나기(yard_backoff, 기본 꺼짐): 넓은 구역에서 비켜 서는 로봇이 BLOCKED를 보고했으면
 세우기 전에 선 방향 그대로 뒤로 조금 물린다."""
+import copy
 import math
 from dataclasses import replace
 
@@ -23,7 +24,7 @@ def stuck_pair(**changes):
     world = Harness(speed=0.0, params=replace(ON, **changes))
     world.step()
     world.call("WORK", "pinky1")
-    world.call("WORK")  # 열린 호출: pinky1은 이미 배차가 있어 pinky2가 불린다
+    world.open_call = world.call("WORK")  # 열린 호출: pinky1은 이미 배차가 있어 pinky2가 불린다
     world.step()
     world.step()
     assert world.sent(MoveCmd, "pinky1") and world.sent(MoveCmd, "pinky2")
@@ -115,6 +116,43 @@ def test_blocked_reported_during_the_extra_wait_starts_the_back_off():
     assert len(world.sent(RetreatCmd, "pinky2")) == 1
 
 
+def test_a_robot_near_two_others_is_backed_off_once():
+    world = Harness(speed=0.0, params=ON)
+    world.step()
+    x, y = SITE.node_pose("P-2")
+    third = world.bots["pinky3"]
+    third.x, third.y = x, y + 0.25  # pinky2의 옆(북쪽) 0.25 m: pinky1과는 멀다
+    world.call("WORK", "pinky1")
+    world.call("OUTBOUND", "pinky3")
+    world.call("WORK")  # pinky2가 불린다: 배차가 없어 두 쌍 모두에서 비킬 쪽이다
+    world.run(0.5)
+    assert all(world.sent(MoveCmd, name) for name in world.bots)
+    world.bots["pinky2"].yaw = math.pi
+    world.run(world.params.near_stuck_s)  # 두 쌍 모두 pinky2의 BLOCKED를 기다린다
+    assert yields(world) == []
+    reports(world, "pinky2", "BLOCKED")
+    world.step()
+    [back] = world.sent(RetreatCmd, "pinky2")
+    assert len(yields(world)) == 1
+    assert CancelCmd("pinky2", back.goal_id) not in world.commands
+
+
+def test_a_new_destination_during_the_back_off_lets_it_finish_and_then_picks_a_new_way():
+    world = stuck_pair()
+    p = world.params
+    back = backing(world)
+    del world._state
+    world.traffic.on_dispatch_cancel(world.open_call)  # 부른 일이 없어졌다: 주차하러 간다
+    world.step()
+    assert world.view("pinky2")["goal_id"] == back.goal_id, "the back-off goes on"
+    assert world.view("pinky2")["route"] == [], "the old way is dropped, not kept for later"
+    world.run(p.yard_backoff_m / p.retreat_speed_mps + p.near_stuck_s + 0.5)
+    assert CancelCmd("pinky2", back.goal_id) not in world.commands
+    # 물러난 자리는 P-2에서 0.12 m다: 닿은 것으로 보는 거리 안이라 그대로 주차한 것이 된다
+    assert world.phase("pinky2") == "PARKED"
+    assert len(world.sent(MoveCmd, "pinky2")) == 1, "the old way to W_Q is not sent again"
+
+
 # ---- 못 내는 때 ----
 
 @pytest.mark.parametrize(("yaw", "why"), [
@@ -154,6 +192,16 @@ def test_the_spot_is_straight_behind_the_robot():
 ])
 def test_a_spot_outside_the_yard_or_too_close_to_its_edge_is_refused(x, y, yaw_deg):
     assert spot(robot("pinky1", x, y, yaw_deg)) == (None, "no room behind")
+
+
+def test_a_way_that_crosses_a_shelf_is_refused_even_when_the_spot_is_clear_of_it():
+    site = copy.copy(SITE)
+    site.shelves = ((1.00, 0.30, 1.01, 0.50),)  # 얇은 진열대: 끝 자리는 0.105 m 떨어진다
+    here = robot("pinky1", 0.995, 0.40, 180.0)  # 서쪽을 본다: 진열대 너머 (1.115, 0.40)로 물러난다
+    assert backoff_spot(site, ON, ("HALL",), here, ()) == (None, "no room behind")
+    clear = robot("pinky1", 1.02, 0.40, 180.0)  # 진열대를 등지지 않고 지나서 서 있다
+    end, why = backoff_spot(site, ON, ("HALL",), clear, ())
+    assert end == pytest.approx((1.14, 0.40)) and why == ""
 
 
 def test_a_robot_that_does_not_hold_the_yard_it_stands_in_is_not_backed_off():

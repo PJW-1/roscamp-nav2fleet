@@ -92,14 +92,18 @@ class Watch:
     def _watch_near(self, now: float) -> None:
         """넓은 구역에서 두 대가 가까이서 못 나아가면 우선순위 낮은 쪽을 잠시 세운다."""
         p = self.params
-        moving = [m for m in self._robots.values()
-                  if m.available and m.goal is not None and m.goal.kind == MOVE
-                  and m.goal.via == NAV_GOAL]
+
+        def roams(m) -> bool:
+            return (m.available and m.goal is not None and m.goal.kind == MOVE
+                    and m.goal.via == NAV_GOAL)
+
+        moving = [m for m in self._robots.values() if roams(m)]
         seen = set()
         for index, a in enumerate(moving):
             for b in moving[index + 1:]:
                 spots = ((a.x, a.y), (b.x, b.y))
-                if math.dist(*spots) > p.near_m:
+                # 이번 주기에 다른 쌍에서 이미 비킨 로봇은 다시 보지 않는다
+                if math.dist(*spots) > p.near_m or not (roams(a) and roams(b)):
                     continue
                 key = (a.name, b.name)
                 seen.add(key)

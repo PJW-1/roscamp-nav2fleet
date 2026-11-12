@@ -11,20 +11,28 @@ import math
 
 from fleet_core.common.commands import RetreatCmd
 from fleet_core.fleet_map import RETREAT, SHARED
-from fleet_core.fleet_map.geometry import point_rect_distance, point_segment_distance, wall_gap
+from fleet_core.fleet_map.geometry import (
+    point_rect_distance,
+    point_segment_distance,
+    sample,
+    segment_rect_distance,
+    wall_gap,
+)
 from fleet_core.traffic.mission import BLOCKED
 
 from .robots import BACKOFF, Goal
 
 NO_ROOM = "no room behind"
+WAY_STEP_M = 0.02  # 가는 선을 이 간격으로 짚어 구역 안인지 본다
 
 
 def backoff_spot(site, params, held, m, others) -> tuple[tuple | None, str]:
     """m이 뒤로 물러나 설 자리 (x, y)와, 못 물러나는 까닭(물러날 수 있으면 빈 문자열).
 
     설 자리는 m이 서 있고 쥐고 있는 넓은 구역 안이어야 하고, 벽과 진열대와 고정 경로 구역에서
-    yard_backoff_edge_m 이상 떨어져야 한다. 가는 선은 다른 로봇에게 다가가지 않거나, 다가가더라도
-    yard_backoff_clear_m 안으로 들지 않아야 한다. others는 바닥에 있는 다른 로봇들이다.
+    yard_backoff_edge_m 이상 떨어져야 한다. 가는 선은 그 구역을 벗어나거나 진열대를 지나지 않아야
+    하고, 다른 로봇에게 다가가지 않거나, 다가가더라도 yard_backoff_clear_m 안으로 들지 않아야
+    한다. others는 바닥에 있는 다른 로봇들이다.
     """
     p = params
     zone = site.zone_at(m.x, m.y)
@@ -35,9 +43,11 @@ def backoff_spot(site, params, held, m, others) -> tuple[tuple | None, str]:
     end = (m.x + way[0] * p.yard_backoff_m, m.y + way[1] * p.yard_backoff_m)
     edge = p.yard_backoff_edge_m
     fixed = [z.id for z in site.zones.values() if z.kind != SHARED]
-    if (site.zone_at(*end) != zone or wall_gap(site.bounds(), *end) < edge
+    if (any(site.zone_at(x, y) != zone for x, y in sample(here, end, WAY_STEP_M))
+            or wall_gap(site.bounds(), *end) < edge
             or any(site.distance_to_zone(*end, z) < edge for z in fixed)
-            or any(point_rect_distance(shelf, *end) < edge for shelf in site.shelves)):
+            or any(point_rect_distance(shelf, *end) < edge
+                   or segment_rect_distance(here, end, shelf) <= 0.0 for shelf in site.shelves)):
         return None, NO_ROOM
     for other in others:
         nearer = (m.x - other.x) * way[0] + (m.y - other.y) * way[1] < 0.0

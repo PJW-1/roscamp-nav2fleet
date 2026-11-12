@@ -19,7 +19,7 @@ from fleet_core.traffic.mission import (
 )
 from fleet_core.traffic.selector import RobotInfo
 
-from .robots import Dispatch
+from .robots import BACKOFF, Dispatch
 
 
 class Calls:
@@ -143,6 +143,8 @@ class Calls:
         elif goal.kind == MOVE and goal.via == NAV_GOAL:
             self._cancel_goal(m)  # 넓은 구역 안에서는 바로 세우고 다시 고른다
             self._drop_trip(m)
+        elif goal.kind == BACKOFF:
+            self._drop_trip(m)  # 물러나기는 마저 한다. 끝나면 선 자리에서 다시 고른다
         elif m.trip is not None:  # 고정 구간 안: 서지 않는다. 다음 지점에서 갈아탄다(drive._switch)
             del m.trip.links[m.trip.granted:]
             m.trip.stale = True
