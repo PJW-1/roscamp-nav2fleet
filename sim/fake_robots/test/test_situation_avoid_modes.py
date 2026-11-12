@@ -4,10 +4,12 @@ perfect는 test_situation_*.py가 같은 판정(table.judge, Situation.for_mode)
 none과 mixed는 3절 기준이다: 안전 불변식과 관제 반응 시간, 늦더라도 주문이 모두 끝남.
 
 관제 탓으로 못 끝나는 칸은 아래 FLEET_FAILS에 모두 적고 strict xfail로 둔다. 관제를 고쳐 한 칸이
-통과하면 XPASS로 실패하니 그 줄을 지운다. pc/fleet_core는 이 시험 때문에 고치지 않았다.
+통과하면 XPASS로 실패하니 그 줄을 지운다. 그 칸에 주문 못 끝냄 말고 다른 실패(불변식, 반응 시간)가
+생기면 xfail로 숨지 않고 실패한다. pc/fleet_core는 이 시험 때문에 고치지 않았다.
 """
 import pytest
 from fake_robots.world.situations import NAMES
+from fake_robots.world.table import run_situation
 from situation_helpers import ALL_LAYOUTS, SEEDS, check
 
 MODES = ("none", "mixed")
@@ -37,13 +39,18 @@ FLEET_FAILS = {
 }
 
 
+class Unfinished(AssertionError):
+    """적어 둔 이유대로 주문만 못 끝냈다."""
+
+
 def _cells():
     for name in NAMES:
         for layout in ALL_LAYOUTS:
             for mode in MODES:
                 for seed in SEEDS:
                     reason = FLEET_FAILS.get((name, layout, mode, seed))
-                    marks = [pytest.mark.xfail(strict=True, reason=reason)] if reason else []
+                    marks = ([pytest.mark.xfail(strict=True, raises=Unfinished, reason=reason)]
+                             if reason else [])
                     yield pytest.param(name, layout, mode, seed, marks=marks,
                                        id=f"{name}-{layout}-{mode}-{seed}")
 
@@ -55,4 +62,11 @@ def test_every_listed_failure_is_a_real_cell():
 
 @pytest.mark.parametrize(("name", "layout", "mode", "seed"), list(_cells()))
 def test_situation_in_avoid_mode(name, layout, mode, seed):
-    check(name, layout, seed, avoid_mode=mode)
+    if (name, layout, mode, seed) not in FLEET_FAILS:
+        check(name, layout, seed, avoid_mode=mode)
+        return
+    failures = run_situation(name, layout, seed, avoid_mode=mode).failures
+    others = [f for f in failures if not f.startswith("finished ")]
+    assert others == []
+    if failures:
+        raise Unfinished(failures[0])
