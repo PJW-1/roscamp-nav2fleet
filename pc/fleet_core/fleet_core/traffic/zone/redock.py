@@ -11,6 +11,22 @@ from fleet_core.fleet_map import FOLLOW_PATH, RETREAT
 from .trips import Trip
 
 
+def way_in(site, start: str, dock: str) -> list | None:
+    """start에서 도크까지 고정 경로만으로 들어가는 연결들. 없으면 None.
+
+    연결 하나이거나, 갈림목을 거치는 둘이다(2-1 지도: 후진이 마당 지점까지 내려가므로
+    N_W -> X_W -> W로 다시 들어온다).
+    """
+    direct = site.link(start, dock)
+    if direct is not None:
+        return [direct] if direct.via == FOLLOW_PATH else None
+    for first in site.links_from(start):
+        second = site.link(first.b, dock)
+        if first.via == FOLLOW_PATH and second is not None and second.via == FOLLOW_PATH:
+            return [first, second]
+    return None
+
+
 class Redock:
     def _dock_failed(self, m, reason: str = "DOCK_FAILED") -> None:
         """도킹 시도 하나가 실패했다: 실패한 결과이거나 거절이다.
@@ -34,15 +50,15 @@ class Redock:
         now = self._clock()
         dock = self.site.stations[m.dest].dock
         out = next((link for link in self.site.links_from(dock) if link.via == RETREAT), None)
-        back = self.site.link(out.b, dock) if out is not None else None
+        back = way_in(self.site, out.b, dock) if out is not None else None
         if m.redock_since is None:
             m.redock_since = now
-        if (back is None or back.via != FOLLOW_PATH or m.node != dock
+        if (back is None or m.node != dock
                 or now - m.redock_since >= self.params.redock_wait_s):
             m.redock = False
             self._stop_wanting(m)
             return False
-        trip = Trip(dock, [out, back])
+        trip = Trip(dock, [out, *back])
         want = self._take(m, trip)
         if want is not None:
             # 나가는 길을 다른 로봇이 쥐고 있다. 도크에 선 채 기다린다. 대기 순환에는 세지
