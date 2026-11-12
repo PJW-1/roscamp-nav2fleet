@@ -688,21 +688,22 @@ def test_a_requeued_order_is_a_backlog_again():
     assert check(j, "parked_while_backlog")["value"] == 1
 
 
-def test_a_robot_queued_behind_a_busy_dock_may_wait_at_parking():
-    # 구역 관제는 바쁜 작업 도크 앞 대기 줄을 주차 자리에 둔다(DOCK_QUEUED). 레인 관제에는 대기 레인이 있었다
+def test_a_robot_called_to_work_may_wait_at_parking_on_the_way():
+    # 구역 관제는 바쁜 작업 도크 앞 대기 줄과 홀의 쉼터를 주차 자리에 둔다(DOCK_QUEUED, 구역 기다림).
+    # 레인 관제에는 대기 레인이 따로 있었다
     j = judge(direct_returns_min=1)
     j.on_board(["O-1", "O-2"])
     lap(j, "pinky1", [OUT, LANE])
-    event(j, "DOCK_QUEUED", "WORK is busy, waits at P-1", t=2.5, source="pinky1")
+    j.on_assignments({"pinky1": "TO_WORK"})
     lap(j, "pinky1", [WAITING[0], WORK], start=3.0)
     assert check(j, "parked_while_backlog")["value"] == 0
     assert check(j, "direct_returns_min")["value"] == 1  # 줄을 섰다가 곧장 작업 도크로 갔다
 
 
-def test_a_dock_queue_from_an_earlier_lap_does_not_excuse_parking():
+def test_a_robot_sent_to_wait_still_parks_with_a_backlog():
     j = judge()
     j.on_board(["O-1", "O-2"])
-    event(j, "DOCK_QUEUED", "WORK is busy, waits at P-1", t=0.5, source="pinky1")
+    j.on_assignments({"pinky1": "WAIT"})
     lap(j, "pinky1", [OUT, LANE, WAITING[0]])
     assert check(j, "parked_while_backlog")["value"] == 1
 
