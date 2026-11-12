@@ -3,7 +3,9 @@ from __future__ import annotations
 
 import math
 
-PARK_NEAR_M = 0.10  # 주차 지점에서 이 안이면 주차 자리에 있다
+# 주차 지점에서 이 안이면 주차 자리에 있다. 관제의 도착 허용 거리(arrival_tolerance_m)와 같다:
+# 더 좁으면 관제가 닿았다고 본 로봇을 주차하지 않은 것으로 보아 경기가 끝나지 않는다
+PARK_NEAR_M = 0.15
 ON_THE_WAY = ("TO_WORK", "TO_OUTBOUND")  # 스테이션으로 가는 중이거나 그 줄에 선 로봇의 task_type
 
 

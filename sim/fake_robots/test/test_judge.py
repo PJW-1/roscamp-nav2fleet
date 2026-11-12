@@ -747,6 +747,18 @@ def test_finish_needs_all_orders_final_and_robots_parked():
     assert not j.finished(3.0)
 
 
+def test_a_robot_within_the_arrival_tolerance_of_its_parking_node_is_parked():
+    """The fleet takes a robot as arrived within 0.15 m. A judge that asked for less never
+    ended a Gazebo game whose robot stood 0.108 m from P-3."""
+    for off, parked in ((0.12, True), (0.16, False)):
+        j = judge()
+        x, y = at(WAITING[0])
+        put(j, 1.0, "pinky1", (x + off, y), "IDLE")
+        put(j, 1.0, "pinky2", WAITING[1], "IDLE")
+        ship(j, "O-1", "O-2", "O-3")
+        assert j.finished(2.0) is parked, off
+
+
 def test_a_docked_robot_is_not_parked():
     j = judge()
     put(j, 1.0, "pinky1", WAITING[0], "IDLE")
