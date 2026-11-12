@@ -23,11 +23,22 @@
 
 ## 2. 시험 결과
 
-`stage3`에서 병합과 수정을 마친 뒤의 결과입니다.
+`stage3`에서 병합과 수정을 마친 뒤의 결과입니다. WSL의 `fleet_core` 말고 나머지 WSL 패키지는 병합 직후의 커밋(58ce4bb)에서 돌렸고, 그 뒤의 커밋은 `redock.py`의 막힘 표시 확인과 그 시험입니다.
 
 | 시험 | 결과 |
 |---|---|
-@@TEST_ROWS@@
+| Windows ruff | 통과 |
+| Windows `fleet_core` | 646 passed |
+| Windows `pinky_fsm` | 335 passed, 7 skipped |
+| Windows `tools` | 53 passed |
+| Windows `pinky_nav_config` | 41 passed, 2 skipped |
+| Windows 패키지 사이 맞춤 시험 | 3 passed |
+| Windows 머리 없는 세계(`sim/fake_robots/test`) | 845 passed, 6 skipped |
+| WSL `fleet_core` | 646 passed |
+| WSL `pinky_fsm` | 379 passed, 6 skipped |
+| WSL `fleet_gz_sim` / `pinky_nav_config` / `pinky_scan_filter` | 370 / 61 / 23 passed |
+| WSL `fake_robots` | 965 passed |
+| WSL `fleet_manager` | 124 passed |
 
 ## 3. Gazebo 세 대 경기 (배치 D2, 주문 8건, 씨드 1~3)
 
