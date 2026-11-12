@@ -164,3 +164,16 @@ def test_a_failed_move_that_stopped_at_the_end_within_its_stop_error_is_taken_as
     codes = world.codes("pinky2")
     assert "GOAL_ENDED_AT_TARGET" in codes and "GOAL_RETRY" not in codes
     assert world.view("pinky2")["node"] == first.target_id
+
+
+def test_a_failed_retreat_with_the_robot_beside_its_end_is_still_taken_as_arrived():
+    """후진은 선을 따라가므로 끝까지 온 로봇에게 다시 보내면 남은 길이 없어 바로 실패한다
+    (pinky_fsm의 _too_short). 끝 점에서 옆으로 벗어나 있어도 도착 허용 거리 안이면 닿은 것이다."""
+    world, retreat, answer = at_the_end_unanswered()
+    world.bots["pinky1"].y -= 0.10  # 선의 옆으로. 선을 따라서는 끝에 있다
+    world.step()
+    answer("pinky1", retreat.goal_id, False, "FAILED")
+    world.step()
+    codes = world.codes("pinky1")
+    assert "GOAL_ENDED_AT_TARGET" in codes and "RETREAT_DONE" in codes
+    assert "GOAL_RETRY" not in codes
