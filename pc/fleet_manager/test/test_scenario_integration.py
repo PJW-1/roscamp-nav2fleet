@@ -22,16 +22,14 @@ WALL_TIMEOUT_S = 420
 FIRST_DOMAIN = 50  # 시나리오마다 도메인 하나, 로봇 네트워크와 겹치지 않는 범위
 CHECKER = Path(__file__).parents[3] / "scripts" / "check_interfaces.py"
 REPLAY = Path(__file__).parents[3] / "tools" / "replay.py"
-# 알려진 결함 R1(구역을 몸이 아직 걸친 채 놓는다: zone_clear_m 0.10 < 반경 0.08 + 보고 잡음)이
-# 잡음 뽑기에 따라 가끔 나온 시나리오. ROS 실행은 같은 씨드로도 시각이 달라 고정할 수 없다.
-# 판정 거리는 줄이지 않고 기다린다(리드 결정 2026-11-12, 지도 교차점 이동은 사용자가 정한다)
+# 알려진 결함 R1(구역을 몸이 아직 걸친 채 놓는다: zone_clear_m 0.10 < 반경 0.08 + 보고 잡음)은
+# 잡음 뽑기에 따라 어느 시나리오에서나 가끔 나온다. ROS 실행은 같은 씨드로도 시각이 달라 고정할 수
+# 없다. 판정 거리는 줄이지 않는다(리드 결정 2026-11-12): 이 판정만 틀린 실행은 나머지를 다 본 뒤
+# R1을 기다리는 것으로 건너뛰고, 다른 판정이 틀리면 실패한다
 NEEDS_R1 = "R1: zone released while the body still overlaps it (zone_clear_m vs radius + noise)"
-RELEASE_FLAKY = {"basic_orders", "order_burst", "blocked_lane", "reinstate", "auto_isolation"}
 
 
-@pytest.mark.parametrize("scenario", [
-    pytest.param(s, marks=pytest.mark.skip(reason=NEEDS_R1)) if s in RELEASE_FLAKY else s
-    for s in SCENARIOS])
+@pytest.mark.parametrize("scenario", SCENARIOS)
 def test_scenario_finishes_and_matches_the_contract(scenario, tmp_path):
     try:
         for package in ("iponic_bringup", "fake_robots"):
@@ -67,7 +65,9 @@ def test_scenario_finishes_and_matches_the_contract(scenario, tmp_path):
     summary_path = tmp_path / "summary.json"
     assert summary_path.exists(), f"no summary was written. launch log tail:\n{tail}"
     summary = json.loads(summary_path.read_text(encoding="utf-8"))
-    assert summary["pass"], f"{summary}\nlaunch log tail:\n{tail}"
+    failed = sorted(name for name, c in summary["checks"].items() if not c["ok"])
+    only_r1 = failed == ["released_without_position_check"]
+    assert summary["pass"] or only_r1, f"{summary}\nlaunch log tail:\n{tail}"
     assert summary["orders_shipped"] >= 1, "a scenario must not pass by shipping nothing"
     safety = json.loads((tmp_path / "safety.json").read_text(encoding="utf-8"))
     assert (safety["early"], safety["near"]) == (0, 0), safety
@@ -81,3 +81,5 @@ def test_scenario_finishes_and_matches_the_contract(scenario, tmp_path):
     print(f"{scenario}: {played.stdout}")
     assert played.returncode == 0, played.stdout + played.stderr
     assert "same as recorded" in played.stdout
+    if only_r1:
+        pytest.skip(f"{NEEDS_R1}: {summary['violations']}")
