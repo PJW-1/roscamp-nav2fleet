@@ -53,19 +53,22 @@ def nearest_ahead(grid: Grid, x: float, y: float, yaw: float, look_m: float,
 def clear_answer(grid: Grid, x: float, y: float, r: float, age_s: float = 0.0) -> str:
     """CheckClear의 답.
 
-    격자가 MAX_AGE_S보다 오래됐으면(갱신이 멈춘 costmap) unknown. r 안에 장애물 칸이 있으면
-    blocked. 원 전체를 본 경우에만 clear다: 원의 일부가 격자 밖이거나 모르는 칸(-1)이 하나라도
-    있으면 unknown.
+    격자가 MAX_AGE_S보다 오래됐으면(갱신이 멈춘 costmap) unknown. r 안에 중심이 있는 장애물 칸이
+    있으면 blocked. 원 전체를 본 경우에만 clear다: 원이 격자의 변 밖으로 나가거나(격자 좌표로
+    잰다, 격자가 돌아가 있어도 같다) 원에 걸친 칸(중심이 원 밖이어도) 가운데 모르는 칸(-1)이
+    하나라도 있으면 unknown.
     """
     if age_s > MAX_AGE_S or grid.cost_at(x, y) is None:
         return UNKNOWN
     reach = max(r, grid.resolution)
-    costs = [cost for _, _, cost in _cells_near(grid, x, y, reach)]
-    if any(cost >= LETHAL for cost in costs):
+    if any(cost >= LETHAL for _, _, cost in _cells_near(grid, x, y, reach)):
         return BLOCKED
-    rim = [(x + reach * math.cos(k * math.pi / 4), y + reach * math.sin(k * math.pi / 4))
-           for k in range(8)]
-    if (not costs or any(cost < 0 for cost in costs)
-            or any(grid.cost_at(px, py) is None for px, py in rim)):
+    c, s = math.cos(grid.origin_yaw), math.sin(grid.origin_yaw)
+    dx, dy = x - grid.origin_x, y - grid.origin_y
+    gx, gy = c * dx + s * dy, -s * dx + c * dy  # 격자 안 좌표(m)
+    if min(gx, gy, grid.width * grid.resolution - gx, grid.height * grid.resolution - gy) < reach:
+        return UNKNOWN
+    overlap = reach + grid.resolution * math.sqrt(0.5)  # 칸 대각선의 절반: 원에 걸친 칸까지
+    if any(cost < 0 for _, _, cost in _cells_near(grid, x, y, overlap)):
         return UNKNOWN
     return CLEAR

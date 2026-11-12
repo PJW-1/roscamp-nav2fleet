@@ -121,7 +121,7 @@ class FleetManager(ManagerRoute, ManagerViews, ManagerRecord):
         self._pump()
 
     def on_clear_check(self, robot, check_id, answer) -> None:
-        """CheckClear 서비스의 답(clear, blocked, unknown). 부르지 못했으면 unknown이다."""
+        """CheckClear 서비스의 답(clear, blocked, unknown). 부르지 못했으면 NO_ANSWER(빈 값)다."""
         self._input("on_clear_check", robot, check_id, answer)
         if not self._robot_refused("clear check", robot):
             self.traffic.on_clear_check(robot, check_id, text(answer))

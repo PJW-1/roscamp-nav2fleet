@@ -1,5 +1,5 @@
 """지나가는 로봇이 확인하면 막힘 표시를 지운다(추가 지시서 3의 4-3)."""
-from fleet_core.common.commands import CheckClearCmd
+from fleet_core.common.commands import NO_ANSWER, CheckClearCmd
 from zone_harness import Harness
 
 POINT = (1.0, 0.65)  # 마당(HALL) 안, N_W-N_E 선 위
@@ -118,6 +118,24 @@ def test_no_answer_breaks_the_run_and_puts_the_silent_robot_behind_others():
     assert cmd.robot == "pinky3", "the robot that did not answer goes behind the others"
     t.on_clear_check("pinky2", silent.check_id, "clear")  # 늦은 답은 세지 않는다
     assert mark.clears == 0
+
+
+def test_a_robot_that_could_not_be_asked_stays_behind_the_others():
+    """서비스가 없거나 부르기가 실패하면 fleet_manager가 NO_ANSWER를 준다. 답이 아니다."""
+    world, t, mark = world_with_a_mark()
+    put(world, "pinky2", (1.3, 0.65))  # 가장 가깝지만 서버가 없다
+    put(world, "pinky3", (1.5, 0.65))
+    for now, robot in ((5.0, "pinky2"), (10.0, "pinky3"), (15.0, "pinky3")):
+        world.now = now
+        t.tick_progress(now)
+        [cmd] = asks(t)
+        assert cmd.robot == robot, now
+        if robot == "pinky2":
+            t.on_clear_check("pinky2", cmd.check_id, NO_ANSWER)
+            assert mark.check == 0 and "pinky2" in mark.silent
+        else:
+            t.on_clear_check("pinky3", cmd.check_id, "clear")
+    assert not t._marks, "pinky3's two clears remove it"
 
 
 def test_a_new_block_report_drops_the_question_in_flight():

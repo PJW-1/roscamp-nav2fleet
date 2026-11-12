@@ -151,8 +151,8 @@ class PinkyFsmNode(Node):
         self._late_backup: list[tuple[int, str]] = []  # 다음 주기에 넘길 BackUp 결과
         self._late_goal: list[int] = []  # 다음 주기에 거절로 넘길 NavigateToPose(서버 없음)
         self._speed = (0.0, 0.0)
-        self._costmap: tuple[Grid, str] | None = None  # (격자, 틀). 한 번에 바꿔 짝이 맞게 둔다
-        self._costmap_at = 0.0
+        # (격자, 틀, 받은 시각). 한 번에 바꾸고 한 번에 읽어 짝이 맞게 둔다
+        self._costmap: tuple[Grid, str, float] | None = None
         self._battery = UNKNOWN_BATTERY
 
         self._tf = Buffer()
@@ -231,8 +231,8 @@ class PinkyFsmNode(Node):
                     quaternion_yaw(o.orientation.x, o.orientation.y, o.orientation.z,
                                    o.orientation.w),
                     msg.info.width, msg.info.height, msg.data)
-        self._costmap = (grid, msg.header.frame_id)
-        self._costmap_at = time.monotonic()  # 받은 시각. 오래된 격자로는 CheckClear에 답하지 않는다
+        # 받은 시각도 같이 둔다. 오래된 격자로는 CheckClear에 답하지 않는다
+        self._costmap = (grid, msg.header.frame_id, time.monotonic())
 
     def _on_battery(self, msg: BatteryState) -> None:
         if not math.isnan(msg.percentage):
@@ -266,7 +266,7 @@ class PinkyFsmNode(Node):
         costmap = self._costmap
         if costmap is None or pose is None:
             return None
-        grid, frame = costmap
+        grid, frame, _ = costmap
         tf = self._costmap_tf(frame)
         if tf is None:
             return None
@@ -283,19 +283,19 @@ class PinkyFsmNode(Node):
         costmap = self._costmap
         response.answer = UNKNOWN
         if costmap is not None:
-            grid, frame = costmap
+            grid, frame, at = costmap
             tf = self._costmap_tf(frame)
             if tf is not None:
                 [(x, y)] = to_frame([(request.x, request.y)], tf)
                 response.answer = clear_answer(grid, x, y, float(request.r),
-                                               age_s=time.monotonic() - self._costmap_at)
+                                               age_s=time.monotonic() - at)
         return response
 
     def _obstacle(self, points) -> bool:
         costmap = self._costmap
         if costmap is None or not points:
             return False
-        grid, frame = costmap
+        grid, frame, _ = costmap
         if frame and frame != self._map_frame:
             try:
                 tf = self._tf.lookup_transform(frame, self._map_frame, Time())

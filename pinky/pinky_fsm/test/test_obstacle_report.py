@@ -57,6 +57,24 @@ def test_clear_only_when_the_whole_circle_was_seen():
     assert clear_answer(grid({(22, 20): -1, (19, 20): 100}), *center(20, 20), 0.10) == BLOCKED
 
 
+def test_an_unseen_cell_that_only_overlaps_the_circle_counts():
+    """중심은 원 밖이지만 원에 걸친 모르는 칸도 본다(중심 0.112 m, 가장 가까운 곳 0.079 m)."""
+    assert clear_answer(grid({(22, 21): -1}), *center(20, 20), 0.10) == UNKNOWN
+    assert clear_answer(grid({(23, 21): -1}), *center(20, 20), 0.10) == CLEAR, "does not reach it"
+
+
+def test_a_rotated_grid_checks_its_own_edges():
+    """돌아간 격자에서 원이 왼쪽 변 밖으로 0.005 m 나간다. 월드 여덟 방향 표본으로는 놓친다."""
+    yaw = math.pi / 8
+    c, s = math.cos(yaw), math.sin(yaw)
+
+    def world(gx, gy):
+        return (c * gx - s * gy, s * gx + c * gy)
+    g = grid(yaw=yaw)
+    assert clear_answer(g, *world(0.095, 1.0), 0.10) == UNKNOWN
+    assert clear_answer(g, *world(0.105, 1.0), 0.10) == CLEAR
+
+
 def test_a_stale_costmap_answers_unknown():
     g = grid({(20, 20): 100})
     assert clear_answer(g, *center(25, 20), 0.10, age_s=1.0) == CLEAR

@@ -13,6 +13,7 @@ from functools import partial
 import rclpy
 from ament_index_python.packages import get_package_share_directory
 from fleet_core.common.commands import (
+    NO_ANSWER,
     CancelCmd,
     CheckClearCmd,
     DockCmd,
@@ -275,10 +276,11 @@ class FleetManagerNode(Node):
             self._log_event(command)
 
     def _ask_clear(self, command) -> None:
-        """CheckClear 서비스(계약 0.12-draft)를 부른다. 서비스가 없거나 실패하면 unknown이다."""
+        """CheckClear 서비스(계약 0.12-draft)를 부른다. 서비스가 없거나 실패하면 NO_ANSWER다
+        (로봇의 unknown 답과 다르다: 관제는 그 로봇을 다른 로봇 뒤로 미룬다)."""
         client = self._check_clear[command.robot]
         if not client.service_is_ready():
-            self.core.on_clear_check(command.robot, command.check_id, "unknown")
+            self.core.on_clear_check(command.robot, command.check_id, NO_ANSWER)
             return
         future = client.call_async(adapters.check_clear_request(command))
         future.add_done_callback(partial(self._clear_answered, command))
@@ -286,9 +288,9 @@ class FleetManagerNode(Node):
     def _clear_answered(self, command, future) -> None:
         try:
             answer = adapters.check_clear_answer(future.result())
-        except Exception as exc:  # 답이 없으면 모르는 것이다. 관제는 간격 뒤 다시 묻는다
+        except Exception as exc:  # 답이 없다. 관제는 간격 뒤 다른 로봇부터 다시 묻는다
             self.get_logger().warning(f"check_clear on {command.robot} got no reply: {exc}")
-            answer = "unknown"
+            answer = NO_ANSWER
         self.core.on_clear_check(command.robot, command.check_id, answer)
 
     def _log_event(self, event) -> None:

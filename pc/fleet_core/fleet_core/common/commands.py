@@ -59,7 +59,8 @@ class CheckClearCmd:
 
 CLEAR = "clear"  # 그 점에서 radius_m 안에 장애물 칸이 없다
 BLOCKED_AT = "blocked"  # 있다
-UNKNOWN = "unknown"  # 그 점이 센서나 local costmap 밖이다(묻지 못한 경우도 이것으로 본다)
+UNKNOWN = "unknown"  # 로봇이 답했다: 그 원을 다 보지 못했다
+NO_ANSWER = ""  # 묻지 못했다(서비스 없음, 부르기 실패). 로봇의 답이 아니다(fleet_manager가 준다)
 OBSTACLE_KINDS = ("unknown", "person", "object", "robot")  # RobotState.obstacle_kind
 
 
