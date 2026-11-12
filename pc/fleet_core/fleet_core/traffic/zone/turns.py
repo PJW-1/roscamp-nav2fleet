@@ -2,8 +2,8 @@
 
 - 도크가 비어 있고 먼저 온 차례이면 도크로, 아니면 그 스테이션의 대기 자리로, 그것도 없고
   지금 자리에 서 있으면 안 되면 주차 자리로 간다.
-- 차례는 그 스테이션을 먼저 바란 순서다. 먼저 온 로봇이 내가 선 지점이 비기를 기다리며 서 있으면
-  내가 먼저 간다.
+- 차례는 그 스테이션을 먼저 바란 순서다. 이미 도크로 가는 길을 잡고 떠난 로봇이 앞이고, 먼저 온
+  로봇이 내가 선 지점이 비기를 기다리며 서 있으면 내가 먼저 간다.
 """
 from __future__ import annotations
 
@@ -64,12 +64,14 @@ class Turns:
         return all(self._waits_for(other, m) for other in self._ahead(m, station_id))
 
     def _ahead(self, m, station_id: str) -> list:
-        """그 스테이션을 나보다 먼저 바란 로봇들."""
+        """그 스테이션을 나보다 먼저 바란 로봇들과, 이미 그 도크로 가는 길을 잡고 떠난 로봇들."""
         mine = (m.asked_at or 0.0, m.asked_gap, m.name)
+        dock = self.site.stations[station_id].dock
         return [other for other in self._robots.values()
                 if (other is not m and other.available and other.dest == station_id
                     and other.phase in (TO_WORK, TO_OUTBOUND)
-                    and (other.asked_at or 0.0, other.asked_gap, other.name) < mine)]
+                    and ((other.asked_at or 0.0, other.asked_gap, other.name) < mine
+                         or (other.trip is not None and other.trip.goal == dock)))]
 
     def _waits_for(self, other, m) -> bool:
         """other가 m이 서서 쥔 지점이 비기를 기다리며 서 있는가."""

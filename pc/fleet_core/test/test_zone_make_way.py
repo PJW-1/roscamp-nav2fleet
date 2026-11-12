@@ -5,6 +5,7 @@ Gazebo 3대 경기에서 나왔다: 출고 대기 자리로 가던 로봇이 진
 아무것도 하지 않았고, 막힌 로봇이 세 번 실패한 뒤 격리됐다.
 """
 from fleet_core.common.commands import MoveCmd
+from fleet_core.traffic.zone.goals import STANDING_WAIT_S
 from zone_harness import DT, Harness
 
 BODY_M = 0.12  # 두 로봇의 중심이 이보다 가까우면 몸이 닿는다
@@ -133,6 +134,28 @@ def test_a_way_blocked_by_a_queued_robot_is_left_for_one_through_a_free_node():
     assert not any("O_Q" in detail for detail in waits), "it never waits for the queue spot"
 
 
+def test_the_wait_charged_for_a_node_depends_on_who_stands_there():
+    """길 비용에 더하는 시간: 주차한 로봇의 지점 300 s, 차례를 기다리는 로봇의 지점은 찬 도크만큼,
+    빈 지점과 제가 쥔 지점, 지나가는 로봇이 쥔 지점, 도크 지점은 0."""
+    world = Harness(starts={"pinky1": "P-2", "pinky2": "O_Q", "pinky3": "P-3"})
+    world.report()
+    world.call("OUTBOUND", "pinky3")
+    world.now += DT / 2
+    world.call("OUTBOUND", "pinky2")
+    world.step()
+    traffic = world.traffic
+    parked, queued, moving = (traffic._robots[name] for name in ("pinky1", "pinky2", "pinky3"))
+    assert queued.goal is None and moving.goal is not None
+    passing = next(node for node in ("N_E", "X_E") if traffic.grants.node_holder(node) == "pinky3")
+    wait = traffic._node_wait
+    assert wait(moving, "P-2") == STANDING_WAIT_S == 300.0
+    assert wait(moving, "O_Q") == world.params.dock_wait_estimate_s
+    assert wait(moving, "P-1") == 0.0, "nobody there"
+    assert wait(moving, passing) == 0.0, "its own node"
+    assert wait(parked, passing) == 0.0, "the holder is passing through"
+    assert wait(queued, "O_Q") == 0.0 and wait(parked, "O") == 0.0
+
+
 # ---- 도크 차례: 먼저 불린 로봇이 뒤 차례 로봇이 선 지점을 기다리면 뒤 차례가 먼저 간다 ----
 
 def run_among(world, done, timeout_s, radius):
@@ -176,7 +199,30 @@ def test_a_queued_robot_that_cannot_be_passed_takes_the_dock_turn_first():
 def test_the_dock_turn_stays_while_the_first_robot_can_still_move():
     """먼저 불린 로봇이 막힌 채 서 있는 동안(막힘 표시 전)에는 차례가 바뀌지 않는다."""
     world, first, second = stuck_behind_the_queue()
-    run_among(world, lambda: "BLOCKED_WAIT" in world.codes("pinky3"), 30.0, 0.2)
+    assert run_among(world, lambda: "BLOCKED_WAIT" in world.codes("pinky3"), 30.0, 0.2)
     run_among(world, lambda: False, 5.0, 0.2)
+    assert "ZONE_MARKED_BLOCKED" not in world.codes(), "still before the mark"
     assert "DOCK_TURN_TAKEN" not in world.codes()
     assert not world.sent(MoveCmd, "pinky2")
+
+
+def test_a_robot_on_its_way_to_the_dock_keeps_the_turn():
+    """차례를 앞지른 로봇의 도크 길이 설 수 있는 지점을 거치면 도크 구역은 그 지점을 지나서 잡는다.
+    그 사이에 먼저 불린 로봇도 차례라고 보면 둘이 같은 도크로 떠난다: 가는 중인 로봇이 차례를
+    지킨다."""
+    world = Harness(layout="d", starts={"pinky2": "P-1", "pinky3": "P-3"})
+    world.report()
+    traffic = world.traffic
+    for link in (("P-3", "N_E"), ("P-3", "O_Q")):
+        traffic._blocked[link] = 1e9  # pinky3은 남쪽 통로로 돌아간다
+    going = world.call("OUTBOUND", "pinky3")
+    assert world.run_until(lambda: world.sent(MoveCmd, "pinky3"), 5.0)
+    trip = traffic._robots["pinky3"].trip
+    assert trip.goal == "O" and trip.granted < len(trip.links), "the dock zone comes later"
+    late = world.call("OUTBOUND", "pinky2")
+    traffic._robots["pinky2"].asked_at = -1.0  # 먼저 불렸다가 앞지름을 당한 로봇인 셈이다
+    world.run(3.0)
+    other = traffic._robots["pinky2"].trip
+    assert other is None or other.goal != "O", "it does not leave for the dock as well"
+    assert world.run_until(lambda: world.result_of(going) is not None, 200.0)
+    assert world.result_of(going).success and world.result_of(late) is None
