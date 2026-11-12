@@ -104,7 +104,7 @@ def test_a_path_goal_waits_for_a_robot_on_the_line_ahead(harness, tmp_path):
                                   to_ros_qos(CONTRACT_OBJ.qos("robot_state")))
     p.node.create_timer(0.05, lambda: pub.publish(
         RobotState(robot_id="pinky2", pose=Pose2D(x=spot[0], y=spot[1]))))
-    assert wait_until(lambda: p.states, 5.0)
+    assert wait_until(lambda: p.states and pub.get_subscription_count() > 0, 5.0)
     time.sleep(0.3)  # pinky2의 자리가 닿을 때까지
     msg = MoveTo.Goal(target_id="N_E", target_pose=Pose2D(x=x1, y=y))
     msg.path = [Pose(position=Point(x=px, y=py)) for px, py in points]

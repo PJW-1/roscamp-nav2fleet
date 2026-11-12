@@ -78,10 +78,13 @@ class PinkyGoals:
         handle.execute()
 
     def _nothing_ahead(self, goal: _Goal, t: float, step: float, others) -> bool:
-        """다른 로봇이 바로 앞에 있으면 이번 틱은 서 있는다. 후진은 뒤를 따로 본다."""
+        """다른 로봇이 바로 앞에 있으면 이번 틱은 나아가지 않는다. 후진은 뒤를 따로 본다."""
         if goal.nav is not None:
             return goal.nav.clear_ahead(self._motion, step, others)
-        if goal.line is None or self._recovery.backing_up:
+        if goal.line is None:
+            return True
+        if self._recovery.backing_up:
+            goal.line.moved()
             return True
         return goal.line.clear_ahead(t, self._motion, step, others)
 

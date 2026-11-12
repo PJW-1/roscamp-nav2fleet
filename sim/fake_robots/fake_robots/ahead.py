@@ -38,5 +38,9 @@ class PathWatch:
             self._stood_at = t
         return False
 
+    def moved(self) -> None:
+        """뒤로 물러났다(자기 복구). 서 있던 시간을 처음부터 다시 센다."""
+        self._stood_at = None
+
     def blocked(self, t) -> bool:
         return self._stood_at is not None and t - self._stood_at >= FOLLOW_BLOCKED_S - 1e-9

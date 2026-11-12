@@ -38,6 +38,19 @@ def test_a_robot_on_the_line_ahead_stops_a_path_robot_until_it_leaves():
     assert not watch.blocked(FOLLOW_BLOCKED_S + DT)
 
 
+def test_a_back_up_restarts_the_standing_time():
+    """자기 복구로 후진한 시간은 서 있던 시간이 아니다."""
+    m = on_the_line("X_E", "N_E")
+    x, y = SITE.node_pose("N_E")
+    ahead = [(x, y + 0.05, RADIUS)]
+    watch = PathWatch(RADIUS)
+    assert not watch.clear_ahead(0.0, m, STEP, ahead)
+    watch.moved()
+    assert not watch.clear_ahead(0.8, m, STEP, ahead)
+    assert not watch.blocked(FOLLOW_BLOCKED_S + 0.5)
+    assert watch.blocked(0.8 + FOLLOW_BLOCKED_S)
+
+
 def test_a_robot_beside_or_behind_does_not_stop_a_path_robot():
     """가까이 있어도 가면 멀어지는 로봇 앞에서는 서지 않는다(붙은 둘이 떨어질 수 있어야 한다)."""
     m = on_the_line("X_E", "N_E")
