@@ -162,7 +162,7 @@ class PinkyFsm(NavGoalMoves, RetreatMoves, SelfRecovery):
         if handover:
             g.handover_since = now
             return cmds
-        return cmds + self._send_rest(g, now)
+        return cmds + self._send_rest(g, now, pose)
 
     def dock(self, goal_id: Hashable, now: float, dock_id: str) -> list:
         """pinky_dock이 아직 없다. 도킹을 했다고 꾸미지 않고 실패로 끝낸다."""
@@ -380,7 +380,9 @@ class PinkyFsm(NavGoalMoves, RetreatMoves, SelfRecovery):
         g.last_send = now
         self._nav_running = True
         self._nav_live[g.seq] = math.inf
-        rest = rounded_rest(g.route, g.s, self.p.turn_radius_m)  # 꺾이는 곳은 호로(2-1)
+        # 꺾이는 곳은 호로(2-1), 선에서 벗어나 있으면 로봇의 자리에서 시작해 선에 붙는다(2-4)
+        rest = rounded_rest(g.route, g.s, self.p.turn_radius_m, pose,
+                            self.p.join_min_off_m, self.p.join_slope)
         poses = poses_along(rest, g.target[2], self.p.path_step_m)
         return [SendPath(g.seq, poses, final_goal=g.final_goal)]
 

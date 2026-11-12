@@ -1486,3 +1486,42 @@ def test_the_resend_after_a_self_recovery_keeps_the_mark():
     [b] = backups(fsm.nav_result(send.seq, "aborted", 2.1, STUCK, no_obstacle))
     [again] = sends(fsm.backup_result(b.seq, "succeeded", 3.0, BEHIND))
     assert again.final_goal is False
+
+
+# ---- 이음 정밀도 (추가 지시서 3의 2-4) --------------------------------------------------------
+
+BESIDE = (0.43, 1.55, NORTH)  # P3에서 0.08 m 옆: Nav2 goal이 지점 옆에서 끝난 로봇
+
+
+def test_a_robot_beside_the_path_gets_a_path_from_where_it_stands():
+    fsm = ready(pose=BESIDE)
+    [send] = sends(move(fsm, "g1", 1.0, path=(P3, P4), target=P4, pose=BESIDE))
+    assert send.poses[0][:2] == pytest.approx(BESIDE[:2])
+    joined = [p for p in send.poses if p[0] == pytest.approx(0.35)]
+    assert joined[0][1] == pytest.approx(1.55 + 3.0 * 0.08), "joins the line 0.24 m ahead"
+    assert send.poses[0][2] == pytest.approx(math.atan2(0.24, -0.08)), "and heads for that point"
+    assert send.poses[-1][:2] == pytest.approx(P4)
+
+
+def test_the_path_sent_again_near_the_end_also_starts_at_the_robot():
+    fsm = ready()
+    move(fsm, "g1", 0.0, path=(P3, P4), target=P4)
+    fsm.heartbeat(2.0)
+    [again] = sends(fsm.tick(2.0, (0.40, 1.85, NORTH), DRIVING, no_obstacle))
+    assert again.poses[0][:2] == pytest.approx((0.40, 1.85))
+    assert again.poses[-1][:2] == pytest.approx(P4)
+
+
+def test_the_join_can_be_switched_off():
+    fsm = ready(pose=BESIDE, join_slope=0.0)
+    [send] = sends(move(fsm, "g1", 1.0, path=(P3, P4), target=P4, pose=BESIDE))
+    assert send.poses[0][:2] == pytest.approx(P3)
+
+
+def test_the_join_does_not_change_progress_or_arrival():
+    """Progress is still measured on the line the fleet sent."""
+    fsm = ready(pose=BESIDE)
+    [send] = sends(move(fsm, "g1", 1.0, path=(P3, P4), target=P4, pose=BESIDE))
+    assert fsm._active.s == pytest.approx(0.0)
+    cmds = fsm.nav_result(send.seq, "succeeded", 9.0, (0.36, 1.94, NORTH), no_obstacle)
+    assert Finish("g1", True, "") in cmds

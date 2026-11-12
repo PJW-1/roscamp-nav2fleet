@@ -96,14 +96,26 @@ def rounded(points: Sequence[Point], radius: float, step: float = 0.01) -> list[
     return _dedup(out)
 
 
-def rounded_rest(route: Polyline, s: float, radius: float) -> list[Point]:
+def rounded_rest(route: Polyline, s: float, radius: float, here: Sequence[float] | None = None,
+                 join_min_off: float = 0.0, join_slope: float = 0.0) -> list[Point]:
     """route의 꼭짓점을 둥글게 한 선에서, route 위 s 자리에 가장 가까운 곳부터 끝까지.
 
     진행 거리 s는 관제가 보낸 꺾은선(route) 위에서 잰다. 둥근 선은 Nav2에 보낼 때만 쓴다.
+
+    here(로봇의 실제 위치)와 join_slope를 주면 둥근 선에서 로봇에 가장 가까운 곳부터 낸다. 로봇이
+    선에서 join_min_off 넘게 벗어나 있으면 here에서 시작해, 벗어난 거리의 join_slope배 앞에서 선에
+    붙는다(이음 정밀도, 추가 지시서 3의 2-4). 붙는 곳은 지금 선분의 끝을 넘지 않는다: 꺾이는 곳을
+    가로지르는 지름길은 내지 않는다.
     """
     line = Polyline(rounded(route.points, radius))
-    here, _ = line.project(route.point_at(s))
-    return line.rest(here)
+    at, _ = line.project(route.point_at(s))
+    if here is None or join_slope <= 0.0:
+        return line.rest(at)
+    spot = (float(here[0]), float(here[1]))
+    at, off = line.project(spot, s_min=at - radius, s_max=at + radius)
+    if off <= join_min_off:
+        return line.rest(at)
+    return _dedup([spot, *line.rest(min(at + join_slope * off, line.vertex_after(at)))])
 
 
 class Polyline:
@@ -173,6 +185,10 @@ class Polyline:
             if vs <= s + _SAME_M:
                 best = vs
         return best
+
+    def vertex_after(self, s: float) -> float:
+        """s 지점보다 앞(갈 쪽)에 있는 첫 꼭짓점의 s. 없으면 끝이다."""
+        return next((vs for vs in self._s if vs > s + _SAME_M), self.length)
 
     def rest(self, s: float) -> list[Point]:
         """s 지점부터 끝까지. s 뒤의 꼭짓점은 그대로 둔다."""

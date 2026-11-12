@@ -167,3 +167,58 @@ def test_rounded_rest_follows_the_arc_from_where_the_robot_is():
     assert near[0][0] < 0.35 and near[-1] == pytest.approx((0.18, 0.89))
     assert rounded_rest(Polyline([(0.0, 0.0), (1.0, 0.0)]), 0.4, 0.1) == [
         pytest.approx((0.4, 0.0)), (1.0, 0.0)]
+
+
+# ---- 이음 정밀도 (추가 지시서 3의 2-4) --------------------------------------------------------
+
+LANE = Polyline([(0.35, 0.20), (0.35, 0.89), (0.18, 0.89)])  # 곧게 0.69 m, 그리고 왼쪽으로 꺾임
+
+
+def joined(route, s, here, min_off=0.02, slope=3.0, radius=0.10):
+    return rounded_rest(route, s, radius, here, min_off, slope)
+
+
+def test_a_robot_on_the_line_gets_the_rest_as_before():
+    assert joined(LANE, 0.10, (0.35, 0.30)) == [
+        pytest.approx(p) for p in rounded_rest(LANE, 0.10, 0.10)]
+
+
+def test_a_robot_beside_the_line_starts_where_it_stands_and_joins_the_line_ahead():
+    rest = joined(LANE, 0.10, (0.43, 0.30))  # 0.08 m 옆
+    assert rest[0] == pytest.approx((0.43, 0.30))
+    assert rest[1] == pytest.approx((0.35, 0.30 + 3.0 * 0.08)), "three times the offset ahead"
+    assert rest[-1] == pytest.approx((0.18, 0.89))
+    assert rest[2:] == rounded_rest(LANE, 0.10, 0.10)[1:], "from there on the line as it was"
+
+
+def test_the_join_never_cuts_across_a_corner():
+    """Close to a corner the join is the start of the arc, not a point beyond it."""
+    rest = joined(LANE, 0.50, (0.45, 0.70))  # 0.10 m 옆, 호의 시작(y 0.79)까지 0.09 m
+    assert rest[0] == pytest.approx((0.45, 0.70))
+    assert rest[1] == pytest.approx((0.35, 0.79))
+
+
+def test_a_small_offset_keeps_the_start_on_the_line():
+    rest = joined(LANE, 0.10, (0.365, 0.30))  # 0.015 m 옆
+    assert rest[0] == pytest.approx((0.35, 0.30))
+
+
+def test_on_an_arc_the_rest_starts_beside_the_robot_not_behind_it():
+    """The progress s is measured on the sharp line. Its place on the arc lies behind a robot
+    that drives the arc."""
+    arc = rounded(LANE.points, 0.10)
+    robot = arc[len(arc) // 2]  # 호의 가운데
+    s, _ = LANE.project(robot)
+    assert math.dist(rounded_rest(LANE, s, 0.10)[0], robot) > 0.01, "the old start is behind"
+    assert math.dist(joined(LANE, s, robot)[0], robot) < 1e-6
+
+
+def test_without_a_slope_the_start_is_on_the_line_as_before():
+    assert joined(LANE, 0.10, (0.43, 0.30), slope=0.0) == rounded_rest(LANE, 0.10, 0.10)
+
+
+def test_vertex_after_is_the_next_vertex_ahead_of_the_point():
+    line = Polyline([(0.0, 0.0), (1.0, 0.0), (1.0, 1.0)])
+    assert line.vertex_after(0.4) == pytest.approx(1.0)
+    assert line.vertex_after(1.0) == pytest.approx(2.0)
+    assert line.vertex_after(2.0) == pytest.approx(2.0)
