@@ -210,10 +210,11 @@ def _controllers(path) -> dict:
     return data["controller_server"]["ros__parameters"]
 
 
-def test_every_controller_checks_collisions_and_keeps_the_speed_cap(made):
+def test_every_controller_checks_collisions_when_asked_and_keeps_the_speed_cap(made):
     from fleet_gz_sim.launch_parts import CONTROLLERS
     for speed in ("", "0.15"):
-        for nav in includes(run(made, nav_max_speed=speed), "nav2.launch.py"):
+        made_with = run(made, nav_max_speed=speed, fixed_line_collision_check="true")
+        for nav in includes(made_with, "nav2.launch.py"):
             controllers = _controllers(launch_args(nav)["params_file"])
             for name in CONTROLLERS:
                 assert controllers[name]["use_collision_detection"] is True, name
@@ -223,8 +224,10 @@ def test_every_controller_checks_collisions_and_keeps_the_speed_cap(made):
             assert controllers["FollowPathReverse"]["desired_linear_vel"] == 0.05
 
 
-def test_the_fixed_line_check_can_be_turned_off_for_every_robot(made):
-    navs = includes(run(made, fixed_line_collision_check="false"), "nav2.launch.py")
+@pytest.mark.parametrize("asked", [{}, {"fixed_line_collision_check": "false"}])
+def test_the_fixed_line_check_is_off_for_every_robot_unless_asked(made, asked):
+    # 사용자 결정 2026-11-13: 켠 세 대 경기가 끝나지 않아 기본을 끔으로 둔다
+    navs = includes(run(made, **asked), "nav2.launch.py")
     assert len(navs) == 3
     for nav in navs:
         controllers = _controllers(launch_args(nav)["params_file"])

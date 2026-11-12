@@ -119,7 +119,9 @@ GOAL_CONTROLLER_KEY = "follow_path_goal"
 CONTROLLERS = ("FollowPath", THROUGH_CONTROLLER, REVERSE_CONTROLLER, GOAL_CONTROLLER)
 # 고정 경로(FollowPath, 잠금 경계, Retreat)를 모는 controller. 시뮬 전용 스위치
 # fixed_line_collision_check가 거짓이면 이 셋만 충돌 검사를 끈다(리드 결정 2026-11-12: D2의 0.10 m
-# 통로에서 켜면 work_in이 0/3이라 3대 경기를 볼 수 없다). 마당 goal(FollowPathGoal)은 늘 켠다
+# 통로에서 켜면 work_in이 0/3이라 3대 경기를 볼 수 없다). 마당 goal(FollowPathGoal)은 늘 켠다.
+# launch 인자의 기본은 끔이다(사용자 결정 2026-11-13: scan 거르개를 넣고 켠 세 대 경기 여섯 판이
+# 끝나지 않았고, 끈 판은 끝났다). 실물의 파라미터 파일(nav2_params.yaml)은 켬 그대로다
 FIXED_LINE_CONTROLLERS = ("FollowPath", THROUGH_CONTROLLER, REVERSE_CONTROLLER)
 # 경기장 속도 상한. 앞으로 가는 controller 셋이 이 값으로 간다. 지시서 3절은 0.12~0.15 m/s이고,
 # 0.20까지는 더 빠른 주행을 시뮬에서 보려고 받는다(2026-11-12). 기본값은 그대로다

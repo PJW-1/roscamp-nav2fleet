@@ -65,8 +65,8 @@ ARGS = {
     "scenario_seed": ("", "시나리오 random 블록을 풀 seed(정수). 비면 파일의 seed"),
     "battery_low_pct": ("", "관제 battery_low_pct(0~100). 주면 그 값을 넣은 파라미터 사본"
                             "(result_dir/fleet_params.yaml)으로 돈다. 비우면 파일 그대로"),
-    "fixed_line_collision_check": ("true", "시뮬 전용. false면 고정 경로 controller 셋(FollowPath,"
-                                           " Through, Reverse)의 충돌 검사를 끈다. 마당 goal은 켬"),
+    "fixed_line_collision_check": ("false", "시뮬 전용. true면 고정 경로 controller 셋(FollowPath,"
+                                           " Through, Reverse)도 충돌 검사를 켠다. 마당은 늘 켬"),
     "scan_filter": ("true", "좁은 띠 안에서 벽·진열대에 붙은 라이다 점을 costmap에서 지우는 거르개"
                             "(pinky_scan_filter, 추가지시서3 7-2). false면 띄우지 않는다(비교용)"),
     "wall_band_m": ("0.05", "스캔 거르개: 벽·진열대에서 이만큼 안의 점을 지운다(m)."

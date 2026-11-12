@@ -7,10 +7,11 @@
 #   tools/avoid_regression.sh                      # 세 단계 모두. 결과는 avoid_regression_out/
 #   tools/avoid_regression.sh --out /tmp/reg --games 1 --laps 1
 #   tools/avoid_regression.sh --skip-gazebo        # 1단계만(ROS 없이 돈다)
+#   tools/avoid_regression.sh --fixed-line-check true   # 고정 경로의 충돌 검사를 켜고(기본 false)
 #
 # 단계
 #   1. 머리 없는 세계: 매장 상황 표(tools/situations.py --store --avoid all). 못 지킨 기대가 있으면 실패
-#   2. Gazebo 한 대(D2): 고정 경로의 충돌 검사를 켠 채 구간 종류마다 LAPS번(drive_check)
+#   2. Gazebo 한 대(D2): 구간 종류마다 LAPS번(drive_check)
 #   3. Gazebo 세 대 경기 GAMES판(씨드 1..GAMES): 끝나지 않은 주문에 "주행" 원인이 없고,
 #      몸이 keepout 구역에 들어간 깊이가 keepout_intrusion_max_m(0.02 m) 이하
 # 판정은 tools/avoid_regression.py가 한다. 한 단계가 실패해도 나머지를 돌리고, 하나라도 실패면 1로 끝난다.
@@ -18,10 +19,10 @@ set -u
 repo="$(cd "$(dirname "$0")/.." && pwd)"
 out="$PWD/avoid_regression_out"
 games=3; laps=3; seeds="1 2 3"; plan="stage2"; keepout_max="0.02"
-headless=true; gazebo=true
+headless=true; gazebo=true; fixed_check=false
 drive_wall_s="${DRIVE_WALL_S:-2400}"; game_wall_s="${GAME_WALL_S:-3000}"
 
-usage() { sed -n '2,16p' "$0" | sed 's/^# \{0,1\}//'; }
+usage() { sed -n '2,17p' "$0" | sed 's/^# \{0,1\}//'; }
 while [ $# -gt 0 ]; do
   case "$1" in
     --out) out="$2"; shift 2 ;;
@@ -32,10 +33,15 @@ while [ $# -gt 0 ]; do
     --keepout-max) keepout_max="$2"; shift 2 ;;
     --skip-headless) headless=false; shift ;;
     --skip-gazebo) gazebo=false; shift ;;
+    --fixed-line-check) fixed_check="$2"; shift 2 ;;
     -h|--help) usage; exit 0 ;;
     *) echo "모르는 인자: $1" >&2; usage >&2; exit 2 ;;
   esac
 done
+case "$fixed_check" in
+  true|false) ;;
+  *) echo "--fixed-line-check는 true나 false다: $fixed_check" >&2; exit 2 ;;
+esac
 mkdir -p "$out" && out="$(cd "$out" && pwd)" || exit 2
 failed=()
 
@@ -90,7 +96,7 @@ drive_stage() {
   note "2/3 Gazebo 한 대, 구간 종류마다 ${laps}번($plan)"
   rm -f "$out/drive_check.json" "$out/drive_check.md" "$out/drive_check.log"
   start_launch "$out/drive_launch.log" one_pinky.launch.py layout:=d2 start:=P-1 gui:=false \
-    rviz:=false fixed_line_collision_check:=true
+    rviz:=false fixed_line_collision_check:="$fixed_check"
   if ! nav2_active; then
     failed+=("한 대 주행 (Nav2가 180 s 안에 active가 되지 않았다)")
     note "    실패: Nav2가 180 s 안에 active가 되지 않았다. $out/drive_launch.log"
@@ -120,7 +126,8 @@ game_stage() {  # <씨드>
   fi
   rm -rf "$dir"; mkdir -p "$dir"
   start_launch "$out/game$seed.log" gz.launch.py layout:=d2 gui:=false rviz:=none \
-    sim_dock_stub:=true fleet_record:=true scenario_seed:="$seed" result_dir:="$dir"
+    sim_dock_stub:=true fleet_record:=true scenario_seed:="$seed" result_dir:="$dir" \
+    fixed_line_collision_check:="$fixed_check"
   # 시나리오 모니터가 끝나면 launch가 스스로 끝난다. 벽시계 한도를 넘으면 멈추고 실패로 친다
   local over=true
   for _ in $(seq 1 $((game_wall_s / 5))); do
@@ -154,6 +161,7 @@ if $gazebo; then
     echo "gz sim이 이미 돌고 있다. 끝낸 뒤 다시 돌린다" >&2
     exit 2
   fi
+  note "고정 경로 충돌 검사: $fixed_check"
   drive_stage
   for seed in $(seq 1 "$games"); do game_stage "$seed"; done
 fi

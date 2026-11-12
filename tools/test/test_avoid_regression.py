@@ -99,6 +99,23 @@ def test_the_script_passes_only_arguments_the_launch_files_declare():
         assert passed and passed <= declared, (name, sorted(passed - declared))
 
 
+def test_the_script_runs_both_gazebo_stages_with_the_fixed_line_check_it_was_given():
+    # 기본은 끔이다(사용자 결정 2026-11-13). --fixed-line-check true로 켠다
+    script = (TOOLS / "avoid_regression.sh").read_text(encoding="utf-8")
+    assert re.search(r"\bfixed_check=false\b", script)
+    assert '--fixed-line-check) fixed_check="$2"; shift 2 ;;' in script
+    assert script.count('fixed_line_collision_check:="$fixed_check"') == 2
+    assert "fixed_line_collision_check:=true" not in script
+    assert re.search(r'case "\$fixed_check" in\s+true\|false\) ;;', script)
+
+
+def test_the_launch_files_leave_the_fixed_line_check_off_unless_asked():
+    launch = TOOLS.parent / "sim" / "fleet_gz_sim" / "launch"
+    for name in ("gz.launch.py", "one_pinky.launch.py"):
+        text = (launch / name).read_text(encoding="utf-8")
+        assert '"fixed_line_collision_check": ("false",' in text, name
+
+
 def test_the_script_sends_the_first_goal_only_after_nav2_is_active():
     """A goal sent while the planner is still activating ends with NAV_ABORTED in 0.1 s
     (Gazebo, 2026-11-13): the one-robot stage waits for the lifecycle manager's is_active."""
