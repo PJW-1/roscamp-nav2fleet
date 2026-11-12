@@ -8,7 +8,8 @@
 | grants | 구역 정원, 지점, 한 줄 구역의 방향. 구간을 한꺼번에 잡는다 |
 | lane_policy | 한 줄 구역의 방향: ETA, 히스테리시스, 넘겨주기 |
 | trips | 가는 길을 구간과 조각(명령)으로 나눈다 |
-| goals | 목적지와 길 고르기, 구간 잡기, 도크 줄 |
+| goals | 길 고르기, 구간 잡기 |
+| turns | 목적지 후보(도크, 대기 자리, 주차), 도크 차례 |
 | drive | 로봇 한 대의 한 걸음, 명령 내기 |
 | results | 명령의 결과 |
 | progress | 상태 보고: 지도에 올리기, 뒤 구역 놓기 |
@@ -36,11 +37,12 @@ from .nostart import NoStart
 from .progress import Progress
 from .results import Results
 from .silent import Silent
+from .turns import Turns
 from .views import Views
 from .watch import Watch
 
 
-class ZoneTraffic(Calls, Goals, Drive, Results, Progress, Blocked, Health, Watch, Backoff,
+class ZoneTraffic(Calls, Goals, Turns, Drive, Results, Progress, Blocked, Health, Watch, Backoff,
                   Silent, NoStart, Capacity, Views, ZoneBase):
     def tick(self) -> list:
         """한 주기 전체. FleetManager 없이 교통 층만 돌릴 때 쓴다."""

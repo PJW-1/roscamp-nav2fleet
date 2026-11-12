@@ -9,7 +9,7 @@ none과 mixed는 3절 기준이다: 안전 불변식과 관제 반응 시간, �
 
 처음에는 none의 열세 칸이 여기 있었다. 주차했거나 차례를 기다리며 선 로봇의 몸이 지도 길을 막은
 경우들이다. 선 로봇이 쥔 지점을 거치는 길에 대기 시간을 치고(goals._node_wait), 먼저 불린 로봇이
-뒤 차례 로봇이 선 지점을 기다리면 뒤 차례가 먼저 도크에 가게 해서(goals._is_next) 모두 끝난다.
+뒤 차례 로봇이 선 지점을 기다리면 뒤 차례가 먼저 도크에 가게 해서(turns._is_next) 모두 끝난다.
 """
 import pytest
 from fake_robots.world.situations import NAMES
