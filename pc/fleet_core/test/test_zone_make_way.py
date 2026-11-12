@@ -76,3 +76,14 @@ def test_a_waiting_robot_away_from_the_blocked_way_stays():
         world.step()
     assert "ZONE_MARKED_BLOCKED" in world.codes("pinky3")
     assert "HALL_YIELD" not in world.codes() and not world.sent(MoveCmd, "pinky2")
+
+
+def test_a_parking_try_that_cannot_take_its_way_leaves_the_waiting_record_alone():
+    world = Harness(layout="d", starts={"pinky1": "P-1", "pinky2": "O_Q", "pinky3": "P-3"})
+    world.report()
+    traffic = world.traffic
+    # 하나 남은 주차 자리 P-2는 서쪽에 있다. 건너갈 통로도, 급행으로 나가는 지점도 남이 쥐었다
+    assert traffic.grants.force("pinky1", ["CORR_M", "CORR_S"], [])
+    assert traffic.grants.force("pinky3", [], ["N_E"])
+    assert not traffic._to_parking(traffic._robots["pinky2"], "INFO", "HALL_YIELD", "goes to")
+    assert traffic.grants.waiting() == {}, "it only tried: it does not wait for the corridor"

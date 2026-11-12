@@ -93,6 +93,13 @@ class ZoneGrants:
     def stop_waiting(self, robot: str) -> None:
         self._waiting.pop(robot, None)
 
+    def note_waiting(self, robot: str, items) -> None:
+        """기다리는 것의 기록을 되돌린다(구간을 잡아 보기만 하고 물러났을 때)."""
+        if items:
+            self._waiting[robot] = tuple(items)
+        else:
+            self._waiting.pop(robot, None)
+
     # ---- 놓기 ----
 
     def release_zone(self, robot: str, zone: str) -> bool:
