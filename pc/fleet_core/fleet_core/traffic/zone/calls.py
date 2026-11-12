@@ -135,7 +135,8 @@ class Calls:
         m.phase, m.dest = phase, station_id
         m.asked_at = self._clock() if station_id else None
         m.asked_gap = self._metres_to_dock(m, station_id) if station_id else 0.0
-        m.attempts = 0
+        m.attempts = m.dock_tries = 0
+        m.redock = False
         self._stop_wanting(m)
         goal = m.goal
         if goal is None:

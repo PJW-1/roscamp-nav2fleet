@@ -34,8 +34,10 @@ class Progress:
         m.robot_state = state
         self._note_battery(m, battery)
         if state == LOCALIZING:
+            m.pose_at = None  # 다시 잡은 자세는 앞 자세와 견주지 않는다
             m.clear_n.clear()  # 벗어난 보고는 이어져야 한다
             return  # 위치를 아직 못 잡았다. 자세를 믿지 않는다
+        self._watch_pose_jump(m, x, y, yaw, now)
         m.x, m.y, m.yaw = x, y, yaw
         m.heard_since_success = True
         if m.fault == OUT_OF_SERVICE:

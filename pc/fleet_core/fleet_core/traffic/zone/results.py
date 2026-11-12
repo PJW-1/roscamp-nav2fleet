@@ -56,9 +56,9 @@ class Results:
             return
         m.goal = None
         if not success:
-            self._goal_failed(m, "DOCK_FAILED")
+            self._dock_failed(m)
             return
-        m.attempts = 0
+        m.attempts = m.dock_tries = 0
         m.phase = AT_STATION
         m.dock_error_m = math.hypot(error_x_cm, error_y_cm) / 100.0
         self._event("INFO", "DOCKED", f"at {m.dest}: x {error_x_cm:.1f} cm, y {error_y_cm:.1f} cm,"

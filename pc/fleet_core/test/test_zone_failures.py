@@ -6,7 +6,7 @@
 import math
 
 import pytest
-from fleet_core.common.commands import DispatchResult, DockCmd, MoveCmd, RobotIsolated
+from fleet_core.common.commands import DispatchResult, DockCmd, MoveCmd, RetreatCmd, RobotIsolated
 from fleet_core.fleet_map import SHARED
 from fleet_core.traffic.mission import HEARTBEAT_LOST, NOT_AT_TARGET
 from zone_harness import Harness
@@ -237,8 +237,28 @@ def test_a_failed_docking_is_sent_again_only_after_the_wait(fail):
     assert (world.view("pinky2")["attempts"], docks(world)) == (1, 1)
     world.run(world.params.move_retry_wait_s - 0.3)
     assert docks(world) == 1, "nothing new before the retry wait is over"
+    assert not world.sent(RetreatCmd, "pinky2")
     world.run(0.5)
-    assert docks(world) == 2, "the docking goes out again"
+    if fail == "rejected":
+        assert docks(world) == 2, "a docking the robot did not take goes out again as it is"
+    else:
+        assert docks(world) == 1 and world.sent(RetreatCmd, "pinky2"), "it backs out first"
+
+
+def test_a_failed_docking_backs_out_and_comes_in_again_before_the_next_try():
+    """The reported pose may be off (B-G5). Driving the fixed line again lets the robot find its
+    place before it docks at the same spot."""
+    world, _ = at_the_dock()
+    assert world.run_until(lambda: docks(world) == 2, 60.0)
+    codes = world.codes("pinky2")
+    first = codes.index("GOAL_RETRY")
+    assert codes[first:first + 5] == ["GOAL_RETRY", "DOCK_REAPPROACH", "ZONE_GRANTED",
+                                      "RETREAT_START", "RETREAT_DONE"], codes[first:first + 8]
+    assert "FOLLOW_SENT" in codes[first:]
+    assert not world.problems
+    assert world.run_until(lambda: world.codes("pinky2").count("GOAL_RETRY") == 2, 60.0)
+    retries = [e.detail for e in world.events if e.code == "GOAL_RETRY"]
+    assert retries == ["DOCK_FAILED, attempt 1", "DOCK_FAILED, attempt 2"], "each one counts"
 
 
 def test_docking_that_fails_once_and_then_succeeds_ends_the_dispatch_well():
