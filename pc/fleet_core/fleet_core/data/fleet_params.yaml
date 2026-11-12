@@ -15,12 +15,10 @@ lane_error_warn_m: 0.15       # 가짜 로봇: 받은 path 첫 점이 이보다 
 move_retry_limit: 2           # 첫 실패 뒤 재시도 수, 모두 세 번 시도
 move_retry_wait_s: 2.0        # 추정: 세 번 시도가 comm_timeout_s보다 길어 통신 끊김이 먼저 보인다
 stall_s: 6.0                  # 목표가 열린 채 이만큼 제자리면 멈춤. pinky_multi_sim과 같은 값
-stall_move_m: 0.05            # 매끄럽게 한 위치가 이보다 덜 움직이면 제자리. 위치 잡음 σ 0.03 m에도 버틴다
-stall_smooth_s: 1.0           # 위치를 매끄럽게 하는 시간 상수(지수 평균)
+stall_move_m: 0.05            # 보고 위치가 이보다 덜 움직이면 제자리. 위치 잡음 σ 0.03 m에도 버틴다
 dock_stall_s: 15.0            # 추정: 도킹은 천천히 맞추므로 더 길게 본다
 blocked_mark_s: 10.0          # 추정: BLOCKED가 이만큼 이어지면 그 연결을 막힘으로 표시하고 다른 길을 고른다(잠깐 지나가는 사람 8 s보다 길게)
 blocked_timeout_s: 60.0       # 추정: BLOCKED로 보고된 시간이 이만큼이면 ERROR(BLOCKED)
-blocked_rejoin_s: 10.0        # 풀린 뒤 이 안에 같은 레인에서 다시 막히면 막힌 시간을 이어 센다
 queue_gap_m: 0.6              # 추정: 같은 레인이나 다음 레인 앞 이 거리 안에 정상 로봇이 있으면 줄 서기
 arrival_tolerance_m: 0.15     # 추정: 목표 지점에 이만큼 가까워야 이동 성공으로 친다
 arrival_settle_s: 1.0         # 추정: 보고가 늦으니 성공 뒤 이만큼 기다린다
@@ -39,7 +37,6 @@ cancel_warn_after: 5          # 결과 없이 이만큼 주기가 지나면 CANC
 report_retry_s: 2.0           # 추정: 답이 없으면 이만큼 뒤 주문 보고를 다시 보냄
 zone_wait_warn_s: 60.0        # 한 구역을 이만큼 기다리면 경고
 deadlock_grace_s: 5.0         # 교착 두 번째 단계 전 대기
-deadlock_unresolved_s: 30.0   # 제안: DEADLOCK_UNRESOLVED 뒤 같은 순환이 이만큼 이어지면 우선순위가 가장 낮은 로봇을 격리
 score_same_call: -4.0         # 이미 불린 로봇은 다른 로봇이 확실히 가깝지 않으면 호출을 유지
 score_distance_weight: 0.91   # 레인 거리 1 m당
 priority_at_station: 200
@@ -50,7 +47,6 @@ battery_low_pct: 0.0          # 제안: 보고한 배터리(0-100)가 이 값 �
 battery_charged_pct: 80.0     # 제안: 이 값 이상이 되면 다시 일을 받는다
 dispatch_retry_wait_s: 2.0    # 제안: 출고 호출이 실패하면 이만큼 뒤 다시 보낸다
 dispatch_retry_limit: 3       # 제안: 출고 호출 실패가 이 수를 넘으면 ERROR(DISPATCH_FAILED)
-mark_final_goal: true         # 제안(버전 2 4절, 계약 0.8-draft): 잠금 경계에서 끝나는 이동은 final_goal 거짓(핑키가 설 수 있는 속도로만 줄인다).
 self_recovery_limit_s: 45.0   # 제안: 로봇이 RECOVERING(자가 복구)을 이만큼 넘게 이어 보내면 BLOCKED로 본다. 핑키 FSM의 두 번 시도는 길어야 약 35 s
 traffic_mode: zones           # 교통 층: zones(지점·구역 그래프의 구역 허락, 3단계에서 만든다). 다른 값은 없다
 eta_speed_mps: 0.2            # 추정(버전 2 ETA): ETA에 쓰는 평균 속도
@@ -61,14 +57,6 @@ eta_fill_s_per_item: 4.0      # 추정: 채우기 품목당 팔 시간(가짜 �
 eta_fill_base_s: 4.0          # 추정: 첫 품목 전 준비 시간. 가짜 팔은 채우기에 품목 수 + 1번의 팔 시간이 걸린다(SimWorld 측정)
 eta_fill_items_default: 2     # 추정: 주문을 아직 모르는 로봇이 채울 품목 수
 eta_swap_s: 8.0               # 추정: 교환 시간(가짜 시나리오 기본값)
-floor_leave_s: 2.5            # 추정: 도크를 떠나기 시작해서 접근선이 빌 때까지(SimWorld 측정)
-floor_dock_schedule: false    # 제안: 켜면 접근선 순서를 ETA로 정하고, 앞 로봇이 비울 때에 맞춰 다음 로봇을 미리 출발시킨다
-floor_pre_admit_margin_s: 1.0 # 제안: 딱 맞는 때보다 이만큼 먼저 출발시킨다
-floor_dock_aging_s: 30.0      # 제안: 이만큼 기다린 로봇은 다시 먼저 온 순서로 앞에 둔다(굶김 방지)
-floor_block_retreat: false    # 제안: 켜면 막혀(BLOCKED) 오래 선 로봇을 Retreat로 물러나게 한다
-floor_retreat_after_s: 10.0   # 제안: 이만큼 막혀 서 있으면 물러난다
-floor_retreat_speed_mps: 0.05 # 제안: 물러나는(후진) 속도
-floor_retreat_max_m: 1.0      # 제안: 한 번에 물러나는 가장 긴 거리
 # 구역 교통 층(traffic/zone). 모두 제안값이고 실측 전이다
 nav_speed_mps: 0.12           # 넓은 구역(Nav2 goal)의 ETA와 길 비용에 쓰는 속도
 follow_speed_mps: 0.12        # 고정 경로(FollowPath)의 같은 값
