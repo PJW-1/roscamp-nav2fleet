@@ -40,7 +40,8 @@ class Robot:
     comm: str = ""  # COMM_LOST 또는 RECOVERING
     recover_at: float = 0.0
     node: str = ""  # 서 있거나 마지막으로 떠난 지점
-    off_node: bool = False  # 그 지점 위라고 보았지만 로봇은 거기서 고정 경로에 붙지 못했다
+    # 그 지점 위라고 보았지만 로봇이 고정 경로에 붙지 못한 자리. 거기 서 있는 동안은 지점 밖이다
+    off_node: tuple | None = None
     dest: str | None = None  # 가는 중이거나 도킹한 스테이션
     trip: object = None  # trips.Trip
     goal: Goal | None = None

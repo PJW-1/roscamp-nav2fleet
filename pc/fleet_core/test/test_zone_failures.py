@@ -101,6 +101,39 @@ def test_a_robot_that_cannot_join_the_fixed_line_is_first_sent_to_its_start_by_n
     assert world.result_of(call) is None
 
 
+def test_joining_that_keeps_failing_although_the_nav_goal_succeeds_ends_in_isolation():
+    """되돌아가는 Nav2 goal이 움직임 없이 성공해도 실패 횟수는 그 경로가 될 때까지 남는다."""
+    world, call = beside_the_node()
+    p = world.params
+    for failure in range(1, p.move_retry_limit + 2):
+        line = world.sent(MoveCmd, "pinky2")[-1]
+        assert line.mode == "follow_path"
+        world.traffic.on_move_result("pinky2", line.goal_id, False, "PATH_NOT_CONNECTED")
+        if failure > p.move_retry_limit:
+            break
+        world.run(p.move_retry_wait_s + 0.3)
+        back = world.sent(MoveCmd, "pinky2")[-1]
+        assert back.mode == "nav_goal"
+        world.traffic.on_move_result("pinky2", back.goal_id, True, "")  # 로봇은 그 자리 그대로다
+        world.run(2.0)
+        assert world.view("pinky2")["attempts"] == failure, "the count is kept"
+    world.step()
+    assert world.codes("pinky2")[-2:] == ["GOAL_FAILED", "ROBOT_ISOLATED"]
+    assert world.result_of(call).reason == "PATH_NOT_CONNECTED"
+
+
+def test_a_robot_that_moved_away_from_where_joining_failed_is_judged_by_its_position_again():
+    world, _ = beside_the_node()
+    traffic, robot = world.traffic, world.traffic._robots["pinky2"]
+    assert traffic._on_node(robot)
+    traffic.on_move_result("pinky2", last_goal(world), False, "PATH_NOT_CONNECTED")
+    assert not traffic._on_node(robot), "where joining failed it does not count as on the node"
+    bot = world.bots["pinky2"]
+    bot.x, bot.y = world.site.node_pose("N_W")  # goal은 끝나지 않았지만 몸은 지점에 닿았다
+    world.report()
+    assert traffic._on_node(robot), "the mark belongs to the spot, not to the robot"
+
+
 def test_a_robot_that_cannot_join_a_line_outside_a_shared_zone_is_still_retried_and_isolated():
     world = Harness(starts={"pinky1": "P-1", "pinky2": "X_W", "pinky3": "P-3"}, speed=0.0)
     world.step()
