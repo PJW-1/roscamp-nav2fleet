@@ -3,13 +3,19 @@ from __future__ import annotations
 
 import math
 
-PARK_NEAR_M = 0.10  # 주차 지점에서 이 안이면 주차 자리에 있다
+# 경기를 끝낼 때 주차 지점에서 이 안에 선 로봇은 주차한 것이다. 관제의 도착 허용 거리
+# (arrival_tolerance_m)와 같다: 더 좁으면 관제가 닿았다고 본 로봇을 주차하지 않은 것으로 보아
+# 경기가 끝나지 않는다
+PARK_NEAR_M = 0.15
+# 바퀴 추적에서 주차 자리에 들어섰다고 보는 거리. 서 있는지는 보지 않으므로 더 좁다: 넓히면
+# 주차 자리 옆을 지나가기만 한 로봇을 주차한 것으로 센다
+LAP_PARK_M = 0.10
 ON_THE_WAY = ("TO_WORK", "TO_OUTBOUND")  # 스테이션으로 가는 중이거나 그 줄에 선 로봇의 task_type
 
 
 class Laps:
-    def _parked_at(self, x: float, y: float) -> bool:
-        return any(math.dist((x, y), spot) <= PARK_NEAR_M for spot in self._parking)
+    def _parked_at(self, x: float, y: float, near: float = PARK_NEAR_M) -> bool:
+        return any(math.dist((x, y), spot) <= near for spot in self._parking)
 
 
     def _place(self, x: float, y: float, zone) -> str:
@@ -18,7 +24,7 @@ class Laps:
             return "out"
         if zone in self._work_zones:
             return "work"
-        return "park" if self._parked_at(x, y) else ""
+        return "park" if self._parked_at(x, y, LAP_PARK_M) else ""
 
     def _unbound_on_board(self) -> int:
         return sum(order not in self._bound_now for order in self.board)

@@ -670,6 +670,17 @@ def test_entering_the_waiting_loop_with_fewer_orders_than_robots_is_allowed():
     assert check(j, "parked_while_backlog")["value"] == 0
 
 
+def test_passing_beside_a_parking_node_is_not_entering_it():
+    """The game ends with a robot within the arrival tolerance (0.15 m) of its parking node, but a
+    lap ends only on the spot: a robot that drives by 0.12 m away has not parked."""
+    for off, entered in ((0.12, 0), (0.09, 1)):
+        j = judge()
+        j.on_board(["O-1", "O-2"])
+        x, y = at(WAITING[0])
+        lap(j, "pinky1", [OUT, LANE, (x + off, y)])
+        assert check(j, "parked_while_backlog")["value"] == entered, off
+
+
 def test_bound_orders_are_not_a_backlog():
     j = judge()
     bind(j, "O-1", "O-2")
@@ -745,6 +756,18 @@ def test_finish_needs_all_orders_final_and_robots_parked():
     assert j.finished(2.0)
     put(j, 3.0, "pinky2", OTHER, "MOVING")
     assert not j.finished(3.0)
+
+
+def test_a_robot_within_the_arrival_tolerance_of_its_parking_node_is_parked():
+    """The fleet takes a robot as arrived within 0.15 m. A judge that asked for less never
+    ended a Gazebo game whose robot stood 0.108 m from P-3."""
+    for off, parked in ((0.149, True), (0.151, False)):
+        j = judge()
+        x, y = at(WAITING[0])
+        put(j, 1.0, "pinky1", (x + off, y), "IDLE")
+        put(j, 1.0, "pinky2", WAITING[1], "IDLE")
+        ship(j, "O-1", "O-2", "O-3")
+        assert j.finished(2.0) is parked, off
 
 
 def test_a_docked_robot_is_not_parked():
