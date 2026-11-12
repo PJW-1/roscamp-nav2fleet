@@ -45,9 +45,8 @@ class FleetParams:
     stall_s: float = 6.0
     stall_move_m: float = 0.05
     dock_stall_s: float = 15.0
-    blocked_mark_s: float = 5.0
+    blocked_mark_s: float = 10.0
     blocked_timeout_s: float = 60.0
-    queue_gap_m: float = 0.6
     # 조용히 서 있는 로봇 감시(1.1 지시서 H2). 0이면 끈다. 이 값이 없던 기록은 감시 없이 재생한다
     idle_watch_s: float = 0.0
     # 제안(2026-11-10): 보고한 배터리(0-100)가 battery_low_pct 이하면 새 일을 받지 않고 대기
@@ -64,16 +63,11 @@ class FleetParams:
     # Records from before RECOVERING never report it, so the value does not change their replay
     self_recovery_limit_s: float = 45.0
     # Which traffic layer runs (traffic/modes.py). zones is the only one: zone permissions on a
-    # graph of points and zones, built in stage 3
+    # graph of points and zones
     traffic_mode: str = "zones"
     # ETA(제안, 실측 전). eta_*는 버전 2 공식 ETA와 같은 값
-    eta_speed_mps: float = 0.2
-    eta_turn_s_per_rad: float = 1.0  # 제자리 회전 초/rad. 0이면 회전을 안 셈
-    eta_turn_min_rad: float = 0.25  # 이보다 작은 꺾임은 달리면서 지남(RPP 회전 기준)
-    eta_dock_s: float = 3.0
     eta_fill_s_per_item: float = 4.0
     eta_fill_base_s: float = 4.0  # 첫 품목 전 준비 시간(가짜 팔은 품목 수 + 1번)
-    eta_fill_items_default: int = 2  # 주문을 모를 때 채울 품목 수
     eta_swap_s: float = 8.0
     # 구역 교통 층(traffic/zone). 모두 제안값이고 실측 전이다
     nav_speed_mps: float = 0.12  # 넓은 구역(Nav2 goal)의 ETA와 길 비용에 쓰는 속도

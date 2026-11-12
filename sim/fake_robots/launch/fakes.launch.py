@@ -101,7 +101,7 @@ def generate_launch_description():
         declare("use_sim_clock", "true", "run the sim clock and use sim time everywhere"),
         declare("result_dir", "sim_result", "where the monitor writes summary.json and CSVs"),
         declare("monitor", "true", "run the scenario monitor, which shuts the launch down"),
-        declare("map_file", "", "fleet map YAML (default: the one in fleet_core, stage 2)"),
+        declare("map_file", "", "fleet map YAML (default: the one in fleet_core)"),
         declare("contract_file", "", "contract YAML (default: the installed one)"),
         declare("params_file", "", "fleet parameters YAML, for basket capacity and release limits"),
         OpaqueFunction(function=_setup),
