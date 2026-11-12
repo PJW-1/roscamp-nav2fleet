@@ -1,7 +1,8 @@
-"""TRAFFIC_CONTRACT 7절의 불변식을 매 걸음 본다. 예외를 내지 않고 위반을 모은다.
+"""TRAFFIC_CONTRACT 7절과 추가 지시서 2의 2절 불변식을 매 걸음 본다. 예외를 내지 않고 위반을 모은다.
 
 교통 층의 grants(holders, held_by, nodes_of ...)와 로봇의 실제 자리를 쓴다. 같은 위반이 이어지면
-처음 한 번만 적고, 풀렸다가 다시 생기면 또 적는다.
+처음 한 번만 적고, 풀렸다가 다시 생기면 또 적는다. 관제 반응 시간은 reaction.py가 본다.
+base 밖 진입(추가 지시서 2의 2절)은 order 모델(다른 브랜치)이 들어온 뒤 여기에 더한다.
 """
 from __future__ import annotations
 
@@ -16,9 +17,11 @@ INSIDE_TOL_M = 0.01  # 3번: 쥔 구역 밖 허용
 SHARED_GRACE_S = 2.0  # 3번: 자리가 있는 공유 구역에 쥐지 않고 이만큼 넘게 있으면 위반
 STILL_S = 5.0  # 5번: 한 줄 구역이나 갈림목에 이만큼 넘게 서 있으면 위반
 STILL_M = 0.02  # 선 자리에서 이보다 덜 움직였으면 아직 서 있다
+NODE_NEAR_M = 0.05  # 8번: 지점에서 이 안에 서 있으면 그 지점에 있다
 CAPACITY, LANE_WAY, OUTSIDE, COMMAND, STANDING, TOUCH = (
     "I1_CAPACITY", "I2_LANE_DIRECTION", "I3_OUTSIDE_HELD", "I4_COMMAND", "I5_STANDING",
     "I6_TOO_CLOSE")
+DOCK_TWO, NODE = "I7_DOCK_TWO", "I8_NODE"
 
 
 @dataclass(frozen=True)
@@ -43,6 +46,7 @@ class Invariants:
         # 갈림목: pass 지점이 있는 구역
         self._junctions = {n.zone for n in site.nodes.values() if n.kind == PASS}
         self._lanes = [z for z in site.zones.values() if z.kind == LANE]
+        self._docks = [z.id for z in site.zones.values() if z.kind == DOCK]
 
     def _flag(self, t, code, key, detail, robot="") -> None:
         self._now.add((code, key))
@@ -56,9 +60,11 @@ class Invariants:
         if grants is not None:
             self._capacity(t, grants)
             self._inside_held(t, grants, robots, views)
+            self._nodes(t, grants, robots)
         self._lane_direction(t, robots)
         self._standing(t, robots, views, quiet)
         self._touch(t, robots)
+        self._dock_two(t, robots)
         self._active = self._now
         self._prev = {name: r.pose for name, r in robots.items()}
 
@@ -137,6 +143,32 @@ class Invariants:
             gap = ra.gap(rb)
             if gap < least - 1e-9:
                 self._flag(t, TOUCH, (a, b), f"{a} and {b} {gap:.3f} m apart")
+
+    def _dock_two(self, t, robots) -> None:
+        """7번: 도크 구역(도크, 갈림목)에 실제 자리(중심)로 두 대. 쥔 것과 상관없다."""
+        for zone in self._docks:
+            inside = sorted(name for name, r in robots.items()
+                            if self.site.distance_to_zone(r.x, r.y, zone) <= 0.0)
+            if len(inside) > 1:
+                self._flag(t, DOCK_TWO, zone, f"{zone} has {inside}")
+
+    def _nodes(self, t, grants, robots) -> None:
+        """8번: 한 지점을 두 대가 잡았거나, 남이 잡은 지점에 goal 없이 서 있다."""
+        owners: dict[str, list[str]] = {}
+        for name in sorted(robots):
+            for node in grants.nodes_of(name):
+                owners.setdefault(node, []).append(name)
+        for node, names in owners.items():
+            if len(names) > 1:
+                self._flag(t, NODE, node, f"{node} reserved by {names}")
+        for name, r in robots.items():
+            if r.run is not None:
+                continue
+            for node, names in owners.items():
+                near = math.dist(r.pose, self.site.node_pose(node)) <= NODE_NEAR_M
+                if near and name not in names:
+                    self._flag(t, NODE, (node, name), f"{name} stands on {node} "
+                               f"reserved by {names}", name)
 
     # ---- 4번: 명령을 받을 때 ----
 
