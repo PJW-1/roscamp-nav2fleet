@@ -291,12 +291,18 @@ def test_a_reapproach_over_a_link_marked_blocked_docks_where_it_stands(index):
 
 
 def test_a_mark_that_has_run_out_does_not_stop_the_reapproach():
+    """The tick drops marks that ran out, so the entry is left in place and the pick is called
+    directly: it has to compare the time, not just find the key."""
     world, _ = at_the_dock()
     assert world.run_until(lambda: "GOAL_RETRY" in world.codes("pinky2"), 30.0)
-    for link in way_round(world):
-        world.traffic._blocked[(link.a, link.b)] = world.traffic._clock() - 1.0
-    assert world.run_until(lambda: world.sent(RetreatCmd, "pinky2"), 30.0)
-    assert "DOCK_REAPPROACH" in world.codes("pinky2") and docks(world) == 1
+    traffic = world.traffic
+    m = traffic._robots["pinky2"]
+    assert m.redock, "the re-approach is still to come"
+    links = way_round(world)
+    for link in links:
+        traffic._blocked[(link.a, link.b)] = traffic._clock() - 1.0
+    assert traffic._reapproach(m) and not m.redock
+    assert m.trip is not None and m.trip.links == links
 
 
 def test_a_reapproach_whose_way_is_taken_waits_and_goes_when_it_is_free():
