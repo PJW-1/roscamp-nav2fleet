@@ -51,6 +51,43 @@ def test_a_robot_beside_the_way_back_does_not_hold_the_retreat_up():
     assert "RETREAT_WAIT" not in world.codes()
 
 
+def test_a_robot_ahead_of_it_is_not_taken_for_one_behind():
+    """가는 쪽에 바짝 붙은 로봇은 물러날 길 위에 있지 않다. 그런 로봇까지 뒤로 보면 급행 안에서
+    가까이 선 두 대가 서로를 기다린다."""
+    world, _ = blocked_in_the_express()
+    blocked, ahead = world.bots["pinky1"], world.bots["pinky2"]
+    ahead.x, ahead.y = blocked.x + 0.15, blocked.y
+    retreats = len(world.sent(RetreatCmd, "pinky1"))
+    world.run(world.params.blocked_mark_s + 2.0)
+    assert len(world.sent(RetreatCmd, "pinky1")) == retreats + 1
+    assert "RETREAT_WAIT" not in world.codes()
+
+
+def test_a_robot_behind_that_never_leaves_ends_the_wait_with_a_failed_goal():
+    world, call = blocked_in_the_express()
+    behind = world.bots["pinky2"]
+    behind.x, behind.y = 0.62, 0.89
+    retreats = len(world.sent(RetreatCmd, "pinky1"))
+    world.run(world.params.blocked_timeout_s + 2.0)
+    failed = [e.detail for e in world.events if e.code == "GOAL_FAILED" and e.robot == "pinky1"]
+    assert failed == ["blocked for 60 s with pinky2 behind it"]
+    assert world.view("pinky1")["fault"]
+    assert not world.result_of(call).success
+    assert len(world.sent(RetreatCmd, "pinky1")) == retreats, "it never backed into pinky2"
+
+
+def test_a_new_goal_tells_again_that_it_waits_for_the_robot_behind():
+    world, _ = blocked_in_the_express()
+    behind = world.bots["pinky2"]
+    behind.x, behind.y = 0.62, 0.89
+    world.run(world.params.blocked_mark_s + 1.0)
+    assert world.codes("pinky1").count("RETREAT_WAIT") == 1
+    m = world.traffic._robots["pinky1"]
+    m.goal = replace(m.goal, id=m.goal.id + 1000)  # BLOCKED를 보고하는 채로 goal이 바뀌었다
+    world.run(world.params.blocked_mark_s + 1.0)
+    assert world.codes("pinky1").count("RETREAT_WAIT") == 2
+
+
 # ---- 넓은 구역 안: 같은 자리에서 또 비키면 주차 자리로 ----
 
 def stuck_pair(starts=None):

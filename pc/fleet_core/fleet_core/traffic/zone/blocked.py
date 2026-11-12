@@ -40,6 +40,7 @@ class Blocked:
             return
         if m.blocked_since is None or m.blocked_goal != m.goal.id:
             m.blocked_since, m.blocked_goal = now, m.goal.id  # 새 goal의 막힘은 새로 잰다
+            m.rear_noted = False
         if not m.blocked_noted:
             m.blocked_noted = True
             self._event("INFO", "BLOCKED_WAIT", f"stands before something on the way to "
@@ -50,6 +51,11 @@ class Blocked:
             if not behind:
                 m.rear_noted = False
                 self._mark_blocked(m, now)
+            elif waited >= p.blocked_timeout_s:
+                # 앞은 막혔고 뒤의 로봇은 끝내 나가지 않았다. 갈 데가 없으니 운영자에게 넘긴다
+                self._event("ERROR", "GOAL_FAILED",
+                            f"blocked for {waited:.0f} s with {behind} behind it", m.name)
+                self._fail(m, BLOCKED)
             elif not m.rear_noted:  # 맨 뒤 로봇부터 물러난다. 보고마다 다시 본다
                 m.rear_noted = True
                 self._event("INFO", "RETREAT_WAIT", f"{behind} is behind it, backs out after it",
@@ -63,7 +69,8 @@ class Blocked:
     def _behind_on_the_way_back(self, m) -> str:
         """고정 구간 안에서 물러날 길(지나온 지점까지) 위에 있는 다른 로봇의 이름. 없으면 빈 문자열.
 
-        넓은 구역 안이면 물러나지 않으므로 늘 빈 문자열이다.
+        넓은 구역 안이면 물러나지 않으므로 늘 빈 문자열이다. 가는 쪽에 선 로봇은 아무리 가까워도
+        세지 않는다: 그런 로봇까지 세면 가까이 선 두 대가 서로를 기다린다.
         """
         site = self.site
         link = m.trip.links[m.trip.done]
@@ -71,10 +78,13 @@ class Blocked:
         if not link.a or zone is None or site.zones[zone].kind == SHARED:
             return ""
         here, back = (m.x, m.y), site.node_pose(link.a)
+        way = (back[0] - here[0], back[1] - here[1])
         for other in self._robots.values():
-            if (other is not m and other.placed
-                    and point_segment_distance((other.x, other.y), here, back)
-                    < self.params.retreat_clear_m):
+            if other is m or not other.placed:
+                continue
+            spot = (other.x, other.y)
+            toward = (spot[0] - here[0]) * way[0] + (spot[1] - here[1]) * way[1] > 0.0
+            if toward and point_segment_distance(spot, here, back) < self.params.retreat_clear_m:
                 return other.name
         return ""
 
