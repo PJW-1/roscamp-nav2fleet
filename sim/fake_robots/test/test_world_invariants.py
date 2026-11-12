@@ -4,7 +4,9 @@ import math
 from fake_robots.world.invariants import (
     CAPACITY,
     COMMAND,
+    DOCK_TWO,
     LANE_WAY,
+    NODE,
     OUTSIDE,
     STANDING,
     TOUCH,
@@ -138,3 +140,37 @@ def test_commands_must_stay_in_held_zones():
     assert [(v.code, v.detail.split()[1]) for v in inv.violations] == [
         (COMMAND, "2"), (COMMAND, "3"), (COMMAND, "5")]
     assert math.isclose(SITE.node_pose("W")[1], xw[1])
+
+
+def test_two_robots_inside_one_dock_zone_by_true_position():
+    """추가 지시서 2의 2절: 도크 구역(도크, 갈림목)에 실제로 두 대. 쥔 것과 상관없이 본다."""
+    inv = Invariants(SITE, PARAMS)
+    robots = {"pinky1": SimRobot("pinky1", 0.31, 0.89), "pinky2": SimRobot("pinky2", 0.49, 0.89)}
+    assert _check(inv, None, robots) == [DOCK_TWO]  # 둘 다 J_W 안, 몸은 닿지 않는다
+    robots["pinky2"].x = 0.52  # EXPRESS로 나갔다
+    assert _check(inv, None, robots, t=0.2) == [DOCK_TWO]
+
+
+def test_one_node_reserved_by_two_robots():
+    inv, g = Invariants(SITE, PARAMS), FakeGrants()
+    g.give("pinky1", "HALL")
+    g.give("pinky2", "HALL")
+    g.robot_nodes = {"pinky1": ("W_Q",), "pinky2": ("O_Q",)}
+    robots = {n: SimRobot(n, *SITE.node_pose(p)) for n, p in (("pinky1", "P-1"),
+                                                             ("pinky2", "P-3"))}
+    assert _check(inv, g, robots) == []
+    g.robot_nodes["pinky2"] = ("O_Q", "W_Q")
+    assert _check(inv, g, robots, t=0.2) == [NODE]
+
+
+def test_a_robot_standing_on_a_node_another_robot_reserved():
+    inv, g = Invariants(SITE, PARAMS), FakeGrants()
+    g.give("pinky1", "HALL")
+    g.give("pinky2", "HALL")
+    g.robot_nodes = {"pinky2": ("W_Q",)}
+    robots = {"pinky1": SimRobot("pinky1", *SITE.node_pose("W_Q")),
+              "pinky2": SimRobot("pinky2", *SITE.node_pose("P-3"))}
+    robots["pinky1"].run = object()  # 지나가는 중이면 보지 않는다
+    assert _check(inv, g, robots) == []
+    robots["pinky1"].run = None
+    assert _check(inv, g, robots, t=0.2) == [NODE]

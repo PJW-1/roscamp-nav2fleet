@@ -14,6 +14,7 @@ from fleet_core.common.commands import (
     SwapCmd,
 )
 
+from .avoid import Avoidance
 from .invariants import COMMAND, Violation
 from .nav_goal import NavGoalRun
 from .runs import DockRun, FollowRun, Result, RetreatRun
@@ -31,8 +32,11 @@ class Commands:
         if isinstance(item, EventOut):
             self.events.append((self.t, item))
             self.metrics.on_event(item)
+            run = r.run if r is not None else None
+            self.reaction.on_event(self.t, item, run.goal_id if run is not None else None)
             return
         self.commands.append((self.t, item))
+        self.reaction.on_command(self.t, item)
         if isinstance(item, ReportOrderCmd):
             self.central.take_report(self.t, item)
         elif isinstance(item, FillCmd):
@@ -87,7 +91,8 @@ class Commands:
         speed_factor = r.profile.speed_factor
         if cmd.mode == "nav_goal":
             return NavGoalRun(cmd.goal_id, (cmd.x, cmd.y), cmd.yaw,
-                              self.params.nav_speed_mps * speed_factor, self.blocked_after_s)
+                              self.params.nav_speed_mps * speed_factor, self.blocked_after_s,
+                              Avoidance(self.avoid_mode, self.avoid_settings))
         return FollowRun(cmd.goal_id, cmd.path, (cmd.x, cmd.y), cmd.yaw,
                          self.params.follow_speed_mps * speed_factor,
                          self.params.lane_error_warn_m, turn_at_end=cmd.final_goal)

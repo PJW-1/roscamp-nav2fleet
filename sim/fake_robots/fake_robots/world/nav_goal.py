@@ -4,11 +4,13 @@
 물체는 자리가 있으면 돌아가고, 바로 앞에 무엇이 있으면 선다. blocked_after_s 동안 못 나아가면
 BLOCKED를 보고하고, 길이 아예 없으면 NAV_ABORTED로 끝난다. 끝에서 목표 방향으로 돈다.
 Nav2의 기본 복구(Spin, BackUp)는 몸으로 흉내 내지 않는다(서서 다시 계획만 한다).
+돌아가는 정도는 회피 흉내 모드(avoid.py: none, perfect, mixed)가 정한다.
 """
 from __future__ import annotations
 
 import math
 
+from .avoid import Avoidance
 from .geom import heading
 from .planner import plan
 from .runs import LOOK_M, Run, Turning, blocked_ahead, end_offset, jittered, move_along
@@ -33,8 +35,9 @@ def plan_around(space, radius, start, target, others):
 
 
 class NavGoalRun(Run):
-    def __init__(self, goal_id, target, yaw, speed, blocked_after_s):
+    def __init__(self, goal_id, target, yaw, speed, blocked_after_s, avoid=None):
         super().__init__(goal_id)
+        self.avoid = avoid or Avoidance()
         self.target, self.yaw, self.speed = tuple(target), yaw, speed
         self.blocked_after_s = blocked_after_s
         self.way: list | None = None
@@ -47,10 +50,14 @@ class NavGoalRun(Run):
         self.started = True
         self.target = end_offset(ctx.rng, ctx.imperfect.arrival_error_m, self.target)
         self.mark, self.mark_t = robot.pose, ctx.t
-        if plan(ctx.space, ctx.space.static, robot.pose, self.target) is None:
+        static = plan(ctx.space, ctx.space.static, robot.pose, self.target)
+        if static is None:
             self.no_way_at = ctx.t
             return
-        self._replan(ctx, robot)
+        if self.avoid.plans_around:
+            self._replan(ctx, robot)
+        else:  # none, mixed: 정적 지도 위 길로 떠난다
+            self.way = self.avoid.stray(ctx.rng, static)
 
     def _replan(self, ctx, robot) -> None:
         self.planned_at = ctx.t
@@ -77,20 +84,25 @@ class NavGoalRun(Run):
         if self.way is not None and len(self.way) > 1:
             step = jittered(ctx, self.speed) * ctx.dt
             if blocked_ahead(ctx, robot, self.way, LOOK_M + step):
-                if ctx.t - self.planned_at >= REPLAN_S - 1e-9:
-                    self._replan(ctx, robot)
-                self._progress(ctx, robot)
+                self._stand(ctx, robot)
                 return None
             robot.yaw = heading(self.way[0], self.way[1], robot.yaw)
-            self.way, _ = move_along(ctx, robot, self.way, step)
+            self.way, moved = move_along(ctx, robot, self.way, step)
+            if moved:
+                self.avoid.moved()
             self._progress(ctx, robot)
             return None
         if self.way is None:  # 지금은 길이 없다(다른 로봇, 물체): 서서 다시 계획한다
-            if ctx.t - self.planned_at >= REPLAN_S - 1e-9:
-                self._replan(ctx, robot)
-            self._progress(ctx, robot)
+            self._stand(ctx, robot)
             return None
         self.mark_t, self.blocked = ctx.t, False  # 끝에서 도는 것도 나아가는 것이다
         if Turning.toward(ctx, robot, self.yaw):
             return self.done(True)
         return None
+
+    def _stand(self, ctx, robot) -> None:
+        """막혀 섰다. 회피 모드가 허락하면 REPLAN_S마다 돌아가는 길을 다시 짠다."""
+        if (self.avoid.may_detour(ctx.rng, ctx.t)
+                and ctx.t - self.planned_at >= REPLAN_S - 1e-9):
+            self._replan(ctx, robot)
+        self._progress(ctx, robot)
