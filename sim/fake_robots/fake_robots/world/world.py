@@ -14,7 +14,7 @@ import random
 from dataclasses import replace
 
 from fleet_core.common.params import load_params
-from fleet_core.fleet_map import load_fleet_map
+from fleet_core.fleet_map import PARKING, WAIT, load_fleet_map
 
 from ..battery import Battery
 from .apply import Commands
@@ -180,15 +180,20 @@ class ZoneWorld(Commands, Link):
                 self.manager.reinstate(item.robot, item.basket, "put back")
 
     def _free_spot(self, node: str, robot: str) -> str:
-        """node에 다른 로봇이 있으면 가장 가까운 빈 대기 지점(운영자는 겹쳐 놓지 않는다)."""
+        """node에 다른 로봇이 있으면 가장 가까운 빈 대기 지점(운영자는 겹쳐 놓지 않는다).
+        도크와 관제가 다른 로봇에 잡아 준 지점에는 놓지 않는다."""
         others = [o.pose for n, o in self.present().items() if n != robot]
         gap = 2 * self.params.robot_radius_m
+        grants = self.grants()
 
         def free(n):
-            return all(math.dist(self.site.node_pose(n), p) >= gap for p in others)
+            holder = grants.node_holder(n) if grants is not None else ""
+            return (holder in ("", robot)
+                    and all(math.dist(self.site.node_pose(n), p) >= gap for p in others))
         if free(node):
             return node
-        spots = [n for n in self.site.nodes if self.site.can_wait(n) and free(n)]
+        spots = [n for n in self.site.nodes
+                 if self.site.nodes[n].kind in (WAIT, PARKING) and free(n)]
         here = self.site.node_pose(node)
         return min(spots, key=lambda n: math.dist(here, self.site.node_pose(n)), default=node)
 

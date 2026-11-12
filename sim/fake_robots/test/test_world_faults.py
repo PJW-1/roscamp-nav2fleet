@@ -88,6 +88,16 @@ def test_a_reinstate_onto_a_taken_spot_puts_the_robot_on_the_nearest_free_one():
     assert not [v for v in world.violations if v.code == "I6_TOO_CLOSE"]
 
 
+def test_a_reinstate_never_lands_on_a_dock_or_a_spot_another_robot_reserved():
+    """운영자는 도크에 놓지 않는다. 관제가 다른 로봇에 잡아 준 지점에도 놓지 않는다(I8)."""
+    world = quiet_world("c", robots={"pinky2": "P-1", "pinky3": "P-2"})
+    assert world._free_spot("P-2", "pinky2") == "P-1"  # W가 더 가깝지만 도크다
+    world = quiet_world(robots={"pinky1": "N_E", "pinky2": "P-1", "pinky3": "P-2"})
+    world.manager.traffic.grants.robot_nodes = {"pinky1": ("P-1",)}
+    world.robots["pinky2"].x = 1.0  # P-1은 비었지만 pinky1이 잡았다
+    assert world._free_spot("P-2", "pinky2") == "W_Q"
+
+
 def test_a_retreat_out_of_a_dock_is_counted_apart_from_other_retreats():
     world = quiet_world(robots={"pinky1": "W"})
     world.robots["pinky1"].docked_at = "WORK"
