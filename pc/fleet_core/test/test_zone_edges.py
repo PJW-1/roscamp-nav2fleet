@@ -67,12 +67,13 @@ def test_a_purpose_changed_during_a_fixed_stretch_switches_at_the_next_node():
     world = reported({"pinky1": "W", "pinky2": "P-2", "pinky3": "P-3"})
     call = world.call("OUTBOUND", "pinky1")
     world.run(2.0)
-    assert world.view("pinky1")["held"] == ["WORK_DOCK", "J_W", "EXPRESS", "J_E", "OUT_DOCK"]
+    assert world.view("pinky1")["held"] == ["WORK_DOCK", "J_W", "HALL", "EXPRESS", "J_E",
+                                            "OUT_DOCK"]
     world.traffic.on_dispatch_cancel(call)
     world.step()
     assert not world.sent(CancelCmd), "it finishes backing out of the dock"
     assert world.run_until(lambda: world.phase("pinky1") == "PARKED", 120.0)
-    assert targets(world, "pinky1") == [("follow_path", "N_W"), ("nav_goal", "P-1")]
+    assert targets(world, "pinky1") == [("nav_goal", "P-1")], "the retreat already ends in the yard"
     assert world.view("pinky1")["held"] == ["HALL"]
     assert world.traffic.grants.holders("EXPRESS") == ()
     assert not world.problems
@@ -227,13 +228,14 @@ def test_a_robot_isolated_inside_the_junction_keeps_the_junction():
     world = reported({"pinky1": "W", "pinky2": "P-2", "pinky3": "P-3"})
     world.call("OUTBOUND", "pinky1")
     bot = world.bots["pinky1"]
-    assert world.run_until(lambda: bot.x > 0.36, 30.0)  # 후진으로 갈림목 안에 들어섰다
+    # 후진으로 갈림목 안에 들어섰다
+    assert world.run_until(lambda: bot.x > 0.31 and bot.y > 0.85, 30.0)
     world.traffic.on_robot_fault("pinky1", "MOTOR")
     world.run(2.0)
     held = world.view("pinky1")["held"]
     assert "J_W" in held, "it stands there"
     assert "J_E" not in held and "OUT_DOCK" not in held, "the far end of the trip goes back"
-    assert set(held) <= {"WORK_DOCK", "J_W", "EXPRESS"}, "at most what it stands next to"
+    assert set(held) <= {"WORK_DOCK", "J_W", "HALL"}, "at most what it stands next to"
 
 
 def test_a_silent_robot_gives_nothing_back():

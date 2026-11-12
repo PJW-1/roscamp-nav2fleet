@@ -78,7 +78,7 @@ def beside_the_node():
     """pinky2가 N_W에서 0.148 m 떨어져 서 있다. 관제의 허용치(0.15 m) 안이라 N_W에 있다고 본다."""
     world = Harness(starts={"pinky1": "P-1", "pinky2": "N_W", "pinky3": "P-3"}, speed=0.0)
     bot = world.bots["pinky2"]
-    bot.x, bot.y = bot.x - 0.03, bot.y - 0.145
+    bot.x, bot.y = bot.x + 0.03, bot.y - 0.145  # 서쪽(W_Q 쪽)으로 비키면 W_Q가 더 가깝다
     world.report()
     call = world.call("WORK", "pinky2")
     world.step()
@@ -170,7 +170,7 @@ def test_a_robot_that_could_not_join_stays_off_the_node_while_its_report_wanders
     world, call = beside_the_node()
     world.traffic.on_move_result("pinky2", last_goal(world), False, "PATH_NOT_CONNECTED")
     bot = world.bots["pinky2"]
-    bot.x += 0.06  # N_W에서 0.145 m: 여전히 관제의 허용치 안이다
+    bot.x -= 0.06  # N_W에서 0.145 m: 여전히 관제의 허용치 안이다
     assert math.dist((bot.x, bot.y), world.site.node_pose("N_W")) < 0.15
     world.run(world.params.move_retry_wait_s + 0.3)
     again = world.sent(MoveCmd, "pinky2")[-1]

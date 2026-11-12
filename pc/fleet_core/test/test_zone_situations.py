@@ -27,8 +27,9 @@ def test_two_robots_swapping_docks_pass_through_the_wait_spots():
     east, west = world.call("OUTBOUND", "pinky1"), world.call("WORK", "pinky2")
     assert world.run_until(lambda: world.result_of(east) and world.result_of(west), 120.0)
     assert world.result_of(east).success and world.result_of(west).success
+    # W에서는 마당의 N_W까지 물러난 뒤 대기 자리로 간다(2-1: 갈림목 안에서 돌지 않는다)
     assert targets(world, "pinky1") == [
-        ("follow_path", "N_W"), ("nav_goal", "O_Q"), ("nav_goal", "N_E"), ("follow_path", "O")]
+        ("nav_goal", "O_Q"), ("nav_goal", "N_E"), ("follow_path", "O")]
     assert world.codes().count("DOCK_QUEUED") == 2
     assert "DEADLOCK_SEEN" not in world.codes() and not world.problems
 
@@ -45,7 +46,7 @@ def test_blocked_inside_the_express_it_backs_out_and_takes_the_yard():
     assert seen == ["RETREAT_START", "RETREAT_DONE", "BLOCKED_WAIT", "ZONE_MARKED_BLOCKED",
                     "REROUTE", "RETREAT_START", "RETREAT_DONE"]
     back = world.sent(RetreatCmd, "pinky1")[1]
-    assert back.path[-1][:2] == (0.40, 0.89), "back to the junction it entered by"
+    assert back.path[-1][:2] == (0.35, 0.89), "back to the junction it entered by"
     assert targets(world, "pinky1") == [
         ("follow_path", "O"), ("follow_path", "N_W"), ("nav_goal", "N_E"), ("follow_path", "O")]
     assert not world.problems
@@ -83,7 +84,7 @@ def test_with_the_dock_entry_blocked_it_comes_round_through_the_express():
     world = Harness(starts={"pinky1": "P-2"})
     world.step()
     call = world.call("WORK")
-    world.obstacles.append((0.40, 0.74, 0.05))
+    world.obstacles.append((0.35, 0.74, 0.05))
     assert world.run_until(lambda: world.result_of(call), 200.0)
     assert world.result_of(call).success
     assert targets(world, "pinky1") == [
@@ -96,7 +97,7 @@ def test_with_no_other_way_it_waits_at_a_wait_spot_until_the_mark_expires():
     world = Harness(starts={"pinky1": "P-2"})
     world.step()
     call = world.call("WORK")
-    world.obstacles += [(0.40, 0.74, 0.05), (1.0, 0.89, 0.15)]
+    world.obstacles += [(0.35, 0.74, 0.05), (1.0, 0.89, 0.15)]
     assert world.run_until(lambda: world.codes("pinky1").count("ZONE_MARKED_BLOCKED") == 2, 200.0)
     assert world.run_until(lambda: world.view("pinky1")["node"] == "W_Q"
                            and world.view("pinky1")["goal_id"] is None, 100.0)

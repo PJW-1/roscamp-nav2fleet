@@ -117,8 +117,8 @@ def zones_along(zones: dict[str, Zone], points) -> tuple[str, ...]:
     return tuple(seen)
 
 
-def _link(nodes, zones, a: str, b: str, via: str, path: str, crossed=None) -> Link:
-    points = ((nodes[a].x, nodes[a].y), (nodes[b].x, nodes[b].y))
+def _link(nodes, zones, a: str, b: str, via: str, path: str, crossed=None, bends=()) -> Link:
+    points = ((nodes[a].x, nodes[a].y), *bends, (nodes[b].x, nodes[b].y))
     crossed = tuple(crossed) if crossed else zones_along(zones, points)
     # 끝 지점의 구역이 처음과 끝에 오게 한다: 경계 위의 표본이 순서를 바꿀 수 있다
     middle = [z for z in crossed if z not in (nodes[a].zone, nodes[b].zone)]
@@ -126,7 +126,34 @@ def _link(nodes, zones, a: str, b: str, via: str, path: str, crossed=None) -> Li
     if nodes[b].zone != nodes[a].zone:
         ordered.append(nodes[b].zone)
     lane = next((z for z in ordered if zones[z].kind == LANE), "")
-    return Link(a, b, via, path, points, tuple(ordered), math.dist(*points), lane)
+    length = sum(math.dist(p, q) for p, q in zip(points, points[1:], strict=False))
+    return Link(a, b, via, path, points, tuple(ordered), length, lane)
+
+
+def _path_stops(entry, nodes, what: str) -> list[tuple[str, tuple]]:
+    """고정 경로의 점 목록을 (지점, 그 지점 앞의 꺾는 점들)로 바꾼다.
+
+    꺾는 점은 [x, y]이고 지점이 아니다. 두 지점 사이의 선이 꺾이는 곳일 뿐이라 처음과 끝은
+    지점이어야 한다.
+    """
+    stops, bends = [], []
+    for point in entry.get("points") or ():
+        if isinstance(point, str):
+            if point not in nodes:
+                raise FleetMapError(f"{what}: {point} is not a node")
+            stops.append((point, tuple(bends)))
+            bends = []
+            continue
+        try:
+            x, y = (float(v) for v in point)
+        except (TypeError, ValueError) as error:
+            raise FleetMapError(f"{what}: a bend is [x, y], got {point!r}") from error
+        if not stops:
+            raise FleetMapError(f"{what}: the first point must be a node, got {point!r}")
+        bends.append((x, y))
+    if bends:
+        raise FleetMapError(f"{what}: the last point must be a node, got {bends[-1]!r}")
+    return stops
 
 
 def read_links(paths: dict, nav: list, nodes: dict[str, Node], zones: dict[str, Zone]) -> dict:
@@ -146,17 +173,17 @@ def read_links(paths: dict, nav: list, nodes: dict[str, Node], zones: dict[str, 
 
     for name, entry in (paths or {}).items():
         what = f"path {name}"
-        points = [known(point, what) for point in entry.get("points") or ()]
-        if len(points) < 2:
+        stops = _path_stops(entry, nodes, what)
+        if len(stops) < 2:
             raise FleetMapError(f"{what} needs two or more points")
         reverse, two_way = bool(entry.get("reverse")), bool(entry.get("two_way"))
         if reverse and two_way:
             raise FleetMapError(f"{what}: a reverse path runs one way")
         via = RETREAT if reverse else FOLLOW_PATH
-        for a, b in zip(points, points[1:], strict=False):
-            add(_link(nodes, zones, a, b, via, str(name)), what)
+        for (a, _), (b, bends) in zip(stops, stops[1:], strict=False):
+            add(_link(nodes, zones, a, b, via, str(name), bends=bends), what)
             if two_way:
-                add(_link(nodes, zones, b, a, via, str(name)), what)
+                add(_link(nodes, zones, b, a, via, str(name), bends=bends[::-1]), what)
 
     for index, group in enumerate(nav or ()):
         what = f"nav group {index + 1}"
