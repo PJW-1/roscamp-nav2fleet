@@ -1,8 +1,8 @@
-"""fleet_core/pending.py의 WAITING 표: 건너뛰는 시험은 모두 실제 파일이고 이유는 둘 중 하나다."""
+"""fleet_core/pending.py의 WAITING 표: 건너뛰는 시험은 모두 실제 파일이고 이유는 하나다."""
 from pathlib import Path
 
 import pytest
-from fleet_core.pending import NEEDS_FLEET_MAP, NEEDS_ZONE_TRAFFIC, WAITING, waiting_reason
+from fleet_core.pending import NEEDS_ZONE_TRAFFIC, WAITING, waiting_reason
 
 REPO = Path(__file__).resolve().parents[3]
 PACKAGES = {"fleet_core": REPO / "pc" / "fleet_core", "fake_robots": REPO / "sim" / "fake_robots",
@@ -10,10 +10,9 @@ PACKAGES = {"fleet_core": REPO / "pc" / "fleet_core", "fake_robots": REPO / "sim
             "fleet_gz_sim": REPO / "sim" / "fleet_gz_sim"}
 
 
-def test_the_two_reasons_are_the_shared_ones():
+def test_the_reason_is_the_shared_one():
     assert NEEDS_ZONE_TRAFFIC == "needs the zone traffic layer (stage 3)"
-    assert NEEDS_FLEET_MAP == "needs a fleet map (stage 2)"
-    assert set(WAITING.values()) <= {NEEDS_ZONE_TRAFFIC, NEEDS_FLEET_MAP}
+    assert set(WAITING.values()) <= {NEEDS_ZONE_TRAFFIC}
 
 
 @pytest.mark.skipif(not (REPO / "pc" / "fleet_manager").is_dir(), reason="only in the source tree")
