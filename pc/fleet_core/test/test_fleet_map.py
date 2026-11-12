@@ -109,6 +109,41 @@ def test_a_reverse_path_is_driven_as_a_retreat():
     assert (out.via, out.path, out.zones) == ("retreat", "work_out", ("DOCK_W", "J_W"))
 
 
+def test_a_path_may_bend_at_a_point_that_is_not_a_node():
+    paths = edited("paths", "work_out", points=["W", [0.4, 0.9], "N_W"])
+    site = build(paths=paths)
+    out = site.link("W", "N_W")
+    assert (out.via, out.zones) == ("retreat", ("DOCK_W", "J_W", "HALL"))
+    assert out.points == ((0.2, 0.9), (0.4, 0.9), (0.4, 0.6))
+    assert out.length == pytest.approx(0.5)
+    assert site.link("W", "X_W") is None
+
+
+def test_a_bend_is_a_pair_of_numbers_between_two_nodes():
+    refused("bend", paths=edited("paths", "work_out", points=["W", [0.4], "N_W"]))
+    refused("node", paths=edited("paths", "work_out", points=[[0.3, 0.9], "W", "N_W"]))
+
+
+def test_room_beside_the_shelves_is_checked_on_every_piece_of_a_bent_path():
+    refused("shelf", paths=edited("paths", "work_out", points=["W", [0.47, 0.9], "N_W"]))
+
+
+def test_a_line_that_goes_round_a_shelf_end_too_close_is_a_warning():
+    site = build()
+    near = [w for w in site.warnings if "end of the shelf" in w]
+    assert any("work_in from N_W to X_W" in w for w in near)
+    assert any("j_e_down from X_E to N_E" in w for w in near)
+    assert not any("express" in w for w in near), "the express runs beside the shelf, not round it"
+    assert build(shelf_end_clear_m=0.10).warnings == site.warnings[len(near):]
+
+
+def test_a_retreat_that_ends_inside_a_narrow_strip_is_a_warning():
+    site = build()
+    assert any("work_out ends at X_W" in w and "turn" in w for w in site.warnings)
+    paths = edited("paths", "work_out", points=["W", [0.4, 0.9], "N_W"])
+    assert not any("work_out ends" in w for w in build(paths=paths).warnings)
+
+
 def test_a_two_way_path_gives_a_link_each_way_and_names_the_lane_it_crosses():
     site = build()
     east, west = site.link("X_W", "X_E"), site.link("X_E", "X_W")
@@ -316,8 +351,8 @@ def test_d2_is_the_default_and_matches_the_instruction():
     assert site.shelves == ((0.50, 0.775, 1.48, 0.79),)
     assert site.node_pose("W") == (0.18, 0.89) and site.node_pose("O") == (1.80, 0.89)
     assert site.zones["HALL"].capacity == 3
-    assert [link.b for link in route(site, "W", "O")] == ["X_W", "X_E", "O"]
-    assert sum(link.length for link in route(site, "W", "O")) == pytest.approx(1.62)
+    assert [link.b for link in route(site, "W", "O")] == ["N_W", "X_W", "X_E", "O"]
+    assert site.warnings == (), "D2 keeps its lines off the shelf ends and backs into the hall"
 
 
 def test_load_accepts_a_path(tmp_path):

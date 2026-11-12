@@ -103,7 +103,7 @@ def test_a_retreat_the_robot_does_not_start_on_is_reported():
     [retreat] = world.sent(RetreatCmd, "pinky1")
     world.run(LIMIT + 0.5)
     details = [e.detail for e in world.events if e.code == "NO_START"]
-    assert details == [f"retreat goal {retreat.goal_id} to X_W: moved less than 0.02 m in 5 s"]
+    assert details == [f"retreat goal {retreat.goal_id} to N_W: moved less than 0.02 m in 5 s"]
 
 
 def test_a_goal_to_where_the_robot_already_stands_is_not_watched():

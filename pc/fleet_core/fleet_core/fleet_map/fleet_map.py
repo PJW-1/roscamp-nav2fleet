@@ -6,12 +6,13 @@
 """
 from __future__ import annotations
 
+import logging
 import math
 from pathlib import Path
 
 import yaml
 
-from .checks import check_clearance, check_reach
+from .checks import check_clearance, check_reach, retreat_end_warnings, shelf_end_warnings
 from .geometry import inside, point_rect_distance
 from .model import WAITING_KINDS, FleetMapError, Link
 from .parse import read_links, read_nodes, read_parking, read_rect, read_stations, read_zones
@@ -19,6 +20,10 @@ from .parse import read_links, read_nodes, read_parking, read_rect, read_station
 DATA = Path(__file__).parents[1] / "data"
 DEFAULT_LAYOUT = "d2"
 BODY_CLEARANCE_M = 0.06  # Nav2 발자국의 반 폭. 지도에 clearance_m을 적으면 그 값을 쓴다
+# 고정 경로가 진열대 끝을 돌아가는 곳의 여유(추가 지시서 3의 9절 제안). 지도에 shelf_end_clear_m을
+# 적으면 그 값을 쓴다. 어기면 읽을 때 경고만 한다
+SHELF_END_CLEAR_M = 0.15
+_log = logging.getLogger(__name__)
 
 
 class FleetMap:
@@ -40,6 +45,10 @@ class FleetMap:
         self.docks = {station.dock for station in self.stations.values()}
         check_clearance(self, float(data.get("clearance_m", BODY_CLEARANCE_M)))
         check_reach(self)
+        clear = float(data.get("shelf_end_clear_m", SHELF_END_CLEAR_M))
+        self.warnings = tuple(shelf_end_warnings(self, clear) + retreat_end_warnings(self))
+        for warning in self.warnings:
+            _log.warning("fleet map %s: %s", self.name, warning)
 
     # ---- 연결 ----
 

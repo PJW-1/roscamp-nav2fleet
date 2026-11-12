@@ -166,7 +166,7 @@ ros2 run fleet_gz_sim drive_check --layout d2 --plan stage2 --json stage2.json
 ros2 run fleet_gz_sim drive_check --plan cross     # P-1 -> P-3 -> P-1 Nav2 goal(둘째 핑키 확인용)
 ```
 
-`drive_check`는 관제 없이 로봇에 바로 이동을 보낸다(`fleet_gz_sim/stage2_plan.py`). `stage2`는 P-1에서 출발해 Nav2 goal로 N_W, `work_in`(FollowPath)으로 작업 도크 W, Retreat로 X_W, 급행 왕복, `j_w_down`으로 N_W, 그리고 마당을 가로지르는 Nav2 goal 셋(P-3, N_E, P-1)이다. 구간마다 결과, 걸린 시간(벽시계, 시뮬), 끝 위치와 방향 오차, 고정 경로에서 벗어난 최대 거리, Nav2 계획이 지난 keepout 구역을 적는다. `/fleet/heartbeat`는 2 Hz로 보낸다.
+`drive_check`는 관제 없이 로봇에 바로 이동을 보낸다(`fleet_gz_sim/stage2_plan.py`). `stage2`는 고정 선을 한 바퀴 도는 계획이다(추가지시서3 2-1): P-1에서 Nav2 goal로 N_W, `work_in`으로 W, 후진으로 N_W, 급행 동쪽으로 N_E, `out_in`으로 O, 후진으로 N_E, 급행 서쪽으로 N_W, Nav2 goal로 P-1. 고정 선의 꺾는 점도 경로에 넣는다. 결과는 `results/fixed_line_results.md`. 구간마다 결과, 걸린 시간(벽시계, 시뮬), 끝 위치와 방향 오차, 고정 경로에서 벗어난 최대 거리, Nav2 계획이 지난 keepout 구역을 적는다. `/fleet/heartbeat`는 2 Hz로 보낸다.
 
 RViz의 2D Goal Pose로도 보낼 수 있다. 이것은 `bt_navigator`로 가고 `pinky_fsm`을 거치지 않는다.
 

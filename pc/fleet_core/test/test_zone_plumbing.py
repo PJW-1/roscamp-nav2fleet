@@ -85,7 +85,7 @@ def test_the_retreat_out_of_a_dock_goes_out_and_its_result_reaches_the_traffic_l
     now[0] += 0.1
     out = core.tick()
     assert [c.target_id for c in out if isinstance(c, MoveCmd)] == ["O"], "on along the express"
-    assert core.traffic.robot_view("pinky1")["node"] == "X_W"
+    assert core.traffic.robot_view("pinky1")["node"] == "N_W"
 
 
 def test_a_retreat_result_for_an_unknown_robot_is_refused():

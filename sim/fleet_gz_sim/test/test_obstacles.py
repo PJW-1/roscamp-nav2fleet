@@ -108,9 +108,9 @@ def test_non_mapping_file_is_refused(tmp_path):
 # ---- 연결 위 점 ------------------------------------------------------------------------------
 
 def test_link_point_is_along_the_segment_with_the_link_yaw():
-    # X_W (0.40, 0.89) -> X_E (1.58, 0.89): 동쪽
+    # X_W (0.35, 0.89) -> X_E (1.63, 0.89): 동쪽
     x, y, yaw = obstacles.link_point(SITE, ("X_W", "X_E"), 0.25)
-    assert (x, y) == pytest.approx((0.695, 0.89))
+    assert (x, y) == pytest.approx((0.67, 0.89))
     assert yaw == pytest.approx(0.0)
 
 
