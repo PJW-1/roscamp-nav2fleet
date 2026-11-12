@@ -5,6 +5,8 @@
     python3 tools/situations.py --avoid all           # 회피 흉내 none, perfect, mixed 모두
 
 --set 이름=값은 플릿 파라미터를 바꾼다(값은 yaml로 읽는다). 못 지킨 기대는 표 아래에 적는다.
+주문을 다 못 끝낸 실행은 같은 씨드로 한 번 더 돌려 관제 기록을 받고, 원인 분류(tools/triage)가
+"끝나지 않은 주문 원인" 칸을 채운다: `원인 건수 (주문 id들)`.
 머리 없는 구역 세계(sim/fake_robots/fake_robots/world)와 FleetManager(traffic_mode zones)를 쓴다.
 """
 from __future__ import annotations
@@ -16,13 +18,14 @@ from pathlib import Path
 import yaml
 
 REPO = Path(__file__).resolve().parents[1]
-for sub in ("pc/fleet_core", "sim/fake_robots"):
+for sub in ("pc/fleet_core", "sim/fake_robots", "tools"):
     if str(REPO / sub) not in sys.path:
         sys.path.insert(0, str(REPO / sub))
 
 from fake_robots.world.avoid import AVOID_MODES  # noqa: E402
-from fake_robots.world.situations import LAYOUTS, NAMES  # noqa: E402
+from fake_robots.world.situations import LAYOUTS, NAMES, build  # noqa: E402
 from fake_robots.world.table import markdown, run_situation  # noqa: E402
+from triage import obstacles_from_injections, recording_factory, rows_of_lines  # noqa: E402
 
 
 def overrides(pairs) -> dict:
@@ -38,6 +41,18 @@ def overrides(pairs) -> dict:
 def avoid_modes(chosen) -> list[str]:
     """--avoid 값: all이면 세 모드 모두."""
     return list(AVOID_MODES) if "all" in chosen else list(chosen)
+
+
+def open_order_causes(name, layout, seed, params, mode) -> str:
+    """끝나지 않은 주문들의 원인을 한 칸으로: `주행 2 (O-004 O-005); 회피 1 (O-003)`."""
+    lines: list = []
+    run_situation(name, layout, seed, overrides=params, avoid_mode=mode,
+                  manager_factory=recording_factory(lines))
+    injections = build(name, layout).for_mode(mode).injections
+    by_cause: dict = {}
+    for found in rows_of_lines(lines, obstacles_from_injections(injections)):
+        by_cause.setdefault(found.cause, []).append(found.order_id)
+    return "; ".join(f"{cause} {len(ids)} ({' '.join(ids)})" for cause, ids in by_cause.items())
 
 
 def main(argv=None) -> int:
@@ -57,7 +72,10 @@ def main(argv=None) -> int:
                 for seed in args.seeds:
                     outcome = run_situation(name, layout, seed, overrides=params,
                                             avoid_mode=mode)
-                    rows.append(outcome.row)
+                    central = outcome.world.central
+                    causes = (open_order_causes(name, layout, seed, params, mode)
+                              if central.finished < central.total else "")
+                    rows.append((*outcome.row[:-1], causes))
                     notes += [f"- {name} {layout} {mode} {seed}: {f}"
                               for f in outcome.failures[:5]]
     print(markdown(rows))
