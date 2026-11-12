@@ -47,6 +47,23 @@ class RetreatCmd:
 
 
 @dataclass(frozen=True)
+class CheckClearCmd:
+    """관제가 막힘 표시의 점 둘레가 비었는지 로봇에게 묻는다(추가 지시서 3의 4-3, 기준(사용자)).
+    로봇 노드의 CheckClear 서비스로 간다. 답은 CLEAR, BLOCKED_AT, UNKNOWN 가운데 하나다."""
+    robot: str
+    check_id: int
+    x: float
+    y: float
+    radius_m: float
+
+
+CLEAR = "clear"  # 그 점에서 radius_m 안에 장애물 칸이 없다
+BLOCKED_AT = "blocked"  # 있다
+UNKNOWN = "unknown"  # 그 점이 센서나 local costmap 밖이다(묻지 못한 경우도 이것으로 본다)
+OBSTACLE_KINDS = ("unknown", "person", "object", "robot")  # RobotState.obstacle_kind
+
+
+@dataclass(frozen=True)
 class SegmentOut:
     """order 모델의 조각 하나(계약 0.11-draft 제안의 Segment). 좌표는 map 프레임이다."""
     seq_id: int  # 이동 안에서 1부터. update를 거쳐도 이어진다

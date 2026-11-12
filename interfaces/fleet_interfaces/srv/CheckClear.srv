@@ -1,0 +1,10 @@
+# 기준(사용자, 계약 0.12-draft, 추가 지시서 3의 4-3): 관제가 막힘 표시의 점 곁을 지나는 로봇에게
+# 묻는다. 로봇은 local costmap에서 map 좌표 (x, y)의 반경 r 안에 장애물 칸이 있는지 답한다.
+float64 x
+float64 y
+float64 r
+---
+string ANSWER_CLEAR="clear"        # r 안에 장애물 칸이 없다
+string ANSWER_BLOCKED="blocked"    # 있다
+string ANSWER_UNKNOWN="unknown"    # 그 점이 local costmap 밖이거나 그 둘레를 아직 못 보았다
+string answer

@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from fleet_core.common.commands import FillCmd
 
+from .obstacle_view import seen_ahead
 from .runs import DOCK, RETREAT, DockRun
 
 DOCK_ERROR = (0.4, 0.3, 0.5)  # 성공한 도킹의 오차(cm, cm, deg)
@@ -119,7 +120,12 @@ class Link:
         sigma = max(sigma, self.imperfect.pose_noise_m)
         x = r.x + jump + (self.rng.gauss(0.0, sigma) if sigma else 0.0)
         y = r.y + (self.rng.gauss(0.0, sigma) if sigma else 0.0)
-        return (x, y, r.yaw, state, self._battery(r))
+        report = (x, y, r.yaw, state, self._battery(r))
+        seen = (seen_ahead(r.x, r.y, r.yaw, self.discs(r), self.params.obstacle_look_m)
+                if state == "BLOCKED" else None)
+        if seen is None:
+            return report
+        return (*report, "", *seen, "unknown")  # robot_id는 비우고 막은 것(계약 0.12-draft)
 
     def _battery(self, r) -> float:
         battery = self.batteries.get(r.name)

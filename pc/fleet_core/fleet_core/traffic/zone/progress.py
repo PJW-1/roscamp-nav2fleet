@@ -25,13 +25,15 @@ def release_gap(p) -> float:
 
 
 class Progress:
-    def on_robot_state(self, robot, x, y, yaw, state, battery=0.0) -> None:
+    def on_robot_state(self, robot, x, y, yaw, state, battery=0.0, obstacle=None) -> None:
+        """obstacle은 막은 것의 (x, y, 종류)다. 로봇이 모르면 None이다(block_marks.py)."""
         m = self._robots.get(robot)
         if m is None:
             return
         now = self._clock()
         m.last_seen = now
         m.robot_state = state
+        m.obstacle = obstacle
         self._note_battery(m, battery)
         if state == LOCALIZING:
             m.clear_n.clear()  # 벗어난 보고는 이어져야 한다

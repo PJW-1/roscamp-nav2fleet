@@ -110,6 +110,8 @@ class Robot:
     yielded: tuple | None = None  # 마지막으로 비켜 선 (x, y, 시각)
     retreat_to: str = ""  # 막혀서 물러나는 중이면 물러날 지점
     backoff_from: tuple | None = None  # 마당 물러나기를 시작한 자리
+    # 마지막 보고의 장애물 (x, y, 종류). 로봇이 모르면 None(추가 지시서 3의 4-1)
+    obstacle: tuple | None = None
 
     @property
     def live(self) -> bool:

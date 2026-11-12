@@ -1,6 +1,12 @@
 # 이름, 타입, QoS의 유일한 기준. 코드는 `key`로 찾으므로 이름이나 QoS는 여기만 고친다.
 # 사용자 기준이다(팀 레포에 올릴 첫 판). QoS depth는 실제 Wi-Fi에서 측정해야 한다.
-version: 0.11-draft
+version: 0.12-draft
+# 0.12 (2026-11-12, nav2fleet, 기준(사용자), 추가 지시서 3의 4절): 막힘 처리 보완.
+# RobotState에 float64 obstacle_x, obstacle_y(map 좌표, 모르면 NaN), string obstacle_kind
+# (unknown/person/object/robot, 지금은 unknown만. 비면 위치를 쓰지 않는다)를 더했다. 핑키는 BLOCKED일 때
+# local costmap에서 가던 길 앞 obstacle_look_m(0.30 m) 안의 가장 가까운 장애물 칸으로 채운다.
+# 서비스 /{pinky}/check_clear(fleet_interfaces/srv/CheckClear: x, y, r -> answer clear/blocked/unknown)
+# 를 더했다. 관제가 막힘 표시의 점에서 check_range_m 안을 지나는 로봇에게 묻는다. 핑키 계약 4절.
 # 0.11 (2026-11-12, nav2fleet, 기준(사용자)): MoveTo goal에 string mode를 더했다(MODE_FOLLOW_PATH
 # "follow_path", MODE_NAV_GOAL "nav_goal", 비면 follow_path). nav_goal이면 핑키는 target_pose로
 # /{pinky}/navigate_to_pose(Nav2 NavigateToPose)를 보내고 path와 final_goal은 쓰지 않는다.
@@ -88,3 +94,6 @@ services:
   - {key: confirm_clear, name: "/fleet/confirm_clear", type: fleet_interfaces/srv/ConfirmClear}
   # 관제 요구(사용자 기준): 치운 로봇을 다시 투입한다. basket은 EMPTY 또는 NONE.
   - {key: reinstate, name: "/fleet/reinstate", type: fleet_interfaces/srv/Reinstate}
+  # 0.12(기준(사용자)): 관제가 막힘 표시의 점 둘레가 비었는지 핑키에게 묻는다. 핑키 노드(pinky_fsm)가
+  # 둔다. 가짜 핑키(fake_pinky_node)에는 없다: 관제는 서비스가 없으면 unknown으로 본다.
+  - {key: check_clear, name: "/{pinky}/check_clear", type: fleet_interfaces/srv/CheckClear, real_only: true}
