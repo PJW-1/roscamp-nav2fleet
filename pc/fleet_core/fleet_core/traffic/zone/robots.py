@@ -5,10 +5,12 @@ from dataclasses import dataclass, field
 
 from fleet_core.traffic.mission import IDLE
 
+BACKOFF = "backoff"  # 마당 물러나기(backoff.py). 구역 교통 층 안에서만 쓰는 goal 종류다
+
 
 @dataclass
 class Goal:
-    kind: str  # mission.MOVE, DOCK, RETREAT
+    kind: str  # mission.MOVE, DOCK, RETREAT 또는 BACKOFF
     id: int
     links: int = 0  # 이 명령이 끝나면 다 지난 것이 되는 연결 수(trip.links의 앞에서부터)
     end: str = ""  # 명령이 끝나는 지점
@@ -72,6 +74,7 @@ class Robot:
     outside_noted: bool = False
     yield_until: float = 0.0  # 넓은 구역에서 비켜 서 있는 시각
     retreat_to: str = ""  # 막혀서 물러나는 중이면 물러날 지점
+    backoff_from: tuple | None = None  # 마당 물러나기를 시작한 자리
 
     @property
     def live(self) -> bool:

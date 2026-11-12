@@ -22,6 +22,7 @@ from fleet_core.traffic.mission import (
 )
 
 from .base import HERE
+from .robots import BACKOFF
 
 
 class Blocked:
@@ -31,7 +32,7 @@ class Blocked:
         long_recovery = (m.self_recovery_since is not None
                          and now - m.self_recovery_since > p.self_recovery_limit_s)
         stuck = m.robot_state == BLOCKED or long_recovery
-        if not stuck or m.goal is None or m.goal.kind == DOCK:
+        if not stuck or m.goal is None or m.goal.kind in (DOCK, BACKOFF):
             if not stuck:
                 m.blocked_since = None
                 m.blocked_noted = False

@@ -84,6 +84,14 @@ class FleetParams:
     near_stuck_s: float = 5.0  # 이만큼 못 나아가면 우선순위 낮은 쪽이 비킨다
     outside_zone_m: float = 0.05  # 쥔 구역 밖으로 이만큼 벗어난 보고가
     outside_zone_samples: int = 5  # 이만큼 이어지면 OUTSIDE_ZONE
+    # 마당 물러나기(제안, 2026-11-12). 넓은 구역에서 비켜 서는 로봇이 BLOCKED를 보고했으면 선
+    # 방향 그대로 뒤로 물린 뒤 세운다. 끄면(기본) 세우기만 한다
+    yard_backoff: bool = False
+    yard_backoff_m: float = 0.12  # 물러나는 거리
+    # 비킬 로봇의 BLOCKED 보고를 이만큼 더 기다린다. near_stuck_s와 더해 stall_s보다 짧아야 한다
+    yard_backoff_wait_s: float = 0.5
+    yard_backoff_edge_m: float = 0.10  # 설 자리가 벽, 진열대, 고정 경로 구역에서 떨어질 거리
+    yard_backoff_clear_m: float = 0.20  # 뒤쪽의 다른 로봇과 이만큼은 떨어져 지나야 한다
     # order 모델(VDA 5050의 base/horizon, 추가 지시서). 끄면 조각 하나씩 보낸다
     use_order_model: bool = False
     lookahead_s: float = 2.0  # base 끝까지 이만큼 남으면 다음 구역을 잡아 본다

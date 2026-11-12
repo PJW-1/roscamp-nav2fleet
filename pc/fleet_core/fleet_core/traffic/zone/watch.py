@@ -17,6 +17,7 @@ from fleet_core.traffic.mission import (
     TO_WORK,
 )
 
+from .robots import BACKOFF
 from .trips import Trip
 
 
@@ -24,10 +25,11 @@ class Watch:
     def _watch_stall(self, m, now: float) -> None:
         """goal이 열린 채 제자리이면 거두고 실패한 시도로 센다. 끝 지점에 서 있으면 닿은 것이다."""
         p = self.params
-        # 막혔거나 스스로 물러나는 이동은 blocked.py가 본다. 도킹은 거기서 보지 않으므로 여기서 본다
+        # 막혔거나 스스로 물러나는 이동은 blocked.py가 본다. 도킹과 마당 물러나기는 거기서 보지
+        # 않으므로 여기서 본다
         rests = m.robot_state in (BLOCKED, SELF_RECOVERING)
         if (m.goal is None or self._run_mode != RUN or m.arrival_by is not None
-                or (rests and m.goal.kind != DOCK)):
+                or (rests and m.goal.kind not in (DOCK, BACKOFF))):
             m.stall_from = None
             return
         here = (m.x, m.y)
@@ -42,7 +44,9 @@ class Watch:
         m.stall_from = None
         goal, at_end = m.goal, self._stands_at_end(m)
         self._cancel_goal(m)
-        if at_end:  # 끝 지점에 서 있다: 열린 goal만 거두고 닿은 것으로 본다
+        if goal.kind == BACKOFF:
+            self._backoff_ended(m, STALLED)
+        elif at_end:  # 끝 지점에 서 있다: 열린 goal만 거두고 닿은 것으로 본다
             m.goal = goal
             self._arrived_anyway(m, STALLED)
             m.retry_at = now + p.arrival_settle_s  # 취소가 닿은 뒤에 다음 goal을 낸다
@@ -106,10 +110,11 @@ class Watch:
                 self._near[key] = (since, before)
                 if now - since >= p.near_stuck_s:
                     low, other = sorted((a, b), key=lambda m: (self._priority(m), m.name))
+                    if self._awaits_blocked(low, now - since):
+                        continue
                     self._cancel_goal(low)
-                    low.yield_until = now + p.near_stuck_s
-                    self._event("INFO", "HALL_YIELD", f"stops {p.near_stuck_s:.0f} s for "
-                                f"{other.name}", low.name)
+                    self._event("INFO", "HALL_YIELD", self._stand_aside(low, other, now),
+                                low.name)
                     del self._near[key]
         for key in [key for key in self._near if key not in seen]:
             del self._near[key]

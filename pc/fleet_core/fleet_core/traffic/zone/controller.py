@@ -15,11 +15,13 @@
 | blocked | 막힘: 기다림, 표시, 다른 길, 후진 |
 | health | 통신 끊김과 복구, 치움, 다시 투입 |
 | watch | 멈춤, 구역 밖, 서로 막음, 대기 순환 |
+| backoff | 서로 막은 로봇을 뒤로 조금 물리기(기본 꺼짐) |
 | calls | 배차와 호출 |
 | views | 밖에서 읽는 것 |
 """
 from __future__ import annotations
 
+from .backoff import Backoff
 from .base import ZoneBase
 from .blocked import Blocked
 from .calls import Calls
@@ -32,8 +34,8 @@ from .views import Views
 from .watch import Watch
 
 
-class ZoneTraffic(Calls, Goals, Drive, Results, Progress, Blocked, Health, Watch, Views,
-                  ZoneBase):
+class ZoneTraffic(Calls, Goals, Drive, Results, Progress, Blocked, Health, Watch, Backoff,
+                  Views, ZoneBase):
     def tick(self) -> list:
         """한 주기 전체. FleetManager 없이 교통 층만 돌릴 때 쓴다."""
         now = self._clock()
