@@ -18,6 +18,7 @@ from fleet_core.fleet_map import load_fleet_map
 
 from ..battery import Battery
 from .apply import Commands
+from .avoid import PERFECT, MixedSettings, check_mode
 from .free_space import FreeSpace
 from .geom import segment_gap
 from .injections import LowBattery, Reinstate, Removal, Schedule
@@ -47,7 +48,8 @@ def default_robots(site, count=3) -> dict[str, str]:
 class ZoneWorld(Commands, Link):
     def __init__(self, layout="d2", seed=1, params=None, overrides=None, robots=None,
                  orders=None, injections=(), imperfect=None, manager_factory=default_manager,
-                 stock=None, arm_s_per_item=2.0, swap_step_s=2.0, dock_s=2.0, run_mode="RUN"):
+                 stock=None, arm_s_per_item=2.0, swap_step_s=2.0, dock_s=2.0, run_mode="RUN",
+                 avoid_mode=PERFECT, avoid_settings=None):
         self.site = load_fleet_map(layout) if isinstance(layout, str) else layout
         params = params or load_params()
         self.params = replace(params, traffic_mode="zones", **(overrides or {}))
@@ -58,6 +60,8 @@ class ZoneWorld(Commands, Link):
         self.dt = DT
         self.radius = self.params.robot_radius_m
         self.blocked_after_s = BLOCKED_AFTER_S
+        self.avoid_mode = check_mode(avoid_mode)  # 회피 흉내(avoid.py)
+        self.avoid_settings = avoid_settings or MixedSettings()
         self.dock_s = dock_s
         self.run_mode = run_mode
         self.schedule = Schedule(injections)
