@@ -245,6 +245,49 @@ G08 (c200b1e 빌드, 같은 조건):
   0.7 m 떨어진 곳에서 실패했습니다(`dock OUTBOUND FAILED (-69.6, -25.2) cm`). keepout 깊이 1판 0.062 m는 AMCL이 틀어진
   뒤의 값입니다. 로봇끼리 맞닿는 일은 l3g3(0.104 m)에도 있었습니다.
 
+### stall_s 12 s 뒤 (reg_stall, 통합 작업본 6b6030b + stall_s 12.0 + 이 브랜치 bee7dc1의 거르개)
+
+`avoid_regression.sh --skip-headless --laps 1 --games 3`, `GAME_WALL_S=1200`. 시각은 시뮬 초.
+
+| 판 | 끝낸 주문 | 마지막 출하 | triage 원인 | 격리(이유) | GOAL_STALLED | 최소 중심 간격 (m, 시각) | keepout_depth_m |
+|---|---|---|---|---|---|---|---|
+| 1 | 2/8 | 119.6 s | 주행 5(NO_START 1, 격리 4), 회피 1(BLOCKED) | pinky3 473.7, pinky1 493.0, pinky2 666.4 (모두 NAV_ABORTED) | 0 | 0.091 (pinky1, pinky2, 629.8) | 0.068 (pinky3, J_E, 479.0) |
+| 2 | 1/8 | 68.1 s | 주행 7(RETREAT_START 1, 격리 6) | pinky1 79.9 (FAILED) | 0 | 0.246 (pinky1, pinky2, 10.7) | 0.0 |
+| 3 | 1/8 | 66.8 s | 주행 7(NAV_GOAL_SENT 1, 격리 6) | pinky1 144.0 (NAV_ABORTED) | 0 | 0.249 (pinky1, pinky2, 10.9) | 0.0 |
+
+- 세 판 모두 1200 s 한도를 넘었습니다.
+
+- `GOAL_STALLED`는 0번이라 stall_s 불일치로 인한 격리는 없어졌습니다.
+- 한 대 단계는 첫 마당 goal이 0.11 s 만에 `NAV_ABORTED`(Nav2가 서기 전에 goal을 보냄, 스크립트 결함, 통합에서 고침)라 재지 못했습니다.
+  고친 스크립트(`nav2_active`)로 한 대 단계만 다시 돌리자(reg_drive, `--laps 1 --games 0`) 8개 구간 모두 1/1로 통과했습니다.
+- 1판(한 줄 원인): 425 s 둘레 마당 동쪽 구석에 세 대가 몰려(pinky2 O_Q에 섬, pinky3 P-3 → N_E, pinky1 주차로 감) 서로 길을 막아
+  Nav2가 계획을 만들지 못하고(`Failed to create plan`) 세 대가 차례로 `NAV_ABORTED`로 격리됐습니다.
+- 2판(한 줄 원인): pinky1이 W에서 후진(꺾는 점 (0.30, 0.89)) 시작 직후 (0.33, 0.83)에서 `collision ahead` → 1 s 뒤
+  `Controller patience exceeded` → `follow_path aborted: 104`, `goal ended: FAILED`. 다시 보낸 후진 두 번도 같은 자리에서 1 s 만에
+  같은 줄로 끝나 격리됐습니다. 그 순간 local costmap(TF로 map 좌표)에서 0.15 m 안의 치명 칸은 (0.429, 0.808), (0.454, 0.807) 둘뿐이고,
+  pinky1이 W로 들어가던 59 s에도 (0.436, 0.797)가 있었습니다. 진열대 서쪽 끝면(x 0.50)에서 서쪽으로 0.05~0.07 m, 진열대 윗면
+  (y 0.79)보다 0.02 m 위인 빈 바닥이고(Gazebo world의 진열대는 x 0.50~1.48), 다른 두 로봇은 동쪽 아래(P-3 둘레)에 있었습니다.
+  칸이 왜 생겼고 `inf_is_valid`로도 왜 지워지지 않았는지는 가리지 못했습니다(추측: 진열대 끝면에서 온 점이 5~7 cm 서쪽에 놓임.
+  한 대 측정 B_yd3의 치명 칸 (0.466, 0.789)와 같은 자리).
+- 3판(한 줄 원인): 2판과 같은 자리입니다. pinky1이 W에 도킹(x 7.7 cm 어긋남)한 뒤 후진은 `FAILED`로 끝났지만 N_W에 서 있어 관제가
+  받아들였고, N_W에서 O_Q로 가려다 `BLOCKED`를 보고해 관제가 (0.43, 0.8x)에 막힘 표시를 했습니다(갈림목·급행 길 6개를 막음).
+  그 뒤 N_E로 가는 goal 세 번이 움직이지 못하고(`NO_START`) `NAV_ABORTED`로 144 s에 격리됐습니다. 2판도 도킹이 x 6.8 cm
+  어긋났습니다.
+
+### 라이다보다 낮은 상자 (0.12 x 0.12 x 0.08 m, 급행 가운데 (0.99, 0.89), 한 대 한 번, 같은 통합 빌드)
+
+`drive_check --plan stage2 --laps 1`(STEP_TIMEOUT 60 s). 앞 세 구간은 성공, 넷째 구간(급행 동쪽)에서 상자에 걸렸습니다.
+
+| 처음 선 곳(실제) | 상자까지 틈 | 선 뒤 상태 | 선 때부터 `BLOCKED`까지 | `BLOCKED` 때 보고 위치 | 보고 위치 오차 |
+|---|---|---|---|---|---|
+| (0.891, 0.890) | -0.001 m(닿음) | `MOVING` 11.4 s → `RECOVERING` 2.0 s → `BLOCKED` | 13.4 s | (1.496, 0.890) | 0.605 m |
+
+- 로봇은 상자를 보지 못하고 닿았습니다(앞 0.040 m가 상자 면에 붙음). 닿은 채 11.4 s 동안 `MOVING`을 보고했고, 그 뒤
+  pinky_fsm 자가 복구(`RECOVERING`)를 거쳐 `BLOCKED`를 보고했습니다. `NAV_ABORTED`나 `GOAL_STALLED`는 아닙니다(관제 없이
+  drive_check만 돌렸으므로 `GOAL_STALLED`는 나올 수 없음). drive_check가 60 s 뒤 MoveTo를 취소했습니다(`CANCELED`).
+- 보고 위치가 0.605 m 앞(x 1.496)으로 갔습니다. 바퀴가 미끄러지는 동안 오도메트리가 계속 앞으로 쌓인 것으로 보입니다(추측).
+  2-2의 키 큰 상자(0.25 m)에서는 0.05 m 안이었습니다.
+
 ## 헤드리스 상황 표, D2 (`python tools/situations.py -l d2 --avoid perfect`)
 
 stage3(b1f5682), 2-1 첫 커밋(e3c0c02), 지금(대기 자리 W_Q, O_Q를 x 0.15, 1.83으로 옮긴 뒤)의 끝난 시각(s)과 판정입니다.
