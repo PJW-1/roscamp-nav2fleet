@@ -9,6 +9,7 @@ import pytest
 from fleet_core.common.commands import DispatchResult, DockCmd, MoveCmd, RetreatCmd, RobotIsolated
 from fleet_core.fleet_map import RETREAT, SHARED
 from fleet_core.traffic.mission import HEARTBEAT_LOST, NOT_AT_TARGET
+from fleet_core.traffic.zone.lane_policy import Want
 from zone_harness import Harness
 
 
@@ -275,8 +276,7 @@ def test_a_reapproach_whose_way_is_taken_waits_and_goes_when_it_is_free():
     assert grants.take("ghost", (), (spot,))
     world.run(world.params.move_retry_wait_s + 1.0)
     assert docks(world) == 1 and not world.sent(RetreatCmd, "pinky2"), "it waits at the dock"
-    assert world.traffic.status_view("pinky2")["wait_zone"], "the wait is on record"
-    assert "pinky2" not in world.traffic._wants, "but it is no part of a wait cycle"
+    assert world.traffic.status_view("pinky2")["wait_robots"] == ("ghost",), "the wait is on record"
     grants.release_node("ghost", spot)
     world.run(1.0)
     assert world.sent(RetreatCmd, "pinky2") and docks(world) == 1
@@ -291,6 +291,22 @@ def test_a_reapproach_that_cannot_start_in_time_docks_where_it_stands():
     assert docks(world) == 1
     world.run(1.0)
     assert docks(world) == 2 and not world.sent(RetreatCmd, "pinky2")
+
+
+def test_a_robot_waiting_to_reapproach_is_no_part_of_a_wait_cycle():
+    """A cycle would send it to a parking spot with the re-approach still pending."""
+    world, _ = at_the_dock()
+    assert world.run_until(lambda: "GOAL_RETRY" in world.codes("pinky2"), 30.0)
+    traffic, link = world.traffic, way_out(world)
+    assert traffic.grants.take("ghost", (), (link.b,))
+    world.run(world.params.move_retry_wait_s + 0.2)
+    assert "pinky2" in traffic._wants
+    traffic.grants.release_node("ghost", link.b)
+    assert traffic.grants.take("pinky1", (), (link.b,))  # pinky1 holds the way out
+    dock_zone = world.site.nodes[link.a].zone  # and waits for the dock zone pinky2 holds
+    traffic._wants["pinky1"] = Want((dock_zone,), (), {}, world.now, {})
+    traffic._watch_deadlock(world.now)
+    assert traffic._cycle == ()
 
 
 def test_the_wait_for_the_way_out_has_one_limit_whatever_clears_the_wait():

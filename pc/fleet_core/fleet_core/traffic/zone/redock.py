@@ -45,8 +45,9 @@ class Redock:
         trip = Trip(dock, [out, back])
         want = self._take(m, trip)
         if want is not None:
-            # 나가는 길을 다른 로봇이 쥐고 있다. 도크에 선 채 기다린다. 바라는 것(_wants)에는
-            # 넣지 않는다: 대기 순환으로 보이면 이 로봇이 주차 자리로 보내진다(watch.py)
+            # 나가는 길을 다른 로봇이 쥐고 있다. 도크에 선 채 기다린다. 대기 순환에는 세지
+            # 않는다(watch.py): 순환으로 보이면 이 로봇이 주차 자리로 보내진다
+            self._wants[m.name] = want
             self._note_wait(m, want)
             return True
         m.redock = False
