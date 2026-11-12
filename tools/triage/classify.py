@@ -156,8 +156,8 @@ def _cause(run, order, obstacles, cfg) -> Row:
     # 후진뿐이면(도크에서 나오기) 그 후진으로 잰다
     forward = [g for g in goals if g.code != "RETREAT_START"]
     checked = (forward or goals)[-1]
-    until = min((g.t for g in goals if g.t > checked.t), default=math.inf)
-    stuck = _started(run, robot, checked, cfg, until)
+    later = goals[goals.index(checked) + 1:]  # 기록 순서로 가른다: 같은 시각의 다음 목표도 뒤다
+    stuck = _started(run, robot, checked, cfg, later[0].t if later else math.inf)
     if stuck:
         return Row(order, "주행", *stuck)
     episodes = _episodes(run, robot, goals[0].t, end)

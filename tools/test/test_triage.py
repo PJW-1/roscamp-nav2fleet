@@ -132,6 +132,13 @@ def test_a_retreat_that_does_not_start_after_a_block_does_not_hide_the_block():
     assert causes(record(*items), obstacles=BOX) == [("O-1", "진짜 막힘", "BLOCKED")]
 
 
+def test_a_goal_replaced_in_the_same_tick_has_no_no_start_of_its_own():
+    """같은 시각에 다음 목표가 기록되면 그 뒤의 NO_START는 다음 목표의 것이다(기록 순서로 가름)."""
+    items = [*started(), ev(10.1, "RETREAT_START"), *walk(11, 60, 0.0, 0.0, "BLOCKED"),
+             ev(11.1, "BLOCKED_WAIT"), ev(21.1, "ZONE_MARKED_BLOCKED"), ev(15.3, "NO_START")]
+    assert causes(record(*items)) == [("O-1", "회피", "BLOCKED")]
+
+
 def test_a_block_with_nothing_on_the_floor_is_avoidance():
     text = _blocked_run(None, [ev(20.1, "BLOCKED_WAIT"), ev(30.1, "ZONE_MARKED_BLOCKED")])
     assert causes(text) == [("O-1", "회피", "BLOCKED")]
