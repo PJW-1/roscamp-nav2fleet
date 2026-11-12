@@ -60,7 +60,9 @@ class ZoneBase:
         p = self.params
         if m.off_node is not None and math.dist(m.off_node, (m.x, m.y)) <= p.stall_move_m:
             return False  # 고정 경로에 붙지 못한 그 자리에 아직 서 있다
-        return bool(m.node) and self._gap(m, m.node) <= p.arrival_tolerance_m
+        if not m.node or self.grants.node_holder(m.node) not in ("", m.name):
+            return False  # 남이 쥔 지점이다. 그 옆에 지점 없이 오른 로봇이 이름만 달고 있다
+        return self._gap(m, m.node) <= p.arrival_tolerance_m
 
     def _via(self, m) -> str:
         """지금 달리는 방식. order goal이면 지금 조각의 방식이다."""
