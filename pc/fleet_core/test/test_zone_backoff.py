@@ -175,8 +175,8 @@ def robot(name, x, y, yaw_deg=0.0):
     return Robot(name, placed=True, x=x, y=y, yaw=math.radians(yaw_deg))
 
 
-def spot(m, others=(), held=("HALL",)):
-    return backoff_spot(SITE, ON, held, m, others)
+def spot(m, others=(), held=("HALL",), taken=()):
+    return backoff_spot(SITE, ON, held, m, others, taken)
 
 
 def test_the_spot_is_straight_behind_the_robot():
@@ -217,6 +217,16 @@ def test_a_robot_close_behind_refuses_the_spot_and_one_ahead_or_far_does_not():
     for x, y in [(1.00, 0.45), (1.16, 0.30), (1.00, -0.03), (1.30, 0.10)]:
         end, why = spot(here, [robot("pinky3", x, y)])
         assert end == pytest.approx((1.00, 0.18)) and why == "", (x, y)
+
+
+def test_a_spot_by_a_node_another_robot_has_taken_is_refused():
+    """물러나 설 자리가 다른 로봇이 잡아 둔 지점에서 node_clear_m 안이면 그 로봇이 올 자리를
+    막는다."""
+    here = robot("pinky1", 1.80, 0.65, 0.0)  # 동쪽을 본다: N_E (1.58, 0.65)에서 0.10 m로 물러난다
+    end, why = spot(here)
+    assert end == pytest.approx((1.68, 0.65)) and why == ""
+    assert spot(here, taken=("N_E",)) == (None, "N_E is taken")
+    assert spot(here, taken=("N_W",))[0] is not None, "a taken node far away does not matter"
 
 
 # ---- 끝난 뒤 ----
