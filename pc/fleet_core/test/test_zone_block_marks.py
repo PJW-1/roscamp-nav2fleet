@@ -216,7 +216,7 @@ def test_blocked_inside_a_corridor_it_turns_back_and_does_not_drive_past_the_box
 
 
 def test_detour_kinds():
-    from fleet_core.traffic.zone.block_marks import detour_kind
+    from fleet_core.traffic.zone.detours import detour_kind
     from fleet_core.traffic.zone.trips import Trip
     site = load_fleet_map("d")
     via = [site.link("N_W", "N_E")]

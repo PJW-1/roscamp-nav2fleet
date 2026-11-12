@@ -21,8 +21,8 @@ from fleet_core.traffic.mission import (
 )
 
 from .base import HERE
-from .block_marks import yard_retreat
 from .robots import BACKOFF
+from .yard_retreat import yard_retreat
 
 
 class Blocked:

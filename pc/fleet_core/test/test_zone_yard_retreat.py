@@ -10,7 +10,7 @@ from dataclasses import replace
 
 from fleet_core.common.commands import RetreatCmd
 from fleet_core.common.params import load_params
-from fleet_core.traffic.zone.block_marks import yard_retreat
+from fleet_core.traffic.zone.yard_retreat import yard_retreat
 from zone_harness import Harness
 
 
