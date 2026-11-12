@@ -67,7 +67,7 @@ def test_an_order_never_bound_is_the_fleets_fault():
 
 def test_an_unbound_order_behind_an_isolated_robot_is_a_driving_fault():
     text = record(board(0.1, "O-1"), *walk(0, 30, 0.0, 0.0, "IDLE"), ev(12, "ROBOT_ISOLATED"))
-    assert causes(text) == [("O-1", "주행", "ROBOT_ISOLATED")]
+    assert causes(text) == [("O-1", "주행", "ORDER_BOUND 없음, pinky1 격리 12 s")]
 
 
 def test_no_goal_after_the_bind_is_the_fleets_fault():
@@ -219,10 +219,47 @@ def test_a_headless_run_gives_rows_from_the_cores_own_record():
     central = outcome.world.central
     assert len(rows) == central.total - central.finished > 0
     assert {r.cause for r in rows} <= set(triage.CAUSES)
-    assert ("주행", "ROBOT_ISOLATED") in {(r.cause, r.event) for r in rows}
+    assert any(r.cause == "주행" and "격리" in r.event for r in rows)
 
 
 def test_a_gazebo_obstacle_yaml_becomes_a_circle_at_its_link_fraction():
     path = TOOLS.parent / "sim" / "fleet_gz_sim" / "obstacles" / "d2_express_box.yaml"
     nodes = {"X_W": (0.0, 0.0), "X_E": (2.0, 0.0)}
     assert triage.read_obstacles(path, nodes) == [Obstacle(1.0, 0.0, 0.04, 15.0, 615.0)]
+
+
+def test_a_sparse_report_row_that_lags_the_fleets_reaction_is_not_the_fleets_fault():
+    # 보고 줄이 1 s마다라 첫 BLOCKED 줄이 관제가 실제 보고에 반응한 뒤에 적힌다
+    text = _blocked_run(None, [ev(19.6, "BLOCKED_WAIT"), ev(30.1, "ZONE_MARKED_BLOCKED")])
+    assert causes(text, obstacles=BOX) == [("O-1", "진짜 막힘", "BLOCKED")]
+
+
+def test_a_dense_record_gets_no_such_leeway():
+    dense = [st(20 + i / 10, 1.0, "BLOCKED") for i in range(0, 1000)]
+    text = record(*started(), *walk(10, 19, 0.0), *dense, ev(19.5, "BLOCKED_WAIT"),
+                  ev(30.1, "ZONE_MARKED_BLOCKED"))
+    assert causes(text, obstacles=BOX) == [("O-1", "관제", "BLOCKED_WAIT 없음(1 s)")]
+
+
+def test_an_accepted_but_never_bound_order_is_listed_with_what_held_the_queue(tmp_path):
+    path = tmp_path / "rec.csv"
+    path.write_text(
+        "t,kind,robot,a,b,c\n"
+        "1.0,event,central,INFO,ORDER_ACCEPTED,O-007\n"
+        "1.0,event,central,INFO,ORDER_ACCEPTED,O-008\n"
+        "2.0,event,pinky3,INFO,ORDER_BOUND,O-007\n"
+        "2.5,event,pinky3,INFO,NAV_GOAL_SENT,to X\n"
+        "0.0,rep,pinky3,0.0,0.0,0.000 LOCALIZING \n"
+        "3.0,rep,pinky3,0.5,0.0,0.000 MOVING \n"
+        "9.0,rep,pinky3,0.8,0.0,0.000 MOVING \n"
+        "198.0,event,pinky3,ERROR,ROBOT_ISOLATED,stuck\n", encoding="utf-8")
+    rows = triage.classify(triage.read_rec_csv(path))
+    by = {r.order_id: r for r in rows}
+    assert by["O-008"].cause == "주행"
+    assert by["O-008"].event == "ORDER_BOUND 없음, pinky3 격리 198 s"
+    path.write_text(path.read_text(encoding="utf-8").replace("ERROR,ROBOT_ISOLATED", "INFO,X"),
+                    encoding="utf-8")
+    by = {r.order_id: r for r in triage.classify(triage.read_rec_csv(path))}
+    held = by["O-007"].cause
+    assert by["O-008"].event == f"ORDER_BOUND 없음, O-007 미완({held})"
+    assert by["O-008"].cause == by["O-007"].cause

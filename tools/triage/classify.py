@@ -48,10 +48,21 @@ def _episodes(run: Run, robot, t0, t1):
     return sorted(out)
 
 
+def _period(run, robot, t) -> float:
+    """그 로봇 보고 줄 사이 간격의 가운데 값(t 둘레 30 s). 줄이 드문 기록(rec.csv)을 재는 자."""
+    times = [s[0] for s in run.states.get(robot, ()) if abs(s[0] - t) <= 30.0]
+    gaps = sorted(b - a for a, b in zip(times, times[1:], strict=False))
+    return gaps[len(gaps) // 2] if gaps else 0.0
+
+
 def _late(run, robot, episode, cfg):
-    """4번: 늦은 반응이 있으면 (근거 이름, 시각)."""
+    """4번: 늦은 반응이 있으면 (근거 이름, 시각).
+
+    드문 보고 줄의 첫 BLOCKED는 실제 보고보다 한 간격까지 늦게 적히므로 그만큼 앞의 반응도 받는다.
+    """
     start, end, _ = episode
-    seen = [e for e in run.events if e.robot == robot and e.t >= start]
+    early = start - _period(run, robot, start)
+    seen = [e for e in run.events if e.robot == robot and e.t >= early]
     if end - start > cfg["first_reaction_s"] or end == start:
         if not any(e.code in FIRST_REACTION and e.t <= start + cfg["first_reaction_s"] + 1e-6
                    for e in seen):
@@ -112,6 +123,20 @@ def _started(run, robot, goal, cfg) -> tuple | None:
     return None if moved or tried else (goal.code, goal.t)
 
 
+def _unbound(run, order, end, obstacles, cfg) -> Row:
+    """로봇에 못 묶인 주문: 격리된 로봇이나 안 끝난 앞 주문이 줄을 쥐고 있으면 그 탓이다."""
+    isolated = next((e for e in run.events if e.code == "ROBOT_ISOLATED"), None)
+    if isolated:  # 가정: 격리된 로봇이 구역을 쥐고 있어 줄이 안 풀렸다
+        return Row(order, "주행", f"ORDER_BOUND 없음, {isolated.robot} 격리 {isolated.t:.0f} s",
+                   isolated.t)
+    for e in run.events:
+        if e.code == "ORDER_BOUND" and run.reports.get(e.detail.split()[0], (0, ""))[1] not in DONE:
+            held = e.detail.split()[0]
+            cause = _cause(run, held, obstacles, cfg)
+            return Row(order, cause.cause, f"ORDER_BOUND 없음, {held} 미완({cause.cause})", end)
+    return Row(order, "관제", "ORDER_BOUND 없음", end)
+
+
 def _cause(run, order, obstacles, cfg) -> Row:
     binds = [e for e in run.events if e.code == "ORDER_BOUND" and e.detail.split()[:1] == [order]]
     report = run.reports.get(order)
@@ -121,10 +146,7 @@ def _cause(run, order, obstacles, cfg) -> Row:
     if frame:
         return Row(order, "시험 틀", *frame)
     if not binds:
-        isolated = next((e for e in run.events if e.code == "ROBOT_ISOLATED"), None)
-        if isolated:  # 가정: 격리된 로봇이 구역을 쥐고 있어 줄이 안 풀렸다
-            return Row(order, "주행", isolated.code, isolated.t)
-        return Row(order, "관제", "ORDER_BOUND 없음", end)
+        return _unbound(run, order, end, obstacles, cfg)
     goals = [e for e in run.events if e.code in GOAL_CODES and e.robot == robot
              and t0 <= e.t <= end]
     if not goals:

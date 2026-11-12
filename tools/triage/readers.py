@@ -16,7 +16,7 @@ def _note_event(run: Run, event: Event) -> None:
     """사건을 넣고, 주문 사건이면 주문판과 끝 보고도 채운다(rec.csv에는 보고 줄이 없다)."""
     run.events.append(event)
     order = event.detail.split()[0] if event.detail.split() else ""
-    if event.code == "ORDER_BOUND":
+    if event.code in ("ORDER_ACCEPTED", "ORDER_BOUND"):
         run.add_order(order)
     elif event.code in ("ORDER_SHIPPED", "ORDER_PARTIAL", "ORDER_HELD"):
         run.add_order(order)
