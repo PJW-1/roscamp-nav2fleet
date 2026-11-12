@@ -56,12 +56,13 @@ class ZoneBase:
 
     def _on_node(self, m) -> bool:
         """마지막으로 닿은 지점에 아직 서 있는가(보고 자세로 본다)."""
-        p = self.params
-        if m.off_node is not None and math.dist(m.off_node, (m.x, m.y)) <= p.stall_move_m:
-            return False  # 고정 경로에 붙지 못한 그 자리에 아직 서 있다
         if not m.node or self.grants.node_holder(m.node) not in ("", m.name):
             return False  # 남이 쥔 지점이다. 그 옆에 지점 없이 오른 로봇이 이름만 달고 있다
-        return self._gap(m, m.node) <= p.arrival_tolerance_m
+        # 고정 경로에 붙지 못한 로봇(off_node)은 지점 바로 위(허용 거리의 절반 안)로 보고해야
+        # 지점 위다. 서 있는 로봇의 보고도 흔들린다: 가장자리의 보고를 다시 믿으면 같은 경로를
+        # 또 보내고 로봇은 또 거절한다
+        limit = self.params.arrival_tolerance_m
+        return self._gap(m, m.node) <= (limit / 2 if m.off_node is not None else limit)
 
     def _via(self, m) -> str:
         """지금 달리는 방식(goal이 없으면 빈 문자열)."""

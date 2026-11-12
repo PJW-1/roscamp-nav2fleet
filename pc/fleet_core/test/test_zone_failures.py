@@ -3,6 +3,8 @@
 
 로봇은 움직이지 않는다(speed 0). 결과는 시험이 손으로 넣는다.
 """
+import math
+
 import pytest
 from fleet_core.common.commands import DispatchResult, DockCmd, MoveCmd, RobotIsolated
 from fleet_core.traffic.mission import HEARTBEAT_LOST, NOT_AT_TARGET
@@ -149,7 +151,7 @@ def test_joining_that_keeps_failing_although_the_nav_goal_succeeds_ends_in_isola
     assert world.result_of(call).reason == "PATH_NOT_CONNECTED"
 
 
-def test_a_robot_that_moved_away_from_where_joining_failed_is_judged_by_its_position_again():
+def test_a_robot_that_reached_the_node_after_joining_failed_is_on_the_node_again():
     world, _ = beside_the_node()
     traffic, robot = world.traffic, world.traffic._robots["pinky2"]
     assert traffic._on_node(robot)
@@ -158,7 +160,21 @@ def test_a_robot_that_moved_away_from_where_joining_failed_is_judged_by_its_posi
     bot = world.bots["pinky2"]
     bot.x, bot.y = world.site.node_pose("N_W")  # goal은 끝나지 않았지만 몸은 지점에 닿았다
     world.report()
-    assert traffic._on_node(robot), "the mark belongs to the spot, not to the robot"
+    assert traffic._on_node(robot), "a report right at the node is believed"
+
+
+def test_a_robot_that_could_not_join_stays_off_the_node_while_its_report_wanders():
+    """재시작 시험에서 나왔다: 서 있는 로봇의 보고가 0.06 m 흔들리자 관제가 다시 지점 위로 보고
+    같은 고정 경로를 또 보냈다. 로봇은 또 거절했고, 세 번째에 격리됐다."""
+    world, call = beside_the_node()
+    world.traffic.on_move_result("pinky2", last_goal(world), False, "PATH_NOT_CONNECTED")
+    bot = world.bots["pinky2"]
+    bot.x += 0.06  # N_W에서 0.145 m: 여전히 관제의 허용치 안이다
+    assert math.dist((bot.x, bot.y), world.site.node_pose("N_W")) < 0.15
+    world.run(world.params.move_retry_wait_s + 0.3)
+    again = world.sent(MoveCmd, "pinky2")[-1]
+    assert (again.mode, again.target_id) == ("nav_goal", "N_W"), "not the same line once more"
+    assert world.codes("pinky2").count("GOAL_RETRY") == 1 and world.result_of(call) is None
 
 
 def test_a_robot_that_cannot_join_a_line_outside_a_shared_zone_is_still_retried_and_isolated():
