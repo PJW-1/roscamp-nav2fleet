@@ -91,7 +91,9 @@ class FleetParams:
     # 비킬 로봇의 BLOCKED 보고를 이만큼 더 기다린다. near_stuck_s와 더해 stall_s보다 짧아야 한다
     yard_backoff_wait_s: float = 0.5
     yard_backoff_edge_m: float = 0.10  # 설 자리가 벽, 진열대, 고정 경로 구역에서 떨어질 거리
-    yard_backoff_clear_m: float = 0.20  # 뒤쪽의 다른 로봇과 이만큼은 떨어져 지나야 한다
+    # 관제가 시키는 물러나기(마당 물러나기, 고정 구간 후진)의 길이 다른 로봇에 이만큼 안으로
+    # 다가가면 내지 않는다(추가 지시서 2의 4절: 뒤에 다른 로봇이 없을 때만 물러난다)
+    retreat_clear_m: float = 0.20
     # order 모델(VDA 5050의 base/horizon, 추가 지시서). 끄면 조각 하나씩 보낸다
     use_order_model: bool = False
     lookahead_s: float = 2.0  # base 끝까지 이만큼 남으면 다음 구역을 잡아 본다

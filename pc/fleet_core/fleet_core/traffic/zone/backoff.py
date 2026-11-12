@@ -31,7 +31,7 @@ def backoff_spot(site, params, held, m, others) -> tuple[tuple | None, str]:
 
     설 자리는 m이 서 있고 쥐고 있는 넓은 구역 안이어야 하고, 벽과 진열대와 고정 경로 구역에서
     yard_backoff_edge_m 이상 떨어져야 한다. 가는 선은 그 구역을 벗어나거나 진열대를 지나지 않아야
-    하고, 다른 로봇에게 다가가지 않거나, 다가가더라도 yard_backoff_clear_m 안으로 들지 않아야
+    하고, 다른 로봇에게 다가가지 않거나, 다가가더라도 retreat_clear_m 안으로 들지 않아야
     한다. others는 바닥에 있는 다른 로봇들이다.
     """
     p = params
@@ -52,7 +52,7 @@ def backoff_spot(site, params, held, m, others) -> tuple[tuple | None, str]:
     for other in others:
         nearer = (m.x - other.x) * way[0] + (m.y - other.y) * way[1] < 0.0
         gap = point_segment_distance((other.x, other.y), here, end)
-        if nearer and gap < p.yard_backoff_clear_m:
+        if nearer and gap < p.retreat_clear_m:
             return None, f"{other.name} behind"
     return end, ""
 
@@ -68,21 +68,31 @@ class Backoff:
         return (p.yard_backoff and m.robot_state != BLOCKED
                 and stuck_s < p.near_stuck_s + p.yard_backoff_wait_s)
 
-    def _stand_aside(self, m, other, now: float) -> str:
-        """goal을 거둔 m을 비켜 세운다. 돌려주는 것은 HALL_YIELD에 적을 말이다.
+    def _stand_aside(self, m, other, now: float) -> None:
+        """goal을 거둔 m을 비키게 하고 HALL_YIELD를 낸다. 순서는 추가 지시서 2의 4절이다.
 
-        물러나기가 켜져 있고 m이 BLOCKED를 보고했으면 먼저 뒤로 물린다. 그때는 물러나기가 끝난
-        뒤부터 서 있는 시간을 잰다(_backoff_ended).
+        처음에는 세운다. 물러나기가 켜져 있고 m이 BLOCKED를 보고했으면 세우기 전에 뒤로 물린다:
+        그때는 물러나기가 끝난 뒤부터 서 있는 시간을 잰다(_backoff_ended). 같은 자리에서 곧 또
+        비키게 되면 가까운 빈 주차 자리로 보낸다. 갈 주차 자리가 없으면 다시 세운다.
         """
         p = self.params
+        again = (m.yielded is not None and now - m.yielded[2] <= p.blocked_retry_s
+                 and math.dist(m.yielded[:2], (m.x, m.y)) < p.near_m)
+        m.yielded = (m.x, m.y, now)
+        if again and self._to_parking(m, "INFO", "HALL_YIELD",
+                                      f"out of the way of {other.name}, goes to", clear_of=other):
+            m.yielded = None  # 다음에 붙으면 세우기부터 다시 한다
+            return
         stops = f"stops {p.near_stuck_s:.0f} s for {other.name}"
         if p.yard_backoff and m.robot_state == BLOCKED:
             why = self._back_off(m)
             if not why:
-                return f"backs {p.yard_backoff_m:.2f} m, then {stops}"
+                self._event("INFO", "HALL_YIELD", f"backs {p.yard_backoff_m:.2f} m, then {stops}",
+                            m.name)
+                return
             stops += f" (no back-off: {why})"
         m.yield_until = now + p.near_stuck_s
-        return stops
+        self._event("INFO", "HALL_YIELD", stops, m.name)
 
     def _back_off(self, m) -> str:
         """goal이 없는 m에게 물러나기를 낸다. 냈으면 빈 문자열, 못 냈으면 그 까닭이다."""

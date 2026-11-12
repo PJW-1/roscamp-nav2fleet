@@ -90,7 +90,7 @@ class Watch:
             self._event("WARN", "OUTSIDE_ZONE", f"takes {zone} where it stands", m.name)
 
     def _watch_near(self, now: float) -> None:
-        """넓은 구역에서 두 대가 가까이서 못 나아가면 우선순위 낮은 쪽을 잠시 세운다."""
+        """넓은 구역에서 두 대가 가까이서 못 나아가면 우선순위 낮은 쪽을 비키게 한다(backoff.py)."""
         p = self.params
 
         def roams(m) -> bool:
@@ -117,8 +117,7 @@ class Watch:
                     if self._awaits_blocked(low, now - since):
                         continue
                     self._cancel_goal(low)
-                    self._event("INFO", "HALL_YIELD", self._stand_aside(low, other, now),
-                                low.name)
+                    self._stand_aside(low, other, now)
                     del self._near[key]
         for key in [key for key in self._near if key not in seen]:
             del self._near[key]

@@ -1,8 +1,9 @@
 """막힘(지시서 2-2의 7번): 기다리고, 안 풀리면 그 연결을 막힘으로 표시하고 다른 길을 고른다.
 
 넓은 구역 안이면 goal을 거두고 다른 지점을 거쳐 간다. 한 줄 구역이나 도크 구역 안이면 지나온
-지점까지 후진(Retreat)으로 물러난 뒤 다른 길로 간다. 넓은 구역에서 막힌 로봇의 길에 다른 로봇이
-goal 없이 서 있으면 그 로봇을 주차 자리로 보낸다.
+지점까지 후진(Retreat)으로 물러난 뒤 다른 길로 간다. 물러날 길 위에 다른 로봇이 있으면 그 로봇이
+먼저 나갈 때까지 미룬다(추가 지시서 2의 4절: 맨 뒤 로봇부터 물러난다). 넓은 구역에서 막힌 로봇의
+길에 다른 로봇이 goal 없이 서 있으면 그 로봇을 주차 자리로 보낸다.
 """
 from __future__ import annotations
 
@@ -35,7 +36,7 @@ class Blocked:
         if not stuck or m.goal is None or m.goal.kind in (DOCK, BACKOFF):
             if not stuck:
                 m.blocked_since = None
-                m.blocked_noted = False
+                m.blocked_noted = m.rear_noted = False
             return
         if m.blocked_since is None or m.blocked_goal != m.goal.id:
             m.blocked_since, m.blocked_goal = now, m.goal.id  # 새 goal의 막힘은 새로 잰다
@@ -45,12 +46,37 @@ class Blocked:
                         f"{m.goal.end}", m.name)
         waited = now - m.blocked_since
         if m.goal.kind == MOVE and waited >= p.blocked_mark_s:
-            self._mark_blocked(m, now)
+            behind = self._behind_on_the_way_back(m)
+            if not behind:
+                m.rear_noted = False
+                self._mark_blocked(m, now)
+            elif not m.rear_noted:  # 맨 뒤 로봇부터 물러난다. 보고마다 다시 본다
+                m.rear_noted = True
+                self._event("INFO", "RETREAT_WAIT", f"{behind} is behind it, backs out after it",
+                            m.name)
         elif m.goal.kind == RETREAT and waited >= p.blocked_timeout_s:
             # 물러나는 길이 막혔다. 다른 길이 없으니 운영자에게 넘긴다
             self._event("ERROR", "GOAL_FAILED", f"blocked for {waited:.0f} s while backing out",
                         m.name)
             self._fail(m, BLOCKED)
+
+    def _behind_on_the_way_back(self, m) -> str:
+        """고정 구간 안에서 물러날 길(지나온 지점까지) 위에 있는 다른 로봇의 이름. 없으면 빈 문자열.
+
+        넓은 구역 안이면 물러나지 않으므로 늘 빈 문자열이다.
+        """
+        site = self.site
+        link = m.trip.links[m.trip.done]
+        zone = site.zone_at(m.x, m.y)
+        if not link.a or zone is None or site.zones[zone].kind == SHARED:
+            return ""
+        here, back = (m.x, m.y), site.node_pose(link.a)
+        for other in self._robots.values():
+            if (other is not m and other.placed
+                    and point_segment_distance((other.x, other.y), here, back)
+                    < self.params.retreat_clear_m):
+                return other.name
+        return ""
 
     def _mark_blocked(self, m, now: float) -> None:
         """지금 달리던 연결을 막힘으로 표시하고 다른 길을 찾게 한다."""

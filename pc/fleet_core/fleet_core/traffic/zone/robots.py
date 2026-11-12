@@ -67,12 +67,14 @@ class Robot:
     blocked_since: float | None = None  # BLOCKED 보고가 이어지기 시작한 시각
     blocked_noted: bool = False  # BLOCKED_WAIT를 냈다
     blocked_goal: int = 0  # blocked_since를 잰 goal
+    rear_noted: bool = False  # 뒤의 로봇 때문에 후진을 미룬다고 알렸다(RETREAT_WAIT)
     idle_since: float | None = None  # 할 일 없이 서 있기 시작한 시각
     self_recovery_since: float | None = None
     clear_n: dict = field(default_factory=dict)  # 뒤의 구역이나 지점 -> 벗어난 연속 보고 수
     outside_n: int = 0  # 쥔 구역 밖으로 벗어난 연속 보고 수
     outside_noted: bool = False
     yield_until: float = 0.0  # 넓은 구역에서 비켜 서 있는 시각
+    yielded: tuple | None = None  # 마지막으로 비켜 선 (x, y, 시각)
     retreat_to: str = ""  # 막혀서 물러나는 중이면 물러날 지점
     backoff_from: tuple | None = None  # 마당 물러나기를 시작한 자리
 
