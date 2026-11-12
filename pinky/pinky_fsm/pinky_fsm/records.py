@@ -37,6 +37,7 @@ class _Recovery:
     local: bool = False
     wait_until: float | None = None  # 기다리는 중이면 기다림이 끝나는 시각
     stood_since: float = 0.0  # 선 시각. 이때부터 blocked_after_s 안에 BLOCKED가 된다
+    backup_m: float = 0.0  # mode nav_goal: NavigateToPose가 선 뒤 물러날 거리
 
 
 @dataclass

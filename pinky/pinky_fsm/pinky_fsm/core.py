@@ -54,9 +54,10 @@ from pinky_fsm.results import (  # noqa: F401 - 상태와 결과 이름은 core�
 )
 from pinky_fsm.retreat import RETREAT_REASONS, RetreatMoves, _Retreat
 from pinky_fsm.yield_moves import LocalYield
+from pinky_fsm.yield_nav import NavYield
 
 
-class PinkyFsm(NavGoalMoves, RetreatMoves, LocalYield, SelfRecovery):
+class PinkyFsm(NavGoalMoves, RetreatMoves, LocalYield, NavYield, SelfRecovery):
     def __init__(self, params: FsmParams, robot_id: str = ""):
         self.p = params
         self.robot_id = robot_id  # 로봇단 교착 처리의 이름 순(7-4)
@@ -240,6 +241,8 @@ class PinkyFsm(NavGoalMoves, RetreatMoves, LocalYield, SelfRecovery):
             self._active = None
             self._rest = IDLE
             return [Finish(g.goal_id, outcome == "succeeded", reason_of(outcome, error_code))]
+        if r is not None and r.local and r.backup_seq == seq and isinstance(g, NavGoal):
+            return self._nav_backup_result(g, now, pose)  # 로봇단 교착 처리(7-4)
         if r is None or r.backup_seq != seq or not isinstance(g, _Move):
             return []  # 멈춘 BackUp이나 끝난 목표의 결과
         self._backup_running = False
@@ -270,6 +273,8 @@ class PinkyFsm(NavGoalMoves, RetreatMoves, LocalYield, SelfRecovery):
             g = self._active
         if isinstance(g, NavGoal):
             self._goals.watch(g, now, pose)
+            if self.p.local_yield:
+                cmds += self._watch_nav_yield(now, g, pose, speed)
         if isinstance(g, _Retreat) and g.seq == 0:
             if self._motion_ended(now, speed):
                 cmds += self._start_retreat(g, now, pose)

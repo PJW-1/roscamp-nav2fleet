@@ -1,21 +1,23 @@
 """MoveTo mode nav_goal(계약 0.11-draft, 사용자 기준): Nav2 NavigateToPose로 가는 이동.
 
-로봇이 target_pose까지 길을 스스로 짜고, 막히면 Nav2 기본 BT가 복구한다(사용자 결정 2026-11-12:
-R14와 핑키 FSM 자가 복구는 follow_path에만). 여기서는 ROS를 모른 채 아래만 정한다.
+로봇이 target_pose까지 길을 스스로 짜고, 막히면 BT가 지도를 지우고 기다린다(추가 지시서 3의 7-4:
+Spin과 BackUp을 뺐다). 물러나기는 로봇단 교착 처리(yield_nav.py)만 한다. 여기서는 ROS를 모른 채
+아래만 정한다.
 - 명령: SendNavGoal(노드가 NavigateToPose goal로 옮긴다), CancelNavGoal(그 취소).
 - NavGoal: 실행 중인 nav_goal 이동 하나. seq 0이면 앞 이동이 끝나기를 기다리는 중이다.
 - NavGoals: 보낸 NavigateToPose의 기록(아직 돌 수 있는 goal)과 진전 판단.
 
 진전(BLOCKED 기준): 마지막으로 진전을 본 자리에서 로봇 중심이 progress_m(0.05 m, Nav2 progress
 checker의 required_movement_radius와 같은 값) 이상 멀어지면 진전이다. 그 자리와 시각을 새로 잡는다.
-blocked_after_s(5 s) 동안 진전이 없으면 BLOCKED이고 goal은 그대로 둔다(Nav2가 계속 해 본다).
-제자리 회전은 진전이 아니다. Nav2 BackUp 복구로 물러나는 것은 진전으로 친다(추정, 단순하게 둔다).
+blocked_after_s(10 s, 0.12까지 5 s) 동안 진전이 없으면 BLOCKED이고 goal은 그대로 둔다(Nav2가 계속
+해 본다). 로봇단 교착 처리를 켜면 그 전에 기다리고 낮은 쪽만 물러난다(yield_nav.py).
+제자리 회전은 진전이 아니다. 물러나는 것은 진전으로 친다(추정, 단순하게 둔다).
 """
 from __future__ import annotations
 
 import math
 from collections.abc import Hashable, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from pinky_fsm.geometry import Point, Pose
 
@@ -50,6 +52,9 @@ class NavGoal:
     anchor: Point | None = None  # 마지막으로 진전을 본 자리
     anchor_at: float = 0.0
     blocked: bool = False
+    # 로봇단 교착 처리(7-4): 이 goal에서 지나온 길의 끝부분과 지나온 거리(yield_nav.py)
+    trail: list[Point] = field(default_factory=list)
+    driven: float = 0.0
 
 
 class NavGoals:

@@ -85,6 +85,9 @@ class NavGoalMoves:
         g = self._active
         if not isinstance(g, NavGoal) or seq != g.seq:
             return []  # 바뀐 goal의 결과(bt_navigator는 새 goal을 받으면 옛 것을 끝낸다)
+        r = self._recovery
+        if r is not None and r.local and r.backup_seq is not None:
+            return []  # 물러나려고 멈춘 goal의 결과(7-4). 물러난 뒤 다시 보낸다
         if outcome == "succeeded":
             if pose is not None and math.dist(pose[:2], g.target[:2]) <= self.p.arrival_tolerance_m:
                 self._active = None
