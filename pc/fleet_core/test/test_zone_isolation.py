@@ -124,10 +124,27 @@ def test_a_third_robot_reporting_where_the_one_beside_the_node_stands_is_a_confl
     assert world.codes("pinky3") == ["PLACEMENT_CONFLICT"]
 
 
-def test_a_robot_beside_a_taken_node_is_not_on_it_when_the_zone_has_no_free_node():
-    """구역의 지점을 남들이 모두 쥐고 있으면 붙일 이름은 남의 지점뿐이다. 이름은 그 지점이어도
-    그 위에 선 로봇으로 다루지 않는다: 주차 자리 옆에 섰다고 주차한 것이 아니다."""
-    world = Harness(layout="d", starts={"pinky1": "N_E", "pinky2": "P-3", "pinky3": "P-1"})
+def test_a_removed_robot_does_not_keep_others_off_the_spot_it_last_reported():
+    """운영자가 치운 로봇(OUT_OF_SERVICE)의 마지막 보고 위치는 자리를 차지하지 않는다."""
+    world = Harness(starts={"pinky1": "P-1", "pinky2": "P-2", "pinky3": "P-3"})
+    world.bots["pinky1"].x, world.bots["pinky1"].y = 1.0, 0.40
+    world.silent.add("pinky2")
+    world.step()
+    world.traffic.on_robot_fault("pinky1", "MOTOR")
+    world.step()
+    assert world.traffic.confirm_clear("pinky1", ["HALL"], "taken away") == ["HALL"]
+    world.silent = {"pinky1"}  # 손으로 들어냈다. 그 자리에 pinky2를 놓았다
+    world.bots["pinky2"].x, world.bots["pinky2"].y = 1.0, 0.40
+    world.step()
+    assert world.view("pinky2")["on_map"]
+    assert "PLACEMENT_CONFLICT" not in world.codes()
+
+
+def beside_a_parked_robot_in_a_full_zone(speed: float):
+    """배치 D의 동쪽 마당(지점 N_E, O_Q, P-3)을 남들이 모두 쥐었다: pinky1이 N_E에 서서 O_Q까지
+    잡았고 pinky2는 P-3에 주차했다. pinky3의 첫 보고는 P-3에서 서쪽으로 0.12 m다."""
+    world = Harness(layout="d", starts={"pinky1": "N_E", "pinky2": "P-3", "pinky3": "P-1"},
+                    speed=speed)
     world.silent.add("pinky3")
     world.report()
     assert world.traffic.grants.force("pinky1", ["HALL_E"], ["O_Q"])  # 대기 자리로 가려고 잡았다
@@ -137,12 +154,31 @@ def test_a_robot_beside_a_taken_node_is_not_on_it_when_the_zone_has_no_free_node
     assert world.site.nearest_node(x - 0.12, y, radius=0.15) == "P-3"
     world.silent.clear()
     world.step()
+    return world
+
+
+def test_a_robot_beside_a_taken_node_is_not_on_it_when_the_zone_has_no_free_node():
+    """구역의 지점을 남들이 모두 쥐고 있으면 붙일 이름은 남의 지점뿐이다. 이름은 그 지점이어도
+    그 위에 선 로봇으로 다루지 않는다: 주차 자리 옆에 섰다고 주차한 것이 아니다."""
+    world = beside_a_parked_robot_in_a_full_zone(speed=0.12)
     view = world.view("pinky3")
     assert view["on_map"] and view["held"] == ["HALL_E"] and view["nodes"] == []
     assert view["state"] != "PARKED" and "PLACEMENT_CONFLICT" not in world.codes()
-    world.run(1.0)
-    assert world.view("pinky3")["state"] == "TO_PARK", "P-3 is pinky2's; it looks for a free one"
+    assert world.run_until(lambda: world.phase("pinky3") == "PARKED", 120.0)
+    assert world.view("pinky3")["nodes"][0] in ("P-1", "P-2"), "P-3 is pinky2's"
     assert world.view("pinky2")["nodes"] == ["P-3"]
+    assert not world.problems
+
+
+def test_a_robot_beside_a_taken_node_is_still_not_on_it_after_its_report_moves():
+    """보고는 흔들린다. 0.06 m 다가간 보고가 와도 남이 쥔 주차 자리에 주차한 것이 아니다."""
+    world = beside_a_parked_robot_in_a_full_zone(speed=0.0)
+    world.run(1.0)
+    assert world.phase("pinky3") == "TO_PARK"
+    world.bots["pinky3"].x += 0.06
+    world.run(1.0)
+    assert world.phase("pinky3") == "TO_PARK", "it holds no parking node"
+    assert world.view("pinky3")["nodes"] == [] and world.view("pinky2")["nodes"] == ["P-3"]
 
 
 def test_while_one_robot_cannot_be_placed_nobody_is_sent_anywhere():
