@@ -221,8 +221,9 @@ def test_a_robot_on_its_way_to_the_dock_keeps_the_turn():
     assert trip.goal == "O" and trip.granted < len(trip.links), "the dock zone comes later"
     late = world.call("OUTBOUND", "pinky2")
     traffic._robots["pinky2"].asked_at = -1.0  # 먼저 불렸다가 앞지름을 당한 로봇인 셈이다
-    world.run(3.0)
-    other = traffic._robots["pinky2"].trip
-    assert other is None or other.goal != "O", "it does not leave for the dock as well"
-    assert world.run_until(lambda: world.result_of(going) is not None, 200.0)
+    while world.result_of(going) is None:
+        world.step()
+        other = traffic._robots["pinky2"].trip
+        assert other is None or other.goal != "O", "it does not leave for the dock as well"
+        assert world.now < 200.0
     assert world.result_of(going).success and world.result_of(late) is None
