@@ -19,7 +19,6 @@ stall_move_m: 0.05            # 보고 위치가 이보다 덜 움직이면 제�
 dock_stall_s: 15.0            # 추정: 도킹은 천천히 맞추므로 더 길게 본다
 blocked_mark_s: 10.0          # 추정: BLOCKED가 이만큼 이어지면 그 연결을 막힘으로 표시하고 다른 길을 고른다(잠깐 지나가는 사람 8 s보다 길게)
 blocked_timeout_s: 60.0       # 추정: BLOCKED로 보고된 시간이 이만큼이면 ERROR(BLOCKED)
-queue_gap_m: 0.6              # 추정: 같은 레인이나 다음 레인 앞 이 거리 안에 정상 로봇이 있으면 줄 서기
 arrival_tolerance_m: 0.15     # 추정: 목표 지점에 이만큼 가까워야 이동 성공으로 친다
 arrival_settle_s: 1.0         # 추정: 보고가 늦으니 성공 뒤 이만큼 기다린다
 startup_wait_s: 10.0          # 이때까지 보고 없는 로봇은 알린다
@@ -49,13 +48,8 @@ dispatch_retry_wait_s: 2.0    # 제안: 출고 호출이 실패하면 이만큼 
 dispatch_retry_limit: 3       # 제안: 출고 호출 실패가 이 수를 넘으면 ERROR(DISPATCH_FAILED)
 self_recovery_limit_s: 45.0   # 제안: 로봇이 RECOVERING(자가 복구)을 이만큼 넘게 이어 보내면 BLOCKED로 본다. 핑키 FSM의 두 번 시도는 길어야 약 35 s
 traffic_mode: zones           # 교통 층: zones(지점·구역 그래프의 구역 허락, 3단계에서 만든다). 다른 값은 없다
-eta_speed_mps: 0.2            # 추정(버전 2 ETA): ETA에 쓰는 평균 속도
-eta_turn_s_per_rad: 1.0       # 추정: 제자리 회전 시간(초/rad). RPP rotate_to_heading_angular_vel 1.0
-eta_turn_min_rad: 0.25        # 추정: 이보다 작은 꺾임은 달리면서 지난다(RPP rotate_to_heading_min_angle)
-eta_dock_s: 3.0               # 추정: 도킹 시간(가짜 시나리오 기본값)
 eta_fill_s_per_item: 4.0      # 추정: 채우기 품목당 팔 시간(가짜 시나리오 기본값)
 eta_fill_base_s: 4.0          # 추정: 첫 품목 전 준비 시간. 가짜 팔은 채우기에 품목 수 + 1번의 팔 시간이 걸린다(SimWorld 측정)
-eta_fill_items_default: 2     # 추정: 주문을 아직 모르는 로봇이 채울 품목 수
 eta_swap_s: 8.0               # 추정: 교환 시간(가짜 시나리오 기본값)
 # 구역 교통 층(traffic/zone). 모두 제안값이고 실측 전이다
 nav_speed_mps: 0.12           # 넓은 구역(Nav2 goal)의 ETA와 길 비용에 쓰는 속도
