@@ -47,7 +47,7 @@ battery_charged_pct: 80.0     # 제안: 이 값 이상이 되면 다시 일을 �
 dispatch_retry_wait_s: 2.0    # 제안: 출고 호출이 실패하면 이만큼 뒤 다시 보낸다
 dispatch_retry_limit: 3       # 제안: 출고 호출 실패가 이 수를 넘으면 ERROR(DISPATCH_FAILED)
 self_recovery_limit_s: 45.0   # 제안: 로봇이 RECOVERING(자가 복구)을 이만큼 넘게 이어 보내면 BLOCKED로 본다. 핑키 FSM의 두 번 시도는 길어야 약 35 s
-traffic_mode: zones           # 교통 층: zones(지점·구역 그래프의 구역 허락, 3단계에서 만든다). 다른 값은 없다
+traffic_mode: zones           # 교통 층: zones(지점·구역 그래프의 구역 허락). 다른 값은 없다
 eta_fill_s_per_item: 4.0      # 추정: 채우기 품목당 팔 시간(가짜 시나리오 기본값)
 eta_fill_base_s: 4.0          # 추정: 첫 품목 전 준비 시간. 가짜 팔은 채우기에 품목 수 + 1번의 팔 시간이 걸린다(SimWorld 측정)
 eta_swap_s: 8.0               # 추정: 교환 시간(가짜 시나리오 기본값)

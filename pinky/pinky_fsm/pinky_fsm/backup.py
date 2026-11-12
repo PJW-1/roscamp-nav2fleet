@@ -49,8 +49,7 @@ def backup_distance(travelled_m: float, max_m: float, keep_m: float) -> float:
     """마지막으로 지난 경로 꼭짓점(경로 시작 포함)에서 온 거리로 물러날 거리를 정한다.
 
     로봇이 꼭짓점에서 관제 release_distance_m만큼 가면 관제는 뒤 레인을 놓을 수 있고, 뒤차가
-    그 꼭짓점까지 올 수 있다(fleet_core lane_map.conflict_pairs는 공유 꼭짓점부터 그 구간을
-    충돌로 세지 않는다). 그래서 로봇 중심이 꼭짓점에서 keep_m(release + 위치 오차) 안으로
+    그 꼭짓점까지 올 수 있다. 그래서 로봇 중심이 꼭짓점에서 keep_m(release + 위치 오차) 안으로
     돌아오지 않게 한다. 경로 시작은 꼭짓점인지 알 수 없으니 꼭짓점으로 친다. 0 이하면 물러나지
     않는다.
     """

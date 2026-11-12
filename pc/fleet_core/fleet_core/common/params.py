@@ -63,7 +63,7 @@ class FleetParams:
     # Records from before RECOVERING never report it, so the value does not change their replay
     self_recovery_limit_s: float = 45.0
     # Which traffic layer runs (traffic/modes.py). zones is the only one: zone permissions on a
-    # graph of points and zones, built in stage 3
+    # graph of points and zones
     traffic_mode: str = "zones"
     # ETA(제안, 실측 전). eta_*는 버전 2 공식 ETA와 같은 값
     eta_fill_s_per_item: float = 4.0
