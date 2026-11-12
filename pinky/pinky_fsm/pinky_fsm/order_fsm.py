@@ -289,6 +289,7 @@ class OrderFsm(PinkyFsm):
         self._bounds += [(end, self._run[-1].seq_id)] + [
             (end + s, i) for s, i in _bounds(more, start=g.route.points[-1])]
         g.route = Polyline(g.route.points + _joined(more)[1:])
+        g.sent = None  # 보낸 선은 늘리기 전의 것이다. 다시 보낼 때까지 앞은 받은 선 위에서 본다
         self._run += more
         g.target, g.target_id = more[-1].path[-1], more[-1].end_node_id
         if g.nav_running and g.handover_since is None:

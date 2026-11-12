@@ -68,6 +68,7 @@ _FLOAT_PARAMS = (
     "arrival_tolerance_m", "connect_tolerance_m", "refresh_within_m", "refresh_every_s",
     "heartbeat_timeout_s", "stopped_speed_mps", "stopped_turn_rps", "block_report_s",
     "block_clear_s", "block_timeout_s", "block_lookahead_m", "path_step_m", "turn_radius_m",
+    "join_min_off_m", "join_slope",
     # 자가 복구
     "backup_max_m", "release_distance_m", "backup_margin_m", "backup_min_m",
     "backup_lateral_limit_m", "backup_speed_mps", "backup_time_allowance_s",
