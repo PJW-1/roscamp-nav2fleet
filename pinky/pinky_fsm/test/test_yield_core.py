@@ -20,6 +20,8 @@ from pinky_fsm.core import (
     SendPath,
 )
 from pinky_fsm.local_yield import BACKUP, RETRY, WAIT, Peer
+from pinky_fsm.order_fsm import OrderFsm
+from pinky_fsm.order_queue import MODE_FOLLOW_PATH, OrderGoal, Seg
 
 P3, P4, P5 = (0.35, 1.55), (0.35, 1.95), (0.80, 2.05)
 NORTH = math.pi / 2
@@ -189,3 +191,48 @@ def test_the_resend_after_waiting_starts_from_where_the_robot_stands():
     tick(fsm, 2.5, STUCK, no_obstacle)
     [send] = [c for c in tick(fsm, 3.6, STUCK, no_obstacle) if isinstance(c, SendPath)]
     assert math.dist(send.poses[0][:2], STUCK[:2]) < 0.03  # 꺾이는 곳 호(2-1) 위의 가장 가까운 점
+
+
+# ---- order 모델: 합친 경로도 지금 goal이다. priority는 order goal의 것이다 ----------------------
+
+
+def order_fsm(name="pinky1"):
+    fsm = OrderFsm(FsmParams(), robot_id=name)
+    fsm.tick(0.0, (0.3, 0.3, 0.0), STILL, no_obstacle)
+    return fsm
+
+
+def order(fsm, t, base, priority, update=0, stitch="", pose=(0.3, 0.3, 0.0)):
+    return fsm.move("o%d" % update, t, "", (0.0, 0.0, 0.0), [], pose,
+                    order=OrderGoal("o1", update, stitch, tuple(base), ()), priority=priority)
+
+
+def line(seq, x0, x1):
+    return Seg(seq, MODE_FOLLOW_PATH, "FollowPath", ((x0, 0.3, 0.0), (x1, 0.3, 0.0)), None,
+               f"N{seq}")
+
+
+@pytest.mark.parametrize("mine, backs", [(0, True), (5, False)])
+def test_an_order_run_backs_up_by_the_priority_of_its_order_goal(mine, backs):
+    fsm = order_fsm()
+    order(fsm, 0.0, [line(1, 0.3, 0.8)], mine)
+    stuck = (0.7, 0.3, 0.0)  # 0.4 m 왔다. 0.4 - 0.23 = 0.17 m까지 된다
+    fsm.see_peers(1.5, [Peer("pinky2", 0.85, 0.3, 2)])
+    stand(fsm, 1.0, stuck)
+    found = backups(tick(fsm, 4.1, stuck))
+    assert bool(found) is backs
+    if backs:
+        assert found[0].distance_m == pytest.approx(0.10)
+
+
+def test_a_merged_order_path_keeps_room_behind_its_last_node():
+    fsm = order_fsm()
+    order(fsm, 0.0, [line(1, 0.3, 0.5)], 0)
+    tick(fsm, 0.5, (0.45, 0.3, 0.0), no_obstacle, DRIVING)
+    order(fsm, 0.6, [line(2, 0.5, 1.0)], 0, update=1, stitch="N1",
+          pose=(0.47, 0.3, 0.0))  # 달리는 FollowPath에 이어 붙였다
+    stuck = (0.65, 0.3, 0.0)  # 합친 경로 시작에서 0.35 m, 지난 꼭짓점 N1(0.5)에서 0.15 m
+    fsm.see_peers(1.5, [Peer("pinky2", 0.85, 0.3, 2)])
+    stand(fsm, 1.0, stuck)
+    assert backups(tick(fsm, 4.1, stuck)) == []  # 지난 꼭짓점에서 0.23 m를 남겨야 한다
+    assert fsm.state() == BLOCKED
