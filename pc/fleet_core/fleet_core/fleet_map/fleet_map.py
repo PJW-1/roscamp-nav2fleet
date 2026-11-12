@@ -23,6 +23,9 @@ BODY_CLEARANCE_M = 0.06  # Nav2 발자국의 반 폭. 지도에 clearance_m을 �
 # 고정 경로가 진열대 끝을 돌아가는 곳의 여유(추가 지시서 3의 9절 제안). 지도에 shelf_end_clear_m을
 # 적으면 그 값을 쓴다. 어기면 읽을 때 경고만 한다
 SHELF_END_CLEAR_M = 0.15
+# 핑키가 꺾이는 곳을 도는 호의 반지름(pinky_fsm turn_radius_m과 같아야 한다). 진열대 끝 검사가
+# 그 호를 잰다. 지도에 turn_radius_m을 적으면 그 값을 쓴다
+TURN_RADIUS_M = 0.10
 _log = logging.getLogger(__name__)
 
 
@@ -46,7 +49,8 @@ class FleetMap:
         check_clearance(self, float(data.get("clearance_m", BODY_CLEARANCE_M)))
         check_reach(self)
         clear = float(data.get("shelf_end_clear_m", SHELF_END_CLEAR_M))
-        self.warnings = tuple(shelf_end_warnings(self, clear) + retreat_end_warnings(self))
+        turn = float(data.get("turn_radius_m", TURN_RADIUS_M))
+        self.warnings = tuple(shelf_end_warnings(self, clear, turn) + retreat_end_warnings(self))
         for warning in self.warnings:
             _log.warning("fleet map %s: %s", self.name, warning)
 

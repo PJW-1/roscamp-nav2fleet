@@ -130,3 +130,12 @@ def test_an_obstacle_schedule_is_off_a_share_name_or_a_file(tmp_path):
     assert fleet_setup.obstacles_path(str(path), PKG) == str(path)
     with pytest.raises(ScheduleError, match="nowhere"):
         fleet_setup.obstacles_path("roam", PKG)
+
+
+def test_narrow_strips_are_the_dock_junction_and_lane_rectangles_not_the_hall():
+    """스캔 거르개(추가지시서3 7-2)가 받을 좁은 띠: 넓은 구역(shared)이 아닌 구역의 사각형."""
+    site = load_fleet_map("d2")
+    strips = fleet_setup.narrow_strips(site)
+    assert strips.split("; ") == [
+        "0,0.79,0.3,0.99", "0.3,0.79,0.5,0.99", "0.5,0.79,1.48,0.99", "1.48,0.79,1.68,0.99",
+        "1.68,0.79,1.98,0.99"]
