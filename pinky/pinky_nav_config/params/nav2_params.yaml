@@ -366,8 +366,8 @@ planner_server:
       use_astar: false
       allow_unknown: true
 
-# backup: pinky_fsm의 자가 복구와 Retreat(follow_path 쪽). spin, wait, backup: NavigateToPose BT의
-# 복구(nav_goal 쪽에서만, 사용자 결정 2026-11-12. R14는 follow_path에만 남는다)
+# backup: pinky_fsm의 로봇단 교착 처리(추가 지시서 3의 7-4), 끈 때의 자가 복구, Retreat.
+# wait: NavigateToPose BT의 복구(지도 지우기와 기다리기만). spin은 7-4에서 뺐다
 behavior_server:
   ros__parameters:
     local_costmap_topic: local_costmap/costmap_raw
@@ -375,9 +375,7 @@ behavior_server:
     local_footprint_topic: local_costmap/published_footprint
     global_footprint_topic: global_costmap/published_footprint
     cycle_frequency: 10.0
-    behavior_plugins: ["spin", "backup", "wait"]
-    spin:
-      plugin: "nav2_behaviors::Spin"
+    behavior_plugins: ["backup", "wait"]
     backup:
       plugin: "nav2_behaviors::BackUp"
     wait:

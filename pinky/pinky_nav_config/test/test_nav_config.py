@@ -224,14 +224,14 @@ def test_the_goal_controller_is_an_rpp_with_the_collision_check_on():
 
 
 def test_behavior_server_offers_what_the_tree_and_pinky_fsm_call():
-    """Nav2's tree recovers with Spin, Wait and BackUp (user decision 2026-11-12, nav_goal only);
-    pinky_fsm's follow_path self-recovery and Retreat use backup."""
+    """Nav2's tree only clears costmaps and waits (work order 3, 7-4); pinky_fsm's robot-side
+    yield, the old self-recovery and Retreat use backup. Spin is gone."""
     b = params("behavior_server")
-    assert b["behavior_plugins"] == ["spin", "backup", "wait"]
+    assert b["behavior_plugins"] == ["backup", "wait"]
     assert {name: b[name]["plugin"] for name in b["behavior_plugins"]} == {
-        "spin": "nav2_behaviors::Spin", "backup": "nav2_behaviors::BackUp",
-        "wait": "nav2_behaviors::Wait"}
-    server_of = {"Spin": "spin", "BackUp": "backup", "Wait": "wait"}
+        "backup": "nav2_behaviors::BackUp", "wait": "nav2_behaviors::Wait"}
+    assert "spin" not in b
+    server_of = {"BackUp": "backup", "Wait": "wait"}
     for tag, server in server_of.items():
         for node in BT.getroot().iter(tag):
             assert node.get("server_name", server) in b["behavior_plugins"]
@@ -241,10 +241,15 @@ def test_bt_navigator_serves_only_navigate_to_pose():
     assert params("bt_navigator")["navigators"] == ["navigate_to_pose"]
 
 
-def test_the_tree_replans_at_1_hz_and_recovers_like_nav2s_default():
+def test_the_tree_replans_at_1_hz_and_recovers_without_moving_the_robot():
+    """7-4: no Spin and no BackUp in the tree. Backing up is pinky_fsm's robot-side yield only, so
+    the tree and pinky_fsm never back up at the same time."""
     tags = [el.tag for el in BT.iter()]
-    for kept in ("Spin", "BackUp", "Wait", "ClearEntireCostmap", "RecoveryNode", "RoundRobin"):
+    for kept in ("Wait", "ClearEntireCostmap", "RecoveryNode", "RoundRobin"):
         assert kept in tags
+    assert "Spin" not in tags and "BackUp" not in tags
+    [recoveries] = [el for el in BT.iter("RoundRobin")]
+    assert [child.tag for child in recoveries] == ["Sequence", "Wait"]
     [rate] = BT.getroot().iter("RateController")
     assert float(rate.get("hz")) == 1.0
     [planner] = BT.getroot().iter("ComputePathToPose")
@@ -260,11 +265,15 @@ def _canon(tree):
 
 
 @pytest.mark.skipif(not NAV2_BT.exists(), reason="ROS 2 Jazzy nav2_bt_navigator not installed")
-def test_the_tree_is_nav2s_default_tree_with_only_the_goal_controller_changed():
+def test_the_tree_is_nav2s_default_tree_with_the_goal_controller_and_no_moving_recovery():
     ours = ET.parse(BT_FILE)
     [select] = ours.getroot().iter("ControllerSelector")
     select.set("default_controller", "FollowPath")
-    assert _canon(ours) == _canon(ET.parse(NAV2_BT))
+    default = ET.parse(NAV2_BT)
+    for parent in default.getroot().iter("RoundRobin"):
+        for child in [c for c in parent if c.tag in ("Spin", "BackUp")]:
+            parent.remove(child)
+    assert _canon(ours) == _canon(default)
 
 
 def test_the_old_plan_once_tree_is_gone():
