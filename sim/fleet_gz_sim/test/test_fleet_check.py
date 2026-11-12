@@ -211,7 +211,8 @@ def test_a_body_corner_inside_a_zone_the_robot_does_not_hold_is_a_keepout_intrus
     assert (s["keepout_zone"], s["keepout_robot"], s["keepout_at_s"]) == ("J_W", "pinky1", 2.0)
     assert s["robots"]["pinky1"]["keepout_samples"] == 1
     assert s["robots"]["pinky1"]["keepout_depth_m"] == pytest.approx(0.03)
-    assert s["robots"]["pinky2"]["keepout_depth_m"] == 0.0
+    assert s["robots"]["pinky1"]["keepout_checked_samples"] == 2
+    assert s["robots"]["pinky2"]["keepout_depth_m"] is None, "never seen in a yard"
 
 
 def test_the_keepout_depth_follows_the_heading():
@@ -238,13 +239,59 @@ def test_a_robot_on_a_fixed_line_is_not_measured_against_the_next_zone():
     c = body_check()
     c.on_zones({"J_W": "pinky1"})
     c.on_truth("pinky1", 1.0, 0.46, 0.89, 0.0, 0.0, yaw=0.0)  # nose 0.02 m into EXPRESS
+    assert c.summary()["keepout_depth_m"] is None, "not measured there"
+    c.on_truth("pinky2", 1.0, 0.40, 0.60, 0.0, 0.0, yaw=0.0)  # another robot, in the yard
     assert c.summary()["keepout_depth_m"] == 0.0
 
 
 def test_the_keepout_depth_counts_only_after_the_fleet_publishes_zones():
+    """Nothing measured is not 'no intrusion': the judge must not pass it (Codex review)."""
     c = body_check()
     c.on_truth("pinky1", 1.0, 0.40, 0.76, 0.0, 0.0, yaw=0.0)
+    assert c.summary()["keepout_depth_m"] is None
+    c.on_zones({"HALL": "pinky1"})
+    c.on_truth("pinky1", 1.1, 0.40, 0.60, 0.0, 0.0)  # no heading
+    assert c.summary()["keepout_depth_m"] is None
+    c.on_truth("pinky1", 1.2, 0.40, 0.60, 0.0, 0.0, yaw=0.0)
     assert c.summary()["keepout_depth_m"] == 0.0
+
+
+def test_a_zone_held_only_between_two_pose_samples_still_counts_as_just_left():
+    c = body_check(left_s=5.0)
+    c.on_zones({"HALL": "pinky1"})
+    c.on_truth("pinky1", 1.0, 0.40, 0.60, 0.0, 0.0, yaw=0.0)
+    c.on_zones({"HALL": "pinky1", "J_W": "pinky1"})
+    c.on_zones({"HALL": "pinky1", "J_W": ""})
+    c.on_truth("pinky1", 1.1, 0.40, 0.76, 0.0, 0.0, yaw=0.0)
+    assert c.summary()["keepout_depth_m"] == 0.0
+    c.on_truth("pinky1", 6.5, 0.40, 0.76, 0.0, 0.0, yaw=0.0)
+    assert c.summary()["keepout_depth_m"] == pytest.approx(0.03)
+
+
+def test_the_keepout_depth_is_not_rounded_down_to_the_limit():
+    """0.0204 m must not read 0.020 against a 0.02 m limit."""
+    c = body_check()
+    c.on_zones({"HALL": "pinky1"})
+    c.on_truth("pinky1", 1.0, 0.40, 0.79 + 0.0204 - 0.06, 0.0, 0.0, yaw=0.0)
+    assert c.summary()["keepout_depth_m"] > 0.0203
+
+
+def test_a_zone_corner_that_cuts_into_a_side_of_the_body_is_measured():
+    """A thin zone pokes 0.01 m into the right side; every corner of the body is outside it."""
+    from types import SimpleNamespace
+
+    from fleet_core.fleet_map.model import SHARED
+    zones = {"YARD": SimpleNamespace(id="YARD", kind=SHARED, rects=((-1.0, -1.0, 0.05, 1.0),)),
+             "THIN": SimpleNamespace(id="THIN", kind="dock", rects=((0.05, -0.01, 0.10, 0.01),))}
+    site = SimpleNamespace(
+        zones=zones,
+        zone_at=lambda x, y: next((z.id for z in zones.values() for x0, y0, x1, y1 in z.rects
+                                   if x0 <= x <= x1 and y0 <= y <= y1), None),
+        distance_to_zone=SITE.distance_to_zone.__func__.__get__(SimpleNamespace(zones=zones)))
+    c = FleetCheck(site, ["pinky1"], body=BODY)
+    c.on_zones({"YARD": "pinky1"})
+    c.on_truth("pinky1", 1.0, 0.0, 0.0, 0.0, 0.0, yaw=0.0)
+    assert c.summary()["keepout_depth_m"] == pytest.approx(0.01, abs=1e-3)
 
 
 def test_without_a_body_the_keepout_depth_is_not_measured():

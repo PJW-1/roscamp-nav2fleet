@@ -56,16 +56,29 @@ def drive_problems(summary: dict) -> list[str]:
     """한 대 주행(drive_check)이 주행 완료 기준을 못 지킨 것들. 비면 통과."""
     results = summary.get("results", [])
     problems = [f"{r['step']}: {r['result']}" for r in results if r["result"] != "success"]
-    undone = summary.get("steps", 0) - len(results)
+    planned = summary.get("steps") or 0
     if not results:
         problems.append("이동을 하나도 하지 않았다")
-    elif undone > 0:
-        problems.append(f"이동 {undone}개는 하지 않았다(첫 실패에서 멈춘다)")
+    elif planned <= 0:
+        problems.append("요약에 계획한 이동 수(steps)가 없다")
+    elif planned != len(results):
+        problems.append(f"이동 {planned - len(results)}개는 하지 않았다(첫 실패에서 멈춘다)")
     for r in results:
         if r.get("truth_keepout"):
             problems.append(f"{r['step']}: 로봇 중심이 keepout에 들어갔다 {r['truth_keepout']}")
         if r.get("plan_keepout"):
             problems.append(f"{r['step']}: Nav2 계획이 keepout을 지났다 {r['plan_keepout']}")
+    return problems
+
+
+def record_problems(run, finished: bool) -> list[str]:
+    """경기가 끝까지 돌았고 주문을 받았나. run은 관제 기록(triage Run), finished는 시나리오
+    모니터가 끝을 적었나(summary.json): 일찍 죽은 launch의 기록에는 흠이 없어 보인다."""
+    problems = []
+    if not finished:
+        problems.append("경기가 끝나지 않았다(summary.json 없음: 시간 한도나 launch 실패)")
+    if not run.orders:
+        problems.append("관제 기록에 주문이 없다")
     return problems
 
 
@@ -101,12 +114,14 @@ def _game(args) -> int:
     if not record.is_file():
         return _report([f"관제 기록이 없다: {record} (gz.launch.py fleet_record:=true)"])
     obstacles = read_obstacles(args.obstacles) if args.obstacles else ()
-    rows = classify(read_fleet_record(record), obstacles)
+    run = read_fleet_record(record)
+    rows = classify(run, obstacles)
     check = json.loads(check_file.read_text(encoding="utf-8")) if check_file.is_file() else None
     print(causes_markdown(rows))
     if check is not None and check.get("keepout_depth_m") is not None:
         print(f"\nkeepout 침범 깊이: {check['keepout_depth_m']:.3f} m")
-    return _report(game_problems(rows, check, args.keepout_max))
+    return _report(record_problems(run, (folder / "summary.json").is_file())
+                   + game_problems(rows, check, args.keepout_max))
 
 
 def main(argv=None) -> int:

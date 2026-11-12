@@ -24,6 +24,8 @@ from collections import deque
 
 from fleet_core.fleet_map.model import SHARED
 
+EDGE_STEP_M = 0.005  # the body outline is checked at points this far apart
+
 STILL_MPS = 0.02
 STILL_RADPS = 0.1
 MOVING_MPS = 0.05
@@ -42,6 +44,16 @@ def footprint_of(nav_params: dict) -> list[tuple[float, float]] | None:
     except KeyError:
         return None
     return [(float(x), float(y)) for x, y in json.loads(text)]
+
+
+def outline_points(body, step: float = EDGE_STEP_M) -> list[tuple[float, float]]:
+    """The closed outline as points at most step apart, corners included: a zone corner can cut
+    into a side while every corner of the body is outside it."""
+    points = []
+    for (ax, ay), (bx, by) in zip(body, [*body[1:], body[0]], strict=True):
+        count = max(1, math.ceil(math.dist((ax, ay), (bx, by)) / step))
+        points += [(ax + (bx - ax) * k / count, ay + (by - ay) * k / count) for k in range(count)]
+    return points
 
 
 def _depth(rects, x: float, y: float) -> float:
@@ -64,7 +76,8 @@ class _Robot:
         self.no_zone = 0
         self.worst_outside_m = 0.0
         self.held_at: dict[str, float] = {}  # zone -> sim t of the last sample that held it
-        self.keepout_samples = 0
+        self.keepout_checked = 0  # samples in a yard with a heading: the depth was measured
+        self.keepout_samples = 0  # of those, samples with the body inside a keepout zone
         self.keepout: tuple[float, str, float] = (0.0, "", 0.0)  # (depth m, zone, sim t)
 
 
@@ -72,9 +85,12 @@ class FleetCheck:
     def __init__(self, site, robots, *, stop_min_s: float = STOP_MIN_S, sync_s: float = SYNC_S,
                  margin_m: float = MARGIN_M, body=None, left_s: float = LEFT_S):
         self.site = site
-        self.body = body  # outline in the robot frame, or None: no keepout depth
+        # outline in the robot frame, or None: no keepout depth
+        self.body = outline_points(body) if body else None
+        self.reach = max((math.hypot(x, y) for x, y in body), default=0.0) if body else 0.0
         self.left_s = left_s
         self.yards = {zone.id for zone in site.zones.values() if zone.kind == SHARED}
+        self.now = -math.inf  # sim t of the newest pose sample
         self.robots = {robot: _Robot() for robot in robots}
         self.stop_min_s = stop_min_s
         self.sync_s = sync_s
@@ -90,14 +106,22 @@ class FleetCheck:
 
     def on_zones(self, holders: dict[str, str]) -> None:
         """zone -> holder as /fleet/zones gives it: several robots joined by a comma."""
-        self.holders = {zone: tuple(name for name in holder.split(",") if name)
-                        for zone, holder in holders.items()}
+        new = {zone: tuple(name for name in holder.split(",") if name)
+               for zone, holder in holders.items()}
+        # a zone taken and given back between two pose samples was still held "just now"
+        for held in (self.holders or {}, new):
+            for zone, names in held.items():
+                for name in names:
+                    if name in self.robots:
+                        self.robots[name].held_at[zone] = self.now
+        self.holders = new
 
     def on_truth(self, robot: str, t: float, x: float, y: float, speed: float, turn: float,
                  wall: float | None = None, yaw: float | None = None) -> None:
         me = self.robots.get(robot)
         if me is None:
             return
+        self.now = max(self.now, t)
         me.recent.append((t, x, y))
         while me.recent and me.recent[0][0] < me.recent[-1][0] - KEEP_S - self.sync_s:
             me.recent.popleft()
@@ -156,13 +180,18 @@ class FleetCheck:
                 me.held_at[zone] = t
         if self.site.zone_at(x, y) not in self.yards:
             return
+        me.keepout_checked += 1
+        near = [zone for zone in self.site.zones.values()
+                if zone.id not in self.yards
+                and t - me.held_at.get(zone.id, -math.inf) > self.left_s
+                and self.site.distance_to_zone(x, y, zone.id) < self.reach]
+        if not near:
+            return
         c, s = math.cos(yaw), math.sin(yaw)
-        corners = [(x + c * bx - s * by, y + s * bx + c * by) for bx, by in self.body]
+        outline = [(x + c * bx - s * by, y + s * bx + c * by) for bx, by in self.body]
         deep, where = 0.0, ""
-        for zone in self.site.zones.values():
-            if zone.id in self.yards or t - me.held_at.get(zone.id, -math.inf) <= self.left_s:
-                continue
-            depth = max(_depth(zone.rects, px, py) for px, py in corners)
+        for zone in near:
+            depth = max(_depth(zone.rects, px, py) for px, py in outline)
             if depth > deep:
                 deep, where = depth, zone.id
         if deep > 0.0:
@@ -171,13 +200,15 @@ class FleetCheck:
                 me.keepout = (deep, where, t)
 
     def summary(self) -> dict:
-        measured = self.body is not None
+        # the depth is not rounded to mm: 0.0204 must not pass a 0.02 limit. None: not measured
+        measured = any(r.keepout_checked for r in self.robots.values())
         robots = {name: {"stops": r.stops, "stops_while_moving": r.stops_while_moving,
                          "outside_held_samples": r.outside, "no_zone_held_samples": r.no_zone,
                          "zone_samples": r.zone_samples,
                          "worst_outside_m": round(r.worst_outside_m, 3),
-                         "keepout_depth_m": round(r.keepout[0], 3) if measured else None,
-                         "keepout_samples": r.keepout_samples}
+                         "keepout_depth_m": round(r.keepout[0], 6) if r.keepout_checked else None,
+                         "keepout_samples": r.keepout_samples,
+                         "keepout_checked_samples": r.keepout_checked}
                   for name, r in self.robots.items()}
         worst = max(self.robots, key=lambda name: self.robots[name].keepout[0], default=None)
         deep = self.robots[worst].keepout if worst is not None else (0.0, "", 0.0)
@@ -199,7 +230,7 @@ class FleetCheck:
             "sim_span_s": None if sim_span is None else round(sim_span, 2),
             "wall_span_s": None if wall_span is None else round(wall_span, 2),
             "real_time_factor": rtf,
-            "keepout_depth_m": round(deep[0], 3) if measured else None,
+            "keepout_depth_m": round(deep[0], 6) if measured else None,
             "keepout_zone": deep[1] if deep[0] > 0.0 else None,
             "keepout_robot": worst if deep[0] > 0.0 else None,
             "keepout_at_s": round(deep[2], 2) if deep[0] > 0.0 else None,

@@ -46,6 +46,12 @@ def test_a_yard_move_through_a_keepout_zone_fails():
     assert any("J_W" in p for p in by_truth) and any("EXPRESS" in p for p in by_plan)
 
 
+def test_a_drive_summary_without_its_counts_does_not_pass():
+    """One success in a summary that does not say how many moves were planned (Codex review)."""
+    assert reg.drive_problems({"results": [step("yard")]})
+    assert reg.drive_problems({**drive(step("yard")), "steps": 0})
+
+
 def test_the_drive_table_has_one_row_per_kind_of_move_with_the_worst_errors():
     summary = drive(step("work_in", pos_error_m=0.02, max_cross_track_m=0.01),
                     step("work_in", pos_error_m=0.05, yaw_error_deg=-8.0, max_cross_track_m=0.03),
@@ -102,10 +108,30 @@ def test_the_drive_command_ends_with_one_on_a_problem(tmp_path, capsys):
     assert "work_in" in capsys.readouterr().out
 
 
+HEAD = {"recorded": True, "robots": {"pinky1": "P-1"}, "map": "", "params": {}}
+BOARD = {"t": 0.1, "in": "on_order_board", "args": ["RUN", [{"order_id": "O-1", "items": {}}]]}
+SHIPPED = {"t": 20.0, "out": "ReportOrderCmd", "order_id": "O-1", "robot": "pinky1",
+           "status": "SHIPPED", "placed": {}, "missing": {}, "detail": ""}
+
+
+def record_text(*entries):
+    return "\n".join(json.dumps(e) for e in (HEAD, *entries)) + "\n"
+
+
+def test_a_game_that_did_not_end_or_took_no_order_does_not_pass():
+    """A launch that died early leaves a record with nothing wrong in it (Codex review)."""
+    played = reg.read_fleet_record(record_text(BOARD, SHIPPED).splitlines())
+    empty = reg.read_fleet_record(record_text().splitlines())
+    assert reg.record_problems(played, finished=True) == []
+    assert reg.record_problems(played, finished=False)
+    assert reg.record_problems(empty, finished=True)
+
+
 def test_the_game_command_reads_the_record_and_the_fleet_check(tmp_path, capsys):
-    head = {"recorded": True, "robots": {"pinky1": "P-1"}, "map": "", "params": {}}
-    (tmp_path / "fleet_record.jsonl").write_text(json.dumps(head) + "\n", encoding="utf-8")
+    (tmp_path / "fleet_record.jsonl").write_text(record_text(BOARD, SHIPPED), encoding="utf-8")
     (tmp_path / "fleet_check.json").write_text(json.dumps(CHECK), encoding="utf-8")
+    assert reg.main(["game", str(tmp_path)]) == 1, "no summary.json: the game did not end"
+    (tmp_path / "summary.json").write_text("{}", encoding="utf-8")
     assert reg.main(["game", str(tmp_path)]) == 0
     (tmp_path / "fleet_check.json").write_text(
         json.dumps({**CHECK, "keepout_depth_m": 0.05}), encoding="utf-8")

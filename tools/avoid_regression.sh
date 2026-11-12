@@ -48,13 +48,17 @@ start_launch() {  # <로그> <launch 파일> [인자...]
   group=$!
 }
 
+# 이 스크립트가 띄운 그룹만 끝낸다(다른 사람의 Gazebo는 건드리지 않는다).
 stop_launch() {
+  [ -n "$group" ] || return 0
   kill -INT -- "-$group" 2>/dev/null
   for _ in $(seq 1 30); do pgrep -g "$group" > /dev/null || break; sleep 1; done
   kill -KILL -- "-$group" 2>/dev/null
-  pkill -KILL -f "gz sim" 2>/dev/null
+  group=""
   sleep 2
 }
+group=""
+trap 'note "중단: 띄운 launch를 끝낸다"; stop_launch; exit 130' INT TERM
 
 headless_stage() {
   note "1/3 매장 상황(머리 없는 세계, 흉내 세 모드, 씨드 $seeds)"
@@ -94,13 +98,25 @@ drive_stage() {
 game_stage() {  # <씨드>
   local seed="$1" dir="$out/game$1"
   note "3/3 Gazebo 세 대 경기, 씨드 $seed"
+  if pgrep -f "gz sim" > /dev/null; then
+    failed+=("세 대 경기 씨드 $seed (gz sim이 남아 있다)")
+    note "    실패: 앞 단계의 gz sim이 끝나지 않았다"
+    return
+  fi
   rm -rf "$dir"; mkdir -p "$dir"
   start_launch "$out/game$seed.log" gz.launch.py layout:=d2 gui:=false rviz:=none \
     sim_dock_stub:=true fleet_record:=true scenario_seed:="$seed" result_dir:="$dir"
-  # 시나리오 모니터가 끝나면 launch가 스스로 끝난다. 벽시계 한도를 넘으면 멈춘다
-  for _ in $(seq 1 $((game_wall_s / 5))); do pgrep -g "$group" > /dev/null || break; sleep 5; done
+  # 시나리오 모니터가 끝나면 launch가 스스로 끝난다. 벽시계 한도를 넘으면 멈추고 실패로 친다
+  local over=true
+  for _ in $(seq 1 $((game_wall_s / 5))); do
+    pgrep -g "$group" > /dev/null || { over=false; break; }
+    sleep 5
+  done
   stop_launch
-  if python3 "$repo/tools/avoid_regression.py" game "$dir" --keepout-max "$keepout_max" \
+  if $over; then
+    failed+=("세 대 경기 씨드 $seed (시간 한도 ${game_wall_s} s)")
+    note "    실패: 시간 한도를 넘었다. $out/game$seed.log"
+  elif python3 "$repo/tools/avoid_regression.py" game "$dir" --keepout-max "$keepout_max" \
       > "$out/game$seed.md"; then
     note "    통과: $out/game$seed.md"
   else
