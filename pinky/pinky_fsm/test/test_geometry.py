@@ -244,6 +244,19 @@ def test_a_line_that_comes_back_over_itself_is_followed_from_the_second_pass():
         pytest.approx((0.2, 0.05)), pytest.approx((0.05, 0.0)), (0.0, 0.0)]
 
 
+def test_a_short_step_back_is_not_taken_for_the_pass_before_it():
+    """The place on the rounded line is counted from the corners passed, not looked up."""
+    route = Polyline([(0.0, 0.0), (1.0, 0.0), (0.9, 0.0), (1.9, 0.0), (1.9, 1.0)])
+    rest = rounded_rest(route, 1.15, 0.5)  # 세 번째 선분 위 x 0.95
+    assert rest[0] == pytest.approx((0.95, 0.0)) and rest[1] == pytest.approx((1.4, 0.0))
+
+
+def test_the_join_does_not_cut_across_a_turnaround():
+    there_and_back = Polyline([(0.0, 0.0), (1.0, 0.0), (0.0, 0.0)])
+    assert joined(there_and_back, 0.8, (0.8, 0.1)) == [
+        pytest.approx((0.8, 0.1)), pytest.approx((1.0, 0.0)), (0.0, 0.0)]
+
+
 def test_a_robot_past_the_end_is_not_sent_back_along_a_new_piece():
     line = Polyline([(0.0, 0.0), (1.0, 0.0)])
     assert joined(line, 1.0, (1.05, 0.0)) == [(1.0, 0.0)]

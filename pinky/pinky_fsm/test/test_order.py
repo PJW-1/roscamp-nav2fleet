@@ -321,6 +321,16 @@ def test_without_an_order_comm_loss_still_stops_at_once():
     assert Finish("g1", False, HEARTBEAT_LOST) in cmds and of(cmds, CancelNav)
 
 
+def test_an_order_stretched_while_nav2_stands_forgets_the_path_sent_before():
+    """The way ahead is then watched on the stretched line, not on the old, shorter path."""
+    fsm = ready(recovery_attempts=0)  # 자가 복구 없이 물체 앞에서 기다린다
+    [send] = of(order(fsm, "g1", 1.0, [S1], [S2]), SendPath)
+    fsm.nav_result(send.seq, "aborted", 2.0, (0.5, 0.3, 0.0), lambda _points: True)  # 물체 앞
+    assert fsm._active.sent is not None and not fsm._active.nav_running
+    cmds = order(fsm, "g2", 2.5, [S2], [S3], update=1, stitch="N1", pose=(0.5, 0.3, 0.0))
+    assert not of(cmds, SendPath) and fsm._active.sent is None
+
+
 def test_the_order_fsm_is_a_pinky_fsm():
     assert issubclass(OrderFsm, PinkyFsm)
 

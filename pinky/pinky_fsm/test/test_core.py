@@ -1524,6 +1524,20 @@ def test_the_way_ahead_is_watched_on_the_path_that_was_sent():
     assert any(0.36 < x < 0.42 for x, _ in seen), "points on the joining piece"
 
 
+def test_on_a_line_that_comes_back_the_way_ahead_is_the_pass_the_robot_is_on():
+    fsm = ready(pose=(0.0, 0.0, 0.0))
+    back = [(0.0, 0.0), (1.0, 0.0), (0.0, 0.0)]
+    fsm.move("g1", 0.0, "X", (0.0, 0.0, math.pi), back, (0.0, 0.0, 0.0))
+    for t, x in ((1.0, 0.5), (2.0, 1.0)):  # 갔다가
+        fsm.heartbeat(t)
+        fsm.tick(t, (x, 0.0, 0.0), DRIVING, no_obstacle)
+    seen = []
+    for t in (3.0, 4.5):  # 돌아오는 길 x 0.7에 서 있다
+        fsm.heartbeat(t)
+        fsm.tick(t, (0.7, 0.0, math.pi), STILL, lambda points: seen.extend(points) or False)
+    assert seen and all(x <= 0.7 + 1e-6 for x, _ in seen), "towards the end, not back to the turn"
+
+
 def test_the_join_can_be_switched_off():
     fsm = ready(pose=BESIDE, join_slope=0.0)
     [send] = sends(move(fsm, "g1", 1.0, path=(P3, P4), target=P4, pose=BESIDE))

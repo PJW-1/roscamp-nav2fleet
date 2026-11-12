@@ -354,7 +354,11 @@ class PinkyFsm(NavGoalMoves, RetreatMoves, SelfRecovery):
         if line is None:  # 아직 보내지 않았다(앞 goal이 끝나기를 기다린다)
             s = self._track(g, pose)
             return g.route.sample(s, s + self.p.block_lookahead_m, self.p.block_sample_m)
-        s, _ = line.project(pose[:2])
+        # 보낸 선 위의 자리는 보낸 뒤로 나아간 거리 근처다. 그 둘레에서만 찾아야 같은 곳을 두 번
+        # 지나는 선에서 이미 지난 쪽을 고르지 않는다(호가 줄인 길이만큼은 어긋난다)
+        gone = self._track(g, pose) - g.sent_from
+        s, _ = line.project(pose[:2], s_min=gone - self.p.track_back_m,
+                            s_max=gone + self.p.track_back_m)
         return line.sample(s, s + self.p.block_lookahead_m, self.p.block_sample_m)
 
     def _limit_speed(self) -> list:
@@ -388,7 +392,7 @@ class PinkyFsm(NavGoalMoves, RetreatMoves, SelfRecovery):
         # 꺾이는 곳은 호로(2-1), 선에서 벗어나 있으면 로봇의 자리에서 시작해 선에 붙는다(2-4)
         rest = rounded_rest(g.route, g.s, self.p.turn_radius_m, pose,
                             self.p.join_min_off_m, self.p.join_slope)
-        g.sent = Polyline(rest)
+        g.sent, g.sent_from = Polyline(rest), g.s
         poses = poses_along(rest, g.target[2], self.p.path_step_m)
         return [SendPath(g.seq, poses, final_goal=g.final_goal)]
 
