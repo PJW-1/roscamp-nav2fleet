@@ -1,5 +1,8 @@
 """상황을 돌리고 결과 표(지시서 6-2)의 한 줄과 못 지킨 기대를 만든다.
 
+판정은 둘이다(추가 지시서 2의 2절): 정확성(안전 불변식, 관제 반응 시간, SILENT_STALL 0)은 모든
+모드에서 같고, 상황의 기대는 모드마다 다르다(Situation.for_mode). 나머지 칸은 성능이다.
+
 회피 흉내 모드(avoid.py)마다 돌릴 수 있다. "끝나지 않은 주문 원인" 칸은 비워 둔다
 (원인 분류가 채운다).
 """
@@ -18,6 +21,9 @@ HEADER = ("상황", "배치", "씨드", "회피 모드", "완료", "종료 시�
           "급행 사용과 방향 전환", "위반", "판정", "끝나지 않은 주문 원인")
 
 
+NEVER_EVENTS = ("SILENT_STALL",)  # 추가 지시서 2의 3절: 나오면 실패
+
+
 @dataclass
 class Outcome:
     world: ZoneWorld
@@ -27,7 +33,7 @@ class Outcome:
 
 def run_situation(name, layout="d2", seed=1, overrides=None,
                   manager_factory=default_manager, avoid_mode=PERFECT) -> Outcome:
-    s = build(name, layout)
+    s = build(name, layout).for_mode(avoid_mode)
     world = ZoneWorld(layout, seed=seed, overrides=overrides, robots=s.robots, orders=s.orders,
                       injections=s.injections, manager_factory=manager_factory,
                       avoid_mode=avoid_mode)
@@ -37,13 +43,24 @@ def run_situation(name, layout="d2", seed=1, overrides=None,
 
 
 def judge(s, world) -> list[str]:
+    """s: 그 모드의 기대(Situation.for_mode)."""
+    return correctness(s, world) + expectations(s, world)
+
+
+def correctness(s, world) -> list[str]:
+    """안전 불변식과 관제 반응 시간(invariants.py, reaction.py), 조용히 멈춤 0. 모든 모드."""
+    out = [f"{v.code} at {v.t:.1f}: {v.detail}" for v in world.violations
+           if v.code not in s.allowed]
+    out += [f"{code} x{world.metrics.count(code)}" for code in NEVER_EVENTS
+            if world.metrics.count(code)]
+    return out
+
+
+def expectations(s, world) -> list[str]:
     m, out = world.metrics, []
     total = world.central.total
     if s.finish_all and world.central.finished < total:
         out.append(f"finished {world.central.finished}/{total} by {world.t:.0f} s")
-    for v in world.violations:
-        if v.code not in s.allowed:
-            out.append(f"{v.code} at {v.t:.1f}: {v.detail}")
     for code in s.no_events:
         if m.count(code):
             out.append(f"{code} x{m.count(code)}")

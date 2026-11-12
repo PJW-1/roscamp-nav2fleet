@@ -2,17 +2,30 @@
 
 상황마다 세계를 만드는 값(출발 자리, 주문, 주입, 시간 한도)과 기대(expect)가 있다. 기대는 세계를
 다 돌린 뒤 보고, 못 지킨 것을 글로 돌려준다. 자리는 배치(d2, d, c)마다 지도에서 읽는다.
+
+기대는 회피 흉내 perfect의 것이다. none과 mixed는 rough(추가 지시서 2의 3절)로 본다: 늦더라도
+주문이 다 끝나면 된다. 기다림, 우회, 물러나기 횟수와 사건 수는 성능이라 판정하지 않는다.
+안전 불변식과 관제 반응 시간은 모든 모드에서 본다(table.py correctness).
 """
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 
 from fleet_core.fleet_map import LANE, load_fleet_map
 
+from .avoid import PERFECT
 from .injections import CommLoss, NoisyPose, Obstacle, Reinstate, Removal, SlowStation, Stuck
 from .stations import six_orders
 
 LAYOUTS = ("d2", "d", "c")
+
+
+@dataclass(frozen=True)
+class Rough:
+    """none, mixed 모드의 합격 기준(추가 지시서 2의 3절)."""
+
+    finish_all: bool = True  # 일시 장애물, 마주침, 통신 끊김: 늦더라도 주문이 모두 끝남
+    allowed: tuple[str, ...] = ()  # 생겨도 되는 불변식 위반 코드(상황 탓, 모드 탓이 아님)
 
 
 @dataclass
@@ -28,6 +41,14 @@ class Situation:
     max_retreats: int | None = None
     need_events: dict = field(default_factory=dict)  # 사건 코드 -> 적어도 이만큼
     no_events: tuple[str, ...] = ("DEADLOCK_SEEN",)
+    rough: Rough = field(default_factory=Rough)  # none, mixed의 기준
+
+    def for_mode(self, mode: str) -> Situation:
+        """그 회피 모드에서 볼 기대. perfect는 그대로, 나머지는 rough."""
+        if mode == PERFECT:
+            return self
+        return replace(self, finish_all=self.rough.finish_all, allowed=self.rough.allowed,
+                       max_retreats=None, need_events={}, no_events=())
 
 
 def _hall_mid(site):
@@ -68,7 +89,8 @@ def build(name: str, layout: str = "d2") -> Situation:
         # 멈춘 로봇은 서 있지 않은 구역을 돌려주고(ZONES_RETURNED) 그 주문은 다른 로봇에 간다.
         # c는 작업 도크로 가는 갈림목이 하나라 거기서 멈추면 아무것도 못 끝낸다.
         return Situation(name, "앞 로봇 고장", injections=[Stuck("pinky1", 20.0)],
-                         finish_all=layout != "c", need_events={"ROBOT_ISOLATED": 1})
+                         finish_all=layout != "c", need_events={"ROBOT_ISOLATED": 1},
+                         rough=Rough(finish_all=layout != "c"))
     if name == "order_burst":
         return Situation(name, "주문 몰림", orders=six_orders(gap_s=2.0, count=10),
                          timeout_s=1500.0)
@@ -87,7 +109,8 @@ def build(name: str, layout: str = "d2") -> Situation:
         # 그 로봇은 재시도 사이에 갈림목에 서 있을 수 있고(5번), 남은 주문은 못 끝날 수 있다(c).
         return Situation(name, "위치가 크게 튐",
                          injections=[NoisyPose("pinky1", 20.0, 40.0, sigma_m=0.03, jump_m=0.30)],
-                         finish_all=layout != "c", allowed=("I5_STANDING",))
+                         finish_all=layout != "c", allowed=("I5_STANDING",),
+                         rough=Rough(finish_all=layout != "c", allowed=("I5_STANDING",)))
     raise KeyError(f"no situation {name!r}")
 
 

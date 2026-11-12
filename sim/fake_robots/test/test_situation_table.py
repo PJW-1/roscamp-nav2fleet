@@ -5,7 +5,8 @@ from pathlib import Path
 import pytest
 from fake_robots.world import RecordingManager
 from fake_robots.world.situations import LAYOUTS, NAMES, build
-from fake_robots.world.table import HEADER, markdown, run_situation
+from fake_robots.world.table import HEADER, judge, markdown, run_situation
+from fleet_core.common.commands import EventOut
 
 TOOL = Path(__file__).resolve().parents[3] / "tools" / "situations.py"
 
@@ -21,7 +22,7 @@ def test_a_row_has_every_column_and_the_markdown_has_a_line_per_row():
     outcome = run_situation("person_passing", "d2", 1, manager_factory=RecordingManager)
     assert len(outcome.row) == len(HEADER)
     assert outcome.row[:5] == ("사람이 잠깐 지나감", "d2", 1, "perfect", "0/6")
-    assert outcome.failures[0].startswith("finished 0/6")
+    assert any(f.startswith("finished 0/6") for f in outcome.failures)
     text = markdown([outcome.row, outcome.row])
     assert text.splitlines()[0].startswith("| 상황 | 배치 | 씨드 | 회피 모드 | 완료 |")
     assert len(text.splitlines()) == 4
@@ -46,3 +47,25 @@ def test_the_tool_reads_parameter_overrides_as_yaml_and_the_avoid_modes():
         tool.overrides(["nav_speed_mps"])
     assert tool.avoid_modes(["all"]) == ["none", "perfect", "mixed"]
     assert tool.avoid_modes(["mixed", "none"]) == ["mixed", "none"]
+
+
+def test_perfect_keeps_the_situation_expectations_and_the_others_use_section_three():
+    """추가 지시서 2의 3절: none과 mixed는 '늦더라도 다 끝남'과 불변식만 본다."""
+    s = build("person_passing", "d2")
+    assert s.for_mode("perfect") is s
+    rough = s.for_mode("none")
+    assert (rough.finish_all, rough.max_retreats, rough.need_events, rough.no_events) == (
+        True, None, {}, ())
+    stuck_c = build("front_robot_stuck", "c").for_mode("mixed")
+    assert stuck_c.finish_all is False and stuck_c.need_events == {}
+    assert build("pose_jumps", "d").for_mode("none").allowed == ("I5_STANDING",)
+
+
+def test_a_silent_stall_fails_every_mode_as_a_safety_rule():
+    for mode in ("none", "perfect"):
+        outcome = run_situation("person_passing", "d2", 1, manager_factory=RecordingManager,
+                                avoid_mode=mode)
+        assert not [f for f in outcome.failures if "SILENT_STALL" in f]
+        outcome.world.send(EventOut("ERROR", "SILENT_STALL", "no progress", "pinky1"))
+        assert "SILENT_STALL x1" in judge(build("person_passing", "d2").for_mode(mode),
+                                          outcome.world)
