@@ -14,12 +14,7 @@ NEEDS_ZONE_TRAFFIC = "needs the zone traffic layer (stage 3)"
 
 # (패키지 폴더, 시험 파일) -> 이유. 교통 층과 지도가 둘 다 필요하면 교통 층(나중 단계)으로 적는다.
 # fleet_core의 옛 레인 시험 20개는 되살릴 수 없어 지웠다(지운 모듈을 임포트했다).
-WAITING = {
-    # 구역 교통 층에서 돌려 본 결과: 시나리오 기대(주차 판정, 사건 수)가 옛 차선 관제의 것이다.
-    # 무엇이 틀리는지는 world 보고서에 있다.
-    **dict.fromkeys((("fleet_manager", name) for name in (
-        "test_fms_restart.py", "test_scenario_integration.py")), NEEDS_ZONE_TRAFFIC),
-}
+WAITING: dict = {}
 
 
 def waiting_reason(module_path) -> str | None:

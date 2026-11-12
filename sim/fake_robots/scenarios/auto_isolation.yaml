@@ -1,10 +1,12 @@
 # 자동 격리(지시서 5.5). arm1이 세 번 연속 실패해 재시도 한도를 다 쓴다.
-# O-001은 arm2 물건만 있어 pinky1은 정상으로 채우고 출고하러 간다.
-# pinky2는 O-002(arm1 물건)를 쥔 채 작업대 도크에서 ERROR가 되고, 플릿이 바로 격리한다:
+# 구역 관제(D2)에서는 pinky2가 먼저 작업 도크에 닿고 pinky1은 W_Q에서 줄을 선다.
+# O-001은 arm2 물건만 있어 pinky2는 정상으로 채우고 출고하러 간다.
+# pinky1은 O-002(arm1 물건)를 쥔 채 작업대 도크에서 ERROR가 되고, 플릿이 바로 격리한다:
 # 구역은 쥐고, O-002는 사람 없이 대기 맨 앞으로 돌아간다(ORDER_REQUEUED, ROBOT_ISOLATED).
-# pinky1은 사람을 기다리지 않고 O-001을 출고한다(shipped_before_operator).
-# 이 지도는 작업대로 가는 길이 하나라 나머지는 도크 앞에서 기다린다.
-# 120초에 운영자가 pinky2를 들어내고 confirm_clear는 구역만 푼다. 주문은 다시 되돌리지 않는다.
+# pinky2는 사람을 기다리지 않고 O-001을 출고한다(shipped_before_operator).
+# 작업 도크는 하나라 나머지는 도크 앞에서 기다린다.
+# 120초에 운영자가 pinky1을 들어내고 confirm_clear는 구역만 푼다. 주문은 다시 되돌리지 않는다.
+# (레인 관제 때는 pinky1이 먼저 닿아 고장 나는 로봇이 pinky2였다)
 # 그 뒤 O-002가 먼저 묶이고 나머지가 모두 출고된다.
 seed: 29
 speed_factor: 5.0
@@ -23,7 +25,7 @@ arm: {seconds_per_item: 4.0, swap_seconds: 8.0, fail_rate: 0.0}
 dock: {duration_s: 1.0, error_cm: 1.0}
 faults:
   - {at_s: 0, arm: arm1, type: arm_fail, count: 3}
-  - {at_s: 120, robot: pinky2, type: operator_remove}
+  - {at_s: 120, robot: pinky1, type: operator_remove}
 expect:
   robot_idle: null  # 고장 시나리오는 ROBOT_IDLE을 세지 않는다(1.1 지시서 H2)
   all_orders_finished: true
