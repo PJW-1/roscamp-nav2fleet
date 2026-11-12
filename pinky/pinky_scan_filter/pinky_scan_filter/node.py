@@ -41,6 +41,7 @@ class ScanFilter(Node):
         self.strips = parse_strips(self.declare_parameter("strips", "").value)
         self.map_frame = self.declare_parameter("map_frame", "map").value
         self.band = None
+        self.tf_source = ""  # 마지막 자세가 어느 TF에서 왔나: scan_time, latest(시험과 로그용)
         self.tf = Buffer()
         # TF는 도우미 노드가 따로 도는 스레드로 받는다: on_scan이 스캔 시각의 TF를 기다리는 동안에도
         # 버퍼가 찬다. 프로세스 인자(launch의 __node 이름 바꾸기)는 받지 않아 이름이 겹치지 않고,
@@ -58,6 +59,8 @@ class ScanFilter(Node):
         self.get_logger().info(f"wall_band_m {self.band_m}, strips {self.strips}")
 
     def destroy_node(self):
+        self.listener.executor.shutdown()
+        self.listener.dedicated_listener_thread.join(timeout=2.0)
         self.tf_node.destroy_node()
         super().destroy_node()
 
@@ -94,6 +97,9 @@ class ScanFilter(Node):
             self.get_logger().warn("no TF at the scan time; using the latest",
                                    throttle_duration_sec=5.0)
             t = latest.transform
+            self.tf_source = "latest"
+        else:
+            self.tf_source = "scan_time"
         q = t.rotation
         yaw = math.atan2(2.0 * (q.w * q.z + q.x * q.y), 1.0 - 2.0 * (q.y * q.y + q.z * q.z))
         return t.translation.x, t.translation.y, yaw

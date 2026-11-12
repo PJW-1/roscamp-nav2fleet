@@ -61,6 +61,7 @@ def test_a_tf_arriving_while_the_scan_waits_places_the_scan(running):
     while "pose" not in got and time.monotonic() < end:
         time.sleep(0.01)
     assert got.get("pose") is not None and got["pose"][0] == pytest.approx(1.5)
+    assert node.tf_source == "scan_time"  # 최신 TF로 물러선 것이 아니다
 
 
 def test_the_latest_tf_far_from_the_scan_time_means_no_filtering(running):
@@ -72,6 +73,7 @@ def test_the_latest_tf_far_from_the_scan_time_means_no_filtering(running):
     near = Time(seconds=100 + MAX_TF_AGE_S / 2).to_msg()
     far = Time(seconds=100 + MAX_TF_AGE_S * 3).to_msg()
     assert node._lidar_pose("laser", near)[0] == pytest.approx(1.0)
+    assert node.tf_source == "latest"
     assert node._lidar_pose("laser", far) is None
 
 
@@ -87,6 +89,8 @@ def test_under_launch_remaps_the_tf_node_has_its_own_name_and_the_robots_tf():
         assert node.tf_node.get_fully_qualified_name() == "/pinky1/scan_filter_tf"
         assert node.tf_node.resolve_topic_name("/tf") == "/pinky1/tf"
         assert node.tf_node.resolve_topic_name("/tf_static") == "/pinky1/tf_static"
+        thread = node.listener.dedicated_listener_thread
         node.destroy_node()
+        assert not thread.is_alive()  # TF 스레드도 함께 끝난다
     finally:
         rclpy.try_shutdown()
