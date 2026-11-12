@@ -146,6 +146,12 @@ class Goals:
                     self._take_turn(m, trip)
                 return trip
             first_want = first_want or want
+        if first_want is None and m.retreat_to and not self._retreat_held_up(m):
+            # 물러날 곳에서 더 갈 길이 지금 없다. 막힌 자리에 서 있지 않고 물러나서 기다린다
+            back = self._back_link(m)
+            trip = None if back is None else Trip(m.retreat_to, [back])
+            if trip is not None and self._take(m, trip) is None:
+                return trip
         if first_want is not None:
             self._wants[m.name] = first_want
             self._note_wait(m, first_want)

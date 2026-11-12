@@ -130,6 +130,7 @@ class Results:
             m.trip.done = m.trip.sent = goal.links
         if goal.kind == RETREAT:
             m.retreat_to = ""
+            m.behind_since = None  # 실패로 끝났지만 끝에 선 후진(_arrived_anyway)도 기다림을 끝낸다
             self._event("INFO", "RETREAT_DONE", f"stands at {goal.end}", m.name)
 
     def _forget_goal(self, m) -> None:
