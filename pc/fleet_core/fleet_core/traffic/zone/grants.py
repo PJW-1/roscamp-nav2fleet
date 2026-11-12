@@ -118,16 +118,6 @@ class ZoneGrants:
         self._held_nodes[robot].remove(node)
         return True
 
-    def release_all(self, robot: str) -> tuple[tuple[str, ...], tuple[str, ...]]:
-        """로봇이 쥔 것을 모두 놓는다. 놓은 (구역들, 지점들)."""
-        zones, nodes = self.held_by(robot), self.nodes_of(robot)
-        for zone in zones:
-            self.release_zone(robot, zone)
-        for node in nodes:
-            self.release_node(robot, node)
-        self._waiting.pop(robot, None)
-        return zones, nodes
-
     # ---- 보기 ----
 
     def holders(self, zone: str) -> tuple[str, ...]:
