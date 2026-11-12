@@ -19,16 +19,13 @@ from __future__ import annotations
 import math
 import threading
 import time
-from functools import partial
 
 import rclpy
-from fleet_interfaces.action import Dock, MoveTo, Retreat
 from fleet_interfaces.msg import RobotState
 from geometry_msgs.msg import Pose2D
 from nav2_msgs.msg import SpeedLimit
 from nav2_msgs.srv import ClearEntireCostmap
 from nav_msgs.msg import OccupancyGrid, Odometry
-from rclpy.action import ActionServer, CancelResponse, GoalResponse
 from rclpy.callback_groups import ReentrantCallbackGroup
 from rclpy.clock import Clock, ClockType
 from rclpy.executors import MultiThreadedExecutor
@@ -57,10 +54,9 @@ from pinky_fsm.follow_ros import FollowPathRunner
 from pinky_fsm.geometry import quaternion_yaw
 from pinky_fsm.nav_goal import CancelNavGoal, SendNavGoal
 from pinky_fsm.nav_goal_ros import NavGoalRunner
+from pinky_fsm.server_ros import GoalServers
 
-FEEDBACK_PERIOD_S = 0.2
 UNKNOWN_BATTERY = -1.0  # 배터리 토픽이 없을 때. 관제는 보여 주기만 한다
-_RESULT = {"move": MoveTo.Result, "dock": Dock.Result, "retreat": Retreat.Result}
 _FLOAT_PARAMS = (
     "arrival_tolerance_m", "connect_tolerance_m", "refresh_within_m", "refresh_every_s",
     "heartbeat_timeout_s", "stopped_speed_mps", "stopped_turn_rps", "block_report_s",
@@ -76,16 +72,6 @@ _FLOAT_PARAMS = (
     # mode nav_goal의 BLOCKED(계약 0.11-draft 제안)
     "blocked_after_s", "nav_progress_m")
 _INT_PARAMS = ("recovery_attempts",)
-
-
-class _Slot:
-    """액션 목표 하나. core가 Finish를 내면 결과를 담고 done을 세운다."""
-
-    def __init__(self, handle):
-        self.handle = handle
-        self.done = threading.Event()
-        self.success = False
-        self.reason = ""
 
 
 class PinkyFsmNode(Node):
@@ -138,7 +124,6 @@ class PinkyFsmNode(Node):
 
         self._lock = threading.RLock()
         self._alive = True
-        self._slots: dict[bytes, _Slot] = {}
         self._late: list[tuple[int, str]] = []  # 다음 주기에 core에 넘길 FollowPath 결과
         self._late_backup: list[tuple[int, str]] = []  # 다음 주기에 넘길 BackUp 결과
         self._late_goal: list[int] = []  # 다음 주기에 거절로 넘길 NavigateToPose(서버 없음)
@@ -175,12 +160,8 @@ class PinkyFsmNode(Node):
                                     self._on_goal_cancel, callback_group=group)
         self._clear = self.create_client(ClearEntireCostmap, get("clear_costmap_service").value,
                                          callback_group=group)
-        self._move_server = self._server(MoveTo, contract.name("move_to", pinky=self.robot_id),
-                                         "move", group)
-        self._dock_server = self._server(Dock, contract.name("dock", pinky=self.robot_id),
-                                         "dock", group)
-        self._retreat_server = self._server(
-            Retreat, contract.name("retreat", pinky=self.robot_id), "retreat", group)
+        self._servers = GoalServers(self, contract, self.robot_id, group, self._lock, self._fsm,
+                                    self._pose, self._run, lambda: self._alive)
         # 판단과 보고는 벽시계로 돈다(heartbeat는 벽시계로 재야 하고, 시뮬 시계가 멈춰도 보고한다)
         steady = Clock(clock_type=ClockType.STEADY_TIME)
         self.create_timer(1.0 / float(get("control_rate_hz").value), self._tick,
@@ -188,16 +169,6 @@ class PinkyFsmNode(Node):
         self.create_timer(1.0 / float(get("state_rate_hz").value), self._publish_state,
                           callback_group=group, clock=steady)
         self.get_logger().info(f"pinky_fsm for {self.robot_id} ready")
-
-    def _server(self, action_type, name, kind, group):
-        return ActionServer(
-            self, action_type, name,
-            execute_callback=partial(self._execute, kind=kind),
-            # 정상이면 거절하지 않는다(계약 3절 1번)
-            goal_callback=lambda _req: GoalResponse.ACCEPT,
-            cancel_callback=lambda _gh: CancelResponse.ACCEPT,
-            handle_accepted_callback=partial(self._accepted, kind=kind),
-            callback_group=group)
 
     # -- 수명 ------------------------------------------------------------------------------
 
@@ -210,9 +181,7 @@ class PinkyFsmNode(Node):
 
     def destroy_node(self):
         self.stop()
-        self._move_server.destroy()
-        self._dock_server.destroy()
-        self._retreat_server.destroy()
+        self._servers.destroy()
         self._follow.destroy()
         self._backup.destroy()
         self._goals.destroy()
@@ -266,67 +235,6 @@ class PinkyFsmNode(Node):
             points = to_frame(points, (p.x, p.y, quaternion_yaw(q.x, q.y, q.z, q.w)))
         return obstacle_on(grid, points)
 
-    # -- 액션 서버 --------------------------------------------------------------------------
-
-    def _accepted(self, handle, kind: str) -> None:
-        key = bytes(handle.goal_id.uuid)
-        with self._lock:
-            self._slots[key] = _Slot(handle)
-            pose = self._pose()
-            here = pose[:3] if pose else None
-            now = time.monotonic()
-            req = handle.request
-            if kind == "move":
-                t = req.target_pose
-                path = [(p.position.x, p.position.y) for p in req.path]
-                cmds = self._fsm.move(key, now, req.target_id, (t.x, t.y, t.theta), path, here,
-                                      final_goal=req.final_goal, mode=req.mode)
-            elif kind == "retreat":
-                path = [(p.position.x, p.position.y) for p in req.path]
-                cmds = self._fsm.retreat(key, now, req.distance_m, req.speed_mps, path, here)
-            else:
-                cmds = self._fsm.dock(key, now, req.dock_id)
-            self._run(cmds)
-        handle.execute()
-
-    def _execute(self, handle, kind: str):
-        key = bytes(handle.goal_id.uuid)
-        slot = self._slots[key]
-        last_fb = 0.0
-        while not slot.done.is_set():
-            if not (self._alive and rclpy.ok()):
-                _abort_quietly(handle)
-                return _RESULT[kind]()
-            if handle.is_cancel_requested:
-                with self._lock:
-                    self._run(self._fsm.cancel(key, time.monotonic()))
-            now = time.monotonic()
-            if kind == "move" and now - last_fb >= FEEDBACK_PERIOD_S:
-                last_fb = now
-                with self._lock:
-                    # 교체된 목표에는 새 목표의 남은 거리를 보내지 않는다(곧 결과가 나간다).
-                    # 교체도 이 잠금 안에서 일어나므로 잠금을 쥔 채 보낸다
-                    if self._fsm.is_running(key):
-                        pose = self._pose()
-                        left = self._fsm.distance_remaining(pose[:3] if pose else None)
-                        handle.publish_feedback(MoveTo.Feedback(distance_remaining=float(left)))
-            slot.done.wait(0.02)
-        with self._lock:
-            self._slots.pop(key, None)
-        if slot.success:
-            handle.succeed()
-        elif handle.is_cancel_requested:
-            handle.canceled()
-        else:
-            handle.abort()
-        if kind == "move":
-            return MoveTo.Result(success=slot.success, reason=slot.reason)
-        if kind == "retreat":
-            return Retreat.Result(success=slot.success, reason=slot.reason)
-        if not slot.success:
-            self.get_logger().warn(f"dock failed: {slot.reason}")
-        return Dock.Result(success=slot.success)
-
     # -- core 명령 실행 ----------------------------------------------------------------------
 
     def _run(self, cmds) -> None:
@@ -361,10 +269,7 @@ class PinkyFsmNode(Node):
                 msg.header.stamp = self.get_clock().now().to_msg()
                 self._speed_pub.publish(msg)
             elif isinstance(cmd, Finish):
-                slot = self._slots.get(cmd.goal_id)
-                if slot is not None:
-                    slot.success, slot.reason = cmd.success, cmd.reason
-                    slot.done.set()
+                self._servers.finish(cmd.goal_id, cmd.success, cmd.reason)
                 if not cmd.success:
                     self.get_logger().info(f"goal ended: {cmd.reason}")
 
@@ -459,13 +364,6 @@ class PinkyFsmNode(Node):
         else:
             msg.stamp = self.get_clock().now().to_msg()
         self._state_pub.publish(msg)
-
-
-def _abort_quietly(handle) -> None:
-    try:
-        handle.abort()
-    except Exception:  # noqa: BLE001 - 종료 중에는 상태 발행이 실패할 수 있다
-        pass
 
 
 def main(args=None):
