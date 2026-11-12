@@ -151,7 +151,10 @@ def _cause(run, order, obstacles, cfg) -> Row:
              and t0 <= e.t <= end]
     if not goals:
         return Row(order, "관제", "ORDER_BOUND", t0)
-    stuck = _started(run, robot, goals[-1], cfg)
+    # 2번은 가라고 보낸 마지막 목표로 잰다. 막힌 뒤 관제가 낸 후진은 막힘의 일부다(3번이 본다).
+    # 후진뿐이면(도크에서 나오기) 그 후진으로 잰다
+    forward = [g for g in goals if g.code != "RETREAT_START"]
+    stuck = _started(run, robot, (forward or goals)[-1], cfg)
     if stuck:
         return Row(order, "주행", *stuck)
     episodes = _episodes(run, robot, goals[0].t, end)

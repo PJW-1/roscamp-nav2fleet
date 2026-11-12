@@ -53,3 +53,11 @@ def test_situation_in_avoid_mode(name, layout, mode, seed):
     assert others == []
     if failures:
         raise Unfinished(failures[0])
+
+
+def test_the_yard_back_off_does_not_stand_a_robot_on_a_node_another_robot_holds():
+    """yard_backoff를 켠 none에서 물러난 로봇이 남이 잡은 N_E 위에 섰던 칸(불변식 I8)."""
+    outcome = run_situation("order_burst", "d2", 2, overrides={"yard_backoff": True},
+                            avoid_mode="none")
+    assert outcome.failures == []
+    assert outcome.world.metrics.count("HALL_BACKOFF_DONE") >= 1, "the back-off was used"
