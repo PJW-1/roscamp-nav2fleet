@@ -56,22 +56,11 @@ class Progress:
             self._return_unreached(m)
 
     def _place(self, m) -> None:
-        """첫 보고(또는 다시 투입된 뒤의 보고)로 로봇을 지도에 올린다.
-
-        가까운 지점을 다른 로봇이 쥐고 있고 이 로봇이 그 지점 바로 위(도착 허용 거리의 절반 안)가
-        아니면, 그 옆의 넓은 구역에 선 것으로 올린다. 지점에는 한 대만 서지만 넓은 구역에는 그
-        옆에 설 수 있고, 보고 하나가 0.15 m 안으로 들어왔다고 자리가 겹친 것은 아니다.
-        """
+        """첫 보고(또는 다시 투입된 뒤의 보고)로 로봇을 지도에 올린다."""
         if m.robot_state in NOT_PLACEABLE:
             return
         site = self.site
-        tolerance = self.params.arrival_tolerance_m
-        node = site.nearest_node(m.x, m.y, radius=tolerance)
-        if (node and self.grants.node_holder(node) not in ("", m.name)
-                and self._gap(m, node) > tolerance / 2):
-            beside = site.zone_at(m.x, m.y)
-            if beside is not None and site.zones[beside].kind == SHARED:
-                node = None
+        node = self._node_under(m)
         zone = site.nodes[node].zone if node else site.zone_at(m.x, m.y)
         if zone is None or (node is None and site.zones[zone].kind != SHARED):
             self._placement_refused(m, f"no node near ({m.x:.2f}, {m.y:.2f})")
@@ -82,10 +71,35 @@ class Progress:
         if m.fault_reason == PLACEMENT_CONFLICT:
             m.fault = m.fault_reason = ""
         m.placed = True
-        m.node = node or site.nearest_node(
-            m.x, m.y, [name for name, spec in site.nodes.items() if spec.zone == zone]) or ""
+        # 지점 없이 오른 로봇은 그 구역의 가까운 지점 이름을 달아 둔다(남이 쥔 지점은 뺀다)
+        inside = [name for name, spec in site.nodes.items() if spec.zone == zone]
+        m.node = (node or site.nearest_node(m.x, m.y, [n for n in inside if self._free(m, n)])
+                  or site.nearest_node(m.x, m.y, inside) or "")
         m.phase = PARKED if node in site.parking else IDLE
         self._joining.discard(m.name)
+
+    def _free(self, m, node: str) -> bool:
+        return self.grants.node_holder(node) in ("", m.name)
+
+    def _node_under(self, m):
+        """보고 위치에서 도착 허용 거리 안의 가장 가까운 지점. 없으면 None.
+
+        그 지점을 다른 로봇이 쥐고 있어도, 이 로봇이 지점 바로 위(도착 허용 거리의 절반 안)가
+        아니고 그 로봇의 보고 위치와 몸이 겹치지 않으면(발자국 반지름 밖) 그 지점 옆에 선 것으로
+        본다: 허용 거리 안의 다른 빈 지점이거나, 없으면 지점 없이 넓은 구역이다. 지점에는 한 대만
+        서지만 그 옆에는 설 수 있고, 보고 하나가 0.15 m 안으로 들어왔다고 자리가 겹친 것은 아니다.
+        겹치면 그 지점을 돌려주고, 올리기는 전처럼 거절된다.
+        """
+        site, tolerance = self.site, self.params.arrival_tolerance_m
+        node = site.nearest_node(m.x, m.y, radius=tolerance)
+        holder = self._robots.get(self.grants.node_holder(node)) if node else None
+        if holder is None or holder is m:
+            return node
+        apart = math.dist((m.x, m.y), (holder.x, holder.y))
+        if self._gap(m, node) <= tolerance / 2 or apart < self.params.footprint_radius_m:
+            return node
+        return site.nearest_node(m.x, m.y, [n for n in site.nodes if self._free(m, n)],
+                                 radius=tolerance)
 
     def _placement_refused(self, m, why: str) -> None:
         if m.fault_reason != PLACEMENT_CONFLICT:
