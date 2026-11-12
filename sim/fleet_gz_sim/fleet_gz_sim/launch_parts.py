@@ -209,7 +209,7 @@ def pinky(ns: str, x, y, yaw, *, nav_map: str, nav_map_fine: str, keepout_mask: 
           nav_max_speed: float = DEFAULT_SPEED_MPS, battery_topic: str = "",
           nav_overrides: dict | None = None, lidar_noise: float | None = None,
           fixed_line_check: bool = True, narrow_strips: str = "",
-          wall_band_m: float = 0.04) -> list:
+          wall_band_m: float = 0.05) -> list:
     """핑키 한 대: 모델, Nav2, pinky_fsm, RViz. 브리지는 bridge()에 이 로봇 이름을 넣는다.
 
     nav_map, nav_map_fine: Nav2 지도 둘(배치의 5 cm, 1 cm 지도, fleet_setup.Arena).

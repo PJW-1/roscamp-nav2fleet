@@ -2,7 +2,7 @@
 
     ros2 launch pinky_nav_config nav2.launch.py map:=<지도.yaml> map_fine:=<1cm 지도.yaml> \
         initial_x:=0.35 initial_y:=1.55 initial_yaw:=1.5708 [keepout_mask:=<마스크.yaml>] \
-        [vision_obstacles:=true] [narrow_strips:="x0,y0,x1,y1; ..." wall_band_m:=0.04]
+        [vision_obstacles:=true] [narrow_strips:="x0,y0,x1,y1; ..." wall_band_m:=0.05]
 
 - 노드: map_server(5 cm, map), map_server_fine(1 cm, map_fine), amcl, controller_server,
   planner_server, behavior_server, bt_navigator와 lifecycle manager 둘.
@@ -204,7 +204,7 @@ def generate_launch_description():
                               description="좁은 띠 사각형 \"x0,y0,x1,y1; ...\"(map 좌표)."
                                           " 주면 스캔 거르개를 띄우고"
                                           " costmap이 거른 스캔을 읽는다"),
-        DeclareLaunchArgument("wall_band_m", default_value="0.04",
+        DeclareLaunchArgument("wall_band_m", default_value="0.05",
                               description="스캔 거르개: 벽·진열대에서 이만큼 안의 점을 지운다"),
         DeclareLaunchArgument("initial_x", default_value="0.0"),
         DeclareLaunchArgument("initial_y", default_value="0.0"),

@@ -69,7 +69,8 @@ ARGS = {
                                            " Through, Reverse)의 충돌 검사를 끈다. 마당 goal은 켬"),
     "scan_filter": ("true", "좁은 띠 안에서 벽·진열대에 붙은 라이다 점을 costmap에서 지우는 거르개"
                             "(pinky_scan_filter, 추가지시서3 7-2). false면 띄우지 않는다(비교용)"),
-    "wall_band_m": ("0.04", "스캔 거르개: 벽·진열대에서 이만큼 안의 점을 지운다(m)"),
+    "wall_band_m": ("0.05", "스캔 거르개: 벽·진열대에서 이만큼 안의 점을 지운다(m)."
+                            " 0.05는 D2 측정으로 고른 값(fixed_line_results.md)"),
     "use_order_model": ("","true/false: 관제의 use_order_model 파라미터(order 모델이 있는"
                             " 관제만 읽는다). 비우면 params 파일의 값"),
 }

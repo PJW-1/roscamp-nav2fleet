@@ -36,7 +36,8 @@ ARGS = {
     "lidar_noise": ("", "라이다 거리 잡음 표준편차(m, 비교용). 비면 모델 기본값 0.02"),
     "scan_filter": ("true", "좁은 띠 안에서 벽·진열대에 붙은 라이다 점을 costmap에서 지우는 거르개"
                             "(pinky_scan_filter, 추가지시서3 7-2). false면 띄우지 않는다(비교용)"),
-    "wall_band_m": ("0.04", "스캔 거르개: 벽·진열대에서 이만큼 안의 점을 지운다(m)"),
+    "wall_band_m": ("0.05", "스캔 거르개: 벽·진열대에서 이만큼 안의 점을 지운다(m)."
+                            " 0.05는 D2 측정으로 고른 값(fixed_line_results.md)"),
     "fixed_line_collision_check": ("true", "시뮬 전용. false면 고정 경로 controller 셋의 충돌"
                                            " 검사를 끈다. 마당 goal(FollowPathGoal)은 켬"),
 }

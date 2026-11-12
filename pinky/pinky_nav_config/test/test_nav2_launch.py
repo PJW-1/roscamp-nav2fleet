@@ -270,7 +270,7 @@ def test_narrow_strips_start_the_filter_and_only_the_costmaps_read_its_scan(comp
     assert scan_filter.expanded_remapping_rules == [("/tf", "tf"), ("/tf_static", "tf_static")]
     given = "".join(Path(path).read_text(encoding="utf-8")
                     for path, is_file in scan_filter._Node__expanded_parameter_arguments if is_file)
-    assert "wall_band_m: 0.04" in given and STRIPS in given
+    assert "wall_band_m: 0.05" in given and STRIPS in given
     if composition == "false":
         layers = _obstacle_layers(found)
         for layer in layers.values():
