@@ -31,6 +31,7 @@ HEARTBEAT_LOST = "HEARTBEAT_LOST"  # heartbeat가 끊겨 로봇이 스스로 끝
 _COMM_REASON = {COMM_LOST: "NO_STATE", RECOVERING: "CHECKING_POSE"}
 STALLED = "STALLED"  # 목표가 열린 채 제자리
 NOT_AT_TARGET = "NOT_AT_TARGET"  # 이동은 성공이라는데 자세는 아니라고 할 때
+PATH_NOT_CONNECTED = "PATH_NOT_CONNECTED"  # 로봇이 받은 고정 경로에서 너무 멀어 따라가지 않았다
 
 RUN = "RUN"
 STOP = "STOP"

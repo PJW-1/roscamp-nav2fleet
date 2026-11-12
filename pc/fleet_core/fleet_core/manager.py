@@ -279,7 +279,7 @@ class FleetManager:
         self._pump()
         self.arm.check_timeouts(now)
         self._pump()
-        stopped = traffic.tick_progress(now)  # robots the traffic layer holds still (zone layer: none)
+        stopped = traffic.tick_progress(now)  # robots held still this tick (zone layer: none)
         self._pump()
         if traffic.running and everyone_here:
             traffic.tick_pick(stopped)
