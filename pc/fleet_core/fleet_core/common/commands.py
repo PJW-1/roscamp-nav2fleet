@@ -52,7 +52,8 @@ class RetreatCmd:
 @dataclass(frozen=True)
 class CheckClearCmd:
     """관제가 막힘 표시의 점 둘레가 비었는지 로봇에게 묻는다(추가 지시서 3의 4-3, 기준(사용자)).
-    로봇 노드의 CheckClear 서비스로 간다. 답은 CLEAR, BLOCKED_AT, UNKNOWN 가운데 하나다."""
+    로봇 노드의 CheckClear 서비스로 간다. 답은 CLEAR, BLOCKED_AT, UNKNOWN 가운데 하나이고,
+    부르지 못했으면 fleet_manager가 NO_ANSWER를 준다."""
     robot: str
     check_id: int
     x: float
@@ -62,7 +63,8 @@ class CheckClearCmd:
 
 CLEAR = "clear"  # 그 점에서 radius_m 안에 장애물 칸이 없다
 BLOCKED_AT = "blocked"  # 있다
-UNKNOWN = "unknown"  # 그 점이 센서나 local costmap 밖이다(묻지 못한 경우도 이것으로 본다)
+UNKNOWN = "unknown"  # 로봇이 답했다: 그 원을 다 보지 못했다
+NO_ANSWER = ""  # 묻지 못했다(서비스 없음, 부르기 실패). 로봇의 답이 아니다(fleet_manager가 준다)
 OBSTACLE_KINDS = ("unknown", "person", "object", "robot")  # RobotState.obstacle_kind
 LOCAL_YIELD_STEPS = ("wait", "backup", "retry")  # RobotState.local_yield(계약 0.13-draft)
 

@@ -138,6 +138,22 @@ def test_a_retreat_that_gets_out_after_waiting_starts_a_fresh_wait_next_time():
     assert core.traffic._robots["pinky1"].behind_since is None
 
 
+def test_a_retreat_that_ends_at_its_end_anyway_also_starts_a_fresh_wait_next_time():
+    """실패로 끝났지만 끝 지점에 서 있어 닿은 것으로 본 후진도 기다림을 끝낸다."""
+    core, now = manager_at_the_work_dock()
+    now[0] += 0.1
+    back = next(c for c in core.tick() if isinstance(c, RetreatCmd))
+    core.on_retreat_result("pinky1", back.goal_id, False, "OBSTACLE_BEHIND")
+    now[0] += core.params.move_retry_wait_s + 0.1
+    back = next(c for c in core.tick() if isinstance(c, RetreatCmd))
+    x, y = back.path[-1][:2]
+    core.on_robot_state("pinky1", x, y, 0.0, "IDLE")
+    core.on_retreat_result("pinky1", back.goal_id, False, "FAILED")
+    out = core.tick()
+    assert "GOAL_ENDED_AT_TARGET" in [e.code for e in out if isinstance(e, EventOut)]
+    assert core.traffic._robots["pinky1"].behind_since is None
+
+
 # ---- 재생 도구의 거절 ----
 
 def head(**changes):

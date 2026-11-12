@@ -6,5 +6,5 @@ float64 r
 ---
 string ANSWER_CLEAR="clear"        # r 안에 장애물 칸이 없다
 string ANSWER_BLOCKED="blocked"    # 있다
-string ANSWER_UNKNOWN="unknown"    # 그 점이 local costmap 밖이거나 그 둘레를 아직 못 보았다
+string ANSWER_UNKNOWN="unknown"    # 원 전체를 못 보았다(일부가 costmap 밖, 모르는 칸) 또는 costmap이 2초보다 오래됐다
 string answer

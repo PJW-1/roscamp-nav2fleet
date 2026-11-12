@@ -97,3 +97,23 @@ def test_a_retreat_that_cannot_get_its_zones_waits_at_most_blocked_timeout_s():
     assert world.run_until(lambda: "GOAL_FAILED" in world.codes("pinky1"), 200.0)
     assert world.now - marked_at <= params.blocked_timeout_s + 2.0
     assert not world.sent(RetreatCmd, "pinky1")
+
+
+def test_it_backs_out_to_the_yard_even_with_no_way_on_from_there():
+    """물러난 뒤 갈 길이 지금 없어도 물러나기는 한다. 급행이 아니라 마당에서 기다린다."""
+    params = replace(load_params(), blocked_timeout_s=30.0)
+    world, call = blocked_toward_work(docked=False, params=params)
+    t = world.traffic
+    assert world.run_until(lambda: "BLOCKED_WAIT" in world.codes("pinky1"), 200.0)
+    for link in t.site.links():  # 다른 길도 모두 막혔다
+        if {link.a, link.b} != {"X_E", "X_W"}:
+            t._blocked[(link.a, link.b)] = 1e9
+    assert world.run_until(lambda: world.sent(RetreatCmd, "pinky1"), 60.0)
+    assert back_path(world)[-1] == tuple(t.site.node_pose("N_E"))
+    assert world.run_until(lambda: "RETREAT_DONE" in world.codes("pinky1"), 60.0)
+    world.run(params.blocked_timeout_s + 5.0)
+    assert "GOAL_FAILED" not in world.codes("pinky1"), "it waits in the yard"
+    t._blocked.clear()  # 길이 다시 열렸다
+    world.obstacles.clear()
+    assert world.run_until(lambda: world.result_of(call), 300.0)
+    assert world.result_of(call).success

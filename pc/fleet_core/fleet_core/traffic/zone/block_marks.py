@@ -41,6 +41,7 @@ class Mark:
     asked_at: float = 0.0  # 마지막으로 물은 시각(처음에는 표시한 시각)
     check: int = 0  # 답을 기다리는 질문 번호. 없으면 0
     asked: str = ""  # 그 질문을 받은 로봇
+    asked_last: dict = field(default_factory=dict)  # 로봇 -> 이 표시에서 마지막으로 물은 시각
 
 
 def polyline_gap(point, points) -> float:
@@ -187,6 +188,7 @@ class BlockMarks:
             self._marks[mark.id] = mark
         else:
             mark.until, mark.clears = now + mark.retry_s, 0
+            mark.check, mark.asked = 0, ""  # 새 보고 전에 보낸 질문의 답은 세지 않는다
         for key in keys:
             self._hold_key(mark, key)
         shown = ", ".join(f"{a or 'here'}->{b}" for a, b in keys)
