@@ -10,6 +10,7 @@
 | `main` | f305dc1 그대로입니다(지시서 1절의 병합까지) |
 | `nav2-base`, `order-model` | 그대로 남겨 두었습니다 |
 | 절마다의 브랜치 | `s3/*`로 올라가 있고, 통합 브랜치 `s3/7-3-standards`에 모은 뒤 `stage3`에 한 번에 병합했습니다 |
+| `stage3` 병합에서 찾은 것 | 통합 브랜치에는 2-3절(도킹 실패 뒤 다시 들어오기, 위치 추정 감시)이 없었고, `stage3`에 합치며 처음 만났습니다. 다시 들어오기 시험 8개가 실패해 원인(2-1 지도에서는 도크로 돌아오는 길이 연결 둘)을 고쳤습니다(작업 기록 10.15절) |
 | 고정 경로의 충돌 검사 | **시뮬레이션의 기본을 껐습니다**(사용자 결정 2026-11-13, `fixed_line_collision_check` 기본 false). 실물용 파라미터 파일은 켬 그대로입니다 |
 | 2-5 한 대 기준(충돌 검사 켬, 구간 종류마다 3번) | 채웠습니다. 여덟 구간이 모두 3/3이고 끝 오차의 최대는 0.081 m입니다 |
 | 2-5 세 대 경기 기준("주행" 원인 0건으로 3판) | **채우지 못했습니다.** 충돌 검사를 켜면 여섯 판이 모두 끝나지 않았고, 끄면 세 판 가운데 두 판이 통과했습니다(3절) |
@@ -22,18 +23,11 @@
 
 ## 2. 시험 결과
 
+`stage3`에서 병합과 수정을 마친 뒤의 결과입니다.
+
 | 시험 | 결과 |
 |---|---|
-| Windows ruff | 통과 |
-| Windows `fleet_core` | 622 passed |
-| Windows `pinky_fsm` | 335 passed, 7 skipped |
-| Windows `tools` | 53 passed |
-| Windows `pinky_nav_config` | 41 passed, 2 skipped |
-| Windows 패키지 사이 맞춤 시험 | 3 passed |
-| Windows 머리 없는 세계(`sim/fake_robots/test`) | 845 passed, 6 skipped(통합 브랜치 79e797e. 그 뒤의 커밋은 시뮬레이션 launch, 회귀 스크립트, 문서만 바꿉니다) |
-| WSL `fleet_gz_sim` / `pinky_nav_config` / `pinky_scan_filter` | 370 / 61 / 23 passed(충돌 검사의 기본을 끈 뒤) |
-| WSL `fleet_core` / `pinky_fsm` / `fake_robots` | 622 / 379 passed 6 skipped / 964 passed(통합 브랜치 038594e) |
-| WSL `fleet_manager` | 124 passed(통합 브랜치 79e797e) |
+@@TEST_ROWS@@
 
 ## 3. Gazebo 세 대 경기 (배치 D2, 주문 8건, 씨드 1~3)
 
@@ -52,7 +46,7 @@
 | | 2 | 3/8 | 한도 1200 s | pinky3 (289.6 s) | 0 | 0.108 | 마당 가운데에서 pinky2와 pinky3이 서로 막음 |
 | | 3 | 8/8 | 441 s | 없음 | 0 | 0.102 | 판정 통과 |
 
-충돌 검사를 끈 세 판은 같은 통합 빌드에서 `fixed_line_collision_check:=false`만 바꿔 돌린 것입니다. keepout 침범 깊이는 세 판 모두 0입니다.
+충돌 검사를 끈 세 판은 같은 통합 빌드에서 `fixed_line_collision_check:=false`만 바꿔 돌린 것입니다. 이 표의 통합 빌드는 통합 브랜치(`s3/7-3-standards`)의 것이어서 2-3절이 들어 있지 않습니다. 2-3절까지 합친 `stage3`의 빌드로는 Gazebo 경기를 돌리지 않았습니다. keepout 침범 깊이는 세 판 모두 0입니다.
 
 - 충돌 검사를 끄면 작업 도크에서 나오는 후진이 멈추는 문제(`reg_stall` 2판, 3판)가 나지 않았습니다.
 - 마당에서 로봇끼리 막는 문제는 남습니다. 끈 2판에서는 마당 가운데 (1.30, 0.46) 근처에서 pinky2와 pinky3이 서로 막았고, pinky3의 Nav2 goal이 세 번 중단되어 290 s에 격리됐습니다. 격리된 로봇이 마당(`HALL`)을 쥔 채 남아 나머지 주문 다섯이 멈췄습니다. 고정 경로와 도크 후진은 얽히지 않았습니다.

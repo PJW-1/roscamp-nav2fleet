@@ -269,15 +269,34 @@ def way_out(world, robot="pinky2"):
     return next(link for link in site.links_from(dock) if link.via == RETREAT)
 
 
-def test_a_reapproach_over_a_link_marked_blocked_docks_where_it_stands():
+def way_round(world, robot="pinky2"):
+    """Every link of the way out of the dock and back in."""
+    from fleet_core.traffic.zone.redock import way_in
+    out = way_out(world, robot)
+    return [out, *way_in(world.traffic.site, out.b, out.a)]
+
+
+@pytest.mark.parametrize("index", [0, 1, 2])
+def test_a_reapproach_over_a_link_marked_blocked_docks_where_it_stands(index):
     """The way out and back is picked by hand, so it has to respect the block marks itself."""
     world, _ = at_the_dock()
     assert world.run_until(lambda: "GOAL_RETRY" in world.codes("pinky2"), 30.0)
-    out = way_out(world)
-    world.traffic._blocked[(out.a, out.b)] = world.traffic._clock() + 100.0
+    links = way_round(world)
+    assert len(links) == 3, "D2: back out to the yard point, then two links in"
+    link = links[index]
+    world.traffic._blocked[(link.a, link.b)] = world.traffic._clock() + 100.0
     assert world.run_until(lambda: docks(world) == 2, 30.0)
     assert not world.sent(RetreatCmd, "pinky2")
     assert "DOCK_REAPPROACH" not in world.codes("pinky2")
+
+
+def test_a_mark_that_has_run_out_does_not_stop_the_reapproach():
+    world, _ = at_the_dock()
+    assert world.run_until(lambda: "GOAL_RETRY" in world.codes("pinky2"), 30.0)
+    for link in way_round(world):
+        world.traffic._blocked[(link.a, link.b)] = world.traffic._clock() - 1.0
+    assert world.run_until(lambda: world.sent(RetreatCmd, "pinky2"), 30.0)
+    assert "DOCK_REAPPROACH" in world.codes("pinky2") and docks(world) == 1
 
 
 def test_a_reapproach_whose_way_is_taken_waits_and_goes_when_it_is_free():
