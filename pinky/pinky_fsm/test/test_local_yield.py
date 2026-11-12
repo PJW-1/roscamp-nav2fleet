@@ -1,5 +1,6 @@
 """로봇단 교착 처리의 순수 판단(추가 지시서 3의 7-4, 기준(사용자)). ROS 없이 돈다."""
 import math
+from types import SimpleNamespace
 
 import pytest
 from pinky_fsm.local_yield import (
@@ -7,6 +8,7 @@ from pinky_fsm.local_yield import (
     Peer,
     blocking_peer,
     extend_trail,
+    peers_from,
     straight_back_m,
     yields_to,
 )
@@ -67,6 +69,12 @@ def test_backing_with_no_trail_or_facing_across_the_trail_is_nothing():
     assert straight_back_m([], (0.0, 0.0, 0.0), 0.10, 0.03) == 0.0
     trail = [(x / 100, 0.0) for x in range(0, 41, 2)]
     assert straight_back_m(trail, (0.40, 0.0, math.pi / 2), 0.10, 0.03) == pytest.approx(0.0)
+
+
+def test_fleet_rows_become_peers_and_rows_without_priority_have_none():
+    rows = [SimpleNamespace(robot_id="pinky2", x=1.0, y=2.0, priority=3),
+            SimpleNamespace(robot_id="pinky3", x=0.5, y=0.5)]  # 0.13 전 메시지
+    assert peers_from(rows) == [Peer("pinky2", 1.0, 2.0, 3), Peer("pinky3", 0.5, 0.5, NO_PRIORITY)]
 
 
 def test_the_trail_keeps_only_its_last_part_and_counts_all_of_it():

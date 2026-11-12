@@ -29,6 +29,13 @@ class Peer:
     priority: int = NO_PRIORITY
 
 
+def peers_from(rows) -> list[Peer]:
+    """/fleet/robots(RobotStatusArray.robots)의 줄들을 Peer로. priority 칸이 없던 메시지면
+    priority는 비었다."""
+    return [Peer(str(r.robot_id), float(r.x), float(r.y),
+                 int(getattr(r, "priority", NO_PRIORITY))) for r in rows]
+
+
 def blocking_peer(ahead: Sequence[Point], peers: Iterable[Peer], me: str,
                   near_m: float) -> Peer | None:
     """가던 길 앞의 점(ahead, 로봇 쪽부터) 가운데 하나에서 near_m 안에 중심이 있는 다른 로봇.
