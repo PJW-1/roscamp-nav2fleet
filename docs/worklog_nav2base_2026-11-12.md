@@ -321,7 +321,7 @@
 | 합친 뒤 나온 결함 | 9절의 도크 차례 규칙이 "길이 도크에서 끝나는 로봇"을 도크로 떠난 로봇으로 봤습니다. order 모델에서는 대기 자리로 가는 길이 도크까지 이어지므로(8.2절의 첫 줄), 줄에 선 로봇이 먼저 불린 로봇의 차례를 가져가고 둘 다 섰습니다(`test_zone_make_way_order.py`의 시험 하나가 실패). 차례를 순위로 바꿨습니다: 차례를 받아 떠난 로봇, 그다음은 부른 순서. 떠난 로봇은 base를 늘릴 때도 차례를 지킵니다 | 1964fbc(`nav2-base`), a565c97 |
 | 합친 뒤의 검수에서 나온 것 | base 끝에서 기다리는 로봇에 `NO_START`가 잘못 났습니다: horizon만 바꾼 update도 새 goal id로 가는데 로봇은 움직이지 않습니다. 끝 지점에서 3 cm 떨어져 선 로봇으로 재현했고, 기다리는 동안은 보지 않게 했습니다. 줄에 선 로봇이 도크 구간을 잡을 때 그 길에 차례를 적게 했습니다 | 4a5b88a |
 | 마지막 WSL 시험이 찾은 것 | `shared_lane_failure`가 이 브랜치의 WSL 실행에서 실패했습니다(7절). 실패한 goal을 닿은 것으로 보는 판정은 order goal이면 지금 조각의 방식으로 봅니다: Nav2 goal 조각은 끝 지점에서 0.075 m 안, 고정 경로 조각은 0.15 m 안입니다. 지도에 올리기와 지점 밖 표시의 수정(9.1절)은 `nav2-base`에서 병합했습니다 | dc0e207, 1db7a2a |
-| 마지막 점검이 찾은 것 | 통신이 끊긴 로봇의 base 구역을 쥐는 여유가 코드 상수(3.0 s)여서, 파라미터 `comm_base_hold_extra_s`를 바꿔도 달라지지 않았습니다. 파라미터를 읽게 하고 상수를 지웠습니다(기본값은 같은 3.0 s입니다) | 1b24a7c |
+| 마지막 점검이 찾은 것 | 통신이 끊긴 로봇의 base 구역을 쥐는 여유가 코드 상수(3.0 s)여서, 파라미터 `comm_base_hold_extra_s`를 바꿔도 달라지지 않았습니다. 파라미터를 읽게 하고 상수를 지웠습니다(기본값은 같은 3.0 s입니다). 음수 값은 0으로 봅니다: 닿을 예상 시각보다 먼저 풀지 않습니다 | 1b24a7c, 3723f11 |
 | 마지막 시험 결과 | 코드는 `order-model` 1db7a2a입니다(그 뒤에는 `nav2-base`에서 병합한 Gazebo 속도 상한 3252775와 문서 커밋이 있습니다). WSL(ROS 2 Jazzy)에서 여섯 패키지를 한 번 돌렸습니다: `fleet_core` 549 passed, `fleet_gz_sim` 331 passed, `pinky_fsm` 283 passed 6 skipped, `pinky_nav_config` 39 passed, `fake_robots` 946 passed, `fleet_manager` 120 passed(681.18 s). 앞선 1778ce0의 실행에서는 재시작 시험이 한 번 실패했습니다(1 failed, 119 passed. 7절의 "재시작 시험의 실패" 줄). Windows에서 한 번씩 돌렸습니다: `fleet_core` 549 passed, 머리 없는 세계 826 passed 6 skipped, `tools` 34 passed, `fleet_gz_sim` 245 passed 15 skipped, `pinky_fsm` 241 passed 6 skipped, ruff 통과 | |
 
 ### 8.2 가정
