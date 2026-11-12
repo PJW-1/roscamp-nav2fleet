@@ -90,3 +90,44 @@ def test_a_parking_try_that_cannot_take_its_way_leaves_the_waiting_record_alone(
     traffic.grants.note_waiting("pinky2", ("OUT_DOCK",))  # 이미 다른 것을 기다리던 로봇이면
     assert not traffic._to_parking(traffic._robots["pinky2"], "INFO", "HALL_YIELD", "goes to")
     assert traffic.grants.waiting() == {"pinky2": ("OUT_DOCK",)}, "what it waited for stays"
+
+
+# ---- 선 로봇이 쥔 지점을 거치는 길은 고르지 않는다(회피 흉내 none에서 끝나지 않던 두 경우) ----
+
+def run_past(world, done, timeout_s, body, radius):
+    """body 로봇의 몸(반지름 radius)을 장애물로 두고 done이 될 때까지 돌린다."""
+    for _ in range(round(timeout_s / DT)):
+        if done():
+            return True
+        bot = world.bots[body]
+        world.obstacles[:] = [(bot.x, bot.y, radius)]
+        world.step()
+    return done()
+
+
+def test_a_way_blocked_by_a_parked_robot_is_left_for_one_through_a_free_node():
+    """P-1에서 N_E로 가는 곧은 길은 P-2에 주차한 로봇의 몸에서 0.08 m를 지난다. 로봇이 돌아가지
+    못하면(회피 흉내 none) 관제가 다른 지점을 거치게 해야 한다. P-2는 그 로봇이 쥐고 있다."""
+    world = Harness(starts={"pinky1": "P-1", "pinky2": "P-2", "pinky3": "P-3"})
+    world.report()
+    call = world.call("OUTBOUND", "pinky1")
+    assert run_past(world, lambda: world.result_of(call) is not None, 300.0, "pinky2", BODY_M)
+    assert world.result_of(call).success
+    assert "ZONE_MARKED_BLOCKED" in world.codes("pinky1")
+    waits = [e.detail for e in world.events if e.code == "ZONE_WAIT" and e.robot == "pinky1"]
+    assert not any("P-2" in detail for detail in waits), "it never waits for the parked spot"
+    assert not world.sent(MoveCmd, "pinky2"), "the parked robot stays"
+
+
+def test_a_way_blocked_by_a_queued_robot_is_left_for_one_through_a_free_node():
+    """P-3에서 N_E로 가는 곧은 길은 O_Q에서 차례를 기다리는 로봇의 몸에서 0.13 m를 지난다. 비킬
+    주차 자리가 없으면(P-2는 남이 섰고 P-1은 막힌 로봇 쪽이다) O_Q를 거치지 않는 길로 간다."""
+    world = Harness(starts={"pinky1": "P-2", "pinky2": "O_Q", "pinky3": "P-3"})
+    world.report()
+    first = world.call("OUTBOUND", "pinky3")
+    world.now += DT / 2  # pinky3이 먼저 불렸다
+    world.call("OUTBOUND", "pinky2")
+    assert run_past(world, lambda: world.result_of(first) is not None, 300.0, "pinky2", 0.14)
+    assert world.result_of(first).success
+    waits = [e.detail for e in world.events if e.code == "ZONE_WAIT" and e.robot == "pinky3"]
+    assert not any("O_Q" in detail for detail in waits), "it never waits for the queue spot"

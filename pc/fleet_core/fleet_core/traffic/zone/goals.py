@@ -10,13 +10,14 @@ from __future__ import annotations
 import math
 
 from fleet_core.fleet_map import AT_DOCK, LANE, NAV_GOAL, SHARED, route
-from fleet_core.traffic.mission import TO_OUTBOUND, TO_WORK
+from fleet_core.traffic.mission import TO_OUTBOUND, TO_PARK, TO_WORK
 
 from .base import HERE
 from .lane_policy import Want
 from .trips import Trip, back_link, free_link, left_s, needs, speed, stretch_end
 
 TRANSIT_WAIT_S = 6.0  # 찬 갈림목이나 좁은 통로가 비기를 기다리는 예상 시간(길 비용, 가정)
+STANDING_WAIT_S = 300.0  # 스스로 비키지 않는 로봇이 선 지점을 거치는 길에 치는 시간(길 비용, 가정)
 
 
 class Goals:
@@ -45,8 +46,25 @@ class Goals:
                     seconds += p.dock_wait_estimate_s
                 else:
                     seconds += TRANSIT_WAIT_S
-            return seconds
+            return seconds + self._node_wait(m, link.b)
         return cost
+
+    def _node_wait(self, m, node: str) -> float:
+        """다른 로봇이 goal 없이 서서 쥐고 있는 지점을 거치려면 기다릴 예상 시간(s).
+
+        비었거나, 제가 쥐었거나, 지나가는 로봇이 쥔 지점은 0이다. 차례를 기다리며 선 로봇의 지점은
+        찬 도크만큼(dock_wait_estimate_s) 쳐서 다른 길이 있으면 그리로 간다. 할 일 없이 선 로봇과
+        고장 난 로봇은 스스로 비키지 않으므로 STANDING_WAIT_S를 친다: 다른 길이 그만큼 더 걸려도
+        그리로 가고, 다른 길이 없을 때만 그 지점을 기다린다(누구 때문에 서 있는지가 보인다).
+        도크 지점은 도크 차례 규칙이 따로 본다.
+        """
+        holder = self._robots.get(self.grants.node_holder(node))
+        if (holder is None or holder is m or holder.goal is not None
+                or self.site.nodes[node].kind == AT_DOCK):
+            return 0.0
+        if not holder.available or holder.phase not in (TO_WORK, TO_OUTBOUND, TO_PARK):
+            return STANDING_WAIT_S
+        return self.params.dock_wait_estimate_s
 
     def _way(self, m, goal: str):
         """지금 자리에서 goal까지의 연결들. 이미 거기면 [], 길이 없으면 None."""
@@ -69,7 +87,7 @@ class Goals:
             rest = route(site, name, goal, cost)
             if rest is None:
                 continue
-            total = (first.length / self.params.nav_speed_mps
+            total = (first.length / self.params.nav_speed_mps + self._node_wait(m, name)
                      + sum(cost(link) for link in rest))
             if total < best_cost:
                 best, best_cost = [first, *rest], total
