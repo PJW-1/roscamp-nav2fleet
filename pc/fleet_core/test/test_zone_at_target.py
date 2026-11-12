@@ -3,6 +3,8 @@
 Gazebo 3대 경기에서 나왔다: 출고 도크에서 물러난 로봇이 끝에 닿았지만 후진 goal이 끝나지 않았고,
 다시 보낸 후진은 "남은 길이 없다"로 바로 실패해서 로봇이 격리됐다.
 """
+import math
+
 from fleet_core.common.commands import CancelCmd, MoveCmd, RetreatCmd
 from zone_harness import Harness
 
@@ -124,3 +126,41 @@ def test_a_robot_that_stopped_itself_without_the_heartbeat_keeps_its_own_handlin
     world.step()
     codes = world.codes("pinky1")
     assert "GOAL_ENDED_AT_TARGET" not in codes and "GOAL_RETRY" not in codes
+
+
+# ---- 로봇이 닿았다고 한 것이 아니면 끝에 더 가까워야 한다 ----
+
+def aborted_short_of_the_end(gap_m: float):
+    """pinky2의 첫 Nav2 goal이 끝 지점에서 gap_m 못 미친 곳에서 실패로 끝난 세계."""
+    world = Harness()
+    world.step()
+    world.call("WORK", "pinky2")
+    world.step()
+    first = world.sent(MoveCmd, "pinky2")[0]
+    bot = world.bots["pinky2"]
+    reach = math.dist((bot.x, bot.y), (first.x, first.y))
+    bot.cmd = None  # 가다가 섰다. 결과는 아래에서 넣는다
+    bot.x = first.x + (bot.x - first.x) * gap_m / reach
+    bot.y = first.y + (bot.y - first.y) * gap_m / reach
+    world.step()
+    world.traffic.on_move_result("pinky2", first.goal_id, False, "NAV_ABORTED")
+    world.step()
+    return world, first
+
+
+def test_a_failed_move_that_stopped_inside_the_tolerance_but_short_of_the_end_is_retried():
+    """관제의 도착 허용 거리와 로봇이 받은 경로에 붙었다고 보는 거리는 같다(0.15 m). 로봇이 닿았다고
+    한 것이 아닌데 그 언저리의 보고 하나로 닿은 것으로 보면, 이어 보낸 고정 경로를 로봇이 거절한다
+    (ROS 시나리오 shared_lane_failure에서 나왔다: 보고 0.128 m, 실제 약 0.19 m)."""
+    world, first = aborted_short_of_the_end(0.10)
+    assert world.params.arrival_tolerance_m == 0.15
+    codes = world.codes("pinky2")
+    assert "GOAL_RETRY" in codes and "GOAL_ENDED_AT_TARGET" not in codes
+    assert world.view("pinky2")["node"] != first.target_id
+
+
+def test_a_failed_move_that_stopped_at_the_end_within_its_stop_error_is_taken_as_arrived():
+    world, first = aborted_short_of_the_end(0.05)
+    codes = world.codes("pinky2")
+    assert "GOAL_ENDED_AT_TARGET" in codes and "GOAL_RETRY" not in codes
+    assert world.view("pinky2")["node"] == first.target_id

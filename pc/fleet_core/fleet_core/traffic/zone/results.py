@@ -143,12 +143,17 @@ class Results:
 
         보고가 끊겼거나 로봇이 위치를 잃었으면(LOCALIZING) 남아 있는 위치는 옛것이다.
         막혀 선 로봇(BLOCKED)은 가리지 않는다: 위치가 맞으면 그 지점에 있는 것이다.
+
+        로봇이 닿았다고 한 것이 아니라 보고 하나로 관제가 정하는 것이라, 도착 허용 거리의 절반
+        안이어야 한다. 도착 허용 거리는 로봇이 받은 경로에 붙었다고 보는 거리와 같아서(0.15 m),
+        그 언저리의 보고를 믿으면 이어 보낸 고정 경로를 로봇이 거절한다(PATH_NOT_CONNECTED).
+        끝에 못 미쳐 선 로봇은 실패한 시도로 세고 같은 goal을 다시 보낸다: 남은 길이 있다.
         """
         goal = m.goal
         heard = (m.available and m.robot_state != LOCALIZING
                  and self._clock() - m.last_seen <= self.params.arrival_settle_s)
         return (heard and goal is not None and goal.kind in (MOVE, RETREAT)
-                and self._gap(m, goal.end) <= self.params.arrival_tolerance_m)
+                and self._gap(m, goal.end) <= self.params.arrival_tolerance_m / 2)
 
     def _arrived_anyway(self, m, reason: str) -> None:
         """goal은 실패했거나 열린 채 멈췄지만 로봇은 끝 지점에 서 있다. 닿은 것으로 본다.
