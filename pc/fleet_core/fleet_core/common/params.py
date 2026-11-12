@@ -93,6 +93,8 @@ class FleetParams:
     pose_jump_window_s: float = 2.0
     pose_jump_m: float = 0.15
     pose_jump_quiet_s: float = 5.0  # 한 번 낸 뒤 이만큼은 다시 내지 않는다
+    # 도킹이 실패한 로봇이 물러날 길이 비기를 도크에서 기다리는 시간. 넘으면 그 자리에서 다시 한다
+    redock_wait_s: float = 10.0
     # 마당 물러나기(제안, 2026-11-12). 넓은 구역에서 비켜 서는 로봇이 BLOCKED를 보고했으면 선
     # 방향 그대로 뒤로 물린 뒤 세운다. 끄면(기본) 세우기만 한다
     yard_backoff: bool = False

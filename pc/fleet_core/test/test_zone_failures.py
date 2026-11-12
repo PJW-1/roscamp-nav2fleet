@@ -7,7 +7,7 @@ import math
 
 import pytest
 from fleet_core.common.commands import DispatchResult, DockCmd, MoveCmd, RetreatCmd, RobotIsolated
-from fleet_core.fleet_map import SHARED
+from fleet_core.fleet_map import RETREAT, SHARED
 from fleet_core.traffic.mission import HEARTBEAT_LOST, NOT_AT_TARGET
 from zone_harness import Harness
 
@@ -252,13 +252,71 @@ def test_a_failed_docking_backs_out_and_comes_in_again_before_the_next_try():
     assert world.run_until(lambda: docks(world) == 2, 60.0)
     codes = world.codes("pinky2")
     first = codes.index("GOAL_RETRY")
-    assert codes[first:first + 5] == ["GOAL_RETRY", "DOCK_REAPPROACH", "ZONE_GRANTED",
+    assert codes[first:first + 5] == ["GOAL_RETRY", "ZONE_GRANTED", "DOCK_REAPPROACH",
                                       "RETREAT_START", "RETREAT_DONE"], codes[first:first + 8]
     assert "FOLLOW_SENT" in codes[first:]
     assert not world.problems
     assert world.run_until(lambda: world.codes("pinky2").count("GOAL_RETRY") == 2, 60.0)
     retries = [e.detail for e in world.events if e.code == "GOAL_RETRY"]
     assert retries == ["DOCK_FAILED, attempt 1", "DOCK_FAILED, attempt 2"], "each one counts"
+
+
+def way_out(world, robot="pinky2"):
+    """The link a robot at its dock backs out on."""
+    site = world.traffic.site
+    dock = site.stations[world.traffic._robots[robot].dest].dock
+    return next(link for link in site.links_from(dock) if link.via == RETREAT)
+
+
+def test_a_reapproach_whose_way_is_taken_waits_and_goes_when_it_is_free():
+    world, _ = at_the_dock()
+    assert world.run_until(lambda: "GOAL_RETRY" in world.codes("pinky2"), 30.0)
+    spot, grants = way_out(world).b, world.traffic.grants
+    assert grants.take("ghost", (), (spot,))
+    world.run(world.params.move_retry_wait_s + 1.0)
+    assert docks(world) == 1 and not world.sent(RetreatCmd, "pinky2"), "it waits at the dock"
+    assert world.traffic.status_view("pinky2")["wait_robots"] == ("ghost",), "the wait is on record"
+    grants.release_node("ghost", spot)
+    world.run(1.0)
+    assert world.sent(RetreatCmd, "pinky2") and docks(world) == 1
+
+
+def test_a_reapproach_that_cannot_start_in_time_docks_where_it_stands():
+    """Whoever holds the way out may never leave. The robot does not wait at the dock for ever."""
+    world, _ = at_the_dock()
+    assert world.run_until(lambda: "GOAL_RETRY" in world.codes("pinky2"), 30.0)
+    assert world.traffic.grants.take("ghost", (), (way_out(world).b,))
+    world.run(world.params.move_retry_wait_s + world.params.redock_wait_s - 0.5)
+    assert docks(world) == 1
+    world.run(1.0)
+    assert docks(world) == 2 and not world.sent(RetreatCmd, "pinky2")
+
+
+def test_a_reapproaching_robot_keeps_its_dock_turn():
+    world, _ = at_the_dock()
+    world.call("WORK", "pinky3")
+    assert world.run_until(lambda: "DOCK_REAPPROACH" in world.codes("pinky2"), 30.0)
+    assert world.traffic._robots["pinky2"].trip.turn
+    assert world.run_until(lambda: docks(world) == 2, 60.0)
+    assert not docks(world, "pinky3"), "the other robot does not get the dock in between"
+
+
+def test_a_rejected_docking_and_failed_ones_count_together():
+    world, _ = at_the_dock()
+    world.traffic.on_goal_rejected("pinky2", world.sent(DockCmd, "pinky2")[-1].goal_id)
+    assert world.run_until(lambda: isolations(world), 120.0)
+    told = [e.detail for e in world.events if e.code in ("GOAL_RETRY", "GOAL_FAILED")]
+    assert told == ["REJECTED, attempt 1", "DOCK_FAILED, attempt 2",
+                    "DOCK_FAILED after 3 attempts"]
+
+
+def test_a_rejected_docking_after_a_reapproach_counts_too():
+    world, _ = at_the_dock()
+    assert world.run_until(lambda: docks(world) == 2, 60.0)
+    world.traffic.on_goal_rejected("pinky2", world.sent(DockCmd, "pinky2")[-1].goal_id)
+    world.step()
+    told = [e.detail for e in world.events if e.code == "GOAL_RETRY"]
+    assert told == ["DOCK_FAILED, attempt 1", "REJECTED, attempt 2"]
 
 
 def test_docking_that_fails_once_and_then_succeeds_ends_the_dispatch_well():

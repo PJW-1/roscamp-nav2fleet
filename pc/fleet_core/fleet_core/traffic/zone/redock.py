@@ -12,23 +12,41 @@ from .trips import Trip
 
 
 class Redock:
-    def _dock_failed(self, m) -> None:
-        """도킹이 실패로 끝났다. 물러났다 들어오는 사이에 지워지는 attempts 대신 따로 센다."""
+    def _dock_failed(self, m, reason: str = "DOCK_FAILED") -> None:
+        """도킹 시도 하나가 실패했다: 실패한 결과이거나 거절이다.
+
+        물러났다 들어오는 사이에 지워지는 attempts 대신 따로 센다. 실패한 결과 뒤에는 물러났다
+        다시 들어온다. 거절은 로봇이 받지 않은 것이므로 그 자리에서 다시 낸다.
+        """
         m.dock_tries += 1
         m.attempts = m.dock_tries - 1
-        m.redock = True
-        self._goal_failed(m, "DOCK_FAILED")
+        if reason == "DOCK_FAILED":
+            m.redock = True
+        self._goal_failed(m, reason)
 
     def _reapproach(self, m) -> bool:
-        """도크 앞 지점까지 후진했다가 다시 들어오는 길을 잡는다. 그런 길이 없으면 False."""
-        m.redock = False
+        """도크 앞 지점까지 후진했다가 다시 들어오는 길을 잡는다.
+
+        길을 잡았거나 길이 비기를 기다리는 중이면 True다. 그런 길이 없는 도크이거나
+        redock_wait_s 안에 못 잡았으면 False다: 그 자리에서 다시 도킹한다.
+        """
+        now = self._clock()
         dock = self.site.stations[m.dest].dock
         out = next((link for link in self.site.links_from(dock) if link.via == RETREAT), None)
         back = self.site.link(out.b, dock) if out is not None else None
-        if back is None or back.via != FOLLOW_PATH:
-            return False  # 뒤로 나오는 길이나 다시 들어오는 고정 경로가 없는 도크다
-        m.trip = Trip(dock, [out, back])
-        m.phase = self._leg_of(m.dest)
+        waited = 0.0 if m.wait_since is None else now - m.wait_since
+        if back is None or back.via != FOLLOW_PATH or waited >= self.params.redock_wait_s:
+            m.redock = False
+            self._stop_wanting(m)
+            return False
+        trip = Trip(dock, [out, back], turn=True)  # 도크 차례는 그대로 이 로봇의 것이다
+        want = self._take(m, trip)
+        if want is not None:  # 나가는 길을 다른 로봇이 쥐고 있다. 도크에 선 채 기다린다
+            self._wants[m.name] = want
+            self._note_wait(m, want)
+            return True
+        m.redock = False
+        m.trip, m.phase = trip, self._leg_of(m.dest)
         self._event("INFO", "DOCK_REAPPROACH", f"backs to {out.b} and comes in to {dock} again",
                     m.name)
         return True

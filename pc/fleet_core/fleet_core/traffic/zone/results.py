@@ -73,7 +73,7 @@ class Results:
             return
         if m.goal.kind == DOCK:
             m.goal = None
-            self._goal_failed(m, "REJECTED")
+            self._dock_failed(m, "REJECTED")
         else:
             self._move_failed(m, "REJECTED")
 

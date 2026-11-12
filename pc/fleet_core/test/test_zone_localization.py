@@ -1,5 +1,6 @@
 """위치 추정 감시(LOCALIZATION_SUSPECT): 보고 자세가 로봇이 갈 수 있는 것보다 크게 튄다."""
 import math
+from dataclasses import replace
 
 from fleet_core.common.params import load_params
 from fleet_core.traffic.zone.localization import pose_jump
@@ -98,3 +99,16 @@ def test_jumps_in_a_row_are_one_event_until_the_quiet_time_is_over():
     bot.x += 0.4
     world.run(0.5)
     assert count(world, "LOCALIZATION_SUSPECT", "pinky1") == 2
+
+
+def test_the_first_pose_after_lost_contact_is_not_a_jump():
+    """The pose of a robot that went silent may have been set again in the meantime."""
+    world = Harness(params=replace(P, comm_timeout_s=1.0))
+    world.run(1.0)
+    world.silent.add("pinky1")
+    assert world.run_until(lambda: "COMM_LOST" in world.codes("pinky1"), 5.0)
+    assert world.now < 1.0 + P.pose_jump_window_s, "still inside the compared time"
+    world.bots["pinky1"].x += 1.5
+    world.silent.clear()
+    world.run(1.0)
+    assert count(world, "LOCALIZATION_SUSPECT") == 0
