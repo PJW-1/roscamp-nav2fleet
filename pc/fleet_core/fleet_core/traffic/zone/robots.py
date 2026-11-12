@@ -68,6 +68,9 @@ class Robot:
     blocked_noted: bool = False  # BLOCKED_WAIT를 냈다
     blocked_goal: int = 0  # blocked_since를 잰 goal
     idle_since: float | None = None  # 할 일 없이 서 있기 시작한 시각
+    silent_from: tuple | None = None  # 조용히 멈춤을 재기 시작한 자리(silent.py)
+    silent_since: float = 0.0
+    silent_noted: bool = False  # 이번에 SILENT_STALL을 냈다
     self_recovery_since: float | None = None
     clear_n: dict = field(default_factory=dict)  # 뒤의 구역이나 지점 -> 벗어난 연속 보고 수
     outside_n: int = 0  # 쥔 구역 밖으로 벗어난 연속 보고 수

@@ -74,3 +74,4 @@ yard_backoff_clear_m: 0.20    # 뒤쪽의 다른 로봇과 이만큼은 떨어�
 use_order_model: false        # order 모델(base/horizon, 이어 붙이기). 끄면 조각 하나씩 보낸다
 lookahead_s: 2.0              # order 모델: base 끝까지 이만큼 남으면 다음 구역을 잡아 본다
 comm_base_hold_extra_s: 3.0   # order 모델: 끊긴 로봇의 base 구역을 base 끝 ETA + 이만큼 쥔다
+silent_limit_s: 60.0          # 제안: 갈 곳이 있는 로봇이 나아가지 않고 그 로봇에 대한 관제 사건도 이만큼 없으면 SILENT_STALL(시험에서는 실패). 0이면 끈다

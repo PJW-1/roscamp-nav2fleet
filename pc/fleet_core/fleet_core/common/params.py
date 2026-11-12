@@ -96,6 +96,8 @@ class FleetParams:
     use_order_model: bool = False
     lookahead_s: float = 2.0  # base 끝까지 이만큼 남으면 다음 구역을 잡아 본다
     comm_base_hold_extra_s: float = 3.0  # 끊긴 로봇의 base 구역을 base 끝 ETA + 이만큼 쥔다
+    # 시험 판정(추가 지시서 2, 2026-11-12). 0이면 끈다. 이 값이 없던 기록은 감시 없이 재생한다
+    silent_limit_s: float = 0.0  # 갈 곳이 있는 로봇이 나아가지 않고 관제도 말이 없으면 SILENT_STALL
 
 
 def load_params(path=None) -> FleetParams:

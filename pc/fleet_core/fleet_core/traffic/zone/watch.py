@@ -1,4 +1,7 @@
-"""감시: 제자리 멈춤, 구역 밖(기록만), 넓은 구역에서 서로 막음, 대기 순환(보험), 할 일 없이 섬."""
+"""감시: 제자리 멈춤, 구역 밖(기록만), 넓은 구역에서 서로 막음, 대기 순환(보험).
+
+할 일 없이 섬(ROBOT_IDLE)은 silent.py에 있다.
+"""
 from __future__ import annotations
 
 import math
@@ -12,9 +15,6 @@ from fleet_core.traffic.mission import (
     RUN,
     SELF_RECOVERING,
     STALLED,
-    TO_OUTBOUND,
-    TO_PARK,
-    TO_WORK,
 )
 
 from .robots import BACKOFF
@@ -170,18 +170,3 @@ class Watch:
                 return True
         self.grants.note_waiting(m.name, waited)  # 잡아 보기만 했다: 주차 길을 기다리는 것이 아니다
         return False
-
-    def _watch_idle(self, m, now: float) -> None:
-        """갈 곳이 있는데 goal도 없고 기다리는 것도 없이 서 있으면 알린다."""
-        p = self.params
-        idle = (p.idle_watch_s > 0 and self._run_mode == RUN and m.goal is None
-                and m.phase in (TO_WORK, TO_OUTBOUND, TO_PARK) and m.wait_since is None
-                and now >= m.retry_at and now >= m.yield_until)
-        if not idle:
-            m.idle_since = None
-        elif m.idle_since is None:
-            m.idle_since = now
-        elif now - m.idle_since >= p.idle_watch_s:
-            m.idle_since = now
-            self._event("WARN", "ROBOT_IDLE", f"{m.phase} at {m.node}: no goal and nothing to "
-                        "wait for", m.name)
