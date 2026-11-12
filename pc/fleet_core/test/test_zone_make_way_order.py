@@ -38,3 +38,23 @@ def test_a_robot_waiting_at_its_base_end_in_the_way_is_sent_to_parking():
     world.traffic.on_release("pinky3")
     assert run_until(world, lambda: world.result_of(second) is not None, 300.0)
     assert world.result_of(second).success, "the robot that gave way still gets its turn"
+
+
+def test_a_robot_on_its_way_to_the_dock_keeps_the_turn_when_its_order_is_extended():
+    """차례를 받아 도크로 떠난 로봇은 base를 늘릴 때도 차례를 지킨다. 먼저 불린 로봇을 그 앞으로
+    치면 늘리지 못해 base 끝에 서고, 먼저 불린 로봇은 가는 중인 로봇을 기다려 둘 다 선다."""
+    world = Harness(layout="d", starts={"pinky2": "P-1", "pinky3": "P-3"}, params=ON)
+    world.report()
+    traffic = world.traffic
+    for link in (("P-3", "N_E"), ("P-3", "O_Q")):
+        traffic._blocked[link] = 1e9  # pinky3은 남쪽 통로로 돌아간다
+    going = world.call("OUTBOUND", "pinky3")
+    assert world.run_until(lambda: traffic._robots["pinky3"].trip is not None, 5.0)
+    trip = traffic._robots["pinky3"].trip
+    assert trip.goal == "O" and trip.granted < len(trip.links), "the dock zone comes later"
+    late = world.call("OUTBOUND", "pinky2")
+    traffic._robots["pinky2"].asked_at = -1.0  # 먼저 불렸다가 앞지름을 당한 로봇인 셈이다
+    while world.result_of(going) is None:
+        world.step()
+        assert world.now < 200.0, world.log[-12:]
+    assert world.result_of(going).success and world.result_of(late) is None
