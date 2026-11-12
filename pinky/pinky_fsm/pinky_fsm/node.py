@@ -152,6 +152,7 @@ class PinkyFsmNode(Node):
         self._late_goal: list[int] = []  # 다음 주기에 거절로 넘길 NavigateToPose(서버 없음)
         self._speed = (0.0, 0.0)
         self._costmap: tuple[Grid, str] | None = None  # (격자, 틀). 한 번에 바꿔 짝이 맞게 둔다
+        self._costmap_at = 0.0
         self._battery = UNKNOWN_BATTERY
 
         self._tf = Buffer()
@@ -231,6 +232,7 @@ class PinkyFsmNode(Node):
                                    o.orientation.w),
                     msg.info.width, msg.info.height, msg.data)
         self._costmap = (grid, msg.header.frame_id)
+        self._costmap_at = time.monotonic()  # 받은 시각. 오래된 격자로는 CheckClear에 답하지 않는다
 
     def _on_battery(self, msg: BatteryState) -> None:
         if not math.isnan(msg.percentage):
@@ -285,7 +287,8 @@ class PinkyFsmNode(Node):
             tf = self._costmap_tf(frame)
             if tf is not None:
                 [(x, y)] = to_frame([(request.x, request.y)], tf)
-                response.answer = clear_answer(grid, x, y, float(request.r))
+                response.answer = clear_answer(grid, x, y, float(request.r),
+                                               age_s=time.monotonic() - self._costmap_at)
         return response
 
     def _obstacle(self, points) -> bool:

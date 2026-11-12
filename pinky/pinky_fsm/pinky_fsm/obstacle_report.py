@@ -12,6 +12,7 @@ from pinky_fsm.costmap import Grid
 LETHAL = 100  # 장애물 칸 자체. 99(INSCRIBED) 아래는 부풀린 둘레다
 AHEAD_HALF_WIDTH_M = 0.12  # 가던 길 앞의 띠 반폭: 발자국 반 대각선 0.085 m + 칸 하나 남짓
 CLEAR, BLOCKED, UNKNOWN = "clear", "blocked", "unknown"  # CheckClear.srv의 ANSWER_*
+MAX_AGE_S = 2.0  # 이보다 오래된 costmap으로는 답하지 않는다(local costmap은 보통 5 Hz 안팎)
 
 
 def _cells_near(grid: Grid, x: float, y: float, reach: float):
@@ -49,14 +50,22 @@ def nearest_ahead(grid: Grid, x: float, y: float, yaw: float, look_m: float,
     return best[1] if best else None
 
 
-def clear_answer(grid: Grid, x: float, y: float, r: float) -> str:
-    """CheckClear의 답. 그 점이 격자 밖이거나 r 안의 칸을 모두 모르면(-1) unknown, 장애물 칸이
-    있으면 blocked, 없으면 clear."""
-    if grid.cost_at(x, y) is None:
+def clear_answer(grid: Grid, x: float, y: float, r: float, age_s: float = 0.0) -> str:
+    """CheckClear의 답.
+
+    격자가 MAX_AGE_S보다 오래됐으면(갱신이 멈춘 costmap) unknown. r 안에 장애물 칸이 있으면
+    blocked. 원 전체를 본 경우에만 clear다: 원의 일부가 격자 밖이거나 모르는 칸(-1)이 하나라도
+    있으면 unknown.
+    """
+    if age_s > MAX_AGE_S or grid.cost_at(x, y) is None:
         return UNKNOWN
-    costs = [cost for _, _, cost in _cells_near(grid, x, y, max(r, grid.resolution))]
+    reach = max(r, grid.resolution)
+    costs = [cost for _, _, cost in _cells_near(grid, x, y, reach)]
     if any(cost >= LETHAL for cost in costs):
         return BLOCKED
-    if not costs or all(cost < 0 for cost in costs):
+    rim = [(x + reach * math.cos(k * math.pi / 4), y + reach * math.sin(k * math.pi / 4))
+           for k in range(8)]
+    if (not costs or any(cost < 0 for cost in costs)
+            or any(grid.cost_at(px, py) is None for px, py in rim)):
         return UNKNOWN
     return CLEAR

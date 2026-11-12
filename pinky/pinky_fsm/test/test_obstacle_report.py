@@ -48,3 +48,17 @@ def test_clear_blocked_and_unknown():
     assert clear_answer(g, *center(25, 20), 0.10) == CLEAR
     assert clear_answer(g, 5.0, 5.0, 0.10) == UNKNOWN, "outside the costmap"
     assert clear_answer(grid(fill=-1), *center(20, 20), 0.10) == UNKNOWN, "nothing seen there"
+
+
+def test_clear_only_when_the_whole_circle_was_seen():
+    """원 안에 모르는 칸이 하나라도 있거나 원의 일부가 격자 밖이면 clear라고 하지 않는다."""
+    assert clear_answer(grid({(22, 20): -1}), *center(20, 20), 0.10) == UNKNOWN, "an unseen cell"
+    assert clear_answer(grid(), *center(0, 20), 0.10) == UNKNOWN, "partly off the costmap"
+    assert clear_answer(grid({(22, 20): -1, (19, 20): 100}), *center(20, 20), 0.10) == BLOCKED
+
+
+def test_a_stale_costmap_answers_unknown():
+    g = grid({(20, 20): 100})
+    assert clear_answer(g, *center(25, 20), 0.10, age_s=1.0) == CLEAR
+    assert clear_answer(g, *center(25, 20), 0.10, age_s=2.5) == UNKNOWN
+    assert clear_answer(g, *center(21, 20), 0.10, age_s=2.5) == UNKNOWN, "old news either way"
