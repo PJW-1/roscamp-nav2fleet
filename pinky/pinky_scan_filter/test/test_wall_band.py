@@ -1,9 +1,17 @@
 """wall_band: 좁은 띠 안에서 벽·진열대에 붙은 라이다 점을 고르는 순수 함수(추가지시서3 7-2)."""
 import math
+import warnings
 
 import numpy as np
 import pytest
-from pinky_scan_filter.wall_band import WallBand, beam_points, near_cells, parse_strips
+from pinky_scan_filter.wall_band import (
+    WallBand,
+    beam_points,
+    filter_ranges,
+    near_cells,
+    origin_yaw,
+    parse_strips,
+)
 
 RES = 0.01
 
@@ -80,3 +88,41 @@ def test_beam_points_put_each_range_in_the_map_frame():
                          pose=(1.0, 1.0, math.pi / 2))
     assert xs == pytest.approx([1.0, 0.5])
     assert ys == pytest.approx([1.5, 1.0])
+
+
+def _filter(ranges, band=0.04, range_min=0.05, range_max=3.0):
+    # 라이다가 (0.30, 0.89)에서 북쪽을 본다. 빔 하나뿐: 0° 빔이 북쪽 벽(면 0.99)으로 간다
+    return filter_ranges(_band(band), ranges, angle_min=0.0, angle_increment=0.1,
+                         range_min=range_min, range_max=range_max, pose=(0.30, 0.89, math.pi / 2))
+
+
+def test_filter_ranges_turns_a_beam_on_the_wall_into_inf_and_keeps_the_rest():
+    # 0.075 m: (0.30, 0.965) 벽 곁이라 지운다. 0.02 m: (0.30, 0.91) 벽에서 0.08 m라 둔다
+    out = _filter([0.075])
+    assert out.tolist() == [math.inf]
+    assert _filter([0.02], range_min=0.01).tolist() == [0.02]
+
+
+def test_filter_ranges_band_edge():
+    # 칸 (row 94) 가운데 0.945에서 벽 면 0.99까지 0.045: 0.04 띠 밖, 0.05 띠 안
+    assert _filter([0.055], band=0.04).tolist() == [0.055]
+    assert _filter([0.055], band=0.05).tolist() == [math.inf]
+
+
+def test_filter_ranges_leaves_non_finite_beams_alone_without_numpy_warnings():
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        out = _filter([math.inf, math.nan, -math.inf, 0.075])
+    assert out[0] == math.inf and math.isnan(out[1]) and out[2] == -math.inf
+    assert out[3] == math.inf
+
+
+def test_filter_ranges_leaves_finite_beams_outside_range_min_max_alone():
+    # 0.075는 벽 곁이지만 range_min 0.08보다 짧고, range_max 0.07보다 길다: 그대로 둔다
+    assert _filter([0.075], range_min=0.08).tolist() == [0.075]
+    assert _filter([0.075], range_max=0.07).tolist() == [0.075]
+
+
+def test_origin_yaw_reads_the_map_origin_quaternion():
+    assert origin_yaw(0.0, 1.0) == 0.0
+    assert origin_yaw(math.sin(0.25), math.cos(0.25)) == pytest.approx(0.5)
