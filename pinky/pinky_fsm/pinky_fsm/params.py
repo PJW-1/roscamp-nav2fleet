@@ -65,10 +65,22 @@ class FsmParams:
     # speed_limit topic, RPP cycle). Assumed, not measured: at horizon_cap_mps this keeps
     # horizon_cap_mps * horizon_latency_s (0.075 m) of the distance left out of sqrt(2 a d)
     horizon_latency_s: float = 0.3
-    # mode nav_goal(계약 0.11-draft 제안): 이만큼 진전이 없으면 BLOCKED(goal은 그대로). 진전은
-    # nav_progress_m 이상 움직인 것이다(nav_goal.py). 숫자는 제안이다
-    blocked_after_s: float = 5.0
+    # 선 때부터 BLOCKED를 보고하기까지의 상한(추가 지시서 3의 7-4, 기준(사용자), 계약 0.13-draft).
+    # 로봇단 교착 처리를 다 하고도 남는다: block_report_s 1 + local_wait_s 2 + 후진(멈추고 0.10 m를
+    # 0.08 m/s, 가감속 포함 약 2) + 다시 가서 또 서기(0.10 m 되돌아가기 약 1 + block_report_s 1)
+    # = 7 s, 여유 3 s. mode nav_goal에서는 진전 없이 이만큼 지나면 BLOCKED다(goal은 그대로). 진전은
+    # nav_progress_m 이상 움직인 것이다(nav_goal.py). 0.12까지는 5 s(nav_goal만)였다
+    blocked_after_s: float = 10.0
     nav_progress_m: float = 0.05
+    # 로봇단 교착 처리(추가 지시서 3의 7-4, 기준(사용자)). 끄면 0.12까지의 자가 복구
+    # (바로 후진, 두 번)다
+    local_yield: bool = True
+    local_wait_s: float = 2.0  # 물체 앞에 서서 먼저 기다리는 시간
+    local_backup_m: float = 0.10  # 낮은 쪽이 지나온 길 안에서 물러나는 최대 거리
+    # 관제 /fleet/robots의 다른 로봇 중심이 가던 길 앞 점에서 이만큼 안이면 그 로봇이 막았다
+    # (발자국 반 대각선 0.085 m + 위치 오차와 여유, 추정)
+    local_peer_near_m: float = 0.20
+    peers_timeout_s: float = 3.0  # /fleet/robots(1 Hz)가 이보다 오래됐으면 쓰지 않는다
 
     def __post_init__(self):
         if self.comm_loss_policy not in COMM_LOSS_POLICIES:

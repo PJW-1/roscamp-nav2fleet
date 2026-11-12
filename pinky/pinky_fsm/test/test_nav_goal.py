@@ -40,6 +40,10 @@ def obstacle(_points):
 
 
 def ready(t=0.0, pose=HERE, **params):
+    # 이 파일은 로봇단 교착 처리(7-4) 전의 nav_goal을 본다(스위치 끔, 0.12의 blocked_after_s 5 s).
+    # 켠 것은 test_yield_nav.py
+    params.setdefault("local_yield", False)
+    params.setdefault("blocked_after_s", 5.0)
     fsm = PinkyFsm(FsmParams(**params))
     fsm.tick(t, pose, STILL, no_obstacle)
     return fsm

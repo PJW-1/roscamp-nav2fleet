@@ -30,6 +30,7 @@ from pinky_fsm.commands import (  # noqa: F401 - 명령 이름은 core에서도 
     SendPath,
 )
 from pinky_fsm.geometry import Point, Polyline, Pose, poses_along, rounded_rest
+from pinky_fsm.local_yield import NO_PRIORITY, Peer
 from pinky_fsm.nav_goal import MODE_NAV_GOAL, MODES, NavGoal, NavGoals
 from pinky_fsm.nav_moves import NavGoalMoves
 from pinky_fsm.params import FsmParams
@@ -52,11 +53,16 @@ from pinky_fsm.results import (  # noqa: F401 - 상태와 결과 이름은 core�
     Finish,
 )
 from pinky_fsm.retreat import RETREAT_REASONS, RetreatMoves, _Retreat
+from pinky_fsm.yield_moves import LocalYield
 
 
-class PinkyFsm(NavGoalMoves, RetreatMoves, SelfRecovery):
-    def __init__(self, params: FsmParams):
+class PinkyFsm(NavGoalMoves, RetreatMoves, LocalYield, SelfRecovery):
+    def __init__(self, params: FsmParams, robot_id: str = ""):
         self.p = params
+        self.robot_id = robot_id  # 로봇단 교착 처리의 이름 순(7-4)
+        self._priority = NO_PRIORITY  # 지금 MoveTo의 priority(7-4)
+        self._peers: list[Peer] = []  # 관제 /fleet/robots의 다른 로봇들
+        self._peers_at = -math.inf
         self._active: _Move | _Dock | _Retreat | NavGoal | None = None
         self._goals = NavGoals(params.blocked_after_s, params.nav_progress_m,
                                params.nav_result_grace_s)
@@ -132,8 +138,9 @@ class PinkyFsm(NavGoalMoves, RetreatMoves, SelfRecovery):
 
     def move(self, goal_id: Hashable, now: float, target_id: str, target: Pose,
              path: Sequence[Point], pose: Sequence[float] | None,
-             final_goal: bool = True, mode: str = "") -> list:
+             final_goal: bool = True, mode: str = "", priority: int = NO_PRIORITY) -> list:
         self._alive = max(self._alive, now)  # 목표 수락도 관제가 살아 있다는 증거(계약 3절 5번)
+        self._priority = int(priority)
         if pose is None or mode not in MODES:
             return self._end_active(CANCELED, stop=True) + [Finish(goal_id, False, NAV_ABORTED)]
         if mode == MODE_NAV_GOAL:
@@ -158,6 +165,7 @@ class PinkyFsm(NavGoalMoves, RetreatMoves, SelfRecovery):
         cmds = self._end_active(CANCELED, stop=handover)
         g = _Move(goal_id, target_id, (tx, ty, tyaw), Polyline(points), final_goal=final_goal)
         g.s, _ = g.route.project(here)  # 가장 가까운 점부터(계약 2절)
+        g.s_start = g.s
         self._active = g
         self._stopped_since = None
         if handover:
@@ -192,8 +200,9 @@ class PinkyFsm(NavGoalMoves, RetreatMoves, SelfRecovery):
         if not isinstance(g, _Move) or seq != g.seq:
             return []  # 교체된 옛 목표의 결과(Nav2는 새 목표를 받으면 옛 것을 ABORTED로 끝낸다)
         g.nav_running = False
-        if self._recovery is not None and self._recovery.backup_seq is not None:
-            return []  # 물러나려고 취소한 FollowPath의 결과
+        if self._recovery is not None and (self._recovery.backup_seq is not None
+                                           or self._recovery.wait_until is not None):
+            return []  # 물러나거나 기다리려고 취소한 FollowPath의 결과
         # Every end below stops Nav2: a replacement does not cancel the previous FollowPath
         # (guide 2.1), so an older one may still run or be accepted late.
         if outcome == "rejected":
@@ -297,8 +306,9 @@ class PinkyFsm(NavGoalMoves, RetreatMoves, SelfRecovery):
     def _watch_obstacle(self, now, g, pose, speed, obstacle: Obstacle) -> list:
         """계약 4절. 움직이는 목표 중 1초 서 있고 앞 0.5 m에 물체가 있으면 자가 복구를 하고,
         시도를 다 썼으면 BLOCKED."""
-        if self._recovery is not None and self._recovery.backup_seq is not None:
-            self._stopped_since = None  # 물러나는 중이다. 끝나고 다시 잰다
+        r = self._recovery
+        if r is not None and (r.backup_seq is not None or r.wait_until is not None):
+            self._stopped_since = None  # 물러나거나 기다리는 중이다(7-4). 끝나고 다시 잰다
             return []
         lin, ang = speed
         stopped = abs(lin) < self.p.stopped_speed_mps and abs(ang) < self.p.stopped_turn_rps
