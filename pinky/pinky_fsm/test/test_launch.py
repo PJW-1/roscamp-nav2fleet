@@ -5,6 +5,8 @@ from pathlib import Path
 import pytest
 
 launch = pytest.importorskip("launch")
+# The package's own launch/ folder can shadow a missing ROS launch package as an empty namespace
+pytest.importorskip("launch.actions")
 
 LAUNCH = Path(__file__).resolve().parents[1] / "launch" / "pinky_fsm.launch.py"
 
