@@ -14,28 +14,11 @@ ROS 없이 재생할 수 있다(형식은 tools/replay.py).
 """
 from __future__ import annotations
 
-import json
-from dataclasses import asdict, is_dataclass
-
 from fleet_core.arm.jobs import ArmJobs
 from fleet_core.common.commands import (
-    ARM_COMMANDS,
-    ARM_REPORTS,
     FILL,
     SWAP,
-    AssignmentView,
-    CancelDispatchCmd,
-    DispatchCmd,
-    DispatchFeedback,
-    DispatchResult,
     EventOut,
-    MoveCmd,
-    OrderRecord,
-    ReleaseCmd,
-    RobotFaultCmd,
-    RobotIsolated,
-    RobotStatusView,
-    ZoneView,
 )
 from fleet_core.common.validate import (
     checked,
@@ -45,36 +28,16 @@ from fleet_core.common.validate import (
     run_mode_problem,
     text,
 )
-from fleet_core.orders.orchestrator import FILLING, SWAPPING, OrderOrchestrator
+from fleet_core.manager_record import ManagerRecord
+from fleet_core.manager_route import ManagerRoute
+from fleet_core.manager_views import ManagerViews
+from fleet_core.orders.orchestrator import OrderOrchestrator
 from fleet_core.orders.validate import orders_problem, reinstate_problem
-from fleet_core.traffic.mission import (
-    AT_STATION,
-    DOCKING,
-    LOCALIZING,
-    OUT_OF_SERVICE,
-    TO_OUTBOUND,
-    TO_WORK,
-)
+from fleet_core.traffic.mission import LOCALIZING
 from fleet_core.traffic.modes import build_traffic
 
 
-def _recordable(value):
-    """JSON에 못 쓰는 값은 repr로 남긴다. 기록 때문에 입력 처리가 멈추면 안 된다."""
-    if is_dataclass(value) and not isinstance(value, type):
-        return asdict(value)
-    return repr(value)
-
-
-def _recorded_orders(orders):
-    """OrderRecord는 필드로, dict와 객체는 repr 문자열로 남긴다. 재생에서도 주문이 아니다."""
-    if not isinstance(orders, (list, tuple)):
-        return orders
-    return [asdict(o) if isinstance(o, OrderRecord)
-            else o if o is None or isinstance(o, (str, int, float, list))
-            else repr(o) for o in orders]
-
-
-class FleetManager:
+class FleetManager(ManagerRoute, ManagerViews, ManagerRecord):
     def __init__(self, site, params, robots, clock):
         self.site = site
         self.params = params
@@ -118,26 +81,6 @@ class FleetManager:
     @property
     def shipped(self) -> int:
         return self.orchestrator.shipped
-
-    def check_recordable(self) -> None:
-        """기록할 수 없으면 ValueError. 기록 파일을 열기 전에 부른다(옛 파일을 지우지 않게).
-
-        재생은 지도를 첫 줄의 본문으로 다시 만든다(traffic/site.py의 site_from_text).
-        """
-        if not getattr(self.site, "source_text", ""):
-            raise ValueError("a record needs the text of the map, and this map has none")
-
-    def record_to(self, write) -> None:
-        """모든 입력과 결과를 한 줄씩 JSON으로 `write`에 넘긴다.
-
-        재생은 첫 줄에서 시작하므로 첫 입력보다 먼저 불러야 한다.
-        """
-        self.check_recordable()
-        if self._fed:
-            raise RuntimeError("a record has to start before the first input")
-        self._write = write
-        write(json.dumps({"recorded": True, "robots": self.traffic.robots,
-                          "params": asdict(self.params), "map": self.site.source_text}))
 
     # ---- inputs -------------------------------------------------------------------------
 
@@ -292,178 +235,11 @@ class FleetManager:
             self._note("out", item)
         return out
 
-    def zones_view(self) -> list[ZoneView]:
-        return self.traffic.zones_view()
-
-    def assignments_view(self) -> list[AssignmentView]:
-        views = []
-        for robot in self.traffic.robots:
-            t = self.traffic.robot_view(robot)
-            if not t["on_map"] or t["fault"] == OUT_OF_SERVICE:
-                continue
-            order_id = self.orchestrator.order_of(robot)
-            phase, dest = t["phase"], t["destination"]
-            docking = dest if phase == DOCKING else None
-            if phase == AT_STATION and dest == self._work:
-                views.append(AssignmentView(robot, order_id, self._work, "FILL"))
-            elif phase == AT_STATION:
-                views.append(AssignmentView(robot, order_id, self._outbound, "SWAP"))
-            elif phase == TO_OUTBOUND or docking == self._outbound:
-                views.append(AssignmentView(robot, order_id, self._outbound, "TO_OUTBOUND"))
-            elif docking == self._work or (phase == TO_WORK and t["called"]):
-                views.append(AssignmentView(robot, order_id, self._work, "TO_WORK"))
-            else:
-                views.append(AssignmentView(robot, order_id, "", "WAIT"))
-        return views
-
-    def robots_view(self) -> list[RobotStatusView]:
-        tasks = {view.robot_id: view for view in self.assignments_view()}
-        views = []
-        for robot in self.traffic.robots:
-            task = tasks.get(robot)
-            views.append(RobotStatusView(
-                robot_id=robot,
-                task_type=task.task_type if task else "",
-                order_id=(task.order_id or "") if task else "",
-                **self.traffic.status_view(robot)))
-        return views
-
-    def robot_view(self, robot) -> dict:
-        """모르는 로봇이면 빈 dict."""
-        t = self.traffic.robot_view(robot)
-        o = self.orchestrator.robot_view(robot)
-        if not t or not o:
-            return {}
-        phase = t["phase"]
-        if phase == AT_STATION:
-            phase = FILLING if t["destination"] == self._work else SWAPPING
-        return {
-            "state": t["fault"] or t["comm"] or phase,
-            "phase": phase,
-            "basket": o["basket"],
-            "order": o["order"],
-            "placed": o["placed"],
-            "called": t["called"],
-            "held": t["held"],
-            "path": t["path"],
-            "waypoint": t["waypoint"],
-            "destination": t["destination"],
-            "goal_id": t["goal_id"],
-            "attempts": t["attempts"] + self.arm.attempts(robot),
-            "blocked_lane": t["blocked_lane"],
-        }
-
     # ---- the join -----------------------------------------------------------------------
 
     def _frozen(self) -> float:
         return self._time
 
-    def _input(self, method, *args) -> None:
-        self._fed = True
-        self._time = self._clock()
-        if self._write:
-            self._write(self._input_line(method, args))
-
-    def _input_line(self, method, args) -> str:
-        """기록 줄. 못 쓰는 입력도 처리는 계속하고, 재생할 수 없다는 표시만 남긴다."""
-        try:
-            if method == "on_order_board":
-                args = (args[0], _recorded_orders(args[1]))
-            return json.dumps({"t": self._time, "in": method, "args": args}, default=_recordable)
-        except Exception as error:  # 순환 참조, 문자열이 아닌 키, repr 실패
-            return json.dumps({"t": self._time, "in": method,
-                               "unrecordable": type(error).__name__})
-
-    def _reject(self, detail, robot="") -> None:
-        name = text(robot) if isinstance(robot, str) else ""
-        known = name if name in self.traffic.robots else ""
-        self._out.append(EventOut("WARN", "INPUT_REJECTED", detail, known))
-
-    def _topic_rejected(self, source, problem, what, robot="") -> bool:
-        """problem이 있으면 True. 출처마다 한 번 알리고, 정상 메시지가 오면 다시 무장한다."""
-        if not problem:
-            self._rejecting.discard(source)
-            return False
-        if source not in self._rejecting:
-            self._rejecting.add(source)
-            self._reject(f"{what}: {problem}", robot)
-        return True
-
-    def _robot_refused(self, what, robot) -> bool:
-        """모르는 로봇의 goal 응답. 잘못 부른 경우에만 생긴다."""
-        problem = checked(robot_problem, robot, self.traffic.robots)
-        if problem:
-            self._reject(f"{what} refused: {problem}")
-        return bool(problem)
-
-    def _note(self, kind, item) -> None:
-        if self._write:
-            fields = asdict(item)
-            if isinstance(item, MoveCmd) and not item.path:
-                del fields["path"]  # point 모드 줄은 path가 없던 기록과 같게 쓴다
-            if isinstance(item, MoveCmd) and item.final_goal:
-                del fields["final_goal"]  # 마지막 표시는 이 필드가 없던 기록과 같게 쓴다
-            if isinstance(item, MoveCmd) and item.mode == "follow_path":
-                del fields["mode"]  # 기본 방식은 이 필드가 없던 기록과 같게 쓴다
-            self._write(json.dumps({"t": self._time, kind: type(item).__name__, **fields}))
-
     def _next_goal_id(self) -> int:
         self._goal_seq += 1
         return self._goal_seq
-
-    def _step_robot(self, robot) -> None:
-        """주문, 교통 순으로 돌고, 방금 묶인 주문을 위해 주문 쪽을 한 번 더 돈다."""
-        self.orchestrator.step(robot)
-        self._pump()
-        self.traffic.step(robot)
-        self._pump()
-        self.orchestrator.step(robot)
-        self._pump()
-
-    def _pump(self) -> None:
-        """세 코어 모두 보낼 명령이 없을 때까지 내부 명령을 넘긴다."""
-        while True:
-            items = (self.arm.take_output() + self.orchestrator.take_output()
-                     + self.traffic.take_output())
-            if not items:
-                return
-            for item in items:
-                self._route(item)
-
-    def _route(self, item) -> None:
-        if isinstance(item, ARM_COMMANDS):
-            # Orders and arm answer each other in place, before the next item: what comes out
-            # keeps the order it had when one core did both.
-            self._note("inside", item)
-            self.arm.on_command(item)
-            for answer in self.arm.take_output():
-                self._route(answer)
-        elif isinstance(item, ARM_REPORTS):
-            self._note("inside", item)
-            self.orchestrator.on_arm_report(item)
-            for answer in self.orchestrator.take_output():
-                self._route(answer)
-        elif isinstance(item, DispatchCmd):
-            self._note("inside", item)
-            self.traffic.on_dispatch(item.goal_id, item.station_id, item.robot_id)
-        elif isinstance(item, CancelDispatchCmd):
-            self._note("inside", item)
-            self.traffic.on_dispatch_cancel(item.goal_id)
-        elif isinstance(item, ReleaseCmd):
-            self._note("inside", item)
-            self.traffic.on_release(item.robot)
-        elif isinstance(item, RobotFaultCmd):
-            self._note("inside", item)
-            self.traffic.on_robot_fault(item.robot, item.reason)
-        elif isinstance(item, RobotIsolated):
-            self._note("inside", item)
-            self.orchestrator.on_robot_isolated(item.robot, item.reason)
-        elif isinstance(item, DispatchFeedback):
-            self._note("inside", item)
-            self.orchestrator.on_dispatch_feedback(item.goal_id, item.robot_id, item.phase)
-        elif isinstance(item, DispatchResult):
-            self._note("inside", item)
-            self.orchestrator.on_dispatch_result(item.goal_id, item.success, item.robot_id,
-                                                 item.reason)
-        else:
-            self._out.append(item)
