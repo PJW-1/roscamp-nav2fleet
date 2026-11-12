@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import math
 
-from .geometry import inside, overlap_area, sample, within
+from .geometry import _cross, inside, overlap_area, sample, within
 from .model import (
     AT_DOCK,
     DOCK,
@@ -117,8 +117,53 @@ def zones_along(zones: dict[str, Zone], points) -> tuple[str, ...]:
     return tuple(seen)
 
 
+def _reentered(zones: dict[str, Zone], points) -> str:
+    """선이 떠난 구역에 다시 들어오면 그 구역 이름. 구역이 없는 자리(진열대)는 떠난 것으로 치지
+    않는다."""
+    left: set[str] = set()
+    here: set[str] = set()
+    for a, b in zip(points, points[1:], strict=False):
+        for x, y in sample(a, b, SAMPLE_M):
+            under = set(zone_under(zones, x, y))
+            if not under:
+                continue
+            again = sorted(under & left)
+            if again:
+                return again[0]
+            left |= here - under
+            here = under
+    return ""
+
+
+def _line_problem(zones: dict[str, Zone], points) -> str:
+    """고정 선으로 받을 수 없는 꼴이면 그 까닭, 아니면 빈 글(Codex 검토 1, 2, 2026-11-13).
+
+    - 떠난 구역에 다시 들어오는 선: 구역 쥐기(zones_along, progress._still_needed)는 한 연결이
+      구역을 한 번 지난다고 본다.
+    - 되돌아가는 선(이웃한 두 조각이 90°보다 크게 꺾임)이나 스스로 건너는 선: 진행
+      자리(trips.along)는
+      가장 가까운 조각에 내리므로 어느 쪽을 달리는지 모른다.
+    """
+    zone = _reentered(zones, points)
+    if zone:
+        return f"leaves {zone} and comes back into it"
+    pieces = [(p, q) for p, q in zip(points, points[1:], strict=False) if math.dist(p, q) > 0.0]
+    for (a, b), (c, d) in zip(pieces, pieces[1:], strict=False):
+        if (b[0] - a[0]) * (d[0] - c[0]) + (b[1] - a[1]) * (d[1] - c[1]) < -1e-12:
+            return f"turns back at {b}"
+    for i, (a, b) in enumerate(pieces):
+        for c, d in pieces[i + 2:]:
+            if _cross(a, b, c, d):
+                return "crosses itself"
+    return ""
+
+
 def _link(nodes, zones, a: str, b: str, via: str, path: str, crossed=None, bends=()) -> Link:
     points = ((nodes[a].x, nodes[a].y), *bends, (nodes[b].x, nodes[b].y))
+    if via != NAV_GOAL:
+        problem = _line_problem(zones, points)
+        if problem:
+            raise FleetMapError(f"path {path}: the line from {a} to {b} {problem}")
     crossed = tuple(crossed) if crossed else zones_along(zones, points)
     # 끝 지점의 구역이 처음과 끝에 오게 한다: 경계 위의 표본이 순서를 바꿀 수 있다
     middle = [z for z in crossed if z not in (nodes[a].zone, nodes[b].zone)]
