@@ -136,5 +136,6 @@ class OrderAnswers:
         if m.move_order is None or trip is None or m.goal is None:
             return ""
         left = left_s(self.params, trip.links[trip.done:trip.granted], m.x, m.y)
-        m.base_until = now + left + self.params.comm_base_hold_extra_s
+        # 음수 여유는 0으로 본다: 닿을 예상 시각보다 먼저 풀지 않는다
+        m.base_until = now + left + max(0.0, self.params.comm_base_hold_extra_s)
         return f", drives on to {m.goal.end} (about {left:.0f} s)"
