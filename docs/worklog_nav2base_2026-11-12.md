@@ -676,6 +676,58 @@
 | 시험 | 새 `pc/fleet_core/test/test_zone_localization.py`(11), `test_zone_failures.py`의 도킹 시험(`test_a_failed_docking_*`, `test_a_reapproach*`, `test_a_rejected_docking_*`, `test_the_wait_for_the_way_out_*`, `test_a_robot_*`) | |
 | 문서 | `docs/관제_구역교통.md`의 사건 표(`LOCALIZATION_SUSPECT`, `DOCK_REAPPROACH`) | |
 
+### 10.4 고정 경로의 충돌 검사 켜기와 scan 거르개 (지시서 2-1절, 7-2절)
+
+측정과 실행 기록은 `sim/fleet_gz_sim/results/fixed_line_results.md`에 있습니다. 모두 Gazebo(머리 없음), 배치 D2, 핑키 한 대, 라이다 잡음 0.02입니다.
+
+결과부터 적습니다.
+
+| 무엇 | 결과 |
+|---|---|
+| 충돌 검사 | 고정 경로 컨트롤러 셋(`FollowPath`, `FollowPathThrough`, `FollowPathReverse`)의 `use_collision_detection`을 켰고, 시뮬 인자 `fixed_line_collision_check`의 기본값을 `true`로 바꿨습니다 |
+| 지시서의 1~3단계만으로는 부족했음 | 제자리 회전 없애기(모퉁이 호), 몸 모양 발자국, 앞보기 0.10 m를 넣고도 도크 진입(`work_in`)에서 `collision ahead`로 멈췄습니다. 발자국 폭을 0.090 m까지 줄여도 같은 곳에서 멈춰서, 남은 원인은 벽 쪽 라이다 잡음 점이었습니다 |
+| scan 거르개(7-2) | 켠 뒤에야 지나갔습니다. `wall_band_m`은 지시서의 0.04가 아니고 0.05입니다: 0.04에서는 `work_in`이 두 번 가운데 한 번 멈췄고, 0.05에서는 세 번 모두 지나갔습니다. 0.06은 다른 구간(`out_in`)을 고치지 못해 쓰지 않았습니다 |
+| 거르개에 더한 것 둘 | ① 진열대 끝면마다 끝면을 5 cm 넓힌 작은 상자(끝면의 잡음이 띠 바로 밖에 떨어져 후진 모퉁이를 막았습니다). ② 경기장 벽에 닿은 띠의 변을 벽 너머로 5 cm 넓힘(잡음과 AMCL 오차로 벽 면 너머에 찍힌 점이 띠 밖이라 지워지지 않았습니다) |
+| 도크에서 나오는 후진 | 꺾는 점을 갈림목 선(x 0.35, 1.63)에서 도크 쪽(x 0.30, 1.68)으로 옮겼습니다. 갈림목 선에서 꺾으면 후진 모퉁이에서 몸 뒤쪽이 진열대 끝으로 쏠려 멈췄습니다. 마지막 조각이 비스듬해(약 12°) 끝 방향이 어긋나므로, 후진은 방향을 보지 않는 goal checker(`retreat_goal_checker`, 위치 0.05 m)로 끝냅니다 |
+| 한 대 한 바퀴 | 위 넷을 모두 넣은 뒤 여덟 구간 × 3바퀴가 모두 성공했습니다(10.6절의 표) |
+
+대가입니다.
+
+| 무엇 | 값 |
+|---|---|
+| 거르개가 가리는 것 | 좁은 띠(도크, 갈림목, 급행) 안에서 벽이나 진열대에 붙은 5 cm보다 얇은 물체, 진열대 끝 둘레 5 cm 안의 얇은 물체는 costmap에 보이지 않습니다. 넓은 구역(마당)의 점은 거르지 않습니다 |
+| 시간 | 제자리 회전을 없애고 후진이 마당까지 내려가면서, 머리 없는 세계의 D2 상황 한 판이 10~30 s 길어졌습니다(예: 세 대가 갈림목에 동시에, 92.7 s → 105.0 s) |
+| 대기 자리 | `W_Q`, `O_Q`를 0.05 m 바깥(x 0.15, 1.83)으로 옮겼습니다. 갈림목 아래 지점을 x 0.35, 1.63으로 옮기면서 간격이 0.224 m에서 0.18 m로 줄어, 대기 자리에 선 로봇이 길을 몸으로 막았기 때문입니다 |
+| 거른 빔으로 칸 지우기 | 거르개가 지운 빔은 `inf`이고, Nav2의 장애물 층은 기본 설정에서 `inf` 빔을 버립니다. 그래서 띠 안에 한 번 찍힌 칸(잡음, 지나간 다른 로봇의 몸)이 지워지지 않았습니다. 한 대 세 바퀴에서 `collision ahead` 뒤 자가 복구가 8~12번 있었고, 세 대 경기에서는 앞서 지나간 로봇이 남긴 칸 앞에서 로봇이 격리됐습니다(10.6절). 거르개를 켠 설정에서만 두 costmap의 `obstacle_layer.scan`에 `inf_is_valid: true`를 두어 고쳤습니다. 고친 뒤 한 대 세 바퀴에서 고정 경로 구간의 자가 복구는 0번입니다 |
+| 그 대가 | 거른 빔이 지나는 길 위(벽 띠 안)에 서 있는 진짜 장애물이나 다른 로봇의 칸, 벽·진열대 너머에 가려진 장애물의 칸도 지워질 수 있습니다(다음 스캔에 보이면 다시 찍힙니다). 라이다의 `range_max`가 3.0 m(`raytrace_max_range`)보다 커야 합니다. 시뮬레이션은 12 m이고 실물 sllidar의 값은 확인하지 않았습니다 |
+| 지도 검사의 경고 | 모퉁이 호가 진열대 끝에서 0.115 m를 지납니다(기준 0.15 m). 경고만 내고 지도는 읽습니다 |
+
+바꾼 파일과 함수입니다.
+
+| 파일 | 함수와 값 | 무엇 |
+|---|---|---|
+| `pinky/pinky_nav_config/params/nav2_params.yaml` | 바꿈 `lookahead_dist` 0.10(속도 비례 끔), `rotate_to_heading_min_angle` 0.70, local costmap `footprint`(몸 모양 다각형 14점), 새 `retreat_goal_checker` | 사용자 몫의 값입니다. `FollowPathGoal` 안의 값은 건드리지 않았습니다 |
+| `pinky/pinky_nav_config/params/scan_filter.yaml`(새 파일), `launch/nav2.launch.py` | 새 인자 `narrow_strips`, 바꿈 `WithOverlays(source, avoidance, mask, vision, strips)` | 띠가 비어 있으면(기본) 아무것도 바뀌지 않습니다. 두 costmap의 장애물 층만 `scan_filtered`를 읽고 AMCL은 원래 `scan`을 읽습니다 |
+| `pinky/pinky_nav_config/bt/navigate_to_pose_w_replanning_and_recovery_goal.xml` | 바꿈 FollowPath에 `goal_checker_id="general_goal_checker"` | goal checker가 둘이면 Nav2가 이름 없는 FollowPath를 거절합니다 |
+| `pinky/pinky_scan_filter/`(새 패키지) | `node.py`의 `ScanFilter`, TF 도우미 노드 `scan_filter_tf`, `wall_band.py`의 `WallBand`, `near_cells`, `filter_ranges`, `parse_strips`, `origin_yaw` | 지도(1 cm `map_fine`)의 벽·진열대에서 `wall_band_m` 안의 라이다 점을 띠 안에서만 지웁니다. 스캔을 찍은 시각의 TF를 0.05 s까지 기다리고, 없으면 0.1 s 안의 최신 TF만 씁니다 |
+| `pinky/pinky_nav_config/params/scan_filter.yaml` | 새 값 `inf_is_valid: true`(두 costmap의 `obstacle_layer.scan`) | 거른 빔을 따라 칸을 지웁니다. 거르개를 끈 기본 설정(`nav2_params.yaml`)에는 없습니다 |
+| `pinky/pinky_fsm/pinky_fsm/geometry.py`, `core.py`, `follow_ros.py`, `retreat.py`, `params.py` | 새 `rounded`, `rounded_rest`, `_corner_arc`, 값 `turn_radius_m` 0.10, `reverse_goal_checker_id` | 꺾이는 곳을 반지름 0.10 m 호로 보내고, 후진 FollowPath에만 후진용 goal checker를 씁니다 |
+| `pc/fleet_core/fleet_core/fleet_map/checks.py`(새 파일), `parse.py`, `fleet_map.py` | 새 `shelf_end_warnings`, `retreat_end_warnings`, `corner_arc`, `_path_stops`, `_line_problem`, 바꿈 `_link(..., bends=())`, 값 `SHELF_END_CLEAR_M` 0.15, `TURN_RADIUS_M` 0.10 | 경로에 지점이 아닌 꺾는 점 `[x, y]`를 적을 수 있고, 모퉁이 호와 진열대 끝 사이를 검사합니다 |
+| `pc/fleet_core/fleet_core/traffic/zone/trips.py` | 새 `_pieces`, `_from_here`, `_line`, 지움 `_start_point` | 꺾는 점이 있는 경로를 로봇이 선 자리부터 잘라 보냅니다 |
+| `pc/fleet_core/fleet_core/data/fleet_map_d2.yaml` | 갈림목 선 x 0.35, 1.63, 후진 꺾는 점, 대기 자리 | |
+| `sim/fleet_gz_sim/fleet_gz_sim/fleet_setup.py`, `launch/gz.launch.py`, `one_pinky.launch.py`, `stage2_plan.py` | 새 `narrow_strips`, `shelf_end_boxes`, 바꿈 `fixed_line_collision_check` 기본 `true` | 좁은 띠를 지도에서 뽑아 거르개에 넘깁니다 |
+
+검수(Codex)에서 나와 고친 것입니다.
+
+| 지적 | 처리 |
+|---|---|
+| 거르개가 최신 TF로 걸러서, 로봇이 도는 동안 찍은 스캔을 다른 자세로 걸렀습니다 | 고쳤습니다(스캔 시각의 TF, 0.05 s 기다림) |
+| TF를 듣는 것이 거르개 노드의 콜백과 같은 실행기를 써서 기다리는 동안 TF가 들어오지 못했습니다 | 고쳤습니다(따로 도는 도우미 노드 `scan_filter_tf`) |
+| 스캔 시각의 TF가 없을 때 낡은 최신 TF로 걸렀습니다 | 고쳤습니다(0.1 s보다 낡으면 거르지 않고 원본을 냅니다) |
+| 지도의 원점이 돌아가 있거나(쿼터니언 w = -1 포함) 스캔에 시각이 없을 때(stamp 0) | 고쳤습니다(돌아간 원점은 거르지 않고, w = -1은 돌지 않은 것으로 읽고, 시각이 없으면 원본을 냅니다) |
+| `on_scan` 전체를 보는 시험이 없었습니다 | 더했습니다 |
+| `inf_is_valid`를 넣은 뒤의 문서가 예전 설명(지운 빔은 칸을 지우지 않는다)으로 남았습니다 | 고쳤습니다(README, `node.py`의 설명, `scan_filter.yaml`의 대가와 `range_max` 조건) |
+
 ### 10.5 이음 정밀도 (지시서 2-4절)
 
 지시서의 두 방법 가운데 둘째(로봇이 선 자리에서 시작하는 경로)를 골랐습니다.
@@ -704,6 +756,87 @@
 | 시험 | `test/test_geometry.py`의 이음 시험 16개(`test_a_robot_beside_the_line_*`, `test_the_join_*`, `test_beside_an_arc_*`, `test_a_line_that_comes_back_*`, `test_a_short_step_back_*`, `test_rounded_at_*`), `test/test_core.py`의 8개(`test_a_robot_beside_the_path_*`, `test_the_way_ahead_is_watched_on_the_path_that_was_sent`, `test_on_a_line_that_comes_back_*`, `test_after_many_corners_*`), `test/test_order.py`의 `test_an_order_stretched_while_nav2_stands_*` | |
 | 문서 | `docs/핑키_계약.md` 3절 13번 "이음 정밀도" | |
 
+### 10.7 막힘 처리 보완과 매장 상황 (지시서 4절, 5절)
+
+자세한 표와 다시 돌리는 명령은 `docs/막힘_처리_결과.md`에 있습니다. 여기에는 지시서가 물은 것만 옮깁니다. 숫자는 모두 머리 없는 세계(`sim/fake_robots`)에서 잰 것입니다.
+
+무엇을 바꿨는지입니다.
+
+| 지시 | 구현 |
+|---|---|
+| 4-1 장애물 위치 보고 | `RobotState`에 `obstacle_x`, `obstacle_y`, `obstacle_kind`를 더했습니다. 핑키는 BLOCKED일 때 local costmap에서 가던 쪽 0.30 m(`obstacle_look_m`) 안의 가장 가까운 장애물 칸을 넣습니다 |
+| 4-2 위치로 표시 | 그 점이 든 연결만 막습니다. 점 곁에 다른 로봇이 있으면 표시하지 않고 그 로봇을 비키게 합니다(`HALL_YIELD`) |
+| 4-3 확인 | 표시마다 `check_interval_s`(5 s)에 한 번, `check_range_m`(0.6 m) 안의 로봇에게 새 서비스 `CheckClear`로 묻습니다. clear가 `clear_confirm`(2)번 이어지면 지우고(`BLOCK_CLEARED`), blocked면 표시를 새로 고칩니다(`BLOCK_CONFIRMED`). 같은 점에서 또 막히면 지우기 시간을 두 배로 늘립니다(`blocked_retry_max_s` 300 s까지) |
+| 4-4 우회 종류 | 위치로 표시한 뒤 처음 잡은 길을 `DETOUR` 사건으로 남깁니다: `in_zone`, `keepout`, `corridor`, `destination` |
+| 급행에서 막힘(2-1 지도) | 갈림목 안에 서지 않고 급행 → 갈림목 → 마당 지점의 꺾이는 후진 하나로 물러납니다. 그 길에 다른 로봇이 있으면 구역을 잡지 않고 기다립니다(`RETREAT_WAIT`) |
+| 끄는 값 | `blocked_by_position: false`면 4-2, 4-3, 4-4가 꺼지고 예전 규칙 7과 같습니다(전과 뒤를 비교할 때 씁니다) |
+
+전과 뒤입니다(배치 3 × 회피 모드 3 × 씨드 3 = 27판, 전은 같은 코드에 `blocked_by_position=false`). 통합 브랜치(2ae582d)에서 돌린 값입니다.
+
+| 물음 | 전 | 뒤 |
+|---|---|---|
+| 상자가 600 s 그대로일 때 다시 막힘(`ZONE_MARKED_BLOCKED`, 27판 합) | 101 | 67 (`BLOCK_CONFIRMED` 157번이 표시를 이어 붙였습니다. 34% 줄었습니다) |
+| 상자를 치운 뒤 표시가 풀리기까지 | 치울 때 표시가 살아 있던 판이 1판, 41.0 s | 18판, 평균 18.3 s |
+| 도크 앞 사람(8 s) 때문에 로봇이 격리됨 | 4절을 넣기 전(`stage3`)에는 D2, perfect, 씨드 1에서 0/6 | 27/27 통과 |
+| 2-1 지도의 급행 안 장애물 | 4절을 넣기 전에는 머리 없는 세계 시험 9개 실패 | 27/27 통과 |
+
+매장 상황(5절)의 통과 수입니다(뒤 쪽, 머리 없는 세계, 상황마다 27판. 통로 안 상자는 통로가 있는 배치만 9판).
+
+| 상황 | 통과 | 끝낸 주문 | 평균 종료 (s) | 막힘 표시 | CONFIRMED | CLEARED | 우회(급행·다른 통로) | 치운 뒤 풀림 (s) |
+|---|---|---|---|---|---|---|---|---|
+| 급행 안 사람(8 s) | 27/27 | 162/162 | 200.9 | 8 | 0 | 0 | 0 | - |
+| 도크 앞 사람(8 s) | 27/27 | 162/162 | 208.2 | 5 | 0 | 0 | 0 | - |
+| 급행 안 장애물(120 s) | 27/27 | 162/162 | 233.5 | 35 | 51 | 1 | 27 | 33.6 (9판) |
+| 통로 안 상자(배치 d) | 9/9 | 54/54 | 249.2 | 9 | 15 | 2 | 0 | 20.5 (4판) |
+| 통로 안 상자(배치 c) | 9/9 | 54/54 | 230.8 | 15 | 8 | 0 | 0 | 52.5 (7판) |
+| 마당 장애물(120 s) | 27/27 | 162/162 | 233.4 | 32 | 43 | 5 | 0 | 26.9 (20판) |
+| 상자 치움 | 27/27 | 324/324 | 427.0 | 46 | 51 | 0 | 27 | 18.3 (18판) |
+| 상자 그대로(600 s) | 17/27 | 405/405 | 643.9 | 67 | 157 | 0 | 53 | 24.9 (8판) |
+
+- 넓은 구역 안의 우회(`in_zone`)는 여덟 상황 모두 0번입니다. 까닭은 따로 확인하지 않았습니다.
+- 확인으로 지운 것(`BLOCK_CLEARED`)은 드뭅니다. 검수 뒤로 "원 전체를 본 clear가 두 번 이어져야 지운다"를 엄격히 지켜서, 표시는 대부분 `BLOCK_CONFIRMED`로 이어지거나 시간이 다 되어 지워집니다. 검수 전의 표에서는 16번이었습니다.
+- Gazebo에서 본 것은 10.6절에 있습니다(급행·도크 앞·마당의 상자 앞에서 서고 보고함, 라이다보다 낮은 상자).
+
+못 지킨 기대입니다.
+
+| 무엇 | 지금 | 까닭 |
+|---|---|---|
+| 상자 그대로, D2의 `I5_STANDING`(급행 안에 5 s 넘게 섬) | 8/9판에서 납니다(주문은 모두 끝냄). 전 쪽도 8/9판입니다 | 막힌 로봇이 급행 안에서 도크 W의 로봇이 나가기를 기다립니다. 2-1 지도에서 갈림목 선이 도크에서 0.17 m여서, 도크에 로봇이 있는 동안에는 지나갈 수 없습니다. 정한 동작이어서 불변식을 고치지 않고 남겼습니다 |
+| 상자 그대로, 배치 d의 `I5_STANDING` | 2/9판(전 3/9판) | 물러날 갈림목을 다른 로봇이 쥐고 있어 급행 안에서 6 s쯤 기다립니다 |
+| `CheckClear`에 답할 로봇이 드묾 | D2에서 `BLOCK_CLEARED`가 적습니다 | 급행 가운데 점에서 0.6 m 안에 오는 로봇은 갈림목의 로봇뿐입니다 |
+| 머리 없는 세계의 `CheckClear` 흉내 | 원의 일부만 본 경우와 오래된 costmap을 흉내 내지 않습니다 | 핑키의 unknown 답 가운데 그 둘은 위 숫자에 들어 있지 않습니다. 고치지 않았습니다 |
+| 사람 상황의 판정 | 우회와 후진을 사람이 떠난 뒤 30 s까지만 셉니다 | D2 씨드 3에서 사람이 떠나고 90 s 뒤에 동쪽 구석(N_E, O_Q, P-3)에서 로봇 둘이 30 s 서로 막다 우회합니다. 사람 때문이 아니어서 판정에서 뺐고, 그 약점은 10.13절에 남겼습니다 |
+
+검수(Codex)에서 나와 고친 것입니다(세 번, 모두 16건. 자세한 표는 `docs/막힘_처리_결과.md` 6절).
+
+| 지적 | 처리 |
+|---|---|
+| 물러날 마당 지점에서 더 갈 길이 없으면 급행 안에서 기다리다 실패했습니다 | 갈 길이 없어도 마당 지점까지 물러나서 기다립니다 |
+| 새 막힘 보고가 와도 그 전 질문의 clear 답을 셌습니다 | 새 보고가 오면 기다리던 질문을 버립니다 |
+| unknown이나 답 없음이 사이에 와도 "이어진 두 번"으로 셌습니다 | unknown, 묻지 못함, 답 없음은 이어진 clear를 끊습니다 |
+| 답하지 않는 로봇 하나에게 계속 물었습니다 | 범위 안 로봇에게 돌아가며 묻습니다(`Mark.asked_last`) |
+| 핑키가 원의 일부만 보고도 clear라고 답했습니다 | 원이 격자 밖으로 나가거나, 원에 걸친 칸 가운데 모르는 칸이 있거나, costmap이 2 s보다 오래됐으면 unknown입니다. 원이 칸의 모서리에 꼭 닿는 경우의 부동소수점 오차도 고쳤습니다(`TOUCH_M`) |
+| 서비스가 없는 로봇이 unknown으로 답한 것처럼 보였습니다 | `NO_ANSWER`를 따로 둡니다 |
+| 실패로 끝났지만 끝에 선 후진이 기다림 시계를 남겼습니다 | 후진 조각이 끝나면 시계를 지웁니다 |
+| 남긴 것 | 돌아가며 묻기의 시험이 "범위를 나갔다 돌아온 로봇"과 "표시 여러 개의 순서"를 따로 보지 않습니다(구현의 결함은 찾지 못했습니다). 위치 없는 표시의 지우는 시간은 늘리지 않습니다(가정 표) |
+
+바꾼 파일과 함수입니다.
+
+| 파일 | 함수와 값 | 무엇 |
+|---|---|---|
+| `interfaces/fleet_interfaces/msg/RobotState.msg`, `srv/CheckClear.srv`(새 파일) | `obstacle_x`, `obstacle_y`, `obstacle_kind` | 계약 0.12-draft |
+| `fleet_core/common/commands.py`, `validate.py`, `params.py` | 새 `CheckClearCmd`, `obstacle_of`, 값 `blocked_by_position`, `obstacle_look_m`, `check_range_m`, `check_radius_m`, `check_interval_s`, `clear_confirm`, `blocked_retry_max_s` | |
+| `fleet_core/traffic/zone/block_marks.py`(새 파일) | `Mark`, `keys_at`, `polyline_gap`, `yard_retreat`, `detour_kind`, mixin `BlockMarks`(`_mark_point`, `_expire_marks`, `_set_retreat`, `_retreat_held_up`, `_watch_retreat_wait`, `_yield_to_robot` 등) | 위치로 표시, 마당까지 물러남, 우회 종류 |
+| `fleet_core/traffic/zone/clear_checks.py`(새 파일) | mixin `ClearChecks`(`_ask_clear`, `on_clear_check`) | 4-3 확인 |
+| `fleet_core/traffic/zone/blocked.py`, `goals.py`, `results.py`, `progress.py`, `trips.py` | 바꿈 `_mark_blocked(m, now, point=None)`, `on_robot_state(..., obstacle=None)`, `back_link(..., via="")`, 새 `_pieces`, `_from_here`, `_line`, 지움 `_start_point` | 꺾이는 후진과 후진 기다림 |
+| `fleet_manager/adapters.py`, `fleet_manager_node.py` | 새 `robot_obstacle`, `check_clear_request`, `check_clear_answer`, `_ask_clear`, `_clear_answered` | ROS 쪽 연결 |
+| `pinky_fsm/obstacle_report.py`(새 파일), `node.py` | 새 `nearest_ahead`, `clear_answer`, `_obstacle_ahead`, `_on_check_clear`, `_costmap_tf` | 로봇 쪽 보고와 답 |
+| `sim/fake_robots/world/obstacle_view.py`, `block_watch.py`, `store_situations.py`(새 파일), `link.py`, `reaction.py`, `table.py`, `apply.py` | 새 `seen_ahead`, `clear_answer`, `BlockWatch`, `detour_counts`, `build_store`, `STORE_NAMES`, 바꿈 `NEXT_STAGE`(`RETREAT_WAIT` 추가) | 가짜 세계의 장애물 보기, 결과 표의 칸, 매장 상황 |
+| `tools/situations.py` | 새 선택지 `-s`, `--store` | 매장 상황 표 |
+| `fleet_core/traffic/zone/clear_checks.py`, `common/commands.py`, `fleet_manager_node.py`(검수 뒤) | 새 `NO_ANSWER`, `Mark.asked_last`, 바꿈 `clear_answer(grid, x, y, r, age_s)`, 새 값 `MAX_AGE_S`, `TOUCH_M` | 답 규칙과 묻는 순서 |
+| `sim/fake_robots/world/situations.py`, `order_situations.py`, `store_situations.py`, `table.py`, `metrics.py` | 새 값 `quiet_until_s`, `QUIET_AFTER_S`, `Metrics.retreat_times` | 사람 상황의 판정 창 |
+| 문서 | `docs/막힘_처리_결과.md`(새 파일), `docs/관제_구역교통.md` 규칙 7, `docs/핑키_계약.md` | |
+
 ### 10.8 배치 바꾸기 절차 (지시서 6절)
 
 | 무엇 | 결과 |
@@ -715,7 +848,7 @@
 | 배치 하나를 더할 때 손으로 고치는 파일 | 전에는 약 9개였습니다(지도 yaml, 코드의 목록 세 곳, 시험의 목록 다섯 곳쯤). 지금은 지도 yaml과 목록 한 줄로 2개이고, Gazebo 경기까지 돌리려면 시나리오 파일 하나가 더 들어 3개입니다 |
 | 절차에 걸린 시간 | 지도 읽기 0.2 s, 월드·지도 생성 0.24 s, keepout 0.22 s, 상황 시험 90번(상황 열 가지 × 흉내 세 모드 × 씨드 셋) 1분 39초입니다. 지도 yaml을 손으로 고친 시간은 재지 않았습니다 |
 | 절차를 돌리다 막힌 곳 | ① 진열대 두께를 0.03 m로 적었다가 시험(`test_arena.py`의 두께 0.015 m)에 걸렸습니다. ② 배치 이름이 코드 세 곳과 시험 다섯 곳쯤에 따로 적혀 있었습니다(한 곳으로 모았습니다). ③ 넓은 구역 정원의 합 검사는 지도를 읽는 코드가 아니고 시험(`test_zone_capacity.py`)입니다 |
-| `d2_shelf` 상황 시험 | 90번 가운데 81번 통과, 9번 실패입니다. 실패 9번은 모두 `express_obstacle`이고, 같은 브랜치의 D2에서도 실패하던 것입니다(2-1절에서 D2의 지점을 옮긴 뒤 4절 브랜치가 고치는 중인 것). 진열대를 더해서 새로 생긴 실패는 없었습니다. 4절을 합친 뒤에 다시 돌립니다 |
+| `d2_shelf` 상황 시험 | 통합 브랜치(4절을 합친 뒤)에서 90번 모두 통과했습니다. 4절을 합치기 전에는 81번 통과였고, 실패 9번은 모두 `express_obstacle`로 같은 브랜치의 D2에서도 실패하던 것이었습니다. 진열대를 더해서 새로 생긴 실패는 없었습니다 |
 | 시험(947b6c0) | ruff 통과, `fleet_core` 604 passed 2 failed(실패 둘은 기존의 `test_zone_block_marks.py`), 도구 34 passed, `test_situation_table.py` 37 passed, WSL `fleet_gz_sim` 353 passed. 4f812cd에서 WSL `fake_robots` 947 passed 10 failed(에이전트 보고: 기존의 `express_obstacle` 10건과 같음) |
 | 검수(Codex)에서 나와 고친 것 셋 | ① 시험이 배치 목록의 값 전체를 고정해서, 절차대로 이름을 더하면 시험이 실패했습니다. ② `layout:=d2_shelf`로 띄우면 기본 시나리오 `gz_d2_shelf`가 없었습니다. ③ README의 명령을 위에서부터 실행하면 `cd` 뒤에 돌아오지 않아 다음 단계가 실패했습니다. 재검수는 지적이 없었습니다 |
 
