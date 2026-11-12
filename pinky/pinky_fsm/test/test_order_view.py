@@ -28,9 +28,12 @@ def test_a_path_leaving_the_map_is_reported():
     assert "outside the map" in segment_problem(path_seg(1, (0.2, 0.3), (2.4, 0.3)), MAP, None)
 
 
-def test_a_path_crossing_keepout_between_its_points_is_reported():
-    why = segment_problem(path_seg(1, (0.2, 0.3), (1.5, 0.3)), MAP, KEEPOUT)
-    assert "keepout" in why
+@pytest.mark.parametrize("mode", [MODE_FOLLOW_PATH, MODE_RETREAT])
+def test_a_fixed_line_through_keepout_is_fine(mode):
+    """The keepout mask is the express lane and the docks: fixed lines run inside them by design
+    (Gazebo game g4o3_on2 warned 25 times about dock approaches)."""
+    assert segment_problem(path_seg(1, (0.2, 0.3), (1.5, 0.3), mode=mode), MAP, KEEPOUT) == ""
+    assert segment_problem(path_seg(1, (0.5, 0.5), (0.5, 0.95), mode=mode), MAP, KEEPOUT) == ""
 
 
 def test_a_nav_goal_checks_only_its_target_pose():
