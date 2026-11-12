@@ -37,7 +37,8 @@ class ScanFilter(Node):
         self.map_frame = self.declare_parameter("map_frame", "map").value
         self.band = None
         self.tf = Buffer()
-        self.listener = TransformListener(self.tf, self)
+        # TF는 따로 도는 스레드로 받는다: on_scan이 스캔 시각의 TF를 기다리는 동안에도 버퍼가 찬다
+        self.listener = TransformListener(self.tf, self, spin_thread=True)
         latched = QoSProfile(depth=1, durability=DurabilityPolicy.TRANSIENT_LOCAL)
         self.create_subscription(OccupancyGrid, "map_fine", self.on_map, latched)
         self.create_subscription(LaserScan, "scan", self.on_scan, qos_profile_sensor_data)
