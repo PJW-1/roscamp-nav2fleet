@@ -45,7 +45,7 @@ class FleetParams:
     stall_s: float = 6.0
     stall_move_m: float = 0.05
     dock_stall_s: float = 15.0
-    blocked_mark_s: float = 5.0
+    blocked_mark_s: float = 10.0
     blocked_timeout_s: float = 60.0
     # 조용히 서 있는 로봇 감시(1.1 지시서 H2). 0이면 끈다. 이 값이 없던 기록은 감시 없이 재생한다
     idle_watch_s: float = 0.0
