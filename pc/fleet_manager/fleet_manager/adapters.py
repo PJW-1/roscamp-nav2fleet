@@ -18,11 +18,13 @@ from fleet_interfaces.msg import (
     OrderItem,
     RobotStatus,
     RobotStatusArray,
+    Segment,
     ZoneState,
     ZoneStateArray,
 )
 from fleet_interfaces.srv import ReportOrder
-from geometry_msgs.msg import Pose
+from geometry_msgs.msg import Pose, PoseStamped
+from nav_msgs.msg import Path
 
 SOURCE = "fleet_manager"
 REASON_OF_STATUS = {
@@ -81,6 +83,7 @@ def robots_to_msg(views, now: float) -> RobotStatusArray:
         RobotStatus(robot_id=v.robot_id, fsm_state=v.fsm_state, task_type=v.task_type,
                     order_id=v.order_id, fault=v.fault, fault_reason=v.fault_reason,
                     wait_zone=v.wait_zone, wait_robots=list(v.wait_robots),
+                    base=list(v.base), horizon=list(v.horizon),
                     battery=float(v.battery), x=float(v.x), y=float(v.y), yaw=float(v.yaw))
         for v in views
     ]
@@ -103,8 +106,14 @@ def goal_result(response):
     return result
 
 
-def move_result(result) -> tuple[bool, str]:
-    return result.success, result.reason
+def move_result(result) -> tuple[bool, str, int]:
+    return result.success, result.reason, int(result.last_done_seq_id)
+
+
+def move_feedback(feedback) -> tuple[int, bool, str]:
+    """order goal의 피드백에서 코어가 보는 세 값."""
+    return (int(feedback.last_done_seq_id), bool(feedback.waiting_at_base_end),
+            feedback.horizon_warning)
 
 
 def retreat_result(result) -> tuple[bool, str]:
@@ -180,6 +189,39 @@ def move_goal(cmd) -> MoveTo.Goal:
     goal.target_pose.theta = float(cmd.yaw)
     goal.path = _poses(cmd.path)  # 비면 점 목표
     goal.mode = cmd.mode  # follow_path 또는 nav_goal(계약 0.11-draft 제안)
+    return goal
+
+
+def _stamped(x, y, yaw) -> PoseStamped:
+    pose = PoseStamped()
+    pose.header.frame_id = "map"
+    pose.pose = _poses([(x, y, yaw)])[0]
+    return pose
+
+
+def _segment(seg) -> Segment:
+    msg = Segment(seq_id=int(seg.seq_id), mode=seg.mode, controller_id=seg.controller_id,
+                  end_node_id=seg.end_node, zone_ids=list(seg.zones))
+    if seg.path:
+        msg.path = Path(poses=[_stamped(*point) for point in seg.path])
+        msg.path.header.frame_id = "map"
+    if seg.mode == "nav_goal":
+        msg.target_pose = _stamped(seg.x, seg.y, seg.yaw)
+    return msg
+
+
+def move_order_goal(cmd) -> MoveTo.Goal:
+    """order 모델의 MoveTo goal(계약 0.11-draft 제안). 옛 칸은 base 마지막 조각에서 채운다."""
+    goal = MoveTo.Goal(order_id=cmd.order_id, order_update_id=int(cmd.update_id),
+                       stitch_node_id=cmd.stitch_node, base=[_segment(s) for s in cmd.base],
+                       horizon=[_segment(s) for s in cmd.horizon])
+    if cmd.base:
+        last = cmd.base[-1]
+        goal.target_id = last.end_node
+        end = (last.x, last.y, last.yaw) if last.mode == "nav_goal" else (
+            tuple(last.path[-1]) if last.path else None)
+        if end is not None:
+            goal.target_pose.x, goal.target_pose.y, goal.target_pose.theta = map(float, end)
     return goal
 
 

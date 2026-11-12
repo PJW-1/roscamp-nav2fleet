@@ -9,6 +9,7 @@ from fleet_core.common.commands import (
     EventOut,
     FillCmd,
     MoveCmd,
+    MoveOrderCmd,
     ReportOrderCmd,
     RetreatCmd,
     SwapCmd,
@@ -17,7 +18,8 @@ from fleet_core.common.commands import (
 from .avoid import Avoidance
 from .invariants import COMMAND, Violation
 from .nav_goal import NavGoalRun
-from .runs import DockRun, FollowRun, Result, RetreatRun
+from .order_run import OrderRun, refusal
+from .runs import MOVE, DockRun, FollowRun, Result, RetreatRun
 
 DOCK_NEAR_M = 0.05  # 도킹 명령은 도크 지점에서 이 안일 때만 받는다
 
@@ -49,6 +51,8 @@ class Commands:
             self._cancel(item)
         elif isinstance(item, (MoveCmd, RetreatCmd, DockCmd)):
             self._start(item)
+        elif isinstance(item, MoveOrderCmd):
+            self._order(item)
         else:
             self._violation(f"unknown output {item!r}")
 
@@ -65,8 +69,63 @@ class Commands:
     def _preempt(self, r) -> None:
         """바뀌는 goal도 ROS 액션처럼 결과를 낸다(CANCELED, 다음 걸음에)."""
         if r.run is not None:
-            self.queued.append((r.name, Result(r.run.kind, r.run.goal_id, False, "CANCELED")))
+            self.queued.append((r.name, Result(r.run.kind, r.run.goal_id, False, "CANCELED",
+                                               getattr(r.run, "done_seq", None))))
             r.run = None
+
+    # ---- order 모델 ----
+
+    def _order(self, cmd) -> None:
+        """order goal(update 0)은 하던 goal을 바꾼다. update는 이음 조건 넷이 맞을 때만 붙이고,
+        붙이면 이전 goal을 SUPERSEDED로, 아니면 새 goal을 ORDER_UPDATE_REJECTED로 끝낸다.
+        답은 다음 걸음에 간다."""
+        if not self._reachable(cmd.robot):
+            return
+        r = self.robots[cmd.robot]
+        run = r.run if isinstance(r.run, OrderRun) else None
+        if cmd.update_id == 0:
+            self._check_segments(r, cmd)
+            self._preempt(r)
+            r.docked_at = ""
+            r.run = OrderRun(cmd, lambda segment, final, goal_id: self._segment_run(
+                r, segment, final, goal_id))
+            self.order_metrics.run_started(r.name, r.run, r)
+            return
+        why = refusal(run, cmd)
+        done = run.done_seq if run is not None else 0
+        if why:
+            self.queued.append((r.name, Result(MOVE, cmd.goal_id, False,
+                                               f"ORDER_UPDATE_REJECTED: {why}", done)))
+            return
+        self._check_segments(r, cmd)
+        old = run.stitch(cmd)
+        self.order_metrics.base_given(r.name, cmd.base)
+        self.queued.append((r.name, Result(MOVE, old, False, "SUPERSEDED", done)))
+
+    def _check_segments(self, r, cmd) -> None:
+        """4번 불변식: 새 base 조각마다 받은 때 쥔 구역 안인가."""
+        grants = self.grants()
+        start = (r.x, r.y, r.yaw)
+        for segment in cmd.base:
+            mode = segment.mode
+            shaped = MoveCmd(cmd.robot, cmd.goal_id, segment.end_node, segment.x, segment.y,
+                             segment.yaw, path=segment.path, mode=mode)
+            if mode == "retreat":
+                shaped = RetreatCmd(cmd.robot, cmd.goal_id, 0.0, 0.0, segment.path)
+            self.invariants.check_command(self.t, grants, shaped, mode, start)
+            start = (segment.x, segment.y, segment.yaw)
+
+    def _segment_run(self, r, segment, final: bool, goal_id: int):
+        speed_factor = r.profile.speed_factor
+        if segment.mode == "nav_goal":
+            return NavGoalRun(goal_id, (segment.x, segment.y), segment.yaw,
+                              self.params.nav_speed_mps * speed_factor, self.blocked_after_s)
+        if segment.mode == "retreat":
+            return RetreatRun(goal_id, segment.path, 0.0, self.params.retreat_speed_mps,
+                              self.params.lane_error_warn_m)
+        return FollowRun(goal_id, segment.path, (segment.x, segment.y), segment.yaw,
+                         self.params.follow_speed_mps * speed_factor,
+                         self.params.lane_error_warn_m, turn_at_end=final)
 
     def _start(self, cmd) -> None:
         if not self._reachable(cmd.robot):
@@ -86,6 +145,7 @@ class Commands:
         if not isinstance(cmd, DockCmd):
             r.docked_at = ""
         r.run = run
+        self.order_metrics.run_started(r.name, run, r)
 
     def _move_run(self, r, cmd):
         speed_factor = r.profile.speed_factor

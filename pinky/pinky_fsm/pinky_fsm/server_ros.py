@@ -14,6 +14,8 @@ import rclpy
 from fleet_interfaces.action import Dock, MoveTo, Retreat
 from rclpy.action import ActionServer, CancelResponse, GoalResponse
 
+from pinky_fsm.order_ros import order_goal
+
 FEEDBACK_PERIOD_S = 0.2
 _RESULT = {"move": MoveTo.Result, "dock": Dock.Result, "retreat": Retreat.Result}
 
@@ -26,6 +28,7 @@ class _Slot:
         self.done = threading.Event()
         self.success = False
         self.reason = ""
+        self.last_done = 0  # MoveTo.Result.last_done_seq_id(order 모델)
 
 
 class GoalServers:
@@ -49,11 +52,12 @@ class GoalServers:
         self._dock_server.destroy()
         self._retreat_server.destroy()
 
-    def finish(self, goal_id, success: bool, reason: str) -> None:
+    def finish(self, goal_id, success: bool, reason: str, last_done: int = 0) -> None:
         """core의 Finish. 잠금을 쥔 채 부른다."""
         slot = self._slots.get(goal_id)
         if slot is not None:
             slot.success, slot.reason = success, reason
+            slot.last_done = last_done
             slot.done.set()
 
     def _server(self, action_type, name, kind, group):
@@ -78,7 +82,8 @@ class GoalServers:
                 t = req.target_pose
                 path = [(p.position.x, p.position.y) for p in req.path]
                 cmds = self._fsm.move(key, now, req.target_id, (t.x, t.y, t.theta), path, here,
-                                      final_goal=req.final_goal, mode=req.mode)
+                                      final_goal=req.final_goal, mode=req.mode,
+                                      order=order_goal(req))
             elif kind == "retreat":
                 path = [(p.position.x, p.position.y) for p in req.path]
                 cmds = self._fsm.retreat(key, now, req.distance_m, req.speed_mps, path, here)
@@ -107,7 +112,10 @@ class GoalServers:
                     if self._fsm.is_running(key):
                         pose = self._pose()
                         left = self._fsm.distance_remaining(pose[:3] if pose else None)
-                        handle.publish_feedback(MoveTo.Feedback(distance_remaining=float(left)))
+                        done, waiting, warning = self._fsm.order_feedback()
+                        handle.publish_feedback(MoveTo.Feedback(
+                            distance_remaining=float(left), last_done_seq_id=done,
+                            waiting_at_base_end=waiting, horizon_warning=warning))
             slot.done.wait(0.02)
         with self._lock:
             self._slots.pop(key, None)
@@ -118,7 +126,8 @@ class GoalServers:
         else:
             handle.abort()
         if kind == "move":
-            return MoveTo.Result(success=slot.success, reason=slot.reason)
+            return MoveTo.Result(success=slot.success, reason=slot.reason,
+                                 last_done_seq_id=slot.last_done)
         if kind == "retreat":
             return Retreat.Result(success=slot.success, reason=slot.reason)
         if not slot.success:

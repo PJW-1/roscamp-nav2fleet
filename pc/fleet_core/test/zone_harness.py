@@ -15,11 +15,13 @@ from fleet_core.common.commands import (
     DockCmd,
     EventOut,
     MoveCmd,
+    MoveOrderCmd,
     RetreatCmd,
 )
 from fleet_core.common.params import load_params
 from fleet_core.fleet_map import load_fleet_map
 from fleet_core.traffic.zone.controller import ZoneTraffic
+from zone_order_run import OrderRun
 
 DT = 0.1
 DOCK_S = 2.0
@@ -30,6 +32,7 @@ class Bot:
     def __init__(self, name: str, x: float, y: float):
         self.name, self.x, self.y, self.yaw = name, x, y, 0.0
         self.cmd = None  # 달리는 MoveCmd나 RetreatCmd
+        self.run = None  # 달리는 order(OrderRun)
         self.points: list = []
         self.dock = None  # (DockCmd, 끝나는 시각)
         self.heading = (0.0, 0.0)  # 마지막으로 움직인 방향
@@ -53,6 +56,9 @@ class Harness:
         self.dock_fails: set[str] = set()
         self.problems: list[str] = []
         self.log: list[str] = []  # 시각을 붙인 사건과 명령. 실패한 시험을 읽을 때 쓴다
+        self._late: list = []  # 다음 걸음에 관제에 닿을 로봇의 답 (로봇, 메서드 이름, 인자)
+        self.hold_answers = False  # 켜면 로봇의 답이 관제에 닿지 않고 쌓인다
+        self.goal_fault: dict[str, str] = {}  # 로봇 -> 다음 update goal에 일어날 일(on_goal_*)
         self._ids = iter(range(1000, 100000))
 
     # ---- 시험이 부르는 것 ----
@@ -70,9 +76,15 @@ class Harness:
 
     def step(self) -> None:
         self.now = round(self.now + DT, 6)
+        late = [] if self.hold_answers else self._late
+        if late:
+            self._late = []
+        for name, method, args in late:
+            if name not in self.silent:
+                getattr(self.traffic, method)(name, *args)
         for bot in self.bots.values():
-            if bot.name not in self.silent:
-                self._move(bot)
+            if bot.name not in self.silent or bot.run is not None:
+                self._move(bot)  # order를 받은 로봇은 말이 끊겨도 base 끝까지 간다
         self.report()
         for item in self.traffic.tick():
             self._apply(item)
@@ -107,11 +119,12 @@ class Harness:
     # ---- 세계 ----
 
     def _state(self, bot: Bot) -> str:
-        if bot.stuck and bot.cmd is not None:
+        moving = bot.cmd is not None or bot.run is not None
+        if bot.stuck and moving:
             return "BLOCKED"
         if bot.dock is not None:
             return "DOCKING"
-        return "MOVING" if bot.cmd is not None else "IDLE"
+        return "MOVING" if moving else "IDLE"
 
     def _apply(self, item) -> None:
         if isinstance(item, EventOut):
@@ -119,7 +132,7 @@ class Harness:
             self.log.append(f"{self.now:6.1f} {item.robot:7} {item.code}: {item.detail}")
             return
         self.log.append(f"{self.now:6.1f} {getattr(item, 'robot', ''):7} {type(item).__name__} "
-                        f"{getattr(item, 'target_id', '')}")
+                        f"{self._detail(item)}")
         if isinstance(item, DispatchResult):
             self.results.append(item)
             return
@@ -132,11 +145,15 @@ class Harness:
             bot.points = [p[:2] for p in item.path[1:]] if item.path else [(item.x, item.y)]
         elif isinstance(item, RetreatCmd):
             bot.cmd, bot.points = item, [p[:2] for p in item.path[1:]]
+        elif isinstance(item, MoveOrderCmd):
+            self._take_order(bot, item)
         elif isinstance(item, DockCmd):
             bot.dock = (item, self.now + DOCK_S)
         elif isinstance(item, CancelCmd):
             if bot.cmd is not None and bot.cmd.goal_id == item.goal_id:
                 bot.cmd, bot.points = None, []
+            if bot.run is not None and bot.run.goal_id == item.goal_id:
+                bot.run, bot.points = None, []
             if bot.dock is not None and bot.dock[0].goal_id == item.goal_id:
                 bot.dock = None
 
@@ -149,9 +166,69 @@ class Harness:
                                             0.4, 0.3, 0.5)
             return
         bot.stuck = False
+        if bot.run is not None:
+            self._run_order(bot)
+            return
         if bot.cmd is None:
             return
         speed = bot.cmd.speed_mps if isinstance(bot.cmd, RetreatCmd) else self.speed
+        self._advance(bot, speed)
+        if not bot.points and not bot.stuck:
+            cmd, bot.cmd = bot.cmd, None
+            if isinstance(cmd, RetreatCmd):
+                self.traffic.on_retreat_result(bot.name, cmd.goal_id, True, "")
+            else:
+                bot.yaw = cmd.yaw
+                self.traffic.on_move_result(bot.name, cmd.goal_id, True, "")
+
+    @staticmethod
+    def _detail(item) -> str:
+        if not isinstance(item, MoveOrderCmd):
+            return getattr(item, "target_id", "")
+        ends = [[segment.end_node for segment in part] for part in (item.base, item.horizon)]
+        return f"{item.order_id} update {item.update_id}: base {ends[0]} horizon {ends[1]}"
+
+    def _take_order(self, bot: Bot, cmd) -> None:
+        run = bot.run
+        if cmd.update_id == 0:
+            bot.run, bot.cmd, bot.points = OrderRun(cmd), None, []
+            return
+        fault = self.goal_fault.pop(bot.name, "")
+        if fault:  # 이 goal은 로봇에 닿지 못했다
+            self._late.append((bot.name, fault, (cmd.goal_id,)))
+            return
+        why = "no running order" if run is None else run.refusal(cmd)
+        done = run.done_seq if run is not None else 0
+        if why:
+            self._late.append((bot.name, "on_move_result",
+                               (cmd.goal_id, False, f"ORDER_UPDATE_REJECTED: {why}", done)))
+        else:
+            self._late.append((bot.name, "on_move_result",
+                               (run.stitch(cmd), False, "SUPERSEDED", done)))
+
+    def _run_order(self, bot: Bot) -> None:
+        """order의 base 조각을 차례로 달린다. 조각 사이에서 관제를 기다리지 않는다."""
+        run = bot.run
+        segment = run.next_segment()
+        if segment is not None:
+            if not bot.points:
+                bot.points = ([p[:2] for p in segment.path[1:]] if segment.path
+                              else [(segment.x, segment.y)])
+            retreat = segment.mode == "retreat"
+            self._advance(bot, self.params.retreat_speed_mps if retreat else self.speed)
+            if not bot.points and not bot.stuck:
+                bot.yaw = segment.yaw
+                run.finish_segment()
+        if run.finished:
+            bot.run = None
+            self._late.append((bot.name, "on_move_result", (run.goal_id, True, "", run.done_seq)))
+        elif run.told != (run.done_seq, run.waiting, run.goal_id):
+            run.told = (run.done_seq, run.waiting, run.goal_id)
+            self._late.append((bot.name, "on_move_feedback",
+                               (run.goal_id, run.done_seq, run.waiting, "")))
+
+    def _advance(self, bot: Bot, speed: float) -> None:
+        """bot.points를 따라 한 걸음. 장애물에 막히면 bot.stuck을 켠다."""
         left = speed * DT
         while bot.points and left > 0.0:
             px, py = bot.points[0]
@@ -167,13 +244,6 @@ class Harness:
             if gap <= go + 1e-12:
                 bot.x, bot.y = px, py
                 bot.points.pop(0)
-        if not bot.points:
-            cmd, bot.cmd = bot.cmd, None
-            if isinstance(cmd, RetreatCmd):
-                self.traffic.on_retreat_result(bot.name, cmd.goal_id, True, "")
-            else:
-                bot.yaw = cmd.yaw
-                self.traffic.on_move_result(bot.name, cmd.goal_id, True, "")
 
     def _hits(self, bot: Bot, x: float, y: float) -> bool:
         """(x, y)로 가는 걸음이 장애물 안으로 더 들어가는가. 멀어지는 걸음은 막지 않는다."""
@@ -197,7 +267,8 @@ class Harness:
         for zone, spec in site.zones.items():
             inside = [b for b in self.bots.values() if site.zone_at(b.x, b.y) == zone]
             if spec.kind == "lane" and len(inside) > 1:
-                ways = {round(b.heading[0]) for b in inside if b.cmd is not None}
+                ways = {round(b.heading[0]) for b in inside
+                        if b.cmd is not None or b.run is not None}
                 if len(ways) > 1:
                     self.problems.append(f"{self.now:.1f} two ways inside {zone}")
             if spec.kind == "dock" and len(inside) > 1:

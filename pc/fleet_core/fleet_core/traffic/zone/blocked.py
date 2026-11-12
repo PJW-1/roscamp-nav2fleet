@@ -9,13 +9,11 @@ from __future__ import annotations
 
 import math
 
-from fleet_core.fleet_map import SHARED
+from fleet_core.fleet_map import RETREAT, SHARED
 from fleet_core.fleet_map.geometry import point_segment_distance
 from fleet_core.traffic.mission import (
     BLOCKED,
     DOCK,
-    MOVE,
-    RETREAT,
     SELF_RECOVERING,
     TO_OUTBOUND,
     TO_PARK,
@@ -46,7 +44,8 @@ class Blocked:
             self._event("INFO", "BLOCKED_WAIT", f"stands before something on the way to "
                         f"{m.goal.end}", m.name)
         waited = now - m.blocked_since
-        if m.goal.kind == MOVE and waited >= p.blocked_mark_s:
+        backing = self._via(m) == RETREAT
+        if not backing and waited >= p.blocked_mark_s:
             behind = self._behind_on_the_way_back(m)
             if not behind:
                 m.rear_noted = False
@@ -60,7 +59,7 @@ class Blocked:
                 m.rear_noted = True
                 self._event("INFO", "RETREAT_WAIT", f"{behind} is behind it, backs out after it",
                             m.name)
-        elif m.goal.kind == RETREAT and waited >= p.blocked_timeout_s:
+        elif backing and waited >= p.blocked_timeout_s:
             # 물러나는 길이 막혔다. 다른 길이 없으니 운영자에게 넘긴다
             self._event("ERROR", "GOAL_FAILED", f"blocked for {waited:.0f} s while backing out",
                         m.name)

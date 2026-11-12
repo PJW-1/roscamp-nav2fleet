@@ -25,10 +25,11 @@ class Watch:
     def _watch_stall(self, m, now: float) -> None:
         """goal이 열린 채 제자리이면 거두고 실패한 시도로 센다. 끝 지점에 서 있으면 닿은 것이다."""
         p = self.params
+        waiting = m.move_order is not None and m.move_order.waiting  # base 끝에 서 있다
         # 막혔거나 스스로 물러나는 이동은 blocked.py가 본다. 도킹과 마당 물러나기는 거기서 보지
         # 않으므로 여기서 본다
         rests = m.robot_state in (BLOCKED, SELF_RECOVERING)
-        if (m.goal is None or self._run_mode != RUN or m.arrival_by is not None
+        if (m.goal is None or self._run_mode != RUN or m.arrival_by is not None or waiting
                 or (rests and m.goal.kind not in (DOCK, BACKOFF))):
             m.stall_from = None
             return
@@ -95,7 +96,7 @@ class Watch:
 
         def roams(m) -> bool:
             return (m.available and m.goal is not None and m.goal.kind == MOVE
-                    and m.goal.via == NAV_GOAL)
+                    and self._via(m) == NAV_GOAL)
 
         moving = [m for m in self._robots.values() if roams(m)]
         seen = set()

@@ -23,6 +23,7 @@ class Result:
     goal_id: int
     success: bool
     reason: str = ""
+    last_done_seq: int | None = None  # order goal이면 끝낸 마지막 조각 번호
 
 
 def blocked_ahead(ctx, robot, way, look) -> bool:

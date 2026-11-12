@@ -16,7 +16,7 @@ from fleet_core.traffic.mission import (
     TO_WORK,
 )
 
-from .robots import Goal
+from .robots import ORDER, Goal
 from .trips import move_command, retreat_command, segment_end
 
 
@@ -33,7 +33,11 @@ class Drive:
 
     def _step_phase(self, m) -> None:
         now = self._clock()
-        if m.goal is not None or now < m.retry_at or now < m.yield_until:
+        if m.goal is not None:
+            if m.goal.via == ORDER:
+                self._extend_order(m)
+            return
+        if now < m.retry_at or now < m.yield_until:
             return
         if m.phase in (TO_WORK, TO_OUTBOUND, TO_PARK):
             self._drive(m)
@@ -92,7 +96,10 @@ class Drive:
             self._head_for(m, TO_PARK, None)
 
     def _send(self, m) -> None:
-        """잡은 구간의 다음 조각을 명령 하나로 낸다."""
+        """잡은 구간의 다음 조각을 명령 하나로 낸다. order 모델이면 order 하나로 낸다."""
+        if self.params.use_order_model:
+            self._send_order(m)
+            return
         trip = m.trip
         start = trip.sent
         end = segment_end(trip.links, start, trip.granted)

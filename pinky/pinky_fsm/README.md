@@ -18,6 +18,10 @@
 | `pinky_fsm/nav_goal.py` | mode `nav_goal`의 명령(`SendNavGoal`, `CancelNavGoal`), 보낸 NavigateToPose 기록, 진전·BLOCKED 판단 |
 | `pinky_fsm/nav_moves.py` | `PinkyFsm`이 물려받는 nav_goal 부분과 Nav2 서버 사이 바꾸기(앞 움직임이 끝난 뒤 보낸다) |
 | `pinky_fsm/results.py` | 상태·결과 이름과 `Finish`(core가 다시 내보낸다) |
+| `pinky_fsm/order_queue.py` | order 모델(제안)의 조각 줄: 이음 조건 넷, 같은 방식 조각 합치기 |
+| `pinky_fsm/order_fsm.py` | `OrderFsm`(`PinkyFsm`을 물려받음): order goal을 조각마다 core 움직임으로 풀고 base 끝에서 선다. 노드는 이것을 쓴다 |
+| `pinky_fsm/order_check.py`, `order_markers.py` | horizon 미리 검사(지도 밖, keepout), 표시 선(base 실선, horizon 점선) |
+| `pinky_fsm/order_ros.py` | order 칸 바꾸기, 지도·마스크 구독, `order_markers` 발행 |
 | `pinky_fsm/node.py` | ROS와 잇기만 한다(액션 서버, FollowPath 클라이언트, TF, 토픽) |
 | `pinky_fsm/nav_goal_ros.py` | NavigateToPose 액션 클라이언트(보내기, feedback, 취소, 잃은 결과) |
 | `pinky_fsm/geometry.py` | 레인 폴리라인을 0.05 m 간격 경로로 펼치기, 위치 투영, 남은 선 |
@@ -44,6 +48,7 @@
 | `move_to`, mode `nav_goal`(제안) | `target_pose`로 NavigateToPose를 보낸다. `path`, `final_goal`은 쓰지 않는다. feedback은 Nav2의 `distance_remaining`(첫 경로 전에는 곧은 거리). 성공은 0.15 m 안일 때만이고, 실패는 `NAV_ABORTED`. 모르는 mode는 `NAV_ABORTED` | 계약 2절(0.11-draft) |
 | nav_goal 중 진전 없음 | `blocked_after_s`(5 s) 동안 `nav_progress_m`(0.05 m) 이상 움직이지 않으면 `BLOCKED`. goal은 그대로 두고, 그만큼 움직이면 `MOVING`. 자가 복구(`RECOVERING`, BackUp)는 하지 않는다(Nav2 BT가 복구) | 계약 4절(0.11-draft) |
 | 다른 Nav2 서버로 바꿈 | NavigateToPose가 도는 중 follow_path `move_to`·`retreat`·`dock`, 또는 FollowPath·BackUp이 도는 중 nav_goal `move_to`: 앞 것을 취소하고 결과가 오고 바퀴가 선 뒤(3 s까지, 넘으면 `TIMEOUT`) 보낸다. nav_goal끼리는 서지 않고 바꾼다 | 계약 3절 1번(0.11-draft) |
+| `move_to`, `order_id` 있음(제안) | base 조각을 차례로 달리고 base 끝에서 선다. horizon이 있으면 `waiting_at_base_end`로 update를 기다리고, 없으면 성공. update는 이음 조건 넷이 맞으면 이전 goal을 `SUPERSEDED`로 넘겨받고, 틀리면 새 goal만 `ORDER_UPDATE_REJECTED: <이유>`. 같은 controller의 닿는 follow_path는 한 경로로, nav_goal끼리는 서지 않고 바꾼다. heartbeat가 끊기면 base 끝까지 가서 서고 `HEARTBEAT_LOST`. `order_id`가 비면 위 줄들 그대로 | 계약 2절 order 모델, 3절 11번(0.11-draft) |
 | `dock` | **pinky_dock이 아직 없어** 이동을 멈추고 실패(`success=false`)를 돌려준다. 도킹을 했다고 꾸미지 않는다 | — |
 
 "물체"는 local costmap 값이 99(INSCRIBED) 이상인 칸이다. Nav2 local costmap은 `always_send_full_costmap: true`여야 한다.

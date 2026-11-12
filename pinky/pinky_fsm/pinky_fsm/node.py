@@ -4,8 +4,10 @@
 - 액션 서버: 계약의 move_to(MoveTo), dock(Dock), retreat(Retreat, 버전 2 1-A, 계약 0.9-draft 제안.
   path가 있으면 후진 controller reverse_controller_id로 따른다)
 - 발행: 계약의 robot_state(RobotState, 기본 10 Hz), Nav2 controller의 speed_limit
-  (잠금 경계 목표만, 버전 2 4절 제안)
-- 구독: 계약의 heartbeat, odom(속도), local costmap(BLOCKED 판단)
+  (잠금 경계 목표만, 버전 2 4절 제안), order_markers(MarkerArray, order 모델 표시)
+- 구독: 계약의 heartbeat, odom(속도), local costmap(BLOCKED 판단), map과 keepout 마스크
+  (order 모델 horizon 미리 검사)
+- MoveTo의 order 칸(계약 0.11-draft 제안)은 order_ros가 바꾸고 order_fsm.OrderFsm이 판단한다
 - 액션 클라이언트: Nav2 controller의 follow_path(FollowPath, follow_ros.py), behavior_server의
   backup(BackUp, 자가 복구. 핑키_계약 3절 7번 2026-11-09 제안), bt_navigator의
   navigate_to_pose(NavigateToPose, MoveTo mode nav_goal. 계약 0.11-draft 제안, nav_goal_ros.py)
@@ -46,7 +48,6 @@ from pinky_fsm.core import (
     Finish,
     FsmParams,
     LimitSpeed,
-    PinkyFsm,
     SendPath,
 )
 from pinky_fsm.costmap import Grid, obstacle_on, to_frame
@@ -54,6 +55,8 @@ from pinky_fsm.follow_ros import FollowPathRunner
 from pinky_fsm.geometry import quaternion_yaw
 from pinky_fsm.nav_goal import CancelNavGoal, SendNavGoal
 from pinky_fsm.nav_goal_ros import NavGoalRunner
+from pinky_fsm.order_fsm import OrderFsm, OrderParams
+from pinky_fsm.order_ros import OrderMaps, OrderMarkers
 from pinky_fsm.server_ros import GoalServers
 
 UNKNOWN_BATTERY = -1.0  # 배터리 토픽이 없을 때. 관제는 보여 주기만 한다
@@ -72,6 +75,8 @@ _FLOAT_PARAMS = (
     # mode nav_goal의 BLOCKED(계약 0.11-draft 제안)
     "blocked_after_s", "nav_progress_m")
 _INT_PARAMS = ("recovery_attempts",)
+_ORDER_PARAMS = ("join_m", "pass_m")  # order 모델(계약 0.11-draft 제안). 이름 앞에 order_
+MARKER_PERIOD_S = 0.5
 
 
 class PinkyFsmNode(Node):
@@ -103,6 +108,13 @@ class PinkyFsmNode(Node):
         declare("state_rate_hz", 10.0)
         declare("control_rate_hz", 20.0)
         declare("pose_timeout_s", 1.0)
+        # order 모델(계약 0.11-draft 제안): horizon 미리 검사에 쓰는 지도와 keepout 마스크, 표시
+        declare("map_topic", "map")
+        declare("keepout_mask_topic", "keepout_filter_mask")  # 비면 keepout 검사를 하지 않는다
+        declare("order_markers_topic", "order_markers")
+        o = OrderParams()
+        for name in _ORDER_PARAMS:
+            declare(f"order_{name}", float(getattr(o, name)))
         for name in _FLOAT_PARAMS:
             declare(name, float(getattr(d, name)))
         for name in _INT_PARAMS:
@@ -116,9 +128,15 @@ class PinkyFsmNode(Node):
                          get("progress_checker_id").value)
         self._through_id = get("through_controller_id").value
         self._reverse_id = get("reverse_controller_id").value
-        self._fsm = PinkyFsm(FsmParams(
-            **{name: float(get(name).value) for name in _FLOAT_PARAMS},
-            **{name: int(get(name).value) for name in _INT_PARAMS}))
+        group = ReentrantCallbackGroup()
+        self._maps = OrderMaps(self, get("map_topic").value, get("keepout_mask_topic").value,
+                               callback_group=group)
+        self._fsm = OrderFsm(
+            FsmParams(**{name: float(get(name).value) for name in _FLOAT_PARAMS},
+                      **{name: int(get(name).value) for name in _INT_PARAMS}),
+            OrderParams(**{name: float(get(f"order_{name}").value) for name in _ORDER_PARAMS}),
+            horizon_check=self._maps.check)
+        self._markers = OrderMarkers(self, get("order_markers_topic").value, self._map_frame)
         self._last_state = ""
         contract = load_contract(get("contract_file").value or default_contract_path())
 
@@ -133,7 +151,6 @@ class PinkyFsmNode(Node):
 
         self._tf = Buffer()
         self._tf_listener = TransformListener(self._tf, self)
-        group = ReentrantCallbackGroup()
         self._speed_pub = self.create_publisher(SpeedLimit, get("speed_limit_topic").value, 10)
         self._state_pub = self.create_publisher(
             RobotState, contract.name("robot_state", pinky=self.robot_id),
@@ -168,6 +185,8 @@ class PinkyFsmNode(Node):
                           callback_group=group, clock=steady)
         self.create_timer(1.0 / float(get("state_rate_hz").value), self._publish_state,
                           callback_group=group, clock=steady)
+        self.create_timer(MARKER_PERIOD_S, self._publish_markers, callback_group=group,
+                          clock=steady)
         self.get_logger().info(f"pinky_fsm for {self.robot_id} ready")
 
     # -- 수명 ------------------------------------------------------------------------------
@@ -269,7 +288,7 @@ class PinkyFsmNode(Node):
                 msg.header.stamp = self.get_clock().now().to_msg()
                 self._speed_pub.publish(msg)
             elif isinstance(cmd, Finish):
-                self._servers.finish(cmd.goal_id, cmd.success, cmd.reason)
+                self._servers.finish(cmd.goal_id, cmd.success, cmd.reason, cmd.last_done_seq_id)
                 if not cmd.success:
                     self.get_logger().info(f"goal ended: {cmd.reason}")
 
@@ -351,6 +370,15 @@ class PinkyFsmNode(Node):
                                    f"(self-recovery attempts used "
                                    f"{self._fsm.recovery_attempts_used})")
         self._last_state = state
+
+    def _publish_markers(self) -> None:
+        with self._lock:
+            self._fsm.recheck_horizon()  # 지도나 마스크가 order 뒤에 왔을 수 있다
+            base, horizon = self._fsm.order_view()
+            pose = self._pose() if base or horizon else None
+        # 첫 nav_goal 선은 로봇에서 시작한다. 10 cm로 잘라 움직일 때마다 내지 않는다
+        start = (round(pose[0], 1), round(pose[1], 1)) if pose else None
+        self._markers.publish(start, base, horizon)
 
     def _publish_state(self) -> None:
         with self._lock:

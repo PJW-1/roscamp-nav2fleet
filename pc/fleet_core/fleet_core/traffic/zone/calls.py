@@ -140,7 +140,7 @@ class Calls:
         goal = m.goal
         if goal is None:
             self._drop_trip(m)
-        elif goal.kind == MOVE and goal.via == NAV_GOAL:
+        elif goal.kind == MOVE and self._via(m) == NAV_GOAL:
             self._cancel_goal(m)  # 넓은 구역 안에서는 바로 세우고 다시 고른다
             self._drop_trip(m)
         elif goal.kind == BACKOFF:

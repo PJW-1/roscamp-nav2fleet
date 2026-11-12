@@ -485,6 +485,7 @@ def test_a_lost_result_of_a_canceled_robot_goal_is_no_rejection():
         if canceled:
             goals.cancel(key, 0.0)
         node = SimpleNamespace(_goals=goals, _robot_rejected=robot_rejected,
+                               _order_feedback=SimpleNamespace(forget=lambda key: None),
                                get_logger=lambda: SimpleNamespace(error=lambda msg: None))
         rejected = []
         FleetManagerNode._goal_result(node, key, lambda k, r: None, on_rejected,

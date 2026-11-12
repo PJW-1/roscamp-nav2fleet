@@ -24,9 +24,14 @@ class Results:
             return None
         return m
 
-    def on_move_result(self, robot, goal_id, success, reason) -> None:
+    def on_move_result(self, robot, goal_id, success, reason, last_done_seq=0) -> None:
+        m = self._robots.get(robot)
+        if m is not None and m.move_order is not None and self._old_goal_result(m, goal_id, reason):
+            return
         m = self._active(robot, goal_id, MOVE)
         if m is None:
+            return
+        if m.move_order is not None and self._order_result(m, success, reason, last_done_seq):
             return
         if success:
             self._succeeded(m)
@@ -64,7 +69,7 @@ class Results:
         if self._backoff_result(robot, goal_id, "REJECTED"):
             return
         m = self._active(robot, goal_id, MOVE, RETREAT, DOCK)
-        if m is None:
+        if m is None or self._update_unclear(m, "the goal was rejected or lost its result"):
             return
         if m.goal.kind == DOCK:
             m.goal = None
@@ -76,7 +81,7 @@ class Results:
         if self._backoff_result(robot, goal_id, "NOT_SENT"):
             return
         m = self._active(robot, goal_id, MOVE, RETREAT, DOCK)
-        if m is None:
+        if m is None or self._update_lost(m, "the goal was not sent"):
             return
         self._forget_goal(m)
         m.retry_at = self._clock() + self.params.move_retry_wait_s
@@ -89,7 +94,7 @@ class Results:
         if self._backoff_result(robot, goal_id, "LOST"):
             return
         m = self._active(robot, goal_id, MOVE, RETREAT, DOCK)
-        if m is not None:
+        if m is not None and not self._update_unclear(m, "the goal was lost"):
             self._forget_goal(m)
 
     # ---- 끝난 조각 ----
@@ -114,6 +119,7 @@ class Results:
     def _segment_done(self, m) -> None:
         goal = m.goal
         m.goal = None
+        m.move_order = None
         m.arrival_by = None
         if m.off_node is None or goal.via != NAV_GOAL:
             m.attempts = 0  # 고정 경로에 붙으려고 Nav2 goal로 지점에 돌아온 것이면 그대로 둔다
@@ -127,6 +133,7 @@ class Results:
 
     def _forget_goal(self, m) -> None:
         m.goal = None
+        m.move_order = None
         m.arrival_by = None
         if m.trip is not None:
             m.trip.sent = m.trip.done
@@ -150,7 +157,8 @@ class Results:
         if not (heard and goal is not None and goal.kind in (MOVE, RETREAT)):
             return False
         limit = self.params.arrival_tolerance_m
-        return self._gap(m, goal.end) <= (limit / 2 if goal.via == NAV_GOAL else limit)
+        # order goal이면 지금 조각의 방식으로 본다(_via)
+        return self._gap(m, goal.end) <= (limit / 2 if self._via(m) == NAV_GOAL else limit)
 
     def _arrived_anyway(self, m, reason: str) -> None:
         """goal은 실패했거나 열린 채 멈췄지만 로봇은 끝 지점에 서 있다. 닿은 것으로 본다.

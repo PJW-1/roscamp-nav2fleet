@@ -79,6 +79,13 @@ class NoisyPose:
     jump_m: float = 0.0
 
 
+@dataclass(frozen=True)
+class OrderFault:
+    """관제의 시험 고리(traffic.order_fault)를 켠다. "stitch"면 다음 update의 이음 지점이 틀린다."""
+    at_s: float
+    kind: str = "stitch"
+
+
 def _during(item, t: float) -> bool:
     return item.t0 <= t < item.t1
 
@@ -114,7 +121,8 @@ class Schedule:
         """지금 일어날 한 번짜리 일(Removal, Reinstate). 한 번만 돌려준다."""
         out = []
         for k, item in enumerate(self.items):
-            if isinstance(item, (Removal, Reinstate)) and k not in self._fired and item.at_s <= t:
+            if (isinstance(item, (Removal, Reinstate, OrderFault)) and k not in self._fired
+                    and item.at_s <= t):
                 self._fired.add(k)
                 out.append(item)
         return out

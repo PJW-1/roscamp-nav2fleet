@@ -55,9 +55,10 @@ class Progress:
     def _track(self, m) -> None:
         """고정 경로의 꺾은선을 달리는 동안 지난 지점을 따라간다. 끝 지점은 결과로만 닿는다."""
         trip, goal = m.trip, m.goal
-        if trip is None or goal is None or goal.kind == DOCK or goal.via == NAV_GOAL:
+        if trip is None or goal is None or goal.kind == DOCK:
             return
-        while trip.done < goal.links - 1 and passed(trip.links[trip.done], m.x, m.y):
+        while (trip.done < goal.links - 1 and trip.links[trip.done].via != NAV_GOAL
+               and passed(trip.links[trip.done], m.x, m.y)):
             m.node = trip.links[trip.done].b
             trip.done += 1
 

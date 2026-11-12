@@ -121,10 +121,20 @@ class FleetManager(ManagerRoute, ManagerViews, ManagerRecord):
         self.orchestrator.on_order_board(run_mode, self._board)
         self._pump()
 
-    def on_move_result(self, robot, goal_id, success, reason) -> None:
-        self._input("on_move_result", robot, goal_id, success, reason)
+    def on_move_result(self, robot, goal_id, success, reason, last_done_seq=0) -> None:
+        self._input("on_move_result", robot, goal_id, success, reason, last_done_seq)
         if not self._robot_refused("move result", robot):
-            self.traffic.on_move_result(robot, goal_id, success, reason)
+            self.traffic.on_move_result(robot, goal_id, success, reason, last_done_seq)
+            self._pump()
+
+    def on_move_feedback(self, robot, goal_id, last_done_seq, waiting_at_base_end,
+                         horizon_warning="") -> None:
+        """order 모델의 MoveTo 피드백(계약 0.11-draft 제안). 값이 바뀔 때만 불러도 된다."""
+        self._input("on_move_feedback", robot, goal_id, last_done_seq, waiting_at_base_end,
+                    horizon_warning)
+        if not self._robot_refused("move feedback", robot):
+            self.traffic.on_move_feedback(robot, goal_id, last_done_seq, waiting_at_base_end,
+                                          horizon_warning)
             self._pump()
 
     def on_goal_rejected(self, robot, goal_id) -> None:

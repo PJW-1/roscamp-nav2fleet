@@ -22,6 +22,8 @@
 | capacity | 시작 때 넓은 구역 정원의 합과 로봇 수 |
 | backoff | 서로 막은 로봇을 뒤로 조금 물리기(기본 꺼짐) |
 | calls | 배차와 호출 |
+| move_orders | order 모델(use_order_model): 조각 목록, base와 horizon, update |
+| order_answers | order 모델에서 로봇이 알려 온 것: 피드백, 결과, 붙지 못한 update |
 | views | 밖에서 읽는 것 |
 """
 from __future__ import annotations
@@ -34,7 +36,9 @@ from .capacity import Capacity
 from .drive import Drive
 from .goals import Goals
 from .health import Health
+from .move_orders import MoveOrders
 from .nostart import NoStart
+from .order_answers import OrderAnswers
 from .placement import Placement
 from .progress import Progress
 from .results import Results
@@ -44,8 +48,9 @@ from .views import Views
 from .watch import Watch
 
 
-class ZoneTraffic(Calls, Goals, Turns, Drive, Results, Progress, Placement, Blocked, Health, Watch,
-                  Backoff, Silent, NoStart, Capacity, Views, ZoneBase):
+class ZoneTraffic(Calls, Goals, Turns, Drive, MoveOrders, OrderAnswers, Results, Progress,
+                  Placement, Blocked, Health, Watch, Backoff, Silent, NoStart, Capacity, Views,
+                  ZoneBase):
     def tick(self) -> list:
         """한 주기 전체. FleetManager 없이 교통 층만 돌릴 때 쓴다."""
         now = self._clock()
