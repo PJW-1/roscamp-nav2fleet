@@ -1,7 +1,7 @@
 """명령의 결과: 이동, 후진, 도킹의 성공과 실패, 거절, 못 보냄, 잃음."""
 from __future__ import annotations
 
-from fleet_core.fleet_map import SHARED
+from fleet_core.fleet_map import NAV_GOAL, SHARED
 from fleet_core.traffic.mission import (
     AT_STATION,
     DOCK,
@@ -110,8 +110,8 @@ class Results:
         m.goal = None
         m.move_order = None
         m.arrival_by = None
-        if m.off_node is None:
-            m.attempts = 0  # 고정 경로에 붙으려고 지점으로 돌아온 것이면 그 경로가 될 때까지 둔다
+        if m.off_node is None or goal.via != NAV_GOAL:
+            m.attempts = 0  # 고정 경로에 붙으려고 Nav2 goal로 지점에 돌아온 것이면 그대로 둔다
         m.not_sent_warned = False
         m.node, m.off_node = goal.end, None
         if m.trip is not None:
