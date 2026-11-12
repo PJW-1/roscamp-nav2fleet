@@ -1,0 +1,11 @@
+07:02:15 waiting for pytest
+07:10:46 start game1
+07:18:29 end game1 over_limit=false
+judge exit 0
+07:18:34 start game2
+07:38:53 end game2 over_limit=true
+judge exit 1
+07:38:58 start game3
+07:46:41 end game3 over_limit=false
+judge exit 0
+07:46:47 all done; gz left: none
