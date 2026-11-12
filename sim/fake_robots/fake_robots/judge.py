@@ -118,6 +118,7 @@ class ScenarioJudge:
         self._from_outbound: set[str] = set()
         self.direct_returns = 0
         self.parked_while_backlog = 0
+        self._dock_queued: set[str] = set()  # 이번 바퀴에 DOCK_QUEUED를 받은 로봇
         # 자동 격리: 첫 ROBOT_ISOLATED부터 격리된 로봇의 첫 ZONES_CLEARED 전까지 출고한 수
         self.shipped_before_operator = 0
         self._isolated: set[str] = set()  # source가 로봇이다
@@ -167,6 +168,8 @@ class ScenarioJudge:
             self.path_not_connected += 1
         if code == "ROBOT_IDLE":
             self.robot_idle += 1
+        if code == "DOCK_QUEUED":
+            self._dock_queued.add(source)
         if code == "ROBOT_ISOLATED":
             self._isolated.add(source)
             self._standing_isolated.add(source)
@@ -352,8 +355,11 @@ class ScenarioJudge:
         zone = place
         if place == "out":
             self._from_outbound.add(robot)
+            self._dock_queued.discard(robot)
         elif robot not in self._from_outbound:
             return
+        elif place == "park" and robot in self._dock_queued:
+            return  # 구역 관제의 도크 대기 줄은 주차 자리다: 바퀴가 끊기지 않는다
         elif place == "work":
             self._from_outbound.discard(robot)
             self.direct_returns += 1
