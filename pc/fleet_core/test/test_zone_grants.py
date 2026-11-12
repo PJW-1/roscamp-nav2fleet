@@ -104,13 +104,15 @@ def test_a_lane_zone_needs_its_direction():
         grants.take("pinky1", zones=["EXPRESS"])
 
 
-def test_release_gives_back_one_zone_or_everything():
+def test_release_gives_back_one_zone_or_node():
     grants, _ = make()
     grants.take("pinky1", zones=["HALL", "J_W"], nodes=["N_W", "X_W"])
     assert grants.release_zone("pinky1", "J_W") is True
     assert grants.release_zone("pinky1", "J_W") is False
     assert grants.release_node("pinky2", "N_W") is False
-    assert grants.release_all("pinky1") == (("HALL",), ("N_W", "X_W"))
+    assert grants.release_zone("pinky1", "HALL") is True
+    assert grants.release_node("pinky1", "N_W") is True
+    assert grants.release_node("pinky1", "X_W") is True
     assert grants.held_by("pinky1") == () and grants.nodes_of("pinky1") == ()
     assert grants.holders("HALL") == ()
 

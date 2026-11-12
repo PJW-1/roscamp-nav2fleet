@@ -1,6 +1,7 @@
 """명령의 결과: 이동, 후진, 도킹의 성공과 실패, 거절, 못 보냄, 잃음."""
 from __future__ import annotations
 
+from fleet_core.fleet_map import NAV_GOAL, SHARED
 from fleet_core.traffic.mission import (
     AT_STATION,
     DOCK,
@@ -8,6 +9,7 @@ from fleet_core.traffic.mission import (
     LOCALIZING,
     MOVE,
     NOT_AT_TARGET,
+    PATH_NOT_CONNECTED,
     RETREAT,
 )
 
@@ -108,9 +110,10 @@ class Results:
         m.goal = None
         m.move_order = None
         m.arrival_by = None
-        m.attempts = 0
+        if m.off_node is None or goal.via != NAV_GOAL:
+            m.attempts = 0  # 고정 경로에 붙으려고 Nav2 goal로 지점에 돌아온 것이면 그대로 둔다
         m.not_sent_warned = False
-        m.node = goal.end
+        m.node, m.off_node = goal.end, None
         if m.trip is not None:
             m.trip.done = m.trip.sent = goal.links
         if goal.kind == RETREAT:
@@ -155,5 +158,12 @@ class Results:
         self._forget_goal(m)
         if reason == HEARTBEAT_LOST:  # 로봇이 관제 heartbeat를 잃고 스스로 섰다. 시도로 세지 않는다
             m.retry_at = self._clock() + self.params.move_retry_wait_s
-        else:
-            self._goal_failed(m, reason)
+            return
+        if reason == PATH_NOT_CONNECTED:
+            # 관제의 "지점 위"(0.15 m)와 로봇의 "경로에 붙음"(0.15 m)이 가장자리에서 어긋났다.
+            # 넓은 구역이면 지점 밖에 선 로봇으로 다뤄, Nav2 goal로 그 지점부터 보낸다
+            zone = self.site.zone_at(m.x, m.y)
+            if zone is not None and self.site.zones[zone].kind == SHARED:
+                m.off_node = (m.x, m.y)
+                self._drop_trip(m)  # 같은 경로를 다시 보내지 않고 선 자리에서 길을 다시 고른다
+        self._goal_failed(m, reason)

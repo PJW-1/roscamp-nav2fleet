@@ -9,7 +9,7 @@ release_margin_extra_m: 0.05  # 시나리오 판정 전용: 반경 + 이 값 = �
 # 또 d > 2r: 뒤 로봇이 방금 떠난 지점까지 올 수 있다. 앞 로봇이 eps 앞선 보고 직후 멈출 수
 # 있으면 d >= 2r + eps. eps와 tau를 실제 로봇에서 재기 전까지 추정이다.
 # 압박 표는 docs/worklog_2026-11-05.md.
-release_distance_m: 0.2
+release_distance_m: 0.2       # 구역 교통은 읽지 않는다(zone_clear_m로 놓는다). 핑키의 자가 복구 후진 거리 식이 같은 값을 쓴다
 release_confirm_samples: 3    # 해제 전에 그 거리를 지난 연속 보고 수
 lane_error_warn_m: 0.15       # 가짜 로봇: 받은 path 첫 점이 이보다 멀면 따라가지 않는다(PATH_NOT_CONNECTED). 레인 이탈 감시는 지웠다
 move_retry_limit: 2           # 첫 실패 뒤 재시도 수, 모두 세 번 시도
@@ -19,7 +19,6 @@ stall_move_m: 0.05            # 보고 위치가 이보다 덜 움직이면 제�
 dock_stall_s: 15.0            # 추정: 도킹은 천천히 맞추므로 더 길게 본다
 blocked_mark_s: 10.0          # 추정: BLOCKED가 이만큼 이어지면 그 연결을 막힘으로 표시하고 다른 길을 고른다(잠깐 지나가는 사람 8 s보다 길게)
 blocked_timeout_s: 60.0       # 추정: BLOCKED로 보고된 시간이 이만큼이면 ERROR(BLOCKED)
-queue_gap_m: 0.6              # 추정: 같은 레인이나 다음 레인 앞 이 거리 안에 정상 로봇이 있으면 줄 서기
 arrival_tolerance_m: 0.15     # 추정: 목표 지점에 이만큼 가까워야 이동 성공으로 친다
 arrival_settle_s: 1.0         # 추정: 보고가 늦으니 성공 뒤 이만큼 기다린다
 startup_wait_s: 10.0          # 이때까지 보고 없는 로봇은 알린다
@@ -42,20 +41,15 @@ score_distance_weight: 0.91   # 레인 거리 1 m당
 priority_at_station: 200
 priority_has_cargo: 100
 input_pose_margin_m: 1.0      # 웨이포인트 범위 밖으로 이보다 먼 보고 위치는 버린다
-idle_watch_s: 10.0            # 제안: 주행 단계인데 goal도 구역 대기표도 없이 이만큼 서면 ROBOT_IDLE, 그 지점 goal을 다시 보낸다
+idle_watch_s: 10.0            # 제안: 주행 단계인데 goal도 구역 대기표도 없이 이만큼 서면 ROBOT_IDLE을 남긴다(알리기만 한다)
 battery_low_pct: 0.0          # 제안: 보고한 배터리(0-100)가 이 값 이하면 새 일을 받지 않고 대기 지점(충전 자리)으로 간다. 0이면 끈다
 battery_charged_pct: 80.0     # 제안: 이 값 이상이 되면 다시 일을 받는다
 dispatch_retry_wait_s: 2.0    # 제안: 출고 호출이 실패하면 이만큼 뒤 다시 보낸다
 dispatch_retry_limit: 3       # 제안: 출고 호출 실패가 이 수를 넘으면 ERROR(DISPATCH_FAILED)
 self_recovery_limit_s: 45.0   # 제안: 로봇이 RECOVERING(자가 복구)을 이만큼 넘게 이어 보내면 BLOCKED로 본다. 핑키 FSM의 두 번 시도는 길어야 약 35 s
-traffic_mode: zones           # 교통 층: zones(지점·구역 그래프의 구역 허락, 3단계에서 만든다). 다른 값은 없다
-eta_speed_mps: 0.2            # 추정(버전 2 ETA): ETA에 쓰는 평균 속도
-eta_turn_s_per_rad: 1.0       # 추정: 제자리 회전 시간(초/rad). RPP rotate_to_heading_angular_vel 1.0
-eta_turn_min_rad: 0.25        # 추정: 이보다 작은 꺾임은 달리면서 지난다(RPP rotate_to_heading_min_angle)
-eta_dock_s: 3.0               # 추정: 도킹 시간(가짜 시나리오 기본값)
+traffic_mode: zones           # 교통 층: zones(지점·구역 그래프의 구역 허락). 다른 값은 없다
 eta_fill_s_per_item: 4.0      # 추정: 채우기 품목당 팔 시간(가짜 시나리오 기본값)
 eta_fill_base_s: 4.0          # 추정: 첫 품목 전 준비 시간. 가짜 팔은 채우기에 품목 수 + 1번의 팔 시간이 걸린다(SimWorld 측정)
-eta_fill_items_default: 2     # 추정: 주문을 아직 모르는 로봇이 채울 품목 수
 eta_swap_s: 8.0               # 추정: 교환 시간(가짜 시나리오 기본값)
 # 구역 교통 층(traffic/zone). 모두 제안값이고 실측 전이다
 nav_speed_mps: 0.12           # 넓은 구역(Nav2 goal)의 ETA와 길 비용에 쓰는 속도

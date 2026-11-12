@@ -31,6 +31,7 @@ class FleetMap:
         self.zones = read_zones(data.get("zones"), self._bounds)
         self.nodes = read_nodes(data.get("nodes"), self.zones)
         self._links = read_links(data.get("paths"), data.get("nav"), self.nodes, self.zones)
+        self._all_links = tuple(self._links.values())
         self._from: dict[str, tuple[Link, ...]] = {
             node: tuple(link for (a, _), link in self._links.items() if a == node)
             for node in self.nodes}
@@ -46,7 +47,7 @@ class FleetMap:
         return self._links.get((a, b))
 
     def links(self) -> tuple[Link, ...]:
-        return tuple(self._links.values())
+        return self._all_links
 
     def links_from(self, node: str) -> tuple[Link, ...]:
         return self._from[node]

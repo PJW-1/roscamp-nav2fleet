@@ -1,8 +1,8 @@
 """1단계(뼈대)에서 비워 둔 두 자리와, 그 자리를 기다리는 시험.
 
-교통 층(3단계)과 지도(2단계)가 오기 전에는 그것이 필요한 시험을 건너뛴다. 이유는 아래 두
-문자열뿐이고, 건너뛰는 시험 모듈은 WAITING 표 한 곳에 적는다. 되살릴 때는 이 이름
-(NEEDS_ZONE_TRAFFIC, NEEDS_FLEET_MAP)으로 찾는다. 함수 하나만 건너뛸 때는
+교통 층(3단계)이 오기 전에는 그것이 필요한 시험을 건너뛴다. 이유는 아래 문자열
+하나뿐이고, 건너뛰는 시험 모듈은 WAITING 표 한 곳에 적는다. 되살릴 때는 이 이름
+(NEEDS_ZONE_TRAFFIC)으로 찾는다. 함수 하나만 건너뛸 때는
 `@pytest.mark.skip(reason=NEEDS_...)`를 쓴다.
 
 각 패키지의 test/conftest.py가 skip_waiting_module을 pytest_pycollect_makemodule로 건다.
@@ -11,7 +11,6 @@ pytest는 그 함수 안에서만 읽어, 이 모듈은 pytest 없이도 읽힌�
 from __future__ import annotations
 
 NEEDS_ZONE_TRAFFIC = "needs the zone traffic layer (stage 3)"
-NEEDS_FLEET_MAP = "needs a fleet map (stage 2)"
 
 # (패키지 폴더, 시험 파일) -> 이유. 교통 층과 지도가 둘 다 필요하면 교통 층(나중 단계)으로 적는다.
 # fleet_core의 옛 레인 시험 20개는 되살릴 수 없어 지웠다(지운 모듈을 임포트했다).

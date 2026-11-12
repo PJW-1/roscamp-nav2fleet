@@ -67,7 +67,7 @@ class FsmParams:
     block_clear_s: float = 1.0  # 계약 4절: 1초 안 보이면 끈다
     block_lookahead_m: float = 0.5  # 계약 4절: 경로 위 0.5 m 안
     # Proposed. A goal blocked this long ends with TIMEOUT. The fleet manager cancels a blocked
-    # goal after blocked_mark_s (5 s); this is the last safeguard for when it does not
+    # goal after blocked_mark_s (10 s); this is the last safeguard for when it does not
     block_timeout_s: float = 90.0
     block_sample_m: float = 0.02  # costmap 해상도(0.025)보다 촘촘하게
     path_step_m: float = 0.05  # 전달사항 6.1 poses_along
