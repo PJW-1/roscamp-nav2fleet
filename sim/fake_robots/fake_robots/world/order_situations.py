@@ -38,6 +38,7 @@ class OrderSituation:
     max_retreats: int | None = None
     need_events: dict = field(default_factory=dict)
     no_events: tuple = ("DEADLOCK_SEEN",)
+    quiet_until_s: float | None = None  # no_events와 후진을 이 시각까지만 센다. None이면 끝까지
 
 
 def build_order(name: str) -> OrderSituation:
