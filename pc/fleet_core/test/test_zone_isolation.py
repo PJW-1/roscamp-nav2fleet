@@ -82,6 +82,69 @@ def test_two_robots_reporting_the_same_spot_beside_a_node_are_still_a_conflict()
     assert world.codes("pinky2") == ["PLACEMENT_CONFLICT"]
 
 
+def test_a_robot_beside_a_taken_node_is_not_put_on_a_free_node_of_another_zone():
+    """N_W 옆인데 급행 입구 X_W도 0.15 m 안인 자리다. 선 곳은 마당이므로 마당을 쥔다: X_W에
+    올리면 갈림목만 쥐고, 실제로 서 있는 마당은 쥐지 않는다."""
+    world = Harness(starts={"pinky1": "N_W", "pinky2": "P-2", "pinky3": "P-3"})
+    x, y = world.site.node_pose("N_W")[:2]
+    world.bots["pinky1"].y = y - 0.05
+    world.bots["pinky2"].x, world.bots["pinky2"].y = x, y + 0.11
+    others = [name for name in world.site.nodes if name != "N_W"]
+    assert world.site.nearest_node(x, y + 0.11, others, radius=0.15) == "X_W"
+    assert world.site.zone_at(x, y + 0.11) == "HALL"
+    world.report()
+    view = world.view("pinky2")
+    assert (view["on_map"], view["held"], view["nodes"]) == (True, ["HALL"], [])
+    assert view["node"] not in ("N_W", "X_W")
+
+
+def test_two_robots_reporting_the_same_spot_in_the_yard_are_a_conflict():
+    """지점이 없는 자리에서도 같다: 두 보고가 한 몸 안에서 겹치면 나중 것을 올리지 않는다."""
+    world = Harness(starts={"pinky1": "P-1", "pinky2": "P-2", "pinky3": "P-3"})
+    for name in ("pinky1", "pinky2"):
+        world.bots[name].x, world.bots[name].y = 1.0, 0.40
+    world.step()
+    assert world.view("pinky1")["on_map"] and world.view("pinky2")["on_map"] is False
+    assert world.codes("pinky2") == ["PLACEMENT_CONFLICT"]
+    world.bots["pinky2"].y -= 0.25  # 보고가 바로잡혔다
+    world.step()
+    assert world.view("pinky2")["on_map"]
+    assert world.traffic.status_view("pinky2")["fault_reason"] == ""
+
+
+def test_a_third_robot_reporting_where_the_one_beside_the_node_stands_is_a_conflict():
+    """지점을 쥔 로봇과는 떨어져 있어도, 그 옆에 지점 없이 오른 로봇과 겹치면 올리지 않는다."""
+    world = Harness(starts={"pinky1": "W_Q", "pinky2": "P-2", "pinky3": "P-3"})
+    x, y = world.site.node_pose("W_Q")[:2]
+    world.bots["pinky1"].y = y + 0.05
+    for name in ("pinky2", "pinky3"):
+        world.bots[name].x, world.bots[name].y = x, y - 0.13
+    world.step()
+    assert world.view("pinky2")["on_map"] and world.view("pinky3")["on_map"] is False
+    assert world.codes("pinky3") == ["PLACEMENT_CONFLICT"]
+
+
+def test_a_robot_beside_a_taken_node_is_not_on_it_when_the_zone_has_no_free_node():
+    """구역의 지점을 남들이 모두 쥐고 있으면 붙일 이름은 남의 지점뿐이다. 이름은 그 지점이어도
+    그 위에 선 로봇으로 다루지 않는다: 주차 자리 옆에 섰다고 주차한 것이 아니다."""
+    world = Harness(layout="d", starts={"pinky1": "N_E", "pinky2": "P-3", "pinky3": "P-1"})
+    world.silent.add("pinky3")
+    world.report()
+    assert world.traffic.grants.force("pinky1", ["HALL_E"], ["O_Q"])  # 대기 자리로 가려고 잡았다
+    x, y = world.site.node_pose("P-3")[:2]
+    world.bots["pinky2"].x = x + 0.05
+    world.bots["pinky3"].x, world.bots["pinky3"].y = x - 0.12, y
+    assert world.site.nearest_node(x - 0.12, y, radius=0.15) == "P-3"
+    world.silent.clear()
+    world.step()
+    view = world.view("pinky3")
+    assert view["on_map"] and view["held"] == ["HALL_E"] and view["nodes"] == []
+    assert view["state"] != "PARKED" and "PLACEMENT_CONFLICT" not in world.codes()
+    world.run(1.0)
+    assert world.view("pinky3")["state"] == "TO_PARK", "P-3 is pinky2's; it looks for a free one"
+    assert world.view("pinky2")["nodes"] == ["P-3"]
+
+
 def test_while_one_robot_cannot_be_placed_nobody_is_sent_anywhere():
     world = Harness(starts={"pinky1": "P-1", "pinky2": "P-1", "pinky3": "P-3"})
     world.step()
