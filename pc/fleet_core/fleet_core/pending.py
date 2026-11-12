@@ -24,10 +24,6 @@ WAITING = {
         "test_sim_battery.py", "test_sim_world_object.py", "test_sim_world_retreat.py",
         "test_stall_watch.py", "test_traffic_controller.py")), NEEDS_ZONE_TRAFFIC),
     ("fleet_core", "test_selector.py"): NEEDS_FLEET_MAP,
-    # 구역 교통 층에서 돌려 본 결과: 시나리오 기대(주차 판정, 사건 수)가 옛 차선 관제의 것이다.
-    # 무엇이 틀리는지는 world 보고서에 있다.
-    **dict.fromkeys((("fleet_manager", name) for name in (
-        "test_fms_restart.py", "test_scenario_integration.py")), NEEDS_ZONE_TRAFFIC),
 }
 
 
