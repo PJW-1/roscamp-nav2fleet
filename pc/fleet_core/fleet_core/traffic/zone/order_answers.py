@@ -12,7 +12,6 @@ from fleet_core.traffic.mission import MOVE
 from .robots import ORDER, Goal
 from .trips import left_s
 
-COMM_BASE_MARGIN_S = 3.0  # 끊긴 로봇이 base 끝에 닿을 예상 시각에 더하는 여유
 REJECTED = "ORDER_UPDATE_REJECTED"
 SUPERSEDED = "SUPERSEDED"
 
@@ -137,5 +136,5 @@ class OrderAnswers:
         if m.move_order is None or trip is None or m.goal is None:
             return ""
         left = left_s(self.params, trip.links[trip.done:trip.granted], m.x, m.y)
-        m.base_until = now + left + COMM_BASE_MARGIN_S
+        m.base_until = now + left + self.params.comm_base_hold_extra_s
         return f", drives on to {m.goal.end} (about {left:.0f} s)"

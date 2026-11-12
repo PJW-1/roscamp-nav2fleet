@@ -347,6 +347,19 @@ def test_a_silent_robot_drives_to_its_base_end_and_its_zones_stay_until_then():
     assert world.result_of(call).robot_id == "pinky2" and not world.problems
 
 
+def test_the_base_hold_margin_of_a_silent_robot_comes_from_the_parameter():
+    def base_until_when_lost(extra_s):
+        world = Harness(params=replace(ON, comm_base_hold_extra_s=extra_s))
+        world.step()
+        world.call("WORK")
+        world.run(2.0)
+        world.silent.add("pinky2")
+        assert world.run_until(lambda: world.view("pinky2")["state"] == "COMM_LOST", 10.0)
+        return world.traffic._robots["pinky2"].base_until
+    default = base_until_when_lost(ON.comm_base_hold_extra_s)
+    assert base_until_when_lost(10.0) == pytest.approx(default + 10.0 - ON.comm_base_hold_extra_s)
+
+
 def test_the_base_time_also_guards_a_robot_that_has_just_started_talking_again():
     world = Harness(params=ON)
     world.step()
