@@ -73,3 +73,20 @@ def test_the_latest_tf_far_from_the_scan_time_means_no_filtering(running):
     far = Time(seconds=100 + MAX_TF_AGE_S * 3).to_msg()
     assert node._lidar_pose("laser", near)[0] == pytest.approx(1.0)
     assert node._lidar_pose("laser", far) is None
+
+
+def test_under_launch_remaps_the_tf_node_has_its_own_name_and_the_robots_tf():
+    """launch는 이름(__node), 네임스페이스, /tf remap을 프로세스 인자로 준다. 도우미 노드가 그
+    이름을 물려받으면 같은 이름의 노드가 둘이 된다(G09: ros2 param get이 도우미 노드에 닿았다)."""
+    rclpy.init(args=["--ros-args", "-r", "__node:=scan_filter", "-r", "__ns:=/pinky1",
+                     "-r", "/tf:=tf", "-r", "/tf_static:=tf_static"])
+    try:
+        from pinky_scan_filter.node import ScanFilter
+        node = ScanFilter()
+        assert node.get_fully_qualified_name() == "/pinky1/scan_filter"
+        assert node.tf_node.get_fully_qualified_name() == "/pinky1/scan_filter_tf"
+        assert node.tf_node.resolve_topic_name("/tf") == "/pinky1/tf"
+        assert node.tf_node.resolve_topic_name("/tf_static") == "/pinky1/tf_static"
+        node.destroy_node()
+    finally:
+        rclpy.try_shutdown()

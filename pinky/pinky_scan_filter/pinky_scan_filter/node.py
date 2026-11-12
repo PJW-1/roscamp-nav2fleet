@@ -43,9 +43,12 @@ class ScanFilter(Node):
         self.band = None
         self.tf = Buffer()
         # TF는 도우미 노드가 따로 도는 스레드로 받는다: on_scan이 스캔 시각의 TF를 기다리는 동안에도
-        # 버퍼가 찬다. 네임스페이스, use_sim_time, /tf remap(프로세스 인자)은 거르개 노드와 같다
+        # 버퍼가 찬다. 프로세스 인자(launch의 __node 이름 바꾸기)는 받지 않아 이름이 겹치지 않고,
+        # 네임스페이스, use_sim_time, /tf remap(nav2.launch.py와 같은 것)은 거르개 노드와 같게 준다
         self.tf_node = rclpy.create_node(
-            "scan_filter_tf", namespace=self.get_namespace(), context=self.context,
+            f"{self.get_name()}_tf", namespace=self.get_namespace(), context=self.context,
+            use_global_arguments=False,
+            cli_args=["--ros-args", "-r", "/tf:=tf", "-r", "/tf_static:=tf_static"],
             parameter_overrides=[self.get_parameter("use_sim_time")])
         self.listener = TransformListener(self.tf, self.tf_node, spin_thread=True)
         latched = QoSProfile(depth=1, durability=DurabilityPolicy.TRANSIENT_LOCAL)
