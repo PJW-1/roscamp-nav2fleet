@@ -8,13 +8,8 @@ from __future__ import annotations
 
 import math
 
-from fleet_core.traffic.zone.block_marks import (
-    CORRIDOR,
-    DESTINATION,
-    IN_ZONE,
-    KEEPOUT,
-    keys_at,
-)
+from fleet_core.traffic.zone.block_marks import keys_at
+from fleet_core.traffic.zone.detours import CORRIDOR, DESTINATION, IN_ZONE, KEEPOUT
 
 from .injections import Obstacle
 
