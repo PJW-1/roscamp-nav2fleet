@@ -47,11 +47,19 @@ class ReactionWatch:
             self._stage.pop(robot, None)
 
     def on_command(self, t: float, cmd) -> None:
-        if isinstance(cmd, (CancelCmd, MoveCmd, RetreatCmd, DockCmd)):
-            self._stage.pop(cmd.robot, None)
+        """새 goal은 막힌 goal을 바꾼다. 취소는 막힌 그 goal의 것만 친다."""
+        stage = self._stage.get(getattr(cmd, "robot", ""))
+        if stage is None:
+            return
+        if isinstance(cmd, (MoveCmd, RetreatCmd, DockCmd)) or (
+                isinstance(cmd, CancelCmd) and cmd.goal_id == stage[1]):
+            del self._stage[cmd.robot]
 
     def check(self, t: float, robots) -> None:
         """robots: 이름 -> SimRobot(바닥 위만)."""
+        for name in list(self._blocked):  # 끊긴 뒤 다시 닿은 BLOCKED 보고는 새로 잰다
+            if name not in robots or not robots[name].comm_up:
+                self._blocked.discard(name)
         for name, since in list(self._first.items()):
             r = robots.get(name)
             if r is None or not r.comm_up:

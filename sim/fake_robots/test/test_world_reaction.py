@@ -94,6 +94,28 @@ def test_a_robot_out_of_contact_is_not_judged():
     assert out == []
 
 
+def test_a_blocked_report_after_a_comm_loss_starts_a_new_deadline():
+    w, out = _watch()
+    r = _robot()
+    w.on_report(1.0, "pinky1", "BLOCKED")
+    r.comm_up = False
+    w.check(1.5, {"pinky1": r})
+    r.comm_up = True
+    w.on_report(5.0, "pinky1", "BLOCKED")  # 끊긴 뒤 처음 닿은 보고도 BLOCKED
+    w.check(6.1, {"pinky1": r})
+    assert [v.code for v in out] == [REACT_FIRST]
+
+
+def test_cancelling_an_older_goal_is_not_the_next_stage():
+    w, out = _watch()
+    robots = {"pinky1": _robot(goal_id=7)}
+    w.on_report(1.0, "pinky1", "BLOCKED")
+    w.on_event(1.1, _ev("BLOCKED_WAIT"), 7)
+    w.on_command(5.0, CancelCmd("pinky1", 6))
+    w.check(16.2, robots)
+    assert [v.code for v in out] == [REACT_NEXT]
+
+
 def test_the_world_records_a_silent_fleet_as_a_reaction_violation():
     """관제 대역은 아무 사건도 내지 않는다: 막힌 로봇의 BLOCKED에 답이 없다."""
     world = quiet_world(robots={"pinky1": "N_W", "pinky2": "P-2"}, avoid_mode="none")
