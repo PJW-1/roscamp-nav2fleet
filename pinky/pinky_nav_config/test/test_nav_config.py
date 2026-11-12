@@ -31,13 +31,88 @@ def test_controller_uses_rpp_with_the_agreed_start_values():
     assert c["failure_tolerance"] == 1.0
     rpp = c["FollowPath"]
     assert rpp["plugin"] == "nav2_regulated_pure_pursuit_controller::RegulatedPurePursuitController"
-    assert rpp["rotate_to_heading_min_angle"] == 0.25  # R12: 올리지 않는다
     assert rpp["use_rotate_to_heading"] is True and rpp["allow_reversing"] is False
     assert (rpp["lookahead_dist"], rpp["min_lookahead_dist"], rpp["max_lookahead_dist"]) == (
-        0.15, 0.10, 0.25)
+        0.10, 0.10, 0.25)
     assert rpp["desired_linear_vel"] == 0.25
     assert rpp["use_collision_detection"] is True
     assert rpp["max_allowed_time_to_collision_up_to_carrot"] == 0.6
+
+
+# 추가 지시서 3의 2-1. pinky_fsm turn_radius_m: 꺾이는 곳을 이 반지름의 호로 보낸다
+TURN_RADIUS_M = 0.10
+# pinky_description(pinky_pro 014a09f) base_link 충돌 메시의 바닥 윤곽(볼록 껍질, base_footprint
+# 틀, m)과 바퀴(축 y ±0.04055에서 바깥으로 0.0145 m, 반지름 0.028 m)
+BODY_OUTLINE = [(0.0387, 0.0197), (0.0364, 0.0274), (0.0177, 0.0391), (-0.0447, 0.0473),
+                (-0.0700, 0.0399), (-0.0734, 0.0378), (-0.0745, 0.0347), (-0.0745, -0.0349),
+                (-0.0734, -0.0378), (-0.0700, -0.0399), (0.0184, -0.0386), (0.0363, -0.0276),
+                (0.0387, -0.0192)]
+WHEELS = [(x, y) for x in (-0.028, 0.028) for y in (-0.055, -0.04055, 0.04055, 0.055)]
+
+
+def _inside(polygon, x, y) -> bool:
+    """점이 다각형 안(경계 포함)에 있다. 볼록이 아니어도 된다(짝홀 규칙)."""
+    inside = False
+    for (x1, y1), (x2, y2) in zip(polygon, polygon[1:] + polygon[:1], strict=True):
+        if (y1 > y) != (y2 > y) and x < x1 + (y - y1) * (x2 - x1) / (y2 - y1) + 1e-9:
+            inside = not inside
+    return inside
+
+
+def _area(polygon) -> float:
+    return abs(sum(x1 * y2 - x2 * y1 for (x1, y1), (x2, y2)
+                   in zip(polygon, polygon[1:] + polygon[:1], strict=True))) / 2
+
+
+def _hull(points) -> list:
+    """볼록 껍질(monotone chain), 반시계 방향."""
+    pts = sorted(set(points))
+
+    def half(seq):
+        out = []
+        for p in seq:
+            while len(out) >= 2 and ((out[-1][0] - out[-2][0]) * (p[1] - out[-2][1])
+                                     - (out[-1][1] - out[-2][1]) * (p[0] - out[-2][0])) <= 0:
+                out.pop()
+            out.append(p)
+        return out[:-1]
+    return half(pts) + half(pts[::-1])
+
+
+def _edge_gap(polygon) -> float:
+    """원점에서 다각형 변까지 가장 짧은 거리(Nav2의 inscribed radius)."""
+    best = math.inf
+    for (x1, y1), (x2, y2) in zip(polygon, polygon[1:] + polygon[:1], strict=True):
+        dx, dy = x2 - x1, y2 - y1
+        t = max(0.0, min(1.0, -(x1 * dx + y1 * dy) / (dx * dx + dy * dy)))
+        best = min(best, math.hypot(x1 + t * dx, y1 + t * dy))
+    return best
+
+
+def test_the_local_footprint_is_a_polygon_round_the_real_body():
+    """추가 지시서 3의 2-1 2번: 사각형 0.12 x 0.12 m 대신 몸 모양에 가까운 다각형. 충돌 검사는
+    local costmap의 발자국을 쓴다. 몸과 바퀴를 모두 덮고, 다각형 밖으로 1 cm 넘게 나가지 않는다."""
+    footprint = yaml.safe_load(params("local_costmap", "local_costmap")["footprint"])
+    polygon = [tuple(p) for p in footprint]
+    assert len(polygon) >= 8
+    for x, y in BODY_OUTLINE + WHEELS:
+        assert _inside(polygon, x, y), (x, y)
+    assert _area(polygon) <= 1.1 * _area(_hull(BODY_OUTLINE + WHEELS)), "close to the body"
+    assert max(math.hypot(x, y) for x, y in polygon) <= 0.085, "never wider than the old square"
+
+
+def test_fixed_lines_follow_a_fixed_short_lookahead_and_take_the_arcs_without_pivoting():
+    """추가 지시서 3의 2-1 3번: 앞보기 0.10 m 고정(작업 기록 4.2에서 모퉁이 앞 회전이 줄었다).
+    1번: 반지름 TURN_RADIUS_M의 호 위에서 앞보기 점은 asin(L / 2R)만큼 옆에 있다. 이것이
+    rotate_to_heading_min_angle보다 작아야 RPP가 호 위에서 서서 돌지 않고 호를 따라 돈다."""
+    c = params("controller_server")
+    for name in ("FollowPath", "FollowPathThrough", "FollowPathReverse"):
+        rpp = c[name]
+        assert rpp["use_velocity_scaled_lookahead_dist"] is False, name
+        assert rpp["lookahead_dist"] == 0.10, name
+        carrot = math.asin(rpp["lookahead_dist"] / (2 * TURN_RADIUS_M))
+        assert carrot + 0.1 < rpp["rotate_to_heading_min_angle"] < math.pi / 4, name
+    assert c["FollowPathGoal"]["rotate_to_heading_min_angle"] == 0.25, "the yard is not changed"
 
 
 def test_the_through_controller_is_followpath_without_the_approach_slow_down():
@@ -74,12 +149,12 @@ def test_the_reverse_controller_is_followpath_driven_backwards_slowly():
 def test_no_obstacle_beside_the_path_slows_the_robot():
     """Jazzy RPP scales the speed by cost_scaling_gain * d / cost_scaling_dist when d, the
     distance it reads from the cost under the robot, is below cost_scaling_dist, and d is at
-    least the inscribed radius (half the 12 cm footprint) until the robot touches. With 0.6 m
+    least the inscribed radius (footprint edge gap) until the robot touches. With 0.6 m
     a box within the 0.15 m inflation pinned the robot to the 0.05 m/s floor in every arena gap
     (user, 2026-11-10): the scaling may no longer cut the speed short of a touch."""
     c = params("controller_server")
     footprint = yaml.safe_load(params("local_costmap", "local_costmap")["footprint"])
-    inscribed = min(max(abs(x) for x, _ in footprint), max(abs(y) for _, y in footprint))
+    inscribed = _edge_gap([tuple(p) for p in footprint])
     for name in ("FollowPath", "FollowPathThrough"):
         rpp = c[name]
         assert rpp["use_cost_regulated_linear_velocity_scaling"] is True
@@ -141,7 +216,11 @@ def test_the_goal_controller_is_an_rpp_with_the_collision_check_on():
     goal = c["FollowPathGoal"]
     assert goal["plugin"] == c["FollowPath"]["plugin"]
     assert goal["use_collision_detection"] is True
-    assert goal == c["FollowPath"]
+    # 추가 지시서 3의 2-1은 고정 경로 컨트롤러만 바꿨다. FollowPathGoal은 회피 담당의 값이다(7-1)
+    fixed_line_only = {"lookahead_dist", "use_velocity_scaled_lookahead_dist",
+                       "rotate_to_heading_min_angle"}
+    assert {k: v for k, v in goal.items() if k not in fixed_line_only} == {
+        k: v for k, v in c["FollowPath"].items() if k not in fixed_line_only}
 
 
 def test_behavior_server_offers_what_the_tree_and_pinky_fsm_call():
