@@ -1,0 +1,20 @@
+# 스캔 거르개(추가지시서3 7-2, 기준(사용자)): 좁은 띠 안에서 벽·진열대에 붙은 라이다 점을 지운 스캔.
+# launch/nav2.launch.py가 인자 narrow_strips가 비어 있지 않을 때만 이 파일을 nav2_params.yaml 위에
+# 덧붙이고 pinky_scan_filter 노드를 띄운다. 비면(기본) 아무것도 바뀌지 않는다.
+#
+# - 두 costmap의 장애물 층만 거른 스캔을 읽는다. AMCL은 원래 scan을 그대로 읽는다.
+# - 대가: 좁은 띠 안에서 벽에 붙은 wall_band_m보다 얇은 물체는 보이지 않는다.
+
+local_costmap:
+  local_costmap:
+    ros__parameters:
+      obstacle_layer:
+        scan:
+          topic: <robot_namespace>/scan_filtered
+
+global_costmap:
+  global_costmap:
+    ros__parameters:
+      obstacle_layer:
+        scan:
+          topic: <robot_namespace>/scan_filtered

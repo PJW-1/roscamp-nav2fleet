@@ -67,6 +67,9 @@ ARGS = {
                             "(result_dir/fleet_params.yaml)으로 돈다. 비우면 파일 그대로"),
     "fixed_line_collision_check": ("true", "시뮬 전용. false면 고정 경로 controller 셋(FollowPath,"
                                            " Through, Reverse)의 충돌 검사를 끈다. 마당 goal은 켬"),
+    "scan_filter": ("true", "좁은 띠 안에서 벽·진열대에 붙은 라이다 점을 costmap에서 지우는 거르개"
+                            "(pinky_scan_filter, 추가지시서3 7-2). false면 띄우지 않는다(비교용)"),
+    "wall_band_m": ("0.04", "스캔 거르개: 벽·진열대에서 이만큼 안의 점을 지운다(m)"),
     "use_order_model": ("","true/false: 관제의 use_order_model 파라미터(order 모델이 있는"
                             " 관제만 읽는다). 비우면 params 파일의 값"),
 }
@@ -217,6 +220,7 @@ def _start(context):
         check_fits,
         has_low_battery,
         layout_of,
+        narrow_strips,
         obstacles_path,
         read_scenario,
         scenario_path,
@@ -247,6 +251,7 @@ def _start(context):
     through = flag(value("nav_pass_through"), "nav_pass_through")
     keepout = flag(value("keepout"), "keepout")
     fixed_check = flag(value("fixed_line_collision_check"), "fixed_line_collision_check")
+    strips = narrow_strips(site) if flag(value("scan_filter"), "scan_filter") else ""
     params_file = params_for(params_file_of(value("fleet_params_file")), value("result_dir"),
                              value("battery_low_pct"))
     max_speed = launch_parts.speed_of(value("nav_max_speed"))
@@ -265,6 +270,8 @@ def _start(context):
                                       through_controller_id=(launch_parts.THROUGH_CONTROLLER
                                                              if through else ""),
                                       nav_max_speed=max_speed, fixed_line_check=fixed_check,
+                                      narrow_strips=strips,
+                                      wall_band_m=float(value("wall_band_m")),
                                       battery_topic=(launch_parts.BATTERY_TOPIC.format(robot=robot)
                                                      if battery else ""))
     if value("rviz") == "fleet":
