@@ -2,7 +2,8 @@
 
 - 9번: 관제가 받은 첫 BLOCKED 보고부터 그 로봇에 대한 첫 관제 사건까지 FIRST_S 안.
 - 10번: BLOCKED_WAIT 뒤 로봇이 같은 goal에서 계속 BLOCKED이면, blocked_mark_s + NEXT_GRACE_S 안에
-  규칙 7의 다음 단계(NEXT_STAGE 사건, 또는 goal을 거두거나 바꿈)가 나와야 한다.
+  규칙 7의 다음 단계(NEXT_STAGE 사건, 또는 goal을 거두거나 바꿈)가 나와야 한다. RETREAT_WAIT(물러날
+  길 위의 로봇이 먼저 나가기를 기다림)도 다음 단계다: 관제가 정해 알렸고 blocked_timeout_s로 끝난다.
 끊긴 로봇은 관제가 모르므로 보지 않는다. SILENT_STALL 사건은 판정(table.py)이 센다.
 """
 from __future__ import annotations
@@ -13,8 +14,8 @@ from .invariants import Violation
 
 FIRST_S = 1.0
 NEXT_GRACE_S = 5.0
-NEXT_STAGE = ("ZONE_MARKED_BLOCKED", "REROUTE", "RETREAT_START", "HALL_YIELD", "GOAL_FAILED",
-              "ROBOT_ISOLATED")
+NEXT_STAGE = ("ZONE_MARKED_BLOCKED", "REROUTE", "RETREAT_START", "RETREAT_WAIT", "HALL_YIELD",
+              "GOAL_FAILED", "ROBOT_ISOLATED")
 REACT_FIRST, REACT_NEXT = "I9_REACTION_FIRST", "I10_REACTION_NEXT"
 
 

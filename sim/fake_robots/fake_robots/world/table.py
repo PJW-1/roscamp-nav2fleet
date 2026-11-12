@@ -12,13 +12,18 @@ import math
 from dataclasses import dataclass
 
 from .avoid import PERFECT
+from .block_watch import BlockWatch, detour_counts
 from .situations import build
 from .world import ZoneWorld, default_manager
 
 HEADER = ("상황", "배치", "씨드", "회피 모드", "완료", "종료 시각", "대기", "로봇 사이 최소 거리",
           "교착",
           "구역 밖(OUTSIDE_ZONE / 공유 구역 들어감)", "Retreat(+도크 나오기)",
-          "급행 사용과 방향 전환", "위반", "판정", "끝나지 않은 주문 원인")
+          "급행 사용과 방향 전환",
+          # 막힘 처리 보완(추가 지시서 3의 5절)
+          "막힘 표시(ZONE_MARKED_BLOCKED)", "BLOCK_CONFIRMED", "BLOCK_CLEARED",
+          "우회: 넓은 구역 안", "우회: 급행·다른 통로", "치운 뒤 표시 풀림(s)",
+          "위반", "판정", "끝나지 않은 주문 원인")
 
 
 NEVER_EVENTS = ("SILENT_STALL",)  # 추가 지시서 2의 3절: 나오면 실패
@@ -37,7 +42,12 @@ def run_situation(name, layout="d2", seed=1, overrides=None,
     world = ZoneWorld(layout, seed=seed, overrides=overrides, robots=s.robots, orders=s.orders,
                       injections=s.injections, manager_factory=manager_factory,
                       avoid_mode=avoid_mode)
-    world.run_until(world.orders_done, timeout_s=s.timeout_s)
+    watch = world.block_watch = BlockWatch(world, s.injections)
+
+    def done() -> bool:
+        watch.step()
+        return world.orders_done() and world.t >= s.at_least_s
+    world.run_until(done, timeout_s=s.timeout_s)
     failures = judge(s, world)
     return Outcome(world, row(s, layout, seed, world, failures), failures)
 
@@ -49,8 +59,10 @@ def judge(s, world) -> list[str]:
 
 def correctness(s, world) -> list[str]:
     """안전 불변식과 관제 반응 시간(invariants.py, reaction.py), 조용히 멈춤 0. 모든 모드."""
-    out = [f"{v.code} at {v.t:.1f}: {v.detail}" for v in world.violations
-           if v.code not in s.allowed]
+    def excused(v) -> bool:
+        return v.code in s.allowed and (s.allowed_until_s is None or v.t <= s.allowed_until_s)
+
+    out = [f"{v.code} at {v.t:.1f}: {v.detail}" for v in world.violations if not excused(v)]
     out += [f"{code} x{world.metrics.count(code)}" for code in NEVER_EVENTS
             if world.metrics.count(code)]
     return out
@@ -62,18 +74,23 @@ def expectations(s, world) -> list[str]:
     if s.finish_all and world.central.finished < total:
         out.append(f"finished {world.central.finished}/{total} by {world.t:.0f} s")
     for code in s.no_events:
-        if m.count(code):
-            out.append(f"{code} x{m.count(code)}")
+        seen = (m.count(code) if s.quiet_until_s is None else
+                sum(e.code == code and t <= s.quiet_until_s for t, e in world.events))
+        if seen:
+            out.append(f"{code} x{seen}")
     for code, least in s.need_events.items():
         if m.count(code) < least:
             out.append(f"{code} x{m.count(code)}, want >= {least}")
-    if s.max_retreats is not None and m.retreats > s.max_retreats:
-        out.append(f"retreats {m.retreats} > {s.max_retreats}")
+    retreats = (m.retreats if s.quiet_until_s is None else
+                sum(t <= s.quiet_until_s for t in m.retreat_times))
+    if s.max_retreats is not None and retreats > s.max_retreats:
+        out.append(f"retreats {retreats} > {s.max_retreats}")
     return out
 
 
 def row(s, layout, seed, world, failures) -> tuple:
-    m = world.metrics
+    m, detours = world.metrics, detour_counts(world)
+    watch = getattr(world, "block_watch", None) or BlockWatch(world, ())
     end = f"{m.end_t:.1f}" if m.end_t is not None else f"> {world.t:.0f}"
     waits = "/".join(f"{m.wait_s[n]:.0f}" for n in sorted(m.wait_s))
     gap = f"{m.min_gap:.3f}" if math.isfinite(m.min_gap) else "-"
@@ -82,7 +99,10 @@ def row(s, layout, seed, world, failures) -> tuple:
             waits, gap, m.count("DEADLOCK_SEEN"),
             f"{m.count('OUTSIDE_ZONE')} / {world.invariants.shared_outside}",
             f"{m.retreats} (+{m.dock_exits})",
-            f"{m.lane_uses} / {m.direction_changes}", len(world.violations),
+            f"{m.lane_uses} / {m.direction_changes}",
+            m.count("ZONE_MARKED_BLOCKED"), m.count("BLOCK_CONFIRMED"), m.count("BLOCK_CLEARED"),
+            detours["in_zone"], detours["keepout"] + detours["corridor"], watch.cleared_cell(),
+            len(world.violations),
             "통과" if not failures else "실패", "")
 
 

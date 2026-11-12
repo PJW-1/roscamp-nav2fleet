@@ -71,7 +71,8 @@ def test_launch_checks_the_working_directory(gz, tmp_path):
 def test_the_launch_takes_a_layout_and_no_site_argument(gz):
     assert gz.ARGS["layout"][0] == "d2"
     assert "site" not in gz.ARGS and "traffic_mode" not in gz.ARGS
-    assert "nav_collision_check" not in gz.ARGS  # 충돌 검사는 모든 실행에서 켠다
+    # 마당 goal의 충돌 검사는 끌 수 없다. 고정 경로 셋은 fixed_line_collision_check로 정한다
+    assert "nav_collision_check" not in gz.ARGS
 
 
 # -- 배선: launch 동작 대신 만든 인자를 기록해 본다 ------------------------------------------
@@ -167,7 +168,13 @@ def test_three_pinkys_start_on_the_parking_nodes_in_order(made):
             pytest.approx(spawned[robot])
 
 
-@pytest.mark.parametrize("layout", ["d2", "d", "c"])
+def test_the_test_layout_has_its_default_scenario_and_it_names_that_layout():
+    path = Path(scenario("gz_d2_shelf"))
+    assert path.is_file()
+    assert yaml.safe_load(path.read_text(encoding="utf-8"))["map"] == "d2_shelf"
+
+
+@pytest.mark.parametrize("layout", ["d2", "d", "c", "d2_shelf"])
 def test_each_layout_runs_its_world_maps_and_keepout_mask(made, layout):
     actions = run(made, layout=layout)
     [server] = [a for a in flat(actions) if isinstance(a, Made) and a.kind == "ExecuteProcess"
@@ -204,10 +211,11 @@ def _controllers(path) -> dict:
     return data["controller_server"]["ros__parameters"]
 
 
-def test_every_controller_checks_collisions_and_keeps_the_speed_cap(made):
+def test_every_controller_checks_collisions_when_asked_and_keeps_the_speed_cap(made):
     from fleet_gz_sim.launch_parts import CONTROLLERS
     for speed in ("", "0.15"):
-        for nav in includes(run(made, nav_max_speed=speed), "nav2.launch.py"):
+        made_with = run(made, nav_max_speed=speed, fixed_line_collision_check="true")
+        for nav in includes(made_with, "nav2.launch.py"):
             controllers = _controllers(launch_args(nav)["params_file"])
             for name in CONTROLLERS:
                 assert controllers[name]["use_collision_detection"] is True, name
@@ -217,8 +225,10 @@ def test_every_controller_checks_collisions_and_keeps_the_speed_cap(made):
             assert controllers["FollowPathReverse"]["desired_linear_vel"] == 0.05
 
 
-def test_the_fixed_line_check_can_be_turned_off_for_every_robot(made):
-    navs = includes(run(made, fixed_line_collision_check="false"), "nav2.launch.py")
+@pytest.mark.parametrize("asked", [{}, {"fixed_line_collision_check": "false"}])
+def test_the_fixed_line_check_is_off_for_every_robot_unless_asked(made, asked):
+    # 사용자 결정 2026-11-13: 켠 세 대 경기가 끝나지 않아 기본을 끔으로 둔다
+    navs = includes(run(made, **asked), "nav2.launch.py")
     assert len(navs) == 3
     for nav in navs:
         controllers = _controllers(launch_args(nav)["params_file"])
@@ -349,3 +359,15 @@ def test_ros_process_budget_leaves_room_under_the_localhost_limit(made):
         count += 1 if launch_args(nav)["use_composition"] == "true" else NAV2_NODES
     count += len(includes(actions, "pinky_fsm.launch.py"))
     assert count + SPARE <= LOCALHOST_PARTICIPANTS
+
+
+def test_the_fleet_record_is_kept_in_the_result_folder_only_when_asked(made, tmp_path):
+    """tools/triage and tools/avoid_regression.py read the record of a Gazebo game."""
+    [manager] = nodes(after_wait(run(made)), "fleet_manager_node")
+    assert not manager.kw.get("arguments")
+    out = tmp_path / "result"
+    [manager] = nodes(after_wait(run(made, fleet_record="true", result_dir=str(out))),
+                      "fleet_manager_node")
+    assert manager.kw["arguments"] == ["--record", str(out / "fleet_record.jsonl")]
+    with pytest.raises(ValueError, match="fleet_record"):
+        run(made, fleet_record="yes")

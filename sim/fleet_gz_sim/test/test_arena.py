@@ -12,7 +12,7 @@ from fleet_gz_sim import arena, arena_maps, arena_world  # noqa: E402
 PKG = Path(__file__).resolve().parents[1]
 
 
-@pytest.fixture(params=arena.LAYOUTS)
+@pytest.fixture(params=arena.KNOWN_LAYOUTS)
 def site(request):
     return load_fleet_map(request.param)
 
@@ -92,6 +92,8 @@ def test_fixed_paths_are_painted_without_collision(site):
     root = ET.fromstring(arena_world.world_sdf(site))
     assert [v for v in root.iter("visual") if v.get("name").startswith("path_")]
     assert not [c for c in root.iter("collision") if c.get("name").startswith("path_")]
+    names = [v.get("name") for v in root.iter("visual") if v.get("name").startswith("path_")]
+    assert len(names) == len(set(names)), "a bent path paints each piece under its own name"
 
 
 def test_map_yaml_names_its_image_and_the_world_frame(site):

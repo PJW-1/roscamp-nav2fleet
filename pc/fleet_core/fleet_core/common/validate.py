@@ -49,6 +49,20 @@ def pose_problem(x, y, yaw, bounds, margin) -> str:
     return ""
 
 
+def obstacle_of(x, y, kind, bounds, margin, kinds) -> tuple | None:
+    """BLOCKED와 함께 온 장애물 위치 (x, y, 종류). 모르는 값(NaN), 숫자가 아닌 값, 지도 밖은 None.
+
+    로봇이 모르면 NaN을 보내므로 거부하지 않고 "위치 없음"으로 본다. 모르는 종류는 unknown이다.
+    """
+    if not (_number(x) and _number(y) and math.isfinite(x) and math.isfinite(y)):
+        return None
+    min_x, min_y, max_x, max_y = bounds
+    if not (min_x - margin <= x <= max_x + margin and min_y - margin <= y <= max_y + margin):
+        return None
+    name = text(kind) if isinstance(kind, str) else ""
+    return (float(x), float(y), name if name in kinds else kinds[0])
+
+
 def robot_problem(robot, robots) -> str:
     if not isinstance(robot, str) or robot not in robots:
         return f"no such robot {shown(robot)}"

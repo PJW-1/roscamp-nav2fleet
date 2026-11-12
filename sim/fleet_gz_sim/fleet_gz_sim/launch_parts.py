@@ -112,10 +112,16 @@ SIM_AMCL = {"z_hit": 0.95, "z_rand": 0.05, "max_beams": 120, "laser_max_range": 
 THROUGH_CONTROLLER = "FollowPathThrough"
 REVERSE_CONTROLLER = "FollowPathReverse"
 GOAL_CONTROLLER = "FollowPathGoal"
+# FollowPathGoal의 값은 회피 담당 파일에 있다(추가 지시서 3의 7-1, pinky_nav_config의
+# pinky_nav_params.py): 사용자 파일 옆의 avoidance.yaml, 키 follow_path_goal
+AVOIDANCE_FILE = "avoidance.yaml"
+GOAL_CONTROLLER_KEY = "follow_path_goal"
 CONTROLLERS = ("FollowPath", THROUGH_CONTROLLER, REVERSE_CONTROLLER, GOAL_CONTROLLER)
 # 고정 경로(FollowPath, 잠금 경계, Retreat)를 모는 controller. 시뮬 전용 스위치
 # fixed_line_collision_check가 거짓이면 이 셋만 충돌 검사를 끈다(리드 결정 2026-11-12: D2의 0.10 m
-# 통로에서 켜면 work_in이 0/3이라 3대 경기를 볼 수 없다). 마당 goal(FollowPathGoal)은 늘 켠다
+# 통로에서 켜면 work_in이 0/3이라 3대 경기를 볼 수 없다). 마당 goal(FollowPathGoal)은 늘 켠다.
+# launch 인자의 기본은 끔이다(사용자 결정 2026-11-13: scan 거르개를 넣고 켠 세 대 경기 여섯 판이
+# 끝나지 않았고, 끈 판은 끝났다). 실물의 파라미터 파일(nav2_params.yaml)은 켬 그대로다
 FIXED_LINE_CONTROLLERS = ("FollowPath", THROUGH_CONTROLLER, REVERSE_CONTROLLER)
 # 경기장 속도 상한. 앞으로 가는 controller 셋이 이 값으로 간다. 지시서 3절은 0.12~0.15 m/s이고,
 # 0.20까지는 더 빠른 주행을 시뮬에서 보려고 받는다(2026-11-12). 기본값은 그대로다
@@ -154,6 +160,9 @@ def sim_nav_params(base: Path, out: Path, amcl: dict | None = None,
                    fixed_line_check: bool = True) -> Path:
     """base(실물 Nav2 설정)에 시뮬 값을 덮어 out에 쓴다. base는 바꾸지 않는다.
 
+    - FollowPathGoal: base에 없으면 base 옆의 회피 담당 파일(AVOIDANCE_FILE)에서 먼저 넣는다.
+      실물에서는 nav2.launch.py가 넣지만, 여기서 넣어야 아래의 충돌 검사와 속도 상한이 걸린다
+      (nav2.launch.py는 이미 들어 있는 FollowPathGoal을 그대로 둔다).
     - AMCL: SIM_AMCL(또는 amcl).
     - overrides: 그 위에 깊이 덮을 값(merge). launch 인자 nav_overrides(yaml 파일). AMCL 값도
       바꾼다.
@@ -162,14 +171,22 @@ def sim_nav_params(base: Path, out: Path, amcl: dict | None = None,
     - max_speed가 있으면 controller마다 desired_linear_vel을 max_speed와 원래 값 중 작은 것으로
       (후진 FollowPathReverse 0.05 m/s는 그대로 남는다)."""
     data = yaml.safe_load(base.read_text(encoding="utf-8"))
+    theirs = base.with_name(AVOIDANCE_FILE)
+    if GOAL_CONTROLLER not in data["controller_server"]["ros__parameters"] and theirs.exists():
+        data["controller_server"]["ros__parameters"][GOAL_CONTROLLER] = yaml.safe_load(
+            theirs.read_text(encoding="utf-8"))[GOAL_CONTROLLER_KEY]
     data["amcl"]["ros__parameters"].update(SIM_AMCL if amcl is None else amcl)
     merge(data, overrides or {})
     controllers = data["controller_server"]["ros__parameters"]
     missing = [name for name in CONTROLLERS if name not in controllers]
     if missing:
         raise ValueError(f"{base} has no controller {', '.join(missing)}")
-    rpps = [controllers[name] for name in CONTROLLERS]
-    for name in CONTROLLERS:
+    # FollowPathGoal은 회피 담당의 것이라 RPP가 아닐 수 있다(7-1). 아래의 두 값은 RPP의 키이므로
+    # 다른 플러그인에는 넣지 않는다: 그때 속도 상한은 회피 담당 파일이 스스로 지킨다(회피_약속.md)
+    names = [name for name in CONTROLLERS
+             if name != GOAL_CONTROLLER or "desired_linear_vel" in controllers[name]]
+    rpps = [controllers[name] for name in names]
+    for name in names:
         controllers[name]["use_collision_detection"] = (
             fixed_line_check or name not in FIXED_LINE_CONTROLLERS)
     if max_speed is not None:
@@ -208,7 +225,8 @@ def pinky(ns: str, x, y, yaw, *, nav_map: str, nav_map_fine: str, keepout_mask: 
           dock_aside=False, nav_composition=False, through_controller_id=THROUGH_CONTROLLER,
           nav_max_speed: float = DEFAULT_SPEED_MPS, battery_topic: str = "",
           nav_overrides: dict | None = None, lidar_noise: float | None = None,
-          fixed_line_check: bool = True) -> list:
+          fixed_line_check: bool = True, narrow_strips: str = "",
+          wall_band_m: float = 0.05) -> list:
     """핑키 한 대: 모델, Nav2, pinky_fsm, RViz. 브리지는 bridge()에 이 로봇 이름을 넣는다.
 
     nav_map, nav_map_fine: Nav2 지도 둘(배치의 5 cm, 1 cm 지도, fleet_setup.Arena).
@@ -222,7 +240,9 @@ def pinky(ns: str, x, y, yaw, *, nav_map: str, nav_map_fine: str, keepout_mask: 
     상한(horizon_cap_mps)도 이 값으로: RPP는 그 제한을 속도로 쓴다.
     battery_topic: pinky_fsm이 볼 BatteryState 토픽(sim_stand_in의 BATTERY_TOPIC). 비면 없음.
     nav_overrides: Nav2 설정 위에 덮을 값(sim_nav_params overrides).
-    fixed_line_check: 거짓이면 고정 경로 controller 셋의 충돌 검사를 끈다(시뮬 전용)."""
+    fixed_line_check: 거짓이면 고정 경로 controller 셋의 충돌 검사를 끈다(시뮬 전용).
+    narrow_strips, wall_band_m: 스캔 거르개(pinky_scan_filter, 추가지시서3 7-2)의 좁은 띠와 띠 폭.
+    narrow_strips가 비면 거르개를 띄우지 않고 costmap은 원래 scan을 읽는다."""
     nav = share("pinky_nav_config")
     x, y, yaw = str(x), str(y), str(yaw)
     actions = [
@@ -234,6 +254,7 @@ def pinky(ns: str, x, y, yaw, *, nav_map: str, nav_map_fine: str, keepout_mask: 
                 "map": nav_map, "map_fine": nav_map_fine, "keepout_mask": keepout_mask,
                 "initial_x": x, "initial_y": y, "initial_yaw": yaw,
                 "log_level": nav_log_level,
+                "narrow_strips": narrow_strips, "wall_band_m": str(wall_band_m),
                 "use_composition": "true" if nav_composition else "false",
                 "params_file": str(sim_nav_params(
                     nav / "params" / "nav2_params.yaml",

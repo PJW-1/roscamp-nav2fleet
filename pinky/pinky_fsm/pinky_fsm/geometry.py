@@ -12,6 +12,7 @@ Point = tuple[float, float]
 Pose = tuple[float, float, float]
 
 _SAME_M = 1e-6  # 이보다 가까운 이웃 점은 같은 점으로 친다
+ARC_STEP_M = 0.01  # 호를 이 간격의 점으로 편다
 
 
 def _dedup(points: Sequence[Point]) -> list[Point]:
@@ -54,6 +55,140 @@ def poses_backing(points: Sequence[Point], step: float = 0.05) -> list[Pose]:
         final = math.atan2(by - ay, bx - ax)
     return [(x, y, math.atan2(-math.sin(yaw), -math.cos(yaw)))
             for x, y, yaw in poses_along(pts, final, step)]
+
+
+def _corner_arc(a: Point, b: Point, c: Point, room_in: float, room_out: float,
+                radius: float, step: float) -> list[Point]:
+    """꺾은선 a-b-c의 꼭짓점 b를 대신할 호의 점들. 돌 수 없으면(곧음, 되돌아감) [b]."""
+    h1 = math.atan2(b[1] - a[1], b[0] - a[0])
+    h2 = math.atan2(c[1] - b[1], c[0] - b[0])
+    turn = math.remainder(h2 - h1, math.tau)
+    if abs(turn) < 1e-3 or abs(turn) > math.pi - 1e-3:
+        return [b]
+    half = math.tan(abs(turn) / 2.0)
+    cut = min(radius * half, room_in, room_out)  # 꼭짓점에서 호가 시작하는 거리
+    r = cut / half
+    start = (b[0] - cut * math.cos(h1), b[1] - cut * math.sin(h1))
+    side = 1.0 if turn > 0 else -1.0  # 왼쪽으로 돌면 중심이 왼쪽에 있다
+    centre = (start[0] - side * r * math.sin(h1), start[1] + side * r * math.cos(h1))
+    a0 = math.atan2(start[1] - centre[1], start[0] - centre[0])
+    n = max(2, math.ceil(r * abs(turn) / step))
+    return [(centre[0] + r * math.cos(a0 + turn * i / n),
+             centre[1] + r * math.sin(a0 + turn * i / n)) for i in range(n + 1)]
+
+
+def rounded(points: Sequence[Point], radius: float, step: float = ARC_STEP_M) -> list[Point]:
+    """꺾은선의 꼭짓점마다 반지름 radius의 호를 넣는다(추가 지시서 3의 2-1).
+
+    호가 짧은 선분을 넘지 않게 줄인다: 가운데 선분은 양 끝의 호가 반씩, 첫 선분과 마지막 선분은
+    하나뿐인 호가 다 쓸 수 있다. 되돌아가는 꼭짓점(180°)은 둥글게 할 수 없어 그대로 둔다.
+    """
+    return _rounded_with_corners(points, radius, step)[0]
+
+
+Corner = tuple[float, float, float]  # 둥근 선에서 꺾이는 곳: (시작 s, 끝 s, 꼭짓점에서 자른 거리)
+
+
+def _rounded_with_corners(points: Sequence[Point], radius: float,
+                          step: float) -> tuple[list[Point], list[Corner]]:
+    """rounded의 점들과 꺾이는 곳들. 호로 바꾸지 못한 되돌아가는 꼭짓점은 길이 0으로 든다.
+
+    radius가 0이어도 꺾이는 곳은 센다(모두 길이 0): 붙는 조각이 꼭짓점을 가로지르지 않게 한다.
+    """
+    pts = _dedup(points)
+    if len(pts) < 3:
+        return pts, []
+    last = len(pts) - 2  # 마지막 선분의 번호
+    lengths = [math.dist(p, q) for p, q in pairwise(pts)]
+    out, corners, run = [pts[0]], [], 0.0
+    for i in range(1, len(pts) - 1):
+        room_in = lengths[i - 1] if i - 1 == 0 else lengths[i - 1] / 2.0
+        room_out = lengths[i] if i == last else lengths[i] / 2.0
+        arc = [pts[i]]
+        if radius > 0.0:
+            arc = _corner_arc(pts[i - 1], pts[i], pts[i + 1], room_in, room_out, radius, step)
+        start = run + math.dist(out[-1], arc[0])
+        for p in arc:
+            run += math.dist(out[-1], p)
+            out.append(p)
+        if len(arc) > 1 or not _straight(pts[i - 1], pts[i], pts[i + 1]):
+            corners.append((start, run, math.dist(pts[i], arc[0])))
+    out.append(pts[-1])
+    return _dedup(out), corners
+
+
+def _straight(a: Point, b: Point, c: Point) -> bool:
+    turn = math.remainder(math.atan2(c[1] - b[1], c[0] - b[0])
+                          - math.atan2(b[1] - a[1], b[0] - a[0]), math.tau)
+    return abs(turn) < 1e-3
+
+
+def _on_rounded(corners: Sequence[Corner], s: float) -> float:
+    """받은 꺾은선 위의 거리 s에 맞는 둥근 선 위의 거리.
+
+    지나온 호가 줄인 길이를 뺀다. 투영으로 찾지 않으므로 같은 곳을 두 번 지나는 선에서도 맞다.
+    호가 대신한 구간 안이면 그 호 위의 같은 비율 자리다.
+    """
+    lost = 0.0
+    for start, end, cut in corners:
+        begin = start + lost  # 받은 선에서 이 호가 대신하는 구간의 시작
+        if s <= begin:
+            break
+        if s < begin + 2.0 * cut:
+            return start + (end - start) * (s - begin) / (2.0 * cut)
+        lost += 2.0 * cut - (end - start)
+    return s - lost
+
+
+def rounded_at(route: Polyline, s: float, radius: float) -> float:
+    """route 위의 거리 s에 맞는, route를 둥글게 한 선 위의 거리."""
+    _, corners = _rounded_with_corners(route.points, radius, ARC_STEP_M)
+    return _on_rounded(corners, min(max(s, 0.0), route.length))
+
+
+def _piece_end(corners: Sequence[Corner], s: float, length: float) -> float:
+    """s가 놓인 조각(곧은 구간이나 호 하나)이 끝나는 s."""
+    for start, end, _ in corners:
+        if s < start - _SAME_M:
+            return start
+        if s < end - _SAME_M:
+            return end
+    return length
+
+
+def rounded_rest(route: Polyline, s: float, radius: float, here: Sequence[float] | None = None,
+                 join_min_off: float = 0.0, join_slope: float = 0.0) -> list[Point]:
+    """route의 꼭짓점을 둥글게 한 선에서, route 위 s 자리에 가장 가까운 곳부터 끝까지.
+
+    진행 거리 s는 관제가 보낸 꺾은선(route) 위에서 잰다. 둥근 선은 Nav2에 보낼 때만 쓴다.
+
+    here(로봇의 실제 위치)와 join_slope를 주면 둥근 선에서 로봇에 가장 가까운 곳부터 낸다. 로봇이
+    선에서 join_min_off 넘게 벗어나 있으면 here에서 시작해, 벗어난 거리의 join_slope배 앞에서 선에
+    붙는다(이음 정밀도, 추가 지시서 3의 2-4). 붙는 곳은 지금 조각(곧은 구간이나 호 하나)의 끝을
+    넘지 않는다: 꺾이는 곳을 가로지르는 지름길은 내지 않는다. 선의 끝에 닿았거나 지나친 로봇에게는
+    끝 점만 낸다: 되돌아가는 조각을 붙이지 않는다.
+    """
+    return joined_rest(route, s, radius, here, join_min_off, join_slope)[0]
+
+
+def joined_rest(route: Polyline, s: float, radius: float, here: Sequence[float] | None = None,
+                join_min_off: float = 0.0,
+                join_slope: float = 0.0) -> tuple[list[Point], float, float]:
+    """rounded_rest의 점들, 그 선이 둥근 선과 만나는 곳(둥근 선 위의 거리), 그 앞에 붙인 조각의 길이
+
+    붙인 조각이 없으면 길이는 0이고, 만나는 곳은 선의 시작이다.
+    """
+    pts, corners = _rounded_with_corners(route.points, radius, ARC_STEP_M)
+    line = Polyline(pts)
+    at = _on_rounded(corners, min(max(s, 0.0), route.length))
+    if here is None or join_slope <= 0.0 or at >= line.length - _SAME_M:
+        return line.rest(at), at, 0.0
+    spot = (float(here[0]), float(here[1]))
+    at, off = line.project(spot, s_min=at - radius, s_max=at + radius)
+    if off <= join_min_off or at >= line.length - _SAME_M:
+        return line.rest(at), at, 0.0
+    join = min(at + join_slope * off, _piece_end(corners, at, line.length))
+    return _dedup([spot, *line.rest(join)]), join, math.dist(spot, line.point_at(join))
 
 
 class Polyline:

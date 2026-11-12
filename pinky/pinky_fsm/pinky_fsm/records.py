@@ -14,8 +14,12 @@ class _Move:
     target: Pose
     route: Polyline
     s: float = 0.0  # 로봇이 선 위에서 간 거리
+    s_start: float = 0.0  # 목표를 받은 자리(선 위 거리). 지나온 길은 s_start부터 s까지다
     final_goal: bool = True  # 끝이 임무의 마지막 지점인가(계약 0.8-draft 제안)
     seq: int = 0  # 마지막으로 보낸 FollowPath 순번
+    sent: Polyline | None = None  # 마지막으로 Nav2에 보낸 선(호와 붙는 조각이 들어 있다)
+    sent_from: float = 0.0  # 그 선이 route를 둥글게 한 선과 만나는 곳(둥근 선 위의 거리)
+    sent_lead: float = 0.0  # 만나는 곳 앞에 붙인 조각의 길이
     nav_running: bool = False
     last_send: float = 0.0
     far_successes: int = 0
@@ -32,6 +36,11 @@ class _Recovery:
     backup_seq: int | None = None  # 물러나는 중이면 그 BackUp 순번
     backup_since: float = 0.0
     follow_since: float = 0.0  # 남은 선을 다시 보낸 시각
+    # 로봇단 교착 처리(추가 지시서 3의 7-4)면 참. 자가 복구와 같은 기록에 기다림 단계를 더한다
+    local: bool = False
+    wait_until: float | None = None  # 기다리는 중이면 기다림이 끝나는 시각
+    stood_since: float = 0.0  # 선 시각. 이때부터 blocked_after_s 안에 BLOCKED가 된다
+    backup_m: float = 0.0  # mode nav_goal: NavigateToPose가 선 뒤 물러날 거리
 
 
 @dataclass

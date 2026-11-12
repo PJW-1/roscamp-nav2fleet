@@ -4,7 +4,7 @@
 
 - 액션 서버: `move_to` (`MoveTo`), `dock` (`Dock`), `retreat` (`Retreat`, 제안. 핑키 계약 3절 10번). 이름과 QoS는 `interfaces/fleet_interfaces/contract.yaml`에서 읽는다.
 - 발행: `state` (`RobotState`, 10 Hz, 변할 때만이 아니라 계속)
-- 구독: `/fleet/heartbeat`(계약의 HEARTBEAT QoS), `odom`(속도), `local_costmap/costmap`(BLOCKED 판단)
+- 구독: `/fleet/heartbeat`(계약의 HEARTBEAT QoS), `odom`(속도), `local_costmap/costmap`(BLOCKED 판단), `/fleet/robots`(로봇단 교착 처리에서 다른 로봇의 위치와 `priority`, 계약 0.13-draft)
 - Nav2: `move_to`의 `mode`가 `follow_path`(비면 같다)면 controller의 `follow_path`(`FollowPath`)를, `nav_goal`이면 bt_navigator의 `navigate_to_pose`(`NavigateToPose`)를 부른다(계약 0.11-draft 제안).
 - 위치: TF `map` → `base_footprint`(AMCL). `pose_timeout_s`(1 s)보다 오래된 TF는 위치를 모르는 것으로 친다.
 
@@ -17,6 +17,9 @@
 | `pinky_fsm/core.py` | 판단. ROS를 모르고 입력을 받아 명령(`SendPath`, `CancelNav`, `Finish`)을 돌려준다 |
 | `pinky_fsm/nav_goal.py` | mode `nav_goal`의 명령(`SendNavGoal`, `CancelNavGoal`), 보낸 NavigateToPose 기록, 진전·BLOCKED 판단 |
 | `pinky_fsm/nav_moves.py` | `PinkyFsm`이 물려받는 nav_goal 부분과 Nav2 서버 사이 바꾸기(앞 움직임이 끝난 뒤 보낸다) |
+| `pinky_fsm/local_yield.py` | 로봇단 교착 처리(추가 지시서 3의 7-4)의 순수 판단: 앞을 막은 로봇(`blocking_peer`), 누가 물러나나(`yields_to`), 곧게 얼마나(`straight_back_m`), 지나온 길(`extend_trail`), `/fleet/robots` 줄 바꾸기(`peers_from`) |
+| `pinky_fsm/yield_moves.py`, `yield_nav.py` | `PinkyFsm`이 물려받는 로봇단 교착 처리의 순서(기다림 → 낮은 쪽만 물러남 → 다시 감 → BLOCKED). 고정 경로 쪽과 nav_goal 쪽 |
+| `pinky_fsm/recovery.py` | 자가 복구(로봇단 교착 처리를 끈 때)와 두 처리가 같이 쓰는 후진 감시 |
 | `pinky_fsm/results.py` | 상태·결과 이름과 `Finish`(core가 다시 내보낸다) |
 | `pinky_fsm/order_queue.py` | order 모델(제안)의 조각 줄: 이음 조건 넷, 같은 방식 조각 합치기 |
 | `pinky_fsm/order_fsm.py` | `OrderFsm`(`PinkyFsm`을 물려받음): order goal을 조각마다 core 움직임으로 풀고 base 끝에서 선다. 노드는 이것을 쓴다 |
@@ -46,7 +49,8 @@
 | 위치를 모름 | `LOCALIZING`. 이때 온 목표는 `NAV_ABORTED`. 실행 중에 위치를 잃으면 FollowPath를 취소해 세우고 `NAV_ABORTED` | 계약 3절 6번 |
 | `retreat`(제안) | 이동을 먼저 끝내고(`CANCELED`) FollowPath 결과가 오고 로봇이 선 뒤 물러난다. path가 비면 Nav2 BackUp으로 곧게, 있으면 그 경로를 후진 controller `reverse_controller_id`(기본 `FollowPathReverse`)로 따른다. 결과 reason은 `backup.reason_of` | 핑키 계약 3절 10번 |
 | `move_to`, mode `nav_goal`(제안) | `target_pose`로 NavigateToPose를 보낸다. `path`, `final_goal`은 쓰지 않는다. feedback은 Nav2의 `distance_remaining`(첫 경로 전에는 곧은 거리). 성공은 0.15 m 안일 때만이고, 실패는 `NAV_ABORTED`. 모르는 mode는 `NAV_ABORTED` | 계약 2절(0.11-draft) |
-| nav_goal 중 진전 없음 | `blocked_after_s`(5 s) 동안 `nav_progress_m`(0.05 m) 이상 움직이지 않으면 `BLOCKED`. goal은 그대로 두고, 그만큼 움직이면 `MOVING`. 자가 복구(`RECOVERING`, BackUp)는 하지 않는다(Nav2 BT가 복구) | 계약 4절(0.11-draft) |
+| nav_goal 중 진전 없음 | `blocked_after_s`(10 s, 0.12까지 5 s) 동안 `nav_progress_m`(0.05 m) 이상 움직이지 않으면 `BLOCKED`. goal은 그대로 두고, 그만큼 움직이면 `MOVING`. 로봇단 교착 처리를 켜면 그 전에 아래 줄이 앞선다. BT의 복구는 지도 지우기와 Wait뿐이다 | 계약 4절(0.11-draft, 0.13-draft) |
+| 물체 앞에 섬(로봇단 교착 처리, `local_yield` 기본 켬) | 두 모드 모두: `RECOVERING`(`local_yield=wait`)으로 `local_wait_s`(2 s) 기다린다. 앞을 막은 것이 `/fleet/robots`의 다른 로봇이고 내 `(priority, robot_id)`가 더 작으면 지금 목표에서 지나온 길 안에서 `local_backup_m`(0.10 m)까지 물러나고(`backup`) 다시 간다(`retry`). 아니면, 또는 다시 막히면 `BLOCKED`. 선 때부터 `blocked_after_s` 안에 `BLOCKED`. 한 자리에서 한 번. 끄면 아래 자가 복구(0.12까지) | 계약 4절(0.13-draft), 추가 지시서 3의 7-4 |
 | 다른 Nav2 서버로 바꿈 | NavigateToPose가 도는 중 follow_path `move_to`·`retreat`·`dock`, 또는 FollowPath·BackUp이 도는 중 nav_goal `move_to`: 앞 것을 취소하고 결과가 오고 바퀴가 선 뒤(3 s까지, 넘으면 `TIMEOUT`) 보낸다. nav_goal끼리는 서지 않고 바꾼다 | 계약 3절 1번(0.11-draft) |
 | `move_to`, `order_id` 있음(제안) | base 조각을 차례로 달리고 base 끝에서 선다. horizon이 있으면 `waiting_at_base_end`로 update를 기다리고, 없으면 성공. update는 이음 조건 넷이 맞으면 이전 goal을 `SUPERSEDED`로 넘겨받고, 틀리면 새 goal만 `ORDER_UPDATE_REJECTED: <이유>`. 같은 controller의 닿는 follow_path는 한 경로로, nav_goal끼리는 서지 않고 바꾼다. heartbeat가 끊기면 `comm_loss_policy`가 `stop`(기본)이면 바로 서고, `base_end`이면 base 끝까지 가서 서고 `HEARTBEAT_LOST`. `order_id`가 비면 위 줄들 그대로 | 계약 2절 order 모델, 3절 11번(0.11-draft) |
 | `dock` | **pinky_dock이 아직 없어** 이동을 멈추고 실패(`success=false`)를 돌려준다. 도킹을 했다고 꾸미지 않는다 | — |

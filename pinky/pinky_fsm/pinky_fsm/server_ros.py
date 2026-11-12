@@ -83,7 +83,7 @@ class GoalServers:
                 path = [(p.position.x, p.position.y) for p in req.path]
                 cmds = self._fsm.move(key, now, req.target_id, (t.x, t.y, t.theta), path, here,
                                       final_goal=req.final_goal, mode=req.mode,
-                                      order=order_goal(req))
+                                      order=order_goal(req), priority=req.priority)
             elif kind == "retreat":
                 path = [(p.position.x, p.position.y) for p in req.path]
                 cmds = self._fsm.retreat(key, now, req.distance_m, req.speed_mps, path, here)

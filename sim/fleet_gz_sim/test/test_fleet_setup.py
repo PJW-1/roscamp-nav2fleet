@@ -7,7 +7,7 @@ import yaml
 
 pytest.importorskip("fleet_core")
 pytest.importorskip("fake_robots")
-from fleet_core.fleet_map import load_fleet_map  # noqa: E402
+from fleet_core.fleet_map import KNOWN_LAYOUTS, load_fleet_map  # noqa: E402
 from fleet_gz_sim import fleet_setup  # noqa: E402
 
 PKG = Path(__file__).resolve().parents[1]
@@ -20,7 +20,7 @@ def write(tmp_path, data, name="s.yaml") -> Path:
     return path
 
 
-@pytest.mark.parametrize("layout", ["d2", "d", "c"])
+@pytest.mark.parametrize("layout", KNOWN_LAYOUTS)
 def test_each_layout_has_its_arena_files(layout):
     found = fleet_setup.arena_for(layout, PKG)
     assert found.layout == layout
@@ -33,6 +33,15 @@ def test_an_unknown_layout_or_missing_files_are_refused(tmp_path):
         fleet_setup.arena_for("warehouse", PKG)
     with pytest.raises(fleet_setup.ScenarioUnfit, match="python3 -m fleet_gz_sim.arena"):
         fleet_setup.arena_for("d2", tmp_path)
+
+
+def test_the_test_layout_has_a_three_robot_gazebo_scenario():
+    data = fleet_setup.read_scenario(SCENARIOS / "gz_d2_shelf.yaml")
+    assert data["map"] == "d2_shelf"
+    assert len(data["orders"]) == 8 and len(data["robots"]) == 3
+    fleet_setup.check_fits(data, "gz", "d2_shelf")
+    site = load_fleet_map("d2_shelf")
+    assert list(fleet_setup.start_nodes(site, data).values()) == list(site.parking)
 
 
 @pytest.mark.parametrize("layout", ["d2", "d", "c"])
@@ -53,7 +62,7 @@ def test_robots_start_on_their_nodes_facing_the_node_yaw():
     site = load_fleet_map("d2")
     poses = fleet_setup.start_poses(site, {"pinky1": "P-3", "pinky2": "N_W"})
     assert poses["pinky1"] == pytest.approx((1.85, 0.15, math.pi / 2))
-    assert poses["pinky2"] == pytest.approx((0.40, 0.65, 0.0))  # N_W has no yaw
+    assert poses["pinky2"] == pytest.approx((0.35, 0.65, 0.0))  # N_W has no yaw
 
 
 def test_robots_without_a_start_get_the_free_parking_nodes_in_order():
@@ -130,3 +139,27 @@ def test_an_obstacle_schedule_is_off_a_share_name_or_a_file(tmp_path):
     assert fleet_setup.obstacles_path(str(path), PKG) == str(path)
     with pytest.raises(ScheduleError, match="nowhere"):
         fleet_setup.obstacles_path("roam", PKG)
+
+
+def test_narrow_strips_are_the_dock_junction_and_lane_rectangles_not_the_hall():
+    """스캔 거르개(추가지시서3 7-2)가 받을 좁은 띠: 넓은 구역(shared)이 아닌 구역의 사각형."""
+    site = load_fleet_map("d2")
+    strips = fleet_setup.narrow_strips(site)
+    # 경기장 벽에 닿은 변은 band(0.05)만큼 벽 너머로 넓힌다: 벽 면 너머로 잰 잡음 점(과 AMCL 오차로
+    # 너머에 놓인 점)도 띠 안에 든다(G05f: 동쪽 벽 x 1.98 너머 점이 남아 출고 도크 진입을 막았다)
+    assert strips.split("; ") == [
+        "-0.05,0.79,0.3,1.04", "0.3,0.79,0.5,1.04", "0.5,0.79,1.48,1.04", "1.48,0.79,1.68,1.04",
+        "1.68,0.79,2.03,1.04",
+        "0.45,0.725,0.55,0.84", "1.43,0.725,1.53,0.84"]
+
+
+def test_narrow_strips_add_a_box_around_each_shelf_end_face():
+    """진열대 끝면마다 끝면을 band만큼 사방으로 넓힌 사각형을 더한다(2-1 후진 모퉁이).
+
+    끝면 잡음은 좁은 띠 바로 밖(HALL의 1.5 cm 띠)에 떨어지므로 띠만으로는 지워지지 않는다."""
+    site = load_fleet_map("d2")
+    strips = fleet_setup.narrow_strips(site, band=0.03).split("; ")
+    assert strips[-2:] == ["0.47,0.745,0.53,0.82", "1.45,0.745,1.51,0.82"]
+    # 세로 진열대는 위아래 끝면에 더한다.
+    assert fleet_setup.shelf_end_boxes([(1.0, 0.2, 1.02, 0.6)], 0.05) == [
+        (0.95, 0.15, 1.07, 0.25), (0.95, 0.55, 1.07, 0.65)]

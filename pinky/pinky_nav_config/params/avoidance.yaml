@@ -1,0 +1,65 @@
+# 회피 담당의 설정 파일(사용자 기준: docs/회피_약속.md의 "설정의 주인", 추가 지시서 3의 7-1).
+#
+# 키는 둘뿐이다. 다른 키를 넣으면 nav2.launch.py가 뜨지 않고 test/test_nav_config.py가 실패한다.
+# 그 밖의 Nav2 설정(발자국, costmap, inflation, keepout, 라이다 관측원과 scan 거르기, progress
+# checker와 goal checker, bt_navigator와 BT, planner, FollowPath 셋)은 사용자의 것이라
+# nav2_params.yaml에 있다. 바꾸려면 사용자에게 요청한다.
+#
+# follow_path_goal: controller_server의 FollowPathGoal 안에 그대로 들어간다. 이름 FollowPathGoal은
+#   고정이고, 플러그인과 값은 회피 담당이 정한다(MPPI나 DWB로 바꿔도 된다). 넓은 구역의 Nav2 goal
+#   (MoveTo mode nav_goal)을 bt_navigator가 이 컨트롤러로 몬다. 속도 상한은 nav_max_speed를 따른다.
+#   시뮬레이션은 RPP의 desired_linear_vel만 nav_max_speed로 낮춘다. 다른 플러그인으로 바꾸면 그
+#   플러그인의 최고 속도를 nav_max_speed 이하로 직접 맞추고 사용자에게 알린다(그때 fleet_gz_sim의
+#   속도 상한 시험이 실패한다: 시뮬레이션의 상한 적용을 그 플러그인에 맞춰야 한다는 표시다).
+#   시작값은 고정 경로 컨트롤러 FollowPath를 2-1 전의 값으로 옮겨 온 것이다(RPP, 충돌 검사 켬).
+follow_path_goal:
+  plugin: "nav2_regulated_pure_pursuit_controller::RegulatedPurePursuitController"
+  desired_linear_vel: 0.25  # 전달사항(제조사 0.2)
+  lookahead_dist: 0.15  # 전달사항(제조사 0.6)
+  min_lookahead_dist: 0.10  # 전달사항(제조사 0.3)
+  max_lookahead_dist: 0.25  # 전달사항(제조사 0.9)
+  lookahead_time: 1.5
+  use_velocity_scaled_lookahead_dist: true
+  rotate_to_heading_angular_vel: 1.0
+  transform_tolerance: 0.2
+  min_approach_linear_velocity: 0.05
+  approach_velocity_scaling_dist: 0.6
+  use_collision_detection: true
+  max_allowed_time_to_collision_up_to_carrot: 0.6  # 전달사항(제조사 1.0)
+  use_regulated_linear_velocity_scaling: false
+  use_fixed_curvature_lookahead: false
+  curvature_lookahead_dist: 0.6
+  use_cost_regulated_linear_velocity_scaling: true
+  regulated_linear_scaling_min_radius: 0.5
+  regulated_linear_scaling_min_speed: 0.05
+  use_rotate_to_heading: true
+  allow_reversing: false
+  rotate_to_heading_min_angle: 0.25
+  max_angular_accel: 3.2
+  max_robot_pose_search_dist: 1.4875
+  cost_scaling_dist: 0.05
+  cost_scaling_gain: 1.5
+  inflation_cost_scaling_factor: 3.0
+  interpolate_curvature_after_goal: false
+  use_cancel_deceleration: false
+  cancel_deceleration: 3.2
+
+# vision_obstacles: launch 인자 vision_obstacles:=true일 때 두 costmap 장애물 층의 vision 관측원
+#   안에 그대로 들어간다(기본은 꺼짐이고, 꺼져 있으면 아무것도 바뀌지 않는다).
+# - 토픽: /<로봇>/vision_obstacles (sensor_msgs/PointCloud2). 보내는 쪽은 회피 담당이 만든다.
+# - 표시만 한다(marking). 찍힌 칸은 시간이 지나도 저절로 지워지지 않고, 라이다 광선이 그 칸을
+#   지나갈 때만 지워진다. 라이다 광선이 닿지 않는 칸의 표시는 costmap을 비울 때까지 남는다.
+#   observation_persistence는 받은 점을 버퍼에 두는 시간일 뿐이다.
+# - expected_update_rate 0: 토픽이 조용해도 costmap이 멈추지 않는다.
+# - 아래 값(거리, 높이, 남는 시간)은 자리만 잡은 것이다. 회피 담당이 정한다.
+vision_obstacles:
+  topic: <robot_namespace>/vision_obstacles
+  data_type: "PointCloud2"
+  marking: true
+  clearing: false
+  obstacle_max_range: 1.5
+  obstacle_min_range: 0.0
+  min_obstacle_height: 0.0
+  max_obstacle_height: 2.0
+  expected_update_rate: 0.0
+  observation_persistence: 0.5

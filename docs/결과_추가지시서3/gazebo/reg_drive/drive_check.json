@@ -1,0 +1,154 @@
+{
+  "layout": "d2",
+  "plan": "stage2",
+  "laps": 1,
+  "steps": 8,
+  "done": 8,
+  "succeeded": 8,
+  "results": [
+    {
+      "step": "nav_goal P-1>N_W",
+      "result": "success",
+      "wall_s": 12.3,
+      "states": [
+        "MOVING",
+        "RECOVERING",
+        "MOVING",
+        "RECOVERING",
+        "MOVING",
+        "IDLE"
+      ],
+      "sim_s": 12.24,
+      "final": [
+        0.336,
+        0.624
+      ],
+      "pos_error_m": 0.029,
+      "yaw_error_deg": 7.0,
+      "truth_keepout": [],
+      "plans": 12,
+      "plan_keepout": []
+    },
+    {
+      "step": "follow_path N_W>X_W>W",
+      "result": "success",
+      "wall_s": 6.43,
+      "states": [
+        "MOVING",
+        "IDLE"
+      ],
+      "sim_s": 6.37,
+      "final": [
+        0.241,
+        0.89
+      ],
+      "pos_error_m": 0.061,
+      "yaw_error_deg": 3.0,
+      "max_cross_track_m": 0.035
+    },
+    {
+      "step": "retreat W>N_W",
+      "result": "success",
+      "wall_s": 5.84,
+      "states": [
+        "MOVING",
+        "IDLE"
+      ],
+      "sim_s": 5.83,
+      "final": [
+        0.39,
+        0.686
+      ],
+      "pos_error_m": 0.054,
+      "yaw_error_deg": -11.0,
+      "max_cross_track_m": 0.051
+    },
+    {
+      "step": "follow_path N_W>X_W>X_E>N_E",
+      "result": "success",
+      "wall_s": 19.23,
+      "states": [
+        "MOVING",
+        "IDLE"
+      ],
+      "sim_s": 19.19,
+      "final": [
+        1.641,
+        0.686
+      ],
+      "pos_error_m": 0.037,
+      "yaw_error_deg": 6.2,
+      "max_cross_track_m": 0.058
+    },
+    {
+      "step": "follow_path N_E>X_E>O",
+      "result": "success",
+      "wall_s": 9.65,
+      "states": [
+        "MOVING",
+        "IDLE"
+      ],
+      "sim_s": 9.61,
+      "final": [
+        1.75,
+        0.89
+      ],
+      "pos_error_m": 0.05,
+      "yaw_error_deg": 4.7,
+      "max_cross_track_m": 0.024
+    },
+    {
+      "step": "retreat O>N_E",
+      "result": "success",
+      "wall_s": 5.47,
+      "states": [
+        "MOVING",
+        "IDLE"
+      ],
+      "sim_s": 5.44,
+      "final": [
+        1.613,
+        0.682
+      ],
+      "pos_error_m": 0.036,
+      "yaw_error_deg": 4.7,
+      "max_cross_track_m": 0.025
+    },
+    {
+      "step": "follow_path N_E>X_E>X_W>N_W",
+      "result": "success",
+      "wall_s": 18.51,
+      "states": [
+        "MOVING",
+        "IDLE"
+      ],
+      "sim_s": 18.43,
+      "final": [
+        0.354,
+        0.684
+      ],
+      "pos_error_m": 0.034,
+      "yaw_error_deg": 2.2,
+      "max_cross_track_m": 0.051
+    },
+    {
+      "step": "nav_goal N_W>P-1",
+      "result": "success",
+      "wall_s": 18.52,
+      "states": [
+        "MOVING",
+        "IDLE"
+      ],
+      "sim_s": 18.47,
+      "final": [
+        0.194,
+        0.178
+      ],
+      "pos_error_m": 0.07,
+      "yaw_error_deg": 3.7,
+      "truth_keepout": [],
+      "plans": 19,
+      "plan_keepout": []
+    }
+  ]
+}

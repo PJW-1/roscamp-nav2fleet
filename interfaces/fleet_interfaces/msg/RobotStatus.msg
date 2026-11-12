@@ -23,3 +23,6 @@ float64 yaw
 # 허락받지 않은 부분이다. 화면이 둘을 다르게 그리는 데 쓴다. 갈 길이 없으면 둘 다 빈다
 string[] base
 string[] horizon
+# 기준(사용자, 계약 0.13-draft, 추가 지시서 3의 7-4): 관제가 이 로봇에 마지막으로 보낸 MoveTo의
+# priority. 로봇은 앞을 막은 다른 로봇의 값을 여기서 읽는다. -1이면 비었다
+int32 priority -1

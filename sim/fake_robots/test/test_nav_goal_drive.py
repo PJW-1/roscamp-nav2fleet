@@ -60,12 +60,12 @@ def test_a_robot_on_the_straight_line_is_driven_round():
     assert nav.arrived(m) and closest >= 2 * RADIUS
 
 
-def test_a_robot_standing_on_the_goal_blocks_after_five_seconds():
+def test_a_robot_standing_on_the_goal_blocks_after_ten_seconds():
     """목표 위에 선 로봇은 비킬 것으로 보고 다가가, 닿기 전에 서서 기다린다."""
     here, there = SITE.node_pose("P-1"), SITE.node_pose("P-2")
     other = (*there, RADIUS)
     m = Motion(*here)
     nav = NavGoalDrive(SPACE, RADIUS, there, 0.0, here)
-    t, how = drive(nav, m, [other], until_s=6.0)
-    assert how is None and nav.blocked(t) and not nav.blocked(3.0)
+    t, how = drive(nav, m, [other], until_s=11.0)
+    assert how is None and nav.blocked(t) and not nav.blocked(8.0)
     assert math.dist((m.x, m.y), other[:2]) >= 2 * RADIUS

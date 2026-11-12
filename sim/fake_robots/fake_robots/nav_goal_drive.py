@@ -10,10 +10,15 @@ from __future__ import annotations
 import math
 
 from .ahead import nothing_ahead
-from .world.nav_goal import ABORT_AFTER_S, GIVE_UP_S, PROGRESS_M, REPLAN_S, plan_around
+from .world.nav_goal import (
+    ABORT_AFTER_S,
+    BLOCKED_AFTER_S,
+    GIVE_UP_S,
+    PROGRESS_M,
+    REPLAN_S,
+    plan_around,
+)
 from .world.planner import plan
-
-BLOCKED_AFTER_S = 5.0  # 계약 5절: nav_goal 모드는 이만큼 못 나아가면 BLOCKED
 
 
 class NavGoalDrive:

@@ -43,6 +43,8 @@ def obstacle(_points):
 
 
 def ready(t=0.0, pose=(*P3, NORTH), **params):
+    # 이 파일은 로봇단 교착 처리(7-4) 전의 자가 복구를 본다(스위치 끔). 켠 것은 test_yield_core.py
+    params.setdefault("local_yield", False)
     fsm = PinkyFsm(FsmParams(**params))
     fsm.tick(t, pose, STILL, no_obstacle)
     return fsm
@@ -222,7 +224,8 @@ def test_success_far_from_the_target_sends_the_rest_again():
     cmds = fsm.nav_result(send.seq, "succeeded", 5.0, (0.35, 1.90, NORTH), no_obstacle)
     [again] = sends(cmds)
     assert kinds(cmds) == ["SendPath"] and again.seq > send.seq
-    assert again.poses[0][:2] == pytest.approx((0.35, 1.90), abs=1e-6)
+    # 0.05 m 앞이 꺾이는 곳이라 다시 보낸 선은 그 자리에서 가장 가까운 호 위의 점에서 시작한다(2-1)
+    assert again.poses[0][:2] == pytest.approx((0.35, 1.90), abs=0.01)
     assert fsm.state() == MOVING
 
 
@@ -444,7 +447,7 @@ def test_blocked_stays_after_cancel_while_the_obstacle_remains():
 
 def test_blocked_goal_ends_with_timeout_when_the_obstacle_stays():
     """A goal that cannot go on must end with a failure or TIMEOUT. The fleet manager cancels a
-    blocked goal after blocked_mark_s (5 s), so block_timeout_s (90 s) only matters when the
+    blocked goal after blocked_mark_s (10 s), so block_timeout_s (90 s) only matters when the
     fleet manager does not."""
     fsm = ready(recovery_attempts=0)
     [send] = sends(move(fsm, "g1", 0.0))
@@ -1090,6 +1093,28 @@ def test_a_retreat_with_a_path_backs_along_it_instead_of_backing_up_straight():
     assert fsm.state() == MOVING and fsm.is_running("r1")
 
 
+def _sharpest(poses):
+    heads = [math.atan2(b[1] - a[1], b[0] - a[0]) for a, b in pairwise(poses)]
+    return max(abs(math.remainder(h2 - h1, math.tau)) for h1, h2 in pairwise(heads))
+
+
+def test_a_corner_of_the_lane_is_sent_as_an_arc_so_the_robot_does_not_pivot_on_it():
+    """추가 지시서 3의 2-1(기준(사용자)): 꺾이는 곳은 turn_radius_m의 호로 지난다."""
+    (send,) = sends(move(ready(), "g1", 1.0))
+    assert _sharpest(send.poses) < 0.3
+    assert min(math.dist(p[:2], P4) for p in send.poses) > 0.02, "the corner itself is cut"
+    (sharp,) = sends(move(ready(turn_radius_m=0.0), "g1", 1.0))
+    assert min(math.dist(p[:2], P4) for p in sharp.poses) == pytest.approx(0.0)
+
+
+def test_a_retreat_round_a_corner_backs_along_an_arc():
+    fsm = ready(pose=(*P5, math.atan2(0.10, 0.45)))
+    cmds = fsm.retreat("r1", 1.0, 0.86, 0.05, path=[P5, P4, P3], pose=(*P5, 0.2))
+    (send,) = reverse_sends(cmds)
+    assert _sharpest(send.poses) < 0.3
+    assert send.poses[-1][:2] == pytest.approx(P3)
+
+
 def test_moves_never_go_to_the_reverse_controller():
     fsm = ready()
     assert not reverse_sends(move(fsm, "g1", 0.0))
@@ -1463,3 +1488,100 @@ def test_the_resend_after_a_self_recovery_keeps_the_mark():
     [b] = backups(fsm.nav_result(send.seq, "aborted", 2.1, STUCK, no_obstacle))
     [again] = sends(fsm.backup_result(b.seq, "succeeded", 3.0, BEHIND))
     assert again.final_goal is False
+
+
+# ---- 이음 정밀도 (추가 지시서 3의 2-4) --------------------------------------------------------
+
+BESIDE = (0.43, 1.55, NORTH)  # P3에서 0.08 m 옆: Nav2 goal이 지점 옆에서 끝난 로봇
+
+
+def test_a_robot_beside_the_path_gets_a_path_from_where_it_stands():
+    fsm = ready(pose=BESIDE)
+    [send] = sends(move(fsm, "g1", 1.0, path=(P3, P4), target=P4, pose=BESIDE))
+    assert send.poses[0][:2] == pytest.approx(BESIDE[:2])
+    joined = [p for p in send.poses if p[0] == pytest.approx(0.35)]
+    assert joined[0][1] == pytest.approx(1.55 + 3.0 * 0.08), "joins the line 0.24 m ahead"
+    assert send.poses[0][2] == pytest.approx(math.atan2(0.24, -0.08)), "and heads for that point"
+    assert send.poses[-1][:2] == pytest.approx(P4)
+
+
+def test_the_path_sent_again_near_the_end_also_starts_at_the_robot():
+    fsm = ready()
+    move(fsm, "g1", 0.0, path=(P3, P4), target=P4)
+    fsm.heartbeat(2.0)
+    [again] = sends(fsm.tick(2.0, (0.40, 1.85, NORTH), DRIVING, no_obstacle))
+    assert again.poses[0][:2] == pytest.approx((0.40, 1.85))
+    assert again.poses[-1][:2] == pytest.approx(P4)
+
+
+def test_the_way_ahead_is_watched_on_the_path_that_was_sent():
+    """Nav2 drives the joining piece, so an object on it is in the way."""
+    fsm = ready(pose=BESIDE)
+    move(fsm, "g1", 1.0, path=(P3, P4), target=P4, pose=BESIDE)
+    seen = []
+    for t in (1.1, 2.5):  # 1초 서 있어야 앞을 본다
+        fsm.heartbeat(t)
+        fsm.tick(t, BESIDE, STILL, lambda points: seen.extend(points) or False)
+    assert seen[0] == pytest.approx(BESIDE[:2])
+    assert any(0.36 < x < 0.42 for x, _ in seen), "points on the joining piece"
+
+
+def test_on_a_line_that_comes_back_the_way_ahead_is_the_pass_the_robot_is_on():
+    fsm = ready(pose=(0.0, 0.0, 0.0))
+    back = [(0.0, 0.0), (1.0, 0.0), (0.0, 0.0)]
+    fsm.move("g1", 0.0, "X", (0.0, 0.0, math.pi), back, (0.0, 0.0, 0.0))
+    for t, x in ((1.0, 0.5), (2.0, 1.0)):  # 갔다가
+        fsm.heartbeat(t)
+        fsm.tick(t, (x, 0.0, 0.0), DRIVING, no_obstacle)
+    seen = []
+    for t in (3.0, 4.5):  # 돌아오는 길 x 0.7에 서 있다
+        fsm.heartbeat(t)
+        fsm.tick(t, (0.7, 0.0, math.pi), STILL, lambda points: seen.extend(points) or False)
+    assert seen and all(x <= 0.7 + 1e-6 for x, _ in seen), "towards the end, not back to the turn"
+
+
+def test_after_many_corners_the_way_ahead_still_starts_at_the_robot():
+    """Every arc makes the sent path shorter than the line the progress is measured on."""
+    stairs = [(0.0, 0.0)]
+    for i in range(1, 6):  # 0.5 m씩 오른쪽, 위로: 직각 아홉 번
+        stairs += [(0.5 * i, 0.5 * (i - 1)), (0.5 * i, 0.5 * i)]
+    stairs[-1] = (2.5, 3.0)
+    fsm = ready(pose=(0.0, 0.0, 0.0))
+    fsm.move("g1", 0.0, "X", (2.5, 3.0, NORTH), stairs, (0.0, 0.0, 0.0))
+    t = 0.0
+    for (ax, ay), (bx, by) in zip(stairs[:-2], stairs[1:-1], strict=True):
+        t += 1.0
+        fsm.heartbeat(t)
+        fsm.tick(t, ((ax + bx) / 2.0, (ay + by) / 2.0, 0.0), DRIVING, no_obstacle)
+    seen = []
+    for dt in (1.0, 2.5):  # 마지막 선분 위 (2.5, 2.5)에 서 있다
+        fsm.heartbeat(t + dt)
+        fsm.tick(t + dt, (2.5, 2.5, NORTH), STILL, lambda points: seen.extend(points) or False)
+    assert seen[0] == pytest.approx((2.5, 2.5))
+
+
+def test_on_a_long_joining_piece_the_way_ahead_starts_at_the_robot():
+    """Far beside the end the joining piece is much longer than the line it stands for."""
+    beside = (4.9, 0.5, 0.0)
+    fsm = ready(pose=beside, connect_tolerance_m=1.0)  # 이만큼 벗어난 로봇도 받게 한다
+    fsm.move("g1", 0.0, "X", (5.0, 0.0, 0.0), [(4.0, 0.0), (5.0, 0.0)], beside)
+    seen = []
+    for t in (1.0, 2.5):
+        fsm.heartbeat(t)
+        fsm.tick(t, beside, STILL, lambda points: seen.extend(points) or False)
+    assert seen[0] == pytest.approx(beside[:2])
+
+
+def test_the_join_can_be_switched_off():
+    fsm = ready(pose=BESIDE, join_slope=0.0)
+    [send] = sends(move(fsm, "g1", 1.0, path=(P3, P4), target=P4, pose=BESIDE))
+    assert send.poses[0][:2] == pytest.approx(P3)
+
+
+def test_the_join_does_not_change_progress_or_arrival():
+    """Progress is still measured on the line the fleet sent."""
+    fsm = ready(pose=BESIDE)
+    [send] = sends(move(fsm, "g1", 1.0, path=(P3, P4), target=P4, pose=BESIDE))
+    assert fsm._active.s == pytest.approx(0.0)
+    cmds = fsm.nav_result(send.seq, "succeeded", 9.0, (0.36, 1.94, NORTH), no_obstacle)
+    assert Finish("g1", True, "") in cmds

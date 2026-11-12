@@ -24,6 +24,7 @@ from dataclasses import dataclass
 
 from pinky_fsm.core import FsmParams, PinkyFsm, _Move
 from pinky_fsm.geometry import Point, Polyline, Pose
+from pinky_fsm.local_yield import NO_PRIORITY
 from pinky_fsm.nav_goal import MODE_NAV_GOAL, NavGoal
 from pinky_fsm.order_queue import MODE_RETREAT, OrderGoal, OrderQueue, Seg, segments_problem
 from pinky_fsm.results import (  # noqa: F401 - 결과 이름은 여기서도 내보낸다
@@ -57,8 +58,8 @@ class _SegKey:
 
 class OrderFsm(PinkyFsm):
     def __init__(self, params: FsmParams, order_params: OrderParams | None = None,
-                 horizon_check: HorizonCheck | None = None):
-        super().__init__(params)
+                 horizon_check: HorizonCheck | None = None, robot_id: str = ""):
+        super().__init__(params, robot_id)
         self.op = order_params or OrderParams()
         self.horizon_check = horizon_check
         self._q: OrderQueue | None = None
@@ -103,12 +104,14 @@ class OrderFsm(PinkyFsm):
 
     def move(self, goal_id: Hashable, now: float, target_id: str, target: Pose,
              path: Sequence[Point], pose: Sequence[float] | None,
-             final_goal: bool = True, mode: str = "", order: OrderGoal | None = None) -> list:
+             final_goal: bool = True, mode: str = "", order: OrderGoal | None = None,
+             priority: int = NO_PRIORITY) -> list:
         if order is None or not order.order_id:
             return self._close(CANCELED) + self._own(
-                super().move(goal_id, now, target_id, target, path, pose, final_goal, mode),
-                now, pose)
+                super().move(goal_id, now, target_id, target, path, pose, final_goal, mode,
+                             priority), now, pose)
         self._alive = max(self._alive, now)  # 목표 수락도 관제가 살아 있다는 증거
+        self._priority = int(priority)  # 조각마다 core.move에 그대로 넘긴다(7-4)
         if order.update_id > 0:
             return self._update(goal_id, now, order, pose)
         cmds = self._close(CANCELED)
@@ -264,14 +267,14 @@ class OrderFsm(PinkyFsm):
         first, last, key = self._run[0], self._run[-1], self._key
         if first.mode == MODE_NAV_GOAL:
             return super().move(key, now, first.end_node_id, first.target, [], pose,
-                                mode=MODE_NAV_GOAL)
+                                mode=MODE_NAV_GOAL, priority=self._priority)
         points = _joined(self._run)
         if first.mode == MODE_RETREAT:
             return super().retreat(key, now, Polyline(points).length, self.p.reverse_speed_mps,
                                    points, pose)
         self._bounds = _bounds(self._run)
         return super().move(key, now, last.end_node_id, last.path[-1], points, pose,
-                            final_goal=last.controller_id != THROUGH)
+                            final_goal=last.controller_id != THROUGH, priority=self._priority)
 
     def _extend(self, now: float, pose) -> list:
         """update의 첫 조각이 달리는 FollowPath에 이어지면 경로를 늘려 선점한다(서지 않음)."""
@@ -286,6 +289,7 @@ class OrderFsm(PinkyFsm):
         self._bounds += [(end, self._run[-1].seq_id)] + [
             (end + s, i) for s, i in _bounds(more, start=g.route.points[-1])]
         g.route = Polyline(g.route.points + _joined(more)[1:])
+        g.sent = None  # 보낸 선은 늘리기 전의 것이다. 다시 보낼 때까지 앞은 받은 선 위에서 본다
         self._run += more
         g.target, g.target_id = more[-1].path[-1], more[-1].end_node_id
         if g.nav_running and g.handover_since is None:

@@ -83,7 +83,8 @@ class MoveOrders:
         mo = m.move_order = MoveOrder(f"{m.name}-{goal_id}", self._cut(trip, trip.done, 1),
                                       horizon_at=self._clock())
         base, horizon = self._fresh_base(m, trip, here=True), self._horizon(m, trip)
-        self._out.append(MoveOrderCmd(m.name, goal_id, mo.id, 0, "", base, horizon))
+        self._out.append(MoveOrderCmd(m.name, goal_id, mo.id, 0, "", base, horizon,
+                                      self._goal_priority(m)))
         self._order_goal(m, goal_id)
         far = f", horizon to {horizon[-1].end_node}" if horizon else ""
         self._event("INFO", "ORDER_SENT", f"{mo.id}: base to {m.goal.end}{far}", m.name)
@@ -108,7 +109,7 @@ class MoveOrders:
         if base:  # 로봇이 다시 달린다
             mo.waiting = mo.waited = False
         self._out.append(MoveOrderCmd(m.name, goal_id, mo.id, mo.update, stitch, base,
-                                      self._horizon(m, trip)))
+                                      self._horizon(m, trip), self._goal_priority(m)))
         self._order_goal(m, goal_id)
 
     # ---- 늘리기 ----

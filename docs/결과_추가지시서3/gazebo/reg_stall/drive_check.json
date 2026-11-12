@@ -1,0 +1,28 @@
+{
+  "layout": "d2",
+  "plan": "stage2",
+  "laps": 1,
+  "steps": 8,
+  "done": 1,
+  "succeeded": 0,
+  "results": [
+    {
+      "step": "nav_goal P-1>N_W",
+      "result": "NAV_ABORTED",
+      "wall_s": 0.11,
+      "states": [
+        "IDLE"
+      ],
+      "sim_s": 0.07,
+      "final": [
+        0.13,
+        0.15
+      ],
+      "pos_error_m": 0.546,
+      "yaw_error_deg": 0.0,
+      "truth_keepout": [],
+      "plans": 0,
+      "plan_keepout": []
+    }
+  ]
+}

@@ -5,9 +5,13 @@ from itertools import pairwise
 import pytest
 from pinky_fsm.geometry import (
     Polyline,
+    joined_rest,
     poses_along,
     poses_backing,
     quaternion_yaw,
+    rounded,
+    rounded_at,
+    rounded_rest,
     yaw_quaternion,
 )
 
@@ -118,3 +122,159 @@ def test_vertex_before_is_the_last_vertex_at_or_behind_the_point():
     assert line.vertex_before(1.2) == pytest.approx(1.0)
     assert line.vertex_before(2.0) == pytest.approx(2.0)
     assert Polyline([(2.0, 3.0)]).vertex_before(0.5) == 0.0
+
+
+# ---- 꺾이는 곳을 호로(추가 지시서 3의 2-1: 좁은 띠 안에서 제자리 회전을 하지 않는다) ----
+
+
+def _turns(points):
+    """이웃 선분 사이의 방향 바뀜(rad)."""
+    heads = [math.atan2(b[1] - a[1], b[0] - a[0]) for a, b in pairwise(points)]
+    return [abs(math.remainder(h2 - h1, math.tau)) for h1, h2 in pairwise(heads)]
+
+
+def test_rounded_replaces_a_corner_with_an_arc_of_the_radius():
+    line = rounded([(0.35, 0.65), (0.35, 0.89), (0.18, 0.89)], radius=0.10, step=0.01)
+    assert line[0] == (0.35, 0.65) and line[-1] == (0.18, 0.89)
+    assert max(_turns(line)) < 0.15, "no sharp vertex is left for the robot to pivot on"
+    centre = (0.25, 0.79)
+    arc = [p for p in line if p[0] < 0.35 - 1e-9 and p[1] < 0.89 - 1e-9]
+    assert arc and all(math.dist(p, centre) == pytest.approx(0.10) for p in arc)
+    corner_gap = min(math.dist(p, (0.35, 0.89)) for p in line)
+    assert corner_gap == pytest.approx(0.10 * (math.sqrt(2) - 1), abs=2e-3)
+
+
+def test_rounded_shrinks_the_arc_to_fit_short_segments():
+    line = rounded([(0.0, 0.0), (0.4, 0.0), (0.4, 0.06), (0.8, 0.06)], radius=0.10, step=0.01)
+    assert max(_turns(line)) < 0.4
+    assert min(y for _, y in line) >= -1e-9 and max(y for _, y in line) <= 0.06 + 1e-9
+    assert line[-1] == (0.8, 0.06)
+
+
+def test_rounded_keeps_straight_lines_and_turnarounds_and_zero_radius():
+    straight = [(0.0, 0.0), (0.5, 0.0), (1.0, 0.0)]
+    assert rounded(straight, 0.1) == straight
+    back = [(0.0, 0.0), (0.5, 0.0), (0.2, 0.0)]
+    assert rounded(back, 0.1) == back, "a reversal cannot be rounded and stays as it is"
+    corner = [(0.0, 0.0), (0.5, 0.0), (0.5, 0.5)]
+    assert rounded(corner, 0.0) == corner
+
+
+def test_rounded_rest_follows_the_arc_from_where_the_robot_is():
+    route = Polyline([(0.35, 0.65), (0.35, 0.89), (0.18, 0.89)])
+    whole = rounded_rest(route, 0.0, 0.10)
+    assert whole[0] == pytest.approx((0.35, 0.65)) and whole[-1] == pytest.approx((0.18, 0.89))
+    near = rounded_rest(route, 0.23, 0.10)
+    assert max(_turns(near)) < 0.15, "a robot close to the corner still gets the arc, not a pivot"
+    assert near[0][0] < 0.35 and near[-1] == pytest.approx((0.18, 0.89))
+    assert rounded_rest(Polyline([(0.0, 0.0), (1.0, 0.0)]), 0.4, 0.1) == [
+        pytest.approx((0.4, 0.0)), (1.0, 0.0)]
+
+
+# ---- 이음 정밀도 (추가 지시서 3의 2-4) --------------------------------------------------------
+
+LANE = Polyline([(0.35, 0.20), (0.35, 0.89), (0.18, 0.89)])  # 곧게 0.69 m, 그리고 왼쪽으로 꺾임
+
+
+def joined(route, s, here, min_off=0.02, slope=3.0, radius=0.10):
+    return rounded_rest(route, s, radius, here, min_off, slope)
+
+
+def test_a_robot_on_the_line_gets_the_rest_as_before():
+    assert joined(LANE, 0.10, (0.35, 0.30)) == [
+        pytest.approx(p) for p in rounded_rest(LANE, 0.10, 0.10)]
+
+
+def test_a_robot_beside_the_line_starts_where_it_stands_and_joins_the_line_ahead():
+    rest = joined(LANE, 0.10, (0.43, 0.30))  # 0.08 m 옆
+    assert rest[0] == pytest.approx((0.43, 0.30))
+    assert rest[1] == pytest.approx((0.35, 0.30 + 3.0 * 0.08)), "three times the offset ahead"
+    assert rest[-1] == pytest.approx((0.18, 0.89))
+    assert rest[2:] == rounded_rest(LANE, 0.10, 0.10)[1:], "from there on the line as it was"
+
+
+def test_the_join_never_cuts_across_a_corner():
+    """Close to a corner the join is the start of the arc, not a point beyond it."""
+    rest = joined(LANE, 0.50, (0.45, 0.70))  # 0.10 m 옆, 호의 시작(y 0.79)까지 0.09 m
+    assert rest[0] == pytest.approx((0.45, 0.70))
+    assert rest[1] == pytest.approx((0.35, 0.79))
+
+
+def test_a_small_offset_keeps_the_start_on_the_line():
+    rest = joined(LANE, 0.10, (0.365, 0.30))  # 0.015 m 옆
+    assert rest[0] == pytest.approx((0.35, 0.30))
+
+
+def test_on_an_arc_the_rest_starts_beside_the_robot_not_behind_it():
+    """The progress s is measured on the sharp line. Its place on the arc lies behind a robot
+    that drives the arc."""
+    arc = rounded(LANE.points, 0.10)
+    robot = arc[len(arc) // 2]  # 호의 가운데
+    s, _ = LANE.project(robot)
+    assert math.dist(rounded_rest(LANE, s, 0.10)[0], robot) > 0.01, "the old start is behind"
+    assert math.dist(joined(LANE, s, robot)[0], robot) < 1e-6
+
+
+def test_without_a_slope_the_start_is_on_the_line_as_before():
+    assert joined(LANE, 0.10, (0.43, 0.30), slope=0.0) == rounded_rest(LANE, 0.10, 0.10)
+
+
+def _on_arc(deg, radius=0.10):
+    """A point at deg on the circle of LANE's corner arc (centre 0.25, 0.79; 0 deg is its start)."""
+    a = math.radians(deg)
+    return (0.25 + radius * math.cos(a), 0.79 + radius * math.sin(a))
+
+
+def test_beside_an_arc_the_join_is_ahead_on_the_arc_not_at_its_next_sample():
+    robot = _on_arc(30.0, radius=0.13)  # 호의 바깥쪽으로 0.03 m
+    s, _ = LANE.project(robot)
+    rest = joined(LANE, s, robot)
+    assert rest[0] == pytest.approx(robot)
+    assert rest[1] == pytest.approx(_on_arc(30.0 + math.degrees(0.09 / 0.10)), abs=2e-3)
+
+
+def test_the_join_on_an_arc_ends_with_the_arc():
+    robot = _on_arc(80.0, radius=0.15)  # 0.05 m 밖: 0.15 m 앞은 호의 끝을 넘는다
+    s, _ = LANE.project(robot)
+    assert joined(LANE, s, robot)[1] == pytest.approx((0.25, 0.89), abs=1e-6)
+
+
+def test_a_line_that_comes_back_over_itself_is_followed_from_the_second_pass():
+    there_and_back = Polyline([(0.0, 0.0), (1.0, 0.0), (0.0, 0.0)])
+    assert rounded_rest(there_and_back, 1.8, 0.10) == [pytest.approx((0.2, 0.0)), (0.0, 0.0)]
+    assert joined(there_and_back, 1.8, (0.2, 0.05)) == [
+        pytest.approx((0.2, 0.05)), pytest.approx((0.05, 0.0)), (0.0, 0.0)]
+
+
+def test_a_short_step_back_is_not_taken_for_the_pass_before_it():
+    """The place on the rounded line is counted from the corners passed, not looked up."""
+    route = Polyline([(0.0, 0.0), (1.0, 0.0), (0.9, 0.0), (1.9, 0.0), (1.9, 1.0)])
+    rest = rounded_rest(route, 1.15, 0.5)  # 세 번째 선분 위 x 0.95
+    assert rest[0] == pytest.approx((0.95, 0.0)) and rest[1] == pytest.approx((1.4, 0.0))
+
+
+def test_joined_rest_tells_where_the_line_is_met_and_how_long_the_piece_before_it_is():
+    rest, met, lead = joined_rest(LANE, 0.10, 0.10, (0.43, 0.30), 0.02, 3.0)
+    assert rest == joined(LANE, 0.10, (0.43, 0.30))
+    assert met == pytest.approx(0.10 + 0.24) and lead == pytest.approx(math.hypot(0.08, 0.24))
+    rest, met, lead = joined_rest(LANE, 0.10, 0.10, (0.35, 0.30), 0.02, 3.0)  # 선 위
+    assert (met, lead) == (pytest.approx(0.10), 0.0)
+
+
+def test_rounded_at_is_the_distance_on_the_rounded_line():
+    arc = Polyline(rounded(LANE.points, 0.10))
+    assert rounded_at(LANE, 0.30, 0.10) == pytest.approx(0.30)
+    assert rounded_at(LANE, 0.69, 0.10) == pytest.approx(0.59 + (arc.length - 0.66) / 2.0)
+    assert rounded_at(LANE, LANE.length, 0.10) == pytest.approx(arc.length)
+    assert rounded_at(LANE, 0.69, 0.0) == pytest.approx(0.69)
+
+
+def test_the_join_does_not_cut_across_a_turnaround():
+    there_and_back = Polyline([(0.0, 0.0), (1.0, 0.0), (0.0, 0.0)])
+    assert joined(there_and_back, 0.8, (0.8, 0.1)) == [
+        pytest.approx((0.8, 0.1)), pytest.approx((1.0, 0.0)), (0.0, 0.0)]
+
+
+def test_a_robot_past_the_end_is_not_sent_back_along_a_new_piece():
+    line = Polyline([(0.0, 0.0), (1.0, 0.0)])
+    assert joined(line, 1.0, (1.05, 0.0)) == [(1.0, 0.0)]

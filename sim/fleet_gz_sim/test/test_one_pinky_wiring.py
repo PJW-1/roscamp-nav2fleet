@@ -39,6 +39,15 @@ def run(module, **overrides):
     return start.execute(context)
 
 
+def test_the_fixed_line_check_is_off_unless_asked(one, monkeypatch):
+    need("pinky_description", "pinky_nav_config", "pinky_fsm")
+    from fleet_gz_sim import launch_parts
+    seen = {}
+    monkeypatch.setattr(launch_parts, "pinky", lambda *a, **kw: seen.update(kw) or [])
+    run(one)
+    assert seen["fixed_line_check"] is False
+
+
 @pytest.mark.parametrize("text, off", [("true", False), ("false", True)])
 def test_the_fixed_line_check_switch_reaches_pinky(one, monkeypatch, text, off):
     need("pinky_description", "pinky_nav_config", "pinky_fsm")

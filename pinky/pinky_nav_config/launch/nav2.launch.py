@@ -2,7 +2,7 @@
 
     ros2 launch pinky_nav_config nav2.launch.py map:=<지도.yaml> map_fine:=<1cm 지도.yaml> \
         initial_x:=0.35 initial_y:=1.55 initial_yaw:=1.5708 [keepout_mask:=<마스크.yaml>] \
-        [vision_obstacles:=true]
+        [vision_obstacles:=true] [narrow_strips:="x0,y0,x1,y1; ..." wall_band_m:=0.05]
 
 - 노드: map_server(5 cm, map), map_server_fine(1 cm, map_fine), amcl, controller_server,
   planner_server, behavior_server, bt_navigator와 lifecycle manager 둘.
@@ -10,18 +10,26 @@
   프레임 이름(map, odom, base_footprint)에는 접두사를 붙이지 않는다.
 - controller_server는 cmd_vel로 바로 낸다(velocity_smoother, collision_monitor 없음).
 - AMCL은 1 cm 지도를, costmap은 5 cm 지도를 쓴다(R15).
-- bt_navigator는 MoveTo mode nav_goal(계약 0.11-draft 제안)의 navigate_to_pose다. BT는 Nav2 기본
-  BT(1 Hz 재계획, 복구)에서 controller만 FollowPathGoal로 바꾼 것이다.
+- bt_navigator는 MoveTo mode nav_goal(계약 0.11-draft, 기준(사용자))의 navigate_to_pose다. BT는
+  Nav2 기본 BT(1 Hz 재계획)에서 controller를 FollowPathGoal로 바꾸고, goal checker 이름을 적고,
+  복구에서 Spin과 BackUp을 뺀 것이다(bt/ 파일의 머리말).
 - keepout_mask(map_server 형식의 마스크 yaml)를 주면 급행·도크 구역을 Nav2 goal 경로에서 막는다:
   params/keepout.yaml을 파라미터에 덧붙여 global costmap에 keepout 필터를 걸고,
   keepout_mask_server, costmap_filter_info_server와 lifecycle_manager_keepout을 더 띄운다.
   비면(기본) 아무것도 바뀌지 않는다.
-- vision_obstacles:=true면 params/vision_obstacles.yaml을 덧붙여 두 costmap의 장애물 층에
-  /{namespace}/vision_obstacles(PointCloud2)를 관측원으로 더한다(회피 담당의 자리, 기본 꺼짐).
+- 파라미터는 두 파일에서 모은다(추가 지시서 3의 7-1, pinky_nav_params.py): params_file(사용자,
+  params/nav2_params.yaml)에 avoidance_params_file(회피 담당, params/avoidance.yaml)의
+  FollowPathGoal 값을 넣는다. 회피 담당 파일에 사용자의 키가 있으면 뜨지 않는다.
+- vision_obstacles:=true면 회피 담당 파일의 vision_obstacles를 두 costmap의 장애물 층에
+  /{namespace}/vision_obstacles(PointCloud2) 관측원으로 더한다(기본 꺼짐).
+- narrow_strips(좁은 띠 사각형들)를 주면 pinky_scan_filter 노드를 띄우고 params/scan_filter.yaml을
+  얹어 두 costmap의 장애물 층이 거른 스캔(scan_filtered)을 읽게 한다(추가지시서3 7-2).
+  AMCL은 원래 scan을 읽는다. 비면(기본) 아무것도 바뀌지 않는다. 거르개는 컨테이너에 넣지 않는다.
 - use_composition:=true면 같은 노드들을 컨테이너(component_container_isolated) 한 프로세스에
   올린다. 한 PC에 로봇 여럿을 띄울 때 DDS 참가자(프로세스) 수를 줄인다.
   기본은 false(노드마다 프로세스).
 """
+import sys
 import tempfile
 from pathlib import Path
 
@@ -37,6 +45,9 @@ from launch_ros.actions import ComposableNodeContainer, Node, PushRosNamespace, 
 from launch_ros.descriptions import ComposableNode, ParameterFile, ParameterValue
 from nav2_common.launch import ReplaceString, RewrittenYaml
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))  # 이 파일 옆의 pinky_nav_params.py
+from pinky_nav_params import merge, with_avoidance  # noqa: E402
+
 SHARE = Path(get_package_share_directory("pinky_nav_config"))
 LOCALIZATION = ["map_server", "map_server_fine", "amcl"]
 NAVIGATION = ["controller_server", "planner_server", "behavior_server", "bt_navigator"]
@@ -44,38 +55,38 @@ KEEPOUT = ["keepout_mask_server", "costmap_filter_info_server"]
 TF_REMAPS = [("/tf", "tf"), ("/tf_static", "tf_static")]
 
 
-def _merge(base: dict, extra: dict) -> None:
-    for key, value in extra.items():
-        if isinstance(value, dict) and isinstance(base.get(key), dict):
-            _merge(base[key], value)
-        else:
-            base[key] = value
+def _read(path) -> dict:
+    return yaml.safe_load(Path(path).read_text(encoding="utf-8"))
 
 
 class WithOverlays(Substitution):
-    """파라미터 파일 경로. 켜진 덧붙임을 얹은 임시 파일이고, 켜진 것이 없으면 그대로다.
+    """파라미터 파일 경로: 사용자 파일에 회피 담당 파일과 켜진 덧붙임을 얹은 임시 파일.
 
-    mask가 있으면 params/keepout.yaml을, vision이 true면 params/vision_obstacles.yaml을 얹는다.
+    avoidance(회피 담당 파일)의 FollowPathGoal 값을 넣고, vision이 true면 비전 관측원도 넣는다
+    (pinky_nav_params.with_avoidance). mask가 있으면 params/keepout.yaml을, strips가 있으면
+    params/scan_filter.yaml을 얹는다.
     """
 
-    def __init__(self, source, mask, vision):
+    def __init__(self, source, avoidance, mask, vision, strips):
         super().__init__()
         self._source = normalize_to_list_of_substitutions(source)
+        self._avoidance = normalize_to_list_of_substitutions(avoidance)
         self._mask = normalize_to_list_of_substitutions(mask)
         self._vision = normalize_to_list_of_substitutions(vision)
+        self._strips = normalize_to_list_of_substitutions(strips)
 
     def perform(self, context) -> str:
-        source = perform_substitutions(context, self._source)
-        overlays = []
+        data = _read(perform_substitutions(context, self._source))
+        avoidance = perform_substitutions(context, self._avoidance)
+        vision = perform_substitutions(context, self._vision).lower() == "true"
+        if avoidance:
+            with_avoidance(data, _read(avoidance), vision)
+        elif vision:
+            raise ValueError("vision_obstacles:=true needs avoidance_params_file")
         if perform_substitutions(context, self._mask):
-            overlays.append("keepout.yaml")
-        if perform_substitutions(context, self._vision).lower() == "true":
-            overlays.append("vision_obstacles.yaml")
-        if not overlays:
-            return source
-        data = yaml.safe_load(Path(source).read_text(encoding="utf-8"))
-        for name in overlays:
-            _merge(data, yaml.safe_load((SHARE / "params" / name).read_text(encoding="utf-8")))
+            merge(data, _read(SHARE / "params" / "keepout.yaml"))
+        if perform_substitutions(context, self._strips).strip():
+            merge(data, _read(SHARE / "params" / "scan_filter.yaml"))
         with tempfile.NamedTemporaryFile("w", suffix=".yaml", prefix="nav2_overlay_",
                                          delete=False, encoding="utf-8") as out:
             yaml.safe_dump(data, out, sort_keys=False, allow_unicode=True)
@@ -86,12 +97,15 @@ def generate_launch_description():
     arg = LaunchConfiguration
     namespace = arg("namespace")
     keepout = IfCondition(NotEqualsSubstitution(arg("keepout_mask"), ""))
+    filtered = IfCondition(NotEqualsSubstitution(arg("narrow_strips"), ""))
     # costmap 층의 절대 토픽 이름(<robot_namespace>/scan)을 채운 뒤
     # 노드 이름 키를 namespace 아래에 넣는다
     params = ParameterFile(RewrittenYaml(
         source_file=ReplaceString(source_file=WithOverlays(arg("params_file"),
+                                                           arg("avoidance_params_file"),
                                                            arg("keepout_mask"),
-                                                           arg("vision_obstacles")),
+                                                           arg("vision_obstacles"),
+                                                           arg("narrow_strips")),
                                   replacements={"<robot_namespace>": ("/", namespace)}),
         root_key=namespace, param_rewrites={}, convert_types=True), allow_substs=True)
     log = ["--ros-args", "--log-level", arg("log_level")]
@@ -168,6 +182,11 @@ def generate_launch_description():
         composable_node_descriptions=(components(nav_nodes) + manager_components(managers)
                                       + components(keepout_nodes)
                                       + manager_components(keepout_manager)))
+    scan_filter = Node(
+        package="pinky_scan_filter", executable="scan_filter", name="scan_filter",
+        output="screen", arguments=log, remappings=TF_REMAPS, condition=filtered,
+        parameters=[{"wall_band_m": ParameterValue(arg("wall_band_m"), value_type=float),
+                     "strips": ParameterValue(arg("narrow_strips"), value_type=str)}])
     use_composition = arg("use_composition")
     return LaunchDescription([
         DeclareLaunchArgument("namespace", default_value="pinky1"),
@@ -176,7 +195,12 @@ def generate_launch_description():
         DeclareLaunchArgument("map_fine", default_value=arg("map"),
                               description="1 cm 지도 yaml(AMCL, R15). 없으면 map"),
         DeclareLaunchArgument("params_file",
-                              default_value=str(SHARE / "params" / "nav2_params.yaml")),
+                              default_value=str(SHARE / "params" / "nav2_params.yaml"),
+                              description="사용자의 Nav2 설정"),
+        DeclareLaunchArgument("avoidance_params_file",
+                              default_value=str(SHARE / "params" / "avoidance.yaml"),
+                              description="회피 담당의 설정(FollowPathGoal 값, 비전 관측원 값)."
+                                          " 사용자의 키가 들어 있으면 뜨지 않는다"),
         DeclareLaunchArgument(
             "bt_xml", default_value=str(
                 SHARE / "bt" / "navigate_to_pose_w_replanning_and_recovery_goal.xml")),
@@ -186,6 +210,12 @@ def generate_launch_description():
         DeclareLaunchArgument("vision_obstacles", default_value="false",
                               description="true면 두 costmap의 장애물 층에"
                                           " /<로봇>/vision_obstacles(PointCloud2)를 더한다"),
+        DeclareLaunchArgument("narrow_strips", default_value="",
+                              description="좁은 띠 사각형 \"x0,y0,x1,y1; ...\"(map 좌표)."
+                                          " 주면 스캔 거르개를 띄우고"
+                                          " costmap이 거른 스캔을 읽는다"),
+        DeclareLaunchArgument("wall_band_m", default_value="0.05",
+                              description="스캔 거르개: 벽·진열대에서 이만큼 안의 점을 지운다"),
         DeclareLaunchArgument("initial_x", default_value="0.0"),
         DeclareLaunchArgument("initial_y", default_value="0.0"),
         DeclareLaunchArgument("initial_yaw", default_value="0.0"),
@@ -204,4 +234,9 @@ def generate_launch_description():
             SetParameter("use_sim_time", arg("use_sim_time")),
             container,
         ], condition=IfCondition(use_composition)),
+        GroupAction([
+            PushRosNamespace(namespace),
+            SetParameter("use_sim_time", arg("use_sim_time")),
+            scan_filter,
+        ]),
     ])

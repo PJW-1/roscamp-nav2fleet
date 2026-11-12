@@ -58,7 +58,8 @@ def _walk(entities, context, found):
         _walk(entity.visit(context) or [], context, found)
 
 
-def _expand(use_composition, use_sim_time="true", keepout_mask=None, vision_obstacles=None):
+def _expand(use_composition, use_sim_time="true", keepout_mask=None, vision_obstacles=None,
+            avoidance=None, narrow_strips=None):
     context = launch.LaunchContext()
     context.launch_configurations.update({
         "use_composition": use_composition, "use_sim_time": use_sim_time,
@@ -69,6 +70,10 @@ def _expand(use_composition, use_sim_time="true", keepout_mask=None, vision_obst
         context.launch_configurations["keepout_mask"] = keepout_mask
     if vision_obstacles is not None:
         context.launch_configurations["vision_obstacles"] = vision_obstacles
+    if avoidance is not None:
+        context.launch_configurations["avoidance_params_file"] = avoidance
+    if narrow_strips is not None:
+        context.launch_configurations["narrow_strips"] = narrow_strips
     found = []
     _walk(_launch_description().entities, context, found)
     return context, found
@@ -242,3 +247,66 @@ def test_vision_obstacles_and_keepout_work_together():
     glob = _global_costmap(planner)
     assert glob["filters"] == ["keepout_filter"]
     assert glob["obstacle_layer"]["observation_sources"] == "scan vision"
+
+
+# ---- who owns which setting (third addendum 7-1) -------------------------------------------
+
+def _avoidance_file() -> dict:
+    import yaml
+    return yaml.safe_load((PKG / "params" / "avoidance.yaml").read_text(encoding="utf-8"))
+
+
+def test_the_goal_controller_comes_from_the_avoidance_file():
+    _, found = _expand("false")
+    controller = [node for node, _ in found][NAMES.index("controller_server")]
+    server = _param_files(controller)["pinky1"]["controller_server"]["ros__parameters"]
+    theirs = _avoidance_file()["follow_path_goal"]
+    assert server["FollowPathGoal"]["plugin"] == theirs["plugin"]
+    assert server["FollowPathGoal"]["desired_linear_vel"] == theirs["desired_linear_vel"]
+    assert server["FollowPath"]["plugin"], "the user's controllers are there as before"
+
+
+def test_an_avoidance_file_with_a_user_owned_key_stops_the_launch(tmp_path):
+    import yaml
+    bad = tmp_path / "avoidance.yaml"
+    bad.write_text(yaml.safe_dump({**_avoidance_file(), "local_costmap": {"width": 9}}),
+                   encoding="utf-8")
+    with pytest.raises(ValueError, match="local_costmap"):
+        _expand("false", avoidance=str(bad))
+
+
+# ---- scan filter (추가지시서3 7-2) ------------------------------------------------------------
+
+STRIPS = "0.0,0.79,0.30,0.99; 0.30,0.79,0.50,0.99"
+
+
+@pytest.mark.parametrize("strips", [None, ""])
+def test_without_narrow_strips_the_costmaps_read_the_raw_scan_and_no_filter_runs(strips):
+    _, found = _expand("false", narrow_strips=strips)
+    assert [n.node_name for n, _ in found] == [f"/pinky1/{name}" for name in NAMES]
+    for layer in _obstacle_layers(found).values():
+        assert layer["scan"]["topic"] == "/pinky1/scan"
+
+
+@pytest.mark.parametrize("composition", ["false", "true"])
+def test_narrow_strips_start_the_filter_and_only_the_costmaps_read_its_scan(composition):
+    _, found = _expand(composition, narrow_strips=STRIPS)
+    nodes = [n for n, _ in found]
+    [scan_filter] = [n for n in nodes if n.node_name == "/pinky1/scan_filter"]
+    assert scan_filter.node_package == "pinky_scan_filter"
+    assert scan_filter.node_executable == "scan_filter"
+    assert scan_filter.expanded_remapping_rules == [("/tf", "tf"), ("/tf_static", "tf_static")]
+    given = "".join(Path(path).read_text(encoding="utf-8")
+                    for path, is_file in scan_filter._Node__expanded_parameter_arguments if is_file)
+    assert "wall_band_m: 0.05" in given and STRIPS in given
+    if composition == "false":
+        layers = _obstacle_layers(found)
+        for layer in layers.values():
+            assert layer["scan"]["topic"] == "/pinky1/scan_filtered"
+        amcl = _param_files(nodes[NAMES.index("amcl")])["pinky1"]["amcl"]["ros__parameters"]
+        assert amcl["scan_topic"] == "scan", "AMCL keeps the raw scan"
+    else:
+        container = nodes[0]
+        costmap = _param_files(container)["pinky1"]["local_costmap"]["local_costmap"]
+        assert costmap["ros__parameters"]["obstacle_layer"]["scan"]["topic"] == (
+            "/pinky1/scan_filtered")

@@ -10,7 +10,7 @@ from zone_harness import Harness
 
 
 def backing_out(silent_end=True):
-    """pinky1이 작업 도크에서 X_W로 물러나는 세계. silent_end면 끝에 닿아도 결과가 오지 않는다."""
+    """pinky1이 작업 도크에서 N_W로 물러나는 세계. silent_end면 끝에 닿아도 결과가 오지 않는다."""
     world = Harness(starts={"pinky1": "W", "pinky2": "P-2", "pinky3": "P-3"})
     world.report()
     world.call("OUTBOUND", "pinky1")
@@ -29,22 +29,22 @@ def test_a_retreat_left_open_with_the_robot_at_its_end_is_taken_as_arrived():
     assert "GOAL_RETRY" not in codes, "standing at the end is not a failed attempt"
     assert [c.goal_id for c in world.sent(CancelCmd, "pinky1")] == [retreat.goal_id], \
         "the open goal is cancelled"
-    assert world.view("pinky1")["node"] == "X_W"
-    assert world.run_until(lambda: world.sent(MoveCmd, "pinky1"), 10.0), "it goes on from X_W"
+    assert world.view("pinky1")["node"] == "N_W"
+    assert world.run_until(lambda: world.sent(MoveCmd, "pinky1"), 10.0), "it goes on from N_W"
     assert len(world.sent(RetreatCmd, "pinky1")) == 1, "the retreat is not sent again"
     assert not world.problems
 
 
 def test_a_retreat_answered_as_failed_with_the_robot_at_its_end_is_taken_as_arrived():
     world, retreat, answer = backing_out()
-    assert world.run_until(lambda: world.bots["pinky1"].cmd is None, 20.0), "it reached X_W"
+    assert world.run_until(lambda: world.bots["pinky1"].cmd is None, 20.0), "it reached N_W"
     world.step()
     answer("pinky1", retreat.goal_id, False, "FAILED")
     world.step()
     codes = world.codes("pinky1")
     assert "GOAL_ENDED_AT_TARGET" in codes and "RETREAT_DONE" in codes
     assert "GOAL_RETRY" not in codes
-    assert world.view("pinky1")["node"] == "X_W"
+    assert world.view("pinky1")["node"] == "N_W"
     assert not world.sent(CancelCmd, "pinky1"), "the goal has ended, nothing to cancel"
 
 
@@ -96,7 +96,7 @@ def test_the_next_goal_waits_until_the_cancel_of_the_open_goal_has_reached_the_r
 
 def at_the_end_unanswered():
     world, retreat, answer = backing_out()
-    assert world.run_until(lambda: world.bots["pinky1"].cmd is None, 20.0), "it reached X_W"
+    assert world.run_until(lambda: world.bots["pinky1"].cmd is None, 20.0), "it reached N_W"
     world.step()
     return world, retreat, answer
 

@@ -4,9 +4,10 @@ from pathlib import Path
 
 import pytest
 from fake_robots.world import RecordingManager
-from fake_robots.world.situations import LAYOUTS, NAMES, build
+from fake_robots.world.situations import NAMES, build
 from fake_robots.world.table import HEADER, judge, markdown, run_situation
 from fleet_core.common.commands import EventOut
+from fleet_core.fleet_map import LAYOUTS
 
 TOOL = Path(__file__).resolve().parents[3] / "tools" / "situations.py"
 
@@ -61,6 +62,75 @@ def test_perfect_keeps_the_situation_expectations_and_the_others_use_section_thr
     assert build("pose_jumps", "d").for_mode("none").allowed == ("I5_STANDING",)
 
 
+def test_a_detour_long_after_the_person_left_is_not_blamed_on_the_person():
+    """'사람이 잠깐 지나감'이 막는 것은 사람 때문의 우회다. 사람이 떠나고 한참 뒤 로봇끼리 서로 막아
+    잡은 우회는 그 상황의 기대가 아니다(D2 씨드 3: 96 s 뒤 N_E와 O_Q 곁)."""
+    from types import SimpleNamespace
+
+    from fake_robots.world.table import expectations
+
+    s = build("person_passing", "d2")
+    [person] = s.injections
+    assert s.quiet_until_s == pytest.approx(person.t1 + 30.0)
+
+    def world(reroute_at, retreat_at=()):
+        events = [(reroute_at, SimpleNamespace(code="REROUTE"))]
+        return SimpleNamespace(
+            events=events, t=300.0, central=SimpleNamespace(total=6, finished=6),
+            metrics=SimpleNamespace(count=lambda code: sum(e.code == code for _, e in events),
+                                    retreats=len(retreat_at), retreat_times=list(retreat_at)))
+
+    assert expectations(s, world(person.t1 + 5.0)) == ["REROUTE x1"]
+    assert expectations(s, world(person.t1 + 96.0)) == []
+    # 후진도 같은 때까지만 센다: 늦은 우회는 봐주고 같은 때의 후진만 실패로 치지 않는다
+    late = person.t1 + 96.0
+    assert expectations(s, world(late, retreat_at=[late])) == []
+    assert expectations(s, world(late, retreat_at=[person.t1 + 5.0, late])) == ["retreats 1 > 0"]
+    whole_run = build("express_both_ends", "d2")
+    assert whole_run.quiet_until_s is None
+
+
+@pytest.mark.parametrize("name", ["person_in_express", "person_at_dock"])
+def test_the_store_person_situations_judge_the_same_window(name):
+    """매장 상황의 사람 둘도 같다. D2 씨드 3은 사람과 상관없이 118.9 s에 동쪽 구석에서 우회한다."""
+    s = build(name, "d2")
+    [person] = s.injections
+    assert s.quiet_until_s == pytest.approx(person.t1 + 30.0)
+    assert run_situation(name, "d2", 3).failures == []
+
+
+@pytest.mark.parametrize("mode", ["perfect", "none"])
+def test_a_box_that_stays_lets_a_robot_wait_in_the_express(mode):
+    """상자가 600 s 그대로면 막힌 로봇이 급행 안에서 도크의 로봇이 나가기를 기다린다(정한 동작).
+    이 기다림이 불변식 5번으로 실패하면 회귀 명령(avoid_regression.sh)의 1단계가 늘 1로 끝난다."""
+    s = build("box_stays", "d2").for_mode(mode)
+    assert "I5_STANDING" in s.allowed
+    assert run_situation("box_stays", "d2", 1, avoid_mode=mode).failures == []
+
+
+def test_the_wait_in_the_express_is_excused_only_while_the_box_is_there():
+    """상자를 치운 뒤에도 급행 안에 서 있으면 기다림이 아니다: 치우고 30 s 뒤부터는 실패다."""
+    from types import SimpleNamespace
+
+    from fake_robots.world.table import correctness
+
+    s = build("box_stays", "d2")
+    [box] = s.injections
+    assert s.allowed_until_s == pytest.approx(box.t1 + 30.0)
+    assert s.for_mode("none").allowed_until_s == s.allowed_until_s
+
+    def world(at):
+        standing = SimpleNamespace(code="I5_STANDING", t=at, detail="pinky2 stands in EXPRESS")
+        return SimpleNamespace(violations=[standing], metrics=SimpleNamespace(count=lambda _: 0))
+
+    assert correctness(s, world(box.t1 + 30.0)) == []
+    [late] = correctness(s, world(box.t1 + 31.0))
+    assert late.startswith("I5_STANDING at")
+    # 다른 상황의 허용은 끝까지다
+    jumps = build("pose_jumps", "d2")
+    assert jumps.allowed_until_s is None and correctness(jumps, world(899.0)) == []
+
+
 def test_a_silent_stall_fails_every_mode_as_a_safety_rule():
     for mode in ("none", "perfect"):
         outcome = run_situation("person_passing", "d2", 1, manager_factory=RecordingManager,
@@ -69,3 +139,36 @@ def test_a_silent_stall_fails_every_mode_as_a_safety_rule():
         outcome.world.send(EventOut("ERROR", "SILENT_STALL", "no progress", "pinky1"))
         assert "SILENT_STALL x1" in judge(build("person_passing", "d2").for_mode(mode),
                                           outcome.world)
+
+
+def test_the_test_layout_runs_by_name_but_is_not_in_the_default_list():
+    from fleet_core.fleet_map import KNOWN_LAYOUTS, TEST_LAYOUTS
+
+    assert "d2_shelf" in TEST_LAYOUTS and "d2_shelf" in KNOWN_LAYOUTS
+    assert not set(LAYOUTS) & set(TEST_LAYOUTS)
+    assert KNOWN_LAYOUTS == (*LAYOUTS, *TEST_LAYOUTS)
+    assert build("hall_obstacle", "d2_shelf").title
+
+
+@pytest.mark.skipif(not TOOL.is_file(), reason="only in the source tree")
+def test_the_tool_runs_the_candidates_by_default_and_a_test_layout_when_named(monkeypatch):
+    from types import SimpleNamespace
+
+    spec = importlib.util.spec_from_file_location("situations_tool", TOOL)
+    tool = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(tool)
+    seen = []
+
+    def stub(name, layout, seed, **_):
+        seen.append(layout)
+        central = SimpleNamespace(finished=1, total=1)
+        return SimpleNamespace(world=SimpleNamespace(central=central), failures=[],
+                               row=("x", layout, seed, "perfect", "1/1", "", "", "", "", "", "",
+                                    "", "", "", ""))
+
+    monkeypatch.setattr(tool, "run_situation", stub)
+    tool.main(["-s", "hall_obstacle", "--seeds", "1"])
+    assert seen == list(LAYOUTS)
+    seen.clear()
+    tool.main(["-s", "hall_obstacle", "--seeds", "1", "-l", "d2_shelf"])
+    assert seen == ["d2_shelf"]

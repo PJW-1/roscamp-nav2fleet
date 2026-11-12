@@ -1,7 +1,7 @@
 """gz.launch.py가 배치와 시나리오에서 정하는 것. ROS 없이 돈다(fleet_core, fake_robots 순수 파이썬).
 
-- 배치(layout): d2(기본), d, c. 구역 지도 fleet_core/data/fleet_map_<배치>.yaml과, arena.py가 그
-  지도로 만든 월드·지도·keepout 마스크(Arena)를 고른다.
+- 배치(layout): d2(기본), d, c, 시험용 d2_shelf. 구역 지도 fleet_core/data/fleet_map_<배치>.yaml과,
+  arena.py가 그 지도로 만든 월드·지도·keepout 마스크(Arena)를 고른다.
 - 시나리오의 `map`은 배치 이름이다(없으면 d2). launch의 layout과 다르면 띄우지 않는다.
 - 핑키를 놓는 자리: 시나리오 robots의 start(지점 이름). start가 없으면 주차 지점을 차례로 준다.
   방향은 그 지점의 yaw(없으면 0).
@@ -14,9 +14,8 @@ from dataclasses import dataclass
 from pathlib import Path
 
 import yaml
-from fleet_core.fleet_map import load_fleet_map
-
-from fleet_gz_sim.arena import LAYOUTS
+from fleet_core.fleet_map import KNOWN_LAYOUTS, load_fleet_map
+from fleet_core.fleet_map.model import SHARED
 
 DEFAULT_LAYOUT = "d2"
 ARENA_FAULTS = ("low_battery",)  # 경기장에서도 일으킬 수 있는 로봇 고장(sim_stand_in)
@@ -27,8 +26,8 @@ class ScenarioUnfit(RuntimeError):
 
 
 def layout_of(value: str) -> str:
-    if value not in LAYOUTS:
-        raise ScenarioUnfit(f"layout must be one of {', '.join(LAYOUTS)}, got {value!r}")
+    if value not in KNOWN_LAYOUTS:
+        raise ScenarioUnfit(f"layout must be one of {', '.join(KNOWN_LAYOUTS)}, got {value!r}")
     return value
 
 
@@ -150,6 +149,42 @@ def start_nodes(site, data: dict) -> dict[str, str]:
     if len(set(out.values())) != len(out):
         raise ScenarioUnfit(f"two robots start on one node: {out}")
     return out
+
+
+def shelf_end_boxes(shelves, band: float) -> list[tuple[float, float, float, float]]:
+    """진열대마다 긴 축 두 끝면을 band만큼 사방으로 넓힌 사각형 둘(낮은 끝, 높은 끝)."""
+    boxes = []
+    for x0, y0, x1, y1 in shelves:
+        if x1 - x0 >= y1 - y0:
+            ends = ((x0, y0, x0, y1), (x1, y0, x1, y1))
+        else:
+            ends = ((x0, y0, x1, y0), (x0, y1, x1, y1))
+        boxes += [tuple(round(v, 6) for v in (a - band, b - band, c + band, d + band))
+                  for a, b, c, d in ends]
+    return boxes
+
+
+def narrow_strips(site, band: float = 0.05) -> str:
+    """스캔 거르개의 좁은 띠를 "x0,y0,x1,y1; ..." 글로.
+
+    넓은 구역이 아닌 구역의 사각형(x0, y0 순) 뒤에 진열대 끝면 상자(shelf_end_boxes)를 붙인다.
+    끝면 잡음은 좁은 띠 바로 밖(D2에서는 HALL의 1.5 cm 띠)에 떨어져 띠만으로는 남기 때문이다(2-1
+    후진 모퉁이). 구역 사각형의 변이 경기장 벽에 닿으면 그 변을 band만큼 벽 너머로 넓힌다. 벽 면
+    너머로 잰 잡음 점과 AMCL 오차로 너머에 놓인 점도 띠에 들게 한다. band는 거르개의 wall_band_m과
+    같게 준다. pinky_nav_config nav2.launch.py의 narrow_strips 인자 꼴이다(추가지시서3 7-2).
+    """
+    bx0, by0, bx1, by1 = site.bounds()
+
+    def past_walls(rect):
+        x0, y0, x1, y1 = rect
+        return tuple(round(v, 6) for v in (
+            x0 - band if x0 <= bx0 + 1e-9 else x0, y0 - band if y0 <= by0 + 1e-9 else y0,
+            x1 + band if x1 >= bx1 - 1e-9 else x1, y1 + band if y1 >= by1 - 1e-9 else y1))
+
+    rects = sorted(past_walls(rect) for zone in site.zones.values() if zone.kind != SHARED
+                   for rect in zone.rects)
+    rects += shelf_end_boxes(site.shelves, band)
+    return "; ".join(",".join(f"{v:g}" for v in rect) for rect in rects)
 
 
 def start_poses(site, starts: dict[str, str]) -> dict[str, tuple[float, float, float]]:

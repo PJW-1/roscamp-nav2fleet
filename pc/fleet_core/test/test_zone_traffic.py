@@ -27,14 +27,17 @@ def test_an_open_call_brings_the_nearest_robot_to_the_work_dock():
     assert (result.success, result.robot_id) == (True, "pinky2"), "P-2 is nearest to the dock"
     moves = world.sent(MoveCmd, "pinky2")
     assert [(c.mode, c.target_id) for c in moves] == [("nav_goal", "N_W"), ("follow_path", "W")]
-    assert [(x, y) for x, y, _ in moves[1].path] == [(0.40, 0.65), (0.40, 0.89), (0.18, 0.89)]
+    assert [(x, y) for x, y, _ in moves[1].path] == [(0.35, 0.65), (0.35, 0.89), (0.18, 0.89)]
     assert [c.dock_id for c in world.sent(DockCmd)] == ["WORK"]
     codes = world.codes("pinky2")
     assert [c for c in codes if c in ("ZONE_GRANTED", "NAV_GOAL_SENT", "FOLLOW_SENT", "DOCKED")] \
         == ["ZONE_GRANTED", "NAV_GOAL_SENT", "FOLLOW_SENT", "DOCKED"]
     world.run(3.0)
     view = world.view("pinky2")
-    assert (view["state"], view["held"], view["nodes"]) == ("AT_STATION", ["WORK_DOCK"], ["W"])
+    # X_W는 W에서 0.17 m라 node_clear_m(0.20) 안이다: 도크에 선 로봇이 X_W를 쥔 채 일한다(2-1에서
+    # 갈림목 선을 x 0.35로 옮긴 결과). X_W를 지나는 길은 W로 가는 길과 우회뿐이다
+    assert (view["state"], view["held"], view["nodes"]) == (
+        "AT_STATION", ["WORK_DOCK"], ["X_W", "W"])
     assert not world.problems
 
 
@@ -61,10 +64,12 @@ def test_work_to_outbound_runs_the_express_and_backs_out_of_the_dock_first():
     assert world.run_until(lambda: world.result_of(out) is not None)
     assert world.result_of(out).success
     retreat = world.sent(RetreatCmd, "pinky2")
+    # 갈림목에서 돌지 않는다: 마당의 N_W까지 물러나 북쪽을 본 채로 다시 올라가 급행에 든다(2-1)
     assert len(retreat) == 1 and [(x, y) for x, y, _ in retreat[0].path] == [
-        (0.18, 0.89), (0.40, 0.89)]
+        (0.18, 0.89), (0.30, 0.89), (0.35, 0.65)]
     express = world.sent(MoveCmd, "pinky2")[-1]
-    assert [(x, y) for x, y, _ in express.path] == [(0.40, 0.89), (1.58, 0.89), (1.80, 0.89)]
+    assert [(x, y) for x, y, _ in express.path] == [
+        (0.35, 0.65), (0.35, 0.89), (1.63, 0.89), (1.80, 0.89)]
     codes = world.codes("pinky2")
     assert "LANE_DIRECTION_SET" in codes and "RETREAT_START" in codes and "RETREAT_DONE" in codes
     world.run(3.0)

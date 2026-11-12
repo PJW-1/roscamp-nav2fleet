@@ -1,0 +1,11 @@
+05:50:35 start
+[avoid_regression] 2/3 Gazebo 한 대, 구간 종류마다 1번(stage2)
+[avoid_regression]     실패: /home/pjw/nf_logs/line/reg_stall/drive_check.md, /home/pjw/nf_logs/line/reg_stall/drive_check.log
+[avoid_regression] 3/3 Gazebo 세 대 경기, 씨드 1
+[avoid_regression]     실패: 시간 한도를 넘었다. /home/pjw/nf_logs/line/reg_stall/game1.log
+[avoid_regression] 3/3 Gazebo 세 대 경기, 씨드 2
+[avoid_regression]     실패: 시간 한도를 넘었다. /home/pjw/nf_logs/line/reg_stall/game2.log
+[avoid_regression] 3/3 Gazebo 세 대 경기, 씨드 3
+[avoid_regression]     실패: 시간 한도를 넘었다. /home/pjw/nf_logs/line/reg_stall/game3.log
+[avoid_regression] 실패 4건: 한 대 주행,세 대 경기 씨드 1 (시간 한도 1200 s),세 대 경기 씨드 2 (시간 한도 1200 s),세 대 경기 씨드 3 (시간 한도 1200 s). 결과: /home/pjw/nf_logs/line/reg_stall
+06:51:42 exit 1

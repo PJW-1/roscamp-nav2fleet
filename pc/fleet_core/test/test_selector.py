@@ -1,7 +1,7 @@
 """RobotSelector: 누가 채움 도크로 불리는가. 순수 함수이고 단순 로봇 기록으로 구동.
 
-D2 배치에서 W(채우기 도크)까지 길을 따라 잰 거리(m): X_W 0.22, N_W 0.46, P-2 0.96, P-1 1.03,
-O 1.62, N_E 1.64, P-3 1.99. 곧은 거리로는 P-1이 P-2보다, N_E가 O보다 가깝다.
+D2 배치에서 W(채우기 도크)까지 길을 따라 잰 거리(m): X_W 0.17, N_W 0.41, P-2 0.91, P-1 0.96,
+N_E 1.69, P-3 1.99, O 2.10(N_E까지 후진한 뒤). 곧은 거리로는 P-1이 P-2보다 가깝다.
 """
 from dataclasses import replace
 
@@ -33,7 +33,7 @@ def test_calls_follow_the_number_of_unbound_orders(selector):
     assert selector.pick(5, robots) == {"a", "b", "c"}, "no more calls than robots"
 
 
-@pytest.mark.parametrize("near_in_a_line, near_along_the_way", [("P-1", "P-2"), ("N_E", "O")])
+@pytest.mark.parametrize("near_in_a_line, near_along_the_way", [("P-1", "P-2")])
 def test_shortest_way_along_the_graph_wins_not_the_straight_line(selector, near_in_a_line,
                                                                  near_along_the_way):
     robots = [at("in_a_line", near_in_a_line), at("along", near_along_the_way)]

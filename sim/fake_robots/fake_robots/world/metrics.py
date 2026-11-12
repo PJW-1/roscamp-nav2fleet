@@ -17,6 +17,7 @@ class Metrics:
         self.lane_uses = 0
         self.direction_changes = 0
         self.retreats = 0  # 도크에서 나오는 것 말고(막혀서 물러난 것)
+        self.retreat_times: list[float] = []  # 그 후진을 낸 시각
         self.dock_exits = 0  # 도킹한 로봇이 도크 구역에서 물러나 나온 것(평소 흐름)
         self.end_t: float | None = None
         self.event_counts: dict[str, int] = {}
@@ -24,13 +25,14 @@ class Metrics:
         self._in_lane: dict[str, str] = {}
         self._last_direction: dict[str, str] = {}
 
-    def on_output(self, item, docked: bool = False) -> None:
+    def on_output(self, item, docked: bool = False, t: float = 0.0) -> None:
         """docked: 명령을 받는 로봇이 지금 도킹해 있다."""
         if isinstance(item, RetreatCmd):
             if docked:
                 self.dock_exits += 1
             else:
                 self.retreats += 1
+                self.retreat_times.append(t)
 
     def on_event(self, event) -> None:
         self.event_counts[event.code] = self.event_counts.get(event.code, 0) + 1

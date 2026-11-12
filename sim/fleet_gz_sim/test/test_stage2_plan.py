@@ -19,27 +19,32 @@ def test_every_plan_is_made_of_d2_links_and_ends_where_it_started(plan):
         assert one.nodes[-1] == two.nodes[0]
 
 
-def test_stage2_covers_the_yard_work_in_retreat_express_and_j_w_down():
+def test_stage2_covers_every_segment_type_of_the_acceptance():
+    """추가 지시서 3의 2-5: 마당 goal, 도크 진입 둘, Retreat 둘, 급행 양방향, 갈림목 내려오기 둘."""
     kinds = {(s.kind, s.nodes) for s in sp.build(SITE, "stage2")}
     assert (FOLLOW_PATH, ("N_W", "X_W", "W")) in kinds
-    assert (RETREAT, ("W", "X_W")) in kinds
-    assert (FOLLOW_PATH, ("X_W", "X_E")) in kinds and (FOLLOW_PATH, ("X_E", "X_W")) in kinds
-    assert (FOLLOW_PATH, ("X_W", "N_W")) in kinds
-    assert sum(k == NAV_GOAL for k, _ in kinds) == 4
+    assert (FOLLOW_PATH, ("N_E", "X_E", "O")) in kinds
+    assert (RETREAT, ("W", "N_W")) in kinds and (RETREAT, ("O", "N_E")) in kinds
+    assert (FOLLOW_PATH, ("N_W", "X_W", "X_E", "N_E")) in kinds
+    assert (FOLLOW_PATH, ("N_E", "X_E", "X_W", "N_W")) in kinds
+    assert sum(k == NAV_GOAL for k, _ in kinds) == 2
 
 
 def test_a_nav_goal_ends_on_the_node_yaw_or_the_fixed_path_it_joins():
     to_park = sp.make_step(SITE, NAV_GOAL, ("N_W", "P-3"))
     assert to_park.target == pytest.approx((1.85, 0.15, math.pi / 2))
     to_n_w = sp.make_step(SITE, NAV_GOAL, ("P-1", "N_W"))
-    assert to_n_w.target == pytest.approx((0.40, 0.65, math.pi / 2))  # N_W -> X_W points north
+    assert to_n_w.target == pytest.approx((0.35, 0.65, math.pi / 2))  # N_W -> X_W points north
 
 
-def test_a_retreat_path_faces_the_way_the_robot_looks():
-    step = sp.make_step(SITE, RETREAT, ("W", "X_W"))
-    assert [p[:2] for p in step.poses] == [pytest.approx((0.18, 0.89)),
-                                           pytest.approx((0.40, 0.89))]
-    assert all(abs(abs(p[2]) - math.pi) < 1e-9 for p in step.poses)  # facing west, driving east
+def test_a_retreat_path_keeps_its_bend_and_faces_the_way_the_robot_looks():
+    step = sp.make_step(SITE, RETREAT, ("W", "N_W"))
+    # D2 후진 꺾는 점 (0.30, 0.89): 마지막 조각은 N_W로 비스듬히 내려간다(2-1)
+    assert [p[:2] for p in step.poses] == [pytest.approx((0.18, 0.89)), pytest.approx((0.30, 0.89)),
+                                           pytest.approx((0.35, 0.65))]
+    assert abs(abs(step.poses[0][2]) - math.pi) < 1e-9  # facing west, driving east
+    # facing back up the slant (north-west), driving down it
+    assert step.poses[-1][2] == pytest.approx(math.atan2(0.24, -0.05))
 
 
 @pytest.mark.parametrize("kind, nodes", [

@@ -16,7 +16,6 @@ GONE_FAULTS = ("stuck", "operator_remove")
 OBJECT_RADIUS_M = 0.10  # object 고장의 기본 반지름: 사람 다리나 작은 상자
 OBJECT_KEYS = ("x", "y", "radius_m")
 OBJECT_MAP_MARGIN_M = 1.0  # 물체는 지도 범위에서 이만큼 안에 있어야 한다(오타 막기)
-LAYOUTS = ("d2", "d", "c")  # map: 으로 고르는 배치(fleet_core/data/fleet_map_<배치>.yaml)
 REINSTATE_BASKETS = ("EMPTY", "NONE")  # operator_reinstate가 관리자 대신 알리는 바구니
 EXPECT_DEFAULTS = {
     "all_orders_finished": True,

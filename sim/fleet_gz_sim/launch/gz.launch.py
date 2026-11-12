@@ -7,8 +7,9 @@
   (fleet_setup.arena_for). 시나리오는 비면 gz_<배치>이고, 시나리오의 map이 배치와 같아야 한다.
 - 핑키는 시나리오의 start 지점(없으면 주차 지점 차례)에 그 지점의 yaw로 놓는다(fleet_setup).
 - 로봇마다 Nav2(pinky_nav_config)에 배치의 지도와 keepout_mask를 준다. sim_nav_params가
-  controller 넷(FollowPath, FollowPathThrough, FollowPathReverse, FollowPathGoal)의 충돌 검사를
-  모두 켜고 속도를 nav_max_speed(0.12~0.20 m/s)로 묶는다.
+  controller 넷(FollowPath, FollowPathThrough, FollowPathReverse, FollowPathGoal)의 속도를
+  nav_max_speed(0.12~0.20 m/s)로 묶는다. 충돌 검사는 마당 goal(FollowPathGoal)만 늘 켜고,
+  고정 경로 셋은 fixed_line_collision_check:=true일 때만 켠다(기본 끔).
 - 모든 로봇이 IDLE이 되면(wait_ready) 관제(map_file = 배치 이름, traffic_mode zones), 가짜
   작업셀·비전·출고 팔·central, 시나리오 모니터를 띄운다. 모니터가 결과를 쓰고 launch를 끝낸다.
 - 시계는 Gazebo /clock 하나를 모두 쓴다. 주문 시각(at_s)은 Gazebo 시계 0부터 센다.
@@ -38,7 +39,7 @@ from launch_ros.actions import Node
 from rclpy import get_rmw_implementation_identifier
 
 ARGS = {
-    "layout": ("d2", "배치: d2(기본), d, c"),
+    "layout": ("d2", "배치: d2(기본), d, c, 시험용 d2_shelf"),
     "scenario": ("", "시나리오 이름(fleet_gz_sim, fake_robots 순서로 찾음)이나 파일."
                      " 비면 gz_<배치>(주문 8건, 3대)"),
     "gui": ("true", "Gazebo 화면"),
@@ -65,8 +66,15 @@ ARGS = {
     "scenario_seed": ("", "시나리오 random 블록을 풀 seed(정수). 비면 파일의 seed"),
     "battery_low_pct": ("", "관제 battery_low_pct(0~100). 주면 그 값을 넣은 파라미터 사본"
                             "(result_dir/fleet_params.yaml)으로 돈다. 비우면 파일 그대로"),
-    "fixed_line_collision_check": ("true", "시뮬 전용. false면 고정 경로 controller 셋(FollowPath,"
-                                           " Through, Reverse)의 충돌 검사를 끈다. 마당 goal은 켬"),
+    "fixed_line_collision_check": ("false", "시뮬 전용. true면 고정 경로 controller 셋(FollowPath,"
+                                           " Through, Reverse)도 충돌 검사를 켠다. 마당은 늘 켬"),
+    "scan_filter": ("true", "좁은 띠 안에서 벽·진열대에 붙은 라이다 점을 costmap에서 지우는 거르개"
+                            "(pinky_scan_filter, 추가지시서3 7-2). false면 띄우지 않는다(비교용)"),
+    "wall_band_m": ("0.05", "스캔 거르개: 벽·진열대에서 이만큼 안의 점을 지운다(m)."
+                            " 0.05는 D2 측정으로 고른 값(fixed_line_results.md)"),
+    "fleet_record": ("false", "true면 관제 기록(fleet_manager --record)을"
+                              " result_dir/fleet_record.jsonl에 남긴다. tools/triage,"
+                              " tools/avoid_regression.py, tools/replay.py가 읽는다"),
     "use_order_model": ("","true/false: 관제의 use_order_model 파라미터(order 모델이 있는"
                             " 관제만 읽는다). 비우면 params 파일의 값"),
 }
@@ -145,8 +153,10 @@ def params_for(params_file: str, result_dir: str, battery_low_pct: str = "") -> 
 
 def fleet(scenario_file: str, robots: list[str], result_dir: str, monitor: bool,
           layout: str, params_file: str = "", obstacles_file: str = "", check: bool = True,
-          scenario_seed: int | None = None, use_order_model: bool | None = None) -> list:
+          scenario_seed: int | None = None, use_order_model: bool | None = None,
+          record: str = "") -> list:
     """진짜 관제와 가짜 작업셀·비전·출고 팔·central·모니터, 장애물(있으면). 모두 Gazebo 시계.
+    record: 관제 기록 파일(fleet_manager --record). 비면 남기지 않는다.
     layout: 관제와 가짜들의 map_file(배치 이름).
     scenario_seed: 시나리오를 읽는 노드에 넘길 seed. None이면 넘기지 않는다(파일의 seed).
     use_order_model: 관제 노드 파라미터 use_order_model. None이면 넘기지 않는다(파일의 값)."""
@@ -161,7 +171,7 @@ def fleet(scenario_file: str, robots: list[str], result_dir: str, monitor: bool,
                     parameters=[{**common, **extra}])
 
     actions = [Node(package="fleet_manager", executable="fleet_manager_node", name="fleet_manager",
-                    output="screen",
+                    output="screen", arguments=["--record", record] if record else [],
                     parameters=[{"use_sim_time": True, "robots": robots,
                                  "params_file": params_file, **map_file,
                                  **({} if use_order_model is None
@@ -217,6 +227,7 @@ def _start(context):
         check_fits,
         has_low_battery,
         layout_of,
+        narrow_strips,
         obstacles_path,
         read_scenario,
         scenario_path,
@@ -247,6 +258,8 @@ def _start(context):
     through = flag(value("nav_pass_through"), "nav_pass_through")
     keepout = flag(value("keepout"), "keepout")
     fixed_check = flag(value("fixed_line_collision_check"), "fixed_line_collision_check")
+    strips = (narrow_strips(site, float(value("wall_band_m")))
+              if flag(value("scan_filter"), "scan_filter") else "")
     params_file = params_for(params_file_of(value("fleet_params_file")), value("result_dir"),
                              value("battery_low_pct"))
     max_speed = launch_parts.speed_of(value("nav_max_speed"))
@@ -265,6 +278,8 @@ def _start(context):
                                       through_controller_id=(launch_parts.THROUGH_CONTROLLER
                                                              if through else ""),
                                       nav_max_speed=max_speed, fixed_line_check=fixed_check,
+                                      narrow_strips=strips,
+                                      wall_band_m=float(value("wall_band_m")),
                                       battery_topic=(launch_parts.BATTERY_TOPIC.format(robot=robot)
                                                      if battery else ""))
     if value("rviz") == "fleet":
@@ -279,6 +294,8 @@ def _start(context):
     wait = Node(package="fleet_gz_sim", executable="wait_ready", name="wait_ready",
                 output="screen", parameters=[{"robots": robots}])
     monitor = flag(value("monitor"), "monitor")
+    record = (str(Path(value("result_dir")) / "fleet_record.jsonl")
+              if flag(value("fleet_record"), "fleet_record") else "")
     order = (None if not value("use_order_model").strip()
              else flag(value("use_order_model"), "use_order_model"))
 
@@ -286,7 +303,7 @@ def _start(context):
         if event.returncode != 0:
             return [LogInfo(msg="fleet_gz_sim: 로봇이 IDLE이 되지 않아 끝낸다"), Shutdown()]
         return fleet(scenario_file, robots, value("result_dir"), monitor, layout,
-                     params_file, obstacles_file, check, scenario_seed, order)
+                     params_file, obstacles_file, check, scenario_seed, order, record)
 
     actions += [wait, RegisterEventHandler(OnProcessExit(target_action=wait, on_exit=after_wait))]
     return actions

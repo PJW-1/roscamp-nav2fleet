@@ -34,13 +34,14 @@ OnCancelAccepted = Callable[[int], None]
 
 class FollowPathRunner:
     def __init__(self, node, action_name: str, frame: str, nav_ids: tuple[str, str, str],
-                 through_id: str, reverse_id: str, on_rejected: OnRejected,
+                 through_id: str, reverse_id: tuple[str, str], on_rejected: OnRejected,
                  on_result: OnResult, on_cancel_accepted: OnCancelAccepted,
                  callback_group=None):
         self._node = node
         self._frame = frame
         self._nav_ids = nav_ids  # (controller, goal checker, progress checker)
-        self._through_id, self._reverse_id = through_id, reverse_id
+        self._through_id = through_id
+        self._reverse_id = reverse_id  # (후진 controller, 후진 goal checker. 비면 보통 checker)
         self._client = ActionClient(node, FollowPath, action_name,
                                     callback_group=callback_group)
         self._on_rejected, self._on_result = on_rejected, on_result
@@ -69,7 +70,7 @@ class FollowPathRunner:
             # updateGlobalPath), and the speed limit reaches every loaded controller
             controller = self._through_id
         if reverse:
-            controller = self._reverse_id
+            controller, checker = self._reverse_id[0], self._reverse_id[1] or checker
         goal = FollowPath.Goal(path=path, controller_id=controller, goal_checker_id=checker,
                                progress_checker_id=progress)
         with self._lock:

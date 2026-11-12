@@ -100,6 +100,8 @@ pgrep -af "gz sim|ruby|component_container|pinky_fsm_node|fleet_manager_node"   
 | `fleet_params_file` | 설치된 `fleet_params.yaml` | 관제 파라미터 |
 | `heartbeat_timeout_s` | `1.5` | `pinky_fsm`의 heartbeat 끊김 판정 |
 | `nav_log_level` | `warn` | Nav2 로그 수준 |
+| `scan_filter` | `true` | 스캔 거르개(`pinky_scan_filter`)를 띄우고 배치의 shared가 아닌 구역 사각형(경기장 벽에 닿은 변은 `wall_band_m`만큼 벽 너머까지)과 진열대 끝면마다 `wall_band_m`만큼 넓힌 작은 상자를 좁은 띠로 준다. `false`면 costmap이 원래 스캔을 읽는다(비교용) |
+| `wall_band_m` | `0.05` | 거르개가 벽·진열대에서 지우는 띠 폭(m). D2 측정에서 0.04는 도크 진입을 두 번 중 한 번 멈췄고 0.05는 세 번 지나갔다(`results/fixed_line_results.md`) |
 | `nav_composition` | `true` | 로봇마다 Nav2 노드 9개를 프로세스 하나로. `false`면 DDS 참여자가 LOCALHOST 한도(약 32)를 넘어 pinky3이 안 보인다 |
 
 `true`/`false` 인자에 오타가 있으면 launch가 바로 멈춘다.
@@ -166,7 +168,7 @@ ros2 run fleet_gz_sim drive_check --layout d2 --plan stage2 --json stage2.json
 ros2 run fleet_gz_sim drive_check --plan cross     # P-1 -> P-3 -> P-1 Nav2 goal(둘째 핑키 확인용)
 ```
 
-`drive_check`는 관제 없이 로봇에 바로 이동을 보낸다(`fleet_gz_sim/stage2_plan.py`). `stage2`는 P-1에서 출발해 Nav2 goal로 N_W, `work_in`(FollowPath)으로 작업 도크 W, Retreat로 X_W, 급행 왕복, `j_w_down`으로 N_W, 그리고 마당을 가로지르는 Nav2 goal 셋(P-3, N_E, P-1)이다. 구간마다 결과, 걸린 시간(벽시계, 시뮬), 끝 위치와 방향 오차, 고정 경로에서 벗어난 최대 거리, Nav2 계획이 지난 keepout 구역을 적는다. `/fleet/heartbeat`는 2 Hz로 보낸다.
+`drive_check`는 관제 없이 로봇에 바로 이동을 보낸다(`fleet_gz_sim/stage2_plan.py`). `stage2`는 고정 선을 한 바퀴 도는 계획이다(추가지시서3 2-1): P-1에서 Nav2 goal로 N_W, `work_in`으로 W, 후진으로 N_W, 급행 동쪽으로 N_E, `out_in`으로 O, 후진으로 N_E, 급행 서쪽으로 N_W, Nav2 goal로 P-1. 고정 선의 꺾는 점도 경로에 넣는다. 결과는 `results/fixed_line_results.md`. 구간마다 결과, 걸린 시간(벽시계, 시뮬), 끝 위치와 방향 오차, 고정 경로에서 벗어난 최대 거리, Nav2 계획이 지난 keepout 구역을 적는다. `/fleet/heartbeat`는 2 Hz로 보낸다.
 
 RViz의 2D Goal Pose로도 보낼 수 있다. 이것은 `bt_navigator`로 가고 `pinky_fsm`을 거치지 않는다.
 

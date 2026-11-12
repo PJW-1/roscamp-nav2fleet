@@ -69,6 +69,8 @@ class Goals:
         """지금 자리에서 goal까지의 연결들. 이미 거기면 [], 길이 없으면 None."""
         site, cost = self.site, self._cost(m)
         if m.retreat_to:  # 막혀서 물러나는 중: 지나온 지점까지 후진한 뒤 거기서 간다
+            if self._retreat_held_up(m):
+                return None  # 꺾이는 물러날 길 위에 로봇이 있다: 구역을 잡지 않고 기다린다
             back = self._back_link(m)
             rest = route(site, m.retreat_to, goal, cost)
             return None if rest is None or back is None else [back, *rest]
@@ -113,12 +115,14 @@ class Goals:
         return memo[zone]
 
     def _back_link(self, m):
-        """물러날 지점까지의 후진 연결. 지금 구역부터 그 지점의 구역까지를 지난다."""
+        """물러날 지점까지의 후진 연결. 지금 구역부터 (꺾는 갈림목의 구역,) 그 지점의 구역까지를
+        지난다."""
         site = self.site
         here = site.zone_at(m.x, m.y)
+        via = site.nodes[m.retreat_via].zone if m.retreat_via else None
         target = site.nodes[m.retreat_to].zone
-        zones = [zone for zone in (here, target) if zone is not None]
-        return back_link(site, m.x, m.y, m.retreat_to, dict.fromkeys(zones))
+        zones = [zone for zone in (here, via, target) if zone is not None]
+        return back_link(site, m.x, m.y, m.retreat_to, dict.fromkeys(zones), m.retreat_via)
 
     # ---- 목적지 ----
 
@@ -142,6 +146,12 @@ class Goals:
                     self._take_turn(m, trip)
                 return trip
             first_want = first_want or want
+        if first_want is None and m.retreat_to and not self._retreat_held_up(m):
+            # 물러날 곳에서 더 갈 길이 지금 없다. 막힌 자리에 서 있지 않고 물러나서 기다린다
+            back = self._back_link(m)
+            trip = None if back is None else Trip(m.retreat_to, [back])
+            if trip is not None and self._take(m, trip) is None:
+                return trip
         if first_want is not None:
             self._wants[m.name] = first_want
             self._note_wait(m, first_want)
@@ -181,6 +191,7 @@ class Goals:
             self._lane_set(m, lane, want, now)
         self._event("INFO", "ZONE_GRANTED",
                     f"{'+'.join(zones)} to {trip.links[end - 1].b}", m.name)
+        self._note_detour(m, trip)  # 막힌 뒤 처음 잡은 길이면 우회 종류(block_marks.py)
         return None
 
     def _rivals(self, m, lane: str, direction: str) -> dict:

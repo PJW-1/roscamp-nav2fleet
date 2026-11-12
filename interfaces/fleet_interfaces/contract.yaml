@@ -1,6 +1,21 @@
 # 이름, 타입, QoS의 유일한 기준. 코드는 `key`로 찾으므로 이름이나 QoS는 여기만 고친다.
 # 사용자 기준이다(팀 레포에 올릴 첫 판). QoS depth는 실제 Wi-Fi에서 측정해야 한다.
-version: 0.11-draft
+version: 0.13-draft
+# 0.13 (2026-11-13, nav2fleet, 기준(사용자), 추가 지시서 3의 7-4): 로봇단 교착 처리.
+# MoveTo goal에 int32 priority(-1: 비었다)를, RobotStatus(/fleet/robots)에 같은 값 int32 priority를,
+# RobotState에 string local_yield(wait/backup/retry, 아니면 빈 값)를 더했다. 핑키는 물체 앞에 서면
+# RECOVERING으로 local_wait_s(2 s) 기다리고, 앞을 막은 것이 /fleet/robots의 다른 로봇이고 자기
+# (priority, robot_id)가 더 작으면 지금 goal에서 지나온 길 안에서 local_backup_m(0.10 m)까지 물러난
+# 뒤 다시 간다. 그래도 막히면 BLOCKED다. blocked_after_s(10 s, 0.12까지 nav_goal만 5 s)는 선 때부터
+# BLOCKED까지의 상한이고 이 순서를 다 하고도 남는다. 관제는 RECOVERING 동안 막힘 시계를 쉬고(0.5와
+# 같다) local_yield가 바뀔 때마다 사건 LOCAL_YIELD를 낸다. 관제의 비키기(HALL_YIELD, 규칙 7)는
+# BLOCKED 뒤다. 핑키 계약 4절.
+# 0.12 (2026-11-12, nav2fleet, 기준(사용자), 추가 지시서 3의 4절): 막힘 처리 보완.
+# RobotState에 float64 obstacle_x, obstacle_y(map 좌표, 모르면 NaN), string obstacle_kind
+# (unknown/person/object/robot, 지금은 unknown만. 비면 위치를 쓰지 않는다)를 더했다. 핑키는 BLOCKED일 때
+# local costmap에서 가던 길 앞 obstacle_look_m(0.30 m) 안의 가장 가까운 장애물 칸으로 채운다.
+# 서비스 /{pinky}/check_clear(fleet_interfaces/srv/CheckClear: x, y, r -> answer clear/blocked/unknown)
+# 를 더했다. 관제가 막힘 표시의 점에서 check_range_m 안을 지나는 로봇에게 묻는다. 핑키 계약 4절.
 # 0.11 (2026-11-12, nav2fleet, 기준(사용자)): MoveTo goal에 string mode를 더했다(MODE_FOLLOW_PATH
 # "follow_path", MODE_NAV_GOAL "nav_goal", 비면 follow_path). nav_goal이면 핑키는 target_pose로
 # /{pinky}/navigate_to_pose(Nav2 NavigateToPose)를 보내고 path와 final_goal은 쓰지 않는다.
@@ -24,10 +39,10 @@ version: 0.11-draft
 # 마지막 지점이 아니면(잠금 경계) 거짓이다. 핑키는 그때 끝까지 남은 거리 d로 속도를 √(2·a·d) 아래로
 # 제한한다(nav2 speed_limit). 끝을 넘지 않는다는 규칙은 같다. FMS 개선 계획 버전 2 4절 horizon 최소판.
 # 자유바닥(traffic_mode: freefloor)에서는 굴러가는 칸 잠금 끝에서 끝나는 MoveTo가 모두 거짓이다.
-# 0.5 (2026-11-09, 제안): RobotState.state에 RECOVERING(핑키 FSM의 짧은 후진 자가 복구)을 더했다.
+# 0.5 (2026-11-09, 기준(사용자)): RobotState.state에 RECOVERING(핑키 FSM의 짧은 후진 자가 복구)을 더했다.
 # 관제는 MOVING처럼 보되 막힘 시계와 멈춤 감시를 쉬고, SELF_RECOVERY와 SELF_RECOVERY_END를 낸다.
 # /fleet/robots fault의 RECOVERING(관제가 로봇을 확인하는 중)과 이름만 같다. 핑키 계약 4절.
-# 0.4 (2026-11-07, 제안): /fleet/heartbeat를 HEARTBEAT 프로필(reliable, depth 1)로 바꿨다.
+# 0.4 (2026-11-07, 기준(사용자)): /fleet/heartbeat를 HEARTBEAT 프로필(reliable, depth 1)로 바꿨다.
 # best_effort는 재전송이 없어 관제가 살아 있어도 Wi-Fi에서 3번 연달아 빠지면(1.5 s) 핑키가 선다.
 # 끊김 판단은 그대로 앱 타이머(heartbeat_timeout_s, 벽시계)로 한다. 출처: Confluence
 # 「VDA 5050(v3.0) 선례로 보는 다중 토픽 처리」 7.1절, FMS 개선 지시서 1.5, 핑키 FSM 구현 안내 2.3.
@@ -47,13 +62,15 @@ qos_profiles:
 
 topics:
   # state에 BLOCKED(앞 물체로 섬), LOCALIZING(위치를 못 잡음)을 더했다. 필드는 그대로다.
-  # RECOVERING(2026-11-09, 제안): 핑키 FSM이 쥔 구역 안에서 짧게 후진하고 다시 가는 자가 복구 중.
+  # RECOVERING(2026-11-09, 기준(사용자)): 핑키 FSM이 쥔 구역 안에서 짧게 후진하고 다시 가는 자가 복구 중.
+  # 0.13: local_yield(로봇단 교착 처리의 단계 wait/backup/retry). RECOVERING일 때만 채운다.
   # 상태는 변할 때만이 아니라 주기적으로(권장 10 Hz) 계속 발행한다. 하나를 잃어도 다음 값이 대신한다.
   - {key: robot_state, name: "/{pinky}/state", type: fleet_interfaces/msg/RobotState, qos: STATE}
   - {key: arm_state, name: "/{arm}/state", type: fleet_interfaces/msg/ArmState, qos: STATE}
   - {key: vision_items, name: "/{arm}/vision/items", type: fleet_interfaces/msg/ItemArray, qos: LATCHED, instances: {arm: [arm1, arm2]}}
   - {key: order_board, name: "/central/orders", type: fleet_interfaces/msg/OrderBoard, qos: LATCHED}
   - {key: assignments, name: "/fleet/assignments", type: fleet_interfaces/msg/AssignmentArray, qos: LATCHED}
+  # 0.13: priority(마지막 MoveTo의 priority). 핑키가 구독해 앞을 막은 로봇과 누가 물러날지 정한다.
   - {key: robots, name: "/fleet/robots", type: fleet_interfaces/msg/RobotStatusArray, qos: LATCHED}
   # 관제 요구(사용자 기준). 로봇이 이 토픽을 못 들으면 끊긴 지 1.5 s에 정지 명령을 낸다(제동 거리는
   # 별도). 0.3 전에는 /fms/heartbeat였다.
@@ -64,11 +81,12 @@ topics:
 
 actions:
   # 결과 reason에 HEARTBEAT_LOST(heartbeat가 끊겨 스스로 섬)를 더했다.
-  # 0.4: 결과 reason에 PATH_NOT_CONNECTED(path가 로봇 위치를 지나지 않음)를 더했다(제안).
+  # 0.4: 결과 reason에 PATH_NOT_CONNECTED(path가 로봇 위치를 지나지 않음)를 더했다(기준(사용자)).
   # goal에 path(레인 폴리라인, geometry_msgs/Pose[])를 더했다(11-06 지시서 7번). 비면 점 목표다.
-  # 0.11(제안): goal에 mode(follow_path | nav_goal, 비면 follow_path)를 더했다.
-  # 0.11(제안): order 모델 칸(order_id, base, horizon 등). order_id가 비면 쓰지 않는다.
+  # 0.11(기준(사용자)): goal에 mode(follow_path | nav_goal, 비면 follow_path)를 더했다.
+  # 0.11(기준(사용자)): order 모델 칸(order_id, base, horizon 등). order_id가 비면 쓰지 않는다.
   # 0.11: order의 통신 끊김은 로봇 파라미터 comm_loss_policy(stop 기본 | base_end)가 정한다.
+  # 0.13: goal에 priority(로봇단 교착 처리, -1이면 비었다).
   #       끊김은 /fleet/heartbeat가 heartbeat_timeout_s 동안 오지 않는 것으로 안다. 칸은 그대로다.
   - {key: move_to, name: "/{pinky}/move_to", type: fleet_interfaces/action/MoveTo}
   - {key: dock, name: "/{pinky}/dock", type: fleet_interfaces/action/Dock}
@@ -79,7 +97,7 @@ actions:
   - {key: navigate_to_pose, name: "/{pinky}/navigate_to_pose", type: nav2_msgs/action/NavigateToPose, real_only: true}
   # path 모드에서 핑키가 레인 폴리라인을 따를 때 쓴다. 관제는 부르지 않는다.
   - {key: follow_path, name: "/{pinky}/follow_path", type: nav2_msgs/action/FollowPath, real_only: true}
-  # 0.9(제안): 관제가 시키는 물러나기. 이동 goal을 대신한다. path가 있으면 그 경로를 후진으로 따른다.
+  # 0.9(기준(사용자)): 관제가 시키는 물러나기. 이동 goal을 대신한다. path가 있으면 그 경로를 후진으로 따른다.
   - {key: retreat, name: "/{pinky}/retreat", type: fleet_interfaces/action/Retreat}
 
 services:
@@ -90,3 +108,6 @@ services:
   - {key: confirm_clear, name: "/fleet/confirm_clear", type: fleet_interfaces/srv/ConfirmClear}
   # 관제 요구(사용자 기준): 치운 로봇을 다시 투입한다. basket은 EMPTY 또는 NONE.
   - {key: reinstate, name: "/fleet/reinstate", type: fleet_interfaces/srv/Reinstate}
+  # 0.12(기준(사용자)): 관제가 막힘 표시의 점 둘레가 비었는지 핑키에게 묻는다. 핑키 노드(pinky_fsm)가
+  # 둔다. 가짜 핑키(fake_pinky_node)에는 없다: 관제는 서비스가 없으면 unknown으로 본다.
+  - {key: check_clear, name: "/{pinky}/check_clear", type: fleet_interfaces/srv/CheckClear, real_only: true}

@@ -1,0 +1,28 @@
+FollowPath.use_collision_detection: Boolean value is: True
+FollowPath.lookahead_dist: Double value is: 0.1
+FollowPath.use_velocity_scaled_lookahead_dist: Boolean value is: False
+FollowPath.rotate_to_heading_min_angle: Double value is: 0.7
+FollowPath.desired_linear_vel: Double value is: 0.12
+FollowPathThrough.use_collision_detection: Boolean value is: True
+FollowPathThrough.lookahead_dist: Double value is: 0.1
+FollowPathThrough.use_velocity_scaled_lookahead_dist: Boolean value is: False
+FollowPathThrough.rotate_to_heading_min_angle: Double value is: 0.7
+FollowPathThrough.desired_linear_vel: Double value is: 0.12
+FollowPathReverse.use_collision_detection: Boolean value is: True
+FollowPathReverse.lookahead_dist: Double value is: 0.1
+FollowPathReverse.use_velocity_scaled_lookahead_dist: Boolean value is: False
+FollowPathReverse.rotate_to_heading_min_angle: Double value is: 0.7
+FollowPathReverse.desired_linear_vel: Double value is: 0.05
+FollowPathGoal.use_collision_detection: Boolean value is: True
+FollowPathGoal.lookahead_dist: Double value is: 0.15
+FollowPathGoal.use_velocity_scaled_lookahead_dist: Boolean value is: True
+FollowPathGoal.rotate_to_heading_min_angle: Double value is: 0.25
+FollowPathGoal.desired_linear_vel: Double value is: 0.12
+local footprint: String value is: [[0.040, 0.021], [0.036, 0.031], [0.029, 0.056], [-0.029, 0.056], [-0.049, 0.049], [-0.071, 0.042], [-0.076, 0.037], [-0.076, -0.037], [-0.071, -0.042], [-0.049, -0.049], [-0.029, -0.056], [0.029, -0.056], [0.036, -0.031], [0.040, -0.021]]
+fsm turn_radius_m: Double value is: 0.1
+local scan topic: String value is: /pinky1/scan_filtered
+global scan topic: String value is: /pinky1/scan_filtered
+amcl scan_topic: String value is: scan
+filter wall_band_m: Double value is: 0.05
+filter strips: String value is: -0.05,0.79,0.3,1.04; 0.3,0.79,0.5,1.04; 0.5,0.79,1.48,1.04; 1.48,0.79,1.68,1.04; 1.68,0.79,2.03,1.04; 0.45,0.725,0.55,0.84; 1.43,0.725,1.53,0.84
+drop probe: scans matched 29 of 29 filtered; dropped per scan min 93 max 103 mean 97.7

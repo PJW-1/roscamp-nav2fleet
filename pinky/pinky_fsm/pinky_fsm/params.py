@@ -26,11 +26,21 @@ class FsmParams:
     block_timeout_s: float = 90.0
     block_sample_m: float = 0.02  # costmap 해상도(0.025)보다 촘촘하게
     path_step_m: float = 0.05  # 전달사항 6.1 poses_along
+    # 추가 지시서 3의 2-1(기준(사용자)): 경로의 꺾이는 곳을 이 반지름의 호로 지난다. 폭 0.20 m 띠
+    # 안에서 제자리 회전하면 몸 모서리가 벽 앞의 라이다 잡음에 닿는다. 0이면 꺾은 그대로 보낸다
+    turn_radius_m: float = 0.10
+    # 추가 지시서 3의 2-4(이음 정밀도): Nav2 goal은 지점에서 0.05~0.10 m 떨어져 끝난다. 로봇이
+    # 받은 선에서 join_min_off_m 넘게 벗어나 있으면, Nav2에 보내는 경로를 로봇의 실제 위치에서
+    # 시작해 벗어난 거리의 join_slope배 앞에서 선에 붙인다(들어가는 각 18° 이하). 선 위의 점에서
+    # 시작하는 경로를 받은 컨트롤러는 옆으로 벗어난 만큼을 제자리 회전으로 메운다. 0이면 예전대로다
+    join_min_off_m: float = 0.02
+    join_slope: float = 3.0
     far_success_limit: int = 3  # 목표에서 먼 Nav2 성공을 몇 번까지 다시 보낼까
     track_back_m: float = 0.2  # 진행 거리를 찾을 때 뒤로 허용하는 거리
     track_ahead_m: float = 1.0  # 진행 거리를 찾을 때 앞으로 보는 거리
     # 자가 복구(핑키_계약 3절 7번, 2026-11-09 제안). 숫자는 추정이다
-    recovery_attempts: int = 2  # 두 번 실패하면 BLOCKED(물체 앞)나 NAV_ABORTED로 넘긴다
+    # 다 쓰면 BLOCKED(물체 앞)나 NAV_ABORTED로 넘긴다. local_yield가 켜져 있으면 한 번만 한다
+    recovery_attempts: int = 2
     backup_max_m: float = 0.15
     # 관제 release_distance_m. 꼭짓점에서 이만큼 가면 뒤 레인이 풀려 뒤차가 꼭짓점에 설 수 있다.
     # 물러난 중심은 마지막으로 지난 경로 꼭짓점에서 이것 + backup_margin_m 앞에 남는다
@@ -62,10 +72,22 @@ class FsmParams:
     # speed_limit topic, RPP cycle). Assumed, not measured: at horizon_cap_mps this keeps
     # horizon_cap_mps * horizon_latency_s (0.075 m) of the distance left out of sqrt(2 a d)
     horizon_latency_s: float = 0.3
-    # mode nav_goal(계약 0.11-draft 제안): 이만큼 진전이 없으면 BLOCKED(goal은 그대로). 진전은
-    # nav_progress_m 이상 움직인 것이다(nav_goal.py). 숫자는 제안이다
-    blocked_after_s: float = 5.0
+    # 선 때부터 BLOCKED를 보고하기까지의 상한(추가 지시서 3의 7-4, 기준(사용자), 계약 0.13-draft).
+    # 로봇단 교착 처리를 다 하고도 남는다: block_report_s 1 + local_wait_s 2 + 후진(멈추고 0.10 m를
+    # 0.08 m/s, 가감속 포함 약 2) + 다시 가서 또 서기(0.10 m 되돌아가기 약 1 + block_report_s 1)
+    # = 7 s, 여유 3 s. mode nav_goal에서는 진전 없이 이만큼 지나면 BLOCKED다(goal은 그대로). 진전은
+    # nav_progress_m 이상 움직인 것이다(nav_goal.py). 0.12까지는 5 s(nav_goal만)였다
+    blocked_after_s: float = 10.0
     nav_progress_m: float = 0.05
+    # 로봇단 교착 처리(추가 지시서 3의 7-4, 기준(사용자)). 끄면 0.12까지의 자가 복구
+    # (바로 후진, 두 번)다
+    local_yield: bool = True
+    local_wait_s: float = 2.0  # 물체 앞에 서서 먼저 기다리는 시간
+    local_backup_m: float = 0.10  # 낮은 쪽이 지나온 길 안에서 물러나는 최대 거리
+    # 관제 /fleet/robots의 다른 로봇 중심이 가던 길 앞 점에서 이만큼 안이면 그 로봇이 막았다
+    # (발자국 반 대각선 0.085 m + 위치 오차와 여유, 추정)
+    local_peer_near_m: float = 0.20
+    peers_timeout_s: float = 3.0  # /fleet/robots(1 Hz)가 이보다 오래됐으면 쓰지 않는다
 
     def __post_init__(self):
         if self.comm_loss_policy not in COMM_LOSS_POLICIES:

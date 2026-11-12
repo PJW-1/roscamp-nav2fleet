@@ -1,0 +1,94 @@
+fleet map arena_d2: the corner of path work_in from N_W to X_W, then express at X_W passes 0.115 m from the end of the shelf (0.5, 0.775, 1.48, 0.79), wants 0.15
+fleet map arena_d2: the corner of path out_in from N_E to X_E, then express at X_E passes 0.115 m from the end of the shelf (0.5, 0.775, 1.48, 0.79), wants 0.15
+fleet map arena_d2: the corner of path express from X_W to X_E, then j_e_down at X_E passes 0.115 m from the end of the shelf (0.5, 0.775, 1.48, 0.79), wants 0.15
+fleet map arena_d2: the corner of path express from X_E to X_W, then j_w_down at X_W passes 0.115 m from the end of the shelf (0.5, 0.775, 1.48, 0.79), wants 0.15
+{"step": "nav_goal P-1>N_W", "result": "success", "wall_s": 11.47, "states": ["MOVING", "RECOVERING", "MOVING", "RECOVERING", "IDLE"], "sim_s": 11.45, "final": [0.34, 0.614], "pos_error_m": 0.037, "yaw_error_deg": 3.6, "truth_keepout": [], "plans": 11, "plan_keepout": []}
+{"step": "follow_path N_W>X_W>W", "result": "success", "wall_s": 7.12, "states": ["MOVING", "IDLE"], "sim_s": 7.09, "final": [0.238, 0.893], "pos_error_m": 0.058, "yaw_error_deg": 6.2, "max_cross_track_m": 0.037}
+{"step": "retreat W>N_W", "result": "success", "wall_s": 5.79, "states": ["MOVING", "IDLE"], "sim_s": 5.76, "final": [0.385, 0.683], "pos_error_m": 0.048, "yaw_error_deg": -13.4, "max_cross_track_m": 0.046}
+{"step": "follow_path N_W>X_W>X_E>N_E", "result": "CANCELED", "wall_s": 60.1, "states": ["MOVING", "RECOVERING", "BLOCKED"], "sim_s": 60.08, "final": [0.891, 0.89], "pos_error_m": 0.777, "yaw_error_deg": 89.6, "max_cross_track_m": 0.055}
+{
+  "layout": "d2",
+  "plan": "stage2",
+  "laps": 1,
+  "steps": 8,
+  "done": 4,
+  "succeeded": 3,
+  "results": [
+    {
+      "step": "nav_goal P-1>N_W",
+      "result": "success",
+      "wall_s": 11.47,
+      "states": [
+        "MOVING",
+        "RECOVERING",
+        "MOVING",
+        "RECOVERING",
+        "IDLE"
+      ],
+      "sim_s": 11.45,
+      "final": [
+        0.34,
+        0.614
+      ],
+      "pos_error_m": 0.037,
+      "yaw_error_deg": 3.6,
+      "truth_keepout": [],
+      "plans": 11,
+      "plan_keepout": []
+    },
+    {
+      "step": "follow_path N_W>X_W>W",
+      "result": "success",
+      "wall_s": 7.12,
+      "states": [
+        "MOVING",
+        "IDLE"
+      ],
+      "sim_s": 7.09,
+      "final": [
+        0.238,
+        0.893
+      ],
+      "pos_error_m": 0.058,
+      "yaw_error_deg": 6.2,
+      "max_cross_track_m": 0.037
+    },
+    {
+      "step": "retreat W>N_W",
+      "result": "success",
+      "wall_s": 5.79,
+      "states": [
+        "MOVING",
+        "IDLE"
+      ],
+      "sim_s": 5.76,
+      "final": [
+        0.385,
+        0.683
+      ],
+      "pos_error_m": 0.048,
+      "yaw_error_deg": -13.4,
+      "max_cross_track_m": 0.046
+    },
+    {
+      "step": "follow_path N_W>X_W>X_E>N_E",
+      "result": "CANCELED",
+      "wall_s": 60.1,
+      "states": [
+        "MOVING",
+        "RECOVERING",
+        "BLOCKED"
+      ],
+      "sim_s": 60.08,
+      "final": [
+        0.891,
+        0.89
+      ],
+      "pos_error_m": 0.777,
+      "yaw_error_deg": 89.6,
+      "max_cross_track_m": 0.055
+    }
+  ]
+}
+drive_check exit 0
+gz left: none

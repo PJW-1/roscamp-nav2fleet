@@ -6,19 +6,32 @@
 """
 from __future__ import annotations
 
+import logging
 import math
 from pathlib import Path
 
 import yaml
 
-from .checks import check_clearance, check_reach
+from .checks import check_clearance, check_reach, retreat_end_warnings, shelf_end_warnings
 from .geometry import inside, point_rect_distance
 from .model import WAITING_KINDS, FleetMapError, Link
 from .parse import read_links, read_nodes, read_parking, read_rect, read_stations, read_zones
 
 DATA = Path(__file__).parents[1] / "data"
 DEFAULT_LAYOUT = "d2"
+# 배치 이름 목록은 여기 한 곳이다. 시뮬레이션과 도구의 기본 목록은 실제 후보(LAYOUTS)이고,
+# 시험용 배치(TEST_LAYOUTS)는 이름을 주면 돈다. 새 배치는 fleet_map_<이름>.yaml과 이 목록 한 줄이다
+LAYOUTS = ("d2", "d", "c")
+TEST_LAYOUTS = ("d2_shelf",)
+KNOWN_LAYOUTS = (*LAYOUTS, *TEST_LAYOUTS)
 BODY_CLEARANCE_M = 0.06  # Nav2 발자국의 반 폭. 지도에 clearance_m을 적으면 그 값을 쓴다
+# 고정 경로가 진열대 끝을 돌아가는 곳의 여유(추가 지시서 3의 9절 제안). 지도에 shelf_end_clear_m을
+# 적으면 그 값을 쓴다. 어기면 읽을 때 경고만 한다
+SHELF_END_CLEAR_M = 0.15
+# 핑키가 꺾이는 곳을 도는 호의 반지름(pinky_fsm turn_radius_m과 같아야 한다). 진열대 끝 검사가
+# 그 호를 잰다. 지도에 turn_radius_m을 적으면 그 값을 쓴다
+TURN_RADIUS_M = 0.10
+_log = logging.getLogger(__name__)
 
 
 class FleetMap:
@@ -40,6 +53,11 @@ class FleetMap:
         self.docks = {station.dock for station in self.stations.values()}
         check_clearance(self, float(data.get("clearance_m", BODY_CLEARANCE_M)))
         check_reach(self)
+        clear = float(data.get("shelf_end_clear_m", SHELF_END_CLEAR_M))
+        turn = float(data.get("turn_radius_m", TURN_RADIUS_M))
+        self.warnings = tuple(shelf_end_warnings(self, clear, turn) + retreat_end_warnings(self))
+        for warning in self.warnings:
+            _log.warning("fleet map %s: %s", self.name, warning)
 
     # ---- 연결 ----
 

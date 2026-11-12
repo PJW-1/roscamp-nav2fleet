@@ -3,6 +3,8 @@ from __future__ import annotations
 
 from fleet_core.common.commands import FillCmd
 
+from .geom import heading
+from .obstacle_view import seen_ahead
 from .runs import DOCK, HEARTBEAT_LOST, RETREAT, DockRun
 
 DOCK_ERROR = (0.4, 0.3, 0.5)  # 성공한 도킹의 오차(cm, cm, deg)
@@ -34,6 +36,7 @@ class Link:
         self.queued: list = []  # 다음 걸음 처음에 낼 결과 (로봇, Result)
         self.queued_arm: list = []
         self._held: list = []  # 끊긴 채 스스로 선 로봇의 결과. 이어지면 낸다
+        self.queued_checks: list = []  # 다음 걸음에 낼 CheckClear 답 (로봇, 번호, 답)
         self._early: list = []
         self._late: list = []
         self._lines = {name: _Delay(r.profile.report_delay_s) for name, r in self.robots.items()}
@@ -75,6 +78,10 @@ class Link:
         queued, self.queued = self.queued, []
         for name, result in queued:
             self._deliver(name, result)
+        checks, self.queued_checks = self.queued_checks, []
+        for name, check_id, answer in checks:
+            if self._reachable(name):
+                self.manager.on_clear_check(name, check_id, answer)
         arms, self.queued_arm = self.queued_arm, []
         for job, reason in arms:
             if isinstance(job.cmd, FillCmd):
@@ -126,7 +133,14 @@ class Link:
         sigma = max(sigma, self.imperfect.pose_noise_m)
         x = r.x + jump + (self.rng.gauss(0.0, sigma) if sigma else 0.0)
         y = r.y + (self.rng.gauss(0.0, sigma) if sigma else 0.0)
-        return (x, y, r.yaw, state, self._battery(r))
+        report = (x, y, r.yaw, state, self._battery(r))
+        way = getattr(r.run, "way", None)  # 돌기 전에 막혔어도 costmap은 가려던 쪽을 본다
+        facing = heading(way[0], way[1], r.yaw) if way and len(way) > 1 else r.yaw
+        seen = (seen_ahead(r.x, r.y, facing, self.discs(r), self.params.obstacle_look_m)
+                if state == "BLOCKED" else None)
+        if seen is None:
+            return report
+        return (*report, "", *seen, "unknown")  # robot_id는 비우고 막은 것(계약 0.12-draft)
 
     def _battery(self, r) -> float:
         battery = self.batteries.get(r.name)

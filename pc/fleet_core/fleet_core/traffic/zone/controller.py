@@ -16,6 +16,10 @@
 | progress | 상태 보고: 뒤 구역 놓기 |
 | placement | 로봇을 지도에 올리기: 선 지점 고르기, 겹친 보고, 거절 |
 | blocked | 막힘: 기다림, 표시, 다른 길, 후진 |
+| block_marks | 장애물 위치로 한 막힘 표시: 든 연결, 다른 로봇이면 비키기, 다시 막히면 두 배 |
+| detours | 막힌 뒤 새로 잡은 길이 어떤 우회인지(DETOUR) |
+| yard_retreat | 막혀 물러나기: 물러날 곳, 뒤의 로봇 기다리기, 다른 로봇에게 비키기 |
+| clear_checks | 지나가는 로봇에게 CheckClear를 묻고 답으로 표시를 지우거나 새로 고친다 |
 | health | 통신 끊김과 복구, 치움, 다시 투입 |
 | watch | 멈춤, 구역 밖, 서로 막음, 대기 순환 |
 | localization | 보고 자세가 갈 수 없는 만큼 튐(LOCALIZATION_SUSPECT, 기록만) |
@@ -32,9 +36,12 @@ from __future__ import annotations
 
 from .backoff import Backoff
 from .base import ZoneBase
+from .block_marks import BlockMarks
 from .blocked import Blocked
 from .calls import Calls
 from .capacity import Capacity
+from .clear_checks import ClearChecks
+from .detours import Detours
 from .drive import Drive
 from .goals import Goals
 from .health import Health
@@ -50,11 +57,12 @@ from .silent import Silent
 from .turns import Turns
 from .views import Views
 from .watch import Watch
+from .yard_retreat import YardRetreat
 
 
 class ZoneTraffic(Calls, Goals, Turns, Drive, MoveOrders, OrderAnswers, Results, Redock, Progress,
-                  Placement, Blocked, Health, Watch, Localization, Backoff, Silent, NoStart,
-                  Capacity, Views, ZoneBase):
+                  Placement, Blocked, BlockMarks, YardRetreat, Detours, ClearChecks, Health, Watch,
+                  Localization, Backoff, Silent, NoStart, Capacity, Views, ZoneBase):
     def tick(self) -> list:
         """한 주기 전체. FleetManager 없이 교통 층만 돌릴 때 쓴다."""
         now = self._clock()
@@ -76,11 +84,14 @@ class ZoneTraffic(Calls, Goals, Turns, Drive, MoveOrders, OrderAnswers, Results,
 
     def tick_progress(self, now: float) -> frozenset:
         self._expire_blocked(now)
+        self._expire_marks(now)
+        self._ask_clear(now)
         for m in self._robots.values():
             if m.available:
                 self._judge_arrival(m, now)
                 self._watch_stall(m, now)
                 self._watch_idle(m, now)
+                self._watch_retreat_wait(m, now)
             self._watch_start(m, now)
             self._watch_silent(m, now)
         self._watch_near(now)

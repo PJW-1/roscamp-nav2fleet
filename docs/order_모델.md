@@ -55,7 +55,7 @@ ros2 launch iponic_bringup pc.launch.py use_order_model:=true lookahead_s:=2.0
 ros2 launch fleet_gz_sim gz.launch.py layout:=d2 use_order_model:=true   # Gazebo
 ```
 
-관제는 `/fleet/robots`(RobotStatus)의 `base`와 `horizon` 칸에 앞에 남은 길의 지점 이름을 나눠 싣습니다(제안). 관제 화면은 이 두 칸으로 허락받은 길과 아직 허락받지 않은 길을 다르게 그립니다. order 모델을 꺼도 두 칸은 채워집니다.
+관제는 `/fleet/robots`(RobotStatus)의 `base`와 `horizon` 칸에 앞에 남은 길의 지점 이름을 나눠 싣습니다(기준(사용자)). 관제 화면은 이 두 칸으로 허락받은 길과 아직 허락받지 않은 길을 다르게 그립니다. order 모델을 꺼도 두 칸은 채워집니다.
 
 rviz(`pinky_nav_config/rviz/pinky_nav.rviz`)에서는 `/<로봇>/order_markers`로 남은 base가 초록 실선, horizon이 주황 점선으로 보입니다.
 
