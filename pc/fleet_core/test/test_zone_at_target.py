@@ -157,6 +157,10 @@ def test_a_failed_move_that_stopped_inside_the_tolerance_but_short_of_the_end_is
     codes = world.codes("pinky2")
     assert "GOAL_RETRY" in codes and "GOAL_ENDED_AT_TARGET" not in codes
     assert world.view("pinky2")["node"] != first.target_id
+    assert world.run_until(lambda: world.view("pinky2")["node"] == first.target_id, 30.0)
+    again = [c for c in world.sent(MoveCmd, "pinky2") if c.target_id == first.target_id]
+    assert len(again) == 2 and not again[1].path, "the same Nav2 goal is sent once more"
+    assert "GOAL_ENDED_AT_TARGET" not in world.codes("pinky2") and not world.problems
 
 
 def test_a_failed_move_that_stopped_at_the_end_within_its_stop_error_is_taken_as_arrived():
