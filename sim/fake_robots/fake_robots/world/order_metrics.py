@@ -1,4 +1,4 @@
-"""order 모델 표의 숫자: 이음매 공백, 이동 한 건 시간, 정지 횟수, base 밖 진입.
+"""order 모델 표의 숫자: 이음매 공백, base 끝 기다림, 이동 한 건 시간, 정지 횟수, base 밖 진입.
 
 이동(trip)은 관제의 것을 쓴다: robot_view의 route가 비지 않은 동안이 이동 한 건이다(잡을 구역을
 기다리는 시간도 든다). 두 모델에서 같은 뜻이다.
@@ -6,7 +6,10 @@
 - 이음매: 이동 안에서 조각 하나가 끝난 때부터 로봇의 실제 속도가 다시 MOVING_MPS 이상이 될
   때까지. order 모델이 꺼져 있으면 조각은 goal 하나(MoveCmd, RetreatCmd)이고, 그 끝이 이동의 끝
   지점이 아닐 때만 이음매다. 켜져 있으면 order goal 안에서 끝난 조각(done_seq가 늘고 order가
-  이어짐)이다. base 끝에 서서 update를 기다린 시간도 이음매 공백에 든다.
+  이어짐)이다.
+- base 끝 기다림: 조각이 끝났을 때 받은 base가 다 떨어져 update를 기다린 시간(찬 도크 앞의
+  기다리는 자리, 못 잡은 구역 앞). 이음매 공백에 넣지 않고 따로 센다. 모델이 꺼져 있으면 같은
+  기다림이 이동과 이동 사이에 있어서 어느 쪽에도 들지 않는다.
 - 정지: 이동 안에서 실제 속도가 STOP_S 넘게 MOVING_MPS 아래인 구간(제자리 회전 포함).
 - base 밖 진입: order goal을 달리는 로봇이 받은 base 조각들의 구역(과 출발한 구역)에서
   INSIDE_TOL_M 넘게 나간 횟수.
@@ -28,11 +31,13 @@ class OrderMetrics:
     def __init__(self, site, robots):
         self.site = site
         self.seams: list[float] = []
+        self.base_waits: list[float] = []
         self.trips: list[float] = []
         self.stops = 0
         self.outside_base = 0
         self._last = {name: r.pose for name, r in robots.items()}
         self._seam: dict[str, float] = {}  # 로봇 -> 이음매가 열린 시각
+        self._at_base_end: set[str] = set()  # 열린 이음매가 base 끝의 기다림이다
         self._trip: dict[str, float] = {}  # 로봇 -> 이동이 시작된 시각
         self._still: dict[str, float] = {}  # 로봇 -> 이동 안에서 선 시각
         self._counted: set[str] = set()  # 이번 정지를 이미 셌다
@@ -77,10 +82,13 @@ class OrderMetrics:
                 if run.done_seq > self._seq.get(name, 0) and (run.queue or run.horizon
                                                               or run.sub is not None):
                     self._seam[name] = t
+                    (self._at_base_end.add if run.waiting else self._at_base_end.discard)(name)
                 self._seq[name] = run.done_seq
                 self._check_base(name, r)
             if moving and t - self._seam.get(name, t) > 1e-9:  # 연 걸음의 움직임은 세지 않는다
-                self.seams.append(t - self._seam.pop(name))
+                waited = name in self._at_base_end
+                self._at_base_end.discard(name)
+                (self.base_waits if waited else self.seams).append(t - self._seam.pop(name))
             self._track_trip(t, name, bool((views.get(name) or {}).get("route")), moving)
 
     def _track_trip(self, t: float, name: str, active: bool, moving: bool) -> None:
@@ -120,6 +128,11 @@ class OrderMetrics:
         if not self.seams:
             return "-"
         return f"{sum(self.seams) / len(self.seams):.2f} / {max(self.seams):.2f}"
+
+    def wait_text(self) -> str:
+        if not self.base_waits:
+            return "0"
+        return f"{len(self.base_waits)} / {max(self.base_waits):.1f}"
 
     def trip_text(self) -> str:
         return f"{sum(self.trips) / len(self.trips):.1f}" if self.trips else "-"

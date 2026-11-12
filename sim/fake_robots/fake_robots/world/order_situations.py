@@ -18,7 +18,8 @@ ORDER_SITUATIONS = ("normal8", "comm_horizon", "extend_fail", "express_horizon",
                     "stitch_fault")
 WHERE = "구역 세계(헤드리스)"
 ORDER_HEADER = ("상황", "배치", "order 모델", "어디서", "몇 번(씨드)", "끝남", "끝 시각",
-                "이음매 공백 평균/최대(s)", "이동 한 건 시간(s)", "정지 횟수",
+                "이음매 공백 평균/최대(s)", "base 끝 기다림(횟수 / 최대 s)", "이동 한 건 시간(s)",
+                "정지 횟수",
                 "update 수", "거절", "base 밖 진입(세계 / SEGMENT_BEYOND_BASE)", "교착", "판정")
 
 
@@ -95,7 +96,7 @@ def order_row(s, layout, order_model, seed, world, failures) -> tuple:
     updates = m.count("ORDER_UPDATED") + m.count("HORIZON_CHANGED")
     refused = m.count("ORDER_UPDATE_REJECTED")
     return (s.title, layout, on, WHERE, seed, f"{world.central.finished}/{world.central.total}",
-            end, om.seam_text(), om.trip_text(), om.stops,
+            end, om.seam_text(), om.wait_text() if order_model else "-", om.trip_text(), om.stops,
             updates if order_model else "-", refused if order_model else "-",
             f"{om.outside_base} / {m.count('SEGMENT_BEYOND_BASE')}" if order_model else "-",
             m.count("DEADLOCK_SEEN"),
