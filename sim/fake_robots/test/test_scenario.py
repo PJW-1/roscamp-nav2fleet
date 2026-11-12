@@ -355,7 +355,7 @@ def test_stock_shortage_derivation_matches_the_expected_counts(site):
 def test_stuck_scenario_expects_warnings_and_unfinished_orders(site):
     sc = load_scenario(SCENARIOS / "stuck_robot.yaml", site)
     assert sc.expect.all_orders_finished is False and sc.expect.orders_shipped == 2
-    assert {"COMM_LOST", "ZONE_WAIT"} <= set(sc.expect.events_include)
+    assert {"COMM_LOST", "DOCK_QUEUED"} <= set(sc.expect.events_include)  # D2: 출고 도크 앞 줄
 
 
 def test_operator_recovery_fails_three_times_then_clears(site):
