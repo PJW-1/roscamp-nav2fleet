@@ -394,7 +394,7 @@ class PinkyFsm(NavGoalMoves, RetreatMoves, SelfRecovery):
         rest = rounded_rest(g.route, g.s, self.p.turn_radius_m, pose,
                             self.p.join_min_off_m, self.p.join_slope)
         g.sent = Polyline(rest)
-        # 보낸 선은 둥근 선의 뒷부분이다(붙는 조각만큼은 다르다). 그 시작이 둥근 선의 어디인지 적는다
+        # 보낸 선은 둥근 선의 뒷부분이다(붙는 조각만 다르다). 그 시작이 둥근 선의 어디인지 적는다
         g.sent_from = rounded_at(g.route, g.route.length, self.p.turn_radius_m) - g.sent.length
         poses = poses_along(rest, g.target[2], self.p.path_step_m)
         return [SendPath(g.seq, poses, final_goal=g.final_goal)]
