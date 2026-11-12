@@ -8,7 +8,8 @@
   `strips`가 비었거나, 지도를 아직 못 받았거나, 지도 원점이 돌아가 있거나(yaw가 0이 아님), TF를 못
   찾으면 스캔을 그대로 낸다. 거르지 않은 스캔은 더 자주 서게 할 뿐이라 안전한 쪽이다.
 - 점은 스캔 시각의 TF(map <- 라이다, 0.05 s 기다림)로 놓는다. 그 시각의 TF가 없을 때만 가장
-  최근 TF를 쓰고, 그것도 스캔 시각과 MAX_TF_AGE_S보다 멀면 거르지 않는다.
+  최근 TF를 쓰고, 그것도 스캔 시각과 MAX_TF_AGE_S보다 멀면 거르지 않는다. stamp가 0인 스캔도
+  거르지 않는다.
 - TF는 도우미 노드(scan_filter_tf)가 따로 도는 스레드로 받는다. 거르개 노드를 TransformListener에
   넘기면 main의 executor와 그 노드를 다퉈(rclpy Node.executor) 기다리는 동안 버퍼가 차지 않는다.
 """
@@ -78,6 +79,11 @@ class ScanFilter(Node):
         self.get_logger().info(f"map {info.width}x{info.height} at {info.resolution} m")
 
     def _lidar_pose(self, frame: str, stamp):
+        if stamp.sec == 0 and stamp.nanosec == 0:
+            # TF2는 시각 0을 "가장 최근"으로 읽는다. 스캔 시각을 모르니 거르지 않는다
+            self.get_logger().warn("scan has no stamp; not filtering", throttle_duration_sec=5.0)
+            self.tf_source = ""
+            return None
         try:
             t = self.tf.lookup_transform(self.map_frame, frame, Time.from_msg(stamp),
                                          timeout=TF_WAIT).transform

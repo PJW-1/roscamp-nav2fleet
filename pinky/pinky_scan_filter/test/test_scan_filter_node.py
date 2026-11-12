@@ -94,3 +94,74 @@ def test_under_launch_remaps_the_tf_node_has_its_own_name_and_the_robots_tf():
         assert not thread.is_alive()  # TF 스레드도 함께 끝난다
     finally:
         rclpy.try_shutdown()
+
+
+@pytest.fixture
+def filtering():
+    """띠가 있는 거르개. 지도: 2 x 1 m, 1 cm, 북쪽 벽 y 0.99~1.00. 라이다는 map (1.0, 0.89)에서
+    북쪽을 본다(TF 시각 100 s). 발행은 가짜 publisher가 받는다."""
+    from nav_msgs.msg import OccupancyGrid
+    rclpy.init(args=["--ros-args", "-p", "strips:=0,0.79,2,1"])
+    from pinky_scan_filter.node import ScanFilter
+    node = ScanFilter()
+    sender = rclpy.create_node("tf_sender")
+    grid = OccupancyGrid()
+    grid.info.resolution, grid.info.width, grid.info.height = 0.01, 200, 100
+    grid.info.origin.orientation.w = 1.0
+    grid.data = [0] * (200 * 99) + [100] * 200
+    node.on_map(grid)
+    sent = []
+
+    class FakePub:
+        def publish(self, msg):
+            sent.append(msg)
+
+    node.pub = FakePub()
+    t = _tf(sender, Time(seconds=100).to_msg(), 1.0)
+    t.transform.translation.y = 0.89
+    t.transform.rotation.z, t.transform.rotation.w = 0.7071068, 0.7071068
+    TransformBroadcaster(sender).sendTransform(t)
+    time.sleep(0.3)
+    yield node, sent
+    node.destroy_node()
+    sender.destroy_node()
+    rclpy.try_shutdown()
+
+
+def _scan(sec, nanosec=0):
+    from sensor_msgs.msg import LaserScan
+    scan = LaserScan()
+    scan.header.frame_id = "laser"
+    scan.header.stamp.sec, scan.header.stamp.nanosec = sec, nanosec
+    scan.angle_min, scan.angle_increment = 0.0, 1.5707963
+    scan.range_min, scan.range_max = 0.05, 3.0
+    scan.ranges = [0.085, 0.3]  # 북쪽 벽 곁 (1.0, 0.975), 서쪽 빈 곳 (0.7, 0.89)
+    return scan
+
+
+def test_on_scan_turns_a_beam_by_the_wall_into_inf_with_the_scan_time_tf(filtering):
+    node, sent = filtering
+    node.on_scan(_scan(100))
+    assert node.tf_source == "scan_time"
+    assert sent[-1].ranges[0] == float("inf") and sent[-1].ranges[1] == pytest.approx(0.3)
+
+
+def test_on_scan_passes_the_scan_through_when_the_latest_tf_is_stale(filtering):
+    node, sent = filtering
+    node.on_scan(_scan(100, 300_000_000))
+    assert list(sent[-1].ranges) == pytest.approx([0.085, 0.3])
+
+
+def test_on_scan_still_filters_with_the_latest_tf_exactly_max_age_away(filtering):
+    from pinky_scan_filter.node import MAX_TF_AGE_S
+    node, sent = filtering
+    node.on_scan(_scan(100, int(MAX_TF_AGE_S * 1e9)))
+    assert node.tf_source == "latest"
+    assert sent[-1].ranges[0] == float("inf")
+
+
+def test_on_scan_with_no_stamp_passes_the_scan_through(filtering):
+    """stamp 0을 TF2는 "가장 최근"으로 읽는다. 스캔 시각을 모르니 거르지 않는다."""
+    node, sent = filtering
+    node.on_scan(_scan(0))
+    assert list(sent[-1].ranges) == pytest.approx([0.085, 0.3])
