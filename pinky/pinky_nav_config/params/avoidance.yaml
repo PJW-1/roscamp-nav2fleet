@@ -8,6 +8,9 @@
 # follow_path_goal: controller_server의 FollowPathGoal 안에 그대로 들어간다. 이름 FollowPathGoal은
 #   고정이고, 플러그인과 값은 회피 담당이 정한다(MPPI나 DWB로 바꿔도 된다). 넓은 구역의 Nav2 goal
 #   (MoveTo mode nav_goal)을 bt_navigator가 이 컨트롤러로 몬다. 속도 상한은 nav_max_speed를 따른다.
+#   시뮬레이션은 RPP의 desired_linear_vel만 nav_max_speed로 낮춘다. 다른 플러그인으로 바꾸면 그
+#   플러그인의 최고 속도를 nav_max_speed 이하로 직접 맞추고 사용자에게 알린다(그때 fleet_gz_sim의
+#   속도 상한 시험이 실패한다: 시뮬레이션의 상한 적용을 그 플러그인에 맞춰야 한다는 표시다).
 #   시작값은 고정 경로 컨트롤러 FollowPath를 2-1 전의 값으로 옮겨 온 것이다(RPP, 충돌 검사 켬).
 follow_path_goal:
   plugin: "nav2_regulated_pure_pursuit_controller::RegulatedPurePursuitController"
