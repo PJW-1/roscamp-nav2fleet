@@ -90,6 +90,15 @@ def test_a_detour_long_after_the_person_left_is_not_blamed_on_the_person():
     assert whole_run.quiet_until_s is None
 
 
+@pytest.mark.parametrize("name", ["person_in_express", "person_at_dock"])
+def test_the_store_person_situations_judge_the_same_window(name):
+    """매장 상황의 사람 둘도 같다. D2 씨드 3은 사람과 상관없이 118.9 s에 동쪽 구석에서 우회한다."""
+    s = build(name, "d2")
+    [person] = s.injections
+    assert s.quiet_until_s == pytest.approx(person.t1 + 30.0)
+    assert run_situation(name, "d2", 3).failures == []
+
+
 def test_a_silent_stall_fails_every_mode_as_a_safety_rule():
     for mode in ("none", "perfect"):
         outcome = run_situation("person_passing", "d2", 1, manager_factory=RecordingManager,

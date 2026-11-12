@@ -23,6 +23,7 @@ STORE_NAMES = ("person_in_express", "person_at_dock", "corridor_box", "box_remov
 STORE_ROWS = ("person_in_express", "person_at_dock", "express_obstacle", "corridor_box",
               "hall_obstacle", "box_removed", "box_stays")  # 지시서 5절 표의 순서
 PERSON_S = 8.0  # 사람이 서 있는 시간(blocked_mark_s 10 s보다 짧다)
+QUIET_AFTER_S = 30.0  # 사람이 떠난 뒤 이만큼까지의 우회와 후진만 사람 탓으로 센다
 BOX_R = 0.04  # 상자 반지름(급행 띠 0.20 m 안에서 지나갈 틈이 없다)
 
 
@@ -44,15 +45,18 @@ def _middle(zone):
 def build_store(name, layout, site, lane, situation):
     """lane은 급행 가운데 점이다. situation은 situations.py의 Situation이다."""
     quiet = ("DEADLOCK_SEEN", "REROUTE", "ZONE_MARKED_BLOCKED")
+    # 사람 때문의 우회만 본다: 떠난 뒤 QUIET_AFTER_S까지만 센다(person_passing과 같다)
     if name == "person_in_express":
         return situation(name, "급행 안 사람",
                          injections=[Obstacle(*lane, 0.05, 21.0, 21.0 + PERSON_S)],
-                         max_retreats=0, no_events=quiet)
+                         max_retreats=0, no_events=quiet,
+                         quiet_until_s=21.0 + PERSON_S + QUIET_AFTER_S)
     if name == "person_at_dock":
         return situation(name, "도크 앞 사람",
                          injections=[Obstacle(*site.node_pose("X_W"), 0.05, 15.0,
                                               15.0 + PERSON_S)],
-                         no_events=quiet)  # 도크에서 나오는 후진은 사람이 비킬 때까지 다시 낸다
+                         no_events=quiet,  # 도크에서 나오는 후진은 사람이 비킬 때까지 다시 낸다
+                         quiet_until_s=15.0 + PERSON_S + QUIET_AFTER_S)
     if name == "corridor_box":
         zone = _corridor(site)
         if zone is None:
