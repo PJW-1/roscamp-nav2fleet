@@ -17,7 +17,8 @@ class _Move:
     final_goal: bool = True  # 끝이 임무의 마지막 지점인가(계약 0.8-draft 제안)
     seq: int = 0  # 마지막으로 보낸 FollowPath 순번
     sent: Polyline | None = None  # 마지막으로 Nav2에 보낸 선(호와 붙는 조각이 들어 있다)
-    sent_from: float = 0.0  # 그 선의 시작이 놓인, route를 둥글게 한 선 위의 거리
+    sent_from: float = 0.0  # 그 선이 route를 둥글게 한 선과 만나는 곳(둥근 선 위의 거리)
+    sent_lead: float = 0.0  # 만나는 곳 앞에 붙인 조각의 길이
     nav_running: bool = False
     last_send: float = 0.0
     far_successes: int = 0

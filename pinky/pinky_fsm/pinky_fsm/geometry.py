@@ -168,17 +168,27 @@ def rounded_rest(route: Polyline, s: float, radius: float, here: Sequence[float]
     넘지 않는다: 꺾이는 곳을 가로지르는 지름길은 내지 않는다. 선의 끝에 닿았거나 지나친 로봇에게는
     끝 점만 낸다: 되돌아가는 조각을 붙이지 않는다.
     """
+    return joined_rest(route, s, radius, here, join_min_off, join_slope)[0]
+
+
+def joined_rest(route: Polyline, s: float, radius: float, here: Sequence[float] | None = None,
+                join_min_off: float = 0.0,
+                join_slope: float = 0.0) -> tuple[list[Point], float, float]:
+    """rounded_rest의 점들, 그 선이 둥근 선과 만나는 곳(둥근 선 위의 거리), 그 앞에 붙인 조각의 길이
+
+    붙인 조각이 없으면 길이는 0이고, 만나는 곳은 선의 시작이다.
+    """
     pts, corners = _rounded_with_corners(route.points, radius, ARC_STEP_M)
     line = Polyline(pts)
     at = _on_rounded(corners, min(max(s, 0.0), route.length))
     if here is None or join_slope <= 0.0 or at >= line.length - _SAME_M:
-        return line.rest(at)
+        return line.rest(at), at, 0.0
     spot = (float(here[0]), float(here[1]))
     at, off = line.project(spot, s_min=at - radius, s_max=at + radius)
     if off <= join_min_off or at >= line.length - _SAME_M:
-        return line.rest(at)
+        return line.rest(at), at, 0.0
     join = min(at + join_slope * off, _piece_end(corners, at, line.length))
-    return _dedup([spot, *line.rest(join)])
+    return _dedup([spot, *line.rest(join)]), join, math.dist(spot, line.point_at(join))
 
 
 class Polyline:

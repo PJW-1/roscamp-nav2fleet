@@ -5,6 +5,7 @@ from itertools import pairwise
 import pytest
 from pinky_fsm.geometry import (
     Polyline,
+    joined_rest,
     poses_along,
     poses_backing,
     quaternion_yaw,
@@ -250,6 +251,14 @@ def test_a_short_step_back_is_not_taken_for_the_pass_before_it():
     route = Polyline([(0.0, 0.0), (1.0, 0.0), (0.9, 0.0), (1.9, 0.0), (1.9, 1.0)])
     rest = rounded_rest(route, 1.15, 0.5)  # 세 번째 선분 위 x 0.95
     assert rest[0] == pytest.approx((0.95, 0.0)) and rest[1] == pytest.approx((1.4, 0.0))
+
+
+def test_joined_rest_tells_where_the_line_is_met_and_how_long_the_piece_before_it_is():
+    rest, met, lead = joined_rest(LANE, 0.10, 0.10, (0.43, 0.30), 0.02, 3.0)
+    assert rest == joined(LANE, 0.10, (0.43, 0.30))
+    assert met == pytest.approx(0.10 + 0.24) and lead == pytest.approx(math.hypot(0.08, 0.24))
+    rest, met, lead = joined_rest(LANE, 0.10, 0.10, (0.35, 0.30), 0.02, 3.0)  # 선 위
+    assert (met, lead) == (pytest.approx(0.10), 0.0)
 
 
 def test_rounded_at_is_the_distance_on_the_rounded_line():

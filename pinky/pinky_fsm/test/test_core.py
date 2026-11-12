@@ -1558,6 +1558,18 @@ def test_after_many_corners_the_way_ahead_still_starts_at_the_robot():
     assert seen[0] == pytest.approx((2.5, 2.5))
 
 
+def test_on_a_long_joining_piece_the_way_ahead_starts_at_the_robot():
+    """Far beside the end the joining piece is much longer than the line it stands for."""
+    beside = (4.9, 0.5, 0.0)
+    fsm = ready(pose=beside, connect_tolerance_m=1.0)  # 이만큼 벗어난 로봇도 받게 한다
+    fsm.move("g1", 0.0, "X", (5.0, 0.0, 0.0), [(4.0, 0.0), (5.0, 0.0)], beside)
+    seen = []
+    for t in (1.0, 2.5):
+        fsm.heartbeat(t)
+        fsm.tick(t, beside, STILL, lambda points: seen.extend(points) or False)
+    assert seen[0] == pytest.approx(beside[:2])
+
+
 def test_the_join_can_be_switched_off():
     fsm = ready(pose=BESIDE, join_slope=0.0)
     [send] = sends(move(fsm, "g1", 1.0, path=(P3, P4), target=P4, pose=BESIDE))
