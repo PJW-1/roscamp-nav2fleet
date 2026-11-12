@@ -206,6 +206,19 @@ class BlockMarks:
         return m.robot_yield_at is not None and now - m.robot_yield_at <= (
             self.params.blocked_retry_s)
 
+    def _waits_behind(self, m) -> bool:
+        """후진이 뒤의 무엇(OBSTACLE_BEHIND) 때문에 끝났다. blocked_timeout_s까지는 실패로 세지
+        않고 move_retry_wait_s마다 다시 낸다(도크 앞에 잠깐 선 사람). 기다리면 True."""
+        now = self._clock()
+        if m.behind_since is None:
+            m.behind_since = now
+            self._event("INFO", "RETREAT_WAIT", "something is behind it, backs out when it is "
+                        "gone", m.name)
+        if now - m.behind_since >= self.params.blocked_timeout_s:
+            return False  # 다 기다렸다. 빠져나갈 때까지 예전처럼 시도로 센다
+        m.retry_at = now + self.params.move_retry_wait_s
+        return True
+
     def _yield_to_robot(self, m, other, now: float) -> None:
         """막은 것이 다른 로봇이다. 막힘으로 표시하지 않고 비킨다(HALL_YIELD).
 
@@ -227,6 +240,9 @@ class BlockMarks:
         if (other.available and other.goal is None and self._in_yard(other)
                 and self._to_parking(other, "INFO", "HALL_YIELD",
                                      f"out of the way of {m.name}, goes to", clear_of=m)):
+            # 막힌 로봇의 다음 단계도 그 로봇 이름으로 남긴다. 그래도 또 막히면 예전처럼 표시한다
+            self._event("INFO", "HALL_YIELD", f"waits for {other.name} to clear the way, "
+                        "nothing marked", m.name)
             return
         self._cancel_goal(m)
         self._stand_aside(m, other, now)

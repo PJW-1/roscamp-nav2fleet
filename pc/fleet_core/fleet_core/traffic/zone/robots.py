@@ -116,6 +116,8 @@ class Robot:
     detour: tuple | None = None
     # 다른 로봇에 막혀 표시 없이 비킨 시각. blocked_retry_s 안에 또 막히면 예전처럼 표시한다
     robot_yield_at: float | None = None
+    # 후진(Retreat)이 OBSTACLE_BEHIND로 처음 끝난 시각. 비키기를 blocked_timeout_s까지 기다린다
+    behind_since: float | None = None
 
     @property
     def live(self) -> bool:

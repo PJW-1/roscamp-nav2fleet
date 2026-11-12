@@ -53,7 +53,7 @@ def test_a_point_on_the_express_marks_both_ways_of_the_express_only():
 
 def test_a_point_in_the_west_junction_marks_every_line_through_it():
     site, p = load_fleet_map("d2"), load_params()
-    keys = set(keys_at(site, p, (0.40, 0.89)))
+    keys = set(keys_at(site, p, site.node_pose("X_W")))
     assert {("N_W", "X_W"), ("X_W", "W"), ("W", "X_W"), ("X_W", "N_W"),
             ("X_W", "X_E"), ("X_E", "X_W")} <= keys
     assert not any("O" in key or "N_E" in key for key in keys)
@@ -86,7 +86,8 @@ def test_blocked_in_the_express_with_a_position_marks_the_express_and_backs_out(
     assert "at (0.85, 0.89) in EXPRESS" in detail and "tried again in 60 s" in detail
     assert world.run_until(lambda: world.result_of(call), 120.0)
     assert world.result_of(call).success
-    assert world.sent(RetreatCmd, "pinky1")[1].path[-1][:2] == (0.40, 0.89)
+    back = world.sent(RetreatCmd, "pinky1")[1].path[-1][:2]
+    assert back == tuple(world.traffic.site.node_pose("X_W"))
     assert not world.problems
 
 

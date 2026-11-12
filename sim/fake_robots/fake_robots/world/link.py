@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from fleet_core.common.commands import FillCmd
 
+from .geom import heading
 from .obstacle_view import seen_ahead
 from .runs import DOCK, RETREAT, DockRun
 
@@ -126,7 +127,9 @@ class Link:
         x = r.x + jump + (self.rng.gauss(0.0, sigma) if sigma else 0.0)
         y = r.y + (self.rng.gauss(0.0, sigma) if sigma else 0.0)
         report = (x, y, r.yaw, state, self._battery(r))
-        seen = (seen_ahead(r.x, r.y, r.yaw, self.discs(r), self.params.obstacle_look_m)
+        way = getattr(r.run, "way", None)  # 돌기 전에 막혔어도 costmap은 가려던 쪽을 본다
+        facing = heading(way[0], way[1], r.yaw) if way and len(way) > 1 else r.yaw
+        seen = (seen_ahead(r.x, r.y, facing, self.discs(r), self.params.obstacle_look_m)
                 if state == "BLOCKED" else None)
         if seen is None:
             return report
