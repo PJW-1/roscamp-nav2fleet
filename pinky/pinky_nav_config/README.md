@@ -15,6 +15,7 @@
 
 - 모든 노드가 `/{namespace}` 안에서 돈다. TF는 `/{namespace}/tf`, `/{namespace}/tf_static`이고 프레임 이름(`map`, `odom`, `base_footprint`, `rplidar_link`)에는 접두사가 없다(R17).
 - controller_server(`follow_path`, RPP)가 `cmd_vel`로 바로 낸다. controller는 넷이다: `FollowPath`, 잠금 경계 경로용 `FollowPathThrough`, 물러나기 경로용 `FollowPathReverse`(제안, 팀 합의 전. 0.05 m/s 후진, 제자리 회전 없음), Nav2 goal용 `FollowPathGoal`(제안. 지금은 `FollowPath`와 같은 RPP, 충돌 검사 켬. 팀원이 MPPI나 DWB로 바꿀 수 있고 이름만 고정이다). 넷 다 늘 뜬다. velocity_smoother와 collision_monitor는 없다. `pinky_fsm`이 mode `follow_path`에서는 `follow_path`를 바로 부르고, `nav_goal`에서는 `navigate_to_pose`를 부른다.
+- 고정 선(추가지시서3 2-1): `FollowPath`, `FollowPathThrough`, `FollowPathReverse`는 lookahead를 0.10 m로 고정하고(속도에 따라 늘리지 않음) `rotate_to_heading_min_angle`을 0.70 rad로 두었다. 핑키 FSM이 꺾이는 곳을 반지름 0.10 m 호로 바꿔 보내므로 호에서는 제자리 회전을 하지 않는다. `FollowPathGoal`은 바꾸지 않았다. local costmap 발자국은 몸 모양 다각형 14점(몸통과 바퀴, 폭 0.112 m, 회전 중심에서 가장 먼 점 약 0.083 m)이다. global costmap은 마당 NavFn 계획이 바뀌지 않게 옛 정사각형 그대로다(가정).
 - planner는 NavFn이다. global costmap의 inflation만 0.25 m, 6.0으로 넓혔다(local은 0.15 m, 3.0 그대로). 0.38 m 통로에서도 가운데 칸이 INSCRIBED보다 낮아 길이 나오고 가운데가 가장 싸며, 넓은 마당에서는 경로가 벽과 진열대에서 약 0.25 m 떨어진다. Smac 2D로 바꿀 이유는 찾지 못했다(점 로봇 계획으로 충분하고, 몸은 INSCRIBED 반지름 0.09 m로 본다).
 - behavior_server는 `spin`, `backup`, `wait`를 띄운다. `backup`은 `pinky_fsm`의 자가 복구와 물러나기도 쓴다.
 - keepout(제안): `keepout_mask`를 주면 급행과 도크 구역을 global costmap에서 막는다. Nav2 goal 경로(NavFn)만 영향을 받고, FollowPath 셋은 local costmap만 쓰므로 그대로다. 필터는 inflation 뒤에 얹히므로 마스크는 몸 반폭만큼 넓혀 만든다. 마스크는 site 도구가 만든다.
