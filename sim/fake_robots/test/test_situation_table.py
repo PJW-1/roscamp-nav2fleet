@@ -62,6 +62,30 @@ def test_perfect_keeps_the_situation_expectations_and_the_others_use_section_thr
     assert build("pose_jumps", "d").for_mode("none").allowed == ("I5_STANDING",)
 
 
+def test_a_detour_long_after_the_person_left_is_not_blamed_on_the_person():
+    """'사람이 잠깐 지나감'이 막는 것은 사람 때문의 우회다. 사람이 떠나고 한참 뒤 로봇끼리 서로 막아
+    잡은 우회는 그 상황의 기대가 아니다(D2 씨드 3: 96 s 뒤 N_E와 O_Q 곁)."""
+    from types import SimpleNamespace
+
+    from fake_robots.world.table import expectations
+
+    s = build("person_passing", "d2")
+    [person] = s.injections
+    assert s.quiet_until_s == pytest.approx(person.t1 + 30.0)
+
+    def world(reroute_at):
+        events = [(reroute_at, SimpleNamespace(code="REROUTE"))]
+        return SimpleNamespace(
+            events=events, t=300.0, central=SimpleNamespace(total=6, finished=6),
+            metrics=SimpleNamespace(count=lambda code: sum(e.code == code for _, e in events),
+                                    retreats=0))
+
+    assert expectations(s, world(person.t1 + 5.0)) == ["REROUTE x1"]
+    assert expectations(s, world(person.t1 + 96.0)) == []
+    whole_run = build("express_both_ends", "d2")
+    assert whole_run.quiet_until_s is None
+
+
 def test_a_silent_stall_fails_every_mode_as_a_safety_rule():
     for mode in ("none", "perfect"):
         outcome = run_situation("person_passing", "d2", 1, manager_factory=RecordingManager,

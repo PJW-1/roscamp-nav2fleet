@@ -72,8 +72,10 @@ def expectations(s, world) -> list[str]:
     if s.finish_all and world.central.finished < total:
         out.append(f"finished {world.central.finished}/{total} by {world.t:.0f} s")
     for code in s.no_events:
-        if m.count(code):
-            out.append(f"{code} x{m.count(code)}")
+        seen = (m.count(code) if s.quiet_until_s is None else
+                sum(e.code == code and t <= s.quiet_until_s for t, e in world.events))
+        if seen:
+            out.append(f"{code} x{seen}")
     for code, least in s.need_events.items():
         if m.count(code) < least:
             out.append(f"{code} x{m.count(code)}, want >= {least}")

@@ -40,6 +40,7 @@ class Situation:
     max_retreats: int | None = None
     need_events: dict = field(default_factory=dict)  # 사건 코드 -> 적어도 이만큼
     no_events: tuple[str, ...] = ("DEADLOCK_SEEN",)
+    quiet_until_s: float | None = None  # no_events를 이 시각까지만 센다. None이면 끝까지
     rough: Rough = field(default_factory=Rough)  # none, mixed의 기준
     at_least_s: float = 0.0  # 주문이 끝나도 이 시각까지는 돌린다(막힘 표시가 풀리는 것을 본다)
 
@@ -80,8 +81,11 @@ def build(name: str, layout: str = "d2") -> Situation:
     if name == "hall_obstacle":
         return Situation(name, "마당 장애물", injections=[Obstacle(*hall, 0.05, 10.0, 130.0)])
     if name == "person_passing":
+        # 우회는 사람 때문의 것만 막는다. 사람이 떠나고 30 s(막힘 표시 10 s의 세 배) 뒤의 우회는
+        # 로봇끼리 서로 막아 잡은 것이다(D2 씨드 3: 96 s 뒤 N_E와 O_Q 곁에서 30 s 서로 막다 우회)
         return Situation(name, "사람이 잠깐 지나감", injections=[Obstacle(*hall, 0.05, 15.0, 23.0)],
-                         max_retreats=0, no_events=("DEADLOCK_SEEN", "REROUTE"))
+                         max_retreats=0, no_events=("DEADLOCK_SEEN", "REROUTE"),
+                         quiet_until_s=23.0 + 30.0)
     if name == "outbound_slow":
         return Situation(name, "출고 도크 오래 씀", injections=[SlowStation("OUTBOUND", 6.0)],
                          timeout_s=1500.0)
