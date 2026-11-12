@@ -3,7 +3,6 @@
 로봇은 실제 시간 기준 heartbeat timeout 안에 스스로 멈춘다. 새 FMS는 모든 로봇의 보고를
 기다리는 데서 다시 시작한다. 뜰 때 pinky3가 조용하므로 pinky3가 돌아올 때까지 아무도 안 움직인다.
 """
-import csv
 import json
 import os
 import signal
@@ -138,21 +137,6 @@ def stop(process, sig=signal.SIGINT) -> None:
             process.wait()
 
 
-# 알려진 결함 R2(nf traffic_bugs.md): 새 FMS는 지점에서 0.15 m 남짓 떨어져 선 로봇을
-# 그 지점에 있다고 보고 고정 경로를 보낸다. 로봇은 경로에서 0.15 m 넘게 떨어져
-# PATH_NOT_CONNECTED로 세 번 거절하고 격리돼 홀을 막는다. 멈춘 자리가 잡음과 시각에 달려
-# 가끔만 나고 고정할 수 없다. 정지와 기다림은 늘 보고, 끝의 출고 판정만 R2일 때 건너뛴다
-NEEDS_R2 = "R2: after a restart a robot 0.15 m off its node gets PATH_NOT_CONNECTED"
-R2_VIOLATIONS = {"unexpected ERROR event GOAL_FAILED", "unexpected ERROR event ROBOT_ISOLATED"}
-
-
-def r2_happened(tmp_path, summary) -> bool:
-    with (tmp_path / "events.csv").open(encoding="utf-8") as f:
-        failed = any(row["code"] == "GOAL_FAILED" and "PATH_NOT_CONNECTED" in row["detail"]
-                     for row in csv.DictReader(f))
-    return failed and set(summary["violations"]) <= R2_VIOLATIONS
-
-
 def test_robots_stop_without_the_fms_and_a_new_one_waits_for_all_of_them(probe, tmp_path):
     try:
         get_package_share_directory("fake_robots")
@@ -225,7 +209,5 @@ def test_robots_stop_without_the_fms_and_a_new_one_waits_for_all_of_them(probe, 
     summary = json.loads(summary_path.read_text(encoding="utf-8"))
     print(f"orders: {summary['orders_shipped']} shipped of {summary['orders_total']} "
           f"in {summary['duration_s']:.0f} s. violations: {summary['violations']}")
-    if summary["violations"] and r2_happened(tmp_path, summary):
-        pytest.skip(f"{NEEDS_R2}: {summary['violations']}")
     assert summary["orders_shipped"] == summary["orders_total"], summary
     assert summary["violations"] == [], summary
