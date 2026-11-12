@@ -259,6 +259,7 @@ G08 (c200b1e 빌드, 같은 조건):
 
 - `GOAL_STALLED`는 0번이라 stall_s 불일치로 인한 격리는 없어졌습니다.
 - 한 대 단계는 첫 마당 goal이 0.11 s 만에 `NAV_ABORTED`(Nav2가 서기 전에 goal을 보냄, 스크립트 결함, 통합에서 고침)라 재지 못했습니다.
+  고친 스크립트(`nav2_active`)로 한 대 단계만 다시 돌리자(reg_drive, `--laps 1 --games 0`) 8개 구간 모두 1/1로 통과했습니다.
 - 1판(한 줄 원인): 425 s 둘레 마당 동쪽 구석에 세 대가 몰려(pinky2 O_Q에 섬, pinky3 P-3 → N_E, pinky1 주차로 감) 서로 길을 막아
   Nav2가 계획을 만들지 못하고(`Failed to create plan`) 세 대가 차례로 `NAV_ABORTED`로 격리됐습니다.
 - 2판(한 줄 원인): pinky1이 W에서 후진(꺾는 점 (0.30, 0.89)) 시작 직후 (0.33, 0.83)에서 `collision ahead` → 1 s 뒤
