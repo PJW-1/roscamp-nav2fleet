@@ -1,14 +1,9 @@
-"""fleet_core 시험 공통: 기다리는 시험 건너뛰기(fleet_core/pending.py)와 가짜 교통 층."""
+"""fleet_core 시험 공통: 가짜 교통 층."""
 import sys
 import types
 
 import pytest
-from fleet_core.pending import skip_waiting_module
 from fleet_core.traffic.modes import ZONE_CONTROLLER
-
-
-def pytest_pycollect_makemodule(module_path, parent):
-    return skip_waiting_module(module_path, parent)
 
 
 class FakeZoneTraffic:

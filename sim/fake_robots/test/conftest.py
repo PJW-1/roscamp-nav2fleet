@@ -6,15 +6,9 @@ from pathlib import Path
 
 import pytest
 import yaml
-from fleet_core.pending import skip_waiting_module
 
 REPO = Path(__file__).parents[3]
 CONTRACT = REPO / "interfaces" / "fleet_interfaces" / "contract.yaml"
-
-
-def pytest_pycollect_makemodule(module_path, parent):
-    """지도(2단계)나 교통 층(3단계)을 기다리는 시험은 건너뛴다(fleet_core/pending.py)."""
-    return skip_waiting_module(module_path, parent)
 
 
 def write_scenario(tmp_path, **over):

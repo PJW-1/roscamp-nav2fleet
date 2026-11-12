@@ -53,7 +53,6 @@ cd pc/fleet_core && python3 -m pytest -q test      # 패키지 폴더마다 같�
 
 - 핑키 패키지는 벤더 의존(`iponic.repos`의 `pinky_pro`)이 함께 빌드되어 있어야 한다.
 - `fleet_manager` 시험은 ROS 도메인 50~59를 코드에서 쓴다. 한 기계에서 한 번에 하나만 돌린다.
-- 건너뛰는 시험 모듈은 `pc/fleet_core/fleet_core/pending.py`의 표에 이유와 함께 적혀 있다.
 
 ## 돌려 보기
 

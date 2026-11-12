@@ -1,15 +1,14 @@
 """traffic_mode로 교통 층을 고른다. 주문 코어와 FleetManager의 바깥 API는 그대로다.
 
 모드는 zones 하나다(지점과 구역 그래프 위의 구역 허락, 넓은 구역은 Nav2 goal). 그 교통 층은
-3단계에서 fleet_core/traffic/zone/controller.py의 ZoneTraffic으로 온다. 바깥 API는 api.py.
-그 모듈이 없는 동안 build_traffic은 NoZoneTraffic을 낸다.
+fleet_core/traffic/zone/controller.py의 ZoneTraffic이고 바깥 API는 api.py다. 이름으로 읽어
+들이므로 시험은 그 자리에 가짜를 둘 수 있다. 모듈을 찾지 못하면 NoZoneTraffic을 낸다.
 """
 from __future__ import annotations
 
 import importlib
 
-from fleet_core.pending import NEEDS_ZONE_TRAFFIC
-
+NEEDS_ZONE_TRAFFIC = "needs the zone traffic layer (stage 3)"
 ZONES = "zones"
 MODES = (ZONES,)
 ZONE_CONTROLLER = "fleet_core.traffic.zone.controller"

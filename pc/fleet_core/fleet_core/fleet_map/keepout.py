@@ -22,11 +22,11 @@ def keepout_rects(site, pad: float = BODY_HALF_WIDTH_M) -> list[tuple]:
             for x0, y0, x1, y1 in zone.rects]
 
 
-def mask(site, width: int, height: int, resolution: float, origin,
-         pad: float = BODY_HALF_WIDTH_M) -> list[list[bool]]:
-    """keepout 칸이 참인 격자. 줄은 아래(y 작은 쪽)부터이고, origin은 왼쪽 아래 구석이다.
+def filled(rects, width: int, height: int, resolution: float, origin) -> list[list[bool]]:
+    """사각형 (x0, y0, x1, y1)이 조금이라도 걸친 칸이 참인 격자.
 
-    격자는 축에 맞춘 것이다(지도 origin의 yaw는 0이어야 한다).
+    줄은 아래(y 작은 쪽)부터이고, origin은 왼쪽 아래 구석이다. 격자는 축에 맞춘 것이다(지도
+    origin의 yaw는 0이어야 한다).
     """
     grid = [[False] * width for _ in range(height)]
 
@@ -34,11 +34,17 @@ def mask(site, width: int, height: int, resolution: float, origin,
         return range(max(0, math.floor((lo - start) / resolution + HAIR)),
                      min(count, math.ceil((hi - start) / resolution - HAIR)))
 
-    for x0, y0, x1, y1 in keepout_rects(site, pad):
+    for x0, y0, x1, y1 in rects:
         for j in cells(y0, y1, origin[1], height):
             for i in cells(x0, x1, origin[0], width):
                 grid[j][i] = True
     return grid
+
+
+def mask(site, width: int, height: int, resolution: float, origin,
+         pad: float = BODY_HALF_WIDTH_M) -> list[list[bool]]:
+    """keepout 칸이 참인 격자(filled와 같은 꼴)."""
+    return filled(keepout_rects(site, pad), width, height, resolution, origin)
 
 
 def pgm(grid) -> bytes:
