@@ -71,6 +71,10 @@ class Robot:
     silent_from: tuple | None = None  # 조용히 멈춤을 재기 시작한 자리(silent.py)
     silent_since: float = 0.0
     silent_noted: bool = False  # 이번에 SILENT_STALL을 냈다
+    start_goal: int = 0  # 움직이기 시작했는지 재는 goal(nostart.py)
+    start_xy: tuple = (0.0, 0.0)
+    start_since: float = 0.0
+    start_done: bool = False  # 그 goal은 다 보았다
     self_recovery_since: float | None = None
     clear_n: dict = field(default_factory=dict)  # 뒤의 구역이나 지점 -> 벗어난 연속 보고 수
     outside_n: int = 0  # 쥔 구역 밖으로 벗어난 연속 보고 수
