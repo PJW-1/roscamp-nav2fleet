@@ -56,11 +56,22 @@ class Progress:
             self._return_unreached(m)
 
     def _place(self, m) -> None:
-        """첫 보고(또는 다시 투입된 뒤의 보고)로 로봇을 지도에 올린다."""
+        """첫 보고(또는 다시 투입된 뒤의 보고)로 로봇을 지도에 올린다.
+
+        가까운 지점을 다른 로봇이 쥐고 있고 이 로봇이 그 지점 바로 위(도착 허용 거리의 절반 안)가
+        아니면, 그 옆의 넓은 구역에 선 것으로 올린다. 지점에는 한 대만 서지만 넓은 구역에는 그
+        옆에 설 수 있고, 보고 하나가 0.15 m 안으로 들어왔다고 자리가 겹친 것은 아니다.
+        """
         if m.robot_state in NOT_PLACEABLE:
             return
         site = self.site
-        node = site.nearest_node(m.x, m.y, radius=self.params.arrival_tolerance_m)
+        tolerance = self.params.arrival_tolerance_m
+        node = site.nearest_node(m.x, m.y, radius=tolerance)
+        if (node and self.grants.node_holder(node) not in ("", m.name)
+                and self._gap(m, node) > tolerance / 2):
+            beside = site.zone_at(m.x, m.y)
+            if beside is not None and site.zones[beside].kind == SHARED:
+                node = None
         zone = site.nodes[node].zone if node else site.zone_at(m.x, m.y)
         if zone is None or (node is None and site.zones[zone].kind != SHARED):
             self._placement_refused(m, f"no node near ({m.x:.2f}, {m.y:.2f})")
