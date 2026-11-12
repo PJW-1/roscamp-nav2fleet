@@ -169,9 +169,14 @@ class OrderFsm(PinkyFsm):
         return self._own(super().nav_goal_cancel_accepted(seq, now), now, self._pose)
 
     def tick(self, now, pose, speed, obstacle) -> list:
-        self._count_bounds(pose)  # heartbeat로 끝나기 전에 방금 끝낸 조각을 센다
+        if self._heartbeat_lost(now) and self._stops_on_heartbeat_loss():
+            # 이번 주기에 heartbeat 끊김으로 끝난다. 끝내기 전에 방금 끝낸 조각을 센다. 다른
+            # 주기에는 core의 tick이 진행 거리를 한 번만 찾는다
+            self._count_bounds(pose, track=True)
         cmds = self._own(super().tick(now, pose, speed, obstacle), now, pose)
-        return cmds + self._own(self._order_tick(now, pose), now, pose)
+        cmds += self._own(self._order_tick(now, pose), now, pose)
+        self._lost_contact = False  # 이 주기 안에서만 본다. 남으면 다음 order의 실패 이유를 바꾼다
+        return cmds
 
     # -- 안쪽 -----------------------------------------------------------------------------
 
@@ -188,13 +193,13 @@ class OrderFsm(PinkyFsm):
         return (self._blocked or getattr(g, "blocked", False)
                 or getattr(g, "waiting_since", None) is not None)
 
-    def _count_bounds(self, pose) -> None:
-        """합친 경로에서 지난 중간 조각을 끝낸 것으로 센다."""
+    def _count_bounds(self, pose, track: bool = False) -> None:
+        """합친 경로에서 지난 중간 조각을 끝낸 것으로 센다. track이면 진행 거리부터 찾는다."""
         g = self._active
-        if (self._q is None or pose is None or not isinstance(g, _Move)
-                or g.goal_id != self._key):
+        if self._q is None or not isinstance(g, _Move) or g.goal_id != self._key:
             return
-        g.s = self._track(g, pose)
+        if track and pose is not None:
+            g.s = self._track(g, pose)
         while self._bounds and g.s >= self._bounds[0][0]:
             self._q.done = self._bounds.pop(0)[1]
 
