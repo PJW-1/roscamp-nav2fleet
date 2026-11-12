@@ -48,7 +48,6 @@ from pinky_fsm.core import (
     CancelNav,
     ClearCostmap,
     Finish,
-    FsmParams,
     LimitSpeed,
     SendPath,
 )
@@ -59,37 +58,18 @@ from pinky_fsm.local_yield import peers_from
 from pinky_fsm.nav_goal import CancelNavGoal, SendNavGoal
 from pinky_fsm.nav_goal_ros import NavGoalRunner
 from pinky_fsm.obstacle_report import UNKNOWN, clear_answer, nearest_ahead
-from pinky_fsm.order_fsm import OrderFsm, OrderParams
+from pinky_fsm.order_fsm import OrderFsm
 from pinky_fsm.order_ros import OrderMaps, OrderMarkers
+from pinky_fsm.params_ros import declare_fsm_params
 from pinky_fsm.server_ros import GoalServers
 
 UNKNOWN_BATTERY = -1.0  # 배터리 토픽이 없을 때. 관제는 보여 주기만 한다
-_FLOAT_PARAMS = (
-    "arrival_tolerance_m", "connect_tolerance_m", "refresh_within_m", "refresh_every_s",
-    "heartbeat_timeout_s", "stopped_speed_mps", "stopped_turn_rps", "block_report_s",
-    "block_clear_s", "block_timeout_s", "block_lookahead_m", "path_step_m", "turn_radius_m",
-    "join_min_off_m", "join_slope",
-    # 자가 복구
-    "backup_max_m", "release_distance_m", "backup_margin_m", "backup_min_m",
-    "backup_lateral_limit_m", "backup_speed_mps", "backup_time_allowance_s",
-    "backup_result_grace_s", "recovery_pass_m", "recovery_timeout_s", "recovery_reset_m",
-    # 관제가 시키는 물러나기(버전 2 1-A, 경로 물러나기)
-    "retreat_stop_wait_s", "reverse_speed_mps", "nav_result_grace_s",
-    # 잠금 경계 목표의 속도 제한(버전 2 4절 horizon 최소판)
-    "horizon_decel_mps2", "horizon_min_mps", "horizon_cap_mps", "horizon_latency_s",
-    # BLOCKED까지의 시간(두 mode 모두, 계약 0.13-draft)과 nav_goal의 진전 기준
-    "blocked_after_s", "nav_progress_m",
-    # 로봇단 교착 처리(추가 지시서 3의 7-4)
-    "local_wait_s", "local_backup_m", "local_peer_near_m", "peers_timeout_s")
-_INT_PARAMS = ("recovery_attempts",)
-_ORDER_PARAMS = ("join_m", "pass_m")  # order 모델(계약 0.11-draft 제안). 이름 앞에 order_
 MARKER_PERIOD_S = 0.5
 
 
 class PinkyFsmNode(Node):
     def __init__(self, **kwargs):
         super().__init__("pinky_fsm", **kwargs)
-        d = FsmParams()
         declare = self.declare_parameter
         declare("robot_id", self.get_namespace().strip("/") or "pinky1")
         declare("contract_file", "")
@@ -124,15 +104,7 @@ class PinkyFsmNode(Node):
         declare("map_topic", "map")
         declare("keepout_mask_topic", "keepout_filter_mask")  # 비면 keepout 검사를 하지 않는다
         declare("order_markers_topic", "order_markers")
-        o = OrderParams()
-        for name in _ORDER_PARAMS:
-            declare(f"order_{name}", float(getattr(o, name)))
-        for name in _FLOAT_PARAMS:
-            declare(name, float(getattr(d, name)))
-        for name in _INT_PARAMS:
-            declare(name, int(getattr(d, name)))
-        declare("comm_loss_policy", d.comm_loss_policy)  # stop / base_end. 다른 값은 시작에서 거절
-        declare("local_yield", d.local_yield)  # 끄면 0.12까지의 자가 복구
+        fsm_params, order_params = declare_fsm_params(self)
         get = self.get_parameter
         self.robot_id = get("robot_id").value
         self._map_frame = get("map_frame").value
@@ -148,11 +120,7 @@ class PinkyFsmNode(Node):
         self._maps = OrderMaps(self, get("map_topic").value, get("keepout_mask_topic").value,
                                callback_group=group)
         self._fsm = OrderFsm(
-            FsmParams(**{name: float(get(name).value) for name in _FLOAT_PARAMS},
-                      **{name: int(get(name).value) for name in _INT_PARAMS},
-                      comm_loss_policy=str(get("comm_loss_policy").value),
-                      local_yield=bool(get("local_yield").value)),
-            OrderParams(**{name: float(get(f"order_{name}").value) for name in _ORDER_PARAMS}),
+            fsm_params, order_params,
             horizon_check=self._maps.check, robot_id=self.robot_id)
         self._markers = OrderMarkers(self, get("order_markers_topic").value, self._map_frame)
         self._last_state = ("", "")  # (state, local_yield) 로그용
