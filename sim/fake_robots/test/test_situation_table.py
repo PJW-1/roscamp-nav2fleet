@@ -73,15 +73,19 @@ def test_a_detour_long_after_the_person_left_is_not_blamed_on_the_person():
     [person] = s.injections
     assert s.quiet_until_s == pytest.approx(person.t1 + 30.0)
 
-    def world(reroute_at):
+    def world(reroute_at, retreat_at=()):
         events = [(reroute_at, SimpleNamespace(code="REROUTE"))]
         return SimpleNamespace(
             events=events, t=300.0, central=SimpleNamespace(total=6, finished=6),
             metrics=SimpleNamespace(count=lambda code: sum(e.code == code for _, e in events),
-                                    retreats=0))
+                                    retreats=len(retreat_at), retreat_times=list(retreat_at)))
 
     assert expectations(s, world(person.t1 + 5.0)) == ["REROUTE x1"]
     assert expectations(s, world(person.t1 + 96.0)) == []
+    # 후진도 같은 때까지만 센다: 늦은 우회는 봐주고 같은 때의 후진만 실패로 치지 않는다
+    late = person.t1 + 96.0
+    assert expectations(s, world(late, retreat_at=[late])) == []
+    assert expectations(s, world(late, retreat_at=[person.t1 + 5.0, late])) == ["retreats 1 > 0"]
     whole_run = build("express_both_ends", "d2")
     assert whole_run.quiet_until_s is None
 

@@ -79,8 +79,10 @@ def expectations(s, world) -> list[str]:
     for code, least in s.need_events.items():
         if m.count(code) < least:
             out.append(f"{code} x{m.count(code)}, want >= {least}")
-    if s.max_retreats is not None and m.retreats > s.max_retreats:
-        out.append(f"retreats {m.retreats} > {s.max_retreats}")
+    retreats = (m.retreats if s.quiet_until_s is None else
+                sum(t <= s.quiet_until_s for t in m.retreat_times))
+    if s.max_retreats is not None and retreats > s.max_retreats:
+        out.append(f"retreats {retreats} > {s.max_retreats}")
     return out
 
 

@@ -40,7 +40,7 @@ class Situation:
     max_retreats: int | None = None
     need_events: dict = field(default_factory=dict)  # 사건 코드 -> 적어도 이만큼
     no_events: tuple[str, ...] = ("DEADLOCK_SEEN",)
-    quiet_until_s: float | None = None  # no_events를 이 시각까지만 센다. None이면 끝까지
+    quiet_until_s: float | None = None  # no_events와 후진을 이 시각까지만 센다. None이면 끝까지
     rough: Rough = field(default_factory=Rough)  # none, mixed의 기준
     at_least_s: float = 0.0  # 주문이 끝나도 이 시각까지는 돌린다(막힘 표시가 풀리는 것을 본다)
 
