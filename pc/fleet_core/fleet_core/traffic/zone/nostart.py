@@ -13,6 +13,8 @@ watch.py가 stall_s 뒤에 거둔다).
 - 시작 전에 BLOCKED나 RECOVERING을 보고함: 막힘으로 답했다(blocked.py, 원인 분류 질문 3).
 - 성공을 받고 자세를 기다리는 중, 로봇이 쓸 수 없음(지도 밖, 고장, 통신), 관제를 세움: 다시
   쓸 수 있게 되면 그때부터 잰다.
+- order 모델에서 base 끝에 서서 update를 기다리는 중: horizon만 바꾼 update도 새 goal id로
+  가지만 로봇은 움직이지 않는다. base를 늘린 update가 가면 그때부터 잰다.
 """
 from __future__ import annotations
 
@@ -26,8 +28,9 @@ START_MOVE_M = 0.02  # 이보다 더 움직여야 시작한 것이다(지시서 
 class NoStart:
     def _watch_start(self, m, now: float) -> None:
         p, goal = self.params, m.goal
+        waiting = m.move_order is not None and m.move_order.waiting  # base 끝에 서 있다
         if (p.start_limit_s <= 0 or not m.available or self._run_mode != RUN or goal is None
-                or goal.kind == DOCK or m.arrival_by is not None):
+                or goal.kind == DOCK or m.arrival_by is not None or waiting):
             m.start_goal = 0
             return
         here = (m.x, m.y)

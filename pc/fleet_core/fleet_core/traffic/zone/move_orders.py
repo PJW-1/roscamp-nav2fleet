@@ -148,6 +148,8 @@ class MoveOrders:
             self._wants[m.name] = want
             self._note_wait(m, want)
             return
+        if station is not None:
+            trip.turn = True  # 차례를 받아 도크 구간을 잡았다(turns._ahead)
         self._send_update(m, before, self._fresh_base(m, trip))
         self._event("INFO", "ORDER_UPDATED",
                     f"{mo.id} update {mo.update}: base to {m.goal.end}", m.name)

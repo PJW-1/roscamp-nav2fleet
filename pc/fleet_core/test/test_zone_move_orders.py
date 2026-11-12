@@ -208,6 +208,31 @@ def test_a_changed_route_ahead_replaces_only_the_horizon():
     assert orders(world, "pinky1")[-1].update_id == 2 and not world.problems
 
 
+def test_a_horizon_only_update_at_the_base_end_is_not_a_goal_that_did_not_start():
+    """base 끝에서 기다리는 로봇은 horizon만 바뀐 update(새 goal id)를 받아도 움직이지 않는다. 끝
+    지점에서 3 cm 떨어져 서 있어도 출발하지 않은 것(NO_START)이 아니다."""
+    world, _ = queued_for_outbound()
+    assert world.run_until(lambda: "BASE_END_WAIT" in world.codes("pinky1"), 60.0)
+    world.bots["pinky1"].x += 0.03
+    world.traffic._blocked[("N_E", "X_E")] = world.now + 300.0  # 출고 도크 진입로가 막혔다
+    world.run(12.0)
+    assert world.codes("pinky1").count("HORIZON_CHANGED") == 1
+    assert "NO_START" not in world.codes("pinky1")
+
+
+def test_a_queued_robot_takes_the_dock_turn_when_its_order_is_extended_into_the_dock():
+    """줄에 선 로봇의 길은 도크까지 이어져 있어도 차례를 받은 길이 아니다. 도크가 비어 도크 구간을
+    잡으면 그때 차례를 받는다."""
+    world, call = queued_for_outbound()
+    assert world.run_until(lambda: "BASE_END_WAIT" in world.codes("pinky1"), 60.0)
+    trip = world.traffic._robots["pinky1"].trip
+    assert trip.goal == "O" and not trip.turn
+    world.traffic.on_release("pinky2")
+    assert world.run_until(lambda: trip.turn, 30.0)
+    assert world.run_until(lambda: world.result_of(call) is not None, 120.0)
+    assert world.result_of(call).success and not world.problems
+
+
 def test_a_refused_update_is_followed_by_a_new_order_from_the_base_end():
     world, call = queued_for_outbound()
     assert world.run_until(lambda: "BASE_END_WAIT" in world.codes("pinky1"), 60.0)
