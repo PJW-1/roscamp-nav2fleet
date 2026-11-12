@@ -100,10 +100,42 @@ def test_a_failed_retreat_is_a_failed_attempt():
     core, now = manager_at_the_work_dock()
     now[0] += 0.1
     back = next(c for c in core.tick() if isinstance(c, RetreatCmd))
-    core.on_retreat_result("pinky1", back.goal_id, False, "OBSTACLE_BEHIND")
+    core.on_retreat_result("pinky1", back.goal_id, False, "FAILED")
     out = core.tick()
     retry = [e.detail for e in out if isinstance(e, EventOut) and e.code == "GOAL_RETRY"]
-    assert retry == ["OBSTACLE_BEHIND, attempt 1"]
+    assert retry == ["FAILED, attempt 1"]
+
+
+def test_something_behind_a_retreat_is_waited_out_until_blocked_timeout_s():
+    """추가 지시서 3의 5절(도크 앞 사람): 뒤에 사람이 잠깐 서 있어도 곧바로 격리하지 않는다."""
+    core, now = manager_at_the_work_dock()
+    x, y = core.site.node_pose("W")
+    codes = []
+    for _ in range(60):  # 다시 낼 때마다 뒤에 무엇이 있다
+        now[0] += core.params.move_retry_wait_s + 0.1
+        core.on_robot_state("pinky1", x, y, 0.0, "IDLE")
+        out = core.tick()
+        codes += [e.code for e in out if isinstance(e, EventOut)]
+        back = next((c for c in out if isinstance(c, RetreatCmd)), None)
+        if back is not None:
+            core.on_retreat_result("pinky1", back.goal_id, False, "OBSTACLE_BEHIND")
+        if "ROBOT_ISOLATED" in codes:
+            break
+    assert codes.count("RETREAT_WAIT") == 1
+    assert "ROBOT_ISOLATED" in codes, "it still gives up in the end"
+    assert now[0] >= core.params.blocked_timeout_s
+
+
+def test_a_retreat_that_gets_out_after_waiting_starts_a_fresh_wait_next_time():
+    core, now = manager_at_the_work_dock()
+    now[0] += 0.1
+    back = next(c for c in core.tick() if isinstance(c, RetreatCmd))
+    core.on_retreat_result("pinky1", back.goal_id, False, "OBSTACLE_BEHIND")
+    assert core.traffic._robots["pinky1"].behind_since == now[0]
+    now[0] += core.params.move_retry_wait_s + 0.1
+    back = next(c for c in core.tick() if isinstance(c, RetreatCmd))
+    core.on_retreat_result("pinky1", back.goal_id, True, "")
+    assert core.traffic._robots["pinky1"].behind_since is None
 
 
 # ---- 재생 도구의 거절 ----

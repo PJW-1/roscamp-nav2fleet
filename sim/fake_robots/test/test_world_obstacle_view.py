@@ -41,6 +41,19 @@ def test_a_blocked_robot_reports_where_the_box_is():
     assert kind == "unknown"
 
 
+def test_a_robot_blocked_before_it_turns_looks_along_its_way_not_its_yaw():
+    """선 채로 막힌 로봇은 아직 돌지 않았다(yaw는 옛 방향). costmap은 가려던 쪽을 본다."""
+    world = quiet_world(robots={"pinky1": "X_W"}, injections=[Obstacle(0.62, 0.89, 0.05)])
+    place(world, "pinky1", 0.40, 0.89, math.pi / 2)  # 길은 동쪽, 몸은 북쪽을 본다
+    world.send(follow(world, "pinky1", 7, ["X_W", "X_E"]))
+    world.run(4.0)
+    reports = [args for _, args in world.manager.of("on_robot_state", "pinky1")
+               if args[4] == "BLOCKED"]
+    assert reports and len(reports[-1]) == 10, "it reported what blocks it"
+    *_, x, y, kind = reports[-1]
+    assert math.isclose(x, 0.57, abs_tol=1e-6) and math.isclose(y, 0.89, abs_tol=1e-6)
+
+
 def test_the_fleet_marks_the_express_by_the_reported_position():
     world = ZoneWorld("d2", seed=1, injections=[Obstacle(1.0, 0.89, 0.04, 20.0, 140.0)])
     world.run_until(lambda: "ZONE_MARKED_BLOCKED" in world.event_codes(), 300.0)

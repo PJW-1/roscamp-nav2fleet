@@ -83,6 +83,7 @@ class ZoneTraffic(Calls, Goals, Turns, Drive, MoveOrders, OrderAnswers, Results,
                 self._judge_arrival(m, now)
                 self._watch_stall(m, now)
                 self._watch_idle(m, now)
+                self._watch_retreat_wait(m, now)
             self._watch_start(m, now)
             self._watch_silent(m, now)
         self._watch_near(now)

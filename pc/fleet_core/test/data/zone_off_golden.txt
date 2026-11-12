@@ -105,20 +105,18 @@
   14.5 pinky1  BLOCKED_WAIT: stands before something on the way to O
   24.5 pinky1  ZONE_MARKED_BLOCKED: X_W->X_E in EXPRESS, tried again in 60 s
   24.5 pinky1  CancelCmd
-  24.5 pinky1  REROUTE: backs out to X_W, then another way
+  24.5 pinky1  REROUTE: backs out to N_W, then another way
   24.5 pinky1  ZONE_GRANTED: EXPRESS+J_W+HALL+J_E+OUT_DOCK to O
   24.5 pinky1  RetreatCmd
-  24.5 pinky1  RETREAT_START: backs to X_W
-  34.4 pinky1  RETREAT_DONE: stands at X_W
-  34.4 pinky1  MoveCmd N_W
-  34.4 pinky1  FOLLOW_SENT: to N_W
-  36.4 pinky1  MoveCmd N_E
-  36.4 pinky1  NAV_GOAL_SENT: to N_E
-  47.1 pinky1  MoveCmd O
-  47.1 pinky1  FOLLOW_SENT: to O
-  50.6 pinky1  DockCmd
-  52.6 pinky1  DOCKED: at OUTBOUND: x 0.4 cm, y 0.3 cm, yaw 0.5 deg
-  52.6         DispatchResult
+  24.5 pinky1  RETREAT_START: backs to N_W
+  39.2 pinky1  RETREAT_DONE: stands at N_W
+  39.2 pinky1  MoveCmd N_E
+  39.2 pinky1  NAV_GOAL_SENT: to N_E
+  49.9 pinky1  MoveCmd O
+  49.9 pinky1  FOLLOW_SENT: to O
+  53.4 pinky1  DockCmd
+  55.4 pinky1  DOCKED: at OUTBOUND: x 0.4 cm, y 0.3 cm, yaw 0.5 deg
+  55.4         DispatchResult
 == busy_outbound
    0.1 pinky1  ZONE_GRANTED: WORK_DOCK+J_W+HALL to P-2
    0.1 pinky1  RetreatCmd

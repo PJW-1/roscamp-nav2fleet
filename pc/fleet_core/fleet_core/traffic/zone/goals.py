@@ -69,6 +69,8 @@ class Goals:
         """지금 자리에서 goal까지의 연결들. 이미 거기면 [], 길이 없으면 None."""
         site, cost = self.site, self._cost(m)
         if m.retreat_to:  # 막혀서 물러나는 중: 지나온 지점까지 후진한 뒤 거기서 간다
+            if self._retreat_held_up(m):
+                return None  # 꺾이는 물러날 길 위에 로봇이 있다: 구역을 잡지 않고 기다린다
             back = self._back_link(m)
             rest = route(site, m.retreat_to, goal, cost)
             return None if rest is None or back is None else [back, *rest]
@@ -113,12 +115,14 @@ class Goals:
         return memo[zone]
 
     def _back_link(self, m):
-        """물러날 지점까지의 후진 연결. 지금 구역부터 그 지점의 구역까지를 지난다."""
+        """물러날 지점까지의 후진 연결. 지금 구역부터 (꺾는 갈림목의 구역,) 그 지점의 구역까지를
+        지난다."""
         site = self.site
         here = site.zone_at(m.x, m.y)
+        via = site.nodes[m.retreat_via].zone if m.retreat_via else None
         target = site.nodes[m.retreat_to].zone
-        zones = [zone for zone in (here, target) if zone is not None]
-        return back_link(site, m.x, m.y, m.retreat_to, dict.fromkeys(zones))
+        zones = [zone for zone in (here, via, target) if zone is not None]
+        return back_link(site, m.x, m.y, m.retreat_to, dict.fromkeys(zones), m.retreat_via)
 
     # ---- 목적지 ----
 

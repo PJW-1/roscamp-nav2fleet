@@ -21,6 +21,7 @@ from fleet_core.traffic.mission import (
 )
 
 from .base import HERE
+from .block_marks import yard_retreat
 from .robots import BACKOFF
 
 
@@ -82,6 +83,9 @@ class Blocked:
         zone = site.zone_at(m.x, m.y)
         if not link.a or zone is None or site.zones[zone].kind == SHARED:
             return ""
+        target, via = yard_retreat(site, link)
+        if via:
+            return self._behind_on_the_bent_way(m, target, via)
         here, back = (m.x, m.y), site.node_pose(link.a)
         way = (back[0] - here[0], back[1] - here[1])
         for other in self._robots.values():
@@ -124,8 +128,10 @@ class Blocked:
         self._cancel_goal(m)
         m.blocked_since = None
         if link.a and zone is not None and site.zones[zone].kind != SHARED:
-            m.retreat_to = link.a  # 고정 구간 안: 지나온 지점까지 물러난다
-            self._event("INFO", "REROUTE", f"backs out to {link.a}, then another way", m.name)
+            # 고정 구간 안: 지나온 지점까지, 그 지점이 갈림목이면 마당 지점까지 물러난다
+            self._set_retreat(m, link, now)
+            self._event("INFO", "REROUTE", f"backs out to {m.retreat_to}, then another way",
+                        m.name)
         else:
             self._event("INFO", "REROUTE", f"another way to {m.trip.goal}", m.name)
             if not self._make_way(m, link.b):

@@ -45,6 +45,7 @@ class Results:
         if m is None:
             return
         if success:
+            m.behind_since = None
             self._succeeded(m)
         else:
             self._move_failed(m, reason or "RETREAT_FAILED")
@@ -177,6 +178,8 @@ class Results:
             self._arrived_anyway(m, reason)
             return
         self._forget_goal(m)
+        if reason == "OBSTACLE_BEHIND" and self._waits_behind(m):
+            return  # 뒤에 선 사람이 비키기를 기다린다. 시도로 세지 않는다(block_marks.py)
         if reason == HEARTBEAT_LOST:  # 로봇이 관제 heartbeat를 잃고 스스로 섰다. 시도로 세지 않는다
             m.retry_at = self._clock() + self.params.move_retry_wait_s
             return
