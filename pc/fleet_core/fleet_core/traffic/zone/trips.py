@@ -162,14 +162,16 @@ def free_link(site, x: float, y: float, node: str, zones=()) -> Link:
     return Link("", node, NAV_GOAL, "", points, tuple(zones) or (end.zone,), math.dist(*points))
 
 
-def back_link(site, x: float, y: float, node: str, zones) -> Link:
-    """(x, y)에서 지나온 지점까지 후진으로 물러나는 연결.
+def back_link(site, x: float, y: float, node: str, zones, via: str = "") -> Link:
+    """(x, y)에서 지나온 지점까지 후진으로 물러나는 연결. via가 있으면 그 지점에서 꺾는다.
 
     zones는 지금 구역부터 그 지점의 구역까지다.
     """
+    corner = [site.node_pose(via)] if via else []
     end = site.nodes[node]
-    points = ((x, y), (end.x, end.y))
-    return Link("", node, RETREAT, "", points, tuple(zones), math.dist(*points))
+    points = ((x, y), *corner, (end.x, end.y))
+    length = sum(math.dist(a, b) for a, b in zip(points, points[1:], strict=False))
+    return Link("", node, RETREAT, "", points, tuple(zones), length)
 
 
 def speed(params, via: str) -> float:

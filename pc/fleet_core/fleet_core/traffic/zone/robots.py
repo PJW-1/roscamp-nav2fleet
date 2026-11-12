@@ -109,6 +109,9 @@ class Robot:
     yield_until: float = 0.0  # 넓은 구역에서 비켜 서 있는 시각
     yielded: tuple | None = None  # 마지막으로 비켜 선 (x, y, 시각)
     retreat_to: str = ""  # 막혀서 물러나는 중이면 물러날 지점
+    retreat_via: str = ""  # 그 후진이 꺾는 갈림목 지점. 곧게 물러나면 빈 값
+    retreat_since: float | None = None  # 물러나기로 정한 시각(물러날 길을 못 잡고 기다리는 한도)
+    retreat_behind: str = ""  # 꺾이는 물러날 길 위에 있어 기다리는 로봇(RETREAT_WAIT를 한 번만)
     backoff_from: tuple | None = None  # 마당 물러나기를 시작한 자리
     # 마지막 보고의 장애물 (x, y, 종류). 로봇이 모르면 None(추가 지시서 3의 4-1)
     obstacle: tuple | None = None

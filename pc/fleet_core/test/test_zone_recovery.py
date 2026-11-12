@@ -45,7 +45,8 @@ def test_a_robot_blocked_in_the_express_does_not_back_out_while_another_is_behin
 def test_a_robot_beside_the_way_back_does_not_hold_the_retreat_up():
     world, call = blocked_in_the_express()
     beside = world.bots["pinky2"]
-    beside.x, beside.y = world.site.node_pose("N_W")  # 갈림목 아래 마당: 물러날 길에서 0.24 m
+    # 작업 도크 대기 자리: 갈림목에서 마당(N_W)으로 꺾여 내려가는 물러날 길에서 0.224 m
+    beside.x, beside.y = world.site.node_pose("W_Q")
     assert world.run_until(lambda: world.result_of(call), 120.0)
     assert world.result_of(call).success
     assert "RETREAT_WAIT" not in world.codes()

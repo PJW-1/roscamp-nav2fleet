@@ -45,10 +45,12 @@ def test_blocked_inside_the_express_it_backs_out_and_takes_the_yard():
         "BLOCKED_WAIT", "ZONE_MARKED_BLOCKED", "REROUTE", "RETREAT_START", "RETREAT_DONE")]
     assert seen == ["RETREAT_START", "RETREAT_DONE", "BLOCKED_WAIT", "ZONE_MARKED_BLOCKED",
                     "REROUTE", "RETREAT_START", "RETREAT_DONE"]
-    back = world.sent(RetreatCmd, "pinky1")[1]
-    assert back.path[-1][:2] == (0.35, 0.89), "back to the junction it entered by"
+    back = [point[:2] for point in world.sent(RetreatCmd, "pinky1")[1].path]
+    site = world.site
+    assert back[-1] == site.node_pose("N_W"), "through the junction it entered by, to the yard"
+    assert site.node_pose("X_W") in back
     assert targets(world, "pinky1") == [
-        ("follow_path", "O"), ("follow_path", "N_W"), ("nav_goal", "N_E"), ("follow_path", "O")]
+        ("follow_path", "O"), ("nav_goal", "N_E"), ("follow_path", "O")]
     assert not world.problems
 
 
