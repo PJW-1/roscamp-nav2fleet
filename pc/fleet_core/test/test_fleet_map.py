@@ -458,6 +458,13 @@ def test_the_test_layout_d2_shelf_is_d2_plus_one_shelf_and_is_not_a_candidate():
     assert y1 < 0.775 and (x1 - x0) < 0.5 * 1.98
     assert test.nodes.keys() == d2.nodes.keys() and len(test.parking) == 3
     assert test.warnings == d2.warnings
+    # 지도 파일은 이름과 더한 진열대 한 줄만 다르다: D2의 지점이나 경로를 고치면 같이 고친다
+    import yaml
+
+    plain, shelf = (yaml.safe_load(site.source_text) for site in (d2, test))
+    assert (plain.pop("name"), shelf.pop("name")) == ("arena_d2", "arena_d2_shelf")
+    assert shelf.pop("shelves")[:-1] == plain.pop("shelves")
+    assert shelf == plain
 
 
 def test_load_accepts_a_path(tmp_path):
