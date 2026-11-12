@@ -7,6 +7,8 @@
   "pinky1,pinky3")은 흰 테두리와 이름 글로 그린다. 기다리는 로봇이 있으면 그 목록도 글로.
 - 로봇: 몸, 방향, 상태 글. 지금 가는 곳(핑키가 보고한 current_goal의 지점이나 스테이션 도크)은
   로봇 색 깃대와 로봇에서 그곳까지의 가는 선.
+- 앞길(RobotStatus.base, horizon: 지점 이름): base(구역을 쥔 길)는 로봇 위치에서 시작하는 로봇 색
+  실선, horizon(아직 허락받지 않은 길)은 base 끝에서 이어지는 옅고 가는 점선.
 """
 from __future__ import annotations
 
@@ -15,6 +17,7 @@ from dataclasses import dataclass
 from fleet_core.fleet_map import DOCK, FOLLOW_PATH, LANE, RETREAT, SHARED
 
 STALE_S = 3.0  # 이만큼 자세가 없으면 회색
+DASH_M = 0.04  # horizon 점선의 칸 길이(선과 빈칸이 같은 길이)
 
 GRAY = (0.55, 0.55, 0.55, 1.0)
 RED = (1.0, 0.1, 0.1, 1.0)
@@ -109,6 +112,25 @@ def map_specs(site) -> list[Spec]:
     return specs
 
 
+def dashes(points, dash: float = DASH_M) -> tuple:
+    """꺾은선 points를 dash 길이의 선과 빈칸으로 나눈 LINE_LIST 점."""
+    out, on, left = [], True, dash
+    for (ax, ay), (bx, by) in zip(points, points[1:], strict=False):
+        length = ((bx - ax) ** 2 + (by - ay) ** 2) ** 0.5
+        done = 0.0
+        while length - done > 1e-9:
+            step = min(left, length - done)
+            if on:
+                t0, t1 = done / length, (done + step) / length
+                out += [(ax + (bx - ax) * t0, ay + (by - ay) * t0),
+                        (ax + (bx - ax) * t1, ay + (by - ay) * t1)]
+            done += step
+            left -= step
+            if left <= 1e-9:
+                on, left = not on, dash
+    return tuple(out)
+
+
 def robot_label(status, stale: bool) -> tuple[str, tuple]:
     """pinky1  MOVING  TO_WORK R-003 글과 색. 고장, BLOCKED는 빨강, RECOVERING은 호박색."""
     fault = getattr(status, "fault", "") or "NONE"
@@ -166,7 +188,33 @@ class FleetView:
         self._zones = list(zones)
 
     def specs(self, now: float) -> list[Spec]:
-        return [*self._map, *self._zone_specs(), *self._goal_specs(), *self._robot_specs(now)]
+        return [*self._map, *self._zone_specs(), *self._goal_specs(), *self._way_specs(),
+                *self._robot_specs(now)]
+
+    def _way_specs(self) -> list[Spec]:
+        specs = []
+        for i, robot in enumerate(sorted(self._status)):
+            status = self._status[robot]
+            if robot in self._pose:  # 몸을 그리는 자리(기본은 Gazebo 실제 위치)
+                start = self._pose[robot][:2]
+            else:
+                start = (float(getattr(status, "x", 0.0)), float(getattr(status, "y", 0.0)))
+            base = [self.site.node_pose(n) for n in getattr(status, "base", ())
+                    if n in self.site.nodes]
+            horizon = [self.site.node_pose(n) for n in getattr(status, "horizon", ())
+                       if n in self.site.nodes]
+            color = robot_color(robot)
+            line = [start, *base]
+            if base:
+                specs.append(Spec("way_base", i, "LINE_LIST", (0.0, 0.0, 0.015, 0.0),
+                                  (0.02, 0.0, 0.0), _faded(color, 1.0),
+                                  tuple(p for a, b in zip(line, line[1:], strict=False)
+                                        for p in (a, b))))
+            if horizon:
+                specs.append(Spec("way_horizon", i, "LINE_LIST", (0.0, 0.0, 0.015, 0.0),
+                                  (0.012, 0.0, 0.0), _faded(color, 0.5),
+                                  dashes([line[-1], *horizon])))
+        return specs
 
     def _zone_specs(self) -> list[Spec]:
         specs = []
