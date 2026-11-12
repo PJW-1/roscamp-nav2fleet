@@ -689,8 +689,8 @@ def test_a_requeued_order_is_a_backlog_again():
 
 
 def test_a_robot_called_to_work_may_wait_at_parking_on_the_way():
-    # 구역 관제는 바쁜 작업 도크 앞 대기 줄과 홀의 쉼터를 주차 자리에 둔다(DOCK_QUEUED, 구역 기다림).
-    # 레인 관제에는 대기 레인이 따로 있었다
+    # 구역 관제는 바쁜 작업 도크 앞 대기 줄과 홀의 쉼터를 주차 자리에 둔다
+    # (DOCK_QUEUED, 구역 기다림). 레인 관제에는 대기 레인이 따로 있었다
     j = judge(direct_returns_min=1)
     j.on_board(["O-1", "O-2"])
     lap(j, "pinky1", [OUT, LANE])
