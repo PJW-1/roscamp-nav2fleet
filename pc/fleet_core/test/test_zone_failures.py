@@ -69,6 +69,54 @@ def test_a_result_for_another_goal_is_ignored():
     assert world.view("pinky2")["goal_id"] == last_goal(world)
 
 
+# ---- 고정 경로에 붙지 못한 로봇 ----
+
+def beside_the_node():
+    """pinky2가 N_W에서 0.148 m 떨어져 서 있다. 관제의 허용치(0.15 m) 안이라 N_W에 있다고 본다."""
+    world = Harness(starts={"pinky1": "P-1", "pinky2": "N_W", "pinky3": "P-3"}, speed=0.0)
+    bot = world.bots["pinky2"]
+    bot.x, bot.y = bot.x - 0.03, bot.y - 0.145
+    world.report()
+    call = world.call("WORK", "pinky2")
+    world.step()
+    [first] = world.sent(MoveCmd, "pinky2")
+    assert (first.mode, first.target_id) == ("follow_path", "W"), "it is sent along the fixed line"
+    return world, call
+
+
+def test_a_robot_that_cannot_join_the_fixed_line_is_first_sent_to_its_start_by_nav_goal():
+    world, call = beside_the_node()
+    world.traffic.on_move_result("pinky2", last_goal(world), False, "PATH_NOT_CONNECTED")
+    world.run(world.params.move_retry_wait_s + 0.3)
+    again = world.sent(MoveCmd, "pinky2")[-1]
+    assert (again.mode, again.target_id) == ("nav_goal", "N_W"), "not the same line once more"
+    bot = world.bots["pinky2"]
+    bot.x, bot.y = world.site.node_pose("N_W")
+    world.report()
+    world.traffic.on_move_result("pinky2", again.goal_id, True, "")
+    world.run(2.0)
+    line = world.sent(MoveCmd, "pinky2")[-1]
+    assert (line.mode, line.target_id) == ("follow_path", "W"), "from the node it takes the line"
+    assert world.codes("pinky2").count("GOAL_RETRY") == 1 and not isolations(world)
+    assert world.result_of(call) is None
+
+
+def test_a_robot_that_cannot_join_a_line_outside_a_shared_zone_is_still_retried_and_isolated():
+    world = Harness(starts={"pinky1": "P-1", "pinky2": "X_W", "pinky3": "P-3"}, speed=0.0)
+    world.step()
+    world.call("WORK", "pinky2")
+    world.step()
+    p = world.params
+    for _ in range(p.move_retry_limit + 1):
+        cmd = world.sent(MoveCmd, "pinky2")[-1]
+        assert cmd.mode == "follow_path"
+        world.traffic.on_move_result("pinky2", cmd.goal_id, False, "PATH_NOT_CONNECTED")
+        world.run(p.move_retry_wait_s + 0.3)
+    # 갈림목 안에서는 Nav2 goal로 돌아갈 수 없다: 전처럼 다시 보내다 격리한다
+    assert world.view("pinky2")["state"] == "ERROR"
+    assert world.codes("pinky2")[-2:] == ["GOAL_FAILED", "ROBOT_ISOLATED"]
+
+
 # ---- 도킹 실패와 다시 보내기 ----
 
 def at_the_dock():
