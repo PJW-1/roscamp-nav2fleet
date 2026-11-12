@@ -69,6 +69,7 @@ class Robot:
     blocked_goal: int = 0  # blocked_since를 잰 goal
     rear_noted: bool = False  # 뒤의 로봇 때문에 후진을 미룬다고 알렸다(RETREAT_WAIT)
     idle_since: float | None = None  # 할 일 없이 서 있기 시작한 시각
+    dock_error_m: float = 0.0  # 마지막 도킹이 보고한 자리 오차(구역 놓기에 쓴다)
     silent_from: tuple | None = None  # 조용히 멈춤을 재기 시작한 자리(silent.py)
     silent_since: float = 0.0
     silent_noted: bool = False  # 이번에 SILENT_STALL을 냈다

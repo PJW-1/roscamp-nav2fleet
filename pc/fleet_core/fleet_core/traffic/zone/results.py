@@ -1,6 +1,8 @@
 """명령의 결과: 이동, 후진, 도킹의 성공과 실패, 거절, 못 보냄, 잃음."""
 from __future__ import annotations
 
+import math
+
 from fleet_core.fleet_map import NAV_GOAL, SHARED
 from fleet_core.traffic.mission import (
     AT_STATION,
@@ -53,6 +55,7 @@ class Results:
             return
         m.attempts = 0
         m.phase = AT_STATION
+        m.dock_error_m = math.hypot(error_x_cm, error_y_cm) / 100.0
         self._event("INFO", "DOCKED", f"at {m.dest}: x {error_x_cm:.1f} cm, y {error_y_cm:.1f} cm,"
                     f" yaw {error_yaw_deg:.1f} deg", m.name)
         self._finish_dispatch(m, error_x_cm, error_y_cm, error_yaw_deg)

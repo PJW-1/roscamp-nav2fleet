@@ -114,7 +114,8 @@ class Progress:
         """뒤에 남은 구역과 지점을 놓는다: 벗어난 보고가 release_confirm_samples번 이어질 때.
 
         구역은 보고 중심이 release_gap 넘게 벗어나야 벗어난 것이다: 몸 전체가 나간 뒤다. 도킹을
-        마친 로봇은 도킹 결과가 자리를 보증하므로 도크 지점에서 발자국 반지름만 본다.
+        마친 로봇은 도킹 결과가 자리를 보증하므로 도크 지점에서 발자국 반지름 + 도킹이 보고한
+        오차만 본다. 옛 기록(zone_clear_m)은 도킹한 로봇도 그때의 규칙으로 놓는다.
 
         keep_trip이 거짓이면 가던 길에 잡아 둔 것도 남기지 않는다. 놓은 구역을 돌려준다.
         """
@@ -126,8 +127,8 @@ class Progress:
             m.clear_n.clear()  # 이 보고로는 아무것도 놓지 않는다. 벗어난 보고는 이어져야 한다
             return []
         zones, nodes = self._still_needed(m) if keep_trip else (set(), set())
-        if m.phase == AT_STATION and m.node in site.nodes:
-            (x, y), gap = site.node_pose(m.node), p.footprint_radius_m
+        if m.phase == AT_STATION and m.node in site.nodes and not p.zone_clear_m:
+            (x, y), gap = site.node_pose(m.node), p.footprint_radius_m + m.dock_error_m
         else:
             (x, y), gap = (m.x, m.y), release_gap(p)
         released = []

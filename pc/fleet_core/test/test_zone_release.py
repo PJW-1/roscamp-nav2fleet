@@ -67,3 +67,30 @@ def test_a_docked_robot_is_measured_from_the_dock_without_the_margin():
 def test_the_margin_is_a_parameter():
     wide = gap_at_release(replace(P, release_margin_m=0.10))
     assert len(wide) > len(gap_at_release(P))
+
+
+def docked_at_work(params=P, error_cm=None):
+    """pinky2가 W에 도킹을 마친 뒤 쥐고 있는 구역. error_cm을 주면 도킹이 그 오차를 보고한다."""
+    world = Harness(starts={"pinky1": "P-1", "pinky2": "P-2", "pinky3": "P-3"}, params=params)
+    world.report()
+    if error_cm is not None:
+        real = world.traffic.on_dock_result
+        world.traffic.on_dock_result = lambda robot, goal_id, ok, *_: real(
+            robot, goal_id, ok, error_cm, 0.0, 0.0)
+    call = world.call("WORK", "pinky2")
+    assert world.run_until(lambda: world.result_of(call) is not None, 60.0)
+    world.run(1.0)
+    return sorted(world.view("pinky2")["held"])
+
+
+def test_a_docked_robot_keeps_what_its_reported_docking_error_may_still_touch():
+    """도킹 결과는 제가 보고한 오차만큼만 자리를 보증한다. W는 HALL에서 0.10 m, J_W에서 0.12 m다."""
+    assert docked_at_work(error_cm=1.0) == ["WORK_DOCK"]  # 0.085 + 0.01 < 0.10
+    assert docked_at_work(error_cm=3.0) == ["HALL", "WORK_DOCK"]  # 0.115: HALL에 걸칠 수 있다
+    assert docked_at_work(error_cm=4.0) == ["HALL", "J_W", "WORK_DOCK"]  # 0.125: 갈림목에도
+
+
+def test_a_record_made_with_zone_clear_m_releases_at_it_for_a_docked_robot_too():
+    fields = asdict(P)
+    fields.update(zone_clear_m=0.11)  # 옛 규칙: 보고 위치에서 0.11 m. HALL은 도크에서 0.10 m다
+    assert docked_at_work(FleetParams(**fields)) == ["HALL", "WORK_DOCK"]
