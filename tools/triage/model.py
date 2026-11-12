@@ -5,8 +5,9 @@ from dataclasses import dataclass, field
 
 CAUSES = ("관제", "주행", "회피", "진짜 막힘", "시험 틀")
 
-# 목표를 보냈다는 사건(질문 1). ORDER_SENT는 지시서에 있으나 코어에는 아직 없다
-GOAL_CODES = ("NAV_GOAL_SENT", "FOLLOW_SENT", "ORDER_SENT")
+# 목표를 보냈다는 사건(질문 1). ORDER_SENT는 지시서에 있으나 코어에는 아직 없다.
+# RETREAT_START는 관제가 낸 후진 명령이다(도크에서 나올 때 첫 명령)
+GOAL_CODES = ("NAV_GOAL_SENT", "FOLLOW_SENT", "ORDER_SENT", "RETREAT_START")
 # 막혔다는 사건(질문 3). 로봇 상태 BLOCKED 보고도 같다
 BLOCK_CODES = ("NAV_ABORTED",)
 # 시험 틀: 이 사건이 있거나 상태 보고가 없으면 관제와 로봇을 탓하지 않는다

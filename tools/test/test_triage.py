@@ -76,6 +76,14 @@ def test_no_goal_after_the_bind_is_the_fleets_fault():
     assert causes(text) == [("O-1", "관제", "ORDER_BOUND")]
 
 
+def test_backing_out_of_a_dock_is_a_goal_the_fleet_sent():
+    """도크에서 주문을 받은 로봇의 첫 명령은 후진이다. 그 뒤 끝내지 못했으면 관제 탓이 아니다."""
+    text = record(board(0.1, "O-1"), *walk(0, 9, 0.0, 0.0, "IDLE"),
+                  ev(10, "ORDER_BOUND", detail="O-1"), ev(10.1, "RETREAT_START"),
+                  *walk(10, 14, 0.0, -0.05), *walk(15, 30, -0.2, 0.0, "IDLE"))
+    assert causes(text) == [("O-1", "주행", "끝 보고 없음")]
+
+
 def test_a_robot_that_does_not_move_after_the_goal_is_a_driving_fault():
     text = record(*started(), *walk(10, 30, 0.0, 0.0, "IDLE"))
     assert causes(text) == [("O-1", "주행", "FOLLOW_SENT")]
