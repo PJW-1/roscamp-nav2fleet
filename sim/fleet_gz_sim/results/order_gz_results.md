@@ -65,3 +65,10 @@
 - 켬 두 판에서 HORIZON_INVALID 경고가 나왔다(on1 13번, on2 25번, 모두 "seq 3: (0.40, 0.74) is in keepout" 또는 "seq 5: (1.58, 0.74) is in keepout"). 리드는 고정 선(follow_path) 조각이 keepout 안에 있는 것은 정상이라 헛경고로 보고 order-model에서 본다고 했다. 여기서는 건드리지 않았다.
 - 멈춘 두 판(off2, on2)은 order 모델과 상관없이 마당에서 두 로봇이 몸이 닿을 만큼 붙은 뒤 AMCL이 흐르거나 뒤집혀 격리로 끝났다. 교착(DEADLOCK_SEEN)은 다섯 판 모두 0이었다.
 - 같은 셀을 다시 돌리지 않았다: g4o3_on2는 리드 결정으로 다시 돌리지 않았고, g4o3_off2 대신 g4o3_off3을 한 판 더 돌렸다.
+
+## RViz 화면(docs/img/order_base_horizon.png)
+
+- 경기 g4shot(D2, 3대, order 모델 켬, `rviz:=fleet`)을 시작하고 110 s 뒤에 찍었다(Gazebo, sites-order c02eb9c 빌드, 측정 경기가 아니다). RViz 창 안의 3D 화면만 잘라 냈다.
+- 굵은 실선은 base다. pinky1(파랑)은 N_E에서 X_E로, pinky2(초록)는 P-3에서 W_Q로 가는 선이 보인다. 이 순간에는 horizon(반투명 점선)이 짧아 그림에서 잘 보이지 않는다.
+- 아쉬운 점: fleet_view.rviz의 처음 카메라가 D2 경기장 가운데를 보지 않아 서쪽 끝(W, P-1 쪽)이 잘렸다. 글자 표시 몇 개(TO_OUTBOUND, N_E 등)는 경기장 오른쪽 밖에 떠 있다. 찍기는 두 번 했다. 첫 번째는 창 찾기 도구가 보이지 않는 창을 골라 실패했다. 두 번째에서 찍은 세 장 중 한 장을 골랐다.
+- 찍는 법: WSLg에서는 화면 전체를 찍을 수 없고(XGetImage BadMatch), Qt grabWindow는 검게 나온다. 그래서 RViz 창 하나를 XGetImage로 직접 읽었다(scratchpad의 grabwin.py).
