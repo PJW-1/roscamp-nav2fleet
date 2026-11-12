@@ -210,10 +210,4 @@ def test_robots_stop_without_the_fms_and_a_new_one_waits_for_all_of_them(probe, 
     print(f"orders: {summary['orders_shipped']} shipped of {summary['orders_total']} "
           f"in {summary['duration_s']:.0f} s. violations: {summary['violations']}")
     assert summary["orders_shipped"] == summary["orders_total"], summary
-    # 알려진 결함 R1(nf traffic_bugs.md): 구역을 몸이 아직 걸친 채 놓는 일이 잡음에 따라
-    # 가끔 있다. 판정 거리는 줄이지 않는다: 위반이 이것뿐이면 R1을 기다리는 것으로 건너뛴다
-    other = [v for v in summary["violations"]
-             if " released from " not in v or " m from it" not in v]
-    if summary["violations"] and not other:
-        pytest.skip(f"R1: zone released while the body still overlaps it: {summary['violations']}")
     assert summary["violations"] == [], summary
