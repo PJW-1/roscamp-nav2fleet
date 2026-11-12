@@ -4,7 +4,7 @@
 로봇은 움직이지 않는다(speed 0). 결과는 시험이 손으로 넣는다.
 """
 import pytest
-from fleet_core.common.commands import DispatchResult, MoveCmd, RobotIsolated
+from fleet_core.common.commands import DispatchResult, DockCmd, MoveCmd, RobotIsolated
 from fleet_core.traffic.mission import HEARTBEAT_LOST, NOT_AT_TARGET
 from zone_harness import Harness
 
@@ -67,6 +67,46 @@ def test_a_result_for_another_goal_is_ignored():
     world.step()
     assert "GOAL_RETRY" not in world.codes()
     assert world.view("pinky2")["goal_id"] == last_goal(world)
+
+
+# ---- 도킹 실패와 다시 보내기 ----
+
+def at_the_dock():
+    """움직이는 pinky2가 작업 도크 앞에 닿아 DockCmd를 받았다. 도킹은 실패로 답하게 해 둔다."""
+    world = Harness()
+    world.dock_fails.add("pinky2")
+    world.step()
+    call = world.call("WORK", "pinky2")
+    assert world.run_until(lambda: world.sent(DockCmd, "pinky2"), 120.0)
+    return world, call
+
+
+def docks(world, robot="pinky2"):
+    return len(world.sent(DockCmd, robot))
+
+
+@pytest.mark.parametrize("fail", ["result", "rejected"])
+def test_a_failed_docking_is_sent_again_only_after_the_wait(fail):
+    world, _ = at_the_dock()
+    if fail == "rejected":
+        world.traffic.on_goal_rejected("pinky2", world.sent(DockCmd, "pinky2")[-1].goal_id)
+        world.step()
+    else:
+        assert world.run_until(lambda: "GOAL_RETRY" in world.codes("pinky2"), 30.0)
+    assert (world.view("pinky2")["attempts"], docks(world)) == (1, 1)
+    world.run(world.params.move_retry_wait_s - 0.3)
+    assert docks(world) == 1, "nothing new before the retry wait is over"
+    world.run(0.5)
+    assert docks(world) == 2, "the docking goes out again"
+
+
+def test_docking_that_fails_once_and_then_succeeds_ends_the_dispatch_well():
+    world, call = at_the_dock()
+    assert world.run_until(lambda: "GOAL_RETRY" in world.codes("pinky2"), 30.0)
+    world.dock_fails.clear()
+    assert world.run_until(lambda: world.result_of(call), 60.0)
+    assert world.result_of(call).success and "GOAL_FAILED" not in world.codes()
+    assert (world.view("pinky2")["state"], world.view("pinky2")["attempts"]) == ("AT_STATION", 0)
 
 
 # ---- 시도로 세지 않는 실패 ----
