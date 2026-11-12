@@ -16,12 +16,16 @@
   params/keepout.yaml을 파라미터에 덧붙여 global costmap에 keepout 필터를 걸고,
   keepout_mask_server, costmap_filter_info_server와 lifecycle_manager_keepout을 더 띄운다.
   비면(기본) 아무것도 바뀌지 않는다.
-- vision_obstacles:=true면 params/vision_obstacles.yaml을 덧붙여 두 costmap의 장애물 층에
-  /{namespace}/vision_obstacles(PointCloud2)를 관측원으로 더한다(회피 담당의 자리, 기본 꺼짐).
+- 파라미터는 두 파일에서 모은다(추가 지시서 3의 7-1, pinky_nav_params.py): params_file(사용자,
+  params/nav2_params.yaml)에 avoidance_params_file(회피 담당, params/avoidance.yaml)의
+  FollowPathGoal 값을 넣는다. 회피 담당 파일에 사용자의 키가 있으면 뜨지 않는다.
+- vision_obstacles:=true면 회피 담당 파일의 vision_obstacles를 두 costmap의 장애물 층에
+  /{namespace}/vision_obstacles(PointCloud2) 관측원으로 더한다(기본 꺼짐).
 - use_composition:=true면 같은 노드들을 컨테이너(component_container_isolated) 한 프로세스에
   올린다. 한 PC에 로봇 여럿을 띄울 때 DDS 참가자(프로세스) 수를 줄인다.
   기본은 false(노드마다 프로세스).
 """
+import sys
 import tempfile
 from pathlib import Path
 
@@ -37,6 +41,9 @@ from launch_ros.actions import ComposableNodeContainer, Node, PushRosNamespace, 
 from launch_ros.descriptions import ComposableNode, ParameterFile, ParameterValue
 from nav2_common.launch import ReplaceString, RewrittenYaml
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))  # 이 파일 옆의 pinky_nav_params.py
+from pinky_nav_params import merge, with_avoidance  # noqa: E402
+
 SHARE = Path(get_package_share_directory("pinky_nav_config"))
 LOCALIZATION = ["map_server", "map_server_fine", "amcl"]
 NAVIGATION = ["controller_server", "planner_server", "behavior_server", "bt_navigator"]
@@ -44,38 +51,34 @@ KEEPOUT = ["keepout_mask_server", "costmap_filter_info_server"]
 TF_REMAPS = [("/tf", "tf"), ("/tf_static", "tf_static")]
 
 
-def _merge(base: dict, extra: dict) -> None:
-    for key, value in extra.items():
-        if isinstance(value, dict) and isinstance(base.get(key), dict):
-            _merge(base[key], value)
-        else:
-            base[key] = value
+def _read(path) -> dict:
+    return yaml.safe_load(Path(path).read_text(encoding="utf-8"))
 
 
 class WithOverlays(Substitution):
-    """파라미터 파일 경로. 켜진 덧붙임을 얹은 임시 파일이고, 켜진 것이 없으면 그대로다.
+    """파라미터 파일 경로: 사용자 파일에 회피 담당 파일과 켜진 덧붙임을 얹은 임시 파일.
 
-    mask가 있으면 params/keepout.yaml을, vision이 true면 params/vision_obstacles.yaml을 얹는다.
+    avoidance(회피 담당 파일)의 FollowPathGoal 값을 넣고, vision이 true면 비전 관측원도 넣는다
+    (pinky_nav_params.with_avoidance). mask가 있으면 params/keepout.yaml을 얹는다.
     """
 
-    def __init__(self, source, mask, vision):
+    def __init__(self, source, avoidance, mask, vision):
         super().__init__()
         self._source = normalize_to_list_of_substitutions(source)
+        self._avoidance = normalize_to_list_of_substitutions(avoidance)
         self._mask = normalize_to_list_of_substitutions(mask)
         self._vision = normalize_to_list_of_substitutions(vision)
 
     def perform(self, context) -> str:
-        source = perform_substitutions(context, self._source)
-        overlays = []
+        data = _read(perform_substitutions(context, self._source))
+        avoidance = perform_substitutions(context, self._avoidance)
+        vision = perform_substitutions(context, self._vision).lower() == "true"
+        if avoidance:
+            with_avoidance(data, _read(avoidance), vision)
+        elif vision:
+            raise ValueError("vision_obstacles:=true needs avoidance_params_file")
         if perform_substitutions(context, self._mask):
-            overlays.append("keepout.yaml")
-        if perform_substitutions(context, self._vision).lower() == "true":
-            overlays.append("vision_obstacles.yaml")
-        if not overlays:
-            return source
-        data = yaml.safe_load(Path(source).read_text(encoding="utf-8"))
-        for name in overlays:
-            _merge(data, yaml.safe_load((SHARE / "params" / name).read_text(encoding="utf-8")))
+            merge(data, _read(SHARE / "params" / "keepout.yaml"))
         with tempfile.NamedTemporaryFile("w", suffix=".yaml", prefix="nav2_overlay_",
                                          delete=False, encoding="utf-8") as out:
             yaml.safe_dump(data, out, sort_keys=False, allow_unicode=True)
@@ -90,6 +93,7 @@ def generate_launch_description():
     # 노드 이름 키를 namespace 아래에 넣는다
     params = ParameterFile(RewrittenYaml(
         source_file=ReplaceString(source_file=WithOverlays(arg("params_file"),
+                                                           arg("avoidance_params_file"),
                                                            arg("keepout_mask"),
                                                            arg("vision_obstacles")),
                                   replacements={"<robot_namespace>": ("/", namespace)}),
@@ -176,7 +180,12 @@ def generate_launch_description():
         DeclareLaunchArgument("map_fine", default_value=arg("map"),
                               description="1 cm 지도 yaml(AMCL, R15). 없으면 map"),
         DeclareLaunchArgument("params_file",
-                              default_value=str(SHARE / "params" / "nav2_params.yaml")),
+                              default_value=str(SHARE / "params" / "nav2_params.yaml"),
+                              description="사용자의 Nav2 설정"),
+        DeclareLaunchArgument("avoidance_params_file",
+                              default_value=str(SHARE / "params" / "avoidance.yaml"),
+                              description="회피 담당의 설정(FollowPathGoal 값, 비전 관측원 값)."
+                                          " 사용자의 키가 들어 있으면 뜨지 않는다"),
         DeclareLaunchArgument(
             "bt_xml", default_value=str(
                 SHARE / "bt" / "navigate_to_pose_w_replanning_and_recovery_goal.xml")),

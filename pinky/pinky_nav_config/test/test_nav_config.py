@@ -2,6 +2,8 @@
 
 근거: Drive 핑키_FSM_Nav2_구현_안내_2026-11-07(3절), 핑키_제어파트_전달사항_2026-11-06(R4, R12~R15).
 """
+import copy
+import importlib.util
 import math
 import xml.etree.ElementTree as ET
 from pathlib import Path
@@ -10,7 +12,20 @@ import pytest
 import yaml
 
 PKG = Path(__file__).resolve().parents[1]
-PARAMS = yaml.safe_load((PKG / "params" / "nav2_params.yaml").read_text(encoding="utf-8"))
+
+
+def _module(name, path):
+    spec = importlib.util.spec_from_file_location(name, path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+owners = _module("pinky_nav_params", PKG / "launch" / "pinky_nav_params.py")
+USER = yaml.safe_load((PKG / "params" / "nav2_params.yaml").read_text(encoding="utf-8"))
+AVOIDANCE = yaml.safe_load((PKG / "params" / "avoidance.yaml").read_text(encoding="utf-8"))
+# 로봇이 받는 설정: 사용자 파일에 회피 담당 파일을 넣은 것(nav2.launch.py가 하는 그대로)
+PARAMS = owners.with_avoidance(copy.deepcopy(USER), AVOIDANCE)
 BT_FILE = PKG / "bt" / "navigate_to_pose_w_replanning_and_recovery_goal.xml"
 BT = ET.parse(BT_FILE)
 # Nav2 Jazzy's own tree, the original of BT_FILE (only there when ROS 2 Jazzy is installed)
@@ -370,3 +385,62 @@ def test_the_keepout_topics_meet():
 
 def test_no_velocity_smoother_or_collision_monitor_between_controller_and_cmd_vel():
     assert "velocity_smoother" not in PARAMS and "collision_monitor" not in PARAMS
+
+
+# ---- 설정의 주인 (추가 지시서 3의 7-1) ------------------------------------------------------
+
+def _layer(data, costmap):
+    return data[costmap][costmap]["ros__parameters"]["obstacle_layer"]
+
+
+def test_the_avoidance_file_holds_only_the_two_avoidance_keys():
+    assert sorted(AVOIDANCE) == ["follow_path_goal", "vision_obstacles"]
+    assert owners.foreign_keys(AVOIDANCE) == []
+
+
+@pytest.mark.parametrize("key", ["controller_server", "local_costmap", "global_costmap",
+                                 "FollowPath", "footprint", "bt_navigator", "planner_server"])
+def test_a_user_owned_key_in_the_avoidance_file_is_refused(key):
+    """Everything but the goal controller's inside and the vision source is the user's."""
+    bad = {**AVOIDANCE, key: {"anything": 1}}
+    assert owners.foreign_keys(bad) == [key]
+    with pytest.raises(ValueError, match=key):
+        owners.with_avoidance(copy.deepcopy(USER), bad)
+
+
+def test_the_users_file_holds_no_avoidance_values():
+    assert owners.avoidance_values_in(USER) == []
+    assert "FollowPathGoal" in USER["controller_server"]["ros__parameters"]["controller_plugins"], \
+        "the name is the user's and stays"
+    taken = copy.deepcopy(USER)
+    taken["controller_server"]["ros__parameters"]["FollowPathGoal"] = {"plugin": "x"}
+    _layer(taken, "local_costmap")["vision"] = {"topic": "x"}
+    assert owners.avoidance_values_in(taken) == [
+        "controller_server.FollowPathGoal", "local_costmap.obstacle_layer.vision"]
+
+
+def test_the_goal_controller_is_what_the_avoidance_file_says():
+    goal = PARAMS["controller_server"]["ros__parameters"]["FollowPathGoal"]
+    assert goal == AVOIDANCE["follow_path_goal"]
+
+
+def test_a_goal_controller_already_in_the_file_is_kept():
+    """The simulation hands in a file whose goal controller already has the speed cap."""
+    capped = copy.deepcopy(PARAMS)
+    capped["controller_server"]["ros__parameters"]["FollowPathGoal"]["desired_linear_vel"] = 0.12
+    out = owners.with_avoidance(capped, AVOIDANCE)
+    goal = out["controller_server"]["ros__parameters"]["FollowPathGoal"]
+    assert goal["desired_linear_vel"] == 0.12
+
+
+def test_the_vision_source_goes_into_both_costmaps_only_when_asked():
+    for costmap in ("local_costmap", "global_costmap"):
+        assert _layer(PARAMS, costmap)["observation_sources"] == "scan"
+        assert "vision" not in _layer(PARAMS, costmap)
+    seen = owners.with_avoidance(copy.deepcopy(USER), AVOIDANCE, vision=True)
+    for costmap in ("local_costmap", "global_costmap"):
+        layer = _layer(seen, costmap)
+        assert layer["observation_sources"] == "scan vision"
+        assert layer["vision"] == AVOIDANCE["vision_obstacles"]
+        assert layer["scan"] == _layer(USER, costmap)["scan"], "the lidar source is the user's"
+    assert AVOIDANCE["vision_obstacles"]["topic"] == "<robot_namespace>/vision_obstacles"

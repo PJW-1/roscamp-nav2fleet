@@ -112,6 +112,10 @@ SIM_AMCL = {"z_hit": 0.95, "z_rand": 0.05, "max_beams": 120, "laser_max_range": 
 THROUGH_CONTROLLER = "FollowPathThrough"
 REVERSE_CONTROLLER = "FollowPathReverse"
 GOAL_CONTROLLER = "FollowPathGoal"
+# FollowPathGoal의 값은 회피 담당 파일에 있다(추가 지시서 3의 7-1, pinky_nav_config의
+# pinky_nav_params.py): 사용자 파일 옆의 avoidance.yaml, 키 follow_path_goal
+AVOIDANCE_FILE = "avoidance.yaml"
+GOAL_CONTROLLER_KEY = "follow_path_goal"
 CONTROLLERS = ("FollowPath", THROUGH_CONTROLLER, REVERSE_CONTROLLER, GOAL_CONTROLLER)
 # 고정 경로(FollowPath, 잠금 경계, Retreat)를 모는 controller. 시뮬 전용 스위치
 # fixed_line_collision_check가 거짓이면 이 셋만 충돌 검사를 끈다(리드 결정 2026-11-12: D2의 0.10 m
@@ -154,6 +158,9 @@ def sim_nav_params(base: Path, out: Path, amcl: dict | None = None,
                    fixed_line_check: bool = True) -> Path:
     """base(실물 Nav2 설정)에 시뮬 값을 덮어 out에 쓴다. base는 바꾸지 않는다.
 
+    - FollowPathGoal: base에 없으면 base 옆의 회피 담당 파일(AVOIDANCE_FILE)에서 먼저 넣는다.
+      실물에서는 nav2.launch.py가 넣지만, 여기서 넣어야 아래의 충돌 검사와 속도 상한이 걸린다
+      (nav2.launch.py는 이미 들어 있는 FollowPathGoal을 그대로 둔다).
     - AMCL: SIM_AMCL(또는 amcl).
     - overrides: 그 위에 깊이 덮을 값(merge). launch 인자 nav_overrides(yaml 파일). AMCL 값도
       바꾼다.
@@ -162,6 +169,10 @@ def sim_nav_params(base: Path, out: Path, amcl: dict | None = None,
     - max_speed가 있으면 controller마다 desired_linear_vel을 max_speed와 원래 값 중 작은 것으로
       (후진 FollowPathReverse 0.05 m/s는 그대로 남는다)."""
     data = yaml.safe_load(base.read_text(encoding="utf-8"))
+    theirs = base.with_name(AVOIDANCE_FILE)
+    if GOAL_CONTROLLER not in data["controller_server"]["ros__parameters"] and theirs.exists():
+        data["controller_server"]["ros__parameters"][GOAL_CONTROLLER] = yaml.safe_load(
+            theirs.read_text(encoding="utf-8"))[GOAL_CONTROLLER_KEY]
     data["amcl"]["ros__parameters"].update(SIM_AMCL if amcl is None else amcl)
     merge(data, overrides or {})
     controllers = data["controller_server"]["ros__parameters"]

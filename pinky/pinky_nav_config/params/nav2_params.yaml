@@ -234,40 +234,9 @@ controller_server:
       use_cancel_deceleration: false
       cancel_deceleration: 3.2
 
-    # Nav2 goals (MoveTo mode nav_goal, 계약 0.11-draft 제안): the NavigateToPose tree drives with
-    # this controller. Only the name is fixed; a teammate may swap in MPPI or DWB. It starts as an
-    # exact copy of FollowPath (RPP, collision check on; test_nav_config checks it)
-    FollowPathGoal:
-      plugin: "nav2_regulated_pure_pursuit_controller::RegulatedPurePursuitController"
-      desired_linear_vel: 0.25  # 전달사항(제조사 0.2)
-      lookahead_dist: 0.15  # 전달사항(제조사 0.6)
-      min_lookahead_dist: 0.10  # 전달사항(제조사 0.3)
-      max_lookahead_dist: 0.25  # 전달사항(제조사 0.9)
-      lookahead_time: 1.5
-      use_velocity_scaled_lookahead_dist: true
-      rotate_to_heading_angular_vel: 1.0
-      transform_tolerance: 0.2
-      min_approach_linear_velocity: 0.05
-      approach_velocity_scaling_dist: 0.6
-      use_collision_detection: true
-      max_allowed_time_to_collision_up_to_carrot: 0.6  # 전달사항(제조사 1.0)
-      use_regulated_linear_velocity_scaling: false
-      use_fixed_curvature_lookahead: false
-      curvature_lookahead_dist: 0.6
-      use_cost_regulated_linear_velocity_scaling: true
-      regulated_linear_scaling_min_radius: 0.5
-      regulated_linear_scaling_min_speed: 0.05
-      use_rotate_to_heading: true
-      allow_reversing: false
-      rotate_to_heading_min_angle: 0.25
-      max_angular_accel: 3.2
-      max_robot_pose_search_dist: 1.4875
-      cost_scaling_dist: 0.05
-      cost_scaling_gain: 1.5
-      inflation_cost_scaling_factor: 3.0
-      interpolate_curvature_after_goal: false
-      use_cancel_deceleration: false
-      cancel_deceleration: 3.2
+    # FollowPathGoal(넓은 구역의 Nav2 goal을 모는 컨트롤러)의 값은 회피 담당의 것이라 여기에 없다.
+    # params/avoidance.yaml의 follow_path_goal에 있고 nav2.launch.py가 넣는다(추가 지시서 3의 7-1).
+    # 이름 FollowPathGoal(위 controller_plugins)만 사용자의 것이고 고정이다
 
 local_costmap:
   local_costmap:

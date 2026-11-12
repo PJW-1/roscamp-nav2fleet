@@ -58,7 +58,8 @@ def _walk(entities, context, found):
         _walk(entity.visit(context) or [], context, found)
 
 
-def _expand(use_composition, use_sim_time="true", keepout_mask=None, vision_obstacles=None):
+def _expand(use_composition, use_sim_time="true", keepout_mask=None, vision_obstacles=None,
+            avoidance=None):
     context = launch.LaunchContext()
     context.launch_configurations.update({
         "use_composition": use_composition, "use_sim_time": use_sim_time,
@@ -69,6 +70,8 @@ def _expand(use_composition, use_sim_time="true", keepout_mask=None, vision_obst
         context.launch_configurations["keepout_mask"] = keepout_mask
     if vision_obstacles is not None:
         context.launch_configurations["vision_obstacles"] = vision_obstacles
+    if avoidance is not None:
+        context.launch_configurations["avoidance_params_file"] = avoidance
     found = []
     _walk(_launch_description().entities, context, found)
     return context, found
@@ -242,3 +245,29 @@ def test_vision_obstacles_and_keepout_work_together():
     glob = _global_costmap(planner)
     assert glob["filters"] == ["keepout_filter"]
     assert glob["obstacle_layer"]["observation_sources"] == "scan vision"
+
+
+# ---- who owns which setting (third addendum 7-1) -------------------------------------------
+
+def _avoidance_file() -> dict:
+    import yaml
+    return yaml.safe_load((PKG / "params" / "avoidance.yaml").read_text(encoding="utf-8"))
+
+
+def test_the_goal_controller_comes_from_the_avoidance_file():
+    _, found = _expand("false")
+    controller = [node for node, _ in found][NAMES.index("controller_server")]
+    server = _param_files(controller)["pinky1"]["controller_server"]["ros__parameters"]
+    theirs = _avoidance_file()["follow_path_goal"]
+    assert server["FollowPathGoal"]["plugin"] == theirs["plugin"]
+    assert server["FollowPathGoal"]["desired_linear_vel"] == theirs["desired_linear_vel"]
+    assert server["FollowPath"]["plugin"], "the user's controllers are there as before"
+
+
+def test_an_avoidance_file_with_a_user_owned_key_stops_the_launch(tmp_path):
+    import yaml
+    bad = tmp_path / "avoidance.yaml"
+    bad.write_text(yaml.safe_dump({**_avoidance_file(), "local_costmap": {"width": 9}}),
+                   encoding="utf-8")
+    with pytest.raises(ValueError, match="local_costmap"):
+        _expand("false", avoidance=str(bad))

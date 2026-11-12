@@ -12,6 +12,15 @@ from fleet_gz_sim import launch_parts  # noqa: E402
 REPO = Path(__file__).resolve().parents[3]
 MAPS = {"nav_map": "/m/arena_d2.yaml", "nav_map_fine": "/m/arena_d2_fine.yaml"}
 NAV = REPO / "pinky" / "pinky_nav_config" / "params" / "nav2_params.yaml"
+AVOIDANCE = NAV.with_name("avoidance.yaml")  # the avoidance teammate's file (third addendum 7-1)
+
+
+def _base() -> dict:
+    """The real robot's settings: the user's file with the avoidance teammate's goal controller."""
+    data = yaml.safe_load(NAV.read_text(encoding="utf-8"))
+    theirs = yaml.safe_load(AVOIDANCE.read_text(encoding="utf-8"))
+    data["controller_server"]["ros__parameters"]["FollowPathGoal"] = theirs["follow_path_goal"]
+    return data
 
 
 def _amcl(data: dict) -> dict:
@@ -19,10 +28,10 @@ def _amcl(data: dict) -> dict:
 
 
 def test_sim_params_change_amcl_only_and_leave_the_real_file(tmp_path):
-    before = NAV.read_bytes()
+    before = NAV.read_bytes(), AVOIDANCE.read_bytes()
     out = launch_parts.sim_nav_params(NAV, tmp_path / "nav2_sim.yaml")
-    assert NAV.read_bytes() == before
-    base, sim = yaml.safe_load(before), yaml.safe_load(out.read_text(encoding="utf-8"))
+    assert (NAV.read_bytes(), AVOIDANCE.read_bytes()) == before
+    base, sim = _base(), yaml.safe_load(out.read_text(encoding="utf-8"))
     assert {k: v for k, v in sim.items() if k != "amcl"} == {
         k: v for k, v in base.items() if k != "amcl"}
     for key, value in launch_parts.SIM_AMCL.items():
@@ -131,7 +140,7 @@ def test_a_speed_cap_must_be_a_number_between_zero_and_the_robot_speed(tmp_path,
 
 def test_every_controller_checks_collisions_even_if_the_base_file_turned_it_off(tmp_path):
     """Instruction 3: the collision check is on in every run (it was off on the last arena)."""
-    base = yaml.safe_load(NAV.read_text(encoding="utf-8"))
+    base = _base()
     for name in launch_parts.CONTROLLERS:
         _rpp(base, name)["use_collision_detection"] = False
     off = tmp_path / "off.yaml"
@@ -204,9 +213,19 @@ def test_pinky_passes_the_fixed_line_switch_to_its_nav2_params(tmp_path, monkeyp
     assert _rpp(sim, "FollowPathGoal")["use_collision_detection"] is True
 
 
+def test_the_goal_controller_comes_from_the_avoidance_file_beside_the_base(tmp_path):
+    """Third addendum 7-1: the goal controller's values are the avoidance teammate's. The sim
+    puts them in before its own changes, so the speed cap and the collision check reach them."""
+    sim = yaml.safe_load(launch_parts.sim_nav_params(NAV, tmp_path / "s.yaml", max_speed=0.12)
+                         .read_text(encoding="utf-8"))
+    theirs = yaml.safe_load(AVOIDANCE.read_text(encoding="utf-8"))["follow_path_goal"]
+    assert _rpp(sim, "FollowPathGoal") == {**theirs, "desired_linear_vel": 0.12,
+                                           "use_collision_detection": True}
+
+
 def test_a_base_file_without_one_of_the_controllers_is_refused(tmp_path):
-    base = yaml.safe_load(NAV.read_text(encoding="utf-8"))
-    del base["controller_server"]["ros__parameters"]["FollowPathGoal"]
+    base = yaml.safe_load(NAV.read_text(encoding="utf-8"))  # no avoidance file beside the copy
+    assert "FollowPathGoal" not in base["controller_server"]["ros__parameters"]
     path = tmp_path / "old.yaml"
     path.write_text(yaml.safe_dump(base), encoding="utf-8")
     with pytest.raises(ValueError, match="FollowPathGoal"):
