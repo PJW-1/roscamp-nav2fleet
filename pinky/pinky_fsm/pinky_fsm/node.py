@@ -119,6 +119,7 @@ class PinkyFsmNode(Node):
             declare(name, float(getattr(d, name)))
         for name in _INT_PARAMS:
             declare(name, int(getattr(d, name)))
+        declare("comm_loss_policy", d.comm_loss_policy)  # stop / base_end. 다른 값은 시작에서 거절
         get = self.get_parameter
         self.robot_id = get("robot_id").value
         self._map_frame = get("map_frame").value
@@ -133,7 +134,8 @@ class PinkyFsmNode(Node):
                                callback_group=group)
         self._fsm = OrderFsm(
             FsmParams(**{name: float(get(name).value) for name in _FLOAT_PARAMS},
-                      **{name: int(get(name).value) for name in _INT_PARAMS}),
+                      **{name: int(get(name).value) for name in _INT_PARAMS},
+                      comm_loss_policy=str(get("comm_loss_policy").value)),
             OrderParams(**{name: float(get(f"order_{name}").value) for name in _ORDER_PARAMS}),
             horizon_check=self._maps.check)
         self._markers = OrderMarkers(self, get("order_markers_topic").value, self._map_frame)

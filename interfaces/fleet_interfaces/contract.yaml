@@ -68,6 +68,8 @@ actions:
   # goal에 path(레인 폴리라인, geometry_msgs/Pose[])를 더했다(11-06 지시서 7번). 비면 점 목표다.
   # 0.11(제안): goal에 mode(follow_path | nav_goal, 비면 follow_path)를 더했다.
   # 0.11(제안): order 모델 칸(order_id, base, horizon 등). order_id가 비면 쓰지 않는다.
+  # 0.11: order의 통신 끊김은 로봇 파라미터 comm_loss_policy(stop 기본 | base_end)가 정한다.
+  #       끊김은 /fleet/heartbeat가 heartbeat_timeout_s 동안 오지 않는 것으로 안다. 칸은 그대로다.
   - {key: move_to, name: "/{pinky}/move_to", type: fleet_interfaces/action/MoveTo}
   - {key: dock, name: "/{pinky}/dock", type: fleet_interfaces/action/Dock}
   # 작업 팔 두 대가 액션 하나를 쓴다. 바구니 공간 분담은 팔 팀이 정한다.

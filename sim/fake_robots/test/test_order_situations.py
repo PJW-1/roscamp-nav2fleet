@@ -22,7 +22,8 @@ def test_every_order_situation_finishes_its_orders_with_no_violation(name, order
 
 
 def test_a_robot_that_loses_contact_with_a_horizon_drives_to_its_base_end_and_keeps_its_zones():
-    world = ZoneWorld("d2", seed=1, overrides={"use_order_model": True},
+    world = ZoneWorld("d2", seed=1,
+                      overrides={"use_order_model": True, "comm_loss_policy": "base_end"},
                       injections=[CommLoss("pinky1", 2.0, 17.0)])
     world.run(2.0)
     run = world.robots["pinky1"].run

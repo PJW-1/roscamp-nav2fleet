@@ -12,7 +12,8 @@ order goal 하나(관제의 MoveTo, order_id가 있음)를 조각 줄(order_queu
 - 그 밖의 넘김(방식이 바뀜, controller가 다름, 끝이 안 닿음)은 앞 조각이 끝나 선 뒤 다음을 시작한다.
 - 불변식: base가 끝나면 선다. horizon이 있으면 waiting_at_base_end로 update를 기다리고, 없으면
   order가 끝났다(성공).
-- 통신 끊김: base 끝까지 가서 선다(제안). 지금(order가 아닐 때)은 heartbeat_timeout_s 뒤 바로 선다.
+- 통신 끊김: comm_loss_policy가 base_end이면 base 끝까지 가서 서고(제안), stop(기본)이면
+  order가 아닐 때처럼 heartbeat_timeout_s 뒤 바로 선다.
 - 감속 늦추기(추가지시서 3절 5번 셋째, 선택)는 만들지 않았다(기본 끔).
 """
 from __future__ import annotations
@@ -174,9 +175,12 @@ class OrderFsm(PinkyFsm):
     # -- 안쪽 -----------------------------------------------------------------------------
 
     def _stops_on_heartbeat_loss(self) -> bool:
-        """order의 조각을 달리는 중이면 끊겨도 base 끝까지 간다(추가지시서 3절 6번 제안). 단 막혀
-        나아가지 못하면(BLOCKED, Nav2가 물체 앞에서 섬) 지금처럼 선다(Codex 리뷰: 끝없이 돌지
-        않게)."""
+        """comm_loss_policy가 base_end이면 order의 조각을 달리는 중 끊겨도 base 끝까지 간다
+        (추가지시서 3절 6번 제안). 단 막혀 나아가지 못하면(BLOCKED, Nav2가 물체 앞에서 섬)
+        지금처럼 선다(Codex 리뷰: 끝없이 돌지 않게). stop이면(기본) order가 아닌 목표처럼 바로
+        선다."""
+        if self.p.comm_loss_policy == "stop":
+            return True
         g = self._active
         if self._key is None or g is None or g.goal_id != self._key:
             return True

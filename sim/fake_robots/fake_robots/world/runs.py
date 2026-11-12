@@ -15,6 +15,7 @@ GAP_M = 0.01  # 몸과 물체 사이에 남기는 틈
 TURN_RAD_S = 1.0  # 제자리 회전 속도(RPP rotate_to_heading_angular_vel)
 FOLLOW_BLOCKED_S = 1.0  # FollowPath: 이만큼 막혀 서 있으면 BLOCKED(핑키 계약 4절: 2초 안)
 MOVE, RETREAT, DOCK = "move", "retreat", "dock"
+HEARTBEAT_LOST = "HEARTBEAT_LOST"  # 관제 heartbeat가 끊겨 로봇이 스스로 끝낸 이동의 이유
 
 
 @dataclass(frozen=True)
