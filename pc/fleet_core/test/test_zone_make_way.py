@@ -131,3 +131,52 @@ def test_a_way_blocked_by_a_queued_robot_is_left_for_one_through_a_free_node():
     assert world.result_of(first).success
     waits = [e.detail for e in world.events if e.code == "ZONE_WAIT" and e.robot == "pinky3"]
     assert not any("O_Q" in detail for detail in waits), "it never waits for the queue spot"
+
+
+# ---- 도크 차례: 먼저 불린 로봇이 뒤 차례 로봇이 선 지점을 기다리면 뒤 차례가 먼저 간다 ----
+
+def run_among(world, done, timeout_s, radius):
+    """서 있는 로봇들의 몸(반지름 radius)을 장애물로 두고 done이 될 때까지 돌린다."""
+    for _ in range(round(timeout_s / DT)):
+        if done():
+            return True
+        world.obstacles[:] = [(bot.x, bot.y, radius) for bot in world.bots.values()
+                              if bot.cmd is None and bot.dock is None]
+        world.step()
+    return done()
+
+
+def stuck_behind_the_queue():
+    """배치 D의 동쪽 마당. 먼저 불린 pinky3(P-3)의 곧은 길은 O_Q에서 차례를 기다리는 pinky2의 몸에
+    막히고, 남쪽 통로로 도는 길은 P-2에 주차한 pinky1의 몸에 막힌다. 남은 길은 O_Q를 거친다."""
+    world = Harness(layout="d", starts={"pinky1": "P-2", "pinky2": "O_Q", "pinky3": "P-3"})
+    world.report()
+    first = world.call("OUTBOUND", "pinky3")
+    world.now += DT / 2  # pinky3이 먼저 불렸다
+    second = world.call("OUTBOUND", "pinky2")
+    return world, first, second
+
+
+def test_a_queued_robot_that_cannot_be_passed_takes_the_dock_turn_first():
+    """pinky3은 O_Q가 비기를, pinky2는 pinky3의 차례를 기다리면 둘 다 서 있게 된다. 그때는 앞을
+    막은 pinky2가 먼저 도크에 가고, 먼저 불린 pinky3은 그 뒤에 간다."""
+    world, first, second = stuck_behind_the_queue()
+    assert run_among(world, lambda: world.result_of(second) is not None, 200.0, 0.2)
+    assert world.result_of(second).success, "the robot in the way goes first"
+    assert world.result_of(first) is None
+    told = [e.detail for e in world.events if e.code == "DOCK_TURN_TAKEN"]
+    assert told == ["goes before pinky3, which waits for O_Q"]
+    world.traffic.on_release("pinky2")
+    assert run_among(world, lambda: world.result_of(first) is not None, 300.0, 0.2)
+    assert world.result_of(first).success, "the robot that was called first still gets there"
+    assert "GOAL_FAILED" not in world.codes()
+    assert world.problems == []
+
+
+def test_the_dock_turn_stays_while_the_first_robot_can_still_move():
+    """먼저 불린 로봇이 막힌 채 서 있는 동안(막힘 표시 전)에는 차례가 바뀌지 않는다."""
+    world, first, second = stuck_behind_the_queue()
+    run_among(world, lambda: "BLOCKED_WAIT" in world.codes("pinky3"), 30.0, 0.2)
+    run_among(world, lambda: False, 5.0, 0.2)
+    assert "DOCK_TURN_TAKEN" not in world.codes()
+    assert not world.sent(MoveCmd, "pinky2")

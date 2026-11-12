@@ -137,6 +137,8 @@ class Goals:
                     m.queued = True
                     self._event("INFO", "DOCK_QUEUED", f"{m.dest} is busy, waits at {goal}",
                                 m.name)
+                elif not queued:
+                    self._note_turn(m, goal)
                 return trip
             first_want = first_want or want
         if first_want is not None:
@@ -193,14 +195,33 @@ class Goals:
                 and self.site.nodes[m.node].kind != AT_DOCK and not m.retreat_to)
 
     def _is_next(self, m, station_id: str) -> bool:
-        """그 스테이션을 바라는 로봇 가운데 먼저 온 차례인가. 같은 때 왔으면 가까운 쪽이다."""
+        """그 스테이션을 바라는 로봇 가운데 먼저 온 차례인가. 같은 때 왔으면 가까운 쪽이다.
+
+        먼저 온 로봇이 내가 선 지점이 비기를 기다리며 서 있으면 세지 않는다: 내가 떠나야 그 로봇이
+        움직이므로 내가 먼저 간다.
+        """
+        return all(self._waits_for(other, m) for other in self._ahead(m, station_id))
+
+    def _ahead(self, m, station_id: str) -> list:
+        """그 스테이션을 나보다 먼저 바란 로봇들."""
         mine = (m.asked_at or 0.0, m.asked_gap, m.name)
-        for other in self._robots.values():
-            if (other is not m and other.available and other.dest == station_id
+        return [other for other in self._robots.values()
+                if (other is not m and other.available and other.dest == station_id
                     and other.phase in (TO_WORK, TO_OUTBOUND)
-                    and (other.asked_at or 0.0, other.asked_gap, other.name) < mine):
-                return False
-        return True
+                    and (other.asked_at or 0.0, other.asked_gap, other.name) < mine)]
+
+    def _waits_for(self, other, m) -> bool:
+        """other가 m이 서서 쥔 지점이 비기를 기다리며 서 있는가."""
+        return (other.goal is None and m.goal is None and self._on_node(m)
+                and m.node in other.wait_for and self.grants.node_holder(m.node) == m.name)
+
+    def _note_turn(self, m, goal: str) -> None:
+        """떠나는 곳이 도크이고 먼저 온 로봇을 앞질렀으면 알린다."""
+        if m.phase not in (TO_WORK, TO_OUTBOUND) or goal != self.site.stations[m.dest].dock:
+            return
+        for other in self._ahead(m, m.dest):
+            self._event("INFO", "DOCK_TURN_TAKEN",
+                        f"goes before {other.name}, which waits for {m.node}", m.name)
 
     def _dock_free(self, m, dock: str) -> bool:
         zone = self.site.nodes[dock].zone
