@@ -72,14 +72,15 @@ headless_stage() {
   fi
 }
 
-# Nav2가 모두 active가 될 때까지 기다린다(벽시계로 최대 180 s). planner가 아직 켜지는 중에 보낸
-# goal은 0.1 s 만에 NAV_ABORTED로 끝난다. ros2 service call은 서비스와 답을 한도 없이 기다리므로
-# 한 번을 10 s로 끊는다
+# Nav2가 모두 active가 될 때까지 기다린다(180 s, 끝의 sleep만큼 넘을 수 있다). planner가 아직
+# 켜지는 중에 보낸 goal은 0.1 s 만에 NAV_ABORTED로 끝난다. ros2 service call은 서비스와 답을
+# 한도 없이 기다리므로 한 번을 10 s와 남은 시간 가운데 짧은 쪽으로 끊는다
 nav2_active() {
-  local until=$(( $(date +%s) + 180 ))
-  while [ "$(date +%s)" -lt "$until" ]; do
-    timeout 10 ros2 service call /pinky1/lifecycle_manager_navigation/is_active \
-      std_srvs/srv/Trigger 2> /dev/null | grep -q "success=True" && return 0
+  local start=$SECONDS left
+  while left=$(( 180 - (SECONDS - start) )); [ "$left" -gt 0 ]; do
+    timeout "$(( left < 10 ? left : 10 ))" ros2 service call \
+      /pinky1/lifecycle_manager_navigation/is_active std_srvs/srv/Trigger 2> /dev/null \
+      | grep -q "success=True" && return 0
     sleep 2
   done
   return 1
@@ -87,7 +88,7 @@ nav2_active() {
 
 drive_stage() {
   note "2/3 Gazebo 한 대, 구간 종류마다 ${laps}번($plan)"
-  rm -f "$out/drive_check.json"
+  rm -f "$out/drive_check.json" "$out/drive_check.md" "$out/drive_check.log"
   start_launch "$out/drive_launch.log" one_pinky.launch.py layout:=d2 start:=P-1 gui:=false \
     rviz:=false fixed_line_collision_check:=true
   if ! nav2_active; then

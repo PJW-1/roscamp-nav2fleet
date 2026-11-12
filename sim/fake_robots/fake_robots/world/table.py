@@ -59,8 +59,10 @@ def judge(s, world) -> list[str]:
 
 def correctness(s, world) -> list[str]:
     """안전 불변식과 관제 반응 시간(invariants.py, reaction.py), 조용히 멈춤 0. 모든 모드."""
-    out = [f"{v.code} at {v.t:.1f}: {v.detail}" for v in world.violations
-           if v.code not in s.allowed]
+    def excused(v) -> bool:
+        return v.code in s.allowed and (s.allowed_until_s is None or v.t <= s.allowed_until_s)
+
+    out = [f"{v.code} at {v.t:.1f}: {v.detail}" for v in world.violations if not excused(v)]
     out += [f"{code} x{world.metrics.count(code)}" for code in NEVER_EVENTS
             if world.metrics.count(code)]
     return out

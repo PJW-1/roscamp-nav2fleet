@@ -37,6 +37,7 @@ class Situation:
     timeout_s: float = 900.0
     finish_all: bool = True  # 모든 주문이 끝나야 한다
     allowed: tuple[str, ...] = ()  # 생겨도 되는 불변식 위반 코드
+    allowed_until_s: float | None = None  # allowed를 이 시각까지만 봐준다. None이면 끝까지
     max_retreats: int | None = None
     need_events: dict = field(default_factory=dict)  # 사건 코드 -> 적어도 이만큼
     no_events: tuple[str, ...] = ("DEADLOCK_SEEN",)

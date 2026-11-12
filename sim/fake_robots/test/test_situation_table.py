@@ -108,6 +108,29 @@ def test_a_box_that_stays_lets_a_robot_wait_in_the_express(mode):
     assert run_situation("box_stays", "d2", 1, avoid_mode=mode).failures == []
 
 
+def test_the_wait_in_the_express_is_excused_only_while_the_box_is_there():
+    """상자를 치운 뒤에도 급행 안에 서 있으면 기다림이 아니다: 치우고 30 s 뒤부터는 실패다."""
+    from types import SimpleNamespace
+
+    from fake_robots.world.table import correctness
+
+    s = build("box_stays", "d2")
+    [box] = s.injections
+    assert s.allowed_until_s == pytest.approx(box.t1 + 30.0)
+    assert s.for_mode("none").allowed_until_s == s.allowed_until_s
+
+    def world(at):
+        standing = SimpleNamespace(code="I5_STANDING", t=at, detail="pinky2 stands in EXPRESS")
+        return SimpleNamespace(violations=[standing], metrics=SimpleNamespace(count=lambda _: 0))
+
+    assert correctness(s, world(box.t1 + 30.0)) == []
+    [late] = correctness(s, world(box.t1 + 31.0))
+    assert late.startswith("I5_STANDING at")
+    # 다른 상황의 허용은 끝까지다
+    jumps = build("pose_jumps", "d2")
+    assert jumps.allowed_until_s is None and correctness(jumps, world(899.0)) == []
+
+
 def test_a_silent_stall_fails_every_mode_as_a_safety_rule():
     for mode in ("none", "perfect"):
         outcome = run_situation("person_passing", "d2", 1, manager_factory=RecordingManager,

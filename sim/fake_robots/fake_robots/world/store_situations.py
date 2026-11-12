@@ -72,12 +72,13 @@ def build_store(name, layout, site, lane, situation):
                          at_least_s=300.0)
     if name == "box_stays":
         # 막혀 표시한 로봇은 급행 안에서 도크의 로봇이 나가기를 기다린다(RETREAT_WAIT, 정한 동작).
-        # 그 기다림은 불변식 5번(급행 안에 5 s 넘게 섬)에 걸리므로 이 상황에서만 허용한다
+        # 그 기다림은 불변식 5번(급행 안에 5 s 넘게 섬)에 걸리므로 이 상황에서, 상자가 있는 동안과
+        # 치운 뒤 QUIET_AFTER_S까지만 허용한다. 코드로만 가려서 그동안의 다른 서 있기도 지나간다
         waits = ("I5_STANDING",)
         s = situation(name, "상자 그대로",
                       orders=six_orders(gap_s=40.0, count=15),
                       injections=[Obstacle(*lane, BOX_R, 20.0, 620.0)], timeout_s=1800.0,
-                      at_least_s=640.0, allowed=waits)
+                      at_least_s=640.0, allowed=waits, allowed_until_s=620.0 + QUIET_AFTER_S)
         s.rough = replace(s.rough, allowed=waits)
         return s
     raise KeyError(f"no situation {name!r}")
