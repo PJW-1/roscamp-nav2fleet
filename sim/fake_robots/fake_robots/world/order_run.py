@@ -5,7 +5,9 @@
 - base가 끝나고 horizon이 남으면 base 끝에 서서(waiting_at_base_end) update를 기다린다.
 - update는 이음 조건 넷(order_id, 다음 update id, 이음 지점 = base 끝, seq가 이어짐)이 모두 맞을
   때만 줄 뒤에 붙인다. 붙이면 goal id가 새 goal의 것으로 바뀐다.
-- 통신이 끊겨도 이미 받은 base 끝까지 간다(세계가 run을 계속 돌린다). 장애물 앞에서는 선다.
+- 통신이 끊기면 comm_loss_policy에 따른다. base_end이면 이미 받은 base 끝까지 간다(세계가 run을
+  계속 돌린다). stop이면 heartbeat_timeout_s 뒤 바로 선다(세계가 HEARTBEAT_LOST로 끝낸다).
+  장애물 앞에서는 어느 쪽이든 선다.
 """
 from __future__ import annotations
 
@@ -25,6 +27,13 @@ def refusal(run, cmd) -> str:
     if cmd.base and run.last and cmd.base[0].seq_id != run.last.seq_id + 1:
         return "seq_id does not continue"
     return ""
+
+
+def stops_for_lost_contact(params, robot, t: float) -> bool:
+    """끊긴 order 로봇이 heartbeat_timeout_s 동안 관제 소식이 없어 스스로 설 때(정책 stop)."""
+    since = robot.comm_down_since
+    return (params.comm_loss_policy == "stop" and params.heartbeat_timeout_s > 0
+            and since is not None and t - since >= params.heartbeat_timeout_s - 1e-9)
 
 
 class OrderRun(Run):

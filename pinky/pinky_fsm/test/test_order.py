@@ -292,7 +292,7 @@ def test_a_plain_move_to_replaces_a_running_order():
 
 
 def test_comm_loss_drives_to_the_end_of_base_then_stops():
-    fsm = ready()
+    fsm = ready(comm_loss_policy="base_end")
     [send] = of(order(fsm, "g1", 1.0, [S1, line(2, 0.8, 1.3, ctrl=THROUGH)], [S3]), SendPath)
     cmds = []
     for k in range(40):  # no heartbeat after 1.0 s
@@ -314,6 +314,32 @@ def test_comm_loss_while_waiting_at_the_end_of_base_ends_the_goal():
     assert Finish("g1", False, HEARTBEAT_LOST, 1) in cmds
 
 
+def test_comm_loss_stops_the_order_at_once_by_default():
+    """comm_loss_policy stop: ends like a non-order goal, last_done_seq_id = last finished."""
+    fsm = ready()
+    [send] = of(order(fsm, "g1", 1.0, [S1, line(2, 0.8, 1.3, ctrl=THROUGH)], [S3]), SendPath)
+    cmds = fsm.nav_result(send.seq, "succeeded", 1.2, (0.8, 0.3, 0.0), no_obstacle)
+    assert not finishes(cmds)  # the first segment is done, the second one starts
+    cmds = fsm.tick(2.6, (0.9, 0.3, 0.0), DRIVING, no_obstacle)  # 1.5 s without a heartbeat
+    assert Finish("g1", False, HEARTBEAT_LOST, 1) in cmds and of(cmds, CancelNav)
+    assert fsm.state() == IDLE
+
+
+def test_comm_loss_stops_a_waiting_order_under_both_policies():
+    for policy in ("stop", "base_end"):
+        fsm = ready(comm_loss_policy=policy)
+        [send] = of(order(fsm, "g1", 1.0, [S1], [S2]), SendPath)
+        arrive(fsm, send, 2.0, (0.8, 0.3, 0.0))
+        cmds = fsm.tick(3.6, (0.8, 0.3, 0.0), STILL, no_obstacle)
+        assert Finish("g1", False, HEARTBEAT_LOST, 1) in cmds
+
+
+@pytest.mark.parametrize("policy", ["", "Stop", "base-end", "go_on"])
+def test_an_unknown_comm_loss_policy_is_refused_at_start_up(policy):
+    with pytest.raises(ValueError, match="comm_loss_policy"):
+        FsmParams(comm_loss_policy=policy)
+
+
 def test_without_an_order_comm_loss_still_stops_at_once():
     fsm = ready()
     fsm.move("g1", 1.0, "P", (1.8, 0.3, 0.0), [], HERE)
@@ -330,7 +356,7 @@ def test_the_order_fsm_is_a_pinky_fsm():
 
 def test_starting_the_next_segment_is_not_a_heartbeat():
     """Codex P1: a segment start is not a goal from the fleet manager."""
-    fsm = ready()
+    fsm = ready(comm_loss_policy="base_end")
     [send] = of(order(fsm, "g1", 1.0, [S1, line(2, 0.8, 1.3, ctrl=THROUGH)], [S3]), SendPath)
     cmds = fsm.nav_result(send.seq, "succeeded", 6.0, (0.8, 0.3, 0.0), no_obstacle)
     [nxt] = of(cmds, SendPath)

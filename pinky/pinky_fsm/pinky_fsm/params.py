@@ -3,6 +3,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+COMM_LOSS_POLICIES = ("stop", "base_end")
+
 
 @dataclass(frozen=True)
 class FsmParams:
@@ -11,6 +13,9 @@ class FsmParams:
     refresh_within_m: float = 0.15  # R13
     refresh_every_s: float = 0.5  # R13
     heartbeat_timeout_s: float = 1.5  # R10. 0이면 멈추지 않는다
+    # order 모델의 통신 끊김(추가지시서 3절 3번). stop: 목표를 바로 끝내고 선다(order가 아닌
+    # 목표와 같다). base_end: 받은 base 끝까지 달리고 선다. 끊김은 heartbeat_timeout_s로 안다
+    comm_loss_policy: str = "stop"
     stopped_speed_mps: float = 0.02  # 계약 4절
     stopped_turn_rps: float = 0.1  # 제자리 회전은 서 있는 것이 아니다
     block_report_s: float = 1.0  # 계약 4절: 1초 서 있으면
@@ -61,3 +66,8 @@ class FsmParams:
     # nav_progress_m 이상 움직인 것이다(nav_goal.py). 숫자는 제안이다
     blocked_after_s: float = 5.0
     nav_progress_m: float = 0.05
+
+    def __post_init__(self):
+        if self.comm_loss_policy not in COMM_LOSS_POLICIES:
+            raise ValueError(f"comm_loss_policy must be one of {COMM_LOSS_POLICIES}, "
+                             f"got {self.comm_loss_policy!r}")

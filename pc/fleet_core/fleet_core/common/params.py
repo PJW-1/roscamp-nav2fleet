@@ -7,6 +7,7 @@ from pathlib import Path
 import yaml
 
 DEFAULT_PARAMS = Path(__file__).parents[1] / "data" / "fleet_params.yaml"
+COMM_LOSS_POLICIES = ("stop", "base_end")
 
 
 @dataclass(frozen=True)
@@ -102,9 +103,18 @@ class FleetParams:
     use_order_model: bool = False
     lookahead_s: float = 2.0  # base 끝까지 이만큼 남으면 다음 구역을 잡아 본다
     comm_base_hold_extra_s: float = 3.0  # 끊긴 로봇의 base 구역을 base 끝 ETA + 이만큼 쥔다
+    # 끊긴 order 로봇이 서는 방식: stop(바로) 또는 base_end(base 끝까지). 정하는 것은 로봇의
+    # pinky_fsm 파라미터다. 여기 값은 머리 없는 세계의 로봇이 따른다. 관제의 구역 쥐기는 이
+    # 값과 무관하다(길게 쥐는 쪽이라 두 쪽이 달라도 안전하다)
+    comm_loss_policy: str = "stop"
     # 시험 판정(추가 지시서 2, 2026-11-12). 0이면 끈다. 이 값이 없던 기록은 감시 없이 재생한다
     silent_limit_s: float = 0.0  # 갈 곳이 있는 로봇이 나아가지 않고 관제도 말이 없으면 SILENT_STALL
     start_limit_s: float = 0.0  # goal을 보낸 뒤 이만큼 안에 2 cm 넘게 움직이지 않으면 NO_START
+
+    def __post_init__(self):
+        if self.comm_loss_policy not in COMM_LOSS_POLICIES:
+            raise ValueError(f"comm_loss_policy must be one of {COMM_LOSS_POLICIES}, "
+                             f"got {self.comm_loss_policy!r}")
 
 
 def load_params(path=None) -> FleetParams:
