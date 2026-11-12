@@ -66,7 +66,7 @@ rviz(`pinky_nav_config/rviz/pinky_nav.rviz`)에서는 `/<로봇>/order_markers`�
 | `lookahead_s` | 2.0 s | 추가 지시서의 값입니다. 0.12 m/s에서 0.24 m 앞입니다 |
 | update 답 기다림 | 2.0 s | 넘으면 두 goal을 모두 끝냅니다. 코드 상수 `UPDATE_ANSWER_S`입니다 |
 | horizon 바꾸기 간격 | 5.0 s | 길이 자주 바뀔 때 update가 쏟아지지 않게 합니다. 코드 상수 `HORIZON_HOLD_S`입니다 |
-| 통신 끊김 여유 | 3.0 s | 추가 지시서의 값입니다. 코드 상수 `COMM_BASE_MARGIN_S`입니다 |
+| 통신 끊김 여유(`comm_base_hold_extra_s`) | 3.0 s | 추가 지시서의 값입니다 |
 
 ## 7. 알려진 한계
 
