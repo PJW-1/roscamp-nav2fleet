@@ -70,13 +70,15 @@ def test_the_margin_is_a_parameter():
 
 
 def docked_at_work(params=P, error_cm=None):
-    """pinky2가 W에 도킹을 마친 뒤 쥐고 있는 구역. error_cm을 주면 도킹이 그 오차를 보고한다."""
+    """pinky2가 W에 도킹을 마친 뒤 쥐고 있는 구역. error_cm(x 또는 (x, y))을 주면 도킹이 그 오차를
+    보고한다."""
     world = Harness(starts={"pinky1": "P-1", "pinky2": "P-2", "pinky3": "P-3"}, params=params)
     world.report()
     if error_cm is not None:
         real = world.traffic.on_dock_result
+        x_cm, y_cm = error_cm if isinstance(error_cm, tuple) else (error_cm, 0.0)
         world.traffic.on_dock_result = lambda robot, goal_id, ok, *_: real(
-            robot, goal_id, ok, error_cm, 0.0, 0.0)
+            robot, goal_id, ok, x_cm, y_cm, 0.0)
     call = world.call("WORK", "pinky2")
     assert world.run_until(lambda: world.result_of(call) is not None, 60.0)
     world.run(1.0)
@@ -90,7 +92,29 @@ def test_a_docked_robot_keeps_what_its_reported_docking_error_may_still_touch():
     assert docked_at_work(error_cm=4.0) == ["HALL", "J_W", "WORK_DOCK"]  # 0.125: 갈림목에도
 
 
+def test_the_docking_error_counts_both_axes():
+    assert docked_at_work(error_cm=(0.0, 3.0)) == ["HALL", "WORK_DOCK"]  # y만 3 cm
+    assert docked_at_work(error_cm=(2.4, 3.2)) == ["HALL", "J_W", "WORK_DOCK"]  # 둘을 합쳐 4 cm
+
+
 def test_a_record_made_with_zone_clear_m_releases_at_it_for_a_docked_robot_too():
     fields = asdict(P)
     fields.update(zone_clear_m=0.11)  # 옛 규칙: 보고 위치에서 0.11 m. HALL은 도크에서 0.10 m다
     assert docked_at_work(FleetParams(**fields)) == ["HALL", "WORK_DOCK"]
+
+
+def test_a_record_made_with_zone_clear_m_measures_a_docked_robot_from_its_report():
+    """옛 규칙은 도킹한 로봇도 도크 지점이 아니라 보고 위치에서 잰다: HALL에서 0.11 m 넘게 떨어진
+    자리를 보고하면 HALL을 놓는다(도크 지점은 0.10 m라 거기서 재면 쥐고 있는다)."""
+    fields = asdict(P)
+    fields.update(zone_clear_m=0.11)
+    world = Harness(starts={"pinky1": "P-1", "pinky2": "P-2", "pinky3": "P-3"},
+                    params=FleetParams(**fields))
+    world.report()
+    call = world.call("WORK", "pinky2")
+    assert world.run_until(lambda: world.result_of(call) is not None, 60.0)
+    bot = world.bots["pinky2"]
+    bot.y += 0.03
+    assert world.site.distance_to_zone(bot.x, bot.y, "HALL") > 0.11
+    world.run(1.0)
+    assert world.view("pinky2")["held"] == ["WORK_DOCK"]
