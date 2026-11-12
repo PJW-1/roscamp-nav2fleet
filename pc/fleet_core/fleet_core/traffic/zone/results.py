@@ -123,7 +123,28 @@ class Results:
         if m.trip is not None:
             m.trip.sent = m.trip.done
 
+    def _stands_at_end(self, m) -> bool:
+        """이동이나 후진 goal의 끝 지점에 로봇이 서 있는가(보고 위치로 본다)."""
+        goal = m.goal
+        return (goal is not None and goal.kind in (MOVE, RETREAT)
+                and self._gap(m, goal.end) <= self.params.arrival_tolerance_m)
+
+    def _arrived_anyway(self, m, reason: str) -> None:
+        """goal은 실패했거나 열린 채 멈췄지만 로봇은 끝 지점에 서 있다. 닿은 것으로 본다.
+
+        실패한 시도로 세면 같은 goal을 다시 보내게 되는데, 끝에 선 로봇은 남은 길이 없어 바로
+        실패로 답하고(pinky_fsm의 후진), 세 번 뒤에는 격리된다.
+        """
+        goal = m.goal
+        self._event("WARN", "GOAL_ENDED_AT_TARGET",
+                    f"{goal.kind} goal {goal.id} ended {reason}, but the robot stands at "
+                    f"{goal.end}", m.name)
+        self._segment_done(m)
+
     def _move_failed(self, m, reason: str) -> None:
+        if reason not in (HEARTBEAT_LOST, NOT_AT_TARGET) and self._stands_at_end(m):
+            self._arrived_anyway(m, reason)
+            return
         self._forget_goal(m)
         if reason == HEARTBEAT_LOST:  # 로봇이 관제 heartbeat를 잃고 스스로 섰다. 시도로 세지 않는다
             m.retry_at = self._clock() + self.params.move_retry_wait_s
