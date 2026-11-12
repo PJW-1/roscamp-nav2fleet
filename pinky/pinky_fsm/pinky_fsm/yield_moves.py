@@ -96,11 +96,16 @@ class LocalYield:
                             g.s - g.s_start))
 
     def _backs_up(self, ahead: list[Point], now: float) -> bool:
-        """앞을 막은 것이 관제가 아는 다른 로봇이고 내가 낮은 쪽이다."""
+        """앞을 막은 것이 관제가 아는 다른 로봇이고 내가 낮은 쪽이다. 내 priority도 같은
+        /fleet/robots의 내 줄에서 읽는다(두 로봇이 같은 두 값을 비교하게). 그 줄이 없으면 MoveTo의
+        것이다."""
         if now - self._peers_at > self.p.peers_timeout_s:
             return False
         peer = blocking_peer(ahead, self._peers, self.robot_id, self.p.local_peer_near_m)
-        return peer is not None and yields_to(self.robot_id, self._priority, peer)
+        if peer is None:
+            return False
+        mine = next((p.priority for p in self._peers if p.name == self.robot_id), self._priority)
+        return yields_to(self.robot_id, mine, peer)
 
     def _yield_blocked(self, g, now: float) -> list:
         """로봇단 처리를 끝내고 BLOCKED. 물러나던 중이면 멈춘다. 물체가 비키면 남은 선을 다시

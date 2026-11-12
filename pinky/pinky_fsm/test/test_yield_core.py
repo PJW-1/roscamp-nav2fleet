@@ -125,6 +125,17 @@ def test_the_higher_robot_ahead_does_not_back_up():
     assert fsm.state() == BLOCKED
 
 
+@pytest.mark.parametrize("mine_in_row, backs", [(0, True), (3, False)])
+def test_my_own_row_in_the_same_message_decides_over_my_goal_priority(mine_in_row, backs):
+    # 두 로봇이 같은 /fleet/robots 한 장의 두 값을 비교하게 한다(priority가 바뀌는 사이에 둘 다
+    # 물러나지 않게). 그 줄이 없을 때만 MoveTo.priority를 쓴다
+    fsm = ready()
+    move(fsm, 0.0, priority=2)
+    fsm.see_peers(1.5, [Peer("pinky1", *STUCK[:2], mine_in_row), Peer("pinky2", *PEER_AHEAD, 1)])
+    stand(fsm, 1.0, STUCK)
+    assert bool(backups(tick(fsm, 4.1, STUCK))) is backs
+
+
 @pytest.mark.parametrize("me, other, backs", [("pinky1", "pinky2", True),
                                               ("pinky3", "pinky2", False)])
 def test_without_priorities_the_name_order_decides(me, other, backs):
