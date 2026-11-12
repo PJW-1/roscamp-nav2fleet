@@ -48,8 +48,21 @@ class Link:
         elif result.kind == DOCK:
             errors = DOCK_ERROR if result.success else (5.0, 5.0, 5.0)
             m.on_dock_result(name, result.goal_id, result.success, *errors)
-        else:
+        elif result.last_done_seq is None:
             m.on_move_result(name, result.goal_id, result.success, result.reason)
+        else:
+            m.on_move_result(name, result.goal_id, result.success, result.reason,
+                             result.last_done_seq)
+
+    def _feedback(self, name, run) -> None:
+        """order goal의 피드백: 끝낸 조각, base 끝에 서 있음, goal이 바뀌면 알린다.
+        끊긴 동안에는 못 알리고, 이어지면 그때의 것을 알린다."""
+        r = self.robots[name]
+        now = (run.done_seq, run.waiting, run.goal_id)
+        if run.told == now or not r.comm_up or r.removed:
+            return
+        run.told = now
+        self.manager.on_move_feedback(name, run.goal_id, run.done_seq, run.waiting, "")
 
     def _deliver_queued(self) -> None:
         queued, self.queued = self.queued, []
