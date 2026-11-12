@@ -22,7 +22,7 @@ from fleet_interfaces.msg import (
     ZoneState,
     ZoneStateArray,
 )
-from fleet_interfaces.srv import ReportOrder
+from fleet_interfaces.srv import CheckClear, ReportOrder
 from geometry_msgs.msg import Pose, PoseStamped
 from nav_msgs.msg import Path
 
@@ -96,6 +96,23 @@ def robot_report(msg) -> tuple[float, float, float, str, float]:
 
 def robot_report_id(msg) -> str:
     return msg.robot_id
+
+
+def robot_obstacle(msg) -> tuple[float, float, str]:
+    """BLOCKED와 함께 온 막은 것 (x, y, 종류). 계약 0.12-draft. 종류가 비면 모르는 것이다(NaN):
+    이 칸이 없던 로봇은 0, 0, 빈 값을 보낸다."""
+    if not msg.obstacle_kind:
+        return math.nan, math.nan, ""
+    return float(msg.obstacle_x), float(msg.obstacle_y), msg.obstacle_kind
+
+
+def check_clear_request(command):
+    """CheckClearCmd -> CheckClear 요청."""
+    return CheckClear.Request(x=float(command.x), y=float(command.y), r=float(command.radius_m))
+
+
+def check_clear_answer(response) -> str:
+    return response.answer
 
 
 def goal_result(response):

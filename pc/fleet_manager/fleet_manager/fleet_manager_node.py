@@ -14,6 +14,7 @@ import rclpy
 from ament_index_python.packages import get_package_share_directory
 from fleet_core.common.commands import (
     CancelCmd,
+    CheckClearCmd,
     DockCmd,
     EventOut,
     FillCmd,
@@ -36,7 +37,7 @@ from fleet_interfaces.msg import (
     RobotStatusArray,
     ZoneStateArray,
 )
-from fleet_interfaces.srv import ConfirmClear, Reinstate, ReportOrder
+from fleet_interfaces.srv import CheckClear, ConfirmClear, Reinstate, ReportOrder
 from rcl_interfaces.msg import ParameterDescriptor
 from rclpy.action import ActionClient
 from rclpy.clock import Clock, ClockType
@@ -126,6 +127,7 @@ class FleetManagerNode(Node):
         self._move = {}
         self._dock = {}
         self._retreat = {}
+        self._check_clear = {}
         for robot in robots:
             self.create_subscription(
                 RobotState, name("robot_state", pinky=robot),
@@ -133,6 +135,8 @@ class FleetManagerNode(Node):
             self._move[robot] = ActionClient(self, MoveTo, name("move_to", pinky=robot))
             self._dock[robot] = ActionClient(self, Dock, name("dock", pinky=robot))
             self._retreat[robot] = ActionClient(self, Retreat, name("retreat", pinky=robot))
+            self._check_clear[robot] = self.create_client(CheckClear,
+                                                          name("check_clear", pinky=robot))
         self._fill = {}
         self._swap = {}
         for station in self.site.stations.values():
@@ -149,7 +153,8 @@ class FleetManagerNode(Node):
     def _on_robot_state(self, robot, msg: RobotState) -> None:
         if not self.silent() and self._reachable(robot):
             self.core.on_robot_state(robot, *adapters.robot_report(msg),
-                                     adapters.robot_report_id(msg))
+                                     adapters.robot_report_id(msg),
+                                     *adapters.robot_obstacle(msg))
 
     def _reachable(self, robot) -> bool:
         """goal이 닿을 수 있어야 로봇으로 친다. 새 FMS는 액션 서버를 찾기 전에 보고를 먼저
@@ -259,6 +264,8 @@ class FleetManagerNode(Node):
         elif isinstance(command, SwapCmd):
             self._send(self._swap[command.station_id], adapters.swap_goal(command),
                        (command.arm, command.goal_id), self._swap_done, self._swap_rejected)
+        elif isinstance(command, CheckClearCmd):
+            self._ask_clear(command)
         elif isinstance(command, CancelCmd):
             self._goals.cancel((command.robot, command.goal_id), now)
         elif isinstance(command, ReportOrderCmd):
@@ -266,6 +273,23 @@ class FleetManagerNode(Node):
         elif isinstance(command, EventOut):
             self._events_pub.publish(adapters.event_to_msg(command, now))
             self._log_event(command)
+
+    def _ask_clear(self, command) -> None:
+        """CheckClear 서비스(계약 0.12-draft)를 부른다. 서비스가 없거나 실패하면 unknown이다."""
+        client = self._check_clear[command.robot]
+        if not client.service_is_ready():
+            self.core.on_clear_check(command.robot, command.check_id, "unknown")
+            return
+        future = client.call_async(adapters.check_clear_request(command))
+        future.add_done_callback(partial(self._clear_answered, command))
+
+    def _clear_answered(self, command, future) -> None:
+        try:
+            answer = adapters.check_clear_answer(future.result())
+        except Exception as exc:  # 답이 없으면 모르는 것이다. 관제는 간격 뒤 다시 묻는다
+            self.get_logger().warning(f"check_clear on {command.robot} got no reply: {exc}")
+            answer = "unknown"
+        self.core.on_clear_check(command.robot, command.check_id, answer)
 
     def _log_event(self, event) -> None:
         # 호출 위치마다 심각도 하나. rclpy는 같은 위치에서 심각도가 바뀌면 예외를 낸다.

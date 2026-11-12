@@ -14,14 +14,18 @@ ROS 없이 재생할 수 있다(형식은 tools/replay.py).
 """
 from __future__ import annotations
 
+import math
+
 from fleet_core.arm.jobs import ArmJobs
 from fleet_core.common.commands import (
     FILL,
+    OBSTACLE_KINDS,
     SWAP,
     EventOut,
 )
 from fleet_core.common.validate import (
     checked,
+    obstacle_of,
     pose_problem,
     reported_id_problem,
     robot_problem,
@@ -84,12 +88,20 @@ class FleetManager(ManagerRoute, ManagerViews, ManagerRecord):
 
     # ---- inputs -------------------------------------------------------------------------
 
-    def on_robot_state(self, robot, x, y, yaw, state, battery=0.0, robot_id="") -> None:
-        """robot은 토픽의 로봇, robot_id는 메시지에 적힌 이름(빈 값 가능)."""
-        # 받은 그대로 기록한다. robot_id가 없던 기록도 똑같이 읽힌다.
+    def on_robot_state(self, robot, x, y, yaw, state, battery=0.0, robot_id="",
+                       obstacle_x=math.nan, obstacle_y=math.nan, obstacle_kind="") -> None:
+        """robot은 토픽의 로봇, robot_id는 메시지에 적힌 이름(빈 값 가능).
+
+        obstacle_*는 BLOCKED와 함께 온 막은 것의 위치와 종류다(추가 지시서 3의 4-1). 모르면 NaN.
+        """
+        # 받은 그대로 기록한다. robot_id나 장애물 위치가 없던 기록도 똑같이 읽힌다.
         no_id = isinstance(robot_id, str) and text(robot_id) == ""
+        seen = [obstacle_x, obstacle_y, obstacle_kind]
+        no_obstacle = all(isinstance(v, float) and math.isnan(v) for v in seen[:2]) and (
+            isinstance(obstacle_kind, str) and text(obstacle_kind) == "")
+        tail = [] if no_obstacle else [robot_id, *seen]
         self._input("on_robot_state", robot, x, y, yaw, state, battery,
-                    *([] if no_id else [robot_id]))
+                    *(tail or ([] if no_id else [robot_id])))
         # 위치를 못 잡은 보고의 자세는 쓰지 않으니 검사하지 않는다.
         localizing = isinstance(state, str) and text(state) == LOCALIZING
         problem = checked(lambda: robot_problem(robot, self.traffic.robots)
@@ -100,8 +112,20 @@ class FleetManager(ManagerRoute, ManagerViews, ManagerRecord):
                                 robot):
             return
         # state는 판단에 쓰므로 글자로 바꿔 둔다. 비교가 실패하는 값이 tick까지 가면 안 된다.
-        self.traffic.on_robot_state(robot, x, y, yaw, text(state), battery)
+        try:  # 위치 없음은 거부가 아니다. 못 읽는 값도 위치 없음으로 본다
+            obstacle = obstacle_of(obstacle_x, obstacle_y, obstacle_kind, self._bounds,
+                                   self.params.input_pose_margin_m, OBSTACLE_KINDS)
+        except Exception:
+            obstacle = None
+        self.traffic.on_robot_state(robot, x, y, yaw, text(state), battery, obstacle)
         self._pump()
+
+    def on_clear_check(self, robot, check_id, answer) -> None:
+        """CheckClear 서비스의 답(clear, blocked, unknown). 부르지 못했으면 unknown이다."""
+        self._input("on_clear_check", robot, check_id, answer)
+        if not self._robot_refused("clear check", robot):
+            self.traffic.on_clear_check(robot, check_id, text(answer))
+            self._pump()
 
     def on_order_board(self, run_mode, orders) -> None:
         """run_mode가 틀리면 통째로 버린다. 주문이 틀리면 모드는 적용하고 주문은 전 것을 둔다.

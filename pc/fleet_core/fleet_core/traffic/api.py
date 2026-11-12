@@ -23,8 +23,12 @@ class TrafficApi(Protocol):
 
     # ---- inputs -------------------------------------------------------------------------
 
-    def on_robot_state(self, robot, x, y, yaw, state, battery=0.0) -> None:
-        """로봇 상태 보고(검사를 마친 값, state는 글자). 지도에 올리고 위치를 따라간다."""
+    def on_robot_state(self, robot, x, y, yaw, state, battery=0.0, obstacle=None) -> None:
+        """로봇 상태 보고(검사를 마친 값, state는 글자). 지도에 올리고 위치를 따라간다.
+        obstacle은 BLOCKED와 함께 온 장애물 (x, y, 종류)이고 모르면 None이다."""
+
+    def on_clear_check(self, robot, check_id, answer) -> None:
+        """CheckClearCmd의 답(clear, blocked, unknown). 모르는 check_id면 버린다."""
 
     def on_run_mode(self, run_mode) -> None:
         """중앙의 RUN/PAUSE/STOP. STOP이면 열린 goal을 취소한다. RUN이 아니면 새로 내지 않는다."""

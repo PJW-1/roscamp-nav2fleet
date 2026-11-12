@@ -40,6 +40,11 @@ class ZoneBase:
         # 막힘으로 표시한 연결 (a, b) -> 다시 써 볼 시각. 넓은 구역 한가운데에서 막혔으면
         # a는 HERE + 로봇 이름이다: 그 로봇이 선 자리에서 b로 곧장 가는 길만 막는다.
         self._blocked: dict = {}
+        # 장애물 위치로 한 막힘 표시(block_marks.py): 번호 -> Mark. 지운 표시의 (x, y, 지우기 시간,
+        # 지운 시각)은 같은 점에서 다시 막히면 시간을 두 배로 늘리려고 남긴다
+        self._marks: dict = {}
+        self._mark_memory: list = []
+        self._mark_seq = itertools.count(1).__next__  # 표시와 CheckClear 질문의 번호
         self._cycle: tuple = ()  # 지금 보이는 대기 순환
         self._cycle_since = 0.0
         self._cycle_acted = False

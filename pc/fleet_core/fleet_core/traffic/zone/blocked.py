@@ -47,9 +47,15 @@ class Blocked:
         backing = self._via(m) == RETREAT
         if not backing and waited >= p.blocked_mark_s:
             behind = self._behind_on_the_way_back(m)
-            if not behind:
+            point = self._obstacle_point(m) if not behind else None
+            other = self._robot_at(m, point) if point is not None else None
+            if other is not None and not self._yielded_lately(m, now):
+                m.rear_noted = False  # 다른 로봇이 막았다: 표시하지 않고 비킨다(block_marks.py)
+                self._yield_to_robot(m, other, now)
+            elif not behind:
                 m.rear_noted = False
-                self._mark_blocked(m, now)
+                # 비켜도 또 로봇에 막혔으면 예전처럼 가던 연결을 표시한다(서로 마주 선 두 대)
+                self._mark_blocked(m, now, None if other is not None else point)
             elif waited >= p.blocked_timeout_s:
                 # 앞은 막혔고 뒤의 로봇은 끝내 나가지 않았다. 갈 데가 없으니 운영자에게 넘긴다
                 self._event("ERROR", "GOAL_FAILED",
@@ -87,21 +93,34 @@ class Blocked:
                 return other.name
         return ""
 
-    def _mark_blocked(self, m, now: float) -> None:
-        """지금 달리던 연결을 막힘으로 표시하고 다른 길을 찾게 한다."""
+    def _mark_blocked(self, m, now: float, point=None) -> None:
+        """막힘으로 표시하고 다른 길을 찾게 한다. 장애물 위치(point)가 있으면 그 점이 든 연결을,
+        없으면 지금 달리던 연결을 표시한다(block_marks.py)."""
         p, site = self.params, self.site
         link = m.trip.links[m.trip.done]
-        until = now + p.blocked_retry_s
-        if link.a:
-            self._blocked[(link.a, link.b)] = until
-            if site.link(link.b, link.a) is not None:
-                self._blocked[(link.b, link.a)] = until
-        else:  # 넓은 구역 한가운데: 여기서 그 지점으로 곧장 가지 않고 다른 지점을 거친다
-            self._blocked[(HERE + m.name, link.b)] = until
+        keys = self._point_keys(m, point, link) if point is not None else []
         zone = site.zone_at(m.x, m.y)
-        self._event("WARN", "ZONE_MARKED_BLOCKED",
-                    f"{link.a or 'here'}->{link.b} in {zone}, tried again in "
-                    f"{p.blocked_retry_s:.0f} s", m.name)
+        if keys:
+            mark = self._mark_point(m, point, keys, now)
+
+            def hold(key):
+                self._hold_key(mark, key)
+        else:
+            until = now + p.blocked_retry_s
+
+            def hold(key):
+                self._blocked[key] = until
+            if link.a:
+                hold((link.a, link.b))
+                if site.link(link.b, link.a) is not None:
+                    hold((link.b, link.a))
+            else:  # 넓은 구역 한가운데: 여기서 그 지점으로 곧장 가지 않고 다른 지점을 거친다
+                hold((HERE + m.name, link.b))
+            self._event("WARN", "ZONE_MARKED_BLOCKED",
+                        f"{link.a or 'here'}->{link.b} in {zone}, tried again in "
+                        f"{p.blocked_retry_s:.0f} s", m.name)
+        if keys:  # 위치로 표시했으면 다음에 잡은 길로 우회 종류를 센다(DETOUR)
+            self._remember_way(m)
         self._cancel_goal(m)
         m.blocked_since = None
         if link.a and zone is not None and site.zones[zone].kind != SHARED:
@@ -111,7 +130,7 @@ class Blocked:
             self._event("INFO", "REROUTE", f"another way to {m.trip.goal}", m.name)
             if not self._make_way(m, link.b):
                 # 비켜 줄 로봇이 없다: 선 자리에서 그 지점으로 곧장 가면 같은 것에 또 막힌다
-                self._blocked[(HERE + m.name, link.b)] = until
+                hold((HERE + m.name, link.b))
         self._drop_trip(m)
 
     def _make_way(self, m, node: str) -> bool:
