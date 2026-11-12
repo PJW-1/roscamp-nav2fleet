@@ -73,7 +73,11 @@ class FleetParams:
     nav_speed_mps: float = 0.12  # 넓은 구역(Nav2 goal)의 ETA와 길 비용에 쓰는 속도
     follow_speed_mps: float = 0.12  # 고정 경로(FollowPath)의 같은 값
     retreat_speed_mps: float = 0.05  # 후진(Retreat) 속도
-    zone_clear_m: float = 0.10  # 보고 위치가 뒤 구역에서 이만큼 벗어나면 그 구역을 놓는다
+    # 뒤 구역은 보고 중심이 구역에서 footprint_radius_m + release_margin_m 넘게 벗어나면 놓는다
+    # (몸 전체가 빠져나간 뒤, 추가 지시서 2의 5절)
+    footprint_radius_m: float = 0.085  # Nav2 발자국 0.12 x 0.12 m의 반 대각선
+    release_margin_m: float = 0.05  # 보고 위치 오차의 여유
+    zone_clear_m: float = 0.0  # 옛 기록 전용: 0이 아니면 이 거리로 놓는다(그때의 규칙으로 재생)
     node_clear_m: float = 0.20  # 뒤 지점에서 이만큼 멀어지면 그 지점을 놓는다
     lane_follow_gap_s: float = 4.0  # 앞 로봇이 한 줄 구역에 들어간 뒤 이만큼 지나야 뒤따른다
     lane_hysteresis_s: float = 5.0  # 반대쪽이 이만큼 더 빨리 닿을 때만 방향을 바꾼다

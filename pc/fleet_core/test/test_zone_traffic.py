@@ -54,7 +54,9 @@ def test_work_to_outbound_runs_the_express_and_backs_out_of_the_dock_first():
     assert world.run_until(lambda: world.result_of(call) is not None)
     out = world.call("OUTBOUND", "pinky2")
     world.step()
-    assert world.view("pinky2")["held"] == ["WORK_DOCK", "J_W", "EXPRESS", "J_E", "OUT_DOCK"]
+    # 도킹 바로 뒤라 다가오며 지난 HALL을 아직 쥐고 있다: 도크에서 놓는 것은 보고 세 번 뒤다
+    assert world.view("pinky2")["held"] == [
+        "HALL", "J_W", "WORK_DOCK", "EXPRESS", "J_E", "OUT_DOCK"]
     assert world.traffic.grants.lane_direction("EXPRESS") == "X_W"
     assert world.run_until(lambda: world.result_of(out) is not None)
     assert world.result_of(out).success

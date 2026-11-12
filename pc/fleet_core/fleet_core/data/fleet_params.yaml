@@ -9,7 +9,7 @@ release_margin_extra_m: 0.05  # 시나리오 판정 전용: 반경 + 이 값 = �
 # 또 d > 2r: 뒤 로봇이 방금 떠난 지점까지 올 수 있다. 앞 로봇이 eps 앞선 보고 직후 멈출 수
 # 있으면 d >= 2r + eps. eps와 tau를 실제 로봇에서 재기 전까지 추정이다.
 # 압박 표는 docs/worklog_2026-11-05.md.
-release_distance_m: 0.2       # 구역 교통은 읽지 않는다(zone_clear_m로 놓는다). 핑키의 자가 복구 후진 거리 식이 같은 값을 쓴다
+release_distance_m: 0.2       # 구역 교통은 읽지 않는다(footprint_radius_m + release_margin_m로 놓는다). 핑키의 자가 복구 후진 거리 식이 같은 값을 쓴다
 release_confirm_samples: 3    # 해제 전에 그 거리를 지난 연속 보고 수
 lane_error_warn_m: 0.15       # 가짜 로봇: 받은 path 첫 점이 이보다 멀면 따라가지 않는다(PATH_NOT_CONNECTED). 레인 이탈 감시는 지웠다
 move_retry_limit: 2           # 첫 실패 뒤 재시도 수, 모두 세 번 시도
@@ -55,7 +55,8 @@ eta_swap_s: 8.0               # 추정: 교환 시간(가짜 시나리오 기본
 nav_speed_mps: 0.12           # 넓은 구역(Nav2 goal)의 ETA와 길 비용에 쓰는 속도
 follow_speed_mps: 0.12        # 고정 경로(FollowPath)의 같은 값
 retreat_speed_mps: 0.05       # 후진(Retreat) 속도
-zone_clear_m: 0.10            # 보고 위치가 뒤 구역에서 이만큼 벗어나면 그 구역을 놓는다(몸 반 길이 0.06 + 여유)
+footprint_radius_m: 0.085     # Nav2 발자국(0.12 x 0.12 m)의 반 대각선
+release_margin_m: 0.05        # 제안: 보고 중심이 뒤 구역에서 footprint_radius_m + 이 값(0.135 m) 넘게 벗어나면 그 구역을 놓는다
 node_clear_m: 0.20            # 뒤 지점에서 이만큼 멀어지면 그 지점을 놓는다
 lane_follow_gap_s: 4.0        # 앞 로봇이 한 줄 구역에 들어간 뒤 이만큼 지나야 같은 방향으로 뒤따른다
 lane_hysteresis_s: 5.0        # 반대쪽이 입구에 이만큼 더 빨리 닿을 때만 방향을 바꾼다
