@@ -83,7 +83,7 @@ def robots_to_msg(views, now: float) -> RobotStatusArray:
         RobotStatus(robot_id=v.robot_id, fsm_state=v.fsm_state, task_type=v.task_type,
                     order_id=v.order_id, fault=v.fault, fault_reason=v.fault_reason,
                     wait_zone=v.wait_zone, wait_robots=list(v.wait_robots),
-                    base=list(v.base), horizon=list(v.horizon),
+                    base=list(v.base), horizon=list(v.horizon), priority=int(v.priority),
                     battery=float(v.battery), x=float(v.x), y=float(v.y), yaw=float(v.yaw))
         for v in views
     ]
@@ -104,6 +104,11 @@ def robot_obstacle(msg) -> tuple[float, float, str]:
     if not msg.obstacle_kind:
         return math.nan, math.nan, ""
     return float(msg.obstacle_x), float(msg.obstacle_y), msg.obstacle_kind
+
+
+def robot_local_yield(msg) -> str:
+    """로봇단 교착 처리의 단계(wait, backup, retry, 계약 0.13-draft). 아니면 빈 값."""
+    return msg.local_yield
 
 
 def check_clear_request(command):
@@ -206,6 +211,7 @@ def move_goal(cmd) -> MoveTo.Goal:
     goal.target_pose.theta = float(cmd.yaw)
     goal.path = _poses(cmd.path)  # 비면 점 목표
     goal.mode = cmd.mode  # follow_path 또는 nav_goal(계약 0.11-draft 제안)
+    goal.priority = int(cmd.priority)  # 로봇단 교착 처리(계약 0.13-draft)
     return goal
 
 
@@ -231,7 +237,8 @@ def move_order_goal(cmd) -> MoveTo.Goal:
     """order 모델의 MoveTo goal(계약 0.11-draft 제안). 옛 칸은 base 마지막 조각에서 채운다."""
     goal = MoveTo.Goal(order_id=cmd.order_id, order_update_id=int(cmd.update_id),
                        stitch_node_id=cmd.stitch_node, base=[_segment(s) for s in cmd.base],
-                       horizon=[_segment(s) for s in cmd.horizon])
+                       horizon=[_segment(s) for s in cmd.horizon],
+                       priority=int(cmd.priority))
     if cmd.base:
         last = cmd.base[-1]
         goal.target_id = last.end_node
