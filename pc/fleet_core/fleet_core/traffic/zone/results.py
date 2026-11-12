@@ -157,7 +157,8 @@ class Results:
         if not (heard and goal is not None and goal.kind in (MOVE, RETREAT)):
             return False
         limit = self.params.arrival_tolerance_m
-        return self._gap(m, goal.end) <= (limit / 2 if goal.via == NAV_GOAL else limit)
+        # order goal이면 지금 조각의 방식으로 본다(_via)
+        return self._gap(m, goal.end) <= (limit / 2 if self._via(m) == NAV_GOAL else limit)
 
     def _arrived_anyway(self, m, reason: str) -> None:
         """goal은 실패했거나 열린 채 멈췄지만 로봇은 끝 지점에 서 있다. 닿은 것으로 본다.

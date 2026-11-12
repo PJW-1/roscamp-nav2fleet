@@ -366,3 +366,22 @@ def test_the_base_time_also_guards_a_robot_that_has_just_started_talking_again()
     assert world.traffic.confirm_clear("pinky2", held, "carried away") is None, (
         "whether the cancel reached the robot is still unknown")
     assert "base" in world.traffic.clear_reason
+
+
+def test_an_order_whose_nav_goal_segment_fails_short_of_the_base_end_is_retried():
+    """order의 마지막 base 조각이 Nav2 goal이면 조각 하나씩 보낼 때와 같은 규칙이다: 로봇이 닿았다고
+    한 것이 아니므로 도착 허용 거리의 절반 안이어야 닿은 것으로 본다(test_zone_at_target.py)."""
+    world, _ = queued_for_outbound()
+    spot = world.traffic.site.node_pose("O_Q")
+    bot = world.bots["pinky1"]
+    assert world.run_until(lambda: math.dist((bot.x, bot.y), spot) <= 0.10, 60.0)
+    order = orders(world, "pinky1")[-1]
+    assert order.base[-1].end_node == "O_Q" and order.base[-1].mode == "nav_goal", ends(order.base)
+    assert math.dist((bot.x, bot.y), spot) > world.params.arrival_tolerance_m / 2
+    bot.cmd = None  # 대기 자리에 못 미쳐 섰다. 결과는 아래에서 넣는다
+    world.step()
+    world.traffic.on_move_result("pinky1", order.goal_id, False, "NAV_ABORTED",
+                                 order.base[-2].seq_id)
+    world.step()
+    codes = world.codes("pinky1")
+    assert "GOAL_RETRY" in codes and "GOAL_ENDED_AT_TARGET" not in codes
