@@ -5,6 +5,7 @@ from fleet_core.traffic.mission import (
     AT_STATION,
     DOCK,
     HEARTBEAT_LOST,
+    LOCALIZING,
     MOVE,
     NOT_AT_TARGET,
     RETREAT,
@@ -116,7 +117,34 @@ class Results:
         if m.trip is not None:
             m.trip.sent = m.trip.done
 
+    def _stands_at_end(self, m) -> bool:
+        """이동이나 후진 goal의 끝 지점에 로봇이 서 있는가. 방금 들은 위치로만 본다.
+
+        보고가 끊겼거나 로봇이 위치를 잃었으면(LOCALIZING) 남아 있는 위치는 옛것이다.
+        막혀 선 로봇(BLOCKED)은 가리지 않는다: 위치가 맞으면 그 지점에 있는 것이다.
+        """
+        goal = m.goal
+        heard = (m.available and m.robot_state != LOCALIZING
+                 and self._clock() - m.last_seen <= self.params.arrival_settle_s)
+        return (heard and goal is not None and goal.kind in (MOVE, RETREAT)
+                and self._gap(m, goal.end) <= self.params.arrival_tolerance_m)
+
+    def _arrived_anyway(self, m, reason: str) -> None:
+        """goal은 실패했거나 열린 채 멈췄지만 로봇은 끝 지점에 서 있다. 닿은 것으로 본다.
+
+        실패한 시도로 세면 같은 goal을 다시 보내게 되는데, 끝에 선 로봇은 남은 길이 없어 바로
+        실패로 답하고(pinky_fsm의 후진), 세 번 뒤에는 격리된다.
+        """
+        goal = m.goal
+        self._event("WARN", "GOAL_ENDED_AT_TARGET",
+                    f"{goal.kind} goal {goal.id} ended {reason}, but the robot stands at "
+                    f"{goal.end}", m.name)
+        self._segment_done(m)
+
     def _move_failed(self, m, reason: str) -> None:
+        if reason not in (HEARTBEAT_LOST, NOT_AT_TARGET) and self._stands_at_end(m):
+            self._arrived_anyway(m, reason)
+            return
         self._forget_goal(m)
         if reason == HEARTBEAT_LOST:  # 로봇이 관제 heartbeat를 잃고 스스로 섰다. 시도로 세지 않는다
             m.retry_at = self._clock() + self.params.move_retry_wait_s

@@ -266,15 +266,23 @@ def test_a_retreat_path_away_from_the_robot_fails(harness):
     assert fake.goals == [] and fake.backups == []
 
 
-def _fake_node(late):
+def _runner(handles=None, pending=()):
+    """FollowPathRunner without a ROS client: only the bookkeeping and the callbacks."""
     import threading
     from types import SimpleNamespace
-    infos = []
-    node = SimpleNamespace(
-        _lock=threading.RLock(), _nav_pending={3}, _late=late, _nav_handles={3: object()},
-        get_logger=lambda: SimpleNamespace(warn=infos.append, info=infos.append),
-        _pose=lambda: None, _obstacle=lambda _p: False)
-    return node, infos
+
+    from pinky_fsm.follow_ros import FollowPathRunner
+    infos, seen = [], SimpleNamespace(rejected=[], results=[], cancels=[])
+    runner = object.__new__(FollowPathRunner)
+    runner._node = SimpleNamespace(
+        get_logger=lambda: SimpleNamespace(warn=infos.append, info=infos.append))
+    runner._lock = threading.Lock()
+    runner._handles, runner._pending = dict(handles or {}), set(pending)
+    runner._cancel_on_accept = set()
+    runner._on_rejected = seen.rejected.append
+    runner._on_result = lambda *a: seen.results.append(a)
+    runner._on_cancel_accepted = seen.cancels.append
+    return runner, infos, seen
 
 
 def _broken():
@@ -284,12 +292,9 @@ def _broken():
 def test_a_follow_path_goal_whose_send_fails_counts_as_rejected():
     """Codex 리뷰 2: future 예외로 콜백이 죽으면 그 FollowPath는 끝내 결과가 없다."""
     from types import SimpleNamespace
-
-    from pinky_fsm.node import PinkyFsmNode
-    late = []
-    node, infos = _fake_node(late)
-    PinkyFsmNode._on_nav_response(node, 3, SimpleNamespace(result=_broken))
-    assert late == [(3, "rejected")] and node._nav_pending == set() and infos
+    runner, infos, seen = _runner(pending={3})
+    runner._on_response(3, SimpleNamespace(result=_broken))
+    assert seen.rejected == [3] and runner._pending == set() and infos
 
 
 class _CancelFuture:
@@ -307,38 +312,25 @@ class _CancelFuture:
 
 def test_only_an_accepted_cancel_lets_the_core_forget_a_follow_path():
     """재검토 1: 취소 응답에 그 goal이 들어 있을 때만 core에 알린다(거절, 오류는 알리지 않는다)."""
-    from types import SimpleNamespace
-
     from action_msgs.srv import CancelGoal
-    from pinky_fsm.node import PinkyFsmNode
-    told = []
-    node, infos = _fake_node([])
-    node._fsm = SimpleNamespace(nav_cancel_accepted=lambda seq, now: told.append(seq) or [])
-    node._run = lambda cmds: None
+    runner, infos, seen = _runner()
     yes = CancelGoal.Response(goals_canceling=[_goal_info()])
-    PinkyFsmNode._on_nav_cancel(node, 3, _CancelFuture(yes))
-    PinkyFsmNode._on_nav_cancel(node, 4, _CancelFuture(CancelGoal.Response(
+    runner._on_cancel(3, _CancelFuture(yes))
+    runner._on_cancel(4, _CancelFuture(CancelGoal.Response(
         return_code=CancelGoal.Response.ERROR_REJECTED)))
-    PinkyFsmNode._on_nav_cancel(node, 5, _CancelFuture(error=RuntimeError("lost")))
-    assert told == [3] and infos
+    runner._on_cancel(5, _CancelFuture(error=RuntimeError("lost")))
+    assert seen.cancels == [3] and infos
 
 
 def test_a_cancel_answered_goal_terminated_or_unknown_also_lets_the_core_forget():
     """재검토 2: 이미 끝났거나 서버가 모르는 goal은 돌지 않는다. 결과를 잃은 goal이 끝나 있으면
     취소는 이렇게 답하고, 그때 잊지 않으면 그 뒤 모든 Retreat가 TIMEOUT이다."""
-    from types import SimpleNamespace
-
     from action_msgs.srv import CancelGoal
-    from pinky_fsm.node import PinkyFsmNode
-    told = []
-    node, _ = _fake_node([])
-    node._nav_handles = {3: object(), 4: object()}
-    node._fsm = SimpleNamespace(nav_cancel_accepted=lambda seq, now: told.append(seq) or [])
-    node._run = lambda cmds: None
+    runner, _, seen = _runner(handles={3: object(), 4: object()})
     for seq, code in ((3, CancelGoal.Response.ERROR_GOAL_TERMINATED),
                       (4, CancelGoal.Response.ERROR_UNKNOWN_GOAL_ID)):
-        PinkyFsmNode._on_nav_cancel(node, seq, _CancelFuture(CancelGoal.Response(return_code=code)))
-    assert told == [3, 4] and not node._nav_handles
+        runner._on_cancel(seq, _CancelFuture(CancelGoal.Response(return_code=code)))
+    assert seen.cancels == [3, 4] and not runner._handles
 
 
 def _goal_info():
@@ -348,33 +340,27 @@ def _goal_info():
 
 def test_every_follow_path_cancel_reports_its_answer():
     from types import SimpleNamespace
-
-    from pinky_fsm.node import PinkyFsmNode
     futures = {}
     handles = {7: SimpleNamespace(cancel_goal_async=lambda: futures.setdefault(7,
                                                                              _CancelFuture()))}
-    node = SimpleNamespace(_nav_handles=handles, _nav_pending={8}, _cancel_on_accept=set())
-    node._on_nav_cancel = lambda seq, fut: None
-    PinkyFsmNode._cancel_all_nav(node)
-    assert len(futures[7].callbacks) == 1 and node._cancel_on_accept == {8}
+    runner, _, _ = _runner(handles=handles, pending={8})
+    runner._on_cancel = lambda seq, fut: None
+    runner.cancel_all()
+    assert len(futures[7].callbacks) == 1 and runner._cancel_on_accept == {8}
 
 
 def test_a_lost_follow_path_result_keeps_the_goal_and_cancels_it():
     """재검토 2: 결과를 잃어도 goal은 돌 수 있다. 핸들을 두고 취소를 보내며, core에는
     nav_lost로 알린다(이동은 aborted처럼 끝나지만 취소가 받아들여질 때까지 잊지 않는다)."""
     from types import SimpleNamespace
-
-    from pinky_fsm.node import PinkyFsmNode
-    ran, futures = [], []
-    node, infos = _fake_node([])
+    futures = []
     handle = SimpleNamespace(cancel_goal_async=lambda: futures.append(_CancelFuture())
                              or futures[-1])
-    node._nav_handles = {3: handle}
-    node._fsm = SimpleNamespace(nav_lost=lambda *a: ran.append(a[0]) or [])
-    node._run = lambda cmds: None
-    node._on_nav_cancel = lambda seq, fut: None
-    PinkyFsmNode._on_nav_result(node, 3, SimpleNamespace(result=_broken))
-    assert ran == [3] and node._nav_handles == {3: handle} and infos
+    runner, infos, seen = _runner(handles={3: handle})
+    runner._on_cancel = lambda seq, fut: None
+    runner._on_done(3, SimpleNamespace(result=_broken))
+    assert seen.results == [(3, "aborted", 0, True)]
+    assert runner._handles == {3: handle} and infos
     assert len(futures) == 1 and len(futures[0].callbacks) == 1
 
 
