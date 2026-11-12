@@ -85,7 +85,7 @@ class Commands:
             r.docked_at = ""
             r.run = OrderRun(cmd, lambda segment, final, goal_id: self._segment_run(
                 r, segment, final, goal_id))
-            self.order_metrics.run_started(self.t, r.name, r.run, r)
+            self.order_metrics.run_started(r.name, r.run, r)
             return
         why = refusal(run, cmd)
         done = run.done_seq if run is not None else 0
@@ -141,19 +141,16 @@ class Commands:
         if not isinstance(cmd, DockCmd):
             r.docked_at = ""
         r.run = run
-        self.order_metrics.run_started(self.t, r.name, run, r)
+        self.order_metrics.run_started(r.name, run, r)
 
     def _move_run(self, r, cmd):
         speed_factor = r.profile.speed_factor
         if cmd.mode == "nav_goal":
-            run = NavGoalRun(cmd.goal_id, (cmd.x, cmd.y), cmd.yaw,
-                             self.params.nav_speed_mps * speed_factor, self.blocked_after_s)
-        else:
-            run = FollowRun(cmd.goal_id, cmd.path, (cmd.x, cmd.y), cmd.yaw,
-                            self.params.follow_speed_mps * speed_factor,
-                            self.params.lane_error_warn_m, turn_at_end=cmd.final_goal)
-        run.final = cmd.final_goal  # 이동의 마지막 조각인가(표의 이음매와 이동 한 건)
-        return run
+            return NavGoalRun(cmd.goal_id, (cmd.x, cmd.y), cmd.yaw,
+                              self.params.nav_speed_mps * speed_factor, self.blocked_after_s)
+        return FollowRun(cmd.goal_id, cmd.path, (cmd.x, cmd.y), cmd.yaw,
+                         self.params.follow_speed_mps * speed_factor,
+                         self.params.lane_error_warn_m, turn_at_end=cmd.final_goal)
 
     def _dock_run(self, r, cmd):
         station = self.site.stations.get(cmd.dock_id)

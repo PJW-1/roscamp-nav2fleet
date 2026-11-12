@@ -47,7 +47,7 @@ class OrderMetrics:
 
     # ---- 세계가 알려 주는 것 ----
 
-    def run_started(self, t: float, name: str, run, robot) -> None:
+    def run_started(self, name: str, run, robot) -> None:
         if run.kind == DOCK:
             self._seam.pop(name, None)
             return

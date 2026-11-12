@@ -30,12 +30,6 @@ class Seg:
     end_node_id: str = ""
     zone_ids: tuple[str, ...] = ()
 
-    @property
-    def end(self) -> Pose | None:
-        if self.mode == MODE_NAV_GOAL:
-            return self.target
-        return self.path[-1] if self.path else None
-
 
 @dataclass(frozen=True)
 class OrderGoal:
