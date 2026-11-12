@@ -92,7 +92,7 @@ pgrep -af "gz sim|ruby|component_container|pinky_fsm_node|fleet_manager_node"   
 | `rviz` | `fleet` | `fleet`: 3대를 한 RViz에(로봇, 쥔 구역, 주문). 로봇 이름(`pinky2`)이면 그 로봇의 Nav2 화면. `none`이면 없음 |
 | `sim_dock_stub` | `false` | 시뮬 전용 도킹 대역(아래 "도킹") |
 | `obstacles` | 없음 | 지점 사이 연결(`link`)에 상자를 놓았다 치우는 일정(`fleet_gz_sim/obstacles`의 이름이나 파일). `d2_yard_express`는 300 s마다 마당 하나, 급행 하나를 120 s씩 |
-| `nav_max_speed` | `0.12` | 앞으로 가는 controller들의 최고 속도(m/s). 0.12~0.15만 받는다 |
+| `nav_max_speed` | `0.12` | 앞으로 가는 controller들의 최고 속도(m/s). 0.12~0.20만 받는다(지시서의 경기장 속도는 0.12~0.15) |
 | `keepout` | `true` | Nav2 global costmap의 keepout 필터(shared가 아닌 구역) |
 | `fleet_check` | `true` | 주행 지표를 `result_dir/fleet_check.json`에(아래 "결과 확인") |
 | `monitor` | `true` | 시나리오 판정. 시나리오가 끝나면 `summary.json`을 쓰고 launch를 끝낸다 |

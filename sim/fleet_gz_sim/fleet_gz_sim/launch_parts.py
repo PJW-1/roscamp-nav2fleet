@@ -117,8 +117,9 @@ CONTROLLERS = ("FollowPath", THROUGH_CONTROLLER, REVERSE_CONTROLLER, GOAL_CONTRO
 # fixed_line_collision_check가 거짓이면 이 셋만 충돌 검사를 끈다(리드 결정 2026-11-12: D2의 0.10 m
 # 통로에서 켜면 work_in이 0/3이라 3대 경기를 볼 수 없다). 마당 goal(FollowPathGoal)은 늘 켠다
 FIXED_LINE_CONTROLLERS = ("FollowPath", THROUGH_CONTROLLER, REVERSE_CONTROLLER)
-# 경기장 속도 상한(지시서 3절: 0.12~0.15 m/s). 앞으로 가는 controller 셋이 이 값으로 간다
-SPEED_RANGE_MPS = (0.12, 0.15)
+# 경기장 속도 상한. 앞으로 가는 controller 셋이 이 값으로 간다. 지시서 3절은 0.12~0.15 m/s이고,
+# 0.20까지는 더 빠른 주행을 시뮬에서 보려고 받는다(2026-11-12). 기본값은 그대로다
+SPEED_RANGE_MPS = (0.12, 0.20)
 DEFAULT_SPEED_MPS = 0.12
 # sim_stand_in이 내는 로봇마다의 시뮬 배터리(BatteryState). low_battery가 있으면 pinky_fsm이 본다
 BATTERY_TOPIC = "/{robot}/sim/battery"
