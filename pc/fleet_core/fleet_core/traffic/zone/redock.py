@@ -44,8 +44,9 @@ class Redock:
         """도크 앞 지점까지 후진했다가 다시 들어오는 길을 잡는다.
 
         길을 잡았거나 길이 비기를 기다리는 중이면 True다. 그런 길이 없는 도크이거나, 로봇이
-        도크에 서 있지 않거나, 처음 해 본 때부터 redock_wait_s 안에 못 잡았으면 False다: 그
-        자리에서 다시 도킹한다. 도크 차례는 dock_tries가 지킨다(turns.py의 _ahead).
+        도크에 서 있지 않거나, 그 길의 연결이 막힘으로 표시돼 있거나, 처음 해 본 때부터
+        redock_wait_s 안에 못 잡았으면 False다: 그 자리에서 다시 도킹한다. 도크 차례는
+        dock_tries가 지킨다(turns.py의 _ahead).
         """
         now = self._clock()
         dock = self.site.stations[m.dest].dock
@@ -53,12 +54,15 @@ class Redock:
         back = way_in(self.site, out.b, dock) if out is not None else None
         if m.redock_since is None:
             m.redock_since = now
-        if (back is None or m.node != dock
+        links = [out, *back] if back is not None else []
+        # 길을 손으로 고르므로 막힘 표시도 여기서 본다(다른 길은 _cost가 거른다)
+        marked = any(self._blocked.get((link.a, link.b), 0.0) > now for link in links)
+        if (not links or marked or m.node != dock
                 or now - m.redock_since >= self.params.redock_wait_s):
             m.redock = False
             self._stop_wanting(m)
             return False
-        trip = Trip(dock, [out, *back])
+        trip = Trip(dock, links)
         want = self._take(m, trip)
         if want is not None:
             # 나가는 길을 다른 로봇이 쥐고 있다. 도크에 선 채 기다린다. 대기 순환에는 세지

@@ -269,6 +269,17 @@ def way_out(world, robot="pinky2"):
     return next(link for link in site.links_from(dock) if link.via == RETREAT)
 
 
+def test_a_reapproach_over_a_link_marked_blocked_docks_where_it_stands():
+    """The way out and back is picked by hand, so it has to respect the block marks itself."""
+    world, _ = at_the_dock()
+    assert world.run_until(lambda: "GOAL_RETRY" in world.codes("pinky2"), 30.0)
+    out = way_out(world)
+    world.traffic._blocked[(out.a, out.b)] = world.traffic._clock() + 100.0
+    assert world.run_until(lambda: docks(world) == 2, 30.0)
+    assert not world.sent(RetreatCmd, "pinky2")
+    assert "DOCK_REAPPROACH" not in world.codes("pinky2")
+
+
 def test_a_reapproach_whose_way_is_taken_waits_and_goes_when_it_is_free():
     world, _ = at_the_dock()
     assert world.run_until(lambda: "GOAL_RETRY" in world.codes("pinky2"), 30.0)
