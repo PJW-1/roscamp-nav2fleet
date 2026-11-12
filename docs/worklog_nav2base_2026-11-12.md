@@ -704,6 +704,43 @@
 | 시험 | `test/test_geometry.py`의 이음 시험 16개(`test_a_robot_beside_the_line_*`, `test_the_join_*`, `test_beside_an_arc_*`, `test_a_line_that_comes_back_*`, `test_a_short_step_back_*`, `test_rounded_at_*`), `test/test_core.py`의 8개(`test_a_robot_beside_the_path_*`, `test_the_way_ahead_is_watched_on_the_path_that_was_sent`, `test_on_a_line_that_comes_back_*`, `test_after_many_corners_*`), `test/test_order.py`의 `test_an_order_stretched_while_nav2_stands_*` | |
 | 문서 | `docs/핑키_계약.md` 3절 13번 "이음 정밀도" | |
 
+### 10.8 배치 바꾸기 절차 (지시서 6절)
+
+| 무엇 | 결과 |
+|---|---|
+| 절차 | `README.md`의 "배치 바꾸기"에 일곱 단계로 적었습니다: 지도 파일 → 이름 넣기 → 지도 검사 → 월드와 지도 만들기 → keepout 다시 만들기 → Gazebo 시나리오 → 상황 시험. 명령은 모두 저장소 루트에서 이어서 실행할 수 있습니다 |
+| 지시서와 다른 순서 | 지시서는 keepout을 월드·지도 생성보다 앞에 두었습니다. 월드·지도 생성(`fleet_gz_sim.arena`)이 Gazebo용 keepout 마스크를 함께 만들고, `tools/make_keepout.py`는 실제 경기장의 SLAM 지도용이어서 그 뒤에 두었습니다. `d2_shelf`에서 두 결과는 바이트까지 같았습니다 |
+| 시험용 배치 | `d2_shelf`입니다. D2에 진열대 하나(x 0.84~1.14, y 0.38~0.395, 0.30 × 0.015 m)를 마당 한가운데에 더했습니다. 배치 `d`처럼 마당을 나누지 않습니다(구역은 `HALL` 하나, 정원 3 그대로). 지도 파일은 D2와 이름과 진열대 한 줄만 다릅니다 |
+| 실제 후보와의 구분 | 배치 이름 목록을 `fleet_core.fleet_map` 한 곳에 모았습니다: `LAYOUTS`(실제 후보 d2, d, c), `TEST_LAYOUTS`(`d2_shelf`), `KNOWN_LAYOUTS`. 상황 표와 launch의 기본값은 후보만 돌고, 이름을 주면(`-l d2_shelf`, `layout:=d2_shelf`) 시험용 배치가 돕니다 |
+| 배치 하나를 더할 때 손으로 고치는 파일 | 전에는 약 9개였습니다(지도 yaml, 코드의 목록 세 곳, 시험의 목록 다섯 곳쯤). 지금은 지도 yaml과 목록 한 줄로 2개이고, Gazebo 경기까지 돌리려면 시나리오 파일 하나가 더 들어 3개입니다 |
+| 절차에 걸린 시간 | 지도 읽기 0.2 s, 월드·지도 생성 0.24 s, keepout 0.22 s, 상황 시험 90번(상황 열 가지 × 흉내 세 모드 × 씨드 셋) 1분 39초입니다. 지도 yaml을 손으로 고친 시간은 재지 않았습니다 |
+| 절차를 돌리다 막힌 곳 | ① 진열대 두께를 0.03 m로 적었다가 시험(`test_arena.py`의 두께 0.015 m)에 걸렸습니다. ② 배치 이름이 코드 세 곳과 시험 다섯 곳쯤에 따로 적혀 있었습니다(한 곳으로 모았습니다). ③ 넓은 구역 정원의 합 검사는 지도를 읽는 코드가 아니고 시험(`test_zone_capacity.py`)입니다 |
+| `d2_shelf` 상황 시험 | 90번 가운데 81번 통과, 9번 실패입니다. 실패 9번은 모두 `express_obstacle`이고, 같은 브랜치의 D2에서도 실패하던 것입니다(2-1절에서 D2의 지점을 옮긴 뒤 4절 브랜치가 고치는 중인 것). 진열대를 더해서 새로 생긴 실패는 없었습니다. 4절을 합친 뒤에 다시 돌립니다 |
+| 시험(947b6c0) | ruff 통과, `fleet_core` 604 passed 2 failed(실패 둘은 기존의 `test_zone_block_marks.py`), 도구 34 passed, `test_situation_table.py` 37 passed, WSL `fleet_gz_sim` 353 passed. 4f812cd에서 WSL `fake_robots` 947 passed 10 failed(에이전트 보고: 기존의 `express_obstacle` 10건과 같음) |
+| 검수(Codex)에서 나와 고친 것 셋 | ① 시험이 배치 목록의 값 전체를 고정해서, 절차대로 이름을 더하면 시험이 실패했습니다. ② `layout:=d2_shelf`로 띄우면 기본 시나리오 `gz_d2_shelf`가 없었습니다. ③ README의 명령을 위에서부터 실행하면 `cd` 뒤에 돌아오지 않아 다음 단계가 실패했습니다. 재검수는 지적이 없었습니다 |
+
+나란한 통로(지시서 6절 3번)입니다.
+
+| 무엇 | 결과 |
+|---|---|
+| 방식 | 그대로 두었습니다: 로봇이 쥐지 않은 넓은 구역에 들어가면, 자리가 있으면 그 구역을 잡아 주고(`OUTSIDE_ZONE`, "takes ... where it stands") 없으면 `OUTSIDE_ZONE`만 남깁니다(`traffic/zone/watch.py`의 `_watch_outside`, `_take_where_it_stands`) |
+| 세는 칸 | 상황 표의 "구역 밖(OUTSIDE_ZONE / 공유 구역 들어감)" 칸입니다. 뒤의 숫자(쥐지 않은 공유 구역에 들어간 횟수, `world/invariants.py`의 `shared_outside`)가 "Nav2가 고르지 않은 통로로 간 횟수"에 가장 가깝습니다. 앞의 숫자는 0.05 m 넘게 다섯 번 연속 벗어난 경우만 셉니다 |
+| 지금 값 | 배치 `d`의 예전 결과 표(`sim/fake_robots/results/situations_three_modes.md`) 90줄에서 두 숫자가 모두 0입니다 |
+| 이 값의 한계 | 머리 없는 세계는 Nav2를 "가장 짧은 길로 가는 격자 A*"로 흉내 내고, 배치 `d`의 지도는 두 끝을 잇는 곧은 선이 통로 안을 지나는 쌍만 적어 두어서 "가장 짧은 길 = 잡아 준 통로"가 되게 만든 것입니다. 그래서 0이 나오는 것이 당연한 면이 있습니다. 실제 Nav2(Gazebo)에서는 재지 않았습니다. 사용자가 정할 때는 Gazebo 배치 `d` 경기에서 이 칸을 다시 세어야 합니다 |
+
+바꾼 파일과 함수입니다.
+
+| 파일 | 함수와 값 | 무엇 |
+|---|---|---|
+| `pc/fleet_core/fleet_core/data/fleet_map_d2_shelf.yaml`(새 파일) | | 시험용 배치 |
+| `pc/fleet_core/fleet_core/fleet_map/fleet_map.py`, `__init__.py` | 새 값 `LAYOUTS`, `TEST_LAYOUTS`, `KNOWN_LAYOUTS` | 배치 이름 목록 한 곳 |
+| `sim/fleet_gz_sim/fleet_gz_sim/arena.py`, `fleet_setup.py` | 지움 자체 `LAYOUTS`, 바꿈 `--layout`의 선택지와 검증 | `fleet_core`의 목록을 읽습니다 |
+| `sim/fake_robots/fake_robots/scenario.py`, `scenario_cfg.py`, `world/situations.py` | 지움 각자의 `LAYOUTS` | 시나리오의 `map:` 검증은 `KNOWN_LAYOUTS`로 합니다 |
+| `tools/situations.py`, `tools/make_keepout.py`, `gz.launch.py`, `one_pinky.launch.py` | 바꿈 선택지(아는 배치 모두)와 기본값(후보만), 도움말 | |
+| `sim/fleet_gz_sim/worlds/arena_d2_shelf.sdf`, `maps/arena_d2_shelf*.{yaml,pgm}`, `scenarios/gz_d2_shelf.yaml`(새 파일) | | 생성한 월드와 지도 일곱 개, Gazebo 시나리오 |
+| 시험 | `test_fleet_map.py`, `test_zone_capacity.py`, `test_keepout_mask.py`, `test_arena.py`, `test_fleet_setup.py`, `test_launch_wiring.py`, `test_situation_table.py`(목록을 읽게 고침, `d2_shelf` 시험 추가) | |
+| 문서 | `README.md`의 "배치"와 "배치 바꾸기" | |
+
 ### 10.9 가정 (추가 지시서 3에 없어서 정한 것)
 
 | 무엇 | 정한 것 | 까닭 |
@@ -718,6 +755,8 @@
 | 로봇단 물러나기의 방식(7-4절) | 지나온 경로를 따라 후진하는 대신, Nav2의 BackUp으로 곧게 물러나되 거리를 지나온 길 안으로 제한했습니다 | 지시서는 "지나온 경로를 따라 후진"입니다. 0.10 m 이하의 짧은 거리여서 곧은 후진으로 두었고, 넓은 구역에서는 지나온 자취가 곧게 이어진 만큼만 물러납니다 |
 | 회귀 시험에서 원인 "회피"(7-3절) | 표에 찍기만 하고 실패로 치지 않습니다 | 지시서 2-5의 기준이 "주행" 원인 0건입니다. 실패로 칠지는 사용자가 정합니다 |
 | keepout 침범 깊이에서 빼는 구역(7-3절) | 로봇이 쥐고 있거나 5초 안에 쥐었던 구역 | 그 구역에서 나오는 중인 몸의 꼬리를 침범으로 세지 않기 위해서입니다. 5초는 재지 않은 값입니다 |
+| 배치 바꾸기 절차의 순서(6절) | 월드·지도 생성 다음에 keepout 다시 만들기를 두었습니다 | 지시서는 keepout이 앞입니다. 월드·지도 생성이 Gazebo용 keepout 마스크를 함께 만들고, `tools/make_keepout.py`는 실제 경기장의 SLAM 지도에 쓰는 것이기 때문입니다 |
+| 시험용 배치 `d2_shelf`의 진열대(6절) | 마당 한가운데의 짧은 막대(x 0.84~1.14, y 0.38~0.395)입니다 | 지시서는 자리를 정하지 않았습니다. 배치 `d`와 달리 마당을 나누지 않고, 고정 경로와 주차 줄에서 0.23 m 넘게 떨어진 자리입니다 |
 
 ### 10.10 설정의 주인: Nav2 설정을 두 파일로 (지시서 7-1절)
 
