@@ -20,7 +20,7 @@ from __future__ import annotations
 import math
 from dataclasses import dataclass, field
 
-from fleet_core.fleet_map import NAV_GOAL, SHARED
+from fleet_core.fleet_map import LANE, NAV_GOAL, RETREAT, SHARED
 from fleet_core.fleet_map.geometry import point_segment_distance
 from fleet_core.traffic.mission import OUT_OF_SERVICE
 
@@ -70,7 +70,53 @@ def keys_at(site, params, point) -> list:
     return keys
 
 
+KEEPOUT, CORRIDOR, DESTINATION, IN_ZONE = "keepout", "corridor", "destination", "in_zone"
+
+
+def detour_kind(site, old_goal: str, old_zones, trip) -> str:
+    """막힌 뒤 새로 잡은 길이 어떤 우회인가(추가 지시서 3의 4-4). Nav2가 모르는 선택지부터 본다.
+
+    destination: 목적지를 바꿨다(다른 대기 자리, 주차 자리). keepout: keepout 너머의 길로 바꿨다
+    (마당이 막혀 급행으로, 급행이 막혀 마당으로: 지나는 한 줄 구역이 달라졌다). corridor: 지점 없는
+    다른 통로로 간다(D, C). in_zone: 같은 넓은 구역 안에서 다른 지점을 거쳐 갈 뿐이다.
+    """
+    if trip.goal != old_goal:
+        return DESTINATION
+    # 들어온 입구까지 물러나는 후진(지도에 없는 연결)은 우회가 아니다
+    new = {zone for link in trip.links if link.a or link.via != RETREAT for zone in link.zones}
+    old = set(old_zones)
+
+    def of(zones, test):
+        return {zone for zone in zones if test(site.zones[zone])}
+
+    def lane(spec):
+        return spec.kind == LANE
+
+    def corridor(spec):
+        return spec.kind == SHARED and not site.nodes_in(spec.id)
+
+    if of(new, lane) != of(old, lane):
+        return KEEPOUT
+    if of(new, corridor) - of(old, corridor):
+        return CORRIDOR
+    return IN_ZONE
+
+
 class BlockMarks:
+    def _remember_way(self, m) -> None:
+        """막혀 길을 버리기 전에 가던 목적지와 지나던 구역을 적어 둔다(우회 종류를 셀 때 쓴다)."""
+        trip = m.trip
+        m.detour = (trip.goal, frozenset(z for link in trip.links[trip.done:] for z in link.zones))
+
+    def _note_detour(self, m, trip) -> None:
+        """막힌 뒤 처음 잡은 길이면 그 우회의 종류를 DETOUR로 남긴다."""
+        if m.detour is None:
+            return
+        goal, zones = m.detour
+        m.detour = None
+        self._event("INFO", "DETOUR", f"{detour_kind(self.site, goal, zones, trip)}: "
+                    f"{'->'.join(trip.route())}", m.name)
+
     def _obstacle_point(self, m) -> tuple | None:
         """m이 보고한 장애물 위치. 모르거나 위치로 표시하지 않게 꺼 두었으면 None."""
         if not self.params.blocked_by_position or m.obstacle is None:
@@ -86,10 +132,24 @@ class BlockMarks:
 
     def _point_keys(self, m, point, link) -> list:
         """그 점 때문에 막을 연결들. 넓은 구역 한가운데에서 막혔으면 선 자리에서 가던 지점으로
-        곧장 가는 길도 막는다(예전 규칙 7과 같다)."""
+        곧장 가는 길(예전 규칙 7과 같다)과, 선 자리에서 곧장 가면 그 점 곁을 지나는 지점들로 가는
+        길도 막는다(통로 안에서 막힌 로봇이 그 점 너머로 가지 않게)."""
         keys = keys_at(self.site, self.params, point)
-        if keys and not link.a:
+        if not keys:
+            return keys
+        if not link.a:
             keys.append((HERE + m.name, link.b))
+        zone = self.site.zone_at(m.x, m.y)
+        if zone is not None and self.site.zones[zone].kind == SHARED:
+            reach = self.params.footprint_radius_m + self.params.release_margin_m
+            here = (m.x, m.y)
+            for node in self._reach(zone):
+                key, end = (HERE + m.name, node), self.site.node_pose(node)
+                toward = ((point[0] - here[0]) * (end[0] - here[0])
+                          + (point[1] - here[1]) * (end[1] - here[1])) > 0.0
+                if (key not in keys and toward
+                        and point_segment_distance(point, here, end) <= reach):
+                    keys.append(key)  # 그 점을 지나 그 지점으로 간다. 지나온 쪽은 열어 둔다
         return keys
 
     def _mark_point(self, m, point, keys, now: float) -> Mark:
@@ -141,6 +201,11 @@ class BlockMarks:
             self._drop_mark(mark)
             self._mark_memory.append((mark.x, mark.y, mark.retry_s, now))
 
+    def _yielded_lately(self, m, now: float) -> bool:
+        """blocked_retry_s 안에 다른 로봇 때문에 이미 표시 없이 비켰다."""
+        return m.robot_yield_at is not None and now - m.robot_yield_at <= (
+            self.params.blocked_retry_s)
+
     def _yield_to_robot(self, m, other, now: float) -> None:
         """막은 것이 다른 로봇이다. 막힘으로 표시하지 않고 비킨다(HALL_YIELD).
 
@@ -149,6 +214,7 @@ class BlockMarks:
         비켜 선다(backoff.py의 _stand_aside).
         """
         m.blocked_since = None
+        m.robot_yield_at = now
         link = m.trip.links[m.trip.done]
         zone = self.site.zone_at(m.x, m.y)
         if link.a and zone is not None and self.site.zones[zone].kind != SHARED:

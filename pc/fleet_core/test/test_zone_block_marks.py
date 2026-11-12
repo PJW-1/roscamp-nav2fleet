@@ -182,3 +182,46 @@ def test_the_robot_check_uses_near_m(gap):
     other = world.traffic._robots["pinky2"]
     assert world.traffic._robot_at(m, (other.x + gap, other.y)) is other
     assert world.traffic._robot_at(m, (other.x + 0.31, other.y)) is None
+
+
+# ---- 우회 종류(4-4) ----
+
+def detours(world, robot="pinky1"):
+    return [e.detail.split(":")[0] for e in world.events if e.code == "DETOUR"
+            and e.robot == robot]
+
+
+def test_the_express_blocked_detour_goes_beyond_the_keepout():
+    world, call = from_work_to_outbound()
+    world.obstacles.append((1.0, 0.89, 0.15))
+    assert world.run_until(lambda: world.result_of(call), 120.0)
+    assert detours(world) == ["keepout"]
+
+
+def test_blocked_inside_a_corridor_it_turns_back_and_does_not_drive_past_the_box():
+    world = Seeing(layout="d", starts={"pinky1": "O_Q", "pinky2": "P-1", "pinky3": "P-2"})
+    world.step()
+    call = world.call("WORK", "pinky1")
+    world.obstacles.append((0.99, 0.58, 0.06))  # CORR_M 가운데
+    assert world.run_until(lambda: world.result_of(call), 300.0)
+    assert world.result_of(call).success
+    assert world.codes("pinky1").count("ZONE_MARKED_BLOCKED") == 1
+    marked_keys = {key for mark in world.traffic._marks.values() for key in mark.keys}
+    assert ("@pinky1", "N_W") in marked_keys and ("@pinky1", "N_E") not in marked_keys
+    assert detours(world) == ["keepout"], "back to HALL_E and round by the express"
+    assert not world.problems
+
+
+def test_detour_kinds():
+    from fleet_core.traffic.zone.block_marks import detour_kind
+    from fleet_core.traffic.zone.trips import Trip
+    site = load_fleet_map("d")
+    via = [site.link("N_W", "N_E")]
+    south = [site.link("N_W", "W_Q"), site.link("W_Q", "P-2"), site.link("P-2", "P-3")]
+    old = {"HALL_W", "CORR_M", "HALL_E"}
+    assert detour_kind(site, "N_E", old, Trip("O_Q", via)) == "destination"
+    assert detour_kind(site, "P-3", old, Trip("P-3", south)) == "corridor"
+    inside = [site.link("N_W", "W_Q"), site.link("W_Q", "P-2")]
+    assert detour_kind(site, "P-2", {"HALL_W"}, Trip("P-2", inside)) == "in_zone"
+    express = [site.link("N_W", "X_W"), site.link("X_W", "X_E"), site.link("X_E", "N_E")]
+    assert detour_kind(site, "N_E", old, Trip("N_E", express)) == "keepout"

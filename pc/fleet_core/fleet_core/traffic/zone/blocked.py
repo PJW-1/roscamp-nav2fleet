@@ -49,12 +49,13 @@ class Blocked:
             behind = self._behind_on_the_way_back(m)
             point = self._obstacle_point(m) if not behind else None
             other = self._robot_at(m, point) if point is not None else None
-            if other is not None:  # 다른 로봇이 막았다: 표시하지 않고 비킨다(block_marks.py)
-                m.rear_noted = False
+            if other is not None and not self._yielded_lately(m, now):
+                m.rear_noted = False  # 다른 로봇이 막았다: 표시하지 않고 비킨다(block_marks.py)
                 self._yield_to_robot(m, other, now)
             elif not behind:
                 m.rear_noted = False
-                self._mark_blocked(m, now, point)
+                # 비켜도 또 로봇에 막혔으면 예전처럼 가던 연결을 표시한다(서로 마주 선 두 대)
+                self._mark_blocked(m, now, None if other is not None else point)
             elif waited >= p.blocked_timeout_s:
                 # 앞은 막혔고 뒤의 로봇은 끝내 나가지 않았다. 갈 데가 없으니 운영자에게 넘긴다
                 self._event("ERROR", "GOAL_FAILED",
@@ -118,6 +119,8 @@ class Blocked:
             self._event("WARN", "ZONE_MARKED_BLOCKED",
                         f"{link.a or 'here'}->{link.b} in {zone}, tried again in "
                         f"{p.blocked_retry_s:.0f} s", m.name)
+        if keys:  # 위치로 표시했으면 다음에 잡은 길로 우회 종류를 센다(DETOUR)
+            self._remember_way(m)
         self._cancel_goal(m)
         m.blocked_since = None
         if link.a and zone is not None and site.zones[zone].kind != SHARED:
