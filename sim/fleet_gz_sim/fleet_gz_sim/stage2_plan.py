@@ -12,19 +12,19 @@ from dataclasses import dataclass
 from fleet_core.fleet_map import FOLLOW_PATH, NAV_GOAL, RETREAT, SHARED
 
 # 계획 이름 -> (방식, 지점들). 시작 지점에 로봇이 서 있어야 한다. 한 바퀴가 끝나면 시작 지점이다.
-# stage2(D2): 마당 Nav2 goal, work_in으로 작업 도크, Retreat로 X_W, 급행 왕복, j_w_down,
-# 그리고 마당을 가로지르는 Nav2 goal 셋(P-3, N_E를 거쳐 P-1로).
+# stage2(D2, 추가 지시서 3의 2-5 구간 모두): 마당 Nav2 goal로 N_W, work_in으로 작업 도크, Retreat로
+# 마당(N_W)까지, 급행 동쪽으로 가서 J_E로 내려옴, out_in으로 출고 도크, Retreat로 N_E, 급행 서쪽으로
+# 가서 J_W로 내려옴, 마당 Nav2 goal로 P-1. 좁은 띠 안에서는 제자리 회전이 없다.
 PLANS = {
     "stage2": (
         (NAV_GOAL, ("P-1", "N_W")),
         (FOLLOW_PATH, ("N_W", "X_W", "W")),
-        (RETREAT, ("W", "X_W")),
-        (FOLLOW_PATH, ("X_W", "X_E")),
-        (FOLLOW_PATH, ("X_E", "X_W")),
-        (FOLLOW_PATH, ("X_W", "N_W")),
-        (NAV_GOAL, ("N_W", "P-3")),
-        (NAV_GOAL, ("P-3", "N_E")),
-        (NAV_GOAL, ("N_E", "P-1")),
+        (RETREAT, ("W", "N_W")),
+        (FOLLOW_PATH, ("N_W", "X_W", "X_E", "N_E")),
+        (FOLLOW_PATH, ("N_E", "X_E", "O")),
+        (RETREAT, ("O", "N_E")),
+        (FOLLOW_PATH, ("N_E", "X_E", "X_W", "N_W")),
+        (NAV_GOAL, ("N_W", "P-1")),
     ),
     # 다른 핑키가 서 있는 마당을 가로지르는 Nav2 goal 한 번(item 6). 서 있는 핑키는 launch가 놓는다
     "cross": ((NAV_GOAL, ("P-1", "P-3")), (NAV_GOAL, ("P-3", "P-1"))),
@@ -61,14 +61,16 @@ def nav_yaw(site, start: str, end: str) -> float:
         return node.yaw
     fixed = [link for link in site.links_from(end) if link.via == FOLLOW_PATH]
     if fixed:
-        return _heading(site.node_pose(end), site.node_pose(fixed[0].b))
+        return _heading(*fixed[0].points[:2])
     return _heading(site.node_pose(start), site.node_pose(end))
 
 
 def path_poses(site, nodes, reverse: bool = False) -> tuple[tuple[float, float, float], ...]:
-    """지점마다 (x, y, yaw). yaw는 그 지점에서 나가는 방향(끝 점은 들어온 방향). reverse면
+    """지점과 꺾는 점마다 (x, y, yaw). yaw는 그 점에서 나가는 방향(끝 점은 들어온 방향). reverse면
     로봇이 보는 방향(달리는 방향의 반대)이다."""
-    xy = [site.node_pose(n) for n in nodes]
+    xy = [site.node_pose(nodes[0])]
+    for a, b in zip(nodes, nodes[1:], strict=False):
+        xy += site.link(a, b).points[1:]
     out = []
     for i, p in enumerate(xy):
         yaw = _heading(p, xy[i + 1]) if i + 1 < len(xy) else _heading(xy[i - 1], p)
