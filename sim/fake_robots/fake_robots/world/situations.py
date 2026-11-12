@@ -16,6 +16,7 @@ from fleet_core.fleet_map import LANE, load_fleet_map
 from .avoid import PERFECT
 from .injections import CommLoss, NoisyPose, Obstacle, Reinstate, Removal, SlowStation, Stuck
 from .stations import six_orders
+from .store_situations import STORE_NAMES, build_store
 
 LAYOUTS = ("d2", "d", "c")
 
@@ -42,6 +43,7 @@ class Situation:
     need_events: dict = field(default_factory=dict)  # 사건 코드 -> 적어도 이만큼
     no_events: tuple[str, ...] = ("DEADLOCK_SEEN",)
     rough: Rough = field(default_factory=Rough)  # none, mixed의 기준
+    at_least_s: float = 0.0  # 주문이 끝나도 이 시각까지는 돌린다(막힘 표시가 풀리는 것을 본다)
 
     def for_mode(self, mode: str) -> Situation:
         """그 회피 모드에서 볼 기대. perfect는 그대로, 나머지는 rough."""
@@ -111,6 +113,8 @@ def build(name: str, layout: str = "d2") -> Situation:
                          injections=[NoisyPose("pinky1", 20.0, 40.0, sigma_m=0.03, jump_m=0.30)],
                          finish_all=layout != "c", allowed=("I5_STANDING",),
                          rough=Rough(finish_all=layout != "c", allowed=("I5_STANDING",)))
+    if name in STORE_NAMES:
+        return build_store(name, layout, site, lane, Situation)
     raise KeyError(f"no situation {name!r}")
 
 
