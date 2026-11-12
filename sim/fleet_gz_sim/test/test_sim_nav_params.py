@@ -6,6 +6,7 @@ import pytest
 import yaml
 
 launch = pytest.importorskip("launch")
+pytest.importorskip("launch.actions")  # ROS가 없으면 이 패키지의 launch 폴더가 빈 패키지로 잡힌다
 from fleet_gz_sim import launch_parts  # noqa: E402
 
 REPO = Path(__file__).resolve().parents[3]
