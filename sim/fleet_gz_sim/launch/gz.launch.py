@@ -38,7 +38,7 @@ from launch_ros.actions import Node
 from rclpy import get_rmw_implementation_identifier
 
 ARGS = {
-    "layout": ("d2", "배치: d2(기본), d, c"),
+    "layout": ("d2", "배치: d2(기본), d, c, 시험용 d2_shelf"),
     "scenario": ("", "시나리오 이름(fleet_gz_sim, fake_robots 순서로 찾음)이나 파일."
                      " 비면 gz_<배치>(주문 8건, 3대)"),
     "gui": ("true", "Gazebo 화면"),

@@ -4,9 +4,10 @@ from pathlib import Path
 
 import pytest
 from fake_robots.world import RecordingManager
-from fake_robots.world.situations import LAYOUTS, NAMES, build
+from fake_robots.world.situations import NAMES, build
 from fake_robots.world.table import HEADER, judge, markdown, run_situation
 from fleet_core.common.commands import EventOut
+from fleet_core.fleet_map import LAYOUTS
 
 TOOL = Path(__file__).resolve().parents[3] / "tools" / "situations.py"
 
@@ -69,3 +70,36 @@ def test_a_silent_stall_fails_every_mode_as_a_safety_rule():
         outcome.world.send(EventOut("ERROR", "SILENT_STALL", "no progress", "pinky1"))
         assert "SILENT_STALL x1" in judge(build("person_passing", "d2").for_mode(mode),
                                           outcome.world)
+
+
+def test_the_test_layout_runs_by_name_but_is_not_in_the_default_list():
+    from fleet_core.fleet_map import KNOWN_LAYOUTS, TEST_LAYOUTS
+
+    assert "d2_shelf" in TEST_LAYOUTS and "d2_shelf" in KNOWN_LAYOUTS
+    assert not set(LAYOUTS) & set(TEST_LAYOUTS)
+    assert KNOWN_LAYOUTS == (*LAYOUTS, *TEST_LAYOUTS)
+    assert build("hall_obstacle", "d2_shelf").title
+
+
+@pytest.mark.skipif(not TOOL.is_file(), reason="only in the source tree")
+def test_the_tool_runs_the_candidates_by_default_and_a_test_layout_when_named(monkeypatch):
+    from types import SimpleNamespace
+
+    spec = importlib.util.spec_from_file_location("situations_tool", TOOL)
+    tool = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(tool)
+    seen = []
+
+    def stub(name, layout, seed, **_):
+        seen.append(layout)
+        central = SimpleNamespace(finished=1, total=1)
+        return SimpleNamespace(world=SimpleNamespace(central=central), failures=[],
+                               row=("x", layout, seed, "perfect", "1/1", "", "", "", "", "", "",
+                                    "", "", "", ""))
+
+    monkeypatch.setattr(tool, "run_situation", stub)
+    tool.main(["-s", "hall_obstacle", "--seeds", "1"])
+    assert seen == list(LAYOUTS)
+    seen.clear()
+    tool.main(["-s", "hall_obstacle", "--seeds", "1", "-l", "d2_shelf"])
+    assert seen == ["d2_shelf"]

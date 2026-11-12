@@ -167,7 +167,13 @@ def test_three_pinkys_start_on_the_parking_nodes_in_order(made):
             pytest.approx(spawned[robot])
 
 
-@pytest.mark.parametrize("layout", ["d2", "d", "c"])
+def test_the_test_layout_has_its_default_scenario_and_it_names_that_layout():
+    path = Path(scenario("gz_d2_shelf"))
+    assert path.is_file()
+    assert yaml.safe_load(path.read_text(encoding="utf-8"))["map"] == "d2_shelf"
+
+
+@pytest.mark.parametrize("layout", ["d2", "d", "c", "d2_shelf"])
 def test_each_layout_runs_its_world_maps_and_keepout_mask(made, layout):
     actions = run(made, layout=layout)
     [server] = [a for a in flat(actions) if isinstance(a, Made) and a.kind == "ExecuteProcess"

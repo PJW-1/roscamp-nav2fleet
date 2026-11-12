@@ -23,8 +23,9 @@ for sub in ("pc/fleet_core", "sim/fake_robots", "tools"):
         sys.path.insert(0, str(REPO / sub))
 
 from fake_robots.world.avoid import AVOID_MODES  # noqa: E402
-from fake_robots.world.situations import LAYOUTS, NAMES, build  # noqa: E402
+from fake_robots.world.situations import NAMES, build  # noqa: E402
 from fake_robots.world.table import markdown, run_situation  # noqa: E402
+from fleet_core.fleet_map import KNOWN_LAYOUTS, LAYOUTS  # noqa: E402
 from triage import obstacles_from_injections, recording_factory, rows_of_lines  # noqa: E402
 
 
@@ -58,7 +59,8 @@ def open_order_causes(name, layout, seed, params, mode) -> str:
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("-s", "--situations", nargs="+", default=list(NAMES), choices=NAMES)
-    parser.add_argument("-l", "--layouts", nargs="+", default=list(LAYOUTS), choices=LAYOUTS)
+    parser.add_argument("-l", "--layouts", nargs="+", default=list(LAYOUTS),
+                        choices=KNOWN_LAYOUTS, help="기본 d2 d c, 시험용은 d2_shelf")
     parser.add_argument("--seeds", nargs="+", type=int, default=[1, 2, 3])
     parser.add_argument("--set", action="append", metavar="NAME=VALUE")
     parser.add_argument("--avoid", nargs="+", default=["perfect"],

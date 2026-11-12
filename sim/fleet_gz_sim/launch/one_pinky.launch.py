@@ -21,7 +21,7 @@ from rclpy import get_rmw_implementation_identifier
 
 ARGS = {
     "namespace": ("pinky1", "로봇 이름이자 namespace"),
-    "layout": ("d2", "배치: d2(기본), d, c"),
+    "layout": ("d2", "배치: d2(기본), d, c, 시험용 d2_shelf"),
     "start": ("P-1", "시작 지점(구역 지도의 지점 이름). 방향은 그 지점의 yaw"),
     "gui": ("true", "Gazebo 화면"),
     "rviz": ("true", "RViz"),

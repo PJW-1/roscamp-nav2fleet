@@ -19,8 +19,9 @@ import argparse
 from dataclasses import dataclass
 from pathlib import Path
 
+from fleet_core.fleet_map import KNOWN_LAYOUTS, LAYOUTS
+
 WORLD = "arena"  # 모든 배치의 월드 이름(launch와 장애물 노드가 이 이름으로 부른다)
-LAYOUTS = ("d2", "d", "c")
 WALL_M = 0.05
 WALL_HEIGHT_M = 0.30  # 라이다 높이(약 0.125 m)보다 높게
 LIDAR_Z_M = 0.125
@@ -95,8 +96,8 @@ def main(argv=None) -> None:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--out", type=Path, default=PKG,
                         help="worlds/, maps/를 쓸 폴더(기본: 이 패키지 소스)")
-    parser.add_argument("--layout", choices=LAYOUTS, action="append",
-                        help="배치(여러 번 줄 수 있다). 없으면 세 배치 모두")
+    parser.add_argument("--layout", choices=KNOWN_LAYOUTS, action="append",
+                        help="배치(여러 번). 없으면 후보 셋. 시험용 d2_shelf는 이름을 줘야 한다")
     args = parser.parse_args(argv)
     for layout in args.layout or LAYOUTS:
         written = generate(args.out, load_fleet_map(layout))

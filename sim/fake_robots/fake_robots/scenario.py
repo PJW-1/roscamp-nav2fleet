@@ -4,13 +4,13 @@ from __future__ import annotations
 from pathlib import Path
 
 import yaml
+from fleet_core.fleet_map import KNOWN_LAYOUTS
 
 from fake_robots.scenario_cfg import (  # noqa: F401  (다른 모듈이 여기서 가져간다)
     ARM_FAULTS,
     EXPECT_DEFAULTS,
     FAULT_TYPES,
     GONE_FAULTS,
-    LAYOUTS,
     LOW_BATTERY_KEYS,
     OBJECT_KEYS,
     OBJECT_MAP_MARGIN_M,
@@ -49,7 +49,7 @@ from fake_robots.scenario_parts import (  # noqa: F401
 
 
 def scenario_map_file(scenario_path) -> str:
-    """시나리오의 `map`: 배치 이름(d2, d, c). 없으면 빈 값(기본 배치 d2).
+    """시나리오의 `map`: 배치 이름(d2, d, c, 시험용 d2_shelf). 없으면 빈 값(기본 배치 d2).
 
     load_site와 load_fleet_map이 이 이름을 그대로 받는다.
     """
@@ -57,8 +57,8 @@ def scenario_map_file(scenario_path) -> str:
     name = (yaml.safe_load(path.read_text(encoding="utf-8")) or {}).get("map")
     if not name:
         return ""
-    if name not in LAYOUTS:
-        raise ScenarioError(f"map {name!r} is not one of {list(LAYOUTS)}")
+    if name not in KNOWN_LAYOUTS:
+        raise ScenarioError(f"map {name!r} is not one of {list(KNOWN_LAYOUTS)}")
     return str(name)
 
 

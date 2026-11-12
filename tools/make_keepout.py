@@ -35,7 +35,8 @@ from fleet_core.fleet_map.keepout import (  # noqa: E402
 
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument("--layout", default=None, help="구역 지도 이름(d2, d, c) 또는 yaml 경로")
+    parser.add_argument("--layout", default=None,
+                        help="구역 지도 이름(d2, d, c, 시험용 d2_shelf) 또는 yaml 경로")
     parser.add_argument("--map", required=True, type=Path, help="맞출 지도의 map_server yaml")
     parser.add_argument("--out", type=Path, help="마스크 yaml 경로(기본: <지도>_keepout.yaml)")
     parser.add_argument("--pad", type=float, default=BODY_HALF_WIDTH_M, help="넓히는 폭 m")
