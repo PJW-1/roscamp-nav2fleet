@@ -44,14 +44,10 @@ class FleetParams:
     input_pose_margin_m: float = 1.0
     stall_s: float = 6.0
     stall_move_m: float = 0.05
-    stall_smooth_s: float = 1.0
     dock_stall_s: float = 15.0
     blocked_mark_s: float = 5.0
     blocked_timeout_s: float = 60.0
-    blocked_rejoin_s: float = 10.0
     queue_gap_m: float = 0.6
-    # H1: after DEADLOCK_UNRESOLVED, the same wait cycle lasting this long isolates one robot.
-    deadlock_unresolved_s: float = 30.0
     # 조용히 서 있는 로봇 감시(1.1 지시서 H2). 0이면 끈다. 이 값이 없던 기록은 감시 없이 재생한다
     idle_watch_s: float = 0.0
     # 제안(2026-11-10): 보고한 배터리(0-100)가 battery_low_pct 이하면 새 일을 받지 않고 대기
@@ -67,13 +63,10 @@ class FleetParams:
     # than this is taken as BLOCKED. The pinky FSM's two attempts take about 35 s at most.
     # Records from before RECOVERING never report it, so the value does not change their replay
     self_recovery_limit_s: float = 45.0
-    # Proposal (version 2 section 4, contract 0.8-draft MoveTo.final_goal): mark goals that end
-    # at a lock boundary as not final. Records without it replay with every move final
-    mark_final_goal: bool = False
     # Which traffic layer runs (traffic/modes.py). zones is the only one: zone permissions on a
     # graph of points and zones, built in stage 3
     traffic_mode: str = "zones"
-    # ETA와 도크 접근 시간창(제안, 실측 전). eta_*는 버전 2 공식 ETA와 같은 값
+    # ETA(제안, 실측 전). eta_*는 버전 2 공식 ETA와 같은 값
     eta_speed_mps: float = 0.2
     eta_turn_s_per_rad: float = 1.0  # 제자리 회전 초/rad. 0이면 회전을 안 셈
     eta_turn_min_rad: float = 0.25  # 이보다 작은 꺾임은 달리면서 지남(RPP 회전 기준)
@@ -82,16 +75,6 @@ class FleetParams:
     eta_fill_base_s: float = 4.0  # 첫 품목 전 준비 시간(가짜 팔은 품목 수 + 1번)
     eta_fill_items_default: int = 2  # 주문을 모를 때 채울 품목 수
     eta_swap_s: float = 8.0
-    floor_leave_s: float = 2.5  # 도크를 떠나기 시작해서 접근선이 빌 때까지
-    # 끔: 접근선은 먼저 온 순서. 켬: 가장 빨리 닿는 로봇이 다음이고, 비울 때에 맞춰 미리 출발
-    floor_dock_schedule: bool = False
-    floor_pre_admit_margin_s: float = 1.0  # 딱 맞는 때보다 이만큼 먼저 출발
-    floor_dock_aging_s: float = 30.0  # 이만큼 기다리면 다시 먼저 온 순서(굶김 방지)
-    # 관제가 시키는 물러나기(Retreat, 제안, 실측 전). 끄면 전과 같다. 이 값이 없던 기록은 끈 채로
-    floor_block_retreat: bool = False  # 막혀(BLOCKED) 오래 선 로봇을 물러나게 한다
-    floor_retreat_after_s: float = 10.0  # 이만큼 막혀 서 있으면 물러난다
-    floor_retreat_speed_mps: float = 0.05  # 물러나는 속도
-    floor_retreat_max_m: float = 1.0  # 한 번에 물러나는 가장 긴 거리
     # 구역 교통 층(traffic/zone). 모두 제안값이고 실측 전이다
     nav_speed_mps: float = 0.12  # 넓은 구역(Nav2 goal)의 ETA와 길 비용에 쓰는 속도
     follow_speed_mps: float = 0.12  # 고정 경로(FollowPath)의 같은 값

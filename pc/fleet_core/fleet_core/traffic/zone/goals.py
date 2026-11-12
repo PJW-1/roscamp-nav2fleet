@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import math
 
-from fleet_core.fleet_map import AT_DOCK, LANE, SHARED, route
+from fleet_core.fleet_map import AT_DOCK, LANE, NAV_GOAL, SHARED, route
 from fleet_core.traffic.mission import TO_OUTBOUND, TO_WORK
 
 from .base import HERE
@@ -61,10 +61,10 @@ class Goals:
             return None  # 고정 구간 한가운데: 가던 길을 잇거나 물러난다(blocked.py)
         best, best_cost = None, math.inf
         now = self._clock()
-        for name, node in site.nodes.items():
-            if node.zone != zone or self._blocked.get((HERE + m.name, name), 0.0) > now:
+        for name, zones in self._reach(zone).items():
+            if self._blocked.get((HERE + m.name, name), 0.0) > now:
                 continue
-            first = free_link(site, m.x, m.y, name)
+            first = free_link(site, m.x, m.y, name, zones)
             rest = route(site, name, goal, cost)
             if rest is None:
                 continue
@@ -73,6 +73,22 @@ class Goals:
             if total < best_cost:
                 best, best_cost = [first, *rest], total
         return best
+
+    def _reach(self, zone: str) -> dict:
+        """넓은 구역 안의 아무 자리에서 곧장 갈 수 있는 지점과 거기까지 지나는 구역.
+
+        그 구역의 지점들이다. 지점이 없는 구역(통로)이면 그 구역을 지나는 Nav2 goal 연결의 끝
+        지점들이고, 지나는 구역은 그 연결에서 지금 구역부터 끝까지다.
+        """
+        site = self.site
+        inside = {name: (zone,) for name, node in site.nodes.items() if node.zone == zone}
+        if inside:
+            return inside
+        reach = {}
+        for link in site.links():
+            if link.via == NAV_GOAL and zone in link.zones:
+                reach.setdefault(link.b, link.zones[link.zones.index(zone):])
+        return reach
 
     def _back_link(self, m):
         """물러날 지점까지의 후진 연결. 지금 구역부터 그 지점의 구역까지를 지난다."""
@@ -103,9 +119,13 @@ class Goals:
         if first_want is not None:
             self._wants[m.name] = first_want
             self._note_wait(m, first_want)
-        elif self._blocked and m.wait_since is None:
-            m.wait_since = self._clock()  # 막힘 표시 때문에 갈 길이 없다. 표시가 풀리기를 기다린다
-            m.wait_for = ("BLOCKED",)
+        elif self._blocked:
+            if m.wait_since is None:  # 막힘 표시 때문에 갈 길이 없다. 표시가 풀리기를 기다린다
+                m.wait_since = self._clock()
+                m.wait_for = ("BLOCKED",)
+        elif m.wait_for == ("BLOCKED",):
+            # 표시는 풀렸는데도 길이 없다. 기다리는 것이 아니다: ROBOT_IDLE이 알리게 한다
+            self._stop_wanting(m)
         return None
 
     def _candidates(self, m):

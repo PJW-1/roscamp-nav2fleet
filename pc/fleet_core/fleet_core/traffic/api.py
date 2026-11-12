@@ -88,7 +88,7 @@ class TrafficApi(Protocol):
 
     @property
     def zones(self):
-        """구역 잠금(zones.ZoneLocks와 같은 읽기: held_by, waiting_for, holder, snapshot)."""
+        """구역 허락 기록(zone/grants.py의 ZoneGrants: held_by, holders, nodes_of, waiting)."""
 
     def available(self, robot) -> bool:
         """이번 tick에 새 일을 받고 step할 수 있다(지도 위, 고장·두절 없음)."""

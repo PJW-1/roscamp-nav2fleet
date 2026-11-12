@@ -5,6 +5,7 @@ from fleet_core.traffic.mission import (
     AT_STATION,
     DOCK,
     HEARTBEAT_LOST,
+    LOCALIZING,
     MOVE,
     NOT_AT_TARGET,
     RETREAT,
@@ -117,9 +118,15 @@ class Results:
             m.trip.sent = m.trip.done
 
     def _stands_at_end(self, m) -> bool:
-        """이동이나 후진 goal의 끝 지점에 로봇이 서 있는가(보고 위치로 본다)."""
+        """이동이나 후진 goal의 끝 지점에 로봇이 서 있는가. 방금 들은 위치로만 본다.
+
+        보고가 끊겼거나 로봇이 위치를 잃었으면(LOCALIZING) 남아 있는 위치는 옛것이다.
+        막혀 선 로봇(BLOCKED)은 가리지 않는다: 위치가 맞으면 그 지점에 있는 것이다.
+        """
         goal = m.goal
-        return (goal is not None and goal.kind in (MOVE, RETREAT)
+        heard = (m.available and m.robot_state != LOCALIZING
+                 and self._clock() - m.last_seen <= self.params.arrival_settle_s)
+        return (heard and goal is not None and goal.kind in (MOVE, RETREAT)
                 and self._gap(m, goal.end) <= self.params.arrival_tolerance_m)
 
     def _arrived_anyway(self, m, reason: str) -> None:
