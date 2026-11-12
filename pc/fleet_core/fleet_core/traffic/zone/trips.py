@@ -123,11 +123,14 @@ def retreat_command(params, robot: str, goal_id: int, links, x: float, y: float)
     return RetreatCmd(robot, goal_id, distance, params.retreat_speed_mps, path)
 
 
-def free_link(site, x: float, y: float, node: str) -> Link:
-    """넓은 구역 안의 (x, y)에서 같은 구역의 지점으로 가는 Nav2 goal 연결. 지도에는 없다."""
+def free_link(site, x: float, y: float, node: str, zones=()) -> Link:
+    """넓은 구역 안의 (x, y)에서 지점으로 가는 Nav2 goal 연결. 지도에는 없다.
+
+    zones는 지나는 구역이다. 주지 않으면 같은 구역의 지점으로 가는 것이다.
+    """
     end = site.nodes[node]
     points = ((x, y), (end.x, end.y))
-    return Link("", node, NAV_GOAL, "", points, (end.zone,), math.dist(*points))
+    return Link("", node, NAV_GOAL, "", points, tuple(zones) or (end.zone,), math.dist(*points))
 
 
 def back_link(site, x: float, y: float, node: str, zones) -> Link:

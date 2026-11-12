@@ -14,17 +14,8 @@ NEEDS_ZONE_TRAFFIC = "needs the zone traffic layer (stage 3)"
 NEEDS_FLEET_MAP = "needs a fleet map (stage 2)"
 
 # (패키지 폴더, 시험 파일) -> 이유. 교통 층과 지도가 둘 다 필요하면 교통 층(나중 단계)으로 적는다.
-WAITING = {
-    **dict.fromkeys((("fleet_core", name) for name in (
-        "test_auto_isolation.py", "test_battery_charge.py", "test_deadlock_cycle.py",
-        "test_final_goal.py", "test_fleet_e2e.py", "test_fleet_fuzz.py", "test_fleet_unit.py",
-        "test_goal_retry.py", "test_idle_watch.py",
-        "test_path_connection.py", "test_queue_exit.py", "test_record_replay.py",
-        "test_reinstate.py", "test_retreat_plumbing.py", "test_self_recovery.py",
-        "test_sim_battery.py", "test_sim_world_object.py", "test_sim_world_retreat.py",
-        "test_stall_watch.py", "test_traffic_controller.py")), NEEDS_ZONE_TRAFFIC),
-    ("fleet_core", "test_selector.py"): NEEDS_FLEET_MAP,
-}
+# fleet_core의 옛 레인 시험 20개는 되살릴 수 없어 지웠다(지운 모듈을 임포트했다).
+WAITING: dict = {}
 
 
 def waiting_reason(module_path) -> str | None:
