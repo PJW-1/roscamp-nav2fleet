@@ -25,6 +25,7 @@ from .injections import LowBattery, Reinstate, Removal, Schedule
 from .invariants import Invariants
 from .link import Link
 from .metrics import Metrics
+from .reaction import ReactionWatch
 from .robot import Imperfections, SimRobot, profile_for
 from .runs import DOCK, Result
 from .stations import Arms, Central, six_orders
@@ -79,6 +80,7 @@ class ZoneWorld(Commands, Link):
         self.reports_sent = 0
         self.guard_stops = 0  # 몸이 닿기 직전에 세계가 세운 수(충돌 검사가 놓친 것)
         self.invariants = Invariants(self.site, self.params)
+        self.reaction = ReactionWatch(self.params, self.invariants.violations)
         self.metrics = Metrics(self.site, self.robots)
         self.central = Central(six_orders() if orders is None else orders, self._violation)
         self.arms = Arms(self.site, stock or DEFAULT_STOCK, arm_s_per_item, swap_step_s,
@@ -146,6 +148,7 @@ class ZoneWorld(Commands, Link):
                  for n, r in present.items()}
         views = self.views()
         self.invariants.check(self.t, grants, present, views, quiet)
+        self.reaction.check(self.t, present)
         self.metrics.step(self.t, DT, grants, present, self.orders_done(), views)
 
     def run(self, seconds: float) -> None:

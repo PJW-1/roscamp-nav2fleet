@@ -32,8 +32,11 @@ class Commands:
         if isinstance(item, EventOut):
             self.events.append((self.t, item))
             self.metrics.on_event(item)
+            run = r.run if r is not None else None
+            self.reaction.on_event(self.t, item, run.goal_id if run is not None else None)
             return
         self.commands.append((self.t, item))
+        self.reaction.on_command(self.t, item)
         if isinstance(item, ReportOrderCmd):
             self.central.take_report(self.t, item)
         elif isinstance(item, FillCmd):

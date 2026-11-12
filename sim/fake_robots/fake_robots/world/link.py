@@ -96,6 +96,7 @@ class Link:
                 if r.comm_up:
                     self.reports_sent += 1
                     self.manager.on_robot_state(name, *report)
+                    self.reaction.on_report(self.t, name, report[3])
 
     def _sample(self, r):
         state = self._state_of(r)
