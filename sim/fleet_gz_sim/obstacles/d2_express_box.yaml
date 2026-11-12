@@ -1,5 +1,6 @@
-# 급행 한가운데(X_W-X_E의 절반, (0.99, 0.89))에 0.08 m 상자 하나를 처음부터 600 s 동안 둔다.
+# 급행 한가운데(X_W-X_E의 절반, (0.99, 0.89))에 0.08 m 상자 하나를 시뮬 15 s부터 600 s 동안 둔다.
+# at_s는 sim_obstacles가 뜬 뒤여야 한다. 3대 gz.launch에서는 1 s 항목이 노드보다 일러 건너뛰어졌다.
 # 충돌 검사가 고정 경로 위 장애물 앞에서 로봇을 세우는지 보는 데 쓴다(one_pinky obstacles:=d2_express_box).
 size_m: [0.08, 0.08, 0.25]
 obstacles:
-  - {at_s: 1, link: [X_W, X_E], fraction: 0.5, duration_s: 600}
+  - {at_s: 15, link: [X_W, X_E], fraction: 0.5, duration_s: 600}
