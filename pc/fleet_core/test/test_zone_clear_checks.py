@@ -102,40 +102,59 @@ def test_an_unknown_answer_breaks_the_run_of_clears():
     assert t._marks and KEYS[0] in t._blocked, "only one clear in a row"
 
 
-def test_no_answer_breaks_the_run_and_puts_the_silent_robot_behind_others():
+def ask_at(world, t, now):
+    world.now = now
+    t.tick_progress(now)
+    [cmd] = asks(t)
+    return cmd
+
+
+def test_no_answer_breaks_the_run_and_the_next_question_goes_to_another_robot():
+    """범위 안 로봇에게 돌아가며 묻는다: 안 물은 로봇 먼저, 그다음 가장 오래전에 물은 로봇."""
     world, t, mark = world_with_a_mark()
     put(world, "pinky2", (1.3, 0.65))  # 0.3 m: 가장 가깝다
     put(world, "pinky3", (1.5, 0.65))  # 0.5 m
-    clear_once(world, t, 5.0)
-    world.now = 10.0
-    t.tick_progress(world.now)
-    [silent] = asks(t)
-    assert silent.robot == "pinky2"  # 답하지 않는다
-    world.now = 15.0
-    t.tick_progress(world.now)
-    [cmd] = asks(t)
+    first = ask_at(world, t, 5.0)
+    assert first.robot == "pinky2"
+    t.on_clear_check("pinky2", first.check_id, "clear")
+    silent = ask_at(world, t, 10.0)
+    assert silent.robot == "pinky3", "never asked before"  # 답하지 않는다
+    cmd = ask_at(world, t, 15.0)
     assert mark.clears == 0, "a question with no answer breaks the run"
-    assert cmd.robot == "pinky3", "the robot that did not answer goes behind the others"
-    t.on_clear_check("pinky2", silent.check_id, "clear")  # 늦은 답은 세지 않는다
+    assert cmd.robot == "pinky2", "asked longest ago"
+    t.on_clear_check("pinky3", silent.check_id, "clear")  # 늦은 답은 세지 않는다
     assert mark.clears == 0
 
 
-def test_a_robot_that_could_not_be_asked_stays_behind_the_others():
-    """서비스가 없거나 부르기가 실패하면 fleet_manager가 NO_ANSWER를 준다. 답이 아니다."""
+def test_a_robot_that_could_not_be_asked_is_asked_again_when_its_turn_comes():
+    """서비스가 없거나 부르기가 실패하면 fleet_manager가 NO_ANSWER를 준다. 답이 아니다.
+    서비스가 살아나면 차례가 돌아올 때 다시 묻는다."""
     world, t, mark = world_with_a_mark()
     put(world, "pinky2", (1.3, 0.65))  # 가장 가깝지만 서버가 없다
     put(world, "pinky3", (1.5, 0.65))
-    for now, robot in ((5.0, "pinky2"), (10.0, "pinky3"), (15.0, "pinky3")):
-        world.now = now
-        t.tick_progress(now)
-        [cmd] = asks(t)
-        assert cmd.robot == robot, now
-        if robot == "pinky2":
-            t.on_clear_check("pinky2", cmd.check_id, NO_ANSWER)
-            assert mark.check == 0 and "pinky2" in mark.silent
-        else:
-            t.on_clear_check("pinky3", cmd.check_id, "clear")
-    assert not t._marks, "pinky3's two clears remove it"
+    cmd = ask_at(world, t, 5.0)
+    assert cmd.robot == "pinky2"
+    t.on_clear_check("pinky2", cmd.check_id, NO_ANSWER)
+    assert mark.check == 0 and mark.clears == 0
+    cmd = ask_at(world, t, 10.0)
+    assert cmd.robot == "pinky3"
+    t.on_clear_check("pinky3", cmd.check_id, "clear")
+    cmd = ask_at(world, t, 15.0)
+    assert cmd.robot == "pinky2", "its server came back"
+    t.on_clear_check("pinky2", cmd.check_id, "clear")
+    assert not t._marks, "two clears in a row from the two robots"
+
+
+def test_when_nobody_can_be_asked_it_takes_turns():
+    world, t, mark = world_with_a_mark()
+    put(world, "pinky2", (1.3, 0.65))
+    put(world, "pinky3", (1.5, 0.65))
+    asked = []
+    for now in (5.0, 10.0, 15.0, 20.0):
+        cmd = ask_at(world, t, now)
+        asked.append(cmd.robot)
+        t.on_clear_check(cmd.robot, cmd.check_id, NO_ANSWER)
+    assert asked == ["pinky2", "pinky3", "pinky2", "pinky3"]
 
 
 def test_a_new_block_report_drops_the_question_in_flight():

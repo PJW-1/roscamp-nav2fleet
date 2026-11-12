@@ -63,6 +63,13 @@ def test_an_unseen_cell_that_only_overlaps_the_circle_counts():
     assert clear_answer(grid({(23, 21): -1}), *center(20, 20), 0.10) == CLEAR, "does not reach it"
 
 
+def test_an_unseen_cell_just_outside_the_circle_does_not_count():
+    """칸 (22, 20)의 왼쪽 변은 x 1.10. 원 중심에서 가장 가까운 점까지 0.105 m면 걸치지 않는다."""
+    g = grid({(22, 20): -1})
+    assert clear_answer(g, 0.995, 1.025, 0.10) == CLEAR
+    assert clear_answer(g, 1.005, 1.025, 0.10) == UNKNOWN, "0.095 m: it overlaps"
+
+
 def test_a_rotated_grid_checks_its_own_edges():
     """돌아간 격자에서 원이 왼쪽 변 밖으로 0.005 m 나간다. 월드 여덟 방향 표본으로는 놓친다."""
     yaw = math.pi / 8

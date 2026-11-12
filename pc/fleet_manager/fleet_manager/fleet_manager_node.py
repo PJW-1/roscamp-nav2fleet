@@ -277,12 +277,17 @@ class FleetManagerNode(Node):
 
     def _ask_clear(self, command) -> None:
         """CheckClear 서비스(계약 0.12-draft)를 부른다. 서비스가 없거나 실패하면 NO_ANSWER다
-        (로봇의 unknown 답과 다르다: 관제는 그 로봇을 다른 로봇 뒤로 미룬다)."""
+        (로봇의 unknown 답과 다르다: 이어진 clear만 끊고, 다음 차례에 다른 로봇에게 묻는다)."""
         client = self._check_clear[command.robot]
         if not client.service_is_ready():
             self.core.on_clear_check(command.robot, command.check_id, NO_ANSWER)
             return
-        future = client.call_async(adapters.check_clear_request(command))
+        try:
+            future = client.call_async(adapters.check_clear_request(command))
+        except Exception as exc:  # tick 밖으로 내보내지 않는다. 묻지 못한 것이다
+            self.get_logger().warning(f"check_clear on {command.robot} was not sent: {exc}")
+            self.core.on_clear_check(command.robot, command.check_id, NO_ANSWER)
+            return
         future.add_done_callback(partial(self._clear_answered, command))
 
     def _clear_answered(self, command, future) -> None:

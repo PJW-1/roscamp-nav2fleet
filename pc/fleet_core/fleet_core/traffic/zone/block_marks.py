@@ -41,7 +41,7 @@ class Mark:
     asked_at: float = 0.0  # 마지막으로 물은 시각(처음에는 표시한 시각)
     check: int = 0  # 답을 기다리는 질문 번호. 없으면 0
     asked: str = ""  # 그 질문을 받은 로봇
-    silent: set = field(default_factory=set)  # 물었는데 답하지 않은 로봇. 다음에는 다른 로봇 뒤
+    asked_last: dict = field(default_factory=dict)  # 로봇 -> 이 표시에서 마지막으로 물은 시각
 
 
 def polyline_gap(point, points) -> float:

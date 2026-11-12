@@ -68,7 +68,14 @@ def clear_answer(grid: Grid, x: float, y: float, r: float, age_s: float = 0.0) -
     gx, gy = c * dx + s * dy, -s * dx + c * dy  # 격자 안 좌표(m)
     if min(gx, gy, grid.width * grid.resolution - gx, grid.height * grid.resolution - gy) < reach:
         return UNKNOWN
-    overlap = reach + grid.resolution * math.sqrt(0.5)  # 칸 대각선의 절반: 원에 걸친 칸까지
-    if any(cost < 0 for _, _, cost in _cells_near(grid, x, y, overlap)):
-        return UNKNOWN
+    res = grid.resolution
+    span = int(math.ceil(reach / res)) + 1
+    ci, cj = math.floor(gx / res), math.floor(gy / res)
+    for j in range(max(0, cj - span), min(grid.height, cj + span + 1)):
+        for i in range(max(0, ci - span), min(grid.width, ci + span + 1)):
+            # 칸 사각형에서 원 중심에 가장 가까운 점까지가 reach 이하면 원에 걸친 칸이다
+            dx = max(i * res - gx, 0.0, gx - (i + 1) * res)
+            dy = max(j * res - gy, 0.0, gy - (j + 1) * res)
+            if math.hypot(dx, dy) <= reach and grid.data[j * grid.width + i] < 0:
+                return UNKNOWN
     return CLEAR

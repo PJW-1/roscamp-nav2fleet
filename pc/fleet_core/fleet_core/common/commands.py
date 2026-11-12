@@ -49,7 +49,8 @@ class RetreatCmd:
 @dataclass(frozen=True)
 class CheckClearCmd:
     """관제가 막힘 표시의 점 둘레가 비었는지 로봇에게 묻는다(추가 지시서 3의 4-3, 기준(사용자)).
-    로봇 노드의 CheckClear 서비스로 간다. 답은 CLEAR, BLOCKED_AT, UNKNOWN 가운데 하나다."""
+    로봇 노드의 CheckClear 서비스로 간다. 답은 CLEAR, BLOCKED_AT, UNKNOWN 가운데 하나이고,
+    부르지 못했으면 fleet_manager가 NO_ANSWER를 준다."""
     robot: str
     check_id: int
     x: float
