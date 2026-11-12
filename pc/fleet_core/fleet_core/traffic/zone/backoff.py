@@ -26,14 +26,15 @@ NO_ROOM = "no room behind"
 WAY_STEP_M = 0.02  # 가는 선을 이 간격으로 짚어 구역 안인지 본다
 
 
-def backoff_spot(site, params, held, m, others, taken=()) -> tuple[tuple | None, str]:
+def backoff_spot(site, params, held, m, others, nodes=()) -> tuple[tuple | None, str]:
     """m이 뒤로 물러나 설 자리 (x, y)와, 못 물러나는 까닭(물러날 수 있으면 빈 문자열).
 
     설 자리는 m이 서 있고 쥐고 있는 넓은 구역 안이어야 하고, 벽과 진열대와 고정 경로 구역에서
     yard_backoff_edge_m 이상 떨어져야 한다. 가는 선은 그 구역을 벗어나거나 진열대를 지나지 않아야
     하고, 다른 로봇에게 다가가지 않거나, 다가가더라도 retreat_clear_m 안으로 들지 않아야
-    한다. others는 바닥에 있는 다른 로봇들이다. taken은 다른 로봇이 잡아 둔 지점들이다: 설 자리가
-    그 지점에서 node_clear_m 안이면 그 로봇이 올 자리를 막으므로 물러나지 않는다.
+    한다. others는 바닥에 있는 다른 로봇들이다. nodes는 m이 쥐지 않은 지점들이다: 설 자리가 그
+    지점에서 node_clear_m 안이면 그 지점을 쥐었거나 나중에 잡을 로봇의 자리를 막으므로 물러나지
+    않는다.
     """
     p = params
     zone = site.zone_at(m.x, m.y)
@@ -55,9 +56,9 @@ def backoff_spot(site, params, held, m, others, taken=()) -> tuple[tuple | None,
         gap = point_segment_distance((other.x, other.y), here, end)
         if nearer and gap < p.retreat_clear_m:
             return None, f"{other.name} behind"
-    for node in taken:
+    for node in nodes:
         if math.dist(end, site.node_pose(node)) < p.node_clear_m:
-            return None, f"{node} is taken"
+            return None, f"too close to {node}"
     return end, ""
 
 
@@ -102,9 +103,8 @@ class Backoff:
         """goal이 없는 m에게 물러나기를 낸다. 냈으면 빈 문자열, 못 냈으면 그 까닭이다."""
         p = self.params
         others = [other for other in self._robots.values() if other is not m and other.placed]
-        taken = [node for node in self.site.nodes
-                 if self.grants.node_holder(node) not in ("", m.name)]
-        end, why = backoff_spot(self.site, p, self.grants.held_by(m.name), m, others, taken)
+        nodes = [node for node in self.site.nodes if self.grants.node_holder(node) != m.name]
+        end, why = backoff_spot(self.site, p, self.grants.held_by(m.name), m, others, nodes)
         if end is None:
             return why
         goal_id = self._next_goal_id()

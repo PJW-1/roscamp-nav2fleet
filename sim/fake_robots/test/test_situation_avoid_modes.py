@@ -55,9 +55,10 @@ def test_situation_in_avoid_mode(name, layout, mode, seed):
         raise Unfinished(failures[0])
 
 
-def test_the_yard_back_off_does_not_stand_a_robot_on_a_node_another_robot_holds():
-    """yard_backoff를 켠 none에서 물러난 로봇이 남이 잡은 N_E 위에 섰던 칸(불변식 I8)."""
-    outcome = run_situation("order_burst", "d2", 2, overrides={"yard_backoff": True},
-                            avoid_mode="none")
+@pytest.mark.parametrize(("name", "seed"), [("order_burst", 2), ("comm_loss_reinstate", 3)])
+def test_the_yard_back_off_does_not_stand_a_robot_on_a_node_it_does_not_hold(name, seed):
+    """yard_backoff를 켠 none(d2)에서 물러난 로봇이 N_E 위에 섰던 두 칸(불변식 I8). 하나는 남이 이미
+    잡은 지점이었고, 하나는 물러난 뒤에 남이 잡았다."""
+    outcome = run_situation(name, "d2", seed, overrides={"yard_backoff": True}, avoid_mode="none")
     assert outcome.failures == []
     assert outcome.world.metrics.count("HALL_BACKOFF_DONE") >= 1, "the back-off was used"

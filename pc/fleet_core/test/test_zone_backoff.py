@@ -175,8 +175,8 @@ def robot(name, x, y, yaw_deg=0.0):
     return Robot(name, placed=True, x=x, y=y, yaw=math.radians(yaw_deg))
 
 
-def spot(m, others=(), held=("HALL",), taken=()):
-    return backoff_spot(SITE, ON, held, m, others, taken)
+def spot(m, others=(), held=("HALL",), nodes=()):
+    return backoff_spot(SITE, ON, held, m, others, nodes)
 
 
 def test_the_spot_is_straight_behind_the_robot():
@@ -219,14 +219,26 @@ def test_a_robot_close_behind_refuses_the_spot_and_one_ahead_or_far_does_not():
         assert end == pytest.approx((1.00, 0.18)) and why == "", (x, y)
 
 
-def test_a_spot_by_a_node_another_robot_has_taken_is_refused():
-    """물러나 설 자리가 다른 로봇이 잡아 둔 지점에서 node_clear_m 안이면 그 로봇이 올 자리를
-    막는다."""
+def test_a_spot_by_a_node_the_robot_does_not_hold_is_refused():
+    """물러나 설 자리가 제가 쥐지 않은 지점에서 node_clear_m 안이면 물러나지 않는다: 그 지점을
+    지금 쥐었거나 나중에 잡을 로봇의 자리를 막는다."""
     here = robot("pinky1", 1.80, 0.65, 0.0)  # 동쪽을 본다: N_E (1.58, 0.65)에서 0.10 m로 물러난다
     end, why = spot(here)
     assert end == pytest.approx((1.68, 0.65)) and why == ""
-    assert spot(here, taken=("N_E",)) == (None, "N_E is taken")
-    assert spot(here, taken=("N_W",))[0] is not None, "a taken node far away does not matter"
+    assert spot(here, nodes=("N_E",)) == (None, "too close to N_E")
+    assert spot(here, nodes=("N_W",))[0] is not None, "a node far away does not matter"
+
+
+def test_the_back_off_counts_every_node_the_robot_does_not_hold():
+    """빈 지점도 센다: 물러난 뒤에 다른 로봇이 그 지점을 잡을 수 있다."""
+    world = Harness(params=ON)
+    world.report()
+    traffic = world.traffic
+    m = traffic._robots["pinky1"]
+    m.x, m.y, m.yaw = 1.80, 0.65, 0.0
+    assert traffic.grants.node_holder("N_E") == ""
+    assert traffic._back_off(m) == "too close to N_E"
+    assert not world.sent(RetreatCmd)
 
 
 # ---- 끝난 뒤 ----
