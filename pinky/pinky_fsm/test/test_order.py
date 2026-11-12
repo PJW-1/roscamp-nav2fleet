@@ -325,6 +325,21 @@ def test_comm_loss_stops_the_order_at_once_by_default():
     assert fsm.state() == IDLE
 
 
+def test_comm_loss_during_a_retreat_segment_ends_the_order_with_heartbeat_lost():
+    fsm = ready(pose=(0.8, 0.3, 0.0))
+    back = line(1, 0.8, 0.5, ctrl=REVERSE, mode=MODE_RETREAT)
+    order(fsm, "g1", 1.0, [back], [S3], pose=(0.8, 0.3, 0.0))
+    cmds = fsm.tick(2.6, (0.7, 0.3, 0.0), DRIVING, no_obstacle)
+    assert Finish("g1", False, HEARTBEAT_LOST, 0) in cmds
+
+
+def test_comm_loss_counts_the_segment_the_robot_has_just_finished():
+    fsm = ready()
+    order(fsm, "g1", 1.0, [S1, S2], [S3])  # one merged FollowPath
+    cmds = fsm.tick(2.6, (0.9, 0.3, 0.0), DRIVING, no_obstacle)  # past the end of S1
+    assert Finish("g1", False, HEARTBEAT_LOST, 1) in cmds
+
+
 def test_comm_loss_stops_a_waiting_order_under_both_policies():
     for policy in ("stop", "base_end"):
         fsm = ready(comm_loss_policy=policy)

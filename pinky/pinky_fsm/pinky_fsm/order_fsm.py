@@ -169,6 +169,7 @@ class OrderFsm(PinkyFsm):
         return self._own(super().nav_goal_cancel_accepted(seq, now), now, self._pose)
 
     def tick(self, now, pose, speed, obstacle) -> list:
+        self._count_bounds(pose)  # heartbeat로 끝나기 전에 방금 끝낸 조각을 센다
         cmds = self._own(super().tick(now, pose, speed, obstacle), now, pose)
         return cmds + self._own(self._order_tick(now, pose), now, pose)
 
@@ -187,6 +188,16 @@ class OrderFsm(PinkyFsm):
         return (self._blocked or getattr(g, "blocked", False)
                 or getattr(g, "waiting_since", None) is not None)
 
+    def _count_bounds(self, pose) -> None:
+        """합친 경로에서 지난 중간 조각을 끝낸 것으로 센다."""
+        g = self._active
+        if (self._q is None or pose is None or not isinstance(g, _Move)
+                or g.goal_id != self._key):
+            return
+        g.s = self._track(g, pose)
+        while self._bounds and g.s >= self._bounds[0][0]:
+            self._q.done = self._bounds.pop(0)[1]
+
     def _order_tick(self, now: float, pose) -> list:
         if self._q is None:
             return []
@@ -194,8 +205,7 @@ class OrderFsm(PinkyFsm):
             return self._end_order(False, HEARTBEAT_LOST) if self._heartbeat_lost(now) else []
         g = self._active
         if isinstance(g, _Move) and g.goal_id == self._key:
-            while self._bounds and g.s >= self._bounds[0][0]:
-                self._q.done = self._bounds.pop(0)[1]
+            self._count_bounds(pose)
         if (isinstance(g, NavGoal) and g.goal_id == self._key and pose is not None
                 and self._q.pending and self._q.pending[0].mode == MODE_NAV_GOAL
                 and math.dist(pose[:2], g.target[:2]) <= self.op.pass_m):
@@ -215,7 +225,8 @@ class OrderFsm(PinkyFsm):
         if finished is None:
             return out
         if not finished.success:
-            return out + self._end_order(False, finished.reason)
+            lost, self._lost_contact = self._lost_contact, False
+            return out + self._end_order(False, HEARTBEAT_LOST if lost else finished.reason)
         self._q.done = self._run[-1].seq_id
         return out + self._own(self._advance(now, pose), now, pose)
 
