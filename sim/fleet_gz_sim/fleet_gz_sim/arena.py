@@ -79,13 +79,13 @@ def generate(out: Path, site) -> tuple[str, ...]:
     name = site.name
     (out / "worlds").mkdir(parents=True, exist_ok=True)
     (out / "maps").mkdir(parents=True, exist_ok=True)
-    (out / "worlds" / f"{name}.sdf").write_text(world_sdf(site), encoding="utf-8")
+    (out / "worlds" / f"{name}.sdf").write_text(world_sdf(site), encoding="utf-8", newline="\n")
     for suffix, resolution in (("", COARSE_M), ("_fine", FINE_M)):
         (out / "maps" / f"{name}{suffix}.yaml").write_text(
-            map_yaml(f"{name}{suffix}", resolution, site), encoding="utf-8")
+            map_yaml(f"{name}{suffix}", resolution, site), encoding="utf-8", newline="\n")
         (out / "maps" / f"{name}{suffix}.pgm").write_bytes(pgm(resolution, site))
     (out / "maps" / f"{name}_keepout.yaml").write_text(
-        map_yaml(f"{name}_keepout", FINE_M, site), encoding="utf-8")
+        map_yaml(f"{name}_keepout", FINE_M, site), encoding="utf-8", newline="\n")
     (out / "maps" / f"{name}_keepout.pgm").write_bytes(keepout_pgm(FINE_M, site))
     return outputs(name)
 
