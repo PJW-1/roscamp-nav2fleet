@@ -99,6 +99,33 @@ def test_a_robot_that_cannot_join_the_fixed_line_is_first_sent_to_its_start_by_n
     assert (line.mode, line.target_id) == ("follow_path", "W"), "from the node it takes the line"
     assert world.codes("pinky2").count("GOAL_RETRY") == 1 and not isolations(world)
     assert world.result_of(call) is None
+    assert world.view("pinky2")["attempts"] == 1, "kept until the line itself works"
+    reach(world, "W", line.goal_id)
+    assert world.view("pinky2")["attempts"] == 0
+
+
+def reach(world, node, goal_id, robot="pinky2"):
+    """로봇을 그 지점에 옮겨 놓고 goal의 성공을 넣는다."""
+    bot = world.bots[robot]
+    bot.x, bot.y = world.site.node_pose(node)
+    world.report()
+    world.traffic.on_move_result(robot, goal_id, True, "")
+    world.run(world.params.arrival_settle_s + 0.5)
+
+
+def test_a_line_that_works_after_the_robot_moved_by_itself_clears_the_count():
+    """되돌아가는 goal 없이 로봇이 지점에 닿았어도, 그 뒤 경로가 되면 실패 횟수는 지워진다."""
+    world, _ = beside_the_node()
+    traffic, robot = world.traffic, world.traffic._robots["pinky2"]
+    traffic.on_move_result("pinky2", last_goal(world), False, "PATH_NOT_CONNECTED")
+    bot = world.bots["pinky2"]
+    bot.x, bot.y = world.site.node_pose("N_W")
+    world.report()
+    world.run(world.params.move_retry_wait_s + 0.3)
+    line = world.sent(MoveCmd, "pinky2")[-1]
+    assert line.mode == "follow_path" and robot.attempts == 1
+    reach(world, "W", line.goal_id)
+    assert robot.attempts == 0, "an unrelated later failure starts from zero"
 
 
 def test_joining_that_keeps_failing_although_the_nav_goal_succeeds_ends_in_isolation():
