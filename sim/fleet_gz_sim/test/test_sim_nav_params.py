@@ -108,7 +108,7 @@ def _rpp(data: dict, name: str) -> dict:
 
 
 def test_sim_params_cap_every_forward_controller_and_change_nothing_else(tmp_path):
-    """The arena runs at 0.12 to 0.15 m/s; the reverse controller keeps its slower 0.05 m/s."""
+    """The arena runs at 0.12 to 0.20 m/s; the reverse controller keeps its slower 0.05 m/s."""
     capped = yaml.safe_load(launch_parts.sim_nav_params(
         NAV, tmp_path / "capped.yaml", max_speed=0.12).read_text(encoding="utf-8"))
     plain = yaml.safe_load(launch_parts.sim_nav_params(
@@ -213,12 +213,12 @@ def test_a_base_file_without_one_of_the_controllers_is_refused(tmp_path):
         launch_parts.sim_nav_params(path, tmp_path / "sim.yaml")
 
 
-@pytest.mark.parametrize("text, value", [("", 0.12), ("0.12", 0.12), ("0.15", 0.15)])
+@pytest.mark.parametrize("text, value", [("", 0.12), ("0.12", 0.12), ("0.15", 0.15), ("0.2", 0.2)])
 def test_the_launch_speed_is_the_arena_range(text, value):
     assert launch_parts.speed_of(text) == value
 
 
-@pytest.mark.parametrize("bad", ["0.11", "0.16", "0.25", "fast", "nan", "inf"])
+@pytest.mark.parametrize("bad", ["0.11", "0.21", "0.25", "fast", "nan", "inf"])
 def test_a_launch_speed_outside_the_arena_range_is_refused(bad):
     with pytest.raises(ValueError, match="nav_max_speed"):
         launch_parts.speed_of(bad)
