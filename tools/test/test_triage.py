@@ -124,6 +124,14 @@ def test_a_retreat_ordered_after_a_block_does_not_hide_the_block():
     assert causes(record(*items), obstacles=BOX) == [("O-1", "진짜 막힘", "BLOCKED")]
 
 
+def test_a_retreat_that_does_not_start_after_a_block_does_not_hide_the_block():
+    """막힌 뒤 낸 후진이 출발하지 않아 난 NO_START는 그 후진의 것이다. 막힌 목표는 출발했다."""
+    items = [*started(), *walk(10, 19, 0.0), *walk(20, 60, 1.0, 0.0, "BLOCKED"),
+             ev(20.1, "BLOCKED_WAIT"), ev(30.1, "ZONE_MARKED_BLOCKED"), ev(30.2, "RETREAT_START"),
+             ev(35.3, "NO_START")]
+    assert causes(record(*items), obstacles=BOX) == [("O-1", "진짜 막힘", "BLOCKED")]
+
+
 def test_a_block_with_nothing_on_the_floor_is_avoidance():
     text = _blocked_run(None, [ev(20.1, "BLOCKED_WAIT"), ev(30.1, "ZONE_MARKED_BLOCKED")])
     assert causes(text) == [("O-1", "회피", "BLOCKED")]

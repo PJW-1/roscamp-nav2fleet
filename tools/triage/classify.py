@@ -107,11 +107,12 @@ def _frame(run: Run, robot, t0, t1):
     return ("상태 보고 없음", t0) if silent else None
 
 
-def _started(run, robot, goal, cfg) -> tuple | None:
-    """2번: 시작하지 못했으면 (근거 이름, 시각)."""
+def _started(run, robot, goal, cfg, until=math.inf) -> tuple | None:
+    """2번: 시작하지 못했으면 (근거 이름, 시각). until은 그 로봇이 다음 목표를 받은 시각이다:
+    그 뒤의 NO_START는 다음 목표의 것이다."""
     limit = goal.t + cfg["start_limit_s"]
     for e in run.events:
-        if e.code == "NO_START" and e.robot == robot and e.t >= goal.t:
+        if e.code == "NO_START" and e.robot == robot and goal.t <= e.t < until:
             return e.code, e.t
     moves = run.moves_of(robot)
     home = _pos_at(moves, goal.t)
@@ -154,7 +155,9 @@ def _cause(run, order, obstacles, cfg) -> Row:
     # 2번은 가라고 보낸 마지막 목표로 잰다. 막힌 뒤 관제가 낸 후진은 막힘의 일부다(3번이 본다).
     # 후진뿐이면(도크에서 나오기) 그 후진으로 잰다
     forward = [g for g in goals if g.code != "RETREAT_START"]
-    stuck = _started(run, robot, (forward or goals)[-1], cfg)
+    checked = (forward or goals)[-1]
+    until = min((g.t for g in goals if g.t > checked.t), default=math.inf)
+    stuck = _started(run, robot, checked, cfg, until)
     if stuck:
         return Row(order, "주행", *stuck)
     episodes = _episodes(run, robot, goals[0].t, end)
