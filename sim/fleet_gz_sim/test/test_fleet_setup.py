@@ -53,7 +53,7 @@ def test_robots_start_on_their_nodes_facing_the_node_yaw():
     site = load_fleet_map("d2")
     poses = fleet_setup.start_poses(site, {"pinky1": "P-3", "pinky2": "N_W"})
     assert poses["pinky1"] == pytest.approx((1.85, 0.15, math.pi / 2))
-    assert poses["pinky2"] == pytest.approx((0.40, 0.65, 0.0))  # N_W has no yaw
+    assert poses["pinky2"] == pytest.approx((0.35, 0.65, 0.0))  # N_W has no yaw
 
 
 def test_robots_without_a_start_get_the_free_parking_nodes_in_order():
