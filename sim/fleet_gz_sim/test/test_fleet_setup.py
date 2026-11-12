@@ -138,4 +138,17 @@ def test_narrow_strips_are_the_dock_junction_and_lane_rectangles_not_the_hall():
     strips = fleet_setup.narrow_strips(site)
     assert strips.split("; ") == [
         "0,0.79,0.3,0.99", "0.3,0.79,0.5,0.99", "0.5,0.79,1.48,0.99", "1.48,0.79,1.68,0.99",
-        "1.68,0.79,1.98,0.99"]
+        "1.68,0.79,1.98,0.99",
+        "0.45,0.725,0.55,0.84", "1.43,0.725,1.53,0.84"]
+
+
+def test_narrow_strips_add_a_box_around_each_shelf_end_face():
+    """진열대 끝면마다 끝면을 band만큼 사방으로 넓힌 사각형을 더한다(2-1 후진 모퉁이).
+
+    끝면 잡음은 좁은 띠 바로 밖(HALL의 1.5 cm 띠)에 떨어지므로 띠만으로는 지워지지 않는다."""
+    site = load_fleet_map("d2")
+    strips = fleet_setup.narrow_strips(site, band=0.03).split("; ")
+    assert strips[-2:] == ["0.47,0.745,0.53,0.82", "1.45,0.745,1.51,0.82"]
+    # 세로 진열대는 위아래 끝면에 더한다.
+    assert fleet_setup.shelf_end_boxes([(1.0, 0.2, 1.02, 0.6)], 0.05) == [
+        (0.95, 0.15, 1.07, 0.25), (0.95, 0.55, 1.07, 0.65)]
