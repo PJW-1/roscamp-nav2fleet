@@ -71,7 +71,7 @@ def test_a_blocked_answer_restarts_the_clock_and_resets_the_clear_count():
     assert t._marks and KEYS[0] in t._blocked
 
 
-def test_unknown_late_and_strange_answers_change_nothing():
+def test_late_and_strange_answers_change_nothing():
     world, t, mark = world_with_a_mark()
     put(world, "pinky2", (1.3, 0.65))
     world.now = 5.0
@@ -81,6 +81,56 @@ def test_unknown_late_and_strange_answers_change_nothing():
     t.on_clear_check("pinky2", cmd.check_id, "clear")  # 이미 답했다
     t.on_clear_check("pinky3", 999, "clear")
     assert mark.clears == 0 and mark.until == 60.0
+
+
+def clear_once(world, t, now):
+    world.now = now
+    t.tick_progress(now)
+    t.on_clear_check("pinky2", asks(t)[0].check_id, "clear")
+
+
+def test_an_unknown_answer_breaks_the_run_of_clears():
+    """clear, unknown, clear는 이어진 두 번이 아니다(실패도 fleet_manager가 unknown으로 준다)."""
+    world, t, mark = world_with_a_mark()
+    put(world, "pinky2", (1.3, 0.65))
+    clear_once(world, t, 5.0)
+    world.now = 10.0
+    t.tick_progress(world.now)
+    t.on_clear_check("pinky2", asks(t)[0].check_id, "unknown")
+    assert mark.clears == 0
+    clear_once(world, t, 15.0)
+    assert t._marks and KEYS[0] in t._blocked, "only one clear in a row"
+
+
+def test_no_answer_breaks_the_run_and_puts_the_silent_robot_behind_others():
+    world, t, mark = world_with_a_mark()
+    put(world, "pinky2", (1.3, 0.65))  # 0.3 m: 가장 가깝다
+    put(world, "pinky3", (1.5, 0.65))  # 0.5 m
+    clear_once(world, t, 5.0)
+    world.now = 10.0
+    t.tick_progress(world.now)
+    [silent] = asks(t)
+    assert silent.robot == "pinky2"  # 답하지 않는다
+    world.now = 15.0
+    t.tick_progress(world.now)
+    [cmd] = asks(t)
+    assert mark.clears == 0, "a question with no answer breaks the run"
+    assert cmd.robot == "pinky3", "the robot that did not answer goes behind the others"
+    t.on_clear_check("pinky2", silent.check_id, "clear")  # 늦은 답은 세지 않는다
+    assert mark.clears == 0
+
+
+def test_a_new_block_report_drops_the_question_in_flight():
+    """표시를 새로 고치는 막힘 보고가 오면, 그 전에 보낸 질문의 clear 답은 세지 않는다."""
+    world, t, mark = world_with_a_mark()
+    put(world, "pinky2", (1.3, 0.65))
+    world.now = 5.0
+    t.tick_progress(world.now)
+    [cmd] = asks(t)
+    again = t._mark_point(t._robots["pinky1"], POINT, KEYS, 6.0)
+    assert again is mark
+    t.on_clear_check("pinky2", cmd.check_id, "clear")
+    assert mark.clears == 0 and mark.check == 0
 
 
 def test_nobody_passing_drops_the_mark_after_the_retry_time_and_a_repeat_doubles_it():
