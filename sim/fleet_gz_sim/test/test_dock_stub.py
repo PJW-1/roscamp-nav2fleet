@@ -70,6 +70,7 @@ def test_the_bringup_package_does_not_depend_on_the_sim():
 def test_passing_sim_dock_stub_to_the_pc_bringup_starts_nothing_from_the_sim():
     """ros2 launch accepts undeclared arguments silently. Make sure this one changes nothing."""
     launch = pytest.importorskip("launch")
+    pytest.importorskip("ament_index_python")  # ROS가 없으면 launch 폴더가 빈 패키지로 잡힌다
     import importlib.util
 
     from ament_index_python.packages import PackageNotFoundError, get_package_share_directory

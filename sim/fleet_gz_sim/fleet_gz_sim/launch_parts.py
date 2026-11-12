@@ -113,6 +113,10 @@ THROUGH_CONTROLLER = "FollowPathThrough"
 REVERSE_CONTROLLER = "FollowPathReverse"
 GOAL_CONTROLLER = "FollowPathGoal"
 CONTROLLERS = ("FollowPath", THROUGH_CONTROLLER, REVERSE_CONTROLLER, GOAL_CONTROLLER)
+# 고정 경로(FollowPath, 잠금 경계, Retreat)를 모는 controller. 시뮬 전용 스위치
+# fixed_line_collision_check가 거짓이면 이 셋만 충돌 검사를 끈다(리드 결정 2026-11-12: D2의 0.10 m
+# 통로에서 켜면 work_in이 0/3이라 3대 경기를 볼 수 없다). 마당 goal(FollowPathGoal)은 늘 켠다
+FIXED_LINE_CONTROLLERS = ("FollowPath", THROUGH_CONTROLLER, REVERSE_CONTROLLER)
 # 경기장 속도 상한(지시서 3절: 0.12~0.15 m/s). 앞으로 가는 controller 셋이 이 값으로 간다
 SPEED_RANGE_MPS = (0.12, 0.15)
 DEFAULT_SPEED_MPS = 0.12
@@ -134,23 +138,39 @@ def speed_of(text) -> float:
     return value
 
 
+def merge(into: dict, extra: dict) -> dict:
+    """extra를 into에 깊이 덮는다(dict끼리는 안으로, 나머지는 바꿔 넣음). into를 돌려준다."""
+    for key, value in extra.items():
+        if isinstance(value, dict) and isinstance(into.get(key), dict):
+            merge(into[key], value)
+        else:
+            into[key] = value
+    return into
+
+
 def sim_nav_params(base: Path, out: Path, amcl: dict | None = None,
-                   max_speed: float | None = None) -> Path:
+                   max_speed: float | None = None, overrides: dict | None = None,
+                   fixed_line_check: bool = True) -> Path:
     """base(실물 Nav2 설정)에 시뮬 값을 덮어 out에 쓴다. base는 바꾸지 않는다.
 
     - AMCL: SIM_AMCL(또는 amcl).
-    - controller 넷(CONTROLLERS) 모두 충돌 검사를 켠다(지시서 3절: 모든 실행에서 켬).
+    - overrides: 그 위에 깊이 덮을 값(merge). launch 인자 nav_overrides(yaml 파일). AMCL 값도
+      바꾼다.
+    - controller 넷(CONTROLLERS) 모두 충돌 검사를 켠다(지시서 3절: 모든 실행에서 켬). overrides로도
+      끌 수 없다. fixed_line_check가 거짓일 때만 FIXED_LINE_CONTROLLERS의 검사를 끈다.
     - max_speed가 있으면 controller마다 desired_linear_vel을 max_speed와 원래 값 중 작은 것으로
       (후진 FollowPathReverse 0.05 m/s는 그대로 남는다)."""
     data = yaml.safe_load(base.read_text(encoding="utf-8"))
     data["amcl"]["ros__parameters"].update(SIM_AMCL if amcl is None else amcl)
+    merge(data, overrides or {})
     controllers = data["controller_server"]["ros__parameters"]
     missing = [name for name in CONTROLLERS if name not in controllers]
     if missing:
         raise ValueError(f"{base} has no controller {', '.join(missing)}")
     rpps = [controllers[name] for name in CONTROLLERS]
-    for rpp in rpps:
-        rpp["use_collision_detection"] = True
+    for name in CONTROLLERS:
+        controllers[name]["use_collision_detection"] = (
+            fixed_line_check or name not in FIXED_LINE_CONTROLLERS)
     if max_speed is not None:
         top = max(rpp["desired_linear_vel"] for rpp in rpps)
         if (isinstance(max_speed, bool) or not isinstance(max_speed, int | float)
@@ -163,12 +183,14 @@ def sim_nav_params(base: Path, out: Path, amcl: dict | None = None,
     return out
 
 
-def model(ns: str, x, y, yaw) -> list:
+def model(ns: str, x, y, yaw, lidar_noise: float | None = None) -> list:
     """핑키 모델만(robot_state_publisher와 Gazebo에 놓기). Nav2와 pinky_fsm은 없다.
-    서 있는 다른 핑키(one_pinky.launch.py still_pinky)도 이것으로 놓는다."""
+    서 있는 다른 핑키(one_pinky.launch.py still_pinky)도 이것으로 놓는다.
+    lidar_noise: 라이다 거리 잡음 표준편차(m). None이면 모델의 기본값(0.02)."""
     me = share("fleet_gz_sim")
+    noise = "" if lidar_noise is None else f" lidar_noise:={float(lidar_noise)}"
     description = ParameterValue(
-        Command(["xacro ", str(me / "urdf" / "pinky_sim.urdf.xacro"), f" name:={ns}"]),
+        Command(["xacro ", str(me / "urdf" / "pinky_sim.urdf.xacro"), f" name:={ns}{noise}"]),
         value_type=str)
     return [
         Node(package="robot_state_publisher", executable="robot_state_publisher",
@@ -183,7 +205,9 @@ def model(ns: str, x, y, yaw) -> list:
 def pinky(ns: str, x, y, yaw, *, nav_map: str, nav_map_fine: str, keepout_mask: str = "",
           heartbeat_timeout_s="1.5", nav_log_level="warn", fsm=True, rviz=False,
           dock_aside=False, nav_composition=False, through_controller_id=THROUGH_CONTROLLER,
-          nav_max_speed: float = DEFAULT_SPEED_MPS, battery_topic: str = "") -> list:
+          nav_max_speed: float = DEFAULT_SPEED_MPS, battery_topic: str = "",
+          nav_overrides: dict | None = None, lidar_noise: float | None = None,
+          fixed_line_check: bool = True) -> list:
     """핑키 한 대: 모델, Nav2, pinky_fsm, RViz. 브리지는 bridge()에 이 로봇 이름을 넣는다.
 
     nav_map, nav_map_fine: Nav2 지도 둘(배치의 5 cm, 1 cm 지도, fleet_setup.Arena).
@@ -191,14 +215,17 @@ def pinky(ns: str, x, y, yaw, *, nav_map: str, nav_map_fine: str, keepout_mask: 
     dock_aside: pinky_fsm의 dock 서버를 /<ns>/dock_fsm으로 비켜 둔다(시뮬 전용 도크 대역용).
     nav_composition: Nav2 노드들을 프로세스 하나(component container)로 띄운다.
     through_controller_id: 잠금 경계 경로에 쓸 controller(pinky_fsm). 비우면 모든 경로가
-    FollowPath로 간다. Nav2는 controller 넷(CONTROLLERS)을 늘 띄우고 모두 충돌 검사를 켠다.
+    FollowPath로 간다. Nav2는 controller 넷(CONTROLLERS)을 늘 띄운다. 충돌 검사는 넷 모두 켜고,
+    fixed_line_check가 거짓일 때만 고정 경로 셋을 끈다.
     nav_max_speed: controller들의 최고 속도(m/s). pinky_fsm이 잠금 경계에서 내는 속도 제한의
     상한(horizon_cap_mps)도 이 값으로: RPP는 그 제한을 속도로 쓴다.
-    battery_topic: pinky_fsm이 볼 BatteryState 토픽(sim_stand_in의 BATTERY_TOPIC). 비면 없음."""
+    battery_topic: pinky_fsm이 볼 BatteryState 토픽(sim_stand_in의 BATTERY_TOPIC). 비면 없음.
+    nav_overrides: Nav2 설정 위에 덮을 값(sim_nav_params overrides).
+    fixed_line_check: 거짓이면 고정 경로 controller 셋의 충돌 검사를 끈다(시뮬 전용)."""
     nav = share("pinky_nav_config")
     x, y, yaw = str(x), str(y), str(yaw)
     actions = [
-        *model(ns, x, y, yaw),
+        *model(ns, x, y, yaw, lidar_noise),
         IncludeLaunchDescription(
             PythonLaunchDescriptionSource(str(nav / "launch" / "nav2.launch.py")),
             launch_arguments={
@@ -210,7 +237,8 @@ def pinky(ns: str, x, y, yaw, *, nav_map: str, nav_map_fine: str, keepout_mask: 
                 "params_file": str(sim_nav_params(
                     nav / "params" / "nav2_params.yaml",
                     Path(tempfile.gettempdir()) / f"nav2_params_sim_{ns}_{os.getpid()}.yaml",
-                    max_speed=nav_max_speed)),
+                    max_speed=nav_max_speed, overrides=nav_overrides,
+                    fixed_line_check=fixed_line_check)),
             }.items()),
     ]
     if fsm:

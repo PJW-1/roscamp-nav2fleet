@@ -6,6 +6,7 @@ import pytest
 import yaml
 
 launch = pytest.importorskip("launch")
+pytest.importorskip("launch.actions")  # ROS가 없으면 이 패키지의 launch 폴더가 빈 패키지로 잡힌다
 from fleet_gz_sim import launch_parts  # noqa: E402
 
 REPO = Path(__file__).resolve().parents[3]
@@ -141,6 +142,66 @@ def test_every_controller_checks_collisions_even_if_the_base_file_turned_it_off(
                                         "FollowPathGoal")
     for name in launch_parts.CONTROLLERS:
         assert _rpp(sim, name)["use_collision_detection"] is True, name
+
+
+def test_overrides_go_deep_and_cannot_turn_the_collision_check_off(tmp_path):
+    local = {"resolution": 0.01, "obstacle_layer": {"scan": {"obstacle_min_range": 0.1}}}
+    overrides = {"local_costmap": {"local_costmap": {"ros__parameters": local}},
+                 "controller_server": {"ros__parameters": {
+                     "FollowPath": {"use_collision_detection": False}}}}
+    sim = yaml.safe_load(launch_parts.sim_nav_params(NAV, tmp_path / "o.yaml", overrides=overrides)
+                         .read_text(encoding="utf-8"))
+    params = sim["local_costmap"]["local_costmap"]["ros__parameters"]
+    assert params["resolution"] == 0.01
+    assert params["obstacle_layer"]["scan"]["obstacle_min_range"] == 0.1
+    assert params["obstacle_layer"]["scan"]["topic"]  # the rest of the layer stays
+    assert _rpp(sim, "FollowPath")["use_collision_detection"] is True
+
+
+def test_overrides_win_over_the_sim_amcl_values(tmp_path):
+    """nav_overrides로 AMCL 값도 바꿀 수 있다(위치 추정을 조사할 때 쓴다)."""
+    overrides = {"amcl": {"ros__parameters": {"z_hit": 0.5}}}
+    sim = yaml.safe_load(launch_parts.sim_nav_params(NAV, tmp_path / "a.yaml", overrides=overrides)
+                         .read_text(encoding="utf-8"))
+    assert _amcl(sim)["z_hit"] == 0.5
+    assert _amcl(sim)["max_beams"] == launch_parts.SIM_AMCL["max_beams"]
+
+
+def test_the_fixed_line_check_can_be_turned_off_and_the_yard_check_stays_on(tmp_path):
+    """Lead decision 2026-11-12 (G1 not achieved): fixed lines without the RPP check, yard goals
+    with it. The default still equals the real settings."""
+    sim = yaml.safe_load(launch_parts.sim_nav_params(NAV, tmp_path / "f.yaml",
+                                                     fixed_line_check=False)
+                         .read_text(encoding="utf-8"))
+    assert launch_parts.FIXED_LINE_CONTROLLERS == ("FollowPath", "FollowPathThrough",
+                                                   "FollowPathReverse")
+    for name in launch_parts.FIXED_LINE_CONTROLLERS:
+        assert _rpp(sim, name)["use_collision_detection"] is False, name
+    assert _rpp(sim, "FollowPathGoal")["use_collision_detection"] is True
+    default = yaml.safe_load(launch_parts.sim_nav_params(NAV, tmp_path / "d.yaml")
+                             .read_text(encoding="utf-8"))
+    assert all(_rpp(default, n)["use_collision_detection"] is True
+               for n in launch_parts.CONTROLLERS)
+
+
+def test_pinky_passes_the_fixed_line_switch_to_its_nav2_params(tmp_path, monkeypatch):
+    _need("fleet_gz_sim", "pinky_nav_config")
+    from launch.actions import IncludeLaunchDescription
+    from launch.utilities import normalize_to_list_of_substitutions, perform_substitutions
+    monkeypatch.setattr(launch_parts.tempfile, "gettempdir", lambda: str(tmp_path))
+    context = launch.LaunchContext()
+
+    def text(value):
+        return perform_substitutions(context, normalize_to_list_of_substitutions(value))
+
+    includes = [a for a in launch_parts.pinky("pinky1", 0.5, 0.5, 0.0, fsm=False,
+                                              fixed_line_check=False, **MAPS)
+                if isinstance(a, IncludeLaunchDescription)]
+    args = [{text(k): text(v) for k, v in a.launch_arguments} for a in includes]
+    nav = next(a for a in args if "map_fine" in a)
+    sim = yaml.safe_load(Path(nav["params_file"]).read_text(encoding="utf-8"))
+    assert _rpp(sim, "FollowPath")["use_collision_detection"] is False
+    assert _rpp(sim, "FollowPathGoal")["use_collision_detection"] is True
 
 
 def test_a_base_file_without_one_of_the_controllers_is_refused(tmp_path):

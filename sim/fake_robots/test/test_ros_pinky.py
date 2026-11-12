@@ -92,6 +92,31 @@ def test_a_path_goal_follows_the_lanes_round_the_corner(harness, tmp_path):
     assert seen[-1] == pytest.approx(points[-1], abs=1e-3)
 
 
+def test_a_path_goal_waits_for_a_robot_on_the_line_ahead(harness, tmp_path):
+    """path 모드도 바로 앞에 다른 로봇이 있으면 서서 BLOCKED를 보고하고, 비키면 이어 간다(R3)."""
+    from fake_robots.common import TRUTH_TOPIC
+    p = start(harness, tmp_path, robots={
+        "pinky1": {"start": "N_W", "speed_mps": 0.5, "pose_noise_m": 0.0},
+        "pinky2": {"start": "P-2", "speed_mps": 0.5, "pose_noise_m": 0.0}})
+    (x0, y), (x1, _) = points = [SITE.node_pose(w) for w in ("N_W", "N_E")]
+    spot = [(x0 + x1) / 2, y]  # pinky2가 선 한가운데에 서 있다
+    pub = p.node.create_publisher(RobotState, TRUTH_TOPIC.format(robot="pinky2"),
+                                  to_ros_qos(CONTRACT_OBJ.qos("robot_state")))
+    p.node.create_timer(0.05, lambda: pub.publish(
+        RobotState(robot_id="pinky2", pose=Pose2D(x=spot[0], y=spot[1]))))
+    assert wait_until(lambda: p.states and pub.get_subscription_count() > 0, 5.0)
+    time.sleep(0.3)  # pinky2의 자리가 닿을 때까지
+    msg = MoveTo.Goal(target_id="N_E", target_pose=Pose2D(x=x1, y=y))
+    msg.path = [Pose(position=Point(x=px, y=py)) for px, py in points]
+    fut = p.move.send_goal_async(msg)
+    assert wait_until(fut.done, 5.0) and fut.result().accepted
+    assert wait_until(lambda: p.states[-1][1].state == RobotState.STATE_BLOCKED, 5.0)
+    stood = p.states[-1][1].pose.x
+    assert x0 + 0.1 < stood <= spot[0] - 2 * 0.08, "it did not stop short of the other robot"
+    spot[:] = SITE.node_pose("P-2")
+    assert result_of(fut.result()).result.success is True
+
+
 def send_nav_goal(p, x, y, target_id="P-3"):
     msg = MoveTo.Goal(target_id=target_id, target_pose=Pose2D(x=x, y=y),
                       mode=MoveTo.Goal.MODE_NAV_GOAL)

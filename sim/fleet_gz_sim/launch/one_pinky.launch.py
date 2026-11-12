@@ -31,6 +31,11 @@ ARGS = {
     "nav_max_speed": ("0.12", "controller들의 최고 속도(m/s), 0.12~0.15"),
     "keepout": ("true", "false면 global costmap keepout 필터를 띄우지 않는다(비교용)"),
     "still_pinky": ("", "x,y,yaw: 서 있기만 하는 둘째 핑키(pinky_still)를 놓는다. 비면 없음"),
+    "nav_overrides": ("", "Nav2 설정 위에 덮을 yaml 파일(시뮬 전용, 비교용). 비면 없음"),
+    "obstacles": ("", "상자를 놓았다 치우는 일정(fleet_gz_sim/obstacles의 이름이나 파일)"),
+    "lidar_noise": ("", "라이다 거리 잡음 표준편차(m, 비교용). 비면 모델 기본값 0.02"),
+    "fixed_line_collision_check": ("true", "시뮬 전용. false면 고정 경로 controller 셋의 충돌"
+                                           " 검사를 끈다. 마당 goal(FollowPathGoal)은 켬"),
 }
 STILL = "pinky_still"
 
@@ -48,13 +53,19 @@ def still_pose(text: str) -> tuple[float, float, float] | None:
 def _start(context):
     # 노드는 launch의 작업 폴더를 물려받는다(gz.launch.py와 같은 검사)
     require_isolated(os.environ, rmw=get_rmw_implementation_identifier(), workdir=Path.cwd())
+    import yaml
     from fleet_core.fleet_map import load_fleet_map
-    from fleet_gz_sim.fleet_setup import arena_for, layout_of, start_poses
+    from fleet_gz_sim.fleet_setup import arena_for, layout_of, obstacles_path, start_poses
+    from fleet_gz_sim.obstacles import load_schedule
+    from launch_ros.actions import Node
 
     def value(name):
         return LaunchConfiguration(name).perform(context)
 
     on = {name: value(name).lower() in ("true", "1") for name in ("gui", "rviz", "fsm", "keepout")}
+    fixed_check = value("fixed_line_collision_check").strip().lower()
+    if fixed_check not in ("true", "false", "1", "0"):  # 오타가 '끔'으로 바뀌지 않게
+        raise ValueError(f"fixed_line_collision_check must be true or false, got {fixed_check!r}")
     layout = layout_of(value("layout"))
     site = load_fleet_map(layout)
     arena = arena_for(layout, launch_parts.share("fleet_gz_sim"))
@@ -62,6 +73,12 @@ def _start(context):
     if value("start") not in site.nodes:
         raise ValueError(f"start {value('start')!r} is not a node of {site.name}")
     x, y, yaw = start_poses(site, {ns: value("start")})[ns]
+    overrides = None
+    if value("nav_overrides"):
+        overrides = yaml.safe_load(Path(value("nav_overrides")).read_text(encoding="utf-8"))
+    obstacles_file = obstacles_path(value("obstacles"), launch_parts.share("fleet_gz_sim"))
+    if obstacles_file:
+        load_schedule(obstacles_file, site)  # 틀린 일정이면 Gazebo를 띄우기 전에 멈춘다
     actions = [*launch_parts.world(on["gui"], arena.world),
                launch_parts.bridge([ns]),
                *launch_parts.pinky(ns, x, y, yaw, nav_map=arena.nav_map,
@@ -70,7 +87,15 @@ def _start(context):
                                    heartbeat_timeout_s=value("heartbeat_timeout_s"),
                                    nav_log_level=value("nav_log_level"),
                                    nav_max_speed=launch_parts.speed_of(value("nav_max_speed")),
-                                   fsm=on["fsm"], rviz=on["rviz"])]
+                                   fsm=on["fsm"], rviz=on["rviz"], nav_overrides=overrides,
+                                   fixed_line_check=fixed_check in ("true", "1"),
+                                   lidar_noise=(float(value("lidar_noise"))
+                                                if value("lidar_noise") else None))]
+    if obstacles_file:
+        actions.append(Node(package="fleet_gz_sim", executable="sim_obstacles",
+                            name="sim_obstacles", output="screen",
+                            parameters=[{"use_sim_time": True, "robots": [ns],
+                                         "obstacles_file": obstacles_file, "map_file": layout}]))
     still = still_pose(value("still_pinky"))
     if still is not None:
         actions += launch_parts.model(STILL, *still)
