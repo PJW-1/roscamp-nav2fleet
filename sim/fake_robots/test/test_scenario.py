@@ -458,7 +458,8 @@ def test_blocked_lane_blocks_one_robot_long_enough_to_mark_the_way(site):
     (block,) = sc.faults
     params = load_fleet_params()
     assert block.type == "blocked"
-    assert block.duration_s > params["blocked_mark_s"] + 2.0
+    # 물체가 나타난 뒤 로봇이 자가 복구를 끝내고 BLOCKED를 보고하기까지 6.4 s까지 걸렸다(WSL 여섯 번)
+    assert block.duration_s > params["blocked_mark_s"] + 8.0
     assert block.duration_s < params["blocked_timeout_s"]
     assert any(r.localizing_s > 0 for r in sc.robots.values())
     assert "ZONE_MARKED_BLOCKED" in sc.expect.events_include
