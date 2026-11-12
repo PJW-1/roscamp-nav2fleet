@@ -126,3 +126,9 @@ def test_filter_ranges_leaves_finite_beams_outside_range_min_max_alone():
 def test_origin_yaw_reads_the_map_origin_quaternion():
     assert origin_yaw(0.0, 1.0) == 0.0
     assert origin_yaw(math.sin(0.25), math.cos(0.25)) == pytest.approx(0.5)
+
+
+def test_origin_yaw_of_an_unrotated_map_with_negative_w_is_zero():
+    # (z 0, w -1)도 돌지 않은 자세다: 2 pi가 아니라 0
+    assert origin_yaw(0.0, -1.0) == pytest.approx(0.0)
+    assert -math.pi < origin_yaw(math.sin(2.0), math.cos(2.0)) <= math.pi
