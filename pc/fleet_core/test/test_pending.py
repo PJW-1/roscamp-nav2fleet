@@ -23,7 +23,7 @@ def test_every_waiting_module_is_a_test_file_of_its_package(package, name):
 
 
 def test_the_reason_is_read_from_the_package_folder_and_the_file_name():
-    assert waiting_reason(Path("x/fleet_core/test/test_manager.py")) == NEEDS_ZONE_TRAFFIC
-    assert waiting_reason(Path("x/fake_robots/test/test_judge.py")) == NEEDS_FLEET_MAP
+    assert waiting_reason(Path("x/fleet_core/test/test_fleet_e2e.py")) == NEEDS_ZONE_TRAFFIC
+    assert waiting_reason(Path("x/fleet_core/test/test_selector.py")) == NEEDS_FLEET_MAP
     assert waiting_reason(Path("x/fake_robots/test/test_manager.py")) is None
     assert waiting_reason(Path("x/fleet_core/test/test_zones.py")) is None

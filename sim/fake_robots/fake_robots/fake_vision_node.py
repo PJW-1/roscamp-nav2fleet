@@ -37,7 +37,7 @@ class FakeVisionNode(Node):
         station = station_with_action(site, "fill")
         if self._arm not in station.arms:
             raise ValueError(f"{self._arm} has no camera on an item area")
-        self._pose = site.waypoint_pose(station.dock)
+        self._pose = site.node_pose(station.dock)
         self._stock = dict(scenario.stock.get(self._arm, {}))
         self._lock = threading.Lock()
         self._pub = self.create_publisher(

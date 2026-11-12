@@ -22,7 +22,7 @@ from .trips import Trip
 
 class Watch:
     def _watch_stall(self, m, now: float) -> None:
-        """goal이 열린 채 제자리이면 거두고 실패한 시도로 센다."""
+        """goal이 열린 채 제자리이면 거두고 실패한 시도로 센다. 끝 지점에 서 있으면 닿은 것이다."""
         p = self.params
         if (m.goal is None or self._run_mode != RUN or m.arrival_by is not None
                 or m.robot_state in (BLOCKED, SELF_RECOVERING)):
@@ -37,9 +37,14 @@ class Watch:
             return
         self._event("WARN", "GOAL_STALLED",
                     f"{m.goal.kind} goal {m.goal.id} open, no movement for {limit:.0f} s", m.name)
-        self._cancel_goal(m)
         m.stall_from = None
-        self._goal_failed(m, STALLED)
+        goal, at_end = m.goal, self._stands_at_end(m)
+        self._cancel_goal(m)
+        if at_end:  # 끝 지점에 서 있다: 열린 goal만 거두고 닿은 것으로 본다
+            m.goal = goal
+            self._arrived_anyway(m, STALLED)
+        else:
+            self._goal_failed(m, STALLED)
 
     def _watch_outside(self, m) -> None:
         """보고 위치가 쥔 구역 밖에 이어서 있으면 사건으로 남긴다. 멈추지는 않는다."""
