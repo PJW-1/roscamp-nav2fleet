@@ -1,4 +1,4 @@
-"""MoveTo mode nav_goal(계약 0.11-draft 제안, 팀 합의 전): Nav2 NavigateToPose로 가는 이동.
+"""MoveTo mode nav_goal(계약 0.11-draft, 사용자 기준): Nav2 NavigateToPose로 가는 이동.
 
 로봇이 target_pose까지 길을 스스로 짜고, 막히면 Nav2 기본 BT가 복구한다(사용자 결정 2026-11-12:
 R14와 핑키 FSM 자가 복구는 follow_path에만). 여기서는 ROS를 모른 채 아래만 정한다.

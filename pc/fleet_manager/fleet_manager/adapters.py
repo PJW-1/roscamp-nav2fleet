@@ -140,7 +140,7 @@ def confirm_clear_args(request) -> tuple[str, list[str], str]:
 def confirm_clear_response(response, released: list[str] | None, reason: str = ""):
     response.accepted = released is not None
     response.released_zones = list(released or [])
-    response.reason = "" if released is not None else str(reason)  # 제안(팀 합의 전)
+    response.reason = "" if released is not None else str(reason)  # 기준(사용자)
     return response
 
 

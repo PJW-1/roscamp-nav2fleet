@@ -1,4 +1,4 @@
-# 비전 장애물 자리(제안, 팀 합의 전, docs/회피_약속.md): 카메라가 본 장애물을 costmap 장애물 층에 넣는다.
+# 비전 장애물 자리(사용자 기준, docs/회피_약속.md): 카메라가 본 장애물을 costmap 장애물 층에 넣는다.
 # launch/nav2.launch.py가 인자 vision_obstacles:=true일 때만 이 파일을 nav2_params.yaml 위에 덧붙인다.
 # 기본은 꺼짐이고, 꺼져 있으면 아무것도 바뀌지 않는다.
 #

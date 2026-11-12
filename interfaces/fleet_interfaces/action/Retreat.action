@@ -1,4 +1,4 @@
-# 제안(팀 합의 전): 관제가 시키는 물러나기. 레인 레포 버전 2 1-A의 Retreat에 path를 더했다.
+# 기준(사용자): 관제가 시키는 물러나기. 레인 레포 버전 2 1-A의 Retreat에 path를 더했다.
 # path가 비면 로봇이 보는 방향 그대로 뒤로 곧게 distance_m을 speed_mps로 간다(Nav2 BackUp, 자가 복구와
 # 같은 실행 코드). path가 있으면 그 꺾은선을 후진으로 따라간다(Nav2 FollowPath, 컨트롤러
 # FollowPathReverse): 첫 점은 로봇이 있는 곳, 끝 점은 설 곳이고 지나온 길을 거꾸로 적은 것이다.
