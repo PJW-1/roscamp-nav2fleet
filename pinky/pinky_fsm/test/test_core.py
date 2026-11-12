@@ -1512,6 +1512,18 @@ def test_the_path_sent_again_near_the_end_also_starts_at_the_robot():
     assert again.poses[-1][:2] == pytest.approx(P4)
 
 
+def test_the_way_ahead_is_watched_on_the_path_that_was_sent():
+    """Nav2 drives the joining piece, so an object on it is in the way."""
+    fsm = ready(pose=BESIDE)
+    move(fsm, "g1", 1.0, path=(P3, P4), target=P4, pose=BESIDE)
+    seen = []
+    for t in (1.1, 2.5):  # 1초 서 있어야 앞을 본다
+        fsm.heartbeat(t)
+        fsm.tick(t, BESIDE, STILL, lambda points: seen.extend(points) or False)
+    assert seen[0] == pytest.approx(BESIDE[:2])
+    assert any(0.36 < x < 0.42 for x, _ in seen), "points on the joining piece"
+
+
 def test_the_join_can_be_switched_off():
     fsm = ready(pose=BESIDE, join_slope=0.0)
     [send] = sends(move(fsm, "g1", 1.0, path=(P3, P4), target=P4, pose=BESIDE))

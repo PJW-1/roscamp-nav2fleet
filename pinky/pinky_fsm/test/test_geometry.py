@@ -217,8 +217,33 @@ def test_without_a_slope_the_start_is_on_the_line_as_before():
     assert joined(LANE, 0.10, (0.43, 0.30), slope=0.0) == rounded_rest(LANE, 0.10, 0.10)
 
 
-def test_vertex_after_is_the_next_vertex_ahead_of_the_point():
-    line = Polyline([(0.0, 0.0), (1.0, 0.0), (1.0, 1.0)])
-    assert line.vertex_after(0.4) == pytest.approx(1.0)
-    assert line.vertex_after(1.0) == pytest.approx(2.0)
-    assert line.vertex_after(2.0) == pytest.approx(2.0)
+def _on_arc(deg, radius=0.10):
+    """A point at deg on the circle of LANE's corner arc (centre 0.25, 0.79; 0 deg is its start)."""
+    a = math.radians(deg)
+    return (0.25 + radius * math.cos(a), 0.79 + radius * math.sin(a))
+
+
+def test_beside_an_arc_the_join_is_ahead_on_the_arc_not_at_its_next_sample():
+    robot = _on_arc(30.0, radius=0.13)  # 호의 바깥쪽으로 0.03 m
+    s, _ = LANE.project(robot)
+    rest = joined(LANE, s, robot)
+    assert rest[0] == pytest.approx(robot)
+    assert rest[1] == pytest.approx(_on_arc(30.0 + math.degrees(0.09 / 0.10)), abs=2e-3)
+
+
+def test_the_join_on_an_arc_ends_with_the_arc():
+    robot = _on_arc(80.0, radius=0.15)  # 0.05 m 밖: 0.15 m 앞은 호의 끝을 넘는다
+    s, _ = LANE.project(robot)
+    assert joined(LANE, s, robot)[1] == pytest.approx((0.25, 0.89), abs=1e-6)
+
+
+def test_a_line_that_comes_back_over_itself_is_followed_from_the_second_pass():
+    there_and_back = Polyline([(0.0, 0.0), (1.0, 0.0), (0.0, 0.0)])
+    assert rounded_rest(there_and_back, 1.8, 0.10) == [pytest.approx((0.2, 0.0)), (0.0, 0.0)]
+    assert joined(there_and_back, 1.8, (0.2, 0.05)) == [
+        pytest.approx((0.2, 0.05)), pytest.approx((0.05, 0.0)), (0.0, 0.0)]
+
+
+def test_a_robot_past_the_end_is_not_sent_back_along_a_new_piece():
+    line = Polyline([(0.0, 0.0), (1.0, 0.0)])
+    assert joined(line, 1.0, (1.05, 0.0)) == [(1.0, 0.0)]

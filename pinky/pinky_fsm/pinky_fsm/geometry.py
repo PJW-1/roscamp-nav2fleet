@@ -12,6 +12,7 @@ Point = tuple[float, float]
 Pose = tuple[float, float, float]
 
 _SAME_M = 1e-6  # 이보다 가까운 이웃 점은 같은 점으로 친다
+ARC_STEP_M = 0.01  # 호를 이 간격의 점으로 편다
 
 
 def _dedup(points: Sequence[Point]) -> list[Point]:
@@ -76,24 +77,46 @@ def _corner_arc(a: Point, b: Point, c: Point, room_in: float, room_out: float,
              centre[1] + r * math.sin(a0 + turn * i / n)) for i in range(n + 1)]
 
 
-def rounded(points: Sequence[Point], radius: float, step: float = 0.01) -> list[Point]:
+def rounded(points: Sequence[Point], radius: float, step: float = ARC_STEP_M) -> list[Point]:
     """꺾은선의 꼭짓점마다 반지름 radius의 호를 넣는다(추가 지시서 3의 2-1).
 
     호가 짧은 선분을 넘지 않게 줄인다: 가운데 선분은 양 끝의 호가 반씩, 첫 선분과 마지막 선분은
     하나뿐인 호가 다 쓸 수 있다. 되돌아가는 꼭짓점(180°)은 둥글게 할 수 없어 그대로 둔다.
     """
+    return _rounded_with_arcs(points, radius, step)[0]
+
+
+def _rounded_with_arcs(points: Sequence[Point], radius: float,
+                       step: float) -> tuple[list[Point], list[tuple[float, float]]]:
+    """rounded의 점들과, 그 선 위에서 호가 놓인 구간들 (시작 s, 끝 s)."""
     pts = _dedup(points)
     if len(pts) < 3 or radius <= 0.0:
-        return pts
+        return pts, []
     last = len(pts) - 2  # 마지막 선분의 번호
     lengths = [math.dist(p, q) for p, q in pairwise(pts)]
-    out = [pts[0]]
+    out, arcs, run = [pts[0]], [], 0.0
     for i in range(1, len(pts) - 1):
         room_in = lengths[i - 1] if i - 1 == 0 else lengths[i - 1] / 2.0
         room_out = lengths[i] if i == last else lengths[i] / 2.0
-        out += _corner_arc(pts[i - 1], pts[i], pts[i + 1], room_in, room_out, radius, step)
+        arc = _corner_arc(pts[i - 1], pts[i], pts[i + 1], room_in, room_out, radius, step)
+        start = run + math.dist(out[-1], arc[0])
+        for p in arc:
+            run += math.dist(out[-1], p)
+            out.append(p)
+        if len(arc) > 1:
+            arcs.append((start, run))
     out.append(pts[-1])
-    return _dedup(out)
+    return _dedup(out), arcs
+
+
+def _piece_end(arcs: Sequence[tuple[float, float]], s: float, length: float) -> float:
+    """s가 놓인 조각(곧은 구간이나 호 하나)이 끝나는 s."""
+    for start, end in arcs:
+        if s < start - _SAME_M:
+            return start
+        if s < end - _SAME_M:
+            return end
+    return length
 
 
 def rounded_rest(route: Polyline, s: float, radius: float, here: Sequence[float] | None = None,
@@ -104,18 +127,24 @@ def rounded_rest(route: Polyline, s: float, radius: float, here: Sequence[float]
 
     here(로봇의 실제 위치)와 join_slope를 주면 둥근 선에서 로봇에 가장 가까운 곳부터 낸다. 로봇이
     선에서 join_min_off 넘게 벗어나 있으면 here에서 시작해, 벗어난 거리의 join_slope배 앞에서 선에
-    붙는다(이음 정밀도, 추가 지시서 3의 2-4). 붙는 곳은 지금 선분의 끝을 넘지 않는다: 꺾이는 곳을
-    가로지르는 지름길은 내지 않는다.
+    붙는다(이음 정밀도, 추가 지시서 3의 2-4). 붙는 곳은 지금 조각(곧은 구간이나 호 하나)의 끝을
+    넘지 않는다: 꺾이는 곳을 가로지르는 지름길은 내지 않는다. 선의 끝에 닿았거나 지나친 로봇에게는
+    끝 점만 낸다: 되돌아가는 조각을 붙이지 않는다.
     """
-    line = Polyline(rounded(route.points, radius))
-    at, _ = line.project(route.point_at(s))
-    if here is None or join_slope <= 0.0:
+    pts, arcs = _rounded_with_arcs(route.points, radius, ARC_STEP_M)
+    line = Polyline(pts)
+    s = min(max(s, 0.0), route.length)
+    # 호는 선을 줄인다. 둥근 선 위의 같은 자리는 s와 s - (줄어든 길이) 사이에 있다. 그 안에서만
+    # 찾아야 같은 곳을 두 번 지나는 선에서 이미 지난 쪽을 고르지 않는다
+    at, _ = line.project(route.point_at(s), s_min=s - (route.length - line.length), s_max=s)
+    if here is None or join_slope <= 0.0 or at >= line.length - _SAME_M:
         return line.rest(at)
     spot = (float(here[0]), float(here[1]))
     at, off = line.project(spot, s_min=at - radius, s_max=at + radius)
-    if off <= join_min_off:
+    if off <= join_min_off or at >= line.length - _SAME_M:
         return line.rest(at)
-    return _dedup([spot, *line.rest(min(at + join_slope * off, line.vertex_after(at)))])
+    join = min(at + join_slope * off, _piece_end(arcs, at, line.length))
+    return _dedup([spot, *line.rest(join)])
 
 
 class Polyline:
@@ -185,10 +214,6 @@ class Polyline:
             if vs <= s + _SAME_M:
                 best = vs
         return best
-
-    def vertex_after(self, s: float) -> float:
-        """s 지점보다 앞(갈 쪽)에 있는 첫 꼭짓점의 s. 없으면 끝이다."""
-        return next((vs for vs in self._s if vs > s + _SAME_M), self.length)
 
     def rest(self, s: float) -> list[Point]:
         """s 지점부터 끝까지. s 뒤의 꼭짓점은 그대로 둔다."""
