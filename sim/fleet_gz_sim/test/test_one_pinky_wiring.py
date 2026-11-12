@@ -29,13 +29,26 @@ def one(monkeypatch, tmp_path):
     return module
 
 
-def run(module):
-    """ros2 launch처럼 인자 기본값을 넣고 OpaqueFunction을 실행한다."""
+def run(module, **overrides):
+    """ros2 launch처럼 인자 기본값을 넣고(overrides로 바꾸고) OpaqueFunction을 실행한다."""
     context = launch.LaunchContext()
     *args, start = module.generate_launch_description().entities
     for action in args:
         action.visit(context)
+    context.launch_configurations.update(overrides)
     return start.execute(context)
+
+
+@pytest.mark.parametrize("text, off", [("true", False), ("false", True)])
+def test_the_fixed_line_check_switch_reaches_pinky(one, monkeypatch, text, off):
+    need("pinky_description", "pinky_nav_config", "pinky_fsm")
+    from fleet_gz_sim import launch_parts
+    seen = {}
+    monkeypatch.setattr(launch_parts, "pinky", lambda *a, **kw: seen.update(kw) or [])
+    run(one, fixed_line_collision_check=text)
+    assert seen["fixed_line_check"] is not off
+    with pytest.raises(ValueError, match="fixed_line_collision_check"):
+        run(one, fixed_line_collision_check="no")
 
 
 def test_domain_6_starts_nothing(one, monkeypatch):
