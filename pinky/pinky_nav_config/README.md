@@ -5,7 +5,7 @@
 | 파일 | 내용 |
 |---|---|
 | `params/nav2_params.yaml` | 제조사 `pinky_navigation` 설정(pinky_pro 014a09f) 위에 전달사항의 nav2_overrides 값을 덮었다. 바꾼 줄마다 이유가 있다 |
-| `bt/navigate_to_pose_w_replanning_and_recovery_goal.xml` | `navigate_to_pose`용 BT(MoveTo mode `nav_goal`, 계약 0.11-draft 제안). Jazzy 기본 BT를 그대로 옮기고 controller만 `FollowPathGoal`로 바꿨다. 1 Hz 재계획, 복구(지도 지우기, Spin, Wait, BackUp)가 있다(사용자 결정 2026-11-12: `nav_goal`에서만) |
+| `bt/navigate_to_pose_w_replanning_and_recovery_goal.xml` | `navigate_to_pose`용 BT(MoveTo mode `nav_goal`, 계약 0.11-draft 제안). Jazzy 기본 BT를 옮기고 controller를 `FollowPathGoal`로 바꿨다. 1 Hz 재계획. 복구는 지도 지우기와 Wait뿐이다: Spin과 BackUp은 뺐다(추가 지시서 3의 7-4, 기준(사용자)). 물러나기는 `pinky_fsm`의 로봇단 교착 처리만 한다 |
 | `params/keepout.yaml` | keepout 덧붙임(제안). `keepout_mask`가 있을 때만 launch가 덧붙인다: global costmap의 keepout 필터와 두 서버 설정 |
 | `params/vision_obstacles.yaml` | 비전 장애물 자리(제안, 기본 꺼짐). `vision_obstacles:=true`일 때만 launch가 덧붙인다: 두 costmap의 장애물 층에 `/<로봇>/vision_obstacles`(PointCloud2)를 관측원으로 더한다. 값은 회피 담당이 정한다 |
 | `launch/nav2.launch.py` | 지도 서버 둘, AMCL, controller, planner, behavior, bt_navigator, lifecycle manager 둘. `keepout_mask`가 있으면 keepout 마스크 서버, 필터 정보 서버, 그 lifecycle manager를 더한다 |
@@ -17,7 +17,7 @@
 - controller_server(`follow_path`, RPP)가 `cmd_vel`로 바로 낸다. controller는 넷이다: `FollowPath`, 잠금 경계 경로용 `FollowPathThrough`, 물러나기 경로용 `FollowPathReverse`(제안, 팀 합의 전. 0.05 m/s 후진, 제자리 회전 없음), Nav2 goal용 `FollowPathGoal`(제안. 지금은 `FollowPath`와 같은 RPP, 충돌 검사 켬. 팀원이 MPPI나 DWB로 바꿀 수 있고 이름만 고정이다). 넷 다 늘 뜬다. velocity_smoother와 collision_monitor는 없다. `pinky_fsm`이 mode `follow_path`에서는 `follow_path`를 바로 부르고, `nav_goal`에서는 `navigate_to_pose`를 부른다.
 - 고정 선(추가지시서3 2-1): `FollowPath`, `FollowPathThrough`, `FollowPathReverse`는 lookahead를 0.10 m로 고정하고(속도에 따라 늘리지 않음) `rotate_to_heading_min_angle`을 0.70 rad로 두었다. 핑키 FSM이 꺾이는 곳을 반지름 0.10 m 호로 바꿔 보내므로 호에서는 제자리 회전을 하지 않는다. `FollowPathGoal`은 바꾸지 않았다. local costmap 발자국은 몸 모양 다각형 14점(몸통과 바퀴, 폭 0.112 m, 회전 중심에서 가장 먼 점 약 0.083 m)이다. global costmap은 마당 NavFn 계획이 바뀌지 않게 옛 정사각형 그대로다(가정).
 - planner는 NavFn이다. global costmap의 inflation만 0.25 m, 6.0으로 넓혔다(local은 0.15 m, 3.0 그대로). 0.38 m 통로에서도 가운데 칸이 INSCRIBED보다 낮아 길이 나오고 가운데가 가장 싸며, 넓은 마당에서는 경로가 벽과 진열대에서 약 0.25 m 떨어진다. Smac 2D로 바꿀 이유는 찾지 못했다(점 로봇 계획으로 충분하고, 몸은 INSCRIBED 반지름 0.09 m로 본다).
-- behavior_server는 `spin`, `backup`, `wait`를 띄운다. `backup`은 `pinky_fsm`의 자가 복구와 물러나기도 쓴다.
+- behavior_server는 `backup`, `wait`를 띄운다(`spin`은 7-4에서 뺐다). `backup`은 `pinky_fsm`의 로봇단 교착 처리, 끈 때의 자가 복구, 물러나기가 쓴다.
 - keepout(제안): `keepout_mask`를 주면 급행과 도크 구역을 global costmap에서 막는다. Nav2 goal 경로(NavFn)만 영향을 받고, FollowPath 셋은 local costmap만 쓰므로 그대로다. 필터는 inflation 뒤에 얹히므로 마스크는 몸 반폭만큼 넓혀 만든다. 마스크는 site 도구가 만든다.
 - AMCL은 1 cm 지도(`map_fine`), costmap은 5 cm 지도(`map`)를 읽는다(R15).
 - local costmap은 0.025 m이고 `always_send_full_costmap: true`다. `pinky_fsm`이 `local_costmap/costmap`으로 BLOCKED를 판단한다.

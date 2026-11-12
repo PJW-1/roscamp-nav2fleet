@@ -20,6 +20,9 @@ def generate_launch_description():
         DeclareLaunchArgument("heartbeat_timeout_s", default_value="1.5",
                               description="0이면 heartbeat가 끊겨도 서지 않는다"
                                           "(관제 없이 시험할 때)"),
+        DeclareLaunchArgument("comm_loss_policy", default_value=FsmParams().comm_loss_policy,
+                              description="order 모델에서 heartbeat가 끊기면: stop(바로 선다)"
+                                          " 또는 base_end(받은 base 끝까지 가서 선다)"),
         DeclareLaunchArgument("through_controller_id", default_value="FollowPathThrough",
                               description="잠금 경계에서 끝나는 경로에 쓸 Nav2 controller"
                                           "(pinky_nav_config가 함께 띄운다)."
@@ -39,6 +42,8 @@ def generate_launch_description():
                                                value_type=bool),
                 "heartbeat_timeout_s": ParameterValue(
                     LaunchConfiguration("heartbeat_timeout_s"), value_type=float),
+                "comm_loss_policy": ParameterValue(
+                    LaunchConfiguration("comm_loss_policy"), value_type=str),
                 "through_controller_id": ParameterValue(
                     LaunchConfiguration("through_controller_id"), value_type=str),
                 "horizon_cap_mps": ParameterValue(

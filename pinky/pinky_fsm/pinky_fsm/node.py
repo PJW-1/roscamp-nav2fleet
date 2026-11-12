@@ -6,7 +6,8 @@
 - 발행: 계약의 robot_state(RobotState, 기본 10 Hz), Nav2 controller의 speed_limit
   (잠금 경계 목표만, 버전 2 4절 제안), order_markers(MarkerArray, order 모델 표시)
 - 구독: 계약의 heartbeat, odom(속도), local costmap(BLOCKED 판단), map과 keepout 마스크
-  (order 모델 horizon 미리 검사)
+  (order 모델 horizon 미리 검사), robots(/fleet/robots: 로봇단 교착 처리에서 앞을 막은 로봇과 그
+  priority. 추가 지시서 3의 7-4, 계약 0.13-draft)
 - MoveTo의 order 칸(계약 0.11-draft 제안)은 order_ros가 바꾸고 order_fsm.OrderFsm이 판단한다
 - 액션 클라이언트: Nav2 controller의 follow_path(FollowPath, follow_ros.py), behavior_server의
   backup(BackUp, 자가 복구. 핑키_계약 3절 7번 2026-11-09 제안), bt_navigator의
@@ -23,7 +24,8 @@ import threading
 import time
 
 import rclpy
-from fleet_interfaces.msg import RobotState
+from fleet_interfaces.msg import RobotState, RobotStatusArray
+from fleet_interfaces.srv import CheckClear
 from geometry_msgs.msg import Pose2D
 from nav2_msgs.msg import SpeedLimit
 from nav2_msgs.srv import ClearEntireCostmap
@@ -53,8 +55,10 @@ from pinky_fsm.core import (
 from pinky_fsm.costmap import Grid, obstacle_on, to_frame
 from pinky_fsm.follow_ros import FollowPathRunner
 from pinky_fsm.geometry import quaternion_yaw
+from pinky_fsm.local_yield import peers_from
 from pinky_fsm.nav_goal import CancelNavGoal, SendNavGoal
 from pinky_fsm.nav_goal_ros import NavGoalRunner
+from pinky_fsm.obstacle_report import UNKNOWN, clear_answer, nearest_ahead
 from pinky_fsm.order_fsm import OrderFsm, OrderParams
 from pinky_fsm.order_ros import OrderMaps, OrderMarkers
 from pinky_fsm.server_ros import GoalServers
@@ -74,7 +78,9 @@ _FLOAT_PARAMS = (
     # 잠금 경계 목표의 속도 제한(버전 2 4절 horizon 최소판)
     "horizon_decel_mps2", "horizon_min_mps", "horizon_cap_mps", "horizon_latency_s",
     # mode nav_goal의 BLOCKED(계약 0.11-draft 제안)
-    "blocked_after_s", "nav_progress_m")
+    "blocked_after_s", "nav_progress_m",
+    # 로봇단 교착 처리(추가 지시서 3의 7-4)
+    "local_wait_s", "local_backup_m", "local_peer_near_m", "peers_timeout_s")
 _INT_PARAMS = ("recovery_attempts",)
 _ORDER_PARAMS = ("join_m", "pass_m")  # order 모델(계약 0.11-draft 제안). 이름 앞에 order_
 MARKER_PERIOD_S = 0.5
@@ -109,6 +115,8 @@ class PinkyFsmNode(Node):
         declare("state_rate_hz", 10.0)
         declare("control_rate_hz", 20.0)
         declare("pose_timeout_s", 1.0)
+        # BLOCKED와 함께 보고할 장애물 칸을 가던 길 앞 이만큼 안에서 찾는다(계약 0.12-draft)
+        declare("obstacle_look_m", 0.30)
         # order 모델(계약 0.11-draft 제안): horizon 미리 검사에 쓰는 지도와 keepout 마스크, 표시
         declare("map_topic", "map")
         declare("keepout_mask_topic", "keepout_filter_mask")  # 비면 keepout 검사를 하지 않는다
@@ -120,11 +128,14 @@ class PinkyFsmNode(Node):
             declare(name, float(getattr(d, name)))
         for name in _INT_PARAMS:
             declare(name, int(getattr(d, name)))
+        declare("comm_loss_policy", d.comm_loss_policy)  # stop / base_end. 다른 값은 시작에서 거절
+        declare("local_yield", d.local_yield)  # 끄면 0.12까지의 자가 복구
         get = self.get_parameter
         self.robot_id = get("robot_id").value
         self._map_frame = get("map_frame").value
         self._base_frame = get("base_frame").value
         self._pose_timeout = float(get("pose_timeout_s").value)
+        self._look_m = float(get("obstacle_look_m").value)
         self._nav_ids = (get("controller_id").value, get("goal_checker_id").value,
                          get("progress_checker_id").value)
         self._through_id = get("through_controller_id").value
@@ -134,11 +145,13 @@ class PinkyFsmNode(Node):
                                callback_group=group)
         self._fsm = OrderFsm(
             FsmParams(**{name: float(get(name).value) for name in _FLOAT_PARAMS},
-                      **{name: int(get(name).value) for name in _INT_PARAMS}),
+                      **{name: int(get(name).value) for name in _INT_PARAMS},
+                      comm_loss_policy=str(get("comm_loss_policy").value),
+                      local_yield=bool(get("local_yield").value)),
             OrderParams(**{name: float(get(f"order_{name}").value) for name in _ORDER_PARAMS}),
-            horizon_check=self._maps.check)
+            horizon_check=self._maps.check, robot_id=self.robot_id)
         self._markers = OrderMarkers(self, get("order_markers_topic").value, self._map_frame)
-        self._last_state = ""
+        self._last_state = ("", "")  # (state, local_yield) 로그용
         contract = load_contract(get("contract_file").value or default_contract_path())
 
         self._lock = threading.RLock()
@@ -158,6 +171,8 @@ class PinkyFsmNode(Node):
             to_ros_qos(contract.qos("robot_state")))
         self.create_subscription(Header, contract.name("heartbeat"), self._on_heartbeat,
                                  to_ros_qos(contract.qos("heartbeat")), callback_group=group)
+        self.create_subscription(RobotStatusArray, contract.name("robots"), self._on_fleet_robots,
+                                 to_ros_qos(contract.qos("robots")), callback_group=group)
         self.create_subscription(Odometry, get("odom_topic").value, self._on_odom,
                                  qos_profile_sensor_data, callback_group=group)
         # Nav2 costmap은 reliable로 발행한다. volatile로 받으면 transient_local 발행과도 맞는다
@@ -178,6 +193,9 @@ class PinkyFsmNode(Node):
                                     self._on_goal_cancel, callback_group=group)
         self._clear = self.create_client(ClearEntireCostmap, get("clear_costmap_service").value,
                                          callback_group=group)
+        # 관제의 CheckClear(계약 0.12-draft): 막힘 표시의 점 둘레가 비었는가
+        self.create_service(CheckClear, contract.name("check_clear", pinky=self.robot_id),
+                            self._on_check_clear, callback_group=group)
         self._servers = GoalServers(self, contract, self.robot_id, group, self._lock, self._fsm,
                                     self._pose, self._run, lambda: self._alive)
         # 판단과 보고는 벽시계로 돈다(heartbeat는 벽시계로 재야 하고, 시뮬 시계가 멈춰도 보고한다)
@@ -213,6 +231,12 @@ class PinkyFsmNode(Node):
         with self._lock:
             self._fsm.heartbeat(time.monotonic())
 
+    def _on_fleet_robots(self, msg: RobotStatusArray) -> None:
+        """관제가 아는 로봇들의 위치와 priority(로봇단 교착 처리). 받은 시각으로 오래됐는지 본다."""
+        peers = peers_from(msg.robots)
+        with self._lock:
+            self._fsm.see_peers(time.monotonic(), peers)
+
     def _on_odom(self, msg: Odometry) -> None:
         t = msg.twist.twist
         self._speed = (math.hypot(t.linear.x, t.linear.y), t.angular.z)
@@ -240,6 +264,46 @@ class PinkyFsmNode(Node):
             return None  # AMCL이 멈췄다
         q, p = tf.transform.rotation, tf.transform.translation
         return (p.x, p.y, quaternion_yaw(q.x, q.y, q.z, q.w), tf.header.stamp)
+
+    def _costmap_tf(self, frame):
+        """costmap 틀에서 본 map 틀의 자세 (x, y, yaw). 같은 틀이면 0이고, 모르면 None."""
+        if not frame or frame == self._map_frame:
+            return (0.0, 0.0, 0.0)
+        try:
+            tf = self._tf.lookup_transform(frame, self._map_frame, Time())
+        except TransformException:
+            return None
+        q, p = tf.transform.rotation, tf.transform.translation
+        return (p.x, p.y, quaternion_yaw(q.x, q.y, q.z, q.w))
+
+    def _obstacle_ahead(self, pose):
+        """BLOCKED로 선 로봇 앞의 가장 가까운 장애물 칸(map 좌표, 계약 0.12-draft). 모르면 None."""
+        costmap = self._costmap
+        if costmap is None or pose is None:
+            return None
+        grid, frame = costmap
+        tf = self._costmap_tf(frame)
+        if tf is None:
+            return None
+        [(x, y)] = to_frame([pose[:2]], tf)
+        found = nearest_ahead(grid, x, y, pose[2] + tf[2], self._look_m)
+        if found is None:
+            return None
+        dx, dy = found[0] - tf[0], found[1] - tf[1]  # costmap 틀에서 map 틀로 되돌린다
+        c, s = math.cos(-tf[2]), math.sin(-tf[2])
+        return (c * dx - s * dy, s * dx + c * dy)
+
+    def _on_check_clear(self, request, response):
+        """관제의 CheckClear(계약 0.12-draft): map 좌표 (x, y)의 반경 r 안에 장애물 칸이 있는가."""
+        costmap = self._costmap
+        response.answer = UNKNOWN
+        if costmap is not None:
+            grid, frame = costmap
+            tf = self._costmap_tf(frame)
+            if tf is not None:
+                [(x, y)] = to_frame([(request.x, request.y)], tf)
+                response.answer = clear_answer(grid, x, y, float(request.r))
+        return response
 
     def _obstacle(self, points) -> bool:
         costmap = self._costmap
@@ -366,11 +430,12 @@ class PinkyFsmNode(Node):
     def _log_state(self) -> None:
         """자가 복구가 들고 나는 것을 남긴다(시뮬 기록과 맞춰 보려고)."""
         state = self._fsm.state()
-        if state != self._last_state and RECOVERING in (state, self._last_state):
-            self.get_logger().info(f"state {self._last_state} -> {state} "
+        step = self._fsm.local_yield_step()
+        if (state, step) != self._last_state and RECOVERING in (state, self._last_state[0]):
+            self.get_logger().info(f"state {self._last_state[0]} -> {state} {step} "
                                    f"(self-recovery attempts used "
                                    f"{self._fsm.recovery_attempts_used})")
-        self._last_state = state
+        self._last_state = (state, step)
 
     def _publish_markers(self) -> None:
         with self._lock:
@@ -384,9 +449,15 @@ class PinkyFsmNode(Node):
     def _publish_state(self) -> None:
         with self._lock:
             state, goal = self._fsm.state(), self._fsm.current_goal()
+            step = self._fsm.local_yield_step()  # 로봇단 교착 처리의 단계(계약 0.13-draft)
             pose = self._pose()
         msg = RobotState(robot_id=self.robot_id, battery=float(self._battery), state=state,
-                         current_goal=goal)
+                         current_goal=goal, obstacle_x=math.nan, obstacle_y=math.nan,
+                         local_yield=step)
+        seen = self._obstacle_ahead(pose) if state == RobotState.STATE_BLOCKED else None
+        if seen is not None:
+            msg.obstacle_x, msg.obstacle_y = float(seen[0]), float(seen[1])
+            msg.obstacle_kind = RobotState.OBSTACLE_UNKNOWN  # 비전이 들어오면 채운다
         if pose is not None and state != RobotState.STATE_LOCALIZING:
             msg.pose = Pose2D(x=float(pose[0]), y=float(pose[1]), theta=float(pose[2]))
             msg.stamp = pose[3]  # 위치를 잰 시각(계약 2절)

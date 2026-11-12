@@ -181,6 +181,7 @@ class Goals:
             self._lane_set(m, lane, want, now)
         self._event("INFO", "ZONE_GRANTED",
                     f"{'+'.join(zones)} to {trip.links[end - 1].b}", m.name)
+        self._note_detour(m, trip)  # 막힌 뒤 처음 잡은 길이면 우회 종류(block_marks.py)
         return None
 
     def _rivals(self, m, lane: str, direction: str) -> dict:

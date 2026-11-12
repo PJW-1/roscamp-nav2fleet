@@ -24,6 +24,11 @@ string stitch_node_id
 Segment[] base
 # 아직 허락하지 않은 조각. 매번 통째로 바꾼다. 로봇은 참고만 한다
 Segment[] horizon
+# 기준(사용자, 계약 0.13, 추가 지시서 3의 7-4): 로봇단 교착 처리의 우선순위. 클수록 비킬 때 잃는 일이
+# 많다(관제 deadlock.priority). 앞을 막은 다른 로봇과 마주 서면 (priority, robot_id)가 작은 쪽만
+# 물러난다. 다른 로봇의 값은 /fleet/robots의 priority로 안다. -1이면 비었고, 한쪽이라도 비거나 둘이
+# 같으면 robot_id 순이다. order goal이면 그 order의 모든 조각에 쓴다
+int32 priority -1
 ---
 string REASON_NAV_ABORTED="NAV_ABORTED"
 string REASON_CANCELED="CANCELED"

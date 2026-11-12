@@ -43,6 +43,8 @@ def obstacle(_points):
 
 
 def ready(t=0.0, pose=(*P3, NORTH), **params):
+    # 이 파일은 로봇단 교착 처리(7-4) 전의 자가 복구를 본다(스위치 끔). 켠 것은 test_yield_core.py
+    params.setdefault("local_yield", False)
     fsm = PinkyFsm(FsmParams(**params))
     fsm.tick(t, pose, STILL, no_obstacle)
     return fsm

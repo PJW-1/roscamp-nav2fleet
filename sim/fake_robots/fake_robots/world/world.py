@@ -26,10 +26,10 @@ from .invariants import Invariants
 from .link import Link
 from .metrics import Metrics
 from .order_metrics import OrderMetrics
-from .order_run import OrderRun
+from .order_run import OrderRun, stops_for_lost_contact
 from .reaction import ReactionWatch
 from .robot import Imperfections, SimRobot, profile_for
-from .runs import DOCK, Result
+from .runs import DOCK, HEARTBEAT_LOST, Result
 from .stations import Arms, Central, six_orders
 
 DT = 0.1
@@ -169,6 +169,10 @@ class ZoneWorld(Commands, Link):
     def _fire(self) -> None:
         for name, r in self.robots.items():
             r.comm_up = not self.schedule.comm_down(name, self.t)
+            if r.comm_up:
+                r.comm_down_since = None
+            elif r.comm_down_since is None:
+                r.comm_down_since = self.t
             r.stuck = self.schedule.stuck(name, self.t)
         for item in self.schedule.due(self.t):
             if isinstance(item, OrderFault):
@@ -212,13 +216,16 @@ class ZoneWorld(Commands, Link):
             run = r.run
             if r.removed or run is None:
                 continue
-            if r.stuck and run.kind != DOCK:
+            if isinstance(run, OrderRun) and stops_for_lost_contact(self.params, r, self.t):
+                result = run.done(False, HEARTBEAT_LOST)  # 멈춘 로봇도 heartbeat 끊김은 안다
+            elif r.stuck and run.kind != DOCK:
                 run.stuck_s = getattr(run, "stuck_s", 0.0) + DT
                 if run.stuck_s >= STUCK_TIMEOUT_S - 1e-9:
                     r.run = None
                     self._finished(name, Result(run.kind, run.goal_id, False, "TIMEOUT"))
                 continue
-            result = run.step(self, r)
+            else:
+                result = run.step(self, r)
             if result is not None:
                 r.run = None
                 view = self.traffic.robot_view(name) if self.traffic is not None else {}

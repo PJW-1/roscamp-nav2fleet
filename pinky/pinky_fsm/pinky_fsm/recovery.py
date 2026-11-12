@@ -19,11 +19,15 @@ Obstacle = Callable[[list[Point]], bool]
 
 class SelfRecovery:
     def _can_recover(self, pose) -> bool:
-        return pose is not None and self._attempts < self.p.recovery_attempts
+        # 로봇단 교착 처리(7-4)는 한 자리에서 한 번이다
+        limit = 1 if self.p.local_yield else self.p.recovery_attempts
+        return pose is not None and self._attempts < limit
 
     def _start_attempt(self, g: _Move, now: float, pose: Sequence[float]) -> list:
         """FollowPath를 멈추고(BackUp과 둘 다 cmd_vel을 낸다) 물러난다. 물러날 자리가 없으면
-        바로 지도를 비우고 다시 보낸다."""
+        바로 지도를 비우고 다시 보낸다. 로봇단 교착 처리(7-4)를 켰으면 먼저 기다린다."""
+        if self.p.local_yield:
+            return self._start_yield(g, now, pose)
         self._attempts += 1
         if self._attempt_origin is None:
             self._attempt_origin = (float(pose[0]), float(pose[1]))
@@ -73,6 +77,10 @@ class SelfRecovery:
             return []
         if not isinstance(g, _Move) or pose is None:
             return []
+        if r.local:
+            cmds = self._watch_yield(now, g, pose, obstacle)
+            if cmds is not None:
+                return cmds
         if r.backup_seq is not None:
             limit = self.p.backup_time_allowance_s + self.p.backup_result_grace_s
             if now - r.backup_since < limit:

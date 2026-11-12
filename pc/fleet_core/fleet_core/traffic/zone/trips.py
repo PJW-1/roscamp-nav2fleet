@@ -121,7 +121,7 @@ def _line(links, x: float, y: float) -> tuple[list, list]:
 
 
 def move_command(site, robot: str, goal_id: int, links, x: float, y: float,
-                 after=None) -> MoveCmd:
+                 after=None, priority: int = -1) -> MoveCmd:
     """조각 하나(links)를 달리는 MoveCmd. after는 그다음에 달릴 연결이다(없으면 None).
 
     Nav2 goal의 방향은 지점에 적힌 방향이다. 없으면 이어질 고정 경로의 방향, 그것도 없으면
@@ -135,11 +135,13 @@ def move_command(site, robot: str, goal_id: int, links, x: float, y: float,
             yaw = heading(*_pieces(after)[0])
         else:
             yaw = heading((x, y), (node.x, node.y))
-        return MoveCmd(robot, goal_id, node.id, node.x, node.y, yaw, (), True, NAV_GOAL)
+        return MoveCmd(robot, goal_id, node.id, node.x, node.y, yaw, (), True, NAV_GOAL,
+                       priority)
     points, yaws = _line(links, x, y)
     end_yaw = node.yaw if node.yaw is not None else yaws[-1]
     path = tuple((px, py, yaw) for (px, py), yaw in zip(points, [*yaws, end_yaw], strict=True))
-    return MoveCmd(robot, goal_id, node.id, node.x, node.y, end_yaw, path, True, FOLLOW_PATH)
+    return MoveCmd(robot, goal_id, node.id, node.x, node.y, end_yaw, path, True, FOLLOW_PATH,
+                   priority)
 
 
 def retreat_command(params, robot: str, goal_id: int, links, x: float, y: float) -> RetreatCmd:

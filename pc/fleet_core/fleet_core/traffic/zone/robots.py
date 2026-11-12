@@ -103,6 +103,12 @@ class Robot:
     start_since: float = 0.0
     start_done: bool = False  # 그 goal은 다 보았다
     self_recovery_since: float | None = None
+    # 로봇단 교착 처리(추가 지시서 3의 7-4): 마지막 보고의 단계(wait/backup/retry), 이번 처리의
+    # 시작, 마지막으로 LOCAL_YIELD를 낸 단계
+    local_yield: str = ""
+    local_yield_since: float | None = None
+    local_yield_noted: str = ""
+    sent_priority: int = -1  # 마지막으로 보낸 MoveTo의 priority(/fleet/robots에 보인다)
     clear_n: dict = field(default_factory=dict)  # 뒤의 구역이나 지점 -> 벗어난 연속 보고 수
     outside_n: int = 0  # 쥔 구역 밖으로 벗어난 연속 보고 수
     outside_noted: bool = False
@@ -110,6 +116,12 @@ class Robot:
     yielded: tuple | None = None  # 마지막으로 비켜 선 (x, y, 시각)
     retreat_to: str = ""  # 막혀서 물러나는 중이면 물러날 지점
     backoff_from: tuple | None = None  # 마당 물러나기를 시작한 자리
+    # 마지막 보고의 장애물 (x, y, 종류). 로봇이 모르면 None(추가 지시서 3의 4-1)
+    obstacle: tuple | None = None
+    # 막혀 길을 버렸다: (그때의 목적지, 그때 지나던 구역들). 다음에 잡은 길로 우회 종류를 센다
+    detour: tuple | None = None
+    # 다른 로봇에 막혀 표시 없이 비킨 시각. blocked_retry_s 안에 또 막히면 예전처럼 표시한다
+    robot_yield_at: float | None = None
 
     @property
     def live(self) -> bool:

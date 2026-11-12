@@ -7,6 +7,7 @@ from pathlib import Path
 import yaml
 
 DEFAULT_PARAMS = Path(__file__).parents[1] / "data" / "fleet_params.yaml"
+COMM_LOSS_POLICIES = ("stop", "base_end")
 
 
 @dataclass(frozen=True)
@@ -102,9 +103,27 @@ class FleetParams:
     use_order_model: bool = False
     lookahead_s: float = 2.0  # base 끝까지 이만큼 남으면 다음 구역을 잡아 본다
     comm_base_hold_extra_s: float = 3.0  # 끊긴 로봇의 base 구역을 base 끝 ETA + 이만큼 쥔다
+    # 끊긴 order 로봇이 서는 방식: stop(바로) 또는 base_end(base 끝까지). 정하는 것은 로봇의
+    # pinky_fsm 파라미터다. 여기 값은 머리 없는 세계의 로봇이 따른다. 관제의 구역 쥐기는 이
+    # 값과 무관하다(길게 쥐는 쪽이라 두 쪽이 달라도 안전하다)
+    comm_loss_policy: str = "stop"
     # 시험 판정(추가 지시서 2, 2026-11-12). 0이면 끈다. 이 값이 없던 기록은 감시 없이 재생한다
     silent_limit_s: float = 0.0  # 갈 곳이 있는 로봇이 나아가지 않고 관제도 말이 없으면 SILENT_STALL
     start_limit_s: float = 0.0  # goal을 보낸 뒤 이만큼 안에 2 cm 넘게 움직이지 않으면 NO_START
+    # 막힘 처리 보완(추가 지시서 3의 4절, 기준(사용자)). 이 값이 없던 기록은 장애물 위치가 없으므로
+    # 예전 규칙 7 그대로 재생한다
+    blocked_by_position: bool = True  # 끄면 장애물 위치를 보지 않는다(예전 규칙 7, 비교용)
+    obstacle_look_m: float = 0.30  # 로봇이 가던 길 앞 이만큼 안의 가장 가까운 장애물 칸을 보고한다
+    check_range_m: float = 0.6  # 막힘 표시의 점에서 이만큼 안에 있는 로봇에게 CheckClear를 묻는다
+    check_radius_m: float = 0.10  # CheckClear의 r: 그 점에서 이만큼 안에 장애물 칸이 있으면 blocked
+    check_interval_s: float = 5.0  # 한 표시에 이만큼마다 한 번을 넘게 묻지 않는다
+    clear_confirm: int = 2  # clear 답이 이만큼 이어지면 표시를 지운다(BLOCK_CLEARED)
+    blocked_retry_max_s: float = 300.0  # 다시 막히면 두 배로 늘리는 지우기 시간의 상한
+
+    def __post_init__(self):
+        if self.comm_loss_policy not in COMM_LOSS_POLICIES:
+            raise ValueError(f"comm_loss_policy must be one of {COMM_LOSS_POLICIES}, "
+                             f"got {self.comm_loss_policy!r}")
 
 
 def load_params(path=None) -> FleetParams:

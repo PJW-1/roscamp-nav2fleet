@@ -3,7 +3,7 @@
 import math
 
 import pytest
-from fake_robots.world import CommLoss, Obstacle
+from fake_robots.world import CommLoss, Obstacle, Stuck
 from fleet_core.common.commands import MoveOrderCmd, SegmentOut
 from world_helpers import quiet_world
 
@@ -82,13 +82,43 @@ def test_an_update_with_no_order_running_is_refused():
     assert answers(world, "on_move_result")[0][:2] == (2, False)
 
 
-def test_without_contact_the_robot_drives_on_to_the_base_end():
-    world = quiet_world(injections=[CommLoss("pinky1", 0.5, 60.0)])
+def test_without_contact_the_robot_drives_on_to_the_base_end_under_base_end():
+    world = quiet_world(injections=[CommLoss("pinky1", 0.5, 60.0)],
+                        overrides={"comm_loss_policy": "base_end"})
     world.send(order(1, [seg(world, 1, ["P-1", "N_W"]), seg(world, 2, ["N_W", "X_W"])],
                      [seg(world, 3, ["X_W", "W"])]))
     world.run(30.0)
     assert at(world, "X_W")
     assert all(t < 0.5 for t, _ in world.manager.of("on_move_feedback", "pinky1"))
+
+
+def test_without_contact_the_robot_stops_at_once_under_stop():
+    """The result is held until contact is back; last_done_seq_id is the last finished segment."""
+    world = quiet_world(injections=[CommLoss("pinky1", 3.0, 20.0)])
+    assert world.params.comm_loss_policy == "stop"
+    world.send(order(1, [seg(world, 1, ["P-1", "N_W"]), seg(world, 2, ["N_W", "X_W"])],
+                     [seg(world, 3, ["X_W", "W"])]))
+    world.run(2.9)
+    r = world.robots["pinky1"]
+    run = r.run
+    assert run is not None and not at(world, "X_W")
+    world.run(1.6)  # silent for heartbeat_timeout_s
+    assert r.run is None, "stopped"
+    stopped = r.pose
+    world.run(10.0)
+    assert r.pose == stopped and not at(world, "X_W")
+    assert not answers(world, "on_move_result"), "the result waits for contact"
+    world.run(8.0)
+    assert answers(world, "on_move_result") == [(1, False, "HEARTBEAT_LOST", run.done_seq)]
+
+
+def test_a_stuck_robot_without_contact_still_ends_with_heartbeat_lost():
+    world = quiet_world(injections=[CommLoss("pinky1", 1.0, 20.0), Stuck("pinky1", 1.5)])
+    world.send(order(1, [seg(world, 1, ["P-1", "N_W"]), seg(world, 2, ["N_W", "X_W"])],
+                     [seg(world, 3, ["X_W", "W"])]))
+    world.run(25.0)
+    [(goal, ok, reason, _)] = answers(world, "on_move_result")
+    assert (goal, ok, reason) == (1, False, "HEARTBEAT_LOST")
 
 
 def test_an_obstacle_on_the_base_stops_the_robot_short_of_it():

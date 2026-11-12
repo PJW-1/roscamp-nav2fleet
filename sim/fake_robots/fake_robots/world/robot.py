@@ -41,6 +41,7 @@ class SimRobot:
     profile: Profile = field(default_factory=Profile)
     run: object | None = None  # 지금 하는 goal(world/runs.py)
     comm_up: bool = True
+    comm_down_since: float | None = None  # 끊긴 시각. 이어져 있으면 None
     removed: bool = False
     stuck: bool = False
     docked_at: str = ""

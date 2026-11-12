@@ -1,5 +1,6 @@
 """fleet_core 레코드와 ROS 메시지 사이의 변환은 모듈 하나에 모여 있다."""
 import math
+from dataclasses import replace
 
 import pytest
 
@@ -129,6 +130,23 @@ def test_a_move_goal_says_whether_its_end_is_the_last_point():
     assert adapters.move_goal(MoveCmd("pinky1", 7, "N", 1.0, 2.0, 0.0)).final_goal is True
     move = adapters.move_goal(MoveCmd("pinky1", 7, "N", 1.0, 2.0, 0.0, (), False))
     assert move.final_goal is False
+
+
+def test_move_goals_carry_the_yield_priority_and_an_empty_one_is_minus_one():
+    """로봇단 교착 처리(추가 지시서 3의 7-4, 계약 0.13-draft)."""
+    assert adapters.move_goal(MoveCmd("pinky1", 7, "N", 1.0, 2.0, 0.0, priority=3)).priority == 3
+    assert adapters.move_goal(MoveCmd("pinky1", 7, "N", 1.0, 2.0, 0.0)).priority == -1
+    assert MoveTo.Goal().priority == -1
+    assert adapters.move_order_goal(replace(_order_cmd(), priority=2)).priority == 2
+
+
+def test_the_robot_state_step_is_read_and_the_status_shows_the_priority():
+    msg = RobotState(state="RECOVERING", local_yield=RobotState.LOCAL_YIELD_BACKUP)
+    assert adapters.robot_local_yield(msg) == "backup"
+    assert adapters.robot_local_yield(RobotState()) == ""
+    view = RobotStatusView("pinky1", "MOVING", "", "", "NONE", "", "", (), 90.0, 0.0, 0.0, 0.0,
+                           priority=4)
+    assert adapters.robots_to_msg([view], 0.0).robots[0].priority == 4
 
 
 def test_a_straight_retreat_goal_copies_distance_and_speed_and_sends_no_path():

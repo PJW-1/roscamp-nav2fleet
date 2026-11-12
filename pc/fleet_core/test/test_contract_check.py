@@ -103,4 +103,4 @@ def test_real_only_entries_are_skipped_unless_asked(contract):
     assert compare(contract, obs) == []
     names = {p.name for p in compare(contract, obs, include_real_only=True)}
     assert names == {f"/pinky{i}/{action}" for i in (1, 2, 3)
-                     for action in ("navigate_to_pose", "follow_path")}
+                     for action in ("navigate_to_pose", "follow_path", "check_clear")}

@@ -17,6 +17,9 @@ from probe import WAYPOINTS, Probe, lane_goal  # noqa: E402
 
 def start(harness, heartbeat_timeout_s=0.0, nav=True, beat_hz=0.0, **fsm_params):
     from pinky_fsm.node import PinkyFsmNode
+    # 이 파일은 로봇단 교착 처리(7-4) 전의 자가 복구를 본다(스위치 끔). 켠 것은
+    # test_ros_local_yield.py
+    fsm_params.setdefault("local_yield", False)
     fake = harness.add(FakeNav()) if nav else None
     harness.add(PinkyFsmNode(parameter_overrides=harness.params(
         robot_id="pinky1", contract_file=str(CONTRACT),
