@@ -1,6 +1,7 @@
 # operator_recovery처럼 운영자가 로봇을 치운 뒤, 다시 투입한다(11-06 6번).
 # pinky2를 40초에 들어내 confirm_clear로 푼다. 쥐고 있던 주문이 있으면 맨 앞으로 돌아간다.
-# 나머지 둘이 앞 주문을 끝내고 대기한 뒤 160초에 pinky2를 빈 바구니와 함께 제 자리 P-2에 다시 놓는다.
+# 나머지 둘이 앞 주문을 끝내고 대기한 뒤 160초에 pinky2를 빈 바구니와 함께 빈 주차 자리 P-1에 다시 놓는다.
+# (구역 관제(D2)에서는 그때 pinky3이 P-2에 서 있다. 레인 관제 때는 P-2가 비어 있었다)
 # 심판이 reinstate를 부르고, 플릿 매니저는 다음 위치 보고로 pinky2를 맵에 올린다.
 # 200초에 주문 넷이 한꺼번에 와서 세 대 모두 불린다. pinky2도 주문을 받아 끝내야 한다.
 seed: 31
@@ -23,7 +24,7 @@ arm: {seconds_per_item: 4.0, swap_seconds: 8.0, fail_rate: 0.0}
 dock: {duration_s: 1.0, error_cm: 1.0}
 faults:
   - {at_s: 40, robot: pinky2, type: operator_remove}
-  - {at_s: 160, robot: pinky2, type: operator_reinstate, start: P-2, basket: EMPTY}
+  - {at_s: 160, robot: pinky2, type: operator_reinstate, start: P-1, basket: EMPTY}
 expect:
   robot_idle: null  # 고장 시나리오는 ROBOT_IDLE을 세지 않는다(1.1 지시서 H2)
   all_orders_finished: true
