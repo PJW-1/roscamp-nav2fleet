@@ -7,6 +7,7 @@ import math
 
 import pytest
 from fleet_core.common.commands import DispatchResult, DockCmd, MoveCmd, RobotIsolated
+from fleet_core.fleet_map import SHARED
 from fleet_core.traffic.mission import HEARTBEAT_LOST, NOT_AT_TARGET
 from zone_harness import Harness
 
@@ -175,6 +176,22 @@ def test_a_robot_that_could_not_join_stays_off_the_node_while_its_report_wanders
     again = world.sent(MoveCmd, "pinky2")[-1]
     assert (again.mode, again.target_id) == ("nav_goal", "N_W"), "not the same line once more"
     assert world.codes("pinky2").count("GOAL_RETRY") == 1 and world.result_of(call) is None
+
+
+def test_a_robot_that_could_not_join_and_now_stands_in_the_junction_gets_the_line_again():
+    """넓은 구역 밖에서는 Nav2 goal로 지점에 돌아갈 수 없다. 거기서도 좁은 기준을 쓰면 지점
+    위도 아니고 길도 못 잡는 로봇이 된다: 갈림목 안의 로봇은 전처럼 0.15 m로 본다."""
+    world, call = beside_the_node()
+    world.traffic.on_move_result("pinky2", last_goal(world), False, "PATH_NOT_CONNECTED")
+    bot = world.bots["pinky2"]
+    x, y = world.site.node_pose("N_W")
+    bot.x, bot.y = x, y + 0.145  # 손으로 옮겼다: N_W에서 X_W로 가는 선 위, 갈림목 안이다
+    assert world.site.zones[world.site.zone_at(bot.x, bot.y)].kind != SHARED
+    world.run(world.params.move_retry_wait_s + 0.3)
+    sent = world.sent(MoveCmd, "pinky2")
+    assert len(sent) == 2, "it is not left without a way"
+    assert (sent[-1].mode, sent[-1].target_id) == ("follow_path", "W")
+    assert world.result_of(call) is None
 
 
 def test_a_robot_that_cannot_join_a_line_outside_a_shared_zone_is_still_retried_and_isolated():
