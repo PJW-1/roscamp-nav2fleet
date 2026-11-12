@@ -70,6 +70,12 @@ def test_an_unseen_cell_just_outside_the_circle_does_not_count():
     assert clear_answer(g, 1.005, 1.025, 0.10) == UNKNOWN, "0.095 m: it overlaps"
 
 
+def test_an_unseen_cell_the_circle_touches_at_its_corner_counts():
+    """원이 칸 (22, 22)의 모서리 (1.10, 1.10)에 꼭 닿는다(0.06, 0.08, 0.10). 부동소수점으로는
+    거리가 0.10000000000000009로 나와서, 그대로 비교하면 걸치지 않았다고 보고 clear라고 답한다."""
+    assert clear_answer(grid({(22, 22): -1}), 1.04, 1.02, 0.10) == UNKNOWN
+
+
 def test_a_rotated_grid_checks_its_own_edges():
     """돌아간 격자에서 원이 왼쪽 변 밖으로 0.005 m 나간다. 월드 여덟 방향 표본으로는 놓친다."""
     yaw = math.pi / 8

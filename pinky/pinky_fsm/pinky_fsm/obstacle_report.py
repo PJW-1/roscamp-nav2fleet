@@ -13,6 +13,7 @@ LETHAL = 100  # 장애물 칸 자체. 99(INSCRIBED) 아래는 부풀린 둘레�
 AHEAD_HALF_WIDTH_M = 0.12  # 가던 길 앞의 띠 반폭: 발자국 반 대각선 0.085 m + 칸 하나 남짓
 CLEAR, BLOCKED, UNKNOWN = "clear", "blocked", "unknown"  # CheckClear.srv의 ANSWER_*
 MAX_AGE_S = 2.0  # 이보다 오래된 costmap으로는 답하지 않는다(local costmap은 보통 5 Hz 안팎)
+TOUCH_M = 1e-6  # 원이 칸에 꼭 닿으면 걸친 것으로 본다(부동소수점 오차보다 크고 칸보다 작다)
 
 
 def _cells_near(grid: Grid, x: float, y: float, reach: float):
@@ -76,6 +77,6 @@ def clear_answer(grid: Grid, x: float, y: float, r: float, age_s: float = 0.0) -
             # 칸 사각형에서 원 중심에 가장 가까운 점까지가 reach 이하면 원에 걸친 칸이다
             dx = max(i * res - gx, 0.0, gx - (i + 1) * res)
             dy = max(j * res - gy, 0.0, gy - (j + 1) * res)
-            if math.hypot(dx, dy) <= reach and grid.data[j * grid.width + i] < 0:
+            if math.hypot(dx, dy) <= reach + TOUCH_M and grid.data[j * grid.width + i] < 0:
                 return UNKNOWN
     return CLEAR
