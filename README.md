@@ -45,28 +45,28 @@ flowchart LR
 
 ## 배치 바꾸기
 
-배치 이름 목록은 `pc/fleet_core/fleet_core/fleet_map/fleet_map.py`의 `LAYOUTS`(실제 후보)와 `TEST_LAYOUTS`(시험용) 한 곳이다. 아래에서 `<이름>`은 새 배치 이름이다. 손으로 고치는 파일은 지도 yaml과 이 목록 둘이다.
+배치 이름 목록은 `pc/fleet_core/fleet_core/fleet_map/fleet_map.py`의 `LAYOUTS`(실제 후보)와 `TEST_LAYOUTS`(시험용) 한 곳이다. 아래에서 `<이름>`은 새 배치 이름이고, 명령은 모두 저장소 루트에서 시작한다. 손으로 고치는 파일은 지도 yaml과 이 목록 둘이고, Gazebo 경기까지 돌리려면 시나리오 파일 하나가 더 든다.
 
 1. 지도 파일: `fleet_map_d2.yaml`을 `pc/fleet_core/fleet_core/data/fleet_map_<이름>.yaml`로 복사해 `name: arena_<이름>`, `shelves`, `zones`, `nodes`, `paths`, `nav`를 고친다. 진열대는 두께 0.015 m로 적는다.
 2. 이름 넣기: `fleet_map.py`의 `LAYOUTS` 또는 `TEST_LAYOUTS`에 `<이름>`을 더한다. 시험은 이 목록을 읽어 새 배치를 함께 돈다.
 3. 지도 검사: 읽을 때 몸 여유와 길 이음을 보고, 진열대 끝 여유(0.15 m)를 어기면 경고를 낸다. 넓은 구역 정원의 합은 로봇 수(3) 이상이어야 한다(`test_zone_capacity.py`).
 
    ```bash
-   cd pc/fleet_core
-   python3 -c "import logging; logging.basicConfig(); from fleet_core.fleet_map import load_fleet_map as L; print(L('<이름>').name)"
-   python3 -m pytest -q test/test_fleet_map.py test/test_zone_capacity.py
+   (cd pc/fleet_core && python3 -c "import logging; logging.basicConfig(); from fleet_core.fleet_map import load_fleet_map as L; print(L('<이름>').name)")
+   (cd pc/fleet_core && python3 -m pytest -q test/test_fleet_map.py test/test_zone_capacity.py)
    ```
 4. 월드와 지도 만들기(Gazebo 경기장, keepout 마스크 포함): 만든 `worlds/`, `maps/` 파일은 함께 커밋한다. 시험이 커밋한 파일과 만드는 코드가 같은지 본다.
 
    ```bash
-   cd sim/fleet_gz_sim && PYTHONPATH=../../pc/fleet_core:. python3 -m fleet_gz_sim.arena --layout <이름>
+   (cd sim/fleet_gz_sim && PYTHONPATH=../../pc/fleet_core:. python3 -m fleet_gz_sim.arena --layout <이름>)
    ```
 5. keepout 다시 만들기(실제 경기장 SLAM 지도용): 진열대는 마스크에 들어가지 않는다. 급행, 도크, 갈림목 구역을 바꿨을 때만 달라진다.
 
    ```bash
    python3 tools/make_keepout.py --layout <이름> --map <지도.yaml>
    ```
-6. 상황 시험(머리 없는 세계): 흉내 모드 셋 x 씨드 셋, 몇 분 걸린다. 표 아래에 못 지킨 기대가 나온다.
+6. Gazebo 시나리오(Gazebo 경기까지 돌릴 때만): `sim/fleet_gz_sim/scenarios/gz_d2.yaml`을 `gz_<이름>.yaml`로 복사해 `map: <이름>`만 고친다. `layout:=<이름>`으로 띄우면 시나리오를 생략했을 때 이 파일을 찾는다. 한 대만 도는 `one_pinky`는 `gz_<이름>_one.yaml`이 따로 든다.
+7. 상황 시험(머리 없는 세계): 흉내 모드 셋 x 씨드 셋, 몇 분 걸린다. 표 아래에 못 지킨 기대가 나온다.
 
    ```bash
    python3 tools/situations.py -l <이름> --avoid all --seeds 1 2 3

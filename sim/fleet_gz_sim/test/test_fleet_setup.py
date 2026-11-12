@@ -35,6 +35,15 @@ def test_an_unknown_layout_or_missing_files_are_refused(tmp_path):
         fleet_setup.arena_for("d2", tmp_path)
 
 
+def test_the_test_layout_has_a_three_robot_gazebo_scenario():
+    data = fleet_setup.read_scenario(SCENARIOS / "gz_d2_shelf.yaml")
+    assert data["map"] == "d2_shelf"
+    assert len(data["orders"]) == 8 and len(data["robots"]) == 3
+    fleet_setup.check_fits(data, "gz", "d2_shelf")
+    site = load_fleet_map("d2_shelf")
+    assert list(fleet_setup.start_nodes(site, data).values()) == list(site.parking)
+
+
 @pytest.mark.parametrize("layout", ["d2", "d", "c"])
 def test_the_gazebo_scenarios_run_three_robots_with_8_orders_and_one_robot(layout):
     site = load_fleet_map(layout)

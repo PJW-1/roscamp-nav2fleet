@@ -73,8 +73,33 @@ def test_a_silent_stall_fails_every_mode_as_a_safety_rule():
 
 
 def test_the_test_layout_runs_by_name_but_is_not_in_the_default_list():
-    from fleet_core.fleet_map import KNOWN_LAYOUTS
+    from fleet_core.fleet_map import KNOWN_LAYOUTS, TEST_LAYOUTS
 
-    assert LAYOUTS == ("d2", "d", "c")
-    assert "d2_shelf" in KNOWN_LAYOUTS and "d2_shelf" not in LAYOUTS
+    assert "d2_shelf" in TEST_LAYOUTS and "d2_shelf" in KNOWN_LAYOUTS
+    assert not set(LAYOUTS) & set(TEST_LAYOUTS)
+    assert KNOWN_LAYOUTS == (*LAYOUTS, *TEST_LAYOUTS)
     assert build("hall_obstacle", "d2_shelf").title
+
+
+@pytest.mark.skipif(not TOOL.is_file(), reason="only in the source tree")
+def test_the_tool_runs_the_candidates_by_default_and_a_test_layout_when_named(monkeypatch):
+    from types import SimpleNamespace
+
+    spec = importlib.util.spec_from_file_location("situations_tool", TOOL)
+    tool = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(tool)
+    seen = []
+
+    def stub(name, layout, seed, **_):
+        seen.append(layout)
+        central = SimpleNamespace(finished=1, total=1)
+        return SimpleNamespace(world=SimpleNamespace(central=central), failures=[],
+                               row=("x", layout, seed, "perfect", "1/1", "", "", "", "", "", "",
+                                    "", "", "", ""))
+
+    monkeypatch.setattr(tool, "run_situation", stub)
+    tool.main(["-s", "hall_obstacle", "--seeds", "1"])
+    assert seen == list(LAYOUTS)
+    seen.clear()
+    tool.main(["-s", "hall_obstacle", "--seeds", "1", "-l", "d2_shelf"])
+    assert seen == ["d2_shelf"]

@@ -397,7 +397,9 @@ def test_d2_is_the_default_and_matches_the_instruction():
 
 
 def test_the_test_layout_d2_shelf_is_d2_plus_one_shelf_and_is_not_a_candidate():
-    assert LAYOUTS == ("d2", "d", "c") and TEST_LAYOUTS == ("d2_shelf",)
+    # 배치를 더해도 유지되는 조건만 본다: 목록의 값 전체를 고정하지 않는다
+    assert "d2_shelf" in TEST_LAYOUTS and "d2_shelf" not in LAYOUTS
+    assert not set(LAYOUTS) & set(TEST_LAYOUTS)
     assert KNOWN_LAYOUTS == (*LAYOUTS, *TEST_LAYOUTS)
     d2, test = load_fleet_map("d2"), load_fleet_map("d2_shelf")
     assert test.name == "arena_d2_shelf"
