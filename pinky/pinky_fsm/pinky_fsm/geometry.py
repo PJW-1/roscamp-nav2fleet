@@ -56,6 +56,56 @@ def poses_backing(points: Sequence[Point], step: float = 0.05) -> list[Pose]:
             for x, y, yaw in poses_along(pts, final, step)]
 
 
+def _corner_arc(a: Point, b: Point, c: Point, room_in: float, room_out: float,
+                radius: float, step: float) -> list[Point]:
+    """꺾은선 a-b-c의 꼭짓점 b를 대신할 호의 점들. 돌 수 없으면(곧음, 되돌아감) [b]."""
+    h1 = math.atan2(b[1] - a[1], b[0] - a[0])
+    h2 = math.atan2(c[1] - b[1], c[0] - b[0])
+    turn = math.remainder(h2 - h1, math.tau)
+    if abs(turn) < 1e-3 or abs(turn) > math.pi - 1e-3:
+        return [b]
+    half = math.tan(abs(turn) / 2.0)
+    cut = min(radius * half, room_in, room_out)  # 꼭짓점에서 호가 시작하는 거리
+    r = cut / half
+    start = (b[0] - cut * math.cos(h1), b[1] - cut * math.sin(h1))
+    side = 1.0 if turn > 0 else -1.0  # 왼쪽으로 돌면 중심이 왼쪽에 있다
+    centre = (start[0] - side * r * math.sin(h1), start[1] + side * r * math.cos(h1))
+    a0 = math.atan2(start[1] - centre[1], start[0] - centre[0])
+    n = max(2, math.ceil(r * abs(turn) / step))
+    return [(centre[0] + r * math.cos(a0 + turn * i / n),
+             centre[1] + r * math.sin(a0 + turn * i / n)) for i in range(n + 1)]
+
+
+def rounded(points: Sequence[Point], radius: float, step: float = 0.01) -> list[Point]:
+    """꺾은선의 꼭짓점마다 반지름 radius의 호를 넣는다(추가 지시서 3의 2-1).
+
+    호가 짧은 선분을 넘지 않게 줄인다: 가운데 선분은 양 끝의 호가 반씩, 첫 선분과 마지막 선분은
+    하나뿐인 호가 다 쓸 수 있다. 되돌아가는 꼭짓점(180°)은 둥글게 할 수 없어 그대로 둔다.
+    """
+    pts = _dedup(points)
+    if len(pts) < 3 or radius <= 0.0:
+        return pts
+    last = len(pts) - 2  # 마지막 선분의 번호
+    lengths = [math.dist(p, q) for p, q in pairwise(pts)]
+    out = [pts[0]]
+    for i in range(1, len(pts) - 1):
+        room_in = lengths[i - 1] if i - 1 == 0 else lengths[i - 1] / 2.0
+        room_out = lengths[i] if i == last else lengths[i] / 2.0
+        out += _corner_arc(pts[i - 1], pts[i], pts[i + 1], room_in, room_out, radius, step)
+    out.append(pts[-1])
+    return _dedup(out)
+
+
+def rounded_rest(route: Polyline, s: float, radius: float) -> list[Point]:
+    """route의 꼭짓점을 둥글게 한 선에서, route 위 s 자리에 가장 가까운 곳부터 끝까지.
+
+    진행 거리 s는 관제가 보낸 꺾은선(route) 위에서 잰다. 둥근 선은 Nav2에 보낼 때만 쓴다.
+    """
+    line = Polyline(rounded(route.points, radius))
+    here, _ = line.project(route.point_at(s))
+    return line.rest(here)
+
+
 class Polyline:
     """누적 거리 s로 점을 찾는 폴리라인."""
 

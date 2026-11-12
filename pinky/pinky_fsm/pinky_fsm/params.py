@@ -21,6 +21,9 @@ class FsmParams:
     block_timeout_s: float = 90.0
     block_sample_m: float = 0.02  # costmap 해상도(0.025)보다 촘촘하게
     path_step_m: float = 0.05  # 전달사항 6.1 poses_along
+    # 추가 지시서 3의 2-1(기준(사용자)): 경로의 꺾이는 곳을 이 반지름의 호로 지난다. 폭 0.20 m 띠
+    # 안에서 제자리 회전하면 몸 모서리가 벽 앞의 라이다 잡음에 닿는다. 0이면 꺾은 그대로 보낸다
+    turn_radius_m: float = 0.10
     far_success_limit: int = 3  # 목표에서 먼 Nav2 성공을 몇 번까지 다시 보낼까
     track_back_m: float = 0.2  # 진행 거리를 찾을 때 뒤로 허용하는 거리
     track_ahead_m: float = 1.0  # 진행 거리를 찾을 때 앞으로 보는 거리
