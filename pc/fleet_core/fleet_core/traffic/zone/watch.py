@@ -25,8 +25,10 @@ class Watch:
         """goal이 열린 채 제자리이면 거두고 실패한 시도로 센다. 끝 지점에 서 있으면 닿은 것이다."""
         p = self.params
         waiting = m.move_order is not None and m.move_order.waiting  # base 끝에 서 있다
+        # 막혔거나 스스로 물러나는 이동은 blocked.py가 본다. 도킹은 거기서 보지 않으므로 여기서 본다
+        rests = m.robot_state in (BLOCKED, SELF_RECOVERING)
         if (m.goal is None or self._run_mode != RUN or m.arrival_by is not None or waiting
-                or m.robot_state in (BLOCKED, SELF_RECOVERING)):
+                or (rests and m.goal.kind != DOCK)):
             m.stall_from = None
             return
         here = (m.x, m.y)

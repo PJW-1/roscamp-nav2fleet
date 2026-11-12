@@ -72,6 +72,19 @@ def test_docking_is_given_the_longer_stall_time(monkeypatch):
     assert len(stalled) == 1 and stalled[0].startswith("dock goal")
 
 
+def test_a_docking_robot_that_reports_blocked_is_still_watched(monkeypatch):
+    monkeypatch.setattr(zone_harness, "DOCK_S", 1000.0)  # 도킹이 끝나지 않는다
+    world = Harness(starts={"pinky1": "W", "pinky2": "P-2", "pinky3": "P-3"})
+    world.report()
+    world.call("WORK", "pinky1")
+    world.step()
+    assert world.sent(DockCmd, "pinky1")
+    reports(world, "pinky1", "BLOCKED")  # 막힘 표시는 이동 goal만 본다. 도킹은 멈춤 감시뿐이다
+    world.run(world.params.dock_stall_s + 1.0)
+    stalled = [e.detail for e in world.events if e.code == "GOAL_STALLED"]
+    assert len(stalled) == 1 and stalled[0].startswith("dock goal")
+
+
 # ---- 자가 복구 상한 ----
 
 def test_a_short_self_recovery_is_only_noted():
