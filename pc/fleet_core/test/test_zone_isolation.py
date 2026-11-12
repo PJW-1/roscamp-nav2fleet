@@ -37,6 +37,37 @@ def test_a_robot_reporting_from_a_taken_node_is_refused_once_and_placed_where_it
     assert world.traffic.status_view("pinky2")["fault_reason"] == ""
 
 
+def beside_a_taken_node(gap_m: float):
+    """pinky1이 대기 자리 W_Q에 서 있고, pinky2의 첫 보고는 W_Q에서 동쪽으로 gap_m이다."""
+    world = Harness(starts={"pinky1": "W_Q", "pinky2": "P-2", "pinky3": "P-3"})
+    x, y = world.site.node_pose("W_Q")[:2]
+    world.bots["pinky1"].x = x - 0.05  # 두 몸이 겹치지 않게 조금 서쪽에 섰다
+    world.bots["pinky2"].x, world.bots["pinky2"].y = x + gap_m, y
+    world.step()
+    return world
+
+
+def test_a_robot_beside_a_taken_node_in_the_yard_is_placed_in_the_yard():
+    """재시작 시험에서 나왔다: 새 관제가 받은 첫 보고 하나가 W_Q에서 0.15 m 안이었고(실제 약
+    0.2 m), 그 자리는 먼저 오른 로봇이 쥐고 있었다. 지점에는 한 대만 서지만 그 옆의 넓은 구역에는
+    설 수 있다."""
+    world = beside_a_taken_node(0.13)
+    view = world.view("pinky2")
+    assert view["on_map"] and "HALL" in view["held"] and "W_Q" not in view["nodes"]
+    assert "PLACEMENT_CONFLICT" not in world.codes()
+    assert "W_Q" in world.view("pinky1")["nodes"], "the node stays with pinky1"
+    world.run(1.0)
+    first = world.sent(MoveCmd, "pinky2")[0]
+    assert not first.path, "it stands on no node, so it leaves by a Nav2 goal"
+    assert not world.problems
+
+
+def test_a_robot_reporting_right_on_a_taken_node_is_still_refused():
+    world = beside_a_taken_node(0.06)
+    assert world.view("pinky2")["on_map"] is False
+    assert world.codes("pinky2") == ["PLACEMENT_CONFLICT"]
+
+
 def test_while_one_robot_cannot_be_placed_nobody_is_sent_anywhere():
     world = Harness(starts={"pinky1": "P-1", "pinky2": "P-1", "pinky3": "P-3"})
     world.step()
