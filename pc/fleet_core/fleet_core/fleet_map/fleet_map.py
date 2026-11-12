@@ -19,6 +19,11 @@ from .parse import read_links, read_nodes, read_parking, read_rect, read_station
 
 DATA = Path(__file__).parents[1] / "data"
 DEFAULT_LAYOUT = "d2"
+# 배치 이름 목록은 여기 한 곳이다. 시뮬레이션과 도구의 기본 목록은 실제 후보(LAYOUTS)이고,
+# 시험용 배치(TEST_LAYOUTS)는 이름을 주면 돈다. 새 배치는 fleet_map_<이름>.yaml과 이 목록 한 줄이다
+LAYOUTS = ("d2", "d", "c")
+TEST_LAYOUTS = ("d2_shelf",)
+KNOWN_LAYOUTS = (*LAYOUTS, *TEST_LAYOUTS)
 BODY_CLEARANCE_M = 0.06  # Nav2 발자국의 반 폭. 지도에 clearance_m을 적으면 그 값을 쓴다
 # 고정 경로가 진열대 끝을 돌아가는 곳의 여유(추가 지시서 3의 9절 제안). 지도에 shelf_end_clear_m을
 # 적으면 그 값을 쓴다. 어기면 읽을 때 경고만 한다

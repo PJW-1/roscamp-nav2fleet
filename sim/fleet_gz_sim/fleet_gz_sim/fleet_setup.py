@@ -1,7 +1,7 @@
 """gz.launch.py가 배치와 시나리오에서 정하는 것. ROS 없이 돈다(fleet_core, fake_robots 순수 파이썬).
 
-- 배치(layout): d2(기본), d, c. 구역 지도 fleet_core/data/fleet_map_<배치>.yaml과, arena.py가 그
-  지도로 만든 월드·지도·keepout 마스크(Arena)를 고른다.
+- 배치(layout): d2(기본), d, c, 시험용 d2_shelf. 구역 지도 fleet_core/data/fleet_map_<배치>.yaml과,
+  arena.py가 그 지도로 만든 월드·지도·keepout 마스크(Arena)를 고른다.
 - 시나리오의 `map`은 배치 이름이다(없으면 d2). launch의 layout과 다르면 띄우지 않는다.
 - 핑키를 놓는 자리: 시나리오 robots의 start(지점 이름). start가 없으면 주차 지점을 차례로 준다.
   방향은 그 지점의 yaw(없으면 0).
@@ -14,10 +14,8 @@ from dataclasses import dataclass
 from pathlib import Path
 
 import yaml
-from fleet_core.fleet_map import load_fleet_map
+from fleet_core.fleet_map import KNOWN_LAYOUTS, load_fleet_map
 from fleet_core.fleet_map.model import SHARED
-
-from fleet_gz_sim.arena import LAYOUTS
 
 DEFAULT_LAYOUT = "d2"
 ARENA_FAULTS = ("low_battery",)  # 경기장에서도 일으킬 수 있는 로봇 고장(sim_stand_in)
@@ -28,8 +26,8 @@ class ScenarioUnfit(RuntimeError):
 
 
 def layout_of(value: str) -> str:
-    if value not in LAYOUTS:
-        raise ScenarioUnfit(f"layout must be one of {', '.join(LAYOUTS)}, got {value!r}")
+    if value not in KNOWN_LAYOUTS:
+        raise ScenarioUnfit(f"layout must be one of {', '.join(KNOWN_LAYOUTS)}, got {value!r}")
     return value
 
 

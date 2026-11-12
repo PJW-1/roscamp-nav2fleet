@@ -7,7 +7,7 @@ import yaml
 
 pytest.importorskip("fleet_core")
 pytest.importorskip("fake_robots")
-from fleet_core.fleet_map import load_fleet_map  # noqa: E402
+from fleet_core.fleet_map import KNOWN_LAYOUTS, load_fleet_map  # noqa: E402
 from fleet_gz_sim import fleet_setup  # noqa: E402
 
 PKG = Path(__file__).resolve().parents[1]
@@ -20,7 +20,7 @@ def write(tmp_path, data, name="s.yaml") -> Path:
     return path
 
 
-@pytest.mark.parametrize("layout", ["d2", "d", "c"])
+@pytest.mark.parametrize("layout", KNOWN_LAYOUTS)
 def test_each_layout_has_its_arena_files(layout):
     found = fleet_setup.arena_for(layout, PKG)
     assert found.layout == layout

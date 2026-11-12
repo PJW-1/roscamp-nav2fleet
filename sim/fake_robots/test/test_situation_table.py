@@ -4,9 +4,10 @@ from pathlib import Path
 
 import pytest
 from fake_robots.world import RecordingManager
-from fake_robots.world.situations import LAYOUTS, NAMES, build
+from fake_robots.world.situations import NAMES, build
 from fake_robots.world.table import HEADER, judge, markdown, run_situation
 from fleet_core.common.commands import EventOut
+from fleet_core.fleet_map import LAYOUTS
 
 TOOL = Path(__file__).resolve().parents[3] / "tools" / "situations.py"
 
@@ -69,3 +70,11 @@ def test_a_silent_stall_fails_every_mode_as_a_safety_rule():
         outcome.world.send(EventOut("ERROR", "SILENT_STALL", "no progress", "pinky1"))
         assert "SILENT_STALL x1" in judge(build("person_passing", "d2").for_mode(mode),
                                           outcome.world)
+
+
+def test_the_test_layout_runs_by_name_but_is_not_in_the_default_list():
+    from fleet_core.fleet_map import KNOWN_LAYOUTS
+
+    assert LAYOUTS == ("d2", "d", "c")
+    assert "d2_shelf" in KNOWN_LAYOUTS and "d2_shelf" not in LAYOUTS
+    assert build("hall_obstacle", "d2_shelf").title

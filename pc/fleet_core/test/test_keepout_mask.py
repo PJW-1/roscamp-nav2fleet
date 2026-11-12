@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 import yaml
-from fleet_core.fleet_map import load_fleet_map
+from fleet_core.fleet_map import KNOWN_LAYOUTS, load_fleet_map
 from fleet_core.fleet_map.keepout import keepout_rects, mask, mask_yaml, pgm, pgm_size
 
 REPO = Path(__file__).resolve().parents[3]
@@ -51,7 +51,7 @@ def test_the_picture_is_a_pgm_with_the_top_row_first():
     assert data[-6:] == bytes([0, 0, 254, 254, 254, 0]), "closed cells are black"
 
 
-@pytest.mark.parametrize("layout", ["d2", "d", "c"])
+@pytest.mark.parametrize("layout", KNOWN_LAYOUTS)
 def test_it_matches_the_mask_the_simulation_ships(layout):
     source = SIM_MAPS / f"arena_{layout}_keepout.yaml"
     if not source.exists():

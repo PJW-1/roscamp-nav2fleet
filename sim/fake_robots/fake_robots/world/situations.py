@@ -17,8 +17,6 @@ from .avoid import PERFECT
 from .injections import CommLoss, NoisyPose, Obstacle, Reinstate, Removal, SlowStation, Stuck
 from .stations import six_orders
 
-LAYOUTS = ("d2", "d", "c")
-
 
 @dataclass(frozen=True)
 class Rough:

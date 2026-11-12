@@ -3,7 +3,15 @@ import copy
 import math
 
 import pytest
-from fleet_core.fleet_map import FleetMap, FleetMapError, load_fleet_map, route
+from fleet_core.fleet_map import (
+    KNOWN_LAYOUTS,
+    LAYOUTS,
+    TEST_LAYOUTS,
+    FleetMap,
+    FleetMapError,
+    load_fleet_map,
+    route,
+)
 
 # 가로 2 m, 세로 1 m. 북쪽 띠가 도크(서) - 갈림목 - 급행 - 갈림목 - 도크(동), 나머지는 마당이다.
 SMALL = {
@@ -365,7 +373,7 @@ def test_parking_lists_every_parking_node():
 # ---- 파일 -----------------------------------------------------------------------------------
 
 
-@pytest.mark.parametrize("layout", ["d2", "c", "d"])
+@pytest.mark.parametrize("layout", KNOWN_LAYOUTS)
 def test_shipped_maps_load(layout):
     site = load_fleet_map(layout)
     assert site.name == f"arena_{layout}"
@@ -386,6 +394,20 @@ def test_d2_is_the_default_and_matches_the_instruction():
     assert len(site.warnings) == 4
     assert all("corner" in w and "0.115 m" in w for w in site.warnings), site.warnings
     assert not any("ends at" in w for w in site.warnings), "D2 backs into the hall"
+
+
+def test_the_test_layout_d2_shelf_is_d2_plus_one_shelf_and_is_not_a_candidate():
+    assert LAYOUTS == ("d2", "d", "c") and TEST_LAYOUTS == ("d2_shelf",)
+    assert KNOWN_LAYOUTS == (*LAYOUTS, *TEST_LAYOUTS)
+    d2, test = load_fleet_map("d2"), load_fleet_map("d2_shelf")
+    assert test.name == "arena_d2_shelf"
+    assert test.shelves[0] == d2.shelves[0] and len(test.shelves) == 2
+    # D처럼 마당을 둘로 나누지 않는다: 마당은 구역 하나, 새 진열대는 마당 안에 있다
+    assert list(test.zones) == list(d2.zones) and test.zones["HALL"].capacity == 3
+    x0, y0, x1, y1 = test.shelves[1]
+    assert y1 < 0.775 and (x1 - x0) < 0.5 * 1.98
+    assert test.nodes.keys() == d2.nodes.keys() and len(test.parking) == 3
+    assert test.warnings == d2.warnings
 
 
 def test_load_accepts_a_path(tmp_path):

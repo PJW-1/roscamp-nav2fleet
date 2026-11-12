@@ -12,7 +12,7 @@ from fleet_gz_sim import arena, arena_maps, arena_world  # noqa: E402
 PKG = Path(__file__).resolve().parents[1]
 
 
-@pytest.fixture(params=arena.LAYOUTS)
+@pytest.fixture(params=arena.KNOWN_LAYOUTS)
 def site(request):
     return load_fleet_map(request.param)
 
