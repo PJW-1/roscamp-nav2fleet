@@ -11,37 +11,26 @@
 """
 from __future__ import annotations
 
-import math
 import re
 
 from fleet_core.fleet_map import DOCK, SHARED
 
+from fake_robots.laps import Laps
+from fake_robots.order_checks import OrderChecks
+from fake_robots.outcome import Outcome
+from fake_robots.zone_checks import EPS, ZoneChecks
+
 RATE_PERIOD_S = 0.5  # robots.csv는 2 Hz로 줄여 쓴다
 OFF_LANE_GRACE_S = 1.0  # drift 시작부터 FMS가 연속 보고로 알아챌 때까지의 여유
-EPS = 1e-9
 PLACING = "PLACING"
 FINAL_CODES = {"ORDER_SHIPPED": "SHIPPED", "ORDER_PARTIAL": "PARTIAL", "ORDER_HELD": "HELD"}
 ORDER_ID = re.compile(r"[^\s:,;]+")
-PARK_NEAR_M = 0.10  # 주차 지점에서 이 안이면 주차 자리에 있다
 
 
 def order_id_of(detail: str) -> str:
     """주문 이벤트의 detail은 주문 ID로 시작한다."""
     match = ORDER_ID.match(detail.strip())
     return match.group(0) if match else ""
-
-
-def _out_of_order(sequence: list[str], rank: dict[str, int]) -> list[str]:
-    """순위가 더 뒤인 항목 다음에 온 항목, 또는 순위가 아예 없는 항목."""
-    wrong = []
-    highest = -1
-    for item in sequence:
-        position = rank.get(item)
-        if position is None or position < highest:
-            wrong.append(item)
-        else:
-            highest = position
-    return wrong
 
 
 def is_pseudo_holder(holder: str) -> bool:
@@ -55,7 +44,8 @@ def holder_set(text: str) -> frozenset[str]:
                      if name.strip() and not is_pseudo_holder(name.strip()))
 
 
-class ScenarioJudge:
+
+class ScenarioJudge(ZoneChecks, Laps, OrderChecks, Outcome):
     def __init__(self, site, scenario, margin_m: float = 0.13, grace_s: float = 2.0,
                  radius_m: float = 0.08):
         self.site = site
@@ -118,6 +108,7 @@ class ScenarioJudge:
         self._from_outbound: set[str] = set()
         self.direct_returns = 0
         self.parked_while_backlog = 0
+        self._tasks: dict[str, str] = {}  # 로봇 -> /fleet/assignments의 task_type
         # 자동 격리: 첫 ROBOT_ISOLATED부터 격리된 로봇의 첫 ZONES_CLEARED 전까지 출고한 수
         self.shipped_before_operator = 0
         self._isolated: set[str] = set()  # source가 로봇이다
@@ -223,13 +214,9 @@ class ScenarioJudge:
         self._put_back[robot] = (node, t, t + self.grace_s)
         self._left_start.add(robot)
 
-    def _put_back_spot(self, robot: str, x: float, y: float):
-        """놓인 지점에 아직 서 있으면 (지점, 놓은 시각, 유예 끝), 떠났으면 지우고 None."""
-        spot = self._put_back.get(robot)
-        if spot is not None and self.site.nearest_node(x, y) != spot[0]:
-            del self._put_back[robot]
-            return None
-        return spot
+    def on_assignments(self, tasks: dict[str, str]) -> None:
+        """로봇 -> task_type. 목록에 없는 로봇은 할 일이 없다."""
+        self._tasks = dict(tasks)
 
     def on_board(self, order_ids: list[str]) -> None:
         self.board = list(order_ids)
@@ -250,65 +237,6 @@ class ScenarioJudge:
 
     # -- checks -------------------------------------------------------------------------
 
-    def _zones_at(self, x: float, y: float) -> list[str]:
-        """이 점을 품은 구역들(경계 위면 둘 이상)."""
-        return [z for z in self.site.zones if self.site.distance_to_zone(x, y, z) <= EPS]
-
-    def _outside_m(self, x: float, y: float) -> float:
-        """가장 가까운 구역까지(어느 구역 안이면 0)."""
-        return min(self.site.distance_to_zone(x, y, z) for z in self.site.zones)
-
-    def _parked_at(self, x: float, y: float) -> bool:
-        return any(math.dist((x, y), spot) <= PARK_NEAR_M for spot in self._parking)
-
-    def _position(self, robot: str) -> tuple[float, float] | None:
-        if robot in self.truth:
-            return self.truth[robot]
-        pose = self.poses.get(robot)
-        return (pose[0], pose[1]) if pose else None
-
-    def _positions(self) -> dict[str, tuple[float, float]]:
-        return {robot: self._position(robot) for robot in {*self.poses, *self.truth}}
-
-    def off_course(self, robot: str) -> bool:
-        """로봇이 모든 구역에서 벗어난 것이 확인되면 True."""
-        position = self._position(robot)
-        if position is None:
-            return False
-        return self._outside_m(*position) > self.margin_m
-
-    def held_by(self, robot: str) -> list[str]:
-        return sorted(z for z, holders in self.holders.items() if robot in holders)
-
-    def _check_release(self, t: float, zone: str, robot: str) -> None:
-        self._check_off_lane_release(t, zone, robot)
-        position = self._position(robot)
-        if position is None:
-            self._violate(t, f"{zone} released from {robot} with no known pose")
-            self.release_violations += 1
-            return
-        cfg = self.scenario.robots.get(robot)
-        noise = cfg.pose_noise_m if cfg else 0.0
-        dist = self.site.distance_to_zone(position[0], position[1], zone)
-        report = self.poses.get(robot)
-        reported = self.site.distance_to_zone(report[0], report[1], zone) if report else ""
-        self.release_rows.append((t, zone, robot, dist, reported))
-        # 매니저는 잡음 낀 보고로 판단하고 여유 거리는 그 잡음을 흡수하려는 것이다.
-        # 그래서 실제 위치는 몸이 구역을 벗어났음만 보이면 된다.
-        limit = self.radius_m if robot in self.truth else max(0.0, self.margin_m - 2 * noise)
-        if dist <= limit:
-            self._violate(t, f"{zone} released from {robot} while {dist:.2f} m from it")
-            self.release_violations += 1
-
-    def _check_off_lane_release(self, t: float, zone: str, robot: str) -> None:
-        """보고가 레인 밖인 동안에는 실제 위치를 모르므로 어떤 구역도 놓으면 안 된다."""
-        if any(start <= t < end for start, end in self._drifts.get(robot, ())):
-            self.off_lane_releases += 1
-            self._violate(t, f"{zone} released from {robot} while its reports were off the lane")
-
-    def _violate(self, t: float, text: str) -> None:
-        self.violations.append(f"t={t:.1f} {text}")
-
     def tick(self, t: float) -> None:
         by_zone: dict[str, list[str]] = {}
         for robot, (x, y) in self._positions().items():
@@ -328,238 +256,3 @@ class ScenarioJudge:
                 self._over.add(key)
                 self._violate(t, f"{', '.join(sorted(robots))} are in {zone} at the same time")
         self._check_unheld(t)
-
-    def _place(self, x: float, y: float, zone) -> str:
-        """한 바퀴 추적의 자리: out, work, park 또는 빈 값."""
-        if zone in self._out_zones:
-            return "out"
-        if zone in self._work_zones:
-            return "work"
-        return "park" if self._parked_at(x, y) else ""
-
-    def _unbound_on_board(self) -> int:
-        return sum(order not in self._bound_now for order in self.board)
-
-    def _track_lap(self, t: float, robot: str, place: str) -> None:
-        """출고 도크 구역에서 작업 도크 구역과 주차 자리 중 먼저 닿는 곳까지 로봇을 따라간다.
-
-        미배정 주문이 로봇 수 이상이면 모든 로봇이 호출되므로
-        주차 자리로 갈 까닭이 없다.
-        """
-        if not place or self._last_zone.get(robot) == place:
-            return
-        self._last_zone[robot] = place
-        zone = place
-        if place == "out":
-            self._from_outbound.add(robot)
-        elif robot not in self._from_outbound:
-            return
-        elif place == "work":
-            self._from_outbound.discard(robot)
-            self.direct_returns += 1
-        elif place == "park":
-            self._from_outbound.discard(robot)
-            unbound = self._unbound_on_board()
-            if unbound >= len(self.scenario.robots):
-                self.parked_while_backlog += 1
-                self._violate(t, f"{robot} entered {zone} with {unbound} unbound orders waiting")
-
-    def _still_on_start_cell(self, robot: str, x: float, y: float) -> bool:
-        """매니저는 모든 로봇의 보고를 들은 뒤에야 첫 구역을 잡는데, speed_factor 5에서는
-        유예 시간을 넘길 수 있다. 아직 로봇을 움직인 것은 없다."""
-        cfg = self.scenario.robots.get(robot)
-        if robot in self._left_start or cfg is None:
-            return False
-        if self.site.nearest_node(x, y) == cfg.start:
-            return True
-        self._left_start.add(robot)
-        return False
-
-    def _check_unheld(self, t: float) -> None:
-        current = set()
-        for robot, (x, y) in self._positions().items():
-            spot = self._put_back_spot(robot, x, y)
-            if spot is None and self._still_on_start_cell(robot, x, y):
-                continue
-            inside = self._zones_at(x, y)
-            held = any(robot in self.holders.get(z, ()) for z in inside)
-            if held and spot is not None:
-                del self._put_back[robot]  # 잡았다
-            if not inside or held:
-                continue
-            zone = inside[0]
-            if spot is not None and t < spot[2]:
-                continue
-            spec = self.site.zones[zone]
-            if spec.kind == SHARED and len(self.holders.get(zone, ())) >= spec.capacity:
-                continue  # 교통 층은 자리가 나면 잡는다(Nav2 goal이 가로지른 공유 구역)
-            key = (robot, zone)
-            current.add(key)
-            # 놓인 뒤 계속 못 잡았으면 놓은 시각부터 잰다
-            since = self._unheld_since.setdefault(key, spot[1] if spot is not None else t)
-            if t - since >= self.grace_s and key not in self._unheld_counted:
-                self._unheld_counted.add(key)
-                self.unheld_violations += 1
-                holders = ",".join(sorted(self.holders.get(zone, ()))) or "nobody"
-                self._violate(t, f"{robot} is in {zone} but the holders are {holders}")
-        for key in list(self._unheld_since):
-            if key not in current:
-                del self._unheld_since[key]
-                self._unheld_counted.discard(key)
-
-    def fifo_problems(self) -> list[str]:
-        """등록 순서로 배정하고 배정 순서로 출고한다. 재큐된 주문은 맨 앞으로 돌아가
-        다음에 배정돼야 한다. 재큐 없이 두 번 배정되면 안 된다."""
-        rank = {o: i for i, o in enumerate(self.registered)}
-        problems = []
-        open_bound: set[str] = set()  # 배정 후 재큐되지 않은 것(최종 여부 무관)
-        requeued: set[str] = set()  # 다시 배정을 기다리는 것
-        seen: set[str] = set()
-        first_binds = []
-        last_bind: dict[str, int] = {}
-        for index, (kind, order) in enumerate(self.order_log):
-            if kind == "REQUEUED":
-                open_bound.discard(order)
-                requeued.add(order)
-                continue
-            if order in open_bound:
-                problems.append(f"{order} bound again without a requeue")
-            elif requeued and order != min(requeued, key=lambda o: rank.get(o, len(rank))):
-                problems.append(f"{order} bound ahead of requeued {sorted(requeued)}")
-            open_bound.add(order)
-            requeued.discard(order)
-            last_bind[order] = index
-            if order not in seen:
-                seen.add(order)
-                first_binds.append(order)
-        problems += [f"{o} bound out of registration order"
-                     for o in _out_of_order(first_binds, rank)]
-        problems += [f"{o} shipped out of bound order"
-                     for o in _out_of_order(self.ship_log, last_bind)]
-        return problems
-
-    def arms_never_placing(self) -> list[str]:
-        """출고된 주문에 필요했는데 PLACING을 한 번도 안 보인 팔. 그 상태가 없으면
-        겹침 검사가 데이터 없이 통과한다. 팔이 둘 필요했을 때만 의미가 있다."""
-        stock = self.scenario.stock
-        items = {o.id: o.items for o in self.scenario.orders}
-        needed = {arm for order in self.ship_log for kind in items.get(order, {})
-                  for arm in self._placing if stock.get(arm, {}).get(kind, 0) > 0}
-        return sorted(needed - self._placing_seen) if len(needed) > 1 else []
-
-    def dual_arm_overlap_list(self) -> list[tuple[float, float]]:
-        """작업대 팔 둘이 동시에 PLACING이던 시각. 맞닿기만 한 것은 세지 않는다."""
-        latest = max(self._arm_stamp.values(), default=0.0)
-        spans = {arm: [*done, *([(self._placing_open[arm], latest)]
-                                if self._placing_open[arm] is not None else [])]
-                 for arm, done in self._placing.items()}
-        arms = sorted(spans)
-        out = []
-        for i, a in enumerate(arms):
-            for b in arms[i + 1:]:
-                for start_a, end_a in spans[a]:
-                    for start_b, end_b in spans[b]:
-                        if start_a < end_b and start_b < end_a:
-                            out.append((max(start_a, start_b), min(end_a, end_b)))
-        return out
-
-    # -- outcome ------------------------------------------------------------------------
-
-    @property
-    def all_final(self) -> bool:
-        return all(order in self.final for order in self.registered)
-
-    def _all_parked(self) -> bool:
-        for robot in self.scenario.robots:
-            if robot in self.scenario.gone_robots:
-                continue
-            pose = self.poses.get(robot)
-            if pose is None or pose[2] != "IDLE":
-                return False
-            if not self._parked_at(*self._position(robot)):
-                return False
-        return True
-
-    def _complete(self) -> bool:
-        return self.all_final and self._all_parked()
-
-    def finished(self, t: float) -> bool:
-        return t >= self.scenario.timeout_s or self._complete()
-
-    def summary(self, t: float) -> dict:
-        ex = self.scenario.expect
-        counts = self.final_counts
-        fifo = self.fifo_problems()
-        overlaps = self.dual_arm_overlap_list()
-        missing = [c for c in ex.events_include if c not in self.events_seen]
-        never_placing = self.arms_never_placing()
-        allowed_errors = {*ex.events_include, *ex.event_counts}
-        unexpected = [c for c in self.error_codes if c not in allowed_errors]
-        timed_out = not self._complete()
-
-        def exact(value, expected):
-            return {"value": value, "expected": expected,
-                    "ok": expected is None or value == expected}
-
-        def at_least(value, minimum):
-            return {"value": value, "minimum": minimum, "ok": value >= minimum}
-
-        checks = {
-            "all_orders_finished": {"value": self.all_final, "expected": ex.all_orders_finished,
-                                    "ok": self.all_final == ex.all_orders_finished},
-            "orders_shipped": exact(counts["SHIPPED"], ex.orders_shipped),
-            "orders_partial": exact(counts["PARTIAL"], ex.orders_partial),
-            "orders_held": exact(counts["HELD"], ex.orders_held),
-            "orders_shipped_min": at_least(counts["SHIPPED"], ex.orders_shipped_min),
-            "fifo_violations": exact(len(fifo), ex.fifo_violations),
-            "dual_arm_overlaps": {
-                "value": len(overlaps), "expected": ex.dual_arm_overlaps,
-                "arms_never_placing": never_placing,
-                "ok": len(overlaps) == ex.dual_arm_overlaps and not never_placing},
-            "zone_holder_max": exact(self.max_occupancy, ex.zone_holder_max),
-            "released_without_position_check": exact(self.release_violations,
-                                                     ex.released_without_position_check),
-            "unheld_zone_pose": exact(self.unheld_violations, ex.unheld_zone_pose),
-            "released_while_off_lane": exact(self.off_lane_releases, ex.released_while_off_lane),
-            "path_not_connected": exact(self.path_not_connected, ex.path_not_connected),
-            "robot_idle": exact(self.robot_idle, ex.robot_idle),
-            "direct_returns_min": at_least(self.direct_returns, ex.direct_returns_min),
-            "parked_while_backlog": exact(self.parked_while_backlog, ex.parked_while_backlog),
-            "shipped_before_operator": at_least(self.shipped_before_operator,
-                                                ex.shipped_before_operator_min),
-            "detours_around_isolated": at_least(self.detours_around_isolated,
-                                                ex.detours_around_isolated_min),
-            "timed_out": exact(timed_out, ex.timed_out),
-            "bound_after_reinstate_min": at_least(self.bound_after_reinstate,
-                                                  ex.bound_after_reinstate_min),
-            "shipped_after_reinstate_min": at_least(self.shipped_after_reinstate,
-                                                    ex.shipped_after_reinstate_min),
-            "unexpected_errors": {"value": len(unexpected), "expected": ex.unexpected_errors,
-                                  "codes": unexpected,
-                                  "ok": len(unexpected) == ex.unexpected_errors},
-            "order_results": {
-                "value": {o: self.final.get(o) for o in ex.order_results},
-                "expected": ex.order_results,
-                "ok": all(self.final.get(o) == r for o, r in ex.order_results.items())},
-            "events_include": {"missing": missing, "ok": not missing},
-            "event_counts": {
-                "value": {c: self.event_counts.get(c, 0) for c in ex.event_counts},
-                "expected": ex.event_counts,
-                "ok": all(self.event_counts.get(c, 0) == n for c, n in ex.event_counts.items())},
-        }
-        return {
-            "pass": all(c["ok"] for c in checks.values()),
-            "orders_total": len(self.registered),
-            "orders_shipped": counts["SHIPPED"],
-            "orders_partial": counts["PARTIAL"],
-            "orders_held": counts["HELD"],
-            "duration_s": float(t),
-            "timed_out": timed_out,
-            "violations": [*self.violations, *fifo,
-                           *(f"unexpected ERROR event {c}" for c in unexpected),
-                           *(f"{a} never showed PLACING" for a in never_placing),
-                           *(f"arm1 and arm2 both PLACING at {start:.2f}-{end:.2f}"
-                             for start, end in overlaps)],
-            "min_release_distance_m": min((r[3] for r in self.release_rows), default=None),
-            "checks": checks,
-        }

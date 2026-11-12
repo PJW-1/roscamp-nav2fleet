@@ -12,25 +12,18 @@ failed is decided here and told with ArmFailedCmd.
 """
 from __future__ import annotations
 
-from dataclasses import dataclass, field
-
 from fleet_core.common.commands import (
     FILL,
-    HELD,
     NO_ROBOT,
     PARTIAL,
     SHIPPED,
     SWAP,
     ArmDeclined,
-    ArmDropCmd,
     ArmFailedCmd,
-    ArmFillCmd,
     ArmFillResult,
     ArmLate,
     ArmLost,
     ArmResetCmd,
-    ArmStopCmd,
-    ArmSwapCmd,
     ArmSwapResult,
     CancelDispatchCmd,
     DispatchCmd,
@@ -40,71 +33,24 @@ from fleet_core.common.commands import (
     RobotFaultCmd,
 )
 
+from .faults import Faults
+from .records import (
+    EMPTY,
+    FILLING,
+    FULL,
+    NONE,
+    SWAPPING,
+    _LostJob,
+    _merge,
+    _Robot,
+    _subtract,
+)
+from .stations import Stations
+
 STOP = "STOP"
 
-# 스테이션에 머무는 목적
-FILLING = "FILLING"
-SWAPPING = "SWAPPING"
 
-# 트레이 위 상태
-EMPTY = "EMPTY"
-FULL = "FULL"
-NONE = "NONE"
-
-
-def _merge(into: dict[str, int], more: dict[str, int]) -> None:
-    for kind, count in more.items():
-        if count > 0:
-            into[kind] = into.get(kind, 0) + count
-
-
-def _subtract(items: dict[str, int], *taken: dict[str, int]) -> dict[str, int]:
-    left = {}
-    for kind, count in items.items():
-        rest = count - sum(t.get(kind, 0) for t in taken)
-        if rest > 0:
-            left[kind] = rest
-    return left
-
-
-@dataclass
-class _LostJob:
-    """ARM_NO_RESULT로 포기했거나 해제로 취소한 작업. 결과가 늦게 올 수 있다."""
-
-    robot: str
-    server: str
-    kind: str  # FILL 또는 SWAP
-    order_id: str  # 포기할 때 묶여 있던 주문, 이미 보고했으면 빈 값
-    cleared: bool = False  # 운영자가 로봇을 해제해서 취소됨
-    bound: int = 0  # 그때 주문을 묶은 차례. 같은 주문을 다시 묶으면 다른 값이다
-    isolated: bool = False  # 자동 격리로 취소됨(cleared도 참)
-
-
-@dataclass
-class _BoundOrder:
-    order_id: str
-    items: dict[str, int]
-    placed: dict[str, int] = field(default_factory=dict)
-    missing: dict[str, int] = field(default_factory=dict)  # 확정, 다시 시도하지 않음
-
-
-@dataclass
-class _Robot:
-    name: str
-    stage: str = ""  # 팔 작업으로 스테이션에 잡혀 있는 동안 FILLING 또는 SWAPPING
-    basket: str = EMPTY
-    order: _BoundOrder | None = None
-    last_order_id: str = ""  # 주문 보고 뒤에도 교환 goal에 붙일 이름
-    outbound_goal: int | None = None
-    dispatch_failures: int = 0  # failed outbound dispatches in a row
-    dispatch_retry_at: float | None = None  # send the outbound dispatch again from this time
-    dispatch_reason: str = ""  # why the last outbound dispatch failed
-    asked: str = ""  # arm work asked for and not answered yet: FILL, SWAP or ""
-    bound: int = 0  # 지금 주문을 묶은 차례(_bind_seq)
-    isolated: str = ""  # 격리 이유. 해제(confirm_clear)로 지운다
-
-
-class OrderOrchestrator:
+class OrderOrchestrator(Faults, Stations):
     def __init__(self, stations, params, robots, clock):
         self.params = params
         self.shipped = 0
@@ -212,64 +158,6 @@ class OrderOrchestrator:
             return
         self._out.append(ArmFailedCmd(r.name))
 
-    def on_robot_removed(self, robot) -> None:
-        """운영자가 로봇을 뺐다. 아직 묶인 주문은 등록 순서 자리로 돌아간다.
-
-        격리된 로봇은 대개 주문을 이미 되돌렸다. 예외 둘은 여기서 되돌린다: 교환 취소 결과를
-        기다리던 주문(그 뒤 took_full이 와도 ARM_LATE_RESULT만 낸다), ARM_NO_RESULT로 쥔 주문.
-        """
-        r = self._robots.get(robot)
-        if r is None:
-            return
-        r.isolated = ""
-        if r.asked:
-            self._drop_arm(r)
-        if r.order:
-            self._event("INFO", "ORDER_REQUEUED",
-                        f"{r.order.order_id} was bound, basket held {r.order.placed}", robot)
-            r.order = None
-        r.stage = ""
-        r.outbound_goal = None
-        self._forget_dispatch_failures(r)
-        self._sync_calls()
-
-    def on_robot_reinstated(self, robot, basket) -> None:
-        """운영자가 로봇을 다시 넣었다. 바구니는 운영자가 본 값, 주문 없음, 재시도 0."""
-        if robot in self._robots:
-            self._robots[robot] = _Robot(robot, basket=basket)
-            self._out.append(ArmResetCmd(robot, forget=True))
-
-    def on_robot_isolated(self, robot, reason) -> None:
-        """교통이 로봇을 격리했다(지시서 5.5). 주문은 사람 없이 대기로 돌아간다.
-
-        자리는 등록 순서다. 묶을 때 늘 대기 맨 앞을 쓰므로, 되돌린 주문은 한 번도 묶이지 않은
-        주문보다 앞서고 되돌린 주문끼리는 등록 순서를 지킨다.
-        두 번 출고를 막는 예외 둘: 결과 없는 팔 작업(ARM_NO_RESULT)이 그 주문에 걸려 있으면
-        confirm_clear까지, 교환 중이면 그 결과까지 주문을 둔다. 팔이 이미 바구니를 가져갔을 수 있다.
-        """
-        r = self._robots.get(robot)
-        if r is None or self._result_still_due(r):
-            return
-        r.isolated = reason
-        if r.asked == SWAP and r.order:
-            self._out.append(ArmStopCmd(r.name))
-            return  # the swap result or the ARM_NO_RESULT rule takes over
-        if r.asked:
-            self._drop_arm(r, isolated=True)  # 늦게 담긴 품목은 이 로봇 바구니에 남는다
-        self._requeue_isolated(r)
-
-    def _requeue_isolated(self, r: _Robot) -> None:
-        if r.order:
-            self._event("INFO", "ORDER_REQUEUED",
-                        f"{r.order.order_id} was bound, basket held {r.order.placed}, "
-                        f"robot isolated: {r.isolated}", r.name)
-            r.order = None
-        r.basket = NONE  # 바구니 안 물건은 로봇과 함께 남는다. 사람이 치운다
-        r.stage = ""
-        r.outbound_goal = None
-        self._forget_dispatch_failures(r)
-        self._sync_calls()
-
     # ---- outputs ------------------------------------------------------------------------
 
     def step(self, robot) -> None:
@@ -332,65 +220,6 @@ class OrderOrchestrator:
         r.stage = ""
         self._out.append(ReleaseCmd(r.name))
 
-    # ---- arms ---------------------------------------------------------------------------
-
-    def _drop_arm(self, r: _Robot, isolated: bool = False) -> None:
-        """Drops the arm job on a clear or an isolation; the operator counts what the arm did there.
-
-        The arm side cancels the goal and answers with ArmLost, which carries the order bound
-        now: a late result that did something is then reported.
-        """
-        self._out.append(ArmDropCmd(r.name, isolated, self.order_of(r.name), r.bound))
-        r.asked = ""
-
-    def _result_still_due(self, r: _Robot) -> bool:
-        """ARM_NO_RESULT로 포기한 작업이 지금 묶인 주문에 걸려 있다."""
-        return any(lost.robot == r.name and not lost.cleared and self._still_bound(lost)
-                   for lost in self._lost_jobs.values())
-
-    def _late_fill(self, goal_id: int, placed: dict[str, int]) -> None:
-        lost = self._take_lost_job(goal_id, FILL)
-        if lost is None or (lost.cleared and not placed):
-            return  # 취소된 작업이 한 일이 없으면 운영자가 셀 것도 없다
-        self._late_event(goal_id, lost, f"placed {placed}")
-        if self._still_bound(lost):
-            _merge(self._robots[lost.robot].order.placed, placed)
-
-    def _late_swap(self, goal_id: int, took_full: bool, put_empty_done: bool) -> None:
-        lost = self._take_lost_job(goal_id, SWAP)
-        if lost is None or (lost.cleared and not (took_full or put_empty_done)):
-            return
-        self._late_event(goal_id, lost, f"took_full={took_full} put_empty_done={put_empty_done}")
-        r = self._robots[lost.robot]
-        if self._still_bound(lost) and took_full and r.basket == FULL:
-            r.basket = EMPTY if put_empty_done else NONE
-            self._report_shipped(r)
-
-    def _take_lost_job(self, goal_id: int, kind: str) -> _LostJob | None:
-        lost = self._lost_jobs.get(goal_id)
-        if lost is None or lost.kind != kind:
-            return None
-        return self._lost_jobs.pop(goal_id)
-
-    def _still_bound(self, lost: _LostJob) -> bool:
-        """고장 중에는 해제나 격리만 주문을 떼어 간다. 해제 뒤 다시 묶인 같은 주문은 다른 일이다."""
-        return (bool(lost.order_id) and self.order_of(lost.robot) == lost.order_id
-                and self._robots[lost.robot].bound == lost.bound)
-
-    def _late_event(self, goal_id: int, lost: _LostJob, reported: str) -> None:
-        if not lost.order_id:
-            then = "its order had already been reported"
-        elif self._still_bound(lost):
-            then = f"{lost.order_id} is still bound and {lost.robot} stays in fault"
-        else:
-            then = (f"{lost.order_id} was requeued from {lost.robot}, so it may be filled "
-                    "or shipped twice: check the basket")
-        after = ("the isolation" if lost.isolated else "the clear" if lost.cleared
-                 else "ARM_NO_RESULT")
-        self._event("WARN", "ARM_LATE_RESULT",
-                    f"{lost.server} goal {goal_id} reported {reported} after {after}, {then}",
-                    lost.robot)
-
     # ---- orders -------------------------------------------------------------------------
 
     def _pending(self) -> list:
@@ -413,19 +242,6 @@ class OrderOrchestrator:
         self._dispatch_seq += 1
         return self._dispatch_seq
 
-    def _start_filling(self, r: _Robot) -> None:
-        pending = self._pending()
-        if not pending:
-            self._out.append(ReleaseCmd(r.name))
-            return
-        record = pending[0]
-        r.order = _BoundOrder(record.order_id, dict(record.items))
-        self._bind_seq += 1
-        r.bound = self._bind_seq
-        r.last_order_id = record.order_id
-        r.stage = FILLING
-        self._event("INFO", "ORDER_BOUND", record.order_id, r.name)
-
     def _report(self, r: _Robot, status: str, detail: str = "") -> None:
         order, r.order = r.order, None
         self._reported.add(order.order_id)
@@ -435,77 +251,3 @@ class OrderOrchestrator:
     def _report_shipped(self, r: _Robot) -> None:
         self.shipped += 1
         self._report(r, PARTIAL if r.order.missing else SHIPPED)
-
-    def _finish_fill(self, r: _Robot) -> None:
-        order = r.order
-        self._out.append(ArmResetCmd(r.name))
-        order.missing = _subtract(order.items, order.placed)
-        if not order.placed:
-            self._report(r, HELD, f"nothing could be placed, missing {order.missing}")
-            self._leave_station(r)
-        elif order.missing and not self.params.ship_partial:
-            detail = f"{order.order_id} partial not allowed, basket holds {order.placed}"
-            r.basket = FULL
-            r.stage = ""
-            self._report(r, HELD, detail)
-            self._fail(r, detail)
-            self._event("ERROR", "FILL_FAILED", detail, r.name)
-        else:
-            r.basket = FULL
-            r.stage = ""
-            self._send_to_outbound(r)
-
-    def _send_to_outbound(self, r: _Robot) -> None:
-        r.outbound_goal = self._next_dispatch_id()
-        self._out.append(DispatchCmd(r.outbound_goal, self._outbound, r.name))
-
-    def _retry_outbound(self, r: _Robot) -> None:
-        """Sends a failed outbound dispatch again, or past the limit fails the robot.
-
-        Like the arm retry limit: traffic isolates the robot and the isolation puts the order
-        back (no HELD report).
-        """
-        if self._clock() < r.dispatch_retry_at:
-            return
-        r.dispatch_retry_at = None
-        detail = (f"dispatch to {self._outbound} failed {r.dispatch_failures} times: "
-                  f"{r.dispatch_reason}")
-        if r.dispatch_failures > self.params.dispatch_retry_limit:
-            self._fail(r, detail)
-            self._event("ERROR", "DISPATCH_FAILED", detail, r.name)
-            return
-        self._event("WARN", "DISPATCH_RETRY", f"{detail}, sending it again", r.name)
-        self._send_to_outbound(r)
-
-    @staticmethod
-    def _forget_dispatch_failures(r: _Robot) -> None:
-        r.dispatch_failures = 0
-        r.dispatch_retry_at = None
-        r.dispatch_reason = ""
-
-    def _step_filling(self, r: _Robot) -> None:
-        if r.asked:
-            return
-        order = r.order
-        if sum(order.items.values()) > self.params.basket_capacity:
-            # 선반을 보지 않았으니 빠진 것도 없다. 재고 기록은 그대로 둔다.
-            self._report(r, HELD, f"{sum(order.items.values())} items exceed the basket "
-                                  f"capacity of {self.params.basket_capacity}")
-            self._leave_station(r)
-            return
-        remaining = _subtract(order.items, order.placed, order.missing)
-        if not remaining:
-            self._finish_fill(r)
-            return
-        r.asked = FILL
-        self._out.append(ArmFillCmd(r.name, self._work, order.order_id, remaining))
-
-    def _step_swapping(self, r: _Robot) -> None:
-        if r.asked:
-            return
-        if r.basket == EMPTY:
-            self._leave_station(r)
-            return
-        r.asked = SWAP
-        self._out.append(ArmSwapCmd(r.name, self._outbound, r.last_order_id,
-                                    take_full=r.basket == FULL, put_empty=True))

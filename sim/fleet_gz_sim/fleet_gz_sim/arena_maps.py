@@ -13,15 +13,20 @@ from __future__ import annotations
 
 import math
 
-from fleet_core.fleet_map import SHARED
+from fleet_core.fleet_map.keepout import (
+    BODY_HALF_WIDTH_M,
+    filled,
+    keepout_rects,  # noqa: F401  test_arena와 arena.py의 설명이 이 이름으로 쓴다
+    mask,
+)
+from fleet_core.fleet_map.keepout import pgm as _pgm
 
 from fleet_gz_sim.arena import obstacles
 
 COARSE_M = 0.05  # costmap용 지도
 FINE_M = 0.01  # AMCL용 지도(R15)와 keepout 마스크
 MAP_PAD_M = 0.15
-KEEPOUT_PAD_M = 0.06  # Nav2 발자국의 반 폭(pinky_nav_config footprint 0.06)
-HAIR = 1e-6  # 칸 단위: 경계에 꼭 맞는 상자가 옆 칸을 채우지 않게
+KEEPOUT_PAD_M = BODY_HALF_WIDTH_M  # Nav2 발자국의 반 폭(pinky_nav_config footprint 0.06)
 
 
 def map_origin(site) -> tuple[float, float]:
@@ -36,53 +41,23 @@ def map_cells(resolution: float, site) -> tuple[int, int]:
             math.ceil(round((y1 - y0 + 2 * MAP_PAD_M) / resolution, 6)))
 
 
-def _fill(grid, rects, resolution: float, site) -> None:
-    ny, nx = len(grid), len(grid[0])
-    ox, oy = map_origin(site)
-
-    def cells(lo: float, hi: float, origin: float, n: int) -> range:
-        return range(max(0, math.floor((lo - origin) / resolution + HAIR)),
-                     min(n, math.ceil((hi - origin) / resolution - HAIR)))
-
-    for x0, y0, x1, y1 in rects:
-        for j in cells(y0, y1, oy, ny):
-            for i in cells(x0, x1, ox, nx):
-                grid[j][i] = True
-
-
 def occupancy(resolution: float, site) -> list[list[bool]]:
     """벽·진열대가 걸친 칸은 참. 줄은 아래(y 작은 쪽)부터."""
     nx, ny = map_cells(resolution, site)
-    grid = [[False] * nx for _ in range(ny)]
-    _fill(grid, [(b.x0, b.y0, b.x1, b.y1) for b in obstacles(site)], resolution, site)
-    return grid
-
-
-def keepout_rects(site, pad: float = KEEPOUT_PAD_M) -> list[tuple[float, float, float, float]]:
-    """shared가 아닌 구역의 사각형을 pad만큼 넓힌 것. 구역 이름 순서."""
-    return [(x0 - pad, y0 - pad, x1 + pad, y1 + pad)
-            for zone in sorted(site.zones.values(), key=lambda z: z.id) if zone.kind != SHARED
-            for x0, y0, x1, y1 in zone.rects]
+    return filled([(b.x0, b.y0, b.x1, b.y1) for b in obstacles(site)], nx, ny, resolution,
+                  map_origin(site))
 
 
 def keepout(resolution: float, site) -> list[list[bool]]:
     """keepout 칸은 참. 줄은 아래부터."""
     nx, ny = map_cells(resolution, site)
-    grid = [[False] * nx for _ in range(ny)]
-    _fill(grid, keepout_rects(site), resolution, site)
-    return grid
+    return mask(site, nx, ny, resolution, map_origin(site))
 
 
 def cell_of(x: float, y: float, resolution: float, site) -> tuple[int, int]:
     """(i, j): occupancy/keepout 격자에서 점이 든 칸."""
     ox, oy = map_origin(site)
     return math.floor((x - ox) / resolution), math.floor((y - oy) / resolution)
-
-
-def _pgm(grid) -> bytes:
-    header = f"P5\n{len(grid[0])} {len(grid)}\n255\n".encode()
-    # PGM 첫 줄은 지도 위쪽(y 큰 쪽). 막힌 칸 0(검정), 빈칸 254
-    return header + b"".join(bytes(0 if c else 254 for c in row) for row in reversed(grid))
 
 
 def pgm(resolution: float, site) -> bytes:
