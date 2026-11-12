@@ -31,8 +31,9 @@ class Goals:
                 return math.inf
             seconds = link.length / speed(p, link.via)
             for zone in link.zones:
-                others = [name for name in grants.holders(zone) if name != m.name]
-                if not others or m.name in grants.holders(zone):
+                holders = grants.holders(zone)
+                others = [name for name in holders if name != m.name]
+                if not others or m.name in holders:
                     continue
                 spec = site.zones[zone]
                 if spec.kind == SHARED:
@@ -80,15 +81,19 @@ class Goals:
         그 구역의 지점들이다. 지점이 없는 구역(통로)이면 그 구역을 지나는 Nav2 goal 연결의 끝
         지점들이고, 지나는 구역은 그 연결에서 지금 구역부터 끝까지다.
         """
-        site = self.site
-        inside = {name: (zone,) for name, node in site.nodes.items() if node.zone == zone}
-        if inside:
-            return inside
-        reach = {}
-        for link in site.links():
-            if link.via == NAV_GOAL and zone in link.zones:
-                reach.setdefault(link.b, link.zones[link.zones.index(zone):])
-        return reach
+        memo = self.__dict__.setdefault("_reach_memo", {})  # 지도는 바뀌지 않으니 구역마다 한 번
+        if zone not in memo:
+            site = self.site
+            inside = {name: (zone,) for name, node in site.nodes.items() if node.zone == zone}
+            if inside:
+                memo[zone] = inside
+            else:
+                reach = {}
+                for link in site.links():
+                    if link.via == NAV_GOAL and zone in link.zones:
+                        reach.setdefault(link.b, link.zones[link.zones.index(zone):])
+                memo[zone] = reach
+        return memo[zone]
 
     def _back_link(self, m):
         """물러날 지점까지의 후진 연결. 지금 구역부터 그 지점의 구역까지를 지난다."""

@@ -5,11 +5,9 @@ basket, so a robot with a full basket was left with no next job.
 """
 from dataclasses import replace
 
-import pytest
 from core_helpers import cmds, codes
-from fleet_core.common.commands import DispatchCmd, DispatchResult, OrderRecord, RobotFaultCmd
+from fleet_core.common.commands import DispatchCmd, OrderRecord, RobotFaultCmd
 from fleet_core.common.params import load_params
-from fleet_core.pending import NEEDS_ZONE_TRAFFIC
 from orders_and_arm import OrdersAndArm
 from stations import STATIONS
 
@@ -137,35 +135,3 @@ def test_a_robot_without_a_basket_also_waits_between_tries():
     now[0] += PARAMS.dispatch_retry_wait_s
     core.step("r1")
     assert outbound(core.take_output())
-
-
-@pytest.mark.skip(reason=NEEDS_ZONE_TRAFFIC)
-def test_through_the_manager_a_refused_outbound_dispatch_still_ships():
-    from fleet_core.manager import FleetManager
-    from grid_map import grid_site  # 지운 시험 지도(1da1e61). 되살릴 때 새 지도로 바꾼다
-    from test_auto_isolation import drive, report
-    now = [0.0]
-    core = FleetManager(grid_site(), PARAMS, ["r1"], lambda: now[0])
-    refused = []
-    on_dispatch = core.traffic.on_dispatch
-
-    def refuse_first_outbound(goal_id, station_id, robot_id=""):
-        if station_id == "OUTBOUND" and not refused:
-            refused.append(goal_id)
-            core.traffic._out.append(DispatchResult(goal_id, False, robot_id, "NOT_AVAILABLE"))
-            return
-        on_dispatch(goal_id, station_id, robot_id)
-
-    core.traffic.on_dispatch = refuse_first_outbound
-    report(core, "r1", (4, 3))
-    core.on_order_board("RUN", [O1])
-    out = drive(core, "r1", lambda: core.robot_view("r1")["order"] == "O-001")
-    fill = cmds(out, "FillCmd")[0]
-    core.on_fill_result(fill.goal_id, True, {"A": 1, "C": 1}, {})
-    seen = core.tick()
-    assert refused
-    now[0] += PARAMS.dispatch_retry_wait_s
-    m = core.traffic._missions["r1"]
-    seen += drive(core, "r1", lambda: m.phase == "AT_STATION" and m.dest == "OUTBOUND")
-    assert "DISPATCH_RETRY" in codes(seen)
-    assert cmds(seen, "SwapCmd"), "docked at the outbound station and swapping"

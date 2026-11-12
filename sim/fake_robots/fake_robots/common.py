@@ -34,7 +34,7 @@ def load_contract_param(node):
 
 
 def load_site_param(node):
-    """map_file 파라미터의 지도. 비면 기본 배치. 지도 모듈(2단계)이 없으면 NoFleetMap."""
+    """map_file 파라미터의 지도. 비면 기본 배치."""
     node.declare_parameter("map_file", "")
     return load_site(node.get_parameter("map_file").value or None)
 
