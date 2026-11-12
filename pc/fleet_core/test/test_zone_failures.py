@@ -275,7 +275,8 @@ def test_a_reapproach_whose_way_is_taken_waits_and_goes_when_it_is_free():
     assert grants.take("ghost", (), (spot,))
     world.run(world.params.move_retry_wait_s + 1.0)
     assert docks(world) == 1 and not world.sent(RetreatCmd, "pinky2"), "it waits at the dock"
-    assert world.traffic.status_view("pinky2")["wait_robots"] == ("ghost",), "the wait is on record"
+    assert world.traffic.status_view("pinky2")["wait_zone"], "the wait is on record"
+    assert "pinky2" not in world.traffic._wants, "but it is no part of a wait cycle"
     grants.release_node("ghost", spot)
     world.run(1.0)
     assert world.sent(RetreatCmd, "pinky2") and docks(world) == 1
@@ -292,13 +293,37 @@ def test_a_reapproach_that_cannot_start_in_time_docks_where_it_stands():
     assert docks(world) == 2 and not world.sent(RetreatCmd, "pinky2")
 
 
+def test_the_wait_for_the_way_out_has_one_limit_whatever_clears_the_wait():
+    """Lost contact clears the wait on record. The limit runs from the first try all the same."""
+    world, _ = at_the_dock()
+    assert world.run_until(lambda: "GOAL_RETRY" in world.codes("pinky2"), 30.0)
+    assert world.traffic.grants.take("ghost", (), (way_out(world).b,))
+    world.run(world.params.move_retry_wait_s + world.params.redock_wait_s / 2)
+    world.traffic._stop_wanting(world.traffic._robots["pinky2"])
+    world.run(world.params.redock_wait_s / 2 + 0.5)
+    assert docks(world) == 2 and not world.sent(RetreatCmd, "pinky2")
+
+
 def test_a_reapproaching_robot_keeps_its_dock_turn():
     world, _ = at_the_dock()
     world.call("WORK", "pinky3")
     assert world.run_until(lambda: "DOCK_REAPPROACH" in world.codes("pinky2"), 30.0)
-    assert world.traffic._robots["pinky2"].trip.turn
     assert world.run_until(lambda: docks(world) == 2, 60.0)
     assert not docks(world, "pinky3"), "the other robot does not get the dock in between"
+
+
+def test_a_robot_that_docked_and_failed_stays_first_for_that_dock():
+    """Also when its way back in was not granted and the trip was dropped."""
+    world, _ = at_the_dock()
+    world.call("WORK", "pinky3")
+    assert world.run_until(lambda: "RETREAT_DONE" in world.codes("pinky2"), 60.0)
+    traffic = world.traffic
+    m, other = traffic._robots["pinky2"], traffic._robots["pinky3"]
+    assert other.dest == m.dest
+    other.asked_at = (m.asked_at or 0.0) - 1.0  # the other one asked first
+    m.trip = None
+    assert not traffic._ahead(m, m.dest)
+    assert m in traffic._ahead(other, other.dest)
 
 
 def test_a_rejected_docking_and_failed_ones_count_together():

@@ -76,6 +76,7 @@ class Robot:
     base_until: float = 0.0  # 통신이 끊겼다: 이 시각까지는 base 끝으로 달리는 중일 수 있다
     attempts: int = 0
     dock_tries: int = 0  # 이 스테이션에서 실패한 도킹 수. 도킹이 되거나 목적이 바뀌면 0
+    redock_since: float | None = None  # 물러날 길을 처음 잡아 본 시각(redock_wait_s의 기준)
     redock: bool = False  # 도킹이 실패했다: 다시 하기 전에 물러났다 들어온다(redock.py)
     retry_at: float = 0.0  # 이 시각 전에는 새 명령을 내지 않는다
     settle_until: float = 0.0  # goal을 거둔 뒤 이 시각까지는 잡은 것을 놓지 않는다
