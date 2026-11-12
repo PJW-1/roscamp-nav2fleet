@@ -73,14 +73,17 @@ class Blocked:
             self._event("INFO", "REROUTE", f"backs out to {link.a}, then another way", m.name)
         else:
             self._event("INFO", "REROUTE", f"another way to {m.trip.goal}", m.name)
-            self._make_way(m, link.b)
+            if not self._make_way(m, link.b):
+                # 비켜 줄 로봇이 없다: 선 자리에서 그 지점으로 곧장 가면 같은 것에 또 막힌다
+                self._blocked[(HERE + m.name, link.b)] = until
         self._drop_trip(m)
 
-    def _make_way(self, m, node: str) -> None:
+    def _make_way(self, m, node: str) -> bool:
         """넓은 구역에서 막힌 로봇의 길 가까이에 goal 없이 서 있는 로봇 하나를 주차 자리로 보낸다.
 
         차례를 기다리며 선 로봇은 구역 대기 그래프에 없다. 그래서 허락을 쥔 로봇의 길을 몸으로
         막아도 대기 순환으로 보이지 않는다(Gazebo 3대 경기). 주차한 로봇은 보내지 않는다.
+        보낸 로봇이 있으면 True.
         """
         site, here = self.site, (m.x, m.y)
         end = site.node_pose(node)
@@ -97,7 +100,8 @@ class Blocked:
         for other in sorted(standing, key=lambda o: (math.dist(here, (o.x, o.y)), o.name)):
             if self._to_parking(other, "INFO", "HALL_YIELD",
                                 f"out of the way of {m.name}, goes to", clear_of=m):
-                return
+                return True
+        return False
 
     def _expire_blocked(self, now: float) -> None:
         for key in [key for key, until in self._blocked.items() if until <= now]:
