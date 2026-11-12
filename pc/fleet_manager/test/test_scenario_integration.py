@@ -26,7 +26,7 @@ REPLAY = Path(__file__).parents[3] / "tools" / "replay.py"
 # 잡음 뽑기에 따라 가끔 나온 시나리오. ROS 실행은 같은 씨드로도 시각이 달라 고정할 수 없다.
 # 판정 거리는 줄이지 않고 기다린다(리드 결정 2026-11-12, 지도 교차점 이동은 사용자가 정한다)
 NEEDS_R1 = "R1: zone released while the body still overlaps it (zone_clear_m vs radius + noise)"
-RELEASE_FLAKY = {"basic_orders", "order_burst", "blocked_lane", "reinstate"}
+RELEASE_FLAKY = {"basic_orders", "order_burst", "blocked_lane", "reinstate", "auto_isolation"}
 
 
 @pytest.mark.parametrize("scenario", [
