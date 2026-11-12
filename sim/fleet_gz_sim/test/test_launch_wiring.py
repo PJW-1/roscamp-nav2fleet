@@ -71,7 +71,8 @@ def test_launch_checks_the_working_directory(gz, tmp_path):
 def test_the_launch_takes_a_layout_and_no_site_argument(gz):
     assert gz.ARGS["layout"][0] == "d2"
     assert "site" not in gz.ARGS and "traffic_mode" not in gz.ARGS
-    assert "nav_collision_check" not in gz.ARGS  # 충돌 검사는 모든 실행에서 켠다
+    # 마당 goal의 충돌 검사는 끌 수 없다. 고정 경로 셋은 fixed_line_collision_check로 정한다
+    assert "nav_collision_check" not in gz.ARGS
 
 
 # -- 배선: launch 동작 대신 만든 인자를 기록해 본다 ------------------------------------------

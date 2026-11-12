@@ -4,6 +4,8 @@ import re
 import sys
 from pathlib import Path
 
+import pytest
+
 TOOLS = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(TOOLS))
 
@@ -103,10 +105,25 @@ def test_the_script_runs_both_gazebo_stages_with_the_fixed_line_check_it_was_giv
     # 기본은 끔이다(사용자 결정 2026-11-13). --fixed-line-check true로 켠다
     script = (TOOLS / "avoid_regression.sh").read_text(encoding="utf-8")
     assert re.search(r"\bfixed_check=false\b", script)
-    assert '--fixed-line-check) fixed_check="$2"; shift 2 ;;' in script
+    given = r'\s*fixed_line_collision_check:="\$fixed_check"'
+    assert re.search(r"one_pinky\.launch\.py[^\n]*\\\n[^\n]*" + given, script)
+    assert re.search(r"gz\.launch\.py(?:[^\n]*\\\n){2}" + given, script)
     assert script.count('fixed_line_collision_check:="$fixed_check"') == 2
     assert "fixed_line_collision_check:=true" not in script
     assert re.search(r'case "\$fixed_check" in\s+true\|false\) ;;', script)
+
+
+@pytest.mark.parametrize("given", [[], ["maybe"]])
+def test_the_script_refuses_a_fixed_line_check_that_is_not_true_or_false(given):
+    import shutil
+    import subprocess
+    if shutil.which("bash") is None:
+        pytest.skip("no bash")
+    # 검증은 폴더를 만들거나 단계를 돌리기 전에 끝난다
+    done = subprocess.run(["bash", "avoid_regression.sh", "--skip-headless", "--skip-gazebo",
+                           "--fixed-line-check", *given], cwd=TOOLS, capture_output=True)
+    assert done.returncode == 2
+    assert b"--fixed-line-check" in done.stderr
 
 
 def test_the_launch_files_leave_the_fixed_line_check_off_unless_asked():

@@ -33,7 +33,7 @@ while [ $# -gt 0 ]; do
     --keepout-max) keepout_max="$2"; shift 2 ;;
     --skip-headless) headless=false; shift ;;
     --skip-gazebo) gazebo=false; shift ;;
-    --fixed-line-check) fixed_check="$2"; shift 2 ;;
+    --fixed-line-check) fixed_check="${2:-}"; shift; [ $# -gt 0 ] && shift ;;
     -h|--help) usage; exit 0 ;;
     *) echo "모르는 인자: $1" >&2; usage >&2; exit 2 ;;
   esac
