@@ -362,6 +362,23 @@ def test_without_an_order_comm_loss_still_stops_at_once():
     assert Finish("g1", False, HEARTBEAT_LOST) in cmds and of(cmds, CancelNav)
 
 
+def test_comm_loss_of_a_plain_goal_does_not_rename_the_next_orders_failure():
+    fsm = ready()
+    fsm.move("g1", 1.0, "P", (1.8, 0.3, 0.0), [], HERE)
+    assert Finish("g1", False, HEARTBEAT_LOST) in fsm.tick(2.6, HERE, STILL, no_obstacle)
+    far = line(1, 1.0, 1.5)  # does not start at the robot
+    cmds = order(fsm, "g2", 2.7, [far], [S3])
+    assert finishes(cmds) == [Finish("g2", False, PATH_NOT_CONNECTED, 0)]
+
+
+def test_a_tick_follows_a_pose_far_ahead_by_one_look_ahead_only():
+    """Tracking twice in a tick would look ahead from the place the first one found."""
+    fsm = ready(track_ahead_m=0.3)
+    order(fsm, "g1", 1.0, [line(1, 0.3, 2.3), line(2, 2.3, 2.8)], [S3])
+    fsm.tick(1.1, (2.0, 0.3, 0.0), DRIVING, no_obstacle)
+    assert fsm._active.s == pytest.approx(0.3)
+
+
 def test_the_order_fsm_is_a_pinky_fsm():
     assert issubclass(OrderFsm, PinkyFsm)
 
