@@ -181,9 +181,13 @@ def test_corner_arc_on_a_first_or_last_piece_may_use_the_whole_piece():
     from fleet_core.fleet_map.checks import corner_arc
     a, b, c = (0.18, 0.89), (0.35, 0.89), (0.35, 0.65)
     halved = corner_arc(a, b, c, 0.10)
-    whole = corner_arc(a, b, c, 0.10, halve=False)
+    whole = corner_arc(a, b, c, 0.10, shares=(1.0, 1.0))
     assert math.dist(halved[9], b) == pytest.approx(0.085 * (math.sqrt(2) - 1))
     assert math.dist(whole[9], b) == pytest.approx(0.10 * (math.sqrt(2) - 1))
+    # 한쪽만 다 쓰는 호(첫 선분은 다 쓰고 다음 선분은 가운데라 반): 0.08 m 첫 선분, 0.15 m 다음 선분
+    a2, c2 = (0.27, 0.89), (0.35, 0.74)
+    mixed = corner_arc(a2, b, c2, 0.10, shares=(1.0, 0.5))
+    assert math.dist(mixed[9], b) == pytest.approx(0.075 * (math.sqrt(2) - 1))
 
 
 def test_the_shelf_end_check_warns_with_the_arc_closer_to_the_shelf():
@@ -210,7 +214,7 @@ def test_the_shelf_end_check_warns_with_the_arc_closer_to_the_shelf():
     shelf = Site.shelves[0]
     halved = min(point_rect_distance(shelf, *p) for p in corner_arc(*Link.points, 0.10))
     whole = min(point_rect_distance(shelf, *p)
-                for p in corner_arc(*Link.points, 0.10, halve=False))
+                for p in corner_arc(*Link.points, 0.10, shares=(1.0, 1.0)))
     assert whole < halved
     clear = (whole + halved) / 2
     warnings = [w for w in shelf_end_warnings(Site(), clear, turn_radius=0.10) if "corner" in w]

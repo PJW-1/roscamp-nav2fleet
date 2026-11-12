@@ -52,12 +52,12 @@ def _axis(shelf):
     return (0, x0, x1) if x1 - x0 >= y1 - y0 else (1, y0, y1)
 
 
-def corner_arc(a, b, c, radius: float, count: int = 20, halve: bool = True) -> list:
+def corner_arc(a, b, c, radius: float, count: int = 20, shares=(0.5, 0.5)) -> list:
     """a -> b -> c의 꺾이는 곳 b를 핑키가 도는 호의 안쪽 점들(두 끝 접점은 뺀다).
 
-    pinky_fsm geometry.rounded와 같은 호다. 접점까지의 길이는 radius * tan(꺾인 각 / 2)이고 두 조각
-    길이의 반(halve)을 넘지 않는다. 핑키는 선의 첫 선분과 마지막 선분에서는 호가 그 선분을 다 쓸 수
-    있으니 halve=False는 두 조각 길이까지 쓴다.
+    pinky_fsm geometry.rounded와 같은 호다. 접점까지의 길이는 radius * tan(꺾인 각 / 2)이고 들어오는
+    조각과 나가는 조각 길이에 shares(기본 반씩)를 곱한 것을 넘지 않는다. 핑키는 선의 첫 선분과
+    마지막 선분에서는 호가 그 선분을 다 쓰고(1.0) 가운데 선분에서는 반(0.5)까지 쓴다.
     곧거나 180° 되돌아가는 곳은 호가 없다.
     """
     u = (b[0] - a[0], b[1] - a[1])
@@ -69,8 +69,7 @@ def corner_arc(a, b, c, radius: float, count: int = 20, halve: bool = True) -> l
     turn = math.acos(max(-1.0, min(1.0, u[0] * v[0] + u[1] * v[1])))
     if turn <= 1e-6 or math.pi - turn <= 1e-6:
         return []
-    share = 0.5 if halve else 1.0
-    reach = min(radius * math.tan(turn / 2), lu * share, lv * share)
+    reach = min(radius * math.tan(turn / 2), lu * shares[0], lv * shares[1])
     r = reach / math.tan(turn / 2)
     side = 1.0 if u[0] * v[1] - u[1] * v[0] > 0 else -1.0
     start = (b[0] - u[0] * reach, b[1] - u[1] * reach)
@@ -111,10 +110,11 @@ def shelf_end_warnings(site, clear: float, turn_radius: float = 0.0) -> list[str
                 out.append(f"path {link.path} from {link.a} to {link.b} passes {min(gaps):.3f} m "
                            f"from the end of the shelf {shelf}, wants {clear}")
     # 핑키가 실제로 달리는 호도 잰다(Codex 검토 4): 진열대 끝 밖(긴 축 방향으로 진열대를 벗어난
-    # 곳)의 점. 이어 달릴 때는 어느 선분이 명령의 처음과 끝인지 명령마다 다르니 반으로 줄인 호와
-    # 선분을 다 쓰는 호를 둘 다 잰다
+    # 곳)의 점. 이어 달릴 때는 어느 선분이 명령의 처음과 끝인지 명령마다 다르니 두 조각을 반씩, 다,
+    # 한쪽만 다 쓰는 네 호를 모두 잰다
     for name, a, b, c in _corners(site):
-        arc = corner_arc(a, b, c, turn_radius) + corner_arc(a, b, c, turn_radius, halve=False)
+        arc = [p for shares in ((0.5, 0.5), (1.0, 0.5), (0.5, 1.0), (1.0, 1.0))
+               for p in corner_arc(a, b, c, turn_radius, shares=shares)]
         for shelf in site.shelves:
             axis, low, high = _axis(shelf)
             gaps = [point_rect_distance(shelf, *p) for p in arc
