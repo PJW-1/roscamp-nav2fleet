@@ -57,8 +57,10 @@ class ZoneBase:
 
     def _on_node(self, m) -> bool:
         """마지막으로 닿은 지점에 아직 서 있는가(보고 자세로 본다)."""
-        return (bool(m.node) and not m.off_node
-                and self._gap(m, m.node) <= self.params.arrival_tolerance_m)
+        p = self.params
+        if m.off_node is not None and math.dist(m.off_node, (m.x, m.y)) <= p.stall_move_m:
+            return False  # 고정 경로에 붙지 못한 그 자리에 아직 서 있다
+        return bool(m.node) and self._gap(m, m.node) <= p.arrival_tolerance_m
 
     def _via(self, m) -> str:
         """지금 달리는 방식. order goal이면 지금 조각의 방식이다."""
