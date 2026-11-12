@@ -30,10 +30,11 @@ REPLAY = Path(__file__).parents[3] / "tools" / "replay.py"
 def unexplained_safety(summary: dict, safety: dict) -> tuple[int, int]:
     """safety.json의 (early, near) 가운데 심판의 R1 판정으로 설명되지 않는 것.
 
-    심판과 SafetyMeter는 같은 놓기를 같은 실제 자세로 본다: 자세를 아는 로봇의 R1 한 건은 early 한
-    건으로도 잡힌다. 심판은 자세를 모르는 로봇의 놓기와 거리가 반지름과 꼭 같은 놓기도 R1로 세므로,
-    R1을 기대값으로 적은 시나리오에서는 이 차감이 early를 덜 셀 수 있다. 지금 그런 시나리오는 없다:
-    R1이 0이어야 통과한다.
+    R1과 early는 대개 같은 놓기다: 실제 자세를 아는 로봇이 구역에서 반지름 안에 있을 때 놓은 것이다.
+    같지 않은 때가 셋이고 모두 심판만 센다. 거리가 반지름과 꼭 같을 때(심판은 <=, SafetyMeter는 <),
+    실제 자세가 없어 심판이 보고 자세를 다른 한계(여유 거리 - 잡음의 두 배)로 볼 때, 자세가 전혀
+    없을 때다. 그래서 R1을 기대값으로 적은 시나리오에서는 이 차감이 early를 덜 셀 수 있다. 지금 그런
+    시나리오는 없다: R1이 0이어야 통과한다.
     """
     r1 = summary["checks"]["released_without_position_check"]["value"]
     return max(0, safety["early"] - r1), safety["near"]
