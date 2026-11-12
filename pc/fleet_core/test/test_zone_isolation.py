@@ -37,12 +37,17 @@ def test_a_robot_reporting_from_a_taken_node_is_refused_once_and_placed_where_it
     assert world.traffic.status_view("pinky2")["fault_reason"] == ""
 
 
-def beside_a_taken_node(gap_m: float):
-    """pinky1이 대기 자리 W_Q에 서 있고, pinky2의 첫 보고는 W_Q에서 동쪽으로 gap_m이다."""
+def beside_a_taken_node(gap_m: float, hold_m: float = 0.05):
+    """pinky1이 대기 자리 W_Q를 쥐었고, pinky2의 첫 보고는 W_Q에서 남쪽으로 gap_m이다.
+
+    남쪽이면 W_Q가 가장 가까운 지점이다(N_W와 P-1은 0.25 m 넘게 떨어진다). pinky1은 W_Q에서
+    북쪽으로 hold_m에 서 있다.
+    """
     world = Harness(starts={"pinky1": "W_Q", "pinky2": "P-2", "pinky3": "P-3"})
     x, y = world.site.node_pose("W_Q")[:2]
-    world.bots["pinky1"].x = x - 0.05  # 두 몸이 겹치지 않게 조금 서쪽에 섰다
-    world.bots["pinky2"].x, world.bots["pinky2"].y = x + gap_m, y
+    world.bots["pinky1"].y = y + hold_m
+    world.bots["pinky2"].x, world.bots["pinky2"].y = x, y - gap_m
+    assert world.site.nearest_node(x, y - gap_m, radius=0.15) == "W_Q"
     world.step()
     return world
 
@@ -54,6 +59,7 @@ def test_a_robot_beside_a_taken_node_in_the_yard_is_placed_in_the_yard():
     world = beside_a_taken_node(0.13)
     view = world.view("pinky2")
     assert view["on_map"] and "HALL" in view["held"] and "W_Q" not in view["nodes"]
+    assert view["node"] != "W_Q", "W_Q is pinky1's; it carries the name of a free node"
     assert "PLACEMENT_CONFLICT" not in world.codes()
     assert "W_Q" in world.view("pinky1")["nodes"], "the node stays with pinky1"
     world.run(1.0)
@@ -64,6 +70,14 @@ def test_a_robot_beside_a_taken_node_in_the_yard_is_placed_in_the_yard():
 
 def test_a_robot_reporting_right_on_a_taken_node_is_still_refused():
     world = beside_a_taken_node(0.06)
+    assert world.view("pinky2")["on_map"] is False
+    assert world.codes("pinky2") == ["PLACEMENT_CONFLICT"]
+
+
+def test_two_robots_reporting_the_same_spot_beside_a_node_are_still_a_conflict():
+    """지점에서 떨어진 자리라도 두 보고가 한 몸 안에서 겹치면 둘 중 하나는 틀린 보고다."""
+    world = beside_a_taken_node(0.10, hold_m=-0.10)
+    assert world.view("pinky1")["nodes"][0] == "W_Q"
     assert world.view("pinky2")["on_map"] is False
     assert world.codes("pinky2") == ["PLACEMENT_CONFLICT"]
 
