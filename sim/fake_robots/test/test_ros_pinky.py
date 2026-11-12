@@ -96,9 +96,10 @@ def test_a_path_goal_waits_for_a_robot_on_the_line_ahead(harness, tmp_path):
     """path 모드도 바로 앞에 다른 로봇이 있으면 서서 BLOCKED를 보고하고, 비키면 이어 간다(R3)."""
     from fake_robots.common import TRUTH_TOPIC
     p = start(harness, tmp_path, robots={
-        "pinky1": {"start": "N_W", "speed_mps": 0.5, "pose_noise_m": 0.0},
+        "pinky1": {"start": "P-1", "speed_mps": 0.5, "pose_noise_m": 0.0},
         "pinky2": {"start": "P-2", "speed_mps": 0.5, "pose_noise_m": 0.0}})
-    (x0, y), (x1, _) = points = [SITE.node_pose(w) for w in ("N_W", "N_E")]
+    points = [SITE.node_pose(w) for w in ("P-1", "N_W", "N_E")]
+    (x0, y), (x1, _) = points[1:]
     spot = [(x0 + x1) / 2, y]  # pinky2가 선 한가운데에 서 있다
     pub = p.node.create_publisher(RobotState, TRUTH_TOPIC.format(robot="pinky2"),
                                   to_ros_qos(CONTRACT_OBJ.qos("robot_state")))
