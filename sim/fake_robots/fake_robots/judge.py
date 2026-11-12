@@ -19,6 +19,7 @@ from fleet_core.fleet_map import DOCK, SHARED
 RATE_PERIOD_S = 0.5  # robots.csv는 2 Hz로 줄여 쓴다
 OFF_LANE_GRACE_S = 1.0  # drift 시작부터 FMS가 연속 보고로 알아챌 때까지의 여유
 EPS = 1e-9
+ON_THE_WAY = ("TO_WORK", "TO_OUTBOUND")  # 스테이션으로 가는 중이거나 그 줄에 선 로봇의 task_type
 PLACING = "PLACING"
 FINAL_CODES = {"ORDER_SHIPPED": "SHIPPED", "ORDER_PARTIAL": "PARTIAL", "ORDER_HELD": "HELD"}
 ORDER_ID = re.compile(r"[^\s:,;]+")
@@ -359,9 +360,9 @@ class ScenarioJudge:
             self._from_outbound.add(robot)
         elif robot not in self._from_outbound:
             return
-        elif place == "park" and self._tasks.get(robot) == "TO_WORK":
-            # 구역 관제는 작업 도크로 부른 로봇을 주차 자리에서 기다리게 한다(도크 대기 줄, 구역
-            # 기다림): 바퀴가 끊기지 않는다
+        elif place == "park" and self._tasks.get(robot) in ON_THE_WAY:
+            # 구역 관제는 스테이션으로 가는 로봇을 주차 자리에서 기다리게 한다(도크 대기 줄, 구역
+            # 기다림. docs/관제_구역교통.md 규칙 5): 바퀴가 끊기지 않는다. WAIT(주차시킴)만 센다
             self._last_zone.pop(robot, None)
             return
         elif place == "work":

@@ -700,6 +700,23 @@ def test_a_robot_called_to_work_may_wait_at_parking_on_the_way():
     assert check(j, "direct_returns_min")["value"] == 1  # 줄을 섰다가 곧장 작업 도크로 갔다
 
 
+def test_a_robot_on_its_way_to_the_outbound_dock_may_wait_at_parking():
+    j = judge()
+    j.on_board(["O-1", "O-2"])
+    lap(j, "pinky1", [OUT, LANE])
+    j.on_assignments({"pinky1": "TO_OUTBOUND"})  # 출고 도크가 바빠 주차 자리에서 줄을 선다
+    lap(j, "pinky1", [WAITING[0]], start=3.0)
+    assert check(j, "parked_while_backlog")["value"] == 0
+
+
+def test_a_robot_with_no_task_parks_with_a_backlog():
+    j = judge()
+    j.on_board(["O-1", "O-2"])
+    j.on_assignments({"pinky2": "TO_WORK"})  # 다른 로봇의 일은 pinky1을 봐주지 않는다
+    lap(j, "pinky1", [OUT, LANE, WAITING[0]])
+    assert check(j, "parked_while_backlog")["value"] == 1
+
+
 def test_a_robot_sent_to_wait_still_parks_with_a_backlog():
     j = judge()
     j.on_board(["O-1", "O-2"])
