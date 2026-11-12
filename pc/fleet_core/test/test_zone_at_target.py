@@ -64,3 +64,63 @@ def test_a_move_left_open_short_of_its_end_is_still_a_stall():
     assert world.run_until(lambda: "GOAL_STALLED" in world.codes("pinky2"), 30.0)
     codes = world.codes("pinky2")
     assert "GOAL_RETRY" in codes and "GOAL_ENDED_AT_TARGET" not in codes
+
+
+def test_a_move_answered_as_failed_with_the_robot_at_its_end_is_taken_as_arrived():
+    world = Harness()
+    world.step()
+    world.call("WORK", "pinky2")
+    world.step()
+    first = world.sent(MoveCmd, "pinky2")[0]
+    answer, world.traffic.on_move_result = world.traffic.on_move_result, lambda *args: None
+    assert world.run_until(lambda: world.bots["pinky2"].cmd is None, 60.0), "it reached N_W"
+    world.step()
+    answer("pinky2", first.goal_id, False, "NAV_ABORTED")
+    codes = world.codes("pinky2")
+    world.step()
+    assert "GOAL_ENDED_AT_TARGET" in world.codes("pinky2") and "GOAL_RETRY" not in codes
+    assert world.view("pinky2")["node"] == first.target_id
+
+
+def test_the_next_goal_waits_until_the_cancel_of_the_open_goal_has_reached_the_robot():
+    world, retreat, _ = backing_out()
+    assert world.run_until(lambda: "GOAL_ENDED_AT_TARGET" in world.codes("pinky1"), 30.0)
+    world.run(world.params.arrival_settle_s - 0.2)
+    assert not world.sent(MoveCmd, "pinky1"), "the cancel may still be on its way"
+    assert world.run_until(lambda: world.sent(MoveCmd, "pinky1"), 2.0)
+
+
+# ---- 위치를 믿을 수 없으면 닿았다고 보지 않는다 ----
+
+def at_the_end_unanswered():
+    world, retreat, answer = backing_out()
+    assert world.run_until(lambda: world.bots["pinky1"].cmd is None, 20.0), "it reached X_W"
+    world.step()
+    return world, retreat, answer
+
+
+def test_a_failure_heard_after_the_reports_stopped_is_not_taken_as_arrived():
+    world, retreat, answer = at_the_end_unanswered()
+    world.silent.add("pinky1")
+    world.run(world.params.arrival_settle_s + 0.5)  # 아직 COMM_LOST는 아니다
+    answer("pinky1", retreat.goal_id, False, "FAILED")
+    world.step()
+    codes = world.codes("pinky1")
+    assert "GOAL_RETRY" in codes and "GOAL_ENDED_AT_TARGET" not in codes
+
+
+def test_a_failure_from_a_robot_that_has_lost_its_position_is_not_taken_as_arrived():
+    world, retreat, answer = at_the_end_unanswered()
+    bot = world.bots["pinky1"]
+    world.traffic.on_robot_state("pinky1", bot.x, bot.y, bot.yaw, "LOCALIZING")
+    answer("pinky1", retreat.goal_id, False, "FAILED")
+    codes = [e.code for e in world.traffic.take_output() if hasattr(e, "code")]
+    assert "GOAL_RETRY" in codes and "GOAL_ENDED_AT_TARGET" not in codes
+
+
+def test_a_robot_that_stopped_itself_without_the_heartbeat_keeps_its_own_handling():
+    world, retreat, answer = at_the_end_unanswered()
+    answer("pinky1", retreat.goal_id, False, "HEARTBEAT_LOST")
+    world.step()
+    codes = world.codes("pinky1")
+    assert "GOAL_ENDED_AT_TARGET" not in codes and "GOAL_RETRY" not in codes
