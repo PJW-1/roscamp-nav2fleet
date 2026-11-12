@@ -9,10 +9,9 @@ from __future__ import annotations
 
 import math
 
-from .world.geom import ahead, path_gap
+from .ahead import nothing_ahead
 from .world.nav_goal import ABORT_AFTER_S, GIVE_UP_S, PROGRESS_M, REPLAN_S, plan_around
 from .world.planner import plan
-from .world.runs import GAP_M, LOOK_M
 
 BLOCKED_AFTER_S = 5.0  # 계약 5절: nav_goal 모드는 이만큼 못 나아가면 BLOCKED
 
@@ -48,16 +47,8 @@ class NavGoalDrive:
         return None
 
     def clear_ahead(self, motion, step, others) -> bool:
-        """남은 길의 앞 LOOK_M + step 안에 몸이 닿을 로봇이 없다(가까워지는 것만 본다)."""
-        if not motion.moving:
-            return True
-        seg = ahead([(motion.x, motion.y), *motion.via, motion.target], LOOK_M + step)
-        for x, y, r in others:
-            gap = path_gap((x, y), seg)
-            if (gap <= self.radius + r + GAP_M
-                    and gap < math.dist((x, y), (motion.x, motion.y)) - 1e-9):
-                return False
-        return True
+        """바로 앞에 몸이 닿을 로봇이 없다(충돌 검사를 켠 Nav2)."""
+        return nothing_ahead(motion, self.radius, step, others)
 
     def blocked(self, t) -> bool:
         return t - self.mark_t >= self.blocked_after_s - 1e-9

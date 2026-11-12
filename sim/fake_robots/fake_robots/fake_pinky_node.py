@@ -192,9 +192,8 @@ class FakePinkyNode(PinkyGoals, PinkyRetreat, PinkyReport, Node):
                         and not self._recovery.backing_up):
                     goal.abort_at = t + NAV_ABORT_DELAY_S  # 다시 보낸 FollowPath도 중단된다
                 # 물체가 있으면 선다. 시도가 남았으면 후진하고 다시 가 보고, 없으면 BLOCKED.
-                # nav_goal 모드는 바로 앞에 다른 로봇이 있어도 선다(충돌 검사를 켠 Nav2)
-                if goal.nav is None or goal.nav.clear_ahead(
-                        self._motion, self._cfg.speed_mps * dt, others):
+                # 바로 앞에 다른 로봇이 있어도 선다(nav_goal은 Nav2 충돌 검사, path는 앞 물체 검사)
+                if self._nothing_ahead(goal, t, self._cfg.speed_mps * dt, others):
                     self._recovery.drive(t, dt, self._motion, self._cfg.speed_mps, others,
                                          self._faults.behind(t))
                 if not self._motion.moving and (goal.nav is None or goal.nav.has_way):

@@ -8,6 +8,7 @@ from fleet_interfaces.action import Dock, MoveTo, Retreat
 from fleet_interfaces.msg import RobotState
 from rclpy.action import CancelResponse, GoalResponse
 
+from fake_robots.ahead import PathWatch
 from fake_robots.motion import abort_at_shutdown, drifted, finish_action, noisy_pose, path_gap
 from fake_robots.nav_goal_drive import NavGoalDrive
 from fake_robots.pinky_goal import NAV_ABORT_DELAY_S, _Goal
@@ -62,6 +63,7 @@ class PinkyGoals:
                     self._end(goal, False, MoveTo.Result.REASON_PATH_NOT_CONNECTED)
                 else:
                     # path: 첫 점은 로봇 자리라 건너뛰고, 끝 점은 target_pose다
+                    goal.line = PathWatch(self._recovery.p.robot_radius_m)
                     self._motion.set_target(*noisy_pose(pose.x, pose.y, self._cfg.stop_error_m,
                                                         self._rng), via=path[1:-1],
                                             start=path[0] if path else None)
@@ -74,6 +76,14 @@ class PinkyGoals:
                 goal.end_at = t + self._dock_cfg.duration_s
             self._goals[bytes(handle.goal_id.uuid)] = goal
         handle.execute()
+
+    def _nothing_ahead(self, goal: _Goal, t: float, step: float, others) -> bool:
+        """다른 로봇이 바로 앞에 있으면 이번 틱은 서 있는다. 후진은 뒤를 따로 본다."""
+        if goal.nav is not None:
+            return goal.nav.clear_ahead(self._motion, step, others)
+        if goal.line is None or self._recovery.backing_up:
+            return True
+        return goal.line.clear_ahead(t, self._motion, step, others)
 
     def _take_nav_abort(self, t: float, goal: _Goal, remaining: float) -> None:
         if self._faults.take_nav_abort(t, goal.target_id):

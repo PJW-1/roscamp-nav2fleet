@@ -4,6 +4,7 @@ from __future__ import annotations
 import math
 import threading
 
+from fake_robots.ahead import PathWatch
 from fake_robots.nav_goal_drive import NavGoalDrive
 
 NAV_ABORT_DELAY_S = 0.2  # 해제 거리(0.2 m)를 지나기 전, 관제가 선을 늘리기 전에 중단한다
@@ -41,6 +42,12 @@ class _Goal:
         self.left = 0.0  # retreat: 남은 거리
         self.speed = 0.0
         self.nav: NavGoalDrive | None = None  # move의 nav_goal 모드
+        self.line: PathWatch | None = None  # move의 path 모드
+
+    def blocked(self, t: float) -> bool:
+        """다른 로봇 앞에 서 있어서 BLOCKED를 보고할 때다."""
+        watch = self.nav or self.line
+        return watch is not None and watch.blocked(t)
 
     def finish(self, success: bool, reason: str = "") -> None:
         if not self.done.is_set():

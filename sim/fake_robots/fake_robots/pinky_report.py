@@ -36,7 +36,7 @@ class PinkyReport:
     def _push_report(self, t: float, goal: _Goal | None, busy: bool, battery: float) -> None:
         if busy and goal.kind == "move" and self._recovery.recovering:
             state = RobotState.STATE_RECOVERING  # 명세 8번: LOCALIZING 다음
-        elif self._recovery.blocked or (busy and goal.nav is not None and goal.nav.blocked(t)):
+        elif self._recovery.blocked or (busy and goal.blocked(t)):
             state = RobotState.STATE_BLOCKED
         elif busy:
             state = RobotState.STATE_DOCKING if goal.kind == "dock" else RobotState.STATE_MOVING
