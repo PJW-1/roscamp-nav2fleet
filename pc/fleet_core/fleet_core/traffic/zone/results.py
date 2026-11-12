@@ -1,6 +1,8 @@
 """명령의 결과: 이동, 후진, 도킹의 성공과 실패, 거절, 못 보냄, 잃음."""
 from __future__ import annotations
 
+import math
+
 from fleet_core.fleet_map import NAV_GOAL, SHARED
 from fleet_core.traffic.mission import (
     AT_STATION,
@@ -37,6 +39,8 @@ class Results:
             self._move_failed(m, reason)
 
     def on_retreat_result(self, robot, goal_id, success, reason="") -> None:
+        if self._backoff_result(robot, goal_id, "" if success else reason or "RETREAT_FAILED"):
+            return
         m = self._active(robot, goal_id, RETREAT)
         if m is None:
             return
@@ -56,11 +60,14 @@ class Results:
             return
         m.attempts = 0
         m.phase = AT_STATION
+        m.dock_error_m = math.hypot(error_x_cm, error_y_cm) / 100.0
         self._event("INFO", "DOCKED", f"at {m.dest}: x {error_x_cm:.1f} cm, y {error_y_cm:.1f} cm,"
                     f" yaw {error_yaw_deg:.1f} deg", m.name)
         self._finish_dispatch(m, error_x_cm, error_y_cm, error_yaw_deg)
 
     def on_goal_rejected(self, robot, goal_id) -> None:
+        if self._backoff_result(robot, goal_id, "REJECTED"):
+            return
         m = self._active(robot, goal_id, MOVE, RETREAT, DOCK)
         if m is None or self._update_unclear(m, "the goal was rejected or lost its result"):
             return
@@ -71,6 +78,8 @@ class Results:
             self._move_failed(m, "REJECTED")
 
     def on_goal_not_sent(self, robot, goal_id) -> None:
+        if self._backoff_result(robot, goal_id, "NOT_SENT"):
+            return
         m = self._active(robot, goal_id, MOVE, RETREAT, DOCK)
         if m is None or self._update_lost(m, "the goal was not sent"):
             return
@@ -82,6 +91,8 @@ class Results:
                         m.name)
 
     def on_goal_lost(self, robot, goal_id) -> None:
+        if self._backoff_result(robot, goal_id, "LOST"):
+            return
         m = self._active(robot, goal_id, MOVE, RETREAT, DOCK)
         if m is not None and not self._update_unclear(m, "the goal was lost"):
             self._forget_goal(m)

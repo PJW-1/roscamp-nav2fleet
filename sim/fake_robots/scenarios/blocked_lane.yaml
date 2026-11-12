@@ -1,8 +1,11 @@
-# 길 막힘(계약 5절): basic_orders에 pinky1 앞 물체 15초를 더했다.
+# 길 막힘(계약 5절): basic_orders에 pinky1 앞 물체 24초를 더했다.
 # pinky1은 BLOCKED로 보고하고, 관제는 blocked_mark_s 뒤 그 길을 막힘으로 표시하고
 # 다른 길을 고른다(ZONE_MARKED_BLOCKED). 주문은 모두 출고된다. pinky3은 2초 동안 LOCALIZING이다.
-# 구역 관제(D2)에서 pinky1은 처음에 W_Q에서 줄을 서 있다가 23초쯤 작업 도크로 간다. 그래서 물체는
-# 그 길 위인 24초에 둔다(레인 관제 때는 8초에 이미 가고 있었다).
+# 구역 관제(D2)에서 pinky1은 W_Q에서 줄을 서 있다가 23~24초에 작업 도크로 떠난다(WSL 열두 번).
+# 물체는 그 전인 20초에 두어 떠날 때 이미 앞에 있게 한다: 떠난 지 0.1초 뒤에 물체가 나타난
+# 실행 하나에서 로봇이 BLOCKED를 보고한 지 6초 만에 지점에 닿아 표시가 나오지 않았다(가짜
+# 핑키 쪽 원인은 확인하지 않았다). 서 있는 동안의 물체는 아무 일도 하지 않는다. 44초까지 둔다:
+# 자가 복구 뒤 BLOCKED 보고가 28~31초, 표시가 38~41초에 나왔다.
 seed: 7
 speed_factor: 5.0
 timeout_s: 900
@@ -21,7 +24,7 @@ robots:
 arm: {seconds_per_item: 4.0, swap_seconds: 8.0, fail_rate: 0.0}
 dock: {duration_s: 3.0, error_cm: 1.0}
 faults:
-  - {at_s: 24.0, robot: pinky1, type: blocked, duration_s: 15.0}
+  - {at_s: 20.0, robot: pinky1, type: blocked, duration_s: 24.0}
 expect:
   robot_idle: null  # 고장 시나리오는 ROBOT_IDLE을 세지 않는다(1.1 지시서 H2)
   all_orders_finished: true

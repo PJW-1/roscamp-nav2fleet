@@ -1,6 +1,7 @@
 """use_order_model이 꺼져 있으면 order 모델을 넣기 전과 사건·명령 기록이 같다.
 
-기준 기록(data/zone_off_golden.txt)은 order 모델을 넣기 전의 nav2-base(59937d9)에서 만들었다.
+기준 기록(data/zone_off_golden.txt)은 order 모델이 없는 nav2-base의 코드와 시험 틀로 만든다.
+지금 것은 06cc2db의 것이다(추가 지시서 2로 교통 층의 동작을 바꾼 뒤. 처음은 59937d9였다).
 교통 층의 동작을 일부러 바꿨을 때만 ZONE_GOLDEN_WRITE=1로 다시 만든다.
 """
 import os

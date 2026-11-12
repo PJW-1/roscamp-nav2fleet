@@ -73,7 +73,11 @@ class FleetParams:
     nav_speed_mps: float = 0.12  # 넓은 구역(Nav2 goal)의 ETA와 길 비용에 쓰는 속도
     follow_speed_mps: float = 0.12  # 고정 경로(FollowPath)의 같은 값
     retreat_speed_mps: float = 0.05  # 후진(Retreat) 속도
-    zone_clear_m: float = 0.10  # 보고 위치가 뒤 구역에서 이만큼 벗어나면 그 구역을 놓는다
+    # 뒤 구역은 보고 중심이 구역에서 footprint_radius_m + release_margin_m 넘게 벗어나면 놓는다
+    # (몸 전체가 빠져나간 뒤, 추가 지시서 2의 5절)
+    footprint_radius_m: float = 0.085  # Nav2 발자국 0.12 x 0.12 m의 반 대각선
+    release_margin_m: float = 0.05  # 보고 위치 오차의 여유
+    zone_clear_m: float = 0.0  # 옛 기록 전용: 0이 아니면 이 거리로 놓는다(그때의 규칙으로 재생)
     node_clear_m: float = 0.20  # 뒤 지점에서 이만큼 멀어지면 그 지점을 놓는다
     lane_follow_gap_s: float = 4.0  # 앞 로봇이 한 줄 구역에 들어간 뒤 이만큼 지나야 뒤따른다
     lane_hysteresis_s: float = 5.0  # 반대쪽이 이만큼 더 빨리 닿을 때만 방향을 바꾼다
@@ -84,10 +88,23 @@ class FleetParams:
     near_stuck_s: float = 5.0  # 이만큼 못 나아가면 우선순위 낮은 쪽이 비킨다
     outside_zone_m: float = 0.05  # 쥔 구역 밖으로 이만큼 벗어난 보고가
     outside_zone_samples: int = 5  # 이만큼 이어지면 OUTSIDE_ZONE
+    # 마당 물러나기(제안, 2026-11-12). 넓은 구역에서 비켜 서는 로봇이 BLOCKED를 보고했으면 선
+    # 방향 그대로 뒤로 물린 뒤 세운다. 끄면(기본) 세우기만 한다
+    yard_backoff: bool = False
+    yard_backoff_m: float = 0.12  # 물러나는 거리
+    # 비킬 로봇의 BLOCKED 보고를 이만큼 더 기다린다. near_stuck_s와 더해 stall_s보다 짧아야 한다
+    yard_backoff_wait_s: float = 0.5
+    yard_backoff_edge_m: float = 0.10  # 설 자리가 벽, 진열대, 고정 경로 구역에서 떨어질 거리
+    # 관제가 시키는 물러나기(마당 물러나기, 고정 구간 후진)의 길이 다른 로봇에 이만큼 안으로
+    # 다가가면 내지 않는다(추가 지시서 2의 4절: 뒤에 다른 로봇이 없을 때만 물러난다)
+    retreat_clear_m: float = 0.20
     # order 모델(VDA 5050의 base/horizon, 추가 지시서). 끄면 조각 하나씩 보낸다
     use_order_model: bool = False
     lookahead_s: float = 2.0  # base 끝까지 이만큼 남으면 다음 구역을 잡아 본다
     comm_base_hold_extra_s: float = 3.0  # 끊긴 로봇의 base 구역을 base 끝 ETA + 이만큼 쥔다
+    # 시험 판정(추가 지시서 2, 2026-11-12). 0이면 끈다. 이 값이 없던 기록은 감시 없이 재생한다
+    silent_limit_s: float = 0.0  # 갈 곳이 있는 로봇이 나아가지 않고 관제도 말이 없으면 SILENT_STALL
+    start_limit_s: float = 0.0  # goal을 보낸 뒤 이만큼 안에 2 cm 넘게 움직이지 않으면 NO_START
 
 
 def load_params(path=None) -> FleetParams:

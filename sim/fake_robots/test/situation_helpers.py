@@ -5,8 +5,8 @@ SEEDS = (1, 2, 3)
 ALL_LAYOUTS = ("d2", "d", "c")
 
 
-def check(name, layout, seed):
-    outcome = run_situation(name, layout, seed)
+def check(name, layout, seed, avoid_mode="perfect"):
+    outcome = run_situation(name, layout, seed, avoid_mode=avoid_mode)
     last = [f"{t:.1f} {e.code} {e.robot} {e.detail}" for t, e in outcome.world.events[-15:]]
     assert outcome.failures == [], "\n".join([*outcome.failures, "-- last events --", *last])
     return outcome

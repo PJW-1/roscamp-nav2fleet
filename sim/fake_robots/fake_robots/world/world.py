@@ -14,10 +14,11 @@ import random
 from dataclasses import replace
 
 from fleet_core.common.params import load_params
-from fleet_core.fleet_map import load_fleet_map
+from fleet_core.fleet_map import PARKING, WAIT, load_fleet_map
 
 from ..battery import Battery
 from .apply import Commands
+from .avoid import PERFECT, MixedSettings, check_mode
 from .free_space import FreeSpace
 from .geom import segment_gap
 from .injections import LowBattery, OrderFault, Reinstate, Removal, Schedule
@@ -26,6 +27,7 @@ from .link import Link
 from .metrics import Metrics
 from .order_metrics import OrderMetrics
 from .order_run import OrderRun
+from .reaction import ReactionWatch
 from .robot import Imperfections, SimRobot, profile_for
 from .runs import DOCK, Result
 from .stations import Arms, Central, six_orders
@@ -49,7 +51,8 @@ def default_robots(site, count=3) -> dict[str, str]:
 class ZoneWorld(Commands, Link):
     def __init__(self, layout="d2", seed=1, params=None, overrides=None, robots=None,
                  orders=None, injections=(), imperfect=None, manager_factory=default_manager,
-                 stock=None, arm_s_per_item=2.0, swap_step_s=2.0, dock_s=2.0, run_mode="RUN"):
+                 stock=None, arm_s_per_item=2.0, swap_step_s=2.0, dock_s=2.0, run_mode="RUN",
+                 avoid_mode=PERFECT, avoid_settings=None):
         self.site = load_fleet_map(layout) if isinstance(layout, str) else layout
         params = params or load_params()
         self.params = replace(params, traffic_mode="zones", **(overrides or {}))
@@ -60,6 +63,8 @@ class ZoneWorld(Commands, Link):
         self.dt = DT
         self.radius = self.params.robot_radius_m
         self.blocked_after_s = BLOCKED_AFTER_S
+        self.avoid_mode = check_mode(avoid_mode)  # 회피 흉내(avoid.py)
+        self.avoid_settings = avoid_settings or MixedSettings()
         self.dock_s = dock_s
         self.run_mode = run_mode
         self.schedule = Schedule(injections)
@@ -77,6 +82,7 @@ class ZoneWorld(Commands, Link):
         self.reports_sent = 0
         self.guard_stops = 0  # 몸이 닿기 직전에 세계가 세운 수(충돌 검사가 놓친 것)
         self.invariants = Invariants(self.site, self.params)
+        self.reaction = ReactionWatch(self.params, self.invariants.violations)
         self.metrics = Metrics(self.site, self.robots)
         self.order_metrics = OrderMetrics(self.site, self.robots)
         self.central = Central(six_orders() if orders is None else orders, self._violation)
@@ -145,6 +151,7 @@ class ZoneWorld(Commands, Link):
                  for n, r in present.items()}
         views = self.views()
         self.invariants.check(self.t, grants, present, views, quiet)
+        self.reaction.check(self.t, present)
         self.metrics.step(self.t, DT, grants, present, self.orders_done(), views)
         self.order_metrics.step(self.t, DT, present, views)
 
@@ -183,15 +190,20 @@ class ZoneWorld(Commands, Link):
                 self.manager.reinstate(item.robot, item.basket, "put back")
 
     def _free_spot(self, node: str, robot: str) -> str:
-        """node에 다른 로봇이 있으면 가장 가까운 빈 대기 지점(운영자는 겹쳐 놓지 않는다)."""
+        """node에 다른 로봇이 있으면 가장 가까운 빈 대기 지점(운영자는 겹쳐 놓지 않는다).
+        도크와 관제가 다른 로봇에 잡아 준 지점에는 놓지 않는다."""
         others = [o.pose for n, o in self.present().items() if n != robot]
         gap = 2 * self.params.robot_radius_m
+        grants = self.grants()
 
         def free(n):
-            return all(math.dist(self.site.node_pose(n), p) >= gap for p in others)
+            holder = grants.node_holder(n) if grants is not None else ""
+            return (holder in ("", robot)
+                    and all(math.dist(self.site.node_pose(n), p) >= gap for p in others))
         if free(node):
             return node
-        spots = [n for n in self.site.nodes if self.site.can_wait(n) and free(n)]
+        spots = [n for n in self.site.nodes
+                 if self.site.nodes[n].kind in (WAIT, PARKING) and free(n)]
         here = self.site.node_pose(node)
         return min(spots, key=lambda n: math.dist(here, self.site.node_pose(n)), default=node)
 

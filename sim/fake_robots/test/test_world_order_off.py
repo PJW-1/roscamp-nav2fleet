@@ -1,6 +1,7 @@
 """order 모델이 꺼져 있으면(use_order_model false) 세계는 order를 넣기 전과 똑같이 돈다.
 
-data/world_off_golden.txt는 order 지원을 넣기 전(world-order에 world를 합친 때)의 사건 기록이다.
+data/world_off_golden.txt는 order 지원이 없는 nav2-base의 코드로 만든 사건 기록이다. 지금 것은
+06cc2db의 것이다(추가 지시서 2로 관제의 동작을 바꾼 뒤. 처음은 world-order에 world를 합친 때였다).
 """
 from pathlib import Path
 

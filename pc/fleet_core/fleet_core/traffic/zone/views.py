@@ -44,7 +44,7 @@ class Views:
         m = self._robots.get(robot)
         if m is None:
             return {}
-        route, granted = self._ahead(m)
+        route, granted = self._route_left(m)
         return {
             "state": m.state, "phase": m.phase, "on_map": m.placed, "fault": m.fault,
             "comm": m.comm, "called": m.called, "charging": m.charge,
@@ -56,7 +56,7 @@ class Views:
         }
 
     @staticmethod
-    def _ahead(m) -> tuple[list[str], int]:
+    def _route_left(m) -> tuple[list[str], int]:
         """앞에 남은 지점들과, 그 가운데 구역을 허락받은 수."""
         trip = m.trip
         if trip is None:
@@ -67,7 +67,7 @@ class Views:
         m = self._robots.get(robot)
         if m is None:
             return {}
-        route, granted = self._ahead(m)
+        route, granted = self._route_left(m)
         want = self._wants.get(robot)
         blockers = (self.grants.blockers(robot, want.zones, want.nodes, want.lanes)
                     if want is not None else {})

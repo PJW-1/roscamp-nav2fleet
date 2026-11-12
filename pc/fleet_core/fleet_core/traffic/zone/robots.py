@@ -5,10 +5,12 @@ from dataclasses import dataclass, field
 
 from fleet_core.traffic.mission import IDLE
 
+BACKOFF = "backoff"  # 마당 물러나기(backoff.py). 구역 교통 층 안에서만 쓰는 goal 종류다
+
 
 @dataclass
 class Goal:
-    kind: str  # mission.MOVE, DOCK, RETREAT
+    kind: str  # mission.MOVE, DOCK, RETREAT 또는 BACKOFF
     id: int
     links: int = 0  # 이 명령이 끝나면 다 지난 것이 되는 연결 수(trip.links의 앞에서부터)
     end: str = ""  # 명령이 끝나는 지점
@@ -89,13 +91,24 @@ class Robot:
     blocked_since: float | None = None  # BLOCKED 보고가 이어지기 시작한 시각
     blocked_noted: bool = False  # BLOCKED_WAIT를 냈다
     blocked_goal: int = 0  # blocked_since를 잰 goal
+    rear_noted: bool = False  # 뒤의 로봇 때문에 후진을 미룬다고 알렸다(RETREAT_WAIT)
     idle_since: float | None = None  # 할 일 없이 서 있기 시작한 시각
+    dock_error_m: float = 0.0  # 마지막 도킹이 보고한 자리 오차(구역 놓기에 쓴다)
+    silent_from: tuple | None = None  # 조용히 멈춤을 재기 시작한 자리(silent.py)
+    silent_since: float = 0.0
+    silent_noted: bool = False  # 이번에 SILENT_STALL을 냈다
+    start_goal: int = 0  # 움직이기 시작했는지 재는 goal(nostart.py)
+    start_xy: tuple = (0.0, 0.0)
+    start_since: float = 0.0
+    start_done: bool = False  # 그 goal은 다 보았다
     self_recovery_since: float | None = None
     clear_n: dict = field(default_factory=dict)  # 뒤의 구역이나 지점 -> 벗어난 연속 보고 수
     outside_n: int = 0  # 쥔 구역 밖으로 벗어난 연속 보고 수
     outside_noted: bool = False
     yield_until: float = 0.0  # 넓은 구역에서 비켜 서 있는 시각
+    yielded: tuple | None = None  # 마지막으로 비켜 선 (x, y, 시각)
     retreat_to: str = ""  # 막혀서 물러나는 중이면 물러날 지점
+    backoff_from: tuple | None = None  # 마당 물러나기를 시작한 자리
 
     @property
     def live(self) -> bool:

@@ -1,8 +1,7 @@
-"""어디로, 어느 길로 갈지 고르고 그 길의 다음 구간을 한꺼번에 잡는다(지시서 2-2의 1, 2, 5번).
+"""어느 길로 갈지 고르고 그 길의 다음 구간을 한꺼번에 잡는다(지시서 2-2의 1, 2번).
 
 - 길은 지점 그래프에서 가장 빠른 것: 길이 ÷ 속도 + 예상 대기.
-- 도크가 비어 있고 먼저 온 차례이면 도크로, 아니면 그 스테이션의 대기 자리로, 그것도 없고
-  지금 자리에 서 있으면 안 되면 주차 자리로 간다.
+- 목적지 후보와 도크 차례는 turns.py가 낸다.
 - 떠날 수 있는 길(다음에 설 수 있는 지점까지의 구역과 지점을 모두 잡은 길)만 돌려준다.
 """
 from __future__ import annotations
@@ -10,13 +9,14 @@ from __future__ import annotations
 import math
 
 from fleet_core.fleet_map import AT_DOCK, LANE, NAV_GOAL, SHARED, route
-from fleet_core.traffic.mission import TO_OUTBOUND, TO_WORK
+from fleet_core.traffic.mission import TO_OUTBOUND, TO_PARK, TO_WORK
 
 from .base import HERE
 from .lane_policy import Want
 from .trips import Trip, back_link, free_link, left_s, needs, speed, stretch_end
 
 TRANSIT_WAIT_S = 6.0  # 찬 갈림목이나 좁은 통로가 비기를 기다리는 예상 시간(길 비용, 가정)
+STANDING_WAIT_S = 300.0  # 스스로 비키지 않는 로봇이 선 지점을 거치는 길에 치는 시간(길 비용, 가정)
 
 
 class Goals:
@@ -45,8 +45,25 @@ class Goals:
                     seconds += p.dock_wait_estimate_s
                 else:
                     seconds += TRANSIT_WAIT_S
-            return seconds
+            return seconds + self._node_wait(m, link.b)
         return cost
+
+    def _node_wait(self, m, node: str) -> float:
+        """다른 로봇이 goal 없이 서서 쥐고 있는 지점을 거치려면 기다릴 예상 시간(s).
+
+        비었거나, 제가 쥐었거나, 지나가는 로봇이 쥔 지점은 0이다. 차례를 기다리며 선 로봇의 지점은
+        찬 도크만큼(dock_wait_estimate_s) 쳐서 다른 길이 있으면 그리로 간다. 할 일 없이 선 로봇과
+        고장 난 로봇은 스스로 비키지 않으므로 STANDING_WAIT_S를 친다: 다른 길이 그만큼 더 걸려도
+        그리로 가고, 다른 길이 없을 때만 그 지점을 기다린다(누구 때문에 서 있는지가 보인다).
+        도크 지점은 도크 차례 규칙이 따로 본다.
+        """
+        holder = self._robots.get(self.grants.node_holder(node))
+        if (holder is None or holder is m or holder.goal is not None
+                or self.site.nodes[node].kind == AT_DOCK):
+            return 0.0
+        if not holder.available or holder.phase not in (TO_WORK, TO_OUTBOUND, TO_PARK):
+            return STANDING_WAIT_S
+        return self.params.dock_wait_estimate_s
 
     def _way(self, m, goal: str):
         """지금 자리에서 goal까지의 연결들. 이미 거기면 [], 길이 없으면 None."""
@@ -69,7 +86,7 @@ class Goals:
             rest = route(site, name, goal, cost)
             if rest is None:
                 continue
-            total = (first.length / self.params.nav_speed_mps
+            total = (first.length / self.params.nav_speed_mps + self._node_wait(m, name)
                      + sum(cost(link) for link in rest))
             if total < best_cost:
                 best, best_cost = [first, *rest], total
@@ -121,6 +138,8 @@ class Goals:
                     m.queued = True
                     self._event("INFO", "DOCK_QUEUED", f"{m.dest} is busy, waits at {goal}",
                                 m.name)
+                elif not queued:
+                    self._take_turn(m, trip)
                 return trip
             first_want = first_want or want
         if first_want is not None:
@@ -134,62 +153,6 @@ class Goals:
             # 표시는 풀렸는데도 길이 없다. 기다리는 것이 아니다: ROBOT_IDLE이 알리게 한다
             self._stop_wanting(m)
         return None
-
-    def _candidates(self, m):
-        """(목표 지점, 대기 자리인가)를 좋은 순서로."""
-        site = self.site
-        if m.phase in (TO_WORK, TO_OUTBOUND):
-            station = site.stations[m.dest]
-            if self._is_next(m, station.id) and self._dock_free(m, station.dock):
-                yield station.dock, False
-                if self._may_stay(m):
-                    return  # 도크는 비었고 가는 길만 못 잡았다. 여기서 기다린다
-            elif m.node in station.queue and self._on_node(m):
-                self._stay(m, station)
-                return
-            for spot in station.queue:
-                if self.grants.node_holder(spot) in ("", m.name):
-                    yield spot, True
-            if self._may_stay(m):
-                self._stay(m, station)
-                return
-        cost = self._cost(m)
-        free = [spot for spot in site.parking if self.grants.node_holder(spot) in ("", m.name)]
-
-        def price(spot) -> float:
-            links = self._way(m, spot)
-            return math.inf if links is None else sum(cost(link) for link in links)
-        for spot in sorted(free, key=lambda spot: (price(spot), spot)):
-            yield spot, False
-
-    def _stay(self, m, station) -> None:
-        """도크가 찼거나 차례가 아니어서 지금 자리(대기 자리나 주차)에서 기다린다."""
-        if m.wait_since is None:
-            m.wait_since = self._clock()
-        m.wait_for = (self.site.nodes[station.dock].zone,)
-        if not m.queued:
-            m.queued = True
-            self._event("INFO", "DOCK_QUEUED", f"{station.id} is busy, waits at {m.node}", m.name)
-
-    def _may_stay(self, m) -> bool:
-        """지금 자리에 서서 기다려도 되는가: 대기 자리나 주차에 서 있을 때만이다."""
-        return (self._on_node(m) and self.site.can_wait(m.node)
-                and self.site.nodes[m.node].kind != AT_DOCK and not m.retreat_to)
-
-    def _is_next(self, m, station_id: str) -> bool:
-        """그 스테이션을 바라는 로봇 가운데 먼저 온 차례인가. 같은 때 왔으면 가까운 쪽이다."""
-        mine = (m.asked_at or 0.0, m.asked_gap, m.name)
-        for other in self._robots.values():
-            if (other is not m and other.available and other.dest == station_id
-                    and other.phase in (TO_WORK, TO_OUTBOUND)
-                    and (other.asked_at or 0.0, other.asked_gap, other.name) < mine):
-                return False
-        return True
-
-    def _dock_free(self, m, dock: str) -> bool:
-        zone = self.site.nodes[dock].zone
-        return (all(name == m.name for name in self.grants.holders(zone))
-                and self.grants.node_holder(dock) in ("", m.name))
 
     # ---- 구간 잡기 ----
 

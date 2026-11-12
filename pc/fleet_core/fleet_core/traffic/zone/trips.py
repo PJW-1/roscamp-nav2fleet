@@ -22,6 +22,7 @@ class Trip:
     granted: int = 0  # 구역을 잡은 연결 수(앞에서부터)
     sent: int = 0  # 명령을 낸 연결 수(앞에서부터)
     stale: bool = False  # 목적이 바뀌었다. 새 길을 잡으면 갈아타고, 못 잡으면 잡은 데까지 간다
+    turn: bool = False  # 도크 차례를 받아 떠난 길이다(turns.py). stale이면 차례도 내놓은 것이다
 
     @property
     def finished(self) -> bool:
