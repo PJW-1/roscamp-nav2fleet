@@ -42,7 +42,7 @@ score_distance_weight: 0.91   # 레인 거리 1 m당
 priority_at_station: 200
 priority_has_cargo: 100
 input_pose_margin_m: 1.0      # 웨이포인트 범위 밖으로 이보다 먼 보고 위치는 버린다
-idle_watch_s: 10.0            # 제안: 주행 단계인데 goal도 구역 대기표도 없이 이만큼 서면 ROBOT_IDLE, 그 지점 goal을 다시 보낸다
+idle_watch_s: 10.0            # 제안: 주행 단계인데 goal도 구역 대기표도 없이 이만큼 서면 ROBOT_IDLE을 남긴다(알리기만 한다)
 battery_low_pct: 0.0          # 제안: 보고한 배터리(0-100)가 이 값 이하면 새 일을 받지 않고 대기 지점(충전 자리)으로 간다. 0이면 끈다
 battery_charged_pct: 80.0     # 제안: 이 값 이상이 되면 다시 일을 받는다
 dispatch_retry_wait_s: 2.0    # 제안: 출고 호출이 실패하면 이만큼 뒤 다시 보낸다
