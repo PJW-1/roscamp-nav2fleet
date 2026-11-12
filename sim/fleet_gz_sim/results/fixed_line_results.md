@@ -149,6 +149,13 @@ AMCL `scan_topic`은 `scan`, 거르개 `strips`는 `0,0.79,0.3,0.99; 0.3,0.79,0.
   없었습니다. 이제 TF는 도우미 노드 `scan_filter_tf`가 받고, 최신 TF가 스캔 시각과 0.1 s보다 멀면 거르지 않으며, 두 경우 모두
   WARN으로 남깁니다. 노드 시험(`test_scan_filter_node.py`)은 executor 콜백 안에서 기다리는 동안 들어온 TF로 자세를 정하는지
   봅니다. c200b1e의 배선으로 돌리면 이 시험은 실패합니다.
+- 5dc6f66 빌드(G09)에서는 도우미 노드가 launch의 이름 인자(`__node:=scan_filter`)를 물려받아 같은 이름의 노드가 둘이
+  되었습니다(`ros2 param get /pinky1/scan_filter wall_band_m`이 도우미 노드에 닿아 실패). 67f84be에서 도우미 노드는 프로세스
+  인자를 받지 않고 `scan_filter_tf` 이름에 네임스페이스, use_sim_time, /tf remap만 받습니다. G10(67f84be, 한 바퀴)에서 여덟
+  구간 모두 성공, `ros2 param get`은 0.05와 띠 목록을 읽었고, "no TF at the scan time"과 "not filtering" WARN은 0번이었습니다.
+- G09(5dc6f66, 세 바퀴): 24구간 모두 성공. 끝 오차 평균/최대(m): 마당 goal 0.030/0.034, work_in 0.059/0.062, W 후진
+  0.053/0.059, 급행 동쪽 0.038/0.042, out_in 0.053/0.061, O 후진 0.043/0.046, 급행 서쪽 0.041/0.044, 마당 goal 돌아오기
+  0.073/0.079. 자가 복구 8번.
 
 G08 (c200b1e 빌드, 같은 조건):
 
