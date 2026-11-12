@@ -63,7 +63,7 @@ map_server_fine:
     frame_id: map
     yaml_filename: ""  # launch 인자 map_fine
 
-# 계약의 navigate_to_pose. pinky_fsm은 MoveTo mode nav_goal(계약 0.11-draft 제안)일 때 이것을
+# 계약의 navigate_to_pose. pinky_fsm은 MoveTo mode nav_goal(계약 0.11-draft, 기준(사용자))일 때 이것을
 # 부르고, follow_path일 때는 controller의 follow_path를 바로 부른다. BT는 launch가
 # bt/navigate_to_pose_w_replanning_and_recovery_goal.xml(Nav2 기본 BT, controller만 FollowPathGoal)로
 # 준다. 복구(Spin, Wait, BackUp, 지도 지우기)는 nav_goal에서만 허용한다(사용자 결정 2026-11-12)
@@ -208,7 +208,7 @@ controller_server:
     # use_rotate_to_heading and allow_reversing differ (test_nav_config checks it)
     FollowPathReverse:
       plugin: "nav2_regulated_pure_pursuit_controller::RegulatedPurePursuitController"
-      desired_linear_vel: 0.05  # 물러나기는 천천히(제안)
+      desired_linear_vel: 0.05  # 물러나기는 천천히(기준(사용자))
       # 추가 지시서 3의 2-1 3번: 앞보기 0.10 m 고정(제조사 0.6, 전달사항 0.15 속도 비례). 속도 비례
       # 앞보기(0.12 m/s에서 0.18 m)는 모퉁이 9 cm 앞에서 돌기 시작했다(작업 기록 4.2)
       lookahead_dist: 0.10

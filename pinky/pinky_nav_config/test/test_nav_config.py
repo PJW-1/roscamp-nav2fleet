@@ -147,7 +147,7 @@ REVERSE_ONLY = {"desired_linear_vel": 0.05, "use_rotate_to_heading": False,
 
 
 def test_the_reverse_controller_is_followpath_driven_backwards_slowly():
-    """Retreat with a path(계약 제안): pinky_fsm sends the driven way reversed to
+    """Retreat with a path(계약, 기준(사용자)): pinky_fsm sends the driven way reversed to
     FollowPathReverse. Jazzy RPP cannot reverse while use_rotate_to_heading is on, so it is off
     (no turn in place before backing) and the robot backs at 0.05 m/s. The collision check stays
     on: it looks along the motion, so it is what stops the robot for something behind."""

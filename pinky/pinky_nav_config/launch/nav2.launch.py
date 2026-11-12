@@ -10,8 +10,9 @@
   프레임 이름(map, odom, base_footprint)에는 접두사를 붙이지 않는다.
 - controller_server는 cmd_vel로 바로 낸다(velocity_smoother, collision_monitor 없음).
 - AMCL은 1 cm 지도를, costmap은 5 cm 지도를 쓴다(R15).
-- bt_navigator는 MoveTo mode nav_goal(계약 0.11-draft 제안)의 navigate_to_pose다. BT는 Nav2 기본
-  BT(1 Hz 재계획, 복구)에서 controller만 FollowPathGoal로 바꾼 것이다.
+- bt_navigator는 MoveTo mode nav_goal(계약 0.11-draft, 기준(사용자))의 navigate_to_pose다. BT는
+  Nav2 기본 BT(1 Hz 재계획)에서 controller를 FollowPathGoal로 바꾸고, goal checker 이름을 적고,
+  복구에서 Spin과 BackUp을 뺀 것이다(bt/ 파일의 머리말).
 - keepout_mask(map_server 형식의 마스크 yaml)를 주면 급행·도크 구역을 Nav2 goal 경로에서 막는다:
   params/keepout.yaml을 파라미터에 덧붙여 global costmap에 keepout 필터를 걸고,
   keepout_mask_server, costmap_filter_info_server와 lifecycle_manager_keepout을 더 띄운다.
