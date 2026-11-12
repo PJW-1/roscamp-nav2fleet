@@ -1,32 +1,22 @@
-"""Gazebo 핑키 3대 + 진짜 관제(안내 4절 3번: 관제·pinky_fsm·Nav2는 진짜, central·팔은 가짜).
+"""Gazebo 핑키 3대 + 진짜 관제(관제·pinky_fsm·Nav2는 진짜, central·팔은 가짜).
 
-    ros2 launch fleet_gz_sim gz.launch.py                       # Gazebo 화면 + 3대 RViz
-    ros2 launch fleet_gz_sim gz.launch.py gui:=false rviz:=none   # 화면 없이
+    ros2 launch fleet_gz_sim gz.launch.py                          # 배치 D2, 시나리오 gz_d2
+    ros2 launch fleet_gz_sim gz.launch.py layout:=c gui:=false rviz:=none
 
-- 핑키는 시나리오(fake_robots/scenarios, 기본 basic_orders)의 시작 지점에 놓는다(fleet_setup).
-- 경기장은 시나리오의 map이 고른다(fleet_setup.arena_for). 없으면 lane_arena, map: warehouse면
-  창고 월드, Nav2 지도, 관제·가짜·fleet_view·장애물의 레인 지도를 모두 창고 것으로.
-    ros2 launch fleet_gz_sim gz.launch.py scenario:=gz_warehouse sim_dock_stub:=true \
-        obstacles:=warehouse
-- 모든 로봇이 IDLE이 되면(wait_ready) 관제, 가짜 작업셀·비전·출고 팔·central, 시나리오 모니터를
-  띄운다. 모니터가 기대값을 판정해 result_dir에 summary.json을 쓰고 launch를 끝낸다.
-- 시계는 Gazebo /clock 하나를 모두 쓴다. sim_clock을 띄우지 않으므로 시나리오의 speed_factor는
-  쓰지 않는다. 주문 시각(at_s)은 Gazebo 시계 0부터 센다. low_battery의 at_s도 같다.
-- 시나리오의 random 블록(주문 시각, 배터리 부족)은 scenario_seed로 푼다. 시나리오를 읽는 노드에
-  모두 같은 값을 넘겨 같은 시간표를 보게 한다.
-- low_battery가 있으면 sim_stand_in이 실제 위치로 배터리를 계산해 /{pinky}/sim/battery
-  (BatteryState)로 내고, pinky_fsm의 battery_topic을 거기에 잇는다. 없으면 예전처럼 잇지 않는다.
-- 도크: 기본은 진짜 pinky_fsm이 도킹을 DOCK_UNAVAILABLE로 실패시킨다(pinky_dock이 아직 없다).
-  임무가 도크에서 멈추고 관제가 재시도한 뒤 격리한다. sim_dock_stub:=true면 시뮬 전용 대역
+- 배치(layout: d2 기본, d, c)가 월드, Nav2 지도, keepout 마스크, 관제 구역 지도를 고른다
+  (fleet_setup.arena_for). 시나리오는 비면 gz_<배치>이고, 시나리오의 map이 배치와 같아야 한다.
+- 핑키는 시나리오의 start 지점(없으면 주차 지점 차례)에 그 지점의 yaw로 놓는다(fleet_setup).
+- 로봇마다 Nav2(pinky_nav_config)에 배치의 지도와 keepout_mask를 준다. sim_nav_params가
+  controller 넷(FollowPath, FollowPathThrough, FollowPathReverse, FollowPathGoal)의 충돌 검사를
+  모두 켜고 속도를 nav_max_speed(0.12~0.20 m/s)로 묶는다.
+- 모든 로봇이 IDLE이 되면(wait_ready) 관제(map_file = 배치 이름, traffic_mode zones), 가짜
+  작업셀·비전·출고 팔·central, 시나리오 모니터를 띄운다. 모니터가 결과를 쓰고 launch를 끝낸다.
+- 시계는 Gazebo /clock 하나를 모두 쓴다. 주문 시각(at_s)은 Gazebo 시계 0부터 센다.
+- 도크: 기본은 진짜 pinky_fsm(DOCK_UNAVAILABLE). sim_dock_stub:=true면 시뮬 전용 대역
   (sim_stand_in)이 /{pinky}/dock을 맡고 pinky_fsm의 dock 서버는 /{pinky}/dock_fsm으로 비켜 둔다.
-  The stand-in refuses the stub unless use_sim_time is true and isolation.py passes.
-- fleet_check(기본 켜짐)가 로봇 사이 최소 거리, 정지 횟수, 쥔 구역 밖 위치 수를
-  result_dir/fleet_check.json에 쓴다.
-- recovery_probe(fleet_check과 한 프로세스, fleet_check:=false면 따로)가 로봇이 RECOVERING일
-  때 전후의 AMCL 위치 오차(Gazebo 실제 위치 대비)를 result_dir/recovery_probe.csv에 쓴다.
+- fleet_check(기본 켜짐)가 로봇 사이 최소 거리, 정지 횟수, 쥔 구역 밖 위치 수를 쓴다.
 - ROS 프로세스 수: LOCALHOST 탐색에서는 DDS 참여자 32개 정도만 서로 보인다. 그래서 브리지는
-  하나로 모으고, 로봇마다 Nav2를 프로세스 하나로 묶는다(nav_composition). 노드를 더하면
-  test_launch_wiring의 프로세스 수 시험이 한도를 알려 준다.
+  하나로 모으고, 로봇마다 Nav2를 프로세스 하나로 묶는다(nav_composition).
 """
 import math
 import os
@@ -48,36 +38,37 @@ from launch_ros.actions import Node
 from rclpy import get_rmw_implementation_identifier
 
 ARGS = {
-    "scenario": ("basic_orders", "시나리오 이름(fleet_gz_sim, fake_robots 순서로 찾음)이나 파일."
-                                  " 기본 지도, 로봇 고장 없음. gz_roam은 24분 순환 운행"),
+    "layout": ("d2", "배치: d2(기본), d, c"),
+    "scenario": ("", "시나리오 이름(fleet_gz_sim, fake_robots 순서로 찾음)이나 파일."
+                     " 비면 gz_<배치>(주문 8건, 3대)"),
     "gui": ("true", "Gazebo 화면"),
     "rviz": ("fleet", "fleet이면 3대를 한 RViz에(fleet_view), 로봇 이름이면 그 로봇의 Nav2 화면,"
                       " none이면 띄우지 않는다"),
     "heartbeat_timeout_s": ("1.5", "pinky_fsm heartbeat 끊김 판정"),
     "nav_log_level": ("warn", "Nav2 노드 로그 수준"),
-    "nav_composition": ("true", "로봇마다 Nav2 노드 9개를 프로세스 하나로. false면 9개"
+    "nav_composition": ("true", "로봇마다 Nav2 노드를 프로세스 하나로. false면 노드마다"
                                 "(3대면 DDS 참여자가 LOCALHOST 탐색 한도 32개를 넘는다)"),
     "result_dir": ("gz_result", "시나리오 모니터 결과 폴더"),
     "fleet_params_file": ("", "관제 파라미터 파일. 비우면 설치된 fleet_params.yaml, 경로 없는"
-                              " 이름이면 fleet_core/data/<이름>.yaml(예: fleet_params_real_arena)"),
-    "traffic_mode": ("", "lanes 또는 freefloor면 파라미터 파일을 그 방식으로 바꾼 사본"
-                         "(result_dir/fleet_params.yaml)으로 돈다. 비우면 파일 그대로"),
+                              " 이름이면 fleet_core/data/<이름>.yaml"),
     "monitor": ("true", "시나리오 판정. 끝나면 launch를 끝낸다"),
-    "obstacles": ("", "레인에 상자를 놓았다 치우는 일정(fleet_gz_sim/obstacles의 이름이나 파일)."
-                      " 비면 장애물 없음. roam은 300 s마다 4개"),
+    "obstacles": ("", "상자를 놓았다 치우는 일정(fleet_gz_sim/obstacles의 이름이나 파일)."
+                      " 비면 장애물 없음. d2_yard_express는 마당 하나, 급행 하나"),
     "sim_dock_stub": ("false", "true면 시뮬 전용 도킹 대역: 도크 지점 근처면 몇 초 뒤 성공."
                                " false면 진짜 pinky_fsm(DOCK_UNAVAILABLE)"),
     "fleet_check": ("true", "로봇 사이 최소 거리, 정지 횟수, 쥔 구역 밖 위치 수를"
                             " result_dir/fleet_check.json에"),
-    "nav_max_speed": ("", "두 RPP의 최고 속도(m/s). 비면 Nav2 설정 그대로(0.25)."
-                          " real_arena는 0.12"),
-    "nav_collision_check": ("true", "false면 두 RPP의 충돌 검사를 끈다. 틈이 0.25 m인 real_arena에서"
-                                   " 라이다 잡음이 벽을 발자국 안에 찍어 멈추는 것을 막는다"),
+    "nav_max_speed": ("0.12", "controller들의 최고 속도(m/s), 0.12~0.20"),
+    "keepout": ("true", "false면 Nav2 global costmap의 keepout 필터를 띄우지 않는다(비교용)"),
     "nav_pass_through": ("true", "잠금 경계에서 끝나는 이동(final_goal 거짓)을 접근 감속 없는 둘째"
                                 " RPP(FollowPathThrough)로. false면 모두 FollowPath(둘 다 뜬다)"),
     "scenario_seed": ("", "시나리오 random 블록을 풀 seed(정수). 비면 파일의 seed"),
     "battery_low_pct": ("", "관제 battery_low_pct(0~100). 주면 그 값을 넣은 파라미터 사본"
                             "(result_dir/fleet_params.yaml)으로 돈다. 비우면 파일 그대로"),
+    "fixed_line_collision_check": ("true", "시뮬 전용. false면 고정 경로 controller 셋(FollowPath,"
+                                           " Through, Reverse)의 충돌 검사를 끈다. 마당 goal은 켬"),
+    "use_order_model": ("","true/false: 관제의 use_order_model 파라미터(order 모델이 있는"
+                            " 관제만 읽는다). 비우면 params 파일의 값"),
 }
 ARMS = "arm1 arm2 arm3"
 
@@ -99,27 +90,6 @@ def params_file_of(value: str) -> str:
     if not path.is_file():
         raise ValueError(f"fleet_params_file {value!r}: no {path}")
     return str(path)
-
-
-def speed_of(text: str) -> float | None:
-    """nav_max_speed: "" means the Nav2 file's speed. A typo must not quietly mean full speed."""
-    if not text.strip():
-        return None
-    try:
-        value = float(text)
-    except ValueError:
-        raise ValueError(f"nav_max_speed must be a number in m/s, got {text!r}") from None
-    if not (math.isfinite(value) and value > 0):
-        raise ValueError(f"nav_max_speed must be above 0 m/s, got {text!r}")
-    # pinky_fsm backs up at backup_speed_mps and never slows a lock-boundary path below
-    # horizon_min_mps; a cap under those would not hold
-    from pinky_fsm.core import FsmParams
-    fsm = FsmParams()
-    slowest = max(fsm.backup_speed_mps, fsm.horizon_min_mps)
-    if value < slowest:
-        raise ValueError(f"nav_max_speed must be at least {slowest} m/s (pinky_fsm backup and "
-                         f"slow-down speeds), got {text!r}")
-    return value
 
 
 def seed_of(text: str) -> int | None:
@@ -148,57 +118,41 @@ def battery_low_of(text: str) -> float | None:
     return value
 
 
-def params_for(params_file: str, traffic_mode: str, result_dir: str,
-               battery_low_pct: str = "") -> str:
-    """The params file every fleet node reads. With a traffic_mode or battery_low_pct, a copy
-    with those values."""
+def params_for(params_file: str, result_dir: str, battery_low_pct: str = "") -> str:
+    """The params file every fleet node reads. The fleet runs traffic_mode zones: a file with
+    another mode stops the launch. With battery_low_pct, a copy with that value."""
     import yaml
-    from fleet_core.common.params import DEFAULT_PARAMS
-    from fleet_core.traffic.modes import MODES
-    battery = battery_low_of(battery_low_pct)
-    if not traffic_mode and battery is None:
-        return params_file
-    if traffic_mode and traffic_mode not in MODES:
-        raise ValueError(f"traffic_mode must be one of {', '.join(MODES)} or empty, "
-                         f"got {traffic_mode!r}")
+    from fleet_core.common.params import DEFAULT_PARAMS, load_params
+    from fleet_core.traffic.modes import ZONES
     source = Path(params_file) if params_file else DEFAULT_PARAMS
+    mode = load_params(source).traffic_mode
+    if mode != ZONES:
+        raise ValueError(f"{source} has traffic_mode {mode!r}; the Gazebo fleet runs {ZONES!r}")
+    battery = battery_low_of(battery_low_pct)
+    if battery is None:
+        return params_file
     values = yaml.safe_load(source.read_text(encoding="utf-8"))
-    if traffic_mode == "freefloor":
-        # Without it every rolling move would be final (dataclass default false)
-        values.setdefault("mark_final_goal", True)
     copy = Path(result_dir) / "fleet_params.yaml"
     if copy.resolve() == source.resolve() or (copy.exists() and copy.samefile(source)):
         raise ValueError(f"fleet_params_file {source} is where the params copy goes;"
                          " give another result_dir")
-    if traffic_mode:
-        values["traffic_mode"] = traffic_mode
-    if battery is not None:
-        values["battery_low_pct"] = battery  # 키 검사는 fleet_core가 한다
+    values["battery_low_pct"] = battery  # 키 검사는 fleet_core가 한다
     copy.parent.mkdir(parents=True, exist_ok=True)
     copy.write_text(yaml.safe_dump(values, sort_keys=False, allow_unicode=True),
                     encoding="utf-8")
     return str(copy)
 
 
-def traffic_mode_of(traffic_mode: str, params_file: str) -> str:
-    """The mode the fleet runs: the launch argument, else the params file (lanes by default)."""
-    if traffic_mode:
-        return traffic_mode
-    from fleet_core.common.params import load_params
-    given = Path(params_file) if params_file else None
-    return (load_params(given) if given and given.exists() else load_params()).traffic_mode
-
-
 def fleet(scenario_file: str, robots: list[str], result_dir: str, monitor: bool,
-          params_file: str = "", obstacles_file: str = "", check: bool = True,
-          lane_map: str = "", scenario_seed: int | None = None) -> list:
+          layout: str, params_file: str = "", obstacles_file: str = "", check: bool = True,
+          scenario_seed: int | None = None, use_order_model: bool | None = None) -> list:
     """진짜 관제와 가짜 작업셀·비전·출고 팔·central·모니터, 장애물(있으면). 모두 Gazebo 시계.
-    lane_map: 관제 레인 지도 파일. 비면 기본 지도(노드에 넘기지 않는다).
-    scenario_seed: 시나리오를 읽는 노드에 넘길 seed. None이면 넘기지 않는다(파일의 seed)."""
+    layout: 관제와 가짜들의 map_file(배치 이름).
+    scenario_seed: 시나리오를 읽는 노드에 넘길 seed. None이면 넘기지 않는다(파일의 seed).
+    use_order_model: 관제 노드 파라미터 use_order_model. None이면 넘기지 않는다(파일의 값)."""
     from fake_robots.common import split_fake_arms
-    from fleet_core.traffic.lane_map import load_lane_map
-    map_file = {"map_file": lane_map} if lane_map else {}
-    lane = {"lane_map": lane_map} if lane_map else {}
+    from fleet_core.fleet_map import load_fleet_map
+    map_file = {"map_file": layout}
     seed = {} if scenario_seed is None else {"scenario_seed": scenario_seed}
     common = {"use_sim_time": True, "scenario_file": scenario_file, **map_file, **seed}
 
@@ -209,8 +163,10 @@ def fleet(scenario_file: str, robots: list[str], result_dir: str, monitor: bool,
     actions = [Node(package="fleet_manager", executable="fleet_manager_node", name="fleet_manager",
                     output="screen",
                     parameters=[{"use_sim_time": True, "robots": robots,
-                                 "params_file": params_file, **map_file}])]
-    workcell, vision_arms, swap_arms = split_fake_arms(ARMS, load_lane_map(lane_map or None))
+                                 "params_file": params_file, **map_file,
+                                 **({} if use_order_model is None
+                                    else {"use_order_model": use_order_model})}])]
+    workcell, vision_arms, swap_arms = split_fake_arms(ARMS, load_fleet_map(layout))
     if workcell:
         actions.append(fake("fake_workcell_node", "fake_workcell"))
     actions += [fake("fake_vision_node", f"fake_vision_{arm}", arm_id=arm) for arm in vision_arms]
@@ -221,16 +177,15 @@ def fleet(scenario_file: str, robots: list[str], result_dir: str, monitor: bool,
         actions.append(Node(package="fleet_gz_sim", executable="sim_obstacles",
                             name="sim_obstacles", output="screen",
                             parameters=[{"use_sim_time": True, "robots": robots,
-                                         "obstacles_file": obstacles_file, **lane}]))
+                                         "obstacles_file": obstacles_file, **map_file}]))
     probe = {"use_sim_time": True, "robots": robots, "result_dir": result_dir, "settle_s": 2.0}
     if check:
         # recovery_probe는 같은 프로세스에서 돈다(DDS 참여자를 아낀다)
         actions.append(Node(package="fleet_gz_sim", executable="fleet_check", name="fleet_check",
                             output="screen",
                             parameters=[{**probe, "recovery_probe": True,
-                                         "params_file": params_file,
                                          "output": str(Path(result_dir) / "fleet_check.json"),
-                                         **lane}]))
+                                         **map_file}]))
     else:
         actions.append(Node(package="fleet_gz_sim", executable="recovery_probe",
                             name="recovery_probe", output="screen", parameters=[probe]))
@@ -243,13 +198,12 @@ def fleet(scenario_file: str, robots: list[str], result_dir: str, monitor: bool,
     return actions
 
 
-def fleet_rviz(robots: list[str], lane_map: str = "", params_file: str = "") -> list:
+def fleet_rviz(robots: list[str], layout: str) -> list:
     """3대를 한 RViz에. 로봇 TF는 namespace로 나뉘므로 위치는 fleet_view가 마커로 그린다."""
     config = launch_parts.share("fleet_gz_sim") / "rviz" / "fleet_view.rviz"
     return [Node(package="fleet_gz_sim", executable="fleet_view", name="fleet_view",
                  output="screen",
-                 parameters=[{"use_sim_time": True, "robots": robots, "lane_map": lane_map,
-                              "params_file": params_file}]),
+                 parameters=[{"use_sim_time": True, "robots": robots, "map_file": layout}]),
             Node(package="rviz2", executable="rviz2", name="fleet_rviz", output="log",
                  arguments=["-d", str(config)], parameters=[{"use_sim_time": True}])]
 
@@ -257,11 +211,16 @@ def fleet_rviz(robots: list[str], lane_map: str = "", params_file: str = "") -> 
 def _start(context):
     # 노드는 launch의 작업 폴더를 물려받는다. 노드에 cwd를 따로 주면 그 폴더도 봐야 한다.
     require_isolated(os.environ, rmw=get_rmw_implementation_identifier(), workdir=Path.cwd())
+    from fleet_core.fleet_map import load_fleet_map
     from fleet_gz_sim.fleet_setup import (
         arena_for,
-        load,
+        check_fits,
+        has_low_battery,
+        layout_of,
         obstacles_path,
+        read_scenario,
         scenario_path,
+        start_nodes,
         start_poses,
     )
     from fleet_gz_sim.obstacles import load_schedule
@@ -269,62 +228,65 @@ def _start(context):
     def value(name):
         return LaunchConfiguration(name).perform(context)
 
+    layout = layout_of(value("layout"))
     gz_share, fake_share = launch_parts.share("fleet_gz_sim"), launch_parts.share("fake_robots")
-    scenario_file = str(scenario_path(value("scenario"), gz_share, fake_share))
-    arena = arena_for(scenario_file, gz_share, fake_share)  # 시나리오의 map이 경기장을 고른다
+    scenario_file = str(scenario_path(value("scenario") or f"gz_{layout}", gz_share, fake_share))
+    arena = arena_for(layout, gz_share)
+    site = load_fleet_map(layout)
     scenario_seed = seed_of(value("scenario_seed"))
-    site, scenario = load(scenario_file, arena.lane_map, seed=scenario_seed)
+    data = read_scenario(scenario_file)
+    check_fits(data, Path(scenario_file).name, layout, scenario_seed)
     obstacles_file = obstacles_path(value("obstacles"), gz_share)
     if obstacles_file:
         load_schedule(obstacles_file, site)  # 틀린 일정이면 Gazebo를 띄우기 전에 멈춘다
-    poses = start_poses(site, scenario)
+    poses = start_poses(site, start_nodes(site, data))
     robots = list(poses)
     composed = flag(value("nav_composition"), "nav_composition")
     stub = flag(value("sim_dock_stub"), "sim_dock_stub")
     check = flag(value("fleet_check"), "fleet_check")
     through = flag(value("nav_pass_through"), "nav_pass_through")
-    source_params = params_file_of(value("fleet_params_file"))
-    params_file = params_for(source_params, value("traffic_mode"), value("result_dir"),
+    keepout = flag(value("keepout"), "keepout")
+    fixed_check = flag(value("fixed_line_collision_check"), "fixed_line_collision_check")
+    params_file = params_for(params_file_of(value("fleet_params_file")), value("result_dir"),
                              value("battery_low_pct"))
-    max_speed = speed_of(value("nav_max_speed"))
-    collision_check = flag(value("nav_collision_check"), "nav_collision_check")
-    # robots leave the lanes on the free floor: no lanes painted. 사본과 방식이 같은 원본으로 본다
-    floor = traffic_mode_of(value("traffic_mode"), source_params) == "freefloor"
+    max_speed = launch_parts.speed_of(value("nav_max_speed"))
     # low_battery가 있을 때만 pinky_fsm이 sim_stand_in의 배터리를 본다
-    battery = any(f.type == "low_battery" for f in scenario.faults)
-    actions = [*launch_parts.world(flag(value("gui"), "gui"), arena.world, lane_paint=not floor),
+    battery = has_low_battery(data, scenario_seed)
+    actions = [*launch_parts.world(flag(value("gui"), "gui"), arena.world),
                launch_parts.bridge(robots)]
     for robot, (x, y, yaw) in poses.items():
         actions += launch_parts.pinky(robot, x, y, yaw,
+                                      nav_map=arena.nav_map, nav_map_fine=arena.nav_map_fine,
+                                      keepout_mask=arena.keepout_mask if keepout else "",
                                       heartbeat_timeout_s=value("heartbeat_timeout_s"),
                                       nav_log_level=value("nav_log_level"),
                                       rviz=robot == value("rviz"), dock_aside=stub,
-                                      nav_composition=composed, nav_map=arena.nav_map,
-                                      nav_map_fine=arena.nav_map_fine,
+                                      nav_composition=composed,
                                       through_controller_id=(launch_parts.THROUGH_CONTROLLER
                                                              if through else ""),
-                                      nav_max_speed=max_speed,
-                                      nav_collision_check=collision_check,
+                                      nav_max_speed=max_speed, fixed_line_check=fixed_check,
                                       battery_topic=(launch_parts.BATTERY_TOPIC.format(robot=robot)
                                                      if battery else ""))
     if value("rviz") == "fleet":
-        actions += fleet_rviz(robots, arena.lane_map, params_file=params_file)
-    map_file = {"map_file": arena.lane_map} if arena.lane_map else {}
+        actions += fleet_rviz(robots, layout)
     actions.append(Node(package="fleet_gz_sim", executable="sim_stand_in", name="sim_stand_in",
                         output="screen",
                         parameters=[{"use_sim_time": True, "robots": robots,
                                      "scenario_file": scenario_file, "dock_stub": stub,
-                                     **map_file, **({} if scenario_seed is None
-                                                    else {"scenario_seed": scenario_seed})}]))
+                                     "map_file": layout,
+                                     **({} if scenario_seed is None
+                                        else {"scenario_seed": scenario_seed})}]))
     wait = Node(package="fleet_gz_sim", executable="wait_ready", name="wait_ready",
                 output="screen", parameters=[{"robots": robots}])
     monitor = flag(value("monitor"), "monitor")
+    order = (None if not value("use_order_model").strip()
+             else flag(value("use_order_model"), "use_order_model"))
 
     def after_wait(event, _context):
         if event.returncode != 0:
             return [LogInfo(msg="fleet_gz_sim: 로봇이 IDLE이 되지 않아 끝낸다"), Shutdown()]
-        return fleet(scenario_file, robots, value("result_dir"), monitor,
-                     params_file, obstacles_file, check, arena.lane_map, scenario_seed)
+        return fleet(scenario_file, robots, value("result_dir"), monitor, layout,
+                     params_file, obstacles_file, check, scenario_seed, order)
 
     actions += [wait, RegisterEventHandler(OnProcessExit(target_action=wait, on_exit=after_wait))]
     return actions

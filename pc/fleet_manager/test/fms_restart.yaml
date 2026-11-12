@@ -13,10 +13,12 @@ timeout_s: 1500
 stock: {arm1: {A: 40, B: 40}, arm2: {C: 40, D: 40}}
 orders:
   - {at_s: 0, id: O-001, items: {A: 1, C: 1}}
+  - {at_s: 0, id: O-002, items: {B: 1, D: 1}}
+  - {at_s: 0, id: O-003, items: {A: 1, D: 1}}
 robots:
-  pinky1: {start: P-6, speed_mps: 0.02, pose_noise_m: 0.03}
-  pinky2: {start: P-5, speed_mps: 0.02, pose_noise_m: 0.03}
-  pinky3: {start: P-4, speed_mps: 0.02, pose_noise_m: 0.03}
+  pinky1: {start: P-1, speed_mps: 0.02, pose_noise_m: 0.03}
+  pinky2: {start: P-2, speed_mps: 0.02, pose_noise_m: 0.03}
+  pinky3: {start: P-3, speed_mps: 0.02, pose_noise_m: 0.03}
 arm: {seconds_per_item: 4.0, swap_seconds: 8.0, fail_rate: 0.0}
 dock: {duration_s: 3.0, error_cm: 1.0}
 faults:

@@ -9,6 +9,8 @@
 -->
 <robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="pinky">
   <xacro:arg name="name" default="pinky1"/>
+  <!-- 라이다 거리 잡음 표준편차(m). 비교용(one_pinky lidar_noise)으로만 바꾼다 -->
+  <xacro:arg name="lidar_noise" default="0.02"/>
   <xacro:property name="gz" value="/model/$(arg name)"/>
   <xacro:include filename="$(find pinky_description)/urdf/pinky.urdf.xacro"/>
   <xacro:insert_robot namespace="" is_sim="false" cam_tilt_deg="8" screen_tilt_deg="-25"/>
@@ -96,7 +98,7 @@
         <noise>
           <type>gaussian</type>
           <mean>0.0</mean>
-          <stddev>0.02</stddev>
+          <stddev>$(arg lidar_noise)</stddev>
         </noise>
       </lidar>
       <always_on>1</always_on>

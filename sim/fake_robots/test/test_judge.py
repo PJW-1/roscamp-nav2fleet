@@ -1,21 +1,20 @@
 """ScenarioJudge: 물리 구역 검사, 주문 수, 작업 순서, 팔, 최종 판정."""
 import pytest
-from conftest import GRID_MAP
 from fake_robots.judge import ScenarioJudge, order_id_of
 from fake_robots.scenario import parse_scenario
-from fleet_core.traffic.lane_map import load_lane_map
+from fleet_core.fleet_map import load_fleet_map
 
-SITE = load_lane_map(GRID_MAP)  # 이 테스트는 작업셀 배치(격자 지도)에서 심판을 시험한다
-CELL = 2 * SITE.half_width
+SITE = load_fleet_map("d2")  # 이 테스트는 D2 배치에서 심판을 시험한다
 NOISE = 0.03
-SAME_ZONE = ((9, 1), (9, 0))  # 둘 다 Z-R1
-ZONE = "Z-R1"
-OTHER = (4, 0)  # Z-R2
-OTHER_ZONE = "Z-R2"
-WAITING = ((3, 4), (3, 5))  # P-6, P-5
-OUT = (9, 3)  # Z-OUT 도크
-WORK = (5, 3)  # Z-WORK 도크
-LANE = (9, 1)  # 복귀 레인, Z-OUT과 대기 루프 사이
+SAME_ZONE = ((0.36, 0.89), (0.44, 0.89))  # 둘 다 J_W(갈림목, 한 대)
+ZONE = "J_W"
+ZONE_EAST = SITE.zones[ZONE].rects[0][2]  # J_W의 동쪽 가장자리 x
+OTHER = (1.58, 0.89)  # J_E
+OTHER_ZONE = "J_E"
+WAITING = ("P-2", "P-1")  # pinky2, pinky1의 출발 자리
+OUT = "O"  # 출고 도크(OUT_DOCK)
+WORK = "W"  # 작업 도크(WORK_DOCK)
+LANE = "N_E"  # 마당 안, 출고 도크와 주차 자리 사이
 
 
 def scenario(faults=(), orders=("O-1", "O-2", "O-3"), **expect):
@@ -24,8 +23,8 @@ def scenario(faults=(), orders=("O-1", "O-2", "O-3"), **expect):
         "stock": {"arm1": {"A": 9}, "arm2": {"C": 9}},
         "orders": [{"at_s": i, "id": o, "items": {"A": 1}} for i, o in enumerate(orders)],
         "robots": {
-            "pinky1": {"start": "P-5", "speed_mps": 0.2, "pose_noise_m": NOISE},
-            "pinky2": {"start": "P-6", "speed_mps": 0.2, "pose_noise_m": NOISE},
+            "pinky1": {"start": "P-1", "speed_mps": 0.2, "pose_noise_m": NOISE},
+            "pinky2": {"start": "P-2", "speed_mps": 0.2, "pose_noise_m": NOISE},
         },
         "faults": list(faults),
         "expect": expect,
@@ -36,8 +35,9 @@ def judge(**expect):
     return ScenarioJudge(SITE, scenario(**expect), margin_m=0.13, grace_s=1.0)
 
 
-def at(cell):
-    return SITE.waypoint_pose(cell)
+def at(place):
+    """지점 이름이나 (x, y)."""
+    return SITE.node_pose(place) if isinstance(place, str) else place
 
 
 def put(j, t, robot, cell, state="MOVING"):
@@ -69,7 +69,7 @@ def finish_everything(j):
     ship(j, "O-1", "O-2", "O-3")
     put(j, 1.0, "pinky1", WAITING[0], "IDLE")
     put(j, 1.0, "pinky2", WAITING[1], "IDLE")
-    j.on_zones(1.0, {"P-6": "pinky1", "P-5": "pinky2"})
+    j.on_zones(1.0, {"HALL": "pinky1,pinky2"})
     j.tick(1.0)
 
 
@@ -109,8 +109,7 @@ def test_release_after_robot_left_with_noise_allowance_is_fine():
     put(j, 1.0, "pinky1", SAME_ZONE[0])
     j.on_zones(1.0, {ZONE: "pinky1"})
     # 구역 가장자리에서 0.10 m 밖: margin(0.13) - 2*0.03 = 0.07보다 큼
-    x, y = at(SAME_ZONE[0])
-    j.on_robot_state(2.0, "pinky1", x + CELL / 2 + 0.10, y, "MOVING")
+    j.on_robot_state(2.0, "pinky1", ZONE_EAST + 0.10, 0.89, "MOVING")
     j.on_zones(2.0, {ZONE: ""})
     assert check(j, "released_without_position_check", 2.0)["value"] == 0
 
@@ -135,9 +134,24 @@ def test_pose_in_unheld_zone_counts_after_grace_only():
     assert check(j, "unheld_zone_pose", 4.0)["value"] == 1
 
 
+def test_a_full_shared_zone_not_held_is_no_violation():
+    """교통 층은 Nav2 goal로 들어간 공유 구역을 자리가 날 때 잡는다. 꽉 찬 동안은 세지 않는다."""
+    j = judge()
+    full = ",".join(f"r{i}" for i in range(SITE.zones["HALL"].capacity))
+    j.on_zones(1.0, {"HALL": full})
+    put(j, 1.0, "pinky1", "N_E")  # HALL 안
+    j.tick(1.0)
+    j.tick(5.0)
+    assert check(j, "unheld_zone_pose", 5.0)["value"] == 0
+    j.on_zones(5.0, {"HALL": "r0"})  # 자리가 났는데 계속 안 잡는다
+    j.tick(5.5)
+    j.tick(7.0)
+    assert check(j, "unheld_zone_pose", 7.0)["value"] == 1
+
+
 def test_a_robot_that_has_not_left_its_start_cell_is_not_counted():
     j = judge()
-    put(j, 1.0, "pinky1", WAITING[1])  # pinky1은 P-5에서 시작
+    put(j, 1.0, "pinky1", WAITING[1])  # pinky1은 P-1에서 시작
     j.tick(1.0)
     j.tick(9.0)
     assert check(j, "unheld_zone_pose", 9.0)["value"] == 0
@@ -169,7 +183,7 @@ def test_release_inside_the_zone_is_a_violation_even_with_large_noise():
     noisy = parse_scenario({
         "seed": 1, "speed_factor": 1.0, "timeout_s": 100,
         "stock": {"arm1": {"A": 1}},
-        "robots": {"pinky1": {"start": "P-5", "speed_mps": 0.2, "pose_noise_m": 0.10}},
+        "robots": {"pinky1": {"start": "P-1", "speed_mps": 0.2, "pose_noise_m": 0.10}},
     }, SITE)
     j = ScenarioJudge(SITE, noisy, margin_m=0.13, grace_s=1.0)
     x, y = at(SAME_ZONE[1])
@@ -181,18 +195,16 @@ def test_release_inside_the_zone_is_a_violation_even_with_large_noise():
 
 def test_robot_outside_every_zone_is_not_counted_as_occupying_one():
     j = judge()
-    x, y = at(SAME_ZONE[0])
-    # 칸 바로 왼쪽: 그 칸이 여전히 가장 가깝지만 자세는 구역 밖이다.
-    j.on_robot_state(1.0, "pinky1", x - CELL / 2 - 0.02, y, "MOVING")
+    # 서쪽 벽 바깥: 가장 가까운 구역은 WORK_DOCK이지만 자세는 구역 밖이다.
+    j.on_robot_state(1.0, "pinky1", -0.02, 0.89, "MOVING")
     put(j, 1.0, "pinky2", SAME_ZONE[0])
     j.tick(1.0)
     assert check(j, "zone_holder_max", 1.0)["value"] == 1
 
 
-def beyond(cell, gap):
-    """`cell`을 가진 구역의 가장자리에서 `gap` m 바깥의 자세."""
-    x, y = at(cell)
-    return x + CELL / 2 + gap, y
+def beyond(place, gap):
+    """ZONE의 동쪽 가장자리에서 `gap` m 바깥의 자세(place와 같은 y)."""
+    return ZONE_EAST + gap, at(place)[1]
 
 
 def test_one_noisy_report_cannot_fail_a_release_when_the_robot_really_left():
@@ -350,7 +362,7 @@ def test_zero_shipped_fails_a_failure_scenario_that_expects_at_least_one():
                       events_include=["COMM_LOST"])
     j = ScenarioJudge(SITE, faulty, margin_m=0.13, grace_s=1.0)
     put(j, 1.0, "pinky2", WAITING[1], "IDLE")
-    j.on_zones(1.0, {"P-5": "pinky2"})
+    j.on_zones(1.0, {"HALL": "pinky2"})
     j.tick(1.0)
     event(j, "COMM_LOST", "no state")
     s = j.summary(100.0)
@@ -495,7 +507,7 @@ def test_a_requeued_order_must_be_the_next_one_bound():
     ship(j, "O-2", "O-3", "O-1")
     put(j, 1.0, "pinky1", WAITING[0], "IDLE")
     put(j, 1.0, "pinky2", WAITING[1], "IDLE")
-    j.on_zones(1.0, {"P-6": "pinky1", "P-5": "pinky2"})
+    j.on_zones(1.0, {"HALL": "pinky1,pinky2"})
     j.tick(1.0)
     s = j.summary(5.0)
     assert s["checks"]["fifo_violations"]["value"] == 2, s["violations"]  # O-2, O-3
@@ -529,7 +541,7 @@ def test_binding_an_order_twice_without_a_requeue_is_a_violation():
     ship(j, "O-1", "O-2", "O-3")
     put(j, 1.0, "pinky1", WAITING[0], "IDLE")
     put(j, 1.0, "pinky2", WAITING[1], "IDLE")
-    j.on_zones(1.0, {"P-6": "pinky1", "P-5": "pinky2"})
+    j.on_zones(1.0, {"HALL": "pinky1,pinky2"})
     j.tick(1.0)
     s = j.summary(5.0)
     assert s["checks"]["fifo_violations"]["value"] == 1 and s["pass"] is False
@@ -658,6 +670,17 @@ def test_entering_the_waiting_loop_with_fewer_orders_than_robots_is_allowed():
     assert check(j, "parked_while_backlog")["value"] == 0
 
 
+def test_passing_beside_a_parking_node_is_not_entering_it():
+    """The game ends with a robot within the arrival tolerance (0.15 m) of its parking node, but a
+    lap ends only on the spot: a robot that drives by 0.12 m away has not parked."""
+    for off, entered in ((0.12, 0), (0.09, 1)):
+        j = judge()
+        j.on_board(["O-1", "O-2"])
+        x, y = at(WAITING[0])
+        lap(j, "pinky1", [OUT, LANE, (x + off, y)])
+        assert check(j, "parked_while_backlog")["value"] == entered, off
+
+
 def test_bound_orders_are_not_a_backlog():
     j = judge()
     bind(j, "O-1", "O-2")
@@ -672,6 +695,43 @@ def test_a_requeued_order_is_a_backlog_again():
     event(j, "ORDER_REQUEUED", "O-1")
     event(j, "ORDER_REQUEUED", "O-2")
     j.on_board(["O-1", "O-2"])
+    lap(j, "pinky1", [OUT, LANE, WAITING[0]])
+    assert check(j, "parked_while_backlog")["value"] == 1
+
+
+def test_a_robot_called_to_work_may_wait_at_parking_on_the_way():
+    # 구역 관제는 바쁜 작업 도크 앞 대기 줄과 홀의 쉼터를 주차 자리에 둔다
+    # (DOCK_QUEUED, 구역 기다림). 레인 관제에는 대기 레인이 따로 있었다
+    j = judge(direct_returns_min=1)
+    j.on_board(["O-1", "O-2"])
+    lap(j, "pinky1", [OUT, LANE])
+    j.on_assignments({"pinky1": "TO_WORK"})
+    lap(j, "pinky1", [WAITING[0], WORK], start=3.0)
+    assert check(j, "parked_while_backlog")["value"] == 0
+    assert check(j, "direct_returns_min")["value"] == 1  # 줄을 섰다가 곧장 작업 도크로 갔다
+
+
+def test_a_robot_on_its_way_to_the_outbound_dock_may_wait_at_parking():
+    j = judge()
+    j.on_board(["O-1", "O-2"])
+    lap(j, "pinky1", [OUT, LANE])
+    j.on_assignments({"pinky1": "TO_OUTBOUND"})  # 출고 도크가 바빠 주차 자리에서 줄을 선다
+    lap(j, "pinky1", [WAITING[0]], start=3.0)
+    assert check(j, "parked_while_backlog")["value"] == 0
+
+
+def test_a_robot_with_no_task_parks_with_a_backlog():
+    j = judge()
+    j.on_board(["O-1", "O-2"])
+    j.on_assignments({"pinky2": "TO_WORK"})  # 다른 로봇의 일은 pinky1을 봐주지 않는다
+    lap(j, "pinky1", [OUT, LANE, WAITING[0]])
+    assert check(j, "parked_while_backlog")["value"] == 1
+
+
+def test_a_robot_sent_to_wait_still_parks_with_a_backlog():
+    j = judge()
+    j.on_board(["O-1", "O-2"])
+    j.on_assignments({"pinky1": "WAIT"})
     lap(j, "pinky1", [OUT, LANE, WAITING[0]])
     assert check(j, "parked_while_backlog")["value"] == 1
 
@@ -696,6 +756,18 @@ def test_finish_needs_all_orders_final_and_robots_parked():
     assert j.finished(2.0)
     put(j, 3.0, "pinky2", OTHER, "MOVING")
     assert not j.finished(3.0)
+
+
+def test_a_robot_within_the_arrival_tolerance_of_its_parking_node_is_parked():
+    """The fleet takes a robot as arrived within 0.15 m. A judge that asked for less never
+    ended a Gazebo game whose robot stood 0.108 m from P-3."""
+    for off, parked in ((0.149, True), (0.151, False)):
+        j = judge()
+        x, y = at(WAITING[0])
+        put(j, 1.0, "pinky1", (x + off, y), "IDLE")
+        put(j, 1.0, "pinky2", WAITING[1], "IDLE")
+        ship(j, "O-1", "O-2", "O-3")
+        assert j.finished(2.0) is parked, off
 
 
 def test_a_docked_robot_is_not_parked():
@@ -724,7 +796,7 @@ def test_finish_does_not_wait_for_a_robot_that_is_gone(kind):
 
 
 REINSTATED = [{"at_s": 1, "robot": "pinky1", "type": "operator_remove"},
-              {"at_s": 5, "robot": "pinky1", "type": "operator_reinstate", "start": "P-5"}]
+              {"at_s": 5, "robot": "pinky1", "type": "operator_reinstate", "start": "P-1"}]
 
 
 def test_finish_waits_for_a_robot_that_was_put_back():
@@ -754,7 +826,7 @@ def test_a_robot_put_back_has_a_short_while_to_be_placed():
     j = _put_back_off_its_start(1.0)
     j.tick(1.0)
     j.tick(1.9)
-    j.on_zones(1.9, {"P-6": "pinky1"})
+    j.on_zones(1.9, {"HALL": "pinky1"})
     for t in (3.0, 5.0, 9.0):
         j.tick(t)
     assert check(j, "unheld_zone_pose")["value"] == 0
@@ -782,7 +854,7 @@ def test_a_robot_put_back_on_its_own_start_cell_gets_no_start_exemption():
     """출발 칸을 떠나는 것을 못 본 채 치웠다가 같은 칸에 다시 놓아도 면제는 유예뿐이다."""
     j = ScenarioJudge(SITE, scenario(faults=REINSTATED, orders_shipped_min=1),
                       margin_m=0.13, grace_s=1.0)
-    j.on_true_pose("pinky1", *at(WAITING[1]))  # 시작 칸 P-5
+    j.on_true_pose("pinky1", *at(WAITING[1]))  # 시작 칸 P-1
     j.tick(0.0)
     j.put_back(1.0, "pinky1", WAITING[1])
     for t in (1.0, 2.0, 3.0, 9.0):
@@ -902,7 +974,7 @@ def test_off_course_needs_a_known_pose_clear_of_every_zone():
 
 def test_held_by_lists_only_the_robots_own_zones():
     j = judge()
-    j.on_zones(1.0, {ZONE: "pinky1", OTHER_ZONE: "pinky1", "P-6": "pinky2", "P-5": ""})
+    j.on_zones(1.0, {ZONE: "pinky1", OTHER_ZONE: "pinky1", "P-2": "pinky2", "P-1": ""})
     assert j.held_by("pinky1") == sorted([ZONE, OTHER_ZONE])
     assert j.held_by("pinky3") == []
 
@@ -966,7 +1038,7 @@ def test_right_counts_on_the_wrong_orders_fail():
     event(j, "ORDER_HELD", "O-3 robot=pinky1", source="central")
     put(j, 1.0, "pinky1", WAITING[0], "IDLE")
     put(j, 1.0, "pinky2", WAITING[1], "IDLE")
-    j.on_zones(1.0, {"P-6": "pinky1", "P-5": "pinky2"})
+    j.on_zones(1.0, {"HALL": "pinky1,pinky2"})
     j.tick(1.0)
     s = j.summary(5.0)
     assert [k for k, c in s["checks"].items() if not c["ok"]] == ["order_results"]
@@ -991,14 +1063,14 @@ def both_arm_judge():
         "seed": 1, "speed_factor": 1.0, "timeout_s": 100,
         "stock": {"arm1": {"A": 9}, "arm2": {"C": 9}},
         "orders": [{"at_s": 0, "id": "O-1", "items": {"A": 1, "C": 1}}],
-        "robots": {"pinky1": {"start": "P-5"}, "pinky2": {"start": "P-6"}},
+        "robots": {"pinky1": {"start": "P-1"}, "pinky2": {"start": "P-2"}},
     }, SITE)
     j = ScenarioJudge(SITE, sc, margin_m=0.13, grace_s=1.0)
     bind(j, "O-1")
     ship(j, "O-1")
     put(j, 1.0, "pinky1", WAITING[0], "IDLE")
     put(j, 1.0, "pinky2", WAITING[1], "IDLE")
-    j.on_zones(1.0, {"P-6": "pinky1", "P-5": "pinky2"})
+    j.on_zones(1.0, {"HALL": "pinky1,pinky2"})
     j.tick(1.0)
     return j
 
@@ -1096,18 +1168,18 @@ def test_shipped_before_operator_is_not_checked_by_default():
     assert check(j, "shipped_before_operator") == {"value": 0, "minimum": 0, "ok": True}
 
 
-def test_detours_around_isolated_count_only_detours_naming_an_isolated_robot():
+def test_detours_around_isolated_count_reroutes_while_an_isolated_robot_stands():
+    """계약 4절: REROUTE의 detail은 자유 글이라, 격리된 로봇이 서 있는 동안 다른 로봇의
+    REROUTE만 센다."""
     j = judge(detours_around_isolated_min=1, all_orders_finished=False)
-    detour = "avoids F1 held by pinky1, standing inf s; new path F0 T2 T1 QW W"
-    j.on_event(1.0, "INFO", "pinky2", "DETOUR", detour)  # 격리 전
-    j.on_event(2.0, "INFO", "pinky2", "DETOUR", "avoids lane F1 to F2 blocked; new path F0 T2")
+    j.on_event(1.0, "INFO", "pinky2", "REROUTE", "new route")  # 격리 전
     assert check(j, "detours_around_isolated")["ok"] is False
     j.on_event(3.0, "ERROR", "pinky1", "ROBOT_ISOLATED", "NAV_ABORTED: stopped where it is")
-    j.on_event(4.0, "INFO", "pinky2", "DETOUR", "avoids F1 held by pinky3, standing 16 s; new path")
+    j.on_event(4.0, "INFO", "pinky1", "REROUTE", "new route")  # 격리된 로봇 자신
     assert check(j, "detours_around_isolated")["value"] == 0
-    j.on_event(5.0, "INFO", "pinky2", "DETOUR", detour)
-    j.on_event(6.0, "INFO", "pinky1", "ZONES_CLEARED", "released ['F1', 'F2']: lifted")
-    j.on_event(7.0, "INFO", "pinky3", "DETOUR", detour)  # 치운 뒤
+    j.on_event(5.0, "INFO", "pinky2", "REROUTE", "new route")
+    j.on_event(6.0, "INFO", "pinky1", "ZONES_CLEARED", "released ['J_W']: lifted")
+    j.on_event(7.0, "INFO", "pinky3", "REROUTE", "new route")  # 치운 뒤
     result = check(j, "detours_around_isolated")
     assert (result["value"], result["minimum"], result["ok"]) == (1, 1, True)
 
@@ -1117,18 +1189,12 @@ def test_detours_around_isolated_is_not_checked_by_default():
     assert check(j, "detours_around_isolated") == {"value": 0, "minimum": 0, "ok": True}
 
 
-def test_detours_around_isolated_see_every_holder_once_per_event():
+def test_detours_around_isolated_count_a_reroute_once_with_two_isolated_robots():
     j = judge(detours_around_isolated_min=1, all_orders_finished=False)
     j.on_event(1.0, "ERROR", "pinky1", "ROBOT_ISOLATED", "NAV_ABORTED: stopped where it is")
-    j.on_event(2.0, "INFO", "pinky2", "DETOUR",
-               "avoids F1 held by pinky3, standing 16 s; "
-               "F2 held by pinky1, standing inf s; new path")
+    j.on_event(2.0, "ERROR", "pinky3", "ROBOT_ISOLATED", "NAV_ABORTED: stopped where it is")
+    j.on_event(3.0, "INFO", "pinky2", "REROUTE", "new route")
     assert check(j, "detours_around_isolated")["value"] == 1
-    j.on_event(3.0, "ERROR", "pinky3", "ROBOT_ISOLATED", "NAV_ABORTED: stopped where it is")
-    j.on_event(4.0, "INFO", "pinky2", "DETOUR",
-               "avoids F1 held by pinky3, standing inf s; "
-               "F2 held by pinky1, standing inf s; new path")
-    assert check(j, "detours_around_isolated")["value"] == 2
 
 
 

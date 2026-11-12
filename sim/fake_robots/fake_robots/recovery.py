@@ -19,7 +19,7 @@ from dataclasses import dataclass
 
 from fake_robots.motion import path_gap
 
-# 관제는 꼭짓점을 release_distance_m 지나면 뒤 구역을 놓는다(fleet_params, lane_map.conflict_pairs).
+# 관제는 꼭짓점을 release_distance_m 지나면 뒤 구역을 놓는다(fleet_params).
 # 그 꼭짓점에 다음 로봇이 설 수 있으므로 후진한 중심도 꼭짓점에서 0.2 + 0.03 m 앞에 둔다.
 RELEASE_DISTANCE_M = 0.2
 ROBOT_RADIUS_M = 0.08

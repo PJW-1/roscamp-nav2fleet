@@ -6,8 +6,9 @@
 - 발행: 계약의 robot_state(RobotState, 기본 10 Hz), Nav2 controller의 speed_limit
   (잠금 경계 목표만, 버전 2 4절 제안)
 - 구독: 계약의 heartbeat, odom(속도), local costmap(BLOCKED 판단)
-- 액션 클라이언트: Nav2 controller의 follow_path(FollowPath), behavior_server의
-  backup(BackUp, 자가 복구. 핑키_계약 3절 7번 2026-11-09 제안)
+- 액션 클라이언트: Nav2 controller의 follow_path(FollowPath, follow_ros.py), behavior_server의
+  backup(BackUp, 자가 복구. 핑키_계약 3절 7번 2026-11-09 제안), bt_navigator의
+  navigate_to_pose(NavigateToPose, MoveTo mode nav_goal. 계약 0.11-draft 제안, nav_goal_ros.py)
 - 서비스 클라이언트: local costmap 비우기(ClearEntireCostmap, 자가 복구)
 - 위치: TF map → base_footprint(AMCL). 시간이 지난 TF는 위치를 모르는 것으로 친다
 
@@ -18,19 +19,13 @@ from __future__ import annotations
 import math
 import threading
 import time
-from functools import partial
 
 import rclpy
-from action_msgs.msg import GoalStatus
-from action_msgs.srv import CancelGoal
-from fleet_interfaces.action import Dock, MoveTo, Retreat
 from fleet_interfaces.msg import RobotState
-from geometry_msgs.msg import Pose2D, PoseStamped
-from nav2_msgs.action import FollowPath
+from geometry_msgs.msg import Pose2D
 from nav2_msgs.msg import SpeedLimit
 from nav2_msgs.srv import ClearEntireCostmap
-from nav_msgs.msg import OccupancyGrid, Odometry, Path
-from rclpy.action import ActionClient, ActionServer, CancelResponse, GoalResponse
+from nav_msgs.msg import OccupancyGrid, Odometry
 from rclpy.callback_groups import ReentrantCallbackGroup
 from rclpy.clock import Clock, ClockType
 from rclpy.executors import MultiThreadedExecutor
@@ -55,15 +50,13 @@ from pinky_fsm.core import (
     SendPath,
 )
 from pinky_fsm.costmap import Grid, obstacle_on, to_frame
-from pinky_fsm.geometry import quaternion_yaw, yaw_quaternion
+from pinky_fsm.follow_ros import FollowPathRunner
+from pinky_fsm.geometry import quaternion_yaw
+from pinky_fsm.nav_goal import CancelNavGoal, SendNavGoal
+from pinky_fsm.nav_goal_ros import NavGoalRunner
+from pinky_fsm.server_ros import GoalServers
 
-FEEDBACK_PERIOD_S = 0.2
 UNKNOWN_BATTERY = -1.0  # 배터리 토픽이 없을 때. 관제는 보여 주기만 한다
-_OUTCOME = {GoalStatus.STATUS_SUCCEEDED: "succeeded", GoalStatus.STATUS_ABORTED: "aborted",
-            GoalStatus.STATUS_CANCELED: "canceled"}
-# 취소 답이 이렇다면 그 goal은 돌지 않는다
-_GONE = (CancelGoal.Response.ERROR_GOAL_TERMINATED, CancelGoal.Response.ERROR_UNKNOWN_GOAL_ID)
-_RESULT = {"move": MoveTo.Result, "dock": Dock.Result, "retreat": Retreat.Result}
 _FLOAT_PARAMS = (
     "arrival_tolerance_m", "connect_tolerance_m", "refresh_within_m", "refresh_every_s",
     "heartbeat_timeout_s", "stopped_speed_mps", "stopped_turn_rps", "block_report_s",
@@ -75,18 +68,10 @@ _FLOAT_PARAMS = (
     # 관제가 시키는 물러나기(버전 2 1-A, 경로 물러나기)
     "retreat_stop_wait_s", "reverse_speed_mps", "nav_result_grace_s",
     # 잠금 경계 목표의 속도 제한(버전 2 4절 horizon 최소판)
-    "horizon_decel_mps2", "horizon_min_mps", "horizon_cap_mps", "horizon_latency_s")
+    "horizon_decel_mps2", "horizon_min_mps", "horizon_cap_mps", "horizon_latency_s",
+    # mode nav_goal의 BLOCKED(계약 0.11-draft 제안)
+    "blocked_after_s", "nav_progress_m")
 _INT_PARAMS = ("recovery_attempts",)
-
-
-class _Slot:
-    """액션 목표 하나. core가 Finish를 내면 결과를 담고 done을 세운다."""
-
-    def __init__(self, handle):
-        self.handle = handle
-        self.done = threading.Event()
-        self.success = False
-        self.reason = ""
 
 
 class PinkyFsmNode(Node):
@@ -100,6 +85,7 @@ class PinkyFsmNode(Node):
         declare("base_frame", "base_footprint")
         declare("follow_path_action", "follow_path")
         declare("backup_action", "backup")
+        declare("navigate_to_pose_action", "navigate_to_pose")  # MoveTo mode nav_goal
         declare("clear_costmap_service", "local_costmap/clear_entirely_local_costmap")
         declare("controller_id", "FollowPath")
         # Controller for paths that end at a lock boundary (MoveTo.final_goal false): an RPP
@@ -138,12 +124,9 @@ class PinkyFsmNode(Node):
 
         self._lock = threading.RLock()
         self._alive = True
-        self._slots: dict[bytes, _Slot] = {}
-        self._nav_handles: dict[int, object] = {}  # 순번 → 수락된 FollowPath 목표
-        self._nav_pending: set[int] = set()  # 보냈지만 수락 여부를 아직 모른다
-        self._cancel_on_accept: set[int] = set()
         self._late: list[tuple[int, str]] = []  # 다음 주기에 core에 넘길 FollowPath 결과
         self._late_backup: list[tuple[int, str]] = []  # 다음 주기에 넘길 BackUp 결과
+        self._late_goal: list[int] = []  # 다음 주기에 거절로 넘길 NavigateToPose(서버 없음)
         self._speed = (0.0, 0.0)
         self._costmap: tuple[Grid, str] | None = None  # (격자, 틀). 한 번에 바꿔 짝이 맞게 둔다
         self._battery = UNKNOWN_BATTERY
@@ -166,18 +149,19 @@ class PinkyFsmNode(Node):
         if get("battery_topic").value:
             self.create_subscription(BatteryState, get("battery_topic").value,
                                      self._on_battery, qos_profile_sensor_data)
-        self._nav = ActionClient(self, FollowPath, get("follow_path_action").value,
-                                 callback_group=group)
+        self._follow = FollowPathRunner(
+            self, get("follow_path_action").value, self._map_frame, self._nav_ids,
+            self._through_id, self._reverse_id, self._on_follow_rejected,
+            self._on_follow_result, self._on_follow_cancel, callback_group=group)
         self._backup = BackUpRunner(self, get("backup_action").value, self._on_backup_result,
                                     callback_group=group)
+        self._goals = NavGoalRunner(self, get("navigate_to_pose_action").value, self._map_frame,
+                                    self._on_goal_feedback, self._on_goal_result,
+                                    self._on_goal_cancel, callback_group=group)
         self._clear = self.create_client(ClearEntireCostmap, get("clear_costmap_service").value,
                                          callback_group=group)
-        self._move_server = self._server(MoveTo, contract.name("move_to", pinky=self.robot_id),
-                                         "move", group)
-        self._dock_server = self._server(Dock, contract.name("dock", pinky=self.robot_id),
-                                         "dock", group)
-        self._retreat_server = self._server(
-            Retreat, contract.name("retreat", pinky=self.robot_id), "retreat", group)
+        self._servers = GoalServers(self, contract, self.robot_id, group, self._lock, self._fsm,
+                                    self._pose, self._run, lambda: self._alive)
         # 판단과 보고는 벽시계로 돈다(heartbeat는 벽시계로 재야 하고, 시뮬 시계가 멈춰도 보고한다)
         steady = Clock(clock_type=ClockType.STEADY_TIME)
         self.create_timer(1.0 / float(get("control_rate_hz").value), self._tick,
@@ -186,31 +170,21 @@ class PinkyFsmNode(Node):
                           callback_group=group, clock=steady)
         self.get_logger().info(f"pinky_fsm for {self.robot_id} ready")
 
-    def _server(self, action_type, name, kind, group):
-        return ActionServer(
-            self, action_type, name,
-            execute_callback=partial(self._execute, kind=kind),
-            # 정상이면 거절하지 않는다(계약 3절 1번)
-            goal_callback=lambda _req: GoalResponse.ACCEPT,
-            cancel_callback=lambda _gh: CancelResponse.ACCEPT,
-            handle_accepted_callback=partial(self._accepted, kind=kind),
-            callback_group=group)
-
     # -- 수명 ------------------------------------------------------------------------------
 
     def stop(self) -> None:
         with self._lock:
             self._alive = False
-            self._cancel_all_nav()
+            self._follow.cancel_all()
             self._backup.cancel_all()
+            self._goals.cancel_all()
 
     def destroy_node(self):
         self.stop()
-        self._move_server.destroy()
-        self._dock_server.destroy()
-        self._retreat_server.destroy()
-        self._nav.destroy()
+        self._servers.destroy()
+        self._follow.destroy()
         self._backup.destroy()
+        self._goals.destroy()
         return super().destroy_node()
 
     # -- 입력 ------------------------------------------------------------------------------
@@ -261,76 +235,17 @@ class PinkyFsmNode(Node):
             points = to_frame(points, (p.x, p.y, quaternion_yaw(q.x, q.y, q.z, q.w)))
         return obstacle_on(grid, points)
 
-    # -- 액션 서버 --------------------------------------------------------------------------
-
-    def _accepted(self, handle, kind: str) -> None:
-        key = bytes(handle.goal_id.uuid)
-        with self._lock:
-            self._slots[key] = _Slot(handle)
-            pose = self._pose()
-            here = pose[:3] if pose else None
-            now = time.monotonic()
-            req = handle.request
-            if kind == "move":
-                t = req.target_pose
-                path = [(p.position.x, p.position.y) for p in req.path]
-                cmds = self._fsm.move(key, now, req.target_id, (t.x, t.y, t.theta), path, here,
-                                      final_goal=req.final_goal)
-            elif kind == "retreat":
-                path = [(p.position.x, p.position.y) for p in req.path]
-                cmds = self._fsm.retreat(key, now, req.distance_m, req.speed_mps, path, here)
-            else:
-                cmds = self._fsm.dock(key, now, req.dock_id)
-            self._run(cmds)
-        handle.execute()
-
-    def _execute(self, handle, kind: str):
-        key = bytes(handle.goal_id.uuid)
-        slot = self._slots[key]
-        last_fb = 0.0
-        while not slot.done.is_set():
-            if not (self._alive and rclpy.ok()):
-                _abort_quietly(handle)
-                return _RESULT[kind]()
-            if handle.is_cancel_requested:
-                with self._lock:
-                    self._run(self._fsm.cancel(key, time.monotonic()))
-            now = time.monotonic()
-            if kind == "move" and now - last_fb >= FEEDBACK_PERIOD_S:
-                last_fb = now
-                with self._lock:
-                    # 교체된 목표에는 새 목표의 남은 거리를 보내지 않는다(곧 결과가 나간다).
-                    # 교체도 이 잠금 안에서 일어나므로 잠금을 쥔 채 보낸다
-                    if self._fsm.is_running(key):
-                        pose = self._pose()
-                        left = self._fsm.distance_remaining(pose[:3] if pose else None)
-                        handle.publish_feedback(MoveTo.Feedback(distance_remaining=float(left)))
-            slot.done.wait(0.02)
-        with self._lock:
-            self._slots.pop(key, None)
-        if slot.success:
-            handle.succeed()
-        elif handle.is_cancel_requested:
-            handle.canceled()
-        else:
-            handle.abort()
-        if kind == "move":
-            return MoveTo.Result(success=slot.success, reason=slot.reason)
-        if kind == "retreat":
-            return Retreat.Result(success=slot.success, reason=slot.reason)
-        if not slot.success:
-            self.get_logger().warn(f"dock failed: {slot.reason}")
-        return Dock.Result(success=slot.success)
-
     # -- core 명령 실행 ----------------------------------------------------------------------
 
     def _run(self, cmds) -> None:
         """self._lock을 쥔 채 부른다."""
         for cmd in cmds:
             if isinstance(cmd, SendPath):
-                self._send_path(cmd)
+                if not self._follow.send(cmd.seq, cmd.poses, cmd.final_goal, cmd.reverse):
+                    self.get_logger().warn("follow_path server is not available")
+                    self._late.append((cmd.seq, "rejected"))
             elif isinstance(cmd, CancelNav):
-                self._cancel_all_nav()
+                self._follow.cancel_all()
             elif isinstance(cmd, BackUp):
                 self.get_logger().info(
                     f"backup #{cmd.seq} {cmd.distance_m:.3f} m (self-recovery attempts "
@@ -341,6 +256,12 @@ class PinkyFsmNode(Node):
                     self._late_backup.append((cmd.seq, "rejected"))
             elif isinstance(cmd, CancelBackUp):
                 self._backup.cancel_all()
+            elif isinstance(cmd, SendNavGoal):
+                if not self._goals.send(cmd.seq, cmd.pose):
+                    self.get_logger().warn("navigate_to_pose server is not available")
+                    self._late_goal.append(cmd.seq)
+            elif isinstance(cmd, CancelNavGoal):
+                self._goals.cancel_all()
             elif isinstance(cmd, ClearCostmap):
                 self._clear_costmap()
             elif isinstance(cmd, LimitSpeed):
@@ -348,40 +269,9 @@ class PinkyFsmNode(Node):
                 msg.header.stamp = self.get_clock().now().to_msg()
                 self._speed_pub.publish(msg)
             elif isinstance(cmd, Finish):
-                slot = self._slots.get(cmd.goal_id)
-                if slot is not None:
-                    slot.success, slot.reason = cmd.success, cmd.reason
-                    slot.done.set()
+                self._servers.finish(cmd.goal_id, cmd.success, cmd.reason)
                 if not cmd.success:
                     self.get_logger().info(f"goal ended: {cmd.reason}")
-
-    def _send_path(self, cmd: SendPath) -> None:
-        if not self._nav.server_is_ready():
-            self.get_logger().warn("follow_path server is not available")
-            self._late.append((cmd.seq, "rejected"))
-            return
-        stamp = self.get_clock().now().to_msg()
-        path = Path()
-        path.header.frame_id, path.header.stamp = self._map_frame, stamp
-        for x, y, yaw in cmd.poses:
-            ps = PoseStamped()
-            ps.header = path.header
-            ps.pose.position.x, ps.pose.position.y = float(x), float(y)
-            qx, qy, qz, qw = yaw_quaternion(yaw)
-            ps.pose.orientation.z, ps.pose.orientation.w = qz, qw
-            path.poses.append(ps)
-        controller, checker, progress = self._nav_ids
-        if self._through_id and not cmd.final_goal:
-            # Nav2 switches controllers on a preempting goal (controller_server
-            # updateGlobalPath), and the speed limit reaches every loaded controller
-            controller = self._through_id
-        if cmd.reverse:
-            controller = self._reverse_id
-        goal = FollowPath.Goal(path=path, controller_id=controller, goal_checker_id=checker,
-                               progress_checker_id=progress)
-        self._nav_pending.add(cmd.seq)
-        self._nav.send_goal_async(goal).add_done_callback(partial(self._on_nav_response,
-                                                                  cmd.seq))
 
     def _clear_costmap(self) -> None:
         if not self._clear.service_is_ready():
@@ -399,71 +289,38 @@ class PinkyFsmNode(Node):
             self._run(self._fsm.backup_result(seq, outcome, time.monotonic(),
                                               pose[:3] if pose else None, error_code))
 
-    def _cancel_all_nav(self) -> None:
-        for seq, handle in self._nav_handles.items():
-            handle.cancel_goal_async().add_done_callback(partial(self._on_nav_cancel, seq))
-        self._cancel_on_accept |= self._nav_pending
-
-    def _on_nav_cancel(self, seq: int, future) -> None:
-        """취소가 받아들여진 FollowPath만 core가 결과 없이도 잊을 수 있다(Codex 재검토 1).
-        이미 끝났거나 서버가 모르는 goal도 돌지 않으므로 같다(재검토 2: 결과를 잃은 goal)."""
-        try:
-            resp = future.result()
-            accepted = bool(resp.goals_canceling) or resp.return_code in _GONE
-        except Exception as exc:  # noqa: BLE001 - 답이 없으면 계속 돌 수 있다고 본다
-            self.get_logger().warn(f"follow_path #{seq} cancel got no answer: {exc}")
-            return
-        if not accepted:
-            self.get_logger().warn(f"follow_path #{seq} cancel was refused")
-            return
+    def _on_goal_feedback(self, seq: int, distance: float) -> None:
         with self._lock:
-            self._nav_handles.pop(seq, None)  # 다시 취소하지 않는다. 결과가 오면 그대로 받는다
-            self._run(self._fsm.nav_cancel_accepted(seq, time.monotonic()))
+            self._fsm.nav_goal_feedback(seq, distance)
 
-    def _on_nav_response(self, seq: int, future) -> None:
-        try:
-            handle = future.result()
-        except Exception as exc:  # noqa: BLE001 - 콜백이 죽으면 이 FollowPath는 결과가 없다
-            self.get_logger().warn(f"follow_path #{seq} was not sent: {exc}")
-            with self._lock:
-                self._nav_pending.discard(seq)
-                self._late.append((seq, "rejected"))
-            return
+    def _on_goal_result(self, seq: int, outcome: str, lost: bool) -> None:
         with self._lock:
-            self._nav_pending.discard(seq)
-            if not handle.accepted:
-                self._late.append((seq, "rejected"))
-                return
-            self._nav_handles[seq] = handle
-            if seq in self._cancel_on_accept:
-                self._cancel_on_accept.discard(seq)
-                # 멈추는 동안 수락된 목표는 바로 취소한다
-                handle.cancel_goal_async().add_done_callback(partial(self._on_nav_cancel, seq))
-        handle.get_result_async().add_done_callback(partial(self._on_nav_result, seq))
-
-    def _on_nav_result(self, seq: int, future) -> None:
-        try:
-            res = future.result()
-            outcome, code = _OUTCOME.get(res.status, "aborted"), int(res.result.error_code)
-            if outcome != "succeeded" and code:
-                self.get_logger().info(f"follow_path #{seq} {outcome}: "
-                                       f"{code} {res.result.error_msg}")
-        except Exception as exc:  # noqa: BLE001 - 결과를 잃었다. goal은 아직 돌 수 있다
-            self.get_logger().warn(f"follow_path #{seq} lost its result: {exc}")
-            with self._lock:
-                handle = self._nav_handles.get(seq)
-                if handle is not None:  # 취소가 받아들여질 때까지 core가 이 goal을 기다린다
-                    handle.cancel_goal_async().add_done_callback(
-                        partial(self._on_nav_cancel, seq))
-                pose = self._pose()
-                self._run(self._fsm.nav_lost(seq, time.monotonic(),
-                                             pose[:3] if pose else None, self._obstacle))
-            return
-        with self._lock:
-            self._nav_handles.pop(seq, None)
             pose = self._pose()
-            self._run(self._fsm.nav_result(seq, outcome, time.monotonic(),
-                                           pose[:3] if pose else None, self._obstacle, code))
+            self._run(self._fsm.nav_goal_result(seq, outcome, time.monotonic(),
+                                                pose[:3] if pose else None, lost=lost))
+
+    def _on_goal_cancel(self, seq: int) -> None:
+        with self._lock:
+            self._run(self._fsm.nav_goal_cancel_accepted(seq, time.monotonic()))
+
+    def _on_follow_rejected(self, seq: int) -> None:
+        with self._lock:
+            self._late.append((seq, "rejected"))
+
+    def _on_follow_result(self, seq: int, outcome: str, code: int, lost: bool) -> None:
+        with self._lock:
+            pose = self._pose()
+            here = pose[:3] if pose else None
+            if lost:  # 취소가 받아들여질 때까지 core가 이 goal을 기다린다
+                cmds = self._fsm.nav_lost(seq, time.monotonic(), here, self._obstacle)
+            else:
+                cmds = self._fsm.nav_result(seq, outcome, time.monotonic(), here,
+                                            self._obstacle, code)
+            self._run(cmds)
+
+    def _on_follow_cancel(self, seq: int) -> None:
+        with self._lock:
+            self._run(self._fsm.nav_cancel_accepted(seq, time.monotonic()))
 
     # -- 주기 ------------------------------------------------------------------------------
 
@@ -480,6 +337,9 @@ class PinkyFsmNode(Node):
             late_backup, self._late_backup = self._late_backup, []
             for seq, outcome in late_backup:
                 self._run(self._fsm.backup_result(seq, outcome, now, here))
+            late_goal, self._late_goal = self._late_goal, []
+            for seq in late_goal:
+                self._run(self._fsm.nav_goal_result(seq, "rejected", now, here))
             self._run(self._fsm.tick(now, here, self._speed, self._obstacle))
             self._log_state()
 
@@ -504,13 +364,6 @@ class PinkyFsmNode(Node):
         else:
             msg.stamp = self.get_clock().now().to_msg()
         self._state_pub.publish(msg)
-
-
-def _abort_quietly(handle) -> None:
-    try:
-        handle.abort()
-    except Exception:  # noqa: BLE001 - 종료 중에는 상태 발행이 실패할 수 있다
-        pass
 
 
 def main(args=None):

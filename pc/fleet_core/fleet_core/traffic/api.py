@@ -1,7 +1,7 @@
 """교통 층의 바깥 API: FleetManager(manager.py)와 ROS 껍데기(fleet_manager_node.py)가 부르는 것.
 
-지운 레인 제어기(1da1e61 traffic/controller.py)의 공개 메서드를 시그니처 그대로 적었다. 3단계의
-ZoneTraffic이 이것을 채우면 manager.py를 고치지 않고 끼워진다. 한 줄 설명은 부르는 쪽이 기대하는
+ZoneTraffic이 채우는 자리다. 옛 레인 제어기(지웠다, 1da1e61 traffic/controller.py)의 공개 메서드를
+시그니처 그대로 따랐으므로 manager.py를 고치지 않고 끼운다. 한 줄 설명은 부르는 쪽이 기대하는
 것이다. 로봇 이름은 모두 생성자의 robots 중 하나이고, 모르는 이름은 조용히 무시한다
 (INPUT_REJECTED는 FleetManager가 낸다). 시각은 생성자의 clock으로 읽는다.
 
@@ -88,7 +88,7 @@ class TrafficApi(Protocol):
 
     @property
     def zones(self):
-        """구역 잠금(zones.ZoneLocks와 같은 읽기: held_by, waiting_for, holder, snapshot)."""
+        """구역 허락 기록(zone/grants.py의 ZoneGrants: held_by, holders, nodes_of, waiting)."""
 
     def available(self, robot) -> bool:
         """이번 tick에 새 일을 받고 step할 수 있다(지도 위, 고장·두절 없음)."""

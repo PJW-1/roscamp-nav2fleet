@@ -44,14 +44,9 @@ class FleetParams:
     input_pose_margin_m: float = 1.0
     stall_s: float = 6.0
     stall_move_m: float = 0.05
-    stall_smooth_s: float = 1.0
     dock_stall_s: float = 15.0
-    blocked_mark_s: float = 5.0
+    blocked_mark_s: float = 10.0
     blocked_timeout_s: float = 60.0
-    blocked_rejoin_s: float = 10.0
-    queue_gap_m: float = 0.6
-    # H1: after DEADLOCK_UNRESOLVED, the same wait cycle lasting this long isolates one robot.
-    deadlock_unresolved_s: float = 30.0
     # 조용히 서 있는 로봇 감시(1.1 지시서 H2). 0이면 끈다. 이 값이 없던 기록은 감시 없이 재생한다
     idle_watch_s: float = 0.0
     # 제안(2026-11-10): 보고한 배터리(0-100)가 battery_low_pct 이하면 새 일을 받지 않고 대기
@@ -67,31 +62,49 @@ class FleetParams:
     # than this is taken as BLOCKED. The pinky FSM's two attempts take about 35 s at most.
     # Records from before RECOVERING never report it, so the value does not change their replay
     self_recovery_limit_s: float = 45.0
-    # Proposal (version 2 section 4, contract 0.8-draft MoveTo.final_goal): mark goals that end
-    # at a lock boundary as not final. Records without it replay with every move final
-    mark_final_goal: bool = False
     # Which traffic layer runs (traffic/modes.py). zones is the only one: zone permissions on a
-    # graph of points and zones, built in stage 3
+    # graph of points and zones
     traffic_mode: str = "zones"
-    # ETA와 도크 접근 시간창(제안, 실측 전). eta_*는 버전 2 공식 ETA와 같은 값
-    eta_speed_mps: float = 0.2
-    eta_turn_s_per_rad: float = 1.0  # 제자리 회전 초/rad. 0이면 회전을 안 셈
-    eta_turn_min_rad: float = 0.25  # 이보다 작은 꺾임은 달리면서 지남(RPP 회전 기준)
-    eta_dock_s: float = 3.0
+    # ETA(제안, 실측 전). eta_*는 버전 2 공식 ETA와 같은 값
     eta_fill_s_per_item: float = 4.0
     eta_fill_base_s: float = 4.0  # 첫 품목 전 준비 시간(가짜 팔은 품목 수 + 1번)
-    eta_fill_items_default: int = 2  # 주문을 모를 때 채울 품목 수
     eta_swap_s: float = 8.0
-    floor_leave_s: float = 2.5  # 도크를 떠나기 시작해서 접근선이 빌 때까지
-    # 끔: 접근선은 먼저 온 순서. 켬: 가장 빨리 닿는 로봇이 다음이고, 비울 때에 맞춰 미리 출발
-    floor_dock_schedule: bool = False
-    floor_pre_admit_margin_s: float = 1.0  # 딱 맞는 때보다 이만큼 먼저 출발
-    floor_dock_aging_s: float = 30.0  # 이만큼 기다리면 다시 먼저 온 순서(굶김 방지)
-    # 관제가 시키는 물러나기(Retreat, 제안, 실측 전). 끄면 전과 같다. 이 값이 없던 기록은 끈 채로
-    floor_block_retreat: bool = False  # 막혀(BLOCKED) 오래 선 로봇을 물러나게 한다
-    floor_retreat_after_s: float = 10.0  # 이만큼 막혀 서 있으면 물러난다
-    floor_retreat_speed_mps: float = 0.05  # 물러나는 속도
-    floor_retreat_max_m: float = 1.0  # 한 번에 물러나는 가장 긴 거리
+    # 구역 교통 층(traffic/zone). 모두 제안값이고 실측 전이다
+    nav_speed_mps: float = 0.12  # 넓은 구역(Nav2 goal)의 ETA와 길 비용에 쓰는 속도
+    follow_speed_mps: float = 0.12  # 고정 경로(FollowPath)의 같은 값
+    retreat_speed_mps: float = 0.05  # 후진(Retreat) 속도
+    # 뒤 구역은 보고 중심이 구역에서 footprint_radius_m + release_margin_m 넘게 벗어나면 놓는다
+    # (몸 전체가 빠져나간 뒤, 추가 지시서 2의 5절)
+    footprint_radius_m: float = 0.085  # Nav2 발자국 0.12 x 0.12 m의 반 대각선
+    release_margin_m: float = 0.05  # 보고 위치 오차의 여유
+    zone_clear_m: float = 0.0  # 옛 기록 전용: 0이 아니면 이 거리로 놓는다(그때의 규칙으로 재생)
+    node_clear_m: float = 0.20  # 뒤 지점에서 이만큼 멀어지면 그 지점을 놓는다
+    lane_follow_gap_s: float = 4.0  # 앞 로봇이 한 줄 구역에 들어간 뒤 이만큼 지나야 뒤따른다
+    lane_hysteresis_s: float = 5.0  # 반대쪽이 이만큼 더 빨리 닿을 때만 방향을 바꾼다
+    lane_handover_s: float = 30.0  # 이만큼 기다린 쪽에 방향을 넘긴다
+    dock_wait_estimate_s: float = 30.0  # 찬 도크를 기다리는 예상 시간(길 비용)
+    blocked_retry_s: float = 60.0  # 막힘으로 표시한 연결을 이만큼 뒤 다시 써 본다
+    near_m: float = 0.30  # 넓은 구역에서 두 로봇이 이만큼 가까이
+    near_stuck_s: float = 5.0  # 이만큼 못 나아가면 우선순위 낮은 쪽이 비킨다
+    outside_zone_m: float = 0.05  # 쥔 구역 밖으로 이만큼 벗어난 보고가
+    outside_zone_samples: int = 5  # 이만큼 이어지면 OUTSIDE_ZONE
+    # 마당 물러나기(제안, 2026-11-12). 넓은 구역에서 비켜 서는 로봇이 BLOCKED를 보고했으면 선
+    # 방향 그대로 뒤로 물린 뒤 세운다. 끄면(기본) 세우기만 한다
+    yard_backoff: bool = False
+    yard_backoff_m: float = 0.12  # 물러나는 거리
+    # 비킬 로봇의 BLOCKED 보고를 이만큼 더 기다린다. near_stuck_s와 더해 stall_s보다 짧아야 한다
+    yard_backoff_wait_s: float = 0.5
+    yard_backoff_edge_m: float = 0.10  # 설 자리가 벽, 진열대, 고정 경로 구역에서 떨어질 거리
+    # 관제가 시키는 물러나기(마당 물러나기, 고정 구간 후진)의 길이 다른 로봇에 이만큼 안으로
+    # 다가가면 내지 않는다(추가 지시서 2의 4절: 뒤에 다른 로봇이 없을 때만 물러난다)
+    retreat_clear_m: float = 0.20
+    # order 모델(VDA 5050의 base/horizon, 추가 지시서). 끄면 조각 하나씩 보낸다
+    use_order_model: bool = False
+    lookahead_s: float = 2.0  # base 끝까지 이만큼 남으면 다음 구역을 잡아 본다
+    comm_base_hold_extra_s: float = 3.0  # 끊긴 로봇의 base 구역을 base 끝 ETA + 이만큼 쥔다
+    # 시험 판정(추가 지시서 2, 2026-11-12). 0이면 끈다. 이 값이 없던 기록은 감시 없이 재생한다
+    silent_limit_s: float = 0.0  # 갈 곳이 있는 로봇이 나아가지 않고 관제도 말이 없으면 SILENT_STALL
+    start_limit_s: float = 0.0  # goal을 보낸 뒤 이만큼 안에 2 cm 넘게 움직이지 않으면 NO_START
 
 
 def load_params(path=None) -> FleetParams:

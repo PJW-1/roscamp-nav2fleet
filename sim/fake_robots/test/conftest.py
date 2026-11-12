@@ -6,15 +6,9 @@ from pathlib import Path
 
 import pytest
 import yaml
-from fleet_core.pending import skip_waiting_module
 
 REPO = Path(__file__).parents[3]
 CONTRACT = REPO / "interfaces" / "fleet_interfaces" / "contract.yaml"
-
-
-def pytest_pycollect_makemodule(module_path, parent):
-    """지도(2단계)나 교통 층(3단계)을 기다리는 시험은 건너뛴다(fleet_core/pending.py)."""
-    return skip_waiting_module(module_path, parent)
 
 
 def write_scenario(tmp_path, **over):
@@ -24,9 +18,9 @@ def write_scenario(tmp_path, **over):
         "timeout_s": 600,
         "stock": {"arm1": {"A": 3, "B": 1}, "arm2": {"C": 3}},
         "robots": {
-            "pinky1": {"start": "P-6", "speed_mps": 1.0, "pose_noise_m": 0.0},
-            "pinky2": {"start": "P-5", "speed_mps": 1.0, "pose_noise_m": 0.0},
-            "pinky3": {"start": "P-4", "speed_mps": 1.0, "pose_noise_m": 0.0},
+            "pinky1": {"start": "P-1", "speed_mps": 1.0, "pose_noise_m": 0.0},
+            "pinky2": {"start": "P-3", "speed_mps": 1.0, "pose_noise_m": 0.0},
+            "pinky3": {"start": "P-2", "speed_mps": 1.0, "pose_noise_m": 0.0},
         },
         "arm": {"seconds_per_item": 0.2, "swap_seconds": 0.4, "fail_rate": 0.0},
         "dock": {"duration_s": 0.6, "error_cm": 1.0},

@@ -4,13 +4,14 @@ import math
 
 import pytest
 
-lane_map_module = pytest.importorskip("fleet_core.traffic.lane_map")
+pytest.importorskip("fleet_core")
+from fleet_core.fleet_map import load_fleet_map  # noqa: E402
 from fleet_gz_sim.fleet_check import FleetCheck  # noqa: E402
 
-SITE = lane_map_module.load_lane_map()
+SITE = load_fleet_map("d2")
 ROBOTS = ["pinky1", "pinky2", "pinky3"]
-W = SITE.waypoint_pose("W")
-ZONE_W = SITE.zone_of["W"]
+W = SITE.node_pose("W")
+ZONE_W = SITE.nodes["W"].zone  # WORK_DOCK
 
 
 def check(**kw):
@@ -164,57 +165,25 @@ def test_unknown_robots_are_ignored():
     assert set(c.summary()["robots"]) == set(ROBOTS)
 
 
-# ---- free-floor: /fleet/zones holds cell names (c12_17) ----------------------------------
+# ---- zones held by several robots (shared, lane) ------------------------------------------
 
 
-def floor_space():
-    from dataclasses import replace
-
-    from fleet_core.common.params import load_params
-    from fleet_core.traffic.modes import zone_space
-    return zone_space(SITE, replace(load_params(), traffic_mode="freefloor"))
-
-
-def test_free_floor_cells_count_as_held_zones():
-    space = floor_space()
-    floor = space.floor
-    cell = floor.cell_of(*W)
-    middle = floor.centre(cell)  # W sits on a cell corner, where float error is not 0
-    c = FleetCheck(space, ROBOTS)
-    c.on_zones({floor.cell_id(cell): "pinky1"})
-    c.on_truth("pinky1", 1.0, *middle, 0.0, 0.0)
-    c.on_truth("pinky1", 1.1, middle[0] + 2.0, middle[1], 0.0, 0.0)
-    s = c.summary()["robots"]["pinky1"]
-    assert s["outside_held_samples"] == 1 and s["zone_samples"] == 2
-    assert s["worst_outside_m"] > 1.8
+def test_a_robot_named_among_several_holders_holds_the_zone():
+    """ZoneView.holder joins the robots of a shared zone with a comma (TRAFFIC_CONTRACT 3)."""
+    c = check()
+    c.on_zones({"HALL": "pinky1,pinky3", ZONE_W: "pinky2"})
+    hall = SITE.node_pose("W_Q")
+    c.on_truth("pinky1", 1.0, *hall, 0.0, 0.0)
+    c.on_truth("pinky3", 1.0, *hall, 0.0, 0.0)
+    c.on_truth("pinky2", 1.0, *hall, 0.0, 0.0)  # holds only the dock, stands in the hall
+    robots = c.summary()["robots"]
+    assert robots["pinky1"]["outside_held_samples"] == 0
+    assert robots["pinky3"]["outside_held_samples"] == 0
+    assert robots["pinky2"]["outside_held_samples"] == 1
 
 
-def test_the_check_space_follows_the_params_file(tmp_path):
-    from fleet_gz_sim.fleet_setup import load_zone_space
-    assert load_zone_space("", "") is not None and not hasattr(load_zone_space("", ""), "is_cell")
-    import yaml
-    from fleet_core.common.params import DEFAULT_PARAMS
-    params = tmp_path / "fleet_params.yaml"
-    values = yaml.safe_load(DEFAULT_PARAMS.read_text(encoding="utf-8"))
-    params.write_text(yaml.safe_dump({**values, "traffic_mode": "freefloor"}), encoding="utf-8")
-    space = load_zone_space("", str(params))
-    assert space.is_cell(space.floor.cell_id(space.floor.cell_of(*W)))
-
-
-def test_the_check_space_takes_the_floor_map_of_its_lane_map(tmp_path):
-    """fleet_check and fleet_view get the warehouse lane map; their cells are warehouse cells."""
-    from pathlib import Path
-
-    import yaml
-    from fleet_core.common.params import DEFAULT_PARAMS
-    from fleet_core.traffic.floor.floor_map import DEFAULT_FLOOR
-    from fleet_gz_sim.fleet_setup import load_zone_space
-    repo = Path(__file__).resolve().parents[3]
-    params = tmp_path / "fleet_params.yaml"
-    values = yaml.safe_load(DEFAULT_PARAMS.read_text(encoding="utf-8"))
-    params.write_text(yaml.safe_dump({**values, "traffic_mode": "freefloor"}), encoding="utf-8")
-    space = load_zone_space(str(repo / "sim" / "fake_robots" / "maps" / "warehouse.yaml"),
-                            str(params))
-    warehouse = DEFAULT_FLOOR.parent / "floor_map_warehouse.yaml"
-    assert space.floor.source_text == warehouse.read_text(encoding="utf-8")
-    assert space.floor.docks["OUTBOUND"] == space.waypoint_pose("O")
+def test_a_name_that_only_starts_like_a_holder_is_not_one():
+    c = check()
+    c.on_zones({ZONE_W: "pinky10"})
+    c.on_truth("pinky1", 1.0, *W, 0.0, 0.0)
+    assert c.summary()["robots"]["pinky1"]["no_zone_held_samples"] == 1

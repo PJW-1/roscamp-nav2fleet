@@ -51,19 +51,24 @@ def _walk(entities, context, found):
             requests = []
             if isinstance(entity, ComposableNodeContainer):
                 descriptions = entity._ComposableNodeContainer__composable_node_descriptions
-                requests = [get_composable_node_load_request(d, context) for d in descriptions]
+                requests = [get_composable_node_load_request(d, context) for d in descriptions
+                            if d.condition() is None or d.condition().evaluate(context)]
             found.append((entity, requests))
             continue
         _walk(entity.visit(context) or [], context, found)
 
 
-def _expand(use_composition, use_sim_time="true"):
+def _expand(use_composition, use_sim_time="true", keepout_mask=None, vision_obstacles=None):
     context = launch.LaunchContext()
     context.launch_configurations.update({
         "use_composition": use_composition, "use_sim_time": use_sim_time,
         "map": "/maps/coarse.yaml", "map_fine": "/maps/fine.yaml",
         "initial_x": "0.35", "initial_y": "1.55", "initial_yaw": "1.5708",
     })
+    if keepout_mask is not None:
+        context.launch_configurations["keepout_mask"] = keepout_mask
+    if vision_obstacles is not None:
+        context.launch_configurations["vision_obstacles"] = vision_obstacles
     found = []
     _walk(_launch_description().entities, context, found)
     return context, found
@@ -110,7 +115,7 @@ def test_composed_nodes_get_the_same_parameters_as_the_processes():
     params = {r.node_name: _params(r) for r in requests}
     # 파라미터 파일의 namespace 뿌리 키(pinky1:)가 노드마다 맞아 들어가야 한다
     assert params["controller_server"]["controller_plugins"] == [
-        "FollowPath", "FollowPathThrough", "FollowPathReverse"]
+        "FollowPath", "FollowPathThrough", "FollowPathReverse", "FollowPathGoal"]
     assert params["amcl"]["map_topic"] == "map_fine"
     assert params["map_server"]["yaml_filename"] == "/maps/coarse.yaml"
     assert params["map_server_fine"]["yaml_filename"] == "/maps/fine.yaml"
@@ -118,7 +123,7 @@ def test_composed_nodes_get_the_same_parameters_as_the_processes():
     assert (params["amcl"]["initial_pose.x"], params["amcl"]["initial_pose.y"],
             params["amcl"]["initial_pose.yaw"]) == (0.35, 1.55, 1.5708)
     assert params["bt_navigator"]["default_nav_to_pose_bt_xml"].endswith(
-        "plan_once_no_recovery.xml")
+        "navigate_to_pose_w_replanning_and_recovery_goal.xml")
     loc, nav = params["lifecycle_manager_localization"], params["lifecycle_manager_navigation"]
     assert loc["node_names"] == ["map_server", "map_server_fine", "amcl"]
     assert nav["node_names"] == ["controller_server", "planner_server", "behavior_server",
@@ -129,3 +134,111 @@ def test_composed_nodes_get_the_same_parameters_as_the_processes():
 def test_composed_use_sim_time_follows_the_argument():
     _, [(_, requests)] = _expand("true", use_sim_time="false")
     assert all(_params(r)["use_sim_time"] is False for r in requests)
+
+
+# ---- keepout (express lane and dock zones closed to Nav2 goal paths) ----------------------
+
+KEEPOUT_NAMES = ["keepout_mask_server", "costmap_filter_info_server",
+                 "lifecycle_manager_keepout"]
+MASK = "/maps/keepout_mask.yaml"
+
+
+def _param_files(node):
+    """The parameter files a process gets (launch_ros writes dicts to files too)."""
+    import yaml
+    out = {}
+    for path, is_file in node._Node__expanded_parameter_arguments:
+        if is_file:
+            data = yaml.safe_load(Path(path).read_text(encoding="utf-8"))
+            for key, value in data.items():
+                out.setdefault(key, {}).update(value) if isinstance(value, dict) else None
+    return out
+
+
+def _global_costmap(node):
+    return _param_files(node)["pinky1"]["global_costmap"]["global_costmap"]["ros__parameters"]
+
+
+@pytest.mark.parametrize("mask", [None, ""])
+def test_without_a_keepout_mask_nothing_changes(mask):
+    _, found = _expand("false", keepout_mask=mask)
+    nodes = [node for node, _ in found]
+    assert [n.node_name for n in nodes] == [f"/pinky1/{name}" for name in NAMES]
+    planner = nodes[NAMES.index("planner_server")]
+    assert "filters" not in _global_costmap(planner)
+
+
+def test_a_keepout_mask_adds_the_filter_to_the_global_costmap_and_starts_its_servers():
+    _, found = _expand("false", keepout_mask=MASK)
+    nodes = {n.node_name.rsplit("/", 1)[1]: n for n, _ in found}
+    assert list(nodes) == NAMES + KEEPOUT_NAMES
+    glob = _global_costmap(nodes["planner_server"])
+    assert glob["filters"] == ["keepout_filter"]
+    assert glob["keepout_filter"]["filter_info_topic"] == "/pinky1/costmap_filter_info"
+    assert glob["plugins"] == ["static_layer", "obstacle_layer", "inflation_layer"]
+    local = _param_files(nodes["controller_server"])["pinky1"]["local_costmap"]
+    assert "filters" not in local["local_costmap"]["ros__parameters"], "FollowPath unaffected"
+    info = _param_files(nodes["costmap_filter_info_server"])["pinky1"][
+        "costmap_filter_info_server"]["ros__parameters"]
+    assert info["mask_topic"] == "/pinky1/keepout_filter_mask"
+    assert nodes["costmap_filter_info_server"].node_executable == "costmap_filter_info_server"
+    assert nodes["keepout_mask_server"].node_executable == "map_server"
+    assert nodes["keepout_mask_server"].expanded_remapping_rules == [
+        ("/tf", "tf"), ("/tf_static", "tf_static")]
+
+
+def test_the_keepout_servers_are_brought_up_by_their_own_lifecycle_manager():
+    _, [(_, requests)] = _expand("true", keepout_mask=MASK)
+    params = {r.node_name: _params(r) for r in requests}
+    assert [r.node_name for r in requests] == NAMES + KEEPOUT_NAMES
+    assert params["lifecycle_manager_keepout"]["node_names"] == [
+        "keepout_mask_server", "costmap_filter_info_server"]
+    assert params["lifecycle_manager_keepout"]["autostart"] is True
+    assert params["keepout_mask_server"]["yaml_filename"] == MASK
+    assert params["keepout_mask_server"]["topic_name"] == "keepout_filter_mask"
+    plugins = {r.node_name: r.plugin_name for r in requests}
+    assert plugins["costmap_filter_info_server"] == "nav2_map_server::CostmapFilterInfoServer"
+    assert plugins["keepout_mask_server"] == "nav2_map_server::MapServer"
+
+
+def test_the_composed_container_carries_the_keepout_filter_for_the_costmap_sub_node():
+    _, [(container, _)] = _expand("true", keepout_mask=MASK)
+    assert _global_costmap(container)["filters"] == ["keepout_filter"]
+    _, [(container, _)] = _expand("true")
+    assert "filters" not in _global_costmap(container)
+
+
+# ---- vision obstacles (a slot for the avoidance teammate's point cloud) -------------------
+
+def _obstacle_layers(found):
+    nodes = [node for node, _ in found]
+    layers = {}
+    for name, which in (("controller_server", "local"), ("planner_server", "global")):
+        costmap = _param_files(nodes[NAMES.index(name)])["pinky1"][f"{which}_costmap"]
+        layers[which] = costmap[f"{which}_costmap"]["ros__parameters"]["obstacle_layer"]
+    return layers
+
+
+@pytest.mark.parametrize("value", [None, "false"])
+def test_without_vision_obstacles_the_costmaps_read_only_the_scan(value):
+    _, found = _expand("false", vision_obstacles=value)
+    for layer in _obstacle_layers(found).values():
+        assert layer["observation_sources"] == "scan" and "vision" not in layer
+
+
+def test_vision_obstacles_adds_the_point_cloud_to_both_costmaps():
+    _, found = _expand("false", vision_obstacles="true")
+    for layer in _obstacle_layers(found).values():
+        assert layer["observation_sources"] == "scan vision"
+        assert layer["vision"]["topic"] == "/pinky1/vision_obstacles"
+        assert layer["vision"]["data_type"] == "PointCloud2"
+        assert layer["vision"]["expected_update_rate"] == 0.0, "a silent topic stops nothing"
+        assert layer["scan"]["topic"] == "/pinky1/scan", "the scan stays as it was"
+
+
+def test_vision_obstacles_and_keepout_work_together():
+    _, found = _expand("false", keepout_mask=MASK, vision_obstacles="true")
+    planner = [node for node, _ in found][NAMES.index("planner_server")]
+    glob = _global_costmap(planner)
+    assert glob["filters"] == ["keepout_filter"]
+    assert glob["obstacle_layer"]["observation_sources"] == "scan vision"

@@ -44,7 +44,7 @@ from fleet_core.common.commands import OrderRecord  # noqa: E402
 from fleet_core.common.params import FleetParams  # noqa: E402
 from fleet_core.manager import FleetManager  # noqa: E402
 from fleet_core.traffic.modes import NoZoneTraffic  # noqa: E402
-from fleet_core.traffic.site import NoFleetMap, site_from_text  # noqa: E402
+from fleet_core.traffic.site import site_from_text  # noqa: E402
 
 
 @dataclass(frozen=True)
@@ -97,7 +97,7 @@ def start_core(head: dict, clock) -> FleetManager:
         params = FleetParams(**head["params"])
     except TypeError as error:
         raise ValueError(f"these parameters do not fit this code: {error}") from error
-    site = site_from_text(head["map"])  # 지도 모듈(2단계)이 없으면 NoFleetMap
+    site = site_from_text(head["map"])
     return FleetManager(site, params, head["robots"], clock)
 
 
@@ -137,7 +137,7 @@ def main() -> int:
     parser.add_argument("record", help="the JSONL file the fleet manager node wrote with --record")
     try:
         result = replay(parser.parse_args().record)
-    except (ValueError, OSError, NoFleetMap, NoZoneTraffic) as error:
+    except (ValueError, OSError, NoZoneTraffic) as error:
         print(f"cannot play this back: {error}")
         return 2
     print(f"{result.inputs} inputs, {result.inside} inside calls, {result.commands} commands")

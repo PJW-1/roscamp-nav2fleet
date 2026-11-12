@@ -70,6 +70,7 @@ def test_the_bringup_package_does_not_depend_on_the_sim():
 def test_passing_sim_dock_stub_to_the_pc_bringup_starts_nothing_from_the_sim():
     """ros2 launch accepts undeclared arguments silently. Make sure this one changes nothing."""
     launch = pytest.importorskip("launch")
+    pytest.importorskip("ament_index_python")  # ROS가 없으면 launch 폴더가 빈 패키지로 잡힌다
     import importlib.util
 
     from ament_index_python.packages import PackageNotFoundError, get_package_share_directory
@@ -257,7 +258,7 @@ def _docking_stub(ros, monkeypatch, sim_of_wall, duration=0.0):
                         SimpleNamespace(monotonic=wall.monotonic, sleep=wall.sleep))
     monkeypatch.setattr(stand_in_node, "stub_may_answer", lambda active, now: True)
     monkeypatch.setattr(node, "_now", lambda: sim_of_wall(wall.t))
-    x, y = node._site.waypoint_pose(node._site.stations["WORK"].dock)[:2]
+    x, y = node._site.node_pose(node._site.stations["WORK"].dock)[:2]
     node._pose["pinky1"] = (x, y, 0.0)
     return node, wall
 

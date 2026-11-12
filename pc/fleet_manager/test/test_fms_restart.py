@@ -35,6 +35,7 @@ WALL_TIMEOUT_S = 420
 STILL_M = 0.001
 SILENT_S = 0.5
 SLACK_S = 1.0  # 부하 걸린 머신은 늦게 전달한다. 마지막 beat, kill, 정지 모두 실제 시간이다
+MORE_MOVERS_S = 2.0
 PINKY3_SILENT_S = (50.0, 120.0)  # fms_restart.yaml의 comm_loss
 SCENARIO = Path(__file__).parent / "fms_restart.yaml"  # 아래의 kill 없이는 의미가 없다
 
@@ -158,20 +159,29 @@ def test_robots_stop_without_the_fms_and_a_new_one_waits_for_all_of_them(probe, 
                   f"result_dir:={tmp_path}")
     fms = start_fms()
     try:
-        assert wait_for(lambda: len(probe.moving()) == len(ROBOTS), 120), probe.state
-        print(f"killing at {probe.sim_now:.1f} s, moving: {probe.moving()}")
+        # 구역 관제는 바쁜 도크 앞에 줄을 세우므로 세 대가 함께 움직인다는 보장이 없다(레인 관제는
+        # 모두 대기 레인으로 보냈다). 처음 움직인 뒤 조금 더 기다려 그때 움직이는 로봇들을 본다
+        assert wait_for(lambda: probe.moving(), 120), probe.state
+        time.sleep(MORE_MOVERS_S)
+        movers = probe.moving()
+        print(f"killing at {probe.sim_now:.1f} s, moving: {movers}")
+        assert movers, probe.state
         assert probe.sim_now < PINKY3_SILENT_S[1], "the new FMS has to find pinky3 silent"
         os.killpg(fms.pid, signal.SIGKILL)
         killed = time.monotonic()
         fms.wait()
 
         time.sleep(timeout_s + SLACK_S)
-        took = {r: probe.moved[r] - killed for r in ROBOTS}
+        took = {r: probe.moved[r] - killed for r in movers}
         print(f"robots moved for this long after the kill: {took}")
         assert all(t <= timeout_s + SLACK_S for t in took.values()), took
+        # 위 비교는 지켜본 때까지 움직인 로봇도 통과시킨다. 실제 위치로 세 대 모두 서 있음을 본다
+        still_after = dict(probe.moved)
+        time.sleep(SLACK_S)
+        assert probe.moved == still_after, "a robot still moves after the heartbeat timeout"
         # 스스로 도착한 로봇은 없다. 모두 목표에 못 미쳐 goal이 끝났다.
         assert wait_for(lambda: all(probe.last_goal.get(r) == GoalStatus.STATUS_ABORTED
-                                    for r in ROBOTS), 10), probe.last_goal
+                                    for r in movers), 10), probe.last_goal
         print(f"last goal of each: {probe.last_goal}")
         assert not probe.moving(), probe.state
 

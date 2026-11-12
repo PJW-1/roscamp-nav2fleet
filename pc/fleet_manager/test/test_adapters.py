@@ -105,6 +105,13 @@ def test_goals_copy_every_field():
     assert list(move.path) == [], "point mode sends no path"
 
 
+def test_a_move_goal_says_how_to_drive():
+    plain = adapters.move_goal(MoveCmd("pinky1", 7, "N_W", 0.4, 0.65, 0.0))
+    assert plain.mode == MoveTo.Goal.MODE_FOLLOW_PATH
+    nav = adapters.move_goal(MoveCmd("pinky1", 8, "N_E", 1.58, 0.65, 0.0, mode="nav_goal"))
+    assert nav.mode == MoveTo.Goal.MODE_NAV_GOAL and list(nav.path) == []
+
+
 def test_a_move_goal_carries_the_lane_path_as_poses():
     path = ((0.5, 1.0, 0.0), (1.0, 1.0, math.pi / 2), (1.0, 2.0, math.pi / 2))
     move = adapters.move_goal(MoveCmd("pinky1", 7, "N", 1.0, 2.0, math.pi / 2, path))

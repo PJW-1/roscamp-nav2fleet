@@ -28,10 +28,10 @@ class Run:
         self.states = []
         self.xs = []
 
-    def tick(self, ahead=False, others=(), wall_behind_m=None):
+    def tick(self, ahead=False, others=(), wall_behind_m=None, speed=SPEED):
         self.t += DT
         self.rec.watch(self.t, ahead, True, self.motion)
-        self.rec.drive(self.t, DT, self.motion, SPEED, others, wall_behind_m)
+        self.rec.drive(self.t, DT, self.motion, speed, others, wall_behind_m)
         state = label(self.rec)
         if not self.states or self.states[-1] != state:
             self.states.append(state)
@@ -80,6 +80,15 @@ def test_a_persistent_obstacle_gives_two_attempts_then_blocked():
     assert reversals(r.xs) == 2, "one back-up per attempt"
     assert min(r.xs) == pytest.approx(1.0 - 0.15, abs=1e-6)
     assert r.motion.x == pytest.approx(1.0, abs=1e-6), "it drives back up to the object"
+
+
+def test_a_robot_held_at_speed_zero_still_starts_its_attempts_at_an_obstacle():
+    """다른 로봇 앞에 서 있는 동안에도(노드가 속도 0으로 몬다) 물체 앞의 시도는 제때 시작한다."""
+    run = Run()
+    run.drive_to(1.0)
+    for _ in range(int(1.5 / DT)):
+        run.tick(ahead=True, speed=0.0)
+    assert "RECOVERING" in run.states
 
 
 def test_the_attempts_take_their_time_before_blocked():

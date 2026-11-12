@@ -14,9 +14,9 @@ orders:
   - {at_s: 40, id: O-005, items: {B: 2, C: 2}}
   - {at_s: 60, id: O-006, items: {D: 1}}
 robots:
-  pinky1: {start: P-6, speed_mps: 0.20, pose_noise_m: 0.03}
-  pinky2: {start: P-5, speed_mps: 0.18, pose_noise_m: 0.03}
-  pinky3: {start: P-4, speed_mps: 0.20, pose_noise_m: 0.03}
+  pinky1: {start: P-1, speed_mps: 0.20, pose_noise_m: 0.03}
+  pinky2: {start: P-2, speed_mps: 0.18, pose_noise_m: 0.03}
+  pinky3: {start: P-3, speed_mps: 0.20, pose_noise_m: 0.03}
 arm: {seconds_per_item: 4.0, swap_seconds: 8.0, fail_rate: 0.0}
 dock: {duration_s: 3.0, error_cm: 1.0}
 faults:
@@ -33,6 +33,9 @@ expect:
   zone_holder_max: 1
   released_without_position_check: 0
   unheld_zone_pose: 0
-  events_include: [COMM_LOST, COMM_RESTORED, GOAL_RETRY]
-  event_counts: {COMM_LOST: 1, COMM_RESTORED: 1, GOAL_RETRY: 2, GOAL_FAILED: 0, ROBOT_NOT_REPORTING: 0}
+  events_include: [COMM_LOST, COMM_RESTORED]
+  # 중단 하나는 GOAL_RETRY이거나, 로봇이 이미 그 goal 끝에 서 있으면 GOAL_ENDED_AT_TARGET이다
+  # (nav2-base 900962a). 어느 쪽인지는 실행 시각에 달려 GOAL_RETRY 수는 세지 않는다.
+  # 재시도 한도 안이라는 것은 GOAL_FAILED 0과 모든 주문 출고로 본다
+  event_counts: {COMM_LOST: 1, COMM_RESTORED: 1, GOAL_FAILED: 0, ROBOT_NOT_REPORTING: 0}
   order_results: {O-001: SHIPPED, O-002: SHIPPED, O-003: SHIPPED, O-004: SHIPPED, O-005: SHIPPED, O-006: SHIPPED}

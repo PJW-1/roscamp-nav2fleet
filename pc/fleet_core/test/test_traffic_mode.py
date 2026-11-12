@@ -1,7 +1,7 @@
-"""traffic_mode는 이제 zones 하나다. 교통 층은 3단계에서 traffic/zone/controller.py로 온다.
+"""traffic_mode는 zones 하나다. 교통 층은 traffic/zone/controller.py의 ZoneTraffic이다.
 
-그 모듈이 없는 동안 build_traffic은 무엇이 빠졌는지 말하는 오류를 낸다. 있으면 지금과 같은
-인자(site, params, robots, clock, next_goal_id)로 ZoneTraffic을 만든다.
+build_traffic은 전과 같은 인자(site, params, robots, clock, next_goal_id)로 그것을 만든다. 그
+모듈이 없는 가지에서는 무엇이 빠졌는지 말하는 오류를 낸다.
 """
 from dataclasses import asdict, replace
 
@@ -29,11 +29,21 @@ def test_params_without_the_value_pick_zones():
     assert FleetParams(**fields).traffic_mode == "zones"
 
 
-def test_without_the_zone_layer_the_error_says_what_is_missing():
+def test_without_the_zone_layer_the_error_says_what_is_missing(monkeypatch):
     assert ZONE_CONTROLLER == "fleet_core.traffic.zone.controller"
+
+    def missing(name):
+        raise ModuleNotFoundError(f"No module named {name!r}", name=name)
+    monkeypatch.setattr(modes.importlib, "import_module", missing)
     with pytest.raises(NoZoneTraffic, match=r"needs the zone traffic layer \(stage 3\).*"
                                             r"fleet_core\.traffic\.zone\.controller"):
         build_traffic(object(), load_params(), ROBOTS, lambda: 0.0, None)
+
+
+def test_the_zone_layer_is_built_on_the_fleet_map():
+    from fleet_core.fleet_map import load_fleet_map
+    traffic = build_traffic(load_fleet_map("d2"), load_params(), ROBOTS, lambda: 0.0, None)
+    assert type(traffic).__name__ == "ZoneTraffic" and traffic.robots == ROBOTS
 
 
 def test_the_zone_layer_gets_the_same_arguments_as_before(zone_layer):
