@@ -670,6 +670,17 @@ def test_entering_the_waiting_loop_with_fewer_orders_than_robots_is_allowed():
     assert check(j, "parked_while_backlog")["value"] == 0
 
 
+def test_passing_beside_a_parking_node_is_not_entering_it():
+    """The game ends with a robot within the arrival tolerance (0.15 m) of its parking node, but a
+    lap ends only on the spot: a robot that drives by 0.12 m away has not parked."""
+    for off, entered in ((0.12, 0), (0.09, 1)):
+        j = judge()
+        j.on_board(["O-1", "O-2"])
+        x, y = at(WAITING[0])
+        lap(j, "pinky1", [OUT, LANE, (x + off, y)])
+        assert check(j, "parked_while_backlog")["value"] == entered, off
+
+
 def test_bound_orders_are_not_a_backlog():
     j = judge()
     bind(j, "O-1", "O-2")
