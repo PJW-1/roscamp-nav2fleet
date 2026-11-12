@@ -127,7 +127,6 @@ def test_fixed_lines_follow_a_fixed_short_lookahead_and_take_the_arcs_without_pi
         assert rpp["lookahead_dist"] == 0.10, name
         carrot = math.asin(rpp["lookahead_dist"] / (2 * TURN_RADIUS_M))
         assert carrot + 0.1 < rpp["rotate_to_heading_min_angle"] < math.pi / 4, name
-    assert c["FollowPathGoal"]["rotate_to_heading_min_angle"] == 0.25, "the yard is not changed"
 
 
 def test_the_through_controller_is_followpath_without_the_approach_slow_down():
@@ -223,19 +222,15 @@ def test_amcl_reads_the_fine_map():
     assert amcl["base_frame_id"] == "base_footprint" and amcl["scan_topic"] == "scan"
 
 
-def test_the_goal_controller_is_an_rpp_with_the_collision_check_on():
-    """MoveTo mode nav_goal (contract 0.11-draft proposal): the Nav2 tree drives with
-    FollowPathGoal. It starts as a copy of FollowPath; a teammate may swap in MPPI or DWB, so only
-    the name is fixed. The three FollowPath controllers stay as they were."""
-    c = params("controller_server")
-    goal = c["FollowPathGoal"]
-    assert goal["plugin"] == c["FollowPath"]["plugin"]
-    assert goal["use_collision_detection"] is True
-    # 추가 지시서 3의 2-1은 고정 경로 컨트롤러만 바꿨다. FollowPathGoal은 회피 담당의 값이다(7-1)
-    fixed_line_only = {"lookahead_dist", "use_velocity_scaled_lookahead_dist",
-                       "rotate_to_heading_min_angle"}
-    assert {k: v for k, v in goal.items() if k not in fixed_line_only} == {
-        k: v for k, v in c["FollowPath"].items() if k not in fixed_line_only}
+def test_the_goal_controller_is_named_and_stops_when_blocked():
+    """MoveTo mode nav_goal: the Nav2 tree drives with FollowPathGoal. Its values are the
+    avoidance teammate's (third addendum 7-1): a teammate may swap in MPPI or DWB, so this test
+    pins only what the standards (7-3) ask of the file. While it is an RPP, the collision check
+    must be on: without it the robot pushes on against an obstacle and stays MOVING."""
+    goal = params("controller_server")["FollowPathGoal"]
+    assert goal["plugin"], "a controller plugin is named"
+    if goal["plugin"].endswith("RegulatedPurePursuitController"):
+        assert goal["use_collision_detection"] is True
 
 
 def test_behavior_server_offers_what_the_tree_and_pinky_fsm_call():

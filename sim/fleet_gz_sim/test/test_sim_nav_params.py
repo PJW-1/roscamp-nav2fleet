@@ -223,6 +223,21 @@ def test_the_goal_controller_comes_from_the_avoidance_file_beside_the_base(tmp_p
                                            "use_collision_detection": True}
 
 
+def test_a_goal_controller_that_is_no_rpp_is_left_as_the_avoidance_teammate_wrote_it(tmp_path):
+    """The teammate may swap the plugin (7-1). The sim's speed cap and collision switch are RPP
+    keys; they are not pushed into another plugin, and the three fixed-line RPPs keep them."""
+    base = _base()
+    mppi = {"plugin": "nav2_mppi_controller::MPPIController", "vx_max": 0.12}
+    base["controller_server"]["ros__parameters"]["FollowPathGoal"] = dict(mppi)
+    path = tmp_path / "mppi.yaml"
+    path.write_text(yaml.safe_dump(base), encoding="utf-8")
+    sim = yaml.safe_load(launch_parts.sim_nav_params(path, tmp_path / "sim.yaml", max_speed=0.12)
+                         .read_text(encoding="utf-8"))
+    assert _rpp(sim, "FollowPathGoal") == mppi
+    assert _rpp(sim, "FollowPath")["desired_linear_vel"] == 0.12
+    assert _rpp(sim, "FollowPath")["use_collision_detection"] is True
+
+
 def test_a_base_file_without_one_of_the_controllers_is_refused(tmp_path):
     base = yaml.safe_load(NAV.read_text(encoding="utf-8"))  # no avoidance file beside the copy
     assert "FollowPathGoal" not in base["controller_server"]["ros__parameters"]

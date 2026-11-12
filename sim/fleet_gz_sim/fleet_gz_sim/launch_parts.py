@@ -179,8 +179,12 @@ def sim_nav_params(base: Path, out: Path, amcl: dict | None = None,
     missing = [name for name in CONTROLLERS if name not in controllers]
     if missing:
         raise ValueError(f"{base} has no controller {', '.join(missing)}")
-    rpps = [controllers[name] for name in CONTROLLERS]
-    for name in CONTROLLERS:
+    # FollowPathGoal은 회피 담당의 것이라 RPP가 아닐 수 있다(7-1). 아래의 두 값은 RPP의 키이므로
+    # 다른 플러그인에는 넣지 않는다: 그때 속도 상한은 회피 담당 파일이 스스로 지킨다(회피_약속.md)
+    names = [name for name in CONTROLLERS
+             if name != GOAL_CONTROLLER or "desired_linear_vel" in controllers[name]]
+    rpps = [controllers[name] for name in names]
+    for name in names:
         controllers[name]["use_collision_detection"] = (
             fixed_line_check or name not in FIXED_LINE_CONTROLLERS)
     if max_speed is not None:
