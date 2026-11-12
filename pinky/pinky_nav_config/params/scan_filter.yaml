@@ -4,6 +4,9 @@
 #
 # - 두 costmap의 장애물 층만 거른 스캔을 읽는다. AMCL은 원래 scan을 그대로 읽는다.
 # - 대가: 좁은 띠 안에서 벽에 붙은 wall_band_m보다 얇은 물체는 보이지 않는다.
+# - fleet_gz_sim은 좁은 띠 뒤에 진열대 끝면마다 끝면을 wall_band_m만큼 사방으로 넓힌 작은 상자를
+#   더해 준다(fleet_setup.shelf_end_boxes). 끝면 잡음이 띠 바로 밖에 떨어져 후진 모퉁이를 막았기
+#   때문이다. 대가: 그 상자 안, 진열대 끝 둘레 wall_band_m(5 cm) 안의 얇은 물체도 보이지 않는다.
 
 local_costmap:
   local_costmap:

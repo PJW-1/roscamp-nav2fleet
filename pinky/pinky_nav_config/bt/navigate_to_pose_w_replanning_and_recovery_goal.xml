@@ -1,9 +1,11 @@
 <!--
   MoveTo mode nav_goal(계약 0.11-draft 제안)용 NavigateToPose BT.
   원본: ROS 2 Jazzy nav2_bt_navigator의 behavior_trees/navigate_to_pose_w_replanning_and_recovery.xml
-  원본과 다른 곳은 둘이다.
+  원본과 다른 곳은 셋이다.
   - ControllerSelector의 default_controller가 FollowPath가 아니라 FollowPathGoal이다(goal용
     controller. FollowPath 셋은 pinky_fsm이 관제 경로에 쓴다).
+  - FollowPath에 goal_checker_id="general_goal_checker"를 적었다(추가 지시서 3의 2-1: 후진용
+    retreat_goal_checker가 더해져 goal checker가 둘이면 Nav2는 이름 없는 FollowPath를 거절한다).
   - 복구에서 Spin과 BackUp을 뺐다(추가 지시서 3의 7-4, 기준(사용자)). 지도 지우기와 Wait만 남아
     로봇을 움직이지 않는다. 물러나기는 pinky_fsm의 로봇단 교착 처리만 한다: 지나온 길 안에서만,
     local_backup_m까지, 앞을 막은 로봇보다 낮은 쪽만. 그래서 BT와 pinky_fsm이 함께 물러나는 일이 없다.
@@ -30,7 +32,7 @@
           </RecoveryNode>
         </RateController>
         <RecoveryNode number_of_retries="1" name="FollowPath">
-          <FollowPath path="{path}" controller_id="{selected_controller}" error_code_id="{follow_path_error_code}"/>
+          <FollowPath path="{path}" controller_id="{selected_controller}" goal_checker_id="general_goal_checker" error_code_id="{follow_path_error_code}"/>
           <Sequence>
             <WouldAControllerRecoveryHelp error_code="{follow_path_error_code}"/>
             <ClearEntireCostmap name="ClearLocalCostmap-Context" service_name="local_costmap/clear_entirely_local_costmap"/>

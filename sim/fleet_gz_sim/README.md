@@ -100,7 +100,7 @@ pgrep -af "gz sim|ruby|component_container|pinky_fsm_node|fleet_manager_node"   
 | `fleet_params_file` | 설치된 `fleet_params.yaml` | 관제 파라미터 |
 | `heartbeat_timeout_s` | `1.5` | `pinky_fsm`의 heartbeat 끊김 판정 |
 | `nav_log_level` | `warn` | Nav2 로그 수준 |
-| `scan_filter` | `true` | 스캔 거르개(`pinky_scan_filter`)를 띄우고 배치의 shared가 아닌 구역 사각형을 좁은 띠로 준다. `false`면 costmap이 원래 스캔을 읽는다(비교용) |
+| `scan_filter` | `true` | 스캔 거르개(`pinky_scan_filter`)를 띄우고 배치의 shared가 아닌 구역 사각형과 진열대 끝면마다 `wall_band_m`만큼 넓힌 작은 상자를 좁은 띠로 준다. `false`면 costmap이 원래 스캔을 읽는다(비교용) |
 | `wall_band_m` | `0.05` | 거르개가 벽·진열대에서 지우는 띠 폭(m). D2 측정에서 0.04는 도크 진입을 두 번 중 한 번 멈췄고 0.05는 세 번 지나갔다(`results/fixed_line_results.md`) |
 | `nav_composition` | `true` | 로봇마다 Nav2 노드 9개를 프로세스 하나로. `false`면 DDS 참여자가 LOCALHOST 한도(약 32)를 넘어 pinky3이 안 보인다 |
 

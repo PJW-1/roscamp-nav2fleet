@@ -107,6 +107,9 @@ class PinkyFsmNode(Node):
         # 물러나기 경로(Retreat.path)를 후진으로 따르는 controller. pinky_nav_config가 늘 띄운다
         declare("reverse_controller_id", "FollowPathReverse")
         declare("goal_checker_id", "general_goal_checker")
+        # 후진 경로의 goal checker. 후진은 제자리에서 방향을 고칠 수 없으니 방향을 보지 않는 것
+        # (pinky_nav_config retreat_goal_checker). 비우면 goal_checker_id 그대로
+        declare("reverse_goal_checker_id", "retreat_goal_checker")
         declare("progress_checker_id", "progress_checker")
         declare("odom_topic", "odom")
         declare("costmap_topic", "local_costmap/costmap")
@@ -139,7 +142,8 @@ class PinkyFsmNode(Node):
         self._nav_ids = (get("controller_id").value, get("goal_checker_id").value,
                          get("progress_checker_id").value)
         self._through_id = get("through_controller_id").value
-        self._reverse_id = get("reverse_controller_id").value
+        self._reverse_id = (get("reverse_controller_id").value,
+                            get("reverse_goal_checker_id").value)
         group = ReentrantCallbackGroup()
         self._maps = OrderMaps(self, get("map_topic").value, get("keepout_mask_topic").value,
                                callback_group=group)

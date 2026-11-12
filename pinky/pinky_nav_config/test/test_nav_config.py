@@ -178,10 +178,20 @@ def test_no_obstacle_beside_the_path_slows_the_robot():
 
 def test_goal_checker_is_tighter_than_the_arrival_tolerance():
     c = params("controller_server")
-    assert c["goal_checker_plugins"] == ["general_goal_checker"]
+    assert c["goal_checker_plugins"] == ["general_goal_checker", "retreat_goal_checker"]
     goal = c["general_goal_checker"]
     assert goal["xy_goal_tolerance"] == 0.05 and goal["xy_goal_tolerance"] < 0.15  # R4
     assert goal["yaw_goal_tolerance"] == 0.12
+
+
+def test_retreat_goal_checker_checks_the_position_only():
+    """2-1: 후진(FollowPathReverse)은 제자리에서 방향을 고칠 수 없으니 끝 방향을 보지 않는다.
+    위치 허용치는 앞으로 갈 때와 같다. pinky_fsm reverse_goal_checker_id가 이 이름을 쓴다."""
+    c = params("controller_server")
+    retreat = c["retreat_goal_checker"]
+    assert retreat["plugin"] == "nav2_controller::SimpleGoalChecker"
+    assert retreat["xy_goal_tolerance"] == c["general_goal_checker"]["xy_goal_tolerance"]
+    assert retreat["yaw_goal_tolerance"] > math.pi  # 어떤 방향 오차도 통과
     assert c["progress_checker_plugins"] == ["progress_checker"]
     assert c["progress_checker"]["required_movement_radius"] == 0.05
 
@@ -268,6 +278,10 @@ def test_the_tree_replans_at_1_hz_and_recovers_without_moving_the_robot():
     assert select.get("default_planner") == "GridBased" and planner is not None
     [controller] = BT.getroot().iter("ControllerSelector")
     assert controller.get("default_controller") == "FollowPathGoal"
+    # goal checker가 둘이면(retreat_goal_checker, 2-1) Nav2는 이름 없는 FollowPath를 거절한다
+    [follow] = BT.getroot().iter("FollowPath")
+    assert follow.get("goal_checker_id") == "general_goal_checker"
+    assert follow.get("goal_checker_id") in params("controller_server")["goal_checker_plugins"]
 
 
 def _canon(tree):
@@ -275,10 +289,12 @@ def _canon(tree):
 
 
 @pytest.mark.skipif(not NAV2_BT.exists(), reason="ROS 2 Jazzy nav2_bt_navigator not installed")
-def test_the_tree_is_nav2s_default_tree_with_the_goal_controller_and_no_moving_recovery():
+def test_the_tree_is_nav2s_default_tree_with_the_goal_controller_checker_and_no_moving_recovery():
     ours = ET.parse(BT_FILE)
     [select] = ours.getroot().iter("ControllerSelector")
     select.set("default_controller", "FollowPath")
+    [follow] = ours.getroot().iter("FollowPath")
+    del follow.attrib["goal_checker_id"]
     default = ET.parse(NAV2_BT)
     for parent in default.getroot().iter("RoundRobin"):
         for child in [c for c in parent if c.tag in ("Spin", "BackUp")]:

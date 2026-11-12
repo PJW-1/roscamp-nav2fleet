@@ -257,7 +257,8 @@ def _start(context):
     through = flag(value("nav_pass_through"), "nav_pass_through")
     keepout = flag(value("keepout"), "keepout")
     fixed_check = flag(value("fixed_line_collision_check"), "fixed_line_collision_check")
-    strips = narrow_strips(site) if flag(value("scan_filter"), "scan_filter") else ""
+    strips = (narrow_strips(site, float(value("wall_band_m")))
+              if flag(value("scan_filter"), "scan_filter") else "")
     params_file = params_for(params_file_of(value("fleet_params_file")), value("result_dir"),
                              value("battery_low_pct"))
     max_speed = launch_parts.speed_of(value("nav_max_speed"))

@@ -181,6 +181,54 @@ def test_the_shelf_end_check_measures_the_arc_the_robot_drives_at_a_corner():
     assert not any("corner" in w for w in build(turn_radius_m=0.0).warnings)
 
 
+def test_corner_arc_on_a_first_or_last_piece_may_use_the_whole_piece():
+    """핑키(geometry.rounded)는 선의 첫 선분과 마지막 선분에서는 호가 그 선분을 다 쓸 수 있다.
+    D2 work_out W -> (0.35, 0.89) -> N_W: 첫 선분이 0.17 m라 반으로 줄인 호는 접점 거리 0.085 m,
+    다 쓰는 호는 0.10 m다(Codex 검토 2-1 둘째 차례). 90° 호의 가운데는 꼭짓점에서 접점 거리 x
+    (sqrt 2 - 1)."""
+    from fleet_core.fleet_map.checks import corner_arc
+    a, b, c = (0.18, 0.89), (0.35, 0.89), (0.35, 0.65)
+    halved = corner_arc(a, b, c, 0.10)
+    whole = corner_arc(a, b, c, 0.10, shares=(1.0, 1.0))
+    assert math.dist(halved[9], b) == pytest.approx(0.085 * (math.sqrt(2) - 1))
+    assert math.dist(whole[9], b) == pytest.approx(0.10 * (math.sqrt(2) - 1))
+    # 한쪽만 다 쓰는 호(첫 선분은 다 쓰고 다음 선분은 가운데라 반): 0.08 m 첫 선분, 0.15 m 다음 선분
+    a2, c2 = (0.27, 0.89), (0.35, 0.74)
+    mixed = corner_arc(a2, b, c2, 0.10, shares=(1.0, 0.5))
+    assert math.dist(mixed[9], b) == pytest.approx(0.075 * (math.sqrt(2) - 1))
+
+
+def test_the_shelf_end_check_warns_with_the_arc_closer_to_the_shelf():
+    """이어 달릴 때는 어느 선분이 처음과 끝인지가 명령마다 다르니 두 호를 다 재고 진열대에 더
+    가까운 쪽으로 경고한다. 짧은 첫 선분(0.17 m) 뒤 진열대 끝 쪽으로 꺾는 선: 반 호는 경고 밖,
+    다 쓰는 호는 경고 안."""
+    from fleet_core.fleet_map.checks import corner_arc, shelf_end_warnings
+    from fleet_core.fleet_map.geometry import point_rect_distance
+
+    class Link:
+        via, path, a, b = "follow_path", "probe", "A", "C"
+        points = ((0.18, 0.89), (0.35, 0.89), (0.35, 0.65))
+
+    class Site:
+        nodes = {}
+        shelves = ((0.20, 0.775, 0.30, 0.79),)
+
+        def links(self):
+            return [Link]
+
+        def links_from(self, _node):
+            return []
+
+    shelf = Site.shelves[0]
+    halved = min(point_rect_distance(shelf, *p) for p in corner_arc(*Link.points, 0.10))
+    whole = min(point_rect_distance(shelf, *p)
+                for p in corner_arc(*Link.points, 0.10, shares=(1.0, 1.0)))
+    assert whole < halved
+    clear = (whole + halved) / 2
+    warnings = [w for w in shelf_end_warnings(Site(), clear, turn_radius=0.10) if "corner" in w]
+    assert len(warnings) == 1 and f"{whole:.3f} m" in warnings[0]
+
+
 def test_a_two_way_path_gives_a_link_each_way_and_names_the_lane_it_crosses():
     site = build()
     east, west = site.link("X_W", "X_E"), site.link("X_E", "X_W")

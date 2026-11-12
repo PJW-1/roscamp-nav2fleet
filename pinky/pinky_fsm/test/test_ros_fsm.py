@@ -241,6 +241,10 @@ def test_a_retreat_with_a_path_backs_along_it_on_the_reverse_controller(harness)
     res = probe.result(h, timeout=10.0).result
     assert (res.success, res.reason) == (True, "")
     assert fake.controller_ids[-1] == "FollowPathReverse" and fake.backups == []
+    # 후진은 방향을 보지 않는 goal checker로 끝낸다(2-1: 후진은 제자리에서 방향을 고칠 수 없다).
+    # 앞으로 가는 경로는 원래 checker 그대로.
+    assert fake.goal_checker_ids[-1] == "retreat_goal_checker"
+    assert set(fake.goal_checker_ids[:-1]) == {"general_goal_checker"}
     assert all(yaw == pytest.approx(math.pi / 2) for _, _, yaw in fake.path)
     assert math.dist(fake.pose[:2], WAYPOINTS["P-3"]) <= 0.05
     assert fake.pose[2] == pytest.approx(math.pi / 2)

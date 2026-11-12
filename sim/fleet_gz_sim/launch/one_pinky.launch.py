@@ -100,7 +100,8 @@ def _start(context):
                                    nav_max_speed=launch_parts.speed_of(value("nav_max_speed")),
                                    fsm=on["fsm"], rviz=on["rviz"], nav_overrides=overrides,
                                    fixed_line_check=fixed_check in ("true", "1"),
-                                   narrow_strips=narrow_strips(site) if on["scan_filter"] else "",
+                                   narrow_strips=narrow_strips(site, float(value("wall_band_m")))
+                                   if on["scan_filter"] else "",
                                    wall_band_m=float(value("wall_band_m")),
                                    lidar_noise=(float(value("lidar_noise"))
                                                 if value("lidar_noise") else None))]

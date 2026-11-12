@@ -72,3 +72,27 @@ def beam_points(ranges, angle_min, angle_increment, pose):
     r = np.asarray(ranges, dtype=float)
     a = pose[2] + angle_min + angle_increment * np.arange(len(r))
     return pose[0] + r * np.cos(a), pose[1] + r * np.sin(a)
+
+
+def filter_ranges(band: WallBand, ranges, angle_min, angle_increment, range_min, range_max,
+                  pose) -> np.ndarray:
+    """지울 빔의 거리를 inf로 바꾼 새 배열. pose는 map에서 라이다의 (x, y, yaw).
+
+    유한하고 range_min~range_max 안의 빔만 좌표로 바꿔 본다. inf, NaN, 범위 밖 값은 그대로 둔다.
+    """
+    r = np.asarray(ranges, dtype=float).copy()
+    valid = np.zeros(r.shape, dtype=bool)
+    finite = np.isfinite(r)
+    valid[finite] = (r[finite] >= range_min) & (r[finite] <= range_max)
+    index = np.nonzero(valid)[0]
+    if len(index):
+        a = pose[2] + angle_min + angle_increment * index
+        xs = pose[0] + r[index] * np.cos(a)
+        ys = pose[1] + r[index] * np.sin(a)
+        r[index[band.drops(xs, ys)]] = math.inf
+    return r
+
+
+def origin_yaw(qz: float, qw: float) -> float:
+    """지도 원점 자세(z축 회전만인 사원수)의 yaw."""
+    return 2.0 * math.atan2(qz, qw)
