@@ -614,9 +614,72 @@
 | `docs/팀레포_옮기기.md` | 새로 만들었습니다 |
 | `docs/핑키_계약.md`, `docs/order_모델.md`, `docs/회피_약속.md`, `docs/GG_공통설계.md`, `interfaces/fleet_interfaces/contract.yaml`, `action/MoveTo.action`, `action/Retreat.action`, `msg/Segment.msg`, `msg/RobotStatus.msg`, `srv/ConfirmClear.srv`, `srv/Reinstate.srv`, `pinky_fsm/nav_goal.py`, `pinky_nav_config`의 `params/*.yaml`, `fleet_manager/adapters.py` | 주석과 문서의 말만 바꿨습니다("기준(사용자)"). 동작은 그대로입니다 |
 
+### 10.2 통신 끊김 규칙 `comm_loss_policy` (지시서 3절)
+
+| 무엇 | 결과 |
+|---|---|
+| 설정 | `comm_loss_policy`입니다. 값은 `stop`(기본)과 `base_end` 둘이고, 다른 값이면 노드가 시작할 때 오류로 멈춥니다. 로봇 노드의 파라미터(`pinky_fsm`)와 `fleet_params.yaml`에 같은 이름으로 있습니다. `fleet_params.yaml`의 값은 머리 없는 세계의 가짜 로봇이 읽습니다 |
+| 로봇이 관제 끊김을 아는 방법 | 새로 만들지 않았습니다. 있던 `/fleet/heartbeat`와 `heartbeat_timeout_s`를 그대로 씁니다 |
+| `stop` | order를 달리던 로봇이 heartbeat를 잃으면 그 자리에서 서고 order를 `HEARTBEAT_LOST`로 끝냅니다. order가 아닌 goal은 전부터 그렇게 했습니다 |
+| `base_end` | order 모델을 처음 넣었을 때의 동작입니다. 허락받은 base의 끝까지 가서 서고, 거기서도 heartbeat가 없으면 `HEARTBEAT_LOST`로 끝냅니다 |
+| 관제 쪽 | 두 정책 모두에서 말이 끊긴 로봇의 base를 그대로 쥡니다(시험 `test_the_fleet_holds_the_base_of_a_silent_robot_under_both_policies`). base에 닿을 예상 시각은 자동으로 놓는 시각이 아닙니다: 그때까지 `confirm_clear`를 거절할 뿐이고, 놓는 것은 운영자입니다 |
+| order 모델이 꺼져 있을 때 | 달라진 것이 없습니다(`test_zone_order_off.py` 2 passed) |
+| 시험(Windows, 34a9529) | `fleet_core` 558 passed, `pinky_fsm` 251 passed 6 skipped, 도구 34 passed, ruff 통과. 머리 없는 세계는 a7a3d24에서 831 passed 6 skipped였습니다(에이전트 실행) |
+| 검수(Codex) 세 번에서 나와 고친 것 다섯 | ① order의 후진 조각에서 heartbeat가 끊기면 order가 `FAILED`로 끝났습니다: `HEARTBEAT_LOST`로 끝나게 했습니다. ② 머리 없는 세계에서 장애물 앞에 멈춘 order 로봇은 heartbeat 끊김을 보지 않고 `TIMEOUT`으로 끝났고 그 결과는 관제에 닿지 않았습니다: 끊김을 먼저 보게 했습니다. ③ heartbeat가 끊긴 바로 그 주기에 끝낸 조각이 `last_done_seq_id`에 들어가지 않았습니다: 끝내기 전에 지난 조각을 먼저 셉니다. ④ order가 아닌 goal이 heartbeat 끊김으로 끝난 뒤 다음 주기 전에 받은 order가 시작에서 실패하면, 그 이유가 `HEARTBEAT_LOST`로 바뀌었습니다: 끊김 표시를 그 주기 안에서만 봅니다. ⑤ order의 합친 경로에서 진행 거리를 한 주기에 세 번 찾아, 보고 위치가 멀리 앞으로 튀면 진행이 세 배로 나아갔습니다: 한 주기에 한 번만 찾습니다 |
+| 사용자가 정할 것 | 기본값을 `base_end`로 바꿀지입니다. 지시서대로 주행 완료 기준(2-5절)을 통과한 뒤에 정합니다 |
+
+바꾼 파일과 함수입니다(새: 새로 만듦, 바꿈: 있던 것을 고침).
+
+| 파일 | 함수와 값 | 무엇 |
+|---|---|---|
+| `pinky/pinky_fsm/pinky_fsm/params.py` | 새 `COMM_LOSS_POLICIES`, 새 `FsmParams.comm_loss_policy`, 새 `FsmParams.__post_init__` | 정책 값과 기본값, 모르는 값이면 `ValueError` |
+| `pinky/pinky_fsm/pinky_fsm/order_fsm.py` | 바꿈 `_stops_on_heartbeat_loss`, 새 `_count_bounds`, 바꿈 `tick`, `_order_tick`, `_own` | `stop`이면 order도 바로 섭니다. heartbeat로 끝나는 주기에는 끝내기 전에 지난 조각을 세고, heartbeat로 끝난 후진 조각의 order를 `HEARTBEAT_LOST`로 끝냅니다. 끊김 표시(`_lost_contact`)는 `tick`의 끝에서 지웁니다 |
+| `pinky/pinky_fsm/pinky_fsm/core.py` | 바꿈 `PinkyFsm.tick`, 새 값 `_lost_contact` | 이번 주기에 heartbeat 끊김으로 goal을 끝냈다는 표시 |
+| `pinky/pinky_fsm/pinky_fsm/node.py`, `launch/pinky_fsm.launch.py` | 파라미터 선언, launch 인자 `comm_loss_policy` | 노드와 launch에서 값을 받습니다 |
+| `pc/fleet_core/fleet_core/common/params.py`, `data/fleet_params.yaml` | 새 `COMM_LOSS_POLICIES`, 새 `comm_loss_policy`, 새 `__post_init__` | 같은 이름의 값(머리 없는 세계용)과 검사 |
+| `sim/fake_robots/fake_robots/world/order_run.py` | 새 `stops_for_lost_contact` | 가짜 로봇이 정책에 따라 서는지 |
+| `sim/fake_robots/fake_robots/world/world.py`, `link.py`, `robot.py`, `runs.py` | 바꿈 `ZoneWorld._move`, `Link._held`, 새 값 `comm_down_since`, `HEARTBEAT_LOST` | 끊긴 시각을 적고, 멈춘 로봇도 끊김을 먼저 봅니다. `HEARTBEAT_LOST` 결과는 말이 돌아온 뒤에 관제에 닿습니다 |
+| 시험 | 새 `pc/fleet_core/test/test_comm_loss_policy.py`, `pinky_fsm/test/test_order.py`의 `test_comm_loss_*` 여섯과 `test_a_tick_follows_a_pose_far_ahead_by_one_look_ahead_only`, `sim/fake_robots/test/test_world_order.py`의 셋 | |
+| 문서 | `docs/핑키_계약.md` 3절, `docs/order_모델.md`, `contract.yaml`, `docs/팀레포_옮기기.md`, `pinky_fsm/README.md` | |
+
+### 10.3 도킹 실패 뒤 다시 들어오기와 위치 추정 감시 (지시서 2-3절)
+
+| 무엇 | 결과 |
+|---|---|
+| 도킹이 실패하면 | 같은 자리에서 다시 하지 않습니다. 도크 앞 지점까지 후진했다가 고정 경로로 다시 들어온 뒤에 도킹합니다(사건 `DOCK_REAPPROACH`). AMCL은 로봇이 움직여야 자세를 고치므로, 고정 경로를 한 번 더 달리게 해 위치 추정이 다시 맞을 기회를 줍니다 |
+| 시도 횟수 | 실패한 도킹과 거절된 도킹을 함께 셉니다(`dock_tries`). 세 번째 실패에서 격리됩니다(`move_retry_limit: 2`). 물러났다 들어오는 이동이 성공해도 이 수는 지워지지 않습니다 |
+| 도크 차례 | 다시 들어오는 동안에도 그 로봇의 것입니다. 도킹이 실패한 적이 있는 로봇(`dock_tries`가 1 이상)을 그 도크의 맨 앞 차례로 둡니다(`turns.py`의 `_ahead`). 물러난 뒤 돌아오는 길을 못 잡아 길을 다시 고르는 동안에도 차례가 넘어가지 않습니다 |
+| 물러날 길이 막혀 있으면 | 도크에 선 채 기다립니다(`ZONE_WAIT`, 막고 있는 로봇은 상태 보기의 `wait_robots`에 나옵니다). 처음 잡아 본 때부터 `redock_wait_s`(10 s, 추정) 안에 못 잡으면 그 자리에서 다시 도킹합니다. 이 기다림은 대기 순환(`DEADLOCK_SEEN`)에 세지 않습니다: 순환으로 보이면 이 로봇이 주차 자리로 보내지기 때문입니다 |
+| 로봇이 받지 않은(거절한) 도킹 | 물러나지 않고 그 자리에서 다시 냅니다 |
+| 위치 추정 감시 | `pose_jump_window_s`(2 s) 안의 두 보고 위치가 로봇이 갈 수 있는 거리(0.30 m/s × 시간)보다 `pose_jump_m`(0.15 m) 넘게 다르면 사건 `LOCALIZATION_SUSPECT`(WARN)를 남깁니다. 기록만 하고 멈추지 않습니다. 한 번 낸 뒤 `pose_jump_quiet_s`(5 s) 동안은 다시 내지 않습니다. `LOCALIZING` 보고 뒤와 통신이 끊겼다 돌아온 뒤의 첫 자세는 견주지 않습니다 |
+| 옛 Gazebo 기록 8판에 넣어 본 결과 | 튄 보고는 8판 모두 0번이었습니다(g4o3_on2, g3yard, g3d2, yb_on1, yb_off1, yb_on2, show_v015, show_v020). 보고 위치가 참 위치에서 1.67~1.71 m까지 벌어진 판에서도 그랬습니다. 그 판들의 뒤집힘은 한 번에 튄 것이 아니고, 바퀴가 헛도는 동안 추정이 odom을 따라 천천히 돌아간 것입니다. 그래서 이 감시는 "한 번에 옮겨 붙는" 뒤집힘만 잡고, 지난 판들의 흐름은 잡지 못합니다 |
+| 뒤집힘의 원인 후보(고치지 못했습니다) | ① 로봇끼리나 벽에 닿아 바퀴가 헛도는 동안 odom이 틀린 움직임을 알리고, 입자들이 그것을 따라갑니다(`recovery_alpha_fast`, `recovery_alpha_slow`가 0이라 참 자세 근처에 새 입자가 생기지 않습니다). ② 경기장이 점대칭이어서 180° 돌아간 자세에서도 scan이 지도와 맞습니다. 그래서 한 번 돌아가면 스스로 돌아오지 않습니다 |
+| 다음 후보 | 헛돎 자체를 없애는 것이 먼저입니다: 막히면 서기(2-1절, 2-2절), 로봇단 교착 처리에서 제자리 회전 빼기(7-4절). 그다음은 로봇 쪽에서 scan과 지도의 일치도를 재서 보고하는 것, IMU와 odom의 회전을 견주는 것입니다. 실물에서는 재지 않았습니다 |
+| 시험(Windows, 8908074) | `fleet_core` 572 passed, 머리 없는 세계 829 passed 6 skipped, ruff 통과. `stage3`에 합친 뒤(c040548) `fleet_core` 578 passed, `pinky_fsm` 251 passed 6 skipped |
+| 검수(Codex) 세 번에서 나와 고친 것 여덟 | ① 물러날 길의 첫 구역을 못 잡으면 물러나지 않고 바로 제자리 도킹을 했습니다. ② 다시 들어오는 길에 도크 차례가 적히지 않았습니다. ③ 거절과 실패가 섞이면 시도 하나가 세어지지 않았습니다. ④ 통신이 끊겼다 돌아온 첫 자세를 앞 자세와 견줬습니다. ⑤ 기다리는 한도가 통신이 끊길 때마다 처음부터 다시 세어졌습니다(`redock_since`로 따로 잽니다). ⑥ 기다리는 로봇이 대기 순환에 들어가 주차 자리로 보내질 수 있었습니다. ⑦ 물러난 뒤 길을 다시 고르면 도크 차례가 사라졌습니다. ⑧ 기다리는 동안 막고 있는 로봇이 상태 보기에 나오지 않았습니다 |
+
+바꾼 파일과 함수입니다.
+
+| 파일 | 함수와 값 | 무엇 |
+|---|---|---|
+| `pc/fleet_core/fleet_core/traffic/zone/localization.py`(새 파일) | 새 `pose_jump`, 새 믹스인 `Localization._watch_pose_jump`, 새 값 `SPEED_CAP_MPS` | 두 보고 자세가 갈 수 없는 만큼 다르면 까닭 글을 돌려주고, 사건을 냅니다 |
+| `pc/fleet_core/fleet_core/traffic/zone/redock.py`(새 파일) | 새 믹스인 `Redock._dock_failed`, `Redock._reapproach` | 도킹 시도를 세고, 물러났다 들어오는 길(`Trip`)을 잡습니다 |
+| `pc/fleet_core/fleet_core/traffic/zone/progress.py` | 바꿈 `on_robot_state` | 자세를 저장하기 전에 감시를 부르고, `LOCALIZING`과 통신 끊김 뒤에는 견줄 앞 자세를 지웁니다 |
+| `pc/fleet_core/fleet_core/traffic/zone/results.py` | 바꿈 `on_dock_result`, `on_goal_rejected` | 실패와 거절을 `_dock_failed`로 보냅니다. 성공하면 `dock_tries`를 지웁니다 |
+| `pc/fleet_core/fleet_core/traffic/zone/drive.py` | 바꿈 `_step_phase` | 도킹 단계에서 `redock` 표시가 있으면 먼저 다시 들어옵니다 |
+| `pc/fleet_core/fleet_core/traffic/zone/calls.py` | 바꿈 `_head_for` | 목적이 바뀌면 `dock_tries`와 `redock`을 지웁니다 |
+| `pc/fleet_core/fleet_core/traffic/zone/turns.py` | 바꿈 `_ahead` | 도킹이 실패한 적이 있는 로봇을 그 도크의 맨 앞 차례로 둡니다 |
+| `pc/fleet_core/fleet_core/traffic/zone/watch.py` | 바꿈 `_watch_deadlock` | 물러날 길을 기다리는 로봇(`redock`)은 대기 순환에 세지 않습니다 |
+| `pc/fleet_core/fleet_core/traffic/zone/robots.py` | 새 값 `pose_at`, `suspect_quiet_until`, `dock_tries`, `redock`, `redock_since` | 로봇마다의 기록 |
+| `pc/fleet_core/fleet_core/traffic/zone/controller.py` | 바꿈 `ZoneTraffic`의 믹스인 목록 | `Redock`, `Localization`을 넣었습니다 |
+| `pc/fleet_core/fleet_core/common/params.py`, `data/fleet_params.yaml` | 새 `pose_jump_window_s`, `pose_jump_m`, `pose_jump_quiet_s`, `redock_wait_s` | |
+| 시험 | 새 `pc/fleet_core/test/test_zone_localization.py`(11), `test_zone_failures.py`의 도킹 시험(`test_a_failed_docking_*`, `test_a_reapproach*`, `test_a_rejected_docking_*`, `test_the_wait_for_the_way_out_*`, `test_a_robot_*`) | |
+| 문서 | `docs/관제_구역교통.md`의 사건 표(`LOCALIZATION_SUSPECT`, `DOCK_REAPPROACH`) | |
+
 ### 10.9 가정 (추가 지시서 3에 없어서 정한 것)
 
 | 무엇 | 정한 것 | 까닭 |
 |---|---|---|
 | 기능 브랜치를 모으는 곳 | `stage3` 브랜치 하나에 절마다의 브랜치를 병합 커밋으로 합치고, `stage3` → `main` PR을 열어 둡니다 | 뒤 절이 앞 절 위에 서므로(7-4는 2절의 설정, 5절은 4절의 규칙) 절마다 `main`에서 따로 따면 서로를 쓰지 못합니다. `main`은 사용자가 병합할 때까지 f305dc1 그대로입니다 |
-
+| 도킹 실패 뒤의 "위치 재추정"(2-3절) | 관제가 로봇을 도크 앞 지점까지 물렸다가 다시 들여보냅니다. AMCL을 다시 초기화하지는 않습니다 | `pinky_dock`은 빈 패키지이고 도킹은 시뮬레이션의 흉내입니다. 로봇 쪽에서 위치를 다시 잡게 할 코드가 없습니다. 점대칭 경기장에서 전역 재추정을 하면 뒤집힌 자세로 붙을 수 있어 하지 않았습니다 |
+| `redock_wait_s` | 10 s | 재지 않은 추정값입니다. 물러날 길을 쥔 로봇이 떠나지 않는 경우에 도크에서 끝없이 기다리지 않게 하려는 한도입니다 |
