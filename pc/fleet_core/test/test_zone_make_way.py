@@ -87,3 +87,6 @@ def test_a_parking_try_that_cannot_take_its_way_leaves_the_waiting_record_alone(
     assert traffic.grants.force("pinky3", [], ["N_E"])
     assert not traffic._to_parking(traffic._robots["pinky2"], "INFO", "HALL_YIELD", "goes to")
     assert traffic.grants.waiting() == {}, "it only tried: it does not wait for the corridor"
+    traffic.grants.note_waiting("pinky2", ("OUT_DOCK",))  # 이미 다른 것을 기다리던 로봇이면
+    assert not traffic._to_parking(traffic._robots["pinky2"], "INFO", "HALL_YIELD", "goes to")
+    assert traffic.grants.waiting() == {"pinky2": ("OUT_DOCK",)}, "what it waited for stays"

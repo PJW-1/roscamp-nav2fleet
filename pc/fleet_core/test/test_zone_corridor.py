@@ -24,7 +24,8 @@ def stopped_in_the_corridor():
 def test_a_robot_stopped_inside_a_corridor_gets_another_way():
     world = stopped_in_the_corridor()
     assert world.view("pinky2")["goal_id"], "a new goal goes out from where it stands"
-    assert world.sent(MoveCmd, "pinky2")[-1].target_id in ("P-2", "P-3", "N_W", "N_E")
+    # 막힌 연결의 끝(P-2)으로 선 자리에서 곧장 다시 가지 않는다: 같은 것에 또 막힌다
+    assert world.sent(MoveCmd, "pinky2")[-1].target_id in ("P-3", "N_W", "N_E")
     parked = world.run_until(lambda: world.view("pinky2")["state"] == "PARKED", 300.0)
     assert parked, world.log[-12:]
     assert world.view("pinky2")["node"] == "P-2", "it parks by the south way or the express"
