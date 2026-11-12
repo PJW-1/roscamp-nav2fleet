@@ -88,7 +88,7 @@ def yard_retreat(site, link) -> tuple[str, str]:
     return a, ""
 
 
-KEEPOUT, CORRIDOR, DESTINATION, IN_ZONE ="keepout", "corridor", "destination", "in_zone"
+KEEPOUT, CORRIDOR, DESTINATION, IN_ZONE = "keepout", "corridor", "destination", "in_zone"
 
 
 def detour_kind(site, old_goal: str, old_zones, trip) -> str:
@@ -242,12 +242,6 @@ class BlockMarks:
         """고정 구간에서 막힌 m이 물러날 곳을 정한다(yard_retreat)."""
         m.retreat_to, m.retreat_via = yard_retreat(self.site, link)
         m.retreat_since = now
-
-    def _retreat_points(self, m) -> list:
-        """물러나는 길의 점들: 지금 자리, (꺾는 갈림목), 물러날 지점."""
-        site = self.site
-        middle = [site.node_pose(m.retreat_via)] if m.retreat_via else []
-        return [(m.x, m.y), *middle, site.node_pose(m.retreat_to)]
 
     def _behind_on_the_bent_way(self, m, target: str, via: str) -> str:
         """갈림목에서 꺾어 마당 지점까지 물러날 길 위의 다른 로봇. 없으면 빈 문자열.

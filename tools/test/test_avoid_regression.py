@@ -99,6 +99,18 @@ def test_the_script_passes_only_arguments_the_launch_files_declare():
         assert passed and passed <= declared, (name, sorted(passed - declared))
 
 
+def test_the_script_sends_the_first_goal_only_after_nav2_is_active():
+    """A goal sent while the planner is still activating ends with NAV_ABORTED in 0.1 s
+    (Gazebo, 2026-11-13): the one-robot stage waits for the lifecycle manager's is_active."""
+    script = (TOOLS / "avoid_regression.sh").read_text(encoding="utf-8")
+    stage = script[script.index("drive_stage() {"):script.index("game_stage() {")]
+    assert "nav2_active" in stage
+    assert stage.index("nav2_active") < stage.index("ros2 run fleet_gz_sim drive_check")
+    waiter = script[script.index("nav2_active() {"):script.index("drive_stage() {")]
+    assert "/pinky1/lifecycle_manager_navigation/is_active" in waiter
+    assert "success=True" in waiter
+
+
 def test_the_drive_command_ends_with_one_on_a_problem(tmp_path, capsys):
     good, bad = tmp_path / "good.json", tmp_path / "bad.json"
     good.write_text(json.dumps(drive(step("work_in"))), encoding="utf-8")

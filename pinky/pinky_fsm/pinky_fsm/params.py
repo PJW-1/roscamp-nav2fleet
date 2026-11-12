@@ -39,7 +39,8 @@ class FsmParams:
     track_back_m: float = 0.2  # 진행 거리를 찾을 때 뒤로 허용하는 거리
     track_ahead_m: float = 1.0  # 진행 거리를 찾을 때 앞으로 보는 거리
     # 자가 복구(핑키_계약 3절 7번, 2026-11-09 제안). 숫자는 추정이다
-    recovery_attempts: int = 2  # 두 번 실패하면 BLOCKED(물체 앞)나 NAV_ABORTED로 넘긴다
+    # 다 쓰면 BLOCKED(물체 앞)나 NAV_ABORTED로 넘긴다. local_yield가 켜져 있으면 한 번만 한다
+    recovery_attempts: int = 2
     backup_max_m: float = 0.15
     # 관제 release_distance_m. 꼭짓점에서 이만큼 가면 뒤 레인이 풀려 뒤차가 꼭짓점에 설 수 있다.
     # 물러난 중심은 마지막으로 지난 경로 꼭짓점에서 이것 + backup_margin_m 앞에 남는다

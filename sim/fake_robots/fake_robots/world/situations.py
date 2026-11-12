@@ -16,7 +16,7 @@ from fleet_core.fleet_map import LANE, load_fleet_map
 from .avoid import PERFECT
 from .injections import CommLoss, NoisyPose, Obstacle, Reinstate, Removal, SlowStation, Stuck
 from .stations import six_orders
-from .store_situations import STORE_NAMES, build_store
+from .store_situations import QUIET_AFTER_S, STORE_NAMES, build_store
 
 
 @dataclass(frozen=True)
@@ -85,7 +85,7 @@ def build(name: str, layout: str = "d2") -> Situation:
         # 로봇끼리 서로 막아 잡은 것이다(D2 씨드 3: 96 s 뒤 N_E와 O_Q 곁에서 30 s 서로 막다 우회)
         return Situation(name, "사람이 잠깐 지나감", injections=[Obstacle(*hall, 0.05, 15.0, 23.0)],
                          max_retreats=0, no_events=("DEADLOCK_SEEN", "REROUTE"),
-                         quiet_until_s=23.0 + 30.0)
+                         quiet_until_s=23.0 + QUIET_AFTER_S)
     if name == "outbound_slow":
         return Situation(name, "출고 도크 오래 씀", injections=[SlowStation("OUTBOUND", 6.0)],
                          timeout_s=1500.0)

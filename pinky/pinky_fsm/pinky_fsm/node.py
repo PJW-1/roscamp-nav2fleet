@@ -77,7 +77,7 @@ _FLOAT_PARAMS = (
     "retreat_stop_wait_s", "reverse_speed_mps", "nav_result_grace_s",
     # 잠금 경계 목표의 속도 제한(버전 2 4절 horizon 최소판)
     "horizon_decel_mps2", "horizon_min_mps", "horizon_cap_mps", "horizon_latency_s",
-    # mode nav_goal의 BLOCKED(계약 0.11-draft 제안)
+    # BLOCKED까지의 시간(두 mode 모두, 계약 0.13-draft)과 nav_goal의 진전 기준
     "blocked_after_s", "nav_progress_m",
     # 로봇단 교착 처리(추가 지시서 3의 7-4)
     "local_wait_s", "local_backup_m", "local_peer_near_m", "peers_timeout_s")

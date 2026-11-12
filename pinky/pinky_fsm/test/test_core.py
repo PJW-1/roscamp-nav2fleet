@@ -447,7 +447,7 @@ def test_blocked_stays_after_cancel_while_the_obstacle_remains():
 
 def test_blocked_goal_ends_with_timeout_when_the_obstacle_stays():
     """A goal that cannot go on must end with a failure or TIMEOUT. The fleet manager cancels a
-    blocked goal after blocked_mark_s (5 s), so block_timeout_s (90 s) only matters when the
+    blocked goal after blocked_mark_s (10 s), so block_timeout_s (90 s) only matters when the
     fleet manager does not."""
     fsm = ready(recovery_attempts=0)
     [send] = sends(move(fsm, "g1", 0.0))

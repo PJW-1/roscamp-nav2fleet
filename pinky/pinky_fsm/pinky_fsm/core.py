@@ -325,11 +325,7 @@ class PinkyFsm(NavGoalMoves, RetreatMoves, LocalYield, NavYield, SelfRecovery):
             self._stopped_since = None
         if pose is None:
             return []
-        if moving_goal:
-            points = self._ahead(g, pose)
-        elif self._blocked and self._blocked_points:
-            points = self._blocked_points  # 목표가 끝난 뒤에도 그 경로 앞을 본다
-        else:
+        if not moving_goal and not (self._blocked and self._blocked_points):
             self._blocked, self._clear_since = False, None
             return []
         waiting = moving_goal and g.waiting_since is not None
@@ -337,6 +333,8 @@ class PinkyFsm(NavGoalMoves, RetreatMoves, LocalYield, NavYield, SelfRecovery):
             self.p.block_report_s
         if not (self._blocked or waiting or stood):
             return []
+        # 목표가 끝난 뒤에도 그 경로 앞을 본다
+        points = self._ahead(g, pose) if moving_goal else self._blocked_points
         if obstacle(points):
             self._clear_since = None
             if stood and moving_goal and not self._blocked and self._can_recover(pose):

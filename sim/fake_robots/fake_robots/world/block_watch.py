@@ -8,11 +8,17 @@ from __future__ import annotations
 
 import math
 
-from fleet_core.traffic.zone.block_marks import keys_at
+from fleet_core.traffic.zone.block_marks import (
+    CORRIDOR,
+    DESTINATION,
+    IN_ZONE,
+    KEEPOUT,
+    keys_at,
+)
 
 from .injections import Obstacle
 
-DETOUR_KINDS = ("in_zone", "keepout", "corridor", "destination")
+DETOUR_KINDS = (IN_ZONE, KEEPOUT, CORRIDOR, DESTINATION)
 
 
 class BlockWatch:
