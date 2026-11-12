@@ -5,6 +5,7 @@ import itertools
 import math
 
 from fleet_core.common.commands import CancelCmd, DispatchResult, EventOut, RobotIsolated
+from fleet_core.fleet_map import SHARED
 from fleet_core.traffic.deadlock import priority
 from fleet_core.traffic.mission import AT_STATION, ERROR, FILL, NOT_AT_TARGET, RUN, SWAP
 from fleet_core.traffic.selector import RobotSelector
@@ -61,9 +62,17 @@ class ZoneBase:
             return False  # 남이 쥔 지점이다. 그 옆에 지점 없이 오른 로봇이 이름만 달고 있다
         # 고정 경로에 붙지 못한 로봇(off_node)은 지점 바로 위(허용 거리의 절반 안)로 보고해야
         # 지점 위다. 서 있는 로봇의 보고도 흔들린다: 가장자리의 보고를 다시 믿으면 같은 경로를
-        # 또 보내고 로봇은 또 거절한다
+        # 또 보내고 로봇은 또 거절한다. 넓은 구역 밖에서는 좁히지 않는다: 거기서는 Nav2 goal로
+        # 지점에 돌아갈 수 없어, 지점 위가 아니면 길을 못 잡는다
         limit = self.params.arrival_tolerance_m
-        return self._gap(m, m.node) <= (limit / 2 if m.off_node is not None else limit)
+        if m.off_node is not None and self._in_yard(m):
+            limit /= 2
+        return self._gap(m, m.node) <= limit
+
+    def _in_yard(self, m) -> bool:
+        """보고 위치가 넓은 구역 안인가."""
+        zone = self.site.zone_at(m.x, m.y)
+        return zone is not None and self.site.zones[zone].kind == SHARED
 
     def _via(self, m) -> str:
         """지금 달리는 방식. order goal이면 지금 조각의 방식이다."""
