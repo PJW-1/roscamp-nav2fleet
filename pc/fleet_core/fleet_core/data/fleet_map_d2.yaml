@@ -47,10 +47,13 @@ nodes:
   P-3: {x: 1.85, y: 0.15, kind: parking, yaw_deg: 90}
 paths:  # 고정 경로(FollowPath 선). 이웃한 두 점마다 연결 하나가 된다
   work_in: {points: [N_W, X_W, W]}
-  # 후진(Retreat)으로 나와 마당까지 내려간다. [x, y]는 지점이 아닌 꺾는 점이다(갈림목 선 위)
-  work_out: {points: [W, [0.35, 0.89], N_W], reverse: true}
+  # 후진(Retreat)으로 나와 마당까지 내려간다. [x, y]는 지점이 아닌 꺾는 점이다. 갈림목 선(x 0.35,
+  # 1.63)보다 도크 쪽 x 0.30, 1.68에서 꺾어 N_W, N_E로 비스듬히 내려간다: 갈림목 선에서 꺾으면 후진
+  # 모퉁이에서 꼬리가 진열대 끝으로 쏠려 충돌 검사에 걸렸다(2-1 Gazebo G05d). 끝 방향은 비스듬한
+  # 만큼(약 12°) 북쪽에서 어긋나고, 후진은 방향을 보지 않는 goal checker로 끝난다(pinky_nav_config).
+  work_out: {points: [W, [0.30, 0.89], N_W], reverse: true}
   out_in: {points: [N_E, X_E, O]}
-  out_out: {points: [O, [1.63, 0.89], N_E], reverse: true}
+  out_out: {points: [O, [1.68, 0.89], N_E], reverse: true}
   express: {points: [X_W, X_E], two_way: true}         # 급행: 한 번에 한 방향
   j_w_down: {points: [X_W, N_W]}                       # 갈림목에서 마당으로
   j_e_down: {points: [X_E, N_E]}

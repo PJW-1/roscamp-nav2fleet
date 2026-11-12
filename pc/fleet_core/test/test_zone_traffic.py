@@ -66,7 +66,7 @@ def test_work_to_outbound_runs_the_express_and_backs_out_of_the_dock_first():
     retreat = world.sent(RetreatCmd, "pinky2")
     # 갈림목에서 돌지 않는다: 마당의 N_W까지 물러나 북쪽을 본 채로 다시 올라가 급행에 든다(2-1)
     assert len(retreat) == 1 and [(x, y) for x, y, _ in retreat[0].path] == [
-        (0.18, 0.89), (0.35, 0.89), (0.35, 0.65)]
+        (0.18, 0.89), (0.30, 0.89), (0.35, 0.65)]
     express = world.sent(MoveCmd, "pinky2")[-1]
     assert [(x, y) for x, y, _ in express.path] == [
         (0.35, 0.65), (0.35, 0.89), (1.63, 0.89), (1.80, 0.89)]

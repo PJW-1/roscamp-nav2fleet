@@ -171,10 +171,19 @@ def narrow_strips(site, band: float = 0.05) -> str:
 
     넓은 구역이 아닌 구역의 사각형(x0, y0 순) 뒤에 진열대 끝면 상자(shelf_end_boxes)를 붙인다.
     끝면 잡음은 좁은 띠 바로 밖(D2에서는 HALL의 1.5 cm 띠)에 떨어져 띠만으로는 남기 때문이다(2-1
-    후진 모퉁이). band는 거르개의 wall_band_m과 같게 준다. pinky_nav_config nav2.launch.py의
-    narrow_strips 인자 꼴이다(추가지시서3 7-2).
+    후진 모퉁이). 구역 사각형의 변이 경기장 벽에 닿으면 그 변을 band만큼 벽 너머로 넓힌다. 벽 면
+    너머로 잰 잡음 점과 AMCL 오차로 너머에 놓인 점도 띠에 들게 한다. band는 거르개의 wall_band_m과
+    같게 준다. pinky_nav_config nav2.launch.py의 narrow_strips 인자 꼴이다(추가지시서3 7-2).
     """
-    rects = sorted(rect for zone in site.zones.values() if zone.kind != SHARED
+    bx0, by0, bx1, by1 = site.bounds()
+
+    def past_walls(rect):
+        x0, y0, x1, y1 = rect
+        return tuple(round(v, 6) for v in (
+            x0 - band if x0 <= bx0 + 1e-9 else x0, y0 - band if y0 <= by0 + 1e-9 else y0,
+            x1 + band if x1 >= bx1 - 1e-9 else x1, y1 + band if y1 >= by1 - 1e-9 else y1))
+
+    rects = sorted(past_walls(rect) for zone in site.zones.values() if zone.kind != SHARED
                    for rect in zone.rects)
     rects += shelf_end_boxes(site.shelves, band)
     return "; ".join(",".join(f"{v:g}" for v in rect) for rect in rects)

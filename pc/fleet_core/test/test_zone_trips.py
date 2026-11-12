@@ -72,30 +72,37 @@ def test_a_follow_path_command_sent_again_starts_where_the_robot_is_on_the_line(
     assert [(x, y) for x, y, _ in cmd.path] == [pytest.approx((0.90, 0.89)), (1.63, 0.89)]
 
 
+# D2 후진 꺾는 점은 (0.30, 0.89)다(2-1: 진열대 끝에서 멀리 돌고, 마지막 조각은 N_W로 비스듬히
+# 내려간다)
+SLANT = math.hypot(0.05, 0.24)
+
+
 def test_a_retreat_command_backs_round_the_bend_into_the_hall_facing_the_dock():
     out = way("W", "O")[:1]
     cmd = trips.retreat_command(PARAMS, "pinky1", 3, out, 0.18, 0.89)
-    assert cmd.distance_m == pytest.approx(0.17 + 0.24)
+    assert cmd.distance_m == pytest.approx(0.12 + SLANT)
     assert cmd.speed_mps == PARAMS.retreat_speed_mps
-    assert [(x, y) for x, y, _ in cmd.path] == [(0.18, 0.89), (0.35, 0.89), (0.35, 0.65)]
-    assert [yaw for _, _, yaw in cmd.path] == pytest.approx([math.pi, math.pi, math.pi / 2])
+    assert [(x, y) for x, y, _ in cmd.path] == [(0.18, 0.89), (0.30, 0.89), (0.35, 0.65)]
+    assert [yaw for _, _, yaw in cmd.path] == pytest.approx(
+        [math.pi, math.pi, math.atan2(0.24, -0.05)])
 
 
 def test_a_retreat_sent_again_past_the_start_keeps_the_bend_ahead():
     out = way("W", "O")[:1]
-    cmd = trips.retreat_command(PARAMS, "pinky1", 3, out, 0.30, 0.90)
+    cmd = trips.retreat_command(PARAMS, "pinky1", 3, out, 0.25, 0.90)
     assert [(x, y) for x, y, _ in cmd.path] == [
-        pytest.approx((0.30, 0.89)), (0.35, 0.89), (0.35, 0.65)]
-    cmd = trips.retreat_command(PARAMS, "pinky1", 3, out, 0.36, 0.80)
-    assert [(x, y) for x, y, _ in cmd.path] == [pytest.approx((0.35, 0.80)), (0.35, 0.65)]
-    assert cmd.distance_m == pytest.approx(0.15)
+        pytest.approx((0.25, 0.89)), (0.30, 0.89), (0.35, 0.65)]
+    # 비스듬한 조각 위 y 0.75: 남은 길은 그 조각의 0.10 m / 0.24 m
+    cmd = trips.retreat_command(PARAMS, "pinky1", 3, out, 0.33, 0.75)
+    assert [(x, y) for x, y, _ in cmd.path][-1] == (0.35, 0.65)
+    assert cmd.distance_m == pytest.approx(SLANT * 0.10 / 0.24, abs=0.002)
 
 
 def test_where_a_robot_is_along_a_bent_link():
     out = way("W", "O")[0]
-    assert out.length == pytest.approx(0.41)
-    assert trips.along(out, 0.30, 0.90) == pytest.approx(0.12)
-    assert trips.along(out, 0.36, 0.80) == pytest.approx(0.17 + 0.09)
+    assert out.length == pytest.approx(0.12 + SLANT)
+    assert trips.along(out, 0.25, 0.90) == pytest.approx(0.07)
+    assert trips.along(out, 0.33, 0.75) == pytest.approx(0.12 + SLANT * 0.14 / 0.24, abs=0.002)
     assert not trips.passed(out, 0.35, 0.70)
     assert trips.passed(out, 0.35, 0.66)
 
@@ -119,7 +126,8 @@ def test_links_that_are_not_on_the_map():
 
 def test_time_left_on_a_run_of_links():
     to_out = way("W", "O")
-    whole = 0.41 / PARAMS.retreat_speed_mps + (0.24 + 1.28 + 0.17) / PARAMS.follow_speed_mps
+    whole = ((0.12 + SLANT) / PARAMS.retreat_speed_mps
+             + (0.24 + 1.28 + 0.17) / PARAMS.follow_speed_mps)
     assert trips.travel_s(PARAMS, to_out) == pytest.approx(whole)
     assert trips.left_s(PARAMS, to_out[2:], 0.99, 0.89) == pytest.approx(
         (0.64 + 0.17) / PARAMS.follow_speed_mps)

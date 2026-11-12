@@ -39,10 +39,12 @@ def test_a_nav_goal_ends_on_the_node_yaw_or_the_fixed_path_it_joins():
 
 def test_a_retreat_path_keeps_its_bend_and_faces_the_way_the_robot_looks():
     step = sp.make_step(SITE, RETREAT, ("W", "N_W"))
-    assert [p[:2] for p in step.poses] == [pytest.approx((0.18, 0.89)), pytest.approx((0.35, 0.89)),
+    # D2 후진 꺾는 점 (0.30, 0.89): 마지막 조각은 N_W로 비스듬히 내려간다(2-1)
+    assert [p[:2] for p in step.poses] == [pytest.approx((0.18, 0.89)), pytest.approx((0.30, 0.89)),
                                            pytest.approx((0.35, 0.65))]
     assert abs(abs(step.poses[0][2]) - math.pi) < 1e-9  # facing west, driving east
-    assert step.poses[-1][2] == pytest.approx(math.pi / 2)  # facing north, driving south
+    # facing back up the slant (north-west), driving down it
+    assert step.poses[-1][2] == pytest.approx(math.atan2(0.24, -0.05))
 
 
 @pytest.mark.parametrize("kind, nodes", [
