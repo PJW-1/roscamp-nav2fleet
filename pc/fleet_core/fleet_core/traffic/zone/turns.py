@@ -64,8 +64,9 @@ class Turns:
         return all(self._waits_for(other, m) for other in self._ahead(m, station_id))
 
     def _ahead(self, m, station_id: str) -> list:
-        """그 스테이션의 차례가 나보다 앞인 로봇들. 차례를 받아 그 도크로 떠난 로봇이 맨 앞이고,
-        그다음은 먼저 바란 순서다.
+        """그 스테이션의 차례가 나보다 앞인 로봇들. 차례를 받아 그 도크로 떠난 로봇과 그
+        도크에서 도킹이 실패해 다시 들어오는 로봇(dock_tries)이 맨 앞이고, 그다음은 먼저 바란
+        순서다.
 
         떠났는지는 길에 적힌 차례(Trip.turn)로 본다. 길이 도크에서 끝나는 것만으로는 모른다:
         order 모델에서는 대기 자리로 가는 길이 도크까지 이어진다.
@@ -75,7 +76,7 @@ class Turns:
         def rank(r) -> tuple:
             trip = r.trip
             left = trip is not None and trip.turn and not trip.stale and trip.goal == dock
-            return (not left, r.asked_at or 0.0, r.asked_gap, r.name)
+            return (not (left or r.dock_tries), r.asked_at or 0.0, r.asked_gap, r.name)
 
         mine = rank(m)
         return [other for other in self._robots.values()

@@ -12,11 +12,13 @@
 | turns | 목적지 후보(도크, 대기 자리, 주차), 도크 차례 |
 | drive | 로봇 한 대의 한 걸음, 명령 내기 |
 | results | 명령의 결과 |
+| redock | 도킹 실패: 도크 앞 지점까지 물렸다가 다시 들여보내기 |
 | progress | 상태 보고: 뒤 구역 놓기 |
 | placement | 로봇을 지도에 올리기: 선 지점 고르기, 겹친 보고, 거절 |
 | blocked | 막힘: 기다림, 표시, 다른 길, 후진 |
 | health | 통신 끊김과 복구, 치움, 다시 투입 |
 | watch | 멈춤, 구역 밖, 서로 막음, 대기 순환 |
+| localization | 보고 자세가 갈 수 없는 만큼 튐(LOCALIZATION_SUSPECT, 기록만) |
 | silent | 할 일 없이 섬, 조용히 멈춤(갈 곳이 있는데 관제가 말이 없음) |
 | nostart | goal을 받고 움직이기 시작하지 않음 |
 | capacity | 시작 때 넓은 구역 정원의 합과 로봇 수 |
@@ -36,11 +38,13 @@ from .capacity import Capacity
 from .drive import Drive
 from .goals import Goals
 from .health import Health
+from .localization import Localization
 from .move_orders import MoveOrders
 from .nostart import NoStart
 from .order_answers import OrderAnswers
 from .placement import Placement
 from .progress import Progress
+from .redock import Redock
 from .results import Results
 from .silent import Silent
 from .turns import Turns
@@ -48,9 +52,9 @@ from .views import Views
 from .watch import Watch
 
 
-class ZoneTraffic(Calls, Goals, Turns, Drive, MoveOrders, OrderAnswers, Results, Progress,
-                  Placement, Blocked, Health, Watch, Backoff, Silent, NoStart, Capacity, Views,
-                  ZoneBase):
+class ZoneTraffic(Calls, Goals, Turns, Drive, MoveOrders, OrderAnswers, Results, Redock, Progress,
+                  Placement, Blocked, Health, Watch, Localization, Backoff, Silent, NoStart,
+                  Capacity, Views, ZoneBase):
     def tick(self) -> list:
         """한 주기 전체. FleetManager 없이 교통 층만 돌릴 때 쓴다."""
         now = self._clock()

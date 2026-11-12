@@ -127,8 +127,8 @@ class Watch:
         """구역 대기 그래프의 순환. 들어가기 규칙이 맞으면 없어야 하므로 보이면 사건으로 남긴다."""
         graph = {}
         for name, want in self._wants.items():
-            if not self._robots[name].available:
-                continue
+            if not self._robots[name].available or self._robots[name].redock:
+                continue  # 도킹이 실패해 물러날 길을 기다리는 로봇은 redock_wait_s 뒤에 스스로 푼다
             blockers = self.grants.blockers(name, want.zones, want.nodes, want.lanes)
             robots = {robot for group in blockers.values() for robot in group}
             if robots:

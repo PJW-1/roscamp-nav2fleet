@@ -89,6 +89,13 @@ class FleetParams:
     near_stuck_s: float = 5.0  # 이만큼 못 나아가면 우선순위 낮은 쪽이 비킨다
     outside_zone_m: float = 0.05  # 쥔 구역 밖으로 이만큼 벗어난 보고가
     outside_zone_samples: int = 5  # 이만큼 이어지면 OUTSIDE_ZONE
+    # 위치 추정 감시(추가 지시서 3의 2-3): 이 시간 안의 두 보고 위치가 로봇이 갈 수 있는 것보다
+    # 이만큼 넘게 다르면 LOCALIZATION_SUSPECT를 남긴다. 기록만 한다
+    pose_jump_window_s: float = 2.0
+    pose_jump_m: float = 0.15
+    pose_jump_quiet_s: float = 5.0  # 한 번 낸 뒤 이만큼은 다시 내지 않는다
+    # 도킹이 실패한 로봇이 물러날 길이 비기를 도크에서 기다리는 시간. 넘으면 그 자리에서 다시 한다
+    redock_wait_s: float = 10.0
     # 마당 물러나기(제안, 2026-11-12). 넓은 구역에서 비켜 서는 로봇이 BLOCKED를 보고했으면 선
     # 방향 그대로 뒤로 물린 뒤 세운다. 끄면(기본) 세우기만 한다
     yard_backoff: bool = False

@@ -42,6 +42,8 @@ class Drive:
         if m.phase in (TO_WORK, TO_OUTBOUND, TO_PARK):
             self._drive(m)
         elif m.phase == DOCKING:
+            if m.redock and self._reapproach(m):
+                return  # 도킹이 실패했다. 물러났다 다시 들어온 뒤에 한다
             goal_id = self._next_goal_id()
             m.goal = Goal(DOCK, goal_id)
             m.stall_from = None

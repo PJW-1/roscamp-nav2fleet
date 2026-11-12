@@ -67,6 +67,10 @@ near_m: 0.30                  # 넓은 구역에서 두 로봇이 이만큼 가�
 near_stuck_s: 5.0             # 이만큼 못 나아가면 우선순위 낮은 쪽이 비킨다
 outside_zone_m: 0.05          # 쥔 구역 밖으로 이만큼 벗어난 보고가
 outside_zone_samples: 5       # 이만큼 이어지면 OUTSIDE_ZONE(기록만)
+pose_jump_window_s: 2.0       # 위치 추정 감시: 이 시간 안의 두 보고 위치를 견준다
+pose_jump_m: 0.15             # 로봇이 갈 수 있는 거리보다 이만큼 넘게 옮겨졌으면 LOCALIZATION_SUSPECT(기록만)
+pose_jump_quiet_s: 5.0        # 한 번 낸 뒤 이만큼은 다시 내지 않는다
+redock_wait_s: 10.0           # 추정: 도킹이 실패한 로봇이 물러날 길이 비기를 기다리는 시간. 넘으면 그 자리에서 다시 도킹한다
 yard_backoff: false           # 마당 물러나기(제안): 비켜 서는 로봇이 BLOCKED를 보고했으면 뒤로 물린 뒤 세운다
 yard_backoff_m: 0.12          # 물러나는 거리
 yard_backoff_wait_s: 0.5      # 비킬 로봇의 BLOCKED 보고를 이만큼 더 기다린다(near_stuck_s와 더해 stall_s보다 짧게)

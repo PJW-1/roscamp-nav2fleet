@@ -56,6 +56,8 @@ class Robot:
     battery: float = 0.0
     charge: bool = False  # 배터리가 낮다: 새 일을 받지 않고 주차 자리에 있는다
     last_seen: float = 0.0
+    pose_at: float | None = None  # 지금 자세를 들은 시각. 자세를 못 믿으면 None
+    suspect_quiet_until: float = 0.0  # 이 시각까지는 LOCALIZATION_SUSPECT를 또 내지 않는다
     phase: str = IDLE
     fault: str = ""  # ERROR 또는 OUT_OF_SERVICE
     fault_reason: str = ""
@@ -73,6 +75,9 @@ class Robot:
     move_order: MoveOrder | None = None  # order 모델로 달리는 중이면 그 order
     base_until: float = 0.0  # 통신이 끊겼다: 이 시각까지는 base 끝으로 달리는 중일 수 있다
     attempts: int = 0
+    dock_tries: int = 0  # 이 스테이션에서 실패한 도킹 수. 도킹이 되거나 목적이 바뀌면 0
+    redock_since: float | None = None  # 물러날 길을 처음 잡아 본 시각(redock_wait_s의 기준)
+    redock: bool = False  # 도킹이 실패했다: 다시 하기 전에 물러났다 들어온다(redock.py)
     retry_at: float = 0.0  # 이 시각 전에는 새 명령을 내지 않는다
     settle_until: float = 0.0  # goal을 거둔 뒤 이 시각까지는 잡은 것을 놓지 않는다
     arrival_by: float | None = None  # 성공이 자세보다 먼저 왔다. 이 시각까지 보고를 기다린다
