@@ -52,6 +52,7 @@ class FakeNav(Node):
         self.v = 0.0
         self.goals = []  # (시각, 점 수)
         self.controller_ids = []  # FollowPath controller_id of each accepted goal
+        self.goal_checker_ids = []  # FollowPath goal_checker_id of each accepted goal
         self.reversing = False  # 지금 목표가 후진 controller다
         self.navigating = False  # 지금 목표가 NavigateToPose다(막혀도 실패로 끝내지 않는다)
         self.nav_goals = []  # (시각, (x, y, yaw)) of each accepted NavigateToPose
@@ -128,6 +129,7 @@ class FakeNav(Node):
             self.index = 0
             self.goals.append((time.monotonic(), len(self.path)))
             self.controller_ids.append(handle.request.controller_id)
+            self.goal_checker_ids.append(handle.request.goal_checker_id)
             self.reversing = handle.request.controller_id == REVERSE_CONTROLLER
             self.navigating = False
             self._blocked_since = None
