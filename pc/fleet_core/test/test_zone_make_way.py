@@ -6,6 +6,7 @@ Gazebo 3대 경기에서 나왔다: 출고 대기 자리로 가던 로봇이 진
 """
 from fleet_core.common.commands import MoveCmd
 from fleet_core.traffic.zone.goals import STANDING_WAIT_S
+from fleet_core.traffic.zone.trips import Trip
 from zone_harness import DT, Harness
 
 BODY_M = 0.12  # 두 로봇의 중심이 이보다 가까우면 몸이 닿는다
@@ -227,3 +228,20 @@ def test_a_robot_on_its_way_to_the_dock_keeps_the_turn():
         assert other is None or other.goal != "O", "it does not leave for the dock as well"
         assert world.now < 200.0
     assert world.result_of(going).success and world.result_of(late) is None
+
+
+def test_a_queued_robot_whose_trip_ends_at_the_dock_is_not_on_its_way_yet():
+    """order 모델에서는 대기 자리로 가는 길이 도크까지 이어진다(도크 쪽은 horizon이다). 그런 로봇은
+    아직 줄에 선 것이다: 먼저 불린 로봇의 차례를 가져가지 않는다. 차례를 받아 떠난 로봇은 앞이다."""
+    world = Harness(layout="d", starts={"pinky2": "O_Q", "pinky3": "P-3"})
+    world.report()
+    traffic = world.traffic
+    world.call("OUTBOUND", "pinky3")
+    world.now += DT / 2  # pinky3이 먼저 불렸다
+    world.call("OUTBOUND", "pinky2")
+    first, other = traffic._robots["pinky3"], traffic._robots["pinky2"]
+    other.trip = Trip("O", traffic._way(other, "O"))
+    other.queued = True
+    assert traffic._is_next(first, first.dest)
+    other.queued = False
+    assert not traffic._is_next(first, first.dest)
