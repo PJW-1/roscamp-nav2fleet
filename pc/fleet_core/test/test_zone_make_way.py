@@ -220,6 +220,7 @@ def test_a_robot_on_its_way_to_the_dock_keeps_the_turn():
     assert world.run_until(lambda: world.sent(MoveCmd, "pinky3"), 5.0)
     trip = traffic._robots["pinky3"].trip
     assert trip.goal == "O" and trip.granted < len(trip.links), "the dock zone comes later"
+    assert trip.turn, "the trip carries the turn it was given"
     late = world.call("OUTBOUND", "pinky2")
     traffic._robots["pinky2"].asked_at = -1.0  # 먼저 불렸다가 앞지름을 당한 로봇인 셈이다
     while world.result_of(going) is None:
@@ -230,9 +231,11 @@ def test_a_robot_on_its_way_to_the_dock_keeps_the_turn():
     assert world.result_of(going).success and world.result_of(late) is None
 
 
-def test_a_queued_robot_whose_trip_ends_at_the_dock_is_not_on_its_way_yet():
-    """order 모델에서는 대기 자리로 가는 길이 도크까지 이어진다(도크 쪽은 horizon이다). 그런 로봇은
-    아직 줄에 선 것이다: 먼저 불린 로봇의 차례를 가져가지 않는다. 차례를 받아 떠난 로봇은 앞이다."""
+def test_only_a_trip_that_took_the_dock_turn_counts_as_on_its_way():
+    """order 모델에서는 대기 자리로 가는 길이 도크까지 이어진다(도크 쪽은 horizon이다). 길이
+    도크에서 끝나도 차례를 받아 떠난 길(turn)이 아니면 줄에 선 것이다: 먼저 불린 로봇의 차례를
+    가져가지 않는다. 차례를 받아 떠난 로봇은 앞이고, 목적이 바뀌어 그 길을 버리면(stale) 차례도
+    내놓는다."""
     world = Harness(layout="d", starts={"pinky2": "O_Q", "pinky3": "P-3"})
     world.report()
     traffic = world.traffic
@@ -241,7 +244,8 @@ def test_a_queued_robot_whose_trip_ends_at_the_dock_is_not_on_its_way_yet():
     world.call("OUTBOUND", "pinky2")
     first, other = traffic._robots["pinky3"], traffic._robots["pinky2"]
     other.trip = Trip("O", traffic._way(other, "O"))
-    other.queued = True
     assert traffic._is_next(first, first.dest)
-    other.queued = False
+    other.trip.turn = True
     assert not traffic._is_next(first, first.dest)
+    other.trip.stale = True
+    assert traffic._is_next(first, first.dest)

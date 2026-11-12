@@ -67,13 +67,14 @@ class Turns:
         """그 스테이션의 차례가 나보다 앞인 로봇들. 차례를 받아 그 도크로 떠난 로봇이 맨 앞이고,
         그다음은 먼저 바란 순서다.
 
-        줄에 선 로봇(queued)은 길이 도크에서 끝나도 떠난 것이 아니다: order 모델에서는 대기 자리로
-        가는 길이 도크까지 이어진다.
+        떠났는지는 길에 적힌 차례(Trip.turn)로 본다. 길이 도크에서 끝나는 것만으로는 모른다:
+        order 모델에서는 대기 자리로 가는 길이 도크까지 이어진다.
         """
         dock = self.site.stations[station_id].dock
 
         def rank(r) -> tuple:
-            left = r.trip is not None and r.trip.goal == dock and not r.queued
+            trip = r.trip
+            left = trip is not None and trip.turn and not trip.stale and trip.goal == dock
             return (not left, r.asked_at or 0.0, r.asked_gap, r.name)
 
         mine = rank(m)
@@ -86,13 +87,14 @@ class Turns:
         return (other.goal is None and m.goal is None and self._on_node(m)
                 and m.node in other.wait_for and self.grants.node_holder(m.node) == m.name)
 
-    def _note_turn(self, m, goal: str) -> None:
-        """떠나는 곳이 도크이고 먼저 온 로봇을 앞질렀으면 알린다."""
-        if m.phase not in (TO_WORK, TO_OUTBOUND) or goal != self.site.stations[m.dest].dock:
+    def _take_turn(self, m, trip) -> None:
+        """도크로 떠나는 길에 차례를 적는다. 먼저 온 로봇을 앞질렀으면 알린다."""
+        if m.phase not in (TO_WORK, TO_OUTBOUND) or trip.goal != self.site.stations[m.dest].dock:
             return
         for other in self._ahead(m, m.dest):
             self._event("INFO", "DOCK_TURN_TAKEN",
                         f"goes before {other.name}, which waits for {m.node}", m.name)
+        trip.turn = True
 
     def _dock_free(self, m, dock: str) -> bool:
         zone = self.site.nodes[dock].zone

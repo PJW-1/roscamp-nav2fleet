@@ -137,7 +137,7 @@ class Goals:
                     self._event("INFO", "DOCK_QUEUED", f"{m.dest} is busy, waits at {goal}",
                                 m.name)
                 elif not queued:
-                    self._note_turn(m, goal)
+                    self._take_turn(m, trip)
                 return trip
             first_want = first_want or want
         if first_want is not None:
