@@ -26,3 +26,12 @@ string OBSTACLE_ROBOT="robot"
 float64 obstacle_x
 float64 obstacle_y
 string obstacle_kind    # OBSTACLE_*. 지금은 unknown만 쓴다. 비전이 들어오면 채운다
+
+# 기준(사용자, 계약 0.13-draft, 추가 지시서 3의 7-4): 로봇단 교착 처리의 단계. state가 RECOVERING일
+# 때만 채운다. wait: 물체 앞에 서서 local_wait_s 기다린다. backup: 앞을 막은 다른 로봇보다 낮아
+# 지나온 길 안에서 물러난다. retry: 물러난 뒤 다시 간다. 비면 로봇단 처리가 아니다(RECOVERING이면
+# 0.12까지의 자가 복구). 관제는 사건 LOCAL_YIELD로 남기기만 하고, 움직임은 BLOCKED 뒤에 정한다
+string LOCAL_YIELD_WAIT="wait"
+string LOCAL_YIELD_BACKUP="backup"
+string LOCAL_YIELD_RETRY="retry"
+string local_yield
