@@ -284,16 +284,19 @@ def test_an_update_goal_that_failed_on_the_way_is_followed_by_a_new_order(fault,
     assert world.result_of(call).success and not world.problems
 
 
-def test_the_old_goal_failing_before_the_update_is_answered_counts_as_its_failure():
+def test_the_old_goal_failing_before_the_update_is_answered_is_taken_as_that_goals_result():
     world, call = waiting_at_the_queue_spot()
     first = orders(world, "pinky1")[-1]
     world.hold_answers = True
     world.traffic.on_release("pinky2")
     assert world.run_until(lambda: len(orders(world, "pinky1")) == 2, 30.0)
     world.traffic.on_move_result("pinky1", first.goal_id, False, "NAV_ABORTED", 3)
+    assert world.view("pinky1")["goal_id"] is None, "the running order ended, the fleet saw it"
     world.step()
-    assert "GOAL_RETRY" in world.codes("pinky1"), "the running order failed, the fleet saw it"
-    assert world.view("pinky1")["goal_id"] is None
+    codes = world.codes("pinky1")
+    # 로봇은 그 goal의 끝(기다리는 자리)에 서 있다. 실패한 시도가 아니라 닿은 것으로 본다
+    assert "GOAL_ENDED_AT_TARGET" in codes and "GOAL_RETRY" not in codes
+    assert world.view("pinky1")["node"] == "O_Q"
 
 
 # ---- 통신이 끊긴 로봇 ----
