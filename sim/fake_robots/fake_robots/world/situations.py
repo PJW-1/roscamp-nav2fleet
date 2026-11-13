@@ -54,9 +54,10 @@ class Situation:
 
 
 def _hall_mid(site):
-    # 넓은 곳(가운데 통로) 양 끝의 가운데. v7은 서쪽 끝이 N_O다
-    west = "N_W" if "N_W" in site.nodes else "N_O"
-    (ax, ay), (bx, by) = site.node_pose(west), site.node_pose("N_E")
+    # 넓은 곳(가운데 통로) 양 끝의 가운데. v7은 가운데 통로의 끝 지점이 없고 남쪽 통로로 다닌다:
+    # 칸 입구 E-3과 줄 입구 Q2의 가운데
+    west, east = ("N_W", "N_E") if "N_W" in site.nodes else ("E-3", "Q2")
+    (ax, ay), (bx, by) = site.node_pose(west), site.node_pose(east)
     return ((ax + bx) / 2, (ay + by) / 2)
 
 
@@ -69,8 +70,8 @@ def _lane_mid(site):
 def _near_work(layout):
     if layout == "c":
         return {"pinky1": "N_W", "pinky2": "S_W", "pinky3": "P-2"}
-    if layout == "v7":  # WORK 진입 갈림 G 앞, 줄 앞자리, 칸
-        return {"pinky1": "N_E", "pinky2": "Q1", "pinky3": "P-2"}
+    if layout == "v7":  # 줄 입구, 줄 앞자리, 칸
+        return {"pinky1": "Q2", "pinky2": "Q1", "pinky3": "P-2"}
     return {"pinky1": "N_W", "pinky2": "W_Q", "pinky3": "P-2"}
 
 

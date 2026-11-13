@@ -51,7 +51,7 @@ def test_v7_charging_stalls_and_express_are_open_in_the_fine_map(site):
 
 def test_v7_standing_nodes_are_outside_the_keepout(site):
     grid = arena_maps.keepout(arena_maps.FINE_M, site)
-    for name in ("N_O", "N_E", "G", "Q1", "Q2", "Q3", "O_Q", "E-1", "E-2", "E-3", "P-1", "P-2", "P-3"):
+    for name in ("O_IN", "O_OUT", "Q1", "Q2", "E-1", "E-2", "E-3", "P-1", "P-2", "P-3"):
         x, y = site.node_pose(name)
         i, j = arena_maps.cell_of(x, y, arena_maps.FINE_M, site)
         assert not grid[j][i], name
@@ -187,10 +187,9 @@ def test_v7_the_crossing_gap_is_shut_for_nav2_on_the_5cm_costmap():
 
 @pytest.mark.parametrize("shut, pairs", [
     # 서쪽 끝(x < 0.68)만 남김: 동쪽 통로를 막아 본다
-    ([(1.56, 0.30, 1.98, 0.45)], [("N_O", "Q1"), ("N_O", "Q3"), ("N_E", "Q1")]),
-    # 동쪽 통로(1.65~1.72)만 남김: 서쪽 끝을 막아 본다. G는 그 통로 바로 위라 가장 빠듯하다
-    ([(0.0, 0.30, 0.68, 0.45)], [("N_E", "G"), ("G", "Q3"), ("N_E", "Q1"), ("N_O", "Q1"),
-                                 ("N_E", "Q3")]),
+    ([(1.56, 0.30, 1.98, 0.45)], [("O_IN", "Q1"), ("O_IN", "Q2"), ("O_OUT", "Q2")]),
+    # 동쪽 통로(1.65~1.72)만 남김: 서쪽 끝을 막아 본다
+    ([(0.0, 0.30, 0.68, 0.45)], [("O_IN", "Q1"), ("O_IN", "Q2"), ("O_OUT", "Q2")]),
 ])
 def test_v7_north_and_south_stay_joined_by_each_way_alone(site, shut, pairs):
     grid, _, _ = _costmap()
@@ -218,14 +217,14 @@ def test_v7_the_top_of_divider_3_is_kept_out_for_nav2(site):
     assert not kept(0.77, 0.205) and not kept(0.64, 0.11), "above it and the P-3 bay stay open"
 
 
-@pytest.mark.parametrize("a, b", [("E-3", "Q1"), ("E-3", "G"), ("E-3", "Q3"), ("E-3", "O_Q"),
-                                  ("E-3", "N_O"), ("E-1", "E-3")])
+@pytest.mark.parametrize("a, b", [("E-3", "Q1"), ("E-3", "Q2"), ("E-1", "Q2"), ("E-3", "O_OUT"),
+                                  ("E-3", "O_IN"), ("E-1", "E-3")])
 def test_v7_the_south_yard_stays_open_above_the_divider_keepout(site, a, b):
     """칸막이 keepout(y < 0.20)과 남쪽 진열대 inflation 사이로(5 cm 격자에서 y 0.225, 0.275 줄)
     남쪽 마당이 이어진다."""
     grid, _, _ = _costmap()
     assert _joined(grid, site.node_pose(a), site.node_pose(b)), (a, b)
     # 동쪽으로 가는 길은 칸막이 3 위를 지나야 한다: 서쪽 끝을 막아도 이어진다
-    if b in ("Q1", "G", "Q3"):
+    if b in ("Q1", "Q2"):
         assert _joined(grid, site.node_pose(a), site.node_pose(b),
                        shut=[(0.0, 0.40, 0.68, 0.99)]), (a, b)

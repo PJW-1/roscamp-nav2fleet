@@ -4,18 +4,23 @@
 - 앞자리가 비면 한 칸씩 당긴다.
 - 새로 오는 로봇은 맨 뒤에 선 로봇 바로 뒤 빈 자리로 간다(앞자리를 노려 줄 옆을 지나지 않는다).
 끄면(키가 없으면) 지금 규칙 그대로다(test_zone_dock_queue).
-시험 지도는 v7 그대로다(구석 L자 셋, Q1 앞, Q3 꼬리): G -> Q3 -> Q2 -> Q1 -> W, 빈 줄이면 G -> Q1.
+규칙 시험의 지도는 자리 셋인 옛 v7(test/data/fleet_map_line3.yaml, 구석 L자, Q1 앞, Q3 꼬리)이다:
+G -> Q3 -> Q2 -> Q1 -> W, 빈 줄이면 G -> Q1. 지금 v7은 자리 둘(Q1, Q2)이고 Q2로 들어온다.
 """
 from dataclasses import replace
+from pathlib import Path
 
 import pytest
-from fleet_core.common.commands import MoveCmd
+from fleet_core.common.commands import DockCmd, MoveCmd
 from fleet_core.common.params import load_params
 from fleet_core.fleet_map import FleetMapError, fleet_map_from_text, load_fleet_map
 from zone_harness import DT, Harness
 
+LINE3 = Path(__file__).parent / "data" / "fleet_map_line3.yaml"
+
+
 def line_map(line=True):
-    text = load_fleet_map("v7").source_text
+    text = LINE3.read_text(encoding="utf-8")
     old = "queue: [Q1, Q2, Q3], line: true,"
     assert old in text
     return fleet_map_from_text(text if line else text.replace(old, "queue: [Q1, Q2, Q3],"))
@@ -143,12 +148,12 @@ def test_a_robot_stepping_forward_ranks_by_the_spot_it_goes_to(order_model):
 
 
 def test_v7_new_robot_stands_behind_the_front_and_the_line_docks_in_order():
-    """v7: 앞자리 Q1에 하나가 서 있으면 새 로봇은 G에서 꼬리 Q3으로 들어와 Q2까지 당기고(앞자리를
-    노리지 않는다), 도크가 비면 Q1, 그다음 Q2 차례로 들어간다(Q2는 Q1으로 한 칸 당긴 뒤 W로)."""
+    """v7: 앞자리 Q1에 하나가 서 있으면 새 로봇은 칸 입구에서 남쪽 통로로 줄 입구 Q2에 와 서고
+    (앞자리를 노리지 않는다), 도크가 비면 Q1, 그다음 Q2 차례로 들어간다(Q2는 Q1으로 당긴 뒤 W로)."""
     world = Harness(layout="v7", starts={"pinky1": "W", "pinky2": "Q1", "pinky3": "P-1"})
     front, back = calls(world, "pinky2", "pinky3")
     assert world.run_until(lambda: world.view("pinky3")["node"] == "Q2", 300.0), world.log[-10:]
-    assert "Q1" not in targets(world, "pinky3")
+    assert targets(world, "pinky3") == ["E-1", "Q2"], "straight along the south aisle"
     world.traffic.on_release("pinky1")
     assert world.run_until(lambda: world.result_of(front) is not None, 200.0)
     assert world.result_of(front).robot_id == "pinky2" and world.result_of(back) is None
@@ -159,16 +164,16 @@ def test_v7_new_robot_stands_behind_the_front_and_the_line_docks_in_order():
 
 
 def test_v7_a_full_line_pulls_forward_as_soon_as_the_front_moves():
-    """v7 줄이 가득(W, Q1, Q2... 로봇 셋이라 W, Q2, Q3): 앞자리가 비면 둘 다 한 칸씩 당긴다. 이웃
-    자리가 노드 놓는 거리(0.20)보다 멀어 당긴 로봇이 뒷자리를 놓으므로, 꼬리 로봇이 도크가 빌 때까지
-    기다리지 않고 Q2로 온다."""
-    world = Harness(layout="v7", starts={"pinky1": "W", "pinky2": "Q2", "pinky3": "Q3"})
+    """v7 줄이 가득(W, Q1, Q2): 도크가 비어 앞자리 로봇이 들어가면 Q2의 로봇이 바로 Q1으로 당긴다.
+    두 자리가 노드 놓는 거리(0.20)보다 멀어 당긴 로봇이 뒷자리를 놓는다."""
+    world = Harness(layout="v7", starts={"pinky1": "W", "pinky2": "Q1", "pinky3": "Q2"})
     front, back = calls(world, "pinky2", "pinky3")
-    assert world.run_until(lambda: world.view("pinky2")["node"] == "Q1"
-                           and world.view("pinky3")["node"] == "Q2", 120.0), world.log[-10:]
-    assert world.result_of(front) is None  # 도크는 아직 pinky1이 쥐고 있다
+    world.run(20.0)
+    assert targets(world, "pinky2") == [] and targets(world, "pinky3") == [], "the line is full"
     world.traffic.on_release("pinky1")
     assert world.run_until(lambda: world.result_of(front) is not None, 200.0)
+    assert world.result_of(front).robot_id == "pinky2" and world.result_of(back) is None
+    assert world.run_until(lambda: world.view("pinky3")["node"] == "Q1", 60.0), world.log[-10:]
     world.traffic.on_release("pinky2")
     assert world.run_until(lambda: world.result_of(back) is not None, 300.0)
     assert not world.problems
@@ -201,30 +206,32 @@ def finish(world, asked, rest):
     assert not world.problems
 
 
-def test_v7_the_middle_robot_low_on_battery_leaves_once_the_front_moves():
-    """v7: 둘째 Q2는 줄 안(Q2 -> Q1)으로만 나간다. 둘째 로봇이 배터리가 낮으면 앞자리 로봇이 도크로
-    들어간 뒤 Q1 -> G로 빠진다: 늦을 뿐 교착은 없다."""
+def test_v7_the_robot_at_the_entry_low_on_battery_leaves_at_once():
+    """v7: 줄 입구 Q2는 마당과 이어져 있다. Q2의 로봇이 배터리가 낮으면 앞자리 로봇을 기다리지 않고
+    칸 입구로 나가 칸에 서고, 남은 둘이 두 호출을 끝낸다."""
     world, asked, low, rest = low_battery_in_line("Q2")
-    world.run(30.0)
-    assert world.view(low)["node"] == "Q2", "waits for the front robot"
-    # 도크에 선 로봇의 일을 끝낼 때마다 줄이 한 칸씩 빠진다(pinky1이 남은 호출을 다시 받을 수 있다)
-    for _ in range(5):
-        if world.run_until(lambda: world.phase(low) == "PARKED", 120.0):
+    assert world.run_until(lambda: world.phase(low) == "PARKED", 120.0), world.log[-20:]
+    assert "Q1" not in targets(world, low) and "W" not in targets(world, low)
+    world.traffic.on_release("pinky1")
+    finish(world, asked, rest)
+
+
+def test_v7_the_front_robot_low_on_battery_leaves_through_the_docks():
+    """v7: 앞자리 Q1에서 나가는 길은 W뿐이다(사용자 결정 2026-11-13 밤: N_E와 G가 없다). 앞자리
+    로봇이 배터리가 낮으면 도크가 빌 때까지 줄을 막고 서 있다가, W와 급행, 출고를 도킹 없이 지나
+    칸에 선다.
+    늦을 뿐 교착은 없고, 뒤 로봇은 그다음에 도크에 들어간다."""
+    world, asked, low, rest = low_battery_in_line("Q1")
+    world.run(60.0)
+    assert world.view(low)["node"] == "Q1" and world.phase(low) == "TO_PARK", "waits for the dock"
+    for _ in range(6):
+        if world.run_until(lambda: world.phase(low) == "PARKED", 150.0):
             break
         for robot in ("pinky1", rest):
             if world.phase(robot) == "AT_STATION":
                 world.traffic.on_release(robot)
     assert world.phase(low) == "PARKED", world.log[-20:]
+    assert targets(world, low)[:3] == ["W", "O", "O_OUT"]
+    assert not world.sent(DockCmd, low), "passes the docks without docking"
     assert all(world.result_of(goal) is not None for goal in asked)
-    assert "Q1" in targets(world, low) and "G" in targets(world, low)
     assert not world.problems
-
-
-def test_v7_the_front_robot_low_on_battery_leaves_while_the_tail_waits():
-    """v7: 줄 앞 Q1의 로봇이 배터리가 낮아 떠난다. 둘째 Q2에 로봇이 서 있으니 Q1 -> G로
-    빠져 칸에 서고, 둘째 로봇은 한 칸 당겨 도크에 들어간다(6810b3b 리뷰: 서로 막을 수 있다)."""
-    world, asked, low, rest = low_battery_in_line("Q1")
-    assert world.run_until(lambda: world.phase(low) == "PARKED", 400.0), world.log[-20:]
-    assert "G" in targets(world, low)
-    world.traffic.on_release("pinky1")
-    finish(world, asked, rest)
