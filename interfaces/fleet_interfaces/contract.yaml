@@ -1,15 +1,20 @@
+# ---- 관제와 로봇 사이 연결의 이름, 타입, QoS 원본 ----
+
 version: 0.13-draft
 
+# ---- 이름 틀에 채울 로봇과 팔 이름 ----
 placeholders:
   pinky: [pinky1, pinky2, pinky3]
   arm: [arm1, arm2, arm3]
 
+# ---- QoS 프로필 ----
 qos_profiles:
   STATE: {reliability: best_effort, durability: volatile, depth: 5}
   LATCHED: {reliability: reliable, durability: transient_local, depth: 1}
   EVENT: {reliability: reliable, durability: volatile, depth: 50}
   HEARTBEAT: {reliability: reliable, durability: volatile, depth: 1}
 
+# ---- 토픽 ----
 topics:
   - {key: robot_state, name: "/{pinky}/state", type: fleet_interfaces/msg/RobotState, qos: STATE}
   - {key: arm_state, name: "/{arm}/state", type: fleet_interfaces/msg/ArmState, qos: STATE}
@@ -21,6 +26,7 @@ topics:
   - {key: zones, name: "/fleet/zones", type: fleet_interfaces/msg/ZoneStateArray, qos: LATCHED}
   - {key: events, name: "/central/events", type: fleet_interfaces/msg/FleetEvent, qos: EVENT}
 
+# ---- 액션 ----
 actions:
   - {key: move_to, name: "/{pinky}/move_to", type: fleet_interfaces/action/MoveTo}
   - {key: dock, name: "/{pinky}/dock", type: fleet_interfaces/action/Dock}
@@ -30,6 +36,7 @@ actions:
   - {key: follow_path, name: "/{pinky}/follow_path", type: nav2_msgs/action/FollowPath, real_only: true}
   - {key: retreat, name: "/{pinky}/retreat", type: fleet_interfaces/action/Retreat}
 
+# ---- 서비스 ----
 services:
   - {key: set_run_mode, name: "/central/set_run_mode", type: fleet_interfaces/srv/SetRunMode}
   - {key: submit_order, name: "/central/submit_order", type: fleet_interfaces/srv/SubmitOrder}

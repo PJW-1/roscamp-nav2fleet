@@ -1,4 +1,8 @@
+# ---- 운영 상태를 바꾸는 서비스 ----
+
+# ---- request: 바꿀 운영 상태 ----
 string mode
 ---
+# ---- response: 받아들였는지와 이유 ----
 bool accepted
 string reason

@@ -1,7 +1,11 @@
+# ---- 운영자가 로봇을 치웠다고 알리는 서비스 ----
+
+# ---- request: 치운 로봇과 풀 구역 ----
 string robot_id
 string[] zone_ids
 string note
 ---
+# ---- response: 결과와 푼 구역 ----
 bool accepted
 string[] released_zones
 string reason

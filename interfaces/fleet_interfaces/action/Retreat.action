@@ -1,13 +1,19 @@
+# ---- 관제가 시키는 물러나기 액션 ----
+
+# ---- goal: 거리, 속도, 후진 경로 ----
 float32 distance_m
 float32 speed_mps
 geometry_msgs/Pose[] path
 ---
+# ---- result: reason에 넣는 값 ----
 string REASON_OBSTACLE_BEHIND="OBSTACLE_BEHIND"
 string REASON_TIMEOUT="TIMEOUT"
 string REASON_CANCELED="CANCELED"
 string REASON_FAILED="FAILED"
 
+# ---- result: 결과 ----
 bool success
 string reason
 ---
+# ---- feedback: 물러난 거리 ----
 float32 distance_traveled

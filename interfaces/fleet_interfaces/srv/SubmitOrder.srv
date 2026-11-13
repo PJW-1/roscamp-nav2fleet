@@ -1,5 +1,9 @@
+# ---- 새 주문을 내는 서비스 ----
+
+# ---- request: 주문 물건 ----
 OrderItem[] items
 ---
+# ---- response: 결과와 주문 번호 ----
 bool accepted
 string order_id
 string reason

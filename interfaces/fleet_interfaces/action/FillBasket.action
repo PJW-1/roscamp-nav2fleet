@@ -1,15 +1,21 @@
+# ---- 팔이 로봇 바구니에 물건을 담는 액션 ----
+
+# ---- goal: 담을 주문과 물건 ----
 string order_id
 string robot_id
 string station_id
 OrderItem[] items
 ---
+# ---- result: reason에 넣는 값 ----
 string REASON_CANCELED="CANCELED"
 
+# ---- result: 담은 것과 못 담은 것 ----
 bool success
 OrderItem[] placed
 OrderItem[] missing
 string reason
 ---
+# ---- feedback: 진행 상황 ----
 string arm_id
 string phase
 int32 placed_total

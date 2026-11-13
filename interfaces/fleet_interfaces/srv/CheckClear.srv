@@ -1,7 +1,11 @@
+# ---- 관제가 핑키에게 점 둘레가 비었는지 묻는 서비스 ----
+
+# ---- request: 물을 점과 반경 ----
 float64 x
 float64 y
 float64 r
 ---
+# ---- response: 답 ----
 string ANSWER_CLEAR="clear"
 string ANSWER_BLOCKED="blocked"
 string ANSWER_UNKNOWN="unknown"

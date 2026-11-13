@@ -1,9 +1,14 @@
+# ---- 치운 로봇을 다시 투입하는 서비스 ----
+
+# ---- request: basket에 넣는 값 ----
 string BASKET_EMPTY="EMPTY"
 string BASKET_NONE="NONE"
 
+# ---- request: 다시 넣을 로봇과 바구니 상태 ----
 string robot_id
 string basket
 string note
 ---
+# ---- response: 결과와 거부 이유 ----
 bool accepted
 string reason

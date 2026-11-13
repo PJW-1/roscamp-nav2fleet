@@ -1,14 +1,20 @@
+# ---- 팔이 가득 찬 바구니를 빈 바구니로 바꾸는 액션 ----
+
+# ---- goal: 할 단계 ----
 string order_id
 string robot_id
 string station_id
 bool take_full
 bool put_empty
 ---
+# ---- result: reason에 넣는 값 ----
 string REASON_CANCELED="CANCELED"
 
+# ---- result: 끝낸 단계 ----
 bool success
 bool took_full
 bool put_empty_done
 string reason
 ---
+# ---- feedback: 진행 단계 ----
 string phase

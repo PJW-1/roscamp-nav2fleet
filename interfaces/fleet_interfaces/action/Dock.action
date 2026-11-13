@@ -1,8 +1,13 @@
+# ---- 도크에 정밀하게 붙는 도킹 액션 ----
+
+# ---- goal: 붙을 도크 ----
 string dock_id
 ---
+# ---- result: 성공 여부와 정지 오차 ----
 bool success
 float32 error_x_cm
 float32 error_y_cm
 float32 error_yaw_deg
 ---
+# ---- feedback: 진행 단계 ----
 string phase

@@ -1,17 +1,27 @@
+# ---- 관제가 핑키를 움직이는 이동 액션 ----
+
+# ---- goal: 목적지와 따라갈 선 ----
 string target_id
 geometry_msgs/Pose2D target_pose
 geometry_msgs/Pose[] path
 bool final_goal true
+
+# ---- goal: 가는 방식 ----
 string MODE_FOLLOW_PATH="follow_path"
 string MODE_NAV_GOAL="nav_goal"
 string mode
+
+# ---- goal: order 모델 칸 ----
 string order_id
 uint32 order_update_id
 string stitch_node_id
 Segment[] base
 Segment[] horizon
+
+# ---- goal: 로봇단 교착 처리의 우선순위 ----
 int32 priority -1
 ---
+# ---- result: reason에 넣는 값 ----
 string REASON_NAV_ABORTED="NAV_ABORTED"
 string REASON_CANCELED="CANCELED"
 string REASON_TIMEOUT="TIMEOUT"
@@ -20,10 +30,12 @@ string REASON_PATH_NOT_CONNECTED="PATH_NOT_CONNECTED"
 string REASON_SUPERSEDED="SUPERSEDED"
 string REASON_ORDER_UPDATE_REJECTED="ORDER_UPDATE_REJECTED"
 
+# ---- result: 결과 ----
 bool success
 string reason
 uint32 last_done_seq_id
 ---
+# ---- feedback: 가는 동안의 소식 ----
 float32 distance_remaining
 uint32 last_done_seq_id
 bool waiting_at_base_end
