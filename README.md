@@ -111,7 +111,7 @@ python3 tools/make_keepout.py --layout d2 --map <지도.yaml>
 
 Gazebo 쪽 인자와 장애물 일정은 [sim/fleet_gz_sim/README.md](sim/fleet_gz_sim/README.md)에 있다.
 
-## order 모델 (제안, 기본 꺼짐)
+## order 모델 (기본 켜짐)
 
 이동 하나를 조각 목록으로 한 번에 보내는 방식이다(VDA 5050의 order). 관제가 구역을 잡아 준 조각이 base이고, 아직 잡지 않은 조각이 horizon이다. 로봇은 base 안에서는 서지 않고 다음 조각으로 넘어간다. 관제는 로봇이 base 끝에 닿기 2초 전에 다음 구역을 잡아 update로 base를 늘리고, 못 잡으면 로봇이 base 끝에서 기다린다. 통신이 끊겨도 로봇은 base 끝까지만 간다.
 
@@ -120,7 +120,7 @@ ros2 launch fleet_gz_sim gz.launch.py layout:=d2 use_order_model:=true   # Gazeb
 python3 tools/order_situations.py --seeds 1 2 3                          # 머리 없는 세계에서 끄고 켠 표
 ```
 
-`use_order_model`을 끄면(기본) 관제가 내는 명령과 사건은 전과 같다. 규칙과 정한 값은 [docs/order_모델.md](docs/order_모델.md)에, 측정은 [작업 기록](docs/worklog_nav2base_2026-11-12.md) 8절에 있다.
+`use_order_model`은 기본으로 켜져 있다(사용자 결정, 2026-11-14). 끄면(`use_order_model:=false`) 관제가 내는 명령과 사건은 order 모델을 넣기 전과 같다. 규칙과 정한 값은 [docs/order_모델.md](docs/order_모델.md)에, 측정은 [작업 기록](docs/worklog_nav2base_2026-11-12.md) 8절에 있다.
 
 ![RViz의 관제 화면: 굵은 실선이 base](docs/img/order_base_horizon.png)
 

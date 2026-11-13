@@ -1,12 +1,12 @@
 # order 모델 (사용자 기준)
 
-이동 하나를 "조각 목록"으로 한 번에 보내는 방식입니다. VDA 5050의 order(base, horizon, 이어 붙이기)를 옮겼습니다. 기본은 꺼져 있고(`use_order_model: false`), 꺼져 있으면 관제가 보내는 명령은 전과 똑같습니다(사건 기록 전체를 비교하는 시험 `test_zone_order_off.py`로 확인합니다).
+이동 하나를 "조각 목록"으로 한 번에 보내는 방식입니다. VDA 5050의 order(base, horizon, 이어 붙이기)를 옮겼습니다. 기본은 켜져 있습니다(`use_order_model: true`, 사용자 결정 2026-11-14). 끄면 관제가 보내는 명령은 order 모델을 넣기 전과 똑같습니다(사건 기록 전체를 비교하는 시험 `test_zone_order_off.py`로 확인합니다).
 
 메시지 칸은 [핑키_계약.md](핑키_계약.md) 2절과 3절 11번에 있습니다. 이 문서는 관제가 그 칸을 어떻게 쓰는지를 적습니다.
 
 ## 1. 무엇이 달라지나
 
-| | 꺼짐(지금) | 켜짐 |
+| | 꺼짐 | 켜짐(기본) |
 |---|---|---|
 | 관제가 보내는 것 | 구간마다 goal 하나. 구간이 끝난 결과를 받고 다음 goal을 보냅니다 | 목적지까지의 조각을 한 번에 보냅니다. 허락한 조각이 base, 아직 허락하지 않은 조각이 horizon입니다 |
 | 구간 사이 | 로봇이 서서 다음 goal을 기다립니다 | 로봇이 base 안에서는 서지 않고 다음 조각으로 넘어갑니다 |
@@ -31,7 +31,7 @@
 | base 끝이 `lookahead_s` 안으로 다가옵니다 | 그다음 안전 지점까지의 구역을 한꺼번에 잡을 수 있으면 update로 base를 늘립니다. 새로 허락한 조각만 보냅니다 | `ORDER_UPDATED` |
 | 구역을 못 잡았습니다 | 아무것도 보내지 않습니다. 로봇은 base 끝에서 서서 기다리고, 구역이 비면 그때 update를 보냅니다 | `BASE_END_WAIT`, `ZONE_WAIT` |
 | 가려는 도크가 차 있습니다 | 기다리는 자리(O_Q, W_Q)까지를 base로, 도크로 들어가는 조각을 horizon으로 보냅니다. 차례가 오고 도크가 비면 update를 보냅니다 | `DOCK_QUEUED` |
-| base 뒤의 길이 달라졌습니다 | base 끝이 `lookahead_s` 안으로 다가왔거나 로봇이 base 끝에 서 있을 때 그 뒤의 길을 다시 구합니다. 달라졌으면 horizon만 바꾸는 update를 보냅니다(base는 비움). 5 s에 한 번을 넘지 않습니다 | `HORIZON_CHANGED` |
+| base 뒤의 길이 달라졌습니다 | base 끝이 `lookahead_s` 안으로 다가왔거나 로봇이 base 끝에 서 있을 때 그 뒤의 길을 다시 구합니다. 달라졌으면 horizon만 바꾸는 update를 보냅니다(base는 비움). 5 s에 한 번을 넘지 않습니다. 줄을 서는 작업대(`line`)의 기다리는 자리를 지나는 horizon은 다시 구하지 않습니다 | `HORIZON_CHANGED` |
 | base를 줄여야 합니다(목적이 바뀜) | base는 줄이지 않습니다. 로봇이 넓은 구역에 나오면 order를 취소하고 새 order를 보냅니다. 갈림목이나 급행 안에서는 취소하지 않습니다 | `ORDER_SENT`(새 order) |
 | 조각 하나가 끝났습니다 | 진행을 기록합니다. 지나온 구역은 조각이 끝날 때가 아니라, 위치 보고가 그 구역을 벗어난 것이 `release_confirm_samples`번 이어질 때 돌려받습니다(order 모델을 꺼도 같습니다) | `SEGMENT_DONE` |
 | 로봇이 base 밖의 조각을 끝냈다고 보고했습니다 | 믿지 않습니다. 진행을 바꾸지 않고 기록만 합니다(같은 order에 한 번) | `SEGMENT_BEYOND_BASE` |
@@ -49,6 +49,8 @@
 | 이전 goal이 `SUPERSEDED`로 끝났습니다 | 실패가 아닙니다. update가 붙었다는 뜻입니다 |
 
 ## 5. 켜는 법
+
+기본으로 켜져 있습니다. 끄려면 아래 명령에서 `use_order_model:=false`를 줍니다.
 
 ```bash
 ros2 launch iponic_bringup pc.launch.py use_order_model:=true lookahead_s:=2.0
