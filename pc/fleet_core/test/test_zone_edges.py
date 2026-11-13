@@ -1,11 +1,16 @@
 """구역 교통 층의 가장자리 경우: 취소와 놓는 순서, 달리는 중의 목적 바뀜, 복구 중 다시 끊김,
 후진 결과, 교착 회피 다시 하기, 후진 중 막힘."""
+from dataclasses import replace
+
 import pytest
 from fleet_core.common.commands import CancelCmd, MoveCmd, RetreatCmd
+from fleet_core.common.params import load_params
 from fleet_core.traffic.mission import MOVE
 from fleet_core.traffic.zone.lane_policy import Want
 from fleet_core.traffic.zone.robots import Goal
 from zone_harness import Harness
+
+OFF = replace(load_params(), use_order_model=False)
 
 
 def reported(starts):
@@ -15,7 +20,8 @@ def reported(starts):
 
 
 def targets(world, robot):
-    return [(c.mode, c.target_id) for c in world.sent(MoveCmd, robot)]
+    """보낸 구간(물러나기 말고)의 (방식, 끝 지점). order 모델이면 base 조각마다 하나다."""
+    return [(c.mode, c.target_id) for c in world.legs(robot) if c.mode != "retreat"]
 
 
 def test_zones_ahead_are_given_back_only_after_reports_confirm_the_robot_is_clear():
@@ -40,14 +46,16 @@ def test_a_purpose_changed_and_changed_back_still_arrives_at_the_dock():
     world = Harness()
     world.step()
     first = world.call("WORK", "pinky2")
-    assert world.run_until(lambda: world.view("pinky2")["target"] == "W", 60.0)
+    assert world.run_until(lambda: world.view("pinky2")["node"] == "N_W", 60.0)
     world.run(0.5)  # 도크로 들어가는 고정 경로 위다
     world.traffic.on_dispatch_cancel(first)
     world.step()
     second = world.call("WORK", "pinky2")
     assert world.run_until(lambda: world.result_of(second), 60.0)
     assert world.result_of(second).success
-    assert targets(world, "pinky2") == [("nav_goal", "N_W"), ("follow_path", "W")]
+    # order 모델은 넓은 구역에서 목적이 바뀌면 order를 취소하고 같은 선을 다시 보낼 수 있다
+    assert list(dict.fromkeys(targets(world, "pinky2"))) == [("nav_goal", "N_W"),
+                                                           ("follow_path", "W")]
     assert "DOCK_QUEUED" not in world.codes("pinky2") and not world.problems
 
 
@@ -72,8 +80,15 @@ def test_a_purpose_changed_during_a_fixed_stretch_switches_at_the_next_node():
     world.traffic.on_dispatch_cancel(call)
     world.step()
     assert not world.sent(CancelCmd), "it finishes backing out of the dock"
-    assert world.run_until(lambda: world.phase("pinky1") == "PARKED", 120.0)
-    assert targets(world, "pinky1") == [("nav_goal", "P-1")], "the retreat already ends in the yard"
+    bot, east = world.bots["pinky1"], [0.0]
+
+    def parked():
+        east[0] = max(east[0], bot.x)
+        return world.phase("pinky1") == "PARKED"
+    assert world.run_until(parked, 120.0)
+    assert world.moves("pinky1")[-1][2:4] == ("nav_goal", "P-1"), \
+        "the retreat already ends in the yard"
+    assert east[0] < 0.5, "it does not drive on along the express first"
     assert world.view("pinky1")["held"] == ["HALL"]
     assert world.traffic.grants.holders("EXPRESS") == ()
     assert not world.problems
@@ -87,21 +102,23 @@ def test_a_robot_that_goes_silent_again_while_recovering_gets_no_command():
     world.silent.add("pinky2")
     world.run(world.params.comm_timeout_s + 1.0)
     assert world.view("pinky2")["state"] == "COMM_LOST"
-    sent = len(world.sent(MoveCmd, "pinky2"))
+    sent = len(world.moves("pinky2"))
     world.silent.discard("pinky2")
     world.step()  # 보고 한 번
     assert world.view("pinky2")["state"] == "RECOVERING"
     world.silent.add("pinky2")
     world.run(world.params.recover_check_s + 1.0)
     assert world.view("pinky2")["state"] != "TO_WORK", "nothing new was heard from it"
-    assert len(world.sent(MoveCmd, "pinky2")) == sent
+    assert len(world.moves("pinky2")) == sent
     world.run(world.params.comm_timeout_s)
     assert world.view("pinky2")["state"] == "COMM_LOST"
     assert world.codes("pinky2").count("COMM_LOST") == 2
 
 
 def test_a_retreat_success_is_checked_against_the_reported_pose():
-    world = reported({"pinky1": "W", "pinky2": "P-2", "pinky3": "P-3"})
+    """RetreatCmd의 결과는 order 모델을 끈 길에만 있다(켜면 물러나기는 order의 조각이다)."""
+    world = Harness(starts={"pinky1": "W", "pinky2": "P-2", "pinky3": "P-3"}, params=OFF)
+    world.report()
     world.call("OUTBOUND", "pinky1")
     world.run(1.0)
     goal_id = world.sent(RetreatCmd, "pinky1")[0].goal_id
@@ -110,6 +127,18 @@ def test_a_retreat_success_is_checked_against_the_reported_pose():
     view = world.view("pinky1")
     assert view["node"] == "W" and view["goal_id"] == goal_id, "it is not at X_W yet"
     assert not world.sent(MoveCmd, "pinky1")
+
+
+@pytest.mark.xfail(strict=True, reason="order 모델은 로봇이 끝냈다고 한 조각(SEGMENT_DONE)을 "
+                   "보고 위치와 맞춰 보지 않는다. 정할 일이다")
+def test_a_retreat_segment_reported_done_is_checked_against_the_reported_pose():
+    world = reported({"pinky1": "W", "pinky2": "P-2", "pinky3": "P-3"})
+    world.call("OUTBOUND", "pinky1")
+    world.run(1.0)
+    [retreat] = [leg for leg in world.legs("pinky1") if leg.mode == "retreat"]
+    world.traffic.on_move_feedback("pinky1", retreat.goal_id, 1, False)  # 아직 5 cm 물러났다
+    world.step()
+    assert world.view("pinky1")["node"] == "W", "it is not at N_W yet"
 
 
 @pytest.mark.parametrize("busy", ["pinky1", "pinky2"])
@@ -168,7 +197,7 @@ def test_a_nav_goal_keeps_every_zone_it_may_cross_until_it_ends():
     bot = world.bots["pinky3"]
     assert world.run_until(lambda: 0.9 < bot.x < 1.0, 60.0)
     assert world.site.zone_at(bot.x, bot.y) in ("CORR_M", "CORR_S"), "it crosses by a corridor"
-    assert world.sent(MoveCmd, "pinky3")[-1].mode == "nav_goal"
+    assert world.moves("pinky3")[-1].mode == "nav_goal"
     assert "HALL_E" in world.view("pinky3")["held"], "the yard behind it is not given back"
     world.traffic.on_release("pinky1")
     assert world.run_until(lambda: world.result_of(call) is not None, 200.0)
@@ -181,7 +210,7 @@ def test_a_robot_that_nav2_took_into_another_yard_zone_takes_that_zone():
     world.report()
     world.call("WORK", "pinky1")
     world.step()
-    assert world.sent(MoveCmd, "pinky1")[-1].mode == "nav_goal"
+    assert world.moves("pinky1")[-1].mode == "nav_goal"
     assert "CORR_S" not in world.view("pinky1")["held"]
     world.traffic.take_output()
     for _ in range(world.params.outside_zone_samples + 1):

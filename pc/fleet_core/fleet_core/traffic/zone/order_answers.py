@@ -56,6 +56,7 @@ class OrderAnswers:
                             m.name)
                 if via == RETREAT:
                     m.retreat_to = ""
+                    m.behind_since = None
                     self._event("INFO", "RETREAT_DONE", f"stands at {m.node}", m.name)
         mo.done_seq = max(mo.done_seq, seq)
 

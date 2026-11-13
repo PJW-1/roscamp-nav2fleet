@@ -6,7 +6,7 @@ from dataclasses import asdict, replace
 from pathlib import Path
 
 import pytest
-from fleet_core.common.commands import EventOut, MoveCmd, RetreatCmd
+from fleet_core.common.commands import EventOut, MoveCmd, MoveOrderCmd, RetreatCmd
 from fleet_core.common.params import DEFAULT_PARAMS, load_params
 from fleet_core.fleet_map import load_fleet_map
 from fleet_core.manager import FleetManager
@@ -73,18 +73,42 @@ def manager_at_the_work_dock():
     return core, now
 
 
+def backs(out):
+    """out 가운데 도크에서 물러나는 명령: RetreatCmd, 또는 order 모델이면 retreat 조각으로
+    시작하는 order. 없으면 None."""
+    return next((c for c in out if isinstance(c, RetreatCmd) or (
+        isinstance(c, MoveOrderCmd) and c.base and c.base[0].mode == "retreat")), None)
+
+
+def back_end(back):
+    path = back.base[0].path if isinstance(back, MoveOrderCmd) else back.path
+    return path[-1][:2]
+
+
+def answer(core, back, success, reason=""):
+    """물러나기의 답. order 모델이면 retreat 조각을 끝냈다는 피드백이나 order의 실패다."""
+    if not isinstance(back, MoveOrderCmd):
+        core.on_retreat_result("pinky1", back.goal_id, success, reason)
+    elif success:
+        core.on_move_feedback("pinky1", back.goal_id, back.base[0].seq_id, False)
+    else:
+        core.on_move_result("pinky1", back.goal_id, False, reason)
+
+
 def test_the_retreat_out_of_a_dock_goes_out_and_its_result_reaches_the_traffic_layer():
     core, now = manager_at_the_work_dock()
     now[0] += 0.1
     out = core.tick()
-    back = [c for c in out if isinstance(c, RetreatCmd)]
-    assert len(back) == 1 and back[0].robot == "pinky1"
-    x, y = back[0].path[-1][:2]
-    core.on_robot_state("pinky1", x, y, 0.0, "IDLE")
-    core.on_retreat_result("pinky1", back[0].goal_id, True, "")
+    back = backs(out)
+    assert back is not None and back.robot == "pinky1"
+    assert len([c for c in out if isinstance(c, (RetreatCmd, MoveOrderCmd))]) == 1
+    core.on_robot_state("pinky1", *back_end(back), 0.0, "IDLE")
+    answer(core, back, True)
     now[0] += 0.1
-    out = core.tick()
-    assert [c.target_id for c in out if isinstance(c, MoveCmd)] == ["O"], "on along the express"
+    out += core.tick()
+    ahead = ([s.end_node for s in back.base[1:]] if isinstance(back, MoveOrderCmd)
+             else [c.target_id for c in out if isinstance(c, MoveCmd)])
+    assert ahead == ["O"], "on along the express"
     assert core.traffic.robot_view("pinky1")["node"] == "N_W"
 
 
@@ -99,8 +123,8 @@ def test_a_retreat_result_for_an_unknown_robot_is_refused():
 def test_a_failed_retreat_is_a_failed_attempt():
     core, now = manager_at_the_work_dock()
     now[0] += 0.1
-    back = next(c for c in core.tick() if isinstance(c, RetreatCmd))
-    core.on_retreat_result("pinky1", back.goal_id, False, "FAILED")
+    back = backs(core.tick())
+    answer(core, back, False, "FAILED")
     out = core.tick()
     retry = [e.detail for e in out if isinstance(e, EventOut) and e.code == "GOAL_RETRY"]
     assert retry == ["FAILED, attempt 1"]
@@ -116,9 +140,9 @@ def test_something_behind_a_retreat_is_waited_out_until_blocked_timeout_s():
         core.on_robot_state("pinky1", x, y, 0.0, "IDLE")
         out = core.tick()
         codes += [e.code for e in out if isinstance(e, EventOut)]
-        back = next((c for c in out if isinstance(c, RetreatCmd)), None)
+        back = backs(out)
         if back is not None:
-            core.on_retreat_result("pinky1", back.goal_id, False, "OBSTACLE_BEHIND")
+            answer(core, back, False, "OBSTACLE_BEHIND")
         if "ROBOT_ISOLATED" in codes:
             break
     assert codes.count("RETREAT_WAIT") == 1
@@ -129,12 +153,12 @@ def test_something_behind_a_retreat_is_waited_out_until_blocked_timeout_s():
 def test_a_retreat_that_gets_out_after_waiting_starts_a_fresh_wait_next_time():
     core, now = manager_at_the_work_dock()
     now[0] += 0.1
-    back = next(c for c in core.tick() if isinstance(c, RetreatCmd))
-    core.on_retreat_result("pinky1", back.goal_id, False, "OBSTACLE_BEHIND")
+    back = backs(core.tick())
+    answer(core, back, False, "OBSTACLE_BEHIND")
     assert core.traffic._robots["pinky1"].behind_since == now[0]
     now[0] += core.params.move_retry_wait_s + 0.1
-    back = next(c for c in core.tick() if isinstance(c, RetreatCmd))
-    core.on_retreat_result("pinky1", back.goal_id, True, "")
+    back = backs(core.tick())
+    answer(core, back, True)
     assert core.traffic._robots["pinky1"].behind_since is None
 
 
@@ -142,13 +166,12 @@ def test_a_retreat_that_ends_at_its_end_anyway_also_starts_a_fresh_wait_next_tim
     """실패로 끝났지만 끝 지점에 서 있어 닿은 것으로 본 후진도 기다림을 끝낸다."""
     core, now = manager_at_the_work_dock()
     now[0] += 0.1
-    back = next(c for c in core.tick() if isinstance(c, RetreatCmd))
-    core.on_retreat_result("pinky1", back.goal_id, False, "OBSTACLE_BEHIND")
+    back = backs(core.tick())
+    answer(core, back, False, "OBSTACLE_BEHIND")
     now[0] += core.params.move_retry_wait_s + 0.1
-    back = next(c for c in core.tick() if isinstance(c, RetreatCmd))
-    x, y = back.path[-1][:2]
-    core.on_robot_state("pinky1", x, y, 0.0, "IDLE")
-    core.on_retreat_result("pinky1", back.goal_id, False, "FAILED")
+    back = backs(core.tick())
+    core.on_robot_state("pinky1", *back_end(back), 0.0, "IDLE")
+    answer(core, back, False, "FAILED")
     out = core.tick()
     assert "GOAL_ENDED_AT_TARGET" in [e.code for e in out if isinstance(e, EventOut)]
     assert core.traffic._robots["pinky1"].behind_since is None
