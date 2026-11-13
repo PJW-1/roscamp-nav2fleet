@@ -128,7 +128,10 @@ controller_server:
       rotate_to_heading_angular_vel: 1.0
       transform_tolerance: 0.2
       min_approach_linear_velocity: 0.05
-      approach_velocity_scaling_dist: 0.6
+      # 0.2(사용자 2026-11-14 "계속해서 개선해", 0.6에서): 끝 0.6 m 앞부터 줄이면 Gazebo v7
+      # 경기에서 MOVING 시간의 절반(1058 s 가운데 503 s)을 0.06 m/s 아래로 기었다. 0.12 m/s에서
+      # 서는 데 3 cm면 된다. FollowPathReverse도 같은 값이다(test_nav_config가 견준다)
+      approach_velocity_scaling_dist: 0.2
       use_collision_detection: true
       max_allowed_time_to_collision_up_to_carrot: 0.6  # 전달사항(제조사 1.0)
       use_regulated_linear_velocity_scaling: false
@@ -219,7 +222,7 @@ controller_server:
       rotate_to_heading_angular_vel: 1.0
       transform_tolerance: 0.2
       min_approach_linear_velocity: 0.05
-      approach_velocity_scaling_dist: 0.6
+      approach_velocity_scaling_dist: 0.2
       use_collision_detection: true
       max_allowed_time_to_collision_up_to_carrot: 0.6  # 전달사항(제조사 1.0)
       use_regulated_linear_velocity_scaling: false

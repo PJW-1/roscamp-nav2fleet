@@ -136,10 +136,19 @@ def test_the_through_controller_is_followpath_without_the_approach_slow_down():
     c = params("controller_server")
     normal, through = c["FollowPath"], c["FollowPathThrough"]
     assert through["approach_velocity_scaling_dist"] == 0.05
-    assert normal["approach_velocity_scaling_dist"] == 0.6
+    assert normal["approach_velocity_scaling_dist"] > through["approach_velocity_scaling_dist"]
     assert set(through) == set(normal)
     assert {k: v for k, v in through.items() if k != "approach_velocity_scaling_dist"} == {
         k: v for k, v in normal.items() if k != "approach_velocity_scaling_dist"}
+
+
+def test_a_fixed_line_slows_down_only_in_its_last_0_2_m():
+    """사용자 2026-11-14("계속해서 개선해"): 끝 0.6 m 앞부터 줄이면 Gazebo v7 경기(order 모델 끔)
+    에서 MOVING 1058 s 가운데 503 s를 0.06 m/s 아래로 기었다. 0.12 m/s에서 0.25 m/s^2로 서는 데
+    3 cm면 되므로 마지막 0.2 m 안에서만 줄인다. 후진은 0.05 m/s라 이 값이 바꾸는 것이 없다."""
+    c = params("controller_server")
+    for name in ("FollowPath", "FollowPathReverse"):
+        assert c[name]["approach_velocity_scaling_dist"] == 0.2, name
 
 
 REVERSE_ONLY = {"desired_linear_vel": 0.05, "use_rotate_to_heading": False,
