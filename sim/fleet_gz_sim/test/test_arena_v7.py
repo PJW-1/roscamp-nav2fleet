@@ -85,12 +85,17 @@ def test_v7_random_scenario_expands_to_one_low_battery_per_robot_and_spread_orde
     assert all(20 <= f["at_s"] <= 150 and f["duration_s"] == 30 for f in low)
     times = [0.0] + [order["at_s"] for order in out["orders"]]
     gaps = [b - a for a, b in zip(times, times[1:])]
-    assert len(gaps) == 8 and all(5 - 0.05 <= gap <= 40 + 0.05 for gap in gaps), gaps
+    # at_s는 쌓인 시각을 0.1 s로 반올림한 값이라 두 at_s의 차는 참 간격과 0.1 s까지 다르다
+    assert len(gaps) == 8 and all(5 - 0.1 - 1e-9 <= gap <= 40 + 0.1 + 1e-9 for gap in gaps), gaps
 
 
 def test_v7_committed_maps_are_the_generator_output(tmp_path, site):
     from fleet_gz_sim import arena
     written = arena.generate(tmp_path, site)
+    expected = {"worlds/arena_v7.sdf"} | {f"maps/arena_v7{suffix}.{ext}"
+                                          for suffix in ("", "_fine", "_keepout")
+                                          for ext in ("yaml", "pgm")}
+    assert set(written) == expected
     for name in written:
         assert (tmp_path / name).read_bytes() == (PKG / name).read_bytes(), name
     for suffix, resolution in (("", arena_maps.COARSE_M), ("_fine", arena_maps.FINE_M),
