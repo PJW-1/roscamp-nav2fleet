@@ -126,7 +126,7 @@
   - orders8, 씨드 1016, perfect 한 판만 다시 돌려 사건을 보았다. WORK 출구 8번 가운데 7번이 급행이었다(`WORK_DOCK+HALL+J_E+EXPRESS+OUT_DOCK to O`). 나머지 1번은 `work_hall`이었다.
     - 218.8 s pinky2 `WORK_DOCK+HALL to O_Q`, FOLLOW_SENT `to N_E`
     - 이어서 Nav2 goal로 N_O, O_Q에 가서 기다렸다.
-    - 241.6 s `HALL+OUT_DOCK to O`, out_in으로 O에 도킹했다.
+    - 241.6 s `HALL+OUT_DOCK to O`, 245.5 s FOLLOW_SENT `to O`(out_in), 250.9 s `DOCKED at OUTBOUND: x 0.4 cm, y 0.3 cm, yaw 0.5 deg`.
   - 나머지 59판의 출구는 사건으로 확인하지 않았다. 검사 스크립트는 세션 scratchpad의 `hall_exit_check.py`다.
   - 결과 표는 세션 scratchpad의 `hl_v7_random_db7751c.txt`이고, 저장소에는 넣지 않았다.
 - f394f2c: v7 orders8, burst10 × perfect/mixed/none × 씨드 1·2·3 = 18/18 통과, 교착 0이었다.
