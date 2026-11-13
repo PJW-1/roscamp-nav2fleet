@@ -46,9 +46,9 @@ class Blocked:
             behind = self._behind_on_the_way_back(m)
             point = self._obstacle_point(m) if not behind else None
             other = self._robot_at(m, point) if point is not None else None
-            if other is not None and not self._yielded_lately(m, now):
+            if (other is not None and not self._yielded_lately(m, now)
+                    and self._yield_to_robot(m, other, now)):
                 m.rear_noted = False
-                self._yield_to_robot(m, other, now)
             elif not behind:
                 m.rear_noted = False
                 self._mark_blocked(m, now, None if other is not None else point)

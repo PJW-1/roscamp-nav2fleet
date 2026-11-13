@@ -1,6 +1,8 @@
 # ---- 물러나기와 다른 로봇에게 양보 믹스인 ----
 from __future__ import annotations
 
+import math
+
 from fleet_core.fleet_map import FOLLOW_PATH, PASS, SHARED
 from fleet_core.fleet_map.geometry import point_segment_distance
 from fleet_core.traffic.mission import BLOCKED
@@ -72,23 +74,36 @@ class YardRetreat:
         self._fail(m, BLOCKED)
 
     # ---- 다른 로봇에게 길 양보 ----
-    def _yield_to_robot(self, m, other, now: float) -> None:
-        m.blocked_since = None
-        m.robot_yield_at = now
+    def _yield_to_robot(self, m, other, now: float) -> bool:
         link = m.trip.links[m.trip.done]
         zone = self.site.zone_at(m.x, m.y)
-        if link.a and zone is not None and self.site.zones[zone].kind != SHARED:
+        in_lane = link.a and zone is not None and self.site.zones[zone].kind != SHARED
+        sent_off = (not in_lane and other.available and other.goal is None
+                    and self._in_yard(other)
+                    and self._to_parking(other, "INFO", "HALL_YIELD",
+                                         f"out of the way of {m.name}, goes to", clear_of=m))
+        if not in_lane and not sent_off and self._parked(other):
+            return False
+        m.blocked_since = None
+        m.robot_yield_at = now
+        if in_lane:
             self._cancel_goal(m)
             self._set_retreat(m, link, now)
             self._drop_trip(m)
             self._event("INFO", "HALL_YIELD", f"backs out to {m.retreat_to} for {other.name}, "
                         "nothing marked", m.name)
-            return
-        if (other.available and other.goal is None and self._in_yard(other)
-                and self._to_parking(other, "INFO", "HALL_YIELD",
-                                     f"out of the way of {m.name}, goes to", clear_of=m)):
+            return True
+        if sent_off:
             self._event("INFO", "HALL_YIELD", f"waits for {other.name} to clear the way, "
                         "nothing marked", m.name)
-            return
+            return True
         self._cancel_goal(m)
         self._stand_aside(m, other, now)
+        return True
+
+    # ---- 주차 자리에 서서 비킬 곳이 없는 로봇 ----
+    def _parked(self, other) -> bool:
+        site = self.site
+        return (other.goal is None and other.node in site.parking
+                and math.dist((other.x, other.y), site.node_pose(other.node))
+                <= self.params.arrival_tolerance_m)

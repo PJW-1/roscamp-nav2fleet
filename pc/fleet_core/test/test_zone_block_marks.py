@@ -145,6 +145,24 @@ def test_a_robot_standing_in_the_way_is_sent_off_and_nothing_is_marked():
     assert world.run_until(lambda: world.result_of(call), 200.0)
 
 
+def test_a_robot_parked_in_its_bay_in_the_way_is_not_waited_for():
+    """v7: 칸에 주차한 로봇은 비킬 곳이 없다. 그 로봇에 막히면 서서 5 s 기다렸다 같은 길을 다시 받지
+    않고, blocked_mark_s 뒤 바로 그 이음을 표시하고 다른 길을 고른다(사용자 2026-11-13 밤: 막혔다고
+    판정했으면 돌아갈 길을 바로 준다. Gazebo에서는 양보와 다시 보내기가 끼어 67 s가 걸렸다)."""
+    world = Seeing(layout="v7", starts={"pinky1": "E-1", "pinky2": "P-2", "pinky3": "P-3"})
+    world.step()
+    world.call("WORK", "pinky1")
+    # 길에 닿도록 몸보다 크게 둔 pinky2(이 세계는 로봇 중심으로 잰다)
+    world.obstacles.append((*world.site.node_pose("P-2"), 0.19))
+    assert world.run_until(lambda: "BLOCKED_WAIT" in world.codes("pinky1"), 30.0)
+    world.run(world.params.blocked_mark_s + 0.5)
+    codes = world.codes("pinky1")
+    assert "HALL_YIELD" not in world.codes(), [e.detail for e in world.events
+                                               if e.code == "HALL_YIELD"]
+    assert "ZONE_MARKED_BLOCKED" in codes and "REROUTE" in codes
+    assert world.view("pinky2")["node"] == "P-2", "the parked robot stays"
+
+
 # ---- FleetManager가 받는 칸(계약 0.12-draft) ----
 
 @pytest.mark.parametrize("seen, kept", [
