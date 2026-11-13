@@ -72,8 +72,8 @@ ARGS = {
                             "(pinky_scan_filter, 추가지시서3 7-2). false면 띄우지 않는다(비교용)"),
     "wall_band_m": ("0.05", "스캔 거르개: 벽·진열대에서 이만큼 안의 점을 지운다(m)."
                             " 0.05는 D2 측정으로 고른 값(fixed_line_results.md)"),
-    "peer_obstacles": ("false", "true면(임시, 주행 시험용) 로봇마다 다른 로봇의 몸을 costmap에 찍는다"
-                                "(pinky_peer_obstacles): Nav2가 다른 로봇을 피해 길을 짠다"),
+    "peer_obstacles": ("true", "로봇마다 다른 로봇의 몸을 costmap에 찍는다(pinky_peer_obstacles, 임시):"
+                               " Nav2가 다른 로봇을 피해 길을 짠다. false면 찍지 않는다(비교용)"),
     "fleet_record": ("false", "true면 관제 기록(fleet_manager --record)을"
                               " result_dir/fleet_record.jsonl에 남긴다. tools/triage,"
                               " tools/avoid_regression.py, tools/replay.py가 읽는다"),

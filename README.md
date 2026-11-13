@@ -96,6 +96,11 @@ python3 tools/situations.py -l d2 d c --seeds 1 2 3   # 시험용 배치는 -l d
 # Gazebo: 핑키 3대와 관제, 배치 d2, 주문 8개
 ros2 launch fleet_gz_sim gz.launch.py layout:=d2
 
+# Gazebo: 임무를 끝까지(도킹 흉내). 다른 로봇의 몸을 costmap에 찍는 층은 기본으로 켜져 있다
+ros2 launch fleet_gz_sim gz.launch.py layout:=d2 sim_dock_stub:=true
+# 비교용: 그 층을 끈다
+ros2 launch fleet_gz_sim gz.launch.py layout:=d2 sim_dock_stub:=true peer_obstacles:=false
+
 # Gazebo: 핑키 한 대만(관제 없음), 다른 터미널에서 정해진 구간을 달리게 한다
 ros2 launch fleet_gz_sim one_pinky.launch.py gui:=false rviz:=false
 ros2 run fleet_gz_sim drive_check --layout d2 --plan stage2

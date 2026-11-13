@@ -373,18 +373,20 @@ def test_the_fleet_record_is_kept_in_the_result_folder_only_when_asked(made, tmp
         run(made, fleet_record="yes")
 
 
-@pytest.mark.parametrize("asked", [{}, {"peer_obstacles": "false"}])
-def test_the_bodies_of_other_robots_stay_out_of_the_costmaps_unless_asked(made, asked):
-    actions = run(made, **asked)
+def test_the_bodies_of_other_robots_stay_out_of_the_costmaps_when_switched_off(made):
+    actions = run(made, peer_obstacles="false")
     [stand_in] = nodes(actions, "sim_stand_in")
     assert params(stand_in)["peer_obstacles"] is False
     for nav in includes(actions, "nav2.launch.py"):
         assert launch_args(nav)["peer_obstacles"] == "false"
 
 
-def test_peer_obstacles_adds_the_layer_to_every_robot_and_the_stand_in_sends_the_bodies(made):
-    before = len(nodes(run(made)))
-    actions = run(made, peer_obstacles="true")
+@pytest.mark.parametrize("asked", [{}, {"peer_obstacles": "true"}])
+def test_peer_obstacles_adds_the_layer_to_every_robot_and_the_stand_in_sends_the_bodies(
+        made, asked):
+    # 기본이 켜짐이다(사용자 결정 2026-11-13, 작업 기록 11절)
+    before = len(nodes(run(made, peer_obstacles="false")))
+    actions = run(made, **asked)
     navs = includes(actions, "nav2.launch.py")
     assert len(navs) == 3
     for nav in navs:

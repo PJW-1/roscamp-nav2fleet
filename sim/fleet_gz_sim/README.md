@@ -102,6 +102,7 @@ pgrep -af "gz sim|ruby|component_container|pinky_fsm_node|fleet_manager_node"   
 | `nav_log_level` | `warn` | Nav2 로그 수준 |
 | `scan_filter` | `true` | 스캔 거르개(`pinky_scan_filter`)를 띄우고 배치의 shared가 아닌 구역 사각형(경기장 벽에 닿은 변은 `wall_band_m`만큼 벽 너머까지)과 진열대 끝면마다 `wall_band_m`만큼 넓힌 작은 상자를 좁은 띠로 준다. `false`면 costmap이 원래 스캔을 읽는다(비교용) |
 | `wall_band_m` | `0.05` | 거르개가 벽·진열대에서 지우는 띠 폭(m). D2 측정에서 0.04는 도크 진입을 두 번 중 한 번 멈췄고 0.05는 세 번 지나갔다(`results/fixed_line_results.md`) |
+| `peer_obstacles` | `true` | 로봇마다 다른 로봇의 몸을 costmap에 찍는다(`pinky_peer_obstacles`, `pinky_nav_config`의 `params/peer_obstacles.yaml`, 임시 구현): 다른 로봇이 보고한 자세에 반지름 0.08 m 원을 찍어 Nav2가 피해서 길을 짠다. 노드는 `sim_stand_in` 프로세스 안에서 돈다(프로세스를 늘리지 않는다). `false`면 찍지 않는다(비교용). 기본을 켠 근거는 작업 기록 11절(D2 세 판) |
 | `nav_composition` | `true` | 로봇마다 Nav2 노드 9개를 프로세스 하나로. `false`면 DDS 참여자가 LOCALHOST 한도(약 32)를 넘어 pinky3이 안 보인다 |
 
 `true`/`false` 인자에 오타가 있으면 launch가 바로 멈춘다.
