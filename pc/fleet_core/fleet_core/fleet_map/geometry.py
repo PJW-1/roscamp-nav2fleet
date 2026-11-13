@@ -24,7 +24,7 @@ def overlap_area(a: Rect, b: Rect) -> float:
     return width * height if width > EPS and height > EPS else 0.0
 
 
-# ---- 점과 선분의 거리 계산 ----
+# ---- 점과 사각형·선분 사이 거리와 선분 교차 판정 ----
 def point_rect_distance(rect: Rect, x: float, y: float) -> float:
     dx = max(rect[0] - x, 0.0, x - rect[2])
     dy = max(rect[1] - y, 0.0, y - rect[3])
@@ -53,7 +53,7 @@ def _cross(a: Point, b: Point, c: Point, d: Point) -> bool:
                for turn, point, p, q in touching)
 
 
-# ---- 선분과 사각형, 벽 사이 거리와 표본 추출 ----
+# ---- 선분과 사각형 사이 거리, 점과 벽 사이 거리, 선분 표본 ----
 def segment_rect_distance(a: Point, b: Point, rect: Rect) -> float:
     if inside(rect, *a) or inside(rect, *b):
         return 0.0

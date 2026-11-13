@@ -47,7 +47,7 @@ def from_order_items(items) -> dict[str, int]:
     return counts
 
 
-# ---- 코어 상태를 ROS 메시지로 변환 ----
+# ---- 코어 상태와 이벤트를 ROS 메시지로 변환 ----
 def zones_to_msg(views, now: float) -> ZoneStateArray:
     zones = []
     for view in views:
@@ -108,7 +108,7 @@ def robot_local_yield(msg) -> str:
     return msg.local_yield
 
 
-# ---- CheckClear 요청 만들기와 서비스·액션 결과 값 꺼내기 ----
+# ---- CheckClear 요청과 답, 액션 결과와 feedback 변환 ----
 def check_clear_request(command):
     return CheckClear.Request(x=float(command.x), y=float(command.y), r=float(command.radius_m))
 

@@ -117,7 +117,7 @@ def generate_launch_description():
         "initial_pose.y": ParameterValue(arg("initial_y"), value_type=float),
         "initial_pose.yaw": ParameterValue(arg("initial_yaw"), value_type=float),
     }
-    # ---- Nav2 노드 목록 ----
+    # ---- Nav2·keepout 노드와 라이프사이클 매니저 목록 ----
     nav_nodes = [
         ("nav2_map_server", "map_server", "nav2_map_server::MapServer", "map_server",
          [{"yaml_filename": arg("map")}], None),

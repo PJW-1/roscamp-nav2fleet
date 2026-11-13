@@ -122,7 +122,7 @@ def retreat_end_warnings(site) -> list[str]:
     return out
 
 
-# ---- 도크와 주차 노드 사이 경로 존재 검사 ----
+# ---- 도크와 주차 노드 사이, 도크끼리 길이 있는지 검사 ----
 def check_reach(site) -> None:
     docks = sorted(site.docks)
     pairs = [(spot, dock) for spot in site.parking for dock in docks]

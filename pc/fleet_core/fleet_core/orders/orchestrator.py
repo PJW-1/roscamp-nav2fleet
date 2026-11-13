@@ -109,7 +109,7 @@ class OrderOrchestrator(Faults, Stations):
         elif isinstance(report, ArmLost):
             self._on_arm_lost(r, report)
 
-    # ---- 팔 결과를 주문에 반영 ----
+    # ---- 팔 결과를 주문에 반영하고 결과를 잃은 작업 기록 ----
     def _on_fill_result(self, r: _Robot, success, placed) -> None:
         r.asked = ""
         _merge(r.order.placed, placed)

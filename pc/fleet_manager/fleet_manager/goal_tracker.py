@@ -4,7 +4,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 
-# ---- goal 취소 상태 추적 ----
+# ---- goal 전송·수락·완료·유실과 취소 상태 추적 ----
 @dataclass
 class _Cancel:
     tried_at: float

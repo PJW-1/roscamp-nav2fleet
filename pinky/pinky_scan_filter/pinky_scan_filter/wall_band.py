@@ -32,7 +32,7 @@ def near_cells(occupied: np.ndarray, resolution: float, band_m: float) -> np.nda
     return near
 
 
-# ---- 벽 밴드 판정 클래스 ----
+# ---- 좁은 띠 안의 벽 가까운 점을 가려내는 클래스 ----
 class WallBand:
     def __init__(self, occupied, origin, resolution, band_m, strips):
         self.origin = (float(origin[0]), float(origin[1]))

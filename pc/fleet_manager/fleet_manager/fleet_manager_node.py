@@ -226,7 +226,7 @@ class FleetManagerNode(Node):
         if now > 0.0:
             self._robots_pub.publish(adapters.robots_to_msg(self.core.robots_view(), now))
 
-    # ---- 코어 명령을 액션, 서비스, 로그로 내보냄 ----
+    # ---- 코어 명령 처리: 액션, 막힘 지점 확인, 취소, 주문 보고, 사건 ----
     def _dispatch(self, command, now: float) -> None:
         if isinstance(command, MoveCmd):
             self._send(self._move[command.robot], adapters.move_goal(command),

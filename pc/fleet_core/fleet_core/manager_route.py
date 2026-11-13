@@ -33,7 +33,7 @@ class ManagerRoute:
             for item in items:
                 self._route(item)
 
-    # ---- 출력 항목을 종류별로 알맞은 코어에 전달 ----
+    # ---- 출력 항목을 알맞은 코어에 전달하거나 바깥 출력으로 내보내기 ----
     def _route(self, item) -> None:
         if isinstance(item, ARM_COMMANDS):
             self._note("inside", item)

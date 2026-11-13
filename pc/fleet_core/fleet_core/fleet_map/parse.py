@@ -110,7 +110,7 @@ def read_nodes(raw: dict, zones: dict[str, Zone]) -> dict[str, Node]:
     return nodes
 
 
-# ---- 경로가 지나는 구역 찾기 ----
+# ---- 경로가 지나는 구역과 다시 들어가는 구역 찾기 ----
 def zones_along(zones: dict[str, Zone], points) -> tuple[str, ...]:
     seen: list[str] = []
     for a, b in zip(points, points[1:], strict=False):
