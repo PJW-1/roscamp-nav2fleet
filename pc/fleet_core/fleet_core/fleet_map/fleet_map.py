@@ -15,7 +15,7 @@ from .parse import read_links, read_nodes, read_parking, read_rect, read_station
 # ---- 레이아웃 이름과 검사 기준 상수 ----
 DATA = Path(__file__).parents[1] / "data"
 DEFAULT_LAYOUT = "d2"
-LAYOUTS = ("d2", "d", "c")
+LAYOUTS = ("d2", "d", "c", "v7")
 TEST_LAYOUTS = ("d2_shelf",)
 KNOWN_LAYOUTS = (*LAYOUTS, *TEST_LAYOUTS)
 BODY_CLEARANCE_M = 0.06
