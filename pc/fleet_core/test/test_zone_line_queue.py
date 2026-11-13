@@ -150,16 +150,20 @@ def test_a_spot_held_by_a_robot_leaving_the_line_is_not_the_tail():
     assert traffic._open_spots(new, station)[0] == "Q1"
 
 
-def test_a_robot_stepping_forward_ranks_by_the_spot_it_goes_to():
-    """한 칸 당기는 로봇은 마지막으로 선 자리가 아니라 가는 자리로 순위를 받는다(40b9767 리뷰)."""
-    world = Harness(site=line_map(), starts={"pinky1": "W", "pinky2": "Q2", "pinky3": "Q3"})
+@pytest.mark.parametrize("order_model", [False, True])
+def test_a_robot_stepping_forward_ranks_by_the_spot_it_goes_to(order_model):
+    """한 칸 당기는 로봇은 마지막으로 선 자리가 아니라 가는 자리로 순위를 받는다(40b9767 리뷰).
+    order 모델은 대기 트립 끝에 도크까지 붙여 trip.goal이 도크가 된다(6810b3b 리뷰)."""
+    world = Harness(site=line_map(), starts={"pinky1": "W", "pinky2": "Q2", "pinky3": "Q3"},
+                    params=replace(load_params(), use_order_model=order_model))
     world.report()
     for robot in ("pinky1", "pinky3", "pinky2"):
         world.call("WORK", robot)
     world.step()
     traffic = world.traffic
     moving = traffic._robots["pinky2"]
-    assert moving.node == "Q2" and moving.trip is not None and moving.trip.goal == "Q1"
+    assert moving.node == "Q2" and moving.trip is not None
+    assert moving.trip.links[0].b == "Q1"
     assert traffic._line_spot(moving, world.site.stations["WORK"]) == 0
 
 
@@ -176,4 +180,25 @@ def test_v7_two_spots_new_robot_takes_the_tail_and_the_line_docks_in_order():
     world.traffic.on_release("pinky2")
     assert world.run_until(lambda: world.result_of(back) is not None, 300.0)
     assert "Q1" in targets(world, "pinky3"), "steps forward before it docks"
+    assert not world.problems
+
+
+def test_v7_the_front_robot_low_on_battery_leaves_while_the_tail_waits():
+    """v7: 줄 앞 Q1의 로봇이 배터리가 낮아 떠난다. 꼬리 Q2에 로봇이 서 있으니 Q1 -> F -> G로 앞으로
+    빠져 칸에 서고, 꼬리 로봇은 한 칸 당겨 도크에 들어간다(6810b3b 리뷰: 서로 막을 수 있다)."""
+    world = Harness(layout="v7", params=replace(load_params(), battery_low_pct=20.0),
+                    starts={"pinky1": "W", "pinky2": "Q1", "pinky3": "Q2"})
+    calls(world)
+    first, second = world.call("WORK"), world.call("WORK")
+    world.run(5.0)
+    assert world.phase("pinky2") == world.phase("pinky3") == "TO_WORK"
+    bot = world.bots["pinky2"]
+    world.traffic.on_robot_state("pinky2", bot.x, bot.y, bot.yaw, "IDLE", 15.0)
+    assert world.run_until(lambda: world.phase("pinky2") == "PARKED", 400.0), world.log[-20:]
+    world.traffic.on_release("pinky1")
+    assert world.run_until(lambda: world.result_of(first) is not None, 300.0)
+    done = world.result_of(first).robot_id
+    world.traffic.on_release(done)
+    assert world.run_until(lambda: world.result_of(second) is not None, 300.0)
+    assert {done, world.result_of(second).robot_id} <= {"pinky1", "pinky3"}
     assert not world.problems

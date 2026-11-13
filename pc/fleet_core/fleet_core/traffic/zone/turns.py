@@ -65,8 +65,11 @@ class Turns:
     def _line_spot(self, r, station) -> int:
         """줄 순서(앞이 0). 한 칸 당기는 로봇은 가는 자리로, 줄에 안 선 로봇은 맨 뒤 다음."""
         trip = r.trip
-        if trip is not None and not trip.stale and trip.goal in station.queue:
-            return station.queue.index(trip.goal)
+        if trip is not None and not trip.stale:
+            # 트립에서 처음 닿는 대기 자리(order 모델은 끝에 도크까지 붙인다)
+            spots = [link.b for link in trip.links if link.b in station.queue]
+            if spots:
+                return station.queue.index(spots[0])
         if r.node in station.queue:
             return station.queue.index(r.node)
         return len(station.queue)
