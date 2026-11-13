@@ -89,7 +89,7 @@ V7_GAP = (0.99, 0.365, 1.25, 0.405)  # v7 남쪽 진열대 사이 건넘 틈
 
 def test_keepout_extra_closes_its_rectangle_without_padding_and_is_no_zone():
     site = load_fleet_map("v7")
-    assert site.keepout_extra == (V7_GAP,)
+    assert site.keepout_extra[0] == V7_GAP
     # 덧대지 않는다: 목적은 계획 차단이고, 덧대면 가운데 통로와 남쪽 마당이 좁아진다
     assert V7_GAP in keepout_rects(site) and V7_GAP in keepout_rects(site, 0.0)
     grid = mask(site, *SIZE, RESOLUTION, ORIGIN)
@@ -108,7 +108,7 @@ def test_layouts_without_keepout_extra_keep_their_masks():
 def test_a_keepout_extra_outside_the_floor_is_refused():
     from fleet_core.fleet_map import FleetMapError, fleet_map_from_text
     text = load_fleet_map("v7").source_text.replace(
-        "keepout_extra: [[0.99, 0.365, 1.25, 0.405]]", "keepout_extra: [[1.9, 0.9, 2.1, 1.0]]")
+        "[[0.99, 0.365, 1.25, 0.405],", "[[1.9, 0.9, 2.1, 1.0],")
     assert "2.1, 1.0" in text
     with pytest.raises(FleetMapError, match="keepout_extra"):
         fleet_map_from_text(text)

@@ -196,3 +196,36 @@ def test_v7_north_and_south_stay_joined_by_each_way_alone(site, shut, pairs):
     grid, _, _ = _costmap()
     for a, b in pairs:
         assert _joined(grid, site.node_pose(a), site.node_pose(b), shut), (a, b, shut)
+
+
+# ---- 칸막이 3 위 끝: Nav2 goal 경로가 모서리를 긁지 않게 ----
+DIVIDER_3_KEEP = (0.71, 0.0, 0.86, 0.20)  # 서쪽 끝 0.71: P-3에 선 로봇 발자국(0.64 + 0.06) 밖
+
+
+def test_v7_the_top_of_divider_3_is_kept_out_for_nav2(site):
+    """Gazebo 1~3판: 남쪽 마당을 서쪽으로 가던 로봇이 y ~0.16으로 와서 칸막이 3 위 끝(0.76~0.78,
+    0.10)을 긁었다(3판 pinky2: RPP 충돌 경고 약 400회, NAV_ABORTED 3회 뒤 ISOLATED). 그 둘레를
+    y 0.20까지 막아 Nav2 goal 경로의 중심이 그 구간에서 y 0.20 위로 다니게 한다. 칸 고정 경로
+    (P-3 <-> E-3, FollowPath)는 local costmap만 보므로 걸리지 않는다."""
+    assert DIVIDER_3_KEEP in site.keepout_extra
+    grid = arena_maps.keepout(arena_maps.FINE_M, site)
+
+    def kept(x, y):
+        i, j = arena_maps.cell_of(x, y, arena_maps.FINE_M, site)
+        return grid[j][i]
+    for x in (0.72, 0.77, 0.85):
+        assert kept(x, 0.12) and kept(x, 0.195), x
+    assert not kept(0.77, 0.205) and not kept(0.64, 0.11), "above it and the P-3 bay stay open"
+
+
+@pytest.mark.parametrize("a, b", [("E-3", "Q1"), ("E-3", "G"), ("E-3", "F"), ("E-3", "O_Q"),
+                                  ("E-3", "N_O"), ("E-1", "E-3")])
+def test_v7_the_south_yard_stays_open_above_the_divider_keepout(site, a, b):
+    """칸막이 keepout(y < 0.20)과 남쪽 진열대 inflation 사이로(5 cm 격자에서 y 0.225, 0.275 줄)
+    남쪽 마당이 이어진다."""
+    grid, _, _ = _costmap()
+    assert _joined(grid, site.node_pose(a), site.node_pose(b)), (a, b)
+    # 동쪽으로 가는 길은 칸막이 3 위를 지나야 한다: 서쪽 끝을 막아도 이어진다
+    if b in ("Q1", "G", "F"):
+        assert _joined(grid, site.node_pose(a), site.node_pose(b),
+                       shut=[(0.0, 0.40, 0.68, 0.99)]), (a, b)
