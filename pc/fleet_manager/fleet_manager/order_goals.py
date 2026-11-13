@@ -1,8 +1,10 @@
+# ---- 피드백 중복 걸러내기와 파라미터 덮어쓰기 ----
 from __future__ import annotations
 
 from dataclasses import replace
 
 
+# ---- 값이 바뀔 때만 통과시키는 피드백 필터 ----
 class FeedbackFilter:
     def __init__(self):
         self._last: dict = {}
@@ -17,6 +19,7 @@ class FeedbackFilter:
         self._last.pop(key, None)
 
 
+# ---- use_order_model, lookahead_s 값 덮어쓰기 ----
 def apply_overrides(params, use_order_model, lookahead_s):
     changes = {}
     if use_order_model is not None:

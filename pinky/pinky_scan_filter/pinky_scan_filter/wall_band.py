@@ -1,8 +1,10 @@
+# ---- 맵의 벽 근처 영역을 계산해 스캔 점을 걸러내는 계산 ----
 import math
 
 import numpy as np
 
 
+# ---- 좁은 구간 문자열 파싱과 벽 근처 셀 계산 ----
 def parse_strips(text: str) -> list[tuple[float, float, float, float]]:
     strips = []
     for part in text.split(";"):
@@ -30,6 +32,7 @@ def near_cells(occupied: np.ndarray, resolution: float, band_m: float) -> np.nda
     return near
 
 
+# ---- 벽 밴드 판정 클래스 ----
 class WallBand:
     def __init__(self, occupied, origin, resolution, band_m, strips):
         self.origin = (float(origin[0]), float(origin[1]))
@@ -53,6 +56,7 @@ class WallBand:
         return in_strip & near
 
 
+# ---- 스캔 빔을 점으로 바꿔 필터링 ----
 def beam_points(ranges, angle_min, angle_increment, pose):
     r = np.asarray(ranges, dtype=float)
     a = pose[2] + angle_min + angle_increment * np.arange(len(r))
@@ -74,6 +78,7 @@ def filter_ranges(band: WallBand, ranges, angle_min, angle_increment, range_min,
     return r
 
 
+# ---- 맵 원점 yaw 계산 ----
 def origin_yaw(qz: float, qw: float) -> float:
     yaw = 2.0 * math.atan2(qz, qw)
     return math.atan2(math.sin(yaw), math.cos(yaw))

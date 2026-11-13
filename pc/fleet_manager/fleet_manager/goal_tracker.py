@@ -1,8 +1,10 @@
+# ---- 액션 goal 추적과 보고 재전송 대기열 ----
 from __future__ import annotations
 
 from dataclasses import dataclass
 
 
+# ---- goal 취소 상태 추적 ----
 @dataclass
 class _Cancel:
     tried_at: float
@@ -74,6 +76,7 @@ class GoalTracker:
         return unconfirmed
 
 
+# ---- 주문 보고 재전송 대기열 ----
 @dataclass
 class _Report:
     item: object

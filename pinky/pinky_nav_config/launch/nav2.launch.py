@@ -1,3 +1,4 @@
+# ---- Nav2 노드들을 띄우는 launch 파일 ----
 import sys
 import tempfile
 from pathlib import Path
@@ -17,6 +18,7 @@ from nav2_common.launch import ReplaceString, RewrittenYaml
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from pinky_nav_params import merge, with_avoidance, with_peers  # noqa: E402
 
+# ---- 경로와 노드 그룹 상수 ----
 SHARE = Path(get_package_share_directory("pinky_nav_config"))
 LOCALIZATION = ["map_server", "map_server_fine", "amcl"]
 NAVIGATION = ["controller_server", "planner_server", "behavior_server", "bt_navigator"]
@@ -24,6 +26,7 @@ KEEPOUT = ["keepout_mask_server", "costmap_filter_info_server"]
 TF_REMAPS = [("/tf", "tf"), ("/tf_static", "tf_static")]
 
 
+# ---- 파라미터 읽기와 launch 치환 클래스 ----
 def _read(path) -> dict:
     return yaml.safe_load(Path(path).read_text(encoding="utf-8"))
 
@@ -85,6 +88,7 @@ class WithOverlays(Substitution):
         return out.name
 
 
+# ---- launch 인자와 노드 구성을 만드는 함수 ----
 def generate_launch_description():
     arg = LaunchConfiguration
     namespace = arg("namespace")
@@ -102,6 +106,7 @@ def generate_launch_description():
         root_key=namespace, param_rewrites={}, convert_types=True), allow_substs=True)
     log = ["--ros-args", "--log-level", arg("log_level")]
 
+    # ---- 라이프사이클 매니저 파라미터와 초기 위치 ----
     def manager_params(nodes):
         return {"autostart": ParameterValue(arg("autostart"), value_type=bool),
                 "node_names": nodes}
@@ -112,6 +117,7 @@ def generate_launch_description():
         "initial_pose.y": ParameterValue(arg("initial_y"), value_type=float),
         "initial_pose.yaw": ParameterValue(arg("initial_yaw"), value_type=float),
     }
+    # ---- Nav2 노드 목록 ----
     nav_nodes = [
         ("nav2_map_server", "map_server", "nav2_map_server::MapServer", "map_server",
          [{"yaml_filename": arg("map")}], None),
@@ -137,6 +143,7 @@ def generate_launch_description():
                 ("lifecycle_manager_navigation", NAVIGATION, None)]
     keepout_manager = [("lifecycle_manager_keepout", KEEPOUT, keepout)]
 
+    # ---- 노드를 프로세스·컴포넌트로 만드는 헬퍼 ----
     def processes(nodes):
         return [Node(package=package, executable=executable, name=name, output="screen",
                      parameters=[params, *extra], remappings=TF_REMAPS, arguments=log,
@@ -161,6 +168,7 @@ def generate_launch_description():
                                parameters=[manager_params(nodes)], condition=cond)
                 for name, nodes, cond in entries]
 
+    # ---- 컴포넌트 컨테이너와 보조 노드 ----
     container = ComposableNodeContainer(
         name="nav2_container", namespace="", package="rclcpp_components",
         executable="component_container_isolated", output="screen", arguments=log,
@@ -180,6 +188,7 @@ def generate_launch_description():
                      "robots": ParameterValue(PeerRobots(peer_node, arg("peer_robots")),
                                               value_type=str)}])
     use_composition = arg("use_composition")
+    # ---- LaunchDescription 반환 ----
     return LaunchDescription([
         DeclareLaunchArgument("namespace", default_value="pinky1"),
         DeclareLaunchArgument("use_sim_time", default_value="false"),

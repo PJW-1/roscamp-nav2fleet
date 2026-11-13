@@ -1,3 +1,4 @@
+# ---- 맵을 받아 스캔의 벽 인접 점을 걸러 내보내는 노드 ----
 import math
 
 import numpy as np
@@ -13,11 +14,13 @@ from tf2_ros import Buffer, TransformException, TransformListener
 
 from .wall_band import WallBand, filter_ranges, origin_yaw, parse_strips
 
+# ---- 상수 ----
 OCCUPIED = 65
 TF_WAIT = Duration(seconds=0.05)
 MAX_TF_AGE_S = 0.1
 
 
+# ---- ScanFilter 노드 생성과 정리 ----
 class ScanFilter(Node):
     def __init__(self):
         super().__init__("scan_filter")
@@ -45,6 +48,7 @@ class ScanFilter(Node):
         self.tf_node.destroy_node()
         super().destroy_node()
 
+    # ---- 맵 수신과 벽 밴드 생성 ----
     def on_map(self, msg: OccupancyGrid):
         info = msg.info
         o = info.origin.orientation
@@ -58,6 +62,7 @@ class ScanFilter(Node):
                              info.resolution, self.band_m, self.strips)
         self.get_logger().info(f"map {info.width}x{info.height} at {info.resolution} m")
 
+    # ---- 라이다 위치를 TF에서 조회 ----
     def _lidar_pose(self, frame: str, stamp):
         if stamp.sec == 0 and stamp.nanosec == 0:
             self.get_logger().warn("scan has no stamp; not filtering", throttle_duration_sec=5.0)
@@ -89,6 +94,7 @@ class ScanFilter(Node):
         yaw = math.atan2(2.0 * (q.w * q.z + q.x * q.y), 1.0 - 2.0 * (q.y * q.y + q.z * q.z))
         return t.translation.x, t.translation.y, yaw
 
+    # ---- 스캔 필터링과 발행 ----
     def on_scan(self, scan: LaserScan):
         pose = (self._lidar_pose(scan.header.frame_id, scan.header.stamp)
                 if self.band is not None and self.strips else None)
@@ -99,6 +105,7 @@ class ScanFilter(Node):
         self.pub.publish(scan)
 
 
+# ---- 노드 실행 진입점 ----
 def main():
     rclpy.init()
     node = ScanFilter()

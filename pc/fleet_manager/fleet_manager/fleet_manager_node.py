@@ -1,3 +1,4 @@
+# ---- fleet_core의 FleetManager를 ROS 노드로 감싼다 ----
 from __future__ import annotations
 
 import argparse
@@ -45,6 +46,7 @@ from fleet_manager.goal_tracker import GoalTracker, ReportOutbox
 from fleet_manager.order_goals import FeedbackFilter, apply_overrides
 
 
+# ---- FleetManagerNode 생성과 인터페이스 설정 ----
 class FleetManagerNode(Node):
     def __init__(self, record=None):
         super().__init__("fleet_manager")
@@ -139,6 +141,7 @@ class FleetManagerNode(Node):
         self.create_service(ConfirmClear, name("confirm_clear"), self._on_confirm_clear)
         self.create_service(Reinstate, name("reinstate"), self._on_reinstate)
 
+    # ---- 토픽과 서비스 수신 콜백 ----
     def _on_robot_state(self, robot, msg: RobotState) -> None:
         if not self.silent() and self._reachable(robot):
             self.core.on_robot_state(robot, *adapters.robot_report(msg),
@@ -163,6 +166,7 @@ class FleetManagerNode(Node):
         accepted = self.core.reinstate(*adapters.reinstate_args(request))
         return adapters.reinstate_response(response, accepted, self.core.last_reinstate_reason)
 
+    # ---- 주기 틱: 명령 내보내기, 취소 재시도, 주문 보고, 상태 발행 ----
     def _on_tick(self) -> None:
         now = self._now()
         if now <= 0.0 or self.silent():
@@ -222,6 +226,7 @@ class FleetManagerNode(Node):
         if now > 0.0:
             self._robots_pub.publish(adapters.robots_to_msg(self.core.robots_view(), now))
 
+    # ---- 코어 명령을 액션, 서비스, 로그로 내보냄 ----
     def _dispatch(self, command, now: float) -> None:
         if isinstance(command, MoveCmd):
             self._send(self._move[command.robot], adapters.move_goal(command),
@@ -285,6 +290,7 @@ class FleetManagerNode(Node):
         else:
             self.get_logger().info(text)
 
+    # ---- 액션 goal 보내기와 feedback, 수락, 결과 받기 ----
     def _on_move_feedback(self, key, msg) -> None:
         values = adapters.move_feedback(msg.feedback)
         if self._order_feedback.changed(key, values):
@@ -333,6 +339,7 @@ class FleetManagerNode(Node):
         self._goals.finished(key)
         on_result(key, result)
 
+    # ---- 액션 거절과 결과를 코어에 전달 ----
     def _robot_rejected(self, key) -> None:
         self.core.on_goal_rejected(key[0], key[1])
 
@@ -363,6 +370,7 @@ class FleetManagerNode(Node):
         self.core.on_swap_result(key[1], *adapters.swap_result(result))
 
 
+# ---- 노드 실행 진입점 ----
 def main() -> None:
     parser = argparse.ArgumentParser(description="The FMS node.")
     parser.add_argument("--record", default=None, metavar="PATH",

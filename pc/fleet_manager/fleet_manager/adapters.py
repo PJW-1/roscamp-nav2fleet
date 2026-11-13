@@ -1,3 +1,4 @@
+# ---- fleet_core 값과 ROS 메시지·액션·서비스를 서로 변환 ----
 from __future__ import annotations
 
 import math
@@ -22,6 +23,7 @@ from fleet_interfaces.srv import CheckClear, ReportOrder
 from geometry_msgs.msg import Pose, PoseStamped
 from nav_msgs.msg import Path
 
+# ---- 공통 상수와 시간·주문 품목 변환 ----
 SOURCE = "fleet_manager"
 REASON_OF_STATUS = {
     GoalStatus.STATUS_CANCELED: MoveTo.Result.REASON_CANCELED,
@@ -45,6 +47,7 @@ def from_order_items(items) -> dict[str, int]:
     return counts
 
 
+# ---- 코어 상태를 ROS 메시지로 변환 ----
 def zones_to_msg(views, now: float) -> ZoneStateArray:
     zones = []
     for view in views:
@@ -86,6 +89,7 @@ def robots_to_msg(views, now: float) -> RobotStatusArray:
     return RobotStatusArray(robots=robots, stamp=to_time(now))
 
 
+# ---- 로봇이 보낸 상태 메시지에서 값 추출 ----
 def robot_report(msg) -> tuple[float, float, float, str, float]:
     return msg.pose.x, msg.pose.y, msg.pose.theta, msg.state, msg.battery
 
@@ -104,6 +108,7 @@ def robot_local_yield(msg) -> str:
     return msg.local_yield
 
 
+# ---- CheckClear 요청 만들기와 서비스·액션 결과 값 꺼내기 ----
 def check_clear_request(command):
     return CheckClear.Request(x=float(command.x), y=float(command.y), r=float(command.radius_m))
 
@@ -145,6 +150,7 @@ def swap_result(result) -> tuple[bool, bool, bool, str]:
     return result.success, result.took_full, result.put_empty_done, result.reason
 
 
+# ---- 서비스 요청과 응답 변환 ----
 def confirm_clear_args(request) -> tuple[str, list[str], str]:
     return request.robot_id, list(request.zone_ids), request.note
 
@@ -166,6 +172,7 @@ def reinstate_response(response, accepted: bool, reason: str = ""):
     return response
 
 
+# ---- 주문 보드 메시지 변환 ----
 def order_board_mode(msg: OrderBoard) -> str:
     return msg.run_mode
 
@@ -182,6 +189,7 @@ def order_board_orders(msg: OrderBoard) -> list[OrderRecord]:
     return [OrderRecord(o.order_id, _board_items(o.items)) for o in msg.orders]
 
 
+# ---- 코어 명령을 액션 goal로 변환 ----
 def _poses(path) -> list[Pose]:
     poses = []
     for x, y, yaw in path:
@@ -255,6 +263,7 @@ def swap_goal(cmd) -> SwapBasket.Goal:
                            take_full=bool(cmd.take_full), put_empty=bool(cmd.put_empty))
 
 
+# ---- 주문 보고 서비스 변환 ----
 def report_accepted(response) -> bool:
     return response.accepted
 

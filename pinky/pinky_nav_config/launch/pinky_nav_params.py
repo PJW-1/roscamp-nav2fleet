@@ -1,3 +1,4 @@
+# ---- Nav2 파라미터 딕셔너리에 회피·피어 설정을 합치는 도우미 ----
 import copy
 
 AVOIDANCE_KEYS = ("follow_path_goal", "vision_obstacles")
@@ -8,6 +9,7 @@ PEER_LAYER = "peer_layer"
 INFLATION_LAYER = "inflation_layer"
 
 
+# ---- 딕셔너리 병합과 회피 키 검사 ----
 def merge(base: dict, extra: dict) -> None:
     for key, value in extra.items():
         if isinstance(value, dict) and isinstance(base.get(key), dict):
@@ -30,6 +32,7 @@ def avoidance_values_in(user: dict) -> list[str]:
     return found
 
 
+# ---- 회피와 피어 레이어를 파라미터에 적용 ----
 def with_avoidance(data: dict, avoidance: dict, vision: bool = False) -> dict:
     foreign = foreign_keys(avoidance)
     if foreign:

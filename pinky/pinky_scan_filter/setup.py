@@ -1,3 +1,4 @@
+# ---- pinky_scan_filter 패키지 설치 설정 ----
 from setuptools import setup
 
 setup(
