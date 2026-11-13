@@ -67,7 +67,8 @@ class Turns:
         trip = r.trip
         if trip is not None and not trip.stale:
             # 트립에서 처음 닿는 대기 자리(order 모델은 끝에 도크까지 붙인다)
-            spots = [link.b for link in trip.links if link.b in station.queue]
+            spots = [link.b for link in trip.links[trip.done:trip.granted]
+                     if link.b in station.queue]
             if spots:
                 return station.queue.index(spots[0])
         if r.node in station.queue:

@@ -11,7 +11,7 @@ from dataclasses import replace
 from pathlib import Path
 
 import pytest
-from fleet_core.common.commands import DockCmd, MoveCmd
+from fleet_core.common.commands import DockCmd
 from fleet_core.common.params import load_params
 from fleet_core.fleet_map import FleetMapError, fleet_map_from_text, load_fleet_map
 from zone_harness import DT, Harness
@@ -27,7 +27,8 @@ def line_map(line=True):
 
 
 def targets(world, robot):
-    return [c.target_id for c in world.sent(MoveCmd, robot)]
+    """보낸 구간(물러나기 말고)의 끝 지점. order 모델이면 base 조각마다 하나다."""
+    return [c.target_id for c in world.legs(robot) if c.mode != "retreat"]
 
 
 def calls(world, *robots):
@@ -163,6 +164,20 @@ def test_v7_new_robot_stands_behind_the_front_and_the_line_docks_in_order():
     assert not world.problems
 
 
+def test_v7_the_front_robot_docks_first_even_if_the_one_behind_asked_first():
+    """줄 순서는 지금 선 자리다. order 모델은 트립을 도크까지 이어 두므로 이미 지나온 자리(Q2)로
+    순위를 매기면 앞자리 로봇이 먼저 부른 뒷자리 로봇을 기다리고, 뒷자리 로봇은 앞자리가 비기를
+    기다려 둘 다 선다(Gazebo v7 2026-11-14: Q1의 로봇이 도크가 빈 채 60 s 넘게 섰다)."""
+    world = Harness(layout="v7", starts={"pinky1": "W", "pinky2": "E-3", "pinky3": "P-1"})
+    behind, front = calls(world, "pinky3", "pinky2")  # pinky3이 먼저 불렸지만 멀다
+    assert world.run_until(lambda: world.view("pinky2")["node"] == "Q1"
+                           and world.view("pinky3")["node"] == "Q2", 120.0), world.log[-30:]
+    world.traffic.on_release("pinky1")
+    assert world.run_until(lambda: world.result_of(front) is not None, 60.0), world.log[-10:]
+    assert world.result_of(behind) is None
+    assert not world.problems
+
+
 def test_v7_a_full_line_pulls_forward_as_soon_as_the_front_moves():
     """v7 줄이 가득(W, Q1, Q2): 도크가 비어 앞자리 로봇이 들어가면 Q2의 로봇이 바로 Q1으로 당긴다.
     두 자리가 노드 놓는 거리(0.20)보다 멀어 당긴 로봇이 뒷자리를 놓는다."""
@@ -202,7 +217,6 @@ def test_v7_a_robot_low_on_battery_in_the_open_yard_goes_to_a_door_and_backs_in(
     """마당을 Nav2 goal로 가던 로봇의 배터리가 떨어지면 칸 입구로 보낸 뒤 후진으로 넣는다.
     선 자리에서 칸 안으로 Nav2 goal을 곧장 보내지 않는다(Gazebo 2026-11-13 밤: 'NAV_GOAL_SENT to
     P-3'을 받은 로봇이 칸에 비스듬히 들어가다 입구에 걸려 섰고, 그 앞 입구에 온 로봇까지 막았다)."""
-    from fleet_core.common.commands import RetreatCmd
     world = Harness(layout="v7", params=replace(load_params(), battery_low_pct=20.0),
                     starts={"pinky1": "P-1", "pinky2": "W"})
     world.report()
@@ -213,9 +227,9 @@ def test_v7_a_robot_low_on_battery_in_the_open_yard_goes_to_a_door_and_backs_in(
     world.traffic.on_robot_state("pinky1", bot.x, bot.y, bot.yaw, "MOVING", 15.0)
     assert world.run_until(lambda: world.view("pinky1")["state"] == "PARKED", 200.0), \
         world.codes("pinky1")[-12:]
-    into_bays = [c.target_id for c in world.sent(MoveCmd, "pinky1") if c.target_id.startswith("P-")]
+    into_bays = [t for t in targets(world, "pinky1") if t.startswith("P-")]
     assert not into_bays, into_bays
-    assert world.sent(RetreatCmd, "pinky1")
+    assert [c for c in world.legs("pinky1") if c.mode == "retreat"]
     assert not world.problems
 
 
