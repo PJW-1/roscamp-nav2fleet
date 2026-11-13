@@ -5,20 +5,40 @@ Gazebo 3대 경기에서 나왔다: 출고 도크에서 물러난 로봇이 끝�
 """
 import math
 
-from fleet_core.common.commands import CancelCmd, MoveCmd, RetreatCmd
+from fleet_core.common.commands import CancelCmd
 from zone_harness import Harness
 
 
 def backing_out(silent_end=True):
-    """pinky1이 작업 도크에서 N_W로 물러나는 세계. silent_end면 끝에 닿아도 결과가 오지 않는다."""
+    """pinky1이 작업 도크에서 N_W로 물러나는 세계. silent_end면 끝에 닿아도 결과가 오지 않는다.
+    order 모델에서 물러나기는 order의 첫 조각이다. silent_end면 로봇은 그 조각 끝에서 말없이 선다.
+    answer(robot, goal, success, reason)는 물러나기 goal의 결과를 넣는다."""
     world = Harness(starts={"pinky1": "W", "pinky2": "P-2", "pinky3": "P-3"})
+    order = world.params.use_order_model
+    if silent_end and order:
+        world.hold_after["pinky1"] = "retreat"
     world.report()
     world.call("OUTBOUND", "pinky1")
     world.run(0.5)
-    answer = world.traffic.on_retreat_result
-    if silent_end:
+    answer = world.traffic.on_move_result if order else world.traffic.on_retreat_result
+    if silent_end and not order:
         world.traffic.on_retreat_result = lambda *args: None
-    return world, world.sent(RetreatCmd, "pinky1")[0], answer
+    return world, retreats(world)[0], answer
+
+
+def retreats(world, robot="pinky1"):
+    return [leg for leg in world.legs(robot) if leg.mode == "retreat"]
+
+
+def stopped(world, robot):
+    """로봇이 goal 끝에 섰다: 받은 이동을 끝냈거나, order의 조각 끝에서 말없이 서 있다."""
+    bot = world.bots[robot]
+    return bot.cmd is None and (bot.run is None or bot.run.held)
+
+
+def moved_on(world, robot, after):
+    """after(goal id) 뒤에 새 이동 goal이 나갔다."""
+    return [leg for leg in world.moves(robot) if leg.goal_id > after]
 
 
 def test_a_retreat_left_open_with_the_robot_at_its_end_is_taken_as_arrived():
@@ -30,14 +50,15 @@ def test_a_retreat_left_open_with_the_robot_at_its_end_is_taken_as_arrived():
     assert [c.goal_id for c in world.sent(CancelCmd, "pinky1")] == [retreat.goal_id], \
         "the open goal is cancelled"
     assert world.view("pinky1")["node"] == "N_W"
-    assert world.run_until(lambda: world.sent(MoveCmd, "pinky1"), 10.0), "it goes on from N_W"
-    assert len(world.sent(RetreatCmd, "pinky1")) == 1, "the retreat is not sent again"
+    assert world.run_until(lambda: moved_on(world, "pinky1", retreat.goal_id), 10.0), \
+        "it goes on from N_W"
+    assert len(retreats(world)) == 1, "the retreat is not sent again"
     assert not world.problems
 
 
 def test_a_retreat_answered_as_failed_with_the_robot_at_its_end_is_taken_as_arrived():
     world, retreat, answer = backing_out()
-    assert world.run_until(lambda: world.bots["pinky1"].cmd is None, 20.0), "it reached N_W"
+    assert world.run_until(lambda: stopped(world, "pinky1"), 20.0), "it reached N_W"
     world.step()
     answer("pinky1", retreat.goal_id, False, "FAILED")
     world.step()
@@ -62,7 +83,7 @@ def test_a_move_left_open_short_of_its_end_is_still_a_stall():
     world.step()
     world.call("WORK", "pinky2")
     world.run(1.0)
-    world.bots["pinky2"].cmd = None  # 로봇이 가다가 섰고 결과도 오지 않는다
+    world.bots["pinky2"].cmd = world.bots["pinky2"].run = None  # 가다가 섰고 결과도 오지 않는다
     assert world.run_until(lambda: "GOAL_STALLED" in world.codes("pinky2"), 30.0)
     codes = world.codes("pinky2")
     assert "GOAL_RETRY" in codes and "GOAL_ENDED_AT_TARGET" not in codes
@@ -73,9 +94,10 @@ def test_a_move_answered_as_failed_with_the_robot_at_its_end_is_taken_as_arrived
     world.step()
     world.call("WORK", "pinky2")
     world.step()
-    first = world.sent(MoveCmd, "pinky2")[0]
+    first = world.moves("pinky2")[0]
+    world.hold_after["pinky2"] = first.mode  # order 모델: 첫 조각 끝에서 말없이 선다
     answer, world.traffic.on_move_result = world.traffic.on_move_result, lambda *args: None
-    assert world.run_until(lambda: world.bots["pinky2"].cmd is None, 60.0), "it reached N_W"
+    assert world.run_until(lambda: stopped(world, "pinky2"), 60.0), "it reached N_W"
     world.step()
     answer("pinky2", first.goal_id, False, "NAV_ABORTED")
     codes = world.codes("pinky2")
@@ -88,15 +110,15 @@ def test_the_next_goal_waits_until_the_cancel_of_the_open_goal_has_reached_the_r
     world, retreat, _ = backing_out()
     assert world.run_until(lambda: "GOAL_ENDED_AT_TARGET" in world.codes("pinky1"), 30.0)
     world.run(world.params.arrival_settle_s - 0.2)
-    assert not world.sent(MoveCmd, "pinky1"), "the cancel may still be on its way"
-    assert world.run_until(lambda: world.sent(MoveCmd, "pinky1"), 2.0)
+    assert not moved_on(world, "pinky1", retreat.goal_id), "the cancel may still be on its way"
+    assert world.run_until(lambda: moved_on(world, "pinky1", retreat.goal_id), 2.0)
 
 
 # ---- 위치를 믿을 수 없으면 닿았다고 보지 않는다 ----
 
 def at_the_end_unanswered():
     world, retreat, answer = backing_out()
-    assert world.run_until(lambda: world.bots["pinky1"].cmd is None, 20.0), "it reached N_W"
+    assert world.run_until(lambda: stopped(world, "pinky1"), 20.0), "it reached N_W"
     world.step()
     return world, retreat, answer
 
@@ -136,10 +158,10 @@ def aborted_short_of_the_end(gap_m: float):
     world.step()
     world.call("WORK", "pinky2")
     world.step()
-    first = world.sent(MoveCmd, "pinky2")[0]
+    first = world.moves("pinky2")[0]
     bot = world.bots["pinky2"]
     reach = math.dist((bot.x, bot.y), (first.x, first.y))
-    bot.cmd = None  # 가다가 섰다. 결과는 아래에서 넣는다
+    bot.cmd = bot.run = None  # 가다가 섰다. 결과는 아래에서 넣는다
     bot.x = first.x + (bot.x - first.x) * gap_m / reach
     bot.y = first.y + (bot.y - first.y) * gap_m / reach
     world.step()
@@ -158,7 +180,7 @@ def test_a_failed_move_that_stopped_inside_the_tolerance_but_short_of_the_end_is
     assert "GOAL_RETRY" in codes and "GOAL_ENDED_AT_TARGET" not in codes
     assert world.view("pinky2")["node"] != first.target_id
     assert world.run_until(lambda: world.view("pinky2")["node"] == first.target_id, 30.0)
-    again = [c for c in world.sent(MoveCmd, "pinky2") if c.target_id == first.target_id]
+    again = [c for c in world.moves("pinky2") if c.target_id == first.target_id]
     assert len(again) == 2 and not again[1].path, "the same Nav2 goal is sent once more"
     assert "GOAL_ENDED_AT_TARGET" not in world.codes("pinky2") and not world.problems
 

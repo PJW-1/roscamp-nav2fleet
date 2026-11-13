@@ -15,6 +15,8 @@ from fleet_core.traffic.mission import (
     RETREAT,
 )
 
+from .robots import ORDER, Goal
+
 
 # ---- 지금 goal과 맞는 로봇 찾기와 이동 결과 ----
 class Results:
@@ -140,26 +142,42 @@ class Results:
         if m.trip is not None:
             m.trip.sent = m.trip.done
 
-    def _stands_at_end(self, m) -> bool:
+    def _stands_at_end(self, m) -> Goal | None:
         goal = m.goal
         heard = (m.available and m.robot_state != LOCALIZING
                  and self._clock() - m.last_seen <= self.params.arrival_settle_s)
         if not (heard and goal is not None and goal.kind in (MOVE, RETREAT)):
-            return False
+            return None
         limit = self.params.arrival_tolerance_m
-        return self._gap(m, goal.end) <= (limit / 2 if self._via(m) == NAV_GOAL else limit)
+        for end, via in self._goal_ends(m):
+            if self._gap(m, end.end) <= (limit / 2 if via == NAV_GOAL else limit):
+                return end
+        return None
 
-    def _arrived_anyway(self, m, reason: str) -> None:
+    def _goal_ends(self, m) -> list:
+        goal, mo, trip = m.goal, m.move_order, m.trip
+        ends = [(goal, self._via(m))]
+        if goal.via == ORDER and mo is not None and trip is not None:
+            for seq, first, end in mo.cuts:
+                if mo.done_seq < seq and end < goal.links:
+                    via = trip.links[first].via
+                    kind = RETREAT if via == RETREAT else MOVE
+                    ends.append((Goal(kind, goal.id, end, trip.links[end - 1].b, via), via))
+        return ends
+
+    def _arrived_anyway(self, m, reason: str, end: Goal) -> None:
         goal = m.goal
         self._event("WARN", "GOAL_ENDED_AT_TARGET",
                     f"{goal.kind} goal {goal.id} ended {reason}, but the robot stands at "
-                    f"{goal.end}", m.name)
+                    f"{end.end}", m.name)
+        m.goal = end
         self._segment_done(m)
 
     # ---- 이동 실패 사유별 처리 ----
     def _move_failed(self, m, reason: str) -> None:
-        if reason not in (HEARTBEAT_LOST, NOT_AT_TARGET) and self._stands_at_end(m):
-            self._arrived_anyway(m, reason)
+        end = None if reason in (HEARTBEAT_LOST, NOT_AT_TARGET) else self._stands_at_end(m)
+        if end is not None:
+            self._arrived_anyway(m, reason, end)
             return
         self._forget_goal(m)
         if reason == "OBSTACLE_BEHIND" and self._waits_behind(m):
