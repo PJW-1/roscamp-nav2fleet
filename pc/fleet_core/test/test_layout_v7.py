@@ -256,6 +256,23 @@ def test_v7_robots_standing_in_line_or_at_a_fork_leave_every_other_way_open(site
             assert gap >= BODY_CIRCLE_M + HALF_WIDTH_M, (name, link.a, link.b, round(gap, 3))
 
 
+def test_v7_fixed_path_bends_leave_the_body_clear_of_walls_and_shelves(site):
+    """고정 경로가 꺾이는 점(출고 출구의 약 79도, 64도 등)에서 몸 원(뒤 모서리 회전 반지름 0.083)이
+    벽과 진열대·칸막이에 닿지 않는다(6f4e19e 리뷰). 꺾는 점 사이 곧은 선도 같은 몸 원으로 본다."""
+    from itertools import pairwise
+
+    from fleet_core.fleet_map.geometry import segment_rect_distance, wall_gap
+    for link in site.links():
+        if link.via == NAV_GOAL:
+            continue
+        for x, y in link.points[1:-1]:
+            assert wall_gap(site.bounds(), x, y) > BODY_CIRCLE_M, (link.a, link.b, (x, y))
+        for a, b in pairwise(link.points):
+            for shelf in site.shelves:
+                gap = segment_rect_distance(a, b, shelf)
+                assert gap > BODY_CIRCLE_M, (link.a, link.b, shelf, round(gap, 3))
+
+
 def test_v7_locks_only_the_express_strip_and_the_docks(site):
     kinds = {name: zone.kind for name, zone in site.zones.items()}
     assert kinds == {"HALL": SHARED, "WORK_DOCK": "dock", "J_E": "dock", "EXPRESS": "lane",
