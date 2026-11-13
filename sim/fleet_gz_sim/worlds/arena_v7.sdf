@@ -63,13 +63,16 @@
       <visual name="shelf_5_visual"><pose>0.51 0.05 0.075 0 0 0</pose><geometry><box><size>0.02 0.1 0.15</size></box></geometry><material><ambient>0.27 0.42 0.62 1</ambient><diffuse>0.27 0.42 0.62 1</diffuse></material></visual>
       <collision name="shelf_6"><pose>0.77 0.05 0.075 0 0 0</pose><geometry><box><size>0.02 0.1 0.15</size></box></geometry></collision>
       <visual name="shelf_6_visual"><pose>0.77 0.05 0.075 0 0 0</pose><geometry><box><size>0.02 0.1 0.15</size></box></geometry><material><ambient>0.27 0.42 0.62 1</ambient><diffuse>0.27 0.42 0.62 1</diffuse></material></visual>
-      <visual name="path_Q1-W"><pose>1.88 0.375 0.0005 0 0 1.5708</pose><geometry><box><size>0.24 0.01 0.001</size></box></geometry><material><ambient>0.2 0.3 0.8 1</ambient><diffuse>0.2 0.3 0.8 1</diffuse></material></visual>
+      <visual name="path_F-W"><pose>1.88 0.375 0.0005 0 0 1.5708</pose><geometry><box><size>0.24 0.01 0.001</size></box></geometry><material><ambient>0.2 0.3 0.8 1</ambient><diffuse>0.2 0.3 0.8 1</diffuse></material></visual>
       <visual name="path_W-X_E"><pose>1.86 0.6775 0.0005 0 0 1.6799</pose><geometry><box><size>0.3672 0.01 0.001</size></box></geometry><material><ambient>0.2 0.3 0.8 1</ambient><diffuse>0.2 0.3 0.8 1</diffuse></material></visual>
       <visual name="path_X_E-O-1"><pose>1.77 0.88 0.0005 0 0 2.8633</pose><geometry><box><size>0.1456 0.01 0.001</size></box></geometry><material><ambient>0.2 0.3 0.8 1</ambient><diffuse>0.2 0.3 0.8 1</diffuse></material></visual>
       <visual name="path_X_E-O-2"><pose>0.9925 0.9 0.0005 0 0 3.1416</pose><geometry><box><size>1.415 0.01 0.001</size></box></geometry><material><ambient>0.2 0.3 0.8 1</ambient><diffuse>0.2 0.3 0.8 1</diffuse></material></visual>
       <visual name="path_X_E-N_E"><pose>1.74 0.72 0.0005 0 0 -2.191</pose><geometry><box><size>0.3441 0.01 0.001</size></box></geometry><material><ambient>0.2 0.3 0.8 1</ambient><diffuse>0.2 0.3 0.8 1</diffuse></material></visual>
       <visual name="path_N_O-O-1"><pose>0.41 0.76 0.0005 0 0 1.6421</pose><geometry><box><size>0.2807 0.01 0.001</size></box></geometry><material><ambient>0.2 0.3 0.8 1</ambient><diffuse>0.2 0.3 0.8 1</diffuse></material></visual>
       <visual name="path_N_O-O-2"><pose>0.3425 0.9 0.0005 0 0 3.1416</pose><geometry><box><size>0.115 0.01 0.001</size></box></geometry><material><ambient>0.2 0.3 0.8 1</ambient><diffuse>0.2 0.3 0.8 1</diffuse></material></visual>
+      <visual name="path_E-1-P-1"><pose>0.12 0.18 0.0005 0 0 -1.5708</pose><geometry><box><size>0.14 0.01 0.001</size></box></geometry><material><ambient>0.2 0.3 0.8 1</ambient><diffuse>0.2 0.3 0.8 1</diffuse></material></visual>
+      <visual name="path_E-2-P-2"><pose>0.38 0.18 0.0005 0 0 -1.5708</pose><geometry><box><size>0.14 0.01 0.001</size></box></geometry><material><ambient>0.2 0.3 0.8 1</ambient><diffuse>0.2 0.3 0.8 1</diffuse></material></visual>
+      <visual name="path_E-3-P-3"><pose>0.64 0.18 0.0005 0 0 -1.5708</pose><geometry><box><size>0.14 0.01 0.001</size></box></geometry><material><ambient>0.2 0.3 0.8 1</ambient><diffuse>0.2 0.3 0.8 1</diffuse></material></visual>
       </link>
     </model>
   </world>
