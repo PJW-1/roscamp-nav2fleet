@@ -19,7 +19,7 @@ def called(robot="pinky2", **kwargs):
     world.step()
     world.call("WORK", robot)
     world.step()
-    assert world.sent(MoveCmd, robot) or world.sent(MoveOrderCmd, robot)
+    assert world.moves(robot)
     return world
 
 
@@ -39,7 +39,7 @@ def reporting(world, robot, said):
 
 def test_a_move_carries_the_priority_the_fleet_yields_by_and_the_status_shows_it():
     world = called()
-    [cmd] = world.sent(MoveCmd, "pinky2")
+    [cmd] = world.sent((MoveCmd, MoveOrderCmd), "pinky2")
     p = world.params
     m = world.traffic._robots["pinky2"]
     assert cmd.priority == priority(p, False, m.dispatch is not None) >= 0

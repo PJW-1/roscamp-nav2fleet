@@ -3,7 +3,6 @@
 from dataclasses import asdict, replace
 
 import zone_harness
-from fleet_core.common.commands import MoveCmd
 from fleet_core.common.params import load_params
 from zone_harness import Harness
 
@@ -23,7 +22,7 @@ def quiet_goal(**kwargs):
     world.step()
     world.call("WORK", "pinky2")
     world.step()
-    assert world.sent(MoveCmd, "pinky2")
+    assert world.moves("pinky2")
     return world
 
 

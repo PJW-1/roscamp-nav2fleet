@@ -1,5 +1,5 @@
 """구역 교통 층의 평소 흐름: 지도에 오르기, 호출, 도크, 급행, 주차, 도크 줄."""
-from fleet_core.common.commands import DockCmd, MoveCmd, RetreatCmd
+from fleet_core.common.commands import DockCmd
 from zone_harness import Harness
 
 
@@ -25,13 +25,15 @@ def test_an_open_call_brings_the_nearest_robot_to_the_work_dock():
     assert world.run_until(lambda: world.result_of(call) is not None)
     result = world.result_of(call)
     assert (result.success, result.robot_id) == (True, "pinky2"), "P-2 is nearest to the dock"
-    moves = world.sent(MoveCmd, "pinky2")
-    assert [(c.mode, c.target_id) for c in moves] == [("nav_goal", "N_W"), ("follow_path", "W")]
-    assert [(x, y) for x, y, _ in moves[1].path] == [(0.35, 0.65), (0.35, 0.89), (0.18, 0.89)]
+    legs = world.legs("pinky2")
+    assert [(c.mode, c.target_id) for c in legs] == [("nav_goal", "N_W"), ("follow_path", "W")]
+    assert [(x, y) for x, y, _ in legs[1].path] == [(0.35, 0.65), (0.35, 0.89), (0.18, 0.89)]
     assert [c.dock_id for c in world.sent(DockCmd)] == ["WORK"]
     codes = world.codes("pinky2")
-    assert [c for c in codes if c in ("ZONE_GRANTED", "NAV_GOAL_SENT", "FOLLOW_SENT", "DOCKED")] \
-        == ["ZONE_GRANTED", "NAV_GOAL_SENT", "FOLLOW_SENT", "DOCKED"]
+    sent = (["ORDER_SENT"] if world.params.use_order_model  # 한 order가 두 구간을 싣는다
+            else ["NAV_GOAL_SENT", "FOLLOW_SENT"])
+    told = ("ZONE_GRANTED", "NAV_GOAL_SENT", "FOLLOW_SENT", "ORDER_SENT", "DOCKED")
+    assert [c for c in codes if c in told] == ["ZONE_GRANTED", *sent, "DOCKED"]
     world.run(3.0)
     view = world.view("pinky2")
     # X_W는 W에서 0.17 m라 node_clear_m(0.20) 안이다: 도크에 선 로봇이 X_W를 쥔 채 일한다(2-1에서
@@ -63,11 +65,11 @@ def test_work_to_outbound_runs_the_express_and_backs_out_of_the_dock_first():
     assert world.traffic.grants.lane_direction("EXPRESS") == "X_W"
     assert world.run_until(lambda: world.result_of(out) is not None)
     assert world.result_of(out).success
-    retreat = world.sent(RetreatCmd, "pinky2")
+    retreat = world.retreats("pinky2")
     # 갈림목에서 돌지 않는다: 마당의 N_W까지 물러나 북쪽을 본 채로 다시 올라가 급행에 든다(2-1)
     assert len(retreat) == 1 and [(x, y) for x, y, _ in retreat[0].path] == [
         (0.18, 0.89), (0.30, 0.89), (0.35, 0.65)]
-    express = world.sent(MoveCmd, "pinky2")[-1]
+    express = world.legs("pinky2")[-1]
     assert [(x, y) for x, y, _ in express.path] == [
         (0.35, 0.65), (0.35, 0.89), (1.63, 0.89), (1.80, 0.89)]
     codes = world.codes("pinky2")
@@ -94,8 +96,9 @@ def test_a_second_robot_waits_at_the_wait_spot_while_the_dock_is_busy():
     first, second = world.call("WORK"), world.call("WORK")
     assert world.run_until(lambda: world.result_of(first) is not None)
     assert world.run_until(lambda: "DOCK_QUEUED" in world.codes("pinky1"))
-    assert world.run_until(lambda: world.view("pinky1")["node"] == "W_Q"
-                           and world.view("pinky1")["goal_id"] is None)
+    bot = world.bots["pinky1"]  # order 모델이면 order를 쥔 채 base 끝(W_Q)에 서서 기다린다
+    assert world.run_until(lambda: world.view("pinky1")["node"] == "W_Q" and bot.cmd is None
+                           and (bot.run is None or bot.run.waiting))
     world.run(5.0)
     assert world.view("pinky1")["node"] == "W_Q" and world.result_of(second) is None
     assert "WORK_DOCK" not in world.view("pinky1")["held"], "it never stands in the dock zones"

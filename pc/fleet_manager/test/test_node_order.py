@@ -95,12 +95,12 @@ def test_an_update_leaves_the_old_goal_alone_and_its_superseded_result_reaches_t
 
 
 def test_order_parameters_override_the_params_file_only_when_given():
-    rclpy.init(args=["--ros-args", "-p", "robots:=[pinky1]", "-p", "use_order_model:=true",
+    rclpy.init(args=["--ros-args", "-p", "robots:=[pinky1]", "-p", "use_order_model:=false",
                      "-p", "lookahead_s:=3.5"])
     try:
         node = FleetManagerNode()
         try:
-            assert node.core.params.use_order_model is True
+            assert node.core.params.use_order_model is False
             assert node.core.params.lookahead_s == 3.5
         finally:
             node.destroy_node()
@@ -110,7 +110,7 @@ def test_order_parameters_override_the_params_file_only_when_given():
     try:
         node = FleetManagerNode()
         try:
-            assert node.core.params.use_order_model is False
+            assert node.core.params.use_order_model is True
             assert node.core.params.lookahead_s == 2.0
         finally:
             node.destroy_node()

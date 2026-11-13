@@ -4,7 +4,6 @@ Gazebo 3대 경기에서 나왔다: 출고 대기 자리로 가던 로봇이 진
 도크로 가던 로봇은 N_E를 쥔 채 거기 닿지 못했다. 구역 대기 그래프에는 순환이 없어서 관제는
 아무것도 하지 않았고, 막힌 로봇이 세 번 실패한 뒤 격리됐다.
 """
-from fleet_core.common.commands import MoveCmd
 from fleet_core.traffic.zone.goals import STANDING_WAIT_S
 from fleet_core.traffic.zone.trips import Trip
 from zone_harness import DT, Harness
@@ -36,7 +35,7 @@ def queued_in_the_way():
     world.now += DT / 2  # pinky3이 먼저 불렸다
     second = world.call("OUTBOUND", "pinky2")
     world.step()
-    assert not world.sent(MoveCmd, "pinky2"), "it waits at the queue spot where it stands"
+    assert not world.moves("pinky2"), "it waits at the queue spot where it stands"
     bot = world.bots["pinky2"]
     bot.x, bot.y = 1.69, 0.55  # 관제의 도착 허용치(0.15 m) 안이지만 N_E로 가는 길 위다
     return world, first, second
@@ -46,7 +45,7 @@ def test_a_waiting_robot_that_stands_in_the_way_of_a_blocked_robot_moves_to_park
     world, first, second = queued_in_the_way()
     assert run_until(world, lambda: "ZONE_MARKED_BLOCKED" in world.codes("pinky3"), 40.0)
     assert "HALL_YIELD" in world.codes("pinky2"), "the robot in the way gives way"
-    [away] = world.sent(MoveCmd, "pinky2")
+    [away] = world.moves("pinky2")
     # P-3이 더 가깝지만 막힌 pinky3 쪽이다: 그 앞을 다시 지나지 않는 자리로 간다
     assert away.target_id == "P-2"
     assert run_until(world, lambda: world.result_of(first) is not None, 120.0)
@@ -63,7 +62,7 @@ def test_a_parked_robot_is_not_sent_away():
     world.call("WORK", "pinky3")
     world.step()
     run(world, 40.0, body="pinky2")
-    assert not world.sent(MoveCmd, "pinky2"), "a parked robot stays where it is"
+    assert not world.moves("pinky2"), "a parked robot stays where it is"
 
 
 def test_a_waiting_robot_away_from_the_blocked_way_stays():
@@ -77,7 +76,7 @@ def test_a_waiting_robot_away_from_the_blocked_way_stays():
     for _ in range(round(40.0 / DT)):
         world.step()
     assert "ZONE_MARKED_BLOCKED" in world.codes("pinky3")
-    assert "HALL_YIELD" not in world.codes() and not world.sent(MoveCmd, "pinky2")
+    assert "HALL_YIELD" not in world.codes() and not world.moves("pinky2")
 
 
 def test_a_parking_try_that_cannot_take_its_way_leaves_the_waiting_record_alone():
@@ -118,7 +117,7 @@ def test_a_way_blocked_by_a_parked_robot_is_left_for_one_through_a_free_node():
     assert "ZONE_MARKED_BLOCKED" in world.codes("pinky1")
     waits = [e.detail for e in world.events if e.code == "ZONE_WAIT" and e.robot == "pinky1"]
     assert not any("P-2" in detail for detail in waits), "it never waits for the parked spot"
-    assert not world.sent(MoveCmd, "pinky2"), "the parked robot stays"
+    assert not world.moves("pinky2"), "the parked robot stays"
 
 
 def test_a_way_blocked_by_a_queued_robot_is_left_for_one_through_a_free_node():
@@ -204,7 +203,7 @@ def test_the_dock_turn_stays_while_the_first_robot_can_still_move():
     run_among(world, lambda: False, 5.0, 0.2)
     assert "ZONE_MARKED_BLOCKED" not in world.codes(), "still before the mark"
     assert "DOCK_TURN_TAKEN" not in world.codes()
-    assert not world.sent(MoveCmd, "pinky2")
+    assert not world.moves("pinky2")
 
 
 def test_a_robot_on_its_way_to_the_dock_keeps_the_turn():
@@ -217,7 +216,7 @@ def test_a_robot_on_its_way_to_the_dock_keeps_the_turn():
     for link in (("P-3", "N_E"), ("P-3", "O_Q")):
         traffic._blocked[link] = 1e9  # pinky3은 남쪽 통로로 돌아간다
     going = world.call("OUTBOUND", "pinky3")
-    assert world.run_until(lambda: world.sent(MoveCmd, "pinky3"), 5.0)
+    assert world.run_until(lambda: world.moves("pinky3"), 5.0)
     trip = traffic._robots["pinky3"].trip
     assert trip.goal == "O" and trip.granted < len(trip.links), "the dock zone comes later"
     assert trip.turn, "the trip carries the turn it was given"
@@ -226,7 +225,11 @@ def test_a_robot_on_its_way_to_the_dock_keeps_the_turn():
     while world.result_of(going) is None:
         world.step()
         other = traffic._robots["pinky2"].trip
-        assert other is None or other.goal != "O", "it does not leave for the dock as well"
+        # order 모델은 대기 자리로 가는 길을 도크까지 잇는다(goal이 O). 차례(turn)를 받은 길만
+        # 도크로 떠난 것이다
+        left = other is not None and other.goal == "O" and other.turn
+        assert not left, "it does not leave for the dock as well"
+        assert traffic.grants.node_holder("O") != "pinky2"
         assert world.now < 200.0
     assert world.result_of(going).success and world.result_of(late) is None
 

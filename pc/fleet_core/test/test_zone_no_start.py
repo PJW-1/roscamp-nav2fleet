@@ -3,7 +3,7 @@
 from dataclasses import asdict, replace
 
 import zone_harness
-from fleet_core.common.commands import DockCmd, MoveCmd, RetreatCmd
+from fleet_core.common.commands import DockCmd
 from fleet_core.common.params import load_params
 from fleet_core.fleet_map import NAV_GOAL
 from fleet_core.traffic.mission import MOVE
@@ -22,7 +22,7 @@ def called(speed=0.0, **kwargs):
     world.step()
     world.call("WORK", "pinky2")
     world.step()
-    assert world.sent(MoveCmd, "pinky2")
+    assert world.moves("pinky2")
     return world
 
 
@@ -40,12 +40,13 @@ def test_the_shipped_limit_is_5_s_and_records_without_it_run_without_the_watch()
 
 def test_a_goal_the_robot_does_not_start_on_is_reported_once():
     world = called()
-    goal = world.sent(MoveCmd, "pinky2")[0].goal_id
+    goal = world.moves("pinky2")[0].goal_id
+    end = world.legs("pinky2")[-1].target_id  # order 모델: base 끝(W), 끄면 첫 구간 끝(N_W)
     world.run(LIMIT - 0.5)
     assert count(world, "NO_START") == 0
     world.run(0.7)
     found = [(e.level, e.robot, e.detail) for e in world.events if e.code == "NO_START"]
-    assert found == [("WARN", "pinky2", f"move goal {goal} to N_W: moved less than 0.02 m "
+    assert found == [("WARN", "pinky2", f"move goal {goal} to {end}: moved less than 0.02 m "
                                         "in 5 s")]
     world.run(0.5)
     assert count(world, "NO_START") == 1, "once per goal"
@@ -53,9 +54,9 @@ def test_a_goal_the_robot_does_not_start_on_is_reported_once():
 
 def test_each_new_goal_is_watched_on_its_own():
     world = called()
-    assert world.run_until(lambda: len(world.sent(MoveCmd, "pinky2")) == 2, 20.0)  # 다시 낸 goal
+    assert world.run_until(lambda: len(world.moves("pinky2")) == 2, 20.0)  # 다시 낸 goal
     world.run(LIMIT + 0.5)
-    goals = [c.goal_id for c in world.sent(MoveCmd, "pinky2")][:2]
+    goals = [c.goal_id for c in world.moves("pinky2")][:2]
     details = [e.detail for e in world.events if e.code == "NO_START"]
     assert [d.split()[2] for d in details[:2]] == [str(g) for g in goals]
 
@@ -100,10 +101,11 @@ def test_a_retreat_the_robot_does_not_start_on_is_reported():
     world._move = lambda bot: None if bot.name == "pinky1" else plain(bot)  # 바퀴가 돌지 않는다
     world.call("OUTBOUND", "pinky1")
     world.step()
-    [retreat] = world.sent(RetreatCmd, "pinky1")
+    [retreat] = [leg for leg in world.legs("pinky1") if leg.mode == "retreat"]
     world.run(LIMIT + 0.5)
     details = [e.detail for e in world.events if e.code == "NO_START"]
-    assert details == [f"retreat goal {retreat.goal_id} to N_W: moved less than 0.02 m in 5 s"]
+    # order 모델에서 물러나기는 O로 가는 order의 첫 조각이다. 알림은 order goal과 base 끝을 말한다
+    assert details == [f"move goal {retreat.goal_id} to O: moved less than 0.02 m in 5 s"]
 
 
 def test_a_goal_to_where_the_robot_already_stands_is_not_watched():

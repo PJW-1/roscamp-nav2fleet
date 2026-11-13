@@ -8,7 +8,6 @@ blocked_timeout_s 뒤 운영자에게 넘긴다.
 """
 from dataclasses import replace
 
-from fleet_core.common.commands import RetreatCmd
 from fleet_core.common.params import load_params
 from fleet_core.traffic.zone.yard_retreat import yard_retreat
 from zone_harness import Harness
@@ -38,13 +37,13 @@ def blocked_toward_work(docked: bool, **kw):
 
 
 def back_path(world):
-    return [point[:2] for point in world.sent(RetreatCmd, "pinky1")[0].path]
+    return [point[:2] for point in world.retreats("pinky1")[0].path]
 
 
 def test_blocked_in_the_express_it_backs_through_the_junction_down_to_the_yard():
     world, call = blocked_toward_work(docked=False)
     site = world.traffic.site
-    assert world.run_until(lambda: world.sent(RetreatCmd, "pinky1"), 200.0)
+    assert world.run_until(lambda: world.retreats("pinky1"), 200.0)
     assert back_path(world)[-1] == tuple(site.node_pose("N_E"))
     assert tuple(site.node_pose("X_E")) in back_path(world)
     assert world.run_until(lambda: world.result_of(call), 300.0)
@@ -54,10 +53,10 @@ def test_blocked_in_the_express_it_backs_through_the_junction_down_to_the_yard()
 def test_a_robot_working_at_the_dock_beside_the_junction_goes_first_then_it_backs_out():
     world, _ = blocked_toward_work(docked=True)
     assert world.run_until(lambda: "RETREAT_WAIT" in world.codes("pinky1"), 200.0)
-    assert not world.sent(RetreatCmd, "pinky1")
+    assert not world.retreats("pinky1")
     assert "J_E" not in world.traffic.grants.held_by("pinky1"), "the dock robot can leave"
     world.call("WORK", "pinky2")  # 도크의 로봇이 일을 마치고 나간다(갈림목에서 꺾어 N_E로)
-    assert world.run_until(lambda: world.sent(RetreatCmd, "pinky1"), 200.0)
+    assert world.run_until(lambda: world.retreats("pinky1"), 200.0)
     assert back_path(world)[-1] == tuple(world.traffic.site.node_pose("N_E"))
     assert not world.problems
 
@@ -76,12 +75,12 @@ def test_a_robot_that_docks_beside_the_junction_after_the_mark_is_also_waited_fo
     pinky2.x, pinky2.y = site.node_pose("O")  # 그 사이에 도크에 들어와 섰다
     assert grants.release_zone("pinky3", "J_E")
     world.run(3.0)
-    assert not world.sent(RetreatCmd, "pinky1"), "it would back into pinky2 at the corner"
+    assert not world.retreats("pinky1"), "it would back into pinky2 at the corner"
     assert "J_E" not in grants.held_by("pinky1"), "pinky2 can leave the dock"
     waits = [e.detail for e in world.events if e.code == "RETREAT_WAIT" and e.robot == "pinky1"]
     assert waits == ["pinky2 is behind it, backs out after it"]
     pinky2.x, pinky2.y = site.node_pose("P-3")  # 나갔다
-    assert world.run_until(lambda: world.sent(RetreatCmd, "pinky1"), 10.0)
+    assert world.run_until(lambda: world.retreats("pinky1"), 10.0)
 
 
 def test_a_retreat_that_cannot_get_its_zones_waits_at_most_blocked_timeout_s():
@@ -96,7 +95,7 @@ def test_a_retreat_that_cannot_get_its_zones_waits_at_most_blocked_timeout_s():
     marked_at = world.now
     assert world.run_until(lambda: "GOAL_FAILED" in world.codes("pinky1"), 200.0)
     assert world.now - marked_at <= params.blocked_timeout_s + 2.0
-    assert not world.sent(RetreatCmd, "pinky1")
+    assert not world.retreats("pinky1")
 
 
 def test_it_backs_out_to_the_yard_even_with_no_way_on_from_there():
@@ -108,7 +107,7 @@ def test_it_backs_out_to_the_yard_even_with_no_way_on_from_there():
     for link in t.site.links():  # 다른 길도 모두 막혔다
         if {link.a, link.b} != {"X_E", "X_W"}:
             t._blocked[(link.a, link.b)] = 1e9
-    assert world.run_until(lambda: world.sent(RetreatCmd, "pinky1"), 60.0)
+    assert world.run_until(lambda: world.retreats("pinky1"), 60.0)
     assert back_path(world)[-1] == tuple(t.site.node_pose("N_E"))
     assert world.run_until(lambda: "RETREAT_DONE" in world.codes("pinky1"), 60.0)
     world.run(params.blocked_timeout_s + 5.0)

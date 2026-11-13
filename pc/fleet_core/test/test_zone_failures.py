@@ -6,7 +6,13 @@
 import math
 
 import pytest
-from fleet_core.common.commands import DispatchResult, DockCmd, MoveCmd, RetreatCmd, RobotIsolated
+from fleet_core.common.commands import (
+    DispatchResult,
+    DockCmd,
+    MoveCmd,
+    MoveOrderCmd,
+    RobotIsolated,
+)
 from fleet_core.fleet_map import RETREAT, SHARED
 from fleet_core.traffic.mission import HEARTBEAT_LOST, NOT_AT_TARGET
 from fleet_core.traffic.zone.lane_policy import Want
@@ -19,16 +25,21 @@ def sent_once():
     world.step()
     call = world.call("WORK", "pinky2")
     world.step()
-    assert [c.target_id for c in world.sent(MoveCmd, "pinky2")] == ["N_W"]
+    assert [leg.target_id for leg in world.moves("pinky2")] == ["N_W"]
     return world, call
 
 
 def last_goal(world, robot="pinky2"):
-    return world.sent(MoveCmd, robot)[-1].goal_id
+    return world.sent((MoveCmd, MoveOrderCmd), robot)[-1].goal_id
+
+
+def goal_end(world, robot="pinky2"):
+    """지금 goal의 끝 지점: MoveCmd면 그 구간 끝, order면 base 끝."""
+    return world.legs(robot)[-1].target_id
 
 
 def moves(world, robot="pinky2"):
-    return len(world.sent(MoveCmd, robot))
+    return len(world.moves(robot))
 
 
 def isolations(world):
@@ -54,7 +65,7 @@ def test_a_failed_move_is_sent_again_after_the_wait_and_isolates_after_the_limit
         assert world.view("pinky2")["attempts"] == attempt
         world.run(0.5)
         assert moves(world) == before + 1, "the same goal goes out again"
-        assert world.sent(MoveCmd, "pinky2")[-1].target_id == "N_W"
+        assert world.moves("pinky2")[-1].target_id == "N_W"
     world.step()
     reason = "ABORTED" if fail == "result" else "REJECTED"
     assert world.codes("pinky2").count("GOAL_RETRY") == p.move_retry_limit
@@ -83,7 +94,7 @@ def beside_the_node():
     world.report()
     call = world.call("WORK", "pinky2")
     world.step()
-    [first] = world.sent(MoveCmd, "pinky2")
+    [first] = world.moves("pinky2")
     assert (first.mode, first.target_id) == ("follow_path", "W"), "it is sent along the fixed line"
     return world, call
 
@@ -92,28 +103,28 @@ def test_a_robot_that_cannot_join_the_fixed_line_is_first_sent_to_its_start_by_n
     world, call = beside_the_node()
     world.traffic.on_move_result("pinky2", last_goal(world), False, "PATH_NOT_CONNECTED")
     world.run(world.params.move_retry_wait_s + 0.3)
-    again = world.sent(MoveCmd, "pinky2")[-1]
+    again = world.moves("pinky2")[-1]
     assert (again.mode, again.target_id) == ("nav_goal", "N_W"), "not the same line once more"
     bot = world.bots["pinky2"]
     bot.x, bot.y = world.site.node_pose("N_W")
     world.report()
-    world.traffic.on_move_result("pinky2", again.goal_id, True, "")
+    world.answer_at("pinky2", "N_W")
     world.run(2.0)
-    line = world.sent(MoveCmd, "pinky2")[-1]
+    line = world.legs("pinky2")[-1]
     assert (line.mode, line.target_id) == ("follow_path", "W"), "from the node it takes the line"
     assert world.codes("pinky2").count("GOAL_RETRY") == 1 and not isolations(world)
     assert world.result_of(call) is None
     assert world.view("pinky2")["attempts"] == 1, "kept until the line itself works"
-    reach(world, "W", line.goal_id)
+    reach(world, "W")
     assert world.view("pinky2")["attempts"] == 0
 
 
-def reach(world, node, goal_id, robot="pinky2"):
-    """로봇을 그 지점에 옮겨 놓고 goal의 성공을 넣는다."""
+def reach(world, node, robot="pinky2"):
+    """로봇을 그 지점에 옮겨 놓고 거기까지 닿았다는 답을 넣는다."""
     bot = world.bots[robot]
     bot.x, bot.y = world.site.node_pose(node)
     world.report()
-    world.traffic.on_move_result(robot, goal_id, True, "")
+    world.answer_at(robot, node)
     world.run(world.params.arrival_settle_s + 0.5)
 
 
@@ -126,9 +137,9 @@ def test_a_line_that_works_after_the_robot_moved_by_itself_clears_the_count():
     bot.x, bot.y = world.site.node_pose("N_W")
     world.report()
     world.run(world.params.move_retry_wait_s + 0.3)
-    line = world.sent(MoveCmd, "pinky2")[-1]
+    line = world.moves("pinky2")[-1]
     assert line.mode == "follow_path" and robot.attempts == 1
-    reach(world, "W", line.goal_id)
+    reach(world, "W")
     assert robot.attempts == 0, "an unrelated later failure starts from zero"
 
 
@@ -137,15 +148,15 @@ def test_joining_that_keeps_failing_although_the_nav_goal_succeeds_ends_in_isola
     world, call = beside_the_node()
     p = world.params
     for failure in range(1, p.move_retry_limit + 2):
-        line = world.sent(MoveCmd, "pinky2")[-1]
+        line = world.legs("pinky2")[-1]
         assert line.mode == "follow_path"
         world.traffic.on_move_result("pinky2", line.goal_id, False, "PATH_NOT_CONNECTED")
         if failure > p.move_retry_limit:
             break
         world.run(p.move_retry_wait_s + 0.3)
-        back = world.sent(MoveCmd, "pinky2")[-1]
+        back = world.moves("pinky2")[-1]
         assert back.mode == "nav_goal"
-        world.traffic.on_move_result("pinky2", back.goal_id, True, "")  # 로봇은 그 자리 그대로다
+        world.answer_at("pinky2", "N_W")  # 로봇은 그 자리 그대로다
         world.run(2.0)
         assert world.view("pinky2")["attempts"] == failure, "the count is kept"
     world.step()
@@ -174,7 +185,7 @@ def test_a_robot_that_could_not_join_stays_off_the_node_while_its_report_wanders
     bot.x -= 0.06  # N_W에서 0.145 m: 여전히 관제의 허용치 안이다
     assert math.dist((bot.x, bot.y), world.site.node_pose("N_W")) < 0.15
     world.run(world.params.move_retry_wait_s + 0.3)
-    again = world.sent(MoveCmd, "pinky2")[-1]
+    again = world.moves("pinky2")[-1]
     assert (again.mode, again.target_id) == ("nav_goal", "N_W"), "not the same line once more"
     assert world.codes("pinky2").count("GOAL_RETRY") == 1 and world.result_of(call) is None
 
@@ -189,7 +200,7 @@ def test_a_robot_that_could_not_join_and_now_stands_in_the_junction_gets_the_lin
     bot.x, bot.y = x, y + 0.145  # 손으로 옮겼다: N_W에서 X_W로 가는 선 위, 갈림목 안이다
     assert world.site.zones[world.site.zone_at(bot.x, bot.y)].kind != SHARED
     world.run(world.params.move_retry_wait_s + 0.3)
-    sent = world.sent(MoveCmd, "pinky2")
+    sent = world.moves("pinky2")
     assert len(sent) == 2, "it is not left without a way"
     assert (sent[-1].mode, sent[-1].target_id) == ("follow_path", "W")
     assert world.result_of(call) is None
@@ -202,7 +213,7 @@ def test_a_robot_that_cannot_join_a_line_outside_a_shared_zone_is_still_retried_
     world.step()
     p = world.params
     for _ in range(p.move_retry_limit + 1):
-        cmd = world.sent(MoveCmd, "pinky2")[-1]
+        cmd = world.moves("pinky2")[-1]
         assert cmd.mode == "follow_path"
         world.traffic.on_move_result("pinky2", cmd.goal_id, False, "PATH_NOT_CONNECTED")
         world.run(p.move_retry_wait_s + 0.3)
@@ -227,6 +238,11 @@ def docks(world, robot="pinky2"):
     return len(world.sent(DockCmd, robot))
 
 
+def retreats(world, robot="pinky2"):
+    """보낸 물러나기: RetreatCmd, 또는 order 모델이면 order의 retreat 조각."""
+    return [leg for leg in world.legs(robot) if leg.mode == "retreat"]
+
+
 @pytest.mark.parametrize("fail", ["result", "rejected"])
 def test_a_failed_docking_is_sent_again_only_after_the_wait(fail):
     world, _ = at_the_dock()
@@ -238,12 +254,12 @@ def test_a_failed_docking_is_sent_again_only_after_the_wait(fail):
     assert (world.view("pinky2")["attempts"], docks(world)) == (1, 1)
     world.run(world.params.move_retry_wait_s - 0.3)
     assert docks(world) == 1, "nothing new before the retry wait is over"
-    assert not world.sent(RetreatCmd, "pinky2")
+    assert not retreats(world)
     world.run(0.5)
     if fail == "rejected":
         assert docks(world) == 2, "a docking the robot did not take goes out again as it is"
     else:
-        assert docks(world) == 1 and world.sent(RetreatCmd, "pinky2"), "it backs out first"
+        assert docks(world) == 1 and retreats(world), "it backs out first"
 
 
 def test_a_failed_docking_backs_out_and_comes_in_again_before_the_next_try():
@@ -251,11 +267,14 @@ def test_a_failed_docking_backs_out_and_comes_in_again_before_the_next_try():
     place before it docks at the same spot."""
     world, _ = at_the_dock()
     assert world.run_until(lambda: docks(world) == 2, 60.0)
-    codes = world.codes("pinky2")
+    order = ("ORDER_SENT", "ORDER_UPDATED", "SEGMENT_DONE")  # order 모델의 기록은 빼고 본다
+    codes = [code for code in world.codes("pinky2") if code not in order]
     first = codes.index("GOAL_RETRY")
     assert codes[first:first + 5] == ["GOAL_RETRY", "ZONE_GRANTED", "DOCK_REAPPROACH",
                                       "RETREAT_START", "RETREAT_DONE"], codes[first:first + 8]
-    assert "FOLLOW_SENT" in codes[first:]
+    legs = world.legs("pinky2")
+    back = max(i for i, leg in enumerate(legs) if leg.mode == "retreat")
+    assert [leg.mode for leg in legs[back + 1:]] == ["follow_path"], "it drives the line in"
     assert not world.problems
     assert world.run_until(lambda: world.codes("pinky2").count("GOAL_RETRY") == 2, 60.0)
     retries = [e.detail for e in world.events if e.code == "GOAL_RETRY"]
@@ -286,7 +305,7 @@ def test_a_reapproach_over_a_link_marked_blocked_docks_where_it_stands(index):
     link = links[index]
     world.traffic._blocked[(link.a, link.b)] = world.traffic._clock() + 100.0
     assert world.run_until(lambda: docks(world) == 2, 30.0)
-    assert not world.sent(RetreatCmd, "pinky2")
+    assert not retreats(world)
     assert "DOCK_REAPPROACH" not in world.codes("pinky2")
 
 
@@ -311,11 +330,11 @@ def test_a_reapproach_whose_way_is_taken_waits_and_goes_when_it_is_free():
     spot, grants = way_out(world).b, world.traffic.grants
     assert grants.take("ghost", (), (spot,))
     world.run(world.params.move_retry_wait_s + 1.0)
-    assert docks(world) == 1 and not world.sent(RetreatCmd, "pinky2"), "it waits at the dock"
+    assert docks(world) == 1 and not retreats(world), "it waits at the dock"
     assert world.traffic.status_view("pinky2")["wait_robots"] == ("ghost",), "the wait is on record"
     grants.release_node("ghost", spot)
     world.run(1.0)
-    assert world.sent(RetreatCmd, "pinky2") and docks(world) == 1
+    assert retreats(world) and docks(world) == 1
 
 
 def test_a_reapproach_that_cannot_start_in_time_docks_where_it_stands():
@@ -326,7 +345,7 @@ def test_a_reapproach_that_cannot_start_in_time_docks_where_it_stands():
     world.run(world.params.move_retry_wait_s + world.params.redock_wait_s - 0.5)
     assert docks(world) == 1
     world.run(1.0)
-    assert docks(world) == 2 and not world.sent(RetreatCmd, "pinky2")
+    assert docks(world) == 2 and not retreats(world)
 
 
 def test_a_robot_waiting_to_reapproach_is_no_part_of_a_wait_cycle():
@@ -353,7 +372,7 @@ def test_the_wait_for_the_way_out_has_one_limit_whatever_clears_the_wait():
     world.run(world.params.move_retry_wait_s + world.params.redock_wait_s / 2)
     world.traffic._stop_wanting(world.traffic._robots["pinky2"])
     world.run(world.params.redock_wait_s / 2 + 0.5)
-    assert docks(world) == 2 and not world.sent(RetreatCmd, "pinky2")
+    assert docks(world) == 2 and not retreats(world)
 
 
 def test_a_reapproaching_robot_keeps_its_dock_turn():
@@ -467,26 +486,26 @@ def test_a_success_reported_away_from_the_target_waits_for_the_pose_then_counts_
 
 def test_a_success_whose_pose_arrives_late_ends_the_segment():
     world, _ = sent_once()
-    goal = last_goal(world)
+    goal, end = last_goal(world), goal_end(world)
     world.traffic.on_move_result("pinky2", goal, True, "")
     world.step()
     bot = world.bots["pinky2"]
-    bot.cmd, bot.points = None, []
-    bot.x, bot.y = world.site.node_pose("N_W")  # 늦게 온 보고가 N_W에 있다
+    bot.cmd, bot.run, bot.points = None, None, []
+    bot.x, bot.y = world.site.node_pose(end)  # 늦게 온 보고가 goal 끝에 있다
     world.step()
     world.step()
-    assert world.view("pinky2")["node"] == "N_W"
-    assert [(c.mode, c.target_id) for c in world.sent(MoveCmd, "pinky2")] == [
+    assert world.view("pinky2")["node"] == end
+    assert [(c.mode, c.target_id) for c in world.legs("pinky2")] == [
         ("nav_goal", "N_W"), ("follow_path", "W")]
     assert "GOAL_RETRY" not in world.codes()
 
 
 def test_a_success_with_the_pose_already_at_the_target_ends_the_segment_at_once():
     world, _ = sent_once()
-    goal = last_goal(world)
-    world.traffic.on_robot_state("pinky2", *world.site.node_pose("N_W"), 0.0, "MOVING")
+    goal, end = last_goal(world), goal_end(world)
+    world.traffic.on_robot_state("pinky2", *world.site.node_pose(end), 0.0, "MOVING")
     world.traffic.on_move_result("pinky2", goal, True, "")  # 자세는 이미 닿았다
-    assert world.view("pinky2")["node"] == "N_W", "a pose at the target ends it at once"
+    assert world.view("pinky2")["node"] == end, "a pose at the target ends it at once"
 
 
 # ---- 이름으로 부른 배차의 거절 ----

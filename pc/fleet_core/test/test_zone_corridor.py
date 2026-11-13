@@ -4,7 +4,6 @@ Gazebo 3대 경기(배치 C)에서 나왔다: 북쪽 통로를 가던 로봇이 
 표시했고, 그 뒤로는 통로 안에 지점이 없어서 로봇에게 갈 길을 찾지 못했다. 로봇은 경기가 끝날
 때까지 goal 없이 서 있었고 사건도 남지 않았다.
 """
-from fleet_core.common.commands import MoveCmd
 from zone_harness import Harness
 
 BOX = (1.20, 0.75, 0.10)  # 북쪽 통로 한가운데의 상자
@@ -25,7 +24,7 @@ def test_a_robot_stopped_inside_a_corridor_gets_another_way():
     world = stopped_in_the_corridor()
     assert world.view("pinky2")["goal_id"], "a new goal goes out from where it stands"
     # 막힌 연결의 끝(P-2)으로 선 자리에서 곧장 다시 가지 않는다: 같은 것에 또 막힌다
-    assert world.sent(MoveCmd, "pinky2")[-1].target_id in ("P-3", "N_W", "N_E")
+    assert world.moves("pinky2")[-1].target_id in ("P-3", "N_W", "N_E")
     parked = world.run_until(lambda: world.view("pinky2")["state"] == "PARKED", 300.0)
     assert parked, world.log[-12:]
     assert world.view("pinky2")["node"] == "P-2", "it parks by the south way or the express"

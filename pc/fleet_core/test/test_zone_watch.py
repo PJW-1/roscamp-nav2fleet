@@ -3,7 +3,7 @@
 from dataclasses import replace
 
 import zone_harness
-from fleet_core.common.commands import CancelCmd, DockCmd, MoveCmd
+from fleet_core.common.commands import CancelCmd, DockCmd
 from fleet_core.common.params import load_params
 from fleet_core.traffic.zone.lane_policy import Want
 from zone_harness import Harness
@@ -15,7 +15,7 @@ def called(robot="pinky2", station="WORK", **kwargs):
     world.step()
     world.call(station, robot)
     world.step()
-    assert world.sent(MoveCmd, robot)
+    assert world.moves(robot)
     return world
 
 
@@ -48,7 +48,7 @@ def test_a_slow_robot_that_keeps_moving_is_not_stalled():
     world = called(speed=slow)
     world.run(3 * p.stall_s)
     assert count(world, "GOAL_STALLED") == 0
-    assert len(world.sent(MoveCmd, "pinky2")) == 1
+    assert len(world.moves("pinky2")) == 1
 
 
 def test_a_robot_that_reports_it_is_recovering_by_itself_is_not_stalled():
@@ -129,7 +129,7 @@ def two_close_in_the_yard(second_by_name):
         world.call("WORK")  # 열린 호출: pinky1은 이미 배차가 있어 pinky2가 불린다
     world.step()
     world.step()
-    assert world.sent(MoveCmd, "pinky1") and world.sent(MoveCmd, "pinky2")
+    assert world.moves("pinky1") and world.moves("pinky2")
     return world
 
 
@@ -142,11 +142,11 @@ def test_two_robots_stuck_close_in_the_yard_one_yields_for_a_while():
     yields = [(e.robot, e.detail) for e in world.events if e.code == "HALL_YIELD"]
     assert yields == [("pinky1", f"stops {p.near_stuck_s:.0f} s for pinky2")], "same rank: name"
     assert world.sent(CancelCmd, "pinky1") and not world.sent(CancelCmd, "pinky2")
-    moves = len(world.sent(MoveCmd, "pinky1"))
+    moves = len(world.moves("pinky1"))
     world.run(p.near_stuck_s - 0.5)
-    assert len(world.sent(MoveCmd, "pinky1")) == moves, "it stands aside"
+    assert len(world.moves("pinky1")) == moves, "it stands aside"
     world.run(1.0)
-    assert len(world.sent(MoveCmd, "pinky1")) == moves + 1
+    assert len(world.moves("pinky1")) == moves + 1
 
 
 def test_the_robot_without_a_dispatch_is_the_one_that_yields():
@@ -168,9 +168,9 @@ def test_nobody_gives_way_before_the_grace_time():
     waiting_for_each_other(world)
     world.run(world.params.deadlock_grace_s - 0.5)
     assert count(world, "DEADLOCK_SEEN") == 1, "seen at once"
-    assert not world.sent(MoveCmd)
+    assert not world.moves()
     world.run(1.0)
-    assert len(world.sent(MoveCmd)) == 1 and count(world, "DEADLOCK_SEEN") == 2
+    assert len(world.moves()) == 1 and count(world, "DEADLOCK_SEEN") == 2
 
 
 def test_a_cycle_that_breaks_up_and_forms_again_is_reported_again():
@@ -186,7 +186,7 @@ def test_a_cycle_that_breaks_up_and_forms_again_is_reported_again():
     waiting_for_each_other(world)
     world.step()
     assert count(world, "DEADLOCK_SEEN") == 2
-    assert not world.sent(MoveCmd), "the grace time starts again"
+    assert not world.moves(), "the grace time starts again"
 
 
 def test_a_robot_that_is_not_available_is_left_out_of_the_wait_graph():
@@ -196,7 +196,7 @@ def test_a_robot_that_is_not_available_is_left_out_of_the_wait_graph():
     waiting_for_each_other(world)
     world.run(world.params.deadlock_grace_s + 1.0)
     assert count(world, "DEADLOCK_SEEN") == 0
-    assert not world.sent(MoveCmd)
+    assert not world.moves()
 
 
 # ---- 할 일 없이 섬 ----
@@ -214,7 +214,7 @@ def test_a_robot_with_somewhere_to_go_but_no_goal_and_no_wait_is_reported_idle()
     assert idle == [("WARN", "pinky2", "TO_WORK at P-2: no goal and nothing to wait for")]
     world.run(limit)
     assert count(world, "ROBOT_IDLE") == 2, "said again every idle_watch_s"
-    assert not world.sent(MoveCmd), "it only warns"
+    assert not world.moves(), "it only warns"
 
 
 def test_the_idle_watch_is_off_at_zero():

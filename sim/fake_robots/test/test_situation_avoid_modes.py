@@ -14,7 +14,7 @@ none과 mixed는 3절 기준이다: 안전 불변식과 관제 반응 시간, �
 import pytest
 from fake_robots.world.situations import NAMES
 from fake_robots.world.table import run_situation
-from situation_helpers import ALL_LAYOUTS, SEEDS, check
+from situation_helpers import ALL_LAYOUTS, POSE_TRUSTED, SEEDS, PoseTrusted, check, check_pose_jumps
 
 MODES = ("none", "mixed")
 
@@ -34,6 +34,9 @@ def _cells():
                     reason = FLEET_FAILS.get((name, layout, mode, seed))
                     marks = ([pytest.mark.xfail(strict=True, raises=Unfinished, reason=reason)]
                              if reason else [])
+                    if name == "pose_jumps":
+                        marks = [pytest.mark.xfail(strict=True, raises=PoseTrusted,
+                                                   reason=POSE_TRUSTED)]
                     yield pytest.param(name, layout, mode, seed, marks=marks,
                                        id=f"{name}-{layout}-{mode}-{seed}")
 
@@ -45,6 +48,9 @@ def test_every_listed_failure_is_a_real_cell():
 
 @pytest.mark.parametrize(("name", "layout", "mode", "seed"), list(_cells()))
 def test_situation_in_avoid_mode(name, layout, mode, seed):
+    if name == "pose_jumps":
+        check_pose_jumps(layout, seed, avoid_mode=mode)
+        return
     if (name, layout, mode, seed) not in FLEET_FAILS:
         check(name, layout, seed, avoid_mode=mode)
         return
@@ -59,7 +65,9 @@ def test_situation_in_avoid_mode(name, layout, mode, seed):
 def test_the_yard_back_off_does_not_stand_a_robot_on_a_node_it_does_not_hold(name, seed):
     """yard_backoff를 켠 none(d2)에서 물러난 로봇이 N_E 위에 섰던 두 칸(불변식 I8). 하나는 남이 이미
     잡은 지점이었고, 하나는 물러난 뒤에 남이 잡았다. 2-1에서 D2의 갈림목 선과 대기 자리가 옮겨진 뒤
-    comm_loss_reinstate 3은 물러나기를 쓰지 않으므로 물러나기를 쓰는 씨드 2로 바꿨다."""
-    outcome = run_situation(name, "d2", seed, overrides={"yard_backoff": True}, avoid_mode="none")
+    comm_loss_reinstate 3은 물러나기를 쓰지 않으므로 물러나기를 쓰는 씨드 2로 바꿨다.
+    두 칸은 order 모델을 끈 채로 찾은 것이다. 켜면 같은 씨드에서 물러나기가 나오지 않는다."""
+    outcome = run_situation(name, "d2", seed, avoid_mode="none",
+                            overrides={"yard_backoff": True, "use_order_model": False})
     assert outcome.failures == []
     assert outcome.world.metrics.count("HALL_BACKOFF_DONE") >= 1, "the back-off was used"

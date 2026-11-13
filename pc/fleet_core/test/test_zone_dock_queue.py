@@ -6,12 +6,11 @@
   아니다. 못 잡은 로봇은 지금 선 주차 자리에서 기다린다(DOCK_QUEUED).
 - 도크가 비면 차례인 로봇이 어디 있든 간다. 대기 자리의 로봇이 차례가 아니면 거기 그대로 있다.
 """
-from fleet_core.common.commands import MoveCmd
 from zone_harness import DT, Harness
 
 
 def targets(world, robot):
-    return [c.target_id for c in world.sent(MoveCmd, robot)]
+    return [c.target_id for c in world.legs(robot) if c.mode != "retreat"]
 
 
 def test_more_robots_than_wait_spots_take_the_dock_in_the_order_they_asked():

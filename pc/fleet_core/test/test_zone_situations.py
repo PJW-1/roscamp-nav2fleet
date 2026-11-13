@@ -1,5 +1,5 @@
 """구역 교통 층의 이상 상황: 도크 맞바꿈, 막힘, 통신 끊김, 치움과 다시 투입, 멈춤, 위치 튐."""
-from fleet_core.common.commands import CancelCmd, MoveCmd, RetreatCmd
+from fleet_core.common.commands import CancelCmd
 from fleet_core.traffic.mission import RUN, STOP
 from zone_harness import Harness
 
@@ -17,7 +17,7 @@ def from_work_to_outbound():
 
 
 def targets(world, robot):
-    return [(c.mode, c.target_id) for c in world.sent(MoveCmd, robot)]
+    return [(c.mode, c.target_id) for c in world.legs(robot) if c.mode != "retreat"]
 
 
 # ---- 도크 맞바꿈 ----
@@ -45,7 +45,7 @@ def test_blocked_inside_the_express_it_backs_out_and_takes_the_yard():
         "BLOCKED_WAIT", "ZONE_MARKED_BLOCKED", "REROUTE", "RETREAT_START", "RETREAT_DONE")]
     assert seen == ["RETREAT_START", "RETREAT_DONE", "BLOCKED_WAIT", "ZONE_MARKED_BLOCKED",
                     "REROUTE", "RETREAT_START", "RETREAT_DONE"]
-    back = [point[:2] for point in world.sent(RetreatCmd, "pinky1")[1].path]
+    back = [point[:2] for point in world.retreats("pinky1")[1].path]
     site = world.site
     assert back[-1] == site.node_pose("N_W"), "through the junction it entered by, to the yard"
     assert site.node_pose("X_W") in back
@@ -63,7 +63,7 @@ def test_a_short_block_is_only_waited_out():
     assert world.run_until(lambda: world.result_of(call), 120.0)
     codes = world.codes("pinky1")
     assert "ZONE_MARKED_BLOCKED" not in codes and "REROUTE" not in codes
-    assert len(world.sent(RetreatCmd, "pinky1")) == 1, "only the way out of the dock"
+    assert len(world.retreats("pinky1")) == 1, "only the way out of the dock"
     assert not world.sent(CancelCmd)
 
 
@@ -72,13 +72,13 @@ def test_blocked_in_the_yard_it_goes_by_another_node():
     world.step()
     call = world.call("WORK")
     world.run(1.0)
-    assert world.view("pinky1")["target"] == "N_W"
+    assert world.moves("pinky1")[-1].target_id == "N_W"
     world.obstacles.append((1.1, 0.42, 0.12))
     assert world.run_until(lambda: world.result_of(call), 200.0)
     assert world.result_of(call).success
     codes = world.codes("pinky1")
     assert "ZONE_MARKED_BLOCKED" in codes and "REROUTE" in codes
-    assert not world.sent(RetreatCmd), "a nav goal is cancelled, nothing backs up"
+    assert not world.retreats(), "a nav goal is cancelled, nothing backs up"
     assert not world.problems
 
 

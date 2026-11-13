@@ -3,7 +3,6 @@ import math
 from dataclasses import replace
 
 import pytest
-from fleet_core.common.commands import RetreatCmd
 from fleet_core.common.params import load_params
 from fleet_core.fleet_map import load_fleet_map
 from fleet_core.traffic.zone.base import HERE
@@ -87,7 +86,7 @@ def test_blocked_in_the_express_with_a_position_marks_the_express_and_backs_out(
     assert world.run_until(lambda: world.result_of(call), 120.0)
     assert world.result_of(call).success
     site = world.traffic.site
-    back = [point[:2] for point in world.sent(RetreatCmd, "pinky1")[1].path]
+    back = [point[:2] for point in world.retreats("pinky1")[1].path]
     assert back[-1] == tuple(site.node_pose("N_W")), "backs out down to the yard"
     assert tuple(site.node_pose("X_W")) in back, "through the junction"
     assert not world.problems

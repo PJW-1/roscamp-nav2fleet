@@ -1,6 +1,6 @@
 """구역 교통 층에서 로봇을 세우는 일: 지도에 못 올림(PLACEMENT_CONFLICT), 고장으로 세움(한 번만),
 세운 로봇이 쥔 대기 자리, 말이 없던 동안 지난 지점 따라잡기."""
-from fleet_core.common.commands import CancelCmd, DispatchResult, DockCmd, MoveCmd, RobotIsolated
+from fleet_core.common.commands import CancelCmd, DispatchResult, DockCmd, RobotIsolated
 from zone_harness import Harness
 
 
@@ -12,7 +12,7 @@ def reported(starts, **kwargs):
 
 
 def targets(world, robot):
-    return [(c.mode, c.target_id) for c in world.sent(MoveCmd, robot)]
+    return [(c.mode, c.target_id) for c in world.legs(robot) if c.mode != "retreat"]
 
 
 def isolations(world, robot):
@@ -63,7 +63,7 @@ def test_a_robot_beside_a_taken_node_in_the_yard_is_placed_in_the_yard():
     assert "PLACEMENT_CONFLICT" not in world.codes()
     assert "W_Q" in world.view("pinky1")["nodes"], "the node stays with pinky1"
     world.run(1.0)
-    first = world.sent(MoveCmd, "pinky2")[0]
+    first = world.moves("pinky2")[0]
     assert not first.path, "it stands on no node, so it leaves by a Nav2 goal"
     assert not world.problems
 
@@ -186,7 +186,7 @@ def test_while_one_robot_cannot_be_placed_nobody_is_sent_anywhere():
     world.step()
     call = world.call("WORK")
     world.run(world.params.startup_wait_s + 1.0)
-    assert not world.sent(MoveCmd) and world.result_of(call) is None
+    assert not world.moves() and world.result_of(call) is None
     assert world.codes().count("ROBOT_NOT_REPORTING") == 1
     world.bots["pinky2"].x, world.bots["pinky2"].y = world.site.node_pose("P-2")
     assert world.run_until(lambda: world.result_of(call) is not None, 120.0)
@@ -287,6 +287,9 @@ def on_the_dock_path_then_silent():
     world.step()
     assert targets(world, "pinky1") == [("follow_path", "W")]
     world.silent.add("pinky1")
+    run = world.bots["pinky1"].run
+    if run is not None:  # comm_loss_policy stop: order를 달리던 로봇도 바로 선다
+        run.held = True
     world.run(world.params.comm_timeout_s + 0.5)
     assert world.view("pinky1")["state"] == "COMM_LOST"
     return world, world.bots["pinky1"]
@@ -294,7 +297,7 @@ def on_the_dock_path_then_silent():
 
 def back_at(world, bot, node):
     """말이 없던 동안 node까지 갔다가 다시 보고한다."""
-    bot.cmd, bot.points = None, []
+    bot.cmd, bot.run, bot.points = None, None, []
     bot.x, bot.y = world.site.node_pose(node)
     world.silent.discard("pinky1")
     world.step()
@@ -307,7 +310,7 @@ def test_a_robot_back_from_silence_halfway_resumes_from_the_node_it_passed():
     back_at(world, bot, "X_W")
     assert world.view("pinky1")["node"] == "X_W"
     assert targets(world, "pinky1") == [("follow_path", "W"), ("follow_path", "W")]
-    resent = world.sent(MoveCmd, "pinky1")[-1]
+    resent = world.moves("pinky1")[-1]
     assert resent.path[0][:2] == world.site.node_pose("X_W"), "it starts where it is"
     assert len(resent.path) == 2, "only the link still ahead"
 
@@ -316,5 +319,5 @@ def test_a_robot_back_from_silence_at_the_dock_docks_without_driving_again():
     world, bot = on_the_dock_path_then_silent()
     back_at(world, bot, "W")
     assert world.view("pinky1")["node"] == "W"
-    assert len(world.sent(MoveCmd, "pinky1")) == 1
+    assert len(world.moves("pinky1")) == 1
     assert world.sent(DockCmd, "pinky1")

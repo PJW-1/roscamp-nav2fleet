@@ -76,7 +76,7 @@ yard_backoff_m: 0.12          # 물러나는 거리
 yard_backoff_wait_s: 0.5      # 비킬 로봇의 BLOCKED 보고를 이만큼 더 기다린다(near_stuck_s와 더해 stall_s보다 짧게)
 yard_backoff_edge_m: 0.10     # 설 자리가 벽, 진열대, 고정 경로 구역에서 떨어질 거리
 retreat_clear_m: 0.20         # 관제가 시키는 물러나기의 길이 다른 로봇에 이만큼 안으로 다가가면 내지 않는다
-use_order_model: false        # order 모델(base/horizon, 이어 붙이기). 끄면 조각 하나씩 보낸다
+use_order_model: true         # 기준(사용자, 2026-11-14): order 모델(base/horizon, 이어 붙이기)을 켠다. 끄면 조각 하나씩 보낸다
 lookahead_s: 2.0              # order 모델: base 끝까지 이만큼 남으면 다음 구역을 잡아 본다
 comm_base_hold_extra_s: 3.0   # order 모델: 끊긴 로봇의 base 구역을 base 끝 ETA + 이만큼 쥔다
 comm_loss_policy: stop        # order 모델: 끊긴 로봇이 stop(바로 선다) / base_end(base 끝까지). 정하는 것은 로봇의 pinky_fsm 파라미터이고 여기 값은 머리 없는 세계의 로봇이 따른다. 구역 쥐기는 무관
