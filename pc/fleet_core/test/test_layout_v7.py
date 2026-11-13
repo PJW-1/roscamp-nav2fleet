@@ -183,8 +183,15 @@ def test_v7_routes(site):
         return math.inf if "EXPRESS" in link.zones else link.length
     way = route(site, "W_X", "O", no_express)
     assert way is not None and way[0].b == "N_E" and way[-1].a == "N_O", [l.b for l in way or []]
-    # 출고에서는 후진으로 넓은 곳에 나온다
-    assert site.link("O", "N_O").via == RETREAT
+    # 출고(사용자 2026-11-13): 급행이나 N_O(out_in)로 동쪽에서 들어와, 나갈 때는 후진하지 않고
+    # 앞으로(서쪽) 조금 가서 남쪽으로 꺾어 넓은 곳의 N_O로 나온다(통과형)
+    out = site.link("O", "N_O")
+    assert out.via == FOLLOW_PATH
+    o = site.node_pose("O")
+    assert out.points[1][0] < o[0] - 0.05, "first goes west, the way O faces"
+    assert all(b[1] <= a[1] + 1e-9 for a, b in zip(out.points[1:], out.points[2:])), "then south"
+    assert min(x for x, _ in out.points) - BODY_CIRCLE_M >= 0.05, "clear of the west wall"
+    assert site.link("N_O", "O").via == FOLLOW_PATH  # 넓은 곳에서 들어오기는 그대로
     # 마당 지점끼리는 Nav2 goal로 오가고 HALL만 잡는다(사용자 결정: 잠그는 구역은 급행 띠와 도크만)
     yard = ["N_O", "N_E", "G", "F", "Q1", "Q2", "O_Q", "E-1", "E-2", "E-3"]
     for a in yard:
