@@ -43,25 +43,31 @@ def test_v7_docks_and_parking(site):
     assert site.parking == ("P-1", "P-2", "P-3")
     for name, x in (("P-1", 0.12), ("P-2", 0.38), ("P-3", 0.64)):
         assert site.nodes[name].x == pytest.approx(x)
+        # 사용자 2026-11-13 밤: 더 깊숙이(자료의 0.09). 북쪽을 본 로봇의 뒤 끝이 벽에 닿지 않는다
+        assert site.nodes[name].y == pytest.approx(0.09)
+        assert site.nodes[name].y - REAR_M > 0.01
 
 
 def test_v7_work_queue_is_two_spots_entered_at_q2(site):
     """사용자 결정(2026-11-13 밤): WORK 줄은 둘이다. 앞자리 Q1은 W 바로 남쪽, 들어오는 자리 Q2는
-    남동 구석이다. 마당에서는 Q2로만 들어온다. 꼬리 Q3과 갈림 G는 없다. 줄 서기를 켠다."""
+    그 서쪽이다(2026-11-13 밤: 칸 입구와 같은 높이 0.27. 구석 0.16에 두면 칸 입구에서 오는 곧은 선이
+    주차한 로봇 앞 0.11~0.14를 지난다). 마당에서는 Q2로만 들어온다. 꼬리 Q3과 갈림 G는 없다."""
     station = site.stations["WORK"]
     assert station.queue == ("Q1", "Q2") and station.line
     assert not site.stations["OUTBOUND"].line
     assert not {"Q3", "G", "F"} & set(site.nodes)
     q1, q2 = site.node_pose("Q1"), site.node_pose("Q2")
-    assert q1[0] > 1.80 and q2[0] < q1[0] and q2[1] < 0.20, (q1, q2)  # 구석
+    assert q1[0] > 1.80 and q2[0] < q1[0], (q1, q2)
+    assert q2[1] == pytest.approx(site.nodes["E-1"].y)
     # Nav2 goal로 닿는 자리(Q2)와 줄 안에서 도는 점은 벽에서 0.13 이상(Gazebo 기준: 덧댐 0.01이
     # 붙은 뒤 모서리 0.098 + 칸 0.025 + 여유). 줄 안 당기기는 고정 경로다
     turns = [q1, q2] + list(site.link("Q2", "Q1").points[1:-1])
     for x, y in turns:
         assert min(1.98 - x, y) >= WALL_NAV_M - 1e-9, (x, y)
-    # 앞자리에는 북쪽으로 곧게 닿는다(앞자리에서 돌지 않는다)
-    bend = site.link("Q2", "Q1").points[-2]
-    assert bend[0] == pytest.approx(q1[0]) and bend[1] < q1[1]
+    # 앞자리로는 동쪽으로 곧게 당기고 앞자리에서 북쪽으로 돈다. 도는 몸 원이 Q2에 선 로봇의 앞 끝에
+    # 닿지 않는다
+    assert len(site.link("Q2", "Q1").points) == 2
+    assert q1[0] - BODY_CIRCLE_M > q2[0] + FRONT_M + 0.02
     # 두 자리 사이는 노드 놓는 거리(0.20)보다 멀다: 한 칸 당긴 로봇이 서면 뒷자리를 놓는다
     assert math.dist(q1, q2) > load_params().node_clear_m
     # Q2에 동쪽을 보고 선 로봇이 북쪽을 보고 선 앞자리 로봇 뒤 모서리와 겹치지 않는다
@@ -92,6 +98,15 @@ def test_v7_standing_nodes_keep_clear_of_other_zones(site):
             if zone != node.zone:
                 gap = site.distance_to_zone(node.x, node.y, zone)
                 assert gap >= RELEASE_GAP_M - 1e-9, (node.id, zone, gap)
+    # 출고의 두 점(사용자 2026-11-13 밤: 도크 입구 바로 아래에 두자는 요청)도 예외가 아니다.
+    # 더 올리면 두 규칙에 걸린다: 선 로봇의 몸(0.06)이 Nav2 keepout 띠(OUT_DOCK에서 0.06) 밖이어야
+    # 해서 y 0.645가 끝이고(fleet_gz_sim test_arena), 0.135보다 가까우면 거기 선 로봇이 OUT_DOCK을
+    # 쥔 채 있어 다음 로봇이 출고에 들어가지 못한다. 두 규칙이 허락하는 끝은 y 0.63이고 0.01의
+    # 여유를 둔다
+    for name in ("O_IN", "O_OUT"):
+        node = site.nodes[name]
+        gap = site.distance_to_zone(node.x, node.y, "OUT_DOCK")
+        assert RELEASE_GAP_M + 0.005 <= gap <= RELEASE_GAP_M + 0.02, (name, gap)
     # 충전 칸과 그 입구는 짝이다: 칸에 선 로봇이 자기 입구를 쥐고 있어도 그 칸 말고는 쓰지 않는다
     pairs = {tuple(sorted((spot, _bay_door(spot)))) for spot in site.parking}
     names = list(site.nodes)
@@ -223,7 +238,7 @@ def test_v7_routes(site):
     # 출고가 바쁘면 들어오는 점에서 기다린다
     assert site.stations["OUTBOUND"].queue == ("O_IN",)
     # 마당 지점끼리는 Nav2 goal로 오가고 HALL만 잡는다(사용자 결정: 잠그는 구역은 급행 띠와 도크만)
-    yard = ["O_IN", "O_OUT", "Q2", "E-1", "E-2", "E-3"]
+    yard = ["O_IN", "O_OUT", "M_E", "Q2", "E-1", "E-2", "E-3"]
     for a in yard:
         for b in yard:
             link = site.link(a, b)
@@ -233,9 +248,26 @@ def test_v7_routes(site):
     # 쥐고 있어도 나머지 입구로 다닌다. 남쪽 통로로 바로 가므로 가운데 통로를 돌지 않는다
     doors = ["E-1", "E-2", "E-3"]
     pairs = [(a, b) for a in doors for b in doors if a != b]
-    pairs += [(door, far) for door in doors for far in ("Q2", "O_IN", "O_OUT")]
+    pairs += [(door, far) for door in doors for far in ("Q2", "O_OUT")]
+    # O_IN은 E-1, E-2와만 잇는다: E-3까지의 곧은 선은 남쪽 진열대 서쪽 끝 아래 모서리에서 0.082다.
+    # E-3으로는 다른 입구나 O_OUT을 거쳐 간다
+    pairs += [("O_IN", "E-1"), ("O_IN", "E-2")]
+    assert site.link("O_IN", "E-3") is None and site.link("E-3", "O_IN") is None
+    # 우회로(2026-11-13 밤): 가운데 통로 동쪽 끝의 M_E. O_IN과 Q2만 잇는다
+    pairs += [("O_OUT", "O_IN"), ("O_IN", "M_E"), ("M_E", "Q2")]
     for a, b in pairs:
         assert site.link(a, b) is not None and site.link(b, a) is not None, (a, b)
+    assert sorted(link.b for link in site.links() if link.a == "M_E") == ["O_IN", "Q2"]
+    # 평소에는 남쪽 통로가 짧다. 남쪽 통로(칸 입구 <-> Q2)를 못 쓰면 가운데 통로로 돈다
+    for door in doors:
+        assert [link.b for link in route(site, door, "Q2")] == ["Q2"], door
+
+    def south_shut(link):
+        return math.inf if "Q2" in (link.a, link.b) and "M_E" not in (link.a, link.b) \
+            else link.length
+    for start in (*doors, "O_OUT"):
+        way = [link.b for link in route(site, start, "Q2", south_shut)]
+        assert way[-3:] == ["O_IN", "M_E", "Q2"], (start, way)
     # 진열대를 곧게 가로지르는 Nav2 이음이 없다(4079c40 리뷰: 그래프 값이 실제보다 짧다)
     from fleet_core.fleet_map.geometry import inside
     for link in site.links():
@@ -255,6 +287,7 @@ def test_v7_queue_is_entered_at_q2_and_flows_one_way(site):
     touching = sorted((link.a, link.b, link.via) for link in site.links()
                       if {"Q1", "Q2"} & {link.a, link.b})
     doors = ["E-1", "E-2", "E-3"]
+    doors.append("M_E")  # 우회로의 끝도 줄 입구로 들어온다
     assert touching == sorted([(door, "Q2", NAV_GOAL) for door in doors]
                               + [("Q2", door, NAV_GOAL) for door in doors]
                               + [("Q1", "W", FOLLOW_PATH), ("Q2", "Q1", FOLLOW_PATH)])
@@ -276,7 +309,16 @@ def test_v7_robots_standing_in_line_or_at_a_fork_leave_every_other_way_open(site
 
     from fleet_core.fleet_map.geometry import point_segment_distance
     # G, F: 갈림에서도 차례를 기다리며 선다(3e84ff6 리뷰: G에 선 로봇이 E-3 -> F 선을 0.076으로 막았다)
-    standing = ["W", "O", "Q1", "Q2", "O_IN", "O_OUT"]
+    # 지나가는 로봇은 주차한 로봇 앞을 몸 둘이 닿지 않게 지난다(2026-11-13 밤, Gazebo와 머리 없는
+    # 세계: 칸 입구 0.25, 주차 0.11이던 때 E-1 -> Q2의 선이 P-3에서 0.11이라 로봇이 서 있었다).
+    # 0.175 = 머리 없는 세계가 막혔다고 보는 거리(robot_radius_m 둘 + 틈 0.01 = 0.17)보다 조금 넘게
+    for link in site.links():
+        if link.via != NAV_GOAL:
+            continue
+        for spot in site.parking:
+            gap = point_segment_distance(site.node_pose(spot), link.points[0], link.points[-1])
+            assert gap >= 0.175, (link.a, link.b, spot, round(gap, 3))
+    standing = ["W", "O", "Q1", "Q2", "O_IN", "O_OUT", "M_E"]
     for name in standing:
         here = site.node_pose(name)
         for link in site.links():

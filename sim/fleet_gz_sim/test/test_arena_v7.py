@@ -51,7 +51,7 @@ def test_v7_charging_stalls_and_express_are_open_in_the_fine_map(site):
 
 def test_v7_standing_nodes_are_outside_the_keepout(site):
     grid = arena_maps.keepout(arena_maps.FINE_M, site)
-    for name in ("O_IN", "O_OUT", "Q1", "Q2", "E-1", "E-2", "E-3", "P-1", "P-2", "P-3"):
+    for name in ("O_IN", "O_OUT", "M_E", "Q1", "Q2", "E-1", "E-2", "E-3", "P-1", "P-2", "P-3"):
         x, y = site.node_pose(name)
         i, j = arena_maps.cell_of(x, y, arena_maps.FINE_M, site)
         assert not grid[j][i], name
@@ -73,6 +73,44 @@ def test_v7_random_scenario_has_the_random_block():
     assert data["random"] == {"order_gap_s": [5, 40],
                               "low_battery": {"from_s": 20, "to_s": 150, "charge_s": 30}}
     assert fleet_setup.has_low_battery(data, 4)
+
+
+def test_v7_varied_scenario_mixes_order_bursts_with_staggered_low_batteries(site):
+    """사용자 2026-11-13 밤: 더 다양한 상황. 주문이 몰렸다 쉬고, 로봇마다 다른 때에 배터리가 떨어진다."""
+    from fake_robots.scenario import load_scenario
+    path = PKG / "scenarios" / "gz_v7_varied.yaml"
+    data = fleet_setup.read_scenario(path)
+    fleet_setup.check_fits(data, "gz_v7_varied", "v7")
+    assert list(fleet_setup.start_nodes(site, data).values()) == ["P-3", "P-2", "P-1"]
+    assert len(data["orders"]) == 12 and fleet_setup.has_low_battery(data)
+    times = [order["at_s"] for order in data["orders"]]
+    gaps = [b - a for a, b in zip(times, times[1:], strict=False)]
+    assert min(gaps) == 0 and max(gaps) >= 90, gaps
+    sizes = {sum(order["items"].values()) for order in data["orders"]}
+    assert sizes >= {1, 2, 3, 4}
+    low = [f for f in data["faults"] if f["type"] == "low_battery"]
+    assert sorted(f["robot"] for f in low) == ["pinky1", "pinky2", "pinky3"]
+    assert len({f["at_s"] for f in low}) == 3 and len({f["duration_s"] for f in low}) == 3
+    assert {f["type"] for f in data["faults"]} == {"low_battery"}
+    scenario = load_scenario(path, site)
+    assert scenario.expect.orders_shipped == 12 and scenario.expect.parked_while_backlog is None
+
+
+def test_v7_obstacle_schedule_puts_boxes_on_nav_goal_links_only(site):
+    """고정 경로는 Gazebo에서 충돌 검사를 하지 않는다. 상자는 Nav2 goal 이음 위에만 놓는다."""
+    from fleet_core.fleet_map.model import NAV_GOAL
+    from fleet_gz_sim.obstacles import load_schedule
+    schedule = load_schedule(PKG / "obstacles" / "v7_yard_mix.yaml", site)
+    assert [one.link for one in schedule.obstacles] == [("E-3", "Q2"), ("O_OUT", "E-2"),
+                                                         ("O_IN", "M_E")]
+    for one in schedule.obstacles:
+        assert site.link(*one.link).via == NAV_GOAL
+        assert one.at_s >= 15, "sim_obstacles가 뜬 뒤"
+    # 남쪽 통로의 상자는 통로를 막는다: 남는 틈이 로봇 폭(0.112) + 양쪽 0.04보다 좁다
+    south = schedule.obstacles[0]
+    across = schedule.size_m[1]
+    assert south.y == pytest.approx(0.27) and south.y - across / 2 < 0.112 + 0.08
+    assert south.y + across / 2 <= 0.365, "진열대와 겹치지 않는다"
 
 
 @pytest.mark.parametrize("seed", [None, 4])
@@ -189,7 +227,7 @@ def test_v7_the_crossing_gap_is_shut_for_nav2_on_the_5cm_costmap():
     # 서쪽 끝(x < 0.68)만 남김: 동쪽 통로를 막아 본다
     ([(1.56, 0.30, 1.98, 0.45)], [("O_IN", "Q1"), ("O_IN", "Q2"), ("O_OUT", "Q2")]),
     # 동쪽 통로(1.65~1.72)만 남김: 서쪽 끝을 막아 본다
-    ([(0.0, 0.30, 0.68, 0.45)], [("O_IN", "Q1"), ("O_IN", "Q2"), ("O_OUT", "Q2")]),
+    ([(0.0, 0.30, 0.68, 0.45)], [("O_IN", "Q1"), ("O_IN", "Q2"), ("O_OUT", "Q2"), ("M_E", "Q2")]),
 ])
 def test_v7_north_and_south_stay_joined_by_each_way_alone(site, shut, pairs):
     grid, _, _ = _costmap()

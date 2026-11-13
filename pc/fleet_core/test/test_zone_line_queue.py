@@ -179,6 +179,25 @@ def test_v7_a_full_line_pulls_forward_as_soon_as_the_front_moves():
     assert not world.problems
 
 
+@pytest.mark.parametrize("parked", [("P-1", "P-2"), ("P-1", "P-3"), ("P-2", "P-3")])
+def test_v7_a_robot_leaving_outbound_gets_past_the_doors_parked_robots_hold(parked):
+    """칸에 선 로봇은 자기 칸 입구를 쥐고 있다. 출고에서 나온 로봇은 남은 입구로 지나 줄에 선다
+    (b5f1e8f 리뷰: 길이 있다는 것만이 아니라 관제가 그 길을 고르는지)."""
+    held = ["E-" + spot.removeprefix("P-") for spot in parked]
+    world = Harness(layout="v7", starts={"pinky1": held[0], "pinky2": held[1], "pinky3": "O"})
+    world.report()
+    asked = world.call("WORK", "pinky3")
+    assert world.run_until(lambda: world.result_of(asked) is not None, 300.0), world.codes()
+    # 할 일 없는 두 로봇은 입구에서 후진으로 칸에 들어가 서고, 입구(0.18 < node_clear_m)를 쥐고 있다
+    for robot, spot, door in zip(("pinky1", "pinky2"), parked, held, strict=True):
+        assert world.view(robot)["node"] == spot and door in world.view(robot)["nodes"], robot
+    held = set(held)
+    went = targets(world, "pinky3")
+    assert went[0] == "O_OUT" and went[-3:] == ["Q2", "Q1", "W"], went
+    assert not held & set(went), went
+    assert not world.problems
+
+
 def low_battery_in_line(spot):
     """W에 pinky1, 줄에 둘이 WORK를 기다린다. spot에 선 로봇의 배터리를 낮춘다(누가 어디 서는지는
     부르기 전 주차 출발과 차례에 따라 바뀐다)."""
