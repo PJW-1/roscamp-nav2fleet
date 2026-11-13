@@ -93,18 +93,43 @@ def test_v7_routes(site):
     assert site.link("X_E", "N_E").via == FOLLOW_PATH
     # 출고에서는 후진으로 넓은 곳에 나온다
     assert site.link("O", "N_O").via == RETREAT
-    # 가운데 통로와 남쪽 통로는 양방향 Nav2 goal
-    for a, b in (("N_O", "N_E"), ("S_W", "Q2")):
-        assert site.link(a, b).via == NAV_GOAL and site.link(b, a).via == NAV_GOAL
-    assert "MID" in site.link("N_O", "N_E").zones
-    assert "SOUTH" in site.link("S_W", "Q2").zones
-    # 가운데 통로 끝에서 대기 자리로 바로 내려간다(그림의 빨간 선)
-    assert site.link("N_E", "Q1").via == NAV_GOAL
-    assert "WORK_DOCK" not in site.link("N_E", "Q1").zones
+    # 마당 지점끼리는 Nav2 goal로 오가고 HALL만 잡는다(사용자 결정: 잠그는 구역은 급행 띠와 도크만)
+    yard = ["N_O", "N_E", "Q1", "Q2", "O_Q", "P-1", "P-2", "P-3"]
+    for a in yard:
+        for b in yard:
+            link = site.link(a, b)
+            if link is not None:
+                assert link.via == NAV_GOAL and link.zones == ("HALL",), (a, b, link.zones)
+    for a, b in [("N_O", "N_E"), ("N_E", "Q2"), ("Q2", "Q1")] + [(p, "Q2") for p in site.parking]:
+        assert site.link(a, b) is not None and site.link(b, a) is not None, (a, b)
+    # Q1로 곧게 가는 선이 WORK_DOCK keepout 모서리를 지나는 N_E만 Q2를 거친다(그림의 빨간 선)
+    assert site.link("N_E", "Q1") is None
     for spot in site.parking:
         assert route(site, spot, "W") is not None and route(site, "O", spot) is not None
 
 
-def test_v7_capacity_covers_three_robots(site):
-    assert sum(z.capacity for z in site.zones.values() if z.kind == SHARED) >= 3
-    assert site.zones["MID"].capacity == 1 and site.zones["SOUTH"].capacity == 1
+BODY_CIRCLE_M = 0.083  # 핑키 뒤 모서리 회전 반지름(docs/실측_2026-11-10.md)
+HALF_WIDTH_M = 0.056   # 지나가는 로봇의 반 폭(local footprint)
+
+
+def test_v7_robots_standing_in_line_or_at_a_fork_leave_every_other_way_open(site):
+    """오래 서는 자리(도크, 대기, 갈림)의 로봇 몸 원과, 그 자리를 거치지 않는 모든 길(고정 경로의
+    선, Nav2 goal의 곧은 선) 사이에 지나가는 로봇의 반 폭이 들어간다."""
+    from itertools import pairwise
+
+    from fleet_core.fleet_map.geometry import point_segment_distance
+    standing = ["W", "O", "Q1", "Q2", "O_Q", "N_E", "N_O"]
+    for name in standing:
+        here = site.node_pose(name)
+        for link in site.links():
+            if name in (link.a, link.b):
+                continue
+            gap = min(point_segment_distance(here, a, b) for a, b in pairwise(link.points))
+            assert gap >= BODY_CIRCLE_M + HALF_WIDTH_M, (name, link.a, link.b, round(gap, 3))
+
+
+def test_v7_locks_only_the_express_strip_and_the_docks(site):
+    kinds = {name: zone.kind for name, zone in site.zones.items()}
+    assert kinds == {"HALL": SHARED, "WORK_DOCK": "dock", "J_E": "dock", "EXPRESS": "lane",
+                     "OUT_DOCK": "dock"}
+    assert site.zones["HALL"].capacity == 3 and site.zones["EXPRESS"].capacity == 2
