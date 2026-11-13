@@ -20,7 +20,7 @@ class TrafficApi(Protocol):
         """막힘 지점 확인(CheckClear)의 답을 받는다."""
 
     def on_run_mode(self, run_mode) -> None:
-        """운행 모드를 바꾼다. STOP이 되면 열린 goal을 취소한다."""
+        """운행 모드를 바꾼다. STOP으로 바뀔 때 통신이 정상인 로봇의 goal을 취소한다."""
 
     def on_dispatch(self, goal_id, station_id, robot_id="") -> None:
         """로봇을 스테이션으로 부르거나(실패는 DispatchResult) 채우기 스테이션의 호출을 연다."""
@@ -66,7 +66,7 @@ class TrafficApi(Protocol):
         """치운 로봇을 다시 투입할 수 없는 이유를 돌려준다(없으면 빈 값)."""
 
     def reinstate(self, robot) -> bool:
-        """치운 로봇을 다시 투입한다. 거절되면 False, 받아들이면 다음 위치 보고 때 지도에 올린다."""
+        """치운 로봇을 다시 투입한다. 거절되면 False, 받아들이면 이후 보고에서 배치를 시도한다."""
 
     # ---- 로봇 목록과 운행 상태 조회 ----
     @property
@@ -86,7 +86,7 @@ class TrafficApi(Protocol):
         """구역 허락 기록."""
 
     def available(self, robot) -> bool:
-        """로봇이 지도에 올라 있고 고장이나 통신 두절이 아닌지."""
+        """로봇이 지도에 올라 있고 고장도 통신 문제(두절, 복구 확인 중)도 없는지."""
 
     # ---- 틱 진행 ----
     def tick(self) -> list:
