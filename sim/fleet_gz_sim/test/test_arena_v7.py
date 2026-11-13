@@ -51,7 +51,7 @@ def test_v7_charging_stalls_and_express_are_open_in_the_fine_map(site):
 
 def test_v7_standing_nodes_are_outside_the_keepout(site):
     grid = arena_maps.keepout(arena_maps.FINE_M, site)
-    for name in ("N_O", "N_E", "F", "Q1", "O_Q", "E-1", "E-2", "E-3", "P-1", "P-2", "P-3"):
+    for name in ("N_O", "N_E", "G", "F", "Q1", "O_Q", "E-1", "E-2", "E-3", "P-1", "P-2", "P-3"):
         x, y = site.node_pose(name)
         i, j = arena_maps.cell_of(x, y, arena_maps.FINE_M, site)
         assert not grid[j][i], name

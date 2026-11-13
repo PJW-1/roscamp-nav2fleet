@@ -12,10 +12,10 @@
 #       |  N_O                     가운데 통로                  N_E     |  y 0.58
 #       | O_Q                                                     [W]|  WORK y 0.495, 북쪽 보기
 #  0.405|                  +=========+   틈   +===========+          |  진열대 y 0.365~0.405
-#       | E-1   E-2   E-3          남쪽 통로                       F |  y 0.25~0.255
-#       | P-1 | P-2 | P-3 |                                   Q1     |  y 0.10~0.11
+#       | E-1   E-2   E-3          남쪽 통로                 G     F |  y 0.25~0.30
+#       | P-1 | P-2 | P-3 |                                Q1        |  y 0.10~0.11
 #  0    +-----+-----+-----+--------------------------------------------+
-#       0    0.25  0.51  0.77                                 1.56  1.85  1.98  x
+#       0    0.25  0.51  0.77                                 1.56  1.78  1.98  x
 #
 # 구역(사용자 결정 2026-11-13): 잠그는 것은 급행 띠(EXPRESS, 입구 J_E)와 도크 자리(WORK_DOCK,
 # OUT_DOCK)뿐이다. HALL은 나머지 바닥 전부다(진열대와 칸막이 자리도 덮는다. 그 자리에는 지점과
@@ -41,11 +41,12 @@ zones:
   HALL:
     kind: shared
     capacity: 3
-    rects: [[0.0, 0.0, 1.98, 0.45], [0.0, 0.45, 1.85, 0.55], [0.0, 0.55, 1.98, 0.765],
+    rects: [[0.0, 0.0, 1.98, 0.395], [0.0, 0.395, 1.78, 0.63], [0.0, 0.63, 1.98, 0.765],
             [0.50, 0.765, 1.98, 0.77], [0.50, 0.77, 0.68, 0.81]]
-  # W에 선 로봇 몸만큼. keepout(몸 반폭 0.06 넓힘)이 x 1.79부터라 남쪽 진열대 동쪽 끝(x 1.56)과의
-  # 전역 costmap 통로가 남는다(빨간 선, test_layout_v7). 도킹을 마친 로봇은 HALL도 쥔다(정원 3 중 하나)
-  WORK_DOCK: {kind: dock, rects: [[1.85, 0.45, 1.98, 0.55]]}
+  # 서쪽 경계는 W에서 0.10: 도킹을 마친 로봇이 HALL을 놓는다(0.085 + 오차 0.01). keepout(몸 반폭
+  # 0.06 넓힘)은 x 1.72부터다. 마스크는 부풀지 않으므로 남쪽 진열대 동쪽 끝(1.56 + 내접 0.09 = 1.65)과
+  # 1.72 사이에 전역 경로 중심이 지날 띠가 남는다(5 cm 지도에서 한 칸, test_layout_v7)
+  WORK_DOCK: {kind: dock, rects: [[1.78, 0.395, 1.98, 0.63]]}
   J_E: {kind: dock, rects: [[1.56, 0.77, 1.98, 0.99]]}             # 급행 동쪽 입구, 한 대
   EXPRESS: {kind: lane, capacity: 2, rects: [[0.50, 0.81, 1.56, 0.99]]}
   OUT_DOCK: {kind: dock, rects: [[0.0, 0.765, 0.50, 0.99]]}
@@ -62,7 +63,9 @@ nodes:
   # 뒤 차례 로봇이 선 자리를 지나야 하고, 그 뒤 차례 로봇은 칸에서 기다리는 셋째 로봇 뒤였다.
   # D2의 W_Q처럼 길 밖에 둔다. 한 자리뿐이다: 남쪽 벽 선에 둘째 자리를 두면 남쪽 통로 출구나
   # F로 가는 선을 막는다. 모자라면 나머지는 충전 칸에서 기다린다
-  Q1: {x: 1.70, y: 0.10, kind: wait, yaw_deg: 0}
+  Q1: {x: 1.62, y: 0.10, kind: wait, yaw_deg: 0}
+  # 가운데 통로에서 F로 내려가는 갈림(빨간 선): N_E에서 F로 곧게 가는 선은 WORK_DOCK keepout을 지난다
+  G: {x: 1.66, y: 0.33, kind: fork}
   O_Q: {x: 0.15, y: 0.55, kind: wait, yaw_deg: 90}     # 출고 대기 자리
   # 충전 칸. y는 자료의 0.09보다 0.02 북쪽. 칸 안에서는 돌지 않는다: 입구 E에서 북쪽을 보고 곧게
   # 후진해 들어가고 앞으로 곧게 나온다(Gazebo 1, 2판: Nav2 goal로 칸에서 나가다 셋째 칸막이 위 끝을
@@ -89,23 +92,25 @@ paths:  # 고정 경로(FollowPath 선). [x, y]는 꺾는 점
   bay_out_1: {points: [P-1, E-1]}                      # 앞으로 곧게 나온다
   bay_out_2: {points: [P-2, E-2]}
   bay_out_3: {points: [P-3, E-3]}
-nav:  # Nav2 goal 이음(HALL 안). 곧은 선이 오래 서는 자리(도크, 대기, 갈림)의 로봇 몸 원(0.083)에
-  # 지나가는 로봇 반 폭(0.056)보다 가까운 쌍, 칸막이 끝에 몸 원 + 0.02보다 가까운 쌍은 잇지 않는다
-  # (test_layout_v7): O_Q는 N_E, F, Q1과, E-1, E-2는 Q1과 잇지 않는다(다른 지점을 거친다)
-  - {nodes: [N_O, N_E, F, Q1, E-3]}
-  - {nodes: [E-1, N_O]}
-  - {nodes: [E-1, N_E]}
-  - {nodes: [E-1, F]}
-  - {nodes: [E-1, E-3]}
-  - {nodes: [E-2, N_O]}
-  - {nodes: [E-2, N_E]}
-  - {nodes: [E-2, F]}
-  - {nodes: [E-2, E-3]}
-  - {nodes: [E-1, E-2]}
-  - {nodes: [O_Q, N_O]}
-  - {nodes: [O_Q, E-1]}
-  - {nodes: [O_Q, E-2]}
-  - {nodes: [O_Q, E-3]}
+nav:  # Nav2 goal 이음(HALL 안). 곧은 선이 WORK_DOCK keepout을 지나거나, 오래 서는 자리(도크, 대기,
+  # 갈림)의 로봇 몸 원(0.083)에 지나가는 로봇 반 폭(0.056)보다 가깝거나, 칸막이 끝에 몸 원 + 0.02보다
+  # 가까운 쌍은 잇지 않는다(test_layout_v7): N_E-F(keepout), O_Q-N_E/G/F(N_O 곁), Q1-E-1/E-2(칸막이 3)
+  - {nodes: [N_O, G, F, Q1, E-3]}
+  - {nodes: [O_Q, E-1, E-2, E-3]}
+  - {nodes: [N_O, N_E]}
+  - {nodes: [N_O, O_Q]}
+  - {nodes: [N_O, E-1]}
+  - {nodes: [N_O, E-2]}
+  - {nodes: [N_E, G]}
+  - {nodes: [N_E, Q1]}
+  - {nodes: [N_E, E-1]}
+  - {nodes: [N_E, E-2]}
+  - {nodes: [N_E, E-3]}
+  - {nodes: [G, E-1]}
+  - {nodes: [G, E-2]}
+  - {nodes: [F, E-1]}
+  - {nodes: [F, E-2]}
+  - {nodes: [Q1, O_Q]}
 stations:
   WORK: {dock: W, queue: [Q1], server: workcell, arms: [arm1, arm2], action: fill}
   OUTBOUND: {dock: O, queue: [O_Q], server: arm3, arms: [arm3], action: swap}
