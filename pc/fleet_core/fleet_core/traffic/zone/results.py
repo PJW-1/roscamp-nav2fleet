@@ -38,7 +38,7 @@ class Results:
         else:
             self._move_failed(m, reason)
 
-    # ---- 후퇴 결과와 도킹 결과 ----
+    # ---- 물러나기 결과와 도킹 결과 ----
     def on_retreat_result(self, robot, goal_id, success, reason="") -> None:
         if self._backoff_result(robot, goal_id, "" if success else reason or "RETREAT_FAILED"):
             return

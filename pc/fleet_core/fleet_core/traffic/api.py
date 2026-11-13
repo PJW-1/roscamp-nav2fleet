@@ -1,4 +1,4 @@
-# ---- 트래픽 계층이 지켜야 할 인터페이스 ----
+# ---- 교통 계층이 지켜야 할 인터페이스 ----
 from __future__ import annotations
 
 from typing import Protocol, runtime_checkable
@@ -17,7 +17,7 @@ class TrafficApi(Protocol):
         """로봇 상태 보고를 받아 지도에 올리고 위치를 따라간다."""
 
     def on_clear_check(self, robot, check_id, answer) -> None:
-        """막힘 해제 확인 요청의 답을 받는다."""
+        """막힘 지점 확인(CheckClear)의 답을 받는다."""
 
     def on_run_mode(self, run_mode) -> None:
         """운행 모드 RUN/PAUSE/STOP을 받는다."""
@@ -34,7 +34,7 @@ class TrafficApi(Protocol):
     def on_robot_fault(self, robot, reason="") -> None:
         """주문 쪽이 알린 고장으로 로봇을 격리한다."""
 
-    # ---- 이동, 후퇴, 도킹 goal 결과 ----
+    # ---- 이동, 물러나기, 도킹 goal 결과 ----
     def on_move_feedback(self, robot, goal_id, last_done_seq, waiting_at_base_end,
                          horizon_warning="") -> None:
         """order 모델 이동 피드백을 받는다."""
@@ -52,7 +52,7 @@ class TrafficApi(Protocol):
         """결과를 잃은 goal을 끝난 것으로 본다."""
 
     def on_retreat_result(self, robot, goal_id, success, reason="") -> None:
-        """후퇴 goal 결과를 받는다."""
+        """물러나기 goal 결과를 받는다."""
 
     def on_dock_result(self, robot, goal_id, success, error_x_cm=0.0, error_y_cm=0.0,
                        error_yaw_deg=0.0) -> None:

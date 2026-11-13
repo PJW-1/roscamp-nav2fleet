@@ -111,7 +111,7 @@ class Robot:
     start_xy: tuple = (0.0, 0.0)
     start_since: float = 0.0
     start_done: bool = False
-    # ---- 자가 복구, 구역 놓기, 양보, 후퇴 기록 ----
+    # ---- 자가 복구, 구역 놓기, 양보, 물러나기 기록 ----
     self_recovery_since: float | None = None
     local_yield: str = ""
     local_yield_since: float | None = None

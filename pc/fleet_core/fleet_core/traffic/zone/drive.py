@@ -94,7 +94,7 @@ class Drive:
         else:
             self._head_for(m, TO_PARK, None)
 
-    # ---- 다음 구간을 이동 또는 후퇴 명령으로 보내기 ----
+    # ---- 다음 구간을 이동 또는 물러나기 명령으로 보내기 ----
     def _send(self, m) -> None:
         if self.params.use_order_model:
             self._send_order(m)

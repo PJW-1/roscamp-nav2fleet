@@ -110,7 +110,7 @@ def _line(links, x: float, y: float) -> tuple[list, list]:
     return points, yaws
 
 
-# ---- 이동 명령과 후퇴 명령 만들기 ----
+# ---- 이동 명령과 물러나기 명령 만들기 ----
 def move_command(site, robot: str, goal_id: int, links, x: float, y: float,
                  after=None, priority: int = -1) -> MoveCmd:
     node = site.nodes[links[-1].b]

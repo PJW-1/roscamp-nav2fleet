@@ -1,4 +1,4 @@
-# ---- 교통 모드 선택과 트래픽 계층 생성 ----
+# ---- 교통 모드 선택과 교통 계층 생성 ----
 from __future__ import annotations
 
 import importlib

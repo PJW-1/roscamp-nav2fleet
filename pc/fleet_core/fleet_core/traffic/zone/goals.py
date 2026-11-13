@@ -79,7 +79,7 @@ class Goals:
                 best, best_cost = [first, *rest], total
         return best
 
-    # ---- 구역에서 닿는 노드와 후퇴 링크 ----
+    # ---- 구역에서 닿는 노드와 물러나기 링크 ----
     def _reach(self, zone: str) -> dict:
         memo = self.__dict__.setdefault("_reach_memo", {})
         if zone not in memo:

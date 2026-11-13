@@ -1,4 +1,4 @@
-# ---- 후퇴와 다른 로봇에게 양보 믹스인 ----
+# ---- 물러나기와 다른 로봇에게 양보 믹스인 ----
 from __future__ import annotations
 
 from fleet_core.fleet_map import FOLLOW_PATH, PASS, SHARED
@@ -6,7 +6,7 @@ from fleet_core.fleet_map.geometry import point_segment_distance
 from fleet_core.traffic.mission import BLOCKED
 
 
-# ---- PASS 노드에서 SHARED 구역 쪽 후퇴 지점 찾기 ----
+# ---- PASS 노드에서 SHARED 구역 쪽 물러날 지점 찾기 ----
 def yard_retreat(site, link) -> tuple[str, str]:
     a = link.a
     if not a or site.nodes[a].kind != PASS:
@@ -18,7 +18,7 @@ def yard_retreat(site, link) -> tuple[str, str]:
     return a, ""
 
 
-# ---- 뒤가 비기를 기다리기와 후퇴 목표 정하기 ----
+# ---- 뒤가 비기를 기다리기와 물러날 목표 정하기 ----
 class YardRetreat:
     def _waits_behind(self, m) -> bool:
         now = self._clock()
@@ -35,7 +35,7 @@ class YardRetreat:
         m.retreat_to, m.retreat_via = yard_retreat(self.site, link)
         m.retreat_since = now
 
-    # ---- 꺾인 후퇴 길 뒤에 있는 로봇 확인 ----
+    # ---- 꺾인 물러나기 길 뒤에 있는 로봇 확인 ----
     def _behind_on_the_bent_way(self, m, target: str, via: str) -> str:
         site = self.site
         here, corner, end = (m.x, m.y), site.node_pose(via), site.node_pose(target)
@@ -60,7 +60,7 @@ class YardRetreat:
         m.retreat_behind = behind
         return bool(behind)
 
-    # ---- 후퇴를 너무 오래 못 하면 실패 처리 ----
+    # ---- 물러나기를 너무 오래 못 하면 실패 처리 ----
     def _watch_retreat_wait(self, m, now: float) -> None:
         if (not m.retreat_to or m.goal is not None or m.retreat_since is None
                 or now - m.retreat_since < self.params.blocked_timeout_s):

@@ -27,7 +27,7 @@ class Redock:
             m.redock, m.redock_since = True, None
         self._goal_failed(m, reason)
 
-    # ---- 후퇴했다가 도크로 다시 들어오는 트립 만들기 ----
+    # ---- 물러났다가 도크로 다시 들어오는 트립 만들기 ----
     def _reapproach(self, m) -> bool:
         now = self._clock()
         dock = self.site.stations[m.dest].dock
