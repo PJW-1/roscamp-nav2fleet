@@ -84,7 +84,9 @@ class Goals:
         memo = self.__dict__.setdefault("_reach_memo", {})
         if zone not in memo:
             site = self.site
-            inside = {name: (zone,) for name in site.nodes_in(zone)}
+            by_goal = {link.b for link in site.links() if link.via == NAV_GOAL}
+            inside = {name: (zone,) for name in site.nodes_in(zone)
+                      if name in by_goal or not by_goal}
             if inside:
                 memo[zone] = inside
             else:

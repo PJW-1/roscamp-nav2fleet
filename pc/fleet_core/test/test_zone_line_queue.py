@@ -188,13 +188,34 @@ def test_v7_a_robot_leaving_outbound_gets_past_the_doors_parked_robots_hold(park
     world.report()
     asked = world.call("WORK", "pinky3")
     assert world.run_until(lambda: world.result_of(asked) is not None, 300.0), world.codes()
-    # 할 일 없는 두 로봇은 입구에서 후진으로 칸에 들어가 서고, 입구(0.18 < node_clear_m)를 쥐고 있다
+    # 할 일 없는 두 로봇은 입구에서 후진으로 칸에 들어가 서고, 입구(0.19 < node_clear_m)를 쥐고 있다
     for robot, spot, door in zip(("pinky1", "pinky2"), parked, held, strict=True):
         assert world.view(robot)["node"] == spot and door in world.view(robot)["nodes"], robot
     held = set(held)
     went = targets(world, "pinky3")
     assert went[0] == "O_OUT" and went[-3:] == ["Q2", "Q1", "W"], went
     assert not held & set(went), went
+    assert not world.problems
+
+
+def test_v7_a_robot_low_on_battery_in_the_open_yard_goes_to_a_door_and_backs_in():
+    """마당을 Nav2 goal로 가던 로봇의 배터리가 떨어지면 칸 입구로 보낸 뒤 후진으로 넣는다.
+    선 자리에서 칸 안으로 Nav2 goal을 곧장 보내지 않는다(Gazebo 2026-11-13 밤: 'NAV_GOAL_SENT to
+    P-3'을 받은 로봇이 칸에 비스듬히 들어가다 입구에 걸려 섰고, 그 앞 입구에 온 로봇까지 막았다)."""
+    from fleet_core.common.commands import RetreatCmd
+    world = Harness(layout="v7", params=replace(load_params(), battery_low_pct=20.0),
+                    starts={"pinky1": "P-1", "pinky2": "W"})
+    world.report()
+    world.call("WORK", "pinky2")  # 도크를 쥐고 있다
+    world.call("WORK")            # 열린 호출: pinky1이 줄로 간다. 배터리가 낮으면 내놓는다
+    bot = world.bots["pinky1"]
+    assert world.run_until(lambda: bot.x > 0.45, 60.0), (bot.x, bot.y)
+    world.traffic.on_robot_state("pinky1", bot.x, bot.y, bot.yaw, "MOVING", 15.0)
+    assert world.run_until(lambda: world.view("pinky1")["state"] == "PARKED", 200.0), \
+        world.codes("pinky1")[-12:]
+    into_bays = [c.target_id for c in world.sent(MoveCmd, "pinky1") if c.target_id.startswith("P-")]
+    assert not into_bays, into_bays
+    assert world.sent(RetreatCmd, "pinky1")
     assert not world.problems
 
 
