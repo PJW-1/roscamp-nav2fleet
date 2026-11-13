@@ -172,10 +172,9 @@ def test_v7_bays_are_entered_backwards_and_left_forwards_on_a_straight_line(site
     for link in site.links():
         if link.via != NAV_GOAL:
             continue
-        (ax, ay), (bx, by) = link.points[0], link.points[-1]
-        steps = max(2, int(link.length / 0.005))
-        gap = min(point_rect_distance(shelf, ax + (bx - ax) * i / steps, ay + (by - ay) * i / steps)
-                  for shelf in site.shelves for i in range(steps + 1))
+        from fleet_core.fleet_map.geometry import segment_rect_distance
+        gap = min(segment_rect_distance(link.points[0], link.points[-1], shelf)
+                  for shelf in site.shelves)
         assert gap >= BODY_CIRCLE_M, (link.a, link.b, round(gap, 3))
 
 
