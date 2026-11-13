@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 import math
+from typing import NamedTuple
 
 from fleet_core.common.commands import (
     CancelCmd,
@@ -26,6 +27,18 @@ from zone_order_run import OrderRun
 DT = 0.1
 DOCK_S = 2.0
 STARTS = {"pinky1": "P-1", "pinky2": "P-2", "pinky3": "P-3"}
+
+
+class Leg(NamedTuple):
+    """보낸 구간 하나: MoveCmd 하나, RetreatCmd 하나, 또는 order의 base 조각 하나."""
+    robot: str
+    goal_id: int
+    mode: str
+    target_id: str
+    x: float
+    y: float
+    yaw: float
+    path: tuple
 
 
 class Bot:
@@ -59,6 +72,7 @@ class Harness:
         self._late: list = []  # 다음 걸음에 관제에 닿을 로봇의 답 (로봇, 메서드 이름, 인자)
         self.hold_answers = False  # 켜면 로봇의 답이 관제에 닿지 않고 쌓인다
         self.goal_fault: dict[str, str] = {}  # 로봇 -> 다음 update goal에 일어날 일(on_goal_*)
+        self.hold_after: dict[str, str] = {}  # 로봇 -> 이 방식의 order 조각 끝에서 말없이 선다
         self._ids = iter(range(1000, 100000))
 
     # ---- 시험이 부르는 것 ----
@@ -112,6 +126,49 @@ class Harness:
 
     def sent(self, kind, robot: str = "") -> list:
         return [c for c in self.commands if isinstance(c, kind) and (not robot or c.robot == robot)]
+
+    def moves(self, robot: str = "") -> list[Leg]:
+        """새로 낸 이동 goal마다 첫 구간: MoveCmd 하나, 또는 새 order(update 0)의 첫 base 조각.
+        order 모델을 켜든 끄든 새 goal의 수와 goal id가 같게 읽힌다."""
+        return [self._legs(c)[0] for c in self.sent((MoveCmd, MoveOrderCmd), robot)
+                if not isinstance(c, MoveOrderCmd) or c.update_id == 0]
+
+    def legs(self, robot: str = "") -> list[Leg]:
+        """보낸 구간을 차례로: MoveCmd와 RetreatCmd는 하나씩, order는 base 조각마다 하나씩.
+        order를 켜든 끄든 (mode, target_id)가 같게 읽힌다."""
+        return [leg for c in self.sent((MoveCmd, RetreatCmd, MoveOrderCmd), robot)
+                for leg in self._legs(c)]
+
+    def retreats(self, robot: str = "") -> list[Leg]:
+        """보낸 물러나기: RetreatCmd, 또는 order 모델이면 order의 retreat 조각."""
+        return [leg for leg in self.legs(robot) if leg.mode == "retreat"]
+
+    def answer_at(self, robot: str, node: str) -> None:
+        """로봇이 node에 닿았다고 손으로 답한다(로봇은 옮기지 않는다). MoveCmd면 그 goal의 성공,
+        order면 node에서 끝나는 base 조각까지 끝냈다는 피드백, 마지막 조각이면 order의 성공이다."""
+        goal = self.view(robot)["goal_id"]
+        cmds = self.sent((MoveCmd, MoveOrderCmd), robot)
+        if not cmds or not isinstance(cmds[-1], MoveOrderCmd):
+            self.traffic.on_move_result(robot, goal, True, "")
+            return
+        start = max(i for i, c in enumerate(cmds)
+                    if isinstance(c, MoveOrderCmd) and c.update_id == 0)
+        segments = [s for c in cmds[start:] for s in c.base]
+        seq = max(s.seq_id for s in segments if s.end_node == node)
+        if seq == segments[-1].seq_id and not cmds[-1].horizon:
+            self.traffic.on_move_result(robot, goal, True, "", seq)
+        else:
+            self.traffic.on_move_feedback(robot, goal, seq, seq == segments[-1].seq_id)
+
+    def _legs(self, c) -> list[Leg]:
+        if isinstance(c, MoveCmd):
+            return [Leg(c.robot, c.goal_id, c.mode, c.target_id, c.x, c.y, c.yaw, c.path)]
+        if isinstance(c, RetreatCmd):
+            x, y = c.path[-1][:2] if c.path else (0.0, 0.0)
+            end = self.site.nearest_node(x, y) if c.path else ""
+            return [Leg(c.robot, c.goal_id, "retreat", end, x, y, 0.0, c.path)]
+        return [Leg(c.robot, c.goal_id, s.mode, s.end_node, s.x, s.y, s.yaw, s.path)
+                for s in c.base]
 
     def result_of(self, goal_id: int):
         return next((r for r in self.results if r.goal_id == goal_id), None)
@@ -209,6 +266,8 @@ class Harness:
     def _run_order(self, bot: Bot) -> None:
         """order의 base 조각을 차례로 달린다. 조각 사이에서 관제를 기다리지 않는다."""
         run = bot.run
+        if run.held:
+            return
         segment = run.next_segment()
         if segment is not None:
             if not bot.points:
@@ -218,6 +277,9 @@ class Harness:
             self._advance(bot, self.params.retreat_speed_mps if retreat else self.speed)
             if not bot.points and not bot.stuck:
                 bot.yaw = segment.yaw
+                if self.hold_after.get(bot.name) == segment.mode:
+                    run.held = True  # 조각 끝에 닿았지만 끝냈다고 하지 않고 선다
+                    return
                 run.finish_segment()
         if run.finished:
             bot.run = None
