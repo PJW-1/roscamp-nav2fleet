@@ -11,9 +11,11 @@ HAIR = 1e-6
 
 
 def keepout_rects(site, pad: float = BODY_HALF_WIDTH_M) -> list[tuple]:
-    return [(x0 - pad, y0 - pad, x1 + pad, y1 + pad)
-            for zone in sorted(site.zones.values(), key=lambda z: z.id) if zone.kind != SHARED
-            for x0, y0, x1, y1 in zone.rects]
+    zones = [(x0 - pad, y0 - pad, x1 + pad, y1 + pad)
+             for zone in sorted(site.zones.values(), key=lambda z: z.id) if zone.kind != SHARED
+             for x0, y0, x1, y1 in zone.rects]
+    # 지도의 keepout_extra는 덧대지 않는다(계획만 막는 자리 그대로)
+    return zones + list(getattr(site, "keepout_extra", ()))
 
 
 def filled(rects, width: int, height: int, resolution: float, origin) -> list[list[bool]]:

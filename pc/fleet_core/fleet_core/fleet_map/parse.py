@@ -42,6 +42,16 @@ def read_rect(raw, what: str) -> tuple:
     return (x0, y0, x1, y1)
 
 
+# ---- 구역이 아닌 keepout 사각형 읽기 ----
+def read_keepout_extra(raw, bounds: tuple) -> tuple:
+    """Nav2 계획만 막는 사각형(마스크에 덧대지 않고 더한다). 구역이 아니라 쥐기와 정원에 들지 않는다."""
+    rects = tuple(read_rect(rect, "keepout_extra") for rect in raw or ())
+    for rect in rects:
+        if not within(rect, bounds):
+            raise FleetMapError(f"keepout_extra: {rect} is outside the floor {bounds}")
+    return rects
+
+
 # ---- 구역 읽기와 겹침 검사 ----
 def read_zones(raw: dict, bounds: tuple) -> dict[str, Zone]:
     zones: dict[str, Zone] = {}

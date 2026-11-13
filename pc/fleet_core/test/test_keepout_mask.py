@@ -83,6 +83,37 @@ def test_the_tool_writes_a_mask_next_to_a_map(tmp_path):
     assert pgm_size((tmp_path / "room_keepout.pgm").read_bytes()) == (300, 200)
 
 
+# ---- 구역이 아닌 keepout 사각형(keepout_extra) ----
+V7_GAP = (0.99, 0.365, 1.25, 0.405)  # v7 남쪽 진열대 사이 건넘 틈
+
+
+def test_keepout_extra_closes_its_rectangle_without_padding_and_is_no_zone():
+    site = load_fleet_map("v7")
+    assert site.keepout_extra == (V7_GAP,)
+    # 덧대지 않는다: 목적은 계획 차단이고, 덧대면 가운데 통로와 남쪽 마당이 좁아진다
+    assert V7_GAP in keepout_rects(site) and V7_GAP in keepout_rects(site, 0.0)
+    grid = mask(site, *SIZE, RESOLUTION, ORIGIN)
+    assert cell(grid, 1.12, 0.385) and cell(grid, 1.005, 0.37) and cell(grid, 1.245, 0.40)
+    assert not cell(grid, 1.12, 0.415) and not cell(grid, 1.12, 0.355)
+    # 구역이 아니다: 그 자리는 여전히 HALL이고 구역 목록과 정원은 그대로다
+    assert site.zone_at(1.12, 0.385) == "HALL"
+    assert set(site.zones) == {"HALL", "WORK_DOCK", "J_E", "EXPRESS", "OUT_DOCK"}
+
+
+def test_layouts_without_keepout_extra_keep_their_masks():
+    for layout in ("d2", "d", "c", "d2_shelf"):
+        assert load_fleet_map(layout).keepout_extra == ()
+
+
+def test_a_keepout_extra_outside_the_floor_is_refused():
+    from fleet_core.fleet_map import FleetMapError, fleet_map_from_text
+    text = load_fleet_map("v7").source_text.replace(
+        "keepout_extra: [[0.99, 0.365, 1.25, 0.405]]", "keepout_extra: [[1.9, 0.9, 2.1, 1.0]]")
+    assert "2.1, 1.0" in text
+    with pytest.raises(FleetMapError, match="keepout_extra"):
+        fleet_map_from_text(text)
+
+
 def test_the_tool_refuses_a_turned_map(tmp_path):
     (tmp_path / "room.pgm").write_bytes(b"P5\n30 20\n255\n" + bytes(600))
     (tmp_path / "room.yaml").write_text(

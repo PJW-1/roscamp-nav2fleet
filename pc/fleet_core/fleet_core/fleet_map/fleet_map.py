@@ -10,7 +10,15 @@ import yaml
 from .checks import check_clearance, check_reach, retreat_end_warnings, shelf_end_warnings
 from .geometry import inside, point_rect_distance
 from .model import WAITING_KINDS, FleetMapError, Link
-from .parse import read_links, read_nodes, read_parking, read_rect, read_stations, read_zones
+from .parse import (
+    read_keepout_extra,
+    read_links,
+    read_nodes,
+    read_parking,
+    read_rect,
+    read_stations,
+    read_zones,
+)
 
 # ---- 레이아웃 이름과 검사 기준 상수 ----
 DATA = Path(__file__).parents[1] / "data"
@@ -32,6 +40,7 @@ class FleetMap:
         self._bounds = read_rect(data.get("bounds"), "bounds")
         self.shelves = tuple(read_rect(rect, "shelf") for rect in data.get("shelves") or ())
         self.shelf_height_m = float(data.get("shelf_height_m", 0.15))
+        self.keepout_extra = read_keepout_extra(data.get("keepout_extra"), self._bounds)
         self.zones = read_zones(data.get("zones"), self._bounds)
         self.nodes = read_nodes(data.get("nodes"), self.zones)
         self._links = read_links(data.get("paths"), data.get("nav"), self.nodes, self.zones)

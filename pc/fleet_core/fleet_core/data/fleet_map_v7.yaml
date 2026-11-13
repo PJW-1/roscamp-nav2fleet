@@ -36,6 +36,10 @@ shelves:
   - [0.24, 0.0, 0.26, 0.10]      # 충전 칸막이
   - [0.50, 0.0, 0.52, 0.10]
   - [0.76, 0.0, 0.78, 0.10]
+# Nav2 계획만 막는 사각형(구역이 아니라 쥐지 않는다, 사용자 결정 2026-11-13): 남쪽 진열대 사이
+# 건넘 틈. Gazebo 2판에서 로봇이 그 틈(폭 0.26)을 지나다 진열대 모서리 0.067까지 붙어 위치를 잃었다.
+# 덧대지 않는다: 목적은 계획 차단이고, 덧대면 가운데 통로와 남쪽 마당이 좁아진다
+keepout_extra: [[0.99, 0.365, 1.25, 0.405]]
 zones:
   # 넓은 바닥 전부. 진열대 자리는 어느 구역도 아니다
   HALL:
@@ -94,8 +98,12 @@ paths:  # 고정 경로(FollowPath 선). [x, y]는 꺾는 점
   bay_out_3: {points: [P-3, E-3]}
 nav:  # Nav2 goal 이음(HALL 안). 곧은 선이 WORK_DOCK keepout을 지나거나, 오래 서는 자리(도크, 대기,
   # 갈림)의 로봇 몸 원(0.083)에 지나가는 로봇 반 폭(0.056)보다 가깝거나, 칸막이 끝에 몸 원 + 0.02보다
-  # 가까운 쌍은 잇지 않는다(test_layout_v7): N_E-F(keepout), O_Q-N_E/G/F(N_O 곁), Q1-E-1/E-2(칸막이 3)
-  - {nodes: [N_O, G, F, Q1, E-3]}
+  # 가까운 쌍은 잇지 않는다(test_layout_v7): N_E-F(keepout), O_Q-N_E/G/F(N_O 곁), Q1-E-1/E-2(칸막이 3),
+  # N_O-Q1, N_E-E-2, N_E-E-3(건넘 틈 keepout)
+  - {nodes: [G, F, Q1, E-3]}
+  - {nodes: [N_O, G]}
+  - {nodes: [N_O, F]}
+  - {nodes: [N_O, E-3]}
   - {nodes: [O_Q, E-1, E-2, E-3]}
   - {nodes: [N_O, N_E]}
   - {nodes: [N_O, O_Q]}
@@ -104,8 +112,6 @@ nav:  # Nav2 goal 이음(HALL 안). 곧은 선이 WORK_DOCK keepout을 지나거
   - {nodes: [N_E, G]}
   - {nodes: [N_E, Q1]}
   - {nodes: [N_E, E-1]}
-  - {nodes: [N_E, E-2]}
-  - {nodes: [N_E, E-3]}
   - {nodes: [G, E-1]}
   - {nodes: [G, E-2]}
   - {nodes: [F, E-1]}

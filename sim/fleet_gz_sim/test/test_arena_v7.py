@@ -104,3 +104,95 @@ def test_v7_committed_maps_are_the_generator_output(tmp_path, site):
         assert f"image: arena_v7{suffix}.pgm\n" in text
         assert f"resolution: {resolution}\n" in text
         assert "origin: [-0.15, -0.15, 0.0]\n" in text
+
+
+# ---- 5 cm 전역 costmap 흉내: 커밋된 지도(5 cm)와 keepout 마스크(1 cm)를 읽는다 ----
+COARSE, ORIGIN, INSCRIBED = 0.05, (-0.15, -0.15), 0.09
+
+
+def _read_pgm(path):
+    """P5 그림을 줄 아래부터의 막힘 격자로(0이 막힘)."""
+    data = path.read_bytes()
+    words, at = [], 0
+    while len(words) < 4:
+        end = data.index(b"\n", at)
+        words += data[at:end].split(b"#")[0].split()
+        at = end + 1
+    w, h = int(words[1]), int(words[2])
+    rows = [data[at + r * w: at + (r + 1) * w] for r in range(h)]
+    return [[v == 0 for v in row] for row in reversed(rows)]
+
+
+def _costmap():
+    """칸마다 (막힘, 이유). 진열대·벽 칸 중심에서 내접 0.09 안이거나, 칸 중심의 1 cm 마스크가
+    keepout이면 막힘(Nav2 KeepoutFilter는 칸 중심에서 마스크를 읽고 부풀리지 않는다)."""
+    occ = _read_pgm(PKG / "maps" / "arena_v7.pgm")
+    keep = _read_pgm(PKG / "maps" / "arena_v7_keepout.pgm")
+    h, w = len(occ), len(occ[0])
+    reach = int(INSCRIBED / COARSE) + 1
+    blocked = [[False] * w for _ in range(h)]
+    kept = [[False] * w for _ in range(h)]
+    for j in range(h):
+        for i in range(w):
+            if occ[j][i]:
+                for dj in range(-reach, reach + 1):
+                    for di in range(-reach, reach + 1):
+                        if (0 <= j + dj < h and 0 <= i + di < w
+                                and COARSE * (di * di + dj * dj) ** 0.5 <= INSCRIBED + 1e-9):
+                            blocked[j + dj][i + di] = True
+            cx, cy = ORIGIN[0] + (i + 0.5) * COARSE, ORIGIN[1] + (j + 0.5) * COARSE
+            fi, fj = int((cx - ORIGIN[0]) / 0.01), int((cy - ORIGIN[1]) / 0.01)
+            kept[j][i] = keep[fj][fi]
+    return [[blocked[j][i] or kept[j][i] for i in range(w)] for j in range(h)], occ, kept
+
+
+def _cell(x, y):
+    return int((x - ORIGIN[0]) / COARSE), int((y - ORIGIN[1]) / COARSE)
+
+
+def _joined(grid, a, b, shut=()):
+    """4 이웃 BFS. shut: 일부러 막아 보는 사각형들(그 길만 남겼을 때 이어지는지 보려고)."""
+    from collections import deque
+
+    def closed(i, j):
+        cx, cy = ORIGIN[0] + (i + 0.5) * COARSE, ORIGIN[1] + (j + 0.5) * COARSE
+        return grid[j][i] or any(x0 <= cx <= x1 and y0 <= cy <= y1 for x0, y0, x1, y1 in shut)
+    start, goal = _cell(*a), _cell(*b)
+    assert not closed(*start) and not closed(*goal), (a, b)
+    seen, todo = {start}, deque([start])
+    while todo:
+        i, j = todo.popleft()
+        if (i, j) == goal:
+            return True
+        for ni, nj in ((i + 1, j), (i - 1, j), (i, j + 1), (i, j - 1)):
+            if (0 <= nj < len(grid) and 0 <= ni < len(grid[0]) and (ni, nj) not in seen
+                    and not closed(ni, nj)):
+                seen.add((ni, nj))
+                todo.append((ni, nj))
+    return False
+
+
+def test_v7_the_crossing_gap_is_shut_for_nav2_on_the_5cm_costmap():
+    """건넘 틈(x 0.99~1.25)을 막는 keepout이 두 진열대 끝과 구멍 없이 이어진다: 남쪽 진열대 줄의
+    어느 열도 위아래로 지나갈 수 없다(막힘 칸 또는 keepout 칸이 그 열의 진열대 높이에 있다)."""
+    grid, occ, kept = _costmap()
+    j0, j1 = _cell(0.0, 0.365)[1], _cell(0.0, 0.405 - 1e-6)[1]
+    for x in [0.70 + 0.05 * k for k in range(18)]:  # 0.70 ~ 1.55
+        i = _cell(x, 0.0)[0]
+        assert any(occ[j][i] or kept[j][i] for j in range(j0, j1 + 1)), x
+    assert _joined(grid, (1.12, 0.55), (1.12, 0.25)) is True  # 둘레로는 이어진다
+    assert not _joined(grid, (1.12, 0.55), (1.12, 0.25),
+                       shut=[(0.0, 0.30, 0.68, 0.45), (1.56, 0.30, 1.98, 0.45)])
+
+
+@pytest.mark.parametrize("shut, pairs", [
+    # 서쪽 끝(x < 0.68)만 남김: 동쪽 통로를 막아 본다
+    ([(1.56, 0.30, 1.98, 0.45)], [("N_O", "Q1"), ("N_O", "F"), ("N_E", "Q1")]),
+    # 동쪽 통로(1.65~1.72)만 남김: 서쪽 끝을 막아 본다. G는 그 통로 바로 위라 가장 빠듯하다
+    ([(0.0, 0.30, 0.68, 0.45)], [("N_E", "G"), ("G", "F"), ("N_E", "Q1"), ("N_O", "Q1"),
+                                 ("N_E", "F")]),
+])
+def test_v7_north_and_south_stay_joined_by_each_way_alone(site, shut, pairs):
+    grid, _, _ = _costmap()
+    for a, b in pairs:
+        assert _joined(grid, site.node_pose(a), site.node_pose(b), shut), (a, b, shut)
