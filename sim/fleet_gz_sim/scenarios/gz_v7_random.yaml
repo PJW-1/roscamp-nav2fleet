@@ -1,0 +1,38 @@
+# 배치 v7의 무작위판: gz_v7과 같은 경기장, 로봇, 주문 8건이다. 다른 점 둘:
+#  - 주문 시각: 파일의 at_s 대신 5~40초 간격(균등)으로 들어온다.
+#  - 배터리 부족: 로봇마다 한 번, 20~150초 사이 무작위 시각에 배터리가 떨어져 충전 칸으로 가
+#    30초에 걸쳐 찬다.
+# 시각은 scenario_seed로 정한다(비우면 파일의 seed). 관제가 배터리를 보려면 battery_low_pct를 준다.
+# 충전하러 가는 로봇은 주문이 밀려도 주차로 갈 수 있어 parked_while_backlog는 보지 않는다.
+#   ros2 launch fleet_gz_sim gz.launch.py layout:=v7 scenario:=gz_v7_random scenario_seed:=4 \
+#       battery_low_pct:=20 sim_dock_stub:=true
+map: v7
+seed: 65
+timeout_s: 1800
+stock: {arm1: {A: 20, B: 20}, arm2: {C: 20, D: 20}}
+orders:
+  - {at_s: 0, id: R-001, items: {A: 1, C: 1}}
+  - {at_s: 20, id: R-002, items: {B: 1}}
+  - {at_s: 40, id: R-003, items: {D: 1, A: 1}}
+  - {at_s: 60, id: R-004, items: {C: 1}}
+  - {at_s: 80, id: R-005, items: {B: 1, D: 1}}
+  - {at_s: 100, id: R-006, items: {A: 1}}
+  - {at_s: 120, id: R-007, items: {C: 1, B: 1}}
+  - {at_s: 140, id: R-008, items: {D: 1}}
+robots:
+  pinky1: {start: P-3}
+  pinky2: {start: P-2}
+  pinky3: {start: P-1}
+arm: {seconds_per_item: 4.0, swap_seconds: 8.0, fail_rate: 0.0}
+dock: {duration_s: 3.0, error_cm: 1.0}
+faults: []
+random:
+  order_gap_s: [5, 40]
+  low_battery: {from_s: 20, to_s: 150, charge_s: 30}
+expect:
+  all_orders_finished: true
+  orders_shipped: 8
+  orders_partial: 0
+  orders_held: 0
+  parked_while_backlog: null
+  events_include: [ORDER_BOUND, ORDER_SHIPPED]
