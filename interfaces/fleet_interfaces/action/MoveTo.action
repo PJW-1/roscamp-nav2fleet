@@ -1,58 +1,30 @@
 string target_id
 geometry_msgs/Pose2D target_pose
-# 레인 폴리라인. 첫 점은 로봇이 있는 곳, 끝 점은 target_pose. 비면 target_pose로 간다
 geometry_msgs/Pose[] path
-# 기준(사용자, 계약 0.8): path 끝이 임무의 마지막 지점인가. 거짓이면 잠금 경계라 그 끝에서
-# 정밀 접근 대신 설 수 있는 속도로만 줄인다. 끝을 넘지는 않는다
 bool final_goal true
-# 기준(사용자, 계약 0.11): 가는 방식. 비면 follow_path다.
-# follow_path: path(비면 지금 자리에서 곧게)를 Nav2 FollowPath로 따른다(0.9까지와 같다).
-# nav_goal: target_pose로 Nav2 NavigateToPose를 보내고 로봇이 길을 짠다. path는 쓰지 않고(관제는
-# 비워 보낸다) final_goal도 뜻이 없다.
 string MODE_FOLLOW_PATH="follow_path"
 string MODE_NAV_GOAL="nav_goal"
 string mode
-# 기준(사용자, 계약 0.11): order 모델. order_id가 비면 위 칸(mode, path, target_pose)으로
-# 움직이고 아래 칸은 쓰지 않는다(0.11 전과 같다).
-# 목적지 하나까지의 이동마다 새 id
 string order_id
-# 처음 0, update마다 1씩 오른다
 uint32 order_update_id
-# update일 때 이전 base의 마지막 end_node_id. 처음이면 비운다
 string stitch_node_id
-# 새로 허락하는 조각만. 비면 horizon만 바꾸는 update다
 Segment[] base
-# 아직 허락하지 않은 조각. 매번 통째로 바꾼다. 로봇은 참고만 한다
 Segment[] horizon
-# 기준(사용자, 계약 0.13, 추가 지시서 3의 7-4): 로봇단 교착 처리의 우선순위. 클수록 비킬 때 잃는 일이
-# 많다(관제 deadlock.priority). 앞을 막은 다른 로봇과 마주 서면 (priority, robot_id)가 작은 쪽만
-# 물러난다. 다른 로봇의 값은 /fleet/robots의 priority로 안다. -1이면 비었고, 한쪽이라도 비거나 둘이
-# 같으면 robot_id 순이다. order goal이면 그 order의 모든 조각에 쓴다
 int32 priority -1
 ---
 string REASON_NAV_ABORTED="NAV_ABORTED"
 string REASON_CANCELED="CANCELED"
 string REASON_TIMEOUT="TIMEOUT"
 string REASON_HEARTBEAT_LOST="HEARTBEAT_LOST"
-# 기준(사용자): path가 로봇의 지금 위치를 지나지 않아 따라가지 않았다(R20)
 string REASON_PATH_NOT_CONNECTED="PATH_NOT_CONNECTED"
-# 기준(사용자, 계약 0.11): update를 받아 이 goal을 새 goal에 넘겼다. success는 거짓이지만
-# 실패가 아니다
 string REASON_SUPERSEDED="SUPERSEDED"
-# 기준(사용자, 계약 0.11): update의 이음 조건이 틀렸다. 이 새 goal만 끝나고 지금 줄은 그대로
-# 간다. reason은 "ORDER_UPDATE_REJECTED: <이유>"다
 string REASON_ORDER_UPDATE_REJECTED="ORDER_UPDATE_REJECTED"
 
 bool success
 string reason
-# 기준(사용자, 계약 0.11): 끝낸 마지막 조각의 seq_id. 하나도 못 끝냈거나 order가 아니면 0
 uint32 last_done_seq_id
 ---
 float32 distance_remaining
-# 기준(사용자, 계약 0.11): 끝낸 마지막 조각의 seq_id. order가 아니면 0
 uint32 last_done_seq_id
-# 기준(사용자, 계약 0.11): base 끝에 닿아 서서 update를 기다린다
 bool waiting_at_base_end
-# 기준(사용자, 계약 0.11): horizon 미리 검사의 경고. 문제가 없으면 비운다.
-# "HORIZON_INVALID: <이유>"다. 경고일 뿐 이동은 그대로 간다
 string horizon_warning

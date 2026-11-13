@@ -1,20 +1,3 @@
-"""지나가는 로봇이 확인하면 막힘 표시를 지운다(추가 지시서 3의 4-3, 기준(사용자)).
-
-1. 표시의 점에서 check_range_m 안에 있는 로봇에게 CheckClear(x, y, check_radius_m)를 묻는다
-   (CheckClearCmd. fleet_manager가 로봇 노드의 서비스로 옮긴다). 한 표시에 check_interval_s마다
-   한 번을 넘게 묻지 않고, 답을 기다리는 동안에는 다시 묻지 않는다(답이 없으면 그 간격 뒤에).
-   표시를 낸 로봇에게는 묻지 않는다: 지나가는 다른 로봇이 확인한다. 범위 안 로봇에게 돌아가며
-   묻는다: 그 표시에서 한 번도 안 물은 로봇 먼저, 그다음 가장 오래전에 물은 로봇, 같으면 가까운
-   로봇. 답하지 않거나 묻지 못한(NO_ANSWER: 서비스 없음, 부르기 실패) 로봇만 되풀이해 고르지
-   않고, 서비스가 살아난 로봇도 차례가 오면 다시 묻는다.
-2. clear가 clear_confirm번 이어지면 표시를 지운다(BLOCK_CLEARED).
-3. blocked이면 표시를 새로 고친다: 지우기 시계를 다시 잰다(BLOCK_CONFIRMED).
-4. unknown, 답 없음, 묻지 못함은 이어진 clear를 끊는다.
-   지우기 시계는 그대로다.
-5. 그 표시에 막힘 보고가 새로 오면 답을 기다리던 질문은 버린다(block_marks._mark_point).
-
-아무도 지나가지 않으면 block_marks._expire_marks가 예전처럼 지우기 시간 뒤 지운다.
-"""
 from __future__ import annotations
 
 import math
@@ -29,13 +12,13 @@ class ClearChecks:
         for mark in self._marks.values():
             if now - mark.asked_at < p.check_interval_s:
                 continue
-            if mark.check:  # 지난 질문에 답이 없었다
+            if mark.check:
                 mark.clears = 0
             near = [m for m in self._robots.values()
                     if m.available and m.name != mark.by and m.robot_state != LOCALIZING
                     and math.dist((m.x, m.y), (mark.x, mark.y)) <= p.check_range_m]
             if not near:
-                mark.check, mark.asked = 0, ""  # 답이 오지 않았다. 다음에 지나가는 로봇에게 묻는다
+                mark.check, mark.asked = 0, ""
                 continue
             m = min(near, key=lambda r: (mark.asked_last.get(r.name, -math.inf),
                                          math.dist((r.x, r.y), (mark.x, mark.y)), r.name))
@@ -48,9 +31,9 @@ class ClearChecks:
         mark = next((mk for mk in self._marks.values()
                      if mk.check and mk.check == check_id and mk.asked == robot), None)
         if mark is None:
-            return  # 모르는 질문이거나, 표시가 이미 지워졌다
+            return
         mark.check = 0
-        if answer == NO_ANSWER:  # 묻지 못했다. 답이 아니다
+        if answer == NO_ANSWER:
             mark.clears = 0
             return
         now, p = self._clock(), self.params
@@ -72,4 +55,4 @@ class ClearChecks:
             self._event("INFO", "BLOCK_CONFIRMED",
                         f"{where} still blocked, tried again in {mark.retry_s:.0f} s", robot)
         else:
-            mark.clears = 0  # unknown이나 모르는 답: clear가 이어지지 않았다
+            mark.clears = 0

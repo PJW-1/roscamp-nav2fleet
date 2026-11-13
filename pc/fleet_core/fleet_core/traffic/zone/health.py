@@ -1,4 +1,3 @@
-"""로봇의 건강: 시작 때 보고, 통신 끊김과 복구, 운영자가 치움(confirm_clear), 다시 투입."""
 from __future__ import annotations
 
 from fleet_core.common.commands import DispatchResult
@@ -10,7 +9,6 @@ from .robots import Robot
 
 class Health:
     def _check_startup(self, now: float) -> bool:
-        """모든 로봇이 지도에 올랐는가. 오래 안 오르면 한 번 알린다."""
         if self._started is None:
             self._started = now
         missing = [m.name for m in self._robots.values()
@@ -40,14 +38,13 @@ class Health:
         self._event("INFO", "COMM_RESTORED", "checks where it stands", m.name)
 
     def _finish_recoveries(self, now: float) -> None:
-        fresh = self.params.recover_check_s / 2  # 상태 보고는 10 Hz다. 이보다 오래됐으면 또 끊겼다
+        fresh = self.params.recover_check_s / 2
         for m in self._robots.values():
             if (m.comm == RECOVERING and now >= m.recover_at and m.robot_state != LOCALIZING
                     and now - m.last_seen <= fresh):
                 self._resume(m)
 
     def _resume(self, m) -> None:
-        """말이 없던 동안 지난 지점을 따라잡고 가던 길을 잇는다."""
         m.comm = ""
         m.stall_from = None
         trip = m.trip
@@ -60,10 +57,7 @@ class Health:
                 break
         trip.sent = trip.done
 
-    # ---- 운영자 ----
-
     def confirm_clear(self, robot, zone_ids, note="") -> list[str] | None:
-        """운영자가 멈춘 로봇을 치웠다. 놓은 구역을 돌려주고, 거부면 None(clear_reason에 이유)."""
         note = text(note)
         problem = checked(clear_problem, robot, zone_ids, self._robots,
                           lambda zone: zone in self.site.zones)
@@ -76,7 +70,7 @@ class Health:
         held = self.grants.held_by(robot)
         m = self._robots[robot]
         left = m.base_until - self._clock()
-        if left > 0:  # 말이 돌아온 뒤에도 취소가 로봇에 닿았는지는 모른다. 시각만 믿는다
+        if left > 0:
             refusal = f"it may still be driving to the end of its base for {left:.0f} s"
         else:
             refusal = (f"no zones listed while it holds {list(held)}"
@@ -117,7 +111,6 @@ class Health:
         return ""
 
     def reinstate(self, robot) -> bool:
-        """치운 로봇을 다시 넣는다. 다음 위치 보고로 지도에 오른다."""
         if self.reinstate_refusal(robot):
             return False
         old = self._robots[robot]

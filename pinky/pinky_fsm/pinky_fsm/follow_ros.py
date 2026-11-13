@@ -1,12 +1,3 @@
-"""Nav2 controller_server의 follow_path(nav2_msgs/action/FollowPath) 액션 클라이언트.
-
-core.SendPath를 FollowPath goal로 보내고 결과, 거절, 받아들여진 취소를 순번으로 돌려준다.
-수락 전에 취소하면 수락되는 대로 취소하고, 결과를 잃으면(future 오류) goal은 아직 돌 수 있으므로
-핸들을 두고 취소를 보낸다(nav_goal_ros.NavGoalRunner와 같은 규칙).
-
-콜백은 이 클래스의 잠금을 쥐지 않은 채 부른다. 부르는 쪽은 자기 잠금을 쥐고 send나 cancel_all을
-불러도 된다.
-"""
 from __future__ import annotations
 
 import threading
@@ -24,11 +15,10 @@ from pinky_fsm.geometry import yaw_quaternion
 
 _OUTCOME = {GoalStatus.STATUS_SUCCEEDED: "succeeded", GoalStatus.STATUS_ABORTED: "aborted",
             GoalStatus.STATUS_CANCELED: "canceled"}
-# 취소 답이 이렇다면 그 goal은 돌지 않는다
 _GONE = (CancelGoal.Response.ERROR_GOAL_TERMINATED, CancelGoal.Response.ERROR_UNKNOWN_GOAL_ID)
 
-OnRejected = Callable[[int], None]  # (순번). 서버가 거절했거나 보내지 못했다
-OnResult = Callable[[int, str, int, bool], None]  # (순번, outcome, error_code, 결과를 잃었나)
+OnRejected = Callable[[int], None]
+OnResult = Callable[[int, str, int, bool], None]
 OnCancelAccepted = Callable[[int], None]
 
 
@@ -39,20 +29,19 @@ class FollowPathRunner:
                  callback_group=None):
         self._node = node
         self._frame = frame
-        self._nav_ids = nav_ids  # (controller, goal checker, progress checker)
+        self._nav_ids = nav_ids
         self._through_id = through_id
-        self._reverse_id = reverse_id  # (후진 controller, 후진 goal checker. 비면 보통 checker)
+        self._reverse_id = reverse_id
         self._client = ActionClient(node, FollowPath, action_name,
                                     callback_group=callback_group)
         self._on_rejected, self._on_result = on_rejected, on_result
         self._on_cancel_accepted = on_cancel_accepted
         self._lock = threading.Lock()
-        self._handles: dict[int, object] = {}  # 순번 → 수락된 FollowPath 목표
-        self._pending: set[int] = set()  # 보냈지만 수락 여부를 아직 모른다
+        self._handles: dict[int, object] = {}
+        self._pending: set[int] = set()
         self._cancel_on_accept: set[int] = set()
 
     def send(self, seq: int, poses, final_goal: bool, reverse: bool) -> bool:
-        """poses = [(x, y, yaw)], map 틀. 보냈으면 True. 서버가 없으면 False이고 콜백도 없다."""
         if not self._client.server_is_ready():
             return False
         path = Path()
@@ -66,8 +55,6 @@ class FollowPathRunner:
             path.poses.append(ps)
         controller, checker, progress = self._nav_ids
         if self._through_id and not final_goal:
-            # Nav2 switches controllers on a preempting goal (controller_server
-            # updateGlobalPath), and the speed limit reaches every loaded controller
             controller = self._through_id
         if reverse:
             controller, checker = self._reverse_id[0], self._reverse_id[1] or checker
@@ -92,8 +79,6 @@ class FollowPathRunner:
         handle.cancel_goal_async().add_done_callback(partial(self._on_cancel, seq))
 
     def _on_cancel(self, seq: int, future) -> None:
-        """취소가 받아들여진 FollowPath만 core가 결과 없이도 잊을 수 있다(Codex 재검토 1).
-        이미 끝났거나 서버가 모르는 goal도 돌지 않으므로 같다(재검토 2: 결과를 잃은 goal)."""
         try:
             resp = future.result()
             accepted = bool(resp.goals_canceling) or resp.return_code in _GONE
@@ -104,7 +89,7 @@ class FollowPathRunner:
             self._node.get_logger().warn(f"follow_path #{seq} cancel was refused")
             return
         with self._lock:
-            self._handles.pop(seq, None)  # 다시 취소하지 않는다. 결과가 오면 그대로 받는다
+            self._handles.pop(seq, None)
         self._on_cancel_accepted(seq)
 
     def _on_response(self, seq: int, future) -> None:
@@ -124,7 +109,7 @@ class FollowPathRunner:
             self._on_rejected(seq)
             return
         if cancel:
-            self._cancel(seq, handle)  # 멈추는 동안 수락된 목표는 바로 취소한다
+            self._cancel(seq, handle)
         handle.get_result_async().add_done_callback(partial(self._on_done, seq))
 
     def _on_done(self, seq: int, future) -> None:
@@ -138,7 +123,7 @@ class FollowPathRunner:
             self._node.get_logger().warn(f"follow_path #{seq} lost its result: {exc}")
             with self._lock:
                 handle = self._handles.get(seq)
-            if handle is not None:  # 취소가 받아들여질 때까지 core가 이 goal을 기다린다
+            if handle is not None:
                 self._cancel(seq, handle)
             self._on_result(seq, "aborted", 0, True)
             return

@@ -1,4 +1,3 @@
-"""스테이션에서 하는 일: 채우기, 출고대로 보내기와 다시 시도, 교환."""
 from __future__ import annotations
 
 from fleet_core.common.commands import (
@@ -16,8 +15,6 @@ from .records import EMPTY, FILLING, FULL, _BoundOrder, _Robot, _subtract
 
 
 class Stations:
-    # ---- station steps ----------------------------------------------------------------
-
     def _start_filling(self, r: _Robot) -> None:
         pending = self._pending()
         if not pending:
@@ -55,11 +52,6 @@ class Stations:
         self._out.append(DispatchCmd(r.outbound_goal, self._outbound, r.name))
 
     def _retry_outbound(self, r: _Robot) -> None:
-        """Sends a failed outbound dispatch again, or past the limit fails the robot.
-
-        Like the arm retry limit: traffic isolates the robot and the isolation puts the order
-        back (no HELD report).
-        """
         if self._clock() < r.dispatch_retry_at:
             return
         r.dispatch_retry_at = None
@@ -83,7 +75,6 @@ class Stations:
             return
         order = r.order
         if sum(order.items.values()) > self.params.basket_capacity:
-            # 선반을 보지 않았으니 빠진 것도 없다. 재고 기록은 그대로 둔다.
             self._report(r, HELD, f"{sum(order.items.values())} items exceed the basket "
                                   f"capacity of {self.params.basket_capacity}")
             self._leave_station(r)

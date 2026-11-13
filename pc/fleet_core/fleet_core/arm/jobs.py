@@ -1,12 +1,3 @@
-"""Sends the goals of arm work (fill, swap) and sees them through.
-
-It decides nothing about orders or baskets and knows no lane: the order id and the items it is
-given only pass through into the goal.
-The orders ask once per attempt with ArmFillCmd or ArmSwapCmd; one goal goes out and its result
-comes back. Goal ids, time-outs and cancels, the wait after a failure, the attempt count and its
-limit live here. Whether an attempt failed is for the orders to say (ArmFailedCmd): they know the
-basket.
-"""
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -42,19 +33,19 @@ _CODES = {FILL: ("FILL_RETRY", "FILL_FAILED"), SWAP: ("SWAP_RETRY", "SWAP_FAILED
 class _Job:
     server: str
     goal_id: int
-    kind: str  # FILL or SWAP
+    kind: str
     sent_at: float
     canceled_at: float | None = None
-    timed_out: bool = False  # canceled by the time-out, not by STOP
+    timed_out: bool = False
 
 
 @dataclass
 class _Robot:
     name: str
     job: _Job | None = None
-    retry_at: float = 0.0  # no new goal before this time, after a failure
+    retry_at: float = 0.0
     attempts: int = 0
-    last: tuple[_Job, str] | None = None  # the goal just answered and its reason, for ArmFailedCmd
+    last: tuple[_Job, str] | None = None
 
 
 class ArmJobs:
@@ -67,9 +58,7 @@ class ArmJobs:
         self._robots = {name: _Robot(name) for name in robots}
         self._out: list = []
         self._run_mode: str | None = None
-        self._cleared_jobs: dict[str, tuple[int, float]] = {}  # server -> dropped goal, until when
-
-    # ---- inputs from outside ------------------------------------------------------------
+        self._cleared_jobs: dict[str, tuple[int, float]] = {}
 
     def on_run_mode(self, run_mode) -> None:
         if run_mode == STOP and self._run_mode != STOP:
@@ -109,14 +98,11 @@ class ArmJobs:
                 job.timed_out = True
             elif job.canceled_at is not None and (
                     now - job.canceled_at >= self.params.arm_cancel_wait_s):
-                # Nobody knows what is in the basket now: the operator has to look.
                 r.job = None
                 self._out.append(ArmLost(r.name, job.goal_id, job.server, job.kind))
                 reason = f"{job.server} goal {job.goal_id} never reported"
                 self._out.append(RobotFaultCmd(r.name, reason))
                 self._event("ERROR", "ARM_NO_RESULT", reason, r.name)
-
-    # ---- inputs from the orders ---------------------------------------------------------
 
     def on_command(self, command) -> None:
         r = self._robots.get(command.robot)
@@ -139,22 +125,17 @@ class ArmJobs:
             else:
                 r.attempts = 0
 
-    # ---- outputs ------------------------------------------------------------------------
-
     def take_output(self) -> list:
         out, self._out = self._out, []
         return out
 
     def sent_at(self, robot) -> float | None:
-        """When the running goal was sent, or None."""
         r = self._robots.get(robot)
         return r.job.sent_at if r and r.job else None
 
     def attempts(self, robot) -> int:
         r = self._robots.get(robot)
         return r.attempts if r else 0
-
-    # ---- helpers ------------------------------------------------------------------------
 
     def _own_goal_id(self) -> int:
         self._goal_seq += 1
@@ -179,7 +160,6 @@ class ArmJobs:
                                      put_empty=command.put_empty))
 
     def _goal_allowed(self, r: _Robot, server: str) -> bool:
-        """No new goal right after a failure, nor while the server still stops a dropped job."""
         now = self._clock()
         cleared = self._cleared_jobs.get(server)
         if cleared and now >= cleared[1]:
@@ -203,7 +183,6 @@ class ArmJobs:
         self._out.append(CancelCmd(r.job.server, r.job.goal_id))
 
     def _drop(self, r: _Robot, command: ArmDropCmd) -> None:
-        """The server may still be stopping: what it does then is not the next robot's job."""
         job = r.job
         if job is None:
             return
@@ -220,7 +199,7 @@ class ArmJobs:
             return
         (job, reason), r.last = r.last, None
         if reason == CANCELED and job.canceled_at is not None and not job.timed_out:
-            return  # canceled by STOP, which is no failure
+            return
         retry_code, failed_code = _CODES[job.kind]
         r.attempts += 1
         r.retry_at = self._clock() + self.params.arm_retry_wait_s

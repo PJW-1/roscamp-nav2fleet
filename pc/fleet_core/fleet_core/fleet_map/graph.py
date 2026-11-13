@@ -1,4 +1,3 @@
-"""지점 그래프에서 가장 싼 길."""
 from __future__ import annotations
 
 import heapq
@@ -6,11 +5,6 @@ import math
 
 
 def route(site, start: str, goal: str, cost=None) -> list | None:
-    """start에서 goal까지의 연결들. 같은 지점이면 [], 길이 없으면 None.
-
-    cost(link)가 없으면 길이로 잰다. 값이 inf인 연결은 쓰지 않는다. 같은 값이면 지점 이름
-    순서로 정해 같은 지도에서 늘 같은 길이 나온다.
-    """
     if start == goal:
         return []
     price = cost or (lambda link: link.length)

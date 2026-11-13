@@ -1,16 +1,3 @@
-"""order 모델(use_order_model, order 추가지시서 4절): 가는 길 전체를 조각 목록으로 보낸다.
-
-여기의 order는 VDA 5050의 order(이동 하나의 조각 목록)다. 주문과는 다른 것이다.
-
-- 잡은 구역 안의 조각은 base(로봇이 달려도 된다), 목적지까지의 나머지는 horizon(참고만)이다.
-- 로봇의 base 끝까지 남은 시간이 lookahead_s보다 짧아지면 다음 구간을 한꺼번에 잡아 보고, 잡으면
-  새 조각만 담은 update를 보낸다. 못 잡으면 로봇은 base 끝에서 서고 관제는 계속 잡아 본다.
-- 앞길이 바뀌면 base가 빈 update로 horizon만 바꾼다. 이미 준 base는 줄이지 않는다. 줄여야 하면
-  이동을 거둔다(막힘, 목적 바뀜).
-- update가 거절되면 로봇이 지금 base를 끝낸 뒤 그 자리에서 새 order로 잇는다.
-- update를 보낸 뒤 로봇의 답(이전 goal의 SUPERSEDED나 새 goal의 피드백)이 오기 전에는 다음
-  update를 보내지 않는다. 그동안 로봇에서 살아 있는 goal은 이전 것일 수도, 새것일 수도 있다.
-"""
 from __future__ import annotations
 
 from fleet_core.common.commands import MoveOrderCmd, SegmentOut
@@ -20,19 +7,13 @@ from fleet_core.traffic.mission import MOVE
 from .robots import ORDER, Goal, MoveOrder
 from .trips import Trip, left_s, move_command, retreat_command, segment_end, stretch_end
 
-HORIZON_HOLD_S = 5.0  # horizon을 바꾼 뒤 이만큼은 다시 바꾸지 않는다(가정)
-UPDATE_ANSWER_S = 2.0  # update를 보낸 뒤 로봇의 답을 기다리는 시간(가정)
+HORIZON_HOLD_S = 5.0
+UPDATE_ANSWER_S = 2.0
 CONTROLLER = {FOLLOW_PATH: "FollowPath", RETREAT: "FollowPathReverse", NAV_GOAL: ""}
 
 
 class MoveOrders:
-    # ---- 조각 ----
-
     def _cut(self, trip, start: int, first_seq: int) -> list:
-        """trip.links[start:]를 조각 (번호, 첫 연결, 끝 연결의 다음)들로 자른다.
-
-        한꺼번에 잡는 구간의 끝과 가는 방식이 바뀌는 곳에서 끊는다. base는 구간 단위로 늘어난다.
-        """
         cuts, seq, index = [], first_seq, start
         while index < len(trip.links):
             stop = stretch_end(self.site, trip.links, index)
@@ -43,7 +24,6 @@ class MoveOrders:
         return cuts
 
     def _segment(self, m, trip, cut, here: bool) -> SegmentOut:
-        """조각 하나를 명령의 모양으로. here면 로봇이 선 자리에서, 아니면 앞 지점에서 시작한다."""
         seq, first, end = cut
         links = trip.links[first:end]
         via, node = links[0].via, links[-1].b
@@ -57,7 +37,6 @@ class MoveOrders:
         return SegmentOut(seq, via, node, zones, cmd.path, cmd.x, cmd.y, cmd.yaw, CONTROLLER[via])
 
     def _fresh_base(self, m, trip, here: bool = False) -> tuple:
-        """아직 주지 않은 조각 가운데 잡은 연결 안에 드는 것들. 준 것으로 센다."""
         mo = m.move_order
         cuts = [cut for cut in mo.cuts[mo.given:] if cut[2] <= trip.granted]
         mo.given += len(cuts)
@@ -69,15 +48,11 @@ class MoveOrders:
         return tuple(self._segment(m, trip, cut, False) for cut in mo.cuts[mo.given:])
 
     def _through(self, m, trip):
-        """대기 자리로 가는 길에 그 자리에서 도크까지를 잇는다. 도크 쪽은 horizon이 된다."""
         dock = self.site.stations[m.dest].dock
         rest = route(self.site, trip.goal, dock, self._cost(m))
         return Trip(dock, [*trip.links, *rest]) if rest else trip
 
-    # ---- 보내기 ----
-
     def _send_order(self, m) -> None:
-        """지금 자리에서 목적지까지를 order 하나로 보낸다."""
         trip = m.trip
         goal_id = self._next_goal_id()
         mo = m.move_order = MoveOrder(f"{m.name}-{goal_id}", self._cut(trip, trip.done, 1),
@@ -98,34 +73,28 @@ class MoveOrders:
         m.stall_from = None
 
     def _send_update(self, m, before: tuple, base: tuple) -> None:
-        """update를 새 goal로 보낸다. base가 비면 horizon만 바꾸는 update다."""
         trip, mo = m.trip, m.move_order
         goal_id = self._next_goal_id()
         stitch = trip.links[before[1] - 1].b
-        if self.order_fault == "stitch":  # 시험용: 이음 지점을 일부러 틀리게 보낸다
+        if self.order_fault == "stitch":
             stitch, self.order_fault = "?", ""
         mo.update += 1
         mo.before, mo.asked_at = (*before, mo.waiting), self._clock()
-        if base:  # 로봇이 다시 달린다
+        if base:
             mo.waiting = mo.waited = False
         self._out.append(MoveOrderCmd(m.name, goal_id, mo.id, mo.update, stitch, base,
                                       self._horizon(m, trip), self._goal_priority(m)))
         self._order_goal(m, goal_id)
 
-    # ---- 늘리기 ----
-
     def _extend_order(self, m) -> None:
-        """base 끝이 가까워졌거나 로봇이 거기 서 있으면 다음 구간을 잡아 update를 보낸다."""
         trip, mo = m.trip, m.move_order
         if trip is None or mo is None:
             return
-        if mo.before is not None:  # 앞의 update에 로봇이 아직 답하지 않았다
+        if mo.before is not None:
             if self._clock() - mo.asked_at >= UPDATE_ANSWER_S:
                 self._end_both(m, f"no answer in {UPDATE_ANSWER_S:.0f} s")
             return
         if mo.broken or trip.stale:
-            # 거절된 order는 base 끝에 선 뒤에, 목적이 바뀐 order는 넓은 구역에 나오는 대로 거둔다.
-            # 고정 구간 안에서는 거두지 않는다: 갈림목이나 한 줄 구역 안에 서지 않는다
             if mo.waiting or (trip.stale and self._via(m) == NAV_GOAL):
                 self._cancel_goal(m)
                 if trip.stale:
@@ -145,18 +114,17 @@ class MoveOrders:
             return
         before = (m.goal.id, trip.granted)
         want = self._take(m, trip)
-        if want is not None:  # 한꺼번에 못 잡았다. 로봇은 base 끝에서 선다
+        if want is not None:
             self._wants[m.name] = want
             self._note_wait(m, want)
             return
         if station is not None:
-            trip.turn = True  # 차례를 받아 도크 구간을 잡았다(turns._ahead)
+            trip.turn = True
         self._send_update(m, before, self._fresh_base(m, trip))
         self._event("INFO", "ORDER_UPDATED",
                     f"{mo.id} update {mo.update}: base to {m.goal.end}", m.name)
 
     def _dock_ahead(self, m, trip):
-        """다음 구간의 끝이 이 로봇이 가는 스테이션의 도크이면 그 스테이션."""
         end = stretch_end(self.site, trip.links, trip.granted)
         station = self.site.stations.get(m.dest) if m.dest else None
         if station is not None and trip.links[end - 1].b == station.dock:
@@ -164,7 +132,6 @@ class MoveOrders:
         return None
 
     def _refresh_horizon(self, m) -> bool:
-        """base 끝에서 목적지까지의 길이 달라졌으면 horizon만 바꿔 보낸다."""
         trip, mo = m.trip, m.move_order
         now = self._clock()
         if now - mo.horizon_at < HORIZON_HOLD_S:

@@ -1,8 +1,3 @@
-"""interfaces/fleet_interfaces/contract.yaml에서 이름과 QoS를 읽는다.
-
-pinky_fsm은 pc/*를 import하지 않으므로 관제의 계약 모듈 대신 이 작은 판을 쓴다.
-ROS 없이 돈다(QoS 객체를 만들 때만 rclpy를 부른다).
-"""
 from __future__ import annotations
 
 from pathlib import Path

@@ -1,9 +1,8 @@
-"""축에 나란한 직사각형, 점, 선분 사이의 거리. 구역 지도가 쓰는 계산만 둔다."""
 from __future__ import annotations
 
 import math
 
-Rect = tuple[float, float, float, float]  # (x0, y0, x1, y1), x0 < x1, y0 < y1
+Rect = tuple[float, float, float, float]
 Point = tuple[float, float]
 EPS = 1e-9
 
@@ -24,7 +23,6 @@ def overlap_area(a: Rect, b: Rect) -> float:
 
 
 def point_rect_distance(rect: Rect, x: float, y: float) -> float:
-    """점에서 직사각형까지. 안에 있으면 0."""
     dx = max(rect[0] - x, 0.0, x - rect[2])
     dy = max(rect[1] - y, 0.0, y - rect[3])
     return math.hypot(dx, dy)
@@ -40,7 +38,6 @@ def point_segment_distance(point: Point, a: Point, b: Point) -> float:
 
 
 def _cross(a: Point, b: Point, c: Point, d: Point) -> bool:
-    """선분 ab와 cd가 만난다(끝이 닿는 것도 만남)."""
     def side(p: Point, q: Point, r: Point) -> float:
         return (q[0] - p[0]) * (r[1] - p[1]) - (q[1] - p[1]) * (r[0] - p[0])
 
@@ -54,7 +51,6 @@ def _cross(a: Point, b: Point, c: Point, d: Point) -> bool:
 
 
 def segment_rect_distance(a: Point, b: Point, rect: Rect) -> float:
-    """선분에서 직사각형까지. 닿거나 지나가면 0."""
     if inside(rect, *a) or inside(rect, *b):
         return 0.0
     corners = [(rect[0], rect[1]), (rect[2], rect[1]), (rect[2], rect[3]), (rect[0], rect[3])]
@@ -65,12 +61,10 @@ def segment_rect_distance(a: Point, b: Point, rect: Rect) -> float:
 
 
 def wall_gap(bounds: Rect, x: float, y: float) -> float:
-    """바닥 안의 점에서 가장 가까운 벽까지. 밖이면 음수."""
     return min(x - bounds[0], bounds[2] - x, y - bounds[1], bounds[3] - y)
 
 
 def sample(a: Point, b: Point, step: float) -> list[Point]:
-    """a에서 b까지 step 간격의 점. 두 끝을 포함한다."""
     count = max(1, math.ceil(math.hypot(b[0] - a[0], b[1] - a[1]) / step))
     return [(a[0] + (b[0] - a[0]) * i / count, a[1] + (b[1] - a[1]) * i / count)
             for i in range(count + 1)]

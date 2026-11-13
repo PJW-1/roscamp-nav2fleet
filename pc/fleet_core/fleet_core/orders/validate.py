@@ -1,9 +1,8 @@
-"""주문 목록과 reinstate 바구니 검사. 주문 쪽 이름이라 traffic이 닿는 common에 두지 않는다."""
 from __future__ import annotations
 
 from fleet_core.common.validate import robot_problem, shown
 
-REINSTATE_BASKETS = ("EMPTY", "NONE")  # 재투입 때 트레이 위 상태. 담긴 바구니로는 받지 않는다
+REINSTATE_BASKETS = ("EMPTY", "NONE")
 
 
 def _name(value) -> bool:
@@ -33,7 +32,6 @@ def orders_problem(orders) -> str:
 
 
 def reinstate_problem(robot, basket, robots) -> str:
-    """reinstate 인자의 로봇과 바구니 값만 본다. 로봇 상태는 traffic이 본다."""
     problem = robot_problem(robot, robots)
     if problem:
         return problem

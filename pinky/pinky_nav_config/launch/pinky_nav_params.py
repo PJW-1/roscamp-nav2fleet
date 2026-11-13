@@ -1,12 +1,3 @@
-"""Nav2 파라미터를 사용자 파일과 회피 담당 파일에서 모은다(추가 지시서 3의 7-1). ROS 없이 돈다.
-
-- 사용자 파일(params/nav2_params.yaml): Nav2 파라미터 파일 그대로다. FollowPathGoal 컨트롤러의
-  안쪽 값과 비전 관측원의 값은 없다(이름 FollowPathGoal은 controller_plugins에 있다).
-- 회피 담당 파일(params/avoidance.yaml): 키가 둘뿐이다.
-    follow_path_goal   controller_server의 FollowPathGoal 안에 그대로 들어간다
-    vision_obstacles   두 costmap 장애물 층의 vision 관측원 안에 그대로 들어간다(켰을 때만)
-  다른 키가 있으면 받지 않는다. 그 밖의 설정은 사용자의 것이다(docs/회피_약속.md).
-"""
 import copy
 
 AVOIDANCE_KEYS = ("follow_path_goal", "vision_obstacles")
@@ -18,7 +9,6 @@ INFLATION_LAYER = "inflation_layer"
 
 
 def merge(base: dict, extra: dict) -> None:
-    """extra를 base에 깊이 덮는다."""
     for key, value in extra.items():
         if isinstance(value, dict) and isinstance(base.get(key), dict):
             merge(base[key], value)
@@ -27,12 +17,10 @@ def merge(base: dict, extra: dict) -> None:
 
 
 def foreign_keys(avoidance: dict) -> list[str]:
-    """회피 담당 파일에 들어 있는, 회피 담당의 것이 아닌 키."""
     return sorted(set(avoidance) - set(AVOIDANCE_KEYS))
 
 
 def avoidance_values_in(user: dict) -> list[str]:
-    """사용자 파일에 들어 있는 회피 담당의 값(있으면 안 된다: 값의 자리는 하나다)."""
     found = []
     if GOAL_CONTROLLER in user.get("controller_server", {}).get("ros__parameters", {}):
         found.append(f"controller_server.{GOAL_CONTROLLER}")
@@ -43,11 +31,6 @@ def avoidance_values_in(user: dict) -> list[str]:
 
 
 def with_avoidance(data: dict, avoidance: dict, vision: bool = False) -> dict:
-    """data(사용자 파일의 내용)에 회피 담당의 값을 넣는다. data를 바꾸고 돌려준다.
-
-    FollowPathGoal이 data에 이미 있으면 그대로 둔다: 시뮬레이션이 속도 상한을 건 파일이다
-    (fleet_gz_sim.launch_parts.sim_nav_params가 같은 회피 담당 파일에서 먼저 넣는다).
-    """
     foreign = foreign_keys(avoidance)
     if foreign:
         raise ValueError(
@@ -65,9 +48,6 @@ def with_avoidance(data: dict, avoidance: dict, vision: bool = False) -> dict:
 
 
 def with_peers(data: dict, overlay: dict) -> dict:
-    """data의 두 costmap에 다른 로봇의 몸을 찍는 층(overlay의 peer_layer)을 넣는다(임시, 주행
-    시험용: params/peer_obstacles.yaml). inflation_layer 바로 앞이라 몸 둘레도 부풀려진다.
-    이미 들어 있으면 그대로 둔다. data를 바꾸고 돌려준다."""
     for name in COSTMAPS:
         node = data[name][name]["ros__parameters"]
         plugins = list(node["plugins"])

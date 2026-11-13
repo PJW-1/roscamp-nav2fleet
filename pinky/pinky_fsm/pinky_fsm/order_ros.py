@@ -1,9 +1,3 @@
-"""order 모델의 ROS 쪽(계약 0.11-draft 제안). 판단은 order_fsm, 여기는 옮기기만 한다.
-
-- MoveTo goal의 order 칸을 OrderGoal로 바꾼다(order_id가 비면 None).
-- 지도와 keepout 마스크를 받아 horizon 미리 검사(order_check)에 준다. 못 받은 검사는 건너뛴다.
-- 표시: order_markers(MarkerArray)에 base는 실선, horizon은 점선으로 낸다. 바뀔 때만 낸다.
-"""
 from __future__ import annotations
 
 from geometry_msgs.msg import Point as PointMsg
@@ -30,7 +24,6 @@ def _yaw(q) -> float:
 
 
 def segment(msg) -> Seg:
-    """fleet_interfaces/msg/Segment → Seg. 프레임은 map으로 본다(계약)."""
     path = tuple((p.pose.position.x, p.pose.position.y, _yaw(p.pose.orientation))
                  for p in msg.path.poses)
     t = msg.target_pose.pose
@@ -54,8 +47,6 @@ def _grid(msg: OccupancyGrid) -> Grid:
 
 
 class OrderMaps:
-    """지도(map 틀)와 keepout 마스크. 둘 다 latched로 한 번 온다."""
-
     def __init__(self, node, map_topic: str, keepout_topic: str, callback_group=None):
         self.map: Grid | None = None
         self.keepout: Grid | None = None
@@ -76,8 +67,6 @@ class OrderMaps:
 
 
 class OrderMarkers:
-    """order_markers 발행. 선이 바뀔 때만 낸다(latched라 RViz가 늦게 떠도 받는다)."""
-
     def __init__(self, node, topic: str, frame: str):
         self._node, self._frame = node, frame
         self._pub = node.create_publisher(MarkerArray, topic, LATCHED)

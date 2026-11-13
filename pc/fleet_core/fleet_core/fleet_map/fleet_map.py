@@ -1,9 +1,3 @@
-"""구역 지도: 지점, 구역, 고정 경로, 연결, 스테이션을 한 파일에서 읽는다.
-
-로봇은 넓은 구역(shared)에서 Nav2 goal로 스스로 길을 짜고, 한 줄 구역(lane)과 도크 구역(dock)은
-지도에 적힌 고정 경로를 FollowPath로 달린다. 관제는 이 지도로 "어느 구역에 들어가도 되나"만 정한다.
-좌표는 지도 파일에만 둔다. 새 배치는 새 파일일 뿐이다.
-"""
 from __future__ import annotations
 
 import logging
@@ -19,24 +13,18 @@ from .parse import read_links, read_nodes, read_parking, read_rect, read_station
 
 DATA = Path(__file__).parents[1] / "data"
 DEFAULT_LAYOUT = "d2"
-# 배치 이름 목록은 여기 한 곳이다. 시뮬레이션과 도구의 기본 목록은 실제 후보(LAYOUTS)이고,
-# 시험용 배치(TEST_LAYOUTS)는 이름을 주면 돈다. 새 배치는 fleet_map_<이름>.yaml과 이 목록 한 줄이다
 LAYOUTS = ("d2", "d", "c")
 TEST_LAYOUTS = ("d2_shelf",)
 KNOWN_LAYOUTS = (*LAYOUTS, *TEST_LAYOUTS)
-BODY_CLEARANCE_M = 0.06  # Nav2 발자국의 반 폭. 지도에 clearance_m을 적으면 그 값을 쓴다
-# 고정 경로가 진열대 끝을 돌아가는 곳의 여유(추가 지시서 3의 9절 제안). 지도에 shelf_end_clear_m을
-# 적으면 그 값을 쓴다. 어기면 읽을 때 경고만 한다
+BODY_CLEARANCE_M = 0.06
 SHELF_END_CLEAR_M = 0.15
-# 핑키가 꺾이는 곳을 도는 호의 반지름(pinky_fsm turn_radius_m과 같아야 한다). 진열대 끝 검사가
-# 그 호를 잰다. 지도에 turn_radius_m을 적으면 그 값을 쓴다
 TURN_RADIUS_M = 0.10
 _log = logging.getLogger(__name__)
 
 
 class FleetMap:
     def __init__(self, data: dict, source_text: str = ""):
-        self.source_text = source_text  # 기록 머리에 적어 재생이 같은 지도를 쓰게 한다
+        self.source_text = source_text
         self.name = str(data.get("name", ""))
         self._bounds = read_rect(data.get("bounds"), "bounds")
         self.shelves = tuple(read_rect(rect, "shelf") for rect in data.get("shelves") or ())
@@ -59,8 +47,6 @@ class FleetMap:
         for warning in self.warnings:
             _log.warning("fleet map %s: %s", self.name, warning)
 
-    # ---- 연결 ----
-
     def link(self, a: str, b: str) -> Link | None:
         return self._links.get((a, b))
 
@@ -71,10 +57,7 @@ class FleetMap:
         return self._from[node]
 
     def can_wait(self, node: str) -> bool:
-        """로봇이 서서 기다려도 되는 자리(도크, 대기 자리, 주차)인가."""
         return self.nodes[node].kind in WAITING_KINDS
-
-    # ---- 자리 ----
 
     def bounds(self) -> tuple[float, float, float, float]:
         return self._bounds
@@ -92,11 +75,9 @@ class FleetMap:
         return [name for name, spec in self.nodes.items() if spec.zone == zone]
 
     def distance_to_zone(self, x: float, y: float, zone: str) -> float:
-        """점에서 구역까지. 안이면 0. 모르는 구역 이름이면 KeyError."""
         return min(point_rect_distance(rect, x, y) for rect in self.zones[zone].rects)
 
     def nearest_node(self, x: float, y: float, nodes=None, radius: float | None = None):
-        """가장 가까운 지점. nodes로 후보를, radius로 거리를 제한한다. 없으면 None."""
         best, best_gap = None, math.inf
         for name in (self.nodes if nodes is None else nodes):
             gap = math.hypot(self.nodes[name].x - x, self.nodes[name].y - y)
@@ -108,7 +89,6 @@ class FleetMap:
 
 
 def load_fleet_map(layout=None) -> FleetMap:
-    """배치 이름(d2, c, d) 또는 파일 경로로 읽는다. 주지 않으면 기본 배치다."""
     name = DEFAULT_LAYOUT if layout is None else layout
     path = Path(name)
     if not path.suffix:
@@ -119,5 +99,4 @@ def load_fleet_map(layout=None) -> FleetMap:
 
 
 def fleet_map_from_text(text: str) -> FleetMap:
-    """지도 파일의 본문으로 만든다. 기록 첫 줄의 지도(source_text)로 재생할 때 쓴다."""
     return FleetMap(yaml.safe_load(text), source_text=text)

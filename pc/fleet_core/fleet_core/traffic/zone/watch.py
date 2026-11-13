@@ -1,7 +1,3 @@
-"""감시: 제자리 멈춤, 구역 밖(기록만), 넓은 구역에서 서로 막음, 대기 순환(보험).
-
-할 일 없이 섬(ROBOT_IDLE)은 silent.py에 있다.
-"""
 from __future__ import annotations
 
 import math
@@ -23,11 +19,8 @@ from .trips import Trip
 
 class Watch:
     def _watch_stall(self, m, now: float) -> None:
-        """goal이 열린 채 제자리이면 거두고 실패한 시도로 센다. 끝 지점에 서 있으면 닿은 것이다."""
         p = self.params
-        waiting = m.move_order is not None and m.move_order.waiting  # base 끝에 서 있다
-        # 막혔거나 스스로 물러나는 이동은 blocked.py가 본다. 도킹과 마당 물러나기는 거기서 보지
-        # 않으므로 여기서 본다
+        waiting = m.move_order is not None and m.move_order.waiting
         rests = m.robot_state in (BLOCKED, SELF_RECOVERING)
         if (m.goal is None or self._run_mode != RUN or m.arrival_by is not None or waiting
                 or (rests and m.goal.kind not in (DOCK, BACKOFF))):
@@ -47,15 +40,14 @@ class Watch:
         self._cancel_goal(m)
         if goal.kind == BACKOFF:
             self._backoff_ended(m, STALLED)
-        elif at_end:  # 끝 지점에 서 있다: 열린 goal만 거두고 닿은 것으로 본다
+        elif at_end:
             m.goal = goal
             self._arrived_anyway(m, STALLED)
-            m.retry_at = now + p.arrival_settle_s  # 취소가 닿은 뒤에 다음 goal을 낸다
+            m.retry_at = now + p.arrival_settle_s
         else:
             self._goal_failed(m, STALLED)
 
     def _watch_outside(self, m) -> None:
-        """보고 위치가 쥔 구역 밖에 이어서 있으면 사건으로 남긴다. 멈추지는 않는다."""
         p = self.params
         held = self.grants.held_by(m.name)
         gap = min((self.site.distance_to_zone(m.x, m.y, zone) for zone in held), default=0.0)
@@ -70,15 +62,9 @@ class Watch:
             m.outside_noted = True
             self._event("WARN", "OUTSIDE_ZONE", f"at ({m.x:.2f}, {m.y:.2f}), {gap:.2f} m outside "
                         f"{list(held)} for {m.outside_n} reports", m.name)
-        self._take_where_it_stands(m)  # 자리가 없었으면 보고마다 다시 본다
+        self._take_where_it_stands(m)
 
     def _take_where_it_stands(self, m) -> None:
-        """쥔 구역 밖의 넓은 구역에 있는 로봇에게 그 구역을 쥐게 한다. 자리가 없으면 기록뿐이다.
-
-        서 있는 로봇은 그래야 뒤에 남은 구역과 지점이 놓인다(progress._release_behind). Nav2
-        goal로 달리는 로봇은 Nav2가 잡아 준 통로 밖으로 돌아간 것이다: 장부를 몸이 있는 곳에
-        맞춘다. 고정 구간을 달리는 중이거나 넓은 구역이 아니면 손대지 않는다: 운영자가 본다.
-        """
         zone = self.site.zone_at(m.x, m.y)
         if zone is None or self.site.zones[zone].kind != SHARED:
             return
@@ -91,7 +77,6 @@ class Watch:
             self._event("WARN", "OUTSIDE_ZONE", f"takes {zone} where it stands", m.name)
 
     def _watch_near(self, now: float) -> None:
-        """넓은 구역에서 두 대가 가까이서 못 나아가면 우선순위 낮은 쪽을 비키게 한다(backoff.py)."""
         p = self.params
 
         def roams(m) -> bool:
@@ -103,7 +88,6 @@ class Watch:
         for index, a in enumerate(moving):
             for b in moving[index + 1:]:
                 spots = ((a.x, a.y), (b.x, b.y))
-                # 이번 주기에 다른 쌍에서 이미 비킨 로봇은 다시 보지 않는다
                 if math.dist(*spots) > p.near_m or not (roams(a) and roams(b)):
                     continue
                 key = (a.name, b.name)
@@ -111,7 +95,7 @@ class Watch:
                 since, before = self._near.get(key, (now, spots))
                 if any(math.dist(old, new) >= p.stall_move_m
                        for old, new in zip(before, spots, strict=True)):
-                    since, before = now, spots  # 누군가 나아갔다
+                    since, before = now, spots
                 self._near[key] = (since, before)
                 if now - since >= p.near_stuck_s:
                     low, other = sorted((a, b), key=lambda m: (self._priority(m), m.name))
@@ -124,11 +108,10 @@ class Watch:
             del self._near[key]
 
     def _watch_deadlock(self, now: float) -> frozenset:
-        """구역 대기 그래프의 순환. 들어가기 규칙이 맞으면 없어야 하므로 보이면 사건으로 남긴다."""
         graph = {}
         for name, want in self._wants.items():
             if not self._robots[name].available or self._robots[name].redock:
-                continue  # 도킹이 실패해 물러날 길을 기다리는 로봇은 redock_wait_s 뒤에 스스로 푼다
+                continue
             blockers = self.grants.blockers(name, want.zones, want.nodes, want.lanes)
             robots = {robot for group in blockers.values() for robot in group}
             if robots:
@@ -141,21 +124,16 @@ class Watch:
             self._event("WARN", "DEADLOCK_SEEN", f"wait cycle {' -> '.join(cycle)}")
         elif not self._cycle_acted and now - self._cycle_since >= self.params.deadlock_grace_s:
             rest = list(cycle)
-            while rest and not self._cycle_acted:  # 비킬 수 있는 로봇이 나올 때까지. 없으면 다음에
+            while rest and not self._cycle_acted:
                 victim = choose_retreat(rest, lambda name: self._priority(self._robots[name]))
                 self._cycle_acted = self._evade(self._robots[victim])
                 rest.remove(victim)
         return frozenset()
 
     def _evade(self, m) -> bool:
-        """대기 순환을 풀려고 이 로봇을 빈 주차 자리로 보낸다. 보냈으면 True."""
         return self._to_parking(m, "WARN", "DEADLOCK_SEEN", f"{m.name} gives way to")
 
     def _to_parking(self, m, level: str, code: str, why: str, clear_of=None) -> bool:
-        """goal이 없는 로봇을 가까운 빈 주차 자리로 보낸다. 목적은 그대로다. 보냈으면 True.
-
-        clear_of가 있으면 그 로봇에 더 가까운 자리는 고르지 않는다: 그 앞을 다시 지나게 된다.
-        """
         if m.goal is not None:
             return False
         waited = self.grants.waiting().get(m.name)
@@ -172,5 +150,5 @@ class Watch:
                 self._event(level, code, f"{why} {spot}", m.name)
                 self._send(m)
                 return True
-        self.grants.note_waiting(m.name, waited)  # 잡아 보기만 했다: 주차 길을 기다리는 것이 아니다
+        self.grants.note_waiting(m.name, waited)
         return False

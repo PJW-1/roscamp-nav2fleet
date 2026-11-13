@@ -1,9 +1,3 @@
-"""FMS 프로세스. fleet_core의 교통·주문 모듈을 ROS 노드 하나로 감싼다.
-
-판단은 모두 fleet_core가 한다. 이 노드는 메시지를 넘기고 명령을 goal로 바꾼다.
-콜백은 executor 스레드 하나에서 돌아 코어는 동시 호출을 받지 않는다.
-이름과 QoS는 contract.yaml, 좌표는 맵, 정책 값은 fleet_params.yaml에서 온다.
-"""
 from __future__ import annotations
 
 import argparse
@@ -59,7 +53,6 @@ class FleetManagerNode(Node):
         self.declare_parameter("map_file", "")
         self.declare_parameter("params_file", "")
         self.declare_parameter("tick_hz", 10.0)
-        # 주지 않으면 params 파일의 값이다. 준 값만 파일 값을 덮는다(order 모델)
         unset = ParameterDescriptor(dynamic_typing=True)
         self.declare_parameter("use_order_model", None, unset)
         self.declare_parameter("lookahead_s", None, unset)
@@ -76,8 +69,7 @@ class FleetManagerNode(Node):
         self.core = FleetManager(self.site, params, robots, self._now)
         self._record_file = None
         if record:
-            self.core.check_recordable()  # 거부될 기록이 옛 파일을 지우지 않게 먼저 본다
-            # 한 줄씩 써서, 프로세스가 죽어도 기록은 그 자리에서 끝난다.
+            self.core.check_recordable()
             self._record_file = open(record, "w", buffering=1, encoding="utf-8")
             self.core.record_to(lambda line: self._record_file.write(line + "\n"))
 
@@ -90,9 +82,6 @@ class FleetManagerNode(Node):
         self._create_interfaces(robots)
         self.create_timer(1.0 / self.get_parameter("tick_hz").value, self._on_tick)
         self.create_timer(1.0, self._publish_robots)
-        # 이전 FMS의 goal을 수행 중인 로봇은 heartbeat가 timeout만큼 끊기면 멈춘다.
-        # 그때까지 이 FMS는 아무것도 보내지 않고 보고도 받지 않는다. 실제 시계를 쓴다.
-        # 프로세스를 보는 것이고, 시뮬레이션 시간은 부하 걸린 머신의 메시지보다 앞서가기 때문이다.
         self._silent_until = (time.monotonic() + params.heartbeat_timeout_s
                               + params.heartbeat_period_s)
         self.create_timer(params.heartbeat_period_s, self._publish_heartbeat,
@@ -150,7 +139,6 @@ class FleetManagerNode(Node):
         self.create_service(ConfirmClear, name("confirm_clear"), self._on_confirm_clear)
         self.create_service(Reinstate, name("reinstate"), self._on_reinstate)
 
-    # ------------------------------------------------------------------ inputs
     def _on_robot_state(self, robot, msg: RobotState) -> None:
         if not self.silent() and self._reachable(robot):
             self.core.on_robot_state(robot, *adapters.robot_report(msg),
@@ -159,8 +147,6 @@ class FleetManagerNode(Node):
                                      adapters.robot_local_yield(msg))
 
     def _reachable(self, robot) -> bool:
-        """goal이 닿을 수 있어야 로봇으로 친다. 새 FMS는 액션 서버를 찾기 전에 보고를 먼저
-        듣는데, 그때 보낸 goal은 거절되어 재시도만 소모한다."""
         if (robot not in self._reached and self._move[robot].server_is_ready()
                 and self._dock[robot].server_is_ready()):
             self._reached.add(robot)
@@ -177,11 +163,10 @@ class FleetManagerNode(Node):
         accepted = self.core.reinstate(*adapters.reinstate_args(request))
         return adapters.reinstate_response(response, accepted, self.core.last_reinstate_reason)
 
-    # ------------------------------------------------------------------ output loop
     def _on_tick(self) -> None:
         now = self._now()
         if now <= 0.0 or self.silent():
-            return  # 시뮬레이션 시간에서 첫 /clock이 아직 안 왔다
+            return
         for command in self.core.tick():
             self._dispatch(command, now)
         self._retry_cancels(now)
@@ -193,12 +178,10 @@ class FleetManagerNode(Node):
         for server, goal_id in self._goals.retry_cancels(now, params.cancel_retry_s,
                                                          params.cancel_warn_after):
             waited = params.cancel_warn_after * params.cancel_retry_s
-            # "다시 요청"이 아니다. 수락된 적 없는 goal에는 취소를 보낼 핸들이 없다.
             detail = (f"goal {goal_id} on {server} has no result {waited:.0f} s after it was "
                       "canceled; the cancel stays open while a result can still come")
             self._dispatch(EventOut("WARN", "CANCEL_UNCONFIRMED", detail, server), now)
         for robot, goal_id in self._goals.take_dropped():
-            # 결과를 잃은 취소는 로봇 goal뿐이다(_goal_result). 코어가 끝난 것으로 보고 이어 간다
             self.core.on_goal_lost(robot, goal_id)
 
     def _flush_reports(self, now: float) -> None:
@@ -210,7 +193,7 @@ class FleetManagerNode(Node):
     def _report_answered(self, report_id, command, future) -> None:
         try:
             accepted = adapters.report_accepted(future.result())
-        except Exception as exc:  # outbox에 남아 다시 나간다
+        except Exception as exc:
             self.get_logger().warning(f"report of {command.order_id} got no reply: {exc}")
             return
         if self._reports.done(report_id) and not accepted:
@@ -221,7 +204,6 @@ class FleetManagerNode(Node):
 
     def _publish_snapshots(self, now: float) -> None:
         zones = self.core.zones_view()
-        # 전원이 보고하기 전에는 잠금을 모른다. 그것이 비어 있다는 뜻은 아니다.
         if self.core.traffic.everyone_placed and zones != self._last_zones:
             self._last_zones = zones
             self._zones_pub.publish(adapters.zones_to_msg(zones, now))
@@ -231,8 +213,6 @@ class FleetManagerNode(Node):
             self._assignments_pub.publish(adapters.assignments_to_msg(assignments, now))
 
     def _publish_heartbeat(self) -> None:
-        # 전원이 맵에 오르기 전에는 아무도 안 움직여 heartbeat가 필요 없다. 늦게 수락된
-        # 이전 FMS의 goal이 이 heartbeat를 자기 것으로 알고 계속 갈 수 있다.
         if not self.silent() and self.core.traffic.everyone_placed:
             self._heartbeat_pub.publish(Header(stamp=self.get_clock().now().to_msg(),
                                                frame_id=self.get_name()))
@@ -247,7 +227,6 @@ class FleetManagerNode(Node):
             self._send(self._move[command.robot], adapters.move_goal(command),
                        (command.robot, command.goal_id), self._move_done, self._robot_rejected)
         elif isinstance(command, MoveOrderCmd):
-            # update도 새 goal이다. 이전 goal은 취소하지 않는다. 로봇이 SUPERSEDED로 끝낸다
             key = (command.robot, command.goal_id)
             self._send(self._move[command.robot], adapters.move_order_goal(command), key,
                        self._move_done, self._robot_rejected,
@@ -277,15 +256,13 @@ class FleetManagerNode(Node):
             self._log_event(command)
 
     def _ask_clear(self, command) -> None:
-        """CheckClear 서비스(계약 0.12-draft)를 부른다. 서비스가 없거나 실패하면 NO_ANSWER다
-        (로봇의 unknown 답과 다르다: 이어진 clear만 끊고, 다음 차례에 다른 로봇에게 묻는다)."""
         client = self._check_clear[command.robot]
         if not client.service_is_ready():
             self.core.on_clear_check(command.robot, command.check_id, NO_ANSWER)
             return
         try:
             future = client.call_async(adapters.check_clear_request(command))
-        except Exception as exc:  # tick 밖으로 내보내지 않는다. 묻지 못한 것이다
+        except Exception as exc:
             self.get_logger().warning(f"check_clear on {command.robot} was not sent: {exc}")
             self.core.on_clear_check(command.robot, command.check_id, NO_ANSWER)
             return
@@ -294,13 +271,12 @@ class FleetManagerNode(Node):
     def _clear_answered(self, command, future) -> None:
         try:
             answer = adapters.check_clear_answer(future.result())
-        except Exception as exc:  # 답이 없다. 관제는 간격 뒤 다른 로봇부터 다시 묻는다
+        except Exception as exc:
             self.get_logger().warning(f"check_clear on {command.robot} got no reply: {exc}")
             answer = NO_ANSWER
         self.core.on_clear_check(command.robot, command.check_id, answer)
 
     def _log_event(self, event) -> None:
-        # 호출 위치마다 심각도 하나. rclpy는 같은 위치에서 심각도가 바뀌면 예외를 낸다.
         text = f"{event.code} {event.detail}"
         if event.level == "ERROR":
             self.get_logger().error(text)
@@ -309,7 +285,6 @@ class FleetManagerNode(Node):
         else:
             self.get_logger().info(text)
 
-    # ------------------------------------------------------------------ action plumbing
     def _on_move_feedback(self, key, msg) -> None:
         values = adapters.move_feedback(msg.feedback)
         if self._order_feedback.changed(key, values):
@@ -318,7 +293,7 @@ class FleetManagerNode(Node):
     def _send(self, client, goal, key, on_result, on_rejected, feedback=None) -> None:
         if not client.server_is_ready():
             if on_rejected == self._robot_rejected:
-                self.core.on_goal_not_sent(key[0], key[1])  # 실패한 시도가 아니다
+                self.core.on_goal_not_sent(key[0], key[1])
             else:
                 on_rejected(key)
             return
@@ -330,7 +305,7 @@ class FleetManagerNode(Node):
     def _goal_response(self, key, on_result, on_rejected, future) -> None:
         try:
             handle = future.result()
-        except Exception as exc:  # 깨진 future 때문에 코어가 영원히 기다리면 안 된다
+        except Exception as exc:
             self.get_logger().error(f"goal {key} failed to send: {exc}")
             self._goals.finished(key)
             on_rejected(key)
@@ -350,8 +325,6 @@ class FleetManagerNode(Node):
         except Exception as exc:
             self.get_logger().error(f"goal {key} lost its result: {exc}")
             if on_rejected == self._robot_rejected and self._goals.canceling(key):
-                # 취소한 로봇 goal은 끝났는지 모른다. 취소를 남겨 CANCEL_UNCONFIRMED로 알리고,
-                # 그만둘 때 코어에 on_goal_lost로 알린다(_retry_cancels)
                 self._goals.lost(key)
                 return
             self._goals.finished(key)
@@ -374,7 +347,7 @@ class FleetManagerNode(Node):
 
     def _retreat_done(self, key, result) -> None:
         handler = getattr(self.core, "on_retreat_result", None)
-        if handler is None:  # fleet_core가 아직 Retreat 결과를 받지 않는다
+        if handler is None:
             self.get_logger().warning(f"retreat {key} ended but the core has no "
                                       "on_retreat_result; result dropped")
             return
@@ -401,7 +374,7 @@ def main() -> None:
         rclpy.spin(node)
     except KeyboardInterrupt:
         pass
-    except Exception:  # SIGINT가 메시지 take 중에 걸릴 수 있다. 진짜 오류면 ROS가 아직 살아 있다
+    except Exception:
         if rclpy.ok():
             raise
     finally:

@@ -1,7 +1,3 @@
-"""fleet_core 레코드와 ROS 메시지 사이의 변환.
-
-팀 합의 뒤 메시지 필드가 바뀌면 플릿 매니저에서 고칠 곳은 이 파일뿐이다.
-"""
 from __future__ import annotations
 
 import math
@@ -99,20 +95,16 @@ def robot_report_id(msg) -> str:
 
 
 def robot_obstacle(msg) -> tuple[float, float, str]:
-    """BLOCKED와 함께 온 막은 것 (x, y, 종류). 계약 0.12-draft. 종류가 비면 모르는 것이다(NaN):
-    이 칸이 없던 로봇은 0, 0, 빈 값을 보낸다."""
     if not msg.obstacle_kind:
         return math.nan, math.nan, ""
     return float(msg.obstacle_x), float(msg.obstacle_y), msg.obstacle_kind
 
 
 def robot_local_yield(msg) -> str:
-    """로봇단 교착 처리의 단계(wait, backup, retry, 계약 0.13-draft). 아니면 빈 값."""
     return msg.local_yield
 
 
 def check_clear_request(command):
-    """CheckClearCmd -> CheckClear 요청."""
     return CheckClear.Request(x=float(command.x), y=float(command.y), r=float(command.radius_m))
 
 
@@ -121,7 +113,6 @@ def check_clear_answer(response) -> str:
 
 
 def goal_result(response):
-    """끝난 goal의 결과. 서버가 상태만으로 종료 사유를 알릴 수 있다."""
     result = response.result
     if getattr(result, "reason", None) == "":
         result.reason = REASON_OF_STATUS.get(response.status, "")
@@ -133,7 +124,6 @@ def move_result(result) -> tuple[bool, str, int]:
 
 
 def move_feedback(feedback) -> tuple[int, bool, str]:
-    """order goal의 피드백에서 코어가 보는 세 값."""
     return (int(feedback.last_done_seq_id), bool(feedback.waiting_at_base_end),
             feedback.horizon_warning)
 
@@ -162,7 +152,7 @@ def confirm_clear_args(request) -> tuple[str, list[str], str]:
 def confirm_clear_response(response, released: list[str] | None, reason: str = ""):
     response.accepted = released is not None
     response.released_zones = list(released or [])
-    response.reason = "" if released is not None else str(reason)  # 기준(사용자)
+    response.reason = "" if released is not None else str(reason)
     return response
 
 
@@ -181,7 +171,6 @@ def order_board_mode(msg: OrderBoard) -> str:
 
 
 def _board_items(items) -> dict[str, int]:
-    """종류별로 합친다. 0 이하 개수가 하나라도 있으면 그 값을 남겨 검사가 보게 한다."""
     counts = from_order_items(items)
     for item in items:
         if int(item.count) <= 0:
@@ -194,7 +183,6 @@ def order_board_orders(msg: OrderBoard) -> list[OrderRecord]:
 
 
 def _poses(path) -> list[Pose]:
-    """(x, y, yaw)들을 geometry_msgs/Pose로. MoveTo와 Retreat의 path가 같이 쓴다."""
     poses = []
     for x, y, yaw in path:
         pose = Pose()
@@ -209,9 +197,9 @@ def move_goal(cmd) -> MoveTo.Goal:
     goal.target_pose.x = float(cmd.x)
     goal.target_pose.y = float(cmd.y)
     goal.target_pose.theta = float(cmd.yaw)
-    goal.path = _poses(cmd.path)  # 비면 점 목표
-    goal.mode = cmd.mode  # follow_path 또는 nav_goal(계약 0.11-draft 제안)
-    goal.priority = int(cmd.priority)  # 로봇단 교착 처리(계약 0.13-draft)
+    goal.path = _poses(cmd.path)
+    goal.mode = cmd.mode
+    goal.priority = int(cmd.priority)
     return goal
 
 
@@ -234,7 +222,6 @@ def _segment(seg) -> Segment:
 
 
 def move_order_goal(cmd) -> MoveTo.Goal:
-    """order 모델의 MoveTo goal(계약 0.11-draft 제안). 옛 칸은 base 마지막 조각에서 채운다."""
     goal = MoveTo.Goal(order_id=cmd.order_id, order_update_id=int(cmd.update_id),
                        stitch_node_id=cmd.stitch_node, base=[_segment(s) for s in cmd.base],
                        horizon=[_segment(s) for s in cmd.horizon],
@@ -250,7 +237,6 @@ def move_order_goal(cmd) -> MoveTo.Goal:
 
 
 def retreat_goal(cmd) -> Retreat.Goal:
-    """관제가 시키는 물러나기(계약 0.9-draft 제안). path가 비면 곧게 뒤로."""
     return Retreat.Goal(distance_m=float(cmd.distance_m), speed_mps=float(cmd.speed_mps),
                         path=_poses(cmd.path))
 

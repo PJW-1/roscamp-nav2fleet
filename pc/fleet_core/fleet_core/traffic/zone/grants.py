@@ -1,8 +1,3 @@
-"""구역 허락 기록: 구역마다 정원까지의 로봇, 지점마다 로봇 하나, 한 줄 구역마다 방향 하나.
-
-한 구간(지금 선 자리에서 다음에 설 자리까지)에 필요한 구역과 지점은 한꺼번에 잡는다. 하나라도
-못 잡으면 아무것도 잡지 않는다(지시서 2-2의 2번). 누가 먼저인지는 여기서 정하지 않는다.
-"""
 from __future__ import annotations
 
 from fleet_core.fleet_map import LANE
@@ -13,18 +8,14 @@ class ZoneGrants:
         self._site = site
         self._clock = clock
         self._gap = follow_gap_s
-        # 구역 -> {로봇: 잡은 시각}
         self._holders: dict[str, dict[str, float]] = {zone: {} for zone in site.zones}
         self._nodes: dict[str, str] = {node: "" for node in site.nodes}
-        self._direction: dict[str, str] = {}  # 한 줄 구역 -> 지금 방향(들어간 지점)
-        self._held: dict[str, list[str]] = {}  # 로봇 -> 잡은 순서대로의 구역
-        self._held_nodes: dict[str, list[str]] = {}  # 로봇 -> 잡은 순서대로의 지점
-        self._waiting: dict[str, tuple[str, ...]] = {}  # 로봇 -> 기다리는 구역과 지점
-
-    # ---- 잡기 ----
+        self._direction: dict[str, str] = {}
+        self._held: dict[str, list[str]] = {}
+        self._held_nodes: dict[str, list[str]] = {}
+        self._waiting: dict[str, tuple[str, ...]] = {}
 
     def blockers(self, robot: str, zones=(), nodes=(), lanes=None) -> dict[str, tuple[str, ...]]:
-        """이 구간을 지금 못 잡게 하는 것: 구역이나 지점 -> 비켜야 할 로봇들. 비면 잡을 수 있다."""
         found: dict[str, tuple[str, ...]] = {}
         for zone in zones:
             others = self._others_in_the_way(robot, zone, (lanes or {}).get(zone))
@@ -53,7 +44,6 @@ class ZoneGrants:
         return tuple(holders) if len(holders) >= spec.capacity else ()
 
     def take(self, robot: str, zones=(), nodes=(), lanes=None) -> bool:
-        """구간을 통째로 잡는다. 못 잡으면 아무것도 잡지 않고, 기다리는 것을 적어 둔다."""
         zones, nodes = list(zones), list(nodes)
         blocked = self.blockers(robot, zones, nodes, lanes)
         if blocked:
@@ -64,7 +54,6 @@ class ZoneGrants:
         return True
 
     def force(self, robot: str, zones=(), nodes=()) -> bool:
-        """지도에 올릴 때: 자리가 있으면 잡는다. 한 줄 구역의 방향은 따지지 않는다."""
         zones, nodes = list(zones), list(nodes)
         for zone in zones:
             holders = self._holders[zone]
@@ -94,13 +83,10 @@ class ZoneGrants:
         self._waiting.pop(robot, None)
 
     def note_waiting(self, robot: str, items) -> None:
-        """기다리는 것의 기록을 되돌린다(구간을 잡아 보기만 하고 물러났을 때)."""
         if items:
             self._waiting[robot] = tuple(items)
         else:
             self._waiting.pop(robot, None)
-
-    # ---- 놓기 ----
 
     def release_zone(self, robot: str, zone: str) -> bool:
         if robot not in self._holders[zone]:
@@ -117,8 +103,6 @@ class ZoneGrants:
         self._nodes[node] = ""
         self._held_nodes[robot].remove(node)
         return True
-
-    # ---- 보기 ----
 
     def holders(self, zone: str) -> tuple[str, ...]:
         return tuple(self._holders[zone])

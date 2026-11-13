@@ -1,4 +1,3 @@
-"""지도 파일의 구획을 기록으로 바꾼다. 구획 하나에 함수 하나다."""
 from __future__ import annotations
 
 import math
@@ -27,8 +26,8 @@ from .model import (
     Zone,
 )
 
-SAMPLE_M = 0.01  # 선이 지나는 구역을 이 간격으로 찾는다
-LANE_CAPACITY = 2  # 한 줄 구역에 적지 않았을 때 같은 방향으로 함께 들어가는 대수
+SAMPLE_M = 0.01
+LANE_CAPACITY = 2
 
 
 def read_rect(raw, what: str) -> tuple:
@@ -107,7 +106,6 @@ def read_nodes(raw: dict, zones: dict[str, Zone]) -> dict[str, Node]:
 
 
 def zones_along(zones: dict[str, Zone], points) -> tuple[str, ...]:
-    """선이 지나는 구역을 처음 만나는 순서로. 구역이 없는 자리(진열대)는 건너뛴다."""
     seen: list[str] = []
     for a, b in zip(points, points[1:], strict=False):
         for x, y in sample(a, b, SAMPLE_M):
@@ -118,8 +116,6 @@ def zones_along(zones: dict[str, Zone], points) -> tuple[str, ...]:
 
 
 def _reentered(zones: dict[str, Zone], points) -> str:
-    """선이 떠난 구역에 다시 들어오면 그 구역 이름. 구역이 없는 자리(진열대)는 떠난 것으로 치지
-    않는다."""
     left: set[str] = set()
     here: set[str] = set()
     for a, b in zip(points, points[1:], strict=False):
@@ -136,14 +132,6 @@ def _reentered(zones: dict[str, Zone], points) -> str:
 
 
 def _line_problem(zones: dict[str, Zone], points) -> str:
-    """고정 선으로 받을 수 없는 꼴이면 그 까닭, 아니면 빈 글(Codex 검토 1, 2, 2026-11-13).
-
-    - 떠난 구역에 다시 들어오는 선: 구역 쥐기(zones_along, progress._still_needed)는 한 연결이
-      구역을 한 번 지난다고 본다.
-    - 되돌아가는 선(이웃한 두 조각이 90°보다 크게 꺾임)이나 스스로 건너는 선: 진행
-      자리(trips.along)는
-      가장 가까운 조각에 내리므로 어느 쪽을 달리는지 모른다.
-    """
     zone = _reentered(zones, points)
     if zone:
         return f"leaves {zone} and comes back into it"
@@ -165,7 +153,6 @@ def _link(nodes, zones, a: str, b: str, via: str, path: str, crossed=None, bends
         if problem:
             raise FleetMapError(f"path {path}: the line from {a} to {b} {problem}")
     crossed = tuple(crossed) if crossed else zones_along(zones, points)
-    # 끝 지점의 구역이 처음과 끝에 오게 한다: 경계 위의 표본이 순서를 바꿀 수 있다
     middle = [z for z in crossed if z not in (nodes[a].zone, nodes[b].zone)]
     ordered = [nodes[a].zone, *middle]
     if nodes[b].zone != nodes[a].zone:
@@ -176,11 +163,6 @@ def _link(nodes, zones, a: str, b: str, via: str, path: str, crossed=None, bends
 
 
 def _path_stops(entry, nodes, what: str) -> list[tuple[str, tuple]]:
-    """고정 경로의 점 목록을 (지점, 그 지점 앞의 꺾는 점들)로 바꾼다.
-
-    꺾는 점은 [x, y]이고 지점이 아니다. 두 지점 사이의 선이 꺾이는 곳일 뿐이라 처음과 끝은
-    지점이어야 한다.
-    """
     stops, bends = [], []
     for point in entry.get("points") or ():
         if isinstance(point, str):

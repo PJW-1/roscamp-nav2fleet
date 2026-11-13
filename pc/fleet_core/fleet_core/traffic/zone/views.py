@@ -1,4 +1,3 @@
-"""밖에서 읽는 것: 로봇 목록, /fleet/zones, 로봇마다의 상태."""
 from __future__ import annotations
 
 from fleet_core.common.commands import ZoneView
@@ -32,7 +31,6 @@ class Views:
         return out
 
     def zones_view(self) -> list[ZoneView]:
-        """구역마다 쥔 로봇(여럿이면 이름 순서로 쉼표로 잇는다)과 그 구역을 기다리는 로봇."""
         views = []
         for zone in self.site.zones:
             holders = ",".join(sorted(self.grants.holders(zone)))
@@ -57,7 +55,6 @@ class Views:
 
     @staticmethod
     def _route_left(m) -> tuple[list[str], int]:
-        """앞에 남은 지점들과, 그 가운데 구역을 허락받은 수."""
         trip = m.trip
         if trip is None:
             return [], 0

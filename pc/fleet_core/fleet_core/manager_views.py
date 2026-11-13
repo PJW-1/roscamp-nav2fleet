@@ -1,4 +1,3 @@
-"""FleetManager가 밖(ROS 노드)에 내주는 읽기 전용 보기: 구역, 배정, 로봇 상태."""
 from __future__ import annotations
 
 from fleet_core.common.commands import AssignmentView, RobotStatusView, ZoneView
@@ -44,7 +43,6 @@ class ManagerViews:
         return views
 
     def robot_view(self, robot) -> dict:
-        """모르는 로봇이면 빈 dict."""
         t = self.traffic.robot_view(robot)
         o = self.orchestrator.robot_view(robot)
         if not t or not o:

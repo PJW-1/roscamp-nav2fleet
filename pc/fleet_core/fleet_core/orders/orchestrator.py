@@ -1,15 +1,3 @@
-"""주문과 바구니를 맡는다. ROS, 실제 시계, 레인, 팔 goal은 모른다.
-
-로봇은 DispatchCmd로 부르고 ReleaseCmd로 놓아 준다. 어느 로봇이 어떻게 오는지는 교통이 정한다.
-Arm work is asked for one attempt at a time (ArmFillCmd, ArmSwapCmd). Goals, time-outs and the
-wait before a retry are the arm side's (arm.jobs); only results come back. Whether an attempt
-failed is decided here and told with ArmFailedCmd.
-주문은 채우기 스테이션 도킹이 끝나야 묶인다. 그래서 도착 순서가 작업 순서이고,
-가다가 실패한 로봇은 주문을 쥐고 있지 않다.
-
-열린 WORK 배차 수는 항상 묶이지 않은 주문 수와 같다.
-한쪽을 바꾸는 입력은 반환 전에 다른 쪽도 맞춘다.
-"""
 from __future__ import annotations
 
 from fleet_core.common.commands import (
@@ -62,13 +50,11 @@ class OrderOrchestrator(Faults, Stations):
         self._out: list = []
         self._run_mode: str | None = None
         self._board: list = []
-        self._reported: set[str] = set()  # 보드에 잠시 남아 있을 수 있다
-        self._open_calls: list[int] = []  # 보냈지만 아직 답이 없는 WORK 배차
+        self._reported: set[str] = set()
+        self._open_calls: list[int] = []
         self._work = next(s.id for s in stations.values() if s.action == FILL)
         self._outbound = next(s.id for s in stations.values() if s.action == SWAP)
-        self._lost_jobs: dict[int, _LostJob] = {}  # goal -> 작업, 늦은 결과가 올 때까지
-
-    # ---- inputs -------------------------------------------------------------------------
+        self._lost_jobs: dict[int, _LostJob] = {}
 
     def on_order_board(self, run_mode, orders) -> None:
         self._run_mode = run_mode
@@ -97,14 +83,11 @@ class OrderOrchestrator(Faults, Stations):
                 r.stage = SWAPPING
                 r.dispatch_failures = 0
             else:
-                # step() decides once the wait is over. Traffic isolates a robot right after
-                # failing its dispatch, and an isolated robot is neither sent again nor faulted.
                 r.dispatch_failures += 1
                 r.dispatch_retry_at = self._clock() + self.params.dispatch_retry_wait_s
                 r.dispatch_reason = reason
 
     def on_arm_report(self, report) -> None:
-        """What the arm side answers: a refusal, a result, a job given up, a late result."""
         if isinstance(report, ArmLate):
             if report.kind == FILL:
                 self._late_fill(report.goal_id, report.placed)
@@ -127,13 +110,11 @@ class OrderOrchestrator(Faults, Stations):
         r.asked = ""
         _merge(r.order.placed, placed)
         if success:
-            # 서버가 시도를 마쳤으니 바구니에 없는 것은 빠진 것으로 확정한다.
             r.order.missing = _subtract(r.order.items, r.order.placed)
             return
         self._out.append(ArmFailedCmd(r.name))
 
     def _on_arm_lost(self, r: _Robot, lost: ArmLost) -> None:
-        """Keeps what was bound then, to judge a late result. A drop gave it; else it is now."""
         if lost.cleared:
             order_id, bound = lost.order_id, lost.bound
         else:
@@ -149,7 +130,7 @@ class OrderOrchestrator(Faults, Stations):
             r.basket = NONE
             self._report_shipped(r)
         if r.isolated:
-            self._requeue_isolated(r)  # 가져가지 못했으면 이제 되돌린다
+            self._requeue_isolated(r)
             return
         if put_empty_done and r.basket == NONE:
             r.basket = EMPTY
@@ -158,10 +139,7 @@ class OrderOrchestrator(Faults, Stations):
             return
         self._out.append(ArmFailedCmd(r.name))
 
-    # ---- outputs ------------------------------------------------------------------------
-
     def step(self, robot) -> None:
-        """교통이 넘겨준 로봇의 다음 일을 한다."""
         r = self._robots.get(robot)
         if r is None:
             return
@@ -174,7 +152,6 @@ class OrderOrchestrator(Faults, Stations):
         elif r.dispatch_retry_at is not None:
             self._retry_outbound(r)
         elif r.basket == NONE and not r.order:
-            # 바구니 없이 다시 투입됐다. 주문을 받기 전에 출고대에서 빈 바구니를 받는다.
             self._send_to_outbound(r)
 
     def take_output(self) -> list:
@@ -182,7 +159,6 @@ class OrderOrchestrator(Faults, Stations):
         return out
 
     def station_job(self, robot) -> tuple[str, int] | None:
-        """(FILL 또는 SWAP, 안 놓은 수량). 팔 일 중이 아니면 None."""
         r = self._robots.get(robot)
         if r is None or r.stage not in (FILLING, SWAPPING):
             return None
@@ -196,7 +172,6 @@ class OrderOrchestrator(Faults, Stations):
         return r.order.order_id if r and r.order else ""
 
     def robot_view(self, robot) -> dict:
-        """모르는 로봇이면 빈 dict."""
         r = self._robots.get(robot)
         if r is None:
             return {}
@@ -207,29 +182,22 @@ class OrderOrchestrator(Faults, Stations):
             "placed": dict(r.order.placed) if r.order else {},
         }
 
-    # ---- helpers ------------------------------------------------------------------------
-
     def _event(self, level, code, detail, robot="") -> None:
         self._out.append(EventOut(level, code, detail, robot))
 
     def _fail(self, r: _Robot, reason: str) -> None:
-        """교통에 알린다. 교통이 격리하면 RobotIsolated로 주문을 되돌린다."""
         self._out.append(RobotFaultCmd(r.name, reason))
 
     def _leave_station(self, r: _Robot) -> None:
         r.stage = ""
         self._out.append(ReleaseCmd(r.name))
 
-    # ---- orders -------------------------------------------------------------------------
-
     def _pending(self) -> list:
-        """아무도 쥐지 않았고 끝나지도 않은 보드 주문, 등록 순서대로."""
         bound = {r.order.order_id for r in self._robots.values() if r.order}
         return [o for o in self._board
                 if o.order_id not in bound and o.order_id not in self._reported]
 
     def _sync_calls(self) -> None:
-        """묶이지 않은 주문마다 WORK 배차를 하나씩 둔다. 줄일 때는 최신 것부터 취소한다."""
         wanted = len(self._pending())
         while len(self._open_calls) < wanted:
             goal_id = self._next_dispatch_id()

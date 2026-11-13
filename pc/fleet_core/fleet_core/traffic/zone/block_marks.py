@@ -1,20 +1,3 @@
-"""막힘 표시를 위치 단위로(추가 지시서 3의 4-2와 4-3의 5번, 기준(사용자)).
-
-로봇이 BLOCKED와 함께 장애물 위치를 보고하면(obstacle) 그 점이 든 연결만 막힘으로 표시한다.
-
-- 고정 경로(FollowPath, 후진): 선이 그 점에서 발자국 반지름 + release_margin_m 안을 지난다.
-- Nav2 goal: 그 점이 지나는 구역 안이고, 그 구역이 지점 없는 통로이거나(통로 전체가 막힌다),
-  지점 있는 넓은 구역이면 두 끝을 잇는 곧은 선이 위와 같은 거리 안을 지난다(마당 하나가 통째로
-  막히지 않게).
-
-그 점 곁(near_m 안)에 관제가 아는 다른 로봇이 있으면 표시하지 않고 비키게 한다(HALL_YIELD).
-위치가 없거나 든 연결이 없으면 blocked.py가 예전처럼 가던 연결을 표시한다.
-
-표시(Mark)는 점과, 그 점 때문에 막은 연결들(_blocked의 열쇠)을 가진다. 지나가는 로봇이 확인하면
-지우거나 새로 고친다(clear_checks.py). 아무도 확인하지 않으면 지우기 시간(retry_s) 뒤 지우고 길을
-다시 열어 본다. 지운 뒤 같은 점에서 다시 막히면 지우기 시간을 두 배로 늘린다(blocked_retry_max_s
-까지).
-"""
 from __future__ import annotations
 
 import math
@@ -32,20 +15,19 @@ class Mark:
     id: int
     x: float
     y: float
-    by: str  # 보고한 로봇
-    since: float  # 처음 표시한 시각
-    until: float  # 지울 시각
-    retry_s: float  # 지우기 시간(다시 막히면 두 배)
-    keys: list = field(default_factory=list)  # 막은 연결 (a, b)
-    clears: int = 0  # 이어진 clear 답의 수
-    asked_at: float = 0.0  # 마지막으로 물은 시각(처음에는 표시한 시각)
-    check: int = 0  # 답을 기다리는 질문 번호. 없으면 0
-    asked: str = ""  # 그 질문을 받은 로봇
-    asked_last: dict = field(default_factory=dict)  # 로봇 -> 이 표시에서 마지막으로 물은 시각
+    by: str
+    since: float
+    until: float
+    retry_s: float
+    keys: list = field(default_factory=list)
+    clears: int = 0
+    asked_at: float = 0.0
+    check: int = 0
+    asked: str = ""
+    asked_last: dict = field(default_factory=dict)
 
 
 def polyline_gap(point, points) -> float:
-    """점과 꺾은선 사이의 거리."""
     if len(points) == 1:
         return math.dist(point, points[0])
     return min(point_segment_distance(point, a, b) for a, b in zip(points, points[1:],
@@ -53,7 +35,6 @@ def polyline_gap(point, points) -> float:
 
 
 def keys_at(site, params, point) -> list:
-    """그 점이 든 지도의 연결들 (a, b). 순서는 지도의 연결 순서다."""
     reach = params.footprint_radius_m + params.release_margin_m
     zone = site.zone_at(*point)
     keys = []
@@ -63,7 +44,7 @@ def keys_at(site, params, point) -> list:
         elif zone is None or zone not in link.zones:
             hit = False
         elif not site.nodes_in(zone):
-            hit = True  # 지점 없는 통로: 어디로 지나든 그 점 곁을 지난다
+            hit = True
         else:
             hit = point_segment_distance(point, link.points[0], link.points[-1]) <= reach
         if hit:
@@ -73,22 +54,17 @@ def keys_at(site, params, point) -> list:
 
 class BlockMarks:
     def _obstacle_point(self, m) -> tuple | None:
-        """m이 보고한 장애물 위치. 모르거나 위치로 표시하지 않게 꺼 두었으면 None."""
         if not self.params.blocked_by_position or m.obstacle is None:
             return None
         return m.obstacle[:2]
 
     def _robot_at(self, m, point):
-        """그 점 곁(near_m 안)에 서 있는 다른 로봇. 없으면 None."""
         near = [other for other in self._robots.values()
                 if other is not m and other.placed and other.fault != OUT_OF_SERVICE
                 and math.dist(point, (other.x, other.y)) <= self.params.near_m]
         return min(near, key=lambda o: (math.dist(point, (o.x, o.y)), o.name), default=None)
 
     def _point_keys(self, m, point, link) -> list:
-        """그 점 때문에 막을 연결들. 넓은 구역 한가운데에서 막혔으면 선 자리에서 가던 지점으로
-        곧장 가는 길(예전 규칙 7과 같다)과, 선 자리에서 곧장 가면 그 점 곁을 지나는 지점들로 가는
-        길도 막는다(통로 안에서 막힌 로봇이 그 점 너머로 가지 않게)."""
         keys = keys_at(self.site, self.params, point)
         if not keys:
             return keys
@@ -104,12 +80,10 @@ class BlockMarks:
                           + (point[1] - here[1]) * (end[1] - here[1])) > 0.0
                 if (key not in keys and toward
                         and point_segment_distance(point, here, end) <= reach):
-                    keys.append(key)  # 그 점을 지나 그 지점으로 간다. 지나온 쪽은 열어 둔다
+                    keys.append(key)
         return keys
 
     def _mark_point(self, m, point, keys, now: float) -> Mark:
-        """점과 연결들을 막힘으로 표시하고 ZONE_MARKED_BLOCKED를 낸다. 가까운 표시가 살아 있으면
-        그 표시에 더한다(같은 것에 또 막혔다)."""
         p = self.params
         mark = next((mk for mk in self._marks.values()
                      if math.dist(point, (mk.x, mk.y)) <= p.near_m), None)
@@ -117,7 +91,7 @@ class BlockMarks:
             retry = p.blocked_retry_s
             old = next((item for item in self._mark_memory
                         if math.dist(point, item[:2]) <= p.near_m), None)
-            if old is not None:  # 지운 뒤 보내 본 로봇이 같은 점에서 다시 막혔다
+            if old is not None:
                 self._mark_memory.remove(old)
                 retry = min(2.0 * old[2], max(p.blocked_retry_max_s, p.blocked_retry_s))
             mark = Mark(self._mark_seq(), point[0], point[1], m.name, now, now + retry, retry,
@@ -125,7 +99,7 @@ class BlockMarks:
             self._marks[mark.id] = mark
         else:
             mark.until, mark.clears = now + mark.retry_s, 0
-            mark.check, mark.asked = 0, ""  # 새 보고 전에 보낸 질문의 답은 세지 않는다
+            mark.check, mark.asked = 0, ""
         for key in keys:
             self._hold_key(mark, key)
         shown = ", ".join(f"{a or 'here'}->{b}" for a, b in keys)
@@ -140,7 +114,6 @@ class BlockMarks:
         self._blocked[key] = max(self._blocked.get(key, 0.0), mark.until)
 
     def _drop_mark(self, mark) -> None:
-        """표시를 지운다. 다른 표시도 막은 연결은 그 표시의 시각까지 남긴다."""
         del self._marks[mark.id]
         for key in mark.keys:
             rest = [mk.until for mk in self._marks.values() if key in mk.keys]
@@ -150,7 +123,6 @@ class BlockMarks:
                 self._blocked.pop(key, None)
 
     def _expire_marks(self, now: float) -> None:
-        """아무도 확인하지 않은 표시를 지운다. 같은 점에서 다시 막히면 시간을 늘리려고 남긴다."""
         keep = self.params.blocked_retry_max_s
         self._mark_memory = [item for item in self._mark_memory if now - item[3] <= keep]
         for mark in [mk for mk in self._marks.values() if mk.until <= now]:
@@ -158,6 +130,5 @@ class BlockMarks:
             self._mark_memory.append((mark.x, mark.y, mark.retry_s, now))
 
     def _yielded_lately(self, m, now: float) -> bool:
-        """blocked_retry_s 안에 다른 로봇 때문에 이미 표시 없이 비켰다."""
         return m.robot_yield_at is not None and now - m.robot_yield_at <= (
             self.params.blocked_retry_s)

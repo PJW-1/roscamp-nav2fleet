@@ -1,4 +1,3 @@
-"""FleetManager의 내부 배달: 세 코어가 서로 보내는 명령을 받을 곳으로 넘긴다."""
 from __future__ import annotations
 
 from fleet_core.common.commands import (
@@ -16,7 +15,6 @@ from fleet_core.common.commands import (
 
 class ManagerRoute:
     def _step_robot(self, robot) -> None:
-        """주문, 교통 순으로 돌고, 방금 묶인 주문을 위해 주문 쪽을 한 번 더 돈다."""
         self.orchestrator.step(robot)
         self._pump()
         self.traffic.step(robot)
@@ -25,7 +23,6 @@ class ManagerRoute:
         self._pump()
 
     def _pump(self) -> None:
-        """세 코어 모두 보낼 명령이 없을 때까지 내부 명령을 넘긴다."""
         while True:
             items = (self.arm.take_output() + self.orchestrator.take_output()
                      + self.traffic.take_output())
@@ -36,8 +33,6 @@ class ManagerRoute:
 
     def _route(self, item) -> None:
         if isinstance(item, ARM_COMMANDS):
-            # Orders and arm answer each other in place, before the next item: what comes out
-            # keeps the order it had when one core did both.
             self._note("inside", item)
             self.arm.on_command(item)
             for answer in self.arm.take_output():

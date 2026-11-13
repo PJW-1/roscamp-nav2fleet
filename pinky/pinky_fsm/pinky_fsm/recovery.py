@@ -1,8 +1,3 @@
-"""PinkyFsm의 자가 복구(핑키_계약 3절 7번). ROS를 모른다.
-
-core.PinkyFsm이 이 클래스를 물려받는다(core.py가 길어 책임별로 나눴다). 여기 메서드는 core의
-상태(_active, _recovery, _attempts, BackUp 기록)를 그대로 쓴다.
-"""
 from __future__ import annotations
 
 import math
@@ -19,13 +14,10 @@ Obstacle = Callable[[list[Point]], bool]
 
 class SelfRecovery:
     def _can_recover(self, pose) -> bool:
-        # 로봇단 교착 처리(7-4)는 한 자리에서 한 번이다
         limit = 1 if self.p.local_yield else self.p.recovery_attempts
         return pose is not None and self._attempts < limit
 
     def _start_attempt(self, g: _Move, now: float, pose: Sequence[float]) -> list:
-        """FollowPath를 멈추고(BackUp과 둘 다 cmd_vel을 낸다) 물러난다. 물러날 자리가 없으면
-        바로 지도를 비우고 다시 보낸다. 로봇단 교착 처리(7-4)를 켰으면 먼저 기다린다."""
         if self.p.local_yield:
             return self._start_yield(g, now, pose)
         self._attempts += 1
@@ -51,8 +43,6 @@ class SelfRecovery:
                               self.p.backup_time_allowance_s)]
 
     def _backup_distance(self, g: _Move, pose: Sequence[float]) -> float:
-        """마지막으로 지난 경로 꼭짓점(경로 시작 포함)에서 온 거리로 정하고(backup_distance),
-        레인 옆 거리가 커지지 않게 줄인다."""
         d = backup_distance(g.s - g.route.vertex_before(g.s), self.p.backup_max_m,
                             self.p.release_distance_m + self.p.backup_margin_m)
         qx, qy = g.route.point_at(g.s)
@@ -68,7 +58,6 @@ class SelfRecovery:
         return [ClearCostmap()] + self._send_rest(g, now, pose)
 
     def _watch_recovery(self, now: float, g, pose, obstacle: Obstacle) -> list:
-        """복구가 끝났는지, 시간이 다 됐는지 본다. 복구 밖에서는 시도 수를 지울지 본다."""
         r = self._recovery
         if r is None:
             if (self._attempt_origin is not None and pose is not None
@@ -88,7 +77,7 @@ class SelfRecovery:
             self._backup_running = False
             return [CancelBackUp()] + self._follow_again(g, r, now, pose)
         if g.s >= r.stuck_s + self.p.recovery_pass_m:
-            self._recovery = None  # 막힌 곳을 지났다. 시도 수는 recovery_reset_m 뒤에 지운다
+            self._recovery = None
             return []
         if now - r.follow_since < self.p.recovery_timeout_s:
             return []

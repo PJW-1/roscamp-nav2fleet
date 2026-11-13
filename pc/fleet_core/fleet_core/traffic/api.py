@@ -1,15 +1,3 @@
-"""교통 층의 바깥 API: FleetManager(manager.py)와 ROS 껍데기(fleet_manager_node.py)가 부르는 것.
-
-ZoneTraffic이 채우는 자리다. 옛 레인 제어기(지웠다, 1da1e61 traffic/controller.py)의 공개 메서드를
-시그니처 그대로 따랐으므로 manager.py를 고치지 않고 끼운다. 한 줄 설명은 부르는 쪽이 기대하는
-것이다. 로봇 이름은 모두 생성자의 robots 중 하나이고, 모르는 이름은 조용히 무시한다
-(INPUT_REJECTED는 FleetManager가 낸다). 시각은 생성자의 clock으로 읽는다.
-
-생성자: ZoneTraffic(site, params, robots, clock, next_goal_id). next_goal_id()는 FleetManager가
-goal id를 나눠 주는 함수다(팔과 같은 수열).
-선택: station_left 속성이 있으면 FleetManager가 station_left_s(robot)를 넣어 준다(스테이션 팔 작업이
-끝나기까지 남은 초, 추정. 팔 일 중이 아니면 None).
-"""
 from __future__ import annotations
 
 from typing import Protocol, runtime_checkable
@@ -19,9 +7,7 @@ from fleet_core.common.commands import ZoneView
 
 @runtime_checkable
 class TrafficApi(Protocol):
-    clear_reason: str  # 마지막 confirm_clear를 거부한 이유. 받아들였으면 ""
-
-    # ---- inputs -------------------------------------------------------------------------
+    clear_reason: str
 
     def on_robot_state(self, robot, x, y, yaw, state, battery=0.0, obstacle=None,
                        local_yield="") -> None:
@@ -83,8 +69,6 @@ class TrafficApi(Protocol):
     def reinstate(self, robot) -> bool:
         """치운 로봇을 다시 넣는다. 다음 위치 보고로 지도에 오른다. 거부면 False."""
 
-    # ---- state the caller reads ---------------------------------------------------------
-
     @property
     def robots(self) -> list[str]:
         """생성자의 로봇 이름, 같은 순서."""
@@ -103,8 +87,6 @@ class TrafficApi(Protocol):
 
     def available(self, robot) -> bool:
         """이번 tick에 새 일을 받고 step할 수 있다(지도 위, 고장·두절 없음)."""
-
-    # ---- one tick -----------------------------------------------------------------------
 
     def tick(self) -> list:
         """한 주기 전체(tick_begin, tick_progress, tick_pick, step). 나온 것을 돌려준다."""
@@ -125,8 +107,6 @@ class TrafficApi(Protocol):
     def take_output(self) -> list:
         """쌓인 명령과 이벤트(MoveCmd, DockCmd, RetreatCmd, CancelCmd, EventOut,
         DispatchFeedback, DispatchResult, RobotIsolated)를 꺼낸다."""
-
-    # ---- views --------------------------------------------------------------------------
 
     def zones_view(self) -> list[ZoneView]:
         """/fleet/zones에 낼 구역마다의 주인과 대기 줄."""

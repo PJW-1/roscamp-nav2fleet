@@ -1,8 +1,3 @@
-"""order 표시용 선(order 추가지시서 3절 7번, 계약 0.11-draft 제안). ROS를 모른다.
-
-노드가 /<robot>/order_markers(MarkerArray)로 옮긴다. base는 실선, horizon은 점선이다. nav_goal
-조각은 길을 Nav2가 짜므로 앞 조각의 끝(처음이면 로봇)에서 목표까지 곧은 선으로 그린다.
-"""
 from __future__ import annotations
 
 import math
@@ -40,7 +35,6 @@ def order_lines(start: Point | None, base: Sequence[Seg], horizon: Sequence[Seg]
 
 def dashes(points: Sequence[Point], dash_m: float = 0.06,
            gap_m: float = 0.04) -> list[tuple[Point, Point]]:
-    """점선의 조각들(LINE_LIST의 점 쌍)."""
     if len(points) < 2:
         return []
     line = Polyline(points)

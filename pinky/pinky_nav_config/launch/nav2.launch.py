@@ -1,39 +1,3 @@
-"""핑키 한 대의 Nav2를 로봇 namespace 안에 띄운다.
-
-    ros2 launch pinky_nav_config nav2.launch.py map:=<지도.yaml> map_fine:=<1cm 지도.yaml> \
-        initial_x:=0.35 initial_y:=1.55 initial_yaw:=1.5708 [keepout_mask:=<마스크.yaml>] \
-        [vision_obstacles:=true] [narrow_strips:="x0,y0,x1,y1; ..." wall_band_m:=0.05] \
-        [peer_obstacles:=true peer_robots:=pinky1,pinky2,pinky3]
-
-- 노드: map_server(5 cm, map), map_server_fine(1 cm, map_fine), amcl, controller_server,
-  planner_server, behavior_server, bt_navigator와 lifecycle manager 둘.
-- 모두 /{namespace} 안에서 돌고 TF는 /{namespace}/tf, /{namespace}/tf_static을 쓴다(R17).
-  프레임 이름(map, odom, base_footprint)에는 접두사를 붙이지 않는다.
-- controller_server는 cmd_vel로 바로 낸다(velocity_smoother, collision_monitor 없음).
-- AMCL은 1 cm 지도를, costmap은 5 cm 지도를 쓴다(R15).
-- bt_navigator는 MoveTo mode nav_goal(계약 0.11-draft, 기준(사용자))의 navigate_to_pose다. BT는
-  Nav2 기본 BT(1 Hz 재계획)에서 controller를 FollowPathGoal로 바꾸고, goal checker 이름을 적고,
-  복구에서 Spin과 BackUp을 뺀 것이다(bt/ 파일의 머리말).
-- keepout_mask(map_server 형식의 마스크 yaml)를 주면 급행·도크 구역을 Nav2 goal 경로에서 막는다:
-  params/keepout.yaml을 파라미터에 덧붙여 global costmap에 keepout 필터를 걸고,
-  keepout_mask_server, costmap_filter_info_server와 lifecycle_manager_keepout을 더 띄운다.
-  비면(기본) 아무것도 바뀌지 않는다.
-- 파라미터는 두 파일에서 모은다(추가 지시서 3의 7-1, pinky_nav_params.py): params_file(사용자,
-  params/nav2_params.yaml)에 avoidance_params_file(회피 담당, params/avoidance.yaml)의
-  FollowPathGoal 값을 넣는다. 회피 담당 파일에 사용자의 키가 있으면 뜨지 않는다.
-- vision_obstacles:=true면 회피 담당 파일의 vision_obstacles를 두 costmap의 장애물 층에
-  /{namespace}/vision_obstacles(PointCloud2) 관측원으로 더한다(기본 꺼짐).
-- narrow_strips(좁은 띠 사각형들)를 주면 pinky_scan_filter 노드를 띄우고 params/scan_filter.yaml을
-  얹어 두 costmap의 장애물 층이 거른 스캔(scan_filtered)을 읽게 한다(추가지시서3 7-2).
-  AMCL은 원래 scan을 읽는다. 비면(기본) 아무것도 바뀌지 않는다. 거르개는 컨테이너에 넣지 않는다.
-- peer_obstacles:=true면(임시, 주행 시험용) params/peer_obstacles.yaml의 peer 층을 두 costmap에 넣고
-  pinky_peer_obstacles 노드를 띄운다: 다른 로봇(peer_robots에서 나를 뺀 이름)이 보고한 자세에 몸을
-  찍어 Nav2가 피해서 길을 짠다. 기본은 꺼짐이고, 꺼져 있으면 아무것도 바뀌지 않는다.
-  peer_node:=false면 층만 넣고 노드는 띄우지 않는다(시뮬레이션: 한 프로세스가 세 대분을 낸다).
-- use_composition:=true면 같은 노드들을 컨테이너(component_container_isolated) 한 프로세스에
-  올린다. 한 PC에 로봇 여럿을 띄울 때 DDS 참가자(프로세스) 수를 줄인다.
-  기본은 false(노드마다 프로세스).
-"""
 import sys
 import tempfile
 from pathlib import Path
@@ -50,7 +14,7 @@ from launch_ros.actions import ComposableNodeContainer, Node, PushRosNamespace, 
 from launch_ros.descriptions import ComposableNode, ParameterFile, ParameterValue
 from nav2_common.launch import ReplaceString, RewrittenYaml
 
-sys.path.insert(0, str(Path(__file__).resolve().parent))  # 이 파일 옆의 pinky_nav_params.py
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 from pinky_nav_params import merge, with_avoidance, with_peers  # noqa: E402
 
 SHARE = Path(get_package_share_directory("pinky_nav_config"))
@@ -65,9 +29,6 @@ def _read(path) -> dict:
 
 
 class Flag(Substitution):
-    """true나 false로만 읽히는 스위치. 다른 글자면 멈춘다: 층을 넣는 쪽과 노드를 띄우는 쪽이 같은
-    글자를 다르게 읽어 하나만 켜지는 일이 없게 한다."""
-
     def __init__(self, name, value):
         super().__init__()
         self._name = name
@@ -81,8 +42,6 @@ class Flag(Substitution):
 
 
 class PeerRobots(Substitution):
-    """peer_obstacles 노드에 줄 로봇 이름들. 켰는데 비어 있으면 멈춘다: 찍을 로봇을 모른다."""
-
     def __init__(self, on, robots):
         super().__init__()
         self._on = normalize_to_list_of_substitutions(on)
@@ -97,13 +56,6 @@ class PeerRobots(Substitution):
 
 
 class WithOverlays(Substitution):
-    """파라미터 파일 경로: 사용자 파일에 회피 담당 파일과 켜진 덧붙임을 얹은 임시 파일.
-
-    avoidance(회피 담당 파일)의 FollowPathGoal 값을 넣고, vision이 true면 비전 관측원도 넣는다
-    (pinky_nav_params.with_avoidance). mask가 있으면 params/keepout.yaml을, strips가 있으면
-    params/scan_filter.yaml을 얹는다. peers가 true면 params/peer_obstacles.yaml의 층을 넣는다.
-    """
-
     def __init__(self, source, avoidance, mask, vision, strips, peers):
         super().__init__()
         self._source = normalize_to_list_of_substitutions(source)
@@ -140,8 +92,6 @@ def generate_launch_description():
     filtered = IfCondition(NotEqualsSubstitution(arg("narrow_strips"), ""))
     peers_on = Flag("peer_obstacles", arg("peer_obstacles"))
     peer_node = AndSubstitution(peers_on, Flag("peer_node", arg("peer_node")))
-    # costmap 층의 절대 토픽 이름(<robot_namespace>/scan)을 채운 뒤
-    # 노드 이름 키를 namespace 아래에 넣는다
     params = ParameterFile(RewrittenYaml(
         source_file=ReplaceString(source_file=WithOverlays(arg("params_file"),
                                                            arg("avoidance_params_file"),
@@ -162,7 +112,6 @@ def generate_launch_description():
         "initial_pose.y": ParameterValue(arg("initial_y"), value_type=float),
         "initial_pose.yaw": ParameterValue(arg("initial_yaw"), value_type=float),
     }
-    # (패키지, 실행 파일, 컴포넌트 플러그인, 노드 이름, 덧붙일 파라미터 목록, 조건)
     nav_nodes = [
         ("nav2_map_server", "map_server", "nav2_map_server::MapServer", "map_server",
          [{"yaml_filename": arg("map")}], None),
@@ -184,7 +133,6 @@ def generate_launch_description():
         ("nav2_map_server", "costmap_filter_info_server",
          "nav2_map_server::CostmapFilterInfoServer", "costmap_filter_info_server", [], keepout),
     ]
-    # (이름, 노드 이름들, 조건)
     managers = [("lifecycle_manager_localization", LOCALIZATION, None),
                 ("lifecycle_manager_navigation", NAVIGATION, None)]
     keepout_manager = [("lifecycle_manager_keepout", KEEPOUT, keepout)]
@@ -213,10 +161,6 @@ def generate_launch_description():
                                parameters=[manager_params(nodes)], condition=cond)
                 for name, nodes, cond in entries]
 
-    # 컴포넌트의 namespace와 SetParameter(use_sim_time)는 LoadNode 요청을 만들 때 이 GroupAction
-    # 범위에서 읽힌다(launch_ros가 execute 안에서 요청을 만든다). costmap처럼 노드 안에서 만드는
-    # 하위 노드는 요청이 아니라 프로세스 인자로 파라미터를 받으므로 컨테이너에도 params를 준다
-    # (nav2_bringup과 같다). keepout 필터도 그래서 컨테이너의 params로 global costmap에 닿는다.
     container = ComposableNodeContainer(
         name="nav2_container", namespace="", package="rclcpp_components",
         executable="component_container_isolated", output="screen", arguments=log,
@@ -229,7 +173,6 @@ def generate_launch_description():
         output="screen", arguments=log, remappings=TF_REMAPS, condition=filtered,
         parameters=[{"wall_band_m": ParameterValue(arg("wall_band_m"), value_type=float),
                      "strips": ParameterValue(arg("narrow_strips"), value_type=str)}])
-    # 다른 로봇의 /<로봇>/state는 절대 이름이라 namespace 안에서도 그대로 받는다. TF는 쓰지 않는다
     peer_obstacles = Node(
         package="pinky_peer_obstacles", executable="peer_obstacles", name="peer_obstacles",
         output="screen", arguments=log, condition=IfCondition(peer_node),

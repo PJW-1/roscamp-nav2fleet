@@ -1,7 +1,3 @@
-"""FMS 밖에서 온 입력 검사. 잘못된 이유를 돌려주고, 정상이면 "".
-
-FleetManager가 코어보다 먼저 부르므로 재생도 같은 입력을 거부한다. 무엇을 받아도 예외를 내지 않는다.
-"""
 from __future__ import annotations
 
 import math
@@ -11,7 +7,6 @@ RUN_MODES = ("RUN", "PAUSE", "STOP")
 
 
 def shown(value) -> str:
-    """이유 문장에 넣을 값. repr이 실패해도 예외를 내지 않는다."""
     try:
         return repr(value)
     except Exception:
@@ -19,14 +14,12 @@ def shown(value) -> str:
 
 
 def text(value) -> str:
-    """문구, 출처 키, 저장에 쓸 글자. str 하위 클래스는 내용만 남긴 str로 바꾼다."""
     if isinstance(value, str):
         return str.__str__(value)
     return shown(value)
 
 
 def checked(check, *args) -> str:
-    """검사기를 부른다. 비교·해시·repr이 실패하는 값으로 예외가 나면 그것을 거부 이유로 돌려준다."""
     try:
         return check(*args)
     except Exception as error:
@@ -38,7 +31,6 @@ def _number(value) -> bool:
 
 
 def pose_problem(x, y, yaw, bounds, margin) -> str:
-    """bounds는 웨이포인트의 (min_x, min_y, max_x, max_y)."""
     for label, value in (("x", x), ("y", y), ("theta", yaw)):
         if not _number(value) or not math.isfinite(value):
             return f"pose {label}={shown(value)} is not a finite number"
@@ -50,10 +42,6 @@ def pose_problem(x, y, yaw, bounds, margin) -> str:
 
 
 def obstacle_of(x, y, kind, bounds, margin, kinds) -> tuple | None:
-    """BLOCKED와 함께 온 장애물 위치 (x, y, 종류). 모르는 값(NaN), 숫자가 아닌 값, 지도 밖은 None.
-
-    로봇이 모르면 NaN을 보내므로 거부하지 않고 "위치 없음"으로 본다. 모르는 종류는 unknown이다.
-    """
     if not (_number(x) and _number(y) and math.isfinite(x) and math.isfinite(y)):
         return None
     min_x, min_y, max_x, max_y = bounds
@@ -70,7 +58,6 @@ def robot_problem(robot, robots) -> str:
 
 
 def reported_id_problem(robot, reported_id) -> str:
-    """robot_id는 비워도 된다. 적었다면 토픽의 로봇과 같아야 한다."""
     if reported_id in (None, "") or reported_id == robot:
         return ""
     return f"robot_id {shown(reported_id)} on the topic of {robot}"
@@ -83,7 +70,6 @@ def run_mode_problem(run_mode) -> str:
 
 
 def clear_problem(robot, zone_ids, robots, zone_exists) -> str:
-    """confirm_clear 인자의 로봇과 구역이 있는지만 본다. 해제 가능 여부는 보지 않는다."""
     problem = robot_problem(robot, robots)
     if problem:
         return problem

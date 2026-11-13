@@ -1,4 +1,3 @@
-# mode는 OrderBoard.MODE_* 중 하나
 string mode
 ---
 bool accepted

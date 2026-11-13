@@ -1,21 +1,3 @@
-"""order 모델을 PinkyFsm 위에 얹는다(계약 0.11-draft 제안, order 추가지시서 3절). ROS를 모른다.
-
-order goal 하나(관제의 MoveTo, order_id가 있음)를 조각 줄(order_queue)로 풀어, 조각마다 core의
-움직임 하나를 낸다. 조각의 goal id는 _SegKey이고, core가 내는 그 Finish는 여기서 바꾼다: 성공이면
-다음 조각을 바로 시작하고(관제를 기다리지 않음), 실패면 order goal을 그 reason으로 끝낸다.
-
-- follow_path: 합친 조각들을 한 경로로 core.move에 준다. controller_id가 FollowPathThrough면
-  final_goal 거짓(잠금 경계처럼 설 수 있는 속도로 줄임), 아니면 참이다.
-- nav_goal: core.move mode nav_goal. 다음 base 조각도 nav_goal이면 중간 목표 pass_m 안에서 다음
-  목표로 바꾼다(bt_navigator가 goal을 바꾸므로 서지 않는다).
-- retreat: core.retreat에 경로를 준다. Retreat 액션의 경로 물러나기와 같은 FollowPathReverse다.
-- 그 밖의 넘김(방식이 바뀜, controller가 다름, 끝이 안 닿음)은 앞 조각이 끝나 선 뒤 다음을 시작한다.
-- 불변식: base가 끝나면 선다. horizon이 있으면 waiting_at_base_end로 update를 기다리고, 없으면
-  order가 끝났다(성공).
-- 통신 끊김: comm_loss_policy가 base_end이면 base 끝까지 가서 서고(제안), stop(기본)이면
-  order가 아닐 때처럼 heartbeat_timeout_s 뒤 바로 선다.
-- 감속 늦추기(추가지시서 3절 5번 셋째, 선택)는 만들지 않았다(기본 끔).
-"""
 from __future__ import annotations
 
 import math
@@ -40,18 +22,17 @@ from pinky_fsm.results import (  # noqa: F401 - 결과 이름은 여기서도 �
 )
 
 THROUGH = "FollowPathThrough"
-HorizonCheck = Callable[[Seg], str]  # 조각의 문제(지도 밖, keepout). 없으면 빈 문자열
+HorizonCheck = Callable[[Seg], str]
 
 
 @dataclass(frozen=True)
 class OrderParams:
-    join_m: float = 0.02  # follow_path 끝점과 다음 시작점이 이만큼 안이면 닿았다(합침)
-    pass_m: float = 0.15  # nav_goal → nav_goal: 중간 목표에서 이만큼 안이면 다음 목표로(R4와 같음)
+    join_m: float = 0.02
+    pass_m: float = 0.15
 
 
 @dataclass(frozen=True)
 class _SegKey:
-    """조각 실행 하나의 core goal id. 노드의 액션 goal과 겹치지 않는다."""
     order_no: int
     run_no: int
 
@@ -63,16 +44,14 @@ class OrderFsm(PinkyFsm):
         self.op = order_params or OrderParams()
         self.horizon_check = horizon_check
         self._q: OrderQueue | None = None
-        self._owner: Hashable | None = None  # 지금 order를 가진 MoveTo goal
-        self._run: list[Seg] = []  # 달리는 조각(합친 것 포함)
+        self._owner: Hashable | None = None
+        self._run: list[Seg] = []
         self._key: _SegKey | None = None
-        self._bounds: list[tuple[float, int]] = []  # 합친 경로 위 중간 조각의 끝(s, seq_id)
+        self._bounds: list[tuple[float, int]] = []
         self._waiting = False
         self._warning = ""
         self._orders = 0
         self._runs = 0
-
-    # -- 보고 -----------------------------------------------------------------------------
 
     def state(self) -> str:
         s = super().state()
@@ -87,20 +66,16 @@ class OrderFsm(PinkyFsm):
         return super().is_running(goal_id)
 
     def order_feedback(self) -> tuple[int, bool, str]:
-        """(last_done_seq_id, waiting_at_base_end, horizon_warning)."""
         if self._q is None:
             return 0, False, ""
         return self._q.done, self._waiting, self._warning
 
     def order_view(self) -> tuple[list[Seg], list[Seg]]:
-        """표시용: 아직 안 끝난 base 조각(달리는 것 포함)과 horizon."""
         if self._q is None:
             return [], []
         done = self._q.done
         base = [s for s in self._run if s.seq_id > done] + list(self._q.pending)
         return base, list(self._q.horizon)
-
-    # -- 입력 -----------------------------------------------------------------------------
 
     def move(self, goal_id: Hashable, now: float, target_id: str, target: Pose,
              path: Sequence[Point], pose: Sequence[float] | None,
@@ -110,12 +85,11 @@ class OrderFsm(PinkyFsm):
             return self._close(CANCELED) + self._own(
                 super().move(goal_id, now, target_id, target, path, pose, final_goal, mode,
                              priority), now, pose)
-        self._alive = max(self._alive, now)  # 목표 수락도 관제가 살아 있다는 증거
-        self._priority = int(priority)  # 조각마다 core.move에 그대로 넘긴다(7-4)
+        self._alive = max(self._alive, now)
+        self._priority = int(priority)
         if order.update_id > 0:
             return self._update(goal_id, now, order, pose)
         cmds = self._close(CANCELED)
-        # seq_id는 1부터다(0은 "끝낸 조각 없음"이다. Codex 리뷰)
         if pose is None or segments_problem(order.base) or (order.base
                                                            and order.base[0].seq_id != 1):
             return (cmds + self._own(self._end_active(CANCELED, stop=True), now, pose)
@@ -173,21 +147,13 @@ class OrderFsm(PinkyFsm):
 
     def tick(self, now, pose, speed, obstacle) -> list:
         if self._heartbeat_lost(now) and self._stops_on_heartbeat_loss():
-            # 이번 주기에 heartbeat 끊김으로 끝난다. 끝내기 전에 방금 끝낸 조각을 센다. 다른
-            # 주기에는 core의 tick이 진행 거리를 한 번만 찾는다
             self._count_bounds(pose, track=True)
         cmds = self._own(super().tick(now, pose, speed, obstacle), now, pose)
         cmds += self._own(self._order_tick(now, pose), now, pose)
-        self._lost_contact = False  # 이 주기 안에서만 본다. 남으면 다음 order의 실패 이유를 바꾼다
+        self._lost_contact = False
         return cmds
 
-    # -- 안쪽 -----------------------------------------------------------------------------
-
     def _stops_on_heartbeat_loss(self) -> bool:
-        """comm_loss_policy가 base_end이면 order의 조각을 달리는 중 끊겨도 base 끝까지 간다
-        (추가지시서 3절 6번 제안). 단 막혀 나아가지 못하면(BLOCKED, Nav2가 물체 앞에서 섬)
-        지금처럼 선다(Codex 리뷰: 끝없이 돌지 않게). stop이면(기본) order가 아닌 목표처럼 바로
-        선다."""
         if self.p.comm_loss_policy == "stop":
             return True
         g = self._active
@@ -197,7 +163,6 @@ class OrderFsm(PinkyFsm):
                 or getattr(g, "waiting_since", None) is not None)
 
     def _count_bounds(self, pose, track: bool = False) -> None:
-        """합친 경로에서 지난 중간 조각을 끝낸 것으로 센다. track이면 진행 거리부터 찾는다."""
         g = self._active
         if self._q is None or not isinstance(g, _Move) or g.goal_id != self._key:
             return
@@ -218,11 +183,10 @@ class OrderFsm(PinkyFsm):
                 and self._q.pending and self._q.pending[0].mode == MODE_NAV_GOAL
                 and math.dist(pose[:2], g.target[:2]) <= self.op.pass_m):
             self._q.done = self._run[-1].seq_id
-            return self._advance(now, pose)  # 서지 않고 다음 NavigateToPose로
+            return self._advance(now, pose)
         return []
 
     def _own(self, cmds: list, now: float, pose) -> list:
-        """조각의 Finish를 order의 것으로 바꾼다. 지난 조각의 Finish는 버린다."""
         out, finished = [], None
         for c in cmds:
             if isinstance(c, Finish) and isinstance(c.goal_id, _SegKey):
@@ -239,7 +203,6 @@ class OrderFsm(PinkyFsm):
         return out + self._own(self._advance(now, pose), now, pose)
 
     def _advance(self, now: float, pose) -> list:
-        """다음 조각을 시작한다. base가 끝났으면 서서 기다리거나 order를 끝낸다."""
         q = self._q
         self._bounds = []
         if not q.pending:
@@ -257,7 +220,6 @@ class OrderFsm(PinkyFsm):
         return self._start(now, pose)
 
     def _start(self, now: float, pose) -> list:
-        """조각 시작은 관제가 보낸 goal이 아니므로 heartbeat 시계를 건드리지 않는다(Codex 리뷰)."""
         alive = self._alive
         cmds = self._start_run(now, pose)
         self._alive = alive
@@ -277,27 +239,24 @@ class OrderFsm(PinkyFsm):
                             final_goal=last.controller_id != THROUGH, priority=self._priority)
 
     def _extend(self, now: float, pose) -> list:
-        """update의 첫 조각이 달리는 FollowPath에 이어지면 경로를 늘려 선점한다(서지 않음)."""
         g = self._active
         if not (self._run and isinstance(g, _Move) and g.goal_id == self._key):
             return []
         more = self._q.take_merge(self._run[-1], self.op.join_m)
         if not more:
             return []
-        # 달리던 마지막 조각의 끝(지금 경로 끝)이 이제 중간 조각의 끝이다
         end = g.route.length
         self._bounds += [(end, self._run[-1].seq_id)] + [
             (end + s, i) for s, i in _bounds(more, start=g.route.points[-1])]
         g.route = Polyline(g.route.points + _joined(more)[1:])
-        g.sent = None  # 보낸 선은 늘리기 전의 것이다. 다시 보낼 때까지 앞은 받은 선 위에서 본다
+        g.sent = None
         self._run += more
         g.target, g.target_id = more[-1].path[-1], more[-1].end_node_id
         if g.nav_running and g.handover_since is None:
             return self._send_rest(g, now, pose)
-        return []  # 다시 보낼 때(복구, 물체가 비킴, 넘김) 늘린 경로를 쓴다
+        return []
 
     def recheck_horizon(self) -> None:
-        """지도나 keepout 마스크가 order 뒤에 왔을 수 있다. 노드가 주기적으로 부른다."""
         if self._q is not None:
             self._check_horizon()
 
@@ -318,12 +277,10 @@ class OrderFsm(PinkyFsm):
         return [Finish(owner, success, reason, done)]
 
     def _close(self, reason: str) -> list:
-        """새 goal이 order를 밀어낸다. 달리던 조각은 core가 새 goal의 규칙대로 멈춘다."""
         return self._end_order(False, reason) if self._q is not None else []
 
 
 def _joined(run: Sequence[Seg]) -> list[Point]:
-    """합친 조각의 경로 점. 뒤 조각의 첫 점은 앞 조각의 끝과 닿으므로 뺀다."""
     points = [p[:2] for p in run[0].path]
     for s in run[1:]:
         points += [p[:2] for p in s.path[1:]]
@@ -331,8 +288,6 @@ def _joined(run: Sequence[Seg]) -> list[Point]:
 
 
 def _bounds(run: Sequence[Seg], start: Point | None = None) -> list[tuple[float, int]]:
-    """보낸(합친) 경로 위 각 조각 끝의 거리(s, seq_id). 뒤 조각의 첫 점은 _joined처럼 빼고 앞 끝에서
-    잇는다. 마지막 조각은 FollowPath 결과로 끝나므로 뺀다. start는 앞 경로의 끝(이어 붙일 때)."""
     out, s = [], 0.0
     prev = start if start is not None else run[0].path[0][:2]
     for seg in run[:-1]:
