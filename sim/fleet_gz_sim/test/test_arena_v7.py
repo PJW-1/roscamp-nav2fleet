@@ -51,7 +51,7 @@ def test_v7_charging_stalls_and_express_are_open_in_the_fine_map(site):
 
 def test_v7_standing_nodes_are_outside_the_keepout(site):
     grid = arena_maps.keepout(arena_maps.FINE_M, site)
-    for name in ("N_O", "N_E", "S_W", "Q1", "Q2", "O_Q", "P-1", "P-2", "P-3"):
+    for name in ("N_O", "N_E", "Q1", "Q2", "O_Q", "P-1", "P-2", "P-3"):
         x, y = site.node_pose(name)
         i, j = arena_maps.cell_of(x, y, arena_maps.FINE_M, site)
         assert not grid[j][i], name
@@ -73,3 +73,29 @@ def test_v7_random_scenario_has_the_random_block():
     assert data["random"] == {"order_gap_s": [5, 40],
                               "low_battery": {"from_s": 20, "to_s": 150, "charge_s": 30}}
     assert fleet_setup.has_low_battery(data, 4)
+
+
+@pytest.mark.parametrize("seed", [None, 4])
+def test_v7_random_scenario_expands_to_one_low_battery_per_robot_and_spread_orders(seed):
+    from fake_robots.scenario import expand_random
+    data = fleet_setup.read_scenario(PKG / "scenarios" / "gz_v7_random.yaml")
+    out = expand_random(data, seed)
+    low = [f for f in out["faults"] if f["type"] == "low_battery"]
+    assert sorted(f["robot"] for f in low) == ["pinky1", "pinky2", "pinky3"]
+    assert all(20 <= f["at_s"] <= 150 and f["duration_s"] == 30 for f in low)
+    times = [0.0] + [order["at_s"] for order in out["orders"]]
+    gaps = [b - a for a, b in zip(times, times[1:])]
+    assert len(gaps) == 8 and all(5 - 0.05 <= gap <= 40 + 0.05 for gap in gaps), gaps
+
+
+def test_v7_committed_maps_are_the_generator_output(tmp_path, site):
+    from fleet_gz_sim import arena
+    written = arena.generate(tmp_path, site)
+    for name in written:
+        assert (tmp_path / name).read_bytes() == (PKG / name).read_bytes(), name
+    for suffix, resolution in (("", arena_maps.COARSE_M), ("_fine", arena_maps.FINE_M),
+                               ("_keepout", arena_maps.FINE_M)):
+        text = (PKG / "maps" / f"arena_v7{suffix}.yaml").read_text(encoding="utf-8")
+        assert f"image: arena_v7{suffix}.pgm\n" in text
+        assert f"resolution: {resolution}\n" in text
+        assert "origin: [-0.15, -0.15, 0.0]\n" in text

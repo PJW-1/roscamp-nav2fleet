@@ -61,7 +61,11 @@ def test_shelves_are_thin_and_tall_enough_for_the_lidar(site):
     assert len(shelves) == len(site.shelves) > 0
     for shelf in shelves:
         sx, sy, sz = (float(v) for v in shelf.find("geometry/box/size").text.split())
-        assert min(sx, sy) == pytest.approx(0.015)
+        # D 계열은 지시서의 1.5 cm, v7은 사용자 치수(진열대 0.04, 칸막이 0.02)
+        thin = 0.04 if site.name == "arena_v7" else 0.015
+        assert min(sx, sy) <= thin + 1e-9
+        if site.name != "arena_v7":
+            assert min(sx, sy) == pytest.approx(0.015)
         assert sz >= arena.MIN_SHELF_HEIGHT_M > arena.LIDAR_Z_M
 
 
@@ -120,7 +124,7 @@ def test_every_zone_that_is_not_shared_is_keepout(site):
 def test_keepout_is_widened_by_half_the_footprint(site):
     pad = arena_maps.KEEPOUT_PAD_M
     grid = arena_maps.keepout(arena_maps.FINE_M, site)
-    x0, y0, x1, _ = site.zones["J_W"].rects[0]
+    x0, y0, x1, _ = site.zones["J_W" if "J_W" in site.zones else "J_E"].rects[0]
     cx = (x0 + x1) / 2
     assert _value(grid, cx, y0 - pad + 0.005, arena_maps.FINE_M, site)
     assert not _value(grid, cx, y0 - pad - 0.015, arena_maps.FINE_M, site)
