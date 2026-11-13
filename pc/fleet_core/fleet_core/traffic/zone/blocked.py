@@ -1,3 +1,4 @@
+# ---- BLOCKED 로봇 처리 믹스인 ----
 from __future__ import annotations
 
 import math
@@ -18,6 +19,7 @@ from .robots import BACKOFF
 from .yard_retreat import yard_retreat
 
 
+# ---- 막힌 상태와 시작 시각 기록 ----
 class Blocked:
     def _watch_blocked(self, m, now: float) -> None:
         self._note_self_recovery(m, now)
@@ -37,6 +39,7 @@ class Blocked:
             m.blocked_noted = True
             self._event("INFO", "BLOCKED_WAIT", f"stands before something on the way to "
                         f"{m.goal.end}", m.name)
+        # ---- 기다린 시간에 따라 양보, 막힘 표시, 실패 결정 ----
         waited = now - m.blocked_since
         backing = self._via(m) == RETREAT
         if not backing and waited >= p.blocked_mark_s:
@@ -62,6 +65,7 @@ class Blocked:
                         m.name)
             self._fail(m, BLOCKED)
 
+    # ---- 되돌아갈 길 뒤에 있는 로봇 확인 ----
     def _behind_on_the_way_back(self, m) -> str:
         site = self.site
         link = m.trip.links[m.trip.done]
@@ -82,6 +86,7 @@ class Blocked:
                 return other.name
         return ""
 
+    # ---- 막힘 표시와 다른 길로 다시 가기 ----
     def _mark_blocked(self, m, now: float, point=None) -> None:
         p, site = self.params, self.site
         link = m.trip.links[m.trip.done]
@@ -120,6 +125,7 @@ class Blocked:
                 hold((HERE + m.name, link.b))
         self._drop_trip(m)
 
+    # ---- 길을 막고 선 로봇 주차 지점으로 보내기 ----
     def _make_way(self, m, node: str) -> bool:
         site, here = self.site, (m.x, m.y)
         end = site.node_pose(node)
@@ -138,6 +144,7 @@ class Blocked:
                 return True
         return False
 
+    # ---- 로봇단 양보 기록과 막힘 만료 ----
     def _note_local_yield(self, m, now: float) -> None:
         if m.local_yield:
             if m.local_yield_since is None:
@@ -154,6 +161,7 @@ class Blocked:
         for key in [key for key, until in self._blocked.items() if until <= now]:
             del self._blocked[key]
 
+    # ---- 자가 복구 시작과 끝 기록 ----
     def _note_self_recovery(self, m, now: float) -> None:
         if m.local_yield or m.local_yield_since is not None:
             self._note_local_yield(m, now)

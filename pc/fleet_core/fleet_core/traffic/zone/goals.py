@@ -1,3 +1,4 @@
+# ---- 경로 비용, 트립 고르기, 구역 잡기 믹스인 ----
 from __future__ import annotations
 
 import math
@@ -13,6 +14,7 @@ TRANSIT_WAIT_S = 6.0
 STANDING_WAIT_S = 300.0
 
 
+# ---- 링크 비용과 노드 대기 시간 추정 ----
 class Goals:
     def _cost(self, m):
         now, p, site, grants = self._clock(), self.params, self.site, self.grants
@@ -48,6 +50,7 @@ class Goals:
             return STANDING_WAIT_S
         return self.params.dock_wait_estimate_s
 
+    # ---- 현재 위치에서 목적지까지 링크 찾기 ----
     def _way(self, m, goal: str):
         site, cost = self.site, self._cost(m)
         if m.retreat_to:
@@ -76,6 +79,7 @@ class Goals:
                 best, best_cost = [first, *rest], total
         return best
 
+    # ---- 구역에서 닿는 노드와 후퇴 링크 ----
     def _reach(self, zone: str) -> dict:
         memo = self.__dict__.setdefault("_reach_memo", {})
         if zone not in memo:
@@ -99,6 +103,7 @@ class Goals:
         zones = [zone for zone in (here, via, target) if zone is not None]
         return back_link(site, m.x, m.y, m.retreat_to, dict.fromkeys(zones), m.retreat_via)
 
+    # ---- 후보 중 잡을 수 있는 트립 고르기 ----
     def _choose(self, m):
         first_want = None
         for goal, queued in self._candidates(m):
@@ -134,6 +139,7 @@ class Goals:
             self._stop_wanting(m)
         return None
 
+    # ---- 다음 구간의 구역, 노드, 차선 잡기 ----
     def _take(self, m, trip):
         site, grants, now = self.site, self.grants, self._clock()
         start = trip.granted
@@ -161,6 +167,7 @@ class Goals:
         self._note_detour(m, trip)
         return None
 
+    # ---- 차선 경쟁 로봇 찾기와 방향 기록 ----
     def _rivals(self, m, lane: str, direction: str) -> dict:
         rivals = {}
         for name, want in self._wants.items():
@@ -180,6 +187,7 @@ class Goals:
         self._event("INFO", "LANE_DIRECTION_SET",
                     f"{lane} from {direction}{' (changed)' if changed else ''}", m.name)
 
+    # ---- 구역 대기 기록과 경고 ----
     def _note_wait(self, m, want: Want) -> None:
         now = self._clock()
         blockers = self.grants.blockers(m.name, want.zones, want.nodes, want.lanes)

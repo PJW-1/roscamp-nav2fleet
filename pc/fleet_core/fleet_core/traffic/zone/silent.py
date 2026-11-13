@@ -1,3 +1,4 @@
+# ---- 조용히 멈춘 로봇과 할 일 없는 로봇 감시 믹스인 ----
 from __future__ import annotations
 
 import math
@@ -9,17 +10,20 @@ GOING = (TO_WORK, TO_OUTBOUND, TO_PARK)
 
 
 class Silent:
+    # ---- 이벤트가 나면 무진척 기록 초기화 ----
     def _event(self, level: str, code: str, detail: str, robot: str = "") -> None:
         super()._event(level, code, detail, robot)
         m = self._robots.get(robot)
         if m is not None and code != SILENT_STALL:
             m.silent_from = None
 
+    # ---- 관제가 기다리는 것이 없는 상태인지 판정 ----
     def _unattended(self, m, now: float) -> bool:
         return (m.available and self._run_mode == RUN and m.phase != AT_STATION
                 and (m.dispatch is not None or m.phase in GOING or m.phase == DOCKING)
                 and m.wait_since is None and now >= m.retry_at and now >= m.yield_until)
 
+    # ---- 목표 없이 이동 단계에 머문 로봇 경고 ----
     def _watch_idle(self, m, now: float) -> None:
         p = self.params
         idle = (p.idle_watch_s > 0 and m.goal is None and m.phase in GOING
@@ -33,6 +37,7 @@ class Silent:
             self._event("WARN", "ROBOT_IDLE", f"{m.phase} at {m.node}: no goal and nothing to "
                         "wait for", m.name)
 
+    # ---- 진척도 이벤트도 없는 로봇 경고 ----
     def _watch_silent(self, m, now: float) -> None:
         p = self.params
         if p.silent_limit_s <= 0 or not self._unattended(m, now):

@@ -1,3 +1,4 @@
+# ---- 호출에 보낼 로봇 고르기 ----
 from __future__ import annotations
 
 import math
@@ -6,6 +7,7 @@ from dataclasses import dataclass
 from fleet_core.fleet_map import route
 
 
+# ---- 후보 로봇 정보 ----
 @dataclass(frozen=True)
 class RobotInfo:
     robot_id: str
@@ -14,6 +16,7 @@ class RobotInfo:
     eligible: bool = True
 
 
+# ---- 도크까지 거리와 호출 여부로 점수 매겨 선택 ----
 class RobotSelector:
     def __init__(self, site, params):
         self._site = site

@@ -1,3 +1,4 @@
+# ---- order 모델 피드백과 결과 처리 믹스인 ----
 from __future__ import annotations
 
 from fleet_core.fleet_map import RETREAT
@@ -10,6 +11,7 @@ REJECTED = "ORDER_UPDATE_REJECTED"
 SUPERSEDED = "SUPERSEDED"
 
 
+# ---- order 피드백으로 진행과 base 끝 대기 기록 ----
 class OrderAnswers:
 
     def on_move_feedback(self, robot, goal_id, last_done_seq, waiting_at_base_end,
@@ -35,6 +37,7 @@ class OrderAnswers:
             mo.warned = True
             self._event("WARN", "HORIZON_INVALID", horizon_warning, m.name)
 
+    # ---- 끝낸 seq까지 트립 진행 반영 ----
     def _order_progress(self, m, seq: int, links: int) -> None:
         trip, mo = m.trip, m.move_order
         last = max((number for number, _, end in mo.cuts if end <= links), default=0)
@@ -56,6 +59,7 @@ class OrderAnswers:
                     self._event("INFO", "RETREAT_DONE", f"stands at {m.node}", m.name)
         mo.done_seq = max(mo.done_seq, seq)
 
+    # ---- order 결과와 이전 goal 결과 처리 ----
     def _order_result(self, m, success: bool, reason: str, last_done_seq: int) -> bool:
         mo = m.move_order
         if reason.startswith(REJECTED) and mo.before is not None:
@@ -77,6 +81,7 @@ class OrderAnswers:
         self._restore(m)
         return False
 
+    # ---- order 갱신 실패 처리와 이전 goal 되살리기 ----
     def _update_lost(self, m, why: str) -> bool:
         if m.move_order is None or m.move_order.before is None:
             return False
@@ -111,6 +116,7 @@ class OrderAnswers:
         mo.waiting = waiting
         mo.waited = mo.waited or waiting
 
+    # ---- 통신 끊김 때 base 끝까지 갈 시간 잡기 ----
     def _hold_base(self, m, now: float) -> str:
         trip = m.trip
         if m.move_order is None or trip is None or m.goal is None:

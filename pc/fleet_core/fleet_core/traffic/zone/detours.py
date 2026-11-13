@@ -1,3 +1,4 @@
+# ---- 우회 경로 종류 판정과 DETOUR 이벤트 믹스인 ----
 from __future__ import annotations
 
 from fleet_core.fleet_map import LANE, RETREAT, SHARED
@@ -5,6 +6,7 @@ from fleet_core.fleet_map import LANE, RETREAT, SHARED
 KEEPOUT, CORRIDOR, DESTINATION, IN_ZONE = "keepout", "corridor", "destination", "in_zone"
 
 
+# ---- 이전 경로와 새 경로 비교해 우회 종류 판정 ----
 def detour_kind(site, old_goal: str, old_zones, trip) -> str:
     if trip.goal != old_goal:
         return DESTINATION
@@ -27,6 +29,7 @@ def detour_kind(site, old_goal: str, old_zones, trip) -> str:
     return IN_ZONE
 
 
+# ---- 남은 경로 기억과 우회 알림 ----
 class Detours:
     def _remember_way(self, m) -> None:
         trip = m.trip

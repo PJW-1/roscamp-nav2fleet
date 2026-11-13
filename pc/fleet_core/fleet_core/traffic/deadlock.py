@@ -1,6 +1,8 @@
+# ---- 교착 순환 찾기와 후퇴 로봇 선택 ----
 from __future__ import annotations
 
 
+# ---- 대기 그래프에서 순환 찾기 ----
 def find_cycle(graph: dict[str, set[str]]) -> list[str] | None:
     done: set[str] = set()
 
@@ -23,6 +25,7 @@ def find_cycle(graph: dict[str, set[str]]) -> list[str] | None:
     return None
 
 
+# ---- 우선순위 점수와 후퇴할 로봇 고르기 ----
 def priority(params, at_station: bool, carrying: bool) -> int:
     score = 0
     if at_station:

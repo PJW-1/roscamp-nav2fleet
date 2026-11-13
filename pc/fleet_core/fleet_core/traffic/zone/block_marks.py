@@ -1,3 +1,4 @@
+# ---- 막힘 표시 만들기와 만료 믹스인 ----
 from __future__ import annotations
 
 import math
@@ -10,6 +11,7 @@ from fleet_core.traffic.mission import OUT_OF_SERVICE
 from .base import HERE
 
 
+# ---- 막힘 표시 기록 ----
 @dataclass
 class Mark:
     id: int
@@ -27,6 +29,7 @@ class Mark:
     asked_last: dict = field(default_factory=dict)
 
 
+# ---- 점 근처를 지나는 링크 키 찾기 ----
 def polyline_gap(point, points) -> float:
     if len(points) == 1:
         return math.dist(point, points[0])
@@ -52,6 +55,7 @@ def keys_at(site, params, point) -> list:
     return keys
 
 
+# ---- 장애물 위치와 그 자리의 로봇 찾기 ----
 class BlockMarks:
     def _obstacle_point(self, m) -> tuple | None:
         if not self.params.blocked_by_position or m.obstacle is None:
@@ -64,6 +68,7 @@ class BlockMarks:
                 and math.dist(point, (other.x, other.y)) <= self.params.near_m]
         return min(near, key=lambda o: (math.dist(point, (o.x, o.y)), o.name), default=None)
 
+    # ---- 장애물 점으로 막을 링크 키 모으기 ----
     def _point_keys(self, m, point, link) -> list:
         keys = keys_at(self.site, self.params, point)
         if not keys:
@@ -83,6 +88,7 @@ class BlockMarks:
                     keys.append(key)
         return keys
 
+    # ---- 막힘 표시 만들거나 갱신 ----
     def _mark_point(self, m, point, keys, now: float) -> Mark:
         p = self.params
         mark = next((mk for mk in self._marks.values()
@@ -108,6 +114,7 @@ class BlockMarks:
                     f"{self.site.zone_at(*point)}, tried again in {mark.retry_s:.0f} s", m.name)
         return mark
 
+    # ---- 링크 막기, 표시 지우기와 만료 ----
     def _hold_key(self, mark, key) -> None:
         if key not in mark.keys:
             mark.keys.append(key)

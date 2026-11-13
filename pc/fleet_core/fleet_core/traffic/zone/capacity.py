@@ -1,8 +1,10 @@
+# ---- SHARED 구역 수용량 점검 믹스인 ----
 from __future__ import annotations
 
 from fleet_core.fleet_map import SHARED
 
 
+# ---- SHARED 구역 수용량 합이 로봇 수보다 적으면 경고 ----
 class Capacity:
     def _check_capacity(self) -> None:
         if getattr(self, "_capacity_checked", False):

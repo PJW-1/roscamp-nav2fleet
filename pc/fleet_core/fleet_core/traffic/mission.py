@@ -1,5 +1,7 @@
+# ---- 로봇 단계, 상태, 목표 종류 상수 ----
 from __future__ import annotations
 
+# ---- 관제 단계와 고장 상태 ----
 IDLE = "IDLE"
 PARKED = "PARKED"
 TO_PARK = "TO_PARK"
@@ -13,23 +15,28 @@ COMM_LOST = "COMM_LOST"
 RECOVERING = "RECOVERING"
 PLACEMENT_CONFLICT = "PLACEMENT_CONFLICT"
 NO_FAULT = "NONE"
+# ---- 로봇이 보고하는 주행 상태와 묶음 ----
 SELF_RECOVERING = "RECOVERING"
 ON_A_GOAL = ("MOVING", "DOCKING", SELF_RECOVERING)
 BLOCKED = "BLOCKED"
 LOCALIZING = "LOCALIZING"
 NOT_PLACEABLE = ON_A_GOAL + (BLOCKED, LOCALIZING)
+# ---- 통신 끊김과 목표 실패 사유 ----
 HEARTBEAT_LOST = "HEARTBEAT_LOST"
 _COMM_REASON = {COMM_LOST: "NO_STATE", RECOVERING: "CHECKING_POSE"}
 STALLED = "STALLED"
 NOT_AT_TARGET = "NOT_AT_TARGET"
 PATH_NOT_CONNECTED = "PATH_NOT_CONNECTED"
 
+# ---- 운행 모드 ----
 RUN = "RUN"
 STOP = "STOP"
 
+# ---- 목표 종류 ----
 MOVE = "move"
 DOCK = "dock"
 RETREAT = "retreat"
 
+# ---- 스테이션 작업 종류 ----
 FILL = "fill"
 SWAP = "swap"

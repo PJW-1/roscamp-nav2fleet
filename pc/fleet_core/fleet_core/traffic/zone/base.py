@@ -1,3 +1,4 @@
+# ---- ZoneTraffic 공통 상태와 기본 도구 ----
 from __future__ import annotations
 
 import itertools
@@ -16,6 +17,7 @@ from .robots import ORDER, Robot
 HERE = "@"
 
 
+# ---- 로봇, 허락, 호출, 막힘 표시 상태 초기화 ----
 class ZoneBase:
     def __init__(self, site, params, robots, clock, next_goal_id=None):
         self.site = site
@@ -48,6 +50,7 @@ class ZoneBase:
         self.clear_reason = ""
         self.station_left = None
 
+    # ---- 이벤트 내기와 위치 판정 ----
     def _event(self, level: str, code: str, detail: str, robot: str = "") -> None:
         self._out.append(EventOut(level, code, detail, robot))
 
@@ -66,6 +69,7 @@ class ZoneBase:
         zone = self.site.zone_at(m.x, m.y)
         return zone is not None and self.site.zones[zone].kind == SHARED
 
+    # ---- 현재 주행 방식과 우선순위 ----
     def _via(self, m) -> str:
         goal, trip = m.goal, m.trip
         if goal is None:
@@ -81,6 +85,7 @@ class ZoneBase:
         m.sent_priority = self._priority(m)
         return m.sent_priority
 
+    # ---- goal 취소와 트립, 대기 정리 ----
     def _cancel_goal(self, m) -> None:
         if m.goal is None:
             return
@@ -104,6 +109,7 @@ class ZoneBase:
         m.wait_for = ()
         m.wait_warned = m.queued = False
 
+    # ---- 로봇 격리와 goal 실패 재시도 ----
     def _fail(self, m, reason: str) -> None:
         first = m.fault != ERROR
         if first:

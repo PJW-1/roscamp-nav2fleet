@@ -1,3 +1,4 @@
+# ---- order 모델 주문 만들기와 갱신 믹스인 ----
 from __future__ import annotations
 
 from fleet_core.common.commands import MoveOrderCmd, SegmentOut
@@ -12,6 +13,7 @@ UPDATE_ANSWER_S = 2.0
 CONTROLLER = {FOLLOW_PATH: "FollowPath", RETREAT: "FollowPathReverse", NAV_GOAL: ""}
 
 
+# ---- 트립을 seq 조각으로 나누고 조각 명령 만들기 ----
 class MoveOrders:
     def _cut(self, trip, start: int, first_seq: int) -> list:
         cuts, seq, index = [], first_seq, start
@@ -36,6 +38,7 @@ class MoveOrders:
         cmd = move_command(self.site, m.name, 0, links, x, y, after)
         return SegmentOut(seq, via, node, zones, cmd.path, cmd.x, cmd.y, cmd.yaw, CONTROLLER[via])
 
+    # ---- base와 horizon 조각, 도크까지 이은 트립 ----
     def _fresh_base(self, m, trip, here: bool = False) -> tuple:
         mo = m.move_order
         cuts = [cut for cut in mo.cuts[mo.given:] if cut[2] <= trip.granted]
@@ -52,6 +55,7 @@ class MoveOrders:
         rest = route(self.site, trip.goal, dock, self._cost(m))
         return Trip(dock, [*trip.links, *rest]) if rest else trip
 
+    # ---- 첫 주문 보내기와 갱신 보내기 ----
     def _send_order(self, m) -> None:
         trip = m.trip
         goal_id = self._next_goal_id()
@@ -86,6 +90,7 @@ class MoveOrders:
                                       self._horizon(m, trip), self._goal_priority(m)))
         self._order_goal(m, goal_id)
 
+    # ---- base 끝이 다가오면 다음 구간 잡아 갱신 ----
     def _extend_order(self, m) -> None:
         trip, mo = m.trip, m.move_order
         if trip is None or mo is None:
@@ -124,6 +129,7 @@ class MoveOrders:
         self._event("INFO", "ORDER_UPDATED",
                     f"{mo.id} update {mo.update}: base to {m.goal.end}", m.name)
 
+    # ---- 앞쪽 도크 확인과 horizon 경로 다시 짜기 ----
     def _dock_ahead(self, m, trip):
         end = stretch_end(self.site, trip.links, trip.granted)
         station = self.site.stations.get(m.dest) if m.dest else None

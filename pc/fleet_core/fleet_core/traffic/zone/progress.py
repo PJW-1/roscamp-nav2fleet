@@ -1,3 +1,4 @@
+# ---- 로봇 상태 보고 처리와 구역 놓기 믹스인 ----
 from __future__ import annotations
 
 import math
@@ -16,6 +17,7 @@ from fleet_core.traffic.mission import (
 
 from .trips import passed
 
+# ---- 노드 키 접두사와 구역 놓는 거리 ----
 NODE_KEY = "node:"
 
 
@@ -23,6 +25,7 @@ def release_gap(p) -> float:
     return p.zone_clear_m or p.footprint_radius_m + p.release_margin_m
 
 
+# ---- 상태 보고 받아 배치, 복구, 추적으로 나누기 ----
 class Progress:
     def on_robot_state(self, robot, x, y, yaw, state, battery=0.0, obstacle=None,
                        local_yield="") -> None:
@@ -58,6 +61,7 @@ class Progress:
         elif m.fault == ERROR and not m.comm and m.goal is None:
             self._return_unreached(m)
 
+    # ---- 지나간 링크만큼 트립 진행 ----
     def _track(self, m) -> None:
         trip, goal = m.trip, m.goal
         if trip is None or goal is None or goal.kind == DOCK:
@@ -67,6 +71,7 @@ class Progress:
             m.node = trip.links[trip.done].b
             trip.done += 1
 
+    # ---- 아직 필요한 구역과 노드 계산 ----
     def _still_needed(self, m) -> tuple[set, set]:
         trip = m.trip
         zones, nodes = set(), set()
@@ -84,6 +89,7 @@ class Progress:
             nodes.update(link.b for link in links)
         return zones, nodes
 
+    # ---- 지나온 구역과 노드 놓기 ----
     def _release_behind(self, m, keep_trip: bool = True) -> list[str]:
         p, site, grants = self.params, self.site, self.grants
         held = grants.held_by(m.name)
@@ -108,6 +114,7 @@ class Progress:
                 grants.release_node(m.name, node)
         return released
 
+    # ---- 고장 로봇이 닿지 않은 구역 돌려주기와 연속 확인 횟수 세기 ----
     def _return_unreached(self, m) -> None:
         moved = m.fault_xy is None or math.dist(m.fault_xy, (m.x, m.y)) > (
             self.params.arrival_tolerance_m)
@@ -130,6 +137,7 @@ class Progress:
         del m.clear_n[key]
         return True
 
+    # ---- 배터리 부족과 충전 완료 기록 ----
     def _note_battery(self, m, battery) -> None:
         m.battery = battery
         p = self.params

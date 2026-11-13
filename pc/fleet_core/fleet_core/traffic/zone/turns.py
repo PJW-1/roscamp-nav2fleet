@@ -1,3 +1,4 @@
+# ---- 도크 대기 줄과 차례, 갈 곳 후보 믹스인 ----
 from __future__ import annotations
 
 import math
@@ -6,6 +7,7 @@ from fleet_core.fleet_map import AT_DOCK
 from fleet_core.traffic.mission import TO_OUTBOUND, TO_WORK
 
 
+# ---- 스테이션 도크, 대기 지점, 주차 지점 후보 내기 ----
 class Turns:
     def _candidates(self, m):
         site = self.site
@@ -33,6 +35,7 @@ class Turns:
         for spot in sorted(free, key=lambda spot: (price(spot), spot)):
             yield spot, False
 
+    # ---- 대기 지점에서 기다리기와 머물 수 있는지 판단 ----
     def _stay(self, m, station) -> None:
         if m.wait_since is None:
             m.wait_since = self._clock()
@@ -45,6 +48,7 @@ class Turns:
         return (self._on_node(m) and self.site.can_wait(m.node)
                 and self.site.nodes[m.node].kind != AT_DOCK and not m.retreat_to)
 
+    # ---- 같은 스테이션 앞선 로봇 순위와 다음 차례 판정 ----
     def _is_next(self, m, station_id: str) -> bool:
         return all(self._waits_for(other, m) for other in self._ahead(m, station_id))
 
@@ -65,6 +69,7 @@ class Turns:
         return (other.goal is None and m.goal is None and self._on_node(m)
                 and m.node in other.wait_for and self.grants.node_holder(m.node) == m.name)
 
+    # ---- 도크 차례 가져가기와 도크 빈 여부 확인 ----
     def _take_turn(self, m, trip) -> None:
         if m.phase not in (TO_WORK, TO_OUTBOUND) or trip.goal != self.site.stations[m.dest].dock:
             return

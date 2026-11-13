@@ -1,3 +1,4 @@
+# ---- 관제 상태 조회 믹스인 ----
 from __future__ import annotations
 
 from fleet_core.common.commands import ZoneView
@@ -5,6 +6,7 @@ from fleet_core.traffic.mission import _COMM_REASON, NO_FAULT, OUT_OF_SERVICE, R
 
 
 class Views:
+    # ---- 로봇 목록과 운행 상태 속성 ----
     @property
     def robots(self) -> list[str]:
         return list(self._robots)
@@ -22,6 +24,7 @@ class Views:
     def zones(self):
         return self.grants
 
+    # ---- 가용 여부와 쌓인 출력 꺼내기 ----
     def available(self, robot) -> bool:
         m = self._robots.get(robot)
         return m is not None and m.available
@@ -30,6 +33,7 @@ class Views:
         out, self._out = self._out, []
         return out
 
+    # ---- 구역별 주인과 대기 줄 보기 ----
     def zones_view(self) -> list[ZoneView]:
         views = []
         for zone in self.site.zones:
@@ -38,6 +42,7 @@ class Views:
             views.append(ZoneView(zone, holders, queue, self.grants.acquired_at(zone)))
         return views
 
+    # ---- 로봇 보기 ----
     def robot_view(self, robot) -> dict:
         m = self._robots.get(robot)
         if m is None:
@@ -53,6 +58,7 @@ class Views:
             "attempts": m.attempts, "blocked_lane": None, "x": m.x, "y": m.y,
         }
 
+    # ---- 남은 경로 계산과 상태 보기 ----
     @staticmethod
     def _route_left(m) -> tuple[list[str], int]:
         trip = m.trip

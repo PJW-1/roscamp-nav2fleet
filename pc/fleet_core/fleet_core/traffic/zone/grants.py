@@ -1,8 +1,10 @@
+# ---- 구역과 노드 허락 기록 ----
 from __future__ import annotations
 
 from fleet_core.fleet_map import LANE
 
 
+# ---- 허락 기록 초기화 ----
 class ZoneGrants:
     def __init__(self, site, clock, follow_gap_s: float = 0.0):
         self._site = site
@@ -15,6 +17,7 @@ class ZoneGrants:
         self._held_nodes: dict[str, list[str]] = {}
         self._waiting: dict[str, tuple[str, ...]] = {}
 
+    # ---- 구역과 노드를 막는 다른 로봇 찾기 ----
     def blockers(self, robot: str, zones=(), nodes=(), lanes=None) -> dict[str, tuple[str, ...]]:
         found: dict[str, tuple[str, ...]] = {}
         for zone in zones:
@@ -43,6 +46,7 @@ class ZoneGrants:
             return (last,) if self._clock() - holders[last] < self._gap else ()
         return tuple(holders) if len(holders) >= spec.capacity else ()
 
+    # ---- 구역과 노드 잡기 ----
     def take(self, robot: str, zones=(), nodes=(), lanes=None) -> bool:
         zones, nodes = list(zones), list(nodes)
         blocked = self.blockers(robot, zones, nodes, lanes)
@@ -79,6 +83,7 @@ class ZoneGrants:
                 self._nodes[node] = robot
                 mine.append(node)
 
+    # ---- 대기 기록 ----
     def stop_waiting(self, robot: str) -> None:
         self._waiting.pop(robot, None)
 
@@ -88,6 +93,7 @@ class ZoneGrants:
         else:
             self._waiting.pop(robot, None)
 
+    # ---- 구역과 노드 놓기 ----
     def release_zone(self, robot: str, zone: str) -> bool:
         if robot not in self._holders[zone]:
             return False
@@ -104,6 +110,7 @@ class ZoneGrants:
         self._held_nodes[robot].remove(node)
         return True
 
+    # ---- 허락 기록 조회 ----
     def holders(self, zone: str) -> tuple[str, ...]:
         return tuple(self._holders[zone])
 

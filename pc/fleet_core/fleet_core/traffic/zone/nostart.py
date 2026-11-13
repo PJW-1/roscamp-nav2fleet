@@ -1,3 +1,4 @@
+# ---- 목표를 받고도 출발하지 않는 로봇 감시 믹스인 ----
 from __future__ import annotations
 
 import math
@@ -8,6 +9,7 @@ START_MOVE_M = 0.02
 
 
 class NoStart:
+    # ---- 목표별 출발 위치 기록과 제한 시간 내 이동 여부 판정 ----
     def _watch_start(self, m, now: float) -> None:
         p, goal = self.params, m.goal
         waiting = m.move_order is not None and m.move_order.waiting

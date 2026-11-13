@@ -1,3 +1,4 @@
+# ---- 시작 보고, 통신 끊김, 운영자 치우기 믹스인 ----
 from __future__ import annotations
 
 from fleet_core.common.commands import DispatchResult
@@ -7,6 +8,7 @@ from fleet_core.traffic.mission import COMM_LOST, LOCALIZING, OUT_OF_SERVICE, RE
 from .robots import Robot
 
 
+# ---- 보고하지 않는 로봇과 통신 끊김 감지 ----
 class Health:
     def _check_startup(self, now: float) -> bool:
         if self._started is None:
@@ -30,6 +32,7 @@ class Health:
                             f"{list(self.grants.held_by(m.name))}{self._hold_base(m, now)}",
                             m.name)
 
+    # ---- 통신 복구 뒤 위치 확인과 트립 재개 ----
     def _begin_recovery(self, m) -> None:
         m.comm = RECOVERING
         m.recover_at = self._clock() + self.params.recover_check_s
@@ -57,6 +60,7 @@ class Health:
                 break
         trip.sent = trip.done
 
+    # ---- confirm_clear 입력 검사와 거부 판단 ----
     def confirm_clear(self, robot, zone_ids, note="") -> list[str] | None:
         note = text(note)
         problem = checked(clear_problem, robot, zone_ids, self._robots,
@@ -79,6 +83,7 @@ class Health:
         if refusal:
             self._event("WARN", "CLEAR_REFUSED", f"{refusal}: {note}", robot)
             return None
+        # ---- 구역 놓고 OUT_OF_SERVICE로 만들기 ----
         released = [zone for zone in zone_ids if self.grants.release_zone(robot, zone)]
         for node in self.grants.nodes_of(robot):
             self.grants.release_node(robot, node)
@@ -99,6 +104,7 @@ class Health:
             m.dispatch = None
         return released
 
+    # ---- 치운 로봇 다시 넣기 ----
     def reinstate_refusal(self, robot) -> str:
         m = self._robots.get(robot)
         if m is None:

@@ -1,3 +1,4 @@
+# ---- 로봇 단계 진행과 이동, 도킹 명령 믹스인 ----
 from __future__ import annotations
 
 from fleet_core.common.commands import DockCmd
@@ -16,6 +17,7 @@ from .robots import ORDER, Goal
 from .trips import move_command, retreat_command, segment_end
 
 
+# ---- 단계가 바뀌는 동안 step 반복과 단계별 처리 ----
 class Drive:
     def step(self, robot) -> None:
         m = self._robots.get(robot)
@@ -45,6 +47,7 @@ class Drive:
             m.stall_from = None
             self._out.append(DockCmd(m.name, goal_id, m.dest))
 
+    # ---- 트립 따라 주행하고 새 트립으로 바꾸기 ----
     def _drive(self, m) -> None:
         trip = m.trip
         if trip is not None:
@@ -74,6 +77,7 @@ class Drive:
         self._send(m)
         return True
 
+    # ---- 목적지 도착 판정과 다음 단계 ----
     def _at_purpose(self, m) -> bool:
         if not self._on_node(m) or m.retreat_to:
             return False
@@ -90,6 +94,7 @@ class Drive:
         else:
             self._head_for(m, TO_PARK, None)
 
+    # ---- 다음 구간을 이동 또는 후퇴 명령으로 보내기 ----
     def _send(self, m) -> None:
         if self.params.use_order_model:
             self._send_order(m)

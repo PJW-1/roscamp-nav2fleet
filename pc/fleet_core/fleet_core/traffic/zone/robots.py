@@ -1,9 +1,11 @@
+# ---- 로봇별 관제 기록 자료형 ----
 from __future__ import annotations
 
 from dataclasses import dataclass, field
 
 from fleet_core.traffic.mission import IDLE
 
+# ---- 로봇에게 낸 goal 기록 ----
 BACKOFF = "backoff"
 
 
@@ -16,6 +18,7 @@ class Goal:
     via: str = ""
 
 
+# ---- order 모델 주문 기록 ----
 ORDER = "order"
 
 
@@ -36,12 +39,14 @@ class MoveOrder:
     overrun: bool = False
 
 
+# ---- 배차 기록 ----
 @dataclass
 class Dispatch:
     goal_id: int
     station_id: str
 
 
+# ---- 로봇 한 대의 관제 상태: 위치와 보고 ----
 @dataclass
 class Robot:
     name: str
@@ -55,6 +60,7 @@ class Robot:
     last_seen: float = 0.0
     pose_at: float | None = None
     suspect_quiet_until: float = 0.0
+    # ---- 단계, 고장, 통신 상태 ----
     phase: str = IDLE
     fault: str = ""
     fault_reason: str = ""
@@ -62,6 +68,7 @@ class Robot:
     pose_doubt: bool = False
     comm: str = ""
     recover_at: float = 0.0
+    # ---- 트립, goal, 재시도 기록 ----
     node: str = ""
     off_node: tuple | None = None
     dest: str | None = None
@@ -78,6 +85,7 @@ class Robot:
     arrival_by: float | None = None
     heard_since_success: bool = False
     not_sent_warned: bool = False
+    # ---- 호출, 배차, 대기 기록 ----
     called: bool = False
     dispatch: Dispatch | None = None
     hold: bool = False
@@ -87,6 +95,7 @@ class Robot:
     wait_for: tuple = ()
     wait_warned: bool = False
     queued: bool = False
+    # ---- 멈춤, 막힘, 무진척, 출발 감시 기록 ----
     stall_from: tuple | None = None
     stall_since: float = 0.0
     blocked_since: float | None = None
@@ -102,6 +111,7 @@ class Robot:
     start_xy: tuple = (0.0, 0.0)
     start_since: float = 0.0
     start_done: bool = False
+    # ---- 자가 복구, 구역 놓기, 양보, 후퇴 기록 ----
     self_recovery_since: float | None = None
     local_yield: str = ""
     local_yield_since: float | None = None
@@ -122,6 +132,7 @@ class Robot:
     robot_yield_at: float | None = None
     behind_since: float | None = None
 
+    # ---- 가용 여부와 표시 상태 속성 ----
     @property
     def live(self) -> bool:
         return self.placed and not self.fault

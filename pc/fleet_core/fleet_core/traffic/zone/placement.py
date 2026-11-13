@@ -1,3 +1,4 @@
+# ---- 시작 시 로봇을 지도에 배치 믹스인 ----
 from __future__ import annotations
 
 import math
@@ -14,6 +15,7 @@ from fleet_core.traffic.mission import (
 
 
 class Placement:
+    # ---- 노드와 구역을 잡아 로봇 배치 ----
     def _place(self, m) -> None:
         if m.robot_state in NOT_PLACEABLE:
             return
@@ -40,6 +42,7 @@ class Placement:
         m.phase = PARKED if node in site.parking else IDLE
         self._joining.discard(m.name)
 
+    # ---- 노드 빈 여부와 겹치는 로봇 찾기 ----
     def _free(self, m, node: str) -> bool:
         return self.grants.node_holder(node) in ("", m.name)
 
@@ -51,6 +54,7 @@ class Placement:
                 return other.name
         return ""
 
+    # ---- 로봇 아래 노드 찾기와 배치 거절 처리 ----
     def _node_under(self, m):
         site, tolerance = self.site, self.params.arrival_tolerance_m
         node = site.nearest_node(m.x, m.y, radius=tolerance)

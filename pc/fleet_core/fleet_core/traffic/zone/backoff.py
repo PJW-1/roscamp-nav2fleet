@@ -1,3 +1,4 @@
+# ---- SHARED 구역에서 뒤로 물러나기 믹스인 ----
 from __future__ import annotations
 
 import math
@@ -19,6 +20,7 @@ NO_ROOM = "no room behind"
 WAY_STEP_M = 0.02
 
 
+# ---- 뒤로 물러날 지점 계산과 공간 검사 ----
 def backoff_spot(site, params, held, m, others, nodes=()) -> tuple[tuple | None, str]:
     p = params
     zone = site.zone_at(m.x, m.y)
@@ -46,6 +48,7 @@ def backoff_spot(site, params, held, m, others, nodes=()) -> tuple[tuple | None,
     return end, ""
 
 
+# ---- BLOCKED 기다릴지 판단과 비켜서기 ----
 class Backoff:
     def _awaits_blocked(self, m, stuck_s: float) -> bool:
         p = self.params
@@ -72,6 +75,7 @@ class Backoff:
         m.yield_until = now + p.near_stuck_s
         self._event("INFO", "HALL_YIELD", stops, m.name)
 
+    # ---- 뒤로 물러나기 명령 보내기 ----
     def _back_off(self, m) -> str:
         p = self.params
         others = [other for other in self._robots.values() if other is not m and other.placed]
@@ -88,6 +92,7 @@ class Backoff:
         m.stall_from = None
         return ""
 
+    # ---- 물러나기 결과 처리 ----
     def _backoff_result(self, robot, goal_id, reason: str) -> bool:
         m = self._active(robot, goal_id, BACKOFF)
         if m is None:

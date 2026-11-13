@@ -1,9 +1,11 @@
+# ---- LANE 구역 방향 결정 정책 ----
 from __future__ import annotations
 
 import math
 from dataclasses import dataclass, field
 
 
+# ---- 로봇이 원하는 구역과 노드, 차선 방향 ----
 @dataclass
 class Want:
     zones: tuple
@@ -13,6 +15,7 @@ class Want:
     eta: dict = field(default_factory=dict)
 
 
+# ---- 대기 시간과 도착 예상 시간으로 차선 방향 거절 사유 판단 ----
 class LanePolicy:
     def __init__(self, params):
         self._p = params
@@ -44,6 +47,7 @@ class LanePolicy:
                         f"this robot in {mine:.1f} s")
         return ""
 
+    # ---- 양보 여부와 마지막 방향 기록 ----
     def handed_over(self, want: Want, now: float) -> bool:
         return now - want.since >= self._p.lane_handover_s
 

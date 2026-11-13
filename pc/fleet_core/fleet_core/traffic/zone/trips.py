@@ -1,3 +1,4 @@
+# ---- 트립 자료형, 경로 계산, 이동 명령 만들기 ----
 from __future__ import annotations
 
 import math
@@ -9,6 +10,7 @@ from fleet_core.fleet_map import FOLLOW_PATH, NAV_GOAL, RETREAT, Link
 ON_NODE_M = 0.03
 
 
+# ---- 링크 목록과 진행 위치를 담은 트립 ----
 @dataclass
 class Trip:
     goal: str
@@ -27,6 +29,7 @@ class Trip:
         return [link.b for link in self.links[self.done:]]
 
 
+# ---- 멈출 수 있는 곳, 필요한 구역과 노드, 같은 방식 구간 끝 찾기 ----
 def stretch_end(site, links, start: int) -> int:
     for index in range(start, len(links)):
         if site.can_wait(links[index].b):
@@ -54,6 +57,7 @@ def segment_end(links, start: int, limit: int) -> int:
     return end
 
 
+# ---- 링크 위 진행 거리와 지나감 판정 ----
 def heading(a, b) -> float:
     return math.atan2(b[1] - a[1], b[0] - a[0])
 
@@ -80,6 +84,7 @@ def passed(link, x: float, y: float) -> bool:
     return along(link, x, y) >= link.length - ON_NODE_M
 
 
+# ---- 현재 위치부터 이어지는 점과 방향 ----
 def _from_here(link, x: float, y: float) -> tuple[list, list]:
     pieces = _pieces(link)
     s = along(link, x, y)
@@ -105,6 +110,7 @@ def _line(links, x: float, y: float) -> tuple[list, list]:
     return points, yaws
 
 
+# ---- 이동 명령과 후퇴 명령 만들기 ----
 def move_command(site, robot: str, goal_id: int, links, x: float, y: float,
                  after=None, priority: int = -1) -> MoveCmd:
     node = site.nodes[links[-1].b]
@@ -133,6 +139,7 @@ def retreat_command(params, robot: str, goal_id: int, links, x: float, y: float)
     return RetreatCmd(robot, goal_id, distance, params.retreat_speed_mps, path)
 
 
+# ---- 현재 위치에서 노드로 가는 임시 링크 ----
 def free_link(site, x: float, y: float, node: str, zones=()) -> Link:
     end = site.nodes[node]
     points = ((x, y), (end.x, end.y))
@@ -147,6 +154,7 @@ def back_link(site, x: float, y: float, node: str, zones, via: str = "") -> Link
     return Link("", node, RETREAT, "", points, tuple(zones), length)
 
 
+# ---- 속도와 남은 주행 시간 계산 ----
 def speed(params, via: str) -> float:
     if via == NAV_GOAL:
         return params.nav_speed_mps

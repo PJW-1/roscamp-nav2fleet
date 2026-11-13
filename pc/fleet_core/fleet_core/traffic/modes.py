@@ -1,7 +1,9 @@
+# ---- 교통 모드 선택과 트래픽 계층 생성 ----
 from __future__ import annotations
 
 import importlib
 
+# ---- 모드 이름과 zone 컨트롤러 모듈 경로 ----
 NEEDS_ZONE_TRAFFIC = "needs the zone traffic layer (stage 3)"
 ZONES = "zones"
 MODES = (ZONES,)
@@ -12,6 +14,7 @@ class NoZoneTraffic(RuntimeError):
     pass
 
 
+# ---- 모드 확인 후 ZoneTraffic 불러와 만들기 ----
 def build_traffic(site, params, robots, clock, next_goal_id):
     mode = params.traffic_mode
     if mode != ZONES:

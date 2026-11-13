@@ -1,3 +1,4 @@
+# ---- 믹스인들을 모아 ZoneTraffic 조립 ----
 from __future__ import annotations
 
 from .backoff import Backoff
@@ -26,6 +27,7 @@ from .watch import Watch
 from .yard_retreat import YardRetreat
 
 
+# ---- ZoneTraffic 클래스와 틱 순서 ----
 class ZoneTraffic(Calls, Goals, Turns, Drive, MoveOrders, OrderAnswers, Results, Redock, Progress,
                   Placement, Blocked, BlockMarks, YardRetreat, Detours, ClearChecks, Health, Watch,
                   Localization, Backoff, Silent, NoStart, Capacity, Views, ZoneBase):
@@ -40,6 +42,7 @@ class ZoneTraffic(Calls, Goals, Turns, Drive, MoveOrders, OrderAnswers, Results,
                     self.step(robot)
         return self.take_output()
 
+    # ---- 틱 시작 점검 ----
     def tick_begin(self, now: float) -> bool:
         self._check_capacity()
         everyone_here = self._check_startup(now)
@@ -47,6 +50,7 @@ class ZoneTraffic(Calls, Goals, Turns, Drive, MoveOrders, OrderAnswers, Results,
         self._finish_recoveries(now)
         return everyone_here
 
+    # ---- 만료 처리와 로봇별 감시 ----
     def tick_progress(self, now: float) -> frozenset:
         self._expire_blocked(now)
         self._expire_marks(now)

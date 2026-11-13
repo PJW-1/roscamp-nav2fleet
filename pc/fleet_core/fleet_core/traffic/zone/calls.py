@@ -1,3 +1,4 @@
+# ---- 운행 모드, 배차, 호출 처리 믹스인 ----
 from __future__ import annotations
 
 import math
@@ -21,6 +22,7 @@ from fleet_core.traffic.selector import RobotInfo
 from .robots import BACKOFF, Dispatch
 
 
+# ---- 운행 모드 바꾸기와 배차 받기 ----
 class Calls:
     def on_run_mode(self, run_mode) -> None:
         if run_mode == STOP and self._run_mode != STOP:
@@ -53,6 +55,7 @@ class Calls:
                 m.hold = False
                 self._head_for(m, self._leg_of(station_id), station_id)
 
+    # ---- 배차 취소, 놓아 주기, 고장 알림 ----
     def on_dispatch_cancel(self, goal_id) -> None:
         if goal_id in self._open_calls:
             self._open_calls.remove(goal_id)
@@ -77,6 +80,7 @@ class Calls:
         if m is not None:
             self._fail(m, reason)
 
+    # ---- 열린 호출에 응할 로봇 고르기 ----
     def tick_pick(self, stopped: frozenset = frozenset()) -> None:
         pool = [m for m in self._robots.values() if m.placed and m.fault != OUT_OF_SERVICE]
         self._warn_if_no_robot()
@@ -104,6 +108,7 @@ class Calls:
             self._out.append(DispatchFeedback(self._open_calls[0], "", NO_ROBOT))
         self._no_robot_warned = stalled
 
+    # ---- 로봇 단계에 따라 다음 목적지로 돌리기 ----
     def _redirect(self, m) -> None:
         if m.phase == AT_STATION:
             self._leave_station(m)
@@ -120,6 +125,7 @@ class Calls:
     def _leg_of(self, station_id: str) -> str:
         return TO_WORK if self.site.stations[station_id].action == FILL else TO_OUTBOUND
 
+    # ---- 새 단계와 목적지로 바꾸고 트립 정리 ----
     def _head_for(self, m, phase: str, station_id) -> None:
         if (m.phase, m.dest) == (phase, station_id):
             return
@@ -145,6 +151,7 @@ class Calls:
         way = route(self.site, m.node, self.site.stations[station_id].dock)
         return math.inf if way is None else sum(link.length for link in way)
 
+    # ---- 배차 완료 답하기와 스테이션 떠나기 ----
     def _finish_dispatch(self, m, error_x_cm=0.0, error_y_cm=0.0, error_yaw_deg=0.0) -> None:
         if m.dispatch:
             goal_id, m.dispatch = m.dispatch.goal_id, None

@@ -1,3 +1,4 @@
+# ---- 도킹 실패 후 다시 접근 믹스인 ----
 from __future__ import annotations
 
 from fleet_core.fleet_map import FOLLOW_PATH, RETREAT
@@ -5,6 +6,7 @@ from fleet_core.fleet_map import FOLLOW_PATH, RETREAT
 from .trips import Trip
 
 
+# ---- 도크로 들어가는 FOLLOW_PATH 경로 찾기 ----
 def way_in(site, start: str, dock: str) -> list | None:
     direct = site.link(start, dock)
     if direct is not None:
@@ -17,6 +19,7 @@ def way_in(site, start: str, dock: str) -> list | None:
 
 
 class Redock:
+    # ---- 도킹 실패 횟수 기록 ----
     def _dock_failed(self, m, reason: str = "DOCK_FAILED") -> None:
         m.dock_tries += 1
         m.attempts = m.dock_tries - 1
@@ -24,6 +27,7 @@ class Redock:
             m.redock, m.redock_since = True, None
         self._goal_failed(m, reason)
 
+    # ---- 후퇴했다가 도크로 다시 들어오는 트립 만들기 ----
     def _reapproach(self, m) -> bool:
         now = self._clock()
         dock = self.site.stations[m.dest].dock

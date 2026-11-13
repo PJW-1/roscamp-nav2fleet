@@ -1,3 +1,4 @@
+# ---- 막힘 표시 해제 확인 요청 믹스인 ----
 from __future__ import annotations
 
 import math
@@ -7,6 +8,7 @@ from fleet_core.traffic.mission import LOCALIZING
 
 
 class ClearChecks:
+    # ---- 막힘 표시 근처 로봇에게 확인 요청 보내기 ----
     def _ask_clear(self, now: float) -> None:
         p = self.params
         for mark in self._marks.values():
@@ -27,6 +29,7 @@ class ClearChecks:
             self._out.append(CheckClearCmd(m.name, mark.check, mark.x, mark.y,
                                            p.check_radius_m))
 
+    # ---- 확인 응답으로 표시를 지우거나 다시 막기 ----
     def on_clear_check(self, robot, check_id, answer) -> None:
         mark = next((mk for mk in self._marks.values()
                      if mk.check and mk.check == check_id and mk.asked == robot), None)

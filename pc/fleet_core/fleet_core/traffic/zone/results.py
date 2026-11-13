@@ -1,3 +1,4 @@
+# ---- goal 결과 처리 믹스인 ----
 from __future__ import annotations
 
 import math
@@ -15,6 +16,7 @@ from fleet_core.traffic.mission import (
 )
 
 
+# ---- 지금 goal과 맞는 로봇 찾기와 이동 결과 ----
 class Results:
     def _active(self, robot, goal_id, *kinds):
         m = self._robots.get(robot)
@@ -36,6 +38,7 @@ class Results:
         else:
             self._move_failed(m, reason)
 
+    # ---- 후퇴 결과와 도킹 결과 ----
     def on_retreat_result(self, robot, goal_id, success, reason="") -> None:
         if self._backoff_result(robot, goal_id, "" if success else reason or "RETREAT_FAILED"):
             return
@@ -64,6 +67,7 @@ class Results:
                     f" yaw {error_yaw_deg:.1f} deg", m.name)
         self._finish_dispatch(m, error_x_cm, error_y_cm, error_yaw_deg)
 
+    # ---- goal 거절, 미전송, 잃음 처리 ----
     def on_goal_rejected(self, robot, goal_id) -> None:
         if self._backoff_result(robot, goal_id, "REJECTED"):
             return
@@ -96,6 +100,7 @@ class Results:
         if m is not None and not self._update_unclear(m, "the goal was lost"):
             self._forget_goal(m)
 
+    # ---- 도착 확인과 구간 완료 ----
     def _succeeded(self, m) -> None:
         if self._gap(m, m.goal.end) <= self.params.arrival_tolerance_m:
             self._segment_done(m)
@@ -127,6 +132,7 @@ class Results:
             m.behind_since = None
             self._event("INFO", "RETREAT_DONE", f"stands at {goal.end}", m.name)
 
+    # ---- goal 잊기와 끝 지점에 서 있는지 판정 ----
     def _forget_goal(self, m) -> None:
         m.goal = None
         m.move_order = None
@@ -150,6 +156,7 @@ class Results:
                     f"{goal.end}", m.name)
         self._segment_done(m)
 
+    # ---- 이동 실패 사유별 처리 ----
     def _move_failed(self, m, reason: str) -> None:
         if reason not in (HEARTBEAT_LOST, NOT_AT_TARGET) and self._stands_at_end(m):
             self._arrived_anyway(m, reason)

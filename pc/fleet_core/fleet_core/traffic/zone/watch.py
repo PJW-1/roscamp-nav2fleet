@@ -1,3 +1,4 @@
+# ---- 멈춤, 구역 밖, 근접, 교착 감시 믹스인 ----
 from __future__ import annotations
 
 import math
@@ -17,6 +18,7 @@ from .robots import BACKOFF
 from .trips import Trip
 
 
+# ---- goal 중 움직임이 없으면 멈춤 처리 ----
 class Watch:
     def _watch_stall(self, m, now: float) -> None:
         p = self.params
@@ -47,6 +49,7 @@ class Watch:
         else:
             self._goal_failed(m, STALLED)
 
+    # ---- 잡은 구역 밖 로봇 경고와 그 자리 구역 잡기 ----
     def _watch_outside(self, m) -> None:
         p = self.params
         held = self.grants.held_by(m.name)
@@ -76,6 +79,7 @@ class Watch:
                 m.node = self.site.nearest_node(m.x, m.y, inside) or m.node
             self._event("WARN", "OUTSIDE_ZONE", f"takes {zone} where it stands", m.name)
 
+    # ---- NAV_GOAL로 붙어서 멈춘 두 로봇 떼어 놓기 ----
     def _watch_near(self, now: float) -> None:
         p = self.params
 
@@ -107,6 +111,7 @@ class Watch:
         for key in [key for key in self._near if key not in seen]:
             del self._near[key]
 
+    # ---- 대기 순환 찾아 한 로봇 비키게 하기 ----
     def _watch_deadlock(self, now: float) -> frozenset:
         graph = {}
         for name, want in self._wants.items():
@@ -130,6 +135,7 @@ class Watch:
                 rest.remove(victim)
         return frozenset()
 
+    # ---- 주차 지점으로 비키기 ----
     def _evade(self, m) -> bool:
         return self._to_parking(m, "WARN", "DEADLOCK_SEEN", f"{m.name} gives way to")
 
