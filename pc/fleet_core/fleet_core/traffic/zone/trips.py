@@ -146,10 +146,10 @@ def free_link(site, x: float, y: float, node: str, zones=()) -> Link:
     return Link("", node, NAV_GOAL, "", points, tuple(zones) or (end.zone,), math.dist(*points))
 
 
-def back_link(site, x: float, y: float, node: str, zones, via: str = "") -> Link:
+def back_link(site, x: float, y: float, node: str, zones, via: str = "", bends=()) -> Link:
     corner = [site.node_pose(via)] if via else []
     end = site.nodes[node]
-    points = ((x, y), *corner, (end.x, end.y))
+    points = ((x, y), *corner, *(tuple(p) for p in bends), (end.x, end.y))
     length = sum(math.dist(a, b) for a, b in zip(points, points[1:], strict=False))
     return Link("", node, RETREAT, "", points, tuple(zones), length)
 

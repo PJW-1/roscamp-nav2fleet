@@ -40,13 +40,14 @@ class YardRetreat:
         site = self.site
         here, corner, end = (m.x, m.y), site.node_pose(via), site.node_pose(target)
         way = (corner[0] - here[0], corner[1] - here[1])
+        down = site.link(via, target)
+        way_pts = (here, corner, *(down.points[1:-1] if down is not None else ()), end)
         for other in self._robots.values():
             if other is m or not other.placed:
                 continue
             spot = (other.x, other.y)
             toward = (spot[0] - here[0]) * way[0] + (spot[1] - here[1]) * way[1] > 0.0
-            gap = min(point_segment_distance(spot, here, corner),
-                      point_segment_distance(spot, corner, end))
+            gap = min(point_segment_distance(spot, a, b) for a, b in zip(way_pts, way_pts[1:]))
             if toward and gap < self.params.retreat_clear_m:
                 return other.name
         return ""

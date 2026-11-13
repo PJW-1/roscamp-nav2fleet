@@ -117,3 +117,20 @@ def test_it_backs_out_to_the_yard_even_with_no_way_on_from_there():
     world.obstacles.clear()
     assert world.run_until(lambda: world.result_of(call), 300.0)
     assert world.result_of(call).success
+
+
+def test_the_retreat_follows_the_bends_of_the_way_down():
+    """물러나는 길은 갈림 -> 마당 지점 고정 경로의 꺾는 점을 따른다(cededa0 리뷰): v7에서
+    W_X -> N_E를 곧게 가면 WORK_DOCK 모서리 (1.78, 0.63)에 0.058까지 붙지만 그 구역은 잡지 않는다.
+    work_west의 꺾는 점 (1.70, 0.70)을 따르면 몸 반경(0.085) 넘게 떨어진다."""
+    from fleet_core.fleet_map.geometry import point_segment_distance
+    world = Harness(layout="v7", starts={"pinky1": "P-1", "pinky2": "P-2", "pinky3": "P-3"})
+    m = world.traffic._robots["pinky1"]
+    m.x, m.y = 1.80, 0.88  # 급행 들머리에서 막혔다
+    m.retreat_to, m.retreat_via = "N_E", "W_X"
+    back = world.traffic._back_link(m)
+    assert back.points[1:] == ((1.88, 0.80), (1.70, 0.70), world.site.node_pose("N_E"))
+    gap = min(point_segment_distance((1.78, 0.63), a, b)
+              for a, b in zip(back.points, back.points[1:]))
+    assert gap > world.params.footprint_radius_m, gap
+    assert "WORK_DOCK" not in back.zones

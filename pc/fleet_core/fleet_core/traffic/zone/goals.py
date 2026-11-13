@@ -101,7 +101,11 @@ class Goals:
         via = site.nodes[m.retreat_via].zone if m.retreat_via else None
         target = site.nodes[m.retreat_to].zone
         zones = [zone for zone in (here, via, target) if zone is not None]
-        return back_link(site, m.x, m.y, m.retreat_to, dict.fromkeys(zones), m.retreat_via)
+        # 갈림 -> 마당 지점 고정 경로의 꺾는 점을 따른다(곧게 가면 다른 구역 모서리에 붙을 수 있다)
+        down = site.link(m.retreat_via, m.retreat_to) if m.retreat_via else None
+        bends = down.points[1:-1] if down is not None else ()
+        return back_link(site, m.x, m.y, m.retreat_to, dict.fromkeys(zones), m.retreat_via,
+                         bends)
 
     # ---- 후보 중 잡을 수 있는 트립 고르기 ----
     def _choose(self, m):
