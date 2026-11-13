@@ -8,7 +8,8 @@
 
 - Gazebo 5판(db7751c, GUI, 로봇 3대, 무작위 씨드 5)은 주문 8/8을 553.5 s(sim)에 끝냈다. pass였다. 판정에 들어가지 않는 위반 2건이 있다(아래 5판 자세히).
   - 로봇 사이 최소 거리는 0.178 m였다.
-  - 쥐지 않은 구역에 들어간 표본은 0이었다. 검사한 표본에서 keepout 침범 깊이도 0이었다.
+  - 쥐지 않은 구역에 들어간 표본은 0이었다(summary.json).
+  - keepout 침범 깊이도 0이었다(fleet_check.json `keepout_depth_m`). 세 로봇의 keepout 검사 표본은 합 35431개다(`keepout_checked_samples`).
   - clock_back 0, TF_OLD_DATA 0, RTF 1.0이었다.
 - RPP "collision ahead" 경고는 4판(cededa0) 335건, 5판 90건이었다. 복구는 75회와 60회였다. 커밋과 씨드가 다른 한 판씩의 비교라서 줄어든 것을 바뀐 배치의 효과로 단정할 수는 없다.
 - 머리 없는 판(f394f2c): v7 orders8·burst10 × perfect/mixed/none × 씨드 1~3, 18/18 통과했다. 교착은 0이었다.
@@ -106,7 +107,7 @@
   - 몰린 곳은 (1.6, 0.2) 17건(G에서 줄로 내려가는 곳), (0.4, 0.2) 14건(E-2 근처), (0.1, 0.3~0.4) 16건(서쪽 벽을 따라 O_Q와 E-1 사이)이다.
 - 위반 2건: `t=135.0 pinky2 entered park ...`과 `t=200.0 pinky1 entered park ...`이다.
   - 두 로봇 모두 OUTBOUND를 마친 뒤 배터리 10%(새 주문을 받지 않는 상태)로 충전하러 P-2로 갔다.
-  - E-2 앞에서 막혔고(BLOCKED_WAIT 두 번), 그 뒤 P-2로 들어갔다(RETREAT_START backs to P-2).
+  - E-2로 가는 도중 막혔고(BLOCKED_WAIT "stands before something on the way to E-2" 두 번), 그 뒤 P-2로 들어갔다(RETREAT_START backs to P-2).
   - 위반 시각 135.0 s와 200.0 s는 RETREAT_DONE(135.8 s, 200.8 s)보다 0.8 s 앞이다.
   - E-2 앞을 무엇이 막았는지는 보지 않았다.
   - 이 항목(parked_while_backlog)은 expected가 null이라 pass 판정에 들어가지 않는다.
@@ -121,8 +122,12 @@
 - db7751c, 무작위 씨드 10개(1016, 92628, 24092, 89854, 97760, 99036, 33422, 90438, 98880, 68444):
   - 구성은 orders8·burst10 × perfect/mixed/none = 60판이다. 60/60 통과했고 주문은 모두 끝났다(8/8, 10/10).
   - 교착 0, 위반 0, OUTSIDE_ZONE 0이었다. 로봇 사이 최소 거리는 0.184 m였고, 가장 늦게 끝난 판은 317.9 s였다.
-  - 표의 급행 사용 횟수는 orders8 30판 모두 7, burst10 29판이 9, 1판이 10이다. 즉 판마다 대개 한 번은 WORK에서 급행이 아닌 길로 나갔다.
-  - W에서 급행 말고 나가는 고정 경로는 `work_hall`뿐이라 그 길로 보인다. 로그로 길 이름을 확인하지는 않았다.
+  - 표의 급행 열(`lane_uses`)은 0.1 s마다 로봇 중심이 급행 구역에 새로 들어간 횟수다. 값은 orders8 30판 모두 7, burst10 29판이 9, 1판이 10이다. 이 수만으로는 어느 길로 나갔는지 알 수 없다.
+  - orders8, 씨드 1016, perfect 한 판만 다시 돌려 사건을 보았다. WORK 출구 8번 가운데 7번이 급행이었다(`WORK_DOCK+HALL+J_E+EXPRESS+OUT_DOCK to O`). 나머지 1번은 `work_hall`이었다.
+    - 218.8 s pinky2 `WORK_DOCK+HALL to O_Q`, FOLLOW_SENT `to N_E`
+    - 이어서 Nav2 goal로 N_O, O_Q에 가서 기다렸다.
+    - 241.6 s `HALL+OUT_DOCK to O`, out_in으로 O에 도킹했다.
+  - 나머지 59판의 출구는 사건으로 확인하지 않았다. 검사 스크립트는 세션 scratchpad의 `hall_exit_check.py`다.
   - 결과 표는 세션 scratchpad의 `hl_v7_random_db7751c.txt`이고, 저장소에는 넣지 않았다.
 - f394f2c: v7 orders8, burst10 × perfect/mixed/none × 씨드 1·2·3 = 18/18 통과, 교착 0이었다.
   - burst10의 로봇 사이 최소 거리는 0.222~0.239 m였다.
@@ -132,7 +137,7 @@
 
 ## 실행하지 않은 것, 남은 위험
 
-- HALL 출구 `work_hall`은 Gazebo에서 아직 주행으로 확인하지 않았다(5판에서 안 쓰임). 머리 없는 판에서는 쓰인 것으로 보인다.
+- HALL 출구 `work_hall`은 Gazebo에서 아직 주행으로 확인하지 않았다(5판에서 안 쓰임). 머리 없는 판 한 판(orders8, 1016, perfect)에서는 사건으로 한 번 쓰인 것을 확인했다.
 - 실물 로봇에서 고정 경로의 충돌 검사가 꺼져 있는지 확인하지 않았다.
 - 급행 중간에서 막히면 W_X에서 빠질 길이 없어 치워질 때까지 기다린다.
 - 급행이 먼저 골라지는 것은 HALL 출구가 3 cm 더 긴 데 기댄다.
