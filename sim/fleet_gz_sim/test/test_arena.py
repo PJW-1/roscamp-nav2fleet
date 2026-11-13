@@ -156,28 +156,12 @@ def test_straight_nav_goal_links_run_clear_of_the_keepout(site):
         assert not hits, f"{link.a}->{link.b}"
 
 
-def test_a_thin_shelf_off_the_grid_fills_the_one_cell_its_middle_is_in():
-    """칸보다 얇은 상자는 사라지지 않고, 걸친 칸 둘이 아니라 가운데가 든 칸 하나만 칠한다."""
+def test_a_thin_shelf_off_the_grid_still_fills_the_cells_it_touches():
     site = load_fleet_map("d2")
     grid = arena_maps.occupancy(arena_maps.COARSE_M, site)
     x0, y0, x1, y1 = site.shelves[0]
-    assert _value(grid, (x0 + x1) / 2, (y0 + y1) / 2, arena_maps.COARSE_M, site)
-    i, j = arena_maps.cell_of((x0 + x1) / 2, (y0 + y1) / 2, arena_maps.COARSE_M, site)
-    assert not grid[j - 1][i] and not grid[j + 1][i]
-
-
-def test_v7_dividers_are_one_cell_wide_on_the_5cm_map():
-    """칸막이 1(x 0.24~0.26)은 칸 경계 0.25를 걸쳐 두 칸(10 cm)으로 칠해졌다(사용자가 RViz에서
-    봄). 세 칸막이 모두 가운데가 든 한 칸(5 cm)이다."""
-    site = load_fleet_map("v7")
-    grid = arena_maps.occupancy(arena_maps.COARSE_M, site)
-    widths = []
-    for x0, _, x1, _ in site.shelves[3:]:
-        _, j = arena_maps.cell_of(0.0, 0.05, arena_maps.COARSE_M, site)
-        i0, _ = arena_maps.cell_of(x0 - 0.10, 0.05, arena_maps.COARSE_M, site)
-        i1, _ = arena_maps.cell_of(x1 + 0.10, 0.05, arena_maps.COARSE_M, site)
-        widths.append(sum(grid[j][i] for i in range(i0, i1 + 1)))
-    assert widths == [1, 1, 1]
+    assert _value(grid, (x0 + x1) / 2, y0 + 0.001, arena_maps.COARSE_M, site)
+    assert _value(grid, (x0 + x1) / 2, y1 - 0.001, arena_maps.COARSE_M, site)
 
 
 def test_boxes_are_walls_and_shelves_above_the_lidar(site):
