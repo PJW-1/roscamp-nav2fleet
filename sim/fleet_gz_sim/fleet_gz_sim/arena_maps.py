@@ -1,7 +1,8 @@
 """경기장의 Nav2 지도(PGM, YAML)와 global costmap keepout 마스크. ROS를 쓰지 않는다.
 
 지도는 벽 안쪽에서 MAP_PAD_M씩 넓다(벽 0.05 m가 들어간다). 막힌 칸은 0(검정), 빈칸은 254다.
-상자가 칸에 조금이라도 걸치면 막힌 칸이라 1.5 cm 진열대도 5 cm 지도에서 사라지지 않는다.
+상자가 칸에 조금이라도 걸치면 막힌 칸이다. 칸보다 얇은 상자(1.5 cm 진열대, 2 cm 칸막이)는 그 축에서
+가운데가 든 칸 하나만 칠한다: 사라지지 않고, 칸 경계에 걸쳐 두 칸으로 두꺼워지지도 않는다.
 
 keepout(지시서 3절, pinky_nav_config/params/keepout.yaml): shared가 아닌 구역(급행 lane, 갈림목과
 도크 dock)을 막아 Nav2 goal 경로(NavFn)가 그 구역으로 들어가지 않게 한다. keepout 필터는 inflation
@@ -44,8 +45,19 @@ def map_cells(resolution: float, site) -> tuple[int, int]:
 def occupancy(resolution: float, site) -> list[list[bool]]:
     """벽·진열대가 걸친 칸은 참. 줄은 아래(y 작은 쪽)부터."""
     nx, ny = map_cells(resolution, site)
-    return filled([(b.x0, b.y0, b.x1, b.y1) for b in obstacles(site)], nx, ny, resolution,
-                  map_origin(site))
+    ox, oy = map_origin(site)
+
+    def thin(lo: float, hi: float, start: float) -> tuple[float, float]:
+        # 칸보다 얇으면 가운데가 든 칸 하나만: 칸 경계에 걸쳐 두 칸으로 두꺼워지지 않게
+        if hi - lo >= resolution - 1e-9:
+            return lo, hi
+        cell = math.floor(((lo + hi) / 2 - start) / resolution)
+        return start + (cell + 0.25) * resolution, start + (cell + 0.75) * resolution
+    rects = []
+    for b in obstacles(site):
+        (x0, x1), (y0, y1) = thin(b.x0, b.x1, ox), thin(b.y0, b.y1, oy)
+        rects.append((x0, y0, x1, y1))
+    return filled(rects, nx, ny, resolution, (ox, oy))
 
 
 def keepout(resolution: float, site) -> list[list[bool]]:
