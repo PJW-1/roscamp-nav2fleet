@@ -391,3 +391,23 @@ def test_the_layer_alone_can_be_asked_for_when_another_process_sends_the_bodies(
 def test_peer_node_alone_starts_nothing():
     _, found = _expand("false", peer_node="true", peer_robots="pinky1,pinky2")
     assert [n.node_name for n, _ in found] == [f"/pinky1/{name}" for name in NAMES]
+
+
+@pytest.mark.parametrize("name", ["peer_obstacles", "peer_node"])
+@pytest.mark.parametrize("value", ["1", "yes", "ture", ""])
+def test_a_peer_switch_that_is_not_true_or_false_stops_the_launch(name, value):
+    """층을 넣는 쪽과 노드를 띄우는 쪽이 같은 글자를 다르게 읽으면 하나만 켜진다: 둘 다 멈춘다."""
+    given = {"peer_obstacles": "true", "peer_node": "true", "peer_robots": "pinky1,pinky2"}
+    given[name] = value
+    # 조건 안에서 읽힌 스위치는 launch가 SubstitutionFailure로 싸서 낸다
+    from launch.substitutions.substitution_failure import SubstitutionFailure
+    with pytest.raises((ValueError, SubstitutionFailure), match=f"{name} must be true or false"):
+        _expand("false", **given)
+
+
+def test_the_peer_switches_take_capital_letters():
+    _, found = _expand("false", peer_obstacles="True", peer_node="TRUE",
+                       peer_robots="pinky1,pinky2")
+    assert "/pinky1/peer_obstacles" in [n.node_name for n, _ in found]
+    for costmap in _costmaps(found).values():
+        assert "peer_layer" in costmap["plugins"]

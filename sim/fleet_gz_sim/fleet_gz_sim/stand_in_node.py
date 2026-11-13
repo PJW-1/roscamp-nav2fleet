@@ -226,6 +226,7 @@ def main(args=None):
     except KeyboardInterrupt:
         pass
     finally:
+        executor.shutdown()  # 돌던 콜백이 끝난 뒤에 노드를 지운다
         for each in (node, *peers):
             each.destroy_node()
         rclpy.try_shutdown()

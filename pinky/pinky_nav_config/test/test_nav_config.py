@@ -529,3 +529,8 @@ def test_the_sweep_reaches_every_cell_of_the_local_window():
 def test_a_body_point_is_marked_anywhere_on_the_arena():
     """점구름은 map 틀이라 costmap은 거리를 map 원점에서 잰다: 경기장 대각선(2.3 m)보다 넉넉해야 한다."""
     assert PEERS["peer_layer"]["peers"]["obstacle_max_range"] >= 5.0
+
+
+def test_the_far_point_that_keeps_the_cloud_from_being_empty_is_never_marked():
+    """pinky_peer_obstacles는 빈 점구름을 피하려고 map 원점에서 1000 m 넘게 먼 점 하나를 늘 낸다."""
+    assert PEERS["peer_layer"]["peers"]["obstacle_max_range"] <= 100.0

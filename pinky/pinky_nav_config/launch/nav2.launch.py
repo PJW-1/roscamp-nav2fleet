@@ -64,6 +64,22 @@ def _read(path) -> dict:
     return yaml.safe_load(Path(path).read_text(encoding="utf-8"))
 
 
+class Flag(Substitution):
+    """true나 false로만 읽히는 스위치. 다른 글자면 멈춘다: 층을 넣는 쪽과 노드를 띄우는 쪽이 같은
+    글자를 다르게 읽어 하나만 켜지는 일이 없게 한다."""
+
+    def __init__(self, name, value):
+        super().__init__()
+        self._name = name
+        self._value = normalize_to_list_of_substitutions(value)
+
+    def perform(self, context) -> str:
+        text = perform_substitutions(context, self._value).strip().lower()
+        if text not in ("true", "false"):
+            raise ValueError(f"{self._name} must be true or false, got {text!r}")
+        return text
+
+
 class PeerRobots(Substitution):
     """peer_obstacles 노드에 줄 로봇 이름들. 켰는데 비어 있으면 멈춘다: 찍을 로봇을 모른다."""
 
@@ -109,7 +125,7 @@ class WithOverlays(Substitution):
             merge(data, _read(SHARE / "params" / "keepout.yaml"))
         if perform_substitutions(context, self._strips).strip():
             merge(data, _read(SHARE / "params" / "scan_filter.yaml"))
-        if perform_substitutions(context, self._peers).lower() == "true":
+        if perform_substitutions(context, self._peers) == "true":
             with_peers(data, _read(SHARE / "params" / "peer_obstacles.yaml"))
         with tempfile.NamedTemporaryFile("w", suffix=".yaml", prefix="nav2_overlay_",
                                          delete=False, encoding="utf-8") as out:
@@ -122,7 +138,8 @@ def generate_launch_description():
     namespace = arg("namespace")
     keepout = IfCondition(NotEqualsSubstitution(arg("keepout_mask"), ""))
     filtered = IfCondition(NotEqualsSubstitution(arg("narrow_strips"), ""))
-    peer_node = AndSubstitution(arg("peer_obstacles"), arg("peer_node"))
+    peers_on = Flag("peer_obstacles", arg("peer_obstacles"))
+    peer_node = AndSubstitution(peers_on, Flag("peer_node", arg("peer_node")))
     # costmap 층의 절대 토픽 이름(<robot_namespace>/scan)을 채운 뒤
     # 노드 이름 키를 namespace 아래에 넣는다
     params = ParameterFile(RewrittenYaml(
@@ -130,8 +147,7 @@ def generate_launch_description():
                                                            arg("avoidance_params_file"),
                                                            arg("keepout_mask"),
                                                            arg("vision_obstacles"),
-                                                           arg("narrow_strips"),
-                                                           arg("peer_obstacles")),
+                                                           arg("narrow_strips"), peers_on),
                                   replacements={"<robot_namespace>": ("/", namespace)}),
         root_key=namespace, param_rewrites={}, convert_types=True), allow_substs=True)
     log = ["--ros-args", "--log-level", arg("log_level")]

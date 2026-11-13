@@ -9,7 +9,12 @@
   `peer_obstacles`(PointCloud2, map 틀): 다른 로봇마다 몸을 덮는 원 안의 점들.
   `peer_sweep`(LaserScan, base_footprint 틀): 모든 빔이 inf인 한 바퀴 스캔. peer 층은 inf_is_valid로
   이 빔을 따라 둘레를 다 지운 뒤 지금 자리만 다시 찍는다. 그래서 지나간 자리가 남지 않는다.
-- 조용해진 로봇의 자리는 지우지 않는다: 통신이 끊긴 로봇은 그 자리에 서 있다.
+- 조용해진 로봇의 자리는 지우지 않는다: 통신이 끊긴 로봇은 그 자리에 서 있다(관제 heartbeat가
+  끊기면 로봇은 선다는 계약에 기댄다).
+- 위치를 모르는 보고(LOCALIZING이거나 자세가 0, 0, 0: pinky_fsm은 위치를 모르면 자세 칸을 비워 둔다)
+  는 쓰지 않는다. 그 전에 알던 자리는 그대로 둔다.
+- 점구름은 비지 않는다: Nav2의 점구름 반복자는 빈 data에서 front()를 부른다. 늘 먼 점(FAR_POINT)
+  하나를 함께 낸다. costmap은 obstacle_max_range 밖이라 찍지 않는다.
 - 자세는 그 로봇의 위치 추정이다. 추정이 틀어지면 찍는 자리도 틀린다.
 - 파라미터: `robot_id`(비면 namespace), `robots`("pinky1,pinky2,pinky3"), `radius_m`(0.08: 몸 가운데
   에서 가장 먼 모서리 0.073 m에 보고 지연 몫을 더함), `centre_m`(-0.018: 바퀴 축에서 몸 가운데까지),
@@ -21,6 +26,7 @@ import math
 
 import rclpy
 from fleet_interfaces.msg import RobotState
+from rclpy.duration import Duration
 from rclpy.executors import ExternalShutdownException
 from rclpy.node import Node
 from rclpy.parameter import Parameter
@@ -33,6 +39,10 @@ from .body import body_points, others
 
 STATE_QOS = QoSProfile(depth=5, reliability=ReliabilityPolicy.BEST_EFFORT)  # 계약의 STATE
 POINT_Z_M = 0.05  # costmap 관측원의 높이 창(0~2 m) 안
+FAR_POINT = (1000.0, 1000.0, POINT_Z_M)  # 구름이 비지 않게 늘 함께 내는 점(찍히지 않는다)
+# sweep의 시각을 이만큼 지난 때로 적는다: costmap은 스캔 시각의 TF(odom <- base_footprint)로 빔을
+# 놓는데 지금 시각의 TF는 아직 오지 않았을 수 있다. 둘레를 지우는 원이라 0.2 s 전 자리여도 된다
+SWEEP_DELAY = Duration(seconds=0.2)
 
 
 class PeerObstacles(Node):
@@ -67,16 +77,22 @@ class PeerObstacles(Node):
 
     def on_state(self, name: str, msg: RobotState):
         pose = (msg.pose.x, msg.pose.y, msg.pose.theta)
-        if all(math.isfinite(value) for value in pose):
+        known = msg.state != RobotState.STATE_LOCALIZING and pose != (0.0, 0.0, 0.0)
+        if known and all(math.isfinite(value) for value in pose):
             self.poses[name] = pose
 
     def publish(self):
-        stamp = self.get_clock().now().to_msg()
+        now = self.get_clock().now()
+        stamp = now.to_msg()
         points = [(x, y, POINT_Z_M) for pose in self.poses.values()
                   for x, y in body_points(*pose, self.radius_m, self.step_m, self.centre_m)]
+        points.append(FAR_POINT)
         header = Header(stamp=stamp, frame_id=self.map_frame)
         self.cloud_pub.publish(point_cloud2.create_cloud_xyz32(header, points))
-        self.sweep.header.stamp = stamp
+        if now.nanoseconds > SWEEP_DELAY.nanoseconds:  # 시뮬레이션 시계가 막 0에서 시작했을 때
+            self.sweep.header.stamp = (now - SWEEP_DELAY).to_msg()
+        else:
+            self.sweep.header.stamp = stamp
         self.sweep_pub.publish(self.sweep)
 
 

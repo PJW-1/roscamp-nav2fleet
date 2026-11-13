@@ -37,9 +37,10 @@ def running():
     rclpy.try_shutdown()
 
 
-def _state(robot, x, y, yaw=0.0):
+def _state(robot, x, y, yaw=0.0, state="MOVING"):
     msg = RobotState()
     msg.robot_id = robot
+    msg.state = state
     msg.pose.x, msg.pose.y, msg.pose.theta = x, y, yaw
     return msg
 
@@ -51,9 +52,14 @@ def _spin_until(executor, done, seconds=3.0):
     return done()
 
 
-def _points(cloud):
+def _all_points(cloud):
     return [(float(p[0]), float(p[1]), float(p[2]))
             for p in point_cloud2.read_points(cloud, field_names=("x", "y", "z"))]
+
+
+def _points(cloud):
+    """몸을 찍는 점들(늘 함께 나가는 먼 점 하나는 뺀다)."""
+    return [p for p in _all_points(cloud) if math.hypot(p[0], p[1]) < 100.0]
 
 
 def test_the_bodies_of_the_other_robots_go_out_as_points_in_the_map_frame(running):
@@ -82,12 +88,58 @@ def test_the_bodies_of_the_other_robots_go_out_as_points_in_the_map_frame(runnin
     assert all(0.0 < p[2] < 0.5 for p in points), "inside the costmap's height window"
 
 
-def test_before_any_report_the_cloud_is_empty(running):
+def test_before_any_report_no_body_is_marked_but_the_cloud_is_never_empty(running):
+    """Nav2의 점구름 반복자는 빈 data에서 front()를 부른다: 빈 구름을 보내지 않는다. 늘 먼 점 하나를
+    함께 낸다. costmap은 obstacle_max_range(10 m) 밖이라 찍지 않는다."""
     node, other, executor = running
     clouds = []
     other.create_subscription(PointCloud2, "peer_obstacles", clouds.append, 5)
     assert _spin_until(executor, lambda: len(clouds) >= 2)
-    assert all(not _points(cloud) for cloud in clouds)
+    for cloud in clouds:
+        assert not _points(cloud)
+        [far] = _all_points(cloud)
+        assert math.hypot(far[0], far[1]) >= 1000.0
+
+
+@pytest.mark.parametrize("report", [_state("pinky2", 0.0, 0.0, 0.0, state="LOCALIZING"),
+                                    _state("pinky2", 0.0, 0.0, 0.0, state="IDLE"),
+                                    _state("pinky2", 0.7, 0.2, 0.0, state="LOCALIZING")])
+def test_a_report_without_a_known_pose_marks_nothing(running, report):
+    """pinky_fsm은 위치를 모르거나 LOCALIZING이면 자세 칸을 0, 0, 0으로 둔다: 그것을 map 원점의
+    몸으로 찍지 않는다."""
+    node, other, executor = running
+    clouds = []
+    other.create_subscription(PointCloud2, "peer_obstacles", clouds.append, 5)
+    sender = other.create_publisher(RobotState, "/pinky2/state", STATE_QOS)
+
+    def sent():
+        sender.publish(report)
+        return len(clouds) >= 6
+
+    assert _spin_until(executor, sent)
+    assert not _points(clouds[-1])
+
+
+def test_a_robot_that_loses_its_pose_stays_where_it_last_was(running):
+    node, other, executor = running
+    clouds = []
+    other.create_subscription(PointCloud2, "peer_obstacles", clouds.append, 5)
+    sender = other.create_publisher(RobotState, "/pinky2/state", STATE_QOS)
+
+    def seen():
+        sender.publish(_state("pinky2", 1.0, 0.5))
+        return bool(clouds) and bool(_points(clouds[-1]))
+
+    assert _spin_until(executor, seen)
+    count = len(clouds)
+
+    def lost():
+        sender.publish(_state("pinky2", 0.0, 0.0, 0.0, state="LOCALIZING"))
+        return len(clouds) >= count + 5
+
+    assert _spin_until(executor, lost)
+    points = _points(clouds[-1])
+    assert points and all(math.dist(p[:2], (1.0, 0.5)) < 0.12 for p in points)
 
 
 def test_a_robot_that_went_silent_stays_where_it_last_was(running):
@@ -121,6 +173,22 @@ def test_the_sweep_scan_clears_all_around_the_robot(running):
     assert scan.range_max > 3.0, "longer than the layer's raytrace range (3 m)"
     # 3 m 밖 둘레에서도 빔 사이가 local costmap 한 칸(0.025 m)보다 좁다
     assert 3.0 * scan.angle_increment < 0.025
+
+
+def test_the_sweep_is_stamped_a_little_in_the_past(running):
+    """costmap은 스캔 시각의 TF(odom <- base_footprint)로 빔을 놓는다. 지금 시각의 TF는 아직 오지
+    않았을 수 있어 조금 지난 시각을 적는다(진짜 라이다 스캔도 받을 때는 지난 시각이다)."""
+    node, other, executor = running
+    scans, clouds = [], []
+    other.create_subscription(LaserScan, "peer_sweep", scans.append, 5)
+    other.create_subscription(PointCloud2, "peer_obstacles", clouds.append, 5)
+    assert _spin_until(executor, lambda: bool(scans) and bool(clouds))
+
+    def seconds(stamp):
+        return stamp.sec + stamp.nanosec * 1e-9
+
+    by_stamp = {round(seconds(c.header.stamp), 6) for c in clouds}
+    assert any(round(seconds(s.header.stamp) + 0.2, 6) in by_stamp for s in scans)
 
 
 def test_one_process_can_run_a_node_for_every_robot():
