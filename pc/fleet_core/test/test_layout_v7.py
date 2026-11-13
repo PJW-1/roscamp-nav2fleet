@@ -88,6 +88,21 @@ def _bay_door(spot: str) -> str:
     return "E-" + spot.removeprefix("P-")
 
 
+@pytest.mark.parametrize("spot", ["P-1", "P-2", "P-3"])
+def test_v7_a_robot_parked_in_a_bay_cuts_no_other_way(site, spot):
+    """칸에 선 로봇은 칸 입구 E-k를 쥔 채로 있다(P와 E 사이 0.14 < node_clear 0.20). 그래도 E-k와
+    그 칸을 뺀 나머지 지점끼리는 E-k를 거치지 않고 오갈 수 있어야 한다."""
+    door = _bay_door(spot)
+    others = [name for name in site.nodes if name not in (door, spot)]
+
+    def cost(link):
+        return math.inf if door in (link.a, link.b) else link.length
+    for a in others:
+        for b in others:
+            if a != b:
+                assert route(site, a, b, cost) is not None, (spot, a, b)
+
+
 DIVIDER_TOP_M = 0.10
 TURN_MARGIN_M = 0.02
 
