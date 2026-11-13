@@ -7,10 +7,14 @@
     vision_obstacles   두 costmap 장애물 층의 vision 관측원 안에 그대로 들어간다(켰을 때만)
   다른 키가 있으면 받지 않는다. 그 밖의 설정은 사용자의 것이다(docs/회피_약속.md).
 """
+import copy
+
 AVOIDANCE_KEYS = ("follow_path_goal", "vision_obstacles")
 GOAL_CONTROLLER = "FollowPathGoal"
 VISION_SOURCE = "vision"
 COSTMAPS = ("local_costmap", "global_costmap")
+PEER_LAYER = "peer_layer"
+INFLATION_LAYER = "inflation_layer"
 
 
 def merge(base: dict, extra: dict) -> None:
@@ -57,6 +61,20 @@ def with_avoidance(data: dict, avoidance: dict, vision: bool = False) -> dict:
             layer = _obstacle_layer(data, name)
             layer["observation_sources"] = f"{layer['observation_sources']} {VISION_SOURCE}"
             layer[VISION_SOURCE] = dict(avoidance["vision_obstacles"])
+    return data
+
+
+def with_peers(data: dict, overlay: dict) -> dict:
+    """data의 두 costmap에 다른 로봇의 몸을 찍는 층(overlay의 peer_layer)을 넣는다(임시, 주행
+    시험용: params/peer_obstacles.yaml). inflation_layer 바로 앞이라 몸 둘레도 부풀려진다.
+    이미 들어 있으면 그대로 둔다. data를 바꾸고 돌려준다."""
+    for name in COSTMAPS:
+        node = data[name][name]["ros__parameters"]
+        plugins = list(node["plugins"])
+        if PEER_LAYER not in plugins:
+            plugins.insert(plugins.index(INFLATION_LAYER), PEER_LAYER)
+        node["plugins"] = plugins
+        node[PEER_LAYER] = copy.deepcopy(overlay[PEER_LAYER])
     return data
 
 

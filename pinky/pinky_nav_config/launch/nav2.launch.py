@@ -2,7 +2,8 @@
 
     ros2 launch pinky_nav_config nav2.launch.py map:=<지도.yaml> map_fine:=<1cm 지도.yaml> \
         initial_x:=0.35 initial_y:=1.55 initial_yaw:=1.5708 [keepout_mask:=<마스크.yaml>] \
-        [vision_obstacles:=true] [narrow_strips:="x0,y0,x1,y1; ..." wall_band_m:=0.05]
+        [vision_obstacles:=true] [narrow_strips:="x0,y0,x1,y1; ..." wall_band_m:=0.05] \
+        [peer_obstacles:=true peer_robots:=pinky1,pinky2,pinky3]
 
 - 노드: map_server(5 cm, map), map_server_fine(1 cm, map_fine), amcl, controller_server,
   planner_server, behavior_server, bt_navigator와 lifecycle manager 둘.
@@ -25,6 +26,10 @@
 - narrow_strips(좁은 띠 사각형들)를 주면 pinky_scan_filter 노드를 띄우고 params/scan_filter.yaml을
   얹어 두 costmap의 장애물 층이 거른 스캔(scan_filtered)을 읽게 한다(추가지시서3 7-2).
   AMCL은 원래 scan을 읽는다. 비면(기본) 아무것도 바뀌지 않는다. 거르개는 컨테이너에 넣지 않는다.
+- peer_obstacles:=true면(임시, 주행 시험용) params/peer_obstacles.yaml의 peer 층을 두 costmap에 넣고
+  pinky_peer_obstacles 노드를 띄운다: 다른 로봇(peer_robots에서 나를 뺀 이름)이 보고한 자세에 몸을
+  찍어 Nav2가 피해서 길을 짠다. 기본은 꺼짐이고, 꺼져 있으면 아무것도 바뀌지 않는다.
+  peer_node:=false면 층만 넣고 노드는 띄우지 않는다(시뮬레이션: 한 프로세스가 세 대분을 낸다).
 - use_composition:=true면 같은 노드들을 컨테이너(component_container_isolated) 한 프로세스에
   올린다. 한 PC에 로봇 여럿을 띄울 때 DDS 참가자(프로세스) 수를 줄인다.
   기본은 false(노드마다 프로세스).
@@ -39,14 +44,14 @@ from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, GroupAction
 from launch.conditions import IfCondition, UnlessCondition
 from launch.substitution import Substitution
-from launch.substitutions import LaunchConfiguration, NotEqualsSubstitution
+from launch.substitutions import AndSubstitution, LaunchConfiguration, NotEqualsSubstitution
 from launch.utilities import normalize_to_list_of_substitutions, perform_substitutions
 from launch_ros.actions import ComposableNodeContainer, Node, PushRosNamespace, SetParameter
 from launch_ros.descriptions import ComposableNode, ParameterFile, ParameterValue
 from nav2_common.launch import ReplaceString, RewrittenYaml
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))  # 이 파일 옆의 pinky_nav_params.py
-from pinky_nav_params import merge, with_avoidance  # noqa: E402
+from pinky_nav_params import merge, with_avoidance, with_peers  # noqa: E402
 
 SHARE = Path(get_package_share_directory("pinky_nav_config"))
 LOCALIZATION = ["map_server", "map_server_fine", "amcl"]
@@ -59,21 +64,38 @@ def _read(path) -> dict:
     return yaml.safe_load(Path(path).read_text(encoding="utf-8"))
 
 
+class PeerRobots(Substitution):
+    """peer_obstacles 노드에 줄 로봇 이름들. 켰는데 비어 있으면 멈춘다: 찍을 로봇을 모른다."""
+
+    def __init__(self, on, robots):
+        super().__init__()
+        self._on = normalize_to_list_of_substitutions(on)
+        self._robots = normalize_to_list_of_substitutions(robots)
+
+    def perform(self, context) -> str:
+        robots = perform_substitutions(context, self._robots).strip()
+        if perform_substitutions(context, self._on).lower() == "true" and not robots:
+            raise ValueError("peer_obstacles:=true needs peer_robots (pinky1,pinky2,pinky3),"
+                             " or peer_node:=false when another process sends the bodies")
+        return robots
+
+
 class WithOverlays(Substitution):
     """파라미터 파일 경로: 사용자 파일에 회피 담당 파일과 켜진 덧붙임을 얹은 임시 파일.
 
     avoidance(회피 담당 파일)의 FollowPathGoal 값을 넣고, vision이 true면 비전 관측원도 넣는다
     (pinky_nav_params.with_avoidance). mask가 있으면 params/keepout.yaml을, strips가 있으면
-    params/scan_filter.yaml을 얹는다.
+    params/scan_filter.yaml을 얹는다. peers가 true면 params/peer_obstacles.yaml의 층을 넣는다.
     """
 
-    def __init__(self, source, avoidance, mask, vision, strips):
+    def __init__(self, source, avoidance, mask, vision, strips, peers):
         super().__init__()
         self._source = normalize_to_list_of_substitutions(source)
         self._avoidance = normalize_to_list_of_substitutions(avoidance)
         self._mask = normalize_to_list_of_substitutions(mask)
         self._vision = normalize_to_list_of_substitutions(vision)
         self._strips = normalize_to_list_of_substitutions(strips)
+        self._peers = normalize_to_list_of_substitutions(peers)
 
     def perform(self, context) -> str:
         data = _read(perform_substitutions(context, self._source))
@@ -87,6 +109,8 @@ class WithOverlays(Substitution):
             merge(data, _read(SHARE / "params" / "keepout.yaml"))
         if perform_substitutions(context, self._strips).strip():
             merge(data, _read(SHARE / "params" / "scan_filter.yaml"))
+        if perform_substitutions(context, self._peers).lower() == "true":
+            with_peers(data, _read(SHARE / "params" / "peer_obstacles.yaml"))
         with tempfile.NamedTemporaryFile("w", suffix=".yaml", prefix="nav2_overlay_",
                                          delete=False, encoding="utf-8") as out:
             yaml.safe_dump(data, out, sort_keys=False, allow_unicode=True)
@@ -98,6 +122,7 @@ def generate_launch_description():
     namespace = arg("namespace")
     keepout = IfCondition(NotEqualsSubstitution(arg("keepout_mask"), ""))
     filtered = IfCondition(NotEqualsSubstitution(arg("narrow_strips"), ""))
+    peer_node = AndSubstitution(arg("peer_obstacles"), arg("peer_node"))
     # costmap 층의 절대 토픽 이름(<robot_namespace>/scan)을 채운 뒤
     # 노드 이름 키를 namespace 아래에 넣는다
     params = ParameterFile(RewrittenYaml(
@@ -105,7 +130,8 @@ def generate_launch_description():
                                                            arg("avoidance_params_file"),
                                                            arg("keepout_mask"),
                                                            arg("vision_obstacles"),
-                                                           arg("narrow_strips")),
+                                                           arg("narrow_strips"),
+                                                           arg("peer_obstacles")),
                                   replacements={"<robot_namespace>": ("/", namespace)}),
         root_key=namespace, param_rewrites={}, convert_types=True), allow_substs=True)
     log = ["--ros-args", "--log-level", arg("log_level")]
@@ -187,6 +213,13 @@ def generate_launch_description():
         output="screen", arguments=log, remappings=TF_REMAPS, condition=filtered,
         parameters=[{"wall_band_m": ParameterValue(arg("wall_band_m"), value_type=float),
                      "strips": ParameterValue(arg("narrow_strips"), value_type=str)}])
+    # 다른 로봇의 /<로봇>/state는 절대 이름이라 namespace 안에서도 그대로 받는다. TF는 쓰지 않는다
+    peer_obstacles = Node(
+        package="pinky_peer_obstacles", executable="peer_obstacles", name="peer_obstacles",
+        output="screen", arguments=log, condition=IfCondition(peer_node),
+        parameters=[{"robot_id": ParameterValue(namespace, value_type=str),
+                     "robots": ParameterValue(PeerRobots(peer_node, arg("peer_robots")),
+                                              value_type=str)}])
     use_composition = arg("use_composition")
     return LaunchDescription([
         DeclareLaunchArgument("namespace", default_value="pinky1"),
@@ -216,6 +249,15 @@ def generate_launch_description():
                                           " costmap이 거른 스캔을 읽는다"),
         DeclareLaunchArgument("wall_band_m", default_value="0.05",
                               description="스캔 거르개: 벽·진열대에서 이만큼 안의 점을 지운다"),
+        DeclareLaunchArgument("peer_obstacles", default_value="false",
+                              description="true면(임시, 주행 시험용) 다른 로봇의 몸을 두 costmap에"
+                                          " 찍는 peer 층과 pinky_peer_obstacles 노드를 띄운다"),
+        DeclareLaunchArgument("peer_node", default_value="true",
+                              description="false면 peer 층만 넣고 pinky_peer_obstacles 노드는"
+                                          " 띄우지 않는다(다른 프로세스가 토픽을 낸다)"),
+        DeclareLaunchArgument("peer_robots", default_value="",
+                              description="peer_obstacles:=true일 때 로봇 이름들"
+                                          "(pinky1,pinky2,pinky3). 나를 뺀 로봇의 몸을 찍는다"),
         DeclareLaunchArgument("initial_x", default_value="0.0"),
         DeclareLaunchArgument("initial_y", default_value="0.0"),
         DeclareLaunchArgument("initial_yaw", default_value="0.0"),
@@ -238,5 +280,6 @@ def generate_launch_description():
             PushRosNamespace(namespace),
             SetParameter("use_sim_time", arg("use_sim_time")),
             scan_filter,
+            peer_obstacles,
         ]),
     ])

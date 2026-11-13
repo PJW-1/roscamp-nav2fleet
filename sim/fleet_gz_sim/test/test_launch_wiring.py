@@ -371,3 +371,28 @@ def test_the_fleet_record_is_kept_in_the_result_folder_only_when_asked(made, tmp
     assert manager.kw["arguments"] == ["--record", str(out / "fleet_record.jsonl")]
     with pytest.raises(ValueError, match="fleet_record"):
         run(made, fleet_record="yes")
+
+
+@pytest.mark.parametrize("asked", [{}, {"peer_obstacles": "false"}])
+def test_the_bodies_of_other_robots_stay_out_of_the_costmaps_unless_asked(made, asked):
+    actions = run(made, **asked)
+    [stand_in] = nodes(actions, "sim_stand_in")
+    assert params(stand_in)["peer_obstacles"] is False
+    for nav in includes(actions, "nav2.launch.py"):
+        assert launch_args(nav)["peer_obstacles"] == "false"
+
+
+def test_peer_obstacles_adds_the_layer_to_every_robot_and_the_stand_in_sends_the_bodies(made):
+    before = len(nodes(run(made)))
+    actions = run(made, peer_obstacles="true")
+    navs = includes(actions, "nav2.launch.py")
+    assert len(navs) == 3
+    for nav in navs:
+        assert launch_args(nav)["peer_obstacles"] == "true"
+        assert launch_args(nav)["peer_node"] == "false", "no extra process per robot"
+    [stand_in] = nodes(actions, "sim_stand_in")
+    assert params(stand_in)["peer_obstacles"] is True
+    assert params(stand_in)["robots"] == ["pinky1", "pinky2", "pinky3"]
+    assert len(nodes(actions)) == before, "no new process: the DDS participant budget is full"
+    with pytest.raises(ValueError, match="peer_obstacles"):
+        run(made, peer_obstacles="on")

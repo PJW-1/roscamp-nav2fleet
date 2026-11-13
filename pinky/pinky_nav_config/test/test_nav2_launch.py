@@ -59,7 +59,8 @@ def _walk(entities, context, found):
 
 
 def _expand(use_composition, use_sim_time="true", keepout_mask=None, vision_obstacles=None,
-            avoidance=None, narrow_strips=None):
+            avoidance=None, narrow_strips=None, peer_obstacles=None, peer_robots=None,
+            peer_node=None):
     context = launch.LaunchContext()
     context.launch_configurations.update({
         "use_composition": use_composition, "use_sim_time": use_sim_time,
@@ -74,6 +75,12 @@ def _expand(use_composition, use_sim_time="true", keepout_mask=None, vision_obst
         context.launch_configurations["avoidance_params_file"] = avoidance
     if narrow_strips is not None:
         context.launch_configurations["narrow_strips"] = narrow_strips
+    if peer_obstacles is not None:
+        context.launch_configurations["peer_obstacles"] = peer_obstacles
+    if peer_robots is not None:
+        context.launch_configurations["peer_robots"] = peer_robots
+    if peer_node is not None:
+        context.launch_configurations["peer_node"] = peer_node
     found = []
     _walk(_launch_description().entities, context, found)
     return context, found
@@ -310,3 +317,77 @@ def test_narrow_strips_start_the_filter_and_only_the_costmaps_read_its_scan(comp
         costmap = _param_files(container)["pinky1"]["local_costmap"]["local_costmap"]
         assert costmap["ros__parameters"]["obstacle_layer"]["scan"]["topic"] == (
             "/pinky1/scan_filtered")
+
+
+# ---- 다른 로봇의 몸을 costmap에(peer 층, 임시: 주행 시험용) ----------------------------------
+
+def _costmaps(found):
+    nodes = [node for node, _ in found]
+    out = {}
+    for name, which in (("controller_server", "local"), ("planner_server", "global")):
+        costmap = _param_files(nodes[NAMES.index(name)])["pinky1"][f"{which}_costmap"]
+        out[which] = costmap[f"{which}_costmap"]["ros__parameters"]
+    return out
+
+
+@pytest.mark.parametrize("value", [None, "false"])
+def test_without_peer_obstacles_nothing_changes(value):
+    _, found = _expand("false", peer_obstacles=value)
+    assert [n.node_name for n, _ in found] == [f"/pinky1/{name}" for name in NAMES]
+    for costmap in _costmaps(found).values():
+        assert "peer_layer" not in costmap["plugins"] and "peer_layer" not in costmap
+
+
+def test_peer_obstacles_adds_the_layer_to_both_costmaps_and_starts_the_node():
+    _, found = _expand("false", peer_obstacles="true", peer_robots="pinky1,pinky2,pinky3")
+    nodes = [n for n, _ in found]
+    [peer] = [n for n in nodes if n.node_name == "/pinky1/peer_obstacles"]
+    assert peer.node_package == "pinky_peer_obstacles"
+    assert peer.node_executable == "peer_obstacles"
+    given = "".join(Path(path).read_text(encoding="utf-8")
+                    for path, is_file in peer._Node__expanded_parameter_arguments if is_file)
+    assert "robot_id: pinky1" in given and "pinky1,pinky2,pinky3" in given
+    for costmap in _costmaps(found).values():
+        at = costmap["plugins"].index("peer_layer")
+        assert costmap["plugins"][at + 1] == "inflation_layer"
+        assert costmap["peer_layer"]["peers"]["topic"] == "/pinky1/peer_obstacles"
+        assert costmap["peer_layer"]["sweep"]["topic"] == "/pinky1/peer_sweep"
+        assert costmap["obstacle_layer"]["observation_sources"] == "scan"
+
+
+def test_the_composed_container_carries_the_peer_layer_for_the_costmap_sub_nodes():
+    _, found = _expand("true", peer_obstacles="true", peer_robots="pinky1,pinky2")
+    container = found[0][0]
+    for which in ("local", "global"):
+        costmap = _param_files(container)["pinky1"][f"{which}_costmap"][f"{which}_costmap"]
+        assert "peer_layer" in costmap["ros__parameters"]["plugins"]
+    assert [n.node_name for n, _ in found][1:] == ["/pinky1/peer_obstacles"]
+
+
+def test_peer_obstacles_works_with_keepout_and_the_scan_filter():
+    _, found = _expand("false", keepout_mask=MASK, narrow_strips=STRIPS, peer_obstacles="true",
+                       peer_robots="pinky1,pinky2")
+    costmaps = _costmaps(found)
+    assert costmaps["global"]["filters"] == ["keepout_filter"]
+    assert costmaps["global"]["plugins"] == ["static_layer", "obstacle_layer", "peer_layer",
+                                             "inflation_layer"]
+    assert costmaps["local"]["obstacle_layer"]["scan"]["topic"] == "/pinky1/scan_filtered"
+    names = [n.node_name for n, _ in found]
+    assert "/pinky1/scan_filter" in names and "/pinky1/peer_obstacles" in names
+
+
+def test_peer_obstacles_without_the_robot_list_stops_the_launch():
+    with pytest.raises(ValueError, match="peer_robots"):
+        _expand("false", peer_obstacles="true")
+
+
+def test_the_layer_alone_can_be_asked_for_when_another_process_sends_the_bodies():
+    _, found = _expand("false", peer_obstacles="true", peer_node="false")
+    assert [n.node_name for n, _ in found] == [f"/pinky1/{name}" for name in NAMES]
+    for costmap in _costmaps(found).values():
+        assert "peer_layer" in costmap["plugins"]
+
+
+def test_peer_node_alone_starts_nothing():
+    _, found = _expand("false", peer_node="true", peer_robots="pinky1,pinky2")
+    assert [n.node_name for n, _ in found] == [f"/pinky1/{name}" for name in NAMES]

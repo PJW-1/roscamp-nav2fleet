@@ -468,3 +468,64 @@ def test_the_vision_source_goes_into_both_costmaps_only_when_asked():
         assert layer["vision"] == AVOIDANCE["vision_obstacles"]
         assert layer["scan"] == _layer(USER, costmap)["scan"], "the lidar source is the user's"
     assert AVOIDANCE["vision_obstacles"]["topic"] == "<robot_namespace>/vision_obstacles"
+
+
+# ---- 다른 로봇의 몸을 costmap에(peer 층, 임시: 주행 시험용) ----------------------------------
+
+PEERS = yaml.safe_load((PKG / "params" / "peer_obstacles.yaml").read_text(encoding="utf-8"))
+
+
+def _costmap(data, costmap):
+    return data[costmap][costmap]["ros__parameters"]
+
+
+def test_the_peer_layer_goes_into_both_costmaps_only_when_asked():
+    for costmap in ("local_costmap", "global_costmap"):
+        assert "peer_layer" not in _costmap(PARAMS, costmap)["plugins"]
+        assert "peer_layer" not in _costmap(PARAMS, costmap)
+    seen = owners.with_peers(copy.deepcopy(PARAMS), PEERS)
+    for costmap in ("local_costmap", "global_costmap"):
+        before, after = _costmap(PARAMS, costmap), _costmap(seen, costmap)
+        at = after["plugins"].index("peer_layer")
+        assert after["plugins"][at + 1] == "inflation_layer", "the bodies are inflated too"
+        assert [p for p in after["plugins"] if p != "peer_layer"] == before["plugins"]
+        assert after["peer_layer"] == PEERS["peer_layer"]
+        assert after["obstacle_layer"] == before["obstacle_layer"], "the lidar layer is untouched"
+
+
+def test_the_peer_layer_is_added_once():
+    seen = owners.with_peers(owners.with_peers(copy.deepcopy(PARAMS), PEERS), PEERS)
+    for costmap in ("local_costmap", "global_costmap"):
+        assert _costmap(seen, costmap)["plugins"].count("peer_layer") == 1
+
+
+def test_the_peer_overlay_file_holds_only_the_layer():
+    assert sorted(PEERS) == ["peer_layer"]
+
+
+def test_the_peer_layer_marks_the_bodies_and_sweeps_its_own_cells_every_update():
+    layer = PEERS["peer_layer"]
+    assert layer["plugin"] == "nav2_costmap_2d::ObstacleLayer"
+    assert layer["observation_sources"].split() == ["peers", "sweep"]
+    peers, sweep = layer["peers"], layer["sweep"]
+    assert peers["topic"] == "<robot_namespace>/peer_obstacles"
+    assert peers["data_type"] == "PointCloud2"
+    assert peers["marking"] is True and peers["clearing"] is False
+    assert sweep["topic"] == "<robot_namespace>/peer_sweep"
+    assert sweep["data_type"] == "LaserScan"
+    assert sweep["marking"] is False and sweep["clearing"] is True
+    assert sweep["inf_is_valid"] is True, "the sweep beams are all inf: they only clear"
+    for source in (peers, sweep):
+        assert source["expected_update_rate"] == 0.0, "a silent topic stops nothing"
+        assert source["observation_persistence"] == 0.0, "only the newest message counts"
+
+
+def test_the_sweep_reaches_every_cell_of_the_local_window():
+    local = _costmap(PARAMS, "local_costmap")
+    corner = math.hypot(local["width"], local["height"]) / 2.0
+    assert PEERS["peer_layer"]["sweep"]["raytrace_max_range"] >= corner
+
+
+def test_a_body_point_is_marked_anywhere_on_the_arena():
+    """점구름은 map 틀이라 costmap은 거리를 map 원점에서 잰다: 경기장 대각선(2.3 m)보다 넉넉해야 한다."""
+    assert PEERS["peer_layer"]["peers"]["obstacle_max_range"] >= 5.0

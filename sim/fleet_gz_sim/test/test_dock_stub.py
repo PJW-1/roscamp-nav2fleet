@@ -313,3 +313,27 @@ def test_a_dock_goal_fails_at_once_without_gazebo_time(ros):
         assert _dock(node) == (False, "aborted")
     finally:
         node.destroy_node()
+
+
+def test_the_stand_in_hosts_no_peer_nodes_unless_asked(ros):
+    from fleet_gz_sim.stand_in_node import peer_nodes
+    node = stand_in(ros, use_sim_time=True)
+    try:
+        assert peer_nodes(node) == []
+    finally:
+        node.destroy_node()
+
+
+def test_the_stand_in_hosts_a_peer_node_for_every_robot_when_asked(ros):
+    """다른 로봇의 몸을 costmap에 넣는 노드(임시, 주행 시험용)를 로봇마다 이 프로세스에 둔다."""
+    pytest.importorskip("pinky_peer_obstacles")
+    from fleet_gz_sim.stand_in_node import peer_nodes
+    node = stand_in(ros, use_sim_time=True, peer_obstacles=True)
+    peers = peer_nodes(node)
+    try:
+        assert [peer.get_namespace() for peer in peers] == ["/pinky1", "/pinky2", "/pinky3"]
+        assert [peer.robot_id for peer in peers] == ["pinky1", "pinky2", "pinky3"]
+        assert all(peer.get_parameter("use_sim_time").value for peer in peers)
+    finally:
+        for each in (node, *peers):
+            each.destroy_node()

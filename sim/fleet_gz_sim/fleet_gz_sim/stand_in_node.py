@@ -11,6 +11,9 @@ sim_stand_in: 로봇마다
     pinky_fsm이 도킹을 DOCK_UNAVAILABLE로 실패시킨다. 켜면 gz.launch.py가 pinky_fsm의 dock
     서버를 /{pinky}/dock_fsm으로 비켜 둔다. The node refuses to start the stub unless
     use_sim_time is true and the network passes isolation.py.
+  - peer_obstacles:=true일 때만(임시, 주행 시험용) 로봇마다 다른 로봇의 몸을 costmap 토픽으로 내는
+    노드(pinky_peer_obstacles)를 이 프로세스 안에 둔다. 로봇에서는 로봇마다 제 노드가 돈다. 여기서는
+    프로세스를 늘리지 않으려고 한데 둔다(LOCALHOST에서 서로 보이는 DDS 참가자 수에 한도가 있다).
 wait_ready: 모든 로봇의 최근 /{pinky}/state가 IDLE인 채로 1 s 이어지면 0으로 끝난다(ready.py).
   gz.launch.py가 그때 관제와 가짜 central·팔을 띄운다. timeout_s(벽시계) 안에 안 되면 1로 끝난다.
 """
@@ -70,6 +73,7 @@ class SimStandIn(Node):
         super().__init__("sim_stand_in", **kwargs)
         self.declare_parameter("robots", ["pinky1", "pinky2", "pinky3"])
         stub = bool(self.declare_parameter("dock_stub", False).value)
+        self.declare_parameter("peer_obstacles", False)  # main이 읽는다(peer_nodes)
         if stub:  # before anything else: never serve a dock outside an isolated Gazebo run
             require_dock_stub_allowed(bool(self.get_parameter("use_sim_time").value),
                                       os.environ, rmw=rclpy.get_rmw_implementation_identifier(),
@@ -201,17 +205,29 @@ class SimStandIn(Node):
         return Dock.Result(success=ok, error_x_cm=ex, error_y_cm=ey, error_yaw_deg=eyaw)
 
 
+def peer_nodes(node) -> list:
+    """node의 peer_obstacles가 참이면 로봇마다의 pinky_peer_obstacles 노드들, 아니면 빈 목록."""
+    if not node.get_parameter("peer_obstacles").value:
+        return []
+    from pinky_peer_obstacles.node import make_fleet
+    robots = ",".join(node.get_parameter("robots").value)
+    return make_fleet(robots, node.get_parameter("use_sim_time").value, node.context)
+
+
 def main(args=None):
     rclpy.init(args=args)
     node = SimStandIn()
+    peers = peer_nodes(node)
     executor = MultiThreadedExecutor()
-    executor.add_node(node)
+    for each in (node, *peers):
+        executor.add_node(each)
     try:
         executor.spin()
     except KeyboardInterrupt:
         pass
     finally:
-        node.destroy_node()
+        for each in (node, *peers):
+            each.destroy_node()
         rclpy.try_shutdown()
 
 
