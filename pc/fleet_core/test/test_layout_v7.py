@@ -167,6 +167,16 @@ def test_v7_bays_are_entered_backwards_and_left_forwards_on_a_straight_line(site
             gap = min(point_rect_distance(shelf, ax + (bx - ax) * i / steps,
                                           ay + (by - ay) * i / steps) for i in range(steps + 1))
             assert gap >= BODY_CIRCLE_M + TURN_MARGIN_M, (link.a, link.b, shelf, round(gap, 3))
+    # 진열대 모서리도 곧은 선에서 몸 원보다 멀다(bbb5175 리뷰: G-E-3은 남쪽 진열대 동쪽 끝에서
+    # 0.043이라 머리 없는 판에서 로봇이 그 앞에 막혀 섰다)
+    for link in site.links():
+        if link.via != NAV_GOAL:
+            continue
+        (ax, ay), (bx, by) = link.points[0], link.points[-1]
+        steps = max(2, int(link.length / 0.005))
+        gap = min(point_rect_distance(shelf, ax + (bx - ax) * i / steps, ay + (by - ay) * i / steps)
+                  for shelf in site.shelves for i in range(steps + 1))
+        assert gap >= BODY_CIRCLE_M, (link.a, link.b, round(gap, 3))
 
 
 def test_v7_dock_releases_neighbours_after_docking(site):
@@ -223,8 +233,9 @@ def test_v7_routes(site):
             if link is not None:
                 assert link.via == NAV_GOAL and link.zones == ("HALL",), (a, b, link.zones)
     # 가운데 통로 끝에서 G로, G에서 줄로(빈 줄이면 앞자리로 바로, 아니면 꼬리로). 줄이 구석으로 가서
-    # 남쪽 통로가 비었다: G와 서쪽 마당(E-3)을 다시 잇는다
-    for a, b in [("N_O", "N_E"), ("N_E", "G"), ("G", "Q1"), ("G", "Q3"), ("G", "E-3")]:
+    # 남쪽 통로가 비었지만 G와 서쪽 마당(E-3)은 잇지 않는다: 남쪽 진열대 동쪽 끝 모서리에 몸 원보다
+    # 가깝다(아래 진열대 모서리 검사)
+    for a, b in [("N_O", "N_E"), ("N_E", "G"), ("G", "Q1"), ("G", "Q3")]:
         assert site.link(a, b) is not None and site.link(b, a) is not None, (a, b)
     # 진열대를 곧게 가로지르는 Nav2 이음이 없다(4079c40 리뷰: 그래프 값이 실제보다 짧다)
     from fleet_core.fleet_map.geometry import inside
@@ -275,6 +286,10 @@ def test_v7_robots_standing_in_line_or_at_a_fork_leave_every_other_way_open(site
                 continue
             gap = min(point_segment_distance(here, a, b) for a, b in pairwise(link.points))
             assert gap >= BODY_CIRCLE_M + HALF_WIDTH_M, (name, link.a, link.b, round(gap, 3))
+            # 고정 경로는 비켜 가지 못한다: 지나가는 로봇도 몸 원으로 본다(머리 없는 판: 출고 출구가
+            # O_Q에 선 로봇에서 0.152라 출고 로봇이 나가지 못하고 O_Q 로봇은 출고를 기다려 교착)
+            if link.via != NAV_GOAL:
+                assert gap >= 2 * BODY_CIRCLE_M + 0.01, (name, link.a, link.b, round(gap, 3))
 
 
 def test_v7_fixed_path_bends_leave_the_body_clear_of_walls_and_shelves(site):

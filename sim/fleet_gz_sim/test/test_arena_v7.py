@@ -190,7 +190,7 @@ def test_v7_the_crossing_gap_is_shut_for_nav2_on_the_5cm_costmap():
     ([(1.56, 0.30, 1.98, 0.45)], [("N_O", "Q1"), ("N_O", "Q3"), ("N_E", "Q1")]),
     # 동쪽 통로(1.65~1.72)만 남김: 서쪽 끝을 막아 본다. G는 그 통로 바로 위라 가장 빠듯하다
     ([(0.0, 0.30, 0.68, 0.45)], [("N_E", "G"), ("G", "Q3"), ("N_E", "Q1"), ("N_O", "Q1"),
-                                 ("N_E", "Q3"), ("G", "E-3")]),
+                                 ("N_E", "Q3")]),
 ])
 def test_v7_north_and_south_stay_joined_by_each_way_alone(site, shut, pairs):
     grid, _, _ = _costmap()
