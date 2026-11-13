@@ -96,21 +96,21 @@ def test_v7_varied_scenario_mixes_order_bursts_with_staggered_low_batteries(site
     assert scenario.expect.orders_shipped == 12 and scenario.expect.parked_while_backlog is None
 
 
-def test_v7_obstacle_schedule_puts_boxes_on_nav_goal_links_only(site):
-    """고정 경로는 Gazebo에서 충돌 검사를 하지 않는다. 상자는 Nav2 goal 이음 위에만 놓는다."""
+def test_v7_obstacle_schedule_puts_small_boxes_on_nav_goal_links_only(site):
+    """고정 경로는 Gazebo에서 충돌 검사를 하지 않는다. 상자는 Nav2 goal 이음 위에만 놓는다. 상자가 작아
+    로봇이 스스로 돌아갈 틈이 남는다(사용자 2026-11-13 밤: 장애물이 생기면 회피가 보여야 한다)."""
     from fleet_core.fleet_map.model import NAV_GOAL
     from fleet_gz_sim.obstacles import load_schedule
     schedule = load_schedule(PKG / "obstacles" / "v7_yard_mix.yaml", site)
-    assert [one.link for one in schedule.obstacles] == [("E-3", "Q2"), ("O_OUT", "E-2"),
-                                                         ("O_IN", "M_E")]
+    assert [one.link for one in schedule.obstacles] == [("E-3", "Q2"), ("O_OUT", "E-3"),
+                                                         ("O_IN", "E-1"), ("O_IN", "M_E")]
     for one in schedule.obstacles:
         assert site.link(*one.link).via == NAV_GOAL
         assert one.at_s >= 15, "sim_obstacles가 뜬 뒤"
-    # 남쪽 통로의 상자는 통로를 막는다: 남는 틈이 로봇 폭(0.112) + 양쪽 0.04보다 좁다
+    assert max(schedule.size_m[:2]) <= 0.08
+    # 남쪽 통로의 상자 남쪽에 로봇 폭(0.112) + 양쪽 0.03의 틈이 남는다
     south = schedule.obstacles[0]
-    across = schedule.size_m[1]
-    assert south.y == pytest.approx(0.27) and south.y - across / 2 < 0.112 + 0.08
-    assert south.y + across / 2 <= 0.365, "진열대와 겹치지 않는다"
+    assert south.y - schedule.size_m[1] / 2 >= 0.112 + 0.06, south
 
 
 @pytest.mark.parametrize("seed", [None, 4])

@@ -63,7 +63,8 @@
       <visual name="shelf_5_visual"><pose>0.51 0.05 0.075 0 0 0</pose><geometry><box><size>0.02 0.1 0.15</size></box></geometry><material><ambient>0.27 0.42 0.62 1</ambient><diffuse>0.27 0.42 0.62 1</diffuse></material></visual>
       <collision name="shelf_6"><pose>0.77 0.05 0.075 0 0 0</pose><geometry><box><size>0.02 0.1 0.15</size></box></geometry></collision>
       <visual name="shelf_6_visual"><pose>0.77 0.05 0.075 0 0 0</pose><geometry><box><size>0.02 0.1 0.15</size></box></geometry><material><ambient>0.27 0.42 0.62 1</ambient><diffuse>0.27 0.42 0.62 1</diffuse></material></visual>
-      <visual name="path_Q2-Q1"><pose>1.7475 0.265 0.0005 0 0 -0.0487</pose><geometry><box><size>0.2052 0.01 0.001</size></box></geometry><material><ambient>0.2 0.3 0.8 1</ambient><diffuse>0.2 0.3 0.8 1</diffuse></material></visual>
+      <visual name="path_Q2-Q1-1"><pose>1.755 0.16 0.0005 0 0 0</pose><geometry><box><size>0.19 0.01 0.001</size></box></geometry><material><ambient>0.2 0.3 0.8 1</ambient><diffuse>0.2 0.3 0.8 1</diffuse></material></visual>
+      <visual name="path_Q2-Q1-2"><pose>1.85 0.21 0.0005 0 0 1.5708</pose><geometry><box><size>0.1 0.01 0.001</size></box></geometry><material><ambient>0.2 0.3 0.8 1</ambient><diffuse>0.2 0.3 0.8 1</diffuse></material></visual>
       <visual name="path_Q1-W"><pose>1.865 0.3775 0.0005 0 0 1.4438</pose><geometry><box><size>0.2369 0.01 0.001</size></box></geometry><material><ambient>0.2 0.3 0.8 1</ambient><diffuse>0.2 0.3 0.8 1</diffuse></material></visual>
       <visual name="path_W-W_X"><pose>1.88 0.6475 0.0005 0 0 1.5708</pose><geometry><box><size>0.305 0.01 0.001</size></box></geometry><material><ambient>0.2 0.3 0.8 1</ambient><diffuse>0.2 0.3 0.8 1</diffuse></material></visual>
       <visual name="path_W_X-O-1"><pose>1.86 0.83 0.0005 0 0 2.1588</pose><geometry><box><size>0.0721 0.01 0.001</size></box></geometry><material><ambient>0.2 0.3 0.8 1</ambient><diffuse>0.2 0.3 0.8 1</diffuse></material></visual>
@@ -73,9 +74,9 @@
       <visual name="path_O_IN-O-2"><pose>0.3425 0.9 0.0005 0 0 3.1416</pose><geometry><box><size>0.115 0.01 0.001</size></box></geometry><material><ambient>0.2 0.3 0.8 1</ambient><diffuse>0.2 0.3 0.8 1</diffuse></material></visual>
       <visual name="path_O-O_OUT-1"><pose>0.2225 0.88 0.0005 0 0 -2.8319</pose><geometry><box><size>0.1312 0.01 0.001</size></box></geometry><material><ambient>0.2 0.3 0.8 1</ambient><diffuse>0.2 0.3 0.8 1</diffuse></material></visual>
       <visual name="path_O-O_OUT-2"><pose>0.155 0.74 0.0005 0 0 -1.6124</pose><geometry><box><size>0.2402 0.01 0.001</size></box></geometry><material><ambient>0.2 0.3 0.8 1</ambient><diffuse>0.2 0.3 0.8 1</diffuse></material></visual>
-      <visual name="path_E-1-P-1"><pose>0.12 0.18 0.0005 0 0 -1.5708</pose><geometry><box><size>0.18 0.01 0.001</size></box></geometry><material><ambient>0.2 0.3 0.8 1</ambient><diffuse>0.2 0.3 0.8 1</diffuse></material></visual>
-      <visual name="path_E-2-P-2"><pose>0.38 0.18 0.0005 0 0 -1.5708</pose><geometry><box><size>0.18 0.01 0.001</size></box></geometry><material><ambient>0.2 0.3 0.8 1</ambient><diffuse>0.2 0.3 0.8 1</diffuse></material></visual>
-      <visual name="path_E-3-P-3"><pose>0.64 0.18 0.0005 0 0 -1.5708</pose><geometry><box><size>0.18 0.01 0.001</size></box></geometry><material><ambient>0.2 0.3 0.8 1</ambient><diffuse>0.2 0.3 0.8 1</diffuse></material></visual>
+      <visual name="path_E-1-P-1"><pose>0.12 0.175 0.0005 0 0 -1.5708</pose><geometry><box><size>0.19 0.01 0.001</size></box></geometry><material><ambient>0.2 0.3 0.8 1</ambient><diffuse>0.2 0.3 0.8 1</diffuse></material></visual>
+      <visual name="path_E-2-P-2"><pose>0.38 0.175 0.0005 0 0 -1.5708</pose><geometry><box><size>0.19 0.01 0.001</size></box></geometry><material><ambient>0.2 0.3 0.8 1</ambient><diffuse>0.2 0.3 0.8 1</diffuse></material></visual>
+      <visual name="path_E-3-P-3"><pose>0.64 0.175 0.0005 0 0 -1.5708</pose><geometry><box><size>0.19 0.01 0.001</size></box></geometry><material><ambient>0.2 0.3 0.8 1</ambient><diffuse>0.2 0.3 0.8 1</diffuse></material></visual>
       </link>
     </model>
   </world>

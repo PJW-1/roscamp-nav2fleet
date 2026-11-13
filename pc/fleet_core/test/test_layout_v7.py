@@ -43,31 +43,29 @@ def test_v7_docks_and_parking(site):
     assert site.parking == ("P-1", "P-2", "P-3")
     for name, x in (("P-1", 0.12), ("P-2", 0.38), ("P-3", 0.64)):
         assert site.nodes[name].x == pytest.approx(x)
-        # 사용자 2026-11-13 밤: 더 깊숙이(자료의 0.09). 북쪽을 본 로봇의 뒤 끝이 벽에 닿지 않는다
-        assert site.nodes[name].y == pytest.approx(0.09)
-        assert site.nodes[name].y - REAR_M > 0.01
+        # 사용자 2026-11-13 밤: 거의 벽에 닿을 만큼 깊숙이. 북쪽을 본 로봇의 뒤 끝이 벽에서 0.0055다
+        assert site.nodes[name].y == pytest.approx(0.08)
+        assert 0.0 < site.nodes[name].y - REAR_M < 0.01
 
 
 def test_v7_work_queue_is_two_spots_entered_at_q2(site):
     """사용자 결정(2026-11-13 밤): WORK 줄은 둘이다. 앞자리 Q1은 W 바로 남쪽, 들어오는 자리 Q2는
-    그 서쪽이다(2026-11-13 밤: 칸 입구와 같은 높이 0.27. 구석 0.16에 두면 칸 입구에서 오는 곧은 선이
-    주차한 로봇 앞 0.11~0.14를 지난다). 마당에서는 Q2로만 들어온다. 꼬리 Q3과 갈림 G는 없다."""
+    남동 구석이다(사용자 2026-11-13 밤: 칸 입구 높이로 올렸던 것을 다시 내린다). 마당에서는 Q2로만
+    들어온다. 꼬리 Q3과 갈림 G는 없다. 줄 서기를 켠다."""
     station = site.stations["WORK"]
     assert station.queue == ("Q1", "Q2") and station.line
     assert not site.stations["OUTBOUND"].line
     assert not {"Q3", "G", "F"} & set(site.nodes)
     q1, q2 = site.node_pose("Q1"), site.node_pose("Q2")
-    assert q1[0] > 1.80 and q2[0] < q1[0], (q1, q2)
-    assert q2[1] == pytest.approx(site.nodes["E-1"].y)
+    assert q1[0] > 1.80 and q2[0] < q1[0] and q2[1] < 0.20, (q1, q2)  # 구석
     # Nav2 goal로 닿는 자리(Q2)와 줄 안에서 도는 점은 벽에서 0.13 이상(Gazebo 기준: 덧댐 0.01이
     # 붙은 뒤 모서리 0.098 + 칸 0.025 + 여유). 줄 안 당기기는 고정 경로다
     turns = [q1, q2] + list(site.link("Q2", "Q1").points[1:-1])
     for x, y in turns:
         assert min(1.98 - x, y) >= WALL_NAV_M - 1e-9, (x, y)
-    # 앞자리로는 동쪽으로 곧게 당기고 앞자리에서 북쪽으로 돈다. 도는 몸 원이 Q2에 선 로봇의 앞 끝에
-    # 닿지 않는다
-    assert len(site.link("Q2", "Q1").points) == 2
-    assert q1[0] - BODY_CIRCLE_M > q2[0] + FRONT_M + 0.02
+    # 앞자리에는 북쪽으로 곧게 닿는다(앞자리에서 돌지 않는다)
+    bend = site.link("Q2", "Q1").points[-2]
+    assert bend[0] == pytest.approx(q1[0]) and bend[1] < q1[1]
     # 두 자리 사이는 노드 놓는 거리(0.20)보다 멀다: 한 칸 당긴 로봇이 서면 뒷자리를 놓는다
     assert math.dist(q1, q2) > load_params().node_clear_m
     # Q2에 동쪽을 보고 선 로봇이 북쪽을 보고 선 앞자리 로봇 뒤 모서리와 겹치지 않는다
@@ -311,13 +309,21 @@ def test_v7_robots_standing_in_line_or_at_a_fork_leave_every_other_way_open(site
     # G, F: 갈림에서도 차례를 기다리며 선다(3e84ff6 리뷰: G에 선 로봇이 E-3 -> F 선을 0.076으로 막았다)
     # 지나가는 로봇은 주차한 로봇 앞을 몸 둘이 닿지 않게 지난다(2026-11-13 밤, Gazebo와 머리 없는
     # 세계: 칸 입구 0.25, 주차 0.11이던 때 E-1 -> Q2의 선이 P-3에서 0.11이라 로봇이 서 있었다).
-    # 0.175 = 머리 없는 세계가 막혔다고 보는 거리(robot_radius_m 둘 + 틈 0.01 = 0.17)보다 조금 넘게
+    # 0.175 = 머리 없는 세계가 막혔다고 보는 거리(robot_radius_m 둘 + 틈 0.01 = 0.17)보다 조금 넘게.
+    # 예외는 E-1, E-2에서 구석의 Q2로 가는 두 선이다(사용자 2026-11-13 밤: Q2는 구석에 둔다). Q2가
+    # 낮아 선이 내려가며 주차한 로봇 앞 0.15~0.17을 지난다: Nav2가 그 로봇을 돌아가는 데 기대고,
+    # 그래도 막히면 관제가 가운데 통로(M_E)로 돌린다
+    low = {}
     for link in site.links():
         if link.via != NAV_GOAL:
             continue
         for spot in site.parking:
             gap = point_segment_distance(site.node_pose(spot), link.points[0], link.points[-1])
-            assert gap >= 0.175, (link.a, link.b, spot, round(gap, 3))
+            if gap < 0.175:
+                low[frozenset((link.a, link.b)), spot] = round(gap, 3)
+    assert low == {(frozenset(("E-1", "Q2")), "P-2"): 0.171,
+                   (frozenset(("E-1", "Q2")), "P-3"): 0.152,
+                   (frozenset(("E-2", "Q2")), "P-3"): 0.167}, low
     standing = ["W", "O", "Q1", "Q2", "O_IN", "O_OUT", "M_E"]
     for name in standing:
         here = site.node_pose(name)

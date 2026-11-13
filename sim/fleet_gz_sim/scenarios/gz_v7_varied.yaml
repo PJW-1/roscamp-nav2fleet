@@ -4,8 +4,8 @@
 #    품목 수가 1~4개로 달라 WORK에 머무는 시간이 다르고, 줄(Q2 -> Q1)이 찼다 비었다 한다.
 #  - 배터리 부족: 로봇마다 한 번, 서로 다른 시각(70, 240, 400초)에 떨어져 충전 칸으로 가고 충전 시간도
 #    다르다(30, 60, 40초). 일하던 로봇이 빠지고 남은 로봇이 주문을 이어받는다.
-#  - 장애물은 따로 준다: obstacles:=v7_yard_mix(남쪽 통로를 막는 상자 -> 가운데 통로 M_E로 우회,
-#    서쪽 마당의 상자 -> Nav2가 돌아감, 가운데 통로의 상자).
+#  - 장애물은 따로 준다: obstacles:=v7_yard_mix(작은 상자 넷: 남쪽 통로, 서쪽 마당 둘, 가운데 통로.
+#    로봇이 Nav2로 스스로 돌아가는 것을 본다).
 # 팔 고장(arm_fail, swap_partial)은 넣지 않았다: Gazebo에서 판정이 어떻게 나오는지 확인하지 못했다.
 # 충전하러 가는 로봇은 주문이 밀려도 주차로 가므로 parked_while_backlog는 보지 않는다.
 #   ros2 launch fleet_gz_sim gz.launch.py layout:=v7 scenario:=gz_v7_varied obstacles:=v7_yard_mix \
