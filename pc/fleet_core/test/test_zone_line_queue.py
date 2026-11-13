@@ -4,7 +4,7 @@
 - 앞자리가 비면 한 칸씩 당긴다.
 - 새로 오는 로봇은 맨 뒤에 선 로봇 바로 뒤 빈 자리로 간다(앞자리를 노려 줄 옆을 지나지 않는다).
 끄면(키가 없으면) 지금 규칙 그대로다(test_zone_dock_queue).
-시험 지도는 v7에 대기 자리 셋(Q1 앞, Q3 꼬리)을 사슬로 이은 것이다: E-3 -> Q3 -> Q2 -> Q1 -> F -> W.
+시험 지도는 v7 그대로다(구석 L자 셋, Q1 앞, Q3 꼬리): G -> Q3 -> Q2 -> Q1 -> W, 빈 줄이면 G -> Q1.
 """
 from dataclasses import replace
 
@@ -14,36 +14,11 @@ from fleet_core.common.params import load_params
 from fleet_core.fleet_map import FleetMapError, fleet_map_from_text, load_fleet_map
 from zone_harness import DT, Harness
 
-SPOTS = """  Q1: {x: 1.62, y: 0.10, kind: wait, yaw_deg: 0}
-  Q2: {x: 1.40, y: 0.10, kind: wait, yaw_deg: 0}
-  Q3: {x: 1.18, y: 0.10, kind: wait, yaw_deg: 0}
-"""
-NAV = """nav:
-  - {nodes: [G, F]}
-  - {nodes: [N_O, E-3]}
-  - {nodes: [O_Q, E-1, E-2]}
-  - {nodes: [E-2, E-3]}
-  - {nodes: [N_O, N_E]}
-  - {nodes: [N_O, O_Q]}
-  - {nodes: [N_O, E-1]}
-  - {nodes: [N_O, E-2]}
-  - {nodes: [N_E, G]}
-  - {nodes: [E-3, Q3]}
-  - {nodes: [Q3, Q2]}
-  - {nodes: [Q2, Q1]}
-stations:"""
-
-
 def line_map(line=True):
     text = load_fleet_map("v7").source_text
-    start = text.index("  Q1: {")
-    text = text[:start] + SPOTS + text[text.index("\n", text.index("  Q2: {")) + 1:]
-    text = text[:text.index("nav:")] + NAV + text[text.index("\nstations:") + len("\nstations:"):]
-    key = ", line: true" if line else ""
-    old = "queue: [Q1, Q2], line: true, server: workcell"
+    old = "queue: [Q1, Q2, Q3], line: true,"
     assert old in text
-    text = text.replace(old, f"queue: [Q1, Q2, Q3]{key}, server: workcell")
-    return fleet_map_from_text(text)
+    return fleet_map_from_text(text if line else text.replace(old, "queue: [Q1, Q2, Q3],"))
 
 
 def targets(world, robot):
@@ -114,7 +89,7 @@ def test_a_new_robot_joins_behind_the_last_one_in_line():
 
 def test_a_robot_low_on_battery_leaves_the_line_and_the_rest_still_dock():
     world = Harness(site=line_map(), params=replace(load_params(), battery_low_pct=20.0),
-                    starts={"pinky1": "W", "pinky2": "Q1", "pinky3": "Q2"})
+                    starts={"pinky1": "W", "pinky2": "Q1", "pinky3": "Q3"})
     # 이름 없는 호출이라야 배터리가 낮은 로봇을 호출에서 뺀다(이름 붙은 호출은 끝까지 간다)
     calls(world)
     first, second = world.call("WORK"), world.call("WORK")
@@ -122,9 +97,9 @@ def test_a_robot_low_on_battery_leaves_the_line_and_the_rest_still_dock():
     assert world.phase("pinky2") == world.phase("pinky3") == "TO_WORK"
     bot = world.bots["pinky3"]
     world.traffic.on_robot_state("pinky3", bot.x, bot.y, bot.yaw, "IDLE", 15.0)
-    # 줄 반대쪽(꼬리 Q3 -> E-3)으로 빠져 칸에 선다
+    # 꼬리에서 G로 빠져 칸에 선다
     assert world.run_until(lambda: world.phase("pinky3") == "PARKED", 300.0), world.log[-20:]
-    assert "Q3" in targets(world, "pinky3")
+    assert "G" in targets(world, "pinky3")
     # 남은 둘(pinky1, pinky2)이 두 호출을 끝낸다: 빠진 로봇이 줄을 막지 않는다
     world.traffic.on_release("pinky1")
     assert world.run_until(lambda: world.result_of(first) is not None, 200.0)
@@ -167,9 +142,9 @@ def test_a_robot_stepping_forward_ranks_by_the_spot_it_goes_to(order_model):
     assert traffic._line_spot(moving, world.site.stations["WORK"]) == 0
 
 
-def test_v7_two_spots_new_robot_takes_the_tail_and_the_line_docks_in_order():
-    """v7 그대로(Q1, Q2): 줄 앞 Q1에 하나가 서 있으면 새 로봇은 G에서 꼬리 Q2로 들어오고, 도크가
-    비면 Q1, 그다음 Q2 차례로 들어간다(Q2는 Q1으로 한 칸 당긴 뒤 F로)."""
+def test_v7_new_robot_stands_behind_the_front_and_the_line_docks_in_order():
+    """v7: 앞자리 Q1에 하나가 서 있으면 새 로봇은 G에서 꼬리 Q3으로 들어와 Q2까지 당기고(앞자리를
+    노리지 않는다), 도크가 비면 Q1, 그다음 Q2 차례로 들어간다(Q2는 Q1으로 한 칸 당긴 뒤 W로)."""
     world = Harness(layout="v7", starts={"pinky1": "W", "pinky2": "Q1", "pinky3": "P-1"})
     front, back = calls(world, "pinky2", "pinky3")
     assert world.run_until(lambda: world.view("pinky3")["node"] == "Q2", 300.0), world.log[-10:]
@@ -183,22 +158,73 @@ def test_v7_two_spots_new_robot_takes_the_tail_and_the_line_docks_in_order():
     assert not world.problems
 
 
-def test_v7_the_front_robot_low_on_battery_leaves_while_the_tail_waits():
-    """v7: 줄 앞 Q1의 로봇이 배터리가 낮아 떠난다. 꼬리 Q2에 로봇이 서 있으니 Q1 -> F -> G로 앞으로
-    빠져 칸에 서고, 꼬리 로봇은 한 칸 당겨 도크에 들어간다(6810b3b 리뷰: 서로 막을 수 있다)."""
+def test_v7_a_full_line_pulls_forward_as_soon_as_the_front_moves():
+    """v7 줄이 가득(W, Q1, Q2... 로봇 셋이라 W, Q2, Q3): 앞자리가 비면 둘 다 한 칸씩 당긴다. 이웃
+    자리가 노드 놓는 거리(0.20)보다 멀어 당긴 로봇이 뒷자리를 놓으므로, 꼬리 로봇이 도크가 빌 때까지
+    기다리지 않고 Q2로 온다."""
+    world = Harness(layout="v7", starts={"pinky1": "W", "pinky2": "Q2", "pinky3": "Q3"})
+    front, back = calls(world, "pinky2", "pinky3")
+    assert world.run_until(lambda: world.view("pinky2")["node"] == "Q1"
+                           and world.view("pinky3")["node"] == "Q2", 120.0), world.log[-10:]
+    assert world.result_of(front) is None  # 도크는 아직 pinky1이 쥐고 있다
+    world.traffic.on_release("pinky1")
+    assert world.run_until(lambda: world.result_of(front) is not None, 200.0)
+    world.traffic.on_release("pinky2")
+    assert world.run_until(lambda: world.result_of(back) is not None, 300.0)
+    assert not world.problems
+
+
+def low_battery_in_line(spot):
+    """W에 pinky1, 줄에 둘이 WORK를 기다린다. spot에 선 로봇의 배터리를 낮춘다(누가 어디 서는지는
+    부르기 전 주차 출발과 차례에 따라 바뀐다)."""
     world = Harness(layout="v7", params=replace(load_params(), battery_low_pct=20.0),
                     starts={"pinky1": "W", "pinky2": "Q1", "pinky3": "Q2"})
     calls(world)
-    first, second = world.call("WORK"), world.call("WORK")
+    asked = world.call("WORK"), world.call("WORK")
     world.run(5.0)
-    assert world.phase("pinky2") == world.phase("pinky3") == "TO_WORK"
-    bot = world.bots["pinky2"]
-    world.traffic.on_robot_state("pinky2", bot.x, bot.y, bot.yaw, "IDLE", 15.0)
-    assert world.run_until(lambda: world.phase("pinky2") == "PARKED", 400.0), world.log[-20:]
-    world.traffic.on_release("pinky1")
+    stand = {world.view(r)["node"]: r for r in ("pinky2", "pinky3")}
+    assert set(stand) == {"Q1", "Q2"}, stand
+    assert all(world.phase(r) == "TO_WORK" for r in stand.values())
+    low = stand[spot]
+    bot = world.bots[low]
+    world.traffic.on_robot_state(low, bot.x, bot.y, bot.yaw, "IDLE", 15.0)
+    return world, asked, low, stand["Q2" if spot == "Q1" else "Q1"]
+
+
+def finish(world, asked, rest):
+    first, second = asked
     assert world.run_until(lambda: world.result_of(first) is not None, 300.0)
     done = world.result_of(first).robot_id
     world.traffic.on_release(done)
     assert world.run_until(lambda: world.result_of(second) is not None, 300.0)
-    assert {done, world.result_of(second).robot_id} <= {"pinky1", "pinky3"}
+    assert {done, world.result_of(second).robot_id} <= {"pinky1", rest}
     assert not world.problems
+
+
+def test_v7_the_middle_robot_low_on_battery_leaves_once_the_front_moves():
+    """v7: 둘째 Q2는 줄 안(Q2 -> Q1)으로만 나간다. 둘째 로봇이 배터리가 낮으면 앞자리 로봇이 도크로
+    들어간 뒤 Q1 -> G로 빠진다: 늦을 뿐 교착은 없다."""
+    world, asked, low, rest = low_battery_in_line("Q2")
+    world.run(30.0)
+    assert world.view(low)["node"] == "Q2", "waits for the front robot"
+    # 도크에 선 로봇의 일을 끝낼 때마다 줄이 한 칸씩 빠진다(pinky1이 남은 호출을 다시 받을 수 있다)
+    for _ in range(5):
+        if world.run_until(lambda: world.phase(low) == "PARKED", 120.0):
+            break
+        for robot in ("pinky1", rest):
+            if world.phase(robot) == "AT_STATION":
+                world.traffic.on_release(robot)
+    assert world.phase(low) == "PARKED", world.log[-20:]
+    assert all(world.result_of(goal) is not None for goal in asked)
+    assert "Q1" in targets(world, low) and "G" in targets(world, low)
+    assert not world.problems
+
+
+def test_v7_the_front_robot_low_on_battery_leaves_while_the_tail_waits():
+    """v7: 줄 앞 Q1의 로봇이 배터리가 낮아 떠난다. 둘째 Q2에 로봇이 서 있으니 Q1 -> G로
+    빠져 칸에 서고, 둘째 로봇은 한 칸 당겨 도크에 들어간다(6810b3b 리뷰: 서로 막을 수 있다)."""
+    world, asked, low, rest = low_battery_in_line("Q1")
+    assert world.run_until(lambda: world.phase(low) == "PARKED", 400.0), world.log[-20:]
+    assert "G" in targets(world, low)
+    world.traffic.on_release("pinky1")
+    finish(world, asked, rest)

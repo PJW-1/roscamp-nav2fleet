@@ -120,11 +120,18 @@ def test_it_backs_out_to_the_yard_even_with_no_way_on_from_there():
 
 
 def test_the_retreat_follows_the_bends_of_the_way_down():
-    """물러나는 길은 갈림 -> 마당 지점 고정 경로의 꺾는 점을 따른다(cededa0 리뷰): v7에서
-    W_X -> N_E를 곧게 가면 WORK_DOCK 모서리 (1.78, 0.63)에 0.058까지 붙지만 그 구역은 잡지 않는다.
-    work_west의 꺾는 점 (1.70, 0.70)을 따르면 몸 반경(0.085) 넘게 떨어진다."""
+    """물러나는 길은 갈림 -> 마당 지점 고정 경로의 꺾는 점을 따른다(cededa0 리뷰). 시험 지도는 v7에
+    예전 W_X -> N_E 길(work_west)을 되살린 것이다(지금 v7은 W_X가 W와 급행만 잇는다): W_X -> N_E를
+    곧게 가면 WORK_DOCK 모서리 (1.78, 0.63)에 0.058까지 붙지만 그 구역은 잡지 않는다. 꺾는 점
+    (1.70, 0.70)을 따르면 몸 반경(0.085) 넘게 떨어진다."""
+    from fleet_core.fleet_map import fleet_map_from_text, load_fleet_map
     from fleet_core.fleet_map.geometry import point_segment_distance
-    world = Harness(layout="v7", starts={"pinky1": "P-1", "pinky2": "P-2", "pinky3": "P-3"})
+    text = load_fleet_map("v7").source_text
+    old = "  work_out: {points: [W, W_X]}"
+    assert old in text
+    text = text.replace(old, "  work_west: {points: [W_X, [1.70, 0.70], N_E]}\n" + old)
+    world = Harness(site=fleet_map_from_text(text),
+                    starts={"pinky1": "P-1", "pinky2": "P-2", "pinky3": "P-3"})
     m = world.traffic._robots["pinky1"]
     m.x, m.y = 1.80, 0.88  # 급행 들머리에서 막혔다
     m.retreat_to, m.retreat_via = "N_E", "W_X"

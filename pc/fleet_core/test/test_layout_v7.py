@@ -2,6 +2,7 @@
 import math
 
 import pytest
+from fleet_core.common.params import load_params
 from fleet_core.fleet_map import KNOWN_LAYOUTS, LAYOUTS, PASS, SHARED, load_fleet_map, route
 from fleet_core.fleet_map.model import FOLLOW_PATH, NAV_GOAL, RETREAT
 
@@ -44,29 +45,46 @@ def test_v7_docks_and_parking(site):
         assert site.nodes[name].x == pytest.approx(x)
 
 
-def test_v7_work_queue_lies_on_the_wall_l_off_the_way_into_work(site):
+def test_v7_work_queue_is_an_l_in_the_south_east_corner(site):
+    """사용자 그림(2026-11-13, 빨간 점 셋): WORK 대기 자리는 W 남쪽 남동 구석의 L자다. 앞자리 Q1은
+    W 바로 남쪽(예전 진입점 F 자리), 둘째 Q2는 구석, 꼬리 Q3은 남쪽 벽을 따라 서쪽. 줄 서기를 켠다."""
     station = site.stations["WORK"]
-    queue = station.queue
-    # 사용자 결정(2026-11-13): 대기 자리 둘, 줄 서기(앞자리 먼저, 빈 앞자리로 당기기). 출고는 그대로
-    assert queue == ("Q1", "Q2") and station.line and not site.stations["OUTBOUND"].line
-    assert site.node_pose("Q1") == pytest.approx((1.62, 0.10))
-    assert site.node_pose("Q2") == pytest.approx((1.40, 0.10))
-    for spot in queue:
-        x, y = site.node_pose(spot)
-        # 남쪽 벽 선 위. 예전에는 x >= 1.56(진열대 동쪽)이었으나, 둘째 자리 Q2는 동쪽 진열대 조각
-        # 아래다: 그 아래로는 지나가는 교통을 두지 않는다(test_v7_queue_is_entered_at_the_tail_only)
-        assert y == pytest.approx(0.10) and x >= 1.25, spot
-    # WORK에는 진입점 F에서만 곧게 들어간다(고정 경로)
+    assert station.queue == ("Q1", "Q2", "Q3") and station.line
+    assert not site.stations["OUTBOUND"].line
+    # 좌표는 그림보다 조금 안쪽이다(Gazebo 4판: RPP 충돌 경고의 절반이 벽 0.12 안, 옛 줄 y 0.10).
+    # 도는 자리는 벽에서 0.12 이상: 뒤 모서리 0.0845로 돌아도 벽 칸(0.025)에 닿지 않는다
+    q1, q2, q3 = (site.node_pose(n) for n in ("Q1", "Q2", "Q3"))
+    assert q1[0] > 1.80 and q2[0] > q3[0] and q2[1] == q3[1] < 0.20, (q1, q2, q3)  # 구석 L자
+    # Nav2 goal로 닿는 자리(Q1, Q3)와 줄 안에서 도는 점은 벽에서 0.13 이상(Gazebo 기준: 덧댐 0.01이
+    # 붙은 뒤 모서리 0.098 + 칸 0.025 + 여유). 줄 안 당기기는 고정 경로다
+    turns = [site.node_pose(n) for n in ("Q1", "Q2", "Q3")] + list(site.link("Q2", "Q1").points[1:-1])
+    for x, y in turns:
+        assert min(1.98 - x, y) >= WALL_NAV_M - 1e-9, (x, y)
+    # 앞자리에는 북쪽으로 곧게 닿는다(앞자리에서 돌지 않는다)
+    bend = site.link("Q2", "Q1").points[-2]
+    assert bend[0] == pytest.approx(q1[0]) and bend[1] < q1[1]
+    # 이웃 자리 사이는 노드 놓는 거리(0.20)보다 멀다: 한 칸 당긴 로봇이 서면 뒷자리를 놓는다
+    clear = load_params().node_clear_m
+    assert math.dist(q1, q2) > clear and math.dist(q2, q3) > clear
+    # 둘째에 동쪽을 보고 선 로봇이 북쪽을 보고 선 앞자리 로봇 뒤 모서리와 겹치지 않는다
+    front_rear_y = q1[1] - REAR_M
+    assert q2[0] + FRONT_M < q1[0] - HALF_WIDTH_M or q2[1] + HALF_WIDTH_M < front_rear_y
+    assert "F" not in site.nodes
+    # 흐름: 꼬리 -> 둘째 -> 앞자리 -> W, 모두 한 방향 고정 경로
+    for a, b in (("Q3", "Q2"), ("Q2", "Q1"), ("Q1", "W")):
+        assert site.link(a, b).via == FOLLOW_PATH, (a, b)
+        assert site.link(b, a) is None, (b, a)
     into_w = [(link.a, link.via) for link in site.links() if link.b == "W"]
-    assert into_w == [("F", FOLLOW_PATH)] and "F" not in queue
-    # 대기 자리는 W로 가는 어느 길에도 없다: 대기 자리가 유일한 길 위에 있으면 도크 차례 규칙이 세
-    # 대 사이에서 돌았다(첫 v7, 머리 없는 판 주문 8건 0/8, 몰림 0/10). D2의 W_Q와 같은 자리 잡기
+    assert into_w == [("Q1", FOLLOW_PATH)]
+    # 앞자리가 W로 가는 유일한 길 위에 다시 놓인다. 첫 v7의 교착(0/8)은 줄 서기 규칙 전이었다:
+    # 줄 서기에서는 줄에 선 로봇이 줄 밖 로봇보다 앞 차례라, 앞자리를 지나야 하는 로봇이 앞 차례가
+    # 되지 않는다(머리 없는 판으로 확인). 둘째와 꼬리는 줄 밖에서 W로 가는 길에 없다
     for start in site.nodes:
-        if start in queue or start == "W":
+        if start in station.queue or start == "W":
             continue
         way = route(site, start, "W")
         if way is not None:
-            assert not {link.b for link in way[:-1]} & set(queue), (start, [l.b for l in way])
+            assert not {link.b for link in way} & {"Q2", "Q3"}, (start, [l.b for l in way])
 
 
 def test_v7_standing_nodes_keep_clear_of_other_zones(site):
@@ -166,26 +184,28 @@ def test_v7_routes(site):
     assert [link.b for link in way] == ["W_X", "O"]
     assert all(link.via == FOLLOW_PATH for link in way)
     assert "EXPRESS" in way[-1].zones
-    # WORK에서 나가기(사용자 2026-11-13): W에서 앞으로(북쪽) 곧게 나와 바로 위 갈림 W_X에서 급행을
-    # 타거나 넓은 곳(서쪽)으로 간다. 예전의 X_E -> N_E(급행 입구에서 다시 내려오기)는 없다.
-    # W_X는 HALL 띠(0.63~0.765)가 아니라 그 위 J_E 안의 지나가는 점이다(063086b 리뷰): HALL 띠에서는
-    # WORK_DOCK과 J_E 어느 쪽에서도 0.135 떨어질 수 없어 선 로봇이 WORK_DOCK을 쥐었고, 갈림이 PASS가
-    # 아니면 급행이 막혔을 때 넓은 곳으로 물러나지(yard_retreat) 못한다
+    # WORK에서 나가기(사용자 그림): 급행을 타면 W -> W_X -> 급행, 아니면 W에서 넓은 곳으로 바로
+    # 나간다(빨간 화살표 둘: 서쪽 N_E, 남서쪽 G). W_X는 W와 급행만 잇는다(W_X -> N_E는 없다)
     exit_ = site.nodes["W_X"]
     assert exit_.kind == PASS and exit_.zone == "J_E" and exit_.x == pytest.approx(1.88)
     assert site.distance_to_zone(exit_.x, exit_.y, "WORK_DOCK") >= RELEASE_GAP_M
-    assert [(l.b, l.via) for l in site.links() if l.a == "W"] == [("W_X", FOLLOW_PATH)]
-    assert sorted((l.b, l.via) for l in site.links() if l.a == "W_X") == [
-        ("N_E", FOLLOW_PATH), ("O", FOLLOW_PATH)]
+    # 남서쪽(G)은 N_E를 거친다: W는 동쪽 벽에서 0.10이라 거기서 150도쯤 돌면 벽에 닿는다.
+    # 출구는 북쪽으로 조금 나가며 꺾는 호다(꺾는 점은 벽에서 0.12 이상)
+    assert sorted((l.b, l.via) for l in site.links() if l.a == "W") == [
+        ("N_E", FOLLOW_PATH), ("W_X", FOLLOW_PATH)]
+    for x, y in site.link("W", "N_E").points[1:-1]:
+        assert 1.98 - x >= WALL_TURN_M - 1e-9
+    # W_X는 W와 급행만 잇는다(W로 물러나는 후진도 없다: W 띠 안에서 제자리 돌기가 된다)
+    assert [(l.b, l.via) for l in site.links() if l.a == "W_X"] == [("O", FOLLOW_PATH)]
     assert [l.a for l in site.links() if l.b == "W_X"] == ["W"]
     assert "X_E" not in site.nodes
-    from fleet_core.traffic.zone.yard_retreat import yard_retreat
-    assert yard_retreat(site, site.link("W_X", "O")) == ("N_E", "W_X")
-    # 급행을 못 타면 갈림에서 넓은 곳을 지나 출고로 갈 길이 있다(N_O -> O)
+
+    # 급행을 못 타면 W에서 넓은 곳을 지나 출고로 간다(N_O -> O). W_X를 거치지 않는다
     def no_express(link):
         return math.inf if "EXPRESS" in link.zones else link.length
-    way = route(site, "W_X", "O", no_express)
-    assert way is not None and way[0].b == "N_E" and way[-1].a == "N_O", [l.b for l in way or []]
+    way = route(site, "W", "O", no_express)
+    assert way is not None and way[0].b == "N_E" and way[-1].a == "N_O"
+    assert "W_X" not in [l.b for l in way]
     # 출고(사용자 2026-11-13): 급행이나 N_O(out_in)로 동쪽에서 들어와, 나갈 때는 후진하지 않고
     # 앞으로(서쪽) 조금 가서 남쪽으로 꺾어 넓은 곳의 N_O로 나온다(통과형)
     out = site.link("O", "N_O")
@@ -196,14 +216,15 @@ def test_v7_routes(site):
     assert min(x for x, _ in out.points) - BODY_CIRCLE_M >= 0.05, "clear of the west wall"
     assert site.link("N_O", "O").via == FOLLOW_PATH  # 넓은 곳에서 들어오기는 그대로
     # 마당 지점끼리는 Nav2 goal로 오가고 HALL만 잡는다(사용자 결정: 잠그는 구역은 급행 띠와 도크만)
-    yard = ["N_O", "N_E", "G", "F", "Q1", "Q2", "O_Q", "E-1", "E-2", "E-3"]
+    yard = ["N_O", "N_E", "G", "Q1", "Q3", "O_Q", "E-1", "E-2", "E-3"]
     for a in yard:
         for b in yard:
             link = site.link(a, b)
-            if link is not None and (a, b) != ("Q1", "F"):
+            if link is not None:
                 assert link.via == NAV_GOAL and link.zones == ("HALL",), (a, b, link.zones)
-    # 가운데 통로 끝에서 WORK 진입점과 줄 꼬리로 간다(그림의 빨간 선)
-    for a, b in [("N_O", "N_E"), ("N_E", "G"), ("G", "F"), ("G", "Q2"), ("Q2", "Q1")]:
+    # 가운데 통로 끝에서 G로, G에서 줄로(빈 줄이면 앞자리로 바로, 아니면 꼬리로). 줄이 구석으로 가서
+    # 남쪽 통로가 비었다: G와 서쪽 마당(E-3)을 다시 잇는다
+    for a, b in [("N_O", "N_E"), ("N_E", "G"), ("G", "Q1"), ("G", "Q3"), ("G", "E-3")]:
         assert site.link(a, b) is not None and site.link(b, a) is not None, (a, b)
     # 진열대를 곧게 가로지르는 Nav2 이음이 없다(4079c40 리뷰: 그래프 값이 실제보다 짧다)
     from fleet_core.fleet_map.geometry import inside
@@ -218,24 +239,24 @@ def test_v7_routes(site):
         assert route(site, spot, "W") is not None and route(site, "O", spot) is not None
 
 
-def test_v7_queue_is_entered_at_the_tail_only(site):
-    """줄은 꼬리 Q2로만 들어오고(G에서) 앞으로만 흘러 W로 간다: Q2 -> Q1 -> F(고정 경로, 한 방향) -> W.
-    Q1, Q2에 닿는 이음은 이것뿐이다(Q2 <-> Q1은 배터리가 낮아 줄을 떠나는 로봇이 G로 되돌아 나가는
-    길이기도 하다)."""
+def test_v7_queue_is_entered_from_g_and_flows_one_way(site):
+    """줄에 닿는 이음: G <-> 앞자리(빈 줄일 때, 그리고 줄을 떠날 때), G <-> 꼬리, 줄 안은 한 방향.
+    둘째 Q2는 줄 안에서만 닿는다(구석이라 지나가는 교통이 없다)."""
     touching = sorted((link.a, link.b, link.via) for link in site.links()
-                      if {"Q1", "Q2"} & {link.a, link.b})
-    assert touching == [("G", "Q2", NAV_GOAL), ("Q1", "F", FOLLOW_PATH), ("Q1", "Q2", NAV_GOAL),
-                        ("Q2", "G", NAV_GOAL), ("Q2", "Q1", NAV_GOAL)]
-    # 동쪽 진열대 조각 아래(대기 로봇 위 0.18)로 남쪽 마당을 가로지르는 이음이 없다
-    from fleet_core.fleet_map.geometry import point_segment_distance
-    for link in site.links():
-        if {"Q1", "Q2"} & {link.a, link.b}:
-            continue
-        a, b = link.points[0], link.points[-1]
-        assert point_segment_distance((1.40, 0.20), a, b) > 0.15, (link.a, link.b)
+                      if {"Q1", "Q2", "Q3"} & {link.a, link.b})
+    assert touching == [("G", "Q1", NAV_GOAL), ("G", "Q3", NAV_GOAL), ("Q1", "G", NAV_GOAL),
+                        ("Q1", "W", FOLLOW_PATH), ("Q2", "Q1", FOLLOW_PATH),
+                        ("Q3", "G", NAV_GOAL), ("Q3", "Q2", FOLLOW_PATH)]
+    # 둘째 자리는 도착 방향(동쪽)을 본다: 북쪽으로 돌면 몸 원이 앞자리 로봇에 닿는다
+    assert math.degrees(site.nodes["Q2"].yaw) == pytest.approx(0.0)
+    assert math.degrees(site.nodes["Q3"].yaw) == pytest.approx(0.0)
+    assert math.degrees(site.nodes["Q1"].yaw) == pytest.approx(90.0)
 
 
 BODY_CIRCLE_M = 0.083  # 핑키 뒤 모서리 회전 반지름(docs/실측_2026-11-10.md)
+WALL_TURN_M = 0.12     # 고정 경로 꺾는 점과 벽 사이(물리 몸 0.083 + 여유)
+WALL_NAV_M = 0.13      # Nav2 goal로 닿는 자리와 벽 사이(덧댐 붙은 뒤 모서리 0.098 + 칸 0.025)
+FRONT_M, REAR_M = 0.04, 0.0745
 HALF_WIDTH_M = 0.056   # 지나가는 로봇의 반 폭(local footprint)
 
 
@@ -246,7 +267,7 @@ def test_v7_robots_standing_in_line_or_at_a_fork_leave_every_other_way_open(site
 
     from fleet_core.fleet_map.geometry import point_segment_distance
     # G, F: 갈림에서도 차례를 기다리며 선다(3e84ff6 리뷰: G에 선 로봇이 E-3 -> F 선을 0.076으로 막았다)
-    standing = ["W", "O", "Q1", "Q2", "O_Q", "N_E", "N_O", "G", "F"]
+    standing = ["W", "O", "Q1", "Q2", "Q3", "O_Q", "N_E", "N_O", "G"]
     for name in standing:
         here = site.node_pose(name)
         for link in site.links():
