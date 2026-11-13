@@ -1,4 +1,4 @@
-# ---- 막혔을 때 후진 후 다시 주행하는 자기 복구 믹스인 ----
+# ---- 막혔을 때 후진 후 다시 주행하는 자가 복구와 로봇단 교착 처리의 공통 믹스인 ----
 from __future__ import annotations
 
 import math
@@ -13,7 +13,7 @@ from pinky_fsm.results import NAV_ABORTED
 Obstacle = Callable[[list[Point]], bool]
 
 
-# ---- 복구 시도 가능 여부와 후진 시작 ----
+# ---- 복구 시도 가능 여부와 자가 복구 후진 또는 로봇단 교착 처리 시작 ----
 class SelfRecovery:
     def _can_recover(self, pose) -> bool:
         limit = 1 if self.p.local_yield else self.p.recovery_attempts

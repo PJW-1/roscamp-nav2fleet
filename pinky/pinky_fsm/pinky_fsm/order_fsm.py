@@ -169,7 +169,7 @@ class OrderFsm(PinkyFsm):
         return (self._blocked or getattr(g, "blocked", False)
                 or getattr(g, "waiting_since", None) is not None)
 
-    # ---- 지나간 구간 경계 세기와 주문 주기 감시 ----
+    # ---- 지나간 구간 경계 세기와 주문 주기 감시, NavGoal을 지나면 다음 구간으로 ----
     def _count_bounds(self, pose, track: bool = False) -> None:
         g = self._active
         if self._q is None or not isinstance(g, _Move) or g.goal_id != self._key:

@@ -1,4 +1,4 @@
-# ---- Nav2 goal 주행 중 로컬 양보 믹스인 ----
+# ---- Nav2 goal 주행 중 로봇단 교착 처리 믹스인 ----
 from __future__ import annotations
 
 import math

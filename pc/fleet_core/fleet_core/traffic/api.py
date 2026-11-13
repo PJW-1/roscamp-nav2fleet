@@ -20,10 +20,10 @@ class TrafficApi(Protocol):
         """막힘 지점 확인(CheckClear)의 답을 받는다."""
 
     def on_run_mode(self, run_mode) -> None:
-        """운행 모드 RUN/PAUSE/STOP을 받는다."""
+        """운행 모드를 바꾼다. STOP이 되면 열린 goal을 취소한다."""
 
     def on_dispatch(self, goal_id, station_id, robot_id="") -> None:
-        """로봇을 스테이션으로 부르거나 열린 호출을 연다."""
+        """로봇을 스테이션으로 부르거나(실패는 DispatchResult) 채우기 스테이션의 호출을 연다."""
 
     def on_dispatch_cancel(self, goal_id) -> None:
         """배차나 열린 호출을 거둔다."""
@@ -58,15 +58,15 @@ class TrafficApi(Protocol):
                        error_yaw_deg=0.0) -> None:
         """도킹 goal 결과를 받는다."""
 
-    # ---- 운영자의 로봇 치우기와 다시 넣기 ----
+    # ---- 운영자의 로봇 치우기와 다시 투입 ----
     def confirm_clear(self, robot, zone_ids, note="") -> list[str] | None:
-        """운영자가 치운 로봇의 구역을 놓고 놓은 구역을 돌려준다."""
+        """지정 구역을 놓고 로봇을 OUT_OF_SERVICE로 만든다. 거절하면 None, 사유는 clear_reason."""
 
     def reinstate_refusal(self, robot) -> str:
-        """치운 로봇을 다시 넣을 수 없는 이유를 돌려준다."""
+        """치운 로봇을 다시 투입할 수 없는 이유를 돌려준다(없으면 빈 값)."""
 
     def reinstate(self, robot) -> bool:
-        """치운 로봇을 다시 넣는다."""
+        """치운 로봇을 다시 투입한다. 거절되면 False, 받아들이면 다음 위치 보고 때 지도에 올린다."""
 
     # ---- 로봇 목록과 운행 상태 조회 ----
     @property
@@ -86,20 +86,20 @@ class TrafficApi(Protocol):
         """구역 허락 기록."""
 
     def available(self, robot) -> bool:
-        """로봇이 이번 틱에 새 일을 받을 수 있는지."""
+        """로봇이 지도에 올라 있고 고장이나 통신 두절이 아닌지."""
 
     # ---- 틱 진행 ----
     def tick(self) -> list:
         """한 주기 전체를 돌리고 나온 출력을 돌려준다."""
 
     def tick_begin(self, now: float) -> bool:
-        """시작과 통신을 점검한다."""
+        """시작과 통신을 점검하고, 시작에 필요한 로봇이 모두 지도에 올랐는지 돌려준다."""
 
     def tick_progress(self, now: float) -> frozenset[str]:
-        """구역을 놓고 감시를 돌린 뒤 멈출 로봇을 돌려준다."""
+        """막힘 만료와 로봇별 감시, 교착 감시를 돌리고 이번 틱에 진행시키지 않을 로봇을 돌려준다."""
 
     def tick_pick(self, stopped: frozenset[str] = frozenset()) -> None:
-        """열린 호출에 응할 로봇을 정한다."""
+        """stopped를 뺀 로봇 가운데 열린 호출에 응할 로봇을 정한다."""
 
     def step(self, robot) -> None:
         """로봇의 단계를 진행한다."""
@@ -115,4 +115,4 @@ class TrafficApi(Protocol):
         """로봇 하나의 관제 상태를 돌려준다."""
 
     def status_view(self, robot) -> dict:
-        """/fleet/robots에 낼 로봇 상태를 돌려준다."""
+        """/fleet/robots에 낼 로봇 상태 가운데 교통 계층이 채우는 항목을 돌려준다."""

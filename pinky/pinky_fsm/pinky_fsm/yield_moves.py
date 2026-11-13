@@ -1,4 +1,4 @@
-# ---- 경로 주행 중 로컬 양보(대기, 후진, 재시도) 믹스인 ----
+# ---- 경로 주행 중 로봇단 교착 처리(대기, 후진, 재시도) 믹스인 ----
 from __future__ import annotations
 
 from collections.abc import Sequence

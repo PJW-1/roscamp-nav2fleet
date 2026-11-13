@@ -234,7 +234,7 @@ class PinkyFsm(NavGoalMoves, RetreatMoves, LocalYield, NavYield, SelfRecovery, O
             g = None
         if isinstance(g, _Move) and pose is not None:
             g.s = self._track(g, pose)
-        # ---- goal 넘겨받기와 NavGoal 감시 ----
+        # ---- goal 넘겨받기와 NavGoal 감시, 로봇단 교착 처리 ----
         if self._handing_over(g):
             cmds += self._hand_over(now, g, pose, speed)
             if self._handing_over(self._active):

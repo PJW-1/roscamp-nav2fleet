@@ -1,4 +1,4 @@
-# ---- 로컬 양보 판단에 쓰는 상대 로봇과 후진 거리 계산 ----
+# ---- 로봇단 교착 처리에 쓰는 상대 로봇과 후진 거리 계산 ----
 from __future__ import annotations
 
 import math

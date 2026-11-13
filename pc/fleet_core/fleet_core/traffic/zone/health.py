@@ -104,7 +104,7 @@ class Health:
             m.dispatch = None
         return released
 
-    # ---- 치운 로봇 다시 넣기 ----
+    # ---- 치운 로봇 다시 투입 ----
     def reinstate_refusal(self, robot) -> str:
         m = self._robots.get(robot)
         if m is None:

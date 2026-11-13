@@ -46,7 +46,7 @@ class ObstacleWatch:
             if moving_goal and self._blocked and g.blocked_since is None:
                 g.blocked_since = now
             return []
-        # ---- 장애물이 사라진 채 유지되면 막힘 해제 ----
+        # ---- 장애물이 사라진 채 유지되면 막힘 해제와 기다리던 경로 다시 보내기 ----
         if self._clear_since is None:
             self._clear_since = now
         if now - self._clear_since < self.p.block_clear_s:
