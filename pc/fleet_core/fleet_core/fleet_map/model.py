@@ -70,3 +70,4 @@ class Station:
     server: str
     arms: tuple[str, ...]
     action: str
+    line: bool = False  # 대기 자리가 줄이다: 앞자리 먼저, 빈 앞자리로 당기기, 새 로봇은 꼬리로

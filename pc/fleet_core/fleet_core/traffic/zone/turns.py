@@ -18,11 +18,14 @@ class Turns:
                 if self._may_stay(m):
                     return
             elif m.node in station.queue and self._on_node(m):
-                self._stay(m, station)
+                step = self._line_step(m, station)
+                if step is None:
+                    self._stay(m, station)
+                    return
+                yield step, True
                 return
-            for spot in station.queue:
-                if self.grants.node_holder(spot) in ("", m.name):
-                    yield spot, True
+            for spot in self._open_spots(m, station):
+                yield spot, True
             if self._may_stay(m):
                 self._stay(m, station)
                 return
@@ -34,6 +37,23 @@ class Turns:
             return math.inf if links is None else sum(cost(link) for link in links)
         for spot in sorted(free, key=lambda spot: (price(spot), spot)):
             yield spot, False
+
+    # ---- 줄(line) 스테이션: 빈 앞자리로 한 칸 당기기, 새 로봇은 맨 뒤 로봇 바로 뒤로 ----
+    def _line_step(self, m, station):
+        if not station.line:
+            return None
+        at = station.queue.index(m.node)
+        if at == 0 or self.grants.node_holder(station.queue[at - 1]) not in ("", m.name):
+            return None
+        return station.queue[at - 1]
+
+    def _open_spots(self, m, station) -> list:
+        mine = ("", m.name)
+        if not station.line:
+            return [spot for spot in station.queue if self.grants.node_holder(spot) in mine]
+        taken = [i for i, spot in enumerate(station.queue)
+                 if self.grants.node_holder(spot) not in mine]
+        return list(station.queue[max(taken) + 1 if taken else 0:])
 
     # ---- 대기 지점에서 기다리기와 머물 수 있는지 판단 ----
     def _stay(self, m, station) -> None:
@@ -53,12 +73,19 @@ class Turns:
         return all(self._waits_for(other, m) for other in self._ahead(m, station_id))
 
     def _ahead(self, m, station_id: str) -> list:
-        dock = self.site.stations[station_id].dock
+        station = self.site.stations[station_id]
+        dock = station.dock
+
+        def spot(r) -> int:
+            # 줄 스테이션에서는 선 자리 순서(앞이 0), 줄에 안 선 로봇은 그 뒤
+            if station.line and r.node in station.queue:
+                return station.queue.index(r.node)
+            return len(station.queue) if station.line else 0
 
         def rank(r) -> tuple:
             trip = r.trip
             left = trip is not None and trip.turn and not trip.stale and trip.goal == dock
-            return (not (left or r.dock_tries), r.asked_at or 0.0, r.asked_gap, r.name)
+            return (not (left or r.dock_tries), spot(r), r.asked_at or 0.0, r.asked_gap, r.name)
 
         mine = rank(m)
         return [other for other in self._robots.values()

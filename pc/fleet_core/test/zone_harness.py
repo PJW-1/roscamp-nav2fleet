@@ -40,8 +40,8 @@ class Bot:
 
 
 class Harness:
-    def __init__(self, layout="d2", starts=None, params=None, speed=0.12):
-        self.site = load_fleet_map(layout)
+    def __init__(self, layout="d2", starts=None, params=None, speed=0.12, site=None):
+        self.site = site or load_fleet_map(layout)  # site: 시험에서 고친 지도
         self.params = params or load_params()
         self.now = 0.0
         starts = dict(STARTS if starts is None else starts)

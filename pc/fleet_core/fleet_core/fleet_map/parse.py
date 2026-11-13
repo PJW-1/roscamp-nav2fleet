@@ -284,8 +284,11 @@ def read_stations(raw: dict, nodes: dict[str, Node]) -> dict[str, Station]:
                                     "parking node")
         if entry.get("action") not in (FILL, SWAP):
             raise FleetMapError(f"station {name}: action must be fill or swap")
+        line = entry.get("line", False)
+        if not isinstance(line, bool):
+            raise FleetMapError(f"station {name}: line must be true or false")
         stations[str(name)] = Station(str(name), dock, queue, str(entry.get("server", "")),
-                                      tuple(entry.get("arms") or ()), entry["action"])
+                                      tuple(entry.get("arms") or ()), entry["action"], line)
     actions = sorted(station.action for station in stations.values())
     if actions != [FILL, SWAP]:
         raise FleetMapError("the map needs exactly one fill station and one swap station, got "
