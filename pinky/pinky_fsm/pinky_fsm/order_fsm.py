@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from pinky_fsm.core import FsmParams, PinkyFsm, _Move
 from pinky_fsm.geometry import Point, Polyline, Pose
 from pinky_fsm.local_yield import NO_PRIORITY
-from pinky_fsm.nav_goal import MODE_NAV_GOAL, NavGoal
+from pinky_fsm.nav_goal import MODE_FOLLOW_PATH, MODE_NAV_GOAL, NavGoal
 from pinky_fsm.order_queue import MODE_RETREAT, OrderGoal, OrderQueue, Seg, segments_problem
 from pinky_fsm.results import (  # noqa: F401 - 결과 이름은 여기서도 내보낸다
     CANCELED,
@@ -169,7 +169,7 @@ class OrderFsm(PinkyFsm):
         return (self._blocked or getattr(g, "blocked", False)
                 or getattr(g, "waiting_since", None) is not None)
 
-    # ---- 지나간 구간 경계 세기와 주문 주기 감시, NavGoal을 지나면 다음 구간으로 ----
+    # ---- 지나간 구간 경계 세기와 주문 주기 감시, NavGoal 끝 가까이에서 다음 구간으로 ----
     def _count_bounds(self, pose, track: bool = False) -> None:
         g = self._active
         if self._q is None or not isinstance(g, _Move) or g.goal_id != self._key:
@@ -188,11 +188,18 @@ class OrderFsm(PinkyFsm):
         if isinstance(g, _Move) and g.goal_id == self._key:
             self._count_bounds(pose)
         if (isinstance(g, NavGoal) and g.goal_id == self._key and pose is not None
-                and self._q.pending and self._q.pending[0].mode == MODE_NAV_GOAL
-                and math.dist(pose[:2], g.target[:2]) <= self.op.pass_m):
+                and self._q.pending and self._passes(g, pose)):
             self._q.done = self._run[-1].seq_id
             return self._advance(now, pose)
         return []
+
+    def _passes(self, g: NavGoal, pose) -> bool:
+        left = math.dist(pose[:2], g.target[:2])
+        mode = self._q.pending[0].mode
+        if mode == MODE_NAV_GOAL:
+            return left <= self.op.pass_m
+        return mode == MODE_FOLLOW_PATH and left <= min(self.op.pass_m,
+                                                         self.p.connect_tolerance_m)
 
     # ---- 구간 묶음 Finish를 가로채 다음 묶음으로 넘어가기 ----
     def _own(self, cmds: list, now: float, pose) -> list:

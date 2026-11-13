@@ -251,6 +251,36 @@ def test_a_nav_goal_follows_another_without_stopping_at_the_middle_point():
     assert fsm.order_feedback()[0] == 1 and not finishes(cmds)
 
 
+def test_a_nav_goal_hands_over_to_the_next_fixed_line_before_it_stops():
+    """사용자 2026-11-14("order로 미리 경로를 주는데 효과가 낮다"): Nav2 goal 다음 조각이 고정
+    선이면 끝 pass_m 안에서 넘긴다. 끝까지 기어가 방향을 맞추고 결과를 기다리지 않는다."""
+    fsm = ready()
+    nav, fixed = goal_seg(1, 0.8, 0.3), line(2, 0.8, 1.3)
+    [first] = of(order(fsm, "g1", 1.0, [nav, fixed]), SendNavGoal)
+    fsm.heartbeat(3.0)
+    cmds = fsm.tick(3.0, (0.6, 0.3, 0.0), DRIVING, no_obstacle)  # 0.20 m from the end
+    assert not of(cmds, CancelNavGoal) and fsm.order_feedback()[0] == 0
+    fsm.heartbeat(4.0)
+    cmds = fsm.tick(4.0, (0.7, 0.3, 0.0), DRIVING, no_obstacle)  # 0.10 m: hand over
+    assert of(cmds, CancelNavGoal) and not finishes(cmds)
+    assert fsm.order_feedback()[0] == 1 and fsm.current_goal() == "N2"
+    fsm.nav_goal_result(first.seq, "canceled", 4.2, (0.72, 0.3, 0.0))
+    fsm.heartbeat(4.3)
+    [send] = of(fsm.tick(4.3, (0.72, 0.3, 0.0), STILL, no_obstacle), SendPath)
+    assert send.poses[0][:2] == pytest.approx((0.72, 0.3), abs=0.03)
+    assert send.poses[-1][:2] == pytest.approx((1.3, 0.3))
+    assert fsm.is_running("g1")
+
+
+def test_a_nav_goal_keeps_going_when_the_next_fixed_line_starts_too_far_to_join():
+    """고정 선에 이을 수 없는 거리(connect_tolerance_m 밖)에서는 넘기지 않는다."""
+    fsm = ready(connect_tolerance_m=0.05)
+    [first] = of(order(fsm, "g1", 1.0, [goal_seg(1, 0.8, 0.3), line(2, 0.8, 1.3)]), SendNavGoal)
+    fsm.heartbeat(4.0)
+    cmds = fsm.tick(4.0, (0.7, 0.3, 0.0), DRIVING, no_obstacle)
+    assert not of(cmds, CancelNavGoal) and fsm.order_feedback()[0] == 0
+
+
 def test_a_retreat_segment_follows_its_path_backwards_with_the_reverse_controller():
     fsm = ready(pose=(0.8, 0.3, 0.0))
     back = line(1, 0.8, 0.5, ctrl=REVERSE, mode=MODE_RETREAT)
