@@ -6,7 +6,7 @@ from collections.abc import Hashable, Sequence
 
 from pinky_fsm.geometry import Pose
 from pinky_fsm.nav_goal import NavGoal
-from pinky_fsm.results import CANCELED, IDLE, NAV_ABORTED, TIMEOUT, Finish
+from pinky_fsm.results import CANCELED, IDLE, NAV_ABORTED, PATH_NOT_CONNECTED, TIMEOUT, Finish
 
 
 # ---- NavGoal 시작과 주행 중 여부 판단 ----
@@ -46,6 +46,9 @@ class NavGoalMoves:
             if isinstance(g, NavGoal):
                 return self._goals.send(g, now, pose)
             g.handover_since = None
+            if (pose is not None and g.route.project((float(pose[0]), float(pose[1])))[1]
+                    > self.p.connect_tolerance_m):
+                return self._end_active(PATH_NOT_CONNECTED, stop=True)
             return self._send_rest(g, now, pose)
         if now - since >= self.p.retreat_stop_wait_s:
             return self._end_active(TIMEOUT, stop=True)

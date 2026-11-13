@@ -281,6 +281,35 @@ def test_a_nav_goal_keeps_going_when_the_next_fixed_line_starts_too_far_to_join(
     assert not of(cmds, CancelNavGoal) and fsm.order_feedback()[0] == 0
 
 
+def test_a_nav_goal_keeps_going_when_the_next_line_itself_is_out_of_reach():
+    """Codex 검수 2026-11-14 1번: goal 끝에 가까워도 다음 선의 시작이 떨어져 있으면(여기서
+    0.156 m) 미리 넘기지 않는다. 넘기면 goal을 취소한 뒤 PATH_NOT_CONNECTED로 주문이 끝난다."""
+    fsm = ready()
+    off_line = line(2, 0.8, 1.3, y=0.42)
+    [first] = of(order(fsm, "g1", 1.0, [goal_seg(1, 0.8, 0.3), off_line]), SendNavGoal)
+    fsm.heartbeat(4.0)
+    cmds = fsm.tick(4.0, (0.7, 0.3, 0.0), DRIVING, no_obstacle)
+    assert not of(cmds, CancelNavGoal) and not finishes(cmds)
+    assert fsm.order_feedback()[0] == 0 and fsm.is_running("g1")
+
+
+def test_a_robot_that_slid_off_the_line_while_stopping_ends_the_order():
+    """Codex 검수 2026-11-14 2번: 넘긴 뒤 서는 동안 선에서 connect_tolerance_m 밖으로 밀려나면
+    서고 나서 다시 재어 PATH_NOT_CONNECTED로 끝낸다. 어긋난 자리에서 선을 따라가지 않는다."""
+    fsm = ready()
+    [first] = of(order(fsm, "g1", 1.0, [goal_seg(1, 0.8, 0.3), line(2, 0.8, 1.3)]),
+                 SendNavGoal)
+    fsm.heartbeat(4.0)
+    assert of(fsm.tick(4.0, (0.7, 0.3, 0.0), DRIVING, no_obstacle), CancelNavGoal)
+    slid = (0.75, 0.5, 0.0)
+    fsm.nav_goal_result(first.seq, "canceled", 4.2, slid)
+    fsm.heartbeat(4.3)
+    cmds = fsm.tick(4.3, slid, STILL, no_obstacle)
+    assert not of(cmds, SendPath)
+    assert finishes(cmds) == [Finish("g1", False, PATH_NOT_CONNECTED, 1)]
+    assert not fsm.is_running("g1")
+
+
 def test_a_retreat_segment_follows_its_path_backwards_with_the_reverse_controller():
     fsm = ready(pose=(0.8, 0.3, 0.0))
     back = line(1, 0.8, 0.5, ctrl=REVERSE, mode=MODE_RETREAT)

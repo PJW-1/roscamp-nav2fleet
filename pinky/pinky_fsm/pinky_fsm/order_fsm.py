@@ -194,12 +194,15 @@ class OrderFsm(PinkyFsm):
         return []
 
     def _passes(self, g: NavGoal, pose) -> bool:
-        left = math.dist(pose[:2], g.target[:2])
-        mode = self._q.pending[0].mode
-        if mode == MODE_NAV_GOAL:
-            return left <= self.op.pass_m
-        return mode == MODE_FOLLOW_PATH and left <= min(self.op.pass_m,
-                                                         self.p.connect_tolerance_m)
+        if math.dist(pose[:2], g.target[:2]) > self.op.pass_m:
+            return False
+        nxt = self._q.pending[0]
+        if nxt.mode == MODE_NAV_GOAL:
+            return True
+        here = (float(pose[0]), float(pose[1]))
+        return (nxt.mode == MODE_FOLLOW_PATH and bool(nxt.path)
+                and Polyline([(p[0], p[1]) for p in nxt.path]).project(here)[1]
+                <= self.p.connect_tolerance_m)
 
     # ---- 구간 묶음 Finish를 가로채 다음 묶음으로 넘어가기 ----
     def _own(self, cmds: list, now: float, pose) -> list:
