@@ -133,10 +133,8 @@ def test_keepout_is_widened_by_half_the_footprint(site):
 def test_shared_nodes_and_their_footprint_stay_out_of_the_keepout(site):
     """A robot waiting on a shared node, or a Nav2 goal ending there, sits outside the keepout."""
     half = 0.06
-    nav_ends = {end for link in site.links() if link.via == NAV_GOAL for end in (link.a, link.b)}
     for node in site.nodes.values():
-        # 고정 경로로만 드나드는 지점(v7 W_X: WORK_DOCK과 J_E 사이 띠)은 Nav2가 계획하지 않는다
-        if site.zones[node.zone].kind != SHARED or node.id not in nav_ends:
+        if site.zones[node.zone].kind != SHARED:
             continue
         for x0, y0, x1, y1 in arena_maps.keepout_rects(site):
             assert not (x0 - half < node.x < x1 + half and y0 - half < node.y < y1 + half), \

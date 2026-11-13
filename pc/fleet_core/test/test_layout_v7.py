@@ -2,7 +2,7 @@
 import math
 
 import pytest
-from fleet_core.fleet_map import KNOWN_LAYOUTS, LAYOUTS, SHARED, load_fleet_map, route
+from fleet_core.fleet_map import KNOWN_LAYOUTS, LAYOUTS, PASS, SHARED, load_fleet_map, route
 from fleet_core.fleet_map.model import FOLLOW_PATH, NAV_GOAL, RETREAT
 
 # 자유바닥 저장소 sites/arena_v7.yaml의 치수(권위 있는 값)
@@ -73,9 +73,7 @@ def test_v7_standing_nodes_keep_clear_of_other_zones(site):
     """서는 지점(대기, 주차, 갈림)은 다른 구역에서 몸 반경+여유만큼 떨어진다: 선 로봇이 남의 구역을
     쥐지 않는다. 지점끼리는 node_clear_m 이상 떨어진다."""
     for node in site.nodes.values():
-        # W_X(WORK 출구 갈림)만 예외: WORK_DOCK과 J_E 사이 HALL 띠가 0.135뿐이라 두 구역에서 다
-        # 떨어질 자리가 없다. 거기 선 로봇은 WORK_DOCK을 쥔 채라 다음 로봇은 줄(Q1)에서 기다린다
-        if site.zones[node.zone].kind != SHARED or node.id == "W_X":
+        if site.zones[node.zone].kind != SHARED:
             continue
         for zone in site.zones:
             if zone != node.zone:
@@ -168,16 +166,21 @@ def test_v7_routes(site):
     assert [link.b for link in way] == ["W_X", "O"]
     assert all(link.via == FOLLOW_PATH for link in way)
     assert "EXPRESS" in way[-1].zones
-    # WORK에서 나가기(사용자 2026-11-13): W에서 앞으로(북쪽) 곧게 나와 바로 위 HALL의 갈림 W_X에서
-    # 급행을 타거나 넓은 곳(서쪽)으로 간다. 예전의 X_E -> N_E(급행 입구에서 다시 내려오기)는 없다
+    # WORK에서 나가기(사용자 2026-11-13): W에서 앞으로(북쪽) 곧게 나와 바로 위 갈림 W_X에서 급행을
+    # 타거나 넓은 곳(서쪽)으로 간다. 예전의 X_E -> N_E(급행 입구에서 다시 내려오기)는 없다.
+    # W_X는 HALL 띠(0.63~0.765)가 아니라 그 위 J_E 안의 지나가는 점이다(063086b 리뷰): HALL 띠에서는
+    # WORK_DOCK과 J_E 어느 쪽에서도 0.135 떨어질 수 없어 선 로봇이 WORK_DOCK을 쥐었고, 갈림이 PASS가
+    # 아니면 급행이 막혔을 때 넓은 곳으로 물러나지(yard_retreat) 못한다
     exit_ = site.nodes["W_X"]
-    assert exit_.kind == "fork" and exit_.zone == "HALL" and exit_.x == pytest.approx(1.88)
-    assert 0.63 < exit_.y < 0.765, "between WORK_DOCK and J_E"
+    assert exit_.kind == PASS and exit_.zone == "J_E" and exit_.x == pytest.approx(1.88)
+    assert site.distance_to_zone(exit_.x, exit_.y, "WORK_DOCK") >= RELEASE_GAP_M
     assert [(l.b, l.via) for l in site.links() if l.a == "W"] == [("W_X", FOLLOW_PATH)]
     assert sorted((l.b, l.via) for l in site.links() if l.a == "W_X") == [
         ("N_E", FOLLOW_PATH), ("O", FOLLOW_PATH)]
     assert [l.a for l in site.links() if l.b == "W_X"] == ["W"]
     assert "X_E" not in site.nodes
+    from fleet_core.traffic.zone.yard_retreat import yard_retreat
+    assert yard_retreat(site, site.link("W_X", "O")) == ("N_E", "W_X")
     # 급행을 못 타면 갈림에서 넓은 곳을 지나 출고로 갈 길이 있다(N_O -> O)
     def no_express(link):
         return math.inf if "EXPRESS" in link.zones else link.length
