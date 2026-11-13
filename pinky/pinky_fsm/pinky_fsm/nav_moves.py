@@ -1,3 +1,4 @@
+# ---- Nav2 goal(nav_goal 모드) 이동 믹스인 ----
 from __future__ import annotations
 
 import math
@@ -8,6 +9,7 @@ from pinky_fsm.nav_goal import NavGoal
 from pinky_fsm.results import CANCELED, IDLE, NAV_ABORTED, TIMEOUT, Finish
 
 
+# ---- NavGoal 시작과 주행 중 여부 판단 ----
 class NavGoalMoves:
     def _move_nav(self, goal_id: Hashable, now: float, target_id: str, target: Pose,
                   pose: Sequence[float]) -> list:
@@ -31,6 +33,7 @@ class NavGoalMoves:
         stopped = abs(lin) < self.p.stopped_speed_mps and abs(ang) < self.p.stopped_turn_rps
         return stopped and not self._driving(now)
 
+    # ---- 앞 goal이 멈출 때까지 기다렸다 넘겨받기 ----
     @staticmethod
     def _handing_over(g) -> bool:
         if isinstance(g, NavGoal):
@@ -48,6 +51,7 @@ class NavGoalMoves:
             return self._end_active(TIMEOUT, stop=True)
         return []
 
+    # ---- NavGoal 피드백, 취소 수락, 결과 처리 ----
     def nav_goal_feedback(self, seq: int, distance_remaining: float) -> None:
         g = self._active
         if isinstance(g, NavGoal) and g.seq == seq:

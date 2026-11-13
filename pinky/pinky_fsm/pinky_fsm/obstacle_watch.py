@@ -1,3 +1,4 @@
+# ---- 주행 중 장애물로 막힘을 감시하는 믹스인 ----
 from __future__ import annotations
 
 from collections.abc import Sequence
@@ -7,12 +8,14 @@ from pinky_fsm.records import _Move
 from pinky_fsm.recovery import Obstacle
 
 
+# ---- 정지와 장애물로 막힘 판정과 해제 ----
 class ObstacleWatch:
     def _watch_obstacle(self, now, g, pose, speed, obstacle: Obstacle) -> list:
         r = self._recovery
         if r is not None and (r.backup_seq is not None or r.wait_until is not None):
             self._stopped_since = None
             return []
+        # ---- 정지 시작 시각 기록 ----
         lin, ang = speed
         stopped = abs(lin) < self.p.stopped_speed_mps and abs(ang) < self.p.stopped_turn_rps
         moving_goal = isinstance(g, _Move)
@@ -31,6 +34,7 @@ class ObstacleWatch:
             self.p.block_report_s
         if not (self._blocked or waiting or stood):
             return []
+        # ---- 장애물이 보이면 복구 시도 또는 막힘 표시 ----
         points = self._ahead(g, pose) if moving_goal else self._blocked_points
         if obstacle(points):
             self._clear_since = None
@@ -42,6 +46,7 @@ class ObstacleWatch:
             if moving_goal and self._blocked and g.blocked_since is None:
                 g.blocked_since = now
             return []
+        # ---- 장애물이 사라진 채 유지되면 막힘 해제 ----
         if self._clear_since is None:
             self._clear_since = now
         if now - self._clear_since < self.p.block_clear_s:
@@ -54,6 +59,7 @@ class ObstacleWatch:
             return self._send_rest(g, now, pose)
         return []
 
+    # ---- 경로 위 현재 위치와 앞쪽 검사 점 계산 ----
     def _track(self, g: _Move, pose: Sequence[float]) -> float:
         s, _ = g.route.project(pose[:2], s_min=g.s - self.p.track_back_m,
                                s_max=g.s + self.p.track_ahead_m)

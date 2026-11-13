@@ -1,3 +1,4 @@
+# ---- Nav2 NavigateToPose 액션을 보내고 결과를 돌려주는 실행기 ----
 from __future__ import annotations
 
 import threading
@@ -12,6 +13,7 @@ from rclpy.action import ActionClient
 
 from pinky_fsm.geometry import yaw_quaternion
 
+# ---- 액션 상태 이름과 콜백 형식 ----
 _OUTCOME = {GoalStatus.STATUS_SUCCEEDED: "succeeded", GoalStatus.STATUS_ABORTED: "aborted",
             GoalStatus.STATUS_CANCELED: "canceled"}
 _GONE = (CancelGoal.Response.ERROR_GOAL_TERMINATED, CancelGoal.Response.ERROR_UNKNOWN_GOAL_ID)
@@ -21,6 +23,7 @@ OnResult = Callable[[int, str, bool], None]
 OnCancelAccepted = Callable[[int], None]
 
 
+# ---- NavigateToPose 액션 클라이언트 생성 ----
 class NavGoalRunner:
     def __init__(self, node, action_name: str, frame: str, on_feedback: OnFeedback,
                  on_result: OnResult, on_cancel_accepted: OnCancelAccepted,
@@ -36,6 +39,7 @@ class NavGoalRunner:
         self._pending: set[int] = set()
         self._cancel_on_accept: set[int] = set()
 
+    # ---- 목표 자세 goal 보내기와 전체 취소 ----
     def send(self, seq: int, pose) -> bool:
         if not self._client.server_is_ready():
             return False
@@ -66,6 +70,7 @@ class NavGoalRunner:
     def _cancel(self, seq: int, handle) -> None:
         handle.cancel_goal_async().add_done_callback(partial(self._on_cancel, seq))
 
+    # ---- 남은 거리 피드백, 수락 응답, 결과 처리 ----
     def _feedback(self, seq: int, msg) -> None:
         self._on_feedback(seq, float(msg.feedback.distance_remaining))
 
@@ -108,6 +113,7 @@ class NavGoalRunner:
             self._handles.pop(seq, None)
         self._on_result(seq, outcome, False)
 
+    # ---- 취소 응답 처리 ----
     def _on_cancel(self, seq: int, future) -> None:
         try:
             resp = future.result()

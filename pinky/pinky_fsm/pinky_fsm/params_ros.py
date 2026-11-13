@@ -1,8 +1,10 @@
+# ---- ROS 파라미터로 상태 기계 설정값 선언과 읽기 ----
 from __future__ import annotations
 
 from pinky_fsm.order_fsm import OrderParams
 from pinky_fsm.params import FsmParams
 
+# ---- ROS 파라미터 이름 목록 ----
 _FLOAT_PARAMS = (
     "arrival_tolerance_m", "connect_tolerance_m", "refresh_within_m", "refresh_every_s",
     "heartbeat_timeout_s", "stopped_speed_mps", "stopped_turn_rps", "block_report_s",
@@ -19,6 +21,7 @@ _INT_PARAMS = ("recovery_attempts",)
 _ORDER_PARAMS = ("join_m", "pass_m")
 
 
+# ---- 파라미터 선언 후 FsmParams와 OrderParams 만들기 ----
 def declare_fsm_params(node) -> tuple[FsmParams, OrderParams]:
     d = FsmParams()
     declare = node.declare_parameter

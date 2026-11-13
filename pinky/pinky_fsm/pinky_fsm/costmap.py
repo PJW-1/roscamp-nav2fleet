@@ -1,3 +1,4 @@
+# ---- 코스트맵 격자의 비용 조회와 장애물 검사 ----
 from __future__ import annotations
 
 import math
@@ -7,6 +8,7 @@ from dataclasses import dataclass
 INSCRIBED = 99
 
 
+# ---- 코스트맵 격자와 좌표별 비용 조회 ----
 @dataclass(frozen=True)
 class Grid:
     resolution: float
@@ -27,6 +29,7 @@ class Grid:
         return int(self.data[j * self.width + i])
 
 
+# ---- 점 좌표 변환과 장애물 위 점 검사 ----
 def to_frame(points: Sequence[Sequence[float]],
              tf: tuple[float, float, float]) -> list[tuple[float, float]]:
     tx, ty, yaw = tf

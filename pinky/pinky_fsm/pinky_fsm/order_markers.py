@@ -1,3 +1,4 @@
+# ---- 주문 구간을 표시용 선으로 바꾸기 ----
 from __future__ import annotations
 
 import math
@@ -9,6 +10,7 @@ from pinky_fsm.nav_goal import MODE_NAV_GOAL
 from pinky_fsm.order_queue import Seg
 
 
+# ---- 구간별 선 자료형과 주문 선 만들기 ----
 @dataclass(frozen=True)
 class Line:
     seq_id: int
@@ -33,6 +35,7 @@ def order_lines(start: Point | None, base: Sequence[Seg], horizon: Sequence[Seg]
     return out
 
 
+# ---- 선을 점선 조각으로 나누기 ----
 def dashes(points: Sequence[Point], dash_m: float = 0.06,
            gap_m: float = 0.04) -> list[tuple[Point, Point]]:
     if len(points) < 2:

@@ -1,3 +1,4 @@
+# ---- 상태 기계 내부 goal 기록 자료형 ----
 from __future__ import annotations
 
 from collections.abc import Hashable
@@ -6,6 +7,7 @@ from dataclasses import dataclass
 from pinky_fsm.geometry import Polyline, Pose
 
 
+# ---- 경로 이동 goal 기록(_Move) ----
 @dataclass
 class _Move:
     goal_id: Hashable
@@ -27,6 +29,7 @@ class _Move:
     handover_since: float | None = None
 
 
+# ---- 복구 진행 기록과 도킹 goal 기록 ----
 @dataclass
 class _Recovery:
     stuck_s: float

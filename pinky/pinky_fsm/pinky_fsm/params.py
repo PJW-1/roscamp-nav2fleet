@@ -1,3 +1,4 @@
+# ---- 상태 기계 설정값 정의 ----
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -5,6 +6,7 @@ from dataclasses import dataclass
 COMM_LOSS_POLICIES = ("stop", "base_end")
 
 
+# ---- 주행, 막힘, 후진, 복구, 양보 설정 기본값 ----
 @dataclass(frozen=True)
 class FsmParams:
     arrival_tolerance_m: float = 0.15
@@ -54,6 +56,7 @@ class FsmParams:
     local_peer_near_m: float = 0.20
     peers_timeout_s: float = 3.0
 
+    # ---- 통신 끊김 정책 값 검사 ----
     def __post_init__(self):
         if self.comm_loss_policy not in COMM_LOSS_POLICIES:
             raise ValueError(f"comm_loss_policy must be one of {COMM_LOSS_POLICIES}, "

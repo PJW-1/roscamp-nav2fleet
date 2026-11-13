@@ -1,9 +1,11 @@
+# ---- 코스트맵으로 앞 장애물과 CheckClear 답 계산 ----
 from __future__ import annotations
 
 import math
 
 from pinky_fsm.costmap import Grid
 
+# ---- 비용 기준과 답 상수 ----
 LETHAL = 100
 AHEAD_HALF_WIDTH_M = 0.12
 CLEAR, BLOCKED, UNKNOWN = "clear", "blocked", "unknown"
@@ -11,6 +13,7 @@ MAX_AGE_S = 2.0
 TOUCH_M = 1e-6
 
 
+# ---- 반경 안 격자 칸 훑기 ----
 def _cells_near(grid: Grid, x: float, y: float, reach: float):
     c, s = math.cos(grid.origin_yaw), math.sin(grid.origin_yaw)
     dx, dy = x - grid.origin_x, y - grid.origin_y
@@ -26,6 +29,7 @@ def _cells_near(grid: Grid, x: float, y: float, reach: float):
                 yield px, py, int(grid.data[j * grid.width + i])
 
 
+# ---- 진행 방향 앞에서 가장 가까운 장애물 찾기 ----
 def nearest_ahead(grid: Grid, x: float, y: float, yaw: float, look_m: float,
                   half_width_m: float = AHEAD_HALF_WIDTH_M) -> tuple[float, float] | None:
     ux, uy = math.cos(yaw), math.sin(yaw)
@@ -43,6 +47,7 @@ def nearest_ahead(grid: Grid, x: float, y: float, yaw: float, look_m: float,
     return best[1] if best else None
 
 
+# ---- 지점 주변을 clear, blocked, unknown으로 답하기 ----
 def clear_answer(grid: Grid, x: float, y: float, r: float, age_s: float = 0.0) -> str:
     if age_s > MAX_AGE_S or grid.cost_at(x, y) is None:
         return UNKNOWN

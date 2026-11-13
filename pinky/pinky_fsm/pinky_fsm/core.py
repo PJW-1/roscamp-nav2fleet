@@ -1,3 +1,4 @@
+# ---- 핑키 상태 기계 본체 PinkyFsm, ROS 없이 판단만 한다 ----
 from __future__ import annotations
 
 import math
@@ -39,6 +40,7 @@ from pinky_fsm.yield_moves import LocalYield
 from pinky_fsm.yield_nav import NavYield
 
 
+# ---- 믹스인을 묶은 PinkyFsm과 내부 상태 초기화 ----
 class PinkyFsm(NavGoalMoves, RetreatMoves, LocalYield, NavYield, SelfRecovery, ObstacleWatch):
     def __init__(self, params: FsmParams, robot_id: str = ""):
         self.p = params
@@ -69,6 +71,7 @@ class PinkyFsm(NavGoalMoves, RetreatMoves, LocalYield, NavYield, SelfRecovery, O
         self._backup_running = False
         self._backup_unanswered: dict[int, float] = {}
 
+    # ---- 상태, 현재 목표, 남은 거리 조회와 하트비트 기록 ----
     def state(self) -> str:
         if not self._localized:
             return LOCALIZING
@@ -108,6 +111,7 @@ class PinkyFsm(NavGoalMoves, RetreatMoves, LocalYield, NavYield, SelfRecovery, O
     def heartbeat(self, now: float) -> None:
         self._alive = max(self._alive, now)
 
+    # ---- 경로 이동 요청: 경로 연결 검사 후 _Move 시작 ----
     def move(self, goal_id: Hashable, now: float, target_id: str, target: Pose,
              path: Sequence[Point], pose: Sequence[float] | None,
              final_goal: bool = True, mode: str = "", priority: int = NO_PRIORITY) -> list:
@@ -141,6 +145,7 @@ class PinkyFsm(NavGoalMoves, RetreatMoves, LocalYield, NavYield, SelfRecovery, O
             return cmds
         return cmds + self._send_rest(g, now, pose)
 
+    # ---- 도킹과 취소 요청 처리 ----
     def dock(self, goal_id: Hashable, now: float, dock_id: str) -> list:
         self._alive = max(self._alive, now)
         cmds = self._end_active(CANCELED, stop=True)
@@ -151,6 +156,7 @@ class PinkyFsm(NavGoalMoves, RetreatMoves, LocalYield, NavYield, SelfRecovery, O
             return []
         return self._end_active(CANCELED, stop=True)
 
+    # ---- FollowPath 결과 처리: 도착, 재전송, 복구, 대기, 실패 ----
     def nav_result(self, seq: int, outcome: str, now: float, pose: Sequence[float] | None,
                    obstacle: Obstacle, error_code: int = 0) -> list:
         self._nav_live.pop(seq, None)
@@ -190,6 +196,7 @@ class PinkyFsm(NavGoalMoves, RetreatMoves, LocalYield, NavYield, SelfRecovery, O
             return []
         return self._end_active(NAV_ABORTED, stop=True)
 
+    # ---- 후진(BackUp) 결과 처리 ----
     def backup_result(self, seq: int, outcome: str, now: float,
                       pose: Sequence[float] | None, error_code: int = 0) -> list:
         self._backup_unanswered.pop(seq, None)
@@ -208,8 +215,10 @@ class PinkyFsm(NavGoalMoves, RetreatMoves, LocalYield, NavYield, SelfRecovery, O
         self._backup_running = False
         return self._follow_again(g, r, now, pose)
 
+    # ---- 주기 처리(tick) ----
     def tick(self, now: float, pose: Sequence[float] | None, speed: tuple[float, float],
              obstacle: Obstacle) -> list:
+        # ---- 위치 갱신과 하트비트 끊김, 위치 상실 처리 ----
         self._localized = pose is not None
         self._lost_contact = False
         if pose is not None:
@@ -225,6 +234,7 @@ class PinkyFsm(NavGoalMoves, RetreatMoves, LocalYield, NavYield, SelfRecovery, O
             g = None
         if isinstance(g, _Move) and pose is not None:
             g.s = self._track(g, pose)
+        # ---- goal 넘겨받기와 NavGoal 감시 ----
         if self._handing_over(g):
             cmds += self._hand_over(now, g, pose, speed)
             if self._handing_over(self._active):
@@ -234,6 +244,7 @@ class PinkyFsm(NavGoalMoves, RetreatMoves, LocalYield, NavYield, SelfRecovery, O
             self._goals.watch(g, now, pose)
             if self.p.local_yield:
                 cmds += self._watch_nav_yield(now, g, pose, speed)
+        # ---- 물러나기 시작과 시간 초과 확인 ----
         if isinstance(g, _Retreat) and g.seq == 0:
             if self._motion_ended(now, speed):
                 cmds += self._start_retreat(g, now, pose)
@@ -244,6 +255,7 @@ class PinkyFsm(NavGoalMoves, RetreatMoves, LocalYield, NavYield, SelfRecovery, O
                 and now - g.since >= g.allowance_s + self.p.backup_result_grace_s):
             cmds += self._end_active(TIMEOUT, stop=True)
             g = None
+        # ---- 복구, 장애물, 막힘 시간 초과 감시와 남은 경로 재전송 ----
         cmds += self._watch_recovery(now, g, pose, obstacle)
         g = self._active
         cmds += self._watch_obstacle(now, g, pose, speed, obstacle)
@@ -258,6 +270,7 @@ class PinkyFsm(NavGoalMoves, RetreatMoves, LocalYield, NavYield, SelfRecovery, O
             cmds += self._send_rest(g, now, pose)
         return cmds + self._limit_speed()
 
+    # ---- 하트비트 끊김 판정과 속도 제한 명령 만들기 ----
     def _heartbeat_lost(self, now: float) -> bool:
         return self.p.heartbeat_timeout_s > 0 and now - self._alive >= self.p.heartbeat_timeout_s
 
@@ -280,6 +293,7 @@ class PinkyFsm(NavGoalMoves, RetreatMoves, LocalYield, NavYield, SelfRecovery, O
         self._speed_limit = limit
         return [LimitSpeed(limit)]
 
+    # ---- 남은 경로를 이어 SendPath 보내기 ----
     def _send_rest(self, g: _Move, now: float, pose: Sequence[float] | None = None) -> list:
         if pose is not None:
             g.s = self._track(g, pose)
@@ -295,6 +309,7 @@ class PinkyFsm(NavGoalMoves, RetreatMoves, LocalYield, NavYield, SelfRecovery, O
         poses = poses_along(rest, g.target[2], self.p.path_step_m)
         return [SendPath(g.seq, poses, final_goal=g.final_goal)]
 
+    # ---- 현재 goal 종료와 주행, 후진 취소 ----
     def _end_active(self, reason: str, stop: bool) -> list:
         g = self._active
         cmds: list = []

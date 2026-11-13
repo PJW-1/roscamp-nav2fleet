@@ -1,3 +1,4 @@
+# ---- Nav2 FollowPath 액션으로 경로를 보내고 결과를 돌려주는 실행기 ----
 from __future__ import annotations
 
 import threading
@@ -13,6 +14,7 @@ from rclpy.action import ActionClient
 
 from pinky_fsm.geometry import yaw_quaternion
 
+# ---- 액션 상태 이름과 콜백 형식 ----
 _OUTCOME = {GoalStatus.STATUS_SUCCEEDED: "succeeded", GoalStatus.STATUS_ABORTED: "aborted",
             GoalStatus.STATUS_CANCELED: "canceled"}
 _GONE = (CancelGoal.Response.ERROR_GOAL_TERMINATED, CancelGoal.Response.ERROR_UNKNOWN_GOAL_ID)
@@ -22,6 +24,7 @@ OnResult = Callable[[int, str, int, bool], None]
 OnCancelAccepted = Callable[[int], None]
 
 
+# ---- FollowPath 액션 클라이언트 생성 ----
 class FollowPathRunner:
     def __init__(self, node, action_name: str, frame: str, nav_ids: tuple[str, str, str],
                  through_id: str, reverse_id: tuple[str, str], on_rejected: OnRejected,
@@ -41,6 +44,7 @@ class FollowPathRunner:
         self._pending: set[int] = set()
         self._cancel_on_accept: set[int] = set()
 
+    # ---- Path 메시지를 만들고 컨트롤러를 골라 goal 보내기 ----
     def send(self, seq: int, poses, final_goal: bool, reverse: bool) -> bool:
         if not self._client.server_is_ready():
             return False
@@ -65,6 +69,7 @@ class FollowPathRunner:
         self._client.send_goal_async(goal).add_done_callback(partial(self._on_response, seq))
         return True
 
+    # ---- goal 취소와 취소 응답 처리 ----
     def cancel_all(self) -> None:
         with self._lock:
             handles = list(self._handles.items())
@@ -92,6 +97,7 @@ class FollowPathRunner:
             self._handles.pop(seq, None)
         self._on_cancel_accepted(seq)
 
+    # ---- goal 수락 응답 처리 ----
     def _on_response(self, seq: int, future) -> None:
         try:
             handle = future.result()
@@ -112,6 +118,7 @@ class FollowPathRunner:
             self._cancel(seq, handle)
         handle.get_result_async().add_done_callback(partial(self._on_done, seq))
 
+    # ---- goal 결과 처리 ----
     def _on_done(self, seq: int, future) -> None:
         try:
             res = future.result()

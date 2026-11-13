@@ -1,3 +1,4 @@
+# ---- contract.yaml에서 토픽 이름과 QoS 읽기 ----
 from __future__ import annotations
 
 from pathlib import Path
@@ -6,6 +7,7 @@ from typing import NamedTuple
 import yaml
 
 
+# ---- QoS 설정과 계약 항목 조회 ----
 class Qos(NamedTuple):
     reliability: str
     durability: str
@@ -28,6 +30,7 @@ class Contract:
         return self._profiles[self._entries[key]["qos"]]
 
 
+# ---- 계약 파일 불러오기와 ROS QoSProfile 변환 ----
 def load_contract(path: str | Path) -> Contract:
     with open(path, encoding="utf-8") as f:
         return Contract(yaml.safe_load(f))

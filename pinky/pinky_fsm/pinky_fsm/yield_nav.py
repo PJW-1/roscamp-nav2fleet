@@ -1,3 +1,4 @@
+# ---- Nav2 goal 주행 중 로컬 양보 믹스인 ----
 from __future__ import annotations
 
 import math
@@ -8,15 +9,18 @@ from pinky_fsm.local_yield import extend_trail, straight_back_m
 from pinky_fsm.nav_goal import NavGoal
 from pinky_fsm.records import _Recovery
 
+# ---- 궤적 기록 간격과 후진 대기 표시 상수 ----
 TRAIL_STEP_M = 0.02
 TRAIL_KEEP_M = 0.5
 PENDING = 0
 
 
+# ---- NavGoal 정체 감시와 양보 단계 진행 ----
 class NavYield:
     def _watch_nav_yield(self, now: float, g: NavGoal, pose, speed) -> list:
         if pose is None or g.seq == 0:
             return []
+        # ---- 궤적 기록과 정체 시 양보 시작 ----
         r = self._recovery
         if r is None or r.backup_seq is None:
             g.driven += extend_trail(g.trail, pose, TRAIL_STEP_M, TRAIL_KEEP_M)
@@ -30,6 +34,7 @@ class NavYield:
                     stuck_s=math.dist(pose[:2], g.target[:2]), local=True,
                     wait_until=now + self.p.local_wait_s, stood_since=g.anchor_at)
             return []
+        # ---- 오래 막히면 포기, 대기 단계에서 진행 확인 후 후진 준비 ----
         if not r.local:
             return []
         if now - r.stood_since >= self.p.blocked_after_s:
@@ -46,6 +51,7 @@ class NavYield:
                 return self._nav_yield_blocked(g, now, pose)
             r.backup_seq, r.backup_since, r.backup_m = PENDING, now, d
             return self._goals.stop()
+        # ---- 후진 단계: 멈춤 뒤 후진, 시간 초과 처리 ----
         if r.backup_seq == PENDING:
             if self._motion_ended(now, speed):
                 return self._nav_backup(r, now)
@@ -58,6 +64,7 @@ class NavYield:
                 return []
             self._backup_running = False
             return [CancelBackUp()] + self._nav_follow_again(g, r, now, pose)
+        # ---- 재주행 단계: 통과 확인과 다시 막힘 판정 ----
         if math.dist(pose[:2], g.target[:2]) <= r.stuck_s - self.p.recovery_pass_m:
             self._recovery = None
             return []
@@ -66,6 +73,7 @@ class NavYield:
             return self._nav_yield_blocked(g, now, pose)
         return []
 
+    # ---- 앞쪽 검사 선과 후진 거리 계산 ----
     def _ray(self, pose: Sequence[float]) -> list:
         n = max(1, math.ceil(self.p.block_lookahead_m / 0.05))
         c, s = math.cos(pose[2]), math.sin(pose[2])
@@ -78,6 +86,7 @@ class NavYield:
                                    self.p.backup_lateral_limit_m)
         return max(0.0, min(straight, g.driven - keep))
 
+    # ---- 후진 보내기와 끝난 뒤 goal 다시 보내기 ----
     def _nav_backup(self, r: _Recovery, now: float) -> list:
         self._bseq += 1
         r.backup_seq, r.backup_since = self._bseq, now
@@ -95,6 +104,7 @@ class NavYield:
         self._backup_running = False
         return self._nav_follow_again(g, self._recovery, now, pose)
 
+    # ---- 양보 포기하고 막힘 표시 ----
     def _nav_yield_blocked(self, g: NavGoal, now: float, pose) -> list:
         r, cmds = self._recovery, []
         if r.backup_seq is not None:

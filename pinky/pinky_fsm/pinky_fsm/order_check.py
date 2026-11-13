@@ -1,3 +1,4 @@
+# ---- 주문 구간이 지도 밖이나 keepout에 걸리는지 검사 ----
 from __future__ import annotations
 
 from pinky_fsm.costmap import Grid
@@ -9,6 +10,7 @@ KEEPOUT_COST = 100
 SAMPLE_M = 0.05
 
 
+# ---- 구간 점을 뽑아 지도와 keepout 비용 확인 ----
 def segment_problem(seg: Seg, map_grid: Grid | None, keepout: Grid | None) -> str:
     if seg.mode == MODE_NAV_GOAL:
         points = [seg.target[:2]] if seg.target is not None else []

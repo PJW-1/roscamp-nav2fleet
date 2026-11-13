@@ -1,3 +1,4 @@
+# ---- 핑키 상태 기계 ROS 노드 ----
 from __future__ import annotations
 
 import math
@@ -44,13 +45,16 @@ from pinky_fsm.order_ros import OrderMaps, OrderMarkers
 from pinky_fsm.params_ros import declare_fsm_params
 from pinky_fsm.server_ros import GoalServers
 
+# ---- 배터리 미상 값과 마커 발행 주기 ----
 UNKNOWN_BATTERY = -1.0
 MARKER_PERIOD_S = 0.5
 
 
+# ---- 핑키 상태 기계 노드 PinkyFsmNode ----
 class PinkyFsmNode(Node):
     def __init__(self, **kwargs):
         super().__init__("pinky_fsm", **kwargs)
+        # ---- 노드 파라미터 선언 ----
         declare = self.declare_parameter
         declare("robot_id", self.get_namespace().strip("/") or "pinky1")
         declare("contract_file", "")
@@ -78,6 +82,7 @@ class PinkyFsmNode(Node):
         declare("keepout_mask_topic", "keepout_filter_mask")
         declare("order_markers_topic", "order_markers")
         fsm_params, order_params = declare_fsm_params(self)
+        # ---- 파라미터 읽기와 상태 기계, 주문 지도, 마커 만들기 ----
         get = self.get_parameter
         self.robot_id = get("robot_id").value
         self._map_frame = get("map_frame").value
@@ -99,6 +104,7 @@ class PinkyFsmNode(Node):
         self._last_state = ("", "")
         contract = load_contract(get("contract_file").value or default_contract_path())
 
+        # ---- 공유 상태 초기화 ----
         self._lock = threading.RLock()
         self._alive = True
         self._late: list[tuple[int, str]] = []
@@ -108,6 +114,7 @@ class PinkyFsmNode(Node):
         self._costmap: tuple[Grid, str, float] | None = None
         self._battery = UNKNOWN_BATTERY
 
+        # ---- TF, 발행자, 구독자 만들기 ----
         self._tf = Buffer()
         self._tf_listener = TransformListener(self._tf, self)
         self._speed_pub = self.create_publisher(SpeedLimit, get("speed_limit_topic").value, 10)
@@ -126,6 +133,7 @@ class PinkyFsmNode(Node):
         if get("battery_topic").value:
             self.create_subscription(BatteryState, get("battery_topic").value,
                                      self._on_battery, qos_profile_sensor_data)
+        # ---- Nav2 액션 실행기, 서비스, 액션 서버 만들기 ----
         self._follow = FollowPathRunner(
             self, get("follow_path_action").value, self._map_frame, self._nav_ids,
             self._through_id, self._reverse_id, self._on_follow_rejected,
@@ -141,6 +149,7 @@ class PinkyFsmNode(Node):
                             self._on_check_clear, callback_group=group)
         self._servers = GoalServers(self, contract, self.robot_id, group, self._lock, self._fsm,
                                     self._pose, self._run, lambda: self._alive)
+        # ---- 제어, 상태, 마커 타이머 시작 ----
         steady = Clock(clock_type=ClockType.STEADY_TIME)
         self.create_timer(1.0 / float(get("control_rate_hz").value), self._tick,
                           callback_group=group, clock=steady)
@@ -150,6 +159,7 @@ class PinkyFsmNode(Node):
                           clock=steady)
         self.get_logger().info(f"pinky_fsm for {self.robot_id} ready")
 
+    # ---- 노드 정지와 정리 ----
     def stop(self) -> None:
         with self._lock:
             self._alive = False
@@ -165,6 +175,7 @@ class PinkyFsmNode(Node):
         self._goals.destroy()
         return super().destroy_node()
 
+    # ---- 하트비트, 상대 로봇, 속도, 코스트맵, 배터리 구독 콜백 ----
     def _on_heartbeat(self, _msg) -> None:
         with self._lock:
             self._fsm.heartbeat(time.monotonic())
@@ -190,6 +201,7 @@ class PinkyFsmNode(Node):
         if not math.isnan(msg.percentage):
             self._battery = float(msg.percentage) * 100.0
 
+    # ---- TF로 로봇 위치와 코스트맵 변환 얻기 ----
     def _pose(self):
         try:
             tf = self._tf.lookup_transform(self._map_frame, self._base_frame, Time())
@@ -211,6 +223,7 @@ class PinkyFsmNode(Node):
         q, p = tf.transform.rotation, tf.transform.translation
         return (p.x, p.y, quaternion_yaw(q.x, q.y, q.z, q.w))
 
+    # ---- 앞 장애물 위치 찾기와 CheckClear 서비스 응답 ----
     def _obstacle_ahead(self, pose):
         costmap = self._costmap
         if costmap is None or pose is None:
@@ -239,6 +252,7 @@ class PinkyFsmNode(Node):
                                                age_s=time.monotonic() - at)
         return response
 
+    # ---- 경로 점에 장애물이 있는지 검사 ----
     def _obstacle(self, points) -> bool:
         costmap = self._costmap
         if costmap is None or not points:
@@ -253,6 +267,7 @@ class PinkyFsmNode(Node):
             points = to_frame(points, (p.x, p.y, quaternion_yaw(q.x, q.y, q.z, q.w)))
         return obstacle_on(grid, points)
 
+    # ---- 상태 기계 명령을 액션, 서비스, 토픽으로 실행 ----
     def _run(self, cmds) -> None:
         for cmd in cmds:
             if isinstance(cmd, SendPath):
@@ -294,6 +309,7 @@ class PinkyFsmNode(Node):
             return
         self._clear.call_async(ClearEntireCostmap.Request())
 
+    # ---- 후진, NavigateToPose, FollowPath 결과 콜백 ----
     def _on_backup_result(self, seq: int, outcome: str, error_code: int,
                           travelled: float) -> None:
         reason = reason_of(outcome, error_code)
@@ -337,6 +353,7 @@ class PinkyFsmNode(Node):
         with self._lock:
             self._run(self._fsm.nav_cancel_accepted(seq, time.monotonic()))
 
+    # ---- 제어 주기: 미뤄 둔 결과 처리 후 tick ----
     def _tick(self) -> None:
         with self._lock:
             if not self._alive:
@@ -356,6 +373,7 @@ class PinkyFsmNode(Node):
             self._run(self._fsm.tick(now, here, self._speed, self._obstacle))
             self._log_state()
 
+    # ---- 복구 상태 변화 로그 ----
     def _log_state(self) -> None:
         state = self._fsm.state()
         step = self._fsm.local_yield_step()
@@ -365,6 +383,7 @@ class PinkyFsmNode(Node):
                                    f"{self._fsm.recovery_attempts_used})")
         self._last_state = (state, step)
 
+    # ---- 주문 경로 마커와 RobotState 발행 ----
     def _publish_markers(self) -> None:
         with self._lock:
             self._fsm.recheck_horizon()
@@ -393,6 +412,7 @@ class PinkyFsmNode(Node):
         self._state_pub.publish(msg)
 
 
+# ---- 노드 실행 진입점 ----
 def main(args=None):
     rclpy.init(args=args)
     node = PinkyFsmNode()

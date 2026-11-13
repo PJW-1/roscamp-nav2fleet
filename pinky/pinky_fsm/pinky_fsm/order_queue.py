@@ -1,3 +1,4 @@
+# ---- 주문 구간 자료형과 구간 대기열 ----
 from __future__ import annotations
 
 import math
@@ -7,6 +8,7 @@ from dataclasses import dataclass
 from pinky_fsm.geometry import Pose
 from pinky_fsm.nav_goal import MODE_FOLLOW_PATH, MODE_NAV_GOAL
 
+# ---- 구간 모드 상수와 구간, 주문 자료형 ----
 MODE_RETREAT = "retreat"
 SEG_MODES = (MODE_FOLLOW_PATH, MODE_NAV_GOAL, MODE_RETREAT)
 __all__ = ["MODE_FOLLOW_PATH", "MODE_NAV_GOAL", "MODE_RETREAT", "OrderGoal", "OrderQueue", "Seg"]
@@ -32,6 +34,7 @@ class OrderGoal:
     horizon: tuple[Seg, ...] = ()
 
 
+# ---- 구간 순서와 모드 검사, 합칠 수 있는지 판정 ----
 def segments_problem(segs: Sequence[Seg]) -> str:
     for a, b in zip(segs, segs[1:], strict=False):
         if b.seq_id != a.seq_id + 1:
@@ -51,6 +54,7 @@ def mergeable(a: Seg, b: Seg, join_m: float) -> bool:
             and math.dist(a.path[-1][:2], b.path[0][:2]) <= join_m)
 
 
+# ---- 주문 대기열과 갱신 이어 붙이기 검사 ----
 class OrderQueue:
     def __init__(self, goal: OrderGoal):
         self.order_id = goal.order_id
@@ -83,6 +87,7 @@ class OrderQueue:
             self.last_seq, self.last_node = u.base[-1].seq_id, u.base[-1].end_node_id
         return ""
 
+    # ---- 다음 구간 묶음 꺼내기 ----
     def take_run(self, join_m: float) -> list[Seg]:
         run = [self.pending.pop(0)]
         return run + self.take_merge(run[-1], join_m)

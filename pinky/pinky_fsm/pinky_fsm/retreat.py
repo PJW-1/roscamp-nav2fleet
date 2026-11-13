@@ -1,3 +1,4 @@
+# ---- 물러나기(Retreat) 동작 믹스인 ----
 from __future__ import annotations
 
 import math
@@ -10,6 +11,7 @@ from pinky_fsm.geometry import Polyline, poses_backing, rounded_rest
 from pinky_fsm.recovery import Obstacle
 from pinky_fsm.results import CANCELED, TIMEOUT, Finish
 
+# ---- 물러나기 결과 사유와 물러나기 기록 자료형 ----
 RETREAT_REASONS = (OBSTACLE_BEHIND, TIMEOUT, CANCELED, FAILED)
 
 
@@ -24,6 +26,7 @@ class _Retreat:
     route: Polyline | None = None
 
 
+# ---- 물러나기 요청 검사와 시작 ----
 class RetreatMoves:
     def retreat(self, goal_id: Hashable, now: float, distance_m: float,
                 speed_mps: float, path: Sequence[Sequence[float]] = (),
@@ -48,6 +51,7 @@ class RetreatMoves:
         self._active = _Retreat(goal_id, 0, now, 0.0, float(distance_m), float(speed_mps), route)
         return cmds + self._start_retreat(self._active, now, pose)
 
+    # ---- BackUp 후진 또는 지나온 길 거꾸로 물러나기 시작 ----
     def _start_retreat(self, g: _Retreat, now: float, pose: Sequence[float] | None) -> list:
         if g.route is not None:
             return self._start_reverse_path(g, now, pose)
@@ -75,6 +79,7 @@ class RetreatMoves:
     def _too_short(self, route: Polyline, pose: Sequence[float]) -> bool:
         return route.length - route.project(pose[:2])[0] < self.p.backup_min_m
 
+    # ---- FollowPath 취소 수락, 결과 유실, 진행 중 goal 정리 ----
     def nav_cancel_accepted(self, seq: int, now: float) -> list:
         if self._nav_live.get(seq) == math.inf:
             self._nav_live[seq] = now + self.p.nav_result_grace_s

@@ -1,3 +1,4 @@
+# ---- Nav2 BackUp 액션을 보내고 결과를 돌려주는 실행기 ----
 from __future__ import annotations
 
 import threading
@@ -10,12 +11,14 @@ from geometry_msgs.msg import Point
 from nav2_msgs.action import BackUp as BackUpAction
 from rclpy.action import ActionClient
 
+# ---- 액션 상태 이름과 결과 콜백 형식 ----
 _OUTCOME = {GoalStatus.STATUS_SUCCEEDED: "succeeded", GoalStatus.STATUS_ABORTED: "aborted",
             GoalStatus.STATUS_CANCELED: "canceled"}
 
 OnResult = Callable[[int, str, int, float], None]
 
 
+# ---- BackUp 액션 클라이언트 생성, goal 전송, 전체 취소 ----
 class BackUpRunner:
     def __init__(self, node, action_name: str, on_result: OnResult, callback_group=None):
         self._client = ActionClient(node, BackUpAction, action_name,
@@ -52,6 +55,7 @@ class BackUpRunner:
     def destroy(self) -> None:
         self._client.destroy()
 
+    # ---- 이동 거리 피드백, 수락 응답, 결과 처리 ----
     def _feedback(self, seq: int, msg) -> None:
         with self._lock:
             self._travelled[seq] = float(msg.feedback.distance_traveled)

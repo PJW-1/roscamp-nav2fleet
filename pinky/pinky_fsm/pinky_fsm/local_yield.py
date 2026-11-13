@@ -1,3 +1,4 @@
+# ---- 로컬 양보 판단에 쓰는 상대 로봇과 후진 거리 계산 ----
 from __future__ import annotations
 
 import math
@@ -6,6 +7,7 @@ from dataclasses import dataclass
 
 from pinky_fsm.geometry import Point
 
+# ---- 우선순위와 양보 단계 상수, 상대 로봇(Peer) 자료형 ----
 NO_PRIORITY = -1
 WAIT, BACKUP, RETRY = "wait", "backup", "retry"
 
@@ -18,6 +20,7 @@ class Peer:
     priority: int = NO_PRIORITY
 
 
+# ---- 앞을 막는 상대 로봇 찾기와 양보 여부 판정 ----
 def peers_from(rows) -> list[Peer]:
     return [Peer(str(r.robot_id), float(r.x), float(r.y),
                  int(getattr(r, "priority", NO_PRIORITY))) for r in rows]
@@ -40,6 +43,7 @@ def yields_to(me: str, my_priority: int, peer: Peer) -> bool:
     return my_priority < peer.priority
 
 
+# ---- 지나온 궤적으로 곧게 후진할 거리 계산과 궤적 기록 ----
 def straight_back_m(trail: Sequence[Point], pose: Sequence[float], max_m: float,
                     lateral_m: float) -> float:
     ux, uy = math.cos(pose[2]), math.sin(pose[2])

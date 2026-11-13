@@ -1,3 +1,4 @@
+# ---- 막혔을 때 후진 후 다시 주행하는 자기 복구 믹스인 ----
 from __future__ import annotations
 
 import math
@@ -12,6 +13,7 @@ from pinky_fsm.results import NAV_ABORTED
 Obstacle = Callable[[list[Point]], bool]
 
 
+# ---- 복구 시도 가능 여부와 후진 시작 ----
 class SelfRecovery:
     def _can_recover(self, pose) -> bool:
         limit = 1 if self.p.local_yield else self.p.recovery_attempts
@@ -42,6 +44,7 @@ class SelfRecovery:
         return cmds + [BackUp(self._bseq, d, self.p.backup_speed_mps,
                               self.p.backup_time_allowance_s)]
 
+    # ---- 옆 이탈을 넘지 않는 후진 거리 계산과 다시 주행 ----
     def _backup_distance(self, g: _Move, pose: Sequence[float]) -> float:
         d = backup_distance(g.s - g.route.vertex_before(g.s), self.p.backup_max_m,
                             self.p.release_distance_m + self.p.backup_margin_m)
@@ -57,6 +60,7 @@ class SelfRecovery:
         self._stopped_since = None
         return [ClearCostmap()] + self._send_rest(g, now, pose)
 
+    # ---- 복구 진행 감시: 후진 시간 초과, 통과, 재시도, 포기 ----
     def _watch_recovery(self, now: float, g, pose, obstacle: Obstacle) -> list:
         r = self._recovery
         if r is None:

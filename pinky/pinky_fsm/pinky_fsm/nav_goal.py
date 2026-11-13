@@ -1,3 +1,4 @@
+# ---- Nav2 NavigateToPose goal 기록과 진행 감시 ----
 from __future__ import annotations
 
 import math
@@ -6,6 +7,7 @@ from dataclasses import dataclass, field
 
 from pinky_fsm.geometry import Point, Pose
 
+# ---- 주행 모드 상수와 NavGoal 명령, 기록 자료형 ----
 MODE_FOLLOW_PATH = "follow_path"
 MODE_NAV_GOAL = "nav_goal"
 MODES = ("", MODE_FOLLOW_PATH, MODE_NAV_GOAL)
@@ -38,6 +40,7 @@ class NavGoal:
     driven: float = 0.0
 
 
+# ---- NavGoal 전송, 취소, 진행 중 goal 관리 ----
 class NavGoals:
     def __init__(self, blocked_after_s: float, progress_m: float, result_grace_s: float):
         self.blocked_after_s = blocked_after_s
@@ -76,6 +79,7 @@ class NavGoals:
                 del self._live[seq]
         return bool(self._live)
 
+    # ---- 제자리 정체 감시와 남은 거리 계산 ----
     def watch(self, g: NavGoal, now: float, pose: Sequence[float] | None) -> None:
         if pose is None or g.seq == 0:
             return

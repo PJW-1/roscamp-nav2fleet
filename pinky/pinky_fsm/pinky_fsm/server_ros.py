@@ -1,3 +1,4 @@
+# ---- MoveTo, Dock, Retreat 액션 서버 ----
 from __future__ import annotations
 
 import threading
@@ -11,6 +12,7 @@ from rclpy.action import ActionServer, CancelResponse, GoalResponse
 
 from pinky_fsm.order_ros import order_goal
 
+# ---- 피드백 주기, 액션별 결과 형식, goal 대기 슬롯 ----
 FEEDBACK_PERIOD_S = 0.2
 _RESULT = {"move": MoveTo.Result, "dock": Dock.Result, "retreat": Retreat.Result}
 
@@ -24,6 +26,7 @@ class _Slot:
         self.last_done = 0
 
 
+# ---- 액션 서버 세 개 만들기와 goal 종료 알림 ----
 class GoalServers:
     def __init__(self, node, contract, robot_id: str, group, lock, fsm,
                  pose: Callable, run: Callable, alive: Callable[[], bool]):
@@ -58,6 +61,7 @@ class GoalServers:
             handle_accepted_callback=partial(self._accepted, kind=kind),
             callback_group=group)
 
+    # ---- 수락된 goal을 상태 기계에 넘기기 ----
     def _accepted(self, handle, kind: str) -> None:
         key = bytes(handle.goal_id.uuid)
         with self._lock:
@@ -80,6 +84,7 @@ class GoalServers:
             self._run(cmds)
         handle.execute()
 
+    # ---- goal 실행 루프: 취소 전달과 MoveTo 피드백 발행 ----
     def _execute(self, handle, kind: str):
         key = bytes(handle.goal_id.uuid)
         slot = self._slots[key]
@@ -103,6 +108,7 @@ class GoalServers:
                             distance_remaining=float(left), last_done_seq_id=done,
                             waiting_at_base_end=waiting, horizon_warning=warning))
             slot.done.wait(0.02)
+        # ---- goal 상태 정하고 결과 메시지 돌려주기 ----
         with self._lock:
             self._slots.pop(key, None)
         if slot.success:
@@ -121,6 +127,7 @@ class GoalServers:
         return Dock.Result(success=slot.success)
 
 
+# ---- 종료 중 goal 조용히 중단 ----
 def _abort_quietly(handle) -> None:
     try:
         handle.abort()

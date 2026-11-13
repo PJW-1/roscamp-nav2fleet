@@ -1,3 +1,4 @@
+# ---- 주문 메시지 변환, 지도 구독, 주문 경로 마커 발행 ----
 from __future__ import annotations
 
 from geometry_msgs.msg import Point as PointMsg
@@ -12,6 +13,7 @@ from pinky_fsm.order_check import segment_problem
 from pinky_fsm.order_markers import dashes, order_lines
 from pinky_fsm.order_queue import MODE_NAV_GOAL, OrderGoal, Seg
 
+# ---- 마커 QoS, 색, 선 굵기 상수 ----
 LATCHED = QoSProfile(depth=1, reliability=ReliabilityPolicy.RELIABLE,
                      durability=DurabilityPolicy.TRANSIENT_LOCAL)
 BASE_COLOR = ColorRGBA(r=0.1, g=0.8, b=0.2, a=1.0)
@@ -19,6 +21,7 @@ HORIZON_COLOR = ColorRGBA(r=1.0, g=0.6, b=0.0, a=1.0)
 LINE_WIDTH_M = 0.02
 
 
+# ---- ROS 메시지를 구간, 주문, 격자로 바꾸기 ----
 def _yaw(q) -> float:
     return quaternion_yaw(q.x, q.y, q.z, q.w)
 
@@ -46,6 +49,7 @@ def _grid(msg: OccupancyGrid) -> Grid:
                 msg.info.width, msg.info.height, msg.data)
 
 
+# ---- 지도와 keepout 구독, 구간 검사 ----
 class OrderMaps:
     def __init__(self, node, map_topic: str, keepout_topic: str, callback_group=None):
         self.map: Grid | None = None
@@ -66,6 +70,7 @@ class OrderMaps:
         return segment_problem(seg, self.map, self.keepout)
 
 
+# ---- 주문 경로를 RViz 마커로 발행 ----
 class OrderMarkers:
     def __init__(self, node, topic: str, frame: str):
         self._node, self._frame = node, frame

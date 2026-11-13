@@ -1,9 +1,11 @@
+# ---- 경로 점, 자세, 폴리라인 기하 계산 ----
 from __future__ import annotations
 
 import math
 from collections.abc import Sequence
 from itertools import pairwise
 
+# ---- 점과 자세 형식, 기본 상수 ----
 Point = tuple[float, float]
 Pose = tuple[float, float, float]
 
@@ -11,6 +13,7 @@ _SAME_M = 1e-6
 ARC_STEP_M = 0.01
 
 
+# ---- 중복 점 제거와 경로를 따라 자세 만들기 ----
 def _dedup(points: Sequence[Point]) -> list[Point]:
     out: list[Point] = []
     for p in points:
@@ -47,6 +50,7 @@ def poses_backing(points: Sequence[Point], step: float = 0.05) -> list[Pose]:
             for x, y, yaw in poses_along(pts, final, step)]
 
 
+# ---- 모서리를 원호로 둥글게 만들기 ----
 def _corner_arc(a: Point, b: Point, c: Point, room_in: float, room_out: float,
                 radius: float, step: float) -> list[Point]:
     h1 = math.atan2(b[1] - a[1], b[0] - a[0])
@@ -103,6 +107,7 @@ def _straight(a: Point, b: Point, c: Point) -> bool:
     return abs(turn) < 1e-3
 
 
+# ---- 둥근 경로 위 위치 변환과 남은 경로 잇기 ----
 def _on_rounded(corners: Sequence[Corner], s: float) -> float:
     lost = 0.0
     for start, end, cut in corners:
@@ -150,6 +155,7 @@ def joined_rest(route: Polyline, s: float, radius: float, here: Sequence[float] 
     return _dedup([spot, *line.rest(join)]), join, math.dist(spot, line.point_at(join))
 
 
+# ---- 폴리라인 생성과 점 투영 ----
 class Polyline:
     def __init__(self, points: Sequence[Point]):
         self.points = _dedup(points)
@@ -181,6 +187,7 @@ class Polyline:
                 best = (d, s0 + f * seg)
         return best[1], best[0]
 
+    # ---- 거리로 점, 방향, 앞 꼭짓점 찾기 ----
     def point_at(self, s: float) -> Point:
         if s <= 0.0 or len(self.points) == 1:
             return self.points[0]
@@ -209,6 +216,7 @@ class Polyline:
                 best = vs
         return best
 
+    # ---- 남은 구간과 샘플 점 뽑기 ----
     def rest(self, s: float) -> list[Point]:
         if s >= self.length:
             return [self.points[-1]]
@@ -223,6 +231,7 @@ class Polyline:
         return [self.point_at(s0 + (s1 - s0) * i / n) for i in range(n + 1)]
 
 
+# ---- 쿼터니언과 yaw 변환 ----
 def quaternion_yaw(x: float, y: float, z: float, w: float) -> float:
     return math.atan2(2.0 * (w * z + x * y), 1.0 - 2.0 * (y * y + z * z))
 

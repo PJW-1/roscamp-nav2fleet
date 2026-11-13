@@ -1,8 +1,10 @@
+# ---- 후진(BackUp) 명령과 후진 거리, 결과 사유 계산 ----
 from __future__ import annotations
 
 import math
 from dataclasses import dataclass
 
+# ---- 후진 결과 사유와 Nav2 오류 코드 상수 ----
 OBSTACLE_BEHIND = "OBSTACLE_BEHIND"
 TIMEOUT = "TIMEOUT"
 CANCELED = "CANCELED"
@@ -13,6 +15,7 @@ NAV2_COLLISION_AHEAD = 714
 NAV2_NO_VALID_CONTROL = 106
 
 
+# ---- 후진 명령과 후진 취소 명령 ----
 @dataclass(frozen=True)
 class BackUp:
     seq: int
@@ -26,6 +29,7 @@ class CancelBackUp:
     pass
 
 
+# ---- 후진 거리와 옆 이탈 한계 계산 ----
 def backup_distance(travelled_m: float, max_m: float, keep_m: float) -> float:
     return max(0.0, min(max_m, travelled_m - keep_m))
 
@@ -39,6 +43,7 @@ def keep_lateral(distance_m: float, lateral_m: float, heading_err: float, limit_
     return max(0.0, min(distance_m, reach))
 
 
+# ---- Nav2 결과를 후진 결과 사유로 바꾸기 ----
 def reason_of(outcome: str, error_code: int) -> str:
     if outcome == "succeeded":
         return ""

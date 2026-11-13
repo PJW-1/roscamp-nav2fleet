@@ -1,3 +1,4 @@
+# ---- 주문(order) 모델을 더한 상태 기계 OrderFsm ----
 from __future__ import annotations
 
 import math
@@ -21,6 +22,7 @@ from pinky_fsm.results import (  # noqa: F401 - 결과 이름은 여기서도 �
     Finish,
 )
 
+# ---- 주문 설정값과 구간 묶음 키 ----
 THROUGH = "FollowPathThrough"
 HorizonCheck = Callable[[Seg], str]
 
@@ -37,6 +39,7 @@ class _SegKey:
     run_no: int
 
 
+# ---- OrderFsm 초기화와 상태, 피드백, 주문 조회 ----
 class OrderFsm(PinkyFsm):
     def __init__(self, params: FsmParams, order_params: OrderParams | None = None,
                  horizon_check: HorizonCheck | None = None, robot_id: str = ""):
@@ -77,6 +80,7 @@ class OrderFsm(PinkyFsm):
         base = [s for s in self._run if s.seq_id > done] + list(self._q.pending)
         return base, list(self._q.horizon)
 
+    # ---- 이동 요청으로 새 주문 시작과 주문 갱신 이어 붙이기 ----
     def move(self, goal_id: Hashable, now: float, target_id: str, target: Pose,
              path: Sequence[Point], pose: Sequence[float] | None,
              final_goal: bool = True, mode: str = "", order: OrderGoal | None = None,
@@ -111,6 +115,7 @@ class OrderFsm(PinkyFsm):
         more = self._advance(now, pose) if self._waiting else self._extend(now, pose)
         return cmds + self._own(more, now, pose)
 
+    # ---- 도킹, 물러나기, 취소 요청 처리 ----
     def dock(self, goal_id: Hashable, now: float, dock_id: str) -> list:
         return self._close(CANCELED) + self._own(super().dock(goal_id, now, dock_id), now,
                                                  self._pose)
@@ -126,6 +131,7 @@ class OrderFsm(PinkyFsm):
                 self._end_active(CANCELED, stop=True), now, self._pose)
         return self._own(super().cancel(goal_id, now), now, self._pose)
 
+    # ---- Nav2 결과 콜백을 주문 처리로 감싸기 ----
     def nav_result(self, seq, outcome, now, pose, obstacle, error_code=0) -> list:
         return self._own(super().nav_result(seq, outcome, now, pose, obstacle, error_code),
                          now, pose)
@@ -145,6 +151,7 @@ class OrderFsm(PinkyFsm):
     def nav_goal_cancel_accepted(self, seq, now) -> list:
         return self._own(super().nav_goal_cancel_accepted(seq, now), now, self._pose)
 
+    # ---- 주기 처리와 통신 끊김 시 정지 여부 판단 ----
     def tick(self, now, pose, speed, obstacle) -> list:
         if self._heartbeat_lost(now) and self._stops_on_heartbeat_loss():
             self._count_bounds(pose, track=True)
@@ -162,6 +169,7 @@ class OrderFsm(PinkyFsm):
         return (self._blocked or getattr(g, "blocked", False)
                 or getattr(g, "waiting_since", None) is not None)
 
+    # ---- 지나간 구간 경계 세기와 주문 주기 감시 ----
     def _count_bounds(self, pose, track: bool = False) -> None:
         g = self._active
         if self._q is None or not isinstance(g, _Move) or g.goal_id != self._key:
@@ -186,6 +194,7 @@ class OrderFsm(PinkyFsm):
             return self._advance(now, pose)
         return []
 
+    # ---- 구간 묶음 Finish를 가로채 다음 묶음으로 넘어가기 ----
     def _own(self, cmds: list, now: float, pose) -> list:
         out, finished = [], None
         for c in cmds:
@@ -202,6 +211,7 @@ class OrderFsm(PinkyFsm):
         self._q.done = self._run[-1].seq_id
         return out + self._own(self._advance(now, pose), now, pose)
 
+    # ---- 다음 구간 묶음을 꺼내 주행 시작 ----
     def _advance(self, now: float, pose) -> list:
         q = self._q
         self._bounds = []
@@ -238,6 +248,7 @@ class OrderFsm(PinkyFsm):
         return super().move(key, now, last.end_node_id, last.path[-1], points, pose,
                             final_goal=last.controller_id != THROUGH, priority=self._priority)
 
+    # ---- 달리는 경로에 이어지는 구간 덧붙이기 ----
     def _extend(self, now: float, pose) -> list:
         g = self._active
         if not (self._run and isinstance(g, _Move) and g.goal_id == self._key):
@@ -256,6 +267,7 @@ class OrderFsm(PinkyFsm):
             return self._send_rest(g, now, pose)
         return []
 
+    # ---- horizon 검사와 주문 종료 ----
     def recheck_horizon(self) -> None:
         if self._q is not None:
             self._check_horizon()
@@ -280,6 +292,7 @@ class OrderFsm(PinkyFsm):
         return self._end_order(False, reason) if self._q is not None else []
 
 
+# ---- 구간 경로 잇기와 구간 경계 거리 계산 ----
 def _joined(run: Sequence[Seg]) -> list[Point]:
     points = [p[:2] for p in run[0].path]
     for s in run[1:]:
