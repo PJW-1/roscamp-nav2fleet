@@ -51,9 +51,25 @@ class Turns:
         mine = ("", m.name)
         if not station.line:
             return [spot for spot in station.queue if self.grants.node_holder(spot) in mine]
+        # 줄에 선 로봇(이 스테이션으로 가는 로봇)이 쥔 자리만 센다: 줄을 떠나는 로봇의 자리는 꼬리가 아니다
         taken = [i for i, spot in enumerate(station.queue)
-                 if self.grants.node_holder(spot) not in mine]
-        return list(station.queue[max(taken) + 1 if taken else 0:])
+                 if self.grants.node_holder(spot) not in mine
+                 and self._in_line(self.grants.node_holder(spot), station.id)]
+        free = [spot for spot in station.queue if self.grants.node_holder(spot) in mine]
+        return [spot for spot in station.queue[max(taken) + 1 if taken else 0:] if spot in free]
+
+    def _in_line(self, name: str, station_id: str) -> bool:
+        r = self._robots.get(name)
+        return r is not None and r.dest == station_id and r.phase in (TO_WORK, TO_OUTBOUND)
+
+    def _line_spot(self, r, station) -> int:
+        """줄 순서(앞이 0). 한 칸 당기는 로봇은 가는 자리로, 줄에 안 선 로봇은 맨 뒤 다음."""
+        trip = r.trip
+        if trip is not None and not trip.stale and trip.goal in station.queue:
+            return station.queue.index(trip.goal)
+        if r.node in station.queue:
+            return station.queue.index(r.node)
+        return len(station.queue)
 
     # ---- 대기 지점에서 기다리기와 머물 수 있는지 판단 ----
     def _stay(self, m, station) -> None:
@@ -77,10 +93,7 @@ class Turns:
         dock = station.dock
 
         def spot(r) -> int:
-            # 줄 스테이션에서는 선 자리 순서(앞이 0), 줄에 안 선 로봇은 그 뒤
-            if station.line and r.node in station.queue:
-                return station.queue.index(r.node)
-            return len(station.queue) if station.line else 0
+            return self._line_spot(r, station) if station.line else 0
 
         def rank(r) -> tuple:
             trip = r.trip

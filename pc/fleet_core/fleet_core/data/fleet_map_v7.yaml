@@ -67,12 +67,12 @@ nodes:
   N_O: {x: 0.42, y: 0.62, kind: fork}                  # 가운데 통로 서쪽 입구, 출고 진입 시작점
   # WORK 진입점: 동쪽 벽 선 위(W에서 0.24). 대기 자리가 아니라 지나가는 점이다
   F: {x: 1.88, y: 0.255, kind: fork, yaw_deg: 90}
-  # WORK 대기 자리: 남쪽 벽 선 위, W로 가는 길(F -> W) 밖. 대기 자리가 도크로 가는 유일한 길 위에
-  # 있으면(첫 v7의 Q1, Q2) 도크 차례 규칙이 세 대 사이에서 돌았다(머리 없는 판 0/8, 0/10): 앞 차례가
-  # 뒤 차례 로봇이 선 자리를 지나야 하고, 그 뒤 차례 로봇은 칸에서 기다리는 셋째 로봇 뒤였다.
-  # D2의 W_Q처럼 길 밖에 둔다. 한 자리뿐이다: 남쪽 벽 선에 둘째 자리를 두면 남쪽 통로 출구나
-  # F로 가는 선을 막는다. 모자라면 나머지는 충전 칸에서 기다린다
+  # WORK 대기 줄(사용자 결정 2026-11-13: 두 자리, 줄 서기): 남쪽 벽 선 위, Q1이 앞, Q2가 꼬리.
+  # 꼬리 Q2로만 들어오고(G에서) 앞으로만 흐른다: Q2 -> Q1 -> F(고정 경로) -> W. 줄은 W로 가는 길
+  # (G -> F -> W) 밖이다: 대기 자리가 유일한 길 위에 있으면 도크 차례 규칙이 세 대 사이에서 돌았다
+  # (첫 v7, 머리 없는 판 0/8, 0/10). 동쪽 진열대 조각 아래(대기 로봇 위 0.18)로는 지나가는 이음이 없다
   Q1: {x: 1.62, y: 0.10, kind: wait, yaw_deg: 0}
+  Q2: {x: 1.40, y: 0.10, kind: wait, yaw_deg: 0}
   # 가운데 통로에서 F로 내려가는 갈림(빨간 선): N_E에서 F로 곧게 가는 선은 WORK_DOCK keepout을 지난다
   G: {x: 1.66, y: 0.33, kind: fork}
   O_Q: {x: 0.15, y: 0.55, kind: wait, yaw_deg: 90}     # 출고 대기 자리
@@ -95,34 +95,30 @@ paths:  # 고정 경로(FollowPath 선). [x, y]는 꺾는 점
   # 넓은 곳에서 출고로(급행이 막혔을 때)와 출고에서 나오는 후진. 꺾는 점은 OUT_DOCK 안
   out_in: {points: [N_O, [0.40, 0.90], O]}
   out_out: {points: [O, [0.40, 0.90], N_O], reverse: true}
+  q_front: {points: [Q1, F]}                          # 줄 앞에서 진입점으로, 한 방향
   bay_in_1: {points: [E-1, P-1], reverse: true}        # 충전 칸: 후진으로 들어가 북쪽을 보고 선다
   bay_in_2: {points: [E-2, P-2], reverse: true}
   bay_in_3: {points: [E-3, P-3], reverse: true}
   bay_out_1: {points: [P-1, E-1]}                      # 앞으로 곧게 나온다
   bay_out_2: {points: [P-2, E-2]}
   bay_out_3: {points: [P-3, E-3]}
-nav:  # Nav2 goal 이음(HALL 안). 곧은 선이 WORK_DOCK keepout을 지나거나, 오래 서는 자리(도크, 대기,
+nav:  # Nav2 goal 이음(HALL 안). 곧은 선이 keepout이나 진열대를 지나거나, 오래 서는 자리(도크, 대기,
   # 갈림)의 로봇 몸 원(0.083)에 지나가는 로봇 반 폭(0.056)보다 가깝거나, 칸막이 끝에 몸 원 + 0.02보다
-  # 가까운 쌍은 잇지 않는다(test_layout_v7): N_E-F(keepout), O_Q-N_E/G/F(N_O 곁), Q1-E-1/E-2(칸막이 3),
-  # N_O-Q1, N_E-E-2, N_E-E-3(건넘 틈 keepout)
-  - {nodes: [G, F, Q1, E-3]}
-  - {nodes: [N_O, G]}
-  - {nodes: [N_O, F]}
-  - {nodes: [N_O, E-3]}
-  - {nodes: [O_Q, E-1, E-2, E-3]}
+  # 가까운 쌍은 잇지 않는다(test_layout_v7). 남쪽 마당의 동쪽(진열대 아래)은 줄 자리라 가로지르지
+  # 않는다: 서쪽 마당(칸)과 동쪽(G, F, 줄)은 가운데 통로(N_O - N_E)로 오간다
+  - {nodes: [O_Q, E-1, E-2]}
+  - {nodes: [O_Q, E-3]}
+  - {nodes: [E-2, E-3]}
   - {nodes: [N_O, N_E]}
   - {nodes: [N_O, O_Q]}
   - {nodes: [N_O, E-1]}
   - {nodes: [N_O, E-2]}
+  - {nodes: [N_O, E-3]}
   - {nodes: [N_E, G]}
-  - {nodes: [N_E, Q1]}
-  - {nodes: [N_E, E-1]}
-  - {nodes: [G, E-1]}
-  - {nodes: [G, E-2]}
-  - {nodes: [F, E-1]}
-  - {nodes: [F, E-2]}
-  - {nodes: [Q1, O_Q]}
+  - {nodes: [G, F]}
+  - {nodes: [G, Q2]}                                   # 줄 꼬리로 들어오기
+  - {nodes: [Q2, Q1]}                                  # 한 칸 당기기(줄을 떠나는 로봇은 거꾸로)
 stations:
-  WORK: {dock: W, queue: [Q1], server: workcell, arms: [arm1, arm2], action: fill}
+  WORK: {dock: W, queue: [Q1, Q2], line: true, server: workcell, arms: [arm1, arm2], action: fill}
   OUTBOUND: {dock: O, queue: [O_Q], server: arm3, arms: [arm3], action: swap}
 parking: [P-1, P-2, P-3]

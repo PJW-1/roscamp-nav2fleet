@@ -37,12 +37,12 @@ stations:"""
 def line_map(line=True):
     text = load_fleet_map("v7").source_text
     start = text.index("  Q1: {")
-    text = text[:start] + SPOTS + text[text.index("\n", start) + 1:]
+    text = text[:start] + SPOTS + text[text.index("\n", text.index("  Q2: {")) + 1:]
     text = text[:text.index("nav:")] + NAV + text[text.index("\nstations:") + len("\nstations:"):]
-    text = text.replace("  bay_in_1:", "  q_front: {points: [Q1, F]}\n  bay_in_1:")
     key = ", line: true" if line else ""
-    text = text.replace("queue: [Q1], server: workcell",
-                        f"queue: [Q1, Q2, Q3]{key}, server: workcell")
+    old = "queue: [Q1, Q2], line: true, server: workcell"
+    assert old in text
+    text = text.replace(old, f"queue: [Q1, Q2, Q3]{key}, server: workcell")
     return fleet_map_from_text(text)
 
 
@@ -66,8 +66,10 @@ def calls(world, *robots):
 def test_the_line_key_is_read_and_is_off_by_default():
     assert line_map().stations["WORK"].line is True
     assert line_map(line=False).stations["WORK"].line is False
-    for layout in ("d2", "d", "c", "v7"):
+    for layout in ("d2", "d", "c"):
         assert not any(s.line for s in load_fleet_map(layout).stations.values()), layout
+    v7 = load_fleet_map("v7").stations
+    assert v7["WORK"].line and not v7["OUTBOUND"].line  # 사용자 결정: WORK에만
     text = line_map().source_text.replace("line: true", "line: 3")
     with pytest.raises(FleetMapError, match="line"):
         fleet_map_from_text(text)
@@ -130,4 +132,48 @@ def test_a_robot_low_on_battery_leaves_the_line_and_the_rest_still_dock():
     world.traffic.on_release(done)
     assert world.run_until(lambda: world.result_of(second) is not None, 200.0)
     assert {done, world.result_of(second).robot_id} <= {"pinky1", "pinky2"}
+    assert not world.problems
+
+
+def test_a_spot_held_by_a_robot_leaving_the_line_is_not_the_tail():
+    """줄을 떠나는 로봇(이 스테이션으로 가지 않는 로봇)이 아직 쥔 자리는 줄 꼬리로 세지 않는다
+    (40b9767 리뷰): 앞자리가 비었으면 새 로봇은 앞자리로 간다."""
+    world = Harness(site=line_map(), starts={"pinky1": "W", "pinky2": "P-1", "pinky3": "Q3"})
+    world.report()
+    world.call("WORK", "pinky1")
+    world.call("WORK", "pinky2")
+    world.step()  # pinky3은 부르지 않았다: Q3을 쥔 채 주차하러 떠난다
+    traffic = world.traffic
+    station = world.site.stations["WORK"]
+    leaving, new = traffic._robots["pinky3"], traffic._robots["pinky2"]
+    assert traffic.grants.node_holder("Q3") == "pinky3" and leaving.dest != "WORK"
+    assert traffic._open_spots(new, station)[0] == "Q1"
+
+
+def test_a_robot_stepping_forward_ranks_by_the_spot_it_goes_to():
+    """한 칸 당기는 로봇은 마지막으로 선 자리가 아니라 가는 자리로 순위를 받는다(40b9767 리뷰)."""
+    world = Harness(site=line_map(), starts={"pinky1": "W", "pinky2": "Q2", "pinky3": "Q3"})
+    world.report()
+    for robot in ("pinky1", "pinky3", "pinky2"):
+        world.call("WORK", robot)
+    world.step()
+    traffic = world.traffic
+    moving = traffic._robots["pinky2"]
+    assert moving.node == "Q2" and moving.trip is not None and moving.trip.goal == "Q1"
+    assert traffic._line_spot(moving, world.site.stations["WORK"]) == 0
+
+
+def test_v7_two_spots_new_robot_takes_the_tail_and_the_line_docks_in_order():
+    """v7 그대로(Q1, Q2): 줄 앞 Q1에 하나가 서 있으면 새 로봇은 G에서 꼬리 Q2로 들어오고, 도크가
+    비면 Q1, 그다음 Q2 차례로 들어간다(Q2는 Q1으로 한 칸 당긴 뒤 F로)."""
+    world = Harness(layout="v7", starts={"pinky1": "W", "pinky2": "Q1", "pinky3": "P-1"})
+    front, back = calls(world, "pinky2", "pinky3")
+    assert world.run_until(lambda: world.view("pinky3")["node"] == "Q2", 300.0), world.log[-10:]
+    assert "Q1" not in targets(world, "pinky3")
+    world.traffic.on_release("pinky1")
+    assert world.run_until(lambda: world.result_of(front) is not None, 200.0)
+    assert world.result_of(front).robot_id == "pinky2" and world.result_of(back) is None
+    world.traffic.on_release("pinky2")
+    assert world.run_until(lambda: world.result_of(back) is not None, 300.0)
+    assert "Q1" in targets(world, "pinky3"), "steps forward before it docks"
     assert not world.problems

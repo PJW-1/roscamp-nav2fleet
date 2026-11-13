@@ -45,11 +45,17 @@ def test_v7_docks_and_parking(site):
 
 
 def test_v7_work_queue_lies_on_the_wall_l_off_the_way_into_work(site):
-    queue = site.stations["WORK"].queue
-    assert queue
+    station = site.stations["WORK"]
+    queue = station.queue
+    # 사용자 결정(2026-11-13): 대기 자리 둘, 줄 서기(앞자리 먼저, 빈 앞자리로 당기기). 출고는 그대로
+    assert queue == ("Q1", "Q2") and station.line and not site.stations["OUTBOUND"].line
+    assert site.node_pose("Q1") == pytest.approx((1.62, 0.10))
+    assert site.node_pose("Q2") == pytest.approx((1.40, 0.10))
     for spot in queue:
         x, y = site.node_pose(spot)
-        assert y == pytest.approx(0.10) and x >= 1.56, spot  # 남쪽 벽 선 위, 진열대 동쪽
+        # 남쪽 벽 선 위. 예전에는 x >= 1.56(진열대 동쪽)이었으나, 둘째 자리 Q2는 동쪽 진열대 조각
+        # 아래다: 그 아래로는 지나가는 교통을 두지 않는다(test_v7_queue_is_entered_at_the_tail_only)
+        assert y == pytest.approx(0.10) and x >= 1.25, spot
     # WORK에는 진입점 F에서만 곧게 들어간다(고정 경로)
     into_w = [(link.a, link.via) for link in site.links() if link.b == "W"]
     assert into_w == [("F", FOLLOW_PATH)] and "F" not in queue
@@ -165,18 +171,43 @@ def test_v7_routes(site):
     # 출고에서는 후진으로 넓은 곳에 나온다
     assert site.link("O", "N_O").via == RETREAT
     # 마당 지점끼리는 Nav2 goal로 오가고 HALL만 잡는다(사용자 결정: 잠그는 구역은 급행 띠와 도크만)
-    yard = ["N_O", "N_E", "G", "F", "Q1", "O_Q", "E-1", "E-2", "E-3"]
+    yard = ["N_O", "N_E", "G", "F", "Q1", "Q2", "O_Q", "E-1", "E-2", "E-3"]
     for a in yard:
         for b in yard:
             link = site.link(a, b)
-            if link is not None:
+            if link is not None and (a, b) != ("Q1", "F"):
                 assert link.via == NAV_GOAL and link.zones == ("HALL",), (a, b, link.zones)
-    # 가운데 통로 끝에서 WORK 진입점과 대기 자리로 바로 간다(그림의 빨간 선)
-    for a, b in [("N_O", "N_E"), ("N_E", "G"), ("G", "F"), ("N_E", "Q1"), ("Q1", "F"),
-                 ("E-3", "F")]:
+    # 가운데 통로 끝에서 WORK 진입점과 줄 꼬리로 간다(그림의 빨간 선)
+    for a, b in [("N_O", "N_E"), ("N_E", "G"), ("G", "F"), ("G", "Q2"), ("Q2", "Q1")]:
         assert site.link(a, b) is not None and site.link(b, a) is not None, (a, b)
+    # 진열대를 곧게 가로지르는 Nav2 이음이 없다(4079c40 리뷰: 그래프 값이 실제보다 짧다)
+    from fleet_core.fleet_map.geometry import inside
+    for link in site.links():
+        if link.via != NAV_GOAL:
+            continue
+        (ax, ay), (bx, by) = link.points[0], link.points[-1]
+        for k in range(101):
+            x, y = ax + (bx - ax) * k / 100, ay + (by - ay) * k / 100
+            assert not any(inside(shelf, x, y) for shelf in site.shelves), (link.a, link.b)
     for spot in site.parking:
         assert route(site, spot, "W") is not None and route(site, "O", spot) is not None
+
+
+def test_v7_queue_is_entered_at_the_tail_only(site):
+    """줄은 꼬리 Q2로만 들어오고(G에서) 앞으로만 흘러 W로 간다: Q2 -> Q1 -> F(고정 경로, 한 방향) -> W.
+    Q1, Q2에 닿는 이음은 이것뿐이다(Q2 <-> Q1은 배터리가 낮아 줄을 떠나는 로봇이 G로 되돌아 나가는
+    길이기도 하다)."""
+    touching = sorted((link.a, link.b, link.via) for link in site.links()
+                      if {"Q1", "Q2"} & {link.a, link.b})
+    assert touching == [("G", "Q2", NAV_GOAL), ("Q1", "F", FOLLOW_PATH), ("Q1", "Q2", NAV_GOAL),
+                        ("Q2", "G", NAV_GOAL), ("Q2", "Q1", NAV_GOAL)]
+    # 동쪽 진열대 조각 아래(대기 로봇 위 0.18)로 남쪽 마당을 가로지르는 이음이 없다
+    from fleet_core.fleet_map.geometry import point_segment_distance
+    for link in site.links():
+        if {"Q1", "Q2"} & {link.a, link.b}:
+            continue
+        a, b = link.points[0], link.points[-1]
+        assert point_segment_distance((1.40, 0.20), a, b) > 0.15, (link.a, link.b)
 
 
 BODY_CIRCLE_M = 0.083  # 핑키 뒤 모서리 회전 반지름(docs/실측_2026-11-10.md)
@@ -189,7 +220,8 @@ def test_v7_robots_standing_in_line_or_at_a_fork_leave_every_other_way_open(site
     from itertools import pairwise
 
     from fleet_core.fleet_map.geometry import point_segment_distance
-    standing = ["W", "O", "Q1", "O_Q", "N_E", "N_O"]
+    # G, F: 갈림에서도 차례를 기다리며 선다(3e84ff6 리뷰: G에 선 로봇이 E-3 -> F 선을 0.076으로 막았다)
+    standing = ["W", "O", "Q1", "Q2", "O_Q", "N_E", "N_O", "G", "F"]
     for name in standing:
         here = site.node_pose(name)
         for link in site.links():
