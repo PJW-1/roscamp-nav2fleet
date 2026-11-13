@@ -73,7 +73,9 @@ def test_v7_standing_nodes_keep_clear_of_other_zones(site):
     """서는 지점(대기, 주차, 갈림)은 다른 구역에서 몸 반경+여유만큼 떨어진다: 선 로봇이 남의 구역을
     쥐지 않는다. 지점끼리는 node_clear_m 이상 떨어진다."""
     for node in site.nodes.values():
-        if site.zones[node.zone].kind != SHARED:
+        # W_X(WORK 출구 갈림)만 예외: WORK_DOCK과 J_E 사이 HALL 띠가 0.135뿐이라 두 구역에서 다
+        # 떨어질 자리가 없다. 거기 선 로봇은 WORK_DOCK을 쥔 채라 다음 로봇은 줄(Q1)에서 기다린다
+        if site.zones[node.zone].kind != SHARED or node.id == "W_X":
             continue
         for zone in site.zones:
             if zone != node.zone:
@@ -163,11 +165,24 @@ def test_v7_dock_releases_neighbours_after_docking(site):
 def test_v7_routes(site):
     # 급행: WORK에서 출고로 고정 경로
     way = route(site, "W", "O")
-    assert [link.b for link in way] == ["X_E", "O"]
+    assert [link.b for link in way] == ["W_X", "O"]
     assert all(link.via == FOLLOW_PATH for link in way)
     assert "EXPRESS" in way[-1].zones
-    # 급행이 막히면 내려갈 마당 지점이 있다(yard_retreat)
-    assert site.link("X_E", "N_E").via == FOLLOW_PATH
+    # WORK에서 나가기(사용자 2026-11-13): W에서 앞으로(북쪽) 곧게 나와 바로 위 HALL의 갈림 W_X에서
+    # 급행을 타거나 넓은 곳(서쪽)으로 간다. 예전의 X_E -> N_E(급행 입구에서 다시 내려오기)는 없다
+    exit_ = site.nodes["W_X"]
+    assert exit_.kind == "fork" and exit_.zone == "HALL" and exit_.x == pytest.approx(1.88)
+    assert 0.63 < exit_.y < 0.765, "between WORK_DOCK and J_E"
+    assert [(l.b, l.via) for l in site.links() if l.a == "W"] == [("W_X", FOLLOW_PATH)]
+    assert sorted((l.b, l.via) for l in site.links() if l.a == "W_X") == [
+        ("N_E", FOLLOW_PATH), ("O", FOLLOW_PATH)]
+    assert [l.a for l in site.links() if l.b == "W_X"] == ["W"]
+    assert "X_E" not in site.nodes
+    # 급행을 못 타면 갈림에서 넓은 곳을 지나 출고로 갈 길이 있다(N_O -> O)
+    def no_express(link):
+        return math.inf if "EXPRESS" in link.zones else link.length
+    way = route(site, "W_X", "O", no_express)
+    assert way is not None and way[0].b == "N_E" and way[-1].a == "N_O", [l.b for l in way or []]
     # 출고에서는 후진으로 넓은 곳에 나온다
     assert site.link("O", "N_O").via == RETREAT
     # 마당 지점끼리는 Nav2 goal로 오가고 HALL만 잡는다(사용자 결정: 잠그는 구역은 급행 띠와 도크만)
