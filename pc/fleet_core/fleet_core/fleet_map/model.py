@@ -1,9 +1,11 @@
+# ---- 지도 모델: 상수와 구역, 노드, 링크, 스테이션 데이터 클래스 ----
 from __future__ import annotations
 
 from dataclasses import dataclass
 
 from .geometry import Point, Rect
 
+# ---- 구역, 노드, 링크, 작업 종류 상수 ----
 SHARED = "shared"
 LANE = "lane"
 DOCK = "dock"
@@ -25,6 +27,7 @@ FILL = "fill"
 SWAP = "swap"
 
 
+# ---- 지도 오류와 지도 요소 데이터 클래스 ----
 class FleetMapError(ValueError):
     pass
 

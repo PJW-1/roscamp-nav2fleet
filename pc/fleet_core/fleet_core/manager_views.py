@@ -1,3 +1,4 @@
+# ---- 관제 화면용 조회를 만드는 ManagerViews ----
 from __future__ import annotations
 
 from fleet_core.common.commands import AssignmentView, RobotStatusView, ZoneView
@@ -5,6 +6,7 @@ from fleet_core.orders.orchestrator import FILLING, SWAPPING
 from fleet_core.traffic.mission import AT_STATION, DOCKING, OUT_OF_SERVICE, TO_OUTBOUND, TO_WORK
 
 
+# ---- 구역 조회와 로봇별 작업 조회 ----
 class ManagerViews:
     def zones_view(self) -> list[ZoneView]:
         return self.traffic.zones_view()
@@ -30,6 +32,7 @@ class ManagerViews:
                 views.append(AssignmentView(robot, order_id, "", "WAIT"))
         return views
 
+    # ---- 로봇 상태 조회 목록 ----
     def robots_view(self) -> list[RobotStatusView]:
         tasks = {view.robot_id: view for view in self.assignments_view()}
         views = []
@@ -42,6 +45,7 @@ class ManagerViews:
                 **self.traffic.status_view(robot)))
         return views
 
+    # ---- 로봇 한 대의 상세 조회 ----
     def robot_view(self, robot) -> dict:
         t = self.traffic.robot_view(robot)
         o = self.orchestrator.robot_view(robot)

@@ -1,7 +1,9 @@
+# ---- 사각형, 점, 선분 기하 계산 ----
 from __future__ import annotations
 
 import math
 
+# ---- 타입 별칭과 사각형 판정 ----
 Rect = tuple[float, float, float, float]
 Point = tuple[float, float]
 EPS = 1e-9
@@ -22,6 +24,7 @@ def overlap_area(a: Rect, b: Rect) -> float:
     return width * height if width > EPS and height > EPS else 0.0
 
 
+# ---- 점과 선분의 거리 계산 ----
 def point_rect_distance(rect: Rect, x: float, y: float) -> float:
     dx = max(rect[0] - x, 0.0, x - rect[2])
     dy = max(rect[1] - y, 0.0, y - rect[3])
@@ -50,6 +53,7 @@ def _cross(a: Point, b: Point, c: Point, d: Point) -> bool:
                for turn, point, p, q in touching)
 
 
+# ---- 선분과 사각형, 벽 사이 거리와 표본 추출 ----
 def segment_rect_distance(a: Point, b: Point, rect: Rect) -> float:
     if inside(rect, *a) or inside(rect, *b):
         return 0.0

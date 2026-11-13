@@ -1,3 +1,4 @@
+# ---- 계약과 실제 관측 결과를 비교해 문제 목록 만들기 ----
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -13,6 +14,7 @@ class Problem:
     severity: str = "error"
 
 
+# ---- 타입 이름 비교와 QoS 차이 찾기 ----
 def _norm(type_name: str) -> str:
     parts = type_name.split("/")
     return f"{parts[0]}/{parts[-1]}" if len(parts) == 3 else type_name
@@ -38,6 +40,7 @@ def _qos_problems(name: str, expected: QosSpec, role: str, specs: list[QosSpec])
     return out
 
 
+# ---- 계약 항목별 누락, 타입, QoS 비교 ----
 def compare(contract, observed: dict, include_real_only: bool = False) -> list[Problem]:
     problems: list[Problem] = []
     for entry in contract.expanded(include_real_only=include_real_only):

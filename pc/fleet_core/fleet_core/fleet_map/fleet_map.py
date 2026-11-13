@@ -1,3 +1,4 @@
+# ---- FleetMap: 지도 데이터를 읽어 검사하고 조회 제공 ----
 from __future__ import annotations
 
 import logging
@@ -11,6 +12,7 @@ from .geometry import inside, point_rect_distance
 from .model import WAITING_KINDS, FleetMapError, Link
 from .parse import read_links, read_nodes, read_parking, read_rect, read_stations, read_zones
 
+# ---- 레이아웃 이름과 검사 기준 상수 ----
 DATA = Path(__file__).parents[1] / "data"
 DEFAULT_LAYOUT = "d2"
 LAYOUTS = ("d2", "d", "c")
@@ -22,6 +24,7 @@ TURN_RADIUS_M = 0.10
 _log = logging.getLogger(__name__)
 
 
+# ---- FleetMap 생성: 구역, 노드, 링크, 스테이션 읽기와 검사 ----
 class FleetMap:
     def __init__(self, data: dict, source_text: str = ""):
         self.source_text = source_text
@@ -47,6 +50,7 @@ class FleetMap:
         for warning in self.warnings:
             _log.warning("fleet map %s: %s", self.name, warning)
 
+    # ---- 링크와 노드 조회 ----
     def link(self, a: str, b: str) -> Link | None:
         return self._links.get((a, b))
 
@@ -65,6 +69,7 @@ class FleetMap:
     def node_pose(self, node: str) -> tuple[float, float]:
         return (self.nodes[node].x, self.nodes[node].y)
 
+    # ---- 구역과 가까운 노드 조회 ----
     def zone_at(self, x: float, y: float) -> str | None:
         for zone in self.zones.values():
             if any(inside(rect, x, y) for rect in zone.rects):
@@ -88,6 +93,7 @@ class FleetMap:
         return best
 
 
+# ---- 지도 파일 불러오기 ----
 def load_fleet_map(layout=None) -> FleetMap:
     name = DEFAULT_LAYOUT if layout is None else layout
     path = Path(name)

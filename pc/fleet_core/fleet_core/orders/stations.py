@@ -1,3 +1,4 @@
+# ---- 스테이션 작업: 채우기, 교환, 출고 배차 ----
 from __future__ import annotations
 
 from fleet_core.common.commands import (
@@ -14,6 +15,7 @@ from fleet_core.common.commands import (
 from .records import EMPTY, FILLING, FULL, _BoundOrder, _Robot, _subtract
 
 
+# ---- 주문 묶기와 채우기 마무리 ----
 class Stations:
     def _start_filling(self, r: _Robot) -> None:
         pending = self._pending()
@@ -47,6 +49,7 @@ class Stations:
             r.stage = ""
             self._send_to_outbound(r)
 
+    # ---- 출고 스테이션 배차와 재시도 ----
     def _send_to_outbound(self, r: _Robot) -> None:
         r.outbound_goal = self._next_dispatch_id()
         self._out.append(DispatchCmd(r.outbound_goal, self._outbound, r.name))
@@ -70,6 +73,7 @@ class Stations:
         r.dispatch_retry_at = None
         r.dispatch_reason = ""
 
+    # ---- 채우기 단계 진행 ----
     def _step_filling(self, r: _Robot) -> None:
         if r.asked:
             return
@@ -86,6 +90,7 @@ class Stations:
         r.asked = FILL
         self._out.append(ArmFillCmd(r.name, self._work, order.order_id, remaining))
 
+    # ---- 교환 단계 진행 ----
     def _step_swapping(self, r: _Robot) -> None:
         if r.asked:
             return

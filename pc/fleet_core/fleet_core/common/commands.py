@@ -1,7 +1,9 @@
+# ---- 코어 사이에 오가는 명령, 보고, 조회 데이터 클래스 ----
 from __future__ import annotations
 
 from dataclasses import dataclass
 
+# ---- 주문 상태 상수와 주문 기록 ----
 SHIPPED = "SHIPPED"
 PARTIAL = "PARTIAL"
 HELD = "HELD"
@@ -13,6 +15,7 @@ class OrderRecord:
     items: dict[str, int]
 
 
+# ---- 이동, 물러나기, 막힘 지점 확인 명령 ----
 @dataclass(frozen=True)
 class MoveCmd:
     robot: str
@@ -45,6 +48,7 @@ class CheckClearCmd:
     radius_m: float
 
 
+# ---- 막힘 지점 확인 답, 장애물 종류, 로봇단 교착 처리 단계 상수 ----
 CLEAR = "clear"
 BLOCKED_AT = "blocked"
 UNKNOWN = "unknown"
@@ -53,6 +57,7 @@ OBSTACLE_KINDS = ("unknown", "person", "object", "robot")
 LOCAL_YIELD_STEPS = ("wait", "backup", "retry")
 
 
+# ---- 구간 출력과 이동 주문 명령 ----
 @dataclass(frozen=True)
 class SegmentOut:
     seq_id: int
@@ -78,6 +83,7 @@ class MoveOrderCmd:
     priority: int = -1
 
 
+# ---- 도킹, 취소, 채우기, 교환, 주문 보고 명령 ----
 @dataclass(frozen=True)
 class DockCmd:
     robot: str
@@ -121,6 +127,7 @@ class ReportOrderCmd:
     detail: str
 
 
+# ---- 이벤트 출력과 화면 조회 구조 ----
 @dataclass(frozen=True)
 class EventOut:
     level: str
@@ -164,6 +171,7 @@ class RobotStatusView:
     priority: int = -1
 
 
+# ---- 배차와 로봇 해제, 고장 명령 ----
 @dataclass(frozen=True)
 class DispatchCmd:
     goal_id: int
@@ -187,6 +195,7 @@ class RobotFaultCmd:
     reason: str
 
 
+# ---- 팔 작업 종류와 팔 명령 ----
 FILL = "fill"
 SWAP = "swap"
 
@@ -235,6 +244,7 @@ class ArmResetCmd:
 ARM_COMMANDS = (ArmFillCmd, ArmSwapCmd, ArmStopCmd, ArmDropCmd, ArmFailedCmd, ArmResetCmd)
 
 
+# ---- 팔 보고 ----
 @dataclass(frozen=True)
 class ArmDeclined:
     robot: str
@@ -278,6 +288,7 @@ class ArmLate:
 ARM_REPORTS = (ArmDeclined, ArmFillResult, ArmSwapResult, ArmLost, ArmLate)
 
 
+# ---- 배차 보고와 로봇 격리 ----
 NO_ROBOT = "NO_ROBOT"
 
 

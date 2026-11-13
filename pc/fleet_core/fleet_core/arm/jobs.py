@@ -1,3 +1,4 @@
+# ---- 팔 작업(채우기, 교환) 실행과 재시도, 시간 초과 처리 ----
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -23,6 +24,7 @@ from fleet_core.common.commands import (
     SwapCmd,
 )
 
+# ---- 작업 상수와 작업, 로봇 기록 ----
 STOP = "STOP"
 CANCELED = "CANCELED"
 
@@ -48,6 +50,7 @@ class _Robot:
     last: tuple[_Job, str] | None = None
 
 
+# ---- ArmJobs 생성과 실행 모드 처리 ----
 class ArmJobs:
     def __init__(self, stations, params, robots, clock, next_goal_id=None):
         self.params = params
@@ -67,6 +70,7 @@ class ArmJobs:
                     self._cancel(r)
         self._run_mode = run_mode
 
+    # ---- 팔 결과 보고 받기 ----
     def on_fill_result(self, goal_id, success, placed, missing, reason="") -> None:
         self._forget_cleared_job(goal_id)
         r = self._job_owner(goal_id, FILL)
@@ -86,6 +90,7 @@ class ArmJobs:
         r.last, r.job = (r.job, reason), None
         self._out.append(ArmSwapResult(r.name, took_full, put_empty_done))
 
+    # ---- 시간 초과 점검 ----
     def check_timeouts(self, now: float) -> None:
         for r in self._robots.values():
             job = r.job
@@ -104,6 +109,7 @@ class ArmJobs:
                 self._out.append(RobotFaultCmd(r.name, reason))
                 self._event("ERROR", "ARM_NO_RESULT", reason, r.name)
 
+    # ---- 팔 명령 처리 ----
     def on_command(self, command) -> None:
         r = self._robots.get(command.robot)
         if r is None:
@@ -125,6 +131,7 @@ class ArmJobs:
             else:
                 r.attempts = 0
 
+    # ---- 출력과 조회 ----
     def take_output(self) -> list:
         out, self._out = self._out, []
         return out
@@ -144,6 +151,7 @@ class ArmJobs:
     def _event(self, level, code, detail, robot="") -> None:
         self._out.append(EventOut(level, code, detail, robot))
 
+    # ---- 작업 시작과 목표 허용 판단 ----
     def _start(self, r: _Robot, kind: str, command) -> None:
         server = self._stations[command.station_id].server
         if r.job or not self._goal_allowed(r, server):
@@ -178,6 +186,7 @@ class ArmJobs:
             if cleared_goal == goal_id:
                 del self._cleared_jobs[server]
 
+    # ---- 작업 취소와 버리기 ----
     def _cancel(self, r: _Robot) -> None:
         r.job.canceled_at = self._clock()
         self._out.append(CancelCmd(r.job.server, r.job.goal_id))
@@ -194,6 +203,7 @@ class ArmJobs:
                                  bound=command.bound))
         r.job = None
 
+    # ---- 실패한 시도의 재시도 또는 고장 처리 ----
     def _attempt_failed(self, r: _Robot) -> None:
         if r.last is None:
             return

@@ -1,3 +1,4 @@
+# ---- 지도 검사: 여유 거리, 선반 끝, 경로 도달성 ----
 from __future__ import annotations
 
 import math
@@ -8,6 +9,7 @@ from .graph import route
 from .model import NAV_GOAL, RETREAT, SHARED, FleetMapError
 
 
+# ---- 벽과 선반에서 떨어진 거리 검사 ----
 def check_clearance(site, clearance: float) -> None:
     for node in site.nodes.values():
         gap = wall_gap(site.bounds(), node.x, node.y)
@@ -28,6 +30,7 @@ def check_clearance(site, clearance: float) -> None:
                                     f"{gap:.3f} m from the shelf {shelf}, needs {clearance}")
 
 
+# ---- 경로가 선반 끝을 도는지 판단 ----
 def _rounds_the_end(a, b, shelf) -> bool:
     x0, y0, x1, y1 = shelf
     axis, low, high = _axis(shelf)
@@ -45,6 +48,7 @@ def _axis(shelf):
     return (0, x0, x1) if x1 - x0 >= y1 - y0 else (1, y0, y1)
 
 
+# ---- 모서리 호 점 계산 ----
 def corner_arc(a, b, c, radius: float, count: int = 20, shares=(0.5, 0.5)) -> list:
     u = (b[0] - a[0], b[1] - a[1])
     v = (c[0] - b[0], c[1] - b[1])
@@ -78,6 +82,7 @@ def _corners(site):
                        points[-2], points[-1], nxt.points[1])
 
 
+# ---- 선반 끝과 모서리 근접 경고 ----
 def shelf_end_warnings(site, clear: float, turn_radius: float = 0.0) -> list[str]:
     out = []
     for link in site.links():
@@ -102,6 +107,7 @@ def shelf_end_warnings(site, clear: float, turn_radius: float = 0.0) -> list[str
     return out
 
 
+# ---- 물러나기 경로 끝 경고 ----
 def retreat_end_warnings(site) -> list[str]:
     out = []
     for link in site.links():
@@ -116,6 +122,7 @@ def retreat_end_warnings(site) -> list[str]:
     return out
 
 
+# ---- 도크와 주차 노드 사이 경로 존재 검사 ----
 def check_reach(site) -> None:
     docks = sorted(site.docks)
     pairs = [(spot, dock) for spot in site.parking for dock in docks]

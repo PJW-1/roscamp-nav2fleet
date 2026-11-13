@@ -1,3 +1,4 @@
+# ---- fleet_map 패키지의 공개 이름 모음 ----
 from .fleet_map import (
     DEFAULT_LAYOUT,
     KNOWN_LAYOUTS,

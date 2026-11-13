@@ -1,3 +1,4 @@
+# ---- OrderOrchestrator: 주문판을 받아 로봇에 주문을 배정하고 진행 ----
 from __future__ import annotations
 
 from fleet_core.common.commands import (
@@ -35,6 +36,7 @@ from .records import (
 )
 from .stations import Stations
 
+# ---- OrderOrchestrator 생성 ----
 STOP = "STOP"
 
 
@@ -56,6 +58,7 @@ class OrderOrchestrator(Faults, Stations):
         self._outbound = next(s.id for s in stations.values() if s.action == SWAP)
         self._lost_jobs: dict[int, _LostJob] = {}
 
+    # ---- 주문판, 배차, 팔 보고 입력 처리 ----
     def on_order_board(self, run_mode, orders) -> None:
         self._run_mode = run_mode
         self._board = list(orders)
@@ -106,6 +109,7 @@ class OrderOrchestrator(Faults, Stations):
         elif isinstance(report, ArmLost):
             self._on_arm_lost(r, report)
 
+    # ---- 팔 결과를 주문에 반영 ----
     def _on_fill_result(self, r: _Robot, success, placed) -> None:
         r.asked = ""
         _merge(r.order.placed, placed)
@@ -139,6 +143,7 @@ class OrderOrchestrator(Faults, Stations):
             return
         self._out.append(ArmFailedCmd(r.name))
 
+    # ---- 로봇 한 대의 단계 진행 ----
     def step(self, robot) -> None:
         r = self._robots.get(robot)
         if r is None:
@@ -154,6 +159,7 @@ class OrderOrchestrator(Faults, Stations):
         elif r.basket == NONE and not r.order:
             self._send_to_outbound(r)
 
+    # ---- 출력과 로봇 조회 ----
     def take_output(self) -> list:
         out, self._out = self._out, []
         return out
@@ -182,6 +188,7 @@ class OrderOrchestrator(Faults, Stations):
             "placed": dict(r.order.placed) if r.order else {},
         }
 
+    # ---- 이벤트, 고장, 스테이션 떠남 출력 ----
     def _event(self, level, code, detail, robot="") -> None:
         self._out.append(EventOut(level, code, detail, robot))
 
@@ -192,6 +199,7 @@ class OrderOrchestrator(Faults, Stations):
         r.stage = ""
         self._out.append(ReleaseCmd(r.name))
 
+    # ---- 대기 주문 계산과 배차 요청 맞추기 ----
     def _pending(self) -> list:
         bound = {r.order.order_id for r in self._robots.values() if r.order}
         return [o for o in self._board
@@ -210,6 +218,7 @@ class OrderOrchestrator(Faults, Stations):
         self._dispatch_seq += 1
         return self._dispatch_seq
 
+    # ---- 주문 보고 만들기 ----
     def _report(self, r: _Robot, status: str, detail: str = "") -> None:
         order, r.order = r.order, None
         self._reported.add(order.order_id)

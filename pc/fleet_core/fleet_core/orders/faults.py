@@ -1,3 +1,4 @@
+# ---- 주문 코어의 고장 처리: 로봇 제거, 격리, 늦은 팔 결과 ----
 from __future__ import annotations
 
 from fleet_core.common.commands import FILL, SWAP, ArmDropCmd, ArmResetCmd, ArmStopCmd
@@ -5,6 +6,7 @@ from fleet_core.common.commands import FILL, SWAP, ArmDropCmd, ArmResetCmd, ArmS
 from .records import EMPTY, FULL, NONE, _LostJob, _merge, _Robot
 
 
+# ---- 로봇 치움, 다시 투입, 격리와 주문 되돌리기 ----
 class Faults:
     def on_robot_removed(self, robot) -> None:
         r = self._robots.get(robot)
@@ -51,6 +53,7 @@ class Faults:
         self._forget_dispatch_failures(r)
         self._sync_calls()
 
+    # ---- 팔 작업 버리기와 결과 대기 판단 ----
     def _drop_arm(self, r: _Robot, isolated: bool = False) -> None:
         self._out.append(ArmDropCmd(r.name, isolated, self.order_of(r.name), r.bound))
         r.asked = ""
@@ -59,6 +62,7 @@ class Faults:
         return any(lost.robot == r.name and not lost.cleared and self._still_bound(lost)
                    for lost in self._lost_jobs.values())
 
+    # ---- 늦게 도착한 팔 결과 처리 ----
     def _late_fill(self, goal_id: int, placed: dict[str, int]) -> None:
         lost = self._take_lost_job(goal_id, FILL)
         if lost is None or (lost.cleared and not placed):
@@ -87,6 +91,7 @@ class Faults:
         return (bool(lost.order_id) and self.order_of(lost.robot) == lost.order_id
                 and self._robots[lost.robot].bound == lost.bound)
 
+    # ---- 늦은 결과 경고 이벤트 ----
     def _late_event(self, goal_id: int, lost: _LostJob, reported: str) -> None:
         if not lost.order_id:
             then = "its order had already been reported"

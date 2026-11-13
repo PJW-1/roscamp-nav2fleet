@@ -1,3 +1,4 @@
+# ---- 코어 사이 명령과 보고를 전달하는 ManagerRoute ----
 from __future__ import annotations
 
 from fleet_core.common.commands import (
@@ -13,6 +14,7 @@ from fleet_core.common.commands import (
 )
 
 
+# ---- 로봇 한 대 진행과 코어 출력 모으기 ----
 class ManagerRoute:
     def _step_robot(self, robot) -> None:
         self.orchestrator.step(robot)
@@ -31,6 +33,7 @@ class ManagerRoute:
             for item in items:
                 self._route(item)
 
+    # ---- 출력 항목을 종류별로 알맞은 코어에 전달 ----
     def _route(self, item) -> None:
         if isinstance(item, ARM_COMMANDS):
             self._note("inside", item)

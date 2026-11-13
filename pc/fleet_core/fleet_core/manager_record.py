@@ -1,3 +1,4 @@
+# ---- 입력과 출력을 기록하고 잘못된 입력을 거부하는 ManagerRecord ----
 from __future__ import annotations
 
 import json
@@ -7,6 +8,7 @@ from fleet_core.common.commands import EventOut, MoveCmd, OrderRecord
 from fleet_core.common.validate import checked, robot_problem, text
 
 
+# ---- 기록용 값 변환 ----
 def _recordable(value):
     if is_dataclass(value) and not isinstance(value, type):
         return asdict(value)
@@ -21,6 +23,7 @@ def _recorded_orders(orders):
             else repr(o) for o in orders]
 
 
+# ---- 기록 시작과 입력 한 줄 기록 ----
 class ManagerRecord:
     def check_recordable(self) -> None:
         if not getattr(self.site, "source_text", ""):
@@ -49,6 +52,7 @@ class ManagerRecord:
             return json.dumps({"t": self._time, "in": method,
                                "unrecordable": type(error).__name__})
 
+    # ---- 잘못된 입력 거부 이벤트 내기 ----
     def _reject(self, detail, robot="") -> None:
         name = text(robot) if isinstance(robot, str) else ""
         known = name if name in self.traffic.robots else ""
@@ -69,6 +73,7 @@ class ManagerRecord:
             self._reject(f"{what} refused: {problem}")
         return bool(problem)
 
+    # ---- 명령과 출력을 기록 줄로 남기기 ----
     def _note(self, kind, item) -> None:
         if self._write:
             fields = asdict(item)

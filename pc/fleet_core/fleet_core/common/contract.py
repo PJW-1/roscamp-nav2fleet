@@ -1,3 +1,4 @@
+# ---- 토픽, 액션, 서비스 이름과 QoS 계약 읽기 ----
 from __future__ import annotations
 
 import itertools
@@ -8,6 +9,7 @@ from pathlib import Path
 import yaml
 
 
+# ---- 계약 데이터 구조 ----
 class ContractError(ValueError):
     pass
 
@@ -39,10 +41,12 @@ class ExpandedEntry:
     qos: QosSpec | None
 
 
+# ---- 이름 템플릿 필드 추출 ----
 def _fields(template: str) -> list[str]:
     return [f for _, f, _, _ in string.Formatter().parse(template) if f]
 
 
+# ---- Contract: 계약 항목 등록과 이름, 타입, QoS 조회 ----
 class Contract:
     def __init__(self, data: dict):
         self.placeholders = {k: list(v) for k, v in (data.get("placeholders") or {}).items()}
@@ -94,6 +98,7 @@ class Contract:
             raise ContractError(f"{key}: {entry.kind} entries have no QoS profile")
         return self.profiles[entry.qos_name]
 
+    # ---- 템플릿을 인스턴스별 이름으로 펼치기 ----
     def expanded(self, include_real_only: bool = True) -> list[ExpandedEntry]:
         out = []
         for entry in self.entries.values():
@@ -108,6 +113,7 @@ class Contract:
         return out
 
 
+# ---- 계약 파일 읽기와 ROS QoS 변환 ----
 def load_contract(path) -> Contract:
     return Contract(yaml.safe_load(Path(path).read_text(encoding="utf-8")))
 

@@ -1,3 +1,4 @@
+# ---- 주문과 다시 투입 입력 검사 ----
 from __future__ import annotations
 
 from fleet_core.common.validate import robot_problem, shown
@@ -9,6 +10,7 @@ def _name(value) -> bool:
     return isinstance(value, str) and value != ""
 
 
+# ---- 주문 목록 검사 ----
 def orders_problem(orders) -> str:
     if not isinstance(orders, (list, tuple)):
         return f"orders is a {type(orders).__name__}, not a list"
@@ -31,6 +33,7 @@ def orders_problem(orders) -> str:
     return ""
 
 
+# ---- 다시 투입 입력 검사 ----
 def reinstate_problem(robot, basket, robots) -> str:
     problem = robot_problem(robot, robots)
     if problem:

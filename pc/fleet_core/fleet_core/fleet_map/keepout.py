@@ -1,9 +1,11 @@
+# ---- 출입 금지 영역 마스크와 PGM 그림 만들기 ----
 from __future__ import annotations
 
 import math
 
 from .model import SHARED
 
+# ---- 금지 사각형 계산과 격자 채우기 ----
 BODY_HALF_WIDTH_M = 0.06
 HAIR = 1e-6
 
@@ -28,6 +30,7 @@ def filled(rects, width: int, height: int, resolution: float, origin) -> list[li
     return grid
 
 
+# ---- 마스크 생성과 PGM 변환 ----
 def mask(site, width: int, height: int, resolution: float, origin,
          pad: float = BODY_HALF_WIDTH_M) -> list[list[bool]]:
     return filled(keepout_rects(site, pad), width, height, resolution, origin)
@@ -39,6 +42,7 @@ def pgm(grid) -> bytes:
                              for row in reversed(grid))
 
 
+# ---- PGM 크기 읽기 ----
 def pgm_size(data: bytes) -> tuple[int, int]:
     words = []
     for line in data[:512].split(b"\n"):
@@ -50,6 +54,7 @@ def pgm_size(data: bytes) -> tuple[int, int]:
     return int(words[1]), int(words[2])
 
 
+# ---- 마스크 지도 설정 문자열 만들기 ----
 def mask_yaml(image: str, resolution: float, origin) -> str:
     return (f"image: {image}\nmode: trinary\nresolution: {resolution}\n"
             f"origin: [{origin[0]}, {origin[1]}, 0.0]\nnegate: 0\n"

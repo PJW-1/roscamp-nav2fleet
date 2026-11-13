@@ -1,3 +1,4 @@
+# ---- FleetManager: 세 코어를 만들고 입력을 넣고 명령을 전달하는 매니저 ----
 from __future__ import annotations
 
 import math
@@ -28,6 +29,7 @@ from fleet_core.traffic.mission import LOCALIZING
 from fleet_core.traffic.modes import build_traffic
 
 
+# ---- FleetManager 생성: 교통, 주문, 팔 작업 코어 구성 ----
 class FleetManager(ManagerRoute, ManagerViews, ManagerRecord):
     def __init__(self, site, params, robots, clock):
         self.site = site
@@ -51,6 +53,7 @@ class FleetManager(ManagerRoute, ManagerViews, ManagerRecord):
         self.last_clear_reason = ""
         self.last_reinstate_reason = ""
 
+    # ---- 스테이션 작업 남은 시간 추정과 읽기 전용 속성 ----
     def station_left_s(self, robot) -> float | None:
         job = self.orchestrator.station_job(robot)
         if job is None:
@@ -72,6 +75,7 @@ class FleetManager(ManagerRoute, ManagerViews, ManagerRecord):
     def shipped(self) -> int:
         return self.orchestrator.shipped
 
+    # ---- 로봇 상태 입력 검사 후 교통 코어에 전달 ----
     def on_robot_state(self, robot, x, y, yaw, state, battery=0.0, robot_id="",
                        obstacle_x=math.nan, obstacle_y=math.nan, obstacle_kind="",
                        local_yield="") -> None:
@@ -103,6 +107,7 @@ class FleetManager(ManagerRoute, ManagerViews, ManagerRecord):
                                     step if step in LOCAL_YIELD_STEPS else "")
         self._pump()
 
+    # ---- 막힘 지점 확인 답, 주문판, 이동, 도킹 등 외부 입력을 받아 코어에 전달 ----
     def on_clear_check(self, robot, check_id, answer) -> None:
         self._input("on_clear_check", robot, check_id, answer)
         if not self._robot_refused("clear check", robot):
@@ -171,6 +176,7 @@ class FleetManager(ManagerRoute, ManagerViews, ManagerRecord):
             self.traffic.on_retreat_result(robot, goal_id, success, reason)
             self._pump()
 
+    # ---- 팔 작업 결과 입력 전달 ----
     def on_fill_result(self, goal_id, success, placed, missing, reason="") -> None:
         self._input("on_fill_result", goal_id, success, placed, missing, reason)
         self.arm.on_fill_result(goal_id, success, placed, missing, reason)
@@ -181,6 +187,7 @@ class FleetManager(ManagerRoute, ManagerViews, ManagerRecord):
         self.arm.on_swap_result(goal_id, success, took_full, put_empty_done, reason)
         self._pump()
 
+    # ---- 운영자 조작: 치운 로봇의 구역 풀기와 다시 투입 ----
     def confirm_clear(self, robot, zone_ids, note="") -> list[str] | None:
         self._input("confirm_clear", robot, zone_ids, note)
         released = self.traffic.confirm_clear(robot, zone_ids, note)
@@ -207,6 +214,7 @@ class FleetManager(ManagerRoute, ManagerViews, ManagerRecord):
         self._pump()
         return True
 
+    # ---- 주기 처리: 코어를 순서대로 진행하고 나온 출력 반환 ----
     def tick(self) -> list:
         self._input("tick")
         traffic = self.traffic
@@ -228,6 +236,7 @@ class FleetManager(ManagerRoute, ManagerViews, ManagerRecord):
             self._note("out", item)
         return out
 
+    # ---- 현재 시각과 목표 번호 발급 ----
     def _frozen(self) -> float:
         return self._time
 

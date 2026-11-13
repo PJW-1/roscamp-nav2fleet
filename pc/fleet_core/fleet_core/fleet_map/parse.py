@@ -1,3 +1,4 @@
+# ---- 지도 데이터 해석과 검사: 구역, 노드, 링크, 스테이션, 주차 ----
 from __future__ import annotations
 
 import math
@@ -30,6 +31,7 @@ SAMPLE_M = 0.01
 LANE_CAPACITY = 2
 
 
+# ---- 사각형 읽기 ----
 def read_rect(raw, what: str) -> tuple:
     try:
         x0, y0, x1, y1 = (float(v) for v in raw)
@@ -40,6 +42,7 @@ def read_rect(raw, what: str) -> tuple:
     return (x0, y0, x1, y1)
 
 
+# ---- 구역 읽기와 겹침 검사 ----
 def read_zones(raw: dict, bounds: tuple) -> dict[str, Zone]:
     zones: dict[str, Zone] = {}
     for name, entry in (raw or {}).items():
@@ -76,10 +79,12 @@ def _capacity(name: str, kind: str, entry: dict) -> int:
     return int(given)
 
 
+# ---- 점이 속한 구역 찾기 ----
 def zone_under(zones: dict[str, Zone], x: float, y: float) -> list[str]:
     return [zone.id for zone in zones.values() if any(inside(r, x, y) for r in zone.rects)]
 
 
+# ---- 노드 읽기와 구역 규칙 검사 ----
 def read_nodes(raw: dict, zones: dict[str, Zone]) -> dict[str, Node]:
     nodes: dict[str, Node] = {}
     for name, entry in (raw or {}).items():
@@ -105,6 +110,7 @@ def read_nodes(raw: dict, zones: dict[str, Zone]) -> dict[str, Node]:
     return nodes
 
 
+# ---- 경로가 지나는 구역 찾기 ----
 def zones_along(zones: dict[str, Zone], points) -> tuple[str, ...]:
     seen: list[str] = []
     for a, b in zip(points, points[1:], strict=False):
@@ -131,6 +137,7 @@ def _reentered(zones: dict[str, Zone], points) -> str:
     return ""
 
 
+# ---- 경로선 모양 검사 ----
 def _line_problem(zones: dict[str, Zone], points) -> str:
     zone = _reentered(zones, points)
     if zone:
@@ -146,6 +153,7 @@ def _line_problem(zones: dict[str, Zone], points) -> str:
     return ""
 
 
+# ---- 링크 하나 만들기 ----
 def _link(nodes, zones, a: str, b: str, via: str, path: str, crossed=None, bends=()) -> Link:
     points = ((nodes[a].x, nodes[a].y), *bends, (nodes[b].x, nodes[b].y))
     if via != NAV_GOAL:
@@ -162,6 +170,7 @@ def _link(nodes, zones, a: str, b: str, via: str, path: str, crossed=None, bends
     return Link(a, b, via, path, points, tuple(ordered), length, lane)
 
 
+# ---- 경로 지점 읽기 ----
 def _path_stops(entry, nodes, what: str) -> list[tuple[str, tuple]]:
     stops, bends = [], []
     for point in entry.get("points") or ():
@@ -183,6 +192,7 @@ def _path_stops(entry, nodes, what: str) -> list[tuple[str, tuple]]:
     return stops
 
 
+# ---- 경로와 nav 그룹에서 링크 읽기 ----
 def read_links(paths: dict, nav: list, nodes: dict[str, Node], zones: dict[str, Zone]) -> dict:
     links: dict[tuple[str, str], Link] = {}
 
@@ -236,6 +246,7 @@ def read_links(paths: dict, nav: list, nodes: dict[str, Node], zones: dict[str, 
     return links
 
 
+# ---- nav 그룹의 지정 구역 검사 ----
 def _check_named_zones(what: str, members: list, crossed, nodes, zones) -> None:
     if len(members) != 2:
         raise FleetMapError(f"{what}: `zones:` is for a pair of nodes, got {len(members)}")
@@ -249,6 +260,7 @@ def _check_named_zones(what: str, members: list, crossed, nodes, zones) -> None:
         raise FleetMapError(f"{what}: zones must run from {first} to {last}")
 
 
+# ---- 스테이션 읽기와 검사 ----
 def read_stations(raw: dict, nodes: dict[str, Node]) -> dict[str, Station]:
     stations: dict[str, Station] = {}
     for name, entry in (raw or {}).items():
@@ -271,6 +283,7 @@ def read_stations(raw: dict, nodes: dict[str, Node]) -> dict[str, Station]:
     return stations
 
 
+# ---- 주차 노드 목록 읽기와 검사 ----
 def read_parking(raw, nodes: dict[str, Node]) -> tuple[str, ...]:
     parking = tuple(raw or ())
     marked = {name for name, node in nodes.items() if node.kind == PARKING}

@@ -1,9 +1,11 @@
+# ---- 다익스트라 경로 탐색 ----
 from __future__ import annotations
 
 import heapq
 import math
 
 
+# ---- start에서 goal까지 최단 링크 순서 찾기 ----
 def route(site, start: str, goal: str, cost=None) -> list | None:
     if start == goal:
         return []

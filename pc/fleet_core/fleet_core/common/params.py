@@ -1,3 +1,4 @@
+# ---- 운영 파라미터 정의와 파일에서 읽기 ----
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -9,6 +10,7 @@ DEFAULT_PARAMS = Path(__file__).parents[1] / "data" / "fleet_params.yaml"
 COMM_LOSS_POLICIES = ("stop", "base_end")
 
 
+# ---- FleetParams: 운영 파라미터 목록 ----
 @dataclass(frozen=True)
 class FleetParams:
     basket_capacity: int
@@ -95,12 +97,14 @@ class FleetParams:
     clear_confirm: int = 2
     blocked_retry_max_s: float = 300.0
 
+    # ---- 파라미터 값 검사 ----
     def __post_init__(self):
         if self.comm_loss_policy not in COMM_LOSS_POLICIES:
             raise ValueError(f"comm_loss_policy must be one of {COMM_LOSS_POLICIES}, "
                              f"got {self.comm_loss_policy!r}")
 
 
+# ---- 파라미터 파일 읽기 ----
 def load_params(path=None) -> FleetParams:
     source = Path(path) if path else DEFAULT_PARAMS
     return FleetParams(**yaml.safe_load(source.read_text(encoding="utf-8")))

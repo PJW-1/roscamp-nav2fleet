@@ -1,7 +1,9 @@
+# ---- 주문 코어의 상태 상수와 기록 데이터 클래스 ----
 from __future__ import annotations
 
 from dataclasses import dataclass, field
 
+# ---- 단계와 바구니 상태 상수 ----
 FILLING = "FILLING"
 SWAPPING = "SWAPPING"
 
@@ -10,6 +12,7 @@ FULL = "FULL"
 NONE = "NONE"
 
 
+# ---- 수량 합산과 차감 ----
 def _merge(into: dict[str, int], more: dict[str, int]) -> None:
     for kind, count in more.items():
         if count > 0:
@@ -25,6 +28,7 @@ def _subtract(items: dict[str, int], *taken: dict[str, int]) -> dict[str, int]:
     return left
 
 
+# ---- 잃은 작업, 묶인 주문, 로봇 기록 ----
 @dataclass
 class _LostJob:
     robot: str

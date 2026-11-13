@@ -1,3 +1,4 @@
+# ---- 외부 입력 값 검사 ----
 from __future__ import annotations
 
 import math
@@ -30,6 +31,7 @@ def _number(value) -> bool:
     return isinstance(value, Real) and not isinstance(value, bool)
 
 
+# ---- 자세와 장애물 입력 검사 ----
 def pose_problem(x, y, yaw, bounds, margin) -> str:
     for label, value in (("x", x), ("y", y), ("theta", yaw)):
         if not _number(value) or not math.isfinite(value):
@@ -51,6 +53,7 @@ def obstacle_of(x, y, kind, bounds, margin, kinds) -> tuple | None:
     return (float(x), float(y), name if name in kinds else kinds[0])
 
 
+# ---- 로봇, 실행 모드, 구역 입력 검사 ----
 def robot_problem(robot, robots) -> str:
     if not isinstance(robot, str) or robot not in robots:
         return f"no such robot {shown(robot)}"
