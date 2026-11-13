@@ -1,7 +1,7 @@
 """지시서 6-2의 열 가지 상황: 평소 흐름에서는 잘 안 생기는 일을 일부러 만든다.
 
 상황마다 세계를 만드는 값(출발 자리, 주문, 주입, 시간 한도)과 기대(expect)가 있다. 기대는 세계를
-다 돌린 뒤 보고, 못 지킨 것을 글로 돌려준다. 자리는 배치(d2, d, c)마다 지도에서 읽는다.
+다 돌린 뒤 보고, 못 지킨 것을 글로 돌려준다. 자리는 배치(d2, d, c, v7)마다 지도에서 읽는다.
 
 기대는 회피 흉내 perfect의 것이다. none과 mixed는 rough(추가 지시서 2의 3절)로 본다: 늦더라도
 주문이 다 끝나면 된다. 기다림, 우회, 물러나기 횟수와 사건 수는 성능이라 판정하지 않는다.
@@ -54,7 +54,9 @@ class Situation:
 
 
 def _hall_mid(site):
-    (ax, ay), (bx, by) = site.node_pose("N_W"), site.node_pose("N_E")
+    # 넓은 곳(가운데 통로) 양 끝의 가운데. v7은 서쪽 끝이 N_O다
+    west = "N_W" if "N_W" in site.nodes else "N_O"
+    (ax, ay), (bx, by) = site.node_pose(west), site.node_pose("N_E")
     return ((ax + bx) / 2, (ay + by) / 2)
 
 
@@ -67,6 +69,8 @@ def _lane_mid(site):
 def _near_work(layout):
     if layout == "c":
         return {"pinky1": "N_W", "pinky2": "S_W", "pinky3": "P-2"}
+    if layout == "v7":  # WORK 진입 갈림 G 앞, 줄 앞자리, 칸
+        return {"pinky1": "N_E", "pinky2": "Q1", "pinky3": "P-2"}
     return {"pinky1": "N_W", "pinky2": "W_Q", "pinky3": "P-2"}
 
 
