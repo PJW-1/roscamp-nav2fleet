@@ -6,13 +6,15 @@ from pathlib import Path
 import yaml
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
-from launch.actions import DeclareLaunchArgument, GroupAction
+from launch.actions import DeclareLaunchArgument, GroupAction, IncludeLaunchDescription
 from launch.conditions import IfCondition, UnlessCondition
+from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitution import Substitution
-from launch.substitutions import AndSubstitution, LaunchConfiguration, NotEqualsSubstitution
+from launch.substitutions import LaunchConfiguration, NotEqualsSubstitution, OrSubstitution
 from launch.utilities import normalize_to_list_of_substitutions, perform_substitutions
 from launch_ros.actions import ComposableNodeContainer, Node, PushRosNamespace, SetParameter
 from launch_ros.descriptions import ComposableNode, ParameterFile, ParameterValue
+from launch_ros.substitutions import FindPackageShare
 from nav2_common.launch import ReplaceString, RewrittenYaml
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -24,6 +26,9 @@ LOCALIZATION = ["map_server", "map_server_fine", "amcl"]
 NAVIGATION = ["controller_server", "planner_server", "behavior_server", "bt_navigator"]
 KEEPOUT = ["keepout_mask_server", "costmap_filter_info_server"]
 TF_REMAPS = [("/tf", "tf"), ("/tf_static", "tf_static")]
+AVOIDANCE_PACKAGE = "pinky_avoidance"
+AVOIDANCE_PARAMS = Path("params") / "avoidance.yaml"
+AVOIDANCE_LAUNCH = "/launch/avoidance.launch.py"
 
 
 # ---- 파라미터 읽기와 launch 치환 클래스 ----
@@ -44,18 +49,18 @@ class Flag(Substitution):
         return text
 
 
-class PeerRobots(Substitution):
-    def __init__(self, on, robots):
+class AvoidanceFile(Substitution):
+    def __init__(self, given, package):
         super().__init__()
-        self._on = normalize_to_list_of_substitutions(on)
-        self._robots = normalize_to_list_of_substitutions(robots)
+        self._given = normalize_to_list_of_substitutions(given)
+        self._package = normalize_to_list_of_substitutions(package)
 
     def perform(self, context) -> str:
-        robots = perform_substitutions(context, self._robots).strip()
-        if perform_substitutions(context, self._on).lower() == "true" and not robots:
-            raise ValueError("peer_obstacles:=true needs peer_robots (pinky1,pinky2,pinky3),"
-                             " or peer_node:=false when another process sends the bodies")
-        return robots
+        given = perform_substitutions(context, self._given).strip()
+        if given:
+            return given
+        package = perform_substitutions(context, self._package).strip()
+        return str(Path(get_package_share_directory(package)) / AVOIDANCE_PARAMS)
 
 
 class WithOverlays(Substitution):
@@ -70,18 +75,15 @@ class WithOverlays(Substitution):
 
     def perform(self, context) -> str:
         data = _read(perform_substitutions(context, self._source))
-        avoidance = perform_substitutions(context, self._avoidance)
+        avoidance = _read(perform_substitutions(context, self._avoidance))
         vision = perform_substitutions(context, self._vision).lower() == "true"
-        if avoidance:
-            with_avoidance(data, _read(avoidance), vision)
-        elif vision:
-            raise ValueError("vision_obstacles:=true needs avoidance_params_file")
+        with_avoidance(data, avoidance, vision)
         if perform_substitutions(context, self._mask):
             merge(data, _read(SHARE / "params" / "keepout.yaml"))
         if perform_substitutions(context, self._strips).strip():
             merge(data, _read(SHARE / "params" / "scan_filter.yaml"))
         if perform_substitutions(context, self._peers) == "true":
-            with_peers(data, _read(SHARE / "params" / "peer_obstacles.yaml"))
+            with_peers(data, avoidance)
         with tempfile.NamedTemporaryFile("w", suffix=".yaml", prefix="nav2_overlay_",
                                          delete=False, encoding="utf-8") as out:
             yaml.safe_dump(data, out, sort_keys=False, allow_unicode=True)
@@ -95,12 +97,12 @@ def generate_launch_description():
     keepout = IfCondition(NotEqualsSubstitution(arg("keepout_mask"), ""))
     filtered = IfCondition(NotEqualsSubstitution(arg("narrow_strips"), ""))
     peers_on = Flag("peer_obstacles", arg("peer_obstacles"))
-    peer_node = AndSubstitution(peers_on, Flag("peer_node", arg("peer_node")))
+    stand_in = Flag("vision_stand_in", arg("vision_stand_in"))
+    vision = OrSubstitution(Flag("vision_obstacles", arg("vision_obstacles")), stand_in)
+    avoidance_file = AvoidanceFile(arg("avoidance_params_file"), arg("avoidance_package"))
     params = ParameterFile(RewrittenYaml(
-        source_file=ReplaceString(source_file=WithOverlays(arg("params_file"),
-                                                           arg("avoidance_params_file"),
-                                                           arg("keepout_mask"),
-                                                           arg("vision_obstacles"),
+        source_file=ReplaceString(source_file=WithOverlays(arg("params_file"), avoidance_file,
+                                                           arg("keepout_mask"), vision,
                                                            arg("narrow_strips"), peers_on),
                                   replacements={"<robot_namespace>": ("/", namespace)}),
         root_key=namespace, param_rewrites={}, convert_types=True), allow_substs=True)
@@ -181,12 +183,15 @@ def generate_launch_description():
         output="screen", arguments=log, remappings=TF_REMAPS, condition=filtered,
         parameters=[{"wall_band_m": ParameterValue(arg("wall_band_m"), value_type=float),
                      "strips": ParameterValue(arg("narrow_strips"), value_type=str)}])
-    peer_obstacles = Node(
-        package="pinky_peer_obstacles", executable="peer_obstacles", name="peer_obstacles",
-        output="screen", arguments=log, condition=IfCondition(peer_node),
-        parameters=[{"robot_id": ParameterValue(namespace, value_type=str),
-                     "robots": ParameterValue(PeerRobots(peer_node, arg("peer_robots")),
-                                              value_type=str)}])
+    avoidance = IncludeLaunchDescription(
+        PythonLaunchDescriptionSource([FindPackageShare(arg("avoidance_package")),
+                                       AVOIDANCE_LAUNCH]),
+        launch_arguments={
+            "namespace": namespace, "use_sim_time": arg("use_sim_time"),
+            "log_level": arg("log_level"), "peer_obstacles": peers_on,
+            "peer_node": Flag("peer_node", arg("peer_node")), "peer_robots": arg("peer_robots"),
+            "vision_obstacles": vision, "vision_stand_in": stand_in,
+        }.items())
     use_composition = arg("use_composition")
     # ---- LaunchDescription 반환 ----
     return LaunchDescription([
@@ -198,9 +203,13 @@ def generate_launch_description():
         DeclareLaunchArgument("params_file",
                               default_value=str(SHARE / "params" / "nav2_params.yaml"),
                               description="사용자의 Nav2 설정"),
-        DeclareLaunchArgument("avoidance_params_file",
-                              default_value=str(SHARE / "params" / "avoidance.yaml"),
-                              description="회피 담당의 설정(FollowPathGoal 값, 비전 관측원 값)."
+        DeclareLaunchArgument("avoidance_package", default_value=AVOIDANCE_PACKAGE,
+                              description="회피 패키지. 그 share의 params/avoidance.yaml을 읽고"
+                                          " launch/avoidance.launch.py를 로봇 namespace 안에서"
+                                          " 띄운다. 회피 담당의 패키지로 바꿀 수 있다"),
+        DeclareLaunchArgument("avoidance_params_file", default_value="",
+                              description="회피 담당의 설정(FollowPathGoal 값, 비전 관측원 값,"
+                                          " peer 층). 비면 avoidance_package의 것."
                                           " 사용자의 키가 들어 있으면 뜨지 않는다"),
         DeclareLaunchArgument(
             "bt_xml", default_value=str(
@@ -211,6 +220,9 @@ def generate_launch_description():
         DeclareLaunchArgument("vision_obstacles", default_value="false",
                               description="true면 두 costmap의 장애물 층에"
                                           " /<로봇>/vision_obstacles(PointCloud2)를 더한다"),
+        DeclareLaunchArgument("vision_stand_in", default_value="false",
+                              description="true면(시뮬레이션 전용, 임시) 회피 패키지가 비전 대역"
+                                          " 노드를 띄우고 vision_obstacles도 켠다"),
         DeclareLaunchArgument("narrow_strips", default_value="",
                               description="좁은 띠 사각형 \"x0,y0,x1,y1; ...\"(map 좌표)."
                                           " 주면 스캔 거르개를 띄우고"
@@ -219,9 +231,10 @@ def generate_launch_description():
                               description="스캔 거르개: 벽·진열대에서 이만큼 안의 점을 지운다"),
         DeclareLaunchArgument("peer_obstacles", default_value="false",
                               description="true면(임시, 주행 시험용) 다른 로봇의 몸을 두 costmap에"
-                                          " 찍는 peer 층과 pinky_peer_obstacles 노드를 띄운다"),
+                                          " 찍는 peer 층(회피 파일의 peer_layer)을 넣고, 회피"
+                                          " 패키지가 그 노드를 띄운다"),
         DeclareLaunchArgument("peer_node", default_value="true",
-                              description="false면 peer 층만 넣고 pinky_peer_obstacles 노드는"
+                              description="false면 peer 층만 넣고 그 노드는"
                                           " 띄우지 않는다(다른 프로세스가 토픽을 낸다)"),
         DeclareLaunchArgument("peer_robots", default_value="",
                               description="peer_obstacles:=true일 때 로봇 이름들"
@@ -248,6 +261,6 @@ def generate_launch_description():
             PushRosNamespace(namespace),
             SetParameter("use_sim_time", arg("use_sim_time")),
             scan_filter,
-            peer_obstacles,
+            avoidance,
         ]),
     ])

@@ -60,7 +60,7 @@ def _walk(entities, context, found):
 
 def _expand(use_composition, use_sim_time="true", keepout_mask=None, vision_obstacles=None,
             avoidance=None, narrow_strips=None, peer_obstacles=None, peer_robots=None,
-            peer_node=None):
+            peer_node=None, **more):
     context = launch.LaunchContext()
     context.launch_configurations.update({
         "use_composition": use_composition, "use_sim_time": use_sim_time,
@@ -81,6 +81,7 @@ def _expand(use_composition, use_sim_time="true", keepout_mask=None, vision_obst
         context.launch_configurations["peer_robots"] = peer_robots
     if peer_node is not None:
         context.launch_configurations["peer_node"] = peer_node
+    context.launch_configurations.update(more)
     found = []
     _walk(_launch_description().entities, context, found)
     return context, found
@@ -260,7 +261,8 @@ def test_vision_obstacles_and_keepout_work_together():
 
 def _avoidance_file() -> dict:
     import yaml
-    return yaml.safe_load((PKG / "params" / "avoidance.yaml").read_text(encoding="utf-8"))
+    path = PKG.parent / "pinky_avoidance" / "params" / "avoidance.yaml"
+    return yaml.safe_load(path.read_text(encoding="utf-8"))
 
 
 def test_the_goal_controller_comes_from_the_avoidance_file():
@@ -411,3 +413,148 @@ def test_the_peer_switches_take_capital_letters():
     assert "/pinky1/peer_obstacles" in [n.node_name for n, _ in found]
     for costmap in _costmaps(found).values():
         assert "peer_layer" in costmap["plugins"]
+
+
+# ---- 회피 패키지 바꾸기(avoidance_package) ------------------------------------------------------
+
+AVOIDANCE_ARGS = ["namespace", "use_sim_time", "log_level", "peer_obstacles", "peer_node",
+                  "peer_robots", "vision_obstacles", "vision_stand_in"]
+# 회피 담당의 패키지 흉내: 인자를 모두 기본값 없이 받는다(nav2.launch.py가 다 넘겨야 뜬다)
+TEAM_LAUNCH = """
+from launch import LaunchDescription
+from launch.actions import DeclareLaunchArgument
+from launch.substitutions import LaunchConfiguration
+from launch_ros.actions import Node
+
+NAMES = {names!r}
+
+
+def generate_launch_description():
+    return LaunchDescription([
+        *(DeclareLaunchArgument(name) for name in NAMES),
+        Node(package="team_avoidance", executable="team_vision", name="team_vision",
+             parameters=[{{name: LaunchConfiguration(name) for name in NAMES}}]),
+    ])
+"""
+TEAM_GOAL = {"plugin": "nav2_mppi_controller::MPPIController", "vx_max": 0.12}
+
+
+def _team_package(tmp_path, monkeypatch, peer_layer=None):
+    import os
+
+    import yaml
+    prefix = tmp_path / "team_prefix"
+    share = prefix / "share" / "team_avoidance"
+    (share / "params").mkdir(parents=True)
+    (share / "launch").mkdir()
+    index = prefix / "share" / "ament_index" / "resource_index" / "packages"
+    index.mkdir(parents=True)
+    (index / "team_avoidance").write_text("", encoding="utf-8")
+    theirs = {"follow_path_goal": TEAM_GOAL,
+              "vision_obstacles": {**_avoidance_file()["vision_obstacles"],
+                                   "obstacle_max_range": 3.0}}
+    if peer_layer is not None:
+        theirs["peer_layer"] = peer_layer
+    (share / "params" / "avoidance.yaml").write_text(yaml.safe_dump(theirs), encoding="utf-8")
+    (share / "launch" / "avoidance.launch.py").write_text(
+        TEAM_LAUNCH.format(names=AVOIDANCE_ARGS), encoding="utf-8")
+    monkeypatch.setenv("AMENT_PREFIX_PATH",
+                       f"{prefix}{os.pathsep}{os.environ.get('AMENT_PREFIX_PATH', '')}")
+
+
+def _controller_server(found):
+    controller = [node for node, _ in found][NAMES.index("controller_server")]
+    return _param_files(controller)["pinky1"]["controller_server"]["ros__parameters"]
+
+
+def _given(node):
+    """The parameters a process gets, by name (whatever node key launch_ros writes)."""
+    import yaml
+    params = {}
+    for path, is_file in node._Node__expanded_parameter_arguments:
+        if is_file:
+            for value in yaml.safe_load(Path(path).read_text(encoding="utf-8")).values():
+                params.update(value["ros__parameters"])
+    return params
+
+
+def test_the_default_avoidance_package_is_the_temporary_one():
+    _, found = _expand("false")
+    assert _controller_server(found)["FollowPathGoal"] == _avoidance_file()["follow_path_goal"]
+
+
+def test_another_avoidance_package_swaps_the_goal_controller_and_the_nodes(tmp_path, monkeypatch):
+    _team_package(tmp_path, monkeypatch)
+    _, found = _expand("false", avoidance_package="team_avoidance", vision_obstacles="true")
+    assert _controller_server(found)["FollowPathGoal"] == TEAM_GOAL
+    assert _controller_server(found)["FollowPath"]["plugin"], "the user's controllers stay"
+    for layer in _obstacle_layers(found).values():
+        assert layer["vision"]["obstacle_max_range"] == 3.0
+    [team] = [n for n, _ in found if n.node_name == "/pinky1/team_vision"]
+    given = _given(team)
+    assert set(given) >= set(AVOIDANCE_ARGS)
+    assert given["namespace"] == "pinky1"
+    assert given["vision_obstacles"] is True and given["peer_obstacles"] is False
+    assert "/pinky1/peer_obstacles" not in [n.node_name for n, _ in found]
+
+
+def test_an_avoidance_params_file_still_wins_over_the_package(tmp_path, monkeypatch):
+    import yaml
+    _team_package(tmp_path, monkeypatch)
+    mine = tmp_path / "mine.yaml"
+    mine.write_text(yaml.safe_dump({"follow_path_goal": {"plugin": "mine::Goal"}}),
+                    encoding="utf-8")
+    _, found = _expand("false", avoidance=str(mine), avoidance_package="team_avoidance")
+    assert _controller_server(found)["FollowPathGoal"] == {"plugin": "mine::Goal"}
+    assert "/pinky1/team_vision" in [n.node_name for n, _ in found], "nodes stay the package's"
+
+
+def test_peer_obstacles_with_a_package_without_the_peer_layer_stops_the_launch(
+        tmp_path, monkeypatch):
+    _team_package(tmp_path, monkeypatch)
+    with pytest.raises(ValueError, match="peer_layer"):
+        _expand("false", avoidance_package="team_avoidance", peer_obstacles="true",
+                peer_node="false")
+
+
+def test_the_peer_layer_comes_from_the_chosen_package(tmp_path, monkeypatch):
+    layer = {**_avoidance_file()["peer_layer"], "enabled": False}
+    _team_package(tmp_path, monkeypatch, peer_layer=layer)
+    _, found = _expand("false", avoidance_package="team_avoidance", peer_obstacles="true",
+                       peer_robots="pinky1,pinky2")
+    for costmap in _costmaps(found).values():
+        assert costmap["peer_layer"]["enabled"] is False
+    [team] = [n for n, _ in found if n.node_name == "/pinky1/team_vision"]
+    assert _given(team)["peer_robots"] == "pinky1,pinky2"
+
+
+def test_an_unknown_avoidance_package_stops_the_launch():
+    from launch.substitutions.substitution_failure import SubstitutionFailure
+    with pytest.raises((LookupError, SubstitutionFailure, ValueError)):
+        _expand("false", avoidance_package="no_such_avoidance_package")
+
+
+# ---- 임시 비전 대역(pinky_avoidance, 시뮬레이션 전용) ----------------------------------------
+
+@pytest.mark.parametrize("value", [None, "false"])
+def test_without_the_vision_stand_in_nothing_changes(value):
+    more = {} if value is None else {"vision_stand_in": value}
+    _, found = _expand("false", **more)
+    assert [n.node_name for n, _ in found] == [f"/pinky1/{name}" for name in NAMES]
+
+
+def test_the_vision_stand_in_starts_its_node_and_turns_the_vision_source_on():
+    _, found = _expand("false", vision_stand_in="true")
+    [stand_in] = [n for n, _ in found if n.node_name == "/pinky1/vision_stand_in"]
+    assert stand_in.node_package == "pinky_avoidance"
+    assert stand_in.node_executable == "vision_stand_in"
+    for layer in _obstacle_layers(found).values():
+        assert layer["observation_sources"] == "scan vision"
+        assert layer["vision"]["topic"] == "/pinky1/vision_obstacles"
+
+
+@pytest.mark.parametrize("name", ["vision_obstacles", "vision_stand_in"])
+def test_a_vision_switch_that_is_not_true_or_false_stops_the_launch(name):
+    from launch.substitutions.substitution_failure import SubstitutionFailure
+    with pytest.raises((ValueError, SubstitutionFailure), match=f"{name} must be true or false"):
+        _expand("false", **{name: "ture"})

@@ -22,6 +22,7 @@
   <exec_depend>tf2_ros</exec_depend>
   <exec_depend>pinky_description</exec_depend>
   <exec_depend>pinky_nav_config</exec_depend>
+  <exec_depend>pinky_avoidance</exec_depend>
   <exec_depend>pinky_fsm</exec_depend>
   <exec_depend>pinky_peer_obstacles</exec_depend>
   <exec_depend>robot_state_publisher</exec_depend>

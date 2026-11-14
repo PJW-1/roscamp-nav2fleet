@@ -2,7 +2,7 @@
 
 라이다 빔은 다른 핑키의 몸 위로 지나가 costmap에 작은 점으로만 찍힌다. 그래서 Nav2가 다른 로봇을
 피해 길을 짜지 못하고 마당에서 몸이 닿았다. 이 노드는 다른 로봇이 보고한 자세로 그 몸 자리를
-점구름으로 내고, costmap의 peer 층(pinky_nav_config params/peer_obstacles.yaml)이 그것을 찍는다.
+점구름으로 내고, costmap의 peer 층(회피 패키지 avoidance.yaml의 peer_layer)이 그것을 찍는다.
 
 - 받는 것: 다른 로봇마다 `/<로봇>/state`(RobotState, 10 Hz, map 좌표 자세).
 - 내는 것(로봇 namespace 안, rate_hz마다):
