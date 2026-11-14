@@ -390,11 +390,12 @@ def test_v7_outbound_waits_at_the_west_end_of_the_express_too(site):
     spot = site.nodes["O_X"]
     assert (spot.kind, spot.zone) == ("wait", "EXPRESS") and site.can_wait("O_X")
     assert math.degrees(spot.yaw) == pytest.approx(180.0)  # 급행을 따라 서쪽을 보고 닿는다
-    # OUT_DOCK 동쪽 끝 0.50 + 놓기 거리 0.135: 선 로봇이 OUT_DOCK을 놓는다. 더 동쪽이면 급행 끝에서
-    # 출고까지 멀어질 뿐이다
-    assert site.distance_to_zone(spot.x, spot.y, "OUT_DOCK") == pytest.approx(RELEASE_GAP_M)
+    # OUT_DOCK 동쪽 끝 0.50 + 놓기 거리 0.135 + 위치 오차 여유 0.02: 선 로봇이 OUT_DOCK을 놓는다.
+    # 여유가 없으면 위치가 1 cm만 서쪽으로 잡혀도 OUT_DOCK을 쥔 채 서서 O_IN 로봇이 출고에 들어가지
+    # 못한다(Codex 검수 fb69df1). 더 동쪽이면 급행 끝에서 출고까지 멀어질 뿐이다
+    assert site.distance_to_zone(spot.x, spot.y, "OUT_DOCK") == pytest.approx(RELEASE_GAP_M + 0.02)
     assert spot.y == pytest.approx(0.90)  # 급행 가운데
-    # 북쪽 진열대 서쪽 끝 모서리(0.68, 0.81)에 몸 원이 닿지 않는다(0.1006)
+    # 북쪽 진열대 서쪽 끝 모서리(0.68, 0.81)에 몸 원이 닿지 않는다(0.0934)
     assert point_rect_distance(SHELVES[0], spot.x, spot.y) > BODY_CIRCLE_M
     # 선 로봇의 몸은 HALL에 들지 않는다(진열대 서쪽 HALL 띠의 위 끝 y 0.81에서 0.09). 급행으로 오는
     # 길은 HALL을 지나지 않아 쥐지도 않는다
@@ -412,7 +413,7 @@ def test_v7_outbound_waits_at_the_west_end_of_the_express_too(site):
     gaps = {name: min(point_segment_distance(site.node_pose("O_X"), a, b)
                       for a, b in pairwise(site.link(*pair).points))
             for name, pair in (("out_in", ("O_IN", "O")), ("out_out", ("O", "O_OUT")))}
-    assert gaps["out_in"] == pytest.approx(0.233, abs=1e-3), gaps
+    assert gaps["out_in"] == pytest.approx(0.252, abs=1e-3), gaps
     assert gaps["out_out"] > gaps["out_in"] >= 2 * BODY_CIRCLE_M + 0.01, gaps
 
 
