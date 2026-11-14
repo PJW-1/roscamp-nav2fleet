@@ -100,6 +100,25 @@ def test_keepout_extra_closes_its_rectangle_without_padding_and_is_no_zone():
     assert set(site.zones) == {"HALL", "WORK_DOCK", "J_E", "EXPRESS", "OUT_DOCK"}
 
 
+def test_a_dock_left_by_nav_goal_is_open_along_its_way_out():
+    """v7의 W는 WORK_DOCK keepout 한가운데다. NavFn은 선 칸 하나만 비우므로 W -> M_E Nav2 goal이
+    계획되도록 W에서 넓은 곳까지의 곧은 선 둘레(몸 반폭)를 연다. 막다른 주머니라 다른 로봇의 경로가
+    지나갈 일이 없다. 도크의 나머지(북쪽, 남쪽, 동쪽 벽 쪽)는 그대로 막혀 있다."""
+    from fleet_core.fleet_map.keepout import keepout_openings
+    site = load_fleet_map("v7")
+    (x0, y0, x1, y1), = keepout_openings(site)
+    # 곧은 선이 덧댄 keepout(x 1.72)을 나서는 y 0.532까지의 상자에 몸 반폭 0.06을 두르고
+    # 덧댄 도크 상자 안으로 자른다
+    assert (x0, y0, x1, y1) == pytest.approx((1.72, 0.435, 1.94, 0.5925), abs=1e-3)
+    grid = mask(site, *SIZE, RESOLUTION, ORIGIN)
+    for x, y in ((1.88, 0.495), (1.80, 0.51), (1.73, 0.53), (1.88, 0.45), (1.88, 0.58)):
+        assert not cell(grid, x, y), (x, y)
+    for x, y in ((1.88, 0.62), (1.88, 0.40), (1.96, 0.495), (1.75, 0.65), (1.75, 0.36)):
+        assert cell(grid, x, y), (x, y)
+    assert cell(grid, 1.88, 0.75), "the J_E keepout stays"
+    assert keepout_openings(load_fleet_map("d2")) == []
+
+
 def test_layouts_without_keepout_extra_keep_their_masks():
     for layout in ("d2", "d", "c", "d2_shelf"):
         assert load_fleet_map(layout).keepout_extra == ()

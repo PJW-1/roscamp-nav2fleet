@@ -74,3 +74,14 @@ def test_every_node_of_a_shared_zone_is_floor(layout):
     for node in site.nodes.values():
         if site.zones[node.zone].kind == "shared":
             assert space.free(space.static, node.x, node.y), node.id
+
+
+def test_v7_a_robot_at_work_plans_its_way_out_to_the_hall():
+    """v7의 W는 WORK_DOCK 안이다. 그 도크를 Nav2 goal로 떠나는 이음(W -> M_E, 사용자 2026-11-14)의
+    곧은 선 둘레는 바닥으로 열고, 도크의 나머지는 그대로 막는다(fleet_core keepout_openings)."""
+    site = load_fleet_map("v7")
+    space = FreeSpace(site, R)
+    assert space.free(space.static, *site.node_pose("W"))
+    assert plan(space, space.static, site.node_pose("W"), site.node_pose("M_E")) is not None
+    assert not space.free(space.static, 1.88, 0.40), "the south end of the dock stays closed"
+    assert not space.free(space.static, 1.80, 0.66), "so does the strip below J_E"

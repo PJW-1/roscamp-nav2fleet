@@ -9,7 +9,7 @@ import math
 def route(site, start: str, goal: str, cost=None) -> list | None:
     if start == goal:
         return []
-    price = cost or (lambda link: link.length)
+    price = cost or (lambda link: link.price_m)
     best = {start: 0.0}
     came: dict[str, object] = {}
     todo = [(0.0, start)]

@@ -164,7 +164,8 @@ def _line_problem(zones: dict[str, Zone], points) -> str:
 
 
 # ---- 링크 하나 만들기 ----
-def _link(nodes, zones, a: str, b: str, via: str, path: str, crossed=None, bends=()) -> Link:
+def _link(nodes, zones, a: str, b: str, via: str, path: str, crossed=None, bends=(),
+          extra_m: float = 0.0) -> Link:
     points = ((nodes[a].x, nodes[a].y), *bends, (nodes[b].x, nodes[b].y))
     if via != NAV_GOAL:
         problem = _line_problem(zones, points)
@@ -177,7 +178,7 @@ def _link(nodes, zones, a: str, b: str, via: str, path: str, crossed=None, bends
         ordered.append(nodes[b].zone)
     lane = next((z for z in ordered if zones[z].kind == LANE), "")
     length = sum(math.dist(p, q) for p, q in zip(points, points[1:], strict=False))
-    return Link(a, b, via, path, points, tuple(ordered), length, lane)
+    return Link(a, b, via, path, points, tuple(ordered), length, lane, extra_m)
 
 
 # ---- 경로 지점 읽기 ----
@@ -235,6 +236,10 @@ def read_links(paths: dict, nav: list, nodes: dict[str, Node], zones: dict[str, 
     for index, group in enumerate(nav or ()):
         what = f"nav group {index + 1}"
         members = [known(node, what) for node in group.get("nodes") or ()]
+        extra = _extra_m(group, what)
+        if group.get("leave_dock"):
+            add(_leave_dock(nodes, zones, members, what, extra), what)
+            continue
         for node in members:
             if zones[nodes[node].zone].kind != SHARED:
                 raise FleetMapError(f"{what}: {node} is not in a shared zone")
@@ -246,7 +251,7 @@ def read_links(paths: dict, nav: list, nodes: dict[str, Node], zones: dict[str, 
                 if a == b:
                     continue
                 named = None if crossed is None else (crossed if a == members[0] else crossed[::-1])
-                link = _link(nodes, zones, a, b, NAV_GOAL, "", named)
+                link = _link(nodes, zones, a, b, NAV_GOAL, "", named, extra_m=extra)
                 for zone in link.zones:
                     if zones[zone].kind != SHARED:
                         raise FleetMapError(
@@ -254,6 +259,31 @@ def read_links(paths: dict, nav: list, nodes: dict[str, Node], zones: dict[str, 
                             "shared; write the zones it may use as `zones:`")
                 add(link, what)
     return links
+
+
+# ---- nav 그룹의 덧붙는 길이와 도크에서 풀려 나가는 이음 ----
+def _extra_m(group, what: str) -> float:
+    value = group.get("extra_m", 0.0)
+    if (isinstance(value, bool) or not isinstance(value, (int, float))
+            or not 0.0 <= value < math.inf):
+        raise FleetMapError(f"{what}: extra_m must be a length of 0 m or more, got {value!r}")
+    return float(value)
+
+
+def _leave_dock(nodes, zones, members: list, what: str, extra: float) -> Link:
+    if len(members) != 2:
+        raise FleetMapError(f"{what}: leave_dock is for a pair of nodes, got {len(members)}")
+    dock, out = (nodes[name] for name in members)
+    if dock.kind != AT_DOCK:
+        raise FleetMapError(f"{what}: leave_dock starts at {dock.id}, which is not a dock")
+    if zones[out.zone].kind != SHARED:
+        raise FleetMapError(f"{what}: {out.id} is not in a shared zone")
+    link = _link(nodes, zones, dock.id, out.id, NAV_GOAL, "", extra_m=extra)
+    for zone in link.zones[1:]:
+        if zones[zone].kind != SHARED:
+            raise FleetMapError(f"{what}: the line from {dock.id} to {out.id} crosses {zone}, "
+                                "which is not shared")
+    return link
 
 
 # ---- nav 그룹의 지정 구역 검사 ----

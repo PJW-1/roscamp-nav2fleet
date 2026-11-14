@@ -260,6 +260,36 @@ def test_a_nav_group_may_name_the_zones_it_crosses():
     assert site.link("W_Q", "O_Q") is None
 
 
+LEAVE_W = {"nodes": ["W", "N_W"], "leave_dock": True}
+
+
+def test_a_robot_may_leave_its_dock_by_nav_goal_one_way():
+    """도크에서 마당으로 Nav2 goal로 풀려 나간다(사용자 2026-11-14). 들어오는 쪽은 그대로 고정
+    경로다: 도크 자리는 정확히 서야 한다."""
+    site = build(nav=[*SMALL["nav"], LEAVE_W])
+    out = site.link("W", "N_W")
+    assert (out.via, out.path, out.zones) == ("nav_goal", "", ("DOCK_W", "HALL"))
+    assert out.length == pytest.approx(math.hypot(0.2, 0.3)) and out.extra_m == 0.0
+    assert site.link("N_W", "W") is None
+    assert route(site, "W", "O")[0].via == "retreat", "the shorter way still wins"
+
+
+def test_a_nav_group_may_add_length_to_the_price_of_its_links():
+    """extra_m: 길 고르기에서 그 이음을 이만큼 더 길게 친다(ETA의 길이는 그대로)."""
+    site = build(nav=[*SMALL["nav"], {**LEAVE_W, "extra_m": 0.3}])
+    out = site.link("W", "N_W")
+    assert out.extra_m == 0.3 and out.price_m == pytest.approx(out.length + 0.3)
+    assert site.link("N_W", "N_E").price_m == site.link("N_W", "N_E").length
+
+    def no_express(link):
+        return math.inf if link.lane else link.price_m
+    # 급행 없이: 도크에서 바로 마당으로(0.36 + 1.2 + 0.5)가 X_W로 물러났다 내려가는 길
+    # (0.2 + 0.3 + 1.2 + 0.5)보다 짧지만, 0.3을 더하면 뒤집힌다
+    assert route(site, "W", "O", no_express)[0].b == "X_W"
+    plain = build(nav=[*SMALL["nav"], LEAVE_W])
+    assert route(plain, "W", "O", no_express)[0].b == "N_W"
+
+
 def test_stations_keep_the_fields_orders_and_arms_read():
     site = build()
     work = site.stations["WORK"]
@@ -397,6 +427,17 @@ def test_a_nav_group_stays_in_shared_zones():
     refused("shared", nav=[{"nodes": ["N_W", "N_E", "W_Q", "O_Q", "P-1", "P-2", "X_W"]}])
     refused("zones", nav=[{"nodes": ["N_W", "N_E", "W_Q", "O_Q", "P-1", "P-2"],
                            "zones": ["HALL", "EXPRESS"]}])
+
+
+def test_leaving_a_dock_by_nav_goal_is_a_pair_from_a_dock_into_shared_zones():
+    nav = SMALL["nav"]
+    refused("pair", nav=[*nav, {"nodes": ["W", "N_W", "W_Q"], "leave_dock": True}])
+    refused("not a dock", nav=[*nav, {"nodes": ["N_W", "N_E"], "leave_dock": True}])
+    refused("not a dock", nav=[*nav, {"nodes": ["X_W", "N_W"], "leave_dock": True}])  # 갈림목
+    refused("shared", nav=[*nav, {"nodes": ["W", "O"], "leave_dock": True}])
+    refused("J_W", nav=[*nav, {"nodes": ["W", "N_E"], "leave_dock": True}])  # 갈림목을 지난다
+    refused("extra_m", nav=[*nav, {**LEAVE_W, "extra_m": -0.1}])
+    refused("extra_m", nav=[*nav, {**LEAVE_W, "extra_m": "far"}])
 
 
 def test_there_is_one_fill_station_and_one_swap_station():

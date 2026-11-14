@@ -196,26 +196,38 @@ def test_v7_dock_releases_neighbours_after_docking(site):
 
 
 def test_v7_routes(site):
-    # 급행: WORK에서 출고로 고정 경로
+    # 급행: WORK에서 출고로 고정 경로. 급행이 비어 있으면 이쪽을 고른다
     way = route(site, "W", "O")
     assert [link.b for link in way] == ["W_X", "O"]
     assert all(link.via == FOLLOW_PATH for link in way)
     assert "EXPRESS" in way[-1].zones
-    # WORK에서 나가기(사용자 결정 2026-11-13 밤): 급행 하나뿐이다(W -> W_X -> 급행). 넓은 곳으로
-    # 바로 나가던 길과 그 끝점 N_E는 없다
+    # WORK에서 나가는 길은 둘이다. 급행 들머리 W_X로 앞으로 곧게(고정 경로), 그리고 넓은 곳의 M_E로
+    # Nav2 goal로 풀려 나가기(사용자 결정 2026-11-14 "W에서 HALL로 나가는 건 경로가 아니라 goal
+    # 방식으로 풀면 된다": 급행이 막혀도 돌아갈 길이 있다). 들어오는 길은 Q1에서 고정 경로 하나다.
+    # 넓은 곳으로 바로 나가던 옛 고정 경로와 그 끝점 N_E는 없다
     exit_ = site.nodes["W_X"]
     assert exit_.kind == PASS and exit_.zone == "J_E" and exit_.x == pytest.approx(1.88)
     assert site.distance_to_zone(exit_.x, exit_.y, "WORK_DOCK") >= RELEASE_GAP_M
-    assert [(link.b, link.via) for link in site.links() if link.a == "W"] == [
-        ("W_X", FOLLOW_PATH)]
+    assert sorted((link.b, link.via) for link in site.links() if link.a == "W") == [
+        ("M_E", NAV_GOAL), ("W_X", FOLLOW_PATH)]
+    assert site.link("W", "M_E").zones == ("WORK_DOCK", "HALL")
+    assert [link.a for link in site.links() if link.b == "W"] == ["Q1"]
     # W_X는 W와 급행만 잇는다(W로 물러나는 후진도 없다: W 띠 안에서 제자리 돌기가 된다)
     assert [(l.b, l.via) for l in site.links() if l.a == "W_X"] == [("O", FOLLOW_PATH)]
     assert [l.a for l in site.links() if l.b == "W_X"] == ["W"]
     assert not {"X_E", "N_E", "N_O", "O_Q"} & set(site.nodes)
 
     def no_express(link):
-        return math.inf if "EXPRESS" in link.zones else link.length
-    assert route(site, "W", "O", no_express) is None
+        return math.inf if "EXPRESS" in link.zones else link.price_m
+    hall = route(site, "W", "O", no_express)
+    assert [link.b for link in hall] == ["M_E", "O_IN", "O"]
+    # 넓은 곳 쪽이 0.09 m 짧다. 그 이음에 extra_m(W에서 M_E 쪽으로 약 100도 제자리 돌기)을 더해
+    # 급행이 비면 급행을 고르고, 급행 들머리 J_E를 다른 로봇이 쥐고 있으면(TRANSIT_WAIT_S)
+    # 넓은 곳으로 간다
+    from fleet_core.traffic.zone.goals import TRANSIT_WAIT_S
+    express_m, hall_m = (sum(link.price_m for link in w) for w in (way, hall))
+    assert sum(link.length for link in hall) < sum(link.length for link in way)
+    assert express_m < hall_m < express_m + TRANSIT_WAIT_S * load_params().nav_speed_mps
     # 출고(사용자 그림 2026-11-13 밤): 들어오는 점과 나가는 점을 나눈다. 급행으로 오지 않는 로봇은
     # 동쪽의 O_IN에서 들어오고(급행 띠를 쥐지 않는다), 나갈 때는 후진하지 않고 앞으로(서쪽) 조금
     # 가서 남쪽으로 꺾어 서쪽의 O_OUT으로 나온다. O_OUT부터는 Nav2 goal로 마당을 자유롭게 간다

@@ -235,6 +235,17 @@ def test_v7_north_and_south_stay_joined_by_each_way_alone(site, shut, pairs):
         assert _joined(grid, site.node_pose(a), site.node_pose(b), shut), (a, b, shut)
 
 
+def test_v7_work_is_joined_to_the_hall_for_its_nav_goal_way_out(site):
+    """W -> M_E(사용자 2026-11-14 "W에서 HALL로는 goal 방식으로 풀면 된다"): W는 WORK_DOCK keepout
+    안이지만, 커밋된 마스크가 그 도크를 나가는 곧은 선 둘레를 열어 두어 5 cm costmap에서 W 칸부터
+    M_E까지 이어진다. 연 주머니는 막다른 곳이라 그 둘레의 도크는 그대로 막혀 있다."""
+    grid, _, kept = _costmap()
+    assert _joined(grid, site.node_pose("W"), site.node_pose("M_E"))
+    for x, y in ((1.875, 0.625), (1.875, 0.375), (1.775, 0.675)):
+        i, j = _cell(x, y)
+        assert kept[j][i], (x, y)
+
+
 # ---- 칸막이 3 위 끝: Nav2 goal 경로가 모서리를 긁지 않게 ----
 DIVIDER_3_KEEP = (0.71, 0.0, 0.86, 0.20)  # 서쪽 끝 0.71: P-3에 선 로봇 발자국(0.64 + 0.06) 밖
 

@@ -111,14 +111,25 @@ def test_map_yaml_names_its_image_and_the_world_frame(site):
 # ---- keepout ----
 
 def test_every_zone_that_is_not_shared_is_keepout(site):
+    from fleet_core.fleet_map.geometry import inside
+    from fleet_core.fleet_map.keepout import keepout_openings
     grid = arena_maps.keepout(arena_maps.FINE_M, site)
     pad = arena_maps.KEEPOUT_PAD_M
+    # 도크를 Nav2 goal로 떠나는 곧은 선 둘레는 연다(v7 W -> M_E, 2026-11-14): 그 밖을 본다
+    opened = keepout_openings(site)
     for zone in site.zones.values():
         for x0, y0, x1, y1 in zone.rects:
             if zone.kind == SHARED and min(x1 - x0, y1 - y0) < 2 * pad:
                 continue  # a shared sliver (beside the shelf) lies inside the pad by design
-            inside = _value(grid, (x0 + x1) / 2, (y0 + y1) / 2, arena_maps.FINE_M, site)
-            assert inside == (zone.kind != SHARED), zone.id
+            points = [((x0 + x1) / 2, (y0 + y1) / 2)]
+            if zone.kind != SHARED:
+                points += [(x, y) for x in (x0 + 0.005, x1 - 0.005)
+                           for y in (y0 + 0.005, y1 - 0.005)]
+            looked = [(x, y) for x, y in points if not any(inside(r, x, y) for r in opened)]
+            assert looked, zone.id
+            for x, y in looked:
+                kept = _value(grid, x, y, arena_maps.FINE_M, site)
+                assert kept == (zone.kind != SHARED), (zone.id, x, y)
 
 
 def test_keepout_is_widened_by_half_the_footprint(site):

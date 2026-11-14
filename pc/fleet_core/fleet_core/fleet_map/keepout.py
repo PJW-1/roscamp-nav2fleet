@@ -3,7 +3,8 @@ from __future__ import annotations
 
 import math
 
-from .model import SHARED
+from .geometry import inside
+from .model import NAV_GOAL, SHARED
 
 # ---- 금지 사각형 계산과 격자 채우기 ----
 BODY_HALF_WIDTH_M = 0.06
@@ -32,10 +33,46 @@ def filled(rects, width: int, height: int, resolution: float, origin) -> list[li
     return grid
 
 
+# ---- 도크를 Nav2 goal로 떠나는 곧은 선 둘레의 열린 상자 ----
+def keepout_openings(site, pad: float = BODY_HALF_WIDTH_M) -> list[tuple]:
+    opened = []
+    for link in site.links():
+        zone = site.zones[site.nodes[link.a].zone]
+        if link.via != NAV_GOAL or zone.kind == SHARED:
+            continue
+        start, end = link.points[0], link.points[-1]
+        grown = [(x0 - pad, y0 - pad, x1 + pad, y1 + pad) for x0, y0, x1, y1 in zone.rects]
+        rect = next((r for r in grown if inside(r, *start)), None)
+        if rect is None:
+            continue
+        ex, ey = _leaving(rect, start, end)
+        box = (min(start[0], ex) - pad, min(start[1], ey) - pad,
+               max(start[0], ex) + pad, max(start[1], ey) + pad)
+        clipped = (max(box[0], rect[0]), max(box[1], rect[1]),
+                   min(box[2], rect[2]), min(box[3], rect[3]))
+        if clipped[0] < clipped[2] and clipped[1] < clipped[3]:
+            opened.append(clipped)
+    return opened
+
+
+def _leaving(rect, start, end) -> tuple[float, float]:
+    t = 1.0
+    for lo, hi, a, b in ((rect[0], rect[2], start[0], end[0]),
+                         (rect[1], rect[3], start[1], end[1])):
+        if b > a:
+            t = min(t, (hi - a) / (b - a))
+        elif b < a:
+            t = min(t, (lo - a) / (b - a))
+    return start[0] + (end[0] - start[0]) * t, start[1] + (end[1] - start[1]) * t
+
+
 # ---- 마스크 생성과 PGM 변환 ----
 def mask(site, width: int, height: int, resolution: float, origin,
          pad: float = BODY_HALF_WIDTH_M) -> list[list[bool]]:
-    return filled(keepout_rects(site, pad), width, height, resolution, origin)
+    closed = filled(keepout_rects(site, pad), width, height, resolution, origin)
+    opened = filled(keepout_openings(site, pad), width, height, resolution, origin)
+    return [[shut and not gap for shut, gap in zip(row, open_row, strict=True)]
+            for row, open_row in zip(closed, opened, strict=True)]
 
 
 def pgm(grid) -> bytes:

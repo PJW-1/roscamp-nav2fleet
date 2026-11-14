@@ -258,8 +258,8 @@ def test_v7_the_robot_at_the_entry_low_on_battery_leaves_at_once():
 
 def test_v7_the_front_robot_low_on_battery_leaves_through_the_docks():
     """v7: 앞자리 Q1에서 나가는 길은 W뿐이다(사용자 결정 2026-11-13 밤: N_E와 G가 없다). 앞자리
-    로봇이 배터리가 낮으면 도크가 빌 때까지 줄을 막고 서 있다가, W와 급행, 출고를 도킹 없이 지나
-    칸에 선다.
+    로봇이 배터리가 낮으면 도크가 빌 때까지 줄을 막고 서 있다가, W를 도킹 없이 지나 Nav2 goal로
+    넓은 곳의 M_E에 풀려 나가(사용자 결정 2026-11-14) 칸에 선다. 급행과 출고는 지나지 않는다.
     늦을 뿐 교착은 없고, 뒤 로봇은 그다음에 도크에 들어간다."""
     world, asked, low, rest = low_battery_in_line("Q1")
     world.run(60.0)
@@ -271,7 +271,8 @@ def test_v7_the_front_robot_low_on_battery_leaves_through_the_docks():
             if world.phase(robot) == "AT_STATION":
                 world.traffic.on_release(robot)
     assert world.phase(low) == "PARKED", world.log[-20:]
-    assert targets(world, low)[:3] == ["W", "O", "O_OUT"]
+    went = targets(world, low)
+    assert went[:2] == ["W", "M_E"] and not {"O", "O_OUT"} & set(went), went
     assert not world.sent(DockCmd, low), "passes the docks without docking"
     assert all(world.result_of(goal) is not None for goal in asked)
     assert not world.problems

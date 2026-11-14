@@ -60,6 +60,11 @@ class Link:
     zones: tuple[str, ...]
     length: float
     lane: str = ""
+    extra_m: float = 0.0
+
+    @property
+    def price_m(self) -> float:
+        return self.length + self.extra_m
 
 
 @dataclass(frozen=True)

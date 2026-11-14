@@ -3,7 +3,7 @@ import math
 from dataclasses import replace
 
 import pytest
-from fleet_core.common.commands import RetreatCmd
+from fleet_core.common.commands import MoveCmd, RetreatCmd
 from fleet_core.common.params import load_params
 from fleet_core.fleet_map import load_fleet_map
 from fleet_core.traffic.zone.base import HERE
@@ -90,6 +90,25 @@ def test_blocked_in_the_express_with_a_position_marks_the_express_and_backs_out(
     back = [point[:2] for point in world.sent(RetreatCmd, "pinky1")[1].path]
     assert back[-1] == tuple(site.node_pose("N_W")), "backs out down to the yard"
     assert tuple(site.node_pose("X_W")) in back, "through the junction"
+    assert not world.problems
+
+
+@pytest.mark.parametrize("express_shut, way", [
+    (False, ["O"]),  # W -> W_X -> 급행은 이어진 고정 경로라 한 번에 보낸다
+    (True, ["M_E", "O_IN", "O"]),
+])
+def test_v7_a_robot_at_work_leaves_through_the_hall_while_the_express_is_marked(express_shut,
+                                                                               way):
+    """v7(사용자 2026-11-14): 급행이 막혔다고 표시돼 있으면 W의 로봇은 Nav2 goal로 넓은 곳의 M_E로
+    풀려 나가 O_IN에서 출고로 들어간다. 급행이 비어 있으면 급행이다."""
+    world = Harness(layout="v7", starts={"pinky1": "W", "pinky2": "P-2", "pinky3": "P-3"})
+    if express_shut:
+        world.traffic._blocked[("W_X", "O")] = 1e9
+    world.report()
+    call = world.call("OUTBOUND", "pinky1")
+    assert world.run_until(lambda: world.result_of(call), 300.0), world.log[-10:]
+    assert world.result_of(call).success
+    assert [c.target_id for c in world.sent(MoveCmd, "pinky1")] == way
     assert not world.problems
 
 

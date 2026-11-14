@@ -1,7 +1,8 @@
 """Nav2 goal이 다닐 수 있는 바닥(격자). ROS를 쓰지 않는다.
 
 넓은 구역(shared)의 합만 바닥이다. 한 줄 구역과 도크 구역은 keepout처럼 막고, 벽과 진열대와
-keepout 구역은 로봇 반지름만큼 키운다(지시서 3절 keepout, 6-1). 다른 로봇과 물체는 매번
+keepout 구역은 로봇 반지름만큼 키운다(지시서 3절 keepout, 6-1). 도크를 Nav2 goal로 떠나는
+이음의 곧은 선 둘레는 바닥으로 연다(fleet_core keepout_openings). 다른 로봇과 물체는 매번
 원으로 찍는다(로봇 반지름 + 그 반지름 + 여유).
 """
 from __future__ import annotations
@@ -10,6 +11,7 @@ import math
 
 from fleet_core.fleet_map import SHARED
 from fleet_core.fleet_map.geometry import inside, point_rect_distance, wall_gap
+from fleet_core.fleet_map.keepout import keepout_openings
 
 GRID_M = 0.02
 
@@ -24,15 +26,18 @@ class FreeSpace:
         self.h = max(1, round((y1 - y0) / resolution))
         shared = [rect for z in site.zones.values() if z.kind == SHARED for rect in z.rects]
         keepout = [rect for z in site.zones.values() if z.kind != SHARED for rect in z.rects]
-        blocked = list(site.shelves) + keepout
+        opened = keepout_openings(site, radius_m)
         bounds = site.bounds()
         cells = bytearray(self.w * self.h)
         for iy in range(self.h):
             for ix in range(self.w):
                 x, y = self.centre(ix, iy)
-                ok = (any(inside(rect, x, y) for rect in shared)
-                      and wall_gap(bounds, x, y) >= radius_m
-                      and all(point_rect_distance(rect, x, y) >= radius_m for rect in blocked))
+                floor = (any(inside(rect, x, y) for rect in opened)
+                         or (any(inside(rect, x, y) for rect in shared)
+                             and all(point_rect_distance(rect, x, y) >= radius_m
+                                     for rect in keepout)))
+                ok = (floor and wall_gap(bounds, x, y) >= radius_m
+                      and all(point_rect_distance(rect, x, y) >= radius_m for rect in site.shelves))
                 cells[iy * self.w + ix] = 0 if ok else 1
         self.static = bytes(cells)
 

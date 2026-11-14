@@ -22,7 +22,7 @@ class Goals:
         def cost(link) -> float:
             if self._blocked.get((link.a, link.b), 0.0) > now:
                 return math.inf
-            seconds = link.length / speed(p, link.via)
+            seconds = link.price_m / speed(p, link.via)
             for zone in link.zones:
                 holders = grants.holders(zone)
                 others = [name for name in holders if name != m.name]
