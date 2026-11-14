@@ -1,10 +1,12 @@
 """Nav2 goal 흉내의 바닥과 길 찾기: keepout, 키운 벽, 돌아가기, 길 없음."""
 import copy
 import math
+from itertools import pairwise
 
 import pytest
 from fake_robots.world.free_space import FreeSpace
 from fake_robots.world.geom import length, path_gap
+from fake_robots.world.nav_goal import plan_around
 from fake_robots.world.planner import plan
 from fleet_core.fleet_map import FleetMap, load_fleet_map
 
@@ -141,3 +143,41 @@ def test_v7_a_robot_at_work_plans_its_way_out_to_the_hall():
     assert plan(space, space.static, site.node_pose("W"), site.node_pose("M_E")) is not None
     assert not space.free(space.static, 1.88, 0.40), "the south end of the dock stays closed"
     assert not space.free(space.static, 1.80, 0.66), "so does the strip below J_E"
+
+
+def test_v7_keepout_extra_is_not_floor():
+    """Nav2 마스크는 keepout_extra 사각형을 덧대지 않고 막는다(fleet_core keepout.mask). 머리 없는
+    세계도 그 안으로 길을 내지 않는다: 남쪽 진열대 사이 틈과 칸막이 3 위 끝 둘레."""
+    site = load_fleet_map("v7")
+    space = FreeSpace(site, R)
+    assert not space.free(space.static, 1.12, 0.385), "the gap between the south shelves"
+    assert not space.free(space.static, 0.84, 0.19), "around the top of divider 3"
+    assert space.free(space.static, 1.12, 0.25), "the south corridor below the gap stays floor"
+
+
+V7_SOUTH_SHELF_Y = 0.365
+
+
+def test_v7_a_robot_passes_robots_parked_in_the_bays_along_the_south_corridor():
+    """칸 입구를 0.24로 내린 뒤 E-1 -> Q2 곧은 선은 P-3에 주차한 로봇에서 0.133을 지난다(fleet_core
+    test_layout_v7). 주차 자리(y 0.08)에 선 로봇들은 몸 둘 + 여유를 두고 남쪽 통로로 돌아 지난다."""
+    site = load_fleet_map("v7")
+    space = FreeSpace(site, R)
+    parked = [(x, 0.08, R) for x in (0.38, 0.64)]
+    way = plan_around(space, R, site.node_pose("E-1"), site.node_pose("Q2"), parked)
+    assert way is not None and max(y for _, y in way) < V7_SOUTH_SHELF_Y, way
+    assert all(path_gap((x, y), way) >= 2 * R for x, y, _ in parked)
+
+
+def test_v7_a_robot_parked_short_of_its_spot_closes_the_south_corridor():
+    """주차 로봇이 y 0.10에 서면(Gazebo에서 0.118~0.148에 섰다) P-3 앞과 남쪽 진열대 서쪽 끝 사이에
+    몸 둘 + 여유가 들어가지 않는다. 진열대 사이 틈은 막혀 있으므로 가운데 통로로 돈다."""
+    site = load_fleet_map("v7")
+    space = FreeSpace(site, R)
+    parked = [(x, 0.10, R) for x in (0.38, 0.64)]
+    way = plan_around(space, R, site.node_pose("E-1"), site.node_pose("Q2"), parked)
+    assert way is not None, "the middle aisle is still a way"
+    assert max(y for _, y in way) > 0.405 + R, way
+    along = [(ax + (bx - ax) * i / 50, ay + (by - ay) * i / 50)
+             for (ax, ay), (bx, by) in pairwise(way) for i in range(51)]
+    assert not any(0.99 < x < 1.25 and V7_SOUTH_SHELF_Y <= y <= 0.405 for x, y in along), way

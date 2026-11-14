@@ -28,6 +28,7 @@ class FreeSpace:
         keepout = [(z.id, rect) for z in site.zones.values() if z.kind != SHARED
                    for rect in z.rects]
         opened = dock_openings(site, radius_m)
+        extra = list(getattr(site, "keepout_extra", ()))
         bounds = site.bounds()
         cells = bytearray(self.w * self.h)
         for iy in range(self.h):
@@ -37,7 +38,8 @@ class FreeSpace:
                 floor = (any(inside(rect, x, y) for rect in shared) or bool(owners)) and all(
                     point_rect_distance(rect, x, y) >= radius_m
                     for zid, rect in keepout if zid not in owners)
-                ok = (floor and wall_gap(bounds, x, y) >= radius_m
+                ok = (floor and not any(inside(rect, x, y) for rect in extra)
+                      and wall_gap(bounds, x, y) >= radius_m
                       and all(point_rect_distance(rect, x, y) >= radius_m for rect in site.shelves))
                 cells[iy * self.w + ix] = 0 if ok else 1
         self.static = bytes(cells)
