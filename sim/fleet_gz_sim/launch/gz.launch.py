@@ -24,7 +24,6 @@ import os
 from pathlib import Path
 
 import yaml
-
 from fleet_gz_sim import launch_parts
 from fleet_gz_sim.isolation import require_isolated
 from launch import LaunchDescription
