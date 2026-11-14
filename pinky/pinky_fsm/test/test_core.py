@@ -1359,7 +1359,7 @@ def test_the_robot_and_the_fleet_agree_on_the_reverse_speed():
     """The fleet times and sends retreats at its retreat_speed_mps, and the robot caps them at
     reverse_speed_mps. 0.10 (drive tuning 2026-11-14) was put back to 0.05: it moved the timing
     of the c-layout pose_jumps situation onto a junction, where the fleet let go of a zone the
-    robot was still in because it trusts a jumped report (docs/주행_계획서.md 6.4)."""
+    robot was still in because it trusts a jumped report (docs/주행_계획서.md 6.6)."""
     import yaml
     from conftest import REPO
     data = REPO / "pc" / "fleet_core" / "fleet_core" / "data"
