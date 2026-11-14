@@ -99,14 +99,6 @@ def test_retreat_backs_along_the_path_facing_the_same_way():
     assert math.dist(r.pose, world.site.node_pose("X_W")) < 1e-9 and r.yaw == math.pi
 
 
-def test_the_ros_fake_reverses_a_path_at_the_fleet_retreat_speed():
-    """Codex 2026-11-14: the fleet sends path retreats at retreat_speed_mps (0.10) and times them
-    with it, but the ROS fake pinky capped them at the old 0.05 and took twice as long."""
-    from fake_robots.pinky_retreat import REVERSE_SPEED_MPS
-    from fleet_core.common.params import load_params
-    assert REVERSE_SPEED_MPS == load_params().retreat_speed_mps
-
-
 def test_retreat_stops_with_obstacle_behind():
     box = Obstacle(0.42, 0.89, 0.04)
     world = quiet_world(robots={"pinky1": "N_W"}, injections=[box])

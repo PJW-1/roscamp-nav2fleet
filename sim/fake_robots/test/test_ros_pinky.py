@@ -11,6 +11,7 @@ from conftest import CONTRACT, wait_until, write_scenario  # noqa: E402
 from fake_robots.pinky_retreat import REVERSE_SPEED_MPS  # noqa: E402
 from fake_robots.world.geom import segment_gap  # noqa: E402
 from fleet_core.common.contract import load_contract, to_ros_qos  # noqa: E402
+from fleet_core.common.params import load_params  # noqa: E402
 from fleet_core.fleet_map import load_fleet_map  # noqa: E402
 from fleet_interfaces.action import Dock, MoveTo  # noqa: E402
 from fleet_interfaces.msg import RobotState  # noqa: E402
@@ -961,6 +962,13 @@ def _drive_out(p, truth, metres):
     move = p.goal("O_Q")
     assert wait_until(lambda: max(along(truth), default=0.0) > metres, 10.0)
     return move, (truth[-1][1], truth[-1][2])
+
+
+def test_the_fake_reverses_a_path_at_the_fleet_retreat_speed():
+    """Codex 2026-11-14: the fleet sends path retreats at retreat_speed_mps (0.10) and times them
+    with it, but the ROS fake pinky capped them at the old 0.05 and took twice as long. Kept with
+    the ROS tests: pinky_retreat needs fleet_interfaces."""
+    assert REVERSE_SPEED_MPS == load_params().retreat_speed_mps
 
 
 def test_a_retreat_with_a_path_backs_along_it_round_the_corner(harness, tmp_path):

@@ -19,7 +19,8 @@ class PinkyRetreat:
         path가 없으면 뒤로 곧게 distance_m을 시킨 속도로. 있으면 실물 pinky_fsm처럼 제 자리에서
         가장 가까운 선분부터 끝 점까지 차례로, REVERSE_SPEED_MPS(0.10 m/s)를 넘지 않게 간다.
         로봇 자리에서 시작하지 않는 path(이동의 path와 같은 연결 허용 거리)나 제 자리를 투영한
-        점부터 끝까지가 0.02 m보다 짧은 path는 따르지 않는다. 투영은 실물(Polyline.project)과 같이 같으면 앞 선분이다.
+        점부터 끝까지가 0.02 m보다 짧은 path는 따르지 않는다. 투영은 실물(Polyline.project)과
+        같이 같으면 앞 선분이다.
         """
         distance, speed = float(request.distance_m), float(request.speed_mps)
         path = [(p.position.x, p.position.y) for p in request.path]

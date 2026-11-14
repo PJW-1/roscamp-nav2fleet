@@ -1320,8 +1320,9 @@ def test_a_path_retreat_without_a_pose_fails_at_once():
 
 
 def test_a_slow_path_retreat_limits_the_reverse_controller_to_its_speed():
-    """speed_limit은 띄운 controller 모두에 가고 RPP는 그 값을 속도로 쓴다. 0.05 m/s보다
-    느리게 시키면 그 값으로 제한하고, 빠르게 시키면 FollowPathReverse의 0.05 m/s 그대로다."""
+    """speed_limit은 띄운 controller 모두에 가고 RPP는 그 값을 속도로 쓴다. 0.10 m/s보다
+    느리게 시키면 그 값으로 제한하고, 같거나 빠르게 시키면 FollowPathReverse의 0.10 m/s
+    그대로다."""
     fsm = ready(pose=AT_P4)
     cmds = fsm.retreat("r1", 1.0, 0.4, 0.03, path=BACK, pose=AT_P4)
     assert kinds(cmds) == ["LimitSpeed", "SendPath"] and limits(cmds) == [0.03]
@@ -1360,8 +1361,8 @@ def test_the_robot_and_the_fleet_agree_on_the_reverse_speed():
     retreat_speed_mps, and the robot caps them at reverse_speed_mps."""
     import yaml
     from conftest import REPO
-    fleet = yaml.safe_load((REPO / "pc" / "fleet_core" / "fleet_core" / "data" / "fleet_params.yaml")
-                           .read_text(encoding="utf-8"))
+    data = REPO / "pc" / "fleet_core" / "fleet_core" / "data"
+    fleet = yaml.safe_load((data / "fleet_params.yaml").read_text(encoding="utf-8"))
     assert FsmParams().reverse_speed_mps == fleet["retreat_speed_mps"] == 0.10
 
 
