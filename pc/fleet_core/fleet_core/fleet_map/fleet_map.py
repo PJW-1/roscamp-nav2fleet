@@ -7,7 +7,13 @@ from pathlib import Path
 
 import yaml
 
-from .checks import check_clearance, check_reach, retreat_end_warnings, shelf_end_warnings
+from .checks import (
+    check_clearance,
+    check_lane_waits,
+    check_reach,
+    retreat_end_warnings,
+    shelf_end_warnings,
+)
 from .geometry import inside, point_rect_distance
 from .model import WAITING_KINDS, FleetMapError, Link
 from .parse import (
@@ -51,6 +57,7 @@ class FleetMap:
         self.stations = read_stations(data.get("stations"), self.nodes)
         self.parking = read_parking(data.get("parking"), self.nodes)
         self.docks = {station.dock for station in self.stations.values()}
+        check_lane_waits(self)
         check_clearance(self, float(data.get("clearance_m", BODY_CLEARANCE_M)))
         check_reach(self)
         clear = float(data.get("shelf_end_clear_m", SHELF_END_CLEAR_M))

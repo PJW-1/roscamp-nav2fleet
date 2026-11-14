@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import math
 
-from fleet_core.fleet_map import AT_DOCK
+from fleet_core.fleet_map import AT_DOCK, LANE
 from fleet_core.traffic.mission import TO_OUTBOUND, TO_WORK
 
 
@@ -31,12 +31,12 @@ class Turns:
                 return
         cost = self._cost(m)
         free = [spot for spot in site.parking if self.grants.node_holder(spot) in ("", m.name)]
-
-        def price(spot) -> float:
-            links = self._way(m, spot)
-            return math.inf if links is None else sum(cost(link) for link in links)
-        for spot in sorted(free, key=lambda spot: (price(spot), spot)):
+        for spot in sorted(free, key=lambda spot: (self._price(m, spot, cost), spot)):
             yield spot, False
+
+    def _price(self, m, spot: str, cost) -> float:
+        links = self._way(m, spot)
+        return math.inf if links is None else sum(cost(link) for link in links)
 
     # ---- 줄(line) 스테이션: 빈 앞자리로 한 칸 당기기, 새 로봇은 맨 뒤 로봇 바로 뒤로 ----
     def _line_step(self, m, station):
@@ -50,7 +50,12 @@ class Turns:
     def _open_spots(self, m, station) -> list:
         mine = ("", m.name)
         if not station.line:
-            return [spot for spot in station.queue if self.grants.node_holder(spot) in mine]
+            free = [spot for spot in station.queue if self.grants.node_holder(spot) in mine]
+            site = self.site
+            if not any(site.zones[site.nodes[spot].zone].kind == LANE for spot in free):
+                return free
+            cost = self._cost(m)
+            return sorted(free, key=lambda spot: self._price(m, spot, cost))
         # 줄에 선 로봇(이 스테이션으로 가는 로봇)이 쥔 자리만 센다: 줄을 떠나는 로봇의 자리는 꼬리가 아니다
         taken = [i for i, spot in enumerate(station.queue)
                  if self.grants.node_holder(spot) not in mine

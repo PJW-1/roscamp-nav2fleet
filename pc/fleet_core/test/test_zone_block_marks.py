@@ -94,7 +94,8 @@ def test_blocked_in_the_express_with_a_position_marks_the_express_and_backs_out(
 
 
 @pytest.mark.parametrize("express_shut, way", [
-    (False, ["O"]),  # W -> W_X -> 급행은 이어진 고정 경로라 한 번에 보낸다
+    # W -> W_X -> 급행은 이어진 고정 경로라 한 번에 보낸다(급행 끝 대기 자리 O_X에서 서지 않는다)
+    (False, ["O"]),
     (True, ["M_E", "O_IN", "O"]),
 ])
 def test_v7_a_robot_at_work_leaves_through_the_hall_while_the_express_is_marked(express_shut,
@@ -103,7 +104,7 @@ def test_v7_a_robot_at_work_leaves_through_the_hall_while_the_express_is_marked(
     풀려 나가 O_IN에서 출고로 들어간다. 급행이 비어 있으면 급행이다."""
     world = Harness(layout="v7", starts={"pinky1": "W", "pinky2": "P-2", "pinky3": "P-3"})
     if express_shut:
-        world.traffic._blocked[("W_X", "O")] = 1e9
+        world.traffic._blocked[("W_X", "O_X")] = 1e9
     world.report()
     call = world.call("OUTBOUND", "pinky1")
     assert world.run_until(lambda: world.result_of(call), 300.0), world.log[-10:]

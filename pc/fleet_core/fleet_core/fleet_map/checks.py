@@ -6,7 +6,7 @@ from itertools import pairwise
 
 from .geometry import EPS, point_rect_distance, segment_rect_distance, wall_gap
 from .graph import route
-from .model import NAV_GOAL, RETREAT, SHARED, FleetMapError
+from .model import NAV_GOAL, RETREAT, SHARED, WAIT, FleetMapError
 
 
 # ---- 벽과 선반에서 떨어진 거리 검사 ----
@@ -131,3 +131,18 @@ def check_reach(site) -> None:
     for start, goal in pairs:
         if route(site, start, goal) is None:
             raise FleetMapError(f"there is no way from {start} to {goal}")
+
+
+# ---- 한 줄 구역 안의 대기 자리 검사: 스테이션 대기 자리이고 그 도크로만 이어진다 ----
+def check_lane_waits(site) -> None:
+    for node in site.nodes.values():
+        if node.kind != WAIT or site.zones[node.zone].kind == SHARED:
+            continue
+        docks = sorted({s.dock for s in site.stations.values() if node.id in s.queue})
+        if not docks:
+            raise FleetMapError(f"node {node.id} (wait) must stand in a shared zone, not "
+                                f"{node.zone}, unless it is a station queue spot")
+        onward = sorted({link.b for link in site.links_from(node.id)})
+        if onward != docks:
+            raise FleetMapError(f"queue spot {node.id} waits in {node.zone}, so it must lead "
+                                f"only to its dock {docks}, not {onward}")

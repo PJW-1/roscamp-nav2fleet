@@ -414,6 +414,39 @@ def test_a_node_must_stand_in_a_zone_of_the_right_kind():
     refused("kind", nodes=edited("nodes", "W_Q", kind="queue"))
 
 
+def lane_spot(kind="wait", queue=True, onward=("O",), at=(1.3, 0.9)):
+    """급행 안에 출고 대기 자리 O_X를 더한 SMALL 바꿈(v7의 급행 서쪽 끝 대기 자리와 같은 꼴)."""
+    nodes = copy.deepcopy(SMALL["nodes"])
+    nodes["O_X"] = {"x": at[0], "y": at[1], "kind": kind}
+    paths = copy.deepcopy(SMALL["paths"])
+    paths["to_o_x"] = {"points": ["X_W", "O_X"]}
+    for index, end in enumerate(onward):
+        paths[f"from_o_x_{index}"] = {"points": ["O_X", end]}
+    stations = copy.deepcopy(SMALL["stations"])
+    if queue:
+        stations["OUTBOUND"]["queue"] = ["O_Q", "O_X"]
+    return {"nodes": nodes, "paths": paths, "stations": stations}
+
+
+def test_a_queue_spot_may_wait_in_a_lane_if_it_leads_only_to_its_dock():
+    """사용자 결정 2026-11-14(v7 급행 서쪽 끝 대기): 대기 노드는 넓은 곳에만 서지만, 한 줄 구역 안의
+    대기 노드라도 스테이션의 대기 자리이고 그 도크로만 이어지면 받는다."""
+    site = build(**lane_spot())
+    spot = site.nodes["O_X"]
+    assert (spot.kind, spot.zone) == ("wait", "EXPRESS") and site.can_wait("O_X")
+    assert site.stations["OUTBOUND"].queue == ("O_Q", "O_X")
+    assert [link.b for link in site.links_from("O_X")] == ["O"]
+
+
+def test_waiting_outside_shared_zones_is_still_refused_otherwise():
+    refused("shared", **lane_spot(queue=False))           # 대기 자리가 아니다
+    refused("only to its dock", **lane_spot(onward=("O", "X_E")))  # 도크 말고도 나간다
+    refused("only to its dock", **lane_spot(onward=()))   # 어디로도 나가지 않는다
+    refused("shared", **lane_spot(kind="parking"))
+    refused("shared", **lane_spot(kind="fork"))
+    refused("shared", **lane_spot(at=(1.55, 0.92)))       # 도크 구역(J_E) 안의 대기 자리
+
+
 def test_a_node_may_not_sit_on_a_shelf_or_a_wall():
     refused("shelf", nodes=edited("nodes", "N_W", x=0.47, y=0.72))
     refused("wall", nodes=edited("nodes", "P-1", x=0.03))
