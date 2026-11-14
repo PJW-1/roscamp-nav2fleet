@@ -54,7 +54,7 @@ eta_swap_s: 8.0               # 추정: 교환 시간(가짜 시나리오 기본
 # 구역 교통 층(traffic/zone). 모두 제안값이고 실측 전이다
 nav_speed_mps: 0.12           # 넓은 구역(Nav2 goal)의 ETA와 길 비용에 쓰는 속도
 follow_speed_mps: 0.12        # 고정 경로(FollowPath)의 같은 값
-retreat_speed_mps: 0.05       # 후진(Retreat) 속도
+retreat_speed_mps: 0.10       # 후진(Retreat) 속도. 0.05에서 올림(주행 성능 조정 2026-11-14), 핑키 reverse_speed_mps와 같다
 footprint_radius_m: 0.085     # Nav2 발자국(0.12 x 0.12 m)의 반 대각선
 release_margin_m: 0.05        # 제안: 보고 중심이 뒤 구역에서 footprint_radius_m + 이 값(0.135 m) 넘게 벗어나면 그 구역을 놓는다
 node_clear_m: 0.20            # 뒤 지점에서 이만큼 멀어지면 그 지점을 놓는다

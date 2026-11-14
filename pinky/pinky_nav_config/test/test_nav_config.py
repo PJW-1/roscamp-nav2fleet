@@ -153,14 +153,15 @@ def test_a_fixed_line_slows_down_only_in_its_last_0_2_m():
         assert c[name]["approach_velocity_scaling_dist"] == 0.2, name
 
 
-REVERSE_ONLY = {"desired_linear_vel": 0.05, "use_rotate_to_heading": False,
+REVERSE_ONLY = {"desired_linear_vel": 0.10, "use_rotate_to_heading": False,
                 "allow_reversing": True}
 
 
 def test_the_reverse_controller_is_followpath_driven_backwards_slowly():
     """Retreat with a path(계약, 기준(사용자)): pinky_fsm sends the driven way reversed to
     FollowPathReverse. Jazzy RPP cannot reverse while use_rotate_to_heading is on, so it is off
-    (no turn in place before backing) and the robot backs at 0.05 m/s. The collision check stays
+    (no turn in place before backing) and the robot backs at 0.10 m/s (0.05 until the drive
+    tuning of 2026-11-14). The collision check stays
     on: it looks along the motion, so it is what stops the robot for something behind."""
     c = params("controller_server")
     normal, reverse = c["FollowPath"], c["FollowPathReverse"]

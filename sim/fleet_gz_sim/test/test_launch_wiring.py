@@ -222,7 +222,7 @@ def test_every_controller_checks_collisions_when_asked_and_keeps_the_speed_cap(m
             forward = [controllers[n]["desired_linear_vel"] for n in CONTROLLERS
                        if n != "FollowPathReverse"]
             assert forward == [float(speed or 0.12)] * 3
-            assert controllers["FollowPathReverse"]["desired_linear_vel"] == 0.05
+            assert controllers["FollowPathReverse"]["desired_linear_vel"] == 0.10
 
 
 @pytest.mark.parametrize("asked", [{}, {"fixed_line_collision_check": "false"}])

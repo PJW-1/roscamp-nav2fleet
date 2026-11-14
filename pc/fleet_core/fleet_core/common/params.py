@@ -60,7 +60,7 @@ class FleetParams:
     eta_swap_s: float = 8.0
     nav_speed_mps: float = 0.12
     follow_speed_mps: float = 0.12
-    retreat_speed_mps: float = 0.05
+    retreat_speed_mps: float = 0.10
     footprint_radius_m: float = 0.085
     release_margin_m: float = 0.05
     zone_clear_m: float = 0.0

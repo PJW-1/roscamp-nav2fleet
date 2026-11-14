@@ -16,107 +16,106 @@
   10.0 pinky2  ZONE_GRANTED: WORK_DOCK+J_W+HALL+EXPRESS+J_E+OUT_DOCK to O
   10.0 pinky2  RetreatCmd
   10.0 pinky2  RETREAT_START: backs to N_W
-  17.4 pinky2  RETREAT_DONE: stands at N_W
-  17.4 pinky2  MoveCmd O
-  17.4 pinky2  FOLLOW_SENT: to O
-  22.0 pinky1  ZONE_GRANTED: HALL+J_W+WORK_DOCK to W
-  22.0 pinky1  MoveCmd N_W
-  22.0 pinky1  NAV_GOAL_SENT: to N_W
-  23.9 pinky1  MoveCmd W
-  23.9 pinky1  FOLLOW_SENT: to W
-  23.9 pinky3  ZONE_GRANTED: HALL to W_Q
-  23.9 pinky3  DOCK_QUEUED: WORK is busy, waits at W_Q
-  23.9 pinky3  MoveCmd W_Q
-  23.9 pinky3  NAV_GOAL_SENT: to W_Q
-  27.4 pinky1  DockCmd
-  29.4 pinky1  DOCKED: at WORK: x 0.4 cm, y 0.3 cm, yaw 0.5 deg
-  29.4         DispatchResult
-  29.5 pinky1  ZONE_GRANTED: WORK_DOCK+J_W+HALL to O_Q
-  29.5 pinky1  DOCK_QUEUED: OUTBOUND is busy, waits at O_Q
-  29.5 pinky1  RetreatCmd
-  29.5 pinky1  RETREAT_START: backs to N_W
-  31.5 pinky2  DockCmd
-  33.5 pinky2  DOCKED: at OUTBOUND: x 0.4 cm, y 0.3 cm, yaw 0.5 deg
-  33.5         DispatchResult
-  33.6 pinky2  ZONE_GRANTED: OUT_DOCK+J_E+HALL to P-3
-  33.6 pinky2  RetreatCmd
-  33.6 pinky2  RETREAT_START: backs to N_E
-  36.9 pinky1  RETREAT_DONE: stands at N_W
-  36.9 pinky1  MoveCmd O_Q
-  36.9 pinky1  NAV_GOAL_SENT: to O_Q
-  38.5 pinky3  ZONE_WAIT: waits for N_W
-  38.8 pinky3  ZONE_GRANTED: HALL+J_W+WORK_DOCK to W
-  38.8 pinky3  MoveCmd N_W
-  38.8 pinky3  NAV_GOAL_SENT: to N_W
-  40.7 pinky3  MoveCmd W
-  40.7 pinky3  FOLLOW_SENT: to W
-  41.0 pinky2  RETREAT_DONE: stands at N_E
-  41.0 pinky2  MoveCmd P-3
-  41.0 pinky2  NAV_GOAL_SENT: to P-3
-  44.2 pinky3  DockCmd
-  46.2 pinky3  DOCKED: at WORK: x 0.4 cm, y 0.3 cm, yaw 0.5 deg
-  46.2         DispatchResult
-  46.3 pinky3  ZONE_GRANTED: WORK_DOCK+J_W+HALL to P-2
-  46.3 pinky3  RetreatCmd
-  46.3 pinky3  RETREAT_START: backs to N_W
-  49.3 pinky1  ZONE_GRANTED: HALL+J_E+OUT_DOCK to O
-  49.3 pinky1  MoveCmd N_E
-  49.3 pinky1  NAV_GOAL_SENT: to N_E
-  51.2 pinky1  MoveCmd O
-  51.2 pinky1  FOLLOW_SENT: to O
-  53.7 pinky3  RETREAT_DONE: stands at N_W
-  53.7 pinky3  MoveCmd P-2
-  53.7 pinky3  NAV_GOAL_SENT: to P-2
-  54.7 pinky1  DockCmd
-  56.7 pinky1  DOCKED: at OUTBOUND: x 0.4 cm, y 0.3 cm, yaw 0.5 deg
-  56.7         DispatchResult
-  56.8 pinky1  ZONE_GRANTED: OUT_DOCK+J_E+HALL to P-1
-  56.8 pinky1  RetreatCmd
-  56.8 pinky1  RETREAT_START: backs to N_E
-  57.9 pinky3  ZONE_GRANTED: HALL to O_Q
-  57.9 pinky3  DOCK_QUEUED: OUTBOUND is busy, waits at O_Q
-  57.9 pinky3  MoveCmd O_Q
-  57.9 pinky3  NAV_GOAL_SENT: to O_Q
-  64.2 pinky1  RETREAT_DONE: stands at N_E
-  64.2 pinky1  MoveCmd P-1
-  64.2 pinky1  NAV_GOAL_SENT: to P-1
-  70.5 pinky3  ZONE_GRANTED: HALL+J_E+OUT_DOCK to O
-  70.5 pinky3  MoveCmd N_E
-  70.5 pinky3  NAV_GOAL_SENT: to N_E
-  72.4 pinky3  MoveCmd O
-  72.4 pinky3  FOLLOW_SENT: to O
-  75.9 pinky3  DockCmd
-  77.9 pinky3  DOCKED: at OUTBOUND: x 0.4 cm, y 0.3 cm, yaw 0.5 deg
-  77.9         DispatchResult
-  78.0 pinky3  ZONE_GRANTED: OUT_DOCK+J_E+HALL to P-2
-  78.0 pinky3  RetreatCmd
-  78.0 pinky3  RETREAT_START: backs to N_E
-  85.4 pinky3  RETREAT_DONE: stands at N_E
-  85.4 pinky3  MoveCmd P-2
-  85.4 pinky3  NAV_GOAL_SENT: to P-2
+  13.7 pinky2  RETREAT_DONE: stands at N_W
+  13.7 pinky2  MoveCmd O
+  13.7 pinky2  FOLLOW_SENT: to O
+  18.3 pinky1  ZONE_GRANTED: HALL+J_W+WORK_DOCK to W
+  18.3 pinky1  MoveCmd N_W
+  18.3 pinky1  NAV_GOAL_SENT: to N_W
+  20.2 pinky1  MoveCmd W
+  20.2 pinky1  FOLLOW_SENT: to W
+  20.2 pinky3  ZONE_GRANTED: HALL to W_Q
+  20.2 pinky3  DOCK_QUEUED: WORK is busy, waits at W_Q
+  20.2 pinky3  MoveCmd W_Q
+  20.2 pinky3  NAV_GOAL_SENT: to W_Q
+  23.7 pinky1  DockCmd
+  25.7 pinky1  DOCKED: at WORK: x 0.4 cm, y 0.3 cm, yaw 0.5 deg
+  25.7         DispatchResult
+  25.8 pinky1  ZONE_GRANTED: WORK_DOCK+J_W+HALL to O_Q
+  25.8 pinky1  DOCK_QUEUED: OUTBOUND is busy, waits at O_Q
+  25.8 pinky1  RetreatCmd
+  25.8 pinky1  RETREAT_START: backs to N_W
+  27.8 pinky2  DockCmd
+  29.5 pinky1  RETREAT_DONE: stands at N_W
+  29.5 pinky1  MoveCmd O_Q
+  29.5 pinky1  NAV_GOAL_SENT: to O_Q
+  29.8 pinky2  DOCKED: at OUTBOUND: x 0.4 cm, y 0.3 cm, yaw 0.5 deg
+  29.8         DispatchResult
+  29.9 pinky2  ZONE_GRANTED: OUT_DOCK+J_E+HALL to P-3
+  29.9 pinky2  RetreatCmd
+  29.9 pinky2  RETREAT_START: backs to N_E
+  33.6 pinky2  RETREAT_DONE: stands at N_E
+  33.6 pinky2  MoveCmd P-3
+  33.6 pinky2  NAV_GOAL_SENT: to P-3
+  34.8 pinky3  ZONE_GRANTED: HALL+J_W+WORK_DOCK to W
+  34.8 pinky3  MoveCmd N_W
+  34.8 pinky3  NAV_GOAL_SENT: to N_W
+  36.7 pinky3  MoveCmd W
+  36.7 pinky3  FOLLOW_SENT: to W
+  40.2 pinky3  DockCmd
+  41.9 pinky1  ZONE_GRANTED: HALL+J_E+OUT_DOCK to O
+  41.9 pinky1  MoveCmd N_E
+  41.9 pinky1  NAV_GOAL_SENT: to N_E
+  42.2 pinky3  DOCKED: at WORK: x 0.4 cm, y 0.3 cm, yaw 0.5 deg
+  42.2         DispatchResult
+  42.3 pinky3  ZONE_GRANTED: WORK_DOCK+J_W+HALL to P-2
+  42.3 pinky3  RetreatCmd
+  42.3 pinky3  RETREAT_START: backs to N_W
+  43.8 pinky1  MoveCmd O
+  43.8 pinky1  FOLLOW_SENT: to O
+  46.0 pinky3  RETREAT_DONE: stands at N_W
+  46.0 pinky3  MoveCmd P-2
+  46.0 pinky3  NAV_GOAL_SENT: to P-2
+  47.3 pinky1  DockCmd
+  49.3 pinky1  DOCKED: at OUTBOUND: x 0.4 cm, y 0.3 cm, yaw 0.5 deg
+  49.3         DispatchResult
+  49.4 pinky1  ZONE_GRANTED: OUT_DOCK+J_E+HALL to P-1
+  49.4 pinky1  RetreatCmd
+  49.4 pinky1  RETREAT_START: backs to N_E
+  50.2 pinky3  ZONE_GRANTED: HALL to O_Q
+  50.2 pinky3  DOCK_QUEUED: OUTBOUND is busy, waits at O_Q
+  50.2 pinky3  MoveCmd O_Q
+  50.2 pinky3  NAV_GOAL_SENT: to O_Q
+  53.1 pinky1  RETREAT_DONE: stands at N_E
+  53.1 pinky1  MoveCmd P-1
+  53.1 pinky1  NAV_GOAL_SENT: to P-1
+  62.8 pinky3  ZONE_GRANTED: HALL+J_E+OUT_DOCK to O
+  62.8 pinky3  MoveCmd N_E
+  62.8 pinky3  NAV_GOAL_SENT: to N_E
+  64.7 pinky3  MoveCmd O
+  64.7 pinky3  FOLLOW_SENT: to O
+  68.2 pinky3  DockCmd
+  70.2 pinky3  DOCKED: at OUTBOUND: x 0.4 cm, y 0.3 cm, yaw 0.5 deg
+  70.2         DispatchResult
+  70.3 pinky3  ZONE_GRANTED: OUT_DOCK+J_E+HALL to P-2
+  70.3 pinky3  RetreatCmd
+  70.3 pinky3  RETREAT_START: backs to N_E
+  74.0 pinky3  RETREAT_DONE: stands at N_E
+  74.0 pinky3  MoveCmd P-2
+  74.0 pinky3  NAV_GOAL_SENT: to P-2
 == blocked_express
    0.1 pinky1  LANE_DIRECTION_SET: EXPRESS from X_W
    0.1 pinky1  ZONE_GRANTED: WORK_DOCK+J_W+HALL+EXPRESS+J_E+OUT_DOCK to O
    0.1 pinky1  RetreatCmd
    0.1 pinky1  RETREAT_START: backs to N_W
-   7.5 pinky1  RETREAT_DONE: stands at N_W
-   7.5 pinky1  MoveCmd O
-   7.5 pinky1  FOLLOW_SENT: to O
-  13.7 pinky1  BLOCKED_WAIT: stands before something on the way to O
-  23.7 pinky1  ZONE_MARKED_BLOCKED: X_W->X_E in EXPRESS, tried again in 60 s
-  23.7 pinky1  CancelCmd
-  23.7 pinky1  REROUTE: backs out to N_W, then another way
-  23.7 pinky1  ZONE_GRANTED: EXPRESS+J_W+HALL+J_E+OUT_DOCK to O
-  23.7 pinky1  RetreatCmd
-  23.7 pinky1  RETREAT_START: backs to N_W
-  38.4 pinky1  RETREAT_DONE: stands at N_W
-  38.4 pinky1  MoveCmd N_E
-  38.4 pinky1  NAV_GOAL_SENT: to N_E
-  49.1 pinky1  MoveCmd O
-  49.1 pinky1  FOLLOW_SENT: to O
-  52.6 pinky1  DockCmd
-  54.6 pinky1  DOCKED: at OUTBOUND: x 0.4 cm, y 0.3 cm, yaw 0.5 deg
-  54.6         DispatchResult
+   3.8 pinky1  RETREAT_DONE: stands at N_W
+   3.8 pinky1  MoveCmd O
+   3.8 pinky1  FOLLOW_SENT: to O
+  10.0 pinky1  BLOCKED_WAIT: stands before something on the way to O
+  20.0 pinky1  ZONE_MARKED_BLOCKED: X_W->X_E in EXPRESS, tried again in 60 s
+  20.0 pinky1  CancelCmd
+  20.0 pinky1  REROUTE: backs out to N_W, then another way
+  20.0 pinky1  ZONE_GRANTED: EXPRESS+J_W+HALL+J_E+OUT_DOCK to O
+  20.0 pinky1  RetreatCmd
+  20.0 pinky1  RETREAT_START: backs to N_W
+  27.4 pinky1  RETREAT_DONE: stands at N_W
+  27.4 pinky1  MoveCmd N_E
+  27.4 pinky1  NAV_GOAL_SENT: to N_E
+  38.1 pinky1  MoveCmd O
+  38.1 pinky1  FOLLOW_SENT: to O
+  41.6 pinky1  DockCmd
+  43.6 pinky1  DOCKED: at OUTBOUND: x 0.4 cm, y 0.3 cm, yaw 0.5 deg
+  43.6         DispatchResult
 == busy_outbound
    0.1 pinky1  ZONE_GRANTED: WORK_DOCK+J_W+HALL to P-2
    0.1 pinky1  RetreatCmd
@@ -124,22 +123,22 @@
    0.1 pinky2  DockCmd
    2.1 pinky2  DOCKED: at OUTBOUND: x 0.4 cm, y 0.3 cm, yaw 0.5 deg
    2.1         DispatchResult
-   7.5 pinky1  RETREAT_DONE: stands at N_W
-   7.5 pinky1  ZONE_GRANTED: HALL to O_Q
-   7.5 pinky1  DOCK_QUEUED: OUTBOUND is busy, waits at O_Q
-   7.5 pinky1  MoveCmd O_Q
-   7.5 pinky1  NAV_GOAL_SENT: to O_Q
+   3.8 pinky1  RETREAT_DONE: stands at N_W
+   3.8 pinky1  ZONE_GRANTED: HALL to O_Q
+   3.8 pinky1  DOCK_QUEUED: OUTBOUND is busy, waits at O_Q
+   3.8 pinky1  MoveCmd O_Q
+   3.8 pinky1  NAV_GOAL_SENT: to O_Q
   42.2 pinky2  ZONE_GRANTED: OUT_DOCK+J_E+HALL to P-2
   42.2 pinky2  RetreatCmd
   42.2 pinky2  RETREAT_START: backs to N_E
-  49.6 pinky2  RETREAT_DONE: stands at N_E
-  49.6 pinky2  MoveCmd P-2
-  49.6 pinky2  NAV_GOAL_SENT: to P-2
-  51.5 pinky1  ZONE_GRANTED: HALL+J_E+OUT_DOCK to O
-  51.5 pinky1  MoveCmd N_E
-  51.5 pinky1  NAV_GOAL_SENT: to N_E
-  53.4 pinky1  MoveCmd O
-  53.4 pinky1  FOLLOW_SENT: to O
-  56.9 pinky1  DockCmd
-  58.9 pinky1  DOCKED: at OUTBOUND: x 0.4 cm, y 0.3 cm, yaw 0.5 deg
-  58.9         DispatchResult
+  45.9 pinky2  RETREAT_DONE: stands at N_E
+  45.9 pinky2  MoveCmd P-2
+  45.9 pinky2  NAV_GOAL_SENT: to P-2
+  47.8 pinky1  ZONE_GRANTED: HALL+J_E+OUT_DOCK to O
+  47.8 pinky1  MoveCmd N_E
+  47.8 pinky1  NAV_GOAL_SENT: to N_E
+  49.7 pinky1  MoveCmd O
+  49.7 pinky1  FOLLOW_SENT: to O
+  53.2 pinky1  DockCmd
+  55.2 pinky1  DOCKED: at OUTBOUND: x 0.4 cm, y 0.3 cm, yaw 0.5 deg
+  55.2         DispatchResult

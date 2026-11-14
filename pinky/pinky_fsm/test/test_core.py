@@ -1355,6 +1355,16 @@ def test_the_reverse_speed_is_the_reverse_controller_speed():
     assert FsmParams().reverse_speed_mps == reverse["desired_linear_vel"]
 
 
+def test_the_robot_and_the_fleet_agree_on_the_reverse_speed():
+    """Drive tuning 2026-11-14: 0.10 m/s (was 0.05). The fleet times and sends retreats at its
+    retreat_speed_mps, and the robot caps them at reverse_speed_mps."""
+    import yaml
+    from conftest import REPO
+    fleet = yaml.safe_load((REPO / "pc" / "fleet_core" / "fleet_core" / "data" / "fleet_params.yaml")
+                           .read_text(encoding="utf-8"))
+    assert FsmParams().reverse_speed_mps == fleet["retreat_speed_mps"] == 0.10
+
+
 # ---- 버전 2 4절 horizon 최소판(MoveTo.final_goal, 계약 0.8-draft 제안) ----------------------
 
 
