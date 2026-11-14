@@ -59,7 +59,8 @@ class ZoneBase:
         return math.dist((m.x, m.y), self.site.node_pose(node))
 
     def _link_reached(self, m, link, limit: float) -> bool:
-        return self._gap(m, link.b) <= limit and 2 * along(link, m.x, m.y) > link.length
+        gap = self._gap(m, link.b)
+        return gap <= limit and (2 * along(link, m.x, m.y) > link.length or gap <= limit / 2)
 
     def _on_node(self, m) -> bool:
         if not m.node or self.grants.node_holder(m.node) not in ("", m.name):

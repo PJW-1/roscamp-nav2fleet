@@ -61,6 +61,13 @@ def test_a_detour_through_bay_entrances_is_not_merged():
     assert trips.segment_end(V7, around, 1, 3) == 3, "E-2 -> E-3 -> Q2 is the shortest way"
 
 
+
+def test_a_free_link_from_off_the_graph_is_not_merged():
+    """노드 밖에서 다시 계획한 로봇의 첫 이음(free_link)은 시작 노드가 없다. 가장 짧은 길인지 잴 수
+    없으니 합치지 않는다(Codex 검수 4c93494: distance(site, "", ...)가 KeyError로 관제를 멈췄다)."""
+    way = [trips.free_link(V7, 0.45, 0.30, "E-3"), V7.link("E-3", "Q2")]
+    assert trips.segment_end(V7, way, 0, 2) == 1
+
 def test_a_merged_nav_goal_faces_the_last_node():
     way = route(V7, "O_OUT", "Q2")
     cmd = trips.move_command(V7, "pinky1", 3, way, 0.15, 0.62)
@@ -117,6 +124,19 @@ def test_a_robot_parked_at_p3_holds_only_its_bay_so_p1_leaves_by_e3(order):
     assert world.run_until(lambda: world.view("pinky3")["node"] == "Q2", 120.0), world.log[-10:]
     assert nav_targets(world, "pinky3") == ["Q2"], world.log
     assert not world.problems
+
+
+def test_a_parked_robot_seen_at_its_door_keeps_the_door():
+    """칸에 선 로봇은 칸 노드와 입구 사이 절반보다 칸에 가까울 때만 입구를 놓는다(Codex 검수
+    4c93494: 도착 허용치 0.15로는 입구(0.14)에 선 로봇도 칸 위로 보여 입구를 놓았다)."""
+    world = world_for(False, {"pinky1": "P-2", "pinky2": "W", "pinky3": "P-1"})
+    world.report()
+    world.traffic.on_release("pinky2")
+    assert world.run_until(lambda: world.phase("pinky2") == "PARKED", 300.0), world.log[-10:]
+    assert "E-3" in world.view("pinky2")["nodes"], "the door is still held at the moment it parks"
+    world.bots["pinky2"].y = 0.22  # 위치가 입구 쪽으로 보인다
+    world.run(5.0)
+    assert "E-3" in world.view("pinky2")["nodes"], world.view("pinky2")["nodes"]
 
 
 @pytest.mark.parametrize("order", [False, True])

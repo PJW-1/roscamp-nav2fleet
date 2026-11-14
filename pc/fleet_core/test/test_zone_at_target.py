@@ -260,3 +260,19 @@ def test_a_robot_heard_again_most_of_the_way_into_the_bay_is_taken_as_parked():
     assert world.view("pinky1")["node"] == "P-1"
     assert world.phase("pinky1") == "PARKED"
     assert len(world.sent(RetreatCmd, "pinky1")) == 1
+
+
+def test_a_short_reverse_link_failed_near_its_end_is_taken_as_reached():
+    """후진 링크가 짧으면(0.03) 절반을 못 갔어도 끝에 허용치 절반(0.075) 안이면 닿은 것으로 본다.
+    다시 보내면 pinky_fsm의 가장 짧은 후진(backup_min_m 0.02)보다 짧아 곧바로 실패한다(Codex 검수
+    821c18d). 칸 입구에 그대로 선 로봇(0.14)은 여전히 닿지 않았다."""
+    from types import SimpleNamespace
+
+    from fleet_core.fleet_map import RETREAT, Link
+    world = Harness(layout="v7", starts={"pinky1": "P-1"})
+    traffic, limit = world.traffic, world.params.arrival_tolerance_m
+    short = Link("", "P-1", RETREAT, "", ((0.12, 0.13), (0.12, 0.10)), ("HALL",), 0.03)
+    assert traffic._link_reached(SimpleNamespace(x=0.12, y=0.118), short, limit)
+    bay = world.site.link("E-1", "P-1")
+    assert not traffic._link_reached(SimpleNamespace(x=0.12, y=0.24), bay, limit)
+    assert traffic._link_reached(SimpleNamespace(x=0.12, y=0.13), bay, limit)

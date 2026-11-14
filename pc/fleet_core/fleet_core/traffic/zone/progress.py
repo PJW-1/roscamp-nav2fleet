@@ -111,11 +111,15 @@ class Progress:
                 released.append(zone)
         parked = m.phase == PARKED and m.node in site.parking and self._on_node(m)
         for node in grants.nodes_of(m.name):
-            clear = node not in nodes and (parked and node != m.node
+            clear = node not in nodes and (parked and node != m.node and self._in_bay(m, node)
                                            or self._gap(m, node) >= p.node_clear_m)
             if self._counted(m, NODE_KEY + node, clear):
                 grants.release_node(m.name, node)
         return released
+
+    def _in_bay(self, m, node: str) -> bool:
+        apart = math.dist(self.site.node_pose(m.node), self.site.node_pose(node))
+        return 2 * self._gap(m, m.node) < apart
 
     # ---- 고장 로봇이 닿지 않은 구역 돌려주기와 연속 확인 횟수 세기 ----
     def _return_unreached(self, m) -> None:

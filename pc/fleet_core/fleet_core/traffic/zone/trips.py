@@ -54,7 +54,8 @@ def joins(site, a, b) -> bool:
 
 
 def _shortest(site, links) -> bool:
-    return sum(link.length for link in links) <= distance(site, links[0].a, links[-1].b) + 1e-6
+    return bool(links[0].a) and (
+        sum(link.length for link in links) <= distance(site, links[0].a, links[-1].b) + 1e-6)
 
 
 def segment_end(site, links, start: int, limit: int) -> int:
