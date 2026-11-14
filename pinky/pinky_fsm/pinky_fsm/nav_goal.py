@@ -35,8 +35,9 @@ class NavGoal:
     far_successes: int = 0
     anchor: Point | None = None
     anchor_at: float = 0.0
-    anchor_yaw: float | None = None
-    turned: float = 0.0
+    turn_yaw: float | None = None
+    turn_pending: float = 0.0
+    turned_at: float = 0.0
     blocked: bool = False
     trail: list[Point] = field(default_factory=list)
     driven: float = 0.0
@@ -50,12 +51,12 @@ def _yaw_of(pose: Sequence[float] | None) -> float | None:
 # ---- NavGoal 전송, 취소, 진행 중 goal 관리 ----
 class NavGoals:
     def __init__(self, blocked_after_s: float, progress_m: float, result_grace_s: float,
-                 turn_step_rad: float = 0.0, turn_budget_rad: float = 0.0):
+                 turn_step_rad: float = 0.0, turn_window_s: float = 0.0):
         self.blocked_after_s = blocked_after_s
         self.progress_m = progress_m
         self.result_grace_s = result_grace_s
         self.turn_step_rad = turn_step_rad
-        self.turn_budget_rad = turn_budget_rad
+        self.turn_window_s = turn_window_s
         self._seq = 0
         self._live: dict[int, float] = {}
         self._uncancelled: set[int] = set()
@@ -64,8 +65,8 @@ class NavGoals:
         self._seq += 1
         g.seq, g.distance, g.blocked = self._seq, 0.0, False
         g.anchor = (float(pose[0]), float(pose[1])) if pose is not None else None
-        g.anchor_yaw = _yaw_of(pose)
-        g.anchor_at, g.turned = now, 0.0
+        g.anchor_at = g.turned_at = now
+        g.turn_yaw, g.turn_pending = _yaw_of(pose), 0.0
         self._live[g.seq] = math.inf
         self._uncancelled.add(g.seq)
         return [SendNavGoal(g.seq, g.target)]
@@ -98,27 +99,21 @@ class NavGoals:
         yaw = _yaw_of(pose)
         if g.anchor is None or math.dist(here, g.anchor) >= self.progress_m:
             g.anchor, g.anchor_at, g.blocked = here, now, False
-            g.anchor_yaw, g.turned = yaw, 0.0
+            g.turned_at, g.turn_yaw, g.turn_pending = now, yaw, 0.0
             return
-        if self._turned_on(g, yaw):
-            g.anchor_at, g.blocked = now, False
-            return
+        self._count_turn(g, now, yaw)
         if now - g.anchor_at >= self.blocked_after_s:
             g.blocked = True
 
-    # ---- 제자리 회전을 한 바퀴 안에서만 진전으로 치기 ----
-    def _turned_on(self, g: NavGoal, yaw: float | None) -> bool:
+    # ---- 움직인 뒤 잠깐의 제자리 회전을 기록 ----
+    def _count_turn(self, g: NavGoal, now: float, yaw: float | None) -> None:
         if self.turn_step_rad <= 0.0 or yaw is None:
-            return False
-        if g.anchor_yaw is None:
-            g.anchor_yaw = yaw
-            return False
-        turn = abs(math.remainder(yaw - g.anchor_yaw, math.tau))
-        if turn < self.turn_step_rad or g.turned + turn > self.turn_budget_rad:
-            return False
-        g.turned += turn
-        g.anchor_yaw = yaw
-        return True
+            return
+        if g.turn_yaw is not None:
+            g.turn_pending += abs(math.remainder(yaw - g.turn_yaw, math.tau))
+        g.turn_yaw = yaw
+        if g.turn_pending >= self.turn_step_rad and now - g.anchor_at <= self.turn_window_s:
+            g.turned_at, g.turn_pending = now, 0.0
 
     @staticmethod
     def distance_remaining(g: NavGoal, pose: Sequence[float] | None) -> float:

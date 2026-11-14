@@ -257,6 +257,20 @@ def test_nav_overrides_lays_a_yaml_file_over_every_robots_nav2_params(made, tmp_
         run(made, nav_overrides=str(tmp_path / "missing.yaml"))
 
 
+SWAP = {"controller_server": {"ros__parameters": {
+    "FollowPathGoal": {"plugin": "nav2_mppi_controller::MPPIController"}}}}
+
+
+@pytest.mark.parametrize("text", ["", "just words", "- 1\n- 2", "[]", yaml.safe_dump(SWAP)])
+def test_nav_overrides_must_be_a_mapping_and_never_swaps_a_plugin(made, tmp_path, text):
+    """Codex 2026-11-14: an empty file quietly meant nothing, a list crashed in the merge, and a
+    plugin swap would slip past the RPP speed cap and collision check."""
+    extra = tmp_path / "bad.yaml"
+    extra.write_text(text, encoding="utf-8")
+    with pytest.raises(ValueError, match="nav_overrides"):
+        run(made, nav_overrides=str(extra))
+
+
 @pytest.mark.parametrize("bad", ["0.25", "0.1", "fast", "nan"])
 def test_a_speed_outside_the_arena_range_stops_the_launch(made, bad):
     with pytest.raises(ValueError, match="nav_max_speed"):

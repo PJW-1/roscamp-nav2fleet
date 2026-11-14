@@ -94,6 +94,22 @@ def flag(text: str, name: str) -> bool:
     return value in ("true", "1")
 
 
+def overrides_of(path: str) -> dict | None:
+    """launch 인자 nav_overrides: 비면 None. 파일은 매핑이어야 하고 controller의 plugin은 바꾸지 못한다
+    (속도 상한과 충돌 검사는 RPP 키로 건다)."""
+    if not path.strip():
+        return None
+    data = yaml.safe_load(Path(path).read_text(encoding="utf-8"))
+    if not isinstance(data, dict) or not data:
+        raise ValueError(f"nav_overrides must be a non-empty yaml mapping: {path}")
+    controllers = data.get("controller_server", {}).get("ros__parameters", {})
+    swapped = sorted(name for name, spec in controllers.items()
+                     if isinstance(spec, dict) and "plugin" in spec)
+    if swapped:
+        raise ValueError(f"nav_overrides may not swap a controller plugin: {', '.join(swapped)}")
+    return data
+
+
 def params_file_of(value: str) -> str:
     """"" stays "", a path stays as given, a bare name is fleet_core/data/<name>.yaml."""
     from fleet_core.common.params import DEFAULT_PARAMS
@@ -269,8 +285,7 @@ def _start(context):
     params_file = params_for(params_file_of(value("fleet_params_file")), value("result_dir"),
                              value("battery_low_pct"))
     max_speed = launch_parts.speed_of(value("nav_max_speed"))
-    nav_overrides = (yaml.safe_load(Path(value("nav_overrides")).read_text(encoding="utf-8"))
-                     if value("nav_overrides").strip() else None)
+    nav_overrides = overrides_of(value("nav_overrides"))
     # low_battery가 있을 때만 pinky_fsm이 sim_stand_in의 배터리를 본다
     battery = has_low_battery(data, scenario_seed)
     actions = [*launch_parts.world(flag(value("gui"), "gui"), arena.world),

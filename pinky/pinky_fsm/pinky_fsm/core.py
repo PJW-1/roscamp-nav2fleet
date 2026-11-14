@@ -51,7 +51,7 @@ class PinkyFsm(NavGoalMoves, RetreatMoves, LocalYield, NavYield, SelfRecovery, O
         self._active: _Move | _Dock | _Retreat | NavGoal | None = None
         self._goals = NavGoals(params.blocked_after_s, params.nav_progress_m,
                                params.nav_result_grace_s, params.nav_turn_progress_rad,
-                               params.nav_turn_budget_rad)
+                               params.nav_turn_window_s)
         self._rest = IDLE
         self._localized = False
         self._pose: Sequence[float] | None = None

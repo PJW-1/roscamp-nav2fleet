@@ -51,7 +51,7 @@ class FsmParams:
     blocked_after_s: float = 10.0
     nav_progress_m: float = 0.05
     nav_turn_progress_rad: float = 0.2
-    nav_turn_budget_rad: float = 3.5
+    nav_turn_window_s: float = 4.0
     local_yield: bool = True
     local_wait_s: float = 2.0
     local_backup_m: float = 0.10

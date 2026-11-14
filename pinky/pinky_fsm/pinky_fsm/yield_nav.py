@@ -25,7 +25,7 @@ class NavYield:
         if r is None or r.backup_seq is None:
             g.driven += extend_trail(g.trail, pose, TRAIL_STEP_M, TRAIL_KEEP_M)
         if r is None:
-            stalled = now - g.anchor_at >= self.p.block_report_s
+            stalled = now - max(g.anchor_at, g.turned_at) >= self.p.block_report_s
             if stalled and not g.blocked and self._can_recover(pose):
                 self._attempts += 1
                 if self._attempt_origin is None:

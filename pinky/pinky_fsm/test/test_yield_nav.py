@@ -66,21 +66,69 @@ def test_standing_still_first_waits_as_recovering_and_keeps_navigate_to_pose():
     assert kinds(cmds) == ["SendNavGoal"]  # 멈추지도 다시 보내지도 않는다
 
 
+def turn_in_place(fsm, t0, t1, yaw, rate=1.0):
+    states, t = [], t0
+    while t <= t1 + 1e-9:
+        tick(fsm, t, (*START[:2], yaw(t)), (0.0, rate))
+        states.append((round(t, 1), fsm.state()))
+        t = round(t + 0.1, 6)
+    return states
+
+
+def facing_west(fsm):
+    return fsm.move("g1", 0.0, "N_E", (START[0] - 0.6, 0.30, math.pi), [], START,
+                    mode=MODE_NAV_GOAL)
+
+
 def test_turning_in_place_to_face_the_goal_is_not_a_stand():
     """Drive tuning 2026-11-14: Nav2 first turns to the path (a half turn takes about 3 s at
     1 rad/s). In Gazebo v7 a third of the waits began in such a turn and some ended BLOCKED."""
     fsm = ready()
-    fsm.move("g1", 0.0, "N_E", (START[0] - 0.6, 0.30, math.pi), [], START, mode=MODE_NAV_GOAL)
-    steps = []
-    for k in range(32):
-        t = k * 0.1
-        tick(fsm, t, (*START[:2], min(t, math.pi)), (0.0, 1.0))
-        steps.append(fsm.state())
-    assert set(steps) == {MOVING}, steps
+    facing_west(fsm)
+    states = turn_in_place(fsm, 0.0, 3.1, lambda t: min(t, math.pi))
+    assert {s for _, s in states} == {MOVING}, states
     for k in range(10):
-        t = 3.2 + k * 0.1
-        tick(fsm, t, (START[0] - 0.012 * k, 0.30, math.pi), DRIVING)
+        tick(fsm, 3.2 + k * 0.1, (START[0] - 0.012 * k, 0.30, math.pi), DRIVING)
     assert fsm.state() == MOVING
+
+
+def test_turning_delays_the_wait_at_most_nav_turn_window_s():
+    """Spinning on the spot counts only for nav_turn_window_s (4 s) after the robot last moved:
+    the wait starts by 5 s, so the fleet (stall_s 12 s) hears RECOVERING first, and with no robot
+    ahead it is BLOCKED when the 2 s wait ends. The BLOCKED clock itself (blocked_after_s from
+    when the robot last moved) never counts turns."""
+    fsm = ready()
+    facing_west(fsm)
+    states = dict(turn_in_place(fsm, 0.0, 7.3, lambda t: t))
+    assert states[4.8] == MOVING and states[5.2] == RECOVERING, states
+    assert states[6.8] == RECOVERING and states[7.3] == BLOCKED, states
+
+
+def test_a_turn_during_the_wait_does_not_end_it():
+    fsm = ready()
+    drive_and_stand(fsm, until=1.5)
+    assert fsm.state() == RECOVERING
+    t = 6.6
+    for k in range(6):
+        tick(fsm, t + k * 0.1, (*STOP[:2], 0.1 * (k + 1)), (0.0, 1.0))
+    assert fsm.state() == RECOVERING and fsm.local_yield_step() == WAIT
+    for k in range(12):
+        tick(fsm, 7.2 + k * 0.1, (*STOP[:2], 0.6))
+    assert fsm.state() == BLOCKED, "the wait still ends at its time"
+
+
+def test_small_back_and_forth_turns_add_up():
+    fsm = ready()
+    facing_west(fsm)
+    states = turn_in_place(fsm, 0.0, 3.0, lambda t: 0.15 if round(t * 10) % 2 else -0.15)
+    assert {s for _, s in states} == {MOVING}, states
+
+
+def test_turning_counts_only_when_asked():
+    fsm = ready(nav_turn_progress_rad=0.0)
+    facing_west(fsm)
+    states = dict(turn_in_place(fsm, 0.0, 1.5, lambda t: t))
+    assert states[1.5] == RECOVERING, states
 
 
 def test_after_the_wait_with_no_robot_ahead_it_is_blocked_and_the_goal_stays():
