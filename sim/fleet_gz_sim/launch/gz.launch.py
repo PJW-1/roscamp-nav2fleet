@@ -107,12 +107,24 @@ def overrides_of(path: str) -> dict | None:
     data = yaml.safe_load(Path(path).read_text(encoding="utf-8"))
     if not isinstance(data, dict) or not data:
         raise ValueError(f"nav_overrides must be a non-empty yaml mapping: {path}")
-    controllers = data.get("controller_server", {}).get("ros__parameters", {})
-    swapped = sorted(name for name, spec in controllers.items()
-                     if isinstance(spec, dict) and "plugin" in spec)
+    server = data.get("controller_server", {})
+    if not isinstance(server, dict) or not isinstance(server.get("ros__parameters", {}), dict):
+        raise ValueError("nav_overrides: controller_server.ros__parameters must be a mapping")
+    swapped = sorted(_plugin_keys(server))
     if swapped:
         raise ValueError(f"nav_overrides may not swap a controller plugin: {', '.join(swapped)}")
     return data
+
+
+def _plugin_keys(tree: dict, prefix: str = "") -> list[str]:
+    found = []
+    for key, value in tree.items():
+        name = f"{prefix}{key}"
+        if key == "plugin" or str(key).endswith(".plugin"):
+            found.append(name)
+        if isinstance(value, dict):
+            found += _plugin_keys(value, f"{name}.")
+    return found
 
 
 def params_file_of(value: str) -> str:

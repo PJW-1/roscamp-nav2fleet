@@ -257,11 +257,15 @@ def test_nav_overrides_lays_a_yaml_file_over_every_robots_nav2_params(made, tmp_
         run(made, nav_overrides=str(tmp_path / "missing.yaml"))
 
 
-SWAP = {"controller_server": {"ros__parameters": {
-    "FollowPathGoal": {"plugin": "nav2_mppi_controller::MPPIController"}}}}
+MPPI = "nav2_mppi_controller::MPPIController"
+SWAP = {"controller_server": {"ros__parameters": {"FollowPathGoal": {"plugin": MPPI}}}}
+DOTTED = {"controller_server": {"ros__parameters": {"FollowPathGoal.plugin": MPPI}}}
 
 
-@pytest.mark.parametrize("text", ["", "just words", "- 1\n- 2", "[]", yaml.safe_dump(SWAP)])
+@pytest.mark.parametrize("text", ["", "just words", "- 1\n- 2", "[]", yaml.safe_dump(SWAP),
+                                  yaml.safe_dump(DOTTED), "controller_server: null",
+                                  "controller_server: []",
+                                  "controller_server:\n  ros__parameters: null"])
 def test_nav_overrides_must_be_a_mapping_and_never_swaps_a_plugin(made, tmp_path, text):
     """Codex 2026-11-14: an empty file quietly meant nothing, a list crashed in the merge, and a
     plugin swap would slip past the RPP speed cap and collision check."""
