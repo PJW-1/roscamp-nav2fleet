@@ -13,6 +13,7 @@ from fleet_core.traffic.selector import RobotSelector
 from .grants import ZoneGrants
 from .lane_policy import LanePolicy
 from .robots import ORDER, Robot
+from .trips import along
 
 HERE = "@"
 
@@ -56,6 +57,9 @@ class ZoneBase:
 
     def _gap(self, m, node: str) -> float:
         return math.dist((m.x, m.y), self.site.node_pose(node))
+
+    def _link_reached(self, m, link, limit: float) -> bool:
+        return self._gap(m, link.b) <= limit and 2 * along(link, m.x, m.y) > link.length
 
     def _on_node(self, m) -> bool:
         if not m.node or self.grants.node_holder(m.node) not in ("", m.name):

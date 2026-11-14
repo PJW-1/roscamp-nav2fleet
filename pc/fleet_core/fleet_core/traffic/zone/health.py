@@ -55,7 +55,7 @@ class Health:
             return
         tolerance = self.params.arrival_tolerance_m
         for index in range(trip.granted - 1, trip.done - 1, -1):
-            if self._gap(m, trip.links[index].b) <= tolerance:
+            if self._link_reached(m, trip.links[index], tolerance):
                 trip.done, m.node = index + 1, trip.links[index].b
                 break
         trip.sent = trip.done

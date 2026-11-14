@@ -15,8 +15,6 @@ from fleet_core.traffic.mission import (
     RETREAT,
 )
 
-from .trips import along
-
 
 # ---- 지금 goal과 맞는 로봇 찾기와 이동 결과 ----
 class Results:
@@ -151,9 +149,9 @@ class Results:
         limit = self.params.arrival_tolerance_m
         if self._via(m) == NAV_GOAL:
             return self._gap(m, goal.end) <= limit / 2
-        last = m.trip.links[goal.links - 1] if m.trip is not None else None
-        return (self._gap(m, goal.end) <= limit
-                and (last is None or 2 * along(last, m.x, m.y) > last.length))
+        if m.trip is None:
+            return self._gap(m, goal.end) <= limit
+        return self._link_reached(m, m.trip.links[goal.links - 1], limit)
 
     def _arrived_anyway(self, m, reason: str) -> None:
         goal = m.goal

@@ -229,3 +229,34 @@ def test_a_bay_retreat_that_failed_most_of_the_way_in_is_taken_as_parked():
     codes = world.codes("pinky1")
     assert "GOAL_ENDED_AT_TARGET" in codes and "RETREAT_DONE" in codes
     assert world.view("pinky1")["node"] == "P-1"
+
+
+def comm_back_during_the_bay_retreat(short_of_p1_m=None):
+    """칸 후진 중에 보고가 끊겼다가 돌아와 관제가 선 자리를 확인한 세계. short_of_p1_m이 있으면
+    끊긴 동안 로봇이 칸 안, P-1에서 그만큼 앞으로 옮겨 있다."""
+    world, _, answer = backing_into_the_bay()
+    world.silent.add("pinky1")
+    assert world.run_until(lambda: "COMM_LOST" in world.codes("pinky1"), 10.0)
+    world.traffic.on_retreat_result = answer  # 다시 보낸 후진의 결과는 관제에 닿는다
+    if short_of_p1_m is not None:
+        world.bots["pinky1"].y = world.site.node_pose("P-1")[1] + short_of_p1_m
+    world.silent.discard("pinky1")
+    assert world.run_until(lambda: "COMM_RESTORED" in world.codes("pinky1"), 5.0)
+    world.run(world.params.recover_check_s + 0.2)
+    return world
+
+
+def test_a_robot_heard_again_at_the_bay_entrance_is_not_taken_as_parked():
+    world = comm_back_during_the_bay_retreat()
+    assert world.view("pinky1")["node"] == "E-1"
+    assert len(world.sent(RetreatCmd, "pinky1")) == 2, "the bay retreat is sent again"
+    assert world.run_until(lambda: world.phase("pinky1") == "PARKED", 10.0)
+    assert world.bots["pinky1"].y == world.site.node_pose("P-1")[1], "it really backed in"
+    assert not world.problems
+
+
+def test_a_robot_heard_again_most_of_the_way_into_the_bay_is_taken_as_parked():
+    world = comm_back_during_the_bay_retreat(short_of_p1_m=0.03)
+    assert world.view("pinky1")["node"] == "P-1"
+    assert world.phase("pinky1") == "PARKED"
+    assert len(world.sent(RetreatCmd, "pinky1")) == 1
