@@ -33,13 +33,13 @@ def test_a_stretch_needs_its_zones_its_nodes_and_the_lane_direction():
 def test_one_command_per_nav_goal_link_and_one_per_run_of_fixed_path():
     to_work = way("P-1", "W")
     assert [link.via for link in to_work] == [NAV_GOAL, FOLLOW_PATH, FOLLOW_PATH]
-    assert trips.segment_end(to_work, 0, 3) == 1
-    assert trips.segment_end(to_work, 1, 3) == 3
-    assert trips.segment_end(to_work, 1, 2) == 2, "never past what is granted"
+    assert trips.segment_end(D2, to_work, 0, 3) == 1
+    assert trips.segment_end(D2, to_work, 1, 3) == 3
+    assert trips.segment_end(D2, to_work, 1, 2) == 2, "never past what is granted"
     to_out = way("W", "O")
     assert [link.via for link in to_out] == [RETREAT, FOLLOW_PATH, FOLLOW_PATH, FOLLOW_PATH]
-    assert trips.segment_end(to_out, 0, 4) == 1
-    assert trips.segment_end(to_out, 1, 4) == 4
+    assert trips.segment_end(D2, to_out, 0, 4) == 1
+    assert trips.segment_end(D2, to_out, 1, 4) == 4
 
 
 def test_a_nav_goal_command_faces_the_way_the_fixed_path_continues():

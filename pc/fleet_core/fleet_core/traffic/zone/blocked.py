@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import math
 
-from fleet_core.fleet_map import RETREAT, SHARED
+from fleet_core.fleet_map import NAV_GOAL, RETREAT, SHARED
 from fleet_core.fleet_map.geometry import point_segment_distance
 from fleet_core.traffic.mission import (
     BLOCKED,
@@ -16,6 +16,7 @@ from fleet_core.traffic.mission import (
 
 from .base import HERE
 from .robots import BACKOFF
+from .trips import segment_end
 from .yard_retreat import yard_retreat
 
 
@@ -87,9 +88,18 @@ class Blocked:
         return ""
 
     # ---- 막힘 표시와 다른 길로 다시 가기 ----
+    def _link_on(self, m):
+        trip = m.trip
+        first = trip.done
+        if trip.links[first].via != NAV_GOAL:
+            return trip.links[first]
+        end = segment_end(self.site, trip.links, first, max(m.goal.links, first + 1))
+        return min(trip.links[first:end], key=lambda link: point_segment_distance(
+            (m.x, m.y), link.points[0], link.points[-1]))
+
     def _mark_blocked(self, m, now: float, point=None) -> None:
         p, site = self.params, self.site
-        link = m.trip.links[m.trip.done]
+        link = self._link_on(m)
         keys = self._point_keys(m, point, link) if point is not None else []
         zone = site.zone_at(m.x, m.y)
         if keys:

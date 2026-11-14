@@ -101,7 +101,7 @@ class Drive:
             return
         trip = m.trip
         start = trip.sent
-        end = segment_end(trip.links, start, trip.granted)
+        end = segment_end(self.site, trip.links, start, trip.granted)
         links = trip.links[start:end]
         goal_id = self._next_goal_id()
         via, target = links[0].via, links[-1].b
