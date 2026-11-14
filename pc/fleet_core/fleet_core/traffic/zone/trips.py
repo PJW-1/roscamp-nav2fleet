@@ -5,7 +5,7 @@ import math
 from dataclasses import dataclass
 
 from fleet_core.common.commands import MoveCmd, RetreatCmd
-from fleet_core.fleet_map import FOLLOW_PATH, NAV_GOAL, RETREAT, Link
+from fleet_core.fleet_map import AT_DOCK, FOLLOW_PATH, NAV_GOAL, RETREAT, SHARED, Link
 
 ON_NODE_M = 0.03
 
@@ -48,12 +48,27 @@ def needs(links) -> tuple[list, list, dict]:
     return zones, nodes, lanes
 
 
-def segment_end(links, start: int, limit: int) -> int:
+def joins(site, a, b) -> bool:
+    return (a.via == b.via == NAV_GOAL and len(a.zones) == 1 and a.zones == b.zones
+            and site.zones[a.zones[0]].kind == SHARED)
+
+
+def segment_end(site, links, start: int, limit: int) -> int:
     via = links[start].via
     end = start + 1
-    if via != NAV_GOAL:
-        while end < limit and links[end].via == via:
-            end += 1
+    while end < limit and (joins(site, links[end - 1], links[end]) if via == NAV_GOAL
+                           else links[end].via == via):
+        end += 1
+    return end
+
+
+def reach_end(site, links, start: int) -> int:
+    end = stretch_end(site, links, start)
+    while end < len(links) and joins(site, links[end - 1], links[end]):
+        more = stretch_end(site, links, end)
+        if any(link.lane or site.nodes[link.b].kind == AT_DOCK for link in links[end:more]):
+            break
+        end = more
     return end
 
 
@@ -120,7 +135,8 @@ def move_command(site, robot: str, goal_id: int, links, x: float, y: float,
         elif after is not None and after.via == FOLLOW_PATH:
             yaw = heading(*_pieces(after)[0])
         else:
-            yaw = heading((x, y), (node.x, node.y))
+            yaw = heading(links[-1].points[-2] if len(links) > 1 else (x, y),
+                          (node.x, node.y))
         return MoveCmd(robot, goal_id, node.id, node.x, node.y, yaw, (), True, NAV_GOAL,
                        priority)
     points, yaws = _line(links, x, y)
