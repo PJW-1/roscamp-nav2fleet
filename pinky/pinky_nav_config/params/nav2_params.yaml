@@ -213,10 +213,7 @@ controller_server:
     # use_rotate_to_heading and allow_reversing differ (test_nav_config checks it)
     FollowPathReverse:
       plugin: "nav2_regulated_pure_pursuit_controller::RegulatedPurePursuitController"
-      # 0.10(주행 성능 조정 2026-11-14, 사용자 "안전보다 최고 성능"): 0.05에서는 칸 주차와 도크에서
-      # 물러나는 후진이 Gazebo v7에서 느린 이동의 큰 몫이었다. pinky_fsm reverse_speed_mps와
-      # 관제 retreat_speed_mps가 같은 값이다(시험이 견준다)
-      desired_linear_vel: 0.10
+      desired_linear_vel: 0.05  # 물러나기는 천천히(기준(사용자))
       # 추가 지시서 3의 2-1 3번: 앞보기 0.10 m 고정(제조사 0.6, 전달사항 0.15 속도 비례). 속도 비례
       # 앞보기(0.12 m/s에서 0.18 m)는 모퉁이 9 cm 앞에서 돌기 시작했다(작업 기록 4.2)
       lookahead_dist: 0.10

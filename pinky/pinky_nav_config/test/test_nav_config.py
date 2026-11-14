@@ -147,22 +147,20 @@ def test_the_through_controller_is_followpath_without_the_approach_slow_down():
 def test_a_fixed_line_slows_down_only_in_its_last_0_2_m():
     """사용자 2026-11-14("계속해서 개선해"): 끝 0.6 m 앞부터 줄이면 Gazebo v7 경기(order 모델 끔)
     에서 MOVING 1058 s 가운데 503 s를 0.06 m/s 아래로 기었다. 0.12 m/s에서 0.25 m/s^2로 서는 데
-    3 cm면 되므로 마지막 0.2 m 안에서만 줄인다. 후진(0.10 m/s)도 0.25 m/s^2로 서는 데 2 cm면
-    된다."""
+    3 cm면 되므로 마지막 0.2 m 안에서만 줄인다. 후진은 0.05 m/s라 이 값이 바꾸는 것이 없다."""
     c = params("controller_server")
     for name in ("FollowPath", "FollowPathReverse"):
         assert c[name]["approach_velocity_scaling_dist"] == 0.2, name
 
 
-REVERSE_ONLY = {"desired_linear_vel": 0.10, "use_rotate_to_heading": False,
+REVERSE_ONLY = {"desired_linear_vel": 0.05, "use_rotate_to_heading": False,
                 "allow_reversing": True}
 
 
 def test_the_reverse_controller_is_followpath_driven_backwards_slowly():
     """Retreat with a path(계약, 기준(사용자)): pinky_fsm sends the driven way reversed to
     FollowPathReverse. Jazzy RPP cannot reverse while use_rotate_to_heading is on, so it is off
-    (no turn in place before backing) and the robot backs at 0.10 m/s (0.05 until the drive
-    tuning of 2026-11-14). The collision check stays
+    (no turn in place before backing) and the robot backs at 0.05 m/s. The collision check stays
     on: it looks along the motion, so it is what stops the robot for something behind."""
     c = params("controller_server")
     normal, reverse = c["FollowPath"], c["FollowPathReverse"]

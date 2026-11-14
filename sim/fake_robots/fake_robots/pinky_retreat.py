@@ -8,7 +8,7 @@ from fleet_interfaces.action import Retreat
 from fake_robots.pinky_goal import _Goal, _project
 
 # 실물 pinky_fsm의 경로 물러나기와 같게(FollowPathReverse 속도, 이보다 짧게 남으면 FAILED)
-REVERSE_SPEED_MPS = 0.10
+REVERSE_SPEED_MPS = 0.05
 REVERSE_MIN_M = 0.02
 
 
@@ -17,7 +17,7 @@ class PinkyRetreat:
         """보는 방향 그대로 뒤로. 갈 길을 지나온 선(trail)으로 두고 Motion.back으로 간다.
 
         path가 없으면 뒤로 곧게 distance_m을 시킨 속도로. 있으면 실물 pinky_fsm처럼 제 자리에서
-        가장 가까운 선분부터 끝 점까지 차례로, REVERSE_SPEED_MPS(0.10 m/s)를 넘지 않게 간다.
+        가장 가까운 선분부터 끝 점까지 차례로, REVERSE_SPEED_MPS(0.05 m/s)를 넘지 않게 간다.
         로봇 자리에서 시작하지 않는 path(이동의 path와 같은 연결 허용 거리)나 제 자리를 투영한
         점부터 끝까지가 0.02 m보다 짧은 path는 따르지 않는다. 투영은 실물(Polyline.project)과
         같이 같으면 앞 선분이다.

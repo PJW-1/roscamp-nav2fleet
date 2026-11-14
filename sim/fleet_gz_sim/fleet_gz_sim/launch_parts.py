@@ -187,7 +187,7 @@ def sim_nav_params(base: Path, out: Path, amcl: dict | None = None,
     - controller 넷(CONTROLLERS) 모두 충돌 검사를 켠다(지시서 3절: 모든 실행에서 켬). overrides로도
       끌 수 없다. fixed_line_check가 거짓일 때만 FIXED_LINE_CONTROLLERS의 검사를 끈다.
     - max_speed가 있으면 controller마다 desired_linear_vel을 max_speed와 원래 값 중 작은 것으로
-      (후진 FollowPathReverse 0.10 m/s는 그대로 남는다)."""
+      (후진 FollowPathReverse 0.05 m/s는 그대로 남는다)."""
     data = yaml.safe_load(base.read_text(encoding="utf-8"))
     if GOAL_CONTROLLER not in data["controller_server"]["ros__parameters"] and avoidance:
         data["controller_server"]["ros__parameters"][GOAL_CONTROLLER] = yaml.safe_load(

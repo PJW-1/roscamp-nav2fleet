@@ -38,7 +38,7 @@ class FsmParams:
     backup_speed_mps: float = 0.08
     backup_time_allowance_s: float = 5.0
     retreat_stop_wait_s: float = 3.0
-    reverse_speed_mps: float = 0.10
+    reverse_speed_mps: float = 0.05
     backup_result_grace_s: float = 2.0
     nav_result_grace_s: float = 2.0
     recovery_pass_m: float = 0.05

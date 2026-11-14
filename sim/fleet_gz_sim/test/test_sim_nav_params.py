@@ -122,14 +122,14 @@ def _rpp(data: dict, name: str) -> dict:
 
 
 def test_sim_params_cap_every_forward_controller_and_change_nothing_else(tmp_path):
-    """The arena runs at 0.12 to 0.20 m/s; the reverse controller keeps its slower 0.10 m/s."""
+    """The arena runs at 0.12 to 0.20 m/s; the reverse controller keeps its slower 0.05 m/s."""
     capped = yaml.safe_load(_sim(
         NAV, tmp_path / "capped.yaml", max_speed=0.12).read_text(encoding="utf-8"))
     plain = yaml.safe_load(_sim(
         NAV, tmp_path / "plain.yaml").read_text(encoding="utf-8"))
     for name in launch_parts.CONTROLLERS:
         if name == launch_parts.REVERSE_CONTROLLER:
-            assert _rpp(capped, name)["desired_linear_vel"] == 0.10
+            assert _rpp(capped, name)["desired_linear_vel"] == 0.05
             continue
         assert _rpp(capped, name)["desired_linear_vel"] == 0.12
         assert _rpp(plain, name)["desired_linear_vel"] == 0.25

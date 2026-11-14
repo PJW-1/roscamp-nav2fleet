@@ -965,16 +965,16 @@ def _drive_out(p, truth, metres):
 
 
 def test_the_fake_reverses_a_path_at_the_fleet_retreat_speed():
-    """Codex 2026-11-14: the fleet sends path retreats at retreat_speed_mps (0.10) and times them
-    with it, but the ROS fake pinky capped them at the old 0.05 and took twice as long. Kept with
-    the ROS tests: pinky_retreat needs fleet_interfaces."""
+    """Codex 2026-11-14: the fleet sends path retreats at retreat_speed_mps and times them with it,
+    so the ROS fake pinky caps them at the same speed (it kept 0.05 while the fleet sent 0.10).
+    Kept with the ROS tests: pinky_retreat needs fleet_interfaces."""
     assert REVERSE_SPEED_MPS == load_params().retreat_speed_mps
 
 
 def test_a_retreat_with_a_path_backs_along_it_round_the_corner(harness, tmp_path):
     """path는 지나온 길을 거꾸로 적은 것이다. 첫 점은 로봇 자리, 끝 점은 설 곳. 로봇은 돌지
     않고 꺾인 곳까지 간 뒤 다음 선분을 따라 끝 점에 선다. 속도는 실물(FollowPathReverse)처럼
-    REVERSE_SPEED_MPS(0.10 m/s, 2026-11-14에 0.05에서 올림)를 넘지 않는다(Codex 리뷰 4)."""
+    REVERSE_SPEED_MPS(0.05 m/s)를 넘지 않는다(Codex 리뷰 4)."""
     p = start(harness, tmp_path, robots=LONG)
     truth = watch_truth(p)
     assert wait_until(lambda: p.states and truth, 5.0)

@@ -10,7 +10,7 @@ from fleet_core.common.params import load_params
 from fleet_core.fleet_map import load_fleet_map
 from fleet_core.traffic.zone.backoff import backoff_spot
 from fleet_core.traffic.zone.robots import Robot
-from zone_harness import DT, Harness
+from zone_harness import Harness
 
 SITE = load_fleet_map("d2")
 ON = replace(load_params(), yard_backoff=True)
@@ -64,16 +64,6 @@ def test_with_the_switch_off_a_blocked_robot_only_stops():
     assert not world.sent(RetreatCmd)
 
 
-def backed(detail: str, head: str) -> float:
-    """거리는 마지막 위치 보고로 잰다: 보고는 한 걸음(속도 x 0.1 s) 늦을 수 있다."""
-    assert detail.startswith(head) and detail.endswith(" m"), detail
-    return float(detail[len(head):-2])
-
-
-def step(p) -> float:
-    return p.retreat_speed_mps * DT + 1e-9
-
-
 def test_a_blocked_robot_that_yields_backs_straight_off_first():
     world = stuck_pair()
     p = world.params
@@ -95,8 +85,7 @@ def test_after_backing_off_it_stands_aside_and_then_gets_its_way_again():
     backing(world)
     del world._state  # 물러나는 동안은 MOVING을 보고한다
     world.run(p.yard_backoff_m / p.retreat_speed_mps + 0.2)
-    [done] = [e.detail for e in world.events if e.code == "HALL_BACKOFF_DONE"]
-    assert backed(done, "backed ") == pytest.approx(p.yard_backoff_m, abs=step(p))
+    assert [e.detail for e in world.events if e.code == "HALL_BACKOFF_DONE"] == ["backed 0.12 m"]
     assert world.bots["pinky2"].x == pytest.approx(SITE.node_pose("P-2")[0] + p.yard_backoff_m)
     world.run(p.near_stuck_s - 0.5)
     assert len(world.sent(MoveCmd, "pinky2")) == 1, "it stands aside"
@@ -288,8 +277,7 @@ def test_a_back_off_that_stops_moving_is_cancelled_without_counting_an_attempt()
     world.run(p.stall_s + 1.5)
     assert CancelCmd("pinky2", back.goal_id) in world.commands
     failed = [e.detail for e in world.events if e.code == "HALL_BACKOFF_FAILED"]
-    assert len(failed) == 1 and backed(failed[0], "STALLED after ") == pytest.approx(
-        0.04, abs=step(p))
+    assert failed == ["STALLED after 0.04 m"]
     assert world.codes("pinky2").count("BLOCKED_WAIT") == blocked, "not handled as a blocked move"
     codes = world.codes("pinky2")
     assert "GOAL_RETRY" not in codes and "ZONE_MARKED_BLOCKED" not in codes

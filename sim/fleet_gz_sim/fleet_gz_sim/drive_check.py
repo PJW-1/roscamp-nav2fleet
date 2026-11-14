@@ -43,7 +43,7 @@ from fleet_gz_sim.stage2_plan import (
 
 HEARTBEAT_PERIOD_S = 0.5
 START_M = 0.15  # 로봇이 계획의 시작 지점에서 이만큼 안에 있어야 한다
-RETREAT_SPEED_MPS = 0.10  # TRAFFIC_CONTRACT 6절 retreat_speed_mps
+RETREAT_SPEED_MPS = 0.05  # TRAFFIC_CONTRACT 6절 retreat_speed_mps
 SETTLE_S = 0.3  # 결과 뒤 실제 위치를 이만큼 더 받는다(멈춘 자리)
 
 
