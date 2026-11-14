@@ -46,6 +46,13 @@ def test_v7_docks_and_parking(site):
         # 사용자 2026-11-13 밤: 거의 벽에 닿을 만큼 깊숙이. 북쪽을 본 로봇의 뒤 끝이 벽에서 0.0055다
         assert site.nodes[name].y == pytest.approx(0.08)
         assert 0.0 < site.nodes[name].y - REAR_M < 0.01
+    # 칸 입구(사용자 2026-11-14 "주차 줄이 너무 길다, 점 사이를 줄여"): y 0.27 -> 0.24,
+    # 줄 0.19 -> 0.16. 더 내리면 E-1 -> Q2의 곧은 선이 칸막이 3 위 끝에 몸 원 + 여유(0.103)보다
+    # 가까워진다(0.235가 끝, 아래 칸 시험). 입구에서 돌기만 보면 0.203이 끝이다
+    for name, x in (("E-1", 0.12), ("E-2", 0.38), ("E-3", 0.64)):
+        assert site.node_pose(name) == pytest.approx((x, 0.24))
+        spot = site.node_pose("P-" + name.removeprefix("E-"))
+        assert math.dist(site.node_pose(name), spot) == pytest.approx(0.16)
 
 
 def test_v7_work_queue_is_two_spots_entered_at_q2(site):
@@ -321,10 +328,11 @@ def test_v7_robots_standing_in_line_or_at_a_fork_leave_every_other_way_open(site
     # G, F: 갈림에서도 차례를 기다리며 선다(3e84ff6 리뷰: G에 선 로봇이 E-3 -> F 선을 0.076으로 막았다)
     # 지나가는 로봇은 주차한 로봇 앞을 몸 둘이 닿지 않게 지난다(2026-11-13 밤, Gazebo와 머리 없는
     # 세계: 칸 입구 0.25, 주차 0.11이던 때 E-1 -> Q2의 선이 P-3에서 0.11이라 로봇이 서 있었다).
-    # 0.175 = 머리 없는 세계가 막혔다고 보는 거리(robot_radius_m 둘 + 틈 0.01 = 0.17)보다 조금 넘게.
-    # 예외는 E-1, E-2에서 구석의 Q2로 가는 두 선이다(사용자 2026-11-13 밤: Q2는 구석에 둔다). Q2가
-    # 낮아 선이 내려가며 주차한 로봇 앞 0.15~0.17을 지난다: Nav2가 그 로봇을 돌아가는 데 기대고,
-    # 그래도 막히면 관제가 가운데 통로(M_E)로 돌린다
+    # 그때 기준은 0.175(머리 없는 세계가 막혔다고 보는 거리 0.17보다 조금 넘게)였다. 칸 입구를
+    # 0.24로 내린 뒤(사용자 2026-11-14 "주차 줄을 줄여") 입구 줄과 Q2로 가는 선은 주차한 로봇에서
+    # 0.133~0.16을 지난다. 곧은 선으로도 몸끼리는 닿지 않는다(주차한 로봇 앞 끝 0.04 + 지나가는 로봇
+    # 반 폭 0.056 + 여유 0.03). Nav2와 머리 없는 planner는 곧은 선이 아니라 그 로봇을 돌아가는 길을
+    # 내고, 그래도 막히면 관제가 가운데 통로(M_E)로 돌린다
     low = {}
     for link in site.links():
         if link.via != NAV_GOAL:
@@ -333,9 +341,8 @@ def test_v7_robots_standing_in_line_or_at_a_fork_leave_every_other_way_open(site
             gap = point_segment_distance(site.node_pose(spot), link.points[0], link.points[-1])
             if gap < 0.175:
                 low[frozenset((link.a, link.b)), spot] = round(gap, 3)
-    assert low == {(frozenset(("E-1", "Q2")), "P-2"): 0.171,
-                   (frozenset(("E-1", "Q2")), "P-3"): 0.152,
-                   (frozenset(("E-2", "Q2")), "P-3"): 0.167}, low
+    assert min(low.values()) >= FRONT_M + HALF_WIDTH_M + 0.03, low
+    assert min(low.values()) == pytest.approx(0.133, abs=1e-3)  # E-1 -> Q2가 P-3 앞을 지난다
     standing = ["W", "O", "Q1", "Q2", "O_IN", "O_OUT", "M_E"]
     for name in standing:
         here = site.node_pose(name)
