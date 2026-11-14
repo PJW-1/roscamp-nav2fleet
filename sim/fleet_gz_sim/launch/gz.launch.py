@@ -74,6 +74,11 @@ ARGS = {
                             " 0.05는 D2 측정으로 고른 값(fixed_line_results.md)"),
     "peer_obstacles": ("true", "로봇마다 다른 로봇의 몸을 costmap에 찍는다(pinky_peer_obstacles, 임시):"
                                " Nav2가 다른 로봇을 피해 길을 짠다. false면 찍지 않는다(비교용)"),
+    "avoidance_package": ("pinky_avoidance", "회피 패키지(params/avoidance.yaml과"
+                                             " launch/avoidance.launch.py). 회피 담당의 패키지로"
+                                             " 바꿀 수 있다"),
+    "vision_stand_in": ("false", "true면 로봇마다 임시 비전 대역(회피 패키지)이 상자 표시와 실제"
+                                 " 자세로 /<로봇>/vision_obstacles를 내고 비전 관측원을 켠다"),
     "fleet_record": ("false", "true면 관제 기록(fleet_manager --record)을"
                               " result_dir/fleet_record.jsonl에 남긴다. tools/triage,"
                               " tools/avoid_regression.py, tools/replay.py가 읽는다"),
@@ -263,6 +268,7 @@ def _start(context):
     strips = (narrow_strips(site, float(value("wall_band_m")))
               if flag(value("scan_filter"), "scan_filter") else "")
     peers = flag(value("peer_obstacles"), "peer_obstacles")
+    stand_in = flag(value("vision_stand_in"), "vision_stand_in")
     params_file = params_for(params_file_of(value("fleet_params_file")), value("result_dir"),
                              value("battery_low_pct"))
     max_speed = launch_parts.speed_of(value("nav_max_speed"))
@@ -284,6 +290,8 @@ def _start(context):
                                       narrow_strips=strips,
                                       wall_band_m=float(value("wall_band_m")),
                                       peer_layer=peers,
+                                      avoidance_package=value("avoidance_package"),
+                                      vision_stand_in=stand_in,
                                       battery_topic=(launch_parts.BATTERY_TOPIC.format(robot=robot)
                                                      if battery else ""))
     if value("rviz") == "fleet":

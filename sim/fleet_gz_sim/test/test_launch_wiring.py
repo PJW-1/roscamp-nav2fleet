@@ -398,3 +398,28 @@ def test_peer_obstacles_adds_the_layer_to_every_robot_and_the_stand_in_sends_the
     assert len(nodes(actions)) == before, "no new process: the DDS participant budget is full"
     with pytest.raises(ValueError, match="peer_obstacles"):
         run(made, peer_obstacles="on")
+
+
+# ---- 회피 패키지와 임시 비전 대역 ------------------------------------------------------------
+
+def test_every_robot_gets_the_avoidance_package_and_no_vision_stand_in_by_default(made):
+    assert made.ARGS["avoidance_package"][0] == "pinky_avoidance"
+    assert made.ARGS["vision_stand_in"][0] == "false"
+    navs = includes(run(made), "nav2.launch.py")
+    assert len(navs) == 3
+    for nav in navs:
+        assert launch_args(nav)["avoidance_package"] == "pinky_avoidance"
+        assert launch_args(nav)["vision_stand_in"] == "false"
+
+
+def test_the_vision_stand_in_can_be_turned_on_for_every_robot(made):
+    navs = includes(run(made, vision_stand_in="true"), "nav2.launch.py")
+    assert [launch_args(nav)["vision_stand_in"] for nav in navs] == ["true"] * 3
+    with pytest.raises(ValueError, match="vision_stand_in"):
+        run(made, vision_stand_in="on")
+
+
+def test_an_unknown_avoidance_package_stops_the_launch(made):
+    from ament_index_python.packages import PackageNotFoundError
+    with pytest.raises(PackageNotFoundError):
+        run(made, avoidance_package="no_such_avoidance_package")

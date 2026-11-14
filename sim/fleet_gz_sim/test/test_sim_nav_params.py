@@ -12,7 +12,12 @@ from fleet_gz_sim import launch_parts  # noqa: E402
 REPO = Path(__file__).resolve().parents[3]
 MAPS = {"nav_map": "/m/arena_d2.yaml", "nav_map_fine": "/m/arena_d2_fine.yaml"}
 NAV = REPO / "pinky" / "pinky_nav_config" / "params" / "nav2_params.yaml"
-AVOIDANCE = NAV.with_name("avoidance.yaml")  # the avoidance teammate's file (third addendum 7-1)
+# the avoidance teammate's file (third addendum 7-1), from the default avoidance package
+AVOIDANCE = REPO / "pinky" / "pinky_avoidance" / "params" / "avoidance.yaml"
+
+
+def _sim(base, out, **kw):
+    return launch_parts.sim_nav_params(base, out, avoidance=AVOIDANCE, **kw)
 
 
 def _base() -> dict:
@@ -29,7 +34,7 @@ def _amcl(data: dict) -> dict:
 
 def test_sim_params_change_amcl_only_and_leave_the_real_file(tmp_path):
     before = NAV.read_bytes(), AVOIDANCE.read_bytes()
-    out = launch_parts.sim_nav_params(NAV, tmp_path / "nav2_sim.yaml")
+    out = _sim(NAV, tmp_path / "nav2_sim.yaml")
     assert (NAV.read_bytes(), AVOIDANCE.read_bytes()) == before
     base, sim = _base(), yaml.safe_load(out.read_text(encoding="utf-8"))
     assert {k: v for k, v in sim.items() if k != "amcl"} == {
@@ -118,9 +123,9 @@ def _rpp(data: dict, name: str) -> dict:
 
 def test_sim_params_cap_every_forward_controller_and_change_nothing_else(tmp_path):
     """The arena runs at 0.12 to 0.20 m/s; the reverse controller keeps its slower 0.05 m/s."""
-    capped = yaml.safe_load(launch_parts.sim_nav_params(
+    capped = yaml.safe_load(_sim(
         NAV, tmp_path / "capped.yaml", max_speed=0.12).read_text(encoding="utf-8"))
-    plain = yaml.safe_load(launch_parts.sim_nav_params(
+    plain = yaml.safe_load(_sim(
         NAV, tmp_path / "plain.yaml").read_text(encoding="utf-8"))
     for name in launch_parts.CONTROLLERS:
         if name == launch_parts.REVERSE_CONTROLLER:
@@ -135,7 +140,7 @@ def test_sim_params_cap_every_forward_controller_and_change_nothing_else(tmp_pat
 @pytest.mark.parametrize("bad", [0.0, -0.1, float("nan"), float("inf"), 0.3, True, "0.1"])
 def test_a_speed_cap_must_be_a_number_between_zero_and_the_robot_speed(tmp_path, bad):
     with pytest.raises(ValueError, match="max_speed"):
-        launch_parts.sim_nav_params(NAV, tmp_path / "a.yaml", max_speed=bad)
+        _sim(NAV, tmp_path / "a.yaml", max_speed=bad)
 
 
 def test_every_controller_checks_collisions_even_if_the_base_file_turned_it_off(tmp_path):
@@ -158,7 +163,7 @@ def test_overrides_go_deep_and_cannot_turn_the_collision_check_off(tmp_path):
     overrides = {"local_costmap": {"local_costmap": {"ros__parameters": local}},
                  "controller_server": {"ros__parameters": {
                      "FollowPath": {"use_collision_detection": False}}}}
-    sim = yaml.safe_load(launch_parts.sim_nav_params(NAV, tmp_path / "o.yaml", overrides=overrides)
+    sim = yaml.safe_load(_sim(NAV, tmp_path / "o.yaml", overrides=overrides)
                          .read_text(encoding="utf-8"))
     params = sim["local_costmap"]["local_costmap"]["ros__parameters"]
     assert params["resolution"] == 0.01
@@ -170,7 +175,7 @@ def test_overrides_go_deep_and_cannot_turn_the_collision_check_off(tmp_path):
 def test_overrides_win_over_the_sim_amcl_values(tmp_path):
     """nav_overrides로 AMCL 값도 바꿀 수 있다(위치 추정을 조사할 때 쓴다)."""
     overrides = {"amcl": {"ros__parameters": {"z_hit": 0.5}}}
-    sim = yaml.safe_load(launch_parts.sim_nav_params(NAV, tmp_path / "a.yaml", overrides=overrides)
+    sim = yaml.safe_load(_sim(NAV, tmp_path / "a.yaml", overrides=overrides)
                          .read_text(encoding="utf-8"))
     assert _amcl(sim)["z_hit"] == 0.5
     assert _amcl(sim)["max_beams"] == launch_parts.SIM_AMCL["max_beams"]
@@ -179,7 +184,7 @@ def test_overrides_win_over_the_sim_amcl_values(tmp_path):
 def test_the_fixed_line_check_can_be_turned_off_and_the_yard_check_stays_on(tmp_path):
     """Lead decision 2026-11-12 (G1 not achieved): fixed lines without the RPP check, yard goals
     with it. The default still equals the real settings."""
-    sim = yaml.safe_load(launch_parts.sim_nav_params(NAV, tmp_path / "f.yaml",
+    sim = yaml.safe_load(_sim(NAV, tmp_path / "f.yaml",
                                                      fixed_line_check=False)
                          .read_text(encoding="utf-8"))
     assert launch_parts.FIXED_LINE_CONTROLLERS == ("FollowPath", "FollowPathThrough",
@@ -187,7 +192,7 @@ def test_the_fixed_line_check_can_be_turned_off_and_the_yard_check_stays_on(tmp_
     for name in launch_parts.FIXED_LINE_CONTROLLERS:
         assert _rpp(sim, name)["use_collision_detection"] is False, name
     assert _rpp(sim, "FollowPathGoal")["use_collision_detection"] is True
-    default = yaml.safe_load(launch_parts.sim_nav_params(NAV, tmp_path / "d.yaml")
+    default = yaml.safe_load(_sim(NAV, tmp_path / "d.yaml")
                              .read_text(encoding="utf-8"))
     assert all(_rpp(default, n)["use_collision_detection"] is True
                for n in launch_parts.CONTROLLERS)
@@ -213,10 +218,10 @@ def test_pinky_passes_the_fixed_line_switch_to_its_nav2_params(tmp_path, monkeyp
     assert _rpp(sim, "FollowPathGoal")["use_collision_detection"] is True
 
 
-def test_the_goal_controller_comes_from_the_avoidance_file_beside_the_base(tmp_path):
+def test_the_goal_controller_comes_from_the_avoidance_file(tmp_path):
     """Third addendum 7-1: the goal controller's values are the avoidance teammate's. The sim
     puts them in before its own changes, so the speed cap and the collision check reach them."""
-    sim = yaml.safe_load(launch_parts.sim_nav_params(NAV, tmp_path / "s.yaml", max_speed=0.12)
+    sim = yaml.safe_load(_sim(NAV, tmp_path / "s.yaml", max_speed=0.12)
                          .read_text(encoding="utf-8"))
     theirs = yaml.safe_load(AVOIDANCE.read_text(encoding="utf-8"))["follow_path_goal"]
     assert _rpp(sim, "FollowPathGoal") == {**theirs, "desired_linear_vel": 0.12,
@@ -256,3 +261,61 @@ def test_the_launch_speed_is_the_arena_range(text, value):
 def test_a_launch_speed_outside_the_arena_range_is_refused(bad):
     with pytest.raises(ValueError, match="nav_max_speed"):
         launch_parts.speed_of(bad)
+
+
+def test_the_goal_controller_comes_from_the_chosen_avoidance_package_file(tmp_path):
+    """avoidance_package: the teammate's package hands in its own file; nothing beside the base."""
+    theirs = yaml.safe_load(AVOIDANCE.read_text(encoding="utf-8"))
+    theirs["follow_path_goal"] = {**theirs["follow_path_goal"], "lookahead_time": 0.9}
+    path = tmp_path / "team" / "avoidance.yaml"
+    path.parent.mkdir()
+    path.write_text(yaml.safe_dump(theirs), encoding="utf-8")
+    sim = yaml.safe_load(launch_parts.sim_nav_params(NAV, tmp_path / "s.yaml", avoidance=path)
+                         .read_text(encoding="utf-8"))
+    assert _rpp(sim, "FollowPathGoal")["lookahead_time"] == 0.9
+
+
+def test_a_file_beside_the_base_is_not_read_any_more(tmp_path):
+    (tmp_path / "nav2_params.yaml").write_bytes(NAV.read_bytes())
+    (tmp_path / "avoidance.yaml").write_bytes(AVOIDANCE.read_bytes())
+    with pytest.raises(ValueError, match="FollowPathGoal"):
+        launch_parts.sim_nav_params(tmp_path / "nav2_params.yaml", tmp_path / "sim.yaml")
+
+
+def _nav_args(tmp_path, monkeypatch, **kw):
+    from launch.actions import IncludeLaunchDescription
+    from launch.utilities import normalize_to_list_of_substitutions, perform_substitutions
+    monkeypatch.setattr(launch_parts.tempfile, "gettempdir", lambda: str(tmp_path))
+    context = launch.LaunchContext()
+
+    def text(value):
+        return perform_substitutions(context, normalize_to_list_of_substitutions(value))
+
+    includes = [a for a in launch_parts.pinky("pinky1", 0.5, 0.5, 0.0, fsm=False, **MAPS, **kw)
+                if isinstance(a, IncludeLaunchDescription)]
+    args = [{text(k): text(v) for k, v in a.launch_arguments} for a in includes]
+    return next(a for a in args if "map_fine" in a)
+
+
+def test_pinky_reads_the_goal_controller_from_the_avoidance_package(tmp_path, monkeypatch):
+    _need("fleet_gz_sim", "pinky_nav_config", "pinky_avoidance")
+    nav = _nav_args(tmp_path, monkeypatch)
+    assert nav["avoidance_package"] == "pinky_avoidance"
+    assert nav["vision_stand_in"] == "false"
+    sim = yaml.safe_load(Path(nav["params_file"]).read_text(encoding="utf-8"))
+    installed = launch_parts.share("pinky_avoidance") / "params" / "avoidance.yaml"
+    theirs = yaml.safe_load(installed.read_text(encoding="utf-8"))["follow_path_goal"]
+    assert _rpp(sim, "FollowPathGoal")["plugin"] == theirs["plugin"]
+    assert _rpp(sim, "FollowPathGoal")["lookahead_dist"] == theirs["lookahead_dist"]
+
+
+def test_pinky_passes_the_vision_stand_in_switch(tmp_path, monkeypatch):
+    _need("fleet_gz_sim", "pinky_nav_config", "pinky_avoidance")
+    assert _nav_args(tmp_path, monkeypatch, vision_stand_in=True)["vision_stand_in"] == "true"
+
+
+def test_pinky_with_an_unknown_avoidance_package_stops(tmp_path, monkeypatch):
+    _need("fleet_gz_sim", "pinky_nav_config")
+    from ament_index_python.packages import PackageNotFoundError
+    with pytest.raises(PackageNotFoundError):
+        _nav_args(tmp_path, monkeypatch, avoidance_package="no_such_avoidance_package")
