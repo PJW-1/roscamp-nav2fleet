@@ -195,11 +195,13 @@ def test_goal_checker_is_tighter_than_the_arrival_tolerance():
 
 def test_retreat_goal_checker_checks_the_position_only():
     """2-1: 후진(FollowPathReverse)은 제자리에서 방향을 고칠 수 없으니 끝 방향을 보지 않는다.
-    위치 허용치는 앞으로 갈 때와 같다. pinky_fsm reverse_goal_checker_id가 이 이름을 쓴다."""
+    위치 허용치는 0.02로 앞으로 갈 때(0.05)보다 좁다(사용자 2026-11-14: 충전 칸에 0.05 앞에서
+    도착으로 끝나 얕게 섰다). pinky_fsm reverse_goal_checker_id가 이 이름을 쓴다."""
     c = params("controller_server")
     retreat = c["retreat_goal_checker"]
     assert retreat["plugin"] == "nav2_controller::SimpleGoalChecker"
-    assert retreat["xy_goal_tolerance"] == c["general_goal_checker"]["xy_goal_tolerance"]
+    assert retreat["xy_goal_tolerance"] == 0.02
+    assert retreat["xy_goal_tolerance"] < c["general_goal_checker"]["xy_goal_tolerance"]
     assert retreat["yaw_goal_tolerance"] > math.pi  # 어떤 방향 오차도 통과
     assert c["progress_checker_plugins"] == ["progress_checker"]
     assert c["progress_checker"]["required_movement_radius"] == 0.05

@@ -153,7 +153,8 @@ def test_v7_new_robot_stands_behind_the_front_and_the_line_docks_in_order():
     world = Harness(layout="v7", starts={"pinky1": "W", "pinky2": "Q1", "pinky3": "P-1"})
     front, back = calls(world, "pinky2", "pinky3")
     assert world.run_until(lambda: world.view("pinky3")["node"] == "Q2", 300.0), world.log[-10:]
-    assert targets(world, "pinky3") == ["E-1", "Q2"], "straight along the south aisle"
+    # 주차 0.10 뒤 E-1 -> Q2 이음이 없어 E-3을 거친다(2026-11-14)
+    assert targets(world, "pinky3") == ["E-1", "E-3", "Q2"], "along the south aisle"
     world.traffic.on_release("pinky1")
     assert world.run_until(lambda: world.result_of(front) is not None, 200.0)
     assert world.result_of(front).robot_id == "pinky2" and world.result_of(back) is None

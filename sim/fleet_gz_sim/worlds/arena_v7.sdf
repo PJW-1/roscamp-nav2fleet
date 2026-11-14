@@ -74,9 +74,9 @@
       <visual name="path_O_IN-O-2"><pose>0.3425 0.9 0.0005 0 0 3.1416</pose><geometry><box><size>0.115 0.01 0.001</size></box></geometry><material><ambient>0.2 0.3 0.8 1</ambient><diffuse>0.2 0.3 0.8 1</diffuse></material></visual>
       <visual name="path_O-O_OUT-1"><pose>0.2225 0.88 0.0005 0 0 -2.8319</pose><geometry><box><size>0.1312 0.01 0.001</size></box></geometry><material><ambient>0.2 0.3 0.8 1</ambient><diffuse>0.2 0.3 0.8 1</diffuse></material></visual>
       <visual name="path_O-O_OUT-2"><pose>0.155 0.74 0.0005 0 0 -1.6124</pose><geometry><box><size>0.2402 0.01 0.001</size></box></geometry><material><ambient>0.2 0.3 0.8 1</ambient><diffuse>0.2 0.3 0.8 1</diffuse></material></visual>
-      <visual name="path_E-1-P-1"><pose>0.12 0.16 0.0005 0 0 -1.5708</pose><geometry><box><size>0.16 0.01 0.001</size></box></geometry><material><ambient>0.2 0.3 0.8 1</ambient><diffuse>0.2 0.3 0.8 1</diffuse></material></visual>
-      <visual name="path_E-2-P-2"><pose>0.38 0.16 0.0005 0 0 -1.5708</pose><geometry><box><size>0.16 0.01 0.001</size></box></geometry><material><ambient>0.2 0.3 0.8 1</ambient><diffuse>0.2 0.3 0.8 1</diffuse></material></visual>
-      <visual name="path_E-3-P-3"><pose>0.64 0.16 0.0005 0 0 -1.5708</pose><geometry><box><size>0.16 0.01 0.001</size></box></geometry><material><ambient>0.2 0.3 0.8 1</ambient><diffuse>0.2 0.3 0.8 1</diffuse></material></visual>
+      <visual name="path_E-1-P-1"><pose>0.12 0.17 0.0005 0 0 -1.5708</pose><geometry><box><size>0.14 0.01 0.001</size></box></geometry><material><ambient>0.2 0.3 0.8 1</ambient><diffuse>0.2 0.3 0.8 1</diffuse></material></visual>
+      <visual name="path_E-2-P-2"><pose>0.38 0.17 0.0005 0 0 -1.5708</pose><geometry><box><size>0.14 0.01 0.001</size></box></geometry><material><ambient>0.2 0.3 0.8 1</ambient><diffuse>0.2 0.3 0.8 1</diffuse></material></visual>
+      <visual name="path_E-3-P-3"><pose>0.64 0.17 0.0005 0 0 -1.5708</pose><geometry><box><size>0.14 0.01 0.001</size></box></geometry><material><ambient>0.2 0.3 0.8 1</ambient><diffuse>0.2 0.3 0.8 1</diffuse></material></visual>
       </link>
     </model>
   </world>

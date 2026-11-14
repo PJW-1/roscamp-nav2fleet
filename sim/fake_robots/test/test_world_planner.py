@@ -172,24 +172,26 @@ def test_v7_keepout_extra_closes_every_cell_it_touches_like_the_mask():
 V7_SOUTH_SHELF_Y = 0.365
 
 
-def test_v7_a_robot_passes_robots_parked_in_the_bays_along_the_south_corridor():
-    """칸 입구를 0.24로 내린 뒤 E-1 -> Q2 곧은 선은 P-3에 주차한 로봇에서 0.133을 지난다(fleet_core
-    test_layout_v7). 주차 자리(y 0.08)에 선 로봇들은 몸 둘 + 여유를 두고 남쪽 통로로 돌아 지난다."""
+def _parked_plan(spots):
     site = load_fleet_map("v7")
     space = FreeSpace(site, R)
-    parked = [(x, 0.08, R) for x in (0.38, 0.64)]
-    way = plan_around(space, R, site.node_pose("E-1"), site.node_pose("Q2"), parked)
+    parked = [(*site.node_pose(spot), R) for spot in spots]
+    return plan_around(space, R, site.node_pose("E-1"), site.node_pose("Q2"), parked), parked
+
+
+def test_v7_a_robot_passes_a_robot_parked_in_a_west_bay_along_the_south_corridor():
+    """주차 자리 y 0.10(사용자 2026-11-14). P-1, P-2 위에는 진열대가 없어 넓다: E-1에서 Q2로 가는
+    로봇은 그 앞을 몸 둘 + 여유를 두고 남쪽 통로로 지난다."""
+    way, parked = _parked_plan(["P-2"])
     assert way is not None and max(y for _, y in way) < V7_SOUTH_SHELF_Y, way
     assert all(path_gap((x, y), way) >= 2 * R for x, y, _ in parked)
 
 
-def test_v7_a_robot_parked_short_of_its_spot_closes_the_south_corridor():
-    """주차 로봇이 y 0.10에 서면(Gazebo에서 0.118~0.148에 섰다) P-3 앞과 남쪽 진열대 서쪽 끝 사이에
-    몸 둘 + 여유가 들어가지 않는다. 진열대 사이 틈은 막혀 있으므로 가운데 통로로 돈다."""
-    site = load_fleet_map("v7")
-    space = FreeSpace(site, R)
-    parked = [(x, 0.10, R) for x in (0.38, 0.64)]
-    way = plan_around(space, R, site.node_pose("E-1"), site.node_pose("Q2"), parked)
+def test_v7_a_robot_parked_at_p3_closes_the_south_corridor_in_the_headless_world():
+    """P-3에 주차한 로봇(y 0.10)과 남쪽 진열대 서쪽 끝 사이에는 머리 없는 세계의 계획 여유(반지름
+    둘 + 0.03)가 들어가지 않는다. 진열대 사이 틈은 막혀 있으므로 가운데 통로로 돈다(Gazebo에서는
+    0.08을 목표로 해도 0.118~0.148에 섰으므로 지금까지도 같은 자리였다)."""
+    way, _ = _parked_plan(["P-3"])
     assert way is not None, "the middle aisle is still a way"
     assert max(y for _, y in way) > 0.405 + R, way
     along = [(ax + (bx - ax) * i / 50, ay + (by - ay) * i / 50)

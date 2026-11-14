@@ -110,10 +110,12 @@ controller_server:
     # 추가 지시서 3의 2-1: 후진(FollowPathReverse)은 제자리에서 방향을 고칠 수 없으니 끝 방향을 보지
     # 않는다(pi보다 큰 허용치). 후진은 마당 지점에서 끝나고 다음 움직임은 Nav2 goal이다.
     # pinky_fsm reverse_goal_checker_id가 이 이름을 쓴다.
+    # 위치 허용치 0.02(사용자 2026-11-14 "제안대로"): 충전 칸 후진이 0.05 앞에서 도착으로 끝나 칸 목표
+    # y 0.08에 0.118~0.148로 섰다. 모든 후진(물러나기 포함)에 같이 쓴다
     retreat_goal_checker:
       stateful: true
       plugin: "nav2_controller::SimpleGoalChecker"
-      xy_goal_tolerance: 0.05
+      xy_goal_tolerance: 0.02
       yaw_goal_tolerance: 3.2
     FollowPath:
       plugin: "nav2_regulated_pure_pursuit_controller::RegulatedPurePursuitController"
