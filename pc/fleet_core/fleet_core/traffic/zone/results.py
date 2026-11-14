@@ -147,7 +147,11 @@ class Results:
         if not (heard and goal is not None and goal.kind in (MOVE, RETREAT)):
             return False
         limit = self.params.arrival_tolerance_m
-        return self._gap(m, goal.end) <= (limit / 2 if self._via(m) == NAV_GOAL else limit)
+        if self._via(m) == NAV_GOAL:
+            return self._gap(m, goal.end) <= limit / 2
+        if m.trip is None:
+            return self._gap(m, goal.end) <= limit
+        return self._link_reached(m, m.trip.links[goal.links - 1], limit)
 
     def _arrived_anyway(self, m, reason: str) -> None:
         goal = m.goal
