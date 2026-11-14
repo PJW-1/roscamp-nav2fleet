@@ -6,15 +6,7 @@ from fleet_core.fleet_map import FOLLOW_PATH, NAV_GOAL, RETREAT, route
 from fleet_core.traffic.mission import MOVE
 
 from .robots import ORDER, Goal, MoveOrder
-from .trips import (
-    Trip,
-    left_s,
-    move_command,
-    reach_end,
-    retreat_command,
-    segment_end,
-    stretch_end,
-)
+from .trips import Trip, left_s, move_command, retreat_command, segment_end, stretch_end
 
 HORIZON_HOLD_S = 5.0
 UPDATE_ANSWER_S = 2.0
@@ -23,12 +15,10 @@ CONTROLLER = {FOLLOW_PATH: "FollowPath", RETREAT: "FollowPathReverse", NAV_GOAL:
 
 # ---- 트립을 seq 조각으로 나누고 조각 명령 만들기 ----
 class MoveOrders:
-    def _cut(self, trip, start: int, first_seq: int, split: int = 0) -> list:
+    def _cut(self, trip, start: int, first_seq: int) -> list:
         cuts, seq, index = [], first_seq, start
         while index < len(trip.links):
-            stop = reach_end(self.site, trip.links, index)
-            if index < split < stop:
-                stop = split
+            stop = stretch_end(self.site, trip.links, index)
             while index < stop:
                 end = segment_end(self.site, trip.links, index, stop)
                 cuts.append((seq, index, end))
@@ -51,11 +41,6 @@ class MoveOrders:
     # ---- base와 horizon 조각, 도크까지 이은 트립 ----
     def _fresh_base(self, m, trip, here: bool = False) -> tuple:
         mo = m.move_order
-        rest = mo.cuts[mo.given:]
-        over = next((index for index, cut in enumerate(rest) if cut[2] > trip.granted), None)
-        if over is not None and rest[over][1] < trip.granted:
-            seq, first, _ = rest[over]
-            mo.cuts[mo.given + over:] = self._cut(trip, first, seq, trip.granted)
         cuts = [cut for cut in mo.cuts[mo.given:] if cut[2] <= trip.granted]
         mo.given += len(cuts)
         return tuple(self._segment(m, trip, cut, here and index == 0)

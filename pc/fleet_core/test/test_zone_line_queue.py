@@ -102,14 +102,9 @@ def test_a_robot_low_on_battery_leaves_the_line_and_the_rest_still_dock():
     assert world.phase("pinky2") == world.phase("pinky3") == "TO_WORK"
     bot = world.bots["pinky3"]
     world.traffic.on_robot_state("pinky3", bot.x, bot.y, bot.yaw, "IDLE", 15.0)
-    # 꼬리에서 G로 빠져 칸에 선다. G는 넓은 곳 Nav2 goal 하나에 합쳐져 들르지 않지만 잡고 지나간다
-    held = set()
-
-    def parked():
-        held.update(world.view("pinky3")["nodes"])
-        return world.phase("pinky3") == "PARKED"
-    assert world.run_until(parked, 300.0), world.log[-20:]
-    assert "G" in held and "G" not in targets(world, "pinky3")
+    # 꼬리에서 G로 빠져 칸에 선다(G는 through 지점이 아니라 합치지 않는다)
+    assert world.run_until(lambda: world.phase("pinky3") == "PARKED", 300.0), world.log[-20:]
+    assert "G" in targets(world, "pinky3")
     # 남은 둘(pinky1, pinky2)이 두 호출을 끝낸다: 빠진 로봇이 줄을 막지 않는다
     world.traffic.on_release("pinky1")
     assert world.run_until(lambda: world.result_of(first) is not None, 200.0)
@@ -187,21 +182,25 @@ def test_v7_a_full_line_pulls_forward_as_soon_as_the_front_moves():
 
 
 @pytest.mark.parametrize("parked", [("P-1", "P-2"), ("P-1", "P-3"), ("P-2", "P-3")])
-def test_v7_a_robot_leaving_outbound_gets_past_the_doors_parked_robots_hold(parked):
-    """칸에 선 로봇은 자기 칸 입구를 쥐고 있다. 출고에서 나온 로봇은 남은 입구로 지나 줄에 선다
-    (b5f1e8f 리뷰: 길이 있다는 것만이 아니라 관제가 그 길을 고르는지)."""
-    held = ["E-" + spot.removeprefix("P-") for spot in parked]
-    world = Harness(layout="v7", starts={"pinky1": held[0], "pinky2": held[1], "pinky3": "O"})
+def test_v7_a_robot_leaving_outbound_passes_the_doors_of_parked_robots(parked):
+    """칸에 선 로봇은 자기 칸만 쥔다(2026-11-14: 주차 0.10에서 칸과 입구가 0.14라 node_clear_m으로는
+    입구를 놓지 못해, E-1, E-2에서 Q2로 가는 길이 E-3에서 막혔다). 출고에서 나온 로봇은 칸 입구를
+    지나는 Nav2 goal 하나로 줄 입구에 간다(b5f1e8f 리뷰: 길이 있다는 것만이 아니라 관제가 그 길을
+    고르는지)."""
+    doors = ["E-" + spot.removeprefix("P-") for spot in parked]
+    world = Harness(layout="v7", starts={"pinky1": doors[0], "pinky2": doors[1], "pinky3": "O"})
     world.report()
     asked = world.call("WORK", "pinky3")
     assert world.run_until(lambda: world.result_of(asked) is not None, 300.0), world.codes()
-    # 할 일 없는 두 로봇은 입구에서 후진으로 칸에 들어가 서고, 입구(0.19 < node_clear_m)를 쥐고 있다
-    for robot, spot, door in zip(("pinky1", "pinky2"), parked, held, strict=True):
-        assert world.view(robot)["node"] == spot and door in world.view(robot)["nodes"], robot
-    held = set(held)
+    # 할 일 없는 두 로봇은 입구에서 후진으로 칸에 들어가 서고, 자기 칸만 쥔다
+    for robot, spot in zip(("pinky1", "pinky2"), parked, strict=True):
+        assert world.view(robot)["node"] == spot, robot
+        assert set(world.view(robot)["nodes"]) == {spot}, (robot, world.view(robot)["nodes"])
+    # 출고 로봇이 길을 고를 때 입구의 로봇이 아직 후진 중이면 그 입구를 쥐고 있어, 다른 입구까지
+    # 먼저 간다. 가운데 통로(M_E)로 돌지는 않는다
     went = targets(world, "pinky3")
     assert went[0] == "O_OUT" and went[-3:] == ["Q2", "Q1", "W"], went
-    assert not held & set(went), went
+    assert "M_E" not in went, went
     assert not world.problems
 
 

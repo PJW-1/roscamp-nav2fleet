@@ -5,7 +5,7 @@ import math
 from dataclasses import dataclass
 
 from fleet_core.common.commands import MoveCmd, RetreatCmd
-from fleet_core.fleet_map import AT_DOCK, FOLLOW_PATH, NAV_GOAL, RETREAT, SHARED, Link
+from fleet_core.fleet_map import FOLLOW_PATH, NAV_GOAL, RETREAT, SHARED, Link, distance
 
 ON_NODE_M = 0.03
 
@@ -50,25 +50,23 @@ def needs(links) -> tuple[list, list, dict]:
 
 def joins(site, a, b) -> bool:
     return (a.via == b.via == NAV_GOAL and len(a.zones) == 1 and a.zones == b.zones
-            and site.zones[a.zones[0]].kind == SHARED)
+            and site.zones[a.zones[0]].kind == SHARED and site.nodes[a.b].through)
+
+
+def _shortest(site, links) -> bool:
+    return sum(link.length for link in links) <= distance(site, links[0].a, links[-1].b) + 1e-6
 
 
 def segment_end(site, links, start: int, limit: int) -> int:
     via = links[start].via
     end = start + 1
-    while end < limit and (joins(site, links[end - 1], links[end]) if via == NAV_GOAL
-                           else links[end].via == via):
+    if via != NAV_GOAL:
+        while end < limit and links[end].via == via:
+            end += 1
+        return end
+    while (end < limit and joins(site, links[end - 1], links[end])
+           and _shortest(site, links[start:end + 1])):
         end += 1
-    return end
-
-
-def reach_end(site, links, start: int) -> int:
-    end = stretch_end(site, links, start)
-    while end < len(links) and joins(site, links[end - 1], links[end]):
-        more = stretch_end(site, links, end)
-        if any(link.lane or site.nodes[link.b].kind == AT_DOCK for link in links[end:more]):
-            break
-        end = more
     return end
 
 

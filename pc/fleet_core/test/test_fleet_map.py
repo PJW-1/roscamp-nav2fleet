@@ -414,6 +414,14 @@ def test_a_node_must_stand_in_a_zone_of_the_right_kind():
     refused("kind", nodes=edited("nodes", "W_Q", kind="queue"))
 
 
+def test_only_a_fork_can_be_a_through_node():
+    """through: 이어진 Nav2 goal을 그 지점을 거쳐 한 goal로 합친다(2026-11-14). 설 수 있는 지점을
+    거쳐 합치면 Nav2가 관제가 고른 길을 벗어날 수 있어 갈림만 받는다."""
+    assert not build().nodes["N_W"].through
+    assert build(nodes=edited("nodes", "N_W", through=True)).nodes["N_W"].through
+    refused("only a fork", nodes=edited("nodes", "W_Q", through=True))
+
+
 def lane_spot(kind="wait", queue=True, onward=("O",), at=(1.3, 0.9)):
     """급행 안에 출고 대기 자리 O_X를 더한 SMALL 바꿈(v7의 급행 서쪽 끝 대기 자리와 같은 꼴)."""
     nodes = copy.deepcopy(SMALL["nodes"])

@@ -115,9 +115,12 @@ def read_nodes(raw: dict, zones: dict[str, Zone]) -> dict[str, Node]:
             raise FleetMapError(f"node {name} ({kind}) must stand in a shared zone, not {zone.id}")
         if kind == PASS and zone.kind == SHARED:
             raise FleetMapError(f"node {name} (pass) belongs in a lane or dock zone, not {zone.id}")
+        through = bool(entry.get("through", False))
+        if through and kind != FORK:
+            raise FleetMapError(f"node {name} ({kind}): only a fork can be a through node")
         yaw = entry.get("yaw_deg")
         nodes[str(name)] = Node(str(name), x, y, kind, zone.id,
-                                None if yaw is None else math.radians(float(yaw)))
+                                None if yaw is None else math.radians(float(yaw)), through)
     return nodes
 
 
