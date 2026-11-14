@@ -8,6 +8,7 @@ pytest.importorskip("rclpy")
 pytest.importorskip("fleet_interfaces.msg")
 
 from conftest import CONTRACT, wait_until, write_scenario  # noqa: E402
+from fake_robots.pinky_retreat import REVERSE_SPEED_MPS  # noqa: E402
 from fake_robots.world.geom import segment_gap  # noqa: E402
 from fleet_core.common.contract import load_contract, to_ros_qos  # noqa: E402
 from fleet_core.fleet_map import load_fleet_map  # noqa: E402
@@ -965,7 +966,7 @@ def _drive_out(p, truth, metres):
 def test_a_retreat_with_a_path_backs_along_it_round_the_corner(harness, tmp_path):
     """path는 지나온 길을 거꾸로 적은 것이다. 첫 점은 로봇 자리, 끝 점은 설 곳. 로봇은 돌지
     않고 꺾인 곳까지 간 뒤 다음 선분을 따라 끝 점에 선다. 속도는 실물(FollowPathReverse)처럼
-    0.05 m/s를 넘지 않는다(Codex 리뷰 4)."""
+    REVERSE_SPEED_MPS(0.10 m/s, 2026-11-14에 0.05에서 올림)를 넘지 않는다(Codex 리뷰 4)."""
     p = start(harness, tmp_path, robots=LONG)
     truth = watch_truth(p)
     assert wait_until(lambda: p.states and truth, 5.0)
@@ -982,7 +983,8 @@ def test_a_retreat_with_a_path_backs_along_it_round_the_corner(harness, tmp_path
     assert math.dist((truth[-1][1], truth[-1][2]), end) < 0.02
     passed = min(math.dist((x, y), corner) for w, x, y in truth if w >= sent)
     assert passed < 0.02, "it went through the corner, not straight to the end"
-    assert took == pytest.approx(length / 0.05, abs=1.5), "0.2 m/s asked, 0.05 m/s driven"
+    assert took == pytest.approx(length / REVERSE_SPEED_MPS, abs=1.5), (
+        "0.2 m/s asked, the reverse cap driven")
     assert p.states[-1][1].pose.theta == pytest.approx(yaw, abs=1e-6), "it backs, not turns"
 
 
