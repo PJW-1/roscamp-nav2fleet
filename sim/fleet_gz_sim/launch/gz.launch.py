@@ -23,6 +23,8 @@ import math
 import os
 from pathlib import Path
 
+import yaml
+
 from fleet_gz_sim import launch_parts
 from fleet_gz_sim.isolation import require_isolated
 from launch import LaunchDescription
@@ -79,6 +81,8 @@ ARGS = {
                               " tools/avoid_regression.py, tools/replay.py가 읽는다"),
     "use_order_model": ("","true/false: 관제의 use_order_model 파라미터(order 모델이 있는"
                             " 관제만 읽는다). 비우면 params 파일의 값"),
+    "nav_overrides": ("", "로봇마다 Nav2 설정 위에 깊이 덮을 yaml 파일(주행 값 비교용). 비면 없음."
+                          " 충돌 검사와 속도 상한은 덮지 못한다"),
 }
 ARMS = "arm1 arm2 arm3"
 
@@ -266,6 +270,8 @@ def _start(context):
     params_file = params_for(params_file_of(value("fleet_params_file")), value("result_dir"),
                              value("battery_low_pct"))
     max_speed = launch_parts.speed_of(value("nav_max_speed"))
+    nav_overrides = (yaml.safe_load(Path(value("nav_overrides")).read_text(encoding="utf-8"))
+                     if value("nav_overrides").strip() else None)
     # low_battery가 있을 때만 pinky_fsm이 sim_stand_in의 배터리를 본다
     battery = has_low_battery(data, scenario_seed)
     actions = [*launch_parts.world(flag(value("gui"), "gui"), arena.world),
@@ -283,7 +289,7 @@ def _start(context):
                                       nav_max_speed=max_speed, fixed_line_check=fixed_check,
                                       narrow_strips=strips,
                                       wall_band_m=float(value("wall_band_m")),
-                                      peer_layer=peers,
+                                      peer_layer=peers, nav_overrides=nav_overrides,
                                       battery_topic=(launch_parts.BATTERY_TOPIC.format(robot=robot)
                                                      if battery else ""))
     if value("rviz") == "fleet":

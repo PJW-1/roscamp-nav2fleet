@@ -239,6 +239,24 @@ def test_the_fixed_line_check_is_off_for_every_robot_unless_asked(made, asked):
         run(made, fixed_line_collision_check="off")
 
 
+def test_nav_overrides_lays_a_yaml_file_over_every_robots_nav2_params(made, tmp_path):
+    """주행 성능 조정(2026-11-14): 파일을 고치지 않고 Nav2 값을 바꿔 Gazebo 판을 비교한다."""
+    extra = tmp_path / "faster.yaml"
+    extra.write_text(yaml.safe_dump({"controller_server": {"ros__parameters": {
+        "FollowPathGoal": {"approach_velocity_scaling_dist": 0.2}}}}), encoding="utf-8")
+    navs = includes(run(made, nav_overrides=str(extra)), "nav2.launch.py")
+    assert len(navs) == 3
+    for nav in navs:
+        goal = _controllers(launch_args(nav)["params_file"])["FollowPathGoal"]
+        assert goal["approach_velocity_scaling_dist"] == 0.2
+        assert goal["use_collision_detection"] is True, "overrides never turn the check off"
+    plain = includes(run(made), "nav2.launch.py")[0]
+    assert _controllers(launch_args(plain)["params_file"])["FollowPathGoal"][
+        "approach_velocity_scaling_dist"] == 0.6
+    with pytest.raises(FileNotFoundError):
+        run(made, nav_overrides=str(tmp_path / "missing.yaml"))
+
+
 @pytest.mark.parametrize("bad", ["0.25", "0.1", "fast", "nan"])
 def test_a_speed_outside_the_arena_range_stops_the_launch(made, bad):
     with pytest.raises(ValueError, match="nav_max_speed"):

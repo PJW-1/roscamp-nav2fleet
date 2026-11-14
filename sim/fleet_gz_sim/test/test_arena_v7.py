@@ -96,6 +96,21 @@ def test_v7_varied_scenario_mixes_order_bursts_with_staggered_low_batteries(site
     assert scenario.expect.orders_shipped == 12 and scenario.expect.parked_while_backlog is None
 
 
+def test_v7_rush_scenario_sends_twelve_orders_at_once_without_faults(site):
+    """주행 성능을 재는 판(2026-11-14): 주문 12건이 처음 12초 안에 다 들어오고 고장이 없다.
+    걸린 시간(duration_s)이 곧 처리 성능이다."""
+    from fake_robots.scenario import load_scenario
+    path = PKG / "scenarios" / "gz_v7_rush.yaml"
+    data = fleet_setup.read_scenario(path)
+    fleet_setup.check_fits(data, "gz_v7_rush", "v7")
+    assert list(fleet_setup.start_nodes(site, data).values()) == ["P-3", "P-2", "P-1"]
+    assert len(data["orders"]) == 12
+    assert max(order["at_s"] for order in data["orders"]) <= 12
+    assert not data.get("faults") and "random" not in data
+    scenario = load_scenario(path, site)
+    assert scenario.expect.orders_shipped == 12
+
+
 def test_v7_obstacle_schedule_puts_small_boxes_on_nav_goal_links_only(site):
     """고정 경로는 Gazebo에서 충돌 검사를 하지 않는다. 상자는 Nav2 goal 이음 위에만 놓는다. 상자가 작아
     로봇이 스스로 돌아갈 틈이 남는다(사용자 2026-11-13 밤: 장애물이 생기면 회피가 보여야 한다)."""
