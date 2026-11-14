@@ -48,6 +48,7 @@ class Node:
     kind: str
     zone: str
     yaw: float | None = None
+    through: bool = False
 
 
 @dataclass(frozen=True)

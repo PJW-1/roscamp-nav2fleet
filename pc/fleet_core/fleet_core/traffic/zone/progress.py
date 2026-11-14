@@ -12,6 +12,7 @@ from fleet_core.traffic.mission import (
     LOCALIZING,
     NOT_PLACEABLE,
     OUT_OF_SERVICE,
+    PARKED,
     SELF_RECOVERING,
 )
 
@@ -108,8 +109,10 @@ class Progress:
             clear = zone not in zones and site.distance_to_zone(x, y, zone) >= gap - 1e-9
             if self._counted(m, zone, clear) and grants.release_zone(m.name, zone):
                 released.append(zone)
+        parked = m.phase == PARKED and m.node in site.parking and self._on_node(m)
         for node in grants.nodes_of(m.name):
-            clear = node not in nodes and self._gap(m, node) >= p.node_clear_m
+            clear = node not in nodes and (parked and node != m.node
+                                           or self._gap(m, node) >= p.node_clear_m)
             if self._counted(m, NODE_KEY + node, clear):
                 grants.release_node(m.name, node)
         return released

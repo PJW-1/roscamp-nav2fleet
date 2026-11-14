@@ -8,7 +8,7 @@ from fleet_core.traffic.mission import TO_OUTBOUND, TO_PARK, TO_WORK
 
 from .base import HERE
 from .lane_policy import Want
-from .trips import Trip, back_link, free_link, left_s, needs, reach_end, speed, stretch_end
+from .trips import Trip, back_link, free_link, left_s, needs, speed, stretch_end
 
 TRANSIT_WAIT_S = 6.0
 STANDING_WAIT_S = 300.0
@@ -165,10 +165,6 @@ class Goals:
             if self.lanes.refusal(m.name, lane, want, now, self._rivals(m, lane, lanes[lane])):
                 return want
         empty = [lane for lane in entered if not grants.holders(lane)]
-        far = reach_end(site, trip.links, start)
-        if far > end and not grants.blockers(m.name, *needs(trip.links[start:far])):
-            end = far
-            zones, nodes, lanes = needs(trip.links[start:end])
         if not grants.take(m.name, zones, nodes, lanes):
             return want
         trip.granted = end
