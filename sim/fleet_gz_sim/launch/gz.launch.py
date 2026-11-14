@@ -116,13 +116,14 @@ def overrides_of(path: str) -> dict | None:
     return data
 
 
-def _plugin_keys(tree: dict, prefix: str = "") -> list[str]:
+def _plugin_keys(tree: dict | list, prefix: str = "") -> list[str]:
     found = []
-    for key, value in tree.items():
+    mapping = isinstance(tree, dict)
+    for key, value in tree.items() if mapping else enumerate(tree):
         name = f"{prefix}{key}"
-        if key == "plugin" or str(key).endswith(".plugin"):
+        if mapping and (key == "plugin" or str(key).endswith(".plugin")):
             found.append(name)
-        if isinstance(value, dict):
+        if isinstance(value, dict | list):
             found += _plugin_keys(value, f"{name}.")
     return found
 

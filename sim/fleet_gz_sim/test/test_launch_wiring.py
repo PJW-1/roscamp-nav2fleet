@@ -260,15 +260,22 @@ def test_nav_overrides_lays_a_yaml_file_over_every_robots_nav2_params(made, tmp_
 MPPI = "nav2_mppi_controller::MPPIController"
 SWAP = {"controller_server": {"ros__parameters": {"FollowPathGoal": {"plugin": MPPI}}}}
 DOTTED = {"controller_server": {"ros__parameters": {"FollowPathGoal.plugin": MPPI}}}
+LISTED = {"controller_server": {"ros__parameters": {"FollowPath": [{"plugin": MPPI}]}}}
+NEW_LISTED = {"controller_server": {"ros__parameters": {"Other": {"steps": [{"plugin": MPPI}]}}}}
 
 
 @pytest.mark.parametrize("text", ["", "just words", "- 1\n- 2", "[]", yaml.safe_dump(SWAP),
                                   yaml.safe_dump(DOTTED), "controller_server: null",
                                   "controller_server: []",
-                                  "controller_server:\n  ros__parameters: null"])
+                                  "controller_server:\n  ros__parameters: null",
+                                  yaml.safe_dump(LISTED), yaml.safe_dump(NEW_LISTED),
+                                  "controller_server:\n  ros__parameters:\n    FollowPath: 3",
+                                  "amcl: 5"])
 def test_nav_overrides_must_be_a_mapping_and_never_swaps_a_plugin(made, tmp_path, text):
     """Codex 2026-11-14: an empty file quietly meant nothing, a list crashed in the merge, and a
-    plugin swap would slip past the RPP speed cap and collision check."""
+    plugin swap would slip past the RPP speed cap and collision check. Second review: a plugin
+    inside a list was not looked at, and a value that replaced a whole mapping (a controller
+    given as a list or a number) passed the check and crashed later in the launch."""
     extra = tmp_path / "bad.yaml"
     extra.write_text(text, encoding="utf-8")
     with pytest.raises(ValueError, match="nav_overrides"):
