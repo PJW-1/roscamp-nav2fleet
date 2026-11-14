@@ -1,6 +1,9 @@
 # 회피 담당의 설정 파일(사용자 기준: docs/회피_약속.md의 "설정의 주인", 추가 지시서 3의 7-1).
+# 임시 회피 패키지 pinky_avoidance의 것이다. 회피 담당은 자기 패키지에 같은 이름의 파일을 두고
+# nav2.launch.py에 avoidance_package:=<패키지>를 주어 바꾼다(docs/회피_약속.md "교체하는 법").
 #
-# 키는 둘뿐이다. 다른 키를 넣으면 nav2.launch.py가 뜨지 않고 test/test_nav_config.py가 실패한다.
+# 키는 셋뿐이다: follow_path_goal, vision_obstacles, peer_layer(peer_layer는 없어도 된다). 다른 키를
+# 넣으면 nav2.launch.py가 뜨지 않고 pinky_nav_config의 test/test_nav_config.py가 실패한다.
 # 그 밖의 Nav2 설정(발자국, costmap, inflation, keepout, 라이다 관측원과 scan 거르기, progress
 # checker와 goal checker, bt_navigator와 BT, planner, FollowPath 셋)은 사용자의 것이라
 # nav2_params.yaml에 있다. 바꾸려면 사용자에게 요청한다.
@@ -63,3 +66,49 @@ vision_obstacles:
   max_obstacle_height: 2.0
   expected_update_rate: 0.0
   observation_persistence: 0.5
+
+# peer_layer: 다른 핑키의 몸을 costmap에 넣는 층(임시: 사용자의 주행 시험용. 회피 담당의 영역이라
+#   회피 담당이 자기 방식으로 바꾸거나 빼도 된다). nav2.launch.py가 인자 peer_obstacles:=true일 때만
+#   이 층을 두 costmap의 inflation_layer 바로 앞에 넣는다. 그 노드(pinky_peer_obstacles)는
+#   launch/avoidance.launch.py가 띄운다. 기본은 꺼짐이고, 꺼져 있으면 아무것도 바뀌지 않는다.
+#   이 키가 없는 회피 패키지로 peer_obstacles:=true를 주면 nav2.launch.py가 뜨지 않는다.
+#
+# 왜: 라이다 빔은 다른 핑키의 몸 위로 지나가 costmap에 작은 점으로만 찍힌다. Nav2가 다른 로봇을
+# 피해 길을 짜지 못해 마당에서 몸이 닿고, 닿은 뒤 위치 추정이 틀어졌다(Gazebo 세 대 경기).
+#
+# - peers: /<로봇>/peer_obstacles(PointCloud2, map 틀). 다른 로봇이 보고한 자세에 몸을 덮는 원을
+#   찍는다. 틀이 map이라 costmap은 거리를 map 원점에서 잰다. 그래서 obstacle_max_range를 경기장
+#   대각선보다 넉넉히 둔다.
+# - sweep: /<로봇>/peer_sweep(LaserScan, base_footprint 틀, 모든 빔이 inf). inf_is_valid로 이 빔을
+#   따라 로봇 둘레 raytrace_max_range 안의 칸을 매번 다 지운다. 지운 뒤에 peers를 다시 찍으므로
+#   이 층에는 지금 자리만 남는다(라이다 층과 달리 지나간 자리가 남지 않는다).
+# - 라이다 층(obstacle_layer)과 따로인 층이다: sweep이 라이다가 찍은 칸을 지우지 않는다.
+# - expected_update_rate 0: 토픽이 조용해도 costmap이 멈추지 않는다.
+# - observation_persistence 0: 가장 새 메시지 하나만 쓴다.
+peer_layer:
+  plugin: "nav2_costmap_2d::ObstacleLayer"
+  enabled: true
+  footprint_clearing_enabled: true
+  observation_sources: peers sweep
+  peers:
+    topic: <robot_namespace>/peer_obstacles
+    data_type: "PointCloud2"
+    marking: true
+    clearing: false
+    obstacle_max_range: 10.0
+    obstacle_min_range: 0.0
+    min_obstacle_height: 0.0
+    max_obstacle_height: 2.0
+    expected_update_rate: 0.0
+    observation_persistence: 0.0
+  sweep:
+    topic: <robot_namespace>/peer_sweep
+    data_type: "LaserScan"
+    marking: false
+    clearing: true
+    inf_is_valid: true
+    raytrace_max_range: 3.0
+    raytrace_min_range: 0.0
+    max_obstacle_height: 2.0
+    expected_update_rate: 0.0
+    observation_persistence: 0.0

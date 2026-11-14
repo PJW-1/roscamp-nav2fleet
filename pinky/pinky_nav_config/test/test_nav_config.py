@@ -23,7 +23,9 @@ def _module(name, path):
 
 owners = _module("pinky_nav_params", PKG / "launch" / "pinky_nav_params.py")
 USER = yaml.safe_load((PKG / "params" / "nav2_params.yaml").read_text(encoding="utf-8"))
-AVOIDANCE = yaml.safe_load((PKG / "params" / "avoidance.yaml").read_text(encoding="utf-8"))
+# 기본 회피 패키지(pinky_avoidance)의 회피 담당 파일. 다른 패키지로 바꿔도 키 검사는 같다
+AVOIDANCE_FILE = PKG.parent / "pinky_avoidance" / "params" / "avoidance.yaml"
+AVOIDANCE = yaml.safe_load(AVOIDANCE_FILE.read_text(encoding="utf-8"))
 # 로봇이 받는 설정: 사용자 파일에 회피 담당 파일을 넣은 것(nav2.launch.py가 하는 그대로)
 PARAMS = owners.with_avoidance(copy.deepcopy(USER), AVOIDANCE)
 BT_FILE = PKG / "bt" / "navigate_to_pose_w_replanning_and_recovery_goal.xml"
@@ -428,9 +430,31 @@ def _layer(data, costmap):
     return data[costmap][costmap]["ros__parameters"]["obstacle_layer"]
 
 
-def test_the_avoidance_file_holds_only_the_two_avoidance_keys():
-    assert sorted(AVOIDANCE) == ["follow_path_goal", "vision_obstacles"]
+def test_the_avoidance_file_holds_only_the_avoidance_keys():
+    assert owners.AVOIDANCE_KEYS == ("follow_path_goal", "vision_obstacles", "peer_layer")
+    assert sorted(AVOIDANCE) == ["follow_path_goal", "peer_layer", "vision_obstacles"]
     assert owners.foreign_keys(AVOIDANCE) == []
+
+
+def test_the_peer_layer_key_may_be_left_out():
+    """회피 담당이 peer 층을 자기 방식으로 바꾸면 이 키를 뺄 수 있다."""
+    mine = {k: v for k, v in AVOIDANCE.items() if k != "peer_layer"}
+    assert owners.foreign_keys(mine) == []
+    owners.with_avoidance(copy.deepcopy(USER), mine)
+
+
+def test_vision_without_the_vision_key_is_refused():
+    mine = {k: v for k, v in AVOIDANCE.items() if k != "vision_obstacles"}
+    owners.with_avoidance(copy.deepcopy(USER), mine)
+    with pytest.raises(ValueError, match="vision_obstacles"):
+        owners.with_avoidance(copy.deepcopy(USER), mine, vision=True)
+
+
+def test_a_goal_controller_is_needed_from_somewhere():
+    mine = {k: v for k, v in AVOIDANCE.items() if k != "follow_path_goal"}
+    with pytest.raises(ValueError, match="follow_path_goal"):
+        owners.with_avoidance(copy.deepcopy(USER), mine)
+    owners.with_avoidance(copy.deepcopy(PARAMS), mine)  # the sim put it in already
 
 
 @pytest.mark.parametrize("key", ["controller_server", "local_costmap", "global_costmap",
@@ -483,7 +507,7 @@ def test_the_vision_source_goes_into_both_costmaps_only_when_asked():
 
 # ---- 다른 로봇의 몸을 costmap에(peer 층, 임시: 주행 시험용) ----------------------------------
 
-PEERS = yaml.safe_load((PKG / "params" / "peer_obstacles.yaml").read_text(encoding="utf-8"))
+PEERS = {"peer_layer": AVOIDANCE["peer_layer"]}  # 회피 담당 파일의 peer_layer 키
 
 
 def _costmap(data, costmap):
@@ -504,14 +528,15 @@ def test_the_peer_layer_goes_into_both_costmaps_only_when_asked():
         assert after["obstacle_layer"] == before["obstacle_layer"], "the lidar layer is untouched"
 
 
+def test_the_peer_layer_can_be_taken_from_the_whole_avoidance_file():
+    seen = owners.with_peers(copy.deepcopy(PARAMS), AVOIDANCE)
+    assert _costmap(seen, "local_costmap")["peer_layer"] == AVOIDANCE["peer_layer"]
+
+
 def test_the_peer_layer_is_added_once():
     seen = owners.with_peers(owners.with_peers(copy.deepcopy(PARAMS), PEERS), PEERS)
     for costmap in ("local_costmap", "global_costmap"):
         assert _costmap(seen, costmap)["plugins"].count("peer_layer") == 1
-
-
-def test_the_peer_overlay_file_holds_only_the_layer():
-    assert sorted(PEERS) == ["peer_layer"]
 
 
 def test_the_peer_layer_marks_the_bodies_and_sweeps_its_own_cells_every_update():

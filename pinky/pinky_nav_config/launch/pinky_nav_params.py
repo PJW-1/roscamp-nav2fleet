@@ -1,11 +1,13 @@
 # ---- Nav2 파라미터 딕셔너리에 회피·피어 설정을 합치는 도우미 ----
 import copy
 
-AVOIDANCE_KEYS = ("follow_path_goal", "vision_obstacles")
+GOAL_KEY = "follow_path_goal"
+VISION_KEY = "vision_obstacles"
+PEER_LAYER = "peer_layer"
+AVOIDANCE_KEYS = (GOAL_KEY, VISION_KEY, PEER_LAYER)
 GOAL_CONTROLLER = "FollowPathGoal"
 VISION_SOURCE = "vision"
 COSTMAPS = ("local_costmap", "global_costmap")
-PEER_LAYER = "peer_layer"
 INFLATION_LAYER = "inflation_layer"
 
 
@@ -41,16 +43,22 @@ def with_avoidance(data: dict, avoidance: dict, vision: bool = False) -> dict:
             f"These settings are the user's (nav2_params.yaml): {', '.join(foreign)}")
     controllers = data["controller_server"]["ros__parameters"]
     if GOAL_CONTROLLER not in controllers:
-        controllers[GOAL_CONTROLLER] = dict(avoidance["follow_path_goal"])
+        if GOAL_KEY not in avoidance:
+            raise ValueError(f"the avoidance params file has no {GOAL_KEY}")
+        controllers[GOAL_CONTROLLER] = dict(avoidance[GOAL_KEY])
+    if vision and VISION_KEY not in avoidance:
+        raise ValueError(f"vision_obstacles:=true needs {VISION_KEY} in the avoidance params file")
     if vision:
         for name in COSTMAPS:
             layer = _obstacle_layer(data, name)
             layer["observation_sources"] = f"{layer['observation_sources']} {VISION_SOURCE}"
-            layer[VISION_SOURCE] = dict(avoidance["vision_obstacles"])
+            layer[VISION_SOURCE] = dict(avoidance[VISION_KEY])
     return data
 
 
 def with_peers(data: dict, overlay: dict) -> dict:
+    if PEER_LAYER not in overlay:
+        raise ValueError(f"peer_obstacles:=true needs {PEER_LAYER} in the avoidance params file")
     for name in COSTMAPS:
         node = data[name][name]["ros__parameters"]
         plugins = list(node["plugins"])

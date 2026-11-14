@@ -1,0 +1,19 @@
+<?xml version="1.0"?>
+<package format="3">
+  <name>pinky_avoidance</name>
+  <version>0.1.0</version>
+  <description>Temporary avoidance package for one Pinky: goal controller values, vision and peer costmap settings, the peer obstacle node launch and a sim-only vision stand-in. Swappable with avoidance_package:=</description>
+  <maintainer email="team@example.com">team-2</maintainer>
+  <license>Apache-2.0</license>
+  <exec_depend>launch</exec_depend>
+  <exec_depend>launch_ros</exec_depend>
+  <exec_depend>rclpy</exec_depend>
+  <exec_depend>nav_msgs</exec_depend>
+  <exec_depend>sensor_msgs</exec_depend>
+  <exec_depend>sensor_msgs_py</exec_depend>
+  <exec_depend>std_msgs</exec_depend>
+  <exec_depend>visualization_msgs</exec_depend>
+  <exec_depend>pinky_peer_obstacles</exec_depend>
+  <test_depend>python3-pytest</test_depend>
+  <export><build_type>ament_python</build_type></export>
+</package>
