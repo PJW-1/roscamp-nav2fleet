@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import math
 
-from fleet_core.fleet_map import AT_DOCK, LANE, NAV_GOAL, SHARED, route
+from fleet_core.fleet_map import AT_DOCK, LANE, NAV_GOAL, SHARED, WAIT, route
 from fleet_core.traffic.mission import TO_OUTBOUND, TO_PARK, TO_WORK
 
 from .base import HERE
@@ -150,6 +150,9 @@ class Goals:
         site, grants, now = self.site, self.grants, self._clock()
         start = trip.granted
         end = stretch_end(site, trip.links, start)
+        if not self.params.use_order_model and trip.goal in site.docks:
+            while end < len(trip.links) and self._lane_spot(trip.links[end - 1].b):
+                end = stretch_end(site, trip.links, end)
         zones, nodes, lanes = needs(trip.links[start:end])
         eta = {}
         for lane in lanes:
@@ -176,6 +179,10 @@ class Goals:
                     f"{'+'.join(zones)} to {trip.links[end - 1].b}", m.name)
         self._note_detour(m, trip)
         return None
+
+    def _lane_spot(self, node: str) -> bool:
+        spec = self.site.nodes[node]
+        return spec.kind == WAIT and self.site.zones[spec.zone].kind == LANE
 
     # ---- 차선 경쟁 로봇 찾기와 방향 기록 ----
     def _rivals(self, m, lane: str, direction: str) -> dict:

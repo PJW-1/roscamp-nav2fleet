@@ -110,7 +110,8 @@ def read_nodes(raw: dict, zones: dict[str, Zone]) -> dict[str, Node]:
         zone = zones[under[0]]
         if kind == AT_DOCK and zone.kind != DOCK:
             raise FleetMapError(f"node {name} (dock) must stand in a dock zone, not {zone.id}")
-        if kind in (WAIT, PARKING, FORK) and zone.kind != SHARED:
+        if (kind in (PARKING, FORK) and zone.kind != SHARED
+                or kind == WAIT and zone.kind not in (SHARED, LANE)):
             raise FleetMapError(f"node {name} ({kind}) must stand in a shared zone, not {zone.id}")
         if kind == PASS and zone.kind == SHARED:
             raise FleetMapError(f"node {name} (pass) belongs in a lane or dock zone, not {zone.id}")

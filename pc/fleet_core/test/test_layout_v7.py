@@ -206,9 +206,9 @@ def test_v7_dock_releases_neighbours_after_docking(site):
 def test_v7_routes(site):
     # 급행: WORK에서 출고로 고정 경로. 급행이 비어 있으면 이쪽을 고른다
     way = route(site, "W", "O")
-    assert [link.b for link in way] == ["W_X", "O"]
+    assert [link.b for link in way] == ["W_X", "O_X", "O"]
     assert all(link.via == FOLLOW_PATH for link in way)
-    assert "EXPRESS" in way[-1].zones
+    assert "EXPRESS" in way[1].zones and way[2].zones == ("EXPRESS", "OUT_DOCK")
     # WORK에서 나가는 길은 둘이다. 급행 들머리 W_X로 앞으로 곧게(고정 경로), 그리고 넓은 곳의 M_E로
     # Nav2 goal로 풀려 나가기(사용자 결정 2026-11-14 "W에서 HALL로 나가는 건 경로가 아니라 goal
     # 방식으로 풀면 된다": 급행이 막혀도 돌아갈 길이 있다). 들어오는 길은 Q1에서 고정 경로 하나다.
@@ -221,7 +221,7 @@ def test_v7_routes(site):
     assert site.link("W", "M_E").zones == ("WORK_DOCK", "HALL")
     assert [link.a for link in site.links() if link.b == "W"] == ["Q1"]
     # W_X는 W와 급행만 잇는다(W로 물러나는 후진도 없다: W 띠 안에서 제자리 돌기가 된다)
-    assert [(l.b, l.via) for l in site.links() if l.a == "W_X"] == [("O", FOLLOW_PATH)]
+    assert [(k.b, k.via) for k in site.links() if k.a == "W_X"] == [("O_X", FOLLOW_PATH)]
     assert [l.a for l in site.links() if l.b == "W_X"] == ["W"]
     assert not {"X_E", "N_E", "N_O", "O_Q"} & set(site.nodes)
 
@@ -239,7 +239,7 @@ def test_v7_routes(site):
     # 출고(사용자 그림 2026-11-13 밤): 들어오는 점과 나가는 점을 나눈다. 급행으로 오지 않는 로봇은
     # 동쪽의 O_IN에서 들어오고(급행 띠를 쥐지 않는다), 나갈 때는 후진하지 않고 앞으로(서쪽) 조금
     # 가서 남쪽으로 꺾어 서쪽의 O_OUT으로 나온다. O_OUT부터는 Nav2 goal로 마당을 자유롭게 간다
-    assert sorted(link.a for link in site.links() if link.b == "O") == ["O_IN", "W_X"]
+    assert sorted(link.a for link in site.links() if link.b == "O") == ["O_IN", "O_X"]
     assert [link.b for link in site.links() if link.a == "O"] == ["O_OUT"]
     out, into = site.link("O", "O_OUT"), site.link("O_IN", "O")
     assert out.via == FOLLOW_PATH and into.via == FOLLOW_PATH
@@ -253,8 +253,8 @@ def test_v7_routes(site):
     fixed = [link for link in site.links() if link.via != NAV_GOAL]
     assert [link.a for link in fixed if link.b == "O_OUT"] == ["O"]
     assert [link.b for link in fixed if link.a == "O_IN"] == ["O"]
-    # 출고가 바쁘면 들어오는 점에서 기다린다
-    assert site.stations["OUTBOUND"].queue == ("O_IN",)
+    # 출고가 바쁘면 들어오는 점이나 급행 서쪽 끝 O_X에서 기다린다(아래 O_X 시험)
+    assert site.stations["OUTBOUND"].queue == ("O_IN", "O_X")
     # 마당 지점끼리는 Nav2 goal로 오가고 HALL만 잡는다(사용자 결정: 잠그는 구역은 급행 띠와 도크만)
     yard = ["O_IN", "O_OUT", "M_E", "Q2", "E-1", "E-2", "E-3"]
     for a in yard:
@@ -351,7 +351,7 @@ def test_v7_robots_standing_in_line_or_at_a_fork_leave_every_other_way_open(site
                 low[frozenset((link.a, link.b)), spot] = round(gap, 3)
     assert min(low.values()) >= FRONT_M + HALF_WIDTH_M + 0.03, low
     assert min(low.values()) == pytest.approx(0.14, abs=1e-3)  # 입구 줄과 E-3 -> Q2
-    standing = ["W", "O", "Q1", "Q2", "O_IN", "O_OUT", "M_E"]
+    standing = ["W", "O", "Q1", "Q2", "O_IN", "O_OUT", "M_E", "O_X"]
     for name in standing:
         here = site.node_pose(name)
         for link in site.links():
@@ -380,6 +380,40 @@ def test_v7_fixed_path_bends_leave_the_body_clear_of_walls_and_shelves(site):
             for shelf in site.shelves:
                 gap = segment_rect_distance(a, b, shelf)
                 assert gap > BODY_CIRCLE_M, (link.a, link.b, shelf, round(gap, 3))
+
+
+def test_v7_outbound_waits_at_the_west_end_of_the_express_too(site):
+    """사용자 결정 2026-11-14(안 A): W에서 오는 로봇은 출고가 바빠도 급행으로 와서 급행 서쪽 끝
+    O_X에서 기다린다. O_X는 급행 띠 안의 대기 자리이고 출고로만 이어진다. 선 로봇은 급행을 쥐지만
+    OUT_DOCK은 놓아, 넓은 곳의 O_IN에서 오는 로봇이 그동안에도 출고에 들어갈 수 있다."""
+    from fleet_core.fleet_map.geometry import point_rect_distance
+    spot = site.nodes["O_X"]
+    assert (spot.kind, spot.zone) == ("wait", "EXPRESS") and site.can_wait("O_X")
+    assert math.degrees(spot.yaw) == pytest.approx(180.0)  # 급행을 따라 서쪽을 보고 닿는다
+    # OUT_DOCK 동쪽 끝 0.50 + 놓기 거리 0.135: 선 로봇이 OUT_DOCK을 놓는다. 더 동쪽이면 급행 끝에서
+    # 출고까지 멀어질 뿐이다
+    assert site.distance_to_zone(spot.x, spot.y, "OUT_DOCK") == pytest.approx(RELEASE_GAP_M)
+    assert spot.y == pytest.approx(0.90)  # 급행 가운데
+    # 북쪽 진열대 서쪽 끝 모서리(0.68, 0.81)에 몸 원이 닿지 않는다(0.1006)
+    assert point_rect_distance(SHELVES[0], spot.x, spot.y) > BODY_CIRCLE_M
+    # 선 로봇의 몸은 HALL에 들지 않는다(진열대 서쪽 HALL 띠의 위 끝 y 0.81에서 0.09). 급행으로 오는
+    # 길은 HALL을 지나지 않아 쥐지도 않는다
+    assert site.distance_to_zone(spot.x, spot.y, "HALL") > 0.085
+    assert "HALL" not in site.link("W_X", "O_X").zones
+    # 나가는 길은 출고 하나, 들어오는 길은 급행 하나(한 방향 서쪽)
+    assert [(k.b, k.via) for k in site.links() if k.a == "O_X"] == [("O", FOLLOW_PATH)]
+    assert [k.a for k in site.links() if k.b == "O_X"] == ["W_X"]
+    assert site.link("O_X", "W_X") is None and site.link("O", "O_X") is None
+    # 넓은 곳에서 들어오는 고정 경로 out_in과 출구 out_out은 O_X에 선 로봇을 몸 둘 + 0.01 넘게 비켜
+    # 간다(고정 경로는 비켜 가지 못한다). 수는 위 서는 자리 시험이 모든 길에 대해 본다
+    from itertools import pairwise
+
+    from fleet_core.fleet_map.geometry import point_segment_distance
+    gaps = {name: min(point_segment_distance(site.node_pose("O_X"), a, b)
+                      for a, b in pairwise(site.link(*pair).points))
+            for name, pair in (("out_in", ("O_IN", "O")), ("out_out", ("O", "O_OUT")))}
+    assert gaps["out_in"] == pytest.approx(0.233, abs=1e-3), gaps
+    assert gaps["out_out"] > gaps["out_in"] >= 2 * BODY_CIRCLE_M + 0.01, gaps
 
 
 def test_v7_locks_only_the_express_strip_and_the_docks(site):
