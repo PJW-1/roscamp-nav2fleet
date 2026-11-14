@@ -15,7 +15,7 @@ _FLOAT_PARAMS = (
     "backup_result_grace_s", "recovery_pass_m", "recovery_timeout_s", "recovery_reset_m",
     "retreat_stop_wait_s", "reverse_speed_mps", "nav_result_grace_s",
     "horizon_decel_mps2", "horizon_min_mps", "horizon_cap_mps", "horizon_latency_s",
-    "blocked_after_s", "nav_progress_m",
+    "blocked_after_s", "nav_progress_m", "nav_turn_progress_rad", "nav_turn_budget_rad",
     "local_wait_s", "local_backup_m", "local_peer_near_m", "peers_timeout_s")
 _INT_PARAMS = ("recovery_attempts",)
 _ORDER_PARAMS = ("join_m", "pass_m")

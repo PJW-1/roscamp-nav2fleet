@@ -66,6 +66,23 @@ def test_standing_still_first_waits_as_recovering_and_keeps_navigate_to_pose():
     assert kinds(cmds) == ["SendNavGoal"]  # 멈추지도 다시 보내지도 않는다
 
 
+def test_turning_in_place_to_face_the_goal_is_not_a_stand():
+    """Drive tuning 2026-11-14: Nav2 first turns to the path (a half turn takes about 3 s at
+    1 rad/s). In Gazebo v7 a third of the waits began in such a turn and some ended BLOCKED."""
+    fsm = ready()
+    fsm.move("g1", 0.0, "N_E", (START[0] - 0.6, 0.30, math.pi), [], START, mode=MODE_NAV_GOAL)
+    steps = []
+    for k in range(32):
+        t = k * 0.1
+        tick(fsm, t, (*START[:2], min(t, math.pi)), (0.0, 1.0))
+        steps.append(fsm.state())
+    assert set(steps) == {MOVING}, steps
+    for k in range(10):
+        t = 3.2 + k * 0.1
+        tick(fsm, t, (START[0] - 0.012 * k, 0.30, math.pi), DRIVING)
+    assert fsm.state() == MOVING
+
+
 def test_after_the_wait_with_no_robot_ahead_it_is_blocked_and_the_goal_stays():
     fsm = ready()
     _, cmds = drive_and_stand(fsm, until=3.2)

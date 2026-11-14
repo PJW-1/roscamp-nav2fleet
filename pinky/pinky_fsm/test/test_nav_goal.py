@@ -227,10 +227,34 @@ def test_slow_steady_driving_is_progress():
     assert fsm.state() == MOVING
 
 
-def test_turning_in_place_is_not_progress():
+def test_turning_in_place_past_one_turn_is_not_progress():
+    """Endless spinning is still a stall: turning counts only up to nav_turn_budget_rad (3.5 rad)
+    since the robot last moved, so 1 rad/s from 1 s is a stall from about 4.5 s and BLOCKED about
+    5 s later (turns are counted in steps of nav_turn_progress_rad, 0.2 rad)."""
     fsm = ready()
     nav(fsm, "g1", 1.0)
-    run(fsm, 1.1, 7.0, pose=lambda t: (*HERE[:2], t), speed=(0.0, 1.0))
+    run(fsm, 1.1, 8.8, pose=lambda t: (*HERE[:2], t - 1.0), speed=(0.0, 1.0))
+    assert fsm.state() == MOVING
+    run(fsm, 8.9, 10.0, pose=lambda t: (*HERE[:2], t - 1.0), speed=(0.0, 1.0))
+    assert fsm.state() == BLOCKED
+
+
+def test_turning_to_face_the_goal_is_progress():
+    """Drive tuning 2026-11-14: Nav2 turns in place before it drives off. A half turn at the start
+    is not standing still; the stall clock starts when the turn ends."""
+    fsm = ready()
+    nav(fsm, "g1", 1.0)
+    run(fsm, 1.1, 4.1, pose=lambda t: (*HERE[:2], t - 1.0), speed=(0.0, 1.0))
+    run(fsm, 4.2, 8.6, pose=(*HERE[:2], 3.1))
+    assert fsm.state() == MOVING, "without counting the turn it was BLOCKED from 6 s"
+    run(fsm, 8.7, 9.3, pose=(*HERE[:2], 3.1))
+    assert fsm.state() == BLOCKED
+
+
+def test_turning_counts_as_progress_only_when_asked():
+    fsm = ready(nav_turn_progress_rad=0.0)
+    nav(fsm, "g1", 1.0)
+    run(fsm, 1.1, 6.1, pose=lambda t: (*HERE[:2], t - 1.0), speed=(0.0, 1.0))
     assert fsm.state() == BLOCKED
 
 
