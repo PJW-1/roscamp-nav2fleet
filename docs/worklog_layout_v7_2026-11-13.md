@@ -217,7 +217,8 @@ order 모델 기본값(`feat/order-default-on`, 이 브랜치에 합치지 않�
   - 호출 로봇 고르기와 도크 줄 순서(`asked_gap`)가 값이 아니라 실제 길이를 쓰는지 지키는 시험을 더했다(`test_selector.py`). 7af5421 이전 코드로 돌리면 둘 다 실패한다.
   - 머리 없는 세계의 바닥(`FreeSpace`)이 `keepout_extra`를 막지 않아, Nav2는 지나지 못하는 남쪽 진열대 사이 틈으로 길을 냈다. 사각형 안을 덧대지 않고 바닥에서 뺀다(Nav2 마스크와 같다).
   - 주차한 로봇 옆 통과를 planner로 본다: 주차 자리(y 0.08)에 서면 E-1 -> Q2가 남쪽 통로로 몸 둘 + 여유(0.19)를 두고 지난다. y 0.10에 서면 P-3 앞과 남쪽 진열대 서쪽 끝 사이에 틈이 없어 가운데 통로로 돈다. 칸 입구 높이와는 관계없고 주차 깊이에 달렸다.
-  - 검사(이 커밋 뒤, WSL 빌드): fleet_core 695 passed, fleet_gz_sim 412 passed, fake_robots 980 passed, pinky_fsm 383 passed / 6 skipped.
+  - 검사(21b6fff, WSL 빌드): fleet_core 695 passed, fleet_gz_sim 412 passed, fake_robots 980 passed, pinky_fsm 383 passed / 6 skipped.
+  - 21b6fff 재검수(Codex [확정] 1건): 바닥이 `keepout_extra`를 칸 중심으로만 막아, 마스크(`filled`)가 겹친다고 막는 경계 칸이 열려 있었다. 같은 격자에서 `filled`로 막는다. 검사: fleet_gz_sim 412 passed, fake_robots 981 passed, pinky_fsm 383 passed / 6 skipped.
 
 빠른 판 `v7_varied_quick_2`(WORK 팔 0.5 s/개, 출고 교체 8 s, 도크 흉내 3 s, order 모델 켬, 장애물 없음, 칸 입구는 옛 0.27로 빌드):
 - W를 떠난 6번 가운데 4번은 출고가 비어 있어 급행으로 바로 갔다(지시에서 O 도착까지 17 s).

@@ -155,6 +155,20 @@ def test_v7_keepout_extra_is_not_floor():
     assert space.free(space.static, 1.12, 0.25), "the south corridor below the gap stays floor"
 
 
+def test_v7_keepout_extra_closes_every_cell_it_touches_like_the_mask():
+    """마스크(fleet_core keepout.filled)는 사각형과 겹치는 칸을 모두 막는다. 칸 중심이
+    사각형 밖이어도 같은 격자에서 겹치면 머리 없는 세계도 막는다(Codex 21b6fff: 중심
+    (1.11, 0.41) 칸)."""
+    from fleet_core.fleet_map.keepout import filled
+    site = load_fleet_map("v7")
+    space = FreeSpace(site, R)
+    closed = filled(site.keepout_extra, space.w, space.h, space.res, (space.x0, space.y0))
+    leaks = [space.centre(ix, iy) for iy in range(space.h) for ix in range(space.w)
+             if closed[iy][ix] and space.static[iy * space.w + ix] == 0]
+    assert leaks == []
+    assert not space.free(space.static, 1.11, 0.41)
+
+
 V7_SOUTH_SHELF_Y = 0.365
 
 

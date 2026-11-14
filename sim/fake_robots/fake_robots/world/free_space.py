@@ -11,7 +11,7 @@ import math
 
 from fleet_core.fleet_map import SHARED
 from fleet_core.fleet_map.geometry import inside, point_rect_distance, wall_gap
-from fleet_core.fleet_map.keepout import dock_openings
+from fleet_core.fleet_map.keepout import dock_openings, filled
 
 GRID_M = 0.02
 
@@ -28,7 +28,8 @@ class FreeSpace:
         keepout = [(z.id, rect) for z in site.zones.values() if z.kind != SHARED
                    for rect in z.rects]
         opened = dock_openings(site, radius_m)
-        extra = list(getattr(site, "keepout_extra", ()))
+        extra = filled(list(getattr(site, "keepout_extra", ())), self.w, self.h, resolution,
+                       (x0, y0))
         bounds = site.bounds()
         cells = bytearray(self.w * self.h)
         for iy in range(self.h):
@@ -38,7 +39,7 @@ class FreeSpace:
                 floor = (any(inside(rect, x, y) for rect in shared) or bool(owners)) and all(
                     point_rect_distance(rect, x, y) >= radius_m
                     for zid, rect in keepout if zid not in owners)
-                ok = (floor and not any(inside(rect, x, y) for rect in extra)
+                ok = (floor and not extra[iy][ix]
                       and wall_gap(bounds, x, y) >= radius_m
                       and all(point_rect_distance(rect, x, y) >= radius_m for rect in site.shelves))
                 cells[iy * self.w + ix] = 0 if ok else 1
