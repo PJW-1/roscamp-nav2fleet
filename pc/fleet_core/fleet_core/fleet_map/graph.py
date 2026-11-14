@@ -36,3 +36,9 @@ def route(site, start: str, goal: str, cost=None) -> list | None:
         way.append(came[node])
         node = came[node].a
     return way[::-1]
+
+
+# ---- start에서 goal까지 실제 최단 길이 ----
+def distance(site, start: str, goal: str) -> float:
+    way = route(site, start, goal, lambda link: link.length)
+    return math.inf if way is None else sum(link.length for link in way)

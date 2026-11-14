@@ -34,7 +34,7 @@ def filled(rects, width: int, height: int, resolution: float, origin) -> list[li
 
 
 # ---- 도크를 Nav2 goal로 떠나는 곧은 선 둘레의 열린 상자 ----
-def keepout_openings(site, pad: float = BODY_HALF_WIDTH_M) -> list[tuple]:
+def dock_openings(site, pad: float = BODY_HALF_WIDTH_M) -> list[tuple[str, tuple]]:
     opened = []
     for link in site.links():
         zone = site.zones[site.nodes[link.a].zone]
@@ -51,8 +51,12 @@ def keepout_openings(site, pad: float = BODY_HALF_WIDTH_M) -> list[tuple]:
         clipped = (max(box[0], rect[0]), max(box[1], rect[1]),
                    min(box[2], rect[2]), min(box[3], rect[3]))
         if clipped[0] < clipped[2] and clipped[1] < clipped[3]:
-            opened.append(clipped)
+            opened.append((zone.id, clipped))
     return opened
+
+
+def keepout_openings(site, pad: float = BODY_HALF_WIDTH_M) -> list[tuple]:
+    return [rect for _, rect in dock_openings(site, pad)]
 
 
 def _leaving(rect, start, end) -> tuple[float, float]:
@@ -69,10 +73,19 @@ def _leaving(rect, start, end) -> tuple[float, float]:
 # ---- 마스크 생성과 PGM 변환 ----
 def mask(site, width: int, height: int, resolution: float, origin,
          pad: float = BODY_HALF_WIDTH_M) -> list[list[bool]]:
-    closed = filled(keepout_rects(site, pad), width, height, resolution, origin)
-    opened = filled(keepout_openings(site, pad), width, height, resolution, origin)
-    return [[shut and not gap for shut, gap in zip(row, open_row, strict=True)]
-            for row, open_row in zip(closed, opened, strict=True)]
+    openings = dock_openings(site, pad)
+    grid = filled(list(getattr(site, "keepout_extra", ())), width, height, resolution, origin)
+    for zone in sorted(site.zones.values(), key=lambda z: z.id):
+        if zone.kind == SHARED:
+            continue
+        closed = filled([(x0 - pad, y0 - pad, x1 + pad, y1 + pad) for x0, y0, x1, y1 in zone.rects],
+                        width, height, resolution, origin)
+        opened = filled([rect for zid, rect in openings if zid == zone.id],
+                        width, height, resolution, origin)
+        for row, shut, gap in zip(grid, closed, opened, strict=True):
+            for i, (is_shut, is_gap) in enumerate(zip(shut, gap, strict=True)):
+                row[i] = row[i] or (is_shut and not is_gap)
+    return grid
 
 
 def pgm(grid) -> bytes:

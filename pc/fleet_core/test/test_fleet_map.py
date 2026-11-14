@@ -9,6 +9,7 @@ from fleet_core.fleet_map import (
     TEST_LAYOUTS,
     FleetMap,
     FleetMapError,
+    distance,
     load_fleet_map,
     route,
 )
@@ -374,6 +375,15 @@ def test_route_to_the_same_node_is_empty_and_an_unreachable_one_is_none():
     site = build()
     assert route(site, "W", "W") == []
     assert route(site, "W", "O", cost=lambda link: math.inf) is None
+
+
+def test_distance_is_the_shortest_real_length_not_the_price():
+    data = copy.deepcopy(SMALL)
+    data["nav"].append({"nodes": ["W", "N_W"], "leave_dock": True, "extra_m": 0.3})
+    site = FleetMap(data)
+    assert distance(site, "W", "N_E") == pytest.approx(math.hypot(0.2, 0.3) + 1.2)
+    assert [link.b for link in route(site, "W", "N_E")][0] == "X_W"
+    assert distance(site, "W", "W") == 0.0
 
 
 # ---- 잘못 적은 지도 -------------------------------------------------------------------------

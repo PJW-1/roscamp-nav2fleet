@@ -1,10 +1,9 @@
 # ---- 호출에 보낼 로봇 고르기 ----
 from __future__ import annotations
 
-import math
 from dataclasses import dataclass
 
-from fleet_core.fleet_map import route
+from fleet_core.fleet_map import distance
 
 
 # ---- 후보 로봇 정보 ----
@@ -29,7 +28,6 @@ class RobotSelector:
         return {r.robot_id for r in pool[:max(calls, 0)]}
 
     def _score(self, robot: RobotInfo) -> float:
-        way = route(self._site, robot.node, self._dock)
-        metres = math.inf if way is None else sum(link.length for link in way)
+        metres = distance(self._site, robot.node, self._dock)
         score = self._params.score_distance_weight * metres
         return score + (self._params.score_same_call if robot.called else 0.0)

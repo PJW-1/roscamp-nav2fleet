@@ -1,13 +1,69 @@
 """Nav2 goal 흉내의 바닥과 길 찾기: keepout, 키운 벽, 돌아가기, 길 없음."""
+import copy
 import math
 
 import pytest
 from fake_robots.world.free_space import FreeSpace
 from fake_robots.world.geom import length, path_gap
 from fake_robots.world.planner import plan
-from fleet_core.fleet_map import load_fleet_map
+from fleet_core.fleet_map import FleetMap, load_fleet_map
 
 R = 0.08
+
+# pc/fleet_core/test/test_fleet_map.py의 SMALL과 같은 작은 지도
+SMALL = {
+    "name": "small",
+    "bounds": [0.0, 0.0, 2.0, 1.0],
+    "shelves": [[0.5, 0.75, 1.5, 0.8]],
+    "zones": {
+        "HALL": {"kind": "shared", "capacity": 2,
+                 "rects": [[0.0, 0.0, 2.0, 0.75], [0.0, 0.75, 0.5, 0.8], [1.5, 0.75, 2.0, 0.8]]},
+        "DOCK_W": {"kind": "dock", "rects": [[0.0, 0.8, 0.3, 1.0]]},
+        "J_W": {"kind": "dock", "rects": [[0.3, 0.8, 0.5, 1.0]]},
+        "EXPRESS": {"kind": "lane", "rects": [[0.5, 0.8, 1.5, 1.0]]},
+        "J_E": {"kind": "dock", "rects": [[1.5, 0.8, 1.7, 1.0]]},
+        "DOCK_E": {"kind": "dock", "rects": [[1.7, 0.8, 2.0, 1.0]]},
+    },
+    "nodes": {
+        "W": {"x": 0.2, "y": 0.9, "kind": "dock", "yaw_deg": 180},
+        "O": {"x": 1.8, "y": 0.9, "kind": "dock", "yaw_deg": 0},
+        "X_W": {"x": 0.4, "y": 0.9, "kind": "pass"},
+        "X_E": {"x": 1.6, "y": 0.9, "kind": "pass"},
+        "N_W": {"x": 0.4, "y": 0.6, "kind": "fork"},
+        "N_E": {"x": 1.6, "y": 0.6, "kind": "fork"},
+        "W_Q": {"x": 0.2, "y": 0.5, "kind": "wait"},
+        "O_Q": {"x": 1.8, "y": 0.5, "kind": "wait"},
+        "P-1": {"x": 0.2, "y": 0.15, "kind": "parking", "yaw_deg": 90},
+        "P-2": {"x": 1.8, "y": 0.15, "kind": "parking"},
+    },
+    "paths": {
+        "work_in": {"points": ["N_W", "X_W", "W"]},
+        "work_out": {"points": ["W", "X_W"], "reverse": True},
+        "out_in": {"points": ["N_E", "X_E", "O"]},
+        "out_out": {"points": ["O", "X_E"], "reverse": True},
+        "express": {"points": ["X_W", "X_E"], "two_way": True},
+        "j_w_down": {"points": ["X_W", "N_W"]},
+        "j_e_down": {"points": ["X_E", "N_E"]},
+    },
+    "nav": [{"nodes": ["N_W", "N_E", "W_Q", "O_Q", "P-1", "P-2"]}],
+    "stations": {
+        "WORK": {"dock": "W", "queue": ["W_Q"], "server": "workcell", "arms": ["arm1", "arm2"],
+                 "action": "fill"},
+        "OUTBOUND": {"dock": "O", "queue": ["O_Q"], "server": "arm3", "arms": ["arm3"],
+                     "action": "swap"},
+    },
+    "parking": ["P-1", "P-2"],
+}
+
+
+def test_an_opening_only_skips_its_own_docks_keepout():
+    """W에서 나가는 열린 상자 안이어도 갈림목(J_W) 구역 곁은 반지름만큼 막혀 있다."""
+    data = copy.deepcopy(SMALL)
+    data["nav"].append({"nodes": ["W", "N_W"], "leave_dock": True})
+    site = FleetMap(data)
+    space = FreeSpace(site, R)
+    assert space.free(space.static, 0.2, 0.9)
+    assert not space.free(space.static, 0.34, 0.80)
 
 
 @pytest.fixture(scope="module")

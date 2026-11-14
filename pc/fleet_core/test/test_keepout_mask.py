@@ -119,6 +119,18 @@ def test_a_dock_left_by_nav_goal_is_open_along_its_way_out():
     assert keepout_openings(load_fleet_map("d2")) == []
 
 
+def test_an_opening_clears_only_its_own_docks_keepout():
+    """도크 밖 열린 상자가 다른 keepout_extra 사각형과 겹쳐도 그 사각형은 닫혀 있다."""
+    from fleet_core.fleet_map import fleet_map_from_text
+    text = load_fleet_map("v7").source_text.replace(
+        "keepout_extra: [[0.99, 0.365, 1.25, 0.405],",
+        "keepout_extra: [[1.80, 0.46, 1.84, 0.50], [0.99, 0.365, 1.25, 0.405],")
+    site = fleet_map_from_text(text)
+    grid = mask(site, *SIZE, RESOLUTION, ORIGIN)
+    assert cell(grid, 1.82, 0.48)
+    assert not cell(grid, 1.75, 0.55) and not cell(grid, 1.88, 0.58)
+
+
 def test_layouts_without_keepout_extra_keep_their_masks():
     for layout in ("d2", "d", "c", "d2_shelf"):
         assert load_fleet_map(layout).keepout_extra == ()

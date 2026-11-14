@@ -1,10 +1,8 @@
 # ---- 운행 모드, 배차, 호출 처리 믹스인 ----
 from __future__ import annotations
 
-import math
-
 from fleet_core.common.commands import NO_ROBOT, DispatchFeedback, DispatchResult
-from fleet_core.fleet_map import FILL, NAV_GOAL, route
+from fleet_core.fleet_map import FILL, NAV_GOAL, distance
 from fleet_core.traffic.mission import (
     AT_STATION,
     DOCK,
@@ -148,8 +146,7 @@ class Calls:
             m.trip.stale = True
 
     def _metres_to_dock(self, m, station_id: str) -> float:
-        way = route(self.site, m.node, self.site.stations[station_id].dock)
-        return math.inf if way is None else sum(link.length for link in way)
+        return distance(self.site, m.node, self.site.stations[station_id].dock)
 
     # ---- 배차 완료 답하기와 스테이션 떠나기 ----
     def _finish_dispatch(self, m, error_x_cm=0.0, error_y_cm=0.0, error_yaw_deg=0.0) -> None:
