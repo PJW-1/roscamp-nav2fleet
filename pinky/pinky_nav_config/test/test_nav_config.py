@@ -287,6 +287,24 @@ def test_the_goal_controller_is_named_and_stops_when_blocked():
         assert goal["use_collision_detection"] is True
 
 
+def test_the_goal_controller_keeps_its_carrot_short_at_0_20_and_brakes_late():
+    """2026-11-15, Gazebo at 0.20 m/s: with 1.5 s of lookahead the carrot reached the 0.25 m cap
+    and the robot cut the east end of the shelf (true yaw 26 deg off AMCL, then stuck). The yard
+    controller now looks 0.8 s ahead like the fixed lines, slows on tight arcs, and starts to
+    brake 0.2 m before the goal instead of 0.6 m (rush game 356.5 s -> 327.3 s). Only while it
+    is an RPP: a teammate's other plugin is not held to these numbers."""
+    goal = params("controller_server")["FollowPathGoal"]
+    if not goal["plugin"].endswith("RegulatedPurePursuitController"):
+        pytest.skip("not an RPP")
+    assert goal["use_velocity_scaled_lookahead_dist"] is True
+    assert _lookahead(goal, 0.20) == pytest.approx(0.16)
+    assert _lookahead(goal, 0.25) == pytest.approx(0.20)
+    assert _lookahead(goal, 0.25) < goal["max_lookahead_dist"]
+    assert goal["use_regulated_linear_velocity_scaling"] is True
+    assert goal["regulated_linear_scaling_min_radius"] == 0.25
+    assert goal["approach_velocity_scaling_dist"] == 0.2
+
+
 def test_behavior_server_offers_what_the_tree_and_pinky_fsm_call():
     """Nav2's tree only clears costmaps and waits (work order 3, 7-4); pinky_fsm's robot-side
     yield, the old self-recovery and Retreat use backup. Spin is gone."""

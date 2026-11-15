@@ -243,16 +243,16 @@ def test_nav_overrides_lays_a_yaml_file_over_every_robots_nav2_params(made, tmp_
     """주행 성능 조정(2026-11-14): 파일을 고치지 않고 Nav2 값을 바꿔 Gazebo 판을 비교한다."""
     extra = tmp_path / "faster.yaml"
     extra.write_text(yaml.safe_dump({"controller_server": {"ros__parameters": {
-        "FollowPathGoal": {"approach_velocity_scaling_dist": 0.2}}}}), encoding="utf-8")
+        "FollowPathGoal": {"approach_velocity_scaling_dist": 0.4}}}}), encoding="utf-8")
     navs = includes(run(made, nav_overrides=str(extra)), "nav2.launch.py")
     assert len(navs) == 3
     for nav in navs:
         goal = _controllers(launch_args(nav)["params_file"])["FollowPathGoal"]
-        assert goal["approach_velocity_scaling_dist"] == 0.2
+        assert goal["approach_velocity_scaling_dist"] == 0.4
         assert goal["use_collision_detection"] is True, "overrides never turn the check off"
     plain = includes(run(made), "nav2.launch.py")[0]
     assert _controllers(launch_args(plain)["params_file"])["FollowPathGoal"][
-        "approach_velocity_scaling_dist"] == 0.6
+        "approach_velocity_scaling_dist"] == 0.2
     with pytest.raises(FileNotFoundError):
         run(made, nav_overrides=str(tmp_path / "missing.yaml"))
 

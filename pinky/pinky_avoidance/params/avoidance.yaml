@@ -15,25 +15,30 @@
 #   플러그인의 최고 속도를 nav_max_speed 이하로 직접 맞추고 사용자에게 알린다(그때 fleet_gz_sim의
 #   속도 상한 시험이 실패한다: 시뮬레이션의 상한 적용을 그 플러그인에 맞춰야 한다는 표시다).
 #   시작값은 고정 경로 컨트롤러 FollowPath를 2-1 전의 값으로 옮겨 온 것이다(RPP, 충돌 검사 켬).
+#   2026-11-15(주행 담당, Gazebo 0.20 m/s): 앞보기 1.5초는 0.20 m/s에서 상한 0.25 m에 닿아 진열대
+#   동쪽 끝을 스쳤다(실제 방향이 AMCL과 26도 어긋나 그 자리에 섰다). 고정 경로와 같이 0.8초 앞을
+#   보고(0.20 m/s에서 0.16 m), 급한 굽이에서 속도를 줄이고, goal 0.2 m 앞에서야 줄이게 했다
+#   (전에는 0.6 m 앞부터). 급행 판 356.5초 -> 327.3초, 견고함 판 12/12에 닿은 곳 없음
+#   (docs/주행_계획서.md 6.8).
 follow_path_goal:
   plugin: "nav2_regulated_pure_pursuit_controller::RegulatedPurePursuitController"
   desired_linear_vel: 0.25  # 전달사항(제조사 0.2)
   lookahead_dist: 0.15  # 전달사항(제조사 0.6)
   min_lookahead_dist: 0.10  # 전달사항(제조사 0.3)
   max_lookahead_dist: 0.25  # 전달사항(제조사 0.9)
-  lookahead_time: 1.5
+  lookahead_time: 0.8
   use_velocity_scaled_lookahead_dist: true
   rotate_to_heading_angular_vel: 1.0
   transform_tolerance: 0.2
   min_approach_linear_velocity: 0.05
-  approach_velocity_scaling_dist: 0.6
+  approach_velocity_scaling_dist: 0.2
   use_collision_detection: true
   max_allowed_time_to_collision_up_to_carrot: 0.6  # 전달사항(제조사 1.0)
-  use_regulated_linear_velocity_scaling: false
+  use_regulated_linear_velocity_scaling: true
   use_fixed_curvature_lookahead: false
   curvature_lookahead_dist: 0.6
   use_cost_regulated_linear_velocity_scaling: true
-  regulated_linear_scaling_min_radius: 0.5
+  regulated_linear_scaling_min_radius: 0.25
   regulated_linear_scaling_min_speed: 0.05
   use_rotate_to_heading: true
   allow_reversing: false
