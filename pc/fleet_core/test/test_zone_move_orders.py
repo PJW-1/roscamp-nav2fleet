@@ -73,6 +73,22 @@ def test_a_retreat_out_of_the_dock_is_the_first_segment():
     assert "RETREAT_START" in codes and "RETREAT_DONE" in codes and not world.problems
 
 
+def test_an_order_retreat_that_finishes_forgets_how_long_something_was_behind():
+    """Codex 검수(2026-11-15): 뒤가 막혀 기다리기 시작한 시각을 order의 후진 조각이 끝날 때 지우지
+    않으면, 다음 후진에서 뒤가 막혔을 때 옛 시각부터 blocked_timeout_s를 세어 바로 실패로 친다."""
+    world = Harness(starts={"pinky1": "W", "pinky2": "P-2", "pinky3": "P-3"}, params=ON)
+    world.report()
+    world.call("OUTBOUND", "pinky1")
+    world.step()
+    [order] = orders(world, "pinky1")
+    m = world.traffic._robots["pinky1"]
+    world.traffic.on_move_result("pinky1", order.goal_id, False, "OBSTACLE_BEHIND", 0)
+    assert m.behind_since is not None
+    assert world.run_until(lambda: "RETREAT_DONE" in world.codes("pinky1"), 30.0)
+    assert "RETREAT_WAIT" in world.codes("pinky1")
+    assert m.behind_since is None
+
+
 def test_a_purpose_changed_inside_a_fixed_stretch_ends_the_order_in_the_yard():
     """작업 도크에서 주차 자리로 나가는 order의 후진 중에 출고 도크로 불린다."""
     world = Harness(starts={"pinky1": "W", "pinky2": "P-2", "pinky3": "P-3"}, params=ON)
