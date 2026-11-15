@@ -15,6 +15,7 @@
 """
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
 
 from fleet_core.fleet_map import DOCK, FOLLOW_PATH, LANE, NAV_GOAL, RETREAT, SHARED
@@ -22,7 +23,7 @@ from fleet_core.traffic.zone.trips import segment_end
 
 STALE_S = 3.0  # 이만큼 자세가 없으면 회색
 PLAN_FRESH_S = 2.5
-NEAR_NODE_M = 0.15
+ON_PATH_M = 0.06
 DASH_M = 0.04  # horizon 점선의 칸 길이(선과 빈칸이 같은 길이)
 
 GRAY = (0.55, 0.55, 0.55, 1.0)
@@ -164,22 +165,43 @@ class _NoStatus:
 
 
 # ---- 로봇이 goal의 끝으로 받는 지점만 남기기 ----
-def stops(site, base, horizon, goal: str = "", near: str = "") -> tuple[list, list]:
+def _gap(points, x: float, y: float) -> float:
+    best = math.inf
+    for (ax, ay), (bx, by) in zip(points, points[1:], strict=False):
+        span = (bx - ax) ** 2 + (by - ay) ** 2
+        t = 0.0 if span == 0.0 else ((x - ax) * (bx - ax) + (y - ay) * (by - ay)) / span
+        t = min(max(t, 0.0), 1.0)
+        best = min(best, math.hypot(x - ax - t * (bx - ax), y - ay - t * (by - ay)))
+    return best
+
+
+def fixed_ends(site, x: float, y: float) -> set:
+    return {link.b for link in site.links()
+            if link.via in (FOLLOW_PATH, RETREAT) and _gap(link.points, x, y) <= ON_PATH_M}
+
+
+def _passed(site, base, links, goal: str, arriving) -> bool:
+    node, out = links[0].a, links[0]
+    return (len(base) != 1 and site.nodes[node].through and node != goal
+            and node not in arriving and out.via == NAV_GOAL and len(out.zones) == 1
+            and site.zones[out.zones[0]].kind == SHARED)
+
+
+def stops(site, base, horizon, goal: str = "", arriving=()) -> tuple[list, list]:
     route = [*base, *horizon]
-    at = route.index(goal) if goal in route else -1
-    lead = [near] if at < 0 and near else []
-    names = [*lead, *route]
-    links = [site.link(a, b) for a, b in zip(names, names[1:], strict=False)]
-    gone = {j for j in range(at) if site.nodes[route[j]].through
-            and links[j] is not None and links[j].via == NAV_GOAL}
-    split = len(base) - 1 + len(lead)
-    i = max(at, 0)
+    links = [site.link(a, b) for a, b in zip(route, route[1:], strict=False)]
+    gone = set()
+    if links and links[0] is not None and _passed(site, base, links, goal, arriving):
+        gone.add(0)
+    split = len(base) - 1
+    i = 0
     while i < len(links):
         limit = split if i < split else len(links)
         end = i + 1
-        if None not in links[i:limit] and links[i].via == NAV_GOAL:
-            end = segment_end(site, links, i, limit)
-        gone.update(j - len(lead) for j in range(i + 1, end))
+        if links[i] is not None and links[i].via == NAV_GOAL:
+            known = next((j for j in range(i, limit) if links[j] is None), limit)
+            end = segment_end(site, links, i, known)
+        gone.update(range(i + 1, end))
         i = end
     return ([n for j, n in enumerate(base) if j not in gone],
             [n for j, n in enumerate(horizon, len(base)) if j not in gone])
@@ -232,7 +254,9 @@ class FleetView:
         specs = []
         for i, robot in enumerate(sorted(self._plan)):
             points, at = self._plan[robot]
-            if len(points) > 1 and 0.0 <= now - at <= PLAN_FRESH_S:
+            if not 0.0 <= now - at <= PLAN_FRESH_S:
+                del self._plan[robot]
+            elif len(points) > 1:
                 specs.append(Spec("nav_plan", i, "LINE_STRIP", (0.0, 0.0, 0.025, 0.0),
                                   (0.008, 0.0, 0.0), _faded(robot_color(robot), 0.9), points))
         return specs
@@ -248,8 +272,7 @@ class FleetView:
             base, horizon = stops(
                 self.site, [n for n in getattr(status, "base", ()) if n in self.site.nodes],
                 [n for n in getattr(status, "horizon", ()) if n in self.site.nodes],
-                self._goal_node(robot),
-                self.site.nearest_node(*start, radius=NEAR_NODE_M) or "")
+                self._goal_node(robot), fixed_ends(self.site, *start))
             base = [self.site.node_pose(n) for n in base]
             horizon = [self.site.node_pose(n) for n in horizon]
             color = robot_color(robot)

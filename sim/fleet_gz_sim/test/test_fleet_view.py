@@ -213,11 +213,42 @@ def test_a_node_passed_inside_one_nav_goal_does_not_bend_the_way():
     assert horizon.points[0] == pytest.approx(V7.node_pose("Q2"))
 
 
-def test_a_bay_door_reached_on_a_fixed_path_stays_on_the_way():
+@pytest.mark.parametrize("goal", ["E-3", "Q2", ""])
+@pytest.mark.parametrize("y", [0.10, 0.17, 0.23])
+def test_a_bay_door_reached_on_a_fixed_path_stays_on_the_way(goal, y):
+    """Codex 검수(2026-11-16): 상태와 goal은 다른 토픽이라 어긋날 수 있다. 칸을 나오는 고정 경로
+    위에 있는 로봇의 칸 입구는 보고된 goal이 무엇이든 남긴다."""
     view = fv.FleetView(V7)
-    view.set_statuses([Status("pinky1", "MOVING", x=0.64, y=0.10, base=["E-3", "Q2"])])
+    view.set_statuses([Status("pinky1", "MOVING", x=0.64, y=y, base=["E-3", "Q2"])])
+    view.set_goal("pinky1", goal)
+    assert _corners(view) == [(0.64, y), V7.node_pose("E-3"), V7.node_pose("Q2")]
+
+
+def test_a_node_the_robot_is_told_to_stop_at_stays_on_the_way():
+    view = fv.FleetView(V7)
+    view.set_statuses([Status("pinky1", "MOVING", x=0.15, y=0.62, base=["E-3", "Q2"])])
     view.set_goal("pinky1", "E-3")
-    assert _corners(view) == [(0.64, 0.10), V7.node_pose("E-3"), V7.node_pose("Q2")]
+    assert _corners(view) == [(0.15, 0.62), V7.node_pose("E-3"), V7.node_pose("Q2")]
+
+
+def test_the_end_of_the_granted_way_is_never_merged_into_the_horizon():
+    view = fv.FleetView(V7)
+    view.set_statuses([Status("pinky1", "MOVING", x=0.15, y=0.62, base=["E-3"],
+                              horizon=["Q2"])])
+    view.set_goal("pinky1", "Q2")
+    assert _corners(view) == [(0.15, 0.62), V7.node_pose("E-3")]
+    view.set_statuses([Status("pinky1", "MOVING", x=0.15, y=0.70, base=["O_OUT", "E-3"],
+                              horizon=["Q2"])])
+    assert _corners(view) == [(0.15, 0.70), V7.node_pose("O_OUT"), V7.node_pose("E-3")]
+
+
+def test_an_unknown_link_further_on_does_not_undo_a_merge_before_it():
+    assert V7.link("Q2", "P-1") is None
+    view = fv.FleetView(V7)
+    view.set_statuses([Status("pinky1", "MOVING", x=0.15, y=0.70,
+                              base=["O_OUT", "E-3", "Q2", "P-1"])])
+    assert _corners(view) == [(0.15, 0.70), V7.node_pose("O_OUT"), V7.node_pose("Q2"),
+                              V7.node_pose("P-1")]
 
 
 def test_a_later_nav_goal_is_drawn_straight_to_its_end():
@@ -255,6 +286,16 @@ def test_the_plan_nav2_made_is_drawn_while_it_is_fresh():
     assert not by_ns(view.specs(now=10.0 + fv.PLAN_FRESH_S + 0.1), "nav_plan")
     view.set_plan("pinky2", [(0.2, 0.3)], now=20.0)
     assert not by_ns(view.specs(now=20.0), "nav_plan")
+
+
+def test_a_plan_that_went_stale_does_not_come_back_when_the_clock_rewinds():
+    view = fv.FleetView(V7)
+    view.set_plan("pinky2", [(0.2, 0.3), (0.9, 0.3)], now=10.0)
+    assert not by_ns(view.specs(now=13.0), "nav_plan")
+    assert not by_ns(view.specs(now=11.0), "nav_plan")
+    view.set_plan("pinky2", [(0.2, 0.3), (0.9, 0.3)], now=10.0)
+    assert not by_ns(view.specs(now=9.0), "nav_plan")
+    assert not by_ns(view.specs(now=10.5), "nav_plan")
 
 
 def test_a_status_without_base_fields_and_an_unknown_node_are_skipped():
