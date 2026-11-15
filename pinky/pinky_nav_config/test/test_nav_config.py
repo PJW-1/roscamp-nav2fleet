@@ -118,16 +118,30 @@ def test_the_local_footprint_is_a_polygon_round_the_real_body():
     assert max(math.hypot(x, y) for x, y in polygon) <= 0.085, "never wider than the old square"
 
 
-def test_fixed_lines_follow_a_fixed_short_lookahead_and_take_the_arcs_without_pivoting():
-    """추가 지시서 3의 2-1 3번: 앞보기 0.10 m 고정(작업 기록 4.2에서 모퉁이 앞 회전이 줄었다).
-    1번: 반지름 TURN_RADIUS_M의 호 위에서 앞보기 점은 asin(L / 2R)만큼 옆에 있다. 이것이
-    rotate_to_heading_min_angle보다 작아야 RPP가 호 위에서 서서 돌지 않고 호를 따라 돈다."""
+def _lookahead(rpp: dict, speed: float) -> float:
+    return min(max(speed * rpp["lookahead_time"], rpp["min_lookahead_dist"]),
+               rpp["max_lookahead_dist"])
+
+
+def test_fixed_lines_look_the_same_time_ahead_at_every_speed_and_take_the_arcs_without_pivoting():
+    """주행 계획서 6.5와 6.7: 앞보기 0.10 m 고정은 0.20 m/s에서 0.5초 앞만 봐서 폭 0.18 m 급행에서
+    방향이 10.3도(표준편차) 흔들렸다. 속도에 비례하게(0.8초 앞, 0.10~0.25 m) 두면 1.6도였다.
+    0.12 m/s에서는 지금까지와 같은 0.10 m다(추가 지시서 3의 2-1 3번).
+    1번: 반지름 TURN_RADIUS_M의 호 위에서는 곡률 규칙이 속도를 낮춰 앞보기가 0.10 m로 돌아오고,
+    앞보기 점은 asin(L / 2R)만큼 옆에 있다. 이것이 rotate_to_heading_min_angle보다 작아야 RPP가
+    호 위에서 서서 돌지 않고 호를 따라 돈다."""
     c = params("controller_server")
     for name in ("FollowPath", "FollowPathThrough", "FollowPathReverse"):
         rpp = c[name]
-        assert rpp["use_velocity_scaled_lookahead_dist"] is False, name
-        assert rpp["lookahead_dist"] == 0.10, name
-        carrot = math.asin(rpp["lookahead_dist"] / (2 * TURN_RADIUS_M))
+        assert rpp["use_velocity_scaled_lookahead_dist"] is True, name
+        assert rpp["lookahead_time"] == 0.8, name
+        assert _lookahead(rpp, 0.12) == 0.10, name
+        assert _lookahead(rpp, 0.20) == pytest.approx(0.16), name
+        assert _lookahead(rpp, 0.25) == pytest.approx(0.20), name
+        assert rpp["use_regulated_linear_velocity_scaling"] is True, name
+        on_arc = rpp["desired_linear_vel"] * TURN_RADIUS_M / rpp["regulated_linear_scaling_min_radius"]
+        assert _lookahead(rpp, on_arc) == 0.10, name
+        carrot = math.asin(_lookahead(rpp, on_arc) / (2 * TURN_RADIUS_M))
         assert carrot + 0.1 < rpp["rotate_to_heading_min_angle"] < math.pi / 4, name
 
 

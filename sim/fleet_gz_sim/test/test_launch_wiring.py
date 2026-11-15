@@ -221,7 +221,7 @@ def test_every_controller_checks_collisions_when_asked_and_keeps_the_speed_cap(m
                 assert controllers[name]["use_collision_detection"] is True, name
             forward = [controllers[n]["desired_linear_vel"] for n in CONTROLLERS
                        if n != "FollowPathReverse"]
-            assert forward == [float(speed or 0.12)] * 3
+            assert forward == [float(speed or 0.20)] * 3
             assert controllers["FollowPathReverse"]["desired_linear_vel"] == 0.05
 
 

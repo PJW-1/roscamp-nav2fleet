@@ -92,7 +92,7 @@ pgrep -af "gz sim|ruby|component_container|pinky_fsm_node|fleet_manager_node"   
 | `rviz` | `fleet` | `fleet`: 3대를 한 RViz에(로봇, 쥔 구역, 주문). 로봇 이름(`pinky2`)이면 그 로봇의 Nav2 화면. `none`이면 없음 |
 | `sim_dock_stub` | `false` | 시뮬 전용 도킹 대역(아래 "도킹") |
 | `obstacles` | 없음 | 지점 사이 연결(`link`)에 상자를 놓았다 치우는 일정(`fleet_gz_sim/obstacles`의 이름이나 파일). `d2_yard_express`는 300 s마다 마당 하나, 급행 하나를 120 s씩 |
-| `nav_max_speed` | `0.12` | 앞으로 가는 controller들의 최고 속도(m/s). 0.12~0.20만 받는다(지시서의 경기장 속도는 0.12~0.15). 관제의 이동 시간 추정 속도(`nav_speed_mps`, `follow_speed_mps`)는 따라 바뀌지 않으므로 `fleet_params_file`로 같이 맞춘다 |
+| `nav_max_speed` | `0.20` | 앞으로 가는 controller들의 최고 속도(m/s). 0.12~0.20만 받는다(지시서의 경기장 속도는 0.12~0.15이고, 기본 0.20은 주행 계획서 6.7의 측정으로 정했다). 관제의 이동 시간 추정 속도(`nav_speed_mps`, `follow_speed_mps`)는 따라 바뀌지 않으므로 `fleet_params_file`로 같이 맞춘다 |
 | `keepout` | `true` | Nav2 global costmap의 keepout 필터(shared가 아닌 구역) |
 | `fleet_check` | `true` | 주행 지표를 `result_dir/fleet_check.json`에(아래 "결과 확인") |
 | `monitor` | `true` | 시나리오 판정. 시나리오가 끝나면 `summary.json`을 쓰고 launch를 끝낸다 |
@@ -160,7 +160,7 @@ ros2 launch fleet_gz_sim one_pinky.launch.py                          # D2, P-1,
 ros2 launch fleet_gz_sim one_pinky.launch.py gui:=false rviz:=false   # 화면 없이
 ```
 
-인자: `namespace`(pinky1), `layout`(d2), `start`(P-1, 지점 이름이고 방향은 그 지점의 yaw), `gui`, `rviz`, `fsm`, `heartbeat_timeout_s`(1.5), `nav_log_level`(warn), `nav_max_speed`(0.12), `keepout`(true), `still_pinky`(`x,y,yaw`를 주면 Nav2 없이 서 있기만 하는 `pinky_still`을 놓는다).
+인자: `namespace`(pinky1), `layout`(d2), `start`(P-1, 지점 이름이고 방향은 그 지점의 yaw), `gui`, `rviz`, `fsm`, `heartbeat_timeout_s`(1.5), `nav_log_level`(warn), `nav_max_speed`(0.20), `keepout`(true), `still_pinky`(`x,y,yaw`를 주면 Nav2 없이 서 있기만 하는 `pinky_still`을 놓는다).
 
 로봇이 IDLE이 되면(약 10 s) 다른 터미널에서 같은 환경으로 주행시킨다.
 

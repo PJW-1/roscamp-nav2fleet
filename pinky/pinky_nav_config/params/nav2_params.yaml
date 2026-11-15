@@ -120,13 +120,16 @@ controller_server:
     FollowPath:
       plugin: "nav2_regulated_pure_pursuit_controller::RegulatedPurePursuitController"
       desired_linear_vel: 0.25  # 전달사항(제조사 0.2)
-      # 추가 지시서 3의 2-1 3번: 앞보기 0.10 m 고정(제조사 0.6, 전달사항 0.15 속도 비례). 속도 비례
-      # 앞보기(0.12 m/s에서 0.18 m)는 모퉁이 9 cm 앞에서 돌기 시작했다(작업 기록 4.2)
-      lookahead_dist: 0.10
-      min_lookahead_dist: 0.10  # 전달사항(제조사 0.3). 속도 비례를 끄면 쓰지 않는다
-      max_lookahead_dist: 0.25  # 전달사항(제조사 0.9). 속도 비례를 끄면 쓰지 않는다
-      lookahead_time: 1.5
-      use_velocity_scaled_lookahead_dist: false
+      # 앞보기는 속도에 비례한다: 0.8초 앞, 0.10~0.25 m(주행 계획서 6.7, 2026-11-15). 0.10 m 고정
+      # (추가 지시서 3의 2-1 3번)은 0.20 m/s에서 0.5초 앞만 봐서 폭 0.18 m 급행에서 방향이 표준편차
+      # 10.3도로 흔들렸고, 0.8초로 두자 1.6도였다. 0.12 m/s에서는 전과 같은 0.10 m다. 예전의 속도
+      # 비례(1.5초, 0.12 m/s에서 0.18 m)는 모퉁이 9 cm 앞에서 돌기 시작했다(작업 기록 4.2). 지금은
+      # 아래의 곡률 규칙이 반지름 0.10 m 호에서 속도를 0.4배로 낮춰 앞보기가 0.10 m로 돌아온다
+      lookahead_dist: 0.10  # 속도 비례를 켜서 쓰지 않는다
+      min_lookahead_dist: 0.10  # 전달사항(제조사 0.3)
+      max_lookahead_dist: 0.25  # 전달사항(제조사 0.9)
+      lookahead_time: 0.8
+      use_velocity_scaled_lookahead_dist: true
       rotate_to_heading_angular_vel: 1.0
       transform_tolerance: 0.2
       min_approach_linear_velocity: 0.05
@@ -136,11 +139,11 @@ controller_server:
       approach_velocity_scaling_dist: 0.2
       use_collision_detection: true
       max_allowed_time_to_collision_up_to_carrot: 0.6  # 전달사항(제조사 1.0)
-      use_regulated_linear_velocity_scaling: false
+      use_regulated_linear_velocity_scaling: true
       use_fixed_curvature_lookahead: false
       curvature_lookahead_dist: 0.6
       use_cost_regulated_linear_velocity_scaling: true
-      regulated_linear_scaling_min_radius: 0.5
+      regulated_linear_scaling_min_radius: 0.25
       regulated_linear_scaling_min_speed: 0.05
       # use_rotate_to_heading과 allow_reversing은 함께 켤 수 없어 후진은 BackUp으로 한다(안내 3절).
       # 추가 지시서 3의 2-1: 0.70(R12의 0.25에서 올림). pinky_fsm이 꺾이는 곳을 반지름 0.10 m 호로
@@ -169,24 +172,23 @@ controller_server:
     FollowPathThrough:
       plugin: "nav2_regulated_pure_pursuit_controller::RegulatedPurePursuitController"
       desired_linear_vel: 0.25  # 전달사항(제조사 0.2)
-      # 추가 지시서 3의 2-1 3번: 앞보기 0.10 m 고정(제조사 0.6, 전달사항 0.15 속도 비례). 속도 비례
-      # 앞보기(0.12 m/s에서 0.18 m)는 모퉁이 9 cm 앞에서 돌기 시작했다(작업 기록 4.2)
-      lookahead_dist: 0.10
-      min_lookahead_dist: 0.10  # 전달사항(제조사 0.3). 속도 비례를 끄면 쓰지 않는다
-      max_lookahead_dist: 0.25  # 전달사항(제조사 0.9). 속도 비례를 끄면 쓰지 않는다
-      lookahead_time: 1.5
-      use_velocity_scaled_lookahead_dist: false
+      # FollowPath와 같다: 앞보기는 속도에 비례한다(0.8초 앞, 0.10~0.25 m)
+      lookahead_dist: 0.10  # 속도 비례를 켜서 쓰지 않는다
+      min_lookahead_dist: 0.10  # 전달사항(제조사 0.3)
+      max_lookahead_dist: 0.25  # 전달사항(제조사 0.9)
+      lookahead_time: 0.8
+      use_velocity_scaled_lookahead_dist: true
       rotate_to_heading_angular_vel: 1.0
       transform_tolerance: 0.2
       min_approach_linear_velocity: 0.05
       approach_velocity_scaling_dist: 0.05  # the only difference from FollowPath
       use_collision_detection: true
       max_allowed_time_to_collision_up_to_carrot: 0.6  # 전달사항(제조사 1.0)
-      use_regulated_linear_velocity_scaling: false
+      use_regulated_linear_velocity_scaling: true
       use_fixed_curvature_lookahead: false
       curvature_lookahead_dist: 0.6
       use_cost_regulated_linear_velocity_scaling: true
-      regulated_linear_scaling_min_radius: 0.5
+      regulated_linear_scaling_min_radius: 0.25
       regulated_linear_scaling_min_speed: 0.05
       # use_rotate_to_heading과 allow_reversing은 함께 켤 수 없어 후진은 BackUp으로 한다(안내 3절).
       # 추가 지시서 3의 2-1: 0.70(R12의 0.25에서 올림). pinky_fsm이 꺾이는 곳을 반지름 0.10 m 호로
@@ -214,24 +216,23 @@ controller_server:
     FollowPathReverse:
       plugin: "nav2_regulated_pure_pursuit_controller::RegulatedPurePursuitController"
       desired_linear_vel: 0.05  # 물러나기는 천천히(기준(사용자))
-      # 추가 지시서 3의 2-1 3번: 앞보기 0.10 m 고정(제조사 0.6, 전달사항 0.15 속도 비례). 속도 비례
-      # 앞보기(0.12 m/s에서 0.18 m)는 모퉁이 9 cm 앞에서 돌기 시작했다(작업 기록 4.2)
-      lookahead_dist: 0.10
-      min_lookahead_dist: 0.10  # 전달사항(제조사 0.3). 속도 비례를 끄면 쓰지 않는다
-      max_lookahead_dist: 0.25  # 전달사항(제조사 0.9). 속도 비례를 끄면 쓰지 않는다
-      lookahead_time: 1.5
-      use_velocity_scaled_lookahead_dist: false
+      # FollowPath와 같다: 앞보기는 속도에 비례한다(0.8초 앞, 0.10~0.25 m)
+      lookahead_dist: 0.10  # 속도 비례를 켜서 쓰지 않는다
+      min_lookahead_dist: 0.10  # 전달사항(제조사 0.3)
+      max_lookahead_dist: 0.25  # 전달사항(제조사 0.9)
+      lookahead_time: 0.8
+      use_velocity_scaled_lookahead_dist: true
       rotate_to_heading_angular_vel: 1.0
       transform_tolerance: 0.2
       min_approach_linear_velocity: 0.05
       approach_velocity_scaling_dist: 0.2
       use_collision_detection: true
       max_allowed_time_to_collision_up_to_carrot: 0.6  # 전달사항(제조사 1.0)
-      use_regulated_linear_velocity_scaling: false
+      use_regulated_linear_velocity_scaling: true
       use_fixed_curvature_lookahead: false
       curvature_lookahead_dist: 0.6
       use_cost_regulated_linear_velocity_scaling: true
-      regulated_linear_scaling_min_radius: 0.5
+      regulated_linear_scaling_min_radius: 0.25
       regulated_linear_scaling_min_speed: 0.05
       # use_rotate_to_heading과 allow_reversing은 함께 켤 수 없다. 후진 controller라 제자리 회전을
       # 끄고 후진을 켠다: 지나온 길을 거꾸로 적은 경로를 돌지 않고 뒤로 따른다

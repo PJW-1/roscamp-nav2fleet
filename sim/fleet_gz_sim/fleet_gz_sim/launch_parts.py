@@ -124,9 +124,10 @@ CONTROLLERS = ("FollowPath", THROUGH_CONTROLLER, REVERSE_CONTROLLER, GOAL_CONTRO
 # 끝나지 않았고, 끈 판은 끝났다). 실물의 파라미터 파일(nav2_params.yaml)은 켬 그대로다
 FIXED_LINE_CONTROLLERS = ("FollowPath", THROUGH_CONTROLLER, REVERSE_CONTROLLER)
 # 경기장 속도 상한. 앞으로 가는 controller 셋이 이 값으로 간다. 지시서 3절은 0.12~0.15 m/s이고,
-# 0.20까지는 더 빠른 주행을 시뮬에서 보려고 받는다(2026-11-12). 기본값은 그대로다
+# 0.20까지는 더 빠른 주행을 시뮬에서 보려고 받는다(2026-11-12). 기본값은 0.20이다(2026-11-15,
+# 주행 계획서 6.7: 속도 비례 앞보기를 넣자 0.20에서도 급행의 흔들림이 0.12 때와 같았다)
 SPEED_RANGE_MPS = (0.12, 0.20)
-DEFAULT_SPEED_MPS = 0.12
+DEFAULT_SPEED_MPS = 0.20
 # sim_stand_in이 내는 로봇마다의 시뮬 배터리(BatteryState). low_battery가 있으면 pinky_fsm이 본다
 BATTERY_TOPIC = "/{robot}/sim/battery"
 

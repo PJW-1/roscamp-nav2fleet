@@ -252,7 +252,7 @@ def test_a_base_file_without_one_of_the_controllers_is_refused(tmp_path):
         launch_parts.sim_nav_params(path, tmp_path / "sim.yaml")
 
 
-@pytest.mark.parametrize("text, value", [("", 0.12), ("0.12", 0.12), ("0.15", 0.15), ("0.2", 0.2)])
+@pytest.mark.parametrize("text, value", [("", 0.20), ("0.12", 0.12), ("0.15", 0.15), ("0.2", 0.2)])
 def test_the_launch_speed_is_the_arena_range(text, value):
     assert launch_parts.speed_of(text) == value
 
