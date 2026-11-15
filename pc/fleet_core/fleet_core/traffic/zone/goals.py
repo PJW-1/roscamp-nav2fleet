@@ -111,24 +111,11 @@ class Goals:
 
     # ---- 후보 중 잡을 수 있는 트립 고르기 ----
     def _choose(self, m):
-        first_want = None
-        for goal, queued in self._candidates(m):
-            links = self._way(m, goal)
-            if not links:
-                continue
-            trip = Trip(goal, links)
-            if queued and self.params.use_order_model:
-                trip = self._through(m, trip)
-            want = self._take(m, trip)
-            if want is None:
-                if queued and not m.queued:
-                    m.queued = True
-                    self._event("INFO", "DOCK_QUEUED", f"{m.dest} is busy, waits at {goal}",
-                                m.name)
-                elif not queued:
-                    self._take_turn(m, trip)
-                return trip
-            first_want = first_want or want
+        trip, first_want = self._grab(m, self._candidates(m))
+        if trip is not None:
+            trip.standby = (m.phase in (TO_WORK, TO_OUTBOUND)
+                            and trip.goal in self.site.parking)
+            return trip
         if first_want is None and m.retreat_to and not self._retreat_held_up(m):
             back = self._back_link(m)
             trip = None if back is None else Trip(m.retreat_to, [back])
@@ -144,6 +131,27 @@ class Goals:
         elif m.wait_for == ("BLOCKED",):
             self._stop_wanting(m)
         return None
+
+    def _grab(self, m, candidates):
+        first_want = None
+        for goal, queued in candidates:
+            links = self._way(m, goal)
+            if not links:
+                continue
+            trip = Trip(goal, links)
+            if queued and self.params.use_order_model:
+                trip = self._through(m, trip)
+            want = self._take(m, trip)
+            if want is None:
+                if queued and not m.queued:
+                    m.queued = True
+                    self._event("INFO", "DOCK_QUEUED", f"{m.dest} is busy, waits at {goal}",
+                                m.name)
+                elif not queued:
+                    self._take_turn(m, trip)
+                return trip, None
+            first_want = first_want or want
+        return None, first_want
 
     # ---- 다음 구간의 구역, 노드, 차선 잡기 ----
     def _take(self, m, trip):

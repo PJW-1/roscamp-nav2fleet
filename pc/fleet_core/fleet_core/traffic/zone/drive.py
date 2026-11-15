@@ -32,6 +32,8 @@ class Drive:
     def _step_phase(self, m) -> None:
         now = self._clock()
         if m.goal is not None:
+            if self._leave_standby(m):
+                return
             if m.goal.via == ORDER:
                 self._extend_order(m)
             return
@@ -51,6 +53,8 @@ class Drive:
     def _drive(self, m) -> None:
         trip = m.trip
         if trip is not None:
+            if self._leave_standby(m):
+                return
             if trip.stale and not trip.finished and self._switch(m):
                 return
             if trip.sent < trip.granted:
@@ -73,6 +77,25 @@ class Drive:
         if fresh is None:
             self._stop_wanting(m)
             return False
+        m.trip = fresh
+        self._send(m)
+        return True
+
+    # ---- 주차하러 가다가 대기 자리가 비면 그리로 돌리기 ----
+    def _leave_standby(self, m) -> bool:
+        trip, goal = m.trip, m.goal
+        if (trip is None or not trip.standby or trip.finished
+                or m.phase not in (TO_WORK, TO_OUTBOUND)):
+            return False
+        if goal is not None and not (goal.kind == MOVE and self._via(m) == NAV_GOAL):
+            return False
+        fresh, _ = self._grab(m, self._station_spots(m))
+        if fresh is None:
+            return False
+        self._event("INFO", "STANDBY_LEFT", f"{fresh.goal} is free, drops the way to {trip.goal}",
+                    m.name)
+        if goal is not None:
+            self._cancel_goal(m)
         m.trip = fresh
         self._send(m)
         return True

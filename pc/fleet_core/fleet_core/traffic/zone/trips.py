@@ -20,6 +20,7 @@ class Trip:
     sent: int = 0
     stale: bool = False
     turn: bool = False
+    standby: bool = False
 
     @property
     def finished(self) -> bool:

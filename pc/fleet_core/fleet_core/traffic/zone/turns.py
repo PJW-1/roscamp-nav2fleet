@@ -34,6 +34,13 @@ class Turns:
         for spot in sorted(free, key=lambda spot: (self._price(m, spot, cost), spot)):
             yield spot, False
 
+    def _station_spots(self, m):
+        station = self.site.stations[m.dest]
+        if self._is_next(m, station.id) and self._dock_free(m, station.dock):
+            yield station.dock, False
+        for spot in self._open_spots(m, station):
+            yield spot, True
+
     def _price(self, m, spot: str, cost) -> float:
         links = self._way(m, spot)
         return math.inf if links is None else sum(cost(link) for link in links)
