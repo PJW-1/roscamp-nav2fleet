@@ -28,7 +28,7 @@ def seen(before, x, y, t):
     dt = t - before[2]
     moved_at = before[5] if math.dist((x, y), before[:2]) < 1e-6 else t
     if dt <= 0.0:
-        return (x, y, t, before[3], before[4], moved_at)
+        return (x, y, t, 0.0, 0.0, moved_at)
     vx, vy = (x - before[0]) / dt, (y - before[1]) / dt
     if dt > SEEN_FOR_S or math.hypot(vx, vy) > LIFTED_MPS:
         vx = vy = 0.0
@@ -43,7 +43,7 @@ def where_now(view, t):
 
 # ---- 가까이서 방금 움직인 로봇에게 양보하기 ----
 def yields(x, y, views, t) -> bool:
-    return any(t - view[5] < YIELD_FOR_S and math.dist((x, y), where_now(view, t)) <= YIELD_M
+    return any(0.0 <= t - view[5] < YIELD_FOR_S and math.dist((x, y), where_now(view, t)) <= YIELD_M
                for view in views)
 
 
