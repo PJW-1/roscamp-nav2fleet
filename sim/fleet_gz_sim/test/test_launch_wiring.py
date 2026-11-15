@@ -2,6 +2,7 @@
 가짜 central·팔을 잇는 것을 본다."""
 import importlib.util
 import math
+import re
 from pathlib import Path
 
 import pytest
@@ -223,6 +224,20 @@ def test_every_controller_checks_collisions_when_asked_and_keeps_the_speed_cap(m
                        if n != "FollowPathReverse"]
             assert forward == [float(speed or 0.20)] * 3
             assert controllers["FollowPathReverse"]["desired_linear_vel"] == 0.05
+
+
+def test_no_controller_turns_faster_than_the_simulated_drive_can(made):
+    """2026-11-15: Gazebo의 DiffDrive는 max_velocity(1.0)를 회전에도 건다. 넓은 구역의 제자리
+    회전을 2.0 rad/s로 명령한 판(G7, G8)에서 로봇이 돈 속도는 1.0인 판과 같았다(90번째 백분위
+    1.0 rad/s). 시뮬레이션이 내지 못하는 값으로 잰 결과를 기본값의 근거로 삼지 않으려는 시험이다."""
+    from fleet_gz_sim.launch_parts import CONTROLLERS
+    urdf = Path(__file__).parents[1] / "urdf" / "pinky_sim.urdf.xacro"
+    cap = float(re.search(r"<max_velocity>([^<]+)</max_velocity>",
+                          urdf.read_text(encoding="utf-8")).group(1))
+    for nav in includes(run(made), "nav2.launch.py"):
+        controllers = _controllers(launch_args(nav)["params_file"])
+        for name in CONTROLLERS:
+            assert controllers[name]["rotate_to_heading_angular_vel"] <= cap, name
 
 
 @pytest.mark.parametrize("asked", [{}, {"fixed_line_collision_check": "false"}])

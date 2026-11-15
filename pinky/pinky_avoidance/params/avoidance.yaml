@@ -19,9 +19,10 @@
 #   동쪽 끝을 스쳤다(실제 방향이 AMCL과 26도 어긋나 그 자리에 섰다). 고정 경로와 같이 0.8초 앞을
 #   보고(0.20 m/s에서 0.16 m), 급한 굽이에서 속도를 줄이고, goal 0.2 m 앞에서야 줄이게 했다
 #   (전에는 0.6 m 앞부터). 급행 판 356.5초 -> 327.3초, 견고함 판 12/12에 닿은 곳 없음
-#   (docs/주행_계획서.md 6.8). 같은 날 제자리 회전을 1.0 -> 2.0 rad/s(각가속도 3.2 -> 6.4)로
-#   올렸다: 넓은 구역은 O_OUT과 칸 입구에서 55~175도를 서서 돈다(급행 판 317.6 s -> 303.6 s,
-#   고정 경로 끝 감속 0.10 m와 함께 잼).
+#   (docs/주행_계획서.md 6.8). 같은 날 제자리 회전을 2.0 rad/s(각가속도 6.4)로 올렸다가 되돌렸다:
+#   Gazebo의 구동 플러그인은 회전을 1.0 rad/s, 2.0 rad/s^2로 자른다. 2.0으로 명령한 판(G7, G8)과
+#   1.0인 판(G6, G9)에서 로봇이 돈 속도가 같았다(90번째 백분위 1.0 rad/s). 실물의 회전 한계는
+#   재지 않았다.
 follow_path_goal:
   plugin: "nav2_regulated_pure_pursuit_controller::RegulatedPurePursuitController"
   desired_linear_vel: 0.25  # 전달사항(제조사 0.2)
@@ -30,7 +31,7 @@ follow_path_goal:
   max_lookahead_dist: 0.25  # 전달사항(제조사 0.9)
   lookahead_time: 0.8
   use_velocity_scaled_lookahead_dist: true
-  rotate_to_heading_angular_vel: 2.0
+  rotate_to_heading_angular_vel: 1.0
   transform_tolerance: 0.2
   min_approach_linear_velocity: 0.05
   approach_velocity_scaling_dist: 0.2
@@ -45,7 +46,7 @@ follow_path_goal:
   use_rotate_to_heading: true
   allow_reversing: false
   rotate_to_heading_min_angle: 0.25
-  max_angular_accel: 6.4
+  max_angular_accel: 3.2
   max_robot_pose_search_dist: 1.4875
   cost_scaling_dist: 0.05
   cost_scaling_gain: 1.5

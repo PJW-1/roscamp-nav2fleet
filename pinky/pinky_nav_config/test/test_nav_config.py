@@ -308,15 +308,15 @@ def test_the_goal_controller_keeps_its_carrot_short_at_0_20_and_brakes_late():
     assert goal["approach_velocity_scaling_dist"] == 0.2
 
 
-def test_the_goal_controller_turns_in_place_at_2_rad_s():
-    """2026-11-15: 넓은 구역에서는 주행 방식이 바뀌는 곳(O_OUT, 칸 입구)마다 55~175도를 제자리에서
-    돈다. 1.0 rad/s에서 2.0 rad/s로 올렸다(바퀴 속도 0.096 m/s). 고정 경로 셋은 1.0 그대로다:
-    1.8로 올렸던 판(G2)에서 급행이 흔들렸다."""
+def test_every_controller_turns_in_place_at_1_rad_s():
+    """2026-11-15: 넓은 구역의 제자리 회전을 2.0 rad/s(각가속도 6.4)로 올렸다가 되돌렸다. Gazebo의
+    구동 플러그인은 회전을 1.0 rad/s로 잘라서, 2.0으로 명령한 판에서도 로봇이 돈 속도는 같았다
+    (주행 계획서 6.8). 고정 경로 셋은 1.8로 올렸던 판(G2)에서 급행이 흔들렸다."""
     c = params("controller_server")
     goal = c["FollowPathGoal"]
     if not goal["plugin"].endswith("RegulatedPurePursuitController"):
         pytest.skip("not an RPP")
-    assert (goal["rotate_to_heading_angular_vel"], goal["max_angular_accel"]) == (2.0, 6.4)
+    assert (goal["rotate_to_heading_angular_vel"], goal["max_angular_accel"]) == (1.0, 3.2)
     for name in ("FollowPath", "FollowPathThrough", "FollowPathReverse"):
         assert c[name]["rotate_to_heading_angular_vel"] == 1.0, name
 
