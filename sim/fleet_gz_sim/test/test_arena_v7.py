@@ -281,6 +281,47 @@ def test_v7_the_top_of_divider_3_is_kept_out_for_nav2(site):
     assert not kept(0.77, 0.205) and not kept(0.64, 0.11), "above it and the P-3 bay stay open"
 
 
+# ---- 칸막이 1, 2 위 끝: 칸을 나와 동쪽으로 가는 Nav2 goal 경로 ----
+DIVIDER_1_KEEP = (0.19, 0.0, 0.31, 0.20)  # 칸막이 가운데에서 0.06: 양쪽 칸에 선 로봇 발자국 밖
+DIVIDER_2_KEEP = (0.45, 0.0, 0.57, 0.20)
+
+
+@pytest.mark.parametrize("keep, divider_x, bays_x", [(DIVIDER_1_KEEP, 0.25, (0.12, 0.38)),
+                                                     (DIVIDER_2_KEEP, 0.51, (0.38, 0.64))])
+def test_v7_the_tops_of_dividers_1_and_2_are_kept_out_for_nav2(site, keep, divider_x, bays_x):
+    """견고함 판 R3, R4(2026-11-15): P-1을 나온 pinky3가 y 0.165에서 Q2로 가는 Nav2 goal을 받아
+    5 cm 격자의 y 0.15~0.20 줄을 따라 동쪽으로 갔고, 칸막이 1 위 끝(0.24~0.26, 0.10)을 긁어 실제
+    방향이 추정과 47~70도 어긋났다(주문 12건 가운데 7건에서 멈춤). 칸막이 3과 같이 그 둘레를
+    y 0.20까지 막는다. 양쪽 칸은 열려 있다."""
+    assert keep in site.keepout_extra
+    grid = arena_maps.keepout(arena_maps.FINE_M, site)
+
+    def kept(x, y):
+        i, j = arena_maps.cell_of(x, y, arena_maps.FINE_M, site)
+        return grid[j][i]
+    for x in (keep[0] + 0.01, divider_x, keep[2] - 0.01):
+        assert kept(x, 0.12) and kept(x, 0.195), x
+    assert not kept(divider_x, 0.205), "above it stays open"
+    for x in bays_x:
+        for dx in (-0.06, 0.0, 0.06):
+            assert not kept(x + dx, 0.11) and not kept(x + dx, 0.19), (x, dx)
+
+
+@pytest.mark.parametrize("x, divider_x, next_bay_x", [
+    (0.119, 0.25, 0.38), (0.134, 0.25, 0.38), (0.366, 0.51, 0.64), (0.382, 0.51, 0.64)])
+@pytest.mark.parametrize("y", [0.165, 0.195])
+def test_v7_a_robot_that_left_its_bay_passes_the_next_divider_only_above_it(
+        x, divider_x, next_bay_x, y):
+    """칸을 나온 로봇(Gazebo 판들에서 본 자리: x는 칸 가운데에서 2 cm 안, y 0.165~0.20)의 칸은
+    열려 있고 옆 칸 앞과 이어지지만, 그 사이 칸막이 위쪽(y 0.20부터)을 막으면 끊긴다: 5 cm
+    costmap에서 칸막이 위 끝을 지나는 y 0.15~0.20 줄이 닫혀 있다."""
+    grid, _, _ = _costmap()
+    east = (next_bay_x, 0.175)
+    assert _joined(grid, (x, y), east), (x, y)
+    above = (divider_x - 0.10, 0.20, divider_x + 0.10, 0.99)
+    assert not _joined(grid, (x, y), east, shut=[above]), (x, y)
+
+
 @pytest.mark.parametrize("a, b", [("E-3", "Q1"), ("E-3", "Q2"), ("E-1", "Q2"), ("E-3", "O_OUT"),
                                   ("E-3", "O_IN"), ("E-1", "E-3")])
 def test_v7_the_south_yard_stays_open_above_the_divider_keepout(site, a, b):
