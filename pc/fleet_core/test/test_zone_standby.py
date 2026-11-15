@@ -70,6 +70,38 @@ def test_with_no_spot_freeing_the_robot_still_parks(order_model):
     assert backed_into_a_bay(world, "pinky1")
 
 
+def test_a_free_spot_it_cannot_be_granted_leaves_no_waiting_record(monkeypatch):
+    """자리는 비었지만 가는 길의 구역을 아직 잡지 못하면 주차하러 가던 길을 그대로 간다.
+    길에서 자리를 알아본 것은 기다린 것이 아니다(grants.waiting에 남지 않는다)."""
+    world = world_with_a_busy_line()
+    assert world.run_until(lambda: world.view("pinky3")["node"] == "Q2", 60.0)
+    world.traffic.on_release("pinky1")
+    world.step()
+    grants, m = world.traffic.grants, world.traffic._robots["pinky1"]
+    assert m.trip.standby and m.goal is not None
+    real = grants.take
+
+    def take(robot, zones=(), nodes=(), lanes=None):
+        if robot == "pinky1" and "Q2" in nodes:
+            zones = [*zones, "WORK_DOCK"]
+        return real(robot, zones, nodes, lanes)
+
+    monkeypatch.setattr(grants, "take", take)
+    tried, seen = set(), set()
+    for _ in range(1200):
+        if world.view("pinky1")["node"] in world.site.parking:
+            break
+        world.step()
+        if m.goal is not None:
+            seen |= set(grants.waiting().get("pinky1", ()))
+        if grants.node_holder("Q2") in ("", "pinky1"):
+            tried.add("Q2")
+    assert world.view("pinky1")["node"] in world.site.parking
+    assert tried == {"Q2"}, "the spot was free on the way"
+    assert seen == set()
+    assert "STANDBY_LEFT" not in world.codes("pinky1")
+
+
 def test_a_robot_that_gives_way_to_a_bay_is_not_turned_back():
     world = Harness(layout="v7", starts={"pinky1": "Q2", "pinky2": "W", "pinky3": "Q1"})
     world.report()

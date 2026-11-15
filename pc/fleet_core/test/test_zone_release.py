@@ -64,6 +64,46 @@ def test_a_docked_robot_is_measured_from_the_dock_without_the_margin():
     assert world.view("pinky2")["held"] == ["WORK_DOCK"]
 
 
+def stopped_short_of_o_out(params=P):
+    """출고를 마친 pinky1이 out_out으로 내려와 O_OUT에 0.04 m 못 미쳐 서고(고정 경로의 도착 허용치는
+    0.05 m), 다음 goal을 받아 제자리에서 돈다."""
+    world = Harness(layout="v7", starts={"pinky1": "O", "pinky2": "P-2", "pinky3": "P-3"},
+                    params=params)
+    world.report()
+    out = world.call("OUTBOUND", "pinky1")
+    assert world.run_until(lambda: world.result_of(out) is not None, 30.0)
+    world.traffic.on_release("pinky1")
+    bot = world.bots["pinky1"]
+    assert world.run_until(lambda: bot.y <= 0.66, 30.0)
+    assert world.site.distance_to_zone(bot.x, bot.y, "OUT_DOCK") < P.footprint_radius_m + 0.05
+    assert "OUT_DOCK" in world.view("pinky1")["held"]
+    bot.points = []
+    world.speed = 0.0
+    world.run(1.0)
+    assert world.view("pinky1")["node"] == "O_OUT" and bot.cmd is not None
+    return world
+
+
+def test_a_robot_standing_within_the_margin_of_its_node_is_measured_from_the_node():
+    """2026-11-15 G6: O_OUT(출고 구역에서 0.145 m)에 0.04 m 못 미쳐 선 로봇은 구역에서 0.105 m라
+    출고 구역을 놓지 못했고, 제자리에서 돌고 떠날 때까지 O_X의 로봇이 들어오지 못했다(교대 8.5초).
+    지점에서 release_margin_m 안에 선 로봇은 그 지점의 좌표로 잰다: 지도가 서는 지점을 구역에서
+    0.135 m 넘게 띄워 두었으므로 몸(반지름 0.085 m)은 구역 밖이다."""
+    world = stopped_short_of_o_out()
+    assert "OUT_DOCK" not in world.view("pinky1")["held"]
+    assert not world.problems
+
+
+def test_a_robot_farther_than_the_margin_from_its_node_is_measured_from_its_report():
+    world = stopped_short_of_o_out(replace(P, release_margin_m=0.03))
+    assert "OUT_DOCK" in world.view("pinky1")["held"], "0.04 m from the node, 0.105 m from the zone"
+
+
+def test_a_record_made_with_zone_clear_m_measures_a_standing_robot_from_its_report():
+    world = stopped_short_of_o_out(replace(P, zone_clear_m=0.11))
+    assert "OUT_DOCK" in world.view("pinky1")["held"]
+
+
 def test_the_margin_is_a_parameter():
     wide = gap_at_release(replace(P, release_margin_m=0.10))
     assert len(wide) > len(gap_at_release(P))

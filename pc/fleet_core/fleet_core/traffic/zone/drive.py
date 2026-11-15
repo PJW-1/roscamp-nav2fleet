@@ -89,8 +89,10 @@ class Drive:
             return False
         if goal is not None and not (goal.kind == MOVE and self._via(m) == NAV_GOAL):
             return False
+        waited = self.grants.waiting().get(m.name)
         fresh, _ = self._grab(m, self._station_spots(m))
         if fresh is None:
+            self.grants.note_waiting(m.name, waited)
             return False
         self._event("INFO", "STANDBY_LEFT", f"{fresh.goal} is free, drops the way to {trip.goal}",
                     m.name)

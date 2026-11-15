@@ -102,6 +102,9 @@ class Progress:
         zones, nodes = self._still_needed(m) if keep_trip else (set(), set())
         if m.phase == AT_STATION and m.node in site.nodes and not p.zone_clear_m:
             (x, y), gap = site.node_pose(m.node), p.footprint_radius_m + m.dock_error_m
+        elif (m.node in site.nodes and not p.zone_clear_m
+              and self._gap(m, m.node) <= p.release_margin_m):
+            (x, y), gap = site.node_pose(m.node), release_gap(p)
         else:
             (x, y), gap = (m.x, m.y), release_gap(p)
         released = []
