@@ -119,7 +119,7 @@ def test_the_local_footprint_is_a_polygon_round_the_real_body():
 
 
 def _lookahead(rpp: dict, speed: float) -> float:
-    return min(max(speed * rpp["lookahead_time"], rpp["min_lookahead_dist"]),
+    return min(max(abs(speed) * rpp["lookahead_time"], rpp["min_lookahead_dist"]),
                rpp["max_lookahead_dist"])
 
 
@@ -129,7 +129,10 @@ def test_fixed_lines_look_the_same_time_ahead_at_every_speed_and_take_the_arcs_w
     0.12 m/s에서는 지금까지와 같은 0.10 m다(추가 지시서 3의 2-1 3번).
     1번: 반지름 TURN_RADIUS_M의 호 위에서는 곡률 규칙이 속도를 낮춰 앞보기가 0.10 m로 돌아오고,
     앞보기 점은 asin(L / 2R)만큼 옆에 있다. 이것이 rotate_to_heading_min_angle보다 작아야 RPP가
-    호 위에서 서서 돌지 않고 호를 따라 돈다."""
+    호 위에서 서서 돌지 않고 호를 따라 돈다.
+    여기서 견주는 것은 속도를 다 낮춘 뒤의 상태다(곡률 규칙의 후보 속도 = 원하는 속도 x R /
+    min_radius, 바닥은 regulated_linear_scaling_min_speed). 호에 들어서는 동안의 속도는 RPP와
+    velocity_smoother가 정하므로 설정만으로는 고정하지 못한다: Gazebo G3와 G4로 쟀다."""
     c = params("controller_server")
     for name in ("FollowPath", "FollowPathThrough", "FollowPathReverse"):
         rpp = c[name]
@@ -139,7 +142,8 @@ def test_fixed_lines_look_the_same_time_ahead_at_every_speed_and_take_the_arcs_w
         assert _lookahead(rpp, 0.20) == pytest.approx(0.16), name
         assert _lookahead(rpp, 0.25) == pytest.approx(0.20), name
         assert rpp["use_regulated_linear_velocity_scaling"] is True, name
-        on_arc = rpp["desired_linear_vel"] * TURN_RADIUS_M / rpp["regulated_linear_scaling_min_radius"]
+        on_arc = max(rpp["regulated_linear_scaling_min_speed"], rpp["desired_linear_vel"]
+                     * TURN_RADIUS_M / rpp["regulated_linear_scaling_min_radius"])
         assert _lookahead(rpp, on_arc) == 0.10, name
         carrot = math.asin(_lookahead(rpp, on_arc) / (2 * TURN_RADIUS_M))
         assert carrot + 0.1 < rpp["rotate_to_heading_min_angle"] < math.pi / 4, name
