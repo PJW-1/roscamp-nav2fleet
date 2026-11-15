@@ -73,6 +73,17 @@ def test_a_retreat_out_of_the_dock_is_the_first_segment():
     assert "RETREAT_START" in codes and "RETREAT_DONE" in codes and not world.problems
 
 
+def test_an_order_segment_that_finishes_forgets_how_long_something_was_behind():
+    world = Harness(params=ON)
+    world.step()
+    world.call("WORK", "pinky2")
+    world.run(0.5)
+    m = world.traffic._robots["pinky2"]
+    m.behind_since = 0.0
+    assert world.run_until(lambda: world.view("pinky2")["node"] != "P-2", 30.0)
+    assert m.behind_since is None
+
+
 def test_an_order_retreat_that_finishes_forgets_how_long_something_was_behind():
     """Codex 검수(2026-11-15): 뒤가 막혀 기다리기 시작한 시각을 order의 후진 조각이 끝날 때 지우지
     않으면, 다음 후진에서 뒤가 막혔을 때 옛 시각부터 blocked_timeout_s를 세어 바로 실패로 친다."""

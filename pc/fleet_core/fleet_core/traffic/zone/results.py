@@ -127,11 +127,11 @@ class Results:
             m.attempts = 0
         m.not_sent_warned = False
         m.node, m.off_node = goal.end, None
+        m.behind_since = None
         if m.trip is not None:
             m.trip.done = m.trip.sent = goal.links
         if goal.kind == RETREAT:
             m.retreat_to = ""
-            m.behind_since = None
             self._event("INFO", "RETREAT_DONE", f"stands at {goal.end}", m.name)
 
     # ---- goal 잊기와 끝 지점에 서 있는지 판정 ----

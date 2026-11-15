@@ -52,11 +52,11 @@ class OrderAnswers:
                 via = trip.links[first].via
                 trip.done = max(trip.done, end)
                 m.node = trip.links[end - 1].b
+                m.behind_since = None
                 self._event("INFO", "SEGMENT_DONE", f"{mo.id} seq {number} ({via}) to {m.node}",
                             m.name)
                 if via == RETREAT:
                     m.retreat_to = ""
-                    m.behind_since = None
                     self._event("INFO", "RETREAT_DONE", f"stands at {m.node}", m.name)
         mo.done_seq = max(mo.done_seq, seq)
 

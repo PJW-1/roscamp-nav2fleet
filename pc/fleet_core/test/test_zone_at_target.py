@@ -91,6 +91,34 @@ def test_a_retreat_stopped_by_something_behind_backs_out_again_when_it_is_gone()
     assert world.view("pinky1")["node"] == "N_W" and not world.problems
 
 
+def test_a_robot_sent_somewhere_else_forgets_how_long_something_was_behind():
+    """Codex 검수(2026-11-15): 뒤가 막혀 기다리던 로봇의 배차가 취소되면 가던 길은 버리는데 기다린
+    시각은 남았다. 나중의 다른 후진이 그 시각부터 blocked_timeout_s를 셌다."""
+    world = Harness(starts={"pinky1": "W", "pinky2": "P-2", "pinky3": "P-3"})
+    world.report()
+    call = world.call("OUTBOUND", "pinky1")
+    world.run(0.5)
+    [retreat] = world.sent(RetreatCmd, "pinky1")
+    world.traffic.on_retreat_result("pinky1", retreat.goal_id, False, "OBSTACLE_BEHIND")
+    m = world.traffic._robots["pinky1"]
+    assert m.behind_since is not None
+    world.traffic.on_dispatch_cancel(call)
+    world.traffic.tick_pick()
+    assert m.behind_since is None
+
+
+def test_a_move_that_arrives_forgets_how_long_something_was_behind():
+    """기다린 시각은 이어지는 후진 실패에만 쓴다. 다른 구간이 끝나면 남지 않는다."""
+    world = Harness()
+    world.step()
+    world.call("WORK", "pinky2")
+    world.run(0.5)
+    m = world.traffic._robots["pinky2"]
+    m.behind_since = 0.0
+    assert world.run_until(lambda: world.view("pinky2")["node"] != "P-2", 30.0)
+    assert m.behind_since is None
+
+
 def test_a_move_left_open_short_of_its_end_is_still_a_stall():
     world = Harness()
     world.step()
