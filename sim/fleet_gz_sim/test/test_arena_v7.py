@@ -282,7 +282,7 @@ def test_v7_the_top_of_divider_3_is_kept_out_for_nav2(site):
 
 
 # ---- 칸막이 1, 2 위 끝: 칸을 나와 동쪽으로 가는 Nav2 goal 경로 ----
-DIVIDER_1_KEEP = (0.19, 0.0, 0.31, 0.20)  # 칸막이 가운데에서 0.06: 양쪽 칸에 선 로봇 발자국 밖
+DIVIDER_1_KEEP = (0.19, 0.0, 0.31, 0.20)  # 칸막이 가운데에서 0.06: 5 cm 칸 둘(0.20~0.30)이 닫힌다
 DIVIDER_2_KEEP = (0.45, 0.0, 0.57, 0.20)
 
 
@@ -320,6 +320,18 @@ def test_v7_a_robot_that_left_its_bay_passes_the_next_divider_only_above_it(
     assert _joined(grid, (x, y), east), (x, y)
     above = (divider_x - 0.10, 0.20, divider_x + 0.10, 0.99)
     assert not _joined(grid, (x, y), east, shut=[above]), (x, y)
+
+
+@pytest.mark.parametrize("bay", ["P-1", "P-2", "P-3"])
+@pytest.mark.parametrize("dx", [-0.05, -0.02, 0.0, 0.02, 0.05])
+@pytest.mark.parametrize("y", [0.12, 0.15, 0.165, 0.195])
+def test_v7_the_cell_a_robot_leaves_its_bay_from_is_not_kept_out(site, bay, dx, y):
+    """Codex 검수(2026-11-15): 칸막이 차단이 칸 안이나 칸을 나온 로봇의 출발 칸을 닫으면 Nav2
+    계획이 실패한다. 칸 가운데에서 0.05 m까지 치우친 자리, y 0.12~0.20의 5 cm 칸은 keepout이
+    아니다(낮은 y에서 칸막이 inflation에 걸리는 칸은 이 차단과 상관없이 전부터 있었다)."""
+    _, _, kept = _costmap()
+    i, j = _cell(site.node_pose(bay)[0] + dx, y)
+    assert not kept[j][i], (bay, dx, y)
 
 
 @pytest.mark.parametrize("a, b", [("E-3", "Q1"), ("E-3", "Q2"), ("E-1", "Q2"), ("E-3", "O_OUT"),
