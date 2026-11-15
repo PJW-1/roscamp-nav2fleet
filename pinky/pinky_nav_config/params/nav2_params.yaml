@@ -140,7 +140,7 @@ controller_server:
       # 경기에서 MOVING 시간의 절반(1058 s 가운데 503 s)을 0.06 m/s 아래로 기었다. 0.12 m/s에서
       # 서는 데 3 cm면 된다. FollowPathReverse도 같은 값이다(test_nav_config가 견준다)
       # 0.10(2026-11-15, 0.2에서): v7의 고정 경로는 0.14~0.40 m라 0.2 m도 구간의 절반을 덮었다.
-      # 바닥 속도도 0.08로 올렸다. Gazebo 급행 판 317.6 s -> 303.6 s(회전 2.0 rad/s와 함께),
+      # 바닥 속도도 0.08로 올렸다. Gazebo 급행 판 317.6 s -> 303.6 s(주행 계획서 6.8),
       # 도킹 오차는 그대로(x 평균 2.9 cm, y 1.9 cm). 실물의 서는 거리는 재지 않았다
       approach_velocity_scaling_dist: 0.10
       use_collision_detection: true
