@@ -94,14 +94,29 @@ def test_a_zone_held_by_one_robot_is_covered_in_its_color():
 
 def test_a_zone_held_by_several_robots_gets_an_outline_and_their_names():
     view = fv.FleetView(SITE)
-    view.set_zones([Zone("HALL", "pinky1,pinky3")])
+    view.set_zones([Zone("EXPRESS", "pinky1,pinky3")])
     specs = view.specs(now=0.0)
     assert not by_ns(specs, "zone_held")
     [outline] = by_ns(specs, "zone_shared_by")
-    assert outline.kind == "LINE_LIST" and len(outline.points) == 8 * len(SITE.zones["HALL"].rects)
+    assert outline.kind == "LINE_LIST"
+    assert len(outline.points) == 8 * len(SITE.zones["EXPRESS"].rects)
     [text] = by_ns(specs, "zone_holder")
-    assert text.text == "HALL: pinky1, pinky3"
+    assert text.text == "EXPRESS: pinky1, pinky3"
     assert fv.holders_of("pinky1,pinky3") == ["pinky1", "pinky3"] and fv.holders_of("") == []
+
+
+@pytest.mark.parametrize("holder, names",
+                         [("pinky1", "pinky1"), ("pinky1,pinky3", "pinky1, pinky3")])
+def test_the_shared_floor_is_only_named_never_covered_or_outlined(holder, names):
+    """2026-11-16: 한 대가 HALL을 쥐면 바닥 전부가 그 로봇 색으로 덮여 다 잠긴 것처럼 보였다.
+    HALL은 세 대가 함께 쓰는 구역이라 덮지 않고 쥔 로봇의 이름만 적는다."""
+    assert SITE.zones["HALL"].kind == SHARED
+    view = fv.FleetView(SITE)
+    view.set_zones([Zone("HALL", holder)])
+    specs = view.specs(now=0.0)
+    assert not by_ns(specs, "zone_held") and not by_ns(specs, "zone_shared_by")
+    [text] = by_ns(specs, "zone_holder")
+    assert text.text == f"HALL: {names}"
 
 
 def test_a_waiting_queue_is_listed_and_a_free_zone_draws_nothing():

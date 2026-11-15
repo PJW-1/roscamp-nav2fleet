@@ -3,8 +3,9 @@
 구역 지도(fleet_core.fleet_map)를 그린다.
 - 구역: 종류마다 옅은 바닥색(shared 회색, lane 파랑, dock 호박색).
 - 고정 경로(FollowPath, Retreat)는 얇은 선, 지점은 점과 이름.
-- 쥔 구역: 구역 바닥을 쥔 로봇 색으로 덮는다. 여러 대가 쥔 구역(shared, lane: holder가
-  "pinky1,pinky3")은 흰 테두리와 이름 글로 그린다. 기다리는 로봇이 있으면 그 목록도 글로.
+- 쥔 구역: 구역 바닥을 쥔 로봇 색으로 덮는다. 여러 대가 쥔 lane(holder가 "pinky1,pinky3")은
+  흰 테두리와 이름 글로 그린다. 함께 쓰는 바닥(shared)은 덮지도 두르지도 않고 이름 글만 적는다.
+  기다리는 로봇이 있으면 그 목록도 글로.
 - 로봇: 몸, 방향, 상태 글. 지금 가는 곳(핑키가 보고한 current_goal의 지점이나 스테이션 도크)은
   로봇 색 깃대와 로봇에서 그곳까지의 가는 선.
 - 앞길(RobotStatus.base, horizon: 지점 이름): base(구역을 쥔 길)는 로봇 위치에서 시작하는 로봇 색
@@ -224,12 +225,13 @@ class FleetView:
                 continue
             names = holders_of(view.holder)
             cx, cy = _rect_center(zone.rects[0])
-            if len(names) == 1:
+            covered = [] if zone.kind == SHARED else names
+            if len(covered) == 1:
                 color = _faded(robot_color(names[0]), 0.45)
                 for j, ((x, y), size) in enumerate(zone_cubes(zone.rects, 0.004)):
                     specs.append(Spec("zone_held", i * 10 + j, "CUBE", (x, y, 0.003, 0.0),
                                       size, color))
-            elif names:
+            elif covered:
                 specs.append(Spec("zone_shared_by", i, "LINE_LIST", (0.0, 0.0, 0.006, 0.0),
                                   (0.012, 0.0, 0.0), WHITE,
                                   tuple(p for r in zone.rects for p in _outline(r))))
