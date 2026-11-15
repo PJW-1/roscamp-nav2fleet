@@ -162,13 +162,16 @@ def test_the_through_controller_is_followpath_without_the_approach_slow_down():
         k: v for k, v in normal.items() if k != "approach_velocity_scaling_dist"}
 
 
-def test_a_fixed_line_slows_down_only_in_its_last_0_2_m():
+def test_a_fixed_line_slows_down_only_in_its_last_0_1_m():
     """사용자 2026-11-14("계속해서 개선해"): 끝 0.6 m 앞부터 줄이면 Gazebo v7 경기(order 모델 끔)
-    에서 MOVING 1058 s 가운데 503 s를 0.06 m/s 아래로 기었다. 0.12 m/s에서 0.25 m/s^2로 서는 데
-    3 cm면 되므로 마지막 0.2 m 안에서만 줄인다. 후진은 0.05 m/s라 이 값이 바꾸는 것이 없다."""
+    에서 MOVING 1058 s 가운데 503 s를 0.06 m/s 아래로 기었다. 그때 0.2 m로 줄였다.
+    2026-11-15: v7의 고정 경로는 0.14~0.40 m로 짧아 0.2 m도 구간의 절반을 덮었다. 0.10 m 앞에서
+    줄이고 0.08 m/s 아래로는 내리지 않는다(Gazebo 급행 판 317.6 s -> 303.6 s, 도킹 오차는 그대로).
+    후진은 0.05 m/s라 이 값이 바꾸는 것이 없다."""
     c = params("controller_server")
     for name in ("FollowPath", "FollowPathReverse"):
-        assert c[name]["approach_velocity_scaling_dist"] == 0.2, name
+        assert c[name]["approach_velocity_scaling_dist"] == 0.10, name
+        assert c[name]["min_approach_linear_velocity"] == 0.08, name
 
 
 REVERSE_ONLY = {"desired_linear_vel": 0.05, "use_rotate_to_heading": False,
@@ -303,6 +306,19 @@ def test_the_goal_controller_keeps_its_carrot_short_at_0_20_and_brakes_late():
     assert goal["use_regulated_linear_velocity_scaling"] is True
     assert goal["regulated_linear_scaling_min_radius"] == 0.25
     assert goal["approach_velocity_scaling_dist"] == 0.2
+
+
+def test_the_goal_controller_turns_in_place_at_2_rad_s():
+    """2026-11-15: 넓은 구역에서는 주행 방식이 바뀌는 곳(O_OUT, 칸 입구)마다 55~175도를 제자리에서
+    돈다. 1.0 rad/s에서 2.0 rad/s로 올렸다(바퀴 속도 0.096 m/s). 고정 경로 셋은 1.0 그대로다:
+    1.8로 올렸던 판(G2)에서 급행이 흔들렸다."""
+    c = params("controller_server")
+    goal = c["FollowPathGoal"]
+    if not goal["plugin"].endswith("RegulatedPurePursuitController"):
+        pytest.skip("not an RPP")
+    assert (goal["rotate_to_heading_angular_vel"], goal["max_angular_accel"]) == (2.0, 6.4)
+    for name in ("FollowPath", "FollowPathThrough", "FollowPathReverse"):
+        assert c[name]["rotate_to_heading_angular_vel"] == 1.0, name
 
 
 def test_behavior_server_offers_what_the_tree_and_pinky_fsm_call():
