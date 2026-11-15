@@ -15,6 +15,8 @@ from fleet_core.traffic.mission import (
     RETREAT,
 )
 
+from .trips import along
+
 
 # ---- 지금 goal과 맞는 로봇 찾기와 이동 결과 ----
 class Results:
@@ -153,6 +155,14 @@ class Results:
             return self._gap(m, goal.end) <= limit
         return self._link_reached(m, m.trip.links[goal.links - 1], limit)
 
+    # ---- 뒤가 막혀 선 로봇이 선을 따라 끝에 못 미쳤는지 ----
+    def _short_of_end(self, m) -> bool:
+        goal = m.goal
+        if m.trip is None or self._via(m) == NAV_GOAL:
+            return False
+        link = m.trip.links[goal.links - 1]
+        return link.length - along(link, m.x, m.y) > self.params.arrival_tolerance_m / 2
+
     def _arrived_anyway(self, m, reason: str) -> None:
         goal = m.goal
         self._event("WARN", "GOAL_ENDED_AT_TARGET",
@@ -162,11 +172,13 @@ class Results:
 
     # ---- 이동 실패 사유별 처리 ----
     def _move_failed(self, m, reason: str) -> None:
-        if reason not in (HEARTBEAT_LOST, NOT_AT_TARGET) and self._stands_at_end(m):
+        behind = reason == "OBSTACLE_BEHIND"
+        if (reason not in (HEARTBEAT_LOST, NOT_AT_TARGET) and self._stands_at_end(m)
+                and not (behind and self._short_of_end(m))):
             self._arrived_anyway(m, reason)
             return
         self._forget_goal(m)
-        if reason == "OBSTACLE_BEHIND" and self._waits_behind(m):
+        if behind and self._waits_behind(m):
             return
         if reason == HEARTBEAT_LOST:
             m.retry_at = self._clock() + self.params.move_retry_wait_s

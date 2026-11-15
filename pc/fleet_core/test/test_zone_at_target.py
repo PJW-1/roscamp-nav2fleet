@@ -57,6 +57,40 @@ def test_a_retreat_that_fails_short_of_its_end_is_still_a_failed_attempt():
     assert world.view("pinky1")["node"] == "W"
 
 
+def stopped_behind_short_of_the_end():
+    """pinky1이 작업 도크에서 N_W로 물러나다가 끝에서 0.14 m 안(도착 허용 거리 0.15 m 안, 갈림목
+    안)에 서고, 뒤에 무엇이 있다고 답한다."""
+    world, retreat, answer = backing_out(silent_end=False)
+    bot, end = world.bots["pinky1"], world.site.node_pose("N_W")
+    assert world.run_until(lambda: math.dist((bot.x, bot.y), end) <= 0.14, 20.0)
+    assert math.dist((bot.x, bot.y), end) > world.params.arrival_tolerance_m / 2
+    bot.cmd, bot.points = None, []
+    world.step()
+    answer("pinky1", retreat.goal_id, False, "OBSTACLE_BEHIND")
+    world.step()
+    return world, retreat
+
+
+def test_a_retreat_stopped_by_something_behind_short_of_its_end_is_not_taken_as_arrived():
+    """2026-11-15 order_burst 통합 판: 출고 도크에서 N_E로 물러나던 로봇이 뒤로 지나가는 로봇
+    때문에 끝에서 0.2 m 앞(갈림목 안)에 섰다. 잡음 섞인 보고 하나가 끝에서 0.143 m로 보여 닿았다고
+    쳤고, 갈림목 안에서 받은 Nav2 goal이 세 번 실패해 격리됐다. 뒤가 막혀 선 로봇은 선을 따라
+    남은 길이 허용 거리의 절반을 넘으면 닿은 것이 아니다: 뒤가 빌 때까지 기다린다."""
+    world, _ = stopped_behind_short_of_the_end()
+    codes = world.codes("pinky1")
+    assert "GOAL_ENDED_AT_TARGET" not in codes and "RETREAT_DONE" not in codes
+    assert "RETREAT_WAIT" in codes and "GOAL_RETRY" not in codes
+    assert world.view("pinky1")["node"] == "W"
+    assert not world.sent(MoveCmd, "pinky1"), "no Nav2 goal from inside the junction"
+
+
+def test_a_retreat_stopped_by_something_behind_backs_out_again_when_it_is_gone():
+    world, retreat = stopped_behind_short_of_the_end()
+    assert world.run_until(lambda: len(world.sent(RetreatCmd, "pinky1")) == 2, 10.0)
+    assert world.run_until(lambda: "RETREAT_DONE" in world.codes("pinky1"), 20.0)
+    assert world.view("pinky1")["node"] == "N_W" and not world.problems
+
+
 def test_a_move_left_open_short_of_its_end_is_still_a_stall():
     world = Harness()
     world.step()
