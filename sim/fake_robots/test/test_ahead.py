@@ -139,6 +139,8 @@ def test_a_clock_that_went_back_does_not_keep_a_robot_yielding():
     올 때까지 양보했다."""
     moving = seen(seen(None, 1.00, 0.50, 30.0), 1.02, 0.50, 30.1)
     assert not yields(1.25, 0.50, [moving], 2.0)
+    standing = seen(moving, 1.02, 0.50, 2.0)
+    assert not yields(1.25, 0.50, [standing], 30.5), "the old time comes round again"
 
 
 @pytest.mark.parametrize("late_ticks", [3, 4])

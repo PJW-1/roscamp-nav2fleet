@@ -26,7 +26,8 @@ def seen(before, x, y, t):
     if before is None:
         return (x, y, t, 0.0, 0.0, -math.inf)
     dt = t - before[2]
-    moved_at = before[5] if math.dist((x, y), before[:2]) < 1e-6 else t
+    stood = math.dist((x, y), before[:2]) < 1e-6
+    moved_at = t if not stood else before[5] if dt >= 0.0 else -math.inf
     if dt <= 0.0:
         return (x, y, t, 0.0, 0.0, moved_at)
     vx, vy = (x - before[0]) / dt, (y - before[1]) / dt
