@@ -17,7 +17,7 @@ from .world.runs import FOLLOW_BLOCKED_S, GAP_M, LOOK_M
 
 SEEN_FOR_S = 0.3
 LIFTED_MPS = 1.0
-YIELD_M = 0.30
+YIELD_M = 0.26
 YIELD_FOR_S = 1.0
 
 

@@ -113,11 +113,12 @@ def test_a_robot_lifted_away_or_long_silent_is_not_carried_on():
 
 def test_a_robot_yields_to_one_that_moves_close_by():
     """ROS 가짜 핑키 둘이 마당에서 마주치면 서로 늦게 본 자리를 피해 동시에 움직이다가 몸이 겹쳤다.
-    가까이(0.30 m)에서 방금(1초 안) 움직인 로봇이 있으면 양보하는 쪽은 선다. 누가 양보하는지는
-    노드가 이름 순서로 정한다."""
+    가까이(0.26 m)에서 방금(1초 안) 움직인 로봇이 있으면 양보하는 쪽은 선다. 누가 양보하는지는
+    노드가 이름 순서로 정한다. 0.30 m였을 때는 나란한 주차 칸(0.28 m)에서 떠나는 로봇까지 세워
+    stuck_robot 통합 판이 3초 늦어졌다."""
     moving = seen(seen(None, 1.00, 0.50, 3.0), 1.02, 0.50, 3.1)
     assert yields(1.25, 0.50, [moving], 3.1)
-    assert not yields(1.40, 0.50, [moving], 3.1), "it is far"
+    assert not yields(1.30, 0.50, [moving], 3.1), "the next parking bay is 0.28 m away"
     assert yields(1.25, 0.50, [moving], 4.0)
     assert not yields(1.25, 0.50, [moving], 4.2), "it has stood for a second"
     standing = seen(seen(None, 1.00, 0.50, 3.0), 1.00, 0.50, 3.1)
