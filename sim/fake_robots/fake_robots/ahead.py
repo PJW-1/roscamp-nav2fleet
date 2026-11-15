@@ -2,6 +2,10 @@
 
 world.runs.blocked_ahead와 같은 규칙을 Motion 위에서 쓴다. nav_goal 모드는 충돌 검사를 켠 Nav2가,
 path 모드는 핑키의 앞 물체 검사가 로봇을 세우는 것을 흉내 낸다(world.FollowRun).
+
+world는 로봇을 차례로 움직여 서로의 지금 자리를 본다. ROS 가짜 핑키는 따로 돌면서 남의 자세를
+0.1~0.2초 늦게 받으므로, 지금 자리를 어림하고(seen, where_now) nav_goal 모드에서는 가까이서 방금
+움직인 앞선 이름의 로봇에게 양보한다(yields). 실물 Nav2에는 없는 순서 규칙이다.
 """
 from __future__ import annotations
 
@@ -9,6 +13,38 @@ import math
 
 from .world.geom import ahead, path_gap
 from .world.runs import FOLLOW_BLOCKED_S, GAP_M, LOOK_M
+
+
+SEEN_FOR_S = 0.3
+LIFTED_MPS = 1.0
+YIELD_M = 0.30
+YIELD_FOR_S = 1.0
+
+
+# ---- 늦게 받는 남의 자세로 지금 자리 어림하기 ----
+def seen(before, x, y, t):
+    if before is None:
+        return (x, y, t, 0.0, 0.0, -math.inf)
+    dt = t - before[2]
+    moved_at = before[5] if math.dist((x, y), before[:2]) < 1e-6 else t
+    if dt <= 0.0:
+        return (x, y, t, before[3], before[4], moved_at)
+    vx, vy = (x - before[0]) / dt, (y - before[1]) / dt
+    if dt > SEEN_FOR_S or math.hypot(vx, vy) > LIFTED_MPS:
+        vx = vy = 0.0
+    return (x, y, t, vx, vy, moved_at)
+
+
+def where_now(view, t):
+    x, y, at, vx, vy, _ = view
+    age = min(max(t - at, 0.0), SEEN_FOR_S)
+    return x + vx * age, y + vy * age
+
+
+# ---- 가까이서 방금 움직인 로봇에게 양보하기 ----
+def yields(x, y, views, t) -> bool:
+    return any(t - view[5] < YIELD_FOR_S and math.dist((x, y), where_now(view, t)) <= YIELD_M
+               for view in views)
 
 
 def nothing_ahead(motion, radius, step, others) -> bool:

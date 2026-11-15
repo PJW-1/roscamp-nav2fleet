@@ -44,7 +44,7 @@ class PinkyRetreat:
     def _retreat_step(self, t: float, dt: float, goal: _Goal) -> None:
         radius = self._recovery.p.robot_radius_m
         wall = self._faults.behind(t)
-        others = [(x, y, radius) for x, y in list(self._others.values())]
+        others = self._others_discs()
         # 자기 복구의 뒤 보기와 같은 검사(recovery.py). 남은 길 전체에서 몸이 닿는가
         if ((wall is not None and wall <= goal.left + radius)
                 or self._recovery._something_behind(self._motion, goal.left, others)):

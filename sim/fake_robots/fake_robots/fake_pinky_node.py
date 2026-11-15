@@ -23,6 +23,7 @@ from rclpy.executors import MultiThreadedExecutor
 from rclpy.node import Node
 from std_msgs.msg import Header
 
+from fake_robots.ahead import seen, where_now, yields
 from fake_robots.battery import Battery
 from fake_robots.common import (
     TRUTH_TOPIC,
@@ -75,7 +76,7 @@ class FakePinkyNode(PinkyGoals, PinkyRetreat, PinkyReport, Node):
             f.name: self.declare_parameter(f.name, f.default).value
             for f in fields(RecoveryParams)}))
         self._space = FreeSpace(site, self._recovery.p.robot_radius_m)  # nav_goal 모드의 길 찾기
-        self._others = {}  # 다른 로봇의 진실 자세. 뒤에 있으면 후진하지 않는다
+        self._others = {}  # 다른 로봇의 진실 자세와 받은 때, 속도(ahead.seen)
         self._sc = ScenarioClock(self)
         self._lock = threading.RLock()
         self._alive = True
@@ -140,7 +141,8 @@ class FakePinkyNode(PinkyGoals, PinkyRetreat, PinkyReport, Node):
         return self._alive and rclpy.ok()
 
     def _on_other(self, msg: RobotState) -> None:
-        self._others[msg.robot_id] = (msg.pose.x, msg.pose.y)
+        self._others[msg.robot_id] = seen(
+            self._others.get(msg.robot_id), msg.pose.x, msg.pose.y, self._sc.now())
 
     # -- the heartbeat ------------------------------------------------------------------
 
@@ -156,7 +158,12 @@ class FakePinkyNode(PinkyGoals, PinkyRetreat, PinkyReport, Node):
 
     def _others_discs(self) -> list[tuple[float, float, float]]:
         radius = self._recovery.p.robot_radius_m
-        return [(x, y, radius) for x, y in list(self._others.values())]
+        t = self._sc.now() + 1.0 / CONTROL_RATE_HZ
+        return [(*where_now(view, t), radius) for view in list(self._others.values())]
+
+    def _yields(self, t: float) -> bool:
+        first = [view for name, view in list(self._others.items()) if name < self.robot_id]
+        return yields(self._motion.x, self._motion.y, first, t)
 
     # -- simulation ---------------------------------------------------------------------
 
