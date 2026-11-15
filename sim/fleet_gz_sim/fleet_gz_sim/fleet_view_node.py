@@ -1,8 +1,8 @@
 """관제 화면 노드(시뮬레이션 전용): 함대 전체를 RViz 하나에 마커로 그린다.
 
-/fleet/robots, /fleet/zones, 로봇마다 /<robot>/state(current_goal)와
-자세(기본은 Gazebo 실제 위치 /<robot>/sim/truth, map 기준)를 받아 /fleet_view/markers에
-5 Hz로 낸다.
+/fleet/robots, /fleet/zones, 로봇마다 /<robot>/state(current_goal), Nav2가 계획한 경로
+/<robot>/plan과 자세(기본은 Gazebo 실제 위치 /<robot>/sim/truth, map 기준)를 받아
+/fleet_view/markers에 5 Hz로 낸다.
 로봇 TF는 네임스페이스 안에 있으므로 전역 /tf_static에 map -> fleet_view를 내서
 네임스페이스 없는 RViz에도 map 프레임이 있게 한다.
 """
@@ -14,7 +14,7 @@ from fleet_core.common.contract import load_contract, to_ros_qos
 from fleet_core.traffic.site import load_site
 from fleet_interfaces.msg import RobotState, RobotStatusArray, ZoneStateArray
 from geometry_msgs.msg import Point, TransformStamped
-from nav_msgs.msg import Odometry
+from nav_msgs.msg import Odometry, Path
 from rclpy.executors import ExternalShutdownException
 from rclpy.node import Node
 from rclpy.qos import qos_profile_sensor_data
@@ -74,6 +74,9 @@ class FleetViewNode(Node):
                 RobotState, contract.name("robot_state", pinky=robot),
                 lambda msg, robot=robot: self.view.set_goal(robot, msg.current_goal),
                 to_ros_qos(contract.qos("robot_state")))
+            self.create_subscription(
+                Path, f"/{robot}/plan",
+                lambda msg, robot=robot: self._on_plan(robot, msg), 5)
         if self.pose_source == "truth":
             for robot in robots:
                 self.create_subscription(
@@ -99,6 +102,10 @@ class FleetViewNode(Node):
             now = self._now()
             for r in msg.robots:
                 self.view.set_pose(r.robot_id, r.x, r.y, r.yaw, now)
+
+    def _on_plan(self, robot, msg):
+        self.view.set_plan(robot, [(p.pose.position.x, p.pose.position.y) for p in msg.poses],
+                           self._now())
 
     def _on_truth(self, robot, msg):
         p = msg.pose.pose

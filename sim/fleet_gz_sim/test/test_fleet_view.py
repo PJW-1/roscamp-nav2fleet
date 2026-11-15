@@ -193,6 +193,70 @@ def test_the_way_starts_at_the_drawn_robot_when_a_pose_is_known():
     assert base.points[0] == (0.41, 0.66)
 
 
+V7 = load_fleet_map("v7")
+
+
+def _corners(view, ns="way_base"):
+    [line] = by_ns(view.specs(now=0.0), ns)
+    return [a for a, _ in _pairs(line.points)] + [line.points[-1]]
+
+
+def test_a_node_passed_inside_one_nav_goal_does_not_bend_the_way():
+    """2026-11-16: 관제의 길 E-1 -> E-3 -> Q2는 Nav2 goal 하나(Q2)로 합쳐 나가는데, 선이 E-3에서
+    꺾여 로봇이 그 지점을 꼭 지나는 것처럼 보였다. 로봇이 받은 goal의 끝까지 곧게 잇는다."""
+    view = fv.FleetView(V7)
+    view.set_statuses([Status("pinky1", "MOVING", x=0.12, y=0.24, base=["E-3", "Q2"],
+                              horizon=["Q1", "W"])])
+    view.set_goal("pinky1", "Q2")
+    assert _corners(view) == [(0.12, 0.24), V7.node_pose("Q2")]
+    [horizon] = by_ns(view.specs(now=0.0), "way_horizon")
+    assert horizon.points[0] == pytest.approx(V7.node_pose("Q2"))
+
+
+def test_a_bay_door_reached_on_a_fixed_path_stays_on_the_way():
+    view = fv.FleetView(V7)
+    view.set_statuses([Status("pinky1", "MOVING", x=0.64, y=0.10, base=["E-3", "Q2"])])
+    view.set_goal("pinky1", "E-3")
+    assert _corners(view) == [(0.64, 0.10), V7.node_pose("E-3"), V7.node_pose("Q2")]
+
+
+def test_a_later_nav_goal_is_drawn_straight_to_its_end():
+    view = fv.FleetView(V7)
+    view.set_statuses([Status("pinky1", "MOVING", x=0.15, y=0.70,
+                              base=["O_OUT", "E-3", "Q2"])])
+    view.set_goal("pinky1", "O_OUT")
+    assert _corners(view) == [(0.15, 0.70), V7.node_pose("O_OUT"), V7.node_pose("Q2")]
+
+
+def test_a_bay_door_before_backing_in_stays_on_the_way():
+    view = fv.FleetView(V7)
+    view.set_statuses([Status("pinky1", "MOVING", x=0.15, y=0.62, base=["E-3", "P-3"])])
+    view.set_goal("pinky1", "E-3")
+    assert _corners(view) == [(0.15, 0.62), V7.node_pose("E-3"), V7.node_pose("P-3")]
+
+
+def test_a_waiting_robot_without_a_goal_shows_the_merged_way_from_its_node():
+    view = fv.FleetView(V7)
+    view.set_statuses([Status("pinky1", x=0.12, y=0.24, horizon=["E-3", "Q2"])])
+    [horizon] = by_ns(view.specs(now=0.0), "way_horizon")
+    slope = (0.16 - 0.24) / (1.66 - 0.12)
+    assert horizon.points[0] == pytest.approx((0.12, 0.24))
+    assert all(y == pytest.approx(0.24 + (x - 0.12) * slope) for x, y in horizon.points)
+
+
+def test_the_plan_nav2_made_is_drawn_while_it_is_fresh():
+    """Nav2가 실제로 계획한 경로(로봇의 plan 토픽). 넓은 구역 goal 동안 1초마다 새로 오고,
+    끊기면 지운다: 고정 경로를 달리는 동안 옛 계획이 남아 보이지 않게."""
+    view = fv.FleetView(V7)
+    view.set_plan("pinky2", [(0.2, 0.3), (0.9, 0.3), (1.66, 0.16)], now=10.0)
+    [plan] = by_ns(view.specs(now=11.0), "nav_plan")
+    assert plan.kind == "LINE_STRIP" and plan.points == ((0.2, 0.3), (0.9, 0.3), (1.66, 0.16))
+    assert plan.color[:3] == fv.robot_color("pinky2")[:3]
+    assert not by_ns(view.specs(now=10.0 + fv.PLAN_FRESH_S + 0.1), "nav_plan")
+    view.set_plan("pinky2", [(0.2, 0.3)], now=20.0)
+    assert not by_ns(view.specs(now=20.0), "nav_plan")
+
+
 def test_a_status_without_base_fields_and_an_unknown_node_are_skipped():
     @dataclass
     class Old:

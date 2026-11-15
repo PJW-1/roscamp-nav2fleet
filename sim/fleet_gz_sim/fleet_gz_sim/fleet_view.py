@@ -9,15 +9,20 @@
 - 로봇: 몸, 방향, 상태 글. 지금 가는 곳(핑키가 보고한 current_goal의 지점이나 스테이션 도크)은
   로봇 색 깃대와 로봇에서 그곳까지의 가는 선.
 - 앞길(RobotStatus.base, horizon: 지점 이름): base(구역을 쥔 길)는 로봇 위치에서 시작하는 로봇 색
-  실선, horizon(아직 허락받지 않은 길)은 base 끝에서 이어지는 옅고 가는 점선.
+  실선, horizon(아직 허락받지 않은 길)은 base 끝에서 이어지는 옅고 가는 점선. Nav2 goal 하나로
+  합쳐 나가는 지점(through)에서는 꺾지 않고 그 goal의 끝까지 곧게 잇는다.
+- Nav2가 계획한 경로(로봇의 plan 토픽): 로봇 색의 가는 선. 새 계획이 끊기면 지운다.
 """
 from __future__ import annotations
 
 from dataclasses import dataclass
 
-from fleet_core.fleet_map import DOCK, FOLLOW_PATH, LANE, RETREAT, SHARED
+from fleet_core.fleet_map import DOCK, FOLLOW_PATH, LANE, NAV_GOAL, RETREAT, SHARED
+from fleet_core.traffic.zone.trips import segment_end
 
 STALE_S = 3.0  # 이만큼 자세가 없으면 회색
+PLAN_FRESH_S = 2.5
+NEAR_NODE_M = 0.15
 DASH_M = 0.04  # horizon 점선의 칸 길이(선과 빈칸이 같은 길이)
 
 GRAY = (0.55, 0.55, 0.55, 1.0)
@@ -158,6 +163,28 @@ class _NoStatus:
     fsm_state: str = ""
 
 
+# ---- 로봇이 goal의 끝으로 받는 지점만 남기기 ----
+def stops(site, base, horizon, goal: str = "", near: str = "") -> tuple[list, list]:
+    route = [*base, *horizon]
+    at = route.index(goal) if goal in route else -1
+    lead = [near] if at < 0 and near else []
+    names = [*lead, *route]
+    links = [site.link(a, b) for a, b in zip(names, names[1:], strict=False)]
+    gone = {j for j in range(at) if site.nodes[route[j]].through
+            and links[j] is not None and links[j].via == NAV_GOAL}
+    split = len(base) - 1 + len(lead)
+    i = max(at, 0)
+    while i < len(links):
+        limit = split if i < split else len(links)
+        end = i + 1
+        if None not in links[i:limit] and links[i].via == NAV_GOAL:
+            end = segment_end(site, links, i, limit)
+        gone.update(j - len(lead) for j in range(i + 1, end))
+        i = end
+    return ([n for j, n in enumerate(base) if j not in gone],
+            [n for j, n in enumerate(horizon, len(base)) if j not in gone])
+
+
 class FleetView:
     """받은 상태를 모아 두고 그릴 때마다 명세 목록을 만든다. 시각은 초(호출하는 쪽 시계)."""
 
@@ -168,6 +195,7 @@ class FleetView:
         self._pose: dict = {}  # 로봇 -> (x, y, yaw, 시각)
         self._zones: list = []
         self._goal: dict = {}  # robot -> current_goal as the robot reports it
+        self._plan: dict = {}
 
     def set_statuses(self, statuses) -> None:
         self._status = {s.robot_id: s for s in statuses}
@@ -177,6 +205,9 @@ class FleetView:
 
     def set_goal(self, robot: str, goal: str) -> None:
         self._goal[robot] = goal
+
+    def set_plan(self, robot: str, points, now: float) -> None:
+        self._plan[robot] = (tuple((float(x), float(y)) for x, y in points), now)
 
     def goal_pose(self, goal: str):
         """(x, y) of a MoveTo target node or a Dock station, None if unknown."""
@@ -190,7 +221,21 @@ class FleetView:
 
     def specs(self, now: float) -> list[Spec]:
         return [*self._map, *self._zone_specs(), *self._goal_specs(), *self._way_specs(),
-                *self._robot_specs(now)]
+                *self._plan_specs(now), *self._robot_specs(now)]
+
+    def _goal_node(self, robot: str) -> str:
+        goal = self._goal.get(robot, "")
+        station = self.site.stations.get(goal)
+        return station.dock if station else goal
+
+    def _plan_specs(self, now: float) -> list[Spec]:
+        specs = []
+        for i, robot in enumerate(sorted(self._plan)):
+            points, at = self._plan[robot]
+            if len(points) > 1 and 0.0 <= now - at <= PLAN_FRESH_S:
+                specs.append(Spec("nav_plan", i, "LINE_STRIP", (0.0, 0.0, 0.025, 0.0),
+                                  (0.008, 0.0, 0.0), _faded(robot_color(robot), 0.9), points))
+        return specs
 
     def _way_specs(self) -> list[Spec]:
         specs = []
@@ -200,10 +245,13 @@ class FleetView:
                 start = self._pose[robot][:2]
             else:
                 start = (float(getattr(status, "x", 0.0)), float(getattr(status, "y", 0.0)))
-            base = [self.site.node_pose(n) for n in getattr(status, "base", ())
-                    if n in self.site.nodes]
-            horizon = [self.site.node_pose(n) for n in getattr(status, "horizon", ())
-                       if n in self.site.nodes]
+            base, horizon = stops(
+                self.site, [n for n in getattr(status, "base", ()) if n in self.site.nodes],
+                [n for n in getattr(status, "horizon", ()) if n in self.site.nodes],
+                self._goal_node(robot),
+                self.site.nearest_node(*start, radius=NEAR_NODE_M) or "")
+            base = [self.site.node_pose(n) for n in base]
+            horizon = [self.site.node_pose(n) for n in horizon]
             color = robot_color(robot)
             line = [start, *base]
             if base:
