@@ -266,6 +266,19 @@ def test_a_bay_door_before_backing_in_stays_on_the_way():
     assert _corners(view) == [(0.15, 0.62), V7.node_pose("E-3"), V7.node_pose("P-3")]
 
 
+def test_a_goal_already_sent_stays_on_the_way_when_the_granted_way_grows():
+    """Codex 검수(2026-11-16): 관제는 goal을 보낼 때의 허가 끝까지만 합친다. 그 뒤에 허가가 늘어도
+    로봇은 받은 goal의 끝에 서므로, 보고된 goal 지점은 선에 남는다."""
+    view = fv.FleetView(V7)
+    view.set_statuses([Status("pinky1", "MOVING", x=0.15, y=0.62, base=["E-1", "E-2", "E-3"])])
+    assert _corners(view) == [(0.15, 0.62), V7.node_pose("E-3")]
+    view.set_goal("pinky1", "E-2")
+    assert _corners(view) == [(0.15, 0.62), V7.node_pose("E-2"), V7.node_pose("E-3")]
+    view.set_statuses([Status("pinky1", "MOVING", x=0.15, y=0.62, base=["E-1", "E-2"],
+                              horizon=["E-3"])])
+    assert _corners(view) == [(0.15, 0.62), V7.node_pose("E-2")]
+
+
 def test_a_waiting_robot_without_a_goal_shows_the_merged_way_from_its_node():
     view = fv.FleetView(V7)
     view.set_statuses([Status("pinky1", x=0.12, y=0.24, horizon=["E-3", "Q2"])])

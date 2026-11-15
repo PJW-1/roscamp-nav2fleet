@@ -199,7 +199,8 @@ def stops(site, base, horizon, goal: str = "", arriving=()) -> tuple[list, list]
         limit = split if i < split else len(links)
         end = i + 1
         if links[i] is not None and links[i].via == NAV_GOAL:
-            known = next((j for j in range(i, limit) if links[j] is None), limit)
+            known = next((j for j in range(i, limit)
+                          if links[j] is None or (j > i and links[j].a == goal)), limit)
             end = segment_end(site, links, i, known)
         gone.update(range(i + 1, end))
         i = end
