@@ -38,13 +38,13 @@ class Watch:
         self._event("WARN", "GOAL_STALLED",
                     f"{m.goal.kind} goal {m.goal.id} open, no movement for {limit:.0f} s", m.name)
         m.stall_from = None
-        goal, at_end = m.goal, self._stands_at_end(m)
+        goal, end = m.goal, self._stands_at_end(m)
         self._cancel_goal(m)
         if goal.kind == BACKOFF:
             self._backoff_ended(m, STALLED)
-        elif at_end:
+        elif end is not None:
             m.goal = goal
-            self._arrived_anyway(m, STALLED)
+            self._arrived_anyway(m, STALLED, end)
             m.retry_at = now + p.arrival_settle_s
         else:
             self._goal_failed(m, STALLED)
