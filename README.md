@@ -113,7 +113,7 @@ Gazebo 쪽 인자와 장애물 일정은 [sim/fleet_gz_sim/README.md](sim/fleet_
 
 ## order 모델 (기본 켬, 2026-11-16)
 
-이동 하나를 조각 목록으로 한 번에 보내는 방식이다(VDA 5050의 order). 관제가 구역을 잡아 준 조각이 base이고, 아직 잡지 않은 조각이 horizon이다. 로봇은 base 안에서는 서지 않고 다음 조각으로 넘어간다. 관제는 로봇이 base 끝에 닿기 2초 전에 다음 구역을 잡아 update로 base를 늘리고, 못 잡으면 로봇이 base 끝에서 기다린다. 통신이 끊기면 로봇은 기본(`comm_loss_policy: stop`)으로 바로 서고, `base_end`로 두면 base 끝까지만 간다.
+이동 하나를 조각 목록으로 한 번에 보내는 방식이다(VDA 5050의 order). 관제가 구역을 잡아 준 조각이 base이고, 아직 잡지 않은 조각이 horizon이다. 로봇은 base 안에서는 서지 않고 다음 조각으로 넘어간다. 관제는 로봇이 base 끝에 닿기 2초 전에 다음 구역을 잡아 update로 base를 늘리고, 못 잡으면 로봇이 base 끝에서 기다린다. 통신이 끊기면 로봇은 기본(`comm_loss_policy: stop`)으로 heartbeat 시간 초과(1.5 s)를 알아챈 뒤 서고, `base_end`로 두면 base 끝까지만 간다.
 
 ```bash
 ros2 launch fleet_gz_sim gz.launch.py layout:=d2                          # Gazebo(order 켬이 기본)
