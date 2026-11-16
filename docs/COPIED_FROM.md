@@ -6,11 +6,11 @@
 |---|---|---|
 | `interfaces/fleet_interfaces` | 같음 | |
 | `pc/fleet_core`, `pc/fleet_manager`, `pc/central` | 같음 | 첫 커밋에는 `traffic/floor/*`와 레인 전용 파일도 들어 있고, 다음 커밋에서 지운다 |
-| `pinky/pinky_fsm`, `pinky/pinky_nav_config`, `pinky/pinky_dock` | 같음 | |
+| `pode/pode_fsm`, `pode/pode_nav_config`, `pode/pode_dock` | 같음 | |
 | `sim/fake_robots`, `sim/fleet_gz_sim` | 같음 | 옛 지도·site·시나리오는 다음 커밋에서 지운다 |
 | `tools/` | 같음 | `replay.py`와 시험 틀이 쓰는 것만 남긴다 |
 | `arm/`, `bringup/` | 같음 | |
-| `docs/핑키_계약.md`, `docs/실측_2026-11-10.md`, `docs/GG_공통설계.md` | 같음 | |
+| `docs/Pode_계약.md`, `docs/실측_2026-11-10.md`, `docs/IFP_공통설계.md` | 같음 | |
 | `.gitattributes`, `.gitignore`, `ruff.toml`, `iponic.repos`, `config/`, `scripts/` | 같음 | 레포 설정, 벤더 의존(pinky_pro), 로봇 목록, 인터페이스 점검 |
 
 가져오지 않은 것: `.github/`(CI), `README.md`(새로 씀), `docs/`의 작업 기록들과 `docs/freefloor/`, `docs/관제_동작.md`, `docs/개선점_2026-11-06.md`.

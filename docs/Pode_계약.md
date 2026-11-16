@@ -1,9 +1,9 @@
-# 핑키 ↔ 관제(FMS) 계약
+# Pode ↔ 관제(FMS) 계약
 
-관제가 핑키에 요구하는 통신 규격과 동작입니다(2026-11-06, 판 0.11-draft는 2026-11-12, 0.13-draft는 2026-11-13).
+관제가 Pode에 요구하는 통신 규격과 동작입니다(2026-11-06, 판 0.11-draft는 2026-11-12, 0.13-draft는 2026-11-13).
 
 - 이름, 타입, QoS의 원본은 `interfaces/fleet_interfaces/contract.yaml`입니다.
-- `{pinky}` = `pinky1`, `pinky2`, `pinky3`. 같은 ROS 도메인에서 로봇마다 namespace를 씁니다. DDS는 Fast DDS입니다.
+- `{pode}` = `pode1`, `pode2`, `pode3`. 같은 ROS 도메인에서 로봇마다 namespace를 씁니다. DDS는 Fast DDS입니다.
 - `BLOCKED`, `LOCALIZING`, `HEARTBEAT_LOST`는 지시서 파트 4에서, `MoveTo`의 `path`는 파트 7에서 정의 파일과 관제 코드에 넣었습니다.
 - 계약 0.4-draft(11-07)의 `/fleet/heartbeat` HEARTBEAT 프로필(지시서 1.5)과 `MoveTo`의 `PATH_NOT_CONNECTED`(지시서 7.5, 3절 9번)는 사용자 기준입니다(팀 레포에 올릴 첫 판).
 - 상태 `RECOVERING`(자가 복구, 계약 0.5-draft, 11-09)과 4절의 자가 복구는 사용자 기준입니다(팀 레포에 올릴 첫 판).
@@ -17,17 +17,17 @@
 
 | 이름 | 타입 | 방향 | QoS·주기 |
 |---|---|---|---|
-| `/{pinky}/state` | 토픽 `fleet_interfaces/msg/RobotState` | 핑키 → 관제 | best_effort, volatile, depth 5. **10 Hz**. 변할 때만이 아니라 주기적으로 계속 보냅니다(하나를 잃어도 다음 값이 대신합니다) |
-| `/{pinky}/move_to` | 액션 `fleet_interfaces/action/MoveTo` | 관제 → 핑키 | 액션 기본값 |
-| `/{pinky}/dock` | 액션 `fleet_interfaces/action/Dock` | 관제 → 핑키 | 액션 기본값 |
-| `/{pinky}/retreat` | 액션 `fleet_interfaces/action/Retreat` | 관제 → 핑키 | 액션 기본값(0.9-draft, 기준(사용자)) |
-| `/{pinky}/check_clear` | 서비스 `fleet_interfaces/srv/CheckClear` | 관제 → 핑키 | 서비스 기본값(0.12-draft, 기준(사용자)). 관제는 답을 기다리지 않고 비동기로 부릅니다. 서버가 없거나 부르기가 실패하면 로봇의 `unknown` 답과 따로, 묻지 못한 것으로 봅니다. 관제는 범위 안 로봇에게 돌아가며 묻습니다 |
-| `/fleet/heartbeat` | 토픽 `std_msgs/msg/Header` | 관제 → 핑키 | reliable, volatile, depth 1(0.4-draft, 기준(사용자)). 2 Hz. 빠짐 자체가 정지 조건이라 다시 보냅니다. 끊김 판단은 그대로 3절 5번의 타이머입니다 |
-| `/fleet/robots` | 토픽 `fleet_interfaces/msg/RobotStatusArray` | 관제 → 핑키(0.13-draft, 기준(사용자)) | reliable, transient_local, depth 1. 1 Hz. 원래 화면용이고, 핑키는 로봇단 교착 처리(4절)에서 다른 로봇의 `x`, `y`, `priority`와 자기 줄의 `priority`만 읽습니다. 받은 지 3초(`peers_timeout_s`)가 지난 값은 쓰지 않습니다 |
+| `/{pode}/state` | 토픽 `fleet_interfaces/msg/RobotState` | Pode → 관제 | best_effort, volatile, depth 5. **10 Hz**. 변할 때만이 아니라 주기적으로 계속 보냅니다(하나를 잃어도 다음 값이 대신합니다) |
+| `/{pode}/move_to` | 액션 `fleet_interfaces/action/MoveTo` | 관제 → Pode | 액션 기본값 |
+| `/{pode}/dock` | 액션 `fleet_interfaces/action/Dock` | 관제 → Pode | 액션 기본값 |
+| `/{pode}/retreat` | 액션 `fleet_interfaces/action/Retreat` | 관제 → Pode | 액션 기본값(0.9-draft, 기준(사용자)) |
+| `/{pode}/check_clear` | 서비스 `fleet_interfaces/srv/CheckClear` | 관제 → Pode | 서비스 기본값(0.12-draft, 기준(사용자)). 관제는 답을 기다리지 않고 비동기로 부릅니다. 서버가 없거나 부르기가 실패하면 로봇의 `unknown` 답과 따로, 묻지 못한 것으로 봅니다. 관제는 범위 안 로봇에게 돌아가며 묻습니다 |
+| `/fleet/heartbeat` | 토픽 `std_msgs/msg/Header` | 관제 → Pode | reliable, volatile, depth 1(0.4-draft, 기준(사용자)). 2 Hz. 빠짐 자체가 정지 조건이라 다시 보냅니다. 끊김 판단은 그대로 3절 5번의 타이머입니다 |
+| `/fleet/robots` | 토픽 `fleet_interfaces/msg/RobotStatusArray` | 관제 → Pode(0.13-draft, 기준(사용자)) | reliable, transient_local, depth 1. 1 Hz. 원래 화면용이고, Pode는 로봇단 교착 처리(4절)에서 다른 로봇의 `x`, `y`, `priority`와 자기 줄의 `priority`만 읽습니다. 받은 지 3초(`peers_timeout_s`)가 지난 값은 쓰지 않습니다 |
 
 ## 2. 메시지
 
-**RobotState** (핑키가 보냄)
+**RobotState** (Pode가 보냄)
 
 | 필드 | 값 |
 |---|---|
@@ -38,7 +38,7 @@
 | `current_goal` | 실행 중인 목표의 `target_id`나 `dock_id`. 목표가 없으면 빈 값 |
 | `local_yield` | 0.13-draft, 기준(사용자). `state=RECOVERING`이 로봇단 교착 처리(4절)일 때 그 단계: `wait`, `backup`, `retry`. 그 밖에는 빈 값입니다(빈 값의 `RECOVERING`은 0.12까지의 자가 복구) |
 | `stamp` | `pose`를 잰 시각 |
-| `obstacle_x`, `obstacle_y` | (0.12-draft, 기준(사용자)) `BLOCKED`일 때 local costmap에서 가던 쪽(보는 방향 띠 반폭 0.12 m) `obstacle_look_m`(0.30 m) 안의 가장 가까운 장애물 칸의 지도 좌표. 모르거나 `BLOCKED`가 아니면 NaN입니다. 관제는 지도 밖이나 NaN이면 위치가 없는 것으로 봅니다(`pinky_fsm/obstacle_report.py`의 `nearest_ahead`) |
+| `obstacle_x`, `obstacle_y` | (0.12-draft, 기준(사용자)) `BLOCKED`일 때 local costmap에서 가던 쪽(보는 방향 띠 반폭 0.12 m) `obstacle_look_m`(0.30 m) 안의 가장 가까운 장애물 칸의 지도 좌표. 모르거나 `BLOCKED`가 아니면 NaN입니다. 관제는 지도 밖이나 NaN이면 위치가 없는 것으로 봅니다(`pode_fsm/obstacle_report.py`의 `nearest_ahead`) |
 | `obstacle_kind` | (0.12-draft, 기준(사용자)) `unknown`, `person`, `object`, `robot` 가운데 하나. 빈 값은 위치가 없다는 뜻이고, 모르는 값은 `unknown`으로 봅니다. 관제는 지금 종류로 다르게 하지 않습니다(다른 로봇은 자기가 아는 위치로 가려냅니다) |
 
 **CheckClear** (관제가 부름, 0.12-draft, 기준(사용자))
@@ -46,7 +46,7 @@
 | 부분 | 필드 |
 |---|---|
 | 요청 | `x`, `y`(지도 좌표, m), `r`(반지름, m. 관제 값 `check_radius_m` 0.10) |
-| 응답 | `answer` ∈ `clear`(그 원 안에 장애물 칸 없음), `blocked`(있음), `unknown`(원 전체를 보지 못함: 원이 costmap 격자의 변 밖으로 나가거나, 원에 걸친 칸 가운데 모르는 칸이 하나라도 있음, 또는 받은 지 2초가 넘은 costmap). `blocked`는 중심이 원 안인 장애물 칸으로 보고, 모르는 칸이 있어도 이깁니다. 핑키는 지금의 local costmap으로만 답하고 움직이지 않습니다(`obstacle_report.py`의 `clear_answer`). 관제는 막힘 표시에서 `check_range_m`(0.6 m) 안의 로봇에게만 묻습니다 |
+| 응답 | `answer` ∈ `clear`(그 원 안에 장애물 칸 없음), `blocked`(있음), `unknown`(원 전체를 보지 못함: 원이 costmap 격자의 변 밖으로 나가거나, 원에 걸친 칸 가운데 모르는 칸이 하나라도 있음, 또는 받은 지 2초가 넘은 costmap). `blocked`는 중심이 원 안인 장애물 칸으로 보고, 모르는 칸이 있어도 이깁니다. Pode는 지금의 local costmap으로만 답하고 움직이지 않습니다(`obstacle_report.py`의 `clear_answer`). 관제는 막힘 표시에서 `check_range_m`(0.6 m) 안의 로봇에게만 묻습니다 |
 
 **MoveTo** (관제가 보냄)
 
@@ -62,17 +62,17 @@
 
 **MoveTo `mode`** (0.11-draft, 사용자 기준)
 
-| 값 | 상수 | 핑키가 하는 일 | 쓰는 칸 |
+| 값 | 상수 | Pode가 하는 일 | 쓰는 칸 |
 |---|---|---|---|
 | `follow_path`(빈 값도 같음) | `MODE_FOLLOW_PATH` | 0.9-draft까지와 같습니다. `path`를 Nav2 FollowPath로 따르고, `path`가 비면 지금 자리에서 `target_pose`까지 곧게 갑니다 | `path`, `target_pose`, `final_goal` |
-| `nav_goal` | `MODE_NAV_GOAL` | `target_pose`로 Nav2 NavigateToPose(`/{pinky}/navigate_to_pose`)를 보내고 길은 핑키의 Nav2가 짭니다. 관제는 `path`를 비워 보내고, 핑키는 `path`와 `final_goal`을 쓰지 않습니다. 경로 연결 확인(3절 9번)도 하지 않습니다 | `target_pose`, `target_id` |
+| `nav_goal` | `MODE_NAV_GOAL` | `target_pose`로 Nav2 NavigateToPose(`/{pode}/navigate_to_pose`)를 보내고 길은 Pode의 Nav2가 짭니다. 관제는 `path`를 비워 보내고, Pode는 `path`와 `final_goal`을 쓰지 않습니다. 경로 연결 확인(3절 9번)도 하지 않습니다 | `target_pose`, `target_id` |
 
 - 결과와 feedback 형식은 두 값이 같습니다. `nav_goal`의 `distance_remaining`은 Nav2 feedback의 남은 길이고, 첫 경로가 나오기 전에는 목표까지 곧은 거리입니다.
 - `nav_goal`의 성공도 목표에서 0.15 m 안에 섰을 때만 보냅니다(3절 4번). Nav2가 실패로 끝나면 `NAV_ABORTED`입니다.
 
 **order 모델** (0.11-draft, 사용자 기준)
 
-VDA 5050의 order(base와 horizon, 이어 붙이기)를 옮긴 것입니다. 목적지 하나까지의 이동을 조각(segment) 목록으로 보냅니다. `order_id`가 비어 있으면 아래 칸은 모두 쓰지 않고, 위의 `mode`, `path`, `target_pose`로 지금과 똑같이 움직입니다. 메시지 정의가 바뀌었으므로 관제와 핑키를 같이 다시 빌드해야 합니다.
+VDA 5050의 order(base와 horizon, 이어 붙이기)를 옮긴 것입니다. 목적지 하나까지의 이동을 조각(segment) 목록으로 보냅니다. `order_id`가 비어 있으면 아래 칸은 모두 쓰지 않고, 위의 `mode`, `path`, `target_pose`로 지금과 똑같이 움직입니다. 메시지 정의가 바뀌었으므로 관제와 Pode를 같이 다시 빌드해야 합니다.
 
 새 메시지 `fleet_interfaces/msg/Segment`:
 
@@ -101,7 +101,7 @@ MoveTo에 더한 칸:
 | 결과 `SUPERSEDED` | result | update를 받아 이전 goal을 새 goal에 넘겼습니다. `success`는 거짓이지만 실패가 아닙니다 |
 | 결과 `ORDER_UPDATE_REJECTED` | result | update의 이음 조건이 틀렸습니다. `reason`은 `ORDER_UPDATE_REJECTED: <이유>`이고, 이 새 goal만 끝나며 지금 줄은 그대로 갑니다 |
 
-- update는 새 goal로 보냅니다. 이음 조건이 맞으면 핑키는 이전 goal을 `SUPERSEDED`로 끝내고, 같은 조각 줄을 새 goal 아래에서 멈추지 않고 이어 갑니다.
+- update는 새 goal로 보냅니다. 이음 조건이 맞으면 Pode는 이전 goal을 `SUPERSEDED`로 끝내고, 같은 조각 줄을 새 goal 아래에서 멈추지 않고 이어 갑니다.
 - 취소는 지금과 같습니다. 이동 전체를 취소합니다.
 
 **Dock** (관제가 보냄)
@@ -117,18 +117,18 @@ MoveTo에 더한 칸:
 | 부분 | 필드 |
 |---|---|
 | Goal | `distance_m`, `speed_mps`(m/s). 둘 다 0보다 커야 합니다 |
-| Goal | `geometry_msgs/Pose[] path`: 비어 있으면 로봇이 보는 방향 그대로 뒤로 곧게 `distance_m`을 갑니다. 있으면 지나온 길을 거꾸로 적은 꺾은선입니다. 첫 점은 로봇이 있는 곳, 마지막 점은 설 곳이고, `distance_m`은 그 길이입니다. 각 점의 방향은 쓰지 않습니다(핑키가 진행 방향의 반대, 곧 후진하는 로봇이 보는 방향으로 다시 정합니다) |
+| Goal | `geometry_msgs/Pose[] path`: 비어 있으면 로봇이 보는 방향 그대로 뒤로 곧게 `distance_m`을 갑니다. 있으면 지나온 길을 거꾸로 적은 꺾은선입니다. 첫 점은 로봇이 있는 곳, 마지막 점은 설 곳이고, `distance_m`은 그 길이입니다. 각 점의 방향은 쓰지 않습니다(Pode가 진행 방향의 반대, 곧 후진하는 로봇이 보는 방향으로 다시 정합니다) |
 | Result | `success`, `reason` ∈ `OBSTACLE_BEHIND`(뒤에 무언가 있어 섰음), `TIMEOUT`, `CANCELED`, `FAILED`(서버 없음, 잘못된 입력, heartbeat 끊김, 위치 잃음 등 그 밖의 실패) |
-| Feedback | `distance_traveled`(정의만 있고 핑키 FSM은 아직 보내지 않습니다) |
+| Feedback | `distance_traveled`(정의만 있고 Pode FSM은 아직 보내지 않습니다) |
 
 **Heartbeat**: `frame_id`=`fleet_manager`. 시간은 `stamp`가 아니라 받은 시각으로 잽니다.
 
-## 3. 핑키가 지킬 것
+## 3. Pode가 지킬 것
 
-1. **선점**: 목표를 실행하는 중에 새 목표(move나 dock)가 오면 받아들입니다. 이전 목표는 `success=false`로 끝냅니다(move_to는 `reason=CANCELED`). 정상 상태에서는 새 목표를 거절하지 않습니다. 관제는 목표를 늘릴 때 이전 목표를 취소하지 않고 새 목표를 보냅니다. 이전 목표가 그 사이에 다른 이유(`NAV_ABORTED` 등)로 끝났어도 핑키는 새 목표를 실행합니다. 관제는 새 목표를 보낸 뒤 온 이전 목표의 결과는 보지 않습니다.
-   - **움직이는 방식이 바뀔 때**(0.11-draft, 기준(사용자)): NavigateToPose(bt_navigator), FollowPath(controller), 후진(behavior_server)은 모두 바퀴 명령을 냅니다. 핑키 FSM은 다른 방식으로 바꿀 때 앞 움직임을 취소하고, 그 결과가 오고(취소가 받아들여지면 2초 뒤까지) 바퀴가 선 뒤에 새 움직임을 보냅니다. 3초 안에 안 되면 새 목표는 `TIMEOUT`입니다. 3절 10번 물러나기와 같은 규칙입니다. `nav_goal` 다음의 `nav_goal`은 bt_navigator가 goal을 바꾸므로 서지 않고 바로 보냅니다. `follow_path` 다음의 `follow_path`는 지금처럼 서지 않습니다.
+1. **선점**: 목표를 실행하는 중에 새 목표(move나 dock)가 오면 받아들입니다. 이전 목표는 `success=false`로 끝냅니다(move_to는 `reason=CANCELED`). 정상 상태에서는 새 목표를 거절하지 않습니다. 관제는 목표를 늘릴 때 이전 목표를 취소하지 않고 새 목표를 보냅니다. 이전 목표가 그 사이에 다른 이유(`NAV_ABORTED` 등)로 끝났어도 Pode는 새 목표를 실행합니다. 관제는 새 목표를 보낸 뒤 온 이전 목표의 결과는 보지 않습니다.
+   - **움직이는 방식이 바뀔 때**(0.11-draft, 기준(사용자)): NavigateToPose(bt_navigator), FollowPath(controller), 후진(behavior_server)은 모두 바퀴 명령을 냅니다. Pode FSM은 다른 방식으로 바꿀 때 앞 움직임을 취소하고, 그 결과가 오고(취소가 받아들여지면 2초 뒤까지) 바퀴가 선 뒤에 새 움직임을 보냅니다. 3초 안에 안 되면 새 목표는 `TIMEOUT`입니다. 3절 10번 물러나기와 같은 규칙입니다. `nav_goal` 다음의 `nav_goal`은 bt_navigator가 goal을 바꾸므로 서지 않고 바로 보냅니다. `follow_path` 다음의 `follow_path`는 지금처럼 서지 않습니다.
 
-   | 실행 중 | 새로 온 것 | 핑키 |
+   | 실행 중 | 새로 온 것 | Pode |
    |---|---|---|
    | `nav_goal` | `nav_goal` | 서지 않고 바꿉니다 |
    | `nav_goal` | `follow_path`, `retreat`, `dock` | NavigateToPose를 취소하고 끝나기를 기다린 뒤 보냅니다(`dock`은 지금 바로 실패) |
@@ -139,37 +139,37 @@ MoveTo에 더한 칸:
 4. **도착**: move_to 성공은 목표에서 **0.15 m 안**에 섰을 때만 보냅니다. 성공을 보낸 뒤 1초 안에 그 위치를 보고합니다.
 5. **heartbeat**: move나 dock을 실행하는 중에 heartbeat도 새 목표도 **1.5초** 동안 오지 않으면 스스로 멈춥니다. move_to는 `reason=HEARTBEAT_LOST`로 끝냅니다. `nav_goal`이면 NavigateToPose를 취소합니다. heartbeat는 비상 정지가 아닙니다.
 6. **시작**: 액션 서버를 먼저 띄웁니다. 위치가 잡히기 전에는 `LOCALIZING`으로 보고하고, 잡히면 지점 위에서 `IDLE`로 보고합니다. 관제는 `LOCALIZING`인 로봇을 지도에 올리지 않고, 그 보고의 자세는 쓰지 않습니다. 지도에 오른 뒤 `LOCALIZING`이 3초 이어지면 `COMM_LOST`로 보고, 위치를 다시 보고하면 확인 뒤 이어 갑니다.
-7. **주행**: `path`가 있으면 Nav2 FollowPath로 꺾이는 곳까지 그 선을 그대로 따릅니다. 선 밖으로 돌아가지 않습니다. `follow_path`에서는 Nav2 행동 트리가 관제 모르게 하는 복구(Spin 등)는 계속 금지입니다(R14). `nav_goal`의 행동 트리는 Nav2 기본 트리(1 Hz 재계획)에서 복구의 Spin과 BackUp을 뺀 것입니다. 지도 지우기와 Wait만 하므로 로봇을 움직이지 않습니다(0.13-draft, 기준(사용자)). 물러나기는 두 모드 모두 핑키 FSM의 로봇단 교착 처리(4절)만 합니다. FSM의 짧은 후진은 쥔 구역 안에서 상태로 알리며 합니다(사용자 기준). 로봇단 교착 처리는 한 자리에서 한 번이고, 그것을 끈 때의 자가 복구는 최대 2번입니다. 세부는 4절입니다. 관제는 선을 늘릴 때 새 목표를 보냅니다(1번 선점). 끝 근처에서 FollowPath를 다시 보내는 것과 도착 판정(4번)은 핑키가 합니다. 실행 중인 목표가 없으면 움직이지 않습니다.
+7. **주행**: `path`가 있으면 Nav2 FollowPath로 꺾이는 곳까지 그 선을 그대로 따릅니다. 선 밖으로 돌아가지 않습니다. `follow_path`에서는 Nav2 행동 트리가 관제 모르게 하는 복구(Spin 등)는 계속 금지입니다(R14). `nav_goal`의 행동 트리는 Nav2 기본 트리(1 Hz 재계획)에서 복구의 Spin과 BackUp을 뺀 것입니다. 지도 지우기와 Wait만 하므로 로봇을 움직이지 않습니다(0.13-draft, 기준(사용자)). 물러나기는 두 모드 모두 Pode FSM의 로봇단 교착 처리(4절)만 합니다. FSM의 짧은 후진은 쥔 구역 안에서 상태로 알리며 합니다(사용자 기준). 로봇단 교착 처리는 한 자리에서 한 번이고, 그것을 끈 때의 자가 복구는 최대 2번입니다. 세부는 4절입니다. 관제는 선을 늘릴 때 새 목표를 보냅니다(1번 선점). 끝 근처에서 FollowPath를 다시 보내는 것과 도착 판정(4번)은 Pode가 합니다. 실행 중인 목표가 없으면 움직이지 않습니다.
 8. **도킹**: 정지 오차 ±1~2 cm. 실제 오차를 `error_*`에 넣습니다.
 9. **경로 연결 확인**(기준(사용자), 지시서 7.5): `path`를 받으면 지금 위치에서 받은 `path`까지의 수직 거리를 잽니다. **0.15 m**(관제 `lane_error_warn_m`)보다 멀면 따라가지 않고 `success=false`, `reason=PATH_NOT_CONNECTED`로 끝냅니다. 이전 목표는 새 목표를 받는 순간 끝나므로(1번) 로봇은 섭니다. `path`가 비어 있으면 재지 않습니다. 관제는 첫 점을 로봇이 마지막으로 보고한 위치로 두므로 위치 잡음이 0.15 m보다 훨씬 작으면 정상 운행에서는 이 실패가 나지 않습니다. 마지막 보고 뒤 위치 추정이 튀면 날 수 있고, 관제는 새 보고로 다시 보냅니다. 오래된 경로나 중간이 빠진 경로를 따라가지 않으려는 검사입니다.
-10. **물러나기**(사용자 기준, 계약 0.9-draft): `retreat` goal을 받으면 실행 중인 목표를 먼저 끝냅니다(`move_to`는 `reason=CANCELED`). FollowPath와 후진은 둘 다 `cmd_vel`을 내므로 핑키 FSM은 앞의 FollowPath나 자가 복구 후진의 결과가 오고 바퀴가 선 뒤(0.02 m/s, 3초까지 기다림. 넘으면 `TIMEOUT`)에 물러납니다.
+10. **물러나기**(사용자 기준, 계약 0.9-draft): `retreat` goal을 받으면 실행 중인 목표를 먼저 끝냅니다(`move_to`는 `reason=CANCELED`). FollowPath와 후진은 둘 다 `cmd_vel`을 내므로 Pode FSM은 앞의 FollowPath나 자가 복구 후진의 결과가 오고 바퀴가 선 뒤(0.02 m/s, 3초까지 기다림. 넘으면 `TIMEOUT`)에 물러납니다.
     - `path`가 비면 자가 복구와 같은 Nav2 BackUp으로 뒤로 곧게 `distance_m`을 `speed_mps`로 갑니다. 뒤에 무언가 있어 BackUp이 서면 `OBSTACLE_BEHIND`입니다.
     - `path`가 있으면 Nav2 FollowPath에 controller `FollowPathReverse`로 보냅니다. 후진을 켜고(`allow_reversing`) 제자리 회전을 끈(`use_rotate_to_heading`, 둘은 함께 켤 수 없습니다) RPP이고 0.05 m/s로 갑니다. 지나온 길을 거꾸로 적은 경로라 돌지 않고 뒤로 따릅니다. `speed_mps`가 0.05 m/s보다 작으면 `speed_limit`으로 줄이고, 크면 0.05 m/s 그대로입니다. 로봇에서 가장 가까운 점부터 따르고, 로봇이 경로에서 **0.15 m**(9번과 같은 값)보다 멀거나, 가장 가까운 점부터 남은 길이 0.02 m보다 짧으면(끝 점에 이미 있음) 따르지 않고 `FAILED`로 끝냅니다. FollowPath가 `NO_VALID_CONTROL`로 끝나면 `OBSTACLE_BEHIND`로 보고, 진전 없음 같은 다른 FollowPath 실패는 `FAILED`입니다. `NO_VALID_CONTROL`을 뒤의 물체로 읽는 것은 추정입니다: Jazzy RPP가 이 코드를 내는 것은 충돌 검사(움직이는 쪽, 곧 뒤)라고 보았지만 다른 원인으로도 날 수 있습니다. `FollowPathReverse`는 모든 Nav2 설정(실물, 시뮬, 실제 경기장 시뮬)에 늘 뜹니다.
     - 앞 이동의 FollowPath 결과가 오지 않으면 취소가 받아들여진 때부터 2초(`nav_result_grace_s`, 추정)만 기다리고, 바퀴가 서 있으면 물러납니다. 취소가 거절되거나 답이 없으면 그 FollowPath는 아직 돌 수 있다고 보고 계속 기다리므로 물러나기는 `TIMEOUT`입니다. 바퀴가 서 있다는 것만으로는 끝났다고 보지 않습니다. 취소 답이 "이미 끝남"이나 "모르는 goal"이면 돌지 않으므로 받아들여진 것과 같게 봅니다. FollowPath 결과를 잃으면(결과 future 오류) 이동은 실패처럼 다루지만 goal은 아직 돌 수 있으므로 취소를 보내고 같은 규칙으로 기다립니다. 그 취소에 끝내 답이 없으면 그 뒤의 물러나기는 모두 `TIMEOUT`입니다(열린 위험).
     - 결과가 `거리 / 속도 × 2 + 2초`(+ 2초 여유) 안에 오지 않으면 멈추고 `TIMEOUT`입니다. 취소를 받으면 멈추고 `CANCELED`, heartbeat가 끊기면(5번) 멈추고 `FAILED`입니다. 물러나는 동안 `state`는 `MOVING`, `current_goal`은 빈 값입니다.
     - 자가 복구(4절)는 그대로입니다. 물러나기는 관제가 시킬 때만 합니다.
-    - **넓은 구역 안의 물러나기**(사용자 기준. 관제 기본은 꺼짐 `yard_backoff`): 관제는 넓은 구역에서 `nav_goal`로 가다가 다른 핑키와 가까이 서서 `BLOCKED`를 보고한 로봇에게도 `retreat`를 보낼 수 있습니다. `path`는 지금 자리에서 로봇이 보는 방향의 반대로 곧게 0.12 m 간 두 점입니다(지나온 길이 아닙니다). 핑키가 할 일은 위와 같습니다: NavigateToPose를 먼저 끝내고 `FollowPathReverse`로 따릅니다. 바로 옆에 다른 핑키가 있어 충돌 검사가 막으면 `OBSTACLE_BEHIND`로 끝내면 됩니다. 관제는 이 실패를 시도 횟수로 세지 않고 로봇을 그 자리에 세웁니다.
+    - **넓은 구역 안의 물러나기**(사용자 기준. 관제 기본은 꺼짐 `yard_backoff`): 관제는 넓은 구역에서 `nav_goal`로 가다가 다른 Pode와 가까이 서서 `BLOCKED`를 보고한 로봇에게도 `retreat`를 보낼 수 있습니다. `path`는 지금 자리에서 로봇이 보는 방향의 반대로 곧게 0.12 m 간 두 점입니다(지나온 길이 아닙니다). Pode가 할 일은 위와 같습니다: NavigateToPose를 먼저 끝내고 `FollowPathReverse`로 따릅니다. 바로 옆에 다른 Pode가 있어 충돌 검사가 막으면 `OBSTACLE_BEHIND`로 끝내면 됩니다. 관제는 이 실패를 시도 횟수로 세지 않고 로봇을 그 자리에 세웁니다.
     - 물러나는 중에 새 `move_to`가 오면 1번(선점)처럼 서지 않고 바로 새 경로를 보냅니다. 경로 물러나기는 같은 controller_server의 FollowPath를 바꿔 보내므로 이동끼리 바꿀 때와 같습니다. 곧은 물러나기는 BackUp을 취소하면서 FollowPath를 보내므로, 취소가 들을 때까지 잠깐 BackUp과 FollowPath가 둘 다 `cmd_vel`을 낼 수 있습니다. 자가 복구 중에 새 목표가 올 때(4절)와 같은 위험이고, 막으려면 이동도 물러나기처럼 후진이 끝나기를 기다려야 합니다(하지 않음).
-    - 0.05 m/s, 3초, 2초, 0.02 m, 시간 한계 식은 추정입니다. Gazebo(핑키 한 대, 2026-11-11, 한 번)에서 지나온 길을 거꾸로 적은 0.814 m 경로를 제자리 회전 없이 0.05 m/s로 15.4초에 따라가 성공했습니다(경로에서 최대 0.03 m, 끝 점에서 0.03 m). 곧은 0.20 m도 성공했습니다. 끝에서 goal checker의 방향 허용치(0.12 rad) 때문에 성공하지 못하는 일은 보이지 않았습니다.
+    - 0.05 m/s, 3초, 2초, 0.02 m, 시간 한계 식은 추정입니다. Gazebo(Pode 한 대, 2026-11-11, 한 번)에서 지나온 길을 거꾸로 적은 0.814 m 경로를 제자리 회전 없이 0.05 m/s로 15.4초에 따라가 성공했습니다(경로에서 최대 0.03 m, 끝 점에서 0.03 m). 곧은 0.20 m도 성공했습니다. 끝에서 goal checker의 방향 허용치(0.12 rad) 때문에 성공하지 못하는 일은 보이지 않았습니다.
 
 12. **고정 선의 꺾이는 곳**(기준(사용자), 추가지시서3 2-1): 좁은 띠(급행, 갈림목, 도크, 폭 0.20 m) 안에서는 제자리 회전을 하지 않습니다.
-    - 관제가 보내는 `path`는 꺾인 선 그대로입니다. 핑키 FSM이 Nav2로 보낼 때만 꺾이는 곳을 반지름 `turn_radius_m`(0.10 m, 추정)의 호로 바꿉니다. 호가 들어갈 자리는 첫·끝 조각은 그 길이까지, 가운데 조각은 반까지입니다. 180° 되돌아가는 점은 호로 바꾸지 않습니다. 진행 거리와 도착 판정(4번)은 받은 꺾인 선 위에서 잽니다.
+    - 관제가 보내는 `path`는 꺾인 선 그대로입니다. Pode FSM이 Nav2로 보낼 때만 꺾이는 곳을 반지름 `turn_radius_m`(0.10 m, 추정)의 호로 바꿉니다. 호가 들어갈 자리는 첫·끝 조각은 그 길이까지, 가운데 조각은 반까지입니다. 180° 되돌아가는 점은 호로 바꾸지 않습니다. 진행 거리와 도착 판정(4번)은 받은 꺾인 선 위에서 잽니다.
     - 물러나기(10번) 경로도 같은 규칙으로 호를 그려 후진합니다.
     - RPP의 `rotate_to_heading_min_angle`은 0.70 rad입니다. lookahead는 속도에 비례하지만(0.8초 앞, 0.10~0.25 m) 반지름 0.10 m 호에서는 곡률 규칙이 속도를 낮춰 0.10 m로 돌아옵니다. 그때 목표점 각도는 0.52 rad이므로 호에서는 돌지 않습니다.
 13. **이음 정밀도**(기준(사용자), 추가지시서3 2-4): Nav2 goal은 지점에서 0.05~0.10 m 떨어져 끝나므로, 뒤이은 고정 선은 그만큼 옆으로 벗어난 채 시작합니다.
-    - 관제가 보내는 `path`와 연결 판정(2번, `connect_tolerance_m`)은 그대로입니다. 핑키 FSM이 Nav2로 보낼 때만 바꿉니다: 로봇이 선에서 `join_min_off_m`(0.02 m) 넘게 벗어나 있으면 경로를 로봇의 실제 위치에서 시작하고, 벗어난 거리의 `join_slope`(3)배 앞에서 선에 붙입니다(들어가는 각 18° 이하). 붙는 곳은 지금 조각(곧은 구간이나 호 하나)의 끝을 넘지 않습니다: 꺾이는 곳을 가로지르는 지름길은 내지 않습니다. 선의 끝에 닿았거나 지나친 로봇에게는 끝 점만 보냅니다.
+    - 관제가 보내는 `path`와 연결 판정(2번, `connect_tolerance_m`)은 그대로입니다. Pode FSM이 Nav2로 보낼 때만 바꿉니다: 로봇이 선에서 `join_min_off_m`(0.02 m) 넘게 벗어나 있으면 경로를 로봇의 실제 위치에서 시작하고, 벗어난 거리의 `join_slope`(3)배 앞에서 선에 붙입니다(들어가는 각 18° 이하). 붙는 곳은 지금 조각(곧은 구간이나 호 하나)의 끝을 넘지 않습니다: 꺾이는 곳을 가로지르는 지름길은 내지 않습니다. 선의 끝에 닿았거나 지나친 로봇에게는 끝 점만 보냅니다.
     - 앞의 장애물(4절)은 받은 선이 아니라 Nav2에 보낸 선(호와 붙는 조각이 든 선) 위에서 봅니다.
     - 끝 근처에서 다시 보내는 경로(R13)와 막힘이 풀린 뒤 다시 보내는 경로에도 같은 규칙을 씁니다. 호 위에서는 둥근 선에서 로봇에 가장 가까운 곳부터 보냅니다.
     - 진행 거리와 도착 판정(4번)은 받은 선 위에서 잽니다. `join_slope`를 0으로 두면 예전처럼 선 위의 점에서 시작합니다. 물러나기 경로에는 쓰지 않습니다(도킹한 자리에서 시작합니다).
-    - 고른 까닭: 다른 방법(고정 선 앞의 Nav2 goal만 도착 허용치를 좁히기)은 goal마다 goal checker를 바꿔야 해서 BT와 controller 설정을 함께 고쳐야 하고, 위치 추정 잡음(0.02~0.05 m)보다 좁은 허용치에서는 goal이 끝나지 않을 수 있습니다. 이 방법은 핑키 FSM 안의 순수 함수 하나로 끝나고 ROS 없이 시험합니다.
+    - 고른 까닭: 다른 방법(고정 선 앞의 Nav2 goal만 도착 허용치를 좁히기)은 goal마다 goal checker를 바꿔야 해서 BT와 controller 설정을 함께 고쳐야 하고, 위치 추정 잡음(0.02~0.05 m)보다 좁은 허용치에서는 goal이 끝나지 않을 수 있습니다. 이 방법은 Pode FSM 안의 순수 함수 하나로 끝나고 ROS 없이 시험합니다.
     - 관제 지도는 도크에서 물러나는 선을 갈림목 아래(N_W, N_E, 넓은 구역)까지 꺾어 이어 그립니다. 그래서 물러난 뒤 방향을 바꾸는 일은 넓은 구역에서 일어납니다.
     - 남은 것: 막혀서 들어온 입구로 후진하는 복구(관제 막힘 규칙 7번)는 아직 갈림목 안 지점(X_W, X_E)에서 끝나고 거기서 돕니다(고치지 않음).
 
 11. **order 모델**(사용자 기준, 계약 0.11-draft): `order_id`가 있는 `move_to`는 아래 두 표대로 합니다. `order_id`가 비면 1~10번 그대로입니다.
 
-**order 모델에서 핑키가 하는 일** (0.11-draft, 사용자 기준. `pinky_fsm/order_fsm.py`)
+**order 모델에서 Pode가 하는 일** (0.11-draft, 사용자 기준. `pode_fsm/order_fsm.py`)
 
-| 일 | 핑키의 동작 |
+| 일 | Pode의 동작 |
 |---|---|
 | 조각 줄 | 새 order의 base 첫 `seq_id`는 1이어야 합니다(아니면 `NAV_ABORTED`). base 조각을 차례로 실행합니다. 조각이 끝나면 `last_done_seq_id`를 올리고 관제를 기다리지 않고 다음 조각을 바로 시작합니다 |
 | 이어 붙이기 | `order_update_id`가 0이면 새 order로, 달리던 이동을 지금처럼 밀어냅니다(이전 goal은 `CANCELED`). 1 이상이면 update이고 네 조건(같은 `order_id`, `order_update_id`가 정확히 1 큼, `stitch_node_id`가 지금까지 받은 base의 마지막 `end_node_id`, 새 base 첫 `seq_id`가 그 마지막 `seq_id` + 1)이 모두 맞을 때만 줄 뒤에 붙입니다. 하나라도 틀리면 새 goal만 `ORDER_UPDATE_REJECTED: <이유>`로 끝나고 지금 줄은 그대로 갑니다. 달리는 order가 없을 때의 update도 거절합니다 |
@@ -182,13 +182,13 @@ MoveTo에 더한 칸:
 | retreat 조각 | Retreat 액션의 경로 물러나기와 같습니다. 그 경로를 `FollowPathReverse`로 0.05 m/s 후진합니다 |
 | controller | `FollowPathThrough`는 `final_goal` 거짓(잠금 경계처럼 끝에서 설 수 있는 속도로 줄임)으로, 그 밖의 follow_path는 `final_goal` 참으로 보냅니다. 노드가 실제로 쓰는 controller는 0.9까지와 같은 규칙입니다(`through_controller_id`가 비면 `FollowPath`) |
 | 실패 | 조각이 실패하면 order goal이 그 reason으로 끝납니다(예: `PATH_NOT_CONNECTED`, `NAV_ABORTED`, retreat 조각의 `OBSTACLE_BEHIND`) |
-| 표시 | `/{pinky}/order_markers`(MarkerArray, latched)에 남은 base는 초록 실선, horizon은 주황 점선으로 냅니다. `pinky_nav_config/rviz/pinky_nav.rviz`에 넣었습니다 |
+| 표시 | `/{pode}/order_markers`(MarkerArray, latched)에 남은 base는 초록 실선, horizon은 주황 점선으로 냅니다. `pode_nav_config/rviz/pode_nav.rviz`에 넣었습니다 |
 
 **order 모델의 통신 끊김** (사용자 기준)
 
 끊김을 아는 방법은 새로 만들지 않았습니다. 관제는 `/fleet/heartbeat`를 주기로 내고(관제 `heartbeat_period_s`), 로봇은 heartbeat도 새 목표도 `heartbeat_timeout_s`(1.5 s) 동안 받지 못하면 관제가 끊긴 것으로 봅니다(3절 5번). order도 이 하나를 씁니다.
 
-로봇의 `pinky_fsm` 파라미터 `comm_loss_policy`가 끊긴 order 로봇의 동작을 정합니다. 기본은 `stop`입니다. `stop`과 `base_end` 말고 다른 값을 주면 노드가 시작하면서 오류로 끝납니다(조용히 다른 값으로 바꾸지 않습니다). `use_order_model: false`이면 order goal이 없으므로 이 값은 아무것도 바꾸지 않습니다.
+로봇의 `pode_fsm` 파라미터 `comm_loss_policy`가 끊긴 order 로봇의 동작을 정합니다. 기본은 `stop`입니다. `stop`과 `base_end` 말고 다른 값을 주면 노드가 시작하면서 오류로 끝납니다(조용히 다른 값으로 바꾸지 않습니다). `use_order_model: false`이면 order goal이 없으므로 이 값은 아무것도 바꾸지 않습니다.
 
 | | `stop`(기본, order가 아닌 목표도 같음) | `base_end`(제안) |
 |---|---|---|
@@ -203,7 +203,7 @@ MoveTo에 더한 칸:
 
 **로봇단 교착 처리**(0.13-draft, 기준(사용자), 추가 지시서 3의 7-4): 두 모드(`follow_path`, `nav_goal`)에 같은 순서로 씁니다. `local_yield`(기본 켬)를 끄면 아래 0.12까지의 규칙(자가 복구, `nav_goal`의 BLOCKED)과 같습니다. 끈 때도 `blocked_after_s` 10초와 BT의 Spin·BackUp 없음은 그대로입니다.
 
-| 순서 | 핑키가 하는 일 | 보고 |
+| 순서 | Pode가 하는 일 | 보고 |
 |---|---|---|
 | 섬 | `follow_path`: 경로 위 0.5 m 안의 물체 앞에서 1초 섬(아래 BLOCKED 조건 1~3), 또는 FollowPath가 `aborted`. `nav_goal`: 진전(0.05 m) 없이 1초 | `RECOVERING`, `wait` |
 | 기다림 | `local_wait_s`(**2초**) 기다립니다. `follow_path`는 FollowPath를 멈추고 서 있습니다. `nav_goal`은 NavigateToPose를 그대로 둡니다(BT는 지도 지우기와 Wait만 합니다). 그동안 물체가 1초 안 보이면(`nav_goal`은 진전이 보이면) 남은 경로를 다시 보내고 끝냅니다 | `RECOVERING`, `wait` |
@@ -224,7 +224,7 @@ MoveTo에 더한 칸:
 |---|---|
 | 진전 | 마지막으로 진전을 본 자리에서 로봇 중심이 `nav_progress_m`(**0.05 m**, Nav2 progress checker와 같은 값) 이상 멀어지면 진전입니다. 그때 자리와 시각을 새로 잡습니다. 제자리 회전은 진전이 아닙니다. 다만 로봇단 교착 처리의 "섬"(1초)은 마지막으로 움직인 뒤 `nav_turn_window_s`(**4초**) 안의 제자리 회전(관측마다 쌓아 `nav_turn_progress_rad` 0.2 rad마다)이 끝난 때부터 셉니다(주행 성능 조정 2026-11-14: Nav2가 출발 전에 길 쪽으로 도는 동안을 섬으로 보아 Gazebo v7에서 막힘 대기의 3분의 1이 회전 중에 시작했고 일부는 `BLOCKED`로 끝났습니다). 그래서 `RECOVERING`은 마지막으로 움직인 뒤 5초 안에 나와 관제의 `stall_s`(12초)보다 앞서고, `BLOCKED`의 10초는 그대로 마지막으로 움직인 때부터 셉니다. `nav_turn_progress_rad`를 0으로 두면 회전을 세지 않습니다. Nav2 BackUp 복구로 물러나는 것은 진전으로 칩니다 |
 | 켬 | NavigateToPose를 보낸 뒤 `blocked_after_s`(**10초**, 0.12까지 5초) 동안 진전이 없으면 `state=BLOCKED`입니다 |
-| 그동안 | 목표를 끝내지 않습니다. Nav2가 다시 계획하고 복구(지도 지우기, Wait)하며 계속 해 봅니다. 로봇단 교착 처리를 끄면 핑키 FSM은 후진하지 않고 `RECOVERING`도 보내지 않습니다 |
+| 그동안 | 목표를 끝내지 않습니다. Nav2가 다시 계획하고 복구(지도 지우기, Wait)하며 계속 해 봅니다. 로봇단 교착 처리를 끄면 Pode FSM은 후진하지 않고 `RECOVERING`도 보내지 않습니다 |
 | 끔 | 진전이 보이면 바로 `MOVING`입니다. 목표가 끝나면 함께 끕니다 |
 | 끝 | Nav2가 포기하면(기본 BT는 복구 6번) `NAV_ABORTED`입니다 |
 
@@ -236,20 +236,20 @@ MoveTo에 더한 칸:
 2. 로봇이 **1초** 이상 서 있습니다(속도 0.02 m/s 미만).
 3. 서 있는 이유가 경로 위 **0.5 m** 안의 물체입니다(RPP 충돌 검사나 local costmap).
 
-핑키가 지킬 것:
+Pode가 지킬 것:
 - 서고 나서 **2초 안에** 보고합니다.
 - 막힌 동안 `move_to` 목표를 스스로 끝내지 않습니다. 물체가 비키면 내부에서 FollowPath를 다시 보내 이어 갑니다.
 - 관제가 목표를 취소한 뒤에도 물체가 그 경로 앞에 있는 동안은 계속 `BLOCKED`로 보고합니다.
 - 물체가 **1초** 동안 보이지 않으면 `BLOCKED`를 끕니다(`MOVING`이나 `IDLE`).
 - 물체가 아닌 이유(위치 상실, 컨트롤러 실패)로 서면 실패(`NAV_ABORTED`)를 돌려줍니다.
 
-**자가 복구(기준(사용자), 11-09)**: 로봇단 교착 처리를 끈 때(`local_yield: false`)의 규칙입니다. 핑키는 `BLOCKED`로 보고하기 전에 스스로 짧게 후진하고 다시 가 봅니다. 켠 때는 위 표의 물러남이 이 후진 거리 식과 옆 한계를 함께 지킵니다.
+**자가 복구(기준(사용자), 11-09)**: 로봇단 교착 처리를 끈 때(`local_yield: false`)의 규칙입니다. Pode는 `BLOCKED`로 보고하기 전에 스스로 짧게 후진하고 다시 가 봅니다. 켠 때는 위 표의 물러남이 이 후진 거리 식과 옆 한계를 함께 지킵니다.
 - `move_to` 목표를 `follow_path`로 실행할 때만 합니다. `nav_goal`과 도킹 중에는 하지 않습니다.
-- 시작 조건은 위 `BLOCKED` 조건(물체 앞에서 1초 섬)입니다. 핑키 FSM은 보낸 FollowPath가 `aborted`로 끝날 때도 시작합니다(취소나 거절은 아닙니다).
+- 시작 조건은 위 `BLOCKED` 조건(물체 앞에서 1초 섬)입니다. Pode FSM은 보낸 FollowPath가 `aborted`로 끝날 때도 시작합니다(취소나 거절은 아닙니다).
 - 시도는 최대 **2번**(`recovery_attempts`)입니다. 시도마다 `state=RECOVERING`으로 보고하고, 주행을 멈추고, 경로를 따라 시작점 쪽으로 곧게 후진하고, local costmap을 비운 뒤 남은 경로를 다시 따릅니다.
-- **후진 거리**: `d = min(0.15 m, s − (0.2 m + 0.03 m))`입니다. `s`는 경로에서 마지막으로 지난 꼭짓점부터 달린 거리이고, 경로 첫 점도 꼭짓점으로 칩니다. 0.2 m는 관제 `release_distance_m`, 0.03 m는 위치 오차 여유입니다. 관제는 꼭짓점에서 0.2 m 지나면 지난 레인을 놓고 뒤 로봇이 그 꼭짓점까지 올 수 있으므로, 후진한 로봇 중심은 꼭짓점에서 0.23 m 앞에 남습니다. 꼭짓점에서 90도 이상 벌어지는 레인만 있으면 이것으로 후진은 쥔 구역 안에 머뭅니다. 예각으로 합류하는 레인이 있는 구역은 관제가 그 바닥 선과의 실제 거리로 놓으므로(`release_clear_of_floor`), 구역 모양을 모르는 핑키는 이 거리만으로 놓인 구역 밖을 보장하지 못합니다(팀 확인 필요). 그때는 Nav2 BackUp이 뒤의 물체를 보고 서는 것이 마지막 안전장치입니다. 구역 교통은 0.2 m가 아니라 지나온 구역에서 0.135 m(`footprint_radius_m` 0.085 + `release_margin_m` 0.05) 벗어난 뒤에 그 구역을 놓으므로, 이 식으로 후진이 쥔 구역 안에 머무는지는 실물에서 확인해야 합니다. `d`가 0.02 m 미만이면 후진하지 않고 다음 단계로 갑니다. 속도는 0.08 m/s이고 5초 안에 끝냅니다. 뒤에 무언가 있으면 거기서 후진을 멈추고 시도는 이어 갑니다.
-- **옆 한계**: 후진은 로봇 방향으로 곧게 가므로 옆으로 밀립니다. 핑키 FSM은 후진 뒤 예상 위치가 경로에서 옆으로 **0.03 m**(`backup_lateral_limit_m`, 관제가 위치 오차로 보는 값)를 넘지 않게 `d`를 줄입니다. 이미 그보다 멀면 더 멀어지지 않게 합니다.
-- **끝**: 시도를 시작한 경로 지점을 0.05 m 지나면 `MOVING`으로 돌아갑니다. 다시 막히면 다음 시도를 합니다. 핑키 FSM은 경로를 다시 보내고 10초 안에 둘 다 아니면 다시 막힌 것으로 봅니다. 두 번을 다 쓰고 다시 막히면 지금처럼 합니다. 앞에 물체가 있으면 `BLOCKED`(위 규칙), 물체 없이 FollowPath가 `aborted`면 `NAV_ABORTED` 실패입니다.
+- **후진 거리**: `d = min(0.15 m, s − (0.2 m + 0.03 m))`입니다. `s`는 경로에서 마지막으로 지난 꼭짓점부터 달린 거리이고, 경로 첫 점도 꼭짓점으로 칩니다. 0.2 m는 관제 `release_distance_m`, 0.03 m는 위치 오차 여유입니다. 관제는 꼭짓점에서 0.2 m 지나면 지난 레인을 놓고 뒤 로봇이 그 꼭짓점까지 올 수 있으므로, 후진한 로봇 중심은 꼭짓점에서 0.23 m 앞에 남습니다. 꼭짓점에서 90도 이상 벌어지는 레인만 있으면 이것으로 후진은 쥔 구역 안에 머뭅니다. 예각으로 합류하는 레인이 있는 구역은 관제가 그 바닥 선과의 실제 거리로 놓으므로(`release_clear_of_floor`), 구역 모양을 모르는 Pode는 이 거리만으로 놓인 구역 밖을 보장하지 못합니다(팀 확인 필요). 그때는 Nav2 BackUp이 뒤의 물체를 보고 서는 것이 마지막 안전장치입니다. 구역 교통은 0.2 m가 아니라 지나온 구역에서 0.135 m(`footprint_radius_m` 0.085 + `release_margin_m` 0.05) 벗어난 뒤에 그 구역을 놓으므로, 이 식으로 후진이 쥔 구역 안에 머무는지는 실물에서 확인해야 합니다. `d`가 0.02 m 미만이면 후진하지 않고 다음 단계로 갑니다. 속도는 0.08 m/s이고 5초 안에 끝냅니다. 뒤에 무언가 있으면 거기서 후진을 멈추고 시도는 이어 갑니다.
+- **옆 한계**: 후진은 로봇 방향으로 곧게 가므로 옆으로 밀립니다. Pode FSM은 후진 뒤 예상 위치가 경로에서 옆으로 **0.03 m**(`backup_lateral_limit_m`, 관제가 위치 오차로 보는 값)를 넘지 않게 `d`를 줄입니다. 이미 그보다 멀면 더 멀어지지 않게 합니다.
+- **끝**: 시도를 시작한 경로 지점을 0.05 m 지나면 `MOVING`으로 돌아갑니다. 다시 막히면 다음 시도를 합니다. Pode FSM은 경로를 다시 보내고 10초 안에 둘 다 아니면 다시 막힌 것으로 봅니다. 두 번을 다 쓰고 다시 막히면 지금처럼 합니다. 앞에 물체가 있으면 `BLOCKED`(위 규칙), 물체 없이 FollowPath가 `aborted`면 `NAV_ABORTED` 실패입니다.
 - **시도 수 되돌리기**: 복구 중이 아닐 때 첫 시도를 시작한 곳에서 **0.3 m** 이상 멀어지거나 `move_to` 목표가 성공하면 0으로 돌립니다. 새 목표나 바꾼 목표만으로는 돌리지 않습니다.
 - 복구 중 취소가 오면 후진과 FollowPath를 멈추고 `CANCELED`로 끝내고 `IDLE`이 됩니다. 새 목표가 오면 이전 목표는 `CANCELED`로 끝나고 후진을 멈추고 새 목표를 실행합니다(시도 수는 이어 갑니다). heartbeat가 끊기면 모두 멈추고 `HEARTBEAT_LOST`로 끝냅니다.
 - 0.15 m, 0.08 m/s, 0.10 m, 0.05 m, 10초, 0.3 m는 추정입니다.
@@ -268,7 +268,7 @@ MoveTo에 더한 칸:
 | `RECOVERING` 시작과 끝(기준(사용자)) | `SELF_RECOVERY`, `SELF_RECOVERY_END`(INFO)를 냅니다. 그동안 멈춤 감시는 쉽니다 |
 | `RECOVERING`과 `local_yield`(0.13-draft, 기준(사용자)) | 단계가 바뀔 때마다 `LOCAL_YIELD`(INFO, detail `wait`·`backup`·`retry`)를, 끝나면 `LOCAL_YIELD`(detail `ends <상태> after N s`)를 냅니다. `SELF_RECOVERY`는 내지 않습니다. 움직임은 정하지 않습니다 |
 
-- 도킹 goal은 이 표를 따르지 않습니다. 핑키는 도킹 중에 `BLOCKED`를 새로 켜지 않으므로, 도킹은 `BLOCKED` 보고와 상관없이 멈춤 감시(`dock_stall_s`, 15초)가 봅니다.
+- 도킹 goal은 이 표를 따르지 않습니다. Pode는 도킹 중에 `BLOCKED`를 새로 켜지 않으므로, 도킹은 `BLOCKED` 보고와 상관없이 멈춤 감시(`dock_stall_s`, 15초)가 봅니다.
 - **관제 출력**: 막힌 동안 `/fleet/robots`의 `fsm_state`는 `BLOCKED`(또는 `RECOVERING`)이고 `fault`는 `NONE`입니다.
 - 1초, 0.5 m, 10초, 60초는 추정입니다. 10초는 잠깐 지나가는 사람(8 s)보다 길게 잡았습니다. 지시서 4번은 BLOCKED를 받는 즉시 목표를 취소하라고 했지만, 잠깐 막힐 때마다 취소와 재전송이 일어나지 않게 기다립니다.
 
@@ -278,7 +278,7 @@ MoveTo에 더한 칸:
 |---|---|
 | `state`가 3초 동안 안 옴 | `COMM_LOST`. 그 로봇의 잠금 요청을 모두 취소합니다 |
 | 실패 결과 | 2초 뒤 다시 보냅니다. 세 번 실패하면 `ERROR`이고 구역은 쥔 채 둡니다 |
-| 목표가 열린 채 12초 제자리(도킹은 15초) | 취소하고 다시 보냅니다(`GOAL_STALLED`). 실패 한 번으로 셉니다. 12초(`stall_s`)는 핑키의 `blocked_after_s`(10초)보다 2초 깁니다: 선 로봇은 그 안에 `BLOCKED`나 `RECOVERING`을 보고하고, 그러면 이 감시는 쉽니다. 0.12까지는 6초였습니다 |
+| 목표가 열린 채 12초 제자리(도킹은 15초) | 취소하고 다시 보냅니다(`GOAL_STALLED`). 실패 한 번으로 셉니다. 12초(`stall_s`)는 Pode의 `blocked_after_s`(10초)보다 2초 깁니다: 선 로봇은 그 안에 `BLOCKED`나 `RECOVERING`을 보고하고, 그러면 이 감시는 쉽니다. 0.12까지는 6초였습니다 |
 | 이동이나 후진이 실패했거나 열린 채 멈췄는데 로봇이 목표 지점(0.15 m 안, Nav2 goal로 가던 이동은 0.075 m 안)에 서 있음 | 닿은 것으로 봅니다(`GOAL_ENDED_AT_TARGET`). 열려 있던 목표는 취소하고, 실패로 세지 않습니다. `HEARTBEAT_LOST`와 `NOT_AT_TARGET`은 빼고 봅니다 |
 | `BLOCKED` | 4절 표를 따릅니다. 다른 로봇은 공통설계 5절의 우회 규칙(`DETOUR`)으로 돌아가고, 길이 없으면 기다립니다 |
 | `RECOVERING`(기준(사용자)) | `MOVING`처럼 목표를 실행 중으로 봅니다. 막힌 시간을 더하지 않고 풀린 보고로도 세지 않습니다. 멈춤 감시는 쉬고 끝난 때부터 다시 잽니다. 레인 이탈 감시는 그대로입니다. 이벤트는 `SELF_RECOVERY`, `SELF_RECOVERY_END`(INFO)이고, `local_yield`가 있으면 대신 `LOCAL_YIELD`(0.13-draft)입니다. 처음 보고가 `RECOVERING`이면 지도에 올리지 않습니다 |
@@ -289,12 +289,12 @@ MoveTo에 더한 칸:
 
 ## 6. keepout 구역 (0.11-draft, 사용자 기준)
 
-Nav2 goal(`nav_goal`)의 경로가 급행과 도크 구역으로 들어가지 않게 핑키 Nav2의 global costmap에 keepout 필터를 겁니다.
+Nav2 goal(`nav_goal`)의 경로가 급행과 도크 구역으로 들어가지 않게 Pode Nav2의 global costmap에 keepout 필터를 겁니다.
 
 | 항목 | 내용 |
 |---|---|
 | 막는 구역 | 한 줄 구역(급행 `EXPRESS`)과 도크 구역(`WORK_DOCK`, `OUT_DOCK`, 갈림목 `J_W`, `J_E`). D2 기준 y 0.79~0.99 전체입니다 |
 | 거는 곳 | global costmap에만 겁니다. NavigateToPose의 planner만 피합니다. FollowPath(`follow_path`, `retreat`)는 controller의 local costmap만 쓰므로 영향이 없습니다 |
 | 마스크 | map_server 형식(yaml + 그림)이고 막힌 칸이 keepout입니다. site 도구가 구역 지도에서 만듭니다. 필터는 벽 여유(inflation) 뒤에 얹혀 둘레가 부풀지 않으므로 몸 반폭(0.06 m)만큼 넓혀 만듭니다 |
-| 켜기 | `pinky_nav_config` `nav2.launch.py`의 `keepout_mask:=<마스크.yaml>`. 비면 필터와 두 서버(`keepout_mask_server`, `costmap_filter_info_server`)를 띄우지 않습니다 |
+| 켜기 | `pode_nav_config` `nav2.launch.py`의 `keepout_mask:=<마스크.yaml>`. 비면 필터와 두 서버(`keepout_mask_server`, `costmap_filter_info_server`)를 띄우지 않습니다 |
 | 관제 | `nav_goal`의 `target_pose`를 keepout 안에 두지 않습니다. 그 구역은 `follow_path`로만 들어갑니다 |

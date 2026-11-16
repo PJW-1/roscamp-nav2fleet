@@ -2,7 +2,7 @@
 
 이동 하나를 "조각 목록"으로 한 번에 보내는 방식입니다. VDA 5050의 order(base, horizon, 이어 붙이기)를 옮겼습니다. 기본은 꺼져 있고(`use_order_model: false`), 꺼져 있으면 관제가 보내는 명령은 전과 똑같습니다(사건 기록 전체를 비교하는 시험 `test_zone_order_off.py`로 확인합니다).
 
-메시지 칸은 [핑키_계약.md](핑키_계약.md) 2절과 3절 11번에 있습니다. 이 문서는 관제가 그 칸을 어떻게 쓰는지를 적습니다.
+메시지 칸은 [Pode_계약.md](Pode_계약.md) 2절과 3절 11번에 있습니다. 이 문서는 관제가 그 칸을 어떻게 쓰는지를 적습니다.
 
 ## 1. 무엇이 달라지나
 
@@ -57,7 +57,7 @@ ros2 launch fleet_gz_sim gz.launch.py layout:=d2 use_order_model:=true   # Gazeb
 
 관제는 `/fleet/robots`(RobotStatus)의 `base`와 `horizon` 칸에 앞에 남은 길의 지점 이름을 나눠 싣습니다(기준(사용자)). 관제 화면은 이 두 칸으로 허락받은 길과 아직 허락받지 않은 길을 다르게 그립니다. order 모델을 꺼도 두 칸은 채워집니다.
 
-rviz(`pinky_nav_config/rviz/pinky_nav.rviz`)에서는 `/<로봇>/order_markers`로 남은 base가 초록 실선, horizon이 주황 점선으로 보입니다.
+rviz(`pode_nav_config/rviz/pode_nav.rviz`)에서는 `/<로봇>/order_markers`로 남은 base가 초록 실선, horizon이 주황 점선으로 보입니다.
 
 ## 6. 정한 값(가정)
 
@@ -73,7 +73,7 @@ rviz(`pinky_nav_config/rviz/pinky_nav.rviz`)에서는 `/<로봇>/order_markers`�
 
 | 한계 | 지금 |
 |---|---|
-| `comm_loss_policy: base_end`이면 통신이 끊긴 로봇이 base 끝까지 갑니다(기본 `stop`은 바로 섭니다) | base의 구역은 잡혀 있으므로 다른 로봇과 겹치지 않습니다. 다만 그 사이 사람이 들어오는 것은 로봇의 회피에 맡깁니다. 로봇은 끊김을 `/fleet/heartbeat`가 `heartbeat_timeout_s` 동안 오지 않는 것으로 압니다(핑키 계약 3절) |
+| `comm_loss_policy: base_end`이면 통신이 끊긴 로봇이 base 끝까지 갑니다(기본 `stop`은 바로 섭니다) | base의 구역은 잡혀 있으므로 다른 로봇과 겹치지 않습니다. 다만 그 사이 사람이 들어오는 것은 로봇의 회피에 맡깁니다. 로봇은 끊김을 `/fleet/heartbeat`가 `heartbeat_timeout_s` 동안 오지 않는 것으로 압니다(Pode 계약 3절) |
 | 두 goal을 취소한 뒤 새 order가 취소 확인보다 먼저 갈 수 있습니다 | 로봇은 update 번호 0을 새 order로 받아 달리던 이동을 밀어냅니다(계약 3절 11번). 다른 취소 경로와 같습니다 |
 | 이은 자리의 위치 오차 | Nav2 goal은 0.05~0.10 m 앞에서 섭니다. 그 뒤 조각이 `follow_path`이면 그만큼 어긋난 채 시작합니다(측정은 작업 기록에 있습니다) |
 | base 끝에서 속도를 미리 줄이는 선택지 | 만들지 않았습니다. 로봇은 base 끝에서 지금 방식대로 섭니다 |

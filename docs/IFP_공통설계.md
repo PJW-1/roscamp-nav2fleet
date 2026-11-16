@@ -1,4 +1,6 @@
-# GG 공통 설계 (코드와 문서가 함께 따르는 기준, 초안)
+# IFP (Intelligent Flying Pod) 공통 설계 (코드와 문서가 함께 따르는 기준, 초안)
+
+> 2026-11-16 이름 변경: 주행 로봇 pinky → Pode(pode1~3, 패키지 pode_*), 프로젝트 GG → IFP. 날짜가 붙은 기록 문서와 결과 폴더는 그때 이름 그대로 둔다.
 
 기준은 Confluence에 있는 것이 최종입니다(2026-11-04 확정).
 - 기준 UR: Confluence "주제1 : GG(Give Gift)" 페이지(425992, UR-01~14). 배터리·홈 복귀는 UR-10, 관리자 실시간 확인은 UR-11, 오류 알림은 UR-12, 충돌·간섭 방지는 UR-13, 이력 확인은 UR-14. 2785281(UR-01~15)은 더 이상 쓰지 않습니다.
@@ -12,9 +14,9 @@
   6. 지도 요소는 방향별 레인 2줄의 넓은 길, 우회로가 있는 좁은 양방향 통로(+ 기존 교차)다. 레인 간격 ≥ 2r + 2e + 여유(e는 Gazebo 값 0.067 m 임시, 간격 0.3 m 이상). 긴 레인은 0.3~0.4 m 구간으로 쪼갠다.
   7. 우회 규칙은 결정적이다. 기다릴지 돌아갈지를 규칙 하나가 정한다.
   8. 검증: 특징 지도(구역 15개 안팎)에서 로봇 3대 전수 검사. 실제 지도는 2대 전수 + 3대 상한 탐색 + 시나리오.
-- 사용자가 지시서를 바꾼 것: 이름에 `gg_` 접두사를 쓰지 않고(패키지는 0.5 이전 이름), 계약 버전은 `0.3-draft`이며, 핑키 계약은 제안이 아니라 관제가 요구하는 것으로 쓴다.
-- 계층(2026-11-05, v17 FMS 통합 판, v18도 같다, 팀 합의 전): 사용자(화면) → 서버(central, FMS) → 로봇(핑키, 로봇팔). 위가 아래를 부르고 아래는 상태와 결과만 올린다. FMS는 프로세스 하나(노드 `fleet_manager`)이고, 그 안에 주문 진행을 맡는 `orders`와 교통 제어를 맡는 `traffic`이 파이썬 호출로 연결된다. 코드도 이 구조로 나눴다(11절). 이 문서와 Confluence가 다른 것으로 확인한 항목은 12절에 모았고, 어느 쪽으로 맞출지는 아직 정하지 않았다.
-- 최종 갱신: 2026-11-06 밤(파트 8, 문서 동기화). 기준 트리는 `fms-work-order`의 `6ab04fe`이고, 개선 지시서 파트 0, 0.5, 1, 2, 4, 5, 5.5, 3, 7, 6이 모두 들어 있다. 앞서 지시서 0.5번에 따라 패키지·모듈 이름을 역할에 맞게 바꿨다(11절). 같은 날 앞서 코드 검토에서 찾은 결함 8건을 고치고 새 값과 이벤트를 반영했다(`docs/worklog_2026-11-06.md`). 2026-11-05: orchestrator와 fleet을 FMS 한 프로세스로 합치고, 둘 사이의 ROS 액션(`/fleet/dispatch`)과 서비스(`/fleet/release`), 중계 토픽(`/fleet/events`, `/orchestrator/*`)을 없앴다(4절). 지시서 "FMS 선행 작업"의 1~7번이 끝난 코드에 맞춰 전체를 고쳤다. 어긋났던 문장과 숫자의 근거는 `docs/worklog_2026-11-05.md`에 있다. 작업본은 저장소 `docs/GG_공통설계.md`이고 Drive 원본(2026-11-05 00:51 수정, 40 KB)은 고치지 않았다.
+- 사용자가 지시서를 바꾼 것: 이름에 `gg_` 접두사를 쓰지 않고(패키지는 0.5 이전 이름), 계약 버전은 `0.3-draft`이며, Pode 계약은 제안이 아니라 관제가 요구하는 것으로 쓴다.
+- 계층(2026-11-05, v17 FMS 통합 판, v18도 같다, 팀 합의 전): 사용자(화면) → 서버(central, FMS) → 로봇(Pode, 로봇팔). 위가 아래를 부르고 아래는 상태와 결과만 올린다. FMS는 프로세스 하나(노드 `fleet_manager`)이고, 그 안에 주문 진행을 맡는 `orders`와 교통 제어를 맡는 `traffic`이 파이썬 호출로 연결된다. 코드도 이 구조로 나눴다(11절). 이 문서와 Confluence가 다른 것으로 확인한 항목은 12절에 모았고, 어느 쪽으로 맞출지는 아직 정하지 않았다.
+- 최종 갱신: 2026-11-06 밤(파트 8, 문서 동기화). 기준 트리는 `fms-work-order`의 `6ab04fe`이고, 개선 지시서 파트 0, 0.5, 1, 2, 4, 5, 5.5, 3, 7, 6이 모두 들어 있다. 앞서 지시서 0.5번에 따라 패키지·모듈 이름을 역할에 맞게 바꿨다(11절). 같은 날 앞서 코드 검토에서 찾은 결함 8건을 고치고 새 값과 이벤트를 반영했다(`docs/worklog_2026-11-06.md`). 2026-11-05: orchestrator와 fleet을 FMS 한 프로세스로 합치고, 둘 사이의 ROS 액션(`/fleet/dispatch`)과 서비스(`/fleet/release`), 중계 토픽(`/fleet/events`, `/orchestrator/*`)을 없앴다(4절). 지시서 "FMS 선행 작업"의 1~7번이 끝난 코드에 맞춰 전체를 고쳤다. 어긋났던 문장과 숫자의 근거는 `docs/worklog_2026-11-05.md`에 있다. 작업본은 저장소 `docs/IFP_공통설계.md`이고 Drive 원본(2026-11-05 00:51 수정, 40 KB)은 고치지 않았다.
 
 ## 0. 용어와 컴포넌트
 
@@ -22,12 +24,12 @@
 
 | 낱말 | 뜻 | 예 |
 |---|---|---|
-| 컴포넌트 | 설계에서 역할 하나로 부르는 덩어리. 프로세스 하나일 수도 있고 여럿일 수도 있다 | FMS, central, 핑키 |
-| 노드 | ROS 2 그래프의 참가자. 토픽, 서비스, 액션은 노드가 주고받는다 | `fleet_manager`, `fake_pinky_node` |
+| 컴포넌트 | 설계에서 역할 하나로 부르는 덩어리. 프로세스 하나일 수도 있고 여럿일 수도 있다 | FMS, central, Pode |
+| 노드 | ROS 2 그래프의 참가자. 토픽, 서비스, 액션은 노드가 주고받는다 | `fleet_manager`, `fake_pode_node` |
 | 프로세스 | 운영체제에서 실행 중인 프로그램 하나. 죽으면 그 안의 노드와 모듈이 함께 멈춘다 | `ros2 run fleet_manager fleet_manager_node` |
-| 컴퓨터 | 프로세스가 도는 장치 | 관제 PC, 핑키의 Raspberry Pi 4B, 팔 PC |
+| 컴퓨터 | 프로세스가 도는 장치 | 관제 PC, Pode의 Raspberry Pi 4B, 팔 PC |
 | 모듈 | 프로세스 안의 파이썬 코드 묶음. 서로 파이썬 호출로 부르고 ROS를 쓰지 않는다 | `traffic`, `orders` |
-| 플릿(fleet) | 핑키 3대 | `pinky1`~`pinky3` |
+| 플릿(fleet) | Pode 3대 | `pode1`~`pode3` |
 | 스테이션(station) | 작업공간과 출고. 도크와 대기 레인을 가진다 | `WORK`, `OUTBOUND` |
 | 지점(waypoint) | 레인 그래프의 꼭짓점. ROS 노드와 헷갈리지 않게 "노드"라 부르지 않는다 | `W`, `P-4` |
 | 레인(lane) | 지점에서 지점으로 가는 방향 있는 직선 | `Q`→`W` |
@@ -36,9 +38,9 @@
 
 "칸", "셀", "그리드"는 옛 격자 지도의 낱말이라 지금 지도에는 쓰지 않는다.
 
-FMS(fleet manager, RCS)는 핑키 플릿에 일을 나눠 주고(배분), 길을 정리하고(교통), 스테이션에 작업을 요청한다(핸드셰이크). 팔의 동작 자체는 스테이션이 한다. 프로세스 하나, 안에 orders와 traffic 두 모듈.
+FMS(fleet manager, RCS)는 Pode 플릿에 일을 나눠 주고(배분), 길을 정리하고(교통), 스테이션에 작업을 요청한다(핸드셰이크). 팔의 동작 자체는 스테이션이 한다. 프로세스 하나, 안에 orders와 traffic 두 모듈.
 
-FMS는 컴포넌트 1개 = 프로세스 1개 = 노드 1개(`fleet_manager`, 실행 파일 `fleet_manager_node`)이고, 그 안에 모듈 2개(`orders`, `traffic`)와 둘을 잇는 `FleetManager`(`manager.py`)가 있다. v17·v18 그림은 FMS 안을 core, pinky, arm 세 모듈로 그렸다. core와 arm이 `orders`에, pinky가 `traffic`에 해당한다. 패키지 이름은 그대로이고 2026-11-06에 패키지 안의 모듈만 나눴다(11절).
+FMS는 컴포넌트 1개 = 프로세스 1개 = 노드 1개(`fleet_manager`, 실행 파일 `fleet_manager_node`)이고, 그 안에 모듈 2개(`orders`, `traffic`)와 둘을 잇는 `FleetManager`(`manager.py`)가 있다. v17·v18 그림은 FMS 안을 core, pinky, arm 세 모듈로 그렸다. core와 arm이 `orders`에, pode가 `traffic`에 해당한다. 패키지 이름은 그대로이고 2026-11-06에 패키지 안의 모듈만 나눴다(11절).
 
 ### 컴포넌트
 
@@ -48,13 +50,13 @@ FMS는 컴포넌트 1개 = 프로세스 1개 = 노드 1개(`fleet_manager`, 실�
 |---|---|---|---|---|---|
 | 화면(고객, 관리자) | 없음. central과 HTTP로 잇는 것은 제안(v17) | 관제 PC(제안) | 없음 | 주문과 조작 입력, 상태 표시 | central |
 | central | `pc/central`은 빈 패키지. 시험: `fake_central_node` | 관제 PC | 주문, 재고 기록, 이력. DB는 제안이고 central만 쓴다 | `/central/submit_order`, `/central/set_run_mode`, `/central/report_order` 서비스. `/central/orders`, `/central/events` 발행 | 계획: `/fleet/confirm_clear` 호출, `/fleet/robots`, `/fleet/assignments`, `/fleet/zones` 구독. `fake_central_node`는 이 중 아무것도 하지 않는다(11절) |
-| FMS (`fleet_manager`) | `pc/fleet_manager`의 노드 1개와 `pc/fleet_core` | 관제 PC | 노드 자체가 가진 것은 진행 중인 목표 핸들, 결과를 기다리는 취소, 답을 받지 못한 보고, 액션 서버를 찾은 로봇 목록, 마지막으로 낸 `/fleet/zones`와 `/fleet/assignments`, 시작 침묵 기한이다. 나머지는 아래 세 모듈. 프로세스가 죽으면 전부 사라진다(7절) | `/fleet/robots`, `/fleet/assignments`, `/fleet/zones`, `/fleet/heartbeat`, `/central/events` 발행. `/fleet/confirm_clear`, `/fleet/reinstate`(제안) 서비스 | `/{pinky}/move_to`, `/{pinky}/dock`, `/workcell/fill_basket`, `/arm3/swap_basket` 액션. `/central/report_order` 서비스. `/central/orders`, `/{pinky}/state` 구독 |
+| FMS (`fleet_manager`) | `pc/fleet_manager`의 노드 1개와 `pc/fleet_core` | 관제 PC | 노드 자체가 가진 것은 진행 중인 목표 핸들, 결과를 기다리는 취소, 답을 받지 못한 보고, 액션 서버를 찾은 로봇 목록, 마지막으로 낸 `/fleet/zones`와 `/fleet/assignments`, 시작 침묵 기한이다. 나머지는 아래 세 모듈. 프로세스가 죽으면 전부 사라진다(7절) | `/fleet/robots`, `/fleet/assignments`, `/fleet/zones`, `/fleet/heartbeat`, `/central/events` 발행. `/fleet/confirm_clear`, `/fleet/reinstate`(제안) 서비스 | `/{pode}/move_to`, `/{pode}/dock`, `/workcell/fill_basket`, `/arm3/swap_basket` 액션. `/central/report_order` 서비스. `/central/orders`, `/{pode}/state` 구독 |
 | `orders` | 모듈 `fleet_core/orders/orchestrator.py`(`OrderOrchestrator`) | FMS 안 | 대기 주문, 로봇별 묶인 주문과 담은 것·결품, `basket[robot]`, 팔 일을 요청해 두었는지, 결과 없이 끝나 늦은 결과를 기다리는 팔 작업 | `on_order_board`, `on_arm_report`, `on_dispatch_feedback`, `on_dispatch_result`, `on_robot_removed` | 명령을 내놓는다: `DispatchCmd`, `CancelDispatchCmd`, `ReleaseCmd`, `RobotFaultCmd`, `ReportOrderCmd`, 팔 쪽으로 `ArmFillCmd`, `ArmSwapCmd`, `ArmStopCmd`, `ArmDropCmd`, `ArmFailedCmd`, `ArmResetCmd` |
 | `arm` (2026-11-10 `orders`에서 분리) | 모듈 `fleet_core/arm/jobs.py`(`ArmJobs`) | FMS 안 | 로봇별 돌고 있는 팔 goal, 시도 수, 실패 뒤 대기 기한, 버린 작업을 서버가 멈추는 기한. 주문 ID와 품목은 goal에 실어 보낼 뿐이고 주문 진행과 바구니 상태는 판단하지 않는다 | `on_command`(주문 쪽 요청), `on_fill_result`, `on_swap_result`, `on_run_mode`, `check_timeouts` | 명령을 내놓는다: `FillCmd`, `SwapCmd`, `CancelCmd`, `RobotFaultCmd`, 주문 쪽으로 `ArmDeclined`, `ArmFillResult`, `ArmSwapResult`, `ArmLost`, `ArmLate` |
 | `traffic` | 모듈 `fleet_core/traffic/`: `controller.py`(`TrafficController`), `mission.py`(로봇별 기록), `recovery.py`(통신 두절, 복구, 교착 후퇴, confirm_clear), `blocking.py`(막힘), `detour.py`(우회), `isolation.py`(자동 격리), `off_lane.py`(레인 이탈), `lane_path.py`(이동 목표 묶음과 레인 폴리라인), `release_floor.py`(해제 보강), `zones.py`(`ZoneLocks`), `selector.py`(`RobotSelector`), `deadlock.py`, `lane_map.py`(`LaneMap`) | FMS 안 | 로봇별 임무 단계, 경로, 진행 중 목표, 고장. 구역 잠금과 대기열. 열린 호출. 주문과 바구니는 모른다 | `on_robot_state`, `on_move_result`, `on_goal_rejected`, `on_dock_result`, `on_dispatch`, `on_dispatch_cancel`, `on_release`, `on_run_mode`, `on_robot_fault`, `confirm_clear` | 명령을 내놓는다: `MoveCmd`, `DockCmd`, `CancelCmd`, `DispatchFeedback`, `DispatchResult` |
 | `FleetManager` | 클래스 `fleet_core/manager.py` | FMS 안 | 목표 번호, 호출 하나 동안 고정된 시각, 기록 대상 | 노드가 부르는 입구. `tick()`, 뷰, `record_to` | 세 모듈 |
-| 핑키 FSM | `pinky/pinky_fsm`은 빈 패키지. 시험: `fake_pinky_node` | 핑키 Pi 4B | 진행 중인 목표, FSM 상태, 위치 | `/{pinky}/move_to`, `/{pinky}/dock` 액션. `/{pinky}/state` 발행 | `/{pinky}/navigate_to_pose`(Nav2), pinky_dock. `/fleet/heartbeat` 구독 |
-| 핑키 내부 | `pinky_dock`은 빈 패키지, `pinky_nav_config`는 자리표시 launch뿐이다. Nav2 + AMCL, `pinky_bringup`은 제조사 패키지 | 핑키 Pi 4B | 지도 위 위치 | `/{pinky}/navigate_to_pose`, `/odom`, `/scan` | `/cmd_vel` |
+| Pode FSM | `pode/pode_fsm`은 빈 패키지. 시험: `fake_pode_node` | Pode Pi 4B | 진행 중인 목표, FSM 상태, 위치 | `/{pode}/move_to`, `/{pode}/dock` 액션. `/{pode}/state` 발행 | `/{pode}/navigate_to_pose`(Nav2), pode_dock. `/fleet/heartbeat` 구독 |
+| Pode 내부 | `pode_dock`은 빈 패키지, `pode_nav_config`는 자리표시 launch뿐이다. Nav2 + AMCL, `pinky_bringup`은 제조사 패키지 | Pode Pi 4B | 지도 위 위치 | `/{pode}/navigate_to_pose`, `/odom`, `/scan` | `/cmd_vel` |
 | workcell | 없음. 시험: `fake_workcell_node`. 구조는 팔 담당이 정한다. v17은 FMS의 arm 모듈과 `arm_planner`(임시 이름, 제안)로 그렸다 | 팔 PC 중 한 곳 | 두 팔의 작업과 재고 영역 | `/workcell/fill_basket` 액션 | arm_control |
 | arm_control | `arm/arm_control`은 빈 패키지. 시험: `fake_arm_node`(arm3), arm1과 arm2는 `fake_workcell_node`가 함께 맡는다 | 팔 PC | 팔 상태 | `/arm3/swap_basket` 액션. `/{arm}/state` 발행 | 팔 하드웨어 |
 | arm_vision | `arm/arm_vision`은 빈 패키지. 시험: `fake_vision_node`. Vision 서버로 옮기는 것은 제안(v17) | 팔 PC | 인식 결과 | `/{arm}/vision/items`(arm1, arm2) 발행 | 카메라 |
@@ -74,7 +76,7 @@ FMS는 컴포넌트 1개 = 프로세스 1개 = 노드 1개(`fleet_manager`, 실�
 | `COMM_LOST` | `fault` | 보고가 `comm_timeout_s` 동안 없다. 판단은 멈추지 않고 그 로봇의 요청만 취소한다 |
 | `RECOVERING` | `fault` | 보고가 돌아왔고 `recover_check_s` 뒤에 위치를 확인한다(`fault_reason` CHECKING_POSE). 또는 레인을 벗어나 세웠고 돌아오기를 기다린다(`fault_reason` OFF_LANE, 5절). 둘이 겹치면 통신 쪽을 보인다. 로봇 상태 `RECOVERING`(`fsm_state`, 자가 복구)과 이름만 같다 |
 | `OUT_OF_SERVICE` | `fault` | 관리자가 치웠다(`confirm_clear`). `/fleet/reinstate`로 되돌린다(4절, 5절) |
-| `IDLE`, `MOVING`, `WAITING`, `DOCKING`, `DOCKED`, `ERROR`, `BLOCKED`, `LOCALIZING`, `RECOVERING` | `fsm_state` | 핑키가 보고한 값 그대로. 임무 단계와 이름이 같아도 다른 값이다. `BLOCKED`는 경로 앞 물체로 섰다, `LOCALIZING`은 위치를 아직 못 잡았다는 뜻이다(핑키 계약 3·4절). `RECOVERING`은 핑키 FSM이 쥔 구역 안에서 짧게 후진하고 다시 가는 자가 복구 중이다(11-09, 제안, 핑키 계약 4절). 이때 `fault`는 NONE이고, `fault`의 `RECOVERING`과는 다른 값이다 |
+| `IDLE`, `MOVING`, `WAITING`, `DOCKING`, `DOCKED`, `ERROR`, `BLOCKED`, `LOCALIZING`, `RECOVERING` | `fsm_state` | Pode가 보고한 값 그대로. 임무 단계와 이름이 같아도 다른 값이다. `BLOCKED`는 경로 앞 물체로 섰다, `LOCALIZING`은 위치를 아직 못 잡았다는 뜻이다(Pode 계약 3·4절). `RECOVERING`은 Pode FSM이 쥔 구역 안에서 짧게 후진하고 다시 가는 자가 복구 중이다(11-09, 제안, Pode 계약 4절). 이때 `fault`는 NONE이고, `fault`의 `RECOVERING`과는 다른 값이다 |
 | `TO_WORK`, `FILL`, `TO_OUTBOUND`, `SWAP`, `WAIT` | `task_type` | `/fleet/assignments`와 `/fleet/robots`의 일 종류 |
 | `PENDING`, `BOUND`, `FILLING`, `TO_OUTBOUND`, `SWAPPING`, `SHIPPED`, `PARTIAL`, `HELD` | 주문 상태 | 5-1절 |
 | `EMPTY`, `FULL`, `NONE` | `basket[robot]` | 빈 바구니, 담긴 바구니, 바구니 없음 |
@@ -87,7 +89,7 @@ FMS는 컴포넌트 1개 = 프로세스 1개 = 노드 1개(`fleet_manager`, 실�
 | `ERROR` | `STALLED` | 멈춤 감시로 재시도를 다 썼다(`GOAL_FAILED`) |
 | `ERROR` | `NOT_AT_TARGET` | 성공 결과 뒤 위치가 목표에서 멀어 재시도를 다 썼다 |
 | `ERROR` | `REJECTED`, `DOCK_FAILED` | 목표 거절, 도킹 실패로 재시도를 다 썼다 |
-| `ERROR` | 이동 결과의 reason(`NAV_ABORTED`, `TIMEOUT`, `CANCELED` 등) | 이동 실패로 재시도를 다 썼다. 핑키가 보낸 값 그대로 |
+| `ERROR` | 이동 결과의 reason(`NAV_ABORTED`, `TIMEOUT`, `CANCELED` 등) | 이동 실패로 재시도를 다 썼다. Pode가 보낸 값 그대로 |
 | `ERROR` | `BLOCKED` | 막힘이 `blocked_timeout_s`에 닿았다(`BLOCKED_TOO_LONG`) |
 | `ERROR` | `RECOVERY_CONFLICT` | 복구한 로봇이 남의 구역 안에 있다 |
 | `ERROR` | `PLACEMENT_CONFLICT` | 시작 때 자리 충돌. 놓이면 지운다 |
@@ -123,7 +125,7 @@ FMS는 컴포넌트 1개 = 프로세스 1개 = 노드 1개(`fleet_manager`, 실�
 | `ZONE_WAIT_LONG` | WARN | traffic | 구역 하나를 `zone_wait_warn_s` 넘게 기다린다 |
 | `ZONES_CLEARED` | INFO | traffic | `confirm_clear`로 잠금을 풀었다 |
 | `CLEAR_REFUSED` | WARN | traffic | 이름은 모두 맞는데 `confirm_clear`를 거부했고 아무것도 바꾸지 않았다(구역을 쥔 로봇인데 목록이 빔). 이유는 detail과 응답의 `reason`(관제 요구, 팀 합의 전, 4절)에 적는다 |
-| `INPUT_REJECTED` | WARN | FMS(`FleetManager`, confirm_clear는 traffic) | 바깥 입력을 거부하거나 버렸다. detail에 무엇을 왜. 대상: 모르는 로봇이나 구역의 `confirm_clear`(응답 `accepted=false`, `reason`), 모르는 로봇·`OUT_OF_SERVICE`가 아닌 로봇·쥔 구역이 남은 로봇·틀린 basket의 `reinstate`(같은 응답), 모르는 로봇의 goal 결과, `/{pinky}/state`의 robot_id 불일치·유한하지 않은 pose·지도 밖(`input_pose_margin_m`) 보고, `/central/orders`의 틀린 run_mode(메시지를 버림)나 틀린 주문(run_mode는 적용, 주문은 이전 것 유지). 서비스는 호출마다 한 번, 토픽은 출처마다 한 번 내고 정상 메시지가 오면 다시 낸다. 늦게 온 결과의 모르는 goal ID는 정상이라 내지 않는다 |
+| `INPUT_REJECTED` | WARN | FMS(`FleetManager`, confirm_clear는 traffic) | 바깥 입력을 거부하거나 버렸다. detail에 무엇을 왜. 대상: 모르는 로봇이나 구역의 `confirm_clear`(응답 `accepted=false`, `reason`), 모르는 로봇·`OUT_OF_SERVICE`가 아닌 로봇·쥔 구역이 남은 로봇·틀린 basket의 `reinstate`(같은 응답), 모르는 로봇의 goal 결과, `/{pode}/state`의 robot_id 불일치·유한하지 않은 pose·지도 밖(`input_pose_margin_m`) 보고, `/central/orders`의 틀린 run_mode(메시지를 버림)나 틀린 주문(run_mode는 적용, 주문은 이전 것 유지). 서비스는 호출마다 한 번, 토픽은 출처마다 한 번 내고 정상 메시지가 오면 다시 낸다. 늦게 온 결과의 모르는 goal ID는 정상이라 내지 않는다 |
 | `ROBOT_REINSTATED` | INFO | FMS(`FleetManager`) | `/fleet/reinstate`를 받아들였다. detail에 바구니와 note. 로봇은 다음 위치 보고부터 시작과 같은 절차로 맵에 오른다(이동·도킹 중이면 기다리고, 배치 충돌이면 그 구역 주인만 세운다, 5절) |
 | `ZONES_STILL_HELD` | WARN | traffic | `confirm_clear` 뒤에도 그 로봇이 쥐고 있는 구역이 남았다. 다시 호출해야 풀린다 |
 | `LANE_ERROR` | WARN | traffic | 이동 목표 중에 지금 달리는 레인에서 `lane_error_warn_m` 넘게 벗어난 보고가 `release_confirm_samples`번 이어졌다. 목표를 취소해 세우고 구역은 쥔다. 세울 때마다 한 번 낸다(11-06, 3번) |
@@ -164,17 +166,17 @@ FMS는 컴포넌트 1개 = 프로세스 1개 = 노드 1개(`fleet_manager`, 실�
 | `lane_error_warn_m` | 0.15 | `LANE_ERROR`를 내고 로봇을 세우는 이탈 e |
 | `move_retry_limit` | 2 | 첫 실패 뒤 재시도 수. 이동, 도킹, 팔 작업이 같이 쓴다 |
 | `move_retry_wait_s` | 2 | 이동이나 도킹 실패 뒤 다시 보내기까지. 추정. 세 번 시도하는 시간이 `comm_timeout_s`보다 길어 통신 두절이면 `COMM_LOST`가 먼저 난다 |
-| `stall_s` | 12 | 이동 목표가 열린 채 이만큼 제자리면 멈춤. 핑키의 `blocked_after_s`(10 s)보다 2 s 길게 둔다(2026-11-13까지 6, pinky_multi_sim과 같은 값이었다). `comm_timeout_s`보다 길어 말 없는 로봇은 `COMM_LOST`가 먼저 난다 |
+| `stall_s` | 12 | 이동 목표가 열린 채 이만큼 제자리면 멈춤. Pode의 `blocked_after_s`(10 s)보다 2 s 길게 둔다(2026-11-13까지 6, pinky_multi_sim과 같은 값이었다). `comm_timeout_s`보다 길어 말 없는 로봇은 `COMM_LOST`가 먼저 난다 |
 | `stall_move_m` | 0.05 | 매끄럽게 한 위치가 이보다 덜 움직이면 제자리. 지시서와 pinky_multi_sim은 0.02였지만, 위치 잡음 σ 0.01 m부터 감시가 걸리지 않아 올렸다(작업 기록 11-06 파트 2). 0.01 m/s보다 느린 로봇은 멈춤으로 본다 |
 | `stall_smooth_s` | 1 | 멈춤 감시가 보는 위치의 지수 평균 시간 상수. 잡음 하나로 시계가 다시 시작되지 않게 한다 |
 | `dock_stall_s` | 15 | 도킹 목표의 멈춤 시간. 도킹은 천천히 맞추므로 더 길다. 추정 |
-| `blocked_mark_s` | 5 | `BLOCKED`가 이만큼 이어지면 레인을 막힘으로 표시하고 목표를 취소한다. 추정(핑키 계약 4절) |
+| `blocked_mark_s` | 5 | `BLOCKED`가 이만큼 이어지면 레인을 막힘으로 표시하고 목표를 취소한다. 추정(Pode 계약 4절) |
 | `blocked_timeout_s` | 60 | `BLOCKED`로 보고된 시간이 이만큼이면 ERROR(`BLOCKED`). 추정 |
 | `blocked_rejoin_s` | 10 | 풀린 뒤 이 안에 같은 레인에서 다시 막히면 막힌 시간을 이어 센다. 5초 표시와 60초에 같은 시계를 쓴다 |
 | `queue_gap_m` | 0.6 | 경로상 같은 레인이나 다음 레인 앞 이 거리 안에 정상 로봇이 있으면 `BLOCKED`를 줄 서기로 본다. 추정 |
 | `detour_enabled` | true | 우회 규칙(5절)을 쓴다. false면 지금처럼 FIFO로 기다린다(비교용). 이 값이 없는 옛 기록은 false로 재생한다(데이터클래스 기본값) |
 | `station_wait_estimate_s` | 30 | 스테이션, 대기 칸, 할 일 대기로 선 로봇이 비키기까지의 예상 시간. 추정 |
-| `detour_speed_mps` | 0.2 | 예상 대기 시간을 거리 벌점으로 바꾸는 속도. 추정, FakePinky와 시나리오의 기본 속도 |
+| `detour_speed_mps` | 0.2 | 예상 대기 시간을 거리 벌점으로 바꾸는 속도. 추정, FakePode와 시나리오의 기본 속도 |
 | `off_lane_timeout_s` | 20 | 레인을 벗어나 세운 로봇이 이 안에 돌아오지 않으면 `OFF_LANE`(ERROR). 추정 |
 | `arrival_tolerance_m` | 0.15 | 이동의 성공 결과를 도착으로 치는 목표 지점까지의 거리. 추정. 가장 짧은 레인에서 `release_distance_m`을 뺀 값(기본 지도 0.2 m)보다 작아야 한다(7절) |
 | `arrival_settle_s` | 1 | 성공 결과가 위치 보고보다 먼저 왔을 때 보고를 기다리는 시간. 추정. 보고 지연 τ보다 길어야 한다 |
@@ -202,16 +204,16 @@ FMS는 컴포넌트 1개 = 프로세스 1개 = 노드 1개(`fleet_manager`, 실�
 지도 파일의 값: `half_width_m`(0.05, 레인에서 이만큼까지 레인 위로 친다. 추정), `lane_entry_m`(0.25), `bundle_two_way`(true, 양방향 구간을 잠금 하나로 묶는다).
 
 ## 1. 확정 시나리오 (사용자가 확정, 바꾸지 말 것)
-주문이 들어오면 핑키가 대기 구간에서 출발한다. 공유 작업공간의 로봇팔 2대가 핑키 뒤 트레이의 바구니에 주문 상품을 담는다.
-핑키가 출고 구역으로 간다. 로봇팔 1대가 바구니째 꺼내고 빈 바구니를 트레이에 넣는다. 핑키는 대기 구간으로 돌아가거나, 주문이 밀려 있으면 바로 작업공간으로 간다.
+주문이 들어오면 Pode가 대기 구간에서 출발한다. 공유 작업공간의 로봇팔 2대가 Pode 뒤 트레이의 바구니에 주문 상품을 담는다.
+Pode가 출고 구역으로 간다. 로봇팔 1대가 바구니째 꺼내고 빈 바구니를 트레이에 넣는다. Pode는 대기 구간으로 돌아가거나, 주문이 밀려 있으면 바로 작업공간으로 간다.
 
 ## 2. 가정 (팀 미확정, 문서에 "가정"으로 표시)
 - 작업공간 위치는 미정이라 지도는 임시 배치다.
-- 작업공간 도크에는 핑키 1대만 들어간다. 나머지는 대기열에서 기다린다.
+- 작업공간 도크에는 Pode 1대만 들어간다. 나머지는 대기열에서 기다린다.
 - 팔 2대는 상품 영역 1곳을 함께 쓴다. workcell이 두 팔을 하나의 플래닝 그룹으로 묶어 궤적을 함께 계획하므로 둘이 동시에 움직이고, 한 번에 1대만 들어가는 잠금 방식은 쓰지 않는다(2026-11-04 결정). 어느 팔이 어느 품목을 맡는지는 workcell이 정한다. 팔별로 상품을 나눠 두는 배치는 처리량 비교용 베이스라인으로 남긴다.
 - 주문 1건 = 바구니 1개. 바구니당 최대 4개(`basket_capacity`, 실제 바구니로 측정 필요).
 - 검수 없음. 재고는 중앙이 관리하고 관리자가 수동 정정한다.
-- 모든 핑키는 빈 바구니를 싣고 시작한다.
+- 모든 Pode는 빈 바구니를 싣고 시작한다.
 - 결품이면 담긴 것만 출고(`ship_partial`), 하나도 못 담으면 보류(HELD)하고 빈 바구니로 다음 일을 한다.
 
 ## 3. 지도 (`pc/fleet_core/fleet_core/data/lane_map.yaml`, 임시)
@@ -231,7 +233,7 @@ FMS는 컴포넌트 1개 = 프로세스 1개 = 노드 1개(`fleet_manager`, 실�
 - 약점: 대로 전체가 잠금 하나이므로 대로에서 멈춘 로봇 1대는 그 이동을 모두 막는다.
 
 ## 4. 인터페이스 (`interfaces/fleet_interfaces`, FMS 통합 구조 기준)
-계층: 사용자 → central → FMS → 핑키 / workcell(arm1·arm2) / arm3. central은 로봇을 직접 움직이지 않고, 로봇은 central을 모른다. 핑키 파트는 팔을 모르고 팔 파트는 핑키를 모른다.
+계층: 사용자 → central → FMS → Pode / workcell(arm1·arm2) / arm3. central은 로봇을 직접 움직이지 않고, 로봇은 central을 모른다. Pode 파트는 팔을 모르고 팔 파트는 Pode를 모른다.
 
 **FMS 안의 연결은 ROS가 아니라 파이썬 호출이다.** `orders`와 `traffic`은 한 프로세스(노드 `fleet_manager`)의 두 모듈이므로 둘 사이에 액션, 서비스, 토픽을 두지 않는다. 합치기 전 판에 있던 `/fleet/dispatch` 액션, `/fleet/release` 서비스, `/fleet/events`, `/orchestrator/assignments`, `/orchestrator/zones`, `/orchestrator/{arm}/*`, `/orchestrator/confirm_clear`는 만들지 않는다. `Dispatch.action`과 `Release.srv`도 만들지 않는다.
 
@@ -259,34 +261,34 @@ FMS 내부 호출 (파이썬, `fleet_core` 패키지):
 - `/fleet/zones` ZoneStateArray 토픽: FMS → central
 - `/fleet/confirm_clear` ConfirmClear 서비스: central(관리자) → FMS. 응답의 `string reason`은 11-06에 더한 관제 요구(사용자 기준, 0.3-draft)다. 거부하면 이유, 받아들이면 빈 값. `accepted`, `released_zones`는 그대로다
 - `/fleet/reinstate` Reinstate 서비스(robot_id, basket, note → accepted, reason): central(관리자) → FMS. 11-06에 더한 관제 요구(사용자 기준, 0.3-draft)다. `confirm_clear`로 치운 로봇을 다시 넣는다. basket은 `BASKET_EMPTY`("EMPTY") 또는 `BASKET_NONE`("NONE"), 관리자가 본 트레이 상태다. 거부하면 `reason`에 이유, 받아들이면 빈 값. 거부 이유: 모르는 로봇, `OUT_OF_SERVICE`가 아닌 로봇, 쥔 구역이 남은 로봇, 틀린 basket(`INPUT_REJECTED`). 받아들이면 `ROBOT_REINSTATED`. 다른 로봇은 멈추지 않는다(배치 충돌 때 그 구역 주인만 예외). 배치는 시작 때와 같은 규칙(placed=false, 다음 위치 보고부터 시도하고 이동·도킹 중이면 기다림)이고, 배치 충돌로 세운 구역 주인은 우회 판단에서 무한 대기로 본다(5절)
-- `/{pinky}/state` 토픽, `/{pinky}/move_to`·`/{pinky}/dock` 액션: FMS ↔ 핑키. `move_to`는 잠금을 쥔 데까지의 짧은 목표이고, goal의 `path`(geometry_msgs/Pose[])에 레인 폴리라인을 싣는다(5절, 11-06 지시서 7번). 11-06 지시서 4번에서 `state`에 `BLOCKED`, `LOCALIZING`을, `MoveTo` 결과에 `REASON_HEARTBEAT_LOST`를 더했다. 4번은 상수만 더해 필드가 그대로이고, `path`는 7번에서 더한 goal 필드다. 핑키가 지킬 동작은 `docs/핑키_계약.md`에 관제가 요구하는 것으로 적었다
-  - `path` 요구(핑키 계약 3절 7번): `path`가 있으면 Nav2 FollowPath로 그 선을 따르고, 선 밖으로 돌아가거나 Nav2 행동 트리의 Spin·BackUp 같은 복구를 쓰지 않는다. FSM이 하는 짧은 후진 복구만 허용한다(쥔 구역 안, 최대 2번, `RECOVERING`으로 알림. 핑키 계약 3절 7번과 4절, 제안). 가장 가까운 점부터 따른다. 끝 근처 재전송과 도착 판정은 핑키가 한다. 목표가 없으면 움직이지 않는다. `path`가 비면 `target_pose`로 간다(`lane_goal_mode: point`)
-  - `BLOCKED` 요구(핑키 계약 4절): `move_to` 실행 중, 1초 넘게 0.02 m/s 미만으로 서 있고, 그 이유가 경로 위 0.5 m 안의 물체일 때. 서고 2초 안에 보고하고, 막힌 동안 목표를 스스로 끝내지 않으며, 취소 뒤에도 물체가 있으면 계속 보고하고, 물체가 1초 안 보이면 끈다. 물체가 아닌 이유로 서면 `NAV_ABORTED`. 관제 처리는 5절 "레인 막힘"
+- `/{pode}/state` 토픽, `/{pode}/move_to`·`/{pode}/dock` 액션: FMS ↔ Pode. `move_to`는 잠금을 쥔 데까지의 짧은 목표이고, goal의 `path`(geometry_msgs/Pose[])에 레인 폴리라인을 싣는다(5절, 11-06 지시서 7번). 11-06 지시서 4번에서 `state`에 `BLOCKED`, `LOCALIZING`을, `MoveTo` 결과에 `REASON_HEARTBEAT_LOST`를 더했다. 4번은 상수만 더해 필드가 그대로이고, `path`는 7번에서 더한 goal 필드다. Pode가 지킬 동작은 `docs/Pode_계약.md`에 관제가 요구하는 것으로 적었다
+  - `path` 요구(Pode 계약 3절 7번): `path`가 있으면 Nav2 FollowPath로 그 선을 따르고, 선 밖으로 돌아가거나 Nav2 행동 트리의 Spin·BackUp 같은 복구를 쓰지 않는다. FSM이 하는 짧은 후진 복구만 허용한다(쥔 구역 안, 최대 2번, `RECOVERING`으로 알림. Pode 계약 3절 7번과 4절, 제안). 가장 가까운 점부터 따른다. 끝 근처 재전송과 도착 판정은 Pode가 한다. 목표가 없으면 움직이지 않는다. `path`가 비면 `target_pose`로 간다(`lane_goal_mode: point`)
+  - `BLOCKED` 요구(Pode 계약 4절): `move_to` 실행 중, 1초 넘게 0.02 m/s 미만으로 서 있고, 그 이유가 경로 위 0.5 m 안의 물체일 때. 서고 2초 안에 보고하고, 막힌 동안 목표를 스스로 끝내지 않으며, 취소 뒤에도 물체가 있으면 계속 보고하고, 물체가 1초 안 보이면 끈다. 물체가 아닌 이유로 서면 `NAV_ABORTED`. 관제 처리는 5절 "레인 막힘"
 - `/workcell/fill_basket` FillBasket 액션(items → placed, missing, success, reason): FMS → workcell. 팔 2대 배분과 조율은 workcell 내부 책임
 - `/arm3/swap_basket` SwapBasket 액션(take_full, put_empty → took_full, put_empty_done): FMS → arm3
 - 목표가 끝난 방식: `MoveTo`, `FillBasket`, `SwapBasket`의 결과에는 `REASON_CANCELED`("CANCELED")가 있다. 서버가 reason을 비워 두면 FMS가 목표 상태로 채운다. `STATUS_CANCELED`는 `CANCELED`, `STATUS_ABORTED`는 `ABORTED`다. 서버가 쓴 reason은 그대로 둔다. `FillBasket`, `SwapBasket`의 이 상수는 2026-11-06에 더한 관제 요구(사용자 기준)다. 값은 README에 적힌 약속 그대로이고, 형식 설명에 상수가 들어가지 않으므로 직렬화와 타입 해시는 바뀌지 않는다
 - `/{arm}/state` ArmState 토픽, `/{arm}/vision/items` ItemArray 토픽(arm1, arm2): 팔 파트가 발행한다. FMS의 판단에는 쓰지 않는다
-- `/{pinky}/navigate_to_pose` 액션(Nav2): 핑키 안에서 pinky_fsm → Nav2. contract.yaml에 `real_only`로 있고, FMS는 부르지 않는다. `/{pinky}/follow_path`(nav2_msgs/action/FollowPath)도 `real_only`로 있다. `path` 목표를 따를 때 핑키 안에서 쓰고 FMS는 부르지 않는다
-- `/cmd_vel`(Nav2, pinky_dock → pinky_bringup), `/scan`, `/odom`(pinky_bringup → Nav2): 핑키 안의 연결이다. 제조사 패키지와 Nav2의 일반적인 이름이고 contract.yaml에는 없다. 3대를 namespace로 나누는 구성은 시험 전이다
+- `/{pode}/navigate_to_pose` 액션(Nav2): Pode 안에서 pode_fsm → Nav2. contract.yaml에 `real_only`로 있고, FMS는 부르지 않는다. `/{pode}/follow_path`(nav2_msgs/action/FollowPath)도 `real_only`로 있다. `path` 목표를 따를 때 Pode 안에서 쓰고 FMS는 부르지 않는다
+- `/cmd_vel`(Nav2, pode_dock → pinky_bringup), `/scan`, `/odom`(pinky_bringup → Nav2): Pode 안의 연결이다. 제조사 패키지와 Nav2의 일반적인 이름이고 contract.yaml에는 없다. 3대를 namespace로 나누는 구성은 시험 전이다
 
 새로 더한 바깥 인터페이스 (사용자 기준. 코드와 `contract.yaml`에는 들어 있다. `/fleet/robots`는 11-05 제안, `/fleet/heartbeat`는 관제 요구):
-- `/fleet/robots` RobotStatusArray 토픽(LATCHED, 1 Hz): FMS → central. 로봇마다 robot_id, fsm_state(핑키 보고 그대로), task_type, order_id, fault(NONE, ERROR, COMM_LOST, OUT_OF_SERVICE, RECOVERING), fault_reason, wait_zone, wait_robots, battery, x, y, yaw, base, horizon(뒤의 둘은 제안: 앞에 남은 길의 지점 이름으로, 구역을 허락받은 부분과 아직 허락받지 않은 부분). `/fleet/assignments`와 `/fleet/zones`는 호환을 위해 유지한다. 위치, 배터리, fsm_state는 마지막 보고 값이다
-- `/fleet/heartbeat` std_msgs/Header 토픽(HEARTBEAT QoS: reliable, volatile, depth 1. 0.4-draft에서 STATE에서 바꿨다(지시서 1.5, 제안, FSM 담당 확인 전). 2 Hz, `heartbeat_period_s` 0.5 s): FMS → 핑키. 토픽과 핑키 쪽 동작 모두 관제가 요구하는 것이다(팀 합의 전, 핑키 계약 3절 5번). **핑키에 요구하는 것:**
+- `/fleet/robots` RobotStatusArray 토픽(LATCHED, 1 Hz): FMS → central. 로봇마다 robot_id, fsm_state(Pode 보고 그대로), task_type, order_id, fault(NONE, ERROR, COMM_LOST, OUT_OF_SERVICE, RECOVERING), fault_reason, wait_zone, wait_robots, battery, x, y, yaw, base, horizon(뒤의 둘은 제안: 앞에 남은 길의 지점 이름으로, 구역을 허락받은 부분과 아직 허락받지 않은 부분). `/fleet/assignments`와 `/fleet/zones`는 호환을 위해 유지한다. 위치, 배터리, fsm_state는 마지막 보고 값이다
+- `/fleet/heartbeat` std_msgs/Header 토픽(HEARTBEAT QoS: reliable, volatile, depth 1. 0.4-draft에서 STATE에서 바꿨다(지시서 1.5, 제안, FSM 담당 확인 전). 2 Hz, `heartbeat_period_s` 0.5 s): FMS → Pode. 토픽과 Pode 쪽 동작 모두 관제가 요구하는 것이다(팀 합의 전, Pode 계약 3절 5번). **Pode에 요구하는 것:**
   - 이동 또는 도킹 목표를 실행 중일 때, 마지막 heartbeat 또는 목표 수락에서 `heartbeat_timeout_s`(1.5 s, heartbeat 3번)가 지나면 그 목표를 취소하고 정지한다. move_to는 `reason=HEARTBEAT_LOST`로 끝낸다(11-06). 목표 수락도 FMS가 살아 있다는 증거로 친다. 새 FMS의 첫 목표가 첫 heartbeat보다 먼저 올 수 있기 때문이다.
   - 할 일이 없는 로봇은 heartbeat가 없어도 아무것도 하지 않고 상태 보고를 계속한다. 멈춘 뒤 온 새 목표는 받는다.
   - 시간은 벽시계로 잰다. 프로세스를 감시하는 값이기 때문이다.
   - 통신 두절도 같다. FMS가 살아 있어도 heartbeat를 못 받으면 멈춘다.
   - **FMS 쪽 약속:** 시작한 뒤 `heartbeat_timeout_s + heartbeat_period_s`(2 s) 동안 heartbeat를 내지 않고 상태 보고도 받지 않는다. 이전 FMS의 목표로 달리던 로봇은 보통 그 사이에 멈춘다. 늦게 수락된 목표나 감속 중인 로봇은 아직 움직일 수 있으므로 침묵만 믿지 않는다. 그 뒤 로봇의 `move_to`, `dock` 서버를 찾았고, 전원이 위치를 보고했고, `MOVING`, `DOCKING`, `RECOVERING`, `BLOCKED`, `LOCALIZING`이 아니어야 지도에 올리고 움직이기 시작한다. heartbeat도 전원이 지도에 오른 뒤에야 낸다. 그때까지 이 FMS가 보낸 목표가 없으니 필요가 없고, 늦게 수락된 이전 목표가 새 heartbeat를 자기 것으로 알고 계속 달리는 일을 막는다.
-  - **이 계약이 보장하지 않는 것:** 마지막 heartbeat 뒤 도착한 목표는 수락 시각부터 다시 `heartbeat_timeout_s`를 센다. 이전 FMS의 목표가 로봇이 지도에 오른 뒤에 도착하면 그 로봇은 `heartbeat_timeout_s`까지 움직이고, FMS는 그 사이 옛 위치를 믿는다. 0.4부터 heartbeat는 reliable(depth 1)이라 잃은 것을 다시 보내지만, 끊김 판단은 앱 타이머(벽시계)라 링크가 1.5 s 넘게 끊기면 FMS가 살아 있어도 멈춘다. DDS `deadline`·`liveliness`는 쓰지 않는다. `/{pinky}/state`는 best_effort 그대로이고 주기적으로 계속 와야 한다. 멈춘 로봇의 감속 거리는 timeout에 들어 있지 않다.
+  - **이 계약이 보장하지 않는 것:** 마지막 heartbeat 뒤 도착한 목표는 수락 시각부터 다시 `heartbeat_timeout_s`를 센다. 이전 FMS의 목표가 로봇이 지도에 오른 뒤에 도착하면 그 로봇은 `heartbeat_timeout_s`까지 움직이고, FMS는 그 사이 옛 위치를 믿는다. 0.4부터 heartbeat는 reliable(depth 1)이라 잃은 것을 다시 보내지만, 끊김 판단은 앱 타이머(벽시계)라 링크가 1.5 s 넘게 끊기면 FMS가 살아 있어도 멈춘다. DDS `deadline`·`liveliness`는 쓰지 않는다. `/{pode}/state`는 best_effort 그대로이고 주기적으로 계속 와야 한다. 멈춘 로봇의 감속 거리는 timeout에 들어 있지 않다.
 
 run_mode는 FMS가 OrderBoard로 받는다. 삭제된 것: TaskBoard, StationCount, BoxArray, ArmTransfer, ReportDone, `/{arm}/load`, `/{arm}/unload`, `/central/tasks`, `/central/report_done`.
 
-## 5. 교통 제어 규칙 (`traffic`, 핑키만)
+## 5. 교통 제어 규칙 (`traffic`, Pode만)
 구역과 충돌쌍은 3절. 유지: 구역 잠금(현재+다음 1개), 구역별 FIFO, 위치 3회 확인 후 해제, 교착 감지, 통신 두절/복구, 이동 재시도, 시작 시 전원 보고 대기.
 
-이동 명령(레인 준수, FollowPath): 관제가 잠금을 쥔 데까지의 짧은 `move_to`를 보낸다. 이어지는 레인은 방향이 바뀌어도 잠금을 쥔 데까지 한 목표로 묶고, goal의 `path`에 그 레인 폴리라인을 싣는다. 양방향 레인에서 되돌아가는 유턴만 끊는다. 유턴을 이으면 경로를 바꿀 때마다(호출, 취소) 목표 끝이 앞으로 밀려 경로가 끝없이 늘어난다(전수 검사에서 찾음). 첫 점은 로봇이 보고한 위치, 이어서 아직 지나지 않은 지점, 끝 점은 목표 지점(`target_pose`)이다. 지점을 빼는 것은 로봇이 나가는 레인을 따라 `arrival_tolerance_m`(0.15 m) 넘게 갔고 들어오는 레인보다 나가는 레인에 가까울 때뿐이다. 그래서 모서리 앞에서 위치 잡음으로 모서리를 가로지르지 않고, 0.15 m 안으로 지난 지점이 선 앞에 남을 수 있다. 그 앞부분은 핑키가 건너뛴다(FollowPath는 가장 가까운 점부터 따른다. FakePinky와 SimWorld는 이미 지나 다음 선분 위에 있는 앞 점을 건너뛴다). 각 점의 방향은 다음 점을 향하고 끝 점은 마지막 레인 방향이다. 핑키는 Nav2 FollowPath로 그 선을 따른다. 잠금이 더 오면 관제가 더 긴 선으로 새 목표를 보낸다(선점). 새 목표를 보낸 뒤 온 이전 목표의 결과는 이유가 무엇이든 버린다. 늘림과 중단이 겹치면 중단 한 번이 재시도로 세어지지 않지만, 원인이 남으면 새 목표도 실패해 그때 센다(11-06 `shared_lane_failure`에서 확인). 끝 근처 재전송과 도착 판정은 핑키 몫이다(핑키 계약 3절 7번). 관제는 지금처럼 성공 결과와 위치로 도착을 확인한다(아래 "도착 판정"). `lane_goal_mode: point`면 예전처럼 같은 방향 레인만 묶고 방향이 바뀌면 끊으며 `path`는 비운다. 호환과 비교용이다. **이 방식은 11-06에 FollowPath로 정했고(13절) FSM·Nav2 담당과 확인 전이다.**
+이동 명령(레인 준수, FollowPath): 관제가 잠금을 쥔 데까지의 짧은 `move_to`를 보낸다. 이어지는 레인은 방향이 바뀌어도 잠금을 쥔 데까지 한 목표로 묶고, goal의 `path`에 그 레인 폴리라인을 싣는다. 양방향 레인에서 되돌아가는 유턴만 끊는다. 유턴을 이으면 경로를 바꿀 때마다(호출, 취소) 목표 끝이 앞으로 밀려 경로가 끝없이 늘어난다(전수 검사에서 찾음). 첫 점은 로봇이 보고한 위치, 이어서 아직 지나지 않은 지점, 끝 점은 목표 지점(`target_pose`)이다. 지점을 빼는 것은 로봇이 나가는 레인을 따라 `arrival_tolerance_m`(0.15 m) 넘게 갔고 들어오는 레인보다 나가는 레인에 가까울 때뿐이다. 그래서 모서리 앞에서 위치 잡음으로 모서리를 가로지르지 않고, 0.15 m 안으로 지난 지점이 선 앞에 남을 수 있다. 그 앞부분은 Pode가 건너뛴다(FollowPath는 가장 가까운 점부터 따른다. FakePode와 SimWorld는 이미 지나 다음 선분 위에 있는 앞 점을 건너뛴다). 각 점의 방향은 다음 점을 향하고 끝 점은 마지막 레인 방향이다. Pode는 Nav2 FollowPath로 그 선을 따른다. 잠금이 더 오면 관제가 더 긴 선으로 새 목표를 보낸다(선점). 새 목표를 보낸 뒤 온 이전 목표의 결과는 이유가 무엇이든 버린다. 늘림과 중단이 겹치면 중단 한 번이 재시도로 세어지지 않지만, 원인이 남으면 새 목표도 실패해 그때 센다(11-06 `shared_lane_failure`에서 확인). 끝 근처 재전송과 도착 판정은 Pode 몫이다(Pode 계약 3절 7번). 관제는 지금처럼 성공 결과와 위치로 도착을 확인한다(아래 "도착 판정"). `lane_goal_mode: point`면 예전처럼 같은 방향 레인만 묶고 방향이 바뀌면 끊으며 `path`는 비운다. 호환과 비교용이다. **이 방식은 11-06에 FollowPath로 정했고(13절) FSM·Nav2 담당과 확인 전이다.**
 
-경로 연결 확인(11-07 지시서 7.5, 제안): 핑키는 받은 `path`가 제 자리에서 `lane_error_warn_m`(0.15 m)보다 멀면 따라가지 않고 `PATH_NOT_CONNECTED`로 끝낸다(핑키 계약 3절 9번). 이전 목표는 새 목표를 받을 때 끝나므로 로봇은 선다. 관제는 다른 이동 실패처럼 실패 한 번으로 세고, `move_retry_wait_s` 뒤 지금 보고 위치에서 path를 다시 만든다. 이유는 `GOAL_RETRY` detail에 남는다. 관제 코드는 바꾸지 않았다. 첫 점이 보고 위치이고, 보고 위치는 로봇과 같은 자리거나 로봇이 지나온 path 위에 있으므로(보고 지연) 위치 잡음이 0.15 m보다 훨씬 작으면 정상 운행에서는 이 실패가 나지 않는다. 마지막 보고 뒤 위치 추정이 튀면 거절될 수 있다(시뮬에서는 drift가 막 시작된 순간. 그래서 `off_lane` 시나리오는 이 수를 세지 않는다). 그때는 재시도가 새 보고로 path를 다시 만든다. SimWorld는 보고하고 같은 step에 명령을 받는다. 그래서 로봇이 거절할 만큼 먼 path가 주입한 것도 아니고 관제가 받아들인 마지막 위치도 지나지 않으면 불변식 위반으로 본다(Codex 검수). 관제가 버린 보고(지도 밖)는 그 위치를 바꾸지 않는다. 그 위치를 지나는데도 로봇에서 멀면 원인을 가리지 않고 핑키처럼 거절로 센다(예: 한계 없는 잡음 `gaussian_noise`가 보고를 튀게 한 경우). 지시서는 "path는 마지막으로 지난 지점에서 시작한다"고 적었지만, 7번에서 정한 대로 첫 점은 보고 위치로 둔다. 둘 다 로봇이 path 위에 있게 하는 같은 목적이고, 핑키 쪽 구현(`pinky_fsm`)이 이미 이 계약을 따른다. FakePinky와 SimWorld의 로봇도 같은 검사를 한다(path가 비면 재지 않는다). 시험은 `test_path_connection.py`(떨어진 path를 한 번 받으면 실패 1회, 재시도, 출고. 정상 운행은 지도 셋, 두 모드에서 0회)와 FakePinky의 ROS 시험이다.
+경로 연결 확인(11-07 지시서 7.5, 제안): Pode는 받은 `path`가 제 자리에서 `lane_error_warn_m`(0.15 m)보다 멀면 따라가지 않고 `PATH_NOT_CONNECTED`로 끝낸다(Pode 계약 3절 9번). 이전 목표는 새 목표를 받을 때 끝나므로 로봇은 선다. 관제는 다른 이동 실패처럼 실패 한 번으로 세고, `move_retry_wait_s` 뒤 지금 보고 위치에서 path를 다시 만든다. 이유는 `GOAL_RETRY` detail에 남는다. 관제 코드는 바꾸지 않았다. 첫 점이 보고 위치이고, 보고 위치는 로봇과 같은 자리거나 로봇이 지나온 path 위에 있으므로(보고 지연) 위치 잡음이 0.15 m보다 훨씬 작으면 정상 운행에서는 이 실패가 나지 않는다. 마지막 보고 뒤 위치 추정이 튀면 거절될 수 있다(시뮬에서는 drift가 막 시작된 순간. 그래서 `off_lane` 시나리오는 이 수를 세지 않는다). 그때는 재시도가 새 보고로 path를 다시 만든다. SimWorld는 보고하고 같은 step에 명령을 받는다. 그래서 로봇이 거절할 만큼 먼 path가 주입한 것도 아니고 관제가 받아들인 마지막 위치도 지나지 않으면 불변식 위반으로 본다(Codex 검수). 관제가 버린 보고(지도 밖)는 그 위치를 바꾸지 않는다. 그 위치를 지나는데도 로봇에서 멀면 원인을 가리지 않고 Pode처럼 거절로 센다(예: 한계 없는 잡음 `gaussian_noise`가 보고를 튀게 한 경우). 지시서는 "path는 마지막으로 지난 지점에서 시작한다"고 적었지만, 7번에서 정한 대로 첫 점은 보고 위치로 둔다. 둘 다 로봇이 path 위에 있게 하는 같은 목적이고, Pode 쪽 구현(`pode_fsm`)이 이미 이 계약을 따른다. FakePode와 SimWorld의 로봇도 같은 검사를 한다(path가 비면 재지 않는다). 시험은 `test_path_connection.py`(떨어진 path를 한 번 받으면 실패 1회, 재시도, 출고. 정상 운행은 지도 셋, 두 모드에서 0회)와 FakePode의 ROS 시험이다.
 
 꺾임을 넘는 목표와 다른 규칙(`traffic/lane_path.py`, `test_lane_path.py`): 경로 인덱스는 레인마다 d를 지날 때 넘어가므로 목표가 꺾임 너머에 있어도 해제(d), 지점 도착 판정(목표 지점까지의 거리), 멈춤 감시(위치), 레인 막힘의 "달리던 레인"(`_running_lane`, 경로 인덱스 앞뒤 레인 중 가까운 쪽)은 그대로 맞다. 바꾼 것은 이탈 e 하나다. point는 목표 안에서 시작점을 지난 마지막 레인(없으면 첫 레인)으로 재지만 path는 이 보고로 넘길 진행 인덱스 앞뒤 두 레인 중 가까운 쪽으로 잰다(아래 이탈 항목). 꺾인 목표의 첫 레인을 달리는 로봇이 마지막 레인 기준으로 멀다고 `LANE_ERROR`가 나지 않게 하려는 것이다.
 
@@ -335,7 +337,7 @@ reinstate(관리자가 치운 로봇을 다시 넣는다, 11-06 6번, `traffic/r
 
 멈춤 감시(11-06 개선 지시서 2번): 이동이나 도킹 목표가 열려 있는데 보고 위치가 `stall_s`(도킹은 `dock_stall_s`) 동안 `stall_move_m` 미만으로만 움직이면 `GOAL_STALLED`(WARN)를 내고 그 목표를 취소한다. 실패한 시도 하나로 세므로 `move_retry_wait_s` 뒤 같은 지점으로 다시 보내고, 세 번째 시도까지 멈추면 `GOAL_FAILED`(ERROR, `fault_reason=STALLED`)다. `GOAL_RETRY`는 따로 내지 않는다. 위치는 보고 그대로가 아니라 `stall_smooth_s` 시간 상수의 지수 평균으로 본다. 재는 시작점은 목표가 보인 첫 tick의 평균 위치이고, 평균이 그 점에서 `stall_move_m` 이상 움직이면 그 자리에서 다시 잰다. 시드 200개 시험에서 σ 0.03 m 잡음의 제자리 로봇은 모두 ERROR까지 갔고 0.2 m/s 주행은 한 번도 멈춤으로 잡히지 않았다. σ 0.05 m에서는 200개 중 20개가 30초 안에 ERROR까지 가지 못했다. 목표를 연장해도 시계는 그대로다. 목표가 없을 때(구역을 기다리며 서 있음, 스테이션에서 대기), RUN이 아닐 때(PAUSE, STOP), 통신이 끊기거나 복구 중이거나 고장일 때는 재지 않고 처음부터 다시 잰다. 로봇이 `RECOVERING`(자가 복구, 제안)을 보고하는 동안도 재지 않고, 끝난 때부터 처음부터 다시 잰다. 취소한 목표의 결과는 목표 번호가 달라 무시된다. 전수 검사는 시계가 멈춰 있어 이 감시가 끼어들지 않는다.
 
-레인 막힘(11-06 개선 지시서 4번, 핑키 계약 4절, `traffic/blocking.py`): 이동 목표 중 `BLOCKED` 보고가 오면 막힘을 연다. 레인은 그때 달리던 레인이다. 경로의 들어오는 레인과 나가는 레인 중 로봇에 가까운 쪽이고, 같으면 나가는 레인이다. 경로상 같은 레인이나 다음 레인 앞 `queue_gap_m` 안에 정상 로봇(지도에 있고 고장, 두절, `BLOCKED`, `LOCALIZING`, 막힘이 아님)이 있으면 줄 서기로 보고 열지 않는다. 목표가 없거나 통신이 비정상이면 상태만 보인다. 막힘을 연 동안과 줄 서기 동안은 멈춤 감시를 쉰다. 달리던 레인을 찾지 못한 `BLOCKED`는 막힘을 열지 않으므로 멈춤 감시가 잰다. 경로 레인은 거리 제한 없이 가까운 쪽을 고른다. 경로가 아닌 레인에 귀속시키지 않기 위해서다. 레인에서 멀리 벗어난 로봇은 `LANE_ERROR`가 맡는다(파트 3: 이동 목표가 열린 동안 세운다). 막힘 표시 전에 이탈로 서면 막힘은 닫고(`LANE_CLEARED` 없음) 이탈이 맡는다. 돌아와 목표를 다시 보낸 뒤 `blocked_rejoin_s` 안에 같은 레인에서 다시 막히면 막힌 시간을 이어 센다. 막힘을 표시한 뒤에는 목표가 취소되어 이탈을 재지 않으므로, 그동안 구역은 막힘 쪽 규칙(취소 결과, 선 것 확인, 앞 구역의 바닥 밖 보고)으로만 놓는다. `/fleet/robots`의 순서는 고장, 통신, 이탈(RECOVERING, OFF_LANE), 막힘(NONE, BLOCKED)이다.
+레인 막힘(11-06 개선 지시서 4번, Pode 계약 4절, `traffic/blocking.py`): 이동 목표 중 `BLOCKED` 보고가 오면 막힘을 연다. 레인은 그때 달리던 레인이다. 경로의 들어오는 레인과 나가는 레인 중 로봇에 가까운 쪽이고, 같으면 나가는 레인이다. 경로상 같은 레인이나 다음 레인 앞 `queue_gap_m` 안에 정상 로봇(지도에 있고 고장, 두절, `BLOCKED`, `LOCALIZING`, 막힘이 아님)이 있으면 줄 서기로 보고 열지 않는다. 목표가 없거나 통신이 비정상이면 상태만 보인다. 막힘을 연 동안과 줄 서기 동안은 멈춤 감시를 쉰다. 달리던 레인을 찾지 못한 `BLOCKED`는 막힘을 열지 않으므로 멈춤 감시가 잰다. 경로 레인은 거리 제한 없이 가까운 쪽을 고른다. 경로가 아닌 레인에 귀속시키지 않기 위해서다. 레인에서 멀리 벗어난 로봇은 `LANE_ERROR`가 맡는다(파트 3: 이동 목표가 열린 동안 세운다). 막힘 표시 전에 이탈로 서면 막힘은 닫고(`LANE_CLEARED` 없음) 이탈이 맡는다. 돌아와 목표를 다시 보낸 뒤 `blocked_rejoin_s` 안에 같은 레인에서 다시 막히면 막힌 시간을 이어 센다. 막힘을 표시한 뒤에는 목표가 취소되어 이탈을 재지 않으므로, 그동안 구역은 막힘 쪽 규칙(취소 결과, 선 것 확인, 앞 구역의 바닥 밖 보고)으로만 놓는다. `/fleet/robots`의 순서는 고장, 통신, 이탈(RECOVERING, OFF_LANE), 막힘(NONE, BLOCKED)이다.
 - 시간은 tick마다 `BLOCKED`이고 통신이 정상이며 줄 서기가 아닐 때만 더한다. 로봇의 `RECOVERING`(자가 복구, 제안) 동안은 더하지 않으므로 그동안 `blocked_mark_s` 표시와 `blocked_timeout_s` ERROR가 일어나지 않는다. 두절과 복구 확인 동안, 막힘을 연 뒤 앞에 정상 로봇이 선 동안은 멈춘다. 줄 서기가 `blocked_timeout_s` 넘게 이어지면 더는 쉬지 않고 막힘으로 친다. 앞 로봇이 뒤 로봇의 구역을 기다려 서로 막고 서면 구역 대기 그래프에 보이지 않기 때문이다. 그때부터 막힘 시계로 `blocked_mark_s` 뒤에 표시하고 `blocked_timeout_s` 뒤에 ERROR다. 줄 서기 시간은 `BLOCKED`가 아닌 보고나 통신 두절이 끼면 처음부터 다시 잰다. tick(0.1초) 단위로 더하므로 상태가 바뀔 때마다 한 tick까지 틀릴 수 있다.
 - `blocked_mark_s`: 레인을 표시하고(`LANE_BLOCKED`) 그 로봇의 잠금 요청과 목표를 취소한다. 몸이 있는 레인 양 끝의 구역은 쥔다. 나머지 쥔 구역은 취소한 목표의 결과가 오고 이동 중이 아닌 보고가 `release_confirm_samples`번 이어진 뒤, 바닥 밖이 확인된 것만 놓는다. 표시 동안 구역은 이 규칙으로만 놓고, 다른 자동 해제(지나간 구역, 복구, 교착 후퇴)는 쉰다. 취소한 목표의 결과가 오기 전에는 막힘이 먼저 풀려도 그 로봇의 어느 구역도 자동으로 놓지 않는다(`_release_if_cleared`, `block_cancel`). 결과가 끝내 오지 않으면 노드가 1초마다 취소를 다시 보내고 5번 뒤 `CANCEL_UNCONFIRMED`(WARN)를 낸다. 구역은 쥔 채 두고 관리자가 `confirm_clear`로 푼다. 정지는 상태 보고(`BLOCKED`는 계약상 1초 넘게 0.02 m/s 미만)와 취소 결과로 본다. 원시 자세로 재면 σ 0.03 m 잡음에 흔들려 넣지 않았다. 표시 동안과 취소한 목표의 결과가 오기 전에는 그 로봇의 단계를 진행하지 않는다(새 구역 요청, 이동, 도킹을 내지 않는다). 결과 전에 새 목표가 다시 막혀 표시되면 앞 취소의 추적을 잃기 때문이다. 그래서 이 로봇은 구역 대기 그래프에 들어가지 않고 교착 후퇴 대상도 되지 않는다. 이 동안 새 호출은 받지 않는다. 이미 맡은 호출은 다른 로봇처럼 선택기가 다시 고른다(같은 호출 가산점). 대기 줄에서는 앞 로봇으로 남아 뒤 로봇이 앞지르지 않는다. 지정 배차는 받아 두고 결과가 오면 이어 간다. 노드가 결과를 잃으면(결과 future 오류) 취소한 로봇 목표는 거절로 넘기지 않는다. `CANCEL_UNCONFIRMED`를 낸 뒤에는 그 취소를 다시 보내지 않고, 코어는 결과나 `confirm_clear`까지 구역을 쥔다.
 - 풀림: 통신이 정상이고 `BLOCKED`가 아닌 보고가 `release_confirm_samples`번 이어진다. `RECOVERING` 보고는 풀림으로 세지 않고 풀림 셈을 0으로 되돌린다. 정지 셈에서는 `MOVING`처럼 이동 중으로 본다. 두절이나 복구 확인 중의 보고는 풀림 셈과 정지 셈을 0으로 되돌린다. 표시했으면 `LANE_CLEARED`를 내고 구역을 다시 청해 같은 목표를 다시 보낸다(시도로 세지 않는다). 취소 결과보다 풀림이 먼저 오면 결과를 받은 뒤 다시 보낸다. 그동안 선택기가 호출을 다른 로봇에게 넘겼으면 바뀐 경로로 간다. 채우기 도크의 commit 구역을 잡았거나 지난 로봇은 방향을 바꾸지 않고 도크 지점까지 간다(`_committed`). 그때 맡은 호출이 없으면 도킹하지 않고 대기 지점으로 간다. 표시 전에 풀리면 아무것도 보내지 않고 멈춤 시계만 0부터 다시 잰다.
@@ -382,10 +384,10 @@ zones_view(); robot_view(robot); status_view(robot)
 
 ## 5-1. 주문 진행 규칙 (`orders`, FleetCore에서 옮긴 것)
 주문 배정:
-- **주문은 핑키가 WORK 도크에 도킹을 마친 순간 묶는다.** WORK 요청의 결과가 success로 오면 그 robot_id에 대기 주문 맨 앞을 묶고 `ORDER_BOUND`를 낸다. 그 전에는 "호출"만 한다. 도크 도착 순서가 곧 작업 순서이므로, 이렇게 해야 주문이 등록 순서대로 처리되고 도중에 고장 난 로봇이 주문을 쥐고 있지 않는다.
+- **주문은 Pode가 WORK 도크에 도킹을 마친 순간 묶는다.** WORK 요청의 결과가 success로 오면 그 robot_id에 대기 주문 맨 앞을 묶고 `ORDER_BOUND`를 낸다. 그 전에는 "호출"만 한다. 도크 도착 순서가 곧 작업 순서이므로, 이렇게 해야 주문이 등록 순서대로 처리되고 도중에 고장 난 로봇이 주문을 쥐고 있지 않는다.
 - 열어 두는 WORK 요청 수 = 아직 묶이지 않은 주문 수. 묶이지 않은 주문이 줄면 남는 요청을 `on_dispatch_cancel`로 취소한다(대기 구간 복귀는 5절의 `commit` 지점 규칙).
 
-주문 상태: PENDING, BOUND, FILLING, TO_OUTBOUND, SWAPPING, 종료(SHIPPED, PARTIAL, HELD). 바구니 상태 `basket[robot]`: EMPTY, FULL, NONE. 모든 핑키는 EMPTY로 시작한다.
+주문 상태: PENDING, BOUND, FILLING, TO_OUTBOUND, SWAPPING, 종료(SHIPPED, PARTIAL, HELD). 바구니 상태 `basket[robot]`: EMPTY, FULL, NONE. 모든 Pode는 EMPTY로 시작한다.
 
 FILLING:
 1. 남은 품목 = 주문 품목 − 담은 것 − 최종 결품. 남은 것이 있으면 FillCmd를 workcell에 보낸다.
@@ -442,7 +444,7 @@ inventory: {A: 6, B: 6, C: 6, D: 6} # 중앙의 재고 기록. 생략하면 stoc
 orders:
   - {at_s: 0, id: O-001, items: {A: 1, C: 1}}
 robots:
-  pinky1: {start: P-6, speed_mps: 0.20, pose_noise_m: 0.03} # report_delay_s(보고 지연, 시나리오 초), stop_error_m(정지 오차, 축마다 표준편차)도 쓸 수 있다. 기본 0
+  pode1: {start: P-6, speed_mps: 0.20, pose_noise_m: 0.03} # report_delay_s(보고 지연, 시나리오 초), stop_error_m(정지 오차, 축마다 표준편차)도 쓸 수 있다. 기본 0
 arm: {seconds_per_item: 4.0, swap_seconds: 8.0, fail_rate: 0.0}
 dock: {duration_s: 3.0, error_cm: 1.0}
 faults: [] # comm_loss, nav_abort(target: 지점이면 그 지점 목표만), stuck 유지. 추가: arm_fail(대상 arm, count), swap_partial(count), operator_remove(로봇을 코스에서 치우고 confirm_clear 호출), drift(robot, duration_s, offset_m: 그동안 보고 위치만 진행 방향 왼쪽으로 민다), operator_reinstate(start 지점에 다시 놓고, 앞선 confirm_clear가 받아들여진 뒤 reinstate 호출, basket 기본 EMPTY. 그 로봇을 치운 뒤에만. 그 전의 stuck도 끝낸다). expect `bound_after_reinstate_min`: 다시 투입한 로봇이 그 뒤 묶은 주문 수의 하한, `shipped_after_reinstate_min`: 그중 ORDER_REQUEUED로 돌아가지 않고 출고(SHIPPED·PARTIAL)된 주문 수의 하한
@@ -455,17 +457,17 @@ expect: {all_orders_finished: true, orders_shipped: 6, orders_partial: 0, orders
 
 특징 지도 시나리오 3개(11-06, 5번과 5.5번): `feature_basic_orders`(`basic_orders`와 같고 지도와 출발 칸만 다름), `feature_blocked_lane`(`blocked_lane`과 같고 지도, 출발 칸, 물체 시각(46초부터 30초)이 다름, `DETOUR`를 기대함), `feature_auto_isolation`(레인 F1->F2 위에서 격리된 로봇을 좁은 통로로 돌아가 관리자 전에 전부 출고). 통합 시험 목록(`test_scenario_integration.py`)에는 넣지 않았다. 전체 시험 시간을 늘리지 않으려는 것이다. 따로 돌린 결과는 작업 기록(파트 5, 5.5)에 있다.
 
-기본 지도 시나리오 10개: `basic_orders`(주문 6건, 고장 없음), `order_burst`(한꺼번에 8건, 진행 중 추가 주문, 밀린 주문이면 대기 구간을 거치지 않고 바로 작업공간으로 가는지 확인), `shared_lane_failure`(통신 두절+주행 실패), `stock_shortage`(재고 0인 품목과 기록만 있고 실물 없는 품목: PARTIAL과 HELD, OUT_OF_STOCK과 STOCK_MISMATCH 구분), `stuck_robot`(차선에서 멈춤: 뒤따르는 로봇이 막히고 경고가 나는지), `operator_recovery`(팔 고장 3회 → ERROR와 자동 격리 → 관리자가 치움 → 주문이 다시 처리되어 전부 끝남), `blocked_lane`(`basic_orders`에 pinky1 앞 물체: 5초 표시와 취소, 풀린 뒤 같은 목표로 이어 가 전부 출고. pinky3은 처음 2초 `LOCALIZING`), `auto_isolation`(팔 고장 3회 → 자동 격리 → 앞서 간 로봇은 사람 없이 출고 → 관리자가 치운 뒤 되돌린 주문부터 전부 끝남, 11-06 5.5번), `off_lane`(한 대의 보고가 레인 옆으로 밀림 → 세우고 구역 유지 → 뒤 로봇은 그 구역 앞에서 대기 → 돌아오면 재개 → 전부 출고, 11-06 파트 3), `reinstate`(관리자가 치운 로봇을 빈 바구니와 다시 투입, 다시 오른 로봇도 주문을 받아 7건 모두 출고, 11-06 6번).
+기본 지도 시나리오 10개: `basic_orders`(주문 6건, 고장 없음), `order_burst`(한꺼번에 8건, 진행 중 추가 주문, 밀린 주문이면 대기 구간을 거치지 않고 바로 작업공간으로 가는지 확인), `shared_lane_failure`(통신 두절+주행 실패), `stock_shortage`(재고 0인 품목과 기록만 있고 실물 없는 품목: PARTIAL과 HELD, OUT_OF_STOCK과 STOCK_MISMATCH 구분), `stuck_robot`(차선에서 멈춤: 뒤따르는 로봇이 막히고 경고가 나는지), `operator_recovery`(팔 고장 3회 → ERROR와 자동 격리 → 관리자가 치움 → 주문이 다시 처리되어 전부 끝남), `blocked_lane`(`basic_orders`에 pode1 앞 물체: 5초 표시와 취소, 풀린 뒤 같은 목표로 이어 가 전부 출고. pode3은 처음 2초 `LOCALIZING`), `auto_isolation`(팔 고장 3회 → 자동 격리 → 앞서 간 로봇은 사람 없이 출고 → 관리자가 치운 뒤 되돌린 주문부터 전부 끝남, 11-06 5.5번), `off_lane`(한 대의 보고가 레인 옆으로 밀림 → 세우고 구역 유지 → 뒤 로봇은 그 구역 앞에서 대기 → 돌아오면 재개 → 전부 출고, 11-06 파트 3), `reinstate`(관리자가 치운 로봇을 빈 바구니와 다시 투입, 다시 오른 로봇도 주문을 받아 7건 모두 출고, 11-06 6번).
 
-심판은 FMS가 내는 이벤트를 본다. 가짜 노드(FakePinky, FakeWorkcell, FakeArm3, FakeVision, FakeCentral)는 인터페이스가 같으므로 그대로 쓴다. 시나리오 시각은 시뮬 시계(`speed_factor` 5배속)이고, heartbeat만 벽시계다(4절). `tools/pressure_sweep.py`는 시나리오에 지연과 잡음을 넣어 돌리고 표를 만든다(7번 표는 작업 기록에 있다).
+심판은 FMS가 내는 이벤트를 본다. 가짜 노드(FakePode, FakeWorkcell, FakeArm3, FakeVision, FakeCentral)는 인터페이스가 같으므로 그대로 쓴다. 시나리오 시각은 시뮬 시계(`speed_factor` 5배속)이고, heartbeat만 벽시계다(4절). `tools/pressure_sweep.py`는 시나리오에 지연과 잡음을 넣어 돌리고 표를 만든다(7번 표는 작업 기록에 있다).
 
 심판 추가 항목: `shipped_before_operator`(첫 `ROBOT_ISOLATED`부터 격리된 로봇(이벤트 source)의 첫 `ZONES_CLEARED` 전까지 출고·일부 출고된 건수. 기대값 `shipped_before_operator_min`, 기본 0), `detours_around_isolated`(격리된 로봇이 치워지기 전, detail의 `held by <로봇>` 중 하나라도 그 로봇인 `DETOUR` 수. 이벤트 하나는 한 번. 기대값 `detours_around_isolated_min`, 기본 0), `fifo_violations`(ORDER_BOUND 순서가 등록 순서와 다르거나 SHIPPED/PARTIAL 순서가 묶인 순서와 다르면 위반. ORDER_REQUEUED된 주문은 다음에 묶이는 주문이어야 하고, 되돌림 없이 두 번 묶이면 위반), `dual_arm_overlaps`(arm1과 arm2가 동시에 PLACING. 양쪽 팔이 필요한 주문인데 PLACING이 안 보이면 실패. 2026-11-04에 양팔 동시 계획으로 정했으므로 이 항목의 의미가 바뀐다: 동시 PLACING은 허용, 충돌만 위반. 가짜 workcell과 심판을 그에 맞춰 고치기 전까지 기대값은 참고용), `unexpected_errors`(시나리오가 예상하지 않은 ERROR 이벤트), `order_results`(주문별 결과), `released_while_off_lane`(drift 시작 1초 뒤부터 끝날 때까지 그 로봇이 놓은 구역 수. 1초는 FMS가 연속 보고로 알아챌 여유), `path_not_connected`(detail에 `PATH_NOT_CONNECTED`가 든 `GOAL_RETRY`·`GOAL_FAILED` 수, 곧 관제가 처리한 이 이유의 실패 수. 이미 바뀐 목표의 결과는 관제가 버려 세지 않는다. `null`이면 보지 않는다. 11-08, 지시서 7.5), 시간 초과는 시나리오가 예상한 경우 외에는 실패.
 
 ## 7. 알려진 약점 (이번 작업에서 고치지 않고 문서에 남김)
 - `arrival_tolerance_m` 안에 멈춰 도착으로 쳤는데 레인 진행이 `s ≤ d`이면 뒤 구역이 해제되지 않아 조용히 멈출 수 있다. 가장 짧은 레인에서 d를 뺀 값이 허용치보다 작은 지도에서만 생긴다. 기본 지도는 0.4 m에서 0.2 m를 빼 0.2 m이므로 0.15 m에 해당하지 않고, 시험으로 고정했다. 시험 격자(0.33 m)와 `sim/fake_robots/maps/oneway_*.yaml`은 조건을 만족하지 않는다. 시작할 때 막지 않는다. 바닥 선 기준까지 넣은 숫자와 안은 13절 "도착 허용과 해제"(사용자 결정 대기).
 - 이동이나 도킹 서버를 찾은 뒤 사라지면 로봇은 구역을 쥔 채 `move_retry_wait_s`마다 다시 보낸다. 시간 제한은 없고 `GOAL_NOT_SENT`를 한 번 낼 뿐이다. 서버가 돌아올지 관리자가 치울지는 사람이 본다.
-- 교착 포기 대상 로봇의 위치 보고가 끊기면 해제에 필요한 보고가 모자라 `_finish_retreat`가 재확인을 반복한다. `comm_timeout_s`가 지나 `COMM_LOST`가 되면 그 로봇의 대기 요청이 모두 취소되어 원래 대기 고리가 끊어지고, 고리가 하나도 남지 않으면 `_check_deadlock`이 재확인 상태를 지운다. 다른 고리가 남아 있으면 재확인이 이어질 수 있고, 그동안 새 호출과 새 이동 단계도 나가지 않는다. 옛 입출고 코드에는 이 재확인을 끝내는 수정이 있지만 GG 코드에는 들어오지 않았다.
-- FMS가 멈추면 주문 진행, 구역 잠금, 교착 처리가 함께 멈춘다. 화면에 로봇 상태가 오지 않고 `confirm_clear`와 STOP/PAUSE도 전달되지 않는다. 중앙이 직접 내는 이벤트는 계속 나온다. 한 프로세스로 합친 대가다. 핑키는 `/fleet/heartbeat`가 끊기면 스스로 선다(제안, 4절). 팔의 목표는 이 대상이 아니라 담기 중에 FMS가 죽으면 팔은 하던 일을 계속한다. 비상 정지는 FMS에 기대지 않도록 따로 정해야 한다(SR-36, 13절).
+- 교착 포기 대상 로봇의 위치 보고가 끊기면 해제에 필요한 보고가 모자라 `_finish_retreat`가 재확인을 반복한다. `comm_timeout_s`가 지나 `COMM_LOST`가 되면 그 로봇의 대기 요청이 모두 취소되어 원래 대기 고리가 끊어지고, 고리가 하나도 남지 않으면 `_check_deadlock`이 재확인 상태를 지운다. 다른 고리가 남아 있으면 재확인이 이어질 수 있고, 그동안 새 호출과 새 이동 단계도 나가지 않는다. 옛 입출고 코드에는 이 재확인을 끝내는 수정이 있지만 IFP 코드에는 들어오지 않았다.
+- FMS가 멈추면 주문 진행, 구역 잠금, 교착 처리가 함께 멈춘다. 화면에 로봇 상태가 오지 않고 `confirm_clear`와 STOP/PAUSE도 전달되지 않는다. 중앙이 직접 내는 이벤트는 계속 나온다. 한 프로세스로 합친 대가다. Pode는 `/fleet/heartbeat`가 끊기면 스스로 선다(제안, 4절). 팔의 목표는 이 대상이 아니라 담기 중에 FMS가 죽으면 팔은 하던 일을 계속한다. 비상 정지는 FMS에 기대지 않도록 따로 정해야 한다(SR-36, 13절).
 - `use_fake:=false`에서 `/central/orders` 발행자가 없으면 경고 없이 아무것도 움직이지 않는다.
 - ~~`confirm_clear`에 없는 구역을 주면 KeyError로 노드가 죽을 수 있다.~~ 닫힘(11-06, 1번): 모르는 로봇이나 구역이 하나라도 있으면 아무것도 바꾸지 않고 `accepted=false`와 `reason`으로 답하며 `INPUT_REJECTED`를 낸다(`recovery.py`의 `confirm_clear`, 5절).
 - ~~이동/도킹 목표에 관제 쪽 시간 제한이 없어 결과가 안 오면 조용히 멈춘다(FSM 책임).~~ 닫힘(11-06, 2번): 목표가 열린 채 제자리면 멈춤 감시가 취소하고 다시 보내며, 세 번이면 ERROR다(5절). 남은 것: 계속 움직이지만 끝내지 않는 로봇(한 점에서 `stall_move_m` 넘게 오가는 경우)과 0.01 m/s 넘게 기어가며 끝내지 않는 로봇은 잡지 못한다. 위치 잡음이 σ 0.05 m 이상이면 잡는 데 더 오래 걸릴 수 있다.
@@ -480,7 +482,7 @@ expect: {all_orders_finished: true, orders_shipped: 6, orders_partial: 0, orders
 - 보고와 취소를 다시 보낼 때마다 rclpy 클라이언트에 응답 대기 항목이 하나씩 남고, 답이 오지 않은 요청은 프로세스가 끝날 때까지 남는다. central이나 서버가 발견은 되는데 답하지 않는 동안 보고는 `report_retry_s`, 취소는 `cancel_retry_s`마다 1개씩 늘어난다. 먼저 보낸 요청을 지우면 응답이 재전송 간격보다 느린 central의 답을 영영 받지 못하므로 그대로 두었다.
 - `CANCEL_UNCONFIRMED`는 알리기만 한다. 취소가 끝내 듣지 않는 로봇을 FMS가 세울 방법은 없고, `move_to`와 `dock`에는 다른 정지 수단이 없다.
 - central이 거절한 보고(`ORDER_REPORT_REFUSED`)의 주문은 보드에 남아 있어도 아무도 맡지 않고 보고하지도 않는다. 관리자가 처리한다.
-- `FakePinky`는 즉시 선다. 실물의 감속 거리는 `heartbeat_timeout_s` 동안 이동 거리에 더해야 한다.
+- `FakePode`는 즉시 선다. 실물의 감속 거리는 `heartbeat_timeout_s` 동안 이동 거리에 더해야 한다.
 
 ## 8. 물리 위험 (실물 시험 전 미확인)
 - 팔이 바구니+상품을 함께 들어야 한다. 그리퍼 20~45 mm, 물체 무게 약 150 g(02 문서에는 약 50 g), 실측 없음. 바구니 손잡이 형상과 총 무게 시험이 먼저다.
@@ -499,14 +501,14 @@ expect: {all_orders_finished: true, orders_shipped: 6, orders_partial: 0, orders
 |---|---|---|---|---|
 | 관제 PC | 1대 이상 | 사양 미정 | 화면, central, FMS(`fleet_manager`) | 유선 |
 | 공유기 | 전용 1대 | 기종과 위치 미정 | 없음 | |
-| Pinky Pro (pinky1~3) | 3대 | Raspberry Pi 4B(메모리 4 GB), 라이다 RPLidar C1, 구동 모터 Dynamixel 2개, 카메라 OV5647, 관성 센서 BNO055, 배터리 센서 ADC | pinky_bringup, pinky_fsm, pinky_dock, Nav2 + AMCL | Wi-Fi |
+| Pode(Pinky Pro 하드웨어, pode1~3) | 3대 | Raspberry Pi 4B(메모리 4 GB), 라이다 RPLidar C1, 구동 모터 Dynamixel 2개, 카메라 OV5647, 관성 센서 BNO055, 배터리 센서 ADC | pinky_bringup, pode_fsm, pode_dock, Nav2 + AMCL | Wi-Fi |
 | JetCobot 작업공간 (arm1, arm2) | 2대 | MyCobot 280(6축 + 그리퍼), 카메라 640×480, 팔마다 팔 PC 1대(사양 미정) | 팔마다 arm_control, arm_vision. workcell은 두 팔 PC 중 1곳(13절). v18은 이것을 `arm_planner (workcell)`(임시 이름)로 그리고, 두 팔의 배분과 궤적 계획, Vision 결과 받기를 맡긴다. Vision 서버는 제안 | 팔 PC 유선, 로봇 Wi-Fi |
 | JetCobot 출고 구역 (arm3) | 1대 | 같은 구성 | arm_control(`swap_basket` 제공) | 팔 PC 유선, 로봇 Wi-Fi |
 
-- 사양을 실물로 확인한 것은 핑키 1대(`pinky_06c5`)와 제트코봇 1대(`jetcobot_126b`)뿐이다. 나머지 4대는 같다고 가정했다.
+- 사양을 실물로 확인한 것은 Pode 1대(`pinky_06c5`)와 제트코봇 1대(`jetcobot_126b`)뿐이다. 나머지 4대는 같다고 가정했다.
 - 전용 공유기 1대로 묶기로 했다(2026-11-04). 지금은 로봇마다 자기 핫스팟을 쓰고 있다.
-- 실행 위치는 2026-11-04에 정했다: Nav2는 핑키 Pi, 상품 인식과 workcell은 팔 PC.
-- 네트워크: v18은 "PC 6대는 전부 유선, 로봇 6대(핑키 3, 제트코봇 3)는 Wi-Fi"(2026-11-05 확인)라고 적는다. 제트코봇의 Raspberry Pi 5는 그림에 없고, 고정 장비라 유선으로 잇기를 권한다. 이전 판의 "유선"은 팔 PC만 가리켰다.
+- 실행 위치는 2026-11-04에 정했다: Nav2는 Pode Pi, 상품 인식과 workcell은 팔 PC.
+- 네트워크: v18은 "PC 6대는 전부 유선, 로봇 6대(Pode 3, 제트코봇 3)는 Wi-Fi"(2026-11-05 확인)라고 적는다. 제트코봇의 Raspberry Pi 5는 그림에 없고, 고정 장비라 유선으로 잇기를 권한다. 이전 판의 "유선"은 팔 PC만 가리켰다.
 - 관제 PC 행은 이 문서의 배정이다. v18은 서버 구역에 central, DB, FMS, Vision 서버를 그리고, PC 6대의 역할 배정이 정해지면 다시 그린다고 적었다. FMS 안은 core, pinky, arm 세 모듈이고 arm은 `fill_basket`·`swap_basket` 클라이언트다(0절의 대응). workcell은 FMS에 합치지 않는다.
 
 ## 11. 코드의 현재 상태 (저장소 `PJW-1/roscamp-repo-2`, 브랜치 `fms-work-order`, 2026-11-06)
@@ -515,7 +517,7 @@ expect: {all_orders_finished: true, orders_shipped: 6, orders_partial: 0, orders
 | 항목 | 코드 |
 |---|---|
 | 주문 입력 | `fleet_manager` 노드가 `/central/orders`를 구독해 `FleetManager.on_order_board`로 넘긴다. run_mode는 `traffic`에도 간다 |
-| 핑키 호출 | `orders`가 묶이지 않은 주문 수에 맞춰 `DispatchCmd`, `CancelDispatchCmd`를 낸다. `traffic`이 `tick_pick`에서 `RobotSelector.pick`으로 로봇을 고른다 |
+| Pode 호출 | `orders`가 묶이지 않은 주문 수에 맞춰 `DispatchCmd`, `CancelDispatchCmd`를 낸다. `traffic`이 `tick_pick`에서 `RobotSelector.pick`으로 로봇을 고른다 |
 | 주문 묶기 | `orders`가 작업공간 `DispatchResult`의 success를 받은 뒤 맨 앞 주문을 묶는다 |
 | 담기, 교환 | `orders`가 `FillCmd`, `SwapCmd`를 내고 노드가 `/workcell/fill_basket`, `/arm3/swap_basket`을 호출한다. `traffic`은 팔을 모른다 |
 | 팔 재시도, 시간 초과, 바구니 상태 | `orders` |
@@ -523,17 +525,17 @@ expect: {all_orders_finished: true, orders_shipped: 6, orders_partial: 0, orders
 | 고장 로봇의 주문 | 지도에 오른 로봇이 ERROR가 되면 `traffic/isolation.py`가 격리하고 `RobotIsolated`로 `orders`에 알려 주문을 바로 되돌린다(`ORDER_REQUEUED`, 파트 5.5). 예외: 교환 중이면 그 결과까지 쥔다. `ARM_NO_RESULT`가 걸린 주문은 `confirm_clear`까지 쥐고, 그 전에 찬 바구니를 꺼냈다는 늦은 교환 결과(`took_full`)가 오면 출고로 보고한다(5-1절). 격리 없이 치운 로봇은 `FleetManager.confirm_clear`가 `on_robot_removed`를 부른다 |
 | 잘못된 입력 | `FleetManager`와 `common/validate.py`, `orders/validate.py`가 거부하고 `INPUT_REJECTED`를 낸다(파트 1) |
 | 멈춤 감시, 레인 이탈, 막힘, 우회 | `controller.py` `_watch_stall`(파트 2), `traffic/off_lane.py`(파트 3), `traffic/blocking.py`(파트 4), `traffic/detour.py`(파트 5). 규칙은 5절 |
-| 이동 목표(레인 준수) | `traffic/lane_path.py`(파트 7). `lane_goal_mode: path`면 잠금을 쥔 데까지 레인 폴리라인을 `MoveCmd.path`로 내고 노드가 `MoveTo.path`에 싣는다. 해제 보강은 `traffic/release_floor.py`. FakePinky는 선의 지점을 차례로 따른다. 규칙은 5절 |
+| 이동 목표(레인 준수) | `traffic/lane_path.py`(파트 7). `lane_goal_mode: path`면 잠금을 쥔 데까지 레인 폴리라인을 `MoveCmd.path`로 내고 노드가 `MoveTo.path`에 싣는다. 해제 보강은 `traffic/release_floor.py`. FakePode는 선의 지점을 차례로 따른다. 규칙은 5절 |
 | 치운 로봇 재투입 | `FleetManager.reinstate`(`/fleet/reinstate`, 관제 요구)가 traffic `reinstate.py`와 `on_robot_reinstated`를 부르고 `ROBOT_REINSTATED`를 낸다. 시나리오 `reinstate` |
 | 교통 모델 | 레인 지도(3절). 잠금은 구역, 해제는 레인 투영(5절), 충돌쌍과 양방향 묶음은 지도에서 계산한다 |
 | 로봇별 상태 | `/fleet/robots` 1 Hz. `/fleet/assignments`, `/fleet/zones`는 그대로 |
-| 자체 정지 | `/fleet/heartbeat` 2 Hz(11-06에 `/fms/heartbeat`에서 이름만 바꿈, 관제 요구). `FakePinky`에 구현했고 실물은 FSM 담당 몫이다 |
+| 자체 정지 | `/fleet/heartbeat` 2 Hz(11-06에 `/fms/heartbeat`에서 이름만 바꿈, 관제 요구). `FakePode`에 구현했고 실물은 FSM 담당 몫이다 |
 | 기록과 재생 | `fleet_manager_node --record`, `tools/replay.py` |
 | 중앙과 FMS 사이 | `fleet_manager` 노드가 `/fleet/*`, `/central/events`를 발행하고 `/fleet/confirm_clear`를 제공한다. 가짜 중앙은 `/fleet/*`를 구독하지 않고, 심판 `scenario_monitor`가 구독하며 관리자 역할로 confirm_clear를 부른다 |
 | 중앙과 팔 사이 | `contract.yaml`에 `/{arm}/state`, `/{arm}/vision/items`가 있다. FMS는 이 토픽을 판단에 쓰지 않는다. `scenario_monitor`가 심판으로 `/{arm}/state`를 구독한다 |
-| 인터페이스 | `contract.yaml` 0.5-draft. 0.5(11-09)는 핑키 상태 `RECOVERING`(자가 복구, 핑키 계약 3절 7번과 4절, 제안)을 더했다. 0.4(11-07)는 `/fleet/heartbeat`를 HEARTBEAT 프로필(reliable, depth 1)로 바꾸고 `MoveTo` 결과 reason `PATH_NOT_CONNECTED`를 더했다(지시서 1.5, 7.5, 제안). 11-05에 더한 것은 `/fleet/robots`, `/fms/heartbeat`(11-06에 `/fleet/heartbeat`로 이름 변경) 둘이다. 11-06에 상수 `RobotState.STATE_BLOCKED`, `STATE_LOCALIZING`, `MoveTo` `REASON_HEARTBEAT_LOST`(파트 4), `ConfirmClear` 응답의 `reason`(파트 1), `MoveTo` goal의 `geometry_msgs/Pose[] path`(파트 7), 서비스 `/fleet/reinstate`(`Reinstate.srv`, 파트 6), `real_only` 액션 `follow_path`를 더했다. 0.3에 더한 것은 모두 관제 요구(사용자 기준)다. 그 밖의 이름, 필드, QoS는 그대로다 |
+| 인터페이스 | `contract.yaml` 0.5-draft. 0.5(11-09)는 Pode 상태 `RECOVERING`(자가 복구, Pode 계약 3절 7번과 4절, 제안)을 더했다. 0.4(11-07)는 `/fleet/heartbeat`를 HEARTBEAT 프로필(reliable, depth 1)로 바꾸고 `MoveTo` 결과 reason `PATH_NOT_CONNECTED`를 더했다(지시서 1.5, 7.5, 제안). 11-05에 더한 것은 `/fleet/robots`, `/fms/heartbeat`(11-06에 `/fleet/heartbeat`로 이름 변경) 둘이다. 11-06에 상수 `RobotState.STATE_BLOCKED`, `STATE_LOCALIZING`, `MoveTo` `REASON_HEARTBEAT_LOST`(파트 4), `ConfirmClear` 응답의 `reason`(파트 1), `MoveTo` goal의 `geometry_msgs/Pose[] path`(파트 7), 서비스 `/fleet/reinstate`(`Reinstate.srv`, 파트 6), `real_only` 액션 `follow_path`를 더했다. 0.3에 더한 것은 모두 관제 요구(사용자 기준)다. 그 밖의 이름, 필드, QoS는 그대로다 |
 | 양팔 규칙 | `README.md`, `fake_workcell_node`, 심판 `dual_arm_overlaps`는 아직 동시 PLACING을 위반으로 본다. 지시서가 심판을 고치지 말라고 했으므로 그대로 뒀고 2026-11-04 결정(6절)과 다르다 |
-| 중앙, 핑키, 팔 | `pc/central`, `pinky/*`, `arm/*`는 빈 패키지이고 가짜 노드만 동작한다 |
+| 중앙, Pode, 팔 | `pc/central`, `pode/*`, `arm/*`는 빈 패키지이고 가짜 노드만 동작한다 |
 | GitHub | 개인 저장소 브랜치에만 올렸다. 팀 저장소 `addinedu-roscamp-16th/roscamp-repo-2`에는 올리지 않았다 |
 
 검증은 세 층이다(11-05 PDF). 같은 규칙을 전수 검사(`tools/model_check.py`, 설계), 가짜 노드 시나리오(`sim/fake_robots/scenarios`, 통합), 기록 재생(`tools/replay.py`, 현장)으로 확인한다. 실물 기록은 아직 없어서 세 번째 층은 가짜 노드의 기록으로만 돌렸다. 이 프로토타입의 숫자는 모두 가짜 로봇에서 나온 것이다.
@@ -545,7 +547,7 @@ expect: {all_orders_finished: true, orders_shipped: 6, orders_partial: 0, orders
 | 최종 전체 시험(파트 8) | `a12b159`(git archive 사본, 커밋과 diff 0, 주 세션, `ws_final`, `full_final.log`. `e30c31d`와는 문서 3개만 다르다): 빌드 11개 통과, 1401건, 실패 0, 오류 0, 건너뜀 0(`fleet_core` 944, `fake_robots` 366, `fleet_manager` 91), 시험 1023 s. 그 전: `4766665` 1380건 0 실패(1019 s). `4b2b1ba` 1384건 중 1 실패(`test_scenario_integration[reinstate]`, 시나리오 모니터의 치우기와 배정의 경쟁, `893329e`의 첫 치우기 대기로 고침). `893329e` 시나리오 10회 모두 통과, 다시 치우기 0, `ZONES_STILL_HELD` 0, `COMM_LOST` 0 |
 | 단위·통합 시험 | `0cb8525`(파트 6과 7 후속까지. 그 뒤 `f8c2eea`는 시험 설명 1줄, `6ab04fe`는 worklog뿐이다. 주 세션 확인, `p6q_full.log`): 빌드 통과, 1376건, 실패 0, 오류 0(`fleet_core` 944, `fake_robots` 341, `fleet_manager` 91), 시험 1017 s. 이전: 파트 7 `cd05720` 1294건, 파트 3 `ecab72c` 1237건, 0.5 뒤 875건, 파트 1·2 뒤 `533d351` 1036건, 파트 4 `a5a4745` 1100건, 파트 5 `df2a02b` 1163건, 파트 5.5 `33f01d7` 1199건(작업 기록) |
 | 시나리오 10개(기본 지도, 실제 launch, 통합 시험 목록, 도메인 50 + 순번) | `0cb8525` 전체 시험 안에서 10개(`basic_orders`, `order_burst`, `shared_lane_failure`, `stock_shortage`, `stuck_robot`, `operator_recovery`, `blocked_lane`, `auto_isolation` 57, `off_lane` 58, `reinstate` 59) 모두 통과. 출고 숫자는 따로 돌린 실행에서 적었다. `df2a02b`(`run_scenarios.sh`): `basic_orders` 6/6, `order_burst` 10/10, `shared_lane_failure` 6/6, `stock_shortage` 2/7, `stuck_robot` 2/6(시간 초과, 기대값), `operator_recovery` 4/4, `blocked_lane` 6/6(`LANE_BLOCKED` 1, `LANE_CLEARED` 1), 모두 심판 통과, 최소 해제 거리 0.165~0.187 m. `auto_isolation`은 파트 5.5 트리(`5ebd821` 반영분)에서 4/4, `shipped_before_operator` 1 |
-| 시나리오 `off_lane`(파트 3, 통합 시험 목록 9번째, 도메인 58) | `c99de32`(파트 3 단독): 통과, 6/6, 7.36초 `LANE_ERROR`(e 0.29 m), 15.35초 `BACK_ON_LANE`, 그동안 구역 S·L을 쥐고 pinky2는 S를 기다림, `released_while_off_lane` 0, 조기 해제 0. 파트 4·5 병합 트리에서도 통과(6/6). 그때 전체 시험은 `c99de32` 1064건 실패 0. 파트 3을 합친 `ecab72c`의 전체 시험(위 줄)에서도 통과 |
+| 시나리오 `off_lane`(파트 3, 통합 시험 목록 9번째, 도메인 58) | `c99de32`(파트 3 단독): 통과, 6/6, 7.36초 `LANE_ERROR`(e 0.29 m), 15.35초 `BACK_ON_LANE`, 그동안 구역 S·L을 쥐고 pode2는 S를 기다림, `released_while_off_lane` 0, 조기 해제 0. 파트 4·5 병합 트리에서도 통과(6/6). 그때 전체 시험은 `c99de32` 1064건 실패 0. 파트 3을 합친 `ecab72c`의 전체 시험(위 줄)에서도 통과 |
 | 시나리오 `reinstate`와 path 모드 셋(`0cb8525`와 같은 코드, 주 세션, `p6q_scen.log`) | `reinstate` point 7/7, path 7/7(둘 다 `bound_after_reinstate_min` 1 충족). path 모드 `feature_auto_isolation` 6/6(`shipped_before_operator` 5), `feature_blocked_lane` 6/6, `off_lane` 6/6. 모두 심판 통과, 위반 [] |
 | 시나리오 12개 × 두 모드(파트 7, `faea3a5`) | 기본 지도 9개와 특징 지도 3개를 point 12판, path 12판으로 돌렸다. 24판 모두 심판 통과, 조기 해제 0, 근접 0, 두 모드의 처리 시간 차는 3 s 안. 24개 기록은 `cd05720`에서도 같게 재생된다. 표는 작업 기록 파트 7 절 |
 | 시나리오 3개(특징 지도, 통합 시험 목록 밖) | `df2a02b`: `feature_basic_orders` 6/6, `feature_blocked_lane` 6/6(`DETOUR` 1, `LANE_BLOCKED` 1, `LANE_CLEARED` 1). `feature_auto_isolation`은 파트 5 최종과 합친 5.5 트리(`3acc65a` 뒤, 정확한 커밋은 작업 기록에 없다)에서 통과: 102.7초 격리, `DETOUR` 3(`detours_around_isolated` 3), `shipped_before_operator` 4, 6건 모두 194.6초까지 출고, 400.2초 `ZONES_CLEARED` |
@@ -557,13 +559,13 @@ expect: {all_orders_finished: true, orders_shipped: 6, orders_partial: 0, orders
 | FMS 재시작 | 죽인 뒤 세 대 모두 1.5 s 안에 정지(벽시계, 5회 측정, 최대 1.49 s. 3회는 5번 리뷰를 반영한 코드로 `fa94eb6`에 커밋, 2회는 6번 리뷰를 반영한 코드로 `1f56911`에 커밋). 새 FMS는 전원 보고부터 다시 시작. `b6d75d9`의 전체 시험에서도 통과했지만 이 시험의 판정선은 1.5 s에 여유 1 s를 더한 값이고 그 실행의 초는 적어 두지 않았다 |
 | 압박 시험 | 커밋 전 작업 트리. d 0.2 표는 `fa94eb6`에, 나머지 표는 `1f56911`에 7번 변경을 얹은 코드다(`78011a2`에 커밋). 그 뒤 다시 돌리지 않았다. d 0.2에서 τ 0.5, ε 0.05까지 전 조합 조기 해제 0, near 0, 교착 0(조합마다 시드 1개). d 0.17, ε 0.05에서 심판 기준 위반 1회. d ≤ 2r은 시작 거부. 표는 작업 기록 7번 |
 
-모델이 다루지 않는 것은 작업 기록 3번에 있다. 전수 검사는 추상 모델이고, 재시작의 숫자는 즉시 서는 `FakePinky`의 값이며, 압박 시험의 near는 앞 로봇이 d 근처에 서는 경우를 만들지 않았다.
+모델이 다루지 않는 것은 작업 기록 3번에 있다. 전수 검사는 추상 모델이고, 재시작의 숫자는 즉시 서는 `FakePode`의 값이며, 압박 시험의 near는 앞 로봇이 d 근처에 서는 경우를 만들지 않았다.
 
 `08_무엇을_개발했나_설명`의 시험 527건과 시나리오 6개 결과는 이전 구조에서 얻은 값이다. 지금 구조의 결과로 인용하지 않는다.
 
 남은 일:
 1. 실제 지도로 레인 그래프를 쓰고 전수 검사와 시나리오를 다시 돌린다.
-2. 실물 핑키로 ε, τ를 재서 d를 정한다.
+2. 실물 Pode로 ε, τ를 재서 d를 정한다.
 3. FollowPath 방식(계약 3절 7번), 이동 성공의 도착 허용치, heartbeat 계약을 FSM 담당과 확인한다.
 4. 가짜 workcell과 심판을 양팔 동시 계획 기준으로 고칠지 팔 담당과 정한다(`arm_planner`, SR-22).
 5. 특징 지도 로봇 3대 끝까지 탐색(지금은 30만 상태 상한까지).
@@ -576,13 +578,13 @@ expect: {all_orders_finished: true, orders_shipped: 6, orders_partial: 0, orders
 | SR | SR 내용 | 이 문서와 코드 | 정할 것 |
 |---|---|---|---|
 | SR-22 (MUST) | 상품 놓인 곳과 바구니 위에는 각각 한 번에 한 팔만 들어간다 | 2절은 양팔 동시 궤적 계획을 쓰고 잠금 방식을 폐기했다(2026-11-04 결정). SR에는 반영되지 않았다 | SR을 고칠지, 한 팔씩 들어가는 방식으로 돌아갈지. 2026-11-05에 팀과 상의한다 |
-| SR-13 (MUST) | 핑키 1대를 양보시켜 길 막힘을 자동으로 풀고, 안 되면 관리자에게 알린다 | 5절의 `DEADLOCK_RETREAT`는 아직 들어가지 않은 구역의 예약만 포기한다. 들어간 구역에서 물러나는 동작은 없다 | 이것으로 충족한다고 볼지, 양보 주행을 만들지. 구현 전이라 일단 둔다(2026-11-04) |
+| SR-13 (MUST) | Pode 1대를 양보시켜 길 막힘을 자동으로 풀고, 안 되면 관리자에게 알린다 | 5절의 `DEADLOCK_RETREAT`는 아직 들어가지 않은 구역의 예약만 포기한다. 들어간 구역에서 물러나는 동작은 없다 | 이것으로 충족한다고 볼지, 양보 주행을 만들지. 구현 전이라 일단 둔다(2026-11-04) |
 | SR-03 (MUST) | 주문 상태: 대기, 배정, 담는 중, 운반 중, 출고 완료, 보류, 실패 | 5-1절: PENDING, BOUND, FILLING, TO_OUTBOUND, SWAPPING, SHIPPED, PARTIAL, HELD. "실패"가 없고, SWAPPING과 PARTIAL이 SR에 없다 | 상태 대응표와 "실패"의 뜻 |
-| SR-17 (MUST) | 핑키 상태: 대기, 이동, 도킹, 담기 대기, 출고 대기, 오류 + 원인 | `/fleet/robots`(제안)로 전부 나타낼 수 있다. 위에서부터 먼저 맞는 것을 쓴다: `fault` ≠ NONE이면 오류 + `fault_reason`, `task_type` = FILL이면 담기 대기, SWAP이면 출고 대기, `fsm_state` = DOCKING이면 도킹, MOVING이면 이동, 나머지는 대기. 이 규칙의 구현은 화면 몫이다 | 메시지를 팀이 받아들일지 |
+| SR-17 (MUST) | Pode 상태: 대기, 이동, 도킹, 담기 대기, 출고 대기, 오류 + 원인 | `/fleet/robots`(제안)로 전부 나타낼 수 있다. 위에서부터 먼저 맞는 것을 쓴다: `fault` ≠ NONE이면 오류 + `fault_reason`, `task_type` = FILL이면 담기 대기, SWAP이면 출고 대기, `fsm_state` = DOCKING이면 도킹, MOVING이면 이동, 나머지는 대기. 이 규칙의 구현은 화면 몫이다 | 메시지를 팀이 받아들일지 |
 | SR-36 (MUST) | 관리 프로그램과 별개의 비상 정지 | 이 문서와 `contract.yaml`에 경로가 없다. STOP은 화면, central, FMS를 거친다. `/fleet/heartbeat`는 FMS나 통신이 끊겼을 때 로봇이 혼자 서는 장치이고 비상 정지 경로를 대신하지 않는다 | 경로와 듣는 쪽 |
 | SR-27 (MUST) | 상품의 종류, 위치, 수량과 트레이·바구니 위치 인식 | `/{arm}/vision/items`는 arm1, arm2의 상품만 다룬다. 트레이·바구니 인식과 arm3의 인식 인터페이스가 없다 | 어디서 어떤 토픽으로 낼지 |
-| SR-21 (MUST) | 핑키가 조금 어긋나게 서도 위치를 맞춰 담는다 | dispatch 결과에 도킹 오차가 있지만 `FillCmd`와 FillBasket goal에는 전달할 필드가 없다 | 오차를 넘길지, 카메라로 보정할지 |
-| SR-31 (MUST) | 지도 위 핑키 위치 표시 | `/fleet/robots`의 x, y, yaw(제안, 1 Hz, 마지막 보고 값) | 메시지를 팀이 받아들일지, 1 Hz로 충분한지 |
+| SR-21 (MUST) | Pode가 조금 어긋나게 서도 위치를 맞춰 담는다 | dispatch 결과에 도킹 오차가 있지만 `FillCmd`와 FillBasket goal에는 전달할 필드가 없다 | 오차를 넘길지, 카메라로 보정할지 |
+| SR-31 (MUST) | 지도 위 Pode 위치 표시 | `/fleet/robots`의 x, y, yaw(제안, 1 Hz, 마지막 보고 값) | 메시지를 팀이 받아들일지, 1 Hz로 충분한지 |
 | SR-15 (SHOULD), UR-10 | 배터리가 낮으면 대기 구역으로 돌아가 충전 | `RobotState.battery`를 `/fleet/robots`로 보여 주기만 하고 `traffic`에 판단이 없다 | 넣을지 |
 | SR-09, SR-20, SR-23, SR-25, SR-28 (SHOULD) | 주문 취소, 사람 접근 대응, 작업 팔 거리 감시, 빈 바구니·출고 위치 관리, 담긴 개수 확인 | 이 문서에 전용 규칙과 인터페이스가 없다. `put_empty`와 `placed`는 있지만, 빈 바구니의 보관 수량 관리나 카메라로 하는 개수 확인은 아니다 | 어디까지 넣을지 |
 
@@ -591,26 +593,26 @@ expect: {all_orders_finished: true, orders_shipped: 6, orders_partial: 0, orders
 - **Open-RMF는 도입하지 않는다.** 계층 나누기와 용어만 참고한다. 이유: 코어가 orchestrator·traffic 자리를 둘 다 차지해 팀 구조가 통째로 바뀌고, 시간 궤적 협상은 Wi-Fi 지연·정지 오차에 민감하며 전수 검사 같은 증명을 못 주고, 8주 일정에 위험.
 - 시간·공간 예약, MAPF, 우선순위 최적화는 하지 않는다.
 - "어디에 뭐가 있다"(인식 결과, 상태, 명령)는 ROS, 픽셀(영상)은 ROS 밖이다. 집기용 사진은 HTTP 스냅샷 한 장, 화면용은 MJPEG over HTTP. 영상을 DDS로 Wi-Fi에 흘리지 않는다.
-- **핑키 계약(11-06, 사용자 지시)**: 관제가 핑키에 요구하는 통신 규격과 동작은 `docs/핑키_계약.md`에 요구사항으로 정했다. 제안으로 두지 않는다. 선점, 취소, 실패 반환, 도착 0.15 m, heartbeat 정지, `LOCALIZING`, `BLOCKED` 판정과 관제의 막힘 처리(5초 뒤 레인 표시, 60초 뒤 ERROR, 줄 서기 제외)를 담는다. `BLOCKED`, `LOCALIZING`, `HEARTBEAT_LOST`는 지시서 4번에서 정의 파일과 관제 코드에 넣었다. `MoveTo.path`는 지시서 7번에서 넣었다.
+- **Pode 계약(11-06, 사용자 지시)**: 관제가 Pode에 요구하는 통신 규격과 동작은 `docs/Pode_계약.md`에 요구사항으로 정했다. 제안으로 두지 않는다. 선점, 취소, 실패 반환, 도착 0.15 m, heartbeat 정지, `LOCALIZING`, `BLOCKED` 판정과 관제의 막힘 처리(5초 뒤 레인 표시, 60초 뒤 ERROR, 줄 서기 제외)를 담는다. `BLOCKED`, `LOCALIZING`, `HEARTBEAT_LOST`는 지시서 4번에서 정의 파일과 관제 코드에 넣었다. `MoveTo.path`는 지시서 7번에서 넣었다.
 - **우회(11-06 지시서 5번)**: 다음 구역을 청할 때만 비용(레인 길이 + 서 있는 보유자의 예상 대기 × 속도, 막힌 레인은 못 지남)으로 다시 고른다. 서 있음과 달림, 속도 0.2 m/s, `DETOUR`(INFO)는 5절에 정했다. 30초 추정과 0.2 m/s는 실물에서 다시 본다.
 - **이탈 e(11-06 지시서 3번)**: 해제 조건에 넣지 않되 이탈 중에는 해제를 멈춘다. 조건에 넣으면 레인이 나란한 지도에서 로봇이 다음 구역을 청하지 못할 수 있어서다. 이탈한 로봇은 세우고 구역을 쥔다(5절). `lane_error_warn_m`과 `off_lane_timeout_s`는 실측 e를 본 뒤 다시 정한다.
 - **치운 로봇을 다시 투입하는 절차(11-06 지시서 6번)**: 관리자가 `/fleet/reinstate`(robot_id, basket ∈ {EMPTY, NONE}, note)를 부른다(4절). 로봇은 다음 위치 보고부터 시작 때와 같은 절차로 맵에 오르고(이동·도킹 중이거나 배치 충돌이면 기다림), 그동안 다른 로봇은 멈추지 않는다. 단 남이 쥔 구역에 보고되면 그 주인만 세우고, 둘 다 제자리면 관리자가 옮기거나 다시 치워야 풀린다(5절). 바구니는 관리자가 본 값이고, NONE이면 주문 전에 출고 구역에서 빈 바구니를 받는다(5절). 서비스 이름과 타입은 0.3-draft 관제 요구(사용자 기준)이고 중앙 담당과 확인한다.
-- **레인 준수 방식(11-06 지시서 결정 2, 7번)**: FollowPath로 정했다. 관제가 레인 폴리라인을 `MoveTo.path`로 보내고 핑키가 그 선을 따른다. "관제가 잡은 공간 = 실제 주행선"을 노린다. `point` 모드는 호환·비교용으로만 남긴다. FSM·Nav2 담당과 확인 전이다.
+- **레인 준수 방식(11-06 지시서 결정 2, 7번)**: FollowPath로 정했다. 관제가 레인 폴리라인을 `MoveTo.path`로 보내고 Pode가 그 선을 따른다. "관제가 잡은 공간 = 실제 주행선"을 노린다. `point` 모드는 호환·비교용으로만 남긴다. FSM·Nav2 담당과 확인 전이다.
 
   | 방식 | 장점 | 단점 |
   |---|---|---|
-  | 점 목표(`point`) | 핑키는 NavigateToPose만 쓰면 된다. 지금 FSM과 가장 가깝다 | 꺾일 때마다 서고 다음 목표를 기다린다. 점 사이는 Nav2 플래너가 길을 정하므로 레인을 벗어날 수 있다. BT 복구(Spin, BackUp)가 잡지 않은 공간으로 움직일 수 있다 |
+  | 점 목표(`point`) | Pode는 NavigateToPose만 쓰면 된다. 지금 FSM과 가장 가깝다 | 꺾일 때마다 서고 다음 목표를 기다린다. 점 사이는 Nav2 플래너가 길을 정하므로 레인을 벗어날 수 있다. BT 복구(Spin, BackUp)가 잡지 않은 공간으로 움직일 수 있다 |
   | 점 목표 + Nav2 keepout 필터 + BT 복구 축소 | 지도 마스크로 금지 구역을 막는다 | keepout은 방향을 표현하지 못해 2차선 대로에서 마주 오는 레인으로 넘어갈 수 있다. 좁은 통로에서 마스크와 팽창 반경 튜닝 부담이 크다. 마스크를 잠금에 맞춰 바꾸기 어렵다 |
-  | FollowPath(`path`, 채택) | 관제가 잡은 공간과 실제 주행선을 같게 하려는 방식이다. 꺾임에서 서지 않게 한다. 플래너와 BT 복구를 쓰지 않는다 | 핑키 FSM이 FollowPath 클라이언트, 끝 근처 재전송, 도착 판정을 새로 가져야 한다. 선 위 물체는 돌아가지 않고 선다(BLOCKED, 계약 4절) |
+  | FollowPath(`path`, 채택) | 관제가 잡은 공간과 실제 주행선을 같게 하려는 방식이다. 꺾임에서 서지 않게 한다. 플래너와 BT 복구를 쓰지 않는다 | Pode FSM이 FollowPath 클라이언트, 끝 근처 재전송, 도착 판정을 새로 가져야 한다. 선 위 물체는 돌아가지 않고 선다(BLOCKED, 계약 4절) |
 
-- **FSM 담당에게 넘길 것(파트 7)**: 옮길 코드는 `~/roscamp_ws/sim/pinky_multi_sim`에 있다. 경로 만들기(`free_path.py`의 `poses_along`: 선을 따라 촘촘히 점을 찍고 방향을 선에 맞춘다, `missions.py`의 `Driver.drive`: FollowPath goal), 끝 근처 재전송(`traffic.py`의 `REFRESH_WITHIN_M` 0.15 m, `RESEND_EVERY_S` 0.5 s: 끝 근처에서 그날의 AMCL로 끝을 다시 재게 한다), 도착 판정(`traffic.py`의 `goal_done`: 성공이어도 끝에서 `ARRIVED_M` 0.15 m 안일 때만 도착). RPP `rotate_to_heading_min_angle`은 0.25(`nav2_overrides.yaml`)를 유지한다. 지시서에 따르면 0.8로 올리면 충돌 경고가 8건에서 717건으로 늘었다(이 작업에서 다시 재지 않았다). 관제가 보내는 선은 지점만 담으므로 촘촘한 점 찍기는 핑키가 한다.
+- **FSM 담당에게 넘길 것(파트 7)**: 옮길 코드는 `~/roscamp_ws/sim/pinky_multi_sim`에 있다. 경로 만들기(`free_path.py`의 `poses_along`: 선을 따라 촘촘히 점을 찍고 방향을 선에 맞춘다, `missions.py`의 `Driver.drive`: FollowPath goal), 끝 근처 재전송(`traffic.py`의 `REFRESH_WITHIN_M` 0.15 m, `RESEND_EVERY_S` 0.5 s: 끝 근처에서 그날의 AMCL로 끝을 다시 재게 한다), 도착 판정(`traffic.py`의 `goal_done`: 성공이어도 끝에서 `ARRIVED_M` 0.15 m 안일 때만 도착). RPP `rotate_to_heading_min_angle`은 0.25(`nav2_overrides.yaml`)를 유지한다. 지시서에 따르면 0.8로 올리면 충돌 경고가 8건에서 717건으로 늘었다(이 작업에서 다시 재지 않았다). 관제가 보내는 선은 지점만 담으므로 촘촘한 점 찍기는 Pode가 한다.
 
 정하지 않은 것:
 - **도착 허용과 해제(사용자 결정 대기, 파트 7 리뷰)**: 관제는 `arrival_tolerance_m`(0.15 m) 안이면 도착으로 본다. 그만큼 못 미쳐 서면 해제 조건(s > d, 다른 바닥 선에서 d)이 안 될 수 있다. 그러면 뒤 구역이 안 풀리고, 현재 구역 말고 쥔 것이 있으면 다음 구역을 청하지 않아(`controller.py`의 `_request_next_zone`) 조용히 멈춘다. 0.15 m 못 미쳐 서면 안 풀리는 레인 수(de35745 지도, 파트 6은 지도를 바꾸지 않았다, 주 세션 계산): 기본 지도 0, 두 2차선 지도 0, feature_map 6(W→E0, E1→E2, E2→O, O→F0, F0→F1, F2→W), oneway_loop 13, oneway_shortcut 13. 0.10 m이면 모든 지도에서 0이다. 최종 지도(`a12b159`)에서 다시 재도 같다(주 세션, `stopshort.py`). 안: (1, 추천) 계약의 도착 허용을 0.10 m로 좁히고 시작 검사가 L − 허용값에서 해제 조건을 보게 한다. 시뮬 영향 없음. (2) 구간을 0.4 m 이상으로 늘린다. 특징 지도와 파트 5 검증을 다시 해야 한다. (3) 그대로 두고 감시 이벤트만 더한다. 멈춤은 보이지만 사람이 풀어야 한다.
-- **FMS 구조와 담당**: v17 구조 자체가 팀 합의 전이다. FMS 담당은 정하지 않았다. 제안은 v17의 core와 pinky(코드의 `traffic`과 주문 진행)를 핑키 관제 담당이, arm을 팔 담당이 맡는 것이다.
-- **새로 제안한 바깥 인터페이스**: `/fleet/robots`의 이름과 필드. 핑키 쪽(`/fleet/heartbeat` 포함)은 위 "핑키 계약"으로 정했다.
+- **FMS 구조와 담당**: v17 구조 자체가 팀 합의 전이다. FMS 담당은 정하지 않았다. 제안은 v17의 core와 pinky(코드의 `traffic`과 주문 진행)를 Pode 관제 담당이, arm을 팔 담당이 맡는 것이다.
+- **새로 제안한 바깥 인터페이스**: `/fleet/robots`의 이름과 필드. Pode 쪽(`/fleet/heartbeat` 포함)은 위 "Pode 계약"으로 정했다.
 - **시작 정책**: 지도에 못 올리는 로봇(`PLACEMENT_CONFLICT`)이 있으면 전원이 기다리는 것(지금 코드)이 맞는지.
-- **실측 값**: ε, τ, v를 실물 핑키로 재서 d를 정한다(작업 기록 7번의 표). 실제 지도의 레인 그래프는 2·3번 도구에 데이터만 넣으면 된다.
+- **실측 값**: ε, τ, v를 실물 Pode로 재서 d를 정한다(작업 기록 7번의 표). 실제 지도의 레인 그래프는 2·3번 도구에 데이터만 넣으면 된다.
 - STOP/PAUSE는 FMS가 OrderBoard의 run_mode로 받는다. SR-34의 두 정지 방식은 PAUSE(하던 동작을 끝내고 멈춤)와 STOP(취소하고 바로 멈춤)에 대응한다. 받아들일지는 중앙 담당과 확인한다.
 - 비상 정지의 경로와 어느 노드가 듣는지(SR-36): 화면의 STOP과 달리 FMS에 기대지 않아야 한다.
 - 화면에서 central로 가는 `confirm_clear`의 이름과 타입: 4절에 없다. 중앙 담당과 정한다. 화면과 central 사이를 HTTP로 할지(제안)와 실시간 상태를 띄우는 방식도 함께 정한다.
@@ -619,7 +621,7 @@ expect: {all_orders_finished: true, orders_shipped: 6, orders_partial: 0, orders
 - arm3의 인식(SR-27): v17 HW 그림에는 arm3 카메라가 있지만 `arm_vision`과 `/{arm}/vision/items`는 arm1, arm2뿐이다.
 - Vision 서버(v17 제안)를 둘지, 어느 PC에서 돌릴지. DB 종류(제안: SQLite, central만 읽고 쓴다).
 - workcell이 arm1, arm2 중 어느 팔 PC에서 도는지: 팔 파트가 정한다.
-- JetCobot의 Raspberry Pi 5를 어떻게 쓸지: 지금 구성은 팔을 팔 PC로 제어한다. 11-05 권장은 제트코봇 3대가 고정 장비이므로 Pi 5를 유선으로 잇는 것이고, 그러면 Wi-Fi는 핑키 3대만 쓴다. 10절의 역할 배정은 확인이 필요하다.
+- JetCobot의 Raspberry Pi 5를 어떻게 쓸지: 지금 구성은 팔을 팔 PC로 제어한다. 11-05 권장은 제트코봇 3대가 고정 장비이므로 Pi 5를 유선으로 잇는 것이고, 그러면 Wi-Fi는 Pode 3대만 쓴다. 10절의 역할 배정은 확인이 필요하다.
 - 공유기 기종과 위치, 관제 PC와 팔 PC의 사양.
 - 상품 영역의 정확한 위치, 출고 선반, 빈 바구니 공급 방법.
 - 지도: `09_맵_아키텍처_결정_항목.txt`의 지점(그 문서의 노드), 레인, 잠금 단위, 도크 접근, 트레이 포함 폭, 팔 위치.
