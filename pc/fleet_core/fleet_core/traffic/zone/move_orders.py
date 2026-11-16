@@ -39,9 +39,10 @@ class MoveOrders:
         return SegmentOut(seq, via, node, zones, cmd.path, cmd.x, cmd.y, cmd.yaw, CONTROLLER[via])
 
     # ---- base와 horizon 조각, 도크까지 이은 트립 ----
-    def _fresh_base(self, m, trip, here: bool = False) -> tuple:
+    def _fresh_base(self, m, trip, here: bool = False, upto: int | None = None) -> tuple:
         mo = m.move_order
-        cuts = [cut for cut in mo.cuts[mo.given:] if cut[2] <= trip.granted]
+        upto = trip.granted if upto is None else upto
+        cuts = [cut for cut in mo.cuts[mo.given:] if cut[2] <= upto]
         mo.given += len(cuts)
         return tuple(self._segment(m, trip, cut, here and index == 0)
                      for index, cut in enumerate(cuts))
@@ -61,7 +62,8 @@ class MoveOrders:
         goal_id = self._next_goal_id()
         mo = m.move_order = MoveOrder(f"{m.name}-{goal_id}", self._cut(trip, trip.done, 1),
                                       horizon_at=self._clock())
-        base, horizon = self._fresh_base(m, trip, here=True), self._horizon(m, trip)
+        upto = self._standby_end(m, trip)
+        base, horizon = self._fresh_base(m, trip, True, upto), self._horizon(m, trip)
         self._out.append(MoveOrderCmd(m.name, goal_id, mo.id, 0, "", base, horizon,
                                       self._goal_priority(m)))
         self._order_goal(m, goal_id)
@@ -71,9 +73,10 @@ class MoveOrders:
             self._event("INFO", "RETREAT_START", f"backs to {base[0].end_node}", m.name)
 
     def _order_goal(self, m, goal_id: int) -> None:
-        trip = m.trip
-        m.goal = Goal(MOVE, goal_id, trip.granted, trip.links[trip.granted - 1].b, ORDER)
-        trip.sent = trip.granted
+        trip, mo = m.trip, m.move_order
+        end = mo.cuts[mo.given - 1][2] if mo.given else trip.granted
+        m.goal = Goal(MOVE, goal_id, end, trip.links[end - 1].b, ORDER)
+        trip.sent = end
         m.stall_from = None
 
     def _send_update(self, m, before: tuple, base: tuple) -> None:
@@ -110,6 +113,13 @@ class MoveOrders:
                     self._drop_trip(m)
             return
         p = self.params
+        end = m.goal.links
+        if end < trip.granted:
+            if mo.waiting or left_s(p, trip.links[trip.done:end], m.x, m.y) <= p.lookahead_s:
+                self._send_update(m, (m.goal.id, end), self._fresh_base(m, trip))
+                self._event("INFO", "ORDER_UPDATED",
+                            f"{mo.id} update {mo.update}: base to {m.goal.end}", m.name)
+            return
         if trip.granted >= len(trip.links) or (
                 not mo.waiting
                 and left_s(p, trip.links[trip.done:trip.granted], m.x, m.y) > p.lookahead_s):
@@ -137,6 +147,38 @@ class MoveOrders:
         self._send_update(m, before, self._fresh_base(m, trip))
         self._event("INFO", "ORDER_UPDATED",
                     f"{mo.id} update {mo.update}: base to {m.goal.end}", m.name)
+
+    # ---- 주차하러 가는 트립: 첫 고정 경로까지만 base로 주고, 그 끝에 새 길을 잇기 ----
+    def _standby_end(self, m, trip) -> int | None:
+        if not trip.standby:
+            return None
+        mo, end = m.move_order, None
+        for _, first, stop in mo.cuts[mo.given:]:
+            if stop > trip.granted or trip.links[first].via != FOLLOW_PATH:
+                break
+            end = stop
+        return end if end is not None and end < trip.granted else None
+
+    def _held_end(self, m) -> int:
+        trip, goal, mo = m.trip, m.goal, m.move_order
+        if (goal is None or goal.via != ORDER or mo is None or mo.before is not None
+                or mo.broken or trip.stale or goal.links >= trip.granted):
+            return 0
+        return goal.links
+
+    def _way_after(self, m, end: int, goal: str):
+        rest = route(self.site, m.trip.links[end - 1].b, goal, self._cost(m))
+        return [*m.trip.links[:end], *rest] if rest else None
+
+    def _turn_order(self, m, fresh) -> None:
+        mo, end = m.move_order, m.goal.links
+        before = (m.goal.id, end)
+        m.trip = fresh
+        mo.cuts[mo.given:] = self._cut(fresh, end, mo.cuts[mo.given - 1][0] + 1)
+        mo.horizon_at = self._clock()
+        self._send_update(m, before, self._fresh_base(m, fresh))
+        self._event("INFO", "ORDER_UPDATED", f"{mo.id} update {mo.update}: base to {m.goal.end}",
+                    m.name)
 
     # ---- 앞쪽 도크 확인과 horizon 경로 다시 짜기 ----
     def _dock_ahead(self, m, trip):

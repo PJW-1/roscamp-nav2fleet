@@ -132,15 +132,17 @@ class Goals:
             self._stop_wanting(m)
         return None
 
-    def _grab(self, m, candidates):
+    def _grab(self, m, candidates, after: int = 0):
         first_want = None
         for goal, queued in candidates:
-            links = self._way(m, goal)
+            links = self._way_after(m, after, goal) if after else self._way(m, goal)
             if not links:
                 continue
             trip = Trip(goal, links)
             if queued and self.params.use_order_model:
                 trip = self._through(m, trip)
+            if after:
+                trip.done, trip.granted = m.trip.done, after
             want = self._take(m, trip)
             if want is None:
                 if queued and not m.queued:
