@@ -231,3 +231,32 @@ def test_an_order_retreat_whose_answer_is_late_is_passed_once_the_robot_is_beyon
     assert world.run_until(lambda: world.view("pode1")["held"] == ["HALL"]
                            and "N_W" not in world.view("pode1")["nodes"], 30.0)
     assert "SEGMENT_DONE" not in world.codes("pode1") and not world.problems
+
+
+@pytest.mark.xfail(strict=True, reason="남은 점: 끝낸 뒤 늦은 보고가 노드 앞이면 노드 좌표로 잰다")
+@pytest.mark.parametrize("order", [False, True], ids=["order_off", "order_on"])
+def test_a_late_report_at_the_node_after_backing_out_does_not_free_the_dock(order):
+    """2026-11-16 origin/main(order 끔) 동시 9개 시나리오: 물러나기 결과가 온 뒤 다음 goal(N_W에서
+    x 0.35를 따라 X_W로, 작업 도크 구역에서 0.05 m)로 이미 올라가는데 보고는 N_W 앞에 늦게 머물러,
+    노드 좌표로 재어 WORK_DOCK을 놓았다(참 거리 0.069 m, stock_shortage t=27.9).
+    여기서는 N_W 0.04 m 위의 늦은 보고와 몸 위치(구역에서 0.067 m)를 따로 준다."""
+    world = Harness(starts={"pode1": "W", "pode2": "P-2", "pode3": "P-3"},
+                    params=replace(P, use_order_model=order))
+    world.report()
+    world.call("OUTBOUND", "pode1")
+    assert world.run_until(lambda: "RETREAT_DONE" in world.codes("pode1"), 30.0)
+    assert "WORK_DOCK" in world.view("pode1")["held"]
+    world._move = lambda bot: None
+    bot = world.bots["pode1"]
+    bot.x, bot.y = 0.35, 0.745  # 몸은 이미 도크 쪽으로 올라갔다
+    assert world.site.distance_to_zone(bot.x, bot.y, "WORK_DOCK") < 0.08
+    real = world.inputs.on_robot_state
+
+    def late(robot, x, y, *rest, **kw):
+        if robot == "pode1":
+            x, y = 0.35, 0.69  # N_W 0.04 m 위: 노드 좌표로 잴 거리 안
+        return real(robot, x, y, *rest, **kw)
+
+    world.inputs.on_robot_state = late
+    world.run(1.0)
+    assert "WORK_DOCK" in world.view("pode1")["held"]
