@@ -11,7 +11,6 @@ With recovery_probe:=true it also hosts the recovery_probe node (parameters resu
 from __future__ import annotations
 
 import json
-import math
 import os
 import time
 from pathlib import Path
@@ -28,6 +27,7 @@ from rclpy.node import Node
 from rclpy.qos import qos_profile_sensor_data
 
 from fleet_gz_sim.fleet_check import MARGIN_M, FleetCheck, footprint_of
+from fleet_gz_sim.quaternion import yaw_of
 
 
 class FleetCheckNode(Node):
@@ -80,7 +80,7 @@ class FleetCheckNode(Node):
     def _on_truth(self, robot: str, msg: Odometry) -> None:
         p, v, w = msg.pose.pose.position, msg.twist.twist.linear, msg.twist.twist.angular
         q = msg.pose.pose.orientation
-        yaw = math.atan2(2.0 * (q.w * q.z + q.x * q.y), 1.0 - 2.0 * (q.y * q.y + q.z * q.z))
+        yaw = yaw_of(q)
         t = msg.header.stamp.sec + msg.header.stamp.nanosec * 1e-9
         self.check.on_truth(robot, t, p.x, p.y, (v.x * v.x + v.y * v.y) ** 0.5, w.z,
                             wall=time.monotonic(), yaw=yaw)
