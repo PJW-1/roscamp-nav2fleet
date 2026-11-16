@@ -71,12 +71,16 @@ class Stuck:
 
 @dataclass(frozen=True)
 class NoisyPose:
-    """보고 위치에 sigma_m 잡음을 더하고, jump_m만큼 한쪽(+x)으로 민다. 실제 자리는 그대로다."""
+    """보고 위치에 sigma_m 잡음을 더하고, jump_m만큼 한쪽(+x)으로 민다. 실제 자리는 그대로다.
+
+    drive_by_estimate면 로봇이 민 자리(믿는 자리)로 달린다(AMCL이 틀린 로봇). 보고는 길 위에 있고
+    몸이 -jump_m만큼 벗어난다. 창이 끝나면 믿는 자리가 실제로 돌아온다(다시 수렴)."""
     robot: str
     t0: float
     t1: float
     sigma_m: float = 0.0
     jump_m: float = 0.0
+    drive_by_estimate: bool = False
 
 
 @dataclass(frozen=True)
@@ -116,6 +120,11 @@ class Schedule:
         found = [n for n in self.of(NoisyPose) if n.robot == robot and _during(n, t)]
         return (max((n.sigma_m for n in found), default=0.0),
                 sum(n.jump_m for n in found))
+
+    def belief_dx(self, robot: str, t: float) -> float:
+        """로봇이 믿는 자리 - 실제 자리(+x). drive_by_estimate인 것만 더한다."""
+        return sum(n.jump_m for n in self.of(NoisyPose)
+                   if n.robot == robot and n.drive_by_estimate and _during(n, t))
 
     def due(self, t: float) -> list:
         """지금 일어날 한 번짜리 일(Removal, Reinstate). 한 번만 돌려준다."""

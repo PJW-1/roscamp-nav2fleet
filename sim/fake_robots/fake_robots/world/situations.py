@@ -121,6 +121,12 @@ def build(name: str, layout: str = "d2") -> Situation:
                          injections=[NoisyPose("pode1", 20.0, 40.0, sigma_m=0.03, jump_m=0.30)],
                          finish_all=layout != "c", allowed=("I5_STANDING",),
                          rough=Rough(finish_all=layout != "c", allowed=("I5_STANDING",)))
+    if name == "pose_jumps_drive":
+        # pose_jumps와 같되 로봇이 틀린 자리로 달린다(drive_by_estimate). 보고는 길 위, 몸은 벗어난다.
+        # 위치 튐 가드의 약한 곳(믿는 자리로 도착해 의심이 풀림)을 재는 것이라 NAMES에 넣지 않는다.
+        noisy = NoisyPose("pode1", 20.0, 40.0, sigma_m=0.03, jump_m=0.30, drive_by_estimate=True)
+        return replace(build("pose_jumps", layout), name=name, title="틀린 자리로 달림",
+                       injections=[noisy])
     if name in STORE_NAMES:
         return build_store(name, layout, site, lane, Situation)
     raise KeyError(f"no situation {name!r}")

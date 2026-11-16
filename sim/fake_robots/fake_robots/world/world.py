@@ -93,6 +93,7 @@ class ZoneWorld(Commands, Link):
         self.batteries = {name: Battery([f for f in low if f.robot == name], spots)
                           for name in sorted({f.robot for f in low})}
         self._setup_link()
+        self._last_dx: dict[str, float] = {}  # 지난 걸음에 로봇이 믿은 치우침(drive_by_estimate)
         self.manager = manager_factory(self.site, self.params, list(self.robots), lambda: self.t)
 
     # ---- 시험이 읽는 것 ----
@@ -129,7 +130,9 @@ class ZoneWorld(Commands, Link):
         """robot이 피해야 할 원: 바닥 위 다른 로봇과 지금 있는 물체."""
         others = [(r.x, r.y, self.radius) for r in self.robots.values()
                   if r is not robot and not r.removed]
-        return others + self.schedule.objects_now(self.t)
+        found = others + self.schedule.objects_now(self.t)
+        dx = robot.belief_dx  # 믿는 자리로 달리는 걸음이면 센서가 본 것도 같이 옮겨 보인다
+        return [(x + dx, y, reach) for x, y, reach in found] if dx else found
 
     # ---- 걸음 ----
 
@@ -225,7 +228,7 @@ class ZoneWorld(Commands, Link):
                     self._finished(name, Result(run.kind, run.goal_id, False, "TIMEOUT"))
                 continue
             else:
-                result = run.step(self, r)
+                result = self._step_run(run, r)
             if result is not None:
                 r.run = None
                 view = self.traffic.robot_view(name) if self.traffic is not None else {}
@@ -234,16 +237,43 @@ class ZoneWorld(Commands, Link):
             elif isinstance(run, OrderRun):
                 self._feedback(name, run)
 
+    def _step_run(self, run, r):
+        """run 한 걸음. drive_by_estimate 창이면 몸을 믿는 자리로 옮겨 달리고 되돌린다."""
+        dx = self.schedule.belief_dx(r.name, self.t)
+        if dx != self._last_dx.get(r.name, 0.0):
+            _rebase(run, (r.x + dx, r.y))  # 믿는 자리가 바뀌었다(창 시작, 다시 수렴)
+        self._last_dx[r.name] = dx
+        if not dx:
+            return run.step(self, r)
+        r.x += dx
+        r.belief_dx = dx
+        try:
+            return run.step(self, r)
+        finally:
+            r.x -= dx
+            r.belief_dx = 0.0
+
     def clear_to(self, r, new) -> bool:
         """r이 지금 자리에서 new까지 곧게 가는 동안 다른 로봇 몸에 닿지 않는다
         (2r 밖이거나 멀어진다).
         닿으면 세계가 그 걸음을 막고 센다: 충돌 검사(blocked_ahead)가 놓친 것이다."""
         least = 2 * self.radius
+        here, dx = r.pose, r.belief_dx
+        if dx:  # 믿는 자리로 달리는 걸음: 몸이 닿는지는 실제 자리로 본다
+            here, new = (here[0] - dx, here[1]), (new[0] - dx, new[1])
         for o in self.robots.values():
             if o is r or o.removed:
                 continue
-            gap = segment_gap(o.pose, r.pose, new)
-            if gap < least - 1e-9 and gap < math.dist(r.pose, o.pose) - 1e-12:
+            gap = segment_gap(o.pose, here, new)
+            if gap < least - 1e-9 and gap < math.dist(here, o.pose) - 1e-12:
                 self.guard_stops += 1
                 return False
         return True
+
+
+def _rebase(run, pose) -> None:
+    """믿는 자리가 바뀌면 달리던 길의 첫 점(로봇 자리)을 새 자리로 바꾼다."""
+    sub = getattr(run, "sub", None) or run  # order goal이면 달리는 조각
+    way = getattr(sub, "way", None)
+    if way:
+        way[0] = pose
