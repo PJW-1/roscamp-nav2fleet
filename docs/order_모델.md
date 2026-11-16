@@ -1,6 +1,6 @@
 # order 모델 (사용자 기준)
 
-이동 하나를 "조각 목록"으로 한 번에 보내는 방식입니다. VDA 5050의 order(base, horizon, 이어 붙이기)를 옮겼습니다. 기본은 꺼져 있고(`use_order_model: false`), 꺼져 있으면 관제가 보내는 명령은 전과 똑같습니다(사건 기록 전체를 비교하는 시험 `test_zone_order_off.py`로 확인합니다).
+이동 하나를 "조각 목록"으로 한 번에 보내는 방식입니다. VDA 5050의 order(base, horizon, 이어 붙이기)를 옮겼습니다. 2026-11-16부터 기본으로 켜져 있습니다(`use_order_model: true`, [기록](worklog_order_default_on_2026-11-16.md)). `false`로 끄면 관제가 보내는 명령은 전과 똑같습니다(사건 기록 전체를 비교하는 시험 `test_zone_order_off.py`로 확인합니다).
 
 메시지 칸은 [Pode_계약.md](Pode_계약.md) 2절과 3절 11번에 있습니다. 이 문서는 관제가 그 칸을 어떻게 쓰는지를 적습니다.
 
