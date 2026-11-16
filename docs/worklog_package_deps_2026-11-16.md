@@ -10,6 +10,7 @@
 | pode/pode_fsm | exec_depend: builtin_interfaces | pode_fsm/backup_ros.py:9 |
 | pode/pode_peer_obstacles | exec_depend: std_msgs | pode_peer_obstacles/node.py:36 |
 | pc/fleet_manager | test_depend: launch. test_depend iponic_bringup 삭제 | test/test_launch_args.py:13-15가 launch만 씀(src는 안 씀) |
+| pc/fleet_manager (후속) | test_depend: launch_ros | test/test_launch_args.py:7이 launch_ros를 직접 import (Codex 지적) |
 | pode/pode_avoidance | test_depend: builtin_interfaces | test/test_vision_stand_in_node.py:10 (src는 안 씀) |
 | pode/pode_scan_filter | test_depend: geometry_msgs | test/test_scan_filter_node.py:15 (src는 안 씀) |
 | sim/fleet_gz_sim | exec_depend: rosgraph_msgs (test_depend가 아님). tf2_ros를 tf2_ros_py로 교체 | rosgraph_msgs: fleet_gz_sim/launch_parts.py:86이 브리지 인자 `/clock@rosgraph_msgs/msg/Clock[...`를 만들어 실행 때 필요. test_stand_in_battery.py:50도 씀. tf2_ros: fleet_view_node.py:21이 파이썬 모듈을 import하므로 jazzy rosdep 키는 tf2_ros_py(`rosdep resolve`: tf2_ros_py는 ros-jazzy-tf2-ros-py) |
@@ -17,6 +18,8 @@
 
 ## 순환
 iponic_bringup이 fleet_manager를 exec_depend하면, fleet_manager의 `test_depend iponic_bringup`과 겹쳐 colcon이 "Unable to order packages topologically"로 실패했다(colcon은 test_depend도 순서에 넣는다). 실행 방향(bringup -> fleet_manager)이 실제 의존이라 fleet_manager 쪽 test_depend를 지웠다. 영향: test/test_scenario_integration.py:59는 iponic_bringup이 없으면 skip하므로 시험은 안 깨지고, 그 시험을 돌리려면 iponic_bringup도 같이 빌드해 두어야 한다.
+
+남은 문제(사용자 결정, 고치지 않음): fleet_manager의 test_depend iponic_bringup을 빼서, iponic_bringup을 같이 빌드하지 않으면 test_scenario_integration.py가 건너뛰고, test_launch_args.py:20은 그 패키지의 소스 경로를 직접 읽는다.
 
 ## 확인
 - `xmllint --noout` 8개 파일 모두 통과.
