@@ -3,10 +3,12 @@
 보고 중심이 구역에서 footprint_radius_m(발자국 0.12 x 0.12 m의 반 대각선) + release_margin_m
 넘게 떨어진 보고가 release_confirm_samples번 이어지면 놓는다.
 """
+import math
 from dataclasses import asdict, replace
 
 import pytest
 import yaml
+from fleet_core.common.commands import MoveOrderCmd, RetreatCmd
 from fleet_core.common.params import DEFAULT_PARAMS, FleetParams, load_params
 from zone_harness import Harness
 
@@ -175,3 +177,57 @@ def test_a_record_made_with_zone_clear_m_measures_a_docked_robot_from_its_report
     assert world.site.distance_to_zone(bot.x, bot.y, "HALL") > 0.11
     world.run(1.0)
     assert world.view("pode2")["held"] == ["WORK_DOCK"]
+
+
+def short_of_n_w(order: bool, short_m: float = 0.025):
+    """작업 도크 W에서 주차 자리로 나가는 pode1이 N_W로 물러나다 N_W에 short_m 못 미친 곳에 선다.
+    order면 한 goal에 seq 1(물러나기, N_W)과 seq 2(nav_goal)가 함께 있다. 로봇은 물러나기 조각을
+    끝냈다고 말하지 않는다."""
+    world = Harness(starts={"pode1": "W", "pode2": "P-2", "pode3": "P-3"},
+                    params=replace(P, use_order_model=order))
+    world.report()
+    kind = MoveOrderCmd if order else RetreatCmd
+    assert world.run_until(lambda: world.sent(kind, "pode1"), 10.0)
+    if order:
+        base = world.sent(kind, "pode1")[0].base
+        assert [(s.seq_id, s.mode) for s in base] == [(1, "retreat"), (2, "nav_goal")]
+        assert base[0].end_node == "N_W"
+    world._move = lambda bot: None  # 로봇이 멈추고 답하지 않는다
+    (ax, ay), (bx, by) = world.site.link("W", "N_W").points[-2:]
+    span = math.dist((ax, ay), (bx, by))
+    bot = world.bots["pode1"]
+    bot.x, bot.y = bx - (bx - ax) * short_m / span, by - (by - ay) * short_m / span
+    world.run(1.0)
+    return world, bot
+
+
+@pytest.mark.parametrize("order", [False, True], ids=["order_off", "order_on"])
+def test_a_robot_backing_out_is_measured_from_its_report_until_the_retreat_is_done(order):
+    """2026-11-16 stock_shortage: order의 물러나기 조각(N_W)이 goal의 마지막 링크가 아니라서 보고가
+    N_W 0.03 m 안에 들자 진행이 링크를 넘기고 N_W 좌표로 재어 J_W를 놓았다(참 거리 0.076 m).
+    물러나는 로봇은 놓을 구역 쪽에서 노드로 다가가므로, 끝냈다는 답 전에는 보고 위치로 잰다."""
+    world, bot = short_of_n_w(order)
+    need = P.footprint_radius_m + P.release_margin_m
+    assert world.site.distance_to_zone(bot.x, bot.y, "J_W") < need
+    held = world.view("pode1")["held"]
+    assert "J_W" in held and "WORK_DOCK" in held, held
+    assert "RETREAT_DONE" not in world.codes("pode1")
+    del world._move
+    assert world.run_until(lambda: "J_W" not in world.view("pode1")["held"], 30.0)
+    assert "RETREAT_DONE" in world.codes("pode1") and not world.problems
+
+
+def test_an_order_retreat_whose_answer_is_late_is_passed_once_the_robot_is_beyond_the_node():
+    """끝냈다는 답이 늦어도 로봇이 노드를 release_margin_m 넘게 지나가면 진행으로 넘긴다. 그러지
+    않으면 지나온 노드(N_W)와 구역을 답이 올 때까지 쥐어 다른 로봇이 못 들어온다."""
+    world = Harness(starts={"pode1": "W", "pode2": "P-2", "pode3": "P-3"},
+                    params=replace(P, use_order_model=True))
+    world.report()
+    assert world.run_until(lambda: world.sent(MoveOrderCmd, "pode1"), 10.0)
+    world.hold_answers = True
+    bot, n_w = world.bots["pode1"], world.site.node_pose("N_W")
+    assert world.run_until(lambda: world.view("pode1")["node"] == "N_W", 30.0)
+    assert math.dist((bot.x, bot.y), n_w) > P.release_margin_m
+    assert world.run_until(lambda: world.view("pode1")["held"] == ["HALL"]
+                           and "N_W" not in world.view("pode1")["nodes"], 30.0)
+    assert "SEGMENT_DONE" not in world.codes("pode1") and not world.problems

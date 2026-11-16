@@ -6,8 +6,11 @@
 기다리는 로봇은 갈림목을 쥐지 않으니 도크의 로봇이 나갈 수 있다), 물러날 길을 끝내 못 잡으면
 blocked_timeout_s 뒤 운영자에게 넘긴다.
 """
+import math
 from dataclasses import replace
 
+import pytest
+from fleet_core.common.commands import MoveOrderCmd
 from fleet_core.common.params import load_params
 from fleet_core.traffic.zone.yard_retreat import yard_retreat
 from zone_harness import Harness
@@ -116,6 +119,30 @@ def test_it_backs_out_to_the_yard_even_with_no_way_on_from_there():
     world.obstacles.clear()
     assert world.run_until(lambda: world.result_of(call), 300.0)
     assert world.result_of(call).success
+
+
+@pytest.mark.parametrize("order", [False, True], ids=["order_off", "order_on"])
+def test_the_junction_is_kept_until_the_robot_says_it_has_backed_down(order):
+    """2026-11-16: order면 마당 지점까지의 물러나기 뒤에 다음 조각이 같은 goal에 붙는다. 보고가 N_E
+    0.03 m 안에 들었다고 진행이 물러나기 링크를 넘기면 N_E 좌표로 재어 갈림목 J_E를 일찍 놓는다.
+    물러나기는 끝냈다는 답 전에는 보고 위치로 잰다."""
+    params = replace(load_params(), use_order_model=order)
+    world, call = blocked_toward_work(docked=False, params=params)
+    assert world.run_until(lambda: world.retreats("pode1"), 200.0)
+    if order:
+        base = world.sent(MoveOrderCmd, "pode1")[-1].base
+        assert base[0].mode == "retreat" and len(base) > 1, "the retreat is not the last link"
+    bot, n_e = world.bots["pode1"], world.site.node_pose("N_E")
+    assert world.run_until(lambda: math.dist((bot.x, bot.y), n_e) < 0.028, 60.0)
+    world._move = lambda b: None  # N_E 앞에서 멈추고 답하지 않는다
+    world.run(1.0)
+    need = params.footprint_radius_m + params.release_margin_m
+    assert world.site.distance_to_zone(bot.x, bot.y, "J_E") < need
+    assert "J_E" in world.view("pode1")["held"], world.view("pode1")["held"]
+    assert "RETREAT_DONE" not in world.codes("pode1")
+    del world._move
+    assert world.run_until(lambda: world.result_of(call), 300.0)
+    assert world.result_of(call).success and not world.problems
 
 
 def test_the_retreat_follows_the_bends_of_the_way_down():

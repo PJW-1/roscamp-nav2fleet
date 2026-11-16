@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import math
 
-from fleet_core.fleet_map import NAV_GOAL
+from fleet_core.fleet_map import NAV_GOAL, RETREAT
 from fleet_core.traffic.mission import (
     AT_STATION,
     COMM_LOST,
@@ -67,9 +67,14 @@ class Progress:
         trip, goal = m.trip, m.goal
         if trip is None or goal is None or goal.kind == DOCK:
             return
-        while (trip.done < goal.links - 1 and trip.links[trip.done].via != NAV_GOAL
-               and passed(trip.links[trip.done], m.x, m.y)):
-            m.node = trip.links[trip.done].b
+        while trip.done < goal.links - 1:
+            link = trip.links[trip.done]
+            if link.via == NAV_GOAL or not passed(link, m.x, m.y):
+                break
+            # 물러나기는 놓을 구역 쪽에서 노드로 다가간다: 노드 좌표로 잴 거리 안이면 끝냈다는 답을 기다린다
+            if link.via == RETREAT and self._gap(m, link.b) <= self.params.release_margin_m:
+                break
+            m.node = link.b
             trip.done += 1
 
     # ---- 아직 필요한 구역과 노드 계산 ----
