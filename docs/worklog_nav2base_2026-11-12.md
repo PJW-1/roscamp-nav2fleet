@@ -10,7 +10,7 @@
 | `nav2-base` | 지도 세 가지(D2, D, C), 구역 교통 층, 핑키의 Nav2 goal, Gazebo와 머리 없는 세계, keepout 도구, 문서 | `main` 병합은 사용자가 정합니다 |
 | `order-model` | order 모델(조각 목록, base와 horizon, update). 기본은 꺼짐 | `nav2-base`로 가는 PR. 병합은 사용자가 정합니다 |
 
-읽을 문서: [관제_구역교통.md](관제_구역교통.md)(규칙, 사건 코드, 값), [회피_약속.md](회피_약속.md)(회피 담당과 나눌 선), [핑키_계약.md](핑키_계약.md)(0.11-draft 제안), [COPIED_FROM.md](COPIED_FROM.md)(복사한 것, 지운 것).
+읽을 문서: [관제_구역교통.md](관제_구역교통.md)(규칙, 사건 코드, 값), [회피_약속.md](회피_약속.md)(회피 담당과 나눌 선), [핑키_계약.md](Pode_계약.md)(0.11-draft 제안), [COPIED_FROM.md](COPIED_FROM.md)(복사한 것, 지운 것).
 
 ## 2. 복사한 것과 지운 것
 
