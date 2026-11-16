@@ -16,7 +16,7 @@ RETREAT_REASONS = (OBSTACLE_BEHIND, TIMEOUT, CANCELED, FAILED)
 
 
 @dataclass
-class _Retreat:
+class Retreat:
     goal_id: Hashable
     seq: int
     since: float
@@ -45,14 +45,14 @@ class RetreatMoves:
             return cmds + [Finish(goal_id, False, FAILED)]
         self._stopped_since = None
         if was_driving:
-            self._active = _Retreat(goal_id, 0, now, self.p.retreat_stop_wait_s,
+            self._active = Retreat(goal_id, 0, now, self.p.retreat_stop_wait_s,
                                     float(distance_m), float(speed_mps), route)
             return cmds
-        self._active = _Retreat(goal_id, 0, now, 0.0, float(distance_m), float(speed_mps), route)
+        self._active = Retreat(goal_id, 0, now, 0.0, float(distance_m), float(speed_mps), route)
         return cmds + self._start_retreat(self._active, now, pose)
 
     # ---- BackUp 후진 또는 지나온 길 거꾸로 물러나기 시작 ----
-    def _start_retreat(self, g: _Retreat, now: float, pose: Sequence[float] | None) -> list:
+    def _start_retreat(self, g: Retreat, now: float, pose: Sequence[float] | None) -> list:
         if g.route is not None:
             return self._start_reverse_path(g, now, pose)
         self._bseq += 1
@@ -62,7 +62,7 @@ class RetreatMoves:
         self._backup_unanswered[g.seq] = now + allowance + self.p.backup_result_grace_s
         return [BackUp(g.seq, g.distance_m, g.speed_mps, allowance)]
 
-    def _start_reverse_path(self, g: _Retreat, now: float, pose: Sequence[float] | None) -> list:
+    def _start_reverse_path(self, g: Retreat, now: float, pose: Sequence[float] | None) -> list:
         if pose is not None and self._too_short(g.route, pose):
             return self._end_active(FAILED, stop=True)
         s = g.route.project(pose[:2])[0] if pose is not None else 0.0

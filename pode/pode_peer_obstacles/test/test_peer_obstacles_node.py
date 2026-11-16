@@ -160,7 +160,8 @@ def test_a_robot_that_went_silent_stays_where_it_last_was(running):
 
 
 def test_the_sweep_scan_clears_all_around_the_robot(running):
-    """peer 층은 이 스캔으로 매번 둘레를 다 지우고 지금 자리만 다시 찍는다: 지나간 자리가 남지 않는다."""
+    """peer 층은 이 스캔으로 매번 둘레를 다 지우고 지금 자리만 다시 찍는다:
+    지나간 자리가 남지 않는다."""
     node, other, executor = running
     scans = []
     other.create_subscription(LaserScan, "peer_sweep", scans.append, 5)

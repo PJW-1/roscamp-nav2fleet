@@ -238,3 +238,8 @@ def quaternion_yaw(x: float, y: float, z: float, w: float) -> float:
 
 def yaw_quaternion(yaw: float) -> tuple[float, float, float, float]:
     return (0.0, 0.0, math.sin(yaw / 2.0), math.cos(yaw / 2.0))
+
+
+# ---- 시각이 붙은 위치에서 x, y, yaw만 꺼내기 ----
+def pose_here(pose):
+    return pose[:3] if pose else None

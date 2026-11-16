@@ -7,9 +7,9 @@ from dataclasses import dataclass
 from pode_fsm.geometry import Polyline, Pose
 
 
-# ---- 경로 이동 goal 기록(_Move) ----
+# ---- 경로 이동 goal 기록(Move) ----
 @dataclass
-class _Move:
+class Move:
     goal_id: Hashable
     target_id: str
     target: Pose
@@ -32,7 +32,7 @@ class _Move:
 
 # ---- 복구 진행 기록과 도킹 goal 기록 ----
 @dataclass
-class _Recovery:
+class Recovery:
     stuck_s: float
     backup_seq: int | None = None
     backup_since: float = 0.0
@@ -44,6 +44,6 @@ class _Recovery:
 
 
 @dataclass
-class _Dock:
+class Dock:
     goal_id: Hashable
     dock_id: str

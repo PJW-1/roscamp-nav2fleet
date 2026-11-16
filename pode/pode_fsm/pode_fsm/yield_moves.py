@@ -3,11 +3,11 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 
-from pode_fsm.backup import BackUp, CancelBackUp
+from pode_fsm.backup import CancelBackUp
 from pode_fsm.commands import CancelNav
 from pode_fsm.geometry import Point
 from pode_fsm.local_yield import BACKUP, RETRY, WAIT, Peer, blocking_peer, yields_to
-from pode_fsm.records import _Move, _Recovery
+from pode_fsm.records import Move, Recovery
 
 
 # ---- 상대 로봇 받기와 현재 양보 단계 조회 ----
@@ -26,13 +26,11 @@ class LocalYield:
         return RETRY
 
     # ---- 양보 시작: 주행 취소 후 대기 상태로 들어가기 ----
-    def _start_yield(self, g: _Move, now: float, pose: Sequence[float]) -> list:
-        self._attempts += 1
-        if self._attempt_origin is None:
-            self._attempt_origin = (float(pose[0]), float(pose[1]))
+    def _start_yield(self, g: Move, now: float, pose: Sequence[float]) -> list:
+        self._count_attempt(pose)
         g.s = self._track(g, pose)
         stood = self._stopped_since if self._stopped_since is not None else now
-        self._recovery = _Recovery(stuck_s=g.s, local=True, wait_until=now + self.p.local_wait_s,
+        self._recovery = Recovery(stuck_s=g.s, local=True, wait_until=now + self.p.local_wait_s,
                                    stood_since=stood)
         self._blocked, self._clear_since = False, None
         g.waiting_since = g.blocked_since = None
@@ -42,7 +40,7 @@ class LocalYield:
         return [CancelNav()]
 
     # ---- 양보 진행 감시: 길이 트이면 재주행, 아니면 후진 ----
-    def _watch_yield(self, now: float, g: _Move, pose, obstacle) -> list | None:
+    def _watch_yield(self, now: float, g: Move, pose, obstacle) -> list | None:
         r = self._recovery
         ahead = self._ahead(g, pose)
         if now - r.stood_since >= self.p.blocked_after_s and obstacle(ahead):
@@ -64,15 +62,10 @@ class LocalYield:
         d = self._yield_backup_m(g, pose) if self._backs_up(ahead, now) else 0.0
         if d < self.p.backup_min_m:
             return self._yield_blocked(g, now)
-        self._bseq += 1
-        r.backup_seq, r.backup_since = self._bseq, now
-        self._backup_running = True
-        self._backup_unanswered[self._bseq] = (now + self.p.backup_time_allowance_s
-                                               + self.p.backup_result_grace_s)
-        return [BackUp(self._bseq, d, self.p.backup_speed_mps, self.p.backup_time_allowance_s)]
+        return self._send_backup(r, now, d)
 
     # ---- 양보 후진 거리와 후진 여부 판정 ----
-    def _yield_backup_m(self, g: _Move, pose: Sequence[float]) -> float:
+    def _yield_backup_m(self, g: Move, pose: Sequence[float]) -> float:
         return max(0.0, min(self.p.local_backup_m, self._backup_distance(g, pose),
                             g.s - g.s_start))
 
@@ -93,7 +86,7 @@ class LocalYield:
             cmds.append(CancelBackUp())
         self._recovery = None
         self._blocked = True
-        if isinstance(g, _Move):
+        if isinstance(g, Move):
             if g.blocked_since is None:
                 g.blocked_since = now
             if not g.nav_running:

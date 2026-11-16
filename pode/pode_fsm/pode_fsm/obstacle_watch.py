@@ -4,7 +4,7 @@ from __future__ import annotations
 from collections.abc import Sequence
 
 from pode_fsm.geometry import Point, rounded_at
-from pode_fsm.records import _Move
+from pode_fsm.records import Move
 from pode_fsm.recovery import Obstacle
 
 
@@ -18,7 +18,7 @@ class ObstacleWatch:
         # ---- 정지 시작 시각 기록 ----
         lin, ang = speed
         stopped = abs(lin) < self.p.stopped_speed_mps and abs(ang) < self.p.stopped_turn_rps
-        moving_goal = isinstance(g, _Move)
+        moving_goal = isinstance(g, Move)
         if moving_goal and stopped:
             if self._stopped_since is None:
                 self._stopped_since = now
@@ -60,12 +60,12 @@ class ObstacleWatch:
         return []
 
     # ---- 경로 위 현재 위치와 앞쪽 검사 점 계산 ----
-    def _track(self, g: _Move, pose: Sequence[float]) -> float:
+    def _track(self, g: Move, pose: Sequence[float]) -> float:
         s, _ = g.route.project(pose[:2], s_min=g.s - self.p.track_back_m,
                                s_max=g.s + self.p.track_ahead_m)
         return s
 
-    def _ahead(self, g: _Move, pose: Sequence[float]) -> list[Point]:
+    def _ahead(self, g: Move, pose: Sequence[float]) -> list[Point]:
         line = g.sent
         if line is None:
             s = self._track(g, pose)

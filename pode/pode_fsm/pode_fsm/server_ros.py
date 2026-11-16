@@ -10,6 +10,7 @@ import rclpy
 from fleet_interfaces.action import Dock, MoveTo, Retreat
 from rclpy.action import ActionServer, CancelResponse, GoalResponse
 
+from pode_fsm.geometry import pose_here
 from pode_fsm.order_ros import order_goal
 
 # ---- 피드백 주기, 액션별 결과 형식, goal 대기 슬롯 ----
@@ -67,7 +68,7 @@ class GoalServers:
         with self._lock:
             self._slots[key] = _Slot(handle)
             pose = self._pose()
-            here = pose[:3] if pose else None
+            here = pose_here(pose)
             now = time.monotonic()
             req = handle.request
             if kind == "move":
@@ -102,7 +103,7 @@ class GoalServers:
                 with self._lock:
                     if self._fsm.is_running(key):
                         pose = self._pose()
-                        left = self._fsm.distance_remaining(pose[:3] if pose else None)
+                        left = self._fsm.distance_remaining(pose_here(pose))
                         done, waiting, warning = self._fsm.order_feedback()
                         handle.publish_feedback(MoveTo.Feedback(
                             distance_remaining=float(left), last_done_seq_id=done,

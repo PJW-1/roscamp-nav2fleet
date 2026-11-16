@@ -24,18 +24,11 @@ from tf2_ros import Buffer, TransformException, TransformListener
 
 from pode_fsm.backup import BackUp, CancelBackUp, reason_of
 from pode_fsm.backup_ros import BackUpRunner
+from pode_fsm.commands import CancelNav, ClearCostmap, LimitSpeed, SendPath
 from pode_fsm.contract import default_contract_path, load_contract, to_ros_qos
-from pode_fsm.core import (
-    RECOVERING,
-    CancelNav,
-    ClearCostmap,
-    Finish,
-    LimitSpeed,
-    SendPath,
-)
 from pode_fsm.costmap import Grid, obstacle_on, to_frame
 from pode_fsm.follow_ros import FollowPathRunner
-from pode_fsm.geometry import quaternion_yaw
+from pode_fsm.geometry import pose_here, quaternion_yaw
 from pode_fsm.local_yield import peers_from
 from pode_fsm.nav_goal import CancelNavGoal, SendNavGoal
 from pode_fsm.nav_goal_ros import NavGoalRunner
@@ -43,6 +36,7 @@ from pode_fsm.obstacle_report import UNKNOWN, clear_answer, nearest_ahead
 from pode_fsm.order_fsm import OrderFsm
 from pode_fsm.order_ros import OrderMaps, OrderMarkers
 from pode_fsm.params_ros import declare_fsm_params
+from pode_fsm.results import RECOVERING, Finish
 from pode_fsm.server_ros import GoalServers
 
 # ---- 배터리 미상 값과 마커 발행 주기 ----
@@ -261,12 +255,10 @@ class PodeFsmNode(Node):
             return False
         grid, frame, _ = costmap
         if frame and frame != self._map_frame:
-            try:
-                tf = self._tf.lookup_transform(frame, self._map_frame, Time())
-            except TransformException:
+            tf = self._costmap_tf(frame)
+            if tf is None:
                 return False
-            q, p = tf.transform.rotation, tf.transform.translation
-            points = to_frame(points, (p.x, p.y, quaternion_yaw(q.x, q.y, q.z, q.w)))
+            points = to_frame(points, tf)
         return obstacle_on(grid, points)
 
     # ---- 상태 기계 명령을 액션, 서비스, 토픽으로 실행 ----
@@ -321,7 +313,7 @@ class PodeFsmNode(Node):
         with self._lock:
             pose = self._pose()
             self._run(self._fsm.backup_result(seq, outcome, time.monotonic(),
-                                              pose[:3] if pose else None, error_code))
+                                              pose_here(pose), error_code))
 
     def _on_goal_feedback(self, seq: int, distance: float) -> None:
         with self._lock:
@@ -331,7 +323,7 @@ class PodeFsmNode(Node):
         with self._lock:
             pose = self._pose()
             self._run(self._fsm.nav_goal_result(seq, outcome, time.monotonic(),
-                                                pose[:3] if pose else None, lost=lost))
+                                                pose_here(pose), lost=lost))
 
     def _on_goal_cancel(self, seq: int) -> None:
         with self._lock:
@@ -344,7 +336,7 @@ class PodeFsmNode(Node):
     def _on_follow_result(self, seq: int, outcome: str, code: int, lost: bool) -> None:
         with self._lock:
             pose = self._pose()
-            here = pose[:3] if pose else None
+            here = pose_here(pose)
             if lost:
                 cmds = self._fsm.nav_lost(seq, time.monotonic(), here, self._obstacle)
             else:
@@ -362,7 +354,7 @@ class PodeFsmNode(Node):
             if not self._alive:
                 return
             pose = self._pose()
-            here = pose[:3] if pose else None
+            here = pose_here(pose)
             now = time.monotonic()
             late, self._late = self._late, []
             for seq, outcome in late:
