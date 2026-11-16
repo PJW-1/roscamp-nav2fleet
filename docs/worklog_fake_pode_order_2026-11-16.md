@@ -130,15 +130,21 @@ blocked_lane: pode1은 30.0 s에 첫 구간에서 막혔다. BLOCKED_WAIT은 32.
 - **관제: order의 물러나기 조각 중에 구역을 일찍 놓는다(test_fms_restart 실패).** 근거는 3회 실행(`/tmp/claude-1000/fakeorder_ws/fms_on3`)과 order 끔 사본을 비교한 것이다.
   - order 켬: pode2가 OUT_DOCK에서 N_E로 물러나는 조각(363.6 s 시작, 371.8 s 끝)이 끝나기 2.3 s 전인 369.5 s에 J_E와 OUT_DOCK을 놓았다(실제 0.066 m, 보고 0.094 m).
   - order 끔: 물러나기가 끝난 뒤인 373.8 s에 놓았다(실제 0.142 m).
-  - [추측] `pc/fleet_core/fleet_core/traffic/zone/progress.py` `_track`(68-73행)은 goal의 마지막 링크 전까지 지난 링크로 `m.node`를 넘긴다.
-    order에서는 물러나기 링크 뒤에도 base 링크가 이어진다. 그래서 물러나기 링크가 마지막 링크가 아니게 되어, 보고 자세가 N_E를 지나면 `m.node`가 N_E가 된다.
-    `_release_behind`(105-107행)는 노드에서 0.05 m 안이면 노드 자세로 거리를 잰다. 그래서 몸이 아직 반경(0.08 m) 안에 있을 때 놓는다.
-    order 끔에서는 물러나기가 goal의 마지막 링크라 넘기지 않았다. 가짜 Pode는 path대로 0.05 m/s로 물러나므로 실물에서도 같을 것으로 본다. 관제 고침은 이 작업 범위 밖이라 하지 않았다.
+  - [추측] 원인 후보(코드상 가능함은 Codex도 확인. 이 실행에서 그렇게 됐는지는 확인하지 않음):
+    - `pc/fleet_core/fleet_core/traffic/zone/progress.py` `_track`(68-73행)은 goal의 마지막 링크가 아니고 NAV_GOAL이 아닌 링크를 `passed()`로 넘기며 `m.node`를 옮긴다.
+      `passed()`(`trips.py`)는 링크 끝 3 cm 앞에서도 참이다.
+    - order goal의 링크는 허가된 base 끝까지라서, 물러나기 링크 뒤에 base 링크가 이어지면 물러나기 링크가 마지막이 아니다.
+      그러면 끝나기 전에 `m.node`가 N_E가 될 수 있다.
+    - `_release_behind`(102-107행)는 보고 자세가 `m.node`에서 `release_margin_m`(0.05 m) 안이면 노드 자세로 거리를 잰다(놓는 거리 0.085 + 0.05 = 0.135 m).
+      그래서 심판 반경(`safety.json` radius_m 0.08 m) 안에 몸이 남아 있을 때 놓을 수 있다.
+    - order 끔에서는 같은 mode의 링크를 한 goal로 보내므로, 물러나기 링크가 그 goal의 마지막이라 넘기지 않는다.
+    - 확인할 것: 해제 순간의 `m.node`, `_still_needed`, 연속 확인 횟수. 실물에서도 같은지는 모른다. 관제 고침은 이 작업 범위 밖이라 하지 않았다.
 - 이음 거리 `JOIN_M` 0.02는 실물 `OrderParams.join_m`의 기본값을 베꼈다. 실물에서 이 값을 바꾸면 가짜와 달라진다(Codex 지적, 고치지 않음).
 - 조각 검사(`segments_problem`, `joins`)는 pode_fsm `order_queue.py`의 같은 함수를 작게 다시 쓴 것이다. 의존 순환 때문에 가져오지 못했다. 한쪽을 바꾸면 다른 쪽도 바꿔야 한다.
 - 조각 사이에서 한 틱(0.05 s) 멈춘다. 실물은 이어진 follow_path 조각을 한 줄로 합쳐 달린다. `distance_remaining`은 지금 조각의 남은 거리만 센다.
 - `docs/worklog_order_default_on_2026-11-16.md` 65행의 "합치기 전에 정할 것"은 이 브랜치가 답한다. 그 문서는 고치지 않았다.
 - `blocked_lane.yaml`의 물체 시각은 order 끔 시절에 맞춘 것이다. 고친 뒤에는 order 끔과 같은 곳에서 막혔지만 1회 실행이다.
-- Codex(3b853be 리뷰)는 조각 경계를 넘어 남은 물체 자리(hold)가 다음 조각에서 틀린 거리로 쓰일 수 있다고 했다([확정]이라고 표시).
-  내 판단은 path 조각에서는 생기지 않는다는 것이다. 조각은 목표에 닿은 틱에 끝나고, 그 전에 물체가 나타나면 hold가 로봇을 끝 앞에 세워 조각이 끝나지 않는다.
-  nav_goal 조각(`has_way`가 늦는 때)은 확인하지 않았다. 예전 goal 끝의 `recovery.restart()`처럼 조각 시작에 hold를 다시 잡으면 막을 수 있다.
+- (해결) Codex(3b853be 리뷰)는 조각 경계를 넘어 남은 물체 자리(hold)가 다음 조각에서 틀린 거리로 쓰일 수 있다고 했다.
+  나는 처음에 path 조각에서는 생기지 않는다고 판단했는데, 틀렸다. 문서 리뷰(302ea5f)에서 Codex가 반례를 들었다.
+  반례: 조각이 이미 끝에서 시작하고 물체가 보이면, 첫 틱에 끝나면서 hold 0.01 m가 남는다.
+  그 반례로 시험을 먼저 썼고(고치기 전 0.01 m 움직여 실패), 조각 시작마다 hold를 새 path의 시작으로 다시 잡게 고쳤다(`ObstacleRecovery.rebase`).
