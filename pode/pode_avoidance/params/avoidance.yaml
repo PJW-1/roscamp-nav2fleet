@@ -23,11 +23,19 @@
 #   Gazebo의 구동 플러그인은 회전을 1.0 rad/s, 2.0 rad/s^2로 자른다. 2.0으로 명령한 판(G7, G8)과
 #   1.0인 판(G6, G9)에서 로봇이 돈 속도가 같았다(90번째 백분위 1.0 rad/s). 실물의 회전 한계는
 #   재지 않았다.
+#   2026-11-17(주행 담당, Gazebo 0.20 m/s): planner(NavFn)가 5 cm 격자에서 내는 경로는 지그재그다
+#   (처음 0.6 m에서 방향 변화의 합 142도, 순 변화 36도). 앞보기 0.10 m(격자 두 칸)와 서서 도는
+#   문턱 0.25 rad로는 그 굽이마다 서서 몇 도씩 돌았다: O_OUT을 떠난 뒤 9초 동안 전환마다
+#   5.5~5.8번, 3.3~3.6초. 최소 앞보기를 0.15 m(세 칸)로, 문턱을 0.45 rad로 올렸다: 2.0~2.5번, 1.4~1.6초,
+#   급행 판 261~265초 -> 251~255초(두 판씩). 문턱 0.70(2026-11-16)은 E-1에서 몸이 벽 쪽으로 나가
+#   버렸다. 부작용: 주차하러 칸 입구(E-k)에서 칸으로 들어갈 때 4초쯤 섰다 가는 일이 판마다 한 번
+#   생겼다(전에는 0번). 플래너를 Theta*로 바꾸는 안은 로봇이 막혀 버렸다
+#   (docs/worklog_nav_goal_smooth_2026-11-17.md).
 follow_path_goal:
   plugin: "nav2_regulated_pure_pursuit_controller::RegulatedPurePursuitController"
   desired_linear_vel: 0.25  # 전달사항(제조사 0.2)
   lookahead_dist: 0.15  # 전달사항(제조사 0.6)
-  min_lookahead_dist: 0.10  # 전달사항(제조사 0.3)
+  min_lookahead_dist: 0.15  # 2026-11-17(전에는 0.10)
   max_lookahead_dist: 0.25  # 전달사항(제조사 0.9)
   lookahead_time: 0.8
   use_velocity_scaled_lookahead_dist: true
@@ -45,7 +53,7 @@ follow_path_goal:
   regulated_linear_scaling_min_speed: 0.05
   use_rotate_to_heading: true
   allow_reversing: false
-  rotate_to_heading_min_angle: 0.25
+  rotate_to_heading_min_angle: 0.45  # 2026-11-17(전에는 0.25)
   max_angular_accel: 3.2
   max_robot_pose_search_dist: 1.4875
   cost_scaling_dist: 0.05

@@ -322,6 +322,23 @@ def test_the_goal_controller_keeps_its_carrot_short_at_0_20_and_brakes_late():
     assert goal["approach_velocity_scaling_dist"] == 0.2
 
 
+def test_the_goal_controller_does_not_stop_for_every_bend_of_the_plan():
+    """2026-11-17, Gazebo: NavFn's plan on the 5 cm grid zigzags (142 deg of turning for 36 deg
+    net over its first 0.6 m). With a 0.10 m carrot and a 0.25 rad threshold the robot stopped to
+    rotate 5.5 to 5.8 times in the 9 s after each O_OUT (3.3 to 3.6 s). The carrot now stays at
+    least three cells ahead and the threshold is 0.45 rad: 2.0 to 2.5 stops, 1.5 s, the rush game
+    261-265 s -> 251-255 s (two games each). 0.70 rad (tried 2026-11-16) swung the body into the
+    wall at E-1. Known cost: one 4 s stall per game at a bay entrance when a robot goes to park.
+    Only while it is an RPP: a teammate's other plugin is not held to these numbers."""
+    goal = params("controller_server")["FollowPathGoal"]
+    if not goal["plugin"].endswith("RegulatedPurePursuitController"):
+        pytest.skip("not an RPP")
+    cell = params("global_costmap", "global_costmap")["resolution"]
+    assert goal["min_lookahead_dist"] == 0.15 and goal["min_lookahead_dist"] >= 3 * cell - 1e-9
+    assert goal["lookahead_dist"] >= goal["min_lookahead_dist"]
+    assert goal["rotate_to_heading_min_angle"] == 0.45
+
+
 def test_every_controller_turns_in_place_at_1_rad_s():
     """2026-11-15: 넓은 구역의 제자리 회전을 2.0 rad/s(각가속도 6.4)로 올렸다가 되돌렸다. Gazebo의
     구동 플러그인은 회전을 1.0 rad/s로 잘라서, 2.0으로 명령한 판에서도 로봇이 돈 속도는 같았다
