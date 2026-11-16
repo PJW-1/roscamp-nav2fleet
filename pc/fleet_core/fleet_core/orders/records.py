@@ -13,13 +13,13 @@ NONE = "NONE"
 
 
 # ---- 수량 합산과 차감 ----
-def _merge(into: dict[str, int], more: dict[str, int]) -> None:
+def merge_items(into: dict[str, int], more: dict[str, int]) -> None:
     for kind, count in more.items():
         if count > 0:
             into[kind] = into.get(kind, 0) + count
 
 
-def _subtract(items: dict[str, int], *taken: dict[str, int]) -> dict[str, int]:
+def subtract_items(items: dict[str, int], *taken: dict[str, int]) -> dict[str, int]:
     left = {}
     for kind, count in items.items():
         rest = count - sum(t.get(kind, 0) for t in taken)
@@ -30,7 +30,7 @@ def _subtract(items: dict[str, int], *taken: dict[str, int]) -> dict[str, int]:
 
 # ---- 잃은 작업, 묶인 주문, 로봇 기록 ----
 @dataclass
-class _LostJob:
+class LostJob:
     robot: str
     server: str
     kind: str
@@ -41,7 +41,7 @@ class _LostJob:
 
 
 @dataclass
-class _BoundOrder:
+class BoundOrder:
     order_id: str
     items: dict[str, int]
     placed: dict[str, int] = field(default_factory=dict)
@@ -49,11 +49,11 @@ class _BoundOrder:
 
 
 @dataclass
-class _Robot:
+class RobotRecord:
     name: str
     stage: str = ""
     basket: str = EMPTY
-    order: _BoundOrder | None = None
+    order: BoundOrder | None = None
     last_order_id: str = ""
     outbound_goal: int | None = None
     dispatch_failures: int = 0

@@ -4,7 +4,7 @@ from __future__ import annotations
 import math
 from itertools import pairwise
 
-from .geometry import _cross, inside, overlap_area, sample, within
+from .geometry import inside, overlap_area, sample, segments_cross, within
 from .model import (
     AT_DOCK,
     DOCK,
@@ -163,7 +163,7 @@ def _line_problem(zones: dict[str, Zone], points) -> str:
             return f"turns back at {b}"
     for i, (a, b) in enumerate(pieces):
         for c, d in pieces[i + 2:]:
-            if _cross(a, b, c, d):
+            if segments_cross(a, b, c, d):
                 return "crosses itself"
     return ""
 
