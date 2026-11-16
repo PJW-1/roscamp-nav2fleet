@@ -267,8 +267,11 @@ class RelocalizeServer:
                 self._spin_open = False
             if self._machine is None:
                 return
-            # 회전 중에 나온 추정(스캔을 기다리던 것 포함)은 회전 뒤 판정에 넣지 않는다
-            self._since = _seconds(self._node.get_clock().now().to_msg())
+            # 회전 중에 나온 추정(스캔을 기다리던 것 포함)은 회전 뒤 판정에 넣지 않는다.
+            # 경계는 노드 시계가 아니라 지금까지 받은 마지막 스캔 시각(그 시각 것도 뺀다).
+            # 지금 도는 회전의 결과일 때만 옮긴다
+            if self._machine.spinning:
+                self._since = max(self._since, self._last_scan + 1e-6)
             self._run(self._machine.spin_result(time.monotonic(), outcome, code))
 
     def _on_spin_stopped(self, seq: int) -> None:
