@@ -1,5 +1,6 @@
 """배치 v7(사용자 확정 경기장, 2026-11-13): 치수, 도크, 대기 L, 구역 여유, 길."""
 import math
+from itertools import pairwise
 
 import pytest
 from fleet_core.common.params import load_params
@@ -28,7 +29,7 @@ def test_v7_dimensions(site):
     assert site.bounds() == (0.0, 0.0, 1.98, 0.99)
     assert list(site.shelves) == SHELVES + DIVIDERS
     # 칸막이 사이 빈 폭 0.24(잠정), 건넘 틈 0.26, 급행 0.18
-    assert [round(b[0] - a[2], 3) for a, b in zip(DIVIDERS, DIVIDERS[1:])] == [0.24, 0.24]
+    assert [round(b[0] - a[2], 3) for a, b in pairwise(DIVIDERS)] == [0.24, 0.24]
     assert round(DIVIDERS[0][0], 3) == 0.24
     assert round(SHELVES[2][0] - SHELVES[1][2], 3) == 0.26
     assert round(0.99 - SHELVES[0][3], 3) == 0.18
@@ -222,7 +223,7 @@ def test_v7_routes(site):
     assert [link.a for link in site.links() if link.b == "W"] == ["Q1"]
     # W_X는 W와 급행만 잇는다(W로 물러나는 후진도 없다: W 띠 안에서 제자리 돌기가 된다)
     assert [(k.b, k.via) for k in site.links() if k.a == "W_X"] == [("O_X", FOLLOW_PATH)]
-    assert [l.a for l in site.links() if l.b == "W_X"] == ["W"]
+    assert [k.a for k in site.links() if k.b == "W_X"] == ["W"]
     assert not {"X_E", "N_E", "N_O", "O_Q"} & set(site.nodes)
 
     def no_express(link):
@@ -254,7 +255,7 @@ def test_v7_routes(site):
     heading = math.degrees(math.atan2(first[1] - o_in[1], first[0] - o_in[0]))
     assert math.degrees(site.nodes["O_IN"].yaw) == pytest.approx(heading, abs=2.0)
     assert out.points[1][0] < o[0] - 0.05, "first goes west, the way O faces"
-    assert all(b[1] <= a[1] + 1e-9 for a, b in zip(out.points[1:], out.points[2:])), "then south"
+    assert all(b[1] <= a[1] + 1e-9 for a, b in pairwise(out.points[1:])), "then south"
     assert min(x for x, _ in out.points) - BODY_CIRCLE_M >= 0.05, "clear of the west wall"
     # 2026-11-17(사용자: 딱 1 cm만): O_OUT을 벽에서 0.15 -> 0.16으로. 여기서 동쪽으로 돌 때 뒤가
     # 서쪽 벽 쪽으로 돌아가 Nav2가 "collision ahead"로 섰다. 꺾는 점(0.16)과 x가 같아져 마지막
@@ -343,7 +344,8 @@ def test_v7_robots_standing_in_line_or_at_a_fork_leave_every_other_way_open(site
     from itertools import pairwise
 
     from fleet_core.fleet_map.geometry import point_segment_distance
-    # G, F: 갈림에서도 차례를 기다리며 선다(3e84ff6 리뷰: G에 선 로봇이 E-3 -> F 선을 0.076으로 막았다)
+    # G, F: 갈림에서도 차례를 기다리며 선다
+    # (3e84ff6 리뷰: G에 선 로봇이 E-3 -> F 선을 0.076으로 막았다)
     # 지나가는 로봇은 주차한 로봇 앞을 몸 둘이 닿지 않게 지난다(2026-11-13 밤, Gazebo와 머리 없는
     # 세계: 칸 입구 0.25, 주차 0.11이던 때 E-1 -> Q2의 선이 P-3에서 0.11이라 로봇이 서 있었다).
     # 그때 기준은 0.175(머리 없는 세계가 막혔다고 보는 거리 0.17보다 조금 넘게)였다. 칸 입구를
@@ -438,10 +440,10 @@ def test_v7_locks_only_the_express_strip_and_the_docks(site):
 def test_v7_global_costmap_keeps_a_way_between_the_south_shelf_end_and_work(site):
     """빨간 선(가운데 통로 끝 -> F, Q1)이 남쪽 진열대 동쪽 끝과 WORK_DOCK keepout 사이를 지난다.
     5 cm 전역 costmap에서 진열대 칸 중심과 0.09(내접) 넘게 떨어지고 keepout(몸 반폭 0.06 넓힘) 밖인
-    칸이 진열대 끝 높이의 줄마다 한 칸 이상 있다(keepout 마스크는 부풀지 않는다). 한 칸뿐이라 좁다. 도크에 선 로봇(관제가 주는 peer 장애물)은
-    따로 빼고 본 값이다."""
-    from fleet_core.fleet_map.keepout import keepout_rects
+    칸이 진열대 끝 높이의 줄마다 한 칸 이상 있다(keepout 마스크는 부풀지 않는다). 한 칸뿐이라
+    좁다. 도크에 선 로봇(관제가 주는 peer 장애물)은 따로 빼고 본 값이다."""
     from fleet_core.fleet_map.geometry import inside
+    from fleet_core.fleet_map.keepout import keepout_rects
     res, inscribed = 0.05, 0.09
     keep = keepout_rects(site)
     shelf = SHELVES[2]
