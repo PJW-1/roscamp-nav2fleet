@@ -16,6 +16,7 @@ class OrderRun:
         self.done_seq = 0
         self.waiting = False  # base 끝에 서서 update를 기다린다
         self.told = None  # 마지막으로 보낸 피드백
+        self.held = False  # 조각 끝에 닿았지만 끝냈다고 하지 않고 서 있다(시험이 켠다)
 
     def refusal(self, cmd) -> str:
         """update를 붙이면 안 되는 이유. 붙여도 되면 빈 문자열."""

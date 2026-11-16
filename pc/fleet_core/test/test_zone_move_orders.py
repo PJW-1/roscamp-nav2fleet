@@ -216,6 +216,26 @@ def test_a_dock_freed_before_the_base_end_is_taken_whole_and_the_robot_does_not_
     assert not world.problems
 
 
+def test_the_robot_answers_reach_the_traffic_layer_in_order_feedback_superseded_result():
+    """도우미(legs, answer_at)에 가리지 않고 날것의 답 차례를 본다: base 끝 피드백, update를 받으면
+    옛 goal의 SUPERSEDED, 새 goal의 조각 피드백, 마지막에 새 goal의 성공 하나."""
+    world, call = waiting_at_the_queue_spot()
+    world.traffic.on_release("pode2")
+    assert world.run_until(lambda: world.result_of(call) is not None, 120.0)
+    said = [(method, args) for _, robot, method, args in world.answers if robot == "pode1"]
+    [first] = [o.goal_id for o in orders(world, "pode1") if o.update_id == 0]
+    [update] = [o.goal_id for o in orders(world, "pode1") if o.update_id == 1]
+    superseded = said.index(("on_move_result", (first, False, "SUPERSEDED", 2)))
+    before, after = said[:superseded], said[superseded + 1:]
+    assert before and all(m == "on_move_feedback" and a[0] == first for m, a in before)
+    assert before[-1][1][1:3] == (2, True), "it waits at the base end"
+    assert all(a[0] == update for _, a in after), "the old goal says nothing more"
+    assert [m for m, _ in after[:-1]] == ["on_move_feedback"] * (len(after) - 1)
+    last = orders(world, "pode1")[-1].base[-1].seq_id
+    assert after[-1] == ("on_move_result", (update, True, "", last))
+    assert not world.problems
+
+
 # ---- horizon만 바꾸기, 거절 ----
 
 def test_a_changed_route_ahead_replaces_only_the_horizon():
