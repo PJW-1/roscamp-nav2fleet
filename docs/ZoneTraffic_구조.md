@@ -235,14 +235,14 @@ ZoneTraffic 줄에는 tick이 부르는 13개 클래스의 입구가 들어 있�
 - 한 줄 구역(LANE)은 한 번에 한 방향이다. 방향이 다르면 막고, 같은 방향은 마지막 진입 뒤 `lane_follow_gap_s`가 지나고 정원 안일 때만 따라 들어간다(grants.py `_others_in_the_way`). 방향을 안 주면 `ValueError`다. 단 이미 그 구역을 쥔 로봇은 방향 검사 전에 통과한다(grants.py:33 근처 `if robot in holders: return ()`).
 - `take`는 전부 아니면 전무다. 막히면 `_waiting`에 기록만 한다.
 - `release_*`는 쥔 로봇만 놓을 수 있고, 구역이 비면 차선 방향을 지운다.
-- 알아 둘 점: `force`는 차선 방향과 간격을 보지 않고 정원만 본다(grants.py `force`는 `_grant(..., None)`을 부른다). `force`는 기존 방향도 설정하지 않는다. 그래서 "한 번에 한 방향"은 `take` 경로의 규칙이다. 전체 보유 상태의 불변식이 아니다. 초기 배치(placement.py:23-32)가 노드가 있는 차선에 `force`를 쓸 수 있다.
+- 알아 둘 점: `force`는 차선 방향과 간격은 보지 않는다. 구역 정원과 노드 점유(다른 로봇이 쥔 노드면 거절)는 본다(grants.py:60-67). `_grant(..., None)`을 부르므로 기존 방향도 설정하지 않는다. 그래서 "한 번에 한 방향"은 `take` 경로의 규칙이다. 전체 보유 상태의 불변식이 아니다. 초기 배치(placement.py:23-32)가 노드가 있는 차선에 `force`를 쓸 수 있다.
 
 ### 5.3 불변식을 고정하는 시험
 
 | 지키는 것 | 시험 | 방법 |
 |---|---|---|
 | 위 5.2의 구역·노드·차선 규칙 | `test_zone_grants.py` (시험 13개) | ZoneGrants를 직접 쓴다. 한꺼번에 잡기, 정원, 노드 하나, 차선 한 방향·간격·정원, 놓기, force, `acquired_at`, 모르는 구역은 프로그램 오류 |
-| 시험 세계 안에서 (배치되어 있고 고장·통신 이상이 없는 로봇은) 쥔 구역 안에 있다, 한 줄 구역에서 명령 또는 order로 달리는 로봇의 `heading[0]` 반올림 값이 둘 이상 섞이지 않는다, 도크에 둘이 있지 않다 | `zone_harness.py`의 `_check()` (zone_harness.py:256-275, `step()`이 매번 부른다) | 위반하면 `world.problems`에 적는다. 이것을 `assert not world.problems`로 확인하는 시험은 `test_zone_*.py` 19개 파일에 있다(`grep -c problems`로 0이 아닌 파일 수). 하네스가 스스로 실패시키지는 않는다. 시험이 `problems`를 확인해야 지켜진다. 미배치·고장·통신 이상 로봇은 첫 검사에서 빠지고, 방향 검사는 달리지 않는 로봇과 `heading`의 x 성분만 본다. 모든 위반을 잡는다는 보장은 아니다 (zone_harness.py:256-275) |
+| 시험 세계 안에서 (배치되어 있고 고장·통신 이상이 없는 로봇은) 쥔 구역 안에 있다, 한 줄 구역에서 명령 또는 order로 달리는 로봇의 `heading[0]` 반올림 값이 둘 이상 섞이지 않는다, 도크에 둘이 있지 않다 | `zone_harness.py`의 `_check()` (zone_harness.py:256-275, `step()`이 매번 부른다) | 위반하면 `world.problems`에 적는다. 이것을 `assert not world.problems`로 확인하는 시험은 `test_zone_*.py` 19개 파일에 있다(`grep -c problems`로 0이 아닌 파일 수). 하네스가 스스로 실패시키지는 않는다. 시험이 `problems`를 확인해야 지켜진다. 미배치·고장·통신 이상 로봇은 첫 검사에서 빠진다. 방향 검사는 `cmd`나 `run`이 있는 로봇만 넣고 `heading`의 x 성분 반올림만 비교한다(zone_harness.py:269). 모든 위반을 잡는다는 보장은 아니다 (zone_harness.py:256-275) |
 | 같은 이름의 메서드를 믹스인이 두 번 정의하지 않는다 | `test_zone_mixins.py` (1개) | MRO를 돌며 이름이 겹치는 것을 센다. 허용은 `_event`뿐 |
 | 교통 층이 주문·바구니 쪽을 부르지 않는다(import, 이름, 필드) | `test_fms_boundary.py` (16개) | ast로 import를 따라간다. traffic은 commands.py에서 허용 목록의 이름만 가져온다. 이 시험이 실제로 실패할 수 있음도 시험한다(반례 orchestrator) |
 | FleetManager와 ROS 노드가 교통 층에 부르는 이름이 모두 `TrafficApi`에 있다 | `test_traffic_api.py` (5개) | ast로 `self.traffic.<이름>`, `core.traffic.<이름>`을 모은다 |
@@ -264,7 +264,7 @@ ZoneTraffic 줄에는 tick이 부르는 13개 클래스의 입구가 들어 있�
 세 가지가 이미 있다. zone 파일, zone_harness.py, zone_scenarios.py에서 `grep -n "random\|time.time\|monotonic"`가 아무것도 찾지 못했다. 시계와 목표 번호 생성기는 밖에서 주입된다(base.py:26-27). 그래서 초기 상태, 주입값, 호출 순서가 같으면 같은 출력이 나올 것이라고 본다 [추측: 실제로 두 번 돌려 비교해 보지는 않았다].
 
 1. 하네스 시나리오: `zone_scenarios.py`의 `play(이름)`(serve_three 등). 떼기 전과 후의 `world.commands`, `world.events`와 매 걸음의 `grants.held_by(로봇)`, `grants.holders(구역)`를 기록해 비교한다. 지금은 이 기록을 남기는 도구가 없다. 새 시험 도구로 추가해야 한다.
-2. `tools/replay.py`: FleetManager에 입력 기록(jsonl)을 다시 넣고 기록된 `in`, `inside`, `out` 줄을 순서대로 비교한다(첫 줄에 `"recorded": true`가 있는 기록만. 입력만 있는 기록은 비교하지 않고, 줄 중간에서 끊긴 기록은 끝 뒤를 비교하지 못한 채 남긴다. replay.py 머리말). 기록은 `fleet_manager_node --record`나 `FleetManager.record_to`로 만든다. 저장소에 기록 파일은 없다(`find . -name "*.jsonl"`이 0). 보유 구역은 이 비교에 들지 않는다.
+2. `tools/replay.py`: FleetManager에 입력 기록(jsonl)을 다시 넣고 기록된 `in`, `inside`, `out` 줄을 순서대로 비교한다(첫 줄에 `"recorded": true`가 있거나 `inside`/`out` 줄이 하나라도 있으면 비교한다. 둘 다 없는 입력 전용 기록은 비교하지 않고 돌리기만 한다. 재생이 기록보다 길면 정상 기록에서도 초과분을 "비교하지 못함(uncompared)"으로 보고한다. replay.py:123-132). 기록은 `fleet_manager_node --record`나 `FleetManager.record_to`로 만든다. 저장소에 기록 파일은 없다(`find . -name "*.jsonl"`이 0). 보유 구역은 이 비교에 들지 않는다.
 3. `tools/situations.py`: 상황 x 배치 x 씨드 표. 결과 표가 같은지 본다.
 
 분리 후보마다 "비교할 것"은 같다: 같은 입력에서 (가) 명령과 이벤트를 한 줄로 이은 목록과 순서(둘을 따로 비교하면 둘 사이의 순서 변경을 놓친다), (나) 매 tick 끝의 로봇별 보유 구역·노드. 후보 고유의 비교는 후보마다 따로 적었다.
@@ -310,8 +310,8 @@ ZoneTraffic 줄에는 tick이 부르는 13개 클래스의 입구가 들어 있�
 2. `ZoneBase._outbound`(base.py:33)는 zone 패키지 안에서 읽지 않는다. FleetManager와 orchestrator는 자기 `_outbound`를 따로 갖는다. [확정] 죽은 속성으로 보인다.
 3. `station_left`(base.py:52)는 FleetManager가 `hasattr`로 보고 값을 넣어 준다(manager.py:46-47). 그러나 traffic 패키지 안에서 읽는 곳이 없다(`grep -rn station_left pc/fleet_core/fleet_core/traffic`이 base.py:52 하나). [확정] `test_traffic_api.py`는 이 이름을 OPTIONAL로 둔다.
 4. `_capacity_checked`는 `__init__`에 없고 `getattr(self, "_capacity_checked", False)`로 늦게 만든다(capacity.py:10-12).
-5. `_event`는 Silent가 가로챈다(silent.py:14-19). 로봇을 지정한 이벤트는(SILENT_STALL 제외) 그 로봇의 `silent_from`을 지운다(silent.py:14-17). Capacity 경고처럼 로봇이 없는 이벤트는 지우지 않는다. 이벤트 코드를 하나 추가하면 무진척 감시 시각이 리셋되는 숨은 결합이다.
-6. `ZoneGrants.force`는 차선 방향과 간격을 보지 않는다(5.2).
+5. `_event`는 Silent가 가로챈다(silent.py:14-19). 로봇을 지정한 이벤트는(SILENT_STALL 제외) 그 로봇의 `silent_from`을 지운다(silent.py:14-17). Capacity 경고처럼 로봇이 없는 이벤트는 지우지 않는다. 이벤트의 로봇 이름이 `_robots`에 있고 코드가 SILENT_STALL이 아닐 때만 지워진다. 그 로봇에 대해 새 이벤트 코드를 내면 무진척 시각이 초기화되는 결합이다.
+6. `ZoneGrants.force`는 차선 방향과 간격을 보지 않는다(정원과 노드 점유는 본다, 5.2).
 7. 하네스의 불변식 검사 결과(`world.problems`)는 시험이 확인해야 효력이 있다(5.3).
 
 ## 8. 이 문서에서 센 것과 센 방법
