@@ -27,6 +27,7 @@ class Calls:
             for m in self._robots.values():
                 if m.goal and not m.comm:
                     self._cancel_goal(m)
+                self._pause_relocalize(m)
         if run_mode != self._run_mode:
             for m in self._robots.values():
                 m.stall_from = None

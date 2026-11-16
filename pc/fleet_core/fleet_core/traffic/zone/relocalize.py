@@ -48,11 +48,7 @@ class Relocalize:
         if not m.live:
             self._drop_relocalize(m)
         elif self._run_mode != RUN:
-            # 멈춤: 회전하지 않는다. 보낸 것은 거두고 RUN에서 같은 시도를 다시 보낸다
-            if r.goal_id:
-                self._out.append(CancelCmd(m.name, r.goal_id))
-                r.goal_id, r.busy = 0, r.attempt > 0
-            r.due = self._reloc_due()
+            self._pause_relocalize(m)
         elif now >= r.due:
             # 서지 않거나(움직임 보고, 통신 끊김) 답이 없거나 BUSY만 이어졌다
             if r.goal_id:
@@ -64,6 +60,16 @@ class Relocalize:
             if (not m.comm and m.goal is None and now >= m.settle_until
                     and m.robot_state not in ON_A_GOAL):
                 self._send_relocalize(m, now)
+
+    def _pause_relocalize(self, m) -> None:
+        """멈춤(STOP): 회전하지 않는다. 보낸 것은 거두고 RUN에서 같은 시도를 다시 보낸다."""
+        r = m.reloc
+        if r is None:
+            return
+        if r.goal_id:
+            self._out.append(CancelCmd(m.name, r.goal_id))
+            r.goal_id, r.busy = 0, r.attempt > 0
+        r.due = self._reloc_due()
 
     def _drop_relocalize(self, m) -> None:
         if m.reloc is not None and m.reloc.goal_id:
@@ -139,7 +145,12 @@ class Relocalize:
         site, held = self.site, list(self.grants.held_by(m.name))
         where = f"moved {shift:.2f} m to ({m.x:.2f}, {m.y:.2f})"
         here = site.zone_at(m.x, m.y)
+        # 맞닿은 경계 위면 남이 쥔 구역에도 든다: 그러면 쥔 곳이 아니다
+        theirs = [zone for zone in site.zones if zone not in held and self.grants.holders(zone)
+                  and site.distance_to_zone(m.x, m.y, zone) <= 0.0]
         # 쥔 구역 안. 어느 구역에도 들지 않으면 경계에서 outside_zone_m 안까지 쥔 곳으로 본다
+        if theirs:
+            here = theirs[0]
         if here in held or (here is None and any(
                 site.distance_to_zone(m.x, m.y, zone) <= self.params.outside_zone_m
                 for zone in held)):

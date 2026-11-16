@@ -331,22 +331,41 @@ def test_stop_cancels_the_relocalize_and_run_sends_the_same_attempt_again():
     assert world.run_until(lambda: "RELOCALIZED" in world.codes("pode1"), 10.0)
 
 
+def test_stop_and_run_before_the_next_tick_still_cancel_the_spin():
+    world, _ = queued(RELOC)
+    world.reloc_s = 5.0
+    wrong_from(world, "pode1", 4.0)
+    assert world.run_until(lambda: world.sent(RelocalizeCmd, "pode1"), 60.0)
+    first_try = world.sent(RelocalizeCmd, "pode1")[0]
+    world.traffic.on_run_mode(STOP)
+    world.traffic.on_run_mode(RUN)
+    world.step()
+    assert any(c.goal_id == first_try.goal_id for c in world.sent(CancelCmd, "pode1"))
+
+
+def test_a_new_pose_on_the_border_of_another_robots_zone_is_not_inside_its_own():
+    """zone_at은 처음 맞는 구역 하나만 준다. 맞닿은 경계 위면 남이 쥔 구역도 본다(Codex 4f76362)."""
+    world, _ = queued(RELOC)
+    wrong_from(world, "pode1", 4.0)
+    spot = (1.80, 0.79)  # HALL과 OUT_DOCK(pode2)의 경계
+    assert world.site.distance_to_zone(*spot, "OUT_DOCK") == 0.0
+    world.reloc_pose["pode1"] = spot
+    assert world.run_until(lambda: "ROBOT_ISOLATED" in world.codes("pode1"), 60.0)
+
+
 def test_confirm_clear_cancels_the_relocalize_and_a_late_success_is_ignored():
     world, _ = queued(RELOC)
     world.reloc_s = 5.0
     wrong_from(world, "pode1", 4.0)
     assert world.run_until(lambda: world.sent(RelocalizeCmd, "pode1"), 60.0)
     first_try = world.sent(RelocalizeCmd, "pode1")[0]
-    m = robot(world, "pode1")
-    world.traffic._fail(m, NOT_AT_TARGET)
+    assert not world.sent(CancelCmd, "pode1") or all(
+        c.goal_id != first_try.goal_id for c in world.sent(CancelCmd, "pode1"))
     held = list(world.view("pode1")["held"])
-    m.reloc = None  # 격리가 지운 뒤 운영자가 치운다(아래에서 다시 건다)
-    from fleet_core.traffic.zone.robots import Reloc
-    m.reloc = Reloc(NOT_AT_TARGET, False, (0, 0), attempt=1, goal_id=first_try.goal_id)
-    world.traffic.confirm_clear("pode1", held, "removed")
-    assert m.reloc is None
+    assert world.traffic.confirm_clear("pode1", held, "removed") is not None
+    assert robot(world, "pode1").reloc is None
     world.step()
-    assert any(c.goal_id == first_try.goal_id for c in world.sent(CancelCmd, "pode1"))
+    assert [c for c in world.sent(CancelCmd, "pode1") if c.goal_id == first_try.goal_id]
     world.traffic.on_relocalize_result("pode1", first_try.goal_id, True, "", (1.0, 0.5, 0.0),
                                        None)
     world.step()
