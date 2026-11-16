@@ -9,8 +9,11 @@ import yaml
 
 DEFAULT_PARAMS = Path(__file__).parents[1] / "data" / "fleet_params.yaml"
 COMM_LOSS_POLICIES = ("stop", "base_end")
-# yaml에서 일부러 빼는 키. zone_clear_m은 0이면 footprint_radius_m + release_margin_m로 놓는다
-OPTIONAL = frozenset({"zone_clear_m"})
+# 위치 의심 때 구역 붙잡기: 끔(""), base 끝 위치 확인까지 붙잡기(check)
+SUSPECT_HOLDS = ("", "check")
+# 파일에 없어도 되는 키. zone_clear_m은 0이면 footprint_radius_m + release_margin_m로 놓는다.
+# suspect_hold는 이 키가 없던 파일을 끈 채로 읽는다
+OPTIONAL = frozenset({"zone_clear_m", "suspect_hold"})
 # 0이 '끔'(zone_clear_m은 '식을 씀')인 키. 다른 시간·거리 키는 0보다 커야 한다
 ZERO_MEANS_OFF = frozenset({"zone_clear_m", "idle_watch_s", "silent_limit_s", "start_limit_s",
                             "battery_low_pct"})
@@ -110,12 +113,16 @@ class FleetParams:
     check_interval_s: float = 5.0
     clear_confirm: int = 2
     blocked_retry_max_s: float = 300.0
+    suspect_hold: str = ""  # 기록 호환: 이 키가 없는 옛 기록과 파일은 끈 채로 돈다
 
     # ---- 파라미터 값 검사 ----
     def __post_init__(self):
         if self.comm_loss_policy not in COMM_LOSS_POLICIES:
             raise ValueError(f"comm_loss_policy must be one of {COMM_LOSS_POLICIES}, "
                              f"got {self.comm_loss_policy!r}")
+        if self.suspect_hold not in SUSPECT_HOLDS:
+            raise ValueError(f"suspect_hold must be one of {SUSPECT_HOLDS}, "
+                             f"got {self.suspect_hold!r}")
 
 
 # ---- 파라미터 파일 읽기 ----

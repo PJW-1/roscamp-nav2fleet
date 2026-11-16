@@ -40,10 +40,36 @@ def test_the_shipped_file_loads():
     assert load_params().stall_s == SHIPPED["stall_s"]
 
 
-def test_the_only_intended_omission_is_zone_clear_m():
-    """zone_clear_m은 0이면 footprint_radius_m + release_margin_m로 놓는다(test_zone_release)."""
-    assert OPTIONAL == frozenset({"zone_clear_m"})
-    assert set(FIELDS) - set(SHIPPED) == OPTIONAL
+def test_optional_keys_are_zone_clear_m_and_suspect_hold():
+    """OPTIONAL은 '파일에 없어도 되는 키'다. zone_clear_m은 0이면 footprint_radius_m +
+    release_margin_m로 놓는다(test_zone_release). suspect_hold는 이 키가 없던 파일과 기록이
+    끈 채로("") 읽히게 한다(test_zone_doubts)."""
+    assert OPTIONAL == frozenset({"zone_clear_m", "suspect_hold"})
+
+
+def test_the_shipped_file_leaves_out_only_zone_clear_m():
+    """출하 파일이 빼는 키는 zone_clear_m 하나다. suspect_hold는 빠져도 되지만 파일에 적는다."""
+    assert set(FIELDS) - set(SHIPPED) == {"zone_clear_m"}
+    assert set(FIELDS) - set(SHIPPED) <= OPTIONAL
+
+
+def test_a_file_without_suspect_hold_loads_with_it_off(tmp_path):
+    assert load_params(write(tmp_path, without("suspect_hold"))).suspect_hold == ""
+
+
+@pytest.mark.parametrize("value", ["", "check"])
+def test_suspect_hold_takes_off_or_check(tmp_path, value):
+    assert load_params(write(tmp_path, {**SHIPPED, "suspect_hold": value})).suspect_hold == value
+
+
+@pytest.mark.parametrize("bad", ["isolate", "maybe", "CHECK"])
+def test_other_suspect_hold_values_are_refused(tmp_path, bad):
+    with pytest.raises(ValueError, match="suspect_hold"):
+        load_params(write(tmp_path, {**SHIPPED, "suspect_hold": bad}))
+
+
+def test_the_code_default_of_suspect_hold_is_off():
+    assert FIELDS["suspect_hold"].default == ""
 
 
 def test_optional_keys_have_a_code_default():
@@ -215,6 +241,18 @@ def test_replay_keeps_the_order_model_of_the_record(recorded, played):
     else:
         head["params"]["use_order_model"] = recorded
     assert replay.start_core(head, lambda: 0.0).params.use_order_model is played
+
+
+@pytest.mark.parametrize("recorded, played", [(None, ""), ("", ""), ("check", "check")],
+                         ids=["missing", "off", "check"])
+def test_replay_keeps_the_suspect_hold_of_the_record(recorded, played):
+    """suspect_hold 키가 없는 옛 기록은 끈 채로("") 재생한다. 키가 있으면 그 값이다."""
+    head = recorded_head()
+    if recorded is None:
+        head["params"].pop("suspect_hold", None)
+    else:
+        head["params"]["suspect_hold"] = recorded
+    assert replay.start_core(head, lambda: 0.0).params.suspect_hold == played
 
 
 def test_replay_of_a_record_with_stall_s_uses_it():
