@@ -171,3 +171,49 @@ def test_a_move_without_an_order_is_unchanged(harness, tmp_path):
     assert (res.success, res.reason, res.last_done_seq_id) == (True, "", 0)
     assert all(f.feedback.last_done_seq_id == 0 and not f.feedback.waiting_at_base_end
                for f in p.feedback)
+
+
+def send(p, goal):
+    fut = p.move.send_goal_async(goal)
+    assert wait_until(fut.done, 5.0) and fut.result().accepted
+    return fut.result()
+
+
+def test_a_new_order_with_bad_segments_is_nav_aborted(harness, tmp_path):
+    """실물 order_fsm처럼 첫 seq가 1이 아니거나, seq가 건너뛰거나, mode를 모르면 받지 않는다."""
+    p = start(harness, tmp_path, robots=SLOW)
+    assert wait_until(lambda: p.states, 5.0)
+    odd = seg(2)
+    odd.mode = "fly"
+    for base in ([seg(2)], [seg(1), seg(3)], [seg(1), odd]):
+        res = result_of(send(p, MoveTo.Goal(order_id="pode1-1", base=base))).result
+        assert (res.success, res.reason) == (False, MoveTo.Result.REASON_NAV_ABORTED)
+    assert here(p) == pytest.approx((X0, Y0), abs=1e-3)
+
+
+def test_an_update_with_a_seq_gap_inside_its_base_is_rejected(harness, tmp_path):
+    p = start(harness, tmp_path, robots=SLOW)
+    assert wait_until(lambda: p.states, 5.0)
+    first, _ = order(p, [1], horizon=[2, 3])
+    bad = send(p, MoveTo.Goal(order_id="pode1-1", order_update_id=1, stitch_node_id="a",
+                              base=[seg(2), seg(2)]))
+    res = result_of(bad).result
+    assert res.reason.startswith(MoveTo.Result.REASON_ORDER_UPDATE_REJECTED)
+    time.sleep(0.3)
+    assert not first.get_result_async().done()
+
+
+def test_a_stitched_path_that_starts_away_from_the_robot_is_not_followed(harness, tmp_path):
+    """앞 조각 끝에 잇지 않은 path는 새로 시작하는 이동처럼 연결 검사를 받는다."""
+    p = start(harness, tmp_path, robots=FAST)
+    assert wait_until(lambda: p.states, 5.0)
+    first, feedback = order(p, [1], horizon=[2])
+    assert wait_until(lambda: any(f.waiting_at_base_end for f in feedback), 10.0)
+    away = seg(2)
+    away.path.poses = [_stamped(X0 + 0.3, Y0 + 0.4), _stamped(X0 + 0.6, Y0 + 0.4)]
+    second = send(p, MoveTo.Goal(order_id="pode1-1", order_update_id=1, stitch_node_id="a",
+                                 base=[away]))
+    res = result_of(second).result
+    assert (res.success, res.reason, res.last_done_seq_id) == (
+        False, MoveTo.Result.REASON_PATH_NOT_CONNECTED, 1)
+    assert here(p) == pytest.approx(end_of(1), abs=1e-3)

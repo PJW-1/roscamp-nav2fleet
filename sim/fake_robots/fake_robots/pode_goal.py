@@ -45,6 +45,7 @@ class _Goal:
         self.line: PathWatch | None = None  # move의 path 모드
         self.order = None  # order goal이면 OrderRun(pode_order.py)
         self.seg_mode = ""  # order goal이 달리는 조각의 mode
+        self.seg = None  # order goal이 달리는 조각(pode_order.Seg)
         self.last_done = 0  # 결과의 last_done_seq_id
 
     def blocked(self, t: float) -> bool:

@@ -32,7 +32,7 @@ class PodeGoals:
             self._faults.give_back_nav_abort(goal.abort_from)  # 대체·취소되면 다음 목표로
         if goal.kind == "retreat" and not success and reason not in RETREAT_REASONS:
             reason = Retreat.Result.REASON_FAILED  # 계약 0.9: Retreat reason은 이 넷뿐이다
-        if goal.order is not None:
+        if goal.order is not None and not goal.done.is_set():  # 대체된 goal의 값은 그대로
             goal.last_done = goal.order.done_seq
         goal.finish(success, reason)
         if self._active is goal:
@@ -147,15 +147,13 @@ class PodeGoals:
             if not self._faults.comms_down(self._sc.now()):
                 if goal.kind == "move" and now - last_fb >= FEEDBACK_PERIOD_S:
                     last_fb = now
-                    with self._lock:
-                        remaining = self._motion.remaining()
+                    with self._lock:  # update와 엇갈리지 않게 락 안에서 보낸다
                         order = goal.order
-                        done = order.done_seq if order is not None else 0
-                        waiting = order is not None and order.waiting
-                    if not goal.done.is_set():  # 대체된 goal은 소식을 그친다
-                        handle.publish_feedback(MoveTo.Feedback(
-                            distance_remaining=remaining, last_done_seq_id=done,
-                            waiting_at_base_end=waiting))
+                        if not goal.done.is_set():  # 대체된 goal은 소식을 그친다
+                            handle.publish_feedback(MoveTo.Feedback(
+                                distance_remaining=self._motion.remaining(),
+                                last_done_seq_id=order.done_seq if order is not None else 0,
+                                waiting_at_base_end=order is not None and order.waiting))
                 elif goal.kind == "dock":
                     phase = self._dock_phase(goal)
                     if phase != last_phase:

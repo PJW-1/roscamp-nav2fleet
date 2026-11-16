@@ -26,6 +26,8 @@ from fake_robots.world.runs import MOVE, Result
 FOLLOW_PATH, NAV_GOAL, RETREAT = "follow_path", "nav_goal", "retreat"
 SUPERSEDED = MoveTo.Result.REASON_SUPERSEDED
 REJECTED = MoveTo.Result.REASON_ORDER_UPDATE_REJECTED
+SEG_MODES = (FOLLOW_PATH, NAV_GOAL, RETREAT)
+JOIN_M = 0.02  # 실물 OrderParams.join_m: 이보다 가까이 이어진 path 조각은 한 줄로 달린다
 _OWN = ("handle", "done", "success", "reason", "last_done")  # 넘겨받지 않는 goal 칸
 
 
@@ -39,6 +41,7 @@ class Seg:
     path: tuple[tuple[float, float], ...]
     x: float
     y: float
+    controller_id: str = ""
 
 
 @dataclass(frozen=True)
@@ -57,7 +60,27 @@ def segment(msg) -> Seg:
         x, y = msg.target_pose.pose.position.x, msg.target_pose.pose.position.y
     else:
         x, y = path[-1] if path else (math.nan, math.nan)
-    return Seg(int(msg.seq_id), msg.mode, msg.end_node_id, path, x, y)
+    return Seg(int(msg.seq_id), msg.mode, msg.end_node_id, path, x, y, msg.controller_id)
+
+
+def segments_problem(segs) -> str:
+    """실물 order_queue.segments_problem과 같은 검사: seq가 이어지고, mode를 알고, path가 있다."""
+    for a, b in zip(segs, segs[1:], strict=False):
+        if b.seq_id != a.seq_id + 1:
+            return f"seq_id {b.seq_id} does not follow {a.seq_id}"
+    for s in segs:
+        if s.mode not in SEG_MODES:
+            return f"seq {s.seq_id}: unknown mode '{s.mode}'"
+        if s.mode != NAV_GOAL and len(s.path) < 2:
+            return f"seq {s.seq_id}: {s.mode} needs a path of two poses or more"
+    return ""
+
+
+def joins(a: Seg | None, b: Seg) -> bool:
+    """실물 order_queue.mergeable: 앞 조각에 바로 이어 달리는 path 조각인가."""
+    return (a is not None and a.mode == b.mode == FOLLOW_PATH
+            and a.controller_id == b.controller_id
+            and math.dist(a.path[-1], b.path[0]) <= JOIN_M)
 
 
 def order_cmd(goal_id: bytes, req) -> OrderCmd | None:
@@ -93,6 +116,9 @@ class _SegmentDrive:
 class PodeOrder:
     def _start_order(self, goal: _Goal, cmd: OrderCmd) -> None:
         goal.order = OrderRun(cmd, lambda seg, final, _id: _SegmentDrive(self, seg, final))
+        if segments_problem(cmd.base) or (cmd.base and cmd.base[0].seq_id != 1):
+            self._end(goal, False, MoveTo.Result.REASON_NAV_ABORTED)  # 실물처럼 서서 끝낸다
+            return
         goal.target_id = cmd.base[-1].end_node if cmd.base else ""
         self._motion.clear_target()
 
@@ -100,7 +126,7 @@ class PodeOrder:
         """update goal 하나. 붙이면 이전 goal을 SUPERSEDED로, 아니면 이 goal만 끝낸다."""
         old = self._active
         run = old.order if old is not None and not old.done.is_set() else None
-        why = refusal(run, cmd)
+        why = refusal(run, cmd) or segments_problem(cmd.base)
         if why:
             goal.last_done = run.done_seq if run is not None else 0
             goal.finish(False, f"{REJECTED}: {why}")
@@ -127,9 +153,9 @@ class PodeOrder:
     def _start_segment(self, t: float, goal: _Goal, seg: Seg, final: bool) -> str:
         """조각 하나를 시작한다. 못 하면 이유. 이음 점의 정지 오차는 마지막 조각에만 준다."""
         m = self._motion
-        first = not goal.seg_mode  # 이 order의 첫 조각
+        joined = goal.seg_mode == FOLLOW_PATH and joins(goal.seg, seg)  # 앞 조각에 잇는다
         goal.nav = goal.line = None
-        goal.seg_mode = seg.mode
+        goal.seg_mode, goal.seg = seg.mode, seg
         target = (seg.x, seg.y)
         if final:
             target = noisy_pose(seg.x, seg.y, self._cfg.stop_error_m, self._rng)
@@ -145,8 +171,8 @@ class PodeOrder:
             self._take_segment_abort(t, goal, seg, math.dist((m.x, m.y), target))
             return ""
         path = list(seg.path)
-        # 연결 검사는 order의 첫 조각만 한다. 다음 조각은 앞 조각 끝에서 시작한다
-        if path and first and self._path_misses_me(t, path):
+        # 연결 검사는 실물처럼 새로 시작하는 줄만 한다. 앞 조각에 이은 조각은 하지 않는다
+        if not joined and self._path_misses_me(t, path):
             return MoveTo.Result.REASON_PATH_NOT_CONNECTED
         goal.line = PathWatch(self._recovery.p.robot_radius_m)
         m.set_target(*target, via=path[1:-1], start=path[0] if path else None)
@@ -162,5 +188,11 @@ class PodeOrder:
 
     def _segment_step(self, t: float, dt: float, goal: _Goal):
         if goal.seg_mode == RETREAT:
-            return self._retreat_move(t, dt, goal)
-        return self._move_step(t, dt, goal)
+            out = self._retreat_move(t, dt, goal)
+        else:
+            out = self._move_step(t, dt, goal)
+        if out is not None and out[0] and goal.abort_at is not None:
+            # 아직 안 난 Nav2 중단은 그 조각의 것이다. 돌려주고 다음 조각에서 다시 잡는다
+            self._faults.give_back_nav_abort(goal.abort_from)
+            goal.abort_at, goal.abort_from = None, None
+        return out
