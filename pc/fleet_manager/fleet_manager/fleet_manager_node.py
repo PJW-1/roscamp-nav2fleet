@@ -250,11 +250,6 @@ class FleetManagerNode(Node):
                        (command.robot, command.goal_id), self._retreat_done,
                        self._robot_rejected)
         elif isinstance(command, RelocalizeCmd):
-            if not self._relocalize[command.robot].server_is_ready():
-                # 서버가 없다: 관제는 예전 재시도 길로 돌아간다
-                self.core.on_relocalize_result(command.robot, command.goal_id, False,
-                                               "NOT_SENT", None, None)
-                return
             self._send(self._relocalize[command.robot], adapters.relocalize_goal(command),
                        (command.robot, command.goal_id), self._relocalize_done,
                        self._relocalize_rejected)
@@ -315,6 +310,9 @@ class FleetManagerNode(Node):
         if not client.server_is_ready():
             if on_rejected == self._robot_rejected:
                 self.core.on_goal_not_sent(key[0], key[1])
+            elif on_rejected == self._relocalize_rejected:
+                # 서버가 없다: 관제는 예전 재시도 길로 돌아간다
+                self.core.on_relocalize_result(key[0], key[1], False, "NOT_SENT", None, None)
             else:
                 on_rejected(key)
             return

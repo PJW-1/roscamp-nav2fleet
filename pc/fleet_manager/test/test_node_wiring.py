@@ -517,6 +517,12 @@ def test_a_relocalize_command_goes_to_the_relocalize_action_and_its_result_back_
         node._relocalize_rejected(("pode1", 9))
         node.core.on_relocalize_result.assert_called_with("pode1", 9, False, "REJECTED",
                                                           None, None)
+        # 준비 확인은 한 번뿐: 그 뒤 서버가 사라져도 보낸 goal을 거절로 셈하지 않는다(Codex c289174)
+        client.server_is_ready.side_effect = [True, False]
+        calls = node.core.on_relocalize_result.call_count
+        node._dispatch(RelocalizeCmd("pode1", 10), 3.0)
+        assert client.send_goal_async.call_count == 2
+        assert node.core.on_relocalize_result.call_count == calls
     finally:
         node.destroy_node()
         rclpy.shutdown()
