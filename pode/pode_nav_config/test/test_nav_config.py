@@ -274,11 +274,18 @@ def test_planner_server_runs_for_compute_path_and_is_path_valid():
 
 def test_spin_finishes_a_full_turn_inside_the_relocalize_share():
     """pode_fsm 기본값(30 s, 무이동 0.25, 회전 0.5, 판정 3 s)에서 전역까지 허락하면 Spin 한도는
-    12 s다. 한 바퀴(가속 포함)가 그 안에 끝나야 한다."""
+    12 s다(값은 pode_fsm params.py에서 옮겨 적음). 한 바퀴가 그 안에 끝나야 한다.
+    Jazzy Spin의 속도: clamp(sqrt(2 · rotational_acc_lim · 남은 각), min, max)."""
     b = params("behavior_server")
     allowance = 30.0 * 0.5 - 3.0
-    ramp = b["max_rotational_vel"] / b["rotational_acc_lim"]
-    assert 2 * math.pi / b["max_rotational_vel"] + ramp < allowance
+    left, t, dt = 2 * math.pi, 0.0, 0.001
+    while left > 0:
+        v = min(b["max_rotational_vel"],
+                max(b["min_rotational_vel"], math.sqrt(2 * b["rotational_acc_lim"] * left)))
+        left -= v * dt
+        t += dt
+    # 제어 주기와 실제 가속의 늦음에 1 s 여유를 둔다
+    assert t + 1.0 < allowance
 
 
 def test_amcl_injects_random_particles_when_the_fit_drops():
