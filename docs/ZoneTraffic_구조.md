@@ -53,7 +53,7 @@
 
 ## 2. tick 단계 순서
 
-시험 하네스는 `ZoneTraffic.tick`(controller.py:34-43)을 부른다(`zone_harness.py:89`). 운영은 `FleetManager.tick`(manager.py:218-237)이 같은 부품(`tick_begin`, `tick_progress`, `tick_pick`, `step`)을 직접 부른다. 운영에서는 `ZoneTraffic.tick`을 부르지 않는다.
+시험 하네스는 2026-11-16 병합(test/tick-order) 뒤 기본으로 `FleetManager.tick`을 부른다(`zone_harness.py`의 `TICK_ORDER` 기본값 `"manager"`). `ZONE_TICK_ORDER=zone`이면 예전처럼 `ZoneTraffic.tick`(controller.py:34-43)을 부른다. 아래 표의 "시험" 열은 이 `zone` 순서다. 운영은 `FleetManager.tick`(manager.py:218-237)이 같은 부품(`tick_begin`, `tick_progress`, `tick_pick`, `step`)을 직접 부른다. 운영에서는 `ZoneTraffic.tick`을 부르지 않는다.
 
 | 순서 | 단계 | ZoneTraffic.tick (시험) | FleetManager.tick (운영) | 차이 |
 |---|---|---|---|---|
@@ -66,7 +66,7 @@
 | 6 | 로봇 한 걸음 | `running`이고 `everyone_here`인 블록 안에서만(5단계와 같은 `if`), 로봇마다 available이고 `stopped`에 없으면 `self.step(robot)` | 같은 조건(controller.py:38-42, manager.py:228-233)에서 `_step_robot(robot)` = `orchestrator.step`, `_pump`, `traffic.step`, `_pump`, `orchestrator.step`, `_pump` (manager_route.py:19-25) | 운영은 주문 층이 앞뒤로 한 번씩 더 걷는다 |
 | 7 | 출력 | `take_output()` | 매니저 자신의 `_out`을 꺼내 `_note("out")`을 부르고 반환 | `_note`는 `_write`가 설정된 때만 쓴다(manager_record.py:77-78) |
 
-`_pump`(manager_route.py:27-33)는 팔, 주문, 교통 세 코어의 출력을 모아 알맞은 코어에 넘기기를 출력이 없을 때까지 되풀이한다. 그래서 운영에서는 한 단계가 낳은 명령이 같은 tick 안에서 다른 코어에 닿고, 그 답이 다음 단계 전에 반영된다. 하네스에는 이 되풀이가 없다. 하네스와 운영의 순서가 같다는 것을 지키는 시험은 찾지 못했다 [추측: 같은 순서를 확인하는 시험이 따로 없다. `grep -rn "tick_begin\|tick_progress" test`가 `test_zone_clear_checks.py`만 찾았다].
+`_pump`(manager_route.py:27-33)는 팔, 주문, 교통 세 코어의 출력을 모아 알맞은 코어에 넘기기를 출력이 없을 때까지 되풀이한다. 그래서 운영에서는 한 단계가 낳은 명령이 같은 tick 안에서 다른 코어에 닿고, 그 답이 다음 단계 전에 반영된다. `zone` 순서의 하네스에는 이 되풀이가 없다. 기본(`manager`) 순서는 `FleetManager.tick`을 부르므로 되풀이가 있다. 두 순서의 비교와 tick 경계 시험은 `test_zone_tick_order.py`에 있다. 다만 하네스의 로봇 보고는 기본으로 매니저 입력 경계를 거치지 않으므로, 주문·팔이 얽힌 흐름의 동등성까지 보장하지는 않는다(docs/worklog_tick_order_2026-11-16.md).
 
 `stopped`는 `_watch_deadlock`의 반환값이다. 그 함수는 항상 빈 `frozenset()`을 반환한다(watch.py:136, 7절).
 
