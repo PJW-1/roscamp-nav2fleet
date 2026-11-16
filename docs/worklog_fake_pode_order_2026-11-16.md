@@ -207,7 +207,7 @@ blocked_lane: pode1은 30.0 s에 첫 구간에서 막혔다. BLOCKED_WAIT은 32.
 - `_start_segment`에서 `goal.aborting = False`로 지운다(`pode_order.py`). 한 줄.
 - 시험: `test_ros_pode_order.py`의 `test_an_abort_recovery_in_progress_as_a_segment_ends_does_not_abort_the_next_path`.
   고치기 전에는 `goal.abort_at`이 0.2로 다시 잡혀 실패했고, 고친 뒤 통과한다.
-- ROS 시나리오로는 이 상태를 만들지 못했다. 중단한 자리(`_abort_s`)를 넘지 못해서 복구 중에는 조각이 끝나지 않는다.
-  nav_abort 고장을 두고 조각 길이를 0.02~0.2 m로 바꿔 돌려 봤고, 고치기 전과 후 결과가 같았다.
-  그래서 stub 노드에서 `_start_segment`와 `_move_step`을 직접 불렀다.
-- 그래서 이 결함이 실제 시나리오에서 나는지는 보이지 못했다. 안전한 방어 고침이다.
+- 보통 길이의 조각으로는 ROS 시나리오로 이 상태를 만들지 못했다. 중단한 자리(`_abort_s`)를 넘지 못해서 복구 중에는 조각이 끝나지 않는다.
+  Codex가 짚은 경계 사례가 실제로 난다: 길이 0인 조각은 고장이 잡힌 틱에 복구를 시작하고 바로 끝난다.
+  `test_a_zero_length_segment_that_aborts_does_not_abort_the_next_path`가 이것이다. 고치기 전에는 다음 조각이 `NAV_ABORTED`(last_done 1)로 끝났고 고친 뒤 통과한다.
+- 위 stub 시험은 `_move_step` 본문은 실제 코드를 쓰지만 복구·조각 전환은 stub이다. 실제 객체 시험은 길이 0 조각 시험이 맡는다.

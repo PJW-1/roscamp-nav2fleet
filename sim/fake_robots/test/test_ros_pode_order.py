@@ -297,6 +297,21 @@ def test_after_waiting_at_the_base_end_the_next_path_is_checked_again(harness, t
 
 
 
+def test_a_zero_length_segment_that_aborts_does_not_abort_the_next_path(harness, tmp_path):
+    """길이 0인 조각은 고장이 잡힌 틱에 복구를 시작하고 바로 끝난다. 다음 조각은 새 고장이 없으면
+    중단 없이 가야 한다(고장은 한 번뿐)."""
+    p = start(harness, tmp_path, robots=FAST, faults=[
+        {"at_s": 0.0, "robot": "pode1", "type": "nav_abort", "count": 1}])
+    assert wait_until(lambda: p.states, 5.0)
+    here_seg = seg(1)
+    here_seg.path.poses = [_stamped(*end_of(0)), _stamped(*end_of(0))]
+    nxt = seg(2)
+    nxt.path.poses = [_stamped(*end_of(0)), _stamped(*end_of(1))]
+    handle = send(p, MoveTo.Goal(order_id="pode1-1", base=[here_seg, nxt]))
+    res = result_of(handle, 10.0).result
+    assert (res.success, res.reason, res.last_done_seq_id) == (True, "", 2)
+
+
 def test_an_abort_recovery_in_progress_as_a_segment_ends_does_not_abort_the_next_path():
     """Nav2 중단 복구 중에 조각이 끝나면 goal.aborting이 남아, 고장이 없는데도 다음 path 조각에서
     중단이 다시 예약된다. 조각 시작에서 지워야 한다. 상태를 ROS 틱으로 맞추기 어려워
