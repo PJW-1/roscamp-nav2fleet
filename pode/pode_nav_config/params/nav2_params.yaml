@@ -32,8 +32,9 @@ amcl:
     odom_frame_id: odom
     pf_err: 0.05
     pf_z: 0.99
-    recovery_alpha_fast: 0.0
-    recovery_alpha_slow: 0.0
+    # 스캔 맞음이 떨어지는 동안 무작위 입자를 넣는다(위치 다시 찾기). 필터가 갱신될 때만 작동한다
+    recovery_alpha_fast: 0.1
+    recovery_alpha_slow: 0.001
     resample_interval: 1
     robot_model_type: nav2_amcl::DifferentialMotionModel
     save_pose_rate: 0.5
@@ -356,7 +357,8 @@ planner_server:
       allow_unknown: true
 
 # backup: pode_fsm의 로봇단 교착 처리(추가 지시서 3의 7-4), 끈 때의 자가 복구, Retreat.
-# wait: NavigateToPose BT의 복구(지도 지우기와 기다리기만). spin은 7-4에서 뺐다
+# wait: NavigateToPose BT의 복구(지도 지우기와 기다리기만). spin은 7-4에서 BT 복구로는 뺐다.
+# spin: pode_fsm의 Relocalize(위치 다시 찾기)가 선 채로 한 바퀴 돌 때만 쓴다. BT는 부르지 않는다
 behavior_server:
   ros__parameters:
     local_costmap_topic: local_costmap/costmap_raw
@@ -364,17 +366,19 @@ behavior_server:
     local_footprint_topic: local_costmap/published_footprint
     global_footprint_topic: global_costmap/published_footprint
     cycle_frequency: 10.0
-    behavior_plugins: ["backup", "wait"]
+    behavior_plugins: ["backup", "wait", "spin"]
     backup:
       plugin: "nav2_behaviors::BackUp"
     wait:
       plugin: "nav2_behaviors::Wait"
+    spin:
+      plugin: "nav2_behaviors::Spin"
     local_frame: odom
     global_frame: map
     robot_base_frame: base_footprint
     transform_tolerance: 0.1
     simulate_ahead_time: 2.0
-    max_rotational_vel: 1.0
+    max_rotational_vel: 0.5  # Spin 전용. 천천히 돌아 스캔이 번지지 않게(한 바퀴 약 13 s)
     min_rotational_vel: 0.4
     rotational_acc_lim: 3.2
     enable_stamped_cmd_vel: false

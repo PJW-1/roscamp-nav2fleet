@@ -272,6 +272,12 @@ def test_planner_server_runs_for_compute_path_and_is_path_valid():
     assert params("planner_server")["planner_plugins"] == ["GridBased"]
 
 
+def test_amcl_injects_random_particles_when_the_fit_drops():
+    """위치 다시 찾기(Relocalize): 스캔 맞음이 떨어지면 무작위 입자를 넣는다."""
+    amcl = params("amcl")
+    assert amcl["recovery_alpha_slow"] == 0.001 and amcl["recovery_alpha_fast"] == 0.1
+
+
 def test_amcl_reads_the_fine_map():
     amcl = params("amcl")
     assert amcl["map_topic"] == "map_fine"  # R15
@@ -322,13 +328,13 @@ def test_every_controller_turns_in_place_at_1_rad_s():
 
 
 def test_behavior_server_offers_what_the_tree_and_pode_fsm_call():
-    """Nav2's tree only clears costmaps and waits (work order 3, 7-4); pode_fsm's robot-side
-    yield, the old self-recovery and Retreat use backup. Spin is gone."""
+    """Nav2 트리는 지도 지우기와 기다리기만 한다(7-4). backup은 pode_fsm의 양보, 자가 복구,
+    Retreat가 쓴다. spin은 pode_fsm의 Relocalize만 쓰고 트리에는 없다(아래 시험)."""
     b = params("behavior_server")
-    assert b["behavior_plugins"] == ["backup", "wait"]
+    assert b["behavior_plugins"] == ["backup", "wait", "spin"]
     assert {name: b[name]["plugin"] for name in b["behavior_plugins"]} == {
-        "backup": "nav2_behaviors::BackUp", "wait": "nav2_behaviors::Wait"}
-    assert "spin" not in b
+        "backup": "nav2_behaviors::BackUp", "wait": "nav2_behaviors::Wait",
+        "spin": "nav2_behaviors::Spin"}
     server_of = {"BackUp": "backup", "Wait": "wait"}
     for tag, server in server_of.items():
         for node in BT.getroot().iter(tag):
