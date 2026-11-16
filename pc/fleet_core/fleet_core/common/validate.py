@@ -31,13 +31,18 @@ def _number(value) -> bool:
     return isinstance(value, Real) and not isinstance(value, bool)
 
 
+def _on_map(x, y, bounds, margin) -> bool:
+    min_x, min_y, max_x, max_y = bounds
+    return min_x - margin <= x <= max_x + margin and min_y - margin <= y <= max_y + margin
+
+
 # ---- 자세와 장애물 입력 검사 ----
 def pose_problem(x, y, yaw, bounds, margin) -> str:
     for label, value in (("x", x), ("y", y), ("theta", yaw)):
         if not _number(value) or not math.isfinite(value):
             return f"pose {label}={shown(value)} is not a finite number"
-    min_x, min_y, max_x, max_y = bounds
-    if not (min_x - margin <= x <= max_x + margin and min_y - margin <= y <= max_y + margin):
+    if not _on_map(x, y, bounds, margin):
+        min_x, min_y, max_x, max_y = bounds
         return (f"pose ({x:.2f}, {y:.2f}) is more than {margin} m outside the map "
                 f"x {min_x}..{max_x}, y {min_y}..{max_y}")
     return ""
@@ -46,8 +51,7 @@ def pose_problem(x, y, yaw, bounds, margin) -> str:
 def obstacle_of(x, y, kind, bounds, margin, kinds) -> tuple | None:
     if not (_number(x) and _number(y) and math.isfinite(x) and math.isfinite(y)):
         return None
-    min_x, min_y, max_x, max_y = bounds
-    if not (min_x - margin <= x <= max_x + margin and min_y - margin <= y <= max_y + margin):
+    if not _on_map(x, y, bounds, margin):
         return None
     name = text(kind) if isinstance(kind, str) else ""
     return (float(x), float(y), name if name in kinds else kinds[0])
