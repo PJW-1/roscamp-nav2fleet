@@ -22,6 +22,12 @@ def test_the_fleet_calls_a_goal_stalled_only_after_the_robot_could_report_blocke
     assert load_params().stall_s >= FsmParams().blocked_after_s + REPORT_MARGIN_S
 
 
+def test_the_fleet_warning_knows_the_robot_default_and_the_margin():
+    """관제는 로봇 값을 모르므로 기본값을 상수로 적는다(params.timing_warnings)."""
+    assert fleet_params.ROBOT_BLOCKED_AFTER_S == FsmParams().blocked_after_s
+    assert fleet_params.BLOCKED_REPORT_MARGIN_S == REPORT_MARGIN_S
+
+
 def test_the_headless_robots_report_blocked_when_the_real_ones_do():
     real = FsmParams().blocked_after_s
     assert world.BLOCKED_AFTER_S == real

@@ -32,7 +32,21 @@
 - **고치지 않고 남긴 것**: 사용자가 준 파일에 `stall_s: 6`처럼 양수지만 Pode의 `blocked_after_s`(10 s) + 2보다
   짧은 값이 있으면 `load_params`를 통과한다. `blocked_after_s`는 계약(`interfaces/fleet_interfaces/contract.yaml`)에
   없어서 PC 쪽은 그 값을 알 수 없다. 숫자를 PC에 또 적는 대신 계약에 넣을지는 사용자가 정한다. 지금은
-  출하 yaml만 `test_timing_agreement.py:21`이 본다.
+  출하 yaml만 `test_timing_agreement.py:21`이 본다. (뒤에 사용자 요청으로 오류가 아닌 경고를 더했다. 아래 절.)
+
+## 시간 관계 경고(사용자 요청, 2026-11-16)
+
+- `params.py`: `ROBOT_BLOCKED_AFTER_S = 10.0`(Pode 기본값, pode_fsm/params.py:51), `BLOCKED_REPORT_MARGIN_S = 2.0`,
+  순수 함수 `timing_warnings(params) -> list[str]`. `stall_s < 10 + 2`이면 문장 하나를 돌려준다. 오류는 내지 않는다.
+- `fleet_manager_node.py`: `load_params`와 `apply_overrides` 직후 문장마다 `get_logger().warning`으로 남긴다
+  (저장소의 다른 경고와 같은 `warning`. `warn`은 rclpy에서 옛 이름이다).
+- `dock_stall_s`는 넣지 않았다. `watch.py:27`에서 BLOCKED나 SELF_RECOVERING 보고는 move goal의 멈춤 시계만
+  세우고 DOCK·BACKOFF goal에서는 시계가 그대로 돈다. BLOCKED가 먼저 와도 DOCK goal을 지켜 주지 않으므로 이
+  관계가 의미가 없다. `test_dock_stall_s_is_not_compared`가 고정한다.
+- `sim/fleet_gz_sim/test/test_timing_agreement.py`: 상수 == `FsmParams().blocked_after_s`,
+  여유 == 그 파일의 `REPORT_MARGIN_S`를 단언한다.
+- **한계**: 로봇 쪽 값을 ROS 파라미터(params_ros.py의 `blocked_after_s`)나 로봇 yaml로 바꾼 경우는 못 잡는다.
+  관제는 로봇 기본값만 안다. 계약에 넣으면 풀리지만 그것은 사용자가 정한다.
 
 ## 바꾼 파일
 
@@ -122,6 +136,14 @@ FleetParams 필드와 `fleet_params.yaml` 키 비교 결과: 빠진 키 `zone_cl
     기록과 같은 시각(약 6.3 s)에 있는지, 호환 기본값을 빼면 그 시각(±1 s)에 없는지를 직접 단언한다.
   - worklog 해제 설명에 선행 조건(:97-101), 주차 노드 예외(:115-118), 1e-9 허용 오차, zone_clear_m 0의 조건을 더했다.
   - fleet_core 전체: 1026 passed (33.3 s).
+- 시간 관계 경고 커밋:
+  - 시험 먼저: `test_params_timing.py` 수집 오류(`timing_warnings` 없음), `test_timing_agreement.py` 1 failed,
+    3 passed, 노드 시험 `test_a_short_stall_s_is_warned_once_when_the_params_are_read` 1 failed(경고 0개).
+  - 고친 뒤: `test_params_timing.py` 5 passed, `test_timing_agreement.py` 4 passed, fleet_core 전체 1031 passed (48.2 s).
+  - `pc/fleet_manager/test/test_node_wiring.py` 전체(도메인 64, LOCALHOST, install/setup.bash 위에 worktree의
+    pc/fleet_core, pc/fleet_manager를 PYTHONPATH 앞에): 24 passed (70.8 s). 출력에 "The following exception was
+    never retrieved: cannot use Destroyable because destruction was requested"가 한 번 찍혔다. 9번째 시험 근처이고
+    새 시험만 따로 돌리면 나오지 않는다. origin/main에서도 나오는지는 확인하지 않았다.
 
 ## 돌리지 않은 것
 
@@ -135,7 +157,7 @@ FleetParams 필드와 `fleet_params.yaml` 키 비교 결과: 빠진 키 `zone_cl
 - 정수 키는 타입만 본다. 범위를 보는 것은 `release_confirm_samples`(1 이상)뿐이다(`basket_capacity`,
   `outside_zone_samples`, `clear_confirm` 등의 0이나 음수는 통과). 문자열 키는 `comm_loss_policy`만 값을 본다.
 - `FleetParams(**fields)`를 직접 쓰는 길(replay, 시험)은 `check_types`, `check_measures`를 거치지 않는다.
-- `stall_s: 6` 같은 사용자 파일은 통과한다(위 "고치지 않고 남긴 것").
+- `stall_s: 6` 같은 사용자 파일은 통과한다. 노드가 경고만 남긴다(위 "시간 관계 경고"). 로봇 값을 바꾼 경우는 못 잡는다.
 - `RECORD_DEFAULTS`에는 stall_s만 있다. 다른 키의 옛 기본값 변경 이력은 2026-11-12 패키지 복사 전 기록이
   이 저장소에 없어 확인하지 못했다.
 - 해제·후진의 기하 관계는 시험으로 고정되지 않았다.
