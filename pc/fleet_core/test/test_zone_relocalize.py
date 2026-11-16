@@ -343,6 +343,25 @@ def test_stop_and_run_before_the_next_tick_still_cancel_the_spin():
     assert any(c.goal_id == first_try.goal_id for c in world.sent(CancelCmd, "pode1"))
 
 
+def test_pause_keeps_a_running_relocalize_and_sends_no_new_one():
+    """PAUSE는 하던 goal을 두고 새로 보내지 않는다(Codex eb7042f). 다시 찾기도 같다."""
+    world, _ = queued(RELOC)
+    wrong_from(world, "pode1", 4.0)
+    assert world.run_until(lambda: "BASE_END_WAIT" in world.codes("pode1"), 60.0)
+    world.traffic.on_run_mode("PAUSE")
+    world.run(5.0)
+    assert not world.sent(RelocalizeCmd, "pode1"), "nothing new while paused"
+    world.traffic.on_run_mode(RUN)
+    assert world.run_until(lambda: world.sent(RelocalizeCmd, "pode1"), 5.0)
+    first_try = world.sent(RelocalizeCmd, "pode1")[0]
+    world.traffic.on_run_mode("PAUSE")
+    world.traffic.on_run_mode(RUN)
+    world.traffic.on_run_mode("PAUSE")
+    assert world.run_until(lambda: "RELOCALIZED" in world.codes("pode1"), 10.0)
+    assert not [c for c in world.sent(CancelCmd, "pode1") if c.goal_id == first_try.goal_id]
+    assert len(world.sent(RelocalizeCmd, "pode1")) == 1
+
+
 def test_a_new_pose_on_the_border_of_another_robots_zone_is_not_inside_its_own():
     """zone_at은 처음 맞는 구역 하나만 준다. 맞닿은 경계 위면 남이 쥔 구역도 본다(Codex 4f76362)."""
     world, _ = queued(RELOC)

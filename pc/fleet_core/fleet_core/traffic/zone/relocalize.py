@@ -47,8 +47,9 @@ class Relocalize:
             return
         if not m.live:
             self._drop_relocalize(m)
-        elif self._run_mode != RUN:
-            self._pause_relocalize(m)
+        elif self._run_mode != RUN and not r.goal_id:
+            # 멈춤 동안 새로 보내지 않는다. 보낸 것은 PAUSE면 두고, STOP이면 on_run_mode가 거뒀다
+            r.due = self._reloc_due()
         elif now >= r.due:
             # 서지 않거나(움직임 보고, 통신 끊김) 답이 없거나 BUSY만 이어졌다
             if r.goal_id:
@@ -57,8 +58,9 @@ class Relocalize:
                 r.attempt += 1  # 보내지도 못한 시도도 한 번으로 센다
             self._relocalize_failed(m, "TIMEOUT")
         elif not r.goal_id:
+            # 선 뒤에만: goal이 없고, 움직이거나 앞 다시 찾기를 아직 하는 중이 아니다
             if (not m.comm and m.goal is None and now >= m.settle_until
-                    and m.robot_state not in ON_A_GOAL):
+                    and m.robot_state not in (*ON_A_GOAL, LOCALIZING)):
                 self._send_relocalize(m, now)
 
     def _pause_relocalize(self, m) -> None:
