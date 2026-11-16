@@ -378,7 +378,7 @@ behavior_server:
     robot_base_frame: base_footprint
     transform_tolerance: 0.1
     simulate_ahead_time: 2.0
-    max_rotational_vel: 0.5  # Spin 전용. 천천히 돌아 스캔이 번지지 않게(한 바퀴 약 13 s)
+    max_rotational_vel: 0.6  # Spin 전용. 천천히 돌아 스캔이 번지지 않게(한 바퀴 약 11 s, 회전 몫 12 s 안)
     min_rotational_vel: 0.4
     rotational_acc_lim: 3.2
     enable_stamped_cmd_vel: false

@@ -272,6 +272,15 @@ def test_planner_server_runs_for_compute_path_and_is_path_valid():
     assert params("planner_server")["planner_plugins"] == ["GridBased"]
 
 
+def test_spin_finishes_a_full_turn_inside_the_relocalize_share():
+    """pode_fsm 기본값(30 s, 무이동 0.25, 회전 0.5, 판정 3 s)에서 전역까지 허락하면 Spin 한도는
+    12 s다. 한 바퀴(가속 포함)가 그 안에 끝나야 한다."""
+    b = params("behavior_server")
+    allowance = 30.0 * 0.5 - 3.0
+    ramp = b["max_rotational_vel"] / b["rotational_acc_lim"]
+    assert 2 * math.pi / b["max_rotational_vel"] + ramp < allowance
+
+
 def test_amcl_injects_random_particles_when_the_fit_drops():
     """위치 다시 찾기(Relocalize): 스캔 맞음이 떨어지면 무작위 입자를 넣는다."""
     amcl = params("amcl")
