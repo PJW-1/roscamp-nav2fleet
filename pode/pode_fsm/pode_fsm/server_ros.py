@@ -11,6 +11,7 @@ from fleet_interfaces.action import Dock, MoveTo, Retreat
 from rclpy.action import ActionServer, CancelResponse, GoalResponse
 
 from pode_fsm.order_ros import order_goal
+from pode_fsm.results import NAV_ABORTED
 
 # ---- 피드백 주기, 액션별 결과 형식, goal 대기 슬롯 ----
 FEEDBACK_PERIOD_S = 0.2
@@ -29,8 +30,10 @@ class _Slot:
 # ---- 액션 서버 세 개 만들기와 goal 종료 알림 ----
 class GoalServers:
     def __init__(self, node, contract, robot_id: str, group, lock, fsm,
-                 pose: Callable, run: Callable, alive: Callable[[], bool]):
+                 pose: Callable, run: Callable, alive: Callable[[], bool],
+                 refuse: Callable[[], bool] = lambda: False):
         self._node, self._lock, self._fsm = node, lock, fsm
+        self._refuse = refuse
         self._pose, self._run, self._alive = pose, run, alive
         self._slots: dict[bytes, _Slot] = {}
         self._move_server = self._server(MoveTo, contract.name("move_to", pode=robot_id),
@@ -56,10 +59,17 @@ class GoalServers:
         return ActionServer(
             self._node, action_type, name,
             execute_callback=partial(self._execute, kind=kind),
-            goal_callback=lambda _req: GoalResponse.ACCEPT,
+            goal_callback=self._on_goal,
             cancel_callback=lambda _gh: CancelResponse.ACCEPT,
             handle_accepted_callback=partial(self._accepted, kind=kind),
             callback_group=group)
+
+    # ---- 위치 다시 찾는 동안 이동 goal 거절 ----
+    def _on_goal(self, _req):
+        if self._refuse():
+            self._node.get_logger().warn("goal rejected: relocalizing")
+            return GoalResponse.REJECT
+        return GoalResponse.ACCEPT
 
     # ---- 수락된 goal을 상태 기계에 넘기기 ----
     def _accepted(self, handle, kind: str) -> None:
@@ -70,6 +80,11 @@ class GoalServers:
             here = pose[:3] if pose else None
             now = time.monotonic()
             req = handle.request
+            if self._refuse():
+                # 수락 뒤 위치 다시 찾기가 먼저 시작했다: 위치 모를 때처럼 끝낸다
+                self.finish(key, False, NAV_ABORTED)
+                handle.execute()
+                return
             if kind == "move":
                 t = req.target_pose
                 path = [(p.position.x, p.position.y) for p in req.path]

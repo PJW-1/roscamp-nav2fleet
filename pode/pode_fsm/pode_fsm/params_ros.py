@@ -1,8 +1,10 @@
 # ---- ROS 파라미터로 상태 기계 설정값 선언과 읽기 ----
 from __future__ import annotations
 
+from dataclasses import fields
+
 from pode_fsm.order_fsm import OrderParams
-from pode_fsm.params import FsmParams
+from pode_fsm.params import FsmParams, RelocalizeParams
 
 # ---- ROS 파라미터 이름 목록 ----
 _FLOAT_PARAMS = (
@@ -42,3 +44,14 @@ def declare_fsm_params(node) -> tuple[FsmParams, OrderParams]:
                   local_yield=bool(get("local_yield").value)),
         OrderParams(**{name: float(get(f"order_{name}").value) for name in _ORDER_PARAMS}),
     )
+
+
+# ---- 위치 다시 찾기 파라미터 선언(이름 앞에 relocalize_) ----
+def declare_relocalize_params(node) -> RelocalizeParams:
+    d = RelocalizeParams()
+    declare, get = node.declare_parameter, node.get_parameter
+    kinds = {f.name: type(getattr(d, f.name)) for f in fields(d)}
+    for name, kind in kinds.items():
+        declare(f"relocalize_{name}", kind(getattr(d, name)))
+    return RelocalizeParams(**{name: kind(get(f"relocalize_{name}").value)
+                               for name, kind in kinds.items()})

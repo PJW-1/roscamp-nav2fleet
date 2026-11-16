@@ -42,7 +42,8 @@ from pode_fsm.nav_goal_ros import NavGoalRunner
 from pode_fsm.obstacle_report import UNKNOWN, clear_answer, nearest_ahead
 from pode_fsm.order_fsm import OrderFsm
 from pode_fsm.order_ros import OrderMaps, OrderMarkers
-from pode_fsm.params_ros import declare_fsm_params
+from pode_fsm.params_ros import declare_fsm_params, declare_relocalize_params
+from pode_fsm.relocalize_ros import RelocalizeServer
 from pode_fsm.server_ros import GoalServers
 
 # ---- 배터리 미상 값과 마커 발행 주기 ----
@@ -81,7 +82,14 @@ class PodeFsmNode(Node):
         declare("map_topic", "map")
         declare("keepout_mask_topic", "keepout_filter_mask")
         declare("order_markers_topic", "order_markers")
+        declare("relocalize_action", "")
+        declare("scan_topic", "scan")
+        declare("amcl_pose_topic", "amcl_pose")
+        declare("spin_action", "spin")
+        declare("nomotion_service", "request_nomotion_update")
+        declare("global_localization_service", "reinitialize_global_localization")
         fsm_params, order_params = declare_fsm_params(self)
+        reloc_params = declare_relocalize_params(self)
         # ---- 파라미터 읽기와 상태 기계, 주문 지도, 마커 만들기 ----
         get = self.get_parameter
         self.robot_id = get("robot_id").value
@@ -147,8 +155,18 @@ class PodeFsmNode(Node):
                                          callback_group=group)
         self.create_service(CheckClear, contract.name("check_clear", pode=self.robot_id),
                             self._on_check_clear, callback_group=group)
+        # ---- 위치 다시 찾기 서버(관제가 격리 전에 부른다) ----
+        self._reloc = RelocalizeServer(
+            self, get("relocalize_action").value
+            or contract.name("relocalize", pode=self.robot_id),
+            reloc_params, group, self._lock, self._base_frame, self._tf, self._locked_state,
+            {"map": get("map_topic").value, "scan": get("scan_topic").value,
+             "amcl_pose": get("amcl_pose_topic").value, "spin": get("spin_action").value,
+             "nomotion": get("nomotion_service").value,
+             "global": get("global_localization_service").value})
         self._servers = GoalServers(self, contract, self.robot_id, group, self._lock, self._fsm,
-                                    self._pose, self._run, lambda: self._alive)
+                                    self._pose, self._run, lambda: self._alive,
+                                    refuse=lambda: self._reloc.active)
         # ---- 제어, 상태, 마커 타이머 시작 ----
         steady = Clock(clock_type=ClockType.STEADY_TIME)
         self.create_timer(1.0 / float(get("control_rate_hz").value), self._tick,
@@ -166,10 +184,12 @@ class PodeFsmNode(Node):
             self._follow.cancel_all()
             self._backup.cancel_all()
             self._goals.cancel_all()
+        self._reloc.stop()
 
     def destroy_node(self):
         self.stop()
         self._servers.destroy()
+        self._reloc.destroy()
         self._follow.destroy()
         self._backup.destroy()
         self._goals.destroy()
@@ -200,6 +220,10 @@ class PodeFsmNode(Node):
     def _on_battery(self, msg: BatteryState) -> None:
         if not math.isnan(msg.percentage):
             self._battery = float(msg.percentage) * 100.0
+
+    def _locked_state(self) -> str:
+        with self._lock:
+            return self._fsm.state()
 
     # ---- TF로 로봇 위치와 코스트맵 변환 얻기 ----
     def _pose(self):
@@ -395,6 +419,9 @@ class PodeFsmNode(Node):
     def _publish_state(self) -> None:
         with self._lock:
             state, goal = self._fsm.state(), self._fsm.current_goal()
+            # 위치 다시 찾는 동안은 LOCALIZING(계약)
+            if self._reloc.active:
+                state = RobotState.STATE_LOCALIZING
             step = self._fsm.local_yield_step()
             pose = self._pose()
         msg = RobotState(robot_id=self.robot_id, battery=float(self._battery), state=state,

@@ -63,3 +63,21 @@ class FsmParams:
         if self.comm_loss_policy not in COMM_LOSS_POLICIES:
             raise ValueError(f"comm_loss_policy must be one of {COMM_LOSS_POLICIES}, "
                              f"got {self.comm_loss_policy!r}")
+
+
+# ---- 위치 다시 찾기(Relocalize) 판정 기준과 시간 몫 ----
+@dataclass(frozen=True)
+class RelocalizeParams:
+    max_std_xy_m: float = 0.10  # 위치 표준편차 상한(공분산 큰 축)
+    max_std_yaw_rad: float = 0.15  # 방향 표준편차 상한
+    min_scan_match: float = 0.75  # 지도 벽에 닿는 스캔 점 비율 하한
+    match_tol_m: float = 0.06  # 점이 벽 칸에서 이 거리 안이면 맞음
+    stable_updates: int = 5  # 좋은 추정이 이만큼 이어져야 성공
+    nomotion_period_s: float = 0.2  # 무이동 갱신 요청 최소 간격(새 스캔마다 한 번)
+    nomotion_share: float = 0.25  # 뒤 단계가 있을 때 무이동 단계 몫(전체 시간 비율)
+    spin_share: float = 0.5  # 전역 단계가 뒤에 있을 때 회전 단계 몫
+    settle_s: float = 3.0  # 회전 뒤 판정에 남겨 둘 시간
+    default_timeout_s: float = 30.0  # goal timeout_s가 0 이하일 때 전체 시간
+    service_wait_s: float = 1.0  # 시작할 때 AMCL 서비스를 기다리는 시간
+    spin_stop_wait_s: float = 2.0  # 결과 전에 회전 멈춤 확인을 기다리는 상한
+    occupied_threshold: int = 65  # 지도 칸 값이 이 이상이면 벽
