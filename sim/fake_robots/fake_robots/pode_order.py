@@ -146,7 +146,8 @@ class PodeOrder:
     def _order_step(self, t: float, dt: float, goal: _Goal) -> None:
         result = goal.order.step((t, dt), goal)
         if goal.order.waiting:
-            goal.nav = goal.line = None  # base 끝에 서 있다. 지난 조각의 막힘은 잊는다
+            # base 끝에 서 있다. 지난 조각의 막힘과 이음은 잊는다(다음 조각은 새 줄로 시작한다)
+            goal.nav = goal.line = goal.seg = None
         if result is not None:
             self._end(goal, result.success, result.reason)
 

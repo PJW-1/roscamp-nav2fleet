@@ -217,3 +217,19 @@ def test_a_stitched_path_that_starts_away_from_the_robot_is_not_followed(harness
     assert (res.success, res.reason, res.last_done_seq_id) == (
         False, MoveTo.Result.REASON_PATH_NOT_CONNECTED, 1)
     assert here(p) == pytest.approx(end_of(1), abs=1e-3)
+
+
+def test_after_waiting_at_the_base_end_the_next_path_is_checked_again(harness, tmp_path):
+    """실물은 base 끝에서 기다린 뒤 받은 조각을 새 줄로 시작해 연결을 다시 잰다.
+    기다리는 동안 보고 자세가 옆으로 밀리면(drift) 앞 조각에 이어진 path라도 따르지 않는다."""
+    p = start(harness, tmp_path, robots=FAST, faults=[
+        {"at_s": 2.0, "robot": "pode1", "type": "drift", "duration_s": 100.0, "offset_m": 0.5}])
+    assert wait_until(lambda: p.states, 5.0)
+    first, feedback = order(p, [1], horizon=[2])
+    assert wait_until(lambda: any(f.waiting_at_base_end for f in feedback), 10.0)
+    time.sleep(3.0)  # drift가 시작된 뒤
+    second, _ = order(p, [2], update=1, stitch="a")
+    assert result_of(first).result.reason == MoveTo.Result.REASON_SUPERSEDED
+    res = result_of(second).result
+    assert (res.success, res.reason, res.last_done_seq_id) == (
+        False, MoveTo.Result.REASON_PATH_NOT_CONNECTED, 1)
