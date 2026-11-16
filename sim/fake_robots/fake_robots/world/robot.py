@@ -50,6 +50,7 @@ class SimRobot:
     localizing_until: float = 0.0
     noise_m: float = 0.0  # 지금 보고 잡음. 주입으로 커질 수 있다
     jump_m: float = 0.0  # 보고를 한쪽으로 미는 거리(위치가 크게 튐)
+    reloc: tuple | None = None  # 위치 다시 찾는 중: (goal id, 끝나는 시각, 시작 추정)
     belief_dx: float = 0.0  # 이 걸음에서 몸을 믿는 자리로 옮긴 거리. 걸음 밖에서는 0
 
     @property

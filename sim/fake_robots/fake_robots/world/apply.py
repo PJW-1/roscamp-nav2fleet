@@ -11,6 +11,7 @@ from fleet_core.common.commands import (
     FillCmd,
     MoveCmd,
     MoveOrderCmd,
+    RelocalizeCmd,
     ReportOrderCmd,
     RetreatCmd,
     SwapCmd,
@@ -57,6 +58,8 @@ class Commands:
             self._order(item)
         elif isinstance(item, CheckClearCmd):
             self._check_clear(item, r)
+        elif isinstance(item, RelocalizeCmd):
+            self._relocalize_cmd(item)
         else:
             self._violation(f"unknown output {item!r}")
 
@@ -185,5 +188,7 @@ class Commands:
                 self.queued_arm.append((job, "CANCELED"))
             return
         r = self.robots[cmd.robot]
+        if self._cancel_relocalize(cmd):
+            return
         if self._reachable(cmd.robot) and r.run is not None and r.run.goal_id == cmd.goal_id:
             self._preempt(r)

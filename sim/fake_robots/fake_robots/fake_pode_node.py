@@ -37,6 +37,7 @@ from fake_robots.common import (
 from fake_robots.motion import DelayLine, FaultSchedule, Motion
 from fake_robots.pode_goal import NAV_ABORT_DELAY_S, _Goal
 from fake_robots.pode_goals import PodeGoals
+from fake_robots.pode_relocalize import add_relocalize_server
 from fake_robots.pode_report import PodeReport
 from fake_robots.pode_retreat import PodeRetreat
 from fake_robots.recovery import ObstacleRecovery, RecoveryParams
@@ -112,6 +113,7 @@ class FakePodeNode(PodeGoals, PodeRetreat, PodeReport, Node):
             Dock, contract.name("dock", pode=self.robot_id), "dock", group)
         self._retreat_server = self._server(
             Retreat, contract.name("retreat", pode=self.robot_id), "retreat", group)
+        self._relocalize_server = add_relocalize_server(self, contract, self.robot_id, group)
         self.create_timer(1.0 / CONTROL_RATE_HZ, self._tick)
         self.create_timer(1.0 / float(self.get_parameter("state_rate_hz").value),
                           self._publish_state)

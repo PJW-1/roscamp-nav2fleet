@@ -29,6 +29,7 @@ from .nav_goal import BLOCKED_AFTER_S
 from .order_metrics import OrderMetrics
 from .order_run import OrderRun, stops_for_lost_contact
 from .reaction import ReactionWatch
+from .relocalize import Relocalizer
 from .robot import Imperfections, SimRobot, profile_for
 from .runs import DOCK, HEARTBEAT_LOST, Result
 from .stations import Arms, Central, six_orders
@@ -48,7 +49,7 @@ def default_robots(site, count=3) -> dict[str, str]:
     return {f"pode{i + 1}": node for i, node in enumerate(site.parking[:count])}
 
 
-class ZoneWorld(Commands, Link):
+class ZoneWorld(Commands, Link, Relocalizer):
     def __init__(self, layout="d2", seed=1, params=None, overrides=None, robots=None,
                  orders=None, injections=(), imperfect=None, manager_factory=default_manager,
                  stock=None, arm_s_per_item=2.0, swap_step_s=2.0, dock_s=2.0, run_mode="RUN",
@@ -141,6 +142,7 @@ class ZoneWorld(Commands, Link):
         self._fire()
         self._deliver_queued()
         self._move()
+        self._run_relocalize()
         self.arms.run(self.t, self.robots, self._slow, self.manager)
         self._flush(early=True)
         self._report()

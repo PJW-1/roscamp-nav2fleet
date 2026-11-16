@@ -5,6 +5,7 @@ from .injections import (
     NoisyPose,
     Obstacle,
     OrderFault,
+    RelocalizeFails,
     Reinstate,
     Removal,
     SlowStation,
@@ -17,6 +18,6 @@ from .world import DT, ZoneWorld, default_manager, default_robots
 
 __all__ = [
     "DT", "CommLoss", "FakeGrants", "Imperfections", "LowBattery", "NoisyPose", "Obstacle",
-    "OrderFault", "RecordingManager", "Reinstate", "Removal", "SlowStation", "Stuck", "ZoneWorld",
+    "OrderFault", "RecordingManager", "RelocalizeFails", "Reinstate", "Removal", "SlowStation", "Stuck", "ZoneWorld",
     "default_manager", "default_robots", "six_orders",
 ]

@@ -84,6 +84,15 @@ class NoisyPose:
 
 
 @dataclass(frozen=True)
+class RelocalizeFails:
+    """이 창에서 받은 위치 다시 찾기(Relocalize)는 reason으로 실패한다. 추정은 그대로 틀린 채다."""
+    robot: str
+    t0: float = 0.0
+    t1: float = FOREVER
+    reason: str = "NOT_CONVERGED"
+
+
+@dataclass(frozen=True)
 class OrderFault:
     """관제의 시험 고리(traffic.order_fault)를 켠다. "stitch"면 다음 update의 이음 지점이 틀린다."""
     at_s: float
@@ -98,6 +107,7 @@ class Schedule:
     def __init__(self, items=()):
         self.items = list(items)
         self._fired: set[int] = set()
+        self._relocalized: dict[str, float] = {}  # 로봇 -> 마지막으로 위치를 다시 찾은 시각
 
     def of(self, kind) -> list:
         return [i for i in self.items if isinstance(i, kind)]
@@ -117,14 +127,28 @@ class Schedule:
 
     def noise(self, robot: str, t: float) -> tuple[float, float]:
         """(더할 잡음, 미는 거리)."""
-        found = [n for n in self.of(NoisyPose) if n.robot == robot and _during(n, t)]
+        found = [n for n in self._noisy(robot, t)]
         return (max((n.sigma_m for n in found), default=0.0),
                 sum(n.jump_m for n in found))
 
+    def _noisy(self, robot: str, t: float) -> list:
+        """지금 걸린 NoisyPose 창. 다시 찾기 전에 시작한 drive_by_estimate 창은 끝난 것으로 본다."""
+        fixed = self._relocalized.get(robot, -math.inf)
+        return [n for n in self.of(NoisyPose) if n.robot == robot and _during(n, t)
+                and not (n.drive_by_estimate and n.t0 <= fixed)]
+
+    def relocalize(self, robot: str, t: float) -> None:
+        """위치를 다시 찾았다: 그때까지 시작한 믿는 치우침이 끝난다(보고만 미는 창은 그대로)."""
+        self._relocalized[robot] = t
+
+    def relocalize_fails(self, robot: str, t: float) -> str:
+        """지금 다시 찾기가 실패할 까닭. 없으면 빈 값."""
+        return next((f.reason for f in self.of(RelocalizeFails)
+                     if f.robot == robot and _during(f, t)), "")
+
     def belief_dx(self, robot: str, t: float) -> float:
         """로봇이 믿는 자리 - 실제 자리(+x). drive_by_estimate인 것만 더한다."""
-        return sum(n.jump_m for n in self.of(NoisyPose)
-                   if n.robot == robot and n.drive_by_estimate and _during(n, t))
+        return sum(n.jump_m for n in self._noisy(robot, t) if n.drive_by_estimate)
 
     def due(self, t: float) -> list:
         """지금 일어날 한 번짜리 일(Removal, Reinstate). 한 번만 돌려준다."""
