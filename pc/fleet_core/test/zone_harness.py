@@ -91,6 +91,8 @@ class Harness:
         if manager_inputs and self.manager is None:
             raise ValueError("manager_inputs needs tick_order 'manager'")
         # 로봇의 보고와 답을 받는 곳. 기본은 교통에 바로, manager_inputs면 운영 입력 함수(+_pump)
+        # manager_inputs는 로봇 보고와 답에만 해당한다. call()은 늘 교통에 바로 넣고,
+        # 주문판은 시험이 self.manager.on_order_board로 따로 넣는다
         self.inputs = self.manager if manager_inputs else self.traffic
         self.bots = {name: Bot(name, *self.site.node_pose(node)) for name, node in starts.items()}
         self.speed = speed
@@ -110,6 +112,7 @@ class Harness:
     # ---- 시험이 부르는 것 ----
 
     def call(self, station="WORK", robot="") -> int:
+        # 주문 층을 거치지 않는 호출. manager_inputs와 상관없이 교통에 바로 넣는다
         goal_id = next(self._ids)
         self.traffic.on_dispatch(goal_id, station, robot)
         return goal_id

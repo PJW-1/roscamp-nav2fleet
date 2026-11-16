@@ -6,9 +6,10 @@
 ## 결론
 
 - 교통 전용 시나리오에서는 tick 순서만 바꿔도 결과가 같다. fleet_core 전체 시험을 하네스 순서
-  `"zone"`(`ZoneTraffic.tick`)과 운영 순서 `"manager"`(`FleetManager.tick`)로 각각 돌렸다. Harness 세계를
-  만드는 시험 336개(세계 358개)에서 log, problems, DispatchResult, 이벤트(상세 포함), 명령이 모두 같았다.
-  다른 시험은 0개다(기본 순서를 확인하는 시험 1개는 순서를 고른 실행에서 건너뛰므로 비교에서 빠진다).
+  `"zone"`(`ZoneTraffic.tick`)과 운영 순서 `"manager"`(`FleetManager.tick`)로 각각 돌렸다. 환경 변수로
+  순서가 실제로 바뀐 세계는 342개(시험 326개, log 4071줄)이고, 그 모두에서 log, problems, DispatchResult,
+  이벤트(상세 포함), 명령이 같았다. 다른 세계는 0개다. 순서를 시험이 직접 고르는 세계 16개
+  (`test_zone_tick_order.py`)는 두 실행에서 같은 순서로 돌므로 재현성 근거일 뿐 순서 변경의 증거가 아니다.
 - 이것은 전체 운영 흐름이 같다는 뜻이 아니다. 두 모드 모두 로봇의 보고와 답을 교통에 바로 넣는다.
   매니저 입력 함수(입력 검사와 그 직후의 `_pump`)를 거치지 않는다. 또 교통 전용 시나리오에는 주문판도
   팔 작업도 없어 두 순서의 차이가 생기는 경로(아래 P1~P4)가 열리지 않는다. 하네스가 틀린 것은 아니고,
@@ -97,6 +98,10 @@ tick 끝에 한 번에 꺼낸다. 비시험 호출은 없다. 다만 `tick`은 `
    keys = ("log", "problems", "results", "events", "commands")
    pick = lambda d, t: [[w[k] for k in keys] for w in d.get(t, [])]
    print([t for t in sorted(set(a) | set(b)) if pick(a, t) != pick(b, t)])
+   # 환경 변수로 순서가 실제로 바뀐 세계만 센다
+   pairs = [(x, y) for t in set(a) & set(b) if len(a[t]) == len(b[t]) for x, y in zip(a[t], b[t])
+            if x["order"] == "zone" and y["order"] == "manager"]
+   print(len(pairs), sum(any(x[k] != y[k] for k in keys) for x, y in pairs))
    EOF
    ```
 
@@ -111,8 +116,12 @@ tick 끝에 한 번에 꺼낸다. 비시험 호출은 없다. 다만 `tick`은 `
      - 주문판의 주문은 `on_order_board` 입력 때 바로 호출(DispatchCmd)이 되어 교통에 닿는다. 로봇은 다음
        tick의 `tick_pick`이 정한다(첫 MoveCmd가 tick 2).
      - WORK 도착 DispatchResult는 `on_dock_result` 입력 때 주문 층에 닿고, ArmFillCmd는 다음 tick에 나온다.
-     - 팔 timeout의 RobotFaultCmd와 교통의 RobotIsolated가 같은 tick 안에서 나오고, 그 뒤 로봇은 가용이 아니다.
-       같은 tick 안에서 주문 층·팔이 교통에 답하는 경로(P3)를 실제로 확인한 시험이다.
+     - 팔 timeout: 앞서 그 로봇에 ArmFillCmd가 있었고(더 이른 tick), 팔의 ArmLost(kind fill),
+       RobotFaultCmd(사유 "<server> goal <id> never reported"), 교통의 RobotIsolated가 모두 같은 로봇에 대해
+       같은 tick 안에서 나온다. ARM_NO_RESULT 이벤트도 그 로봇이고, 그 뒤 로봇은 가용이 아니다. 같은 tick 안에서
+       주문 층·팔이 교통에 답하는 경로(P3)를 실제로 확인한 시험이다.
+   - `manager_inputs`는 로봇의 보고와 답에만 해당한다. `call()`은 늘 교통의 `on_dispatch`에 바로 넣고,
+     주문판은 시험이 `world.manager.on_order_board`로 따로 넣는다.
 
 ## 결과 숫자
 
@@ -121,14 +130,15 @@ fleet_core 전체 시험 (2026-11-16, 후속 커밋 기준)
 | 항목 | 기본(manager) | ZONE_TICK_ORDER=zone |
 |---|---|---|
 | 전체 시험 | 757 passed | 756 passed, 1 skipped |
-| 걸린 시간 | 37.4 s | 35.3 s |
-| Harness 세계 | 359 | 358 |
-| 세계를 만든 시험 노드 | - | 336 |
-| log 줄 | - | 4513 |
-| log/problems/results/events/commands가 다른 시험 | 0 (건너뛴 1개 제외) | |
+| 걸린 시간 | 36.8 s | 35.6 s |
+| Harness 세계(전부) | 359 | 358 |
+| 그중 환경 변수로 순서가 바뀐 세계 | 342 (시험 326개, log 4071줄) | 342 |
+| 그중 시험이 순서를 직접 고른 세계 | 16 (+기본 순서 확인 1) | 16 |
+| 순서가 바뀐 세계 가운데 log/problems/results/events/commands가 다른 것 | 0 | |
 
 건너뛴 1개는 기본 순서 확인 시험이다(순서를 고른 실행이라). 이 시험이 만드는 세계 1개가 359와 358의 차이다.
-`test_zone_tick_order.py`의 시험은 순서를 직접 정하므로 두 실행에서 같은 일을 한다.
+`test_zone_tick_order.py`의 시험은 순서를 직접 정하므로 두 실행에서 같은 일을 한다(위의 16개). 전체로
+비교하면 358개 세계가 모두 같았지만, 순서 변경의 증거는 342개뿐이다.
 
 첫 커밋(1b3a353) 때의 비교: 하네스를 쓰는 30개 파일 387개 시험, 세계 340개, log 4055줄, 차이 0.
 
@@ -157,8 +167,10 @@ fleet_core 전체 시험 (2026-11-16, 후속 커밋 기준)
 - 비용이 없다. 전체 시험 결과와 기록이 두 순서에서 같았고 시간도 비슷했다. 단언은 하나도 바꾸지 않았다.
 - 한계: 이것으로 주문·팔 경로가 운영과 같게 시험되는 것은 아니다. 기본 하네스는 로봇의 보고와 답을
   매니저 입력 함수와 그 직후의 `_pump` 없이 교통에 넣으므로, 입력 때 일어나는 주문 층의 반응(P2의 도킹 결과,
-  주문판)은 운영과 다른 때에 일어날 수 있다. 주문이나 팔이 얽힌 시험은 `manager_inputs=True`로 입력 경계까지
-  운영과 같게 하거나, 매니저 전체를 쓰는 sim/fake_robots 세계 시험으로 따로 확인해야 한다.
+  주문판)은 운영과 다른 때에 일어날 수 있다. 주문이나 팔이 얽힌 시험은 `manager_inputs=True`로 로봇 보고·답의
+  입력 경계를 운영과 같게 하거나, 매니저 전체를 쓰는 sim/fake_robots 세계 시험으로 따로 확인해야 한다.
+  `manager_inputs`는 로봇 보고·답에만 해당한다. `Harness.call()`은 주문 층을 거치지 않고 교통에 바로 호출을
+  넣으므로, 주문 흐름을 시험하려면 `call()` 대신 `world.manager.on_order_board`로 주문판을 넣어야 한다.
 - (a)는 새 시험이 그 몫(같음 6개, 경계 3개)을 한다. 그것만으로는 하네스가 운영 순서를 시험하지 않는 문제가
   남아 (b)를 함께 했다.
 - (c) `ZoneTraffic.tick` 제거는 지금은 권하지 않는다. 운영 코드인 `TrafficApi` 계약(api.py:92), 그 시험
@@ -174,6 +186,9 @@ fleet_core 전체 시험 (2026-11-16, 후속 커밋 기준)
 - 하네스 기본 순서를 `"manager"`로 바꿨다.
 - 위 "한계"와 결론의 범위를 "교통 전용 시나리오에서 tick 순서만 바꿔도 같다"로 좁혔다.
 - 387개 비교의 재현 수단을 conftest.py에 넣었다.
+- 두 번째 리뷰(19e36d6): 순서가 실제로 바뀐 세계 수(342)를 따로 적었다. 팔 timeout 시험이 같은 로봇,
+  팔 timeout 사유, 앞선 팔 작업까지 단언하게 했다. `manager_inputs`의 범위(로봇 보고·답만, `call()`은 제외)를
+  하네스 주석과 권고에 적었다.
 
 ## 돌리지 않은 것
 

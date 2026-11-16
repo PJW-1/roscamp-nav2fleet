@@ -11,7 +11,9 @@ import os
 import pytest
 import zone_harness
 from fleet_core.common.commands import (
+    FILL,
     ArmFillCmd,
+    ArmLost,
     DispatchCmd,
     DispatchResult,
     MoveCmd,
@@ -158,14 +160,29 @@ def test_in_production_the_arm_job_starts_in_the_tick_after_the_dock_result():
     assert not _seen(world, RobotFaultCmd) and not _seen(world, ReleaseCmd)
 
 
+def _items(world: Harness, kind) -> list:
+    """(단계, 틱 번호, 항목) 목록."""
+    return [entry for entry in world.manager.seen if isinstance(entry[2], kind)]
+
+
 def test_in_production_an_arm_timeout_isolates_the_robot_inside_the_same_tick():
     world = _ordered_world()
     limit = world.params.fill_timeout_s + world.params.arm_cancel_wait_s + 120.0
     # 하네스는 팔에 답하지 않으므로 채우기는 끝내 시간이 다 된다
     assert world.run_until(lambda: _seen(world, RobotIsolated), limit), "\n".join(world.log[-20:])
-    [fault] = _seen(world, RobotFaultCmd)
-    [isolated] = _seen(world, RobotIsolated)
+    [(_, asked_n, asked)] = _items(world, ArmFillCmd)
+    [(lost_phase, lost_n, lost)] = _items(world, ArmLost)
+    [(fault_phase, fault_n, fault)] = _items(world, RobotFaultCmd)
+    [(isolated_phase, isolated_n, isolated)] = _items(world, RobotIsolated)
+    robot = asked.robot
+    # 앞서 이 로봇에 채우기 팔 작업이 있었고, 그 작업이 답 없이 끝났다
+    assert asked_n < fault_n
+    assert lost.robot == robot and lost.kind == FILL
+    assert fault.robot == robot and isolated.robot == robot
+    assert fault.reason == f"{lost.server} goal {lost.goal_id} never reported"
+    assert any(e.code == "ARM_NO_RESULT" and e.robot == robot for e in world.events)
     # arm.check_timeouts의 고장이 같은 틱의 _pump로 교통에 들어가 그 틱 안에 격리된다
-    assert fault[0] == "tick" and isolated == fault
-    robot = next(i.robot for _, _, i in world.manager.seen if isinstance(i, RobotFaultCmd))
+    assert lost_phase == fault_phase == isolated_phase == "tick"
+    assert lost_n == fault_n == isolated_n
+    assert fault_n - asked_n > 1
     assert not world.traffic.available(robot)
