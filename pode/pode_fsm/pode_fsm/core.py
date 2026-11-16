@@ -115,7 +115,8 @@ class PodeFsm(NavGoalMoves, RetreatMoves, LocalYield, NavYield, SelfRecovery, Ob
     # ---- 경로 이동 요청: 경로 연결 검사 후 _Move 시작 ----
     def move(self, goal_id: Hashable, now: float, target_id: str, target: Pose,
              path: Sequence[Point], pose: Sequence[float] | None,
-             final_goal: bool = True, mode: str = "", priority: int = NO_PRIORITY) -> list:
+             final_goal: bool = True, mode: str = "", priority: int = NO_PRIORITY,
+             free_heading: bool = False) -> list:
         self._alive = max(self._alive, now)
         self._priority = int(priority)
         if pose is None or mode not in MODES:
@@ -136,7 +137,8 @@ class PodeFsm(NavGoalMoves, RetreatMoves, LocalYield, NavYield, SelfRecovery, Ob
             points = [here, (tx, ty)]
         handover = self._goals.busy(now)
         cmds = self._end_active(CANCELED, stop=handover)
-        g = _Move(goal_id, target_id, (tx, ty, tyaw), Polyline(points), final_goal=final_goal)
+        g = _Move(goal_id, target_id, (tx, ty, tyaw), Polyline(points), final_goal=final_goal,
+                  free_heading=free_heading)
         g.s, _ = g.route.project(here)
         g.s_start = g.s
         self._active = g
@@ -308,7 +310,7 @@ class PodeFsm(NavGoalMoves, RetreatMoves, LocalYield, NavYield, SelfRecovery, Ob
             g.route, g.s, self.p.turn_radius_m, pose, self.p.join_min_off_m, self.p.join_slope)
         g.sent = Polyline(rest)
         poses = poses_along(rest, g.target[2], self.p.path_step_m)
-        return [SendPath(g.seq, poses, final_goal=g.final_goal)]
+        return [SendPath(g.seq, poses, final_goal=g.final_goal, free_heading=g.free_heading)]
 
     # ---- 현재 goal 종료와 주행, 후진 취소 ----
     def _end_active(self, reason: str, stop: bool) -> list:

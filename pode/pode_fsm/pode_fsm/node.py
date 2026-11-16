@@ -69,6 +69,7 @@ class PodeFsmNode(Node):
         declare("reverse_controller_id", "FollowPathReverse")
         declare("goal_checker_id", "general_goal_checker")
         declare("reverse_goal_checker_id", "retreat_goal_checker")
+        declare("free_heading_goal_checker_id", "free_heading_goal_checker")
         declare("progress_checker_id", "progress_checker")
         declare("odom_topic", "odom")
         declare("costmap_topic", "local_costmap/costmap")
@@ -136,7 +137,8 @@ class PodeFsmNode(Node):
         # ---- Nav2 액션 실행기, 서비스, 액션 서버 만들기 ----
         self._follow = FollowPathRunner(
             self, get("follow_path_action").value, self._map_frame, self._nav_ids,
-            self._through_id, self._reverse_id, self._on_follow_rejected,
+            self._through_id, self._reverse_id, get("free_heading_goal_checker_id").value,
+            self._on_follow_rejected,
             self._on_follow_result, self._on_follow_cancel, callback_group=group)
         self._backup = BackUpRunner(self, get("backup_action").value, self._on_backup_result,
                                     callback_group=group)
@@ -271,7 +273,8 @@ class PodeFsmNode(Node):
     def _run(self, cmds) -> None:
         for cmd in cmds:
             if isinstance(cmd, SendPath):
-                if not self._follow.send(cmd.seq, cmd.poses, cmd.final_goal, cmd.reverse):
+                if not self._follow.send(cmd.seq, cmd.poses, cmd.final_goal, cmd.reverse,
+                                         cmd.free_heading):
                     self.get_logger().warn("follow_path server is not available")
                     self._late.append((cmd.seq, "rejected"))
             elif isinstance(cmd, CancelNav):

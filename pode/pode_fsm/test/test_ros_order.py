@@ -57,6 +57,28 @@ def test_the_robot_waits_at_the_end_of_base_and_an_update_takes_it_on(harness):
     assert (new.success, new.last_done_seq_id) == (True, 2)
 
 
+def test_a_line_before_a_nav_goal_uses_the_goal_checker_without_an_end_heading(harness):
+    """2026-11-16: 다음 조각이 Nav2 goal인 고정 경로는 끝 방향을 맞추지 않는다(O_OUT의 도리도리).
+    goal checker 이름으로 Nav2에 알린다. 다음이 고정 경로면 원래 checker 그대로."""
+    fake, probe = start(harness)
+    goal = Segment(seq_id=2, mode=Segment.MODE_NAV_GOAL, end_node_id="P-5")
+    goal.target_pose.header.frame_id = "map"
+    goal.target_pose.pose.position.x, goal.target_pose.pose.position.y = WAYPOINTS["P-5"]
+    goal.target_pose.pose.orientation.w = 1.0
+    feedback = []
+    fut = probe.move.send_goal_async(order_goal([seg(1, "P-3", "P-4")], [goal]),
+                                     feedback_callback=lambda m: feedback.append(m.feedback))
+    assert wait_until(fut.done, 5.0) and fut.result().accepted
+    assert wait_until(lambda: any(f.waiting_at_base_end for f in feedback), 10.0)
+    assert set(fake.goal_checker_ids) == {"free_heading_goal_checker"}
+    done = fut.result().cancel_goal_async()
+    assert wait_until(done.done, 5.0)
+    assert wait_until(lambda: probe.last_state().state == RobotState.STATE_IDLE, 5.0)
+    fake.goal_checker_ids.clear()
+    probe.result(probe.send(order_goal([seg(1, "P-4", "P-5")], [])))
+    assert set(fake.goal_checker_ids) == {"general_goal_checker"}
+
+
 def test_a_wrong_update_is_refused_and_the_order_goes_on(harness):
     _, probe = start(harness)
     first = probe.send(order_goal([seg(1, "P-3", "P-4")], []))

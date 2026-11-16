@@ -236,6 +236,55 @@ def test_a_mode_change_stops_before_the_nav_goal():
     assert goal.pose == pytest.approx((1.3, 0.6, 0.0)) and fsm.order_feedback()[0] == 1
 
 
+def test_a_fixed_line_before_a_nav_goal_ends_without_turning_to_its_end_heading():
+    """2026-11-16, Gazebo v7: at O_OUT the robot turned right to the end heading of the fixed line
+    and then left for the Nav2 goal (9 switches, 19 turns back before leaving). The end heading
+    of a line is of no use when a Nav2 goal comes next, so that line is sent with free_heading."""
+    fsm = ready()
+    [send] = of(order(fsm, "g1", 1.0, [S1, goal_seg(2, 1.3, 0.6)]), SendPath)
+    assert send.free_heading is True
+    fsm = ready()
+    [send] = of(order(fsm, "g1", 1.0, [S1, S2, goal_seg(3, 1.8, 0.6)]), SendPath)
+    assert send.poses[-1][:2] == pytest.approx((1.3, 0.3)) and send.free_heading is True
+
+
+def test_a_nav_goal_waiting_in_the_horizon_also_frees_the_end_heading():
+    fsm = ready()
+    [send] = of(order(fsm, "g1", 1.0, [S1], [goal_seg(2, 1.3, 0.6)]), SendPath)
+    assert send.free_heading is True
+
+
+@pytest.mark.parametrize("base, horizon", [
+    ([S1], []),
+    ([S1], [S2]),
+    ([S1, line(2, 0.8, 1.3, ctrl=THROUGH)], [goal_seg(3, 1.8, 0.6)]),
+    ([S1, line(2, 0.8, 0.5, ctrl=REVERSE, mode=MODE_RETREAT)], []),
+])
+def test_a_fixed_line_keeps_its_end_heading_when_no_nav_goal_comes_next(base, horizon):
+    fsm = ready()
+    [send] = of(order(fsm, "g1", 1.0, base, horizon), SendPath)
+    assert send.poses[-1][:2] == pytest.approx((0.8, 0.3)) and send.free_heading is False
+
+
+def test_a_line_joined_on_the_way_takes_the_end_heading_rule_of_its_new_end():
+    fsm = ready()
+    [send] = of(order(fsm, "g1", 1.0, [S1], [S2, goal_seg(3, 1.8, 0.6)]), SendPath)
+    assert send.free_heading is False
+    fsm.heartbeat(2.0)
+    fsm.tick(2.0, (0.5, 0.3, 0.0), DRIVING, no_obstacle)
+    cmds = order(fsm, "g2", 2.5, [S2], [goal_seg(3, 1.8, 0.6)], update=1, stitch="N1",
+                 pose=(0.55, 0.3, 0.0))
+    [more] = of(cmds, SendPath)
+    assert more.poses[-1][:2] == pytest.approx((1.3, 0.3)) and more.free_heading is True
+
+
+def test_a_plain_move_to_keeps_its_end_heading():
+    fsm = ready()
+    [send] = of(fsm.move("g1", 1.0, "N1", (0.8, 0.3, 0.0), [(0.3, 0.3), (0.8, 0.3)], HERE),
+                SendPath)
+    assert send.free_heading is False
+
+
 def test_a_nav_goal_follows_another_without_stopping_at_the_middle_point():
     fsm = ready()
     g1, g2 = goal_seg(1, 0.8, 0.6), goal_seg(2, 1.3, 0.6)

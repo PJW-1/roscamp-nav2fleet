@@ -21,19 +21,22 @@ class FollowPathRunner(GoalRunner):
     _label = "follow_path"
 
     def __init__(self, node, action_name: str, frame: str, nav_ids: tuple[str, str, str],
-                 through_id: str, reverse_id: tuple[str, str], on_rejected: OnRejected,
+                 through_id: str, reverse_id: tuple[str, str], free_id: str,
+                 on_rejected: OnRejected,
                  on_result: OnResult, on_cancel_accepted: OnCancelAccepted,
                  callback_group=None):
         super().__init__(node, FollowPath, action_name, callback_group)
         self._frame = frame
         self._nav_ids = nav_ids
         self._through_id = through_id
+        self._free_id = free_id
         self._reverse_id = reverse_id
         self._on_rejected, self._on_result = on_rejected, on_result
         self._on_cancel_accepted = on_cancel_accepted
 
     # ---- Path 메시지를 만들고 컨트롤러를 골라 goal 보내기 ----
-    def send(self, seq: int, poses, final_goal: bool, reverse: bool) -> bool:
+    def send(self, seq: int, poses, final_goal: bool, reverse: bool,
+             free_heading: bool = False) -> bool:
         if not self._client.server_is_ready():
             return False
         path = Path()
@@ -48,6 +51,8 @@ class FollowPathRunner(GoalRunner):
         controller, checker, progress = self._nav_ids
         if self._through_id and not final_goal:
             controller = self._through_id
+        if free_heading and self._free_id:
+            checker = self._free_id
         if reverse:
             controller, checker = self._reverse_id[0], self._reverse_id[1] or checker
         goal = FollowPath.Goal(path=path, controller_id=controller, goal_checker_id=checker,

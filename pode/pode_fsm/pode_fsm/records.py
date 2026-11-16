@@ -27,6 +27,7 @@ class _Move:
     waiting_since: float | None = None
     blocked_since: float | None = None
     handover_since: float | None = None
+    free_heading: bool = False
 
 
 # ---- 복구 진행 기록과 도킹 goal 기록 ----

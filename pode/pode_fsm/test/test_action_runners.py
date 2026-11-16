@@ -98,7 +98,7 @@ class Rig:
             from pode_fsm.follow_ros import FollowPathRunner
             self.runner = FollowPathRunner(
                 self.node, "follow_path", "map", ("FollowPath", "goal", "progress"), "",
-                ("FollowPathReverse", ""), lambda s: ev(("rejected", s)),
+                ("FollowPathReverse", ""), "", lambda s: ev(("rejected", s)),
                 lambda s, o, c, lost: ev(("result", s, o, lost)),
                 lambda s: ev(("cancel_ok", s)))
         elif kind == "nav_goal":

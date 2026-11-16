@@ -210,10 +210,24 @@ def test_no_obstacle_beside_the_path_slows_the_robot():
 
 def test_goal_checker_is_tighter_than_the_arrival_tolerance():
     c = params("controller_server")
-    assert c["goal_checker_plugins"] == ["general_goal_checker", "retreat_goal_checker"]
+    assert c["goal_checker_plugins"] == ["general_goal_checker", "retreat_goal_checker",
+                                         "free_heading_goal_checker"]
     goal = c["general_goal_checker"]
     assert goal["xy_goal_tolerance"] == 0.05 and goal["xy_goal_tolerance"] < 0.15  # R4
     assert goal["yaw_goal_tolerance"] == 0.12
+
+
+def test_free_heading_goal_checker_stops_like_the_general_one_without_the_turn():
+    """2026-11-16: 다음 조각이 Nav2 goal인 고정 경로는 끝에서 방향을 맞추지 않는다. O_OUT에서
+    끝 방향(남쪽)으로 오른쪽으로 돌고 곧바로 Nav2 goal 쪽(동쪽)으로 왼쪽으로 돌았다. 서는 자리는
+    앞으로 가는 경로와 같아야 하므로 위치 허용치는 general과 같다.
+    pode_fsm free_heading_goal_checker_id가 이 이름을 쓴다."""
+    c = params("controller_server")
+    free = c["free_heading_goal_checker"]
+    assert free["plugin"] == "nav2_controller::SimpleGoalChecker"
+    assert free["xy_goal_tolerance"] == c["general_goal_checker"]["xy_goal_tolerance"]
+    assert free["yaw_goal_tolerance"] > math.pi
+    assert free["stateful"] is True
 
 
 def test_retreat_goal_checker_checks_the_position_only():

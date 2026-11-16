@@ -13,6 +13,7 @@ class SendPath:
     poses: list[Pose] = field(compare=False)
     final_goal: bool = True
     reverse: bool = False
+    free_heading: bool = False
 
 
 @dataclass(frozen=True)

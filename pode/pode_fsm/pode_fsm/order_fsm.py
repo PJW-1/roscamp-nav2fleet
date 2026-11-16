@@ -256,7 +256,14 @@ class OrderFsm(PodeFsm):
                                    points, pose)
         self._bounds = _bounds(self._run)
         return super().move(key, now, last.end_node_id, last.path[-1], points, pose,
-                            final_goal=last.controller_id != THROUGH, priority=self._priority)
+                            final_goal=last.controller_id != THROUGH, priority=self._priority,
+                            free_heading=self._free_end())
+
+    # ---- 다음 조각이 Nav2 goal이면 고정 경로 끝에서 방향을 맞추지 않기 ----
+    def _free_end(self) -> bool:
+        q = self._q
+        nxt = q.pending[0] if q.pending else q.horizon[0] if q.horizon else None
+        return nxt is not None and nxt.mode == MODE_NAV_GOAL
 
     # ---- 달리는 경로에 이어지는 구간 덧붙이기 ----
     def _extend(self, now: float, pose) -> list:
@@ -272,6 +279,7 @@ class OrderFsm(PodeFsm):
         g.route = Polyline(g.route.points + _joined(more)[1:])
         g.sent = None
         self._run += more
+        g.free_heading = self._free_end()
         g.target, g.target_id = more[-1].path[-1], more[-1].end_node_id
         if g.nav_running and g.handover_since is None:
             return self._send_rest(g, now, pose)
