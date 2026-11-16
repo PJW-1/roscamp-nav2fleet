@@ -71,12 +71,17 @@ FleetParams 필드와 `fleet_params.yaml` 키 비교 결과: 빠진 키 `zone_cl
 
 ## 해제·후진
 
-- 관제(`traffic/zone/progress.py:25-26`, :103-110): 기준점과 거리가 세 갈래다(`zone_clear_m`이 0일 때).
-  - 스테이션에 선 로봇(`AT_STATION`, 지점 위): 그 **지점 좌표**에서 `footprint_radius_m + dock_error_m`.
-  - 지점에서 `release_margin_m` 안에 있는 로봇: 그 **지점 좌표**에서 `footprint_radius_m + release_margin_m`(0.135 m).
-  - 그 밖: **보고 중심**에서 0.135 m.
-  - 기준점이 구역 다각형에서 그 거리 넘게 떨어진 판정이 `release_confirm_samples`번 이어지면 놓는다(아직 갈 길에
-    필요한 구역은 빼고). `zone_clear_m`이 있는 옛 기록은 늘 보고 중심에서 그 값이다. 지점은 `node_clear_m`(0.20 m).
+- 관제(`traffic/zone/progress.py:25-26`, :103-112): 기준점과 거리가 세 갈래다. 앞의 두 갈래는
+  `not p.zone_clear_m`(참·거짓)일 때만 탄다.
+  - `phase == AT_STATION`이고 노드가 지도에 있을 때: 그 **지점 좌표**에서 `footprint_radius_m + dock_error_m`.
+    로봇이 지점 위에 있는지 거리는 보지 않는다(도킹 성공이 자리를 보증한다는 가정).
+  - 노드가 지도에 있고 보고 중심이 그 지점에서 `release_margin_m` 안일 때: 그 **지점 좌표**에서
+    `footprint_radius_m + release_margin_m`(0.135 m).
+  - 그 밖: **보고 중심**에서 `release_gap`(0.135 m, `zone_clear_m`이 참이면 그 값).
+  - 기준점과 구역 다각형의 거리가 그 값 **이상**(`>= gap - 1e-9`, :112)인 판정이 `release_confirm_samples`번
+    이어지면 놓는다(아직 갈 길에 필요한 구역은 빼고).
+  - `zone_clear_m`이 0이 아닌 값인 옛 기록은 늘 보고 중심에서 그 값이다. 기록에 `zone_clear_m: 0`으로 적혀
+    있으면 거짓이라 앞의 두 노드 기준 갈래를 탄다(빠진 것과 같다). 지점은 `node_clear_m`(0.20 m).
 - Pode(`pode/pode_fsm/pode_fsm/recovery.py:48-50`, `backup.py:33`): 후진 거리 =
   `min(backup_max_m, 마지막 경로 꼭짓점부터 경로를 따라 온 거리 - (release_distance_m + backup_margin_m))`.
   중심을 마지막 **경로 꼭짓점**에서 0.23 m 앞에 둔다.
@@ -98,6 +103,15 @@ FleetParams 필드와 `fleet_params.yaml` 키 비교 결과: 빠진 키 `zone_cl
   - `test_params_validate.py` 시험 먼저: 42 failed, 236 passed. 고친 뒤 278 passed.
   - fleet_core 전체: 1023 passed (34.8 s).
   - 위 sim 세 파일 + `tools/test/test_triage.py`: 55 passed.
+- 두 번째 후속 커밋(Codex 리뷰 6123cac 반영):
+  - 실수 칸의 아주 큰 정수(`10**400`)가 `math.isfinite`에서 OverflowError를 냈다. 칸 이름이 든
+    ValueError로 바꿨다(`_finite`). 시험 먼저: 1 failed, 280 passed. 고친 뒤 281 passed.
+  - 재생 판정 시험 추가: 기존 기록 자료(.jsonl)는 저장소에 없어서 시험 안에서 짧은 기록(pode1 하나, 10 s)을
+    만든다. 6 s 코어로 기록해 6.3 s에 GOAL_STALLED가 나오고, 머리에서 stall_s를 지운 뒤 `replay()`가 같은
+    결과를 내는지 본다. 호환 기본값을 빼면(`RECORD_DEFAULTS = {}`) 결과가 달라지는 것도 시험한다.
+  - worklog 해제 조건 설명을 progress.py:103-112와 맞게 고쳤다(AT_STATION은 거리를 안 봄, zone_clear_m은
+    참·거짓, 비교는 "이상").
+  - fleet_core 전체: 1026 passed (35.7 s).
 
 ## 돌리지 않은 것
 

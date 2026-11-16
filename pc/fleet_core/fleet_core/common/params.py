@@ -131,6 +131,14 @@ def load_params(path=None) -> FleetParams:
     return params
 
 
+def _finite(value) -> bool:
+    # 실수로 못 바꾸는 큰 정수는 유한하지 않은 값으로 본다
+    try:
+        return math.isfinite(value)
+    except OverflowError:
+        return False
+
+
 # ---- 타입 검사: 불리언·문자열은 숫자가 아니고, 실수는 유한 ----
 def check_types(data: dict, source="params") -> None:
     for f in fields(FleetParams):
@@ -145,7 +153,7 @@ def check_types(data: dict, source="params") -> None:
             ok = isinstance(value, int) and not isinstance(value, bool)
         else:
             ok = (isinstance(value, (int, float)) and not isinstance(value, bool)
-                  and math.isfinite(value))
+                  and _finite(value))
         if not ok:
             raise ValueError(f"{source}: {f.name} must be a finite {f.type}, got {value!r}")
     if data.get("release_confirm_samples", 1) < 1:

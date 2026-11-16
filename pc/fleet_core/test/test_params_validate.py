@@ -9,6 +9,7 @@ import dataclasses
 import json
 import math
 import sys
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
@@ -172,6 +173,12 @@ def test_every_flag_refuses_numbers(tmp_path, key):
         load_params(write(tmp_path, {**SHIPPED, key: 1}))
 
 
+def test_a_huge_integer_in_a_float_key_names_the_key(tmp_path):
+    """math.isfinite(10**400)은 OverflowError다. 칸 이름이 든 ValueError여야 한다."""
+    with pytest.raises(ValueError, match="stall_s"):
+        load_params(write(tmp_path, {**SHIPPED, "stall_s": 10**400}))
+
+
 def test_a_float_key_written_as_an_integer_loads(tmp_path):
     assert load_params(write(tmp_path, {**SHIPPED, "stall_s": 12})).stall_s == 12
 
@@ -200,3 +207,45 @@ def test_replay_of_a_record_without_stall_s_uses_the_old_6_s():
 def test_replay_of_a_record_with_stall_s_uses_it():
     head = recorded_head()
     assert replay.start_core(head, lambda: 0.0).params.stall_s == SHIPPED["stall_s"] == 12.0
+
+
+def old_stall_record(path):
+    """stall_s 키가 없던 때의 기록 흉내: 6 s 코어로 기록하고 머리에서 stall_s를 지운다.
+
+    pode1이 goal을 받고 제자리에서 10 s 보고하므로 6.3 s에 GOAL_STALLED가 기록된다.
+    """
+    from fleet_core.common.commands import OrderRecord
+    from fleet_core.fleet_map import load_fleet_map
+    from fleet_core.manager import FleetManager
+    now = [0.0]
+    core = FleetManager(load_fleet_map("d2"), replace(load_params(), stall_s=6.0), ["pode1"],
+                        lambda: now[0])
+    lines = []
+    core.record_to(lines.append)
+    x, y = core.site.node_pose("P-1")
+    for _ in range(3):
+        core.on_robot_state("pode1", x, y, 0.0, "IDLE", 90.0)
+    core.on_order_board("RUN", [OrderRecord("O-001", {"A": 1})])
+    for _ in range(100):
+        now[0] += 0.1
+        core.on_robot_state("pode1", x, y, 0.0, "MOVING", 90.0)
+        core.tick()
+    assert any('"GOAL_STALLED"' in line for line in lines)
+    head = json.loads(lines[0])
+    del head["params"]["stall_s"]
+    path.write_text("\n".join([json.dumps(head), *lines[1:]]) + "\n", encoding="utf-8")
+    return path
+
+
+def test_replay_of_an_old_record_judges_the_stall_at_6_s(tmp_path):
+    result = replay.replay(old_stall_record(tmp_path / "old.jsonl"))
+    assert result.same and result.compared, result
+
+
+def test_without_the_compat_default_the_old_record_would_replay_differently(tmp_path,
+                                                                            monkeypatch):
+    """위 시험이 stall_s에 기대는지 확인: 호환 기본값을 빼면 12 s로 판정해 결과가 달라진다."""
+    path = old_stall_record(tmp_path / "old.jsonl")
+    monkeypatch.setattr(replay, "RECORD_DEFAULTS", {})
+    result = replay.replay(path)
+    assert result.compared and not result.same
