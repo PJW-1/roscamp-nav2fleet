@@ -156,6 +156,7 @@ class PodeOrder:
         m = self._motion
         joined = goal.seg_mode == FOLLOW_PATH and joins(goal.seg, seg)  # 앞 조각에 잇는다
         goal.nav = goal.line = None
+        goal.aborting = False  # 앞 조각의 Nav2 중단 복구는 조각과 함께 끝난다
         goal.seg_mode, goal.seg = seg.mode, seg
         target = (seg.x, seg.y)
         if final:
