@@ -113,8 +113,13 @@ O_OUT을 나온 뒤 뚝뚝 끊기는 것의 개선은 main이 아닌 별도 브�
 | smlook | `min_lookahead_dist` 0.10 -> 0.15 | 250.4 s | 4.0 | 2.30 s | 0.133 m/s | 80 | 0.224 m |
 | smrot | `rotate_to_heading_min_angle` 0.25 -> 0.45 | 250.0 s | 2.8 | 1.59 s | 0.126 m/s | 131 | 0.226 m |
 
+- 이어서 잰 것: Theta*는 둘째 판(277.4 s)에서 칸을 나온 로봇이 진열대 아래에서 막혀 우회했고, Theta* 판마다 자가
+  복구가 3번씩 났다(NavFn 판은 0번). 가중치를 올린 판은 더 나빴다. 그래서 고른 것은 **NavFn은 그대로 두고
+  `min_lookahead_dist` 0.15와 `rotate_to_heading_min_angle` 0.45를 함께** 주는 것이다: 두 판 251.3 s, 255.2 s,
+  전환당 선 횟수 2.0번. 부작용으로 주차 칸에 들어갈 때 4초쯤 섰다 가는 일이 판마다 한 번 있었다.
 - **적용은 main에 없다.** 사용자 지시대로 별도 브랜치 `feat/nav-goal-smooth`에 두었고, 그 브랜치의
-  `docs/worklog_nav_goal_smooth_2026-11-17.md`에 조합 판과 선택한 값을 적었다.
+  `docs/worklog_nav_goal_smooth_2026-11-17.md`에 모든 판과 선택한 값을 적었다. Theta*로 바꾼 것은 비교용 브랜치
+  `feat/nav-goal-theta-star`에 따로 있다.
 
 ## 7. 검증
 
@@ -141,8 +146,8 @@ O_OUT을 나온 뒤 뚝뚝 끊기는 것의 개선은 main이 아닌 별도 브�
 - 실물 시험 순서와 잴 값은 `docs/주행_계획서.md` 9절 그대로다. 실물 설정에서는 고정 경로 충돌 검사를 켜고,
   처음에는 `use_order_model:=false`로 시작한다. 오늘 바뀐 것 가운데 실물에서 먼저 볼 것은 O_X -> O_OUT 끝에서
   서지 않고 바로 Nav2 goal로 넘어가는지다.
-- `feat/nav-goal-smooth`를 main에 넣을지는 사용자가 정한다. Theta*는 로봇에 `nav2_theta_star_planner` 패키지가
-  있어야 한다(`ros2 pkg prefix nav2_theta_star_planner`로 확인).
+- `feat/nav-goal-smooth`(설정 값 둘과 시험만 바뀜)를 main에 넣을지는 사용자가 정한다. 넣기 전에 볼 것은 주차 칸에
+  들어갈 때 서는 부작용이다(그 브랜치의 기록 4절).
 
 ## 9. 이 컴퓨터의 작업 폴더 (다른 컴퓨터에는 없다)
 
