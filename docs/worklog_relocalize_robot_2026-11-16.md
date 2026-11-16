@@ -203,3 +203,13 @@ ros2 action send_goal /pode1/relocalize fleet_interfaces/action/Relocalize \
 - 빌드 스크립트의 `--packages-select fleet_core`가 fleet_core는 빌드하지 않고 pode/sim 패키지 9개를 빌드했다. 시험은 `pc/fleet_core`를 PYTHONPATH에 넣어 돌렸다. 원인은 보지 않았다.
 - 작업 중 내 scratchpad의 `build.sh`를 다른 세션이 덮어썼다(다른 install 폴더 `/tmp/claude-1000/fakeabort_ws`를 쓰는 내용). 되돌리지 않았고, 그 뒤로는 빌드할 일이 없었다.
 - 계약에서 모자란 것: 없다. 이동 goal을 거절하면 MoveTo에는 사유가 없어 관제는 이유를 모른다(계약이 거절을 정했으므로 그대로 따랐다).
+
+## 보관 시점 Codex 지적 (2026-11-16, 검증 전)
+
+브랜치 전체(feat/relocalize..)와 마지막 WIP 커밋을 리뷰한 결과다. 다시 집을 때 하나씩 확인하고, 확인된 것은 시험을 먼저 써서 고친다. 전문은 `~/codex-review.md`의 "relocalize robot whole branch (parked)", "relocalize robot parked commits" 항목에 있다.
+
+- 높음: 취소나 시간 초과 때 회전이 멈춘 것을 확인하지 않고 결과를 돌려주고, 그 뒤 이동을 허용할 수 있다(`relocalize_ros.py:325` 근처).
+- 높음: Spin 결과를 잃으면 정지 확인 전에 GLOBAL 단계와 판정으로 넘어간다(`action_client.py:119` 근처).
+- 높음: 회전 중에 만들어졌지만 콜백이 늦은 추정이 회전 뒤 판정에 섞일 수 있다(`relocalize_ros.py:270` 근처). 마지막 WIP 커밋(cff6128)은 한 경로만 막고, 반대로 정지 뒤의 유효한 추정을 버릴 수 있다.
+- 중간: 이동 goal 예약이 goal ID 없이 시각만 저장해 BUSY 보장이 경합으로 깨질 수 있다.
+- 중간: `recovery_alpha_fast/slow` 변경이 정상 주행의 AMCL에도 적용된다.
