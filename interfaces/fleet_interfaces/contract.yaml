@@ -35,6 +35,7 @@ actions:
   - {key: navigate_to_pose, name: "/{pode}/navigate_to_pose", type: nav2_msgs/action/NavigateToPose, real_only: true}
   - {key: follow_path, name: "/{pode}/follow_path", type: nav2_msgs/action/FollowPath, real_only: true}
   - {key: retreat, name: "/{pode}/retreat", type: fleet_interfaces/action/Retreat}
+  - {key: relocalize, name: "/{pode}/relocalize", type: fleet_interfaces/action/Relocalize}
 
 # ---- 서비스 ----
 services:
