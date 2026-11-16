@@ -27,7 +27,7 @@
 
 | 상황 | 관제가 하는 일 | 사건 코드 |
 |---|---|---|
-| 이동을 시작합니다 | 다음 안전 지점까지의 구역을 한꺼번에 잡고, 거기까지를 base로, 나머지를 horizon으로 보냅니다. 대기 자리가 없어 주차 자리로 가는 길(standby)은 잡은 구역 가운데 첫 고정 경로까지만 base로 주고, 그 끝 `lookahead_s` 전에 나머지를 update로 붙이거나 비게 된 대기 자리로 가는 update로 바꿉니다([관제_구역교통](관제_구역교통.md) 5번) | `ORDER_SENT` |
+| 이동을 시작합니다 | 다음 안전 지점까지의 구역을 한꺼번에 잡고, 거기까지를 base로, 나머지를 horizon으로 보냅니다. 대기 자리가 없어 주차 자리로 가는 길(standby)은 잡은 구역 가운데 첫 고정 경로까지만 base로 주고, 그 끝 `standby_lookahead_s` 전에 나머지를 update로 붙이거나 비게 된 대기 자리로 가는 update로 바꿉니다([관제_구역교통](관제_구역교통.md) 5번) | `ORDER_SENT` |
 | base 끝이 `lookahead_s` 안으로 다가옵니다 | 그다음 안전 지점까지의 구역을 한꺼번에 잡을 수 있으면 update로 base를 늘립니다. 새로 허락한 조각만 보냅니다 | `ORDER_UPDATED` |
 | 구역을 못 잡았습니다 | 아무것도 보내지 않습니다. 로봇은 base 끝에서 서서 기다리고, 구역이 비면 그때 update를 보냅니다 | `BASE_END_WAIT`, `ZONE_WAIT` |
 | 가려는 도크가 차 있습니다 | 기다리는 자리(O_Q, W_Q)까지를 base로, 도크로 들어가는 조각을 horizon으로 보냅니다. 차례가 오고 도크가 비면 update를 보냅니다 | `DOCK_QUEUED` |
@@ -64,6 +64,7 @@ rviz(`pode_nav_config/rviz/pode_nav.rviz`)에서는 `/<로봇>/order_markers`로
 | 값 | 얼마 | 까닭 |
 |---|---|---|
 | `lookahead_s` | 2.0 s | 추가 지시서의 값입니다. 0.12 m/s에서 0.24 m 앞입니다 |
+| `standby_lookahead_s` | 0.5 s | 주차하러 가는 길의 첫 고정 경로 끝에 주차 조각을 붙이는 때입니다. 재지 않은 추정값입니다(update 왕복을 0.2~0.3 s로 봤습니다). Gazebo에서 잰 뒤 고칩니다 |
 | update 답 기다림 | 2.0 s | 넘으면 두 goal을 모두 끝냅니다. 코드 상수 `UPDATE_ANSWER_S`입니다 |
 | horizon 바꾸기 간격 | 5.0 s | 길이 자주 바뀔 때 update가 쏟아지지 않게 합니다. 코드 상수 `HORIZON_HOLD_S`입니다 |
 | 통신 끊김 여유(`comm_base_hold_extra_s`) | 3.0 s | 추가 지시서의 값입니다 |

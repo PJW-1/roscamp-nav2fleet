@@ -115,7 +115,8 @@ class MoveOrders:
         p = self.params
         end = m.goal.links
         if end < trip.granted:
-            if mo.waiting or left_s(p, trip.links[trip.done:end], m.x, m.y) <= p.lookahead_s:
+            left = left_s(p, trip.links[trip.done:end], m.x, m.y)
+            if mo.waiting or left <= p.standby_lookahead_s:
                 self._send_update(m, (m.goal.id, end), self._fresh_base(m, trip))
                 self._event("INFO", "ORDER_UPDATED",
                             f"{mo.id} update {mo.update}: base to {m.goal.end}", m.name)

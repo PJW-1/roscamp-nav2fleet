@@ -87,6 +87,9 @@ class Drive:
         if (trip is None or not trip.standby or trip.finished
                 or m.phase not in (TO_WORK, TO_OUTBOUND)):
             return False
+        mo = m.move_order
+        if goal is not None and mo is not None and mo.before is not None:
+            return False
         after = self._held_end(m) if self.params.use_order_model else 0
         if goal is not None and not after and not (goal.kind == MOVE
                                                    and self._via(m) == NAV_GOAL):
