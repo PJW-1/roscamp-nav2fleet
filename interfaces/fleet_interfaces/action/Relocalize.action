@@ -1,0 +1,33 @@
+# ---- 관제가 시키는 위치 다시 찾기 액션 ----
+# 로봇은 선 채로 AMCL을 다시 맞춘다: 무이동 갱신, 제자리 회전, 허락하면 전역 재초기화.
+# 성공은 공분산이 작고 스캔이 지도와 맞을 때만이다. 공분산만으로는 성공이 아니다.
+
+# ---- goal: 쓸 단계와 시간 ----
+bool allow_spin true
+bool allow_global false
+float32 timeout_s 30.0
+---
+# ---- result: reason에 넣는 값 ----
+string REASON_NOT_CONVERGED="NOT_CONVERGED"
+string REASON_SCAN_MISMATCH="SCAN_MISMATCH"
+string REASON_SPIN_BLOCKED="SPIN_BLOCKED"
+string REASON_BUSY="BUSY"
+string REASON_NO_LOCALIZER="NO_LOCALIZER"
+string REASON_TIMEOUT="TIMEOUT"
+string REASON_CANCELED="CANCELED"
+
+# ---- result: 결과와 마지막 추정 ----
+bool success
+string reason
+geometry_msgs/Pose2D pose
+float32 std_xy_m
+float32 std_yaw_rad
+float32 scan_match
+---
+# ---- feedback: 지금 단계와 추정 상태 ----
+string STAGE_NOMOTION="NOMOTION"
+string STAGE_SPIN="SPIN"
+string STAGE_GLOBAL="GLOBAL"
+string stage
+float32 std_xy_m
+float32 scan_match
