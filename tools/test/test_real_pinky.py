@@ -221,29 +221,67 @@ def test_start_refuses_while_another_start_holds_the_lock(tmp_path):
     assert run.returncode == 1 and "ENV_REACHED" in run.stdout
 
 
-def test_start_stops_a_launch_whose_pid_file_never_appears(tmp_path):
-    # 대역 setsid는 pid 파일을 쓰지 않고 잠만 잔다(ros2까지 가지 않는다)
+# 대역 setsid들: launch.pid를 쓰지 않고 잠만 잔다(ros2까지 가지 않는다)
+SLEEPER = '#!/bin/bash\necho $$ > "{d}/fake.pid"\nexec sleep 30\n'
+# 진짜 setsid로 새 그룹을 만들고 그룹에 프로세스 둘을 둔다
+GROUP = ('#!/bin/bash\nexec /usr/bin/setsid bash -c \'echo $$ > "{d}/fake.pid"; '
+         'sleep 30 & echo $! > "{d}/fake2.pid"; exec sleep 30\'\n')
+# 새 그룹에서 TERM을 무시한다
+DEAF = ('#!/bin/bash\nexec /usr/bin/setsid bash -c \'trap "" TERM; echo $$ > "{d}/fake.pid"; '
+        'exec sleep 30\'\n')
+
+
+def _start_with_fake_setsid(tmp_path, script):
     start = _stub_kit(tmp_path)
     (tmp_path / "env.sh").write_text("return 0\n")
     fake = tmp_path / "bin"
     fake.mkdir()
-    (fake / "setsid").write_text(f'#!/bin/bash\necho $$ > "{tmp_path}/fake.pid"\nexec sleep 30\n')
+    (fake / "setsid").write_text(script.format(d=tmp_path))
     (fake / "setsid").chmod(0o755)
     env = dict(os.environ, PATH=f"{fake}:{os.environ['PATH']}")
-    run = subprocess.run(["bash", str(start), "pinky1", "0.12", "0.10", "1.5708"],
-                         capture_output=True, text=True, env=env, timeout=30)
-    pid = int((tmp_path / "fake.pid").read_text())
+    return subprocess.run(["bash", str(start), "pinky1", "0.12", "0.10", "1.5708"],
+                          capture_output=True, text=True, env=env, timeout=30)
+
+
+def _fake_pids(tmp_path):
+    return [int(f.read_text()) for f in (tmp_path / "fake.pid", tmp_path / "fake2.pid")
+            if f.exists() and f.read_text().strip()]
+
+
+def _gone(pids, wait_s=2.0):
+    end = time.monotonic() + wait_s
+    while time.monotonic() < end and any(_alive(p) for p in pids):
+        time.sleep(0.1)
+    return not any(_alive(p) for p in pids)
+
+
+@pytest.mark.parametrize("script", [SLEEPER, GROUP], ids=["child_only", "own_group"])
+def test_start_stops_a_launch_whose_pid_file_never_appears(tmp_path, script):
     try:
+        run = _start_with_fake_setsid(tmp_path, script)
+        pids = _fake_pids(tmp_path)
+        assert pids
+        if script is GROUP:
+            assert len(pids) == 2
         assert run.returncode == 1
-        assert "did not start" in run.stdout
-        for _ in range(20):
-            if not _alive(pid):
-                break
-            time.sleep(0.1)
-        assert not _alive(pid)  # 뜨지 못한 launch를 남기지 않는다
+        assert "stopped it" in run.stdout, run.stdout
+        assert _gone(pids, 0.5)  # start.sh가 끝날 때 이미 없다
     finally:
-        if _alive(pid):
-            os.kill(pid, 9)
+        for pid in _fake_pids(tmp_path):
+            if _alive(pid):
+                os.kill(pid, 9)
+
+
+def test_start_says_so_when_the_launch_ignores_term(tmp_path):
+    try:
+        run = _start_with_fake_setsid(tmp_path, DEAF)
+        assert run.returncode == 1
+        assert "still running" in run.stdout and "stopped it" not in run.stdout, run.stdout
+        assert all(_alive(p) for p in _fake_pids(tmp_path))  # KILL로 올리지 않는다
+    finally:
+        for pid in _fake_pids(tmp_path):
+            if _alive(pid):
+                os.kill(pid, 9)
 
 
 def _own_group(tmp_path, *argv):

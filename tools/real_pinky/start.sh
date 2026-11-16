@@ -25,6 +25,14 @@ for _ in $(seq 50); do [ -s logs/launch.pid ] && break; sleep 0.1; done
 if [ ! -s logs/launch.pid ]; then
   # 늦게 뜨는 launch가 다음 start와 겹치지 않게 잠금을 풀기 전에 내린다
   kill -TERM -- "-$child" 2> /dev/null || kill -TERM "$child" 2> /dev/null
+  # 약 2 s 동안 사라지기를 기다린다(KILL로 올리지 않는다). 좀비는 죽은 것으로 본다
+  alive() { ps -A -o pgid=,pid=,stat= | awk -v g="$child" \
+    '($1 == g || $2 == g) && $3 !~ /^Z/ { f = 1 } END { exit !f }'; }
+  for _ in $(seq 20); do alive || break; sleep 0.1; done
+  if alive; then
+    echo "launch did not start and is still running after TERM (group/pid $child);" \
+      "stop it by hand; see $PWD/$log"; exit 1
+  fi
   echo "launch did not start, stopped it; see $PWD/$log"; exit 1
 fi
 echo "started (speed $speed m/s, group $(cat logs/launch.pid)), log $PWD/$log"
