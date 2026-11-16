@@ -14,7 +14,6 @@ import math
 from .world.geom import ahead, path_gap
 from .world.runs import FOLLOW_BLOCKED_S, GAP_M, LOOK_M
 
-
 SEEN_FOR_S = 0.3
 LIFTED_MPS = 1.0
 YIELD_M = 0.26
