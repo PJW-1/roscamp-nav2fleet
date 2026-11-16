@@ -201,3 +201,13 @@ blocked_lane: pode1은 30.0 s에 첫 구간에서 막혔다. BLOCKED_WAIT은 32.
   - 고침 후보: `_start_segment`에서 `goal.aborting = False`. 시험과 전체 재실행이 한 번 더 필요해서 하지 않았다.
 - Codex(45ad3aa 리뷰): 조각 시작마다 선 시각이 지워진다. 물체 앞에서 아주 짧은 조각이 이어지면 BLOCKED가 늦어진다.
   order 끔(조각마다 goal)과 같은 동작이고, 물체 앞에 서 있으면 조각이 끝나지 않으므로 그대로 두었다.
+
+## 후속: 중단 복구가 조각 경계를 넘는 결함 고침 (fix/fake-pode-aborting)
+
+- `_start_segment`에서 `goal.aborting = False`로 지운다(`pode_order.py`). 한 줄.
+- 시험: `test_ros_pode_order.py`의 `test_an_abort_recovery_in_progress_as_a_segment_ends_does_not_abort_the_next_path`.
+  고치기 전에는 `goal.abort_at`이 0.2로 다시 잡혀 실패했고, 고친 뒤 통과한다.
+- ROS 시나리오로는 이 상태를 만들지 못했다. 중단한 자리(`_abort_s`)를 넘지 못해서 복구 중에는 조각이 끝나지 않는다.
+  nav_abort 고장을 두고 조각 길이를 0.02~0.2 m로 바꿔 돌려 봤고, 고치기 전과 후 결과가 같았다.
+  그래서 stub 노드에서 `_start_segment`와 `_move_step`을 직접 불렀다.
+- 그래서 이 결함이 실제 시나리오에서 나는지는 보이지 못했다. 안전한 방어 고침이다.

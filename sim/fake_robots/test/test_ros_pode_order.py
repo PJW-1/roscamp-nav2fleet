@@ -294,3 +294,41 @@ def test_after_waiting_at_the_base_end_the_next_path_is_checked_again(harness, t
     res = result_of(second).result
     assert (res.success, res.reason, res.last_done_seq_id) == (
         False, MoveTo.Result.REASON_PATH_NOT_CONNECTED, 1)
+
+
+
+def test_an_abort_recovery_in_progress_as_a_segment_ends_does_not_abort_the_next_path():
+    """Nav2 중단 복구 중에 조각이 끝나면 goal.aborting이 남아, 고장이 없는데도 다음 path 조각에서
+    중단이 다시 예약된다. 조각 시작에서 지워야 한다. 상태를 ROS 틱으로 맞추기 어려워
+    노드 메서드를 stub 위에서 직접 부른다."""
+    from types import SimpleNamespace
+
+    from fake_robots.fake_pode_node import FakePodeNode
+    from fake_robots.pode_goal import _Goal
+    from fake_robots.pode_goals import PodeGoals
+    from fake_robots.pode_order import FOLLOW_PATH, PodeOrder, Seg
+
+    class Node(PodeOrder, PodeGoals):
+        _move_step = FakePodeNode._move_step
+        _others_discs = lambda self: []  # noqa: E731
+        _nothing_ahead = lambda self, *a: True  # noqa: E731
+
+    motion = SimpleNamespace(
+        x=0.0, y=0.0, moving=True, set_target=lambda *a, **k: None, remaining=lambda: 0.3)
+    node = Node()
+    node._motion = motion
+    node._cfg = SimpleNamespace(speed_mps=1.0)
+    node._rng = None
+    node._faults = SimpleNamespace(
+        take_nav_abort=lambda *a: False, obstacle=lambda t: False, behind=lambda t: None)
+    node._recovery = SimpleNamespace(
+        p=SimpleNamespace(robot_radius_m=0.1), restart=lambda: None, watch=lambda *a: None,
+        backing_up=False, drive=lambda *a, **k: None, succeeded=lambda: None)
+    first = Seg(1, FOLLOW_PATH, "a", ((0.0, 0.0), (0.3, 0.0)), 0.3, 0.0, "FollowPath")
+    nxt = Seg(2, FOLLOW_PATH, "b", ((0.3, 0.0), (0.6, 0.0)), 0.6, 0.0, "FollowPath")
+    goal = _Goal("move", None)
+    goal.seg_mode, goal.seg = FOLLOW_PATH, first
+    goal.aborting = True  # 첫 조각이 중단 복구 중에 끝났다
+    assert node._start_segment(0.0, goal, nxt, False) == ""
+    node._move_step(0.0, 0.05, goal)
+    assert goal.abort_at is None and not goal.aborting
