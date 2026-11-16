@@ -42,9 +42,14 @@ class YardRetreat:
     def _behind_on_the_bent_way(self, m, target: str, via: str) -> str:
         site = self.site
         here, corner, end = (m.x, m.y), site.node_pose(via), site.node_pose(target)
-        way = (corner[0] - here[0], corner[1] - here[1])
         down = site.link(via, target)
         way_pts = (here, corner, *(down.points[1:-1] if down is not None else ()), end)
+        return self._behind_along(m, way_pts)
+
+    # ---- 물러나는 길 뒤에 있는 로봇 찾기 ----
+    def _behind_along(self, m, way_pts) -> str:
+        here, ahead = way_pts[0], way_pts[1]
+        way = (ahead[0] - here[0], ahead[1] - here[1])
         for other in self._robots.values():
             if other is m or not other.placed:
                 continue
