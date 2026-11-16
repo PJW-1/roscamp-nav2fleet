@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 import math
+import os
 
 from fleet_core.common.commands import (
     CancelCmd,
@@ -20,12 +21,44 @@ from fleet_core.common.commands import (
 )
 from fleet_core.common.params import load_params
 from fleet_core.fleet_map import load_fleet_map
+from fleet_core.manager import FleetManager
 from fleet_core.traffic.zone.controller import ZoneTraffic
 from zone_order_run import OrderRun
 
 DT = 0.1
 DOCK_S = 2.0
 STARTS = {"pode1": "P-1", "pode2": "P-2", "pode3": "P-3"}
+# 틱 순서: "zone"은 ZoneTraffic.tick, "manager"는 운영의 FleetManager.tick(주문 층과 팔 포함)
+TICK_ORDERS = ("zone", "manager")
+TICK_ORDER = os.environ.get("ZONE_TICK_ORDER", "manager")
+
+
+class TappedManager(FleetManager):
+    """운영 FleetManager 그대로. 코어 사이로 오간 항목을 tap에 남기기만 한다."""
+
+    def __init__(self, *args):
+        self.tap: list = []
+        self.seen: list = []  # (단계, 틱 번호, 항목). 단계는 "tick" 또는 "input"
+        self.ticks = 0
+        self._in_tick = False
+        super().__init__(*args)
+
+    def tick(self) -> list:
+        self.ticks += 1
+        self._in_tick = True
+        try:
+            return super().tick()
+        finally:
+            self._in_tick = False
+
+    # 하네스는 입력을 교통에 바로 넣으므로 매 입력의 _input 대신 시계를 그때그때 읽는다
+    def _frozen(self) -> float:
+        return self._clock()
+
+    def _route(self, item) -> None:
+        self.tap.append(item)
+        self.seen.append(("tick" if self._in_tick else "input", self.ticks, item))
+        super()._route(item)
 
 
 class Bot:
@@ -40,12 +73,27 @@ class Bot:
 
 
 class Harness:
-    def __init__(self, layout="d2", starts=None, params=None, speed=0.12, site=None):
+    def __init__(self, layout="d2", starts=None, params=None, speed=0.12, site=None,
+                 tick_order=None, manager_inputs=False):
         self.site = site or load_fleet_map(layout)  # site: 시험에서 고친 지도
         self.params = params or load_params()
         self.now = 0.0
         starts = dict(STARTS if starts is None else starts)
-        self.traffic = ZoneTraffic(self.site, self.params, list(starts), lambda: self.now)
+        self.tick_order = tick_order or TICK_ORDER
+        if self.tick_order not in TICK_ORDERS:
+            raise ValueError(f"tick_order must be one of {TICK_ORDERS}, not {self.tick_order!r}")
+        self.manager = None
+        if self.tick_order == "manager":
+            self.manager = TappedManager(self.site, self.params, list(starts), lambda: self.now)
+            self.traffic = self.manager.traffic
+        else:
+            self.traffic = ZoneTraffic(self.site, self.params, list(starts), lambda: self.now)
+        if manager_inputs and self.manager is None:
+            raise ValueError("manager_inputs needs tick_order 'manager'")
+        # 로봇의 보고와 답을 받는 곳. 기본은 교통에 바로, manager_inputs면 운영 입력 함수(+_pump)
+        # manager_inputs는 로봇 보고와 답에만 해당한다. call()은 늘 교통에 바로 넣고,
+        # 주문판은 시험이 self.manager.on_order_board로 따로 넣는다
+        self.inputs = self.manager if manager_inputs else self.traffic
         self.bots = {name: Bot(name, *self.site.node_pose(node)) for name, node in starts.items()}
         self.speed = speed
         self.events: list[EventOut] = []
@@ -64,6 +112,7 @@ class Harness:
     # ---- 시험이 부르는 것 ----
 
     def call(self, station="WORK", robot="") -> int:
+        # 주문 층을 거치지 않는 호출. manager_inputs와 상관없이 교통에 바로 넣는다
         goal_id = next(self._ids)
         self.traffic.on_dispatch(goal_id, station, robot)
         return goal_id
@@ -72,7 +121,7 @@ class Harness:
         """로봇들이 상태를 한 번 보고한다. 관제는 돌지 않는다."""
         for bot in self.bots.values():
             if bot.name not in self.silent:
-                self.traffic.on_robot_state(bot.name, bot.x, bot.y, bot.yaw, self._state(bot))
+                self.inputs.on_robot_state(bot.name, bot.x, bot.y, bot.yaw, self._state(bot))
 
     def step(self) -> None:
         self.now = round(self.now + DT, 6)
@@ -81,14 +130,23 @@ class Harness:
             self._late = []
         for name, method, args in late:
             if name not in self.silent:
-                getattr(self.traffic, method)(name, *args)
+                getattr(self.inputs, method)(name, *args)
         for bot in self.bots.values():
             if bot.name not in self.silent or bot.run is not None:
                 self._move(bot)  # order를 받은 로봇은 말이 끊겨도 base 끝까지 간다
         self.report()
-        for item in self.traffic.tick():
+        for item in self._tick():
             self._apply(item)
         self._check()
+
+    def _tick(self) -> list:
+        if self.manager is None:
+            return self.traffic.tick()
+        out = self.manager.tick()
+        tapped, self.manager.tap = self.manager.tap, []
+        seen = {id(item) for item in tapped}
+        # 코어 사이 항목(DispatchResult 등)까지 오간 차례대로 본다
+        return tapped + [item for item in out if id(item) not in seen]
 
     def run(self, seconds: float) -> None:
         for _ in range(round(seconds / DT)):
@@ -162,8 +220,8 @@ class Harness:
             cmd, until = bot.dock
             if self.now >= until:
                 bot.dock = None
-                self.traffic.on_dock_result(bot.name, cmd.goal_id, bot.name not in self.dock_fails,
-                                            0.4, 0.3, 0.5)
+                self.inputs.on_dock_result(bot.name, cmd.goal_id, bot.name not in self.dock_fails,
+                                           0.4, 0.3, 0.5)
             return
         bot.stuck = False
         if bot.run is not None:
@@ -176,10 +234,10 @@ class Harness:
         if not bot.points and not bot.stuck:
             cmd, bot.cmd = bot.cmd, None
             if isinstance(cmd, RetreatCmd):
-                self.traffic.on_retreat_result(bot.name, cmd.goal_id, True, "")
+                self.inputs.on_retreat_result(bot.name, cmd.goal_id, True, "")
             else:
                 bot.yaw = cmd.yaw
-                self.traffic.on_move_result(bot.name, cmd.goal_id, True, "")
+                self.inputs.on_move_result(bot.name, cmd.goal_id, True, "")
 
     @staticmethod
     def _detail(item) -> str:
