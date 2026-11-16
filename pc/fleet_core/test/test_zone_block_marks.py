@@ -266,3 +266,49 @@ def test_detour_kinds():
     assert detour_kind(site, "P-2", {"HALL_W"}, Trip("P-2", inside)) == "in_zone"
     express = [site.link("N_W", "X_W"), site.link("X_W", "X_E"), site.link("X_E", "N_E")]
     assert detour_kind(site, "N_E", old, Trip("N_E", express)) == "keepout"
+
+
+# ---- 읽기 전용 관측 API(시뮬용) ----
+
+def _marked_world():
+    world, _ = from_work_to_outbound()
+    world.obstacles.append((1.0, 0.89, 0.15))
+    assert world.run_until(lambda: world.traffic._marks, 120.0)
+    return world
+
+
+def _old_live(world, keys, point, radius, now):
+    """예전 block_watch의 사설 접근 판정."""
+    traffic = world.traffic
+    return (any(traffic._blocked.get(key, 0.0) > now for key in keys)
+            or any(math.dist((mk.x, mk.y), point) <= radius for mk in traffic._marks.values()))
+
+
+def test_live_block_gives_the_same_answer_as_the_old_private_reads():
+    world = _marked_world()
+    traffic, now = world.traffic, world.now
+    key = next(iter(traffic._blocked))
+    mark = next(iter(traffic._marks.values()))
+    cases = [
+        ((), (mark.x, mark.y), 0.1),          # 표시 위치 안
+        ((), (mark.x + 5, mark.y), 0.1),      # 표시에서 멀다
+        ((key,), (99.0, 99.0), 0.1),          # 막힌 연결 키
+        (("no", "such"), (99.0, 99.0), 0.1),  # 모르는 키
+        ((key,), (99.0, 99.0), 0.1, traffic._blocked[key] + 1),  # 만료 뒤
+    ]
+    assert any(_old_live(world, c[0], c[1], c[2], now) for c in cases)
+    assert not all(_old_live(world, c[0], c[1], c[2], now) for c in cases)
+    for keys, point, radius, *later in cases:
+        t = later[0] if later else now
+        assert traffic.live_block(keys, point, radius, t) == (
+            any(traffic._blocked.get(k, 0.0) > t for k in keys)
+            or any(math.dist((mk.x, mk.y), point) <= radius for mk in traffic._marks.values()))
+
+
+def test_live_block_changes_nothing_and_hands_out_no_internal_object():
+    world = _marked_world()
+    traffic = world.traffic
+    before = dict(traffic._blocked), dict(traffic._marks)
+    out = traffic.live_block(tuple(traffic._blocked), (0.0, 0.0), 1.0, world.now)
+    assert out is True or out is False
+    assert (dict(traffic._blocked), dict(traffic._marks)) == before

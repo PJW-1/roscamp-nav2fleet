@@ -1,6 +1,8 @@
 # ---- 관제 상태 조회 믹스인 ----
 from __future__ import annotations
 
+import math
+
 from fleet_core.common.commands import ZoneView
 from fleet_core.traffic.mission import _COMM_REASON, NO_FAULT, OUT_OF_SERVICE, RUN
 
@@ -32,6 +34,12 @@ class Views:
     def take_output(self) -> list:
         out, self._out = self._out, []
         return out
+
+    # ---- 막힘 표시 관측(읽기 전용 질의, bool만 돌려준다) ----
+    def live_block(self, keys, point, radius: float, now: float) -> bool:
+        if any(self._blocked.get(key, 0.0) > now for key in keys):
+            return True
+        return any(math.dist((mk.x, mk.y), point) <= radius for mk in self._marks.values())
 
     # ---- 구역별 주인과 대기 줄 보기 ----
     def zones_view(self) -> list[ZoneView]:

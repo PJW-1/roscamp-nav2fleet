@@ -5,6 +5,11 @@ from typing import Protocol, runtime_checkable
 
 from fleet_core.common.commands import ZoneView
 
+# 시뮬이 쓰는 순수 함수(keys_at, segment_end)와 상수의 공개 자리. 상태가 아니라 계산이다.
+from .zone.block_marks import keys_at  # noqa: F401
+from .zone.detours import CORRIDOR, DESTINATION, IN_ZONE, KEEPOUT  # noqa: F401
+from .zone.trips import segment_end  # noqa: F401
+
 
 # ---- TrafficApi 프로토콜과 거부 사유 ----
 @runtime_checkable
@@ -87,6 +92,10 @@ class TrafficApi(Protocol):
 
     def available(self, robot) -> bool:
         """로봇이 지도에 올라 있고 고장도 통신 문제(두절, 복구 확인 중)도 없는지."""
+
+    # ---- 막힘 표시 관측(읽기 전용 복사본) ----
+    def live_block(self, keys, point, radius: float, now: float) -> bool:
+        """keys 연결이 now에 아직 막혔거나 point에서 radius 안에 막힘 표시가 살아 있는지."""
 
     # ---- 틱 진행 ----
     def tick(self) -> list:
