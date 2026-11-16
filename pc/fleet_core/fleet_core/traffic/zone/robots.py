@@ -39,6 +39,20 @@ class MoveOrder:
     overrun: bool = False
 
 
+# ---- 위치 다시 찾기 기록 ----
+@dataclass
+class Reloc:
+    why: str  # 시킨 까닭: NOT_AT_TARGET 또는 DOCK_FAILED
+    late: bool  # 재시도를 다 쓴 뒤(격리 직전)인가
+    before: tuple  # 실패 전 (attempts, dock_tries). 성공하면 되돌린다
+    attempt: int = 0
+    goal_id: int = 0  # 0이면 아직 보내지 않았다
+    sent_at: float = 0.0
+    since: float = 0.0  # 이 시도를 처음 보낸 때(BUSY로 다시 보내도 그대로)
+    busy: bool = False  # 지난 답이 BUSY: 시도 수를 늘리지 않고 다시 보낸다
+    xy: tuple = (0.0, 0.0)  # 보낼 때 보고 위치
+
+
 # ---- 배차 기록 ----
 @dataclass
 class Dispatch:
@@ -68,6 +82,8 @@ class Robot:
     pose_doubt: bool = False
     doubt: str = ""  # 위치 의심 까닭(suspect_hold). 있으면 구역을 놓지 않는다
     doubt_by: tuple | None = None  # (goal id, 확인 기한)
+    reloc: Reloc | None = None  # 위치 다시 찾는 중. 있으면 구역을 쥐고 아무것도 보내지 않는다
+    relocs: int = 0  # 이 목적지로 가며 다시 찾기를 시작한 수. 도킹 성공이나 새 목적지에서 0
     comm: str = ""
     recover_at: float = 0.0
     # ---- 트립, goal, 재시도 기록 ----

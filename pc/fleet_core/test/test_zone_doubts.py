@@ -13,8 +13,9 @@ from fleet_core.common.params import load_params
 from fleet_core.traffic.mission import NOT_AT_TARGET, RUN, STALLED, STOP
 from zone_harness import Harness
 
-OFF = replace(load_params(), suspect_hold="")
-ON = replace(load_params(), suspect_hold="check")
+# B만 본다: 다시 찾기(relocalize)는 끈다. 켠 경우는 test_zone_relocalize
+OFF = replace(load_params(), suspect_hold="", relocalize=False)
+ON = replace(load_params(), suspect_hold="check", relocalize=False)
 JUMP = (0.0, 0.3)  # 0.1 s에 0.3 m: 로봇이 갈 수 없는 거리
 
 

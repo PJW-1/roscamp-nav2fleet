@@ -12,8 +12,9 @@ COMM_LOSS_POLICIES = ("stop", "base_end")
 # 위치 의심 때 구역 붙잡기: 끔(""), base 끝 위치 확인까지 붙잡기(check)
 SUSPECT_HOLDS = ("", "check")
 # 파일에 없어도 되는 키. zone_clear_m은 0이면 footprint_radius_m + release_margin_m로 놓는다.
-# suspect_hold는 이 키가 없던 파일을 끈 채로 읽는다
-OPTIONAL = frozenset({"zone_clear_m", "suspect_hold"})
+# suspect_hold와 relocalize 셋은 이 키가 없던 파일을 끈 채로 읽는다
+OPTIONAL = frozenset({"zone_clear_m", "suspect_hold", "relocalize", "relocalize_timeout_s",
+                      "relocalize_attempts"})
 # 0이 '끔'(zone_clear_m은 '식을 씀')인 키. 다른 시간·거리 키는 0보다 커야 한다
 ZERO_MEANS_OFF = frozenset({"zone_clear_m", "idle_watch_s", "silent_limit_s", "start_limit_s",
                             "battery_low_pct"})
@@ -114,6 +115,9 @@ class FleetParams:
     clear_confirm: int = 2
     blocked_retry_max_s: float = 300.0
     suspect_hold: str = ""  # 기록 호환: 이 키가 없는 옛 기록과 파일은 끈 채로 돈다
+    relocalize: bool = False  # 기록 호환: 키가 없는 옛 기록은 다시 찾지 않고 예전처럼 격리
+    relocalize_timeout_s: float = 30.0
+    relocalize_attempts: int = 2
 
     # ---- 파라미터 값 검사 ----
     def __post_init__(self):
@@ -123,6 +127,9 @@ class FleetParams:
         if self.suspect_hold not in SUSPECT_HOLDS:
             raise ValueError(f"suspect_hold must be one of {SUSPECT_HOLDS}, "
                              f"got {self.suspect_hold!r}")
+        if self.relocalize_attempts < 1:
+            raise ValueError(f"relocalize_attempts must be at least 1, "
+                             f"got {self.relocalize_attempts!r}")
 
 
 # ---- 파라미터 파일 읽기 ----

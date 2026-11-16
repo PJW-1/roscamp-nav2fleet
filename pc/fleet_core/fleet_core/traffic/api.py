@@ -63,6 +63,10 @@ class TrafficApi(Protocol):
                        error_yaw_deg=0.0) -> None:
         """도킹 goal 결과를 받는다."""
 
+    def on_relocalize_result(self, robot, goal_id, success, reason="", pose=None,
+                             start=None) -> None:
+        """위치 다시 찾기 결과를 받는다. pose와 start는 (x, y, yaw), pose_valid가 거짓이면 None."""
+
     # ---- 운영자의 로봇 치우기와 다시 투입 ----
     def confirm_clear(self, robot, zone_ids, note="") -> list[str] | None:
         """지정 구역을 놓고 로봇을 OUT_OF_SERVICE로 만든다. 거절하면 None, 사유는 clear_reason."""

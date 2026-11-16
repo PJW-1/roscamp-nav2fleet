@@ -9,7 +9,7 @@ DOUBT_CLEARED = "DOUBT_CLEARED"
 
 class Doubts:
     def _holding(self, m) -> bool:
-        return bool(m.doubt)
+        return bool(m.doubt) or m.reloc is not None  # 의심 중이거나 위치를 다시 찾는 중
 
     # ---- 의심 걸기: 쥔 구역을 그대로 쥐고 세던 놓기 횟수는 버린다 ----
     def _suspect(self, m, why: str) -> None:
@@ -33,7 +33,9 @@ class Doubts:
         elif now >= m.doubt_by[1]:
             m.doubt_by = None
             self._cancel_goal(m)
-            self._goal_failed(m, NOT_AT_TARGET)
+            # 재시도 전에 위치부터 다시 찾는다(relocalize). 못 하면 예전처럼
+            if not self._relocalize_first(m, NOT_AT_TARGET, (m.attempts, m.dock_tries)):
+                self._goal_failed(m, NOT_AT_TARGET)
 
     # ---- 도킹 성공: 보고 위치가 도크 노드와 맞으면 의심을 푼다 ----
     def _judge_doubt_at_dock(self, m) -> None:

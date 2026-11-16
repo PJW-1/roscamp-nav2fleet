@@ -64,6 +64,7 @@ class Views:
             "route": route, "path": route, "base": route[:granted], "horizon": route[granted:],
             "destination": m.dest, "goal_id": m.goal.id if m.goal else None,
             "attempts": m.attempts, "blocked_lane": None, "x": m.x, "y": m.y,
+            "relocalizing": m.reloc is not None,
         }
 
     # ---- 남은 경로 계산과 상태 보기 ----

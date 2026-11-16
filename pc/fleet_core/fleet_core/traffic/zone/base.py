@@ -121,6 +121,10 @@ class ZoneBase:
             m.fault_xy = (m.x, m.y)
         m.pose_doubt = m.pose_doubt or reason == NOT_AT_TARGET
         self._doubt_to_fault(m)
+        if m.reloc is not None:
+            if m.reloc.goal_id:
+                self._out.append(CancelCmd(m.name, m.reloc.goal_id))
+            m.reloc = None
         m.fault = ERROR
         m.fault_reason = reason
         m.called = False
@@ -135,10 +139,15 @@ class ZoneBase:
             held = list(self.grants.held_by(m.name))
             self._event("ERROR", "ROBOT_ISOLATED", f"{reason}; holds {held}", m.name)
 
-    def _goal_failed(self, m, reason: str) -> None:
+    def _goal_failed(self, m, reason: str, before=None) -> None:
+        before = before or (m.attempts, m.dock_tries)
         m.attempts += 1
         m.retry_at = self._clock() + self.params.move_retry_wait_s
         if m.attempts > self.params.move_retry_limit:
+            # 위치 탓일 수 있는 실패는 격리 전에 위치부터 다시 찾는다
+            if reason in (NOT_AT_TARGET, "DOCK_FAILED") and self._relocalize_first(
+                    m, reason, before, late=True):
+                return
             self._event("ERROR", "GOAL_FAILED", f"{reason} after {m.attempts} attempts", m.name)
             self._fail(m, reason)
         else:

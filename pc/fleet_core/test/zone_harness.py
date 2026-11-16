@@ -18,6 +18,7 @@ from fleet_core.common.commands import (
     EventOut,
     MoveCmd,
     MoveOrderCmd,
+    RelocalizeCmd,
     RetreatCmd,
 )
 from fleet_core.common.params import load_params
@@ -81,6 +82,8 @@ class Bot:
         self.run = None  # 달리는 order(OrderRun)
         self.points: list = []
         self.dock = None  # (DockCmd, 끝나는 시각)
+        self.reloc = None  # (RelocalizeCmd, 끝나는 시각, 시작 추정). 이 동안 LOCALIZING을 보고한다
+        self.reloc_start = None
         self.heading = (0.0, 0.0)  # 마지막으로 움직인 방향
         self.stuck = False  # 장애물 앞에 서 있다
 
@@ -125,6 +128,11 @@ class Harness:
         # 로봇 -> 이 방식의 order 조각 끝에서 말없이 선다. 선 채로 남는다(answer_at으로만 풀린다)
         self.hold_after: dict[str, str] = {}
         self._ids = iter(range(1000, 100000))
+        # 위치 다시 찾기(Relocalize): 걸리는 시간, 실패 까닭, 답하지 않음, 성공 때 몸이 실제로 선 곳
+        self.reloc_s = DOCK_S
+        self.reloc_fails: dict[str, str] = {}
+        self.reloc_silent: set[str] = set()
+        self.reloc_pose: dict[str, tuple[float, float]] = {}
 
     # ---- 시험이 부르는 것 ----
 
@@ -257,6 +265,8 @@ class Harness:
     # ---- 세계 ----
 
     def _state(self, bot: Bot) -> str:
+        if bot.reloc is not None:
+            return "LOCALIZING"
         moving = bot.cmd is not None or bot.run is not None
         if bot.stuck and moving:
             return "BLOCKED"
@@ -287,7 +297,17 @@ class Harness:
             self._take_order(bot, item)
         elif isinstance(item, DockCmd):
             bot.dock = (item, self.now + DOCK_S)
+        elif isinstance(item, RelocalizeCmd):
+            if bot.cmd is not None or bot.run is not None or bot.dock is not None:
+                self._late.append((bot.name, "on_relocalize_result",
+                                   (item.goal_id, False, "BUSY")))
+            else:
+                bot.reloc = (item, self.now + self.reloc_s, self._believed(bot))
         elif isinstance(item, CancelCmd):
+            if bot.reloc is not None and bot.reloc[0].goal_id == item.goal_id:
+                bot.reloc_start, bot.reloc = bot.reloc[2], None
+                self._late.append((bot.name, "on_relocalize_result",
+                                   (item.goal_id, False, "CANCELED", None, bot.reloc_start)))
             if bot.cmd is not None and bot.cmd.goal_id == item.goal_id:
                 bot.cmd, bot.points = None, []
             if bot.run is not None and bot.run.goal_id == item.goal_id:
@@ -296,6 +316,9 @@ class Harness:
                 bot.dock = None
 
     def _move(self, bot: Bot) -> None:
+        if bot.reloc is not None:
+            self._relocalize(bot)
+            return
         if bot.dock is not None:
             cmd, until = bot.dock
             if self.now >= until:
@@ -318,6 +341,24 @@ class Harness:
             else:
                 bot.yaw = cmd.yaw
                 self.inputs.on_move_result(bot.name, cmd.goal_id, True, "")
+
+    def _relocalize(self, bot: Bot) -> None:
+        """정한 시간 뒤 답한다. 성공하면 보고 위치의 치우침이 없어진다(믿는 자리 = 실제 자리)."""
+        cmd, until, start = bot.reloc
+        if self.now < until or bot.name in self.reloc_silent:
+            return
+        bot.reloc = None
+        reason = self.reloc_fails.get(bot.name, "")
+        if not reason:
+            if bot.name in self.reloc_pose:
+                bot.x, bot.y = self.reloc_pose.pop(bot.name)
+            self.bias.pop(bot.name, None)
+        pose = None if reason == "NOT_SENT" else self._believed(bot)
+        self.inputs.on_relocalize_result(bot.name, cmd.goal_id, not reason, reason, pose, start)
+
+    def _believed(self, bot: Bot) -> tuple:
+        dx, dy = self.bias.get(bot.name, (0.0, 0.0))
+        return (bot.x + dx, bot.y + dy, bot.yaw)
 
     @staticmethod
     def _detail(item) -> str:

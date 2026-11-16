@@ -21,11 +21,15 @@ def way_in(site, start: str, dock: str) -> list | None:
 class Redock:
     # ---- 도킹 실패 횟수 기록 ----
     def _dock_failed(self, m, reason: str = "DOCK_FAILED") -> None:
+        before = (m.attempts, m.dock_tries)
         m.dock_tries += 1
         m.attempts = m.dock_tries - 1
         if reason == "DOCK_FAILED":
             m.redock, m.redock_since = True, None
-        self._goal_failed(m, reason)
+            # 다시 도킹하기 전에 위치부터 다시 찾는다(relocalize)
+            if self._relocalize_first(m, reason, before):
+                return
+        self._goal_failed(m, reason, before)
 
     # ---- 물러났다가 도크로 다시 들어오는 트립 만들기 ----
     def _reapproach(self, m) -> bool:

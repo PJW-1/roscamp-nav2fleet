@@ -20,6 +20,7 @@ from .order_answers import OrderAnswers
 from .placement import Placement
 from .progress import Progress
 from .redock import Redock
+from .relocalize import Relocalize
 from .results import Results
 from .silent import Silent
 from .turns import Turns
@@ -31,7 +32,8 @@ from .yard_retreat import YardRetreat
 # ---- ZoneTraffic 클래스와 틱 순서 ----
 class ZoneTraffic(Calls, Goals, Turns, Drive, MoveOrders, OrderAnswers, Results, Redock, Progress,
                   Placement, Blocked, BlockMarks, YardRetreat, Detours, ClearChecks, Health, Watch,
-                  Localization, Backoff, Silent, NoStart, Capacity, Views, Doubts, ZoneBase):
+                  Localization, Backoff, Silent, NoStart, Capacity, Views, Doubts, Relocalize,
+                  ZoneBase):
     def tick(self) -> list:
         now = self._clock()
         everyone_here = self.tick_begin(now)
@@ -64,5 +66,6 @@ class ZoneTraffic(Calls, Goals, Turns, Drive, MoveOrders, OrderAnswers, Results,
                 self._watch_retreat_wait(m, now)
             self._watch_start(m, now)
             self._watch_silent(m, now)
+            self._watch_relocalize(m, now)
         self._watch_near(now)
         return self._watch_deadlock(now)

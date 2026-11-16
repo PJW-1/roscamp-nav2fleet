@@ -90,3 +90,6 @@ check_interval_s: 5.0         # 제안(지시서 9절): 한 표시에 이만큼�
 clear_confirm: 2              # 제안(지시서 9절): clear 답이 이만큼 이어지면 표시를 지운다(BLOCK_CLEARED)
 blocked_retry_max_s: 300.0    # 제안(지시서 9절): 보내 본 로봇이 다시 막히면 다음 지우기까지 시간을 두 배로, 이 값까지
 suspect_hold: check           # 위치 의심(LOCALIZATION_SUSPECT, OUTSIDE_ZONE) 때 구역 붙잡기: ""(끔) 또는 check(쥔 구역을 다 쥐고 base 끝에서 위치 확인)
+relocalize: true              # NOT_AT_TARGET, DOCK_FAILED 실패와 그 격리 전에 선 로봇에게 위치 다시 찾기(Relocalize)를 시킨다. 실패하면 격리
+relocalize_timeout_s: 30.0    # 추정: 한 번 시도의 goal 시간(로봇이 이 안에 끝낸다). 관제는 5 s 더 기다린 뒤 실패로 본다
+relocalize_attempts: 2        # 시도 수. 첫 번째는 회전까지, 두 번째부터 전역 재초기화까지 허락

@@ -63,7 +63,7 @@ class Results:
         if not success:
             self._dock_failed(m)
             return
-        m.attempts = m.dock_tries = 0
+        m.attempts = m.dock_tries = m.relocs = 0
         m.phase = AT_STATION
         m.dock_error_m = math.hypot(error_x_cm, error_y_cm) / 100.0
         self._judge_doubt_at_dock(m)

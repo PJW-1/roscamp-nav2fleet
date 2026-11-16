@@ -192,14 +192,17 @@ def test_stop_cancels_the_goals_and_run_resumes_them():
 
 # ---- 도킹 실패, 위치 튐 ----
 
-def test_docking_that_keeps_failing_ends_in_error():
-    world = Harness()
+@pytest.mark.parametrize("reloc", [False, True], ids=["reloc_off", "reloc_on"])
+def test_docking_that_keeps_failing_ends_in_error(reloc):
+    """다시 찾기를 켜면 첫 실패 뒤와 격리 직전에 한 번씩 다시 찾고(성공해도) 결국 격리한다."""
+    world = Harness(params=replace(load_params(), relocalize=reloc))
     world.dock_fails.add("pode2")
     world.step()
     call = world.call("WORK")
     assert world.run_until(lambda: world.view("pode2")["state"] == "ERROR", 200.0)
     codes = world.codes("pode2")
     assert codes.count("GOAL_RETRY") == world.params.move_retry_limit
+    assert codes.count("RELOCALIZED") == 2 * reloc
     assert codes[-2:] == ["GOAL_FAILED", "ROBOT_ISOLATED"]
     assert world.result_of(call) is None, "the open call stays for another robot"
 

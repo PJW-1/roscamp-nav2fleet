@@ -21,8 +21,8 @@ from .trips import move_command, retreat_command, segment_end
 class Drive:
     def step(self, robot) -> None:
         m = self._robots.get(robot)
-        if m is None or not m.available:
-            return
+        if m is None or not m.available or m.reloc is not None:
+            return  # 위치를 다시 찾는 동안 아무것도 보내지 않는다
         for _ in range(4):
             before = (m.phase, m.dest)
             self._step_phase(m)

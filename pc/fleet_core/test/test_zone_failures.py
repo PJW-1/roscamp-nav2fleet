@@ -4,8 +4,10 @@
 로봇은 움직이지 않는다(speed 0). 결과는 시험이 손으로 넣는다.
 """
 import math
+from dataclasses import replace
 
 import pytest
+import zone_harness
 from fleet_core.common.commands import (
     DispatchResult,
     DockCmd,
@@ -17,6 +19,15 @@ from fleet_core.fleet_map import RETREAT, SHARED
 from fleet_core.traffic.mission import HEARTBEAT_LOST, NOT_AT_TARGET
 from fleet_core.traffic.zone.lane_policy import Want
 from zone_harness import Harness
+
+
+@pytest.fixture(autouse=True)
+def no_relocalize(monkeypatch):
+    """이 파일은 재시도와 다시 도킹 자체를 본다: 다시 찾기(relocalize)는 끈다.
+    켠 경우는 test_zone_relocalize."""
+    shipped = zone_harness.load_params
+    monkeypatch.setattr(zone_harness, "load_params",
+                        lambda: replace(shipped(), relocalize=False))
 
 
 def sent_once():

@@ -38,6 +38,8 @@ TRAFFIC_VOCABULARY = {
     "MoveOrderCmd", "NO_ROBOT", "RetreatCmd", "RobotIsolated", "SegmentOut", "ZoneView",
     # 막힘 처리 보완(추가 지시서 3의 4-3): 관제가 로봇에게 묻는 CheckClear와 그 답
     "BLOCKED_AT", "CLEAR", "CheckClearCmd", "NO_ANSWER",
+    # 격리 전 위치 다시 찾기(Relocalize)
+    "RelocalizeCmd",
 }
 
 

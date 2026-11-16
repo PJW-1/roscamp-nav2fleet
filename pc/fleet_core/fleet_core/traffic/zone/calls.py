@@ -43,6 +43,8 @@ class Calls:
             self._out.append(DispatchResult(goal_id, False, robot_id, "NO_SUCH_ROBOT"))
         elif not self.available(robot_id):
             self._out.append(DispatchResult(goal_id, False, robot_id, "NOT_AVAILABLE"))
+        elif m.reloc is not None:
+            self._out.append(DispatchResult(goal_id, False, robot_id, "LOCALIZING"))
         elif m.dispatch:
             self._out.append(DispatchResult(goal_id, False, robot_id, "BUSY"))
         else:
@@ -87,12 +89,13 @@ class Calls:
         for m in pool:
             m.called = m.name in chosen
         for m in pool:
-            if m.available:
+            if m.available and m.reloc is None:
                 self._redirect(m)
 
     def _robot_info(self, m, stopped: bool) -> RobotInfo:
         node = m.trip.goal if m.trip is not None and m.phase == TO_PARK else m.node
         eligible = (self.available(m.name) and not m.hold and m.dispatch is None and not stopped
+                    and m.reloc is None
                     and (not m.charge or (m.called and self._committed(m))))
         return RobotInfo(m.name, node, m.called or self._committed(m), eligible)
 
@@ -130,7 +133,7 @@ class Calls:
         m.phase, m.dest = phase, station_id
         m.asked_at = self._clock() if station_id else None
         m.asked_gap = self._metres_to_dock(m, station_id) if station_id else 0.0
-        m.attempts = m.dock_tries = 0
+        m.attempts = m.dock_tries = m.relocs = 0
         m.redock = False
         m.behind_since = None
         self._stop_wanting(m)

@@ -40,11 +40,12 @@ def test_the_shipped_file_loads():
     assert load_params().stall_s == SHIPPED["stall_s"]
 
 
-def test_optional_keys_are_zone_clear_m_and_suspect_hold():
+def test_optional_keys_are_zone_clear_m_suspect_hold_and_relocalize():
     """OPTIONAL은 '파일에 없어도 되는 키'다. zone_clear_m은 0이면 footprint_radius_m +
     release_margin_m로 놓는다(test_zone_release). suspect_hold는 이 키가 없던 파일과 기록이
-    끈 채로("") 읽히게 한다(test_zone_doubts)."""
-    assert OPTIONAL == frozenset({"zone_clear_m", "suspect_hold"})
+    끈 채로("") 읽히게 한다(test_zone_doubts). relocalize 셋도 같다(test_zone_relocalize)."""
+    assert OPTIONAL == frozenset({"zone_clear_m", "suspect_hold", "relocalize",
+                                  "relocalize_timeout_s", "relocalize_attempts"})
 
 
 def test_the_shipped_file_leaves_out_only_zone_clear_m():
@@ -66,6 +67,20 @@ def test_suspect_hold_takes_off_or_check(tmp_path, value):
 def test_other_suspect_hold_values_are_refused(tmp_path, bad):
     with pytest.raises(ValueError, match="suspect_hold"):
         load_params(write(tmp_path, {**SHIPPED, "suspect_hold": bad}))
+
+
+def test_a_file_without_the_relocalize_keys_loads_with_it_off(tmp_path):
+    data = {k: v for k, v in SHIPPED.items() if not k.startswith("relocalize")}
+    params = load_params(write(tmp_path, data))
+    assert params.relocalize is False
+    assert (params.relocalize_timeout_s, params.relocalize_attempts) == (30.0, 2)
+
+
+@pytest.mark.parametrize("key, bad", [("relocalize", "yes"), ("relocalize_attempts", 1.5),
+                                      ("relocalize_attempts", 0), ("relocalize_timeout_s", 0.0)])
+def test_bad_relocalize_values_are_refused(tmp_path, key, bad):
+    with pytest.raises(ValueError, match=key):
+        load_params(write(tmp_path, {**SHIPPED, key: bad}))
 
 
 def test_the_code_default_of_suspect_hold_is_off():
@@ -153,8 +168,9 @@ def test_code_defaults_match_the_shipped_file_except_record_compat_keys():
     differ = {name: (f.default, SHIPPED[name]) for name, f in FIELDS.items()
               if f.default is not dataclasses.MISSING and name in SHIPPED
               and f.default != SHIPPED[name]}
-    assert set(differ) == RECORD_COMPAT | {"suspect_hold"}
+    assert set(differ) == RECORD_COMPAT | {"suspect_hold", "relocalize"}
     assert differ["suspect_hold"] == ("", "check"), "old records replay off, the file runs B"
+    assert differ["relocalize"] == (False, True), "old records replay without relocalize"
     assert all(FIELDS[name].default == 0.0 for name in RECORD_COMPAT)
     assert RECORD_COMPAT <= ZERO_MEANS_OFF
     assert FIELDS["stall_s"].default == SHIPPED["stall_s"] == 12.0

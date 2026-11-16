@@ -91,6 +91,16 @@ class DockCmd:
     dock_id: str
 
 
+# ---- 위치 다시 찾기 명령(Relocalize 액션) ----
+@dataclass(frozen=True)
+class RelocalizeCmd:
+    robot: str
+    goal_id: int
+    allow_spin: bool = True
+    allow_global: bool = False
+    timeout_s: float = 30.0
+
+
 @dataclass(frozen=True)
 class CancelCmd:
     robot: str

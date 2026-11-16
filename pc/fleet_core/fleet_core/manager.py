@@ -176,6 +176,14 @@ class FleetManager(ManagerRoute, ManagerViews, ManagerRecord):
             self.traffic.on_retreat_result(robot, goal_id, success, reason)
             self._pump()
 
+    def on_relocalize_result(self, robot, goal_id, success, reason="", pose=None,
+                             start=None) -> None:
+        self._input("on_relocalize_result", robot, goal_id, success, reason, pose, start)
+        if not self._robot_refused("relocalize result", robot):
+            self.traffic.on_relocalize_result(robot, goal_id, bool(success), text(reason),
+                                              _pose_or_none(pose), _pose_or_none(start))
+            self._pump()
+
     # ---- 팔 작업 결과 입력 전달 ----
     def on_fill_result(self, goal_id, success, placed, missing, reason="") -> None:
         self._input("on_fill_result", goal_id, success, placed, missing, reason)
@@ -243,3 +251,12 @@ class FleetManager(ManagerRoute, ManagerViews, ManagerRecord):
     def _next_goal_id(self) -> int:
         self._goal_seq += 1
         return self._goal_seq
+
+
+# ---- 다시 찾기 결과의 자세: 유한한 (x, y, yaw)만 쓰고 아니면 None(쓸 수 없는 자세) ----
+def _pose_or_none(pose):
+    try:
+        x, y, yaw = (float(v) for v in pose[:3])
+    except Exception:
+        return None
+    return (x, y, yaw) if all(math.isfinite(v) for v in (x, y, yaw)) else None
