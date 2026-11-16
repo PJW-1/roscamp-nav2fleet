@@ -21,6 +21,7 @@ from fleet_core.common.commands import (
 )
 from fleet_core.common.params import FleetParams, load_params
 from fleet_core.traffic.mission import NOT_AT_TARGET, RUN, STOP
+from fleet_core.traffic.zone.relocalize import REPLY_MARGIN_S
 from zone_harness import Harness
 
 RELOC = replace(load_params(), suspect_hold="check", relocalize=True)
@@ -304,7 +305,11 @@ def test_a_robot_stuck_reporting_localizing_is_not_asked_again_and_ends_by_the_l
     wrong_from(world, "pode1", 4.0)
     assert world.run_until(lambda: "RELOCALIZE_FAILED" in world.codes("pode1"), 60.0)
     reports(world, "pode1", "LOCALIZING")
-    assert world.run_until(lambda: "ROBOT_ISOLATED" in world.codes("pode1"), 30.0)
+    failed_at = world.now
+    limit = 3.0 + REPLY_MARGIN_S
+    assert not world.run_until(lambda: "ROBOT_ISOLATED" in world.codes("pode1"), limit - 0.5)
+    assert world.run_until(lambda: "ROBOT_ISOLATED" in world.codes("pode1"), 1.0)
+    assert world.now - failed_at == pytest.approx(limit, abs=0.6)
     assert len(world.sent(RelocalizeCmd, "pode1")) == 1, "never sent while it said LOCALIZING"
     assert "TIMEOUT" in [e for e in world.events if e.code == "RELOCALIZE_FAILED"][-1].detail
 
