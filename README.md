@@ -144,4 +144,5 @@ python3 tools/order_situations.py --seeds 1 2 3                          # 머�
 | [docs/Pode_계약.md](docs/Pode_계약.md) | Pode와 관제 사이의 계약(0.11-draft는 제안) |
 | [docs/order_모델.md](docs/order_모델.md) | order 모델의 규칙, 켜는 법, 정한 값(제안) |
 | [docs/worklog_nav2base_2026-11-12.md](docs/worklog_nav2base_2026-11-12.md) | 만든 것, 측정, 가정, 남은 일 |
+| [docs/worklog_drive_handoff_2026-11-17.md](docs/worklog_drive_handoff_2026-11-17.md) | 가장 최근 인수인계: 2026-11-17에 바뀐 것(주행, O_IN/O_OUT, 코드 정리), 측정, 남은 것 |
 | [docs/COPIED_FROM.md](docs/COPIED_FROM.md) | 복사한 곳과 지운 것 |
