@@ -21,9 +21,9 @@ def base_until_under(policy):
     world.step()
     world.call("WORK")
     world.run(2.0)
-    world.silent.add("pinky2")
-    assert world.run_until(lambda: world.view("pinky2")["state"] == "COMM_LOST", 10.0)
-    return world.traffic._robots["pinky2"].base_until
+    world.silent.add("pode2")
+    assert world.run_until(lambda: world.view("pode2")["state"] == "COMM_LOST", 10.0)
+    return world.traffic._robots["pode2"].base_until
 
 
 def test_the_fleet_holds_the_base_of_a_silent_robot_under_both_policies():

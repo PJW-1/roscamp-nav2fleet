@@ -1,4 +1,4 @@
-"""ROS 가짜 핑키의 nav_goal 흉내(NavGoalDrive). ROS 없이 Motion 위에서 돈다."""
+"""ROS 가짜 Pode의 nav_goal 흉내(NavGoalDrive). ROS 없이 Motion 위에서 돈다."""
 import math
 
 from fake_robots.motion import Motion

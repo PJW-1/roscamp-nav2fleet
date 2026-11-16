@@ -20,9 +20,9 @@ def count(world, code, robot=""):
 def called(speed=0.0, **kwargs):
     world = Harness(speed=speed, **kwargs)
     world.step()
-    world.call("WORK", "pinky2")
+    world.call("WORK", "pode2")
     world.step()
-    assert world.sent(MoveCmd, "pinky2")
+    assert world.sent(MoveCmd, "pode2")
     return world
 
 
@@ -40,12 +40,12 @@ def test_the_shipped_limit_is_5_s_and_records_without_it_run_without_the_watch()
 
 def test_a_goal_the_robot_does_not_start_on_is_reported_once():
     world = called()
-    goal = world.sent(MoveCmd, "pinky2")[0].goal_id
+    goal = world.sent(MoveCmd, "pode2")[0].goal_id
     world.run(LIMIT - 0.5)
     assert count(world, "NO_START") == 0
     world.run(0.7)
     found = [(e.level, e.robot, e.detail) for e in world.events if e.code == "NO_START"]
-    assert found == [("WARN", "pinky2", f"move goal {goal} to N_W: moved less than 0.02 m "
+    assert found == [("WARN", "pode2", f"move goal {goal} to N_W: moved less than 0.02 m "
                                         "in 5 s")]
     world.run(0.5)
     assert count(world, "NO_START") == 1, "once per goal"
@@ -53,9 +53,9 @@ def test_a_goal_the_robot_does_not_start_on_is_reported_once():
 
 def test_each_new_goal_is_watched_on_its_own():
     world = called()
-    assert world.run_until(lambda: len(world.sent(MoveCmd, "pinky2")) == 2, 20.0)  # 다시 낸 goal
+    assert world.run_until(lambda: len(world.sent(MoveCmd, "pode2")) == 2, 20.0)  # 다시 낸 goal
     world.run(LIMIT + 0.5)
-    goals = [c.goal_id for c in world.sent(MoveCmd, "pinky2")][:2]
+    goals = [c.goal_id for c in world.sent(MoveCmd, "pode2")][:2]
     details = [e.detail for e in world.events if e.code == "NO_START"]
     assert [d.split()[2] for d in details[:2]] == [str(g) for g in goals]
 
@@ -75,32 +75,32 @@ def test_moving_2_cm_or_less_is_not_a_start():
 def test_a_robot_that_reports_blocked_or_recovering_from_the_start_is_not_reported():
     for state in ("BLOCKED", "RECOVERING"):
         world = Harness(speed=0.0)
-        reports(world, "pinky2", state)
+        reports(world, "pode2", state)
         world.step()
-        world.call("WORK", "pinky2")
+        world.call("WORK", "pode2")
         world.run(3 * LIMIT)
         assert count(world, "NO_START") == 0, state
 
 
 def test_docking_is_not_watched(monkeypatch):
     monkeypatch.setattr(zone_harness, "DOCK_S", 1000.0)  # 도킹이 끝나지 않는다
-    world = Harness(starts={"pinky1": "W", "pinky2": "P-2", "pinky3": "P-3"})
+    world = Harness(starts={"pode1": "W", "pode2": "P-2", "pode3": "P-3"})
     world.report()
-    world.call("WORK", "pinky1")
+    world.call("WORK", "pode1")
     world.run(3 * LIMIT)
-    assert world.sent(DockCmd, "pinky1") and count(world, "NO_START") == 0
+    assert world.sent(DockCmd, "pode1") and count(world, "NO_START") == 0
 
 
 def test_a_retreat_the_robot_does_not_start_on_is_reported():
-    world = Harness(starts={"pinky1": "W", "pinky2": "P-2", "pinky3": "P-3"})
+    world = Harness(starts={"pode1": "W", "pode2": "P-2", "pode3": "P-3"})
     world.report()
-    call = world.call("WORK", "pinky1")
+    call = world.call("WORK", "pode1")
     assert world.run_until(lambda: world.result_of(call) is not None, 30.0)
     plain = Harness._move.__get__(world)
-    world._move = lambda bot: None if bot.name == "pinky1" else plain(bot)  # 바퀴가 돌지 않는다
-    world.call("OUTBOUND", "pinky1")
+    world._move = lambda bot: None if bot.name == "pode1" else plain(bot)  # 바퀴가 돌지 않는다
+    world.call("OUTBOUND", "pode1")
     world.step()
-    [retreat] = world.sent(RetreatCmd, "pinky1")
+    [retreat] = world.sent(RetreatCmd, "pode1")
     world.run(LIMIT + 0.5)
     details = [e.detail for e in world.events if e.code == "NO_START"]
     assert details == [f"retreat goal {retreat.goal_id} to N_W: moved less than 0.02 m in 5 s"]
@@ -110,7 +110,7 @@ def test_a_goal_to_where_the_robot_already_stands_is_not_watched():
     """그 자리에서 돌기만 하는 goal이다."""
     world = Harness(speed=0.0)
     world.step()
-    m = world.traffic._robots["pinky2"]
+    m = world.traffic._robots["pode2"]
     m.goal = Goal(MOVE, 99, end="P-2", via=NAV_GOAL)
     world.run(LIMIT + 0.5)
     assert count(world, "NO_START") == 0

@@ -19,16 +19,16 @@ def test_the_shipped_release_gap_is_the_footprint_plus_the_margin():
 
 
 def gap_at_release(params, zone="WORK_DOCK"):
-    """도크에 선 pinky1이 출고로 떠날 때 zone을 놓은 주기의 (도크와의 거리, 그때 걸음 수)."""
-    world = Harness(starts={"pinky1": "W", "pinky2": "P-2", "pinky3": "P-3"}, params=params)
+    """도크에 선 pode1이 출고로 떠날 때 zone을 놓은 주기의 (도크와의 거리, 그때 걸음 수)."""
+    world = Harness(starts={"pode1": "W", "pode2": "P-2", "pode3": "P-3"}, params=params)
     world.report()
-    call = world.call("WORK", "pinky1")
+    call = world.call("WORK", "pode1")
     assert world.run_until(lambda: world.result_of(call) is not None, 30.0)
-    world.call("OUTBOUND", "pinky1")
+    world.call("OUTBOUND", "pode1")
     world.step()
-    bot = world.bots["pinky1"]
+    bot = world.bots["pode1"]
     gaps = []
-    while zone in world.view("pinky1")["held"]:
+    while zone in world.view("pode1")["held"]:
         gaps.append(world.site.distance_to_zone(bot.x, bot.y, zone))
         world.step()
         assert world.now < 120.0
@@ -56,31 +56,31 @@ def test_a_docked_robot_is_measured_from_the_dock_without_the_margin():
     W는 HALL에서 0.10 m, J_W에서 0.12 m다. 여유까지 더하면(0.135 m) 도크에 선 로봇이 갈림목을
     쥐고 있어 급행에서 물러나는 로봇이 J_W를 못 잡는다.
     """
-    world = Harness(starts={"pinky1": "P-1", "pinky2": "P-2", "pinky3": "P-3"})
+    world = Harness(starts={"pode1": "P-1", "pode2": "P-2", "pode3": "P-3"})
     world.report()
-    call = world.call("WORK", "pinky2")
+    call = world.call("WORK", "pode2")
     assert world.run_until(lambda: world.result_of(call) is not None, 60.0)
     world.run(1.0)
-    assert world.view("pinky2")["held"] == ["WORK_DOCK"]
+    assert world.view("pode2")["held"] == ["WORK_DOCK"]
 
 
 def stopped_short_of_o_out(params=P):
-    """출고를 마친 pinky1이 out_out으로 내려와 O_OUT에 0.04 m 못 미쳐 서고(고정 경로의 도착 허용치는
+    """출고를 마친 pode1이 out_out으로 내려와 O_OUT에 0.04 m 못 미쳐 서고(고정 경로의 도착 허용치는
     0.05 m), 다음 goal을 받아 제자리에서 돈다."""
-    world = Harness(layout="v7", starts={"pinky1": "O", "pinky2": "P-2", "pinky3": "P-3"},
+    world = Harness(layout="v7", starts={"pode1": "O", "pode2": "P-2", "pode3": "P-3"},
                     params=params)
     world.report()
-    out = world.call("OUTBOUND", "pinky1")
+    out = world.call("OUTBOUND", "pode1")
     assert world.run_until(lambda: world.result_of(out) is not None, 30.0)
-    world.traffic.on_release("pinky1")
-    bot = world.bots["pinky1"]
+    world.traffic.on_release("pode1")
+    bot = world.bots["pode1"]
     assert world.run_until(lambda: bot.y <= 0.66, 30.0)
     assert world.site.distance_to_zone(bot.x, bot.y, "OUT_DOCK") < P.footprint_radius_m + 0.05
-    assert "OUT_DOCK" in world.view("pinky1")["held"]
+    assert "OUT_DOCK" in world.view("pode1")["held"]
     bot.points = []
     world.speed = 0.0
     world.run(1.0)
-    assert world.view("pinky1")["node"] == "O_OUT" and bot.cmd is not None
+    assert world.view("pode1")["node"] == "O_OUT" and bot.cmd is not None
     return world
 
 
@@ -90,18 +90,18 @@ def test_a_robot_standing_within_the_margin_of_its_node_is_measured_from_the_nod
     지점에서 release_margin_m 안에 선 로봇은 그 지점의 좌표로 잰다: 지도가 서는 지점을 구역에서
     0.135 m 넘게 띄워 두었으므로 몸(반지름 0.085 m)은 구역 밖이다."""
     world = stopped_short_of_o_out()
-    assert "OUT_DOCK" not in world.view("pinky1")["held"]
+    assert "OUT_DOCK" not in world.view("pode1")["held"]
     assert not world.problems
 
 
 def test_a_robot_farther_than_the_margin_from_its_node_is_measured_from_its_report():
     world = stopped_short_of_o_out(replace(P, release_margin_m=0.03))
-    assert "OUT_DOCK" in world.view("pinky1")["held"], "0.04 m from the node, 0.105 m from the zone"
+    assert "OUT_DOCK" in world.view("pode1")["held"], "0.04 m from the node, 0.105 m from the zone"
 
 
 def test_a_record_made_with_zone_clear_m_measures_a_standing_robot_from_its_report():
     world = stopped_short_of_o_out(replace(P, zone_clear_m=0.11))
-    assert "OUT_DOCK" in world.view("pinky1")["held"]
+    assert "OUT_DOCK" in world.view("pode1")["held"]
 
 
 def test_the_margin_is_a_parameter():
@@ -110,19 +110,19 @@ def test_the_margin_is_a_parameter():
 
 
 def docked_at_work(params=P, error_cm=None):
-    """pinky2가 W에 도킹을 마친 뒤 쥐고 있는 구역. error_cm(x 또는 (x, y))을 주면 도킹이 그 오차를
+    """pode2가 W에 도킹을 마친 뒤 쥐고 있는 구역. error_cm(x 또는 (x, y))을 주면 도킹이 그 오차를
     보고한다."""
-    world = Harness(starts={"pinky1": "P-1", "pinky2": "P-2", "pinky3": "P-3"}, params=params)
+    world = Harness(starts={"pode1": "P-1", "pode2": "P-2", "pode3": "P-3"}, params=params)
     world.report()
     if error_cm is not None:
         real = world.traffic.on_dock_result
         x_cm, y_cm = error_cm if isinstance(error_cm, tuple) else (error_cm, 0.0)
         world.traffic.on_dock_result = lambda robot, goal_id, ok, *_: real(
             robot, goal_id, ok, x_cm, y_cm, 0.0)
-    call = world.call("WORK", "pinky2")
+    call = world.call("WORK", "pode2")
     assert world.run_until(lambda: world.result_of(call) is not None, 60.0)
     world.run(1.0)
-    return sorted(world.view("pinky2")["held"])
+    return sorted(world.view("pode2")["held"])
 
 
 def test_a_docked_robot_keeps_what_its_reported_docking_error_may_still_touch():
@@ -148,13 +148,13 @@ def test_a_record_made_with_zone_clear_m_measures_a_docked_robot_from_its_report
     자리를 보고하면 HALL을 놓는다(도크 지점은 0.10 m라 거기서 재면 쥐고 있는다)."""
     fields = asdict(P)
     fields.update(zone_clear_m=0.11)
-    world = Harness(starts={"pinky1": "P-1", "pinky2": "P-2", "pinky3": "P-3"},
+    world = Harness(starts={"pode1": "P-1", "pode2": "P-2", "pode3": "P-3"},
                     params=FleetParams(**fields))
     world.report()
-    call = world.call("WORK", "pinky2")
+    call = world.call("WORK", "pode2")
     assert world.run_until(lambda: world.result_of(call) is not None, 60.0)
-    bot = world.bots["pinky2"]
+    bot = world.bots["pode2"]
     bot.y += 0.03
     assert world.site.distance_to_zone(bot.x, bot.y, "HALL") > 0.11
     world.run(1.0)
-    assert world.view("pinky2")["held"] == ["WORK_DOCK"]
+    assert world.view("pode2")["held"] == ["WORK_DOCK"]

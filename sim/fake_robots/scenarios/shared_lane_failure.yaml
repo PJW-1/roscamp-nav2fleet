@@ -14,14 +14,14 @@ orders:
   - {at_s: 40, id: O-005, items: {B: 2, C: 2}}
   - {at_s: 60, id: O-006, items: {D: 1}}
 robots:
-  pinky1: {start: P-1, speed_mps: 0.20, pose_noise_m: 0.03}
-  pinky2: {start: P-2, speed_mps: 0.18, pose_noise_m: 0.03}
-  pinky3: {start: P-3, speed_mps: 0.20, pose_noise_m: 0.03}
+  pode1: {start: P-1, speed_mps: 0.20, pose_noise_m: 0.03}
+  pode2: {start: P-2, speed_mps: 0.18, pose_noise_m: 0.03}
+  pode3: {start: P-3, speed_mps: 0.20, pose_noise_m: 0.03}
 arm: {seconds_per_item: 4.0, swap_seconds: 8.0, fail_rate: 0.0}
 dock: {duration_s: 3.0, error_cm: 1.0}
 faults:
-  - {at_s: 40, robot: pinky2, type: comm_loss, duration_s: 20}
-  - {at_s: 50, robot: pinky1, type: nav_abort, count: 2}
+  - {at_s: 40, robot: pode2, type: comm_loss, duration_s: 20}
+  - {at_s: 50, robot: pode1, type: nav_abort, count: 2}
 expect:
   robot_idle: null  # 고장 시나리오는 ROBOT_IDLE을 세지 않는다(1.1 지시서 H2)
   all_orders_finished: true

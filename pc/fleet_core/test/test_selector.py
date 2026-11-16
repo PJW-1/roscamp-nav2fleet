@@ -122,7 +122,7 @@ def test_the_robot_nearest_by_real_length_is_called_even_when_its_cheapest_way_i
 
 def test_the_dock_queue_measures_the_way_to_the_dock_by_real_length():
     """asked_gap은 같은 때 부른 로봇의 도크 줄 순서를 정한다(turns.py)."""
-    h = Harness(site=FleetMap(PRICED), starts={"pinky1": "S"})
+    h = Harness(site=FleetMap(PRICED), starts={"pode1": "S"})
     h.report()
-    h.call("WORK", "pinky1")
-    assert h.traffic._robots["pinky1"].asked_gap == pytest.approx(0.75, abs=1e-3)
+    h.call("WORK", "pode1")
+    assert h.traffic._robots["pode1"].asked_gap == pytest.approx(0.75, abs=1e-3)

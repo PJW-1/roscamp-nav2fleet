@@ -13,7 +13,7 @@ from .geom import advance, ahead, angle_diff, heading, nearest_index, path_gap
 LOOK_M = 0.10  # 갈 길을 이만큼 앞까지 보고 몸이 닿을 것이 있으면 선다(충돌 검사)
 GAP_M = 0.01  # 몸과 물체 사이에 남기는 틈
 TURN_RAD_S = 1.0  # 제자리 회전 속도(RPP rotate_to_heading_angular_vel)
-FOLLOW_BLOCKED_S = 1.0  # FollowPath: 이만큼 막혀 서 있으면 BLOCKED(핑키 계약 4절: 2초 안)
+FOLLOW_BLOCKED_S = 1.0  # FollowPath: 이만큼 막혀 서 있으면 BLOCKED(Pode 계약 4절: 2초 안)
 MOVE, RETREAT, DOCK = "move", "retreat", "dock"
 HEARTBEAT_LOST = "HEARTBEAT_LOST"  # 관제 heartbeat가 끊겨 로봇이 스스로 끝낸 이동의 이유
 
@@ -127,7 +127,7 @@ class FollowRun(Run):
             return self.done(False, "PATH_NOT_CONNECTED")
         if len(self.points) < 2:
             way = [robot.pose, self.target]
-        else:  # 선 위 가장 가까운 자리로 돌아와 선을 따른다(pinky_fsm처럼 지난 꼭짓점은 건너뛴다)
+        else:  # 선 위 가장 가까운 자리로 돌아와 선을 따른다(pode_fsm처럼 지난 꼭짓점은 건너뛴다)
             i = nearest_index(robot.pose, self.points)
             way = [robot.pose, foot(robot.pose, *self.points[i:i + 2]), *self.points[i + 1:]]
         way = [p for k, p in enumerate(way) if k == 0 or math.dist(p, way[k - 1]) > 1e-9]

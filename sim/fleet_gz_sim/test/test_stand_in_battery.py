@@ -1,4 +1,4 @@
-"""sim_stand_in의 시뮬 배터리: Gazebo 시계와 실제 위치로 /{pinky}/sim/battery를 낸다."""
+"""sim_stand_in의 시뮬 배터리: Gazebo 시계와 실제 위치로 /{pode}/sim/battery를 낸다."""
 import threading
 import time
 
@@ -21,7 +21,7 @@ def scenario_file(tmp_path, faults) -> str:
     data = {"seed": 1, "timeout_s": 100,
             "stock": {"arm1": {"A": 3}, "arm2": {"C": 3}},
             "orders": [{"at_s": 0, "id": "O-1", "items": {"A": 1}}],
-            "robots": {"pinky1": {"start": "P-1"}, "pinky2": {"start": "P-2"}},
+            "robots": {"pode1": {"start": "P-1"}, "pode2": {"start": "P-2"}},
             "faults": faults, "expect": {"orders_shipped_min": 1}}
     path = tmp_path / "s.yaml"
     path.write_text(yaml.safe_dump(data), encoding="utf-8")
@@ -50,11 +50,11 @@ def test_the_battery_follows_gazebo_time_and_charges_at_the_parking_spot(ros, tm
     from rosgraph_msgs.msg import Clock
     from sensor_msgs.msg import BatteryState
 
-    path = scenario_file(tmp_path, [{"type": "low_battery", "robot": "pinky1", "at_s": 1.0,
+    path = scenario_file(tmp_path, [{"type": "low_battery", "robot": "pode1", "at_s": 1.0,
                                      "duration_s": 2.0}])
-    node = stand_in(use_sim_time=True, robots=["pinky1", "pinky2"], scenario_file=path)
+    node = stand_in(use_sim_time=True, robots=["pode1", "pode2"], scenario_file=path)
     probe = rclpy.create_node("battery_probe")
-    seen = {"pinky1": [], "pinky2": []}
+    seen = {"pode1": [], "pode2": []}
     for robot in seen:
         probe.create_subscription(BatteryState, f"/{robot}/sim/battery",
                                   lambda m, r=robot: seen[r].append(m.percentage),
@@ -74,7 +74,7 @@ def test_the_battery_follows_gazebo_time_and_charges_at_the_parking_spot(ros, tm
             stamp = Clock()
             stamp.clock.sec, stamp.clock.nanosec = int(sim_t), int((sim_t % 1.0) * 1e9)
             clock.publish(stamp)
-            for robot, start in (("pinky1", "P-1"), ("pinky2", "P-2")):
+            for robot, start in (("pode1", "P-1"), ("pode2", "P-2")):
                 odom = Odometry()
                 odom.header.frame_id = "map"
                 odom.pose.pose.position.x, odom.pose.pose.position.y = site.node_pose(start)
@@ -82,17 +82,17 @@ def test_the_battery_follows_gazebo_time_and_charges_at_the_parking_spot(ros, tm
                 truth[robot].publish(odom)
             time.sleep(0.01)
         deadline = time.monotonic() + 3.0
-        while time.monotonic() < deadline and not (seen["pinky1"] and
-                                                   seen["pinky1"][-1] > 0.85):
+        while time.monotonic() < deadline and not (seen["pode1"] and
+                                                   seen["pode1"][-1] > 0.85):
             time.sleep(0.05)
     finally:
         executor.shutdown()
         thread.join(2.0)
         probe.destroy_node()
         node.destroy_node()
-    levels = seen["pinky1"]
+    levels = seen["pode1"]
     assert levels and levels[0] == pytest.approx(0.9)
     assert min(levels) == pytest.approx(0.1, abs=0.05)
     low = levels.index(min(levels))
     assert levels[low:] == sorted(levels[low:]) and levels[-1] == pytest.approx(0.9)
-    assert seen["pinky2"] and all(v == pytest.approx(0.9) for v in seen["pinky2"])  # 고장 없음
+    assert seen["pode2"] and all(v == pytest.approx(0.9) for v in seen["pode2"])  # 고장 없음

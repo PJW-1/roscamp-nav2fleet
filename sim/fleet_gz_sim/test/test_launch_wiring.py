@@ -1,4 +1,4 @@
-"""gz.launch.py: 격리 검사를 먼저 하고, 배치(layout)의 월드·지도·keepout으로 핑키 3대와 진짜 관제,
+"""gz.launch.py: 격리 검사를 먼저 하고, 배치(layout)의 월드·지도·keepout으로 Pode 3대와 진짜 관제,
 가짜 central·팔을 잇는 것을 본다."""
 import importlib.util
 import math
@@ -15,9 +15,9 @@ LAUNCH = Path(__file__).parents[1] / "launch" / "gz.launch.py"
 FAST_DDS = ("ROS_STATIC_PEERS", "RMW_IMPLEMENTATION", "ROS_DISCOVERY_SERVER",
             "FASTRTPS_DEFAULT_PROFILES_FILE", "FASTDDS_DEFAULT_PROFILES_FILE",
             "FASTDDS_ENVIRONMENT_FILE", "FASTDDS_BUILTIN_TRANSPORTS")
-ROBOTS = ["pinky1", "pinky2", "pinky3"]
-STARTS = {"pinky1": (0.13, 0.15, math.pi / 2), "pinky2": (0.38, 0.15, math.pi / 2),
-          "pinky3": (1.85, 0.15, math.pi / 2)}  # gz_d2: P-1, P-2, P-3
+ROBOTS = ["pode1", "pode2", "pode3"]
+STARTS = {"pode1": (0.13, 0.15, math.pi / 2), "pode2": (0.38, 0.15, math.pi / 2),
+          "pode3": (1.85, 0.15, math.pi / 2)}  # gz_d2: P-1, P-2, P-3
 
 
 @pytest.fixture
@@ -105,7 +105,7 @@ def need(*packages):
 @pytest.fixture
 def made(gz, monkeypatch, tmp_path):
     from fleet_gz_sim import launch_parts
-    need("pinky_description", "pinky_nav_config", "pinky_fsm", "fake_robots", "fleet_manager",
+    need("pinky_description", "pode_nav_config", "pode_fsm", "fake_robots", "fleet_manager",
          "fleet_gz_sim")
     monkeypatch.setattr(launch_parts.tempfile, "gettempdir", lambda: str(tmp_path))
     for module in (gz, launch_parts):
@@ -152,7 +152,7 @@ def scenario(name="gz_d2") -> str:
     return str(Path(get_package_share_directory("fleet_gz_sim")) / "scenarios" / f"{name}.yaml")
 
 
-def test_three_pinkys_start_on_the_parking_nodes_in_order(made):
+def test_three_podes_start_on_the_parking_nodes_in_order(made):
     actions = run(made)
     spawned = {}
     for create in nodes(actions, "create"):
@@ -231,7 +231,7 @@ def test_no_controller_turns_faster_than_the_simulated_drive_can(made):
     회전을 2.0 rad/s로 명령한 판(G7, G8)에서 로봇이 돈 속도는 1.0인 판과 같았다(90번째 백분위
     1.0 rad/s). 시뮬레이션이 내지 못하는 값으로 잰 결과를 기본값의 근거로 삼지 않으려는 시험이다."""
     from fleet_gz_sim.launch_parts import CONTROLLERS
-    urdf = Path(__file__).parents[1] / "urdf" / "pinky_sim.urdf.xacro"
+    urdf = Path(__file__).parents[1] / "urdf" / "pode_sim.urdf.xacro"
     cap = float(re.search(r"<max_velocity>([^<]+)</max_velocity>",
                           urdf.read_text(encoding="utf-8")).group(1))
     for nav in includes(run(made), "nav2.launch.py"):
@@ -305,11 +305,11 @@ def test_a_speed_outside_the_arena_range_stops_the_launch(made, bad):
 
 def test_the_speed_cap_also_caps_the_fsm_speed_limit_of_every_robot(made):
     caps = [launch_args(i)["horizon_cap_mps"]
-            for i in includes(run(made, nav_max_speed="0.14"), "pinky_fsm.launch.py")]
+            for i in includes(run(made, nav_max_speed="0.14"), "pode_fsm.launch.py")]
     assert caps == ["0.14"] * 3
 
 
-def test_gazebo_time_and_every_pinky_share_one_bridge(made):
+def test_gazebo_time_and_every_pode_share_one_bridge(made):
     [bridge] = nodes(run(made), "parameter_bridge")
     topics = [str(x).split("@")[0] for x in bridge.kw["arguments"]]
     assert topics.count("/clock") == 1
@@ -318,7 +318,7 @@ def test_gazebo_time_and_every_pinky_share_one_bridge(made):
             assert topics.count(f"/model/{robot}/{name}") == 1
 
 
-def test_the_fleet_runs_the_layout_map_after_every_pinky_is_ready(made):
+def test_the_fleet_runs_the_layout_map_after_every_pode_is_ready(made):
     actions = run(made, layout="d")
     [wait] = nodes(actions, "wait_ready")
     assert params(wait)["robots"] == ROBOTS
@@ -353,14 +353,14 @@ def test_battery_low_pct_goes_into_a_params_copy(gz, tmp_path):
         gz.params_for("", str(tmp_path / "out"), "120")
 
 
-def test_the_real_pinky_fsm_answers_dock_by_default(made):
+def test_the_real_pode_fsm_answers_dock_by_default(made):
     actions = run(made)
     assert not [a for a in flat(actions) if isinstance(a, Made) and a.kind == "SetRemap"]
     [stand_in] = nodes(actions, "sim_stand_in")
     assert params(stand_in)["dock_stub"] is False and params(stand_in)["map_file"] == "d2"
 
 
-def test_sim_dock_stub_moves_the_pinky_fsm_dock_aside(made):
+def test_sim_dock_stub_moves_the_pode_fsm_dock_aside(made):
     actions = run(made, sim_dock_stub="true")
     remaps = [a.args for a in flat(actions) if isinstance(a, Made) and a.kind == "SetRemap"]
     assert sorted(remaps) == [(f"/{r}/dock", f"/{r}/dock_fsm") for r in ROBOTS]
@@ -404,7 +404,7 @@ def test_one_rviz_shows_the_whole_fleet_by_default(made):
     assert not nodes(closed, "fleet_view") and not nodes(closed, "rviz2")
 
 
-NAV2_NODES = 12  # pinky_nav_config with keepout: 노드 열, lifecycle manager 셋을 넉넉히
+NAV2_NODES = 12  # pode_nav_config with keepout: 노드 열, lifecycle manager 셋을 넉넉히
 LOCALHOST_PARTICIPANTS = 32  # Fast DDS LOCALHOST 탐색에서 서로 보이는 참여자 수(실측)
 SPARE = 6  # launch 프로세스, RViz, 사람이 띄우는 ros2 명령 몇 개
 
@@ -415,7 +415,7 @@ def test_ros_process_budget_leaves_room_under_the_localhost_limit(made):
     count = len(nodes(actions)) + len(nodes(fleet))
     for nav in includes(actions, "nav2.launch.py"):
         count += 1 if launch_args(nav)["use_composition"] == "true" else NAV2_NODES
-    count += len(includes(actions, "pinky_fsm.launch.py"))
+    count += len(includes(actions, "pode_fsm.launch.py"))
     assert count + SPARE <= LOCALHOST_PARTICIPANTS
 
 
@@ -452,7 +452,7 @@ def test_peer_obstacles_adds_the_layer_to_every_robot_and_the_stand_in_sends_the
         assert launch_args(nav)["peer_node"] == "false", "no extra process per robot"
     [stand_in] = nodes(actions, "sim_stand_in")
     assert params(stand_in)["peer_obstacles"] is True
-    assert params(stand_in)["robots"] == ["pinky1", "pinky2", "pinky3"]
+    assert params(stand_in)["robots"] == ["pode1", "pode2", "pode3"]
     assert len(nodes(actions)) == before, "no new process: the DDS participant budget is full"
     with pytest.raises(ValueError, match="peer_obstacles"):
         run(made, peer_obstacles="on")
@@ -461,12 +461,12 @@ def test_peer_obstacles_adds_the_layer_to_every_robot_and_the_stand_in_sends_the
 # ---- 회피 패키지와 임시 비전 대역 ------------------------------------------------------------
 
 def test_every_robot_gets_the_avoidance_package_and_no_vision_stand_in_by_default(made):
-    assert made.ARGS["avoidance_package"][0] == "pinky_avoidance"
+    assert made.ARGS["avoidance_package"][0] == "pode_avoidance"
     assert made.ARGS["vision_stand_in"][0] == "false"
     navs = includes(run(made), "nav2.launch.py")
     assert len(navs) == 3
     for nav in navs:
-        assert launch_args(nav)["avoidance_package"] == "pinky_avoidance"
+        assert launch_args(nav)["avoidance_package"] == "pode_avoidance"
         assert launch_args(nav)["vision_stand_in"] == "false"
 
 

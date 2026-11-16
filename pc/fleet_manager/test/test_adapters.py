@@ -66,24 +66,24 @@ def test_zone_view_without_holder_becomes_empty_strings():
 
 
 def test_zone_view_with_queue_is_kept_in_order():
-    msg = adapters.zones_to_msg([ZoneView("Z-OUT", "pinky1", ("pinky3", "pinky2"), 5.5)], 6.0)
-    assert list(msg.zones[0].queue) == ["pinky3", "pinky2"]
+    msg = adapters.zones_to_msg([ZoneView("Z-OUT", "pode1", ("pode3", "pode2"), 5.5)], 6.0)
+    assert list(msg.zones[0].queue) == ["pode3", "pode2"]
     assert msg.zones[0].acquired_at.sec == 5
 
 
 def test_assignment_uses_the_message_constants():
     msg = adapters.assignments_to_msg(
-        [AssignmentView("pinky1", "O-001", "WORK", Assignment.TYPE_FILL),
-         AssignmentView("pinky2", "", "", Assignment.TYPE_WAIT)], 1.0)
+        [AssignmentView("pode1", "O-001", "WORK", Assignment.TYPE_FILL),
+         AssignmentView("pode2", "", "", Assignment.TYPE_WAIT)], 1.0)
     first, second = msg.assignments
     assert (first.robot_id, first.order_id, first.station_id, first.task_type) == (
-        "pinky1", "O-001", "WORK", "FILL")
+        "pode1", "O-001", "WORK", "FILL")
     assert (second.order_id, second.station_id, second.task_type) == ("", "", "WAIT")
 
 
 def test_event_keeps_level_code_and_names_the_robot():
-    msg = adapters.event_to_msg(EventOut(FleetEvent.LEVEL_WARN, "COMM_LOST", "gone", "pinky2"), 2.0)
-    assert (msg.level, msg.code, msg.source) == ("WARN", "COMM_LOST", "pinky2")
+    msg = adapters.event_to_msg(EventOut(FleetEvent.LEVEL_WARN, "COMM_LOST", "gone", "pode2"), 2.0)
+    assert (msg.level, msg.code, msg.source) == ("WARN", "COMM_LOST", "pode2")
 
 
 def test_event_without_robot_uses_the_manager_as_source():
@@ -101,23 +101,23 @@ def test_order_board_becomes_plain_records_in_board_order():
 
 
 def test_goals_copy_every_field():
-    move = adapters.move_goal(MoveCmd("pinky1", 7, "c9_2", 1.0, 2.0, 0.5))
+    move = adapters.move_goal(MoveCmd("pode1", 7, "c9_2", 1.0, 2.0, 0.5))
     assert (move.target_id, move.target_pose.x, move.target_pose.y, move.target_pose.theta) == (
         "c9_2", 1.0, 2.0, 0.5)
-    assert adapters.dock_goal(DockCmd("pinky1", 8, "WORK")).dock_id == "WORK"
+    assert adapters.dock_goal(DockCmd("pode1", 8, "WORK")).dock_id == "WORK"
     assert list(move.path) == [], "point mode sends no path"
 
 
 def test_a_move_goal_says_how_to_drive():
-    plain = adapters.move_goal(MoveCmd("pinky1", 7, "N_W", 0.4, 0.65, 0.0))
+    plain = adapters.move_goal(MoveCmd("pode1", 7, "N_W", 0.4, 0.65, 0.0))
     assert plain.mode == MoveTo.Goal.MODE_FOLLOW_PATH
-    nav = adapters.move_goal(MoveCmd("pinky1", 8, "N_E", 1.58, 0.65, 0.0, mode="nav_goal"))
+    nav = adapters.move_goal(MoveCmd("pode1", 8, "N_E", 1.58, 0.65, 0.0, mode="nav_goal"))
     assert nav.mode == MoveTo.Goal.MODE_NAV_GOAL and list(nav.path) == []
 
 
 def test_a_move_goal_carries_the_lane_path_as_poses():
     path = ((0.5, 1.0, 0.0), (1.0, 1.0, math.pi / 2), (1.0, 2.0, math.pi / 2))
-    move = adapters.move_goal(MoveCmd("pinky1", 7, "N", 1.0, 2.0, math.pi / 2, path))
+    move = adapters.move_goal(MoveCmd("pode1", 7, "N", 1.0, 2.0, math.pi / 2, path))
     assert [(p.position.x, p.position.y) for p in move.path] == [(0.5, 1.0), (1.0, 1.0),
                                                                     (1.0, 2.0)]
     q = move.path[1].orientation
@@ -127,15 +127,15 @@ def test_a_move_goal_carries_the_lane_path_as_poses():
 
 def test_a_move_goal_says_whether_its_end_is_the_last_point():
     """버전 2 horizon 최소판(계약 0.8-draft 제안)."""
-    assert adapters.move_goal(MoveCmd("pinky1", 7, "N", 1.0, 2.0, 0.0)).final_goal is True
-    move = adapters.move_goal(MoveCmd("pinky1", 7, "N", 1.0, 2.0, 0.0, (), False))
+    assert adapters.move_goal(MoveCmd("pode1", 7, "N", 1.0, 2.0, 0.0)).final_goal is True
+    move = adapters.move_goal(MoveCmd("pode1", 7, "N", 1.0, 2.0, 0.0, (), False))
     assert move.final_goal is False
 
 
 def test_move_goals_carry_the_yield_priority_and_an_empty_one_is_minus_one():
     """로봇단 교착 처리(추가 지시서 3의 7-4, 계약 0.13-draft)."""
-    assert adapters.move_goal(MoveCmd("pinky1", 7, "N", 1.0, 2.0, 0.0, priority=3)).priority == 3
-    assert adapters.move_goal(MoveCmd("pinky1", 7, "N", 1.0, 2.0, 0.0)).priority == -1
+    assert adapters.move_goal(MoveCmd("pode1", 7, "N", 1.0, 2.0, 0.0, priority=3)).priority == 3
+    assert adapters.move_goal(MoveCmd("pode1", 7, "N", 1.0, 2.0, 0.0)).priority == -1
     assert MoveTo.Goal().priority == -1
     assert adapters.move_order_goal(replace(_order_cmd(), priority=2)).priority == 2
 
@@ -144,14 +144,14 @@ def test_the_robot_state_step_is_read_and_the_status_shows_the_priority():
     msg = RobotState(state="RECOVERING", local_yield=RobotState.LOCAL_YIELD_BACKUP)
     assert adapters.robot_local_yield(msg) == "backup"
     assert adapters.robot_local_yield(RobotState()) == ""
-    view = RobotStatusView("pinky1", "MOVING", "", "", "NONE", "", "", (), 90.0, 0.0, 0.0, 0.0,
+    view = RobotStatusView("pode1", "MOVING", "", "", "NONE", "", "", (), 90.0, 0.0, 0.0, 0.0,
                            priority=4)
     assert adapters.robots_to_msg([view], 0.0).robots[0].priority == 4
 
 
 def test_a_straight_retreat_goal_copies_distance_and_speed_and_sends_no_path():
     """관제가 시키는 물러나기(계약 0.9-draft 제안)."""
-    goal = adapters.retreat_goal(RetreatCmd("pinky1", 7, 0.15, 0.08))
+    goal = adapters.retreat_goal(RetreatCmd("pode1", 7, 0.15, 0.08))
     assert isinstance(goal, Retreat.Goal)
     assert (goal.distance_m, goal.speed_mps) == (pytest.approx(0.15), pytest.approx(0.08))
     assert list(goal.path) == []
@@ -159,31 +159,31 @@ def test_a_straight_retreat_goal_copies_distance_and_speed_and_sends_no_path():
 
 def test_a_retreat_goal_carries_its_path_as_poses_like_a_move_goal():
     path = ((1.0, 2.0, -math.pi / 2), (1.0, 1.6, -math.pi / 2), (0.6, 1.6, math.pi))
-    goal = adapters.retreat_goal(RetreatCmd("pinky1", 7, 0.8, 0.05, path))
-    move = adapters.move_goal(MoveCmd("pinky1", 7, "N", 0.6, 1.6, math.pi, path))
+    goal = adapters.retreat_goal(RetreatCmd("pode1", 7, 0.8, 0.05, path))
+    move = adapters.move_goal(MoveCmd("pode1", 7, "N", 0.6, 1.6, math.pi, path))
     assert list(goal.path) == list(move.path)
     assert [(p.position.x, p.position.y) for p in goal.path] == [(1.0, 2.0), (1.0, 1.6),
                                                                     (0.6, 1.6)]
 
 
 def test_fill_goal_copies_every_field():
-    goal = adapters.fill_goal(FillCmd(9, "pinky1", "WORK", "O-001", {"A": 2, "C": 1}))
-    assert (goal.order_id, goal.robot_id, goal.station_id) == ("O-001", "pinky1", "WORK")
+    goal = adapters.fill_goal(FillCmd(9, "pode1", "WORK", "O-001", {"A": 2, "C": 1}))
+    assert (goal.order_id, goal.robot_id, goal.station_id) == ("O-001", "pode1", "WORK")
     assert {i.kind: i.count for i in goal.items} == {"A": 2, "C": 1}
 
 
 @pytest.mark.parametrize("take_full", [True, False])
 def test_swap_goal_copies_every_field(take_full):
-    goal = adapters.swap_goal(SwapCmd("arm3", 9, "pinky1", "OUTBOUND", "O-001", take_full, True))
-    assert (goal.order_id, goal.robot_id, goal.station_id) == ("O-001", "pinky1", "OUTBOUND")
+    goal = adapters.swap_goal(SwapCmd("arm3", 9, "pode1", "OUTBOUND", "O-001", take_full, True))
+    assert (goal.order_id, goal.robot_id, goal.station_id) == ("O-001", "pode1", "OUTBOUND")
     assert (goal.take_full, goal.put_empty) == (take_full, True)
 
 
 def test_report_request_copies_every_field():
     request = adapters.report_request(ReportOrderCmd(
-        "O-001", "pinky1", ReportOrder.Request.STATUS_PARTIAL, {"A": 1}, {"C": 1}, "short"))
+        "O-001", "pode1", ReportOrder.Request.STATUS_PARTIAL, {"A": 1}, {"C": 1}, "short"))
     assert (request.order_id, request.robot_id, request.status, request.detail) == (
-        "O-001", "pinky1", "PARTIAL", "short")
+        "O-001", "pode1", "PARTIAL", "short")
     assert {i.kind: i.count for i in request.placed} == {"A": 1}
     assert {i.kind: i.count for i in request.missing} == {"C": 1}
 
@@ -203,28 +203,28 @@ def test_a_self_recovering_robot_reaches_the_core_and_the_status_as_it_is():
     """로봇 상태 RECOVERING(자가 복구, 제안)은 그대로 지나간다. fault는 NONE이다."""
     msg = RobotState(state=RobotState.STATE_RECOVERING)
     assert adapters.robot_report(msg)[3] == SELF_RECOVERING
-    view = RobotStatusView("pinky1", SELF_RECOVERING, "TO_WORK", "O-001", "NONE", "", "",
+    view = RobotStatusView("pode1", SELF_RECOVERING, "TO_WORK", "O-001", "NONE", "", "",
                            (), 50.0, 0.0, 0.0, 0.0)
     status = adapters.robots_to_msg([view], 0.0).robots[0]
     assert (status.fsm_state, status.fault) == ("RECOVERING", "NONE")
 
 
 def test_every_field_of_the_robot_status_reaches_the_message():
-    view = RobotStatusView("pinky2", "MOVING", "TO_OUTBOUND", "O-003", "ERROR", "DOCK_FAILED",
-                           "AVENUE", ("pinky1", "pinky3"), 87.5, 1.5, 2.5, 0.25)
+    view = RobotStatusView("pode2", "MOVING", "TO_OUTBOUND", "O-003", "ERROR", "DOCK_FAILED",
+                           "AVENUE", ("pode1", "pode3"), 87.5, 1.5, 2.5, 0.25)
     msg = adapters.robots_to_msg([view], 12.5)
     assert msg.stamp.sec == 12 and msg.stamp.nanosec == 500_000_000
     out = msg.robots[0]
     assert (out.robot_id, out.fsm_state, out.task_type, out.order_id) == (
-        "pinky2", "MOVING", "TO_OUTBOUND", "O-003")
+        "pode2", "MOVING", "TO_OUTBOUND", "O-003")
     assert (out.fault, out.fault_reason) == (RobotStatus.FAULT_ERROR, "DOCK_FAILED")
-    assert (out.wait_zone, list(out.wait_robots)) == ("AVENUE", ["pinky1", "pinky3"])
+    assert (out.wait_zone, list(out.wait_robots)) == ("AVENUE", ["pode1", "pode3"])
     assert (out.battery, out.x, out.y, out.yaw) == (87.5, 1.5, 2.5, 0.25)
     assert (list(out.base), list(out.horizon)) == ([], []), "no way ahead unless the view has one"
 
 
 def test_the_granted_and_the_ungranted_way_ahead_reach_the_message():
-    view = RobotStatusView("pinky2", "MOVING", "TO_OUTBOUND", "O-003", "NONE", "", "", (),
+    view = RobotStatusView("pode2", "MOVING", "TO_OUTBOUND", "O-003", "NONE", "", "", (),
                            87.5, 1.5, 2.5, 0.25, base=("X_W", "N_W", "O_Q"), horizon=("N_E", "O"))
     out = adapters.robots_to_msg([view], 0.0).robots[0]
     assert (list(out.base), list(out.horizon)) == (["X_W", "N_W", "O_Q"], ["N_E", "O"])
@@ -251,8 +251,8 @@ def test_order_board_mode_is_read_here_too():
 
 
 def test_confirm_clear_request_and_response_are_handled_here():
-    request = ConfirmClear.Request(robot_id="pinky1", zone_ids=["Z-OUT"], note="moved by hand")
-    assert adapters.confirm_clear_args(request) == ("pinky1", ["Z-OUT"], "moved by hand")
+    request = ConfirmClear.Request(robot_id="pode1", zone_ids=["Z-OUT"], note="moved by hand")
+    assert adapters.confirm_clear_args(request) == ("pode1", ["Z-OUT"], "moved by hand")
     response = adapters.confirm_clear_response(ConfirmClear.Response(), ["Z-OUT"])
     assert response.accepted is True and list(response.released_zones) == ["Z-OUT"]
 
@@ -330,7 +330,7 @@ def test_the_robot_values_the_core_reads_are_the_message_constants():
 
 
 def test_robot_report_id_is_read_separately():
-    assert adapters.robot_report_id(RobotState(robot_id="pinky2")) == "pinky2"
+    assert adapters.robot_report_id(RobotState(robot_id="pode2")) == "pode2"
 
 
 def test_a_count_of_zero_or_less_is_not_hidden_by_adding_up():
@@ -357,7 +357,7 @@ def _order_cmd(update_id=0, base=None, horizon=()):
                        controller_id="FollowPath"),
             SegmentOut(2, "nav_goal", "C3", ("WIDE",), x=1.0, y=0.5, yaw=math.pi),
         )
-    return MoveOrderCmd("pinky1", 9, "M-1", update_id, "N_W" if update_id else "", base, horizon)
+    return MoveOrderCmd("pode1", 9, "M-1", update_id, "N_W" if update_id else "", base, horizon)
 
 
 def test_an_order_goal_carries_ids_base_and_horizon_as_segments():

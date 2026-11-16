@@ -50,7 +50,7 @@ from fleet_manager.order_goals import FeedbackFilter, apply_overrides
 class FleetManagerNode(Node):
     def __init__(self, record=None):
         super().__init__("fleet_manager")
-        self.declare_parameter("robots", ["pinky1", "pinky2", "pinky3"])
+        self.declare_parameter("robots", ["pode1", "pode2", "pode3"])
         self.declare_parameter("contract_file", "")
         self.declare_parameter("map_file", "")
         self.declare_parameter("params_file", "")
@@ -122,13 +122,13 @@ class FleetManagerNode(Node):
         self._check_clear = {}
         for robot in robots:
             self.create_subscription(
-                RobotState, name("robot_state", pinky=robot),
+                RobotState, name("robot_state", pode=robot),
                 partial(self._on_robot_state, robot), self._qos("robot_state"))
-            self._move[robot] = ActionClient(self, MoveTo, name("move_to", pinky=robot))
-            self._dock[robot] = ActionClient(self, Dock, name("dock", pinky=robot))
-            self._retreat[robot] = ActionClient(self, Retreat, name("retreat", pinky=robot))
+            self._move[robot] = ActionClient(self, MoveTo, name("move_to", pode=robot))
+            self._dock[robot] = ActionClient(self, Dock, name("dock", pode=robot))
+            self._retreat[robot] = ActionClient(self, Retreat, name("retreat", pode=robot))
             self._check_clear[robot] = self.create_client(CheckClear,
-                                                          name("check_clear", pinky=robot))
+                                                          name("check_clear", pode=robot))
         self._fill = {}
         self._swap = {}
         for station in self.site.stations.values():

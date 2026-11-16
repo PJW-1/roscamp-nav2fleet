@@ -5,13 +5,13 @@ from fleet_manager.order_goals import FeedbackFilter, apply_overrides
 
 def test_the_first_feedback_passes_and_an_unchanged_one_does_not():
     gate = FeedbackFilter()
-    assert gate.changed(("pinky1", 7), (0, False, ""))
-    assert not gate.changed(("pinky1", 7), (0, False, ""))
+    assert gate.changed(("pode1", 7), (0, False, ""))
+    assert not gate.changed(("pode1", 7), (0, False, ""))
 
 
 def test_a_change_in_any_of_the_three_values_passes():
     gate = FeedbackFilter()
-    key = ("pinky1", 7)
+    key = ("pode1", 7)
     gate.changed(key, (0, False, ""))
     assert gate.changed(key, (1, False, ""))
     assert gate.changed(key, (1, True, ""))
@@ -21,10 +21,10 @@ def test_a_change_in_any_of_the_three_values_passes():
 
 def test_goals_are_gated_apart_and_forget_clears_one():
     gate = FeedbackFilter()
-    gate.changed(("pinky1", 7), (1, False, ""))
-    assert gate.changed(("pinky1", 8), (1, False, ""))
-    gate.forget(("pinky1", 7))
-    assert gate.changed(("pinky1", 7), (1, False, ""))
+    gate.changed(("pode1", 7), (1, False, ""))
+    assert gate.changed(("pode1", 8), (1, False, ""))
+    gate.forget(("pode1", 7))
+    assert gate.changed(("pode1", 7), (1, False, ""))
 
 
 def test_unset_overrides_keep_the_file_values_and_set_ones_win():

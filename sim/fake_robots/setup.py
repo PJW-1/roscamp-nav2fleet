@@ -16,7 +16,7 @@ setup(
     tests_require=['pytest'],
     zip_safe=True,
     entry_points={'console_scripts': [
-        'fake_pinky_node = fake_robots.fake_pinky_node:main',
+        'fake_pode_node = fake_robots.fake_pode_node:main',
         'fake_workcell_node = fake_robots.fake_workcell_node:main',
         'fake_arm_node = fake_robots.fake_arm_node:main',
         'fake_vision_node = fake_robots.fake_vision_node:main',

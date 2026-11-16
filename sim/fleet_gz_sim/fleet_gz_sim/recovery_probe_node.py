@@ -37,7 +37,7 @@ class RecoveryProbeNode(Node):
             "parameter_overrides": [Parameter("use_sim_time", value=True)]}
         super().__init__("recovery_probe", **node_kwargs, **hosted)
         if robots is None:
-            robots = list(self.declare_parameter("robots", ["pinky1", "pinky2", "pinky3"]).value)
+            robots = list(self.declare_parameter("robots", ["pode1", "pode2", "pode3"]).value)
             result_dir = self.declare_parameter("result_dir", "").value
             settle_s = float(self.declare_parameter("settle_s", 2.0).value)
         contract_file = self.declare_parameter("contract_file", "").value
@@ -51,7 +51,7 @@ class RecoveryProbeNode(Node):
             self.create_subscription(Odometry, f"/{robot}/sim/truth",
                                      lambda msg, r=robot: self._on_truth(r, msg),
                                      qos_profile_sensor_data)
-            self.create_subscription(RobotState, contract.name("robot_state", pinky=robot),
+            self.create_subscription(RobotState, contract.name("robot_state", pode=robot),
                                      lambda msg, r=robot: self._on_state(r, msg),
                                      to_ros_qos(contract.qos("robot_state")))
         self.get_logger().info(f"recovery probe for {robots} -> {result_dir or 'log only'}")

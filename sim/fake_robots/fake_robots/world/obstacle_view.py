@@ -13,7 +13,7 @@ import math
 from fleet_core.common.commands import BLOCKED_AT, CLEAR, UNKNOWN
 from fleet_core.fleet_map.geometry import segment_rect_distance
 
-HALF_WIDTH_M = 0.12  # 가던 쪽 띠의 반폭(pinky_fsm.obstacle_report와 같다)
+HALF_WIDTH_M = 0.12  # 가던 쪽 띠의 반폭(pode_fsm.obstacle_report와 같다)
 
 
 def seen_ahead(x: float, y: float, yaw: float, discs, look_m: float,

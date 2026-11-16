@@ -210,7 +210,7 @@ def status(core, robot):
     return {view.robot_id: view for view in core.robots_view()}[robot]
 
 
-def test_the_status_says_what_the_pinky_reported_and_where_it_is():
+def test_the_status_says_what_the_pode_reported_and_where_it_is():
     core, _ = make({"r1": "P-1"})
     x, y = core.site.node_pose("P-1")
     core.on_robot_state("r1", x, y, 0.5, "WAITING", 87.5)

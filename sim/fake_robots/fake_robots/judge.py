@@ -39,7 +39,7 @@ def is_pseudo_holder(holder: str) -> bool:
 
 
 def holder_set(text: str) -> frozenset[str]:
-    """/fleet/zones의 holder("pinky1,pinky3", 빈 값이면 아무도)에서 로봇 이름들. '#'는 뺀다."""
+    """/fleet/zones의 holder("pode1,pode3", 빈 값이면 아무도)에서 로봇 이름들. '#'는 뺀다."""
     return frozenset(name.strip() for name in (text or "").split(",")
                      if name.strip() and not is_pseudo_holder(name.strip()))
 

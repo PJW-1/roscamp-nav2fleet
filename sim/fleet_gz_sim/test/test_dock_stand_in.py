@@ -3,7 +3,7 @@ import pytest
 from fleet_gz_sim.dock_stand_in import dock_outcome, dock_phase
 
 
-def test_phases_follow_fake_pinky():
+def test_phases_follow_fake_pode():
     assert dock_phase(0.0, 3.0) == "APPROACH"
     assert dock_phase(1.6, 3.0) == "ALIGN"
     assert dock_phase(3.0, 3.0) == "DONE"

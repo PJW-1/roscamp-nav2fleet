@@ -15,23 +15,23 @@ def targets(world, robot):
 
 
 def test_more_robots_than_wait_spots_take_the_dock_in_the_order_they_asked():
-    world = Harness(starts={"pinky1": "W", "pinky2": "P-2", "pinky3": "P-3"})
+    world = Harness(starts={"pode1": "W", "pode2": "P-2", "pode3": "P-3"})
     world.report()
-    busy = world.call("WORK", "pinky1")
+    busy = world.call("WORK", "pode1")
     assert world.run_until(lambda: world.result_of(busy) is not None, 30.0)
-    first = world.call("WORK", "pinky3")
-    world.now += DT / 2  # pinky3이 먼저 바랐다
-    second = world.call("WORK", "pinky2")
+    first = world.call("WORK", "pode3")
+    world.now += DT / 2  # pode3이 먼저 바랐다
+    second = world.call("WORK", "pode2")
     world.run(30.0)
-    assert world.view("pinky2")["node"] == "W_Q", "the wait spot goes to the robot seen first"
-    queued = [e.detail for e in world.events if e.code == "DOCK_QUEUED" and e.robot == "pinky3"]
+    assert world.view("pode2")["node"] == "W_Q", "the wait spot goes to the robot seen first"
+    queued = [e.detail for e in world.events if e.code == "DOCK_QUEUED" and e.robot == "pode3"]
     assert queued == ["WORK is busy, waits at P-3"], "the other one waits where it is parked"
-    assert targets(world, "pinky3") == []
-    world.traffic.on_release("pinky1")
+    assert targets(world, "pode3") == []
+    world.traffic.on_release("pode1")
     assert world.run_until(lambda: world.result_of(first) is not None, 120.0)
-    assert world.result_of(first).robot_id == "pinky3", "the first to ask docks first"
-    assert world.result_of(second) is None and targets(world, "pinky2") == ["W_Q"]
-    world.traffic.on_release("pinky3")
+    assert world.result_of(first).robot_id == "pode3", "the first to ask docks first"
+    assert world.result_of(second) is None and targets(world, "pode2") == ["W_Q"]
+    world.traffic.on_release("pode3")
     assert world.run_until(lambda: world.result_of(second) is not None, 200.0)
-    assert world.result_of(second).robot_id == "pinky2"
+    assert world.result_of(second).robot_id == "pode2"
     assert not world.problems

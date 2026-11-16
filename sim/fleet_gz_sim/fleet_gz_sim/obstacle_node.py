@@ -45,7 +45,7 @@ MARKER_TYPES = {"cube": Marker.CUBE, "text": Marker.TEXT_VIEW_FACING}
 class ObstacleNode(Node):
     def __init__(self):
         super().__init__("sim_obstacles")
-        robots = self.declare_parameter("robots", ["pinky1", "pinky2", "pinky3"]).value
+        robots = self.declare_parameter("robots", ["pode1", "pode2", "pode3"]).value
         path = self.declare_parameter("obstacles_file", "").value
         map_file = self.declare_parameter("map_file", "").value  # layout name or file, "" = d2
         self.world = self.declare_parameter("world", WORLD).value

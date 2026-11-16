@@ -1,6 +1,6 @@
 """앞 물체 앞에서 서고, 짧게 후진해 다시 가 보고, 그래도 막히면 BLOCKED. ROS를 쓰지 않는다.
 
-자기 복구는 제안이다(2026-11-09 공유 명세 '로봇 쪽'). pinky_fsm과 같은 순서로 움직인다.
+자기 복구는 제안이다(2026-11-09 공유 명세 '로봇 쪽'). pode_fsm과 같은 순서로 움직인다.
   - 물체 앞에 block_report_s 서 있으면 시도를 하나 쓰고 RECOVERING이다.
   - 후진 거리 d = min(backup_max_m, s_ref - robot_radius_m - backup_margin_m), s_ref는 마지막으로
     지난 path 꼭짓점(첫 점 포함)부터 온 거리다. d < backup_min_m이면 후진하지 않는다.
@@ -116,10 +116,10 @@ class ObstacleRecovery:
             self.used, self._first_at = 0, None
 
     def nav_aborted(self, t: float, motion, wall_behind_m: float | None = None) -> bool:
-        """FollowPath가 중단됐다(명세 2b, pinky_fsm core.py nav_result). 시도가 남았으면 시도를
+        """FollowPath가 중단됐다(명세 2b, pode_fsm core.py nav_result). 시도가 남았으면 시도를
         시작하고 False, 다 썼으면 True(목표를 NAV_ABORTED로 끝낸다).
 
-        FakePinky의 nav_abort는 'Nav2가 계속 중단한다'이다. 다시 가도 처음 중단한 자리를 넘지
+        FakePode의 nav_abort는 'Nav2가 계속 중단한다'이다. 다시 가도 처음 중단한 자리를 넘지
         못하고, 노드가 정한 때 또 중단한다.
         """
         if self.used >= self.p.recovery_attempts:

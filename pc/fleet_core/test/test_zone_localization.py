@@ -57,9 +57,9 @@ def test_the_slack_grows_with_the_time_between_reports():
 def test_a_jumping_report_is_recorded_once_as_localization_suspect():
     world = Harness()
     world.run(1.0)
-    world.bots["pinky1"].x += 0.5  # 로봇은 서 있었는데 보고 위치가 0.5 m 옮겨졌다
+    world.bots["pode1"].x += 0.5  # 로봇은 서 있었는데 보고 위치가 0.5 m 옮겨졌다
     world.run(1.0)
-    assert count(world, "LOCALIZATION_SUSPECT", "pinky1") == 1
+    assert count(world, "LOCALIZATION_SUSPECT", "pode1") == 1
     assert count(world, "LOCALIZATION_SUSPECT") == 1
     event = next(e for e in world.events if e.code == "LOCALIZATION_SUSPECT")
     assert event.level == "WARN" and "moved 0.50 m" in event.detail
@@ -68,7 +68,7 @@ def test_a_jumping_report_is_recorded_once_as_localization_suspect():
 def test_a_robot_that_drives_its_way_is_not_suspect():
     world = Harness()
     world.step()
-    world.call("WORK", "pinky2")
+    world.call("WORK", "pode2")
     world.run(60.0)
     assert count(world, "LOCALIZATION_SUSPECT") == 0
 
@@ -77,9 +77,9 @@ def test_a_new_pose_after_localizing_is_not_a_jump():
     """위치를 다시 잡은 로봇(LOCALIZING)의 다음 자세는 앞 자세와 견주지 않는다."""
     world = Harness()
     world.run(1.0)
-    reports(world, "pinky1", "LOCALIZING")
+    reports(world, "pode1", "LOCALIZING")
     world.run(0.5)
-    world.bots["pinky1"].x += 0.5
+    world.bots["pode1"].x += 0.5
     del world._state
     world.run(1.0)
     assert count(world, "LOCALIZATION_SUSPECT") == 0
@@ -88,27 +88,27 @@ def test_a_new_pose_after_localizing_is_not_a_jump():
 def test_jumps_in_a_row_are_one_event_until_the_quiet_time_is_over():
     world = Harness()
     world.run(1.0)
-    bot = world.bots["pinky1"]
+    bot = world.bots["pode1"]
     for _ in range(3):
         bot.x += 0.4
         world.step()
         bot.x -= 0.4
         world.step()
-    assert count(world, "LOCALIZATION_SUSPECT", "pinky1") == 1
+    assert count(world, "LOCALIZATION_SUSPECT", "pode1") == 1
     world.run(P.pose_jump_quiet_s)
     bot.x += 0.4
     world.run(0.5)
-    assert count(world, "LOCALIZATION_SUSPECT", "pinky1") == 2
+    assert count(world, "LOCALIZATION_SUSPECT", "pode1") == 2
 
 
 def test_the_first_pose_after_lost_contact_is_not_a_jump():
     """The pose of a robot that went silent may have been set again in the meantime."""
     world = Harness(params=replace(P, comm_timeout_s=1.0))
     world.run(1.0)
-    world.silent.add("pinky1")
-    assert world.run_until(lambda: "COMM_LOST" in world.codes("pinky1"), 5.0)
+    world.silent.add("pode1")
+    assert world.run_until(lambda: "COMM_LOST" in world.codes("pode1"), 5.0)
     assert world.now < 1.0 + P.pose_jump_window_s, "still inside the compared time"
-    world.bots["pinky1"].x += 1.5
+    world.bots["pode1"].x += 1.5
     world.silent.clear()
     world.run(1.0)
     assert count(world, "LOCALIZATION_SUSPECT") == 0

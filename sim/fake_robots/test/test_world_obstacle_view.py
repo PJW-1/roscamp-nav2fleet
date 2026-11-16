@@ -29,11 +29,11 @@ def test_a_check_answers_from_the_objects_within_range_and_line_of_sight():
 
 
 def test_a_blocked_robot_reports_where_the_box_is():
-    world = quiet_world(robots={"pinky1": "X_W"}, injections=[Obstacle(1.0, 0.89, 0.05)])
-    place(world, "pinky1", 0.40, 0.89, 0.0)
-    world.send(follow(world, "pinky1", 7, ["X_W", "X_E"]))
+    world = quiet_world(robots={"pode1": "X_W"}, injections=[Obstacle(1.0, 0.89, 0.05)])
+    place(world, "pode1", 0.40, 0.89, 0.0)
+    world.send(follow(world, "pode1", 7, ["X_W", "X_E"]))
     world.run(4.0)
-    reports = [args for _, args in world.manager.of("on_robot_state", "pinky1")
+    reports = [args for _, args in world.manager.of("on_robot_state", "pode1")
                if args[4] == "BLOCKED"]
     assert reports, "it stood and reported BLOCKED"
     *_, x, y, kind = reports[-1]
@@ -43,11 +43,11 @@ def test_a_blocked_robot_reports_where_the_box_is():
 
 def test_a_robot_blocked_before_it_turns_looks_along_its_way_not_its_yaw():
     """선 채로 막힌 로봇은 아직 돌지 않았다(yaw는 옛 방향). costmap은 가려던 쪽을 본다."""
-    world = quiet_world(robots={"pinky1": "X_W"}, injections=[Obstacle(0.62, 0.89, 0.05)])
-    place(world, "pinky1", 0.40, 0.89, math.pi / 2)  # 길은 동쪽, 몸은 북쪽을 본다
-    world.send(follow(world, "pinky1", 7, ["X_W", "X_E"]))
+    world = quiet_world(robots={"pode1": "X_W"}, injections=[Obstacle(0.62, 0.89, 0.05)])
+    place(world, "pode1", 0.40, 0.89, math.pi / 2)  # 길은 동쪽, 몸은 북쪽을 본다
+    world.send(follow(world, "pode1", 7, ["X_W", "X_E"]))
     world.run(4.0)
-    reports = [args for _, args in world.manager.of("on_robot_state", "pinky1")
+    reports = [args for _, args in world.manager.of("on_robot_state", "pode1")
                if args[4] == "BLOCKED"]
     assert reports and len(reports[-1]) == 10, "it reported what blocks it"
     *_, x, y, kind = reports[-1]

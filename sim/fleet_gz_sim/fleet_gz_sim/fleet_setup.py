@@ -3,9 +3,9 @@
 - 배치(layout): d2(기본), d, c, 시험용 d2_shelf. 구역 지도 fleet_core/data/fleet_map_<배치>.yaml과,
   arena.py가 그 지도로 만든 월드·지도·keepout 마스크(Arena)를 고른다.
 - 시나리오의 `map`은 배치 이름이다(없으면 d2). launch의 layout과 다르면 띄우지 않는다.
-- 핑키를 놓는 자리: 시나리오 robots의 start(지점 이름). start가 없으면 주차 지점을 차례로 준다.
+- Pode를 놓는 자리: 시나리오 robots의 start(지점 이름). start가 없으면 주차 지점을 차례로 준다.
   방향은 그 지점의 yaw(없으면 0).
-- 돌릴 수 없는 시나리오: 로봇 고장이 있는 것(가짜 핑키가 일으키는 고장이라 진짜 pinky_fsm에는
+- 돌릴 수 없는 시나리오: 로봇 고장이 있는 것(가짜 Pode가 일으키는 고장이라 진짜 pode_fsm에는
   일으킬 곳이 없다). low_battery는 된다: sim_stand_in이 배터리 토픽으로 낸다.
 """
 from __future__ import annotations
@@ -110,7 +110,7 @@ def check_fits(data: dict, name: str, layout: str, seed: int | None = None) -> N
     faults = sorted({str(f.get("type")) for f in _faults(data, seed)
                      if f.get("type") in ROBOT_FAULTS and f.get("type") not in ARENA_FAULTS})
     if faults:
-        raise ScenarioUnfit(f"{name} has robot faults {faults}; only fake pinkys can make them")
+        raise ScenarioUnfit(f"{name} has robot faults {faults}; only fake podes can make them")
 
 
 @dataclass(frozen=True)
@@ -171,7 +171,7 @@ def narrow_strips(site, band: float = 0.05) -> str:
     끝면 잡음은 좁은 띠 바로 밖(D2에서는 HALL의 1.5 cm 띠)에 떨어져 띠만으로는 남기 때문이다(2-1
     후진 모퉁이). 구역 사각형의 변이 경기장 벽에 닿으면 그 변을 band만큼 벽 너머로 넓힌다. 벽 면
     너머로 잰 잡음 점과 AMCL 오차로 너머에 놓인 점도 띠에 들게 한다. band는 거르개의 wall_band_m과
-    같게 준다. pinky_nav_config nav2.launch.py의 narrow_strips 인자 꼴이다(추가지시서3 7-2).
+    같게 준다. pode_nav_config nav2.launch.py의 narrow_strips 인자 꼴이다(추가지시서3 7-2).
     """
     bx0, by0, bx1, by1 = site.bounds()
 

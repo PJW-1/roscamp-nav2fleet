@@ -1,4 +1,4 @@
-"""fleet_check node: records the three-pinky driving check (fleet_check.FleetCheck) during a run.
+"""fleet_check node: records the three-pode driving check (fleet_check.FleetCheck) during a run.
 
     ros2 run fleet_gz_sim fleet_check --ros-args -p output:=gz_result/fleet_check.json
 
@@ -33,7 +33,7 @@ from fleet_gz_sim.fleet_check import MARGIN_M, FleetCheck, footprint_of
 class FleetCheckNode(Node):
     def __init__(self):
         super().__init__("fleet_check")
-        robots = list(self.declare_parameter("robots", ["pinky1", "pinky2", "pinky3"]).value)
+        robots = list(self.declare_parameter("robots", ["pode1", "pode2", "pode3"]).value)
         map_file = self.declare_parameter("map_file", "").value  # layout name or file, "" = d2
         contract_file = self.declare_parameter("contract_file", "").value
         self.output = Path(self.declare_parameter("output", "fleet_check.json").value)
@@ -57,7 +57,7 @@ class FleetCheckNode(Node):
             self.create_subscription(Odometry, f"/{robot}/sim/truth",
                                      lambda msg, r=robot: self._on_truth(r, msg),
                                      qos_profile_sensor_data)
-            self.create_subscription(RobotState, contract.name("robot_state", pinky=robot),
+            self.create_subscription(RobotState, contract.name("robot_state", pode=robot),
                                      lambda msg, r=robot: self.check.on_state(r, msg.state),
                                      to_ros_qos(contract.qos("robot_state")))
         self.create_subscription(ZoneStateArray, contract.name("zones"), self._on_zones,
@@ -67,13 +67,13 @@ class FleetCheckNode(Node):
         self.get_logger().info(f"fleet check for {robots} -> {self.output}")
 
     def _body(self):
-        """The Nav2 footprint of pinky_nav_config (keepout depth). None if it is not there."""
+        """The Nav2 footprint of pode_nav_config (keepout depth). None if it is not there."""
         from ament_index_python.packages import PackageNotFoundError, get_package_share_directory
         try:
-            share = Path(get_package_share_directory("pinky_nav_config"))
+            share = Path(get_package_share_directory("pode_nav_config"))
             nav = yaml.safe_load((share / "params" / "nav2_params.yaml").read_text("utf-8"))
         except (PackageNotFoundError, OSError):
-            self.get_logger().warn("no pinky_nav_config footprint: keepout depth is not measured")
+            self.get_logger().warn("no pode_nav_config footprint: keepout depth is not measured")
             return None
         return footprint_of(nav)
 

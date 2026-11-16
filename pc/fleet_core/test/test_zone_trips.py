@@ -44,22 +44,22 @@ def test_one_command_per_nav_goal_link_and_one_per_run_of_fixed_path():
 
 def test_a_nav_goal_command_faces_the_way_the_fixed_path_continues():
     to_work = way("P-1", "W")
-    cmd = trips.move_command(D2, "pinky1", 7, to_work[:1], 0.13, 0.15, after=to_work[1])
+    cmd = trips.move_command(D2, "pode1", 7, to_work[:1], 0.13, 0.15, after=to_work[1])
     assert (cmd.mode, cmd.target_id, cmd.path, cmd.goal_id) == ("nav_goal", "N_W", (), 7)
     assert (cmd.x, cmd.y) == (0.35, 0.65)
     assert cmd.yaw == pytest.approx(math.pi / 2), "work_in starts northward"
 
 
 def test_a_nav_goal_command_uses_the_heading_written_on_the_node():
-    cmd = trips.move_command(D2, "pinky1", 1, way("P-1", "W_Q"), 0.13, 0.15)
+    cmd = trips.move_command(D2, "pode1", 1, way("P-1", "W_Q"), 0.13, 0.15)
     assert cmd.yaw == pytest.approx(math.radians(90))
-    cmd = trips.move_command(D2, "pinky1", 1, way("W_Q", "N_E"), 0.20, 0.55)
+    cmd = trips.move_command(D2, "pode1", 1, way("W_Q", "N_E"), 0.20, 0.55)
     assert cmd.yaw == pytest.approx(math.atan2(0.65 - 0.55, 1.63 - 0.20)), "the way it drives"
 
 
 def test_a_follow_path_command_is_one_polyline_through_the_nodes():
     to_work = way("P-1", "W")
-    cmd = trips.move_command(D2, "pinky1", 8, to_work[1:], 0.35, 0.65)
+    cmd = trips.move_command(D2, "pode1", 8, to_work[1:], 0.35, 0.65)
     assert (cmd.mode, cmd.target_id, cmd.final_goal) == ("follow_path", "W", True)
     assert [(x, y) for x, y, _ in cmd.path] == [(0.35, 0.65), (0.35, 0.89), (0.18, 0.89)]
     assert [yaw for _, _, yaw in cmd.path] == pytest.approx([math.pi / 2, math.pi, math.pi])
@@ -68,7 +68,7 @@ def test_a_follow_path_command_is_one_polyline_through_the_nodes():
 
 def test_a_follow_path_command_sent_again_starts_where_the_robot_is_on_the_line():
     express = way("X_W", "X_E")
-    cmd = trips.move_command(D2, "pinky1", 9, express, 0.90, 0.91)
+    cmd = trips.move_command(D2, "pode1", 9, express, 0.90, 0.91)
     assert [(x, y) for x, y, _ in cmd.path] == [pytest.approx((0.90, 0.89)), (1.63, 0.89)]
 
 
@@ -79,7 +79,7 @@ SLANT = math.hypot(0.05, 0.24)
 
 def test_a_retreat_command_backs_round_the_bend_into_the_hall_facing_the_dock():
     out = way("W", "O")[:1]
-    cmd = trips.retreat_command(PARAMS, "pinky1", 3, out, 0.18, 0.89)
+    cmd = trips.retreat_command(PARAMS, "pode1", 3, out, 0.18, 0.89)
     assert cmd.distance_m == pytest.approx(0.12 + SLANT)
     assert cmd.speed_mps == PARAMS.retreat_speed_mps
     assert [(x, y) for x, y, _ in cmd.path] == [(0.18, 0.89), (0.30, 0.89), (0.35, 0.65)]
@@ -89,11 +89,11 @@ def test_a_retreat_command_backs_round_the_bend_into_the_hall_facing_the_dock():
 
 def test_a_retreat_sent_again_past_the_start_keeps_the_bend_ahead():
     out = way("W", "O")[:1]
-    cmd = trips.retreat_command(PARAMS, "pinky1", 3, out, 0.25, 0.90)
+    cmd = trips.retreat_command(PARAMS, "pode1", 3, out, 0.25, 0.90)
     assert [(x, y) for x, y, _ in cmd.path] == [
         pytest.approx((0.25, 0.89)), (0.30, 0.89), (0.35, 0.65)]
     # 비스듬한 조각 위 y 0.75: 남은 길은 그 조각의 0.10 m / 0.24 m
-    cmd = trips.retreat_command(PARAMS, "pinky1", 3, out, 0.33, 0.75)
+    cmd = trips.retreat_command(PARAMS, "pode1", 3, out, 0.33, 0.75)
     assert [(x, y) for x, y, _ in cmd.path][-1] == (0.35, 0.65)
     assert cmd.distance_m == pytest.approx(SLANT * 0.10 / 0.24, abs=0.002)
 

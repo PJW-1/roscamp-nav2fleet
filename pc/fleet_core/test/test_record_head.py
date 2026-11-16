@@ -12,7 +12,7 @@ from fleet_core.common.params import load_params
 from fleet_core.manager import FleetManager
 from stations import STATIONS
 
-ROBOTS = ["pinky1", "pinky2", "pinky3"]
+ROBOTS = ["pode1", "pode2", "pode3"]
 
 
 def stub_site(source_text):

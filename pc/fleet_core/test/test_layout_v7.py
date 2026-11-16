@@ -320,7 +320,7 @@ def test_v7_queue_is_entered_at_q2_and_flows_one_way(site):
     assert math.degrees(site.nodes["Q1"].yaw) == pytest.approx(90.0)
 
 
-BODY_CIRCLE_M = 0.083  # 핑키 뒤 모서리 회전 반지름(docs/실측_2026-11-10.md)
+BODY_CIRCLE_M = 0.083  # Pode 뒤 모서리 회전 반지름(docs/실측_2026-11-10.md)
 WALL_NAV_M = 0.13      # Nav2 goal로 닿는 자리와 벽 사이(덧댐 붙은 뒤 모서리 0.098 + 칸 0.025)
 FRONT_M, REAR_M = 0.04, 0.0745
 HALF_WIDTH_M = 0.056   # 지나가는 로봇의 반 폭(local footprint)

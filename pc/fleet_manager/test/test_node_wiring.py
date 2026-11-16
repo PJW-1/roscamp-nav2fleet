@@ -56,7 +56,7 @@ def items(counts):
 class World(Node):
     """시키는 대로 즉시 하는 로봇 하나, 팔 서버 둘, central. 로봇은 지도의 node에서 선다."""
 
-    def __init__(self, contract, site, node, robot="pinky1", robot_servers=True):
+    def __init__(self, contract, site, node, robot="pode1", robot_servers=True):
         super().__init__("wiring_world")
         self.robot = robot
         group = ReentrantCallbackGroup()
@@ -80,7 +80,7 @@ class World(Node):
         self.board = self.create_publisher(
             OrderBoard, name("order_board"), to_ros_qos(contract.qos("order_board")))
         self.state = self.create_publisher(
-            RobotState, name("robot_state", pinky=robot),
+            RobotState, name("robot_state", pode=robot),
             to_ros_qos(contract.qos("robot_state")))
         self.create_subscription(
             AssignmentArray, name("assignments"),
@@ -113,11 +113,11 @@ class World(Node):
     def serve_robot(self):
         name, group = self._contract.name, self._group
         self._servers += [
-            ActionServer(self, MoveTo, name("move_to", pinky=self.robot), self._on_move,
+            ActionServer(self, MoveTo, name("move_to", pode=self.robot), self._on_move,
                          callback_group=group),
-            ActionServer(self, Dock, name("dock", pinky=self.robot), self._on_dock,
+            ActionServer(self, Dock, name("dock", pode=self.robot), self._on_dock,
                          callback_group=group),
-            ActionServer(self, Retreat, name("retreat", pinky=self.robot), self._on_retreat,
+            ActionServer(self, Retreat, name("retreat", pode=self.robot), self._on_retreat,
                          callback_group=group),
         ]
 
@@ -177,7 +177,7 @@ class World(Node):
 
 @pytest.fixture
 def graph():
-    rclpy.init(args=["--ros-args", "-p", "robots:=[pinky1]", "-p", "tick_hz:=50.0"])
+    rclpy.init(args=["--ros-args", "-p", "robots:=[pode1]", "-p", "tick_hz:=50.0"])
     node = FleetManagerNode()
     world = World(node.contract, load_fleet_map("d2"), "P-1")
     world.fms = node
@@ -213,9 +213,9 @@ def test_an_order_goes_through_fill_and_swap_to_its_report(graph):
     publish(graph, "RUN", {"A": 1, "C": 2})
     assert wait_for(lambda: graph.reports), f"fills {graph.fills}, swaps {graph.swaps}"
     report = graph.reports[0]
-    assert (report.order_id, report.robot_id, report.status) == ("O-001", "pinky1", "SHIPPED")
+    assert (report.order_id, report.robot_id, report.status) == ("O-001", "pode1", "SHIPPED")
     assert {i.kind: i.count for i in report.placed} == {"A": 1, "C": 2}
-    assert graph.fills == [("O-001", "pinky1", "WORK", {"A": 1, "C": 2})]
+    assert graph.fills == [("O-001", "pode1", "WORK", {"A": 1, "C": 2})]
     assert graph.swaps == [("O-001", True, True)]
     seen = [(a.order_id, a.station_id, a.task_type) for array in graph.assignments for a in array]
     assert ("O-001", "WORK", "FILL") in seen
@@ -229,7 +229,7 @@ def test_the_status_of_every_robot_comes_out_about_once_a_second(graph):
     span = (last.stamp.sec - first.stamp.sec) + (last.stamp.nanosec - first.stamp.nanosec) / 1e9
     assert 0.7 <= span / (len(graph.status) - 1) <= 1.3
     robot = last.robots[0]
-    assert (robot.robot_id, robot.fsm_state, robot.fault) == ("pinky1", "IDLE", "NONE")
+    assert (robot.robot_id, robot.fsm_state, robot.fault) == ("pode1", "IDLE", "NONE")
     assert (robot.x, robot.y) != (0.0, 0.0)
 
 
@@ -237,13 +237,13 @@ def test_a_new_fms_stays_silent_until_any_goal_of_an_old_one_must_have_stopped(g
     """먼저 읽고 나서 아직 조용한지 확인한다. 시간은 한 방향으로만 흐른다."""
     fms = graph.fms
     while True:
-        on_map, beats = fms.core.traffic.robot_view("pinky1")["on_map"], list(graph.beats)
+        on_map, beats = fms.core.traffic.robot_view("pode1")["on_map"], list(graph.beats)
         if not fms.silent():
             break
         assert not on_map, "took a report during the silence"
         assert not beats, "a heartbeat during the silence"
         time.sleep(0.02)
-    assert wait_for(lambda: fms.core.traffic.robot_view("pinky1")["on_map"], 10.0)
+    assert wait_for(lambda: fms.core.traffic.robot_view("pode1")["on_map"], 10.0)
 
 
 def test_a_robot_counts_only_once_its_goals_can_reach_it():
@@ -252,11 +252,11 @@ def test_a_robot_counts_only_once_its_goals_can_reach_it():
     비어 있는 것이 아니기 때문이다. heartbeat도 보내지 않는다. 이전 FMS의 goal이 그것을 자기
     것으로 알고 계속 갈 수 있다.
 
-    pinky1을 쓰지 않는 이유: 앞선 테스트의 서버가 잠시 그래프에 남아 있을 수 있다.
+    pode1을 쓰지 않는 이유: 앞선 테스트의 서버가 잠시 그래프에 남아 있을 수 있다.
     """
-    rclpy.init(args=["--ros-args", "-p", "robots:=[pinky3]", "-p", "tick_hz:=50.0"])
+    rclpy.init(args=["--ros-args", "-p", "robots:=[pode3]", "-p", "tick_hz:=50.0"])
     node = FleetManagerNode()
-    world = World(node.contract, load_fleet_map("d2"), "P-1", robot="pinky3", robot_servers=False)
+    world = World(node.contract, load_fleet_map("d2"), "P-1", robot="pode3", robot_servers=False)
     executor = MultiThreadedExecutor(num_threads=4)
     executor.add_node(node)
     executor.add_node(world)
@@ -265,11 +265,11 @@ def test_a_robot_counts_only_once_its_goals_can_reach_it():
     try:
         assert wait_for(lambda: not node.silent(), 20.0)
         time.sleep(1.0)
-        assert not node.core.traffic.robot_view("pinky3")["on_map"]
+        assert not node.core.traffic.robot_view("pode3")["on_map"]
         assert not world.zones
         assert not world.beats
         world.serve_robot()
-        assert wait_for(lambda: node.core.traffic.robot_view("pinky3")["on_map"], 20.0)
+        assert wait_for(lambda: node.core.traffic.robot_view("pode3")["on_map"], 20.0)
         assert wait_for(lambda: world.zones, 5.0)
         assert wait_for(lambda: world.beats, 5.0)
     finally:
@@ -284,7 +284,7 @@ def test_a_record_of_the_running_node_plays_back_to_the_same_commands(tmp_path):
     """main()처럼 노드에 스레드 하나를 쓴다. 기록은 호출이 차례로 이어지는데, 스레드가 여럿이면
     goal 결과가 tick과 나란히 돌 수 있다."""
     record = tmp_path / "fms.jsonl"
-    rclpy.init(args=["--ros-args", "-p", "robots:=[pinky1]", "-p", "tick_hz:=50.0"])
+    rclpy.init(args=["--ros-args", "-p", "robots:=[pode1]", "-p", "tick_hz:=50.0"])
     node = FleetManagerNode(record=record)
     world = World(node.contract, load_fleet_map("d2"), "P-1")
     executors = [SingleThreadedExecutor(), MultiThreadedExecutor(num_threads=4)]
@@ -315,12 +315,12 @@ def test_a_zone_that_does_not_exist_is_refused_and_the_node_lives_on(graph):
     fms = graph.fms
     client = graph.create_client(ConfirmClear, fms.contract.name("confirm_clear"))
     assert client.wait_for_service(timeout_sec=10.0)
-    assert wait_for(lambda: fms.core.traffic.robot_view("pinky1")["on_map"]), "never on the map"
+    assert wait_for(lambda: fms.core.traffic.robot_view("pode1")["on_map"]), "never on the map"
     future = client.call_async(ConfirmClear.Request(
-        robot_id="pinky1", zone_ids=["NOPE"], note="typo"))
+        robot_id="pode1", zone_ids=["NOPE"], note="typo"))
     assert wait_for(future.done, 10.0), "no reply: the callback raised"
     assert not future.result().accepted
-    assert fms.core.traffic.robot_view("pinky1")["fault"] == ""
+    assert fms.core.traffic.robot_view("pode1")["fault"] == ""
 
 
 def test_a_bad_clear_gives_a_reason_and_input_rejected_and_the_ticks_go_on(graph):
@@ -328,10 +328,10 @@ def test_a_bad_clear_gives_a_reason_and_input_rejected_and_the_ticks_go_on(graph
     fms = graph.fms
     client = graph.create_client(ConfirmClear, fms.contract.name("confirm_clear"))
     assert client.wait_for_service(timeout_sec=10.0)
-    assert wait_for(lambda: fms.core.traffic.robot_view("pinky1")["on_map"]), "never on the map"
+    assert wait_for(lambda: fms.core.traffic.robot_view("pode1")["on_map"]), "never on the map"
     graph.events.clear()
     future = client.call_async(ConfirmClear.Request(
-        robot_id="pinky1", zone_ids=["NOPE"], note="typo"))
+        robot_id="pode1", zone_ids=["NOPE"], note="typo"))
     assert wait_for(future.done, 10.0), "no reply: the callback raised"
     result = future.result()
     assert not result.accepted and "NOPE" in result.reason
@@ -342,9 +342,9 @@ def test_a_bad_clear_gives_a_reason_and_input_rejected_and_the_ticks_go_on(graph
     # 노드가 살아 있다: /fleet/robots가 계속 나오고, 두 번째 호출에도 답하고, 주문이 끝난다
     graph.status.clear()
     assert wait_for(lambda: len(graph.status) >= 2, 10.0), "no /fleet/robots after the call"
-    second = client.call_async(ConfirmClear.Request(robot_id="pinky9", zone_ids=[], note="x"))
+    second = client.call_async(ConfirmClear.Request(robot_id="pode9", zone_ids=[], note="x"))
     assert wait_for(second.done, 10.0)
-    assert not second.result().accepted and "pinky9" in second.result().reason
+    assert not second.result().accepted and "pode9" in second.result().reason
     publish(graph, "RUN", {"A": 1, "C": 2})
     assert wait_for(lambda: graph.reports), "the node stopped working orders"
 
@@ -355,25 +355,25 @@ def test_reinstate_takes_a_cleared_robot_back_and_refuses_a_bad_call_with_a_reas
     clear = graph.create_client(ConfirmClear, fms.contract.name("confirm_clear"))
     back = graph.create_client(Reinstate, fms.contract.name("reinstate"))
     assert clear.wait_for_service(timeout_sec=10.0) and back.wait_for_service(timeout_sec=10.0)
-    assert wait_for(lambda: fms.core.traffic.robot_view("pinky1")["on_map"]), "never on the map"
+    assert wait_for(lambda: fms.core.traffic.robot_view("pode1")["on_map"]), "never on the map"
     graph.events.clear()
-    early = back.call_async(Reinstate.Request(robot_id="pinky1", basket="EMPTY", note="x"))
+    early = back.call_async(Reinstate.Request(robot_id="pode1", basket="EMPTY", note="x"))
     assert wait_for(early.done, 10.0), "no reply: the callback raised"
     assert not early.result().accepted and "OUT_OF_SERVICE" in early.result().reason
     cleared = clear.call_async(ConfirmClear.Request(
-        robot_id="pinky1", zone_ids=fms.core.zones.held_by("pinky1"), note="lifted"))
+        robot_id="pode1", zone_ids=fms.core.zones.held_by("pode1"), note="lifted"))
     assert wait_for(cleared.done, 10.0) and cleared.result().accepted
-    wrong = back.call_async(Reinstate.Request(robot_id="pinky1", basket="FULL", note="x"))
+    wrong = back.call_async(Reinstate.Request(robot_id="pode1", basket="FULL", note="x"))
     assert wait_for(wrong.done, 10.0)
     assert not wrong.result().accepted and "basket" in wrong.result().reason
     good = back.call_async(Reinstate.Request(
-        robot_id="pinky1", basket=Reinstate.Request.BASKET_EMPTY, note="back"))
+        robot_id="pode1", basket=Reinstate.Request.BASKET_EMPTY, note="back"))
     assert wait_for(good.done, 10.0)
     assert good.result().accepted and good.result().reason == ""
     assert wait_for(lambda: any(e.code == "ROBOT_REINSTATED" for e in graph.events), 10.0)
     rejected = [e for e in graph.events if e.code == "INPUT_REJECTED"]
     assert len(rejected) == 2 and all(e.level == "WARN" for e in rejected)
-    assert wait_for(lambda: fms.core.traffic.robot_view("pinky1")["on_map"]), "not back on"
+    assert wait_for(lambda: fms.core.traffic.robot_view("pode1")["on_map"]), "not back on"
 
 
 def test_an_event_is_logged_at_its_own_level(graph, monkeypatch):
@@ -403,16 +403,16 @@ def test_an_event_is_logged_at_its_own_level(graph, monkeypatch):
 
 
 def test_a_robot_goal_with_no_server_is_not_a_rejection_and_an_arm_goal_still_is():
-    rclpy.init(args=["--ros-args", "-p", "robots:=[pinky1]"])
+    rclpy.init(args=["--ros-args", "-p", "robots:=[pode1]"])
     node = FleetManagerNode()
     try:
         node.core = MagicMock()
         client = MagicMock()
         client.server_is_ready.return_value = False
-        node._send(client, None, ("pinky1", 7), node._move_done, node._robot_rejected)
-        node._send(client, None, ("pinky1", 8), node._dock_done, node._robot_rejected)
+        node._send(client, None, ("pode1", 7), node._move_done, node._robot_rejected)
+        node._send(client, None, ("pode1", 8), node._dock_done, node._robot_rejected)
         assert [c.args for c in node.core.on_goal_not_sent.call_args_list] == [
-            ("pinky1", 7), ("pinky1", 8)]
+            ("pode1", 7), ("pode1", 8)]
         node.core.on_goal_rejected.assert_not_called()
         node._send(client, None, ("workcell", 9), node._fill_done, node._fill_rejected)
         node.core.on_fill_result.assert_called_once_with(9, False, {}, {}, "REJECTED")
@@ -426,27 +426,27 @@ def test_a_robot_goal_with_no_server_is_not_a_rejection_and_an_arm_goal_still_is
 
 
 def test_a_retreat_command_goes_to_the_retreat_action_and_its_result_back_to_the_core():
-    """계약 0.9-draft(제안): RetreatCmd는 /{pinky}/retreat goal이 되고, 결과는
+    """계약 0.9-draft(제안): RetreatCmd는 /{pode}/retreat goal이 되고, 결과는
     on_retreat_result로, 거절과 서버 없음은 다른 로봇 goal과 같다."""
-    rclpy.init(args=["--ros-args", "-p", "robots:=[pinky1]"])
+    rclpy.init(args=["--ros-args", "-p", "robots:=[pode1]"])
     node = FleetManagerNode()
     try:
         node.core = MagicMock()
         client = MagicMock()
-        node._retreat["pinky1"] = client
+        node._retreat["pode1"] = client
         path = ((1.0, 2.0, 0.0), (1.0, 1.6, 0.0))
-        node._dispatch(RetreatCmd("pinky1", 7, 0.4, 0.05, path), 1.0)
+        node._dispatch(RetreatCmd("pode1", 7, 0.4, 0.05, path), 1.0)
         (goal,), _ = client.send_goal_async.call_args
         assert isinstance(goal, Retreat.Goal)
         assert (goal.distance_m, goal.speed_mps) == (pytest.approx(0.4), pytest.approx(0.05))
         assert [(p.position.x, p.position.y) for p in goal.path] == [(1.0, 2.0), (1.0, 1.6)]
-        node._retreat_done(("pinky1", 7),
+        node._retreat_done(("pode1", 7),
                            Retreat.Result(success=False, reason="OBSTACLE_BEHIND"))
-        node.core.on_retreat_result.assert_called_once_with("pinky1", 7, False,
+        node.core.on_retreat_result.assert_called_once_with("pode1", 7, False,
                                                             "OBSTACLE_BEHIND")
         client.server_is_ready.return_value = False
-        node._dispatch(RetreatCmd("pinky1", 8, 0.15, 0.08), 2.0)
-        node.core.on_goal_not_sent.assert_called_once_with("pinky1", 8)
+        node._dispatch(RetreatCmd("pode1", 8, 0.15, 0.08), 2.0)
+        node.core.on_goal_not_sent.assert_called_once_with("pode1", 8)
     finally:
         node.destroy_node()
         rclpy.shutdown()
@@ -457,7 +457,7 @@ def test_a_retreat_result_with_a_core_that_has_no_handler_yet_is_logged_and_drop
     warnings = []
     node = SimpleNamespace(core=SimpleNamespace(),
                            get_logger=lambda: SimpleNamespace(warning=warnings.append))
-    FleetManagerNode._retreat_done(node, ("pinky1", 7), Retreat.Result(success=True))
+    FleetManagerNode._retreat_done(node, ("pode1", 7), Retreat.Result(success=True))
     assert len(warnings) == 1 and "on_retreat_result" in warnings[0]
 
 
@@ -475,7 +475,7 @@ def test_a_lost_result_of_a_canceled_robot_goal_is_no_rejection():
     def arm_rejected(key):
         rejected.append(key)
 
-    key = ("pinky1", 7)
+    key = ("pode1", 7)
     for canceled, on_rejected, expected in ((True, robot_rejected, []),
                                             (False, robot_rejected, [key]),
                                             (True, arm_rejected, [key])):
@@ -497,7 +497,7 @@ def test_a_lost_result_of_a_canceled_robot_goal_is_no_rejection():
 def test_a_dropped_cancel_of_a_robot_goal_is_told_to_the_core_as_lost():
     """결과를 잃은 취소를 그만둘 때 코어에 알린다. 코어는 막힘 표시 때 취소한 goal이 끝나야
     이어 가기 때문이다(1.1 지시서 H2 재현 2)."""
-    key = ("pinky1", 7)
+    key = ("pode1", 7)
     goals = GoalTracker()
     goals.sent(key)
     goals.accepted(key, SimpleNamespace(cancel_goal_async=lambda: None))
@@ -512,7 +512,7 @@ def test_a_dropped_cancel_of_a_robot_goal_is_told_to_the_core_as_lost():
     assert events == ["CANCEL_UNCONFIRMED"]
     node.core.on_goal_lost.assert_not_called()
     FleetManagerNode._retry_cancels(node, 3.0)
-    node.core.on_goal_lost.assert_called_once_with("pinky1", 7)
+    node.core.on_goal_lost.assert_called_once_with("pode1", 7)
     FleetManagerNode._retry_cancels(node, 4.0)
     assert node.core.on_goal_lost.call_count == 1
 
@@ -562,8 +562,8 @@ def test_a_stop_answered_with_the_status_alone_is_no_failed_attempt(graph):
     publish(graph, "STOP", {"A": 1, "C": 2})
     assert wait_for(lambda: graph.canceled_fills), "the cancel never reached the server"
     orchestrator = graph.fms.core.orchestrator
-    assert wait_for(lambda: orchestrator.robot_view("pinky1")["placed"]), "no result came in"
-    assert graph.fms.core.arm.attempts("pinky1") == 0
+    assert wait_for(lambda: orchestrator.robot_view("pode1")["placed"]), "no result came in"
+    assert graph.fms.core.arm.attempts("pode1") == 0
 
 
 def events_of(world, code):

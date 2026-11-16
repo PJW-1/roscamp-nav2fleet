@@ -50,7 +50,7 @@ class Cell:
 
     def send(self, **items):
         fb = []
-        goal = FillBasket.Goal(order_id="O-1", robot_id="pinky1", station_id="WORK",
+        goal = FillBasket.Goal(order_id="O-1", robot_id="pode1", station_id="WORK",
                                items=[OrderItem(kind=k, count=c) for k, c in items.items()])
         fut = self.client.send_goal_async(goal, feedback_callback=fb.append)
         assert wait_until(fut.done, 5.0)

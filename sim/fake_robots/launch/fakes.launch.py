@@ -1,7 +1,7 @@
 """가짜 로봇, 작업셀, 팔, 비전, 중앙 대역, 시뮬 시계, 시나리오 모니터를 띄운다.
 
   ros2 launch fake_robots fakes.launch.py scenario:=basic_orders result_dir:=/tmp/run1
-  ros2 launch fake_robots fakes.launch.py fake_robots:="pinky2 pinky3"   # pinky1은 실물
+  ros2 launch fake_robots fakes.launch.py fake_robots:="pode2 pode3"   # pode1은 실물
   ros2 launch fake_robots fakes.launch.py fake_arms:="arm3"              # 작업셀은 실물
 
 fake_arms: arm1과 arm2를 함께 주면 가짜 작업셀과 비전 노드 둘이 뜬다.
@@ -18,7 +18,7 @@ from launch.actions import DeclareLaunchArgument, OpaqueFunction, Shutdown
 from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node
 
-ALL_ROBOTS = "pinky1 pinky2 pinky3"
+ALL_ROBOTS = "pode1 pode2 pode3"
 ALL_ARMS = "arm1 arm2 arm3"
 CLOCK_START_DELAY_S = 5.0  # 모든 노드가 뜨고 서로를 찾는 데 쓰는 실제 시간
 CLOCK_RATE_HZ = 50.0  # 틱마다 모든 노드가 깬다. speed factor 5에서 시뮬 시간 0.1초
@@ -67,7 +67,7 @@ def _setup(context):
                                          "start_delay_s": CLOCK_START_DELAY_S,
                                          "rate_hz": CLOCK_RATE_HZ}]))
     for robot in arg["fake_robots"].split():
-        actions.append(node("fake_pinky_node", f"fake_{robot}", robot_id=robot,
+        actions.append(node("fake_pode_node", f"fake_{robot}", robot_id=robot,
                             params_file=arg["params_file"]))
     workcell, vision_arms, swap_arms = split_fake_arms(
         arg["fake_arms"], load_site(arg["map_file"] or None))

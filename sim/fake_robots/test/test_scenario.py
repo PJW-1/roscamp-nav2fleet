@@ -30,7 +30,7 @@ def minimal(**over):
         "timeout_s": 100,
         "stock": {"arm1": {"A": 2}, "arm2": {"C": 1}},
         "orders": [{"at_s": 0, "id": "O-1", "items": {"A": 1}}],
-        "robots": {"pinky1": {"start": "P-1", "speed_mps": 0.2, "pose_noise_m": 0.0}},
+        "robots": {"pode1": {"start": "P-1", "speed_mps": 0.2, "pose_noise_m": 0.0}},
     }
     data.update(over)
     return data
@@ -43,18 +43,18 @@ def test_defaults_are_filled(site):
     assert sc.expect.zone_holder_max == 1 and sc.expect.all_orders_finished is True
     assert sc.expect.orders_shipped is None and sc.expect.orders_shipped_min == 0
     assert sc.expect.fifo_violations == 0 and sc.expect.dual_arm_overlaps == 0
-    assert sc.robots["pinky1"].report_delay_s == 0.0 and sc.robots["pinky1"].stop_error_m == 0.0
+    assert sc.robots["pode1"].report_delay_s == 0.0 and sc.robots["pode1"].stop_error_m == 0.0
 
 
 def test_a_robot_can_report_late_and_stop_off_target(site):
-    robots = {"pinky1": {"start": "P-1", "report_delay_s": 0.5, "stop_error_m": 0.02}}
-    cfg = parse_scenario(minimal(robots=robots), site).robots["pinky1"]
+    robots = {"pode1": {"start": "P-1", "report_delay_s": 0.5, "stop_error_m": 0.02}}
+    cfg = parse_scenario(minimal(robots=robots), site).robots["pode1"]
     assert (cfg.report_delay_s, cfg.stop_error_m) == (0.5, 0.02)
 
 
 @pytest.mark.parametrize("key", ["report_delay_s", "stop_error_m"])
 def test_a_negative_delay_or_stop_error_is_refused(site, key):
-    robots = {"pinky1": {"start": "P-1", key: -0.1}}
+    robots = {"pode1": {"start": "P-1", key: -0.1}}
     with pytest.raises(ScenarioError, match=key):
         parse_scenario(minimal(robots=robots), site)
 
@@ -79,16 +79,16 @@ def test_orders_are_in_registration_order(site):
 
 
 def test_start_is_a_node_name(site):
-    assert parse_scenario(minimal(), site).robots["pinky1"].start == "P-1"
+    assert parse_scenario(minimal(), site).robots["pode1"].start == "P-1"
     data = minimal()
-    data["robots"]["pinky1"]["start"] = "W_Q"
-    assert parse_scenario(data, site).robots["pinky1"].start == "W_Q"
+    data["robots"]["pode1"]["start"] = "W_Q"
+    assert parse_scenario(data, site).robots["pode1"].start == "W_Q"
 
 
 @pytest.mark.parametrize("start", ["HALL", "X_W", "N_E", [3, 4], "NOPE"])
 def test_a_zone_a_node_to_pass_through_or_a_cell_is_not_a_valid_start(site, start):
     data = minimal()
-    data["robots"]["pinky1"]["start"] = start
+    data["robots"]["pode1"]["start"] = start
     with pytest.raises(ScenarioError, match="start"):
         parse_scenario(data, site)
 
@@ -105,24 +105,24 @@ def test_a_zone_a_node_to_pass_through_or_a_cell_is_not_a_valid_start(site, star
     {"orders": [{"at_s": -1, "id": "O-1", "items": {"A": 1}}]},
     {"orders": [{"at_s": 0, "id": "O-1", "items": {"A": 1}},
                 {"at_s": 0, "id": "O-1", "items": {"A": 1}}]},
-    {"faults": [{"at_s": 5, "robot": "pinky9", "type": "stuck"}],
+    {"faults": [{"at_s": 5, "robot": "pode9", "type": "stuck"}],
      "expect": {"orders_shipped_min": 1}},
-    {"faults": [{"at_s": 5, "robot": "pinky1", "type": "explode"}],
+    {"faults": [{"at_s": 5, "robot": "pode1", "type": "explode"}],
      "expect": {"orders_shipped_min": 1}},
     {"faults": [{"at_s": 5, "arm": "arm3", "type": "arm_fail"}],
      "expect": {"orders_shipped_min": 1}},
-    {"faults": [{"at_s": 5, "robot": "pinky9", "type": "operator_remove"}],
+    {"faults": [{"at_s": 5, "robot": "pode9", "type": "operator_remove"}],
      "expect": {"orders_shipped_min": 1}},
-    {"faults": [{"at_s": 5, "robot": "pinky1", "type": "blocked"}],
+    {"faults": [{"at_s": 5, "robot": "pode1", "type": "blocked"}],
      "expect": {"orders_shipped_min": 1}},
-    {"faults": [{"at_s": 5, "robot": "pinky1", "type": "obstacle_behind", "duration_s": 5}],
+    {"faults": [{"at_s": 5, "robot": "pode1", "type": "obstacle_behind", "duration_s": 5}],
      "expect": {"orders_shipped_min": 1}},
-    {"faults": [{"at_s": 5, "robot": "pinky1", "type": "obstacle_behind", "distance_m": 0.2}],
+    {"faults": [{"at_s": 5, "robot": "pode1", "type": "obstacle_behind", "distance_m": 0.2}],
      "expect": {"orders_shipped_min": 1}},
-    {"robots": {"pinky1": {"start": "P-1", "localizing_s": -1.0}}},
-    {"faults": [{"at_s": 5, "robot": "pinky1", "type": "drift", "offset_m": 0.3}],
+    {"robots": {"pode1": {"start": "P-1", "localizing_s": -1.0}}},
+    {"faults": [{"at_s": 5, "robot": "pode1", "type": "drift", "offset_m": 0.3}],
      "expect": {"orders_shipped_min": 1}},
-    {"faults": [{"at_s": 5, "robot": "pinky1", "type": "drift", "duration_s": 5}],
+    {"faults": [{"at_s": 5, "robot": "pode1", "type": "drift", "duration_s": 5}],
      "expect": {"orders_shipped_min": 1}},
     {"expect": {"no_such_check": 1}},
     {"expect": {"all_boxes_delivered": True}},
@@ -137,14 +137,14 @@ def test_invalid_scenarios_are_rejected(site, bad):
     {}, {"orders_shipped": 0}, {"orders_shipped_min": 0}, {"orders_partial": 3},
 ])
 def test_a_failure_scenario_cannot_pass_with_nothing_shipped(site, expect):
-    faults = [{"at_s": 5, "robot": "pinky1", "type": "stuck"}]
+    faults = [{"at_s": 5, "robot": "pode1", "type": "stuck"}]
     with pytest.raises(ScenarioError, match="shipped"):
         parse_scenario(minimal(faults=faults, expect=expect), site)
 
 
 @pytest.mark.parametrize("expect", [{"orders_shipped": 1}, {"orders_shipped_min": 1}])
 def test_a_failure_scenario_expecting_shipped_orders_is_fine(site, expect):
-    faults = [{"at_s": 5, "robot": "pinky1", "type": "stuck"}]
+    faults = [{"at_s": 5, "robot": "pode1", "type": "stuck"}]
     assert parse_scenario(minimal(faults=faults, expect=expect), site).faults
 
 
@@ -160,21 +160,21 @@ def test_fault_fields_for_arms(site):
 
 def test_gone_robots_are_the_stuck_and_the_removed(site):
     sc = parse_scenario(minimal(
-        robots={r: {"start": s} for r, s in (("pinky1", "P-1"), ("pinky2", "P-2"),
-                                             ("pinky3", "P-3"))},
+        robots={r: {"start": s} for r, s in (("pode1", "P-1"), ("pode2", "P-2"),
+                                             ("pode3", "P-3"))},
         expect={"orders_shipped_min": 1},
-        faults=[{"at_s": 1, "robot": "pinky1", "type": "stuck"},
-                {"at_s": 1, "robot": "pinky2", "type": "operator_remove"},
-                {"at_s": 1, "robot": "pinky3", "type": "comm_loss", "duration_s": 1}]), site)
-    assert sc.gone_robots == {"pinky1", "pinky2"}
+        faults=[{"at_s": 1, "robot": "pode1", "type": "stuck"},
+                {"at_s": 1, "robot": "pode2", "type": "operator_remove"},
+                {"at_s": 1, "robot": "pode3", "type": "comm_loss", "duration_s": 1}]), site)
+    assert sc.gone_robots == {"pode1", "pode2"}
 
 
 def _with_reinstate(*extra, basket=None):
-    back = {"at_s": 20, "robot": "pinky1", "type": "operator_reinstate", "start": "P-1"}
+    back = {"at_s": 20, "robot": "pode1", "type": "operator_reinstate", "start": "P-1"}
     if basket is not None:
         back["basket"] = basket
     return minimal(expect={"orders_shipped_min": 1}, faults=[
-        {"at_s": 10, "robot": "pinky1", "type": "operator_remove"}, back, *extra])
+        {"at_s": 10, "robot": "pode1", "type": "operator_remove"}, back, *extra])
 
 
 def test_operator_reinstate_puts_a_removed_robot_back_on_a_node(site):
@@ -207,15 +207,15 @@ def test_a_wrong_reinstate_is_rejected(site, change):
 def test_a_stuck_robot_removed_and_put_back_is_not_gone(site):
     """FaultSchedule.stuck과 같은 뜻: 재투입은 그 전의 stuck을 끝낸다."""
     data = _with_reinstate()
-    data["faults"].insert(0, {"at_s": 5, "robot": "pinky1", "type": "stuck"})
+    data["faults"].insert(0, {"at_s": 5, "robot": "pode1", "type": "stuck"})
     assert parse_scenario(data, site).gone_robots == set()
-    data["faults"].append({"at_s": 30, "robot": "pinky1", "type": "stuck"})
-    assert parse_scenario(data, site).gone_robots == {"pinky1"}
+    data["faults"].append({"at_s": 30, "robot": "pode1", "type": "stuck"})
+    assert parse_scenario(data, site).gone_robots == {"pode1"}
 
 
 def test_a_robot_removed_again_after_its_reinstate_is_gone(site):
-    data = _with_reinstate({"at_s": 30, "robot": "pinky1", "type": "operator_remove"})
-    assert parse_scenario(data, site).gone_robots == {"pinky1"}
+    data = _with_reinstate({"at_s": 30, "robot": "pode1", "type": "operator_remove"})
+    assert parse_scenario(data, site).gone_robots == {"pode1"}
 
 
 def test_the_reinstate_scenario_clears_puts_back_and_expects_work_from_the_robot(site):
@@ -310,16 +310,16 @@ def test_shared_lane_failure_has_both_faults(site):
 
 def test_nav_abort_target_must_be_a_node_and_only_for_nav_abort(site):
     def with_fault(fault):
-        robots = {"pinky1": {"start": "P-3", "speed_mps": 0.2, "pose_noise_m": 0.0}}
+        robots = {"pode1": {"start": "P-3", "speed_mps": 0.2, "pose_noise_m": 0.0}}
         return minimal(robots=robots, faults=[fault], expect={"orders_shipped": 1})
-    sc = parse_scenario(with_fault({"at_s": 0, "robot": "pinky1", "type": "nav_abort",
+    sc = parse_scenario(with_fault({"at_s": 0, "robot": "pode1", "type": "nav_abort",
                                     "target": "W"}), site)
     assert sc.faults[0].target == "W"
     with pytest.raises(ScenarioError, match="target"):
-        parse_scenario(with_fault({"at_s": 0, "robot": "pinky1", "type": "nav_abort",
+        parse_scenario(with_fault({"at_s": 0, "robot": "pode1", "type": "nav_abort",
                                    "target": "NOWHERE"}), site)
     with pytest.raises(ScenarioError, match="target"):
-        parse_scenario(with_fault({"at_s": 0, "robot": "pinky1", "type": "stuck",
+        parse_scenario(with_fault({"at_s": 0, "robot": "pode1", "type": "stuck",
                                    "target": "W"}), site)
 
 
@@ -419,7 +419,7 @@ def test_only_the_stuck_scenario_may_run_out_of_time(site):
 
 
 def test_order_results_must_name_a_scenario_order_and_a_known_result(site):
-    data = {"robots": {"pinky1": {"start": "P-1"}},
+    data = {"robots": {"pode1": {"start": "P-1"}},
             "orders": [{"id": "O-1", "items": {"A": 1}}]}
     for bad in ({"O-9": "SHIPPED"}, {"O-1": "LOST"}):
         with pytest.raises(ScenarioError):
@@ -429,24 +429,24 @@ def test_order_results_must_name_a_scenario_order_and_a_known_result(site):
 def test_a_slow_cancel_is_an_arm_option(site):
     sc = load_scenario(SCENARIOS / "operator_recovery.yaml", site)
     assert sc.arm.cancel_seconds > 0
-    assert parse_scenario({"robots": {"pinky1": {"start": "P-1"}}}, site).arm.cancel_seconds == 0.0
+    assert parse_scenario({"robots": {"pode1": {"start": "P-1"}}}, site).arm.cancel_seconds == 0.0
 
 
 def test_blocked_and_localizing_are_read(site):
     sc = parse_scenario(minimal(
-        robots={"pinky1": {"start": "P-1", "localizing_s": 2.0}},
+        robots={"pode1": {"start": "P-1", "localizing_s": 2.0}},
         expect={"orders_shipped_min": 1},
-        faults=[{"at_s": 8, "robot": "pinky1", "type": "blocked", "duration_s": 15}]), site)
+        faults=[{"at_s": 8, "robot": "pode1", "type": "blocked", "duration_s": 15}]), site)
     (block,) = sc.faults
     assert (block.type, block.at_s, block.duration_s) == ("blocked", 8.0, 15.0)
-    assert sc.robots["pinky1"].localizing_s == 2.0
+    assert sc.robots["pode1"].localizing_s == 2.0
     assert not sc.gone_robots, "a blocked robot goes on"
-    assert parse_scenario(minimal(), site).robots["pinky1"].localizing_s == 0.0
+    assert parse_scenario(minimal(), site).robots["pode1"].localizing_s == 0.0
 
 
 def test_an_obstacle_behind_is_read(site):
     sc = parse_scenario(minimal(expect={"orders_shipped_min": 1}, faults=[
-        {"at_s": 8, "robot": "pinky1", "type": "obstacle_behind", "duration_s": 15,
+        {"at_s": 8, "robot": "pode1", "type": "obstacle_behind", "duration_s": 15,
          "distance_m": 0.2}]), site)
     (behind,) = sc.faults
     assert (behind.type, behind.duration_s, behind.distance_m) == ("obstacle_behind", 15.0, 0.2)
@@ -467,7 +467,7 @@ def test_blocked_lane_blocks_one_robot_long_enough_to_mark_the_way(site):
 
 def test_drift_fields_are_read(site):
     sc = parse_scenario(minimal(expect={"orders_shipped_min": 1}, faults=[
-        {"at_s": 5, "robot": "pinky1", "type": "drift", "duration_s": 8, "offset_m": -0.3}]), site)
+        {"at_s": 5, "robot": "pode1", "type": "drift", "duration_s": 8, "offset_m": -0.3}]), site)
     (drift,) = sc.faults
     assert (drift.type, drift.at_s, drift.duration_s, drift.offset_m) == ("drift", 5.0, 8.0, -0.3)
     assert sc.expect.released_while_off_lane == 0
@@ -477,8 +477,8 @@ def test_drift_fields_are_read(site):
 # -- low_battery와 random ------------------------------------------------------------------
 
 FIVE_ORDERS = [{"at_s": 0, "id": f"O-{i}", "items": {"A": 1}} for i in range(1, 6)]
-THREE_ROBOTS = {"pinky1": {"start": "P-1"}, "pinky2": {"start": "P-2"},
-                "pinky3": {"start": "P-3"}}
+THREE_ROBOTS = {"pode1": {"start": "P-1"}, "pode2": {"start": "P-2"},
+                "pode3": {"start": "P-3"}}
 SOME_SHIPPED = {"orders_shipped_min": 1}
 
 
@@ -491,15 +491,15 @@ def random_data(**random):
 
 
 def test_low_battery_is_a_robot_fault_with_a_charge_time(site):
-    data = minimal(faults=[{"type": "low_battery", "robot": "pinky1", "at_s": 40,
+    data = minimal(faults=[{"type": "low_battery", "robot": "pode1", "at_s": 40,
                             "duration_s": 30}], expect=SOME_SHIPPED)
     [f] = parse_scenario(data, site).faults
-    assert (f.type, f.robot, f.at_s, f.duration_s) == ("low_battery", "pinky1", 40.0, 30.0)
+    assert (f.type, f.robot, f.at_s, f.duration_s) == ("low_battery", "pode1", 40.0, 30.0)
 
 
 @pytest.mark.parametrize("fault", [
-    {"type": "low_battery", "robot": "pinky1", "at_s": 40},
-    {"type": "low_battery", "robot": "pinky1", "at_s": 40, "duration_s": 0},
+    {"type": "low_battery", "robot": "pode1", "at_s": 40},
+    {"type": "low_battery", "robot": "pode1", "at_s": 40, "duration_s": 0},
     {"type": "low_battery", "robot": "nobody", "at_s": 40, "duration_s": 30},
 ])
 def test_a_low_battery_needs_a_known_robot_and_a_positive_charge_time(site, fault):
@@ -519,7 +519,7 @@ def test_expand_random_draws_order_times_and_one_low_battery_per_robot():
     assert all(4.85 <= g <= 40.15 for g in gaps), gaps
     assert all(round(t, 1) == t for t in times)
     batteries = [f for f in out["faults"] if f["type"] == "low_battery"]
-    assert [f["robot"] for f in batteries] == ["pinky1", "pinky2", "pinky3"]
+    assert [f["robot"] for f in batteries] == ["pode1", "pode2", "pode3"]
     assert all(20 <= f["at_s"] <= 150 and f["duration_s"] == 30 for f in batteries)
     assert all(round(f["at_s"], 1) == f["at_s"] for f in batteries)
 
@@ -534,13 +534,13 @@ def test_expand_random_is_reproducible_and_seeded():
 def test_expand_random_draws_orders_first_then_robots_by_name():
     import random as stdlib_random
     data = random_data()
-    data["robots"] = {"pinky3": {"start": "P-3"}, "pinky1": {"start": "P-1"}}
+    data["robots"] = {"pode3": {"start": "P-3"}, "pode1": {"start": "P-1"}}
     rng = stdlib_random.Random(9)
     times, t = [], 0.0
     for _ in FIVE_ORDERS:
         t += rng.uniform(5, 40)
         times.append(round(t, 1))
-    lows = {r: round(rng.uniform(20, 150), 1) for r in ("pinky1", "pinky3")}
+    lows = {r: round(rng.uniform(20, 150), 1) for r in ("pode1", "pode3")}
     out = expand_random(data, 9)
     assert [o["at_s"] for o in out["orders"]] == times
     assert {f["robot"]: f["at_s"] for f in out["faults"]} == lows
@@ -548,7 +548,7 @@ def test_expand_random_draws_orders_first_then_robots_by_name():
 
 def test_expand_random_keeps_existing_faults_and_either_part_may_be_missing():
     data = random_data(low_battery={"from_s": 0, "to_s": 0, "charge_s": 1})
-    data["faults"] = [{"type": "comm_loss", "robot": "pinky1", "at_s": 3, "duration_s": 1}]
+    data["faults"] = [{"type": "comm_loss", "robot": "pode1", "at_s": 3, "duration_s": 1}]
     out = expand_random(data, 1)
     assert [o["at_s"] for o in out["orders"]] == [0] * 5  # 주문 시각은 그대로
     assert out["faults"][0] == data["faults"][0]
@@ -559,7 +559,7 @@ def test_expand_random_keeps_existing_faults_and_either_part_may_be_missing():
 
 
 def test_data_without_random_comes_back_unchanged(site):
-    data = minimal(faults=[{"type": "comm_loss", "robot": "pinky1", "at_s": 3,
+    data = minimal(faults=[{"type": "comm_loss", "robot": "pode1", "at_s": 3,
                             "duration_s": 1}], expect=SOME_SHIPPED)
     out = expand_random(data, 42)
     assert out == data and out is not data
@@ -657,7 +657,7 @@ def test_an_object_not_on_the_map_is_read(site):
     {"x": None}, {"y": None}, {"x": "1.0"}, {"y": True}, {"x": float("nan")},
     {"duration_s": None}, {"duration_s": 0}, {"duration_s": -1},
     {"radius_m": 0}, {"radius_m": -0.1}, {"radius_m": "big"},
-    {"robot": "pinky1"},
+    {"robot": "pode1"},
     {"x": 50.0}, {"y": -50.0},
     {"duration_s": float("nan")}, {"duration_s": float("inf")},
     {"radius_m": float("nan")}, {"radius_m": float("inf")},
@@ -670,7 +670,7 @@ def test_a_bad_object_is_refused(site, change):
 
 
 def test_object_fields_are_refused_on_other_faults(site):
-    fault = {"at_s": 8, "robot": "pinky1", "type": "blocked", "duration_s": 15, "x": 1.0}
+    fault = {"at_s": 8, "robot": "pode1", "type": "blocked", "duration_s": 15, "x": 1.0}
     with pytest.raises(ScenarioError, match="object"):
         parse_scenario(minimal(expect={"orders_shipped_min": 1}, faults=[fault]), site)
 

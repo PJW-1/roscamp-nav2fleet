@@ -1,4 +1,4 @@
-# 로봇이 이동 중일 때 FMS 프로세스가 죽고, pinky3가 조용한 동안 다시 올라온다.
+# 로봇이 이동 중일 때 FMS 프로세스가 죽고, pode3가 조용한 동안 다시 올라온다.
 # 로봇은 스스로 멈추고, 세 대가 모두 보고하기 전에는 아무도 안 움직이며, 주문은 끝까지 처리된다.
 # 프로세스를 죽이는 쪽은 옆의 test_fms_restart.py다.
 #
@@ -16,13 +16,13 @@ orders:
   - {at_s: 0, id: O-002, items: {B: 1, D: 1}}
   - {at_s: 0, id: O-003, items: {A: 1, D: 1}}
 robots:
-  pinky1: {start: P-1, speed_mps: 0.02, pose_noise_m: 0.03}
-  pinky2: {start: P-2, speed_mps: 0.02, pose_noise_m: 0.03}
-  pinky3: {start: P-3, speed_mps: 0.02, pose_noise_m: 0.03}
+  pode1: {start: P-1, speed_mps: 0.02, pose_noise_m: 0.03}
+  pode2: {start: P-2, speed_mps: 0.02, pose_noise_m: 0.03}
+  pode3: {start: P-3, speed_mps: 0.02, pose_noise_m: 0.03}
 arm: {seconds_per_item: 4.0, swap_seconds: 8.0, fail_rate: 0.0}
 dock: {duration_s: 3.0, error_cm: 1.0}
 faults:
-  - {at_s: 50, robot: pinky3, type: comm_loss, duration_s: 70}
+  - {at_s: 50, robot: pode3, type: comm_loss, duration_s: 70}
 expect:
   all_orders_finished: true
   orders_shipped_min: 1

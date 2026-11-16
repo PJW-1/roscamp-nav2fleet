@@ -53,7 +53,7 @@ class Central:
 
     def report(self, order_id, status, placed=None, missing=None, detail=""):
         return self.call(self.report_cli, ReportOrder.Request(
-            order_id=order_id, robot_id="pinky1", status=status,
+            order_id=order_id, robot_id="pode1", status=status,
             placed=[OrderItem(kind=k, count=c) for k, c in (placed or {}).items()],
             missing=[OrderItem(kind=k, count=c) for k, c in (missing or {}).items()],
             detail=detail))

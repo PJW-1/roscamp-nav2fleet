@@ -18,9 +18,9 @@ def write_scenario(tmp_path, **over):
         "timeout_s": 600,
         "stock": {"arm1": {"A": 3, "B": 1}, "arm2": {"C": 3}},
         "robots": {
-            "pinky1": {"start": "P-1", "speed_mps": 1.0, "pose_noise_m": 0.0},
-            "pinky2": {"start": "P-3", "speed_mps": 1.0, "pose_noise_m": 0.0},
-            "pinky3": {"start": "P-2", "speed_mps": 1.0, "pose_noise_m": 0.0},
+            "pode1": {"start": "P-1", "speed_mps": 1.0, "pose_noise_m": 0.0},
+            "pode2": {"start": "P-3", "speed_mps": 1.0, "pose_noise_m": 0.0},
+            "pode3": {"start": "P-2", "speed_mps": 1.0, "pose_noise_m": 0.0},
         },
         "arm": {"seconds_per_item": 0.2, "swap_seconds": 0.4, "fail_rate": 0.0},
         "dock": {"duration_s": 0.6, "error_cm": 1.0},
@@ -46,7 +46,7 @@ def wait_until(predicate, timeout=10.0, step=0.02):
 def rclpy_session():
     rclpy = pytest.importorskip("rclpy")
     pytest.importorskip("fleet_interfaces.msg")
-    # 이 노드들은 실제 로봇처럼 /pinky1/state를 발행하고 /pinky1/move_to를 받는다.
+    # 이 노드들은 실제 로봇처럼 /pode1/state를 발행하고 /pode1/move_to를 받는다.
     if (os.environ.get("ROS_DOMAIN_ID", "") in ("", "6")
             or os.environ.get("ROS_AUTOMATIC_DISCOVERY_RANGE") != "LOCALHOST"):
         pytest.skip("set ROS_DOMAIN_ID (not 6) and ROS_AUTOMATIC_DISCOVERY_RANGE=LOCALHOST first")

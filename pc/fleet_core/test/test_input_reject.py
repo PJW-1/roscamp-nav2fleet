@@ -24,7 +24,7 @@ import replay  # noqa: E402
 
 O1 = OrderRecord("O-001", {"A": 1})
 O2 = OrderRecord("O-002", {"B": 2})
-SPOTS = {"pinky1": "P-1", "pinky2": "P-2"}  # 둘 다 HALL
+SPOTS = {"pode1": "P-1", "pode2": "P-2"}  # 둘 다 HALL
 
 
 def make(robots=SPOTS, board=True):
@@ -63,10 +63,10 @@ def pose_of(core, robot):
 
 def test_clear_of_an_unknown_robot_is_refused_with_a_reason_and_input_rejected():
     core, _ = make()
-    held = core.zones.held_by("pinky1")
-    assert core.confirm_clear("pinky9", ["HALL"], "typo") is None
+    held = core.zones.held_by("pode1")
+    assert core.confirm_clear("pode9", ["HALL"], "typo") is None
     assert core.last_clear_reason
-    assert core.zones.held_by("pinky1") == held
+    assert core.zones.held_by("pode1") == held
     out = core.tick()
     assert len(rejected(out)) == 1
     assert "CLEAR_REFUSED" not in codes(out)
@@ -74,28 +74,28 @@ def test_clear_of_an_unknown_robot_is_refused_with_a_reason_and_input_rejected()
 
 def test_clear_with_an_unknown_zone_is_refused_and_changes_nothing():
     core, _ = make()
-    held = core.zones.held_by("pinky1")
-    assert core.confirm_clear("pinky1", [*held, "NOPE"], "typo") is None
+    held = core.zones.held_by("pode1")
+    assert core.confirm_clear("pode1", [*held, "NOPE"], "typo") is None
     assert "NOPE" in core.last_clear_reason
-    assert core.zones.held_by("pinky1") == held
-    assert core.robot_view("pinky1")["state"] != "OUT_OF_SERVICE"
+    assert core.zones.held_by("pode1") == held
+    assert core.robot_view("pode1")["state"] != "OUT_OF_SERVICE"
     out = core.tick()
     events = rejected(out)
-    assert len(events) == 1 and events[0].robot == "pinky1"
+    assert len(events) == 1 and events[0].robot == "pode1"
     assert "CLEAR_REFUSED" not in codes(out)
     assert "ZONES_CLEARED" not in codes(out)
 
 
 def test_every_refused_clear_call_says_so_once():
     core, _ = make()
-    core.confirm_clear("pinky1", ["NOPE"], "one")
-    core.confirm_clear("pinky1", ["NOPE"], "two")
+    core.confirm_clear("pode1", ["NOPE"], "one")
+    core.confirm_clear("pode1", ["NOPE"], "two")
     assert len(rejected(core.tick())) == 2
 
 
 def test_clear_with_no_zones_while_holding_some_stays_clear_refused_with_a_reason():
     core, _ = make()
-    assert core.confirm_clear("pinky1", [], "forgot") is None
+    assert core.confirm_clear("pode1", [], "forgot") is None
     assert "holds" in core.last_clear_reason
     out = core.tick()
     assert "CLEAR_REFUSED" in codes(out)
@@ -104,33 +104,33 @@ def test_clear_with_no_zones_while_holding_some_stays_clear_refused_with_a_reaso
 
 def test_an_accepted_clear_has_no_reason():
     core, _ = make()
-    core.confirm_clear("pinky1", ["NOPE"], "typo")
-    assert core.confirm_clear("pinky1", core.zones.held_by("pinky1"), "lifted") == ["HALL"]
+    core.confirm_clear("pode1", ["NOPE"], "typo")
+    assert core.confirm_clear("pode1", core.zones.held_by("pode1"), "lifted") == ["HALL"]
     assert core.last_clear_reason == ""
 
 
 @pytest.mark.parametrize("robot, zones", [
     (None, ["HALL"]),
     (7, ["HALL"]),
-    ("pinky1", None),
-    ("pinky1", "HALL"),
-    ("pinky1", [None]),
-    ("pinky1", [""]),
+    ("pode1", None),
+    ("pode1", "HALL"),
+    ("pode1", [None]),
+    ("pode1", [""]),
 ])
 def test_clear_with_arguments_of_the_wrong_shape_is_refused(robot, zones):
     core, _ = make()
-    held = core.zones.held_by("pinky1")
+    held = core.zones.held_by("pode1")
     assert core.confirm_clear(robot, zones, "bad") is None
     assert core.last_clear_reason
-    assert core.zones.held_by("pinky1") == held
+    assert core.zones.held_by("pode1") == held
     assert len(rejected(core.tick())) == 1
 
 
 def test_traffic_alone_refuses_an_unknown_robot_or_zone_without_raising():
     site, params = load_fleet_map("d2"), load_params()
-    traffic = ZoneTraffic(site, params, ["pinky1"], lambda: 0.0)
-    assert traffic.confirm_clear("pinky9", ["HALL"]) is None
-    assert traffic.confirm_clear("pinky1", ["NOPE"]) is None
+    traffic = ZoneTraffic(site, params, ["pode1"], lambda: 0.0)
+    assert traffic.confirm_clear("pode9", ["HALL"]) is None
+    assert traffic.confirm_clear("pode1", ["NOPE"]) is None
     out = traffic.take_output()
     assert [e.code for e in cmds(out, "EventOut")] == ["INPUT_REJECTED", "INPUT_REJECTED"]
 
@@ -138,39 +138,39 @@ def test_traffic_alone_refuses_an_unknown_robot_or_zone_without_raising():
 # ---- reinstate --------------------------------------------------------------------------------
 
 
-def _cleared_pinky2():
+def _cleared_pode2():
     core, now = make()
-    core.confirm_clear("pinky2", core.zones.held_by("pinky2"), "lifted")
+    core.confirm_clear("pode2", core.zones.held_by("pode2"), "lifted")
     core.tick()
     return core
 
 
 def test_reinstate_of_an_unknown_robot_is_refused_with_a_reason_and_input_rejected():
-    core = _cleared_pinky2()
-    assert core.reinstate("pinky9", "EMPTY", "typo") is False
-    assert "pinky9" in core.last_reinstate_reason
+    core = _cleared_pode2()
+    assert core.reinstate("pode9", "EMPTY", "typo") is False
+    assert "pode9" in core.last_reinstate_reason
     out = core.tick()
     assert len(rejected(out)) == 1
     assert "ROBOT_REINSTATED" not in codes(out)
 
 
 def test_reinstate_of_a_robot_that_is_not_out_of_service_is_refused():
-    core = _cleared_pinky2()
-    held = core.zones.held_by("pinky1")
-    assert core.reinstate("pinky1", "EMPTY", "wrong robot") is False
+    core = _cleared_pode2()
+    held = core.zones.held_by("pode1")
+    assert core.reinstate("pode1", "EMPTY", "wrong robot") is False
     assert "OUT_OF_SERVICE" in core.last_reinstate_reason
-    assert core.zones.held_by("pinky1") == held
-    assert core.traffic.robot_view("pinky1")["on_map"]
+    assert core.zones.held_by("pode1") == held
+    assert core.traffic.robot_view("pode1")["on_map"]
     events = rejected(core.tick())
-    assert len(events) == 1 and events[0].robot == "pinky1"
+    assert len(events) == 1 and events[0].robot == "pode1"
 
 
 @pytest.mark.parametrize("basket", ["FULL", "empty", "", None, 3, ["EMPTY"]])
 def test_reinstate_with_a_wrong_basket_is_refused_and_changes_nothing(basket):
-    core = _cleared_pinky2()
-    assert core.reinstate("pinky2", basket, "bad") is False
+    core = _cleared_pode2()
+    assert core.reinstate("pode2", basket, "bad") is False
     assert "basket" in core.last_reinstate_reason
-    assert core.traffic.robot_view("pinky2")["fault"] == "OUT_OF_SERVICE"
+    assert core.traffic.robot_view("pode2")["fault"] == "OUT_OF_SERVICE"
     out = core.tick()
     assert len(rejected(out)) == 1
     assert "ROBOT_REINSTATED" not in codes(out)
@@ -179,29 +179,29 @@ def test_reinstate_with_a_wrong_basket_is_refused_and_changes_nothing(basket):
 def test_reinstate_while_the_robot_still_holds_a_zone_is_refused():
     """위치로 풀리지 않는 구역이 남았다. confirm_clear로 먼저 풀어야 한다."""
     core, _ = make()
-    core.confirm_clear("pinky2", [], "kept its zone")  # 쥔 구역이 있어 CLEAR_REFUSED
-    core.confirm_clear("pinky2", ["J_W"], "a zone it does not hold")
-    assert core.robot_view("pinky2")["state"] == "OUT_OF_SERVICE"
-    assert core.zones.held_by("pinky2")
-    assert core.reinstate("pinky2", "EMPTY", "too early") is False
+    core.confirm_clear("pode2", [], "kept its zone")  # 쥔 구역이 있어 CLEAR_REFUSED
+    core.confirm_clear("pode2", ["J_W"], "a zone it does not hold")
+    assert core.robot_view("pode2")["state"] == "OUT_OF_SERVICE"
+    assert core.zones.held_by("pode2")
+    assert core.reinstate("pode2", "EMPTY", "too early") is False
     assert "holds" in core.last_reinstate_reason
     assert len(rejected(core.tick())) == 1
-    core.confirm_clear("pinky2", core.zones.held_by("pinky2"), "now all")
-    assert core.reinstate("pinky2", "EMPTY", "back") is True
+    core.confirm_clear("pode2", core.zones.held_by("pode2"), "now all")
+    assert core.reinstate("pode2", "EMPTY", "back") is True
 
 
 def test_every_refused_reinstate_call_says_so_once():
-    core = _cleared_pinky2()
-    core.reinstate("pinky2", "FULL", "one")
-    core.reinstate("pinky2", "FULL", "two")
+    core = _cleared_pode2()
+    core.reinstate("pode2", "FULL", "one")
+    core.reinstate("pode2", "FULL", "two")
     assert len(rejected(core.tick())) == 2
 
 
 def test_an_accepted_reinstate_has_no_reason():
-    core = _cleared_pinky2()
-    core.reinstate("pinky2", "FULL", "typo")
+    core = _cleared_pode2()
+    core.reinstate("pode2", "FULL", "typo")
     core.tick()
-    assert core.reinstate("pinky2", "EMPTY", "back") is True
+    assert core.reinstate("pode2", "EMPTY", "back") is True
     assert core.last_reinstate_reason == ""
     assert not rejected(core.tick())
 
@@ -216,55 +216,55 @@ def test_an_accepted_reinstate_has_no_reason():
 ])
 def test_a_pose_that_is_not_a_number_or_off_the_map_is_dropped(bad):
     core, _ = make()
-    before = pose_of(core, "pinky1")
+    before = pose_of(core, "pode1")
     pose = dict(x=before[0], y=before[1], yaw=0.0)
     pose.update(bad)
-    core.on_robot_state("pinky1", pose["x"], pose["y"], pose["yaw"], "IDLE", 90.0)
-    assert pose_of(core, "pinky1") == before
+    core.on_robot_state("pode1", pose["x"], pose["y"], pose["yaw"], "IDLE", 90.0)
+    assert pose_of(core, "pode1") == before
     events = rejected(core.tick())
-    assert len(events) == 1 and events[0].robot == "pinky1"
+    assert len(events) == 1 and events[0].robot == "pode1"
 
 
 def test_a_pose_just_outside_the_map_but_within_the_margin_is_taken():
     core, _ = make()
     lowest_x = core.site.bounds()[0]
     margin = core.params.input_pose_margin_m
-    core.on_robot_state("pinky1", lowest_x - margin / 2, 1.0, 0.0, "IDLE", 90.0)
-    assert pose_of(core, "pinky1")[0] == lowest_x - margin / 2
+    core.on_robot_state("pode1", lowest_x - margin / 2, 1.0, 0.0, "IDLE", 90.0)
+    assert pose_of(core, "pode1")[0] == lowest_x - margin / 2
     assert not rejected(core.tick())
 
 
 def test_a_report_naming_another_robot_is_dropped():
     core, _ = make()
     x, y = core.site.node_pose("P-3")
-    before = pose_of(core, "pinky1")
-    core.on_robot_state("pinky1", x, y, 0.0, "IDLE", 90.0, "pinky2")
-    assert pose_of(core, "pinky1") == before
+    before = pose_of(core, "pode1")
+    core.on_robot_state("pode1", x, y, 0.0, "IDLE", 90.0, "pode2")
+    assert pose_of(core, "pode1") == before
     events = rejected(core.tick())
-    assert len(events) == 1 and "pinky2" in events[0].detail
+    assert len(events) == 1 and "pode2" in events[0].detail
 
 
 def test_a_report_with_its_own_name_or_none_is_taken():
     core, _ = make()
-    report(core, "pinky1", "P-1", "pinky1")
-    report(core, "pinky1", "P-1", "")
+    report(core, "pode1", "P-1", "pode1")
+    report(core, "pode1", "P-1", "")
     assert not rejected(core.tick())
 
 
 def test_an_unknown_robot_state_is_dropped_and_said_once():
     core, _ = make()
     for _ in range(5):
-        core.on_robot_state("pinky9", 1.0, 1.0, 0.0, "IDLE", 90.0)
+        core.on_robot_state("pode9", 1.0, 1.0, 0.0, "IDLE", 90.0)
     assert len(rejected(core.tick())) == 1
-    assert "pinky9" not in core.traffic.robots
+    assert "pode9" not in core.traffic.robots
 
 
 def test_an_unknown_state_string_and_any_battery_are_still_taken():
     """BLOCKED는 뒤 파트에서 더한다. 배터리는 여기서 판단하지 않는다."""
     core, _ = make()
     x, y = core.site.node_pose("P-1")
-    core.on_robot_state("pinky1", x, y, 0.0, "BLOCKED", math.nan)
-    assert core.traffic.status_view("pinky1")["fsm_state"] == "BLOCKED"
+    core.on_robot_state("pode1", x, y, 0.0, "BLOCKED", math.nan)
+    assert core.traffic.status_view("pode1")["fsm_state"] == "BLOCKED"
     assert not rejected(core.tick())
 
 
@@ -272,19 +272,19 @@ def test_a_bad_state_source_is_said_once_until_it_sends_a_good_one():
     core, _ = make()
     x, y = core.site.node_pose("P-1")
     for _ in range(3):
-        core.on_robot_state("pinky1", math.nan, y, 0.0, "IDLE", 90.0)
-    core.on_robot_state("pinky1", x, y, 0.0, "IDLE", 90.0, "pinky2")  # 다른 이유, 같은 연속
+        core.on_robot_state("pode1", math.nan, y, 0.0, "IDLE", 90.0)
+    core.on_robot_state("pode1", x, y, 0.0, "IDLE", 90.0, "pode2")  # 다른 이유, 같은 연속
     assert len(rejected(core.tick())) == 1
-    core.on_robot_state("pinky1", x, y, 0.0, "IDLE", 90.0)
+    core.on_robot_state("pode1", x, y, 0.0, "IDLE", 90.0)
     for _ in range(3):
-        core.on_robot_state("pinky1", math.nan, y, 0.0, "IDLE", 90.0)
+        core.on_robot_state("pode1", math.nan, y, 0.0, "IDLE", 90.0)
     assert len(rejected(core.tick())) == 1, "정상 보고가 다시 무장한다"
 
 
 def test_sources_are_counted_apart():
     core, _ = make()
-    core.on_robot_state("pinky1", math.nan, 1.0, 0.0, "IDLE")
-    core.on_robot_state("pinky2", math.nan, 1.0, 0.0, "IDLE")
+    core.on_robot_state("pode1", math.nan, 1.0, 0.0, "IDLE")
+    core.on_robot_state("pode2", math.nan, 1.0, 0.0, "IDLE")
     core.on_order_board("", [])
     assert len(rejected(core.tick())) == 3
 
@@ -360,10 +360,10 @@ def test_a_bad_board_is_said_once_until_a_good_one_comes():
 
 def test_results_for_an_unknown_robot_are_refused_without_raising():
     core, _ = make()
-    core.on_move_result("pinky9", 1, True, "")
-    core.on_goal_rejected("pinky9", 1)
-    core.on_goal_not_sent("pinky9", 1)
-    core.on_dock_result("pinky9", 1, True)
+    core.on_move_result("pode9", 1, True, "")
+    core.on_goal_rejected("pode9", 1)
+    core.on_goal_not_sent("pode9", 1)
+    core.on_dock_result("pode9", 1, True)
     assert len(rejected(core.tick())) == 4
 
 
@@ -371,10 +371,10 @@ def test_stale_or_unknown_goal_ids_are_ignored_quietly():
     """취소 뒤 늦은 결과는 정상이다."""
     core, _ = make()
     before = {r: core.robot_view(r) for r in SPOTS}
-    core.on_move_result("pinky1", 999, True, "")
-    core.on_goal_rejected("pinky1", 999)
-    core.on_goal_not_sent("pinky1", 999)
-    core.on_dock_result("pinky1", 999, False)
+    core.on_move_result("pode1", 999, True, "")
+    core.on_goal_rejected("pode1", 999)
+    core.on_goal_not_sent("pode1", 999)
+    core.on_dock_result("pode1", 999, False)
     core.on_fill_result(999, True, {"A": 1}, {})
     core.on_swap_result(999, True, True, True)
     assert {r: core.robot_view(r) for r in SPOTS} == before
@@ -383,7 +383,7 @@ def test_stale_or_unknown_goal_ids_are_ignored_quietly():
 
 def test_views_of_an_unknown_robot_do_not_raise():
     core, _ = make()
-    assert core.robot_view("pinky9") == {}
+    assert core.robot_view("pode9") == {}
 
 
 # ---- the cores on their own -------------------------------------------------------------------
@@ -391,7 +391,7 @@ def test_views_of_an_unknown_robot_do_not_raise():
 
 def test_traffic_ignores_an_unknown_robot_everywhere():
     site, params = load_fleet_map("d2"), load_params()
-    traffic = ZoneTraffic(site, params, ["pinky1"], lambda: 0.0)
+    traffic = ZoneTraffic(site, params, ["pode1"], lambda: 0.0)
     traffic.on_robot_state("ghost", 1.0, 1.0, 0.0, "IDLE")
     traffic.on_release("ghost")
     traffic.on_robot_fault("ghost", "why")
@@ -404,17 +404,17 @@ def test_traffic_ignores_an_unknown_robot_everywhere():
     assert traffic.robot_view("ghost") == {}
     traffic.on_dispatch(5, "OUTBOUND", "ghost")
     assert traffic.take_output() == [DispatchResult(5, False, "ghost", "NO_SUCH_ROBOT")]
-    assert traffic.robots == ["pinky1"]
+    assert traffic.robots == ["pode1"]
 
 
 def test_the_status_of_an_unknown_robot_is_empty():
-    traffic = ZoneTraffic(load_fleet_map("d2"), load_params(), ["pinky1"], lambda: 0.0)
+    traffic = ZoneTraffic(load_fleet_map("d2"), load_params(), ["pode1"], lambda: 0.0)
     assert traffic.status_view("ghost") == {}
 
 
 def test_orchestrator_ignores_an_unknown_robot_everywhere():
     site, params = load_fleet_map("d2"), load_params()
-    orders = OrderOrchestrator(site.stations, params, ["pinky1"], lambda: 0.0)
+    orders = OrderOrchestrator(site.stations, params, ["pode1"], lambda: 0.0)
     orders.on_dispatch_result(5, True, "ghost")
     orders.on_robot_removed("ghost")
     orders.step("ghost")
@@ -434,13 +434,13 @@ def test_a_run_with_rejected_inputs_plays_back_the_same(tmp_path):
     for robot, node in SPOTS.items():
         report(core, robot, node, robot)
     core.on_order_board("RUN", [O1])
-    core.on_robot_state("pinky1", math.nan, 1.0, 0.0, "IDLE", 90.0, "pinky1")
-    core.on_robot_state("pinky1", 1.0, 1.0, math.inf, "IDLE", 90.0, "pinky2")
-    core.on_robot_state("pinky9", 1.0, 1.0, 0.0, "IDLE", 90.0)
+    core.on_robot_state("pode1", math.nan, 1.0, 0.0, "IDLE", 90.0, "pode1")
+    core.on_robot_state("pode1", 1.0, 1.0, math.inf, "IDLE", 90.0, "pode2")
+    core.on_robot_state("pode9", 1.0, 1.0, 0.0, "IDLE", 90.0)
     core.on_order_board("", [])
     core.on_order_board("RUN", [OrderRecord("O-002", {"A": 0})])
-    core.confirm_clear("pinky1", ["NOPE"], "typo")
-    core.on_move_result("pinky9", 3, True, "")
+    core.confirm_clear("pode1", ["NOPE"], "typo")
+    core.on_move_result("pode9", 3, True, "")
     for _ in range(20):
         now[0] += 0.1
         core.tick()
@@ -504,7 +504,7 @@ def test_a_board_of_the_wrong_shape_plays_back_the_same(tmp_path, orders):
 def test_a_robot_id_that_is_not_a_string_plays_back_the_same(tmp_path):
     core, now, lines = _recorded()
     x, y = core.site.node_pose("P-1")
-    core.on_robot_state("pinky1", x, y, 0.0, "IDLE", 90.0, 0)
+    core.on_robot_state("pode1", x, y, 0.0, "IDLE", 90.0, 0)
     assert len(rejected(core.tick())) == 1
     result = _play(tmp_path, lines)
     assert result.compared and result.same, result
@@ -595,20 +595,20 @@ class _Incomparable(str):
 
 
 ODD_CALLS = {
-    "a pose": lambda c: c.on_robot_state("pinky1", _Unprintable(), 0.0, 0.0, "IDLE", 90.0),
-    "a robot_id": lambda c: c.on_robot_state("pinky1", 0.0, 0.0, 0.0, "IDLE", 90.0,
-                                             _Spiteful("pinky1")),
-    "a robot on the state topic": lambda c: c.on_robot_state(_Spiteful("pinky1"), 0.0, 0.0,
+    "a pose": lambda c: c.on_robot_state("pode1", _Unprintable(), 0.0, 0.0, "IDLE", 90.0),
+    "a robot_id": lambda c: c.on_robot_state("pode1", 0.0, 0.0, 0.0, "IDLE", 90.0,
+                                             _Spiteful("pode1")),
+    "a robot on the state topic": lambda c: c.on_robot_state(_Spiteful("pode1"), 0.0, 0.0,
                                                              0.0, "IDLE", 90.0),
-    "a robot in a result": lambda c: c.on_move_result(_Spiteful("pinky1"), 1, True, ""),
+    "a robot in a result": lambda c: c.on_move_result(_Spiteful("pode1"), 1, True, ""),
     "a run mode": lambda c: c.on_order_board(_Spiteful("STOP"), [O1]),
-    "a zone": lambda c: c.confirm_clear("pinky1", [_Unprintable()], "lifted"),
-    "a robot to clear": lambda c: c.confirm_clear(_Spiteful("pinky1"), ["HALL"], "lifted"),
-    "a note": lambda c: c.confirm_clear("pinky1", ["NO-SUCH-ZONE"], _Unprintable()),
-    "a robot to reinstate": lambda c: c.reinstate(_Spiteful("pinky1"), "EMPTY", "back"),
-    "a basket": lambda c: c.reinstate("pinky1", _Spiteful("EMPTY"), "back"),
-    "a basket that cannot be printed": lambda c: c.reinstate("pinky1", _Unprintable(), "back"),
-    "a reinstate note": lambda c: c.reinstate("pinky1", "FULL", _Unprintable()),
+    "a zone": lambda c: c.confirm_clear("pode1", [_Unprintable()], "lifted"),
+    "a robot to clear": lambda c: c.confirm_clear(_Spiteful("pode1"), ["HALL"], "lifted"),
+    "a note": lambda c: c.confirm_clear("pode1", ["NO-SUCH-ZONE"], _Unprintable()),
+    "a robot to reinstate": lambda c: c.reinstate(_Spiteful("pode1"), "EMPTY", "back"),
+    "a basket": lambda c: c.reinstate("pode1", _Spiteful("EMPTY"), "back"),
+    "a basket that cannot be printed": lambda c: c.reinstate("pode1", _Unprintable(), "back"),
+    "a reinstate note": lambda c: c.reinstate("pode1", "FULL", _Unprintable()),
 }
 
 
@@ -642,5 +642,5 @@ def test_a_state_that_cannot_be_compared_is_kept_as_plain_text():
         for _ in range(core.params.release_confirm_samples):
             core.on_robot_state(robot, x, y, 0.0, _Incomparable("IDLE"), 90.0)
     assert not rejected(core.tick())
-    state = core.traffic.status_view("pinky1")["fsm_state"]
+    state = core.traffic.status_view("pode1")["fsm_state"]
     assert state == "IDLE" and type(state) is str

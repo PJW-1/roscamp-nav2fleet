@@ -1,7 +1,7 @@
 """PC에서 플릿 매니저를 띄운다. 가짜와 실물 장치를 섞어 쓸 수 있다.
 
 All fake:  ros2 launch iponic_bringup pc.launch.py use_fake:=true scenario:=shared_lane_failure
-Mixed:     ros2 launch iponic_bringup pc.launch.py use_fake:=true fake_robots:="pinky2 pinky3"
+Mixed:     ros2 launch iponic_bringup pc.launch.py use_fake:=true fake_robots:="pode2 pode3"
 Real arms: ros2 launch iponic_bringup pc.launch.py use_fake:=true fake_arms:="arm3"
 All real:  ros2 launch iponic_bringup pc.launch.py use_fake:=false
 
@@ -90,8 +90,8 @@ def generate_launch_description():
     defaults = {
         "use_fake": "true",
         "scenario": "basic_orders",
-        "robots": "pinky1 pinky2 pinky3",
-        "fake_robots": "pinky1 pinky2 pinky3",
+        "robots": "pode1 pode2 pode3",
+        "fake_robots": "pode1 pode2 pode3",
         "fake_arms": "arm1 arm2 arm3",
         "fake_central": "true",
         "use_sim_clock": "true",

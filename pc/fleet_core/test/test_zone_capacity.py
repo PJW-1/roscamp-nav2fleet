@@ -8,7 +8,7 @@ def warnings(world):
 
 
 def test_fewer_shared_places_than_robots_is_warned_once_at_start():
-    world = Harness(starts={"pinky1": "P-1", "pinky2": "P-2", "pinky3": "P-3", "pinky4": "W_Q"})
+    world = Harness(starts={"pode1": "P-1", "pode2": "P-2", "pode3": "P-3", "pode4": "W_Q"})
     world.step()
     assert warnings(world) == [("WARN", "", "shared zones hold 3 robots in all (HALL 3) but "
                                             "4 robots run: they can wait on each other for good")]

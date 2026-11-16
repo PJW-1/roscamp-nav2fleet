@@ -31,10 +31,10 @@ def targets(world, robot):
 
 
 def calls(world, *robots):
-    """pinky1이 W에서 일하고(풀어 줄 때까지 도크를 쥔다) robots가 이 순서로 WORK를 바란다.
+    """pode1이 W에서 일하고(풀어 줄 때까지 도크를 쥔다) robots가 이 순서로 WORK를 바란다.
     첫 걸음 전에 부른다: 부르지 않은 로봇은 대기 자리에서 주차하러 떠난다."""
     world.report()
-    busy = world.call("WORK", "pinky1")
+    busy = world.call("WORK", "pode1")
     asked = []
     for robot in robots:
         world.now += DT / 2
@@ -56,17 +56,17 @@ def test_the_line_key_is_read_and_is_off_by_default():
 
 
 def test_the_front_of_the_line_docks_first_and_the_rest_pull_forward():
-    world = Harness(site=line_map(), starts={"pinky1": "W", "pinky2": "Q2", "pinky3": "Q3"})
-    back, front = calls(world, "pinky3", "pinky2")  # 꼬리 로봇이 먼저 바랐다
-    assert world.run_until(lambda: world.view("pinky2")["node"] == "Q1"
-                           and world.view("pinky3")["node"] == "Q2", 60.0), "pulls forward"
-    assert targets(world, "pinky2") == ["Q1"] and targets(world, "pinky3") == ["Q2"]
-    world.traffic.on_release("pinky1")
+    world = Harness(site=line_map(), starts={"pode1": "W", "pode2": "Q2", "pode3": "Q3"})
+    back, front = calls(world, "pode3", "pode2")  # 꼬리 로봇이 먼저 바랐다
+    assert world.run_until(lambda: world.view("pode2")["node"] == "Q1"
+                           and world.view("pode3")["node"] == "Q2", 60.0), "pulls forward"
+    assert targets(world, "pode2") == ["Q1"] and targets(world, "pode3") == ["Q2"]
+    world.traffic.on_release("pode1")
     assert world.run_until(lambda: world.result_of(front) is not None, 120.0)
-    assert world.result_of(front).robot_id == "pinky2", "the front spot docks first"
+    assert world.result_of(front).robot_id == "pode2", "the front spot docks first"
     assert world.result_of(back) is None
-    assert world.run_until(lambda: world.view("pinky3")["node"] == "Q1", 60.0)
-    world.traffic.on_release("pinky2")
+    assert world.run_until(lambda: world.view("pode3")["node"] == "Q1", 60.0)
+    world.traffic.on_release("pode2")
     assert world.run_until(lambda: world.result_of(back) is not None, 200.0)
     assert "DOCK_TURN_TAKEN" not in world.codes()
     assert not world.problems
@@ -74,59 +74,59 @@ def test_the_front_of_the_line_docks_first_and_the_rest_pull_forward():
 
 def test_without_the_key_the_old_rule_stays():
     world = Harness(site=line_map(line=False),
-                    starts={"pinky1": "W", "pinky2": "Q2", "pinky3": "Q3"})
-    calls(world, "pinky3", "pinky2")
+                    starts={"pode1": "W", "pode2": "Q2", "pode3": "Q3"})
+    calls(world, "pode3", "pode2")
     world.run(20.0)
-    assert targets(world, "pinky2") == [] and targets(world, "pinky3") == [], "no pulling"
+    assert targets(world, "pode2") == [] and targets(world, "pode3") == [], "no pulling"
 
 
 def test_a_new_robot_joins_behind_the_last_one_in_line():
-    world = Harness(site=line_map(), starts={"pinky1": "W", "pinky2": "Q1", "pinky3": "P-1"})
-    calls(world, "pinky2")
-    world.call("WORK", "pinky3")
-    assert world.run_until(lambda: world.view("pinky3")["node"] == "Q2", 200.0)
-    goals = targets(world, "pinky3")
+    world = Harness(site=line_map(), starts={"pode1": "W", "pode2": "Q1", "pode3": "P-1"})
+    calls(world, "pode2")
+    world.call("WORK", "pode3")
+    assert world.run_until(lambda: world.view("pode3")["node"] == "Q2", 200.0)
+    goals = targets(world, "pode3")
     assert "Q1" not in goals and goals[-1] == "Q2", goals
     assert "Q3" in goals or any(c.target_id == "Q3" for c in world.commands
-                                if getattr(c, "robot", "") == "pinky3"), "enters at the tail"
+                                if getattr(c, "robot", "") == "pode3"), "enters at the tail"
     assert not world.problems
 
 
 def test_a_robot_low_on_battery_leaves_the_line_and_the_rest_still_dock():
     world = Harness(site=line_map(), params=replace(load_params(), battery_low_pct=20.0),
-                    starts={"pinky1": "W", "pinky2": "Q1", "pinky3": "Q3"})
+                    starts={"pode1": "W", "pode2": "Q1", "pode3": "Q3"})
     # 이름 없는 호출이라야 배터리가 낮은 로봇을 호출에서 뺀다(이름 붙은 호출은 끝까지 간다)
     calls(world)
     first, second = world.call("WORK"), world.call("WORK")
     world.run(5.0)
-    assert world.phase("pinky2") == world.phase("pinky3") == "TO_WORK"
-    bot = world.bots["pinky3"]
-    world.traffic.on_robot_state("pinky3", bot.x, bot.y, bot.yaw, "IDLE", 15.0)
+    assert world.phase("pode2") == world.phase("pode3") == "TO_WORK"
+    bot = world.bots["pode3"]
+    world.traffic.on_robot_state("pode3", bot.x, bot.y, bot.yaw, "IDLE", 15.0)
     # 꼬리에서 G로 빠져 칸에 선다(G는 through 지점이 아니라 합치지 않는다)
-    assert world.run_until(lambda: world.phase("pinky3") == "PARKED", 300.0), world.log[-20:]
-    assert "G" in targets(world, "pinky3")
-    # 남은 둘(pinky1, pinky2)이 두 호출을 끝낸다: 빠진 로봇이 줄을 막지 않는다
-    world.traffic.on_release("pinky1")
+    assert world.run_until(lambda: world.phase("pode3") == "PARKED", 300.0), world.log[-20:]
+    assert "G" in targets(world, "pode3")
+    # 남은 둘(pode1, pode2)이 두 호출을 끝낸다: 빠진 로봇이 줄을 막지 않는다
+    world.traffic.on_release("pode1")
     assert world.run_until(lambda: world.result_of(first) is not None, 200.0)
     done = world.result_of(first).robot_id
     world.traffic.on_release(done)
     assert world.run_until(lambda: world.result_of(second) is not None, 200.0)
-    assert {done, world.result_of(second).robot_id} <= {"pinky1", "pinky2"}
+    assert {done, world.result_of(second).robot_id} <= {"pode1", "pode2"}
     assert not world.problems
 
 
 def test_a_spot_held_by_a_robot_leaving_the_line_is_not_the_tail():
     """줄을 떠나는 로봇(이 스테이션으로 가지 않는 로봇)이 아직 쥔 자리는 줄 꼬리로 세지 않는다
     (40b9767 리뷰): 앞자리가 비었으면 새 로봇은 앞자리로 간다."""
-    world = Harness(site=line_map(), starts={"pinky1": "W", "pinky2": "P-1", "pinky3": "Q3"})
+    world = Harness(site=line_map(), starts={"pode1": "W", "pode2": "P-1", "pode3": "Q3"})
     world.report()
-    world.call("WORK", "pinky1")
-    world.call("WORK", "pinky2")
-    world.step()  # pinky3은 부르지 않았다: Q3을 쥔 채 주차하러 떠난다
+    world.call("WORK", "pode1")
+    world.call("WORK", "pode2")
+    world.step()  # pode3은 부르지 않았다: Q3을 쥔 채 주차하러 떠난다
     traffic = world.traffic
     station = world.site.stations["WORK"]
-    leaving, new = traffic._robots["pinky3"], traffic._robots["pinky2"]
-    assert traffic.grants.node_holder("Q3") == "pinky3" and leaving.dest != "WORK"
+    leaving, new = traffic._robots["pode3"], traffic._robots["pode2"]
+    assert traffic.grants.node_holder("Q3") == "pode3" and leaving.dest != "WORK"
     assert traffic._open_spots(new, station)[0] == "Q1"
 
 
@@ -134,14 +134,14 @@ def test_a_spot_held_by_a_robot_leaving_the_line_is_not_the_tail():
 def test_a_robot_stepping_forward_ranks_by_the_spot_it_goes_to(order_model):
     """한 칸 당기는 로봇은 마지막으로 선 자리가 아니라 가는 자리로 순위를 받는다(40b9767 리뷰).
     order 모델은 대기 트립 끝에 도크까지 붙여 trip.goal이 도크가 된다(6810b3b 리뷰)."""
-    world = Harness(site=line_map(), starts={"pinky1": "W", "pinky2": "Q2", "pinky3": "Q3"},
+    world = Harness(site=line_map(), starts={"pode1": "W", "pode2": "Q2", "pode3": "Q3"},
                     params=replace(load_params(), use_order_model=order_model))
     world.report()
-    for robot in ("pinky1", "pinky3", "pinky2"):
+    for robot in ("pode1", "pode3", "pode2"):
         world.call("WORK", robot)
     world.step()
     traffic = world.traffic
-    moving = traffic._robots["pinky2"]
+    moving = traffic._robots["pode2"]
     assert moving.node == "Q2" and moving.trip is not None
     assert moving.trip.links[0].b == "Q1"
     assert traffic._line_spot(moving, world.site.stations["WORK"]) == 0
@@ -150,33 +150,33 @@ def test_a_robot_stepping_forward_ranks_by_the_spot_it_goes_to(order_model):
 def test_v7_new_robot_stands_behind_the_front_and_the_line_docks_in_order():
     """v7: 앞자리 Q1에 하나가 서 있으면 새 로봇은 칸 입구에서 남쪽 통로로 줄 입구 Q2에 와 서고
     (앞자리를 노리지 않는다), 도크가 비면 Q1, 그다음 Q2 차례로 들어간다(Q2는 Q1으로 당긴 뒤 W로)."""
-    world = Harness(layout="v7", starts={"pinky1": "W", "pinky2": "Q1", "pinky3": "P-1"})
-    front, back = calls(world, "pinky2", "pinky3")
-    assert world.run_until(lambda: world.view("pinky3")["node"] == "Q2", 300.0), world.log[-10:]
+    world = Harness(layout="v7", starts={"pode1": "W", "pode2": "Q1", "pode3": "P-1"})
+    front, back = calls(world, "pode2", "pode3")
+    assert world.run_until(lambda: world.view("pode3")["node"] == "Q2", 300.0), world.log[-10:]
     # 주차 0.10 뒤 E-1 -> Q2 이음이 없어 E-3을 거친다. E-1 -> E-3 -> Q2는 Q2로 가는 Nav2 goal
     # 하나로 합쳐 보낸다(2026-11-14)
-    assert targets(world, "pinky3") == ["E-1", "Q2"], "along the south aisle"
-    world.traffic.on_release("pinky1")
+    assert targets(world, "pode3") == ["E-1", "Q2"], "along the south aisle"
+    world.traffic.on_release("pode1")
     assert world.run_until(lambda: world.result_of(front) is not None, 200.0)
-    assert world.result_of(front).robot_id == "pinky2" and world.result_of(back) is None
-    world.traffic.on_release("pinky2")
+    assert world.result_of(front).robot_id == "pode2" and world.result_of(back) is None
+    world.traffic.on_release("pode2")
     assert world.run_until(lambda: world.result_of(back) is not None, 300.0)
-    assert "Q1" in targets(world, "pinky3"), "steps forward before it docks"
+    assert "Q1" in targets(world, "pode3"), "steps forward before it docks"
     assert not world.problems
 
 
 def test_v7_a_full_line_pulls_forward_as_soon_as_the_front_moves():
     """v7 줄이 가득(W, Q1, Q2): 도크가 비어 앞자리 로봇이 들어가면 Q2의 로봇이 바로 Q1으로 당긴다.
     두 자리가 노드 놓는 거리(0.20)보다 멀어 당긴 로봇이 뒷자리를 놓는다."""
-    world = Harness(layout="v7", starts={"pinky1": "W", "pinky2": "Q1", "pinky3": "Q2"})
-    front, back = calls(world, "pinky2", "pinky3")
+    world = Harness(layout="v7", starts={"pode1": "W", "pode2": "Q1", "pode3": "Q2"})
+    front, back = calls(world, "pode2", "pode3")
     world.run(20.0)
-    assert targets(world, "pinky2") == [] and targets(world, "pinky3") == [], "the line is full"
-    world.traffic.on_release("pinky1")
+    assert targets(world, "pode2") == [] and targets(world, "pode3") == [], "the line is full"
+    world.traffic.on_release("pode1")
     assert world.run_until(lambda: world.result_of(front) is not None, 200.0)
-    assert world.result_of(front).robot_id == "pinky2" and world.result_of(back) is None
-    assert world.run_until(lambda: world.view("pinky3")["node"] == "Q1", 60.0), world.log[-10:]
-    world.traffic.on_release("pinky2")
+    assert world.result_of(front).robot_id == "pode2" and world.result_of(back) is None
+    assert world.run_until(lambda: world.view("pode3")["node"] == "Q1", 60.0), world.log[-10:]
+    world.traffic.on_release("pode2")
     assert world.run_until(lambda: world.result_of(back) is not None, 300.0)
     assert not world.problems
 
@@ -188,17 +188,17 @@ def test_v7_a_robot_leaving_outbound_passes_the_doors_of_parked_robots(parked):
     지나는 Nav2 goal 하나로 줄 입구에 간다(b5f1e8f 리뷰: 길이 있다는 것만이 아니라 관제가 그 길을
     고르는지)."""
     doors = ["E-" + spot.removeprefix("P-") for spot in parked]
-    world = Harness(layout="v7", starts={"pinky1": doors[0], "pinky2": doors[1], "pinky3": "O"})
+    world = Harness(layout="v7", starts={"pode1": doors[0], "pode2": doors[1], "pode3": "O"})
     world.report()
-    asked = world.call("WORK", "pinky3")
+    asked = world.call("WORK", "pode3")
     assert world.run_until(lambda: world.result_of(asked) is not None, 300.0), world.codes()
     # 할 일 없는 두 로봇은 입구에서 후진으로 칸에 들어가 서고, 자기 칸만 쥔다
-    for robot, spot in zip(("pinky1", "pinky2"), parked, strict=True):
+    for robot, spot in zip(("pode1", "pode2"), parked, strict=True):
         assert world.view(robot)["node"] == spot, robot
         assert set(world.view(robot)["nodes"]) == {spot}, (robot, world.view(robot)["nodes"])
     # 출고 로봇이 길을 고를 때 입구의 로봇이 아직 후진 중이면 그 입구를 쥐고 있어, 다른 입구까지
     # 먼저 간다. 가운데 통로(M_E)로 돌지는 않는다
-    went = targets(world, "pinky3")
+    went = targets(world, "pode3")
     assert went[0] == "O_OUT" and went[-3:] == ["Q2", "Q1", "W"], went
     assert "M_E" not in went, went
     assert not world.problems
@@ -210,30 +210,30 @@ def test_v7_a_robot_low_on_battery_in_the_open_yard_goes_to_a_door_and_backs_in(
     P-3'을 받은 로봇이 칸에 비스듬히 들어가다 입구에 걸려 섰고, 그 앞 입구에 온 로봇까지 막았다)."""
     from fleet_core.common.commands import RetreatCmd
     world = Harness(layout="v7", params=replace(load_params(), battery_low_pct=20.0),
-                    starts={"pinky1": "P-1", "pinky2": "W"})
+                    starts={"pode1": "P-1", "pode2": "W"})
     world.report()
-    world.call("WORK", "pinky2")  # 도크를 쥐고 있다
-    world.call("WORK")            # 열린 호출: pinky1이 줄로 간다. 배터리가 낮으면 내놓는다
-    bot = world.bots["pinky1"]
+    world.call("WORK", "pode2")  # 도크를 쥐고 있다
+    world.call("WORK")            # 열린 호출: pode1이 줄로 간다. 배터리가 낮으면 내놓는다
+    bot = world.bots["pode1"]
     assert world.run_until(lambda: bot.x > 0.45, 60.0), (bot.x, bot.y)
-    world.traffic.on_robot_state("pinky1", bot.x, bot.y, bot.yaw, "MOVING", 15.0)
-    assert world.run_until(lambda: world.view("pinky1")["state"] == "PARKED", 200.0), \
-        world.codes("pinky1")[-12:]
-    into_bays = [c.target_id for c in world.sent(MoveCmd, "pinky1") if c.target_id.startswith("P-")]
+    world.traffic.on_robot_state("pode1", bot.x, bot.y, bot.yaw, "MOVING", 15.0)
+    assert world.run_until(lambda: world.view("pode1")["state"] == "PARKED", 200.0), \
+        world.codes("pode1")[-12:]
+    into_bays = [c.target_id for c in world.sent(MoveCmd, "pode1") if c.target_id.startswith("P-")]
     assert not into_bays, into_bays
-    assert world.sent(RetreatCmd, "pinky1")
+    assert world.sent(RetreatCmd, "pode1")
     assert not world.problems
 
 
 def low_battery_in_line(spot):
-    """W에 pinky1, 줄에 둘이 WORK를 기다린다. spot에 선 로봇의 배터리를 낮춘다(누가 어디 서는지는
+    """W에 pode1, 줄에 둘이 WORK를 기다린다. spot에 선 로봇의 배터리를 낮춘다(누가 어디 서는지는
     부르기 전 주차 출발과 차례에 따라 바뀐다)."""
     world = Harness(layout="v7", params=replace(load_params(), battery_low_pct=20.0),
-                    starts={"pinky1": "W", "pinky2": "Q1", "pinky3": "Q2"})
+                    starts={"pode1": "W", "pode2": "Q1", "pode3": "Q2"})
     calls(world)
     asked = world.call("WORK"), world.call("WORK")
     world.run(5.0)
-    stand = {world.view(r)["node"]: r for r in ("pinky2", "pinky3")}
+    stand = {world.view(r)["node"]: r for r in ("pode2", "pode3")}
     assert set(stand) == {"Q1", "Q2"}, stand
     assert all(world.phase(r) == "TO_WORK" for r in stand.values())
     low = stand[spot]
@@ -248,7 +248,7 @@ def finish(world, asked, rest):
     done = world.result_of(first).robot_id
     world.traffic.on_release(done)
     assert world.run_until(lambda: world.result_of(second) is not None, 300.0)
-    assert {done, world.result_of(second).robot_id} <= {"pinky1", rest}
+    assert {done, world.result_of(second).robot_id} <= {"pode1", rest}
     assert not world.problems
 
 
@@ -258,7 +258,7 @@ def test_v7_the_robot_at_the_entry_low_on_battery_leaves_at_once():
     world, asked, low, rest = low_battery_in_line("Q2")
     assert world.run_until(lambda: world.phase(low) == "PARKED", 120.0), world.log[-20:]
     assert "Q1" not in targets(world, low) and "W" not in targets(world, low)
-    world.traffic.on_release("pinky1")
+    world.traffic.on_release("pode1")
     finish(world, asked, rest)
 
 
@@ -273,7 +273,7 @@ def test_v7_the_front_robot_low_on_battery_leaves_through_the_docks():
     for _ in range(6):
         if world.run_until(lambda: world.phase(low) == "PARKED", 150.0):
             break
-        for robot in ("pinky1", rest):
+        for robot in ("pode1", rest):
             if world.phase(robot) == "AT_STATION":
                 world.traffic.on_release(robot)
     assert world.phase(low) == "PARKED", world.log[-20:]

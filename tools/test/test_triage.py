@@ -9,7 +9,7 @@ sys.path.insert(0, str(TOOLS))
 import triage  # noqa: E402
 from triage import Obstacle  # noqa: E402
 
-HEAD = {"recorded": True, "robots": {"pinky1": "P-1"}, "map": "",
+HEAD = {"recorded": True, "robots": {"pode1": "P-1"}, "map": "",
         "params": {"blocked_mark_s": 10.0, "blocked_timeout_s": 60.0}}
 
 
@@ -18,17 +18,17 @@ def board(t, *ids):
             "args": ["RUN", [{"order_id": i, "items": {"A": 1}} for i in ids]]}
 
 
-def ev(t, code, robot="pinky1", detail=""):
+def ev(t, code, robot="pode1", detail=""):
     return {"t": t, "out": "EventOut", "level": "INFO", "code": code, "detail": detail,
             "robot": robot}
 
 
-def st(t, x, state="MOVING", robot="pinky1", y=0.0):
+def st(t, x, state="MOVING", robot="pode1", y=0.0):
     return {"t": t, "in": "on_robot_state", "args": [robot, x, y, 0.0, state, 90.0]}
 
 
 def shipped(t, order="O-1", status="SHIPPED"):
-    return {"t": t, "out": "ReportOrderCmd", "order_id": order, "robot": "pinky1",
+    return {"t": t, "out": "ReportOrderCmd", "order_id": order, "robot": "pode1",
             "status": status, "placed": {}, "missing": {}, "detail": ""}
 
 
@@ -67,7 +67,7 @@ def test_an_order_never_bound_is_the_fleets_fault():
 
 def test_an_unbound_order_behind_an_isolated_robot_is_a_driving_fault():
     text = record(board(0.1, "O-1"), *walk(0, 30, 0.0, 0.0, "IDLE"), ev(12, "ROBOT_ISOLATED"))
-    assert causes(text) == [("O-1", "주행", "ORDER_BOUND 없음, pinky1 격리 12 s")]
+    assert causes(text) == [("O-1", "주행", "ORDER_BOUND 없음, pode1 격리 12 s")]
 
 
 def test_no_goal_after_the_bind_is_the_fleets_fault():
@@ -217,14 +217,14 @@ def test_the_markdown_has_a_header_and_a_line_per_order():
 # ---- rec.csv ----
 
 CSV = """t,event,robot,level,code,detail
-1.0,event,pinky1,INFO,ORDER_BOUND,O-1
-1.5,event,pinky1,INFO,NAV_GOAL_SENT,to P-1,extra
-2.0,rep,pinky1,0.0,0.0,"0.0 MOVING 90"
-2.0,pose,pinky1,0.0,0.0,0.0
-4.0,rep,pinky1,0.5,0.0,"0.0 BLOCKED 90"
-4.0,pose,pinky1,0.5,0.0,0.0
-4.2,event,pinky1,INFO,BLOCKED_WAIT,stands
-9.0,rep,pinky1,0.5,0.0,"0.0 BLOCKED 90"
+1.0,event,pode1,INFO,ORDER_BOUND,O-1
+1.5,event,pode1,INFO,NAV_GOAL_SENT,to P-1,extra
+2.0,rep,pode1,0.0,0.0,"0.0 MOVING 90"
+2.0,pose,pode1,0.0,0.0,0.0
+4.0,rep,pode1,0.5,0.0,"0.0 BLOCKED 90"
+4.0,pose,pode1,0.5,0.0,0.0
+4.2,event,pode1,INFO,BLOCKED_WAIT,stands
+9.0,rep,pode1,0.5,0.0,"0.0 BLOCKED 90"
 """
 
 
@@ -233,8 +233,8 @@ def test_a_rec_csv_is_read_with_or_without_a_header_and_extra_columns(tmp_path):
     path.write_text(CSV, encoding="utf-8")
     run = triage.read_rec_csv(path)
     assert [e.code for e in run.events] == ["ORDER_BOUND", "NAV_GOAL_SENT", "BLOCKED_WAIT"]
-    assert run.states["pinky1"][1] == (4.0, 0.5, 0.0, "BLOCKED")
-    assert run.poses["pinky1"][0] == (2.0, 0.0, 0.0)
+    assert run.states["pode1"][1] == (4.0, 0.5, 0.0, "BLOCKED")
+    assert run.poses["pode1"][0] == (2.0, 0.0, 0.0)
     path.write_text(CSV.split("\n", 1)[1], encoding="utf-8")
     assert len(triage.read_rec_csv(path).events) == 3
     rows = triage.classify(run, obstacles=[Obstacle(0.7, 0.0)])
@@ -245,7 +245,7 @@ def test_a_rec_csv_is_read_with_or_without_a_header_and_extra_columns(tmp_path):
 
 
 def test_a_headless_run_gives_rows_from_the_cores_own_record():
-    # c 배치에서 pinky1이 멈추면 갈림목이 막혀 주문이 끝나지 않는다(situations.py 주석)
+    # c 배치에서 pode1이 멈추면 갈림목이 막혀 주문이 끝나지 않는다(situations.py 주석)
     outcome, rows = triage.run_triaged("front_robot_stuck", "c", 1)
     central = outcome.world.central
     assert len(rows) == central.total - central.finished > 0
@@ -278,16 +278,16 @@ def test_an_accepted_but_never_bound_order_is_listed_with_what_held_the_queue(tm
         "t,kind,robot,a,b,c\n"
         "1.0,event,central,INFO,ORDER_ACCEPTED,O-007\n"
         "1.0,event,central,INFO,ORDER_ACCEPTED,O-008\n"
-        "2.0,event,pinky3,INFO,ORDER_BOUND,O-007\n"
-        "2.5,event,pinky3,INFO,NAV_GOAL_SENT,to X\n"
-        "0.0,rep,pinky3,0.0,0.0,0.000 LOCALIZING \n"
-        "3.0,rep,pinky3,0.5,0.0,0.000 MOVING \n"
-        "9.0,rep,pinky3,0.8,0.0,0.000 MOVING \n"
-        "198.0,event,pinky3,ERROR,ROBOT_ISOLATED,stuck\n", encoding="utf-8")
+        "2.0,event,pode3,INFO,ORDER_BOUND,O-007\n"
+        "2.5,event,pode3,INFO,NAV_GOAL_SENT,to X\n"
+        "0.0,rep,pode3,0.0,0.0,0.000 LOCALIZING \n"
+        "3.0,rep,pode3,0.5,0.0,0.000 MOVING \n"
+        "9.0,rep,pode3,0.8,0.0,0.000 MOVING \n"
+        "198.0,event,pode3,ERROR,ROBOT_ISOLATED,stuck\n", encoding="utf-8")
     rows = triage.classify(triage.read_rec_csv(path))
     by = {r.order_id: r for r in rows}
     assert by["O-008"].cause == "주행"
-    assert by["O-008"].event == "ORDER_BOUND 없음, pinky3 격리 198 s"
+    assert by["O-008"].event == "ORDER_BOUND 없음, pode3 격리 198 s"
     path.write_text(path.read_text(encoding="utf-8").replace("ERROR,ROBOT_ISOLATED", "INFO,X"),
                     encoding="utf-8")
     by = {r.order_id: r for r in triage.classify(triage.read_rec_csv(path))}

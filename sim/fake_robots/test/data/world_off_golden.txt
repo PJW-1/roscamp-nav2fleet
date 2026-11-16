@@ -1,178 +1,178 @@
-three_at_junction 0.3 INFO pinky1 ZONE_GRANTED: HALL+J_W+WORK_DOCK to W
-three_at_junction 0.3 INFO pinky1 FOLLOW_SENT: to W
-three_at_junction 0.3 INFO pinky2 DOCK_QUEUED: WORK is busy, waits at W_Q
-three_at_junction 0.3 INFO pinky3 DOCK_QUEUED: WORK is busy, waits at P-2
-three_at_junction 5.8 INFO pinky1 DOCKED: at WORK: x 0.4 cm, y 0.3 cm, yaw 0.5 deg
-three_at_junction 5.8 INFO pinky1 ORDER_BOUND: O-001
-three_at_junction 11.8 INFO pinky1 LANE_DIRECTION_SET: EXPRESS from X_W
-three_at_junction 11.8 INFO pinky1 ZONE_GRANTED: WORK_DOCK+J_W+HALL+EXPRESS+J_E+OUT_DOCK to O
-three_at_junction 11.8 INFO pinky1 RETREAT_START: backs to N_W
-three_at_junction 19.0 INFO pinky1 RETREAT_DONE: stands at N_W
-three_at_junction 19.0 INFO pinky1 FOLLOW_SENT: to O
-three_at_junction 23.9 INFO pinky2 ZONE_GRANTED: HALL+J_W+WORK_DOCK to W
-three_at_junction 23.9 INFO pinky2 NAV_GOAL_SENT: to N_W
-three_at_junction 26.1 INFO pinky3 ZONE_GRANTED: HALL to W_Q
-three_at_junction 26.1 INFO pinky3 DOCK_QUEUED: WORK is busy, waits at W_Q
-three_at_junction 26.1 INFO pinky3 NAV_GOAL_SENT: to W_Q
-three_at_junction 27.2 INFO pinky2 FOLLOW_SENT: to W
-three_at_junction 33.0 INFO pinky2 DOCKED: at WORK: x 0.4 cm, y 0.3 cm, yaw 0.5 deg
-three_at_junction 33.0 INFO pinky2 ORDER_BOUND: O-002
-three_at_junction 35.4 INFO pinky1 DOCKED: at OUTBOUND: x 0.4 cm, y 0.3 cm, yaw 0.5 deg
-three_at_junction 39.0 INFO pinky2 ZONE_GRANTED: WORK_DOCK+J_W+HALL to O_Q
-three_at_junction 39.0 INFO pinky2 DOCK_QUEUED: OUTBOUND is busy, waits at O_Q
-three_at_junction 39.0 INFO pinky2 RETREAT_START: backs to N_W
-three_at_junction 39.4 INFO pinky1 ZONE_GRANTED: OUT_DOCK+J_E+HALL to P-3
-three_at_junction 39.4 INFO pinky1 RETREAT_START: backs to N_E
-three_at_junction 46.3 INFO pinky2 RETREAT_DONE: stands at N_W
-three_at_junction 46.3 INFO pinky2 NAV_GOAL_SENT: to O_Q
-three_at_junction 46.8 INFO pinky1 RETREAT_DONE: stands at N_E
-three_at_junction 46.8 INFO pinky1 NAV_GOAL_SENT: to P-3
-three_at_junction 48.5 INFO pinky3 ZONE_GRANTED: HALL+J_W+WORK_DOCK to W
-three_at_junction 48.5 INFO pinky3 NAV_GOAL_SENT: to N_W
-three_at_junction 51.8 INFO pinky3 FOLLOW_SENT: to W
-three_at_junction 57.5 INFO pinky3 DOCKED: at WORK: x 0.4 cm, y 0.3 cm, yaw 0.5 deg
-three_at_junction 57.5 INFO pinky3 ORDER_BOUND: O-003
-three_at_junction 61.0 INFO pinky2 ZONE_GRANTED: HALL+J_E+OUT_DOCK to O
-three_at_junction 61.0 INFO pinky2 NAV_GOAL_SENT: to N_E
-three_at_junction 63.5 INFO pinky3 ZONE_GRANTED: WORK_DOCK+J_W+HALL to O_Q
-three_at_junction 63.5 INFO pinky3 DOCK_QUEUED: OUTBOUND is busy, waits at O_Q
-three_at_junction 63.5 INFO pinky3 RETREAT_START: backs to N_W
-three_at_junction 64.2 INFO pinky2 FOLLOW_SENT: to O
-three_at_junction 69.9 INFO pinky2 DOCKED: at OUTBOUND: x 0.4 cm, y 0.3 cm, yaw 0.5 deg
-three_at_junction 70.8 INFO pinky3 RETREAT_DONE: stands at N_W
-three_at_junction 70.8 INFO pinky3 NAV_GOAL_SENT: to O_Q
-three_at_junction 73.9 INFO pinky2 ZONE_GRANTED: OUT_DOCK+J_E+HALL to P-2
-three_at_junction 73.9 INFO pinky2 RETREAT_START: backs to N_E
-three_at_junction 81.3 INFO pinky2 RETREAT_DONE: stands at N_E
-three_at_junction 81.3 INFO pinky2 NAV_GOAL_SENT: to P-2
-three_at_junction 89.4 INFO pinky3 ZONE_GRANTED: HALL+J_E+OUT_DOCK to O
-three_at_junction 89.4 INFO pinky3 NAV_GOAL_SENT: to N_E
-three_at_junction 92.5 INFO pinky3 FOLLOW_SENT: to O
-three_at_junction 98.1 INFO pinky3 DOCKED: at OUTBOUND: x 0.4 cm, y 0.3 cm, yaw 0.5 deg
-three_at_junction 102.1 INFO pinky3 ZONE_GRANTED: OUT_DOCK+J_E+HALL to P-1
-three_at_junction 102.1 INFO pinky3 RETREAT_START: backs to N_E
-outbound_slow 0.3 INFO pinky1 ZONE_GRANTED: HALL to W_Q
-outbound_slow 0.3 INFO pinky1 DOCK_QUEUED: WORK is busy, waits at W_Q
-outbound_slow 0.3 INFO pinky1 NAV_GOAL_SENT: to W_Q
-outbound_slow 0.3 INFO pinky2 ZONE_GRANTED: HALL+J_W+WORK_DOCK to W
-outbound_slow 0.3 INFO pinky2 NAV_GOAL_SENT: to N_W
-outbound_slow 0.3 INFO pinky3 DOCK_QUEUED: WORK is busy, waits at P-3
-outbound_slow 4.9 INFO pinky2 FOLLOW_SENT: to W
-outbound_slow 10.7 INFO pinky2 DOCKED: at WORK: x 0.4 cm, y 0.3 cm, yaw 0.5 deg
-outbound_slow 10.7 INFO pinky2 ORDER_BOUND: O-001
-outbound_slow 16.7 INFO pinky2 LANE_DIRECTION_SET: EXPRESS from X_W
-outbound_slow 16.7 INFO pinky2 ZONE_GRANTED: WORK_DOCK+J_W+HALL+EXPRESS+J_E+OUT_DOCK to O
-outbound_slow 16.7 INFO pinky2 RETREAT_START: backs to N_W
-outbound_slow 24.1 INFO pinky2 RETREAT_DONE: stands at N_W
-outbound_slow 24.1 INFO pinky2 FOLLOW_SENT: to O
-outbound_slow 29.3 INFO pinky1 ZONE_GRANTED: HALL+J_W+WORK_DOCK to W
-outbound_slow 29.3 INFO pinky1 NAV_GOAL_SENT: to N_W
-outbound_slow 31.5 INFO pinky3 ZONE_GRANTED: HALL to W_Q
-outbound_slow 31.5 INFO pinky3 DOCK_QUEUED: WORK is busy, waits at W_Q
-outbound_slow 31.5 INFO pinky3 NAV_GOAL_SENT: to W_Q
-outbound_slow 32.3 INFO pinky1 FOLLOW_SENT: to W
-outbound_slow 37.8 INFO pinky1 DOCKED: at WORK: x 0.4 cm, y 0.3 cm, yaw 0.5 deg
-outbound_slow 37.8 INFO pinky1 ORDER_BOUND: O-002
-outbound_slow 41.4 INFO pinky2 DOCKED: at OUTBOUND: x 0.4 cm, y 0.3 cm, yaw 0.5 deg
-outbound_slow 43.8 INFO pinky1 ZONE_GRANTED: WORK_DOCK+J_W+HALL to O_Q
-outbound_slow 43.8 INFO pinky1 DOCK_QUEUED: OUTBOUND is busy, waits at O_Q
-outbound_slow 43.8 INFO pinky1 RETREAT_START: backs to N_W
-outbound_slow 51.1 INFO pinky1 RETREAT_DONE: stands at N_W
-outbound_slow 51.1 INFO pinky1 NAV_GOAL_SENT: to O_Q
-outbound_slow 53.3 INFO pinky3 ZONE_GRANTED: HALL+J_W+WORK_DOCK to W
-outbound_slow 53.3 INFO pinky3 NAV_GOAL_SENT: to N_W
-outbound_slow 56.5 INFO pinky3 FOLLOW_SENT: to W
-outbound_slow 62.2 INFO pinky3 DOCKED: at WORK: x 0.4 cm, y 0.3 cm, yaw 0.5 deg
-outbound_slow 62.2 INFO pinky3 ORDER_BOUND: O-003
-outbound_slow 65.4 INFO pinky2 ZONE_GRANTED: OUT_DOCK+J_E+HALL to W_Q
-outbound_slow 65.4 INFO pinky2 DOCK_QUEUED: WORK is busy, waits at W_Q
-outbound_slow 65.4 INFO pinky2 RETREAT_START: backs to N_E
-outbound_slow 68.2 INFO pinky3 ZONE_GRANTED: WORK_DOCK+J_W+HALL to P-2
-outbound_slow 68.2 INFO pinky3 RETREAT_START: backs to N_W
-outbound_slow 72.7 INFO pinky2 RETREAT_DONE: stands at N_E
-outbound_slow 72.7 INFO pinky2 NAV_GOAL_SENT: to W_Q
-outbound_slow 74.8 INFO pinky1 ZONE_GRANTED: HALL+J_E+OUT_DOCK to O
-outbound_slow 74.8 INFO pinky1 NAV_GOAL_SENT: to N_E
-outbound_slow 75.7 INFO pinky3 RETREAT_DONE: stands at N_W
-outbound_slow 75.7 INFO pinky3 NAV_GOAL_SENT: to P-2
-outbound_slow 77.0 INFO pinky3 ZONE_GRANTED: HALL to O_Q
-outbound_slow 77.0 INFO pinky3 DOCK_QUEUED: OUTBOUND is busy, waits at O_Q
-outbound_slow 77.0 INFO pinky3 STANDBY_LEFT: O_Q is free, drops the way to P-2
-outbound_slow 77.0 INFO pinky3 NAV_GOAL_SENT: to O_Q
-outbound_slow 77.8 INFO pinky1 FOLLOW_SENT: to O
-outbound_slow 83.3 INFO pinky1 DOCKED: at OUTBOUND: x 0.4 cm, y 0.3 cm, yaw 0.5 deg
-outbound_slow 88.7 INFO pinky2 ZONE_GRANTED: HALL+J_W+WORK_DOCK to W
-outbound_slow 88.7 INFO pinky2 NAV_GOAL_SENT: to N_W
-outbound_slow 92.0 INFO pinky2 FOLLOW_SENT: to W
-outbound_slow 97.9 INFO pinky2 DOCKED: at WORK: x 0.4 cm, y 0.3 cm, yaw 0.5 deg
-outbound_slow 97.9 INFO pinky2 ORDER_BOUND: O-004
-outbound_slow 103.9 INFO pinky2 ZONE_GRANTED: WORK_DOCK+J_W+HALL to P-2
-outbound_slow 103.9 INFO pinky2 RETREAT_START: backs to N_W
-outbound_slow 107.3 INFO pinky1 ZONE_GRANTED: OUT_DOCK+J_E+HALL to W_Q
-outbound_slow 107.3 INFO pinky1 DOCK_QUEUED: WORK is busy, waits at W_Q
-outbound_slow 107.3 INFO pinky1 RETREAT_START: backs to N_E
-outbound_slow 111.4 INFO pinky2 RETREAT_DONE: stands at N_W
-outbound_slow 111.4 INFO pinky2 NAV_GOAL_SENT: to P-2
-outbound_slow 114.6 INFO pinky1 RETREAT_DONE: stands at N_E
-outbound_slow 114.6 INFO pinky1 NAV_GOAL_SENT: to W_Q
-outbound_slow 116.8 INFO pinky3 ZONE_GRANTED: HALL+J_E+OUT_DOCK to O
-outbound_slow 116.8 INFO pinky3 NAV_GOAL_SENT: to N_E
-outbound_slow 118.9 INFO pinky2 ZONE_GRANTED: HALL to O_Q
-outbound_slow 118.9 INFO pinky2 DOCK_QUEUED: OUTBOUND is busy, waits at O_Q
-outbound_slow 118.9 INFO pinky2 STANDBY_LEFT: O_Q is free, drops the way to P-2
-outbound_slow 118.9 INFO pinky2 NAV_GOAL_SENT: to O_Q
-outbound_slow 120.0 INFO pinky3 FOLLOW_SENT: to O
-outbound_slow 125.6 INFO pinky3 DOCKED: at OUTBOUND: x 0.4 cm, y 0.3 cm, yaw 0.5 deg
-outbound_slow 128.9 INFO pinky1 ZONE_GRANTED: HALL+J_W+WORK_DOCK to W
-outbound_slow 128.9 INFO pinky1 NAV_GOAL_SENT: to N_W
-outbound_slow 132.1 INFO pinky1 FOLLOW_SENT: to W
-outbound_slow 137.7 INFO pinky1 DOCKED: at WORK: x 0.4 cm, y 0.3 cm, yaw 0.5 deg
-outbound_slow 137.7 INFO pinky1 ORDER_BOUND: O-005
-outbound_slow 143.7 INFO pinky1 ZONE_GRANTED: WORK_DOCK+J_W+HALL to P-2
-outbound_slow 143.7 INFO pinky1 RETREAT_START: backs to N_W
-outbound_slow 149.6 INFO pinky3 ZONE_GRANTED: OUT_DOCK+J_E+HALL to W_Q
-outbound_slow 149.6 INFO pinky3 DOCK_QUEUED: WORK is busy, waits at W_Q
-outbound_slow 149.6 INFO pinky3 RETREAT_START: backs to N_E
-outbound_slow 151.1 INFO pinky1 RETREAT_DONE: stands at N_W
-outbound_slow 151.1 INFO pinky1 NAV_GOAL_SENT: to P-2
-outbound_slow 157.0 INFO pinky3 RETREAT_DONE: stands at N_E
-outbound_slow 157.0 INFO pinky3 NAV_GOAL_SENT: to W_Q
-outbound_slow 158.5 INFO pinky1 DOCK_QUEUED: OUTBOUND is busy, waits at P-2
-outbound_slow 159.2 INFO pinky2 ZONE_GRANTED: HALL+J_E+OUT_DOCK to O
-outbound_slow 159.2 INFO pinky2 NAV_GOAL_SENT: to N_E
-outbound_slow 161.3 INFO pinky1 ZONE_GRANTED: HALL to O_Q
-outbound_slow 161.3 INFO pinky1 DOCK_QUEUED: OUTBOUND is busy, waits at O_Q
-outbound_slow 161.3 INFO pinky1 NAV_GOAL_SENT: to O_Q
-outbound_slow 162.4 INFO pinky2 FOLLOW_SENT: to O
-outbound_slow 168.2 INFO pinky2 DOCKED: at OUTBOUND: x 0.4 cm, y 0.3 cm, yaw 0.5 deg
-outbound_slow 171.8 INFO pinky3 ZONE_GRANTED: HALL+J_W+WORK_DOCK to W
-outbound_slow 171.8 INFO pinky3 NAV_GOAL_SENT: to N_W
-outbound_slow 175.1 INFO pinky3 FOLLOW_SENT: to W
-outbound_slow 180.9 INFO pinky3 DOCKED: at WORK: x 0.4 cm, y 0.3 cm, yaw 0.5 deg
-outbound_slow 180.9 INFO pinky3 ORDER_BOUND: O-006
-outbound_slow 186.9 INFO pinky3 ZONE_GRANTED: WORK_DOCK+J_W+HALL to P-2
-outbound_slow 186.9 INFO pinky3 RETREAT_START: backs to N_W
-outbound_slow 192.2 INFO pinky2 ZONE_GRANTED: OUT_DOCK+J_E+HALL to P-3
-outbound_slow 192.2 INFO pinky2 RETREAT_START: backs to N_E
-outbound_slow 194.4 INFO pinky3 RETREAT_DONE: stands at N_W
-outbound_slow 194.4 INFO pinky3 NAV_GOAL_SENT: to P-2
-outbound_slow 199.6 INFO pinky2 RETREAT_DONE: stands at N_E
-outbound_slow 199.6 INFO pinky2 NAV_GOAL_SENT: to P-3
-outbound_slow 201.8 INFO pinky1 ZONE_GRANTED: HALL+J_E+OUT_DOCK to O
-outbound_slow 201.8 INFO pinky1 NAV_GOAL_SENT: to N_E
-outbound_slow 202.0 INFO pinky3 DOCK_QUEUED: OUTBOUND is busy, waits at P-2
-outbound_slow 203.8 INFO pinky3 ZONE_GRANTED: HALL to O_Q
-outbound_slow 203.8 INFO pinky3 DOCK_QUEUED: OUTBOUND is busy, waits at O_Q
-outbound_slow 203.8 INFO pinky3 NAV_GOAL_SENT: to O_Q
-outbound_slow 204.8 INFO pinky1 FOLLOW_SENT: to O
-outbound_slow 210.3 INFO pinky1 DOCKED: at OUTBOUND: x 0.4 cm, y 0.3 cm, yaw 0.5 deg
-outbound_slow 234.3 INFO pinky1 ZONE_GRANTED: OUT_DOCK+J_E+HALL to P-2
-outbound_slow 234.3 INFO pinky1 RETREAT_START: backs to N_E
-outbound_slow 241.6 INFO pinky1 RETREAT_DONE: stands at N_E
-outbound_slow 241.6 INFO pinky1 NAV_GOAL_SENT: to P-2
-outbound_slow 243.7 INFO pinky3 ZONE_GRANTED: HALL+J_E+OUT_DOCK to O
-outbound_slow 243.7 INFO pinky3 NAV_GOAL_SENT: to N_E
-outbound_slow 246.8 INFO pinky3 FOLLOW_SENT: to O
-outbound_slow 252.5 INFO pinky3 DOCKED: at OUTBOUND: x 0.4 cm, y 0.3 cm, yaw 0.5 deg
-outbound_slow 276.5 INFO pinky3 ZONE_GRANTED: OUT_DOCK+J_E+HALL to P-1
-outbound_slow 276.5 INFO pinky3 RETREAT_START: backs to N_E
+three_at_junction 0.3 INFO pode1 ZONE_GRANTED: HALL+J_W+WORK_DOCK to W
+three_at_junction 0.3 INFO pode1 FOLLOW_SENT: to W
+three_at_junction 0.3 INFO pode2 DOCK_QUEUED: WORK is busy, waits at W_Q
+three_at_junction 0.3 INFO pode3 DOCK_QUEUED: WORK is busy, waits at P-2
+three_at_junction 5.8 INFO pode1 DOCKED: at WORK: x 0.4 cm, y 0.3 cm, yaw 0.5 deg
+three_at_junction 5.8 INFO pode1 ORDER_BOUND: O-001
+three_at_junction 11.8 INFO pode1 LANE_DIRECTION_SET: EXPRESS from X_W
+three_at_junction 11.8 INFO pode1 ZONE_GRANTED: WORK_DOCK+J_W+HALL+EXPRESS+J_E+OUT_DOCK to O
+three_at_junction 11.8 INFO pode1 RETREAT_START: backs to N_W
+three_at_junction 19.0 INFO pode1 RETREAT_DONE: stands at N_W
+three_at_junction 19.0 INFO pode1 FOLLOW_SENT: to O
+three_at_junction 23.9 INFO pode2 ZONE_GRANTED: HALL+J_W+WORK_DOCK to W
+three_at_junction 23.9 INFO pode2 NAV_GOAL_SENT: to N_W
+three_at_junction 26.1 INFO pode3 ZONE_GRANTED: HALL to W_Q
+three_at_junction 26.1 INFO pode3 DOCK_QUEUED: WORK is busy, waits at W_Q
+three_at_junction 26.1 INFO pode3 NAV_GOAL_SENT: to W_Q
+three_at_junction 27.2 INFO pode2 FOLLOW_SENT: to W
+three_at_junction 33.0 INFO pode2 DOCKED: at WORK: x 0.4 cm, y 0.3 cm, yaw 0.5 deg
+three_at_junction 33.0 INFO pode2 ORDER_BOUND: O-002
+three_at_junction 35.4 INFO pode1 DOCKED: at OUTBOUND: x 0.4 cm, y 0.3 cm, yaw 0.5 deg
+three_at_junction 39.0 INFO pode2 ZONE_GRANTED: WORK_DOCK+J_W+HALL to O_Q
+three_at_junction 39.0 INFO pode2 DOCK_QUEUED: OUTBOUND is busy, waits at O_Q
+three_at_junction 39.0 INFO pode2 RETREAT_START: backs to N_W
+three_at_junction 39.4 INFO pode1 ZONE_GRANTED: OUT_DOCK+J_E+HALL to P-3
+three_at_junction 39.4 INFO pode1 RETREAT_START: backs to N_E
+three_at_junction 46.3 INFO pode2 RETREAT_DONE: stands at N_W
+three_at_junction 46.3 INFO pode2 NAV_GOAL_SENT: to O_Q
+three_at_junction 46.8 INFO pode1 RETREAT_DONE: stands at N_E
+three_at_junction 46.8 INFO pode1 NAV_GOAL_SENT: to P-3
+three_at_junction 48.5 INFO pode3 ZONE_GRANTED: HALL+J_W+WORK_DOCK to W
+three_at_junction 48.5 INFO pode3 NAV_GOAL_SENT: to N_W
+three_at_junction 51.8 INFO pode3 FOLLOW_SENT: to W
+three_at_junction 57.5 INFO pode3 DOCKED: at WORK: x 0.4 cm, y 0.3 cm, yaw 0.5 deg
+three_at_junction 57.5 INFO pode3 ORDER_BOUND: O-003
+three_at_junction 61.0 INFO pode2 ZONE_GRANTED: HALL+J_E+OUT_DOCK to O
+three_at_junction 61.0 INFO pode2 NAV_GOAL_SENT: to N_E
+three_at_junction 63.5 INFO pode3 ZONE_GRANTED: WORK_DOCK+J_W+HALL to O_Q
+three_at_junction 63.5 INFO pode3 DOCK_QUEUED: OUTBOUND is busy, waits at O_Q
+three_at_junction 63.5 INFO pode3 RETREAT_START: backs to N_W
+three_at_junction 64.2 INFO pode2 FOLLOW_SENT: to O
+three_at_junction 69.9 INFO pode2 DOCKED: at OUTBOUND: x 0.4 cm, y 0.3 cm, yaw 0.5 deg
+three_at_junction 70.8 INFO pode3 RETREAT_DONE: stands at N_W
+three_at_junction 70.8 INFO pode3 NAV_GOAL_SENT: to O_Q
+three_at_junction 73.9 INFO pode2 ZONE_GRANTED: OUT_DOCK+J_E+HALL to P-2
+three_at_junction 73.9 INFO pode2 RETREAT_START: backs to N_E
+three_at_junction 81.3 INFO pode2 RETREAT_DONE: stands at N_E
+three_at_junction 81.3 INFO pode2 NAV_GOAL_SENT: to P-2
+three_at_junction 89.4 INFO pode3 ZONE_GRANTED: HALL+J_E+OUT_DOCK to O
+three_at_junction 89.4 INFO pode3 NAV_GOAL_SENT: to N_E
+three_at_junction 92.5 INFO pode3 FOLLOW_SENT: to O
+three_at_junction 98.1 INFO pode3 DOCKED: at OUTBOUND: x 0.4 cm, y 0.3 cm, yaw 0.5 deg
+three_at_junction 102.1 INFO pode3 ZONE_GRANTED: OUT_DOCK+J_E+HALL to P-1
+three_at_junction 102.1 INFO pode3 RETREAT_START: backs to N_E
+outbound_slow 0.3 INFO pode1 ZONE_GRANTED: HALL to W_Q
+outbound_slow 0.3 INFO pode1 DOCK_QUEUED: WORK is busy, waits at W_Q
+outbound_slow 0.3 INFO pode1 NAV_GOAL_SENT: to W_Q
+outbound_slow 0.3 INFO pode2 ZONE_GRANTED: HALL+J_W+WORK_DOCK to W
+outbound_slow 0.3 INFO pode2 NAV_GOAL_SENT: to N_W
+outbound_slow 0.3 INFO pode3 DOCK_QUEUED: WORK is busy, waits at P-3
+outbound_slow 4.9 INFO pode2 FOLLOW_SENT: to W
+outbound_slow 10.7 INFO pode2 DOCKED: at WORK: x 0.4 cm, y 0.3 cm, yaw 0.5 deg
+outbound_slow 10.7 INFO pode2 ORDER_BOUND: O-001
+outbound_slow 16.7 INFO pode2 LANE_DIRECTION_SET: EXPRESS from X_W
+outbound_slow 16.7 INFO pode2 ZONE_GRANTED: WORK_DOCK+J_W+HALL+EXPRESS+J_E+OUT_DOCK to O
+outbound_slow 16.7 INFO pode2 RETREAT_START: backs to N_W
+outbound_slow 24.1 INFO pode2 RETREAT_DONE: stands at N_W
+outbound_slow 24.1 INFO pode2 FOLLOW_SENT: to O
+outbound_slow 29.3 INFO pode1 ZONE_GRANTED: HALL+J_W+WORK_DOCK to W
+outbound_slow 29.3 INFO pode1 NAV_GOAL_SENT: to N_W
+outbound_slow 31.5 INFO pode3 ZONE_GRANTED: HALL to W_Q
+outbound_slow 31.5 INFO pode3 DOCK_QUEUED: WORK is busy, waits at W_Q
+outbound_slow 31.5 INFO pode3 NAV_GOAL_SENT: to W_Q
+outbound_slow 32.3 INFO pode1 FOLLOW_SENT: to W
+outbound_slow 37.8 INFO pode1 DOCKED: at WORK: x 0.4 cm, y 0.3 cm, yaw 0.5 deg
+outbound_slow 37.8 INFO pode1 ORDER_BOUND: O-002
+outbound_slow 41.4 INFO pode2 DOCKED: at OUTBOUND: x 0.4 cm, y 0.3 cm, yaw 0.5 deg
+outbound_slow 43.8 INFO pode1 ZONE_GRANTED: WORK_DOCK+J_W+HALL to O_Q
+outbound_slow 43.8 INFO pode1 DOCK_QUEUED: OUTBOUND is busy, waits at O_Q
+outbound_slow 43.8 INFO pode1 RETREAT_START: backs to N_W
+outbound_slow 51.1 INFO pode1 RETREAT_DONE: stands at N_W
+outbound_slow 51.1 INFO pode1 NAV_GOAL_SENT: to O_Q
+outbound_slow 53.3 INFO pode3 ZONE_GRANTED: HALL+J_W+WORK_DOCK to W
+outbound_slow 53.3 INFO pode3 NAV_GOAL_SENT: to N_W
+outbound_slow 56.5 INFO pode3 FOLLOW_SENT: to W
+outbound_slow 62.2 INFO pode3 DOCKED: at WORK: x 0.4 cm, y 0.3 cm, yaw 0.5 deg
+outbound_slow 62.2 INFO pode3 ORDER_BOUND: O-003
+outbound_slow 65.4 INFO pode2 ZONE_GRANTED: OUT_DOCK+J_E+HALL to W_Q
+outbound_slow 65.4 INFO pode2 DOCK_QUEUED: WORK is busy, waits at W_Q
+outbound_slow 65.4 INFO pode2 RETREAT_START: backs to N_E
+outbound_slow 68.2 INFO pode3 ZONE_GRANTED: WORK_DOCK+J_W+HALL to P-2
+outbound_slow 68.2 INFO pode3 RETREAT_START: backs to N_W
+outbound_slow 72.7 INFO pode2 RETREAT_DONE: stands at N_E
+outbound_slow 72.7 INFO pode2 NAV_GOAL_SENT: to W_Q
+outbound_slow 74.8 INFO pode1 ZONE_GRANTED: HALL+J_E+OUT_DOCK to O
+outbound_slow 74.8 INFO pode1 NAV_GOAL_SENT: to N_E
+outbound_slow 75.7 INFO pode3 RETREAT_DONE: stands at N_W
+outbound_slow 75.7 INFO pode3 NAV_GOAL_SENT: to P-2
+outbound_slow 77.0 INFO pode3 ZONE_GRANTED: HALL to O_Q
+outbound_slow 77.0 INFO pode3 DOCK_QUEUED: OUTBOUND is busy, waits at O_Q
+outbound_slow 77.0 INFO pode3 STANDBY_LEFT: O_Q is free, drops the way to P-2
+outbound_slow 77.0 INFO pode3 NAV_GOAL_SENT: to O_Q
+outbound_slow 77.8 INFO pode1 FOLLOW_SENT: to O
+outbound_slow 83.3 INFO pode1 DOCKED: at OUTBOUND: x 0.4 cm, y 0.3 cm, yaw 0.5 deg
+outbound_slow 88.7 INFO pode2 ZONE_GRANTED: HALL+J_W+WORK_DOCK to W
+outbound_slow 88.7 INFO pode2 NAV_GOAL_SENT: to N_W
+outbound_slow 92.0 INFO pode2 FOLLOW_SENT: to W
+outbound_slow 97.9 INFO pode2 DOCKED: at WORK: x 0.4 cm, y 0.3 cm, yaw 0.5 deg
+outbound_slow 97.9 INFO pode2 ORDER_BOUND: O-004
+outbound_slow 103.9 INFO pode2 ZONE_GRANTED: WORK_DOCK+J_W+HALL to P-2
+outbound_slow 103.9 INFO pode2 RETREAT_START: backs to N_W
+outbound_slow 107.3 INFO pode1 ZONE_GRANTED: OUT_DOCK+J_E+HALL to W_Q
+outbound_slow 107.3 INFO pode1 DOCK_QUEUED: WORK is busy, waits at W_Q
+outbound_slow 107.3 INFO pode1 RETREAT_START: backs to N_E
+outbound_slow 111.4 INFO pode2 RETREAT_DONE: stands at N_W
+outbound_slow 111.4 INFO pode2 NAV_GOAL_SENT: to P-2
+outbound_slow 114.6 INFO pode1 RETREAT_DONE: stands at N_E
+outbound_slow 114.6 INFO pode1 NAV_GOAL_SENT: to W_Q
+outbound_slow 116.8 INFO pode3 ZONE_GRANTED: HALL+J_E+OUT_DOCK to O
+outbound_slow 116.8 INFO pode3 NAV_GOAL_SENT: to N_E
+outbound_slow 118.9 INFO pode2 ZONE_GRANTED: HALL to O_Q
+outbound_slow 118.9 INFO pode2 DOCK_QUEUED: OUTBOUND is busy, waits at O_Q
+outbound_slow 118.9 INFO pode2 STANDBY_LEFT: O_Q is free, drops the way to P-2
+outbound_slow 118.9 INFO pode2 NAV_GOAL_SENT: to O_Q
+outbound_slow 120.0 INFO pode3 FOLLOW_SENT: to O
+outbound_slow 125.6 INFO pode3 DOCKED: at OUTBOUND: x 0.4 cm, y 0.3 cm, yaw 0.5 deg
+outbound_slow 128.9 INFO pode1 ZONE_GRANTED: HALL+J_W+WORK_DOCK to W
+outbound_slow 128.9 INFO pode1 NAV_GOAL_SENT: to N_W
+outbound_slow 132.1 INFO pode1 FOLLOW_SENT: to W
+outbound_slow 137.7 INFO pode1 DOCKED: at WORK: x 0.4 cm, y 0.3 cm, yaw 0.5 deg
+outbound_slow 137.7 INFO pode1 ORDER_BOUND: O-005
+outbound_slow 143.7 INFO pode1 ZONE_GRANTED: WORK_DOCK+J_W+HALL to P-2
+outbound_slow 143.7 INFO pode1 RETREAT_START: backs to N_W
+outbound_slow 149.6 INFO pode3 ZONE_GRANTED: OUT_DOCK+J_E+HALL to W_Q
+outbound_slow 149.6 INFO pode3 DOCK_QUEUED: WORK is busy, waits at W_Q
+outbound_slow 149.6 INFO pode3 RETREAT_START: backs to N_E
+outbound_slow 151.1 INFO pode1 RETREAT_DONE: stands at N_W
+outbound_slow 151.1 INFO pode1 NAV_GOAL_SENT: to P-2
+outbound_slow 157.0 INFO pode3 RETREAT_DONE: stands at N_E
+outbound_slow 157.0 INFO pode3 NAV_GOAL_SENT: to W_Q
+outbound_slow 158.5 INFO pode1 DOCK_QUEUED: OUTBOUND is busy, waits at P-2
+outbound_slow 159.2 INFO pode2 ZONE_GRANTED: HALL+J_E+OUT_DOCK to O
+outbound_slow 159.2 INFO pode2 NAV_GOAL_SENT: to N_E
+outbound_slow 161.3 INFO pode1 ZONE_GRANTED: HALL to O_Q
+outbound_slow 161.3 INFO pode1 DOCK_QUEUED: OUTBOUND is busy, waits at O_Q
+outbound_slow 161.3 INFO pode1 NAV_GOAL_SENT: to O_Q
+outbound_slow 162.4 INFO pode2 FOLLOW_SENT: to O
+outbound_slow 168.2 INFO pode2 DOCKED: at OUTBOUND: x 0.4 cm, y 0.3 cm, yaw 0.5 deg
+outbound_slow 171.8 INFO pode3 ZONE_GRANTED: HALL+J_W+WORK_DOCK to W
+outbound_slow 171.8 INFO pode3 NAV_GOAL_SENT: to N_W
+outbound_slow 175.1 INFO pode3 FOLLOW_SENT: to W
+outbound_slow 180.9 INFO pode3 DOCKED: at WORK: x 0.4 cm, y 0.3 cm, yaw 0.5 deg
+outbound_slow 180.9 INFO pode3 ORDER_BOUND: O-006
+outbound_slow 186.9 INFO pode3 ZONE_GRANTED: WORK_DOCK+J_W+HALL to P-2
+outbound_slow 186.9 INFO pode3 RETREAT_START: backs to N_W
+outbound_slow 192.2 INFO pode2 ZONE_GRANTED: OUT_DOCK+J_E+HALL to P-3
+outbound_slow 192.2 INFO pode2 RETREAT_START: backs to N_E
+outbound_slow 194.4 INFO pode3 RETREAT_DONE: stands at N_W
+outbound_slow 194.4 INFO pode3 NAV_GOAL_SENT: to P-2
+outbound_slow 199.6 INFO pode2 RETREAT_DONE: stands at N_E
+outbound_slow 199.6 INFO pode2 NAV_GOAL_SENT: to P-3
+outbound_slow 201.8 INFO pode1 ZONE_GRANTED: HALL+J_E+OUT_DOCK to O
+outbound_slow 201.8 INFO pode1 NAV_GOAL_SENT: to N_E
+outbound_slow 202.0 INFO pode3 DOCK_QUEUED: OUTBOUND is busy, waits at P-2
+outbound_slow 203.8 INFO pode3 ZONE_GRANTED: HALL to O_Q
+outbound_slow 203.8 INFO pode3 DOCK_QUEUED: OUTBOUND is busy, waits at O_Q
+outbound_slow 203.8 INFO pode3 NAV_GOAL_SENT: to O_Q
+outbound_slow 204.8 INFO pode1 FOLLOW_SENT: to O
+outbound_slow 210.3 INFO pode1 DOCKED: at OUTBOUND: x 0.4 cm, y 0.3 cm, yaw 0.5 deg
+outbound_slow 234.3 INFO pode1 ZONE_GRANTED: OUT_DOCK+J_E+HALL to P-2
+outbound_slow 234.3 INFO pode1 RETREAT_START: backs to N_E
+outbound_slow 241.6 INFO pode1 RETREAT_DONE: stands at N_E
+outbound_slow 241.6 INFO pode1 NAV_GOAL_SENT: to P-2
+outbound_slow 243.7 INFO pode3 ZONE_GRANTED: HALL+J_E+OUT_DOCK to O
+outbound_slow 243.7 INFO pode3 NAV_GOAL_SENT: to N_E
+outbound_slow 246.8 INFO pode3 FOLLOW_SENT: to O
+outbound_slow 252.5 INFO pode3 DOCKED: at OUTBOUND: x 0.4 cm, y 0.3 cm, yaw 0.5 deg
+outbound_slow 276.5 INFO pode3 ZONE_GRANTED: OUT_DOCK+J_E+HALL to P-1
+outbound_slow 276.5 INFO pode3 RETREAT_START: backs to N_E

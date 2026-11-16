@@ -2,7 +2,7 @@
 <package format="3">
   <name>fleet_gz_sim</name>
   <version>0.1.0</version>
-  <description>Gazebo simulation of the nav2fleet arenas (layouts d2, d, c): worlds, Nav2 maps and keepout masks from the fleet map, one or three Pinkys with Nav2 and pinky_fsm</description>
+  <description>Gazebo simulation of the nav2fleet arenas (layouts d2, d, c): worlds, Nav2 maps and keepout masks from the fleet map, one or three Podes with Nav2 and pode_fsm</description>
   <maintainer email="team@example.com">team-2</maintainer>
   <license>Apache-2.0</license>
   <exec_depend>launch</exec_depend>
@@ -21,10 +21,10 @@
   <exec_depend>std_msgs</exec_depend>
   <exec_depend>tf2_ros</exec_depend>
   <exec_depend>pinky_description</exec_depend>
-  <exec_depend>pinky_nav_config</exec_depend>
-  <exec_depend>pinky_avoidance</exec_depend>
-  <exec_depend>pinky_fsm</exec_depend>
-  <exec_depend>pinky_peer_obstacles</exec_depend>
+  <exec_depend>pode_nav_config</exec_depend>
+  <exec_depend>pode_avoidance</exec_depend>
+  <exec_depend>pode_fsm</exec_depend>
+  <exec_depend>pode_peer_obstacles</exec_depend>
   <exec_depend>robot_state_publisher</exec_depend>
   <exec_depend>xacro</exec_depend>
   <exec_depend>ros_gz_sim</exec_depend>

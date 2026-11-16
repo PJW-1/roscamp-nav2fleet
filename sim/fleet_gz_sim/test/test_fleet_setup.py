@@ -1,4 +1,4 @@
-"""gz.launch.py가 배치와 시나리오에서 정하는 것: 경기장 파일, 핑키 자리, 돌릴 수 없는 시나리오."""
+"""gz.launch.py가 배치와 시나리오에서 정하는 것: 경기장 파일, Pode 자리, 돌릴 수 없는 시나리오."""
 import math
 from pathlib import Path
 
@@ -60,23 +60,23 @@ def test_the_gazebo_scenarios_run_three_robots_with_8_orders_and_one_robot(layou
 
 def test_robots_start_on_their_nodes_facing_the_node_yaw():
     site = load_fleet_map("d2")
-    poses = fleet_setup.start_poses(site, {"pinky1": "P-3", "pinky2": "N_W"})
-    assert poses["pinky1"] == pytest.approx((1.85, 0.15, math.pi / 2))
-    assert poses["pinky2"] == pytest.approx((0.35, 0.65, 0.0))  # N_W has no yaw
+    poses = fleet_setup.start_poses(site, {"pode1": "P-3", "pode2": "N_W"})
+    assert poses["pode1"] == pytest.approx((1.85, 0.15, math.pi / 2))
+    assert poses["pode2"] == pytest.approx((0.35, 0.65, 0.0))  # N_W has no yaw
 
 
 def test_robots_without_a_start_get_the_free_parking_nodes_in_order():
     site = load_fleet_map("d2")
-    data = {"robots": {"pinky1": {}, "pinky2": {"start": "P-1"}, "pinky3": None}}
-    assert fleet_setup.start_nodes(site, data) == {"pinky1": "P-2", "pinky2": "P-1",
-                                                   "pinky3": "P-3"}
+    data = {"robots": {"pode1": {}, "pode2": {"start": "P-1"}, "pode3": None}}
+    assert fleet_setup.start_nodes(site, data) == {"pode1": "P-2", "pode2": "P-1",
+                                                   "pode3": "P-3"}
 
 
 @pytest.mark.parametrize("robots, words", [
-    ({"pinky1": {"start": "P-9"}}, "not a node"),
-    ({"pinky1": {"start": "P-1"}, "pinky2": {"start": "P-1"}}, "one node"),
+    ({"pode1": {"start": "P-9"}}, "not a node"),
+    ({"pode1": {"start": "P-1"}, "pode2": {"start": "P-1"}}, "one node"),
     ({}, "no robots"),
-    ({f"pinky{i}": {} for i in range(1, 5)}, "no parking node left"),
+    ({f"pode{i}": {} for i in range(1, 5)}, "no parking node left"),
 ])
 def test_bad_starts_are_refused(robots, words):
     with pytest.raises(fleet_setup.ScenarioUnfit, match=words):
@@ -96,25 +96,25 @@ def test_a_scenario_without_a_map_is_for_d2():
 
 
 def test_a_scenario_with_robot_faults_is_refused():
-    data = {"robots": {"pinky1": {}}, "faults": [{"type": "stuck", "robot": "pinky1",
+    data = {"robots": {"pode1": {}}, "faults": [{"type": "stuck", "robot": "pode1",
                                                   "at_s": 5}]}
     with pytest.raises(fleet_setup.ScenarioUnfit, match="stuck"):
         fleet_setup.check_fits(data, "s.yaml", "d2")
 
 
 def test_a_low_battery_runs_in_the_arena_the_stand_in_reports_it(tmp_path):
-    data = {"robots": {"pinky1": {}}, "dock": {"duration_s": 4.5},
-            "faults": [{"type": "low_battery", "robot": "pinky1", "at_s": 5,
+    data = {"robots": {"pode1": {}}, "dock": {"duration_s": 4.5},
+            "faults": [{"type": "low_battery", "robot": "pode1", "at_s": 5,
                         "duration_s": 30}]}
     fleet_setup.check_fits(data, "s.yaml", "d2")
     assert fleet_setup.has_low_battery(data)
     inputs = fleet_setup.stand_in_inputs(write(tmp_path, data))
-    assert inputs.dock_s == 4.5 and inputs.faults[0]["robot"] == "pinky1"
-    assert not fleet_setup.has_low_battery({"robots": {"pinky1": {}}})
+    assert inputs.dock_s == 4.5 and inputs.faults[0]["robot"] == "pode1"
+    assert not fleet_setup.has_low_battery({"robots": {"pode1": {}}})
 
 
 def test_a_random_low_battery_is_seen_with_the_given_seed():
-    data = {"seed": 3, "robots": {"pinky1": {}},
+    data = {"seed": 3, "robots": {"pode1": {}},
             "random": {"low_battery": {"from_s": 10, "to_s": 20, "charge_s": 30}}}
     assert fleet_setup.has_low_battery(data, seed=11)
 

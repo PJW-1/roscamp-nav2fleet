@@ -1,4 +1,4 @@
-"""핑키 자기 복구(제안, 2026-11-09 공유 명세 '로봇 쪽'): 짧게 후진하고 다시 간다."""
+"""Pode 자기 복구(제안, 2026-11-09 공유 명세 '로봇 쪽'): 짧게 후진하고 다시 간다."""
 import math
 
 import pytest
@@ -111,7 +111,7 @@ def test_near_the_path_start_there_is_no_back_up():
 
 
 def test_an_obstacle_at_the_start_gives_recovering_twice_then_blocked_after_three_seconds():
-    """pinky_fsm 비교 시험과 같은 경우: 물체가 0.2 m 앞, 로봇은 path 첫 점에 있다."""
+    """pode_fsm 비교 시험과 같은 경우: 물체가 0.2 m 앞, 로봇은 path 첫 점에 있다."""
     r = Run()
     while not r.rec.blocked:
         r.tick(ahead=True)

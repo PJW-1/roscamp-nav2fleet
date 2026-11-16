@@ -314,16 +314,16 @@ def test_try_spawn_checks_the_robots_again_right_before_the_call():
 
 
 def test_a_stale_position_counts_as_unknown():
-    truth = {"pinky1": ((0.0, 0.0), 100.0), "pinky2": ((3.0, 3.0), 98.0)}
-    got = obstacles.fresh_positions(truth, ["pinky1", "pinky2", "pinky3"], now=100.5,
+    truth = {"pode1": ((0.0, 0.0), 100.0), "pode2": ((3.0, 3.0), 98.0)}
+    got = obstacles.fresh_positions(truth, ["pode1", "pode2", "pode3"], now=100.5,
                                     max_age_s=1.0)
     assert got == [(0.0, 0.0), None, None]
     assert not obstacles.clear_of_robots((1.0, 1.0), got, 0.35)
 
 
 def test_a_non_finite_position_counts_as_unknown():
-    truth = {"pinky1": ((math.inf, 0.0), 100.0), "pinky2": ((0.0, math.nan), 100.0)}
-    assert obstacles.fresh_positions(truth, ["pinky1", "pinky2"], now=100.0,
+    truth = {"pode1": ((math.inf, 0.0), 100.0), "pode2": ((0.0, math.nan), 100.0)}
+    assert obstacles.fresh_positions(truth, ["pode1", "pode2"], now=100.0,
                                      max_age_s=1.0) == [None, None]
 
 

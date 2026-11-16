@@ -1,6 +1,6 @@
 """wait_ready의 판정. ROS 없이 돈다.
 
-gz.launch.py는 모든 핑키가 IDLE을 보고해야 관제를 띄운다. 마지막으로 받은 값만 보면 IDLE을 한 번
+gz.launch.py는 모든 Pode가 IDLE을 보고해야 관제를 띄운다. 마지막으로 받은 값만 보면 IDLE을 한 번
 보내고 끊긴 로봇도 준비된 것으로 치므로, 받은 시각까지 본다.
 """
 from __future__ import annotations

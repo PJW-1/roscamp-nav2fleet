@@ -1,7 +1,7 @@
-"""관제, 핑키, 머리 없는 세계가 BLOCKED까지의 시간과 서로 맞춘 값을 같게 아는지. ROS 없이 돈다.
+"""관제, Pode, 머리 없는 세계가 BLOCKED까지의 시간과 서로 맞춘 값을 같게 아는지. ROS 없이 돈다.
 
 세 패키지를 함께 보는 곳이 여기뿐이라 이 패키지의 시험에 둔다. Gazebo 세 대 경기(2026-11-13)에서
-이 시간들이 어긋나 있었다: 핑키는 선 때부터 10 s 뒤에 BLOCKED를 보고하는데 관제는 6 s 만에 goal을
+이 시간들이 어긋나 있었다: Pode는 선 때부터 10 s 뒤에 BLOCKED를 보고하는데 관제는 6 s 만에 goal을
 거뒀고(GOAL_STALLED), 세 번 거둔 뒤 로봇을 격리했다. 머리 없는 세계의 로봇은 5 s로 남아 있어서
 이 차이가 시험에 드러나지 않았다.
 """
@@ -11,9 +11,9 @@ from fleet_core.common import commands
 from fleet_core.common import params as fleet_params
 from fleet_core.common.params import load_params
 from fleet_core.fleet_map import fleet_map
-from pinky_fsm import obstacle_report
-from pinky_fsm import params as fsm_params
-from pinky_fsm.params import FsmParams
+from pode_fsm import obstacle_report
+from pode_fsm import params as fsm_params
+from pode_fsm.params import FsmParams
 
 REPORT_MARGIN_S = 2.0  # 상태 보고 주기 0.5 s, 두 쪽이 진전을 재기 시작한 때의 차이, 여유
 
@@ -29,7 +29,7 @@ def test_the_headless_robots_report_blocked_when_the_real_ones_do():
 
 
 def test_the_values_copied_between_the_packages_agree():
-    """fleet_core와 pinky_fsm은 서로를 import하지 않아 같은 값을 따로 적는다."""
+    """fleet_core와 pode_fsm은 서로를 import하지 않아 같은 값을 따로 적는다."""
     assert fleet_map.TURN_RADIUS_M == FsmParams().turn_radius_m  # 꺾이는 곳의 호
     assert obstacle_view.HALF_WIDTH_M == obstacle_report.AHEAD_HALF_WIDTH_M  # 앞을 보는 띠
     assert fleet_params.COMM_LOSS_POLICIES == fsm_params.COMM_LOSS_POLICIES

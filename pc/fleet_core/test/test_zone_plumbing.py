@@ -30,35 +30,35 @@ def battery(world, robot, pct):
 
 def test_a_robot_low_on_battery_takes_no_open_call_until_it_is_charged():
     world = low_battery_world()
-    battery(world, "pinky2", 15.0)  # 열린 호출에 보통 오는 로봇이다
+    battery(world, "pode2", 15.0)  # 열린 호출에 보통 오는 로봇이다
     low = [(e.level, e.detail) for e in world.events + world.traffic.take_output()
            if getattr(e, "code", "") == "ROBOT_BATTERY_LOW"]
     assert low == [("WARN", "15%, takes no new call")]
-    assert world.view("pinky2")["charging"]
+    assert world.view("pode2")["charging"]
     call = world.call("WORK")
     assert world.run_until(lambda: world.result_of(call) is not None, 120.0)
-    assert world.result_of(call).robot_id == "pinky1"
-    assert world.phase("pinky2") == "PARKED"
-    battery(world, "pinky2", 85.0)
+    assert world.result_of(call).robot_id == "pode1"
+    assert world.phase("pode2") == "PARKED"
+    battery(world, "pode2", 85.0)
     assert any(isinstance(e, EventOut) and e.code == "ROBOT_CHARGED"
                for e in world.traffic.take_output())
-    assert not world.view("pinky2")["charging"]
+    assert not world.view("pode2")["charging"]
 
 
 def test_a_battery_between_the_two_marks_changes_nothing():
     world = low_battery_world()
-    battery(world, "pinky1", 15.0)
-    battery(world, "pinky1", 50.0)
-    assert world.view("pinky1")["charging"], "not charged yet"
-    battery(world, "pinky2", 0.0)  # 모르는 값
-    assert not world.view("pinky2")["charging"]
+    battery(world, "pode1", 15.0)
+    battery(world, "pode1", 50.0)
+    assert world.view("pode1")["charging"], "not charged yet"
+    battery(world, "pode2", 0.0)  # 모르는 값
+    assert not world.view("pode2")["charging"]
 
 
 def test_the_battery_watch_is_off_at_zero():
     world = Harness()
     world.step()
-    battery(world, "pinky1", 5.0)
-    assert not world.view("pinky1")["charging"]
+    battery(world, "pode1", 5.0)
+    assert not world.view("pode1")["charging"]
     assert "ROBOT_BATTERY_LOW" not in [e.code for e in world.traffic.take_output()]
 
 
@@ -66,10 +66,10 @@ def test_the_battery_watch_is_off_at_zero():
 
 def manager_at_the_work_dock():
     now = [0.0]
-    core = FleetManager(load_fleet_map("d2"), load_params(), ["pinky1"], lambda: now[0])
+    core = FleetManager(load_fleet_map("d2"), load_params(), ["pode1"], lambda: now[0])
     x, y = core.site.node_pose("W")
-    core.on_robot_state("pinky1", x, y, 0.0, "IDLE")
-    core.traffic.on_dispatch(77, "OUTBOUND", "pinky1")  # 첫 tick 전에 부른다
+    core.on_robot_state("pode1", x, y, 0.0, "IDLE")
+    core.traffic.on_dispatch(77, "OUTBOUND", "pode1")  # 첫 tick 전에 부른다
     return core, now
 
 
@@ -78,14 +78,14 @@ def test_the_retreat_out_of_a_dock_goes_out_and_its_result_reaches_the_traffic_l
     now[0] += 0.1
     out = core.tick()
     back = [c for c in out if isinstance(c, RetreatCmd)]
-    assert len(back) == 1 and back[0].robot == "pinky1"
+    assert len(back) == 1 and back[0].robot == "pode1"
     x, y = back[0].path[-1][:2]
-    core.on_robot_state("pinky1", x, y, 0.0, "IDLE")
-    core.on_retreat_result("pinky1", back[0].goal_id, True, "")
+    core.on_robot_state("pode1", x, y, 0.0, "IDLE")
+    core.on_retreat_result("pode1", back[0].goal_id, True, "")
     now[0] += 0.1
     out = core.tick()
     assert [c.target_id for c in out if isinstance(c, MoveCmd)] == ["O"], "on along the express"
-    assert core.traffic.robot_view("pinky1")["node"] == "N_W"
+    assert core.traffic.robot_view("pode1")["node"] == "N_W"
 
 
 def test_a_retreat_result_for_an_unknown_robot_is_refused():
@@ -100,7 +100,7 @@ def test_a_failed_retreat_is_a_failed_attempt():
     core, now = manager_at_the_work_dock()
     now[0] += 0.1
     back = next(c for c in core.tick() if isinstance(c, RetreatCmd))
-    core.on_retreat_result("pinky1", back.goal_id, False, "FAILED")
+    core.on_retreat_result("pode1", back.goal_id, False, "FAILED")
     out = core.tick()
     retry = [e.detail for e in out if isinstance(e, EventOut) and e.code == "GOAL_RETRY"]
     assert retry == ["FAILED, attempt 1"]
@@ -113,12 +113,12 @@ def test_something_behind_a_retreat_is_waited_out_until_blocked_timeout_s():
     codes = []
     for _ in range(60):  # 다시 낼 때마다 뒤에 무엇이 있다
         now[0] += core.params.move_retry_wait_s + 0.1
-        core.on_robot_state("pinky1", x, y, 0.0, "IDLE")
+        core.on_robot_state("pode1", x, y, 0.0, "IDLE")
         out = core.tick()
         codes += [e.code for e in out if isinstance(e, EventOut)]
         back = next((c for c in out if isinstance(c, RetreatCmd)), None)
         if back is not None:
-            core.on_retreat_result("pinky1", back.goal_id, False, "OBSTACLE_BEHIND")
+            core.on_retreat_result("pode1", back.goal_id, False, "OBSTACLE_BEHIND")
         if "ROBOT_ISOLATED" in codes:
             break
     assert codes.count("RETREAT_WAIT") == 1
@@ -130,12 +130,12 @@ def test_a_retreat_that_gets_out_after_waiting_starts_a_fresh_wait_next_time():
     core, now = manager_at_the_work_dock()
     now[0] += 0.1
     back = next(c for c in core.tick() if isinstance(c, RetreatCmd))
-    core.on_retreat_result("pinky1", back.goal_id, False, "OBSTACLE_BEHIND")
-    assert core.traffic._robots["pinky1"].behind_since == now[0]
+    core.on_retreat_result("pode1", back.goal_id, False, "OBSTACLE_BEHIND")
+    assert core.traffic._robots["pode1"].behind_since == now[0]
     now[0] += core.params.move_retry_wait_s + 0.1
     back = next(c for c in core.tick() if isinstance(c, RetreatCmd))
-    core.on_retreat_result("pinky1", back.goal_id, True, "")
-    assert core.traffic._robots["pinky1"].behind_since is None
+    core.on_retreat_result("pode1", back.goal_id, True, "")
+    assert core.traffic._robots["pode1"].behind_since is None
 
 
 def test_a_retreat_that_ends_at_its_end_anyway_also_starts_a_fresh_wait_next_time():
@@ -143,15 +143,15 @@ def test_a_retreat_that_ends_at_its_end_anyway_also_starts_a_fresh_wait_next_tim
     core, now = manager_at_the_work_dock()
     now[0] += 0.1
     back = next(c for c in core.tick() if isinstance(c, RetreatCmd))
-    core.on_retreat_result("pinky1", back.goal_id, False, "OBSTACLE_BEHIND")
+    core.on_retreat_result("pode1", back.goal_id, False, "OBSTACLE_BEHIND")
     now[0] += core.params.move_retry_wait_s + 0.1
     back = next(c for c in core.tick() if isinstance(c, RetreatCmd))
     x, y = back.path[-1][:2]
-    core.on_robot_state("pinky1", x, y, 0.0, "IDLE")
-    core.on_retreat_result("pinky1", back.goal_id, False, "FAILED")
+    core.on_robot_state("pode1", x, y, 0.0, "IDLE")
+    core.on_retreat_result("pode1", back.goal_id, False, "FAILED")
     out = core.tick()
     assert "GOAL_ENDED_AT_TARGET" in [e.code for e in out if isinstance(e, EventOut)]
-    assert core.traffic._robots["pinky1"].behind_since is None
+    assert core.traffic._robots["pode1"].behind_since is None
 
 
 # ---- 재생 도구의 거절 ----
@@ -159,7 +159,7 @@ def test_a_retreat_that_ends_at_its_end_anyway_also_starts_a_fresh_wait_next_tim
 def head(**changes):
     params = asdict(load_params())
     text = (DEFAULT_PARAMS.parent / "fleet_map_d2.yaml").read_text(encoding="utf-8")
-    line = {"robots": ["pinky1"], "params": params, "map": text, **changes}
+    line = {"robots": ["pode1"], "params": params, "map": text, **changes}
     return json.dumps({k: v for k, v in line.items() if v is not None})
 
 

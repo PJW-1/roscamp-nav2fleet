@@ -63,7 +63,7 @@ def test_the_drive_table_has_one_row_per_kind_of_move_with_the_worst_errors():
     assert "| work_in | 3 | 2 | 0.050 | 8.0 | 0.030 |" in reg.drive_markdown(summary)
 
 
-CHECK = {"keepout_depth_m": 0.012, "keepout_zone": "J_W", "keepout_robot": "pinky2",
+CHECK = {"keepout_depth_m": 0.012, "keepout_zone": "J_W", "keepout_robot": "pode2",
          "keepout_at_s": 41.5}
 
 
@@ -80,7 +80,7 @@ def test_an_order_left_open_by_driving_fails_the_game():
 def test_a_body_deeper_in_a_keepout_zone_than_the_limit_fails_the_game():
     deep = {**CHECK, "keepout_depth_m": 0.031}
     [problem] = reg.game_problems([], deep)
-    assert "0.031" in problem and "J_W" in problem and "pinky2" in problem
+    assert "0.031" in problem and "J_W" in problem and "pode2" in problem
     assert reg.game_problems([], deep, keepout_max_m=0.04) == []
 
 
@@ -93,7 +93,7 @@ def test_the_script_passes_only_arguments_the_launch_files_declare():
     """tools/avoid_regression.sh starts two launch files: a renamed argument must fail here."""
     script = (TOOLS / "avoid_regression.sh").read_text(encoding="utf-8")
     launch = TOOLS.parent / "sim" / "fleet_gz_sim" / "launch"
-    for name in ("one_pinky.launch.py", "gz.launch.py"):
+    for name in ("one_pode.launch.py", "gz.launch.py"):
         declared = set(re.findall(r'^    "(\w+)": \(',
                                   (launch / name).read_text(encoding="utf-8"), flags=re.M))
         call = re.search(re.escape(name) + r"((?:.*\\\n)*.*)\n", script).group(1)
@@ -106,7 +106,7 @@ def test_the_script_runs_both_gazebo_stages_with_the_fixed_line_check_it_was_giv
     script = (TOOLS / "avoid_regression.sh").read_text(encoding="utf-8")
     assert re.search(r"\bfixed_check=false\b", script)
     given = r'\s*fixed_line_collision_check:="\$fixed_check"'
-    assert re.search(r"one_pinky\.launch\.py[^\n]*\\\n[^\n]*" + given, script)
+    assert re.search(r"one_pode\.launch\.py[^\n]*\\\n[^\n]*" + given, script)
     assert re.search(r"gz\.launch\.py(?:[^\n]*\\\n){2}" + given, script)
     assert script.count('fixed_line_collision_check:="$fixed_check"') == 2
     assert "fixed_line_collision_check:=true" not in script
@@ -128,7 +128,7 @@ def test_the_script_refuses_a_fixed_line_check_that_is_not_true_or_false(given):
 
 def test_the_launch_files_leave_the_fixed_line_check_off_unless_asked():
     launch = TOOLS.parent / "sim" / "fleet_gz_sim" / "launch"
-    for name in ("gz.launch.py", "one_pinky.launch.py"):
+    for name in ("gz.launch.py", "one_pode.launch.py"):
         text = (launch / name).read_text(encoding="utf-8")
         assert '"fixed_line_collision_check": ("false",' in text, name
 
@@ -141,7 +141,7 @@ def test_the_script_sends_the_first_goal_only_after_nav2_is_active():
     assert "nav2_active" in stage
     assert stage.index("nav2_active") < stage.index("ros2 run fleet_gz_sim drive_check")
     waiter = script[script.index("nav2_active() {"):script.index("drive_stage() {")]
-    assert "/pinky1/lifecycle_manager_navigation/is_active" in waiter
+    assert "/pode1/lifecycle_manager_navigation/is_active" in waiter
     assert "success=True" in waiter
     # ros2 service call waits for the service and for the answer without a limit of its own
     assert re.search(r"timeout \S.*ros2 service call", waiter)
@@ -164,9 +164,9 @@ def test_the_drive_command_ends_with_one_on_a_problem(tmp_path, capsys):
     assert "work_in" in capsys.readouterr().out
 
 
-HEAD = {"recorded": True, "robots": {"pinky1": "P-1"}, "map": "", "params": {}}
+HEAD = {"recorded": True, "robots": {"pode1": "P-1"}, "map": "", "params": {}}
 BOARD = {"t": 0.1, "in": "on_order_board", "args": ["RUN", [{"order_id": "O-1", "items": {}}]]}
-SHIPPED = {"t": 20.0, "out": "ReportOrderCmd", "order_id": "O-1", "robot": "pinky1",
+SHIPPED = {"t": 20.0, "out": "ReportOrderCmd", "order_id": "O-1", "robot": "pode1",
            "status": "SHIPPED", "placed": {}, "missing": {}, "detail": ""}
 
 

@@ -1,20 +1,20 @@
-"""Gazebo 핑키 3대 + 진짜 관제(관제·pinky_fsm·Nav2는 진짜, central·팔은 가짜).
+"""Gazebo Pode 3대 + 진짜 관제(관제·pode_fsm·Nav2는 진짜, central·팔은 가짜).
 
     ros2 launch fleet_gz_sim gz.launch.py                          # 배치 D2, 시나리오 gz_d2
     ros2 launch fleet_gz_sim gz.launch.py layout:=c gui:=false rviz:=none
 
 - 배치(layout: d2 기본, d, c)가 월드, Nav2 지도, keepout 마스크, 관제 구역 지도를 고른다
   (fleet_setup.arena_for). 시나리오는 비면 gz_<배치>이고, 시나리오의 map이 배치와 같아야 한다.
-- 핑키는 시나리오의 start 지점(없으면 주차 지점 차례)에 그 지점의 yaw로 놓는다(fleet_setup).
-- 로봇마다 Nav2(pinky_nav_config)에 배치의 지도와 keepout_mask를 준다. sim_nav_params가
+- Pode는 시나리오의 start 지점(없으면 주차 지점 차례)에 그 지점의 yaw로 놓는다(fleet_setup).
+- 로봇마다 Nav2(pode_nav_config)에 배치의 지도와 keepout_mask를 준다. sim_nav_params가
   controller 넷(FollowPath, FollowPathThrough, FollowPathReverse, FollowPathGoal)의 속도를
   nav_max_speed(0.12~0.20 m/s)로 묶는다. 충돌 검사는 마당 goal(FollowPathGoal)만 늘 켜고,
   고정 경로 셋은 fixed_line_collision_check:=true일 때만 켠다(기본 끔).
 - 모든 로봇이 IDLE이 되면(wait_ready) 관제(map_file = 배치 이름, traffic_mode zones), 가짜
   작업셀·비전·출고 팔·central, 시나리오 모니터를 띄운다. 모니터가 결과를 쓰고 launch를 끝낸다.
 - 시계는 Gazebo /clock 하나를 모두 쓴다. 주문 시각(at_s)은 Gazebo 시계 0부터 센다.
-- 도크: 기본은 진짜 pinky_fsm(DOCK_UNAVAILABLE). sim_dock_stub:=true면 시뮬 전용 대역
-  (sim_stand_in)이 /{pinky}/dock을 맡고 pinky_fsm의 dock 서버는 /{pinky}/dock_fsm으로 비켜 둔다.
+- 도크: 기본은 진짜 pode_fsm(DOCK_UNAVAILABLE). sim_dock_stub:=true면 시뮬 전용 대역
+  (sim_stand_in)이 /{pode}/dock을 맡고 pode_fsm의 dock 서버는 /{pode}/dock_fsm으로 비켜 둔다.
 - fleet_check(기본 켜짐)가 로봇 사이 최소 거리, 정지 횟수, 쥔 구역 밖 위치 수를 쓴다.
 - ROS 프로세스 수: LOCALHOST 탐색에서는 DDS 참여자 32개 정도만 서로 보인다. 그래서 브리지는
   하나로 모으고, 로봇마다 Nav2를 프로세스 하나로 묶는다(nav_composition).
@@ -46,7 +46,7 @@ ARGS = {
     "gui": ("true", "Gazebo 화면"),
     "rviz": ("fleet", "fleet이면 3대를 한 RViz에(fleet_view), 로봇 이름이면 그 로봇의 Nav2 화면,"
                       " none이면 띄우지 않는다"),
-    "heartbeat_timeout_s": ("1.5", "pinky_fsm heartbeat 끊김 판정"),
+    "heartbeat_timeout_s": ("1.5", "pode_fsm heartbeat 끊김 판정"),
     "nav_log_level": ("warn", "Nav2 노드 로그 수준"),
     "nav_composition": ("true", "로봇마다 Nav2 노드를 프로세스 하나로. false면 노드마다"
                                 "(3대면 DDS 참여자가 LOCALHOST 탐색 한도 32개를 넘는다)"),
@@ -57,7 +57,7 @@ ARGS = {
     "obstacles": ("", "상자를 놓았다 치우는 일정(fleet_gz_sim/obstacles의 이름이나 파일)."
                       " 비면 장애물 없음. d2_yard_express는 마당 하나, 급행 하나"),
     "sim_dock_stub": ("false", "true면 시뮬 전용 도킹 대역: 도크 지점 근처면 몇 초 뒤 성공."
-                               " false면 진짜 pinky_fsm(DOCK_UNAVAILABLE)"),
+                               " false면 진짜 pode_fsm(DOCK_UNAVAILABLE)"),
     "fleet_check": ("true", "로봇 사이 최소 거리, 정지 횟수, 쥔 구역 밖 위치 수를"
                             " result_dir/fleet_check.json에"),
     "nav_max_speed": ("0.20", "controller들의 최고 속도(m/s), 0.12~0.20"),
@@ -70,12 +70,12 @@ ARGS = {
     "fixed_line_collision_check": ("false", "시뮬 전용. true면 고정 경로 controller 셋(FollowPath,"
                                            " Through, Reverse)도 충돌 검사를 켠다. 마당은 늘 켬"),
     "scan_filter": ("true", "좁은 띠 안에서 벽·진열대에 붙은 라이다 점을 costmap에서 지우는 거르개"
-                            "(pinky_scan_filter, 추가지시서3 7-2). false면 띄우지 않는다(비교용)"),
+                            "(pode_scan_filter, 추가지시서3 7-2). false면 띄우지 않는다(비교용)"),
     "wall_band_m": ("0.05", "스캔 거르개: 벽·진열대에서 이만큼 안의 점을 지운다(m)."
                             " 0.05는 D2 측정으로 고른 값(fixed_line_results.md)"),
-    "peer_obstacles": ("true", "로봇마다 다른 로봇의 몸을 costmap에 찍는다(pinky_peer_obstacles, 임시):"
+    "peer_obstacles": ("true", "로봇마다 다른 로봇의 몸을 costmap에 찍는다(pode_peer_obstacles, 임시):"
                                " Nav2가 다른 로봇을 피해 길을 짠다. false면 찍지 않는다(비교용)"),
-    "avoidance_package": ("pinky_avoidance", "회피 패키지(params/avoidance.yaml과"
+    "avoidance_package": ("pode_avoidance", "회피 패키지(params/avoidance.yaml과"
                                              " launch/avoidance.launch.py). 회피 담당의 패키지로"
                                              " 바꿀 수 있다"),
     "vision_stand_in": ("false", "true면 로봇마다 임시 비전 대역(회피 패키지)이 상자 표시와 실제"
@@ -305,12 +305,12 @@ def _start(context):
                              value("battery_low_pct"))
     max_speed = launch_parts.speed_of(value("nav_max_speed"))
     nav_overrides = overrides_of(value("nav_overrides"))
-    # low_battery가 있을 때만 pinky_fsm이 sim_stand_in의 배터리를 본다
+    # low_battery가 있을 때만 pode_fsm이 sim_stand_in의 배터리를 본다
     battery = has_low_battery(data, scenario_seed)
     actions = [*launch_parts.world(flag(value("gui"), "gui"), arena.world),
                launch_parts.bridge(robots)]
     for robot, (x, y, yaw) in poses.items():
-        actions += launch_parts.pinky(robot, x, y, yaw,
+        actions += launch_parts.pode(robot, x, y, yaw,
                                       nav_map=arena.nav_map, nav_map_fine=arena.nav_map_fine,
                                       keepout_mask=arena.keepout_mask if keepout else "",
                                       heartbeat_timeout_s=value("heartbeat_timeout_s"),

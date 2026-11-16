@@ -1,5 +1,5 @@
-"""one_pinky.launch.py와 gz.launch.py가 같이 쓰는 launch 조각: Gazebo 월드 하나, 브리지 하나,
-핑키 한 대씩.
+"""one_pode.launch.py와 gz.launch.py가 같이 쓰는 launch 조각: Gazebo 월드 하나, 브리지 하나,
+Pode 한 대씩.
 
 월드 좌표 = 지도 좌표 = 구역 지도 좌표다(fleet_gz_sim.arena).
 ROS 프로세스 하나가 DDS 참여자 하나다. LOCALHOST 탐색에서는 32개 정도만 서로 보이므로
@@ -94,26 +94,26 @@ def bridge(robots) -> Node:
 
 
 def _rviz_config(ns: str) -> str:
-    text = (share("pinky_nav_config") / "rviz" / "pinky_nav.rviz").read_text(encoding="utf-8")
-    out = Path(tempfile.gettempdir()) / f"pinky_nav_{ns}.rviz"
+    text = (share("pode_nav_config") / "rviz" / "pode_nav.rviz").read_text(encoding="utf-8")
+    out = Path(tempfile.gettempdir()) / f"pode_nav_{ns}.rviz"
     out.write_text(text.replace("<robot_namespace>", f"/{ns}"), encoding="utf-8")
     return str(out)
 
 
-# 시뮬에서만 쓰는 AMCL 값. 실물 설정(pinky_nav_config/params/nav2_params.yaml)은 그대로 둔다.
+# 시뮬에서만 쓰는 AMCL 값. 실물 설정(pode_nav_config/params/nav2_params.yaml)은 그대로 둔다.
 # 창고 지도 A4->A3 통로(양쪽 랙까지 0.25 m)에서 실물 값(z_hit 0.5, z_rand 0.5, 빔 60, 0.15 m나
 # 0.1 rad마다 갱신)은 AMCL 위치가 실제 위치에서 옆으로 0.13~0.29 m 떨어진 채 머물러, 로봇이
 # 랙에 붙고 격리됐다(2026-11-08). 지도와 맞는 빔을 더 믿고, 빔을 늘리고, 더 자주 갱신한다.
 SIM_AMCL = {"z_hit": 0.95, "z_rand": 0.05, "max_beams": 120, "laser_max_range": 12.0,
             "update_min_d": 0.05, "update_min_a": 0.05}
 
-# Nav2 controller 넷(pinky_nav_config). pinky_fsm은 잠금 경계 경로에 FollowPathThrough,
+# Nav2 controller 넷(pode_nav_config). pode_fsm은 잠금 경계 경로에 FollowPathThrough,
 # Retreat path에 FollowPathReverse, mode nav_goal(bt_navigator)에 FollowPathGoal을 쓴다.
 THROUGH_CONTROLLER = "FollowPathThrough"
 REVERSE_CONTROLLER = "FollowPathReverse"
 GOAL_CONTROLLER = "FollowPathGoal"
 # ---- 회피 패키지 ----
-AVOIDANCE_PACKAGE = "pinky_avoidance"
+AVOIDANCE_PACKAGE = "pode_avoidance"
 AVOIDANCE_FILE = Path("params") / "avoidance.yaml"
 GOAL_CONTROLLER_KEY = "follow_path_goal"
 CONTROLLERS = ("FollowPath", THROUGH_CONTROLLER, REVERSE_CONTROLLER, GOAL_CONTROLLER)
@@ -128,7 +128,7 @@ FIXED_LINE_CONTROLLERS = ("FollowPath", THROUGH_CONTROLLER, REVERSE_CONTROLLER)
 # 주행 계획서 6.7: 속도 비례 앞보기를 넣자 0.20에서도 급행의 흔들림이 0.12 때와 같았다)
 SPEED_RANGE_MPS = (0.12, 0.20)
 DEFAULT_SPEED_MPS = 0.20
-# sim_stand_in이 내는 로봇마다의 시뮬 배터리(BatteryState). low_battery가 있으면 pinky_fsm이 본다
+# sim_stand_in이 내는 로봇마다의 시뮬 배터리(BatteryState). low_battery가 있으면 pode_fsm이 본다
 BATTERY_TOPIC = "/{robot}/sim/battery"
 
 
@@ -224,13 +224,13 @@ def sim_nav_params(base: Path, out: Path, amcl: dict | None = None,
 
 
 def model(ns: str, x, y, yaw, lidar_noise: float | None = None) -> list:
-    """핑키 모델만(robot_state_publisher와 Gazebo에 놓기). Nav2와 pinky_fsm은 없다.
-    서 있는 다른 핑키(one_pinky.launch.py still_pinky)도 이것으로 놓는다.
+    """Pode 모델만(robot_state_publisher와 Gazebo에 놓기). Nav2와 pode_fsm은 없다.
+    서 있는 다른 Pode(one_pode.launch.py still_pode)도 이것으로 놓는다.
     lidar_noise: 라이다 거리 잡음 표준편차(m). None이면 모델의 기본값(0.02)."""
     me = share("fleet_gz_sim")
     noise = "" if lidar_noise is None else f" lidar_noise:={float(lidar_noise)}"
     description = ParameterValue(
-        Command(["xacro ", str(me / "urdf" / "pinky_sim.urdf.xacro"), f" name:={ns}{noise}"]),
+        Command(["xacro ", str(me / "urdf" / "pode_sim.urdf.xacro"), f" name:={ns}{noise}"]),
         value_type=str)
     return [
         Node(package="robot_state_publisher", executable="robot_state_publisher",
@@ -242,7 +242,7 @@ def model(ns: str, x, y, yaw, lidar_noise: float | None = None) -> list:
     ]
 
 
-def pinky(ns: str, x, y, yaw, *, nav_map: str, nav_map_fine: str, keepout_mask: str = "",
+def pode(ns: str, x, y, yaw, *, nav_map: str, nav_map_fine: str, keepout_mask: str = "",
           heartbeat_timeout_s="1.5", nav_log_level="warn", fsm=True, rviz=False,
           dock_aside=False, nav_composition=False, through_controller_id=THROUGH_CONTROLLER,
           nav_max_speed: float = DEFAULT_SPEED_MPS, battery_topic: str = "",
@@ -250,27 +250,27 @@ def pinky(ns: str, x, y, yaw, *, nav_map: str, nav_map_fine: str, keepout_mask: 
           fixed_line_check: bool = True, narrow_strips: str = "",
           wall_band_m: float = 0.05, peer_layer: bool = False,
           avoidance_package: str = AVOIDANCE_PACKAGE, vision_stand_in: bool = False) -> list:
-    """핑키 한 대: 모델, Nav2, pinky_fsm, RViz. 브리지는 bridge()에 이 로봇 이름을 넣는다.
+    """Pode 한 대: 모델, Nav2, pode_fsm, RViz. 브리지는 bridge()에 이 로봇 이름을 넣는다.
 
     nav_map, nav_map_fine: Nav2 지도 둘(배치의 5 cm, 1 cm 지도, fleet_setup.Arena).
-    keepout_mask: global costmap keepout 마스크(pinky_nav_config keepout_mask). 비면 keepout 없음.
-    dock_aside: pinky_fsm의 dock 서버를 /<ns>/dock_fsm으로 비켜 둔다(시뮬 전용 도크 대역용).
+    keepout_mask: global costmap keepout 마스크(pode_nav_config keepout_mask). 비면 keepout 없음.
+    dock_aside: pode_fsm의 dock 서버를 /<ns>/dock_fsm으로 비켜 둔다(시뮬 전용 도크 대역용).
     nav_composition: Nav2 노드들을 프로세스 하나(component container)로 띄운다.
-    through_controller_id: 잠금 경계 경로에 쓸 controller(pinky_fsm). 비우면 모든 경로가
+    through_controller_id: 잠금 경계 경로에 쓸 controller(pode_fsm). 비우면 모든 경로가
     FollowPath로 간다. Nav2는 controller 넷(CONTROLLERS)을 늘 띄운다. 충돌 검사는 넷 모두 켜고,
     fixed_line_check가 거짓일 때만 고정 경로 셋을 끈다.
-    nav_max_speed: controller들의 최고 속도(m/s). pinky_fsm이 잠금 경계에서 내는 속도 제한의
+    nav_max_speed: controller들의 최고 속도(m/s). pode_fsm이 잠금 경계에서 내는 속도 제한의
     상한(horizon_cap_mps)도 이 값으로: RPP는 그 제한을 속도로 쓴다.
-    battery_topic: pinky_fsm이 볼 BatteryState 토픽(sim_stand_in의 BATTERY_TOPIC). 비면 없음.
+    battery_topic: pode_fsm이 볼 BatteryState 토픽(sim_stand_in의 BATTERY_TOPIC). 비면 없음.
     nav_overrides: Nav2 설정 위에 덮을 값(sim_nav_params overrides).
     fixed_line_check: 거짓이면 고정 경로 controller 셋의 충돌 검사를 끈다(시뮬 전용).
-    narrow_strips, wall_band_m: 스캔 거르개(pinky_scan_filter, 추가지시서3 7-2)의 좁은 띠와 띠 폭.
+    narrow_strips, wall_band_m: 스캔 거르개(pode_scan_filter, 추가지시서3 7-2)의 좁은 띠와 띠 폭.
     narrow_strips가 비면 거르개를 띄우지 않고 costmap은 원래 scan을 읽는다.
     peer_layer: 참이면 두 costmap에 다른 로봇의 몸을 찍는 층을 넣는다(임시, 주행 시험용). 토픽은
     sim_stand_in 프로세스가 세 대분을 낸다(peer_obstacles 파라미터).
     avoidance_package: 회피 패키지(FollowPathGoal 값, 비전·peer 층, 회피 쪽 노드).
     vision_stand_in: 참이면 회피 패키지의 임시 비전 대역을 띄우고 비전 관측원을 켠다."""
-    nav = share("pinky_nav_config")
+    nav = share("pode_nav_config")
     x, y, yaw = str(x), str(y), str(yaw)
     actions = [
         *model(ns, x, y, yaw, lidar_noise),
@@ -302,8 +302,8 @@ def pinky(ns: str, x, y, yaw, *, nav_map: str, nav_map_fine: str, keepout_mask: 
         if battery_topic:
             fsm_args["battery_topic"] = battery_topic
         include = IncludeLaunchDescription(
-            PythonLaunchDescriptionSource(str(share("pinky_fsm") / "launch" /
-                                              "pinky_fsm.launch.py")),
+            PythonLaunchDescriptionSource(str(share("pode_fsm") / "launch" /
+                                              "pode_fsm.launch.py")),
             launch_arguments=fsm_args.items())
         actions.append(GroupAction([SetRemap(f"/{ns}/dock", f"/{ns}/dock_fsm"), include])
                        if dock_aside else include)

@@ -11,7 +11,7 @@ from fleet_core.common.params import DEFAULT_PARAMS, FleetParams, load_params
 from fleet_core.traffic import modes
 from fleet_core.traffic.modes import MODES, ZONE_CONTROLLER, ZONES, NoZoneTraffic, build_traffic
 
-ROBOTS = ["pinky1", "pinky2", "pinky3"]
+ROBOTS = ["pode1", "pode2", "pode3"]
 
 
 def test_zones_is_the_only_mode():

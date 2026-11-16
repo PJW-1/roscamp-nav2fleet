@@ -7,7 +7,7 @@ SPOT = (1.0, 2.0)
 AWAY = (3.0, 2.0)
 
 
-def low(at_s, duration_s, robot="pinky1"):
+def low(at_s, duration_s, robot="pode1"):
     return Fault(at_s=at_s, robot=robot, type="low_battery", duration_s=duration_s)
 
 
@@ -17,7 +17,7 @@ def test_without_an_event_the_battery_stays_full():
 
 
 def test_other_fault_types_are_not_battery_events():
-    other = Fault(at_s=1.0, robot="pinky1", type="comm_loss", duration_s=5.0)
+    other = Fault(at_s=1.0, robot="pode1", type="comm_loss", duration_s=5.0)
     assert Battery([other], [SPOT]).percent(10.0, *AWAY, False) == FULL_PCT
 
 
@@ -89,7 +89,7 @@ def test_an_event_due_before_the_last_one_ended_starts_when_it_ends():
 
 def test_raw_fault_dicts_work_too():
     """머리 없는 세계(sim_world)는 시나리오의 고장을 dict로 쓴다."""
-    b = Battery([{"type": "low_battery", "robot": "pinky1", "at_s": 0.0, "duration_s": 10.0}],
+    b = Battery([{"type": "low_battery", "robot": "pode1", "at_s": 0.0, "duration_s": 10.0}],
                 [SPOT])
     b.percent(0.0, *SPOT, True)
     assert b.percent(10.0, *SPOT, True) == FULL_PCT

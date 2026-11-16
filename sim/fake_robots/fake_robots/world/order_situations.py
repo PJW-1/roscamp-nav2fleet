@@ -45,9 +45,9 @@ def build_order(name: str) -> OrderSituation:
     if name == "normal8":
         return OrderSituation(name, "평소 흐름 8건", orders=six_orders(count=8))
     if name == "comm_horizon":
-        # pinky1이 첫 주문으로 작업 도크에 가는 길(horizon이 남은 때)에 15초 끊긴다
+        # pode1이 첫 주문으로 작업 도크에 가는 길(horizon이 남은 때)에 15초 끊긴다
         return OrderSituation(name, "통신 끊김(horizon 있음)",
-                              injections=[CommLoss("pinky1", 2.0, 17.0)],
+                              injections=[CommLoss("pode1", 2.0, 17.0)],
                               on_events={"COMM_LOST": 1})
     if name == "extend_fail":
         return OrderSituation(name, "미리 늘리기 실패(출고 도크 오래 씀)",
@@ -59,7 +59,7 @@ def build_order(name: str) -> OrderSituation:
         x0, y0, x1, y1 = load_fleet_map("d2").zones["EXPRESS"].rects[0]
         box = Obstacle((x0 + x1) / 2, (y0 + y1) / 2, 0.04, 20.0, 140.0)
         return OrderSituation(name, "급행 방향 넘기기 중 horizon 바뀜",
-                              robots={"pinky1": "W", "pinky2": "O", "pinky3": "P-2"},
+                              robots={"pode1": "W", "pode2": "O", "pode3": "P-2"},
                               injections=[box])
     if name == "burst10":
         return OrderSituation(name, "주문 몰림 10건", orders=six_orders(gap_s=2.0, count=10))

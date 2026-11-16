@@ -88,7 +88,7 @@ def test_a_robot_coming_down_the_line_waits_for_one_crossing_below_it(leaves_at)
 
 
 def test_a_moving_robot_is_placed_where_it_is_now_not_where_it_was_last_seen():
-    """ROS 가짜 핑키는 남의 자세를 10 Hz로 받는다. 0.2 m/s로 오는 로봇은 받은 자세보다 0.03 m쯤
+    """ROS 가짜 Pode는 남의 자세를 10 Hz로 받는다. 0.2 m/s로 오는 로봇은 받은 자세보다 0.03 m쯤
     가까이 있다. 마지막 두 자세로 지금 자리를 어림한다."""
     view = seen(seen(None, 1.00, 0.50, 3.0), 1.02, 0.50, 3.1)
     assert where_now(view, 3.1) == pytest.approx((1.02, 0.50))
@@ -112,7 +112,7 @@ def test_a_robot_lifted_away_or_long_silent_is_not_carried_on():
 
 
 def test_a_robot_yields_to_one_that_moves_close_by():
-    """ROS 가짜 핑키 둘이 마당에서 마주치면 서로 늦게 본 자리를 피해 동시에 움직이다가 몸이 겹쳤다.
+    """ROS 가짜 Pode 둘이 마당에서 마주치면 서로 늦게 본 자리를 피해 동시에 움직이다가 몸이 겹쳤다.
     가까이(0.26 m)에서 방금(1초 안) 움직인 로봇이 있으면 양보하는 쪽은 선다. 누가 양보하는지는
     노드가 이름 순서로 정한다. 0.30 m였을 때는 나란한 주차 칸(0.28 m)에서 떠나는 로봇까지 세워
     stuck_robot 통합 판이 3초 늦어졌다."""

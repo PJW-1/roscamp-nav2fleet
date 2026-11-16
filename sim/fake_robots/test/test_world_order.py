@@ -15,15 +15,15 @@ def seg(world, seq, nodes, mode="follow_path"):
 
 
 def order(goal_id, base, horizon=(), update=0, stitch="", order_id="o-1"):
-    return MoveOrderCmd("pinky1", goal_id, order_id, update, stitch, tuple(base), tuple(horizon))
+    return MoveOrderCmd("pode1", goal_id, order_id, update, stitch, tuple(base), tuple(horizon))
 
 
 def answers(world, method):
-    return [args[1:] for _, args in world.manager.of(method, "pinky1")]
+    return [args[1:] for _, args in world.manager.of(method, "pode1")]
 
 
 def at(world, node):
-    return math.dist(world.robots["pinky1"].pose, world.site.node_pose(node)) < 0.02
+    return math.dist(world.robots["pode1"].pose, world.site.node_pose(node)) < 0.02
 
 
 def test_base_segments_run_back_to_back_and_the_order_ends_with_the_last_seq():
@@ -72,7 +72,7 @@ def test_an_update_that_breaks_a_condition_is_refused_and_the_robot_keeps_its_or
     (goal, ok, reason, done), = answers(world, "on_move_result")
     assert (goal, ok, done) == (2, False, 1)
     assert reason.startswith("ORDER_UPDATE_REJECTED") and why in reason
-    assert world.robots["pinky1"].run.goal_id == 1 and at(world, "N_W")
+    assert world.robots["pode1"].run.goal_id == 1 and at(world, "N_W")
 
 
 def test_an_update_with_no_order_running_is_refused():
@@ -83,23 +83,23 @@ def test_an_update_with_no_order_running_is_refused():
 
 
 def test_without_contact_the_robot_drives_on_to_the_base_end_under_base_end():
-    world = quiet_world(injections=[CommLoss("pinky1", 0.5, 60.0)],
+    world = quiet_world(injections=[CommLoss("pode1", 0.5, 60.0)],
                         overrides={"comm_loss_policy": "base_end"})
     world.send(order(1, [seg(world, 1, ["P-1", "N_W"]), seg(world, 2, ["N_W", "X_W"])],
                      [seg(world, 3, ["X_W", "W"])]))
     world.run(30.0)
     assert at(world, "X_W")
-    assert all(t < 0.5 for t, _ in world.manager.of("on_move_feedback", "pinky1"))
+    assert all(t < 0.5 for t, _ in world.manager.of("on_move_feedback", "pode1"))
 
 
 def test_without_contact_the_robot_stops_at_once_under_stop():
     """The result is held until contact is back; last_done_seq_id is the last finished segment."""
-    world = quiet_world(injections=[CommLoss("pinky1", 3.0, 20.0)])
+    world = quiet_world(injections=[CommLoss("pode1", 3.0, 20.0)])
     assert world.params.comm_loss_policy == "stop"
     world.send(order(1, [seg(world, 1, ["P-1", "N_W"]), seg(world, 2, ["N_W", "X_W"])],
                      [seg(world, 3, ["X_W", "W"])]))
     world.run(2.9)
-    r = world.robots["pinky1"]
+    r = world.robots["pode1"]
     run = r.run
     assert run is not None and not at(world, "X_W")
     world.run(1.6)  # silent for heartbeat_timeout_s
@@ -113,7 +113,7 @@ def test_without_contact_the_robot_stops_at_once_under_stop():
 
 
 def test_a_stuck_robot_without_contact_still_ends_with_heartbeat_lost():
-    world = quiet_world(injections=[CommLoss("pinky1", 1.0, 20.0), Stuck("pinky1", 1.5)])
+    world = quiet_world(injections=[CommLoss("pode1", 1.0, 20.0), Stuck("pode1", 1.5)])
     world.send(order(1, [seg(world, 1, ["P-1", "N_W"]), seg(world, 2, ["N_W", "X_W"])],
                      [seg(world, 3, ["X_W", "W"])]))
     world.run(25.0)
@@ -128,5 +128,5 @@ def test_an_obstacle_on_the_base_stops_the_robot_short_of_it():
     world = quiet_world(injections=[Obstacle(*box, 0.04)])
     world.send(order(1, [seg(world, 1, ["P-1", "N_W"])]))
     world.run(10.0)
-    assert math.dist(world.robots["pinky1"].pose, box) >= world.radius + 0.04
+    assert math.dist(world.robots["pode1"].pose, box) >= world.radius + 0.04
     assert not answers(world, "on_move_result")

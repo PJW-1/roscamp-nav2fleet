@@ -89,7 +89,7 @@ def test_v7_varied_scenario_mixes_order_bursts_with_staggered_low_batteries(site
     sizes = {sum(order["items"].values()) for order in data["orders"]}
     assert sizes >= {1, 2, 3, 4}
     low = [f for f in data["faults"] if f["type"] == "low_battery"]
-    assert sorted(f["robot"] for f in low) == ["pinky1", "pinky2", "pinky3"]
+    assert sorted(f["robot"] for f in low) == ["pode1", "pode2", "pode3"]
     assert len({f["at_s"] for f in low}) == 3 and len({f["duration_s"] for f in low}) == 3
     assert {f["type"] for f in data["faults"]} == {"low_battery"}
     scenario = load_scenario(path, site)
@@ -134,7 +134,7 @@ def test_v7_random_scenario_expands_to_one_low_battery_per_robot_and_spread_orde
     data = fleet_setup.read_scenario(PKG / "scenarios" / "gz_v7_random.yaml")
     out = expand_random(data, seed)
     low = [f for f in out["faults"] if f["type"] == "low_battery"]
-    assert sorted(f["robot"] for f in low) == ["pinky1", "pinky2", "pinky3"]
+    assert sorted(f["robot"] for f in low) == ["pode1", "pode2", "pode3"]
     assert all(20 <= f["at_s"] <= 150 and f["duration_s"] == 30 for f in low)
     times = [0.0] + [order["at_s"] for order in out["orders"]]
     gaps = [b - a for a, b in zip(times, times[1:])]
@@ -267,7 +267,7 @@ DIVIDER_3_KEEP = (0.71, 0.0, 0.86, 0.20)  # 서쪽 끝 0.71: P-3에 선 로봇 �
 
 def test_v7_the_top_of_divider_3_is_kept_out_for_nav2(site):
     """Gazebo 1~3판: 남쪽 마당을 서쪽으로 가던 로봇이 y ~0.16으로 와서 칸막이 3 위 끝(0.76~0.78,
-    0.10)을 긁었다(3판 pinky2: RPP 충돌 경고 약 400회, NAV_ABORTED 3회 뒤 ISOLATED). 그 둘레를
+    0.10)을 긁었다(3판 pode2: RPP 충돌 경고 약 400회, NAV_ABORTED 3회 뒤 ISOLATED). 그 둘레를
     y 0.20까지 막아 Nav2 goal 경로의 중심이 그 구간에서 y 0.20 위로 다니게 한다. 칸 고정 경로
     (P-3 <-> E-3, FollowPath)는 local costmap만 보므로 걸리지 않는다."""
     assert DIVIDER_3_KEEP in site.keepout_extra
@@ -289,7 +289,7 @@ DIVIDER_2_KEEP = (0.45, 0.0, 0.57, 0.20)
 @pytest.mark.parametrize("keep, divider_x, bays_x", [(DIVIDER_1_KEEP, 0.25, (0.12, 0.38)),
                                                      (DIVIDER_2_KEEP, 0.51, (0.38, 0.64))])
 def test_v7_the_tops_of_dividers_1_and_2_are_kept_out_for_nav2(site, keep, divider_x, bays_x):
-    """견고함 판 R3, R4(2026-11-15): P-1을 나온 pinky3가 y 0.165에서 Q2로 가는 Nav2 goal을 받아
+    """견고함 판 R3, R4(2026-11-15): P-1을 나온 pode3가 y 0.165에서 Q2로 가는 Nav2 goal을 받아
     5 cm 격자의 y 0.15~0.20 줄을 따라 동쪽으로 갔고, 칸막이 1 위 끝(0.24~0.26, 0.10)을 긁어 실제
     방향이 추정과 47~70도 어긋났다(주문 12건 가운데 7건에서 멈춤). 칸막이 3과 같이 그 둘레를
     y 0.20까지 막는다. 양쪽 칸은 열려 있다."""

@@ -1,4 +1,4 @@
-"""ROS 가짜 핑키의 nav_goal 모드(MoveTo mode, 계약 5절). ROS를 쓰지 않는다.
+"""ROS 가짜 Pode의 nav_goal 모드(MoveTo mode, 계약 5절). ROS를 쓰지 않는다.
 
 world.NavGoalRun과 같은 규칙을 Motion 위에서 쓴다: 넓은 구역 안에서 다른 로봇을 피해 길을
 짜고(1 Hz로 다시), 바로 앞에 로봇이 있으면 서고, blocked_after_s 동안 못 나아가면 BLOCKED,

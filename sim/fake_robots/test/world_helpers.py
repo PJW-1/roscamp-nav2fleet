@@ -5,7 +5,7 @@ from fleet_core.common.commands import MoveCmd
 
 def quiet_world(layout="d2", robots=None, injections=(), imperfect=None, **kw):
     """흠 없는 세계. 관제는 대역이라 시험이 명령을 직접 넣는다(world.send)."""
-    return ZoneWorld(layout, seed=1, robots=robots or {"pinky1": "P-1"}, orders=[],
+    return ZoneWorld(layout, seed=1, robots=robots or {"pode1": "P-1"}, orders=[],
                      injections=injections,
                      imperfect=Imperfections.none() if imperfect is None else imperfect,
                      manager_factory=RecordingManager, **kw)
@@ -27,11 +27,11 @@ def follow(world, robot, goal_id, nodes, yaw=0.0, final=True):
     return MoveCmd(robot, goal_id, nodes[-1], x, y, yaw, path=points, final_goal=final)
 
 
-def results(world, method, robot="pinky1"):
+def results(world, method, robot="pode1"):
     """(시각, goal_id, 성공, 이유)."""
     return [(t, args[1], args[2], args[3] if len(args) > 3 else "")
             for t, args in world.manager.of(method, robot)]
 
 
-def states(world, robot="pinky1"):
+def states(world, robot="pode1"):
     return [(t, args[4]) for t, args in world.manager.of("on_robot_state", robot)]

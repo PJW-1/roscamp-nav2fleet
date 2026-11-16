@@ -26,7 +26,7 @@ PLANS = {
         (FOLLOW_PATH, ("N_E", "X_E", "X_W", "N_W")),
         (NAV_GOAL, ("N_W", "P-1")),
     ),
-    # 다른 핑키가 서 있는 마당을 가로지르는 Nav2 goal 한 번(item 6). 서 있는 핑키는 launch가 놓는다
+    # 다른 Pode가 서 있는 마당을 가로지르는 Nav2 goal 한 번(item 6). 서 있는 Pode는 launch가 놓는다
     "cross": ((NAV_GOAL, ("P-1", "P-3")), (NAV_GOAL, ("P-3", "P-1"))),
 }
 

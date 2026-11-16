@@ -11,9 +11,9 @@ from fleet_gz_sim import launch_parts  # noqa: E402
 
 REPO = Path(__file__).resolve().parents[3]
 MAPS = {"nav_map": "/m/arena_d2.yaml", "nav_map_fine": "/m/arena_d2_fine.yaml"}
-NAV = REPO / "pinky" / "pinky_nav_config" / "params" / "nav2_params.yaml"
+NAV = REPO / "pode" / "pode_nav_config" / "params" / "nav2_params.yaml"
 # the avoidance teammate's file (third addendum 7-1), from the default avoidance package
-AVOIDANCE = REPO / "pinky" / "pinky_avoidance" / "params" / "avoidance.yaml"
+AVOIDANCE = REPO / "pode" / "pode_avoidance" / "params" / "avoidance.yaml"
 
 
 def _sim(base, out, **kw):
@@ -69,8 +69,8 @@ def _need(*packages):
             pytest.skip(f"{package} is not installed")
 
 
-def test_each_pinky_starts_nav2_with_the_sim_params(tmp_path, monkeypatch):
-    _need("fleet_gz_sim", "pinky_nav_config")
+def test_each_pode_starts_nav2_with_the_sim_params(tmp_path, monkeypatch):
+    _need("fleet_gz_sim", "pode_nav_config")
     from launch.actions import IncludeLaunchDescription
     from launch.utilities import normalize_to_list_of_substitutions, perform_substitutions
     monkeypatch.setattr(launch_parts.tempfile, "gettempdir", lambda: str(tmp_path))
@@ -79,8 +79,8 @@ def test_each_pinky_starts_nav2_with_the_sim_params(tmp_path, monkeypatch):
     def text(value):
         return perform_substitutions(context, normalize_to_list_of_substitutions(value))
 
-    for ns in ("pinky1", "pinky2"):
-        includes = [a for a in launch_parts.pinky(ns, 0.5, 0.5, 0.0, fsm=False, **MAPS)
+    for ns in ("pode1", "pode2"):
+        includes = [a for a in launch_parts.pode(ns, 0.5, 0.5, 0.0, fsm=False, **MAPS)
                     if isinstance(a, IncludeLaunchDescription)]
         args = [{text(k): text(v) for k, v in a.launch_arguments} for a in includes]
         nav = next(a for a in args if "map_fine" in a)
@@ -93,8 +93,8 @@ def test_each_pinky_starts_nav2_with_the_sim_params(tmp_path, monkeypatch):
         assert {k: amcl[k] for k in launch_parts.SIM_AMCL} == launch_parts.SIM_AMCL
 
 
-def test_one_pinky_sends_lock_boundary_paths_to_the_through_rpp_by_default(tmp_path, monkeypatch):
-    _need("fleet_gz_sim", "pinky_nav_config", "pinky_fsm")
+def test_one_pode_sends_lock_boundary_paths_to_the_through_rpp_by_default(tmp_path, monkeypatch):
+    _need("fleet_gz_sim", "pode_nav_config", "pode_fsm")
     from launch.actions import IncludeLaunchDescription
     from launch.utilities import normalize_to_list_of_substitutions, perform_substitutions
     monkeypatch.setattr(launch_parts.tempfile, "gettempdir", lambda: str(tmp_path))
@@ -104,7 +104,7 @@ def test_one_pinky_sends_lock_boundary_paths_to_the_through_rpp_by_default(tmp_p
         return perform_substitutions(context, normalize_to_list_of_substitutions(value))
 
     def fsm_args(**kw):
-        includes = [a for a in launch_parts.pinky("pinky1", 0.5, 0.5, 0.0, **MAPS, **kw)
+        includes = [a for a in launch_parts.pode("pode1", 0.5, 0.5, 0.0, **MAPS, **kw)
                     if isinstance(a, IncludeLaunchDescription)]
         args = [{text(k): text(v) for k, v in a.launch_arguments} for a in includes]
         return next(a for a in args if "heartbeat_timeout_s" in a)
@@ -198,8 +198,8 @@ def test_the_fixed_line_check_can_be_turned_off_and_the_yard_check_stays_on(tmp_
                for n in launch_parts.CONTROLLERS)
 
 
-def test_pinky_passes_the_fixed_line_switch_to_its_nav2_params(tmp_path, monkeypatch):
-    _need("fleet_gz_sim", "pinky_nav_config")
+def test_pode_passes_the_fixed_line_switch_to_its_nav2_params(tmp_path, monkeypatch):
+    _need("fleet_gz_sim", "pode_nav_config")
     from launch.actions import IncludeLaunchDescription
     from launch.utilities import normalize_to_list_of_substitutions, perform_substitutions
     monkeypatch.setattr(launch_parts.tempfile, "gettempdir", lambda: str(tmp_path))
@@ -208,7 +208,7 @@ def test_pinky_passes_the_fixed_line_switch_to_its_nav2_params(tmp_path, monkeyp
     def text(value):
         return perform_substitutions(context, normalize_to_list_of_substitutions(value))
 
-    includes = [a for a in launch_parts.pinky("pinky1", 0.5, 0.5, 0.0, fsm=False,
+    includes = [a for a in launch_parts.pode("pode1", 0.5, 0.5, 0.0, fsm=False,
                                               fixed_line_check=False, **MAPS)
                 if isinstance(a, IncludeLaunchDescription)]
     args = [{text(k): text(v) for k, v in a.launch_arguments} for a in includes]
@@ -291,31 +291,31 @@ def _nav_args(tmp_path, monkeypatch, **kw):
     def text(value):
         return perform_substitutions(context, normalize_to_list_of_substitutions(value))
 
-    includes = [a for a in launch_parts.pinky("pinky1", 0.5, 0.5, 0.0, fsm=False, **MAPS, **kw)
+    includes = [a for a in launch_parts.pode("pode1", 0.5, 0.5, 0.0, fsm=False, **MAPS, **kw)
                 if isinstance(a, IncludeLaunchDescription)]
     args = [{text(k): text(v) for k, v in a.launch_arguments} for a in includes]
     return next(a for a in args if "map_fine" in a)
 
 
-def test_pinky_reads_the_goal_controller_from_the_avoidance_package(tmp_path, monkeypatch):
-    _need("fleet_gz_sim", "pinky_nav_config", "pinky_avoidance")
+def test_pode_reads_the_goal_controller_from_the_avoidance_package(tmp_path, monkeypatch):
+    _need("fleet_gz_sim", "pode_nav_config", "pode_avoidance")
     nav = _nav_args(tmp_path, monkeypatch)
-    assert nav["avoidance_package"] == "pinky_avoidance"
+    assert nav["avoidance_package"] == "pode_avoidance"
     assert nav["vision_stand_in"] == "false"
     sim = yaml.safe_load(Path(nav["params_file"]).read_text(encoding="utf-8"))
-    installed = launch_parts.share("pinky_avoidance") / "params" / "avoidance.yaml"
+    installed = launch_parts.share("pode_avoidance") / "params" / "avoidance.yaml"
     theirs = yaml.safe_load(installed.read_text(encoding="utf-8"))["follow_path_goal"]
     assert _rpp(sim, "FollowPathGoal")["plugin"] == theirs["plugin"]
     assert _rpp(sim, "FollowPathGoal")["lookahead_dist"] == theirs["lookahead_dist"]
 
 
-def test_pinky_passes_the_vision_stand_in_switch(tmp_path, monkeypatch):
-    _need("fleet_gz_sim", "pinky_nav_config", "pinky_avoidance")
+def test_pode_passes_the_vision_stand_in_switch(tmp_path, monkeypatch):
+    _need("fleet_gz_sim", "pode_nav_config", "pode_avoidance")
     assert _nav_args(tmp_path, monkeypatch, vision_stand_in=True)["vision_stand_in"] == "true"
 
 
-def test_pinky_with_an_unknown_avoidance_package_stops(tmp_path, monkeypatch):
-    _need("fleet_gz_sim", "pinky_nav_config")
+def test_pode_with_an_unknown_avoidance_package_stops(tmp_path, monkeypatch):
+    _need("fleet_gz_sim", "pode_nav_config")
     from ament_index_python.packages import PackageNotFoundError
     with pytest.raises(PackageNotFoundError):
         _nav_args(tmp_path, monkeypatch, avoidance_package="no_such_avoidance_package")

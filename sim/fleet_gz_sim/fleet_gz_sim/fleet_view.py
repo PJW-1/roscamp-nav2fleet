@@ -3,10 +3,10 @@
 구역 지도(fleet_core.fleet_map)를 그린다.
 - 구역: 종류마다 옅은 바닥색(shared 회색, lane 파랑, dock 호박색).
 - 고정 경로(FollowPath, Retreat)는 얇은 선, 지점은 점과 이름.
-- 쥔 구역: 구역 바닥을 쥔 로봇 색으로 덮는다. 여러 대가 쥔 lane(holder가 "pinky1,pinky3")은
+- 쥔 구역: 구역 바닥을 쥔 로봇 색으로 덮는다. 여러 대가 쥔 lane(holder가 "pode1,pode3")은
   흰 테두리와 이름 글로 그린다. 함께 쓰는 바닥(shared)은 덮지도 두르지도 않고 이름 글만 적는다.
   기다리는 로봇이 있으면 그 목록도 글로.
-- 로봇: 몸, 방향, 상태 글. 지금 가는 곳(핑키가 보고한 current_goal의 지점이나 스테이션 도크)은
+- 로봇: 몸, 방향, 상태 글. 지금 가는 곳(Pode가 보고한 current_goal의 지점이나 스테이션 도크)은
   로봇 색 깃대와 로봇에서 그곳까지의 가는 선.
 - 앞길(RobotStatus.base, horizon: 지점 이름): base(구역을 쥔 길)는 로봇 위치에서 시작하는 로봇 색
   실선, horizon(아직 허락받지 않은 길)은 base 끝에서 이어지는 옅고 가는 점선. Nav2 goal 하나로
@@ -34,9 +34,9 @@ LABEL = (0.95, 0.95, 0.95, 1.0)
 ZONE_COLORS = {SHARED: (0.6, 0.6, 0.6, 0.15), LANE: (0.2, 0.4, 1.0, 0.25),
                DOCK: (1.0, 0.65, 0.1, 0.25)}
 ROBOT_COLORS = {
-    "pinky1": (0.2, 0.45, 1.0, 1.0),
-    "pinky2": (0.1, 0.8, 0.25, 1.0),
-    "pinky3": (1.0, 0.6, 0.0, 1.0),
+    "pode1": (0.2, 0.45, 1.0, 1.0),
+    "pode2": (0.1, 0.8, 0.25, 1.0),
+    "pode3": (1.0, 0.6, 0.0, 1.0),
 }
 _SPARE = ((0.8, 0.3, 0.9, 1.0), (0.0, 0.8, 0.8, 1.0), (0.9, 0.9, 0.2, 1.0))
 
@@ -65,7 +65,7 @@ def _faded(color: tuple, alpha: float) -> tuple:
 
 
 def holders_of(holder: str) -> list[str]:
-    """ZoneView.holder("" 또는 "pinky1,pinky3")를 이름 목록으로."""
+    """ZoneView.holder("" 또는 "pode1,pode3")를 이름 목록으로."""
     return [name for name in holder.split(",") if name]
 
 
@@ -139,7 +139,7 @@ def dashes(points, dash: float = DASH_M) -> tuple:
 
 
 def robot_label(status, stale: bool) -> tuple[str, tuple]:
-    """pinky1  MOVING  TO_WORK R-003 글과 색. 고장, BLOCKED는 빨강, RECOVERING은 호박색."""
+    """pode1  MOVING  TO_WORK R-003 글과 색. 고장, BLOCKED는 빨강, RECOVERING은 호박색."""
     fault = getattr(status, "fault", "") or "NONE"
     state = getattr(status, "fsm_state", "")
     parts = [status.robot_id, state or "?",

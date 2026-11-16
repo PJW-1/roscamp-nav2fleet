@@ -1,0 +1,18 @@
+# ---- pode_scan_filter 패키지 설치 설정 ----
+from setuptools import setup
+
+setup(
+    name='pode_scan_filter',
+    version='0.1.0',
+    packages=['pode_scan_filter'],
+    data_files=[
+        ('share/ament_index/resource_index/packages', ['resource/pode_scan_filter']),
+        ('share/pode_scan_filter', ['package.xml']),
+    ],
+    install_requires=['setuptools'],
+    tests_require=['pytest'],
+    zip_safe=True,
+    entry_points={'console_scripts': [
+        'scan_filter = pode_scan_filter.node:main',
+    ]},
+)

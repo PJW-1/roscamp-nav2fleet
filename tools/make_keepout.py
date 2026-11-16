@@ -6,7 +6,7 @@
 
 급행, 도크, 갈림목(넓은 구역이 아닌 구역)을 막은 그림을 `--map` 지도와 같은 크기, 원점, 칸
 크기로 만든다. 그래서 SLAM으로 만든 실제 경기장 지도에도 그대로 쓸 수 있다. 지도 그림은 PGM
-이어야 한다(크기만 읽는다). 만든 yaml을 `pinky_nav_config` `nav2.launch.py`의
+이어야 한다(크기만 읽는다). 만든 yaml을 `pode_nav_config` `nav2.launch.py`의
 `keepout_mask:=`에 넘긴다.
 
 막는 넓이는 구역보다 몸 반폭(`--pad`, 기본 0.06 m)만큼 넓다: keepout 필터는 둘레를 부풀리지

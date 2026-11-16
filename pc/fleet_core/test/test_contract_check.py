@@ -38,13 +38,13 @@ def test_matching_system_has_no_problems(contract):
 
 def test_missing_entries_are_reported_per_kind(contract):
     obs = healthy(contract)
-    del obs["topics"]["/pinky1/state"]
-    del obs["actions"]["/pinky2/dock"]
+    del obs["topics"]["/pode1/state"]
+    del obs["actions"]["/pode2/dock"]
     del obs["services"]["/central/set_run_mode"]
     assert kinds(compare(contract, obs)) == [
         ("missing", "/central/set_run_mode"),
-        ("missing", "/pinky1/state"),
-        ("missing", "/pinky2/dock"),
+        ("missing", "/pode1/state"),
+        ("missing", "/pode2/dock"),
     ]
 
 
@@ -79,22 +79,22 @@ def test_durability_mismatch_on_publisher(contract):
 def test_incompatible_subscriber_is_reported(contract):
     """best_effort 토픽의 reliable 구독자는 아무것도 받지 못한다."""
     obs = healthy(contract)
-    obs["topics"]["/pinky1/state"]["subscribers"] = [QosSpec("reliable", "volatile", 5)]
-    assert ("qos", "/pinky1/state") in kinds(compare(contract, obs))
+    obs["topics"]["/pode1/state"]["subscribers"] = [QosSpec("reliable", "volatile", 5)]
+    assert ("qos", "/pode1/state") in kinds(compare(contract, obs))
 
 
 def test_depth_mismatch_is_warning_on_subscribers_error_on_publishers(contract):
     obs = healthy(contract)
-    obs["topics"]["/pinky1/state"]["subscribers"] = [QosSpec("best_effort", "volatile", 1)]
+    obs["topics"]["/pode1/state"]["subscribers"] = [QosSpec("best_effort", "volatile", 1)]
     assert [(p.kind, p.severity) for p in compare(contract, obs)] == [("qos", "warning")]
     obs = healthy(contract)
-    obs["topics"]["/pinky1/state"]["publishers"] = [QosSpec("best_effort", "volatile", 1)]
+    obs["topics"]["/pode1/state"]["publishers"] = [QosSpec("best_effort", "volatile", 1)]
     assert [p.severity for p in compare(contract, obs)] == ["error"]
 
 
 def test_topic_without_publishers_is_not_a_qos_problem(contract):
     obs = healthy(contract)
-    obs["topics"]["/pinky1/state"]["publishers"] = []
+    obs["topics"]["/pode1/state"]["publishers"] = []
     assert compare(contract, obs) == []
 
 
@@ -102,5 +102,5 @@ def test_real_only_entries_are_skipped_unless_asked(contract):
     obs = healthy(contract)
     assert compare(contract, obs) == []
     names = {p.name for p in compare(contract, obs, include_real_only=True)}
-    assert names == {f"/pinky{i}/{action}" for i in (1, 2, 3)
+    assert names == {f"/pode{i}/{action}" for i in (1, 2, 3)
                      for action in ("navigate_to_pose", "follow_path", "check_clear")}

@@ -51,7 +51,7 @@ def to_marker(spec, stamp) -> Marker:
 class FleetViewNode(Node):
     def __init__(self):
         super().__init__("fleet_view")
-        self.declare_parameter("robots", ["pinky1", "pinky2", "pinky3"])
+        self.declare_parameter("robots", ["pode1", "pode2", "pode3"])
         self.declare_parameter("map_file", "")  # layout name (d2, d, c) or file, "" = d2
         self.declare_parameter("pose_source", "truth")
         self.declare_parameter("contract_file", "")
@@ -69,9 +69,9 @@ class FleetViewNode(Node):
 
         sub(RobotStatusArray, "robots", self._on_robots)
         sub(ZoneStateArray, "zones", lambda msg: self.view.set_zones(msg.zones))
-        for robot in robots:  # current_goal: where each pinky is heading now
+        for robot in robots:  # current_goal: where each pode is heading now
             self.create_subscription(
-                RobotState, contract.name("robot_state", pinky=robot),
+                RobotState, contract.name("robot_state", pode=robot),
                 lambda msg, robot=robot: self.view.set_goal(robot, msg.current_goal),
                 to_ros_qos(contract.qos("robot_state")))
             self.create_subscription(

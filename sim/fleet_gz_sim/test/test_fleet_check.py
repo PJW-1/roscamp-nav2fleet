@@ -9,7 +9,7 @@ from fleet_core.fleet_map import load_fleet_map  # noqa: E402
 from fleet_gz_sim.fleet_check import FleetCheck  # noqa: E402
 
 SITE = load_fleet_map("d2")
-ROBOTS = ["pinky1", "pinky2", "pinky3"]
+ROBOTS = ["pode1", "pode2", "pode3"]
 W = SITE.node_pose("W")
 ZONE_W = SITE.nodes["W"].zone  # WORK_DOCK
 
@@ -20,37 +20,37 @@ def check(**kw):
 
 def test_min_distance_uses_samples_taken_at_about_the_same_time():
     c = check()
-    c.on_truth("pinky1", 1.00, 0.0, 0.0, 0.0, 0.0)
-    c.on_truth("pinky2", 1.02, 0.5, 0.0, 0.0, 0.0)
-    c.on_truth("pinky3", 1.03, 3.0, 0.0, 0.0, 0.0)
-    c.on_truth("pinky1", 5.00, 0.45, 0.0, 0.0, 0.0)  # pinky2's last sample is 4 s old
+    c.on_truth("pode1", 1.00, 0.0, 0.0, 0.0, 0.0)
+    c.on_truth("pode2", 1.02, 0.5, 0.0, 0.0, 0.0)
+    c.on_truth("pode3", 1.03, 3.0, 0.0, 0.0, 0.0)
+    c.on_truth("pode1", 5.00, 0.45, 0.0, 0.0, 0.0)  # pode2's last sample is 4 s old
     s = c.summary()
     assert s["min_distance_m"] == pytest.approx(0.5)
-    assert s["min_distance_pair"] == ["pinky1", "pinky2"]
+    assert s["min_distance_pair"] == ["pode1", "pode2"]
     assert s["min_distance_at_s"] == pytest.approx(1.02)
 
 
 def test_min_distance_compares_every_sample_inside_the_sync_window():
-    """pinky1 sends two samples before pinky2 sends one; the earlier one is the closer pair."""
+    """pode1 sends two samples before pode2 sends one; the earlier one is the closer pair."""
     c = check(sync_s=0.1)
-    c.on_truth("pinky1", 1.00, 0.30, 0.0, 0.0, 0.0)
-    c.on_truth("pinky1", 1.03, 0.60, 0.0, 0.0, 0.0)
-    c.on_truth("pinky2", 1.05, 0.0, 0.0, 0.0, 0.0)
+    c.on_truth("pode1", 1.00, 0.30, 0.0, 0.0, 0.0)
+    c.on_truth("pode1", 1.03, 0.60, 0.0, 0.0, 0.0)
+    c.on_truth("pode2", 1.05, 0.0, 0.0, 0.0, 0.0)
     assert c.summary()["min_distance_m"] == pytest.approx(0.30)
 
 
 def test_a_late_sample_still_meets_the_samples_of_its_time():
-    """Topics are handled with some delay; pinky2's 0.05 s sample may come after pinky1's 0.30 s."""
+    """Topics are handled with some delay; pode2's 0.05 s sample may come after pode1's 0.30 s."""
     c = check(sync_s=0.1)
-    c.on_truth("pinky1", 0.00, 0.20, 0.0, 0.0, 0.0)
-    c.on_truth("pinky1", 0.30, 0.90, 0.0, 0.0, 0.0)
-    c.on_truth("pinky2", 0.05, 0.0, 0.0, 0.0, 0.0)
+    c.on_truth("pode1", 0.00, 0.20, 0.0, 0.0, 0.0)
+    c.on_truth("pode1", 0.30, 0.90, 0.0, 0.0, 0.0)
+    c.on_truth("pode2", 0.05, 0.0, 0.0, 0.0, 0.0)
     assert c.summary()["min_distance_m"] == pytest.approx(0.20)
 
 
 def test_no_pair_seen_together_gives_no_distance():
     c = check()
-    c.on_truth("pinky1", 1.0, 0.0, 0.0, 0.0, 0.0)
+    c.on_truth("pode1", 1.0, 0.0, 0.0, 0.0, 0.0)
     assert c.summary()["min_distance_m"] is None
 
 
@@ -64,48 +64,48 @@ def drive(c, robot, t0, t1, speed, dt=0.1, turn=0.0):
 
 def test_a_stop_is_counted_once_after_moving_and_standing_long_enough():
     c = check(stop_min_s=0.5)
-    t = drive(c, "pinky1", 0.0, 2.0, 0.2)
-    t = drive(c, "pinky1", t, t + 0.3, 0.0)  # too short
-    t = drive(c, "pinky1", t, t + 1.0, 0.2)
-    t = drive(c, "pinky1", t, t + 3.0, 0.0)  # one stop, however long
-    s = c.summary()["robots"]["pinky1"]
+    t = drive(c, "pode1", 0.0, 2.0, 0.2)
+    t = drive(c, "pode1", t, t + 0.3, 0.0)  # too short
+    t = drive(c, "pode1", t, t + 1.0, 0.2)
+    t = drive(c, "pode1", t, t + 3.0, 0.0)  # one stop, however long
+    s = c.summary()["robots"]["pode1"]
     assert s["stops"] == 1
 
 
 def test_turning_on_the_spot_is_not_a_stop():
     c = check(stop_min_s=0.5)
-    t = drive(c, "pinky1", 0.0, 1.0, 0.2)
-    drive(c, "pinky1", t, t + 2.0, 0.0, turn=0.8)
-    assert c.summary()["robots"]["pinky1"]["stops"] == 0
+    t = drive(c, "pode1", 0.0, 1.0, 0.2)
+    drive(c, "pode1", t, t + 2.0, 0.0, turn=0.8)
+    assert c.summary()["robots"]["pode1"]["stops"] == 0
 
 
 def test_standing_from_the_start_is_not_a_stop():
     c = check(stop_min_s=0.5)
-    drive(c, "pinky1", 0.0, 5.0, 0.0)
-    assert c.summary()["robots"]["pinky1"]["stops"] == 0
+    drive(c, "pode1", 0.0, 5.0, 0.0)
+    assert c.summary()["robots"]["pode1"]["stops"] == 0
 
 
 def test_stops_while_the_robot_reports_moving_are_counted_apart():
     c = check(stop_min_s=0.5)
-    c.on_state("pinky1", "MOVING")
-    t = drive(c, "pinky1", 0.0, 1.0, 0.2)
-    t = drive(c, "pinky1", t, t + 1.0, 0.0)
-    c.on_state("pinky1", "IDLE")
-    t = drive(c, "pinky1", t, t + 1.0, 0.2)
-    drive(c, "pinky1", t, t + 1.0, 0.0)
-    s = c.summary()["robots"]["pinky1"]
+    c.on_state("pode1", "MOVING")
+    t = drive(c, "pode1", 0.0, 1.0, 0.2)
+    t = drive(c, "pode1", t, t + 1.0, 0.0)
+    c.on_state("pode1", "IDLE")
+    t = drive(c, "pode1", t, t + 1.0, 0.2)
+    drive(c, "pode1", t, t + 1.0, 0.0)
+    s = c.summary()["robots"]["pode1"]
     assert s["stops"] == 2 and s["stops_while_moving"] == 1
 
 
 def test_positions_count_as_outside_only_after_the_fleet_publishes_zones():
     c = check()
-    c.on_truth("pinky1", 1.0, *W, 0.0, 0.0)
-    assert c.summary()["robots"]["pinky1"]["outside_held_samples"] == 0
-    c.on_zones({ZONE_W: "pinky1"})
-    c.on_truth("pinky1", 1.1, W[0] + 2.0, W[1] + 2.0, 0.0, 0.0)
-    c.on_truth("pinky1", 1.2, *W, 0.0, 0.0)
-    c.on_truth("pinky1", 1.3, W[0] + 0.01, W[1], 0.0, 0.0)
-    s = c.summary()["robots"]["pinky1"]
+    c.on_truth("pode1", 1.0, *W, 0.0, 0.0)
+    assert c.summary()["robots"]["pode1"]["outside_held_samples"] == 0
+    c.on_zones({ZONE_W: "pode1"})
+    c.on_truth("pode1", 1.1, W[0] + 2.0, W[1] + 2.0, 0.0, 0.0)
+    c.on_truth("pode1", 1.2, *W, 0.0, 0.0)
+    c.on_truth("pode1", 1.3, W[0] + 0.01, W[1], 0.0, 0.0)
+    s = c.summary()["robots"]["pode1"]
     assert s["outside_held_samples"] == 1 and s["zone_samples"] == 3
     assert c.summary()["outside_held_samples"] == 1
 
@@ -113,19 +113,19 @@ def test_positions_count_as_outside_only_after_the_fleet_publishes_zones():
 def test_holding_no_zone_is_counted_apart_from_outside():
     """A robot that waits in a parking cell may hold nothing; that is not 'outside'."""
     c = check()
-    c.on_zones({ZONE_W: "pinky2"})
-    c.on_truth("pinky1", 1.0, *W, 0.0, 0.0)
+    c.on_zones({ZONE_W: "pode2"})
+    c.on_truth("pode1", 1.0, *W, 0.0, 0.0)
     s = c.summary()
-    assert s["robots"]["pinky1"]["outside_held_samples"] == 0
-    assert s["robots"]["pinky1"]["no_zone_held_samples"] == 1
+    assert s["robots"]["pode1"]["outside_held_samples"] == 0
+    assert s["robots"]["pode1"]["no_zone_held_samples"] == 1
     assert s["no_zone_held_samples"] == 1 and s["zone_samples"] == 1
 
 
 def test_far_from_every_held_zone_is_outside():
     c = check()
-    c.on_zones({ZONE_W: "pinky1"})
-    c.on_truth("pinky1", 1.0, W[0] + 2.0, W[1] + 2.0, 0.0, 0.0)
-    assert c.summary()["robots"]["pinky1"]["outside_held_samples"] == 1
+    c.on_zones({ZONE_W: "pode1"})
+    c.on_truth("pode1", 1.0, W[0] + 2.0, W[1] + 2.0, 0.0, 0.0)
+    assert c.summary()["robots"]["pode1"]["outside_held_samples"] == 1
 
 
 def a_point_off_zone_w(lo, hi):
@@ -142,16 +142,16 @@ def test_margin_forgives_a_few_centimetres():
     off = a_point_off_zone_w(0.02, 0.08)
     strict, loose = check(margin_m=0.0), check(margin_m=0.10)
     for c in (strict, loose):
-        c.on_zones({ZONE_W: "pinky1"})
-        c.on_truth("pinky1", 1.0, *off, 0.0, 0.0)
-    assert strict.summary()["robots"]["pinky1"]["outside_held_samples"] == 1
-    assert loose.summary()["robots"]["pinky1"]["outside_held_samples"] == 0
+        c.on_zones({ZONE_W: "pode1"})
+        c.on_truth("pode1", 1.0, *off, 0.0, 0.0)
+    assert strict.summary()["robots"]["pode1"]["outside_held_samples"] == 1
+    assert loose.summary()["robots"]["pode1"]["outside_held_samples"] == 0
 
 
 def test_summary_reports_time_spans_and_real_time_factor():
     c = check()
-    c.on_truth("pinky1", 10.0, 0.0, 0.0, 0.0, 0.0, wall=100.0)
-    c.on_truth("pinky1", 20.0, 0.0, 0.0, 0.0, 0.0, wall=120.0)
+    c.on_truth("pode1", 10.0, 0.0, 0.0, 0.0, 0.0, wall=100.0)
+    c.on_truth("pode1", 20.0, 0.0, 0.0, 0.0, 0.0, wall=120.0)
     s = c.summary()
     assert s["sim_span_s"] == pytest.approx(10.0)
     assert s["wall_span_s"] == pytest.approx(20.0)
@@ -160,8 +160,8 @@ def test_summary_reports_time_spans_and_real_time_factor():
 
 def test_unknown_robots_are_ignored():
     c = check()
-    c.on_truth("pinky9", 1.0, 0.0, 0.0, 0.0, 0.0)
-    c.on_state("pinky9", "MOVING")
+    c.on_truth("pode9", 1.0, 0.0, 0.0, 0.0, 0.0)
+    c.on_state("pode9", "MOVING")
     assert set(c.summary()["robots"]) == set(ROBOTS)
 
 
@@ -171,22 +171,22 @@ def test_unknown_robots_are_ignored():
 def test_a_robot_named_among_several_holders_holds_the_zone():
     """ZoneView.holder joins the robots of a shared zone with a comma (TRAFFIC_CONTRACT 3)."""
     c = check()
-    c.on_zones({"HALL": "pinky1,pinky3", ZONE_W: "pinky2"})
+    c.on_zones({"HALL": "pode1,pode3", ZONE_W: "pode2"})
     hall = SITE.node_pose("W_Q")
-    c.on_truth("pinky1", 1.0, *hall, 0.0, 0.0)
-    c.on_truth("pinky3", 1.0, *hall, 0.0, 0.0)
-    c.on_truth("pinky2", 1.0, *hall, 0.0, 0.0)  # holds only the dock, stands in the hall
+    c.on_truth("pode1", 1.0, *hall, 0.0, 0.0)
+    c.on_truth("pode3", 1.0, *hall, 0.0, 0.0)
+    c.on_truth("pode2", 1.0, *hall, 0.0, 0.0)  # holds only the dock, stands in the hall
     robots = c.summary()["robots"]
-    assert robots["pinky1"]["outside_held_samples"] == 0
-    assert robots["pinky3"]["outside_held_samples"] == 0
-    assert robots["pinky2"]["outside_held_samples"] == 1
+    assert robots["pode1"]["outside_held_samples"] == 0
+    assert robots["pode3"]["outside_held_samples"] == 0
+    assert robots["pode2"]["outside_held_samples"] == 1
 
 
 def test_a_name_that_only_starts_like_a_holder_is_not_one():
     c = check()
-    c.on_zones({ZONE_W: "pinky10"})
-    c.on_truth("pinky1", 1.0, *W, 0.0, 0.0)
-    assert c.summary()["robots"]["pinky1"]["no_zone_held_samples"] == 1
+    c.on_zones({ZONE_W: "pode10"})
+    c.on_truth("pode1", 1.0, *W, 0.0, 0.0)
+    assert c.summary()["robots"]["pode1"]["no_zone_held_samples"] == 1
 
 
 # keepout 침범 깊이(추가 지시서 3의 7-3): 마당에 있는 몸이 쥐지 않은 좁은 구역에 걸친 깊이
@@ -202,77 +202,77 @@ def test_a_body_corner_inside_a_zone_the_robot_does_not_hold_is_a_keepout_intrus
     """J_W is x 0.30..0.50, y 0.79..0.99. A robot in the yard at (0.40, 0.76) facing east has its
     north corners at y 0.82: 0.03 m inside."""
     c = body_check()
-    c.on_zones({"HALL": "pinky1"})
-    c.on_truth("pinky1", 1.0, 0.40, 0.60, 0.0, 0.0, yaw=0.0)
+    c.on_zones({"HALL": "pode1"})
+    c.on_truth("pode1", 1.0, 0.40, 0.60, 0.0, 0.0, yaw=0.0)
     assert c.summary()["keepout_depth_m"] == 0.0
-    c.on_truth("pinky1", 2.0, 0.40, 0.76, 0.0, 0.0, yaw=0.0)
+    c.on_truth("pode1", 2.0, 0.40, 0.76, 0.0, 0.0, yaw=0.0)
     s = c.summary()
     assert s["keepout_depth_m"] == pytest.approx(0.03)
-    assert (s["keepout_zone"], s["keepout_robot"], s["keepout_at_s"]) == ("J_W", "pinky1", 2.0)
-    assert s["robots"]["pinky1"]["keepout_samples"] == 1
-    assert s["robots"]["pinky1"]["keepout_depth_m"] == pytest.approx(0.03)
-    assert s["robots"]["pinky1"]["keepout_checked_samples"] == 2
-    assert s["robots"]["pinky2"]["keepout_depth_m"] is None, "never seen in a yard"
+    assert (s["keepout_zone"], s["keepout_robot"], s["keepout_at_s"]) == ("J_W", "pode1", 2.0)
+    assert s["robots"]["pode1"]["keepout_samples"] == 1
+    assert s["robots"]["pode1"]["keepout_depth_m"] == pytest.approx(0.03)
+    assert s["robots"]["pode1"]["keepout_checked_samples"] == 2
+    assert s["robots"]["pode2"]["keepout_depth_m"] is None, "never seen in a yard"
 
 
 def test_the_keepout_depth_follows_the_heading():
     c = body_check()
-    c.on_zones({"HALL": "pinky1"})
-    c.on_truth("pinky1", 1.0, 0.40, 0.72, 0.0, 0.0, yaw=math.pi / 4)
+    c.on_zones({"HALL": "pode1"})
+    c.on_truth("pode1", 1.0, 0.40, 0.72, 0.0, 0.0, yaw=math.pi / 4)
     assert c.summary()["keepout_depth_m"] == pytest.approx(
         0.72 + 0.06 * math.sqrt(2) - 0.79, abs=1e-3)
 
 
 def test_a_zone_the_robot_holds_or_has_just_left_is_no_intrusion():
     c = body_check(left_s=5.0)
-    c.on_zones({"HALL": "pinky1", "J_W": "pinky1"})
-    c.on_truth("pinky1", 1.0, 0.40, 0.76, 0.0, 0.0, yaw=0.0)
-    c.on_zones({"HALL": "pinky1", "J_W": ""})
-    c.on_truth("pinky1", 4.0, 0.40, 0.76, 0.0, 0.0, yaw=0.0)  # its tail is still leaving
+    c.on_zones({"HALL": "pode1", "J_W": "pode1"})
+    c.on_truth("pode1", 1.0, 0.40, 0.76, 0.0, 0.0, yaw=0.0)
+    c.on_zones({"HALL": "pode1", "J_W": ""})
+    c.on_truth("pode1", 4.0, 0.40, 0.76, 0.0, 0.0, yaw=0.0)  # its tail is still leaving
     assert c.summary()["keepout_depth_m"] == 0.0
-    c.on_truth("pinky1", 7.0, 0.40, 0.76, 0.0, 0.0, yaw=0.0)
+    c.on_truth("pode1", 7.0, 0.40, 0.76, 0.0, 0.0, yaw=0.0)
     assert c.summary()["keepout_depth_m"] == pytest.approx(0.03)
 
 
 def test_a_robot_on_a_fixed_line_is_not_measured_against_the_next_zone():
     """Its centre is in J_W (not a yard): what its nose does there is fixed-line driving."""
     c = body_check()
-    c.on_zones({"J_W": "pinky1"})
-    c.on_truth("pinky1", 1.0, 0.46, 0.89, 0.0, 0.0, yaw=0.0)  # nose 0.02 m into EXPRESS
+    c.on_zones({"J_W": "pode1"})
+    c.on_truth("pode1", 1.0, 0.46, 0.89, 0.0, 0.0, yaw=0.0)  # nose 0.02 m into EXPRESS
     assert c.summary()["keepout_depth_m"] is None, "not measured there"
-    c.on_truth("pinky2", 1.0, 0.40, 0.60, 0.0, 0.0, yaw=0.0)  # another robot, in the yard
+    c.on_truth("pode2", 1.0, 0.40, 0.60, 0.0, 0.0, yaw=0.0)  # another robot, in the yard
     assert c.summary()["keepout_depth_m"] == 0.0
 
 
 def test_the_keepout_depth_counts_only_after_the_fleet_publishes_zones():
     """Nothing measured is not 'no intrusion': the judge must not pass it (Codex review)."""
     c = body_check()
-    c.on_truth("pinky1", 1.0, 0.40, 0.76, 0.0, 0.0, yaw=0.0)
+    c.on_truth("pode1", 1.0, 0.40, 0.76, 0.0, 0.0, yaw=0.0)
     assert c.summary()["keepout_depth_m"] is None
-    c.on_zones({"HALL": "pinky1"})
-    c.on_truth("pinky1", 1.1, 0.40, 0.60, 0.0, 0.0)  # no heading
+    c.on_zones({"HALL": "pode1"})
+    c.on_truth("pode1", 1.1, 0.40, 0.60, 0.0, 0.0)  # no heading
     assert c.summary()["keepout_depth_m"] is None
-    c.on_truth("pinky1", 1.2, 0.40, 0.60, 0.0, 0.0, yaw=0.0)
+    c.on_truth("pode1", 1.2, 0.40, 0.60, 0.0, 0.0, yaw=0.0)
     assert c.summary()["keepout_depth_m"] == 0.0
 
 
 def test_a_zone_held_only_between_two_pose_samples_still_counts_as_just_left():
     c = body_check(left_s=5.0)
-    c.on_zones({"HALL": "pinky1"})
-    c.on_truth("pinky1", 1.0, 0.40, 0.60, 0.0, 0.0, yaw=0.0)
-    c.on_zones({"HALL": "pinky1", "J_W": "pinky1"})
-    c.on_zones({"HALL": "pinky1", "J_W": ""})
-    c.on_truth("pinky1", 1.1, 0.40, 0.76, 0.0, 0.0, yaw=0.0)
+    c.on_zones({"HALL": "pode1"})
+    c.on_truth("pode1", 1.0, 0.40, 0.60, 0.0, 0.0, yaw=0.0)
+    c.on_zones({"HALL": "pode1", "J_W": "pode1"})
+    c.on_zones({"HALL": "pode1", "J_W": ""})
+    c.on_truth("pode1", 1.1, 0.40, 0.76, 0.0, 0.0, yaw=0.0)
     assert c.summary()["keepout_depth_m"] == 0.0
-    c.on_truth("pinky1", 6.5, 0.40, 0.76, 0.0, 0.0, yaw=0.0)
+    c.on_truth("pode1", 6.5, 0.40, 0.76, 0.0, 0.0, yaw=0.0)
     assert c.summary()["keepout_depth_m"] == pytest.approx(0.03)
 
 
 def test_the_keepout_depth_is_not_rounded_down_to_the_limit():
     """0.0204 m must not read 0.020 against a 0.02 m limit."""
     c = body_check()
-    c.on_zones({"HALL": "pinky1"})
-    c.on_truth("pinky1", 1.0, 0.40, 0.79 + 0.0204 - 0.06, 0.0, 0.0, yaw=0.0)
+    c.on_zones({"HALL": "pode1"})
+    c.on_truth("pode1", 1.0, 0.40, 0.79 + 0.0204 - 0.06, 0.0, 0.0, yaw=0.0)
     assert c.summary()["keepout_depth_m"] > 0.0203
 
 
@@ -288,16 +288,16 @@ def test_a_zone_corner_that_cuts_into_a_side_of_the_body_is_measured():
         zone_at=lambda x, y: next((z.id for z in zones.values() for x0, y0, x1, y1 in z.rects
                                    if x0 <= x <= x1 and y0 <= y <= y1), None),
         distance_to_zone=SITE.distance_to_zone.__func__.__get__(SimpleNamespace(zones=zones)))
-    c = FleetCheck(site, ["pinky1"], body=BODY)
-    c.on_zones({"YARD": "pinky1"})
-    c.on_truth("pinky1", 1.0, 0.0, 0.0, 0.0, 0.0, yaw=0.0)
+    c = FleetCheck(site, ["pode1"], body=BODY)
+    c.on_zones({"YARD": "pode1"})
+    c.on_truth("pode1", 1.0, 0.0, 0.0, 0.0, 0.0, yaw=0.0)
     assert c.summary()["keepout_depth_m"] == pytest.approx(0.01, abs=1e-3)
 
 
 def test_without_a_body_the_keepout_depth_is_not_measured():
     c = check()
-    c.on_zones({"HALL": "pinky1"})
-    c.on_truth("pinky1", 1.0, 0.40, 0.76, 0.0, 0.0, yaw=0.0)
+    c.on_zones({"HALL": "pode1"})
+    c.on_truth("pode1", 1.0, 0.40, 0.76, 0.0, 0.0, yaw=0.0)
     assert c.summary()["keepout_depth_m"] is None
 
 
@@ -307,7 +307,7 @@ def test_the_body_is_the_footprint_nav2_runs_with():
     import yaml
     from fleet_gz_sim.fleet_check import footprint_of
     repo = Path(__file__).resolve().parents[3]
-    nav = yaml.safe_load((repo / "pinky/pinky_nav_config/params/nav2_params.yaml")
+    nav = yaml.safe_load((repo / "pode/pode_nav_config/params/nav2_params.yaml")
                          .read_text(encoding="utf-8"))
     body = footprint_of(nav)
     assert len(body) >= 4 and all(len(p) == 2 for p in body)

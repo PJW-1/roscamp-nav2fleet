@@ -10,63 +10,63 @@ from zone_harness import Harness
 
 
 def backing_out(silent_end=True):
-    """pinky1이 작업 도크에서 N_W로 물러나는 세계. silent_end면 끝에 닿아도 결과가 오지 않는다."""
-    world = Harness(starts={"pinky1": "W", "pinky2": "P-2", "pinky3": "P-3"})
+    """pode1이 작업 도크에서 N_W로 물러나는 세계. silent_end면 끝에 닿아도 결과가 오지 않는다."""
+    world = Harness(starts={"pode1": "W", "pode2": "P-2", "pode3": "P-3"})
     world.report()
-    world.call("OUTBOUND", "pinky1")
+    world.call("OUTBOUND", "pode1")
     world.run(0.5)
     answer = world.traffic.on_retreat_result
     if silent_end:
         world.traffic.on_retreat_result = lambda *args: None
-    return world, world.sent(RetreatCmd, "pinky1")[0], answer
+    return world, world.sent(RetreatCmd, "pode1")[0], answer
 
 
 def test_a_retreat_left_open_with_the_robot_at_its_end_is_taken_as_arrived():
     world, retreat, _ = backing_out()
-    assert world.run_until(lambda: "GOAL_STALLED" in world.codes("pinky1"), 30.0)
-    codes = world.codes("pinky1")
+    assert world.run_until(lambda: "GOAL_STALLED" in world.codes("pode1"), 30.0)
+    codes = world.codes("pode1")
     assert "GOAL_ENDED_AT_TARGET" in codes and "RETREAT_DONE" in codes
     assert "GOAL_RETRY" not in codes, "standing at the end is not a failed attempt"
-    assert [c.goal_id for c in world.sent(CancelCmd, "pinky1")] == [retreat.goal_id], \
+    assert [c.goal_id for c in world.sent(CancelCmd, "pode1")] == [retreat.goal_id], \
         "the open goal is cancelled"
-    assert world.view("pinky1")["node"] == "N_W"
-    assert world.run_until(lambda: world.sent(MoveCmd, "pinky1"), 10.0), "it goes on from N_W"
-    assert len(world.sent(RetreatCmd, "pinky1")) == 1, "the retreat is not sent again"
+    assert world.view("pode1")["node"] == "N_W"
+    assert world.run_until(lambda: world.sent(MoveCmd, "pode1"), 10.0), "it goes on from N_W"
+    assert len(world.sent(RetreatCmd, "pode1")) == 1, "the retreat is not sent again"
     assert not world.problems
 
 
 def test_a_retreat_answered_as_failed_with_the_robot_at_its_end_is_taken_as_arrived():
     world, retreat, answer = backing_out()
-    assert world.run_until(lambda: world.bots["pinky1"].cmd is None, 20.0), "it reached N_W"
+    assert world.run_until(lambda: world.bots["pode1"].cmd is None, 20.0), "it reached N_W"
     world.step()
-    answer("pinky1", retreat.goal_id, False, "FAILED")
+    answer("pode1", retreat.goal_id, False, "FAILED")
     world.step()
-    codes = world.codes("pinky1")
+    codes = world.codes("pode1")
     assert "GOAL_ENDED_AT_TARGET" in codes and "RETREAT_DONE" in codes
     assert "GOAL_RETRY" not in codes
-    assert world.view("pinky1")["node"] == "N_W"
-    assert not world.sent(CancelCmd, "pinky1"), "the goal has ended, nothing to cancel"
+    assert world.view("pode1")["node"] == "N_W"
+    assert not world.sent(CancelCmd, "pode1"), "the goal has ended, nothing to cancel"
 
 
 def test_a_retreat_that_fails_short_of_its_end_is_still_a_failed_attempt():
     world, retreat, answer = backing_out(silent_end=False)
-    answer("pinky1", retreat.goal_id, False, "FAILED")  # 아직 도크 앞이다
+    answer("pode1", retreat.goal_id, False, "FAILED")  # 아직 도크 앞이다
     world.step()
-    codes = world.codes("pinky1")
+    codes = world.codes("pode1")
     assert "GOAL_RETRY" in codes and "GOAL_ENDED_AT_TARGET" not in codes
-    assert world.view("pinky1")["node"] == "W"
+    assert world.view("pode1")["node"] == "W"
 
 
 def stopped_behind_short_of_the_end():
-    """pinky1이 작업 도크에서 N_W로 물러나다가 끝에서 0.14 m 안(도착 허용 거리 0.15 m 안, 갈림목
+    """pode1이 작업 도크에서 N_W로 물러나다가 끝에서 0.14 m 안(도착 허용 거리 0.15 m 안, 갈림목
     안)에 서고, 뒤에 무엇이 있다고 답한다."""
     world, retreat, answer = backing_out(silent_end=False)
-    bot, end = world.bots["pinky1"], world.site.node_pose("N_W")
+    bot, end = world.bots["pode1"], world.site.node_pose("N_W")
     assert world.run_until(lambda: math.dist((bot.x, bot.y), end) <= 0.14, 20.0)
     assert math.dist((bot.x, bot.y), end) > world.params.arrival_tolerance_m / 2
     bot.cmd, bot.points = None, []
     world.step()
-    answer("pinky1", retreat.goal_id, False, "OBSTACLE_BEHIND")
+    answer("pode1", retreat.goal_id, False, "OBSTACLE_BEHIND")
     world.step()
     return world, retreat
 
@@ -77,30 +77,30 @@ def test_a_retreat_stopped_by_something_behind_short_of_its_end_is_not_taken_as_
     쳤고, 갈림목 안에서 받은 Nav2 goal이 세 번 실패해 격리됐다. 뒤가 막혀 선 로봇은 선을 따라
     남은 길이 허용 거리의 절반을 넘으면 닿은 것이 아니다: 뒤가 빌 때까지 기다린다."""
     world, _ = stopped_behind_short_of_the_end()
-    codes = world.codes("pinky1")
+    codes = world.codes("pode1")
     assert "GOAL_ENDED_AT_TARGET" not in codes and "RETREAT_DONE" not in codes
     assert "RETREAT_WAIT" in codes and "GOAL_RETRY" not in codes
-    assert world.view("pinky1")["node"] == "W"
-    assert not world.sent(MoveCmd, "pinky1"), "no Nav2 goal from inside the junction"
+    assert world.view("pode1")["node"] == "W"
+    assert not world.sent(MoveCmd, "pode1"), "no Nav2 goal from inside the junction"
 
 
 def test_a_retreat_stopped_by_something_behind_backs_out_again_when_it_is_gone():
     world, retreat = stopped_behind_short_of_the_end()
-    assert world.run_until(lambda: len(world.sent(RetreatCmd, "pinky1")) == 2, 10.0)
-    assert world.run_until(lambda: "RETREAT_DONE" in world.codes("pinky1"), 20.0)
-    assert world.view("pinky1")["node"] == "N_W" and not world.problems
+    assert world.run_until(lambda: len(world.sent(RetreatCmd, "pode1")) == 2, 10.0)
+    assert world.run_until(lambda: "RETREAT_DONE" in world.codes("pode1"), 20.0)
+    assert world.view("pode1")["node"] == "N_W" and not world.problems
 
 
 def test_a_robot_sent_somewhere_else_forgets_how_long_something_was_behind():
     """Codex 검수(2026-11-15): 뒤가 막혀 기다리던 로봇의 배차가 취소되면 가던 길은 버리는데 기다린
     시각은 남았다. 나중의 다른 후진이 그 시각부터 blocked_timeout_s를 셌다."""
-    world = Harness(starts={"pinky1": "W", "pinky2": "P-2", "pinky3": "P-3"})
+    world = Harness(starts={"pode1": "W", "pode2": "P-2", "pode3": "P-3"})
     world.report()
-    call = world.call("OUTBOUND", "pinky1")
+    call = world.call("OUTBOUND", "pode1")
     world.run(0.5)
-    [retreat] = world.sent(RetreatCmd, "pinky1")
-    world.traffic.on_retreat_result("pinky1", retreat.goal_id, False, "OBSTACLE_BEHIND")
-    m = world.traffic._robots["pinky1"]
+    [retreat] = world.sent(RetreatCmd, "pode1")
+    world.traffic.on_retreat_result("pode1", retreat.goal_id, False, "OBSTACLE_BEHIND")
+    m = world.traffic._robots["pode1"]
     assert m.behind_since is not None
     world.traffic.on_dispatch_cancel(call)
     world.traffic.tick_pick()
@@ -111,101 +111,101 @@ def test_a_move_that_arrives_forgets_how_long_something_was_behind():
     """기다린 시각은 이어지는 후진 실패에만 쓴다. 다른 구간이 끝나면 남지 않는다."""
     world = Harness()
     world.step()
-    world.call("WORK", "pinky2")
+    world.call("WORK", "pode2")
     world.run(0.5)
-    m = world.traffic._robots["pinky2"]
+    m = world.traffic._robots["pode2"]
     m.behind_since = 0.0
-    assert world.run_until(lambda: world.view("pinky2")["node"] != "P-2", 30.0)
+    assert world.run_until(lambda: world.view("pode2")["node"] != "P-2", 30.0)
     assert m.behind_since is None
 
 
 def test_a_move_left_open_short_of_its_end_is_still_a_stall():
     world = Harness()
     world.step()
-    world.call("WORK", "pinky2")
+    world.call("WORK", "pode2")
     world.run(1.0)
-    world.bots["pinky2"].cmd = None  # 로봇이 가다가 섰고 결과도 오지 않는다
-    assert world.run_until(lambda: "GOAL_STALLED" in world.codes("pinky2"), 30.0)
-    codes = world.codes("pinky2")
+    world.bots["pode2"].cmd = None  # 로봇이 가다가 섰고 결과도 오지 않는다
+    assert world.run_until(lambda: "GOAL_STALLED" in world.codes("pode2"), 30.0)
+    codes = world.codes("pode2")
     assert "GOAL_RETRY" in codes and "GOAL_ENDED_AT_TARGET" not in codes
 
 
 def test_a_move_answered_as_failed_with_the_robot_at_its_end_is_taken_as_arrived():
     world = Harness()
     world.step()
-    world.call("WORK", "pinky2")
+    world.call("WORK", "pode2")
     world.step()
-    first = world.sent(MoveCmd, "pinky2")[0]
+    first = world.sent(MoveCmd, "pode2")[0]
     answer, world.traffic.on_move_result = world.traffic.on_move_result, lambda *args: None
-    assert world.run_until(lambda: world.bots["pinky2"].cmd is None, 60.0), "it reached N_W"
+    assert world.run_until(lambda: world.bots["pode2"].cmd is None, 60.0), "it reached N_W"
     world.step()
-    answer("pinky2", first.goal_id, False, "NAV_ABORTED")
-    codes = world.codes("pinky2")
+    answer("pode2", first.goal_id, False, "NAV_ABORTED")
+    codes = world.codes("pode2")
     world.step()
-    assert "GOAL_ENDED_AT_TARGET" in world.codes("pinky2") and "GOAL_RETRY" not in codes
-    assert world.view("pinky2")["node"] == first.target_id
+    assert "GOAL_ENDED_AT_TARGET" in world.codes("pode2") and "GOAL_RETRY" not in codes
+    assert world.view("pode2")["node"] == first.target_id
 
 
 def test_the_next_goal_waits_until_the_cancel_of_the_open_goal_has_reached_the_robot():
     world, retreat, _ = backing_out()
-    assert world.run_until(lambda: "GOAL_ENDED_AT_TARGET" in world.codes("pinky1"), 30.0)
+    assert world.run_until(lambda: "GOAL_ENDED_AT_TARGET" in world.codes("pode1"), 30.0)
     world.run(world.params.arrival_settle_s - 0.2)
-    assert not world.sent(MoveCmd, "pinky1"), "the cancel may still be on its way"
-    assert world.run_until(lambda: world.sent(MoveCmd, "pinky1"), 2.0)
+    assert not world.sent(MoveCmd, "pode1"), "the cancel may still be on its way"
+    assert world.run_until(lambda: world.sent(MoveCmd, "pode1"), 2.0)
 
 
 # ---- 위치를 믿을 수 없으면 닿았다고 보지 않는다 ----
 
 def at_the_end_unanswered():
     world, retreat, answer = backing_out()
-    assert world.run_until(lambda: world.bots["pinky1"].cmd is None, 20.0), "it reached N_W"
+    assert world.run_until(lambda: world.bots["pode1"].cmd is None, 20.0), "it reached N_W"
     world.step()
     return world, retreat, answer
 
 
 def test_a_failure_heard_after_the_reports_stopped_is_not_taken_as_arrived():
     world, retreat, answer = at_the_end_unanswered()
-    world.silent.add("pinky1")
+    world.silent.add("pode1")
     world.run(world.params.arrival_settle_s + 0.5)  # 아직 COMM_LOST는 아니다
-    answer("pinky1", retreat.goal_id, False, "FAILED")
+    answer("pode1", retreat.goal_id, False, "FAILED")
     world.step()
-    codes = world.codes("pinky1")
+    codes = world.codes("pode1")
     assert "GOAL_RETRY" in codes and "GOAL_ENDED_AT_TARGET" not in codes
 
 
 def test_a_failure_from_a_robot_that_has_lost_its_position_is_not_taken_as_arrived():
     world, retreat, answer = at_the_end_unanswered()
-    bot = world.bots["pinky1"]
-    world.traffic.on_robot_state("pinky1", bot.x, bot.y, bot.yaw, "LOCALIZING")
-    answer("pinky1", retreat.goal_id, False, "FAILED")
+    bot = world.bots["pode1"]
+    world.traffic.on_robot_state("pode1", bot.x, bot.y, bot.yaw, "LOCALIZING")
+    answer("pode1", retreat.goal_id, False, "FAILED")
     codes = [e.code for e in world.traffic.take_output() if hasattr(e, "code")]
     assert "GOAL_RETRY" in codes and "GOAL_ENDED_AT_TARGET" not in codes
 
 
 def test_a_robot_that_stopped_itself_without_the_heartbeat_keeps_its_own_handling():
     world, retreat, answer = at_the_end_unanswered()
-    answer("pinky1", retreat.goal_id, False, "HEARTBEAT_LOST")
+    answer("pode1", retreat.goal_id, False, "HEARTBEAT_LOST")
     world.step()
-    codes = world.codes("pinky1")
+    codes = world.codes("pode1")
     assert "GOAL_ENDED_AT_TARGET" not in codes and "GOAL_RETRY" not in codes
 
 
 # ---- 로봇이 닿았다고 한 것이 아니면 끝에 더 가까워야 한다 ----
 
 def aborted_short_of_the_end(gap_m: float):
-    """pinky2의 첫 Nav2 goal이 끝 지점에서 gap_m 못 미친 곳에서 실패로 끝난 세계."""
+    """pode2의 첫 Nav2 goal이 끝 지점에서 gap_m 못 미친 곳에서 실패로 끝난 세계."""
     world = Harness()
     world.step()
-    world.call("WORK", "pinky2")
+    world.call("WORK", "pode2")
     world.step()
-    first = world.sent(MoveCmd, "pinky2")[0]
-    bot = world.bots["pinky2"]
+    first = world.sent(MoveCmd, "pode2")[0]
+    bot = world.bots["pode2"]
     reach = math.dist((bot.x, bot.y), (first.x, first.y))
     bot.cmd = None  # 가다가 섰다. 결과는 아래에서 넣는다
     bot.x = first.x + (bot.x - first.x) * gap_m / reach
     bot.y = first.y + (bot.y - first.y) * gap_m / reach
     world.step()
-    world.traffic.on_move_result("pinky2", first.goal_id, False, "NAV_ABORTED")
+    world.traffic.on_move_result("pode2", first.goal_id, False, "NAV_ABORTED")
     world.step()
     return world, first
 
@@ -216,31 +216,31 @@ def test_a_failed_move_that_stopped_inside_the_tolerance_but_short_of_the_end_is
     (ROS 시나리오 shared_lane_failure에서 나왔다: 보고 0.128 m, 실제 약 0.19 m)."""
     world, first = aborted_short_of_the_end(0.10)
     assert world.params.arrival_tolerance_m == 0.15
-    codes = world.codes("pinky2")
+    codes = world.codes("pode2")
     assert "GOAL_RETRY" in codes and "GOAL_ENDED_AT_TARGET" not in codes
-    assert world.view("pinky2")["node"] != first.target_id
-    assert world.run_until(lambda: world.view("pinky2")["node"] == first.target_id, 30.0)
-    again = [c for c in world.sent(MoveCmd, "pinky2") if c.target_id == first.target_id]
+    assert world.view("pode2")["node"] != first.target_id
+    assert world.run_until(lambda: world.view("pode2")["node"] == first.target_id, 30.0)
+    again = [c for c in world.sent(MoveCmd, "pode2") if c.target_id == first.target_id]
     assert len(again) == 2 and not again[1].path, "the same Nav2 goal is sent once more"
-    assert "GOAL_ENDED_AT_TARGET" not in world.codes("pinky2") and not world.problems
+    assert "GOAL_ENDED_AT_TARGET" not in world.codes("pode2") and not world.problems
 
 
 def test_a_failed_move_that_stopped_at_the_end_within_its_stop_error_is_taken_as_arrived():
     world, first = aborted_short_of_the_end(0.05)
-    codes = world.codes("pinky2")
+    codes = world.codes("pode2")
     assert "GOAL_ENDED_AT_TARGET" in codes and "GOAL_RETRY" not in codes
-    assert world.view("pinky2")["node"] == first.target_id
+    assert world.view("pode2")["node"] == first.target_id
 
 
 def test_a_failed_retreat_with_the_robot_beside_its_end_is_still_taken_as_arrived():
     """후진은 선을 따라가므로 끝까지 온 로봇에게 다시 보내면 남은 길이 없어 바로 실패한다
-    (pinky_fsm의 _too_short). 끝 점에서 옆으로 벗어나 있어도 도착 허용 거리 안이면 닿은 것이다."""
+    (pode_fsm의 _too_short). 끝 점에서 옆으로 벗어나 있어도 도착 허용 거리 안이면 닿은 것이다."""
     world, retreat, answer = at_the_end_unanswered()
-    world.bots["pinky1"].y -= 0.10  # 선의 옆으로. 선을 따라서는 끝에 있다
+    world.bots["pode1"].y -= 0.10  # 선의 옆으로. 선을 따라서는 끝에 있다
     world.step()
-    answer("pinky1", retreat.goal_id, False, "FAILED")
+    answer("pode1", retreat.goal_id, False, "FAILED")
     world.step()
-    codes = world.codes("pinky1")
+    codes = world.codes("pode1")
     assert "GOAL_ENDED_AT_TARGET" in codes and "RETREAT_DONE" in codes
     assert "GOAL_RETRY" not in codes
 
@@ -248,14 +248,14 @@ def test_a_failed_retreat_with_the_robot_beside_its_end_is_still_taken_as_arrive
 # ---- 짧은 고정 경로: 출발점도 끝 지점의 허용 거리 안이다 ----
 
 def backing_into_the_bay():
-    """v7: pinky1이 칸 입구 E-1에서 P-1로 후진해 들어가려 한다. E-1과 P-1은 0.14 m 떨어져 있어
+    """v7: pode1이 칸 입구 E-1에서 P-1로 후진해 들어가려 한다. E-1과 P-1은 0.14 m 떨어져 있어
     도착 허용 거리(0.15 m)보다 가깝다. 후진은 움직이지 않고, 결과도 저절로 오지 않는다."""
-    world = Harness(layout="v7", starts={"pinky1": "E-1", "pinky2": "P-2", "pinky3": "P-3"})
+    world = Harness(layout="v7", starts={"pode1": "E-1", "pode2": "P-2", "pode3": "P-3"})
     world.report()
     answer, world.traffic.on_retreat_result = world.traffic.on_retreat_result, lambda *args: None
     world.step()
-    retreat = world.sent(RetreatCmd, "pinky1")[0]
-    bot = world.bots["pinky1"]
+    retreat = world.sent(RetreatCmd, "pode1")[0]
+    bot = world.bots["pode1"]
     bot.cmd, bot.points = None, []  # 로봇이 후진을 시작하지 못했다
     bot.x, bot.y = world.site.node_pose("E-1")
     world.step()
@@ -266,72 +266,72 @@ def test_a_bay_retreat_that_failed_at_the_entrance_is_not_taken_as_parked():
     world, retreat, answer = backing_into_the_bay()
     gap = math.dist(world.site.node_pose("E-1"), world.site.node_pose("P-1"))
     assert gap < world.params.arrival_tolerance_m
-    answer("pinky1", retreat.goal_id, False, "FAILED")
+    answer("pode1", retreat.goal_id, False, "FAILED")
     world.step()
-    codes = world.codes("pinky1")
+    codes = world.codes("pode1")
     assert "GOAL_ENDED_AT_TARGET" not in codes and "RETREAT_DONE" not in codes
     assert "GOAL_RETRY" in codes
-    assert world.view("pinky1")["node"] == "E-1"
+    assert world.view("pode1")["node"] == "E-1"
 
 
 def test_a_bay_retreat_left_open_at_the_entrance_is_a_stall_not_an_arrival():
     world, _, _ = backing_into_the_bay()
-    assert world.run_until(lambda: "GOAL_STALLED" in world.codes("pinky1"), 30.0)
-    codes = world.codes("pinky1")
+    assert world.run_until(lambda: "GOAL_STALLED" in world.codes("pode1"), 30.0)
+    codes = world.codes("pode1")
     assert "GOAL_ENDED_AT_TARGET" not in codes and "GOAL_RETRY" in codes
-    assert world.view("pinky1")["node"] == "E-1"
+    assert world.view("pode1")["node"] == "E-1"
 
 
 def test_a_bay_retreat_that_failed_most_of_the_way_in_is_taken_as_parked():
     world, retreat, answer = backing_into_the_bay()
-    world.bots["pinky1"].y = world.site.node_pose("P-1")[1] + 0.03  # 칸 안, 끝에서 0.03 m
+    world.bots["pode1"].y = world.site.node_pose("P-1")[1] + 0.03  # 칸 안, 끝에서 0.03 m
     world.step()
-    answer("pinky1", retreat.goal_id, False, "FAILED")
+    answer("pode1", retreat.goal_id, False, "FAILED")
     world.step()
-    codes = world.codes("pinky1")
+    codes = world.codes("pode1")
     assert "GOAL_ENDED_AT_TARGET" in codes and "RETREAT_DONE" in codes
-    assert world.view("pinky1")["node"] == "P-1"
+    assert world.view("pode1")["node"] == "P-1"
 
 
 def comm_back_during_the_bay_retreat(short_of_p1_m=None):
     """칸 후진 중에 보고가 끊겼다가 돌아와 관제가 선 자리를 확인한 세계. short_of_p1_m이 있으면
     끊긴 동안 로봇이 칸 안, P-1에서 그만큼 앞으로 옮겨 있다."""
     world, _, answer = backing_into_the_bay()
-    world.silent.add("pinky1")
-    assert world.run_until(lambda: "COMM_LOST" in world.codes("pinky1"), 10.0)
+    world.silent.add("pode1")
+    assert world.run_until(lambda: "COMM_LOST" in world.codes("pode1"), 10.0)
     world.traffic.on_retreat_result = answer  # 다시 보낸 후진의 결과는 관제에 닿는다
     if short_of_p1_m is not None:
-        world.bots["pinky1"].y = world.site.node_pose("P-1")[1] + short_of_p1_m
-    world.silent.discard("pinky1")
-    assert world.run_until(lambda: "COMM_RESTORED" in world.codes("pinky1"), 5.0)
+        world.bots["pode1"].y = world.site.node_pose("P-1")[1] + short_of_p1_m
+    world.silent.discard("pode1")
+    assert world.run_until(lambda: "COMM_RESTORED" in world.codes("pode1"), 5.0)
     world.run(world.params.recover_check_s + 0.2)
     return world
 
 
 def test_a_robot_heard_again_at_the_bay_entrance_is_not_taken_as_parked():
     world = comm_back_during_the_bay_retreat()
-    assert world.view("pinky1")["node"] == "E-1"
-    assert len(world.sent(RetreatCmd, "pinky1")) == 2, "the bay retreat is sent again"
-    assert world.run_until(lambda: world.phase("pinky1") == "PARKED", 10.0)
-    assert world.bots["pinky1"].y == world.site.node_pose("P-1")[1], "it really backed in"
+    assert world.view("pode1")["node"] == "E-1"
+    assert len(world.sent(RetreatCmd, "pode1")) == 2, "the bay retreat is sent again"
+    assert world.run_until(lambda: world.phase("pode1") == "PARKED", 10.0)
+    assert world.bots["pode1"].y == world.site.node_pose("P-1")[1], "it really backed in"
     assert not world.problems
 
 
 def test_a_robot_heard_again_most_of_the_way_into_the_bay_is_taken_as_parked():
     world = comm_back_during_the_bay_retreat(short_of_p1_m=0.03)
-    assert world.view("pinky1")["node"] == "P-1"
-    assert world.phase("pinky1") == "PARKED"
-    assert len(world.sent(RetreatCmd, "pinky1")) == 1
+    assert world.view("pode1")["node"] == "P-1"
+    assert world.phase("pode1") == "PARKED"
+    assert len(world.sent(RetreatCmd, "pode1")) == 1
 
 
 def test_a_short_reverse_link_failed_near_its_end_is_taken_as_reached():
     """후진 링크가 짧으면(0.03) 절반을 못 갔어도 끝에 허용치 절반(0.075) 안이면 닿은 것으로 본다.
-    다시 보내면 pinky_fsm의 가장 짧은 후진(backup_min_m 0.02)보다 짧아 곧바로 실패한다(Codex 검수
+    다시 보내면 pode_fsm의 가장 짧은 후진(backup_min_m 0.02)보다 짧아 곧바로 실패한다(Codex 검수
     821c18d). 칸 입구에 그대로 선 로봇(0.14)은 여전히 닿지 않았다."""
     from types import SimpleNamespace
 
     from fleet_core.fleet_map import RETREAT, Link
-    world = Harness(layout="v7", starts={"pinky1": "P-1"})
+    world = Harness(layout="v7", starts={"pode1": "P-1"})
     traffic, limit = world.traffic, world.params.arrival_tolerance_m
     short = Link("", "P-1", RETREAT, "", ((0.12, 0.13), (0.12, 0.10)), ("HALL",), 0.03)
     assert traffic._link_reached(SimpleNamespace(x=0.12, y=0.118), short, limit)

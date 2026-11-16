@@ -45,17 +45,17 @@ STUB_WORDS = ("sim_dock_stub", "dock_stub", "sim_stand_in", "\"fleet_gz_sim\"", 
 
 
 def real_launch_files() -> list[Path]:
-    """Launch files a real run starts from: the PC bringup, the fakes it includes, the pinky."""
+    """Launch files a real run starts from: the PC bringup, the fakes it includes, the pode."""
     found = sorted((REPO / "bringup").rglob("*.launch.py"))
     found += sorted((REPO / "sim" / "fake_robots" / "launch").glob("*.launch.py"))
-    found += sorted((REPO / "pinky").glob("*/launch/*.launch.py"))
+    found += sorted((REPO / "pode").glob("*/launch/*.launch.py"))
     return found
 
 
 def test_no_real_launch_file_names_the_stub():
     files = real_launch_files()
     assert any(f.name == "pc.launch.py" for f in files)
-    assert any(f.name == "pinky_fsm.launch.py" for f in files)
+    assert any(f.name == "pode_fsm.launch.py" for f in files)
     for path in files:
         text = path.read_text(encoding="utf-8")
         for word in STUB_WORDS:
@@ -259,13 +259,13 @@ def _docking_stub(ros, monkeypatch, sim_of_wall, duration=0.0):
     monkeypatch.setattr(stand_in_node, "stub_may_answer", lambda active, now: True)
     monkeypatch.setattr(node, "_now", lambda: sim_of_wall(wall.t))
     x, y = node._site.node_pose(node._site.stations["WORK"].dock)[:2]
-    node._pose["pinky1"] = (x, y, 0.0)
+    node._pose["pode1"] = (x, y, 0.0)
     return node, wall
 
 
 def _dock(node):
     handle = _Handle("WORK")
-    result = node._dock("pinky1", handle)
+    result = node._dock("pode1", handle)
     return result.success, handle.ended
 
 
@@ -326,13 +326,13 @@ def test_the_stand_in_hosts_no_peer_nodes_unless_asked(ros):
 
 def test_the_stand_in_hosts_a_peer_node_for_every_robot_when_asked(ros):
     """다른 로봇의 몸을 costmap에 넣는 노드(임시, 주행 시험용)를 로봇마다 이 프로세스에 둔다."""
-    pytest.importorskip("pinky_peer_obstacles")
+    pytest.importorskip("pode_peer_obstacles")
     from fleet_gz_sim.stand_in_node import peer_nodes
     node = stand_in(ros, use_sim_time=True, peer_obstacles=True)
     peers = peer_nodes(node)
     try:
-        assert [peer.get_namespace() for peer in peers] == ["/pinky1", "/pinky2", "/pinky3"]
-        assert [peer.robot_id for peer in peers] == ["pinky1", "pinky2", "pinky3"]
+        assert [peer.get_namespace() for peer in peers] == ["/pode1", "/pode2", "/pode3"]
+        assert [peer.robot_id for peer in peers] == ["pode1", "pode2", "pode3"]
         assert all(peer.get_parameter("use_sim_time").value for peer in peers)
     finally:
         for each in (node, *peers):

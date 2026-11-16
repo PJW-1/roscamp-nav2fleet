@@ -83,7 +83,7 @@ class ScenarioMonitorNode(Node):
                 msg_type, contract.name(key, **names), callback, to_ros_qos(contract.qos(key)))
 
         for robot in scenario.robots:
-            sub(RobotState, "robot_state", self._on_robot, pinky=robot)
+            sub(RobotState, "robot_state", self._on_robot, pode=robot)
             self.create_subscription(
                 RobotState, TRUTH_TOPIC.format(robot=robot), self._on_truth,
                 to_ros_qos(contract.qos("robot_state")))

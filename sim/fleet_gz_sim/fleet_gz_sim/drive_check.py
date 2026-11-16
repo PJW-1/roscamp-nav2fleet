@@ -1,4 +1,4 @@
-"""관제 없이 Gazebo 핑키 한 대에 이동을 바로 보내고 2단계 지표를 잰다(지시서 6-3, 7절 2단계).
+"""관제 없이 Gazebo Pode 한 대에 이동을 바로 보내고 2단계 지표를 잰다(지시서 6-3, 7절 2단계).
 
     ros2 run fleet_gz_sim drive_check --layout d2 --plan stage2 --laps 3 --json out.json
 
@@ -67,13 +67,13 @@ class DriveCheck(Node):
         self.states: list[str] = []
         self.truth: list[tuple[float, float, float, float]] = []  # (sim t, x, y, yaw)
         self.plans: list[list[tuple[float, float]]] = []
-        self.create_subscription(RobotState, contract.name("robot_state", pinky=robot),
+        self.create_subscription(RobotState, contract.name("robot_state", pode=robot),
                                  self._on_state, to_ros_qos(contract.qos("robot_state")))
         self.create_subscription(Odometry, f"/{robot}/sim/truth", self._on_truth,
                                  qos_profile_sensor_data)
         self.create_subscription(Path, f"/{robot}/plan", self._on_plan, 10)
-        self.move = ActionClient(self, MoveTo, contract.name("move_to", pinky=robot))
-        self.retreat = ActionClient(self, Retreat, contract.name("retreat", pinky=robot))
+        self.move = ActionClient(self, MoveTo, contract.name("move_to", pode=robot))
+        self.retreat = ActionClient(self, Retreat, contract.name("retreat", pode=robot))
         self.beat = self.create_publisher(Header, contract.name("heartbeat"),
                                           to_ros_qos(contract.qos("heartbeat")))
         self.create_timer(HEARTBEAT_PERIOD_S,
@@ -189,7 +189,7 @@ def run(args) -> dict:
     try:
         if not (node.move.wait_for_server(timeout_sec=30.0)
                 and node.retreat.wait_for_server(timeout_sec=30.0)):
-            raise RuntimeError("move_to or retreat server not found: is pinky_fsm running?")
+            raise RuntimeError("move_to or retreat server not found: is pode_fsm running?")
         if not wait_for(lambda: node.state is not None and node.state.state == "IDLE"
                         and node.last_truth() is not None, 90.0):
             raise RuntimeError("robot is not IDLE with a pose (AMCL, Gazebo truth)")
@@ -216,7 +216,7 @@ def run(args) -> dict:
 
 def main(argv=None) -> None:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument("--robot", default="pinky1")
+    parser.add_argument("--robot", default="pode1")
     parser.add_argument("--layout", default="d2")
     parser.add_argument("--plan", default="stage2")
     parser.add_argument("--laps", type=int, default=1)

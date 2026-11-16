@@ -27,7 +27,7 @@ def serve_three(world: Harness) -> bool:
 def blocked_express(world: Harness) -> bool:
     """작업 도크에서 출고 도크로 가는 길에 급행 한가운데가 막혀 있다."""
     world.report()
-    call = world.call("OUTBOUND", "pinky1")
+    call = world.call("OUTBOUND", "pode1")
     world.obstacles.append((1.0, 0.89, 0.15))
     return world.run_until(lambda: world.result_of(call) is not None, 200.0)
 
@@ -35,18 +35,18 @@ def blocked_express(world: Harness) -> bool:
 def busy_outbound(world: Harness, hold_s: float = 40.0) -> bool:
     """출고 도크를 한 대가 오래 쓰는 동안 다른 한 대가 출고 도크로 불린다."""
     world.report()
-    first = world.call("OUTBOUND", "pinky2")
+    first = world.call("OUTBOUND", "pode2")
     assert world.run_until(lambda: world.result_of(first) is not None, 30.0)
-    call = world.call("OUTBOUND", "pinky1")
+    call = world.call("OUTBOUND", "pode1")
     world.run(hold_s)
-    world.traffic.on_release("pinky2")
+    world.traffic.on_release("pode2")
     return world.run_until(lambda: world.result_of(call) is not None, 200.0)
 
 
 SCENARIOS = {
     "serve_three": (serve_three, None),
-    "blocked_express": (blocked_express, {"pinky1": "W", "pinky2": "P-2", "pinky3": "P-3"}),
-    "busy_outbound": (busy_outbound, {"pinky1": "W", "pinky2": "O", "pinky3": "P-3"}),
+    "blocked_express": (blocked_express, {"pode1": "W", "pode2": "P-2", "pode3": "P-3"}),
+    "busy_outbound": (busy_outbound, {"pode1": "W", "pode2": "O", "pode3": "P-3"}),
 }
 
 

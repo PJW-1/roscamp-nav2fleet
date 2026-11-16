@@ -47,7 +47,7 @@ class Motion:
         self._skip_passed()
 
     def _skip_passed(self) -> None:
-        """path 위 가장 가까운 점(모든 선분 중, 같으면 뒤 선분)에서 시작한다. pinky_fsm처럼
+        """path 위 가장 가까운 점(모든 선분 중, 같으면 뒤 선분)에서 시작한다. pode_fsm처럼
         그 선분 앞의 꼭짓점은 지난 것이다. 첫 점을 모르면 마지막으로 지난 점부터 잰다."""
         if not self.via:
             return

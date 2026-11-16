@@ -85,7 +85,7 @@ nav2_active() {
   local start=$SECONDS left
   while left=$(( 180 - (SECONDS - start) )); [ "$left" -gt 0 ]; do
     timeout "$(( left < 10 ? left : 10 ))" ros2 service call \
-      /pinky1/lifecycle_manager_navigation/is_active std_srvs/srv/Trigger 2> /dev/null \
+      /pode1/lifecycle_manager_navigation/is_active std_srvs/srv/Trigger 2> /dev/null \
       | grep -q "success=True" && return 0
     sleep 2
   done
@@ -95,7 +95,7 @@ nav2_active() {
 drive_stage() {
   note "2/3 Gazebo 한 대, 구간 종류마다 ${laps}번($plan)"
   rm -f "$out/drive_check.json" "$out/drive_check.md" "$out/drive_check.log"
-  start_launch "$out/drive_launch.log" one_pinky.launch.py layout:=d2 start:=P-1 gui:=false \
+  start_launch "$out/drive_launch.log" one_pode.launch.py layout:=d2 start:=P-1 gui:=false \
     rviz:=false fixed_line_collision_check:="$fixed_check"
   if ! nav2_active; then
     failed+=("한 대 주행 (Nav2가 180 s 안에 active가 되지 않았다)")

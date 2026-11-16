@@ -13,7 +13,7 @@ def contract():
 
 
 def test_topic_name_is_built_from_key_and_placeholder(contract):
-    assert contract.name("robot_state", pinky="pinky2") == "/pinky2/state"
+    assert contract.name("robot_state", pode="pode2") == "/pode2/state"
     assert contract.name("order_board") == "/central/orders"
     assert contract.name("swap_basket", arm="arm3") == "/arm3/swap_basket"
 
@@ -46,8 +46,8 @@ def test_missing_placeholder_is_an_error(contract):
 
 def test_expand_lists_every_instance_with_type_and_kind(contract):
     entries = {e.name: e for e in contract.expanded()}
-    assert entries["/pinky3/move_to"].kind == "action"
-    assert entries["/pinky3/move_to"].type == "fleet_interfaces/action/MoveTo"
+    assert entries["/pode3/move_to"].kind == "action"
+    assert entries["/pode3/move_to"].type == "fleet_interfaces/action/MoveTo"
     assert entries["/arm3/state"].qos.reliability == "best_effort"
     assert entries["/workcell/fill_basket"].type == "fleet_interfaces/action/FillBasket"
     assert "/arm1/vision/items" in entries and "/arm2/vision/items" in entries
@@ -59,8 +59,8 @@ def test_expand_lists_every_instance_with_type_and_kind(contract):
 def test_expand_skips_real_only_entries_when_asked(contract):
     with_real = {e.name for e in contract.expanded(include_real_only=True)}
     without = {e.name for e in contract.expanded(include_real_only=False)}
-    assert "/pinky1/navigate_to_pose" in with_real
-    assert "/pinky1/navigate_to_pose" not in without
+    assert "/pode1/navigate_to_pose" in with_real
+    assert "/pode1/navigate_to_pose" not in without
 
 
 def test_entry_with_undefined_qos_profile_is_rejected(tmp_path):

@@ -3,7 +3,7 @@
 지도는 벽 안쪽에서 MAP_PAD_M씩 넓다(벽 0.05 m가 들어간다). 막힌 칸은 0(검정), 빈칸은 254다.
 상자가 칸에 조금이라도 걸치면 막힌 칸이라 1.5 cm 진열대도 5 cm 지도에서 사라지지 않는다.
 
-keepout(지시서 3절, pinky_nav_config/params/keepout.yaml): shared가 아닌 구역(급행 lane, 갈림목과
+keepout(지시서 3절, pode_nav_config/params/keepout.yaml): shared가 아닌 구역(급행 lane, 갈림목과
 도크 dock)을 막아 Nav2 goal 경로(NavFn)가 그 구역으로 들어가지 않게 한다. keepout 필터는 inflation
 뒤에 얹혀 부풀지 않으므로 구역을 몸 반폭(KEEPOUT_PAD_M)만큼 넓혀 막는다: 경로가 구역 경계에 붙어
 지나가도 몸이 구역에 걸치지 않는다. shared 구역의 지점(대기 자리, 주차, 갈림 지점)은 늘 빈칸이다
@@ -26,7 +26,7 @@ from fleet_gz_sim.arena import obstacles
 COARSE_M = 0.05  # costmap용 지도
 FINE_M = 0.01  # AMCL용 지도(R15)와 keepout 마스크
 MAP_PAD_M = 0.15
-KEEPOUT_PAD_M = BODY_HALF_WIDTH_M  # Nav2 발자국의 반 폭(pinky_nav_config footprint 0.06)
+KEEPOUT_PAD_M = BODY_HALF_WIDTH_M  # Nav2 발자국의 반 폭(pode_nav_config footprint 0.06)
 
 
 def map_origin(site) -> tuple[float, float]:

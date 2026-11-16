@@ -14,7 +14,7 @@ from fleet_core.traffic.deadlock import priority
 from zone_harness import Harness
 
 
-def called(robot="pinky2", **kwargs):
+def called(robot="pode2", **kwargs):
     world = Harness(**kwargs)
     world.step()
     world.call("WORK", robot)
@@ -39,30 +39,30 @@ def reporting(world, robot, said):
 
 def test_a_move_carries_the_priority_the_fleet_yields_by_and_the_status_shows_it():
     world = called()
-    [cmd] = world.sent(MoveCmd, "pinky2")
+    [cmd] = world.sent(MoveCmd, "pode2")
     p = world.params
-    m = world.traffic._robots["pinky2"]
+    m = world.traffic._robots["pode2"]
     assert cmd.priority == priority(p, False, m.dispatch is not None) >= 0
-    assert world.traffic.status_view("pinky2")["priority"] == cmd.priority
+    assert world.traffic.status_view("pode2")["priority"] == cmd.priority
 
 
 def test_a_robot_never_sent_a_move_shows_no_priority():
     world = called()
-    assert world.traffic.status_view("pinky1")["priority"] == -1
+    assert world.traffic.status_view("pode1")["priority"] == -1
 
 
 def test_an_order_goal_carries_the_priority_too():
     world = called(params=replace(load_params(), use_order_model=True))
-    [cmd] = world.sent(MoveOrderCmd, "pinky2")
+    [cmd] = world.sent(MoveOrderCmd, "pode2")
     assert cmd.priority >= 0
-    assert world.traffic.status_view("pinky2")["priority"] == cmd.priority
+    assert world.traffic.status_view("pode2")["priority"] == cmd.priority
 
 
 def test_the_robot_side_yield_is_recorded_step_by_step_and_not_acted_on():
     world = called(speed=0.0)
-    goal = world.view("pinky2")["goal_id"]
+    goal = world.view("pode2")["goal_id"]
     said = ["RECOVERING", "wait"]
-    reporting(world, "pinky2", said)
+    reporting(world, "pode2", said)
     world.run(2.0)
     said[1] = "backup"
     world.run(2.0)
@@ -73,18 +73,18 @@ def test_the_robot_side_yield_is_recorded_step_by_step_and_not_acted_on():
     details = [e.detail for e in world.events if e.code == "LOCAL_YIELD"]
     assert details[:3] == ["wait", "backup", "retry"]
     assert details[3].startswith("ends BLOCKED after 6")
-    assert "SELF_RECOVERY" not in world.codes("pinky2")
-    assert not world.sent(CancelCmd, "pinky2") and world.view("pinky2")["goal_id"] == goal
-    assert world.codes("pinky2").count("BLOCKED_WAIT") == 1  # 관제 처리는 BLOCKED 뒤에 시작한다
+    assert "SELF_RECOVERY" not in world.codes("pode2")
+    assert not world.sent(CancelCmd, "pode2") and world.view("pode2")["goal_id"] == goal
+    assert world.codes("pode2").count("BLOCKED_WAIT") == 1  # 관제 처리는 BLOCKED 뒤에 시작한다
 
 
 def test_recovering_without_a_step_is_still_the_old_self_recovery():
     world = called(speed=0.0)
     said = ["RECOVERING", ""]
-    reporting(world, "pinky2", said)
+    reporting(world, "pode2", said)
     world.run(1.0)
-    assert "SELF_RECOVERY" in world.codes("pinky2")
-    assert "LOCAL_YIELD" not in world.codes("pinky2")
+    assert "SELF_RECOVERY" in world.codes("pode2")
+    assert "LOCAL_YIELD" not in world.codes("pode2")
 
 
 # ---- FleetManager가 받는 칸(계약 0.13-draft) ----
@@ -93,28 +93,28 @@ def manager():
     from fleet_core.fleet_map import load_fleet_map
     from fleet_core.manager import FleetManager
     lines = []
-    core = FleetManager(load_fleet_map("d2"), load_params(), ["pinky1"], lambda: 0.0)
+    core = FleetManager(load_fleet_map("d2"), load_params(), ["pode1"], lambda: 0.0)
     core.record_to(lines.append)
     return core, lines
 
 
 def test_the_manager_passes_the_step_and_records_it_after_the_obstacle_fields():
     core, lines = manager()
-    core.on_robot_state("pinky1", 0.13, 0.15, 0.0, "RECOVERING", 90.0, "", math.nan, math.nan,
+    core.on_robot_state("pode1", 0.13, 0.15, 0.0, "RECOVERING", 90.0, "", math.nan, math.nan,
                         "", "wait")
-    assert core.traffic._robots["pinky1"].local_yield == "wait"
-    assert '"args": ["pinky1", 0.13, 0.15, 0.0, "RECOVERING", 90.0, "", NaN, NaN, "", "wait"]' in (
+    assert core.traffic._robots["pode1"].local_yield == "wait"
+    assert '"args": ["pode1", 0.13, 0.15, 0.0, "RECOVERING", 90.0, "", NaN, NaN, "", "wait"]' in (
         lines[1])
 
 
 @pytest.mark.parametrize("step", ["", 7, "jump"])
 def test_an_empty_or_unknown_step_is_no_step_and_an_empty_one_is_recorded_as_before(step):
     core, lines = manager()
-    core.on_robot_state("pinky1", 0.13, 0.15, 0.0, "RECOVERING", 90.0, "", math.nan, math.nan,
+    core.on_robot_state("pode1", 0.13, 0.15, 0.0, "RECOVERING", 90.0, "", math.nan, math.nan,
                         "", step)
-    assert core.traffic._robots["pinky1"].local_yield == ""
+    assert core.traffic._robots["pode1"].local_yield == ""
     if step == "":
-        assert '"args": ["pinky1", 0.13, 0.15, 0.0, "RECOVERING", 90.0]}' in lines[1]
+        assert '"args": ["pode1", 0.13, 0.15, 0.0, "RECOVERING", 90.0]}' in lines[1]
 
 
 def test_the_status_view_shows_the_priority():

@@ -17,12 +17,12 @@ SKIP = "assignments,zones,robots,heartbeat,confirm_clear,reinstate"
 def start_all(harness, tmp_path):
     from fake_robots.fake_arm_node import FakeArmNode
     from fake_robots.fake_central_node import FakeCentralNode
-    from fake_robots.fake_pinky_node import FakePinkyNode
+    from fake_robots.fake_pode_node import FakePodeNode
     from fake_robots.fake_vision_node import FakeVisionNode
     from fake_robots.fake_workcell_node import FakeWorkcellNode
     scn = write_scenario(tmp_path)
-    for r in ("pinky1", "pinky2", "pinky3"):
-        harness.add(FakePinkyNode(parameter_overrides=harness.params(
+    for r in ("pode1", "pode2", "pode3"):
+        harness.add(FakePodeNode(parameter_overrides=harness.params(
             robot_id=r, scenario_file=scn)))
     for a in ("arm1", "arm2"):
         harness.add(FakeVisionNode(parameter_overrides=harness.params(
@@ -52,12 +52,12 @@ def test_wrong_qos_is_caught(harness, tmp_path):
     from rclpy.qos import QoSProfile, ReliabilityPolicy
     start_all(harness, tmp_path)
     rogue = harness.add(rclpy.node.Node("rogue"))
-    rogue.create_publisher(RobotState, "/pinky1/state", QoSProfile(
+    rogue.create_publisher(RobotState, "/pode1/state", QoSProfile(
         depth=5, reliability=ReliabilityPolicy.RELIABLE))
     out = check()
     assert out.returncode == 1, out.stdout + out.stderr
     assert "missing" not in out.stdout
-    assert "/pinky1/state" in out.stdout and "publisher reliability is reliable" in out.stdout
+    assert "/pode1/state" in out.stdout and "publisher reliability is reliable" in out.stdout
 
 
 def test_missing_provider_is_reported(harness, tmp_path):

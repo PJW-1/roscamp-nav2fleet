@@ -1,12 +1,12 @@
 """시뮬 전용 도크 대역(sim_dock_stub)의 판정과 켜도 되는지 검사. ROS 없이 돈다.
 
-pinky_dock(스테이션 도크에 ±1~2 cm로 붙기)이 아직 없어서 진짜 pinky_fsm은 도킹을
+pode_dock(스테이션 도크에 ±1~2 cm로 붙기)이 아직 없어서 진짜 pode_fsm은 도킹을
 DOCK_UNAVAILABLE로 실패시킨다. 임무를 끝까지 돌려 보고 싶을 때만 Gazebo 시뮬에서 켠다(기본 꺼짐).
 대역은 로봇을 움직이지 않는다. 관제의 move_to가 도크 지점에 데려다 놓은 로봇의
-실제 위치를 재고, FakePinky처럼 duration_s 동안 APPROACH → ALIGN → DONE 피드백을 낸 뒤 결과를 낸다.
+실제 위치를 재고, FakePode처럼 duration_s 동안 APPROACH → ALIGN → DONE 피드백을 낸 뒤 결과를 낸다.
 
 It may run only on Gazebo time (use_sim_time) in a network that passes isolation.py, so it can
-never answer for a real pinky. The node checks this itself (require_dock_stub_allowed).
+never answer for a real pode. The node checks this itself (require_dock_stub_allowed).
 """
 from __future__ import annotations
 

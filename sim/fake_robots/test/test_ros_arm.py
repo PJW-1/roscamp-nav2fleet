@@ -32,7 +32,7 @@ def start_arm(harness, tmp_path, **scenario):
 def send(client, take_full=True, put_empty=True):
     fb = []
     fut = client.send_goal_async(
-        SwapBasket.Goal(order_id="O-1", robot_id="pinky1", station_id="OUTBOUND",
+        SwapBasket.Goal(order_id="O-1", robot_id="pode1", station_id="OUTBOUND",
                         take_full=take_full, put_empty=put_empty),
         feedback_callback=fb.append)
     assert wait_until(fut.done, 5.0)

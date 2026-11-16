@@ -11,7 +11,7 @@ ZONE = "J_W"
 ZONE_EAST = SITE.zones[ZONE].rects[0][2]  # J_W의 동쪽 가장자리 x
 OTHER = (1.58, 0.89)  # J_E
 OTHER_ZONE = "J_E"
-WAITING = ("P-2", "P-1")  # pinky2, pinky1의 출발 자리
+WAITING = ("P-2", "P-1")  # pode2, pode1의 출발 자리
 OUT = "O"  # 출고 도크(OUT_DOCK)
 WORK = "W"  # 작업 도크(WORK_DOCK)
 LANE = "N_E"  # 마당 안, 출고 도크와 주차 자리 사이
@@ -23,8 +23,8 @@ def scenario(faults=(), orders=("O-1", "O-2", "O-3"), **expect):
         "stock": {"arm1": {"A": 9}, "arm2": {"C": 9}},
         "orders": [{"at_s": i, "id": o, "items": {"A": 1}} for i, o in enumerate(orders)],
         "robots": {
-            "pinky1": {"start": "P-1", "speed_mps": 0.2, "pose_noise_m": NOISE},
-            "pinky2": {"start": "P-2", "speed_mps": 0.2, "pose_noise_m": NOISE},
+            "pode1": {"start": "P-1", "speed_mps": 0.2, "pose_noise_m": NOISE},
+            "pode2": {"start": "P-2", "speed_mps": 0.2, "pose_noise_m": NOISE},
         },
         "faults": list(faults),
         "expect": expect,
@@ -55,21 +55,21 @@ def event(j, code, detail, t=1.0, source="fleet"):
 
 def bind(j, *orders):
     for o in orders:
-        event(j, "ORDER_BOUND", o, source="pinky1")
+        event(j, "ORDER_BOUND", o, source="pode1")
 
 
 def ship(j, *orders):
     for o in orders:
-        event(j, "ORDER_SHIPPED", f"{o} robot=pinky1 placed=A:1", source="central")
+        event(j, "ORDER_SHIPPED", f"{o} robot=pode1 placed=A:1", source="central")
 
 
 def finish_everything(j):
     """깨끗한 실행의 이벤트에, 정확 검사가 성립할 만큼의 존재 기록을 더한다."""
     bind(j, "O-1", "O-2", "O-3")
     ship(j, "O-1", "O-2", "O-3")
-    put(j, 1.0, "pinky1", WAITING[0], "IDLE")
-    put(j, 1.0, "pinky2", WAITING[1], "IDLE")
-    j.on_zones(1.0, {"HALL": "pinky1,pinky2"})
+    put(j, 1.0, "pode1", WAITING[0], "IDLE")
+    put(j, 1.0, "pode2", WAITING[1], "IDLE")
+    j.on_zones(1.0, {"HALL": "pode1,pode2"})
     j.tick(1.0)
 
 
@@ -78,8 +78,8 @@ def finish_everything(j):
 
 def test_two_robots_in_one_zone_break_zone_holder_max():
     j = judge()
-    put(j, 1.0, "pinky1", SAME_ZONE[0])
-    put(j, 1.0, "pinky2", SAME_ZONE[1])
+    put(j, 1.0, "pode1", SAME_ZONE[0])
+    put(j, 1.0, "pode2", SAME_ZONE[1])
     j.tick(1.0)
     s = j.summary(1.0)
     assert s["checks"]["zone_holder_max"]["value"] == 2
@@ -88,17 +88,17 @@ def test_two_robots_in_one_zone_break_zone_holder_max():
 
 def test_robots_in_different_zones_are_fine():
     j = judge()
-    put(j, 1.0, "pinky1", SAME_ZONE[0])
-    put(j, 1.0, "pinky2", OTHER)
-    j.on_zones(1.0, {ZONE: "pinky1", OTHER_ZONE: "pinky2"})
+    put(j, 1.0, "pode1", SAME_ZONE[0])
+    put(j, 1.0, "pode2", OTHER)
+    j.on_zones(1.0, {ZONE: "pode1", OTHER_ZONE: "pode2"})
     j.tick(2.5)
     assert check(j, "zone_holder_max", 2.5)["value"] == 1
 
 
 def test_release_while_robot_still_inside_is_counted():
     j = judge()
-    put(j, 1.0, "pinky1", SAME_ZONE[0])
-    j.on_zones(1.0, {ZONE: "pinky1"})
+    put(j, 1.0, "pode1", SAME_ZONE[0])
+    j.on_zones(1.0, {ZONE: "pode1"})
     j.on_zones(2.0, {ZONE: ""})
     assert check(j, "released_without_position_check", 2.0)["value"] == 1
     assert check(j, "released_without_position_check", 2.0)["ok"] is False
@@ -106,25 +106,25 @@ def test_release_while_robot_still_inside_is_counted():
 
 def test_release_after_robot_left_with_noise_allowance_is_fine():
     j = judge()
-    put(j, 1.0, "pinky1", SAME_ZONE[0])
-    j.on_zones(1.0, {ZONE: "pinky1"})
+    put(j, 1.0, "pode1", SAME_ZONE[0])
+    j.on_zones(1.0, {ZONE: "pode1"})
     # 구역 가장자리에서 0.10 m 밖: margin(0.13) - 2*0.03 = 0.07보다 큼
-    j.on_robot_state(2.0, "pinky1", ZONE_EAST + 0.10, 0.89, "MOVING")
+    j.on_robot_state(2.0, "pode1", ZONE_EAST + 0.10, 0.89, "MOVING")
     j.on_zones(2.0, {ZONE: ""})
     assert check(j, "released_without_position_check", 2.0)["value"] == 0
 
 
 def test_handover_to_another_robot_also_checks_release():
     j = judge()
-    put(j, 1.0, "pinky1", SAME_ZONE[0])
-    j.on_zones(1.0, {ZONE: "pinky1"})
-    j.on_zones(2.0, {ZONE: "pinky2"})
+    put(j, 1.0, "pode1", SAME_ZONE[0])
+    j.on_zones(1.0, {ZONE: "pode1"})
+    j.on_zones(2.0, {ZONE: "pode2"})
     assert check(j, "released_without_position_check", 2.0)["value"] == 1
 
 
 def test_pose_in_unheld_zone_counts_after_grace_only():
     j = judge()
-    put(j, 1.0, "pinky1", OTHER)
+    put(j, 1.0, "pode1", OTHER)
     j.tick(1.5)
     assert check(j, "unheld_zone_pose", 1.5)["value"] == 0
     j.tick(3.0)
@@ -139,7 +139,7 @@ def test_a_full_shared_zone_not_held_is_no_violation():
     j = judge()
     full = ",".join(f"r{i}" for i in range(SITE.zones["HALL"].capacity))
     j.on_zones(1.0, {"HALL": full})
-    put(j, 1.0, "pinky1", "N_E")  # HALL 안
+    put(j, 1.0, "pode1", "N_E")  # HALL 안
     j.tick(1.0)
     j.tick(5.0)
     assert check(j, "unheld_zone_pose", 5.0)["value"] == 0
@@ -151,7 +151,7 @@ def test_a_full_shared_zone_not_held_is_no_violation():
 
 def test_a_robot_that_has_not_left_its_start_cell_is_not_counted():
     j = judge()
-    put(j, 1.0, "pinky1", WAITING[1])  # pinky1은 P-1에서 시작
+    put(j, 1.0, "pode1", WAITING[1])  # pode1은 P-1에서 시작
     j.tick(1.0)
     j.tick(9.0)
     assert check(j, "unheld_zone_pose", 9.0)["value"] == 0
@@ -159,13 +159,13 @@ def test_a_robot_that_has_not_left_its_start_cell_is_not_counted():
 
 def test_the_start_cell_exemption_ends_when_the_robot_first_moves():
     j = judge()
-    put(j, 1.0, "pinky1", WAITING[1])
+    put(j, 1.0, "pode1", WAITING[1])
     j.tick(1.0)
-    put(j, 2.0, "pinky1", OTHER)
+    put(j, 2.0, "pode1", OTHER)
     j.tick(2.0)
     j.tick(4.0)
     assert check(j, "unheld_zone_pose", 4.0)["value"] == 1
-    put(j, 5.0, "pinky1", WAITING[1])  # 시작 칸으로 돌아오면 다른 칸과 똑같이 센다
+    put(j, 5.0, "pode1", WAITING[1])  # 시작 칸으로 돌아오면 다른 칸과 똑같이 센다
     j.tick(5.0)
     j.tick(7.0)
     assert check(j, "unheld_zone_pose", 7.0)["value"] == 2
@@ -173,8 +173,8 @@ def test_the_start_cell_exemption_ends_when_the_robot_first_moves():
 
 def test_pose_in_held_zone_is_fine():
     j = judge()
-    put(j, 1.0, "pinky1", OTHER)
-    j.on_zones(1.0, {OTHER_ZONE: "pinky1"})
+    put(j, 1.0, "pode1", OTHER)
+    j.on_zones(1.0, {OTHER_ZONE: "pode1"})
     j.tick(5.0)
     assert check(j, "unheld_zone_pose", 5.0)["value"] == 0
 
@@ -183,12 +183,12 @@ def test_release_inside_the_zone_is_a_violation_even_with_large_noise():
     noisy = parse_scenario({
         "seed": 1, "speed_factor": 1.0, "timeout_s": 100,
         "stock": {"arm1": {"A": 1}},
-        "robots": {"pinky1": {"start": "P-1", "speed_mps": 0.2, "pose_noise_m": 0.10}},
+        "robots": {"pode1": {"start": "P-1", "speed_mps": 0.2, "pose_noise_m": 0.10}},
     }, SITE)
     j = ScenarioJudge(SITE, noisy, margin_m=0.13, grace_s=1.0)
     x, y = at(SAME_ZONE[1])
-    j.on_robot_state(1.0, "pinky1", x, y, "MOVING")
-    j.on_zones(1.0, {ZONE: "pinky1"})
+    j.on_robot_state(1.0, "pode1", x, y, "MOVING")
+    j.on_zones(1.0, {ZONE: "pode1"})
     j.on_zones(2.0, {ZONE: ""})
     assert check(j, "released_without_position_check", 2.0)["value"] == 1
 
@@ -196,8 +196,8 @@ def test_release_inside_the_zone_is_a_violation_even_with_large_noise():
 def test_robot_outside_every_zone_is_not_counted_as_occupying_one():
     j = judge()
     # 서쪽 벽 바깥: 가장 가까운 구역은 WORK_DOCK이지만 자세는 구역 밖이다.
-    j.on_robot_state(1.0, "pinky1", -0.02, 0.89, "MOVING")
-    put(j, 1.0, "pinky2", SAME_ZONE[0])
+    j.on_robot_state(1.0, "pode1", -0.02, 0.89, "MOVING")
+    put(j, 1.0, "pode2", SAME_ZONE[0])
     j.tick(1.0)
     assert check(j, "zone_holder_max", 1.0)["value"] == 1
 
@@ -210,20 +210,20 @@ def beyond(place, gap):
 def test_one_noisy_report_cannot_fail_a_release_when_the_robot_really_left():
     """시드 3이 이렇게 실패했다: 로봇이 이미 벗어났는데 보고는 0.05 m 안쪽."""
     j = judge()
-    put(j, 1.0, "pinky1", SAME_ZONE[0])
-    j.on_zones(1.0, {ZONE: "pinky1"})
-    j.on_true_pose("pinky1", *beyond(SAME_ZONE[0], 0.14))
-    j.on_robot_state(2.0, "pinky1", *beyond(SAME_ZONE[0], 0.05), "MOVING")
+    put(j, 1.0, "pode1", SAME_ZONE[0])
+    j.on_zones(1.0, {ZONE: "pode1"})
+    j.on_true_pose("pode1", *beyond(SAME_ZONE[0], 0.14))
+    j.on_robot_state(2.0, "pode1", *beyond(SAME_ZONE[0], 0.05), "MOVING")
     j.on_zones(2.0, {ZONE: ""})
     assert check(j, "released_without_position_check", 2.0)["value"] == 0
 
 
 def test_a_good_looking_report_cannot_hide_a_release_while_really_inside():
     j = judge()
-    put(j, 1.0, "pinky1", SAME_ZONE[0])
-    j.on_zones(1.0, {ZONE: "pinky1"})
-    j.on_true_pose("pinky1", *at(SAME_ZONE[0]))
-    j.on_robot_state(2.0, "pinky1", *beyond(SAME_ZONE[0], 0.30), "MOVING")
+    put(j, 1.0, "pode1", SAME_ZONE[0])
+    j.on_zones(1.0, {ZONE: "pode1"})
+    j.on_true_pose("pode1", *at(SAME_ZONE[0]))
+    j.on_robot_state(2.0, "pode1", *beyond(SAME_ZONE[0], 0.30), "MOVING")
     j.on_zones(2.0, {ZONE: ""})
     assert check(j, "released_without_position_check", 2.0)["value"] == 1
 
@@ -231,8 +231,8 @@ def test_a_good_looking_report_cannot_hide_a_release_while_really_inside():
 def test_a_robot_with_no_true_pose_is_judged_on_its_reports():
     """실제 로봇에는 /sim/truth 토픽이 없다."""
     j = judge()
-    put(j, 1.0, "pinky1", SAME_ZONE[0])
-    j.on_zones(1.0, {ZONE: "pinky1"})
+    put(j, 1.0, "pode1", SAME_ZONE[0])
+    j.on_zones(1.0, {ZONE: "pode1"})
     j.on_zones(2.0, {ZONE: ""})
     assert check(j, "released_without_position_check", 2.0)["value"] == 1
 
@@ -240,23 +240,23 @@ def test_a_robot_with_no_true_pose_is_judged_on_its_reports():
 def test_occupancy_follows_the_true_position_even_while_reports_are_silent():
     """통신 두절 중에는 실제 위치만 움직인다."""
     j = judge()
-    put(j, 1.0, "pinky1", SAME_ZONE[0])
-    put(j, 1.0, "pinky2", OTHER)
-    j.on_true_pose("pinky1", *at(SAME_ZONE[0]))
-    j.on_true_pose("pinky2", *at(SAME_ZONE[1]))  # 같은 구역인데 보고는 아직 OTHER
+    put(j, 1.0, "pode1", SAME_ZONE[0])
+    put(j, 1.0, "pode2", OTHER)
+    j.on_true_pose("pode1", *at(SAME_ZONE[0]))
+    j.on_true_pose("pode2", *at(SAME_ZONE[1]))  # 같은 구역인데 보고는 아직 OTHER
     j.tick(1.0)
     assert check(j, "zone_holder_max", 1.0)["value"] == 2
 
 
 def test_summary_and_rows_record_how_far_each_release_really_was():
     j = judge()
-    put(j, 1.0, "pinky1", SAME_ZONE[0])
-    j.on_zones(1.0, {ZONE: "pinky1"})
-    j.on_true_pose("pinky1", *beyond(SAME_ZONE[0], 0.14))
-    j.on_robot_state(2.0, "pinky1", *beyond(SAME_ZONE[0], 0.05), "MOVING")
+    put(j, 1.0, "pode1", SAME_ZONE[0])
+    j.on_zones(1.0, {ZONE: "pode1"})
+    j.on_true_pose("pode1", *beyond(SAME_ZONE[0], 0.14))
+    j.on_robot_state(2.0, "pode1", *beyond(SAME_ZONE[0], 0.05), "MOVING")
     j.on_zones(2.0, {ZONE: ""})
     t, zone, robot, true_m, reported_m = j.release_rows[0]
-    assert (t, zone, robot) == (2.0, ZONE, "pinky1")
+    assert (t, zone, robot) == (2.0, ZONE, "pode1")
     assert true_m == pytest.approx(0.14) and reported_m == pytest.approx(0.05)
     assert j.summary(2.0)["min_release_distance_m"] == pytest.approx(0.14)
 
@@ -269,9 +269,9 @@ def test_summary_has_no_release_distance_when_nothing_was_released():
 def test_a_true_position_is_held_to_the_robot_body(gap, violations):
     """여유 거리는 보고 잡음을 흡수하려는 것이므로 실제 한계는 반지름이다."""
     j = ScenarioJudge(SITE, scenario(), margin_m=0.13, radius_m=0.08, grace_s=1.0)
-    put(j, 1.0, "pinky1", SAME_ZONE[0])
-    j.on_zones(1.0, {ZONE: "pinky1"})
-    j.on_true_pose("pinky1", *beyond(SAME_ZONE[0], gap))
+    put(j, 1.0, "pode1", SAME_ZONE[0])
+    j.on_zones(1.0, {ZONE: "pode1"})
+    j.on_true_pose("pode1", *beyond(SAME_ZONE[0], gap))
     j.on_zones(2.0, {ZONE: ""})
     assert check(j, "released_without_position_check", 2.0)["value"] == violations
 
@@ -279,13 +279,13 @@ def test_a_true_position_is_held_to_the_robot_body(gap, violations):
 def test_rows_for_csv_outputs():
     j = judge()
     for i in range(10):
-        put(j, i * 0.1, "pinky1", SAME_ZONE[0])
+        put(j, i * 0.1, "pode1", SAME_ZONE[0])
     assert len(j.robot_rows) == 2  # 약 1초 동안 2 Hz로 줄임
-    j.on_zones(1.0, {ZONE: "pinky1"})
-    j.on_zones(1.2, {ZONE: "pinky1"})
+    j.on_zones(1.0, {ZONE: "pode1"})
+    j.on_zones(1.2, {ZONE: "pode1"})
     j.on_zones(2.0, {ZONE: ""})
     assert [(r[1], r[2], r[3]) for r in j.zone_rows] == [
-        (ZONE, "", "pinky1"), (ZONE, "pinky1", "")]
+        (ZONE, "", "pode1"), (ZONE, "pode1", "")]
     j.on_event(1.0, "INFO", "fleet", "X", "d")
     assert j.event_rows[0][3] == "X"
 
@@ -294,7 +294,7 @@ def test_rows_for_csv_outputs():
 
 
 @pytest.mark.parametrize("detail, order", [
-    ("O-001", "O-001"), ("O-001 robot=pinky1", "O-001"), ("O-001: back", "O-001"),
+    ("O-001", "O-001"), ("O-001 robot=pode1", "O-001"), ("O-001: back", "O-001"),
     ("  O-U002, x", "O-U002"), ("", ""),
 ])
 def test_order_id_comes_from_the_start_of_the_detail(detail, order):
@@ -324,15 +324,15 @@ def test_orders_shipped_must_match_exactly(expected):
 ])
 def test_orders_partial_and_held_must_match_exactly(key, code, expected):
     j = judge(**{key: expected})
-    event(j, code, "O-1 robot=pinky1")
+    event(j, code, "O-1 robot=pode1")
     assert check(j, key)["value"] == 1 and check(j, key)["ok"] is False
     assert j.summary(1.0)["pass"] is False
 
 
 def test_orders_partial_and_held_pass_when_they_match():
     j = judge(orders_partial=1, orders_held=1)
-    event(j, "ORDER_PARTIAL", "O-1 robot=pinky1")
-    event(j, "ORDER_HELD", "O-2 robot=pinky1")
+    event(j, "ORDER_PARTIAL", "O-1 robot=pode1")
+    event(j, "ORDER_HELD", "O-2 robot=pode1")
     assert check(j, "orders_partial")["ok"] and check(j, "orders_held")["ok"]
 
 
@@ -357,12 +357,12 @@ def test_held_orders_do_not_satisfy_orders_shipped_min():
 
 
 def test_zero_shipped_fails_a_failure_scenario_that_expects_at_least_one():
-    faulty = scenario(faults=[{"at_s": 1, "robot": "pinky1", "type": "stuck"}],
+    faulty = scenario(faults=[{"at_s": 1, "robot": "pode1", "type": "stuck"}],
                       all_orders_finished=False, orders_shipped_min=1,
                       events_include=["COMM_LOST"])
     j = ScenarioJudge(SITE, faulty, margin_m=0.13, grace_s=1.0)
-    put(j, 1.0, "pinky2", WAITING[1], "IDLE")
-    j.on_zones(1.0, {"HALL": "pinky2"})
+    put(j, 1.0, "pode2", WAITING[1], "IDLE")
+    j.on_zones(1.0, {"HALL": "pode2"})
     j.tick(1.0)
     event(j, "COMM_LOST", "no state")
     s = j.summary(100.0)
@@ -456,7 +456,7 @@ def test_shipping_against_bound_order_is_a_violation():
 def test_a_partial_counts_in_the_shipping_order():
     j = judge()
     bind(j, "O-1", "O-2")
-    event(j, "ORDER_PARTIAL", "O-2 robot=pinky1")
+    event(j, "ORDER_PARTIAL", "O-2 robot=pode1")
     ship(j, "O-1")
     assert check(j, "fifo_violations")["value"] == 1
 
@@ -464,7 +464,7 @@ def test_a_partial_counts_in_the_shipping_order():
 def test_a_held_order_does_not_count_in_the_shipping_order():
     j = judge()
     bind(j, "O-1", "O-2", "O-3")
-    event(j, "ORDER_HELD", "O-1 robot=pinky1")
+    event(j, "ORDER_HELD", "O-1 robot=pode1")
     ship(j, "O-2", "O-3")
     assert check(j, "fifo_violations")["value"] == 0
 
@@ -505,9 +505,9 @@ def test_a_requeued_order_must_be_the_next_one_bound():
     event(j, "ORDER_REQUEUED", "O-1 was bound")
     bind(j, "O-2", "O-3", "O-1")
     ship(j, "O-2", "O-3", "O-1")
-    put(j, 1.0, "pinky1", WAITING[0], "IDLE")
-    put(j, 1.0, "pinky2", WAITING[1], "IDLE")
-    j.on_zones(1.0, {"HALL": "pinky1,pinky2"})
+    put(j, 1.0, "pode1", WAITING[0], "IDLE")
+    put(j, 1.0, "pode2", WAITING[1], "IDLE")
+    j.on_zones(1.0, {"HALL": "pode1,pode2"})
     j.tick(1.0)
     s = j.summary(5.0)
     assert s["checks"]["fifo_violations"]["value"] == 2, s["violations"]  # O-2, O-3
@@ -539,9 +539,9 @@ def test_binding_an_order_twice_without_a_requeue_is_a_violation():
     j = judge(orders_shipped=3)
     bind(j, "O-1", "O-1", "O-2", "O-3")
     ship(j, "O-1", "O-2", "O-3")
-    put(j, 1.0, "pinky1", WAITING[0], "IDLE")
-    put(j, 1.0, "pinky2", WAITING[1], "IDLE")
-    j.on_zones(1.0, {"HALL": "pinky1,pinky2"})
+    put(j, 1.0, "pode1", WAITING[0], "IDLE")
+    put(j, 1.0, "pode2", WAITING[1], "IDLE")
+    j.on_zones(1.0, {"HALL": "pode1,pode2"})
     j.tick(1.0)
     s = j.summary(5.0)
     assert s["checks"]["fifo_violations"]["value"] == 1 and s["pass"] is False
@@ -637,28 +637,28 @@ def lap(j, robot, cells, start=1.0):
 def test_direct_return_is_counted():
     j = judge(direct_returns_min=1)
     assert check(j, "direct_returns_min")["ok"] is False
-    lap(j, "pinky1", [OUT, LANE, WORK])
+    lap(j, "pode1", [OUT, LANE, WORK])
     assert check(j, "direct_returns_min")["value"] == 1
     assert check(j, "direct_returns_min")["ok"] is True
 
 
 def test_a_lap_through_the_waiting_loop_is_not_a_direct_return():
     j = judge(direct_returns_min=1)
-    lap(j, "pinky1", [OUT, LANE, WAITING[0], WORK])
+    lap(j, "pode1", [OUT, LANE, WAITING[0], WORK])
     assert check(j, "direct_returns_min")["value"] == 0
     assert check(j, "direct_returns_min")["ok"] is False
 
 
 def test_leaving_the_waiting_loop_for_work_is_not_a_direct_return():
     j = judge(direct_returns_min=1)
-    lap(j, "pinky1", [WAITING[0], WORK])
+    lap(j, "pode1", [WAITING[0], WORK])
     assert check(j, "direct_returns_min")["ok"] is False
 
 
 def test_entering_the_waiting_loop_with_a_backlog_is_a_violation():
     j = judge()
     j.on_board(["O-1", "O-2"])  # 미배정 주문 둘, 로봇 둘: 둘 다 호출됐어야 한다
-    lap(j, "pinky1", [OUT, LANE, WAITING[0]])
+    lap(j, "pode1", [OUT, LANE, WAITING[0]])
     assert check(j, "parked_while_backlog")["value"] == 1
     assert check(j, "parked_while_backlog")["ok"] is False and j.summary(9.0)["pass"] is False
 
@@ -666,7 +666,7 @@ def test_entering_the_waiting_loop_with_a_backlog_is_a_violation():
 def test_entering_the_waiting_loop_with_fewer_orders_than_robots_is_allowed():
     j = judge()
     j.on_board(["O-1"])  # 다른 로봇이 유일한 호출을 쥐고 있을 수 있다
-    lap(j, "pinky1", [OUT, LANE, WAITING[0]])
+    lap(j, "pode1", [OUT, LANE, WAITING[0]])
     assert check(j, "parked_while_backlog")["value"] == 0
 
 
@@ -677,7 +677,7 @@ def test_passing_beside_a_parking_node_is_not_entering_it():
         j = judge()
         j.on_board(["O-1", "O-2"])
         x, y = at(WAITING[0])
-        lap(j, "pinky1", [OUT, LANE, (x + off, y)])
+        lap(j, "pode1", [OUT, LANE, (x + off, y)])
         assert check(j, "parked_while_backlog")["value"] == entered, off
 
 
@@ -685,7 +685,7 @@ def test_bound_orders_are_not_a_backlog():
     j = judge()
     bind(j, "O-1", "O-2")
     j.on_board(["O-1", "O-2"])
-    lap(j, "pinky1", [OUT, LANE, WAITING[0]])
+    lap(j, "pode1", [OUT, LANE, WAITING[0]])
     assert check(j, "parked_while_backlog")["value"] == 0
 
 
@@ -695,7 +695,7 @@ def test_a_requeued_order_is_a_backlog_again():
     event(j, "ORDER_REQUEUED", "O-1")
     event(j, "ORDER_REQUEUED", "O-2")
     j.on_board(["O-1", "O-2"])
-    lap(j, "pinky1", [OUT, LANE, WAITING[0]])
+    lap(j, "pode1", [OUT, LANE, WAITING[0]])
     assert check(j, "parked_while_backlog")["value"] == 1
 
 
@@ -704,9 +704,9 @@ def test_a_robot_called_to_work_may_wait_at_parking_on_the_way():
     # (DOCK_QUEUED, 구역 기다림). 레인 관제에는 대기 레인이 따로 있었다
     j = judge(direct_returns_min=1)
     j.on_board(["O-1", "O-2"])
-    lap(j, "pinky1", [OUT, LANE])
-    j.on_assignments({"pinky1": "TO_WORK"})
-    lap(j, "pinky1", [WAITING[0], WORK], start=3.0)
+    lap(j, "pode1", [OUT, LANE])
+    j.on_assignments({"pode1": "TO_WORK"})
+    lap(j, "pode1", [WAITING[0], WORK], start=3.0)
     assert check(j, "parked_while_backlog")["value"] == 0
     assert check(j, "direct_returns_min")["value"] == 1  # 줄을 섰다가 곧장 작업 도크로 갔다
 
@@ -714,32 +714,32 @@ def test_a_robot_called_to_work_may_wait_at_parking_on_the_way():
 def test_a_robot_on_its_way_to_the_outbound_dock_may_wait_at_parking():
     j = judge()
     j.on_board(["O-1", "O-2"])
-    lap(j, "pinky1", [OUT, LANE])
-    j.on_assignments({"pinky1": "TO_OUTBOUND"})  # 출고 도크가 바빠 주차 자리에서 줄을 선다
-    lap(j, "pinky1", [WAITING[0]], start=3.0)
+    lap(j, "pode1", [OUT, LANE])
+    j.on_assignments({"pode1": "TO_OUTBOUND"})  # 출고 도크가 바빠 주차 자리에서 줄을 선다
+    lap(j, "pode1", [WAITING[0]], start=3.0)
     assert check(j, "parked_while_backlog")["value"] == 0
 
 
 def test_a_robot_with_no_task_parks_with_a_backlog():
     j = judge()
     j.on_board(["O-1", "O-2"])
-    j.on_assignments({"pinky2": "TO_WORK"})  # 다른 로봇의 일은 pinky1을 봐주지 않는다
-    lap(j, "pinky1", [OUT, LANE, WAITING[0]])
+    j.on_assignments({"pode2": "TO_WORK"})  # 다른 로봇의 일은 pode1을 봐주지 않는다
+    lap(j, "pode1", [OUT, LANE, WAITING[0]])
     assert check(j, "parked_while_backlog")["value"] == 1
 
 
 def test_a_robot_sent_to_wait_still_parks_with_a_backlog():
     j = judge()
     j.on_board(["O-1", "O-2"])
-    j.on_assignments({"pinky1": "WAIT"})
-    lap(j, "pinky1", [OUT, LANE, WAITING[0]])
+    j.on_assignments({"pode1": "WAIT"})
+    lap(j, "pode1", [OUT, LANE, WAITING[0]])
     assert check(j, "parked_while_backlog")["value"] == 1
 
 
 def test_a_robot_that_starts_in_the_waiting_loop_is_no_violation():
     j = judge()
     j.on_board(["O-1", "O-2"])
-    lap(j, "pinky1", [WAITING[0], WAITING[1]])
+    lap(j, "pode1", [WAITING[0], WAITING[1]])
     assert check(j, "parked_while_backlog")["value"] == 0
 
 
@@ -748,13 +748,13 @@ def test_a_robot_that_starts_in_the_waiting_loop_is_no_violation():
 
 def test_finish_needs_all_orders_final_and_robots_parked():
     j = judge()
-    put(j, 1.0, "pinky1", WAITING[0], "IDLE")
-    put(j, 1.0, "pinky2", WAITING[1], "IDLE")
+    put(j, 1.0, "pode1", WAITING[0], "IDLE")
+    put(j, 1.0, "pode2", WAITING[1], "IDLE")
     ship(j, "O-1", "O-2")
     assert not j.finished(1.0)
     ship(j, "O-3")
     assert j.finished(2.0)
-    put(j, 3.0, "pinky2", OTHER, "MOVING")
+    put(j, 3.0, "pode2", OTHER, "MOVING")
     assert not j.finished(3.0)
 
 
@@ -764,16 +764,16 @@ def test_a_robot_within_the_arrival_tolerance_of_its_parking_node_is_parked():
     for off, parked in ((0.149, True), (0.151, False)):
         j = judge()
         x, y = at(WAITING[0])
-        put(j, 1.0, "pinky1", (x + off, y), "IDLE")
-        put(j, 1.0, "pinky2", WAITING[1], "IDLE")
+        put(j, 1.0, "pode1", (x + off, y), "IDLE")
+        put(j, 1.0, "pode2", WAITING[1], "IDLE")
         ship(j, "O-1", "O-2", "O-3")
         assert j.finished(2.0) is parked, off
 
 
 def test_a_docked_robot_is_not_parked():
     j = judge()
-    put(j, 1.0, "pinky1", WAITING[0], "IDLE")
-    put(j, 1.0, "pinky2", OUT, "IDLE")
+    put(j, 1.0, "pode1", WAITING[0], "IDLE")
+    put(j, 1.0, "pode2", OUT, "IDLE")
     ship(j, "O-1", "O-2", "O-3")
     assert not j.finished(2.0)
 
@@ -787,37 +787,37 @@ def test_timeout_finishes_and_fails_when_finishing_was_expected():
 
 @pytest.mark.parametrize("kind", ["stuck", "operator_remove"])
 def test_finish_does_not_wait_for_a_robot_that_is_gone(kind):
-    gone = scenario(faults=[{"at_s": 1, "robot": "pinky1", "type": kind}],
+    gone = scenario(faults=[{"at_s": 1, "robot": "pode1", "type": kind}],
                     orders_shipped_min=1)
     j = ScenarioJudge(SITE, gone, margin_m=0.13, grace_s=1.0)
-    put(j, 1.0, "pinky2", WAITING[1], "IDLE")
+    put(j, 1.0, "pode2", WAITING[1], "IDLE")
     ship(j, "O-1", "O-2", "O-3")
     assert j.finished(2.0)
 
 
-REINSTATED = [{"at_s": 1, "robot": "pinky1", "type": "operator_remove"},
-              {"at_s": 5, "robot": "pinky1", "type": "operator_reinstate", "start": "P-1"}]
+REINSTATED = [{"at_s": 1, "robot": "pode1", "type": "operator_remove"},
+              {"at_s": 5, "robot": "pode1", "type": "operator_reinstate", "start": "P-1"}]
 
 
 def test_finish_waits_for_a_robot_that_was_put_back():
     j = ScenarioJudge(SITE, scenario(faults=REINSTATED, orders_shipped_min=1),
                       margin_m=0.13, grace_s=1.0)
-    put(j, 1.0, "pinky2", WAITING[1], "IDLE")
+    put(j, 1.0, "pode2", WAITING[1], "IDLE")
     ship(j, "O-1", "O-2", "O-3")
     assert not j.finished(2.0)
-    put(j, 2.0, "pinky1", WAITING[0], "IDLE")
+    put(j, 2.0, "pode1", WAITING[0], "IDLE")
     assert j.finished(2.0)
 
 
 def _put_back_off_its_start(t_back):
     j = ScenarioJudge(SITE, scenario(faults=REINSTATED, orders_shipped_min=1),
                       margin_m=0.13, grace_s=1.0)
-    j.on_true_pose("pinky1", *at(OTHER))  # 출발 칸을 떠났다
+    j.on_true_pose("pode1", *at(OTHER))  # 출발 칸을 떠났다
     j.tick(0.0)
-    j.on_zones(0.0, {OTHER_ZONE: "pinky1"})
-    j.on_true_pose("pinky1", *at(WAITING[0]))
+    j.on_zones(0.0, {OTHER_ZONE: "pode1"})
+    j.on_true_pose("pode1", *at(WAITING[0]))
     j.on_zones(t_back, {OTHER_ZONE: ""})
-    j.put_back(t_back, "pinky1", WAITING[0])
+    j.put_back(t_back, "pode1", WAITING[0])
     return j
 
 
@@ -826,7 +826,7 @@ def test_a_robot_put_back_has_a_short_while_to_be_placed():
     j = _put_back_off_its_start(1.0)
     j.tick(1.0)
     j.tick(1.9)
-    j.on_zones(1.9, {"HALL": "pinky1"})
+    j.on_zones(1.9, {"HALL": "pode1"})
     for t in (3.0, 5.0, 9.0):
         j.tick(t)
     assert check(j, "unheld_zone_pose")["value"] == 0
@@ -854,9 +854,9 @@ def test_a_robot_put_back_on_its_own_start_cell_gets_no_start_exemption():
     """출발 칸을 떠나는 것을 못 본 채 치웠다가 같은 칸에 다시 놓아도 면제는 유예뿐이다."""
     j = ScenarioJudge(SITE, scenario(faults=REINSTATED, orders_shipped_min=1),
                       margin_m=0.13, grace_s=1.0)
-    j.on_true_pose("pinky1", *at(WAITING[1]))  # 시작 칸 P-1
+    j.on_true_pose("pode1", *at(WAITING[1]))  # 시작 칸 P-1
     j.tick(0.0)
-    j.put_back(1.0, "pinky1", WAITING[1])
+    j.put_back(1.0, "pode1", WAITING[1])
     for t in (1.0, 2.0, 3.0, 9.0):
         j.tick(t)
     assert check(j, "unheld_zone_pose")["value"] == 1
@@ -865,27 +865,27 @@ def test_a_robot_put_back_on_its_own_start_cell_gets_no_start_exemption():
 def test_orders_bound_by_a_robot_after_its_reinstate_are_counted():
     j = ScenarioJudge(SITE, scenario(faults=REINSTATED, orders_shipped_min=1,
                                      bound_after_reinstate_min=1), margin_m=0.13, grace_s=1.0)
-    event(j, "ORDER_BOUND", "O-1", t=1.0, source="pinky1")
-    event(j, "ROBOT_REINSTATED", "basket EMPTY", t=2.0, source="pinky2")
-    event(j, "ORDER_BOUND", "O-2", t=3.0, source="pinky1")
+    event(j, "ORDER_BOUND", "O-1", t=1.0, source="pode1")
+    event(j, "ROBOT_REINSTATED", "basket EMPTY", t=2.0, source="pode2")
+    event(j, "ORDER_BOUND", "O-2", t=3.0, source="pode1")
     assert check(j, "bound_after_reinstate_min") == {"value": 0, "minimum": 1, "ok": False}
-    event(j, "ROBOT_REINSTATED", "basket EMPTY", t=4.0, source="pinky1")
-    event(j, "ORDER_BOUND", "O-3", t=5.0, source="pinky1")
+    event(j, "ROBOT_REINSTATED", "basket EMPTY", t=4.0, source="pode1")
+    event(j, "ORDER_BOUND", "O-3", t=5.0, source="pode1")
     assert check(j, "bound_after_reinstate_min") == {"value": 1, "minimum": 1, "ok": True}
 
 
 def reinstated_judge():
     j = ScenarioJudge(SITE, scenario(faults=REINSTATED, orders_shipped_min=1,
                                      shipped_after_reinstate_min=1), margin_m=0.13, grace_s=1.0)
-    event(j, "ROBOT_REINSTATED", "basket EMPTY", t=2.0, source="pinky2")
+    event(j, "ROBOT_REINSTATED", "basket EMPTY", t=2.0, source="pode2")
     return j
 
 
 def test_an_order_bound_after_a_reinstate_but_requeued_and_shipped_by_another_does_not_count():
     j = reinstated_judge()
-    event(j, "ORDER_BOUND", "O-1", t=3.0, source="pinky2")
-    event(j, "ORDER_REQUEUED", "O-1 was bound, basket held {}", t=4.0, source="pinky2")
-    event(j, "ORDER_BOUND", "O-1", t=5.0, source="pinky1")
+    event(j, "ORDER_BOUND", "O-1", t=3.0, source="pode2")
+    event(j, "ORDER_REQUEUED", "O-1 was bound, basket held {}", t=4.0, source="pode2")
+    event(j, "ORDER_BOUND", "O-1", t=5.0, source="pode1")
     event(j, "ORDER_SHIPPED", "O-1", t=6.0)
     assert check(j, "shipped_after_reinstate_min") == {"value": 0, "minimum": 1, "ok": False}
     assert check(j, "bound_after_reinstate_min")["value"] == 1  # 기존 판정은 그대로
@@ -893,7 +893,7 @@ def test_an_order_bound_after_a_reinstate_but_requeued_and_shipped_by_another_do
 
 def test_an_order_bound_after_a_reinstate_and_shipped_counts():
     j = reinstated_judge()
-    event(j, "ORDER_BOUND", "O-1", t=3.0, source="pinky2")
+    event(j, "ORDER_BOUND", "O-1", t=3.0, source="pode2")
     event(j, "ORDER_SHIPPED", "O-1", t=6.0)
     assert check(j, "shipped_after_reinstate_min") == {"value": 1, "minimum": 1, "ok": True}
 
@@ -901,15 +901,15 @@ def test_an_order_bound_after_a_reinstate_and_shipped_counts():
 def test_an_order_bound_before_the_clear_does_not_count():
     j = ScenarioJudge(SITE, scenario(faults=REINSTATED, orders_shipped_min=1,
                                      shipped_after_reinstate_min=1), margin_m=0.13, grace_s=1.0)
-    event(j, "ORDER_BOUND", "O-1", t=0.5, source="pinky2")
-    event(j, "ROBOT_REINSTATED", "basket EMPTY", t=2.0, source="pinky2")
+    event(j, "ORDER_BOUND", "O-1", t=0.5, source="pode2")
+    event(j, "ROBOT_REINSTATED", "basket EMPTY", t=2.0, source="pode2")
     event(j, "ORDER_SHIPPED", "O-1", t=6.0)
     assert check(j, "shipped_after_reinstate_min") == {"value": 0, "minimum": 1, "ok": False}
 
 
 def test_a_held_order_bound_after_a_reinstate_does_not_count():
     j = reinstated_judge()
-    event(j, "ORDER_BOUND", "O-1", t=3.0, source="pinky2")
+    event(j, "ORDER_BOUND", "O-1", t=3.0, source="pode2")
     event(j, "ORDER_HELD", "O-1", t=6.0)
     assert check(j, "shipped_after_reinstate_min")["value"] == 0
 
@@ -917,16 +917,16 @@ def test_a_held_order_bound_after_a_reinstate_does_not_count():
 def test_an_order_rebound_by_another_reinstated_robot_counts_for_neither_twice():
     """두 대 모두 재투입. A가 묶은 주문을 B가 되돌림 없이 다시 묶으면 A 몫이 아니다."""
     j = reinstated_judge()
-    event(j, "ROBOT_REINSTATED", "basket EMPTY", t=2.5, source="pinky1")
-    event(j, "ORDER_BOUND", "O-1", t=3.0, source="pinky2")
-    event(j, "ORDER_BOUND", "O-1", t=4.0, source="pinky1")
+    event(j, "ROBOT_REINSTATED", "basket EMPTY", t=2.5, source="pode1")
+    event(j, "ORDER_BOUND", "O-1", t=3.0, source="pode2")
+    event(j, "ORDER_BOUND", "O-1", t=4.0, source="pode1")
     event(j, "ORDER_SHIPPED", "O-1", t=6.0)
-    assert check(j, "shipped_after_reinstate_min")["value"] == 1  # 끝낸 pinky1 몫 하나
+    assert check(j, "shipped_after_reinstate_min")["value"] == 1  # 끝낸 pode1 몫 하나
 
 
 def test_a_final_event_twice_counts_once():
     j = reinstated_judge()
-    event(j, "ORDER_BOUND", "O-1", t=3.0, source="pinky2")
+    event(j, "ORDER_BOUND", "O-1", t=3.0, source="pode2")
     event(j, "ORDER_HELD", "O-1", t=5.0)
     event(j, "ORDER_SHIPPED", "O-1", t=6.0)
     event(j, "ORDER_SHIPPED", "O-1", t=7.0)
@@ -935,7 +935,7 @@ def test_a_final_event_twice_counts_once():
 
 def test_a_partial_order_bound_after_a_reinstate_counts():
     j = reinstated_judge()
-    event(j, "ORDER_BOUND", "O-1", t=3.0, source="pinky2")
+    event(j, "ORDER_BOUND", "O-1", t=3.0, source="pode2")
     event(j, "ORDER_PARTIAL", "O-1", t=6.0)
     event(j, "ORDER_SHIPPED", "O-1", t=7.0)
     assert check(j, "shipped_after_reinstate_min")["value"] == 1
@@ -943,18 +943,18 @@ def test_a_partial_order_bound_after_a_reinstate_counts():
 
 def test_an_order_bound_between_a_second_clear_and_reinstate_does_not_count():
     j = reinstated_judge()
-    event(j, "ZONES_CLEARED", "lifted", t=3.0, source="pinky2")
-    event(j, "ORDER_BOUND", "O-1", t=3.5, source="pinky2")
+    event(j, "ZONES_CLEARED", "lifted", t=3.0, source="pode2")
+    event(j, "ORDER_BOUND", "O-1", t=3.5, source="pode2")
     event(j, "ORDER_SHIPPED", "O-1", t=6.0)
     assert check(j, "shipped_after_reinstate_min")["value"] == 0
     assert check(j, "bound_after_reinstate_min")["value"] == 1  # 기존 판정은 그대로
 
 
 def test_finish_waits_for_a_robot_after_a_comm_loss():
-    lost = scenario(faults=[{"at_s": 1, "robot": "pinky1", "type": "comm_loss", "duration_s": 5}],
+    lost = scenario(faults=[{"at_s": 1, "robot": "pode1", "type": "comm_loss", "duration_s": 5}],
                     orders_shipped_min=1)
     j = ScenarioJudge(SITE, lost, margin_m=0.13, grace_s=1.0)
-    put(j, 1.0, "pinky2", WAITING[1], "IDLE")
+    put(j, 1.0, "pode2", WAITING[1], "IDLE")
     ship(j, "O-1", "O-2", "O-3")
     assert not j.finished(2.0)
 
@@ -965,18 +965,18 @@ def test_summary_reports_duration():
 
 def test_off_course_needs_a_known_pose_clear_of_every_zone():
     j = judge()
-    assert j.off_course("pinky1") is False
-    put(j, 1.0, "pinky1", SAME_ZONE[0])
-    assert j.off_course("pinky1") is False
-    j.on_true_pose("pinky1", -1.0, -1.0)
-    assert j.off_course("pinky1") is True
+    assert j.off_course("pode1") is False
+    put(j, 1.0, "pode1", SAME_ZONE[0])
+    assert j.off_course("pode1") is False
+    j.on_true_pose("pode1", -1.0, -1.0)
+    assert j.off_course("pode1") is True
 
 
 def test_held_by_lists_only_the_robots_own_zones():
     j = judge()
-    j.on_zones(1.0, {ZONE: "pinky1", OTHER_ZONE: "pinky1", "P-2": "pinky2", "P-1": ""})
-    assert j.held_by("pinky1") == sorted([ZONE, OTHER_ZONE])
-    assert j.held_by("pinky3") == []
+    j.on_zones(1.0, {ZONE: "pode1", OTHER_ZONE: "pode1", "P-2": "pode2", "P-1": ""})
+    assert j.held_by("pode1") == sorted([ZONE, OTHER_ZONE])
+    assert j.held_by("pode3") == []
 
 
 # -- timed_out, unexpected_errors, order_results ------------------------------------------
@@ -990,7 +990,7 @@ def clean_run(j):
 
 def test_a_timeout_fails_even_with_every_other_check_good():
     j = clean_run(judge())
-    put(j, 1.0, "pinky1", LANE, "MOVING")  # 모두 출고됐지만 이 로봇은 돌아오지 못했다
+    put(j, 1.0, "pode1", LANE, "MOVING")  # 모두 출고됐지만 이 로봇은 돌아오지 못했다
     s = j.summary(100.0)
     failed = [k for k, c in s["checks"].items() if not c["ok"]]
     assert failed == ["timed_out"] and s["timed_out"] is True and s["pass"] is False
@@ -998,7 +998,7 @@ def test_a_timeout_fails_even_with_every_other_check_good():
 
 def test_a_declared_timeout_passes_and_a_missing_one_fails():
     j = clean_run(judge(timed_out=True))
-    put(j, 1.0, "pinky1", LANE, "MOVING")
+    put(j, 1.0, "pode1", LANE, "MOVING")
     assert check(j, "timed_out")["ok"] is True
     j = clean_run(judge(timed_out=True))
     assert check(j, "timed_out")["ok"] is False, "it was meant to run out of time and did not"
@@ -1019,14 +1019,14 @@ def test_an_unexpected_error_event_fails_the_run():
                                     {"event_counts": {"FILL_FAILED": 1}}])
 def test_an_error_the_scenario_names_is_not_unexpected(expect):
     j = clean_run(judge(**expect))
-    j.on_event(2.0, "ERROR", "pinky1", "FILL_FAILED", "workcell: ARM_FAULT")
+    j.on_event(2.0, "ERROR", "pode1", "FILL_FAILED", "workcell: ARM_FAULT")
     assert check(j, "unexpected_errors")["ok"] is True
     assert j.summary(5.0)["pass"] is True
 
 
 def test_warnings_are_not_unexpected_errors():
     j = clean_run(judge())
-    j.on_event(2.0, "WARN", "pinky1", "GOAL_RETRY", "attempt 1")
+    j.on_event(2.0, "WARN", "pode1", "GOAL_RETRY", "attempt 1")
     assert check(j, "unexpected_errors")["value"] == 0
 
 
@@ -1035,10 +1035,10 @@ def test_right_counts_on_the_wrong_orders_fail():
               order_results={"O-1": "HELD", "O-2": "SHIPPED", "O-3": "SHIPPED"})
     bind(j, "O-1", "O-2", "O-3")
     ship(j, "O-1", "O-2")
-    event(j, "ORDER_HELD", "O-3 robot=pinky1", source="central")
-    put(j, 1.0, "pinky1", WAITING[0], "IDLE")
-    put(j, 1.0, "pinky2", WAITING[1], "IDLE")
-    j.on_zones(1.0, {"HALL": "pinky1,pinky2"})
+    event(j, "ORDER_HELD", "O-3 robot=pode1", source="central")
+    put(j, 1.0, "pode1", WAITING[0], "IDLE")
+    put(j, 1.0, "pode2", WAITING[1], "IDLE")
+    j.on_zones(1.0, {"HALL": "pode1,pode2"})
     j.tick(1.0)
     s = j.summary(5.0)
     assert [k for k, c in s["checks"].items() if not c["ok"]] == ["order_results"]
@@ -1063,14 +1063,14 @@ def both_arm_judge():
         "seed": 1, "speed_factor": 1.0, "timeout_s": 100,
         "stock": {"arm1": {"A": 9}, "arm2": {"C": 9}},
         "orders": [{"at_s": 0, "id": "O-1", "items": {"A": 1, "C": 1}}],
-        "robots": {"pinky1": {"start": "P-1"}, "pinky2": {"start": "P-2"}},
+        "robots": {"pode1": {"start": "P-1"}, "pode2": {"start": "P-2"}},
     }, SITE)
     j = ScenarioJudge(SITE, sc, margin_m=0.13, grace_s=1.0)
     bind(j, "O-1")
     ship(j, "O-1")
-    put(j, 1.0, "pinky1", WAITING[0], "IDLE")
-    put(j, 1.0, "pinky2", WAITING[1], "IDLE")
-    j.on_zones(1.0, {"HALL": "pinky1,pinky2"})
+    put(j, 1.0, "pode1", WAITING[0], "IDLE")
+    put(j, 1.0, "pode2", WAITING[1], "IDLE")
+    j.on_zones(1.0, {"HALL": "pode1,pode2"})
     j.tick(1.0)
     return j
 
@@ -1111,12 +1111,12 @@ def test_orders_for_one_arm_do_not_need_the_other():
 
 
 def drifting(**expect):
-    sc = scenario(faults=[{"at_s": 10, "robot": "pinky1", "type": "drift", "duration_s": 5,
+    sc = scenario(faults=[{"at_s": 10, "robot": "pode1", "type": "drift", "duration_s": 5,
                            "offset_m": 0.3}], orders_shipped_min=1, **expect)
     return ScenarioJudge(SITE, sc, margin_m=0.13, grace_s=1.0)
 
 
-def release_far(j, t, robot="pinky1"):
+def release_far(j, t, robot="pode1"):
     """몸이 확실히 벗어난 뒤의 해제. 다른 검사에는 걸리지 않는다."""
     j.on_true_pose(robot, *at(OTHER))
     j.on_zones(t - 0.5, {ZONE: robot})
@@ -1124,11 +1124,11 @@ def release_far(j, t, robot="pinky1"):
 
 
 @pytest.mark.parametrize("t, robot, counted", [
-    (10.5, "pinky1", 0),  # 아직 FMS가 알아챌 수 없다
-    (12.0, "pinky1", 1),
-    (14.9, "pinky1", 1),
-    (15.5, "pinky1", 0),  # 이탈이 끝났다
-    (12.0, "pinky2", 0),
+    (10.5, "pode1", 0),  # 아직 FMS가 알아챌 수 없다
+    (12.0, "pode1", 1),
+    (14.9, "pode1", 1),
+    (15.5, "pode1", 0),  # 이탈이 끝났다
+    (12.0, "pode2", 0),
 ])
 def test_a_release_from_a_drifting_robot_is_counted(t, robot, counted):
     j = drifting()
@@ -1155,10 +1155,10 @@ def test_shipped_before_operator_counts_from_the_isolation_to_the_first_clear():
 
 def test_clearing_a_robot_that_is_not_isolated_does_not_end_the_count():
     j = judge(shipped_before_operator_min=2, all_orders_finished=False)
-    j.on_event(1.0, "ERROR", "pinky1", "ROBOT_ISOLATED", "GRIPPER: stopped where it is")
-    j.on_event(2.0, "INFO", "pinky2", "ZONES_CLEARED", "released ['Z-R1']: lifted")
+    j.on_event(1.0, "ERROR", "pode1", "ROBOT_ISOLATED", "GRIPPER: stopped where it is")
+    j.on_event(2.0, "INFO", "pode2", "ZONES_CLEARED", "released ['Z-R1']: lifted")
     ship(j, "O-1")
-    j.on_event(3.0, "INFO", "pinky1", "ZONES_CLEARED", "released ['Z-WORK']: lifted")
+    j.on_event(3.0, "INFO", "pode1", "ZONES_CLEARED", "released ['Z-WORK']: lifted")
     ship(j, "O-2")
     assert check(j, "shipped_before_operator")["value"] == 1
 
@@ -1172,14 +1172,14 @@ def test_detours_around_isolated_count_reroutes_while_an_isolated_robot_stands()
     """계약 4절: REROUTE의 detail은 자유 글이라, 격리된 로봇이 서 있는 동안 다른 로봇의
     REROUTE만 센다."""
     j = judge(detours_around_isolated_min=1, all_orders_finished=False)
-    j.on_event(1.0, "INFO", "pinky2", "REROUTE", "new route")  # 격리 전
+    j.on_event(1.0, "INFO", "pode2", "REROUTE", "new route")  # 격리 전
     assert check(j, "detours_around_isolated")["ok"] is False
-    j.on_event(3.0, "ERROR", "pinky1", "ROBOT_ISOLATED", "NAV_ABORTED: stopped where it is")
-    j.on_event(4.0, "INFO", "pinky1", "REROUTE", "new route")  # 격리된 로봇 자신
+    j.on_event(3.0, "ERROR", "pode1", "ROBOT_ISOLATED", "NAV_ABORTED: stopped where it is")
+    j.on_event(4.0, "INFO", "pode1", "REROUTE", "new route")  # 격리된 로봇 자신
     assert check(j, "detours_around_isolated")["value"] == 0
-    j.on_event(5.0, "INFO", "pinky2", "REROUTE", "new route")
-    j.on_event(6.0, "INFO", "pinky1", "ZONES_CLEARED", "released ['J_W']: lifted")
-    j.on_event(7.0, "INFO", "pinky3", "REROUTE", "new route")  # 치운 뒤
+    j.on_event(5.0, "INFO", "pode2", "REROUTE", "new route")
+    j.on_event(6.0, "INFO", "pode1", "ZONES_CLEARED", "released ['J_W']: lifted")
+    j.on_event(7.0, "INFO", "pode3", "REROUTE", "new route")  # 치운 뒤
     result = check(j, "detours_around_isolated")
     assert (result["value"], result["minimum"], result["ok"]) == (1, 1, True)
 
@@ -1191,9 +1191,9 @@ def test_detours_around_isolated_is_not_checked_by_default():
 
 def test_detours_around_isolated_count_a_reroute_once_with_two_isolated_robots():
     j = judge(detours_around_isolated_min=1, all_orders_finished=False)
-    j.on_event(1.0, "ERROR", "pinky1", "ROBOT_ISOLATED", "NAV_ABORTED: stopped where it is")
-    j.on_event(2.0, "ERROR", "pinky3", "ROBOT_ISOLATED", "NAV_ABORTED: stopped where it is")
-    j.on_event(3.0, "INFO", "pinky2", "REROUTE", "new route")
+    j.on_event(1.0, "ERROR", "pode1", "ROBOT_ISOLATED", "NAV_ABORTED: stopped where it is")
+    j.on_event(2.0, "ERROR", "pode3", "ROBOT_ISOLATED", "NAV_ABORTED: stopped where it is")
+    j.on_event(3.0, "INFO", "pode2", "REROUTE", "new route")
     assert check(j, "detours_around_isolated")["value"] == 1
 
 
@@ -1204,9 +1204,9 @@ def test_detours_around_isolated_count_a_reroute_once_with_two_isolated_robots()
 def test_a_path_not_connected_failure_is_counted_and_none_is_expected_by_default():
     j = judge()
     assert check(j, "path_not_connected") == {"value": 0, "expected": 0, "ok": True}
-    j.on_event(2.0, "WARN", "pinky1", "GOAL_RETRY", "attempt 1 failed: PATH_NOT_CONNECTED")
-    j.on_event(3.0, "WARN", "pinky1", "GOAL_RETRY", "attempt 1 failed: NAV_ABORTED")
-    j.on_event(9.0, "ERROR", "pinky2", "GOAL_FAILED",
+    j.on_event(2.0, "WARN", "pode1", "GOAL_RETRY", "attempt 1 failed: PATH_NOT_CONNECTED")
+    j.on_event(3.0, "WARN", "pode1", "GOAL_RETRY", "attempt 1 failed: NAV_ABORTED")
+    j.on_event(9.0, "ERROR", "pode2", "GOAL_FAILED",
                "gave up after 4 attempts: PATH_NOT_CONNECTED")
     result = check(j, "path_not_connected")
     assert (result["value"], result["ok"]) == (2, False)
@@ -1216,10 +1216,10 @@ def test_robot_idle_is_counted_and_none_is_expected_by_default():
     """1.1 지시서 H2: 정상 운행에서 ROBOT_IDLE이 나면 오탐이다. 고장 시나리오는 null로 안 본다."""
     j = judge()
     assert check(j, "robot_idle") == {"value": 0, "expected": 0, "ok": True}
-    j.on_event(2.0, "WARN", "pinky1", "ROBOT_IDLE", "TO_PARK at F0 for 10 s")
+    j.on_event(2.0, "WARN", "pode1", "ROBOT_IDLE", "TO_PARK at F0 for 10 s")
     assert check(j, "robot_idle") == {"value": 1, "expected": 0, "ok": False}
     j = judge(robot_idle=None)
-    j.on_event(2.0, "WARN", "pinky1", "ROBOT_IDLE", "TO_PARK at F0 for 10 s")
+    j.on_event(2.0, "WARN", "pode1", "ROBOT_IDLE", "TO_PARK at F0 for 10 s")
     assert check(j, "robot_idle")["ok"] is True
 
 
@@ -1227,12 +1227,12 @@ def test_parked_while_backlog_null_is_not_checked():
     """충전하러 가는 로봇은 주문이 밀려도 WAIT로 갈 수 있다. null이면 안 본다(robot_idle처럼)."""
     j = judge(parked_while_backlog=None)
     j.on_board(["O-1", "O-2"])
-    lap(j, "pinky1", [OUT, LANE, WAITING[0]])
+    lap(j, "pode1", [OUT, LANE, WAITING[0]])
     result = check(j, "parked_while_backlog")
     assert (result["value"], result["expected"], result["ok"]) == (1, None, True)
 
 
 def test_a_scenario_can_expect_path_not_connected_failures():
     j = judge(path_not_connected=1)
-    j.on_event(2.0, "WARN", "pinky1", "GOAL_RETRY", "attempt 1 failed: PATH_NOT_CONNECTED")
+    j.on_event(2.0, "WARN", "pode1", "GOAL_RETRY", "attempt 1 failed: PATH_NOT_CONNECTED")
     assert check(j, "path_not_connected")["ok"] is True

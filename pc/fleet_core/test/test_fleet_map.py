@@ -172,7 +172,7 @@ def test_a_fixed_line_that_turns_back_or_crosses_itself_is_refused():
 
 
 def test_the_shelf_end_check_measures_the_arc_the_robot_drives_at_a_corner():
-    """핑키는 꺾이는 곳을 turn_radius_m 호로 돈다(Codex 검토 4). 진열대 끝 밖에 놓인 호의 점도
+    """Pode는 꺾이는 곳을 turn_radius_m 호로 돈다(Codex 검토 4). 진열대 끝 밖에 놓인 호의 점도
     잰다."""
     site = build()
     corner = [w for w in site.warnings if "corner" in w]
@@ -183,7 +183,7 @@ def test_the_shelf_end_check_measures_the_arc_the_robot_drives_at_a_corner():
 
 
 def test_corner_arc_on_a_first_or_last_piece_may_use_the_whole_piece():
-    """핑키(geometry.rounded)는 선의 첫 선분과 마지막 선분에서는 호가 그 선분을 다 쓸 수 있다.
+    """Pode(geometry.rounded)는 선의 첫 선분과 마지막 선분에서는 호가 그 선분을 다 쓸 수 있다.
     D2 work_out W -> (0.35, 0.89) -> N_W: 첫 선분이 0.17 m라 반으로 줄인 호는 접점 거리 0.085 m,
     다 쓰는 호는 0.10 m다(Codex 검토 2-1 둘째 차례). 90° 호의 가운데는 꼭짓점에서 접점 거리 x
     (sqrt 2 - 1)."""

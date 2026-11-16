@@ -1,6 +1,6 @@
-pinky1: {type: pinky}
-pinky2: {type: pinky}
-pinky3: {type: pinky}
+pode1: {type: pode}
+pode2: {type: pode}
+pode3: {type: pode}
 arm1: {type: arm, station: WORK, action: fill}
 arm2: {type: arm, station: WORK, action: fill}
 arm3: {type: arm, station: OUTBOUND, action: swap}

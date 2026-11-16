@@ -25,7 +25,7 @@ from zone_order_run import OrderRun
 
 DT = 0.1
 DOCK_S = 2.0
-STARTS = {"pinky1": "P-1", "pinky2": "P-2", "pinky3": "P-3"}
+STARTS = {"pode1": "P-1", "pode2": "P-2", "pode3": "P-3"}
 
 
 class Bot:

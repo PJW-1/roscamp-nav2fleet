@@ -24,16 +24,16 @@ def test_every_order_situation_finishes_its_orders_with_no_violation(name, order
 def test_a_robot_that_loses_contact_with_a_horizon_drives_to_its_base_end_and_keeps_its_zones():
     world = ZoneWorld("d2", seed=1,
                       overrides={"use_order_model": True, "comm_loss_policy": "base_end"},
-                      injections=[CommLoss("pinky1", 2.0, 17.0)])
+                      injections=[CommLoss("pode1", 2.0, 17.0)])
     world.run(2.0)
-    run = world.robots["pinky1"].run
-    assert isinstance(run, OrderRun) and run.horizon, "pinky1 has a horizon when it goes silent"
+    run = world.robots["pode1"].run
+    assert isinstance(run, OrderRun) and run.horizon, "pode1 has a horizon when it goes silent"
     end = run.last.end_node
     world.run(14.0)
-    r = world.robots["pinky1"]
+    r = world.robots["pode1"]
     assert r.run is run and run.waiting  # 끊긴 채 base 끝에 서서 기다린다
     assert world.site.nearest_node(r.x, r.y) == end
-    assert set(world.traffic.robot_view("pinky1")["held"]) >= {world.site.nodes[end].zone}
+    assert set(world.traffic.robot_view("pode1")["held"]) >= {world.site.nodes[end].zone}
     assert not world.violations
     assert world.order_metrics.outside_base == 0
 

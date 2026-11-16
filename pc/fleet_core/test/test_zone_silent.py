@@ -15,15 +15,15 @@ def count(world, code, robot=""):
 
 
 def quiet_goal(**kwargs):
-    """pinky2가 goal을 받고 서 있다. 제자리 멈춤 감시를 꺼서 관제가 아무 말도 하지 않게 한다
+    """pode2가 goal을 받고 서 있다. 제자리 멈춤 감시를 꺼서 관제가 아무 말도 하지 않게 한다
     (관제의 결함을 흉내 낸다)."""
     world = Harness(speed=0.0, **kwargs)
     world.traffic._watch_stall = lambda m, now: None
     world.traffic._watch_start = lambda m, now: None
     world.step()
-    world.call("WORK", "pinky2")
+    world.call("WORK", "pode2")
     world.step()
-    assert world.sent(MoveCmd, "pinky2")
+    assert world.sent(MoveCmd, "pode2")
     return world
 
 
@@ -40,7 +40,7 @@ def test_a_robot_with_an_open_goal_that_stands_while_the_fleet_says_nothing_is_r
     assert count(world, "SILENT_STALL") == 0
     world.run(1.5)
     found = [(e.level, e.robot) for e in world.events if e.code == "SILENT_STALL"]
-    assert found == [("WARN", "pinky2")]
+    assert found == [("WARN", "pode2")]
     detail = next(e.detail for e in world.events if e.code == "SILENT_STALL")
     assert detail.startswith("TO_WORK at P-2: no progress and no fleet event for 60 s")
     world.run(2 * LIMIT)
@@ -51,7 +51,7 @@ def test_an_event_about_the_robot_starts_a_new_episode():
     world = quiet_goal()
     world.run(LIMIT + 1.0)
     assert count(world, "SILENT_STALL") == 1
-    world.traffic._event("INFO", "SOMETHING", "the fleet speaks", "pinky2")
+    world.traffic._event("INFO", "SOMETHING", "the fleet speaks", "pode2")
     world.run(LIMIT - 1.0)
     assert count(world, "SILENT_STALL") == 1
     world.run(1.5)
@@ -61,9 +61,9 @@ def test_an_event_about_the_robot_starts_a_new_episode():
 def test_an_event_about_another_robot_does_not_count():
     world = quiet_goal()
     world.run(LIMIT / 2)
-    world.traffic._event("INFO", "SOMETHING", "about someone else", "pinky1")
+    world.traffic._event("INFO", "SOMETHING", "about someone else", "pode1")
     world.run(LIMIT / 2 + 0.5)
-    assert count(world, "SILENT_STALL", "pinky2") == 1
+    assert count(world, "SILENT_STALL", "pode2") == 1
 
 
 def test_moving_starts_a_new_episode():
@@ -90,7 +90,7 @@ def test_a_robot_with_no_goal_and_nothing_to_wait_for_is_told_about_by_robot_idl
         world = Harness(params=replace(load_params(), idle_watch_s=idle_s))
         world.step()
         world.traffic._choose = lambda m: None  # 길도 기다릴 것도 없다
-        world.call("WORK", "pinky2")
+        world.call("WORK", "pode2")
         world.run(2 * LIMIT)
         assert count(world, "SILENT_STALL") == expected, idle_s
 
@@ -104,49 +104,49 @@ def test_a_robot_parked_with_nothing_to_do_is_not_silent():
 
 
 def test_a_robot_waiting_for_a_busy_dock_is_not_silent():
-    world = Harness(starts={"pinky1": "W", "pinky2": "P-2", "pinky3": "W_Q"})
+    world = Harness(starts={"pode1": "W", "pode2": "P-2", "pode3": "W_Q"})
     world.report()
-    world.call("WORK", "pinky1")
-    world.call("WORK", "pinky3")
-    world.call("WORK", "pinky2")
+    world.call("WORK", "pode1")
+    world.call("WORK", "pode3")
+    world.call("WORK", "pode2")
     world.run(3 * LIMIT)
-    assert "DOCK_QUEUED" in world.codes("pinky2")
+    assert "DOCK_QUEUED" in world.codes("pode2")
     assert count(world, "SILENT_STALL") == 0
 
 
 def test_a_robot_served_at_its_station_is_not_silent():
-    world = Harness(starts={"pinky1": "W", "pinky2": "P-2", "pinky3": "P-3"})
+    world = Harness(starts={"pode1": "W", "pode2": "P-2", "pode3": "P-3"})
     world.report()
-    call = world.call("WORK", "pinky1")
+    call = world.call("WORK", "pode1")
     assert world.run_until(lambda: world.result_of(call) is not None, 30.0)
-    assert world.phase("pinky1") == "AT_STATION"
+    assert world.phase("pode1") == "AT_STATION"
     world.run(3 * LIMIT)
     assert count(world, "SILENT_STALL") == 0
 
 
 def test_a_robot_that_fails_or_goes_silent_is_not_watched():
     world = quiet_goal()
-    world.traffic.on_robot_fault("pinky2", "MOTOR")
+    world.traffic.on_robot_fault("pode2", "MOTOR")
     world.run(2 * LIMIT)
     assert count(world, "SILENT_STALL") == 0
     world = quiet_goal()
-    world.silent.add("pinky2")
+    world.silent.add("pode2")
     world.run(2 * LIMIT)
-    assert "COMM_LOST" in world.codes("pinky2") and count(world, "SILENT_STALL") == 0
+    assert "COMM_LOST" in world.codes("pode2") and count(world, "SILENT_STALL") == 0
 
 
 def test_a_robot_that_never_reports_is_not_watched(monkeypatch):
     world = Harness()
-    world.silent.add("pinky2")
+    world.silent.add("pode2")
     world.step()
-    world.call("WORK", "pinky2")
+    world.call("WORK", "pode2")
     world.run(2 * LIMIT)
     assert count(world, "SILENT_STALL") == 0
 
 
 def test_a_robot_held_back_for_a_retry_or_a_yield_is_not_silent(monkeypatch):
     world = quiet_goal()
-    m = world.traffic._robots["pinky2"]
+    m = world.traffic._robots["pode2"]
     world.run(LIMIT - 5.0)
     m.yield_until = world.now + 3.0
     world.run(LIMIT - 1.0)
@@ -158,9 +158,9 @@ def test_a_robot_held_back_for_a_retry_or_a_yield_is_not_silent(monkeypatch):
 
 def test_a_docking_robot_counts_as_one_with_somewhere_to_go(monkeypatch):
     monkeypatch.setattr(zone_harness, "DOCK_S", 1000.0)  # 도킹이 끝나지 않는다
-    world = Harness(starts={"pinky1": "W", "pinky2": "P-2", "pinky3": "P-3"})
+    world = Harness(starts={"pode1": "W", "pode2": "P-2", "pode3": "P-3"})
     world.traffic._watch_stall = lambda m, now: None
     world.report()
-    world.call("WORK", "pinky1")
+    world.call("WORK", "pode1")
     world.run(LIMIT + 1.0)
-    assert count(world, "SILENT_STALL", "pinky1") == 1
+    assert count(world, "SILENT_STALL", "pode1") == 1

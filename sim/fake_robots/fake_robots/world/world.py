@@ -44,8 +44,8 @@ def default_manager(site, params, robots, clock):
 
 
 def default_robots(site, count=3) -> dict[str, str]:
-    """pinky1..은 주차 자리 순서대로."""
-    return {f"pinky{i + 1}": node for i, node in enumerate(site.parking[:count])}
+    """pode1..은 주차 자리 순서대로."""
+    return {f"pode{i + 1}": node for i, node in enumerate(site.parking[:count])}
 
 
 class ZoneWorld(Commands, Link):

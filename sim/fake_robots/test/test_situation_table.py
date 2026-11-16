@@ -120,7 +120,7 @@ def test_the_wait_in_the_express_is_excused_only_while_the_box_is_there():
     assert s.for_mode("none").allowed_until_s == s.allowed_until_s
 
     def world(at):
-        standing = SimpleNamespace(code="I5_STANDING", t=at, detail="pinky2 stands in EXPRESS")
+        standing = SimpleNamespace(code="I5_STANDING", t=at, detail="pode2 stands in EXPRESS")
         return SimpleNamespace(violations=[standing], metrics=SimpleNamespace(count=lambda _: 0))
 
     assert correctness(s, world(box.t1 + 30.0)) == []
@@ -136,7 +136,7 @@ def test_a_silent_stall_fails_every_mode_as_a_safety_rule():
         outcome = run_situation("person_passing", "d2", 1, manager_factory=RecordingManager,
                                 avoid_mode=mode)
         assert not [f for f in outcome.failures if "SILENT_STALL" in f]
-        outcome.world.send(EventOut("ERROR", "SILENT_STALL", "no progress", "pinky1"))
+        outcome.world.send(EventOut("ERROR", "SILENT_STALL", "no progress", "pode1"))
         assert "SILENT_STALL x1" in judge(build("person_passing", "d2").for_mode(mode),
                                           outcome.world)
 

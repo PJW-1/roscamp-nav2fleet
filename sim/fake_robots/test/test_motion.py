@@ -116,27 +116,27 @@ def test_what_is_still_in_a_cleared_delay_line_is_lost():
 
 def faults():
     return [
-        Fault(at_s=40, robot="pinky2", type="comm_loss", duration_s=20, count=1),
-        Fault(at_s=75, robot="pinky2", type="nav_abort", duration_s=0, count=2),
-        Fault(at_s=90, robot="pinky2", type="stuck", duration_s=0, count=1),
-        Fault(at_s=10, robot="pinky1", type="stuck", duration_s=0, count=1),
+        Fault(at_s=40, robot="pode2", type="comm_loss", duration_s=20, count=1),
+        Fault(at_s=75, robot="pode2", type="nav_abort", duration_s=0, count=2),
+        Fault(at_s=90, robot="pode2", type="stuck", duration_s=0, count=1),
+        Fault(at_s=10, robot="pode1", type="stuck", duration_s=0, count=1),
     ]
 
 
 def test_comm_loss_window():
-    s = FaultSchedule(faults(), "pinky2")
+    s = FaultSchedule(faults(), "pode2")
     assert [s.comms_down(t) for t in (39.9, 40.0, 59.9, 60.0)] == [False, True, True, False]
 
 
 def test_nav_abort_consumes_count_after_start_time():
-    s = FaultSchedule(faults(), "pinky2")
+    s = FaultSchedule(faults(), "pode2")
     assert s.take_nav_abort(74.0) is False
     assert [s.take_nav_abort(80.0) for _ in range(3)] == [True, True, False]
 
 
 def test_a_nav_abort_given_back_is_taken_by_the_next_goal():
     """중단 전에 대체되거나 취소된 목표는 고장 횟수를 돌려준다."""
-    s = FaultSchedule(faults(), "pinky2")
+    s = FaultSchedule(faults(), "pode2")
     assert [s.take_nav_abort(80.0) for _ in range(2)] == [True, True]
     s.give_back_nav_abort(s.last_taken)
     assert [s.take_nav_abort(81.0) for _ in range(2)] == [True, False]
@@ -144,9 +144,9 @@ def test_a_nav_abort_given_back_is_taken_by_the_next_goal():
 
 def test_a_nav_abort_is_given_back_to_the_schedule_that_goal_used():
     """일정이 겹치면 조건에 맞는 첫 일정이 아니라 그 목표가 쓴 일정에 돌려준다(Codex 5)."""
-    s = FaultSchedule([Fault(at_s=0, robot="pinky1", type="nav_abort", count=1),
-                       Fault(at_s=0, robot="pinky1", type="nav_abort", count=1, target="F2")],
-                      "pinky1")
+    s = FaultSchedule([Fault(at_s=0, robot="pode1", type="nav_abort", count=1),
+                       Fault(at_s=0, robot="pode1", type="nav_abort", count=1, target="F2")],
+                      "pode1")
     assert s.take_nav_abort(1.0, "F2") is True  # 첫 일정(대상 없음)
     assert s.take_nav_abort(2.0, "F2") is True  # F2 일정
     s.give_back_nav_abort(s.last_taken)  # 두 번째 목표가 대체됐다
@@ -155,8 +155,8 @@ def test_a_nav_abort_is_given_back_to_the_schedule_that_goal_used():
 
 
 def test_nav_abort_with_a_target_hits_only_goals_to_that_waypoint():
-    s = FaultSchedule([Fault(at_s=0, robot="pinky1", type="nav_abort", count=2, target="F2")],
-                      "pinky1")
+    s = FaultSchedule([Fault(at_s=0, robot="pode1", type="nav_abort", count=2, target="F2")],
+                      "pode1")
     assert s.take_nav_abort(5.0, "F1") is False
     assert s.take_nav_abort(6.0, "F2") is True
     assert s.take_nav_abort(7.0, "W") is False
@@ -164,63 +164,63 @@ def test_nav_abort_with_a_target_hits_only_goals_to_that_waypoint():
 
 
 def test_nav_abort_without_a_target_hits_any_goal():
-    s = FaultSchedule(faults(), "pinky2")
+    s = FaultSchedule(faults(), "pode2")
     assert s.take_nav_abort(80.0, "W") is True
 
 
 def test_stuck_never_recovers_and_is_per_robot():
-    s = FaultSchedule(faults(), "pinky2")
+    s = FaultSchedule(faults(), "pode2")
     assert not s.stuck(89.0) and s.stuck(90.0) and s.stuck(1e6)
-    assert FaultSchedule(faults(), "pinky3").stuck(1e6) is False
+    assert FaultSchedule(faults(), "pode3").stuck(1e6) is False
 
 
 def test_an_obstacle_is_there_for_its_window_and_only_for_its_robot():
-    s = FaultSchedule([Fault(at_s=8, robot="pinky1", type="blocked", duration_s=15)], "pinky1")
+    s = FaultSchedule([Fault(at_s=8, robot="pode1", type="blocked", duration_s=15)], "pode1")
     assert [s.obstacle(t) for t in (7.9, 8.0, 22.9, 23.0)] == [False, True, True, False]
     assert not s.comms_down(10.0) and not s.stuck(10.0)
-    other = FaultSchedule([Fault(at_s=8, robot="pinky1", type="blocked", duration_s=15)], "pinky2")
+    other = FaultSchedule([Fault(at_s=8, robot="pode1", type="blocked", duration_s=15)], "pode2")
     assert not other.obstacle(10.0)
 
 
 def test_an_obstacle_stays_where_the_robot_was_taken_off_the_course():
     """치운 뒤에는 앞 물체가 따라오지 않는다(수정 리뷰)."""
-    block = Fault(at_s=8, robot="pinky1", type="blocked", duration_s=15)
-    removed = FaultSchedule([block, Fault(at_s=10, robot="pinky1", type="operator_remove")],
-                            "pinky1")
+    block = Fault(at_s=8, robot="pode1", type="blocked", duration_s=15)
+    removed = FaultSchedule([block, Fault(at_s=10, robot="pode1", type="operator_remove")],
+                            "pode1")
     assert [removed.obstacle(t) for t in (9.0, 10.0, 12.0)] == [True, False, False]
-    assert FaultSchedule([block], "pinky1").obstacle(12.0)
-    later = FaultSchedule([Fault(at_s=5, robot="pinky1", type="operator_remove"), block],
-                          "pinky1")
+    assert FaultSchedule([block], "pode1").obstacle(12.0)
+    later = FaultSchedule([Fault(at_s=5, robot="pode1", type="operator_remove"), block],
+                          "pode1")
     assert later.obstacle(12.0), "a block after the removal still counts"
 
 
 def test_operator_remove_is_per_robot_and_lasts():
-    s = FaultSchedule([Fault(at_s=60, robot="pinky1", type="operator_remove")], "pinky1")
+    s = FaultSchedule([Fault(at_s=60, robot="pode1", type="operator_remove")], "pode1")
     assert not s.removed(59.9) and s.removed(60.0) and s.removed(1e6)
-    other = FaultSchedule([Fault(at_s=60, robot="pinky1", type="operator_remove")], "pinky2")
+    other = FaultSchedule([Fault(at_s=60, robot="pode1", type="operator_remove")], "pode2")
     assert not other.removed(1e6)
 
 
 def test_operator_reinstate_ends_a_removal_until_the_next_one():
-    own = [Fault(at_s=60, robot="pinky1", type="operator_remove"),
-           Fault(at_s=100, robot="pinky1", type="operator_reinstate", start=(3, 4)),
-           Fault(at_s=200, robot="pinky1", type="operator_remove")]
-    s = FaultSchedule(own, "pinky1")
+    own = [Fault(at_s=60, robot="pode1", type="operator_remove"),
+           Fault(at_s=100, robot="pode1", type="operator_reinstate", start=(3, 4)),
+           Fault(at_s=200, robot="pode1", type="operator_remove")]
+    s = FaultSchedule(own, "pode1")
     assert s.removed(60.0) and s.removed(99.9)
     assert not s.removed(100.0) and not s.removed(199.9)
     assert s.removed(200.0) and s.removed(1e6)
     assert s.put_back(99.9) is None and s.put_back(100.0) == (3, 4)
     assert s.put_back(150.0) == (3, 4) and s.put_back(200.0) is None
-    assert FaultSchedule(own, "pinky2").put_back(150.0) is None
+    assert FaultSchedule(own, "pode2").put_back(150.0) is None
 
 
 def test_a_reinstate_ends_a_stuck_before_it_and_not_one_after_it():
     """운영자가 고쳐 다시 넣었다. 그 뒤의 stuck은 다시 멈춘다(리뷰 5번)."""
-    own = [Fault(at_s=5, robot="pinky1", type="stuck"),
-           Fault(at_s=10, robot="pinky1", type="operator_remove"),
-           Fault(at_s=20, robot="pinky1", type="operator_reinstate", start=(3, 4)),
-           Fault(at_s=30, robot="pinky1", type="stuck")]
-    s = FaultSchedule(own, "pinky1")
+    own = [Fault(at_s=5, robot="pode1", type="stuck"),
+           Fault(at_s=10, robot="pode1", type="operator_remove"),
+           Fault(at_s=20, robot="pode1", type="operator_reinstate", start=(3, 4)),
+           Fault(at_s=30, robot="pode1", type="stuck")]
+    s = FaultSchedule(own, "pode1")
     assert s.stuck(5.0) and s.stuck(19.9)
     assert not s.stuck(20.0) and not s.stuck(29.9)
     assert s.stuck(30.0)
@@ -290,10 +290,10 @@ def test_abort_at_shutdown_survives_a_context_that_is_already_gone():
 
 
 def test_drift_pushes_the_report_only_inside_its_window_and_per_robot():
-    drift = [Fault(at_s=10, robot="pinky1", type="drift", duration_s=5, offset_m=0.3)]
-    s = FaultSchedule(drift, "pinky1")
+    drift = [Fault(at_s=10, robot="pode1", type="drift", duration_s=5, offset_m=0.3)]
+    s = FaultSchedule(drift, "pode1")
     assert [s.drift(t) for t in (9.9, 10.0, 14.9, 15.0)] == [0.0, 0.3, 0.3, 0.0]
-    assert FaultSchedule(drift, "pinky2").drift(12.0) == 0.0
+    assert FaultSchedule(drift, "pode2").drift(12.0) == 0.0
 
 
 def test_a_drifted_report_is_to_the_left_of_the_heading():
@@ -362,8 +362,8 @@ def test_the_way_back_is_the_path_behind_the_robot():
 
 
 def test_an_obstacle_behind_is_there_for_its_window_at_its_distance():
-    s = FaultSchedule([Fault(at_s=5, robot="pinky1", type="obstacle_behind", duration_s=10,
-                             distance_m=0.2)], "pinky1")
+    s = FaultSchedule([Fault(at_s=5, robot="pode1", type="obstacle_behind", duration_s=10,
+                             distance_m=0.2)], "pode1")
     assert [s.behind(t) for t in (4.9, 5.0, 14.9, 15.0)] == [None, 0.2, 0.2, None]
     assert not s.obstacle(10.0), "it is not ahead"
 
@@ -392,7 +392,7 @@ def test_a_path_that_starts_behind_the_robot_counts_from_its_first_point():
 
 
 def test_a_robot_two_vertices_on_starts_on_its_own_segment():
-    """path 위 가장 가까운 점으로 시작한다(pinky_fsm과 같다). 지난 꼭짓점을 되돌아가지 않는다."""
+    """path 위 가장 가까운 점으로 시작한다(pode_fsm과 같다). 지난 꼭짓점을 되돌아가지 않는다."""
     m = Motion(1.5, 1.0)
     m.set_target(2.0, 1.0, via=[(1.0, 0.0), (1.0, 1.0)], start=(0.0, 0.0))
     assert m.via == []

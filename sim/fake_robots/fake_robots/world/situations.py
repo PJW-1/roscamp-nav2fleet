@@ -69,10 +69,10 @@ def _lane_mid(site):
 
 def _near_work(layout):
     if layout == "c":
-        return {"pinky1": "N_W", "pinky2": "S_W", "pinky3": "P-2"}
+        return {"pode1": "N_W", "pode2": "S_W", "pode3": "P-2"}
     if layout == "v7":  # 줄 입구, 줄 앞자리, 칸
-        return {"pinky1": "Q2", "pinky2": "Q1", "pinky3": "P-2"}
-    return {"pinky1": "N_W", "pinky2": "W_Q", "pinky3": "P-2"}
+        return {"pode1": "Q2", "pode2": "Q1", "pode3": "P-2"}
+    return {"pode1": "N_W", "pode2": "W_Q", "pode3": "P-2"}
 
 
 def build(name: str, layout: str = "d2") -> Situation:
@@ -80,7 +80,7 @@ def build(name: str, layout: str = "d2") -> Situation:
     hall, lane = _hall_mid(site), _lane_mid(site)
     if name == "express_both_ends":
         return Situation(name, "급행 양 끝에서 동시에",
-                         robots={"pinky1": "W", "pinky2": "O", "pinky3": "P-2"})
+                         robots={"pode1": "W", "pode2": "O", "pode3": "P-2"})
     if name == "express_obstacle":
         return Situation(name, "급행 안 장애물(오래)",
                          injections=[Obstacle(*lane, 0.04, 20.0, 140.0)])
@@ -98,7 +98,7 @@ def build(name: str, layout: str = "d2") -> Situation:
     if name == "front_robot_stuck":
         # 멈춘 로봇은 서 있지 않은 구역을 돌려주고(ZONES_RETURNED) 그 주문은 다른 로봇에 간다.
         # c는 작업 도크로 가는 갈림목이 하나라 거기서 멈추면 아무것도 못 끝낸다.
-        return Situation(name, "앞 로봇 고장", injections=[Stuck("pinky1", 20.0)],
+        return Situation(name, "앞 로봇 고장", injections=[Stuck("pode1", 20.0)],
                          finish_all=layout != "c", need_events={"ROBOT_ISOLATED": 1},
                          rough=Rough(finish_all=layout != "c"))
     if name == "order_burst":
@@ -106,8 +106,8 @@ def build(name: str, layout: str = "d2") -> Situation:
                          timeout_s=1500.0)
     if name == "comm_loss_reinstate":
         return Situation(name, "통신 끊김, 재투입",
-                         injections=[CommLoss("pinky2", 30.0, 60.0), Removal("pinky2", 70.0),
-                                     Reinstate("pinky2", 90.0, site.parking[1])],
+                         injections=[CommLoss("pode2", 30.0, 60.0), Removal("pode2", 70.0),
+                                     Reinstate("pode2", 90.0, site.parking[1])],
                          need_events={"COMM_LOST": 1, "ROBOT_REINSTATED": 1})
     if name == "three_at_junction":
         return Situation(name, "세 대가 갈림목에 동시에", robots=_near_work(layout),
@@ -118,7 +118,7 @@ def build(name: str, layout: str = "d2") -> Situation:
         # 안 나오므로 세기만 한다. 밀린 보고로 도착을 못 믿어 NOT_AT_TARGET 재시도 끝에 격리되면
         # 그 로봇은 재시도 사이에 갈림목에 서 있을 수 있고(5번), 남은 주문은 못 끝날 수 있다(c).
         return Situation(name, "위치가 크게 튐",
-                         injections=[NoisyPose("pinky1", 20.0, 40.0, sigma_m=0.03, jump_m=0.30)],
+                         injections=[NoisyPose("pode1", 20.0, 40.0, sigma_m=0.03, jump_m=0.30)],
                          finish_all=layout != "c", allowed=("I5_STANDING",),
                          rough=Rough(finish_all=layout != "c", allowed=("I5_STANDING",)))
     if name in STORE_NAMES:

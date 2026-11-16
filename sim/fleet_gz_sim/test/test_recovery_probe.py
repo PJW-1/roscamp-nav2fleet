@@ -5,11 +5,11 @@ import math
 import pytest
 from fleet_gz_sim.recovery_probe import COLUMNS, CsvSink, RecoveryProbe, wrap_deg
 
-R = "pinky1"
+R = "pode1"
 
 
 def probe(settle_s=2.0):
-    return RecoveryProbe([R, "pinky2"], settle_s=settle_s)
+    return RecoveryProbe([R, "pode2"], settle_s=settle_s)
 
 
 def feed_truth(p, t, x=1.0, y=2.0, yaw=0.0, robot=R):
@@ -68,7 +68,7 @@ def test_leaving_to_blocked_and_episode_numbers_are_per_robot():
     assert end["next_state"] == "BLOCKED"
     [start] = state(p, 5.0, "RECOVERING")
     assert start["episode"] == 2
-    [other] = state(p, 5.0, "RECOVERING", robot="pinky2")
+    [other] = state(p, 5.0, "RECOVERING", robot="pode2")
     assert other["episode"] == 1
 
 
@@ -114,7 +114,7 @@ def test_no_truth_within_0_1_s_leaves_truth_fields_empty_and_notes_it():
     assert row["truth_x"] == "" and row["err_m"] == "" and row["yaw_err_deg"] == ""
     assert row["report_age_s"] == ""
     assert "no_truth" in row["note"]
-    [none] = state(p, 1.3, "RECOVERING", robot="pinky2", stamp=1.3)  # no truth at all
+    [none] = state(p, 1.3, "RECOVERING", robot="pode2", stamp=1.3)  # no truth at all
     assert "no_truth" in none["note"]
 
 
@@ -188,7 +188,7 @@ def test_a_hosted_probe_ignores_the_arguments_of_its_host(monkeypatch):
     rclpy.init(context=context, args=["--ros-args", "-r", "__node:=fleet_check",
                                       "-p", "use_sim_time:=false"])
     try:
-        node = RecoveryProbeNode(["pinky1"], "", 2.0, context=context)
+        node = RecoveryProbeNode(["pode1"], "", 2.0, context=context)
         try:
             assert node.get_name() == "recovery_probe"
             assert node.get_parameter("use_sim_time").value is True

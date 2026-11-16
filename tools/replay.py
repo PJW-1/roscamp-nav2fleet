@@ -8,10 +8,10 @@
 첫 줄은 코어를 띄운 설정이다(로봇, 파라미터, 지도 본문).
 이후 줄은 모두 시각 `t`와 아래 중 하나를 가진다.
 
-    {"t": 12.5, "in": "on_robot_state", "args": ["pinky1", 1.2, 2.0, 0.0, "MOVING", 90.0]}
+    {"t": 12.5, "in": "on_robot_state", "args": ["pode1", 1.2, 2.0, 0.0, "MOVING", 90.0]}
     {"t": 12.6, "in": "tick", "args": []}
     {"t": 12.6, "inside": "DispatchCmd", "goal_id": 3, "station_id": "WORK", "robot_id": ""}
-    {"t": 12.6, "out": "MoveCmd", "robot": "pinky1", "goal_id": 4, "target_id": "N", ...}
+    {"t": 12.6, "out": "MoveCmd", "robot": "pode1", "goal_id": 4, "target_id": "N", ...}
 
 `in`은 FleetManager의 메서드, `args`는 그 인자다. 한 번의 실행은 `in` 줄이 이어지고 각각 뒤에
 그 결과가 붙는 형태다. `inside`는 두 코어끼리 주고받은 것, `out`은 ROS로 나간 것이다.

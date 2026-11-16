@@ -1,7 +1,7 @@
 """작업 지시서 5절: FMS 프로세스를 죽이고 새로 띄운다.
 
 로봇은 실제 시간 기준 heartbeat timeout 안에 스스로 멈춘다. 새 FMS는 모든 로봇의 보고를
-기다리는 데서 다시 시작한다. 뜰 때 pinky3가 조용하므로 pinky3가 돌아올 때까지 아무도 안 움직인다.
+기다리는 데서 다시 시작한다. 뜰 때 pode3가 조용하므로 pode3가 돌아올 때까지 아무도 안 움직인다.
 """
 import json
 import os
@@ -30,13 +30,13 @@ from rclpy.qos import qos_profile_action_status_default  # noqa: E402
 from rosgraph_msgs.msg import Clock  # noqa: E402
 
 DOMAIN = 56  # 시나리오 통합 테스트도 56까지 쓰지만 같은 pytest 안에서 차례로 돈다
-ROBOTS = ["pinky1", "pinky2", "pinky3"]
+ROBOTS = ["pode1", "pode2", "pode3"]
 WALL_TIMEOUT_S = 420
 STILL_M = 0.001
 SILENT_S = 0.5
 SLACK_S = 1.0  # 부하 걸린 머신은 늦게 전달한다. 마지막 beat, kill, 정지 모두 실제 시간이다
 MORE_MOVERS_S = 2.0
-PINKY3_SILENT_S = (50.0, 120.0)  # fms_restart.yaml의 comm_loss
+PODE3_SILENT_S = (50.0, 120.0)  # fms_restart.yaml의 comm_loss
 SCENARIO = Path(__file__).parent / "fms_restart.yaml"  # 아래의 kill 없이는 의미가 없다
 
 
@@ -61,13 +61,13 @@ class Probe(Node):
             to_ros_qos(contract.qos("events")))
         for robot in ROBOTS:
             self.create_subscription(
-                RobotState, contract.name("robot_state", pinky=robot),
+                RobotState, contract.name("robot_state", pode=robot),
                 lambda m, r=robot: self._on_state(r, m), qos)
             self.create_subscription(
                 RobotState, TRUTH_TOPIC.format(robot=robot),
                 lambda m, r=robot: self._on_truth(r, m), qos)
             self.create_subscription(
-                GoalStatusArray, contract.name("move_to", pinky=robot) + "/_action/status",
+                GoalStatusArray, contract.name("move_to", pode=robot) + "/_action/status",
                 lambda m, r=robot: self._on_goals(r, m), qos_profile_action_status_default)
 
     def _on_clock(self, msg) -> None:
@@ -166,7 +166,7 @@ def test_robots_stop_without_the_fms_and_a_new_one_waits_for_all_of_them(probe, 
         movers = probe.moving()
         print(f"killing at {probe.sim_now:.1f} s, moving: {movers}")
         assert movers, probe.state
-        assert probe.sim_now < PINKY3_SILENT_S[1], "the new FMS has to find pinky3 silent"
+        assert probe.sim_now < PODE3_SILENT_S[1], "the new FMS has to find pode3 silent"
         os.killpg(fms.pid, signal.SIGKILL)
         killed = time.monotonic()
         fms.wait()
@@ -186,17 +186,17 @@ def test_robots_stop_without_the_fms_and_a_new_one_waits_for_all_of_them(probe, 
         assert not probe.moving(), probe.state
 
         # 침묵 전에 보고가 한 번이라도 있으면 새 FMS는 이를 통신 두절로 본다.
-        assert wait_for(lambda: probe.sim_now > PINKY3_SILENT_S[0], 60), probe.sim_now
+        assert wait_for(lambda: probe.sim_now > PODE3_SILENT_S[0], 60), probe.sim_now
         still = dict(probe.moved)
         fms = start_fms()
         assert wait_for(lambda: "ROBOT_NOT_REPORTING" in probe.codes, 60), probe.codes
         print(f"the new FMS misses a robot at {probe.sim_now:.1f} s")
-        assert probe.sim_now < PINKY3_SILENT_S[1], "pinky3 came back before it was missed"
+        assert probe.sim_now < PODE3_SILENT_S[1], "pode3 came back before it was missed"
         assert probe.moved == still, "a robot moved while the new FMS was still waiting for one"
 
         assert wait_for(lambda: any(probe.moved[r] > still[r] for r in ROBOTS), 60)
         print(f"robots move again at {probe.sim_now:.1f} s")
-        assert probe.sim_now >= PINKY3_SILENT_S[1], "a robot moved before pinky3 was back"
+        assert probe.sim_now >= PODE3_SILENT_S[1], "a robot moved before pode3 was back"
         fakes.wait(timeout=WALL_TIMEOUT_S)
     finally:
         stop(fms)

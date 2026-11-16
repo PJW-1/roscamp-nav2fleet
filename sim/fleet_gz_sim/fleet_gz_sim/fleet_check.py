@@ -1,4 +1,4 @@
-"""Driving check for the three-pinky Gazebo run. No ROS; the node is fleet_check_node.
+"""Driving check for the three-pode Gazebo run. No ROS; the node is fleet_check_node.
 
 Fed with the Gazebo true pose of every robot (sim time, speed, turn rate), the state each robot
 reports, and the zone holders the fleet publishes. It keeps:

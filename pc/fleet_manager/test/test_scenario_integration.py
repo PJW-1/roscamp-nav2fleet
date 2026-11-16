@@ -95,7 +95,7 @@ def test_scenario_finishes_and_matches_the_contract(scenario, tmp_path):
     assert unexplained_safety(summary, safety) == (0, 0), safety
     if scenario == "shared_lane_failure":
         with (tmp_path / "fleet_robots.csv").open(encoding="utf-8") as f:
-            seen = [row["fault"] for row in csv.DictReader(f) if row["robot"] == "pinky2"]
+            seen = [row["fault"] for row in csv.DictReader(f) if row["robot"] == "pode2"]
         assert seen[0] == "NONE" and seen[-1] == "NONE", seen
         assert "COMM_LOST" in seen, f"the comm loss never showed on /fleet/robots: {seen}"
     played = subprocess.run([sys.executable, str(REPLAY), str(tmp_path / "fms.jsonl")],

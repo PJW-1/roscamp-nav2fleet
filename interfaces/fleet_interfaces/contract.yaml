@@ -4,7 +4,7 @@ version: 0.13-draft
 
 # ---- 이름 틀에 채울 로봇과 팔 이름 ----
 placeholders:
-  pinky: [pinky1, pinky2, pinky3]
+  pode: [pode1, pode2, pode3]
   arm: [arm1, arm2, arm3]
 
 # ---- QoS 프로필 ----
@@ -16,7 +16,7 @@ qos_profiles:
 
 # ---- 토픽 ----
 topics:
-  - {key: robot_state, name: "/{pinky}/state", type: fleet_interfaces/msg/RobotState, qos: STATE}
+  - {key: robot_state, name: "/{pode}/state", type: fleet_interfaces/msg/RobotState, qos: STATE}
   - {key: arm_state, name: "/{arm}/state", type: fleet_interfaces/msg/ArmState, qos: STATE}
   - {key: vision_items, name: "/{arm}/vision/items", type: fleet_interfaces/msg/ItemArray, qos: LATCHED, instances: {arm: [arm1, arm2]}}
   - {key: order_board, name: "/central/orders", type: fleet_interfaces/msg/OrderBoard, qos: LATCHED}
@@ -28,13 +28,13 @@ topics:
 
 # ---- 액션 ----
 actions:
-  - {key: move_to, name: "/{pinky}/move_to", type: fleet_interfaces/action/MoveTo}
-  - {key: dock, name: "/{pinky}/dock", type: fleet_interfaces/action/Dock}
+  - {key: move_to, name: "/{pode}/move_to", type: fleet_interfaces/action/MoveTo}
+  - {key: dock, name: "/{pode}/dock", type: fleet_interfaces/action/Dock}
   - {key: fill_basket, name: "/workcell/fill_basket", type: fleet_interfaces/action/FillBasket}
   - {key: swap_basket, name: "/{arm}/swap_basket", type: fleet_interfaces/action/SwapBasket, instances: {arm: [arm3]}}
-  - {key: navigate_to_pose, name: "/{pinky}/navigate_to_pose", type: nav2_msgs/action/NavigateToPose, real_only: true}
-  - {key: follow_path, name: "/{pinky}/follow_path", type: nav2_msgs/action/FollowPath, real_only: true}
-  - {key: retreat, name: "/{pinky}/retreat", type: fleet_interfaces/action/Retreat}
+  - {key: navigate_to_pose, name: "/{pode}/navigate_to_pose", type: nav2_msgs/action/NavigateToPose, real_only: true}
+  - {key: follow_path, name: "/{pode}/follow_path", type: nav2_msgs/action/FollowPath, real_only: true}
+  - {key: retreat, name: "/{pode}/retreat", type: fleet_interfaces/action/Retreat}
 
 # ---- 서비스 ----
 services:
@@ -43,4 +43,4 @@ services:
   - {key: report_order, name: "/central/report_order", type: fleet_interfaces/srv/ReportOrder}
   - {key: confirm_clear, name: "/fleet/confirm_clear", type: fleet_interfaces/srv/ConfirmClear}
   - {key: reinstate, name: "/fleet/reinstate", type: fleet_interfaces/srv/Reinstate}
-  - {key: check_clear, name: "/{pinky}/check_clear", type: fleet_interfaces/srv/CheckClear, real_only: true}
+  - {key: check_clear, name: "/{pode}/check_clear", type: fleet_interfaces/srv/CheckClear, real_only: true}
