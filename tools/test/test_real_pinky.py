@@ -255,6 +255,17 @@ def _gone(pids, wait_s=2.0):
     return not any(_alive(p) for p in pids)
 
 
+def _kill_all(pids):
+    # 살아 있는 것만 죽이고, 그사이 사라지면 넘어간다(죽은 번호를 다른 프로세스가 받았을 수 있다)
+    for pid in pids:
+        if not _alive(pid):
+            continue
+        try:
+            os.kill(pid, 9)
+        except ProcessLookupError:
+            pass
+
+
 @pytest.mark.parametrize("script", [SLEEPER, GROUP], ids=["child_only", "own_group"])
 def test_start_stops_a_launch_whose_pid_file_never_appears(tmp_path, script):
     try:
@@ -267,9 +278,7 @@ def test_start_stops_a_launch_whose_pid_file_never_appears(tmp_path, script):
         assert "stopped it" in run.stdout, run.stdout
         assert _gone(pids, 0.5)  # start.sh가 끝날 때 이미 없다
     finally:
-        for pid in _fake_pids(tmp_path):
-            if _alive(pid):
-                os.kill(pid, 9)
+        _kill_all(_fake_pids(tmp_path))
 
 
 def test_start_says_so_when_the_launch_ignores_term(tmp_path):
@@ -277,11 +286,11 @@ def test_start_says_so_when_the_launch_ignores_term(tmp_path):
         run = _start_with_fake_setsid(tmp_path, DEAF)
         assert run.returncode == 1
         assert "still running" in run.stdout and "stopped it" not in run.stdout, run.stdout
-        assert all(_alive(p) for p in _fake_pids(tmp_path))  # KILL로 올리지 않는다
+        pids = _fake_pids(tmp_path)
+        assert pids
+        assert all(_alive(p) for p in pids)  # KILL로 올리지 않는다
     finally:
-        for pid in _fake_pids(tmp_path):
-            if _alive(pid):
-                os.kill(pid, 9)
+        _kill_all(_fake_pids(tmp_path))
 
 
 def _own_group(tmp_path, *argv):
