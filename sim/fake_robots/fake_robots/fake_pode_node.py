@@ -178,8 +178,11 @@ class FakePodeNode(PodeGoals, PodeOrder, PodeRetreat, PodeReport, Node):
                 return
             if self._removed:
                 self._put_back(self._faults.put_back(t))
+            # order는 조각을 달릴 때만 가는 중이다(base 끝 대기는 서 있는 로봇). 물체 자리는
+            # 조각을 시작할 때 잡는다(pode_order._start_segment)
             moving = (goal is not None and not goal.done.is_set() and goal.kind == "move"
-                      and goal.seg_mode != RETREAT)
+                      and goal.seg_mode != RETREAT
+                      and (goal.order is None or goal.order.sub is not None))
             self._recovery.watch(t, self._faults.obstacle(t), moving, self._motion)
             if dt <= 0 or goal is None or goal.done.is_set() or self._faults.stuck(t):
                 return

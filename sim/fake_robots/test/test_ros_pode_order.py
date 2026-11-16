@@ -219,6 +219,23 @@ def test_a_stitched_path_that_starts_away_from_the_robot_is_not_followed(harness
     assert here(p) == pytest.approx(end_of(1), abs=1e-3)
 
 
+def test_an_obstacle_that_shows_up_while_waiting_holds_the_next_segment_from_its_start(
+        harness, tmp_path):
+    """base 끝에 서 있는 동안 나타난 앞 물체는 goal이 없던 로봇과 같이 다음에 달릴 때 그 자리에서
+    막는다(blocked_lane 시나리오). 서 있을 때 물체 자리를 잡으면 다음 조각을 그만큼 달려 버린다."""
+    from fleet_interfaces.msg import RobotState
+    p = start(harness, tmp_path, robots=FAST, node={"recovery_attempts": 0}, faults=[
+        {"at_s": 1.5, "robot": "pode1", "type": "blocked", "duration_s": 60.0}])
+    assert wait_until(lambda: p.states, 5.0)
+    first, feedback = order(p, [1], horizon=[2])
+    assert wait_until(lambda: any(f.waiting_at_base_end for f in feedback), 10.0)
+    time.sleep(2.0)  # 물체가 나타난 뒤
+    second, _ = order(p, [2], update=1, stitch="a")
+    assert wait_until(lambda: p.states[-1][1].state == RobotState.STATE_BLOCKED, 8.0)
+    assert here(p) == pytest.approx(end_of(1), abs=1e-3)
+    assert not second.get_result_async().done()
+
+
 def test_after_waiting_at_the_base_end_the_next_path_is_checked_again(harness, tmp_path):
     """실물은 base 끝에서 기다린 뒤 받은 조각을 새 줄로 시작해 연결을 다시 잰다.
     기다리는 동안 보고 자세가 옆으로 밀리면(drift) 앞 조각에 이어진 path라도 따르지 않는다."""

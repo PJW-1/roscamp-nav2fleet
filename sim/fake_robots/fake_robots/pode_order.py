@@ -170,6 +170,7 @@ class PodeOrder:
             goal.nav = NavGoalDrive(self._space, self._recovery.p.robot_radius_m, target, t,
                                     (m.x, m.y))
             self._take_segment_abort(t, goal, seg, math.dist((m.x, m.y), target))
+            self._recovery.watch(t, self._faults.obstacle(t), True, m)  # 앞 물체면 여기서 선다
             return ""
         path = list(seg.path)
         # 연결 검사는 실물처럼 새로 시작하는 줄만 한다. 앞 조각에 이은 조각은 하지 않는다
@@ -178,6 +179,7 @@ class PodeOrder:
         goal.line = PathWatch(self._recovery.p.robot_radius_m)
         m.set_target(*target, via=path[1:-1], start=path[0] if path else None)
         self._take_segment_abort(t, goal, seg, m.remaining())
+        self._recovery.watch(t, self._faults.obstacle(t), True, m)  # 앞 물체면 여기서 선다
         return ""
 
     def _take_segment_abort(self, t: float, goal: _Goal, seg: Seg, remaining: float) -> None:
