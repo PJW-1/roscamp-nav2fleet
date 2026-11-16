@@ -46,6 +46,9 @@ from fleet_core.manager import FleetManager  # noqa: E402
 from fleet_core.traffic.modes import NoZoneTraffic  # noqa: E402
 from fleet_core.traffic.site import site_from_text  # noqa: E402
 
+# 옛 기록 호환 기본값: 기록에 없는 키는 그 기록을 만든 코드의 기본값으로 재생한다
+RECORD_DEFAULTS = {"stall_s": 6.0}
+
 
 @dataclass(frozen=True)
 class Result:
@@ -94,7 +97,7 @@ def start_core(head: dict, clock) -> FleetManager:
     if missing:
         raise ValueError(f"the first line has no {sorted(missing)}")
     try:
-        params = FleetParams(**head["params"])
+        params = FleetParams(**{**RECORD_DEFAULTS, **head["params"]})
     except TypeError as error:
         raise ValueError(f"these parameters do not fit this code: {error}") from error
     site = site_from_text(head["map"])

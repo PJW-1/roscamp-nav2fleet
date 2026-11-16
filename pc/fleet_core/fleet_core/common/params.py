@@ -16,6 +16,8 @@ ZERO_MEANS_OFF = frozenset({"zone_clear_m", "idle_watch_s", "silent_limit_s", "s
                             "battery_low_pct"})
 # 이 끝말의 키가 시간·거리·속도·백분율이다
 MEASURE_SUFFIXES = ("_s", "_m", "_mps", "_pct")
+# 접미사 규칙에 안 걸리는 시간 값: 유한, 0 이상(0이면 품목 시간 없음)
+NONNEGATIVE_EXTRA = ("eta_fill_s_per_item",)
 
 
 # ---- FleetParams: 운영 파라미터 목록 ----
@@ -123,9 +125,35 @@ def load_params(path=None) -> FleetParams:
     unknown = sorted(set(data) - names)
     if missing or unknown:
         raise ValueError(f"{source}: missing keys {missing}, unknown keys {unknown}")
+    check_types(data, source)
     params = FleetParams(**data)
     check_measures(params, source)
     return params
+
+
+# ---- 타입 검사: 불리언·문자열은 숫자가 아니고, 실수는 유한 ----
+def check_types(data: dict, source="params") -> None:
+    for f in fields(FleetParams):
+        if f.name not in data:
+            continue
+        value = data[f.name]
+        if f.type == "bool":
+            ok = isinstance(value, bool)
+        elif f.type == "str":
+            ok = isinstance(value, str)
+        elif f.type == "int":
+            ok = isinstance(value, int) and not isinstance(value, bool)
+        else:
+            ok = (isinstance(value, (int, float)) and not isinstance(value, bool)
+                  and math.isfinite(value))
+        if not ok:
+            raise ValueError(f"{source}: {f.name} must be a finite {f.type}, got {value!r}")
+    if data.get("release_confirm_samples", 1) < 1:
+        raise ValueError(f"{source}: release_confirm_samples must be >= 1, "
+                         f"got {data['release_confirm_samples']!r}")
+    for name in NONNEGATIVE_EXTRA:
+        if name in data and data[name] < 0:
+            raise ValueError(f"{source}: {name} must be >= 0, got {data[name]!r}")
 
 
 # ---- 시간·거리 값 검사: 유한, 음수 아님, 끔이 아니면 0보다 큼 ----

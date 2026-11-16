@@ -6,7 +6,10 @@ params_file로 받은 yaml에서 키 하나가 빠지면 코드 기본값이 조
 '끔'인 키만 0을 허용한다.
 """
 import dataclasses
+import json
 import math
+import sys
+from pathlib import Path
 
 import pytest
 import yaml
@@ -126,3 +129,74 @@ def test_code_defaults_match_the_shipped_file_except_record_compat_watches():
     assert all(FIELDS[name].default == 0.0 for name in RECORD_COMPAT)
     assert RECORD_COMPAT <= ZERO_MEANS_OFF
     assert FIELDS["stall_s"].default == SHIPPED["stall_s"] == 12.0
+
+
+# ---- 접미사 밖 숫자 키와 타입 검사(Codex 리뷰 e0acac6) ----
+@pytest.mark.parametrize("bad", [0, -1, True, 2.5, "3"])
+def test_release_confirm_samples_is_a_positive_integer(tmp_path, bad):
+    """0이나 음수면 첫 보고만으로 구역을 놓는다(progress.py _counted)."""
+    with pytest.raises(ValueError, match="release_confirm_samples"):
+        load_params(write(tmp_path, {**SHIPPED, "release_confirm_samples": bad}))
+
+
+@pytest.mark.parametrize("bad", [-1.0, math.nan, math.inf, "4", True])
+def test_eta_fill_s_per_item_is_finite_and_not_negative(tmp_path, bad):
+    with pytest.raises(ValueError, match="eta_fill_s_per_item"):
+        load_params(write(tmp_path, {**SHIPPED, "eta_fill_s_per_item": bad}))
+
+
+def test_eta_fill_s_per_item_may_be_zero(tmp_path):
+    params = load_params(write(tmp_path, {**SHIPPED, "eta_fill_s_per_item": 0.0}))
+    assert params.eta_fill_s_per_item == 0.0
+
+
+NUMBER_KEYS = sorted(name for name, f in FIELDS.items() if f.type in ("int", "float"))
+
+
+@pytest.mark.parametrize("key", NUMBER_KEYS)
+@pytest.mark.parametrize("bad", [True, "1"])
+def test_every_number_key_refuses_booleans_and_strings(tmp_path, key, bad):
+    with pytest.raises(ValueError, match=key):
+        load_params(write(tmp_path, {**SHIPPED, key: bad}))
+
+
+@pytest.mark.parametrize("key", sorted(n for n, f in FIELDS.items() if f.type == "float"))
+def test_every_float_key_refuses_nan(tmp_path, key):
+    with pytest.raises(ValueError, match=key):
+        load_params(write(tmp_path, {**SHIPPED, key: math.nan}))
+
+
+@pytest.mark.parametrize("key", sorted(n for n, f in FIELDS.items() if f.type == "bool"))
+def test_every_flag_refuses_numbers(tmp_path, key):
+    with pytest.raises(ValueError, match=key):
+        load_params(write(tmp_path, {**SHIPPED, key: 1}))
+
+
+def test_a_float_key_written_as_an_integer_loads(tmp_path):
+    assert load_params(write(tmp_path, {**SHIPPED, "stall_s": 12})).stall_s == 12
+
+
+# ---- 옛 기록 재생: stall_s 없는 기록은 그때 기본값 6 s(Codex 리뷰 e0acac6) ----
+REPO = Path(__file__).resolve().parents[3]
+sys.path.insert(0, str(REPO / "tools"))
+import replay  # noqa: E402
+
+
+def recorded_head():
+    from fleet_core.fleet_map import load_fleet_map
+    from fleet_core.manager import FleetManager
+    core = FleetManager(load_fleet_map("d2"), load_params(), ["pode1"], lambda: 0.0)
+    lines = []
+    core.record_to(lines.append)
+    return json.loads(lines[0])
+
+
+def test_replay_of_a_record_without_stall_s_uses_the_old_6_s():
+    head = recorded_head()
+    del head["params"]["stall_s"]
+    assert replay.start_core(head, lambda: 0.0).params.stall_s == 6.0
+
+
+def test_replay_of_a_record_with_stall_s_uses_it():
+    head = recorded_head()
+    assert replay.start_core(head, lambda: 0.0).params.stall_s == SHIPPED["stall_s"] == 12.0
