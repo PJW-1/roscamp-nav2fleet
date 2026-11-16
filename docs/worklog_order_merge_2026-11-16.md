@@ -6,12 +6,12 @@
 
 고친 후보를 order 켬으로 main에 합쳤다. 근거:
 
-- ROS 시나리오: 후보 54판(9개 x 6번) 모두 통과, 이른 놓기 0번. 같은 시간 같은 부하로 돈 main 45판은 44판 통과, 이른 놓기 1번(order를 끈 길의 늦은 보고 경우).
+- ROS 시나리오: 후보 54판(9개 x 6번) 모두 통과, 이른 놓기 0번. 같은 시간에 나란히 돈 main 45판은 44판 통과, 이른 놓기 1번(물러나기를 끝낸 뒤 늦은 보고와 같은 모양). 이 표본에서 후보가 main보다 나쁘지 않았다는 관찰이지, 안전성을 증명한 것은 아니다.
 - 관제 시험 1081(두 틱 순서), fake_robots 1019, fleet_manager 113, FMS 재시작 1 모두 통과.
-- 머리 없는 세계: 끈 길은 main과 300칸이 같다. 켠 길에서 늘어나는 안전 실패는 이미 알려진 B7(pose_jumps의 I3) 24칸이고, 그 밖에 express_obstacle d의 DEADLOCK_SEEN 2칸이 새로 보였다(main 코드에 켜도 같음).
+- 머리 없는 세계: 끈 길은 측정한 300칸에서 main과 실패 결과까지 같았다. 켠 길에서 늘어나는 안전 실패는 이미 알려진 B7(pose_jumps의 I3) 24칸이고, 그 밖에 express_obstacle d의 DEADLOCK_SEEN 2칸이 새로 보였다(main 코드에 켜도 같음).
 
 - 끄는 법: `fleet_params.yaml`의 `use_order_model: false`, 또는 launch 인자 `use_order_model:=false`(`pc.launch.py`, `gz.launch.py`).
-- 끈 관제는 main과 같다. 머리 없는 세계 300칸이 칸마다 같은 결과였다(4절).
+- 끈 관제: 머리 없는 세계 300칸에서 main과 칸마다 같은 결과였다(4절). 모든 입력에서 같다는 증명은 아니다.
 
 ## 2. 합친 것
 
@@ -29,7 +29,7 @@
 - 증상: stock_shortage에서 order pode1-38(seq 1 물러나기 → N_W, seq 2 nav_goal → P-2)이 끝났다는 답(SEGMENT_DONE)이 오기 2초 전에 J_W를 놓았다. 참 거리 0.076 m, 판정 반경 0.08 m 안. 수정 전 차례로 돈 두 판에서 같은 자리에서 났다.
 - 원인: `progress.py` `_track`이 goal의 마지막이 아닌 RETREAT 링크를 투영 거리만으로 넘겼고, 그 뒤 `_release_behind`가 보고가 노드 0.05 m 안이라며 노드 좌표로 쟀다.
 - 수정(d00449b): 보고가 RETREAT 링크 끝 노드에서 `release_margin_m`(0.05 m) 안이면 링크를 넘기지 않고 끝냈다는 답을 기다린다. 더 멀면 예전처럼 넘긴다. 시험 먼저 썼고 수정 전 2 failed를 확인했다.
-- 고치지 않은 것: order를 끈 길에서 따로 보낸 RetreatCmd가 끝난 뒤 늦은 보고로 노드 좌표를 쓰는 경우. 정책(판정 반경 0.08 m를 지킬지, 도크를 몇 초 더 쥘지) 결정이 필요해서 strict xfail(`test_a_late_report_at_the_node_after_backing_out_does_not_free_the_dock`)로 남겼다. 이번 측정에서는 한 번도 나지 않았다(3절).
+- 고치지 않은 것: 물러나기를 끝낸 뒤(끈 길은 따로 보낸 RetreatCmd, 켠 길은 seq 끝 답) 늦은 보고가 노드 0.05 m 안에 머물러 노드 좌표로 재는 경우. 켬과 끔 모두 strict xfail(`test_a_late_report_at_the_node_after_backing_out_does_not_free_the_dock[order_off|order_on]`)로 남았다. 정책(판정 반경 0.08 m를 지킬지, 도크를 몇 초 더 쥘지) 결정이 필요하다. 측정에서는 후보(켬) 54판에서 나지 않았고, main(끔) 45판에서 같은 모양이 한 번 났다(3절).
 
 ### 결함 2: 가짜 Pode `goal.aborting`이 조각을 넘어감
 
@@ -48,7 +48,7 @@
 
 ### ROS 시나리오 (test_scenario_integration.py, 시나리오 9개 + 판정 시험 2개)
 
-같은 순간에 후보(도메인 80~88)와 main 71bdca0(도메인 90~98)을 한 줄씩, 각 줄 안에서는 CI처럼 차례로 돌렸다. 두 줄이 같은 부하를 받는다.
+같은 순간에 후보(도메인 80~88)와 main 71bdca0(도메인 90~98)을 한 줄씩, 각 줄 안에서는 CI처럼 차례로 돌렸다. 두 줄이 같은 시간대의 부하를 함께 받는다(프로세스마다 실제 부하가 같았다는 증거는 아니다).
 
 | 회차 | 후보(order 켬, 463f1ad 빌드) | main 71bdca0(order 끔) |
 |---|---|---|
@@ -69,7 +69,7 @@
 | 로봇 사이 최소 간격 | 0.170 m | 0.170 m |
 | 놓은 순간 가장 가까운 참 거리 | 0.092 m (0회 0.100 m) | 0.078 m |
 
-- main의 한 번: 4회 blocked_lane, t=69.4에 pode1의 WORK_DOCK을 0.078 m에서 놓음. 따로 보낸 RetreatCmd가 끝난(RETREAT_DONE t=69.10) 0.3초 뒤다. order를 끈 길의 늦은 보고 경우와 같은 모양이고 이번에 고치지 않은 strict xfail 그것이다. 새 main에서 order를 끄면 이 경우는 그대로 남는다.
+- main의 한 번: 4회 blocked_lane, t=69.4에 pode1의 WORK_DOCK을 0.078 m에서 놓음. 따로 보낸 RetreatCmd가 끝난(RETREAT_DONE t=69.10) 0.3초 뒤다. 물러나기를 끝낸 뒤 늦은 보고와 같은 모양이다(시각과 거리로 본 것이라 같은 원인이라고 확정하지는 않았다). 이번에 고치지 않은 strict xfail이 이 모양을 본다.
 - 시나리오 판정에는 이 밖에 계약 검사(contract)와 출고 수도 들어간다. 후보는 모든 판에서 주문을 다 출고했다.
 
 수정 전 기록(같은 방법): 후보 f9bee09 차례로 10/11(stock_shortage 두 번 모두 이른 놓기), main 11/11. 아홉 개를 한꺼번에 돌린 판(부하 평균 약 44)은 main 8/9 실패, f9bee09 5/9 실패였다. 부하 탓이 크다고 보지만 증명하지는 않았다.
@@ -95,7 +95,7 @@
 ## 5. 리뷰 지적과 판단
 
 - Codex(911172b 범위) P1: 물러나기 끝 노드 0.05 m 안에서 서고 끝 답이 안 오면 구역을 계속 쥘 수 있다(교착 가능성, [추측]).
-  - 내 확인: 로봇은 base의 seq를 다 끝낸 뒤에만 `waiting_at_base_end`를 켜고, 같은 피드백에 `last_done_seq`를 실는다(`pode/pode_fsm/pode_fsm/order_fsm.py` `_advance`, `order_feedback`; 가짜는 `sim/fake_robots/fake_robots/pode_goals.py:156`). 관제는 그 seq로 SEGMENT_DONE을 낸다(`order_answers.py` `_order_progress`). 그래서 "base 끝에서 기다리는데 물러나기는 안 끝남"은 규약대로 도는 로봇에서는 생기지 않는다. 물러나기 중에 서 버리면 대기 표시가 없으므로 `GOAL_STALLED` 감시(stall_s)가 돈다. 고치기 전에는 같은 자리에서 구역을 일찍 놓았다(안전 위반).
+  - 내 확인: 로봇은 base의 seq를 다 끝낸 뒤에만 `waiting_at_base_end`를 켜고, 같은 피드백에 `last_done_seq`를 실는다(`pode/pode_fsm/pode_fsm/order_fsm.py` `_advance`, `order_feedback`; 가짜는 `sim/fake_robots/fake_robots/pode_goals.py:156`). 관제는 그 seq로 SEGMENT_DONE을 낸다(`order_answers.py` `_order_progress`). 그래서 "base 끝에서 기다리는데 물러나기는 안 끝남"은 규약대로 도는 로봇에서는 생기지 않는다. 물러나기 중에 서 버리면 대기 표시가 없으므로, BLOCKED·SELF_RECOVERING 같은 다른 감시 제외 조건이 없는 한 `GOAL_STALLED` 감시(stall_s)가 돈다(`watch.py` `_watch_stall`). BLOCKED와 긴 자기 복구는 따로 처리한다(`blocked.py` `_watch_blocked`). 통신이나 피드백을 잃은 경우의 보류는 이 논리로 배제되지 않는다. 고치기 전에는 같은 자리에서 구역을 일찍 놓았다(안전 위반).
 - Codex(병합 0f3e5c3): 가짜 Pode가 앞 조각에 이어 붙는 FOLLOW_PATH에서도 복구 표시를 지운다. 실물은 이어진 조각을 한 run으로 돌린다.
   - 내 확인: 사실이다. 추가된 두 시험도 이어진 조각을 쓴다. 고장 하나를 "조각 하나에 한 번"으로 볼지 "run 하나 동안 계속"으로 볼지의 흉내 모델 선택이고, 길이 0 조각에서만 닿는다. 코드는 그대로 두고 열린 점으로 남긴다.
 - Codex(3cbc968): 길이 0 시험은 틱 타이밍에 따라 수정 전에도 통과할 수 있다. 열린 점.
@@ -103,7 +103,7 @@
 
 ## 6. 열린 점
 
-1. order를 끈 길의 늦은 보고 이른 놓기(strict xfail). 정책 결정 필요.
+1. 물러나기를 끝낸 뒤 늦은 보고로 이른 놓기(켬·끔 모두 strict xfail). 정책 결정 필요.
 2. FOLLOW_PATH에도 같은 모양: v7의 O → O_OUT이 order goal의 마지막 링크가 아니면 보고 거리 0.12 m에서 OUT_DOCK을 놓는다(참 거리 0.08 m 아래는 못 봄).
 3. 위 5절의 가짜 Pode 이어진 조각 문제와 길이 0 시험의 타이밍 의존.
 4. express_obstacle d 씨드 5, 6 DEADLOCK_SEEN(켠 길, main 코드도 같음).
@@ -112,6 +112,6 @@
 
 ## 7. 다시 돌리는 법
 
-- fleet_core: `ZONE_TICK_ORDER=manager|zone PYTHONPATH=pc/fleet_core python3 -m pytest -q -p no:cacheprovider pc/fleet_core/test`
+- fleet_core: `ZONE_TICK_ORDER=manager PYTHONPATH=pc/fleet_core python3 -m pytest -q -p no:cacheprovider pc/fleet_core/test`, 그리고 같은 명령을 `ZONE_TICK_ORDER=zone`으로 한 번 더.
 - 시나리오: `colcon build --packages-select fleet_interfaces fleet_core fleet_manager fake_robots iponic_bringup --build-base <b> --install-base <i>` 뒤 `. <i>/setup.bash; SCENARIO_FIRST_DOMAIN=<첫 도메인> ROS_DOMAIN_ID=<부모> ROS_AUTOMATIC_DISCOVERY_RANGE=LOCALHOST python3 -m pytest -v -p no:cacheprovider --basetemp=<폴더> pc/fleet_manager/test/test_scenario_integration.py`. 도메인 50~59는 다른 사람이 쓰니 피한다. 판마다 `<폴더>/*/summary.json`, `safety.json`, `releases.csv`(놓은 순간 참 거리 `true_m`)를 센다.
 - 머리 없는 세계: `run_situation(name, layout, seed, overrides={"use_order_model": on})`를 `fake_robots.world.situations.NAMES` x `fleet_core.fleet_map.KNOWN_LAYOUTS` x 씨드로 돌리고 `outcome.failures`의 첫 낱말(I번호 = 안전 불변식, `finished` = 못 끝냄)로 센다.
