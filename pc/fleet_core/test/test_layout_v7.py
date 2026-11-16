@@ -249,6 +249,10 @@ def test_v7_routes(site):
     assert out.points[1][0] < o[0] - 0.05, "first goes west, the way O faces"
     assert all(b[1] <= a[1] + 1e-9 for a, b in zip(out.points[1:], out.points[2:])), "then south"
     assert min(x for x, _ in out.points) - BODY_CIRCLE_M >= 0.05, "clear of the west wall"
+    # 2026-11-17(사용자: 딱 1 cm만): O_OUT을 벽에서 0.15 -> 0.16으로. 여기서 동쪽으로 돌 때 뒤가
+    # 서쪽 벽 쪽으로 돌아가 Nav2가 "collision ahead"로 섰다. 꺾는 점(0.16)과 x가 같아져 마지막
+    # 구간이 곧게 남쪽이다
+    assert o_out[0] == pytest.approx(0.16) and out.points[-2][0] == pytest.approx(o_out[0])
     # 나가는 점으로 들어오는 고정 경로도, 들어오는 점에서 나가는 고정 경로도 없다
     fixed = [link for link in site.links() if link.via != NAV_GOAL]
     assert [link.a for link in fixed if link.b == "O_OUT"] == ["O"]
