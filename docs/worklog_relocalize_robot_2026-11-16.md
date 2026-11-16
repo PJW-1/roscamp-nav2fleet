@@ -211,5 +211,5 @@ ros2 action send_goal /pode1/relocalize fleet_interfaces/action/Relocalize \
 - 높음: 취소나 시간 초과 때 회전이 멈춘 것을 확인하지 않고 결과를 돌려주고, 그 뒤 이동을 허용할 수 있다(`relocalize_ros.py:325` 근처).
 - 높음: Spin 결과를 잃으면 정지 확인 전에 GLOBAL 단계와 판정으로 넘어간다(`action_client.py:119` 근처).
 - 높음: 회전 중에 만들어졌지만 콜백이 늦은 추정이 회전 뒤 판정에 섞일 수 있다(`relocalize_ros.py:270` 근처). 마지막 WIP 커밋(cff6128)은 한 경로만 막고, 반대로 정지 뒤의 유효한 추정을 버릴 수 있다.
-- 중간: 이동 goal 예약이 goal ID 없이 시각만 저장해 BUSY 보장이 경합으로 깨질 수 있다.
+- 중간: 이동 goal 예약이 goal ID 없이 시각만 저장해 예약이 엇갈릴 수 있다. 뒤에 `_refuse()` 재검사가 있어 동시 이동까지 이어지는지는 확인되지 않았다.
 - 중간: `recovery_alpha_fast/slow` 변경이 정상 주행의 AMCL에도 적용된다.
