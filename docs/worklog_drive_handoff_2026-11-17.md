@@ -121,7 +121,15 @@ O_OUT을 나온 뒤 뚝뚝 끊기는 것의 개선은 main이 아닌 별도 브�
 - 단위·통합: fleet_core 1097 passed 5 xfailed(틱 순서 `manager`, `zone`으로도 1096 passed 1 skipped 5 xfailed),
   fleet_manager 통합 125, pode_fsm 455 passed 6 skipped, pode_nav_config 103, pode_avoidance 26, pode_peer_obstacles 18,
   pode_scan_filter 23, fleet_gz_sim 534, fake_robots 1019 passed 27 xfailed, tools 98. `ruff check .` 깨끗함.
-- Gazebo: 6절의 판들. 모두 합친 뒤의 판은 sm0(264.9 s, 12/12, 위반 0건, 최소 거리 0.207 m)이다.
+- Gazebo: 6절의 판들. 정리까지 모두 합친 뒤의 판 main1(`gz_v7_rush`, 창과 RViz 켬)은 12/12 출고, 261.2 s, 위반 0건,
+  최소 거리 0.226 m, keepout 침범 깊이 0, 실시간 배율 1.00, `STANDBY_LEFT` 6번, `BLOCKED_WAIT`와 `UPDATE_FAILED` 0번이다.
+- **간헐 실패 한 건(오늘 것이 아님):** fleet_manager 통합 시험을 다른 시험과 함께 돌린 한 번에서 `stock_shortage`가
+  `t=110.9 J_W released from pode1 while 0.08 m from it`로 실패했다. 같은 빌드에서 그 앞 실행은 통과했고, 단독으로
+  세 번 다시 돌려 세 번 통과했다. 같은 문구의 실패가 `docs/worklog_fake_pode_order_2026-11-16.md` 5절에 이미 있다
+  (order의 물러나기 조각 중에 구역을 일찍 놓는 것, 원인 후보는 관제 쪽). 고치지 않았다.
+- 시험을 돌릴 때 주의: `sim/fake_robots`와 `pc/fleet_manager`의 노드 시험은 둘 다 환경 변수 `ROS_DOMAIN_ID`를 쓴다.
+  같은 도메인으로 동시에 돌리면 서로의 메시지를 받아 실패한다(오늘 한 번 그렇게 돌려 16건이 실패했다. 도메인을
+  나눠 다시 돌려 통과).
 - Codex 검수(읽기 전용, 배경 실행): 9edde5c(1건 확정 -> 1315dec), d25dd78(1건 확정 -> a983efe), 재검수 둘은 고칠 것 없음,
   fa1b3bb 고칠 것 없음, 정리 세 묶음에서 확정 1건(`common` -> `fleet_map` import -> 3dad50f). 기록은 `~/codex-review.md`.
 
