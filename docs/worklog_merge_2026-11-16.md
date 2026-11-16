@@ -52,7 +52,7 @@ origin/main 7c7d04b에서 갈라진 브랜치 여섯 개를 통합 브랜치에 
 | 최소 로봇 간격 | 0.220 m | 0.224 m |
 | events.csv의 LOCAL_YIELD 시작(wait) 건수(시작·종료 합쳐 행 수는 병합 전 4) | 0 | 2 (pode3 30.3 s, pode1 223.0 s) |
 | events.csv의 SELF_RECOVERY, GOAL_STALLED, BACKUP 관련 | 0 | 0 |
-| events.csv의 RETREAT_DONE(끝에 주차 자리 P-1~P-3로 귀환, 후진 아님) | 3 | 3 |
+| events.csv의 RETREAT_DONE(끝에 주차 자리 P-1~P-3로 물러남. 경로 후진 컨트롤러 FollowPathReverse로 달리며, Nav2 BackUp 동작이 아니다) | 3 | 3 |
 | recovery_probe.csv의 로봇 RECOVERING 진입 | 0 | 2 (pode3 30.3 s에 1.45 s, pode1 222.9 s에 0.20 s) |
 | 시계 겹침 경고(backwards in time, TF_OLD_DATA) | 0 | - |
 
