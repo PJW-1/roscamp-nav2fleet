@@ -236,6 +236,24 @@ def test_an_obstacle_that_shows_up_while_waiting_holds_the_next_segment_from_its
     assert not second.get_result_async().done()
 
 
+def test_an_obstacle_held_at_the_end_of_one_segment_holds_the_next_from_its_start(
+        harness, tmp_path):
+    """물체 앞에서 이미 끝에 있던 조각이 바로 끝나도, 그 물체 자리는 다음 조각의 시작이다
+    (예전 goal 끝의 recovery.restart와 같이). 지난 조각의 거리를 다음 조각에 쓰면 그만큼 간다."""
+    from fleet_interfaces.msg import RobotState
+    p = start(harness, tmp_path, robots=FAST, node={"recovery_attempts": 0}, faults=[
+        {"at_s": 0.0, "robot": "pode1", "type": "blocked", "duration_s": 60.0}])
+    assert wait_until(lambda: p.states, 5.0)
+    here_seg = seg(1)
+    here_seg.path.poses = [_stamped(X0 - 0.01, Y0), _stamped(X0, Y0)]  # 이미 끝에 있다
+    nxt = seg(2)
+    nxt.path.poses = [_stamped(X0, Y0), _stamped(X0 + 0.3, Y0)]
+    handle = send(p, MoveTo.Goal(order_id="pode1-1", base=[here_seg, nxt]))
+    assert wait_until(lambda: p.states[-1][1].state == RobotState.STATE_BLOCKED, 8.0)
+    assert here(p) == pytest.approx((X0, Y0), abs=1e-3)
+    assert not handle.get_result_async().done()
+
+
 def test_after_waiting_at_the_base_end_the_next_path_is_checked_again(harness, tmp_path):
     """실물은 base 끝에서 기다린 뒤 받은 조각을 새 줄로 시작해 연결을 다시 잰다.
     기다리는 동안 보고 자세가 옆으로 밀리면(drift) 앞 조각에 이어진 path라도 따르지 않는다."""
