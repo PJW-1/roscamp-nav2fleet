@@ -25,6 +25,7 @@
   <exec_depend>pode_avoidance</exec_depend>
   <exec_depend>nav2_rviz_plugins</exec_depend>
   <exec_depend>rviz2</exec_depend>
+  <exec_depend>python3-yaml</exec_depend>
   <test_depend>ament_cmake_pytest</test_depend>
   <test_depend>python3-pytest</test_depend>
   <test_depend>python3-yaml</test_depend>
