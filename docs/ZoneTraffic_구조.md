@@ -40,7 +40,8 @@
 | ClearChecks | clear_checks.py:10 | 52 | 막힘 표시 근처 로봇에게 해제 확인 요청, 응답으로 표시 지우기 | on_clear_check |
 | Health | health.py:12 | 117 | 시작 보고, 통신 끊김과 복구, 운영자 치우기·되돌리기 | confirm_clear, reinstate_refusal, reinstate |
 | Watch | watch.py:22 | 139 | 움직임 없는 goal(GOAL_STALLED), 구역 밖, 가까이 선 두 로봇, 대기 순환(교착) 감시 | (없음) |
-| Localization | localization.py:21 | 12 | 보고 자세가 튀면 LOCALIZATION_SUSPECT 경고 | (없음) |
+| Localization | localization.py:21 | 13 | 보고 자세가 튀면 LOCALIZATION_SUSPECT 경고. 튄 까닭을 돌려준다(Progress가 위치 의심에 씀) | (없음) |
+| Doubts | doubts.py:10 | 45 | 위치 의심 때 구역 붙잡기(`suspect_hold: check`, 2026-11-16): 의심 걸기(`ZONES_HELD_SUSPECT`), base 끝과 도킹 성공 때 확인(`DOUBT_CLEARED` 또는 `NOT_AT_TARGET`), 격리 때 `pose_doubt`로 넘기기. Progress의 놓기, MoveOrders의 늘리기, Watch의 구역 밖 감시, Results의 goal 성공, ZoneBase의 `_fail`이 부른다 | (없음) |
 | Backoff | backoff.py:52 | 60 | SHARED 구역에서 BLOCKED일 때 뒤로 물러나기와 그 결과 | (없음) |
 | Silent | silent.py:12 | 42 | 목표 없이 이동 단계에 머문 로봇, 소식 없는 로봇 경고. `_event`를 가로챔 | (없음) |
 | NoStart | nostart.py:11 | 24 | 목표를 받고도 안 떠나는 로봇 경고(NO_START) | (없음) |
