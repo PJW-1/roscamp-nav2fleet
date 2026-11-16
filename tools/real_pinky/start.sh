@@ -20,6 +20,11 @@ rm -f logs/launch.pid
 setsid bash -c 'echo $$ > logs/launch.pid; exec ros2 launch ./real_pinky.launch.py \
   namespace:="$1" initial_x:="$2" initial_y:="$3" initial_yaw:="$4"' _ "$1" "$2" "$3" "$4" \
   > "$log" 2>&1 < /dev/null 9>&- &
+child=$!
 for _ in $(seq 50); do [ -s logs/launch.pid ] && break; sleep 0.1; done
-[ -s logs/launch.pid ] || { echo "launch did not start, see $PWD/$log"; exit 1; }
+if [ ! -s logs/launch.pid ]; then
+  # 늦게 뜨는 launch가 다음 start와 겹치지 않게 잠금을 풀기 전에 내린다
+  kill -TERM -- "-$child" 2> /dev/null || kill -TERM "$child" 2> /dev/null
+  echo "launch did not start, stopped it; see $PWD/$log"; exit 1
+fi
 echo "started (speed $speed m/s, group $(cat logs/launch.pid)), log $PWD/$log"

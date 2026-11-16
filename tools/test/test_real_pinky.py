@@ -221,6 +221,31 @@ def test_start_refuses_while_another_start_holds_the_lock(tmp_path):
     assert run.returncode == 1 and "ENV_REACHED" in run.stdout
 
 
+def test_start_stops_a_launch_whose_pid_file_never_appears(tmp_path):
+    # 대역 setsid는 pid 파일을 쓰지 않고 잠만 잔다(ros2까지 가지 않는다)
+    start = _stub_kit(tmp_path)
+    (tmp_path / "env.sh").write_text("return 0\n")
+    fake = tmp_path / "bin"
+    fake.mkdir()
+    (fake / "setsid").write_text(f'#!/bin/bash\necho $$ > "{tmp_path}/fake.pid"\nexec sleep 30\n')
+    (fake / "setsid").chmod(0o755)
+    env = dict(os.environ, PATH=f"{fake}:{os.environ['PATH']}")
+    run = subprocess.run(["bash", str(start), "pinky1", "0.12", "0.10", "1.5708"],
+                         capture_output=True, text=True, env=env, timeout=30)
+    pid = int((tmp_path / "fake.pid").read_text())
+    try:
+        assert run.returncode == 1
+        assert "did not start" in run.stdout
+        for _ in range(20):
+            if not _alive(pid):
+                break
+            time.sleep(0.1)
+        assert not _alive(pid)  # 뜨지 못한 launch를 남기지 않는다
+    finally:
+        if _alive(pid):
+            os.kill(pid, 9)
+
+
 def _own_group(tmp_path, *argv):
     proc = subprocess.Popen(list(argv), start_new_session=True, cwd=tmp_path)
     (tmp_path / "logs").mkdir(exist_ok=True)
