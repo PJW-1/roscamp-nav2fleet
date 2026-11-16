@@ -113,6 +113,7 @@ class Harness:
         self.commands: list = []
         self.results: list[DispatchResult] = []
         self.silent: set[str] = set()  # 보고하지 않는 로봇(통신 끊김)
+        self.bias: dict[str, tuple[float, float]] = {}  # 로봇 -> 보고 위치에 더할 (dx, dy). 위치 추정 오차
         self.obstacles: list[tuple[float, float, float]] = []  # (x, y, 반지름)
         self.dock_fails: set[str] = set()
         self.problems: list[str] = []
@@ -137,7 +138,9 @@ class Harness:
         """로봇들이 상태를 한 번 보고한다. 관제는 돌지 않는다."""
         for bot in self.bots.values():
             if bot.name not in self.silent:
-                self.inputs.on_robot_state(bot.name, bot.x, bot.y, bot.yaw, self._state(bot))
+                dx, dy = self.bias.get(bot.name, (0.0, 0.0))
+                self.inputs.on_robot_state(bot.name, bot.x + dx, bot.y + dy, bot.yaw,
+                                           self._state(bot))
 
     def step(self) -> None:
         self.now = round(self.now + DT, 6)

@@ -99,6 +99,11 @@ class MoveOrders:
             if self._clock() - mo.asked_at >= UPDATE_ANSWER_S:
                 self._end_both(m, f"no answer in {UPDATE_ANSWER_S:.0f} s")
             return
+        if self._holding(m):
+            # 의심 중: 늘리지 않고 base 끝에서 위치를 본다
+            if mo.waiting:
+                self._judge_doubt(m, self._clock())
+            return
         if mo.broken or trip.stale:
             # 목적이 바뀐 트립: nav_goal이면 바로, 고정 경로면 넓은 구역의 노드에 섰을 때 멈춘다
             # (고정 경로 가운데서는 끊지 않는다)

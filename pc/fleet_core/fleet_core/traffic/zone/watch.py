@@ -61,6 +61,8 @@ class Watch:
         m.outside_n += 1
         if m.outside_n < p.outside_zone_samples:
             return
+        if p.suspect_hold:
+            self._suspect(m, "OUTSIDE_ZONE")
         if not m.outside_noted:
             m.outside_noted = True
             self._event("WARN", "OUTSIDE_ZONE", f"at ({m.x:.2f}, {m.y:.2f}), {gap:.2f} m outside "

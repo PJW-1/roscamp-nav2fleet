@@ -120,6 +120,7 @@ class ZoneBase:
         if first:
             m.fault_xy = (m.x, m.y)
         m.pose_doubt = m.pose_doubt or reason == NOT_AT_TARGET
+        self._doubt_to_fault(m)
         m.fault = ERROR
         m.fault_reason = reason
         m.called = False

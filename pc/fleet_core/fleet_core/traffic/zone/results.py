@@ -129,6 +129,7 @@ class Results:
         m.not_sent_warned = False
         m.node, m.off_node = goal.end, None
         m.behind_since = None
+        self._clear_doubt(m)
         if m.trip is not None:
             m.trip.done = m.trip.sent = goal.links
         if goal.kind == RETREAT:

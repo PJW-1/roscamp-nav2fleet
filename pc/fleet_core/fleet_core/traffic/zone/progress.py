@@ -45,7 +45,7 @@ class Progress:
             return
         if m.comm == COMM_LOST:
             m.pose_at = None
-        self._watch_pose_jump(m, x, y, yaw, now)
+        jumped = self._watch_pose_jump(m, x, y, yaw, now)
         m.x, m.y, m.yaw = x, y, yaw
         m.heard_since_success = True
         if m.fault == OUT_OF_SERVICE:
@@ -55,9 +55,16 @@ class Progress:
         elif m.comm == COMM_LOST:
             self._begin_recovery(m)
         elif not m.fault and not m.comm:
+            hold = self.params.suspect_hold
+            if hold:
+                # 의심부터 건다: 이 보고로 놓기 전에
+                if jumped:
+                    self._suspect(m, "LOCALIZATION_SUSPECT")
+                self._watch_outside(m)
             self._track(m)
             self._release_behind(m)
-            self._watch_outside(m)
+            if not hold:
+                self._watch_outside(m)
             self._watch_blocked(m, now)
         elif m.fault == ERROR and not m.comm and m.goal is None:
             self._return_unreached(m)
@@ -94,7 +101,7 @@ class Progress:
     def _release_behind(self, m, keep_trip: bool = True) -> list[str]:
         p, site, grants = self.params, self.site, self.grants
         held = grants.held_by(m.name)
-        if (self._clock() < m.settle_until
+        if (self._holding(m) or self._clock() < m.settle_until
                 or all(site.distance_to_zone(m.x, m.y, zone) > p.outside_zone_m
                        for zone in held)):
             m.clear_n.clear()
