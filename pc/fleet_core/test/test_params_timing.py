@@ -37,5 +37,8 @@ def test_the_limit_itself_is_enough():
 
 
 def test_dock_stall_s_is_not_compared():
-    """DOCK goal은 BLOCKED여도 멈춤 시계가 돈다(watch.py:27). BLOCKED가 먼저 와도 지켜 주지 않는다."""
+    """DOCK goal은 BLOCKED여도 멈춤 시계가 돈다(watch.py:27).
+
+    BLOCKED가 먼저 와도 지켜 주지 않는다.
+    """
     assert timing_warnings(replace(P, dock_stall_s=1.0)) == []

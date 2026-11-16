@@ -8,7 +8,6 @@ W에서 출고로 가는 짐 실은 로봇은 출고가 바빠도 급행으로 �
 from dataclasses import replace
 
 import pytest
-
 from fleet_core.common.params import load_params
 from zone_harness import DT, Harness
 
@@ -76,7 +75,8 @@ def test_while_one_robot_waits_at_o_x_a_robot_from_the_hall_enters_outbound_on_i
     """사용자 요청: O_X에 하나가 기다려도 넓은 곳에서 온 로봇은 O_IN에서 출고로 들어간다. 차례는
     지금 규칙(_ahead, 먼저 바란 로봇)이다: 먼저 바란 O_IN의 로봇이 먼저, 그다음 O_X의 로봇."""
     world, hall, express = outbound_busy({"pode1": "W", "pode2": "O_IN", "pode3": "O"},
-                                         ("pode2", "pode1"), params=mode(order))  # pode2가 먼저 바랐다
+                                         ("pode2", "pode1"),
+                                         params=mode(order))  # pode2가 먼저 바랐다
     assert world.run_until(stands_at(world, "pode1", "O_X"), 60.0), world.log[-10:]
     assert world.view("pode2")["node"] == "O_IN"
     world.traffic.on_release("pode3")

@@ -241,8 +241,8 @@ def late_report_after_backing_out(order: bool):
     """2026-11-16 origin/main(order 끔) 동시 9개 시나리오: 물러나기 결과가 온 뒤 다음 goal(N_W에서
     x 0.35를 따라 X_W로, 작업 도크 구역에서 0.05 m)로 이미 올라가는데 보고는 N_W 앞에 늦게 머물러,
     노드 좌표로 재어 WORK_DOCK을 놓았다(참 거리 0.069 m, stock_shortage t=27.9).
-    물러나며 LATE_REPORT를 지난 뒤로 보고가 거기 멈추고(늦은 보고), 물러나기를 끝낸 뒤 몸을 BODY_UP에
-    둔다. 돌려준 world는 그 뒤 1초를 돈 상태다."""
+    물러나며 LATE_REPORT를 지난 뒤로 보고가 거기 멈추고(늦은 보고), 물러나기를 끝낸 뒤 몸을
+    BODY_UP에 둔다. 돌려준 world는 그 뒤 1초를 돈 상태다."""
     world = Harness(starts={"pode1": "W", "pode2": "P-2", "pode3": "P-3"},
                     params=replace(P, use_order_model=order))
     real = world.inputs.on_robot_state
