@@ -64,7 +64,7 @@ def test_launch_checks_the_loaded_rmw(gz, monkeypatch):
 
 
 def test_launch_checks_the_working_directory(gz, tmp_path):
-    (tmp_path / "DEFAULT_FASTRTPS_PROFILES.xml").write_text("<dds/>")
+    (tmp_path / "DEFAULT_FASTRTPS_PROFILES.xml").write_text("<dds/>", encoding="utf-8")
     with pytest.raises(RuntimeError, match="DEFAULT_FASTRTPS_PROFILES.xml"):
         run(gz)
 

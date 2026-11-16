@@ -34,7 +34,8 @@ def _make_params():
 
 
 # ---- make_params.py ----
-@pytest.mark.parametrize("speed", [0.0, -0.1, 0.26, 0.25001, 0.00001, 1.0, float("nan"), float("inf")])
+@pytest.mark.parametrize("speed", [0.0, -0.1, 0.26, 0.25001, 0.00001, 1.0, float("nan"),
+                                   float("inf")])
 def test_make_params_refuses_bad_speed(tmp_path, speed):
     mp = _make_params()
     with pytest.raises(ValueError):
@@ -77,7 +78,7 @@ def test_make_params_keeps_comments(tmp_path):
         got = (tmp_path / out).read_text(encoding="utf-8").splitlines()
         orig = src.read_text(encoding="utf-8").splitlines()
         assert len(got) == len(orig)
-        changed = [i for i, (a, b) in enumerate(zip(got, orig)) if a != b]
+        changed = [i for i, (a, b) in enumerate(zip(got, orig, strict=True)) if a != b]
         assert all("desired_linear_vel" in got[i] for i in changed)
         assert len(changed) == (2 if out == "nav2_params.yaml" else 1)
 
@@ -388,7 +389,7 @@ def test_deploy_copies_only_the_kit_and_packages(tmp_path):
         assert f"pinky@robot:~/nav2fleet_ws/src/{pkg}/" in dests
     assert "pinky@robot:~/nav2fleet_real/" in dests
     assert not any("other_pkg" in c for c in calls)
-    for c, d in zip(rsyncs, dests):
+    for c, d in zip(rsyncs, dests, strict=True):
         path = d.split(":", 1)[1]
         assert path.startswith(("~/nav2fleet_ws/src/", "~/nav2fleet_real/"))
         if "--delete" in c:

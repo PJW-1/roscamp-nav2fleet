@@ -33,6 +33,7 @@ from rclpy.node import Node
 from rclpy.qos import qos_profile_sensor_data
 from std_msgs.msg import Header
 
+from fleet_gz_sim.quaternion import yaw_of
 from fleet_gz_sim.stage2_plan import (
     build,
     cross_track,
@@ -45,10 +46,6 @@ HEARTBEAT_PERIOD_S = 0.5
 START_M = 0.15  # 로봇이 계획의 시작 지점에서 이만큼 안에 있어야 한다
 RETREAT_SPEED_MPS = 0.05  # TRAFFIC_CONTRACT 6절 retreat_speed_mps
 SETTLE_S = 0.3  # 결과 뒤 실제 위치를 이만큼 더 받는다(멈춘 자리)
-
-
-def _yaw(q) -> float:
-    return math.atan2(2 * (q.w * q.z + q.x * q.y), 1 - 2 * (q.y * q.y + q.z * q.z))
 
 
 def _pose(x: float, y: float, yaw: float) -> Pose:
@@ -90,7 +87,7 @@ class DriveCheck(Node):
         p = msg.pose.pose
         t = msg.header.stamp.sec + msg.header.stamp.nanosec * 1e-9
         with self.lock:
-            self.truth.append((t, p.position.x, p.position.y, _yaw(p.orientation)))
+            self.truth.append((t, p.position.x, p.position.y, yaw_of(p.orientation)))
 
     def _on_plan(self, msg):
         with self.lock:

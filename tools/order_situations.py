@@ -5,8 +5,15 @@
 from __future__ import annotations
 
 import argparse
+import sys
+from pathlib import Path
 
-from fake_robots.world.order_situations import (
+REPO = Path(__file__).resolve().parents[1]
+for sub in ("pc/fleet_core", "sim/fake_robots", "tools"):
+    if str(REPO / sub) not in sys.path:
+        sys.path.insert(0, str(REPO / sub))
+
+from fake_robots.world.order_situations import (  # noqa: E402
     ORDER_SITUATIONS,
     order_markdown,
     run_order_situation,

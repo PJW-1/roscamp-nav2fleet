@@ -22,13 +22,10 @@ from tf2_ros.static_transform_broadcaster import StaticTransformBroadcaster
 from visualization_msgs.msg import Marker, MarkerArray
 
 from fleet_gz_sim.fleet_view import FleetView
+from fleet_gz_sim.quaternion import yaw_of
 
 FRAME = "map"
 PERIOD_S = 0.2
-
-
-def _yaw(q) -> float:
-    return math.atan2(2 * (q.w * q.z + q.x * q.y), 1 - 2 * (q.y * q.y + q.z * q.z))
 
 
 def to_marker(spec, stamp) -> Marker:
@@ -109,7 +106,7 @@ class FleetViewNode(Node):
 
     def _on_truth(self, robot, msg):
         p = msg.pose.pose
-        self.view.set_pose(robot, p.position.x, p.position.y, _yaw(p.orientation), self._now())
+        self.view.set_pose(robot, p.position.x, p.position.y, yaw_of(p.orientation), self._now())
 
     def _draw(self):
         stamp = self.get_clock().now().to_msg()

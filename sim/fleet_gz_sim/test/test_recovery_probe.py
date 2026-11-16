@@ -141,12 +141,12 @@ def test_csv_header_once_and_flushed_per_row(tmp_path):
     [row] = state(p, 1.0, "RECOVERING")
     sink = CsvSink(str(path))
     sink.write(row)
-    assert len(list(csv.DictReader(open(path)))) == 1  # visible before close
+    assert len(list(csv.DictReader(open(path, encoding="utf-8")))) == 1  # visible before close
     sink.close()
     sink = CsvSink(str(path))  # reopening appends without a second header
     sink.write(row)
     sink.close()
-    lines = path.read_text().splitlines()
+    lines = path.read_text(encoding="utf-8").splitlines()
     assert lines[0].split(",") == COLUMNS
     assert sum(1 for line in lines if line.startswith("sim_time")) == 1
     assert len(lines) == 3

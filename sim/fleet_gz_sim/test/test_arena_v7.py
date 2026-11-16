@@ -76,7 +76,8 @@ def test_v7_random_scenario_has_the_random_block():
 
 
 def test_v7_varied_scenario_mixes_order_bursts_with_staggered_low_batteries(site):
-    """사용자 2026-11-13 밤: 더 다양한 상황. 주문이 몰렸다 쉬고, 로봇마다 다른 때에 배터리가 떨어진다."""
+    """사용자 2026-11-13 밤: 더 다양한 상황. 주문이 몰렸다 쉬고,
+    로봇마다 다른 때에 배터리가 떨어진다."""
     from fake_robots.scenario import load_scenario
     path = PKG / "scenarios" / "gz_v7_varied.yaml"
     data = fleet_setup.read_scenario(path)
@@ -112,8 +113,9 @@ def test_v7_rush_scenario_sends_twelve_orders_at_once_without_faults(site):
 
 
 def test_v7_obstacle_schedule_puts_small_boxes_on_nav_goal_links_only(site):
-    """고정 경로는 Gazebo에서 충돌 검사를 하지 않는다. 상자는 Nav2 goal 이음 위에만 놓는다. 상자가 작아
-    로봇이 스스로 돌아갈 틈이 남는다(사용자 2026-11-13 밤: 장애물이 생기면 회피가 보여야 한다)."""
+    """고정 경로는 Gazebo에서 충돌 검사를 하지 않는다. 상자는 Nav2 goal 이음 위에만 놓는다.
+    상자가 작아 로봇이 스스로 돌아갈 틈이 남는다
+    (사용자 2026-11-13 밤: 장애물이 생기면 회피가 보여야 한다)."""
     from fleet_core.fleet_map.model import NAV_GOAL
     from fleet_gz_sim.obstacles import load_schedule
     schedule = load_schedule(PKG / "obstacles" / "v7_yard_mix.yaml", site)
@@ -137,7 +139,7 @@ def test_v7_random_scenario_expands_to_one_low_battery_per_robot_and_spread_orde
     assert sorted(f["robot"] for f in low) == ["pode1", "pode2", "pode3"]
     assert all(20 <= f["at_s"] <= 150 and f["duration_s"] == 30 for f in low)
     times = [0.0] + [order["at_s"] for order in out["orders"]]
-    gaps = [b - a for a, b in zip(times, times[1:])]
+    gaps = [b - a for a, b in zip(times, times[1:], strict=False)]
     # at_s는 쌓인 시각을 0.1 s로 반올림한 값이라 두 at_s의 차는 참 간격과 0.1 s까지 다르다
     assert len(gaps) == 8 and all(5 - 0.1 - 1e-9 <= gap <= 40 + 0.1 + 1e-9 for gap in gaps), gaps
 

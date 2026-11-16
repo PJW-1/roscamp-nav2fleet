@@ -73,8 +73,9 @@ ARGS = {
                             "(pode_scan_filter, 추가지시서3 7-2). false면 띄우지 않는다(비교용)"),
     "wall_band_m": ("0.05", "스캔 거르개: 벽·진열대에서 이만큼 안의 점을 지운다(m)."
                             " 0.05는 D2 측정으로 고른 값(fixed_line_results.md)"),
-    "peer_obstacles": ("true", "로봇마다 다른 로봇의 몸을 costmap에 찍는다(pode_peer_obstacles, 임시):"
-                               " Nav2가 다른 로봇을 피해 길을 짠다. false면 찍지 않는다(비교용)"),
+    "peer_obstacles": ("true", "로봇마다 다른 로봇의 몸을 costmap에 찍는다"
+                               "(pode_peer_obstacles, 임시): Nav2가 다른 로봇을 피해 길을 짠다."
+                               " false면 찍지 않는다(비교용)"),
     "avoidance_package": ("pode_avoidance", "회피 패키지(params/avoidance.yaml과"
                                              " launch/avoidance.launch.py). 회피 담당의 패키지로"
                                              " 바꿀 수 있다"),

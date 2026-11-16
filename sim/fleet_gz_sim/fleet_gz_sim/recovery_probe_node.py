@@ -7,8 +7,6 @@ columns: recovery_probe.py). An empty result_dir only logs.
 """
 from __future__ import annotations
 
-import math
-
 import rclpy
 from fleet_core.common.contract import load_contract, to_ros_qos
 from fleet_interfaces.msg import RobotState
@@ -18,6 +16,7 @@ from rclpy.node import Node
 from rclpy.parameter import Parameter
 from rclpy.qos import qos_profile_sensor_data
 
+from fleet_gz_sim.quaternion import yaw_of
 from fleet_gz_sim.recovery_probe import COLUMNS, CsvSink, RecoveryProbe
 
 
@@ -58,7 +57,7 @@ class RecoveryProbeNode(Node):
 
     def _on_truth(self, robot: str, msg: Odometry) -> None:
         q, p = msg.pose.pose.orientation, msg.pose.pose.position
-        yaw = math.atan2(2.0 * (q.w * q.z + q.x * q.y), 1.0 - 2.0 * (q.y * q.y + q.z * q.z))
+        yaw = yaw_of(q)
         self.probe.on_truth(robot, _seconds(msg.header.stamp), p.x, p.y, yaw)
 
     def _on_state(self, robot: str, msg: RobotState) -> None:

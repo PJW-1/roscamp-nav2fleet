@@ -102,7 +102,8 @@ def test_a_standing_robot_stays_where_it_was_seen():
 
 
 def test_a_robot_lifted_away_or_long_silent_is_not_carried_on():
-    """들어낸 로봇은 한 번에 멀리 뛴다. 그 속도로 밀지 않는다. 소식이 끊긴 로봇도 0.3초까지만 민다."""
+    """들어낸 로봇은 한 번에 멀리 뛴다. 그 속도로 밀지 않는다. 소식이 끊긴 로봇도
+    0.3초까지만 민다."""
     lifted = seen(seen(None, 1.00, 0.50, 3.0), -5.0, -5.0, 3.1)
     assert where_now(lifted, 3.3) == pytest.approx((-5.0, -5.0))
     late = seen(seen(None, 1.00, 0.50, 3.0), 1.02, 0.50, 3.1)

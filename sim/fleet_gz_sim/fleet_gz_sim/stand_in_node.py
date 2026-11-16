@@ -55,6 +55,7 @@ from fleet_gz_sim.dock_stand_in import (
 )
 from fleet_gz_sim.fleet_setup import stand_in_inputs
 from fleet_gz_sim.launch_parts import BATTERY_TOPIC
+from fleet_gz_sim.quaternion import yaw_of
 from fleet_gz_sim.ready import everyone_idle
 
 READY_HOLD_S = 1.0
@@ -62,10 +63,6 @@ REPORT_FRESH_S = 0.5  # pode_fsm은 state를 10 Hz로 낸다
 CLOCK_STALL_S = 5.0  # wall seconds without Gazebo time moving: the dock fails
 BATTERY_PERIOD_S = 0.5  # 배터리를 내는 간격(Gazebo 시간)
 STAND_STILL_M = 0.01  # 한 간격 동안 이보다 덜 움직였으면 서 있다
-
-
-def _yaw(q) -> float:
-    return math.atan2(2.0 * (q.w * q.z + q.x * q.y), 1.0 - 2.0 * (q.y * q.y + q.z * q.z))
 
 
 class SimStandIn(Node):
@@ -128,7 +125,7 @@ class SimStandIn(Node):
 
     def _on_truth(self, robot: str, pub, msg: Odometry) -> None:
         p = msg.pose.pose
-        pose = (p.position.x, p.position.y, _yaw(p.orientation))
+        pose = (p.position.x, p.position.y, yaw_of(p.orientation))
         with self._lock:
             self._pose[robot] = pose
         out = RobotState(robot_id=robot, state=RobotState.STATE_IDLE, stamp=msg.header.stamp)
