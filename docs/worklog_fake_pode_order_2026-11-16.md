@@ -6,9 +6,17 @@
 
 - `pc.launch.py use_fake:=true`와 `fakes.launch.py`가 띄우는 ROS 가짜 Pode(`sim/fake_robots/fake_robots/`)가 MoveTo의 order 칸을 읽고 달린다.
   그래서 시나리오 시험이 기본값(order 켬) 길을 시험한다. use_fake에서 order를 끄지 않았다(조정자 결정).
-- 마지막 코드(3b853be)에서 order 켬 시나리오 9개가 모두 통과했다(11 passed: 시나리오 9 + 순수 2). basic_orders는 order 끔으로도 통과했다.
-- `test_fms_restart.py`는 order 켬에서 3번 가운데 2번 실패했다. 재시작 검사는 모두 통과했고, 마지막 판정에서 구역을 일찍 놓은 것 2건이 걸렸다.
-  같은 시험을 order 끔으로 돌리면(스크래치 사본) 통과한다. 원인은 관제 쪽 order 진행 계산으로 보인다(7절 첫 항목). 가짜 Pode 문제가 아니라고 판단해 고치지 않았다.
+- order 켬 시나리오 9개:
+  - 3b853be: 모두 통과(11 passed: 시나리오 9 + 순수 2).
+  - 마지막 코드(45ad3aa): 8 통과, stock_shortage 1 실패.
+    실패는 물러나기 조각 중에 구역을 일찍 놓은 것 하나다(`J_W released from pode1 while 0.08 m`, 실제 0.076 m).
+- basic_orders는 order 끔으로도 통과했다.
+- `test_fms_restart.py`는 3b853be에서 3번 가운데 2번 실패했고, 45ad3aa에서는 3번 모두 통과했다.
+  실패는 모두 같은 종류다. 재시작 검사는 통과했고, 마지막 판정에서 물러나기 조각 중에 구역을 일찍 놓은 것이 걸렸다.
+  같은 시험을 order 끔으로 돌리면(스크래치 사본, 1회) 통과한다.
+  통과한 실행에서도 물러나기가 끝나기 전에 놓았다. 실제 거리가 심판 반경 0.08 m보다 컸을 뿐이다.
+- 이 조기 해제의 원인은 관제 쪽 order 진행 계산으로 보인다([추측], 7절 첫 항목). 가짜 Pode 문제가 아니라고 판단해 고치지 않았다.
+- 가짜 Pode에 고치지 않은 결함이 하나 남았다. Nav2 중단 복구 중에 조각이 끝나면 다음 조각도 중단된다(7절). 드문 경우라 시험과 재실행을 한 번 더 하지 않았다.
 - 조각 줄, 진행(done_seq), base 끝 대기, 이음 검사는 세계 모의의 `OrderRun`과 `refusal`(`world/order_run.py`)을 그대로 쓴다.
   `pode_fsm`은 가져오지 않았다. `pode_fsm`이 `fake_robots`를 test_depend로 두어 순환이 생기고, Nav2 의존도 따라온다. `package.xml`은 바뀌지 않았다.
 
@@ -22,7 +30,10 @@
 | 45444e4 | Codex 리뷰 반영: 조각 검사, 이음 검사, 고장 돌려주기, 경합 둘. 시험 3개 더함 |
 | df303a8 | Codex 리뷰 반영: base 끝에서 기다린 뒤 받은 조각은 새 줄로 시작한다. 시험 1개 더함 |
 | 3b853be | blocked_lane 실패 원인 고침: base 끝에서 기다리는 order는 서 있는 로봇으로 본다. 시험 1개 더함 |
-| (이 문서) | 작업 기록 |
+| 302ea5f, 199708f | 작업 기록과 그 고침 |
+| 229531f | Codex 리뷰(302ea5f) 반영: 조각 시작에 잡아 둔 물체 자리를 새 path의 시작으로(`rebase`). 시험 1개 더함 |
+| 45ad3aa | Codex 리뷰(229531f) 반영: `rebase` 대신 `recovery.restart()`. 앞 조각 끝에서 시작한 후진이 다음 path로 이어지지 않는다. 시험 1개 더함 |
+| (이 고침) | 작업 기록을 마지막 코드(45ad3aa)에 맞춤 |
 
 order goal의 동작(실물 `pode/pode_fsm/pode_fsm/order_fsm.py`에 맞춤):
 
@@ -43,6 +54,8 @@ order goal의 동작(실물 `pode/pode_fsm/pode_fsm/order_fsm.py`에 맞춤):
 - 취소하면 order 전체가 CANCELED로 끝난다.
 - heartbeat가 끊기면 예전처럼 바로 선다(HEARTBEAT_LOST). 실물 기본값 `comm_loss_policy: stop`과 같다.
 - 앞 물체 고장은 조각을 달릴 때만 잡는다. base 끝 대기 중에 나타난 물체는 goal이 없던 로봇처럼, 다음 조각을 시작한 자리에서 막는다.
+- follow_path와 nav_goal 조각을 시작할 때마다 `recovery.restart()`를 부른다. 예전에 goal 하나가 끝날 때와 같다.
+  후진과 선 시각을 지우고, 시도 수는 두고, 잡아 둔 물체 자리는 새 path의 시작으로 옮긴다.
 
 ## 3. 시험 (나온 그대로)
 
@@ -57,6 +70,8 @@ order goal의 동작(실물 `pode/pode_fsm/pode_fsm/order_fsm.py`에 맞춤):
 - 45444e4의 시험 3개: 고치기 전 3 실패. 고친 뒤 test_ros_pode_order + test_ros_pode **70 통과**.
 - df303a8의 시험 1개: 고치기 전 1 실패. 고친 뒤 13 통과.
 - 3b853be의 시험 1개: 고치기 전 1 실패. 첫 고침 뒤에도 1 실패(아래 5절). 두 번째 고침 뒤 **14 통과**. 같은 코드에서 `test_ros_pode.py` **58 통과**.
+- 229531f의 시험 1개: 고치기 전 1 실패(0.01 m 움직임). 고친 뒤 test_ros_pode_order + test_recovery + test_ros_pode **98 통과**.
+- 45ad3aa의 시험 1개: 229531f 코드에서 1 실패(0.07 m 뒤로 밀림). 고친 뒤 같은 세 파일 **99 통과**.
 
 ### 3.2 시나리오 (`pc/fleet_manager/test/test_scenario_integration.py`)
 
@@ -79,15 +94,43 @@ order 끔(`ros2 launch iponic_bringup pc.launch.py use_fake:=true scenario:=basi
   - 3회: **1 failed**. `t=369.5 J_E ... 0.07 m`, OUT_DOCK 같은 때.
   - order 끔 비교(사본 `/tmp/claude-1000/fakeorder_ws/fms_off_copy`에 `-p use_order_model:=false`만 더함, 1회): **1 passed**.
   - 1, 2회는 시나리오 묶음과 동시에 돌았다. 3회는 fake_robots 전체 시험과 동시에 돌았다.
+  - 45ad3aa에서: **1 passed**, **1 passed**, **1 passed**(3회, 앞 1회는 시나리오와 fake 전체 시험과 동시에 돌았다).
+    물러나기 끝보다 먼저 놓은 것은 그대로 있었다(1회: 375.0 s에 놓고 376.0 s에 끝남, 실제 0.135 m. 2회: 370.6 s에 놓고 372.4 s에 끝남, 실제 0.096 m).
 - `pc/fleet_manager`의 나머지 시험(test_adapters, test_ask_clear, test_goal_tracker, test_launch_args, test_node_order, test_node_wiring, test_order_goals), 도메인 79:
   - df303a8에서: **113 passed**.
   - 3b853be에서: **113 passed**, 경고 1.
 - `pc/fleet_core/test`: **1075 passed, 3 xfailed**(45444e4. fleet_core는 이 브랜치에서 바뀌지 않았다).
 - `sim/fake_robots/test` 전체(도메인 79), 3b853be: **1015 passed, 27 xfailed**, 1114.62 s.
   그 전에 두 번 시작했다가 중간에 멈췄다. 돌던 중에 fake 코드를 고쳐야 해서 마지막 코드로 다시 돌렸다.
-- 시나리오 묶음도 두 번 중간에 멈췄다(Codex 지적을 고치기 전). 결과는 세지 않았다.
+- 시나리오 묶음도 중간에 멈춘 것이 셋 있다(Codex 지적을 고치기 전). 결과는 세지 않았다. fake_robots 전체 시험도 229531f에서 한 번 멈췄다.
+- 45ad3aa(마지막 코드)에서:
+  - 시나리오 9개, order 켬: **10 passed, 1 failed**(stock_shortage), 559.48 s. 시나리오별은 4절.
+  - `sim/fake_robots/test` 전체: **1 failed, 1016 passed, 27 xfailed**, 경고 1, 900.72 s.
+    실패는 `test_ros_check_interfaces.py::test_wrong_qos_is_caught`(검사기가 틀린 QoS를 못 찾음: 0 errors).
+    그 파일만 다시 돌리면 **3 passed**. 가짜 Pode와 관계없는 시험이고, 다른 시험과 동시에 돌 때의 발견 시간 문제로 본다([추측]).
 
-## 4. 시나리오별 결과 (3b853be, order 켬)
+## 4. 시나리오별 결과 (order 켬)
+
+### 4.1 45ad3aa (마지막 코드)
+
+| 시나리오 | 판정 | 출고 | 시뮬 시간(s) | 위반 | early/near | ORDER_SENT | ORDER_UPDATED | ORDER_UPDATE_REJECTED |
+|---|---|---|---|---|---|---|---|---|
+| basic_orders | 통과 | 6/6 | 200.8 | 0 | 0/0 | 20 | 10 | 0 |
+| order_burst | 통과 | 10/10 | 301.9 | 0 | 0/0 | 37 | 18 | 0 |
+| shared_lane_failure | 통과 | 6/6 | 213.0 | 0 | 0/0 | 24 | 10 | 0 |
+| stock_shortage | **실패** | 2/7 | 138.7 | 1 | 1/0 | 17 | 7 | 0 |
+| stuck_robot | 통과 | 2/6(기대대로) | 400.0 | 0 | 0/0 | 10 | 4 | 0 |
+| operator_recovery | 통과 | 4/4 | 273.3 | 0 | 0/0 | 11 | 2 | 0 |
+| blocked_lane | 통과 | 6/6 | 219.9 | 0 | 0/0 | 20 | 12 | 0 |
+| auto_isolation | 통과 | 4/4 | 230.4 | 0 | 0/0 | 13 | 6 | 0 |
+| reinstate | 통과 | 7/7 | 327.6 | 0 | 0/0 | 25 | 9 | 0 |
+
+- stock_shortage: 출고 수(2/7)는 기대대로다. 실패는 위반 `t=107.4 J_W released from pode1 while 0.08 m from it` 하나다.
+  pode1이 WORK 도크에서 N_W로 물러나는 조각(101.3 s 시작, 109.6 s 끝) 중인 107.4 s에 WORK_DOCK과 J_W를 놓았다(J_W 실제 0.076 m).
+  test_fms_restart 실패와 같은 모양이다(7절 첫 항목). 3b853be에서는 같은 시나리오가 통과했다.
+- blocked_lane: ZONE_MARKED_BLOCKED가 43.3 s에 나왔다.
+
+### 4.2 3b853be
 
 | 시나리오 | 판정 | 출고 | 시뮬 시간(s) | 위반 | early/near | ORDER_SENT | ORDER_UPDATED | ORDER_UPDATE_REJECTED |
 |---|---|---|---|---|---|---|---|---|
@@ -127,7 +170,7 @@ blocked_lane: pode1은 30.0 s에 첫 구간에서 막혔다. BLOCKED_WAIT은 32.
 
 ## 7. 남은 점
 
-- **관제: order의 물러나기 조각 중에 구역을 일찍 놓는다(test_fms_restart 실패).** 근거는 3회 실행(`/tmp/claude-1000/fakeorder_ws/fms_on3`)과 order 끔 사본을 비교한 것이다.
+- **관제: order의 물러나기 조각 중에 구역을 일찍 놓는다(test_fms_restart 3b853be 2회 실패, 45ad3aa stock_shortage 실패).** 근거는 3회 실행(`/tmp/claude-1000/fakeorder_ws/fms_on3`)과 order 끔 사본을 비교한 것이다.
   - order 켬: pode2가 OUT_DOCK에서 N_E로 물러나는 조각(363.6 s 시작, 371.8 s 끝)이 끝나기 2.3 s 전인 369.5 s에 J_E와 OUT_DOCK을 놓았다(실제 0.066 m, 보고 0.094 m).
   - order 끔: 물러나기가 끝난 뒤인 373.8 s에 놓았다(실제 0.142 m).
   - [추측] 원인 후보(코드상 가능함은 Codex도 확인. 이 실행에서 그렇게 됐는지는 확인하지 않음):
@@ -147,4 +190,11 @@ blocked_lane: pode1은 30.0 s에 첫 구간에서 막혔다. BLOCKED_WAIT은 32.
 - (해결) Codex(3b853be 리뷰)는 조각 경계를 넘어 남은 물체 자리(hold)가 다음 조각에서 틀린 거리로 쓰일 수 있다고 했다.
   나는 처음에 path 조각에서는 생기지 않는다고 판단했는데, 틀렸다. 문서 리뷰(302ea5f)에서 Codex가 반례를 들었다.
   반례: 조각이 이미 끝에서 시작하고 물체가 보이면, 첫 틱에 끝나면서 hold 0.01 m가 남는다.
-  그 반례로 시험을 먼저 썼고(고치기 전 0.01 m 움직여 실패), 조각 시작마다 hold를 새 path의 시작으로 다시 잡게 고쳤다(`ObstacleRecovery.rebase`).
+  그 반례로 시험을 먼저 쓰고 hold만 옮겼다(229531f). Codex가 후진도 이어진다고 다시 지적해(시험으로 0.07 m 확인) `restart()`로 바꿨다(45ad3aa).
+- **고치지 않은 결함(Codex 45ad3aa 리뷰, 코드로 확인함): Nav2 중단 복구가 조각 경계를 넘는다.**
+  - `restart()`는 `_abort_s`를 지우지만 `goal.aborting`은 남는다(`fake_pode_node.py` `_move_step`).
+  - 그래서 중단 복구 중에 조각이 끝나면, 다음 조각도 0.2 s 뒤 다시 중단된다. 예전에는 goal마다 새 `_Goal`이라 이어지지 않았다.
+  - 중단 복구와 조각 끝이 겹칠 때만 생긴다. nav_abort를 쓰는 shared_lane_failure는 모든 실행에서 통과했다.
+  - 고침 후보: `_start_segment`에서 `goal.aborting = False`. 시험과 전체 재실행이 한 번 더 필요해서 하지 않았다.
+- Codex(45ad3aa 리뷰): 조각 시작마다 선 시각이 지워진다. 물체 앞에서 아주 짧은 조각이 이어지면 BLOCKED가 늦어진다.
+  order 끔(조각마다 goal)과 같은 동작이고, 물체 앞에 서 있으면 조각이 끝나지 않으므로 그대로 두었다.
