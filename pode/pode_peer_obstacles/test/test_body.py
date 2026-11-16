@@ -2,7 +2,6 @@
 import math
 
 import pytest
-
 from pode_peer_obstacles.body import body_points, others
 
 
