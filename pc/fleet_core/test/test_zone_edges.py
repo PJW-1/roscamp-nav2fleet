@@ -42,8 +42,9 @@ def test_zones_ahead_are_given_back_only_after_reports_confirm_the_robot_is_clea
     assert not world.problems
 
 
-def test_a_purpose_changed_and_changed_back_still_arrives_at_the_dock():
-    world = Harness()
+@pytest.mark.parametrize("order", [False, True], ids=["order_off", "order_on"])
+def test_a_purpose_changed_and_changed_back_still_arrives_at_the_dock(order):
+    world = Harness(params=replace(OFF, use_order_model=order))
     world.step()
     first = world.call("WORK", "pode2")
     assert world.run_until(lambda: world.view("pode2")["node"] == "N_W", 60.0)

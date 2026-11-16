@@ -100,10 +100,11 @@ class MoveOrders:
                 self._end_both(m, f"no answer in {UPDATE_ANSWER_S:.0f} s")
             return
         if mo.broken or trip.stale:
-            # 목적이 바뀐 트립: 넓은 구역에서는 물러나기가 아니면 바로 멈춘다
+            # 목적이 바뀐 트립: nav_goal이면 바로, 고정 경로면 넓은 구역의 노드에 섰을 때 멈춘다
+            # (고정 경로 가운데서는 끊지 않는다)
             via = self._via(m)
-            if mo.waiting or (trip.stale and (via == NAV_GOAL
-                                              or (via != RETREAT and self._in_yard(m)))):
+            at_yard_node = via != RETREAT and self._in_yard(m) and self._on_node(m)
+            if mo.waiting or (trip.stale and (via == NAV_GOAL or at_yard_node)):
                 self._cancel_goal(m)
                 if trip.stale:
                     self._drop_trip(m)
