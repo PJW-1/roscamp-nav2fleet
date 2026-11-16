@@ -1,6 +1,7 @@
 """세계의 흠과 주입: 같은 씨드는 같은 기록, 통신 끊김, 치우기와 다시 넣기, 멈춤, 튀는 보고,
 배터리."""
 import math
+from dataclasses import replace
 
 from fake_robots.world import (
     CommLoss,
@@ -136,3 +137,84 @@ def test_low_battery_is_reported_and_charges_on_a_parking_spot():
     world.run(8.0)
     levels = [args[5] for _, args in world.manager.of("on_robot_state", "pode1")]
     assert levels[0] == 90.0 and min(levels) == 10.0 and levels[-1] == 90.0
+
+
+# ---- 믿는 자리로 달리기(drive_by_estimate) ----
+
+def _drive_trace(injections, seconds=12.0):
+    """N_W에서 N_E로 따라가며 걸음마다 (시각, 실제 x, 실제 y, 보고 x, 보고 y)."""
+    world = quiet_world(robots={"pode1": "N_W"}, injections=injections)
+    world.send(follow(world, "pode1", 1, ["N_W", "N_E"]))
+    out = []
+    for _ in range(round(seconds / world.dt)):
+        world.step()
+        r = world.robots["pode1"]
+        _, args = world.manager.of("on_robot_state", "pode1")[-1]
+        out.append((world.t, r.x, r.y, args[1], args[2]))
+    return world, out
+
+
+def test_driving_by_estimate_offsets_the_body_by_the_bias_and_the_report_stays_on_the_path():
+    bias = 0.2
+    world, trace = _drive_trace([NoisyPose("pode1", 1.0, 30.0, jump_m=bias,
+                                           drive_by_estimate=True)])
+    y0 = world.site.node_pose("N_W")[1]
+    end_x = world.site.node_pose("N_E")[0]
+    inside = [s for s in trace if 1.0 + 1e-9 < s[0] < 30.0]
+    assert inside
+    for _, x, y, rx, ry in inside:
+        assert abs(rx - x - bias) < 1e-9  # 보고 = 믿는 자리 = 실제 + 치우침
+        assert abs(ry - y) < 1e-9 and abs(y - y0) < 1e-9
+    assert results(world, "on_move_result")[0][2] is True
+    _, x, _, rx, _ = trace[-1]
+    assert abs(rx - end_x) < 1e-6  # 믿는 자리로는 도착
+    assert abs(x - (end_x - bias)) < 1e-6  # 몸은 치우침만큼 못 미쳤다
+
+
+def test_after_the_window_the_belief_snaps_back_and_the_robot_drives_from_its_true_pose():
+    world, trace = _drive_trace([NoisyPose("pode1", 1.0, 2.0, jump_m=0.2,
+                                           drive_by_estimate=True)], seconds=15.0)
+    end = world.site.node_pose("N_E")
+    after = [s for s in trace if s[0] >= 2.0]
+    for _, x, y, rx, ry in after:
+        assert (rx, ry) == (x, y)  # 창이 끝나면 보고가 실제로 돌아온다
+    _, x, y, _, _ = trace[-1]
+    assert results(world, "on_move_result")[0][2] is True
+    assert math.dist((x, y), end) < 1e-6  # 실제 자리에서 이어 가 끝에 선다
+
+
+def test_without_drive_by_estimate_the_body_drives_as_if_there_were_no_pose_error():
+    clean = _drive_trace([])[1]
+    _, noisy = _drive_trace([NoisyPose("pode1", 1.0, 30.0, jump_m=0.2)])
+    assert [s[:3] for s in noisy] == [s[:3] for s in clean]
+    assert NoisyPose("pode1", 1.0, 2.0) == NoisyPose("pode1", 1.0, 2.0, drive_by_estimate=False)
+
+
+def test_a_window_closing_while_turning_at_the_end_drives_the_body_back_to_the_goal():
+    # 믿는 자리로 9.7 s쯤 끝에 닿고 3 s 넘게 돈다. 도는 동안 창이 닫힌다
+    world = quiet_world(robots={"pode1": "N_W"}, injections=[
+        NoisyPose("pode1", 1.0, 11.0, jump_m=0.2, drive_by_estimate=True)])
+    world.send(follow(world, "pode1", 1, ["N_W", "N_E"], yaw=math.pi))
+    world.run(20.0)
+    assert results(world, "on_move_result")[0][2] is True
+    assert math.dist(world.robots["pode1"].pose, world.site.node_pose("N_E")) < 1e-6
+
+
+def test_rebase_moves_the_first_point_and_the_progress_mark_and_keeps_a_reached_end():
+    from types import SimpleNamespace
+
+    from fake_robots.world.world import _rebase
+    run = SimpleNamespace(way=[(0.0, 0.0), (1.0, 0.0)], mark=(0.0, 0.0))
+    _rebase(run, (0.2, 0.0), 0.2)
+    assert run.way == [(0.2, 0.0), (1.0, 0.0)] and run.mark == (0.2, 0.0)
+    done = SimpleNamespace(way=[(1.0, 0.0)])  # 끝에 닿아 도는 중
+    _rebase(done, (0.8, 0.0), -0.2)
+    assert done.way == [(0.8, 0.0), (1.0, 0.0)]
+
+
+def test_pose_jumps_drive_is_pose_jumps_driven_by_the_estimate_and_stays_out_of_the_table():
+    from fake_robots.world.situations import NAMES, build
+    plain, drive = build("pose_jumps", "d2"), build("pose_jumps_drive", "d2")
+    assert [replace(n, drive_by_estimate=True) for n in plain.injections] == drive.injections
+    assert not plain.injections[0].drive_by_estimate
+    assert "pose_jumps_drive" not in NAMES
