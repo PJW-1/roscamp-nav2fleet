@@ -3,7 +3,8 @@
 # 앞 단계가 성공하면 끝낸다. 회전이 막히면 전역이 허락된 경우만 다음 단계로 간다.
 # 이동·도킹·물러나기·다른 relocalize 중이면 goal은 받되 바로 success=false, reason=BUSY,
 # stage 빈칸으로 끝낸다(거절하면 result가 없어 사유를 못 준다).
-# 받은 뒤 끝날 때까지(모든 단계) 이동·도킹·물러나기 goal은 거절하고 상태를 LOCALIZING으로 알린다.
+# BUSY가 아닌 goal은 끝날 때까지(모든 단계) 이동·도킹·물러나기 goal을 거절하고 상태를 LOCALIZING으로 알린다.
+# BUSY로 끝낸 goal은 하던 일과 상태를 바꾸지 않는다.
 # 취소·시간 초과 때는 회전을 멈춘 뒤 결과를 낸다.
 # 성공: std_xy_m과 std_yaw_rad가 작고 scan_match가 높은 상태가 새 갱신 여러 번 이어질 때.
 # 공분산만으로는 성공이 아니다. 문턱값은 로봇 설정(pode_fsm)에 있다.
@@ -26,7 +27,7 @@ string REASON_CANCELED="CANCELED"
 # ---- result: 결과 ----
 bool success
 string reason
-string stage  # 끝난 단계(feedback의 STAGE_*), 시작 전 거절이면 빈칸
+string stage  # 끝난 단계(feedback의 STAGE_*), BUSY면 빈칸
 
 # ---- result: 추정(map 틀). pose_valid가 거짓이면 아래 자세·품질 값은 모두 쓰지 않는다 ----
 # (start_pose도 포함한다. 시작할 때 amcl_pose가 없었으면 pose_valid는 거짓이다)
