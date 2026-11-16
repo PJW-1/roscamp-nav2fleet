@@ -213,8 +213,8 @@ class Harness:
         if run is None:
             if not isinstance(bot.cmd, MoveCmd):
                 raise AssertionError(f"{robot} runs no MoveCmd or accepted order")
-            cmd, bot.cmd, bot.points = bot.cmd, None, []
             bot.x, bot.y = self.site.node_pose(node)
+            cmd, bot.cmd, bot.points = bot.cmd, None, []
             self.inputs.on_move_result(robot, cmd.goal_id, True, "")
             return
         ahead = [s.seq_id for s in run.taken if s.seq_id > run.done_seq and s.end_node == node]
