@@ -47,7 +47,7 @@ from fleet_core.traffic.modes import NoZoneTraffic  # noqa: E402
 from fleet_core.traffic.site import site_from_text  # noqa: E402
 
 # 옛 기록 호환 기본값: 기록에 없는 키는 그 기록을 만든 코드의 기본값으로 재생한다
-RECORD_DEFAULTS = {"stall_s": 6.0}
+RECORD_DEFAULTS = {"stall_s": 6.0, "use_order_model": False}  # order: 2026-11-12 전 기록
 
 
 @dataclass(frozen=True)

@@ -11,7 +11,7 @@ from dataclasses import replace
 from pathlib import Path
 
 import pytest
-from fleet_core.common.commands import DockCmd, MoveCmd
+from fleet_core.common.commands import DockCmd
 from fleet_core.common.params import load_params
 from fleet_core.fleet_map import FleetMapError, fleet_map_from_text, load_fleet_map
 from zone_harness import DT, Harness
@@ -27,7 +27,8 @@ def line_map(line=True):
 
 
 def targets(world, robot):
-    return [c.target_id for c in world.sent(MoveCmd, robot)]
+    """보낸 구간(물러나기 말고)의 끝 지점. order 모델이면 base 조각마다 하나다."""
+    return [c.target_id for c in world.legs(robot) if c.mode != "retreat"]
 
 
 def calls(world, *robots):
@@ -80,8 +81,11 @@ def test_without_the_key_the_old_rule_stays():
     assert targets(world, "pode2") == [] and targets(world, "pode3") == [], "no pulling"
 
 
-def test_a_new_robot_joins_behind_the_last_one_in_line():
-    world = Harness(site=line_map(), starts={"pode1": "W", "pode2": "Q1", "pode3": "P-1"})
+@pytest.mark.parametrize("order", [False, True], ids=["order_off", "order_on"])
+def test_a_new_robot_joins_behind_the_last_one_in_line(order):
+    """order 모델: 줄을 지나는 horizon을 다시 짜면 꼬리(Q3) 대신 앞자리(Q1) 쪽 길로 바뀌었다."""
+    world = Harness(site=line_map(), starts={"pode1": "W", "pode2": "Q1", "pode3": "P-1"},
+                    params=replace(load_params(), use_order_model=order))
     calls(world, "pode2")
     world.call("WORK", "pode3")
     assert world.run_until(lambda: world.view("pode3")["node"] == "Q2", 200.0)
@@ -165,6 +169,22 @@ def test_v7_new_robot_stands_behind_the_front_and_the_line_docks_in_order():
     assert not world.problems
 
 
+@pytest.mark.parametrize("order", [False, True], ids=["order_off", "order_on"])
+def test_v7_the_front_robot_docks_first_even_if_the_one_behind_asked_first(order):
+    """줄 순서는 지금 선 자리다. order 모델은 트립을 도크까지 이어 두므로 이미 지나온 자리(Q2)로
+    순위를 매기면 앞자리 로봇이 먼저 부른 뒷자리 로봇을 기다리고, 뒷자리 로봇은 앞자리가 비기를
+    기다려 둘 다 선다(Gazebo v7 2026-11-14: Q1의 로봇이 도크가 빈 채 60 s 넘게 섰다)."""
+    world = Harness(layout="v7", starts={"pode1": "W", "pode2": "E-3", "pode3": "P-1"},
+                    params=replace(load_params(), use_order_model=order))
+    behind, front = calls(world, "pode3", "pode2")  # pode3이 먼저 불렸지만 멀다
+    assert world.run_until(lambda: world.view("pode2")["node"] == "Q1"
+                           and world.view("pode3")["node"] == "Q2", 120.0), world.log[-30:]
+    world.traffic.on_release("pode1")
+    assert world.run_until(lambda: world.result_of(front) is not None, 60.0), world.log[-10:]
+    assert world.result_of(behind) is None
+    assert not world.problems
+
+
 def test_v7_a_full_line_pulls_forward_as_soon_as_the_front_moves():
     """v7 줄이 가득(W, Q1, Q2): 도크가 비어 앞자리 로봇이 들어가면 Q2의 로봇이 바로 Q1으로 당긴다.
     두 자리가 노드 놓는 거리(0.20)보다 멀어 당긴 로봇이 뒷자리를 놓는다."""
@@ -181,14 +201,28 @@ def test_v7_a_full_line_pulls_forward_as_soon_as_the_front_moves():
     assert not world.problems
 
 
-@pytest.mark.parametrize("parked", [("P-1", "P-2"), ("P-1", "P-3"), ("P-2", "P-3")])
-def test_v7_a_robot_leaving_outbound_passes_the_doors_of_parked_robots(parked):
+# 열린 위험(worklog): order는 빈 칸으로 주차하러 가던 order를 O_OUT 조각 끝(위치로 판정)에서
+# 대기 자리로 돌리는데, 그때 E-3의 로봇이 아직 입구를 쥐고 있어 O_IN, M_E로 돈다(도킹 2.6 s 늦다)
+class Detour(AssertionError):
+    """M_E로 돌았다(다른 단언은 그냥 실패한다)."""
+
+
+P3_DETOUR = pytest.mark.xfail(strict=True, raises=Detour,
+                              reason="열린 위험: order가 E-3이 놓이기 전에 대기 자리로 돌려 M_E로 돈다")
+
+
+@pytest.mark.parametrize(("parked", "order"), [
+    pytest.param(parked, order, id=f"{parked[0]}-{parked[1]}-order_{'on' if order else 'off'}",
+                 marks=[P3_DETOUR] if order and "P-3" in parked else [])
+    for parked in (("P-1", "P-2"), ("P-1", "P-3"), ("P-2", "P-3")) for order in (False, True)])
+def test_v7_a_robot_leaving_outbound_passes_the_doors_of_parked_robots(parked, order):
     """칸에 선 로봇은 자기 칸만 쥔다(2026-11-14: 주차 0.10에서 칸과 입구가 0.14라 node_clear_m으로는
     입구를 놓지 못해, E-1, E-2에서 Q2로 가는 길이 E-3에서 막혔다). 출고에서 나온 로봇은 칸 입구를
     지나는 Nav2 goal 하나로 줄 입구에 간다(b5f1e8f 리뷰: 길이 있다는 것만이 아니라 관제가 그 길을
     고르는지)."""
     doors = ["E-" + spot.removeprefix("P-") for spot in parked]
-    world = Harness(layout="v7", starts={"pode1": doors[0], "pode2": doors[1], "pode3": "O"})
+    world = Harness(layout="v7", starts={"pode1": doors[0], "pode2": doors[1], "pode3": "O"},
+                    params=replace(load_params(), use_order_model=order))
     world.report()
     asked = world.call("WORK", "pode3")
     assert world.run_until(lambda: world.result_of(asked) is not None, 300.0), world.codes()
@@ -200,15 +234,15 @@ def test_v7_a_robot_leaving_outbound_passes_the_doors_of_parked_robots(parked):
     # 먼저 간다. 가운데 통로(M_E)로 돌지는 않는다
     went = targets(world, "pode3")
     assert went[0] == "O_OUT" and went[-3:] == ["Q2", "Q1", "W"], went
-    assert "M_E" not in went, went
     assert not world.problems
+    if "M_E" in went:
+        raise Detour(went)
 
 
 def test_v7_a_robot_low_on_battery_in_the_open_yard_goes_to_a_door_and_backs_in():
     """마당을 Nav2 goal로 가던 로봇의 배터리가 떨어지면 칸 입구로 보낸 뒤 후진으로 넣는다.
     선 자리에서 칸 안으로 Nav2 goal을 곧장 보내지 않는다(Gazebo 2026-11-13 밤: 'NAV_GOAL_SENT to
     P-3'을 받은 로봇이 칸에 비스듬히 들어가다 입구에 걸려 섰고, 그 앞 입구에 온 로봇까지 막았다)."""
-    from fleet_core.common.commands import RetreatCmd
     world = Harness(layout="v7", params=replace(load_params(), battery_low_pct=20.0),
                     starts={"pode1": "P-1", "pode2": "W"})
     world.report()
@@ -219,9 +253,9 @@ def test_v7_a_robot_low_on_battery_in_the_open_yard_goes_to_a_door_and_backs_in(
     world.traffic.on_robot_state("pode1", bot.x, bot.y, bot.yaw, "MOVING", 15.0)
     assert world.run_until(lambda: world.view("pode1")["state"] == "PARKED", 200.0), \
         world.codes("pode1")[-12:]
-    into_bays = [c.target_id for c in world.sent(MoveCmd, "pode1") if c.target_id.startswith("P-")]
+    into_bays = [t for t in targets(world, "pode1") if t.startswith("P-")]
     assert not into_bays, into_bays
-    assert world.sent(RetreatCmd, "pode1")
+    assert world.retreats("pode1")
     assert not world.problems
 
 

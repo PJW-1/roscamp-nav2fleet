@@ -19,7 +19,8 @@ from ament_index_python.packages import (  # noqa: E402
 SCENARIOS = ["basic_orders", "order_burst", "shared_lane_failure", "stock_shortage",
              "stuck_robot", "operator_recovery", "blocked_lane", "auto_isolation", "reinstate"]
 WALL_TIMEOUT_S = 420
-FIRST_DOMAIN = 50  # 시나리오마다 도메인 하나, 로봇 네트워크와 겹치지 않는 범위
+# 시나리오마다 도메인 하나, 로봇 네트워크와 겹치지 않는 범위. 환경변수로 옮길 수 있다
+FIRST_DOMAIN = int(os.environ.get("SCENARIO_FIRST_DOMAIN", "50"))
 CHECKER = Path(__file__).parents[3] / "scripts" / "check_interfaces.py"
 REPLAY = Path(__file__).parents[3] / "tools" / "replay.py"
 # 구역을 몸이 아직 걸친 채 놓는 것(R1)은 다른 판정과 똑같이 실패다. 놓는 거리가 0.10 m이던 때에는

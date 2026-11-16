@@ -10,12 +10,14 @@ class OrderRun:
     def __init__(self, cmd):
         self.id, self.update, self.goal_id = cmd.order_id, 0, cmd.goal_id
         self.queue = list(cmd.base)
+        self.taken = list(cmd.base)  # 받아들인 base 조각 전부
         self.horizon = cmd.horizon
         self.last = cmd.base[-1] if cmd.base else None  # base의 마지막 조각
         self.current = None  # 달리는 조각
         self.done_seq = 0
         self.waiting = False  # base 끝에 서서 update를 기다린다
         self.told = None  # 마지막으로 보낸 피드백
+        self.held = False  # 조각 끝에 닿았지만 끝냈다고 하지 않고 서 있다(시험이 켠다)
 
     def refusal(self, cmd) -> str:
         """update를 붙이면 안 되는 이유. 붙여도 되면 빈 문자열."""
@@ -33,6 +35,7 @@ class OrderRun:
         """update를 붙이고, 넘겨준 이전 goal id를 돌려준다."""
         old, self.goal_id, self.update = self.goal_id, cmd.goal_id, cmd.update_id
         self.queue += list(cmd.base)
+        self.taken += list(cmd.base)
         self.horizon = cmd.horizon
         if cmd.base:
             self.last = cmd.base[-1]

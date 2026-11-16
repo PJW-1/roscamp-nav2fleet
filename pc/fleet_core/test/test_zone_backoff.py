@@ -5,7 +5,7 @@ import math
 from dataclasses import replace
 
 import pytest
-from fleet_core.common.commands import CancelCmd, MoveCmd, RetreatCmd
+from fleet_core.common.commands import CancelCmd, RetreatCmd
 from fleet_core.common.params import load_params
 from fleet_core.fleet_map import load_fleet_map
 from fleet_core.traffic.zone.backoff import backoff_spot
@@ -27,7 +27,7 @@ def stuck_pair(**changes):
     world.open_call = world.call("WORK")  # 열린 호출: pode1은 이미 배차가 있어 pode2가 불린다
     world.step()
     world.step()
-    assert world.sent(MoveCmd, "pode1") and world.sent(MoveCmd, "pode2")
+    assert world.moves("pode1") and world.moves("pode2")
     world.bots["pode2"].yaw = math.pi
     return world
 
@@ -81,16 +81,16 @@ def test_a_blocked_robot_that_yields_backs_straight_off_first():
 def test_after_backing_off_it_stands_aside_and_then_gets_its_way_again():
     world = stuck_pair()
     p = world.params
-    target = world.sent(MoveCmd, "pode2")[0].target_id
+    target = world.moves("pode2")[0].target_id
     backing(world)
     del world._state  # 물러나는 동안은 MOVING을 보고한다
     world.run(p.yard_backoff_m / p.retreat_speed_mps + 0.2)
     assert [e.detail for e in world.events if e.code == "HALL_BACKOFF_DONE"] == ["backed 0.12 m"]
     assert world.bots["pode2"].x == pytest.approx(SITE.node_pose("P-2")[0] + p.yard_backoff_m)
     world.run(p.near_stuck_s - 0.5)
-    assert len(world.sent(MoveCmd, "pode2")) == 1, "it stands aside"
+    assert len(world.moves("pode2")) == 1, "it stands aside"
     world.run(1.0)
-    moves = world.sent(MoveCmd, "pode2")
+    moves = world.moves("pode2")
     assert [m.target_id for m in moves] == [target, target]
     assert world.view("pode2")["attempts"] == 0
     assert not world.problems
@@ -126,7 +126,7 @@ def test_a_robot_near_two_others_is_backed_off_once():
     world.call("OUTBOUND", "pode3")
     world.call("WORK")  # pode2가 불린다: 배차가 없어 두 쌍 모두에서 비킬 쪽이다
     world.run(0.5)
-    assert all(world.sent(MoveCmd, name) for name in world.bots)
+    assert all(world.moves(name) for name in world.bots)
     world.bots["pode2"].yaw = math.pi
     world.run(world.params.near_stuck_s)  # 두 쌍 모두 pode2의 BLOCKED를 기다린다
     assert yields(world) == []
@@ -150,7 +150,7 @@ def test_a_new_destination_during_the_back_off_lets_it_finish_and_then_picks_a_n
     assert CancelCmd("pode2", back.goal_id) not in world.commands
     # 물러난 자리는 P-2에서 0.12 m다: 닿은 것으로 보는 거리 안이라 그대로 주차한 것이 된다
     assert world.phase("pode2") == "PARKED"
-    assert len(world.sent(MoveCmd, "pode2")) == 1, "the old way to W_Q is not sent again"
+    assert len(world.moves("pode2")) == 1, "the old way to W_Q is not sent again"
 
 
 # ---- 못 내는 때 ----
@@ -166,9 +166,9 @@ def test_a_robot_with_no_room_behind_only_stops(yaw, why):
     world.run(world.params.near_stuck_s)
     assert yields(world) == [("pode2", f"stops 5 s for pode1 (no back-off: {why})")]
     assert not world.sent(RetreatCmd)
-    moves = len(world.sent(MoveCmd, "pode2"))
+    moves = len(world.moves("pode2"))
     world.run(world.params.near_stuck_s + 0.5)
-    assert len(world.sent(MoveCmd, "pode2")) == moves + 1
+    assert len(world.moves("pode2")) == moves + 1
 
 
 def robot(name, x, y, yaw_deg=0.0):
@@ -261,9 +261,9 @@ def test_a_back_off_that_fails_is_not_an_attempt_and_the_robot_goes_on(answer, r
     assert failed == [f"{reason} after 0.00 m"]
     assert "GOAL_RETRY" not in world.codes("pode2") and world.view("pode2")["attempts"] == 0
     assert world.view("pode2")["goal_id"] is None
-    moves = len(world.sent(MoveCmd, "pode2"))
+    moves = len(world.moves("pode2"))
     world.run(p.near_stuck_s + 0.5)
-    assert len(world.sent(MoveCmd, "pode2")) == moves + 1
+    assert len(world.moves("pode2")) == moves + 1
 
 
 def test_a_back_off_that_stops_moving_is_cancelled_without_counting_an_attempt():

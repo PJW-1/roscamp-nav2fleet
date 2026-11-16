@@ -15,6 +15,7 @@ from fleet_core.traffic.mission import (
     RETREAT,
 )
 
+from .robots import ORDER, Goal
 from .trips import along
 
 
@@ -142,40 +143,73 @@ class Results:
         if m.trip is not None:
             m.trip.sent = m.trip.done
 
-    def _stands_at_end(self, m) -> bool:
+    def _stands_at_end(self, m, behind: bool = False):
+        """로봇이 서 있는 goal의 끝: (끝 goal, 그 끝까지 끝내지 않은 조각들). order면 끝내지 않은
+        조각 끝마다 본다. 여럿이면 로봇에 가장 가까운 끝, 같으면 앞의 끝. behind면 뒤가 막혀 선
+        로봇이 선을 따라 끝에 못 미친 끝은 뺀다. 없으면 None."""
         goal = m.goal
         heard = (m.available and m.robot_state != LOCALIZING
                  and self._clock() - m.last_seen <= self.params.arrival_settle_s)
         if not (heard and goal is not None and goal.kind in (MOVE, RETREAT)):
-            return False
+            return None
+        ends = [(self._gap(m, end.end), index, (end, passed))
+                for index, (end, passed) in enumerate(self._goal_ends(m))
+                if self._at_end(m, end) and not (behind and self._short_of_end(m, end))]
+        return min(ends)[2] if ends else None
+
+    # ---- 닿았다고 볼 수 있는 끝: goal의 끝, order면 끝내지 않은 조각 끝마다 ----
+    def _goal_ends(self, m) -> list:
+        """[(끝 goal, 그 끝까지 끝내지 않은 조각들)]. 조각은 (order id, seq, 방식, 끝 노드)."""
+        goal, mo, trip = m.goal, m.move_order, m.trip
+        if goal.via != ORDER or mo is None or trip is None:
+            return [(goal, ())]
+        ends, passed = [], []
+        for seq, first, end in mo.cuts:
+            if mo.done_seq < seq and end <= goal.links:
+                via, node = trip.links[first].via, trip.links[end - 1].b
+                passed.append((mo.id, seq, via, node))
+                ends.append((Goal(MOVE, goal.id, end, node, via), tuple(passed)))
+        return ends or [(goal, ())]
+
+    def _end_via(self, m, end) -> str:
+        return self._via(m) if end.via == ORDER else end.via
+
+    def _at_end(self, m, end) -> bool:
         limit = self.params.arrival_tolerance_m
-        if self._via(m) == NAV_GOAL:
-            return self._gap(m, goal.end) <= limit / 2
+        if self._end_via(m, end) == NAV_GOAL:
+            return self._gap(m, end.end) <= limit / 2
         if m.trip is None:
-            return self._gap(m, goal.end) <= limit
-        return self._link_reached(m, m.trip.links[goal.links - 1], limit)
+            return self._gap(m, end.end) <= limit
+        return self._link_reached(m, m.trip.links[end.links - 1], limit)
 
     # ---- 뒤가 막혀 선 로봇이 선을 따라 끝에 못 미쳤는지 ----
-    def _short_of_end(self, m) -> bool:
-        goal = m.goal
-        if m.trip is None or self._via(m) == NAV_GOAL:
+    def _short_of_end(self, m, end) -> bool:
+        if m.trip is None or self._end_via(m, end) == NAV_GOAL:
             return False
-        link = m.trip.links[goal.links - 1]
+        link = m.trip.links[end.links - 1]
         return link.length - along(link, m.x, m.y) > self.params.arrival_tolerance_m / 2
 
-    def _arrived_anyway(self, m, reason: str) -> None:
-        goal = m.goal
+    def _arrived_anyway(self, m, reason: str, end) -> None:
+        goal, (target, passed) = m.goal, end
         self._event("WARN", "GOAL_ENDED_AT_TARGET",
                     f"{goal.kind} goal {goal.id} ended {reason}, but the robot stands at "
-                    f"{goal.end}", m.name)
+                    f"{target.end}", m.name)
+        # 건너뛴 order 조각도 피드백으로 끝낸 것처럼 정리한다(중간 물러나기 포함)
+        for order_id, seq, via, node in passed:
+            m.node = node
+            self._event("INFO", "SEGMENT_DONE", f"{order_id} seq {seq} ({via}) to {node}", m.name)
+            if via == RETREAT:
+                m.retreat_to = ""
+                self._event("INFO", "RETREAT_DONE", f"stands at {node}", m.name)
+        m.goal = target
         self._segment_done(m)
 
     # ---- 이동 실패 사유별 처리 ----
     def _move_failed(self, m, reason: str) -> None:
         behind = reason == "OBSTACLE_BEHIND"
-        if (reason not in (HEARTBEAT_LOST, NOT_AT_TARGET) and self._stands_at_end(m)
-                and not (behind and self._short_of_end(m))):
-            self._arrived_anyway(m, reason)
+        end = None if reason in (HEARTBEAT_LOST, NOT_AT_TARGET) else self._stands_at_end(m, behind)
+        if end is not None:
+            self._arrived_anyway(m, reason, end)
             return
         self._forget_goal(m)
         if behind and self._waits_behind(m):

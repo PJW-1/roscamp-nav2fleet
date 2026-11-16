@@ -204,6 +204,19 @@ def test_replay_of_a_record_without_stall_s_uses_the_old_6_s():
     assert replay.start_core(head, lambda: 0.0).params.stall_s == 6.0
 
 
+@pytest.mark.parametrize("recorded, played", [(None, False), (False, False), (True, True)],
+                         ids=["missing", "false", "true"])
+def test_replay_keeps_the_order_model_of_the_record(recorded, played):
+    """use_order_model 키가 없는 옛 기록(2026-11-12 전)은 그때의 기본값(끔)으로 재생한다.
+    기본값을 켠 뒤에도 옛 기록이 켠 관제로 돌지 않게 한다. 키가 있으면 그 값이다."""
+    head = recorded_head()
+    if recorded is None:
+        del head["params"]["use_order_model"]
+    else:
+        head["params"]["use_order_model"] = recorded
+    assert replay.start_core(head, lambda: 0.0).params.use_order_model is played
+
+
 def test_replay_of_a_record_with_stall_s_uses_it():
     head = recorded_head()
     assert replay.start_core(head, lambda: 0.0).params.stall_s == SHIPPED["stall_s"] == 12.0

@@ -11,6 +11,7 @@ from fleet_core.common.commands import (
     DispatchResult,
     DockCmd,
     MoveCmd,
+    MoveOrderCmd,
     OrderRecord,
     ReleaseCmd,
     RetreatCmd,
@@ -47,12 +48,28 @@ def report(core, robot, node, state="IDLE"):
 
 
 def finish(core, robots, out):
-    """out 가운데 robots에 온 이동, 물러나기, 도킹을 곧바로 성공시킨다."""
+    """out 가운데 robots에 온 이동, 물러나기, 도킹을 곧바로 성공시킨다. order는 base 끝까지 곧바로
+    가서, horizon이 남으면 서서 update를 기다리고 없으면 끝난다. update는 이전 goal을 밀어낸다."""
+    runs = core.__dict__.setdefault("_test_order_runs", {})  # 로봇 -> (goal id, 끝낸 seq)
     for c in out:
         robot = getattr(c, "robot", None)
         if robot not in robots:
             continue
-        if isinstance(c, MoveCmd):
+        if isinstance(c, MoveOrderCmd):
+            seq = 0
+            if c.update_id and robot in runs:
+                old, seq = runs[robot]
+                core.on_move_result(robot, old, False, "SUPERSEDED", seq)
+            if c.base:
+                report_at(core, robot, c.base[-1].x, c.base[-1].y)
+                seq = c.base[-1].seq_id
+            runs[robot] = (c.goal_id, seq)
+            if c.horizon:
+                core.on_move_feedback(robot, c.goal_id, seq, True)
+            else:
+                del runs[robot]
+                core.on_move_result(robot, c.goal_id, True, "", seq)
+        elif isinstance(c, MoveCmd):
             report_at(core, robot, c.x, c.y)
             core.on_move_result(robot, c.goal_id, True, "")
         elif isinstance(c, RetreatCmd):
@@ -107,7 +124,7 @@ def test_goal_ids_of_moves_and_arm_jobs_share_one_sequence():
     core, _ = make({"r1": "P-1"}, [O1])
     out = drive(core, "r1", lambda: core.robot_view("r1")["order"] == "O-001")
     ids = [c.goal_id for c in out
-           if type(c).__name__ in ("MoveCmd", "RetreatCmd", "DockCmd", "FillCmd")]
+           if type(c).__name__ in ("MoveCmd", "MoveOrderCmd", "RetreatCmd", "DockCmd", "FillCmd")]
     assert ids == sorted(ids) and len(ids) == len(set(ids))
 
 
@@ -171,7 +188,8 @@ def _filled_and_leaving(robot="r1"):
 
 def test_a_real_fill_opens_the_trip_out_by_name():
     core, _, leaving = _filled_and_leaving()
-    assert [c for c in leaving if isinstance(c, (MoveCmd, RetreatCmd)) and c.robot == "r1"]
+    assert [c for c in leaving if isinstance(c, (MoveCmd, MoveOrderCmd, RetreatCmd))
+            and c.robot == "r1"]
     assert core.robot_view("r1")["basket"] == "FULL"
     assert core.robot_view("r1")["destination"] == "OUTBOUND"
 

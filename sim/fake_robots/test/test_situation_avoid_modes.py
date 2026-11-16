@@ -14,7 +14,14 @@ none과 mixed는 3절 기준이다: 안전 불변식과 관제 반응 시간, �
 import pytest
 from fake_robots.world.situations import NAMES
 from fake_robots.world.table import run_situation
-from situation_helpers import ALL_LAYOUTS, SEEDS, check
+from situation_helpers import (
+    ALL_LAYOUTS,
+    POSE_JUMPS_OPEN,
+    SEEDS,
+    PoseJumpsOpen,
+    check,
+    check_pose_jumps,
+)
 
 MODES = ("none", "mixed")
 
@@ -34,8 +41,14 @@ def _cells():
                     reason = FLEET_FAILS.get((name, layout, mode, seed))
                     marks = ([pytest.mark.xfail(strict=True, raises=Unfinished, reason=reason)]
                              if reason else [])
-                    yield pytest.param(name, layout, mode, seed, marks=marks,
+                    yield pytest.param(name, layout, mode, seed, None, marks=marks,
                                        id=f"{name}-{layout}-{mode}-{seed}")
+                    if name == "pose_jumps":
+                        # 위는 끈 길(order 끔)로 돈다. 켠 길은 열린 문제로 strict xfail이다
+                        yield pytest.param(name, layout, mode, seed, True, marks=[
+                            pytest.mark.xfail(strict=True, raises=PoseJumpsOpen,
+                                              reason=POSE_JUMPS_OPEN)],
+                            id=f"{name}-{layout}-{mode}-{seed}-order_on")
 
 
 def test_every_listed_failure_is_a_real_cell():
@@ -43,10 +56,14 @@ def test_every_listed_failure_is_a_real_cell():
         assert name in NAMES and layout in ALL_LAYOUTS and mode in MODES and seed in SEEDS
 
 
-@pytest.mark.parametrize(("name", "layout", "mode", "seed"), list(_cells()))
-def test_situation_in_avoid_mode(name, layout, mode, seed):
+@pytest.mark.parametrize(("name", "layout", "mode", "seed", "order"), list(_cells()))
+def test_situation_in_avoid_mode(name, layout, mode, seed, order):
+    if order:
+        check_pose_jumps(layout, seed, avoid_mode=mode)
+        return
+    off = {"use_order_model": False} if name == "pose_jumps" else None
     if (name, layout, mode, seed) not in FLEET_FAILS:
-        check(name, layout, seed, avoid_mode=mode)
+        check(name, layout, seed, avoid_mode=mode, overrides=off)
         return
     failures = run_situation(name, layout, seed, avoid_mode=mode).failures
     others = [f for f in failures if not f.startswith("finished ")]
@@ -55,15 +72,24 @@ def test_situation_in_avoid_mode(name, layout, mode, seed):
         raise Unfinished(failures[0])
 
 
-@pytest.mark.parametrize(("name", "seed"), [("order_burst", 11), ("order_burst", 4)])
-def test_the_yard_back_off_does_not_stand_a_robot_on_a_node_it_does_not_hold(name, seed):
+@pytest.mark.parametrize(("name", "layout", "seed", "order"), [
+    ("order_burst", "d2", 11, False), ("order_burst", "d2", 4, False),
+    ("outbound_slow", "d", 4, True)])
+def test_the_yard_back_off_does_not_stand_a_robot_on_a_node_it_does_not_hold(
+        name, layout, seed, order):
     """yard_backoff를 켠 none(d2)에서 물러난 로봇이 N_E 위에 섰던 두 칸(불변식 I8). 하나는 남이 이미
     잡은 지점이었고, 하나는 물러난 뒤에 남이 잡았다. 2-1에서 D2의 갈림목 선과 대기 자리가 옮겨진 뒤
     comm_loss_reinstate 3은 물러나기를 쓰지 않으므로 물러나기를 쓰는 씨드 2로 바꿨다.
     2026-11-15: 주차하러 가다가 대기 자리가 비면 돌리게 한 뒤(STANDBY_LEFT) comm_loss_reinstate는
     씨드 1~8 어디서도 물러나기를 쓰지 않는다(불변식은 모두 지킨다). 물러나기를 세 번 쓰는
     order_burst 4로 바꿨다. 같은 날, 뒤가 막혀 선 후진을 끝에 못 미쳤으면 닿은 것으로 치지 않게 한 뒤
-    order_burst 2도 물러나기를 쓰지 않는다(불변식은 지킨다). 세 번 쓰는 씨드 11로 바꿨다."""
-    outcome = run_situation(name, "d2", seed, overrides={"yard_backoff": True}, avoid_mode="none")
+    order_burst 2도 물러나기를 쓰지 않는다(불변식은 지킨다). 세 번 쓰는 씨드 11로 바꿨다.
+    2026-11-16 order 모델을 기본으로 켠 뒤: 11과 4는 켜면 불변식을 다 지키지만 물러나기를 쓰지
+    않는다(씨드 1~12 가운데 12만 한 번 쓴다). 두 씨드는 끈 길을 지키고, 켠 길은 씨드 12로 본다.
+    2026-11-16 order 후진 해제 수정(d00449b) 뒤: order_burst d2는 씨드 1~24 어디서도 켠 길에서 물러나기를
+    쓰지 않는다. 상황 10개 x 배치 5개 x 씨드 1~12를 돌려 보니 불변식을 지키며 쓰는 곳은 outbound_slow d
+    (씨드 4, 6, 9, 10, 11)와 person_passing d2_shelf 8뿐이다. 켠 길은 outbound_slow d 씨드 4로 본다."""
+    overrides = {"yard_backoff": True, "use_order_model": order}
+    outcome = run_situation(name, layout, seed, overrides=overrides, avoid_mode="none")
     assert outcome.failures == []
     assert outcome.world.metrics.count("HALL_BACKOFF_DONE") >= 1, "the back-off was used"

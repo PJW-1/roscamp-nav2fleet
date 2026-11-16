@@ -12,6 +12,7 @@ from fake_robots.ahead import PathWatch
 from fake_robots.motion import abort_at_shutdown, drifted, finish_action, noisy_pose, path_gap
 from fake_robots.nav_goal_drive import NavGoalDrive
 from fake_robots.pode_goal import NAV_ABORT_DELAY_S, _Goal
+from fake_robots.pode_order import order_cmd
 
 FEEDBACK_PERIOD_S = 0.2
 RETREAT_REASONS = (Retreat.Result.REASON_OBSTACLE_BEHIND, Retreat.Result.REASON_TIMEOUT,
@@ -31,6 +32,8 @@ class PodeGoals:
             self._faults.give_back_nav_abort(goal.abort_from)  # 대체·취소되면 다음 목표로
         if goal.kind == "retreat" and not success and reason not in RETREAT_REASONS:
             reason = Retreat.Result.REASON_FAILED  # 계약 0.9: Retreat reason은 이 넷뿐이다
+        if goal.order is not None and not goal.done.is_set():  # 대체된 goal의 값은 그대로
+            goal.last_done = goal.order.done_seq
         goal.finish(success, reason)
         if self._active is goal:
             self._rest = (RobotState.STATE_DOCKED if goal.kind == "dock" and success
@@ -40,14 +43,25 @@ class PodeGoals:
 
     def _accepted(self, handle, kind: str) -> None:
         goal = _Goal(kind, handle)
+        key = bytes(handle.goal_id.uuid)
+        cmd = order_cmd(key, handle.request) if kind == "move" else None
         with self._lock:
             t = self._sc.now()
+            if cmd is not None and cmd.update_id > 0:
+                # order update: 하던 goal을 끝내지 않고 붙이거나 거절한다
+                goal.start_at = t
+                self._update_order(goal, cmd)
+                self._goals[key] = goal
+                handle.execute()
+                return
             if self._active is not None:
                 self._end(self._active, False, MoveTo.Result.REASON_CANCELED)
             self._active = goal
             self._last_beat = time.monotonic()  # 목표가 왔으면 누군가 있다는 뜻
             goal.start_at = t
-            if kind == "move":
+            if cmd is not None:
+                self._start_order(goal, cmd)
+            elif kind == "move":
                 pose = handle.request.target_pose
                 goal.target_id = handle.request.target_id
                 path = [(p.position.x, p.position.y) for p in handle.request.path]
@@ -74,7 +88,7 @@ class PodeGoals:
                 goal.target_id = handle.request.dock_id
                 self._motion.clear_target()
                 goal.end_at = t + self._dock_cfg.duration_s
-            self._goals[bytes(handle.goal_id.uuid)] = goal
+            self._goals[key] = goal
         handle.execute()
 
     def _nothing_ahead(self, goal: _Goal, t: float, step: float, others) -> bool:
@@ -101,7 +115,8 @@ class PodeGoals:
 
     def _result(self, goal: _Goal, action_type):
         if action_type is MoveTo:
-            return MoveTo.Result(success=goal.success, reason=goal.reason)
+            return MoveTo.Result(success=goal.success, reason=goal.reason,
+                                 last_done_seq_id=goal.last_done)
         if action_type is Retreat:
             return Retreat.Result(success=goal.success, reason=goal.reason)
         ex, ey, eyaw = goal.error
@@ -132,9 +147,13 @@ class PodeGoals:
             if not self._faults.comms_down(self._sc.now()):
                 if goal.kind == "move" and now - last_fb >= FEEDBACK_PERIOD_S:
                     last_fb = now
-                    with self._lock:
-                        remaining = self._motion.remaining()
-                    handle.publish_feedback(MoveTo.Feedback(distance_remaining=remaining))
+                    with self._lock:  # update와 엇갈리지 않게 락 안에서 보낸다
+                        order = goal.order
+                        if not goal.done.is_set():  # 대체된 goal은 소식을 그친다
+                            handle.publish_feedback(MoveTo.Feedback(
+                                distance_remaining=self._motion.remaining(),
+                                last_done_seq_id=order.done_seq if order is not None else 0,
+                                waiting_at_base_end=order is not None and order.waiting))
                 elif goal.kind == "dock":
                     phase = self._dock_phase(goal)
                     if phase != last_phase:

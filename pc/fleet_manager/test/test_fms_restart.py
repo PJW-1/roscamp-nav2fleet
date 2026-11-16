@@ -29,7 +29,8 @@ from rclpy.node import Node  # noqa: E402
 from rclpy.qos import qos_profile_action_status_default  # noqa: E402
 from rosgraph_msgs.msg import Clock  # noqa: E402
 
-DOMAIN = 56  # 시나리오 통합 테스트도 56까지 쓰지만 같은 pytest 안에서 차례로 돈다
+# 시나리오 통합 테스트도 56까지 쓰지만 같은 pytest 안에서 차례로 돈다. 환경변수로 옮길 수 있다
+DOMAIN = int(os.environ.get("FMS_RESTART_DOMAIN", "56"))
 ROBOTS = ["pode1", "pode2", "pode3"]
 WALL_TIMEOUT_S = 420
 STILL_M = 0.001

@@ -17,6 +17,7 @@ from fleet_core.common.commands import (
     DispatchCmd,
     DispatchResult,
     MoveCmd,
+    MoveOrderCmd,
     OrderRecord,
     ReleaseCmd,
     RobotFaultCmd,
@@ -146,7 +147,7 @@ def test_in_production_a_board_order_reaches_traffic_at_once_and_the_next_tick_p
     assert _seen(world, DispatchCmd) == [("input", 1)]
     assert not any(world.view(r)["destination"] == "WORK" for r in world.bots)
     world.step()
-    assert _seen(world, MoveCmd)[0] == ("tick", 2)
+    assert _seen(world, (MoveCmd, MoveOrderCmd))[0] == ("tick", 2)
     assert any(world.view(r)["destination"] == "WORK" for r in world.bots)
 
 

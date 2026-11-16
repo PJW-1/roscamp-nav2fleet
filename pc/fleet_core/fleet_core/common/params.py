@@ -97,7 +97,7 @@ class FleetParams:
     yard_backoff_wait_s: float = 0.5
     yard_backoff_edge_m: float = 0.10
     retreat_clear_m: float = 0.20
-    use_order_model: bool = False
+    use_order_model: bool = True
     lookahead_s: float = 2.0
     comm_base_hold_extra_s: float = 3.0
     comm_loss_policy: str = "stop"

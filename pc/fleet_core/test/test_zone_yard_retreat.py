@@ -6,9 +6,11 @@
 기다리는 로봇은 갈림목을 쥐지 않으니 도크의 로봇이 나갈 수 있다), 물러날 길을 끝내 못 잡으면
 blocked_timeout_s 뒤 운영자에게 넘긴다.
 """
+import math
 from dataclasses import replace
 
-from fleet_core.common.commands import RetreatCmd
+import pytest
+from fleet_core.common.commands import MoveOrderCmd
 from fleet_core.common.params import load_params
 from fleet_core.traffic.zone.yard_retreat import yard_retreat
 from zone_harness import Harness
@@ -38,13 +40,13 @@ def blocked_toward_work(docked: bool, **kw):
 
 
 def back_path(world):
-    return [point[:2] for point in world.sent(RetreatCmd, "pode1")[0].path]
+    return [point[:2] for point in world.retreats("pode1")[0].path]
 
 
 def test_blocked_in_the_express_it_backs_through_the_junction_down_to_the_yard():
     world, call = blocked_toward_work(docked=False)
     site = world.traffic.site
-    assert world.run_until(lambda: world.sent(RetreatCmd, "pode1"), 200.0)
+    assert world.run_until(lambda: world.retreats("pode1"), 200.0)
     assert back_path(world)[-1] == tuple(site.node_pose("N_E"))
     assert tuple(site.node_pose("X_E")) in back_path(world)
     assert world.run_until(lambda: world.result_of(call), 300.0)
@@ -54,10 +56,10 @@ def test_blocked_in_the_express_it_backs_through_the_junction_down_to_the_yard()
 def test_a_robot_working_at_the_dock_beside_the_junction_goes_first_then_it_backs_out():
     world, _ = blocked_toward_work(docked=True)
     assert world.run_until(lambda: "RETREAT_WAIT" in world.codes("pode1"), 200.0)
-    assert not world.sent(RetreatCmd, "pode1")
+    assert not world.retreats("pode1")
     assert "J_E" not in world.traffic.grants.held_by("pode1"), "the dock robot can leave"
     world.call("WORK", "pode2")  # 도크의 로봇이 일을 마치고 나간다(갈림목에서 꺾어 N_E로)
-    assert world.run_until(lambda: world.sent(RetreatCmd, "pode1"), 200.0)
+    assert world.run_until(lambda: world.retreats("pode1"), 200.0)
     assert back_path(world)[-1] == tuple(world.traffic.site.node_pose("N_E"))
     assert not world.problems
 
@@ -76,12 +78,12 @@ def test_a_robot_that_docks_beside_the_junction_after_the_mark_is_also_waited_fo
     pode2.x, pode2.y = site.node_pose("O")  # 그 사이에 도크에 들어와 섰다
     assert grants.release_zone("pode3", "J_E")
     world.run(3.0)
-    assert not world.sent(RetreatCmd, "pode1"), "it would back into pode2 at the corner"
+    assert not world.retreats("pode1"), "it would back into pode2 at the corner"
     assert "J_E" not in grants.held_by("pode1"), "pode2 can leave the dock"
     waits = [e.detail for e in world.events if e.code == "RETREAT_WAIT" and e.robot == "pode1"]
     assert waits == ["pode2 is behind it, backs out after it"]
     pode2.x, pode2.y = site.node_pose("P-3")  # 나갔다
-    assert world.run_until(lambda: world.sent(RetreatCmd, "pode1"), 10.0)
+    assert world.run_until(lambda: world.retreats("pode1"), 10.0)
 
 
 def test_a_retreat_that_cannot_get_its_zones_waits_at_most_blocked_timeout_s():
@@ -96,7 +98,7 @@ def test_a_retreat_that_cannot_get_its_zones_waits_at_most_blocked_timeout_s():
     marked_at = world.now
     assert world.run_until(lambda: "GOAL_FAILED" in world.codes("pode1"), 200.0)
     assert world.now - marked_at <= params.blocked_timeout_s + 2.0
-    assert not world.sent(RetreatCmd, "pode1")
+    assert not world.retreats("pode1")
 
 
 def test_it_backs_out_to_the_yard_even_with_no_way_on_from_there():
@@ -108,7 +110,7 @@ def test_it_backs_out_to_the_yard_even_with_no_way_on_from_there():
     for link in t.site.links():  # 다른 길도 모두 막혔다
         if {link.a, link.b} != {"X_E", "X_W"}:
             t._blocked[(link.a, link.b)] = 1e9
-    assert world.run_until(lambda: world.sent(RetreatCmd, "pode1"), 60.0)
+    assert world.run_until(lambda: world.retreats("pode1"), 60.0)
     assert back_path(world)[-1] == tuple(t.site.node_pose("N_E"))
     assert world.run_until(lambda: "RETREAT_DONE" in world.codes("pode1"), 60.0)
     world.run(params.blocked_timeout_s + 5.0)
@@ -117,6 +119,30 @@ def test_it_backs_out_to_the_yard_even_with_no_way_on_from_there():
     world.obstacles.clear()
     assert world.run_until(lambda: world.result_of(call), 300.0)
     assert world.result_of(call).success
+
+
+@pytest.mark.parametrize("order", [False, True], ids=["order_off", "order_on"])
+def test_the_junction_is_kept_until_the_robot_says_it_has_backed_down(order):
+    """2026-11-16: order면 마당 지점까지의 물러나기 뒤에 다음 조각이 같은 goal에 붙는다. 보고가 N_E
+    0.03 m 안에 들었다고 진행이 물러나기 링크를 넘기면 N_E 좌표로 재어 갈림목 J_E를 일찍 놓는다.
+    물러나기는 끝냈다는 답 전에는 보고 위치로 잰다."""
+    params = replace(load_params(), use_order_model=order)
+    world, call = blocked_toward_work(docked=False, params=params)
+    assert world.run_until(lambda: world.retreats("pode1"), 200.0)
+    if order:
+        base = world.sent(MoveOrderCmd, "pode1")[-1].base
+        assert base[0].mode == "retreat" and len(base) > 1, "the retreat is not the last link"
+    bot, n_e = world.bots["pode1"], world.site.node_pose("N_E")
+    assert world.run_until(lambda: math.dist((bot.x, bot.y), n_e) < 0.028, 60.0)
+    world._move = lambda b: None  # N_E 앞에서 멈추고 답하지 않는다
+    world.run(1.0)
+    need = params.footprint_radius_m + params.release_margin_m
+    assert world.site.distance_to_zone(bot.x, bot.y, "J_E") < need
+    assert "J_E" in world.view("pode1")["held"], world.view("pode1")["held"]
+    assert "RETREAT_DONE" not in world.codes("pode1")
+    del world._move
+    assert world.run_until(lambda: world.result_of(call), 300.0)
+    assert world.result_of(call).success and not world.problems
 
 
 def test_the_retreat_follows_the_bends_of_the_way_down():

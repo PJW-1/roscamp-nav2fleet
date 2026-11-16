@@ -87,7 +87,7 @@ def test_blocked_in_the_express_with_a_position_marks_the_express_and_backs_out(
     assert world.run_until(lambda: world.result_of(call), 120.0)
     assert world.result_of(call).success
     site = world.traffic.site
-    back = [point[:2] for point in world.sent(RetreatCmd, "pode1")[1].path]
+    back = [point[:2] for point in world.retreats("pode1")[1].path]
     assert back[-1] == tuple(site.node_pose("N_W")), "backs out down to the yard"
     assert tuple(site.node_pose("X_W")) in back, "through the junction"
     assert not world.problems
@@ -109,7 +109,11 @@ def test_v7_a_robot_at_work_leaves_through_the_hall_while_the_express_is_marked(
     call = world.call("OUTBOUND", "pode1")
     assert world.run_until(lambda: world.result_of(call), 300.0), world.log[-10:]
     assert world.result_of(call).success
-    assert [c.target_id for c in world.sent(MoveCmd, "pode1")] == way
+    if world.params.use_order_model and not express_shut:
+        # order는 대기 자리 O_X에서 조각을 끊고 도크까지 update로 늘린다. 로봇은 서지 않고 지난다
+        way = ["O_X", "O"]
+        assert "BASE_END_WAIT" not in world.codes("pode1")
+    assert [c.target_id for c in world.legs("pode1") if c.mode != "retreat"] == way
     assert not world.problems
 
 

@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from fleet_core.common.commands import MoveOrderCmd, SegmentOut
 from fleet_core.fleet_map import FOLLOW_PATH, NAV_GOAL, RETREAT, route
-from fleet_core.traffic.mission import MOVE
+from fleet_core.traffic.mission import MOVE, TO_PARK
 
 from .robots import ORDER, Goal, MoveOrder
 from .trips import Trip, left_s, move_command, retreat_command, segment_end, stretch_end
@@ -100,7 +100,11 @@ class MoveOrders:
                 self._end_both(m, f"no answer in {UPDATE_ANSWER_S:.0f} s")
             return
         if mo.broken or trip.stale:
-            if mo.waiting or (trip.stale and self._via(m) == NAV_GOAL):
+            # 목적이 바뀐 트립: nav_goal이면 바로, 고정 경로면 넓은 구역의 노드에 섰을 때 멈춘다
+            # (고정 경로 가운데서는 끊지 않는다)
+            via = self._via(m)
+            at_yard_node = via != RETREAT and self._in_yard(m) and self._on_node(m)
+            if mo.waiting or (trip.stale and (via == NAV_GOAL or at_yard_node)):
                 self._cancel_goal(m)
                 if trip.stale:
                     self._drop_trip(m)
@@ -119,6 +123,11 @@ class MoveOrders:
             return
         before = (m.goal.id, trip.granted)
         want = self._take(m, trip)
+        if want is not None and mo.waiting and m.phase == TO_PARK:
+            # base 끝에서 기다리는 주차 로봇의 자리를 남이 잡았다: 다시 고른다
+            self._cancel_goal(m)
+            self._drop_trip(m)
+            return
         if want is not None:
             self._wants[m.name] = want
             self._note_wait(m, want)
@@ -142,10 +151,15 @@ class MoveOrders:
         now = self._clock()
         if now - mo.horizon_at < HORIZON_HOLD_S:
             return False
-        fresh = route(self.site, trip.links[trip.granted - 1].b, trip.goal, self._cost(m))
         old = trip.links[trip.granted:]
+        fresh = route(self.site, trip.links[trip.granted - 1].b, trip.goal, self._cost(m))
         if not fresh or [(k.a, k.b) for k in fresh] == [(k.a, k.b) for k in old]:
             return False
+        station = self.site.stations.get(m.dest) if m.dest else None
+        if station is not None and station.line:
+            spots = [[k.b for k in links if k.b in station.queue] for links in (old, fresh)]
+            if spots[0] and spots[0] != spots[1]:
+                return False  # 줄에 서는 자리가 바뀌는 새 길은 쓰지 않는다(줄 순서가 바뀐다)
         trip.links[trip.granted:] = fresh
         mo.cuts[mo.given:] = self._cut(trip, trip.granted, mo.cuts[mo.given - 1][0] + 1)
         mo.horizon_at = now
