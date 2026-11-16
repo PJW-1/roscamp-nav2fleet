@@ -201,8 +201,16 @@ def test_v7_a_full_line_pulls_forward_as_soon_as_the_front_moves():
     assert not world.problems
 
 
-@pytest.mark.parametrize("order", [False, True], ids=["order_off", "order_on"])
-@pytest.mark.parametrize("parked", [("P-1", "P-2"), ("P-1", "P-3"), ("P-2", "P-3")])
+# 열린 위험(worklog): order는 빈 칸으로 주차하러 가던 order를 O_OUT 조각 끝(위치로 판정)에서
+# 대기 자리로 돌리는데, 그때 E-3의 로봇이 아직 입구를 쥐고 있어 O_IN, M_E로 돈다(도킹 2.6 s 늦다)
+P3_DETOUR = pytest.mark.xfail(strict=True, raises=AssertionError,
+                              reason="열린 위험: order가 E-3이 놓이기 전에 대기 자리로 돌려 M_E로 돈다")
+
+
+@pytest.mark.parametrize(("parked", "order"), [
+    pytest.param(parked, order, id=f"{parked[0]}-{parked[1]}-order_{'on' if order else 'off'}",
+                 marks=[P3_DETOUR] if order and "P-3" in parked else [])
+    for parked in (("P-1", "P-2"), ("P-1", "P-3"), ("P-2", "P-3")) for order in (False, True)])
 def test_v7_a_robot_leaving_outbound_passes_the_doors_of_parked_robots(parked, order):
     """칸에 선 로봇은 자기 칸만 쥔다(2026-11-14: 주차 0.10에서 칸과 입구가 0.14라 node_clear_m으로는
     입구를 놓지 못해, E-1, E-2에서 Q2로 가는 길이 E-3에서 막혔다). 출고에서 나온 로봇은 칸 입구를
@@ -222,13 +230,7 @@ def test_v7_a_robot_leaving_outbound_passes_the_doors_of_parked_robots(parked, o
     # 먼저 간다. 가운데 통로(M_E)로 돌지는 않는다
     went = targets(world, "pode3")
     assert went[0] == "O_OUT" and went[-3:] == ["Q2", "Q1", "W"], went
-    if order and "P-3" in parked:
-        # 열린 위험(worklog): 처음 order는 빈 칸으로 주차하러 가는 것(E-x는 그 order의 조각)이고,
-        # O_OUT 조각을 끝내자마자(위치로 판정) 대기 자리로 돌린다. 그때 E-3의 로봇이 아직 입구를
-        # 쥐고 있어 O_IN, M_E로 돈다(끈 길보다 도킹 2.6 s 늦다)
-        assert went[2:4] == ["O_IN", "M_E"] or "M_E" not in went, went
-    else:
-        assert "M_E" not in went, went
+    assert "M_E" not in went, went
     assert not world.problems
 
 

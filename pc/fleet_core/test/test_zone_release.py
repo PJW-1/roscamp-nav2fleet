@@ -48,6 +48,13 @@ def test_a_zone_behind_is_kept_until_the_whole_body_and_the_margin_are_out():
     assert max(gaps[:-len(outside)]) < need
 
 
+def test_with_the_order_model_the_zone_behind_is_kept_until_the_body_is_out():
+    """켠 길(기본): 노드 좌표 규칙으로 여유보다 일찍 놓을 수 있지만 몸이 구역 밖에 나간 뒤다."""
+    gaps = gap_at_release(replace(OFF, use_order_model=True))
+    assert gaps[-1] >= P.footprint_radius_m
+    assert max(gaps[:-1], default=0.0) < gaps[-1]
+
+
 def test_a_record_made_with_zone_clear_m_still_releases_at_it():
     fields = asdict(P)
     fields.update(zone_clear_m=0.10)
