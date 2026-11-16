@@ -5,8 +5,29 @@ SEEDS = (1, 2, 3)
 ALL_LAYOUTS = ("d2", "d", "c")
 
 
-def check(name, layout, seed, avoid_mode="perfect"):
-    outcome = run_situation(name, layout, seed, avoid_mode=avoid_mode)
+# 열린 문제(docs/주행_계획서.md 8절, 2026-11-16): 튄 보고 위치로 관제가 로봇이 아직 서 있는 구역을
+# 놓는다(I3). 끈 길에서도 드물게 나지만 order 모델이면 훨씬 잦다. 관제를 고쳐 통과하면 XPASS로
+# 실패하니 표시를 지운다
+POSE_JUMPS_OPEN = ("열린 문제: 튄 보고 위치로 로봇이 서 있는 구역을 놓는다(I3_OUTSIDE_HELD). "
+                   "order 모델에서 잦다. 비전 위치에 묶거나 LOCALIZATION_SUSPECT 뒤 구역을 "
+                   "쥐는 고침은 사용자 결정을 기다린다")
+
+
+class PoseJumpsOpen(AssertionError):
+    """pose_jumps가 I3_OUTSIDE_HELD 말고는 다 지켰다."""
+
+
+def check(name, layout, seed, avoid_mode="perfect", overrides=None):
+    outcome = run_situation(name, layout, seed, avoid_mode=avoid_mode, overrides=overrides)
     last = [f"{t:.1f} {e.code} {e.robot} {e.detail}" for t, e in outcome.world.events[-15:]]
     assert outcome.failures == [], "\n".join([*outcome.failures, "-- last events --", *last])
     return outcome
+
+
+def check_pose_jumps(layout, seed, avoid_mode="perfect", order=True):
+    """order를 켠 pose_jumps: I3_OUTSIDE_HELD는 PoseJumpsOpen으로, 다른 실패는 그대로 낸다."""
+    failures = run_situation("pose_jumps", layout, seed, avoid_mode=avoid_mode,
+                             overrides={"use_order_model": order}).failures
+    assert [f for f in failures if not f.startswith("I3_OUTSIDE_HELD")] == [], failures
+    if failures:
+        raise PoseJumpsOpen(failures[0])

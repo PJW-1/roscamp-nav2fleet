@@ -205,15 +205,17 @@ class Harness:
         """보낸 물러나기: RetreatCmd, 또는 order 모델이면 order의 retreat 조각."""
         return [leg for leg in self.legs(robot) if leg.mode == "retreat"]
 
-    def answer_at(self, robot: str, node: str) -> None:
-        """로봇이 node에 닿았다고 손으로 답하고 로봇을 그 자리에 옮긴다. MoveCmd면 그 goal의 성공,
+    def answer_at(self, robot: str, node: str, move: bool = True) -> None:
+        """로봇이 node에 닿았다고 손으로 답하고 move면 로봇을 그 자리에 옮긴다. MoveCmd면 그 goal의 성공,
         order면 로봇이 받아들인 조각 가운데 node에서 끝나는 다음 조각까지 끝냈다는 피드백,
         마지막 조각이고 horizon이 없으면 order의 성공이다. 로봇의 OrderRun도 같이 나아간다."""
         bot, run = self.bots[robot], self.bots[robot].run
         if run is None:
             if not isinstance(bot.cmd, MoveCmd):
                 raise AssertionError(f"{robot} runs no MoveCmd or accepted order")
-            bot.x, bot.y = self.site.node_pose(node)
+            x, y = self.site.node_pose(node)
+            if move:
+                bot.x, bot.y = x, y
             cmd, bot.cmd, bot.points = bot.cmd, None, []
             self.inputs.on_move_result(robot, cmd.goal_id, True, "")
             return
@@ -221,7 +223,8 @@ class Harness:
         if not ahead:
             raise AssertionError(f"{robot} has no unfinished accepted segment ending at {node}")
         seq = min(ahead)
-        bot.x, bot.y = self.site.node_pose(node)
+        if move:
+            bot.x, bot.y = self.site.node_pose(node)
         bot.points = []
         run.done_seq, run.held = seq, False
         if run.current is not None and run.current.seq_id <= seq:

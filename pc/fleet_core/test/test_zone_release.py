@@ -5,11 +5,13 @@
 """
 from dataclasses import asdict, replace
 
+import pytest
 import yaml
 from fleet_core.common.params import DEFAULT_PARAMS, FleetParams, load_params
 from zone_harness import Harness
 
 P = load_params()
+OFF = replace(P, use_order_model=False)
 
 
 def test_the_shipped_release_gap_is_the_footprint_plus_the_margin():
@@ -36,7 +38,10 @@ def gap_at_release(params, zone="WORK_DOCK"):
 
 
 def test_a_zone_behind_is_kept_until_the_whole_body_and_the_margin_are_out():
-    gaps = gap_at_release(P)
+    """보고 위치로 재는 길이다. order 모델은 물러나기 조각을 끝낸 로봇이 N_W(구역에서 0.149 m)를
+    지나며 release_margin_m 안에 있을 때 노드 좌표로 재어 0.129 m에서 놓는다(몸은 구역 밖 0.044 m).
+    그 규칙은 아래 O_OUT 시험이 본다. 여기는 끈 길로 보고 위치 규칙만 본다."""
+    gaps = gap_at_release(OFF)
     need = P.footprint_radius_m + P.release_margin_m
     outside = [gap for gap in gaps if gap >= need - 1e-9]
     assert len(outside) == P.release_confirm_samples - 1, "released on the third report out"
@@ -77,25 +82,30 @@ def stopped_short_of_o_out(params=P):
     assert world.run_until(lambda: bot.y <= 0.66, 30.0)
     assert world.site.distance_to_zone(bot.x, bot.y, "OUT_DOCK") < P.footprint_radius_m + 0.05
     assert "OUT_DOCK" in world.view("pode1")["held"]
+    if bot.run is not None:
+        bot.run.finish_segment()  # order: 로봇은 O_OUT 조각을 끝냈다고 본다
     bot.points = []
     world.speed = 0.0
     world.run(1.0)
-    assert world.view("pode1")["node"] == "O_OUT" and bot.cmd is not None
+    assert world.view("pode1")["node"] == "O_OUT"
+    assert bot.cmd is not None or bot.run is not None, "it has the next goal"
     return world
 
 
-def test_a_robot_standing_within_the_margin_of_its_node_is_measured_from_the_node():
+@pytest.mark.parametrize("order", [False, True], ids=["order_off", "order_on"])
+def test_a_robot_standing_within_the_margin_of_its_node_is_measured_from_the_node(order):
     """2026-11-15 G6: O_OUT(출고 구역에서 0.145 m)에 0.04 m 못 미쳐 선 로봇은 구역에서 0.105 m라
     출고 구역을 놓지 못했고, 제자리에서 돌고 떠날 때까지 O_X의 로봇이 들어오지 못했다(교대 8.5초).
     지점에서 release_margin_m 안에 선 로봇은 그 지점의 좌표로 잰다: 지도가 서는 지점을 구역에서
     0.135 m 넘게 띄워 두었으므로 몸(반지름 0.085 m)은 구역 밖이다."""
-    world = stopped_short_of_o_out()
+    world = stopped_short_of_o_out(replace(P, use_order_model=order))
     assert "OUT_DOCK" not in world.view("pode1")["held"]
     assert not world.problems
 
 
-def test_a_robot_farther_than_the_margin_from_its_node_is_measured_from_its_report():
-    world = stopped_short_of_o_out(replace(P, release_margin_m=0.03))
+@pytest.mark.parametrize("order", [False, True], ids=["order_off", "order_on"])
+def test_a_robot_farther_than_the_margin_from_its_node_is_measured_from_its_report(order):
+    world = stopped_short_of_o_out(replace(P, release_margin_m=0.03, use_order_model=order))
     assert "OUT_DOCK" in world.view("pode1")["held"], "0.04 m from the node, 0.105 m from the zone"
 
 

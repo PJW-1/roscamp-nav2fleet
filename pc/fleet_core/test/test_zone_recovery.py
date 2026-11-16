@@ -2,7 +2,6 @@
 자리로. 물러나기는 뒤에 다른 로봇이 없을 때만 한다."""
 from dataclasses import replace
 
-from fleet_core.common.commands import MoveCmd, RetreatCmd
 from fleet_core.common.params import load_params
 from zone_harness import Harness
 
@@ -28,16 +27,16 @@ def test_a_robot_blocked_in_the_express_does_not_back_out_while_another_is_behin
     world, call = blocked_in_the_express()
     behind = world.bots["pode2"]
     behind.x, behind.y = 0.62, 0.89  # 급행 안, pode1이 물러날 길 위
-    retreats = len(world.sent(RetreatCmd, "pode1"))
+    retreats = len(world.retreats("pode1"))
     world.run(world.params.blocked_mark_s + 5.0)
-    assert len(world.sent(RetreatCmd, "pode1")) == retreats, "it would back into pode2"
+    assert len(world.retreats("pode1")) == retreats, "it would back into pode2"
     waits = [(e.robot, e.detail) for e in world.events if e.code == "RETREAT_WAIT"]
     assert waits == [("pode1", "pode2 is behind it, backs out after it")]
     assert "ZONE_MARKED_BLOCKED" not in world.codes("pode1")
 
     behind.x, behind.y = world.site.node_pose("P-2")  # 뒤의 로봇이 먼저 나갔다
     world.run(1.0)
-    assert len(world.sent(RetreatCmd, "pode1")) == retreats + 1
+    assert len(world.retreats("pode1")) == retreats + 1
     assert world.run_until(lambda: world.result_of(call), 120.0)
     assert world.result_of(call).success
 
@@ -58,9 +57,9 @@ def test_a_robot_ahead_of_it_is_not_taken_for_one_behind():
     world, _ = blocked_in_the_express()
     blocked, ahead = world.bots["pode1"], world.bots["pode2"]
     ahead.x, ahead.y = blocked.x + 0.15, blocked.y
-    retreats = len(world.sent(RetreatCmd, "pode1"))
+    retreats = len(world.retreats("pode1"))
     world.run(world.params.blocked_mark_s + 2.0)
-    assert len(world.sent(RetreatCmd, "pode1")) == retreats + 1
+    assert len(world.retreats("pode1")) == retreats + 1
     assert "RETREAT_WAIT" not in world.codes()
 
 
@@ -68,13 +67,13 @@ def test_a_robot_behind_that_never_leaves_ends_the_wait_with_a_failed_goal():
     world, call = blocked_in_the_express()
     behind = world.bots["pode2"]
     behind.x, behind.y = 0.62, 0.89
-    retreats = len(world.sent(RetreatCmd, "pode1"))
+    retreats = len(world.retreats("pode1"))
     world.run(world.params.blocked_timeout_s + 2.0)
     failed = [e.detail for e in world.events if e.code == "GOAL_FAILED" and e.robot == "pode1"]
     assert failed == ["blocked for 60 s with pode2 behind it"]
     assert world.view("pode1")["fault"]
     assert not world.result_of(call).success
-    assert len(world.sent(RetreatCmd, "pode1")) == retreats, "it never backed into pode2"
+    assert len(world.retreats("pode1")) == retreats, "it never backed into pode2"
 
 
 def test_a_new_goal_tells_again_that_it_waits_for_the_robot_behind():
@@ -100,7 +99,7 @@ def stuck_pair(starts=None):
     world.call("WORK")  # 열린 호출: pode1은 이미 배차가 있어 pode2가 불린다
     world.step()
     world.step()
-    assert world.sent(MoveCmd, "pode1") and world.sent(MoveCmd, "pode2")
+    assert world.moves("pode1") and world.moves("pode2")
     return world
 
 
@@ -115,7 +114,7 @@ def test_giving_way_twice_at_the_same_place_sends_the_robot_to_a_parking_spot():
     assert yields(world) == [("pode2", "stops 5 s for pode1")]
     world.run(2 * p.near_stuck_s + 0.5)  # 서 있다가 같은 길을 다시 받고, 또 못 나아간다
     assert yields(world)[1:] == [("pode2", "out of the way of pode1, goes to P-3")]
-    assert world.sent(MoveCmd, "pode2")[-1].target_id == "P-3"
+    assert world.moves("pode2")[-1].target_id == "P-3"
 
 
 def test_with_no_parking_spot_to_go_to_it_stops_again():
