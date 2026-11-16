@@ -67,7 +67,7 @@ class Robot:
     fault_xy: tuple | None = None
     pose_doubt: bool = False
     doubt: str = ""  # 위치 의심 까닭(suspect_hold). 있으면 구역을 놓지 않는다
-    doubt_by: float | None = None
+    doubt_by: tuple | None = None  # (goal id, 확인 기한)
     comm: str = ""
     recover_at: float = 0.0
     # ---- 트립, goal, 재시도 기록 ----

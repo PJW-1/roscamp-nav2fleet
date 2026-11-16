@@ -10,7 +10,7 @@ from dataclasses import replace
 
 from fleet_core.common.commands import CancelCmd
 from fleet_core.common.params import load_params
-from fleet_core.traffic.mission import NOT_AT_TARGET, STALLED
+from fleet_core.traffic.mission import NOT_AT_TARGET, RUN, STALLED, STOP
 from zone_harness import Harness
 
 OFF = replace(load_params(), suspect_hold="")
@@ -229,3 +229,69 @@ def test_staying_outside_the_held_zones_raises_a_doubt_without_a_jump():
     assert "LOCALIZATION_SUSPECT" not in world.codes("pode1")
     assert robot(world, "pode1").doubt == "OUTSIDE_ZONE"
     assert event(world, "ZONES_HELD_SUSPECT", "pode1").detail.startswith("OUTSIDE_ZONE")
+
+
+# ---- 확인에 쓰는 위치와 시간(Codex 리뷰 9309265) ----
+
+def reports(world, name, state):
+    """name은 앞으로 state를 보고한다. 다른 로봇은 그대로다."""
+    plain = Harness._state.__get__(world)
+    world._state = lambda bot: state if bot.name == name else plain(bot)
+
+
+def test_a_robot_that_reports_localizing_at_the_base_end_is_not_cleared_by_its_old_pose():
+    """LOCALIZING 보고는 위치를 바꾸지 않는다. 그 전의 위치로 의심을 풀지 않는다."""
+    world, _ = queued(ON)
+    glitch(world, "pode1", 4.0, back=5.0)
+    run_to(world, 19.0)  # O_Q 0.12 m 앞: 옛 위치로 재면 허용 오차 안이다
+    reports(world, "pode1", "LOCALIZING")
+    assert world.run_until(lambda: "BASE_END_WAIT" in world.codes("pode1"), 10.0)
+    world.run(2.0)
+    assert "DOUBT_CLEARED" not in world.codes("pode1")
+    assert "GOAL_RETRY" not in world.codes("pode1"), "no check while it localizes"
+    assert robot(world, "pode1").doubt == "LOCALIZATION_SUSPECT"
+    del world._state
+    assert world.run_until(lambda: "DOUBT_CLEARED" in world.codes("pode1"), 2.0)
+
+
+def test_a_new_goal_gets_its_own_arrival_settle_s_at_the_base_end():
+    """확인을 기다리던 goal이 취소되면(STOP) 그 기한은 다음 goal에 남지 않는다."""
+    world, _ = queued(ON)
+    glitch(world, "pode1", 4.0, jump=(-0.3, 0.0))
+    assert world.run_until(lambda: "BASE_END_WAIT" in world.codes("pode1"), 60.0)
+    world.run(0.5)
+    world.traffic.on_run_mode(STOP)
+    world.run(3.0)
+    world.traffic.on_run_mode(RUN)
+    assert world.run_until(lambda: world.codes("pode1").count("BASE_END_WAIT") == 2, 30.0)
+    wait_at = world.now
+    assert world.run_until(lambda: "GOAL_RETRY" in world.codes("pode1"), 30.0)
+    assert world.now - wait_at >= ON.arrival_settle_s - 1e-6
+
+
+# ---- 도킹 성공도 위치를 보고 의심을 푼다 ----
+
+def docking_with_a_glitch(params, jump=JUMP, back=True):
+    world = Harness(params=params)
+    world.step()
+    world.call("WORK", "pode2")
+    assert world.run_until(lambda: world.phase("pode2") == "DOCKING", 60.0)
+    start = world.now
+    glitch(world, "pode2", start + 0.3, back=start + 0.6 if back else None, jump=jump)
+    world.step()
+    assert robot(world, "pode2").doubt == "LOCALIZATION_SUSPECT"
+    assert world.run_until(lambda: world.phase("pode2") == "AT_STATION", 30.0)
+    world.run(1.0)
+    return world
+
+
+def test_a_dock_success_at_the_dock_clears_the_doubt():
+    world = docking_with_a_glitch(ON)
+    assert "DOUBT_CLEARED" in world.codes("pode2") and robot(world, "pode2").doubt == ""
+    assert world.view("pode2")["held"] == ["WORK_DOCK"], "release works again at the station"
+
+
+def test_a_dock_success_with_the_pose_still_off_keeps_the_doubt():
+    world = docking_with_a_glitch(ON, back=False)
+    assert "DOUBT_CLEARED" not in world.codes("pode2")
+    assert robot(world, "pode2").doubt == "LOCALIZATION_SUSPECT"

@@ -66,6 +66,7 @@ class Results:
         m.attempts = m.dock_tries = 0
         m.phase = AT_STATION
         m.dock_error_m = math.hypot(error_x_cm, error_y_cm) / 100.0
+        self._judge_doubt_at_dock(m)
         self._event("INFO", "DOCKED", f"at {m.dest}: x {error_x_cm:.1f} cm, y {error_y_cm:.1f} cm,"
                     f" yaw {error_yaw_deg:.1f} deg", m.name)
         self._finish_dispatch(m, error_x_cm, error_y_cm, error_yaw_deg)

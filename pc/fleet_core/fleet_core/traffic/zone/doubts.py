@@ -1,7 +1,7 @@
 # ---- 위치 의심 때 구역 붙잡기 믹스인(suspect_hold = check) ----
 from __future__ import annotations
 
-from fleet_core.traffic.mission import NOT_AT_TARGET
+from fleet_core.traffic.mission import LOCALIZING, NOT_AT_TARGET
 
 SUSPECT_HELD = "ZONES_HELD_SUSPECT"
 DOUBT_CLEARED = "DOUBT_CLEARED"
@@ -22,15 +22,25 @@ class Doubts:
 
     # ---- base 끝에서 기다릴 때 위치 확인: 맞으면 풀고, 늦으면 NOT_AT_TARGET ----
     def _judge_doubt(self, m, now: float) -> None:
+        if m.robot_state == LOCALIZING:
+            return  # 위치를 다시 잡는 중: 옛 위치로 재지 않는다
         if self._gap(m, m.goal.end) <= self.params.arrival_tolerance_m:
             self._clear_doubt(m)
             return
-        if m.doubt_by is None:
-            m.doubt_by = now + self.params.arrival_settle_s
-        elif now >= m.doubt_by:
+        # 기한은 goal마다 새로 잡는다(취소된 goal의 기한을 넘겨받지 않는다)
+        if m.doubt_by is None or m.doubt_by[0] != m.goal.id:
+            m.doubt_by = (m.goal.id, now + self.params.arrival_settle_s)
+        elif now >= m.doubt_by[1]:
             m.doubt_by = None
             self._cancel_goal(m)
             self._goal_failed(m, NOT_AT_TARGET)
+
+    # ---- 도킹 성공: 보고 위치가 도크 노드와 맞으면 의심을 푼다 ----
+    def _judge_doubt_at_dock(self, m) -> None:
+        if not m.doubt or m.robot_state == LOCALIZING or m.dest not in self.site.stations:
+            return
+        if self._gap(m, self.site.stations[m.dest].dock) <= self.params.arrival_tolerance_m:
+            self._clear_doubt(m)
 
     def _clear_doubt(self, m) -> None:
         if m.doubt:
