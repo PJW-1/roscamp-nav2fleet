@@ -17,7 +17,7 @@ from pode_fsm.nav_goal import MODE_NAV_GOAL, MODES, NavGoal, NavGoals
 from pode_fsm.nav_moves import NavGoalMoves
 from pode_fsm.obstacle_watch import ObstacleWatch
 from pode_fsm.params import FsmParams
-from pode_fsm.records import _Dock, _Move, _Recovery
+from pode_fsm.records import Dock, Move, Recovery
 from pode_fsm.recovery import Obstacle, SelfRecovery
 from pode_fsm.results import (  # noqa: F401 - 상태와 결과 이름은 core에서도 내보낸다
     BLOCKED,
@@ -35,7 +35,7 @@ from pode_fsm.results import (  # noqa: F401 - 상태와 결과 이름은 core�
     TIMEOUT,
     Finish,
 )
-from pode_fsm.retreat import RETREAT_REASONS, RetreatMoves, _Retreat
+from pode_fsm.retreat import RETREAT_REASONS, Retreat, RetreatMoves
 from pode_fsm.yield_moves import LocalYield
 from pode_fsm.yield_nav import NavYield
 
@@ -48,7 +48,7 @@ class PodeFsm(NavGoalMoves, RetreatMoves, LocalYield, NavYield, SelfRecovery, Ob
         self._priority = NO_PRIORITY
         self._peers: list[Peer] = []
         self._peers_at = -math.inf
-        self._active: _Move | _Dock | _Retreat | NavGoal | None = None
+        self._active: Move | Dock | Retreat | NavGoal | None = None
         self._goals = NavGoals(params.blocked_after_s, params.nav_progress_m,
                                params.nav_result_grace_s, params.nav_turn_progress_rad,
                                params.nav_turn_window_s)
@@ -65,7 +65,7 @@ class PodeFsm(NavGoalMoves, RetreatMoves, LocalYield, NavYield, SelfRecovery, Ob
         self._blocked = False
         self._clear_since: float | None = None
         self._blocked_points: list[Point] | None = None
-        self._recovery: _Recovery | None = None
+        self._recovery: Recovery | None = None
         self._attempts = 0
         self._attempt_origin: Point | None = None
         self._bseq = 0
@@ -80,16 +80,16 @@ class PodeFsm(NavGoalMoves, RetreatMoves, LocalYield, NavYield, SelfRecovery, Ob
             return RECOVERING
         if self._blocked or (isinstance(self._active, NavGoal) and self._active.blocked):
             return BLOCKED
-        if isinstance(self._active, (_Move, _Retreat, NavGoal)):
+        if isinstance(self._active, (Move, Retreat, NavGoal)):
             return MOVING
-        if isinstance(self._active, _Dock):
+        if isinstance(self._active, Dock):
             return DOCKING
         return self._rest
 
     def current_goal(self) -> str:
-        if isinstance(self._active, (_Move, NavGoal)):
+        if isinstance(self._active, (Move, NavGoal)):
             return self._active.target_id
-        if isinstance(self._active, _Dock):
+        if isinstance(self._active, Dock):
             return self._active.dock_id
         return ""
 
@@ -97,7 +97,7 @@ class PodeFsm(NavGoalMoves, RetreatMoves, LocalYield, NavYield, SelfRecovery, Ob
         g = self._active
         if isinstance(g, NavGoal):
             return NavGoals.distance_remaining(g, pose)
-        if not isinstance(g, _Move):
+        if not isinstance(g, Move):
             return 0.0
         s = self._track(g, pose) if pose is not None else g.s
         return max(0.0, g.route.length - s)
@@ -112,7 +112,7 @@ class PodeFsm(NavGoalMoves, RetreatMoves, LocalYield, NavYield, SelfRecovery, Ob
     def heartbeat(self, now: float) -> None:
         self._alive = max(self._alive, now)
 
-    # ---- 경로 이동 요청: 경로 연결 검사 후 _Move 시작 ----
+    # ---- 경로 이동 요청: 경로 연결 검사 후 Move 시작 ----
     def move(self, goal_id: Hashable, now: float, target_id: str, target: Pose,
              path: Sequence[Point], pose: Sequence[float] | None,
              final_goal: bool = True, mode: str = "", priority: int = NO_PRIORITY,
@@ -137,7 +137,7 @@ class PodeFsm(NavGoalMoves, RetreatMoves, LocalYield, NavYield, SelfRecovery, Ob
             points = [here, (tx, ty)]
         handover = self._goals.busy(now)
         cmds = self._end_active(CANCELED, stop=handover)
-        g = _Move(goal_id, target_id, (tx, ty, tyaw), Polyline(points), final_goal=final_goal,
+        g = Move(goal_id, target_id, (tx, ty, tyaw), Polyline(points), final_goal=final_goal,
                   free_heading=free_heading)
         g.s, _ = g.route.project(here)
         g.s_start = g.s
@@ -164,14 +164,14 @@ class PodeFsm(NavGoalMoves, RetreatMoves, LocalYield, NavYield, SelfRecovery, Ob
                    obstacle: Obstacle, error_code: int = 0) -> list:
         self._nav_live.pop(seq, None)
         g = self._active
-        if isinstance(g, _Retreat):
+        if isinstance(g, Retreat):
             if g.route is None or g.seq == 0 or seq != g.seq:
                 return []
             self._active = None
             self._rest = IDLE
             return ([Finish(g.goal_id, outcome == "succeeded", reason_of(outcome, error_code))]
                     + self._end_active("", stop=True))
-        if not isinstance(g, _Move) or seq != g.seq:
+        if not isinstance(g, Move) or seq != g.seq:
             return []
         g.nav_running = False
         if self._recovery is not None and (self._recovery.backup_seq is not None
@@ -204,7 +204,7 @@ class PodeFsm(NavGoalMoves, RetreatMoves, LocalYield, NavYield, SelfRecovery, Ob
                       pose: Sequence[float] | None, error_code: int = 0) -> list:
         self._backup_unanswered.pop(seq, None)
         r, g = self._recovery, self._active
-        if isinstance(g, _Retreat):
+        if isinstance(g, Retreat):
             if g.route is not None or g.seq != seq:
                 return []
             self._backup_running = False
@@ -213,7 +213,7 @@ class PodeFsm(NavGoalMoves, RetreatMoves, LocalYield, NavYield, SelfRecovery, Ob
             return [Finish(g.goal_id, outcome == "succeeded", reason_of(outcome, error_code))]
         if r is not None and r.local and r.backup_seq == seq and isinstance(g, NavGoal):
             return self._nav_backup_result(g, now, pose)
-        if r is None or r.backup_seq != seq or not isinstance(g, _Move):
+        if r is None or r.backup_seq != seq or not isinstance(g, Move):
             return []
         self._backup_running = False
         return self._follow_again(g, r, now, pose)
@@ -235,7 +235,7 @@ class PodeFsm(NavGoalMoves, RetreatMoves, LocalYield, NavYield, SelfRecovery, Ob
         if g is not None and pose is None:
             cmds += self._end_active(NAV_ABORTED, stop=True)
             g = None
-        if isinstance(g, _Move) and pose is not None:
+        if isinstance(g, Move) and pose is not None:
             g.s = self._track(g, pose)
         # ---- goal 넘겨받기와 NavGoal 감시, 로봇단 교착 처리 ----
         if self._handing_over(g):
@@ -248,13 +248,13 @@ class PodeFsm(NavGoalMoves, RetreatMoves, LocalYield, NavYield, SelfRecovery, Ob
             if self.p.local_yield:
                 cmds += self._watch_nav_yield(now, g, pose, speed)
         # ---- 물러나기 시작과 시간 초과 확인 ----
-        if isinstance(g, _Retreat) and g.seq == 0:
+        if isinstance(g, Retreat) and g.seq == 0:
             if self._motion_ended(now, speed):
                 cmds += self._start_retreat(g, now, pose)
             elif now - g.since >= g.allowance_s:
                 cmds += self._end_active(TIMEOUT, stop=True)
                 g = None
-        elif (isinstance(g, _Retreat)
+        elif (isinstance(g, Retreat)
                 and now - g.since >= g.allowance_s + self.p.backup_result_grace_s):
             cmds += self._end_active(TIMEOUT, stop=True)
             g = None
@@ -263,11 +263,11 @@ class PodeFsm(NavGoalMoves, RetreatMoves, LocalYield, NavYield, SelfRecovery, Ob
         g = self._active
         cmds += self._watch_obstacle(now, g, pose, speed, obstacle)
         g = self._active
-        if (isinstance(g, _Move) and g.blocked_since is not None
+        if (isinstance(g, Move) and g.blocked_since is not None
                 and now - g.blocked_since >= self.p.block_timeout_s):
             cmds += self._end_active(TIMEOUT, stop=True)
             g = None
-        if (isinstance(g, _Move) and g.nav_running and pose is not None
+        if (isinstance(g, Move) and g.nav_running and pose is not None
                 and g.route.length - g.s < self.p.refresh_within_m
                 and now - g.last_send >= self.p.refresh_every_s):
             cmds += self._send_rest(g, now, pose)
@@ -283,10 +283,10 @@ class PodeFsm(NavGoalMoves, RetreatMoves, LocalYield, NavYield, SelfRecovery, Ob
     def _limit_speed(self) -> list:
         g = self._active
         limit = 0.0
-        if (isinstance(g, _Retreat) and g.route is not None
+        if (isinstance(g, Retreat) and g.route is not None
                 and g.speed_mps < self.p.reverse_speed_mps):
             limit = g.speed_mps
-        if isinstance(g, _Move) and not g.final_goal:
+        if isinstance(g, Move) and not g.final_goal:
             left = max(0.0, g.route.length - g.s)
             left = max(0.0, left - self.p.horizon_cap_mps * self.p.horizon_latency_s)
             v = max(self.p.horizon_min_mps, math.sqrt(2.0 * self.p.horizon_decel_mps2 * left))
@@ -297,7 +297,7 @@ class PodeFsm(NavGoalMoves, RetreatMoves, LocalYield, NavYield, SelfRecovery, Ob
         return [LimitSpeed(limit)]
 
     # ---- 남은 경로를 이어 SendPath 보내기 ----
-    def _send_rest(self, g: _Move, now: float, pose: Sequence[float] | None = None) -> list:
+    def _send_rest(self, g: Move, now: float, pose: Sequence[float] | None = None) -> list:
         if pose is not None:
             g.s = self._track(g, pose)
         self._seq += 1
@@ -317,11 +317,11 @@ class PodeFsm(NavGoalMoves, RetreatMoves, LocalYield, NavYield, SelfRecovery, Ob
         g = self._active
         cmds: list = []
         if g is not None:
-            if isinstance(g, _Move) and self._blocked and self._pose is not None:
+            if isinstance(g, Move) and self._blocked and self._pose is not None:
                 self._blocked_points = self._ahead(g, self._pose)
             self._active = None
             self._rest = IDLE
-            if isinstance(g, _Retreat) and reason not in RETREAT_REASONS:
+            if isinstance(g, Retreat) and reason not in RETREAT_REASONS:
                 reason = FAILED
             cmds.append(Finish(g.goal_id, False, reason))
         if stop and self._nav_running:

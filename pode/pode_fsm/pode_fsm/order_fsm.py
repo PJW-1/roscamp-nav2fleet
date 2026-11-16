@@ -5,11 +5,12 @@ import math
 from collections.abc import Callable, Hashable, Sequence
 from dataclasses import dataclass
 
-from pode_fsm.core import FsmParams, PodeFsm, _Move
+from pode_fsm.core import FsmParams, PodeFsm
 from pode_fsm.geometry import Point, Polyline, Pose
 from pode_fsm.local_yield import NO_PRIORITY
 from pode_fsm.nav_goal import MODE_FOLLOW_PATH, MODE_NAV_GOAL, NavGoal
 from pode_fsm.order_queue import MODE_RETREAT, OrderGoal, OrderQueue, Seg, segments_problem
+from pode_fsm.records import Move
 from pode_fsm.results import (  # noqa: F401 - 결과 이름은 여기서도 내보낸다
     CANCELED,
     HEARTBEAT_LOST,
@@ -172,7 +173,7 @@ class OrderFsm(PodeFsm):
     # ---- 지나간 구간 경계 세기와 주문 주기 감시, NavGoal 끝 가까이에서 다음 구간으로 ----
     def _count_bounds(self, pose, track: bool = False) -> None:
         g = self._active
-        if self._q is None or not isinstance(g, _Move) or g.goal_id != self._key:
+        if self._q is None or not isinstance(g, Move) or g.goal_id != self._key:
             return
         if track and pose is not None:
             g.s = self._track(g, pose)
@@ -185,7 +186,7 @@ class OrderFsm(PodeFsm):
         if self._waiting:
             return self._end_order(False, HEARTBEAT_LOST) if self._heartbeat_lost(now) else []
         g = self._active
-        if isinstance(g, _Move) and g.goal_id == self._key:
+        if isinstance(g, Move) and g.goal_id == self._key:
             self._count_bounds(pose)
         if (isinstance(g, NavGoal) and g.goal_id == self._key and pose is not None
                 and self._q.pending and self._passes(g, pose)):
@@ -268,7 +269,7 @@ class OrderFsm(PodeFsm):
     # ---- 달리는 경로에 이어지는 구간 덧붙이기 ----
     def _extend(self, now: float, pose) -> list:
         g = self._active
-        if not (self._run and isinstance(g, _Move) and g.goal_id == self._key):
+        if not (self._run and isinstance(g, Move) and g.goal_id == self._key):
             return []
         more = self._q.take_merge(self._run[-1], self.op.join_m)
         free = self._free_end()

@@ -7,7 +7,7 @@ from collections.abc import Callable, Sequence
 from pode_fsm.backup import BackUp, CancelBackUp, backup_distance, keep_lateral
 from pode_fsm.commands import CancelNav, ClearCostmap
 from pode_fsm.geometry import Point
-from pode_fsm.records import _Move, _Recovery
+from pode_fsm.records import Move, Recovery
 from pode_fsm.results import NAV_ABORTED
 
 Obstacle = Callable[[list[Point]], bool]
@@ -24,7 +24,7 @@ class SelfRecovery:
         if self._attempt_origin is None:
             self._attempt_origin = (float(pose[0]), float(pose[1]))
 
-    def _send_backup(self, r: _Recovery, now: float, d: float) -> list:
+    def _send_backup(self, r: Recovery, now: float, d: float) -> list:
         self._bseq += 1
         r.backup_seq, r.backup_since = self._bseq, now
         self._backup_running = True
@@ -32,12 +32,12 @@ class SelfRecovery:
                                                + self.p.backup_result_grace_s)
         return [BackUp(self._bseq, d, self.p.backup_speed_mps, self.p.backup_time_allowance_s)]
 
-    def _start_attempt(self, g: _Move, now: float, pose: Sequence[float]) -> list:
+    def _start_attempt(self, g: Move, now: float, pose: Sequence[float]) -> list:
         if self.p.local_yield:
             return self._start_yield(g, now, pose)
         self._count_attempt(pose)
         g.s = self._track(g, pose)
-        r = self._recovery = _Recovery(stuck_s=g.s)
+        r = self._recovery = Recovery(stuck_s=g.s)
         self._blocked, self._clear_since = False, None
         g.waiting_since = g.blocked_since = None
         cmds: list = []
@@ -50,7 +50,7 @@ class SelfRecovery:
         return cmds + self._send_backup(r, now, d)
 
     # ---- 옆 이탈을 넘지 않는 후진 거리 계산과 다시 주행 ----
-    def _backup_distance(self, g: _Move, pose: Sequence[float]) -> float:
+    def _backup_distance(self, g: Move, pose: Sequence[float]) -> float:
         d = backup_distance(g.s - g.route.vertex_before(g.s), self.p.backup_max_m,
                             self.p.release_distance_m + self.p.backup_margin_m)
         qx, qy = g.route.point_at(g.s)
@@ -59,7 +59,7 @@ class SelfRecovery:
         err = math.atan2(math.sin(pose[2] - phi), math.cos(pose[2] - phi))
         return keep_lateral(d, lateral, err, self.p.backup_lateral_limit_m)
 
-    def _follow_again(self, g: _Move, r: _Recovery, now: float, pose) -> list:
+    def _follow_again(self, g: Move, r: Recovery, now: float, pose) -> list:
         r.backup_seq = None
         r.follow_since = now
         self._stopped_since = None
@@ -73,7 +73,7 @@ class SelfRecovery:
                     and math.dist(pose[:2], self._attempt_origin) >= self.p.recovery_reset_m):
                 self._attempts, self._attempt_origin = 0, None
             return []
-        if not isinstance(g, _Move) or pose is None:
+        if not isinstance(g, Move) or pose is None:
             return []
         if r.local:
             cmds = self._watch_yield(now, g, pose, obstacle)

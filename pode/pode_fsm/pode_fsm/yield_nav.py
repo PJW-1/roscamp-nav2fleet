@@ -7,7 +7,7 @@ from collections.abc import Sequence
 from pode_fsm.backup import CancelBackUp
 from pode_fsm.local_yield import extend_trail, straight_back_m
 from pode_fsm.nav_goal import NavGoal
-from pode_fsm.records import _Recovery
+from pode_fsm.records import Recovery
 
 # ---- 궤적 기록 간격과 후진 대기 표시 상수 ----
 TRAIL_STEP_M = 0.02
@@ -28,7 +28,7 @@ class NavYield:
             stalled = now - max(g.anchor_at, g.turned_at) >= self.p.block_report_s
             if stalled and not g.blocked and self._can_recover(pose):
                 self._count_attempt(pose)
-                self._recovery = _Recovery(
+                self._recovery = Recovery(
                     stuck_s=math.dist(pose[:2], g.target[:2]), local=True,
                     wait_until=now + self.p.local_wait_s, stood_since=g.anchor_at)
             return []
@@ -85,10 +85,10 @@ class NavYield:
         return max(0.0, min(straight, g.driven - keep))
 
     # ---- 후진 보내기와 끝난 뒤 goal 다시 보내기 ----
-    def _nav_backup(self, r: _Recovery, now: float) -> list:
+    def _nav_backup(self, r: Recovery, now: float) -> list:
         return self._send_backup(r, now, r.backup_m)
 
-    def _nav_follow_again(self, g: NavGoal, r: _Recovery, now: float, pose) -> list:
+    def _nav_follow_again(self, g: NavGoal, r: Recovery, now: float, pose) -> list:
         r.backup_seq, r.follow_since = None, now
         return self._goals.send(g, now, pose)
 
