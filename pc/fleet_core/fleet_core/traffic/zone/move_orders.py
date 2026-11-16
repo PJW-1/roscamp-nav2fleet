@@ -151,12 +151,14 @@ class MoveOrders:
         if now - mo.horizon_at < HORIZON_HOLD_S:
             return False
         old = trip.links[trip.granted:]
-        station = self.site.stations.get(m.dest) if m.dest else None
-        if station is not None and station.line and any(k.b in station.queue for k in old):
-            return False  # 줄을 지나는 horizon은 다시 짜지 않는다(줄 순서가 바뀐다)
         fresh = route(self.site, trip.links[trip.granted - 1].b, trip.goal, self._cost(m))
         if not fresh or [(k.a, k.b) for k in fresh] == [(k.a, k.b) for k in old]:
             return False
+        station = self.site.stations.get(m.dest) if m.dest else None
+        if station is not None and station.line:
+            spots = [[k.b for k in links if k.b in station.queue] for links in (old, fresh)]
+            if spots[0] and spots[0] != spots[1]:
+                return False  # 줄에 서는 자리가 바뀌는 새 길은 쓰지 않는다(줄 순서가 바뀐다)
         trip.links[trip.granted:] = fresh
         mo.cuts[mo.given:] = self._cut(trip, trip.granted, mo.cuts[mo.given - 1][0] + 1)
         mo.horizon_at = now

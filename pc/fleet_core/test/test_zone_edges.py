@@ -53,9 +53,9 @@ def test_a_purpose_changed_and_changed_back_still_arrives_at_the_dock():
     second = world.call("WORK", "pode2")
     assert world.run_until(lambda: world.result_of(second), 60.0)
     assert world.result_of(second).success
-    # order 모델은 넓은 구역에서 목적이 바뀌면 order를 취소하고 같은 선을 다시 보낼 수 있다
-    assert list(dict.fromkeys(targets(world, "pode2"))) == [("nav_goal", "N_W"),
-                                                           ("follow_path", "W")]
+    # order 모델은 아직 넓은 구역(HALL)에 있는 로봇의 order를 취소하고 같은 선을 다시 보낸다
+    again = [("follow_path", "W")] if world.params.use_order_model else []
+    assert targets(world, "pode2") == [("nav_goal", "N_W"), ("follow_path", "W"), *again]
     assert "DOCK_QUEUED" not in world.codes("pode2") and not world.problems
 
 
