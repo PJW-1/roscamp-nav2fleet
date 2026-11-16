@@ -51,15 +51,18 @@ order_off는 수정 전에도 통과한다(끈 길은 원래 안전했다).
 
 `progress.py` `_track`: 보고가 RETREAT 링크 끝 노드에서 `release_margin_m`(노드 좌표로 재는 거리)
 안에 있는 동안은 진행으로 넘기지 않는다. 끝냈다는 답(order의 SEGMENT_DONE, 끈 길의 물러나기 결과)을
-기다린다. 노드를 그 거리 넘게 지나가면 진행으로 넘긴다. FOLLOW_PATH 링크는 그대로 넘긴다.
+기다린다. `passed()`가 참이고 끝 노드까지의 직선거리가 `release_margin_m`보다 크면(보통은 노드를
+그만큼 지나갔을 때, 옆으로 벗어난 보고에서도 참이 될 수 있음) 진행으로 넘긴다. FOLLOW_PATH 링크는
+그대로 넘긴다.
 
 처음에는 RETREAT 링크를 답으로만 넘기게 했다. 그러자 풀 스위트에서 test_zone_move_orders.py의 세 시험이
 실패했다(`3 failed, 1073 passed, 1 skipped, 3 xfailed`, 두 틱 순서 모두). 세 시험은 `hold_answers`로
 모든 로봇의 답을 막는다. 그래서 출고 도크에서 물러난 pode2가 N_E를 한참 지나 P-2로 가는데도 N_E 노드를
 계속 쥐었고(`_still_needed`가 물러나기 링크의 끝 노드를 아직 필요하다고 봄), pode1의 update가 나가지
 못했다. 답이 늦거나 사라지면 실제로도 같은 일이 생긴다(노드를 쥔 채 다른 로봇을 막음). 그래서
-"노드 좌표로 잴 거리 안에서만 답을 기다린다"로 좁혔다. 그 거리 밖에서는 `_release_behind`가 어차피
-보고 위치로 재므로 일찍 놓을 길이 없다. 이 동작은
+"노드 좌표로 잴 거리 안에서만 답을 기다린다"로 좁혔다. 그 거리 밖의 보고는 `_release_behind`가
+(`zone_clear_m`이 0인 기본 설정에서) 노드 좌표가 아니라 보고 위치로 잰다. 다만 보고 잡음 자체는 남고,
+넘긴 뒤 다음 보고가 다시 노드 0.05 m 안으로 들어오면 노드 좌표로 잴 수 있다(5절 2, 6절 3). 이 동작은
 `test_an_order_retreat_whose_answer_is_late_is_passed_once_the_robot_is_beyond_the_node`가 지킨다.
 
 후보 비교:
@@ -104,9 +107,28 @@ $ ZONE_TICK_ORDER=zone PYTHONPATH=pc/fleet_core python3 -m pytest -q -p no:cache
 1079 passed, 1 skipped, 3 xfailed in 64.12s (0:01:04)
 ```
 
-뒤에 더한 strict xfail 시험 두 개(아래 6절)를 넣고 나면 `test_zone_release.py`는 두 틱 순서 모두
-`18 passed, 2 xfailed`다. `--runxfail`로 돌리면 의도한 단언에서 실패한다:
-`AssertionError: assert 'WORK_DOCK' in ['J_W', 'HALL', 'EXPRESS', 'J_E', 'OUT_DOCK']`.
+뒤에 더한 늦은 보고 시험(6절 1). 처음 커밋(d956fe5)의 strict xfail은 Codex 지적대로 앞 단언의 실패를
+가리고 있었다: 정확한 보고로는 하네스가 N_W에서 WORK_DOCK을 이미 정당하게 놓아, xfail이 앞 조건
+("RETREAT_DONE 때 WORK_DOCK을 쥠")에서 실패하고 있었다. ba297be에서 고쳤다. 물러나며 (0.35, 0.69)를
+지난 뒤로 보고가 거기 멈추게 하고(현장의 늦은 보고), 앞 조건은 보통 시험
+`test_the_late_report_case_is_set_up_as_seen_in_the_field`가 본다. strict xfail에는 마지막 단언만 남겼다.
+ba297be 기준(나온 그대로):
+
+```
+$ ZONE_TICK_ORDER=manager|zone PYTHONPATH=pc/fleet_core python3 -m pytest -q -p no:cacheprovider pc/fleet_core/test/test_zone_release.py
+20 passed, 2 xfailed in 1.25s        (manager)
+20 passed, 2 xfailed in 1.21s        (zone)
+$ ... -k late_report_at --runxfail   (두 틱 순서 모두)
+E       AssertionError: assert 'WORK_DOCK' in ['J_W', 'HALL', 'EXPRESS', 'J_E', 'OUT_DOCK']
+pc/fleet_core/test/test_zone_release.py:291: AssertionError
+2 failed, 20 deselected
+$ ZONE_TICK_ORDER=manager PYTHONPATH=pc/fleet_core python3 -m pytest -q -p no:cacheprovider pc/fleet_core/test
+1081 passed, 1 skipped, 5 xfailed in 43.59s
+$ ZONE_TICK_ORDER=zone ...
+1081 passed, 1 skipped, 5 xfailed in 42.24s
+```
+
+291행은 xfail 시험의 마지막 단언이다.
 
 world 시험(d00449b 기준):
 
@@ -129,21 +151,31 @@ FAILED sim/fake_robots/test/test_situation_avoid_modes.py::test_the_yard_back_of
 - d00449b 리뷰(`~/codex-review.md`, 도착해서 읽음). 직접 확인한 결과:
   1. [확정, 확인함] order의 SEGMENT_DONE, `_arrived_anyway`(results.py:146, `_link_reached`는 끝 노드
      0.075 m 안이면 참: base.py:61-63, arrival_tolerance_m 0.15), 통신 복구의 `_resume`(health.py:50)은
-     위치 확인 없이 `m.node`를 끝 노드로 둔다. 모두 선 로봇에 대한 것이고 끈 길에도 똑같다. 이번 수정
-     전부터 있었다. 남은 점으로 둔다.
+     구역을 빠져나갔는지 확인하지 않고 `m.node`를 끝 노드로 둔다(SEGMENT_DONE은 위치를 보지 않고,
+     `_arrived_anyway`와 `_resume`, 끈 길의 물러나기 성공(results.py:106 `_succeeded`)은 도착 허용치
+     안인지만 본다). 끈 길에도 똑같고 이번 수정 전부터 있었다. 남은 점으로 둔다.
   2. [확정, 확인함] 옆 방향 잡음으로 끝 노드에서 0.05 m 넘게 보고되면 길 방향으로는 못 미쳤어도 링크를
      넘긴다. 그 보고에서는 보고 위치로 재지만, 뒤 보고가 다시 0.05 m 안이면 노드 좌표로 잰다. 좁지만
      실제로 있을 수 있는 길이다. 남은 점.
-  3. [확정] 0.03~0.05 m 구간은 새 지연이 아니다(passed가 원래 거짓). 답이 끝내 안 오면 12초 정지
-     감시가 도착 추정을 한다. 막힘 없음.
+  3. [확정] 길 위에서 끝까지 0.03 m 넘게 남았으면 `passed()`가 원래 거짓이라 새 지연은 주로 0.03 m
+     안에서 생긴다(옆으로 벗어난 보고는 직선거리 0.03~0.05 m에서도 passed가 참일 수 있다). 답이 끝내 안
+     오면 정지 감시(stall_s 12초)가 도착 추정을 시도한다. 다만 정지 감시가 돌고 새 보고가 도착 판정을
+     채울 때만이고, BLOCKED 등에서는 막힘 처리가 따로 돈다. 늘 12초 뒤 풀린다는 보장은 아니다.
   4. [확정] 끈 길에서 한 goal에 물러나기 링크가 여럿이면 새 조건이 걸린다. 지도 다섯 개 모두 이어진
      물러나기 링크가 없어 지금은 해당 없음(직접 확인).
   5. 시험이 1초만 멈추고 틱 순서를 환경 변수로 고른다는 지적: 두 틱 순서 모두 직접 돌려 통과했다.
      마당 시험이 취약할 수 있다는 [추측]: 두 틱 순서 모두 통과.
-- d956fe5(strict xfail 시험) 리뷰: 커밋 직후 시작했다. 이 기록을 쓸 때는 아직 도는 중이었다.
-- 이 작업 기록 커밋 리뷰: 커밋 직후 시작한다. 결과는 보고에 적는다.
+- d956fe5(strict xfail 시험) 리뷰: 도착해서 읽음. [확정] xfail이 앞 단언 실패를 가릴 수 있다는 지적이
+  실제로 맞았다(4절). ba297be에서 고쳤다. "정책 선택만은 아니다, 다음 길이 도크에 다시 다가갈 때만 노드
+  좌표를 막는 국소 수정 후보"라는 [추측]은 6절 1의 후보와 같다.
+- d12c6cb(이 기록 첫판) 리뷰: 도착해서 읽음. 표현이 실제 조건보다 강하다는 [확정] 지적 넷(위치 확인 없이,
+  노드를 지나가면, 일찍 놓을 길이 없다, 12초 뒤 막힘 없음)을 직접 확인하고 3절과 5절의 표현을 고쳤다.
+  시험 범위가 좁다는 지적(1초 정지, yard 시험은 놓는 순서를 단언하지 않음)은 맞다. 남은 점에 더한다.
+- ba297be(시험 나눔) 리뷰: 커밋 직후 시작했다.
+- 이 기록 고친 판 리뷰: 커밋 직후 시작한다.
 
-커밋: d00449b(수정과 시험), d956fe5(strict xfail 시험), 이 기록.
+커밋: d00449b(수정과 시험), d956fe5(strict xfail 시험), d12c6cb(이 기록), ba297be(xfail 앞 조건 나눔),
+이 기록 고친 판.
 
 ## 6. 남은 점
 
@@ -169,3 +201,7 @@ FAILED sim/fake_robots/test/test_situation_avoid_modes.py::test_the_yard_back_of
    돌렸는데 HALL_BACKOFF_DONE을 쓰는 씨드가 없었고, 불변식 실패도 없었다(출력: `done`만 나옴).
    다른 시나리오에서 켠 길의 물러나기를 찾거나 그 매개변수를 끈 길 둘로 줄이는 판단이 필요하다.
 5. ROS 시나리오(test_scenario_integration.py, test_fms_restart.py)는 이 작업에서 돌리지 않았다(코디네이터 몫).
+6. 새 시험의 범위가 좁다: 노드 앞에서 1초만 멈춰 보고, 여러 잡음 방향이나 긴 지연은 보지 않는다.
+   yard 시험은 J_E를 RETREAT_DONE 뒤에 놓는 순서까지는 단언하지 않는다.
+7. 늦은 보고 시험은 현장 상태를 재현하지만(보고를 멈추고 몸을 옮김) 현장의 명령 흐름을 그대로 달리지는
+   않는다. 하네스에는 잡음이 없어, 그냥 달리면 N_W에서 정당하게 놓는다(참 거리 0.115 m 이상, 직접 잼).
