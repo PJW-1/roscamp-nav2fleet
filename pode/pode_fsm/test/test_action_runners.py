@@ -256,15 +256,30 @@ def test_a_result_future_with_no_result_counts_as_lost(kind, monkeypatch):
     assert len(handle.cancels) == 1 and rig.node.logs
 
 
-def test_a_lost_backup_result_is_reported_only_once_its_cancel_is_confirmed(monkeypatch):
-    """BackUp 결과를 잃으면 FSM의 _backup_unanswered가 지워지지 않게, 취소가 확인된 뒤에만
-    aborted를 알린다. 그 전에 알리면 후진이 도는 중에 다음 Nav2 goal을 보낼 수 있다."""
+def test_a_lost_backup_result_is_not_reported_while_the_cancel_is_only_in_progress(monkeypatch):
+    """Codex 리뷰(f75977e) 1: goals_canceling은 취소 중이지 종료가 아니다. 그때 aborted를 알리면
+    core가 _backup_unanswered를 지워 후진이 도는 중에 다음 동작이 나갈 수 있다."""
     rig = Rig("backup", monkeypatch)
     handle = rig.accepted(3)
     handle.result_future.fail(RuntimeError("lost"))
     assert rig.events == [] and len(handle.cancels) == 1
     handle.cancels[-1].resolve(_cancel_yes())
+    assert rig.events == [], "종료를 확인할 수 없으면 FSM 시간 초과에 맡긴다"
+    rig.runner.cancel_all()
+    assert len(handle.cancels) == 2, "취소 요청은 계속 보낸다"
+
+
+@pytest.mark.parametrize("code", ("ERROR_GOAL_TERMINATED", "ERROR_UNKNOWN_GOAL_ID"))
+def test_a_lost_backup_result_is_reported_once_the_goal_is_known_to_have_ended(code, monkeypatch):
+    rig = Rig("backup", monkeypatch)
+    handle = rig.accepted(3)
+    handle.result_future.fail(RuntimeError("lost"))
+    handle.cancels[-1].resolve(_cancel_yes())
+    rig.runner.cancel_all()
+    handle.cancels[-1].resolve(_cancel_code(code))
     assert rig.events == [("result", 3, "aborted", False)]
+    handle.cancels[0].resolve(_cancel_code(code))
+    assert len(rig.events) == 1, "한 번만 알린다"
 
 
 def test_a_lost_backup_result_with_a_refused_cancel_is_left_to_the_fsm_timeout(monkeypatch):
@@ -275,17 +290,88 @@ def test_a_lost_backup_result_with_a_refused_cancel_is_left_to_the_fsm_timeout(m
     handle.cancels[-1].resolve(_cancel_code("ERROR_REJECTED"))
     assert rig.events == []
     rig.runner.cancel_all()
-    handle.cancels[-1].resolve(_cancel_yes())
-    assert rig.events == [("result", 3, "aborted", False)], "다음 취소가 확인되면 알린다"
+    handle.cancels[-1].resolve(_cancel_code("ERROR_GOAL_TERMINATED"))
+    assert rig.events == [("result", 3, "aborted", False)], "다음 취소가 끝을 확인하면 알린다"
 
 
-def test_a_lost_backup_result_after_a_confirmed_cancel_is_reported_at_once(monkeypatch):
+def test_a_backup_cancel_in_progress_keeps_the_handle(monkeypatch):
+    """Codex 리뷰(f75977e) 1: 결과를 잃기 전에 취소 중 응답을 받아도 핸들을 지우지 않는다.
+    지우면 결과를 잃었을 때 이미 끝났다고 보고 바로 aborted를 알린다."""
     rig = Rig("backup", monkeypatch)
     handle = rig.accepted(3)
     rig.runner.cancel_all()
     handle.cancels[-1].resolve(_cancel_yes())
     handle.result_future.fail(RuntimeError("lost"))
+    assert rig.events == [] and len(handle.cancels) == 2
+
+
+def test_a_lost_backup_result_after_the_goal_was_known_to_have_ended_is_reported_at_once(
+        monkeypatch):
+    rig = Rig("backup", monkeypatch)
+    handle = rig.accepted(3)
+    rig.runner.cancel_all()
+    handle.cancels[-1].resolve(_cancel_code("ERROR_GOAL_TERMINATED"))
+    handle.result_future.fail(RuntimeError("lost"))
     assert rig.events == [("result", 3, "aborted", False)] and len(handle.cancels) == 1
+
+
+# ---- future를 돌려주기 전에 나는 예외 ----
+def _raise(*_a, **_k):
+    raise RuntimeError("client gone")
+
+
+@pytest.mark.parametrize("kind", KINDS)
+def test_a_send_call_that_raises_returns_false(kind, monkeypatch):
+    """Codex 리뷰(f75977e) 2: send()가 False면 노드는 다음 tick에 거절로 넘긴다
+    (서버가 없을 때와 같은 길)."""
+    rig = Rig(kind, monkeypatch)
+    rig.client.send_goal_async = _raise
+    args = {"follow": ([(0.0, 0.0, 0.0), (1.0, 0.0, 0.0)], True, False),
+            "nav_goal": ((1.0, 0.0, 0.0),), "backup": (0.1, 0.05, 6.0)}[kind]
+    assert rig.runner.send(3, *args) is False
+    assert rig.events == [] and rig.node.logs and not rig.runner._pending
+
+
+@pytest.mark.parametrize("kind", KINDS)
+def test_a_result_request_that_raises_counts_as_a_lost_result(kind, monkeypatch):
+    rig = Rig(kind, monkeypatch)
+    handle = FakeHandle()
+    handle.get_result_async = _raise
+    rig.send(3).resolve(handle)
+    assert len(handle.cancels) == 1 and rig.node.logs
+    if kind == "backup":
+        assert rig.events == []
+        handle.cancels[-1].resolve(_cancel_code("ERROR_GOAL_TERMINATED"))
+        assert rig.events == [("result", 3, "aborted", False)]
+    else:
+        assert rig.events == [("result", 3, "aborted", True)]
+
+
+@pytest.mark.parametrize("kind", KINDS)
+def test_a_cancel_call_that_raises_warns_and_keeps_the_goal(kind, monkeypatch):
+    rig = Rig(kind, monkeypatch)
+    handle = rig.accepted(3)
+    calls = []
+
+    def boom():
+        calls.append(1)
+        raise RuntimeError("client gone")
+    handle.cancel_goal_async = boom
+    rig.runner.cancel_all()
+    assert rig.events == [] and rig.node.logs
+    rig.runner.cancel_all()
+    assert len(calls) == 2, "핸들을 남겨 다음 취소 때 다시 취소한다"
+
+
+@pytest.mark.parametrize("kind", KINDS)
+def test_a_lost_result_whose_cancel_call_raises_is_still_reported(kind, monkeypatch):
+    """결과를 잃은 뒤 취소 호출이 예외를 내도 FollowPath, NavigateToPose는 lost를 알린다.
+    BackUp은 끝을 확인할 수 없으니 알리지 않는다."""
+    rig = Rig(kind, monkeypatch)
+    handle = rig.accepted(3)
+    handle.cancel_goal_async = _raise
+    handle.result_future.fail(RuntimeError("lost"))
+    assert rig.events == ([] if kind == "backup" else [("result", 3, "aborted", True)])
 
 
 def test_a_backup_result_carries_the_travelled_distance(monkeypatch):

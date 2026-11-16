@@ -52,8 +52,7 @@ class FollowPathRunner(GoalRunner):
             controller, checker = self._reverse_id[0], self._reverse_id[1] or checker
         goal = FollowPath.Goal(path=path, controller_id=controller, goal_checker_id=checker,
                                progress_checker_id=progress)
-        self._send_goal(seq, goal)
-        return True
+        return self._send_goal(seq, goal)
 
     # ---- 공통 실행기 알림을 FSM 콜백으로 ----
     def _rejected(self, seq: int) -> None:

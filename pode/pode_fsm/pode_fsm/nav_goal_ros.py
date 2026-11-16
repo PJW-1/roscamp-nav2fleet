@@ -39,8 +39,8 @@ class NavGoalRunner(GoalRunner):
         target.pose.position.x, target.pose.position.y = x, y
         _, _, qz, qw = yaw_quaternion(yaw)
         target.pose.orientation.z, target.pose.orientation.w = qz, qw
-        self._send_goal(seq, NavigateToPose.Goal(pose=target), partial(self._feedback, seq))
-        return True
+        return self._send_goal(seq, NavigateToPose.Goal(pose=target),
+                               partial(self._feedback, seq))
 
     # ---- 남은 거리 피드백 ----
     def _feedback(self, seq: int, msg) -> None:

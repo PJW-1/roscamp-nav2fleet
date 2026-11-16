@@ -16,7 +16,8 @@ OnResult = Callable[[int, str, int, float], None]
 
 # ---- BackUp 액션 클라이언트 생성, goal 전송 ----
 class BackUpRunner(GoalRunner):
-    """취소 수락 콜백이 없다. FSM은 결과나 자기 시간 초과로만 후진이 끝났다고 본다."""
+    """취소 수락 콜백이 없다. FSM은 결과나 자기 시간 초과로만 후진이 끝났다고 본다.
+    핸들은 결과가 오거나 goal이 이미 끝났다는 취소 응답(GONE)이 올 때만 지운다."""
 
     _label = "backup"
 
@@ -36,8 +37,11 @@ class BackUpRunner(GoalRunner):
             time_allowance=Duration(sec=sec, nanosec=int((time_allowance_s - sec) * 1e9)))
         with self._lock:
             self._travelled[seq] = 0.0
-        self._send_goal(seq, goal, partial(self._feedback, seq))
-        return True
+        if self._send_goal(seq, goal, partial(self._feedback, seq)):
+            return True
+        with self._lock:
+            self._travelled.pop(seq, None)
+        return False
 
     # ---- 이동 거리 피드백과 결과 알림 ----
     def _feedback(self, seq: int, msg) -> None:
@@ -58,7 +62,8 @@ class BackUpRunner(GoalRunner):
         self._report(seq, outcome, code)
 
     def _result_lost(self, seq: int) -> None:
-        # 후진이 도는 중에 aborted를 알리면 FSM이 다음 goal을 보낸다. 취소가 확인된 뒤 알린다
+        # 후진이 도는 중에 aborted를 알리면 FSM이 다음 goal을 보낸다. 끝난 것이 확인된 뒤 알린다
+        # 핸들이 없으면 이미 GONE 응답을 받은 goal이다
         with self._lock:
             handle = self._handles.get(seq)
             if handle is not None:
@@ -68,9 +73,13 @@ class BackUpRunner(GoalRunner):
             return
         self._cancel(seq, handle)
 
-    def _cancel_accepted(self, seq: int) -> None:
+    def _cancel_confirmed(self, seq: int, gone: bool) -> None:
+        # 취소 중(goals_canceling)은 끝이 아니다. 핸들을 두고 알리지 않는다(FSM 시간 초과)
+        if not gone:
+            return
         # 두 취소 응답이 함께 와도 한 번만 알린다
         with self._lock:
+            self._handles.pop(seq, None)
             if seq not in self._lost_seqs:
                 return
             self._lost_seqs.discard(seq)
