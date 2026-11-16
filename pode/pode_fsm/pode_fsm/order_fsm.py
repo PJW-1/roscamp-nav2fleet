@@ -271,16 +271,18 @@ class OrderFsm(PodeFsm):
         if not (self._run and isinstance(g, _Move) and g.goal_id == self._key):
             return []
         more = self._q.take_merge(self._run[-1], self.op.join_m)
-        if not more:
+        free = self._free_end()
+        if not more and free == g.free_heading:
             return []
-        end = g.route.length
-        self._bounds += [(end, self._run[-1].seq_id)] + [
-            (end + s, i) for s, i in _bounds(more, start=g.route.points[-1])]
-        g.route = Polyline(g.route.points + _joined(more)[1:])
-        g.sent = None
-        self._run += more
-        g.free_heading = self._free_end()
-        g.target, g.target_id = more[-1].path[-1], more[-1].end_node_id
+        g.free_heading = free
+        if more:
+            end = g.route.length
+            self._bounds += [(end, self._run[-1].seq_id)] + [
+                (end + s, i) for s, i in _bounds(more, start=g.route.points[-1])]
+            g.route = Polyline(g.route.points + _joined(more)[1:])
+            g.sent = None
+            self._run += more
+            g.target, g.target_id = more[-1].path[-1], more[-1].end_node_id
         if g.nav_running and g.handover_since is None:
             return self._send_rest(g, now, pose)
         return []

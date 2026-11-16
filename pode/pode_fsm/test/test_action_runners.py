@@ -48,12 +48,13 @@ class FakeHandle:
 
 class FakeClient:
     def __init__(self, node, action_type, name, callback_group=None):
-        self.sent = []
+        self.sent, self.goals = [], []
 
     def server_is_ready(self):
         return True
 
     def send_goal_async(self, goal, feedback_callback=None):
+        self.goals.append(goal)
         self.sent.append(FakeFuture())
         return self.sent[-1]
 
@@ -384,3 +385,22 @@ def test_a_backup_result_carries_the_travelled_distance(monkeypatch):
     rig.runner._feedback(3, SimpleNamespace(feedback=SimpleNamespace(distance_traveled=0.04)))
     handle.result_future.resolve(_status("aborted", 714))
     assert seen == [(3, "aborted", 714, pytest.approx(0.04))]
+
+
+@pytest.mark.parametrize("free_id, final, reverse, free, want", [
+    ("free", True, False, False, ("FollowPath", "goal")),
+    ("free", True, False, True, ("FollowPath", "free")),
+    ("free", False, False, True, ("Through", "free")),
+    ("free", True, True, True, ("Reverse", "back")),   # 후진은 자기 checker가 먼저다
+    ("", True, False, True, ("FollowPath", "goal")),    # 이름을 비우면 전처럼 끝 방향을 맞춘다
+])
+def test_the_follow_runner_names_the_goal_checker_of_each_kind_of_path(
+        free_id, final, reverse, free, want, monkeypatch):
+    _patch_client(monkeypatch, "pode_fsm.follow_ros")
+    from pode_fsm.follow_ros import FollowPathRunner
+    runner = FollowPathRunner(
+        FakeNode(), "follow_path", "map", ("FollowPath", "goal", "progress"), "Through",
+        ("Reverse", "back"), free_id, lambda s: None, lambda s, o, c, lost: None, lambda s: None)
+    assert runner.send(1, [(0.0, 0.0, 0.0), (1.0, 0.0, 0.0)], final, reverse, free)
+    goal = runner._client.goals[-1]
+    assert (goal.controller_id, goal.goal_checker_id) == want

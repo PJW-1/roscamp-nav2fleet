@@ -278,6 +278,34 @@ def test_a_line_joined_on_the_way_takes_the_end_heading_rule_of_its_new_end():
     assert more.poses[-1][:2] == pytest.approx((1.3, 0.3)) and more.free_heading is True
 
 
+def test_an_update_that_changes_what_comes_next_sends_the_line_again_with_the_new_rule():
+    """Codex 2026-11-17: an update that does not join the running line (a Nav2 goal added to base,
+    a horizon replaced) left the rule of the first send in place, so the robot still turned to
+    the end heading before a Nav2 goal that arrived on the way."""
+    fsm = ready()
+    [send] = of(order(fsm, "g1", 1.0, [S1]), SendPath)
+    assert send.free_heading is False
+    fsm.heartbeat(2.0)
+    fsm.tick(2.0, (0.5, 0.3, 0.0), DRIVING, no_obstacle)
+    cmds = order(fsm, "g2", 2.5, [goal_seg(2, 1.3, 0.6)], update=1, stitch="N1",
+                 pose=(0.55, 0.3, 0.0))
+    [again] = of(cmds, SendPath)
+    assert not of(cmds, CancelNav) and again.seq > send.seq
+    assert again.poses[-1][:2] == pytest.approx((0.8, 0.3)) and again.free_heading is True
+
+    fsm = ready()
+    [send] = of(order(fsm, "g1", 1.0, [S1], [goal_seg(2, 1.3, 0.6)]), SendPath)
+    assert send.free_heading is True
+    fsm.heartbeat(2.0)
+    fsm.tick(2.0, (0.5, 0.3, 0.0), DRIVING, no_obstacle)
+    cmds = order(fsm, "g2", 2.5, [], [S2], update=1, stitch="N1", pose=(0.55, 0.3, 0.0))
+    [again] = of(cmds, SendPath)
+    assert not of(cmds, CancelNav) and again.free_heading is False
+    # the same kind of next segment changes nothing: no second send
+    cmds = order(fsm, "g3", 3.0, [], [S2, S3], update=2, stitch="N1", pose=(0.6, 0.3, 0.0))
+    assert not of(cmds, SendPath) and not of(cmds, CancelNav)
+
+
 def test_a_plain_move_to_keeps_its_end_heading():
     fsm = ready()
     [send] = of(fsm.move("g1", 1.0, "N1", (0.8, 0.3, 0.0), [(0.3, 0.3), (0.8, 0.3)], HERE),
