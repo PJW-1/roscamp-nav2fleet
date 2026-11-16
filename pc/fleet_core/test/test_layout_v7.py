@@ -246,6 +246,13 @@ def test_v7_routes(site):
     assert "EXPRESS" not in into.zones
     o, o_in, o_out = (site.node_pose(n) for n in ("O", "O_IN", "O_OUT"))
     assert o_out[0] < o[0] < o_in[0]
+    # 2026-11-17(사용자: O_IN을 오른쪽 위로 2~5 cm, 가능한 만큼): (0.44, 0.62) -> (0.49, 0.625).
+    # 위로는 OUT_DOCK 놓기 여유(위 시험의 0.14) 때문에 0.5 cm가 끝이고, 오른쪽 5 cm는 OUT_DOCK
+    # 동쪽 끝(0.50) 안쪽이다. 서는 방향은 들어가는 고정 경로의 첫 구간 방향이다
+    assert o_in[:2] == pytest.approx((0.49, 0.625))
+    first = into.points[1]
+    heading = math.degrees(math.atan2(first[1] - o_in[1], first[0] - o_in[0]))
+    assert math.degrees(site.nodes["O_IN"].yaw) == pytest.approx(heading, abs=2.0)
     assert out.points[1][0] < o[0] - 0.05, "first goes west, the way O faces"
     assert all(b[1] <= a[1] + 1e-9 for a, b in zip(out.points[1:], out.points[2:])), "then south"
     assert min(x for x, _ in out.points) - BODY_CIRCLE_M >= 0.05, "clear of the west wall"
@@ -417,7 +424,7 @@ def test_v7_outbound_waits_at_the_west_end_of_the_express_too(site):
     gaps = {name: min(point_segment_distance(site.node_pose("O_X"), a, b)
                       for a, b in pairwise(site.link(*pair).points))
             for name, pair in (("out_in", ("O_IN", "O")), ("out_out", ("O", "O_OUT")))}
-    assert gaps["out_in"] == pytest.approx(0.252, abs=1e-3), gaps
+    assert gaps["out_in"] == pytest.approx(0.242, abs=1e-3), gaps
     assert gaps["out_out"] > gaps["out_in"] >= 2 * BODY_CIRCLE_M + 0.01, gaps
 
 
