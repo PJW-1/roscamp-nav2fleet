@@ -30,14 +30,18 @@
 ## 실행
 
 ```bash
+M=sim/fleet_gz_sim/maps   # v7 배치(1.98 x 0.99 m)
 ros2 launch pinky_nav_config nav2.launch.py namespace:=pinky1 \
-    map:=<5cm 지도.yaml> map_fine:=<1cm 지도.yaml> \
-    initial_x:=0.35 initial_y:=1.55 initial_yaw:=1.5708
+    map:=$M/arena_v7.yaml map_fine:=$M/arena_v7_fine.yaml \
+    keepout_mask:=$M/arena_v7_keepout.yaml \
+    initial_x:=0.12 initial_y:=0.10 initial_yaw:=1.5708   # P-1, 북쪽
 ```
+
+실물 핑키 한 대(제조사 bringup, cmd_vel 감시, pinky_fsm, 속도를 낮춘 설정 사본)는 `tools/real_pinky/`의 묶음으로 띄운다(그 README).
 
 `keepout_mask:=<마스크.yaml>`(map_server 형식, 막힌 칸이 keepout)을 주면 keepout을 켠다. 비면(기본) 노드와 파라미터가 keepout 전과 같다.
 
-`vision_obstacles:=true`를 주면 비전 장애물 관측원을 더한다. 기본(false)은 노드와 파라미터가 전과 같다. 마스크는 `python3 tools/make_keepout.py --layout d2 --map <지도.yaml>`로 실제 지도에 맞춰 만든다.
+`vision_obstacles:=true`를 주면 비전 장애물 관측원을 더한다. 기본(false)은 노드와 파라미터가 전과 같다. 마스크는 `python3 tools/make_keepout.py --layout v7 --map <지도.yaml>`로 실제 지도에 맞춰 만든다.
 
 `use_composition:=true`를 주면 노드 아홉(keepout이면 열둘)을 컨테이너(`component_container_isolated`) 한 프로세스에 올린다. 한 PC에 Gazebo 핑키 여럿을 띄우면 LOCALHOST discovery가 볼 수 있는 프로세스 수(약 32)를 넘기 때문이다. 이름, 파라미터, TF remap은 같고 기본값(false)은 노드마다 프로세스다.
 
