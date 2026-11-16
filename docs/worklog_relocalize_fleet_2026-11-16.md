@@ -146,3 +146,12 @@
    - 실제 로봇이 취소 뒤에도 잠깐 LOCALIZING을 보고하면 그만큼 늦어진다. 기한 안이다.
 6. ROS 가짜 Pode는 LOCALIZING을 보고하지 않는다. 다시 찾는 중에 오는 move/dock/retreat도 거절하지 않는다. 그 동작은 세계 흉내에만 있다.
 7. 실제 로봇에서 재 보지 않았다.
+
+## 보관 시점 Codex 지적 (2026-11-16, 검증 전)
+
+브랜치 전체(feat/relocalize..)와 이 작업 기록을 리뷰한 결과다. 다시 집을 때 하나씩 확인하고, 확인된 것은 시험을 먼저 써서 고친다. 전문은 `~/codex-review.md`의 "relocalize fleet whole branch (parked)", "relocalize fleet parked worklog" 항목에 있다.
+
+- 배차를 취소한 뒤에도 이전 작업의 relocalize 실패가 로봇을 격리할 수 있다(`calls.py:60` 근처).
+- 쥔 구역 안에서 위치가 크게 바뀐 채 성공하면 이전 경로를 그대로 이어 간다(`relocalize.py:156` 근처).
+- 세계 흉내는 relocalize 중 이동 금지 계약을 구현하지 않는다(`sim/fake_robots/fake_robots/world/apply.py:94` 근처).
+- 이 기록의 표현 가운데 틀린 것: PAUSE 동안 기한이 늘 미뤄진다는 말, 한 시도가 `timeout + 5초`로 묶인다는 말, 전후 표의 격리 합계, `NO_LOCALIZER`를 서버 없음으로만 본 것.
