@@ -234,7 +234,8 @@ def test_the_robot_answers_reach_the_traffic_layer_in_order_feedback_superseded_
     assert feedback and [m for m, _ in feedback] == ["on_move_feedback"] * len(feedback)
     seqs = [a[1] for _, a in feedback]
     # update를 받은 로봇은 새 goal id로 base 끝(seq 2)을 한 번 다시 알리고 이어 달린다
-    assert seqs == sorted(set(seqs)) and seqs[0] >= 2 and seqs[-1] > 2, seqs
+    taken = [seg.seq_id for o in orders(world, "pode1") if o.goal_id == update for seg in o.base]
+    assert seqs[0] == 2 and seqs == sorted(set(seqs)) and set(seqs[1:]) <= set(taken), seqs
     last = orders(world, "pode1")[-1].base[-1].seq_id
     assert after[-1] == ("on_move_result", (update, True, "", last))
     assert not world.problems
