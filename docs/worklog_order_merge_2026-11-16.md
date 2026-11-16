@@ -29,7 +29,7 @@
 - 증상: stock_shortage에서 order pode1-38(seq 1 물러나기 → N_W, seq 2 nav_goal → P-2)이 끝났다는 답(SEGMENT_DONE)이 오기 2초 전에 J_W를 놓았다. 참 거리 0.076 m, 판정 반경 0.08 m 안. 수정 전 차례로 돈 두 판에서 같은 자리에서 났다.
 - 원인: `progress.py` `_track`이 goal의 마지막이 아닌 RETREAT 링크를 투영 거리만으로 넘겼고, 그 뒤 `_release_behind`가 보고가 노드 0.05 m 안이라며 노드 좌표로 쟀다.
 - 수정(d00449b): 보고가 RETREAT 링크 끝 노드에서 `release_margin_m`(0.05 m) 안이면 링크를 넘기지 않고 끝냈다는 답을 기다린다. 더 멀면 예전처럼 넘긴다. 시험 먼저 썼고 수정 전 2 failed를 확인했다.
-- 고치지 않은 것: 물러나기를 끝낸 뒤(끈 길은 따로 보낸 RetreatCmd, 켠 길은 seq 끝 답) 늦은 보고가 노드 0.05 m 안에 머물러 노드 좌표로 재는 경우. 켬과 끔 모두 strict xfail(`test_a_late_report_at_the_node_after_backing_out_does_not_free_the_dock[order_off|order_on]`)로 남았다. 정책(판정 반경 0.08 m를 지킬지, 도크를 몇 초 더 쥘지) 결정이 필요하다. 측정에서는 후보(켬) 54판에서 나지 않았고, main(끔) 45판에서 같은 모양이 한 번 났다(3절).
+- 고치지 않은 것: 물러나기를 끝낸 뒤(끈 길은 따로 보낸 RetreatCmd, 켠 길은 seq 끝 답) 늦은 보고가 노드 0.05 m 안에 머물러 노드 좌표로 재는 경우. 켬과 끔 모두 strict xfail(`test_a_late_report_at_the_node_after_backing_out_does_not_free_the_dock[order_off|order_on]`)로 남았다. 정책(판정 반경 0.08 m를 지킬지, 도크를 몇 초 더 쥘지) 결정이 필요하다. 측정에서 이른 놓기는 후보(켬) 54판에서 관찰되지 않았고(늦은 보고 자체가 있었는지는 세지 않았다), main(끔) 45판에서 같은 모양의 이른 놓기가 한 번 났다(3절).
 
 ### 결함 2: 가짜 Pode `goal.aborting`이 조각을 넘어감
 
