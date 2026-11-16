@@ -7,7 +7,7 @@ from fleet_core.fleet_map import SHARED
 # ---- SHARED 구역 수용량 합이 로봇 수보다 적으면 경고 ----
 class Capacity:
     def _check_capacity(self) -> None:
-        if getattr(self, "_capacity_checked", False):
+        if self._capacity_checked:
             return
         self._capacity_checked = True
         shared = {name: spec.capacity for name, spec in self.site.zones.items()

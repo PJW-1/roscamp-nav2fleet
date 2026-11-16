@@ -37,6 +37,7 @@ class ZoneBase:
         self._started = None
         self._startup_warned = False
         self._no_robot_warned = False
+        self._capacity_checked = False
         self._joining: set[str] = set()
         self._wants: dict = {}
         self._blocked: dict = {}
