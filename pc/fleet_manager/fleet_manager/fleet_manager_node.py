@@ -22,6 +22,7 @@ from fleet_core.common.commands import (
 )
 from fleet_core.common.contract import load_contract, to_ros_qos
 from fleet_core.common.params import load_params, timing_warnings
+from fleet_core.fleet_map import FILL
 from fleet_core.manager import FleetManager
 from fleet_core.traffic.site import load_site
 from fleet_interfaces.action import Dock, FillBasket, MoveTo, Retreat, SwapBasket
@@ -134,7 +135,7 @@ class FleetManagerNode(Node):
         self._fill = {}
         self._swap = {}
         for station in self.site.stations.values():
-            if station.action == "fill":
+            if station.action == FILL:
                 self._fill[station.id] = ActionClient(self, FillBasket, name("fill_basket"))
             else:
                 self._swap[station.id] = ActionClient(
@@ -230,37 +231,41 @@ class FleetManagerNode(Node):
 
     # ---- 코어 명령 처리: 액션, 막힘 지점 확인, 취소, 주문 보고, 사건 ----
     def _dispatch(self, command, now: float) -> None:
-        if isinstance(command, MoveCmd):
-            self._send(self._move[command.robot], adapters.move_goal(command),
-                       (command.robot, command.goal_id), self._move_done, self._robot_rejected)
-        elif isinstance(command, MoveOrderCmd):
-            key = (command.robot, command.goal_id)
-            self._send(self._move[command.robot], adapters.move_order_goal(command), key,
-                       self._move_done, self._robot_rejected,
-                       feedback=partial(self._on_move_feedback, key))
-        elif isinstance(command, DockCmd):
-            self._send(self._dock[command.robot], adapters.dock_goal(command),
-                       (command.robot, command.goal_id), self._dock_done, self._robot_rejected)
-        elif isinstance(command, RetreatCmd):
-            self._send(self._retreat[command.robot], adapters.retreat_goal(command),
-                       (command.robot, command.goal_id), self._retreat_done,
-                       self._robot_rejected)
-        elif isinstance(command, FillCmd):
-            server = self.site.stations[command.station_id].server
-            self._send(self._fill[command.station_id], adapters.fill_goal(command),
-                       (server, command.goal_id), self._fill_done, self._fill_rejected)
-        elif isinstance(command, SwapCmd):
-            self._send(self._swap[command.station_id], adapters.swap_goal(command),
-                       (command.arm, command.goal_id), self._swap_done, self._swap_rejected)
-        elif isinstance(command, CheckClearCmd):
-            self._ask_clear(command)
-        elif isinstance(command, CancelCmd):
-            self._goals.cancel((command.robot, command.goal_id), now)
-        elif isinstance(command, ReportOrderCmd):
-            self._reports.add(command)
-        elif isinstance(command, EventOut):
-            self._events_pub.publish(adapters.event_to_msg(command, now))
-            self._log_event(command)
+        match command:
+            case MoveCmd():
+                self._send(self._move[command.robot], adapters.move_goal(command),
+                           (command.robot, command.goal_id), self._move_done,
+                           self._robot_rejected)
+            case MoveOrderCmd():
+                key = (command.robot, command.goal_id)
+                self._send(self._move[command.robot], adapters.move_order_goal(command), key,
+                           self._move_done, self._robot_rejected,
+                           feedback=partial(self._on_move_feedback, key))
+            case DockCmd():
+                self._send(self._dock[command.robot], adapters.dock_goal(command),
+                           (command.robot, command.goal_id), self._dock_done,
+                           self._robot_rejected)
+            case RetreatCmd():
+                self._send(self._retreat[command.robot], adapters.retreat_goal(command),
+                           (command.robot, command.goal_id), self._retreat_done,
+                           self._robot_rejected)
+            case FillCmd():
+                server = self.site.stations[command.station_id].server
+                self._send(self._fill[command.station_id], adapters.fill_goal(command),
+                           (server, command.goal_id), self._fill_done, self._fill_rejected)
+            case SwapCmd():
+                self._send(self._swap[command.station_id], adapters.swap_goal(command),
+                           (command.arm, command.goal_id), self._swap_done,
+                           self._swap_rejected)
+            case CheckClearCmd():
+                self._ask_clear(command)
+            case CancelCmd():
+                self._goals.cancel((command.robot, command.goal_id), now)
+            case ReportOrderCmd():
+                self._reports.add(command)
+            case EventOut():
+                self._events_pub.publish(adapters.event_to_msg(command, now))
+                self._log_event(command)
 
     def _ask_clear(self, command) -> None:
         client = self._check_clear[command.robot]

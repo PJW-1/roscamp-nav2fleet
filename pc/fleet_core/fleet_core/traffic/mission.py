@@ -1,6 +1,9 @@
 # ---- 로봇 단계, 상태, 목표 종류 상수 ----
 from __future__ import annotations
 
+from fleet_core.fleet_map.model import FILL as FILL
+from fleet_core.fleet_map.model import SWAP as SWAP
+
 # ---- 관제 단계와 고장 상태 ----
 IDLE = "IDLE"
 PARKED = "PARKED"
@@ -36,7 +39,3 @@ STOP = "STOP"
 MOVE = "move"
 DOCK = "dock"
 RETREAT = "retreat"
-
-# ---- 스테이션 작업 종류 ----
-FILL = "fill"
-SWAP = "swap"

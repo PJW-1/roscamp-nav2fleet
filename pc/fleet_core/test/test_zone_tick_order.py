@@ -155,7 +155,8 @@ def test_in_production_the_arm_job_starts_in_the_tick_after_the_dock_result():
     world = _ordered_world()
     assert world.run_until(lambda: _seen(world, ArmFillCmd), 300.0), "\n".join(world.log[-20:])
     [(phase, n)] = [s for s in _seen(world, DispatchResult)]
-    # 도킹 결과는 on_dock_result 입력 때 주문 층에 닿고, 팔 명령은 다음 틱의 orchestrator.step이 낸다
+    # 도킹 결과는 on_dock_result 입력 때 주문 층에 닿고,
+    # 팔 명령은 다음 틱의 orchestrator.step이 낸다
     assert phase == "input"
     assert _seen(world, ArmFillCmd) == [("tick", n + 1)]
     assert not _seen(world, RobotFaultCmd) and not _seen(world, ReleaseCmd)

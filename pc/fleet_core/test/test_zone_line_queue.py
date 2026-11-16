@@ -208,7 +208,8 @@ class Detour(AssertionError):
 
 
 P3_DETOUR = pytest.mark.xfail(strict=True, raises=Detour,
-                              reason="열린 위험: order가 E-3이 놓이기 전에 대기 자리로 돌려 M_E로 돈다")
+                              reason="열린 위험: order가 E-3이 놓이기 전에 "
+                                     "대기 자리로 돌려 M_E로 돈다")
 
 
 @pytest.mark.parametrize(("parked", "order"), [

@@ -29,10 +29,10 @@ from .records import (
     FULL,
     NONE,
     SWAPPING,
-    _LostJob,
-    _merge,
-    _Robot,
-    _subtract,
+    LostJob,
+    RobotRecord,
+    merge_items,
+    subtract_items,
 )
 from .stations import Stations
 
@@ -48,7 +48,7 @@ class OrderOrchestrator(Faults, Stations):
         self._clock = clock
         self._dispatch_seq = 0
         self._bind_seq = 0
-        self._robots = {name: _Robot(name) for name in robots}
+        self._robots = {name: RobotRecord(name) for name in robots}
         self._out: list = []
         self._run_mode: str | None = None
         self._board: list = []
@@ -56,7 +56,7 @@ class OrderOrchestrator(Faults, Stations):
         self._open_calls: list[int] = []
         self._work = next(s.id for s in stations.values() if s.action == FILL)
         self._outbound = next(s.id for s in stations.values() if s.action == SWAP)
-        self._lost_jobs: dict[int, _LostJob] = {}
+        self._lost_jobs: dict[int, LostJob] = {}
 
     # ---- 주문판, 배차, 팔 보고 입력 처리 ----
     def on_order_board(self, run_mode, orders) -> None:
@@ -110,25 +110,25 @@ class OrderOrchestrator(Faults, Stations):
             self._on_arm_lost(r, report)
 
     # ---- 팔 결과를 주문에 반영하고 결과를 잃은 작업 기록 ----
-    def _on_fill_result(self, r: _Robot, success, placed) -> None:
+    def _on_fill_result(self, r: RobotRecord, success, placed) -> None:
         r.asked = ""
-        _merge(r.order.placed, placed)
+        merge_items(r.order.placed, placed)
         if success:
-            r.order.missing = _subtract(r.order.items, r.order.placed)
+            r.order.missing = subtract_items(r.order.items, r.order.placed)
             return
         self._out.append(ArmFailedCmd(r.name))
 
-    def _on_arm_lost(self, r: _Robot, lost: ArmLost) -> None:
+    def _on_arm_lost(self, r: RobotRecord, lost: ArmLost) -> None:
         if lost.cleared:
             order_id, bound = lost.order_id, lost.bound
         else:
             r.asked = ""
             order_id, bound = self.order_of(r.name), r.bound
-        self._lost_jobs[lost.goal_id] = _LostJob(r.name, lost.server, lost.kind, order_id,
+        self._lost_jobs[lost.goal_id] = LostJob(r.name, lost.server, lost.kind, order_id,
                                                  cleared=lost.cleared, bound=bound,
                                                  isolated=lost.isolated)
 
-    def _on_swap_result(self, r: _Robot, took_full, put_empty_done) -> None:
+    def _on_swap_result(self, r: RobotRecord, took_full, put_empty_done) -> None:
         r.asked = ""
         if took_full and r.basket == FULL:
             r.basket = NONE
@@ -170,7 +170,7 @@ class OrderOrchestrator(Faults, Stations):
             return None
         if r.stage == SWAPPING:
             return SWAP, 1
-        left = _subtract(r.order.items, r.order.placed, r.order.missing) if r.order else {}
+        left = subtract_items(r.order.items, r.order.placed, r.order.missing) if r.order else {}
         return FILL, sum(left.values())
 
     def order_of(self, robot) -> str:
@@ -192,10 +192,10 @@ class OrderOrchestrator(Faults, Stations):
     def _event(self, level, code, detail, robot="") -> None:
         self._out.append(EventOut(level, code, detail, robot))
 
-    def _fail(self, r: _Robot, reason: str) -> None:
+    def _fail(self, r: RobotRecord, reason: str) -> None:
         self._out.append(RobotFaultCmd(r.name, reason))
 
-    def _leave_station(self, r: _Robot) -> None:
+    def _leave_station(self, r: RobotRecord) -> None:
         r.stage = ""
         self._out.append(ReleaseCmd(r.name))
 
@@ -219,12 +219,12 @@ class OrderOrchestrator(Faults, Stations):
         return self._dispatch_seq
 
     # ---- 주문 보고 만들기 ----
-    def _report(self, r: _Robot, status: str, detail: str = "") -> None:
+    def _report(self, r: RobotRecord, status: str, detail: str = "") -> None:
         order, r.order = r.order, None
         self._reported.add(order.order_id)
         self._out.append(ReportOrderCmd(order.order_id, r.name, status, dict(order.placed),
                                         dict(order.missing), detail))
 
-    def _report_shipped(self, r: _Robot) -> None:
+    def _report_shipped(self, r: RobotRecord) -> None:
         self.shipped += 1
         self._report(r, PARTIAL if r.order.missing else SHIPPED)

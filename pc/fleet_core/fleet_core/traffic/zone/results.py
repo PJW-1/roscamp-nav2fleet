@@ -34,7 +34,7 @@ class Results:
         m = self._active(robot, goal_id, MOVE)
         if m is None:
             return
-        if m.move_order is not None and self._order_result(m, success, reason, last_done_seq):
+        if m.move_order is not None and self._order_result(m, reason, last_done_seq):
             return
         if success:
             self._succeeded(m)

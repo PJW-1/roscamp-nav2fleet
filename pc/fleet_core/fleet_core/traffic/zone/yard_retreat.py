@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import math
+from itertools import pairwise
 
 from fleet_core.fleet_map import FOLLOW_PATH, PASS, SHARED
 from fleet_core.fleet_map.geometry import point_segment_distance
@@ -41,15 +42,20 @@ class YardRetreat:
     def _behind_on_the_bent_way(self, m, target: str, via: str) -> str:
         site = self.site
         here, corner, end = (m.x, m.y), site.node_pose(via), site.node_pose(target)
-        way = (corner[0] - here[0], corner[1] - here[1])
         down = site.link(via, target)
         way_pts = (here, corner, *(down.points[1:-1] if down is not None else ()), end)
+        return self._behind_along(m, way_pts)
+
+    # ---- 물러나는 길 뒤에 있는 로봇 찾기 ----
+    def _behind_along(self, m, way_pts) -> str:
+        here, ahead = way_pts[0], way_pts[1]
+        way = (ahead[0] - here[0], ahead[1] - here[1])
         for other in self._robots.values():
             if other is m or not other.placed:
                 continue
             spot = (other.x, other.y)
             toward = (spot[0] - here[0]) * way[0] + (spot[1] - here[1]) * way[1] > 0.0
-            gap = min(point_segment_distance(spot, a, b) for a, b in zip(way_pts, way_pts[1:]))
+            gap = min(point_segment_distance(spot, a, b) for a, b in pairwise(way_pts))
             if toward and gap < self.params.retreat_clear_m:
                 return other.name
         return ""

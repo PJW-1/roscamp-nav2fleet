@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from fleet_core.common.commands import FILL, SWAP, ArmDropCmd, ArmResetCmd, ArmStopCmd
 
-from .records import EMPTY, FULL, NONE, _LostJob, _merge, _Robot
+from .records import EMPTY, FULL, NONE, LostJob, RobotRecord, merge_items
 
 
 # ---- 로봇 치움, 다시 투입, 격리와 주문 되돌리기 ----
@@ -26,7 +26,7 @@ class Faults:
 
     def on_robot_reinstated(self, robot, basket) -> None:
         if robot in self._robots:
-            self._robots[robot] = _Robot(robot, basket=basket)
+            self._robots[robot] = RobotRecord(robot, basket=basket)
             self._out.append(ArmResetCmd(robot, forget=True))
 
     def on_robot_isolated(self, robot, reason) -> None:
@@ -41,7 +41,7 @@ class Faults:
             self._drop_arm(r, isolated=True)
         self._requeue_isolated(r)
 
-    def _requeue_isolated(self, r: _Robot) -> None:
+    def _requeue_isolated(self, r: RobotRecord) -> None:
         if r.order:
             self._event("INFO", "ORDER_REQUEUED",
                         f"{r.order.order_id} was bound, basket held {r.order.placed}, "
@@ -54,11 +54,11 @@ class Faults:
         self._sync_calls()
 
     # ---- 팔 작업 버리기와 결과 대기 판단 ----
-    def _drop_arm(self, r: _Robot, isolated: bool = False) -> None:
+    def _drop_arm(self, r: RobotRecord, isolated: bool = False) -> None:
         self._out.append(ArmDropCmd(r.name, isolated, self.order_of(r.name), r.bound))
         r.asked = ""
 
-    def _result_still_due(self, r: _Robot) -> bool:
+    def _result_still_due(self, r: RobotRecord) -> bool:
         return any(lost.robot == r.name and not lost.cleared and self._still_bound(lost)
                    for lost in self._lost_jobs.values())
 
@@ -69,7 +69,7 @@ class Faults:
             return
         self._late_event(goal_id, lost, f"placed {placed}")
         if self._still_bound(lost):
-            _merge(self._robots[lost.robot].order.placed, placed)
+            merge_items(self._robots[lost.robot].order.placed, placed)
 
     def _late_swap(self, goal_id: int, took_full: bool, put_empty_done: bool) -> None:
         lost = self._take_lost_job(goal_id, SWAP)
@@ -81,18 +81,18 @@ class Faults:
             r.basket = EMPTY if put_empty_done else NONE
             self._report_shipped(r)
 
-    def _take_lost_job(self, goal_id: int, kind: str) -> _LostJob | None:
+    def _take_lost_job(self, goal_id: int, kind: str) -> LostJob | None:
         lost = self._lost_jobs.get(goal_id)
         if lost is None or lost.kind != kind:
             return None
         return self._lost_jobs.pop(goal_id)
 
-    def _still_bound(self, lost: _LostJob) -> bool:
+    def _still_bound(self, lost: LostJob) -> bool:
         return (bool(lost.order_id) and self.order_of(lost.robot) == lost.order_id
                 and self._robots[lost.robot].bound == lost.bound)
 
     # ---- 늦은 결과 경고 이벤트 ----
-    def _late_event(self, goal_id: int, lost: _LostJob, reported: str) -> None:
+    def _late_event(self, goal_id: int, lost: LostJob, reported: str) -> None:
         if not lost.order_id:
             then = "its order had already been reported"
         elif self._still_bound(lost):

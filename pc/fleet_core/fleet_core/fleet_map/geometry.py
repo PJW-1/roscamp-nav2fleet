@@ -40,7 +40,7 @@ def point_segment_distance(point: Point, a: Point, b: Point) -> float:
     return math.hypot(point[0] - a[0] - t * ux, point[1] - a[1] - t * uy)
 
 
-def _cross(a: Point, b: Point, c: Point, d: Point) -> bool:
+def segments_cross(a: Point, b: Point, c: Point, d: Point) -> bool:
     def side(p: Point, q: Point, r: Point) -> float:
         return (q[0] - p[0]) * (r[1] - p[1]) - (q[1] - p[1]) * (r[0] - p[0])
 
@@ -58,7 +58,8 @@ def segment_rect_distance(a: Point, b: Point, rect: Rect) -> float:
     if inside(rect, *a) or inside(rect, *b):
         return 0.0
     corners = [(rect[0], rect[1]), (rect[2], rect[1]), (rect[2], rect[3]), (rect[0], rect[3])]
-    if any(_cross(a, b, p, q) for p, q in zip(corners, corners[1:] + corners[:1], strict=True)):
+    if any(segments_cross(a, b, p, q)
+           for p, q in zip(corners, corners[1:] + corners[:1], strict=True)):
         return 0.0
     ends = min(point_rect_distance(rect, *a), point_rect_distance(rect, *b))
     return min(ends, min(point_segment_distance(corner, a, b) for corner in corners))

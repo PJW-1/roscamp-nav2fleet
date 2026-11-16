@@ -2,8 +2,9 @@
 from __future__ import annotations
 
 import math
+from itertools import pairwise
 
-from .geometry import _cross, inside, overlap_area, sample, within
+from .geometry import inside, overlap_area, sample, segments_cross, within
 from .model import (
     AT_DOCK,
     DOCK,
@@ -44,7 +45,10 @@ def read_rect(raw, what: str) -> tuple:
 
 # ---- 구역이 아닌 keepout 사각형 읽기 ----
 def read_keepout_extra(raw, bounds: tuple) -> tuple:
-    """Nav2 계획만 막는 사각형(마스크에 덧대지 않고 더한다). 구역이 아니라 쥐기와 정원에 들지 않는다."""
+    """Nav2 계획만 막는 사각형(마스크에 덧대지 않고 더한다).
+
+    구역이 아니라 쥐기와 정원에 들지 않는다.
+    """
     rects = tuple(read_rect(rect, "keepout_extra") for rect in raw or ())
     for rect in rects:
         if not within(rect, bounds):
@@ -110,8 +114,8 @@ def read_nodes(raw: dict, zones: dict[str, Zone]) -> dict[str, Node]:
         zone = zones[under[0]]
         if kind == AT_DOCK and zone.kind != DOCK:
             raise FleetMapError(f"node {name} (dock) must stand in a dock zone, not {zone.id}")
-        if (kind in (PARKING, FORK) and zone.kind != SHARED
-                or kind == WAIT and zone.kind not in (SHARED, LANE)):
+        if ((kind in (PARKING, FORK) and zone.kind != SHARED)
+                or (kind == WAIT and zone.kind not in (SHARED, LANE))):
             raise FleetMapError(f"node {name} ({kind}) must stand in a shared zone, not {zone.id}")
         if kind == PASS and zone.kind == SHARED:
             raise FleetMapError(f"node {name} (pass) belongs in a lane or dock zone, not {zone.id}")
@@ -127,7 +131,7 @@ def read_nodes(raw: dict, zones: dict[str, Zone]) -> dict[str, Node]:
 # ---- 경로가 지나는 구역과 다시 들어가는 구역 찾기 ----
 def zones_along(zones: dict[str, Zone], points) -> tuple[str, ...]:
     seen: list[str] = []
-    for a, b in zip(points, points[1:], strict=False):
+    for a, b in pairwise(points):
         for x, y in sample(a, b, SAMPLE_M):
             for zone in zone_under(zones, x, y):
                 if zone not in seen:
@@ -138,7 +142,7 @@ def zones_along(zones: dict[str, Zone], points) -> tuple[str, ...]:
 def _reentered(zones: dict[str, Zone], points) -> str:
     left: set[str] = set()
     here: set[str] = set()
-    for a, b in zip(points, points[1:], strict=False):
+    for a, b in pairwise(points):
         for x, y in sample(a, b, SAMPLE_M):
             under = set(zone_under(zones, x, y))
             if not under:
@@ -156,13 +160,13 @@ def _line_problem(zones: dict[str, Zone], points) -> str:
     zone = _reentered(zones, points)
     if zone:
         return f"leaves {zone} and comes back into it"
-    pieces = [(p, q) for p, q in zip(points, points[1:], strict=False) if math.dist(p, q) > 0.0]
-    for (a, b), (c, d) in zip(pieces, pieces[1:], strict=False):
+    pieces = [(p, q) for p, q in pairwise(points) if math.dist(p, q) > 0.0]
+    for (a, b), (c, d) in pairwise(pieces):
         if (b[0] - a[0]) * (d[0] - c[0]) + (b[1] - a[1]) * (d[1] - c[1]) < -1e-12:
             return f"turns back at {b}"
     for i, (a, b) in enumerate(pieces):
         for c, d in pieces[i + 2:]:
-            if _cross(a, b, c, d):
+            if segments_cross(a, b, c, d):
                 return "crosses itself"
     return ""
 
@@ -181,7 +185,7 @@ def _link(nodes, zones, a: str, b: str, via: str, path: str, crossed=None, bends
     if nodes[b].zone != nodes[a].zone:
         ordered.append(nodes[b].zone)
     lane = next((z for z in ordered if zones[z].kind == LANE), "")
-    length = sum(math.dist(p, q) for p, q in zip(points, points[1:], strict=False))
+    length = sum(math.dist(p, q) for p, q in pairwise(points))
     return Link(a, b, via, path, points, tuple(ordered), length, lane, extra_m)
 
 
@@ -232,7 +236,7 @@ def read_links(paths: dict, nav: list, nodes: dict[str, Node], zones: dict[str, 
         if reverse and two_way:
             raise FleetMapError(f"{what}: a reverse path runs one way")
         via = RETREAT if reverse else FOLLOW_PATH
-        for (a, _), (b, bends) in zip(stops, stops[1:], strict=False):
+        for (a, _), (b, bends) in pairwise(stops):
             add(_link(nodes, zones, a, b, via, str(name), bends=bends), what)
             if two_way:
                 add(_link(nodes, zones, b, a, via, str(name), bends=bends[::-1]), what)

@@ -61,7 +61,7 @@ class OrderAnswers:
         mo.done_seq = max(mo.done_seq, seq)
 
     # ---- order 결과와 이전 goal 결과 처리 ----
-    def _order_result(self, m, success: bool, reason: str, last_done_seq: int) -> bool:
+    def _order_result(self, m, reason: str, last_done_seq: int) -> bool:
         mo = m.move_order
         if reason.startswith(REJECTED) and mo.before is not None:
             self._update_failed(m, reason)

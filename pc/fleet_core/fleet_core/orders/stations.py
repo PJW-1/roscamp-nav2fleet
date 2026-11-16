@@ -12,28 +12,28 @@ from fleet_core.common.commands import (
     ReleaseCmd,
 )
 
-from .records import EMPTY, FILLING, FULL, _BoundOrder, _Robot, _subtract
+from .records import EMPTY, FILLING, FULL, BoundOrder, RobotRecord, subtract_items
 
 
 # ---- 주문 묶기와 채우기 마무리 ----
 class Stations:
-    def _start_filling(self, r: _Robot) -> None:
+    def _start_filling(self, r: RobotRecord) -> None:
         pending = self._pending()
         if not pending:
             self._out.append(ReleaseCmd(r.name))
             return
         record = pending[0]
-        r.order = _BoundOrder(record.order_id, dict(record.items))
+        r.order = BoundOrder(record.order_id, dict(record.items))
         self._bind_seq += 1
         r.bound = self._bind_seq
         r.last_order_id = record.order_id
         r.stage = FILLING
         self._event("INFO", "ORDER_BOUND", record.order_id, r.name)
 
-    def _finish_fill(self, r: _Robot) -> None:
+    def _finish_fill(self, r: RobotRecord) -> None:
         order = r.order
         self._out.append(ArmResetCmd(r.name))
-        order.missing = _subtract(order.items, order.placed)
+        order.missing = subtract_items(order.items, order.placed)
         if not order.placed:
             self._report(r, HELD, f"nothing could be placed, missing {order.missing}")
             self._leave_station(r)
@@ -50,11 +50,11 @@ class Stations:
             self._send_to_outbound(r)
 
     # ---- 출고 스테이션 배차와 재시도 ----
-    def _send_to_outbound(self, r: _Robot) -> None:
+    def _send_to_outbound(self, r: RobotRecord) -> None:
         r.outbound_goal = self._next_dispatch_id()
         self._out.append(DispatchCmd(r.outbound_goal, self._outbound, r.name))
 
-    def _retry_outbound(self, r: _Robot) -> None:
+    def _retry_outbound(self, r: RobotRecord) -> None:
         if self._clock() < r.dispatch_retry_at:
             return
         r.dispatch_retry_at = None
@@ -68,13 +68,13 @@ class Stations:
         self._send_to_outbound(r)
 
     @staticmethod
-    def _forget_dispatch_failures(r: _Robot) -> None:
+    def _forget_dispatch_failures(r: RobotRecord) -> None:
         r.dispatch_failures = 0
         r.dispatch_retry_at = None
         r.dispatch_reason = ""
 
     # ---- 채우기 단계 진행 ----
-    def _step_filling(self, r: _Robot) -> None:
+    def _step_filling(self, r: RobotRecord) -> None:
         if r.asked:
             return
         order = r.order
@@ -83,7 +83,7 @@ class Stations:
                                   f"capacity of {self.params.basket_capacity}")
             self._leave_station(r)
             return
-        remaining = _subtract(order.items, order.placed, order.missing)
+        remaining = subtract_items(order.items, order.placed, order.missing)
         if not remaining:
             self._finish_fill(r)
             return
@@ -91,7 +91,7 @@ class Stations:
         self._out.append(ArmFillCmd(r.name, self._work, order.order_id, remaining))
 
     # ---- 교환 단계 진행 ----
-    def _step_swapping(self, r: _Robot) -> None:
+    def _step_swapping(self, r: RobotRecord) -> None:
         if r.asked:
             return
         if r.basket == EMPTY:

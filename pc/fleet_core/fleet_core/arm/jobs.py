@@ -114,22 +114,23 @@ class ArmJobs:
         r = self._robots.get(command.robot)
         if r is None:
             return
-        if isinstance(command, ArmFillCmd):
-            self._start(r, FILL, command)
-        elif isinstance(command, ArmSwapCmd):
-            self._start(r, SWAP, command)
-        elif isinstance(command, ArmStopCmd):
-            if r.job and r.job.canceled_at is None:
-                self._cancel(r)
-        elif isinstance(command, ArmDropCmd):
-            self._drop(r, command)
-        elif isinstance(command, ArmFailedCmd):
-            self._attempt_failed(r)
-        elif isinstance(command, ArmResetCmd):
-            if command.forget:
-                self._robots[r.name] = _Robot(r.name)
-            else:
-                r.attempts = 0
+        match command:
+            case ArmFillCmd():
+                self._start(r, FILL, command)
+            case ArmSwapCmd():
+                self._start(r, SWAP, command)
+            case ArmStopCmd():
+                if r.job and r.job.canceled_at is None:
+                    self._cancel(r)
+            case ArmDropCmd():
+                self._drop(r, command)
+            case ArmFailedCmd():
+                self._attempt_failed(r)
+            case ArmResetCmd():
+                if command.forget:
+                    self._robots[r.name] = _Robot(r.name)
+                else:
+                    r.attempts = 0
 
     # ---- 출력과 조회 ----
     def take_output(self) -> list:

@@ -71,7 +71,8 @@ class Progress:
             link = trip.links[trip.done]
             if link.via == NAV_GOAL or not passed(link, m.x, m.y):
                 break
-            # 물러나기는 놓을 구역 쪽에서 노드로 다가간다: 노드 좌표로 잴 거리 안이면 끝냈다는 답을 기다린다
+            # 물러나기는 놓을 구역 쪽에서 노드로 다가간다:
+            # 노드 좌표로 잴 거리 안이면 끝냈다는 답을 기다린다
             if link.via == RETREAT and self._gap(m, link.b) <= self.params.release_margin_m:
                 break
             m.node = link.b
@@ -119,7 +120,7 @@ class Progress:
                 released.append(zone)
         parked = m.phase == PARKED and m.node in site.parking and self._on_node(m)
         for node in grants.nodes_of(m.name):
-            clear = node not in nodes and (parked and node != m.node and self._in_bay(m, node)
+            clear = node not in nodes and ((parked and node != m.node and self._in_bay(m, node))
                                            or self._gap(m, node) >= p.node_clear_m)
             if self._counted(m, NODE_KEY + node, clear):
                 grants.release_node(m.name, node)

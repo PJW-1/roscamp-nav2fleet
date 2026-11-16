@@ -3,7 +3,6 @@ import math
 from dataclasses import replace
 
 import pytest
-from fleet_core.common.commands import MoveCmd, RetreatCmd
 from fleet_core.common.params import load_params
 from fleet_core.fleet_map import load_fleet_map
 from fleet_core.traffic.zone.base import HERE

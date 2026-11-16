@@ -167,6 +167,6 @@ def test_the_retreat_follows_the_bends_of_the_way_down():
     back = world.traffic._back_link(m)
     assert back.points[1:] == ((1.88, 0.80), (1.70, 0.70), world.site.node_pose("N_E"))
     gap = min(point_segment_distance((1.78, 0.63), a, b)
-              for a, b in zip(back.points, back.points[1:]))
+              for a, b in zip(back.points, back.points[1:], strict=False))
     assert gap > world.params.footprint_radius_m, gap
     assert "WORK_DOCK" not in back.zones

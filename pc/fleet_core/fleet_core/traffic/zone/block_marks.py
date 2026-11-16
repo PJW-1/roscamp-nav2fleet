@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass, field
+from itertools import pairwise
 
 from fleet_core.fleet_map import NAV_GOAL, SHARED
 from fleet_core.fleet_map.geometry import point_segment_distance
@@ -33,8 +34,7 @@ class Mark:
 def polyline_gap(point, points) -> float:
     if len(points) == 1:
         return math.dist(point, points[0])
-    return min(point_segment_distance(point, a, b) for a, b in zip(points, points[1:],
-                                                                    strict=False))
+    return min(point_segment_distance(point, a, b) for a, b in pairwise(points))
 
 
 def keys_at(site, params, point) -> list:

@@ -63,7 +63,8 @@ class Turns:
                 return free
             cost = self._cost(m)
             return sorted(free, key=lambda spot: self._price(m, spot, cost))
-        # 줄에 선 로봇(이 스테이션으로 가는 로봇)이 쥔 자리만 센다: 줄을 떠나는 로봇의 자리는 꼬리가 아니다
+        # 줄에 선 로봇(이 스테이션으로 가는 로봇)이 쥔 자리만 센다:
+        # 줄을 떠나는 로봇의 자리는 꼬리가 아니다
         taken = [i for i, spot in enumerate(station.queue)
                  if self.grants.node_holder(spot) not in mine
                  and self._in_line(self.grants.node_holder(spot), station.id)]

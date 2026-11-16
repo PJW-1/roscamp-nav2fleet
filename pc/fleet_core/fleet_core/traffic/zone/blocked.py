@@ -76,16 +76,7 @@ class Blocked:
         target, via = yard_retreat(site, link)
         if via:
             return self._behind_on_the_bent_way(m, target, via)
-        here, back = (m.x, m.y), site.node_pose(link.a)
-        way = (back[0] - here[0], back[1] - here[1])
-        for other in self._robots.values():
-            if other is m or not other.placed:
-                continue
-            spot = (other.x, other.y)
-            toward = (spot[0] - here[0]) * way[0] + (spot[1] - here[1]) * way[1] > 0.0
-            if toward and point_segment_distance(spot, here, back) < self.params.retreat_clear_m:
-                return other.name
-        return ""
+        return self._behind_along(m, ((m.x, m.y), site.node_pose(link.a)))
 
     # ---- 막힘 표시와 다른 길로 다시 가기 ----
     def _link_on(self, m):
