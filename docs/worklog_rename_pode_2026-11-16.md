@@ -103,8 +103,22 @@
   - 이름 변경 전 판의 종료 로그는 남아 있지 않아 비교하지 못했습니다.
 - 이 한 판은 이름이 끝까지 이어지는지 보는 확인이며, 안전성을 증명하지 않습니다.
 
-## 7. 남은 것
+## 7. 로봇 다시 배포 (pinky_27a6, 192.168.0.200)
 
-- 로봇 pinky_27a6에는 아직 옛 이름(`pinky_*`, 커밋 3de4fc1)이 빌드되어 있습니다. 다시 배포하려면 README의 순서를 따릅니다.
+- 배포 전: 로봇에 ROS, launch, colcon 프로세스가 없었습니다. 옛 이름(`pinky_*`, 커밋 3de4fc1)이 빌드되어 있었습니다.
+- 옛 것: `~/nav2fleet_ws`(소스, `build/`, `install/`, `log/`)와 `~/nav2fleet_real`을 지우지 않고 로봇의 `~/archive_2026-11-16_pinky/`로 통째로 옮겼습니다. README의 순서(옛 것을 `~/nav2fleet_ws` 밖으로 옮기고 빈 상태에서 빌드)와 같습니다.
+- 복사: `main` 7c7d04b에서 `tools/real_pode/deploy.sh pinky@192.168.0.200`. `~/nav2fleet_ws/src/SOURCE_COMMIT`에 7c7d04b를 적었습니다.
+- 빌드: 로봇에서 `/opt/ros/jazzy`, `~/pinky_pro/install/local_setup.bash`를 source한 뒤 `colcon build`.
+  - 7개 패키지 모두 끝났습니다. 4분 29초 걸렸고 exit 0입니다.
+  - 기록(`~/nav2fleet_ws/build.log`)에 warning, error, failed 줄은 없었습니다.
+- 확인 (`env.sh`를 source한 상태):
+  - `install/`과 `ros2 pkg list`에 있는 우리 패키지는 `fleet_interfaces`와 `pode_*` 6개뿐입니다. 옛 `pinky_fsm` 같은 이름은 없습니다.
+  - `pode_fsm`의 실행 파일은 `pode_fsm_node`입니다.
+  - `make_params.py --speed 0.12`가 새 경로에서 두 사본을 만들었습니다. 이때 쓴 임시 폴더는 지웠습니다.
+  - `real_pode.launch.py`와 `cmd_watchdog.py`는 문법 검사(`py_compile`)를 통과했습니다.
+- 하지 않은 것: launch(`start.sh`)는 띄우지 않았습니다. 그래서 새 이름으로 실물이 실제로 뜨고 달리는지는 아직 모릅니다.
+
+## 8. 남은 것
+
 - 팔 이름(`arm1~3` → Phody, Phony)은 바꿀지와 이름 짓는 방식을 팀과 정해야 합니다.
 - 팀 아키텍처 그림의 FMS 모듈 이름 "pinky"는 그림을 그린 팀원이 정할 일입니다.
