@@ -1,5 +1,9 @@
 """구역 교통 층의 이상 상황: 도크 맞바꿈, 막힘, 통신 끊김, 치움과 다시 투입, 멈춤, 위치 튐."""
+from dataclasses import replace
+
+import pytest
 from fleet_core.common.commands import CancelCmd
+from fleet_core.common.params import load_params
 from fleet_core.traffic.mission import RUN, STOP
 from zone_harness import Harness
 
@@ -200,12 +204,14 @@ def test_docking_that_keeps_failing_ends_in_error():
     assert world.result_of(call) is None, "the open call stays for another robot"
 
 
-def test_a_pose_that_jumps_out_of_its_zones_is_recorded_and_releases_nothing():
-    world = Harness()
+@pytest.mark.parametrize("hold", ["", "check"], ids=["hold_off", "hold_check"])
+def test_a_pose_that_jumps_out_of_its_zones_is_recorded_and_releases_nothing(hold):
+    """suspect_hold=check면 구역 밖 보고가 먼저 의심을 건다(ZONES_HELD_SUSPECT)."""
+    world = Harness(params=replace(load_params(), suspect_hold=hold))
     world.step()
     for _ in range(world.params.outside_zone_samples + 1):
         world.traffic.on_robot_state("pode3", 1.0, 0.89, 0.0, "IDLE")
     events = world.traffic.take_output()
-    assert [e.code for e in events] == ["OUTSIDE_ZONE"]
+    assert [e.code for e in events] == ["ZONES_HELD_SUSPECT"] * bool(hold) + ["OUTSIDE_ZONE"]
     view = world.view("pode3")
     assert view["held"] == ["HALL"] and view["nodes"] == ["P-3"] and view["state"] == "PARKED"

@@ -13,10 +13,18 @@ from zone_harness import Harness
 OFF = replace(load_params(), use_order_model=False)
 
 
-def reported(starts):
-    world = Harness(starts=starts)
+def reported(starts, params=None):
+    world = Harness(starts=starts, params=params)
     world.report()
     return world
+
+
+# suspect_hold(위치 의심 때 붙잡기)를 끈 것과 켠 것. 켜면 구역 밖 보고가 먼저 의심을 건다
+HOLDS = pytest.mark.parametrize("hold", ["", "check"], ids=["hold_off", "hold_check"])
+
+
+def outside_codes(hold):
+    return ["ZONES_HELD_SUSPECT"] * bool(hold) + ["OUTSIDE_ZONE", "OUTSIDE_ZONE"]
 
 
 def targets(world, robot):
@@ -60,16 +68,22 @@ def test_a_purpose_changed_and_changed_back_still_arrives_at_the_dock(order):
     assert "DOCK_QUEUED" not in world.codes("pode2") and not world.problems
 
 
-def test_a_robot_carried_into_the_yard_takes_the_yard_and_gives_the_dock_back():
-    world = reported({"pode1": "W", "pode2": "P-2", "pode3": "P-3"})
+@HOLDS
+def test_a_robot_carried_into_the_yard_takes_the_yard_and_gives_the_dock_back(hold):
+    """suspect_hold=check면 구역 밖 보고가 의심을 걸어 도크도 쥔 채로 둔다(다음 goal에서 확인)."""
+    world = reported({"pode1": "W", "pode2": "P-2", "pode3": "P-3"},
+                     replace(load_params(), suspect_hold=hold))
     world.traffic.on_robot_state("pode1", 1.0, 0.40, 0.0, "IDLE")  # 관제가 돌기 전에 들어 옮겼다
     samples = world.params.outside_zone_samples + world.params.release_confirm_samples + 2
     for _ in range(samples):
         world.traffic.on_robot_state("pode1", 1.0, 0.40, 0.0, "IDLE")
     codes = [e.code for e in world.traffic.take_output()]
-    assert codes == ["OUTSIDE_ZONE", "OUTSIDE_ZONE"], "seen, then it takes the zone it stands in"
+    assert codes == outside_codes(hold), "seen, then it takes the zone it stands in"
     view = world.view("pode1")
-    assert view["held"] == ["HALL"] and view["nodes"] == []
+    if hold:
+        assert view["held"] == ["WORK_DOCK", "HALL"] and view["nodes"] == ["W"]
+    else:
+        assert view["held"] == ["HALL"] and view["nodes"] == []
 
 
 @pytest.mark.parametrize("order", [False, True], ids=["order_off", "order_on"])
@@ -213,8 +227,9 @@ def test_a_nav_goal_keeps_every_zone_it_may_cross_until_it_ends():
     assert "HALL_E" not in world.view("pode3")["held"], "given back after the goal ended"
 
 
-def test_a_robot_that_nav2_took_into_another_yard_zone_takes_that_zone():
-    world = Harness("d")
+@HOLDS
+def test_a_robot_that_nav2_took_into_another_yard_zone_takes_that_zone(hold):
+    world = Harness("d", params=replace(load_params(), suspect_hold=hold))
     world.report()
     world.call("WORK", "pode1")
     world.step()
@@ -224,7 +239,7 @@ def test_a_robot_that_nav2_took_into_another_yard_zone_takes_that_zone():
     for _ in range(world.params.outside_zone_samples + 1):
         world.traffic.on_robot_state("pode1", 0.75, 0.20, 0.0, "MOVING")
     codes = [e.code for e in world.traffic.take_output()]
-    assert codes == ["OUTSIDE_ZONE", "OUTSIDE_ZONE"], "seen, then it takes the zone it is in"
+    assert codes == outside_codes(hold), "seen, then it takes the zone it is in"
     assert "CORR_S" in world.view("pode1")["held"]
     assert world.view("pode1")["goal_id"] is not None, "the goal goes on"
 
@@ -286,8 +301,9 @@ def test_a_silent_robot_gives_nothing_back():
     assert world.view("pode1")["held"] == ["HALL", "J_W", "WORK_DOCK"]
 
 
-def test_a_full_yard_zone_is_taken_as_soon_as_there_is_room():
-    world = Harness("d")
+@HOLDS
+def test_a_full_yard_zone_is_taken_as_soon_as_there_is_room(hold):
+    world = Harness("d", params=replace(load_params(), suspect_hold=hold))
     world.report()
     world.call("WORK", "pode1")
     world.step()
@@ -301,7 +317,7 @@ def test_a_full_yard_zone_is_taken_as_soon_as_there_is_room():
     world.traffic.on_robot_state("pode1", 0.75, 0.20, 0.0, "MOVING")
     assert "CORR_S" in world.view("pode1")["held"]
     codes = [e.code for e in world.traffic.take_output()]
-    assert codes == ["OUTSIDE_ZONE", "OUTSIDE_ZONE"], "noted once, then taken"
+    assert codes == outside_codes(hold), "noted once, then taken"
 
 
 def test_the_reports_that_let_go_of_a_zone_must_follow_each_other():

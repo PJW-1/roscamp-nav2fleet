@@ -89,4 +89,4 @@ check_radius_m: 0.10          # 가정: CheckClear의 r. 보고한 칸(가장 �
 check_interval_s: 5.0         # 제안(지시서 9절): 한 표시에 이만큼마다 한 번을 넘게 묻지 않는다
 clear_confirm: 2              # 제안(지시서 9절): clear 답이 이만큼 이어지면 표시를 지운다(BLOCK_CLEARED)
 blocked_retry_max_s: 300.0    # 제안(지시서 9절): 보내 본 로봇이 다시 막히면 다음 지우기까지 시간을 두 배로, 이 값까지
-suspect_hold: ""              # 위치 의심(LOCALIZATION_SUSPECT, OUTSIDE_ZONE) 때 구역 붙잡기: ""(끔) 또는 check(쥔 구역을 다 쥐고 base 끝에서 위치 확인)
+suspect_hold: check           # 위치 의심(LOCALIZATION_SUSPECT, OUTSIDE_ZONE) 때 구역 붙잡기: ""(끔) 또는 check(쥔 구역을 다 쥐고 base 끝에서 위치 확인)

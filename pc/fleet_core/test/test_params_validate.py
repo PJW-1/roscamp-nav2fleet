@@ -142,17 +142,19 @@ def test_score_values_may_be_negative(tmp_path):
 RECORD_COMPAT = {"idle_watch_s", "silent_limit_s", "start_limit_s"}
 
 
-def test_code_defaults_match_the_shipped_file_except_record_compat_watches():
+def test_code_defaults_match_the_shipped_file_except_record_compat_keys():
     """FleetParams(**fields)로 바로 만들 때(tools/replay.py의 옛 기록)의 기본값.
 
     stall_s는 파일과 같다(12 s). 0이 '끔'인 세 감시는 그 키가 없는 옛 기록을 감시 없이
     재생하려고 0으로 둔다(test_zone_silent, test_zone_no_start). load_params는 빠진 키를
-    오류로 내므로 운영 파일에는 이 기본값이 쓰이지 않는다.
+    오류로 내므로 운영 파일에는 이 기본값이 쓰이지 않는다. suspect_hold도 옛 기록은 끈 채로("")
+    재생하고 출하 파일은 check로 돈다(빠져도 되는 키라 파일에 없으면 끈다).
     """
     differ = {name: (f.default, SHIPPED[name]) for name, f in FIELDS.items()
               if f.default is not dataclasses.MISSING and name in SHIPPED
               and f.default != SHIPPED[name]}
-    assert set(differ) == RECORD_COMPAT
+    assert set(differ) == RECORD_COMPAT | {"suspect_hold"}
+    assert differ["suspect_hold"] == ("", "check"), "old records replay off, the file runs B"
     assert all(FIELDS[name].default == 0.0 for name in RECORD_COMPAT)
     assert RECORD_COMPAT <= ZERO_MEANS_OFF
     assert FIELDS["stall_s"].default == SHIPPED["stall_s"] == 12.0

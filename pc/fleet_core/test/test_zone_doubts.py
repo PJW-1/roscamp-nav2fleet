@@ -58,6 +58,11 @@ def held_while(world, name, done, timeout_s=120.0):
     return seen
 
 
+def test_the_shipped_file_runs_with_check_and_the_code_default_is_off():
+    assert load_params().suspect_hold == "check"
+    assert replace(load_params(), suspect_hold="").suspect_hold == ""
+
+
 # ---- 끔: 예전과 같다 ----
 
 def test_with_the_key_off_a_jump_is_only_recorded_and_the_zones_behind_are_released():
