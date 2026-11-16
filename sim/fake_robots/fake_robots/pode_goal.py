@@ -43,6 +43,9 @@ class _Goal:
         self.speed = 0.0
         self.nav: NavGoalDrive | None = None  # move의 nav_goal 모드
         self.line: PathWatch | None = None  # move의 path 모드
+        self.order = None  # order goal이면 OrderRun(pode_order.py)
+        self.seg_mode = ""  # order goal이 달리는 조각의 mode
+        self.last_done = 0  # 결과의 last_done_seq_id
 
     def blocked(self, t: float) -> bool:
         """다른 로봇 앞에 서 있어서 BLOCKED를 보고할 때다."""

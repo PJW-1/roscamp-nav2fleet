@@ -37,6 +37,7 @@ from fake_robots.common import (
 from fake_robots.motion import DelayLine, FaultSchedule, Motion
 from fake_robots.pode_goal import NAV_ABORT_DELAY_S, _Goal
 from fake_robots.pode_goals import PodeGoals
+from fake_robots.pode_order import RETREAT, PodeOrder
 from fake_robots.pode_report import PodeReport
 from fake_robots.pode_retreat import PodeRetreat
 from fake_robots.recovery import ObstacleRecovery, RecoveryParams
@@ -46,7 +47,7 @@ OFF_COURSE_M = 1.0  # 운영자가 치운 로봇이 가는 곳(지도 모서리 
 CONTROL_RATE_HZ = 20.0
 
 
-class FakePodeNode(PodeGoals, PodeRetreat, PodeReport, Node):
+class FakePodeNode(PodeGoals, PodeOrder, PodeRetreat, PodeReport, Node):
     def __init__(self, parameter_overrides=None, **kwargs):
         super().__init__(node_name("fake", "robot_id", parameter_overrides),
                          parameter_overrides=parameter_overrides, **kwargs)
@@ -177,36 +178,20 @@ class FakePodeNode(PodeGoals, PodeRetreat, PodeReport, Node):
                 return
             if self._removed:
                 self._put_back(self._faults.put_back(t))
-            moving = goal is not None and not goal.done.is_set() and goal.kind == "move"
+            moving = (goal is not None and not goal.done.is_set() and goal.kind == "move"
+                      and goal.seg_mode != RETREAT)
             self._recovery.watch(t, self._faults.obstacle(t), moving, self._motion)
             if dt <= 0 or goal is None or goal.done.is_set() or self._faults.stuck(t):
                 return
             if self._heartbeat_lost():
                 self._end(goal, False, MoveTo.Result.REASON_HEARTBEAT_LOST)
                 return
-            if goal.kind == "move":
-                others = self._others_discs()
-                if goal.nav is not None and goal.nav.update(t, self._motion, others):
-                    self._end(goal, False, MoveTo.Result.REASON_NAV_ABORTED)
-                    return
-                if goal.abort_at is not None and t >= goal.abort_at:
-                    if self._recovery.nav_aborted(t, self._motion, self._faults.behind(t)):
-                        self._end(goal, False, MoveTo.Result.REASON_NAV_ABORTED)
-                        return
-                    # 시도를 시작했다. 고장은 이미 났으니 취소돼도 돌려주지 않는다
-                    goal.abort_at, goal.abort_from, goal.aborting = None, None, True
-                if (goal.aborting and goal.abort_at is None
-                        and not self._recovery.backing_up):
-                    goal.abort_at = t + NAV_ABORT_DELAY_S  # 다시 보낸 FollowPath도 중단된다
-                # 물체가 있으면 선다. 시도가 남았으면 후진하고 다시 가 보고, 없으면 BLOCKED.
-                # 바로 앞에 다른 로봇이 있어도 선다(nav_goal은 Nav2 충돌 검사, path는 앞 물체 검사).
-                # 그때도 drive는 속도 0으로 부른다: 물체 앞에서 센 시간과 후진은 이어 간다
-                clear = self._nothing_ahead(goal, t, self._cfg.speed_mps * dt, others)
-                self._recovery.drive(t, dt, self._motion, self._cfg.speed_mps if clear else 0.0,
-                                     others, self._faults.behind(t))
-                if not self._motion.moving and (goal.nav is None or goal.nav.has_way):
-                    self._recovery.succeeded()
-                    self._end(goal, True)
+            if goal.kind == "move" and goal.order is not None:
+                self._order_step(t, dt, goal)
+            elif goal.kind == "move":
+                out = self._move_step(t, dt, goal)
+                if out is not None:
+                    self._end(goal, *out)
             elif goal.kind == "retreat":
                 self._retreat_step(t, dt, goal)
             elif t >= goal.end_at:
@@ -214,6 +199,30 @@ class FakePodeNode(PodeGoals, PodeRetreat, PodeReport, Node):
                 goal.error = (self._rng.gauss(e, 0.1 * e), self._rng.gauss(e, 0.1 * e),
                               self._rng.gauss(0.5, 0.1))
                 self._end(goal, True)
+
+    def _move_step(self, t: float, dt: float, goal: _Goal):
+        """이동 한 틱. 끝나면 (성공, 이유), 아니면 None. order 조각도 이것으로 달린다."""
+        others = self._others_discs()
+        if goal.nav is not None and goal.nav.update(t, self._motion, others):
+            return False, MoveTo.Result.REASON_NAV_ABORTED
+        if goal.abort_at is not None and t >= goal.abort_at:
+            if self._recovery.nav_aborted(t, self._motion, self._faults.behind(t)):
+                return False, MoveTo.Result.REASON_NAV_ABORTED
+            # 시도를 시작했다. 고장은 이미 났으니 취소돼도 돌려주지 않는다
+            goal.abort_at, goal.abort_from, goal.aborting = None, None, True
+        if (goal.aborting and goal.abort_at is None
+                and not self._recovery.backing_up):
+            goal.abort_at = t + NAV_ABORT_DELAY_S  # 다시 보낸 FollowPath도 중단된다
+        # 물체가 있으면 선다. 시도가 남았으면 후진하고 다시 가 보고, 없으면 BLOCKED.
+        # 바로 앞에 다른 로봇이 있어도 선다(nav_goal은 Nav2 충돌 검사, path는 앞 물체 검사).
+        # 그때도 drive는 속도 0으로 부른다: 물체 앞에서 센 시간과 후진은 이어 간다
+        clear = self._nothing_ahead(goal, t, self._cfg.speed_mps * dt, others)
+        self._recovery.drive(t, dt, self._motion, self._cfg.speed_mps if clear else 0.0,
+                             others, self._faults.behind(t))
+        if not self._motion.moving and (goal.nav is None or goal.nav.has_way):
+            self._recovery.succeeded()
+            return True, ""
+        return None
 
     def _remove(self, goal: _Goal | None) -> None:
         """운영자가 로봇을 코스에서 들어내 전원을 껐다."""
