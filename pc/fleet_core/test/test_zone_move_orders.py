@@ -230,7 +230,11 @@ def test_the_robot_answers_reach_the_traffic_layer_in_order_feedback_superseded_
     assert before and all(m == "on_move_feedback" and a[0] == first for m, a in before)
     assert before[-1][1][1:3] == (2, True), "it waits at the base end"
     assert all(a[0] == update for _, a in after), "the old goal says nothing more"
-    assert [m for m, _ in after[:-1]] == ["on_move_feedback"] * (len(after) - 1)
+    feedback = after[:-1]
+    assert feedback and [m for m, _ in feedback] == ["on_move_feedback"] * len(feedback)
+    seqs = [a[1] for _, a in feedback]
+    # update를 받은 로봇은 새 goal id로 base 끝(seq 2)을 한 번 다시 알리고 이어 달린다
+    assert seqs == sorted(set(seqs)) and seqs[0] >= 2 and seqs[-1] > 2, seqs
     last = orders(world, "pode1")[-1].base[-1].seq_id
     assert after[-1] == ("on_move_result", (update, True, "", last))
     assert not world.problems

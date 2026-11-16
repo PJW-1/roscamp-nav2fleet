@@ -121,7 +121,8 @@ class Harness:
         self.hold_answers = False  # 켜면 로봇의 답이 관제에 닿지 않고 쌓인다
         self.answers: list = []  # 관제에 닿은 로봇의 답 (시각, 로봇, 메서드 이름, 인자) 차례대로
         self.goal_fault: dict[str, str] = {}  # 로봇 -> 다음 update goal에 일어날 일(on_goal_*)
-        self.hold_after: dict[str, str] = {}  # 로봇 -> 이 방식의 order 조각 끝에서 말없이 선다
+        # 로봇 -> 이 방식의 order 조각 끝에서 말없이 선다. 선 채로 남는다(answer_at으로만 풀린다)
+        self.hold_after: dict[str, str] = {}
         self._ids = iter(range(1000, 100000))
 
     # ---- 시험이 부르는 것 ----
@@ -189,7 +190,8 @@ class Harness:
 
     def moves(self, robot: str = "") -> list[Leg]:
         """새로 낸 이동 goal마다 첫 구간: MoveCmd 하나, 또는 새 order(update 0)의 첫 base 조각.
-        order 모델을 켜든 끄든 새 goal의 수와 goal id가 같게 읽힌다."""
+        첫 조각이 retreat인 order도 새 goal로 센다(끈 길의 RetreatCmd는 세지 않는다).
+        보낸 명령을 읽으므로 로봇이 받지 못했거나 거절한 것도 들어 있다."""
         return [self._legs(c)[0] for c in self.sent((MoveCmd, MoveOrderCmd), robot)
                 if (not isinstance(c, MoveOrderCmd) or c.update_id == 0) and self._legs(c)]
 
@@ -204,21 +206,29 @@ class Harness:
         return [leg for leg in self.legs(robot) if leg.mode == "retreat"]
 
     def answer_at(self, robot: str, node: str) -> None:
-        """로봇이 node에 닿았다고 손으로 답한다(로봇은 옮기지 않는다). MoveCmd면 그 goal의 성공,
-        order면 node에서 끝나는 base 조각까지 끝냈다는 피드백, 마지막 조각이면 order의 성공이다."""
-        goal = self.view(robot)["goal_id"]
-        cmds = self.sent((MoveCmd, MoveOrderCmd), robot)
-        if not cmds or not isinstance(cmds[-1], MoveOrderCmd):
+        """로봇이 node에 닿았다고 손으로 답하고 로봇을 그 자리에 옮긴다. MoveCmd면 그 goal의 성공,
+        order면 로봇이 받아들인 조각 가운데 node에서 끝나는 다음 조각까지 끝냈다는 피드백,
+        마지막 조각이고 horizon이 없으면 order의 성공이다. 로봇의 OrderRun도 같이 나아간다."""
+        bot = self.bots[robot]
+        bot.x, bot.y = self.site.node_pose(node)
+        bot.points, run = [], bot.run
+        if run is None:
+            cmd, bot.cmd = bot.cmd, None
+            goal = cmd.goal_id if cmd is not None else self.view(robot)["goal_id"]
             self.inputs.on_move_result(robot, goal, True, "")
             return
-        start = max(i for i, c in enumerate(cmds)
-                    if isinstance(c, MoveOrderCmd) and c.update_id == 0)
-        segments = [s for c in cmds[start:] for s in c.base]
-        seq = max(s.seq_id for s in segments if s.end_node == node)
-        if seq == segments[-1].seq_id and not cmds[-1].horizon:
-            self.inputs.on_move_result(robot, goal, True, "", seq)
+        seq = min(s.seq_id for s in run.taken if s.seq_id > run.done_seq and s.end_node == node)
+        run.done_seq, run.held = seq, False
+        if run.current is not None and run.current.seq_id <= seq:
+            run.current = None
+        run.queue = [s for s in run.queue if s.seq_id > seq]
+        run.waiting = run.current is None and not run.queue and bool(run.horizon)
+        run.told = (run.done_seq, run.waiting, run.goal_id)
+        if run.finished:
+            bot.run = None
+            self.inputs.on_move_result(robot, run.goal_id, True, "", seq)
         else:
-            self.inputs.on_move_feedback(robot, goal, seq, seq == segments[-1].seq_id)
+            self.inputs.on_move_feedback(robot, run.goal_id, seq, run.waiting)
 
     def _legs(self, c) -> list[Leg]:
         if isinstance(c, MoveCmd):

@@ -10,6 +10,7 @@ class OrderRun:
     def __init__(self, cmd):
         self.id, self.update, self.goal_id = cmd.order_id, 0, cmd.goal_id
         self.queue = list(cmd.base)
+        self.taken = list(cmd.base)  # 받아들인 base 조각 전부
         self.horizon = cmd.horizon
         self.last = cmd.base[-1] if cmd.base else None  # base의 마지막 조각
         self.current = None  # 달리는 조각
@@ -34,6 +35,7 @@ class OrderRun:
         """update를 붙이고, 넘겨준 이전 goal id를 돌려준다."""
         old, self.goal_id, self.update = self.goal_id, cmd.goal_id, cmd.update_id
         self.queue += list(cmd.base)
+        self.taken += list(cmd.base)
         self.horizon = cmd.horizon
         if cmd.base:
             self.last = cmd.base[-1]
