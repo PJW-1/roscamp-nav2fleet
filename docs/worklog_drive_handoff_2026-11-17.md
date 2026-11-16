@@ -52,8 +52,10 @@ O_OUT을 나온 뒤 뚝뚝 끊기는 것의 개선은 main이 아닌 별도 브�
   서는 방향은 `out_in` 첫 구간의 방향(108도)이고, O_X와 `out_in`의 간격은 0.252 -> 0.242 m가 되었다.
 - 월드와 지도는 `python3 -m fleet_gz_sim.arena --layout v7 --out .`로 다시 만든 것과 바이트까지 같아야 한다
   (`sim/fleet_gz_sim/test/test_arena_v7.py`). `worlds/arena_v7.sdf`만 바뀌었다.
-- **확인하지 못한 것:** Gazebo 판(`gz_v7_rush` 여러 판, `gz_v7_varied` + `v7_yard_mix` 한 판)에서 로봇이 O_IN으로 간
-  일이 한 번도 없었다. O_IN 이동은 단위·통합 시험(fleet_core, fake_robots, fleet_manager)으로만 확인했다.
+- **확인하지 못한 것:** Gazebo에서 O_IN에 닿은 로봇이 없었다. 급행 판들과 main 상태의 장애물 판(oinvar)에서는
+  O_IN으로 보낸 일이 없었고, 브랜치 값의 장애물 판(nvbvar)에서는 관제가 한 대를 O_IN으로 우회시켰지만 그 로봇이
+  선 자리에서 움직이지 못했다(`NO_START` 세 번). O_IN 이동은 단위·통합 시험(fleet_core, fake_robots,
+  fleet_manager)으로만 확인했다.
 
 ## 5. 코드 정리 (동작을 바꾸지 않음)
 
@@ -116,7 +118,8 @@ O_OUT을 나온 뒤 뚝뚝 끊기는 것의 개선은 main이 아닌 별도 브�
 - 이어서 잰 것: Theta*는 둘째 판(277.4 s)에서 칸을 나온 로봇이 진열대 아래에서 막혀 우회했고, Theta* 판마다 자가
   복구가 3번씩 났다(NavFn 판은 0번). 가중치를 올린 판은 더 나빴다. 그래서 고른 것은 **NavFn은 그대로 두고
   `min_lookahead_dist` 0.15와 `rotate_to_heading_min_angle` 0.45를 함께** 주는 것이다: 두 판 251.3 s, 255.2 s,
-  전환당 선 횟수 2.0번. 부작용으로 주차 칸에 들어갈 때 4초쯤 섰다 가는 일이 판마다 한 번 있었다.
+  전환당 선 횟수 2.0~2.5번. 부작용으로 주차 칸에 들어갈 때 4초쯤 섰다 가는 일이 판마다 한 번 있었고, 장애물 판
+  (`gz_v7_varied` + `v7_yard_mix`)에서는 나아지지 않았다(658.0 s, 바꾸기 전 649.4 s, 경고는 거의 두 배).
 - **적용은 main에 없다.** 사용자 지시대로 별도 브랜치 `feat/nav-goal-smooth`에 두었고, 그 브랜치의
   `docs/worklog_nav_goal_smooth_2026-11-17.md`에 모든 판과 선택한 값을 적었다. Theta*로 바꾼 것은 비교용 브랜치
   `feat/nav-goal-theta-star`에 따로 있다.
