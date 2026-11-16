@@ -239,3 +239,52 @@ def test_orders_send_no_arm_goal_themselves():
     for module in ORDERS:
         assert not _package_imports(module)[1] & ARM_GOAL_NAMES, module
     assert _package_imports("arm.jobs")[1] >= ARM_GOAL_NAMES
+
+
+# ---- 시뮬은 교통 내부를 읽지 않는다 ----
+SIM_ROOT = Path(fleet_core.__file__).parents[3] / "sim"
+
+
+def _sim_files():
+    return sorted(SIM_ROOT.glob("*/*/**/*.py"))
+
+
+def _inside_traffic(source):
+    """시뮬 소스가 traffic.zone 안쪽 모듈을 가져오는 줄과 교통 객체의 밑줄 속성을 읽는 줄."""
+    found = []
+    for node in ast.walk(ast.parse(source)):
+        if isinstance(node, ast.ImportFrom) and (node.module or "").startswith(
+                "fleet_core.traffic.zone"):
+            found.append(node.lineno)
+        elif isinstance(node, ast.Import) and any(
+                a.name.startswith("fleet_core.traffic.zone") for a in node.names):
+            found.append(node.lineno)
+        elif isinstance(node, ast.Attribute) and node.attr.startswith("_") and (
+                isinstance(node.value, ast.Name) and node.value.id == "traffic"
+                or isinstance(node.value, ast.Attribute) and node.value.attr == "traffic"):
+            found.append(node.lineno)
+        elif (isinstance(node, ast.Call) and isinstance(node.func, ast.Name)
+              and node.func.id in ("getattr", "setattr") and len(node.args) > 1
+              and isinstance(node.args[0], (ast.Name, ast.Attribute))
+              and "traffic" in ast.unparse(node.args[0])
+              and isinstance(node.args[1], ast.Constant)
+              and str(node.args[1].value).startswith("_")):
+            found.append(node.lineno)
+    return found
+
+
+def test_the_sim_files_are_found():
+    assert any(p.name == "block_watch.py" for p in _sim_files())
+
+
+def test_the_sim_does_not_reach_into_the_traffic_internals():
+    bad = {f"{p.relative_to(SIM_ROOT)}:{n}" for p in _sim_files()
+           for n in _inside_traffic(p.read_text(encoding="utf-8"))}
+    assert not bad, sorted(bad)
+
+
+def test_the_sim_check_can_fail():
+    assert _inside_traffic("from fleet_core.traffic.zone.trips import x\n") == [1]
+    assert _inside_traffic("a = self.world.traffic._blocked\n") == [1]
+    assert _inside_traffic("a = getattr(traffic, '_marks', {})\n") == [1]
+    assert not _inside_traffic("from fleet_core.traffic.api import keys_at\n")

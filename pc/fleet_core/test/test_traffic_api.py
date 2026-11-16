@@ -71,3 +71,11 @@ def test_every_api_member_says_what_the_caller_expects():
 @pytest.mark.parametrize("name", KEPT)
 def test_the_kept_traffic_modules_import_on_their_own(name):
     importlib.import_module(f"fleet_core.traffic.{name}")
+
+
+def test_the_api_publishes_the_observe_names_the_sim_reads():
+    from fleet_core.traffic import api
+    assert {"live_block"} <= declared()
+    assert callable(api.keys_at) and callable(api.segment_end)
+    assert {api.CORRIDOR, api.DESTINATION, api.IN_ZONE, api.KEEPOUT} == {
+        "corridor", "destination", "in_zone", "keepout"}

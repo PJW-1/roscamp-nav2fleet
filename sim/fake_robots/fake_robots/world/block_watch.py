@@ -1,6 +1,6 @@
 """막힘 처리 보완(추가 지시서 3의 4절)의 숫자: 치운 상자 자리의 막힘 표시가 언제 풀렸나, 우회 종류.
 
-걸음마다 관제의 막힘 표시(traffic._blocked, _marks)를 본다. 상자를 치운 시각에 그 자리를 막은
+걸음마다 관제의 막힘 표시(읽기 전용 관측 API)를 본다. 상자를 치운 시각에 그 자리를 막은
 표시가 살아 있었으면, 그 표시가 모두 풀린 때까지의 시간을 잰다(BLOCK_CLEARED든 시간이 다 된
 것이든). 살아 있지 않았으면 잴 것이 없다.
 """
@@ -8,8 +8,7 @@ from __future__ import annotations
 
 import math
 
-from fleet_core.traffic.zone.block_marks import keys_at
-from fleet_core.traffic.zone.detours import CORRIDOR, DESTINATION, IN_ZONE, KEEPOUT
+from fleet_core.traffic.api import CORRIDOR, DESTINATION, IN_ZONE, KEEPOUT, keys_at
 
 from .injections import Obstacle
 
@@ -26,12 +25,10 @@ class BlockWatch:
 
     def _live(self, box, t: float) -> bool:
         traffic = self.world.traffic
-        blocked = getattr(traffic, "_blocked", {})
-        marks = getattr(traffic, "_marks", {})
-        near = self.world.params.near_m
-        return (any(blocked.get(key, 0.0) > t for key in self.keys[box])
-                or any(math.dist((mk.x, mk.y), (box.x, box.y)) <= near + box.radius
-                       for mk in marks.values()))
+        if not hasattr(traffic, "live_block"):  # 관제가 없으면 막힘 표시도 없다
+            return False
+        radius = self.world.params.near_m + box.radius
+        return traffic.live_block(self.keys[box], (box.x, box.y), radius, t)
 
     def step(self) -> None:
         t = self.world.t

@@ -19,7 +19,7 @@ import math
 from dataclasses import dataclass
 
 from fleet_core.fleet_map import DOCK, FOLLOW_PATH, LANE, NAV_GOAL, RETREAT, SHARED
-from fleet_core.traffic.zone.trips import segment_end
+from fleet_core.traffic.api import segment_end
 
 STALE_S = 3.0  # 이만큼 자세가 없으면 회색
 PLAN_FRESH_S = 2.5
