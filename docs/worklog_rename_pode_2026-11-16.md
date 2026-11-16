@@ -53,7 +53,7 @@
 - golden 기록의 칸 맞춤(실제 결함):
   - `zone_harness.py:132`는 로봇 이름을 7칸에 맞춥니다.
   - `pinky1`(6자)에서 `pode1`(5자)로 줄어 공백이 한 칸 더 필요했습니다.
-  - `test_zone_order_off.py`가 실패했고, 132줄을 고친 뒤 통과했습니다.
+  - `test_zone_order_off.py`가 실패했고, golden 기록(`zone_off_golden.txt`) 132줄의 공백을 고친 뒤 통과했습니다(`zone_harness.py`는 그대로).
 - `IFP_공통설계.md`에서 그림의 모듈 이름 하나가 `pode`로 잘못 바뀐 것을 `pinky`로 되돌렸습니다.
 - `팀레포_옮기기.md`의 `order_fsm.py` 경로에 모듈 폴더가 빠져 있었습니다. 이름 변경 전부터 있던 오류입니다.
 - `tools/real_pode/README.md`에 옛 이름으로 배포된 로봇에 다시 배포하는 순서를 적었습니다.
