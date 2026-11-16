@@ -39,7 +39,7 @@ Nav2 goal을 모는 컨트롤러(FollowPathGoal)의 속도는 `nav2_params.yaml`
 - 배포 전에 옛 launch가 돌고 있지 않은지 본다. 새 `stop.sh`는 `real_pode.launch.py`만 찾으므로
   옛 `real_pinky.launch.py`는 내리지 못한다. 돌고 있으면 배포 전에 옛 `stop.sh`로 내린다.
 - `deploy.sh`는 옛 `~/nav2fleet_ws/src/pinky/`와 `build/`, `install/`의 `pinky_*`를 지우지 않는다.
-  옛 것은 보관 폴더로 옮기고 `build/`, `install/`을 비운 뒤 다시 빌드한다. 그러지 않으면 옛
+  옛 것은 `~/nav2fleet_ws` 밖의 보관 폴더로 옮기고 `build/`, `install/`을 비운 뒤 다시 빌드한다. 그러지 않으면 옛
   패키지가 함께 남는다.
 
 ## Gazebo와 다른 실물 기본값
