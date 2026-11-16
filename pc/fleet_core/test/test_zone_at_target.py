@@ -6,6 +6,7 @@ Gazebo 3대 경기에서 나왔다: 출고 도크에서 물러난 로봇이 끝�
 import math
 from dataclasses import replace
 
+import pytest
 from fleet_core.common.commands import CancelCmd, MoveOrderCmd
 from fleet_core.common.params import load_params
 from zone_harness import Harness
@@ -29,11 +30,11 @@ def silence_retreat(world):
     return answer
 
 
-def backing_out(silent_end=True):
+def backing_out(silent_end=True, params=None):
     """pode1이 작업 도크에서 N_W로 물러나는 세계. silent_end면 끝에 닿아도 결과가 오지 않는다.
     order 모델에서 물러나기는 order의 첫 조각이다. silent_end면 로봇은 그 조각 끝에서 말없이 선다.
     answer(robot, goal, success, reason)는 물러나기 goal의 결과를 넣는다."""
-    world = Harness(starts={"pode1": "W", "pode2": "P-2", "pode3": "P-3"})
+    world = Harness(starts={"pode1": "W", "pode2": "P-2", "pode3": "P-3"}, params=params)
     if silent_end and world.params.use_order_model:
         world.hold_after["pode1"] = "retreat"
     world.report()
@@ -93,10 +94,11 @@ def test_a_retreat_that_fails_short_of_its_end_is_still_a_failed_attempt():
     assert world.view("pode1")["node"] == "W"
 
 
-def stopped_behind_short_of_the_end():
+def stopped_behind_short_of_the_end(order):
     """pode1이 작업 도크에서 N_W로 물러나다가 끝에서 0.14 m 안(도착 허용 거리 0.15 m 안, 갈림목
     안)에 서고, 뒤에 무엇이 있다고 답한다."""
-    world, retreat, answer = backing_out(silent_end=False)
+    params = replace(load_params(), use_order_model=order)
+    world, retreat, answer = backing_out(silent_end=False, params=params)
     bot, end = world.bots["pode1"], world.site.node_pose("N_W")
     assert world.run_until(lambda: math.dist((bot.x, bot.y), end) <= 0.14, 20.0)
     assert math.dist((bot.x, bot.y), end) > world.params.arrival_tolerance_m / 2
@@ -107,12 +109,13 @@ def stopped_behind_short_of_the_end():
     return world, retreat
 
 
-def test_a_retreat_stopped_by_something_behind_short_of_its_end_is_not_taken_as_arrived():
+@pytest.mark.parametrize("order", [False, True], ids=["order_off", "order_on"])
+def test_a_retreat_stopped_by_something_behind_short_of_its_end_is_not_taken_as_arrived(order):
     """2026-11-15 order_burst 통합 판: 출고 도크에서 N_E로 물러나던 로봇이 뒤로 지나가는 로봇
     때문에 끝에서 0.2 m 앞(갈림목 안)에 섰다. 잡음 섞인 보고 하나가 끝에서 0.143 m로 보여 닿았다고
     쳤고, 갈림목 안에서 받은 Nav2 goal이 세 번 실패해 격리됐다. 뒤가 막혀 선 로봇은 선을 따라
     남은 길이 허용 거리의 절반을 넘으면 닿은 것이 아니다: 뒤가 빌 때까지 기다린다."""
-    world, retreat = stopped_behind_short_of_the_end()
+    world, retreat = stopped_behind_short_of_the_end(order)
     codes = world.codes("pode1")
     assert "GOAL_ENDED_AT_TARGET" not in codes and "RETREAT_DONE" not in codes
     assert "RETREAT_WAIT" in codes and "GOAL_RETRY" not in codes
@@ -120,8 +123,9 @@ def test_a_retreat_stopped_by_something_behind_short_of_its_end_is_not_taken_as_
     assert not moved_on(world, "pode1", retreat.goal_id), "no Nav2 goal from inside the junction"
 
 
-def test_a_retreat_stopped_by_something_behind_backs_out_again_when_it_is_gone():
-    world, retreat = stopped_behind_short_of_the_end()
+@pytest.mark.parametrize("order", [False, True], ids=["order_off", "order_on"])
+def test_a_retreat_stopped_by_something_behind_backs_out_again_when_it_is_gone(order):
+    world, retreat = stopped_behind_short_of_the_end(order)
     assert world.run_until(lambda: len(world.retreats("pode1")) == 2, 10.0)
     assert world.run_until(lambda: "RETREAT_DONE" in world.codes("pode1"), 20.0)
     assert world.view("pode1")["node"] == "N_W" and not world.problems
@@ -420,11 +424,16 @@ def test_an_order_that_fails_with_the_robot_at_an_unfinished_segment_end_is_take
 
 
 def test_an_order_that_fails_with_the_robot_at_the_base_end_behind_a_close_segment_end_parks():
+    """seq 3(E-1)과 seq 4(물러나 P-1)를 끝냈다는 말이 둘 다 오지 않았다. 건너뛴 두 조각도 피드백으로
+    끝낸 것처럼 SEGMENT_DONE과 RETREAT_DONE을 내고 물러날 곳을 지운다."""
     world, update = parking_into_p1("P-1")
+    before = world.codes("pode1").count("SEGMENT_DONE")
     world.traffic.on_move_result("pode1", update.goal_id, False, "NAV_ABORTED", 2)
     world.step()
     codes = world.codes("pode1")
-    assert "GOAL_ENDED_AT_TARGET" in codes and "RETREAT_DONE" in codes
+    assert "GOAL_ENDED_AT_TARGET" in codes and codes.count("RETREAT_DONE") == 1
+    assert codes.count("SEGMENT_DONE") == before + 2
+    assert world.traffic._robots["pode1"].retreat_to == ""
     assert "GOAL_RETRY" not in codes
     assert world.view("pode1")["node"] == "P-1" and world.phase("pode1") == "PARKED"
 
@@ -447,10 +456,27 @@ def test_late_feedback_of_an_order_already_taken_as_arrived_changes_nothing():
     done = world.codes("pode1").count("SEGMENT_DONE")
     world.traffic.on_move_feedback("pode1", update.goal_id, 3, False)
     world.traffic.on_move_feedback("pode1", update.goal_id, 4, False)
+    world.traffic.on_move_result("pode1", update.goal_id, False, "NAV_ABORTED", 3)
     world.step()
     assert world.codes("pode1").count("SEGMENT_DONE") == done
+    assert "GOAL_RETRY" not in world.codes("pode1")
     assert world.view("pode1")["node"] == "E-1"
     world.bots["pode1"].run = None  # 로봇은 실패한 order를 버렸다
     world.hold_after.clear()
     assert world.run_until(lambda: world.phase("pode1") == "PARKED", 60.0), world.log[-10:]
     assert world.bots["pode1"].y == world.site.node_pose("P-1")[1] and not world.problems
+
+
+def test_with_two_segment_ends_inside_the_tolerance_the_one_nearer_the_robot_is_taken():
+    """E-1(nav_goal 끝)과 P-1(물러나기 끝)이 둘 다 닿았다고 볼 수 있는 자리(E-1에서 0.068 m, P-1에서
+    0.072 m)면 더 가까운 E-1이다. 먼 끝부터 고르면 물러나지 않은 로봇을 칸 안에 있다고 본다."""
+    world, update = parking_into_p1("E-1")
+    bot = world.bots["pode1"]
+    (ex, ey), (px, py) = world.site.node_pose("E-1"), world.site.node_pose("P-1")
+    t = 0.068 / math.dist((ex, ey), (px, py))
+    bot.x, bot.y = ex + (px - ex) * t, ey + (py - ey) * t
+    world.step()
+    world.traffic.on_move_result("pode1", update.goal_id, False, "NAV_ABORTED", 2)
+    world.step()
+    assert "GOAL_ENDED_AT_TARGET" in world.codes("pode1")
+    assert world.view("pode1")["node"] == "E-1" and world.phase("pode1") != "PARKED"
