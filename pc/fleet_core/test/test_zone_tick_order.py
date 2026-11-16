@@ -1,17 +1,24 @@
 """하네스의 ZoneTraffic.tick과 운영 FleetManager.tick이 교통 결과를 같게 내는지 본다.
 
-하네스에는 주문 층과 팔의 일이 없으므로 두 순서의 차이(_pump로 같은 틱 안에 주문 층과 팔이
-교통에 답하는 것)가 드러날 길이 없다. 그 전제가 깨지면 이 시험이 먼저 알려 준다.
+하네스의 교통 전용 시나리오에는 주문 층과 팔의 일이 없으므로 두 순서의 차이(_pump로 같은 틱
+안에 주문 층과 팔이 교통에 답하는 것)가 드러날 길이 없다. 그 전제가 깨지면 이 시험이 먼저 알려 준다.
+아래쪽 시험은 운영 순서에서 입력 경계와 틱 경계가 실제로 어디인지 매니저 입력 함수를 거쳐 고정한다.
 """
 from __future__ import annotations
 
+import os
+
 import pytest
+import zone_harness
 from fleet_core.common.commands import (
     ArmFillCmd,
     DispatchCmd,
+    DispatchResult,
+    MoveCmd,
     OrderRecord,
     ReleaseCmd,
     RobotFaultCmd,
+    RobotIsolated,
 )
 from zone_harness import Harness
 from zone_scenarios import SCENARIOS
@@ -107,34 +114,58 @@ def test_the_manager_order_really_runs_fleet_manager_tick():
 def test_an_unknown_tick_order_is_refused():
     with pytest.raises(ValueError):
         Harness(tick_order="other")
+    with pytest.raises(ValueError):
+        Harness(tick_order="zone", manager_inputs=True)
 
 
-# ---- 의도된 차이: 운영에서는 주문 층의 답이 같은 틱 안에 교통으로 돌아온다 ----
+@pytest.mark.skipif("ZONE_TICK_ORDER" in os.environ, reason="the order was chosen for this run")
+def test_the_harness_runs_the_production_order_unless_told_otherwise():
+    assert zone_harness.TICK_ORDER == "manager"
+    assert Harness().manager is not None
 
-def _inside(world: Harness, kind) -> list:
-    return [c for c in world.commands if isinstance(c, kind)]
+
+# ---- 운영 순서에서 입력과 틱의 경계: 매니저 입력 함수(+_pump)를 거쳐 단계별로 본다 ----
+
+def _seen(world: Harness, kind) -> list:
+    """(단계, 틱 번호) 목록. 단계는 매니저 입력 중이면 input, FleetManager.tick 안이면 tick."""
+    return [(phase, n) for phase, n, item in world.manager.seen if isinstance(item, kind)]
 
 
-def test_in_production_an_order_on_the_board_becomes_a_call_inside_the_same_tick():
-    world = Harness(tick_order="manager")
+def _ordered_world() -> Harness:
+    world = Harness(tick_order="manager", manager_inputs=True)
     world.step()
     world.manager.on_order_board("RUN", [OrderRecord("o1", {"red": 1})])
+    return world
+
+
+def test_in_production_a_board_order_reaches_traffic_at_once_and_the_next_tick_picks_a_robot():
+    world = _ordered_world()
+    # on_order_board가 바로 _pump하므로 호출은 틱이 아니라 입력 때 교통에 닿는다
+    assert _seen(world, DispatchCmd) == [("input", 1)]
+    assert not any(world.view(r)["destination"] == "WORK" for r in world.bots)
     world.step()
-    calls = _inside(world, DispatchCmd)
-    assert len(calls) == 1
-    # 주문 층이 낸 호출을 교통이 같은 틱에 받아 로봇을 정했다
+    assert _seen(world, MoveCmd)[0] == ("tick", 2)
     assert any(world.view(r)["destination"] == "WORK" for r in world.bots)
 
 
-def test_in_production_the_order_layer_answers_traffic_within_the_tick_it_hears():
-    world = Harness(tick_order="manager")
-    world.step()
-    world.manager.on_order_board("RUN", [OrderRecord("o1", {"red": 1})])
-    assert world.run_until(lambda: _inside(world, ArmFillCmd), 300.0), "\n".join(world.log[-20:])
-    robot = _inside(world, ArmFillCmd)[0].robot
-    # 도착 결과와 팔 명령이 같은 틱 기록에 함께 있다
-    arrived = next(i for i, line in enumerate(world.log) if "DispatchResult" in line)
-    asked = next(i for i, line in enumerate(world.log) if "ArmFillCmd" in line)
-    assert world.log[arrived].split()[0] == world.log[asked].split()[0]
-    assert not _inside(world, RobotFaultCmd) and not _inside(world, ReleaseCmd)
-    assert world.phase(robot) == "AT_STATION"
+def test_in_production_the_arm_job_starts_in_the_tick_after_the_dock_result():
+    world = _ordered_world()
+    assert world.run_until(lambda: _seen(world, ArmFillCmd), 300.0), "\n".join(world.log[-20:])
+    [(phase, n)] = [s for s in _seen(world, DispatchResult)]
+    # 도킹 결과는 on_dock_result 입력 때 주문 층에 닿고, 팔 명령은 다음 틱의 orchestrator.step이 낸다
+    assert phase == "input"
+    assert _seen(world, ArmFillCmd) == [("tick", n + 1)]
+    assert not _seen(world, RobotFaultCmd) and not _seen(world, ReleaseCmd)
+
+
+def test_in_production_an_arm_timeout_isolates_the_robot_inside_the_same_tick():
+    world = _ordered_world()
+    limit = world.params.fill_timeout_s + world.params.arm_cancel_wait_s + 120.0
+    # 하네스는 팔에 답하지 않으므로 채우기는 끝내 시간이 다 된다
+    assert world.run_until(lambda: _seen(world, RobotIsolated), limit), "\n".join(world.log[-20:])
+    [fault] = _seen(world, RobotFaultCmd)
+    [isolated] = _seen(world, RobotIsolated)
+    # arm.check_timeouts의 고장이 같은 틱의 _pump로 교통에 들어가 그 틱 안에 격리된다
+    assert fault[0] == "tick" and isolated == fault
+    robot = next(i.robot for _, _, i in world.manager.seen if isinstance(i, RobotFaultCmd))
+    assert not world.traffic.available(robot)
