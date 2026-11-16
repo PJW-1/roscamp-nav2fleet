@@ -230,22 +230,51 @@ def old_stall_record(path):
         now[0] += 0.1
         core.on_robot_state("pode1", x, y, 0.0, "MOVING", 90.0)
         core.tick()
-    assert any('"GOAL_STALLED"' in line for line in lines)
     head = json.loads(lines[0])
     del head["params"]["stall_s"]
     path.write_text("\n".join([json.dumps(head), *lines[1:]]) + "\n", encoding="utf-8")
-    return path
+    return path, stall_times(lines)
 
 
-def test_replay_of_an_old_record_judges_the_stall_at_6_s(tmp_path):
-    result = replay.replay(old_stall_record(tmp_path / "old.jsonl"))
+def stall_times(lines):
+    """pode1의 GOAL_STALLED 사건 시각."""
+    events = (json.loads(line) for line in lines[1:])
+    return [e["t"] for e in events
+            if e.get("code") == "GOAL_STALLED" and e.get("robot") == "pode1"]
+
+
+def replay_lines(path, monkeypatch):
+    """replay()를 돌리고 재생 코어가 낸 줄도 받는다(기록 쓰기를 갈라 받음)."""
+    produced = []
+    start = replay.start_core
+
+    def start_and_tee(head, clock):
+        core = start(head, clock)
+        record_to = core.record_to
+
+        def tee(write):
+            record_to(lambda line: (write(line), produced.append(line)))
+        core.record_to = tee
+        return core
+
+    monkeypatch.setattr(replay, "start_core", start_and_tee)
+    return replay.replay(path), produced
+
+
+def test_replay_of_an_old_record_judges_the_stall_at_6_s(tmp_path, monkeypatch):
+    path, recorded = old_stall_record(tmp_path / "old.jsonl")
+    assert recorded and recorded[0] == pytest.approx(6.3, abs=0.05)
+    result, produced = replay_lines(path, monkeypatch)
     assert result.same and result.compared, result
+    assert stall_times(produced) == recorded
 
 
 def test_without_the_compat_default_the_old_record_would_replay_differently(tmp_path,
                                                                             monkeypatch):
-    """위 시험이 stall_s에 기대는지 확인: 호환 기본값을 빼면 12 s로 판정해 결과가 달라진다."""
-    path = old_stall_record(tmp_path / "old.jsonl")
+    """위 시험이 stall_s에 기대는지 확인: 호환 기본값을 빼면 12 s로 판정해 6.3 s 사건이 없다."""
+    path, recorded = old_stall_record(tmp_path / "old.jsonl")
     monkeypatch.setattr(replay, "RECORD_DEFAULTS", {})
-    result = replay.replay(path)
+    result, produced = replay_lines(path, monkeypatch)
     assert result.compared and not result.same
+    assert len(produced) > 1, "재생 줄을 받지 못하면 아래 단언이 빈 목록으로 통과한다"
+    assert all(abs(t - recorded[0]) > 1.0 for t in stall_times(produced))

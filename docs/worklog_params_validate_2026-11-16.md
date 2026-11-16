@@ -71,17 +71,22 @@ FleetParams 필드와 `fleet_params.yaml` 키 비교 결과: 빠진 키 `zone_cl
 
 ## 해제·후진
 
-- 관제(`traffic/zone/progress.py:25-26`, :103-112): 기준점과 거리가 세 갈래다. 앞의 두 갈래는
-  `not p.zone_clear_m`(참·거짓)일 때만 탄다.
+- 관제(`traffic/zone/progress.py:25-26`, :94-121, `_release_behind`):
+  - 선행 조건(:97-101): 정착 대기 중(`clock < settle_until`)이거나 보유한 모든 구역에서 보고 중심이
+    `outside_zone_m`보다 멀면 해제 카운터를 모두 지우고 아무것도 놓지 않고 돌아간다.
+  - 그다음 기준점과 거리가 세 갈래다. 앞의 두 갈래는 `not p.zone_clear_m`(참·거짓)일 때만 탄다.
   - `phase == AT_STATION`이고 노드가 지도에 있을 때: 그 **지점 좌표**에서 `footprint_radius_m + dock_error_m`.
     로봇이 지점 위에 있는지 거리는 보지 않는다(도킹 성공이 자리를 보증한다는 가정).
   - 노드가 지도에 있고 보고 중심이 그 지점에서 `release_margin_m` 안일 때: 그 **지점 좌표**에서
     `footprint_radius_m + release_margin_m`(0.135 m).
   - 그 밖: **보고 중심**에서 `release_gap`(0.135 m, `zone_clear_m`이 참이면 그 값).
-  - 기준점과 구역 다각형의 거리가 그 값 **이상**(`>= gap - 1e-9`, :112)인 판정이 `release_confirm_samples`번
-    이어지면 놓는다(아직 갈 길에 필요한 구역은 빼고).
+  - 기준점과 구역 다각형의 거리가 그 값 **이상**(1e-9 허용 오차: `>= gap - 1e-9`, :112)인 판정이
+    `release_confirm_samples`번 이어지면 놓는다(아직 갈 길에 필요한 구역은 빼고).
   - `zone_clear_m`이 0이 아닌 값인 옛 기록은 늘 보고 중심에서 그 값이다. 기록에 `zone_clear_m: 0`으로 적혀
-    있으면 거짓이라 앞의 두 노드 기준 갈래를 탄다(빠진 것과 같다). 지점은 `node_clear_m`(0.20 m).
+    있으면 거짓이라 빠진 것과 같고, 조건이 맞으면 앞의 두 노드 기준 갈래를 탈 수 있다: `AT_STATION`이고
+    노드가 지도에 있을 때, 또는 노드가 지도에 있고 보고 중심에서 노드까지 거리가 `release_margin_m` 이하일 때.
+  - 지점(노드)은 `node_clear_m`(0.20 m) 이상 멀어지면 놓는다. 예외(:115-118): 주차 칸(`site.parking`)에
+    `PARKED`로 선 로봇이 제 노드 위(`_on_node`)면 제 칸 말고 칸 안쪽(`_in_bay`)의 노드를 거리와 상관없이 놓는다.
 - Pode(`pode/pode_fsm/pode_fsm/recovery.py:48-50`, `backup.py:33`): 후진 거리 =
   `min(backup_max_m, 마지막 경로 꼭짓점부터 경로를 따라 온 거리 - (release_distance_m + backup_margin_m))`.
   중심을 마지막 **경로 꼭짓점**에서 0.23 m 앞에 둔다.
@@ -112,6 +117,11 @@ FleetParams 필드와 `fleet_params.yaml` 키 비교 결과: 빠진 키 `zone_cl
   - worklog 해제 조건 설명을 progress.py:103-112와 맞게 고쳤다(AT_STATION은 거리를 안 봄, zone_clear_m은
     참·거짓, 비교는 "이상").
   - fleet_core 전체: 1026 passed (35.7 s).
+- 세 번째 후속 커밋(Codex 리뷰 947b9cd 반영):
+  - 재생 시험이 재생 코어의 줄을 받아(`start_core`를 감싸 기록 쓰기를 갈라 받음) pode1의 GOAL_STALLED가
+    기록과 같은 시각(약 6.3 s)에 있는지, 호환 기본값을 빼면 그 시각(±1 s)에 없는지를 직접 단언한다.
+  - worklog 해제 설명에 선행 조건(:97-101), 주차 노드 예외(:115-118), 1e-9 허용 오차, zone_clear_m 0의 조건을 더했다.
+  - fleet_core 전체: 1026 passed (33.3 s).
 
 ## 돌리지 않은 것
 
