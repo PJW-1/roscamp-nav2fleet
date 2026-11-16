@@ -338,6 +338,10 @@ def test_moves_stay_refused_until_a_slow_spin_has_stopped(harness):
     assert wait_until(fut.done, 5.0)
     assert fut.result().accepted is False
     assert probe.last_state().state == RobotState.STATE_LOCALIZING
+    # 회전이 아직 돌면 새 relocalize도 바쁘다(Codex fc31a26)
+    again = client.result(client.send()).result
+    assert again.reason == Relocalize.Result.REASON_BUSY and again.stage == ""
+    assert len(fake.spins) == 1
     assert wait_until(lambda: fake.spin_ends, 5.0)
     assert wait_until(lambda: probe.last_state().state == RobotState.STATE_IDLE, 2.0)
     assert probe.result(probe.send(lane_goal(["P-3", "P-4"]))).result.success is True

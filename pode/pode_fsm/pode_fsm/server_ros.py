@@ -15,6 +15,7 @@ from pode_fsm.results import NAV_ABORTED
 
 # ---- 피드백 주기, 액션별 결과 형식, goal 대기 슬롯 ----
 FEEDBACK_PERIOD_S = 0.2
+PENDING_S = 2.0  # 수락한 goal이 넘김 콜백까지 걸릴 수 있는 시간의 상한
 _RESULT = {"move": MoveTo.Result, "dock": Dock.Result, "retreat": Retreat.Result}
 
 
@@ -34,7 +35,7 @@ class GoalServers:
                  refuse: Callable[[], bool] = lambda: False):
         self._node, self._lock, self._fsm = node, lock, fsm
         self._refuse = refuse
-        self.pending = 0  # 수락했지만 아직 상태 기계에 넘기지 않은 goal 수
+        self._pending: list[float] = []  # 수락했지만 아직 상태 기계에 넘기지 않은 goal의 수락 시각
         self._pose, self._run, self._alive = pose, run, alive
         self._slots: dict[bytes, _Slot] = {}
         self._move_server = self._server(MoveTo, contract.name("move_to", pode=robot_id),
@@ -72,14 +73,22 @@ class GoalServers:
             if self._refuse():
                 self._node.get_logger().warn("goal rejected: relocalizing")
                 return GoalResponse.REJECT
-            self.pending += 1
+            self._pending.append(time.monotonic())
             return GoalResponse.ACCEPT
+
+    @property
+    def pending(self) -> int:
+        # 수락 뒤 넘김 콜백이 끝내 오지 않은 것(핸들 생성 실패)은 PENDING_S 뒤 잊는다
+        now = time.monotonic()
+        self._pending = [t for t in self._pending if now - t < PENDING_S]
+        return len(self._pending)
 
     # ---- 수락된 goal을 상태 기계에 넘기기 ----
     def _accepted(self, handle, kind: str) -> None:
         key = bytes(handle.goal_id.uuid)
         with self._lock:
-            self.pending = max(0, self.pending - 1)
+            if self._pending:
+                self._pending.pop(0)
             self._slots[key] = _Slot(handle)
             pose = self._pose()
             here = pose[:3] if pose else None

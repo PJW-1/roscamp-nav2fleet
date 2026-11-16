@@ -35,8 +35,7 @@ class MapField(NamedTuple):
     oy: float
     yaw: float
     dist: np.ndarray  # (높이, 너비) 가장 가까운 벽 칸까지 거리(m), 상한 너머는 inf
-    near_i: np.ndarray | None = None  # 그 벽 칸의 열 번호(없으면 -1)
-    near_j: np.ndarray | None = None  # 그 벽 칸의 행 번호
+    occ: np.ndarray | None = None  # (높이, 너비) 벽 칸이면 참. 있으면 점-칸 거리를 정확히 잰다
 
 
 class Estimate(NamedTuple):
@@ -80,34 +79,31 @@ class Done:
 # ---- 점유 격자의 거리 변환(상한까지 정확한 유클리드 거리) ----
 def distance_field(res: float, width: int, height: int, data: Sequence[int],
                    occupied: int = 65, cap_m: float = 0.3) -> np.ndarray:
-    return nearest_field(res, width, height, data, occupied, cap_m)[0]
-
-
-# ---- 거리 변환과 가장 가까운 벽 칸 번호 ----
-def nearest_field(res: float, width: int, height: int, data: Sequence[int],
-                  occupied: int = 65, cap_m: float = 0.3):
     occ = np.asarray(data, dtype=np.int16).reshape(height, width) >= occupied
     dist = np.full((height, width), np.inf)
-    near_i = np.full((height, width), -1, dtype=np.int32)
-    near_j = np.full((height, width), -1, dtype=np.int32)
     ys, xs = np.nonzero(occ)
     if len(ys) == 0:
-        return dist, near_i, near_j
+        return dist
     r = int(math.ceil(cap_m / res))
-    offsets = sorted((math.hypot(dx, dy) * res, dx, dy)
-                     for dy in range(-r, r + 1) for dx in range(-r, r + 1))
-    # 가까운 이동부터 처음 닿은 칸에만 적는다: 그 값이 가장 작은 거리다
-    for d, dx, dy in offsets:
-        if d > cap_m + 1e-9:
-            break
-        ty, tx = ys + dy, xs + dx
-        ok = (ty >= 0) & (ty < height) & (tx >= 0) & (tx < width)
-        ty, tx, sy, sx = ty[ok], tx[ok], ys[ok], xs[ok]
-        new = np.isinf(dist[ty, tx])
-        dist[ty[new], tx[new]] = d
-        near_i[ty[new], tx[new]] = sx[new]
-        near_j[ty[new], tx[new]] = sy[new]
-    return dist, near_i, near_j
+    # 상한 원 안의 칸 이동마다 벽을 옮겨 가장 작은 거리를 남긴다
+    for dy in range(-r, r + 1):
+        for dx in range(-r, r + 1):
+            d = math.hypot(dx, dy) * res
+            if d > cap_m + 1e-9:
+                continue
+            ty, tx = ys + dy, xs + dx
+            ok = (ty >= 0) & (ty < height) & (tx >= 0) & (tx < width)
+            np.minimum.at(dist, (ty[ok], tx[ok]), d)
+    return dist
+
+
+# ---- 지도 하나로 거리장과 점유 격자를 함께 만든다 ----
+def map_field(res: float, width: int, height: int, data: Sequence[int], ox: float, oy: float,
+              yaw: float, occupied: int, tol: float) -> MapField:
+    occ = np.asarray(data, dtype=np.int16).reshape(height, width) >= occupied
+    # 칸 중심 거리 상한: tol 안의 점이 볼 수 있는 벽 칸을 모두 담는다
+    dist = distance_field(res, width, height, data, occupied, tol + 2.0 * res)
+    return MapField(res, ox, oy, yaw, dist, occ)
 
 
 # ---- 레이저 거리에서 유효한 점(레이저 좌표) ----
@@ -143,16 +139,26 @@ def scan_match(field: MapField, pts: np.ndarray, pose: Sequence[float],
     h, w = field.dist.shape
     inside = (i >= 0) & (i < w) & (j >= 0) & (j < h)
     hit = np.zeros(len(pts), dtype=bool)
-    if field.near_i is None:
+    if field.occ is None:
         hit[inside] = field.dist[j[inside], i[inside]] <= tol + 1e-9
         return float(hit.sum()) / len(pts)
-    # 점에서 가장 가까운 벽 칸의 네모까지 거리
-    ni = field.near_i[j[inside], i[inside]]
-    nj = field.near_j[j[inside], i[inside]]
-    ui, vi = u[inside], v[inside]
-    gx = np.maximum(np.maximum(ni * field.res - ui, ui - (ni + 1) * field.res), 0.0)
-    gy = np.maximum(np.maximum(nj * field.res - vi, vi - (nj + 1) * field.res), 0.0)
-    hit[inside] = (ni >= 0) & (np.hypot(gx, gy) <= tol + 1e-9)
+    # 거리장으로 먼저 거른다: 칸 중심 거리가 tol + 대각선보다 멀면 어떤 벽 칸도 tol 밖이다
+    res = field.res
+    cand = np.nonzero(inside)[0]
+    cand = cand[field.dist[j[cand], i[cand]] <= tol + res * math.sqrt(2.0) + 1e-9]
+    ci, cj, cu, cv = i[cand], j[cand], u[cand], v[cand]
+    found = np.zeros(len(cand), dtype=bool)
+    r = int(math.ceil(tol / res)) + 1
+    # 남은 점은 주변 벽 칸 네모까지 거리를 모두 잰다
+    for dy in range(-r, r + 1):
+        for dx in range(-r, r + 1):
+            ti, tj = ci + dx, cj + dy
+            ok = (ti >= 0) & (ti < w) & (tj >= 0) & (tj < h)
+            ok[ok] = field.occ[tj[ok], ti[ok]]
+            gx = np.maximum(np.maximum(ti * res - cu, cu - (ti + 1) * res), 0.0)
+            gy = np.maximum(np.maximum(tj * res - cv, cv - (tj + 1) * res), 0.0)
+            found |= ok & (np.hypot(gx, gy) <= tol + 1e-9)
+    hit[cand] = found
     return float(hit.sum()) / len(pts)
 
 

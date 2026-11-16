@@ -33,7 +33,7 @@ from pode_fsm.relocalize import (
     Nomotion,
     Relocalizer,
     Spin,
-    nearest_field,
+    map_field,
     is_busy,
     scan_match,
     scan_points,
@@ -111,7 +111,7 @@ class RelocalizeServer:
         self._last_scan = 0.0
         self._last_pose = 0.0
         self._since = 0.0
-        self._pending_pose = None  # 같은 시각 스캔을 기다리는 amcl_pose
+        self._pending: collections.deque = collections.deque(maxlen=SCANS_KEPT)  # 스캔 기다리는 추정
         self._nomotion = node.create_client(Empty, topics["nomotion"], callback_group=group)
         self._global = node.create_client(Empty, topics["global"], callback_group=group)
         self._spin = SpinRunner(node, topics["spin"], self._on_spin_result,
@@ -143,13 +143,11 @@ class RelocalizeServer:
     # ---- 지도, 스캔, AMCL 추정 구독 ----
     def _on_map(self, msg: OccupancyGrid) -> None:
         info, o = msg.info, msg.info.origin
-        # 칸 중심 거리 상한: tol 안의 점이 볼 수 있는 벽 칸을 모두 담는다
-        near = nearest_field(info.resolution, info.width, info.height, msg.data,
-                             self.p.occupied_threshold,
-                             self.p.match_tol_m + 2.0 * info.resolution)
         yaw = quaternion_yaw(o.orientation.x, o.orientation.y, o.orientation.z,
                              o.orientation.w)
-        self._field = MapField(info.resolution, o.position.x, o.position.y, yaw, *near)
+        self._field = map_field(info.resolution, info.width, info.height, msg.data,
+                                o.position.x, o.position.y, yaw, self.p.occupied_threshold,
+                                self.p.match_tol_m)
 
     def _on_scan(self, msg: LaserScan) -> None:
         t = _seconds(msg.header.stamp)
@@ -160,10 +158,11 @@ class RelocalizeServer:
             self._scans.append((t, msg))
             if self._machine is not None:
                 self._run(self._machine.scan(time.monotonic()))
-            # 이 스캔을 기다리던 추정이 있으면 이제 판정한다
-            pending, self._pending_pose = self._pending_pose, None
-            if pending is not None and self._machine is not None:
-                self._judge(*pending)
+            # 이 스캔 시각까지의 기다리던 추정을 차례로 판정한다
+            while self._pending and self._pending[0][0] <= t + 1e-6:
+                item = self._pending.popleft()
+                if self._machine is not None:
+                    self._judge(*item)
 
     def _on_amcl_pose(self, msg: PoseWithCovarianceStamped) -> None:
         t = _seconds(msg.header.stamp)
@@ -177,11 +176,14 @@ class RelocalizeServer:
             self._last_pose = t
             # 같은 시각 스캔이 아직 오지 않았으면 그 스캔이 올 때 판정한다
             if self._last_scan < t - 1e-6:
-                self._pending_pose = (t, msg, pose)
+                self._pending.append((t, msg, pose))
                 return
             self._judge(t, msg, pose)
 
     def _judge(self, t: float, msg, pose) -> None:
+        # 전역 재초기화 전의 추정은 버린다(기다리던 것도)
+        if t < self._since:
+            return
         std_xy, std_yaw = std_from_covariance(msg.pose.covariance)
         e = Estimate(pose[0], pose[1], pose[2], std_xy, std_yaw, self._match(t, pose))
         cmds = self._machine.estimate(time.monotonic(), e)
@@ -254,6 +256,7 @@ class RelocalizeServer:
                 return
             # 재초기화 앞의 추정은 버린다
             self._since = _seconds(self._node.get_clock().now().to_msg())
+            self._pending.clear()
             self._run(self._machine.global_ready(time.monotonic(), ok))
 
     def _on_spin_result(self, seq: int, outcome: str, code: int) -> None:
@@ -275,7 +278,8 @@ class RelocalizeServer:
     def _execute(self, handle):
         req = handle.request
         with self._lock:
-            if is_busy(self._state(), self._machine is not None):
+            # 앞 goal의 회전이 아직 멈추지 않았어도 바쁘다
+            if is_busy(self._state(), self.active):
                 handle.abort()
                 return Relocalize.Result(success=False, reason=BUSY, stage="")
             machine = Relocalizer(self.p, req.allow_spin, req.allow_global,
@@ -283,7 +287,7 @@ class RelocalizeServer:
             self._machine = machine
             self._since = _seconds(self._node.get_clock().now().to_msg())
             self._used_stamp = None
-            self._pending_pose = None
+            self._pending.clear()
             # 시작 자세: 시작 때 마지막 amcl_pose. 없으면 pose_valid는 거짓(계약)
             self._start_pose = self._latest
         try:

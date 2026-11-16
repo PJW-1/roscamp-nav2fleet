@@ -27,7 +27,7 @@ from pode_fsm.relocalize import (
     failure_reason,
     is_busy,
     is_good,
-    nearest_field,
+    map_field,
     scan_match,
     scan_points,
     std_from_covariance,
@@ -434,21 +434,32 @@ def test_busy_reason_name():
 
 
 # ---- Codex 938df90 지적 반영 ----
+def test_point_in_a_corner_cell_matches_either_wall():
+    """왼쪽과 아래가 모두 벽인 칸: 어느 벽 옆에 있든 그 벽까지 거리로 잰다(Codex fc31a26)."""
+    f = map_field(RES, SIZE, SIZE, room(), 0.0, 0.0, 0.0, 65, 0.01)
+    near_left = scan_points([math.hypot(1.0 - 0.052, 1.0 - 0.098)],
+                            math.atan2(0.098 - 1.0, 0.052 - 1.0), 1.0, 0.05, 12.0)
+    near_bottom = scan_points([math.hypot(1.0 - 0.098, 1.0 - 0.052)],
+                              math.atan2(0.052 - 1.0, 0.098 - 1.0), 1.0, 0.05, 12.0)
+    for pts in (near_left, near_bottom):
+        assert scan_match(f, pts, (1.0, 1.0, 0.0), (0.0, 0.0, 0.0), 0.01) == 1.0
+
+
 def test_point_near_a_wall_cell_is_measured_to_the_cell_not_its_centre():
     """칸 중심 사이 거리(0.10 m)가 아니라 점에서 벽 칸까지 거리(0.055 m)로 잰다."""
-    f = MapField(RES, 0.0, 0.0, 0.0, *nearest_field(RES, SIZE, SIZE, room(), 65, 0.2))
+    f = map_field(RES, SIZE, SIZE, room(), 0.0, 0.0, 0.0, 65, 0.06)
     pts = scan_points([0.895], math.pi, 1.0, 0.05, 12.0)  # 레이저 (1.0, 1.0)에서 왼쪽 → x=0.105
     assert scan_match(f, pts, (1.0, 1.0, 0.0), (0.0, 0.0, 0.0), 0.06) == 1.0
     pts = scan_points([0.885], math.pi, 1.0, 0.05, 12.0)  # x=0.115 → 0.065 m
     assert scan_match(f, pts, (1.0, 1.0, 0.0), (0.0, 0.0, 0.0), 0.06) == 0.0
 
 
-def test_nearest_field_matches_distance_field():
-    d = distance_field(RES, SIZE, SIZE, room(), occupied=65, cap_m=0.3)
-    nd, ni, nj = nearest_field(RES, SIZE, SIZE, room(), 65, 0.3)
-    assert (nd == d).all()
-    assert (ni[5, 3], nj[5, 3]) == (0, 5)  # 왼쪽 벽 칸
-    assert ni[20, 20] == -1
+def test_map_field_keeps_the_occupancy_and_origin():
+    f = map_field(RES, SIZE, SIZE, room(), 5.0, -2.0, 0.0, 65, 0.06)
+    assert f.occ[0, 5] and not f.occ[5, 5]
+    assert (f.ox, f.oy) == (5.0, -2.0)
+    pts = points(1.0, 1.0, 0.0)
+    assert scan_match(f, pts, (6.0, -1.0, 0.0), (0.0, 0.0, 0.0), 0.06) == pytest.approx(1.0)
 
 
 def test_estimate_after_the_deadline_cannot_succeed():
