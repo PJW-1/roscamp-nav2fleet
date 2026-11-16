@@ -7,11 +7,11 @@
 
 | 파일 | 하는 일 |
 |---|---|
-| `real_pinky.launch.py` | 제조사 bringup(`/<ns>` 안, `/tf` remap), `cmd_watchdog.py`, `pinky_nav_config` `nav2.launch.py`, `pinky_fsm`을 띄운다. 프로세스 하나라도 끝나면 전체를 내린다 |
-| `cmd_watchdog.py` | 움직이는 cmd_vel이 0.4 s 동안 새로 오지 않으면 속도 0을 보낸다(제조사 bringup은 마지막 명령을 끝없이 지킨다) |
+| `real_pinky.launch.py` | 제조사 bringup(`/<ns>` 안, `/tf` remap), `cmd_watchdog.py`, `pinky_nav_config` `nav2.launch.py`, `pinky_fsm`을 띄운다. 프로세스 하나라도 끝나면 전체를 내린다. Nav2 노드는 컨테이너 한 프로세스 안의 컴포넌트라, 컴포넌트 하나가 뜨지 못해도 컨테이너가 살아 있으면 내리지 않는다(기록에서 lifecycle 활성화를 확인한다) |
+| `cmd_watchdog.py` | 움직이는 cmd_vel이 0.4 s 넘게 새로 오지 않으면 속도 0을 보낸다(50 ms마다 보므로 실제로는 0.40~0.45 s 뒤). 제조사 bringup은 마지막 명령을 끝없이 지킨다 |
 | `make_params.py --speed S --out DIR` | 저장소의 `nav2_params.yaml`과 `avoidance.yaml`을 베끼고 앞으로 가는 속도(FollowPath, FollowPathThrough, FollowPathGoal)만 S로 바꾼다. 0 < S ≤ 0.25. FollowPathReverse(0.05)는 그대로 |
 | `start.sh NS X Y YAW [SPEED]` | `params/`를 다시 만들고(SPEED 기본 0.12) launch를 뒤에서 띄운다. 기록은 `logs/launch_*.log`, 프로세스 그룹은 `logs/launch.pid` |
-| `stop.sh` | start.sh가 띄운 그룹에 SIGTERM. 그 그룹이 `real_pinky.launch.py`가 아니면 내리지 않는다 |
+| `stop.sh` | start.sh가 띄운 그룹에 SIGTERM. 그룹 안에 `real_pinky.launch.py` 명령이 없으면 내리지 않는다(이름만 보는 확인이다). start.sh는 동시에 두 번 부르지 않는다 |
 | `env.sh` | ROS, `~/pinky_pro`, `~/nav2fleet_ws`를 읽고 `ROS_DOMAIN_ID=12`, `ROS_AUTOMATIC_DISCOVERY_RANGE=SUBNET` (11-10에 로봇과 PC가 쓴 값) |
 | `deploy.sh ROBOT_HOST` | PC에서: 커밋된 HEAD의 패키지를 `ROBOT:~/nav2fleet_ws/src/<저장소 경로>/`에, 이 폴더(지도 포함)를 `ROBOT:~/nav2fleet_real/`에 복사한다. 빌드와 실행은 하지 않는다 |
 | `maps/` | `sim/fleet_gz_sim/maps/`의 v7 지도 셋(5 cm, 1 cm, keepout) 사본 |

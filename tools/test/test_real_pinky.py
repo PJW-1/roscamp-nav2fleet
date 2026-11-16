@@ -34,7 +34,7 @@ def _make_params():
 
 
 # ---- make_params.py ----
-@pytest.mark.parametrize("speed", [0.0, -0.1, 0.26, 1.0, float("nan"), float("inf")])
+@pytest.mark.parametrize("speed", [0.0, -0.1, 0.26, 0.25001, 0.00001, 1.0, float("nan"), float("inf")])
 def test_make_params_refuses_bad_speed(tmp_path, speed):
     mp = _make_params()
     with pytest.raises(ValueError):

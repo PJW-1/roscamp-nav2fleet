@@ -36,6 +36,9 @@ def checked_speed(speed) -> float:
     value = float(speed)
     if not math.isfinite(value):
         raise ValueError(f"speed must be a finite number, got {speed!r}")
+    # 반올림 전에 범위를 본다(0.25001이 0.25로 빠져나가지 않게)
+    if not 0.0 < value <= MAX_SPEED or round(value, 4) <= 0.0:
+        raise ValueError(f"speed must be above 0 and at most {MAX_SPEED} m/s, got {speed!r}")
     value = round(value, 4)
     if not 0.0 < value <= MAX_SPEED:
         raise ValueError(f"speed must be above 0 and at most {MAX_SPEED} m/s, got {speed!r}")
