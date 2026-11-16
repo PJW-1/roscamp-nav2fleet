@@ -239,9 +239,9 @@ class ZoneWorld(Commands, Link):
 
     def _step_run(self, run, r):
         """run 한 걸음. drive_by_estimate 창이면 몸을 믿는 자리로 옮겨 달리고 되돌린다."""
-        dx = self.schedule.belief_dx(r.name, self.t)
-        if dx != self._last_dx.get(r.name, 0.0):
-            _rebase(run, (r.x + dx, r.y))  # 믿는 자리가 바뀌었다(창 시작, 다시 수렴)
+        dx, last = self.schedule.belief_dx(r.name, self.t), self._last_dx.get(r.name, 0.0)
+        if dx != last:
+            _rebase(run, (r.x + dx, r.y), dx - last)  # 믿는 자리가 바뀌었다(창 시작, 다시 수렴)
         self._last_dx[r.name] = dx
         if not dx:
             return run.step(self, r)
@@ -271,9 +271,13 @@ class ZoneWorld(Commands, Link):
         return True
 
 
-def _rebase(run, pose) -> None:
-    """믿는 자리가 바뀌면 달리던 길의 첫 점(로봇 자리)을 새 자리로 바꾼다."""
+def _rebase(run, pose, shift: float) -> None:
+    """믿는 자리가 shift(+x)만큼 바뀌면 달리던 길의 첫 점(로봇 자리)을 새 자리로 바꾼다.
+    끝에 닿아 도는 중이면 끝 점으로 다시 간다. 나아감 판정의 기준점도 같이 옮긴다."""
     sub = getattr(run, "sub", None) or run  # order goal이면 달리는 조각
     way = getattr(sub, "way", None)
     if way:
-        way[0] = pose
+        way[:] = [pose, way[0]] if len(way) == 1 else [pose, *way[1:]]
+    mark = getattr(sub, "mark", None)
+    if mark is not None:
+        sub.mark = (mark[0] + shift, mark[1])

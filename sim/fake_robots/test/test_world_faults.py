@@ -190,6 +190,28 @@ def test_without_drive_by_estimate_the_body_drives_as_if_there_were_no_pose_erro
     assert NoisyPose("pode1", 1.0, 2.0) == NoisyPose("pode1", 1.0, 2.0, drive_by_estimate=False)
 
 
+def test_a_window_closing_while_turning_at_the_end_drives_the_body_back_to_the_goal():
+    # 믿는 자리로 9.7 s쯤 끝에 닿고 3 s 넘게 돈다. 도는 동안 창이 닫힌다
+    world = quiet_world(robots={"pode1": "N_W"}, injections=[
+        NoisyPose("pode1", 1.0, 11.0, jump_m=0.2, drive_by_estimate=True)])
+    world.send(follow(world, "pode1", 1, ["N_W", "N_E"], yaw=math.pi))
+    world.run(20.0)
+    assert results(world, "on_move_result")[0][2] is True
+    assert math.dist(world.robots["pode1"].pose, world.site.node_pose("N_E")) < 1e-6
+
+
+def test_rebase_moves_the_first_point_and_the_progress_mark_and_keeps_a_reached_end():
+    from types import SimpleNamespace
+
+    from fake_robots.world.world import _rebase
+    run = SimpleNamespace(way=[(0.0, 0.0), (1.0, 0.0)], mark=(0.0, 0.0))
+    _rebase(run, (0.2, 0.0), 0.2)
+    assert run.way == [(0.2, 0.0), (1.0, 0.0)] and run.mark == (0.2, 0.0)
+    done = SimpleNamespace(way=[(1.0, 0.0)])  # 끝에 닿아 도는 중
+    _rebase(done, (0.8, 0.0), -0.2)
+    assert done.way == [(0.8, 0.0), (1.0, 0.0)]
+
+
 def test_pose_jumps_drive_is_pose_jumps_driven_by_the_estimate_and_stays_out_of_the_table():
     from fake_robots.world.situations import NAMES, build
     plain, drive = build("pose_jumps", "d2"), build("pose_jumps_drive", "d2")
