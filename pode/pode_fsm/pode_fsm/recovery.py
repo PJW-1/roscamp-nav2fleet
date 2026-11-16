@@ -19,12 +19,23 @@ class SelfRecovery:
         limit = 1 if self.p.local_yield else self.p.recovery_attempts
         return pose is not None and self._attempts < limit
 
-    def _start_attempt(self, g: _Move, now: float, pose: Sequence[float]) -> list:
-        if self.p.local_yield:
-            return self._start_yield(g, now, pose)
+    def _count_attempt(self, pose: Sequence[float]) -> None:
         self._attempts += 1
         if self._attempt_origin is None:
             self._attempt_origin = (float(pose[0]), float(pose[1]))
+
+    def _send_backup(self, r: _Recovery, now: float, d: float) -> list:
+        self._bseq += 1
+        r.backup_seq, r.backup_since = self._bseq, now
+        self._backup_running = True
+        self._backup_unanswered[self._bseq] = (now + self.p.backup_time_allowance_s
+                                               + self.p.backup_result_grace_s)
+        return [BackUp(self._bseq, d, self.p.backup_speed_mps, self.p.backup_time_allowance_s)]
+
+    def _start_attempt(self, g: _Move, now: float, pose: Sequence[float]) -> list:
+        if self.p.local_yield:
+            return self._start_yield(g, now, pose)
+        self._count_attempt(pose)
         g.s = self._track(g, pose)
         r = self._recovery = _Recovery(stuck_s=g.s)
         self._blocked, self._clear_since = False, None
@@ -36,13 +47,7 @@ class SelfRecovery:
         d = self._backup_distance(g, pose)
         if d < self.p.backup_min_m:
             return cmds + self._follow_again(g, r, now, pose)
-        self._bseq += 1
-        r.backup_seq, r.backup_since = self._bseq, now
-        self._backup_running = True
-        self._backup_unanswered[self._bseq] = (now + self.p.backup_time_allowance_s
-                                               + self.p.backup_result_grace_s)
-        return cmds + [BackUp(self._bseq, d, self.p.backup_speed_mps,
-                              self.p.backup_time_allowance_s)]
+        return cmds + self._send_backup(r, now, d)
 
     # ---- 옆 이탈을 넘지 않는 후진 거리 계산과 다시 주행 ----
     def _backup_distance(self, g: _Move, pose: Sequence[float]) -> float:

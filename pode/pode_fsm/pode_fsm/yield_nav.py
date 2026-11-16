@@ -4,7 +4,7 @@ from __future__ import annotations
 import math
 from collections.abc import Sequence
 
-from pode_fsm.backup import BackUp, CancelBackUp
+from pode_fsm.backup import CancelBackUp
 from pode_fsm.local_yield import extend_trail, straight_back_m
 from pode_fsm.nav_goal import NavGoal
 from pode_fsm.records import _Recovery
@@ -27,9 +27,7 @@ class NavYield:
         if r is None:
             stalled = now - max(g.anchor_at, g.turned_at) >= self.p.block_report_s
             if stalled and not g.blocked and self._can_recover(pose):
-                self._attempts += 1
-                if self._attempt_origin is None:
-                    self._attempt_origin = (float(pose[0]), float(pose[1]))
+                self._count_attempt(pose)
                 self._recovery = _Recovery(
                     stuck_s=math.dist(pose[:2], g.target[:2]), local=True,
                     wait_until=now + self.p.local_wait_s, stood_since=g.anchor_at)
@@ -88,13 +86,7 @@ class NavYield:
 
     # ---- 후진 보내기와 끝난 뒤 goal 다시 보내기 ----
     def _nav_backup(self, r: _Recovery, now: float) -> list:
-        self._bseq += 1
-        r.backup_seq, r.backup_since = self._bseq, now
-        self._backup_running = True
-        self._backup_unanswered[self._bseq] = (now + self.p.backup_time_allowance_s
-                                               + self.p.backup_result_grace_s)
-        return [BackUp(self._bseq, r.backup_m, self.p.backup_speed_mps,
-                       self.p.backup_time_allowance_s)]
+        return self._send_backup(r, now, r.backup_m)
 
     def _nav_follow_again(self, g: NavGoal, r: _Recovery, now: float, pose) -> list:
         r.backup_seq, r.follow_since = None, now
