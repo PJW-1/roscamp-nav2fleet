@@ -50,11 +50,13 @@ origin/main 7c7d04b에서 갈라진 브랜치 여섯 개를 통합 브랜치에 
 | 위반(violations) | 없음 | 없음 |
 | 구역 해제 | 60회, early 0, near 0 | 60회, early 0, near 0 |
 | 최소 로봇 간격 | 0.220 m | 0.224 m |
-| 막힘·회복 이벤트(BLOCKED, STALL, BACKUP 등) | 0 | 0 |
+| events.csv의 막힘·회복 이벤트(BLOCKED, STALL, BACKUP 등) | 0 | 0 |
+| recovery_probe.csv의 로봇 RECOVERING 진입 | 0 | 2 (pode3 30.3 s에 1.45 s, pode1 222.9 s에 0.20 s) |
 | 시계 겹침 경고(backwards in time, TF_OLD_DATA) | 0 | - |
 
 - 두 판 모두 한 번씩이라 시간 차이 1.8 s를 성능 차이로 볼 근거는 없다.
-- 이 판에서는 후진(BackUp)과 회복이 한 번도 일어나지 않았다. 그래서 fix/action-cancel의 BackUp 취소·결과 처리 경로는 Gazebo에서 확인되지 않았다(단위 시험 test_action_runners.py로만 확인).
+- events.csv는 관제 이벤트만 담아 로봇의 짧은 RECOVERING을 세지 않는다. 회복은 recovery_probe.csv로 본다.
+- 병합 뒤 판에서는 후진(BackUp)과 회복이 한 번도 일어나지 않았다. 그래서 fix/action-cancel의 BackUp 취소·결과 처리 경로는 Gazebo에서 확인되지 않았다(단위 시험 test_action_runners.py로만 확인).
 - 종료 때 nav2 컨테이너 3개가 "Magick: abort due to signal 11"로 죽고 launch가 exit 1을 낸다. 시나리오 모니터가 끝나 launch가 내리는 중에 생기며, 병합 전 판(gz_measure_1116b, gz_order_1116, gz_rename)의 launch.log에도 같은 줄이 있다.
 - 결과 폴더: /tmp/claude-1000/-home-ane-ros2camp/255eff68-4c77-42b3-b9fc-325ae2037b61/scratchpad/gz_main_1116 (임시 폴더라 지워질 수 있다).
 
