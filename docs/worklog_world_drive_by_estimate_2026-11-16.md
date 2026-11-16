@@ -100,5 +100,5 @@ d2에서는 몸이 벽 밖(x < 0)까지 나간다. 세계는 벽에 몸이 닿�
 - 새 시험은 한 대의 FollowRun과 `_rebase` 단위 시험뿐이다. NavGoalRun, RetreatRun, OrderRun, 다른 로봇이나
   물체가 있을 때의 충돌 좌표(`discs`, `clear_to`)는 코드를 읽어 맞다고 봤고 시험으로 보지 않았다.
 - v7의 `pose_jumps`가 origin/main에서도 0/6이다. 이 작업과 관계없다(따로 볼 일).
-- `pose_jumps_drive`는 `pose_jumps`의 기대(주문 완료, 허용 위반 I5_STANDING)를 그대로 물려받았고 따로 정한
-  기대는 없다. 가드를 고친 뒤 기대를 정해 `NAMES`에 넣을지 정한다.
+- `pose_jumps_drive`는 `pose_jumps`의 기대(배치 c가 아니면 주문 완료, 허용 위반 I5_STANDING)를 그대로
+  물려받았고 따로 정한 기대는 없다. 가드를 고친 뒤 기대를 정해 `NAMES`에 넣을지 정한다.
