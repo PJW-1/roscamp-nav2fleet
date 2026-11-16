@@ -187,11 +187,38 @@ def test_start_usage_and_speed_refusal():
     run = subprocess.run(["bash", str(KIT / "start.sh"), "pinky1", "0.1"],
                          capture_output=True, text=True)
     assert run.returncode == 2
-    before = sorted(p.name for p in KIT.iterdir())
+    before = sorted(p.name for p in KIT.iterdir() if p.name != "logs")
     run = subprocess.run(["bash", str(KIT / "start.sh"), "pinky1", "0.12", "0.10", "1.5708",
                           "0.3"], capture_output=True, text=True)
     assert run.returncode != 0
-    assert sorted(p.name for p in KIT.iterdir()) == before  # 아무것도 만들지 않았다
+    # 잠금 파일(logs/) 말고는 아무것도 만들지 않았다
+    assert sorted(p.name for p in KIT.iterdir() if p.name != "logs") == before
+    assert not (KIT / "logs" / "launch.pid").exists()
+
+
+def _stub_kit(tmp_path):
+    # start.sh만 진짜, make_params와 env는 대역(env에서 멈춰 launch까지 가지 않는다)
+    shutil.copy(KIT / "start.sh", tmp_path)
+    (tmp_path / "make_params.py").write_text("print('params ok')\n")
+    (tmp_path / "env.sh").write_text("echo ENV_REACHED\nreturn 1\n")
+    return tmp_path / "start.sh"
+
+
+def test_start_refuses_while_another_start_holds_the_lock(tmp_path):
+    import fcntl
+    start = _stub_kit(tmp_path)
+    (tmp_path / "logs").mkdir()
+    with open(tmp_path / "logs" / "start.lock", "w") as lock:
+        fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        run = subprocess.run(["bash", str(start), "pinky1", "0.12", "0.10", "1.5708"],
+                             capture_output=True, text=True, timeout=10)
+    assert run.returncode == 1
+    assert "another start.sh" in run.stdout and "ENV_REACHED" not in run.stdout
+    assert "params ok" not in run.stdout  # 잠금보다 먼저 사본을 바꾸지 않는다
+    # 잠금이 풀리면 env까지 간다(대역 env가 거기서 멈춘다)
+    run = subprocess.run(["bash", str(start), "pinky1", "0.12", "0.10", "1.5708"],
+                         capture_output=True, text=True, timeout=10)
+    assert run.returncode == 1 and "ENV_REACHED" in run.stdout
 
 
 def _own_group(tmp_path, *argv):
