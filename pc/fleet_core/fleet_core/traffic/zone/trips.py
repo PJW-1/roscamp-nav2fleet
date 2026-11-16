@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass
+from itertools import pairwise
 
 from fleet_core.common.commands import MoveCmd, RetreatCmd
 from fleet_core.fleet_map import FOLLOW_PATH, NAV_GOAL, RETREAT, SHARED, Link, distance
@@ -78,7 +79,7 @@ def heading(a, b) -> float:
 
 
 def _pieces(link) -> list:
-    return [(a, b) for a, b in zip(link.points, link.points[1:], strict=False)
+    return [(a, b) for a, b in pairwise(link.points)
             if math.dist(a, b) > 0.0]
 
 
@@ -151,7 +152,7 @@ def retreat_command(params, robot: str, goal_id: int, links, x: float, y: float)
     facing = [math.remainder(yaw + math.pi, math.tau) for yaw in yaws]
     path = tuple((px, py, yaw) for (px, py), yaw in zip(points, [facing[0], *facing],
                                                          strict=True))
-    distance = sum(math.dist(a, b) for a, b in zip(points, points[1:], strict=False))
+    distance = sum(math.dist(a, b) for a, b in pairwise(points))
     return RetreatCmd(robot, goal_id, distance, params.retreat_speed_mps, path)
 
 
@@ -166,7 +167,7 @@ def back_link(site, x: float, y: float, node: str, zones, via: str = "", bends=(
     corner = [site.node_pose(via)] if via else []
     end = site.nodes[node]
     points = ((x, y), *corner, *(tuple(p) for p in bends), (end.x, end.y))
-    length = sum(math.dist(a, b) for a, b in zip(points, points[1:], strict=False))
+    length = sum(math.dist(a, b) for a, b in pairwise(points))
     return Link("", node, RETREAT, "", points, tuple(zones), length)
 
 

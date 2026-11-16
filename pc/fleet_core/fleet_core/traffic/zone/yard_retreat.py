@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import math
+from itertools import pairwise
 
 from fleet_core.fleet_map import FOLLOW_PATH, PASS, SHARED
 from fleet_core.fleet_map.geometry import point_segment_distance
@@ -49,7 +50,7 @@ class YardRetreat:
                 continue
             spot = (other.x, other.y)
             toward = (spot[0] - here[0]) * way[0] + (spot[1] - here[1]) * way[1] > 0.0
-            gap = min(point_segment_distance(spot, a, b) for a, b in zip(way_pts, way_pts[1:]))
+            gap = min(point_segment_distance(spot, a, b) for a, b in pairwise(way_pts))
             if toward and gap < self.params.retreat_clear_m:
                 return other.name
         return ""

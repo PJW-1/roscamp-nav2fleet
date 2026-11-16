@@ -119,7 +119,7 @@ class Progress:
                 released.append(zone)
         parked = m.phase == PARKED and m.node in site.parking and self._on_node(m)
         for node in grants.nodes_of(m.name):
-            clear = node not in nodes and (parked and node != m.node and self._in_bay(m, node)
+            clear = node not in nodes and ((parked and node != m.node and self._in_bay(m, node))
                                            or self._gap(m, node) >= p.node_clear_m)
             if self._counted(m, NODE_KEY + node, clear):
                 grants.release_node(m.name, node)

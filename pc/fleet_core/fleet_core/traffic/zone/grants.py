@@ -11,7 +11,7 @@ class ZoneGrants:
         self._clock = clock
         self._gap = follow_gap_s
         self._holders: dict[str, dict[str, float]] = {zone: {} for zone in site.zones}
-        self._nodes: dict[str, str] = {node: "" for node in site.nodes}
+        self._nodes: dict[str, str] = dict.fromkeys(site.nodes, "")
         self._direction: dict[str, str] = {}
         self._held: dict[str, list[str]] = {}
         self._held_nodes: dict[str, list[str]] = {}

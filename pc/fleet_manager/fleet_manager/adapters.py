@@ -32,7 +32,7 @@ REASON_OF_STATUS = {
 
 
 def to_time(seconds: float) -> Time:
-    sec, nanosec = divmod(int(round(seconds * 1e9)), 1_000_000_000)
+    sec, nanosec = divmod(round(seconds * 1e9), 1_000_000_000)
     return Time(sec=sec, nanosec=nanosec)
 
 
