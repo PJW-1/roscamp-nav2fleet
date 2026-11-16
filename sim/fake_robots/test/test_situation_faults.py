@@ -2,11 +2,10 @@
 import pytest
 from situation_helpers import (
     ALL_LAYOUTS,
-    POSE_JUMPS_OPEN,
     SEEDS,
-    PoseJumpsOpen,
     check,
     check_pose_jumps,
+    pose_jumps_marks,
 )
 
 
@@ -29,12 +28,13 @@ def test_comm_loss_then_removal_and_reinstate(layout, seed):
 @pytest.mark.parametrize("seed", SEEDS)
 @pytest.mark.parametrize("layout", ALL_LAYOUTS)
 def test_jumping_reports_leave_every_invariant_but_standing_intact(layout, seed):
-    """끈 길을 지킨다(order 모델 끔). 켠 길은 아래 xfail이다."""
+    """끈 길을 지킨다(order 모델 끔). 켠 길은 아래에 따로 있다."""
     check("pose_jumps", layout, seed, overrides={"use_order_model": False})
 
 
-@pytest.mark.xfail(strict=True, raises=PoseJumpsOpen, reason=POSE_JUMPS_OPEN)
-@pytest.mark.parametrize("seed", SEEDS)
-@pytest.mark.parametrize("layout", ALL_LAYOUTS)
+@pytest.mark.parametrize(("layout", "seed"), [
+    pytest.param(layout, seed, marks=pose_jumps_marks(layout, seed), id=f"{layout}-{seed}")
+    for layout in ALL_LAYOUTS for seed in SEEDS])
 def test_jumping_reports_with_the_order_model_on(layout, seed):
+    """suspect_hold=check: 튄 뒤 구역을 쥐어 I3가 없다(전에는 strict xfail)."""
     check_pose_jumps(layout, seed)

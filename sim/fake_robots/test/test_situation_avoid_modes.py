@@ -16,11 +16,10 @@ from fake_robots.world.situations import NAMES
 from fake_robots.world.table import run_situation
 from situation_helpers import (
     ALL_LAYOUTS,
-    POSE_JUMPS_OPEN,
     SEEDS,
-    PoseJumpsOpen,
     check,
     check_pose_jumps,
+    pose_jumps_marks,
 )
 
 MODES = ("none", "mixed")
@@ -44,11 +43,10 @@ def _cells():
                     yield pytest.param(name, layout, mode, seed, None, marks=marks,
                                        id=f"{name}-{layout}-{mode}-{seed}")
                     if name == "pose_jumps":
-                        # 위는 끈 길(order 끔)로 돈다. 켠 길은 열린 문제로 strict xfail이다
-                        yield pytest.param(name, layout, mode, seed, True, marks=[
-                            pytest.mark.xfail(strict=True, raises=PoseJumpsOpen,
-                                              reason=POSE_JUMPS_OPEN)],
-                            id=f"{name}-{layout}-{mode}-{seed}-order_on")
+                        # 위는 끈 길(order 끔)로 돈다. 켠 길은 I3 없이 지나고, 격리 칸만 xfail이다
+                        yield pytest.param(name, layout, mode, seed, True,
+                                           marks=pose_jumps_marks(layout, seed),
+                                           id=f"{name}-{layout}-{mode}-{seed}-order_on")
 
 
 def test_every_listed_failure_is_a_real_cell():
