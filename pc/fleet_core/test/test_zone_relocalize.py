@@ -296,6 +296,19 @@ def test_a_robot_that_never_stands_still_ends_the_relocalize_by_its_time_limit()
     assert world.codes("pode1").count("RELOCALIZE_FAILED") == params.relocalize_attempts
 
 
+def test_a_robot_stuck_reporting_localizing_is_not_asked_again_and_ends_by_the_limit():
+    """앞 시도 뒤에도 LOCALIZING만 보고하면 다시 보내지 않고 기한으로 끝낸다(Codex 9c4b1c6)."""
+    params = replace(RELOC, relocalize_timeout_s=3.0)
+    world, _ = queued(params)
+    world.reloc_fails["pode1"] = "NOT_CONVERGED"
+    wrong_from(world, "pode1", 4.0)
+    assert world.run_until(lambda: "RELOCALIZE_FAILED" in world.codes("pode1"), 60.0)
+    reports(world, "pode1", "LOCALIZING")
+    assert world.run_until(lambda: "ROBOT_ISOLATED" in world.codes("pode1"), 30.0)
+    assert len(world.sent(RelocalizeCmd, "pode1")) == 1, "never sent while it said LOCALIZING"
+    assert "TIMEOUT" in [e for e in world.events if e.code == "RELOCALIZE_FAILED"][-1].detail
+
+
 def test_busy_answers_end_by_the_time_limit_of_the_attempt():
     params = replace(RELOC, relocalize_timeout_s=3.0)
     world, _ = queued(params)
