@@ -1,10 +1,14 @@
 # ---- 관제가 시키는 위치 다시 찾기 액션 ----
-# 로봇은 선 채로 AMCL을 다시 맞춘다: 무이동 갱신, 제자리 회전, 허락하면 전역 재초기화.
-# 성공은 공분산이 작고 스캔이 지도와 맞을 때만이다. 공분산만으로는 성공이 아니다.
+# 로봇은 선 채로 AMCL을 다시 맞춘다. 단계 순서: 무이동 갱신 -> 회전(허락 시) -> 전역 재초기화(허락 시).
+# 앞 단계가 성공하면 끝낸다. 회전이 막히면 전역이 허락된 경우만 다음 단계로 간다.
+# 이동·도킹·물러나기 중이면 BUSY로 거절한다. 도는 동안 로봇은 다른 이동 goal을 받지 않고
+# 상태를 LOCALIZING으로 알린다. 취소·시간 초과 때는 회전을 멈춘 뒤 결과를 낸다.
+# 성공: std_xy_m과 std_yaw_rad가 작고 scan_match가 높은 상태가 새 갱신 여러 번 이어질 때.
+# 공분산만으로는 성공이 아니다. 문턱값은 로봇 설정(pode_fsm)에 있다.
 
 # ---- goal: 쓸 단계와 시간 ----
-bool allow_spin true
-bool allow_global false
+bool allow_spin true  # 충돌 검사하는 제자리 한 바퀴
+bool allow_global false  # AMCL 전역 재초기화
 float32 timeout_s 30.0
 ---
 # ---- result: reason에 넣는 값 ----
@@ -16,13 +20,20 @@ string REASON_NO_LOCALIZER="NO_LOCALIZER"
 string REASON_TIMEOUT="TIMEOUT"
 string REASON_CANCELED="CANCELED"
 
-# ---- result: 결과와 마지막 추정 ----
+# ---- result: 결과 ----
 bool success
 string reason
-geometry_msgs/Pose2D pose
-float32 std_xy_m
+string stage  # 끝난 단계(feedback의 STAGE_*), 시작 전 거절이면 빈칸
+
+# ---- result: 추정(map 틀). pose_valid가 거짓이면 아래 자세·품질 값은 쓰지 않는다 ----
+bool pose_valid
+builtin_interfaces/Time stamp  # pose와 품질 값을 잰 amcl_pose 시각
+geometry_msgs/Pose2D start_pose  # 시작할 때의 추정(옮겨진 거리 계산용)
+geometry_msgs/Pose2D pose  # 끝날 때의 추정
+float32 std_xy_m  # sqrt(max(var_x, var_y))
 float32 std_yaw_rad
-float32 scan_match
+float32 scan_match  # 0~1, 추정 자세로 투영한 유효 스캔 점 중 지도 장애물 칸 match_tol_m 안의 비율. 클수록 좋다
+uint32 fresh_updates  # 판정에 쓴 새 amcl_pose 수
 ---
 # ---- feedback: 지금 단계와 추정 상태 ----
 string STAGE_NOMOTION="NOMOTION"
