@@ -15,7 +15,9 @@ from pode_fsm.results import NAV_ABORTED
 
 # ---- 피드백 주기, 액션별 결과 형식, goal 대기 슬롯 ----
 FEEDBACK_PERIOD_S = 0.2
-PENDING_S = 2.0  # 수락한 goal이 넘김 콜백까지 걸릴 수 있는 시간의 상한
+# 수락한 goal의 예약을 잊는 시간. 핸들 생성 실패로 넘김 콜백이 끝내 오지 않을 때만 쓰인다.
+# 넘김 콜백은 보통 ms 안에 온다. 이보다 늦으면 다른 goal의 예약을 지울 수 있다(알려진 한계)
+PENDING_S = 10.0
 _RESULT = {"move": MoveTo.Result, "dock": Dock.Result, "retreat": Retreat.Result}
 
 
