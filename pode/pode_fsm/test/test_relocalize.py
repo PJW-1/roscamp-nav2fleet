@@ -27,6 +27,7 @@ from pode_fsm.relocalize import (
     failure_reason,
     is_busy,
     is_good,
+    nearest_field,
     scan_match,
     scan_points,
     std_from_covariance,
@@ -430,3 +431,38 @@ def test_zero_timeout_uses_the_default():
 
 def test_busy_reason_name():
     assert BUSY == "BUSY"
+
+
+# ---- Codex 938df90 지적 반영 ----
+def test_point_near_a_wall_cell_is_measured_to_the_cell_not_its_centre():
+    """칸 중심 사이 거리(0.10 m)가 아니라 점에서 벽 칸까지 거리(0.055 m)로 잰다."""
+    f = MapField(RES, 0.0, 0.0, 0.0, *nearest_field(RES, SIZE, SIZE, room(), 65, 0.2))
+    pts = scan_points([0.895], math.pi, 1.0, 0.05, 12.0)  # 레이저 (1.0, 1.0)에서 왼쪽 → x=0.105
+    assert scan_match(f, pts, (1.0, 1.0, 0.0), (0.0, 0.0, 0.0), 0.06) == 1.0
+    pts = scan_points([0.885], math.pi, 1.0, 0.05, 12.0)  # x=0.115 → 0.065 m
+    assert scan_match(f, pts, (1.0, 1.0, 0.0), (0.0, 0.0, 0.0), 0.06) == 0.0
+
+
+def test_nearest_field_matches_distance_field():
+    d = distance_field(RES, SIZE, SIZE, room(), occupied=65, cap_m=0.3)
+    nd, ni, nj = nearest_field(RES, SIZE, SIZE, room(), 65, 0.3)
+    assert (nd == d).all()
+    assert (ni[5, 3], nj[5, 3]) == (0, 5)  # 왼쪽 벽 칸
+    assert ni[20, 20] == -1
+
+
+def test_estimate_after_the_deadline_cannot_succeed():
+    r, _ = run(allow_spin=False)
+    feed(r, 1.0, est(), P.stable_updates - 1)
+    assert r.estimate(30.5, est()) == []
+    d = done(r.tick(30.5))
+    assert not d.success and d.reason == TIMEOUT
+
+
+def test_spin_allowance_is_never_zero():
+    """Jazzy Spin은 0을 무제한으로 본다. 몫이 모자라도 최소값을 준다."""
+    p = RelocalizeParams(settle_s=25.0)  # 30 - 7.5 - 25 < 0
+    r = Relocalizer(p, True, False, 30.0, now=0.0)
+    r.start(True)
+    spins = [c for c in r.tick(p.nomotion_share * 30.0) if isinstance(c, Spin)]
+    assert spins[0].allowance_s == pytest.approx(p.min_spin_allowance_s)

@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import collections
+from functools import partial
 import time
 from collections.abc import Callable
 
@@ -32,7 +33,7 @@ from pode_fsm.relocalize import (
     Nomotion,
     Relocalizer,
     Spin,
-    distance_field,
+    nearest_field,
     is_busy,
     scan_match,
     scan_points,
@@ -57,9 +58,10 @@ class SpinRunner(GoalRunner):
     _label = "spin"
 
     def __init__(self, node, action_name: str, on_result: Callable[[int, str, int], None],
-                 callback_group=None):
+                 on_stopped: Callable[[int], None], callback_group=None):
         super().__init__(node, SpinAction, action_name, callback_group)
         self._on_result = on_result
+        self._on_stopped = on_stopped
 
     def send(self, seq: int, yaw: float, allowance_s: float) -> bool:
         if not self._client.server_is_ready():
@@ -76,14 +78,21 @@ class SpinRunner(GoalRunner):
         self._on_result(seq, outcome, code)
 
     def _lost(self, seq: int) -> None:
-        # 결과를 잃었다. 취소는 공통 실행기가 보냈다
-        self._on_result(seq, "aborted", 0)
+        # 결과를 잃었다. 취소는 공통 실행기가 보냈다. 멈춤은 취소 응답(GONE)으로만 안다
+        self._on_result(seq, "lost", 0)
+
+    def _cancel_confirmed(self, seq: int, gone: bool) -> None:
+        super()._cancel_confirmed(seq, gone)
+        # 취소 중(goals_canceling)은 아직 도는 중이다. 이미 끝났다는 답만 멈춤으로 본다
+        if gone:
+            self._on_stopped(seq)
 
 
 # ---- 액션 서버 ----
 class RelocalizeServer:
     def __init__(self, node, name: str, p: RelocalizeParams, group, lock, base_frame: str,
                  tf_buffer, state: Callable[[], str], topics: dict[str, str]):
+        # state: 바쁨 검사에 쓸 상태(수락됐지만 아직 FSM에 안 넘긴 이동 goal도 바쁨)
         self._node, self.p = node, p
         self._base_frame, self._tf = base_frame, tf_buffer
         self._state = state
@@ -92,6 +101,7 @@ class RelocalizeServer:
         self._machine: Relocalizer | None = None
         self._spin_seq = 0
         self._spin_open = False  # 보낸 회전의 결과를 아직 못 받았다
+        self._spin_deadline = 0.0  # Nav2가 time_allowance로 스스로 멈출 시각 + 여유
         self._used_stamp = None  # 마지막으로 판정에 넘긴 amcl_pose 시각
         self._start_pose = None
         self._latest = None  # 마지막으로 받은 amcl_pose 자세(돌지 않을 때도)
@@ -101,9 +111,11 @@ class RelocalizeServer:
         self._last_scan = 0.0
         self._last_pose = 0.0
         self._since = 0.0
+        self._pending_pose = None  # 같은 시각 스캔을 기다리는 amcl_pose
         self._nomotion = node.create_client(Empty, topics["nomotion"], callback_group=group)
         self._global = node.create_client(Empty, topics["global"], callback_group=group)
-        self._spin = SpinRunner(node, topics["spin"], self._on_spin_result, callback_group=group)
+        self._spin = SpinRunner(node, topics["spin"], self._on_spin_result,
+                                self._on_spin_stopped, callback_group=group)
         node.create_subscription(OccupancyGrid, topics["map"], self._on_map, LATCHED,
                                  callback_group=group)
         node.create_subscription(LaserScan, topics["scan"], self._on_scan,
@@ -117,7 +129,9 @@ class RelocalizeServer:
 
     @property
     def active(self) -> bool:
-        return self._machine is not None
+        # 결과를 낸 뒤라도 회전 멈춤을 확인하기 전에는 이동 goal을 받지 않는다
+        return self._machine is not None or (
+            self._spin_open and time.monotonic() < self._spin_deadline)
 
     def stop(self) -> None:
         self._spin.cancel_all()
@@ -129,11 +143,13 @@ class RelocalizeServer:
     # ---- 지도, 스캔, AMCL 추정 구독 ----
     def _on_map(self, msg: OccupancyGrid) -> None:
         info, o = msg.info, msg.info.origin
-        dist = distance_field(info.resolution, info.width, info.height, msg.data,
-                              self.p.occupied_threshold, 2.0 * self.p.match_tol_m)
+        # 칸 중심 거리 상한: tol 안의 점이 볼 수 있는 벽 칸을 모두 담는다
+        near = nearest_field(info.resolution, info.width, info.height, msg.data,
+                             self.p.occupied_threshold,
+                             self.p.match_tol_m + 2.0 * info.resolution)
         yaw = quaternion_yaw(o.orientation.x, o.orientation.y, o.orientation.z,
                              o.orientation.w)
-        self._field = MapField(info.resolution, o.position.x, o.position.y, yaw, dist)
+        self._field = MapField(info.resolution, o.position.x, o.position.y, yaw, *near)
 
     def _on_scan(self, msg: LaserScan) -> None:
         t = _seconds(msg.header.stamp)
@@ -144,6 +160,10 @@ class RelocalizeServer:
             self._scans.append((t, msg))
             if self._machine is not None:
                 self._run(self._machine.scan(time.monotonic()))
+            # 이 스캔을 기다리던 추정이 있으면 이제 판정한다
+            pending, self._pending_pose = self._pending_pose, None
+            if pending is not None and self._machine is not None:
+                self._judge(*pending)
 
     def _on_amcl_pose(self, msg: PoseWithCovarianceStamped) -> None:
         t = _seconds(msg.header.stamp)
@@ -155,10 +175,20 @@ class RelocalizeServer:
             if self._machine is None or t < self._since or t <= self._last_pose:
                 return
             self._last_pose = t
-            std_xy, std_yaw = std_from_covariance(msg.pose.covariance)
-            e = Estimate(pose[0], pose[1], pose[2], std_xy, std_yaw, self._match(t, pose))
+            # 같은 시각 스캔이 아직 오지 않았으면 그 스캔이 올 때 판정한다
+            if self._last_scan < t - 1e-6:
+                self._pending_pose = (t, msg, pose)
+                return
+            self._judge(t, msg, pose)
+
+    def _judge(self, t: float, msg, pose) -> None:
+        std_xy, std_yaw = std_from_covariance(msg.pose.covariance)
+        e = Estimate(pose[0], pose[1], pose[2], std_xy, std_yaw, self._match(t, pose))
+        cmds = self._machine.estimate(time.monotonic(), e)
+        # 판정에 실제로 쓴 추정만 결과 시각이 된다
+        if self._machine.last is e:
             self._used_stamp = msg.header.stamp
-            self._run(self._machine.estimate(time.monotonic(), e))
+        self._run(cmds)
 
     # ---- 그 추정과 같은 시각 스캔의 일치율 ----
     def _match(self, t: float, pose) -> float:
@@ -199,6 +229,8 @@ class RelocalizeServer:
             elif isinstance(cmd, Spin):
                 self._spin_seq += 1
                 self._spin_open = self._spin.send(self._spin_seq, cmd.yaw, cmd.allowance_s)
+                self._spin_deadline = (time.monotonic() + cmd.allowance_s
+                                       + self.p.spin_stop_wait_s)
                 if not self._spin_open:
                     self._node.get_logger().warn("relocalize: spin server is not available")
                     self._run(self._machine.spin_result(time.monotonic(), "rejected", 0))
@@ -211,12 +243,14 @@ class RelocalizeServer:
         if not self._global.service_is_ready():
             self._run(self._machine.global_ready(time.monotonic(), False))
             return
-        self._global.call_async(Empty.Request()).add_done_callback(self._on_global_done)
+        self._global.call_async(Empty.Request()).add_done_callback(
+            partial(self._on_global_done, self._machine))
 
-    def _on_global_done(self, future) -> None:
+    def _on_global_done(self, machine, future) -> None:
         ok = future.exception() is None
         with self._lock:
-            if self._machine is None:
+            # 앞 goal이 보낸 요청의 늦은 답은 버린다
+            if self._machine is None or self._machine is not machine:
                 return
             # 재초기화 앞의 추정은 버린다
             self._since = _seconds(self._node.get_clock().now().to_msg())
@@ -226,10 +260,16 @@ class RelocalizeServer:
         with self._lock:
             if seq != self._spin_seq:
                 return
-            self._spin_open = False
+            if outcome != "lost":
+                self._spin_open = False
             if self._machine is None:
                 return
             self._run(self._machine.spin_result(time.monotonic(), outcome, code))
+
+    def _on_spin_stopped(self, seq: int) -> None:
+        with self._lock:
+            if seq == self._spin_seq:
+                self._spin_open = False
 
     # ---- goal 실행: 바쁨 검사, 서비스 확인, 루프, 결과 ----
     def _execute(self, handle):
@@ -243,6 +283,7 @@ class RelocalizeServer:
             self._machine = machine
             self._since = _seconds(self._node.get_clock().now().to_msg())
             self._used_stamp = None
+            self._pending_pose = None
             # 시작 자세: 시작 때 마지막 amcl_pose. 없으면 pose_valid는 거짓(계약)
             self._start_pose = self._latest
         try:
@@ -283,7 +324,9 @@ class RelocalizeServer:
         while self._spin_open and time.monotonic() < end and rclpy.ok():
             time.sleep(LOOP_S)
         if self._spin_open:
+            # 결과는 낸다. 멈춤을 확인할 때까지 active로 남아 이동 goal을 받지 않는다
             self._node.get_logger().warn("relocalize: spin did not confirm the stop in time")
+            self._spin.cancel_all()
 
     def _localizer_ready(self, allow_global: bool) -> bool:
         wait = self.p.service_wait_s

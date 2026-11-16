@@ -77,6 +77,7 @@ class RelocalizeParams:
     nomotion_share: float = 0.25  # 뒤 단계가 있을 때 무이동 단계 몫(전체 시간 비율)
     spin_share: float = 0.5  # 전역 단계가 뒤에 있을 때 회전 단계 몫
     settle_s: float = 3.0  # 회전 뒤 판정에 남겨 둘 시간
+    min_spin_allowance_s: float = 1.0  # Spin 시간 한도의 하한(0은 Nav2에서 무제한)
     default_timeout_s: float = 30.0  # goal timeout_s가 0 이하일 때 전체 시간
     service_wait_s: float = 1.0  # 시작할 때 AMCL 서비스를 기다리는 시간
     spin_stop_wait_s: float = 2.0  # 결과 전에 회전 멈춤 확인을 기다리는 상한

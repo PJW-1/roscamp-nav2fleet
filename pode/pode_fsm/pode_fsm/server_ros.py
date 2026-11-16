@@ -34,6 +34,7 @@ class GoalServers:
                  refuse: Callable[[], bool] = lambda: False):
         self._node, self._lock, self._fsm = node, lock, fsm
         self._refuse = refuse
+        self.pending = 0  # 수락했지만 아직 상태 기계에 넘기지 않은 goal 수
         self._pose, self._run, self._alive = pose, run, alive
         self._slots: dict[bytes, _Slot] = {}
         self._move_server = self._server(MoveTo, contract.name("move_to", pode=robot_id),
@@ -66,15 +67,19 @@ class GoalServers:
 
     # ---- 위치 다시 찾는 동안 이동 goal 거절 ----
     def _on_goal(self, _req):
-        if self._refuse():
-            self._node.get_logger().warn("goal rejected: relocalizing")
-            return GoalResponse.REJECT
-        return GoalResponse.ACCEPT
+        # 노드 락 안에서 거절과 예약을 함께 한다: relocalize의 바쁨 검사가 이 goal을 본다
+        with self._lock:
+            if self._refuse():
+                self._node.get_logger().warn("goal rejected: relocalizing")
+                return GoalResponse.REJECT
+            self.pending += 1
+            return GoalResponse.ACCEPT
 
     # ---- 수락된 goal을 상태 기계에 넘기기 ----
     def _accepted(self, handle, kind: str) -> None:
         key = bytes(handle.goal_id.uuid)
         with self._lock:
+            self.pending = max(0, self.pending - 1)
             self._slots[key] = _Slot(handle)
             pose = self._pose()
             here = pose[:3] if pose else None

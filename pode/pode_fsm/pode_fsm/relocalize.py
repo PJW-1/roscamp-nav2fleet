@@ -35,6 +35,8 @@ class MapField(NamedTuple):
     oy: float
     yaw: float
     dist: np.ndarray  # (높이, 너비) 가장 가까운 벽 칸까지 거리(m), 상한 너머는 inf
+    near_i: np.ndarray | None = None  # 그 벽 칸의 열 번호(없으면 -1)
+    near_j: np.ndarray | None = None  # 그 벽 칸의 행 번호
 
 
 class Estimate(NamedTuple):
@@ -78,22 +80,34 @@ class Done:
 # ---- 점유 격자의 거리 변환(상한까지 정확한 유클리드 거리) ----
 def distance_field(res: float, width: int, height: int, data: Sequence[int],
                    occupied: int = 65, cap_m: float = 0.3) -> np.ndarray:
+    return nearest_field(res, width, height, data, occupied, cap_m)[0]
+
+
+# ---- 거리 변환과 가장 가까운 벽 칸 번호 ----
+def nearest_field(res: float, width: int, height: int, data: Sequence[int],
+                  occupied: int = 65, cap_m: float = 0.3):
     occ = np.asarray(data, dtype=np.int16).reshape(height, width) >= occupied
     dist = np.full((height, width), np.inf)
+    near_i = np.full((height, width), -1, dtype=np.int32)
+    near_j = np.full((height, width), -1, dtype=np.int32)
     ys, xs = np.nonzero(occ)
     if len(ys) == 0:
-        return dist
+        return dist, near_i, near_j
     r = int(math.ceil(cap_m / res))
-    # 상한 원 안의 칸 이동마다 벽을 옮겨 가장 작은 거리를 남긴다
-    for dy in range(-r, r + 1):
-        for dx in range(-r, r + 1):
-            d = math.hypot(dx, dy) * res
-            if d > cap_m + 1e-9:
-                continue
-            ty, tx = ys + dy, xs + dx
-            ok = (ty >= 0) & (ty < height) & (tx >= 0) & (tx < width)
-            np.minimum.at(dist, (ty[ok], tx[ok]), d)
-    return dist
+    offsets = sorted((math.hypot(dx, dy) * res, dx, dy)
+                     for dy in range(-r, r + 1) for dx in range(-r, r + 1))
+    # 가까운 이동부터 처음 닿은 칸에만 적는다: 그 값이 가장 작은 거리다
+    for d, dx, dy in offsets:
+        if d > cap_m + 1e-9:
+            break
+        ty, tx = ys + dy, xs + dx
+        ok = (ty >= 0) & (ty < height) & (tx >= 0) & (tx < width)
+        ty, tx, sy, sx = ty[ok], tx[ok], ys[ok], xs[ok]
+        new = np.isinf(dist[ty, tx])
+        dist[ty[new], tx[new]] = d
+        near_i[ty[new], tx[new]] = sx[new]
+        near_j[ty[new], tx[new]] = sy[new]
+    return dist, near_i, near_j
 
 
 # ---- 레이저 거리에서 유효한 점(레이저 좌표) ----
@@ -123,12 +137,22 @@ def scan_match(field: MapField, pts: np.ndarray, pose: Sequence[float],
     # 지도 원점 좌표의 칸 번호로
     dx, dy = mx - field.ox, my - field.oy
     co, so = math.cos(-field.yaw), math.sin(-field.yaw)
-    i = np.floor((co * dx - so * dy) / field.res).astype(int)
-    j = np.floor((so * dx + co * dy) / field.res).astype(int)
+    u, v = co * dx - so * dy, so * dx + co * dy
+    i = np.floor(u / field.res).astype(int)
+    j = np.floor(v / field.res).astype(int)
     h, w = field.dist.shape
     inside = (i >= 0) & (i < w) & (j >= 0) & (j < h)
     hit = np.zeros(len(pts), dtype=bool)
-    hit[inside] = field.dist[j[inside], i[inside]] <= tol + 1e-9
+    if field.near_i is None:
+        hit[inside] = field.dist[j[inside], i[inside]] <= tol + 1e-9
+        return float(hit.sum()) / len(pts)
+    # 점에서 가장 가까운 벽 칸의 네모까지 거리
+    ni = field.near_i[j[inside], i[inside]]
+    nj = field.near_j[j[inside], i[inside]]
+    ui, vi = u[inside], v[inside]
+    gx = np.maximum(np.maximum(ni * field.res - ui, ui - (ni + 1) * field.res), 0.0)
+    gy = np.maximum(np.maximum(nj * field.res - vi, vi - (nj + 1) * field.res), 0.0)
+    hit[inside] = (ni >= 0) & (np.hypot(gx, gy) <= tol + 1e-9)
     return float(hit.sum()) / len(pts)
 
 
@@ -207,7 +231,8 @@ class Relocalizer:
 
     # ---- 새 AMCL 추정: K번 이어지면 성공 ----
     def estimate(self, now: float, e: Estimate) -> list:
-        if self.result is not None:
+        # 시간이 지난 뒤의 추정은 쓰지 않는다(tick이 끝낸다)
+        if self.result is not None or now >= self.end:
             return []
         self.last = e
         if not self._counting:
@@ -275,7 +300,9 @@ class Relocalizer:
         self._spinning = True
         self._counting = False
         self._stable = 0
-        return [Spin(FULL_TURN, max(0.0, stage_end - now - self.p.settle_s))]
+        # Jazzy Spin은 0을 무제한으로 본다
+        allowance = max(self.p.min_spin_allowance_s, stage_end - now - self.p.settle_s)
+        return [Spin(FULL_TURN, allowance)]
 
     def _start_global(self) -> list:
         if not self.allow_global:

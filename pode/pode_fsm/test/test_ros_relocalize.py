@@ -100,10 +100,11 @@ class FakeAmcl(Node):
         return GoalResponse.REJECT if self.spin_mode == "reject" else GoalResponse.ACCEPT
 
     def _execute_spin(self, handle):
-        end = time.monotonic() + (30.0 if self.spin_mode == "long" else 0.5)
+        end = time.monotonic() + (30.0 if self.spin_mode in ("long", "stubborn") else 0.5)
         while time.monotonic() < end:
             if handle.is_cancel_requested:
-                time.sleep(0.2)  # 멈추는 데 걸리는 시간
+                # 멈추는 데 걸리는 시간. stubborn은 정지 확인 대기(2 s)보다 오래 걸린다
+                time.sleep(3.5 if self.spin_mode == "stubborn" else 0.2)
                 self.spin_ends.append((time.monotonic(), "canceled"))
                 handle.canceled()
                 return Spin.Result()
@@ -322,6 +323,24 @@ def test_cancel_stops_the_spin_and_ends_canceled(harness):
     assert res.result.reason == Relocalize.Result.REASON_CANCELED
     assert fake.spin_ends and fake.spin_ends[0][1] == "canceled" and fake.spin_ends[0][0] <= t_res
     assert wait_until(lambda: probe.last_state().state == RobotState.STATE_IDLE, 2.0)
+
+
+def test_moves_stay_refused_until_a_slow_spin_has_stopped(harness):
+    """정지 확인이 2 s 안에 오지 않으면 결과는 내되, 회전이 멈출 때까지 이동 goal을 받지 않는다."""
+    _, fake, probe, client = start(harness, std_xy=0.5, spin="stubborn")
+    h = client.send(timeout_s=12.0)
+    assert wait_until(lambda: len(fake.spins) == 1, 6.0)
+    h.cancel_goal_async()
+    res = client.result(h, timeout=10.0).result
+    assert res.reason == Relocalize.Result.REASON_CANCELED
+    assert fake.spin_ends == []  # 아직 돈다
+    fut = probe.move.send_goal_async(lane_goal(["P-3", "P-4"]))
+    assert wait_until(fut.done, 5.0)
+    assert fut.result().accepted is False
+    assert probe.last_state().state == RobotState.STATE_LOCALIZING
+    assert wait_until(lambda: fake.spin_ends, 5.0)
+    assert wait_until(lambda: probe.last_state().state == RobotState.STATE_IDLE, 2.0)
+    assert probe.result(probe.send(lane_goal(["P-3", "P-4"]))).result.success is True
 
 
 def test_move_works_again_after_relocalize(harness):

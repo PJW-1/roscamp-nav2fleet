@@ -26,6 +26,7 @@ from pode_fsm.backup import BackUp, CancelBackUp, reason_of
 from pode_fsm.backup_ros import BackUpRunner
 from pode_fsm.contract import default_contract_path, load_contract, to_ros_qos
 from pode_fsm.core import (
+    MOVING,
     RECOVERING,
     CancelNav,
     ClearCostmap,
@@ -222,7 +223,10 @@ class PodeFsmNode(Node):
             self._battery = float(msg.percentage) * 100.0
 
     def _locked_state(self) -> str:
+        # relocalize 바쁨 검사용: 수락만 된 이동 goal도 움직이는 것으로 본다
         with self._lock:
+            if self._servers.pending > 0:
+                return MOVING
             return self._fsm.state()
 
     # ---- TF로 로봇 위치와 코스트맵 변환 얻기 ----
