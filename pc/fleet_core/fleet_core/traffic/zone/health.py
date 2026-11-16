@@ -84,6 +84,7 @@ class Health:
             self._event("WARN", "CLEAR_REFUSED", f"{refusal}: {note}", robot)
             return None
         # ---- 구역 놓고 OUT_OF_SERVICE로 만들기 ----
+        self._drop_relocalize(self._robots[robot])
         released = [zone for zone in zone_ids if self.grants.release_zone(robot, zone)]
         for node in self.grants.nodes_of(robot):
             self.grants.release_node(robot, node)

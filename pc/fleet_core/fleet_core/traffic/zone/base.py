@@ -121,10 +121,7 @@ class ZoneBase:
             m.fault_xy = (m.x, m.y)
         m.pose_doubt = m.pose_doubt or reason == NOT_AT_TARGET
         self._doubt_to_fault(m)
-        if m.reloc is not None:
-            if m.reloc.goal_id:
-                self._out.append(CancelCmd(m.name, m.reloc.goal_id))
-            m.reloc = None
+        self._drop_relocalize(m)
         m.fault = ERROR
         m.fault_reason = reason
         m.called = False

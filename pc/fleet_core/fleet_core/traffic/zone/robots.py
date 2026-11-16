@@ -48,8 +48,8 @@ class Reloc:
     attempt: int = 0
     goal_id: int = 0  # 0이면 아직 보내지 않았다
     sent_at: float = 0.0
-    since: float = 0.0  # 이 시도를 처음 보낸 때(BUSY로 다시 보내도 그대로)
-    busy: bool = False  # 지난 답이 BUSY: 시도 수를 늘리지 않고 다시 보낸다
+    due: float = 0.0  # 이 시도의 기한(서기를 기다림, BUSY로 다시 보냄, 답 기다림 모두)
+    busy: bool = False  # 지난 답이 BUSY(또는 STOP으로 거둠): 시도 수를 늘리지 않고 다시 보낸다
     xy: tuple = (0.0, 0.0)  # 보낼 때 보고 위치
 
 

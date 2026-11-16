@@ -20,7 +20,7 @@ from fleet_core.common.commands import (
     RetreatCmd,
 )
 from fleet_core.common.params import FleetParams, load_params
-from fleet_core.traffic.mission import NOT_AT_TARGET
+from fleet_core.traffic.mission import NOT_AT_TARGET, RUN, STOP
 from zone_harness import Harness
 
 RELOC = replace(load_params(), suspect_hold="check", relocalize=True)
@@ -264,6 +264,93 @@ def test_a_new_pose_in_a_zone_someone_else_holds_isolates_the_robot():
     assert "RELOCALIZED" in world.codes("pode1")
     assert "OUT_DOCK" not in world.view("pode1")["held"]
     assert world.view("pode2")["held"] == ["OUT_DOCK"] or "OUT_DOCK" in world.view("pode2")["held"]
+
+
+def test_a_new_pose_just_inside_another_robots_zone_is_not_taken_as_inside_its_own():
+    """쥔 구역 경계에서 outside_zone_m 안이라도 남이 쥔 구역 안이면 쥔 곳이 아니다(Codex a46f2fe)."""
+    world, _ = queued(RELOC)
+    wrong_from(world, "pode1", 4.0)
+    spot = (1.80, 0.81)  # OUT_DOCK 안, HALL 경계에서 2 cm
+    assert world.site.zone_at(*spot) == "OUT_DOCK"
+    assert world.site.distance_to_zone(*spot, "HALL") <= RELOC.outside_zone_m
+    world.reloc_pose["pode1"] = spot
+    assert world.run_until(lambda: "ROBOT_ISOLATED" in world.codes("pode1"), 60.0)
+    assert "OUT_DOCK" not in world.view("pode1")["held"]
+
+
+# ---- 끝없이 기다리지 않는다, STOP, 운영자 치우기(Codex a46f2fe) ----
+
+def reports(world, name, state):
+    plain = Harness._state.__get__(world)
+    world._state = lambda bot: state if bot.name == name else plain(bot)
+
+
+def test_a_robot_that_never_stands_still_ends_the_relocalize_by_its_time_limit():
+    params = replace(RELOC, relocalize_timeout_s=3.0)
+    world, _ = queued(params)
+    wrong_from(world, "pode1", 4.0)
+    assert world.run_until(lambda: "BASE_END_WAIT" in world.codes("pode1"), 60.0)
+    reports(world, "pode1", "MOVING")  # 취소 뒤에도 움직인다고 한다
+    assert world.run_until(lambda: "ROBOT_ISOLATED" in world.codes("pode1"), 60.0)
+    assert not world.sent(RelocalizeCmd, "pode1"), "never asked while it said MOVING"
+    assert world.codes("pode1").count("RELOCALIZE_FAILED") == params.relocalize_attempts
+
+
+def test_busy_answers_end_by_the_time_limit_of_the_attempt():
+    params = replace(RELOC, relocalize_timeout_s=3.0)
+    world, _ = queued(params)
+    wrong_from(world, "pode1", 4.0)
+    assert world.run_until(lambda: world.sent(RelocalizeCmd, "pode1"), 60.0)
+    while "RELOCALIZE_FAILED" not in world.codes("pode1"):
+        assert world.now < 60.0
+        pending = world.bots["pode1"].reloc
+        if pending is not None:  # 로봇이 늘 BUSY로 끝낸다
+            world.bots["pode1"].reloc = None
+            world.traffic.on_relocalize_result("pode1", pending[0].goal_id, False, "BUSY",
+                                               None, None)
+        world.step()
+    assert "TIMEOUT" in event(world, "RELOCALIZE_FAILED", "pode1").detail
+    assert all(not c.allow_global for c in world.sent(RelocalizeCmd, "pode1")[:-1])
+
+
+def test_stop_cancels_the_relocalize_and_run_sends_the_same_attempt_again():
+    world, _ = queued(RELOC)
+    world.reloc_s = 5.0
+    wrong_from(world, "pode1", 4.0)
+    assert world.run_until(lambda: world.sent(RelocalizeCmd, "pode1"), 60.0)
+    first_try = world.sent(RelocalizeCmd, "pode1")[0]
+    world.traffic.on_run_mode(STOP)
+    world.step()
+    assert any(c.goal_id == first_try.goal_id for c in world.sent(CancelCmd, "pode1"))
+    world.run(3.0)
+    assert len(world.sent(RelocalizeCmd, "pode1")) == 1, "no spin while stopped"
+    assert "RELOCALIZE_FAILED" not in world.codes("pode1")
+    world.traffic.on_run_mode(RUN)
+    assert world.run_until(lambda: len(world.sent(RelocalizeCmd, "pode1")) == 2, 5.0)
+    assert not world.sent(RelocalizeCmd, "pode1")[1].allow_global, "the same first attempt"
+    assert world.run_until(lambda: "RELOCALIZED" in world.codes("pode1"), 10.0)
+
+
+def test_confirm_clear_cancels_the_relocalize_and_a_late_success_is_ignored():
+    world, _ = queued(RELOC)
+    world.reloc_s = 5.0
+    wrong_from(world, "pode1", 4.0)
+    assert world.run_until(lambda: world.sent(RelocalizeCmd, "pode1"), 60.0)
+    first_try = world.sent(RelocalizeCmd, "pode1")[0]
+    m = robot(world, "pode1")
+    world.traffic._fail(m, NOT_AT_TARGET)
+    held = list(world.view("pode1")["held"])
+    m.reloc = None  # 격리가 지운 뒤 운영자가 치운다(아래에서 다시 건다)
+    from fleet_core.traffic.zone.robots import Reloc
+    m.reloc = Reloc(NOT_AT_TARGET, False, (0, 0), attempt=1, goal_id=first_try.goal_id)
+    world.traffic.confirm_clear("pode1", held, "removed")
+    assert m.reloc is None
+    world.step()
+    assert any(c.goal_id == first_try.goal_id for c in world.sent(CancelCmd, "pode1"))
+    world.traffic.on_relocalize_result("pode1", first_try.goal_id, True, "", (1.0, 0.5, 0.0),
+                                       None)
+    world.step()
+    assert "RELOCALIZED" not in world.codes("pode1")
 
 
 # ---- 격리 직전(재시도를 다 쓴 뒤)에도 다시 찾는다 ----

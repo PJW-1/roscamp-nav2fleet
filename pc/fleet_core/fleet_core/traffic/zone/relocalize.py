@@ -4,7 +4,7 @@ from __future__ import annotations
 import math
 
 from fleet_core.common.commands import CancelCmd, RelocalizeCmd
-from fleet_core.traffic.mission import DOCKING, LOCALIZING, NOT_AT_TARGET, ON_A_GOAL
+from fleet_core.traffic.mission import DOCKING, LOCALIZING, NOT_AT_TARGET, ON_A_GOAL, RUN
 
 from .robots import Reloc
 
@@ -33,31 +33,47 @@ class Relocalize:
         if m.goal is not None:
             self._cancel_goal(m)
         self._stop_wanting(m)
-        m.reloc = Reloc(why, late, tuple(before))
+        m.reloc = Reloc(why, late, tuple(before), due=self._reloc_due())
         m.relocs += 1
         return True
 
-    # ---- 틱마다: 선 로봇에게 보내기, 시간 넘김 ----
+    def _reloc_due(self) -> float:
+        return self._clock() + self.params.relocalize_timeout_s + REPLY_MARGIN_S
+
+    # ---- 틱마다: 선 로봇에게 보내기, 시간 넘김, STOP ----
     def _watch_relocalize(self, m, now: float) -> None:
         r = m.reloc
         if r is None:
             return
         if not m.live:
+            self._drop_relocalize(m)
+        elif self._run_mode != RUN:
+            # 멈춤: 회전하지 않는다. 보낸 것은 거두고 RUN에서 같은 시도를 다시 보낸다
             if r.goal_id:
                 self._out.append(CancelCmd(m.name, r.goal_id))
-            m.reloc = None
+                r.goal_id, r.busy = 0, r.attempt > 0
+            r.due = self._reloc_due()
+        elif now >= r.due:
+            # 서지 않거나(움직임 보고, 통신 끊김) 답이 없거나 BUSY만 이어졌다
+            if r.goal_id:
+                self._out.append(CancelCmd(m.name, r.goal_id))
+            if not r.busy and not r.goal_id:
+                r.attempt += 1  # 보내지도 못한 시도도 한 번으로 센다
+            self._relocalize_failed(m, "TIMEOUT")
         elif not r.goal_id:
             if (not m.comm and m.goal is None and now >= m.settle_until
                     and m.robot_state not in ON_A_GOAL):
                 self._send_relocalize(m, now)
-        elif now - r.since >= self.params.relocalize_timeout_s + REPLY_MARGIN_S:
-            self._out.append(CancelCmd(m.name, r.goal_id))
-            self._relocalize_failed(m, "TIMEOUT")
+
+    def _drop_relocalize(self, m) -> None:
+        if m.reloc is not None and m.reloc.goal_id:
+            self._out.append(CancelCmd(m.name, m.reloc.goal_id))
+        m.reloc = None
 
     def _send_relocalize(self, m, now: float) -> None:
         r, p = m.reloc, self.params
         if not r.busy:
-            r.attempt, r.since = r.attempt + 1, now
+            r.attempt, r.due = r.attempt + 1, self._reloc_due()
         r.busy = False
         r.goal_id = self._next_goal_id()
         r.sent_at, r.xy = now, (m.x, m.y)
@@ -72,7 +88,7 @@ class Relocalize:
     def on_relocalize_result(self, robot, goal_id, success, reason="", pose=None,
                              start=None) -> None:
         m = self._robots.get(robot)
-        if m is None or m.reloc is None or m.reloc.goal_id != goal_id:
+        if m is None or m.reloc is None or m.reloc.goal_id != goal_id or not m.live:
             return
         if success and pose is None:
             success, reason = False, "no valid pose"  # pose_valid 거짓은 실패
@@ -94,12 +110,9 @@ class Relocalize:
         self._replace(m, r, shift)
 
     def _relocalize_busy(self, m) -> None:
-        r, now = m.reloc, self._clock()
-        if now - r.since >= self.params.relocalize_timeout_s:
-            self._relocalize_failed(m, "TIMEOUT (busy)")
-            return
-        r.goal_id, r.busy = 0, True
-        m.settle_until = now + self.params.arrival_settle_s
+        # 시도의 기한(due)은 그대로: 기한 안에 서면 다시 보낸다
+        m.reloc.goal_id, m.reloc.busy = 0, True
+        m.settle_until = self._clock() + self.params.arrival_settle_s
 
     def _relocalize_failed(self, m, reason: str) -> None:
         r = m.reloc
@@ -115,7 +128,7 @@ class Relocalize:
                 self._goal_failed(m, r.why, r.before)
             return
         if r.attempt < self.params.relocalize_attempts:
-            r.goal_id = 0
+            r.goal_id, r.busy, r.due = 0, False, self._reloc_due()
             m.settle_until = self._clock() + self.params.arrival_settle_s
             return
         m.reloc = None
@@ -125,14 +138,17 @@ class Relocalize:
     def _replace(self, m, r, shift: float) -> None:
         site, held = self.site, list(self.grants.held_by(m.name))
         where = f"moved {shift:.2f} m to ({m.x:.2f}, {m.y:.2f})"
-        if any(site.distance_to_zone(m.x, m.y, zone) <= self.params.outside_zone_m
-               for zone in held):
+        here = site.zone_at(m.x, m.y)
+        # 쥔 구역 안. 어느 구역에도 들지 않으면 경계에서 outside_zone_m 안까지 쥔 곳으로 본다
+        if here in held or (here is None and any(
+                site.distance_to_zone(m.x, m.y, zone) <= self.params.outside_zone_m
+                for zone in held)):
             self._clear_doubt(m)
             self._event("INFO", RELOCALIZED, f"{where}, inside {held}", m.name)
             if r.why == DOCK_FAILED and m.phase == DOCKING:
                 self._back_to_dock(m, held)
             return
-        zone = site.zone_at(m.x, m.y)
+        zone = here
         if zone is None or self.grants.holders(zone) or not self.grants.force(m.name, [zone]):
             self._event("WARN", RELOCALIZED, f"{where}, outside {held}, "
                         f"{zone or 'no zone'} is not free", m.name)
