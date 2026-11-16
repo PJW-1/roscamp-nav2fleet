@@ -33,7 +33,8 @@
 
 ```python
 from fake_robots.world import NoisyPose, ZoneWorld
-NoisyPose("pode1", 20.0, 40.0, sigma_m=0.03, jump_m=0.30, drive_by_estimate=True)
+fault = NoisyPose("pode1", 20.0, 40.0, sigma_m=0.03, jump_m=0.30, drive_by_estimate=True)
+world = ZoneWorld("d2", seed=1, injections=[fault])
 
 # 표 도구로
 from fake_robots.world.table import run_situation
@@ -88,13 +89,16 @@ d2에서는 몸이 벽 밖(x < 0)까지 나간다. 세계는 벽에 몸이 닿�
 
 ## 남은 것
 
-- 치우침은 +x 한 방향뿐이다(`jump_m`이 원래 그렇다). 옆 방향, 회전 오차는 없다.
+- 치우침은 x축 평행 이동뿐이다(부호는 `jump_m`대로, 원래 그렇다). y 방향, 회전 오차는 없다.
 - 창이 열리는 걸음에 길 첫 점만 믿는 자리로 바꾼다. 길에서 옆으로 벗어난 믿음이면 RPP처럼 길로 천천히
   돌아오지 않고 다음 꼭짓점으로 곧게 간다.
 - 세계는 벽과 선반에 몸이 닿는 것을 막지 않는다. 틀린 믿음으로 벽을 뚫고 지나갈 수 있다.
+- Nav2 goal은 믿는 자리에서 정적 지도(벽, 선반)로 길을 짠다. 믿는 자리가 막힌 칸이면 출발 칸 보정이나
+  길 없음(NAV_ABORTED)이 날 수 있다. 시험은 없다.
 - `drive_by_estimate`가 켜진 것과 꺼진 것이 한 로봇에 겹치면 보고 = 믿는 자리 + 꺼진 것의 jump + 잡음이다
   (꺼진 것은 원래대로 보고만 민다). 의도한 뜻이지만 시험은 없다.
 - 새 시험은 한 대의 FollowRun과 `_rebase` 단위 시험뿐이다. NavGoalRun, RetreatRun, OrderRun, 다른 로봇이나
   물체가 있을 때의 충돌 좌표(`discs`, `clear_to`)는 코드를 읽어 맞다고 봤고 시험으로 보지 않았다.
 - v7의 `pose_jumps`가 origin/main에서도 0/6이다. 이 작업과 관계없다(따로 볼 일).
-- `pose_jumps_drive`의 결과는 아직 판정 기대가 없다. 가드를 고친 뒤 기대를 정해 `NAMES`에 넣을지 정한다.
+- `pose_jumps_drive`는 `pose_jumps`의 기대(주문 완료, 허용 위반 I5_STANDING)를 그대로 물려받았고 따로 정한
+  기대는 없다. 가드를 고친 뒤 기대를 정해 `NAMES`에 넣을지 정한다.
