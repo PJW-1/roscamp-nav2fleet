@@ -254,6 +254,32 @@ def test_an_obstacle_held_at_the_end_of_one_segment_holds_the_next_from_its_star
     assert not handle.get_result_async().done()
 
 
+def test_a_back_up_begun_as_a_segment_ends_does_not_run_on_the_next_path(harness, tmp_path):
+    """예전 goal 끝의 recovery.restart처럼 조각 시작에 후진과 선 시각을 지운다. 안 지우면 앞 조각
+    끝에서 시작한 후진이 다음 조각의 path(로봇 뒤에서 시작)를 따라 로봇을 뒤로 민다."""
+    from test_ros_pode import watch_truth
+    p = start(harness, tmp_path, robots=FAST, faults=[
+        {"at_s": 0.0, "robot": "pode1", "type": "blocked", "duration_s": 60.0}])
+    truth = watch_truth(p)
+    assert wait_until(lambda: p.states, 5.0)
+    behind = [_stamped(X0 - 0.3, Y0), _stamped(X0, Y0)]  # 이미 끝에 있는 조각
+    first_seg = seg(1)
+    first_seg.path.poses = list(behind)
+    first = send(p, MoveTo.Goal(order_id="pode1-1", base=[first_seg], horizon=[seg(2)]))
+    time.sleep(1.5)  # base 끝에서 물체 앞에 선 채로 기다린다
+    again = seg(2)
+    again.path.poses = list(behind)
+    on = seg(3)
+    on.path.poses = [_stamped(X0 - 0.1, Y0), _stamped(X0 + 0.3, Y0)]  # 로봇 뒤에서 시작
+    send(p, MoveTo.Goal(order_id="pode1-1", order_update_id=1, stitch_node_id="a",
+                        base=[again, on]))
+    assert result_of(first).result.reason == MoveTo.Result.REASON_SUPERSEDED
+    mark = time.monotonic()
+    time.sleep(3.0)
+    xs = [x for when, x, _ in list(truth) if when >= mark]
+    assert xs and min(xs) >= X0 - 0.005, f"backed up to {min(xs):.3f} (start {X0:.3f})"
+
+
 def test_after_waiting_at_the_base_end_the_next_path_is_checked_again(harness, tmp_path):
     """실물은 base 끝에서 기다린 뒤 받은 조각을 새 줄로 시작해 연결을 다시 잰다.
     기다리는 동안 보고 자세가 옆으로 밀리면(drift) 앞 조각에 이어진 path라도 따르지 않는다."""

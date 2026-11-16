@@ -184,11 +184,6 @@ class ObstacleRecovery:
         if self._hold is not None:
             self._hold = 0.0
 
-    def rebase(self) -> None:
-        """새 path를 시작했다(order 조각). 잡아 둔 물체 자리는 새 path의 시작이다."""
-        if self._hold is not None:
-            self._hold = 0.0
-
     def succeeded(self) -> None:
         self.used, self._first_at = 0, None
 
