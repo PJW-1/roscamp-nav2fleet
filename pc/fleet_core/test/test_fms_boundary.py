@@ -293,3 +293,9 @@ def test_the_sim_check_can_fail():
     assert _inside_traffic("from fleet_core.traffic import zone as z\n") == [1]
     assert not _inside_traffic("from fleet_core.traffic import api\n")
     assert not _inside_traffic("from fleet_core.traffic.api import keys_at\n")
+
+
+def test_common_stands_alone_below_the_other_packages():
+    """common은 맨 아래 층이다: fleet_core의 다른 패키지를 가져오지 않는다."""
+    reached = _closure(*_package("common"))
+    assert {m for m in reached if m and m.split(".")[0] != "common"} == set()

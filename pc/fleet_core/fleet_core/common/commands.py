@@ -3,9 +3,6 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from fleet_core.fleet_map.model import FILL as FILL
-from fleet_core.fleet_map.model import SWAP as SWAP
-
 # ---- 주문 상태 상수와 주문 기록 ----
 SHIPPED = "SHIPPED"
 PARTIAL = "PARTIAL"
@@ -198,7 +195,11 @@ class RobotFaultCmd:
     reason: str
 
 
-# ---- 팔 명령 ----
+# ---- 팔 작업 종류와 팔 명령 ----
+FILL = "fill"
+SWAP = "swap"
+
+
 @dataclass(frozen=True)
 class ArmFillCmd:
     robot: str
