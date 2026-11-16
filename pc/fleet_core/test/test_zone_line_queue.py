@@ -203,7 +203,11 @@ def test_v7_a_full_line_pulls_forward_as_soon_as_the_front_moves():
 
 # 열린 위험(worklog): order는 빈 칸으로 주차하러 가던 order를 O_OUT 조각 끝(위치로 판정)에서
 # 대기 자리로 돌리는데, 그때 E-3의 로봇이 아직 입구를 쥐고 있어 O_IN, M_E로 돈다(도킹 2.6 s 늦다)
-P3_DETOUR = pytest.mark.xfail(strict=True, raises=AssertionError,
+class Detour(AssertionError):
+    """M_E로 돌았다(다른 단언은 그냥 실패한다)."""
+
+
+P3_DETOUR = pytest.mark.xfail(strict=True, raises=Detour,
                               reason="열린 위험: order가 E-3이 놓이기 전에 대기 자리로 돌려 M_E로 돈다")
 
 
@@ -230,8 +234,9 @@ def test_v7_a_robot_leaving_outbound_passes_the_doors_of_parked_robots(parked, o
     # 먼저 간다. 가운데 통로(M_E)로 돌지는 않는다
     went = targets(world, "pode3")
     assert went[0] == "O_OUT" and went[-3:] == ["Q2", "Q1", "W"], went
-    assert "M_E" not in went, went
     assert not world.problems
+    if "M_E" in went:
+        raise Detour(went)
 
 
 def test_v7_a_robot_low_on_battery_in_the_open_yard_goes_to_a_door_and_backs_in():
