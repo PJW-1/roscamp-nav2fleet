@@ -15,7 +15,7 @@
 | 파일 | 하는 일 |
 |---|---|
 | `real_pinky.launch.py` | 제조사 bringup(namespace를 그룹에 적용), `cmd_watchdog`, `nav2.launch.py`, `pinky_fsm`. 프로세스 하나가 끝나면 모두 내립니다 |
-| `make_params.py --speed S --out DIR` | Nav2 params와 회피 params의 속도 줄만 바꾼 사본을 만들고 다시 읽어 확인합니다. 0 < S ≤ 0.25를 반올림 전에 보고, 넷째 자리에서 반올림해 0이 되면 거부합니다 |
+| `make_params.py --speed S --out DIR` | Nav2 params와 회피 params의 속도 줄만 바꾼 사본을 만듭니다. 쓰기 전에 바꾼 글을 YAML로 읽어 그 세 값 말고 바뀐 것이 없는지 봅니다. 0 < S ≤ 0.25를 반올림 전에 보고, 소수 넷째 자리까지 반올림해 0이 되면 거부합니다 |
 | `start.sh NS X Y YAW [SPEED=0.12]` | params 사본 → env → `setsid`로 launch. `logs/start.lock`으로 두 번 시작을 막고, 5 s 안에 pid 파일이 없으면 TERM 후 약 2 s 기다려 사라졌는지 알립니다(KILL은 안 씀) |
 | `stop.sh`, `env.sh` | 내리기, 환경(도메인 12, SUBNET) |
 | `deploy.sh HOST` | `git archive HEAD`를 패키지 폴더마다 `rsync --delete`로 보내고, 묶음은 `~/nav2fleet_real`로 보냅니다(이쪽은 `--delete` 없음) |
@@ -25,13 +25,13 @@
 
 ## 3. 이전에 짚은 1~3번 항목의 처리
 
-- 속도: 실물 기본값은 상한이 없어 0.25입니다. 실행 묶음이 Nav2 goal 컨트롤러까지 포함해 세 군데를 0.12로 맞춘 사본을 씁니다. `pinky_fsm`의 `horizon_cap_mps`(기본 0.25)도 사본의 속도에 맞춥니다.
+- 속도: 실물 기본값은 상한이 없어 세 컨트롤러의 목표 속도(`desired_linear_vel`)가 0.25입니다. 실제로 내는 속도가 늘 그 값이라는 뜻은 아닙니다. 실행 묶음은 Nav2 goal 컨트롤러까지 세 군데를 `start.sh`의 속도(기본 0.12, 바꿀 수 있음)로 맞춘 사본을 씁니다. `pinky_fsm`의 `horizon_cap_mps`(기본 0.25)도 사본의 속도에 맞춥니다.
 - keepout: 실물 `nav2.launch.py`는 `keepout_mask`가 비어 있어 꺼져 있습니다. 실행 묶음은 `maps/arena_v7_keepout.yaml`을 기본으로 넘깁니다.
-- 시작 자세: `start.sh`가 X, Y, YAW를 받아 AMCL 초기 자세로 넘깁니다(기본 P-1: 0.12, 0.10, 90°).
+- 시작 자세: `start.sh`는 X, Y, YAW를 꼭 받아 AMCL 초기 자세로 넘깁니다. launch만 직접 띄우면 기본값 P-1(0.12, 0.10, 90°)을 씁니다.
 
 ## 4. 실물과 Gazebo 기본값이 다른 것(실행 묶음에서도 그대로)
 
-- 도킹: `pinky_dock`이 비어 있어 FSM의 dock()이 실패합니다. 관제는 DOCK_FAILED로 받고, 길이 비어 있으면 10 s 안에 다시 시도합니다(총 3회). 그래도 실패하면 ROBOT_ISOLATED로 세웁니다. 그래서 실물에서는 주문 하나를 끝까지 돌릴 수 없고, 도크 앞에서 멈추는 것이 정상입니다.
+- 도킹: `pinky_dock`이 비어 있어 FSM의 dock()이 실패합니다. 관제는 DOCK_FAILED로 받고 2 s 뒤 다시 시도합니다. 물러났다 다시 들어가는 길은 최대 10 s 동안 잡아 보고, 길이 없거나 막혔거나 시간이 지나면 제자리에서 다시 시도합니다. 처음을 포함해 3회 실패하면 ROBOT_ISOLATED로 세웁니다. 그래서 실물에서는 주문 하나를 끝까지 돌릴 수 없고, 도크 앞에서 멈추는 것이 정상입니다.
 - 스캔 필터: `narrow_strips`가 비어 있어 꺼져 있습니다.
 - peer 장애물 층: 한 대만 달리므로 끕니다.
 - 고정 선 컨트롤러의 충돌 검사: 켜져 있습니다(Gazebo는 꺼짐).
@@ -50,7 +50,7 @@
 
 - 주문 12건 모두 출고, 275.7 s.
 - 로봇 중심 간 최소 거리 0.236 m(fleet_check, Gazebo truth 위치).
-- 이른 해제, 구역 밖 점유, keepout 침범 0. 로그의 "backwards in time" 0건.
+- 기록된 표본에서 이른 해제, 구역 밖 점유, keepout 침범 0. 로그의 "backwards in time" 0건.
 
 이 한 판은 화면 확인용이며 안전성을 증명하지 않습니다.
 
