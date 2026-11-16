@@ -22,6 +22,7 @@ from fleet_core.common.commands import (
 )
 from fleet_core.common.contract import load_contract, to_ros_qos
 from fleet_core.common.params import load_params, timing_warnings
+from fleet_core.fleet_map import FILL
 from fleet_core.manager import FleetManager
 from fleet_core.traffic.site import load_site
 from fleet_interfaces.action import Dock, FillBasket, MoveTo, Retreat, SwapBasket
@@ -134,7 +135,7 @@ class FleetManagerNode(Node):
         self._fill = {}
         self._swap = {}
         for station in self.site.stations.values():
-            if station.action == "fill":
+            if station.action == FILL:
                 self._fill[station.id] = ActionClient(self, FillBasket, name("fill_basket"))
             else:
                 self._swap[station.id] = ActionClient(
