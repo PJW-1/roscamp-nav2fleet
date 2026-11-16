@@ -242,6 +242,31 @@ def test_the_robot_answers_reach_the_traffic_layer_in_order_feedback_superseded_
     assert not world.problems
 
 
+@pytest.mark.parametrize("order", [False, True], ids=["order_off", "order_on"])
+def test_a_parking_robot_whose_spot_was_taken_while_it_waited_chooses_again(order):
+    """v7: pode1은 하나 남은 칸 P-3으로 가다가 Q2(base 끝)에서 칸 입구 E-3을 기다린다. 그동안 P-3을
+    남이 잡고 P-1이 빈다. 끈 길은 트립을 버리고 다시 고르는데, order는 base 끝에서 P-3을 계속
+    기다렸다(be046e8). 끊긴 두 로봇의 자리는 손으로 잡고 놓는다."""
+    world = Harness(layout="v7", starts={"pode1": "W", "pode2": "P-2", "pode3": "P-1"},
+                    params=replace(ON, use_order_model=order))
+    world.report()
+    world.silent.update({"pode2", "pode3"})
+    grants = world.traffic.grants
+    assert grants.force("pode2", nodes=("E-3",))
+    world.traffic.on_release("pode1")
+    world.step()
+    assert world.traffic._robots["pode1"].trip.goal == "P-3"
+    assert world.run_until(lambda: world.view("pode1")["node"] == "Q2"
+                           and "ZONE_WAIT" in world.codes("pode1"), 60.0)
+    world.run(1.0)
+    grants.release_node("pode2", "E-3")
+    assert grants.force("pode2", nodes=("P-3",))  # 남이 P-3을 잡았다
+    grants.release_node("pode3", "P-1")  # P-1은 비었다
+    world.bots["pode3"].x, world.bots["pode3"].y = world.site.node_pose("W")
+    assert world.run_until(lambda: world.phase("pode1") == "PARKED", 60.0), world.log[-10:]
+    assert world.view("pode1")["node"] == "P-1" and not world.problems
+
+
 # ---- horizon만 바꾸기, 거절 ----
 
 def test_a_changed_route_ahead_replaces_only_the_horizon():

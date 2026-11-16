@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from fleet_core.common.commands import MoveOrderCmd, SegmentOut
 from fleet_core.fleet_map import FOLLOW_PATH, NAV_GOAL, RETREAT, route
-from fleet_core.traffic.mission import MOVE
+from fleet_core.traffic.mission import MOVE, TO_PARK
 
 from .robots import ORDER, Goal, MoveOrder
 from .trips import Trip, left_s, move_command, retreat_command, segment_end, stretch_end
@@ -100,7 +100,10 @@ class MoveOrders:
                 self._end_both(m, f"no answer in {UPDATE_ANSWER_S:.0f} s")
             return
         if mo.broken or trip.stale:
-            if mo.waiting or (trip.stale and self._via(m) == NAV_GOAL):
+            # 목적이 바뀐 트립: 넓은 구역에서는 물러나기가 아니면 바로 멈춘다
+            via = self._via(m)
+            if mo.waiting or (trip.stale and (via == NAV_GOAL
+                                              or (via != RETREAT and self._in_yard(m)))):
                 self._cancel_goal(m)
                 if trip.stale:
                     self._drop_trip(m)
@@ -119,6 +122,11 @@ class MoveOrders:
             return
         before = (m.goal.id, trip.granted)
         want = self._take(m, trip)
+        if want is not None and mo.waiting and m.phase == TO_PARK:
+            # base 끝에서 기다리는 주차 로봇의 자리를 남이 잡았다: 다시 고른다
+            self._cancel_goal(m)
+            self._drop_trip(m)
+            return
         if want is not None:
             self._wants[m.name] = want
             self._note_wait(m, want)
@@ -142,8 +150,11 @@ class MoveOrders:
         now = self._clock()
         if now - mo.horizon_at < HORIZON_HOLD_S:
             return False
-        fresh = route(self.site, trip.links[trip.granted - 1].b, trip.goal, self._cost(m))
         old = trip.links[trip.granted:]
+        station = self.site.stations.get(m.dest) if m.dest else None
+        if station is not None and station.line and any(k.b in station.queue for k in old):
+            return False  # 줄을 지나는 horizon은 다시 짜지 않는다(줄 순서가 바뀐다)
+        fresh = route(self.site, trip.links[trip.granted - 1].b, trip.goal, self._cost(m))
         if not fresh or [(k.a, k.b) for k in fresh] == [(k.a, k.b) for k in old]:
             return False
         trip.links[trip.granted:] = fresh

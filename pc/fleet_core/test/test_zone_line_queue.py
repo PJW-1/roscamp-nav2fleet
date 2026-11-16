@@ -81,8 +81,11 @@ def test_without_the_key_the_old_rule_stays():
     assert targets(world, "pode2") == [] and targets(world, "pode3") == [], "no pulling"
 
 
-def test_a_new_robot_joins_behind_the_last_one_in_line():
-    world = Harness(site=line_map(), starts={"pode1": "W", "pode2": "Q1", "pode3": "P-1"})
+@pytest.mark.parametrize("order", [False, True], ids=["order_off", "order_on"])
+def test_a_new_robot_joins_behind_the_last_one_in_line(order):
+    """order 모델: 줄을 지나는 horizon을 다시 짜면 꼬리(Q3) 대신 앞자리(Q1) 쪽 길로 바뀌었다."""
+    world = Harness(site=line_map(), starts={"pode1": "W", "pode2": "Q1", "pode3": "P-1"},
+                    params=replace(load_params(), use_order_model=order))
     calls(world, "pode2")
     world.call("WORK", "pode3")
     assert world.run_until(lambda: world.view("pode3")["node"] == "Q2", 200.0)
