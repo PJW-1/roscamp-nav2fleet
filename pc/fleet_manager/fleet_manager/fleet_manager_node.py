@@ -250,6 +250,11 @@ class FleetManagerNode(Node):
                        (command.robot, command.goal_id), self._retreat_done,
                        self._robot_rejected)
         elif isinstance(command, RelocalizeCmd):
+            if not self._relocalize[command.robot].server_is_ready():
+                # 서버가 없다: 관제는 예전 재시도 길로 돌아간다
+                self.core.on_relocalize_result(command.robot, command.goal_id, False,
+                                               "NOT_SENT", None, None)
+                return
             self._send(self._relocalize[command.robot], adapters.relocalize_goal(command),
                        (command.robot, command.goal_id), self._relocalize_done,
                        self._relocalize_rejected)
@@ -340,7 +345,8 @@ class FleetManagerNode(Node):
             result = adapters.goal_result(future.result())
         except Exception as exc:
             self.get_logger().error(f"goal {key} lost its result: {exc}")
-            if on_rejected == self._robot_rejected and self._goals.canceling(key):
+            robot_goal = on_rejected in (self._robot_rejected, self._relocalize_rejected)
+            if robot_goal and self._goals.canceling(key):
                 self._goals.lost(key)
                 return
             self._goals.finished(key)
@@ -354,8 +360,8 @@ class FleetManagerNode(Node):
         self.core.on_goal_rejected(key[0], key[1])
 
     def _relocalize_rejected(self, key) -> None:
-        # 서버가 없거나 goal이 나가지 못했다: 관제는 예전 재시도 길로 돌아간다
-        self.core.on_relocalize_result(key[0], key[1], False, "NOT_SENT", None, None)
+        # 서버에 닿았지만 거절했거나 결과를 잃었다: 실패한 시도 하나로 센다
+        self.core.on_relocalize_result(key[0], key[1], False, "REJECTED", None, None)
 
     def _relocalize_done(self, key, result) -> None:
         self.core.on_relocalize_result(key[0], key[1], *adapters.relocalize_result(result))

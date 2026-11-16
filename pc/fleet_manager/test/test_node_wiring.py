@@ -491,7 +491,8 @@ def test_a_retreat_command_goes_to_the_retreat_action_and_its_result_back_to_the
 
 def test_a_relocalize_command_goes_to_the_relocalize_action_and_its_result_back_to_the_core():
     """RelocalizeCmd는 /{pode}/relocalize goal이 된다(계약의 relocalize 키). 결과는
-    on_relocalize_result로, 서버 없음과 거절은 NOT_SENT 실패로 간다(관제는 예전 길로)."""
+    on_relocalize_result로, 서버 없음은 NOT_SENT(관제는 예전 길로), 거절과 결과 잃음은
+    REJECTED(실패한 시도 하나)로 간다(Codex a68dbcd)."""
     rclpy.init(args=["--ros-args", "-p", "robots:=[pode1]"])
     node = FleetManagerNode()
     try:
@@ -513,6 +514,9 @@ def test_a_relocalize_command_goes_to_the_relocalize_action_and_its_result_back_
         node.core.on_relocalize_result.assert_called_with("pode1", 8, False, "NOT_SENT",
                                                           None, None)
         node.core.on_goal_not_sent.assert_not_called()
+        node._relocalize_rejected(("pode1", 9))
+        node.core.on_relocalize_result.assert_called_with("pode1", 9, False, "REJECTED",
+                                                          None, None)
     finally:
         node.destroy_node()
         rclpy.shutdown()
@@ -542,15 +546,21 @@ def test_a_lost_result_of_a_canceled_robot_goal_is_no_rejection():
         rejected.append(key)
 
     key = ("pode1", 7)
+    def relocalize_rejected(key):
+        rejected.append(key)
+
     for canceled, on_rejected, expected in ((True, robot_rejected, []),
                                             (False, robot_rejected, [key]),
-                                            (True, arm_rejected, [key])):
+                                            (True, arm_rejected, [key]),
+                                            (True, relocalize_rejected, []),
+                                            (False, relocalize_rejected, [key])):
         goals = GoalTracker()
         goals.sent(key)
         goals.accepted(key, SimpleNamespace(cancel_goal_async=lambda: None))
         if canceled:
             goals.cancel(key, 0.0)
         node = SimpleNamespace(_goals=goals, _robot_rejected=robot_rejected,
+                               _relocalize_rejected=relocalize_rejected,
                                _order_feedback=SimpleNamespace(forget=lambda key: None),
                                get_logger=lambda: SimpleNamespace(error=lambda msg: None))
         rejected = []
