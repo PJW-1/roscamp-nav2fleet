@@ -99,6 +99,7 @@ class FleetParams:
     retreat_clear_m: float = 0.20
     use_order_model: bool = True
     lookahead_s: float = 2.0
+    standby_lookahead_s: float = 0.5
     comm_base_hold_extra_s: float = 3.0
     comm_loss_policy: str = "stop"
     silent_limit_s: float = 0.0  # 기록 호환(파일은 60, test_zone_silent)
