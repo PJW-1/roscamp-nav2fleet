@@ -21,7 +21,7 @@ from fleet_core.common.commands import (
     SwapCmd,
 )
 from fleet_core.common.contract import load_contract, to_ros_qos
-from fleet_core.common.params import load_params
+from fleet_core.common.params import load_params, timing_warnings
 from fleet_core.manager import FleetManager
 from fleet_core.traffic.site import load_site
 from fleet_interfaces.action import Dock, FillBasket, MoveTo, Retreat, SwapBasket
@@ -68,6 +68,8 @@ class FleetManagerNode(Node):
             load_params(self.get_parameter("params_file").value or None),
             self.get_parameter("use_order_model").value,
             self.get_parameter("lookahead_s").value)
+        for text in timing_warnings(params):
+            self.get_logger().warning(text)
         self.core = FleetManager(self.site, params, robots, self._now)
         self._record_file = None
         if record:

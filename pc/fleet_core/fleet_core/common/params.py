@@ -18,6 +18,10 @@ ZERO_MEANS_OFF = frozenset({"zone_clear_m", "idle_watch_s", "silent_limit_s", "s
 MEASURE_SUFFIXES = ("_s", "_m", "_mps", "_pct")
 # 접미사 규칙에 안 걸리는 시간 값: 유한, 0 이상(0이면 품목 시간 없음)
 NONNEGATIVE_EXTRA = ("eta_fill_s_per_item",)
+# Pode 기본 blocked_after_s(pode_fsm/params.py). 계약에 없어 기본값을 적는다
+ROBOT_BLOCKED_AFTER_S = 10.0
+# 상태 보고 주기 0.5 s, 두 쪽 진전 재기 시작 차이, 여유
+BLOCKED_REPORT_MARGIN_S = 2.0
 
 
 # ---- FleetParams: 운영 파라미터 목록 ----
@@ -178,3 +182,14 @@ def check_measures(params: FleetParams, source="params") -> None:
             raise ValueError(f"{source}: {name} must be > 0 (0 does not mean off), got {value!r}")
         if name.endswith("_pct") and value > 100:
             raise ValueError(f"{source}: {name} must be <= 100, got {value!r}")
+
+
+# ---- PC·로봇 시간 관계 경고(오류 아님) ----
+def timing_warnings(params: FleetParams) -> list[str]:
+    # move goal은 BLOCKED 보고가 멈춤 시계를 세운다. DOCK은 아니라 dock_stall_s는 보지 않는다
+    need = ROBOT_BLOCKED_AFTER_S + BLOCKED_REPORT_MARGIN_S
+    if params.stall_s < need:
+        return [f"stall_s {params.stall_s:g} s is shorter than the robot default blocked_after_s "
+                f"{ROBOT_BLOCKED_AFTER_S:g} s + {BLOCKED_REPORT_MARGIN_S:g} s = {need:g} s: "
+                f"the fleet may take back a goal before the robot reports BLOCKED"]
+    return []

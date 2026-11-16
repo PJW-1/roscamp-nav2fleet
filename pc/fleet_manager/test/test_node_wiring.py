@@ -246,6 +246,34 @@ def test_a_new_fms_stays_silent_until_any_goal_of_an_old_one_must_have_stopped(g
     assert wait_for(lambda: fms.core.traffic.robot_view("pode1")["on_map"], 10.0)
 
 
+def test_a_short_stall_s_is_warned_once_when_the_params_are_read(tmp_path, monkeypatch):
+    """params_file의 stall_s가 로봇 BLOCKED 보고(10 s + 2 s)보다 짧으면 경고만 남기고 뜬다."""
+    import yaml
+    from fleet_core.common.params import DEFAULT_PARAMS
+    data = yaml.safe_load(DEFAULT_PARAMS.read_text(encoding="utf-8"))
+    path = tmp_path / "short_stall.yaml"
+    path.write_text(yaml.safe_dump({**data, "stall_s": 6.0}), encoding="utf-8")
+    logged = []
+
+    class Recorder:
+        def get_child(self, _name):
+            return self
+
+        def __getattr__(self, level):
+            return lambda text, **_: logged.append((level, text))
+
+    monkeypatch.setattr(FleetManagerNode, "get_logger", lambda self: Recorder())
+    rclpy.init(args=["--ros-args", "-p", "robots:=[pode1]", "-p", f"params_file:={path}"])
+    try:
+        node = FleetManagerNode()
+        assert node.core.params.stall_s == 6.0
+        node.destroy_node()
+    finally:
+        rclpy.shutdown()
+    warned = [text for level, text in logged if level == "warning" and "stall_s" in text]
+    assert len(warned) == 1, logged
+
+
 def test_a_robot_counts_only_once_its_goals_can_reach_it():
     """새 FMS는 액션 서버를 찾기 전에 보고를 먼저 듣는다. 그때 보낸 goal은 거절되어 재시도가
     금방 바닥난다. 전원이 로봇으로 인정되기 전에는 잠금도 알리지 않는다. 아직 모르는 것이지
