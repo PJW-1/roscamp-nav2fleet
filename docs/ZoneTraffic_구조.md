@@ -45,7 +45,7 @@
 | Silent | silent.py:12 | 42 | 목표 없이 이동 단계에 머문 로봇, 소식 없는 로봇 경고. `_event`를 가로챔 | (없음) |
 | NoStart | nostart.py:11 | 24 | 목표를 받고도 안 떠나는 로봇 경고(NO_START) | (없음) |
 | Capacity | capacity.py:8 | 12 | SHARED 정원 합이 로봇 수보다 적으면 한 번 경고 | (없음) |
-| Views | views.py:8 | 79 | 읽기 전용 조회(robots, running, zones_view, robot_view, status_view)와 `take_output` | robots, everyone_placed, running, zones, available, take_output, zones_view, robot_view, status_view |
+| Views | views.py:8 | 79 | 조회(robots, running, zones_view, robot_view, status_view)와 `take_output`. 조회는 읽기만 하지만 `take_output`은 `_out`을 비우고 `zones`는 변경 가능한 `ZoneGrants` 객체 자체를 돌려준다 | robots, everyone_placed, running, zones, available, take_output, zones_view, robot_view, status_view |
 
 "줄"은 클래스 몸통 줄 수다(파일 앞쪽의 모듈 함수와 상수는 뺀다). "바깥에서 부르는 입구"는 `traffic/api.py`의 `TrafficApi` 이름과 맞춘 것이다. `test_traffic_api.py`가 FleetManager와 ROS 노드가 부르는 이름이 모두 API에 있는지 지킨다.
 
@@ -57,14 +57,14 @@
 
 | 순서 | 단계 | ZoneTraffic.tick (시험) | FleetManager.tick (운영) | 차이 |
 |---|---|---|---|---|
-| 0 | 입력 기록 | - | `_input("tick")` (기록 한 줄 쓰기, 시각 `_time` 갱신: manager_record.py:42) | 운영만 |
+| 0 | 입력 기록 | - | `_input("tick")` (시각 `_time`은 항상 갱신, 기록 한 줄은 `_write`가 설정된 때만 씀: manager_record.py:40-45) | 운영만 |
 | 1 | 시각 | `self._clock()` | `self._time` (입력 때 한 번 읽어 고정. 코어의 시계도 `_frozen`) | 시계 출처가 다르다 |
 | 2 | tick_begin | `_check_capacity`, `_check_startup`, `_check_comm`, `_finish_recoveries` → `everyone_here` | 같다 | 운영은 뒤에 `_pump()` |
 | 3 | 팔 시간 초과 | - | `arm.check_timeouts(now)` 뒤 `_pump()` | 운영만 |
 | 4 | tick_progress | `_expire_blocked`, `_expire_marks`, `_ask_clear`; 로봇마다 available이면 `_judge_arrival`, `_watch_stall`, `_watch_idle`, `_watch_retreat_wait`; 로봇마다(available과 무관) `_watch_start`, `_watch_silent`; `_watch_near`; `_watch_deadlock` → `stopped` | 같다 (traffic 안의 같은 메서드) | 운영은 뒤에 `_pump()` |
 | 5 | 호출 고르기 | `running`이고 `everyone_here`면 `tick_pick(stopped)` | 같다 | 운영은 뒤에 `_pump()` |
-| 6 | 로봇 한 걸음 | 로봇마다 available이고 `stopped`에 없으면 `self.step(robot)` | 같은 조건에서 `_step_robot(robot)` = `orchestrator.step`, `_pump`, `traffic.step`, `_pump`, `orchestrator.step`, `_pump` (manager_route.py:19-25) | 운영은 주문 층이 앞뒤로 한 번씩 더 걷는다 |
-| 7 | 출력 | `take_output()` | 매니저 자신의 `_out`을 꺼내 기록(`_note("out")`)하고 반환 | 운영은 기록한다 |
+| 6 | 로봇 한 걸음 | `running`이고 `everyone_here`인 블록 안에서만(5단계와 같은 `if`), 로봇마다 available이고 `stopped`에 없으면 `self.step(robot)` | 같은 조건(controller.py:38-42, manager.py:228-233)에서 `_step_robot(robot)` = `orchestrator.step`, `_pump`, `traffic.step`, `_pump`, `orchestrator.step`, `_pump` (manager_route.py:19-25) | 운영은 주문 층이 앞뒤로 한 번씩 더 걷는다 |
+| 7 | 출력 | `take_output()` | 매니저 자신의 `_out`을 꺼내 `_note("out")`을 부르고 반환 | `_note`는 `_write`가 설정된 때만 쓴다(manager_record.py:77-78) |
 
 `_pump`(manager_route.py:27-33)는 팔, 주문, 교통 세 코어의 출력을 모아 알맞은 코어에 넘기기를 출력이 없을 때까지 되풀이한다. 그래서 운영에서는 한 단계가 낳은 명령이 같은 tick 안에서 다른 코어에 닿고, 그 답이 다음 단계 전에 반영된다. 하네스에는 이 되풀이가 없다. 하네스와 운영의 순서가 같다는 것을 지키는 시험은 찾지 못했다 [추측: 같은 순서를 확인하는 시험이 따로 없다. `grep -rn "tick_begin\|tick_progress" test`가 `test_zone_clear_checks.py`만 찾았다].
 
@@ -232,17 +232,17 @@ ZoneTraffic 줄에는 tick이 부르는 13개 클래스의 입구가 들어 있�
 
 - 노드는 한 번에 한 로봇만 쥔다(`_nodes`, `blockers`가 다른 주인을 막는다).
 - 구역은 정원(`spec.capacity`)까지만 쥔다. 도크 구역의 정원은 1이다(지도 파서가 1로 고정하고 다른 값은 오류로 거절한다, `fleet_map/parse.py:77-82`).
-- 한 줄 구역(LANE)은 한 번에 한 방향이다. 방향이 다르면 막고, 같은 방향은 마지막 진입 뒤 `lane_follow_gap_s`가 지나고 정원 안일 때만 따라 들어간다(grants.py `_others_in_the_way`). 방향을 안 주면 `ValueError`.
+- 한 줄 구역(LANE)은 한 번에 한 방향이다. 방향이 다르면 막고, 같은 방향은 마지막 진입 뒤 `lane_follow_gap_s`가 지나고 정원 안일 때만 따라 들어간다(grants.py `_others_in_the_way`). 방향을 안 주면 `ValueError`다. 단 이미 그 구역을 쥔 로봇은 방향 검사 전에 통과한다(grants.py:33 근처 `if robot in holders: return ()`).
 - `take`는 전부 아니면 전무다. 막히면 `_waiting`에 기록만 한다.
 - `release_*`는 쥔 로봇만 놓을 수 있고, 구역이 비면 차선 방향을 지운다.
-- 알아 둘 점: `force`는 차선 방향과 간격을 보지 않고 정원만 본다(grants.py `force`는 `_grant(..., None)`을 부른다). 그래서 방향 불변식은 `take` 경로에서만 지켜진다.
+- 알아 둘 점: `force`는 차선 방향과 간격을 보지 않고 정원만 본다(grants.py `force`는 `_grant(..., None)`을 부른다). `force`는 기존 방향도 설정하지 않는다. 그래서 "한 번에 한 방향"은 `take` 경로의 규칙이다. 전체 보유 상태의 불변식이 아니다. 초기 배치(placement.py:23-32)가 노드가 있는 차선에 `force`를 쓸 수 있다.
 
 ### 5.3 불변식을 고정하는 시험
 
 | 지키는 것 | 시험 | 방법 |
 |---|---|---|
 | 위 5.2의 구역·노드·차선 규칙 | `test_zone_grants.py` (시험 13개) | ZoneGrants를 직접 쓴다. 한꺼번에 잡기, 정원, 노드 하나, 차선 한 방향·간격·정원, 놓기, force, `acquired_at`, 모르는 구역은 프로그램 오류 |
-| 로봇은 쥔 구역 안에 있다, 한 줄 구역에서 두 방향이 섞이지 않는다, 도크에 둘이 있지 않다 | `zone_harness.py`의 `_check()` (zone_harness.py:256-275, `step()`이 매번 부른다) | 위반하면 `world.problems`에 적는다. 이것을 `assert not world.problems`로 확인하는 시험은 `test_zone_*.py` 19개 파일에 있다(`grep -c problems`로 0이 아닌 파일 수). 하네스가 스스로 실패시키지는 않는다. 시험이 `problems`를 확인해야 지켜진다 |
+| 시험 세계 안에서 (배치되어 있고 고장·통신 이상이 없는 로봇은) 쥔 구역 안에 있다, 한 줄 구역에서 명령 또는 order로 달리는 로봇의 `heading[0]` 반올림 값이 둘 이상 섞이지 않는다, 도크에 둘이 있지 않다 | `zone_harness.py`의 `_check()` (zone_harness.py:256-275, `step()`이 매번 부른다) | 위반하면 `world.problems`에 적는다. 이것을 `assert not world.problems`로 확인하는 시험은 `test_zone_*.py` 19개 파일에 있다(`grep -c problems`로 0이 아닌 파일 수). 하네스가 스스로 실패시키지는 않는다. 시험이 `problems`를 확인해야 지켜진다. 미배치·고장·통신 이상 로봇은 첫 검사에서 빠지고, 방향 검사는 달리지 않는 로봇과 `heading`의 x 성분만 본다. 모든 위반을 잡는다는 보장은 아니다 (zone_harness.py:256-275) |
 | 같은 이름의 메서드를 믹스인이 두 번 정의하지 않는다 | `test_zone_mixins.py` (1개) | MRO를 돌며 이름이 겹치는 것을 센다. 허용은 `_event`뿐 |
 | 교통 층이 주문·바구니 쪽을 부르지 않는다(import, 이름, 필드) | `test_fms_boundary.py` (16개) | ast로 import를 따라간다. traffic은 commands.py에서 허용 목록의 이름만 가져온다. 이 시험이 실제로 실패할 수 있음도 시험한다(반례 orchestrator) |
 | FleetManager와 ROS 노드가 교통 층에 부르는 이름이 모두 `TrafficApi`에 있다 | `test_traffic_api.py` (5개) | ast로 `self.traffic.<이름>`, `core.traffic.<이름>`을 모은다 |
@@ -261,47 +261,47 @@ ZoneTraffic 줄에는 tick이 부르는 13개 클래스의 입구가 들어 있�
 
 ### 6.0 먼저 세울 것: 같은 입력, 같은 출력 비교
 
-세 가지가 이미 있다. 코드는 난수와 실시간 시계를 쓰지 않는다(`grep -n "random\|time.time\|monotonic"`가 zone 파일, zone_harness.py, zone_scenarios.py에서 아무것도 찾지 못했다). 그래서 같은 입력은 같은 출력을 낸다.
+세 가지가 이미 있다. zone 파일, zone_harness.py, zone_scenarios.py에서 `grep -n "random\|time.time\|monotonic"`가 아무것도 찾지 못했다. 시계와 목표 번호 생성기는 밖에서 주입된다(base.py:26-27). 그래서 초기 상태, 주입값, 호출 순서가 같으면 같은 출력이 나올 것이라고 본다 [추측: 실제로 두 번 돌려 비교해 보지는 않았다].
 
 1. 하네스 시나리오: `zone_scenarios.py`의 `play(이름)`(serve_three 등). 떼기 전과 후의 `world.commands`, `world.events`와 매 걸음의 `grants.held_by(로봇)`, `grants.holders(구역)`를 기록해 비교한다. 지금은 이 기록을 남기는 도구가 없다. 새 시험 도구로 추가해야 한다.
-2. `tools/replay.py`: FleetManager에 입력 기록(jsonl)을 다시 넣고 `out` 줄(명령, 이벤트)을 비교한다. 기록은 `fleet_manager_node --record`나 `FleetManager.record_to`로 만든다. 저장소에 기록 파일은 없다(`find . -name "*.jsonl"`이 0). 보유 구역은 이 비교에 들지 않는다.
+2. `tools/replay.py`: FleetManager에 입력 기록(jsonl)을 다시 넣고 기록된 `in`, `inside`, `out` 줄을 순서대로 비교한다(첫 줄에 `"recorded": true`가 있는 기록만. 입력만 있는 기록은 비교하지 않고, 줄 중간에서 끊긴 기록은 끝 뒤를 비교하지 못한 채 남긴다. replay.py 머리말). 기록은 `fleet_manager_node --record`나 `FleetManager.record_to`로 만든다. 저장소에 기록 파일은 없다(`find . -name "*.jsonl"`이 0). 보유 구역은 이 비교에 들지 않는다.
 3. `tools/situations.py`: 상황 x 배치 x 씨드 표. 결과 표가 같은지 본다.
 
-분리 후보마다 "비교할 것"은 같다: 같은 입력에서 (가) 나온 명령 목록과 순서, (나) 나온 이벤트 목록과 순서, (다) 매 tick 끝의 로봇별 보유 구역·노드. 후보 고유의 비교는 후보마다 따로 적었다.
+분리 후보마다 "비교할 것"은 같다: 같은 입력에서 (가) 명령과 이벤트를 한 줄로 이은 목록과 순서(둘을 따로 비교하면 둘 사이의 순서 변경을 놓친다), (나) 매 tick 끝의 로봇별 보유 구역·노드. 후보 고유의 비교는 후보마다 따로 적었다.
 
 ### 6.1 Views → `ZoneViews` (위험 가장 낮음)
 
-- 이유: 읽기 전용(79줄). 쓰는 것은 `take_output`의 `_out` 교체 하나뿐. `_robots`, `_wants`, `_joining`, `_run_mode`, `grants`, `site`를 읽는다.
-- 떼는 법: `ZoneViews(traffic)` 객체를 만들고 `robot_view`, `status_view`, `zones_view`, `everyone_placed`를 옮긴다. ZoneTraffic에는 같은 이름의 한 줄 위임을 남긴다. `available`, `running`, `robots`, `take_output`은 tick과 다른 믹스인이 `self.`로 부르니(2개 믹스인이 `available`) 그대로 둔다.
+- 이유: 조회는 읽기만 한다(79줄). 쓰는 것은 `take_output`의 `_out` 교체 하나뿐이고, `zones`는 변경 가능한 `grants`를 그대로 내준다. `_robots`, `_wants`, `_joining`, `_run_mode`, `grants`, `site`를 읽는다.
+- 떼는 법: `ZoneViews(traffic)` 객체를 만들고 `robot_view`, `status_view`, `zones_view`, `everyone_placed`(메서드가 아니라 프로퍼티), 두 뷰가 함께 쓰는 `_route_left`를 옮긴다. ZoneTraffic에는 같은 이름의 한 줄 위임을 남긴다. `available`, `running`, `robots`, `take_output`은 tick과 다른 믹스인이 `self.`로 부르니(2개 믹스인이 `available`) 그대로 둔다.
 - 비교할 것: 시나리오 매 걸음의 `robot_view`, `status_view`, `zones_view` 반환값이 전과 같은 dict인지. 여기에 `test_zone_mixins.py`의 이름 중복 검사가 위임 때문에 깨지지 않는지.
-- 위험: 반환 dict의 키와 값이 `manager_views.py`와 ROS 노드가 읽는 것이다. 위임을 빼먹으면 `test_traffic_api.py`가 잡는다. 낮다.
+- 위험: `robot_view`, `status_view`의 dict 키와 값은 ROS 노드와 매니저가 읽는다(`zones_view`는 dict가 아니라 `list[ZoneView]`). `test_traffic_api.py`는 호출 이름이 `TrafficApi`에 선언됐는지만 보고 ZoneTraffic에 구현이나 위임이 있는지는 보지 않으므로 위임을 빼먹어도 이 시험은 잡지 못한다. 위 비교와 `test_manager.py` 등이 실제로 부르는 곳에서 잡는다 [추측]. 상대적으로 낮다고 보지만 확정은 아니다.
 
 ### 6.2 작은 감시 셋: Capacity, Localization, NoStart (위험 낮음)
 
 - 이유: 각각 메서드 하나(12, 12, 24줄). 읽는 것은 `params`, `site`, `_robots`, `_run_mode`와 로봇 레코드. 내는 것은 이벤트뿐이다. 다른 믹스인을 부르지 않고 ZoneBase의 `_event`, `_gap`만 쓴다(4절). 불리는 곳도 한 곳씩이다(controller.py:47, progress.py:48, controller.py:64).
 - 떼는 법: 각각 `watch(m, now, emit)` 꼴의 작은 객체(또는 순수 함수와 필드 묶음)로 옮기고, 이벤트는 `emit` 콜백으로 낸다. Localization의 판정 `pose_jump`는 이미 순수 모듈 함수라 따로 시험하기 쉽다.
-- 비교할 것: 이벤트 목록(`LOCALIZATION_SUSPECT`, `NO_START`, `ZONE_CAPACITY_LOW`)이 시각까지 같은지. 로봇 필드 `start_goal`, `start_xy`, `start_since`, `start_done`(NoStart만 씀), `suspect_quiet_until`(Localization만 씀)이 같은지.
+- 비교할 것: 이벤트 목록(`LOCALIZATION_SUSPECT`, `NO_START`, `ZONE_CAPACITY_LOW`)이 시각과 순서까지 같은지. `emit`은 `Silent._event`를 거쳐야 기존 부작용(`silent_from` 지우기)이 남는다. 로봇 필드 `start_goal`, `start_xy`, `start_since`, `start_done`(NoStart만 씀), `suspect_quiet_until`(Localization만 씀)이 같은지.
 - 위험: Localization의 `pose_at`을 Progress도 지운다(progress.py:43, 47). Capacity는 `_capacity_checked`를 `getattr`로 늦게 만든다(7절). NoStart는 `m.move_order`, `m.arrival_by`, `m.goal`을 읽으므로 그 필드 이름이 바뀌면 깨진다. 낮다.
-- Silent(42줄)와 Detours(12줄)도 비슷하게 작다. 그러나 Silent는 모든 이벤트를 가로채(`_event` 재정의, silent.py:14-19) 그 로봇의 `silent_from`을 지운다. Detours는 Blocked와 Goals가 불러 이벤트 순서에 낀다. 그래서 이 둘은 6.2에서 뺐다.
+- Silent(42줄)와 Detours(12줄)도 비슷하게 작다. 그러나 Silent는 모든 이벤트를 가로채(`_event` 재정의, silent.py:14-19) 그 로봇의 `silent_from`을 지운다(로봇이 실제 로봇이고 코드가 SILENT_STALL이 아닐 때만). Detours는 Blocked와 Goals가 불러 이벤트 순서에 낀다. 그래서 이 둘은 6.2에서 뺐다.
 
 ### 6.3 막힘 표시 책: BlockMarks + ClearChecks → `MarkBook` (위험 중간)
 
 - 이유: `_marks`, `_mark_memory`, `_mark_seq`를 이 두 믹스인만 쓴다(3절). ClearChecks는 `_ask_clear`와 `on_clear_check` 둘뿐이고, BlockMarks의 `_drop_mark`, `_hold_key`만 부른다.
-- 떼는 법: `MarkBook`이 세 상태와 두 믹스인의 메서드를 갖는다. 바깥으로는 "점으로 표시하기", "만료시키기", "해제 확인 묻기/답 받기"만 내고, 막힌 링크 사전 `_blocked`는 주입받은 참조로 갱신한다.
+- 떼는 법: `MarkBook`이 세 상태와 두 믹스인의 메서드를 갖는다. 바깥으로 낼 것은 이 네 동작만으로는 모자란다. Blocked가 장애물 위치, 로봇 찾기, 키 계산, 최근 양보 판정, 키 보유를 직접 부르고 `_mark_point`가 돌려준 `Mark`를 `_hold_key`에 다시 넘긴다(blocked.py:48, 103). ClearChecks는 출력 큐에 `CheckClearCmd`를 직접 넣고(clear_checks.py:27), 두 믹스인이 `_mark_memory` 목록을 재할당한다(clear_checks.py:48, block_marks.py:132). 그러니 참조 주입만으로 소유권이 옮겨지지 않는다. 먼저 이 호출들을 `MarkBook`의 공개 메서드로 정리하고 `_mark_memory`는 `MarkBook` 안에서만 바꾸게 한 뒤 떼야 한다.
 - 비교할 것: 이벤트 `ZONE_MARKED_BLOCKED`, `BLOCK_CLEARED`, `BLOCK_CONFIRMED`, `REROUTE`, `CheckClearCmd`의 순서와 내용. 매 tick `_blocked` 사전이 같은지(Goals, Redock이 읽는다).
 - 위험: `_blocked`는 Blocked도 쓴다(3절)고 Goals와 Redock이 읽는다. 참조를 공유해야 한다. BlockMarks는 Goals의 `_reach`를 부르고(4절) Blocked는 BlockMarks 메서드 6개를 부른다. 경계가 `_blocked`와 이 6개 메서드에 걸린다. 중간.
 
 ### 6.4 교착과 근접 감시 → `DeadlockWatch` (위험 중간)
 
-- 이유: `_cycle`, `_cycle_since`, `_cycle_acted`, `_near`를 Watch만 쓴다. `_watch_deadlock`과 `_watch_near`는 `_wants`와 `grants.blockers`를 읽어 순환을 찾는다(`traffic/deadlock.py`의 `find_cycle`, `choose_retreat`는 이미 순수 함수).
-- 떼는 법: 상태 4개와 두 메서드를 객체로 옮기고, "누구를 어디로 비키게 할지"는 `_evade`/`_to_parking`(Goals의 `_take`, Drive의 `_send` 사용)을 콜백으로 받는다.
+- 이유: `_cycle`, `_cycle_since`, `_cycle_acted`, `_near`를 Watch만 쓴다. `_watch_deadlock`은 `_wants`와 `grants.blockers`로 대기 그래프를 만들어 순환을 찾는다(`_watch_near`는 다르다. 로봇 위치와 목표를 보고 `_cancel_goal`, `_awaits_blocked`(Backoff), `_stand_aside`(Backoff)를 부른다)(`traffic/deadlock.py`의 `find_cycle`, `choose_retreat`는 이미 순수 함수).
+- 떼는 법: `_cycle*` 3개와 `_watch_deadlock`을 먼저 옮기고(`_evade`/`_to_parking`은 콜백), `_near`와 `_watch_near`는 Backoff 호출 때문에 따로 둔다. 둘을 한 객체로 묶으려면 `_cancel_goal`, `_awaits_blocked`, `_stand_aside` 콜백도 필요하다.
 - 비교할 것: `DEADLOCK_SEEN` 이벤트와 시각, 비키는 로봇의 명령. 보유 구역.
 - 위험: `_to_parking`은 Blocked, YardRetreat, Backoff도 부른다(4절 top 표). 그래서 `_to_parking`을 떼지 말고 콜백으로 둬야 한다. Backoff-Watch가 맞부르는 쌍이다. 중간.
 
 ### 6.5 하지 말 것
 
 - Goals, MoveOrders, Turns, Drive, Results, Blocked, Backoff, Watch의 `_to_parking` 쪽은 서로 맞물려 있다(4절). 한꺼번에 떼면 보유 구역이 흔들린다.
-- `grants`의 쓰기 지점 7곳은 합치지 않는다. 이미 객체로 분리되어 있고 시험이 있다. 대신 6.0의 기록용 래퍼로 쓰기 호출을 로그로 남기는 것이 안전하다.
+- `grants`의 쓰기 호출 지점 10곳(클래스 7개)은 합치지 않는다. 이미 객체로 분리되어 있고 시험이 있다. 대신 6.0의 기록용 래퍼로 쓰기 호출을 로그로 남기는 것이 안전하다.
 - 로봇 레코드(`Robot`)를 쪼개는 일은 후보에서 뺐다. `goal`, `trip` 같은 필드를 7곳이 쓴다(3절).
 
 ## 7. 코드를 읽다 찾은 이상한 점 (고치지 않음)
@@ -310,7 +310,7 @@ ZoneTraffic 줄에는 tick이 부르는 13개 클래스의 입구가 들어 있�
 2. `ZoneBase._outbound`(base.py:33)는 zone 패키지 안에서 읽지 않는다. FleetManager와 orchestrator는 자기 `_outbound`를 따로 갖는다. [확정] 죽은 속성으로 보인다.
 3. `station_left`(base.py:52)는 FleetManager가 `hasattr`로 보고 값을 넣어 준다(manager.py:46-47). 그러나 traffic 패키지 안에서 읽는 곳이 없다(`grep -rn station_left pc/fleet_core/fleet_core/traffic`이 base.py:52 하나). [확정] `test_traffic_api.py`는 이 이름을 OPTIONAL로 둔다.
 4. `_capacity_checked`는 `__init__`에 없고 `getattr(self, "_capacity_checked", False)`로 늦게 만든다(capacity.py:10-12).
-5. `_event`는 Silent가 가로챈다(silent.py:14-19). 어떤 이벤트든 그 로봇의 `silent_from`을 지운다. 이벤트 코드를 하나 추가하면 무진척 감시 시각이 리셋되는 숨은 결합이다.
+5. `_event`는 Silent가 가로챈다(silent.py:14-19). 로봇을 지정한 이벤트는(SILENT_STALL 제외) 그 로봇의 `silent_from`을 지운다(silent.py:14-17). Capacity 경고처럼 로봇이 없는 이벤트는 지우지 않는다. 이벤트 코드를 하나 추가하면 무진척 감시 시각이 리셋되는 숨은 결합이다.
 6. `ZoneGrants.force`는 차선 방향과 간격을 보지 않는다(5.2).
 7. 하네스의 불변식 검사 결과(`world.problems`)는 시험이 확인해야 효력이 있다(5.3).
 
