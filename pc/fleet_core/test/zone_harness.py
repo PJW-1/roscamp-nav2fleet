@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 import math
+import os
 
 from fleet_core.common.commands import (
     CancelCmd,
@@ -20,12 +21,32 @@ from fleet_core.common.commands import (
 )
 from fleet_core.common.params import load_params
 from fleet_core.fleet_map import load_fleet_map
+from fleet_core.manager import FleetManager
 from fleet_core.traffic.zone.controller import ZoneTraffic
 from zone_order_run import OrderRun
 
 DT = 0.1
 DOCK_S = 2.0
 STARTS = {"pode1": "P-1", "pode2": "P-2", "pode3": "P-3"}
+# 틱 순서: "zone"은 ZoneTraffic.tick, "manager"는 운영의 FleetManager.tick(주문 층과 팔 포함)
+TICK_ORDERS = ("zone", "manager")
+TICK_ORDER = os.environ.get("ZONE_TICK_ORDER", "zone")
+
+
+class TappedManager(FleetManager):
+    """운영 FleetManager 그대로. 코어 사이로 오간 항목을 tap에 남기기만 한다."""
+
+    def __init__(self, *args):
+        self.tap: list = []
+        super().__init__(*args)
+
+    # 하네스는 입력을 교통에 바로 넣으므로 매 입력의 _input 대신 시계를 그때그때 읽는다
+    def _frozen(self) -> float:
+        return self._clock()
+
+    def _route(self, item) -> None:
+        self.tap.append(item)
+        super()._route(item)
 
 
 class Bot:
@@ -40,12 +61,21 @@ class Bot:
 
 
 class Harness:
-    def __init__(self, layout="d2", starts=None, params=None, speed=0.12, site=None):
+    def __init__(self, layout="d2", starts=None, params=None, speed=0.12, site=None,
+                 tick_order=None):
         self.site = site or load_fleet_map(layout)  # site: 시험에서 고친 지도
         self.params = params or load_params()
         self.now = 0.0
         starts = dict(STARTS if starts is None else starts)
-        self.traffic = ZoneTraffic(self.site, self.params, list(starts), lambda: self.now)
+        self.tick_order = tick_order or TICK_ORDER
+        if self.tick_order not in TICK_ORDERS:
+            raise ValueError(f"tick_order must be one of {TICK_ORDERS}, not {self.tick_order!r}")
+        self.manager = None
+        if self.tick_order == "manager":
+            self.manager = TappedManager(self.site, self.params, list(starts), lambda: self.now)
+            self.traffic = self.manager.traffic
+        else:
+            self.traffic = ZoneTraffic(self.site, self.params, list(starts), lambda: self.now)
         self.bots = {name: Bot(name, *self.site.node_pose(node)) for name, node in starts.items()}
         self.speed = speed
         self.events: list[EventOut] = []
@@ -86,9 +116,18 @@ class Harness:
             if bot.name not in self.silent or bot.run is not None:
                 self._move(bot)  # order를 받은 로봇은 말이 끊겨도 base 끝까지 간다
         self.report()
-        for item in self.traffic.tick():
+        for item in self._tick():
             self._apply(item)
         self._check()
+
+    def _tick(self) -> list:
+        if self.manager is None:
+            return self.traffic.tick()
+        out = self.manager.tick()
+        tapped, self.manager.tap = self.manager.tap, []
+        seen = {id(item) for item in tapped}
+        # 코어 사이 항목(DispatchResult 등)까지 오간 차례대로 본다
+        return tapped + [item for item in out if id(item) not in seen]
 
     def run(self, seconds: float) -> None:
         for _ in range(round(seconds / DT)):
