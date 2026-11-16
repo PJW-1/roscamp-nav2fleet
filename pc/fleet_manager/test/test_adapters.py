@@ -17,6 +17,7 @@ from fleet_core.common.commands import (  # noqa: E402
     MoveCmd,
     MoveOrderCmd,
     OrderRecord,
+    RelocalizeCmd,
     ReportOrderCmd,
     RetreatCmd,
     RobotStatusView,
@@ -30,7 +31,14 @@ from fleet_core.traffic.mission import (  # noqa: E402
     LOCALIZING,
     SELF_RECOVERING,
 )
-from fleet_interfaces.action import Dock, FillBasket, MoveTo, Retreat, SwapBasket  # noqa: E402
+from fleet_interfaces.action import (  # noqa: E402
+    Dock,
+    FillBasket,
+    MoveTo,
+    Relocalize,
+    Retreat,
+    SwapBasket,
+)
 from fleet_interfaces.msg import (  # noqa: E402
     Assignment,
     FleetEvent,
@@ -405,3 +413,25 @@ def test_move_feedback_values_are_the_three_order_fields():
     feedback = MoveTo.Feedback(last_done_seq_id=3, waiting_at_base_end=True,
                                horizon_warning="HORIZON_INVALID: x")
     assert adapters.move_feedback(feedback) == (3, True, "HORIZON_INVALID: x")
+
+
+# ---- 위치 다시 찾기(Relocalize) ----
+
+def test_a_relocalize_goal_copies_the_stages_and_the_time():
+    goal = adapters.relocalize_goal(RelocalizeCmd("pode1", 9, True, True, 12.5))
+    assert isinstance(goal, Relocalize.Goal)
+    assert (goal.allow_spin, goal.allow_global) == (True, True)
+    assert goal.timeout_s == pytest.approx(12.5)
+
+
+def test_a_relocalize_result_gives_both_poses_only_when_they_are_valid():
+    result = Relocalize.Result(success=True, reason="", pose_valid=True, stage="SPIN")
+    result.start_pose.x, result.start_pose.y, result.start_pose.theta = 1.0, 2.0, 0.5
+    result.pose.x, result.pose.y, result.pose.theta = 1.3, 2.0, 0.1
+    ok, reason, pose, start = adapters.relocalize_result(result)
+    assert (ok, reason) == (True, "")
+    assert pose == pytest.approx((1.3, 2.0, 0.1)) and start == pytest.approx((1.0, 2.0, 0.5))
+    result.pose_valid = False
+    assert adapters.relocalize_result(result) == (True, "", None, None)
+    busy = Relocalize.Result(success=False, reason=Relocalize.Result.REASON_BUSY)
+    assert adapters.relocalize_result(busy) == (False, "BUSY", None, None)

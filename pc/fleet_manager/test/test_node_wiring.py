@@ -17,10 +17,17 @@ import pytest
 rclpy = pytest.importorskip("rclpy")
 pytest.importorskip("fleet_interfaces")
 
-from fleet_core.common.commands import EventOut, RetreatCmd  # noqa: E402
+from fleet_core.common.commands import EventOut, RelocalizeCmd, RetreatCmd  # noqa: E402
 from fleet_core.common.contract import to_ros_qos  # noqa: E402
 from fleet_core.fleet_map import load_fleet_map  # noqa: E402
-from fleet_interfaces.action import Dock, FillBasket, MoveTo, Retreat, SwapBasket  # noqa: E402
+from fleet_interfaces.action import (  # noqa: E402
+    Dock,
+    FillBasket,
+    MoveTo,
+    Relocalize,
+    Retreat,
+    SwapBasket,
+)
 from fleet_interfaces.msg import (  # noqa: E402
     AssignmentArray,
     FleetEvent,
@@ -477,6 +484,35 @@ def test_a_retreat_command_goes_to_the_retreat_action_and_its_result_back_to_the
         client.server_is_ready.return_value = False
         node._dispatch(RetreatCmd("pode1", 8, 0.15, 0.08), 2.0)
         node.core.on_goal_not_sent.assert_called_once_with("pode1", 8)
+    finally:
+        node.destroy_node()
+        rclpy.shutdown()
+
+
+def test_a_relocalize_command_goes_to_the_relocalize_action_and_its_result_back_to_the_core():
+    """RelocalizeCmd는 /{pode}/relocalize goal이 된다(계약의 relocalize 키). 결과는
+    on_relocalize_result로, 서버 없음과 거절은 NOT_SENT 실패로 간다(관제는 예전 길로)."""
+    rclpy.init(args=["--ros-args", "-p", "robots:=[pode1]"])
+    node = FleetManagerNode()
+    try:
+        assert node._relocalize["pode1"]._action_name == "/pode1/relocalize"
+        node.core = MagicMock()
+        client = MagicMock()
+        node._relocalize["pode1"] = client
+        node._dispatch(RelocalizeCmd("pode1", 7, True, False, 20.0), 1.0)
+        (goal,), _ = client.send_goal_async.call_args
+        assert isinstance(goal, Relocalize.Goal)
+        assert (goal.allow_spin, goal.allow_global) == (True, False)
+        result = Relocalize.Result(success=True, pose_valid=True)
+        result.pose.x = 1.5
+        node._relocalize_done(("pode1", 7), result)
+        node.core.on_relocalize_result.assert_called_once_with(
+            "pode1", 7, True, "", (1.5, 0.0, 0.0), (0.0, 0.0, 0.0))
+        client.server_is_ready.return_value = False
+        node._dispatch(RelocalizeCmd("pode1", 8), 2.0)
+        node.core.on_relocalize_result.assert_called_with("pode1", 8, False, "NOT_SENT",
+                                                          None, None)
+        node.core.on_goal_not_sent.assert_not_called()
     finally:
         node.destroy_node()
         rclpy.shutdown()

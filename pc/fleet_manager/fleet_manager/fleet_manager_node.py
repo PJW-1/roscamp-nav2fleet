@@ -16,6 +16,7 @@ from fleet_core.common.commands import (
     FillCmd,
     MoveCmd,
     MoveOrderCmd,
+    RelocalizeCmd,
     ReportOrderCmd,
     RetreatCmd,
     SwapCmd,
@@ -24,7 +25,7 @@ from fleet_core.common.contract import load_contract, to_ros_qos
 from fleet_core.common.params import load_params, timing_warnings
 from fleet_core.manager import FleetManager
 from fleet_core.traffic.site import load_site
-from fleet_interfaces.action import Dock, FillBasket, MoveTo, Retreat, SwapBasket
+from fleet_interfaces.action import Dock, FillBasket, MoveTo, Relocalize, Retreat, SwapBasket
 from fleet_interfaces.msg import (
     AssignmentArray,
     FleetEvent,
@@ -121,6 +122,7 @@ class FleetManagerNode(Node):
         self._move = {}
         self._dock = {}
         self._retreat = {}
+        self._relocalize = {}
         self._check_clear = {}
         for robot in robots:
             self.create_subscription(
@@ -129,6 +131,8 @@ class FleetManagerNode(Node):
             self._move[robot] = ActionClient(self, MoveTo, name("move_to", pode=robot))
             self._dock[robot] = ActionClient(self, Dock, name("dock", pode=robot))
             self._retreat[robot] = ActionClient(self, Retreat, name("retreat", pode=robot))
+            self._relocalize[robot] = ActionClient(self, Relocalize,
+                                                   name("relocalize", pode=robot))
             self._check_clear[robot] = self.create_client(CheckClear,
                                                           name("check_clear", pode=robot))
         self._fill = {}
@@ -245,6 +249,10 @@ class FleetManagerNode(Node):
             self._send(self._retreat[command.robot], adapters.retreat_goal(command),
                        (command.robot, command.goal_id), self._retreat_done,
                        self._robot_rejected)
+        elif isinstance(command, RelocalizeCmd):
+            self._send(self._relocalize[command.robot], adapters.relocalize_goal(command),
+                       (command.robot, command.goal_id), self._relocalize_done,
+                       self._relocalize_rejected)
         elif isinstance(command, FillCmd):
             server = self.site.stations[command.station_id].server
             self._send(self._fill[command.station_id], adapters.fill_goal(command),
@@ -344,6 +352,13 @@ class FleetManagerNode(Node):
     # ---- 액션 거절과 결과를 코어에 전달 ----
     def _robot_rejected(self, key) -> None:
         self.core.on_goal_rejected(key[0], key[1])
+
+    def _relocalize_rejected(self, key) -> None:
+        # 서버가 없거나 goal이 나가지 못했다: 관제는 예전 재시도 길로 돌아간다
+        self.core.on_relocalize_result(key[0], key[1], False, "NOT_SENT", None, None)
+
+    def _relocalize_done(self, key, result) -> None:
+        self.core.on_relocalize_result(key[0], key[1], *adapters.relocalize_result(result))
 
     def _fill_rejected(self, key) -> None:
         self.core.on_fill_result(key[1], False, {}, {}, "REJECTED")

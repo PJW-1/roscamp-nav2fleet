@@ -6,7 +6,7 @@ import math
 from action_msgs.msg import GoalStatus
 from builtin_interfaces.msg import Time
 from fleet_core.common.commands import OrderRecord
-from fleet_interfaces.action import Dock, FillBasket, MoveTo, Retreat, SwapBasket
+from fleet_interfaces.action import Dock, FillBasket, MoveTo, Relocalize, Retreat, SwapBasket
 from fleet_interfaces.msg import (
     Assignment,
     AssignmentArray,
@@ -141,6 +141,15 @@ def dock_result(result) -> tuple[bool, float, float, float]:
     return result.success, result.error_x_cm, result.error_y_cm, result.error_yaw_deg
 
 
+def relocalize_result(result) -> tuple[bool, str, tuple | None, tuple | None]:
+    """(성공, 까닭, 끝 자세, 시작 자세). pose_valid가 거짓이면 두 자세 모두 None."""
+    if not result.pose_valid:
+        return result.success, result.reason, None, None
+    pose, start = result.pose, result.start_pose
+    return (result.success, result.reason, (pose.x, pose.y, pose.theta),
+            (start.x, start.y, start.theta))
+
+
 def fill_result(result) -> tuple[bool, dict[str, int], dict[str, int], str]:
     return (result.success, from_order_items(result.placed), from_order_items(result.missing),
             result.reason)
@@ -251,6 +260,11 @@ def retreat_goal(cmd) -> Retreat.Goal:
 
 def dock_goal(cmd) -> Dock.Goal:
     return Dock.Goal(dock_id=cmd.dock_id)
+
+
+def relocalize_goal(cmd) -> Relocalize.Goal:
+    return Relocalize.Goal(allow_spin=bool(cmd.allow_spin), allow_global=bool(cmd.allow_global),
+                           timeout_s=float(cmd.timeout_s))
 
 
 def fill_goal(cmd) -> FillBasket.Goal:
