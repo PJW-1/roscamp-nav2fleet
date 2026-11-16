@@ -73,7 +73,7 @@ def test_fast_dds_settings_that_can_bypass_localhost_are_refused(name):
 @pytest.mark.parametrize("name", ["DEFAULT_FASTRTPS_PROFILES.xml", "DEFAULT_FASTDDS_PROFILES.xml"])
 def test_profile_file_in_the_working_directory_is_refused(tmp_path, name):
     assert problems(SAFE, workdir=tmp_path) == []
-    (tmp_path / name).write_text("<dds/>")
+    (tmp_path / name).write_text("<dds/>", encoding="utf-8")
     found = problems(SAFE, workdir=tmp_path)
     assert len(found) == 1 and name in found[0]
 

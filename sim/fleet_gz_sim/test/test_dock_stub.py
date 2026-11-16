@@ -32,7 +32,7 @@ def test_a_wall_clock_run_blocks_the_stub_even_when_isolated():
 def test_the_loaded_rmw_and_fast_dds_files_count(tmp_path):
     with pytest.raises(RuntimeError, match="rmw_cyclonedds_cpp"):
         require_dock_stub_allowed(True, ISOLATED, rmw="rmw_cyclonedds_cpp")
-    (tmp_path / "DEFAULT_FASTRTPS_PROFILES.xml").write_text("<dds/>")
+    (tmp_path / "DEFAULT_FASTRTPS_PROFILES.xml").write_text("<dds/>", encoding="utf-8")
     with pytest.raises(RuntimeError, match="DEFAULT_FASTRTPS_PROFILES.xml"):
         require_dock_stub_allowed(True, ISOLATED, workdir=tmp_path)
 
