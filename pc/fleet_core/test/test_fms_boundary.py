@@ -242,7 +242,7 @@ def test_orders_send_no_arm_goal_themselves():
 
 
 # ---- 시뮬은 교통 내부를 읽지 않는다 ----
-SIM_ROOT = Path(fleet_core.__file__).parents[3] / "sim"
+SIM_ROOT = Path(__file__).resolve().parents[3] / "sim"
 
 
 def _sim_files():
@@ -253,8 +253,10 @@ def _inside_traffic(source):
     """시뮬 소스가 traffic.zone 안쪽 모듈을 가져오는 줄과 교통 객체의 밑줄 속성을 읽는 줄."""
     found = []
     for node in ast.walk(ast.parse(source)):
-        if isinstance(node, ast.ImportFrom) and (node.module or "").startswith(
-                "fleet_core.traffic.zone"):
+        if isinstance(node, ast.ImportFrom) and (
+                (node.module or "").startswith("fleet_core.traffic.zone")
+                or node.module == "fleet_core.traffic"
+                and any(a.name == "zone" for a in node.names)):
             found.append(node.lineno)
         elif isinstance(node, ast.Import) and any(
                 a.name.startswith("fleet_core.traffic.zone") for a in node.names):
@@ -287,4 +289,7 @@ def test_the_sim_check_can_fail():
     assert _inside_traffic("from fleet_core.traffic.zone.trips import x\n") == [1]
     assert _inside_traffic("a = self.world.traffic._blocked\n") == [1]
     assert _inside_traffic("a = getattr(traffic, '_marks', {})\n") == [1]
+    assert _inside_traffic("from fleet_core.traffic import zone\n") == [1]
+    assert _inside_traffic("from fleet_core.traffic import zone as z\n") == [1]
+    assert not _inside_traffic("from fleet_core.traffic import api\n")
     assert not _inside_traffic("from fleet_core.traffic.api import keys_at\n")

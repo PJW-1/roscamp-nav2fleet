@@ -24,6 +24,12 @@
 - fleet_gz_sim `test_fleet_view.py`: 41 passed.
 - 경계 시험은 `sim/*/*/**/*.py`를 ast로 훑어 `fleet_core.traffic.zone` import, `traffic._x` 읽기, `getattr(traffic, "_x")`를 막는다. 반례 문자열로 시험이 실제로 실패할 수 있음도 확인한다.
 
+## Codex 지적 반영(후속 커밋)
+- 경계 시험이 `from fleet_core.traffic import zone [as z]`를 놓치던 것을 고쳤다(반례를 먼저 넣어 실패를 확인). `SIM_ROOT`는 시험 파일 기준 경로(`Path(__file__).resolve().parents[3]`)로 바꿨다.
+
 ## 돌리지 않은 것 / 한계
 - Gazebo, test_scenario_integration, test_fms_restart는 돌리지 않았다.
 - 경계 시험은 정적 검사라 `getattr(traffic, 변수)` 같은 동적 접근은 못 잡는다.
+- 별칭(`t = world.traffic; t._blocked`)과 동적 접근은 정적 검사로 못 잡는다. 억지로 추적하지 않았다.
+- `live_block`이 없는 관제를 막힘 없음으로 보는 대체 동작은 지금 ZoneTraffic 하나뿐이라 그대로 뒀다.
+- `Views.zones`(views.py)가 가변 `grants`를 그대로 내보내는 것은 이번 변경 전부터 있던 것이다. 고치지 않았다.
