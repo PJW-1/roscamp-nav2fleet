@@ -266,8 +266,10 @@ def test_a_short_stall_s_is_warned_once_when_the_params_are_read(tmp_path, monke
     rclpy.init(args=["--ros-args", "-p", "robots:=[pode1]", "-p", f"params_file:={path}"])
     try:
         node = FleetManagerNode()
-        assert node.core.params.stall_s == 6.0
-        node.destroy_node()
+        try:
+            assert node.core.params.stall_s == 6.0
+        finally:
+            node.destroy_node()
     finally:
         rclpy.shutdown()
     warned = [text for level, text in logged if level == "warning" and "stall_s" in text]
