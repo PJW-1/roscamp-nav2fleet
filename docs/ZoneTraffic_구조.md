@@ -68,7 +68,7 @@
 
 `_pump`(manager_route.py:27-33)는 팔, 주문, 교통 세 코어의 출력을 모아 알맞은 코어에 넘기기를 출력이 없을 때까지 되풀이한다. 그래서 운영에서는 한 단계가 낳은 명령이 같은 tick 안에서 다른 코어에 닿고, 그 답이 다음 단계 전에 반영된다. `zone` 순서의 하네스에는 이 되풀이가 없다. 기본(`manager`) 순서는 `FleetManager.tick`을 부르므로 되풀이가 있다. 두 순서의 비교와 tick 경계 시험은 `test_zone_tick_order.py`에 있다. 다만 하네스의 로봇 보고는 기본으로 매니저 입력 경계를 거치지 않으므로, 주문·팔이 얽힌 흐름의 동등성까지 보장하지는 않는다(docs/worklog_tick_order_2026-11-16.md).
 
-`stopped`는 `_watch_deadlock`의 반환값이다. 그 함수는 항상 빈 `frozenset()`을 반환한다(watch.py:136, 7절).
+`stopped`는 `_watch_deadlock`의 반환값이다. 그 함수는 항상 빈 `frozenset()`을 반환한다(watch.py `_watch_deadlock` 끝, 7절).
 
 tick 말고 입력으로 들어오는 길도 있다. 가장 중요한 것은 `on_robot_state`(progress.py:31-63)다: `last_seen` 갱신, 배터리, LOCALIZING이면 중단, 자세 튐 감시(`_watch_pose_jump`), 위치 반영, 그다음 아직 배치 전이면 `_place`, 통신 끊김에서 돌아오면 `_begin_recovery`, 정상이면 `_track` → `_release_behind` → `_watch_outside` → `_watch_blocked`, 고장이면 `_return_unreached`. 구역을 놓는 일은 tick이 아니라 이 길에서 일어난다.
 
@@ -306,7 +306,7 @@ ZoneTraffic 줄에는 tick이 부르는 13개 클래스의 입구가 들어 있�
 
 ## 7. 코드를 읽다 찾은 이상한 점 (고치지 않음)
 
-1. `_watch_deadlock`은 항상 빈 `frozenset()`을 반환한다(watch.py:136). 그래서 `tick_progress`의 반환값 `stopped`는 항상 비어 있고, `tick_pick(stopped)`와 `robot not in stopped`(controller.py:41, manager.py:232)는 아무 일도 하지 않는다. [확정] 의도된 자리표시인지 남은 코드인지는 모른다.
+1. `_watch_deadlock`은 항상 빈 `frozenset()`을 반환한다(watch.py:136). 그래서 `tick_progress`의 반환값 `stopped`는 항상 비어 있고, `tick_pick(stopped)`와 `robot not in stopped`(controller.py:41, manager.py:232)는 아무 일도 하지 않는다. [확정] 이유(2026-11-18 확인): 이 모양은 자유바닥 교통 층에서 그대로 옮겨 왔다(1da1e61). 거기서는 대기 순환에 든 로봇 이름을 돌려주어 그 tick에 `tick_pick`이 고르지 않고 `step`이 걷지 않게 했다("robots of a wait cycle stand still (H1)"). 구역 교통(817343e)은 순환을 `_evade`로 한 대를 주차 자리로 보내 풀 뿐 세울 로봇을 고르지 않아 늘 빈 집합을 돌려준다. 순환의 로봇은 구역을 잡지 못해 이미 기다리는 중이다. `tick_pick(stopped)`는 `TrafficApi`의 공개 API라 고치지 않고, 코드에 같은 주석을 달았다.
 2. `ZoneBase._outbound`(base.py:33)는 zone 패키지 안에서 읽지 않는다. FleetManager와 orchestrator는 자기 `_outbound`를 따로 갖는다. [확정] 죽은 속성으로 보인다.
 3. `station_left`(base.py:52)는 FleetManager가 `hasattr`로 보고 값을 넣어 준다(manager.py:46-47). 그러나 traffic 패키지 안에서 읽는 곳이 없다(`grep -rn station_left pc/fleet_core/fleet_core/traffic`이 base.py:52 하나). [확정] `test_traffic_api.py`는 이 이름을 OPTIONAL로 둔다.
 4. `_capacity_checked`는 `__init__`에 없고 `getattr(self, "_capacity_checked", False)`로 늦게 만든다(capacity.py:10-12).
