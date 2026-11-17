@@ -37,16 +37,15 @@ class Drive:
             if m.goal.via == ORDER:
                 self._extend_order(m)
             return
-        if now < m.retry_at or now < m.yield_until:
+        if now < m.retry_at or now < m.avoid.yield_until:
             return
         if m.phase in (TO_WORK, TO_OUTBOUND, TO_PARK):
             self._drive(m)
         elif m.phase == DOCKING:
-            if m.redock and self._reapproach(m):
+            if m.watch.redock.key and self._reapproach(m):
                 return
             goal_id = self._next_goal_id()
-            m.goal = Goal(DOCK, goal_id)
-            m.stall_from = None
+            self._set_goal(m, Goal(DOCK, goal_id))
             self._out.append(DockCmd(m.name, goal_id, m.dest))
 
     # ---- 트립 따라 주행하고 새 트립으로 바꾸기 ----
@@ -112,7 +111,7 @@ class Drive:
 
     # ---- 목적지 도착 판정과 다음 단계 ----
     def _at_purpose(self, m) -> bool:
-        if not self._on_node(m) or m.retreat_to:
+        if not self._on_node(m) or m.avoid.retreat_to:
             return False
         if m.phase == TO_PARK:
             return m.node in self.site.parking
@@ -147,6 +146,5 @@ class Drive:
                                           self._goal_priority(m)))
             code = "NAV_GOAL_SENT" if via == NAV_GOAL else "FOLLOW_SENT"
             self._event("INFO", code, f"to {target}", m.name)
-        m.goal = Goal(RETREAT if via == RETREAT else MOVE, goal_id, end, target, via)
+        self._set_goal(m, Goal(RETREAT if via == RETREAT else MOVE, goal_id, end, target, via))
         trip.sent = end
-        m.stall_from = None

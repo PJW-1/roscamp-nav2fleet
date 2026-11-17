@@ -1,15 +1,14 @@
-# ---- 막힘 표시 만들기와 만료 믹스인 ----
+# ---- 막힘 표시 책: 만들기, 만료, 해제 확인 ----
 from __future__ import annotations
 
 import math
 from dataclasses import dataclass, field
-from itertools import pairwise
+from itertools import count, pairwise
 
-from fleet_core.fleet_map import NAV_GOAL, SHARED
+from fleet_core.common.commands import BLOCKED_AT, CLEAR, NO_ANSWER, CheckClearCmd
+from fleet_core.fleet_map import NAV_GOAL
 from fleet_core.fleet_map.geometry import point_segment_distance
-from fleet_core.traffic.mission import OUT_OF_SERVICE
-
-from .base import HERE
+from fleet_core.traffic.mission import LOCALIZING
 
 
 # ---- 막힘 표시 기록 ----
@@ -55,73 +54,47 @@ def keys_at(site, params, point) -> list:
     return keys
 
 
-# ---- 장애물 위치와 그 자리의 로봇 찾기 ----
-class BlockMarks:
-    def _obstacle_point(self, m) -> tuple | None:
-        if not self.params.blocked_by_position or m.obstacle is None:
-            return None
-        return m.obstacle[:2]
 
-    def _robot_at(self, m, point):
-        near = [other for other in self._robots.values()
-                if other is not m and other.placed and other.fault != OUT_OF_SERVICE
-                and math.dist(point, (other.x, other.y)) <= self.params.near_m]
-        return min(near, key=lambda o: (math.dist(point, (o.x, o.y)), o.name), default=None)
-
-    # ---- 장애물 점으로 막을 링크 키 모으기 ----
-    def _point_keys(self, m, point, link) -> list:
-        keys = keys_at(self.site, self.params, point)
-        if not keys:
-            return keys
-        if not link.a:
-            keys.append((HERE + m.name, link.b))
-        zone = self.site.zone_at(m.x, m.y)
-        if zone is not None and self.site.zones[zone].kind == SHARED:
-            reach = self.params.footprint_radius_m + self.params.release_margin_m
-            here = (m.x, m.y)
-            for node in self._reach(zone):
-                key, end = (HERE + m.name, node), self.site.node_pose(node)
-                toward = ((point[0] - here[0]) * (end[0] - here[0])
-                          + (point[1] - here[1]) * (end[1] - here[1])) > 0.0
-                if (key not in keys and toward
-                        and point_segment_distance(point, here, end) <= reach):
-                    keys.append(key)
-        return keys
+# ---- 막힘 표시와 해제 확인 기록 ----
+class MarkBook:
+    def __init__(self, params, blocked, marks, robots, clock):
+        self.params = params
+        self._blocked = blocked
+        self._marks = marks
+        self._robots = robots
+        self._clock = clock
+        self._memory: list = []
+        self._seq = count(1).__next__
 
     # ---- 막힘 표시 만들거나 갱신 ----
-    def _mark_point(self, m, point, keys, now: float) -> Mark:
+    def mark(self, by: str, point, keys, now: float) -> Mark:
         p = self.params
         mark = next((mk for mk in self._marks.values()
                      if math.dist(point, (mk.x, mk.y)) <= p.near_m), None)
         if mark is None:
             retry = p.blocked_retry_s
-            old = next((item for item in self._mark_memory
+            old = next((item for item in self._memory
                         if math.dist(point, item[:2]) <= p.near_m), None)
             if old is not None:
-                self._mark_memory.remove(old)
+                self._memory.remove(old)
                 retry = min(2.0 * old[2], max(p.blocked_retry_max_s, p.blocked_retry_s))
-            mark = Mark(self._mark_seq(), point[0], point[1], m.name, now, now + retry, retry,
+            mark = Mark(self._seq(), point[0], point[1], by, now, now + retry, retry,
                         asked_at=now)
             self._marks[mark.id] = mark
         else:
             mark.until, mark.clears = now + mark.retry_s, 0
             mark.check, mark.asked = 0, ""
         for key in keys:
-            self._hold_key(mark, key)
-        shown = ", ".join(f"{a or 'here'}->{b}" for a, b in keys)
-        self._event("WARN", "ZONE_MARKED_BLOCKED",
-                    f"{shown} at ({point[0]:.2f}, {point[1]:.2f}) in "
-                    f"{self.site.zone_at(*point)}, tried again in {mark.retry_s:.0f} s"
-                    f"{self._gaps_note(m)}", m.name)
+            self.hold(mark, key)
         return mark
 
     # ---- 링크 막기, 표시 지우기와 만료 ----
-    def _hold_key(self, mark, key) -> None:
+    def hold(self, mark, key) -> None:
         if key not in mark.keys:
             mark.keys.append(key)
         self._blocked[key] = max(self._blocked.get(key, 0.0), mark.until)
 
-    def _drop_mark(self, mark) -> None:
+    def _drop(self, mark) -> None:
         del self._marks[mark.id]
         for key in mark.keys:
             rest = [mk.until for mk in self._marks.values() if key in mk.keys]
@@ -130,13 +103,61 @@ class BlockMarks:
             else:
                 self._blocked.pop(key, None)
 
-    def _expire_marks(self, now: float) -> None:
+    def expire(self, now: float) -> None:
         keep = self.params.blocked_retry_max_s
-        self._mark_memory = [item for item in self._mark_memory if now - item[3] <= keep]
+        self._memory = [item for item in self._memory if now - item[3] <= keep]
         for mark in [mk for mk in self._marks.values() if mk.until <= now]:
-            self._drop_mark(mark)
-            self._mark_memory.append((mark.x, mark.y, mark.retry_s, now))
+            self._drop(mark)
+            self._memory.append((mark.x, mark.y, mark.retry_s, now))
 
-    def _yielded_lately(self, m, now: float) -> bool:
-        return m.robot_yield_at is not None and now - m.robot_yield_at <= (
-            self.params.blocked_retry_s)
+    # ---- 막힘 표시 근처 로봇에게 확인 요청 만들기 ----
+    def ask(self, now: float) -> list:
+        p, asks = self.params, []
+        for mark in self._marks.values():
+            if now - mark.asked_at < p.check_interval_s:
+                continue
+            if mark.check:
+                mark.clears = 0
+            near = [m for m in self._robots.values()
+                    if m.available and m.name != mark.by and m.report.robot_state != LOCALIZING
+                    and math.dist((m.x, m.y), (mark.x, mark.y)) <= p.check_range_m]
+            if not near:
+                mark.check, mark.asked = 0, ""
+                continue
+            m = min(near, key=lambda r: (mark.asked_last.get(r.name, -math.inf),
+                                         math.dist((r.x, r.y), (mark.x, mark.y)), r.name))
+            mark.check, mark.asked, mark.asked_at = self._seq(), m.name, now
+            mark.asked_last[m.name] = now
+            asks.append(CheckClearCmd(m.name, mark.check, mark.x, mark.y, p.check_radius_m))
+        return asks
+
+    # ---- 확인 응답으로 표시를 지우거나 다시 막기 ----
+    def answer(self, robot, check_id, answer) -> tuple | None:
+        mark = next((mk for mk in self._marks.values()
+                     if mk.check and mk.check == check_id and mk.asked == robot), None)
+        if mark is None:
+            return None
+        mark.check = 0
+        if answer == NO_ANSWER:
+            mark.clears = 0
+            return None
+        now, p = self._clock(), self.params
+        where = f"({mark.x:.2f}, {mark.y:.2f})"
+        if answer == CLEAR:
+            mark.clears += 1
+            if mark.clears >= p.clear_confirm:
+                self._drop(mark)
+                self._memory = [item for item in self._memory
+                                if math.dist(item[:2], (mark.x, mark.y)) > p.near_m]
+                return ("INFO", "BLOCK_CLEARED", f"{where} clear by {mark.clears} checks, "
+                        f"marked {now - mark.since:.0f} s ago")
+        elif answer == BLOCKED_AT:
+            mark.clears = 0
+            mark.until = now + mark.retry_s
+            for key in mark.keys:
+                self.hold(mark, key)
+            return ("INFO", "BLOCK_CONFIRMED",
+                    f"{where} still blocked, tried again in {mark.retry_s:.0f} s")
+        else:
+            mark.clears = 0
+        return None

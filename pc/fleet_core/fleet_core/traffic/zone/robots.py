@@ -5,10 +5,10 @@ from dataclasses import dataclass, field
 
 from fleet_core.traffic.mission import IDLE
 
+from .episodes import BlockedEpisode, Episode, WaitEpisode
+
+
 # ---- 로봇에게 낸 goal 기록 ----
-BACKOFF = "backoff"
-
-
 @dataclass
 class Goal:
     kind: str
@@ -46,6 +46,58 @@ class Dispatch:
     station_id: str
 
 
+# ---- 로봇이 보고한 상태 ----
+@dataclass
+class Report:
+    robot_state: str = ""
+    battery: float = 0.0
+    charge: bool = False
+    last_seen: float = 0.0
+    local_yield: str = ""
+    obstacle: tuple | None = None
+
+
+# ---- 고장, 통신, 자세 의심 상태 ----
+@dataclass
+class Health:
+    fault: str = ""
+    fault_reason: str = ""
+    fault_xy: tuple | None = None
+    pose_doubt: bool = False
+    comm: str = ""
+    recover_at: float = 0.0
+    pose_at: float | None = None
+    suspect_quiet_until: float = 0.0
+
+
+# ---- 양보, 물러나기, 우회 기록 ----
+@dataclass
+class Avoid:
+    yield_until: float = 0.0
+    yielded: tuple | None = None
+    retreat_to: str = ""
+    retreat_via: str = ""
+    retreat_since: float | None = None
+    retreat_behind: str = ""
+    detour: tuple | None = None
+    robot_yield_at: float | None = None
+    behind_since: float | None = None
+
+
+# ---- 감시마다의 일화 기록 ----
+@dataclass
+class Watches:
+    start: Episode = field(default_factory=Episode)
+    silent: Episode = field(default_factory=Episode)
+    idle: Episode = field(default_factory=Episode)
+    stall: Episode = field(default_factory=Episode)
+    outside: Episode = field(default_factory=Episode)
+    wait: WaitEpisode = field(default_factory=WaitEpisode)
+    local_episode: Episode = field(default_factory=Episode)
+    redock: Episode = field(default_factory=Episode)
+    blocked: BlockedEpisode = field(default_factory=BlockedEpisode)
+
+
 # ---- 로봇 한 대의 관제 상태: 위치와 보고 ----
 @dataclass
 class Robot:
@@ -54,20 +106,10 @@ class Robot:
     x: float = 0.0
     y: float = 0.0
     yaw: float = 0.0
-    robot_state: str = ""
-    battery: float = 0.0
-    charge: bool = False
-    last_seen: float = 0.0
-    pose_at: float | None = None
-    suspect_quiet_until: float = 0.0
+    report: Report = field(default_factory=Report)
     # ---- 단계, 고장, 통신 상태 ----
     phase: str = IDLE
-    fault: str = ""
-    fault_reason: str = ""
-    fault_xy: tuple | None = None
-    pose_doubt: bool = False
-    comm: str = ""
-    recover_at: float = 0.0
+    health: Health = field(default_factory=Health)
     # ---- 트립, goal, 재시도 기록 ----
     node: str = ""
     off_node: tuple | None = None
@@ -78,74 +120,33 @@ class Robot:
     base_until: float = 0.0
     attempts: int = 0
     dock_tries: int = 0
-    redock_since: float | None = None
-    redock: bool = False
     retry_at: float = 0.0
     settle_until: float = 0.0
     arrival_by: float | None = None
     heard_since_success: bool = False
     not_sent_warned: bool = False
-    # ---- 호출, 배차, 대기 기록 ----
+    dock_error_m: float = 0.0
+    sent_priority: int = -1
+    # ---- 호출, 배차 기록 ----
     called: bool = False
     dispatch: Dispatch | None = None
     hold: bool = False
     asked_at: float | None = None
     asked_gap: float = 0.0
-    wait_since: float | None = None
-    wait_for: tuple = ()
-    wait_warned: bool = False
-    queued: bool = False
-    # ---- 멈춤, 막힘, 무진척, 출발 감시 기록 ----
-    stall_from: tuple | None = None
-    stall_since: float = 0.0
-    blocked_since: float | None = None
-    blocked_noted: bool = False
-    blocked_goal: int = 0
-    rear_noted: bool = False
-    # 막힘 일화: 시작 위치, 막힘 아닌 보고가 이어진 시작 시각, 틈 뒤 다시 막힌 횟수
-    blocked_xy: tuple | None = None
-    blocked_clear_since: float | None = None
-    blocked_out: bool = False
-    blocked_gaps: int = 0
-    idle_since: float | None = None
-    dock_error_m: float = 0.0
-    silent_from: tuple | None = None
-    silent_since: float = 0.0
-    silent_noted: bool = False
-    start_goal: int = 0
-    start_xy: tuple = (0.0, 0.0)
-    start_since: float = 0.0
-    start_done: bool = False
-    # ---- 자가 복구, 구역 놓기, 양보, 물러나기 기록 ----
-    self_recovery_since: float | None = None
-    local_yield: str = ""
-    local_yield_since: float | None = None
-    local_yield_noted: str = ""
-    sent_priority: int = -1
+    # ---- 구역 놓기, 양보와 물러나기, 감시 기록 ----
     clear_n: dict = field(default_factory=dict)
-    outside_n: int = 0
-    outside_noted: bool = False
-    yield_until: float = 0.0
-    yielded: tuple | None = None
-    retreat_to: str = ""
-    retreat_via: str = ""
-    retreat_since: float | None = None
-    retreat_behind: str = ""
-    backoff_from: tuple | None = None
-    obstacle: tuple | None = None
-    detour: tuple | None = None
-    robot_yield_at: float | None = None
-    behind_since: float | None = None
+    avoid: Avoid = field(default_factory=Avoid)
+    watch: Watches = field(default_factory=Watches)
 
     # ---- 가용 여부와 표시 상태 속성 ----
     @property
     def live(self) -> bool:
-        return self.placed and not self.fault
+        return self.placed and not self.health.fault
 
     @property
     def available(self) -> bool:
-        return self.live and not self.comm
+        return self.live and not self.health.comm
 
     @property
     def state(self) -> str:
-        return self.fault or self.comm or self.phase
+        return self.health.fault or self.health.comm or self.phase

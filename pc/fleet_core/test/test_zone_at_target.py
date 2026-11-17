@@ -141,10 +141,10 @@ def test_a_robot_sent_somewhere_else_forgets_how_long_something_was_behind():
     [retreat] = world.retreats("pode1")
     retreat_answer(world)("pode1", retreat.goal_id, False, "OBSTACLE_BEHIND")
     m = world.traffic._robots["pode1"]
-    assert m.behind_since is not None
+    assert m.avoid.behind_since is not None
     world.traffic.on_dispatch_cancel(call)
     world.traffic.tick_pick()
-    assert m.behind_since is None
+    assert m.avoid.behind_since is None
 
 
 def test_a_move_that_arrives_forgets_how_long_something_was_behind():
@@ -154,9 +154,9 @@ def test_a_move_that_arrives_forgets_how_long_something_was_behind():
     world.call("WORK", "pode2")
     world.run(0.5)
     m = world.traffic._robots["pode2"]
-    m.behind_since = 0.0
+    m.avoid.behind_since = 0.0
     assert world.run_until(lambda: world.view("pode2")["node"] != "P-2", 30.0)
-    assert m.behind_since is None
+    assert m.avoid.behind_since is None
 
 
 def test_a_move_left_open_short_of_its_end_is_still_a_stall():
@@ -433,7 +433,7 @@ def test_an_order_that_fails_with_the_robot_at_the_base_end_behind_a_close_segme
     codes = world.codes("pode1")
     assert "GOAL_ENDED_AT_TARGET" in codes and codes.count("RETREAT_DONE") == 1
     assert codes.count("SEGMENT_DONE") == before + 2
-    assert world.traffic._robots["pode1"].retreat_to == ""
+    assert world.traffic._robots["pode1"].avoid.retreat_to == ""
     assert "GOAL_RETRY" not in codes
     assert world.view("pode1")["node"] == "P-1" and world.phase("pode1") == "PARKED"
 

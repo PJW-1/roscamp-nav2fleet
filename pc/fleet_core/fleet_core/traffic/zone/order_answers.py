@@ -52,11 +52,11 @@ class OrderAnswers:
                 via = trip.links[first].via
                 trip.done = max(trip.done, end)
                 m.node = trip.links[end - 1].b
-                m.behind_since = None
+                m.avoid.behind_since = None
                 self._event("INFO", "SEGMENT_DONE", f"{mo.id} seq {number} ({via}) to {m.node}",
                             m.name)
                 if via == RETREAT:
-                    m.retreat_to = ""
+                    m.avoid.retreat_to = ""
                     self._event("INFO", "RETREAT_DONE", f"stands at {m.node}", m.name)
         mo.done_seq = max(mo.done_seq, seq)
 
@@ -111,7 +111,8 @@ class OrderAnswers:
     def _restore(self, m) -> None:
         mo, trip = m.move_order, m.trip
         goal_id, links, waiting = mo.before
-        m.goal = Goal(MOVE, goal_id, links, trip.links[links - 1].b, ORDER)
+        self._set_goal(m, Goal(MOVE, goal_id, links, trip.links[links - 1].b, ORDER),
+                       reset_watch=False)
         trip.sent = links
         mo.before = None
         mo.waiting = waiting

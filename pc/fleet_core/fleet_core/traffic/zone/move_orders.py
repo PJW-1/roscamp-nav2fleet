@@ -75,9 +75,8 @@ class MoveOrders:
     def _order_goal(self, m, goal_id: int) -> None:
         trip, mo = m.trip, m.move_order
         end = mo.cuts[mo.given - 1][2] if mo.given else trip.granted
-        m.goal = Goal(MOVE, goal_id, end, trip.links[end - 1].b, ORDER)
+        self._set_goal(m, Goal(MOVE, goal_id, end, trip.links[end - 1].b, ORDER))
         trip.sent = end
-        m.stall_from = None
 
     def _send_update(self, m, before: tuple, base: tuple) -> None:
         trip, mo = m.trip, m.move_order

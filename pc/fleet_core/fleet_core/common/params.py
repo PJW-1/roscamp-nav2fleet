@@ -94,10 +94,6 @@ class FleetParams:
     pose_jump_m: float = 0.15
     pose_jump_quiet_s: float = 5.0
     redock_wait_s: float = 10.0
-    yard_backoff: bool = False
-    yard_backoff_m: float = 0.12
-    yard_backoff_wait_s: float = 0.5
-    yard_backoff_edge_m: float = 0.10
     retreat_clear_m: float = 0.20
     use_order_model: bool = True
     lookahead_s: float = 2.0

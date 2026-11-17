@@ -34,32 +34,32 @@ class Progress:
         if m is None:
             return
         now = self._clock()
-        m.last_seen = now
-        m.robot_state = state
-        m.obstacle = obstacle
-        m.local_yield = local_yield if state == SELF_RECOVERING else ""
+        m.report.last_seen = now
+        m.report.robot_state = state
+        m.report.obstacle = obstacle
+        m.report.local_yield = local_yield if state == SELF_RECOVERING else ""
         self._note_battery(m, battery)
         if state == LOCALIZING:
-            m.pose_at = None
+            m.health.pose_at = None
             m.clear_n.clear()
             return
-        if m.comm == COMM_LOST:
-            m.pose_at = None
-        self._watch_pose_jump(m, x, y, yaw, now)
+        if m.health.comm == COMM_LOST:
+            m.health.pose_at = None
+        self._pose_watch.watch(m, x, y, yaw, now)
         m.x, m.y, m.yaw = x, y, yaw
         m.heard_since_success = True
-        if m.fault == OUT_OF_SERVICE:
+        if m.health.fault == OUT_OF_SERVICE:
             return
         if not m.placed:
             self._place(m)
-        elif m.comm == COMM_LOST:
+        elif m.health.comm == COMM_LOST:
             self._begin_recovery(m)
-        elif not m.fault and not m.comm:
+        elif not m.health.fault and not m.health.comm:
             self._track(m)
             self._release_behind(m)
             self._watch_outside(m)
             self._watch_blocked(m, now)
-        elif m.fault == ERROR and not m.comm and m.goal is None:
+        elif m.health.fault == ERROR and not m.health.comm and m.goal is None:
             self._return_unreached(m)
 
     # ---- 지나간 링크만큼 트립 진행 ----
@@ -132,9 +132,9 @@ class Progress:
 
     # ---- 고장 로봇이 닿지 않은 구역 돌려주기와 연속 확인 횟수 세기 ----
     def _return_unreached(self, m) -> None:
-        moved = m.fault_xy is None or math.dist(m.fault_xy, (m.x, m.y)) > (
+        moved = m.health.fault_xy is None or math.dist(m.health.fault_xy, (m.x, m.y)) > (
             self.params.arrival_tolerance_m)
-        if m.robot_state in NOT_PLACEABLE or moved or m.pose_doubt:
+        if m.report.robot_state in NOT_PLACEABLE or moved or m.health.pose_doubt:
             m.clear_n.clear()
             return
         released = self._release_behind(m, keep_trip=False)
@@ -155,14 +155,14 @@ class Progress:
 
     # ---- 배터리 부족과 충전 완료 기록 ----
     def _note_battery(self, m, battery) -> None:
-        m.battery = battery
+        m.report.battery = battery
         p = self.params
         if p.battery_low_pct <= 0 or battery <= 0:
             return
-        if not m.charge and battery <= p.battery_low_pct:
-            m.charge = True
+        if not m.report.charge and battery <= p.battery_low_pct:
+            m.report.charge = True
             self._event("WARN", "ROBOT_BATTERY_LOW", f"{battery:.0f}%, takes no new call",
                         m.name)
-        elif m.charge and battery >= p.battery_charged_pct:
-            m.charge = False
+        elif m.report.charge and battery >= p.battery_charged_pct:
+            m.report.charge = False
             self._event("INFO", "ROBOT_CHARGED", f"{battery:.0f}%", m.name)

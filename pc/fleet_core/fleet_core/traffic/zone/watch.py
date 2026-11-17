@@ -4,7 +4,7 @@ from __future__ import annotations
 import math
 
 from fleet_core.fleet_map import NAV_GOAL, SHARED
-from fleet_core.traffic.deadlock import choose_retreat, find_cycle
+from fleet_core.traffic.deadlock import choose_retreat
 from fleet_core.traffic.mission import (
     BLOCKED,
     DOCK,
@@ -14,7 +14,6 @@ from fleet_core.traffic.mission import (
     STALLED,
 )
 
-from .robots import BACKOFF
 from .trips import Trip
 
 
@@ -23,48 +22,42 @@ class Watch:
     def _watch_stall(self, m, now: float) -> None:
         p = self.params
         waiting = m.move_order is not None and m.move_order.waiting
-        rests = m.robot_state in (BLOCKED, SELF_RECOVERING)
+        rests = m.report.robot_state in (BLOCKED, SELF_RECOVERING)
         if (m.goal is None or self._run_mode != RUN or m.arrival_by is not None or waiting
-                or (rests and m.goal.kind not in (DOCK, BACKOFF))):
-            m.stall_from = None
+                or (rests and m.goal.kind != DOCK)):
+            self._reset_stall(m)
             return
-        here = (m.x, m.y)
-        if m.stall_from is None or math.dist(m.stall_from, here) >= p.stall_move_m:
-            m.stall_from, m.stall_since = here, now
+        here, ep = (m.x, m.y), m.watch.stall
+        if ep.xy is None or math.dist(ep.xy, here) >= p.stall_move_m:
+            ep.xy, ep.since = here, now
             return
         limit = p.dock_stall_s if m.goal.kind == DOCK else p.stall_s
-        if now - m.stall_since < limit:
+        if now - ep.since < limit:
             return
         self._event("WARN", "GOAL_STALLED",
                     f"{m.goal.kind} goal {m.goal.id} open, no movement for {limit:.0f} s", m.name)
-        m.stall_from = None
+        self._reset_stall(m)
         goal, end = m.goal, self._stands_at_end(m)
         self._cancel_goal(m)
-        if goal.kind == BACKOFF:
-            self._backoff_ended(m, STALLED)
-        elif end is not None:
-            m.goal = goal
-            self._arrived_anyway(m, STALLED, end)
+        if end is not None:
+            self._arrived_anyway(m, STALLED, end, goal)
             m.retry_at = now + p.arrival_settle_s
         else:
             self._goal_failed(m, STALLED)
 
     # ---- 잡은 구역 밖 로봇 경고와 그 자리 구역 잡기 ----
     def _watch_outside(self, m) -> None:
-        p = self.params
+        p, ep = self.params, m.watch.outside
         held = self.grants.held_by(m.name)
         gap = min((self.site.distance_to_zone(m.x, m.y, zone) for zone in held), default=0.0)
         if gap <= p.outside_zone_m:
-            m.outside_n = 0
-            m.outside_noted = False
+            ep.clear()
             return
-        m.outside_n += 1
-        if m.outside_n < p.outside_zone_samples:
+        ep.count += 1
+        if ep.count < p.outside_zone_samples:
             return
-        if not m.outside_noted:
-            m.outside_noted = True
-            self._event("WARN", "OUTSIDE_ZONE", f"at ({m.x:.2f}, {m.y:.2f}), {gap:.2f} m outside "
-                        f"{list(held)} for {m.outside_n} reports", m.name)
+        self._event_once(ep, "WARN", "OUTSIDE_ZONE", f"at ({m.x:.2f}, {m.y:.2f}), {gap:.2f} m "
+                         f"outside {list(held)} for {ep.count} reports", m.name)
         self._take_where_it_stands(m)
 
     def _take_where_it_stands(self, m) -> None:
@@ -103,8 +96,6 @@ class Watch:
                 self._near[key] = (since, before)
                 if now - since >= p.near_stuck_s:
                     low, other = sorted((a, b), key=lambda m: (self._priority(m), m.name))
-                    if self._awaits_blocked(low, now - since):
-                        continue
                     self._cancel_goal(low)
                     self._stand_aside(low, other, now)
                     del self._near[key]
@@ -113,26 +104,17 @@ class Watch:
 
     # ---- 대기 순환 찾아 한 로봇 비키게 하기 ----
     def _watch_deadlock(self, now: float) -> frozenset:
-        graph = {}
-        for name, want in self._wants.items():
-            if not self._robots[name].available or self._robots[name].redock:
-                continue
-            blockers = self.grants.blockers(name, want.zones, want.nodes, want.lanes)
-            robots = {robot for group in blockers.values() for robot in group}
-            if robots:
-                graph[name] = robots
-        cycle = tuple(find_cycle(graph) or ())
-        if not cycle:
-            self._cycle = ()
-        elif set(cycle) != set(self._cycle):
-            self._cycle, self._cycle_since, self._cycle_acted = cycle, now, False
-            self._event("WARN", "DEADLOCK_SEEN", f"wait cycle {' -> '.join(cycle)}")
-        elif not self._cycle_acted and now - self._cycle_since >= self.params.deadlock_grace_s:
-            rest = list(cycle)
-            while rest and not self._cycle_acted:
-                victim = choose_retreat(rest, lambda name: self._priority(self._robots[name]))
-                self._cycle_acted = self._evade(self._robots[victim])
-                rest.remove(victim)
+        watch = self._deadlock
+        rest = list(watch.due(now))
+        while rest and not watch.acted:
+            victim = choose_retreat(rest, lambda name: self._priority(self._robots[name]))
+            watch.acted = self._evade(self._robots[victim])
+            rest.remove(victim)
+        # 늘 빈 집합이다. 자유바닥 교통 층(1da1e61)은 대기 순환에 든 로봇을 돌려주어 그 tick에
+        # tick_pick이 고르지 않고 step이 걷지 않게 했다("robots of a wait cycle stand still").
+        # 구역 교통은 순환을 _evade(한 대를 주차 자리로)로만 풀고 세울 로봇을 고르지 않는다.
+        # 순환의 로봇은 구역을 잡지 못해 이미 기다리는 중이다. tick_progress의 반환값과
+        # tick_pick(stopped)는 TrafficApi의 공개 모양이라 그대로 둔다.
         return frozenset()
 
     # ---- 주차 지점으로 비키기 ----

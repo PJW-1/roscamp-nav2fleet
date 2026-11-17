@@ -155,11 +155,11 @@ def test_a_retreat_that_gets_out_after_waiting_starts_a_fresh_wait_next_time():
     now[0] += 0.1
     back = backs(core.tick())
     answer(core, back, False, "OBSTACLE_BEHIND")
-    assert core.traffic._robots["pode1"].behind_since == now[0]
+    assert core.traffic._robots["pode1"].avoid.behind_since == now[0]
     now[0] += core.params.move_retry_wait_s + 0.1
     back = backs(core.tick())
     answer(core, back, True)
-    assert core.traffic._robots["pode1"].behind_since is None
+    assert core.traffic._robots["pode1"].avoid.behind_since is None
 
 
 def test_a_retreat_that_ends_at_its_end_anyway_also_starts_a_fresh_wait_next_time():
@@ -174,7 +174,7 @@ def test_a_retreat_that_ends_at_its_end_anyway_also_starts_a_fresh_wait_next_tim
     answer(core, back, False, "FAILED")
     out = core.tick()
     assert "GOAL_ENDED_AT_TARGET" in [e.code for e in out if isinstance(e, EventOut)]
-    assert core.traffic._robots["pode1"].behind_since is None
+    assert core.traffic._robots["pode1"].avoid.behind_since is None
 
 
 # ---- 재생 도구의 거절 ----

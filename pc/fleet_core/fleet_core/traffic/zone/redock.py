@@ -24,7 +24,7 @@ class Redock:
         m.dock_tries += 1
         m.attempts = m.dock_tries - 1
         if reason == "DOCK_FAILED":
-            m.redock, m.redock_since = True, None
+            m.watch.redock.key, m.watch.redock.since = True, None
         self._goal_failed(m, reason)
 
     # ---- 물러났다가 도크로 다시 들어오는 트립 만들기 ----
@@ -33,13 +33,14 @@ class Redock:
         dock = self.site.stations[m.dest].dock
         out = next((link for link in self.site.links_from(dock) if link.via == RETREAT), None)
         back = way_in(self.site, out.b, dock) if out is not None else None
-        if m.redock_since is None:
-            m.redock_since = now
+        ep = m.watch.redock
+        if ep.since is None:
+            ep.since = now
         links = [out, *back] if back is not None else []
         marked = any(self._blocked.get((link.a, link.b), 0.0) > now for link in links)
         if (not links or marked or m.node != dock
-                or now - m.redock_since >= self.params.redock_wait_s):
-            m.redock = False
+                or now - ep.since >= self.params.redock_wait_s):
+            ep.clear()
             self._stop_wanting(m)
             return False
         trip = Trip(dock, links)
@@ -48,7 +49,7 @@ class Redock:
             self._wants[m.name] = want
             self._note_wait(m, want)
             return True
-        m.redock = False
+        ep.clear()
         m.trip, m.phase = trip, self._leg_of(m.dest)
         self._event("INFO", "DOCK_REAPPROACH", f"backs to {out.b} and comes in to {dock} again",
                     m.name)

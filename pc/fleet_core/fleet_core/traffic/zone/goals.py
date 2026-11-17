@@ -53,11 +53,11 @@ class Goals:
     # ---- 현재 위치에서 목적지까지 링크 찾기 ----
     def _way(self, m, goal: str):
         site, cost = self.site, self._cost(m)
-        if m.retreat_to:
+        if m.avoid.retreat_to:
             if self._retreat_held_up(m):
                 return None
             back = self._back_link(m)
-            rest = route(site, m.retreat_to, goal, cost)
+            rest = route(site, m.avoid.retreat_to, goal, cost)
             return None if rest is None or back is None else [back, *rest]
         if self._on_node(m):
             return route(site, m.node, goal, cost)
@@ -100,14 +100,14 @@ class Goals:
     def _back_link(self, m):
         site = self.site
         here = site.zone_at(m.x, m.y)
-        via = site.nodes[m.retreat_via].zone if m.retreat_via else None
-        target = site.nodes[m.retreat_to].zone
+        via = site.nodes[m.avoid.retreat_via].zone if m.avoid.retreat_via else None
+        target = site.nodes[m.avoid.retreat_to].zone
         zones = [zone for zone in (here, via, target) if zone is not None]
         # 갈림 -> 마당 지점 고정 경로의 꺾는 점을 따른다(곧게 가면 다른 구역 모서리에 붙을 수 있다)
-        down = site.link(m.retreat_via, m.retreat_to) if m.retreat_via else None
+        to, via_node = m.avoid.retreat_to, m.avoid.retreat_via
+        down = site.link(via_node, to) if via_node else None
         bends = down.points[1:-1] if down is not None else ()
-        return back_link(site, m.x, m.y, m.retreat_to, dict.fromkeys(zones), m.retreat_via,
-                         bends)
+        return back_link(site, m.x, m.y, to, dict.fromkeys(zones), via_node, bends)
 
     # ---- 후보 중 잡을 수 있는 트립 고르기 ----
     def _choose(self, m):
@@ -116,19 +116,19 @@ class Goals:
             trip.standby = (m.phase in (TO_WORK, TO_OUTBOUND)
                             and trip.goal in self.site.parking)
             return trip
-        if first_want is None and m.retreat_to and not self._retreat_held_up(m):
+        if first_want is None and m.avoid.retreat_to and not self._retreat_held_up(m):
             back = self._back_link(m)
-            trip = None if back is None else Trip(m.retreat_to, [back])
+            trip = None if back is None else Trip(m.avoid.retreat_to, [back])
             if trip is not None and self._take(m, trip) is None:
                 return trip
         if first_want is not None:
             self._wants[m.name] = first_want
             self._note_wait(m, first_want)
         elif self._blocked:
-            if m.wait_since is None:
-                m.wait_since = self._clock()
-                m.wait_for = ("BLOCKED",)
-        elif m.wait_for == ("BLOCKED",):
+            if m.watch.wait.since is None:
+                m.watch.wait.since = self._clock()
+                m.watch.wait.key = ("BLOCKED",)
+        elif m.watch.wait.key == ("BLOCKED",):
             self._stop_wanting(m)
         return None
 
@@ -145,8 +145,8 @@ class Goals:
                 trip.done, trip.granted = m.trip.done, after
             want = self._take(m, trip)
             if want is None:
-                if queued and not m.queued:
-                    m.queued = True
+                if queued and not m.watch.wait.queued:
+                    m.watch.wait.queued = True
                     self._event("INFO", "DOCK_QUEUED", f"{m.dest} is busy, waits at {goal}",
                                 m.name)
                 elif not queued:
@@ -168,7 +168,7 @@ class Goals:
         for lane in lanes:
             index = next(i for i in range(start, end) if trip.links[i].lane == lane)
             eta[lane] = left_s(self.params, trip.links[trip.done:index], m.x, m.y)
-        since = now if m.wait_since is None else m.wait_since
+        since = now if m.watch.wait.since is None else m.watch.wait.since
         want = Want(tuple(zones), tuple(nodes), lanes, since, eta)
         entered = [lane for lane in lanes if m.name not in grants.holders(lane)]
         for lane in entered:
@@ -183,7 +183,7 @@ class Goals:
             self._lane_set(m, lane, want, now)
         self._event("INFO", "ZONE_GRANTED",
                     f"{'+'.join(zones)} to {trip.links[end - 1].b}", m.name)
-        self._note_detour(m, trip)
+        self._detours.note(m, trip)
         return None
 
     def _lane_spot(self, node: str) -> bool:
@@ -214,12 +214,11 @@ class Goals:
     def _note_wait(self, m, want: Want) -> None:
         now = self._clock()
         blockers = self.grants.blockers(m.name, want.zones, want.nodes, want.lanes)
-        m.wait_for = tuple(blockers) or tuple(want.lanes)
-        if m.wait_since is None:
-            m.wait_since = now
-            self._event("INFO", "ZONE_WAIT", f"waits for {'+'.join(m.wait_for)}", m.name)
-        elif not m.wait_warned and now - m.wait_since >= self.params.zone_wait_warn_s:
-            m.wait_warned = True
-            self._event("WARN", "ZONE_WAIT",
-                        f"has waited {now - m.wait_since:.0f} s for {'+'.join(m.wait_for)}",
-                        m.name)
+        ep = m.watch.wait
+        ep.key = tuple(blockers) or tuple(want.lanes)
+        if ep.since is None:
+            ep.since = now
+            self._event("INFO", "ZONE_WAIT", f"waits for {'+'.join(ep.key)}", m.name)
+        elif now - ep.since >= self.params.zone_wait_warn_s:
+            self._event_once(ep, "WARN", "ZONE_WAIT",
+                             f"has waited {now - ep.since:.0f} s for {'+'.join(ep.key)}", m.name)

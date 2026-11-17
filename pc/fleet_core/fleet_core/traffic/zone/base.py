@@ -4,16 +4,24 @@ from __future__ import annotations
 import itertools
 import math
 
-from fleet_core.common.commands import CancelCmd, DispatchResult, EventOut, RobotIsolated
+from fleet_core.common.commands import DispatchResult, EventOut, RobotIsolated
 from fleet_core.fleet_map import SHARED
 from fleet_core.traffic.deadlock import priority
-from fleet_core.traffic.mission import AT_STATION, ERROR, FILL, NOT_AT_TARGET, RUN, SWAP
+from fleet_core.traffic.mission import AT_STATION, ERROR, FILL, NOT_AT_TARGET, RUN
 from fleet_core.traffic.selector import RobotSelector
 
+from .block_marks import MarkBook
+from .capacity import CapacityCheck
+from .deadlock_watch import DeadlockWatch
+from .detours import DetourNotes
 from .grants import ZoneGrants
 from .lane_policy import LanePolicy
+from .localization import PoseJumpWatch
+from .nostart import StartWatch
 from .robots import ORDER, Robot
+from .silent import SilentWatch
 from .trips import along
+from .views import ZoneViews
 
 HERE = "@"
 
@@ -30,31 +38,62 @@ class ZoneBase:
         self.selector = RobotSelector(site, params)
         self._robots = {name: Robot(name) for name in robots}
         self._work = next(s.id for s in site.stations.values() if s.action == FILL)
-        self._outbound = next(s.id for s in site.stations.values() if s.action == SWAP)
         self._open_calls: list[int] = []
         self._out: list = []
         self._run_mode = RUN
         self._started = None
         self._startup_warned = False
         self._no_robot_warned = False
-        self._capacity_checked = False
         self._joining: set[str] = set()
         self._wants: dict = {}
         self._blocked: dict = {}
         self._marks: dict = {}
-        self._mark_memory: list = []
-        self._mark_seq = itertools.count(1).__next__
-        self._cycle: tuple = ()
-        self._cycle_since = 0.0
-        self._cycle_acted = False
         self._near: dict = {}
         self.order_fault = ""
         self.clear_reason = ""
         self.station_left = None
+        self._views = ZoneViews(site, self.grants, self._robots, self._joining, self._wants,
+                                self._blocked, self._marks)
+        self._capacity = CapacityCheck(site, self._event)
+        self._pose_watch = PoseJumpWatch(params, self._event)
+        self._start_watch = StartWatch(params, site, self._event)
+        self._silent = SilentWatch(params, self._robots, self._event, self._event_once)
+        self._detours = DetourNotes(site, self._event)
+        self._mark_book = MarkBook(params, self._blocked, self._marks, self._robots, clock)
+        self._deadlock = DeadlockWatch(params, self.grants, self._wants, self._robots,
+                                       self._event)
+
+    # ---- 로봇 목록, 운행 상태, 가용 여부, 쌓인 출력 꺼내기 ----
+    @property
+    def robots(self) -> list[str]:
+        return list(self._robots)
+
+    @property
+    def running(self) -> bool:
+        return self._run_mode == RUN
+
+    @property
+    def zones(self):
+        return self.grants
+
+    def available(self, robot) -> bool:
+        m = self._robots.get(robot)
+        return m is not None and m.available
+
+    def take_output(self) -> list:
+        out, self._out = self._out, []
+        return out
 
     # ---- 이벤트 내기와 위치 판정 ----
     def _event(self, level: str, code: str, detail: str, robot: str = "") -> None:
         self._out.append(EventOut(level, code, detail, robot))
+        self._silent.note(robot, code)
+
+    def _event_once(self, ep, level: str, code: str, detail: str, robot: str = "") -> None:
+        if ep.noted:
+            return
+        ep.noted = True
+        self._event(level, code, detail, robot)
 
     def _gap(self, m, node: str) -> float:
         return math.dist((m.x, m.y), self.site.node_pose(node))
@@ -91,38 +130,23 @@ class ZoneBase:
         m.sent_priority = self._priority(m)
         return m.sent_priority
 
-    # ---- goal 취소와 트립, 대기 정리 ----
-    def _cancel_goal(self, m) -> None:
-        if m.goal is None:
-            return
-        self._out.append(CancelCmd(m.name, m.goal.id))
-        if m.move_order is not None and m.move_order.before is not None:
-            self._out.append(CancelCmd(m.name, m.move_order.before[0]))
-        m.goal = None
-        m.move_order = None
-        m.arrival_by = None
-        m.settle_until = self._clock() + self.params.arrival_settle_s
-        if m.trip is not None:
-            m.trip.sent = m.trip.done
-
+    # ---- 트립과 대기 정리 ----
     def _drop_trip(self, m) -> None:
         m.trip = None
 
     def _stop_wanting(self, m) -> None:
         self._wants.pop(m.name, None)
         self.grants.stop_waiting(m.name)
-        m.wait_since = None
-        m.wait_for = ()
-        m.wait_warned = m.queued = False
+        m.watch.wait.clear()
 
     # ---- 로봇 격리와 goal 실패 재시도 ----
     def _fail(self, m, reason: str) -> None:
-        first = m.fault != ERROR
+        first = m.health.fault != ERROR
         if first:
-            m.fault_xy = (m.x, m.y)
-        m.pose_doubt = m.pose_doubt or reason == NOT_AT_TARGET
-        m.fault = ERROR
-        m.fault_reason = reason
+            m.health.fault_xy = (m.x, m.y)
+        m.health.pose_doubt = m.health.pose_doubt or reason == NOT_AT_TARGET
+        m.health.fault = ERROR
+        m.health.fault_reason = reason
         m.called = False
         self._stop_wanting(m)
         if m.dispatch:

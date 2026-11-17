@@ -79,9 +79,9 @@ def test_an_order_segment_that_finishes_forgets_how_long_something_was_behind():
     world.call("WORK", "pode2")
     world.run(0.5)
     m = world.traffic._robots["pode2"]
-    m.behind_since = 0.0
+    m.avoid.behind_since = 0.0
     assert world.run_until(lambda: world.view("pode2")["node"] != "P-2", 30.0)
-    assert m.behind_since is None
+    assert m.avoid.behind_since is None
 
 
 def test_an_order_retreat_that_finishes_forgets_how_long_something_was_behind():
@@ -94,10 +94,10 @@ def test_an_order_retreat_that_finishes_forgets_how_long_something_was_behind():
     [order] = orders(world, "pode1")
     m = world.traffic._robots["pode1"]
     world.traffic.on_move_result("pode1", order.goal_id, False, "OBSTACLE_BEHIND", 0)
-    assert m.behind_since is not None
+    assert m.avoid.behind_since is not None
     assert world.run_until(lambda: "RETREAT_DONE" in world.codes("pode1"), 30.0)
     assert "RETREAT_WAIT" in world.codes("pode1")
-    assert m.behind_since is None
+    assert m.avoid.behind_since is None
 
 
 def test_a_purpose_changed_inside_a_fixed_stretch_ends_the_order_in_the_yard():

@@ -1,39 +1,27 @@
-# ---- 관제 상태 조회 믹스인 ----
+# ---- 관제 상태 조회 객체 ----
 from __future__ import annotations
 
 import math
 
 from fleet_core.common.commands import ZoneView
-from fleet_core.traffic.mission import _COMM_REASON, NO_FAULT, OUT_OF_SERVICE, RUN
+from fleet_core.traffic.mission import _COMM_REASON, NO_FAULT, OUT_OF_SERVICE
 
 
-class Views:
-    # ---- 로봇 목록과 운행 상태 속성 ----
-    @property
-    def robots(self) -> list[str]:
-        return list(self._robots)
+class ZoneViews:
+    def __init__(self, site, grants, robots, joining, wants, blocked, marks):
+        self.site = site
+        self.grants = grants
+        self._robots = robots
+        self._joining = joining
+        self._wants = wants
+        self._blocked = blocked
+        self._marks = marks
 
+    # ---- 모두 자리에 있는지 ----
     @property
     def everyone_placed(self) -> bool:
-        return all(m.placed or m.fault == OUT_OF_SERVICE or m.name in self._joining
+        return all(m.placed or m.health.fault == OUT_OF_SERVICE or m.name in self._joining
                    for m in self._robots.values())
-
-    @property
-    def running(self) -> bool:
-        return self._run_mode == RUN
-
-    @property
-    def zones(self):
-        return self.grants
-
-    # ---- 가용 여부와 쌓인 출력 꺼내기 ----
-    def available(self, robot) -> bool:
-        m = self._robots.get(robot)
-        return m is not None and m.available
-
-    def take_output(self) -> list:
-        out, self._out = self._out, []
-        return out
 
     # ---- 막힘 표시 관측(읽기 전용 질의, bool만 돌려준다) ----
     def live_block(self, keys, point, radius: float, now: float) -> bool:
@@ -46,7 +34,7 @@ class Views:
         views = []
         for zone in self.site.zones:
             holders = ",".join(sorted(self.grants.holders(zone)))
-            queue = tuple(sorted(m.name for m in self._robots.values() if zone in m.wait_for))
+            queue = tuple(sorted(m.name for m in self._robots.values() if zone in m.watch.wait.key))
             views.append(ZoneView(zone, holders, queue, self.grants.acquired_at(zone)))
         return views
 
@@ -57,8 +45,8 @@ class Views:
             return {}
         route, granted = self._route_left(m)
         return {
-            "state": m.state, "phase": m.phase, "on_map": m.placed, "fault": m.fault,
-            "comm": m.comm, "called": m.called, "charging": m.charge,
+            "state": m.state, "phase": m.phase, "on_map": m.placed, "fault": m.health.fault,
+            "comm": m.health.comm, "called": m.called, "charging": m.report.charge,
             "held": list(self.grants.held_by(robot)), "nodes": list(self.grants.nodes_of(robot)),
             "node": m.node, "waypoint": m.node, "target": m.goal.end if m.goal else "",
             "route": route, "path": route, "base": route[:granted], "horizon": route[granted:],
@@ -83,12 +71,12 @@ class Views:
         blockers = (self.grants.blockers(robot, want.zones, want.nodes, want.lanes)
                     if want is not None else {})
         return {
-            "fsm_state": m.robot_state,
-            "fault": m.fault or m.comm or NO_FAULT,
-            "fault_reason": m.fault_reason or _COMM_REASON.get(m.comm, ""),
-            "wait_zone": m.wait_for[0] if m.wait_for else "",
+            "fsm_state": m.report.robot_state,
+            "fault": m.health.fault or m.health.comm or NO_FAULT,
+            "fault_reason": m.health.fault_reason or _COMM_REASON.get(m.health.comm, ""),
+            "wait_zone": m.watch.wait.key[0] if m.watch.wait.key else "",
             "wait_robots": tuple(sorted({name for group in blockers.values() for name in group})),
-            "battery": m.battery, "x": m.x, "y": m.y, "yaw": m.yaw,
+            "battery": m.report.battery, "x": m.x, "y": m.y, "yaw": m.yaw,
             "base": tuple(route[:granted]), "horizon": tuple(route[granted:]),
             "priority": m.sent_priority,
         }

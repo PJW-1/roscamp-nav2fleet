@@ -17,7 +17,7 @@ from fleet_core.traffic.mission import (
 )
 from fleet_core.traffic.selector import RobotInfo
 
-from .robots import BACKOFF, Dispatch
+from .robots import Dispatch
 
 
 # ---- 운행 모드 바꾸기와 배차 받기 ----
@@ -25,11 +25,11 @@ class Calls:
     def on_run_mode(self, run_mode) -> None:
         if run_mode == STOP and self._run_mode != STOP:
             for m in self._robots.values():
-                if m.goal and not m.comm:
+                if m.goal and not m.health.comm:
                     self._cancel_goal(m)
         if run_mode != self._run_mode:
             for m in self._robots.values():
-                m.stall_from = None
+                self._reset_stall(m)
         self._run_mode = run_mode
 
     def on_dispatch(self, goal_id, station_id, robot_id="") -> None:
@@ -80,7 +80,7 @@ class Calls:
 
     # ---- 열린 호출에 응할 로봇 고르기 ----
     def tick_pick(self, stopped: frozenset = frozenset()) -> None:
-        pool = [m for m in self._robots.values() if m.placed and m.fault != OUT_OF_SERVICE]
+        pool = [m for m in self._robots.values() if m.placed and m.health.fault != OUT_OF_SERVICE]
         self._warn_if_no_robot()
         chosen = self.selector.pick(len(self._open_calls),
                                     [self._robot_info(m, m.name in stopped) for m in pool])
@@ -93,7 +93,7 @@ class Calls:
     def _robot_info(self, m, stopped: bool) -> RobotInfo:
         node = m.trip.goal if m.trip is not None and m.phase == TO_PARK else m.node
         eligible = (self.available(m.name) and not m.hold and m.dispatch is None and not stopped
-                    and (not m.charge or (m.called and self._committed(m))))
+                    and (not m.report.charge or (m.called and self._committed(m))))
         return RobotInfo(m.name, node, m.called or self._committed(m), eligible)
 
     def _committed(self, m) -> bool:
@@ -111,7 +111,7 @@ class Calls:
         if m.phase == AT_STATION:
             self._leave_station(m)
         elif m.phase in (PARKED, IDLE):
-            if m.dispatch or (m.called and not m.charge) or m.phase == IDLE:
+            if m.dispatch or (m.called and not m.report.charge) or m.phase == IDLE:
                 self._next_work(m)
         elif m.phase not in (TO_WORK, TO_PARK) or m.dispatch or self._committed(m):
             return
@@ -131,16 +131,14 @@ class Calls:
         m.asked_at = self._clock() if station_id else None
         m.asked_gap = self._metres_to_dock(m, station_id) if station_id else 0.0
         m.attempts = m.dock_tries = 0
-        m.redock = False
-        m.behind_since = None
+        m.watch.redock.clear()
+        m.avoid.behind_since = None
         self._stop_wanting(m)
         goal = m.goal
         if goal is None:
             self._drop_trip(m)
         elif goal.kind == MOVE and self._via(m) == NAV_GOAL:
             self._cancel_goal(m)
-            self._drop_trip(m)
-        elif goal.kind == BACKOFF:
             self._drop_trip(m)
         elif m.trip is not None:
             del m.trip.links[m.trip.granted:]

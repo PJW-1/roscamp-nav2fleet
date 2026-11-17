@@ -5,7 +5,7 @@ from fleet_core.common.commands import DispatchResult
 from fleet_core.common.validate import checked, clear_problem, text
 from fleet_core.traffic.mission import COMM_LOST, LOCALIZING, OUT_OF_SERVICE, RECOVERING
 
-from .robots import Robot
+from .robots import Report, Robot
 
 
 # ---- 보고하지 않는 로봇과 통신 끊김 감지 ----
@@ -14,7 +14,8 @@ class Health:
         if self._started is None:
             self._started = now
         missing = [m.name for m in self._robots.values()
-                   if not m.placed and m.fault != OUT_OF_SERVICE and m.name not in self._joining]
+                   if not m.placed and m.health.fault != OUT_OF_SERVICE
+                   and m.name not in self._joining]
         if (missing and not self._startup_warned
                 and now - self._started > self.params.startup_wait_s):
             self._startup_warned = True
@@ -23,19 +24,19 @@ class Health:
 
     def _check_comm(self, now: float) -> None:
         for m in self._robots.values():
-            if (m.placed and not m.fault and m.comm != COMM_LOST
-                    and now - m.last_seen > self.params.comm_timeout_s):
-                m.comm = COMM_LOST
+            if (m.placed and not m.health.fault and m.health.comm != COMM_LOST
+                    and now - m.report.last_seen > self.params.comm_timeout_s):
+                m.health.comm = COMM_LOST
                 m.called = False
                 self._stop_wanting(m)
-                self._event("WARN", "COMM_LOST", f"no state for {now - m.last_seen:.1f} s, keeps "
-                            f"{list(self.grants.held_by(m.name))}{self._hold_base(m, now)}",
-                            m.name)
+                self._event("WARN", "COMM_LOST", f"no state for {now - m.report.last_seen:.1f} s, "
+                            f"keeps {list(self.grants.held_by(m.name))}"
+                            f"{self._hold_base(m, now)}", m.name)
 
     # ---- 통신 복구 뒤 위치 확인과 트립 재개 ----
     def _begin_recovery(self, m) -> None:
-        m.comm = RECOVERING
-        m.recover_at = self._clock() + self.params.recover_check_s
+        m.health.comm = RECOVERING
+        m.health.recover_at = self._clock() + self.params.recover_check_s
         if m.goal:
             self._cancel_goal(m)
         self._event("INFO", "COMM_RESTORED", "checks where it stands", m.name)
@@ -43,13 +44,14 @@ class Health:
     def _finish_recoveries(self, now: float) -> None:
         fresh = self.params.recover_check_s / 2
         for m in self._robots.values():
-            if (m.comm == RECOVERING and now >= m.recover_at and m.robot_state != LOCALIZING
-                    and now - m.last_seen <= fresh):
+            if (m.health.comm == RECOVERING and now >= m.health.recover_at
+                    and m.report.robot_state != LOCALIZING
+                    and now - m.report.last_seen <= fresh):
                 self._resume(m)
 
     def _resume(self, m) -> None:
-        m.comm = ""
-        m.stall_from = None
+        m.health.comm = ""
+        self._reset_stall(m)
         trip = m.trip
         if trip is None:
             return
@@ -92,9 +94,9 @@ class Health:
             self._cancel_goal(m)
         m.trip = None
         m.clear_n.clear()
-        m.fault, m.fault_reason, m.comm = OUT_OF_SERVICE, note, ""
+        m.health.fault, m.health.fault_reason, m.health.comm = OUT_OF_SERVICE, note, ""
         m.called = m.hold = False
-        m.retreat_to = ""
+        m.avoid.retreat_to = ""
         self._event("INFO", "ZONES_CLEARED", f"released {released}: {note}", robot)
         still = self.grants.held_by(robot)
         if still:
@@ -109,7 +111,7 @@ class Health:
         m = self._robots.get(robot)
         if m is None:
             return f"no such robot {robot}"
-        if m.fault != OUT_OF_SERVICE:
+        if m.health.fault != OUT_OF_SERVICE:
             return f"{robot} is {m.state}, not {OUT_OF_SERVICE}"
         held = self.grants.held_by(robot)
         if held:
@@ -120,9 +122,10 @@ class Health:
         if self.reinstate_refusal(robot):
             return False
         old = self._robots[robot]
+        heard = old.report
         self._robots[robot] = Robot(robot, x=old.x, y=old.y, yaw=old.yaw,
-                                    robot_state=old.robot_state, battery=old.battery,
-                                    charge=old.charge, last_seen=old.last_seen)
+                                    report=Report(heard.robot_state, heard.battery, heard.charge,
+                                                  heard.last_seen))
         self._wants.pop(robot, None)
         self._joining.add(robot)
         return True

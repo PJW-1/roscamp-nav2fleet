@@ -91,16 +91,16 @@ class Turns:
 
     # ---- 대기 지점에서 기다리기와 머물 수 있는지 판단 ----
     def _stay(self, m, station) -> None:
-        if m.wait_since is None:
-            m.wait_since = self._clock()
-        m.wait_for = (self.site.nodes[station.dock].zone,)
-        if not m.queued:
-            m.queued = True
+        if m.watch.wait.since is None:
+            m.watch.wait.since = self._clock()
+        m.watch.wait.key = (self.site.nodes[station.dock].zone,)
+        if not m.watch.wait.queued:
+            m.watch.wait.queued = True
             self._event("INFO", "DOCK_QUEUED", f"{station.id} is busy, waits at {m.node}", m.name)
 
     def _may_stay(self, m) -> bool:
         return (self._on_node(m) and self.site.can_wait(m.node)
-                and self.site.nodes[m.node].kind != AT_DOCK and not m.retreat_to)
+                and self.site.nodes[m.node].kind != AT_DOCK and not m.avoid.retreat_to)
 
     # ---- 같은 스테이션 앞선 로봇 순위와 다음 차례 판정 ----
     def _is_next(self, m, station_id: str) -> bool:
@@ -125,7 +125,7 @@ class Turns:
 
     def _waits_for(self, other, m) -> bool:
         return (other.goal is None and m.goal is None and self._on_node(m)
-                and m.node in other.wait_for and self.grants.node_holder(m.node) == m.name)
+                and m.node in other.watch.wait.key and self.grants.node_holder(m.node) == m.name)
 
     # ---- 도크 차례 가져가기와 도크 빈 여부 확인 ----
     def _take_turn(self, m, trip) -> None:
