@@ -191,16 +191,16 @@ def test_follow_path_the_hold_only_reports_and_an_abort_after_resend_may_still_r
     assert fsm.is_running("g1") and fsm.state() == "RECOVERING"
 
 
-def test_follow_path_after_moving_off_a_new_stop_is_counted_from_zero():
+def test_follow_path_moving_off_ends_the_hold_without_touching_decisions():
+    """0.15 m 벗어나면 보고를 끈다. 정지 시각은 그대로라, 정지 속도로 선 채 물체가 보이면
+    옛 규칙대로 바로 다시 막힌다(판단은 바꾸지 않는다)."""
     fsm = path_blocked()
     for t in steps(4.2, 5.3):
         tick(fsm, t, STUCK, no_obstacle)
     assert fsm.state() == BLOCKED
-    tick(fsm, 5.6, along_p4_p5(0.17), no_obstacle)  # 느리게(정지 속도로) 0.17 m 왔다
+    tick(fsm, 5.6, along_p4_p5(0.17), no_obstacle)
     assert fsm.state() == MOVING
     tick(fsm, 5.7, along_p4_p5(0.17), obstacle)
-    assert fsm.state() == MOVING  # 같은 tick에 다시 막지 않는다. 새로 1초 서야 한다
-    tick(fsm, 6.8, along_p4_p5(0.17), obstacle)
     assert fsm.state() == BLOCKED
 
 
@@ -228,3 +228,15 @@ def test_nav_goal_ten_seconds_without_progress_still_blocks_while_held():
     assert fsm.state() == BLOCKED  # anchor(0.12)에서 10 s 넘게 0.05 m 못 나아갔다
     tick(fsm, 19.2, east(0.30), speed=DRIVING_NAV)
     assert fsm.state() == MOVING
+
+
+def test_follow_path_after_cancel_the_hold_ends_on_time_even_if_the_obstacle_returns():
+    """목표가 없으면 보고만 남은 막힘은 시간으로 끝난다(물체가 돌아와도 IDLE에 묶이지 않는다)."""
+    fsm = path_blocked()
+    fsm.cancel("g1", 4.2)
+    tick(fsm, 4.3, STUCK, no_obstacle)
+    tick(fsm, 5.5, STUCK, no_obstacle)  # 막힘은 풀리고 보고만 남았다
+    tick(fsm, 6.0, STUCK, obstacle)
+    assert fsm.state() == BLOCKED
+    tick(fsm, 7.35, STUCK, obstacle)
+    assert fsm.state() == IDLE

@@ -22,6 +22,9 @@ BLOCKED 시계가 틈마다 다시 시작하는 문제는 다른 브랜치가 �
 
 ## 3. 규칙 (켜는 조건은 그대로, 끄는 조건만 바꿈)
 
+> 첫 커밋 d1d9ac8의 규칙이다. Codex 리뷰 뒤 4f87eab에서 "판단용 막힘은 옛 규칙, 보고만 늦춤"으로
+> 바꿨다. 지금 규칙은 8절을 본다. 3, 4절은 d1d9ac8 기준 기록으로 둔다.
+
 - **nav_goal**: `BLOCKED`를 켠 자리를 기억한다. 로봇 중심이 그 자리에서 `unblock_m`(0.15 m) 이상
   벗어나야 끈다. 진전(0.05 m)은 그대로 `blocked_after_s`의 시계와 "섬" 판정만 다시 잡는다.
   goal을 다시 보내거나(`NavGoals.send`) 목표가 끝나면 끈다(전과 같음).
@@ -58,6 +61,8 @@ BLOCKED 시계가 틈마다 다시 시작하는 문제는 다른 브랜치가 �
 - 노드는 BLOCKED 동안 앞 물체 보고를 붙인다(`node.py:398`). 보고가 더 오래 나온다.
 
 ## 5. 가짜 로봇 (sim/fake_robots)
+
+(d1d9ac8 때 기록. 그 뒤 nav_goal 가짜는 맞췄다: 8절)
 
 손대지 않았다.
 - nav_goal 가짜(`world/nav_goal.py:70-73`, `nav_goal_drive.py:58-59`)는 자기 규칙(진전 0.02 m, 복구 없음)이고
@@ -100,3 +105,58 @@ BLOCKED 시계가 틈마다 다시 시작하는 문제는 다른 브랜치가 �
   빠져나가는 경우 BLOCKED가 그만큼 더 길다.
 - AMCL 위치가 0.15 m 넘게 튀면 BLOCKED가 잘못 풀릴 수 있다(다시 켜지려면 nav_goal은 10초).
 - follow_path에서 물체가 사라진 뒤 1초에 다시 출발하고 BLOCKED는 3초까지 남는지.
+
+## 8. Codex 리뷰 뒤 고침 (4f87eab, 그다음 커밋)
+
+d1d9ac8 리뷰(`codex_blocked_pode.log`)의 [확정] 4건을 코드에서 다시 확인했다.
+
+| 지적 | 확인 | 처리 |
+|---|---|---|
+| 1. follow_path: 1초 뒤 경로를 다시 보내고도 막힘을 3초까지 쥐어서, 그 사이 FollowPath가 물체 없이 `aborted`면 복구 대신 `NAV_ABORTED` | 맞음(`core.py:216`의 `not self._blocked`). 시도 수가 되돌아간 경우에만 옛 코드와 결과가 다름 | 판단용 `_blocked`는 옛 규칙(1초)으로 되돌림. 보고용 hold(`_hold_at`)를 따로 둠 |
+| 2. follow_path: 거리로 풀린 같은 tick에 옛 정지 시각으로 다시 막힘 | 맞음 | 거리는 이제 hold만 끈다. 다시 막히는 것은 옛 규칙의 판단이다. 처음에는 정지 시각도 지웠는데, 판단이 바뀐다는 2차 리뷰 지적에 따라 되돌림 |
+| 3. nav_goal: 거리로 풀린 뒤 오래된 진전 자리 때문에 같은 tick에 다시 막힘 | 맞음(`nav_goal.py` watch 순서) | `g.blocked`는 옛 규칙(0.05 m 진전에서 해제)으로 되돌림. 보고는 `g.held_at`으로 따로 둠. 그 시나리오에서 10초 넘게 0.05 m를 못 나아갔다면 옛 10초 규칙으로 BLOCKED가 맞다(시험으로 고정) |
+| 4. 가짜가 계약과 다름 | 맞음 | nav_goal 가짜 둘을 맞춤(아래). follow_path 가짜는 둠 |
+
+### 지금 규칙
+
+- 판단용 막힘(교착 처리 시작, 자가 복구, `aborted` 처리, 통신 끊김 `base_end`)은 main과 같다.
+  - follow_path `_blocked`: 물체가 1초 안 보이면 풀림.
+  - nav_goal `g.blocked`: 0.05 m 진전이면 풀림.
+- 보고(`state()`)만 BLOCKED로 남는다.
+  - nav_goal: `g.held_at`. 막힘을 켤 때 그 자리를 잡고, 막힘이 풀린 뒤 그 자리에서 `unblock_m` 0.15 m 벗어나면 끈다. goal을 다시 보내거나 교착 처리를 시작하거나 목표가 끝나면 함께 끈다.
+  - follow_path: `_hold_at`. 1초 뒤 막힘이 풀릴 때 잡고, 막힌 자리에서 0.15 m 벗어나거나 물체가 `unblock_clear_s` 3초 동안 계속 안 보이면 끈다(경로를 달리는 중에는 물체가 다시 보이면 다시 센다. 목표가 없으면 시간으로만 끝낸다). 다시 1초 서서 막히거나 복구를 시작하면 hold는 버린다.
+- 2차 리뷰(`codex_blocked_pode2.log`, d1d9ac8..4f87eab)에서 확인한 것:
+  - 정지 시각을 지우던 것: 판단을 바꿔서 되돌림(위 2번).
+  - 계약의 "끌 때 진전 자리와 시각도 새로 잡는다": 틀린 문장이라 고침.
+  - 목표 취소 뒤 hold가 시간으로만 끝나는 것: 의도한 동작이고 계약에 적음(main은 1초 뒤 바로 IDLE이었고 물체를 다시 보지 않았다).
+  - 취소 뒤 물러나는 동안 옛 경로 앞 물체 때문에 BLOCKED가 남는 것: main과 같은 동작이다(d1d9ac8은 거리로 풀었지만 판단을 바꾸므로 되돌림).
+
+### 가짜 로봇
+
+- `world/nav_goal.py`(`NavGoalRun`)와 `nav_goal_drive.py`(`NavGoalDrive`): 판단용 정체(진전 0.02 m, 10초)는 그대로 두고 보고용 `held_at`을 더했다. `UNBLOCK_M = 0.15`이고 `test_timing_agreement.py`가 `FsmParams().unblock_m`과 같은지 본다.
+- 기존 시험 하나를 고쳤다: `test_nav_goal_drive.py::test_a_robot_standing_on_the_goal_blocks_after_ten_seconds`는 11초까지 돈 뒤 `blocked(8.0)`처럼 지난 시각을 물었다. 보고용 막힘이 상태로 남으므로 8초에서 먼저 확인하고 이어 달리게 바꿨다.
+- follow_path 가짜(`recovery.py`)는 쓰지 않는 모드라 옛 1초 해제를 그대로 둔다(주석 남김).
+
+### 시험
+
+- 새 Pode 시험(4f87eab 앞, d1d9ac8 위에서 실패 확인):
+```
+FAILED test_follow_path_the_hold_only_reports_and_an_abort_after_resend_may_still_recover
+  AssertionError: [Finish(goal_id='g1', success=False, reason='NAV_ABORTED', last_done_seq_id=0), CancelNav()]
+FAILED test_follow_path_after_moving_off_a_new_stop_is_counted_from_zero   (뒤에 판단을 바꾸지 않는 시험으로 바꿈)
+FAILED test_nav_goal_clearing_on_distance_does_not_block_again_in_the_same_tick   (10.5 s 시나리오)
+3 failed, 7 passed
+```
+- 취소 뒤 hold가 시간으로 끝나는 시험도 먼저 실패를 보고(`'BLOCKED' == 'IDLE'`) 고쳤다.
+- 가짜 새 시험 2개는 고치기 전 실패(`AssertionError: 0.06`).
+- 결과는 아래 9절.
+
+## 9. 시험 결과 (Codex 리뷰 뒤)
+
+- pode_fsm, ROS 없이: `366 passed, 8 skipped`.
+- pode_fsm, ROS 포함(도메인 74, LOCALHOST): `467 passed, 6 skipped in 70.34s`.
+- sim/fake_robots/test 전체와 `test_timing_agreement.py`(도메인 74, LOCALHOST):
+  - 가짜를 고치기 전: `1023 passed, 27 xfailed in 762.23s`.
+  - 고친 뒤: `1026 passed, 27 xfailed in 788.46s`(새 시험 3개. 실패한 시험이나 결과가 바뀐 시험은 없다. 위의 지난 시각을 묻던 시험 하나는 고쳐 썼다).
+- fleet_manager와 pc/ 시험은 도메인 50~59를 써서 돌리지 않았다. 가짜의 BLOCKED가 길어진 만큼 관제 시나리오
+  시험의 시간이 달라질 수 있으니 그쪽 담당이 돌려 봐야 한다.

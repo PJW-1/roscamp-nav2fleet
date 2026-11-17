@@ -57,7 +57,6 @@ class ObstacleWatch:
         if self._blocked:
             # 보고만 BLOCKED로 남긴다(판단에는 쓰지 않음)
             self._hold_at, self._hold_since = self._blocked_at, self._clear_since
-            self._hold_points = self._blocked_points
         self._blocked, self._clear_since, self._blocked_points = False, None, None
         if moving_goal:
             g.blocked_since = None
@@ -74,16 +73,15 @@ class ObstacleWatch:
         self._drop_hold()
 
     def _drop_hold(self) -> None:
-        self._hold_at = self._hold_since = self._hold_points = None
+        self._hold_at = self._hold_since = None
 
     def _watch_hold(self, now, g, pose, obstacle) -> None:
-        # 막힌 자리에서 unblock_m 벗어나면 해제, 새 정지는 처음부터 센다
+        # 막힌 자리에서 unblock_m 벗어나면 해제(보고만, 정지 시각은 건드리지 않음)
         if math.dist(pose[:2], self._hold_at) >= self.p.unblock_m:
             self._drop_hold()
-            self._stopped_since = None
             return
-        points = self._ahead(g, pose) if isinstance(g, Move) else self._hold_points
-        if points and obstacle(points):
+        # 경로를 달릴 때만 물체를 본다. 목표가 없으면 시간으로만 끝낸다
+        if isinstance(g, Move) and obstacle(self._ahead(g, pose)):
             self._hold_since = None
             return
         if self._hold_since is None:

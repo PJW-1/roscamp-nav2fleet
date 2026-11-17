@@ -101,3 +101,25 @@ def test_two_robots_swapping_places_pass_each_other_without_touching():
         assert results(world, "on_move_result", robot)[0][2:] == (True, "")
     assert world.metrics.min_gap >= 2 * world.radius
     assert not [v for v in world.violations if v.code == "I6_TOO_CLOSE"]
+
+
+def test_blocked_clears_only_after_unblock_m_from_where_it_started():
+    """Pode와 같이(unblock_m, 2026-11-17) 몇 cm 꿈틀대서는 BLOCKED가 풀리지 않는다."""
+    from types import SimpleNamespace
+
+    from fake_robots.world.nav_goal import NavGoalRun
+
+    run = NavGoalRun(1, (5.0, 5.0), 0.0, 0.1, 10.0)
+    run.mark, run.mark_t = (0.0, 0.0), 0.0
+    robot = SimpleNamespace(pose=(0.0, 0.0))
+    run._progress(SimpleNamespace(t=10.0), robot)
+    assert run.blocked
+    t = 10.1
+    for dx in (0.06, 0.10, 0.04, 0.0, 0.08):
+        robot.pose = (dx, 0.0)
+        run._progress(SimpleNamespace(t=t), robot)
+        assert run.blocked, dx
+        t += 0.1
+    robot.pose = (0.16, 0.0)
+    run._progress(SimpleNamespace(t=t), robot)
+    assert not run.blocked

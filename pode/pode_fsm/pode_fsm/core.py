@@ -92,7 +92,6 @@ class PodeFsm(NavGoalMoves, RetreatMoves, LocalYield, NavYield, SelfRecovery, Ob
         self._blocked_at: Point | None = None
         self._hold_at: Point | None = None
         self._hold_since: float | None = None
-        self._hold_points: list[Point] | None = None
         self._recovery: Recovery | None = None
         self._attempts = 0
         self._attempt_origin: Point | None = None
