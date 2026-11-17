@@ -118,6 +118,13 @@ def test_the_local_footprint_is_a_polygon_round_the_real_body():
     assert max(math.hypot(x, y) for x, y in polygon) <= 0.085, "never wider than the old square"
 
 
+def test_the_local_footprint_is_not_padded():
+    """P-3 앞 멈춤(2026-11-17): padding을 안 적으면 Jazzy 기본 0.01이 붙어 RPP가 1 cm 부푼 몸으로
+    충돌을 본다. 다각형이 이미 몸을 덮으므로 0으로 둔다. global(NavFn)은 0.01 그대로다."""
+    assert params("local_costmap", "local_costmap")["footprint_padding"] == 0.0
+    assert params("global_costmap", "global_costmap")["footprint_padding"] == 0.01
+
+
 def _lookahead(rpp: dict, speed: float) -> float:
     return min(max(abs(speed) * rpp["lookahead_time"], rpp["min_lookahead_dist"]),
                rpp["max_lookahead_dist"])
