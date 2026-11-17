@@ -28,12 +28,12 @@ class Watch:
                 or (rests and m.goal.kind not in (DOCK, BACKOFF))):
             self._reset_stall(m)
             return
-        here = (m.x, m.y)
-        if m.stall_from is None or math.dist(m.stall_from, here) >= p.stall_move_m:
-            m.stall_from, m.stall_since = here, now
+        here, ep = (m.x, m.y), m.stall
+        if ep.xy is None or math.dist(ep.xy, here) >= p.stall_move_m:
+            ep.xy, ep.since = here, now
             return
         limit = p.dock_stall_s if m.goal.kind == DOCK else p.stall_s
-        if now - m.stall_since < limit:
+        if now - ep.since < limit:
             return
         self._event("WARN", "GOAL_STALLED",
                     f"{m.goal.kind} goal {m.goal.id} open, no movement for {limit:.0f} s", m.name)
@@ -50,20 +50,17 @@ class Watch:
 
     # ---- 잡은 구역 밖 로봇 경고와 그 자리 구역 잡기 ----
     def _watch_outside(self, m) -> None:
-        p = self.params
+        p, ep = self.params, m.outside
         held = self.grants.held_by(m.name)
         gap = min((self.site.distance_to_zone(m.x, m.y, zone) for zone in held), default=0.0)
         if gap <= p.outside_zone_m:
-            m.outside_n = 0
-            m.outside_noted = False
+            ep.clear()
             return
-        m.outside_n += 1
-        if m.outside_n < p.outside_zone_samples:
+        ep.count += 1
+        if ep.count < p.outside_zone_samples:
             return
-        if not m.outside_noted:
-            m.outside_noted = True
-            self._event("WARN", "OUTSIDE_ZONE", f"at ({m.x:.2f}, {m.y:.2f}), {gap:.2f} m outside "
-                        f"{list(held)} for {m.outside_n} reports", m.name)
+        self._event_once(ep, "WARN", "OUTSIDE_ZONE", f"at ({m.x:.2f}, {m.y:.2f}), {gap:.2f} m "
+                         f"outside {list(held)} for {ep.count} reports", m.name)
         self._take_where_it_stands(m)
 
     def _take_where_it_stands(self, m) -> None:

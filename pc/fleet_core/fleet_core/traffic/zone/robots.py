@@ -98,8 +98,7 @@ class Robot:
     wait_warned: bool = False
     queued: bool = False
     # ---- 멈춤, 막힘, 무진척, 출발 감시 기록 ----
-    stall_from: tuple | None = None
-    stall_since: float = 0.0
+    stall: Episode = field(default_factory=Episode)
     blocked_since: float | None = None
     blocked_noted: bool = False
     blocked_goal: int = 0
@@ -120,8 +119,7 @@ class Robot:
     local_yield_noted: str = ""
     sent_priority: int = -1
     clear_n: dict = field(default_factory=dict)
-    outside_n: int = 0
-    outside_noted: bool = False
+    outside: Episode = field(default_factory=Episode)
     yield_until: float = 0.0
     yielded: tuple | None = None
     retreat_to: str = ""
