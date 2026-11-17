@@ -80,8 +80,7 @@ class Robot:
     base_until: float = 0.0
     attempts: int = 0
     dock_tries: int = 0
-    redock_since: float | None = None
-    redock: bool = False
+    redock: Episode = field(default_factory=Episode)
     retry_at: float = 0.0
     settle_until: float = 0.0
     arrival_by: float | None = None

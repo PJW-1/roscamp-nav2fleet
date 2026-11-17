@@ -111,7 +111,7 @@ class Watch:
     def _watch_deadlock(self, now: float) -> frozenset:
         graph = {}
         for name, want in self._wants.items():
-            if not self._robots[name].available or self._robots[name].redock:
+            if not self._robots[name].available or self._robots[name].redock.key:
                 continue
             blockers = self.grants.blockers(name, want.zones, want.nodes, want.lanes)
             robots = {robot for group in blockers.values() for robot in group}
