@@ -25,6 +25,7 @@ from pode_plan_keep.route import (
     first_look,
     length,
     second_look,
+    stale,
 )
 
 STEP = 0.05
@@ -185,3 +186,11 @@ def test_a_point_outside_the_costmap_is_blocked():
 def test_no_costmap_or_a_turned_costmap_gives_no_answer():
     assert check_route(None, EAST_THEN_NORTH) == UNKNOWN
     assert check_route(grid(yaw=0.1), EAST_THEN_NORTH) == UNKNOWN
+
+
+# ---- 묵은 비용 지도: 받은 지 costmap_timeout_s(3.0 s)가 지나면 판정하지 않는다 ----
+
+@pytest.mark.parametrize("age_s, old", [(0.0, False), (1.3, False), (3.0, False), (3.01, True)])
+def test_a_costmap_older_than_the_timeout_is_stale(age_s, old):
+    """Gazebo가 느리면(실시간 배율 0.75) 1 Hz 격자가 벽시계로 1.3 s쯤마다 온다."""
+    assert stale(100.0, 100.0 + age_s, 3.0) is old

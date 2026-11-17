@@ -97,3 +97,8 @@ def check_route(grid, route, blocked_cost: int = 99):
         if cost >= blocked_cost:
             return x, y, cost
     return OPEN
+
+
+# ---- 묵은 비용 지도 ----
+def stale(received_s: float, now_s: float, timeout_s: float) -> bool:
+    return now_s - received_s > timeout_s

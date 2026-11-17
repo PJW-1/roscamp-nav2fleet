@@ -30,6 +30,7 @@ from .route import (
     first_look,
     length,
     second_look,
+    stale,
 )
 
 # ---- 이름과 상수 ----
@@ -60,11 +61,13 @@ class PlanKeep(Node):
                            shorter_ratio=float(declare("shorter_ratio", 0.2).value),
                            same_goal_m=float(declare("same_goal_m", 0.05).value))
         self.blocked_cost = int(declare("blocked_cost", 99).value)
+        self.costmap_timeout_s = float(declare("costmap_timeout_s", 3.0).value)
         self._lock = threading.Lock()
         self._kept = None
         self._kept_goal = None
         self._running = 0
         self.grid = None
+        self._grid_s = 0.0
         self.create_subscription(OccupancyGrid, COSTMAP, self._on_costmap, COSTMAP_QOS)
         self.planner = ActionClient(self, ComputePathToPose, PLANNER,
                                     callback_group=ReentrantCallbackGroup())
@@ -78,6 +81,7 @@ class PlanKeep(Node):
     def _on_costmap(self, msg):
         info = msg.info
         q = info.origin.orientation
+        self._grid_s = time.monotonic()
         self.grid = Grid(origin_x=info.origin.position.x, origin_y=info.origin.position.y,
                          yaw=2.0 * math.atan2(q.z, q.w), resolution=info.resolution,
                          width=info.width, height=info.height, data=msg.data)
@@ -167,9 +171,14 @@ class PlanKeep(Node):
         if look == OFF:
             verdict = OFF
         else:
-            found = check_route(self.grid, rest, self.blocked_cost)
+            grid, received_s = self.grid, self._grid_s
+            old = grid is not None and stale(received_s, time.monotonic(),
+                                             self.costmap_timeout_s)
+            found = route.UNKNOWN if old else check_route(grid, rest, self.blocked_cost)
             valid = None if found == route.UNKNOWN else found == OPEN
             verdict = second_look(rest, new, valid, self.rules)
+            if old:
+                reason = f"the global costmap is older than {self.costmap_timeout_s:g} s"
             if verdict == BLOCKED:
                 x, y, cost = found
                 where = "outside the costmap" if cost is None else f"cost {cost}"

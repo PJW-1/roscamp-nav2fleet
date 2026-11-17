@@ -292,9 +292,23 @@ def test_more_than_two_requests_at_once_are_refused(ros):
         assert wait(handle.get_result_async()).status == GoalStatus.STATUS_CANCELED
 
 
+def test_a_stale_costmap_is_not_used_and_the_new_plan_wins(ros):
+    keeper, fake, client = ros(Parameter("costmap_timeout_s", value=0.3))
+    fake.costmap(keeper)
+    fake.plans.extend([EAST, NORTH, EAST])
+    ask(client)
+    time.sleep(0.5)  # 격자가 0.3 s보다 묵었다
+    _, result = ask(client)
+    assert points_of(result.path) == rounded(NORTH)
+    fake.costmap(keeper)  # 새 격자면 다시 지킨다
+    _, result = ask(client)
+    assert points_of(result.path) == rounded(NORTH)
+
+
 def test_the_rule_values_are_parameters(ros):
     keeper, _, _ = ros(Parameter("same_route_m", value=0.1), Parameter("blocked_cost", value=100))
     assert keeper.rules.same_route_m == 0.1 and keeper.blocked_cost == 100
+    assert keeper.costmap_timeout_s == 3.0
     assert keeper.rules.off_route_m == 0.30 and keeper.keep is True
 
 
