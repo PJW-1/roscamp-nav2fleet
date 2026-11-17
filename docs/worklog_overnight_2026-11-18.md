@@ -30,6 +30,7 @@
 | 1부 4 `Robot` 필드 묶기 | 끝 | 532a247 | 1121 / 883 / 84 | 0줄 |
 | 2부 A1 양보 보고 도구 | 끝 | `tools/yield-report` bf7848c | tools 시험 5개 추가 | 제품 코드 변경 없음 |
 | 2부 A3 가짜 로봇의 양보 사다리 | 끝(끔이 기본) | `refactor/yield-a3-fake-ladder` 25664cf | 1118 / 895 / 84, pode_fsm 366 passed 8 skipped | 끔일 때 0줄 |
+| 2부 A2 마당 물러나기 지우기 | 끝 | `refactor/yield-owner` 441d0d5 | 1087 passed 5 xfailed / 892 passed 7 skipped 27 xfailed / 89 passed 14 failed | 0줄(trace, situations, store, order_v7, order_d2) |
 
 - 시험 수는 Windows 파이썬으로 돌린 것이다. fake_robots의 7 skipped는 rclpy가 없어 건너뛴 `test_ros_*.py` 일곱 파일이고,
   tools의 14 failed는 `test_real_pode.py`가 Windows에서 bash를 못 찾는 기존 실패다(WSL에서는 통과한다).
@@ -91,6 +92,19 @@
     `test_depend fake_robots`를 뺐다(동작은 그대로다. 질문 7절).
   - 실제 사다리와 다른 점: BLOCKED 뒤의 유지 동작(1 s 비움, 3 s 또는 0.15 m)이 없다. 막힘 판정 거리와 진행 문턱은 가짜
     로봇의 값을 쓴다. ROS 가짜 노드(`fake_pode_node.py`)에는 넣지 않았다.
+- **A2:** 마당 물러나기(`yard_backoff`, 기본 끔)를 지웠다(6af41a0 시험, 7bb38cc 코드, 8ad2bb1 파라미터, 441d0d5 문서).
+  - 지운 것: `backoff.py`의 `backoff_spot`, `Backoff._back_off`, `_awaits_blocked`, `_backoff_result`, `_backoff_ended`,
+    `_stand_aside`의 물러나기 갈래, goal 종류 `BACKOFF`와 `Avoid.backoff_from`, 그것을 보던 `blocked.py`, `calls.py`,
+    `results.py`(네 곳), `watch.py`의 갈래, 이벤트 `HALL_BACKOFF_DONE`, `HALL_BACKOFF_FAILED`, 파라미터 넷(`params.py`,
+    `fleet_params.yaml`). `_stand_aside`의 섬과 "같은 자리에서 다시 비키면 주차로" 갈래는 남겼다.
+  - 시험 수: fleet_core 1121 → 1087(-34), fake_robots 895 → 892(-3), tools 89 passed 14 failed 그대로.
+  - 지운 시험: `test_zone_backoff.py`의 24개(물러나기만 본다. 기본 경로를 보는
+    `test_with_the_switch_off_a_blocked_robot_only_stops`는 기대값 그대로 남겼다), `test_situation_avoid_modes.py`의
+    `test_the_yard_back_off_does_not_stand_a_robot_on_a_node_it_does_not_hold` 3개(물러나기를 켜야만 도는 시험).
+    `test_params_validate.py`의 10개는 지운 파라미터마다 자동으로 생기던 경우라 함께 줄었다(시험 코드는 그대로).
+  - 고치지 않은 곳: `docs/Pode_계약.md` 10번의 "넓은 구역 안의 물러나기"(계약 문서라 건너뜀),
+    `docs/ZoneTraffic_구조.md`(1부 5단계가 같은 문서를 고치는 중이라 병합 충돌을 피함), 지난 기록과 결과 문서,
+    `tools/yield_report.py`의 `backs ... then stops` 문구(지난 기록을 읽는다). `fleet_interfaces`에는 해당 상수가 없었다.
 
 ## 5. 지시서 밖의 일 (같은 밤)
 
