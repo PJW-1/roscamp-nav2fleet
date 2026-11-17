@@ -147,12 +147,15 @@ def test_v7_a_robot_at_work_plans_its_way_out_to_the_hall():
 
 def test_v7_keepout_extra_is_not_floor():
     """Nav2 마스크는 keepout_extra 사각형을 덧대지 않고 막는다(fleet_core keepout.mask). 머리 없는
-    세계도 그 안으로 길을 내지 않는다: 칸막이 3 위 끝 둘레. 남쪽 진열대 사이 틈은 지름길이라
-    막지 않는다(사용자 결정 2026-11-17): 머리 없는 세계에서도 바닥이다."""
+    세계도 그 안으로 길을 내지 않는다: 칸막이 1, 2 위 끝 둘레. 남쪽 진열대 사이 틈은 지름길이라
+    막지 않는다(사용자 결정 2026-11-17): 머리 없는 세계에서도 바닥이다. 칸막이 3과 그 둘레는
+    2026-11-17에 뺐다(사용자): 그 자리도 바닥이다."""
     site = load_fleet_map("v7")
     space = FreeSpace(site, R)
     assert space.free(space.static, 1.12, 0.385), "the gap between the south shelves is floor"
-    assert not space.free(space.static, 0.84, 0.19), "around the top of divider 3"
+    # 칸막이 2 위 끝 모서리(0.52, 0.10)에서 0.105라 몸 반경 0.08로는 막히지 않는다: keepout 때문이다
+    assert not space.free(space.static, 0.565, 0.195), "around the top of divider 2"
+    assert space.free(space.static, 0.84, 0.19), "divider 3 and its keepout are gone"
     assert space.free(space.static, 1.12, 0.25), "the south corridor below the gap stays floor"
 
 

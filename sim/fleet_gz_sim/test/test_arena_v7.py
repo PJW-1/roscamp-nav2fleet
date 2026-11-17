@@ -329,8 +329,8 @@ DIVIDER_2_KEEP = (0.45, 0.0, 0.57, 0.20)
 def test_v7_the_tops_of_dividers_1_and_2_are_kept_out_for_nav2(site, keep, divider_x, bays_x):
     """견고함 판 R3, R4(2026-11-15): P-1을 나온 pode3가 y 0.165에서 Q2로 가는 Nav2 goal을 받아
     5 cm 격자의 y 0.15~0.20 줄을 따라 동쪽으로 갔고, 칸막이 1 위 끝(0.24~0.26, 0.10)을 긁어 실제
-    방향이 추정과 47~70도 어긋났다(주문 12건 가운데 7건에서 멈춤). 칸막이 3과 같이 그 둘레를
-    y 0.20까지 막는다. 양쪽 칸은 열려 있다."""
+    방향이 추정과 47~70도 어긋났다(주문 12건 가운데 7건에서 멈춤). 그때 칸막이 3에 있던 것과 같이
+    그 둘레를 y 0.20까지 막는다(칸막이 3과 그 둘레는 2026-11-17에 뺐다). 양쪽 칸은 열려 있다."""
     assert keep in site.keepout_extra
     grid = arena_maps.keepout(arena_maps.FINE_M, site)
 
