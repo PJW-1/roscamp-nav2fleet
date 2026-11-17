@@ -164,7 +164,8 @@ def test_gap_points_can_be_moved_and_a_point_needs_a_nav_goal():
                          ("corridor", {"GAP_N": (1.1, 0.5)}),
                          ("gap", {"GAP_N": (math.nan, 0.55)}), ("gap", {"GAP_N": 1.1}),
                          ("gap", {"GAP_N": (1.1, "x")}), ("gap", {"GAP_N": {1.1: 0, 0.5: 1}}),
-                         ("gap", {"GAP_N": (True, 0.5)}), ("gap", {"GAP_N": (10 ** 400, 0.5)})):
+                         ("gap", {"GAP_N": (True, 0.5)}), ("gap", {"GAP_N": (10 ** 400, 0.5)}),
+                         ("gap", {"GAP_N": (10 ** 5000, 0.5)})):  # repr도 못 하는 큰 수
         with pytest.raises(sp.PlanError, match="point"):
             sp.build(V7, plan, points=points)
     # 정수와 numpy 수도 받고, 목표는 float로 보낸다(Pose2D는 float만 받는다)
