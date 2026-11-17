@@ -387,6 +387,9 @@ def test_the_tree_is_nav2s_default_tree_with_the_goal_controller_checker_and_no_
     select.set("default_controller", "FollowPath")
     [follow] = ours.getroot().iter("FollowPath")
     del follow.attrib["goal_checker_id"]
+    # 회복 Clear 노드의 server_timeout은 우리가 더한 것이라 비교에서 뺀다
+    for clear in ours.getroot().iter("ClearEntireCostmap"):
+        clear.attrib.pop("server_timeout", None)
     default = ET.parse(NAV2_BT)
     for parent in default.getroot().iter("RoundRobin"):
         for child in [c for c in parent if c.tag in ("Spin", "BackUp")]:
@@ -648,3 +651,12 @@ def test_a_body_point_is_marked_anywhere_on_the_arena():
 def test_the_far_point_that_keeps_the_cloud_from_being_empty_is_never_marked():
     """pode_peer_obstacles는 빈 점구름을 피하려고 map 원점에서 1000 m 넘게 먼 점 하나를 늘 낸다."""
     assert PEERS["peer_layer"]["peers"]["obstacle_max_range"] <= 100.0
+
+
+def test_recovery_clear_nodes_have_their_own_longer_server_timeout():
+    """모든 Clear 노드는 자기 server_timeout(ms)을 가진다. 전역 기본값 20은 그대로."""
+    clears = list(BT.getroot().iter("ClearEntireCostmap"))
+    assert len(clears) == 4
+    for node in clears:
+        assert int(node.get("server_timeout", "0")) >= 500, node.get("name")
+    assert params("bt_navigator")["default_server_timeout"] == 20
