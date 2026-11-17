@@ -51,8 +51,8 @@
       <visual name="wall_west_visual"><pose>-0.025 0.495 0.15 0 0 0</pose><geometry><box><size>0.05 0.99 0.3</size></box></geometry><material><ambient>0.55 0.45 0.35 1</ambient><diffuse>0.55 0.45 0.35 1</diffuse></material></visual>
       <collision name="wall_east"><pose>2.005 0.495 0.15 0 0 0</pose><geometry><box><size>0.05 0.99 0.3</size></box></geometry></collision>
       <visual name="wall_east_visual"><pose>2.005 0.495 0.15 0 0 0</pose><geometry><box><size>0.05 0.99 0.3</size></box></geometry><material><ambient>0.55 0.45 0.35 1</ambient><diffuse>0.55 0.45 0.35 1</diffuse></material></visual>
-      <collision name="shelf_1"><pose>1.12 0.79 0.075 0 0 0</pose><geometry><box><size>0.88 0.04 0.15</size></box></geometry></collision>
-      <visual name="shelf_1_visual"><pose>1.12 0.79 0.075 0 0 0</pose><geometry><box><size>0.88 0.04 0.15</size></box></geometry><material><ambient>0.27 0.42 0.62 1</ambient><diffuse>0.27 0.42 0.62 1</diffuse></material></visual>
+      <collision name="shelf_1"><pose>1.095 0.79 0.075 0 0 0</pose><geometry><box><size>0.93 0.04 0.15</size></box></geometry></collision>
+      <visual name="shelf_1_visual"><pose>1.095 0.79 0.075 0 0 0</pose><geometry><box><size>0.93 0.04 0.15</size></box></geometry><material><ambient>0.27 0.42 0.62 1</ambient><diffuse>0.27 0.42 0.62 1</diffuse></material></visual>
       <collision name="shelf_2"><pose>0.835 0.385 0.075 0 0 0</pose><geometry><box><size>0.31 0.04 0.15</size></box></geometry></collision>
       <visual name="shelf_2_visual"><pose>0.835 0.385 0.075 0 0 0</pose><geometry><box><size>0.31 0.04 0.15</size></box></geometry><material><ambient>0.27 0.42 0.62 1</ambient><diffuse>0.27 0.42 0.62 1</diffuse></material></visual>
       <collision name="shelf_3"><pose>1.405 0.385 0.075 0 0 0</pose><geometry><box><size>0.31 0.04 0.15</size></box></geometry></collision>

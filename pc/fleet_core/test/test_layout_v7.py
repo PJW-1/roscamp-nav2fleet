@@ -8,7 +8,8 @@ from fleet_core.fleet_map import KNOWN_LAYOUTS, LAYOUTS, PASS, SHARED, load_flee
 from fleet_core.fleet_map.model import FOLLOW_PATH, NAV_GOAL, RETREAT
 
 # 자유바닥 저장소 sites/arena_v7.yaml의 치수(권위 있는 값)
-SHELVES = [(0.68, 0.77, 1.56, 0.81), (0.68, 0.365, 0.99, 0.405), (1.25, 0.365, 1.56, 0.405)]
+# 북쪽 진열대 A는 2026-11-17에 서쪽으로만 0.05 늘렸다(사용자: 자리는 그대로, 왼쪽으로만): 0.68 -> 0.63
+SHELVES = [(0.63, 0.77, 1.56, 0.81), (0.68, 0.365, 0.99, 0.405), (1.25, 0.365, 1.56, 0.405)]
 # 칸막이 3(x 0.76~0.78)은 뺐다(사용자 2026-11-17: 충전 자리는 그대로, 3번 칸막이만 없앤다)
 DIVIDERS = [(0.24, 0.0, 0.26, 0.10), (0.50, 0.0, 0.52, 0.10)]
 RELEASE_GAP_M = 0.135  # footprint_radius_m 0.085 + release_margin_m 0.05
@@ -34,6 +35,10 @@ def test_v7_dimensions(site):
     assert round(DIVIDERS[0][0], 3) == 0.24
     assert round(SHELVES[2][0] - SHELVES[1][2], 3) == 0.26
     assert round(0.99 - SHELVES[0][3], 3) == 0.18
+    # 진열대 A는 0.93(0.88 + 서쪽 0.05), 동쪽 끝 1.56과 높이는 그대로
+    assert round(SHELVES[0][2] - SHELVES[0][0], 3) == 0.93 and SHELVES[0][2] == 1.56
+    # 진열대 자리는 어느 구역도 아니다. 그 서쪽 띠(OUT_DOCK과 진열대 사이)는 HALL이다
+    assert site.zone_at(0.64, 0.79) is None and site.zone_at(0.60, 0.79) == "HALL"
 
 
 def test_v7_divider_3_is_gone_and_p3_opens_to_the_east(site):
@@ -419,7 +424,7 @@ def test_v7_outbound_waits_at_the_west_end_of_the_express_too(site):
     # 못한다(Codex 검수 fb69df1). 더 동쪽이면 급행 끝에서 출고까지 멀어질 뿐이다
     assert site.distance_to_zone(spot.x, spot.y, "OUT_DOCK") == pytest.approx(RELEASE_GAP_M + 0.02)
     assert spot.y == pytest.approx(0.90)  # 급행 가운데
-    # 북쪽 진열대 서쪽 끝 모서리(0.68, 0.81)에 몸 원이 닿지 않는다(0.0934)
+    # 북쪽 진열대에 몸 원이 닿지 않는다(2026-11-17부터 진열대가 O_X 아래까지 와서 위 면에서 0.09)
     assert point_rect_distance(SHELVES[0], spot.x, spot.y) > BODY_CIRCLE_M
     # 선 로봇의 몸은 HALL에 들지 않는다(진열대 서쪽 HALL 띠의 위 끝 y 0.81에서 0.09). 급행으로 오는
     # 길은 HALL을 지나지 않아 쥐지도 않는다
