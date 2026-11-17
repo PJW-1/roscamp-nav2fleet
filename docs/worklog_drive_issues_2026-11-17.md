@@ -14,7 +14,7 @@ Codex 리뷰(91cb480)의 지적 7건과 서브에이전트 숫자 정정(판 수
 | 지그재그(O_OUT을 나온 뒤 끊김) | 인계 기록의 분석: NavFn이 5 cm 격자에서 내는 계단 경로(재계획과 컨트롤러 값의 몫은 따로 재지 않음). 개선 후보 smoother와 Smac 2D의 붙일 자리와 준비물을 3절에 정리 | 참고용으로 알아 둠. 지금 적용하지 않음(사용자 2026-11-17) |
 | 큰 통로(가운데 통로) 가운데를 못 지나감 | 통로가 계획상 로봇 중심 4칸뿐이라, 가운데의 상자 하나(장애물 판의 상자 4)가 전역 costmap에 찍히거나, peer 층이 켜진 채 로봇 하나가 서 있으면 Nav2 전역 계획에서 통로 전체가 막힐 수 있다(셀 양자화에 따라 다름) | 계산 [확정], 실제 판 [추측] |
 | 주차구역 앞 교착 한 번 | 칸 입구 줄에서 Nav2 단계의 대치(주차한 로봇, 칸막이 끝, 지나가는 로봇). 관제의 교착 감시와 가까이 붙음 감시는 이 경우를 보지 않는다. 남는 것은 막힘 처리, 멈춤 감시, 로봇 쪽 복구이고, BLOCKED가 깜빡이면 막힘 처리가 늦거나 안 된다(6절) | [추측]. 헤드리스 1,840판(v7 1,440판)에서 재현 안 됨 |
-| BLOCKED 깜빡임으로 관제가 우회하지 않음 | 관제가 BLOCKED 아닌 보고 한 번에 10초 타이머를 0으로 되돌린다 | 코드 [확정]. 고치는 브랜치 둘 진행 중(6절) |
+| BLOCKED 깜빡임으로 관제가 우회하지 않음 | 관제가 BLOCKED 아닌 보고 한 번에 10초 타이머를 0으로 되돌린다 | 코드 [확정]. 고친 브랜치 둘 푸시(6절, main 아님) |
 
 ## 2. 레포 최신화
 
@@ -56,7 +56,7 @@ Codex 리뷰(91cb480)의 지적 7건과 서브에이전트 숫자 정정(판 수
 - Smac 2D: `planner_plugins`의 `GridBased`를 `nav2_smac_planner::SmacPlanner2D`로 바꾸면 되고 BT는 그대로다. package.xml에 `nav2_smac_planner`.
 - 이 기계에는 `nav2_smoother`(SimpleSmoother, SavitzkyGolaySmoother), `nav2_constrained_smoother`, `nav2_smac_planner`가 있다 [확정].
   **실물 로봇에 깔렸는지는 모른다.** 로봇에서 `ros2 pkg list | grep -E "smac|smoother"`로 먼저 본다.
-- 시뮬레이션의 `nav_overrides`는 Nav2 설정 전체에 깊이 덮이고 controller plugin 교체와 매핑을 비매핑으로 바꾸는 덮어쓰기를 거부하고, 병합 뒤 충돌 검사와 속도 상한을 다시 건다(`sim/fleet_gz_sim/launch/gz.launch.py:103-116`,
+- 시뮬레이션의 `nav_overrides`는 Nav2 설정 전체에 깊이 덮이고 controller plugin 교체와 매핑을 비매핑으로 바꾸는 덮어쓰기를 거부하고, 병합 뒤 controller 넷의 충돌 검사를 다시 켠다. 다만 Gazebo 기본값(`fixed_line_check` 거짓)에서는 고정 경로 controller 셋의 검사를 끄고 마당 goal(FollowPathGoal)만 켠다. `nav_max_speed`(기본 0.20)를 주면 controller마다 `desired_linear_vel` 상한을 건다(`sim/fleet_gz_sim/launch/gz.launch.py:103-116`,
   `sim/fleet_gz_sim/fleet_gz_sim/launch_parts.py:175-200`). 그래서 Gazebo에서 플래너 plugin(`planner_server`의 `GridBased.plugin`)은 `nav_overrides`로 바꿔 볼 수 있다.
   smoother는 launch 노드 목록과 BT를 바꿔야 해서 `nav_overrides`만으로는 안 된다.
 
@@ -142,7 +142,7 @@ Codex 리뷰(91cb480)의 지적 7건과 서브에이전트 숫자 정정(판 수
 
 ### 고치는 방향(바꾸지 않음)
 
-- 먼저 6절의 BLOCKED 깜빡임을 고친다(진행 중). 그러면 깜빡여도 10초 뒤 막힘 처리(양보 또는 막힘 표시)가 시작될 수 있다.
+- 먼저 6절의 BLOCKED 깜빡임을 고친다(브랜치 둘 푸시, main 아님). 그러면 깜빡여도 10초 뒤 막힘 처리(양보 또는 막힘 표시)가 시작될 수 있다.
   DOCK, BACKOFF는 빠지고, 후진(RETREAT)과 뒤가 막힌 경우는 다른 시간 제한을 탄다.
 - 1번을 줄이는 방안: `_watch_near`가 고정 경로/후진 로봇과 서 있는 로봇도 보게 함(빨리 풀리지만 칸에 들어가는 로봇을 멈추게 할 위험),
   칸 입구 줄을 지나는 Nav2 goal에 옆 입구 지점을 쥐게 함(확실하지만 처리량 감소), 입구를 y 0.26 이상으로(0.17 m 간격, 대신 칸 줄이 길어짐: 사용자가 전에 줄인 값).
@@ -156,13 +156,31 @@ Codex 리뷰(91cb480)의 지적 7건과 서브에이전트 숫자 정정(판 수
 - 관제: `pc/fleet_core/fleet_core/traffic/zone/blocked.py` `_watch_blocked`(25~34행)는 `robot_state == BLOCKED`(또는 RECOVERING 45초 넘게)일 때만 막힌 것으로 보고,
   아닌 보고가 한 번만 와도(RECOVERING이 45초를 넘지 않았으면) `blocked_since`를 비운다 [확정]. 막힘 표시는 BLOCKED가 `blocked_mark_s`(10초) 이어져야 한다 [확정].
 - 로봇: RECOVERING이 BLOCKED보다 먼저 보고된다(`pode/pode_fsm/pode_fsm/core.py:103-106`) [확정]. Nav2 goal의 진전 기준은 `nav_progress_m` 0.05(`params.py:52`) [확정].
-  "1초 서면 RECOVERING, 2초 기다려 후진 안 하는 쪽은 BLOCKED", "고정 경로는 장애물이 1초 안 보이면 풀림"은 로봇 쪽 수정 브랜치에서 확인 중이다.
-- 그래서 좁은 곳에서 MOVING, RECOVERING, BLOCKED가 10초보다 자주 번갈아 나오면 관제 타이머가 계속 0으로 돌아가 막힘 표시와 우회가 일어나지 않는다 [확정, 코드].
+  로봇 쪽 수정 브랜치에서 더 확인한 것: 상태 보고에서 RECOVERING은 BLOCKED보다 앞서므로 둘이 한 보고에 같이 나오지 않는다. 깜빡임은 주로 BLOCKED와 MOVING 사이다.
+  Nav2 goal에서는 5 cm 움직이면 BLOCKED가 풀리고 다시 BLOCKED가 되기까지 `blocked_after_s` 10초가 걸려, 막힘 아닌 틈이 10초 가까이 될 수 있다 [확정, 코드].
+- 그래서 좁은 곳에서 BLOCKED와 MOVING이 번갈아 나오면 관제 타이머가 계속 0으로 돌아가 막힘 표시와 우회가 일어나지 않는다 [확정, 코드].
   Gazebo의 420~460초 장면이 이것인지는 [추측]. 9절의 기록으로 가른다.
-- 고치는 브랜치(진행 중, main 아님):
-  - `fix/blocked-hysteresis-fleet`: 한 막힘 동안은 짧게 끊겨도 타이머를 되돌리지 않는다. 실제로 일정 거리 이상 나아갔거나 일정 시간 계속 막히지 않았거나 goal이 바뀔 때만 되돌린다.
-  - `fix/blocked-hysteresis-pode`: 로봇이 BLOCKED를 끌 때 5 cm보다 확실한 진전을 요구한다.
-  - 결과와 값은 각 브랜치의 `docs/worklog_blocked_hysteresis_*_2026-11-17.md`.
+
+### 고친 브랜치(푸시, main 아님. main에 넣을지는 사용자가 정한다)
+
+- `fix/blocked-hysteresis-fleet`(62bfb98, 7e0a771, 1f758ac). 관제는 같은 goal의 막힘 일화 안에서는 시계를 다시 세지 않는다.
+  - 일화가 끝나는 때: 처음 막힌 자리에서 `blocked_reset_m` 0.30 m 넘게 나아감, 막힘 아닌 보고가 `blocked_reset_s` 20초 이어짐(RECOVERING은 이 시간을 멈춘다), goal이 바뀌거나 끝남.
+  - 20초는 위의 "10초 가까운 틈"의 두 배, 0.30 m는 Pode 자가 후진 최대 0.15 m의 두 배다. 두 값 모두 [추측]이고 실제 깜빡임 주기는 재지 않았다.
+  - `ZONE_MARKED_BLOCKED`, `GOAL_FAILED` 끝에 `, after N short gaps`가 붙는다.
+  - 시험: 새 시험 11개는 고치기 전 코드에서 8개 실패했다. 고친 뒤 fleet_core `ZONE_TICK_ORDER=manager`와 `zone` 모두 1115 passed, 1 skipped, 5 xfailed(직접 다시 돌림).
+    fake_robots 1019 passed, 27 xfailed와 관제 시나리오 11 passed는 에이전트가 돌린 결과다.
+  - 남은 점: Nav2가 BLOCKED 없이 0.3 m 안에서 20초 넘게 꿈틀거리면 일화가 끝나고 멈춤 감시도 잡지 못한다.
+- `fix/blocked-hysteresis-pode`(d1d9ac8, 4f87eab, e935998, 3724af2, 1ab81f7). 로봇은 판단에 쓰는 막힘 플래그를 main 그대로 두고, 상태 보고만 늦게 끈다.
+  - 그래서 자가 복구, 교착 처리 시작, aborted 처리는 main과 같다. 첫 커밋 d1d9ac8은 판단 플래그까지 바꿔 Codex가 확정 결함 4건을 짚었고, 4f87eab에서 보고만 늦추는 방식으로 바꿨다.
+  - 고정 경로(FollowPath): 막힌 자리에서 `unblock_m` 0.15 m 벗어나거나 물체가 `unblock_clear_s` 3초 계속 안 보이면 보고를 끈다.
+  - Nav2 goal: 막힘이 풀린 뒤 막힌 자리에서 0.15 m 벗어나거나, goal을 다시 보내거나, 교착 처리를 시작하거나, 목표가 끝나면 끈다.
+  - 가짜 로봇(nav_goal 둘)도 같은 0.15 m 보고 유지를 넣었다. follow_path 가짜는 쓰지 않는 모드라 그대로 두었다.
+  - 시험: pode_fsm 366 passed, 8 skipped(직접 다시 돌림). ROS 포함 467 passed, 6 skipped와 fake_robots 1027 passed, 27 xfailed는 에이전트가 돌린 결과다.
+- 두 브랜치를 합친 상태의 시험(로컬 브랜치 `tmp/blocked-combined` = main + 두 브랜치, 6개 패키지 따로 빌드, 직접 돌림):
+  관제 시나리오 `test_scenario_integration.py`(도메인 90~98) 11 passed, `sim/fake_robots/test`(도메인 78) 1022 passed, 27 xfailed.
+  가짜 로봇 수가 로봇 쪽 브랜치의 1027보다 5개 적은 것은 그쪽이 `sim/fleet_gz_sim/test/test_timing_agreement.py`(시험 5개)를 같이 돌렸기 때문이다.
+  `pc/fleet_manager/test`의 나머지(도메인 50~59를 스스로 고름)는 돌리지 않았다. Gazebo와 실물 로봇에서 깜빡임 주기와 우회 효과는 아직 재지 않았다.
+- 각 브랜치의 기록: `docs/worklog_blocked_hysteresis_fleet_2026-11-17.md`, `docs/worklog_blocked_hysteresis_pode_2026-11-17.md`.
 
 ## 7. 그 밖의 열린 문제(기존 기록에서 모음)
 
