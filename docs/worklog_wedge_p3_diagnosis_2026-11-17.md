@@ -24,18 +24,39 @@
 | **wedge_noclr** | main + 새 배치, **clear 20 ms(이 브랜치)** | **467.6** | **19** | **1** | **0** | **7** | **7** | **0** | **64** |
 
 - corr_* 판은 브랜치 `exp/corridor-costmap-ab` 680fda8 빌드(aI는 nav_overrides)다. main 판과 다른 점은 clear 시간만이 아니다(keepout 틈, BLOCKED 유지, fleet 타이머도 없다).
-- wedge_noclr는 main 판과 다른 점이 clear 시간 하나다(BT `server_timeout` 1000 -> 생략 = bt_navigator `default_server_timeout` 20 ms).
+- wedge_noclr는 div3 설치본 위에 이 브랜치의 `pode_nav_config`만 얹었다(`run_wedge.sh`). 그 패키지의 차이는 Clear 노드 4곳의 `server_timeout` 1000 -> 생략(= bt_navigator `default_server_timeout` 20 ms)이다.
 - wedge_noclr의 pode2: 428 s (0.68, 0.28)까지 틈에 들어갔다가 RECOVERING으로 (0.62, 0.38)(진열대 B 서쪽 끝 바깥)까지 물러났다. 431~451 s 그 자리에 섰고(441~450 s BLOCKED), 451 s 관제가 E-2->E-3를 막힘 표시하고 길을 다시 주자 북쪽 가운데 통로((0.52, 0.43) -> (0.96, 0.57) -> (1.55, 0.58))로 돌아 467.6 s Q2. 판 PASS 12/12, 571.3 s, 위반 0, near 0, min_gap 0.164. 514 s의 BLOCKED 4표본((0.14, 0.27), E-1 부근)은 다른 장면이다.
 - 956140d..9261ad5에서 바뀐 Nav2 값은 global costmap뿐이다(pad 0.03->0.01, res 0.05->0.025, inflation 6.0/0.25 -> 15.0/0.15). FollowPathGoal 값(`pode/pode_avoidance/params/avoidance.yaml`)과 local costmap은 그대로다. BT는 Clear 노드 4개의 `server_timeout` 20 -> 1000 ms(1c8858e, 11e9aba).
 - Gazebo는 peer 층(`peer_obstacles` 기본 true)이 global과 local costmap 둘 다에 있다. 다른 로봇을 반지름 0.08 m 원으로 찍는다(5 Hz).
 
 ## 3. 판단
 
-- [확정] "전에 통과했다"는 A와 aI 실험 판(각 한 번)이다. 옛 기본값(base)도 이 장면에서 막혔다. main에 합친 뒤 다섯 판은 모두 막혔다. 주문(420 s)부터 Q2까지 main 다섯 판 60~176 s, wedge_noclr 47 s, corr_aI 28 s, corr_a 13 s, corr_base 110 s다.
-- [확정] 막힌 판(main 다섯)은 planner가 한 번도 실패하지 않고, controller가 "collision ahead"로 patience를 넘겨 follow_path를 끊는 일을 14~60번 되풀이했다. clear 20 ms 판(corr_aI, wedge_noclr)은 planner가 1~7번 길을 못 만들었고 controller patience 초과는 0이다.
+- [확정] 이 장면을 막힘 없이 지난 판은 A와 aI 실험 판(각 한 번)뿐이다. 사용자가 기억한 판이 그것인지는 기록만으로 가를 수 없다. 옛 기본값(base)도 이 장면에서 막혔다. main에 합친 뒤 다섯 판은 모두 막혔다. 주문(420 s)부터 Q2까지 main 다섯 판 60~176 s, wedge_noclr 48 s(47.5), corr_aI 28 s, corr_a 13 s, corr_base 110 s다.
+- [확정] 막힌 판(main 다섯)은 표의 로그 구간에서 planner가 한 번도 실패하지 않고, controller가 "collision ahead"로 patience를 넘겨 follow_path를 끊는 일을 14~60번 되풀이했다. clear 20 ms 판(corr_aI, wedge_noclr)은 planner가 1~7번 길을 못 만들었고 controller patience 초과는 0이다.
 - [추측] clear 1000 ms가 이 차이와 이어져 있다. 그것만 바꾼 wedge_noclr에서 모양이 aI 쪽으로 바뀌었다. 그러나 한 판이고, 어떤 순서로 이어지는지는 모른다. 앞서 낸 설명("aI에서 clear가 시간 초과로 끝나 pode3 자국이 남아 planner가 거절했다")은 틀렸다: corr_aI 로그에서 planner 실패(628.781)가 clear 시간 초과(628.822, 628.878)보다 먼저다(Codex 리뷰). `KeepoutFilter: New filter mask arrived`도 clear 완료의 증거가 아니다.
 - [추측] 막힘의 모양은 planner(global costmap)와 controller(local costmap, 다각형 footprint)의 판단 불일치로 보인다. 계획 경로(`/plan`)와 costmap 상태를 기록하지 않아 매번 같은 틈 길이었는지, 충돌 대상이 pode3였는지는 확인하지 못했다.
 - [확정] clear 20 ms에서도 끼임이 0은 아니다: wedge_noclr도 약 20 s 서 있다가 관제 길 바꿈으로 빠졌다.
+
+## 3-1. 녹화 판 두 개로 뒤집힌 판단 (18:38~18:58)
+
+실행 `gz/run_rec.sh`: 판마다 pode2의 `/plan`, `/behavior_tree_log`, global/local costmap(+updates), `/pode2/peer_obstacles`, pode2·pode3 `sim/truth`, `/clock`을 bag(mcap)으로 남겼다. 녹화기는 판 끝에 강제로 끝나 metadata가 없다. mcap 파일을 직접 연다. 분석 `gz/wedge_bag.py`.
+
+| 판 | 설정 | P-3 장면 | 주문 -> Q2 | BLOCKED 표본 | 막힘 표시 | NO_START | planner 실패 | patience 초과 | collision ahead | 판 |
+|---|---|---|---|---|---|---|---|---|---|---|
+| noclr2 | clear 20 ms | 없음: pode3가 P-2 (0.38, 0.11)에 섰고 P-3는 비었다. pode2는 P-1 -> E-1 -> Q2를 11.5 s에 지났다 | - | 0 | 0 | 0 | - | - | - | PASS 12/12, 571.9 s(마지막 사건) |
+| main_rec | clear 1000 ms(main 그대로) | 있음: pode3 (0.63, 0.11) | 47.7 s | 18 | 1 | 1 | 0 | 9 | 317 | PASS 12/12, 572.0 s, near 1, min_gap 0.139 |
+
+main_rec 녹화 [확정]:
+- 421.03 s부터 1 Hz로 ComputePathToPose가 모두 성공했고, 그 길이 P-3 앞 틈(x 0.58~0.80, y 0.15~0.37)을 지났다(418~470 s 계획 39개 중 28개). 첫 global clear(`ClearGlobalCostmap-Subtree`)는 426.84 s다. 즉 planner는 **지우기 전부터** 틈으로 길을 그렸다.
+- 틈으로 그린 길은 pode3 실제 중심에서 0.122~0.132 m를 지났다. pode2는 426 s부터 (0.67, 0.26)에 섰다.
+- 그때 global costmap(OccupancyGrid 0~100, 99 = inscribed, 100 = lethal)의 틈 세로줄(y 0.19~0.36) 최솟값: x 0.66에서 85, x 0.70에서 72, x 0.74에서 62. 틈 가운데가 inscribed 아래라 NavFn은 지날 수 있다고 본다.
+- 456.9 s에 pode2가 (0.54, 0.30)으로 나온 뒤 길이 북쪽(최대 y 0.58)으로 바뀌었다.
+
+판단:
+- [확정] main_rec(1000 ms)는 이 장면에서 47.7 s, wedge_noclr(20 ms)는 47.5 s로 같다. noclr2는 장면이 없어 비교에 못 쓴다.
+- [확정] planner가 틈을 고른 것은 clear 전이다. "clear 대기 때문에 틈으로 다시 들어간다"는 앞의 가설은 이 판에서 맞지 않는다.
+- [추측] main 다섯 판(60~176 s)과 wedge_noclr(48 s)의 차이는 clear 대기보다 판마다 다른 것(pode3가 선 자리, pode2가 틈에 들어간 깊이)으로 보는 편이 맞다. 해결안 나는 뒤로 뺀다.
+- [추측] 뿌리는 global costmap이 틈을 지날 수 있다고 보는 것(가장 좁은 곳 비용 약 218/253)과, controller가 다각형 몸과 라이다 점으로 "부딪힘"을 보는 것의 불일치다. 해결안 가를 먼저 한다.
 
 ## 4. 해결안(검토 중, 정하지 않음)
 
@@ -46,7 +67,7 @@
 | 다. 관제 우회 | P-3에 로봇이 서 있으면 P-1/P-2에서 동쪽 가는 길을 O_IN -> M_E로 | 지나갈 수 있는 길을 조건부로 안 쓴다(지름길 원칙). 가운데 통로 혼잡 |
 | 라. 첫 막힘에 다른 길 | 첫 막힘 표시에서 물리적으로 다른 길 | 깊이 끼면 O_IN 목표도 NO_START(watch_main, div3_2) |
 
-다음 순서(제안): 계획 경로와 clear 요청·응답, peer 재표시 시각을 기록하는 판을 돌리고, clear 20 ms 판을 한 번 더 돌린다. 그 결과로 가를 먼저 맞추고, clear 뒤 공백이 원인으로 보이면 나를 더한다. 다는 대비책.
+다음 순서(18:38 전 제안, 3-1로 나는 뒤로 뺐다): 계획 경로와 clear 요청·응답, peer 재표시 시각을 기록하는 판을 돌리고, clear 20 ms 판을 한 번 더 돌린다. 그 결과로 가를 먼저 맞추고, clear 뒤 공백이 원인으로 보이면 나를 더한다. 다는 대비책.
 
 ## 5. 참조 데이터(임시 폴더, 사라질 수 있다)
 
