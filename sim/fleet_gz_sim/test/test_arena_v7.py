@@ -347,3 +347,98 @@ def test_v7_the_south_yard_stays_open_above_the_divider_keepout(site, a, b):
     if b in ("Q1", "Q2"):
         assert _joined(grid, site.node_pose(a), site.node_pose(b),
                        shut=[(0.0, 0.40, 0.68, 0.99)]), (a, b)
+
+
+# ---- 가운데 통로 갈래 지도(A: 2.5 cm, B: 칸 중심 규칙). 기본 지도는 위 시험이 그대로 본다 ----
+def _free_rows(grid, x, y0, y1, resolution, site):
+    """x 열의 y0~y1에서 빈칸 수와 빈칸 덩어리의 (아래 경계, 위 경계)."""
+    i, j0 = arena_maps.cell_of(x, y0, resolution, site)
+    _, j1 = arena_maps.cell_of(x, y1, resolution, site)
+    oy = arena_maps.map_origin(site)[1]
+    free = [j for j in range(j0, j1 + 1) if not grid[j][i]]
+    assert free == list(range(free[0], free[-1] + 1)), "빈칸은 한 덩어리"
+    return (len(free), round(oy + free[0] * resolution, 4),
+            round(oy + (free[-1] + 1) * resolution, 4))
+
+
+@pytest.mark.parametrize("resolution, paint, count, low, high", [
+    (0.05, "touch", 6, 0.45, 0.75),  # 기본: 상자가 걸친 칸은 막힘
+    (0.05, "centre", 7, 0.40, 0.75),  # B
+    (0.025, "touch", 13, 0.425, 0.75),  # A
+    (0.025, "centre", 15, 0.40, 0.775),  # A+B
+])
+def test_v7_middle_corridor_free_cells_at_x_095(site, resolution, paint, count, low, high):
+    """가운데 통로(진열대 사이 y 0.405~0.77)를 x 0.95에서 가로지르는 빈칸."""
+    grid = arena_maps.occupancy(resolution, site, paint)
+    assert _free_rows(grid, 0.95, 0.385, 0.79, resolution, site) == (count, low, high)
+
+
+def test_the_default_paint_is_the_touch_rule(site):
+    assert arena_maps.occupancy(0.05, site) == arena_maps.occupancy(0.05, site, "touch")
+    assert arena_maps.pgm(0.05, site) == (PKG / "maps" / "arena_v7.pgm").read_bytes()
+    with pytest.raises(ValueError, match="paint"):
+        arena_maps.occupancy(0.05, site, "middle")
+
+
+@pytest.mark.parametrize("resolution", [0.05, 0.025])
+def test_the_centre_rule_paints_a_subset_of_the_touch_rule(site, resolution):
+    touch = arena_maps.occupancy(resolution, site, "touch")
+    centre = arena_maps.occupancy(resolution, site, "centre")
+    assert all(t or not c for tr, cr in zip(touch, centre, strict=True)
+               for t, c in zip(tr, cr, strict=True))
+    assert centre != touch
+
+
+@pytest.mark.parametrize("resolution", [0.05, 0.025])
+def test_the_centre_rule_keeps_every_thin_divider(site, resolution):
+    """2 cm 칸막이는 칸 중심을 하나도 덮지 않는다. 그래도 사라지지 않고 한 칸 폭 줄로 남는다."""
+    from fleet_gz_sim import arena
+    grid = arena_maps.occupancy(resolution, site, "centre")
+    for box in arena.obstacles(site):
+        i, j = arena_maps.cell_of((box.x0 + box.x1) / 2, (box.y0 + box.y1) / 2, resolution, site)
+        assert grid[j][i], box.name
+    # 칸막이 1(x 0.24~0.26, y 0~0.10)은 x로 한 칸
+    j = arena_maps.cell_of(0.25, 0.05, resolution, site)[1]
+    ox = arena_maps.map_origin(site)[0]
+    row = [i for i in range(len(grid[0]))
+           if grid[j][i] and 0.15 < ox + (i + 0.5) * resolution < 0.35]
+    assert len(row) == 1
+
+
+def test_a_cell_centre_on_a_box_edge_counts_as_inside():
+    # 원점 0, 0.05 칸: 칸 0 중심 0.025, 칸 1 중심 0.075
+    grid = arena_maps.centre_filled([(0.025, 0.0, 0.075, 0.05)], 4, 2, 0.05, (0.0, 0.0))
+    assert grid == [[True, True, False, False], [False] * 4]
+    # 중심을 하나도 덮지 않는 상자: 가운데(0.0875)가 든 칸 하나
+    grid = arena_maps.centre_filled([(0.08, 0.0, 0.095, 0.05)], 4, 1, 0.05, (0.0, 0.0))
+    assert grid == [[False, True, False, False]]
+    # 가운데가 칸 경계(0.05)에 놓여도 한 칸만
+    grid = arena_maps.centre_filled([(0.026, 0.0, 0.074, 0.05)], 4, 1, 0.05, (0.0, 0.0))
+    assert sum(grid[0]) == 1 and not grid[0][2] and not grid[0][3]
+    # 격자 밖 상자는 칸을 칠하지 않는다
+    assert arena_maps.centre_filled([(0.3, 0.0, 0.4, 0.05)], 4, 1, 0.05, (0.0, 0.0)) == [
+        [False] * 4]
+
+
+def test_v7_committed_nav_variant_maps_are_the_generator_output(tmp_path, site):
+    from fleet_gz_sim import arena
+    written = arena.generate_nav_variants(tmp_path, site)
+    assert set(written) == {f"maps/arena_v7_{v}.{ext}" for v in ("a", "b", "ab")
+                            for ext in ("yaml", "pgm")}
+    for name in written:
+        assert (tmp_path / name).read_bytes() == (PKG / name).read_bytes(), name
+    for variant, resolution in (("a", 0.025), ("b", 0.05), ("ab", 0.025)):
+        text = (PKG / "maps" / f"arena_v7_{variant}.yaml").read_text(encoding="utf-8")
+        assert f"image: arena_v7_{variant}.pgm\n" in text
+        assert f"resolution: {resolution}\n" in text
+        assert "origin: [-0.15, -0.15, 0.0]\n" in text
+    assert arena_maps.NAV_VARIANTS == {"a": (0.025, "touch"), "b": (0.05, "centre"),
+                                       "ab": (0.025, "centre")}
+
+
+def test_only_v7_has_nav_variant_maps():
+    from fleet_gz_sim import arena
+    assert arena.NAV_VARIANT_LAYOUTS == ("v7",)
+    for layout in ("d2", "d", "c", "d2_shelf"):
+        for variant in arena_maps.NAV_VARIANTS:
+            assert not (PKG / "maps" / f"arena_{layout}_{variant}.yaml").exists()

@@ -31,7 +31,7 @@ def test_every_layout_has_its_files_named_after_the_fleet_map(site):
 
 def test_setup_installs_worlds_maps_scenarios_and_no_sites_folder():
     text = (PKG / "setup.py").read_text(encoding="utf-8")
-    for folder in ("worlds", "maps", "scenarios", "obstacles"):
+    for folder in ("worlds", "maps", "scenarios", "obstacles", "nav_overrides"):
         assert f"share/fleet_gz_sim/{folder}" in text
         assert any((PKG / folder).iterdir()), folder
     assert "sites" not in text

@@ -70,10 +70,17 @@ class Arena:
     keepout_mask: str
 
 
-def arena_for(layout: str, gz_share: str | Path) -> Arena:
+def arena_for(layout: str, gz_share: str | Path, nav_map_variant: str = "") -> Arena:
+    """nav_map_variant: 비면 기본 5 cm 지도. 아니면 arena_maps.NAV_VARIANTS의 갈래 지도
+    (maps/<경기장>_<갈래>.yaml)로 nav_map만 바꾼다. 1 cm 지도와 keepout 마스크는 그대로."""
+    from fleet_gz_sim.arena_maps import NAV_VARIANTS
     name = load_fleet_map(layout_of(layout)).name
+    if nav_map_variant and nav_map_variant not in NAV_VARIANTS:
+        raise ScenarioUnfit(f"nav_map_variant must be empty or one of {', '.join(NAV_VARIANTS)},"
+                            f" got {nav_map_variant!r}")
     gz = Path(gz_share)
-    found = Arena(layout, str(gz / "worlds" / f"{name}.sdf"), str(gz / "maps" / f"{name}.yaml"),
+    nav_map = f"{name}_{nav_map_variant}" if nav_map_variant else name
+    found = Arena(layout, str(gz / "worlds" / f"{name}.sdf"), str(gz / "maps" / f"{nav_map}.yaml"),
                   str(gz / "maps" / f"{name}_fine.yaml"),
                   str(gz / "maps" / f"{name}_keepout.yaml"))
     missing = [p for p in (found.world, found.nav_map, found.nav_map_fine, found.keepout_mask)

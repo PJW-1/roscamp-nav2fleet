@@ -12,6 +12,8 @@
   maps/arena_<배치>.{yaml,pgm}         5 cm 지도(costmap)
   maps/arena_<배치>_fine.{yaml,pgm}    1 cm 지도(AMCL, R15)
   maps/arena_<배치>_keepout.{yaml,pgm} global costmap keepout 마스크(arena_maps.keepout_rects)
+v7만 더(가운데 통로 갈래, gz.launch.py nav_map_variant로 고른다):
+  maps/arena_v7_{a,b,ab}.{yaml,pgm}    costmap용 갈래 지도(arena_maps.NAV_VARIANTS)
 """
 from __future__ import annotations
 
@@ -27,6 +29,7 @@ WALL_HEIGHT_M = 0.30  # 라이다 높이(약 0.125 m)보다 높게
 LIDAR_Z_M = 0.125
 MIN_SHELF_HEIGHT_M = 0.15  # 지시서 5절: 라이다가 바닥 위 0.125 m를 본다
 PKG = Path(__file__).resolve().parents[1]
+NAV_VARIANT_LAYOUTS = ("v7",)  # 갈래 지도(arena_maps.NAV_VARIANTS)를 만드는 배치
 
 
 class ArenaError(ValueError):
@@ -91,6 +94,26 @@ def generate(out: Path, site) -> tuple[str, ...]:
     return outputs(name)
 
 
+def nav_variant_outputs(name: str) -> tuple[str, ...]:
+    from fleet_gz_sim.arena_maps import NAV_VARIANTS
+    return tuple(f"maps/{name}_{variant}.{ext}" for variant in NAV_VARIANTS
+                 for ext in ("yaml", "pgm"))
+
+
+def generate_nav_variants(out: Path, site) -> tuple[str, ...]:
+    """costmap용 갈래 지도를 out/maps에 쓰고 쓴 파일 목록을 돌려준다. 기본 지도는 건드리지 않는다."""
+    from fleet_gz_sim.arena_maps import NAV_VARIANTS, map_yaml, pgm
+    name = site.name
+    (out / "maps").mkdir(parents=True, exist_ok=True)
+    for variant, (resolution, paint) in NAV_VARIANTS.items():
+        stem = f"{name}_{variant}"
+        note = f"갈래 {variant}: {resolution} m, 칠하기 {paint} (nav_map_variant:={variant})"
+        (out / "maps" / f"{stem}.yaml").write_text(
+            map_yaml(stem, resolution, site, note), encoding="utf-8", newline="\n")
+        (out / "maps" / f"{stem}.pgm").write_bytes(pgm(resolution, site, paint))
+    return nav_variant_outputs(name)
+
+
 def main(argv=None) -> None:
     from fleet_core.fleet_map import load_fleet_map
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
@@ -100,7 +123,10 @@ def main(argv=None) -> None:
                         help="배치(여러 번). 없으면 후보 셋. 시험용 d2_shelf는 이름을 줘야 한다")
     args = parser.parse_args(argv)
     for layout in args.layout or LAYOUTS:
-        written = generate(args.out, load_fleet_map(layout))
+        site = load_fleet_map(layout)
+        written = generate(args.out, site)
+        if layout in NAV_VARIANT_LAYOUTS:
+            written += generate_nav_variants(args.out, site)
         print(f"{layout}: wrote {', '.join(written)} under {args.out}")
 
 

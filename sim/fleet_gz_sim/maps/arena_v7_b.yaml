@@ -1,0 +1,9 @@
+# 생성 파일: python3 -m fleet_gz_sim.arena --layout v7
+# 갈래 b: 0.05 m, 칠하기 centre (nav_map_variant:=b)
+image: arena_v7_b.pgm
+mode: trinary
+resolution: 0.05
+origin: [-0.15, -0.15, 0.0]
+negate: 0
+occupied_thresh: 0.65
+free_thresh: 0.25
