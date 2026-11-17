@@ -59,7 +59,7 @@
 | 3 | 감시 일화를 Episode로 (NoStart, Silent, Watch, 대기, 로봇단 양보, 다시 도킹, 막힘) | 82f805d | 0 | 0 | 0 | 0 | 0 | 0 | 1121 passed |
 | 4 | `Robot` 필드 묶음 report, health, avoid, watch | 532a247 | 0 | 0 | 0 | 0 | 0 | 0 | 1121 passed |
 | 5 | 약하게 묶인 믹스인 떼기 (아래) | 23f2211 | 0 | 0 | 0 | 0 | 0 | 0 | 1121 passed |
-| 6 | 문서와 구조 시험 | STEP6 | | | | | | | |
+| 6 | 문서와 구조 시험 | aff479c | 0 | 0 | 0 | 0 | 0 | 0 | 1124 passed |
 
 모든 전체 비교에서 store `-l v7 d2`는 기준과 같은 `KeyError: 'X_W'`로 죽었고, fake_robots는 883 passed, 7 skipped, 27 xfailed, tools는 84 passed, 14 failed였다.
 
