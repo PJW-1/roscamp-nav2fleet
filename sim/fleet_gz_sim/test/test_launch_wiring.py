@@ -255,6 +255,8 @@ def test_tight_global_inflation_overrides_change_only_the_global_costmap(made, n
     plain = yaml.safe_load(Path(launch_args(includes(run(made), "nav2.launch.py")[0])[
         "params_file"]).read_text(encoding="utf-8"))
     navs = includes(run(made, nav_overrides=str(path)), "nav2.launch.py")
+    # nav2 include가 로봇 수만큼 있어야 아래 검사가 건너뛰어지지 않는다
+    assert len(navs) == len(ROBOTS)
     for nav in navs:
         data = yaml.safe_load(Path(launch_args(nav)["params_file"]).read_text(encoding="utf-8"))
         glob = data["global_costmap"]["global_costmap"]["ros__parameters"]

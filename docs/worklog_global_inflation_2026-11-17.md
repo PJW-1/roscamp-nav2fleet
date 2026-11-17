@@ -22,3 +22,5 @@ nav_overrides는 파일 하나만 받는다.
 - 지도 갈래 A와 함께: `nav_map_variant:=a nav_overrides:=<...>/global_padding_0p01_inflation_tight.yaml`
 
 시험: test_launch_wiring.py의 test_tight_global_inflation_overrides_change_only_the_global_costmap.
+
+주의: padding 0.01이면 INSCRIBED 반지름 0.07 m가 실제 footprint의 뒤쪽 모서리 회전 반지름 0.0845 m보다 작아, 경로가 도는 로봇에 필요한 것보다 벽/다른 Pode에 가까워질 수 있다 [추측, Gazebo 게임에서 확인].
