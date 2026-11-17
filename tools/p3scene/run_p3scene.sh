@@ -2,7 +2,8 @@
 # P-3 끼임 장면 반복 시험: 설정마다 Gazebo 한 판을 띄우고 run_trials.py로 같은 pode3 자세 다섯 판을 돈다.
 #   OUT=<결과 폴더> WS=<작업공간(install 있음)> run_p3scene.sh C0 C1 C2 C3
 # pode1 자리 둘(SETS): A = P-1, B = 북쪽 길 위(NavFn이 틈으로 가게). 자세 다섯씩.
-# 설정: C0 그대로, C1 peer 반지름 0.075, C2 local footprint_padding 0.0, C3 = C1 + C2
+# 설정: C0 그대로, C1 peer 반지름 0.075, C2 local footprint_padding 0.0, C3 = C1 + C2,
+#       C4 local padding 0.0 + global padding 0.02
 # 도메인 61, LOCALHOST, gui:=true(DISPLAY :0). 끝낼 때 이 판의 프로세스 묶음만 죽인다.
 set -u
 WS=${WS:?WS=작업공간}
@@ -11,6 +12,7 @@ HERE=$(cd "$(dirname "$0")" && pwd)
 TIMEOUT_S=${TIMEOUT_S:-240}
 SETS=${SETS:-A,B}
 PAD0=$WS/sim/fleet_gz_sim/nav_overrides/local_padding_0.yaml
+PAD0G2=$WS/sim/fleet_gz_sim/nav_overrides/local_padding_0_global_0p02.yaml
 mkdir -p "$OUT"
 
 args_of() {
@@ -19,6 +21,7 @@ args_of() {
     C1) echo "peer_radius_m:=0.075" ;;
     C2) echo "nav_overrides:=$PAD0" ;;
     C3) echo "peer_radius_m:=0.075 nav_overrides:=$PAD0" ;;
+    C4) echo "nav_overrides:=$PAD0G2" ;;
     *) echo "BAD" ;;
   esac
 }
@@ -49,6 +52,7 @@ run() {
   local rc=${PIPESTATUS[0]}
   # 실제로 걸린 값(판 뒤에 남긴다)
   timeout 20 ros2 param get /pode2/local_costmap/local_costmap footprint_padding > "$dir/params.txt" 2>&1
+  timeout 20 ros2 param get /pode2/global_costmap/global_costmap footprint_padding >> "$dir/params.txt" 2>&1
   grep -m3 "bodies of" "$dir/launch.log" >> "$dir/params.txt"
   kill -INT -- -$pid 2>/dev/null
   for _ in $(seq 30); do kill -0 $pid 2>/dev/null || break; sleep 1; done

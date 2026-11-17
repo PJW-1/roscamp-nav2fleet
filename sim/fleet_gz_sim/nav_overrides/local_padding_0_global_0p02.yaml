@@ -1,0 +1,10 @@
+# P-3 끼임 비교 C4(시뮬 전용, gz.launch.py nav_overrides): padding만 바꾼다.
+# local costmap 0.01(Jazzy 기본) -> 0.0, global costmap 0.01 -> 0.02. peer 반지름은 그대로(0.08).
+local_costmap:
+  local_costmap:
+    ros__parameters:
+      footprint_padding: 0.0
+global_costmap:
+  global_costmap:
+    ros__parameters:
+      footprint_padding: 0.02

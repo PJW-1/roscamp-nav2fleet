@@ -19,7 +19,7 @@ from fleet_interfaces.msg import RobotState
 from geometry_msgs.msg import PoseStamped, PoseWithCovarianceStamped
 from nav2_msgs.action import NavigateToPose
 from nav2_msgs.srv import ClearEntireCostmap
-from nav_msgs.msg import Odometry, Path
+from nav_msgs.msg import OccupancyGrid, Odometry, Path
 from rclpy.action import ActionClient
 from rclpy.node import Node
 from rclpy.qos import QoSProfile, ReliabilityPolicy, DurabilityPolicy
@@ -78,6 +78,10 @@ class Trials(Node):
             self.create_subscription(RobotState, f"/{r}/state",
                                      lambda m, r=r: self.state.__setitem__(r, m), BEST)
         self.create_subscription(Path, "/pode2/plan", self.on_plan, 5)
+        # 계획 실패 때 출발 칸의 global 값을 보려고 마지막 global costmap(1 Hz, 통째)을 둔다
+        self.global_map = None
+        self.create_subscription(OccupancyGrid, "/pode2/global_costmap/costmap",
+                                 lambda m: setattr(self, "global_map", m), LATCHED)
         self.init_pub = {r: self.create_publisher(PoseWithCovarianceStamped, f"/{r}/initialpose", 5)
                          for r in ("pode1", "pode2", "pode3")}
         self.clear = [self.create_client(ClearEntireCostmap, f"/pode2/{c}/clear_entirely_{c}")
@@ -162,6 +166,22 @@ class Trials(Node):
                                    f"amcl {[self.amcl_pose(r) for r in targets]}")
         return False
 
+    def cost_probe(self, pose):
+        """pose(AMCL, 계획의 출발점) 칸과 둘레 5x5의 global 값(OccupancyGrid: 100 치명, 99 내접)."""
+        m = self.global_map
+        if m is None or pose is None:
+            return None
+        info = m.info
+        i = int((pose[0] - info.origin.position.x) / info.resolution)
+        j = int((pose[1] - info.origin.position.y) / info.resolution)
+
+        def at(a, b):
+            ok = 0 <= a < info.width and 0 <= b < info.height
+            return m.data[b * info.width + a] if ok else None
+        return {"pose": pose, "cell": [i, j], "centre": at(i, j),
+                "patch": [[at(i + di, j + dj) for di in range(-2, 3)] for dj in range(2, -3, -1)],
+                "stamp": m.header.stamp.sec + m.header.stamp.nanosec * 1e-9, "now": self.now()}
+
     def clear_costmaps(self):
         """비운 costmap 수(둘이어야 한다)."""
         done = 0
@@ -231,6 +251,7 @@ class Trials(Node):
         rec["duration_s"] = round(rec["sim_t1"] - rec["sim_t0"], 2)
         rec["recoveries"] = recov[0]
         rec["pode2_end"] = self.last.get("pode2")
+        rec["global_at_end"] = self.cost_probe(self.amcl_pose("pode2"))
         rec["truth"], rec["plans"] = self.truth, self.plans
         rec["ok"] = True
         return rec

@@ -266,6 +266,27 @@ def test_local_padding_0_touches_only_the_local_costmap_padding(made):
         assert data == plain
 
 
+def test_local_0_global_0p02_padding_touches_only_the_two_paddings(made):
+    """P-3 비교 C4: local padding 0.0, global padding 0.01 -> 0.02. 나머지는 그대로."""
+    path = NAV_OVERRIDES / "local_padding_0_global_0p02.yaml"
+    assert yaml.safe_load(path.read_text(encoding="utf-8")) == {
+        "local_costmap": {"local_costmap": {"ros__parameters": {"footprint_padding": 0.0}}},
+        "global_costmap": {"global_costmap": {"ros__parameters": {"footprint_padding": 0.02}}}}
+    plain = yaml.safe_load(Path(launch_args(includes(run(made), "nav2.launch.py")[0])[
+        "params_file"]).read_text(encoding="utf-8"))
+    base = plain["global_costmap"]["global_costmap"]["ros__parameters"]["footprint_padding"]
+    navs = includes(run(made, nav_overrides=str(path)), "nav2.launch.py")
+    assert len(navs) == len(ROBOTS)
+    for nav in navs:
+        data = yaml.safe_load(Path(launch_args(nav)["params_file"]).read_text(encoding="utf-8"))
+        assert data["local_costmap"]["local_costmap"]["ros__parameters"].pop(
+            "footprint_padding") == 0.0
+        glob = data["global_costmap"]["global_costmap"]["ros__parameters"]
+        assert glob["footprint_padding"] == 0.02
+        glob["footprint_padding"] = base
+        assert data == plain
+
+
 @pytest.mark.parametrize("name, padding", [("global_inflation_tight", None),
                                            ("global_padding_0p01_inflation_tight", 0.01)])
 def test_tight_global_inflation_overrides_change_only_the_global_costmap(made, name, padding):

@@ -45,3 +45,23 @@ def test_only_stops_longer_than_a_second_count_and_turning_is_not_standing():
     [(start, length)] = analyze.stops(track)
     assert start == 0.0 and length == pytest.approx(2.9)
 
+
+
+def test_physical_gap_counts_the_wheel_spheres_beyond_the_polygon():
+    """시뮬 모델의 바퀴 충돌 구(r 0.028, y ±0.04855)는 발자국(반폭 0.056) 밖 0.0766까지 나온다."""
+    fp = analyze.footprint(TOOLS.parent)
+    wall = [(-1.0, 0.10), (1.0, 0.10), (1.0, 0.20), (-1.0, 0.20)]  # 아랫면 y 0.10
+    pose = (0.0, 0.0, 0.0)
+    assert analyze.gap(analyze.place(fp, pose), wall) == pytest.approx(0.10 - 0.056)
+    assert analyze.phys_gap_world(fp, pose, wall) == pytest.approx(0.10 - 0.07655)
+    # 마주 본 두 로봇: 옆으로 나란히 서면 바퀴끼리 먼저 닿는다
+    side = (0.0, 0.14, 0.0)
+    assert analyze.phys_gap_robots(fp, pose, side) == pytest.approx(0.14 - 2 * 0.07655)
+
+
+def test_the_screen_does_not_meet_the_other_robots_wheels():
+    """screen_mount(z 0.079~0.122)와 바퀴(z 0~0.056)는 높이가 겹치지 않는다."""
+    fp = analyze.footprint(TOOLS.parent)
+    # 앞쪽 끝이 0.0421(화면)인데 발자국은 0.040: 벽 쪽으로는 화면이 먼저 닿는다
+    wall = [(0.10, -1.0), (0.20, -1.0), (0.20, 1.0), (0.10, 1.0)]
+    assert analyze.phys_gap_world(fp, (0.0, 0.0, 0.0), wall) == pytest.approx(0.10 - 0.0421)

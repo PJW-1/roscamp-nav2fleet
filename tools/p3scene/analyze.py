@@ -11,6 +11,8 @@
 - 서 있던 시간: 직선 속도 < 0.01 m/s이고 회전 < 0.05 rad/s가 1 s 넘게 이어진 구간의 합, 가장 긴 것
 - 최소 몸 간격(실제 위치): pode2-pode3 발자국 다각형, pode2-월드 상자(진열대, 벽).
   발자국은 nav2_params.yaml local_costmap footprint(padding 없음). 겹치면 0 이하.
+- 물리 간격: 위 발자국에 시뮬 모델의 바퀴 구 둘과 화면 상자를 더한 모양(높이가 겹치는 짝만).
+  0 이하면 물리적으로 닿았다(phys_contact).
 """
 import argparse
 import csv
@@ -106,6 +108,40 @@ def gap(A, B) -> float:
                min(_seg_point(p, *e) for p in B for e in ea))
 
 
+# ---- 시뮬 모델의 실제 충돌 모양(물리 간격) ----
+# pinky_description 충돌체(base_footprint 틀): 바퀴 구 r 0.028, 가운데 (0, ±(0.04055+0.008), 0.028).
+# 바퀴 높이에서 |y| 0.0766까지 나와 발자국(반폭 0.056)보다 넓다. screen_mount는 x 0.0125~0.0421,
+# y ±0.038, z 0.079~0.122(발자국 앞 끝 0.040보다 2.1 mm 앞). 메시는 둘러싼 상자로 잡았다.
+WHEEL_R, WHEEL_Y = 0.028, 0.04055 + 0.008
+SCREEN = [(0.0125, -0.038), (0.0421, -0.038), (0.0421, 0.038), (0.0125, 0.038)]
+
+
+def _signed(p, poly):
+    """점에서 다각형 경계까지 거리. 안이면 음수."""
+    d = min(_seg_point(p, *e) for e in zip(poly, poly[1:] + poly[:1]))
+    return -d if _inside(p, poly) else d
+
+
+def wheels(pose):
+    return place([(0.0, WHEEL_Y), (0.0, -WHEEL_Y)], pose)
+
+
+def phys_gap_world(fp, pose, box) -> float:
+    """몸 다각형, 화면 상자, 바퀴 구 둘과 월드 상자(바닥까지 닿는다) 사이의 가장 작은 간격."""
+    return min(gap(place(fp, pose), box), gap(place(SCREEN, pose), box),
+               *(_signed(c, box) - WHEEL_R for c in wheels(pose)))
+
+
+def phys_gap_robots(fp, a, b) -> float:
+    """두 로봇의 실제 충돌 모양 사이 간격. 화면(z 0.079~)과 바퀴(z ~0.056)는 높이가 겹치지 않아 뺀다."""
+    pa, pb = place(fp, a), place(fp, b)
+    sa, sb = place(SCREEN, a), place(SCREEN, b)
+    wa, wb = wheels(a), wheels(b)
+    return min(gap(pa, pb), gap(pa, sb), gap(sa, pb), gap(sa, sb),
+               *(_signed(c, pb) - WHEEL_R for c in wa), *(_signed(c, pa) - WHEEL_R for c in wb),
+               *(math.dist(c, d) - 2 * WHEEL_R for c in wa for d in wb))
+
+
 # ---- 궤적 ----
 def stops(track):
     """서 있던 구간들 [(시작, 길이)]. track: (t, x, y, yaw)."""
@@ -181,6 +217,7 @@ def trial_row(rec, fp, world, lines):
     moved3 = max(math.hypot(x - p3[0], y - p3[1]) for _, x, y, _ in t3)
     row["pode3_truth"] = "/".join(f"{v:.3f}" for v in (p3[0], p3[1], math.degrees(p3[2])))
     g3, gnamed, j = math.inf, {}, 0
+    p3g, pnamed = math.inf, {}  # 물리 간격(바퀴 구, 화면 포함)
     for t, x, y, a in rec["truth"]["pode2"]:
         while j + 1 < len(t3) and t3[j + 1][0] <= t:  # 같은 때의 pode3
             j += 1
@@ -188,16 +225,22 @@ def trial_row(rec, fp, world, lines):
         body2 = place(fp, (x, y, a))
         if math.hypot(x - q[0], y - q[1]) < 0.4:
             g3 = min(g3, gap(body2, place(fp, q)))
+            p3g = min(p3g, phys_gap_robots(fp, (x, y, a), q))
         for name, box in world.items():
             if min(math.hypot(x - bx, y - by) for bx, by in box) < 1.2 or name.startswith("wall"):
                 d = gap(body2, box)
                 gnamed[name] = min(gnamed.get(name, math.inf), d)
+                pnamed[name] = min(pnamed.get(name, math.inf), phys_gap_world(fp, (x, y, a), box))
     gw = min(gnamed.values()) if gnamed else math.inf
     row["gap_pode3_m"] = round(g3, 4)
     row["gap_world_m"] = round(gw, 4)
     row["gap_world_box"] = min(gnamed, key=gnamed.get) if gnamed else ""
     row["gap_shelf_2_m"] = round(gnamed.get("shelf_2", math.inf), 4)
     row["gap_wall_south_m"] = round(gnamed.get("wall_south", math.inf), 4)
+    row["phys_gap_pode3_m"] = round(p3g, 4)
+    row["phys_gap_world_m"] = round(min(pnamed.values()), 4) if pnamed else math.inf
+    row["phys_gap_world_box"] = min(pnamed, key=pnamed.get) if pnamed else ""
+    row["phys_contact"] = bool(row["phys_gap_pode3_m"] <= 0 or row["phys_gap_world_m"] <= 0)
     row["pode3_moved_m"] = round(moved3, 4)
     row["route"], y = route(t2)
     row["y_at_shelf_b"] = None if y is None else round(y, 3)
@@ -210,6 +253,10 @@ def trial_row(rec, fp, world, lines):
     # 관제가 판 중에 로봇에 무엇을 보냈으면 간섭이다
     row["fleet_orders"] = sum(1 for st, lg, tx in lines if lg == "fleet_manager"
                               and rec["wall_t0"] - 30 <= st <= rec["wall_t1"] and "ORDER_SENT" in tx)
+    probe = rec.get("global_at_end") or {}
+    row["global_cost_at_end"] = probe.get("centre")  # OccupancyGrid: 100 치명, 99 내접
+    row["global_patch_max_at_end"] = max((v for line in probe.get("patch", []) for v in line
+                                          if v is not None), default=None)
     end = rec.get("pode2_end") or (0, 0, 0)
     row["end_err_m"] = round(math.hypot(end[0] - 1.66, end[1] - 0.16), 3)
     issues = []
@@ -223,6 +270,10 @@ def trial_row(rec, fp, world, lines):
         issues.append(f"fleet sent {row['fleet_orders']} orders")
     if moved3 > 0.01:
         issues.append(f"pode3 moved {moved3:.3f} m")
+    if row["phys_gap_pode3_m"] <= FLAG_GAP_M:
+        issues.append(f"phys pode3 gap {row['phys_gap_pode3_m']}")
+    if row["phys_gap_world_m"] <= FLAG_GAP_M:
+        issues.append(f"phys {row['phys_gap_world_box']} gap {row['phys_gap_world_m']}")
     if row["gap_pode3_m"] <= FLAG_GAP_M:
         issues.append(f"pode3 gap {row['gap_pode3_m']}")
     if row["gap_world_m"] <= FLAG_GAP_M:
@@ -248,6 +299,9 @@ def summary(rows):
         "stand_s_median": round(statistics.median([r["stand_s"] for r in ok]), 1) if ok else None,
         "min_gap_pode3_m": min((r["gap_pode3_m"] for r in ok), default=None),
         "min_gap_world_m": min((r["gap_world_m"] for r in ok), default=None),
+        "min_phys_pode3_m": min((r["phys_gap_pode3_m"] for r in ok), default=None),
+        "min_phys_world_m": min((r["phys_gap_world_m"] for r in ok), default=None),
+        "phys_contact": sum(r["phys_contact"] for r in ok),
     }
 
 
@@ -274,7 +328,8 @@ def main():
     (out / "summary.json").write_text(json.dumps({"configs": summ, "trials": rows}, indent=1))
     cols = ["trials", "succeeded", "median_s", "max_s", "gap", "north", "aborts", "not_run",
             "with_issue",
-            "collision_lines", "stand_s_median", "min_gap_pode3_m", "min_gap_world_m"]
+            "collision_lines", "stand_s_median", "min_gap_pode3_m", "min_gap_world_m",
+            "min_phys_pode3_m", "min_phys_world_m", "phys_contact"]
     print("| cfg | " + " | ".join(cols) + " |")
     print("|" + "---|" * (len(cols) + 1))
     for name, s in summ.items():
@@ -288,6 +343,8 @@ def main():
               f"stand={r.get('stand_s')}/{r.get('longest_stop_s')} s "
               f"gap3={r.get('gap_pode3_m')} world={r.get('gap_world_m')}({r.get('gap_world_box')}) "
               f"shelf2={r.get('gap_shelf_2_m')} wallS={r.get('gap_wall_south_m')} "
+              f"phys3={r.get('phys_gap_pode3_m')} physW={r.get('phys_gap_world_m')}"
+              f"({r.get('phys_gap_world_box')}) gcost={r.get('global_cost_at_end')} "
               f"| {r.get('issues', '')}")
 
 
