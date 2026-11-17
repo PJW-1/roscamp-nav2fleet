@@ -20,7 +20,7 @@ class Silent:
     def _unattended(self, m, now: float) -> bool:
         return (m.available and self._run_mode == RUN and m.phase != AT_STATION
                 and (m.dispatch is not None or m.phase in GOING or m.phase == DOCKING)
-                and m.wait_since is None and now >= m.retry_at and now >= m.yield_until)
+                and m.wait.since is None and now >= m.retry_at and now >= m.yield_until)
 
     # ---- 목표 없이 이동 단계에 머문 로봇 경고 ----
     def _watch_idle(self, m, now: float) -> None:

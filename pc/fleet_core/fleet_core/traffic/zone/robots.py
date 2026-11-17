@@ -5,7 +5,7 @@ from dataclasses import dataclass, field
 
 from fleet_core.traffic.mission import IDLE
 
-from .episodes import Episode
+from .episodes import Episode, WaitEpisode
 
 # ---- 로봇에게 낸 goal 기록 ----
 BACKOFF = "backoff"
@@ -93,10 +93,7 @@ class Robot:
     hold: bool = False
     asked_at: float | None = None
     asked_gap: float = 0.0
-    wait_since: float | None = None
-    wait_for: tuple = ()
-    wait_warned: bool = False
-    queued: bool = False
+    wait: WaitEpisode = field(default_factory=WaitEpisode)
     # ---- 멈춤, 막힘, 무진척, 출발 감시 기록 ----
     stall: Episode = field(default_factory=Episode)
     blocked_since: float | None = None

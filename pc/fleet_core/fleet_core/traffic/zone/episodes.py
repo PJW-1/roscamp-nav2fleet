@@ -16,3 +16,14 @@ class Episode:
         self.key = self.since = self.xy = None
         self.noted = False
         self.count = 0
+
+
+@dataclass
+class WaitEpisode(Episode):
+    key: tuple = ()
+    queued: bool = False
+
+    def clear(self) -> None:
+        super().clear()
+        self.key = ()
+        self.queued = False
