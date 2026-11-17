@@ -29,6 +29,7 @@ NAMESPACE = f"/plan_keep_test_{os.getpid()}"
 OLD_STAMP_S = 1
 NO_VALID_PATH = 208
 GOAL = (1.0, 1.0)
+ORIGIN = 0.525  # 경로 점이 칸 가운데에 온다(해상도는 float32라 칸 경계의 점은 흔들린다)
 # Jazzy Costmap2DPublisher가 global_costmap/costmap을 내는 QoS
 # (KeepLast 1, transient_local, reliable)
 COSTMAP_QOS = QoSProfile(depth=1, durability=DurabilityPolicy.TRANSIENT_LOCAL,
@@ -73,7 +74,7 @@ def rounded(points) -> list:
 class FakePlanner:
     """plans: 다음 계획들(점 목록, 오류 코드 int, 또는 "hang").
     heading_z: 계획 끝 자세의 방향(쿼터니언 z, w는 맞춘다).
-    costmap(): x -0.5~1.5, y -0.5~1.5, 5 cm 격자를 낸다. cells는 {(x, y): 값}."""
+    costmap(): x와 y가 -0.525부터인 5 cm 격자 40x40을 낸다. cells는 {(x, y): 값}."""
 
     def __init__(self, node):
         group = ReentrantCallbackGroup()
@@ -88,11 +89,11 @@ class FakePlanner:
         grid = OccupancyGrid()
         grid.header.frame_id = "map"
         grid.info.resolution, grid.info.width, grid.info.height = 0.05, 40, 40
-        grid.info.origin.position.x = grid.info.origin.position.y = -0.5
+        grid.info.origin.position.x = grid.info.origin.position.y = -ORIGIN
         grid.info.origin.orientation.w = 1.0
         data = [0] * (40 * 40)
         for (x, y), value in (cells or {}).items():
-            data[math.floor((y + 0.5) / 0.05) * 40 + math.floor((x + 0.5) / 0.05)] = value
+            data[math.floor((y + ORIGIN) / 0.05) * 40 + math.floor((x + ORIGIN) / 0.05)] = value
         grid.data = data[:10] if broken else data
         self.costmap_pub.publish(grid)
         end = time.monotonic() + 5.0
