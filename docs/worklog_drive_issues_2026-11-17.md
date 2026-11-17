@@ -12,15 +12,15 @@ Codex 리뷰(91cb480)의 지적 7건과 서브에이전트 숫자 정정(판 수
 | 문제 | 가장 유력한 원인 | 상태 |
 |---|---|---|
 | 지그재그(O_OUT을 나온 뒤 끊김) | 인계 기록의 분석: NavFn이 5 cm 격자에서 내는 계단 경로(재계획과 컨트롤러 값의 몫은 따로 재지 않음). 개선 후보 smoother와 Smac 2D의 붙일 자리와 준비물을 3절에 정리 | 참고용으로 알아 둠. 지금 적용하지 않음(사용자 2026-11-17) |
-| 큰 통로(가운데 통로) 가운데를 못 지나감 | 통로가 계획상 로봇 중심 4칸뿐이라, 가운데에 상자 하나(장애물 판의 상자 4)나 로봇 하나만 있어도 Nav2 전역 계획에서 통로 전체가 막힌다 | 계산 [확정], 실제 판 [추측] |
-| 주차구역 앞 교착 한 번 | 칸 입구 줄에서 Nav2 단계의 대치(주차한 로봇, 칸막이 끝, 지나가는 로봇). 관제의 교착 감시는 이 경우를 보지 않고 막힘 처리로만 푼다. 그런데 BLOCKED가 깜빡이면 막힘 처리도 늦거나 안 된다(6절) | [추측]. 헤드리스 1,840판(v7 1,440판)에서 재현 안 됨 |
+| 큰 통로(가운데 통로) 가운데를 못 지나감 | 통로가 계획상 로봇 중심 4칸뿐이라, 가운데의 상자 하나(장애물 판의 상자 4)가 전역 costmap에 찍히거나, peer 층이 켜진 채 로봇 하나가 서 있으면 Nav2 전역 계획에서 통로 전체가 막힐 수 있다(셀 양자화에 따라 다름) | 계산 [확정], 실제 판 [추측] |
+| 주차구역 앞 교착 한 번 | 칸 입구 줄에서 Nav2 단계의 대치(주차한 로봇, 칸막이 끝, 지나가는 로봇). 관제의 교착 감시와 가까이 붙음 감시는 이 경우를 보지 않는다. 남는 것은 막힘 처리, 멈춤 감시, 로봇 쪽 복구이고, BLOCKED가 깜빡이면 막힘 처리가 늦거나 안 된다(6절) | [추측]. 헤드리스 1,840판(v7 1,440판)에서 재현 안 됨 |
 | BLOCKED 깜빡임으로 관제가 우회하지 않음 | 관제가 BLOCKED 아닌 보고 한 번에 10초 타이머를 0으로 되돌린다 | 코드 [확정]. 고치는 브랜치 둘 진행 중(6절) |
 
 ## 2. 레포 최신화
 
 - main 08241c0 -> 956140d(89파일). 11-17 인계 문서 `docs/worklog_drive_handoff_2026-11-17.md`가 내용을 정리한다:
   고정 경로 끝 방향 안 맞추기(D), O_OUT 1 cm, O_IN 이동, 대기 order의 목적지 일찍 정하기, 코드 정리 세 묶음.
-- 새 원격 브랜치: `feat/nav-goal-smooth`(앞보기 0.15 + 문턱 0.45, main에 없음), `feat/nav-goal-theta-star`(비교용),
+- 새 원격 브랜치: `feat/nav-goal-smooth`(앞보기 0.15 + 문턱 0.45, main에 없음), `feat/nav-goal-theta-star`(비교용, 11-17 사용자 지시로 `feat/oout-smooth`와 함께 원격에서 지움. 백업 `~/ros2camp/branch-backup-2026-11-17/discarded.bundle`),
   묶음별 브랜치 6개(모두 main에 들어감).
 - 공유 install은 새 main으로 다시 빌드했다. 시험 결과는 8절.
 
@@ -56,7 +56,7 @@ Codex 리뷰(91cb480)의 지적 7건과 서브에이전트 숫자 정정(판 수
 - Smac 2D: `planner_plugins`의 `GridBased`를 `nav2_smac_planner::SmacPlanner2D`로 바꾸면 되고 BT는 그대로다. package.xml에 `nav2_smac_planner`.
 - 이 기계에는 `nav2_smoother`(SimpleSmoother, SavitzkyGolaySmoother), `nav2_constrained_smoother`, `nav2_smac_planner`가 있다 [확정].
   **실물 로봇에 깔렸는지는 모른다.** 로봇에서 `ros2 pkg list | grep -E "smac|smoother"`로 먼저 본다.
-- 시뮬레이션의 `nav_overrides`는 Nav2 설정 전체에 깊이 덮이고 controller plugin 교체만 거부한다(`sim/fleet_gz_sim/launch/gz.launch.py:103-116`,
+- 시뮬레이션의 `nav_overrides`는 Nav2 설정 전체에 깊이 덮이고 controller plugin 교체와 매핑을 비매핑으로 바꾸는 덮어쓰기를 거부하고, 병합 뒤 충돌 검사와 속도 상한을 다시 건다(`sim/fleet_gz_sim/launch/gz.launch.py:103-116`,
   `sim/fleet_gz_sim/fleet_gz_sim/launch_parts.py:175-200`). 그래서 Gazebo에서 플래너 plugin(`planner_server`의 `GridBased.plugin`)은 `nav_overrides`로 바꿔 볼 수 있다.
   smoother는 launch 노드 목록과 BT를 바꿔야 해서 `nav_overrides`만으로는 안 된다.
 
@@ -80,7 +80,7 @@ Codex 리뷰(91cb480)의 지적 7건과 서브에이전트 숫자 정정(판 수
 - 전역 발자국의 내접 반경 0.09 안은 비용 253(지나갈 수 없음)이다. 로봇 중심이 설 수 있는 칸은 y 0.50~0.70의 4칸이고,
   비용은 237, 176, 176, 237이다(x 0.80, 0.95, 1.40에서 같음).
 - 장애물 판 `sim/fleet_gz_sim/obstacles/v7_yard_mix.yaml`의 상자 4(0.08 m, 370초에 놓을 예정이고 놓은 뒤 60초에 치움, 480초마다 되풀이. 로봇이 가까우면 늦어지거나 빠진다)는
-  O_IN -> M_E의 0.4 지점 (0.952, 0.595), 곧 통로 한가운데에 놓인다. 상자가 전역 costmap에 찍히면 그 x에서 네 칸이 모두 253이 되어 가운데 통로로는 길이 없다(셀 경계와 상자 방향에 따라 조금 다를 수 있다).
+  O_IN -> M_E의 0.4 지점 (0.952, 0.595), 곧 통로 한가운데에 놓인다. 상자가 전역 costmap에 찍히면 그 x에서 네 칸이 모두 253이 될 수 있어 가운데 통로로는 길이 없다(셀 경계와 상자 방향에 따라 조금 다를 수 있다).
 - 실제 틈(상자 옆 0.15 / 0.135 m)은 로봇 폭 0.112 m보다 넓어 실물은 지나갈 수 있을 것이다 [추측]. 계획은 틈이 2 x 0.09 = 0.18 m보다 넓어야 통과시킨다.
 - 다른 로봇도 같다. peer 층이 켜져 있으면(Gazebo 기본 켬 `sim/fleet_gz_sim/launch/gz.launch.py:76`, 실물 `nav2.launch.py` 기본 끔) peer 노드가 다른 로봇을 반경 0.08 원으로 찍으므로(`pode/pode_peer_obstacles/pode_peer_obstacles/node.py:53`)
   통로 가운데의 로봇 하나가 단면 전체를 막는다(연속 공간 근사, 셀 양자화에 따라 다를 수 있음). 마주 오는 두 로봇은 이 통로에서 비켜 갈 수 없다(남는 길 약 2 cm).
