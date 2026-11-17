@@ -228,17 +228,39 @@ def _joined(grid, a, b, shut=()):
     return False
 
 
-def test_v7_the_crossing_gap_is_shut_for_nav2_on_the_5cm_costmap():
-    """건넘 틈(x 0.99~1.25)을 막는 keepout이 두 진열대 끝과 구멍 없이 이어진다: 남쪽 진열대 줄의
-    어느 열도 위아래로 지나갈 수 없다(막힘 칸 또는 keepout 칸이 그 열의 진열대 높이에 있다)."""
+V7_GAP = (0.99, 0.365, 1.25, 0.405)  # 남쪽 진열대 사이 건넘 틈
+BOTH_ENDS = [(0.0, 0.30, 0.68, 0.45), (1.56, 0.30, 1.98, 0.45)]  # 서쪽 끝과 동쪽 통로
+
+
+def test_v7_the_crossing_gap_is_open_for_nav2_on_the_5cm_costmap(site):
+    """사용자 결정 2026-11-17: 건넘 틈(x 0.99~1.25)은 지름길이라 막지 않는다. 커밋된 마스크에 틈 안
+    keepout 칸이 없고, 서쪽 끝과 동쪽 통로를 다 막아도 5 cm costmap에서 틈으로 남북이 이어진다.
+    내접 0.09로 막고 남는 열은 틈 가운데 셋(칸 중심 x 1.075, 1.125, 1.175)이다."""
+    assert V7_GAP not in site.keepout_extra
     grid, occ, kept = _costmap()
     j0, j1 = _cell(0.0, 0.365)[1], _cell(0.0, 0.405 - 1e-6)[1]
-    for x in [0.70 + 0.05 * k for k in range(18)]:  # 0.70 ~ 1.55
+    for x in (1.075, 1.125, 1.175):
         i = _cell(x, 0.0)[0]
-        assert any(occ[j][i] or kept[j][i] for j in range(j0, j1 + 1)), x
-    assert _joined(grid, (1.12, 0.55), (1.12, 0.25)) is True  # 둘레로는 이어진다
-    assert not _joined(grid, (1.12, 0.55), (1.12, 0.25),
-                       shut=[(0.0, 0.30, 0.68, 0.45), (1.56, 0.30, 1.98, 0.45)])
+        assert not any(kept[j][i] or grid[j][i] for j in range(j0, j1 + 1)), x
+    for x in (1.025, 1.225):  # 진열대 끝 칸 옆 열은 내접 반지름 안이라 닫힌다
+        i = _cell(x, 0.0)[0]
+        assert any(grid[j][i] for j in range(j0, j1 + 1)), x
+    assert _joined(grid, (1.125, 0.55), (1.125, 0.25), shut=BOTH_ENDS)
+
+
+def test_v7_the_crossing_gap_has_no_keepout_cell_in_the_fine_mask(site):
+    """1 cm 마스크(Nav2 KeepoutFilter가 읽는 것)의 틈 안 칸은 하나도 닫히지 않는다. 칸막이 둘레의
+    keepout_extra는 그대로 닫혀 있다(아래 칸막이 시험)."""
+    keep = _read_pgm(PKG / "maps" / "arena_v7_keepout.pgm")
+    x0, y0, x1, y1 = V7_GAP
+    shut = []
+    for k in range(int(round((x1 - x0) / 0.01))):
+        for m in range(int(round((y1 - y0) / 0.01))):
+            x, y = x0 + 0.005 + 0.01 * k, y0 + 0.005 + 0.01 * m
+            fi, fj = int((x - ORIGIN[0]) / 0.01), int((y - ORIGIN[1]) / 0.01)
+            if keep[fj][fi]:
+                shut.append((round(x, 3), round(y, 3)))
+    assert shut == []
 
 
 @pytest.mark.parametrize("shut, pairs", [
