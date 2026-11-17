@@ -90,7 +90,7 @@ class YardRetreat:
                                          f"out of the way of {m.name}, goes to", clear_of=m))
         if not in_lane and not sent_off and self._parked(other):
             return False
-        m.blocked_since = None
+        m.blocked.since = None
         m.robot_yield_at = now
         if in_lane:
             self._cancel_goal(m)

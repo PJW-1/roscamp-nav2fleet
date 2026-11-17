@@ -25,31 +25,29 @@ class Blocked:
     def _watch_blocked(self, m, now: float) -> None:
         self._note_self_recovery(m, now)
         p = self.params
-        long_recovery = (m.self_recovery_since is not None
-                         and now - m.self_recovery_since > p.self_recovery_limit_s)
+        long_recovery = (m.blocked.self_recovery_since is not None
+                         and now - m.blocked.self_recovery_since > p.self_recovery_limit_s)
         stuck = m.robot_state == BLOCKED or long_recovery
         if not stuck or m.goal is None or m.goal.kind in (DOCK, BACKOFF):
             if not stuck:
                 self._blocked_gap(m, now)
             return
-        if m.blocked_out and self._gap_over(m, now):
+        if m.blocked.out and self._gap_over(m, now):
             self._end_blocked(m)  # 막힘이 돌아온 보고에서 끝낼 때가 됐어도 새 일화
-        m.blocked_clear_since = None
-        if m.blocked_since is None or m.blocked_goal != m.goal.id:
-            if m.blocked_goal != m.goal.id:
-                m.blocked_noted = False  # goal이 바뀌면 새 일화
-            m.blocked_since, m.blocked_goal = now, m.goal.id
-            m.blocked_xy, m.blocked_out, m.blocked_gaps = (m.x, m.y), False, 0
-            m.rear_noted = False
-        elif m.blocked_out:
-            m.blocked_out = False
-            m.blocked_gaps += 1  # 짧은 틈 뒤 다시 막힘: 시계는 이어 센다
-        if not m.blocked_noted:
-            m.blocked_noted = True
-            self._event("INFO", "BLOCKED_WAIT", f"stands before something on the way to "
-                        f"{m.goal.end}", m.name)
+        m.blocked.clear_since = None
+        if m.blocked.since is None or m.blocked.key != m.goal.id:
+            if m.blocked.key != m.goal.id:
+                m.blocked.noted = False  # goal이 바뀌면 새 일화
+            m.blocked.since, m.blocked.key = now, m.goal.id
+            m.blocked.xy, m.blocked.out, m.blocked.count = (m.x, m.y), False, 0
+            m.blocked.rear_noted = False
+        elif m.blocked.out:
+            m.blocked.out = False
+            m.blocked.count += 1  # 짧은 틈 뒤 다시 막힘: 시계는 이어 센다
+        self._event_once(m.blocked, "INFO", "BLOCKED_WAIT", f"stands before something on the way "
+                         f"to {m.goal.end}", m.name)
         # ---- 기다린 시간에 따라 양보, 막힘 표시, 실패 결정 ----
-        waited = now - m.blocked_since
+        waited = now - m.blocked.since
         backing = self._via(m) == RETREAT
         if not backing and waited >= p.blocked_mark_s:
             behind = self._behind_on_the_way_back(m)
@@ -57,17 +55,17 @@ class Blocked:
             other = self._robot_at(m, point) if point is not None else None
             if (other is not None and not self._yielded_lately(m, now)
                     and self._yield_to_robot(m, other, now)):
-                m.rear_noted = False
+                m.blocked.rear_noted = False
             elif not behind:
-                m.rear_noted = False
+                m.blocked.rear_noted = False
                 self._mark_blocked(m, now, None if other is not None else point)
             elif waited >= p.blocked_timeout_s:
                 self._event("ERROR", "GOAL_FAILED",
                             f"blocked for {waited:.0f} s with {behind} behind it"
                             f"{self._gaps_note(m)}", m.name)
                 self._fail(m, BLOCKED)
-            elif not m.rear_noted:
-                m.rear_noted = True
+            elif not m.blocked.rear_noted:
+                m.blocked.rear_noted = True
                 self._event("INFO", "RETREAT_WAIT", f"{behind} is behind it, backs out after it",
                             m.name)
         elif backing and waited >= p.blocked_timeout_s:
@@ -77,34 +75,34 @@ class Blocked:
 
     # ---- 막힘 아닌 보고: 일화를 끝낼지 이어 갈지 ----
     def _blocked_gap(self, m, now: float) -> None:
-        if m.blocked_since is None and not m.blocked_noted:
+        if m.blocked.since is None and not m.blocked.noted:
             return
-        if m.goal is None or m.goal.id != m.blocked_goal or self._gap_over(m, now):
+        if m.goal is None or m.goal.id != m.blocked.key or self._gap_over(m, now):
             self._end_blocked(m)
             return
-        m.blocked_out = True
+        m.blocked.out = True
         if m.robot_state == SELF_RECOVERING:
-            m.blocked_clear_since = None  # 자가 복구는 막힘의 일부: 끝내는 시간에 넣지 않는다
-        elif m.blocked_clear_since is None:
-            m.blocked_clear_since = now
+            m.blocked.clear_since = None  # 자가 복구는 막힘의 일부: 끝내는 시간에 넣지 않는다
+        elif m.blocked.clear_since is None:
+            m.blocked.clear_since = now
 
     # ---- 일화 끝: 시작점에서 나아감, 막힘 아닌 보고가 오래 이어짐 ----
     def _gap_over(self, m, now: float) -> bool:
         p = self.params
-        moved = (m.blocked_xy is not None
-                 and math.dist(m.blocked_xy, (m.x, m.y)) > p.blocked_reset_m)
-        return moved or (m.blocked_clear_since is not None
-                         and now - m.blocked_clear_since >= p.blocked_reset_s)
+        moved = (m.blocked.xy is not None
+                 and math.dist(m.blocked.xy, (m.x, m.y)) > p.blocked_reset_m)
+        return moved or (m.blocked.clear_since is not None
+                         and now - m.blocked.clear_since >= p.blocked_reset_s)
 
     @staticmethod
     def _end_blocked(m) -> None:
-        m.blocked_since, m.blocked_xy, m.blocked_clear_since = None, None, None
-        m.blocked_noted = m.rear_noted = m.blocked_out = False
-        m.blocked_gaps = 0
+        m.blocked.since, m.blocked.xy, m.blocked.clear_since = None, None, None
+        m.blocked.noted = m.blocked.rear_noted = m.blocked.out = False
+        m.blocked.count = 0
 
     @staticmethod
     def _gaps_note(m) -> str:
-        return f", after {m.blocked_gaps} short gaps" if m.blocked_gaps else ""
+        return f", after {m.blocked.count} short gaps" if m.blocked.count else ""
 
     # ---- 되돌아갈 길 뒤에 있는 로봇 확인 ----
     def _behind_on_the_way_back(self, m) -> str:
@@ -155,7 +153,7 @@ class Blocked:
         if keys:
             self._remember_way(m)
         self._cancel_goal(m)
-        m.blocked_since = None
+        m.blocked.since = None
         if link.a and zone is not None and site.zones[zone].kind != SHARED:
             self._set_retreat(m, link, now)
             self._event("INFO", "REROUTE", f"backs out to {m.retreat_to}, then another way",
@@ -209,10 +207,10 @@ class Blocked:
             self._note_local_yield(m, now)
             return
         if m.robot_state == SELF_RECOVERING:
-            if m.self_recovery_since is None:
-                m.self_recovery_since = now
+            if m.blocked.self_recovery_since is None:
+                m.blocked.self_recovery_since = now
                 self._event("INFO", "SELF_RECOVERY", "backs up by itself", m.name)
-        elif m.self_recovery_since is not None:
+        elif m.blocked.self_recovery_since is not None:
             self._event("INFO", "SELF_RECOVERY_END",
-                        f"after {now - m.self_recovery_since:.0f} s", m.name)
-            m.self_recovery_since = None
+                        f"after {now - m.blocked.self_recovery_since:.0f} s", m.name)
+            m.blocked.self_recovery_since = None

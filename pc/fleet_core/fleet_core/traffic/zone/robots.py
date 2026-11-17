@@ -5,7 +5,7 @@ from dataclasses import dataclass, field
 
 from fleet_core.traffic.mission import IDLE
 
-from .episodes import Episode, WaitEpisode
+from .episodes import BlockedEpisode, Episode, WaitEpisode
 
 # ---- 로봇에게 낸 goal 기록 ----
 BACKOFF = "backoff"
@@ -95,21 +95,12 @@ class Robot:
     wait: WaitEpisode = field(default_factory=WaitEpisode)
     # ---- 멈춤, 막힘, 무진척, 출발 감시 기록 ----
     stall: Episode = field(default_factory=Episode)
-    blocked_since: float | None = None
-    blocked_noted: bool = False
-    blocked_goal: int = 0
-    rear_noted: bool = False
-    # 막힘 일화: 시작 위치, 막힘 아닌 보고가 이어진 시작 시각, 틈 뒤 다시 막힌 횟수
-    blocked_xy: tuple | None = None
-    blocked_clear_since: float | None = None
-    blocked_out: bool = False
-    blocked_gaps: int = 0
+    blocked: BlockedEpisode = field(default_factory=BlockedEpisode)
     idle: Episode = field(default_factory=Episode)
     dock_error_m: float = 0.0
     silent: Episode = field(default_factory=Episode)
     start: Episode = field(default_factory=Episode)
     # ---- 자가 복구, 구역 놓기, 양보, 물러나기 기록 ----
-    self_recovery_since: float | None = None
     local_yield: str = ""
     local_episode: Episode = field(default_factory=Episode)
     sent_priority: int = -1

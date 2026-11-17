@@ -27,3 +27,12 @@ class WaitEpisode(Episode):
         super().clear()
         self.key = ()
         self.queued = False
+
+
+@dataclass
+class BlockedEpisode(Episode):
+    key: int = 0
+    clear_since: float | None = None
+    out: bool = False
+    rear_noted: bool = False
+    self_recovery_since: float | None = None
