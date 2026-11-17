@@ -232,7 +232,7 @@ def test_a_fault_isolates_once_answers_the_dispatch_and_cancels_the_goal():
     assert world.codes("pode2").count("ROBOT_ISOLATED") == 1
     assert world.traffic.status_view("pode2")["fault_reason"] == "BUMPER", "the cause is the last"
     assert world.sent(CancelCmd, "pode2") == [CancelCmd("pode2", goal)]
-    assert world.traffic._robots["pode2"].fault_xy == world.site.node_pose("P-2"), \
+    assert world.traffic._robots["pode2"].health.fault_xy == world.site.node_pose("P-2"), \
         "where it stood when it first failed"
 
 

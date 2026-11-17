@@ -64,7 +64,7 @@ class BlockMarks:
 
     def _robot_at(self, m, point):
         near = [other for other in self._robots.values()
-                if other is not m and other.placed and other.fault != OUT_OF_SERVICE
+                if other is not m and other.placed and other.health.fault != OUT_OF_SERVICE
                 and math.dist(point, (other.x, other.y)) <= self.params.near_m]
         return min(near, key=lambda o: (math.dist(point, (o.x, o.y)), o.name), default=None)
 

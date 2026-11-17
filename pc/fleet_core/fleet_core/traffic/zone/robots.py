@@ -59,6 +59,19 @@ class Report:
     obstacle: tuple | None = None
 
 
+# ---- 고장, 통신, 자세 의심 상태 ----
+@dataclass
+class Health:
+    fault: str = ""
+    fault_reason: str = ""
+    fault_xy: tuple | None = None
+    pose_doubt: bool = False
+    comm: str = ""
+    recover_at: float = 0.0
+    pose_at: float | None = None
+    suspect_quiet_until: float = 0.0
+
+
 # ---- 로봇 한 대의 관제 상태: 위치와 보고 ----
 @dataclass
 class Robot:
@@ -68,16 +81,9 @@ class Robot:
     y: float = 0.0
     yaw: float = 0.0
     report: Report = field(default_factory=Report)
-    pose_at: float | None = None
-    suspect_quiet_until: float = 0.0
     # ---- 단계, 고장, 통신 상태 ----
     phase: str = IDLE
-    fault: str = ""
-    fault_reason: str = ""
-    fault_xy: tuple | None = None
-    pose_doubt: bool = False
-    comm: str = ""
-    recover_at: float = 0.0
+    health: Health = field(default_factory=Health)
     # ---- 트립, goal, 재시도 기록 ----
     node: str = ""
     off_node: tuple | None = None
@@ -127,12 +133,12 @@ class Robot:
     # ---- 가용 여부와 표시 상태 속성 ----
     @property
     def live(self) -> bool:
-        return self.placed and not self.fault
+        return self.placed and not self.health.fault
 
     @property
     def available(self) -> bool:
-        return self.live and not self.comm
+        return self.live and not self.health.comm
 
     @property
     def state(self) -> str:
-        return self.fault or self.comm or self.phase
+        return self.health.fault or self.health.comm or self.phase

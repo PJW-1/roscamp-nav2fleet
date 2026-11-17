@@ -20,13 +20,13 @@ def pose_jump(before, after, dt: float, p) -> str:
 # ---- 보고된 자세가 튀면 LOCALIZATION_SUSPECT 경고 ----
 class Localization:
     def _watch_pose_jump(self, m, x: float, y: float, yaw: float, now: float) -> None:
-        before, at = (m.x, m.y, m.yaw), m.pose_at
-        m.pose_at = now
+        before, at = (m.x, m.y, m.yaw), m.health.pose_at
+        m.health.pose_at = now
         if at is None:
             return
         why = pose_jump(before, (x, y, yaw), now - at, self.params)
-        if why and now >= m.suspect_quiet_until:
-            m.suspect_quiet_until = now + self.params.pose_jump_quiet_s
+        if why and now >= m.health.suspect_quiet_until:
+            m.health.suspect_quiet_until = now + self.params.pose_jump_quiet_s
             self._event("WARN", "LOCALIZATION_SUSPECT",
                         f"the reported pose {why}: ({before[0]:.2f}, {before[1]:.2f}) to "
                         f"({x:.2f}, {y:.2f})", m.name)

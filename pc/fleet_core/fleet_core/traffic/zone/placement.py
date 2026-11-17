@@ -32,8 +32,8 @@ class Placement:
         if not self.grants.force(m.name, [zone], [node] if node else []):
             self._placement_refused(m, f"{zone} or {node} is taken")
             return
-        if m.fault_reason == PLACEMENT_CONFLICT:
-            m.fault = m.fault_reason = ""
+        if m.health.fault_reason == PLACEMENT_CONFLICT:
+            m.health.fault = m.health.fault_reason = ""
         m.placed = True
         inside = site.nodes_in(zone)
         free = [name for name in inside if self._free(m, name)]
@@ -49,7 +49,7 @@ class Placement:
     def _overlapped(self, m) -> str:
         radius = self.params.footprint_radius_m
         for other in self._robots.values():
-            if (other is not m and other.placed and other.fault != OUT_OF_SERVICE
+            if (other is not m and other.placed and other.health.fault != OUT_OF_SERVICE
                     and math.dist((m.x, m.y), (other.x, other.y)) < radius):
                 return other.name
         return ""
@@ -65,6 +65,6 @@ class Placement:
         return site.nearest_node(m.x, m.y, free, radius=tolerance)
 
     def _placement_refused(self, m, why: str) -> None:
-        if m.fault_reason != PLACEMENT_CONFLICT:
-            m.fault, m.fault_reason = ERROR, PLACEMENT_CONFLICT
+        if m.health.fault_reason != PLACEMENT_CONFLICT:
+            m.health.fault, m.health.fault_reason = ERROR, PLACEMENT_CONFLICT
             self._event("ERROR", "PLACEMENT_CONFLICT", why, m.name)

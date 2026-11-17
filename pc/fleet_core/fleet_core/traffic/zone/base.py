@@ -108,12 +108,12 @@ class ZoneBase:
 
     # ---- 로봇 격리와 goal 실패 재시도 ----
     def _fail(self, m, reason: str) -> None:
-        first = m.fault != ERROR
+        first = m.health.fault != ERROR
         if first:
-            m.fault_xy = (m.x, m.y)
-        m.pose_doubt = m.pose_doubt or reason == NOT_AT_TARGET
-        m.fault = ERROR
-        m.fault_reason = reason
+            m.health.fault_xy = (m.x, m.y)
+        m.health.pose_doubt = m.health.pose_doubt or reason == NOT_AT_TARGET
+        m.health.fault = ERROR
+        m.health.fault_reason = reason
         m.called = False
         self._stop_wanting(m)
         if m.dispatch:

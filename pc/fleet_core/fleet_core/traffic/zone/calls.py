@@ -25,7 +25,7 @@ class Calls:
     def on_run_mode(self, run_mode) -> None:
         if run_mode == STOP and self._run_mode != STOP:
             for m in self._robots.values():
-                if m.goal and not m.comm:
+                if m.goal and not m.health.comm:
                     self._cancel_goal(m)
         if run_mode != self._run_mode:
             for m in self._robots.values():
@@ -80,7 +80,7 @@ class Calls:
 
     # ---- 열린 호출에 응할 로봇 고르기 ----
     def tick_pick(self, stopped: frozenset = frozenset()) -> None:
-        pool = [m for m in self._robots.values() if m.placed and m.fault != OUT_OF_SERVICE]
+        pool = [m for m in self._robots.values() if m.placed and m.health.fault != OUT_OF_SERVICE]
         self._warn_if_no_robot()
         chosen = self.selector.pick(len(self._open_calls),
                                     [self._robot_info(m, m.name in stopped) for m in pool])
