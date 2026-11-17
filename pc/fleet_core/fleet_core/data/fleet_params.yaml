@@ -19,6 +19,8 @@ stall_move_m: 0.05            # 보고 위치가 이보다 덜 움직이면 제�
 dock_stall_s: 15.0            # 추정: 도킹은 천천히 맞추므로 더 길게 본다
 blocked_mark_s: 10.0          # 추정: BLOCKED가 이만큼 이어지면 그 연결을 막힘으로 표시하고 다른 길을 고른다(잠깐 지나가는 사람 8 s보다 길게)
 blocked_timeout_s: 60.0       # 추정: BLOCKED로 보고된 시간이 이만큼이면 ERROR(BLOCKED)
+blocked_reset_m: 0.30         # 추정: 같은 goal의 막힘 일화는 시작점에서 이만큼 넘게 나아가야 끝난다(Pode 자가 후진 최대 0.15 m의 두 배)
+blocked_reset_s: 20.0         # 추정: BLOCKED도 RECOVERING도 아닌 보고가 이만큼 이어져야 일화가 끝난다. Nav2 goal 로봇은 5 cm 움직이면 BLOCKED가 풀리고 다시 막히기까지 blocked_after_s 10 s가 걸리므로 그 두 배
 arrival_tolerance_m: 0.15     # 추정: 목표 지점에 이만큼 가까워야 이동 성공으로 친다
 arrival_settle_s: 1.0         # 추정: 보고가 늦으니 성공 뒤 이만큼 기다린다
 startup_wait_s: 10.0          # 이때까지 보고 없는 로봇은 알린다

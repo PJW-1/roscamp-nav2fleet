@@ -102,6 +102,11 @@ class Robot:
     blocked_noted: bool = False
     blocked_goal: int = 0
     rear_noted: bool = False
+    # 막힘 일화: 시작 위치, 막힘 아닌 보고가 이어진 시작 시각, 틈 뒤 다시 막힌 횟수
+    blocked_xy: tuple | None = None
+    blocked_clear_since: float | None = None
+    blocked_out: bool = False
+    blocked_gaps: int = 0
     idle_since: float | None = None
     dock_error_m: float = 0.0
     silent_from: tuple | None = None
