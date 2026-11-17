@@ -46,15 +46,21 @@ run() {
   trap 'kill -INT -- -$pid 2>/dev/null; sleep 5; pkill -KILL -g $pid 2>/dev/null; exit 130' INT TERM
   python3 "$HERE/run_trials.py" --config "$cfg" --out "$dir/trials.jsonl" \
     --timeout "$TIMEOUT_S" --sets "$SETS" 2>&1 | tee "$dir/trials.log"
+  local rc=${PIPESTATUS[0]}
   # 실제로 걸린 값(판 뒤에 남긴다)
   timeout 20 ros2 param get /pode2/local_costmap/local_costmap footprint_padding > "$dir/params.txt" 2>&1
   grep -m3 "bodies of" "$dir/launch.log" >> "$dir/params.txt"
   kill -INT -- -$pid 2>/dev/null
   for _ in $(seq 30); do kill -0 $pid 2>/dev/null || break; sleep 1; done
   pkill -KILL -g $pid 2>/dev/null  # 이 판 묶음만
-  echo "== $cfg end $(date +%T)"
+  echo "== $cfg end $(date +%T) rc=$rc"
+  exit "$rc"
   )
+  local status=$?
   sleep 10
+  return $status
 }
 
-for cfg in "$@"; do run "$cfg"; done
+fail=0
+for cfg in "$@"; do run "$cfg" || fail=1; done
+exit $fail

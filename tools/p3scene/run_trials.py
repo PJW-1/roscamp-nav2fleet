@@ -168,7 +168,7 @@ class Trials(Node):
         for c in self.clear:
             if c.wait_for_service(timeout_sec=5.0):
                 f = c.call_async(ClearEntireCostmap.Request())
-                done += self.spin_until(f.done, 5.0)
+                done += self.spin_until(f.done, 5.0) and f.exception() is None
         return done
 
     def trial(self, k, pose3, timeout_s, pode1="A"):
@@ -205,6 +205,7 @@ class Trials(Node):
         if not self.spin_until(f.done, 30.0) or not f.result().accepted:
             self.recording = False
             rec["error"] = "goal rejected" if f.done() else "goal not answered"
+            rec["stop_run"] = not f.done()  # 나중에 수락되면 다음 판과 겹친다
             return rec
         handle = f.result()
         rf = handle.get_result_async()
@@ -223,6 +224,7 @@ class Trials(Node):
             cf = handle.cancel_goal_async()
             self.spin_until(cf.done, 5.0)
             rec["cancel_done"] = self.spin_until(rf.done, 15.0)  # 끝난 뒤에 다음 판
+            rec["stop_run"] = not rec["cancel_done"]
         rec["wall_t1"], rec["sim_t1"] = time.time(), self.now()
         self.spin_for(0.5)
         self.recording = False
@@ -266,6 +268,9 @@ def main():
                       f"{rec.get('duration_s')} s rec {rec.get('recoveries')} {rec.get('error', '')}",
                       flush=True)
                 k += 1
+                if rec.get("stop_run"):  # 이전 goal이 살아 있을 수 있다: 더 돌지 않는다
+                    print("stop: previous goal may still be running", flush=True)
+                    return 3
         return 0
     finally:
         node.destroy_node()
