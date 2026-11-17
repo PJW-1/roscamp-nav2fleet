@@ -56,6 +56,12 @@ class ZoneBase:
         self._out.append(EventOut(level, code, detail, robot))
         self._note_robot_event(robot, code)
 
+    def _event_once(self, ep, level: str, code: str, detail: str, robot: str = "") -> None:
+        if ep.noted:
+            return
+        ep.noted = True
+        self._event(level, code, detail, robot)
+
     def _gap(self, m, node: str) -> float:
         return math.dist((m.x, m.y), self.site.node_pose(node))
 

@@ -109,11 +109,9 @@ class Robot:
     blocked_clear_since: float | None = None
     blocked_out: bool = False
     blocked_gaps: int = 0
-    idle_since: float | None = None
+    idle: Episode = field(default_factory=Episode)
     dock_error_m: float = 0.0
-    silent_from: tuple | None = None
-    silent_since: float = 0.0
-    silent_noted: bool = False
+    silent: Episode = field(default_factory=Episode)
     start: Episode = field(default_factory=Episode)
     # ---- 자가 복구, 구역 놓기, 양보, 물러나기 기록 ----
     self_recovery_since: float | None = None
