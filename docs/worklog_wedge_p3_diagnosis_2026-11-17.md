@@ -31,7 +31,7 @@
 
 ## 3. 판단
 
-- [확정] "전에 통과했다"는 A와 aI 실험 판(각 한 번)이다. 옛 기본값(base)도 이 장면에서 막혔다. main에 합친 뒤 다섯 판은 모두 막혔다(첫 BLOCKED부터 Q2까지 47~165 s).
+- [확정] "전에 통과했다"는 A와 aI 실험 판(각 한 번)이다. 옛 기본값(base)도 이 장면에서 막혔다. main에 합친 뒤 다섯 판은 모두 막혔다. 주문(420 s)부터 Q2까지 main 다섯 판 60~176 s, wedge_noclr 47 s, corr_aI 28 s, corr_a 13 s, corr_base 110 s다.
 - [확정] 막힌 판(main 다섯)은 planner가 한 번도 실패하지 않고, controller가 "collision ahead"로 patience를 넘겨 follow_path를 끊는 일을 14~60번 되풀이했다. clear 20 ms 판(corr_aI, wedge_noclr)은 planner가 1~7번 길을 못 만들었고 controller patience 초과는 0이다.
 - [추측] clear 1000 ms가 이 차이와 이어져 있다. 그것만 바꾼 wedge_noclr에서 모양이 aI 쪽으로 바뀌었다. 그러나 한 판이고, 어떤 순서로 이어지는지는 모른다. 앞서 낸 설명("aI에서 clear가 시간 초과로 끝나 pode3 자국이 남아 planner가 거절했다")은 틀렸다: corr_aI 로그에서 planner 실패(628.781)가 clear 시간 초과(628.822, 628.878)보다 먼저다(Codex 리뷰). `KeepoutFilter: New filter mask arrived`도 clear 완료의 증거가 아니다.
 - [추측] 막힘의 모양은 planner(global costmap)와 controller(local costmap, 다각형 footprint)의 판단 불일치로 보인다. 계획 경로(`/plan`)와 costmap 상태를 기록하지 않아 매번 같은 틈 길이었는지, 충돌 대상이 pode3였는지는 확인하지 못했다.
