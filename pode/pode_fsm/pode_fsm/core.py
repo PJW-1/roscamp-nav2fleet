@@ -75,7 +75,7 @@ class PodeFsm(NavGoalMoves, RetreatMoves, LocalYield, NavYield, SelfRecovery, Ob
         self._active: Move | Dock | Retreat | NavGoal | None = None
         self._goals = NavGoals(params.blocked_after_s, params.nav_progress_m,
                                params.nav_result_grace_s, params.nav_turn_progress_rad,
-                               params.nav_turn_window_s)
+                               params.nav_turn_window_s, params.unblock_m)
         self._rest = IDLE
         self._localized = False
         self._pose: Sequence[float] | None = None
@@ -89,6 +89,9 @@ class PodeFsm(NavGoalMoves, RetreatMoves, LocalYield, NavYield, SelfRecovery, Ob
         self._blocked = False
         self._clear_since: float | None = None
         self._blocked_points: list[Point] | None = None
+        self._blocked_at: Point | None = None
+        self._hold_at: Point | None = None
+        self._hold_since: float | None = None
         self._recovery: Recovery | None = None
         self._attempts = 0
         self._attempt_origin: Point | None = None
@@ -102,7 +105,9 @@ class PodeFsm(NavGoalMoves, RetreatMoves, LocalYield, NavYield, SelfRecovery, Ob
             return LOCALIZING
         if self._recovery is not None:
             return RECOVERING
-        if self._blocked or (isinstance(self._active, NavGoal) and self._active.blocked):
+        g = self._active
+        if (self._blocked or self._hold_at is not None
+                or (isinstance(g, NavGoal) and (g.blocked or g.held_at is not None))):
             return BLOCKED
         if isinstance(self._active, (Move, Retreat, NavGoal)):
             return MOVING

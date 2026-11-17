@@ -6,7 +6,7 @@
 이 차이가 시험에 드러나지 않았다.
 """
 from fake_robots import nav_goal_drive
-from fake_robots.world import obstacle_view, world
+from fake_robots.world import nav_goal, obstacle_view, world
 from fleet_core.common import commands
 from fleet_core.common import params as fleet_params
 from fleet_core.common.params import load_params
@@ -32,6 +32,11 @@ def test_the_headless_robots_report_blocked_when_the_real_ones_do():
     real = FsmParams().blocked_after_s
     assert world.BLOCKED_AFTER_S == real
     assert nav_goal_drive.BLOCKED_AFTER_S == real
+
+
+def test_the_headless_robots_clear_blocked_where_the_real_ones_do():
+    """BLOCKED는 켠 자리에서 unblock_m 벗어나야 보고를 끈다(2026-11-17)."""
+    assert nav_goal.UNBLOCK_M == FsmParams().unblock_m
 
 
 def test_the_values_copied_between_the_packages_agree():

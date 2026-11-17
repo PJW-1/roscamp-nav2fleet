@@ -19,6 +19,8 @@ class FsmParams:
     stopped_turn_rps: float = 0.1
     block_report_s: float = 1.0
     block_clear_s: float = 1.0
+    unblock_m: float = 0.15  # 막힌 자리에서 이만큼 벗어나야 BLOCKED 해제(추정)
+    unblock_clear_s: float = 3.0  # 경로 모드: 물체가 이만큼 계속 안 보여도 해제(추정)
     block_lookahead_m: float = 0.5
     block_timeout_s: float = 90.0
     block_sample_m: float = 0.02

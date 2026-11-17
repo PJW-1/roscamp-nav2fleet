@@ -33,6 +33,7 @@ class LocalYield:
         self._recovery = Recovery(stuck_s=g.s, local=True, wait_until=now + self.p.local_wait_s,
                                    stood_since=stood)
         self._blocked, self._clear_since = False, None
+        self._drop_hold()
         g.waiting_since = g.blocked_since = None
         if not self._nav_running:
             return []
@@ -85,7 +86,7 @@ class LocalYield:
             self._backup_running = False
             cmds.append(CancelBackUp())
         self._recovery = None
-        self._blocked = True
+        self._mark_blocked(self._pose)
         if isinstance(g, Move):
             if g.blocked_since is None:
                 g.blocked_since = now

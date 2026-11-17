@@ -22,6 +22,7 @@ class NavGoalMoves:
         self._active = g
         self._stopped_since = None
         self._blocked, self._clear_since, self._blocked_points = False, None, None
+        self._drop_hold()
         return cmds if wait else cmds + self._goals.send(g, now, pose)
 
     def _driving(self, now: float) -> bool:

@@ -39,6 +39,7 @@ class NavGoal:
     turn_pending: float = 0.0
     turned_at: float = 0.0
     blocked: bool = False
+    held_at: Point | None = None  # 보고용 막힘을 켠 자리
     trail: list[Point] = field(default_factory=list)
     driven: float = 0.0
 
@@ -51,8 +52,10 @@ def _yaw_of(pose: Sequence[float] | None) -> float | None:
 # ---- NavGoal 전송, 취소, 진행 중 goal 관리 ----
 class NavGoals:
     def __init__(self, blocked_after_s: float, progress_m: float, result_grace_s: float,
-                 turn_step_rad: float = 0.0, turn_window_s: float = 0.0):
+                 turn_step_rad: float = 0.0, turn_window_s: float = 0.0,
+                 unblock_m: float = 0.0):
         self.blocked_after_s = blocked_after_s
+        self.unblock_m = unblock_m
         self.progress_m = progress_m
         self.result_grace_s = result_grace_s
         self.turn_step_rad = turn_step_rad
@@ -63,7 +66,7 @@ class NavGoals:
 
     def send(self, g: NavGoal, now: float, pose: Sequence[float] | None) -> list:
         self._seq += 1
-        g.seq, g.distance, g.blocked = self._seq, 0.0, False
+        g.seq, g.distance, g.blocked, g.held_at = self._seq, 0.0, False, None
         g.anchor = (float(pose[0]), float(pose[1])) if pose is not None else None
         g.anchor_at = g.turned_at = now
         g.turn_yaw, g.turn_pending = _yaw_of(pose), 0.0
@@ -97,13 +100,29 @@ class NavGoals:
             return
         here = (float(pose[0]), float(pose[1]))
         yaw = _yaw_of(pose)
-        if g.anchor is None or math.dist(here, g.anchor) >= self.progress_m:
+        moved = g.anchor is None or math.dist(here, g.anchor) >= self.progress_m
+        if moved:
             g.anchor, g.anchor_at, g.blocked = here, now, False
             g.turned_at, g.turn_yaw, g.turn_pending = now, yaw, 0.0
+        self._watch_hold(g, here)
+        if moved:
             return
         self._count_turn(g, now, yaw)
         if now - g.anchor_at >= self.blocked_after_s:
-            g.blocked = True
+            self.mark_blocked(g, here)
+
+    # ---- 막힘 표시와 보고용 막힘 유지: 막힌 자리에서 unblock_m 벗어나야 보고를 끈다 ----
+    @staticmethod
+    def mark_blocked(g: NavGoal, here: Point | None) -> None:
+        if not g.blocked:
+            g.held_at = here
+        g.blocked = True
+
+    def _watch_hold(self, g: NavGoal, here: Point) -> None:
+        if g.held_at is None or g.blocked:
+            return
+        if math.dist(here, g.held_at) >= max(self.unblock_m, self.progress_m):
+            g.held_at = None
 
     # ---- 움직인 뒤 잠깐의 제자리 회전을 기록 ----
     def _count_turn(self, g: NavGoal, now: float, yaw: float | None) -> None:

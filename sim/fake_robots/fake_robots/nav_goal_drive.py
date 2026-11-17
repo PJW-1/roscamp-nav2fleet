@@ -16,6 +16,7 @@ from .world.nav_goal import (
     GIVE_UP_S,
     PROGRESS_M,
     REPLAN_S,
+    UNBLOCK_M,
     plan_around,
 )
 from .world.planner import plan
@@ -27,6 +28,8 @@ class NavGoalDrive:
         self.target = tuple(target)
         self.blocked_after_s = blocked_after_s
         self.mark, self.mark_t = tuple(here), t
+        self.stuck = False
+        self.held_at = None  # 보고용 막힘을 켠 자리(world.NavGoalRun과 같은 규칙)
         self.planned_at = -math.inf
         self.has_way = False
         self.no_way_at = t if plan(space, space.static, here, self.target) is None else None
@@ -38,6 +41,13 @@ class NavGoalDrive:
         here = (motion.x, motion.y)
         if math.dist(here, self.mark) >= PROGRESS_M:
             self.mark, self.mark_t = here, t
+        stuck = t - self.mark_t >= self.blocked_after_s - 1e-9
+        if stuck and not self.stuck:
+            self.held_at = here
+        self.stuck = stuck
+        if (not stuck and self.held_at is not None
+                and math.dist(here, self.held_at) >= UNBLOCK_M - 1e-9):
+            self.held_at = None
         if t - self.mark_t >= GIVE_UP_S - 1e-9:
             return "NAV_ABORTED"
         stalled = not self.has_way or t - self.mark_t >= REPLAN_S - 1e-9
@@ -56,7 +66,7 @@ class NavGoalDrive:
         return nothing_ahead(motion, self.radius, step, others)
 
     def blocked(self, t) -> bool:
-        return t - self.mark_t >= self.blocked_after_s - 1e-9
+        return t - self.mark_t >= self.blocked_after_s - 1e-9 or self.held_at is not None
 
     def arrived(self, motion) -> bool:
         return self.has_way and not motion.moving

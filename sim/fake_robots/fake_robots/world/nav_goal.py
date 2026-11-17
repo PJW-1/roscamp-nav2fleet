@@ -21,6 +21,8 @@ PROGRESS_M = 0.02  # 이만큼 움직이면 나아간 것으로 본다
 # 이만큼 못 나아가면 BLOCKED. Pode의 blocked_after_s(계약 0.13-draft)와 같아야 한다
 # (fleet_gz_sim의 test_timing_agreement.py가 본다)
 BLOCKED_AFTER_S = 10.0
+# BLOCKED를 켠 자리에서 이만큼 벗어나야 보고를 끈다. Pode의 unblock_m과 같아야 한다(추정 값)
+UNBLOCK_M = 0.15
 ABORT_AFTER_S = 0.5  # 지도 위에 길이 없을 때 이만큼 뒤 NAV_ABORTED
 GIVE_UP_S = 60.0  # 이만큼 못 나아가면 NAV_ABORTED(Nav2 복구 여섯 번쯤)
 
@@ -48,6 +50,8 @@ class NavGoalRun(Run):
         self.planned_at = -math.inf
         self.mark = None
         self.mark_t = 0.0
+        self.stuck = False  # 진전 없이 blocked_after_s(판단용)
+        self.held_at = None  # 보고용 막힘을 켠 자리
 
     def _start(self, ctx, robot) -> None:
         self.started = True
@@ -68,9 +72,15 @@ class NavGoalRun(Run):
 
     def _progress(self, ctx, robot) -> None:
         if math.dist(self.mark, robot.pose) >= PROGRESS_M:
-            self.mark, self.mark_t, self.blocked = robot.pose, ctx.t, False
+            self.mark, self.mark_t, self.stuck = robot.pose, ctx.t, False
         elif ctx.t - self.mark_t >= self.blocked_after_s - 1e-9:
-            self.blocked = True
+            if not self.stuck:
+                self.held_at = robot.pose
+            self.stuck = True
+        if (not self.stuck and self.held_at is not None
+                and math.dist(robot.pose, self.held_at) >= UNBLOCK_M - 1e-9):
+            self.held_at = None
+        self.blocked = self.stuck or self.held_at is not None
 
     def step(self, ctx, robot):
         if not self.started:
@@ -98,7 +108,8 @@ class NavGoalRun(Run):
         if self.way is None:  # 지금은 길이 없다(다른 로봇, 물체): 서서 다시 계획한다
             self._stand(ctx, robot)
             return None
-        self.mark_t, self.blocked = ctx.t, False  # 끝에서 도는 것도 나아가는 것이다
+        self.mark_t, self.stuck = ctx.t, False  # 끝에서 도는 것도 나아가는 것이다
+        self.blocked = self.held_at is not None  # 보고용 막힘은 목표가 끝날 때까지 둔다
         if Turning.toward(ctx, robot, self.yaw):
             return self.done(True)
         return None

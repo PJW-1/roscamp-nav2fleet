@@ -28,6 +28,7 @@ class NavYield:
             stalled = now - max(g.anchor_at, g.turned_at) >= self.p.block_report_s
             if stalled and not g.blocked and self._can_recover(pose):
                 self._count_attempt(pose)
+                g.held_at = None
                 self._recovery = Recovery(
                     stuck_s=math.dist(pose[:2], g.target[:2]), local=True,
                     wait_until=now + self.p.local_wait_s, stood_since=g.anchor_at)
@@ -105,5 +106,6 @@ class NavYield:
                 cmds.append(CancelBackUp())
             cmds += self._goals.send(g, now, pose)
         self._recovery = None
-        g.blocked = True
+        here = (float(pose[0]), float(pose[1])) if pose is not None else None
+        self._goals.mark_blocked(g, here)
         return cmds

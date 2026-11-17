@@ -66,6 +66,33 @@ def test_a_robot_standing_on_the_goal_blocks_after_ten_seconds():
     other = (*there, RADIUS)
     m = Motion(*here)
     nav = NavGoalDrive(SPACE, RADIUS, there, 0.0, here)
-    t, how = drive(nav, m, [other], until_s=11.0)
-    assert how is None and nav.blocked(t) and not nav.blocked(8.0)
+    t, how = drive(nav, m, [other], until_s=8.0)
+    assert how is None and not nav.blocked(t)
+    while t < 11.0:  # 지난 시각을 묻지 않는다(보고용 막힘은 상태로 남는다)
+        assert nav.update(t, m, [other]) is None
+        if nav.clear_ahead(m, 0.2 * DT, [other]):
+            m.step(DT, 0.2)
+        t = round(t + DT, 6)
+    assert nav.blocked(t)
     assert math.dist((m.x, m.y), other[:2]) >= 2 * RADIUS
+
+
+def test_blocked_clears_only_after_unblock_m_from_where_it_started():
+    """Pode와 같이(unblock_m, 2026-11-17) 몇 cm 꿈틀대서는 BLOCKED가 풀리지 않는다."""
+    here, there = SITE.node_pose("P-1"), SITE.node_pose("P-3")
+    m = Motion(*here)
+    nav = NavGoalDrive(SPACE, RADIUS, there, 0.0, here)
+    t = 0.0
+    while t <= 10.05:
+        nav.update(t, m, [])
+        t = round(t + DT, 6)
+    assert nav.blocked(t)
+    x0 = m.x
+    for dx in (0.06, 0.10, 0.04, 0.0, 0.08):
+        m.x = x0 + dx
+        nav.update(t, m, [])
+        assert nav.blocked(t), dx
+        t = round(t + DT, 6)
+    m.x = x0 + 0.16
+    nav.update(t, m, [])
+    assert not nav.blocked(t)

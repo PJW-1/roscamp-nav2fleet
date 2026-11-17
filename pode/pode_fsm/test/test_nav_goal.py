@@ -216,6 +216,8 @@ def test_moving_on_clears_blocked():
     run(fsm, 7.1, 7.1, pose=(HERE[0] + 0.03, *HERE[1:]))
     assert fsm.state() == BLOCKED, "3 cm is not progress"
     run(fsm, 7.2, 7.2, pose=(HERE[0] + 0.06, *HERE[1:]))
+    assert fsm.state() == BLOCKED, "progress (5 cm) alone does not clear it (unblock_m)"
+    run(fsm, 7.3, 7.3, pose=(HERE[0] + 0.16, *HERE[1:]))
     assert fsm.state() == MOVING
 
 

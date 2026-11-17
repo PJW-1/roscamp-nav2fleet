@@ -413,6 +413,9 @@ def test_blocked_goal_survives_a_nav_abort_and_resumes_when_clear():
     fsm.heartbeat(4.0)
     [again] = sends(fsm.tick(4.05, here, STILL, no_obstacle))
     assert again.seq > send.seq and again.poses[0][:2] == pytest.approx(here[:2], abs=1e-6)
+    assert fsm.state() == BLOCKED  # 다시 보내지만 막힘은 unblock_clear_s(3초) 뒤에 끈다
+    fsm.heartbeat(6.0)
+    fsm.tick(6.05, here, STILL, no_obstacle)
     assert fsm.state() == MOVING
 
 
@@ -442,6 +445,8 @@ def test_blocked_stays_after_cancel_while_the_obstacle_remains():
     fsm.tick(4.0, here, STILL, no_obstacle)
     assert fsm.state() == BLOCKED
     fsm.tick(5.05, here, STILL, no_obstacle)
+    assert fsm.state() == BLOCKED  # 1초로는 끄지 않는다(unblock_clear_s 3초)
+    fsm.tick(7.05, here, STILL, no_obstacle)
     assert fsm.state() == IDLE
 
 
