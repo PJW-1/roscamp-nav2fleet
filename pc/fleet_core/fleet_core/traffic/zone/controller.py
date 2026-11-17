@@ -23,7 +23,6 @@ from .redock import Redock
 from .results import Results
 from .silent import Silent
 from .turns import Turns
-from .views import Views
 from .watch import Watch
 from .yard_retreat import YardRetreat
 
@@ -31,7 +30,25 @@ from .yard_retreat import YardRetreat
 # ---- ZoneTraffic 클래스와 틱 순서 ----
 class ZoneTraffic(Calls, Goals, Turns, Drive, MoveOrders, OrderAnswers, Results, Redock, Progress,
                   Placement, Blocked, BlockMarks, YardRetreat, Detours, ClearChecks, Health, Watch,
-                  Localization, Backoff, Silent, NoStart, Capacity, Views, GoalLife, ZoneBase):
+                  Localization, Backoff, Silent, NoStart, Capacity, GoalLife, ZoneBase):
+    # ---- 조회 위임 ----
+    @property
+    def everyone_placed(self) -> bool:
+        return self._views.everyone_placed
+
+    def live_block(self, keys, point, radius: float, now: float) -> bool:
+        return self._views.live_block(keys, point, radius, now)
+
+    def zones_view(self) -> list:
+        return self._views.zones_view()
+
+    def robot_view(self, robot) -> dict:
+        return self._views.robot_view(robot)
+
+    def status_view(self, robot) -> dict:
+        return self._views.status_view(robot)
+
+    # ---- 틱 한 번 ----
     def tick(self) -> list:
         now = self._clock()
         everyone_here = self.tick_begin(now)

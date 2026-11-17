@@ -14,6 +14,7 @@ from .grants import ZoneGrants
 from .lane_policy import LanePolicy
 from .robots import ORDER, Robot
 from .trips import along
+from .views import ZoneViews
 
 HERE = "@"
 
@@ -50,6 +51,29 @@ class ZoneBase:
         self.order_fault = ""
         self.clear_reason = ""
         self.station_left = None
+        self._views = ZoneViews(site, self.grants, self._robots, self._joining, self._wants,
+                                self._blocked, self._marks)
+
+    # ---- 로봇 목록, 운행 상태, 가용 여부, 쌓인 출력 꺼내기 ----
+    @property
+    def robots(self) -> list[str]:
+        return list(self._robots)
+
+    @property
+    def running(self) -> bool:
+        return self._run_mode == RUN
+
+    @property
+    def zones(self):
+        return self.grants
+
+    def available(self, robot) -> bool:
+        m = self._robots.get(robot)
+        return m is not None and m.available
+
+    def take_output(self) -> list:
+        out, self._out = self._out, []
+        return out
 
     # ---- 이벤트 내기와 위치 판정 ----
     def _event(self, level: str, code: str, detail: str, robot: str = "") -> None:
