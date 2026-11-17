@@ -64,7 +64,24 @@
 
 ## 결과
 
-(아래 채움)
+고치기 전(956140d의 blocked.py, block_marks.py로 돌림): 새 시험 9개 중 8개 실패(긴 틈 시험만 통과, 예전 코드도 다시 세므로).
+처음 7개를 돌렸을 때는 시간·거리를 보는 2개가 새 파라미터가 없어 AttributeError였고 나머지 5개는 표시가 없어 실패했다.
+
+고친 뒤(7e0a771):
+
+- `PYTHONPATH=pc/fleet_core python3 -m pytest -q -p no:cacheprovider pc/fleet_core/test`
+  - `ZONE_TICK_ORDER=manager`: 1115 passed, 1 skipped, 5 xfailed
+  - `ZONE_TICK_ORDER=zone`: 1115 passed, 1 skipped, 5 xfailed
+- colcon build(fleet_interfaces fleet_core fleet_manager fake_robots iponic_bringup, build_x/install_x): 5 packages finished
+- `sim/fake_robots/test` (ROS_DOMAIN_ID=73, LOCALHOST): 1019 passed, 27 xfailed
+- `pc/fleet_manager/test/test_scenario_integration.py` (SCENARIO_FIRST_DOMAIN=80, ROS_DOMAIN_ID=79): 11 passed
+- `pc/fleet_manager/test`의 나머지: 돌리지 않음(아래)
+
+`pc/fleet_manager/test`의 나머지 시험(scenario_integration 제외)은 이 브랜치의 최종 커밋에서 돌리지 않았다. 이 시험은 ROS 도메인 50-59를 스스로 골라 쓰고(실행 중 pc.launch.py가 ROS_DOMAIN_ID=53으로 떴다), 그 범위의 57은 사람이 쓴다. 부모 세션이 세 번째 실행을 멈췄다. 앞선 두 번(62bfb98 전후 코드, 125 passed씩)도 같은 명령이라 50-59를 썼을 수 있다. 시험 파일에 박힌 도메인은 scenario 50과 fms_restart 56뿐이고 둘 다 덮어썼는데, 53이 어디서 왔는지는 찾지 못했다.
+
+## Codex 리뷰 2 (7e0a771)
+
+- RECOVERING 보고가 blocked_reset_s 경계에 오면 일화가 끝난다는 지적: 그 보고 앞의 막힘 아닌 시간 [t1, t1+20 s)는 이미 다 지났으므로 BLOCKED 재진입 경계(리뷰 1)와 같은 규칙으로 보고 두었다. RECOVERING이 이어지는 동안에는 시간을 세지 않는다.
 
 ## Codex 리뷰 (62bfb98)
 
