@@ -60,6 +60,7 @@ class LocalYieldLadder:
         st = self._robots.setdefault(robot.name, _Ladder())
         if st.run is not run:
             st.run, st.step, st.trail, st.driven = run, "", [], 0.0
+            st.trail_leaf = None
         if st.step and _leaf(run) is not st.leaf:
             st.step = ""
         if st.step == BACKUP:
@@ -69,6 +70,7 @@ class LocalYieldLadder:
             self._wait_on_path(ctx, robot, st)
             return None
         was_blocked = getattr(_leaf(run), "blocked", False)
+        before = robot.pose
         result = run.step(ctx, robot)
         if result is not None:
             st.step = ""
@@ -78,12 +80,12 @@ class LocalYieldLadder:
         leaf = _leaf(run)
         if st.step and leaf is not st.leaf:
             st.step = ""
+        if leaf is not None and leaf is not st.trail_leaf:
+            if not (isinstance(leaf, FollowRun) and isinstance(st.trail_leaf, FollowRun)):
+                st.trail, st.driven = [before], 0.0
+            st.trail_leaf = leaf
         if not isinstance(leaf, (FollowRun, NavGoalRun)):
             return None
-        if leaf is not st.trail_leaf:
-            if not (isinstance(leaf, FollowRun) and isinstance(st.trail_leaf, FollowRun)):
-                st.trail, st.driven = [], 0.0
-            st.trail_leaf = leaf
         st.driven += extend_trail(st.trail, robot.pose, TRAIL_STEP_M, TRAIL_KEEP_M)
         if st.step == WAIT:
             self._wait_on_nav(ctx, robot, st)
