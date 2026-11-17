@@ -156,8 +156,11 @@ def test_nav_map_variant_is_empty_by_default_and_v7_only(one):
     need("pinky_description", "pode_nav_config", "pode_fsm")
     from fleet_gz_sim.fleet_setup import ScenarioUnfit
     assert one.ARGS["nav_map_variant"][0] == ""
+    # 비면 v7은 2.5 cm 지도(11-17 결정), base는 옛 5 cm 지도
     assert nav_arguments(run(one, layout="v7", start="O_IN"))["map"].endswith(
-        "maps/arena_v7.yaml")
+        "maps/arena_v7_a.yaml")
+    assert nav_arguments(run(one, layout="v7", start="O_IN", nav_map_variant="base"))[
+        "map"].endswith("maps/arena_v7.yaml")
     with pytest.raises(ScenarioUnfit, match="only for layout v7"):
         run(one, nav_map_variant="b")
     with pytest.raises(ScenarioUnfit, match="nav_map_variant"):

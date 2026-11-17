@@ -214,8 +214,12 @@ def test_nav_map_variant_gives_every_robot_that_costmap_map_only(made, variant):
 def test_nav_map_variant_is_empty_by_default_and_refuses_a_layout_without_it(made):
     from fleet_gz_sim.fleet_setup import ScenarioUnfit
     assert made.ARGS["nav_map_variant"][0] == ""
+    # 비면 v7은 2.5 cm 지도(11-17 결정), base는 옛 5 cm 지도
     navs = [launch_args(i) for i in includes(run(made, layout="v7"), "nav2.launch.py")]
-    assert all(nav["map"].endswith("maps/arena_v7.yaml") for nav in navs)
+    assert navs and all(nav["map"].endswith("maps/arena_v7_a.yaml") for nav in navs)
+    navs = [launch_args(i) for i in includes(run(made, layout="v7", nav_map_variant="base"),
+                                             "nav2.launch.py")]
+    assert navs and all(nav["map"].endswith("maps/arena_v7.yaml") for nav in navs)
     with pytest.raises(ScenarioUnfit, match="only for layout v7"):
         run(made, nav_map_variant="b")
     with pytest.raises(ScenarioUnfit, match="nav_map_variant"):
