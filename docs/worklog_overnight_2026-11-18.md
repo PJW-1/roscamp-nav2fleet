@@ -26,12 +26,16 @@
 | 1부 0 기준과 trace 도구 | 끝 | `refactor/zone-cleanup` eff7053 | 1118 passed 5 xfailed / 883 passed 7 skipped 27 xfailed / 84 passed 14 failed | 0줄 |
 | 1부 1 goal의 수명 | 끝 | 5768696 | 1120 / 883 / 84 | 0줄 |
 | 1부 2 숨은 결합과 죽은 코드 | 끝 | 07338a4 | 1120 / 883 / 84 | 0줄 |
+| 1부 3 감시 기록을 Episode로 | 끝 | 82f805d | 1121 / 883 / 84 | 0줄 |
+| 1부 4 `Robot` 필드 묶기 | 끝 | 532a247 | 1121 / 883 / 84 | 0줄 |
 | 2부 A1 양보 보고 도구 | 끝 | `tools/yield-report` bf7848c | tools 시험 5개 추가 | 제품 코드 변경 없음 |
 | 2부 A3 가짜 로봇의 양보 사다리 | 끝(끔이 기본) | `refactor/yield-a3-fake-ladder` 25664cf | 1118 / 895 / 84, pode_fsm 366 passed 8 skipped | 끔일 때 0줄 |
 
 - 시험 수는 Windows 파이썬으로 돌린 것이다. fake_robots의 7 skipped는 rclpy가 없어 건너뛴 `test_ros_*.py` 일곱 파일이고,
   tools의 14 failed는 `test_real_pode.py`가 Windows에서 bash를 못 찾는 기존 실패다(WSL에서는 통과한다).
-- fleet_core가 1118에서 1120으로 는 것은 새 구조 시험 둘(`test_zone_goal_life.py`) 때문이다. 지운 시험은 없다.
+- fleet_core가 1118에서 1121로 는 것은 새 구조 시험 셋(`test_zone_goal_life.py`) 때문이다. 지운 시험은 없다.
+- 3·4단계는 커밋마다 빠른 검사(trace, store, order 표 diff, fleet_core 시험, ruff)를 하고, 전체 비교(`tools/zone_compare.sh`)는
+  19447ed(3단계 첫 커밋), 82f805d(3단계 끝), 532a247(4단계 끝)에서 돌렸다. 모두 0줄이다.
 
 ## 2. 기준과 비교 방법
 
@@ -66,6 +70,17 @@
   읽는 곳이 없는 `ZoneBase._outbound`를 지웠다. `_watch_deadlock`이 늘 빈 집합인 이유를 주석과 구조 문서에 적었다.
   `_capacity_checked`는 main에서 이미 `ZoneBase.__init__`이 만들고 있어 고칠 것이 없었다.
 - 바꾼 시험: `test_zone_mixins.py`(지시서가 지우라고 한 `OVERRIDES` 예외, 기대값 `{}`). 지운 시험은 없다.
+- **3단계:** `zone/episodes.py`의 `Episode`(key, since, xy, noted, count, `clear()`)와 `WaitEpisode`(key 기본 `()`, queued),
+  `BlockedEpisode`(goal id, clear_since, out, rear_noted, self_recovery_since). 감시 하나에 커밋 하나로 NoStart, Silent(silent·idle),
+  Watch(stall·outside), 대기, 로봇단 양보, 다시 도킹(세 상태를 Episode 하나로), 막힘 순으로 옮겼다. 한 번만 알리는 경고는
+  `ZoneBase._event_once`. `asked_at`, `asked_gap`은 호출이 정하고 `_stop_wanting`이 지우지 않아 대기 일화에 넣지 않았다.
+  Codex 지적으로 `.goal =` 구조 시험이 setattr, for·내포 대상, `*m.goal`, with ... as도 잡게 했다(82f805d).
+- **4단계:** `Robot` 맨 위 필드 81개(acfa45b) → 61개(3단계 뒤) → 32개. 묶음은 `report`(로봇 보고 6개), `health`(고장·통신·자세 의심
+  8개), `avoid`(양보·물러나기·우회 10개), `watch`(3단계의 일화 9개). 이름만 옮기는 기계적 수정이고, `reinstate`는 전과 같은
+  보고 값 넷만 새 `Report`에 옮긴다. `asked_at`, `asked_gap`, `clear_n`, `dock_error_m`, `sent_priority`는 맨 위에 두었다.
+- 3·4단계에서 경로만 바꾼 시험(기대값 그대로): `test_zone_corridor`, `test_zone_failures`, `test_zone_block_marks`,
+  `test_zone_local_yield`, `test_zone_isolation`, `test_zone_at_target`, `test_zone_move_orders`, `test_zone_plumbing`,
+  `test_zone_silent`, `test_zone_yard_retreat`.
 
 ## 4. 2부에서 한 일
 
