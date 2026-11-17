@@ -8,7 +8,7 @@ from action_msgs.msg import GoalStatus
 from nav2_msgs.action import ComputePathToPose
 from nav2_msgs.srv import IsPathValid
 from nav_msgs.msg import Path
-from rclpy.action import ActionClient, ActionServer, CancelResponse
+from rclpy.action import ActionClient, ActionServer, CancelResponse, GoalResponse
 from rclpy.callback_groups import ReentrantCallbackGroup
 from rclpy.executors import ExternalShutdownException, MultiThreadedExecutor
 from rclpy.node import Node
@@ -34,7 +34,8 @@ VALID = "is_path_valid"
 POLL_S = 0.005
 PLANNER_WAIT_S = 1.0
 CANCEL_WAIT_S = 1.0
-THREADS = 4
+MAX_RUNNING = 2
+THREADS = MAX_RUNNING + 2
 UNKNOWN = getattr(ComputePathToPose.Result, "UNKNOWN", 200)
 REASONS = {OFF: "the robot is off the kept route", BLOCKED: "the kept route is blocked",
            SILENT: "no answer from is_path_valid", SHORTER: "the new plan is clearly shorter"}
@@ -55,16 +56,34 @@ class PlanKeep(Node):
         self._lock = threading.Lock()
         self._kept = None
         self._kept_goal = None
+        self._running = 0
         clients = ReentrantCallbackGroup()
         self.planner = ActionClient(self, ComputePathToPose, PLANNER, callback_group=clients)
         self.valid = self.create_client(IsPathValid, VALID, callback_group=clients)
         self.server = ActionServer(self, ComputePathToPose, SERVER, self.execute,
+                                   goal_callback=self._take,
                                    cancel_callback=lambda _: CancelResponse.ACCEPT,
                                    callback_group=ReentrantCallbackGroup())
         self.get_logger().info(f"{SERVER} -> {PLANNER}, keep the route: {self.keep}")
 
-    # ---- 요청 하나 처리 ----
+    # ---- 동시에 처리하는 요청 수 ----
+    def _take(self, _request):
+        with self._lock:
+            if self._running >= MAX_RUNNING:
+                self.get_logger().warn(f"{MAX_RUNNING} requests running, refusing another")
+                return GoalResponse.REJECT
+            self._running += 1
+        return GoalResponse.ACCEPT
+
     def execute(self, handle):
+        try:
+            return self._execute(handle)
+        finally:
+            with self._lock:
+                self._running -= 1
+
+    # ---- 요청 하나 처리 ----
+    def _execute(self, handle):
         if not self.planner.wait_for_server(timeout_sec=PLANNER_WAIT_S):
             self.get_logger().warn(f"{PLANNER} is not up")
             return self._abort(handle, ComputePathToPose.Result(error_code=UNKNOWN))
@@ -84,11 +103,14 @@ class PlanKeep(Node):
         result = got.result
         if got.status != GoalStatus.STATUS_SUCCEEDED:
             return self._abort(handle, result)
+        goal = handle.request.goal.pose.position
         if self.keep:
-            result.path = self._choose(handle.request.goal, result.path)
+            result.path = self._choose((goal.x, goal.y), result.path)
         if handle.is_cancel_requested:
             handle.canceled()
             return ComputePathToPose.Result()
+        if self.keep:
+            self._remember(result.path, (goal.x, goal.y))
         handle.succeed()
         return result
 
@@ -112,15 +134,13 @@ class PlanKeep(Node):
             time.sleep(POLL_S)
 
     # ---- 길 고르기 ----
-    def _choose(self, goal, new_path):
+    def _choose(self, goal_xy, new_path):
         new = _points(new_path)
-        goal_xy = (goal.pose.position.x, goal.pose.position.y)
         with self._lock:
             kept_path, kept_goal = self._kept, self._kept_goal
         kept = _points(kept_path) if kept_path is not None else []
         look, start = first_look(kept, kept_goal, new, goal_xy, self.rules)
         if look not in (OFF, OTHER):
-            self._remember(new_path, goal_xy)
             return new_path
         rest = kept[start:]
         verdict = OFF if look == OFF else second_look(rest, new, self._is_valid(kept_path, start),
@@ -128,11 +148,9 @@ class PlanKeep(Node):
         lengths = f"new plan {length(new):.2f} m"
         if verdict == KEEP:
             kept_path = self._restamped(kept_path, start, new_path)
-            self._remember(kept_path, goal_xy)
             self.get_logger().info(f"kept the route: {lengths} by another way, "
                                    f"kept {length(rest):.2f} m")
             return kept_path
-        self._remember(new_path, goal_xy)
         self.get_logger().info(f"changed the route: {lengths}, old {length(rest):.2f} m "
                                f"({REASONS[verdict]})")
         return new_path

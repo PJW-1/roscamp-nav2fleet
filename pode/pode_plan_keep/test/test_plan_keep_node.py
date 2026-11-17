@@ -65,13 +65,15 @@ def rounded(points) -> list:
 
 
 class FakePlanner:
-    """plans: 다음 계획들(점 목록, 오류 코드 int, 또는 "hang"). valid: True, False, "slow".
+    """plans: 다음 계획들(점 목록, 오류 코드 int, 또는 "hang"). valid: True, False, "slow", "hold"
+    ("hold"는 들어왔음을 알리고 release까지 답을 미룬다).
     heading_z: 계획 끝 자세의 방향(쿼터니언 z, w는 맞춘다)."""
 
     def __init__(self, node):
         group = ReentrantCallbackGroup()
         self.plans, self.valid, self.asked, self.canceled = deque(), True, [], 0
         self.heading_z = 0.0
+        self.entered, self.release = threading.Event(), threading.Event()
         self.server = ActionServer(node, ComputePathToPose, "compute_path_to_pose", self._plan,
                                    cancel_callback=lambda _: CancelResponse.ACCEPT,
                                    callback_group=group)
@@ -98,7 +100,11 @@ class FakePlanner:
 
     def _valid(self, request, response):
         self.asked.append(points_of(request.path))
-        if self.valid == "slow":
+        if self.valid == "hold":
+            self.entered.set()
+            self.release.wait(5.0)
+            response.is_valid = True
+        elif self.valid == "slow":
             time.sleep(0.6)
             response.is_valid = True
         else:
@@ -237,17 +243,32 @@ def test_a_kept_route_ends_with_the_new_goal_heading(ros):
     assert result.path.poses[-1].pose.orientation.z == pytest.approx(0.7071068)
 
 
-def test_a_cancel_while_asking_is_path_valid_ends_canceled(ros):
-    _, fake, client = ros(Parameter("valid_timeout_s", value=0.5))
-    fake.plans.extend([EAST, NORTH])
+def test_a_cancel_while_asking_is_path_valid_ends_canceled_and_keeps_the_old_route(ros):
+    _, fake, client = ros(Parameter("valid_timeout_s", value=2.0))
+    fake.plans.extend([EAST, NORTH, NORTH])
     ask(client)
-    fake.valid = "slow"
+    fake.valid = "hold"
     request = ComputePathToPose.Goal()
     request.goal.pose.position.x, request.goal.pose.position.y = GOAL
     handle = wait(client.send_goal_async(request))
-    time.sleep(0.2)
+    assert fake.entered.wait(5.0), "is_path_valid was asked"
     wait(handle.cancel_goal_async())
+    fake.release.set()
     assert wait(handle.get_result_async()).status == GoalStatus.STATUS_CANCELED
+    fake.valid = True
+    _, result = ask(client)
+    assert points_of(result.path) == rounded(EAST), "the canceled answer was not remembered"
+
+
+def test_more_than_two_requests_at_once_are_refused(ros):
+    _, fake, client = ros()
+    fake.plans.extend(["hang", "hang", "hang"])
+    request = ComputePathToPose.Goal()
+    handles = [wait(client.send_goal_async(request)) for _ in range(3)]
+    assert [h.accepted for h in handles] == [True, True, False]
+    for handle in handles[:2]:
+        wait(handle.cancel_goal_async())
+        assert wait(handle.get_result_async()).status == GoalStatus.STATUS_CANCELED
 
 
 def test_the_rule_values_are_parameters(ros):
