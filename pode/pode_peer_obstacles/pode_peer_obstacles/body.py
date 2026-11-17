@@ -6,6 +6,11 @@
 """
 import math
 
+# 원 반지름: 몸 가운데에서 가장 먼 꼭짓점 0.073 m + 2 mm(0.08은 좁은 틈을 막았다, 2026-11-17)
+RADIUS_M = 0.075
+# 원 가운데: 바퀴 축에서 몸 가운데까지
+CENTRE_M = -0.018
+
 
 def others(names: str, me: str) -> list[str]:
     """"pode1,pode2,pode3"에서 나를 뺀 이름들(적힌 순서, 겹친 이름은 한 번)."""

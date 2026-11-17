@@ -2,7 +2,7 @@
 import math
 
 import pytest
-from pode_peer_obstacles.body import body_points, others
+from pode_peer_obstacles.body import CENTRE_M, RADIUS_M, body_points, others
 
 
 def test_the_other_robots_are_every_name_but_mine():
@@ -43,3 +43,18 @@ def test_the_disc_sits_on_the_body_centre_behind_the_wheel_axis(yaw, centre):
     mean = (sum(p[0] for p in points) / len(points), sum(p[1] for p in points) / len(points))
     assert math.dist(mean, centre) < 1e-6
     assert all(math.dist(p, centre) <= 0.08 + 1e-9 for p in points)
+
+
+# local_costmap 다각형 발자국(nav2_params.yaml)과 같은 꼭짓점
+FOOTPRINT = [(0.040, 0.021), (0.036, 0.031), (0.029, 0.056), (-0.029, 0.056), (-0.049, 0.049),
+             (-0.071, 0.042), (-0.076, 0.037), (-0.076, -0.037), (-0.071, -0.042),
+             (-0.049, -0.049), (-0.029, -0.056), (0.029, -0.056), (0.036, -0.031),
+             (0.040, -0.021)]
+
+
+def test_the_default_disc_covers_the_body_with_a_small_margin():
+    """P-3 앞 멈춤(2026-11-17): 0.08은 몸보다 옆 2.4 cm 커서 좁은 틈을 막았다. 몸 가운데에서 가장 먼
+    꼭짓점(0.073 m)을 덮고 여유는 2 mm만 둔다."""
+    farthest = max(math.dist(p, (CENTRE_M, 0.0)) for p in FOOTPRINT)
+    assert RADIUS_M == 0.075
+    assert farthest < RADIUS_M <= farthest + 0.003

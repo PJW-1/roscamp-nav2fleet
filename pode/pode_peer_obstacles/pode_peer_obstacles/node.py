@@ -16,8 +16,8 @@
 - 점구름은 비지 않는다: Nav2의 점구름 반복자는 빈 data에서 front()를 부른다. 늘 먼 점(FAR_POINT)
   하나를 함께 낸다. costmap은 obstacle_max_range 밖이라 찍지 않는다.
 - 자세는 그 로봇의 위치 추정이다. 추정이 틀어지면 찍는 자리도 틀린다.
-- 파라미터: `robot_id`(비면 namespace), `robots`("pode1,pode2,pode3"), `radius_m`(0.08: 몸 가운데
-  에서 가장 먼 모서리 0.073 m에 보고 지연 몫을 더함), `centre_m`(-0.018: 바퀴 축에서 몸 가운데까지),
+- 파라미터: `robot_id`(비면 namespace), `robots`("pode1,pode2,pode3"), `radius_m`(0.075: 몸 가운데
+  에서 가장 먼 모서리 0.073 m + 2 mm), `centre_m`(-0.018: 바퀴 축에서 몸 가운데까지),
   `step_m`, `rate_hz`, `sweep_beams`, `sweep_range_m`.
 - 실행 파일 `peer_obstacles`는 로봇 한 대의 노드다(로봇에서). 시뮬레이션은 make_fleet으로 로봇마다의
   노드를 sim_stand_in 프로세스 안에 둔다(한 PC의 DDS 참가자 수를 늘리지 않으려고).
@@ -35,7 +35,7 @@ from sensor_msgs.msg import LaserScan, PointCloud2
 from sensor_msgs_py import point_cloud2
 from std_msgs.msg import Header
 
-from .body import body_points, others
+from .body import CENTRE_M, RADIUS_M, body_points, others
 
 STATE_QOS = QoSProfile(depth=5, reliability=ReliabilityPolicy.BEST_EFFORT)  # 계약의 STATE
 POINT_Z_M = 0.05  # costmap 관측원의 높이 창(0~2 m) 안
@@ -50,8 +50,8 @@ class PeerObstacles(Node):
         super().__init__("peer_obstacles", **kwargs)
         declare = self.declare_parameter
         self.robot_id = declare("robot_id", "").value or self.get_namespace().strip("/")
-        self.radius_m = float(declare("radius_m", 0.08).value)
-        self.centre_m = float(declare("centre_m", -0.018).value)
+        self.radius_m = float(declare("radius_m", RADIUS_M).value)
+        self.centre_m = float(declare("centre_m", CENTRE_M).value)
         self.step_m = float(declare("step_m", 0.02).value)
         self.map_frame = declare("map_frame", "map").value
         self.base_frame = declare("base_frame", "base_footprint").value
