@@ -21,6 +21,9 @@ FSM_LAUNCH = ROOT / "pode" / "pode_fsm" / "launch" / "pode_fsm.launch.py"
 FORWARD = ("FollowPath", "FollowPathThrough")
 # 전역 costmap 지도는 2.5 cm(arena_v7_a, 사용자 결정 2026-11-17), 위치 추정 1 cm, keepout
 MAPS = ("arena_v7_a", "arena_v7_fine", "arena_v7_keepout")
+# 위치 추정은 실물 SLAM 지도(2026-11-17 확정), costmap·keepout 은 v7 도면 지도
+REAL_MAP = "arena_real_slam"
+LAUNCH_MAPS = ("arena_v7_a", REAL_MAP, "arena_v7_keepout")
 
 sys.path.insert(0, str(KIT))
 
@@ -145,9 +148,41 @@ def test_launch_drops_dock_stand_in_and_keeps_shutdown():
     assert "OnProcessExit" in text and "Shutdown(" in text
     assert "cmd_watchdog.py" in text
     assert "bringup_robot.launch.xml" in text
-    for name in MAPS:
+    for name in LAUNCH_MAPS:
         assert f"{name}.yaml" in text
     assert 'MAPS / "arena_v7.yaml"' not in text  # 5 cm 지도는 기본이 아니다
+
+
+def test_amcl_reads_the_real_slam_map():
+    text = (KIT / "real_pode.launch.py").read_text(encoding="utf-8")
+    line = next(t for t in text.splitlines() if '"map_fine"' in t and "DeclareLaunchArgument" in t)
+    assert f'MAPS / "{REAL_MAP}.yaml"' in line
+
+
+def test_real_slam_map_file():
+    from PIL import Image
+    meta = _load(KIT / "maps" / f"{REAL_MAP}.yaml")
+    assert meta["image"] == f"{REAL_MAP}.pgm" and meta["mode"] == "trinary"
+    assert meta["resolution"] == 0.025 and meta["origin"] == [-0.1, -0.1, 0.0]
+    # 205(미지)는 미지로 남아야 한다
+    p_unknown = (255 - 205) / 255.0
+    assert meta["free_thresh"] < p_unknown < meta["occupied_thresh"]
+    img = Image.open(KIT / "maps" / meta["image"])
+    assert img.size == (88, 48)
+    px = img.load()
+
+    def cell(x, y):  # 경기장 좌표 -> 픽셀 값
+        return px[int((x + 0.1) / 0.025), 47 - int((y + 0.1) / 0.025)]
+    # 네 벽은 직선: 안쪽 면 x 0 / 1.975, y 0 / 0.975
+    for i in range(79):
+        x = 0.0125 + i * 0.025
+        assert cell(x, -0.0125) == 0 and cell(x, 0.9875) == 0
+    for i in range(39):
+        y = 0.0125 + i * 0.025
+        assert cell(-0.0125, y) == 0 and cell(1.9875, y) == 0
+    # 급행 통로 가운데와 남쪽 통로는 빈칸, 진열대 B 는 점유
+    assert cell(1.0, 0.89) == 254 and cell(1.0, 0.2) == 254
+    assert cell(0.83, 0.37) == 0  # 진열대 B 남쪽 면 (속은 미지)
 
 
 def test_kit_maps_equal_sim_maps():
