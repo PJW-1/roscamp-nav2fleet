@@ -40,6 +40,7 @@ class _Ladder:
     used: bool = False
     origin: tuple | None = None
     trail: list = field(default_factory=list)
+    trail_leaf: object = None
     driven: float = 0.0
 
 
@@ -79,6 +80,10 @@ class LocalYieldLadder:
             st.step = ""
         if not isinstance(leaf, (FollowRun, NavGoalRun)):
             return None
+        if leaf is not st.trail_leaf:
+            if not (isinstance(leaf, FollowRun) and isinstance(st.trail_leaf, FollowRun)):
+                st.trail, st.driven = [], 0.0
+            st.trail_leaf = leaf
         st.driven += extend_trail(st.trail, robot.pose, TRAIL_STEP_M, TRAIL_KEEP_M)
         if st.step == WAIT:
             self._wait_on_nav(ctx, robot, st)
