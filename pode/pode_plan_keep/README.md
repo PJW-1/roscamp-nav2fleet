@@ -12,10 +12,12 @@ Nav2 goal(MoveTo mode `nav_goal`)의 행동 트리와 planner 사이에서 길�
 - 지켜 둔 경로가 없거나, goal 위치가 지켜 둔 경로의 goal과 0.05 m 이상 다르거나, planner가 실패하면 planner의 결과를 그대로 돌려줍니다. 실패면 오류 코드도 그대로 돌려주고 지켜 둔 경로를 지웁니다.
 - 지켜 둔 경로에서 새 경로의 첫 점(로봇 위치)에 가장 가까운 점부터 끝까지를 남은 길로 봅니다.
 - 새 경로의 모든 점이 남은 길에서 `same_route_m`(0.20 m) 안이면 같은 길로 보고 새 경로를 돌려주며 그것을 지켜 둡니다.
-- 다른 길이면 planner의 `is_path_valid`로 남은 길이 막혔는지 묻습니다. 막혔거나 `valid_timeout_s`(0.2 s) 안에 답이 없으면 새 경로를 씁니다. 막히지 않았고 새 경로가 `max(shorter_m, shorter_ratio × 남은 길이)`(0.30 m, 0.2)만큼 확실히 짧지 않으면 남은 길을 돌려줍니다.
+- 다른 길이면 남은 길이 막혔는지 planner(NavFn)와 같은 기준으로 봅니다. 노드는 전역 비용 지도 `global_costmap/costmap`(`OccupancyGrid`, 1 Hz 전체 격자)을 받아 두고, 남은 길의 점(끝 점은 빼고)이 놓인 칸 가운데 값이 `blocked_cost`(99) 이상인 칸이 있으면 막힌 것으로 봅니다. 99는 INSCRIBED(253), 100은 LETHAL(254)이 바뀐 값이고 NavFn은 253 이상을 지나가지 못합니다. 모르는 칸(-1)은 `allow_unknown: true`라 NavFn이 지나가므로 막힘이 아닙니다. 격자 밖의 점은 막힘으로 봅니다. 끝 점은 NavFn이 goal 칸의 비용을 보지 않고 거기서부터 퍼지므로 보지 않습니다. 격자를 아직 받지 못했거나 격자 원점이 돌아가 있으면 판정하지 않고 새 경로를 씁니다.
+- 막히지 않았고 새 경로가 `max(shorter_m, shorter_ratio × 남은 길이)`(0.30 m, 0.2)만큼 확실히 짧지 않으면 남은 길을 돌려줍니다. 이때 기억하는 goal은 그 길을 만든 goal 그대로입니다(goal이 5 cm 안에서 조금씩 움직여도 오차가 쌓이지 않게).
 - 남은 길을 돌려줄 때는 경로와 모든 자세의 시각을 지금으로 새로 찍습니다. Jazzy의 `controller_server`는 도착 판정에서 경로 끝 자세를 그 경로의 시각 TF로 옮기므로, 묵은 시각을 그대로 두면 목적지 바로 앞에서 도착으로 인정받지 못했습니다.
 - 로봇이 남은 길에서 `off_route_m`(0.30 m)보다 멀리 벗어나 있으면 새 경로를 씁니다.
-- 길을 지킨 때와 바꾼 때만 INFO 로그를 한 줄 남깁니다(`kept the route: ...`, `changed the route: ...`).
+- planner가 실패하거나 처리 중 예외가 나면 지켜 둔 경로를 지웁니다.
+- 길을 지킨 때와 바꾼 때만 INFO 로그를 한 줄 남깁니다(`kept the route: ...`, `changed the route: ...`). 막혀서 바꾼 때는 막힌 첫 점과 그 칸의 값을 적습니다(예: `the kept route is blocked at (1.12, 0.31) cost 99`).
 
 ## 파라미터
 
@@ -26,6 +28,11 @@ Nav2 goal(MoveTo mode `nav_goal`)의 행동 트리와 planner 사이에서 길�
 | `off_route_m` | `0.30` | 로봇이 길에서 벗어났다고 보는 거리 |
 | `shorter_m`, `shorter_ratio` | `0.30`, `0.2` | 새 길이 이보다 더 짧아야 바꿉니다(둘 중 큰 쪽) |
 | `same_goal_m` | `0.05` | goal이 같다고 보는 거리 |
-| `valid_timeout_s` | `0.2` | `is_path_valid` 답을 기다리는 시간 |
+| `blocked_cost` | `99` | 전역 비용 지도 값이 이 이상인 칸을 막힌 칸으로 봅니다(99 = INSCRIBED, 100 = LETHAL) |
 
 `pode_nav_config`의 `nav2.launch.py`가 로봇 namespace 안에 띄웁니다(`plan_keep:=false`면 `keep`이 거짓). Gazebo 세 대(`fleet_gz_sim` `gz.launch.py`)는 DDS 참여자 수를 늘리지 않으려고 `sim_stand_in` 프로세스 안에 로봇마다 하나씩 둡니다(`make_fleet`).
+
+## 한계
+
+- 남은 길은 지켜 둔 경로에서 로봇에 가장 가까운 꼭짓점부터 자릅니다. 선분에 투영하지 않으므로 꼭짓점이 듬성한 경로에서는 로봇 뒤의 구간이 조금 남거나 앞의 구간이 조금 빠질 수 있고, 가까이 되돌아오는 경로에서는 다른 쪽 구간을 고를 수 있습니다(NavFn 경로는 칸 크기만큼 촘촘합니다).
+- 같은 요청을 동시에 둘까지 받습니다. 세 번째는 거절합니다.
