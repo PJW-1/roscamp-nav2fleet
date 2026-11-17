@@ -9,7 +9,8 @@ from fleet_core.fleet_map.model import FOLLOW_PATH, NAV_GOAL, RETREAT
 
 # 자유바닥 저장소 sites/arena_v7.yaml의 치수(권위 있는 값)
 SHELVES = [(0.68, 0.77, 1.56, 0.81), (0.68, 0.365, 0.99, 0.405), (1.25, 0.365, 1.56, 0.405)]
-DIVIDERS = [(0.24, 0.0, 0.26, 0.10), (0.50, 0.0, 0.52, 0.10), (0.76, 0.0, 0.78, 0.10)]
+# 칸막이 3(x 0.76~0.78)은 뺐다(사용자 2026-11-17: 충전 자리는 그대로, 3번 칸막이만 없앤다)
+DIVIDERS = [(0.24, 0.0, 0.26, 0.10), (0.50, 0.0, 0.52, 0.10)]
 RELEASE_GAP_M = 0.135  # footprint_radius_m 0.085 + release_margin_m 0.05
 NODE_CLEAR_M = 0.20
 
@@ -29,10 +30,20 @@ def test_v7_dimensions(site):
     assert site.bounds() == (0.0, 0.0, 1.98, 0.99)
     assert list(site.shelves) == SHELVES + DIVIDERS
     # 칸막이 사이 빈 폭 0.24(잠정), 건넘 틈 0.26, 급행 0.18
-    assert [round(b[0] - a[2], 3) for a, b in pairwise(DIVIDERS)] == [0.24, 0.24]
+    assert [round(b[0] - a[2], 3) for a, b in pairwise(DIVIDERS)] == [0.24]
     assert round(DIVIDERS[0][0], 3) == 0.24
     assert round(SHELVES[2][0] - SHELVES[1][2], 3) == 0.26
     assert round(0.99 - SHELVES[0][3], 3) == 0.18
+
+
+def test_v7_divider_3_is_gone_and_p3_opens_to_the_east(site):
+    """사용자 2026-11-17: 충전 자리 셋은 그대로 두고 3번 칸막이만 없앤다. P-3 동쪽(x 0.66~1.0,
+    y 0.30 아래)에는 진열대도, 칸막이도, 계획을 막는 keepout 사각형도 없다."""
+    assert site.parking == ("P-1", "P-2", "P-3")
+    assert site.node_pose("P-3") == pytest.approx((0.64, 0.10))
+    ex0, ey0, ex1, ey1 = 0.66, 0.0, 1.0, 0.30
+    for x0, y0, x1, y1 in list(site.shelves) + list(site.keepout_extra):
+        assert x1 <= ex0 or x0 >= ex1 or y1 <= ey0 or y0 >= ey1, (x0, y0, x1, y1)
 
 
 def test_v7_docks_and_parking(site):

@@ -61,8 +61,6 @@
       <visual name="shelf_4_visual"><pose>0.25 0.05 0.075 0 0 0</pose><geometry><box><size>0.02 0.1 0.15</size></box></geometry><material><ambient>0.27 0.42 0.62 1</ambient><diffuse>0.27 0.42 0.62 1</diffuse></material></visual>
       <collision name="shelf_5"><pose>0.51 0.05 0.075 0 0 0</pose><geometry><box><size>0.02 0.1 0.15</size></box></geometry></collision>
       <visual name="shelf_5_visual"><pose>0.51 0.05 0.075 0 0 0</pose><geometry><box><size>0.02 0.1 0.15</size></box></geometry><material><ambient>0.27 0.42 0.62 1</ambient><diffuse>0.27 0.42 0.62 1</diffuse></material></visual>
-      <collision name="shelf_6"><pose>0.77 0.05 0.075 0 0 0</pose><geometry><box><size>0.02 0.1 0.15</size></box></geometry></collision>
-      <visual name="shelf_6_visual"><pose>0.77 0.05 0.075 0 0 0</pose><geometry><box><size>0.02 0.1 0.15</size></box></geometry><material><ambient>0.27 0.42 0.62 1</ambient><diffuse>0.27 0.42 0.62 1</diffuse></material></visual>
       <visual name="path_Q2-Q1-1"><pose>1.755 0.16 0.0005 0 0 0</pose><geometry><box><size>0.19 0.01 0.001</size></box></geometry><material><ambient>0.2 0.3 0.8 1</ambient><diffuse>0.2 0.3 0.8 1</diffuse></material></visual>
       <visual name="path_Q2-Q1-2"><pose>1.85 0.21 0.0005 0 0 1.5708</pose><geometry><box><size>0.1 0.01 0.001</size></box></geometry><material><ambient>0.2 0.3 0.8 1</ambient><diffuse>0.2 0.3 0.8 1</diffuse></material></visual>
       <visual name="path_Q1-W"><pose>1.865 0.3775 0.0005 0 0 1.4438</pose><geometry><box><size>0.2369 0.01 0.001</size></box></geometry><material><ambient>0.2 0.3 0.8 1</ambient><diffuse>0.2 0.3 0.8 1</diffuse></material></visual>

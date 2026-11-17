@@ -85,7 +85,8 @@ def test_the_tool_writes_a_mask_next_to_a_map(tmp_path):
 
 # ---- 구역이 아닌 keepout 사각형(keepout_extra) ----
 V7_GAP = (0.99, 0.365, 1.25, 0.405)  # v7 남쪽 진열대 사이 건넘 틈
-V7_DIVIDER_KEEPS = ((0.71, 0.0, 0.86, 0.20), (0.19, 0.0, 0.31, 0.20), (0.45, 0.0, 0.57, 0.20))
+# 칸막이 3과 그 둘레(0.71, 0.0, 0.86, 0.20)는 2026-11-17에 뺐다(사용자)
+V7_DIVIDER_KEEPS = ((0.19, 0.0, 0.31, 0.20), (0.45, 0.0, 0.57, 0.20))
 
 
 def test_keepout_extra_closes_its_rectangle_without_padding_and_is_no_zone():
@@ -95,9 +96,12 @@ def test_keepout_extra_closes_its_rectangle_without_padding_and_is_no_zone():
     for rect in V7_DIVIDER_KEEPS:
         assert rect in keepout_rects(site) and rect in keepout_rects(site, 0.0)
     grid = mask(site, *SIZE, RESOLUTION, ORIGIN)
-    # 칸막이 3 둘레: 안은 닫히고 바로 위(y 0.20 너머)와 P-3 칸은 열린다
-    assert cell(grid, 0.72, 0.12) and cell(grid, 0.855, 0.195)
-    assert not cell(grid, 0.77, 0.205) and not cell(grid, 0.64, 0.11)
+    # 칸막이 2 둘레: 안은 닫히고 바로 위(y 0.20 너머)와 옆 칸은 열린다
+    assert cell(grid, 0.46, 0.12) and cell(grid, 0.565, 0.195)
+    assert not cell(grid, 0.51, 0.205) and not cell(grid, 0.64, 0.11)
+    # 칸막이 3이 있던 자리는 열린다
+    for x in (0.72, 0.77, 0.855):
+        assert not cell(grid, x, 0.12) and not cell(grid, x, 0.195), x
     # 구역이 아니다: 그 자리는 여전히 HALL이고 구역 목록과 정원은 그대로다
     assert site.zone_at(0.80, 0.15) == "HALL"
     assert set(site.zones) == {"HALL", "WORK_DOCK", "J_E", "EXPRESS", "OUT_DOCK"}

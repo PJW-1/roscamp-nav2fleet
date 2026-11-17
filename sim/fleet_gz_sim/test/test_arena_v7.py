@@ -11,8 +11,9 @@ from fleet_core.fleet_map import load_fleet_map  # noqa: E402
 from fleet_gz_sim import arena_maps, fleet_setup  # noqa: E402
 
 PKG = Path(__file__).resolve().parents[1]
+# 칸막이 3(0.76~0.78)은 2026-11-17에 뺐다(사용자)
 BOXES = [(0.68, 0.77, 1.56, 0.81), (0.68, 0.365, 0.99, 0.405), (1.25, 0.365, 1.56, 0.405),
-         (0.24, 0.0, 0.26, 0.10), (0.50, 0.0, 0.52, 0.10), (0.76, 0.0, 0.78, 0.10)]
+         (0.24, 0.0, 0.26, 0.10), (0.50, 0.0, 0.52, 0.10)]
 
 
 @pytest.fixture(scope="module")
@@ -46,7 +47,8 @@ def test_v7_charging_stalls_and_express_are_open_in_the_fine_map(site):
         return not grid[j][i]
     for x in (0.12, 0.38, 0.64):         # 칸 한가운데
         assert free(x, 0.05)
-    assert not free(0.25, 0.05) and not free(0.51, 0.05) and not free(0.77, 0.05)
+    assert not free(0.25, 0.05) and not free(0.51, 0.05)
+    assert free(0.77, 0.05)  # 칸막이 3이 있던 자리
     assert free(1.0, 0.85) and free(1.0, 0.95)   # 급행 0.18 안
 
 
@@ -290,24 +292,30 @@ def test_v7_work_is_joined_to_the_hall_for_its_nav_goal_way_out(site):
         assert kept[j][i], (x, y)
 
 
-# ---- 칸막이 3 위 끝: Nav2 goal 경로가 모서리를 긁지 않게 ----
-DIVIDER_3_KEEP = (0.71, 0.0, 0.86, 0.20)  # 서쪽 끝 0.71: P-3에 선 로봇 발자국(0.64 + 0.06) 밖
+# ---- 칸막이 3은 없다(사용자 2026-11-17): 칸막이도 그 둘레 keepout도 뺐다 ----
+DIVIDER_3_KEEP = (0.71, 0.0, 0.86, 0.20)  # 칸막이 3이 있을 때의 둘레 차단
 
 
-def test_v7_the_top_of_divider_3_is_kept_out_for_nav2(site):
-    """Gazebo 1~3판: 남쪽 마당을 서쪽으로 가던 로봇이 y ~0.16으로 와서 칸막이 3 위 끝(0.76~0.78,
-    0.10)을 긁었다(3판 pode2: RPP 충돌 경고 약 400회, NAV_ABORTED 3회 뒤 ISOLATED). 그 둘레를
-    y 0.20까지 막아 Nav2 goal 경로의 중심이 그 구간에서 y 0.20 위로 다니게 한다. 칸 고정 경로
-    (P-3 <-> E-3, FollowPath)는 local costmap만 보므로 걸리지 않는다."""
-    assert DIVIDER_3_KEEP in site.keepout_extra
+def test_v7_divider_3_and_its_keepout_are_gone(site):
+    """충전 자리는 그대로 두고 3번 칸막이만 없앴다. 그 둘레를 막던 keepout도 뺀다: 막을 모서리가
+    없다. 1 cm 지도와 마스크 모두 그 자리가 열려 있고, P-3에서 동쪽으로 y 0.20 아래로 이어진다."""
+    assert DIVIDER_3_KEEP not in site.keepout_extra
     grid = arena_maps.keepout(arena_maps.FINE_M, site)
+    occ = arena_maps.occupancy(arena_maps.FINE_M, site)
 
-    def kept(x, y):
+    def at(g, x, y):
         i, j = arena_maps.cell_of(x, y, arena_maps.FINE_M, site)
-        return grid[j][i]
+        return g[j][i]
     for x in (0.72, 0.77, 0.85):
-        assert kept(x, 0.12) and kept(x, 0.195), x
-    assert not kept(0.77, 0.205) and not kept(0.64, 0.11), "above it and the P-3 bay stay open"
+        for y in (0.05, 0.12, 0.195):
+            assert not at(grid, x, y) and not at(occ, x, y), (x, y)
+
+
+def test_v7_p3_joins_the_south_yard_to_the_east_below_y_020(site):
+    """5 cm costmap(내접 inflation + keepout)에서 P-3 앞(y 0.165)과 동쪽 (0.85, 0.15)이 y 0.20
+    아래로만 이어진다. 칸막이 3이 있을 때는 그 둘레 keepout 때문에 끊겼다."""
+    grid, _, _ = _costmap()
+    assert _joined(grid, (0.64, 0.165), (0.85, 0.15), shut=[(0.0, 0.20, 1.98, 0.99)])
 
 
 # ---- 칸막이 1, 2 위 끝: 칸을 나와 동쪽으로 가는 Nav2 goal 경로 ----
@@ -370,7 +378,7 @@ def test_v7_the_south_yard_stays_open_above_the_divider_keepout(site, a, b):
     남쪽 마당이 이어진다."""
     grid, _, _ = _costmap()
     assert _joined(grid, site.node_pose(a), site.node_pose(b)), (a, b)
-    # 동쪽으로 가는 길은 칸막이 3 위를 지나야 한다: 서쪽 끝을 막아도 이어진다
+    # 동쪽으로 가는 길은 남쪽 마당으로 이어진다: 서쪽 끝을 막아도 이어진다
     if b in ("Q1", "Q2"):
         assert _joined(grid, site.node_pose(a), site.node_pose(b),
                        shut=[(0.0, 0.40, 0.68, 0.99)]), (a, b)
