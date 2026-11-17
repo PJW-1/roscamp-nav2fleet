@@ -12,7 +12,12 @@ stage2_plan의 계획(nav_goal, follow_path, retreat)을 차례로 보낸다. �
   - nav_goal: 실제 위치를 0.05 m마다 줄인 자취(track). v7은 가운데 통로를 지났는지(through_corridor)
   - 상자(/sim/obstacle_markers)가 놓인 동안 실제 위치와 상자 중심 사이의 가장 짧은 거리(box_min_m)
 
+  - 실제 위치와 시각이 가장 가까운 AMCL 추정(/{robot}/amcl_pose) 사이의 가장 큰 거리(amcl_max_error_m)
+  - v7: 남쪽 진열대 사이 틈을 지났는지(through_gap)와 틈의 네 모서리까지 가장 짧은 거리(중심
+    gap_corner_min_m, 몸 gap_corner_body_min_m: local costmap 발자국 다각형, 못 읽으면 중심 - 0.056)
+
 가운데 통로 재현(v7): --layout v7 --plan corridor --wait-box 120. 상자가 놓인 뒤에 출발한다.
+틈 건너기(v7): --layout v7 --plan gap. 끝점은 --point GAP_N=1.12,0.55처럼 바꾼다.
 """
 from __future__ import annotations
 
@@ -28,7 +33,7 @@ from fleet_core.fleet_map import NAV_GOAL, RETREAT
 from fleet_core.traffic.site import load_site
 from fleet_interfaces.action import MoveTo, Retreat
 from fleet_interfaces.msg import RobotState
-from geometry_msgs.msg import Pose, Pose2D
+from geometry_msgs.msg import Pose, Pose2D, PoseWithCovarianceStamped
 from nav_msgs.msg import Odometry, Path
 from rclpy.action import ActionClient
 from rclpy.clock import Clock, ClockType
@@ -41,9 +46,14 @@ from visualization_msgs.msg import Marker, MarkerArray
 from fleet_gz_sim.quaternion import yaw_of
 from fleet_gz_sim.stage2_plan import (
     CORRIDOR_GATES,
+    GAP_GATES,
+    body_distance,
     build,
     cross_track,
     decimate,
+    max_pose_error,
+    min_distance,
+    parse_footprint,
     keepout_zones,
     start_node,
     through_gate,
@@ -55,6 +65,7 @@ START_M = 0.15  # 로봇이 계획의 시작 지점에서 이만큼 안에 있�
 RETREAT_SPEED_MPS = 0.05  # TRAFFIC_CONTRACT 6절 retreat_speed_mps
 SETTLE_S = 0.3  # 결과 뒤 실제 위치를 이만큼 더 받는다(멈춘 자리)
 TRACK_STEP_M = 0.05  # 자취를 줄이는 간격
+BODY_HALF_WIDTH_M = 0.056  # 발자국을 못 읽을 때 몸 거리 = 중심 거리 - 이것
 # obstacle_node의 MARKER_QOS와 같다(늦게 붙어도 마지막 표시를 받는다)
 MARKER_QOS = QoSProfile(depth=1, reliability=ReliabilityPolicy.RELIABLE,
                         durability=DurabilityPolicy.TRANSIENT_LOCAL)
@@ -65,6 +76,26 @@ def box_centres(msg) -> dict[str, tuple[float, float]]:
     return {f"obstacle_{m.id}": (m.pose.position.x, m.pose.position.y)
             for m in msg.markers
             if m.action == Marker.ADD and m.type == Marker.CUBE and m.ns == "obstacles"}
+
+
+def load_footprint(path: str | None = None) -> list[tuple[float, float]] | None:
+    """pode_nav_config nav2_params의 local costmap 발자국(base_footprint 틀). 못 읽으면 None."""
+    import yaml
+    try:
+        if path is None:
+            from ament_index_python.packages import get_package_share_directory
+            path = get_package_share_directory("pode_nav_config") + "/params/nav2_params.yaml"
+        with open(path, encoding="utf-8") as f:
+            data = yaml.safe_load(f)
+        return parse_footprint(
+            data["local_costmap"]["local_costmap"]["ros__parameters"]["footprint"])
+    except Exception:  # noqa: BLE001 - 없으면 중심 거리로 잰다
+        return None
+
+
+def gap_corners(gate) -> list[tuple[float, float]]:
+    x0, y0, x1, y1 = gate
+    return [(x0, y0), (x0, y1), (x1, y0), (x1, y1)]
 
 
 def _pose(x: float, y: float, yaw: float) -> Pose:
@@ -85,12 +116,16 @@ class DriveCheck(Node):
         self.plans: list[list[tuple[float, float]]] = []
         self.boxes: dict[str, tuple[float, float]] = {}  # 지금 놓인 상자
         self.box_min: dict[str, float] = {}  # 이동마다: 상자 -> 놓인 동안 가장 짧은 거리
+        self.amcl: list[tuple[float, float, float]] = []  # 이동마다: (sim t, x, y)
+        self.footprint = load_footprint()
         self.create_subscription(RobotState, contract.name("robot_state", pode=robot),
                                  self._on_state, to_ros_qos(contract.qos("robot_state")))
         self.create_subscription(Odometry, f"/{robot}/sim/truth", self._on_truth,
                                  qos_profile_sensor_data)
         self.create_subscription(Path, f"/{robot}/plan", self._on_plan, 10)
         self.create_subscription(MarkerArray, "/sim/obstacle_markers", self._on_boxes, MARKER_QOS)
+        self.create_subscription(PoseWithCovarianceStamped, f"/{robot}/amcl_pose",
+                                 self._on_amcl, 10)
         self.move = ActionClient(self, MoveTo, contract.name("move_to", pode=robot))
         self.retreat = ActionClient(self, Retreat, contract.name("retreat", pode=robot))
         self.beat = self.create_publisher(Header, contract.name("heartbeat"),
@@ -113,6 +148,12 @@ class DriveCheck(Node):
             for name, centre in self.boxes.items():
                 d = math.dist((p.position.x, p.position.y), centre)
                 self.box_min[name] = min(d, self.box_min.get(name, math.inf))
+
+    def _on_amcl(self, msg):
+        p = msg.pose.pose.position
+        t = msg.header.stamp.sec + msg.header.stamp.nanosec * 1e-9
+        with self.lock:
+            self.amcl.append((t, p.x, p.y))
 
     def _on_boxes(self, msg):
         with self.lock:
@@ -173,7 +214,7 @@ def wait_for(predicate, timeout: float, step: float = 0.05) -> bool:
 
 def run_step(node: DriveCheck, site, step, timeout: float) -> dict:
     with node.lock:
-        node.states, node.plans, node.box_min = [], [], {}
+        node.states, node.plans, node.box_min, node.amcl = [], [], {}, []
         first = len(node.truth)
     wall = time.monotonic()
     record = node.send(step)
@@ -184,7 +225,7 @@ def run_step(node: DriveCheck, site, step, timeout: float) -> dict:
     time.sleep(SETTLE_S)
     with node.lock:
         truth, states, plans = node.truth[first:], list(node.states), list(node.plans)
-        box_min = dict(node.box_min)
+        box_min, amcl = dict(node.box_min), list(node.amcl)
     result = "success" if record.get("success") else record.get("reason", "timeout")
     out = {"step": step.label, "result": result, "wall_s": round(wall_s, 2), "states": states,
            "blocked": states.count("BLOCKED"), "recovering": states.count("RECOVERING"),
@@ -206,6 +247,21 @@ def run_step(node: DriveCheck, site, step, timeout: float) -> dict:
         else:
             out["max_cross_track_m"] = round(max(cross_track(step.poses, px, py)
                                                  for _, px, py, _ in truth), 3)
+        error = max_pose_error(amcl, truth)
+        out["amcl_max_error_m"] = None if error is None else round(error, 3)
+        if site.name in GAP_GATES:
+            gate = GAP_GATES[site.name]
+            corners = gap_corners(gate)
+            out["through_gap"] = through_gate([p[1:3] for p in truth], gate, axis=1)
+            out["gap_corner_min_m"] = round(min(min_distance([p[1:3] for p in truth], c)
+                                                for c in corners), 3)
+            if node.footprint:
+                body = min(body_distance(p[1:4], node.footprint, c) for p in truth for c in corners)
+                out["gap_corner_body_from"] = "footprint"
+            else:
+                body = out["gap_corner_min_m"] - BODY_HALF_WIDTH_M
+                out["gap_corner_body_from"] = "centre-0.056"
+            out["gap_corner_body_min_m"] = round(body, 3)
     if step.kind == NAV_GOAL:
         out["plans"] = len(plans)
         out["plan_keepout"] = sorted({z for plan in plans for z in keepout_zones(site, plan)})
@@ -214,7 +270,7 @@ def run_step(node: DriveCheck, site, step, timeout: float) -> dict:
 
 def run(args) -> dict:
     site = load_site(args.layout)
-    steps = build(site, args.plan, args.laps)
+    steps = build(site, args.plan, args.laps, points=dict(args.point))
     node = DriveCheck(args.robot, args.contract)
     executor = MultiThreadedExecutor(num_threads=4)
     executor.add_node(node)
@@ -251,6 +307,15 @@ def run(args) -> dict:
         node.destroy_node()
 
 
+def _named_point(text: str) -> tuple[str, tuple[float, float]]:
+    try:
+        name, xy = text.split("=")
+        x, y = (float(v) for v in xy.split(","))
+    except ValueError:
+        raise argparse.ArgumentTypeError(f"--point must be NAME=X,Y, got {text!r}") from None
+    return name.strip(), (x, y)
+
+
 def main(argv=None) -> None:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--robot", default="pode1")
@@ -261,6 +326,8 @@ def main(argv=None) -> None:
                         help="이동 하나의 한도(벽시계 초)")
     parser.add_argument("--wait-box", type=float, default=0.0,
                         help="상자가 하나라도 놓일 때까지 이만큼(벽시계 초) 기다린 뒤 출발. 0이면 안 기다림")
+    parser.add_argument("--point", type=_named_point, action="append", default=[],
+                        metavar="NAME=X,Y", help="계획 전용 점을 바꾼다(gap의 GAP_N, GAP_S). 여러 번")
     parser.add_argument("--contract", default=None)
     parser.add_argument("--json", default=None, help="요약을 이 파일에도 쓴다")
     args = parser.parse_args(argv)

@@ -30,10 +30,20 @@ PLANS = {
     "cross": ((NAV_GOAL, ("P-1", "P-3")), (NAV_GOAL, ("P-3", "P-1"))),
     # v7 가운데 통로 재현(2026-11-17): O_IN에서 M_E로 갔다가 돌아온다. 상자는 v7_corridor_box가 놓는다
     "corridor": ((NAV_GOAL, ("O_IN", "M_E")), (NAV_GOAL, ("M_E", "O_IN"))),
+    # v7 남쪽 진열대 사이 건넘 틈(2026-11-17): 틈 바로 북쪽(GAP_N)과 남쪽(GAP_S)을 Nav2 goal로 오간다.
+    # 둘을 잇는 지점 쌍이 구역 지도에 없어 계획 전용 점을 쓴다(PLAN_POINTS)
+    "gap": ((NAV_GOAL, ("M_E", "GAP_N")), (NAV_GOAL, ("GAP_N", "GAP_S")),
+            (NAV_GOAL, ("GAP_S", "GAP_N")), (NAV_GOAL, ("GAP_N", "M_E"))),
 }
-PLAN_LAYOUTS = {"corridor": "v7"}  # 계획의 배치. 없으면 d2
+PLAN_LAYOUTS = {"corridor": "v7", "gap": "v7"}  # 계획의 배치. 없으면 d2
+# 계획 전용 점(구역 지도에 없는 Nav2 goal 자리, 이름 -> (x, y)). 이음 검사를 하지 않는다.
+# GAP_N, GAP_S: 틈 가운데(x 1.12) 북쪽 가운데 통로와 남쪽 통로(칸 입구 높이 0.24). 틈으로 0.31 m,
+# 진열대 끝을 돌면 약 1.2 m(1 cm 격자 계산)
+PLAN_POINTS = {"gap": {"GAP_N": (1.12, 0.55), "GAP_S": (1.12, 0.24)}}
 # 통로를 지났는지 보는 사각형(x0, y0, x1, y1): v7 가운데 통로, 상자 4 둘레의 x 0.90~1.00
 CORRIDOR_GATES = {"arena_v7": (0.90, 0.405, 1.00, 0.77)}
+# 남쪽 진열대 사이 건넘 틈(y 방향으로 지난다). 네 모서리가 진열대 끝 모서리다
+GAP_GATES = {"arena_v7": (0.99, 0.365, 1.25, 0.405)}
 
 
 class PlanError(ValueError):
@@ -59,15 +69,22 @@ def _heading(a, b) -> float:
     return math.atan2(b[1] - a[1], b[0] - a[0])
 
 
-def nav_yaw(site, start: str, end: str) -> float:
-    """계약 2절: 끝 지점의 yaw, 없으면 거기서 이어지는 고정 경로의 방향, 없으면 시작→끝 방향."""
-    node = site.nodes[end]
-    if node.yaw is not None:
-        return node.yaw
-    fixed = [link for link in site.links_from(end) if link.via == FOLLOW_PATH]
-    if fixed:
-        return _heading(*fixed[0].points[:2])
-    return _heading(site.node_pose(start), site.node_pose(end))
+def nav_yaw(site, start: str, end: str, points=None) -> float:
+    """계약 2절: 끝 지점의 yaw, 없으면 거기서 이어지는 고정 경로의 방향, 없으면 시작→끝 방향.
+    points(계획 전용 점)에 있는 끝은 시작→끝 방향."""
+    points = points or {}
+    if end not in points:
+        node = site.nodes[end]
+        if node.yaw is not None:
+            return node.yaw
+        fixed = [link for link in site.links_from(end) if link.via == FOLLOW_PATH]
+        if fixed:
+            return _heading(*fixed[0].points[:2])
+    return _heading(_xy(site, start, points), _xy(site, end, points))
+
+
+def _xy(site, name: str, points) -> tuple[float, float]:
+    return tuple(points[name]) if name in points else site.node_pose(name)
 
 
 def path_poses(site, nodes, reverse: bool = False) -> tuple[tuple[float, float, float], ...]:
@@ -85,8 +102,14 @@ def path_poses(site, nodes, reverse: bool = False) -> tuple[tuple[float, float, 
     return tuple(out)
 
 
-def make_step(site, kind: str, nodes) -> Step:
+def make_step(site, kind: str, nodes, points=None) -> Step:
     nodes = tuple(nodes)
+    points = points or {}
+    if any(n in points for n in nodes):  # 계획 전용 점: 이음 없이 Nav2 goal 하나
+        if kind != NAV_GOAL or len(nodes) != 2:
+            raise PlanError(f"a plan point needs one nav_goal step, got {kind} {nodes}")
+        x, y = _xy(site, nodes[1], points)
+        return Step(kind, nodes, ((x, y, nav_yaw(site, *nodes, points)),))
     for a, b in zip(nodes, nodes[1:], strict=False):
         link = site.link(a, b)
         if link is None or link.via != kind:
@@ -103,12 +126,15 @@ def plan_layout(plan: str) -> str:
     return PLAN_LAYOUTS.get(plan, "d2")
 
 
-def build(site, plan: str, laps: int = 1) -> list[Step]:
+def build(site, plan: str, laps: int = 1, points=None) -> list[Step]:
+    """points: 계획 전용 점을 바꾸거나 더한다(이름 -> (x, y))."""
     if plan not in PLANS:
         raise PlanError(f"plan must be one of {', '.join(PLANS)}, got {plan!r}")
     if plan in PLAN_LAYOUTS and site.name != f"arena_{PLAN_LAYOUTS[plan]}":
         raise PlanError(f"plan {plan!r} is for layout {PLAN_LAYOUTS[plan]}, not {site.name}")
-    return [make_step(site, kind, nodes) for _ in range(laps) for kind, nodes in PLANS[plan]]
+    points = {**PLAN_POINTS.get(plan, {}), **(points or {})}
+    return [make_step(site, kind, nodes, points)
+            for _ in range(laps) for kind, nodes in PLANS[plan]]
 
 
 def start_node(plan: str) -> str:
@@ -145,7 +171,8 @@ def keepout_zones(site, points) -> list[str]:
 
 def through_gate(points, gate, axis: int = 0) -> bool:
     """사각형(x0, y0, x1, y1)을 axis(0이면 x, 1이면 y) 방향으로 한쪽에서 들어가 반대쪽으로 나간 적이
-    있으면 참. 들어갔다 되돌아오거나 안에서 멈추면 거짓. 다른 축으로 사각형 밖이면 처음부터 다시 본다."""
+    있으면 참. 들어갔다 되돌아오거나 안에서 멈추면 거짓. 다른 축으로 사각형 밖이면 처음부터 다시 본다.
+    점 사이는 보지 않는다: 문 옆이 진열대 면이고 실제 위치가 촘촘하다(약 30 Hz)고 본다."""
     lo, hi = gate[axis], gate[axis + 2]
     other_lo, other_hi = gate[1 - axis], gate[3 - axis]
     last = None  # 마지막으로 있던 바깥쪽(-1 앞, 1 뒤)
@@ -177,3 +204,44 @@ def decimate(points, step_m: float) -> list:
 def min_distance(points, centre) -> float | None:
     """점들에서 centre까지 가장 짧은 거리. 점이 없으면 None."""
     return min((math.dist(p[:2], centre) for p in points), default=None)
+
+
+def parse_footprint(text: str) -> list[tuple[float, float]]:
+    """Nav2 footprint 문자열 "[[x, y], ...]"."""
+    import yaml
+    return [(float(x), float(y)) for x, y in yaml.safe_load(text)]
+
+
+def _inside(polygon, x: float, y: float) -> bool:
+    inside = False
+    polygon = list(polygon)
+    for (ax, ay), (bx, by) in zip(polygon, polygon[1:] + polygon[:1], strict=False):
+        if (ay > y) != (by > y) and x < ax + (y - ay) * (bx - ax) / (by - ay):
+            inside = not inside
+    return inside
+
+
+def body_distance(pose, polygon, point) -> float:
+    """자세 (x, y, yaw)의 몸 다각형(로봇 틀)에서 점까지 거리. 점이 몸 안이면 0."""
+    x, y, yaw = pose
+    dx, dy = point[0] - x, point[1] - y
+    c, s = math.cos(yaw), math.sin(yaw)
+    px, py = c * dx + s * dy, -s * dx + c * dy  # 로봇 틀
+    if _inside(polygon, px, py):
+        return 0.0
+    return cross_track(list(polygon) + [polygon[0]], px, py)  # 닫힌 꺾은선
+
+
+def max_pose_error(estimates, truth) -> float | None:
+    """추정 (t, x, y)마다 시각이 가장 가까운 실제 위치 (t, x, y, ...)와의 거리 중 가장 큰 것."""
+    import bisect
+    if not estimates or not truth:
+        return None
+    times = [p[0] for p in truth]
+    worst = 0.0
+    for t, x, y in estimates:
+        i = bisect.bisect_left(times, t)
+        near = min((truth[j] for j in (i - 1, i) if 0 <= j < len(truth)),
+                   key=lambda p: abs(p[0] - t))
+        worst = max(worst, math.dist((x, y), near[1:3]))
+    return worst

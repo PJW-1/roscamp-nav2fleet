@@ -135,3 +135,56 @@ def test_through_gate_decimate_and_min_distance():
     assert sp.decimate([], 0.05) == []
     assert sp.min_distance([(0.0, 0.0), (1.0, 0.0)], (1.0, 0.3)) == pytest.approx(0.3)
     assert sp.min_distance([], (0.0, 0.0)) is None
+
+
+# ---- 남쪽 진열대 사이 건넘 틈(v7, 2026-11-17) ----
+def test_gap_plan_crosses_the_gap_both_ways_between_two_plan_points():
+    assert sp.plan_layout("gap") == "v7" and sp.start_node("gap") == "M_E"
+    steps = sp.build(V7, "gap", laps=2)
+    assert [s.label for s in steps] == ["nav_goal M_E>GAP_N", "nav_goal GAP_N>GAP_S",
+                                        "nav_goal GAP_S>GAP_N", "nav_goal GAP_N>M_E"] * 2
+    north, south = sp.PLAN_POINTS["gap"]["GAP_N"], sp.PLAN_POINTS["gap"]["GAP_S"]
+    assert [s.target for s in steps[:4]] == [
+        pytest.approx((*north, math.pi)), pytest.approx((*south, -math.pi / 2)),
+        pytest.approx((*north, math.pi / 2)), pytest.approx((1.645, 0.55, 0.0))]
+    gate = sp.GAP_GATES[V7.name]
+    assert sp.through_gate([north, south], gate, axis=1)
+    assert sp.through_gate([south, north], gate, axis=1)
+    with pytest.raises(sp.PlanError, match="v7"):
+        sp.build(SITE, "gap")
+
+
+def test_gap_points_can_be_moved_and_a_point_needs_a_nav_goal():
+    steps = sp.build(V7, "gap", points={"GAP_N": (1.10, 0.56)})
+    assert steps[0].target[:2] == pytest.approx((1.10, 0.56))
+    with pytest.raises(sp.PlanError, match="nav_goal"):
+        sp.make_step(V7, FOLLOW_PATH, ("M_E", "GAP_N"), sp.PLAN_POINTS["gap"])
+
+
+def test_gap_points_sit_clear_of_shelves_walls_and_keepout():
+    """끝점이 진열대·벽에서 내접 0.09보다 멀고 keepout 마스크 밖이다(goal이 거절되지 않게)."""
+    from fleet_gz_sim import arena_maps as am
+    mask = am.keepout(am.FINE_M, V7)
+    for x, y in sp.PLAN_POINTS["gap"].values():
+        i, j = am.cell_of(x, y, am.FINE_M, V7)
+        assert not mask[j][i], (x, y)
+        for b in am.obstacles(V7):
+            dx, dy = max(b.x0 - x, 0, x - b.x1), max(b.y0 - y, 0, y - b.y1)
+            assert math.hypot(dx, dy) > 0.09, (x, y, b)
+        assert min(x, y, 1.98 - x, 0.99 - y) > 0.09
+
+
+def test_body_distance_and_pose_error():
+    square = [(0.06, 0.06), (0.06, -0.06), (-0.06, -0.06), (-0.06, 0.06)]
+    assert sp.body_distance((0.0, 0.0, 0.0), square, (0.16, 0.0)) == pytest.approx(0.10)
+    assert sp.body_distance((0.0, 0.0, 0.0), square, (0.03, 0.02)) == 0.0  # 몸 안
+    # 45도 돌면 모서리가 0.0849까지 나온다
+    assert sp.body_distance((0.0, 0.0, math.pi / 4), square, (0.16, 0.0)) == \
+        pytest.approx(0.16 - 0.06 * math.sqrt(2))
+    truth = [(0.0, 0.0, 0.0, 0.0), (1.0, 1.0, 0.0, 0.0), (2.0, 2.0, 0.0, 0.0)]
+    # 시각이 가장 가까운 실제 위치와 비교한다
+    assert sp.max_pose_error([(0.9, 1.0, 0.1), (2.1, 2.0, 0.0)], truth) == pytest.approx(0.1)
+    assert sp.max_pose_error([], truth) is None
+    assert sp.max_pose_error([(0.0, 0.0, 0.0)], []) is None
+    assert sp.parse_footprint("[[0.06, 0.06], [0.06, -0.06], [-0.06, -0.06]]") == \
+        [(0.06, 0.06), (0.06, -0.06), (-0.06, -0.06)]

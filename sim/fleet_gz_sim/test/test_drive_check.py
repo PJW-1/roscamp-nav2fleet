@@ -39,3 +39,14 @@ def test_box_centres_reads_the_placed_cubes_and_skips_the_labels():
 
 def test_box_centres_is_empty_when_nothing_is_placed():
     assert drive_check.box_centres(_array(marker_specs([], (0.08, 0.08, 0.25)))) == {}
+
+
+def test_the_body_footprint_comes_from_the_local_costmap_of_pode_nav_config():
+    """FollowPath 충돌 검사와 같은 몸 다각형(base_footprint 틀). 없으면 None(중심 - 0.056으로 잰다)."""
+    polygon = drive_check.load_footprint()
+    if polygon is None:
+        pytest.skip("pode_nav_config is not installed")
+    assert len(polygon) == 14
+    assert max(abs(y) for _, y in polygon) == pytest.approx(0.056)
+    assert min(x for x, _ in polygon) == pytest.approx(-0.076)
+    assert drive_check.load_footprint("/nowhere/nav2_params.yaml") is None
