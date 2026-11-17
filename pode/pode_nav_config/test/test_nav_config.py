@@ -336,8 +336,8 @@ def test_every_controller_turns_in_place_at_1_rad_s():
 
 
 def test_behavior_server_offers_what_the_tree_and_pode_fsm_call():
-    """Nav2's tree only clears costmaps and waits (work order 3, 7-4); pode_fsm's robot-side
-    yield, the old self-recovery and Retreat use backup. Spin is gone."""
+    """Nav2's tree clears costmaps, backs up and waits (BackUp back on 2026-11-17, user);
+    pode_fsm's robot-side yield, the old self-recovery and Retreat use backup too. Spin is gone."""
     b = params("behavior_server")
     assert b["behavior_plugins"] == ["backup", "wait"]
     assert {name: b[name]["plugin"] for name in b["behavior_plugins"]} == {
@@ -353,15 +353,20 @@ def test_bt_navigator_serves_only_navigate_to_pose():
     assert params("bt_navigator")["navigators"] == ["navigate_to_pose"]
 
 
-def test_the_tree_replans_at_1_hz_and_recovers_without_moving_the_robot():
-    """7-4: no Spin and no BackUp in the tree. Backing up is pode_fsm's robot-side yield only, so
-    the tree and pode_fsm never back up at the same time."""
+def test_the_tree_replans_at_1_hz_and_backs_up_but_never_spins():
+    """BackUp is back in the goal tree (user 2026-11-17): a robot wedged beside a standing robot
+    could not turn and RPP does not reverse, so only a straight back-out frees it. It comes right
+    after clearing, before Wait. Spin stays out (7-4: turning in contact made AMCL flip)."""
     tags = [el.tag for el in BT.iter()]
-    for kept in ("Wait", "ClearEntireCostmap", "RecoveryNode", "RoundRobin"):
+    for kept in ("Wait", "ClearEntireCostmap", "RecoveryNode", "RoundRobin", "BackUp"):
         assert kept in tags
-    assert "Spin" not in tags and "BackUp" not in tags
+    assert "Spin" not in tags
     [recoveries] = [el for el in BT.iter("RoundRobin")]
-    assert [child.tag for child in recoveries] == ["Sequence", "Wait"]
+    assert [child.tag for child in recoveries] == ["Sequence", "BackUp", "Wait"]
+    [backup] = BT.getroot().iter("BackUp")
+    # 짧게, 느리게: 지역 costmap만 보므로 keepout을 모른다. 후진 0.05 m/s는 사용자 기준
+    assert float(backup.get("backup_dist")) == 0.15
+    assert float(backup.get("backup_speed")) == 0.05
     [rate] = BT.getroot().iter("RateController")
     assert float(rate.get("hz")) == 1.0
     [planner] = BT.getroot().iter("ComputePathToPose")
@@ -381,7 +386,7 @@ def _canon(tree):
 
 
 @pytest.mark.skipif(not NAV2_BT.exists(), reason="ROS 2 Jazzy nav2_bt_navigator not installed")
-def test_the_tree_is_nav2s_default_tree_with_the_goal_controller_checker_and_no_moving_recovery():
+def test_the_tree_is_nav2s_default_tree_with_the_goal_controller_checker_and_a_short_backup():
     ours = ET.parse(BT_FILE)
     [select] = ours.getroot().iter("ControllerSelector")
     select.set("default_controller", "FollowPath")
@@ -390,10 +395,17 @@ def test_the_tree_is_nav2s_default_tree_with_the_goal_controller_checker_and_no_
     # 회복 Clear 노드의 server_timeout은 우리가 더한 것이라 비교에서 뺀다
     for clear in ours.getroot().iter("ClearEntireCostmap"):
         clear.attrib.pop("server_timeout", None)
+    # 우리 BackUp은 짧고 느리며 Wait 앞에 있다. 값만 기본으로 되돌려 나머지를 비교한다
+    [backup] = ours.getroot().iter("BackUp")
+    backup.set("backup_dist", "0.30")
+    backup.set("backup_speed", "0.15")
     default = ET.parse(NAV2_BT)
-    for parent in default.getroot().iter("RoundRobin"):
-        for child in [c for c in parent if c.tag in ("Spin", "BackUp")]:
-            parent.remove(child)
+    [robin] = default.getroot().iter("RoundRobin")
+    for child in [c for c in robin if c.tag == "Spin"]:
+        robin.remove(child)
+    [nav2_backup] = [c for c in robin if c.tag == "BackUp"]
+    robin.remove(nav2_backup)
+    robin.insert(1, nav2_backup)
     assert _canon(ours) == _canon(default)
 
 
