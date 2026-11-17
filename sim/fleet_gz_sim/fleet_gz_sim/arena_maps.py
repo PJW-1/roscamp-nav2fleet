@@ -53,8 +53,10 @@ def map_cells(resolution: float, site) -> tuple[int, int]:
 
 
 def centre_filled(rects, width: int, height: int, resolution: float, origin) -> list[list[bool]]:
-    """칸 중심이 사각형 안(경계 포함)인 칸은 참. 한 축에서 중심을 하나도 덮지 않는 얇은 상자는
-    그 축에서 상자 가운데가 든 칸 하나를 칠한다(2 cm 칸막이가 지도에서 사라지지 않게)."""
+    """칸 중심이 사각형 안(경계 포함, 소수 오차로 HAIR 칸까지 허용)인 칸은 참. 한 축에서 중심을
+    하나도 덮지 않는 얇은 상자는 그 축에서 상자 가운데가 든 칸 하나를 칠한다(2 cm 칸막이가 지도에서
+    사라지지 않게). 상자마다 따로 칠하므로 격자에 어긋나게 맞닿은 상자 사이에는 대각 틈이 날 수
+    있다(v7에는 없다: test_arena_v7)."""
     grid = [[False] * width for _ in range(height)]
 
     def cells(lo: float, hi: float, start: float, count: int) -> range:

@@ -405,6 +405,38 @@ def test_the_centre_rule_keeps_every_thin_divider(site, resolution):
     assert len(row) == 1
 
 
+@pytest.mark.parametrize("resolution, paint", [(0.025, "touch"), (0.05, "centre"),
+                                               (0.025, "centre")])
+def test_v7_variant_walls_leave_no_diagonal_leak_and_dividers_stay_joined(site, resolution,
+                                                                           paint):
+    """Codex 2026-11-17: 칸 중심 규칙은 상자마다 따로 칠해 맞닿은 상자 사이에 대각 틈을 낼 수 있다.
+    v7에서는 벽 밖 빈칸이 8 이웃으로도 안쪽에 닿지 않고, 칸막이는 남쪽 벽과 이어진다."""
+    from collections import deque
+
+    from fleet_gz_sim import arena
+    grid = arena_maps.occupancy(resolution, site, paint)
+    h, w = len(grid), len(grid[0])
+    ox, oy = arena_maps.map_origin(site)
+    x0, y0, x1, y1 = site.bounds()
+    seen, todo = {(0, 0)}, deque([(0, 0)])
+    while todo:
+        i, j = todo.popleft()
+        for di in (-1, 0, 1):
+            for dj in (-1, 0, 1):
+                a, b = i + di, j + dj
+                if 0 <= a < w and 0 <= b < h and not grid[b][a] and (a, b) not in seen:
+                    seen.add((a, b))
+                    todo.append((a, b))
+    assert not [(a, b) for a, b in seen if x0 < ox + (a + 0.5) * resolution < x1
+                and y0 < oy + (b + 0.5) * resolution < y1]
+    wall_j = arena_maps.cell_of(0.5, -0.001, resolution, site)[1]
+    for box in arena.shelves(site):
+        if box.y0 > 1e-9:
+            continue  # 남쪽 벽에 닿는 칸막이만
+        i, j = arena_maps.cell_of((box.x0 + box.x1) / 2, box.y1 - 0.001, resolution, site)
+        assert all(grid[k][i] for k in range(wall_j, j + 1)), box.name
+
+
 def test_a_cell_centre_on_a_box_edge_counts_as_inside():
     # 원점 0, 0.05 칸: 칸 0 중심 0.025, 칸 1 중심 0.075
     grid = arena_maps.centre_filled([(0.025, 0.0, 0.075, 0.05)], 4, 2, 0.05, (0.0, 0.0))

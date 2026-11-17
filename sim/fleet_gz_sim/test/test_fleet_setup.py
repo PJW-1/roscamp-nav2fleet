@@ -54,8 +54,10 @@ def test_the_default_nav_map_variant_is_the_plain_map():
 def test_an_unknown_nav_map_variant_or_a_layout_without_it_is_refused():
     with pytest.raises(fleet_setup.ScenarioUnfit, match="nav_map_variant"):
         fleet_setup.arena_for("v7", PKG, "c")
-    with pytest.raises(fleet_setup.ScenarioUnfit, match="arena_d2_b.yaml"):
+    # Codex 2026-11-17: d2에 갈래를 주면 고칠 수 없는 생성 명령을 권했다
+    with pytest.raises(fleet_setup.ScenarioUnfit, match="only for layout v7") as err:
         fleet_setup.arena_for("d2", PKG, "b")
+    assert "python3 -m" not in str(err.value)
 
 
 def test_the_test_layout_has_a_three_robot_gazebo_scenario():

@@ -216,7 +216,7 @@ def test_nav_map_variant_is_empty_by_default_and_refuses_a_layout_without_it(mad
     assert made.ARGS["nav_map_variant"][0] == ""
     navs = [launch_args(i) for i in includes(run(made, layout="v7"), "nav2.launch.py")]
     assert all(nav["map"].endswith("maps/arena_v7.yaml") for nav in navs)
-    with pytest.raises(ScenarioUnfit, match="arena_d2_b.yaml"):
+    with pytest.raises(ScenarioUnfit, match="only for layout v7"):
         run(made, nav_map_variant="b")
     with pytest.raises(ScenarioUnfit, match="nav_map_variant"):
         run(made, layout="v7", nav_map_variant="x")
