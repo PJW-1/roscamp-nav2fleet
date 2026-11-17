@@ -11,8 +11,7 @@ GOING = (TO_WORK, TO_OUTBOUND, TO_PARK)
 
 class Silent:
     # ---- 이벤트가 나면 무진척 기록 초기화 ----
-    def _event(self, level: str, code: str, detail: str, robot: str = "") -> None:
-        super()._event(level, code, detail, robot)
+    def _note_robot_event(self, robot: str, code: str) -> None:
         m = self._robots.get(robot)
         if m is not None and code != SILENT_STALL:
             m.silent_from = None
