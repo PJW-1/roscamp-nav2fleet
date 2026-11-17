@@ -47,16 +47,41 @@
 | main_rec | clear 1000 ms(main 그대로) | 있음: pode3 (0.63, 0.11) | 47.7 s | 18 | 1 | 1 | 0 | 9 | 317 | PASS 12/12, 572.0 s, near 1, min_gap 0.139 |
 
 main_rec 녹화 [확정]:
-- 421.03 s부터 1 Hz로 ComputePathToPose가 모두 성공했고, 그 길이 P-3 앞 틈(x 0.58~0.80, y 0.15~0.37)을 지났다(418~470 s 계획 39개 중 28개). 첫 global clear(`ClearGlobalCostmap-Subtree`)는 426.84 s다. 즉 planner는 **지우기 전부터** 틈으로 길을 그렸다.
-- 틈으로 그린 길은 pode3 실제 중심에서 0.122~0.132 m를 지났다. pode2는 426 s부터 (0.67, 0.26)에 섰다.
-- 그때 global costmap(OccupancyGrid 0~100, 99 = inscribed, 100 = lethal)의 틈 세로줄(y 0.19~0.36) 최솟값: x 0.66에서 85, x 0.70에서 72, x 0.74에서 62. 틈 가운데가 inscribed 아래라 NavFn은 지날 수 있다고 본다.
+- 421.03 s부터 1 Hz로 ComputePathToPose가 모두 성공했고, 그 길이 P-3 앞 틈(x 0.58~0.80, y 0.15~0.37)을 지났다(418~470 s 계획 39개 중 28개). 첫 global clear(`ClearGlobalCostmap-Subtree`)는 426.84 s다. 이 bag의 BehaviorTreeLog 사건 시각은 sim 시간이 아니라 벽시계라서, 트리 로그를 bag 순서대로 읽으며 그 시점의 `/clock`에 맞춰 얻었다(`wedge_bag.py`로 읽은 값이 아니다). bag에는 costmap_updates 메시지도 없다(`always_send_full_costmap`이 true). 즉 planner는 **지우기 전부터** 틈으로 길을 그렸다.
+- 틈으로 그린 길은 pode3 실제 중심에서 0.122~0.156 m를 지났다(틈을 지난 계획 28개 전부 다시 계산). pode2는 426 s부터 (0.67, 0.26)에 섰다.
+- 그때 global costmap(OccupancyGrid 0~100, 99 = inscribed, 100 = lethal)의 틈 세로줄(y 0.19~0.36) 최솟값: x 0.66에서 85, x 0.70에서 72, x 0.74에서 62(내부 비용으로는 각각 약 219~220, 185~187, 159~161). 틈 가운데가 inscribed 아래라 NavFn은 지날 수 있다고 본다.
 - 456.9 s에 pode2가 (0.54, 0.30)으로 나온 뒤 길이 북쪽(최대 y 0.58)으로 바뀌었다.
 
 판단:
 - [확정] main_rec(1000 ms)는 이 장면에서 47.7 s, wedge_noclr(20 ms)는 47.5 s로 같다. noclr2는 장면이 없어 비교에 못 쓴다.
-- [확정] planner가 틈을 고른 것은 clear 전이다. "clear 대기 때문에 틈으로 다시 들어간다"는 앞의 가설은 이 판에서 맞지 않는다.
+- [확정] planner가 틈을 고른 것은 clear 전이다. "clear 대기 때문에 틈으로 다시 들어간다"는 앞의 가설은 이 녹화 판 하나(설정마다 한 판)에서는 맞지 않는다. 다른 판에서도 그런지는 모른다.
 - [추측] main 다섯 판(60~176 s)과 wedge_noclr(48 s)의 차이는 clear 대기보다 판마다 다른 것(pode3가 선 자리, pode2가 틈에 들어간 깊이)으로 보는 편이 맞다. 해결안 나는 뒤로 뺀다.
-- [추측] 뿌리는 global costmap이 틈을 지날 수 있다고 보는 것(가장 좁은 곳 비용 약 218/253)과, controller가 다각형 몸과 라이다 점으로 "부딪힘"을 보는 것의 불일치다. 해결안 가를 먼저 한다.
+- [추측] 뿌리는 global costmap이 틈을 지날 수 있다고 보는 것(가장 좁은 곳 내부 비용 약 219~220/253)과, controller가 다각형 몸과 라이다 점으로 "부딪힘"을 보는 것의 불일치다. 해결안 가를 먼저 한다.
+
+## 3-2. 그 뒤 원인 확인과 고침 (19:40~21:40)
+
+원인 확인 [확정]:
+- RPP의 "collision ahead"가 걸린 칸은 모두 pode3 쪽이고 진열대는 0이다. Gazebo에서 로봇 라이다(높이 0.125 m)는 다른 Pode를 라이다 받침(약 5.6 cm)으로만 본다. 그래서 몸 칸은 peer 층(원 r 0.08)이다.
+- pode3 동쪽 "덩어리"는 이 원이다. pode2의 AMCL 오차로 local costmap에서 약 3 cm 밀렸다. 옛 칸막이, keepout, 라이다 잡음이 아니다.
+- 직접 원인은 local_costmap에 footprint_padding이 없어서 Jazzy 기본 0.01이 붙은 것이다. 녹화 costmap에서 RPP 검사를 재연하면 padding 0.01은 38/55, 0.0은 6/55에서 멈춘다(자료 scratchpad `phantom/`).
+
+P-3 장면 반복 시험 [확정]: 브랜치 `exp/p3-scene-test`, 자료 scratchpad `p3scene_runs/main2`.
+- pode1을 P-1에 두면 모든 설정이 5/5 통과했다.
+- 틈으로 몰아넣은 5판의 결과는 아래와 같다. 실패는 pode3가 y 0.14일 때만 났다.
+
+| 설정 | 실패 | 최장 정지 | 경고 | 비고 |
+|---|---|---|---|---|
+| 그대로 | 2/5 | 30.7 s | 333줄 | 진열대 -2.4 mm |
+| padding 0 | 2/5 | 9.0 s | 134줄 | |
+| padding 0 + peer 0.075 | 1/5 | 1.3 s | 92줄 | |
+
+- 로봇끼리 접촉은 없었다(다각형 기준 최소 3.9 cm).
+- 시뮬 바퀴 충돌은 구(r 0.028, 중심 |y| 0.0486)라 옆으로 |y| 0.0766까지 나온다. 실물과 다각형은 0.056이다.
+- [추측] 좁은 틈에서 시뮬이 실물보다 더 걸릴 수 있다.
+
+결정(사용자 2026-11-17, "지금까지 정보로 결정"):
+- 브랜치 `fix/local-padding-zero`에 local padding 0(bc5adb8)과 peer 0.075를 넣었다. main은 아니다.
+- 실물 적용은 보류한다. 고정 경로 컨트롤러도 이 발자국을 쓴다.
 
 ## 4. 해결안(검토 중, 정하지 않음)
 
