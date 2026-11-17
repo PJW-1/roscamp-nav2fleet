@@ -48,7 +48,7 @@
 - **지도:**
   - 실물 기본값은 `arena_v7_a`(2.5 cm), `arena_v7_fine`(1 cm), `arena_v7_keepout`이다. 셋 다 칸막이 3이 없고 진열대 A가 0.63부터인 배치로 다시 만들어졌다.
   - 실제 경기장이 이 배치와 다르면 SLAM 지도를 기준으로 관제 지도를 맞춘다(`docs/주행_계획서.md` 9절).
-  - SLAM 지도를 쓸 때는 `real_pode.launch.py`에 `map:=`, `map_fine:=`, `keepout_mask:=`로 넘긴다. `start.sh`는 인자를 namespace와 초기 자세(와 속도)만 받는다. 지도 인자를 둘 이상 붙이면 인자 개수 검사에서 멈추고, 하나만 붙이면 속도 자리로 들어가 `make_params.py`에서 실패한다. 그래서 launch를 직접 부르거나 `start.sh`를 고쳐야 한다.
+  - SLAM 지도를 쓸 때는 `real_pode.launch.py`에 `map:=`, `map_fine:=`, `keepout_mask:=`로 넘긴다. `start.sh`는 인자를 4개(namespace, x, y, yaw)나 5개(+속도)만 받는다. 지도 인자를 붙여 6개 이상이 되면 인자 개수 검사에서 멈추고, 속도 없이 하나만 붙여 5개가 되면 그 값이 속도 자리로 들어가 `make_params.py`에서 실패한다. 그래서 launch를 직접 부르거나 `start.sh`를 고쳐야 한다.
   - keepout은 `python3 tools/make_keepout.py --layout <관제 지도.yaml> --map <지도.yaml>`로 만든다. 이 도구는 지도 그림에서 크기와 원점만 읽고, 막는 자리는 `--layout`의 관제 지도 구역에서 그린다. 관제 지도를 고쳤다면 고친 yaml 경로를 `--layout`에 준다.
 - **관제 PC:**
   - `pc.launch.py use_fake:=false`에서 `map_file`을 안 주면 d2 배치를 읽는다(`pc/fleet_core/fleet_core/fleet_map/fleet_map.py` 31줄 `DEFAULT_LAYOUT = "d2"`).
