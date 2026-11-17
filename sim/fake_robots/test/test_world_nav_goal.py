@@ -123,3 +123,21 @@ def test_blocked_clears_only_after_unblock_m_from_where_it_started():
     robot.pose = (0.16, 0.0)
     run._progress(SimpleNamespace(t=t), robot)
     assert not run.blocked
+
+
+def test_turning_at_the_end_keeps_the_blocked_report_until_the_goal_ends():
+    """끝에서 도는 것은 진전이지만 보고용 막힘은 0.15 m 전에는 끄지 않는다(Pode와 같이)."""
+    import math as _m
+    from types import SimpleNamespace
+
+    from fake_robots.world.nav_goal import NavGoalRun
+
+    run = NavGoalRun(1, (0.06, 0.0), _m.pi, 0.1, 10.0)
+    run.started, run.way = True, [(0.06, 0.0)]
+    run.mark, run.mark_t = (0.0, 0.0), 0.0
+    robot = SimpleNamespace(pose=(0.0, 0.0), yaw=0.0)
+    run._progress(SimpleNamespace(t=10.0), robot)
+    assert run.blocked
+    robot.pose = (0.06, 0.0)
+    assert run._drive(SimpleNamespace(t=10.1, dt=0.1), robot) is None  # 아직 도는 중
+    assert run.blocked and not run.stuck

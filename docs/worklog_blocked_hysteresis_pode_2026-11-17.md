@@ -160,3 +160,10 @@ FAILED test_nav_goal_clearing_on_distance_does_not_block_again_in_the_same_tick 
   - 고친 뒤: `1026 passed, 27 xfailed in 788.46s`(새 시험 3개. 실패한 시험이나 결과가 바뀐 시험은 없다. 위의 지난 시각을 묻던 시험 하나는 고쳐 썼다).
 - fleet_manager와 pc/ 시험은 도메인 50~59를 써서 돌리지 않았다. 가짜의 BLOCKED가 길어진 만큼 관제 시나리오
   시험의 시간이 달라질 수 있으니 그쪽 담당이 돌려 봐야 한다.
+
+## 10. 3차 리뷰(4f87eab..e935998) 뒤
+
+- [확정] `NavGoalRun`이 끝에서 돌기 시작하면 보고용 막힘을 지웠다: 끝 회전 중에도 `held_at`을 두게 고침
+  (회전은 정체 시계만 다시 잡는다). 시험 `test_turning_at_the_end_keeps_the_blocked_report_until_the_goal_ends`가
+  고치기 전 실패(`assert (False)`), 고친 뒤 통과.
+- [확정] 계약의 nav_goal "끔"에 교착 처리 시작(`RECOVERING`)으로 끄는 경우가 빠져 있었다: 적음.

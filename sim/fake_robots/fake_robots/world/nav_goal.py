@@ -108,8 +108,8 @@ class NavGoalRun(Run):
         if self.way is None:  # 지금은 길이 없다(다른 로봇, 물체): 서서 다시 계획한다
             self._stand(ctx, robot)
             return None
-        self.mark_t, self.blocked = ctx.t, False  # 끝에서 도는 것도 나아가는 것이다
-        self.stuck, self.held_at = False, None
+        self.mark_t, self.stuck = ctx.t, False  # 끝에서 도는 것도 나아가는 것이다
+        self.blocked = self.held_at is not None  # 보고용 막힘은 목표가 끝날 때까지 둔다
         if Turning.toward(ctx, robot, self.yaw):
             return self.done(True)
         return None
