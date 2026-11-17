@@ -7,7 +7,7 @@ import math
 from fleet_core.common.commands import DispatchResult, EventOut, RobotIsolated
 from fleet_core.fleet_map import SHARED
 from fleet_core.traffic.deadlock import priority
-from fleet_core.traffic.mission import AT_STATION, ERROR, FILL, NOT_AT_TARGET, RUN, SWAP
+from fleet_core.traffic.mission import AT_STATION, ERROR, FILL, NOT_AT_TARGET, RUN
 from fleet_core.traffic.selector import RobotSelector
 
 from .grants import ZoneGrants
@@ -30,7 +30,6 @@ class ZoneBase:
         self.selector = RobotSelector(site, params)
         self._robots = {name: Robot(name) for name in robots}
         self._work = next(s.id for s in site.stations.values() if s.action == FILL)
-        self._outbound = next(s.id for s in site.stations.values() if s.action == SWAP)
         self._open_calls: list[int] = []
         self._out: list = []
         self._run_mode = RUN
