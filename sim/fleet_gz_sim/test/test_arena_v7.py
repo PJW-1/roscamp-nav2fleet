@@ -490,11 +490,13 @@ def test_v7_corridor_box_keeps_one_box_in_the_middle_corridor_for_the_whole_run(
     assert (box.x, box.y) == pytest.approx((0.952, 0.595))
     assert (box.x, box.y) == pytest.approx((mix.obstacles[3].x, mix.obstacles[3].y))
     assert schedule.size_m == mix.size_m
-    assert 15 <= box.at_s <= 30, "sim_obstacles가 뜬 뒤, 곧"
+    # at_s는 시뮬 절대 시각이고 노드가 뜨기 전 항목은 건너뛴다: 노드가 늦게 떠도 되게 30 s
+    assert box.at_s == 30, "sim_obstacles가 뜬 뒤"
     assert box.duration_s >= 1800
     assert schedule.repeat_every_s is None
     o_in = site.node_pose("O_IN")
     assert math.dist(o_in, (box.x, box.y)) > 0.35 + 0.1
-    planner = Planner(schedule, start_s=1.0, max_delay_s=20.0)
-    step = planner.step(box.at_s, [o_in], 0.35)
-    assert [occ.obstacle for occ in step.spawn] == [box]
+    for start_s in (1.0, 25.0):  # 노드의 첫 tick이 늦어도(시뮬 25 s) 놓는다
+        planner = Planner(schedule, start_s=start_s, max_delay_s=20.0)
+        step = planner.step(box.at_s, [o_in], 0.35)
+        assert [occ.obstacle for occ in step.spawn] == [box]

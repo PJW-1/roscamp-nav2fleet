@@ -143,10 +143,24 @@ def keepout_zones(site, points) -> list[str]:
     return seen
 
 
-def through_gate(points, gate) -> bool:
-    """점 하나라도 사각형(x0, y0, x1, y1) 안(경계 포함)이면 참."""
-    x0, y0, x1, y1 = gate
-    return any(x0 <= x <= x1 and y0 <= y <= y1 for x, y, *_ in points)
+def through_gate(points, gate, axis: int = 0) -> bool:
+    """사각형(x0, y0, x1, y1)을 axis(0이면 x, 1이면 y) 방향으로 한쪽에서 들어가 반대쪽으로 나간 적이
+    있으면 참. 들어갔다 되돌아오거나 안에서 멈추면 거짓. 다른 축으로 사각형 밖이면 처음부터 다시 본다."""
+    lo, hi = gate[axis], gate[axis + 2]
+    other_lo, other_hi = gate[1 - axis], gate[3 - axis]
+    last = None  # 마지막으로 있던 바깥쪽(-1 앞, 1 뒤)
+    for p in points:
+        a, other = p[axis], p[1 - axis]
+        if not other_lo <= other <= other_hi:
+            last = None
+            continue
+        if lo <= a <= hi:
+            continue
+        side = -1 if a < lo else 1
+        if last == -side:
+            return True
+        last = side
+    return False
 
 
 def decimate(points, step_m: float) -> list:

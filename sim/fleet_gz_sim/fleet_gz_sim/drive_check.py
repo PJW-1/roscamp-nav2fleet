@@ -231,7 +231,9 @@ def run(args) -> dict:
         if math.dist((x, y), site.node_pose(begin)) > START_M:
             raise RuntimeError(f"robot at ({x:.2f}, {y:.2f}) is not on {begin}")
         if args.wait_box > 0 and not wait_for(lambda: bool(node.boxes), args.wait_box):
-            raise RuntimeError(f"no box on /sim/obstacle_markers after {args.wait_box:g} s")
+            raise RuntimeError(f"no box on /sim/obstacle_markers after {args.wait_box:g} s"
+                               " (sim_obstacles started after at_s, or a robot within 0.35 m"
+                               " made it give the box up)")
         results = []
         for step in steps:
             wait_for(lambda: node.state is not None and node.state.state == "IDLE", 10.0)

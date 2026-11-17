@@ -119,8 +119,15 @@ def test_the_corridor_link_and_the_robot_body_along_it_are_outside_the_keepout_m
 def test_through_gate_decimate_and_min_distance():
     gate = (0.90, 0.405, 1.00, 0.77)
     assert sp.through_gate([(0.5, 0.6), (0.95, 0.5), (1.6, 0.55)], gate)
+    assert sp.through_gate([(1.6, 0.55), (0.95, 0.5), (0.93, 0.6), (0.5, 0.6)], gate)
     assert not sp.through_gate([(0.5, 0.6), (0.95, 0.2), (1.6, 0.55)], gate)  # 남쪽 통로
+    assert not sp.through_gate([(0.5, 0.6), (0.95, 0.5), (0.6, 0.6)], gate)  # 들어갔다 되돌아옴
+    assert not sp.through_gate([(0.5, 0.6), (0.95, 0.5)], gate)  # 안에서 멈춤
     assert not sp.through_gate([], gate)
+    # axis=1: 남북으로 지나기(진열대 사이 틈)
+    gap = (0.99, 0.365, 1.25, 0.405)
+    assert sp.through_gate([(1.12, 0.55), (1.12, 0.385), (1.12, 0.24)], gap, axis=1)
+    assert not sp.through_gate([(0.6, 0.55), (0.6, 0.385), (0.6, 0.24)], gap, axis=1)
     line = [(0.01 * i, 0.0) for i in range(31)]
     assert sp.decimate(line, 0.05) == [line[0], line[5], line[10], line[15], line[20],
                                        line[25], line[30]]
