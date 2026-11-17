@@ -28,6 +28,7 @@
 | 1부 2 숨은 결합과 죽은 코드 | 끝 | 07338a4 | 1120 / 883 / 84 | 0줄 |
 | 1부 3 감시 기록을 Episode로 | 끝 | 82f805d | 1121 / 883 / 84 | 0줄 |
 | 1부 4 `Robot` 필드 묶기 | 끝 | 532a247 | 1121 / 883 / 84 | 0줄 |
+| 1부 5 약하게 묶인 믹스인 떼기 | 끝 | 23f2211 | 1121 / 883 / 84 | 0줄 |
 | 2부 A1 양보 보고 도구 | 끝 | `tools/yield-report` bf7848c | tools 시험 5개 추가 | 제품 코드 변경 없음 |
 | 2부 A3 가짜 로봇의 양보 사다리 | 끝(끔이 기본) | `refactor/yield-a3-fake-ladder` 25664cf | 1118 / 895 / 84, pode_fsm 366 passed 8 skipped | 끔일 때 0줄 |
 
@@ -36,6 +37,7 @@
 - fleet_core가 1118에서 1121로 는 것은 새 구조 시험 셋(`test_zone_goal_life.py`) 때문이다. 지운 시험은 없다.
 - 3·4단계는 커밋마다 빠른 검사(trace, store, order 표 diff, fleet_core 시험, ruff)를 하고, 전체 비교(`tools/zone_compare.sh`)는
   19447ed(3단계 첫 커밋), 82f805d(3단계 끝), 532a247(4단계 끝)에서 돌렸다. 모두 0줄이다.
+- 5단계도 커밋마다 빠른 검사를 하고, 전체 비교는 718c5f5(중간)와 23f2211(5단계 끝)에서 돌렸다. 모두 0줄, suite_trace 바뀜 0.
 
 ## 2. 기준과 비교 방법
 
@@ -81,6 +83,20 @@
 - 3·4단계에서 경로만 바꾼 시험(기대값 그대로): `test_zone_corridor`, `test_zone_failures`, `test_zone_block_marks`,
   `test_zone_local_yield`, `test_zone_isolation`, `test_zone_at_target`, `test_zone_move_orders`, `test_zone_plumbing`,
   `test_zone_silent`, `test_zone_yard_retreat`.
+- **5단계:** 믹스인 23개(+GoalLife 24개) → 16개(+ ZoneBase = 기반 17개). 커밋 하나에 한 묶음씩, 모두 `ZoneBase.__init__`이 만드는 작은 객체로.
+  - 2b01529 Views → `ZoneViews`. ZoneTraffic에 한 줄 위임 5개. `robots`, `running`, `zones`, `available`, `take_output`은 ZoneBase로.
+    객체는 ZoneBase가 만든다(ZoneTraffic에 `__init__`을 두면 이름 중복 시험이 ZoneBase와 겹친다고 본다).
+  - 106b944 Capacity, Localization, NoStart → `CapacityCheck`, `PoseJumpWatch`, `StartWatch`. 콜백은 `emit`(= `_event`) 하나.
+  - 718c5f5 Silent, Detours → `SilentWatch`(emit, emit_once), `DetourNotes`(emit). `_event`가 `SilentWatch.note`를 부른다.
+  - 3bf7be3 BlockMarks + ClearChecks → `MarkBook`. `_mark_memory`와 번호는 MarkBook 안에만 있다. 이벤트와 `CheckClearCmd`는
+    돌려주고 ZoneTraffic 쪽이 같은 자리에서 낸다(직접 내게 하면 콜백이 다섯이라 멈춤 조건에 걸린다). 콜백은 clock 하나.
+    로봇·지도를 보는 도우미는 Blocked로 옮겼다. `clear_checks.py`는 없어졌다.
+  - 23f2211 대기 순환 감지 → `DeadlockWatch`(emit). 비킬 로봇 결정(`choose_retreat`, `_evade`)과 `_near`, `_watch_near`,
+    `_to_parking`은 Watch에 남았다.
+  - 멈춤 조건에 걸려 남긴 묶음은 없다. tick 안 호출 순서는 하나도 바꾸지 않았다. Backoff, `_stand_aside`, `_awaits_blocked`는
+    건드리지 않았다(2부 A2).
+  - 경로만 바꾼 시험: `test_zone_silent`(`_start_watch.watch` 대치), `test_zone_failures`·`test_zone_watch`(`_deadlock.cycle`),
+    `test_zone_mixins`(설명문만).
 
 ## 4. 2부에서 한 일
 
