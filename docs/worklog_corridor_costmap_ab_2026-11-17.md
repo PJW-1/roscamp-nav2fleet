@@ -157,6 +157,10 @@ ros2 launch fleet_gz_sim gz.launch.py $GAME nav_map_variant:=ab nav_overrides:=$
 세 대 판(`gz_v7_varied` + `v7_yard_mix`)은 상자 4가 있는 동안 아무도 가운데 통로로 보내지 않아 갈래를 비교할 수 없다.
 그래서 Pode 한 대를 `one_pode.launch.py`로 띄우고 `drive_check`가 Nav2 goal을 바로 보낸다(관제 없음). Gazebo로는 아직 돌리지 않았다.
 
+> 브랜치 `exp/corridor-repro-gap`(= `exp/corridor-repro` + `fix/v7-shelf-gap-open`)에서 읽는 경우: 이 브랜치의 지도는 **틈이 열린**
+> 지도다(`arena_v7_keepout.pgm`에서 x 0.995~1.245, y 0.365~0.405의 130칸이 비었다). 아래에서 "지금 지도(틈 keepout 있음)"라고 한 것은
+> `exp/corridor-repro`의 지도이고, 이 브랜치로 돈 틈 판은 `gap_open`이다. 통로 안의 남쪽 경계선 keepout도 이 브랜치에는 없다.
+
 - `one_pode.launch.py nav_map_variant:=a|b|ab`: gz.launch.py와 같은 뜻, 같은 검사(`arena_for`), v7만. map_server(`map`)만 갈래 지도,
   AMCL(`map_fine`, 1 cm)과 keepout 마스크는 그대로(시험 `test_one_pode_wiring`).
 - 계획 `corridor`(v7): O_IN -> M_E -> O_IN, 둘 다 nav_goal. `--laps`만큼 되풀이. 시작은 O_IN(서는 방향 108도).
