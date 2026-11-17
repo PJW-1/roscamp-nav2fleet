@@ -1,7 +1,7 @@
 # P-3 앞 남쪽 통로 끼임 진단 (2026-11-17)
 
 사용자: "원래 전에는 통과했던거같은데 왜갑자기 멈추지", "왜 갑자기 막히는지 그리고 해결방안도 찾아놔".
-브랜치 `exp/wedge-clear-timeout-off`(진단용, main에 넣지 않는다). 바탕은 `feat/v7-no-divider3`(새 배치).
+브랜치 `exp/wedge-clear-timeout-off`(진단용, 실험 코드는 main에 넣지 않는다. 이 기록 문서는 main에 있다). 바탕은 `feat/v7-no-divider3`(새 배치).
 
 ## 1. 장면
 
@@ -21,10 +21,10 @@
 | div3_1 | main + 새 배치(시험 부하 겹침) | 496.3 | 40 | 2 | 2 (Q2) | 0 | 0 | 23 | 522 |
 | div3_2 | main + 새 배치 | 595.8 | 135 | 6 | 7 (Q2, O_IN x3, Q2 x3) | 0 | 0 | 60 | 1418 |
 | div3_watch | main + 새 배치 | 481.9 | 38 | 2 | 2 (Q2) | 0 | 0 | 14 | 350 |
-| **wedge_noclr** | main + 새 배치, **clear 20 ms(이 브랜치)** | **467.6** | **19** | **1** | **0** | **7** | **7** | **0** | **64** |
+| **wedge_noclr** | main + 새 배치, **clear 20 ms(`exp/wedge-clear-timeout-off`)** | **467.6** | **19** | **1** | **0** | **7** | **7** | **0** | **64** |
 
 - corr_* 판은 브랜치 `exp/corridor-costmap-ab` 680fda8 빌드(aI는 nav_overrides)다. main 판과 다른 점은 clear 시간만이 아니다(keepout 틈, BLOCKED 유지, fleet 타이머도 없다).
-- wedge_noclr는 div3 설치본 위에 이 브랜치의 `pode_nav_config`만 얹었다(`run_wedge.sh`). 그 패키지의 차이는 Clear 노드 4곳의 `server_timeout` 1000 -> 생략(= bt_navigator `default_server_timeout` 20 ms)이다.
+- wedge_noclr는 div3 설치본 위에 `exp/wedge-clear-timeout-off`의 `pode_nav_config`만 얹었다(`run_wedge.sh`). 그 패키지의 차이는 Clear 노드 4곳의 `server_timeout` 1000 -> 생략(= bt_navigator `default_server_timeout` 20 ms)이다.
 - wedge_noclr의 pode2: 428 s (0.68, 0.28)까지 틈에 들어갔다가 RECOVERING으로 (0.62, 0.38)(진열대 B 서쪽 끝 바깥)까지 물러났다. 431~451 s 그 자리에 섰고(441~450 s BLOCKED), 451 s 관제가 E-2->E-3를 막힘 표시하고 길을 다시 주자 북쪽 가운데 통로((0.52, 0.43) -> (0.96, 0.57) -> (1.55, 0.58))로 돌아 467.6 s Q2. 판 PASS 12/12, 571.3 s, 위반 0, near 0, min_gap 0.164. 514 s의 BLOCKED 4표본((0.14, 0.27), E-1 부근)은 다른 장면이다.
 - 956140d..9261ad5에서 바뀐 Nav2 값은 global costmap뿐이다(pad 0.03->0.01, res 0.05->0.025, inflation 6.0/0.25 -> 15.0/0.15). FollowPathGoal 값(`pode/pode_avoidance/params/avoidance.yaml`)과 local costmap은 그대로다. BT는 Clear 노드 4개의 `server_timeout` 20 -> 1000 ms(1c8858e, 11e9aba).
 - Gazebo는 peer 층(`peer_obstacles` 기본 true)이 global과 local costmap 둘 다에 있다. 다른 로봇을 반지름 0.08 m 원으로 찍는다(5 Hz).
@@ -61,8 +61,8 @@ main_rec 녹화 [확정]:
 ## 3-2. 그 뒤 원인 확인과 고침 (19:40~21:40)
 
 원인 확인 [확정]:
-- 녹화 420~458 s를 RPP식 테두리 검사로 재연한 범위에서, 멈춘 38/55 중 34칸은 pode3 쪽(peer)이고 4칸은 scan/other다(진열대인지는 가르지 못했다). 실제 경고 전체의 칸 위치는 로그에 없어 모른다. Gazebo에서 로봇 라이다(높이 0.125 m)는 다른 Pode를 라이다 받침(약 5.6 cm)으로만 본다. 그래서 몸 칸은 peer 층(원 r 0.08)이다.
-- pode3 동쪽 "덩어리"는 이 원이다. pode2의 AMCL 오차로 local costmap에서 약 3 cm 밀렸다. 옛 칸막이, keepout, 라이다 잡음이 아니다.
+- 녹화 420~458 s를 RPP식 테두리 검사로 재연한 범위에서, 멈춘 38/55 중 34장은 pode3 쪽(peer)이고 4장은 scan/other다(진열대인지는 가르지 못했다). 실제 경고 전체의 칸 위치는 로그에 없어 모른다. Gazebo에서 로봇 라이다(높이 0.125 m)는 다른 Pode를 라이다 받침(약 5.6 cm)으로만 본다. 그래서 몸 칸은 peer 층(원 r 0.08)이다.
+- pode3 동쪽 "덩어리"는 이 원이다. pode2의 AMCL 오차로 local costmap에서 약 2~3.5 cm 밀렸다. 옛 칸막이, keepout, 라이다 잡음이 아니다.
 - [확정] 녹화 costmap에서 RPP 검사를 재연하면 padding 0.01은 38/55, 0.0은 6/55에서 멈춘다(자료 scratchpad `phantom/`).
 - [추측] local_costmap에 footprint_padding이 없어 Jazzy 기본 0.01이 붙은 것이 직접 원인이다. 재연은 기록한 costmap에 추정 자세를 쓴 가정 계산이다. 실제 반복 시험에서도 padding 0은 그대로와 같은 2/5 실패였다.
 
@@ -77,8 +77,8 @@ P-3 장면 반복 시험 [확정]: 브랜치 `exp/p3-scene-test`, 자료 scratch
 | padding 0 + peer 0.075 | 1/5 | 1.3 s | 92줄 | |
 
 - 다각형 기준으로 로봇끼리 겹침은 없었다(pode2-pode3 최소 3.9 cm).
-- 물리 모양(다각형 + 바퀴 충돌 구 + screen_mount 상자) 기준으로도 pode2-pode3 최소 간격은 0.018 m(C3/B)이고 로봇끼리 접촉은 없었다.
-- 물리 모양으로 pode2와 shelf_2의 접촉이 B 묶음에서 C0 3회, C1 1회, C2 1회, C3 1회 났다. A 묶음은 없었다. 접촉 센서가 아니라 truth 자세로 계산한 값이다(자료 `p3scene_runs/main2/analysis_phys.txt`).
+- 물리 모양(다각형 + 바퀴 충돌 구 + screen_mount 상자) 기준으로도 pode2-pode3 최소 간격은 0.018 m(C3/B)이고 계산 간격은 양수였다.
+- 물리 모양으로 계산한 pode2와 shelf_2의 최소 간격이 음수인 판이 B 묶음에서 C0 3판, C1 1판, C2 1판, C3 1판이다. A 묶음은 없었다. 음수는 접촉했을 가능성이 크다는 뜻이다. 접촉 센서가 아니라 truth 자세와 근사한 모양으로 계산한 값이다(자료 `p3scene_runs/main2/analysis_phys.txt`).
 - 시뮬 바퀴 충돌은 구(r 0.028, 중심 |y| 0.0486)라 옆으로 |y| 0.0766까지 나온다. 실물과 다각형은 0.056이다.
 - [추측] 좁은 틈에서 시뮬이 실물보다 더 걸릴 수 있다.
 
@@ -99,4 +99,4 @@ P-3 장면 반복 시험 [확정]: 브랜치 `exp/p3-scene-test`, 자료 scratch
 
 ## 5. 참조 데이터(임시 폴더, 사라질 수 있다)
 
-scratchpad `gz/wedge_noclr/`, `gz/wedge_noclr.log`, 실행 `gz/run_wedge.sh`(div3 설치본 위에 이 브랜치의 pode_nav_config를 얹음), 판단 초안 `judgment_wedge_cause.md`와 Codex 리뷰(`~/codex-review.md` "wedge cause and fixes judgment").
+scratchpad `gz/wedge_noclr/`, `gz/wedge_noclr.log`, 실행 `gz/run_wedge.sh`(div3 설치본 위에 `exp/wedge-clear-timeout-off`의 pode_nav_config를 얹음), 판단 초안 `judgment_wedge_cause.md`와 Codex 리뷰(`~/codex-review.md` "wedge cause and fixes judgment").
