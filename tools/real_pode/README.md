@@ -14,7 +14,7 @@
 | `stop.sh` | start.sh가 띄운 그룹에 SIGTERM. 그룹 안에 `real_pode.launch.py` 명령이 없으면 내리지 않는다 |
 | `env.sh` | ROS, `~/pinky_pro`, `~/nav2fleet_ws`를 읽고 `ROS_DOMAIN_ID=12`, `ROS_AUTOMATIC_DISCOVERY_RANGE=SUBNET` (11-10에 로봇과 PC가 쓴 값) |
 | `deploy.sh ROBOT_HOST` | PC에서: 커밋된 HEAD의 패키지를 `ROBOT:~/nav2fleet_ws/src/<저장소 경로>/`에, 이 폴더(지도 포함)를 `ROBOT:~/nav2fleet_real/`에 복사한다. 빌드와 실행은 하지 않는다 |
-| `maps/` | `sim/fleet_gz_sim/maps/`의 v7 지도 셋(5 cm, 1 cm, keepout) 사본 |
+| `maps/` | `sim/fleet_gz_sim/maps/`의 v7 지도 사본. 기본은 `arena_v7_a`(전역 costmap 2.5 cm, 2026-11-17 결정), `arena_v7_fine`(1 cm, 위치 추정), `arena_v7_keepout`. `arena_v7`(5 cm)은 비교용으로 남긴다 |
 
 ## 왜 속도 사본이 따로 있나
 

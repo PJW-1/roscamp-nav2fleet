@@ -19,7 +19,8 @@ AVOID_SRC = ROOT / "pode" / "pode_avoidance" / "params" / "avoidance.yaml"
 NAV2_LAUNCH = ROOT / "pode" / "pode_nav_config" / "launch" / "nav2.launch.py"
 FSM_LAUNCH = ROOT / "pode" / "pode_fsm" / "launch" / "pode_fsm.launch.py"
 FORWARD = ("FollowPath", "FollowPathThrough")
-MAPS = ("arena_v7", "arena_v7_fine", "arena_v7_keepout")
+# 전역 costmap 지도는 2.5 cm(arena_v7_a, 사용자 결정 2026-11-17), 위치 추정 1 cm, keepout
+MAPS = ("arena_v7_a", "arena_v7_fine", "arena_v7_keepout")
 
 sys.path.insert(0, str(KIT))
 
@@ -146,6 +147,7 @@ def test_launch_drops_dock_stand_in_and_keeps_shutdown():
     assert "bringup_robot.launch.xml" in text
     for name in MAPS:
         assert f"{name}.yaml" in text
+    assert 'MAPS / "arena_v7.yaml"' not in text  # 5 cm 지도는 기본이 아니다
 
 
 def test_kit_maps_equal_sim_maps():

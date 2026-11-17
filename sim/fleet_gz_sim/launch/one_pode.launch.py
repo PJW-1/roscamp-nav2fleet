@@ -42,9 +42,9 @@ ARGS = {
                             " 0.05는 D2 측정으로 고른 값(fixed_line_results.md)"),
     "fixed_line_collision_check": ("false", "시뮬 전용. true면 고정 경로 controller 셋도 충돌"
                                            " 검사를 켠다. 마당 goal(FollowPathGoal)은 늘 켬"),
-    "nav_map_variant": ("", "global costmap 지도 갈래(가운데 통로 비교용, v7만): a는 2.5 cm,"
-                            " b는 칸 중심 규칙, ab는 둘 다. 비면 기본 5 cm 지도. 1 cm 지도와"
-                            " keepout 마스크는 그대로(gz.launch.py와 같다)"),
+    "nav_map_variant": ("", "global costmap 지도 갈래(v7만): 비면 배치 기본(v7은 a, 2.5 cm),"
+                            " base는 5 cm 지도, b는 칸 중심 규칙, ab는 둘 다. 1 cm 지도와"
+                            " keepout 마스크는 그대로"),
 }
 STILL = "pode_still"
 

@@ -46,9 +46,16 @@ def test_a_nav_map_variant_swaps_only_the_costmap_map(variant):
     assert found.keepout_mask == base.keepout_mask and found.layout == "v7"
 
 
-def test_the_default_nav_map_variant_is_the_plain_map():
+def test_v7_uses_the_2p5_cm_map_by_default_and_base_gives_the_5_cm_map():
+    """사용자 결정(2026-11-17): v7 기본은 갈래 a(2.5 cm). base는 예전 5 cm 지도(비교용)."""
     assert fleet_setup.arena_for("v7", PKG) == fleet_setup.arena_for("v7", PKG, "")
-    assert Path(fleet_setup.arena_for("v7", PKG).nav_map) == PKG / "maps" / "arena_v7.yaml"
+    assert Path(fleet_setup.arena_for("v7", PKG).nav_map) == PKG / "maps" / "arena_v7_a.yaml"
+    assert Path(fleet_setup.arena_for("v7", PKG, "base").nav_map) == PKG / "maps" / "arena_v7.yaml"
+
+
+def test_other_layouts_keep_their_plain_map():
+    assert Path(fleet_setup.arena_for("d2", PKG).nav_map).name == "arena_d2.yaml"
+    assert fleet_setup.arena_for("d2", PKG, "base") == fleet_setup.arena_for("d2", PKG)
 
 
 def test_an_unknown_nav_map_variant_or_a_layout_without_it_is_refused():

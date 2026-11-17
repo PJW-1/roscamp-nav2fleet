@@ -70,15 +70,25 @@ class Arena:
     keepout_mask: str
 
 
+# 배치별 기본 갈래. v7은 2.5 cm 지도(사용자 결정 2026-11-17, 통로 Gazebo 비교 판)
+DEFAULT_NAV_VARIANT = {"v7": "a"}
+BASE_NAV_VARIANT = "base"  # 갈래 없는 5 cm 지도(비교용)
+
+
 def arena_for(layout: str, gz_share: str | Path, nav_map_variant: str = "") -> Arena:
-    """nav_map_variant: 비면 기본 5 cm 지도. 아니면 arena_maps.NAV_VARIANTS의 갈래 지도
-    (maps/<경기장>_<갈래>.yaml)로 nav_map만 바꾼다. 1 cm 지도와 keepout 마스크는 그대로."""
+    """nav_map_variant: 비면 배치 기본(DEFAULT_NAV_VARIANT, 없으면 5 cm 지도), base면 5 cm 지도.
+    아니면 arena_maps.NAV_VARIANTS의 갈래 지도(maps/<경기장>_<갈래>.yaml)로 nav_map만 바꾼다.
+    1 cm 지도와 keepout 마스크는 그대로."""
     from fleet_gz_sim.arena import NAV_VARIANT_LAYOUTS
     from fleet_gz_sim.arena_maps import NAV_VARIANTS
     name = load_fleet_map(layout_of(layout)).name
-    if nav_map_variant and nav_map_variant not in NAV_VARIANTS:
-        raise ScenarioUnfit(f"nav_map_variant must be empty or one of {', '.join(NAV_VARIANTS)},"
-                            f" got {nav_map_variant!r}")
+    if nav_map_variant and nav_map_variant not in (*NAV_VARIANTS, BASE_NAV_VARIANT):
+        raise ScenarioUnfit(f"nav_map_variant must be empty, {BASE_NAV_VARIANT} or one of"
+                            f" {', '.join(NAV_VARIANTS)}, got {nav_map_variant!r}")
+    if nav_map_variant == BASE_NAV_VARIANT:
+        nav_map_variant = ""
+    elif not nav_map_variant:
+        nav_map_variant = DEFAULT_NAV_VARIANT.get(layout, "")
     if nav_map_variant and layout not in NAV_VARIANT_LAYOUTS:
         raise ScenarioUnfit(f"nav_map_variant {nav_map_variant!r} exists only for layout"
                             f" {', '.join(NAV_VARIANT_LAYOUTS)}, not {layout!r}")

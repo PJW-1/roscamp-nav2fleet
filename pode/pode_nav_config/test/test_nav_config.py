@@ -422,9 +422,18 @@ def _inflated(free_cells: int, glob: dict) -> list[int]:
     return out
 
 
-@pytest.mark.parametrize("free_cells", [6, 7])
+def test_the_global_costmap_is_the_a_plus_inflation_setting():
+    """사용자 결정(2026-11-17, Gazebo 비교 판): 2.5 cm 지도, padding 0.01, inflation 15.0/0.15.
+    시뮬과 실물이 같이 쓴다."""
+    glob = params("global_costmap", "global_costmap")
+    assert glob["resolution"] == 0.025 and glob["footprint_padding"] == 0.01
+    infl = glob["inflation_layer"]
+    assert (infl["cost_scaling_factor"], infl["inflation_radius"]) == (15.0, 0.15)
+
+
+@pytest.mark.parametrize("free_cells", [14, 15])
 def test_navfn_finds_a_way_through_a_0_38_m_passage(free_cells):
-    """0.38 m on a 5 cm map is 6 or 7 free cells, depending on how the walls fall on the grid.
+    """0.38 m on a 2.5 cm map is 14 or 15 free cells, depending on how the walls fall on the grid.
     NavFn treats cells at or above INSCRIBED (253) as walls; at least one cell must be below and
     the middle must be the cheapest, so goal paths keep to the middle of the passage."""
     glob = params("global_costmap", "global_costmap")
@@ -439,12 +448,14 @@ def test_the_wide_yard_has_cost_free_room_in_the_middle():
     assert 0 in _inflated(int(0.775 / glob["resolution"]), glob)
 
 
-def test_goal_paths_in_the_yard_keep_away_from_walls_and_shelves():
-    """Cells 0.20 m from a wall still cost something, so NavFn keeps goal paths about 0.25 m off
-    walls, shelves and seen robots where there is room (the robot edge then clears by ~0.19 m)."""
+def test_goal_paths_keep_some_room_but_do_not_swing_wide():
+    """벽 칸에서 0.10 m인 칸은 값이 있어 경로가 벽에 바로 붙지 않고, 0.20 m인 칸은 0이라
+    예전(0.25/6.0)처럼 벽에서 0.25 m씩 돌아가지 않는다(O_OUT 경로가 오른쪽으로 돌던 원인)."""
     glob = params("global_costmap", "global_costmap")
-    costs = _inflated(int(0.775 / glob["resolution"]), glob)
-    assert costs[3] > 0  # the fourth free cell: 0.20 m from the wall cell
+    res = glob["resolution"]
+    costs = _inflated(int(0.775 / res), glob)
+    assert costs[round(0.10 / res) - 1] > 0
+    assert costs[round(0.20 / res) - 1] == 0
 
 
 def test_the_local_costmap_that_followpath_uses_is_unchanged():

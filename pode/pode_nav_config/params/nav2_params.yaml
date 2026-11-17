@@ -317,8 +317,11 @@ global_costmap:
       # 사각형 그대로 둔다(추가 지시서 3의 2-1 가정): NavFn은 점으로 계획하고 이 발자국은 inscribed
       # 반지름으로만 쓴다. 바꾸면 마당 Nav2 goal 경로가 벽에 더 붙는다
       footprint: "[[0.06, 0.06], [0.06, -0.06], [-0.06, -0.06], [-0.06, 0.06]]"
-      footprint_padding: 0.03
-      resolution: 0.05
+      # 2.5 cm 지도, padding 0.01, inflation 15.0/0.15(사용자 결정 2026-11-17, 통로 Gazebo 비교 판).
+      # 정적 층이 지도 해상도를 따르므로 resolution은 기록용이다. inscribed 0.07 m는 제자리 회전
+      # 반지름(뒤 모서리 0.0845 m)보다 작다: 벽에 붙은 경로 칸에서 돌면 닿을 수 있다
+      footprint_padding: 0.01
+      resolution: 0.025
       track_unknown_space: true
       # 안내 3절: 버전 2 우회 경로 계산을 위해 라이다 장애물 층을 둔다
       plugins: ["static_layer", "obstacle_layer", "inflation_layer"]
@@ -341,15 +344,13 @@ global_costmap:
           obstacle_min_range: 0.0
           max_obstacle_height: 2.0
       # Nav2 goal 경로(NavFn)만 쓴다. local costmap(FollowPath, BLOCKED 판단)은 0.15/3.0 그대로다.
-      # 0.25/6.0(2026-11-12): 벽 칸에서 0.20 m 떨어진 칸도 값이 있어 넓은 마당에서는 경로가 벽,
-      # 진열대, 라이다에 보인 다른 Pode에서 약 0.25 m 떨어져 간다. 0.38 m 통로(5 cm 지도에서 빈 칸
-      # 6~7개)에서도 가운데 칸은 INSCRIBED(253)보다 낮아(약 140~180) 길이 나오고 가운데가 가장
-      # 싸다. NavFn은 점으로 계획하므로 몸(0.12 m + padding 0.03 m)은 INSCRIBED 반지름 0.09 m로만
-      # 본다. 제자리 회전 반지름 0.083 m도 그 안이다. test_nav_config가 두 경우를 계산해 본다
+      # 15.0/0.15(2026-11-17): 벽 칸에서 0.10 m인 칸은 값이 있고 0.20 m인 칸은 0이다. 예전 0.25/6.0은
+      # 경로가 벽에서 약 0.25 m씩 돌아가 O_OUT 등에서 크게 휘었다. NavFn은 점으로 계획하므로 몸
+      # (0.12 m + padding 0.01 m)은 INSCRIBED 반지름 0.07 m로만 본다. test_nav_config가 계산해 본다
       inflation_layer:
         plugin: "nav2_costmap_2d::InflationLayer"
-        cost_scaling_factor: 6.0
-        inflation_radius: 0.25
+        cost_scaling_factor: 15.0
+        inflation_radius: 0.15
       always_send_full_costmap: true
       # keepout(급행, 도크 구역)은 launch 인자 keepout_mask가 있을 때만 params/keepout.yaml로 더한다
 

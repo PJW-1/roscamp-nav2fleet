@@ -82,7 +82,7 @@ def generate_launch_description():
         DeclareLaunchArgument("initial_x", default_value="0.12"),
         DeclareLaunchArgument("initial_y", default_value="0.10"),
         DeclareLaunchArgument("initial_yaw", default_value="1.5708"),
-        DeclareLaunchArgument("map", default_value=str(MAPS / "arena_v7.yaml")),
+        DeclareLaunchArgument("map", default_value=str(MAPS / "arena_v7_a.yaml")),  # 2.5 cm 지도(11-17 결정)
         DeclareLaunchArgument("map_fine", default_value=str(MAPS / "arena_v7_fine.yaml")),
         DeclareLaunchArgument("keepout_mask", default_value=str(MAPS / "arena_v7_keepout.yaml"),
                               description="비우면 keepout을 끈다"),
