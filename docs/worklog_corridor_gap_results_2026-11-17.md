@@ -143,20 +143,41 @@ shelf_3 동쪽 모서리를 남쪽으로 돌 때 로봇 중심과 모서리 (1.5
 - [추측] 지도 설정만으로는 로봇이 그 공간을 쓰게 되지 않는다. 한 판씩이므로 설정 탓이 아니라고도 단정하지 않는다.
 - 세 대 판의 상자 시간대(371.7~432.8 s 등)는 분석 스크립트가 로그 시각에서 60 s를 빼서 만든 값이라 `robots.csv` 시간축과 같다고 확인되지 않았다. 이 문서에는 쓰지 않는다. 통로 안 표본 그룹 수는 A 2, base 4, aI 4다.
 
-## 6. 남은 일
+## 6. 병합본 확인 판(main에 올리기 전)
+
+- 브랜치 `merge/drive-2026-11-17`: aI 기본값(c518d36), 틈 열기, BLOCKED 히스테리시스(fleet, pode), Clear 대기 한도 1000 ms를 합친 빌드다. 이 넷을 한 판에 같이 돌린 것은 처음이다. 빌드는 12:51(d7a3cc5까지). 뒤의 커밋은 문서와 시험만 바꿨다.
+- 인자: 2절의 공통 인자 그대로. `nav_map_variant`와 `nav_overrides`는 주지 않았다(기본값 = aI). 도메인 61, 한 번.
+- 결과 [확정, summary.json, safety.json, robots.csv, events.csv, 로그]:
+
+| 항목 | 병합본 | 참고: aI 판 |
+|---|---|---|
+| 결과 | PASS 12/12, 위반 0 | PASS 12/12 |
+| 걸린 시간 | 572.5 s | 572.7 s |
+| BLOCKED 표본 | 38(모두 pode2) | 6 |
+| BLOCKED_WAIT / ZONE_MARKED_BLOCKED / NO_START | 2 / 2 / 2 | 1 / 0 / 0 |
+| RPP "collision ahead" | 551줄 | 138줄 |
+| ClearEntireCostmap 시간 초과 경고 | 0 | 2 |
+| safety.json near / min_gap_m(truth 중심 거리) | 0 / 0.166 m | 0 / 0.201 m |
+
+- BLOCKED 38표본은 한 장면이다. pode2가 428.99~458.70 s에 (0.53~0.63, 0.28~0.31)에서 Q2로 가다 막혔다. 그때 pode3은 (0.619, 0.129)에 IDLE로 서 있었다. base 판에서 막혔던 장면과 같은 자리다. 막힘 표시(E-2->E-3, here->Q2) 뒤 다른 길로 가서 판은 PASS했다.
+- 판이 PASS로 끝난 뒤 launch를 내릴 때 Nav2 컨테이너가 SIGINT에 5 s 안에 안 꺼져 SIGTERM, SIGKILL로 내려갔다. 그래서 실행 스크립트의 rc가 1이다.
+- [추측] aI 판과 다른 숫자(BLOCKED, collision 줄)가 합친 변경 때문인지 판마다 다른 것인지는 한 판으로 가를 수 없다. aI 판에서는 이 장면에서 pode2가 pode3 옆을 지나갔다.
+
+## 7. 남은 일
 
 | 일 | 상태 |
 |---|---|
 | 모서리 (나) lookahead 단축, (다) 후진 복구 | 미결정. (다)는 사용자가 뺀 BackUp을 다시 쓰는 일이라 결정이 필요하다 |
 | 모서리 진단 | 계획 좌표(`/plan`)와 모서리를 도는 시각의 자세를 기록해 계획과 제어를 가른다 |
 | drive_check | `exp/corridor-repro`의 `drive_check.py:280-283`은 `move_to` 서버와 IDLE만 기다린다. Nav2 lifecycle이 active가 되는 것은 기다리지 않는다. scratchpad 실행 스크립트(`run_repro_rerun2.sh`)가 따로 기다려 돌아갔다. 코드 고침은 하지 않았다 |
-| 반복 | 세 대 판과 한 대 판은 한 번씩이다. 반복해서 확인한다 |
+| 반복 | 세 대 판과 한 대 판은 한 번씩이다. 반복해서 확인한다. 병합본 판의 남쪽 통로 서쪽 막힘(6절)도 함께 본다 |
 | 실제 아레나 | padding 0.01은 실제 위치 오차를 모르는 채 정한 값이다. 실제 로봇 위치 오차를 잰 뒤 다시 본다 |
 | 지그재그 | Smac 2D와 smoother 작업은 위 일을 끝낸 뒤에 한다 |
 
-## 7. 참조 데이터(임시 폴더, 사라질 수 있다)
+## 8. 참조 데이터(임시 폴더, 사라질 수 있다)
 
 - 세 대 판: scratchpad `gz/corr_a`, `corr_base`, `corr_b`, `corr_baseI`, `corr_aI`(robots.csv, events.csv, safety.json, summary.json, fleet_record.jsonl)와 `gz/corr_*.log`. 분석 `gz/analyze_game.py`.
 - 한 대 판: `gz/repro/`의 `corr1_base.json`, `corr1_a.json`, `corr1_baseI.json`, `corr1_aI_r2.json`, `gap_open_base.json`, `gap_open_aI_r2.json`.
 - 경로 계획만 잰 결과(headless): `corridor_ab/oout_planner.log`. 상자 없이 O_IN->M_E 길이 base 1.149, baseI 1.205, A 1.165, aI 1.189 m(직선 1.157)다.
+- 병합본 판: `gz/final_main/`와 `gz/final_main.log`, 시험 로그 `gz/final/`.
 - 진단: `b_stuck_diag2.md`, `corner_stuck_pattern.md`, `corner_analysis/`.
