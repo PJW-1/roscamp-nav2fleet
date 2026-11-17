@@ -108,7 +108,7 @@ ros2 launch fleet_gz_sim gz.launch.py $GAME nav_map_variant:=b result_dir:=gz_re
 ros2 launch fleet_gz_sim gz.launch.py $GAME nav_map_variant:=ab nav_overrides:=$OV/global_padding_0p01.yaml result_dir:=gz_result/corr_ab
 ```
 
-- `nav_map_variant`는 v7에만 있다. 다른 배치에 주면 지도 파일이 없다며 띄우기 전에 멈춘다. 모르는 이름도 멈춘다.
+- `nav_map_variant`는 v7에만 있다. 다른 배치에 주면 `only for layout v7`로 띄우기 전에 멈춘다. 모르는 이름도 멈춘다.
 - `nav_overrides`는 파일 하나만 받는다. 다른 덮어쓰기(예: `feat/nav-goal-smooth`의 값)와 함께 쓰려면 두 내용을 한 파일에 합친다.
 - 확인할 것: global costmap 해상도(A, A+B는 0.025). `StaticLayer: Resizing costmap to ... m/pix`는 INFO 로그라 기본
   `nav_log_level:=warn`에서는 안 보인다. 보려면 `nav_log_level:=info`를 더하거나(로그가 많아진다), 판 도중에

@@ -56,7 +56,7 @@ def centre_filled(rects, width: int, height: int, resolution: float, origin) -> 
     """칸 중심이 사각형 안(경계 포함, 소수 오차로 HAIR 칸까지 허용)인 칸은 참. 한 축에서 중심을
     하나도 덮지 않는 얇은 상자는 그 축에서 상자 가운데가 든 칸 하나를 칠한다(2 cm 칸막이가 지도에서
     사라지지 않게). 상자마다 따로 칠하므로 격자에 어긋나게 맞닿은 상자 사이에는 대각 틈이 날 수
-    있다(v7에는 없다: test_arena_v7)."""
+    있다(v7은 벽 밖 빈칸이 안쪽에 닿지 않고 칸막이가 벽과 이어짐만 test_arena_v7가 본다)."""
     grid = [[False] * width for _ in range(height)]
 
     def cells(lo: float, hi: float, start: float, count: int) -> range:
