@@ -71,6 +71,8 @@ class SimStandIn(Node):
         self.declare_parameter("robots", ["pode1", "pode2", "pode3"])
         stub = bool(self.declare_parameter("dock_stub", False).value)
         self.declare_parameter("peer_obstacles", False)  # main이 읽는다(peer_nodes)
+        self.declare_parameter("plan_keep_nodes", False)  # main이 읽는다(plan_keep_nodes)
+        self.declare_parameter("plan_keep", True)
         if stub:  # before anything else: never serve a dock outside an isolated Gazebo run
             require_dock_stub_allowed(bool(self.get_parameter("use_sim_time").value),
                                       os.environ, rmw=rclpy.get_rmw_implementation_identifier(),
@@ -211,10 +213,21 @@ def peer_nodes(node) -> list:
     return make_fleet(robots, node.get_parameter("use_sim_time").value, node.context)
 
 
+def plan_keep_nodes(node) -> list:
+    """node의 plan_keep_nodes가 참이면 로봇마다의 길 유지 노드(pode_plan_keep), 아니면 빈 목록.
+    Nav2 행동 트리가 compute_path_keep을 부르므로 plan_keep이 거짓이어도(비교용) 노드는 둔다."""
+    if not node.get_parameter("plan_keep_nodes").value:
+        return []
+    from pode_plan_keep.node import make_fleet
+    return make_fleet(list(node.get_parameter("robots").value),
+                      bool(node.get_parameter("plan_keep").value),
+                      node.get_parameter("use_sim_time").value, node.context)
+
+
 def main(args=None):
     rclpy.init(args=args)
     node = SimStandIn()
-    peers = peer_nodes(node)
+    peers = peer_nodes(node) + plan_keep_nodes(node)
     executor = MultiThreadedExecutor()
     for each in (node, *peers):
         executor.add_node(each)

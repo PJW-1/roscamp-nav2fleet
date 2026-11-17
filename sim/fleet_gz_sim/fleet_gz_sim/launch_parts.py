@@ -249,7 +249,8 @@ def pode(ns: str, x, y, yaw, *, nav_map: str, nav_map_fine: str, keepout_mask: s
           nav_overrides: dict | None = None, lidar_noise: float | None = None,
           fixed_line_check: bool = True, narrow_strips: str = "",
           wall_band_m: float = 0.05, peer_layer: bool = False,
-          avoidance_package: str = AVOIDANCE_PACKAGE, vision_stand_in: bool = False) -> list:
+          avoidance_package: str = AVOIDANCE_PACKAGE, vision_stand_in: bool = False,
+          plan_keep: bool = True, plan_keep_node: bool = True) -> list:
     """Pode 한 대: 모델, Nav2, pode_fsm, RViz. 브리지는 bridge()에 이 로봇 이름을 넣는다.
 
     nav_map, nav_map_fine: Nav2 지도 둘(배치의 5 cm, 1 cm 지도, fleet_setup.Arena).
@@ -269,7 +270,9 @@ def pode(ns: str, x, y, yaw, *, nav_map: str, nav_map_fine: str, keepout_mask: s
     peer_layer: 참이면 두 costmap에 다른 로봇의 몸을 찍는 층을 넣는다(임시, 주행 시험용). 토픽은
     sim_stand_in 프로세스가 세 대분을 낸다(peer_obstacles 파라미터).
     avoidance_package: 회피 패키지(FollowPathGoal 값, 비전·peer 층, 회피 쪽 노드).
-    vision_stand_in: 참이면 회피 패키지의 임시 비전 대역을 띄우고 비전 관측원을 켠다."""
+    vision_stand_in: 참이면 회피 패키지의 임시 비전 대역을 띄우고 비전 관측원을 켠다.
+    plan_keep: 참이면 Nav2 goal을 다시 계획할 때 길이가 비슷한 다른 길로 바꾸지 않는다
+    (pode_plan_keep). plan_keep_node가 거짓이면 그 노드를 다른 프로세스(sim_stand_in)가 낸다."""
     nav = share("pode_nav_config")
     x, y, yaw = str(x), str(y), str(yaw)
     actions = [
@@ -285,6 +288,8 @@ def pode(ns: str, x, y, yaw, *, nav_map: str, nav_map_fine: str, keepout_mask: s
                 "peer_obstacles": "true" if peer_layer else "false", "peer_node": "false",
                 "avoidance_package": avoidance_package,
                 "vision_stand_in": "true" if vision_stand_in else "false",
+                "plan_keep": "true" if plan_keep else "false",
+                "plan_keep_node": "true" if plan_keep_node else "false",
                 "use_composition": "true" if nav_composition else "false",
                 "params_file": str(sim_nav_params(
                     nav / "params" / "nav2_params.yaml",

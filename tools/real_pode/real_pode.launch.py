@@ -47,7 +47,7 @@ PARAMS = HERE / "params"
 # nav2.launch.py에 넘기는 인자(이 launch의 같은 이름 인자, 아래 FIXED는 고정값)
 NAV2_ARGS = ("namespace", "use_sim_time", "map", "map_fine", "keepout_mask", "params_file",
              "avoidance_params_file", "initial_x", "initial_y", "initial_yaw",
-             "peer_obstacles", "peer_robots", "log_level", "use_composition")
+             "peer_obstacles", "peer_robots", "plan_keep", "log_level", "use_composition")
 # pode_fsm.launch.py에 넘기는 인자
 FSM_ARGS = ("namespace", "use_sim_time", "heartbeat_timeout_s", "through_controller_id",
             "horizon_cap_mps", "battery_topic")
@@ -95,6 +95,9 @@ def generate_launch_description():
                               description="두 대 이상이면 true와 peer_robots"),
         DeclareLaunchArgument("peer_robots", default_value="",
                               description="예: pode1,pode2"),
+        DeclareLaunchArgument("plan_keep", default_value="true",
+                              description="Nav2 goal에서 길이가 비슷한 다른 길로 바꾸지 않는다."
+                                          " false면 planner 결과 그대로(비교용)"),
         DeclareLaunchArgument("horizon_cap_mps", default_value="",
                               description="비면 params_file의 FollowPath 속도"),
         DeclareLaunchArgument("heartbeat_timeout_s", default_value="1.5",
