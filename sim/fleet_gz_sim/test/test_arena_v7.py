@@ -1,4 +1,5 @@
 """배치 v7의 Gazebo 경기장과 시나리오: 월드 치수, 지도, keepout, gz_v7(_random)."""
+import math
 import xml.etree.ElementTree as ET
 from pathlib import Path
 
@@ -474,3 +475,26 @@ def test_only_v7_has_nav_variant_maps():
     for layout in ("d2", "d", "c", "d2_shelf"):
         for variant in arena_maps.NAV_VARIANTS:
             assert not (PKG / "maps" / f"arena_{layout}_{variant}.yaml").exists()
+
+
+def test_v7_corridor_box_keeps_one_box_in_the_middle_corridor_for_the_whole_run(site):
+    """가운데 통로 재현(2026-11-17): v7_yard_mix의 상자 4와 같은 자리·크기, 한 번 놓고 판 내내 둔다.
+    O_IN에 선 로봇이 놓기를 막지 않는다(sim_obstacles clearance_m 기본 0.35)."""
+    from fleet_core.fleet_map.model import NAV_GOAL
+    from fleet_gz_sim.obstacles import Planner, load_schedule
+    mix = load_schedule(PKG / "obstacles" / "v7_yard_mix.yaml", site)
+    schedule = load_schedule(PKG / "obstacles" / "v7_corridor_box.yaml", site)
+    [box] = schedule.obstacles
+    assert box.link == ("O_IN", "M_E") and box.fraction == 0.4
+    assert site.link(*box.link).via == NAV_GOAL
+    assert (box.x, box.y) == pytest.approx((0.952, 0.595))
+    assert (box.x, box.y) == pytest.approx((mix.obstacles[3].x, mix.obstacles[3].y))
+    assert schedule.size_m == mix.size_m
+    assert 15 <= box.at_s <= 30, "sim_obstacles가 뜬 뒤, 곧"
+    assert box.duration_s >= 1800
+    assert schedule.repeat_every_s is None
+    o_in = site.node_pose("O_IN")
+    assert math.dist(o_in, (box.x, box.y)) > 0.35 + 0.1
+    planner = Planner(schedule, start_s=1.0, max_delay_s=20.0)
+    step = planner.step(box.at_s, [o_in], 0.35)
+    assert [occ.obstacle for occ in step.spawn] == [box]

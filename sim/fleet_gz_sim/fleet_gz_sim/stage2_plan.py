@@ -28,7 +28,12 @@ PLANS = {
     ),
     # 다른 Pode가 서 있는 마당을 가로지르는 Nav2 goal 한 번(item 6). 서 있는 Pode는 launch가 놓는다
     "cross": ((NAV_GOAL, ("P-1", "P-3")), (NAV_GOAL, ("P-3", "P-1"))),
+    # v7 가운데 통로 재현(2026-11-17): O_IN에서 M_E로 갔다가 돌아온다. 상자는 v7_corridor_box가 놓는다
+    "corridor": ((NAV_GOAL, ("O_IN", "M_E")), (NAV_GOAL, ("M_E", "O_IN"))),
 }
+PLAN_LAYOUTS = {"corridor": "v7"}  # 계획의 배치. 없으면 d2
+# 통로를 지났는지 보는 사각형(x0, y0, x1, y1): v7 가운데 통로, 상자 4 둘레의 x 0.90~1.00
+CORRIDOR_GATES = {"arena_v7": (0.90, 0.405, 1.00, 0.77)}
 
 
 class PlanError(ValueError):
@@ -94,9 +99,15 @@ def make_step(site, kind: str, nodes) -> Step:
     return Step(kind, nodes, path_poses(site, nodes, reverse=kind == RETREAT))
 
 
+def plan_layout(plan: str) -> str:
+    return PLAN_LAYOUTS.get(plan, "d2")
+
+
 def build(site, plan: str, laps: int = 1) -> list[Step]:
     if plan not in PLANS:
         raise PlanError(f"plan must be one of {', '.join(PLANS)}, got {plan!r}")
+    if plan in PLAN_LAYOUTS and site.name != f"arena_{PLAN_LAYOUTS[plan]}":
+        raise PlanError(f"plan {plan!r} is for layout {PLAN_LAYOUTS[plan]}, not {site.name}")
     return [make_step(site, kind, nodes) for _ in range(laps) for kind, nodes in PLANS[plan]]
 
 
@@ -130,3 +141,25 @@ def keepout_zones(site, points) -> list[str]:
         if zone is not None and site.zones[zone].kind != SHARED and zone not in seen:
             seen.append(zone)
     return seen
+
+
+def through_gate(points, gate) -> bool:
+    """점 하나라도 사각형(x0, y0, x1, y1) 안(경계 포함)이면 참."""
+    x0, y0, x1, y1 = gate
+    return any(x0 <= x <= x1 and y0 <= y <= y1 for x, y, *_ in points)
+
+
+def decimate(points, step_m: float) -> list:
+    """앞 점에서 step_m 이상 떨어진 점만 남긴다. 처음과 끝 점은 늘 남긴다."""
+    out = []
+    for p in points:
+        if not out or math.dist(out[-1][:2], p[:2]) >= step_m - 1e-9:
+            out.append(p)
+    if points and out[-1] is not points[-1]:
+        out.append(points[-1])
+    return out
+
+
+def min_distance(points, centre) -> float | None:
+    """점들에서 centre까지 가장 짧은 거리. 점이 없으면 None."""
+    return min((math.dist(p[:2], centre) for p in points), default=None)
