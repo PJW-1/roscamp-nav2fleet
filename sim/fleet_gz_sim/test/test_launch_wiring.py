@@ -234,12 +234,14 @@ def test_global_padding_overrides_touch_only_the_global_costmap_padding(made, na
             "footprint_padding": padding}}}}
     plain = yaml.safe_load(Path(launch_args(includes(run(made), "nav2.launch.py")[0])[
         "params_file"]).read_text(encoding="utf-8"))
+    base_padding = plain["global_costmap"]["global_costmap"]["ros__parameters"]["footprint_padding"]
     navs = includes(run(made, nav_overrides=str(path)), "nav2.launch.py")
+    assert len(navs) == len(ROBOTS)
     for nav in navs:
         data = yaml.safe_load(Path(launch_args(nav)["params_file"]).read_text(encoding="utf-8"))
         assert data["global_costmap"]["global_costmap"]["ros__parameters"][
             "footprint_padding"] == padding
-        data["global_costmap"]["global_costmap"]["ros__parameters"]["footprint_padding"] = 0.03
+        data["global_costmap"]["global_costmap"]["ros__parameters"]["footprint_padding"] = base_padding
         assert data == plain
 
 
@@ -263,12 +265,13 @@ def test_tight_global_inflation_overrides_change_only_the_global_costmap(made, n
         assert glob["inflation_layer"]["cost_scaling_factor"] == 15.0
         assert glob["inflation_layer"]["inflation_radius"] == 0.15
         assert glob["inflation_layer"]["plugin"] == "nav2_costmap_2d::InflationLayer"
-        assert glob["footprint_padding"] == (0.03 if padding is None else padding)
+        base_glob = plain["global_costmap"]["global_costmap"]["ros__parameters"]
+        assert glob["footprint_padding"] == (base_glob["footprint_padding"] if padding is None
+                                             else padding)
         # 로컬 costmap과 나머지는 그대로
         assert data["local_costmap"] == plain["local_costmap"]
-        glob["inflation_layer"] = plain["global_costmap"]["global_costmap"]["ros__parameters"][
-            "inflation_layer"]
-        glob["footprint_padding"] = 0.03
+        glob["inflation_layer"] = base_glob["inflation_layer"]
+        glob["footprint_padding"] = base_glob["footprint_padding"]
         assert data == plain
 
 
