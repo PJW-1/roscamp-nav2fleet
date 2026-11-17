@@ -5,6 +5,8 @@ from dataclasses import dataclass, field
 
 from fleet_core.traffic.mission import IDLE
 
+from .episodes import Episode
+
 # ---- 로봇에게 낸 goal 기록 ----
 BACKOFF = "backoff"
 
@@ -112,10 +114,7 @@ class Robot:
     silent_from: tuple | None = None
     silent_since: float = 0.0
     silent_noted: bool = False
-    start_goal: int = 0
-    start_xy: tuple = (0.0, 0.0)
-    start_since: float = 0.0
-    start_done: bool = False
+    start: Episode = field(default_factory=Episode)
     # ---- 자가 복구, 구역 놓기, 양보, 물러나기 기록 ----
     self_recovery_since: float | None = None
     local_yield: str = ""
