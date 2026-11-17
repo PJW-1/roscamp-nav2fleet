@@ -387,6 +387,9 @@ def test_the_tree_is_nav2s_default_tree_with_the_goal_controller_checker_and_no_
     select.set("default_controller", "FollowPath")
     [follow] = ours.getroot().iter("FollowPath")
     del follow.attrib["goal_checker_id"]
+    # 회복 Clear 노드의 server_timeout은 우리가 더한 것이라 비교에서 뺀다
+    for clear in ours.getroot().iter("ClearEntireCostmap"):
+        clear.attrib.pop("server_timeout", None)
     default = ET.parse(NAV2_BT)
     for parent in default.getroot().iter("RoundRobin"):
         for child in [c for c in parent if c.tag in ("Spin", "BackUp")]:
