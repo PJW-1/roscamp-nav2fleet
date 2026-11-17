@@ -15,7 +15,6 @@ from fleet_core.traffic.mission import (
 )
 
 from .base import HERE
-from .robots import BACKOFF
 from .trips import segment_end
 from .yard_retreat import yard_retreat
 
@@ -29,7 +28,7 @@ class Blocked:
         long_recovery = (ep.self_recovery_since is not None
                          and now - ep.self_recovery_since > p.self_recovery_limit_s)
         stuck = m.report.robot_state == BLOCKED or long_recovery
-        if not stuck or m.goal is None or m.goal.kind in (DOCK, BACKOFF):
+        if not stuck or m.goal is None or m.goal.kind == DOCK:
             if not stuck:
                 self._blocked_gap(m, now)
             return

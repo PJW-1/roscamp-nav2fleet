@@ -17,7 +17,7 @@ from fleet_core.traffic.mission import (
 )
 from fleet_core.traffic.selector import RobotInfo
 
-from .robots import BACKOFF, Dispatch
+from .robots import Dispatch
 
 
 # ---- 운행 모드 바꾸기와 배차 받기 ----
@@ -139,8 +139,6 @@ class Calls:
             self._drop_trip(m)
         elif goal.kind == MOVE and self._via(m) == NAV_GOAL:
             self._cancel_goal(m)
-            self._drop_trip(m)
-        elif goal.kind == BACKOFF:
             self._drop_trip(m)
         elif m.trip is not None:
             del m.trip.links[m.trip.granted:]

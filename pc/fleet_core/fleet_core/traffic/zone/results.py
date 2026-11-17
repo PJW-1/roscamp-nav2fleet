@@ -43,8 +43,6 @@ class Results:
 
     # ---- 물러나기 결과와 도킹 결과 ----
     def on_retreat_result(self, robot, goal_id, success, reason="") -> None:
-        if self._backoff_result(robot, goal_id, "" if success else reason or "RETREAT_FAILED"):
-            return
         m = self._active(robot, goal_id, RETREAT)
         if m is None:
             return
@@ -72,8 +70,6 @@ class Results:
 
     # ---- goal 거절, 미전송, 잃음 처리 ----
     def on_goal_rejected(self, robot, goal_id) -> None:
-        if self._backoff_result(robot, goal_id, "REJECTED"):
-            return
         m = self._active(robot, goal_id, MOVE, RETREAT, DOCK)
         if m is None or self._update_unclear(m, "the goal was rejected or lost its result"):
             return
@@ -84,8 +80,6 @@ class Results:
             self._move_failed(m, "REJECTED")
 
     def on_goal_not_sent(self, robot, goal_id) -> None:
-        if self._backoff_result(robot, goal_id, "NOT_SENT"):
-            return
         m = self._active(robot, goal_id, MOVE, RETREAT, DOCK)
         if m is None or self._update_lost(m, "the goal was not sent"):
             return
@@ -97,8 +91,6 @@ class Results:
                         m.name)
 
     def on_goal_lost(self, robot, goal_id) -> None:
-        if self._backoff_result(robot, goal_id, "LOST"):
-            return
         m = self._active(robot, goal_id, MOVE, RETREAT, DOCK)
         if m is not None and not self._update_unclear(m, "the goal was lost"):
             self._forget_goal(m)

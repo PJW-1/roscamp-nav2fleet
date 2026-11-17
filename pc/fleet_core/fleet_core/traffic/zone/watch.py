@@ -14,7 +14,6 @@ from fleet_core.traffic.mission import (
     STALLED,
 )
 
-from .robots import BACKOFF
 from .trips import Trip
 
 
@@ -25,7 +24,7 @@ class Watch:
         waiting = m.move_order is not None and m.move_order.waiting
         rests = m.report.robot_state in (BLOCKED, SELF_RECOVERING)
         if (m.goal is None or self._run_mode != RUN or m.arrival_by is not None or waiting
-                or (rests and m.goal.kind not in (DOCK, BACKOFF))):
+                or (rests and m.goal.kind != DOCK)):
             self._reset_stall(m)
             return
         here, ep = (m.x, m.y), m.watch.stall
@@ -40,9 +39,7 @@ class Watch:
         self._reset_stall(m)
         goal, end = m.goal, self._stands_at_end(m)
         self._cancel_goal(m)
-        if goal.kind == BACKOFF:
-            self._backoff_ended(m, STALLED)
-        elif end is not None:
+        if end is not None:
             self._arrived_anyway(m, STALLED, end, goal)
             m.retry_at = now + p.arrival_settle_s
         else:
@@ -99,8 +96,6 @@ class Watch:
                 self._near[key] = (since, before)
                 if now - since >= p.near_stuck_s:
                     low, other = sorted((a, b), key=lambda m: (self._priority(m), m.name))
-                    if self._awaits_blocked(low, now - since):
-                        continue
                     self._cancel_goal(low)
                     self._stand_aside(low, other, now)
                     del self._near[key]

@@ -7,10 +7,8 @@ from fleet_core.traffic.mission import IDLE
 
 from .episodes import BlockedEpisode, Episode, WaitEpisode
 
+
 # ---- 로봇에게 낸 goal 기록 ----
-BACKOFF = "backoff"
-
-
 @dataclass
 class Goal:
     kind: str
@@ -81,7 +79,6 @@ class Avoid:
     retreat_via: str = ""
     retreat_since: float | None = None
     retreat_behind: str = ""
-    backoff_from: tuple | None = None
     detour: tuple | None = None
     robot_yield_at: float | None = None
     behind_since: float | None = None
