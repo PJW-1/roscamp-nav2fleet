@@ -112,8 +112,7 @@ class Robot:
     # ---- 자가 복구, 구역 놓기, 양보, 물러나기 기록 ----
     self_recovery_since: float | None = None
     local_yield: str = ""
-    local_yield_since: float | None = None
-    local_yield_noted: str = ""
+    local_episode: Episode = field(default_factory=Episode)
     sent_priority: int = -1
     clear_n: dict = field(default_factory=dict)
     outside: Episode = field(default_factory=Episode)

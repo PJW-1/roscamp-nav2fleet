@@ -187,16 +187,17 @@ class Blocked:
 
     # ---- 로봇단 양보 기록과 막힘 만료 ----
     def _note_local_yield(self, m, now: float) -> None:
+        ep = m.local_episode
         if m.local_yield:
-            if m.local_yield_since is None:
-                m.local_yield_since = now
-            if m.local_yield != m.local_yield_noted:
-                m.local_yield_noted = m.local_yield
+            if ep.since is None:
+                ep.since = now
+            if m.local_yield != ep.noted:
+                ep.noted = m.local_yield
                 self._event("INFO", "LOCAL_YIELD", m.local_yield, m.name)
             return
         self._event("INFO", "LOCAL_YIELD", f"ends {m.robot_state or '?'} after "
-                    f"{now - m.local_yield_since:.0f} s", m.name)
-        m.local_yield_since, m.local_yield_noted = None, ""
+                    f"{now - ep.since:.0f} s", m.name)
+        ep.clear()
 
     def _expire_blocked(self, now: float) -> None:
         for key in [key for key, until in self._blocked.items() if until <= now]:
@@ -204,7 +205,7 @@ class Blocked:
 
     # ---- 자가 복구 시작과 끝 기록 ----
     def _note_self_recovery(self, m, now: float) -> None:
-        if m.local_yield or m.local_yield_since is not None:
+        if m.local_yield or m.local_episode.since is not None:
             self._note_local_yield(m, now)
             return
         if m.robot_state == SELF_RECOVERING:
