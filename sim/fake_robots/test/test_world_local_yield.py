@@ -10,7 +10,7 @@ import pytest
 sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "pode" / "pode_fsm"))
 
 from fake_robots.world.table import run_situation  # noqa: E402
-from fleet_core.common.commands import MoveCmd  # noqa: E402
+from fleet_core.common.commands import MoveCmd, MoveOrderCmd, SegmentOut  # noqa: E402
 from pode_fsm.params import FsmParams  # noqa: E402
 from world_helpers import nav, place, quiet_world  # noqa: E402
 
@@ -158,6 +158,19 @@ def test_a_nav_goal_robot_runs_the_same_ladder():
     world.send(nav(world, "pode1", 1, xy=(1.60, 0.40)))
     world.run(15.0)
     assert steps(world, "pode1")[:4] == ["MOVING", "wait", "backup", "retry"]
+
+
+def test_a_nav_goal_segment_counts_only_its_own_drive():
+    """order의 nav_goal 조각은 그 조각에서 지나온 길로만 물러난다(pode_fsm의 NavGoal 궤적)."""
+    world = quiet_world(robots={"pode1": "P-1", "pode2": "P-3"}, local_yield=True)
+    place(world, "pode1", 0.40, 0.40, 0.0)
+    place(world, "pode2", 1.15, 0.40, math.pi)
+    lane = SegmentOut(1, "follow_path", "", path=((0.40, 0.40, 0.0), (0.90, 0.40, 0.0)),
+                      x=0.90, y=0.40)
+    yard = SegmentOut(2, "nav_goal", "", x=1.15, y=0.40)
+    world.send(MoveOrderCmd("pode1", 1, "o1", 0, "", base=(lane, yard)))
+    world.run(15.0)
+    assert steps(world, "pode1")[:3] == ["MOVING", "wait", "BLOCKED"]
 
 
 def test_the_wait_ends_when_the_way_clears():
