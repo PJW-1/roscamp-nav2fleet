@@ -12,6 +12,8 @@ from fleet_core.fleet_map.model import FOLLOW_PATH, NAV_GOAL, RETREAT
 SHELVES = [(0.63, 0.77, 1.56, 0.81), (0.68, 0.365, 0.99, 0.405), (1.25, 0.365, 1.56, 0.405)]
 # 칸막이 3(x 0.76~0.78)은 뺐다(사용자 2026-11-17: 충전 자리는 그대로, 3번 칸막이만 없앤다)
 DIVIDERS = [(0.24, 0.0, 0.26, 0.10), (0.50, 0.0, 0.52, 0.10)]
+# 북쪽 벽 안쪽 면: 2026-11-17 라이다 SLAM 실측 0.98(그림 0.99). 급행 실측 폭 0.170
+NORTH_WALL_Y = 0.98
 RELEASE_GAP_M = 0.135  # footprint_radius_m 0.085 + release_margin_m 0.05
 NODE_CLEAR_M = 0.20
 
@@ -28,13 +30,13 @@ def test_v7_is_a_candidate_but_not_the_default():
 
 def test_v7_dimensions(site):
     assert site.name == "arena_v7"
-    assert site.bounds() == (0.0, 0.0, 1.98, 0.99)
+    assert site.bounds() == (0.0, 0.0, 1.98, NORTH_WALL_Y)
     assert list(site.shelves) == SHELVES + DIVIDERS
-    # 칸막이 사이 빈 폭 0.24(잠정), 건넘 틈 0.26, 급행 0.18
+    # 칸막이 사이 빈 폭 0.24(잠정), 건넘 틈 0.26, 급행 0.17(실측)
     assert [round(b[0] - a[2], 3) for a, b in pairwise(DIVIDERS)] == [0.24]
     assert round(DIVIDERS[0][0], 3) == 0.24
     assert round(SHELVES[2][0] - SHELVES[1][2], 3) == 0.26
-    assert round(0.99 - SHELVES[0][3], 3) == 0.18
+    assert round(NORTH_WALL_Y - SHELVES[0][3], 3) == 0.17
     # 진열대 A는 0.93(0.88 + 서쪽 0.05), 동쪽 끝 1.56과 높이는 그대로
     assert round(SHELVES[0][2] - SHELVES[0][0], 3) == 0.93 and SHELVES[0][2] == 1.56
     # 진열대 자리는 어느 구역도 아니다. 그 서쪽 띠(OUT_DOCK과 진열대 사이)는 HALL이다
@@ -475,3 +477,17 @@ def test_v7_global_costmap_keeps_a_way_between_the_south_shelf_end_and_work(site
             elif free:
                 break
         assert len(free) >= 1, (y, free)
+
+
+def test_v7_north_wall_is_the_slam_measurement_and_the_express_stays_open(site):
+    """2026-11-17 SLAM: 북쪽 벽만 그림보다 1 cm 남쪽(0.98). 급행 가운데 y 0.90은 그대로라 몸 반폭
+    0.056인 로봇이 벽에서 0.024, 진열대 A에서 0.034 떨어져 지난다. 북쪽 벽에 붙은 구역은 0.98까지다."""
+    assert site.bounds()[3] == NORTH_WALL_Y
+    assert site.node_pose("O") == (0.285, 0.90) and site.node_pose("O_X") == (0.655, 0.90)
+    half = 0.056
+    assert round(NORTH_WALL_Y - 0.90 - half, 3) == 0.024
+    assert round(0.90 - SHELVES[0][3] - half, 3) == 0.034
+    for name in ("EXPRESS", "J_E", "OUT_DOCK"):
+        assert max(r[3] for r in site.zones[name].rects) == NORTH_WALL_Y, name
+    for x0, y0, x1, y1 in site.keepout_extra:
+        assert y1 <= NORTH_WALL_Y

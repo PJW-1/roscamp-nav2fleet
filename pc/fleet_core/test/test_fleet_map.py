@@ -517,7 +517,8 @@ def test_parking_lists_every_parking_node():
 def test_shipped_maps_load(layout):
     site = load_fleet_map(layout)
     assert site.name == f"arena_{layout}"
-    assert site.bounds() == (0.0, 0.0, 1.98, 0.99)
+    # v7 북쪽 벽은 2026-11-17 SLAM 실측 0.98, 나머지 배치는 그림 0.99
+    assert site.bounds() == (0.0, 0.0, 1.98, 0.98 if layout == "v7" else 0.99)
     assert len(site.parking) == 3
     assert site.source_text
 

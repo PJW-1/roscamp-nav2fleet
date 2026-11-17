@@ -185,7 +185,7 @@ def test_gap_points_sit_clear_of_shelves_walls_and_keepout():
         for b in am.obstacles(V7):
             dx, dy = max(b.x0 - x, 0, x - b.x1), max(b.y0 - y, 0, y - b.y1)
             assert math.hypot(dx, dy) > 0.09, (x, y, b)
-        assert min(x, y, 1.98 - x, 0.99 - y) > 0.09
+        assert min(x, y, 1.98 - x, V7.bounds()[3] - y) > 0.09
 
 
 def test_body_distance_and_pose_error():
