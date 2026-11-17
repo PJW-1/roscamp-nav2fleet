@@ -167,3 +167,4 @@ FAILED test_nav_goal_clearing_on_distance_does_not_block_again_in_the_same_tick 
   (회전은 정체 시계만 다시 잡는다). 시험 `test_turning_at_the_end_keeps_the_blocked_report_until_the_goal_ends`가
   고치기 전 실패(`assert (False)`), 고친 뒤 통과.
 - [확정] 계약의 nav_goal "끔"에 교착 처리 시작(`RECOVERING`)으로 끄는 경우가 빠져 있었다: 적음.
+- 3724af2 뒤 sim/fake_robots/test 전체와 `test_timing_agreement.py`(도메인 74): `1027 passed, 27 xfailed in 735.14s`(새 시험 1개 더, 실패 없음).
