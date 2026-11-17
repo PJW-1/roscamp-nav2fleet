@@ -39,6 +39,7 @@
 - **로봇과 PC에 같은 커밋을 올린다.** 관제는 `fleet_map_v7.yaml`을, 로봇은 `tools/real_pode/maps`를 쓴다. 이번 병합이 둘 다 바꿨다.
 - **로봇:**
   - PC에서 `tools/real_pode/deploy.sh pinky@<주소>`를 실행한다(커밋된 것만 간다). 그다음 로봇에서 `cd ~/nav2fleet_ws && colcon build`를 한다(`tools/real_pode/README.md` 첫 실행 순서).
+  - 옛 이름(pinky)으로 배포된 로봇이면 먼저 옛 launch를 옛 `stop.sh`로 내린다. 그다음 `~/nav2fleet_ws/src/pinky/`와 `build/`, `install/`을 치우고 빌드한다. `deploy.sh`는 옛 것을 지우지 않는다(README "옛 이름으로 배포된 로봇에 다시 배포할 때").
   - `start.sh`는 실행할 때마다 `make_params.py`로 저장소의 nav2_params.yaml 사본을 만든다. 사본에서는 속도 줄만 바뀌므로 padding 0이 실물에도 들어간다.
   - 실물에서는 고정 경로 컨트롤러(FollowPath, FollowPathThrough, FollowPathReverse)와 FollowPathGoal의 충돌 검사가 켜져 있다. 이 검사도 padding 0 발자국을 쓴다. 화면 받침 충돌 메시는 발자국 앞끝보다 2.1 mm 나온다.
 - **peer 층:**
@@ -47,7 +48,8 @@
 - **지도:**
   - 실물 기본값은 `arena_v7_a`(2.5 cm), `arena_v7_fine`(1 cm), `arena_v7_keepout`이다. 셋 다 칸막이 3이 없고 진열대 A가 0.63부터인 배치로 다시 만들어졌다.
   - 실제 경기장이 이 배치와 다르면 SLAM 지도를 기준으로 관제 지도를 맞춘다(`docs/주행_계획서.md` 9절).
-  - SLAM 지도를 쓸 때는 `map:=`, `map_fine:=`, `keepout_mask:=`로 넘긴다. keepout은 `python3 tools/make_keepout.py --layout v7 --map <지도.yaml>`로 만든다.
+  - SLAM 지도를 쓸 때는 `real_pode.launch.py`에 `map:=`, `map_fine:=`, `keepout_mask:=`로 넘긴다. `start.sh`는 인자를 namespace와 초기 자세(와 속도)만 받는다. 지도 인자를 붙이면 인자 개수 검사에서 멈춘다. 그래서 launch를 직접 부르거나 `start.sh`를 고쳐야 한다.
+  - keepout은 `python3 tools/make_keepout.py --layout <관제 지도.yaml> --map <지도.yaml>`로 만든다. 이 도구는 지도 그림에서 크기와 원점만 읽고, 막는 자리는 `--layout`의 관제 지도 구역에서 그린다. 관제 지도를 고쳤다면 고친 yaml 경로를 `--layout`에 준다.
 - **관제 PC:**
   - `pc.launch.py use_fake:=false`에서 `map_file`을 안 주면 d2 배치를 읽는다(`pc/fleet_core/fleet_core/fleet_map/fleet_map.py` 31줄 `DEFAULT_LAYOUT = "d2"`).
   - v7 경기장이면 `ros2 launch iponic_bringup pc.launch.py use_fake:=false map_file:=v7`로 띄운다.
