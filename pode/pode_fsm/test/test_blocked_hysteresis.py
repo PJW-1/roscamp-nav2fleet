@@ -160,3 +160,71 @@ def test_follow_path_after_cancel_blocked_stays_until_unblock_clear_s():
     assert fsm.state() == BLOCKED
     tick(fsm, 7.35, STUCK, no_obstacle)
     assert fsm.state() == IDLE
+
+
+# ---- Codex 리뷰(d1d9ac8)에서 나온 경우 ----
+
+
+def test_follow_path_the_hold_only_reports_and_an_abort_after_resend_may_still_recover():
+    """늦춘 해제는 보고만 바꾼다. 물체가 1초 안 보여 막힘이 실제로 풀린 뒤의 aborted는 전처럼
+    복구를 시작할 수 있다(그 사이 시도 수가 되돌아간 경우)."""
+    fsm = PodeFsm(FsmParams(), robot_id="pode1")
+    fsm.tick(0.0, (*P3, NORTH), STILL, no_obstacle)
+    yaw = math.atan2(P5[1] - P4[1], P5[0] - P4[0])
+    fsm.move("g1", 0.0, "P-5", (*P5, yaw), [P3, P4, P5], (*P3, NORTH))
+    a = (0.35, 1.65, NORTH)
+    tick(fsm, 1.0, a, obstacle)
+    tick(fsm, 2.05, a, obstacle)  # 첫 시도(양보 대기), 시도 자리 a
+    tick(fsm, 2.5, a, no_obstacle)
+    [first] = [c for c in tick(fsm, 3.6, a, no_obstacle) if isinstance(c, SendPath)]
+    b = (0.35, 1.93, NORTH)  # a에서 0.28 m
+    tick(fsm, 4.0, b, obstacle)
+    tick(fsm, 5.05, b, obstacle)
+    assert fsm.state() == BLOCKED  # 시도를 다 써서 막힘
+    c = along_p4_p5(0.05)  # a에서 0.3 m 넘게, b에서 0.06 m
+    tick(fsm, 5.2, c, obstacle)
+    for t in steps(5.3, 6.5):
+        tick(fsm, t, c, no_obstacle)
+    assert fsm.state() == BLOCKED  # 보고는 아직 막힘
+    cmds = fsm.nav_result(first.seq, "aborted", 6.6, c, no_obstacle)
+    assert not [x for x in cmds if getattr(x, "reason", "") == "NAV_ABORTED"], cmds
+    assert fsm.is_running("g1") and fsm.state() == "RECOVERING"
+
+
+def test_follow_path_after_moving_off_a_new_stop_is_counted_from_zero():
+    fsm = path_blocked()
+    for t in steps(4.2, 5.3):
+        tick(fsm, t, STUCK, no_obstacle)
+    assert fsm.state() == BLOCKED
+    tick(fsm, 5.6, along_p4_p5(0.17), no_obstacle)  # 느리게(정지 속도로) 0.17 m 왔다
+    assert fsm.state() == MOVING
+    tick(fsm, 5.7, along_p4_p5(0.17), obstacle)
+    assert fsm.state() == MOVING  # 같은 tick에 다시 막지 않는다. 새로 1초 서야 한다
+    tick(fsm, 6.8, along_p4_p5(0.17), obstacle)
+    assert fsm.state() == BLOCKED
+
+
+def test_nav_goal_clearing_on_distance_does_not_block_again_in_the_same_tick():
+    """보고만 늦춘다. 0.15 m를 넘는 순간 MOVING이고 정체 시계(anchor)는 건드리지 않는다."""
+    fsm = nav_blocked()
+    tick(fsm, 8.3, east(0.06), speed=DRIVING_NAV)
+    tick(fsm, 8.4, east(0.12), speed=DRIVING_NAV)  # 진전 자리(anchor)는 0.12
+    for t in steps(8.5, 13.0):
+        tick(fsm, t, east(0.12))
+    assert fsm.state() == BLOCKED
+    tick(fsm, 13.1, east(0.155), speed=DRIVING_NAV)  # anchor에서 0.035 m, 막힌 자리에서 0.155 m
+    assert fsm.state() == MOVING
+
+
+def test_nav_goal_ten_seconds_without_progress_still_blocks_while_held():
+    """막힘(판단)은 옛 규칙 그대로다: 0.05 m 진전 없이 blocked_after_s면 다시 막힌다. 그때
+    보고 기준 자리도 새로 잡는다."""
+    fsm = nav_blocked()
+    tick(fsm, 8.3, east(0.06), speed=DRIVING_NAV)
+    tick(fsm, 8.4, east(0.12), speed=DRIVING_NAV)
+    for t in steps(8.5, 19.0):
+        tick(fsm, t, east(0.12))
+    tick(fsm, 19.1, east(0.155), speed=DRIVING_NAV)
+    assert fsm.state() == BLOCKED  # anchor(0.12)에서 10 s 넘게 0.05 m 못 나아갔다
+    tick(fsm, 19.2, east(0.30), speed=DRIVING_NAV)
+    assert fsm.state() == MOVING

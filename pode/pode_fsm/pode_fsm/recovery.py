@@ -39,6 +39,7 @@ class SelfRecovery:
         g.s = self._track(g, pose)
         r = self._recovery = Recovery(stuck_s=g.s)
         self._blocked, self._clear_since = False, None
+        self._drop_hold()
         g.waiting_since = g.blocked_since = None
         cmds: list = []
         if self._nav_running:
