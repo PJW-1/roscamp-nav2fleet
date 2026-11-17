@@ -85,19 +85,41 @@ def test_the_tool_writes_a_mask_next_to_a_map(tmp_path):
 
 # ---- 구역이 아닌 keepout 사각형(keepout_extra) ----
 V7_GAP = (0.99, 0.365, 1.25, 0.405)  # v7 남쪽 진열대 사이 건넘 틈
+V7_DIVIDER_KEEPS = ((0.71, 0.0, 0.86, 0.20), (0.19, 0.0, 0.31, 0.20), (0.45, 0.0, 0.57, 0.20))
 
 
 def test_keepout_extra_closes_its_rectangle_without_padding_and_is_no_zone():
     site = load_fleet_map("v7")
-    assert site.keepout_extra[0] == V7_GAP
-    # 덧대지 않는다: 목적은 계획 차단이고, 덧대면 가운데 통로와 남쪽 마당이 좁아진다
-    assert V7_GAP in keepout_rects(site) and V7_GAP in keepout_rects(site, 0.0)
+    assert set(site.keepout_extra) == set(V7_DIVIDER_KEEPS)
+    # 덧대지 않는다: 목적은 계획 차단이고, 덧대면 남쪽 마당이 좁아진다
+    for rect in V7_DIVIDER_KEEPS:
+        assert rect in keepout_rects(site) and rect in keepout_rects(site, 0.0)
     grid = mask(site, *SIZE, RESOLUTION, ORIGIN)
-    assert cell(grid, 1.12, 0.385) and cell(grid, 1.005, 0.37) and cell(grid, 1.245, 0.40)
-    assert not cell(grid, 1.12, 0.415) and not cell(grid, 1.12, 0.355)
+    # 칸막이 3 둘레: 안은 닫히고 바로 위(y 0.20 너머)와 P-3 칸은 열린다
+    assert cell(grid, 0.72, 0.12) and cell(grid, 0.855, 0.195)
+    assert not cell(grid, 0.77, 0.205) and not cell(grid, 0.64, 0.11)
     # 구역이 아니다: 그 자리는 여전히 HALL이고 구역 목록과 정원은 그대로다
-    assert site.zone_at(1.12, 0.385) == "HALL"
+    assert site.zone_at(0.80, 0.15) == "HALL"
     assert set(site.zones) == {"HALL", "WORK_DOCK", "J_E", "EXPRESS", "OUT_DOCK"}
+
+
+def test_v7_the_crossing_gap_stays_open_as_a_shortcut():
+    """사용자 결정 2026-11-17: 남쪽 진열대 사이 건넘 틈은 지름길이라 막지 않는다(4079c40에서
+    막았던 것을 연다). 마스크의 틈 안 칸은 하나도 닫히지 않고, 그 자리는 HALL이다."""
+    site = load_fleet_map("v7")
+    assert V7_GAP not in site.keepout_extra
+    assert V7_GAP not in keepout_rects(site) and V7_GAP not in keepout_rects(site, 0.0)
+    grid = mask(site, *SIZE, RESOLUTION, ORIGIN)
+    x0, y0, x1, y1 = V7_GAP
+    shut = [(round(x, 3), round(y, 3))
+            for x in [x0 + 0.005 + 0.01 * k for k in range(int(round((x1 - x0) / 0.01)))]
+            for y in [y0 + 0.005 + 0.01 * k for k in range(int(round((y1 - y0) / 0.01)))]
+            if cell(grid, x, y)]
+    assert shut == []
+    # 서는 로봇이 어느 구역에도 들지 않는 일이 없다: 틈은 HALL이다
+    for x in (1.0, 1.12, 1.24):
+        for y in (0.37, 0.385, 0.40):
+            assert site.zone_at(x, y) == "HALL", (x, y)
 
 
 def test_a_dock_left_by_nav_goal_is_open_along_its_way_out():
@@ -123,8 +145,7 @@ def test_an_opening_clears_only_its_own_docks_keepout():
     """도크 밖 열린 상자가 다른 keepout_extra 사각형과 겹쳐도 그 사각형은 닫혀 있다."""
     from fleet_core.fleet_map import fleet_map_from_text
     text = load_fleet_map("v7").source_text.replace(
-        "keepout_extra: [[0.99, 0.365, 1.25, 0.405],",
-        "keepout_extra: [[1.80, 0.46, 1.84, 0.50], [0.99, 0.365, 1.25, 0.405],")
+        "keepout_extra: [[", "keepout_extra: [[1.80, 0.46, 1.84, 0.50], [", 1)
     site = fleet_map_from_text(text)
     grid = mask(site, *SIZE, RESOLUTION, ORIGIN)
     assert cell(grid, 1.82, 0.48)
@@ -139,7 +160,7 @@ def test_layouts_without_keepout_extra_keep_their_masks():
 def test_a_keepout_extra_outside_the_floor_is_refused():
     from fleet_core.fleet_map import FleetMapError, fleet_map_from_text
     text = load_fleet_map("v7").source_text.replace(
-        "[[0.99, 0.365, 1.25, 0.405],", "[[1.9, 0.9, 2.1, 1.0],")
+        "keepout_extra: [[", "keepout_extra: [[1.9, 0.9, 2.1, 1.0], [", 1)
     assert "2.1, 1.0" in text
     with pytest.raises(FleetMapError, match="keepout_extra"):
         fleet_map_from_text(text)
