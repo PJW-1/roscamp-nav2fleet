@@ -264,13 +264,17 @@ def test_v7_the_crossing_gap_has_no_keepout_cell_in_the_fine_mask(site):
 
 
 @pytest.mark.parametrize("shut, pairs", [
-    # 서쪽 끝(x < 0.68)만 남김: 동쪽 통로를 막아 본다
-    ([(1.56, 0.30, 1.98, 0.45)], [("O_IN", "Q1"), ("O_IN", "Q2"), ("O_OUT", "Q2")]),
-    # 동쪽 통로(1.65~1.72)만 남김: 서쪽 끝을 막아 본다
-    ([(0.0, 0.30, 0.68, 0.45)], [("O_IN", "Q1"), ("O_IN", "Q2"), ("O_OUT", "Q2"), ("M_E", "Q2")]),
+    # 서쪽 끝(x < 0.68)만 남김: 동쪽 통로와 건넘 틈을 막아 본다
+    ([(1.56, 0.30, 1.98, 0.45), V7_GAP], [("O_IN", "Q1"), ("O_IN", "Q2"), ("O_OUT", "Q2")]),
+    # 동쪽 통로(1.65~1.72)만 남김: 서쪽 끝과 건넘 틈을 막아 본다
+    ([(0.0, 0.30, 0.68, 0.45), V7_GAP],
+     [("O_IN", "Q1"), ("O_IN", "Q2"), ("O_OUT", "Q2"), ("M_E", "Q2")]),
 ])
 def test_v7_north_and_south_stay_joined_by_each_way_alone(site, shut, pairs):
+    """틈이 열려 있어도(2026-11-17) 끝 길 하나만으로 남북이 이어지는지 보려고 틈도 막는다."""
     grid, _, _ = _costmap()
+    # 막은 틈이 정말 틈 칸을 닫는지: 틈만 지나는 길이 끊긴다
+    assert not _joined(grid, (1.125, 0.55), (1.125, 0.25), shut=[*BOTH_ENDS, V7_GAP])
     for a, b in pairs:
         assert _joined(grid, site.node_pose(a), site.node_pose(b), shut), (a, b, shut)
 
