@@ -38,7 +38,9 @@
 - 실행 스크립트: `run_corridor.sh`(A, base, B), `run_inflation.sh`(baseI, aI). 둘 다 scratchpad `gz/`에 있다.
 - A, base, B는 브랜치 `exp/corridor-costmap-ab` 680fda8의 빌드다. baseI, aI는 같은 빌드에 inflation 덮어쓰기 파일(`global_inflation_tight.yaml`, `global_padding_0p01_inflation_tight.yaml`)을 더했다.
 - 한 대 판: `one_pode.launch.py` + `drive_check`, 브랜치 `exp/corridor-repro`(상자 6번 이동)와 `exp/corridor-repro-gap`(틈 12번 이동). 도메인 61, 한 번에 하나.
-- 위치는 `robots.csv`와 drive_check의 `track`에서 읽었다. 로봇이 보고한 값(AMCL)이다. 실제(Gazebo) 위치가 아니다.
+- 세 대 판의 위치는 `robots.csv`에서 읽었다. 로봇이 보고한 값(AMCL)이다. 실제(Gazebo) 위치가 아니다.
+- 한 대 판의 `track`, `final`, 몸-모서리 거리는 Gazebo truth(`/<robot>/sim/truth`)에서 왔다. AMCL은 `amcl_max_error_m`(오차) 계산에만 쓴다.
+- 옛 판은 기본값이 바뀌기 전에 돌렸다. 그대로 재현하려면 여기 적은 커밋에서 돌린다. 변형 명령만 쓰면 지금은 새 기본값(padding 0.01, inflation 15.0/0.15) 위에서 돈다.
 - B와 baseI는 판이 끝나지 않아 `summary.json`과 `safety.json`이 없다(아래 표).
 
 ## 3. 결과 표
@@ -84,7 +86,7 @@ shelf_3 동쪽 모서리를 남쪽으로 돌 때 로봇 중심과 모서리 (1.5
 
 - [확정] 4변형 모두 통로를 지나 상자 옆을 통과한 이동은 0번이다(`through_corridor`가 전부 false).
 - [확정] aI 2번째와 4번째 이동은 통로 안(x 1.10~1.58, y 0.54~0.58)에서 왔다 갔다 하다 끝내 동쪽으로 나와 남쪽 마당으로 돌았다. 오래 걸린 값은 이 두 번이다. 추천 초안의 "x 1.14~1.57, 60~80 s"는 이동 전체 시간과 좌표만으로는 구간을 가를 수 없어 이동 시간만 적는다. 초안의 A "x 1.22에서 되돌아감"은 데이터 최소 x가 1.155라서 고쳤다.
-- [확정] aI 첫 시도(`corr1_aI`)는 Nav2 시작 실패로 데이터가 없다. 위 표는 2차(`corr1_aI_r2`)다.
+- [확정] aI 첫 시도(`corr1_aI`)는 Nav2 시작 실패로 유효한 이동 결과가 없다. 위 표는 2차(`corr1_aI_r2`)다.
 - [확정] aI 2번째와 4번째 이동은 모서리를 x 약 1.70(중심-모서리 약 0.14 m)으로 돌았다.
 
 ### 3-3. 한 대, 남쪽 진열대 틈(12번 이동)
@@ -97,7 +99,7 @@ shelf_3 동쪽 모서리를 남쪽으로 돌 때 로봇 중심과 모서리 (1.5
 | aI(2차) | 12/12 | 6번 | 0.056 m |
 
 - [확정] 틈 통과 6번에서 몸-모서리는 base 0.046~0.061, aI 0.056~0.063이다. `gap_corner_body_min_m`은 footprint와 위치 표본으로 계산한 값이라 연속 시간의 실제 최소를 보장하지 않는다.
-- [확정] aI 첫 시도(`gap_open_aI`)는 Nav2가 뜨기 전에 목표를 보내 0.11 s 만에 NAV_ABORTED가 났고 데이터가 없다. 2차를 쓴다.
+- [확정] aI 첫 시도(`gap_open_aI`)는 Nav2가 뜨기 전에 목표를 보내 벽시계 0.11 s(sim 0.07 s) 만에 NAV_ABORTED가 났고 유효한 이동 결과가 없다. 2차를 쓴다.
 
 ### 3-4. 갈린 장면(남쪽 통로 서쪽에 선 pode3 옆 지나가기)
 
@@ -109,11 +111,11 @@ shelf_3 동쪽 모서리를 남쪽으로 돌 때 로봇 중심과 모서리 (1.5
 
 멈춘 경우는 셋이다.
 
-| 경우 | 변형 | 멈춘 곳(보고 위치) | 비고 |
+| 경우 | 변형 | 멈춘 곳(출처) | 비고 |
 |---|---|---|---|
-| 세 대 판 B | B | pode3, 약 (1.59, 0.37). 111~127 s에 도착 | 끝(약 936 s)까지 그 자리. 출고 12건 |
-| 세 대 판 baseI | baseI | pode1, (1.638, 0.402) 부근. 126.7 s 이후 | 542 s NAV_ABORTED, ROBOT_ISOLATED |
-| 한 대 A | A | (1.613, 0.387) | 2번째 이동 NAV_ABORTED |
+| 세 대 판 B | B | pode3, 약 (1.59, 0.37), 보고(AMCL) 위치. 111~127 s에 도착 | 끝(약 936 s)까지 그 자리. 출고 12건 |
+| 세 대 판 baseI | baseI | pode1, (1.638, 0.402) 부근, 보고(AMCL) 위치. 126.7 s 이후 | 542 s NAV_ABORTED, ROBOT_ISOLATED |
+| 한 대 A | A | (1.613, 0.387), Gazebo truth `final` | 2번째 이동 NAV_ABORTED |
 
 [확정]
 
