@@ -361,7 +361,7 @@ def test_a_robot_waiting_to_reapproach_is_no_part_of_a_wait_cycle():
     dock_zone = world.site.nodes[link.a].zone  # and waits for the dock zone pode2 holds
     traffic._wants["pode1"] = Want((dock_zone,), (), {}, world.now, {})
     traffic._watch_deadlock(world.now)
-    assert traffic._cycle == ()
+    assert traffic._deadlock.cycle == ()
 
 
 def test_the_wait_for_the_way_out_has_one_limit_whatever_clears_the_wait():

@@ -4,7 +4,7 @@ from __future__ import annotations
 import math
 
 from fleet_core.fleet_map import NAV_GOAL, SHARED
-from fleet_core.traffic.deadlock import choose_retreat, find_cycle
+from fleet_core.traffic.deadlock import choose_retreat
 from fleet_core.traffic.mission import (
     BLOCKED,
     DOCK,
@@ -109,26 +109,12 @@ class Watch:
 
     # ---- 대기 순환 찾아 한 로봇 비키게 하기 ----
     def _watch_deadlock(self, now: float) -> frozenset:
-        graph = {}
-        for name, want in self._wants.items():
-            if not self._robots[name].available or self._robots[name].watch.redock.key:
-                continue
-            blockers = self.grants.blockers(name, want.zones, want.nodes, want.lanes)
-            robots = {robot for group in blockers.values() for robot in group}
-            if robots:
-                graph[name] = robots
-        cycle = tuple(find_cycle(graph) or ())
-        if not cycle:
-            self._cycle = ()
-        elif set(cycle) != set(self._cycle):
-            self._cycle, self._cycle_since, self._cycle_acted = cycle, now, False
-            self._event("WARN", "DEADLOCK_SEEN", f"wait cycle {' -> '.join(cycle)}")
-        elif not self._cycle_acted and now - self._cycle_since >= self.params.deadlock_grace_s:
-            rest = list(cycle)
-            while rest and not self._cycle_acted:
-                victim = choose_retreat(rest, lambda name: self._priority(self._robots[name]))
-                self._cycle_acted = self._evade(self._robots[victim])
-                rest.remove(victim)
+        watch = self._deadlock
+        rest = list(watch.due(now))
+        while rest and not watch.acted:
+            victim = choose_retreat(rest, lambda name: self._priority(self._robots[name]))
+            watch.acted = self._evade(self._robots[victim])
+            rest.remove(victim)
         # 늘 빈 집합이다. 자유바닥 교통 층(1da1e61)은 대기 순환에 든 로봇을 돌려주어 그 tick에
         # tick_pick이 고르지 않고 step이 걷지 않게 했다("robots of a wait cycle stand still").
         # 구역 교통은 순환을 _evade(한 대를 주차 자리로)로만 풀고 세울 로봇을 고르지 않는다.

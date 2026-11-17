@@ -12,6 +12,7 @@ from fleet_core.traffic.selector import RobotSelector
 
 from .block_marks import MarkBook
 from .capacity import CapacityCheck
+from .deadlock_watch import DeadlockWatch
 from .detours import DetourNotes
 from .grants import ZoneGrants
 from .lane_policy import LanePolicy
@@ -47,9 +48,6 @@ class ZoneBase:
         self._wants: dict = {}
         self._blocked: dict = {}
         self._marks: dict = {}
-        self._cycle: tuple = ()
-        self._cycle_since = 0.0
-        self._cycle_acted = False
         self._near: dict = {}
         self.order_fault = ""
         self.clear_reason = ""
@@ -62,6 +60,8 @@ class ZoneBase:
         self._silent = SilentWatch(params, self._robots, self._event, self._event_once)
         self._detours = DetourNotes(site, self._event)
         self._mark_book = MarkBook(params, self._blocked, self._marks, self._robots, clock)
+        self._deadlock = DeadlockWatch(params, self.grants, self._wants, self._robots,
+                                       self._event)
 
     # ---- 로봇 목록, 운행 상태, 가용 여부, 쌓인 출력 꺼내기 ----
     @property
