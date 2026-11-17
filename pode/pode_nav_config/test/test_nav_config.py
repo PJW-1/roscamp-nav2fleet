@@ -637,3 +637,13 @@ def test_a_body_point_is_marked_anywhere_on_the_arena():
 def test_the_far_point_that_keeps_the_cloud_from_being_empty_is_never_marked():
     """pode_peer_obstacles는 빈 점구름을 피하려고 map 원점에서 1000 m 넘게 먼 점 하나를 늘 낸다."""
     assert PEERS["peer_layer"]["peers"]["obstacle_max_range"] <= 100.0
+
+
+def test_recovery_clear_nodes_have_their_own_longer_server_timeout():
+    """회복 RoundRobin의 두 Clear 노드는 자기 server_timeout(ms)을 가진다. 전역 기본값 20은 그대로."""
+    clears = [n for n in BT.getroot().iter("ClearEntireCostmap")
+              if n.get("name", "").endswith("-Subtree")]
+    assert len(clears) == 2
+    for node in clears:
+        assert int(node.get("server_timeout", "0")) >= 500, node.get("name")
+    assert params("bt_navigator")["default_server_timeout"] == 20

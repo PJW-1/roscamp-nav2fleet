@@ -48,8 +48,9 @@
           <GoalUpdated/>
           <RoundRobin name="RecoveryActions">
             <Sequence name="ClearingActions">
-              <ClearEntireCostmap name="ClearLocalCostmap-Subtree" service_name="local_costmap/clear_entirely_local_costmap"/>
-              <ClearEntireCostmap name="ClearGlobalCostmap-Subtree" service_name="global_costmap/clear_entirely_global_costmap"/>
+              <!-- 이 두 노드만 server_timeout 1000ms. check_future는 한 틱에 최대 max_timeout만 기다리고 RUNNING을 돌려줘 트리가 멈추지 않는다 -->
+              <ClearEntireCostmap name="ClearLocalCostmap-Subtree" service_name="local_costmap/clear_entirely_local_costmap" server_timeout="1000"/>
+              <ClearEntireCostmap name="ClearGlobalCostmap-Subtree" service_name="global_costmap/clear_entirely_global_costmap" server_timeout="1000"/>
             </Sequence>
             <Wait wait_duration="5.0"/>
           </RoundRobin>
