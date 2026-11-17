@@ -428,7 +428,7 @@ def test_v7_outbound_waits_at_the_west_end_of_the_express_too(site):
     assert spot.y == pytest.approx(0.895)  # 급행 가운데(2026-11-17 실측)
     # 북쪽 진열대에 몸 원이 닿지 않는다(2026-11-17부터 진열대가 O_X 아래까지 와서 위 면에서 0.085)
     assert point_rect_distance(SHELVES[0], spot.x, spot.y) > BODY_CIRCLE_M
-    # 선 로봇의 몸은 HALL에 들지 않는다(진열대 서쪽 HALL 띠의 위 끝 y 0.81에서 0.09). 급행으로 오는
+    # 선 로봇의 몸은 HALL에 들지 않는다(진열대 서쪽 HALL 띠의 위 끝 모서리(0.63, 0.81)에서 약 0.089). 급행으로 오는
     # 길은 HALL을 지나지 않아 쥐지도 않는다
     assert site.distance_to_zone(spot.x, spot.y, "HALL") > 0.085
     assert "HALL" not in site.link("W_X", "O_X").zones
