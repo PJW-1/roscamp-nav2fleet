@@ -2,7 +2,8 @@
 
 `.goal =` 대입이 믹스인 여러 곳에 흩어지면 goal을 바꿀 때 함께 하던 일(멈춤 감시 초기화 등)을
 빠뜨리기 쉽다. ast로 zone 패키지를 읽어 `.goal =` 대입이 goal_life.py와 ZoneBase.__init__에만
-있는지 본다.
+있는지 본다. 대입문, 늘린 대입, 풀어 넣기(`*m.goal`), for와 내포의 대상, with ... as,
+`setattr(m, "goal", ...)`을 모두 대입으로 센다.
 """
 import ast
 from pathlib import Path
@@ -19,14 +20,23 @@ def _goal_assignments(source: str, filename: str) -> list[tuple[str, str, int]]:
     def targets(node):
         if isinstance(node, ast.Assign):
             return node.targets
-        if isinstance(node, ast.AugAssign | ast.AnnAssign):
+        if isinstance(node, ast.AugAssign | ast.AnnAssign | ast.For | ast.AsyncFor
+                      | ast.comprehension):
             return [node.target]
+        if isinstance(node, ast.With | ast.AsyncWith):
+            return [item.optional_vars for item in node.items if item.optional_vars is not None]
+        if (isinstance(node, ast.Call) and isinstance(node.func, ast.Name)
+                and node.func.id == "setattr" and len(node.args) >= 2
+                and isinstance(node.args[1], ast.Constant) and node.args[1].value == "goal"):
+            return [ast.Attribute(node.args[0], "goal", ast.Store(), lineno=node.lineno)]
         return []
 
     def flat(target):
         if isinstance(target, ast.Tuple | ast.List):
             for item in target.elts:
                 yield from flat(item)
+        elif isinstance(target, ast.Starred):
+            yield from flat(target.value)
         else:
             yield target
 
@@ -40,7 +50,7 @@ def _goal_assignments(source: str, filename: str) -> list[tuple[str, str, int]]:
             for target in targets(child):
                 for item in flat(target):
                     if isinstance(item, ast.Attribute) and item.attr == "goal":
-                        found.append((filename, where, child.lineno))
+                        found.append((filename, where, item.lineno))
             walk(child, inner)
 
     walk(ast.parse(source), "")
@@ -63,3 +73,21 @@ def test_the_check_can_fail():
     source = "class Drive:\n    def step(self, m):\n        m.goal, x = None, 1\n"
     assert _goal_assignments(source, "drive.py") == [("drive.py", "Drive.step", 3)]
     assert not _allowed("drive.py", "Drive.step")
+
+
+def test_the_check_sees_every_way_to_assign():
+    lines = [
+        "def step(m, goals, place):",
+        "    setattr(m, 'goal', None)",
+        "    for m.goal in goals:",
+        "        pass",
+        "    *m.goal, x = goals",
+        "    with place() as m.goal:",
+        "        pass",
+        "    [0 for m.goal in goals]",
+        "    m.goal += 1",
+        "    getattr(m, 'goal')",
+        "    setattr(m, 'trip', None)",
+    ]
+    found = _goal_assignments("\n".join(lines) + "\n", "drive.py")
+    assert sorted(line for _, _, line in found) == [2, 3, 5, 6, 8, 9]
