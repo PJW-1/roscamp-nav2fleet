@@ -56,7 +56,7 @@ Codex 리뷰(91cb480)의 지적 7건과 서브에이전트 숫자 정정(판 수
 - Smac 2D: `planner_plugins`의 `GridBased`를 `nav2_smac_planner::SmacPlanner2D`로 바꾸면 되고 BT는 그대로다. package.xml에 `nav2_smac_planner`.
 - 이 기계에는 `nav2_smoother`(SimpleSmoother, SavitzkyGolaySmoother), `nav2_constrained_smoother`, `nav2_smac_planner`가 있다 [확정].
   **실물 로봇에 깔렸는지는 모른다.** 로봇에서 `ros2 pkg list | grep -E "smac|smoother"`로 먼저 본다.
-- 시뮬레이션의 `nav_overrides`는 Nav2 설정 전체에 깊이 덮이고 controller plugin 교체와 매핑을 비매핑으로 바꾸는 덮어쓰기를 거부하고, 병합 뒤 RPP controller에 충돌 검사를 다시 켜고, `nav_max_speed`(기본 0.20)를 주면 `desired_linear_vel` 상한을 건다. Gazebo 기본값(`fixed_line_check` 거짓)에서는 고정 경로 controller 셋의 검사를 끈다. 마당 goal(FollowPathGoal)은 `desired_linear_vel` 키가 있을 때만(plugin 이름이 아니라 키로 가린다) 이 둘을 받고, 회피 담당의 다른 plugin이면 건드리지 않는다(`launch_parts.py:206-215`, `sim/fleet_gz_sim/launch/gz.launch.py:103-116`,
+- 시뮬레이션의 `nav_overrides`는 Nav2 설정 전체에 깊이 덮이고 controller plugin 교체와 매핑을 비매핑으로 바꾸는 덮어쓰기를 거부하고, 병합 뒤 RPP controller에 충돌 검사를 다시 켜고, `nav_max_speed`(기본 0.20)를 주면 `desired_linear_vel` 상한을 건다. Gazebo 기본값(`fixed_line_check` 거짓)에서는 고정 경로 controller 셋의 검사를 끈다. 마당 goal(FollowPathGoal)은 `desired_linear_vel` 키가 있을 때만(plugin 이름이 아니라 키로 가린다) 이 둘을 받고, 그 키가 없으면(회피 담당의 다른 plugin일 때) 건드리지 않는다(`launch_parts.py:206-215`, `sim/fleet_gz_sim/launch/gz.launch.py:103-116`,
   `sim/fleet_gz_sim/fleet_gz_sim/launch_parts.py:175-200`). 그래서 Gazebo에서 플래너 plugin(`planner_server`의 `GridBased.plugin`)은 `nav_overrides`로 바꿔 볼 수 있다.
   smoother는 launch 노드 목록과 BT를 바꿔야 해서 `nav_overrides`만으로는 안 된다.
 
@@ -166,7 +166,7 @@ Codex 리뷰(91cb480)의 지적 7건과 서브에이전트 숫자 정정(판 수
 - `fix/blocked-hysteresis-fleet`(62bfb98, 7e0a771, 1f758ac). 관제는 같은 goal의 막힘 일화 안에서는 짧은 틈에 시계를 다시 세지 않는다. 다만 막힘 표시를 하거나 다른 로봇에게 양보한 뒤에는 원래처럼 시계를 비우고 새 일화로 시작한다(`blocked.py`의 `_mark_blocked`, `yard_retreat.py`의 `_yield_to_robot`).
   - 일화가 끝나는 때: 처음 막힌 자리에서 `blocked_reset_m` 0.30 m 넘게 나아감, 막힘 아닌 보고가 `blocked_reset_s` 20초 이어짐(RECOVERING 보고가 오면 이 20초를 처음부터 다시 센다. 다만 그 보고가 올 때 이미 20초가 찼으면 일화가 끝난다: `blocked.py`의 `_blocked_gap`이 `_gap_over`를 먼저 본다), goal이 바뀌거나 끝남.
   - 20초는 위의 "10초 가까운 틈"의 두 배, 0.30 m는 Pode 자가 후진 최대 0.15 m의 두 배다. 두 값 모두 [추측]이고 실제 깜빡임 주기는 재지 않았다.
-  - 짧은 틈이 한 번 이상 있었으면 `ZONE_MARKED_BLOCKED`(두 곳)와 막힌 채 시간이 다 된 `GOAL_FAILED`(뒤에 로봇이 있을 때, 물러나는 중) 끝에 `, after N short gaps`가 붙는다. 0이면 예전 문구 그대로이고, 다른 `GOAL_FAILED`에는 붙지 않는다.
+  - 짧은 틈 뒤 다시 막혀 그 틈이 한 번 이상 세어졌으면(틈에 들어갈 때가 아니라 막힘이 돌아올 때 센다, `blocked.py`) `ZONE_MARKED_BLOCKED`(두 곳)와 막힌 채 시간이 다 된 `GOAL_FAILED`(뒤에 로봇이 있을 때, 물러나는 중) 끝에 `, after N short gaps`가 붙는다. 0이면 예전 문구 그대로이고, 다른 `GOAL_FAILED`에는 붙지 않는다.
   - 시험: 고치기 전 코드로 당시 시험 9개를 돌려 8개가 실패했다(최종 시험은 11개). 고친 뒤 fleet_core `ZONE_TICK_ORDER=manager`와 `zone` 모두 1115 passed, 1 skipped, 5 xfailed(직접 다시 돌림).
     fake_robots 1019 passed, 27 xfailed와 관제 시나리오 11 passed는 에이전트가 돌린 결과다.
   - 남은 점: Nav2가 BLOCKED 없이 0.3 m 안에서 20초 넘게 꿈틀거리면 막힘 일화가 끝난다. 그 꿈틀거림이 12초(`stall_s`) 안에 매번 5 cm(`stall_move_m`) 넘게 움직이면 멈춤 감시(`watch.py`)도 시계를 다시 세므로 잡지 못한다.
