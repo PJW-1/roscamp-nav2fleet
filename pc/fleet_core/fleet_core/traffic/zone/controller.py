@@ -6,16 +6,13 @@ from .base import ZoneBase
 from .block_marks import BlockMarks
 from .blocked import Blocked
 from .calls import Calls
-from .capacity import Capacity
 from .clear_checks import ClearChecks
 from .detours import Detours
 from .drive import Drive
 from .goal_life import GoalLife
 from .goals import Goals
 from .health import Health
-from .localization import Localization
 from .move_orders import MoveOrders
-from .nostart import NoStart
 from .order_answers import OrderAnswers
 from .placement import Placement
 from .progress import Progress
@@ -30,7 +27,7 @@ from .yard_retreat import YardRetreat
 # ---- ZoneTraffic 클래스와 틱 순서 ----
 class ZoneTraffic(Calls, Goals, Turns, Drive, MoveOrders, OrderAnswers, Results, Redock, Progress,
                   Placement, Blocked, BlockMarks, YardRetreat, Detours, ClearChecks, Health, Watch,
-                  Localization, Backoff, Silent, NoStart, Capacity, GoalLife, ZoneBase):
+                  Backoff, Silent, GoalLife, ZoneBase):
     # ---- 조회 위임 ----
     @property
     def everyone_placed(self) -> bool:
@@ -62,7 +59,7 @@ class ZoneTraffic(Calls, Goals, Turns, Drive, MoveOrders, OrderAnswers, Results,
 
     # ---- 틱 시작 점검 ----
     def tick_begin(self, now: float) -> bool:
-        self._check_capacity()
+        self._capacity.check(len(self._robots))
         everyone_here = self._check_startup(now)
         self._check_comm(now)
         self._finish_recoveries(now)
@@ -79,7 +76,7 @@ class ZoneTraffic(Calls, Goals, Turns, Drive, MoveOrders, OrderAnswers, Results,
                 self._watch_stall(m, now)
                 self._watch_idle(m, now)
                 self._watch_retreat_wait(m, now)
-            self._watch_start(m, now)
+            self._start_watch.watch(m, now, self.running)
             self._watch_silent(m, now)
         self._watch_near(now)
         return self._watch_deadlock(now)

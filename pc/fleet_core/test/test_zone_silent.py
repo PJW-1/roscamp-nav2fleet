@@ -18,7 +18,7 @@ def quiet_goal(**kwargs):
     (관제의 결함을 흉내 낸다)."""
     world = Harness(speed=0.0, **kwargs)
     world.traffic._watch_stall = lambda m, now: None
-    world.traffic._watch_start = lambda m, now: None
+    world.traffic._start_watch.watch = lambda m, now, running: None
     world.step()
     world.call("WORK", "pode2")
     world.step()

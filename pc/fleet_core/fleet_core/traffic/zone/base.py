@@ -10,8 +10,11 @@ from fleet_core.traffic.deadlock import priority
 from fleet_core.traffic.mission import AT_STATION, ERROR, FILL, NOT_AT_TARGET, RUN
 from fleet_core.traffic.selector import RobotSelector
 
+from .capacity import CapacityCheck
 from .grants import ZoneGrants
 from .lane_policy import LanePolicy
+from .localization import PoseJumpWatch
+from .nostart import StartWatch
 from .robots import ORDER, Robot
 from .trips import along
 from .views import ZoneViews
@@ -37,7 +40,6 @@ class ZoneBase:
         self._started = None
         self._startup_warned = False
         self._no_robot_warned = False
-        self._capacity_checked = False
         self._joining: set[str] = set()
         self._wants: dict = {}
         self._blocked: dict = {}
@@ -53,6 +55,9 @@ class ZoneBase:
         self.station_left = None
         self._views = ZoneViews(site, self.grants, self._robots, self._joining, self._wants,
                                 self._blocked, self._marks)
+        self._capacity = CapacityCheck(site, self._event)
+        self._pose_watch = PoseJumpWatch(params, self._event)
+        self._start_watch = StartWatch(params, site, self._event)
 
     # ---- 로봇 목록, 운행 상태, 가용 여부, 쌓인 출력 꺼내기 ----
     @property
