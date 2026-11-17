@@ -10,10 +10,18 @@ from fleet_core.traffic.deadlock import priority
 from fleet_core.traffic.mission import AT_STATION, ERROR, FILL, NOT_AT_TARGET, RUN
 from fleet_core.traffic.selector import RobotSelector
 
+from .block_marks import MarkBook
+from .capacity import CapacityCheck
+from .deadlock_watch import DeadlockWatch
+from .detours import DetourNotes
 from .grants import ZoneGrants
 from .lane_policy import LanePolicy
+from .localization import PoseJumpWatch
+from .nostart import StartWatch
 from .robots import ORDER, Robot
+from .silent import SilentWatch
 from .trips import along
+from .views import ZoneViews
 
 HERE = "@"
 
@@ -36,25 +44,50 @@ class ZoneBase:
         self._started = None
         self._startup_warned = False
         self._no_robot_warned = False
-        self._capacity_checked = False
         self._joining: set[str] = set()
         self._wants: dict = {}
         self._blocked: dict = {}
         self._marks: dict = {}
-        self._mark_memory: list = []
-        self._mark_seq = itertools.count(1).__next__
-        self._cycle: tuple = ()
-        self._cycle_since = 0.0
-        self._cycle_acted = False
         self._near: dict = {}
         self.order_fault = ""
         self.clear_reason = ""
         self.station_left = None
+        self._views = ZoneViews(site, self.grants, self._robots, self._joining, self._wants,
+                                self._blocked, self._marks)
+        self._capacity = CapacityCheck(site, self._event)
+        self._pose_watch = PoseJumpWatch(params, self._event)
+        self._start_watch = StartWatch(params, site, self._event)
+        self._silent = SilentWatch(params, self._robots, self._event, self._event_once)
+        self._detours = DetourNotes(site, self._event)
+        self._mark_book = MarkBook(params, self._blocked, self._marks, self._robots, clock)
+        self._deadlock = DeadlockWatch(params, self.grants, self._wants, self._robots,
+                                       self._event)
+
+    # ---- 로봇 목록, 운행 상태, 가용 여부, 쌓인 출력 꺼내기 ----
+    @property
+    def robots(self) -> list[str]:
+        return list(self._robots)
+
+    @property
+    def running(self) -> bool:
+        return self._run_mode == RUN
+
+    @property
+    def zones(self):
+        return self.grants
+
+    def available(self, robot) -> bool:
+        m = self._robots.get(robot)
+        return m is not None and m.available
+
+    def take_output(self) -> list:
+        out, self._out = self._out, []
+        return out
 
     # ---- 이벤트 내기와 위치 판정 ----
     def _event(self, level: str, code: str, detail: str, robot: str = "") -> None:
         self._out.append(EventOut(level, code, detail, robot))
-        self._note_robot_event(robot, code)
+        self._silent.note(robot, code)
 
     def _event_once(self, ep, level: str, code: str, detail: str, robot: str = "") -> None:
         if ep.noted:

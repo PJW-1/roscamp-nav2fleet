@@ -45,7 +45,7 @@ class Progress:
             return
         if m.health.comm == COMM_LOST:
             m.health.pose_at = None
-        self._watch_pose_jump(m, x, y, yaw, now)
+        self._pose_watch.watch(m, x, y, yaw, now)
         m.x, m.y, m.yaw = x, y, yaw
         m.heard_since_success = True
         if m.health.fault == OUT_OF_SERVICE:

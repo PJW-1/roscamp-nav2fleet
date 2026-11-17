@@ -1,39 +1,27 @@
-# ---- 관제 상태 조회 믹스인 ----
+# ---- 관제 상태 조회 객체 ----
 from __future__ import annotations
 
 import math
 
 from fleet_core.common.commands import ZoneView
-from fleet_core.traffic.mission import _COMM_REASON, NO_FAULT, OUT_OF_SERVICE, RUN
+from fleet_core.traffic.mission import _COMM_REASON, NO_FAULT, OUT_OF_SERVICE
 
 
-class Views:
-    # ---- 로봇 목록과 운행 상태 속성 ----
-    @property
-    def robots(self) -> list[str]:
-        return list(self._robots)
+class ZoneViews:
+    def __init__(self, site, grants, robots, joining, wants, blocked, marks):
+        self.site = site
+        self.grants = grants
+        self._robots = robots
+        self._joining = joining
+        self._wants = wants
+        self._blocked = blocked
+        self._marks = marks
 
+    # ---- 모두 자리에 있는지 ----
     @property
     def everyone_placed(self) -> bool:
         return all(m.placed or m.health.fault == OUT_OF_SERVICE or m.name in self._joining
                    for m in self._robots.values())
-
-    @property
-    def running(self) -> bool:
-        return self._run_mode == RUN
-
-    @property
-    def zones(self):
-        return self.grants
-
-    # ---- 가용 여부와 쌓인 출력 꺼내기 ----
-    def available(self, robot) -> bool:
-        m = self._robots.get(robot)
-        return m is not None and m.available
-
-    def take_output(self) -> list:
-        out, self._out = self._out, []
-        return out
 
     # ---- 막힘 표시 관측(읽기 전용 질의, bool만 돌려준다) ----
     def live_block(self, keys, point, radius: float, now: float) -> bool:

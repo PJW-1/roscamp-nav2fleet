@@ -182,7 +182,7 @@ def test_a_cycle_that_breaks_up_and_forms_again_is_reported_again():
     assert count(world, "DEADLOCK_SEEN") == 1, "the same cycle is said once"
     del world.traffic._wants["pode2"]
     world.step()
-    assert world.traffic._cycle == ()
+    assert world.traffic._deadlock.cycle == ()
     waiting_for_each_other(world)
     world.step()
     assert count(world, "DEADLOCK_SEEN") == 2

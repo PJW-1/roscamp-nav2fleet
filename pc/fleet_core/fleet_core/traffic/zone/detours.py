@@ -1,4 +1,4 @@
-# ---- 우회 경로 종류 판정과 DETOUR 이벤트 믹스인 ----
+# ---- 우회 경로 종류 판정과 DETOUR 이벤트 ----
 from __future__ import annotations
 
 from fleet_core.fleet_map import LANE, RETREAT, SHARED
@@ -30,16 +30,20 @@ def detour_kind(site, old_goal: str, old_zones, trip) -> str:
 
 
 # ---- 남은 경로 기억과 우회 알림 ----
-class Detours:
-    def _remember_way(self, m) -> None:
+class DetourNotes:
+    def __init__(self, site, emit):
+        self.site = site
+        self.emit = emit
+
+    def remember(self, m) -> None:
         trip = m.trip
         m.avoid.detour = (trip.goal, frozenset(z for link in trip.links[trip.done:]
                                                for z in link.zones))
 
-    def _note_detour(self, m, trip) -> None:
+    def note(self, m, trip) -> None:
         if m.avoid.detour is None:
             return
         goal, zones = m.avoid.detour
         m.avoid.detour = None
-        self._event("INFO", "DETOUR", f"{detour_kind(self.site, goal, zones, trip)}: "
-                    f"{'->'.join(trip.route())}", m.name)
+        self.emit("INFO", "DETOUR", f"{detour_kind(self.site, goal, zones, trip)}: "
+                  f"{'->'.join(trip.route())}", m.name)
