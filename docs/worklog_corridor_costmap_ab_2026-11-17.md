@@ -151,3 +151,66 @@ ros2 launch fleet_gz_sim gz.launch.py $GAME nav_map_variant:=ab nav_overrides:=$
   1절의 모델 값을 측정처럼 적었다, 상자 모델이 실제보다 덜 막는다는 단정 -> 받아들여 고쳤다.
   StaticLayer 행 번호가 틀렸다(187행부터라고) -> 받은 1.3.13 원본에서 `if (!layered_costmap_->isRolling() ...`는 199행,
   `true);`는 215행이라 고치지 않았다.
+
+## 8. 한 대 재현 판: 가운데 통로 상자, 남쪽 진열대 사이 틈 (브랜치 `exp/corridor-repro`)
+
+세 대 판(`gz_v7_varied` + `v7_yard_mix`)은 상자 4가 있는 동안 아무도 가운데 통로로 보내지 않아 갈래를 비교할 수 없다.
+그래서 Pode 한 대를 `one_pode.launch.py`로 띄우고 `drive_check`가 Nav2 goal을 바로 보낸다(관제 없음). Gazebo로는 아직 돌리지 않았다.
+
+- `one_pode.launch.py nav_map_variant:=a|b|ab`: gz.launch.py와 같은 뜻, 같은 검사(`arena_for`), v7만. map_server(`map`)만 갈래 지도,
+  AMCL(`map_fine`, 1 cm)과 keepout 마스크는 그대로(시험 `test_one_pode_wiring`).
+- 계획 `corridor`(v7): O_IN -> M_E -> O_IN, 둘 다 nav_goal. `--laps`만큼 되풀이. 시작은 O_IN(서는 방향 108도).
+  O_IN -> M_E의 끝 방향은 시작→끝(-3.7도, M_E에 yaw와 고정 경로가 없다), M_E -> O_IN은 O_IN의 yaw 108도.
+  keepout 마스크는 이 곧은 선과 몸 띠(±0.06)를 막지 않는다. x 0.90~1.00 통로 안의 keepout은 북쪽 y 0.75~0.77 띠와
+  남쪽 경계선 y 0.405(건넘 틈 keepout의 경계)뿐이다(시험).
+- 일정 `v7_corridor_box`: 상자 4와 같은 자리(O_IN -> M_E의 0.4, (0.952, 0.595))와 크기(0.08), 시뮬 30 s에 놓아 1800 s 둔다.
+  되풀이 없음. O_IN 한가운데에서 0.463 m라 0.35 m 놓기 규칙에 막히지 않는다(상자 쪽으로 0.113 m 넘게 치우치면 막힌다).
+- 계획 `gap`(v7): M_E -> GAP_N(1.12, 0.55) -> GAP_S(1.12, 0.24) -> GAP_N -> M_E, 모두 nav_goal. 틈을 사이에 둔 지점 쌍이
+  구역 지도에 없어(E-3, Q2, O_IN, M_E 어느 쌍도 틈 길이 분명히 짧지 않다) 계획 전용 점을 쓴다. `--point GAP_N=x,y`로 옮긴다.
+  GAP_N <-> GAP_S 예상 길이(1 cm 격자, 진열대·벽 0.09 부풀림과 keepout 사각형으로 막은 8 이웃 최단 경로, 모델 계산):
+  틈이 열리면 0.31 m, 닫히면(지금 keepout) 1.26 m(부풀림 0.06이면 1.18 m). 실제 NavFn 경로는 비용 때문에 다를 수 있다.
+- drive_check JSON(이동마다): `result`, `sim_s`, `wall_s`, `states`, `blocked`, `recovering`, `box_min_m`(상자가 놓인 동안
+  실제 위치와 상자 중심의 가장 짧은 거리), `amcl_max_error_m`(AMCL `/<로봇>/amcl_pose`마다 시각이 가장 가까운 실제 위치와의
+  거리 중 가장 큰 것). nav_goal: `track`(0.05 m마다 줄인 실제 자취), v7은 `through_corridor`(x 0.90~1.00, y 0.405~0.77을
+  x 방향으로 지나감). v7: `through_gap`(x 0.99~1.25, y 0.365~0.405를 y 방향으로 지나감), `gap_corner_min_m`(중심),
+  `gap_corner_body_min_m`(local costmap 발자국 다각형과 실제 yaw. 못 읽으면 중심 - 0.056, `gap_corner_body_from`에 적는다).
+  틈 가운데를 곧게 지나면 몸 거리는 0.074다.
+
+명령(터미널 둘, 같은 환경). 도메인은 70~79 가운데 비어 있는 것(사람 57, 실물 6, 다른 판 61은 피한다), 판마다 다른 json.
+
+```bash
+source /opt/ros/jazzy/setup.bash
+source /home/ane/pinky_deps_ws/install/setup.bash
+source <이 브랜치의 install>/setup.bash
+export ROS_DOMAIN_ID=71 ROS_AUTOMATIC_DISCOVERY_RANGE=LOCALHOST
+OV=$(ros2 pkg prefix fleet_gz_sim)/share/fleet_gz_sim/nav_overrides
+ONE="layout:=v7 start:=O_IN obstacles:=v7_corridor_box gui:=true rviz:=true"
+CHK="--layout v7 --plan corridor --laps 3 --wait-box 120"
+mkdir -p gz_result
+
+# base
+ros2 launch fleet_gz_sim one_pode.launch.py $ONE
+ros2 run fleet_gz_sim drive_check $CHK --json gz_result/corr1_base.json
+# A (2.5 cm, padding 0.01)
+ros2 launch fleet_gz_sim one_pode.launch.py $ONE nav_map_variant:=a nav_overrides:=$OV/global_padding_0p01.yaml
+ros2 run fleet_gz_sim drive_check $CHK --json gz_result/corr1_a.json
+# B (칸 중심, 5 cm)
+ros2 launch fleet_gz_sim one_pode.launch.py $ONE nav_map_variant:=b
+ros2 run fleet_gz_sim drive_check $CHK --json gz_result/corr1_b.json
+# A+B (2.5 cm 칸 중심, padding 0.01)
+ros2 launch fleet_gz_sim one_pode.launch.py $ONE nav_map_variant:=ab nav_overrides:=$OV/global_padding_0p01.yaml
+ros2 run fleet_gz_sim drive_check $CHK --json gz_result/corr1_ab.json
+
+# 틈: 장애물 없이 M_E에서. 지금 지도(틈 keepout 있음)와, fix/v7-shelf-gap-open을 합쳐 빌드한 install(틈 keepout 없음)에서 같은 명령
+ros2 launch fleet_gz_sim one_pode.launch.py layout:=v7 start:=M_E gui:=true rviz:=true
+ros2 run fleet_gz_sim drive_check --layout v7 --plan gap --laps 3 --json gz_result/gap_keepout.json   # 합친 빌드는 gap_open.json
+```
+
+- drive_check는 앞 이동이 실패하면 멈춘다. `--wait-box`가 시간을 넘기면 상자가 없는 것이다: sim_obstacles가 시뮬 30 s 뒤에 떴거나
+  (그 전 항목은 건너뛴다) 로봇이 상자에서 0.35 m 안에 20 s 넘게 있었다. launch 로그의 `obstacle_1 ... placed`로 확인한다.
+- 판 하나가 끝나면 launch를 Ctrl+C로 내리고 다음 갈래를 띄운다(갈래는 launch 인자라 한 판에 하나).
+- 틈 keepout이 있는 판에서는 진열대 끝을 돌아야 하고 `through_gap`은 false가 나와야 한다. 합친 빌드에서는 설치된
+  `arena_v7_keepout`이 그 브랜치의 것인지 먼저 본다.
+- 시험(이 브랜치의 `install_r`, `ROS_DOMAIN_ID=73`, 한 프로세스, 관련 파일만):
+  `python3 -m pytest -q test/test_stage2_plan.py test/test_arena_v7.py test/test_one_pode_wiring.py test/test_drive_check.py`
+  -> `148 passed`. 구현 전에는 통로 몫 14 failed, 틈 몫 5 failed였다.
