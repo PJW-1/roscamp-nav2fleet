@@ -243,6 +243,33 @@ def test_global_padding_overrides_touch_only_the_global_costmap_padding(made, na
         assert data == plain
 
 
+@pytest.mark.parametrize("name, padding", [("global_inflation_tight", None),
+                                           ("global_padding_0p01_inflation_tight", 0.01)])
+def test_tight_global_inflation_overrides_change_only_the_global_costmap(made, name, padding):
+    path = NAV_OVERRIDES / f"{name}.yaml"
+    want = {"inflation_layer": {"cost_scaling_factor": 15.0, "inflation_radius": 0.15}}
+    if padding is not None:
+        want["footprint_padding"] = padding
+    assert yaml.safe_load(path.read_text(encoding="utf-8")) == {
+        "global_costmap": {"global_costmap": {"ros__parameters": want}}}
+    plain = yaml.safe_load(Path(launch_args(includes(run(made), "nav2.launch.py")[0])[
+        "params_file"]).read_text(encoding="utf-8"))
+    navs = includes(run(made, nav_overrides=str(path)), "nav2.launch.py")
+    for nav in navs:
+        data = yaml.safe_load(Path(launch_args(nav)["params_file"]).read_text(encoding="utf-8"))
+        glob = data["global_costmap"]["global_costmap"]["ros__parameters"]
+        assert glob["inflation_layer"]["cost_scaling_factor"] == 15.0
+        assert glob["inflation_layer"]["inflation_radius"] == 0.15
+        assert glob["inflation_layer"]["plugin"] == "nav2_costmap_2d::InflationLayer"
+        assert glob["footprint_padding"] == (0.03 if padding is None else padding)
+        # 로컬 costmap과 나머지는 그대로
+        assert data["local_costmap"] == plain["local_costmap"]
+        glob["inflation_layer"] = plain["global_costmap"]["global_costmap"]["ros__parameters"][
+            "inflation_layer"]
+        glob["footprint_padding"] = 0.03
+        assert data == plain
+
+
 def test_a_scenario_for_another_layout_starts_nothing(made):
     from fleet_gz_sim.fleet_setup import ScenarioUnfit
     with pytest.raises(ScenarioUnfit, match="layout"):

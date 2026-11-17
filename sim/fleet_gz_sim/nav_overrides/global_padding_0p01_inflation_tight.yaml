@@ -1,0 +1,9 @@
+# 전역 inflation 조이기 + footprint_padding 0.03 -> 0.01(시뮬 전용, nav_overrides).
+# nav_map_variant:=a와 함께 쓴다. local costmap과 controller는 건드리지 않는다.
+global_costmap:
+  global_costmap:
+    ros__parameters:
+      footprint_padding: 0.01
+      inflation_layer:
+        cost_scaling_factor: 15.0
+        inflation_radius: 0.15

@@ -1,0 +1,9 @@
+# 전역 inflation 조이기(시뮬 전용, gz.launch.py nav_overrides): global costmap의
+# cost_scaling_factor 6.0 -> 15.0, inflation_radius 0.25 -> 0.15. 다른 값은 덮지 않는다
+# (footprint_padding 0.03 그대로). local costmap과 controller는 건드리지 않는다.
+global_costmap:
+  global_costmap:
+    ros__parameters:
+      inflation_layer:
+        cost_scaling_factor: 15.0
+        inflation_radius: 0.15
