@@ -1,27 +1,32 @@
 # ---- 계획 요청과 planner 사이에서 길을 지키는 노드 ----
 import copy
+import math
 import threading
 import time
 
 import rclpy
 from action_msgs.msg import GoalStatus
 from nav2_msgs.action import ComputePathToPose
-from nav2_msgs.srv import IsPathValid
-from nav_msgs.msg import Path
+from nav_msgs.msg import OccupancyGrid, Path
 from rclpy.action import ActionClient, ActionServer, CancelResponse, GoalResponse
 from rclpy.callback_groups import ReentrantCallbackGroup
 from rclpy.executors import ExternalShutdownException, MultiThreadedExecutor
 from rclpy.node import Node
 from rclpy.parameter import Parameter
+from rclpy.qos import DurabilityPolicy, QoSProfile, ReliabilityPolicy
 
+from . import route
 from .route import (
     BLOCKED,
     KEEP,
     OFF,
+    OPEN,
     OTHER,
     SHORTER,
     SILENT,
+    Grid,
     Rules,
+    check_route,
     first_look,
     length,
     second_look,
@@ -30,15 +35,17 @@ from .route import (
 # ---- 이름과 상수 ----
 SERVER = "compute_path_keep"
 PLANNER = "compute_path_to_pose"
-VALID = "is_path_valid"
+COSTMAP = "global_costmap/costmap"
+COSTMAP_QOS = QoSProfile(depth=1, durability=DurabilityPolicy.TRANSIENT_LOCAL,
+                         reliability=ReliabilityPolicy.RELIABLE)
 POLL_S = 0.005
 PLANNER_WAIT_S = 1.0
 CANCEL_WAIT_S = 1.0
 MAX_RUNNING = 2
 THREADS = MAX_RUNNING + 2
-UNKNOWN = getattr(ComputePathToPose.Result, "UNKNOWN", 200)
-REASONS = {OFF: "the robot is off the kept route", BLOCKED: "the kept route is blocked",
-           SILENT: "no answer from is_path_valid", SHORTER: "the new plan is clearly shorter"}
+UNKNOWN_ERROR = getattr(ComputePathToPose.Result, "UNKNOWN", 200)
+REASONS = {OFF: "the robot is off the kept route", SILENT: "no global costmap to check",
+           SHORTER: "the new plan is clearly shorter"}
 
 
 # ---- 노드 생성과 파라미터 ----
@@ -52,19 +59,28 @@ class PlanKeep(Node):
                            shorter_m=float(declare("shorter_m", 0.30).value),
                            shorter_ratio=float(declare("shorter_ratio", 0.2).value),
                            same_goal_m=float(declare("same_goal_m", 0.05).value))
-        self.valid_timeout_s = float(declare("valid_timeout_s", 0.2).value)
+        self.blocked_cost = int(declare("blocked_cost", 99).value)
         self._lock = threading.Lock()
         self._kept = None
         self._kept_goal = None
         self._running = 0
-        clients = ReentrantCallbackGroup()
-        self.planner = ActionClient(self, ComputePathToPose, PLANNER, callback_group=clients)
-        self.valid = self.create_client(IsPathValid, VALID, callback_group=clients)
+        self.grid = None
+        self.create_subscription(OccupancyGrid, COSTMAP, self._on_costmap, COSTMAP_QOS)
+        self.planner = ActionClient(self, ComputePathToPose, PLANNER,
+                                    callback_group=ReentrantCallbackGroup())
         self.server = ActionServer(self, ComputePathToPose, SERVER, self.execute,
                                    goal_callback=self._take,
                                    cancel_callback=lambda _: CancelResponse.ACCEPT,
                                    callback_group=ReentrantCallbackGroup())
         self.get_logger().info(f"{SERVER} -> {PLANNER}, keep the route: {self.keep}")
+
+    # ---- 전역 비용 지도 ----
+    def _on_costmap(self, msg):
+        info = msg.info
+        q = info.origin.orientation
+        self.grid = Grid(origin_x=info.origin.position.x, origin_y=info.origin.position.y,
+                         yaw=2.0 * math.atan2(q.z, q.w), resolution=info.resolution,
+                         width=info.width, height=info.height, data=msg.data)
 
     # ---- 동시에 처리하는 요청 수 ----
     def _take(self, _request):
@@ -78,6 +94,9 @@ class PlanKeep(Node):
     def execute(self, handle):
         try:
             return self._execute(handle)
+        except Exception:
+            self._remember(None, None)
+            raise
         finally:
             with self._lock:
                 self._running -= 1
@@ -86,7 +105,7 @@ class PlanKeep(Node):
     def _execute(self, handle):
         if not self.planner.wait_for_server(timeout_sec=PLANNER_WAIT_S):
             self.get_logger().warn(f"{PLANNER} is not up")
-            return self._abort(handle, ComputePathToPose.Result(error_code=UNKNOWN))
+            return self._abort(handle, ComputePathToPose.Result(error_code=UNKNOWN_ERROR))
         sending = self.planner.send_goal_async(handle.request)
         sent = self._wait(sending, handle)
         if sent is None:
@@ -94,7 +113,7 @@ class PlanKeep(Node):
             handle.canceled()
             return ComputePathToPose.Result()
         if not sent.accepted:
-            return self._abort(handle, ComputePathToPose.Result(error_code=UNKNOWN))
+            return self._abort(handle, ComputePathToPose.Result(error_code=UNKNOWN_ERROR))
         got = self._wait(sent.get_result_async(), handle)
         if got is None:
             self._cancel_inner(sent)
@@ -104,13 +123,14 @@ class PlanKeep(Node):
         if got.status != GoalStatus.STATUS_SUCCEEDED:
             return self._abort(handle, result)
         goal = handle.request.goal.pose.position
+        remember = None
         if self.keep:
-            result.path = self._choose((goal.x, goal.y), result.path)
+            result.path, remember = self._choose((goal.x, goal.y), result.path)
         if handle.is_cancel_requested:
             handle.canceled()
             return ComputePathToPose.Result()
         if self.keep:
-            self._remember(result.path, (goal.x, goal.y))
+            self._remember(result.path, remember)
         handle.succeed()
         return result
 
@@ -141,37 +161,31 @@ class PlanKeep(Node):
         kept = _points(kept_path) if kept_path is not None else []
         look, start = first_look(kept, kept_goal, new, goal_xy, self.rules)
         if look not in (OFF, OTHER):
-            return new_path
+            return new_path, goal_xy
         rest = kept[start:]
-        verdict = OFF if look == OFF else second_look(rest, new, self._is_valid(kept_path, start),
-                                                      self.rules)
+        reason = None
+        if look == OFF:
+            verdict = OFF
+        else:
+            found = check_route(self.grid, rest, self.blocked_cost)
+            valid = None if found == route.UNKNOWN else found == OPEN
+            verdict = second_look(rest, new, valid, self.rules)
+            if verdict == BLOCKED:
+                x, y, cost = found
+                where = "outside the costmap" if cost is None else f"cost {cost}"
+                reason = f"the kept route is blocked at ({x:.2f}, {y:.2f}) {where}"
         lengths = f"new plan {length(new):.2f} m"
         if verdict == KEEP:
-            kept_path = self._restamped(kept_path, start, new_path)
             self.get_logger().info(f"kept the route: {lengths} by another way, "
                                    f"kept {length(rest):.2f} m")
-            return kept_path
+            return self._restamped(kept_path, start, new_path), kept_goal
         self.get_logger().info(f"changed the route: {lengths}, old {length(rest):.2f} m "
-                               f"({REASONS[verdict]})")
-        return new_path
+                               f"({reason or REASONS[verdict]})")
+        return new_path, goal_xy
 
     def _remember(self, path, goal_xy):
         with self._lock:
             self._kept, self._kept_goal = path, goal_xy
-
-    def _is_valid(self, kept_path, start):
-        if not self.valid.service_is_ready():
-            return None
-        request = IsPathValid.Request()
-        request.path = Path(header=kept_path.header, poses=kept_path.poses[start:])
-        future = self.valid.call_async(request)
-        end = time.monotonic() + self.valid_timeout_s
-        while not future.done() and time.monotonic() < end:
-            time.sleep(POLL_S)
-        if not future.done():
-            self.valid.remove_pending_request(future)
-            return None
-        return bool(future.result().is_valid)
 
     def _restamped(self, kept_path, start, new_path):
         stamp = self.get_clock().now().to_msg()

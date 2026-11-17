@@ -1,8 +1,10 @@
-"""plan_keep 노드: 가짜 planner(compute_path_to_pose)와 가짜 is_path_valid를 같은 프로세스에 띄우고
-compute_path_keep에 묻는다(ROS 2 rclpy와 nav2_msgs가 있을 때만).
+"""plan_keep 노드: 가짜 planner(compute_path_to_pose)와 가짜 전역 비용 지도
+(global_costmap/costmap)를 같은 프로세스에 띄우고 compute_path_keep에 묻는다
+(ROS 2 rclpy와 nav2_msgs가 있을 때만).
 
 ROS_DOMAIN_ID는 환경 그대로 쓰고, 다른 실행과 섞이지 않게 이 프로세스만의 namespace 안에서 돈다.
 """
+import math
 import os
 import threading
 import time
@@ -16,17 +18,21 @@ pytest.importorskip("nav2_msgs")
 from action_msgs.msg import GoalStatus  # noqa: E402
 from geometry_msgs.msg import PoseStamped  # noqa: E402
 from nav2_msgs.action import ComputePathToPose  # noqa: E402
-from nav2_msgs.srv import IsPathValid  # noqa: E402
-from nav_msgs.msg import Path  # noqa: E402
+from nav_msgs.msg import OccupancyGrid, Path  # noqa: E402
 from rclpy.action import ActionClient, ActionServer, CancelResponse  # noqa: E402
 from rclpy.callback_groups import ReentrantCallbackGroup  # noqa: E402
 from rclpy.executors import MultiThreadedExecutor  # noqa: E402
 from rclpy.parameter import Parameter  # noqa: E402
+from rclpy.qos import DurabilityPolicy, QoSProfile, ReliabilityPolicy  # noqa: E402
 
 NAMESPACE = f"/plan_keep_test_{os.getpid()}"
 OLD_STAMP_S = 1
 NO_VALID_PATH = 208
 GOAL = (1.0, 1.0)
+# Jazzy Costmap2DPublisher가 global_costmap/costmap을 내는 QoS
+# (KeepLast 1, transient_local, reliable)
+COSTMAP_QOS = QoSProfile(depth=1, durability=DurabilityPolicy.TRANSIENT_LOCAL,
+                         reliability=ReliabilityPolicy.RELIABLE)
 
 
 def line(*corners, step=0.05):
@@ -65,19 +71,34 @@ def rounded(points) -> list:
 
 
 class FakePlanner:
-    """plans: 다음 계획들(점 목록, 오류 코드 int, 또는 "hang"). valid: True, False, "slow", "hold"
-    ("hold"는 들어왔음을 알리고 release까지 답을 미룬다).
-    heading_z: 계획 끝 자세의 방향(쿼터니언 z, w는 맞춘다)."""
+    """plans: 다음 계획들(점 목록, 오류 코드 int, 또는 "hang").
+    heading_z: 계획 끝 자세의 방향(쿼터니언 z, w는 맞춘다).
+    costmap(): x -0.5~1.5, y -0.5~1.5, 5 cm 격자를 낸다. cells는 {(x, y): 값}."""
 
     def __init__(self, node):
         group = ReentrantCallbackGroup()
-        self.plans, self.valid, self.asked, self.canceled = deque(), True, [], 0
-        self.heading_z = 0.0
-        self.entered, self.release = threading.Event(), threading.Event()
+        self.plans, self.canceled, self.heading_z = deque(), 0, 0.0
         self.server = ActionServer(node, ComputePathToPose, "compute_path_to_pose", self._plan,
                                    cancel_callback=lambda _: CancelResponse.ACCEPT,
                                    callback_group=group)
-        node.create_service(IsPathValid, "is_path_valid", self._valid, callback_group=group)
+        self.costmap_pub = node.create_publisher(OccupancyGrid, "global_costmap/costmap",
+                                                 COSTMAP_QOS)
+
+    def costmap(self, keeper, cells=None, broken=False):
+        grid = OccupancyGrid()
+        grid.header.frame_id = "map"
+        grid.info.resolution, grid.info.width, grid.info.height = 0.05, 40, 40
+        grid.info.origin.position.x = grid.info.origin.position.y = -0.5
+        grid.info.origin.orientation.w = 1.0
+        data = [0] * (40 * 40)
+        for (x, y), value in (cells or {}).items():
+            data[math.floor((y + 0.5) / 0.05) * 40 + math.floor((x + 0.5) / 0.05)] = value
+        grid.data = data[:10] if broken else data
+        self.costmap_pub.publish(grid)
+        end = time.monotonic() + 5.0
+        while keeper.grid is None or list(keeper.grid.data) != list(grid.data):
+            assert time.monotonic() < end, "plan_keep did not get the costmap"
+            time.sleep(0.01)
 
     def _plan(self, handle):
         plan = self.plans.popleft()
@@ -97,19 +118,6 @@ class FakePlanner:
         end.z, end.w = self.heading_z, (1.0 - self.heading_z ** 2) ** 0.5
         handle.succeed()
         return result
-
-    def _valid(self, request, response):
-        self.asked.append(points_of(request.path))
-        if self.valid == "hold":
-            self.entered.set()
-            self.release.wait(5.0)
-            response.is_valid = True
-        elif self.valid == "slow":
-            time.sleep(0.6)
-            response.is_valid = True
-        else:
-            response.is_valid = bool(self.valid)
-        return response
 
 
 @pytest.fixture
@@ -159,64 +167,66 @@ def ask(client, goal=GOAL):
 
 def test_the_server_names_match_the_tree_and_nav2():
     from pode_plan_keep import node
-    assert (node.SERVER, node.PLANNER, node.VALID) == (
-        "compute_path_keep", "compute_path_to_pose", "is_path_valid")
+    assert (node.SERVER, node.PLANNER, node.COSTMAP) == (
+        "compute_path_keep", "compute_path_to_pose", "global_costmap/costmap")
 
 
 def test_another_way_to_the_same_goal_keeps_the_route_with_fresh_stamps(ros):
-    _, fake, client = ros()
+    keeper, fake, client = ros()
+    fake.costmap(keeper, {(0.5, 0.5): 100})  # 두 길 사이의 장애물은 상관없다
     fake.plans.extend([EAST, NORTH])
     status, result = ask(client)
     assert status == GoalStatus.STATUS_SUCCEEDED and points_of(result.path) == rounded(EAST)
     status, result = ask(client)
     assert status == GoalStatus.STATUS_SUCCEEDED
     assert points_of(result.path) == rounded(EAST), "the kept route, not the new plan"
-    assert fake.asked == [rounded(EAST)], "is_path_valid checked the kept route"
     assert result.path.header.stamp.sec > OLD_STAMP_S
     assert all(p.header.stamp.sec > OLD_STAMP_S for p in result.path.poses)
     assert result.path.header.frame_id == "map"
 
 
 def test_the_same_route_always_takes_the_new_plan(ros):
-    _, fake, client = ros()
+    keeper, fake, client = ros()
+    fake.costmap(keeper)
     fake.plans.extend([EAST, EAST_NEAR])
     ask(client)
     status, result = ask(client)
     assert status == GoalStatus.STATUS_SUCCEEDED
     assert points_of(result.path) == rounded(EAST_NEAR)
-    assert fake.asked == [], "no need to ask about the same route"
 
 
-@pytest.mark.parametrize("valid", [False, "slow"])
-def test_a_blocked_or_silent_kept_route_takes_the_new_plan(ros, valid):
-    _, fake, client = ros()
+@pytest.mark.parametrize("cells", [{(0.51, 0.01): 99}, {(0.51, 0.01): 100}, None])
+def test_a_blocked_kept_route_or_no_costmap_takes_the_new_plan(ros, cells):
+    keeper, fake, client = ros()
+    if cells is not None:
+        fake.costmap(keeper, cells)
     fake.plans.extend([EAST, NORTH, EAST])
-    fake.valid = valid
     ask(client)
     status, result = ask(client)
     assert status == GoalStatus.STATUS_SUCCEEDED and points_of(result.path) == rounded(NORTH)
-    fake.valid = True
+    fake.costmap(keeper)
     _, result = ask(client)  # 이제는 NORTH를 지켜 둔다
     assert points_of(result.path) == rounded(NORTH)
 
 
 def test_a_planner_failure_is_passed_on_and_forgets_the_kept_route(ros):
-    _, fake, client = ros()
+    keeper, fake, client = ros()
     fake.plans.extend([EAST, NO_VALID_PATH, NORTH])
+    fake.costmap(keeper)
     ask(client)
     status, result = ask(client)
     assert status == GoalStatus.STATUS_ABORTED and result.error_code == NO_VALID_PATH
     status, result = ask(client)
     assert status == GoalStatus.STATUS_SUCCEEDED and points_of(result.path) == rounded(NORTH)
-    assert fake.asked == []
 
 
 def test_keep_false_always_passes_the_planner_result_on(ros):
-    _, fake, client = ros(Parameter("keep", value=False))
+    keeper, fake, client = ros(Parameter("keep", value=False))
+    fake.costmap(keeper)
     fake.plans.extend([EAST, NORTH])
     ask(client)
     _, result = ask(client)
-    assert points_of(result.path) == rounded(NORTH) and fake.asked == []
+    assert points_of(result.path) == rounded(NORTH)
 
 
 def test_a_canceled_request_cancels_the_planner_goal(ros):
@@ -234,7 +244,8 @@ def test_a_canceled_request_cancels_the_planner_goal(ros):
 
 def test_a_kept_route_ends_with_the_new_goal_heading(ros):
     """goal 위치가 같고 방향만 바뀌면 지켜 둔 길의 끝 자세는 새 계획의 끝 방향을 따른다."""
-    _, fake, client = ros()
+    keeper, fake, client = ros()
+    fake.costmap(keeper)
     fake.plans.extend([EAST, NORTH])
     ask(client)
     fake.heading_z = 0.7071068
@@ -243,21 +254,30 @@ def test_a_kept_route_ends_with_the_new_goal_heading(ros):
     assert result.path.poses[-1].pose.orientation.z == pytest.approx(0.7071068)
 
 
-def test_a_cancel_while_asking_is_path_valid_ends_canceled_and_keeps_the_old_route(ros):
-    _, fake, client = ros(Parameter("valid_timeout_s", value=2.0))
+def test_a_kept_route_keeps_the_goal_it_was_made_for(ros):
+    """goal이 5 cm 안에서 조금씩 움직여도 지켜 둔 길의 goal은 그 길을 만든 goal이다(오차가 쌓이지
+    않게). 처음 goal에서 5 cm 넘게 멀어지면 새 goal로 본다."""
+    keeper, fake, client = ros()
+    fake.costmap(keeper)
     fake.plans.extend([EAST, NORTH, NORTH])
     ask(client)
-    fake.valid = "hold"
-    request = ComputePathToPose.Goal()
-    request.goal.pose.position.x, request.goal.pose.position.y = GOAL
-    handle = wait(client.send_goal_async(request))
-    assert fake.entered.wait(5.0), "is_path_valid was asked"
-    wait(handle.cancel_goal_async())
-    fake.release.set()
-    assert wait(handle.get_result_async()).status == GoalStatus.STATUS_CANCELED
-    fake.valid = True
+    _, result = ask(client, (1.04, 1.0))
+    assert points_of(result.path) == rounded(EAST)
+    _, result = ask(client, (1.08, 1.0))
+    assert points_of(result.path) == rounded(NORTH)
+
+
+def test_an_error_while_choosing_forgets_the_kept_route(ros):
+    keeper, fake, client = ros()
+    fake.costmap(keeper)
+    fake.plans.extend([EAST, NORTH, NORTH])
+    ask(client)
+    fake.costmap(keeper, broken=True)  # 격자 값이 모자라 판정에서 예외가 난다
+    status, _ = ask(client)
+    assert status == GoalStatus.STATUS_ABORTED
+    fake.costmap(keeper)
     _, result = ask(client)
-    assert points_of(result.path) == rounded(EAST), "the canceled answer was not remembered"
+    assert points_of(result.path) == rounded(NORTH), "nothing kept after the error"
 
 
 def test_more_than_two_requests_at_once_are_refused(ros):
@@ -272,9 +292,8 @@ def test_more_than_two_requests_at_once_are_refused(ros):
 
 
 def test_the_rule_values_are_parameters(ros):
-    keeper, _, _ = ros(Parameter("same_route_m", value=0.1),
-                       Parameter("valid_timeout_s", value=0.5))
-    assert keeper.rules.same_route_m == 0.1 and keeper.valid_timeout_s == 0.5
+    keeper, _, _ = ros(Parameter("same_route_m", value=0.1), Parameter("blocked_cost", value=100))
+    assert keeper.rules.same_route_m == 0.1 and keeper.blocked_cost == 100
     assert keeper.rules.off_route_m == 0.30 and keeper.keep is True
 
 

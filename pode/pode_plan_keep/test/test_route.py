@@ -12,11 +12,15 @@ from pode_plan_keep.route import (
     FRESH,
     KEEP,
     OFF,
+    OPEN,
     OTHER,
     SAME,
     SHORTER,
     SILENT,
+    UNKNOWN,
+    Grid,
     Rules,
+    check_route,
     distance_to,
     first_look,
     length,
@@ -128,3 +132,56 @@ def test_the_measured_flip_between_0_93_and_1_07_m_keeps_either_route():
     short, long_ = line((0.0, 0.0), (0.93, 0.0)), line((0.0, 0.0), (0.0, 1.07))
     assert second_look(short, long_, True) == KEEP
     assert second_look(long_, short, True) == KEEP
+
+
+# ---- 막힘: 전역 비용 지도 칸(planner NavFn과 같은 기준) ----
+# OccupancyGrid 값은 Jazzy Costmap2DPublisher의 변환표를 따른다: INSCRIBED 253 -> 99, LETHAL 254 ->
+# 100, 모름 255 -> -1. NavFn은 253 이상을 지나가지 못하고 allow_unknown이면 모르는 칸은 지나간다.
+
+def grid(cells=None, yaw=0.0):
+    """x -0.5~1.5, y -0.5~1.5, 5 cm(40 x 40). cells: {(x, y): 값}."""
+    data = [0] * (40 * 40)
+    for (x, y), value in (cells or {}).items():
+        data[math.floor((y + 0.5) / 0.05) * 40 + math.floor((x + 0.5) / 0.05)] = value
+    return Grid(origin_x=-0.5, origin_y=-0.5, yaw=yaw, resolution=0.05, width=40, height=40,
+                data=data)
+
+
+def test_an_open_route_has_no_cell_the_planner_cannot_cross():
+    assert check_route(grid({(0.5, 0.5): 100}), EAST_THEN_NORTH) == OPEN
+
+
+@pytest.mark.parametrize("value, blocked", [(100, True), (99, True), (98, False), (-1, False)])
+def test_inscribed_and_lethal_cells_block_but_unknown_does_not(value, blocked):
+    found = check_route(grid({(0.51, 0.01): value}), EAST_THEN_NORTH)
+    if blocked:
+        x, y, cost = found
+        assert (x, y, cost) == (pytest.approx(0.5), pytest.approx(0.0), value)
+    else:
+        assert found == OPEN
+
+
+def test_the_first_blocked_point_along_the_route_is_named():
+    found = check_route(grid({(1.0, 0.5): 100, (0.3, 0.0): 99}), EAST_THEN_NORTH)
+    assert found[:2] == (pytest.approx(0.3), pytest.approx(0.0)) and found[2] == 99
+
+
+def test_the_threshold_can_be_changed():
+    assert check_route(grid({(0.51, 0.01): 98}), EAST_THEN_NORTH, blocked_cost=98) != OPEN
+
+
+def test_the_goal_point_itself_is_not_checked():
+    """NavFn은 goal 칸의 비용을 보지 않고 거기서부터 퍼진다.
+    끝 점 하나만 막혀 있으면 열린 길이다."""
+    assert check_route(grid({GOAL: 100}), EAST_THEN_NORTH) == OPEN
+
+
+def test_a_point_outside_the_costmap_is_blocked():
+    route = line((0.0, 0.0), (1.6, 0.0), (1.6, 0.5))
+    x, y, cost = check_route(grid(), route)
+    assert x >= 1.5 and cost is None
+
+
+def test_no_costmap_or_a_turned_costmap_gives_no_answer():
+    assert check_route(None, EAST_THEN_NORTH) == UNKNOWN
+    assert check_route(grid(yaw=0.1), EAST_THEN_NORTH) == UNKNOWN

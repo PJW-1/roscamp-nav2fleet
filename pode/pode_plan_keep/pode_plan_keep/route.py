@@ -4,6 +4,7 @@ from dataclasses import dataclass
 
 FRESH, SAME, OFF, OTHER = "fresh", "same", "off", "other"
 KEEP, BLOCKED, SILENT, SHORTER = "keep", "blocked", "silent", "shorter"
+OPEN, UNKNOWN = "open", "unknown"
 
 
 # ---- 규칙 값 ----
@@ -17,6 +18,18 @@ class Rules:
 
 
 DEFAULT = Rules()
+
+
+# ---- 전역 비용 지도 격자 ----
+@dataclass(frozen=True)
+class Grid:
+    origin_x: float
+    origin_y: float
+    yaw: float
+    resolution: float
+    width: int
+    height: int
+    data: object
 
 
 # ---- 꺾은선의 길이와 거리 ----
@@ -69,3 +82,18 @@ def second_look(rest, new, valid, rules: Rules = DEFAULT) -> str:
     if length(new) < old - max(rules.shorter_m, rules.shorter_ratio * old):
         return SHORTER
     return KEEP
+
+
+# ---- 막힘: 남은 길의 칸 가운데 planner가 지나가지 못하는 칸 ----
+def check_route(grid, route, blocked_cost: int = 99):
+    if grid is None or abs(grid.yaw) > 1e-9:
+        return UNKNOWN
+    for x, y in route[:-1]:
+        mx = math.floor((x - grid.origin_x) / grid.resolution)
+        my = math.floor((y - grid.origin_y) / grid.resolution)
+        if not (0 <= mx < grid.width and 0 <= my < grid.height):
+            return x, y, None
+        cost = grid.data[my * grid.width + mx]
+        if cost >= blocked_cost:
+            return x, y, cost
+    return OPEN
