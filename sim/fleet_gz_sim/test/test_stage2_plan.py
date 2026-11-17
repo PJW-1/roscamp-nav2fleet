@@ -164,9 +164,14 @@ def test_gap_points_can_be_moved_and_a_point_needs_a_nav_goal():
                          ("corridor", {"GAP_N": (1.1, 0.5)}),
                          ("gap", {"GAP_N": (math.nan, 0.55)}), ("gap", {"GAP_N": 1.1}),
                          ("gap", {"GAP_N": (1.1, "x")}), ("gap", {"GAP_N": {1.1: 0, 0.5: 1}}),
-                         ("gap", {"GAP_N": (True, 0.5)})):
+                         ("gap", {"GAP_N": (True, 0.5)}), ("gap", {"GAP_N": (10 ** 400, 0.5)})):
         with pytest.raises(sp.PlanError, match="point"):
             sp.build(V7, plan, points=points)
+    # 정수와 numpy 수도 받고, 목표는 float로 보낸다(Pose2D는 float만 받는다)
+    np = pytest.importorskip("numpy")
+    for xy in ((1, 0), (np.float32(1.1), np.int64(0))):
+        target = sp.build(V7, "gap", points={"GAP_N": xy})[0].target
+        assert all(type(v) is float for v in target), target
 
 
 def test_gap_points_sit_clear_of_shelves_walls_and_keepout():

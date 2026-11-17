@@ -133,17 +133,32 @@ def build(site, plan: str, laps: int = 1, points=None) -> list[Step]:
     if plan in PLAN_LAYOUTS and site.name != f"arena_{PLAN_LAYOUTS[plan]}":
         raise PlanError(f"plan {plan!r} is for layout {PLAN_LAYOUTS[plan]}, not {site.name}")
     own = PLAN_POINTS.get(plan, {})
+    given = {}
     for name, xy in (points or {}).items():  # 계획 전용 점만, 유한한 좌표로
         if name not in own:
             raise PlanError(f"plan {plan!r} has no plan point {name!r}"
                             f" (it has: {', '.join(own) or 'none'})")
-        if (not isinstance(xy, (tuple, list)) or len(xy) != 2
-                or not all(isinstance(v, (int, float)) and not isinstance(v, bool)
-                           and math.isfinite(v) for v in xy)):
-            raise PlanError(f"plan point {name} must be two finite numbers, got {xy!r}")
-    points = {**own, **(points or {})}
+        given[name] = _point(name, xy)
+    points = {**own, **given}
     return [make_step(site, kind, nodes, points)
             for _ in range(laps) for kind, nodes in PLANS[plan]]
+
+
+def _point(name: str, xy) -> tuple[float, float]:
+    """(x, y) 실수 둘을 float로. bool, 글자, 길이가 틀린 것, 무한·넘침은 PlanError."""
+    import numbers
+    bad = PlanError(f"plan point {name} must be two finite numbers, got {xy!r}")
+    if not isinstance(xy, (tuple, list)) or len(xy) != 2:
+        raise bad
+    if not all(isinstance(v, numbers.Real) and not isinstance(v, bool) for v in xy):
+        raise bad
+    try:
+        out = tuple(float(v) for v in xy)
+    except OverflowError:
+        raise bad from None
+    if not all(math.isfinite(v) for v in out):
+        raise bad
+    return out
 
 
 def start_node(plan: str) -> str:
