@@ -33,6 +33,8 @@
 | 2부 A1 양보 보고 도구 | 끝 | `tools/yield-report` bf7848c | tools 시험 5개 추가 | 제품 코드 변경 없음 |
 | 2부 A3 가짜 로봇의 양보 사다리 | 끝(끔이 기본) | `refactor/yield-a3-fake-ladder` 25664cf | 1118 / 895 / 84, pode_fsm 366 passed 8 skipped | 끔일 때 0줄 |
 | 2부 A2 마당 물러나기 지우기 | 끝 | `refactor/yield-owner` 441d0d5 | 1087 passed 5 xfailed / 892 passed 7 skipped 27 xfailed / 89 passed 14 failed | 0줄(trace, situations, store, order_v7, order_d2) |
+| 2부 A4 로봇 사다리 하나로(선택) | 하지 않음(이유는 6절) | 변경 없음 | - | - |
+| 1부와 2부 합치기 | 끝 | `refactor/yield-owner` ccb7336(병합 커밋) | 1090 passed 5 xfailed / 892 passed 7 skipped 27 xfailed / 89 passed 14 failed | 0줄(다섯 표 모두) |
 
 - 시험 수는 Windows 파이썬으로 돌린 것이다. fake_robots의 7 skipped는 rclpy가 없어 건너뛴 `test_ros_*.py` 일곱 파일이고,
   tools의 14 failed는 `test_real_pode.py`가 Windows에서 bash를 못 찾는 기존 실패다(WSL에서는 통과한다).
@@ -129,12 +131,23 @@
 
 ## 5. 지시서 밖의 일 (같은 밤)
 
-- 실물 SLAM 지도 브랜치와 "도리도리" 개선은 `feat/goal-plan-keeper` 브랜치의 기록 문서에 적는다(끝나면 여기에 경로를 적는다).
+- **"도리도리" 개선(goal 경로 유지):** 브랜치 `feat/goal-plan-keeper`, 기록 `docs/worklog_goal_plan_keeper_2026-11-18.md`
+  (그 브랜치에만 있다). 뒤집힘은 줄었지만 실물에서 돌려 보지 않았고 PC 부하가 높던 판에서 복구가 많아 main에 넣지 않았다.
+  버린 두 방법은 브랜치 `fix/goal-replan-on-invalid`에 남겼다.
+- **실물 SLAM 지도 브랜치(`feat/real-arena-slam-map`)의 Gazebo 판:** 같은 기록 문서 7절에 있다. 네 판 모두 12/12, 위반 0.
+- **main의 기준 판:** 같은 기록 문서 4절(mv1~mv4, mr1~mr3).
 
 ## 6. 건너뛴 것과 이유
 
 - `station_left` 삭제: 지시서가 묻고 하라고 한 항목이라 지우지 않았다(7절 1번).
-- 실물 기록 비교: 기록이 없다.
+- 실물 기록 비교: 이 PC에 `~/real_runs/`가 없다.
+- **2부 A4(로봇 사다리 하나로):** 하지 않았다. `yield_moves.py`(고정 경로)와 `yield_nav.py`(Nav2 goal)에서 실제로 같은 것은
+  파일마다 4줄쯤이고, 공통 부분(`_backs_up`, `local_yield_step`, `_send_backup`, `blocking_peer` 등)은 이미 한 곳에 있다.
+  단계마다 조건이 달라 합치려면 넘길 함수가 8개 이상 필요하고, 한쪽에만 있는 갈래(Nav2의 정지 대기 단계, 고정 경로의
+  `block_clear_s`와 `NAV_ABORTED`로 끝나는 경우)를 공통 코드에 조건문으로 넣어야 한다. 지시서의 "합치는 게 오히려 복잡해지면
+  하지 말고" 조건에 해당한다. 브랜치 `refactor/yield-a4-one-ladder`는 만들기만 했고 커밋이 없다.
+- 2부 4절 관문과 B단계: 지시서대로 하지 않았다.
+- `docs/Pode_계약.md` 10번의 "넓은 구역 안의 물러나기" 문구: A2로 그 기능이 없어졌지만 계약 문서라 고치지 않았다(7절 7번).
 
 ## 7. 질문 (아침에 사용자에게)
 
@@ -144,12 +157,98 @@
 2. **`reset_watch=False` 두 자리에서 멈춤 감시 기록을 초기화해야 할까요?** `order_answers._restore`(order update가 실패해
    예전 goal로 되돌릴 때)와 `results._arrived_anyway`(끝에 서 있는 로봇의 goal을 끝 goal로 바꾼 직후 지울 때)다. 지금 동작을
    그대로 두었다. 세 번째 자리였던 `watch.py`의 되살리기는 대입 자체가 없어졌다.
-3. **v7 store 상황의 `KeyError: 'X_W'`를 고칠까요?** `tools/situations.py --store -l v7`이 죽는다.
+3. **v7 store 상황의 `KeyError: 'X_W'`를 고칠까요?** `tools/situations.py --store -l v7`이 죽는다(main에도 있는 결함).
 4. **`pode_fsm`의 `test_depend fake_robots`를 빼도 될까요?** A3의 새 의존(`fake_robots` → `pode_fsm`)과 순환이 되어 뺐다.
-   `test_ros_matches_fake_pode.py`는 `fake_robots`가 없으면 건너뛴다.
+   WSL에서 빌드가 되고 `pode_fsm` 시험은 467 passed, 6 skipped다.
 5. **가짜 로봇의 BLOCKED도 실제 로봇처럼 유지해야 할까요?** B3에서 정할 일이다.
 6. A1 도구의 `--grace` 기본값 10 s는 담당 에이전트가 정한 값이다.
+7. **`docs/Pode_계약.md` 10번에서 마당 물러나기 문구를 뺄까요?** 계약 문서라 손대지 않았다.
+8. **두 모드의 사다리가 끝나는 방식이 다릅니다(A4를 따져 보다 확인).** 고정 경로는 재시도 끝에 앞이 비어 있으면 `BLOCKED`가
+   아니라 `NAV_ABORTED`로 끝나고(`recovery.py`), `blocked_after_s`가 지나도 앞이 비어 있으면 포기하지 않는다(`yield_moves.py`).
+   Nav2 goal은 조건 없이 포기한다. `docs/회피_약속.md` 5절은 두 모드 모두 "또 막히면 BLOCKED"라고 적는다. 그대로 둘지 정해
+   주십시오(동작을 바꾸는 일이라 손대지 않았다).
+9. **goal 경로 유지(`feat/goal-plan-keeper`)를 main에 넣을까요?** 실물에서 한 번 돌려 보고 정하는 것을 권한다.
+10. 구조 시험 둘(`test_zone_goal_life.py`, `test_zone_episodes.py`)은 `getattr(m, "watch")` 같은 동적 접근을 잡지 못한다
+    (Codex 지적, 지금 코드에는 그런 접근이 없다). 보강할지 정해 주십시오.
+
+11. **A2 뒤로는 그 전에 남긴 관제 기록을 `tools/replay.py`로 재생하지 못합니다.** 기록 첫 줄에 `yard_backoff*` 파라미터 넷이
+    있어 `these parameters do not fit this code`로 거절한다. 첫 줄에서 그 넷을 빼면 재생된다(이번 밤의 main 판 일곱 개로
+    확인). 도구가 없어진 파라미터를 알려 주고 건너뛰게 할지 정해 주십시오(도구의 판정을 바꾸는 일이라 손대지 않았다).
+12. **`fleet_manager` 통합 시험이 가끔 실패합니다(8절).** 실패할 때의 출력을 남기도록 시험을 고칠지 정해 주십시오.
 
 ## 8. main에 넣을지의 결정
 
-아직 정하지 않았다(작업 중).
+**넣었다.** `refactor/yield-owner`(1부 전체 + 2부 A1·A2·A3)를 main에 병합 커밋 하나로 넣고 push했다. 근거는 다음과 같다.
+
+- **기준과의 차이 0줄:** 병합본(ccb7336)에서 trace, situations, store, order_v7, order_d2 다섯 표가 모두 0줄이고, 시험별 하네스
+  기록은 지운 시험 34개 말고는 바뀐 것이 없다.
+- **시험(WSL, ROS 2 Jazzy, 병합본):** fleet_core 1090 passed 5 xfailed, fake_robots 1031 passed 27 xfailed, tools 103 passed,
+  fleet_gz_sim 586 passed, pode_fsm 467 passed 6 skipped, pode_nav_config 106, pode_avoidance 26, pode_peer_obstacles 19,
+  pode_scan_filter 23, fleet_manager 95 passed 30 skipped(전체 실행 네 번 가운데 두 번이고, 나머지 두 번은 바로 아래에 적었다).
+  `fleet_manager` 시험은 지시서가 금지한 것이지만 main에 넣기 전의 마지막 확인으로 돌렸다(0절).
+- **`fleet_manager` 통합 시험은 가끔 실패한다(main도 같다):** 전체 실행(95개, 11분)을 병합본에서 네 번, main(acfa45b)에서
+  세 번 돌렸다.
+
+| 코드 | 실행 | 결과 | 실패한 시나리오와 이유 |
+|---|---|---|---|
+| 병합본 | 1 | 2 failed, 93 passed | `shared_lane_failure`, `stock_shortage`(출력을 남기지 못해 이유 모름) |
+| 병합본 | 2 | 95 passed | - |
+| 병합본 | 3 | 95 passed | - |
+| 병합본 | 4 | 1 failed, 94 passed | `stuck_robot`: pode1이 출고 도크에 닿기 전인 70 s에 멈춰 출고가 2건이 아니라 5건 |
+| main | 1 | 95 passed | - |
+| main | 2 | 95 passed | - |
+| main | 3 | 1 failed, 94 passed | `blocked_lane`: `pode2 and pode3 are 0.135 m apart`(설명 안 되는 근접 1건) |
+
+  실패한 둘(`shared_lane_failure`, `stock_shortage`)만 따로 돌린 것은 병합본 일곱 번, main 한 번 모두 통과했다. 병합본 4번
+  실행이 남긴 시나리오 기록 아홉 개(`fms.jsonl`, 실패한 `stuck_robot` 포함)를 main 코드에 `tools/replay.py`로 넣으면 아홉 개
+  모두 `same as recorded`다. 즉 실패한 판에서도 main 코드가 같은 명령을 낸다. 이 시험이 지나는 코드 가운데 병합으로 바뀐 것은
+  fleet_core뿐이다(`fleet_manager`와 ROS 쪽 가짜 로봇 노드는 그대로다). 그래서 병합과 무관하게 시간에 따라 갈리는 시험으로
+  판단했다(`stuck_robot.yaml`의 머리 주석과 `docs/worklog_drive_handoff_2026-11-17.md`에도 같은 종류의 기록이 있다).
+- **Gazebo 세 대 판(이 PC, GUI + RViz, 병합본):** 다섯 판 모두 12/12, 위반 0.
+
+| 판 | 종류 | 시간 s | 복구 | BLOCKED_WAIT | 다시 잡은 경로 | 배율 |
+|---|---|---|---|---|---|---|
+| zv1 | 장애물 | 574.8 | 3 | 4 | 3 | 0.97 |
+| zv2 | 장애물 | 572.5 | 0 | 0 | 0 | 0.99 |
+| zv3 | 장애물 | 573.3 | 0 | 0 | 0 | 0.99 |
+| zr1 | 러시 | 247.1 | 0 | 0 | 0 | 0.99 |
+| zr2 | 러시 | 246.3 | 1 | 0 | 0 | 1.00 |
+
+  같은 밤 main(acfa45b)의 판은 장애물 571.2~572.3 s(복구 3~5번), 러시 245.4~245.6 s(복구 1~2번)였다.
+- **기록 재생(같은 입력, 두 코드):** Gazebo 판마다 남는 관제 기록(`fleet_record.jsonl`)을 `tools/replay.py`로 반대쪽 코드에
+  넣었다. 병합본의 다섯 판(zv1~zv3, zr1, zr2)을 main 코드(acfa45b)에 넣으면 다섯 판 모두 `same as recorded`이고, main의
+  일곱 판(mv1~mv4, mr1~mr3)을 병합본 코드에 넣어도 일곱 판 모두 `same as recorded`다(판마다 입력 1만~2.7만 줄, 명령
+  434~522개). 즉 실제 ROS 입력에서도 두 코드가 내는 명령과 이벤트가 같다. main의 기록은 첫 줄에 지워진 파라미터
+  (`yard_backoff*` 넷)가 있어 병합본 코드가 재생을 거절하므로, 그 넷을 첫 줄에서 빼고 넣었다(7절 11번).
+- **zv1에서 본 것:** 445 s쯤 pode2가 E-2에서 Q2로 나가다가 50 s쯤 막혀 있었다(로봇단 양보가 BLOCKED로 끝남, Nav2가 "경로
+  없음" 208, 관제가 구간을 막힘으로 표시하고 경로를 세 번 다시 잡음, `NO_START` 두 번). 주문은 모두 끝났고 위반은 없다.
+  main의 판(mv3)에서도 같은 시각에 관제의 결정 순서는 같았고(pode2가 E-2로, pode1이 P-1에서 WORK를 기다림) 같은 자리에서
+  로봇단 양보가 시작됐는데, 거기서는 1 s 만에 풀렸다. 로봇 코드는 이 병합으로 바뀌지 않았고, zv1의 기록을 main 코드에
+  넣으면 main 코드도 같은 명령 522개를 낸다(위의 기록 재생). 그러니 그 막힘은 병합 때문이 아니라 그 판에서 로봇이 선
+  자리 때문이다. 뒤의 두 판(zv2, zv3)에서는 나오지 않았다. main 코드에서도 같은 일이 생길 수 있다는 뜻이니 실물에서 눈여겨본다.
+- **검수:** Codex 읽기 전용 검수를 단계 묶음마다 돌렸다(1부 0~2, 3~4, 5~6, A2, 병합 커밋). 동작 회귀 지적은 없었다. 확인된
+  지적은 구조 시험 보강(반영), 문서 한 줄(반영), 7절 10번이다.
+
+되돌리는 법: main의 `Merge refactor/yield-owner` 커밋을 `git revert -m 1 <그 커밋>`으로 되돌린다. 로봇 쪽 코드(`pode/*`)는
+`pode/pode_fsm/package.xml`의 한 줄 말고는 바뀌지 않았으니, 이 병합만으로는 로봇에 다시 배포할 필요가 없다.
+
+## 9. 아침 보고
+
+- **끝낸 단계:** 1부 0~6단계 전부, 2부 A1·A2·A3. **하지 않은 단계:** A4(6절), 2부 4절 관문과 B단계(지시서대로).
+- **브랜치와 마지막 커밋:** main = 이 기록이 든 병합 커밋. `refactor/yield-owner`(main에 병합됨), `refactor/zone-cleanup`
+  d7d3ba8(1부만), `tools/yield-report` bf7848c(A1만), `refactor/yield-a3-fake-ladder` 25664cf(A3만),
+  `feat/goal-plan-keeper` 771c971(main 미병합), `fix/goal-replan-on-invalid` b33e426(버린 실험).
+- **바뀐 양(acfa45b 대비, 병합 커밋 ccb7336까지):** 파일 65개, +2565줄, -1263줄.
+- **시험 수:** 8절. 정리 전 fleet_core 1118 passed → 1부 끝 1124 → A2 뒤 1090(지운 34개: `test_zone_backoff.py`의 24개와
+  `test_params_validate.py`가 파라미터마다 만들어 내던 10개). fake_robots는 883 → A3로 895 → A2로 892(Windows 기준).
+- **바꾸거나 지운 시험과 이유:** 3절과 4절. 1부에서 지운 시험은 없고, 바꾼 것은 내부 경로 이름뿐이다(기대값 그대로).
+  A2에서 지운 것은 켜야만 도는 물러나기 시험이다.
+- **전후 비교 표:** `docs/ZoneTraffic_구조.md` 맨 앞과 `docs/worklog_zone_cleanup_2026-11-18.md`. 믹스인 23개 → 16개,
+  `Robot` 맨 위 필드 81개 → 32개.
+- **사용자가 다음에 할 일:**
+  1. 7절의 질문에 답한다.
+  2. 실물 기록을 모은다: 관제를 `ros2 launch iponic_bringup pc.launch.py ... record:=<파일>`로 띄워 `~/real_runs/`에 둔다.
+     그 기록으로 `python tools/yield_report.py <파일>`을 돌리면 로봇단 양보와 관제 근접 감시 가운데 누가 마주침을 풀었는지 나온다.
+  3. 지시서 2부 4절의 관문 둘(실물에서 로봇단 양보의 후진이 동작하는지, 그 기록에서 로봇 사다리가 실제로 마주침을 푸는지)을
+     확인한 뒤 B단계를 시작할지 정한다.
+  4. `feat/goal-plan-keeper`를 실물에서 한 번 돌려 보고 main에 넣을지 정한다.
