@@ -111,7 +111,8 @@ class BlockMarks:
         shown = ", ".join(f"{a or 'here'}->{b}" for a, b in keys)
         self._event("WARN", "ZONE_MARKED_BLOCKED",
                     f"{shown} at ({point[0]:.2f}, {point[1]:.2f}) in "
-                    f"{self.site.zone_at(*point)}, tried again in {mark.retry_s:.0f} s", m.name)
+                    f"{self.site.zone_at(*point)}, tried again in {mark.retry_s:.0f} s"
+                    f"{self._gaps_note(m)}", m.name)
         return mark
 
     # ---- 링크 막기, 표시 지우기와 만료 ----

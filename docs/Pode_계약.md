@@ -256,7 +256,7 @@ Pode가 지킬 것:
 
 **관제** (구역 교통. 세부는 [관제_구역교통.md](관제_구역교통.md) 규칙 7):
 
-막힌 시간은 이동 goal 하나에서 `BLOCKED` 보고가 이어진 시간입니다. `BLOCKED`가 아닌 보고가 한 번 오면 처음부터 다시 잽니다. `RECOVERING`은 45 s(`self_recovery_limit_s`)를 넘기 전까지 막힌 것으로 세지 않고, 넘은 뒤에는 `BLOCKED`로 봅니다.
+막힌 시간은 이동 goal 하나에서 막힘 일화가 시작된(첫 `BLOCKED`) 뒤 지난 시간입니다. 일화 안의 짧은 틈(`MOVING`, `RECOVERING`)은 시계를 다시 세지 않습니다. 일화는 로봇이 시작점에서 `blocked_reset_m`(0.30 m, 추정) 넘게 나아가거나, `BLOCKED`도 `RECOVERING`도 아닌 보고가 `blocked_reset_s`(20 s, 추정. Nav2 goal 로봇이 다시 BLOCKED가 되는 10 s보다 길게) 이어지거나, goal이 바뀌거나 끝나야 끝납니다. 표시·양보·실패는 지금 `BLOCKED`를 보고할 때만 하고, 기다린 시간이 넘었으면 `BLOCKED`가 돌아오는 즉시 합니다. `RECOVERING`은 45 s(`self_recovery_limit_s`)를 넘기 전까지 막힌 것으로 세지 않고(일화를 끝내지도 않습니다), 넘은 뒤에는 `BLOCKED`로 봅니다.
 
 | 막힌 시간 | 관제 동작 |
 |---|---|

@@ -88,7 +88,7 @@ def test_time_distance_and_speed_values_are_finite_and_not_negative(tmp_path, ke
 
 
 @pytest.mark.parametrize("key", ["stall_s", "heartbeat_period_s", "follow_speed_mps",
-                                 "release_margin_m"])
+                                 "release_margin_m", "blocked_reset_m", "blocked_reset_s"])
 def test_zero_is_an_error_where_zero_does_not_mean_off(tmp_path, key):
     with pytest.raises(ValueError, match=key):
         load_params(write(tmp_path, {**SHIPPED, key: 0.0}))

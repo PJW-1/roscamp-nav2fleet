@@ -62,6 +62,8 @@ class FleetParams:
     dock_stall_s: float = 15.0
     blocked_mark_s: float = 10.0
     blocked_timeout_s: float = 60.0
+    blocked_reset_m: float = 0.30
+    blocked_reset_s: float = 20.0
     idle_watch_s: float = 0.0  # 기록 호환: 이 키가 없는 옛 기록은 감시 없이 돈다(파일은 10)
     battery_low_pct: float = 0.0
     battery_charged_pct: float = 80.0
