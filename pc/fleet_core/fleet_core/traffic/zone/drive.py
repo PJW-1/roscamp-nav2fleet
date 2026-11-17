@@ -45,8 +45,7 @@ class Drive:
             if m.redock and self._reapproach(m):
                 return
             goal_id = self._next_goal_id()
-            m.goal = Goal(DOCK, goal_id)
-            m.stall_from = None
+            self._set_goal(m, Goal(DOCK, goal_id))
             self._out.append(DockCmd(m.name, goal_id, m.dest))
 
     # ---- 트립 따라 주행하고 새 트립으로 바꾸기 ----
@@ -147,6 +146,5 @@ class Drive:
                                           self._goal_priority(m)))
             code = "NAV_GOAL_SENT" if via == NAV_GOAL else "FOLLOW_SENT"
             self._event("INFO", code, f"to {target}", m.name)
-        m.goal = Goal(RETREAT if via == RETREAT else MOVE, goal_id, end, target, via)
+        self._set_goal(m, Goal(RETREAT if via == RETREAT else MOVE, goal_id, end, target, via))
         trip.sent = end
-        m.stall_from = None

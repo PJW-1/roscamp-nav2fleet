@@ -29,7 +29,7 @@ class Calls:
                     self._cancel_goal(m)
         if run_mode != self._run_mode:
             for m in self._robots.values():
-                m.stall_from = None
+                self._reset_stall(m)
         self._run_mode = run_mode
 
     def on_dispatch(self, goal_id, station_id, robot_id="") -> None:

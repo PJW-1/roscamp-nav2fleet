@@ -4,7 +4,7 @@ from __future__ import annotations
 import itertools
 import math
 
-from fleet_core.common.commands import CancelCmd, DispatchResult, EventOut, RobotIsolated
+from fleet_core.common.commands import DispatchResult, EventOut, RobotIsolated
 from fleet_core.fleet_map import SHARED
 from fleet_core.traffic.deadlock import priority
 from fleet_core.traffic.mission import AT_STATION, ERROR, FILL, NOT_AT_TARGET, RUN, SWAP
@@ -91,20 +91,7 @@ class ZoneBase:
         m.sent_priority = self._priority(m)
         return m.sent_priority
 
-    # ---- goal 취소와 트립, 대기 정리 ----
-    def _cancel_goal(self, m) -> None:
-        if m.goal is None:
-            return
-        self._out.append(CancelCmd(m.name, m.goal.id))
-        if m.move_order is not None and m.move_order.before is not None:
-            self._out.append(CancelCmd(m.name, m.move_order.before[0]))
-        m.goal = None
-        m.move_order = None
-        m.arrival_by = None
-        m.settle_until = self._clock() + self.params.arrival_settle_s
-        if m.trip is not None:
-            m.trip.sent = m.trip.done
-
+    # ---- 트립과 대기 정리 ----
     def _drop_trip(self, m) -> None:
         m.trip = None
 

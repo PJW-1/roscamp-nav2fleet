@@ -111,7 +111,8 @@ class OrderAnswers:
     def _restore(self, m) -> None:
         mo, trip = m.move_order, m.trip
         goal_id, links, waiting = mo.before
-        m.goal = Goal(MOVE, goal_id, links, trip.links[links - 1].b, ORDER)
+        self._set_goal(m, Goal(MOVE, goal_id, links, trip.links[links - 1].b, ORDER),
+                       reset_watch=False)
         trip.sent = links
         mo.before = None
         mo.waiting = waiting

@@ -10,6 +10,7 @@ from .capacity import Capacity
 from .clear_checks import ClearChecks
 from .detours import Detours
 from .drive import Drive
+from .goal_life import GoalLife
 from .goals import Goals
 from .health import Health
 from .localization import Localization
@@ -30,7 +31,7 @@ from .yard_retreat import YardRetreat
 # ---- ZoneTraffic 클래스와 틱 순서 ----
 class ZoneTraffic(Calls, Goals, Turns, Drive, MoveOrders, OrderAnswers, Results, Redock, Progress,
                   Placement, Blocked, BlockMarks, YardRetreat, Detours, ClearChecks, Health, Watch,
-                  Localization, Backoff, Silent, NoStart, Capacity, Views, ZoneBase):
+                  Localization, Backoff, Silent, NoStart, Capacity, Views, GoalLife, ZoneBase):
     def tick(self) -> list:
         now = self._clock()
         everyone_here = self.tick_begin(now)

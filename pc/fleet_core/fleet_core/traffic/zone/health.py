@@ -49,7 +49,7 @@ class Health:
 
     def _resume(self, m) -> None:
         m.comm = ""
-        m.stall_from = None
+        self._reset_stall(m)
         trip = m.trip
         if trip is None:
             return

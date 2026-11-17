@@ -87,9 +87,9 @@ class Backoff:
         path = ((m.x, m.y, m.yaw), (*end, m.yaw))
         self._out.append(RetreatCmd(m.name, goal_id, p.yard_backoff_m, p.retreat_speed_mps,
                                     path))
-        m.goal = Goal(BACKOFF, goal_id, m.trip.done if m.trip is not None else 0, "", RETREAT)
+        self._set_goal(m, Goal(BACKOFF, goal_id, m.trip.done if m.trip is not None else 0, "",
+                               RETREAT))
         m.backoff_from = (m.x, m.y)
-        m.stall_from = None
         return ""
 
     # ---- 물러나기 결과 처리 ----
@@ -97,7 +97,7 @@ class Backoff:
         m = self._active(robot, goal_id, BACKOFF)
         if m is None:
             return False
-        m.goal = None
+        self._clear_goal(m)
         self._backoff_ended(m, reason)
         return True
 

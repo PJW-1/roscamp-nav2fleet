@@ -26,7 +26,7 @@ class Watch:
         rests = m.robot_state in (BLOCKED, SELF_RECOVERING)
         if (m.goal is None or self._run_mode != RUN or m.arrival_by is not None or waiting
                 or (rests and m.goal.kind not in (DOCK, BACKOFF))):
-            m.stall_from = None
+            self._reset_stall(m)
             return
         here = (m.x, m.y)
         if m.stall_from is None or math.dist(m.stall_from, here) >= p.stall_move_m:
@@ -37,14 +37,13 @@ class Watch:
             return
         self._event("WARN", "GOAL_STALLED",
                     f"{m.goal.kind} goal {m.goal.id} open, no movement for {limit:.0f} s", m.name)
-        m.stall_from = None
+        self._reset_stall(m)
         goal, end = m.goal, self._stands_at_end(m)
         self._cancel_goal(m)
         if goal.kind == BACKOFF:
             self._backoff_ended(m, STALLED)
         elif end is not None:
-            m.goal = goal
-            self._arrived_anyway(m, STALLED, end)
+            self._arrived_anyway(m, STALLED, end, goal)
             m.retry_at = now + p.arrival_settle_s
         else:
             self._goal_failed(m, STALLED)
