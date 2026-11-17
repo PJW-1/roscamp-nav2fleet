@@ -27,7 +27,7 @@
             <ComputePathToPose goal="{goal}" path="{path}" planner_id="{selected_planner}" error_code_id="{compute_path_error_code}"/>
             <Sequence>
               <WouldAPlannerRecoveryHelp error_code="{compute_path_error_code}"/>
-              <ClearEntireCostmap name="ClearGlobalCostmap-Context" service_name="global_costmap/clear_entirely_global_costmap"/>
+              <ClearEntireCostmap name="ClearGlobalCostmap-Context" service_name="global_costmap/clear_entirely_global_costmap" server_timeout="1000"/>
             </Sequence>
           </RecoveryNode>
         </RateController>
@@ -35,7 +35,7 @@
           <FollowPath path="{path}" controller_id="{selected_controller}" goal_checker_id="general_goal_checker" error_code_id="{follow_path_error_code}"/>
           <Sequence>
             <WouldAControllerRecoveryHelp error_code="{follow_path_error_code}"/>
-            <ClearEntireCostmap name="ClearLocalCostmap-Context" service_name="local_costmap/clear_entirely_local_costmap"/>
+            <ClearEntireCostmap name="ClearLocalCostmap-Context" service_name="local_costmap/clear_entirely_local_costmap" server_timeout="1000"/>
           </Sequence>
         </RecoveryNode>
       </PipelineSequence>
@@ -48,7 +48,7 @@
           <GoalUpdated/>
           <RoundRobin name="RecoveryActions">
             <Sequence name="ClearingActions">
-              <!-- 이 두 노드만 server_timeout 1000ms. check_future는 한 틱에 최대 max_timeout만 기다리고 RUNNING을 돌려줘 트리가 멈추지 않는다 -->
+              <!-- 모든 Clear 노드에 server_timeout 1000ms. check_future는 한 틱에 최대 max_timeout만 기다리고 RUNNING을 돌려줘 트리가 멈추지 않는다 -->
               <ClearEntireCostmap name="ClearLocalCostmap-Subtree" service_name="local_costmap/clear_entirely_local_costmap" server_timeout="1000"/>
               <ClearEntireCostmap name="ClearGlobalCostmap-Subtree" service_name="global_costmap/clear_entirely_global_costmap" server_timeout="1000"/>
             </Sequence>

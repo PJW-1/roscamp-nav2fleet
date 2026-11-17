@@ -643,10 +643,9 @@ def test_the_far_point_that_keeps_the_cloud_from_being_empty_is_never_marked():
 
 
 def test_recovery_clear_nodes_have_their_own_longer_server_timeout():
-    """회복 RoundRobin의 두 Clear 노드는 자기 server_timeout(ms)을 가진다. 전역 기본값 20은 그대로."""
-    clears = [n for n in BT.getroot().iter("ClearEntireCostmap")
-              if n.get("name", "").endswith("-Subtree")]
-    assert len(clears) == 2
+    """모든 Clear 노드는 자기 server_timeout(ms)을 가진다. 전역 기본값 20은 그대로."""
+    clears = list(BT.getroot().iter("ClearEntireCostmap"))
+    assert len(clears) == 4
     for node in clears:
         assert int(node.get("server_timeout", "0")) >= 500, node.get("name")
     assert params("bt_navigator")["default_server_timeout"] == 20
