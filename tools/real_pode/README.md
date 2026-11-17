@@ -49,6 +49,7 @@ Nav2 goal을 모는 컨트롤러(FollowPathGoal)의 속도는 `nav2_params.yaml`
 - 속도 상한 없음: `params/` 사본의 값이 곧 최고 속도다.
 - keepout은 `keepout_mask`를 줄 때만 켜진다. 이 묶음은 기본으로 `maps/arena_v7_keepout.yaml`을 준다.
 - 스캔 거르개 꺼짐(`narrow_strips` 비움).
+- 길 유지(`plan_keep`)는 Gazebo처럼 켜져 있다. 노드는 로봇에서 따로 한 프로세스로 돈다(Gazebo 세 대는 `sim_stand_in` 안). 끄려면 `plan_keep:=false`.
 - 도킹 없음: `pode_fsm` dock()은 DOCK_UNAVAILABLE을 돌려준다. 관제는 도킹을 3번 다시 시도한 뒤 WORK
   도크 구역을 쥔 채로 로봇을 격리한다. 시험은 거기서 멈춘다.
 - 배터리 토픽 비움(`battery_topic`): 배터리를 모름(-1)으로 알린다.
