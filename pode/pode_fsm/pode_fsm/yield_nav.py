@@ -105,5 +105,6 @@ class NavYield:
                 cmds.append(CancelBackUp())
             cmds += self._goals.send(g, now, pose)
         self._recovery = None
-        g.blocked = True
+        here = (float(pose[0]), float(pose[1])) if pose is not None else None
+        self._goals.mark_blocked(g, here)
         return cmds

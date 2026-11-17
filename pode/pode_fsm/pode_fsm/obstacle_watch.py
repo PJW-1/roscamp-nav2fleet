@@ -1,6 +1,7 @@
 # ---- 주행 중 장애물로 막힘을 감시하는 믹스인 ----
 from __future__ import annotations
 
+import math
 from collections.abc import Sequence
 
 from pode_fsm.geometry import Point, rounded_at
@@ -29,6 +30,11 @@ class ObstacleWatch:
         if not moving_goal and not (self._blocked and self._blocked_points):
             self._blocked, self._clear_since = False, None
             return []
+        # ---- 막힌 자리에서 분명히 벗어나면 막힘 해제 ----
+        if self._blocked and self._moved_off(pose):
+            self._unblock(g)
+            if not moving_goal:
+                return []
         waiting = moving_goal and g.waiting_since is not None
         stood = self._stopped_since is not None and now - self._stopped_since >= \
             self.p.block_report_s
@@ -42,22 +48,44 @@ class ObstacleWatch:
                 return self._start_attempt(g, now, pose)
             if stood:
                 self._recovery = None
-                self._blocked = True
+                self._mark_blocked(pose)
             if moving_goal and self._blocked and g.blocked_since is None:
                 g.blocked_since = now
             return []
-        # ---- 장애물이 사라진 채 유지되면 막힘 해제와 기다리던 경로 다시 보내기 ----
+        # ---- 장애물이 block_clear_s 안 보이면 기다리던 경로 다시 보내기 ----
         if self._clear_since is None:
             self._clear_since = now
-        if now - self._clear_since < self.p.block_clear_s:
+        gone = now - self._clear_since
+        if gone < self.p.block_clear_s:
             return []
-        self._blocked, self._clear_since, self._blocked_points = False, None, None
+        cmds: list = []
         if moving_goal:
             g.blocked_since = None
         if waiting:
             g.waiting_since = None
-            return self._send_rest(g, now, pose)
-        return []
+            cmds = self._send_rest(g, now, pose)
+        # ---- 막힘은 unblock_clear_s 동안 계속 안 보여야 해제 ----
+        if not self._blocked or gone >= self.p.unblock_clear_s:
+            self._unblock(g)
+        return cmds
+
+    # ---- 막힘 표시와 해제: 막힌 자리를 기억해 분명한 진전만 해제로 본다 ----
+    def _mark_blocked(self, pose) -> None:
+        if not self._blocked and pose is not None:
+            self._blocked_at = (float(pose[0]), float(pose[1]))
+        self._blocked = True
+
+    def _moved_off(self, pose) -> bool:
+        if self._blocked_at is None:
+            self._blocked_at = (float(pose[0]), float(pose[1]))
+            return False
+        return math.dist(pose[:2], self._blocked_at) >= self.p.unblock_m
+
+    def _unblock(self, g) -> None:
+        self._blocked, self._clear_since, self._blocked_points = False, None, None
+        self._blocked_at = None
+        if isinstance(g, Move):
+            g.blocked_since = None
 
     # ---- 경로 위 현재 위치와 앞쪽 검사 점 계산 ----
     def _track(self, g: Move, pose: Sequence[float]) -> float:

@@ -94,7 +94,7 @@ class SelfRecovery:
             return self._start_attempt(g, now, pose)
         self._recovery = None
         if obstacle(self._ahead(g, pose)):
-            self._blocked = True
+            self._mark_blocked(pose)
             g.blocked_since = now
             return []
         return self._end_active(NAV_ABORTED, stop=True)
