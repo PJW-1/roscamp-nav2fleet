@@ -96,13 +96,17 @@ class PeerObstacles(Node):
         self.sweep_pub.publish(self.sweep)
 
 
-def make_fleet(robots: str, use_sim_time: bool = False, context=None) -> list:
+def make_fleet(robots: str, use_sim_time: bool = False, context=None,
+               radius_m: float | None = None) -> list:
     """robots의 로봇마다 그 namespace 안의 PeerObstacles 노드 하나. 프로세스 인자(launch의 노드 이름
-    바꾸기)는 받지 않는다: 받으면 노드들의 이름이 모두 같아진다."""
+    바꾸기)는 받지 않는다: 받으면 노드들의 이름이 모두 같아진다.
+    radius_m: None이면 노드 기본값(비교용으로만 준다)."""
+    radius = [] if radius_m is None else [Parameter("radius_m", value=float(radius_m))]
     return [PeerObstacles(namespace=f"/{name}", context=context, use_global_arguments=False,
                           parameter_overrides=[Parameter("robot_id", value=name),
                                                Parameter("robots", value=robots),
-                                               Parameter("use_sim_time", value=use_sim_time)])
+                                               Parameter("use_sim_time", value=use_sim_time),
+                                               *radius])
             for name in others(robots, "")]
 
 

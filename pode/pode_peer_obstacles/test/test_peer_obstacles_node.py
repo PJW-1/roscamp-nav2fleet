@@ -223,3 +223,19 @@ def test_one_process_can_run_a_node_for_every_robot():
         for node in (*fleet, other):
             node.destroy_node()
         rclpy.try_shutdown()
+
+
+def test_make_fleet_keeps_the_default_radius_unless_given():
+    """시뮬 비교용: make_fleet에 radius_m을 주면 모든 노드가 그 반지름을 쓴다."""
+    rclpy.init()
+    from pode_peer_obstacles.node import make_fleet
+    plain, given = [], []
+    try:
+        plain = make_fleet("pode1,pode2")
+        given = make_fleet("pode1,pode2", radius_m=0.075)
+        assert [node.radius_m for node in plain] == [0.08, 0.08]
+        assert [node.radius_m for node in given] == [0.075, 0.075]
+    finally:
+        for node in (*plain, *given):
+            node.destroy_node()
+        rclpy.try_shutdown()

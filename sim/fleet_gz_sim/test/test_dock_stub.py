@@ -324,6 +324,20 @@ def test_the_stand_in_hosts_no_peer_nodes_unless_asked(ros):
         node.destroy_node()
 
 
+def test_the_stand_in_gives_its_peer_nodes_a_radius_only_when_asked(ros):
+    """peer_radius_m 0(기본)은 노드 기본 반지름, 0보다 크면 그 값(비교용)."""
+    pytest.importorskip("pode_peer_obstacles")
+    from fleet_gz_sim.stand_in_node import peer_nodes
+    plain = stand_in(ros, use_sim_time=True, peer_obstacles=True)
+    given = stand_in(ros, use_sim_time=True, peer_obstacles=True, peer_radius_m=0.075)
+    peers = peer_nodes(plain) + peer_nodes(given)
+    try:
+        assert [peer.radius_m for peer in peers] == [0.08] * 3 + [0.075] * 3
+    finally:
+        for each in (plain, given, *peers):
+            each.destroy_node()
+
+
 def test_the_stand_in_hosts_a_peer_node_for_every_robot_when_asked(ros):
     """다른 로봇의 몸을 costmap에 넣는 노드(임시, 주행 시험용)를 로봇마다 이 프로세스에 둔다."""
     pytest.importorskip("pode_peer_obstacles")

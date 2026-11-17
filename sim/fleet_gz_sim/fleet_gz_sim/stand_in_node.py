@@ -71,6 +71,7 @@ class SimStandIn(Node):
         self.declare_parameter("robots", ["pode1", "pode2", "pode3"])
         stub = bool(self.declare_parameter("dock_stub", False).value)
         self.declare_parameter("peer_obstacles", False)  # main이 읽는다(peer_nodes)
+        self.declare_parameter("peer_radius_m", 0.0)  # 0이면 peer 노드 기본값(비교용)
         if stub:  # before anything else: never serve a dock outside an isolated Gazebo run
             require_dock_stub_allowed(bool(self.get_parameter("use_sim_time").value),
                                       os.environ, rmw=rclpy.get_rmw_implementation_identifier(),
@@ -208,7 +209,9 @@ def peer_nodes(node) -> list:
         return []
     from pode_peer_obstacles.node import make_fleet
     robots = ",".join(node.get_parameter("robots").value)
-    return make_fleet(robots, node.get_parameter("use_sim_time").value, node.context)
+    radius = float(node.get_parameter("peer_radius_m").value)
+    return make_fleet(robots, node.get_parameter("use_sim_time").value, node.context,
+                      radius_m=radius if radius > 0 else None)
 
 
 def main(args=None):

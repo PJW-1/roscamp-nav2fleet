@@ -76,6 +76,7 @@ ARGS = {
     "peer_obstacles": ("true", "로봇마다 다른 로봇의 몸을 costmap에 찍는다"
                                "(pode_peer_obstacles, 임시): Nav2가 다른 로봇을 피해 길을 짠다."
                                " false면 찍지 않는다(비교용)"),
+    "peer_radius_m": ("", "비교용: peer 몸 반지름(m). 비면 pode_peer_obstacles 기본값(0.08)"),
     "avoidance_package": ("pode_avoidance", "회피 패키지(params/avoidance.yaml과"
                                              " launch/avoidance.launch.py). 회피 담당의 패키지로"
                                              " 바꿀 수 있다"),
@@ -130,6 +131,19 @@ def _plugin_keys(tree: dict | list, prefix: str = "") -> list[str]:
         if isinstance(value, dict | list):
             found += _plugin_keys(value, f"{name}.")
     return found
+
+
+def positive_of(text: str, name: str) -> float | None:
+    """비교용 수 인자: 비면 None. 숫자가 아니거나 범위 밖이면 멈춘다."""
+    if not text.strip():
+        return None
+    try:
+        value = float(text)
+    except ValueError:
+        raise ValueError(f"{name} must be a number, got {text!r}") from None
+    if not math.isfinite(value) or value <= 0:
+        raise ValueError(f"{name} out of range: {text!r}")
+    return value
 
 
 def params_file_of(value: str) -> str:
@@ -305,6 +319,7 @@ def _start(context):
               if flag(value("scan_filter"), "scan_filter") else "")
     peers = flag(value("peer_obstacles"), "peer_obstacles")
     stand_in = flag(value("vision_stand_in"), "vision_stand_in")
+    peer_radius = positive_of(value("peer_radius_m"), "peer_radius_m")
     params_file = params_for(params_file_of(value("fleet_params_file")), value("result_dir"),
                              value("battery_low_pct"))
     max_speed = launch_parts.speed_of(value("nav_max_speed"))
@@ -338,6 +353,8 @@ def _start(context):
                         parameters=[{"use_sim_time": True, "robots": robots,
                                      "scenario_file": scenario_file, "dock_stub": stub,
                                      "peer_obstacles": peers,
+                                     **({} if peer_radius is None
+                                        else {"peer_radius_m": peer_radius}),
                                      "map_file": layout,
                                      **({} if scenario_seed is None
                                         else {"scenario_seed": scenario_seed})}]))

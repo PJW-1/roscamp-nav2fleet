@@ -249,6 +249,23 @@ def test_global_padding_overrides_touch_only_the_global_costmap_padding(made, na
         assert data == plain
 
 
+def test_local_padding_0_touches_only_the_local_costmap_padding(made):
+    """local costmap은 footprint_padding을 적지 않아 Jazzy 기본 0.01이다. 비교용 파일은 0.0만 넣는다."""
+    path = NAV_OVERRIDES / "local_padding_0.yaml"
+    assert yaml.safe_load(path.read_text(encoding="utf-8")) == {
+        "local_costmap": {"local_costmap": {"ros__parameters": {"footprint_padding": 0.0}}}}
+    plain = yaml.safe_load(Path(launch_args(includes(run(made), "nav2.launch.py")[0])[
+        "params_file"]).read_text(encoding="utf-8"))
+    assert "footprint_padding" not in plain["local_costmap"]["local_costmap"]["ros__parameters"]
+    navs = includes(run(made, nav_overrides=str(path)), "nav2.launch.py")
+    assert len(navs) == len(ROBOTS)
+    for nav in navs:
+        data = yaml.safe_load(Path(launch_args(nav)["params_file"]).read_text(encoding="utf-8"))
+        local = data["local_costmap"]["local_costmap"]["ros__parameters"]
+        assert local.pop("footprint_padding") == 0.0
+        assert data == plain
+
+
 @pytest.mark.parametrize("name, padding", [("global_inflation_tight", None),
                                            ("global_padding_0p01_inflation_tight", 0.01)])
 def test_tight_global_inflation_overrides_change_only_the_global_costmap(made, name, padding):
@@ -540,6 +557,18 @@ def test_peer_obstacles_adds_the_layer_to_every_robot_and_the_stand_in_sends_the
     assert len(nodes(actions)) == before, "no new process: the DDS participant budget is full"
     with pytest.raises(ValueError, match="peer_obstacles"):
         run(made, peer_obstacles="on")
+
+
+def test_peer_radius_reaches_the_stand_in_only_when_given(made):
+    """비교용 peer_radius_m: 비면 넘기지 않는다(노드 기본 0.08)."""
+    assert made.ARGS["peer_radius_m"][0] == ""
+    [stand_in] = nodes(run(made), "sim_stand_in")
+    assert "peer_radius_m" not in params(stand_in)
+    [stand_in] = nodes(run(made, peer_radius_m="0.075"), "sim_stand_in")
+    assert params(stand_in)["peer_radius_m"] == 0.075
+    for bad in ("big", "0", "-0.1", "nan"):
+        with pytest.raises(ValueError, match="peer_radius_m"):
+            run(made, peer_radius_m=bad)
 
 
 # ---- 회피 패키지와 임시 비전 대역 ------------------------------------------------------------
