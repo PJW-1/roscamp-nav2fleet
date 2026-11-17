@@ -132,7 +132,14 @@ def build(site, plan: str, laps: int = 1, points=None) -> list[Step]:
         raise PlanError(f"plan must be one of {', '.join(PLANS)}, got {plan!r}")
     if plan in PLAN_LAYOUTS and site.name != f"arena_{PLAN_LAYOUTS[plan]}":
         raise PlanError(f"plan {plan!r} is for layout {PLAN_LAYOUTS[plan]}, not {site.name}")
-    points = {**PLAN_POINTS.get(plan, {}), **(points or {})}
+    own = PLAN_POINTS.get(plan, {})
+    for name, xy in (points or {}).items():  # 계획 전용 점만, 유한한 좌표로
+        if name not in own:
+            raise PlanError(f"plan {plan!r} has no plan point {name!r}"
+                            f" (it has: {', '.join(own) or 'none'})")
+        if len(xy) != 2 or not all(math.isfinite(v) for v in xy):
+            raise PlanError(f"plan point {name} must be two finite numbers, got {xy!r}")
+    points = {**own, **(points or {})}
     return [make_step(site, kind, nodes, points)
             for _ in range(laps) for kind, nodes in PLANS[plan]]
 
@@ -232,16 +239,18 @@ def body_distance(pose, polygon, point) -> float:
     return cross_track(list(polygon) + [polygon[0]], px, py)  # 닫힌 꺾은선
 
 
-def max_pose_error(estimates, truth) -> float | None:
-    """추정 (t, x, y)마다 시각이 가장 가까운 실제 위치 (t, x, y, ...)와의 거리 중 가장 큰 것."""
+def max_pose_error(estimates, truth, max_dt_s: float = math.inf) -> float | None:
+    """추정 (t, x, y)마다 시각이 가장 가까운 실제 위치 (t, x, y, ...)와의 거리 중 가장 큰 것.
+    시각 차가 max_dt_s보다 큰 추정은 버린다. truth는 시각 순서다. 맞춘 것이 없으면 None."""
     import bisect
     if not estimates or not truth:
         return None
     times = [p[0] for p in truth]
-    worst = 0.0
+    worst = None
     for t, x, y in estimates:
         i = bisect.bisect_left(times, t)
         near = min((truth[j] for j in (i - 1, i) if 0 <= j < len(truth)),
                    key=lambda p: abs(p[0] - t))
-        worst = max(worst, math.dist((x, y), near[1:3]))
+        if abs(near[0] - t) <= max_dt_s:
+            worst = max(worst or 0.0, math.dist((x, y), near[1:3]))
     return worst

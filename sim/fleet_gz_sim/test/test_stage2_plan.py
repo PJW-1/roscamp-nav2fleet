@@ -159,6 +159,12 @@ def test_gap_points_can_be_moved_and_a_point_needs_a_nav_goal():
     assert steps[0].target[:2] == pytest.approx((1.10, 0.56))
     with pytest.raises(sp.PlanError, match="nav_goal"):
         sp.make_step(V7, FOLLOW_PATH, ("M_E", "GAP_N"), sp.PLAN_POINTS["gap"])
+    # 계획 전용 점만 바꾼다: 지도 지점, 오타, 다른 계획, 유한하지 않은 좌표는 거부
+    for plan, points in (("gap", {"M_E": (1.6, 0.5)}), ("gap", {"GAP_X": (1.1, 0.5)}),
+                         ("corridor", {"GAP_N": (1.1, 0.5)}),
+                         ("gap", {"GAP_N": (math.nan, 0.55)})):
+        with pytest.raises(sp.PlanError, match="point"):
+            sp.build(V7, plan, points=points)
 
 
 def test_gap_points_sit_clear_of_shelves_walls_and_keepout():
@@ -186,5 +192,9 @@ def test_body_distance_and_pose_error():
     assert sp.max_pose_error([(0.9, 1.0, 0.1), (2.1, 2.0, 0.0)], truth) == pytest.approx(0.1)
     assert sp.max_pose_error([], truth) is None
     assert sp.max_pose_error([(0.0, 0.0, 0.0)], []) is None
+    # 실제 위치와 시각이 max_dt_s보다 먼 추정은 버린다(끊긴 기록, 늦게 온 메시지)
+    assert sp.max_pose_error([(5.0, 9.0, 9.0), (1.0, 1.0, 0.05)], truth, max_dt_s=0.2) == \
+        pytest.approx(0.05)
+    assert sp.max_pose_error([(5.0, 9.0, 9.0)], truth, max_dt_s=0.2) is None
     assert sp.parse_footprint("[[0.06, 0.06], [0.06, -0.06], [-0.06, -0.06]]") == \
         [(0.06, 0.06), (0.06, -0.06), (-0.06, -0.06)]

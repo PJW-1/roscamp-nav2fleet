@@ -174,9 +174,15 @@ ros2 launch fleet_gz_sim gz.launch.py $GAME nav_map_variant:=ab nav_overrides:=$
   거리 중 가장 큰 것). nav_goal: `track`(0.05 m마다 줄인 실제 자취), v7은 `through_corridor`(x 0.90~1.00, y 0.405~0.77을
   x 방향으로 지나감). v7: `through_gap`(x 0.99~1.25, y 0.365~0.405를 y 방향으로 지나감), `gap_corner_min_m`(중심),
   `gap_corner_body_min_m`(local costmap 발자국 다각형과 실제 yaw. 못 읽으면 중심 - 0.056, `gap_corner_body_from`에 적는다).
-  틈 가운데를 곧게 지나면 몸 거리는 0.074다.
+  모델값: 틈 가운데(x 1.12)를 남북으로 곧게 지나면 몸과 모서리 거리는 0.074다(반 틈 0.13 - 반폭 0.056, 측정 아님).
+  `amcl_max_error_m`은 실제 위치와 시각 차 0.1 s 안의 AMCL 추정만 본다(맞춘 것이 없으면 null). AMCL은 움직일 때만 낸다.
+- `--point`는 그 계획의 전용 점(gap의 GAP_N, GAP_S)만 받고 유한한 좌표만 받는다. 지도 지점 이름은 거부한다.
+- [추측] NavFn은 거리와 costmap 비용을 함께 쓴다. 틈 0.26 m는 5 cm 칸으로 칠하면 가운데만 남고 inflation 비용이 높아
+  길이가 짧아도 진열대 끝을 돌 수 있다. 틈을 연 판에서 `through_gap`과 `/pode1/plan`으로 확인한다.
 
-명령(터미널 둘, 같은 환경). 도메인은 70~79 가운데 비어 있는 것(사람 57, 실물 6, 다른 판 61은 피한다), 판마다 다른 json.
+명령. 터미널 둘을 쓰고 아래 설정 블록을 두 터미널 모두에서 먼저 실행한다(셸 변수는 다른 터미널로 넘어가지 않는다.
+`CHK`가 비면 drive_check가 d2의 stage2를 보낸다). `ros2 launch`는 터미널 1, `ros2 run ... drive_check`는 터미널 2.
+도메인은 70~79 가운데 비어 있는 것(사람 57, 실물 6, 다른 판 61은 피한다), 판마다 다른 json.
 
 ```bash
 source /opt/ros/jazzy/setup.bash
@@ -206,11 +212,16 @@ ros2 launch fleet_gz_sim one_pode.launch.py layout:=v7 start:=M_E gui:=true rviz
 ros2 run fleet_gz_sim drive_check --layout v7 --plan gap --laps 3 --json gz_result/gap_keepout.json   # 합친 빌드는 gap_open.json
 ```
 
-- drive_check는 앞 이동이 실패하면 멈춘다. `--wait-box`가 시간을 넘기면 상자가 없는 것이다: sim_obstacles가 시뮬 30 s 뒤에 떴거나
-  (그 전 항목은 건너뛴다) 로봇이 상자에서 0.35 m 안에 20 s 넘게 있었다. launch 로그의 `obstacle_1 ... placed`로 확인한다.
+- drive_check는 앞 이동이 실패하면 멈춘다. `--wait-box`(벽시계 초)가 시간을 넘기면 그동안 상자 표시를 못 받은 것이다.
+  가능한 까닭: sim_obstacles가 시뮬 30 s 뒤에 떴다(그 전 항목은 건너뛴다), 로봇이 상자에서 0.35 m 안에 20 s 넘게 있었다,
+  시뮬이 느려 아직 30 s가 안 됐다, Gazebo 생성 호출이 실패했다. launch 로그의 `obstacle_1 ... placed`나 경고로 확인한다.
 - 판 하나가 끝나면 launch를 Ctrl+C로 내리고 다음 갈래를 띄운다(갈래는 launch 인자라 한 판에 하나).
 - 틈 keepout이 있는 판에서는 진열대 끝을 돌아야 하고 `through_gap`은 false가 나와야 한다. 합친 빌드에서는 설치된
   `arena_v7_keepout`이 그 브랜치의 것인지 먼저 본다.
-- 시험(이 브랜치의 `install_r`, `ROS_DOMAIN_ID=73`, 한 프로세스, 관련 파일만):
+- 시험(이 브랜치의 `install_r`, `ROS_DOMAIN_ID=73`, 한 프로세스, 관련 파일만, `sim/fleet_gz_sim`에서):
   `python3 -m pytest -q test/test_stage2_plan.py test/test_arena_v7.py test/test_one_pode_wiring.py test/test_drive_check.py`
   -> `148 passed`. 구현 전에는 통로 몫 14 failed, 틈 몫 5 failed였다.
+- Codex 검수 반영: 4ebb3be(문 통과를 점 하나로 판정, 늦게 뜬 sim_obstacles가 상자를 건너뜀) -> 8567531.
+  dd3372d(`--point`가 지도 지점과 nan을 받음, AMCL 시각 맞춤에 한도 없음) -> 다음 커밋. 7943abd(터미널 변수, 시험 폴더,
+  `--wait-box` 원인, 0.074가 모델값임) -> 이 절에 반영. 8567531 검수의 "샘플 사이 통과를 놓침"은 두 문 옆이 진열대 면이라
+  중심이 그 밖에 있을 수 없고 실제 위치가 촘촘해 고치지 않았다(docstring에 적음).

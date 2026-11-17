@@ -65,6 +65,7 @@ START_M = 0.15  # 로봇이 계획의 시작 지점에서 이만큼 안에 있�
 RETREAT_SPEED_MPS = 0.05  # TRAFFIC_CONTRACT 6절 retreat_speed_mps
 SETTLE_S = 0.3  # 결과 뒤 실제 위치를 이만큼 더 받는다(멈춘 자리)
 TRACK_STEP_M = 0.05  # 자취를 줄이는 간격
+AMCL_MATCH_S = 0.1  # AMCL 추정과 실제 위치의 시각 차 한도(실제 위치는 약 30 Hz)
 BODY_HALF_WIDTH_M = 0.056  # 발자국을 못 읽을 때 몸 거리 = 중심 거리 - 이것
 # obstacle_node의 MARKER_QOS와 같다(늦게 붙어도 마지막 표시를 받는다)
 MARKER_QOS = QoSProfile(depth=1, reliability=ReliabilityPolicy.RELIABLE,
@@ -247,7 +248,7 @@ def run_step(node: DriveCheck, site, step, timeout: float) -> dict:
         else:
             out["max_cross_track_m"] = round(max(cross_track(step.poses, px, py)
                                                  for _, px, py, _ in truth), 3)
-        error = max_pose_error(amcl, truth)
+        error = max_pose_error(amcl, truth, AMCL_MATCH_S)
         out["amcl_max_error_m"] = None if error is None else round(error, 3)
         if site.name in GAP_GATES:
             gate = GAP_GATES[site.name]
