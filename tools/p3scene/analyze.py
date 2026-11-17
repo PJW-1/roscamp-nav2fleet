@@ -5,7 +5,8 @@
 
 지표(판마다):
 - time_s: goal을 보낸 때부터 결과까지(Gazebo 시간), status, BT 복구 수(피드백)
-- route: pode2가 pode3의 x를 지날 때 y가 진열대 B 아래(0.365)면 gap, 위(0.405)면 north
+- route: pode2가 진열대 B 가운데 x(0.835)를 마지막으로 지날 때 y가 0.365 아래면 gap,
+  0.405 위면 north, 못 지났으면 none. plan_route는 첫 계획으로 같은 판정
 - pode2 로그 줄 수(판의 벽시계 구간): collision ahead, patience, 계획 실패, progress 실패
 - 서 있던 시간: 직선 속도 < 0.01 m/s이고 회전 < 0.05 rad/s가 1 s 넘게 이어진 구간의 합, 가장 긴 것
 - 최소 몸 간격(실제 위치): pode2-pode3 발자국 다각형, pode2-월드 상자(진열대, 벽).
@@ -23,6 +24,7 @@ from pathlib import Path
 import yaml
 
 SHELF_B_LOW, SHELF_B_HIGH = 0.365, 0.405
+ROUTE_X = 0.835  # 진열대 B(shelf_2) 가운데 x: 여기를 지날 때의 y로 gap/north
 STAND_V, STAND_W, STAND_MIN_S = 0.01, 0.05, 1.0
 LONG_STOP_S = 5.0
 FLAG_GAP_M = 0.005
@@ -135,9 +137,9 @@ def resample(track, dt=0.1):
     return out
 
 
-def route(track, x3):
-    """pode3의 x를 처음 지날 때 pode2의 y로 gap/north."""
-    for (_, xa, ya, _), (_, xb, yb, _) in zip(track, track[1:]):
+def route(track, x3=ROUTE_X):
+    """x3(진열대 B 가운데)을 마지막으로 지날 때 pode2의 y로 gap/north. 못 지났으면 none."""
+    for (_, xa, ya, _), (_, xb, yb, _) in reversed(list(zip(track, track[1:]))):
         if (xa - x3) * (xb - x3) <= 0 and xa != xb:
             y = ya + (yb - ya) * (x3 - xa) / (xb - xa)
             return ("gap" if y < SHELF_B_LOW else "north" if y > SHELF_B_HIGH else "edge"), y
@@ -171,17 +173,21 @@ def trial_row(rec, fp, world, lines):
     row["pode3_set"] = "/".join(str(v) for v in rec["pode3_set"])
     if not rec.get("ok"):
         row["status"] = rec.get("error", "failed")
+        row["issues"] = row["status"]
         return row
     t2 = resample(rec["truth"]["pode2"])
-    t3 = rec["truth"]["pode3"]
-    p3 = t3[-1][1:] if t3 else rec["pode3_truth"]
+    t3 = rec["truth"]["pode3"] or [(0.0, *rec["pode3_truth"])]
+    p3 = t3[0][1:]
+    moved3 = max(math.hypot(x - p3[0], y - p3[1]) for _, x, y, _ in t3)
     row["pode3_truth"] = "/".join(f"{v:.3f}" for v in (p3[0], p3[1], math.degrees(p3[2])))
-    body3 = place(fp, p3)
-    g3, gw, gnamed = math.inf, math.inf, {}
-    for _, x, y, a in rec["truth"]["pode2"]:
+    g3, gnamed, j = math.inf, {}, 0
+    for t, x, y, a in rec["truth"]["pode2"]:
+        while j + 1 < len(t3) and t3[j + 1][0] <= t:  # 같은 때의 pode3
+            j += 1
+        q = t3[j][1:]
         body2 = place(fp, (x, y, a))
-        if math.hypot(x - p3[0], y - p3[1]) < 0.4:
-            g3 = min(g3, gap(body2, body3))
+        if math.hypot(x - q[0], y - q[1]) < 0.4:
+            g3 = min(g3, gap(body2, place(fp, q)))
         for name, box in world.items():
             if min(math.hypot(x - bx, y - by) for bx, by in box) < 1.2 or name.startswith("wall"):
                 d = gap(body2, box)
@@ -192,14 +198,18 @@ def trial_row(rec, fp, world, lines):
     row["gap_world_box"] = min(gnamed, key=gnamed.get) if gnamed else ""
     row["gap_shelf_2_m"] = round(gnamed.get("shelf_2", math.inf), 4)
     row["gap_wall_south_m"] = round(gnamed.get("wall_south", math.inf), 4)
-    row["route"], y = route(t2, p3[0])
-    row["y_at_pode3"] = None if y is None else round(y, 3)
+    row["pode3_moved_m"] = round(moved3, 4)
+    row["route"], y = route(t2)
+    row["y_at_shelf_b"] = None if y is None else round(y, 3)
     plan = rec["plans"][0][1] if rec.get("plans") else []
-    row["plan_route"], _ = route([(0, x, y, 0) for x, y in plan], p3[0])
+    row["plan_route"], _ = route([(0, x, y, 0) for x, y in plan])
     st = stops(t2)
     row["stand_s"] = round(sum(d for _, d in st), 1)
     row["longest_stop_s"] = round(max((d for _, d in st), default=0.0), 1)
     row.update(log_counts(lines, rec["wall_t0"], rec["wall_t1"]))
+    # 관제가 판 중에 로봇에 무엇을 보냈으면 간섭이다
+    row["fleet_orders"] = sum(1 for st, lg, tx in lines if lg == "fleet_manager"
+                              and rec["wall_t0"] - 30 <= st <= rec["wall_t1"] and "ORDER_SENT" in tx)
     end = rec.get("pode2_end") or (0, 0, 0)
     row["end_err_m"] = round(math.hypot(end[0] - 1.66, end[1] - 0.16), 3)
     issues = []
@@ -209,6 +219,10 @@ def trial_row(rec, fp, world, lines):
         issues.append(f"recoveries {row['recoveries']}")
     if row["longest_stop_s"] > LONG_STOP_S:
         issues.append(f"stop {row['longest_stop_s']} s")
+    if row["fleet_orders"]:
+        issues.append(f"fleet sent {row['fleet_orders']} orders")
+    if moved3 > 0.01:
+        issues.append(f"pode3 moved {moved3:.3f} m")
     if row["gap_pode3_m"] <= FLAG_GAP_M:
         issues.append(f"pode3 gap {row['gap_pode3_m']}")
     if row["gap_world_m"] <= FLAG_GAP_M:
@@ -228,6 +242,7 @@ def summary(rows):
         "gap": sum(r["route"] == "gap" for r in ok),
         "north": sum(r["route"] == "north" for r in ok),
         "aborts": sum(r["status"] in ("aborted", "timeout", "canceled") for r in rows),
+        "not_run": sum(r.get("route") is None for r in rows),
         "with_issue": sum(bool(r.get("issues")) for r in rows),
         "collision_lines": sum(r.get("collision", 0) for r in ok),
         "stand_s_median": round(statistics.median([r["stand_s"] for r in ok]), 1) if ok else None,
@@ -257,7 +272,8 @@ def main():
         w.writeheader()
         w.writerows(rows)
     (out / "summary.json").write_text(json.dumps({"configs": summ, "trials": rows}, indent=1))
-    cols = ["trials", "succeeded", "median_s", "max_s", "gap", "north", "aborts", "with_issue",
+    cols = ["trials", "succeeded", "median_s", "max_s", "gap", "north", "aborts", "not_run",
+            "with_issue",
             "collision_lines", "stand_s_median", "min_gap_pode3_m", "min_gap_world_m"]
     print("| cfg | " + " | ".join(cols) + " |")
     print("|" + "---|" * (len(cols) + 1))
@@ -267,7 +283,7 @@ def main():
     for r in rows:
         print(f"{r['config']}/{r['set']} t{r['trial']} p3={r.get('pode3_truth')} {r['status']} "
               f"{r.get('duration_s')} s route={r.get('route')}(plan {r.get('plan_route')}) "
-              f"y={r.get('y_at_pode3')} coll={r.get('collision')} pat={r.get('patience')} "
+              f"y={r.get('y_at_shelf_b')} coll={r.get('collision')} pat={r.get('patience')} "
               f"plan_fail={r.get('plan_fail')} prog={r.get('progress_fail')} "
               f"stand={r.get('stand_s')}/{r.get('longest_stop_s')} s "
               f"gap3={r.get('gap_pode3_m')} world={r.get('gap_world_m')}({r.get('gap_world_box')}) "

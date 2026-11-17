@@ -128,6 +128,10 @@ class Trials(Node):
         dyaw = abs(math.atan2(math.sin(pose[2] - yaw), math.cos(pose[2] - yaw)))
         return math.hypot(pose[0] - x, pose[1] - y) < d and dyaw < a
 
+    def idle(self, r):
+        s = self.state.get(r)
+        return s is not None and s.state == RobotState.STATE_IDLE
+
     def amcl_pose(self, r):
         p = self.amcl.get(r)
         return None if p is None else (p.position.x, p.position.y, yaw_of(p.orientation))
@@ -137,17 +141,19 @@ class Trials(Node):
         return None if s is None else (s.pose.x, s.pose.y, s.pose.theta)
 
     def place(self, targets):
-        """옮기고 AMCL을 맞춘다. 맞으면 True."""
-        for r, (x, y, yaw) in targets.items():
-            if not teleport(r, x, y, yaw):
-                self.get_logger().error(f"set_pose {r} failed")
-                return False
-        self.spin_for(1.0)
+        """옮기고 AMCL을 맞춘다. 맞으면 True. 시도마다 다시 옮긴다(다른 노드가 몰았을 수 있다)."""
         for attempt in range(4):
+            for r, (x, y, yaw) in targets.items():
+                if not teleport(r, x, y, yaw):
+                    self.get_logger().error(f"set_pose {r} failed")
+            self.spin_for(1.0)
+            for r in targets:
+                self.amcl.pop(r, None)  # 옮긴 뒤의 새 값만 본다
+                self.state.pop(r, None)
             for r, (x, y, yaw) in targets.items():
                 self.initialpose(r, x, y, yaw)
             ok = self.spin_until(lambda: all(
-                self.near(self.last.get(r), *t, d=0.01, a=0.03)
+                self.idle(r) and self.near(self.last.get(r), *t, d=0.01, a=0.03)
                 and self.near(self.amcl_pose(r), *t) and self.near(self.state_pose(r), *t)
                 for r, t in targets.items()), 15.0)
             if ok:
@@ -157,10 +163,13 @@ class Trials(Node):
         return False
 
     def clear_costmaps(self):
+        """비운 costmap 수(둘이어야 한다)."""
+        done = 0
         for c in self.clear:
             if c.wait_for_service(timeout_sec=5.0):
                 f = c.call_async(ClearEntireCostmap.Request())
-                self.spin_until(f.done, 5.0)
+                done += self.spin_until(f.done, 5.0)
+        return done
 
     def trial(self, k, pose3, timeout_s, pode1="A"):
         x3, y3, yaw3 = pose3[0], pose3[1], math.radians(pose3[2])
@@ -168,7 +177,10 @@ class Trials(Node):
         if not self.place({"pode1": PODE1[pode1], "pode3": (x3, y3, yaw3), "pode2": E2}):
             rec["error"] = "place failed"
             return rec
-        self.clear_costmaps()
+        rec["cleared"] = self.clear_costmaps()
+        if rec["cleared"] != 2:
+            rec["error"] = "costmap clear failed"
+            return rec
         self.spin_for(2.0)  # peer 층(5 Hz)과 라이다가 다시 찍을 시간
         rec["pode3_truth"] = self.last.get("pode3")
         rec["pode3_state"] = self.state_pose("pode3")
@@ -190,14 +202,15 @@ class Trials(Node):
         self.recording = True
         rec["wall_t0"], rec["sim_t0"] = time.time(), self.now()
         f = self.nav.send_goal_async(goal, feedback_callback=feedback)
-        if not self.spin_until(f.done, 10.0) or not f.result().accepted:
+        if not self.spin_until(f.done, 30.0) or not f.result().accepted:
             self.recording = False
-            rec["error"] = "goal rejected"
+            rec["error"] = "goal rejected" if f.done() else "goal not answered"
             return rec
         handle = f.result()
         rf = handle.get_result_async()
-        t0 = self.now()
-        while not rf.done() and self.now() - t0 < timeout_s:
+        t0, w0 = rec["sim_t0"], time.monotonic()
+        while (not rf.done() and self.now() - t0 < timeout_s
+               and time.monotonic() - w0 < 3 * timeout_s):  # 시계가 멈춰도 끝난다
             rclpy.spin_once(self, timeout_sec=0.05)
         if rf.done():
             status = rf.result().status
@@ -209,6 +222,7 @@ class Trials(Node):
             rec["status"] = "timeout"
             cf = handle.cancel_goal_async()
             self.spin_until(cf.done, 5.0)
+            rec["cancel_done"] = self.spin_until(rf.done, 15.0)  # 끝난 뒤에 다음 판
         rec["wall_t1"], rec["sim_t1"] = time.time(), self.now()
         self.spin_for(0.5)
         self.recording = False
@@ -235,7 +249,12 @@ def main():
         if not ready:
             print("not ready: nav server or topics missing", flush=True)
             return 2
-        node.spin_for(5.0)
+        # 관제는 뜨자마자 로봇 자리를 확인하고 제자리가 아니면 돌려보낸다(COMM_RESTORED): 그 뒤에 시작
+        fleet = node.spin_until(lambda: "fleet_manager" in node.get_node_names(), 300.0)
+        if not fleet:
+            print("not ready: fleet_manager missing", flush=True)
+            return 2
+        node.spin_for(15.0)
         k = 0
         for pode1 in a.sets.split(","):
             for pose3 in POSES:

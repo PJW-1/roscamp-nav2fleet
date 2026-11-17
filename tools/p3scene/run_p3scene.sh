@@ -6,7 +6,7 @@
 # 도메인 61, LOCALHOST, gui:=true(DISPLAY :0). 끝낼 때 이 판의 프로세스 묶음만 죽인다.
 set -u
 WS=${WS:?WS=작업공간}
-OUT=${OUT:?OUT=결과 폴더}
+OUT=$(realpath -m "${OUT:?OUT=결과 폴더}")
 HERE=$(cd "$(dirname "$0")" && pwd)
 TIMEOUT_S=${TIMEOUT_S:-240}
 SETS=${SETS:-A,B}
@@ -28,6 +28,7 @@ run() {
   extra=$(args_of "$cfg")
   [ "$extra" = BAD ] && { echo "unknown config $cfg"; return 2; }
   local dir=$OUT/$cfg
+  [ -e "$dir/trials.jsonl" ] && { echo "$dir/trials.jsonl exists: use a new OUT"; return 2; }
   mkdir -p "$dir"
   (
   set +u
@@ -42,6 +43,7 @@ run() {
     scenario:="$HERE/p3_scene.yaml" monitor:=false fleet_check:=false sim_dock_stub:=true \
     rviz:=fleet gui:=true result_dir:="$dir/result" $extra > "$dir/launch.log" 2>&1 &
   local pid=$!
+  trap 'kill -INT -- -$pid 2>/dev/null; sleep 5; pkill -KILL -g $pid 2>/dev/null; exit 130' INT TERM
   python3 "$HERE/run_trials.py" --config "$cfg" --out "$dir/trials.jsonl" \
     --timeout "$TIMEOUT_S" --sets "$SETS" 2>&1 | tee "$dir/trials.log"
   # 실제로 걸린 값(판 뒤에 남긴다)

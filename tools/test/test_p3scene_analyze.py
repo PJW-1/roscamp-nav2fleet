@@ -32,8 +32,10 @@ def test_the_footprint_and_world_boxes_come_from_the_repo():
 def test_route_reads_the_y_where_pode2_passes_pode3():
     low = [(0, 0.4, 0.24, 0), (1, 0.9, 0.28, 0)]
     high = [(0, 0.4, 0.24, 0), (1, 0.6, 0.5, 0), (2, 0.9, 0.55, 0)]
-    assert analyze.route(low, 0.64)[0] == "gap"
-    assert analyze.route(high, 0.64)[0] == "north"
+    short = [(0, 0.4, 0.24, 0), (1, 0.7, 0.28, 0)]
+    assert analyze.route(low)[0] == "gap"
+    assert analyze.route(high)[0] == "north"
+    assert analyze.route(short)[0] == "none"
 
 
 def test_only_stops_longer_than_a_second_count_and_turning_is_not_standing():
