@@ -22,6 +22,7 @@
   <exec_depend>rclcpp_components</exec_depend>
   <exec_depend>nav2_costmap_2d</exec_depend>
   <exec_depend>pode_scan_filter</exec_depend>
+  <exec_depend>pode_plan_keep</exec_depend>
   <exec_depend>pode_avoidance</exec_depend>
   <exec_depend>nav2_rviz_plugins</exec_depend>
   <exec_depend>rviz2</exec_depend>

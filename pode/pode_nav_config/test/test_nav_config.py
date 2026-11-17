@@ -375,6 +375,8 @@ def test_the_tree_replans_at_1_hz_and_recovers_without_moving_the_robot():
     assert params("planner_server")["planner_plugins"] == ["GridBased"]
     [select] = BT.getroot().iter("PlannerSelector")
     assert select.get("default_planner") == "GridBased" and planner is not None
+    # 1 Hz 재계획은 그대로 두고 계획 요청을 길 유지 노드(pode_plan_keep)에 보낸다
+    assert planner.get("server_name") == "compute_path_keep"
     [controller] = BT.getroot().iter("ControllerSelector")
     assert controller.get("default_controller") == "FollowPathGoal"
     # goal checker가 둘이면(retreat_goal_checker, 2-1) Nav2는 이름 없는 FollowPath를 거절한다
@@ -394,6 +396,8 @@ def test_the_tree_is_nav2s_default_tree_with_the_goal_controller_checker_and_no_
     select.set("default_controller", "FollowPath")
     [follow] = ours.getroot().iter("FollowPath")
     del follow.attrib["goal_checker_id"]
+    [planner] = ours.getroot().iter("ComputePathToPose")
+    del planner.attrib["server_name"]  # 길 유지 노드(pode_plan_keep)를 거친다
     # 회복 Clear 노드의 server_timeout은 우리가 더한 것이라 비교에서 뺀다
     for clear in ours.getroot().iter("ClearEntireCostmap"):
         clear.attrib.pop("server_timeout", None)

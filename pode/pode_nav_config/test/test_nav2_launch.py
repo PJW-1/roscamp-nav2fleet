@@ -31,6 +31,9 @@ PLUGINS = {
     "lifecycle_manager_localization": "nav2_lifecycle_manager::LifecycleManager",
     "lifecycle_manager_navigation": "nav2_lifecycle_manager::LifecycleManager",
 }
+PLAN_KEEP = "plan_keep"
+# 길 유지 노드(pode_plan_keep)는 Python 노드라 컨테이너에 넣지 못하고 늘 프로세스로 뜬다
+RUNNING = NAMES + [PLAN_KEEP]
 
 
 def _launch_description():
@@ -95,19 +98,19 @@ def test_without_composition_nine_nodes_run_as_today():
     _, found = _expand("false")
     nodes = [node for node, _ in found]
     assert not any(isinstance(n, ComposableNodeContainer) for n in nodes)
-    assert [n.node_name for n in nodes] == [f"/pode1/{name}" for name in NAMES]
+    assert [n.node_name for n in nodes] == [f"/pode1/{name}" for name in RUNNING]
     executables = [n.node_executable for n in nodes]
     assert executables == ["map_server", "map_server", "amcl", "controller_server",
                            "planner_server", "behavior_server", "bt_navigator",
-                           "lifecycle_manager", "lifecycle_manager"]
+                           "lifecycle_manager", "lifecycle_manager", "plan_keep"]
     for node in nodes[:7]:
         assert node.expanded_remapping_rules == [("/tf", "tf"), ("/tf_static", "tf_static")]
 
 
 def test_with_composition_one_container_loads_the_nine_nodes():
     _, found = _expand("true")
-    assert len(found) == 1
     container, requests = found[0]
+    assert [n.node_name for n, _ in found[1:]] == ["/pode1/plan_keep"]
     assert isinstance(container, ComposableNodeContainer)
     assert container.node_package == "rclcpp_components"
     assert container.node_executable == "component_container_isolated"
@@ -124,7 +127,7 @@ def test_with_composition_one_container_loads_the_nine_nodes():
 
 
 def test_composed_nodes_get_the_same_parameters_as_the_processes():
-    _, [(_, requests)] = _expand("true")
+    _, [(_, requests), _] = _expand("true")
     params = {r.node_name: _params(r) for r in requests}
     # 파라미터 파일의 namespace 뿌리 키(pode1:)가 노드마다 맞아 들어가야 한다
     assert params["controller_server"]["controller_plugins"] == [
@@ -145,7 +148,7 @@ def test_composed_nodes_get_the_same_parameters_as_the_processes():
 
 
 def test_composed_use_sim_time_follows_the_argument():
-    _, [(_, requests)] = _expand("true", use_sim_time="false")
+    _, [(_, requests), _] = _expand("true", use_sim_time="false")
     assert all(_params(r)["use_sim_time"] is False for r in requests)
 
 
@@ -176,7 +179,7 @@ def _global_costmap(node):
 def test_without_a_keepout_mask_nothing_changes(mask):
     _, found = _expand("false", keepout_mask=mask)
     nodes = [node for node, _ in found]
-    assert [n.node_name for n in nodes] == [f"/pode1/{name}" for name in NAMES]
+    assert [n.node_name for n in nodes] == [f"/pode1/{name}" for name in RUNNING]
     planner = nodes[NAMES.index("planner_server")]
     assert "filters" not in _global_costmap(planner)
 
@@ -184,7 +187,7 @@ def test_without_a_keepout_mask_nothing_changes(mask):
 def test_a_keepout_mask_adds_the_filter_to_the_global_costmap_and_starts_its_servers():
     _, found = _expand("false", keepout_mask=MASK)
     nodes = {n.node_name.rsplit("/", 1)[1]: n for n, _ in found}
-    assert list(nodes) == NAMES + KEEPOUT_NAMES
+    assert list(nodes) == NAMES + KEEPOUT_NAMES + [PLAN_KEEP]
     glob = _global_costmap(nodes["planner_server"])
     assert glob["filters"] == ["keepout_filter"]
     assert glob["keepout_filter"]["filter_info_topic"] == "/pode1/costmap_filter_info"
@@ -201,7 +204,7 @@ def test_a_keepout_mask_adds_the_filter_to_the_global_costmap_and_starts_its_ser
 
 
 def test_the_keepout_servers_are_brought_up_by_their_own_lifecycle_manager():
-    _, [(_, requests)] = _expand("true", keepout_mask=MASK)
+    _, [(_, requests), _] = _expand("true", keepout_mask=MASK)
     params = {r.node_name: _params(r) for r in requests}
     assert [r.node_name for r in requests] == NAMES + KEEPOUT_NAMES
     assert params["lifecycle_manager_keepout"]["node_names"] == [
@@ -215,9 +218,9 @@ def test_the_keepout_servers_are_brought_up_by_their_own_lifecycle_manager():
 
 
 def test_the_composed_container_carries_the_keepout_filter_for_the_costmap_sub_node():
-    _, [(container, _)] = _expand("true", keepout_mask=MASK)
+    _, [(container, _), _] = _expand("true", keepout_mask=MASK)
     assert _global_costmap(container)["filters"] == ["keepout_filter"]
-    _, [(container, _)] = _expand("true")
+    _, [(container, _), _] = _expand("true")
     assert "filters" not in _global_costmap(container)
 
 
@@ -292,7 +295,7 @@ STRIPS = "0.0,0.79,0.30,0.99; 0.30,0.79,0.50,0.99"
 @pytest.mark.parametrize("strips", [None, ""])
 def test_without_narrow_strips_the_costmaps_read_the_raw_scan_and_no_filter_runs(strips):
     _, found = _expand("false", narrow_strips=strips)
-    assert [n.node_name for n, _ in found] == [f"/pode1/{name}" for name in NAMES]
+    assert [n.node_name for n, _ in found] == [f"/pode1/{name}" for name in RUNNING]
     for layer in _obstacle_layers(found).values():
         assert layer["scan"]["topic"] == "/pode1/scan"
 
@@ -335,7 +338,7 @@ def _costmaps(found):
 @pytest.mark.parametrize("value", [None, "false"])
 def test_without_peer_obstacles_nothing_changes(value):
     _, found = _expand("false", peer_obstacles=value)
-    assert [n.node_name for n, _ in found] == [f"/pode1/{name}" for name in NAMES]
+    assert [n.node_name for n, _ in found] == [f"/pode1/{name}" for name in RUNNING]
     for costmap in _costmaps(found).values():
         assert "peer_layer" not in costmap["plugins"] and "peer_layer" not in costmap
 
@@ -363,7 +366,7 @@ def test_the_composed_container_carries_the_peer_layer_for_the_costmap_sub_nodes
     for which in ("local", "global"):
         costmap = _param_files(container)["pode1"][f"{which}_costmap"][f"{which}_costmap"]
         assert "peer_layer" in costmap["ros__parameters"]["plugins"]
-    assert [n.node_name for n, _ in found][1:] == ["/pode1/peer_obstacles"]
+    assert [n.node_name for n, _ in found][1:] == ["/pode1/plan_keep", "/pode1/peer_obstacles"]
 
 
 def test_peer_obstacles_works_with_keepout_and_the_scan_filter():
@@ -385,14 +388,14 @@ def test_peer_obstacles_without_the_robot_list_stops_the_launch():
 
 def test_the_layer_alone_can_be_asked_for_when_another_process_sends_the_bodies():
     _, found = _expand("false", peer_obstacles="true", peer_node="false")
-    assert [n.node_name for n, _ in found] == [f"/pode1/{name}" for name in NAMES]
+    assert [n.node_name for n, _ in found] == [f"/pode1/{name}" for name in RUNNING]
     for costmap in _costmaps(found).values():
         assert "peer_layer" in costmap["plugins"]
 
 
 def test_peer_node_alone_starts_nothing():
     _, found = _expand("false", peer_node="true", peer_robots="pode1,pode2")
-    assert [n.node_name for n, _ in found] == [f"/pode1/{name}" for name in NAMES]
+    assert [n.node_name for n, _ in found] == [f"/pode1/{name}" for name in RUNNING]
 
 
 @pytest.mark.parametrize("name", ["peer_obstacles", "peer_node"])
@@ -540,7 +543,7 @@ def test_an_unknown_avoidance_package_stops_the_launch():
 def test_without_the_vision_stand_in_nothing_changes(value):
     more = {} if value is None else {"vision_stand_in": value}
     _, found = _expand("false", **more)
-    assert [n.node_name for n, _ in found] == [f"/pode1/{name}" for name in NAMES]
+    assert [n.node_name for n, _ in found] == [f"/pode1/{name}" for name in RUNNING]
 
 
 def test_the_vision_stand_in_starts_its_node_and_turns_the_vision_source_on():
@@ -555,6 +558,49 @@ def test_the_vision_stand_in_starts_its_node_and_turns_the_vision_source_on():
 
 @pytest.mark.parametrize("name", ["vision_obstacles", "vision_stand_in"])
 def test_a_vision_switch_that_is_not_true_or_false_stops_the_launch(name):
+    from launch.substitutions.substitution_failure import SubstitutionFailure
+    with pytest.raises((ValueError, SubstitutionFailure), match=f"{name} must be true or false"):
+        _expand("false", **{name: "ture"})
+
+
+# ---- 길 유지 노드(pode_plan_keep): 행동 트리의 ComputePathToPose가 compute_path_keep을 부른다 ----
+
+def _plan_keep(found):
+    [node] = [n for n, _ in found if n.node_name == "/pode1/plan_keep"]
+    return node
+
+
+def _respawn(node, context):
+    from launch.utilities.type_utils import perform_typed_substitution
+    for owner in ("ExecuteLocal", "ExecuteProcess"):
+        if hasattr(node, f"_{owner}__respawn"):
+            value = getattr(node, f"_{owner}__respawn")
+            return value if isinstance(value, bool) else perform_typed_substitution(
+                context, value, bool)
+    raise AssertionError("launch keeps respawn somewhere else")
+
+
+@pytest.mark.parametrize("composition", ["false", "true"])
+def test_the_plan_keep_node_runs_in_the_robot_namespace_and_comes_back(composition):
+    context, found = _expand(composition)
+    node = _plan_keep(found)
+    assert node.node_package == "pode_plan_keep" and node.node_executable == "plan_keep"
+    assert _respawn(node, context) is True
+    assert _given(node)["keep"] is True
+
+
+def test_plan_keep_false_turns_the_rule_off_but_keeps_the_node():
+    _, found = _expand("false", plan_keep="false")
+    assert _given(_plan_keep(found))["keep"] is False
+
+
+def test_plan_keep_node_false_leaves_the_node_to_another_process():
+    _, found = _expand("false", plan_keep_node="false")
+    assert [n.node_name for n, _ in found] == [f"/pode1/{name}" for name in NAMES]
+
+
+@pytest.mark.parametrize("name", ["plan_keep", "plan_keep_node"])
+def test_a_plan_keep_switch_that_is_not_true_or_false_stops_the_launch(name):
     from launch.substitutions.substitution_failure import SubstitutionFailure
     with pytest.raises((ValueError, SubstitutionFailure), match=f"{name} must be true or false"):
         _expand("false", **{name: "ture"})
