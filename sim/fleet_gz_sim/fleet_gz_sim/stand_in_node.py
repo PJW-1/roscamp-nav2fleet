@@ -228,7 +228,10 @@ def main(args=None):
     rclpy.init(args=args)
     node = SimStandIn()
     peers = peer_nodes(node) + plan_keep_nodes(node)
-    executor = MultiThreadedExecutor()
+    # 도크 대역과 길 유지 노드의 실행 콜백은 끝날 때까지 스레드를 쥔다. 로봇마다 둘씩 쥐어도 응답과
+    # 취소 콜백이 돌 스레드가 남게 한다(CPU 수로 정하는 기본값은 작을 수 있다)
+    robots = len(node.get_parameter("robots").value)
+    executor = MultiThreadedExecutor(num_threads=max(8, 2 * robots + 4))
     for each in (node, *peers):
         executor.add_node(each)
     try:

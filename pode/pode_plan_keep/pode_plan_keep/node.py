@@ -34,6 +34,7 @@ VALID = "is_path_valid"
 POLL_S = 0.005
 PLANNER_WAIT_S = 1.0
 CANCEL_WAIT_S = 1.0
+THREADS = 4
 UNKNOWN = getattr(ComputePathToPose.Result, "UNKNOWN", 200)
 REASONS = {OFF: "the robot is off the kept route", BLOCKED: "the kept route is blocked",
            SILENT: "no answer from is_path_valid", SHORTER: "the new plan is clearly shorter"}
@@ -67,8 +68,10 @@ class PlanKeep(Node):
         if not self.planner.wait_for_server(timeout_sec=PLANNER_WAIT_S):
             self.get_logger().warn(f"{PLANNER} is not up")
             return self._abort(handle, ComputePathToPose.Result(error_code=UNKNOWN))
-        sent = self._wait(self.planner.send_goal_async(handle.request), handle)
+        sending = self.planner.send_goal_async(handle.request)
+        sent = self._wait(sending, handle)
         if sent is None:
+            sending.add_done_callback(_cancel_when_accepted)
             handle.canceled()
             return ComputePathToPose.Result()
         if not sent.accepted:
@@ -83,6 +86,9 @@ class PlanKeep(Node):
             return self._abort(handle, result)
         if self.keep:
             result.path = self._choose(handle.request.goal, result.path)
+        if handle.is_cancel_requested:
+            handle.canceled()
+            return ComputePathToPose.Result()
         handle.succeed()
         return result
 
@@ -121,7 +127,7 @@ class PlanKeep(Node):
                                                       self.rules)
         lengths = f"new plan {length(new):.2f} m"
         if verdict == KEEP:
-            kept_path = self._restamped(kept_path, start)
+            kept_path = self._restamped(kept_path, start, new_path)
             self._remember(kept_path, goal_xy)
             self.get_logger().info(f"kept the route: {lengths} by another way, "
                                    f"kept {length(rest):.2f} m")
@@ -149,14 +155,22 @@ class PlanKeep(Node):
             return None
         return bool(future.result().is_valid)
 
-    def _restamped(self, kept_path, start):
+    def _restamped(self, kept_path, start, new_path):
         stamp = self.get_clock().now().to_msg()
         path = Path(poses=copy.deepcopy(kept_path.poses[start:]))
         path.header.frame_id = kept_path.header.frame_id
         path.header.stamp = stamp
         for pose in path.poses:
             pose.header.stamp = stamp
+        path.poses[-1].pose.orientation = copy.deepcopy(new_path.poses[-1].pose.orientation)
         return path
+
+
+# ---- 승인된 뒤에 취소하기 ----
+def _cancel_when_accepted(future):
+    sent = future.result()
+    if sent is not None and sent.accepted:
+        sent.cancel_goal_async()
 
 
 # ---- 경로 점 ----
@@ -177,7 +191,7 @@ def make_fleet(robots: list, keep: bool = True, use_sim_time: bool = False,
 def main():
     rclpy.init()
     node = PlanKeep()
-    executor = MultiThreadedExecutor()
+    executor = MultiThreadedExecutor(num_threads=THREADS)
     executor.add_node(node)
     try:
         executor.spin()

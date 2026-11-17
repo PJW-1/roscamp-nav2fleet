@@ -65,11 +65,13 @@ def rounded(points) -> list:
 
 
 class FakePlanner:
-    """plans: 다음 계획들(점 목록, 오류 코드 int, 또는 "hang"). valid: True, False, "slow"."""
+    """plans: 다음 계획들(점 목록, 오류 코드 int, 또는 "hang"). valid: True, False, "slow".
+    heading_z: 계획 끝 자세의 방향(쿼터니언 z, w는 맞춘다)."""
 
     def __init__(self, node):
         group = ReentrantCallbackGroup()
         self.plans, self.valid, self.asked, self.canceled = deque(), True, [], 0
+        self.heading_z = 0.0
         self.server = ActionServer(node, ComputePathToPose, "compute_path_to_pose", self._plan,
                                    cancel_callback=lambda _: CancelResponse.ACCEPT,
                                    callback_group=group)
@@ -89,6 +91,8 @@ class FakePlanner:
             handle.abort()
             return result
         result.path = as_path(plan)
+        end = result.path.poses[-1].pose.orientation
+        end.z, end.w = self.heading_z, (1.0 - self.heading_z ** 2) ** 0.5
         handle.succeed()
         return result
 
@@ -220,6 +224,30 @@ def test_a_canceled_request_cancels_the_planner_goal(ros):
     got = wait(handle.get_result_async())
     assert got.status == GoalStatus.STATUS_CANCELED
     assert fake.canceled == 1
+
+
+def test_a_kept_route_ends_with_the_new_goal_heading(ros):
+    """goal 위치가 같고 방향만 바뀌면 지켜 둔 길의 끝 자세는 새 계획의 끝 방향을 따른다."""
+    _, fake, client = ros()
+    fake.plans.extend([EAST, NORTH])
+    ask(client)
+    fake.heading_z = 0.7071068
+    _, result = ask(client)
+    assert points_of(result.path) == rounded(EAST)
+    assert result.path.poses[-1].pose.orientation.z == pytest.approx(0.7071068)
+
+
+def test_a_cancel_while_asking_is_path_valid_ends_canceled(ros):
+    _, fake, client = ros(Parameter("valid_timeout_s", value=0.5))
+    fake.plans.extend([EAST, NORTH])
+    ask(client)
+    fake.valid = "slow"
+    request = ComputePathToPose.Goal()
+    request.goal.pose.position.x, request.goal.pose.position.y = GOAL
+    handle = wait(client.send_goal_async(request))
+    time.sleep(0.2)
+    wait(handle.cancel_goal_async())
+    assert wait(handle.get_result_async()).status == GoalStatus.STATUS_CANCELED
 
 
 def test_the_rule_values_are_parameters(ros):
