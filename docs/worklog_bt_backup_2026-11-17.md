@@ -26,17 +26,19 @@
 | 참고: 오전 aI 판 | 없음 | PASS 12/12 | 572.7 s | 28.0 s | 0(틈에 안 들어감) | 0 | 138 |
 
 - 네 판 모두 위반 0, near 0. BackUp 판의 구역 검사(`unheld_zone_pose`, `released_while_off_lane`, `released_without_position_check`)는 모두 0, `zone_holder_max` 1. 로봇 사이 최소 거리(truth) 0.172~0.173 m(없음 판 0.165~0.166 m).
-- 시간 맞추기: launch 로그는 벽시계라, 관제의 `LOCAL_YIELD wait` 줄과 events.csv의 같은 사건으로 차이를 맞췄다(bk1 424.7 s, bk2 426.1 s). behavior_server 로그는 launch 로그에 나오지 않아 BackUp이 돈 것은 BT 순서로 짐작한다: controller의 "patience exceeded"가 약 1 s 간격으로 두 번 나면(FollowPath 안쪽 재시도 1번 뒤) 바깥 복구 한 차례이고, RoundRobin은 지도 지우기 → BackUp → Wait 순서다. 새 goal이 오면(GoalUpdated) RoundRobin은 처음부터 다시 센다.
-- bk1: 실패 두 쌍(424.4/425.5 s → 지도 지우기, 426.9/428.0 s → BackUp). 428.3~431.0 s에 서쪽으로 약 0.16 m 움직였고, 428.7 s 실제 방향(recovery_probe.csv truth_yaw)이 -10°(동쪽)여서 후진이다. 뒤로 가는 것은 `backup` 동작 서버(BT 또는 pode_fsm)와 관제 Retreat의 후진 controller뿐이다. goal controller는 후진하지 않고(`allow_reversing: false`), 이 판에는 pode_fsm 물러나기(LOCAL_YIELD는 426.7 s "ends BLOCKED after 2 s")도 Retreat도 없었다. 그래서 BT BackUp이다. 그러나 곧 다시 동쪽으로 가서 같은 틈(0.64, 0.29)에 또 들어가 약 12 s 섰다. 444.0 s 관제 길 바꿈 뒤 두 번째 BackUp 차례(452.7 s)에는 위치가 450.7~460.6 s 내내 (0.587, 0.313) 그대로였다. 거절됐는지는 로그가 없어 모른다. 460.4 s 두 번째 길 바꿈 뒤 M_E 쪽으로 돌아 474.8 s에 Q2.
-- bk2: pode_fsm 양보가 0.10 m 물러났다가(428.1 s, 로그 "succeeded OK after 0.102 m") 429.5 s에 다시 보내져 틈(0.66, 0.29)에 섰다. 실패 두 쌍(437.7/438.7 s → 지도 지우기, 440.1/441.1 s → BackUp). BT BackUp은 441.1 s에 시작해 441.5 s에 `Failed to get result for backup in node halt!`(ERROR)로 끊겼다: 441.4 s 관제 길 바꿈(M_E 쪽)의 새 goal이 BT를 멈췄다. 그동안 움직인 거리는 약 0.02 m다. 443~446 s의 서쪽 움직임은 새 경로를 따라간 것이다(goal controller는 `allow_reversing: false`, pode_avoidance/params/avoidance.yaml). 456.2 s에 Q2. 이 판에서 빠져나온 것은 BackUp이 아니라 관제 길 바꿈이다.
+- 시간 맞추기: launch 로그는 벽시계라, 관제의 `LOCAL_YIELD wait` 줄과 events.csv의 같은 사건으로 차이를 맞췄다(bk1 424.7 s, bk2 426.1 s). 이 차이는 근사다(bk2에서 시간에 따라 약 0.1 s 변한다). [추측] behavior_server 로그는 launch 로그에 나오지 않아 BackUp이 돈 것은 BT 순서로 짐작한다(재구성): controller의 "patience exceeded"가 약 1 s 간격으로 두 번 나면(FollowPath 안쪽 재시도 1번 뒤) 바깥 복구 한 차례이고, RoundRobin은 지도 지우기 → BackUp → Wait 순서다. 새 goal이 오면(GoalUpdated) RoundRobin은 처음부터 다시 센다.
+- bk1 [확정, robots.csv, recovery_probe.csv, events.csv, 로그]: controller 실패 쌍이 424.4/425.5 s와 426.9/428.0 s에 있었다. 보고 위치는 428.340 s (0.495, 0.274)에서 431.036 s (0.364, 0.293)로 약 0.133 m(427.740 s 표본부터 재면 약 0.149 m) 서쪽으로 움직였고, 428.7 s 실제 방향(truth_yaw)은 -10°(동쪽)이라 후진이다. 428~431 s 구간에는 pode_fsm backup 이벤트와 Retreat 이벤트가 없고(LOCAL_YIELD는 426.7 s "ends BLOCKED after 2 s"), goal controller는 후진하지 않는다(`allow_reversing: false`). pode2의 Retreat는 520.7 s에 따로 있다. 곧 다시 동쪽으로 가서 같은 틈(0.64, 0.29)에 들어가 약 12 s 섰다. 444.0 s 관제 길 바꿈 뒤 450.7~460.6 s에는 위치가 (0.587, 0.313) 그대로였다. 460.4 s 두 번째 길 바꿈 뒤 M_E 쪽으로 돌아 474.8 s에 Q2.
+- bk1 [추측]: 실패 두 쌍을 지도 지우기(424.4/425.5 s)와 BackUp(426.9/428.0 s)에 짝지은 것은 재구성이다. 428~431 s의 후진을 BT BackUp으로 보는 것은 위 사실들로 다른 후진 주체를 뺀 소거법이며 BackUp 실행 로그는 없다. 452.7 s의 두 번째 BackUp 차례가 거절됐는지도 로그가 없어 모른다.
+- bk2 [확정, events.csv, 로그]: pode_fsm 양보의 `LOCAL_YIELD backup` 시작 사건이 428.1 s, "succeeded OK after 0.102 m"가 약 1.3 s 뒤다. 429.5 s에 goal이 다시 보내져 틈(0.66, 0.29)에 섰다. 마지막 controller abort(Controller patience exceeded) 약 0.4 s 뒤 `Failed to get result for backup in node halt!`(ERROR)가 났다(abort 시각은 BackUp 시작 시각이 아니므로 이 0.4 s는 BackUp 실행 시간이 아니다). 같은 시각에 441.4 s 관제 길 바꿈(M_E 쪽) 주문의 새 goal로 기존 goal이 CANCELED됐다. 443~446 s의 서쪽 움직임은 새 경로를 따른 것이고(`allow_reversing: false`, pode_avoidance/params/avoidance.yaml), 456.2 s에 Q2.
+- bk2 [추측]: 실패 두 쌍(437.7/438.7 s, 440.1/441.1 s)을 지도 지우기와 BackUp에 짝지은 것과 BackUp이 441.1 s쯤 시작했다는 것은 재구성이다. 길 바꿈이 이 판을 빠져나오게 했고 BackUp의 기여는 거의 없다는 해석도 추측이다(443~446 s 움직임의 원인을 설정만으로 모두 가를 수는 없다).
 
 ## 4. 읽는 법
 
-- [확정] BT BackUp은 낀 로봇을 실제로 뒤로 뺐다(bk1 0.16 m). 그러나 로봇은 곧 같은 틈으로 다시 들어갔고, bk1의 주문→Q2 54.8 s는 없음 판 final_main 59.7 s와 거의 같다.
-- [확정] bk2의 짧은 시간(36.2 s)은 BackUp 덕이 아니다. BackUp은 0.4 s만 돌고 관제 길 바꿈에 끊겼고, 빠져나온 것은 그 길 바꿈이다.
+- [확정] bk1에서 낀 로봇이 428~431 s에 약 0.13~0.15 m 후진했고, [추측] 이것은 BT BackUp이다(소거법). 그러나 로봇은 곧 같은 틈으로 다시 들어갔고, bk1의 주문→Q2 54.8 s는 없음 판 final_main 59.7 s와 거의 같다.
+- [확정] bk2에서 BackUp halt 오류가 관제 길 바꿈 직후에 났다. [추측] 그래서 bk2의 짧은 시간(36.2 s)은 BackUp 덕이 아니라 그 길 바꿈 덕이다.
 - [추측] 그래서 이 두 판으로는 BackUp이 끼임 시간을 줄인다고 말할 수 없다. 판이 둘씩뿐이고, 없음 판끼리도 틈 시간이 37.6 s와 94.8 s로 크게 갈린다.
 - [추측] 남은 원인은 서 있는 로봇 옆 좁은 틈을 경로가 다시 고르는 것이다(aI 설정). 빼낸 뒤 같은 틈을 다시 고르지 않게 해야 BackUp이 쓸모 있다.
-- [확정] 관제의 새 goal이 돌던 BT BackUp을 끊는다(bk2 ERROR 한 줄). 두 판 모두 판 실패나 구역 위반으로 이어지지는 않았다.
+- [확정] 관제의 새 goal로 돌던 BT BackUp의 halt 오류가 한 번 났다(bk2). 새 goal이 항상 끊는다는 보장은 아니다. 두 판 모두 판 실패나 구역 위반으로 이어지지는 않았다.
 - 판 전체 시간은 BackUp 판 571.9/572.4 s, 없음 판 572.5/606.1 s다.
 
 ## 5. 남은 일과 위험(Codex 판단 리뷰에서)
