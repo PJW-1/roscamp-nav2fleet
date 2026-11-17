@@ -50,3 +50,28 @@ def test_the_body_footprint_comes_from_the_local_costmap_of_pode_nav_config():
     assert max(abs(y) for _, y in polygon) == pytest.approx(0.056)
     assert min(x for x, _ in polygon) == pytest.approx(-0.076)
     assert drive_check.load_footprint("/nowhere/nav2_params.yaml") is None
+
+
+class _FakeNode:
+    """run_step이 쓰는 것만: 결과는 바로 성공, 실제 위치 기록은 없음."""
+    def __init__(self):
+        import threading
+        self.lock = threading.Lock()
+        self.truth, self.states, self.plans, self.box_min, self.amcl = [], [], [], {}, []
+        self.footprint = None
+
+    def send(self, step):
+        return {"done": True, "success": True, "handle": None}
+
+    def last_truth(self):
+        return None
+
+
+def test_amcl_error_key_is_always_written_null_when_not_measurable():
+    from fleet_core.fleet_map import load_fleet_map
+    from fleet_gz_sim import stage2_plan as sp
+    site = load_fleet_map("v7")
+    step = sp.build(site, "corridor")[0]
+    out = drive_check.run_step(_FakeNode(), site, step, timeout=1.0)
+    assert out["result"] == "success"
+    assert "amcl_max_error_m" in out and out["amcl_max_error_m"] is None

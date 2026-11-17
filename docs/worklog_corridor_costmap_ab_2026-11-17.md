@@ -175,7 +175,8 @@ ros2 launch fleet_gz_sim gz.launch.py $GAME nav_map_variant:=ab nav_overrides:=$
   x 방향으로 지나감). v7: `through_gap`(x 0.99~1.25, y 0.365~0.405를 y 방향으로 지나감), `gap_corner_min_m`(중심),
   `gap_corner_body_min_m`(local costmap 발자국 다각형과 실제 yaw. 못 읽으면 중심 - 0.056, `gap_corner_body_from`에 적는다).
   모델값: 틈 가운데(x 1.12)를 남북으로 곧게 지나면 몸과 모서리 거리는 0.074다(반 틈 0.13 - 반폭 0.056, 측정 아님).
-  `amcl_max_error_m`은 실제 위치와 시각 차 0.1 s 안의 AMCL 추정만 본다(맞춘 것이 없으면 null). AMCL은 움직일 때만 낸다.
+  `amcl_max_error_m`은 실제 위치와 시각 차 0.1 s 안의 AMCL 추정만 본다. 키는 늘 있고, 잴 수 없으면(맞춘 추정이 없거나
+  그 이동의 실제 위치 기록이 없으면) null이다. AMCL은 움직일 때만 낸다.
 - `--point`는 그 계획의 전용 점(gap의 GAP_N, GAP_S)만 받고 유한한 좌표만 받는다. 지도 지점 이름은 거부한다.
 - [추측] NavFn은 거리와 costmap 비용을 함께 쓴다. 틈 0.26 m는 5 cm 칸으로 칠하면 가운데만 남고 inflation 비용이 높아
   길이가 짧아도 진열대 끝을 돌 수 있다. 틈을 연 판에서 `through_gap`과 `/pode1/plan`으로 확인한다.

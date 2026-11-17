@@ -162,7 +162,9 @@ def test_gap_points_can_be_moved_and_a_point_needs_a_nav_goal():
     # 계획 전용 점만 바꾼다: 지도 지점, 오타, 다른 계획, 유한하지 않은 좌표는 거부
     for plan, points in (("gap", {"M_E": (1.6, 0.5)}), ("gap", {"GAP_X": (1.1, 0.5)}),
                          ("corridor", {"GAP_N": (1.1, 0.5)}),
-                         ("gap", {"GAP_N": (math.nan, 0.55)})):
+                         ("gap", {"GAP_N": (math.nan, 0.55)}), ("gap", {"GAP_N": 1.1}),
+                         ("gap", {"GAP_N": (1.1, "x")}), ("gap", {"GAP_N": {1.1: 0, 0.5: 1}}),
+                         ("gap", {"GAP_N": (True, 0.5)})):
         with pytest.raises(sp.PlanError, match="point"):
             sp.build(V7, plan, points=points)
 

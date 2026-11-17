@@ -231,6 +231,8 @@ def run_step(node: DriveCheck, site, step, timeout: float) -> dict:
     out = {"step": step.label, "result": result, "wall_s": round(wall_s, 2), "states": states,
            "blocked": states.count("BLOCKED"), "recovering": states.count("RECOVERING"),
            "box_min_m": {name: round(d, 3) for name, d in sorted(box_min.items())}}
+    error = max_pose_error(amcl, truth, AMCL_MATCH_S)  # 잴 수 없으면 None
+    out["amcl_max_error_m"] = None if error is None else round(error, 3)
     if truth:
         t0 = truth[0][0]
         t1, x, y, yaw = truth[-1]
@@ -248,8 +250,6 @@ def run_step(node: DriveCheck, site, step, timeout: float) -> dict:
         else:
             out["max_cross_track_m"] = round(max(cross_track(step.poses, px, py)
                                                  for _, px, py, _ in truth), 3)
-        error = max_pose_error(amcl, truth, AMCL_MATCH_S)
-        out["amcl_max_error_m"] = None if error is None else round(error, 3)
         if site.name in GAP_GATES:
             gate = GAP_GATES[site.name]
             corners = gap_corners(gate)

@@ -137,7 +137,9 @@ def build(site, plan: str, laps: int = 1, points=None) -> list[Step]:
         if name not in own:
             raise PlanError(f"plan {plan!r} has no plan point {name!r}"
                             f" (it has: {', '.join(own) or 'none'})")
-        if len(xy) != 2 or not all(math.isfinite(v) for v in xy):
+        if (not isinstance(xy, (tuple, list)) or len(xy) != 2
+                or not all(isinstance(v, (int, float)) and not isinstance(v, bool)
+                           and math.isfinite(v) for v in xy)):
             raise PlanError(f"plan point {name} must be two finite numbers, got {xy!r}")
     points = {**own, **(points or {})}
     return [make_step(site, kind, nodes, points)
