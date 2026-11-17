@@ -58,9 +58,9 @@ def keys_at(site, params, point) -> list:
 # ---- 장애물 위치와 그 자리의 로봇 찾기 ----
 class BlockMarks:
     def _obstacle_point(self, m) -> tuple | None:
-        if not self.params.blocked_by_position or m.obstacle is None:
+        if not self.params.blocked_by_position or m.report.obstacle is None:
             return None
-        return m.obstacle[:2]
+        return m.report.obstacle[:2]
 
     def _robot_at(self, m, point):
         near = [other for other in self._robots.values()

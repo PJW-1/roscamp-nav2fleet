@@ -27,7 +27,7 @@ class Blocked:
         p = self.params
         long_recovery = (m.blocked.self_recovery_since is not None
                          and now - m.blocked.self_recovery_since > p.self_recovery_limit_s)
-        stuck = m.robot_state == BLOCKED or long_recovery
+        stuck = m.report.robot_state == BLOCKED or long_recovery
         if not stuck or m.goal is None or m.goal.kind in (DOCK, BACKOFF):
             if not stuck:
                 self._blocked_gap(m, now)
@@ -81,7 +81,7 @@ class Blocked:
             self._end_blocked(m)
             return
         m.blocked.out = True
-        if m.robot_state == SELF_RECOVERING:
+        if m.report.robot_state == SELF_RECOVERING:
             m.blocked.clear_since = None  # 자가 복구는 막힘의 일부: 끝내는 시간에 넣지 않는다
         elif m.blocked.clear_since is None:
             m.blocked.clear_since = now
@@ -186,14 +186,14 @@ class Blocked:
     # ---- 로봇단 양보 기록과 막힘 만료 ----
     def _note_local_yield(self, m, now: float) -> None:
         ep = m.local_episode
-        if m.local_yield:
+        if m.report.local_yield:
             if ep.since is None:
                 ep.since = now
-            if m.local_yield != ep.noted:
-                ep.noted = m.local_yield
-                self._event("INFO", "LOCAL_YIELD", m.local_yield, m.name)
+            if m.report.local_yield != ep.noted:
+                ep.noted = m.report.local_yield
+                self._event("INFO", "LOCAL_YIELD", m.report.local_yield, m.name)
             return
-        self._event("INFO", "LOCAL_YIELD", f"ends {m.robot_state or '?'} after "
+        self._event("INFO", "LOCAL_YIELD", f"ends {m.report.robot_state or '?'} after "
                     f"{now - ep.since:.0f} s", m.name)
         ep.clear()
 
@@ -203,10 +203,10 @@ class Blocked:
 
     # ---- 자가 복구 시작과 끝 기록 ----
     def _note_self_recovery(self, m, now: float) -> None:
-        if m.local_yield or m.local_episode.since is not None:
+        if m.report.local_yield or m.local_episode.since is not None:
             self._note_local_yield(m, now)
             return
-        if m.robot_state == SELF_RECOVERING:
+        if m.report.robot_state == SELF_RECOVERING:
             if m.blocked.self_recovery_since is None:
                 m.blocked.self_recovery_since = now
                 self._event("INFO", "SELF_RECOVERY", "backs up by itself", m.name)

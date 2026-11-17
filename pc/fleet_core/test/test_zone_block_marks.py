@@ -202,7 +202,7 @@ def test_the_manager_passes_a_usable_obstacle_and_drops_the_rest(seen, kept):
     core.record_to(lines.append)
     x, y = core.site.node_pose("P-1")
     core.on_robot_state("pode1", x, y, 0.0, "BLOCKED", 90.0, "", *seen)
-    assert core.traffic._robots["pode1"].obstacle == kept
+    assert core.traffic._robots["pode1"].report.obstacle == kept
     assert "INPUT_REJECTED" not in [e.code for e in core.tick() if hasattr(e, "code")]
 
 

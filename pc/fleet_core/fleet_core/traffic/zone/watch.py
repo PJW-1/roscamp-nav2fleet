@@ -23,7 +23,7 @@ class Watch:
     def _watch_stall(self, m, now: float) -> None:
         p = self.params
         waiting = m.move_order is not None and m.move_order.waiting
-        rests = m.robot_state in (BLOCKED, SELF_RECOVERING)
+        rests = m.report.robot_state in (BLOCKED, SELF_RECOVERING)
         if (m.goal is None or self._run_mode != RUN or m.arrival_by is not None or waiting
                 or (rests and m.goal.kind not in (DOCK, BACKOFF))):
             self._reset_stall(m)

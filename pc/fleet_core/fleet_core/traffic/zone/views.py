@@ -58,7 +58,7 @@ class Views:
         route, granted = self._route_left(m)
         return {
             "state": m.state, "phase": m.phase, "on_map": m.placed, "fault": m.fault,
-            "comm": m.comm, "called": m.called, "charging": m.charge,
+            "comm": m.comm, "called": m.called, "charging": m.report.charge,
             "held": list(self.grants.held_by(robot)), "nodes": list(self.grants.nodes_of(robot)),
             "node": m.node, "waypoint": m.node, "target": m.goal.end if m.goal else "",
             "route": route, "path": route, "base": route[:granted], "horizon": route[granted:],
@@ -83,12 +83,12 @@ class Views:
         blockers = (self.grants.blockers(robot, want.zones, want.nodes, want.lanes)
                     if want is not None else {})
         return {
-            "fsm_state": m.robot_state,
+            "fsm_state": m.report.robot_state,
             "fault": m.fault or m.comm or NO_FAULT,
             "fault_reason": m.fault_reason or _COMM_REASON.get(m.comm, ""),
             "wait_zone": m.wait.key[0] if m.wait.key else "",
             "wait_robots": tuple(sorted({name for group in blockers.values() for name in group})),
-            "battery": m.battery, "x": m.x, "y": m.y, "yaw": m.yaw,
+            "battery": m.report.battery, "x": m.x, "y": m.y, "yaw": m.yaw,
             "base": tuple(route[:granted]), "horizon": tuple(route[granted:]),
             "priority": m.sent_priority,
         }

@@ -148,8 +148,8 @@ class Results:
         조각 끝마다 본다. 여럿이면 로봇에 가장 가까운 끝, 같으면 앞의 끝. behind면 뒤가 막혀 선
         로봇이 선을 따라 끝에 못 미친 끝은 뺀다. 없으면 None."""
         goal = m.goal
-        heard = (m.available and m.robot_state != LOCALIZING
-                 and self._clock() - m.last_seen <= self.params.arrival_settle_s)
+        heard = (m.available and m.report.robot_state != LOCALIZING
+                 and self._clock() - m.report.last_seen <= self.params.arrival_settle_s)
         if not (heard and goal is not None and goal.kind in (MOVE, RETREAT)):
             return None
         ends = [(self._gap(m, end.end), index, (end, passed))

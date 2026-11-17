@@ -48,6 +48,17 @@ class Dispatch:
     station_id: str
 
 
+# ---- 로봇이 보고한 상태 ----
+@dataclass
+class Report:
+    robot_state: str = ""
+    battery: float = 0.0
+    charge: bool = False
+    last_seen: float = 0.0
+    local_yield: str = ""
+    obstacle: tuple | None = None
+
+
 # ---- 로봇 한 대의 관제 상태: 위치와 보고 ----
 @dataclass
 class Robot:
@@ -56,10 +67,7 @@ class Robot:
     x: float = 0.0
     y: float = 0.0
     yaw: float = 0.0
-    robot_state: str = ""
-    battery: float = 0.0
-    charge: bool = False
-    last_seen: float = 0.0
+    report: Report = field(default_factory=Report)
     pose_at: float | None = None
     suspect_quiet_until: float = 0.0
     # ---- 단계, 고장, 통신 상태 ----
@@ -101,7 +109,6 @@ class Robot:
     silent: Episode = field(default_factory=Episode)
     start: Episode = field(default_factory=Episode)
     # ---- 자가 복구, 구역 놓기, 양보, 물러나기 기록 ----
-    local_yield: str = ""
     local_episode: Episode = field(default_factory=Episode)
     sent_priority: int = -1
     clear_n: dict = field(default_factory=dict)
@@ -113,7 +120,6 @@ class Robot:
     retreat_since: float | None = None
     retreat_behind: str = ""
     backoff_from: tuple | None = None
-    obstacle: tuple | None = None
     detour: tuple | None = None
     robot_yield_at: float | None = None
     behind_since: float | None = None

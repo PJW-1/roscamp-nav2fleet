@@ -25,7 +25,7 @@ class NoStart:
             return
         if ep.noted:
             return
-        if m.robot_state in (BLOCKED, SELF_RECOVERING) or math.dist(ep.xy, here) > (
+        if m.report.robot_state in (BLOCKED, SELF_RECOVERING) or math.dist(ep.xy, here) > (
                 START_MOVE_M):
             ep.noted = True
         elif now - ep.since >= p.start_limit_s:

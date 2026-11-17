@@ -17,7 +17,7 @@ from fleet_core.traffic.mission import (
 class Placement:
     # ---- 노드와 구역을 잡아 로봇 배치 ----
     def _place(self, m) -> None:
-        if m.robot_state in NOT_PLACEABLE:
+        if m.report.robot_state in NOT_PLACEABLE:
             return
         site = self.site
         node = self._node_under(m)

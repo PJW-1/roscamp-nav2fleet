@@ -17,7 +17,7 @@ class ClearChecks:
             if mark.check:
                 mark.clears = 0
             near = [m for m in self._robots.values()
-                    if m.available and m.name != mark.by and m.robot_state != LOCALIZING
+                    if m.available and m.name != mark.by and m.report.robot_state != LOCALIZING
                     and math.dist((m.x, m.y), (mark.x, mark.y)) <= p.check_range_m]
             if not near:
                 mark.check, mark.asked = 0, ""

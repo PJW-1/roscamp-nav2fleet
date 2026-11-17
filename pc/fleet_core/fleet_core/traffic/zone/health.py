@@ -5,7 +5,7 @@ from fleet_core.common.commands import DispatchResult
 from fleet_core.common.validate import checked, clear_problem, text
 from fleet_core.traffic.mission import COMM_LOST, LOCALIZING, OUT_OF_SERVICE, RECOVERING
 
-from .robots import Robot
+from .robots import Report, Robot
 
 
 # ---- 보고하지 않는 로봇과 통신 끊김 감지 ----
@@ -24,13 +24,13 @@ class Health:
     def _check_comm(self, now: float) -> None:
         for m in self._robots.values():
             if (m.placed and not m.fault and m.comm != COMM_LOST
-                    and now - m.last_seen > self.params.comm_timeout_s):
+                    and now - m.report.last_seen > self.params.comm_timeout_s):
                 m.comm = COMM_LOST
                 m.called = False
                 self._stop_wanting(m)
-                self._event("WARN", "COMM_LOST", f"no state for {now - m.last_seen:.1f} s, keeps "
-                            f"{list(self.grants.held_by(m.name))}{self._hold_base(m, now)}",
-                            m.name)
+                self._event("WARN", "COMM_LOST", f"no state for {now - m.report.last_seen:.1f} s, "
+                            f"keeps {list(self.grants.held_by(m.name))}"
+                            f"{self._hold_base(m, now)}", m.name)
 
     # ---- 통신 복구 뒤 위치 확인과 트립 재개 ----
     def _begin_recovery(self, m) -> None:
@@ -43,8 +43,8 @@ class Health:
     def _finish_recoveries(self, now: float) -> None:
         fresh = self.params.recover_check_s / 2
         for m in self._robots.values():
-            if (m.comm == RECOVERING and now >= m.recover_at and m.robot_state != LOCALIZING
-                    and now - m.last_seen <= fresh):
+            if (m.comm == RECOVERING and now >= m.recover_at and m.report.robot_state != LOCALIZING
+                    and now - m.report.last_seen <= fresh):
                 self._resume(m)
 
     def _resume(self, m) -> None:
@@ -120,9 +120,10 @@ class Health:
         if self.reinstate_refusal(robot):
             return False
         old = self._robots[robot]
+        heard = old.report
         self._robots[robot] = Robot(robot, x=old.x, y=old.y, yaw=old.yaw,
-                                    robot_state=old.robot_state, battery=old.battery,
-                                    charge=old.charge, last_seen=old.last_seen)
+                                    report=Report(heard.robot_state, heard.battery, heard.charge,
+                                                  heard.last_seen))
         self._wants.pop(robot, None)
         self._joining.add(robot)
         return True

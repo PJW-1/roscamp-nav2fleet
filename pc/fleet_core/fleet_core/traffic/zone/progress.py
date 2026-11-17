@@ -34,10 +34,10 @@ class Progress:
         if m is None:
             return
         now = self._clock()
-        m.last_seen = now
-        m.robot_state = state
-        m.obstacle = obstacle
-        m.local_yield = local_yield if state == SELF_RECOVERING else ""
+        m.report.last_seen = now
+        m.report.robot_state = state
+        m.report.obstacle = obstacle
+        m.report.local_yield = local_yield if state == SELF_RECOVERING else ""
         self._note_battery(m, battery)
         if state == LOCALIZING:
             m.pose_at = None
@@ -134,7 +134,7 @@ class Progress:
     def _return_unreached(self, m) -> None:
         moved = m.fault_xy is None or math.dist(m.fault_xy, (m.x, m.y)) > (
             self.params.arrival_tolerance_m)
-        if m.robot_state in NOT_PLACEABLE or moved or m.pose_doubt:
+        if m.report.robot_state in NOT_PLACEABLE or moved or m.pose_doubt:
             m.clear_n.clear()
             return
         released = self._release_behind(m, keep_trip=False)
@@ -155,14 +155,14 @@ class Progress:
 
     # ---- 배터리 부족과 충전 완료 기록 ----
     def _note_battery(self, m, battery) -> None:
-        m.battery = battery
+        m.report.battery = battery
         p = self.params
         if p.battery_low_pct <= 0 or battery <= 0:
             return
-        if not m.charge and battery <= p.battery_low_pct:
-            m.charge = True
+        if not m.report.charge and battery <= p.battery_low_pct:
+            m.report.charge = True
             self._event("WARN", "ROBOT_BATTERY_LOW", f"{battery:.0f}%, takes no new call",
                         m.name)
-        elif m.charge and battery >= p.battery_charged_pct:
-            m.charge = False
+        elif m.report.charge and battery >= p.battery_charged_pct:
+            m.report.charge = False
             self._event("INFO", "ROBOT_CHARGED", f"{battery:.0f}%", m.name)

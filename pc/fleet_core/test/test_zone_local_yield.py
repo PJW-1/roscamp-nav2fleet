@@ -102,7 +102,7 @@ def test_the_manager_passes_the_step_and_records_it_after_the_obstacle_fields():
     core, lines = manager()
     core.on_robot_state("pode1", 0.13, 0.15, 0.0, "RECOVERING", 90.0, "", math.nan, math.nan,
                         "", "wait")
-    assert core.traffic._robots["pode1"].local_yield == "wait"
+    assert core.traffic._robots["pode1"].report.local_yield == "wait"
     assert '"args": ["pode1", 0.13, 0.15, 0.0, "RECOVERING", 90.0, "", NaN, NaN, "", "wait"]' in (
         lines[1])
 
@@ -112,7 +112,7 @@ def test_an_empty_or_unknown_step_is_no_step_and_an_empty_one_is_recorded_as_bef
     core, lines = manager()
     core.on_robot_state("pode1", 0.13, 0.15, 0.0, "RECOVERING", 90.0, "", math.nan, math.nan,
                         "", step)
-    assert core.traffic._robots["pode1"].local_yield == ""
+    assert core.traffic._robots["pode1"].report.local_yield == ""
     if step == "":
         assert '"args": ["pode1", 0.13, 0.15, 0.0, "RECOVERING", 90.0]}' in lines[1]
 

@@ -52,7 +52,7 @@ def backoff_spot(site, params, held, m, others, nodes=()) -> tuple[tuple | None,
 class Backoff:
     def _awaits_blocked(self, m, stuck_s: float) -> bool:
         p = self.params
-        return (p.yard_backoff and m.robot_state != BLOCKED
+        return (p.yard_backoff and m.report.robot_state != BLOCKED
                 and stuck_s < p.near_stuck_s + p.yard_backoff_wait_s)
 
     def _stand_aside(self, m, other, now: float) -> None:
@@ -65,7 +65,7 @@ class Backoff:
             m.yielded = None
             return
         stops = f"stops {p.near_stuck_s:.0f} s for {other.name}"
-        if p.yard_backoff and m.robot_state == BLOCKED:
+        if p.yard_backoff and m.report.robot_state == BLOCKED:
             why = self._back_off(m)
             if not why:
                 self._event("INFO", "HALL_YIELD", f"backs {p.yard_backoff_m:.2f} m, then {stops}",
