@@ -1,0 +1,15 @@
+# P-3 끼임 장면 반복 시험용(tools/p3scene): 주문 없음. pode3은 P-3에 서 있고 pode2는 P-2에서 시작한다.
+# 판마다 run_trials.py가 pode2, pode3을 옮기고 pode2에 Nav2 goal(Q2)을 직접 보낸다.
+map: v7
+seed: 1
+timeout_s: 36000
+stock: {arm1: {A: 20, B: 20}, arm2: {C: 20, D: 20}}
+orders: []
+robots:
+  pode1: {start: P-1}
+  pode2: {start: P-2}
+  pode3: {start: P-3}
+arm: {seconds_per_item: 4.0, swap_seconds: 8.0, fail_rate: 0.0}
+dock: {duration_s: 3.0, error_cm: 1.0}
+faults: []
+expect: {}
