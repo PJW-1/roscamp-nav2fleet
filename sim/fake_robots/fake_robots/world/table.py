@@ -37,11 +37,12 @@ class Outcome:
 
 
 def run_situation(name, layout="d2", seed=1, overrides=None,
-                  manager_factory=default_manager, avoid_mode=PERFECT) -> Outcome:
+                  manager_factory=default_manager, avoid_mode=PERFECT,
+                  local_yield=False) -> Outcome:
     s = build(name, layout).for_mode(avoid_mode)
     world = ZoneWorld(layout, seed=seed, overrides=overrides, robots=s.robots, orders=s.orders,
                       injections=s.injections, manager_factory=manager_factory,
-                      avoid_mode=avoid_mode)
+                      avoid_mode=avoid_mode, local_yield=local_yield)
     watch = world.block_watch = BlockWatch(world, s.injections)
 
     def done() -> bool:

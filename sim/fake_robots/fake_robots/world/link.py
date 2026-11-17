@@ -1,6 +1,8 @@
 """로봇에서 관제로 가는 것: 결과(위치 보고 앞이나 뒤, 씨드로)와 늦게 닿는 위치 보고."""
 from __future__ import annotations
 
+import math
+
 from fleet_core.common.commands import FillCmd
 
 from .geom import heading
@@ -107,6 +109,8 @@ class Link:
         run = r.run
         if run is None:
             return "IDLE"
+        if self.ladder is not None and self.ladder.step_of(r):
+            return "RECOVERING"
         if run.blocked:
             return "BLOCKED"
         return "DOCKING" if isinstance(run, DockRun) else "MOVING"
@@ -134,6 +138,8 @@ class Link:
         x = r.x + jump + (self.rng.gauss(0.0, sigma) if sigma else 0.0)
         y = r.y + (self.rng.gauss(0.0, sigma) if sigma else 0.0)
         report = (x, y, r.yaw, state, self._battery(r))
+        if state == "RECOVERING":
+            return (*report, "", math.nan, math.nan, "", self.ladder.step_of(r))
         way = getattr(r.run, "way", None)  # 돌기 전에 막혔어도 costmap은 가려던 쪽을 본다
         facing = heading(way[0], way[1], r.yaw) if way and len(way) > 1 else r.yaw
         seen = (seen_ahead(r.x, r.y, facing, self.discs(r), self.params.obstacle_look_m)
