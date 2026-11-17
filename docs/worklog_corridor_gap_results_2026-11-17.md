@@ -38,7 +38,7 @@
 - 실행 스크립트: `run_corridor.sh`(A, base, B), `run_inflation.sh`(baseI, aI). 둘 다 scratchpad `gz/`에 있다.
 - A, base, B는 브랜치 `exp/corridor-costmap-ab` 680fda8의 빌드다. baseI, aI는 같은 빌드에 inflation 덮어쓰기 파일(`global_inflation_tight.yaml`, `global_padding_0p01_inflation_tight.yaml`)을 더했다.
 - 한 대 판: `one_pode.launch.py` + `drive_check`, 브랜치 `exp/corridor-repro`(상자 6번 이동)와 `exp/corridor-repro-gap`(틈 12번 이동). 도메인 61, 한 번에 하나.
-- 세 대 판의 위치는 로봇이 보고한 값(AMCL)이다. 실제(Gazebo) 위치가 아니다. 끝난 판은 `robots.csv`, 끝나지 않은 B와 baseI는 `fleet_record.jsonl`과 `recovery_probe.csv`에서 읽었다. 단 `safety.json`의 로봇 사이 거리는 Gazebo truth로 잰다(`scenario_monitor_node`).
+- 세 대 판의 위치는 로봇이 보고한 값(AMCL)이다. 실제(Gazebo) 위치가 아니다. 끝난 판은 `robots.csv`, 끝나지 않은 B와 baseI는 `fleet_record.jsonl`과 `recovery_probe.csv`(`amcl_x`, `amcl_y` 열)에서 읽었다. 단 `safety.json`의 로봇 사이 거리는 Gazebo truth로 잰다(`scenario_monitor_node`).
 - 한 대 판의 `track`, `final`, 몸-모서리 거리는 Gazebo truth(`/<robot>/sim/truth`)에서 왔다. AMCL은 `amcl_max_error_m`(오차) 계산에만 쓴다.
 - 옛 판은 기본값이 바뀌기 전에 돌렸다. 그대로 재현하려면 여기 적은 커밋에서 돌린다. 변형 명령만 쓰면 지금은 새 기본값(padding 0.01, inflation 15.0/0.15) 위에서 돈다.
 - B와 baseI는 판이 끝나지 않아 `summary.json`과 `safety.json`이 없다(아래 표).

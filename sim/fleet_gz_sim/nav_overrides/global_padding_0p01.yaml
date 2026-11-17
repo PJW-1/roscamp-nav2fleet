@@ -1,6 +1,6 @@
 # 가운데 통로 갈래 A(시뮬 전용, gz.launch.py nav_overrides): global costmap의
 # footprint_padding만 0.03 -> 0.01. resolution은 덮지 않는다: global costmap은 rolling이
-# 아니라 StaticLayer가 지도 해상도로 맞춘다. 2.5 cm는 nav_map_variant:=a 또는 ab로.
+# 아니라 StaticLayer가 지도 해상도로 맞춘다. v7 기본 지도는 2.5 cm(a)다.
 # 11-17부터 기본값과 같다(옛 판 재현 기록용). 옛 base(0.03, 6.0/0.25)는 커밋 956140d(옛 main)에서 돌린다.
 global_costmap:
   global_costmap:
