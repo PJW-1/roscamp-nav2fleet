@@ -5,7 +5,7 @@ Pode 한 대의 Nav2 설정(파라미터, BT, launch, RViz). Pode Pi에서 names
 | 파일 | 내용 |
 |---|---|
 | `params/nav2_params.yaml` | 제조사 `pinky_navigation` 설정(pinky_pro 014a09f) 위에 전달사항의 nav2_overrides 값을 덮었다. 바꾼 줄마다 이유가 있다 |
-| `bt/navigate_to_pose_w_replanning_and_recovery_goal.xml` | `navigate_to_pose`용 BT(MoveTo mode `nav_goal`, 계약 0.11-draft, 기준(사용자)). Jazzy 기본 BT를 옮기고 controller를 `FollowPathGoal`로 바꿨다. 1 Hz 재계획. 복구는 지도 지우기와 Wait뿐이다: Spin과 BackUp은 뺐다(추가 지시서 3의 7-4, 기준(사용자)). 물러나기는 `pode_fsm`의 로봇단 교착 처리만 한다 |
+| `bt/navigate_to_pose_w_replanning_and_recovery_goal.xml` | `navigate_to_pose`용 BT(MoveTo mode `nav_goal`, 계약 0.11-draft, 기준(사용자)). Jazzy 기본 BT를 옮기고 controller를 `FollowPathGoal`로 바꿨다. 계획은 3초 동안 지킨다: 처음, goal이 바뀌었을 때, 남은 경로가 막혔을 때(`IsPathValid` 실패 또는 20 ms 안에 답 없음), 계획이 3초 묵었을 때만 다시 계획하고, 그 검사를 1 Hz로 한다(2026-11-18. 그 전에는 1초마다 새로 계획해서 길이가 비슷한 두 길 사이를 오갔다. `docs/worklog_goal_plan_keep_2026-11-18.md`). 복구는 지도 지우기와 Wait뿐이다: Spin과 BackUp은 뺐다(추가 지시서 3의 7-4, 기준(사용자)). 물러나기는 `pode_fsm`의 로봇단 교착 처리만 한다 |
 | `params/keepout.yaml` | keepout 덧붙임(기준(사용자)). `keepout_mask`가 있을 때만 launch가 덧붙인다: global costmap의 keepout 필터와 두 서버 설정 |
 | 회피 패키지(`avoidance_package`, 기본 `pode_avoidance`) | 회피 담당의 설정(추가 지시서 3의 7-1)은 그 패키지의 `params/avoidance.yaml`이다. 키는 `follow_path_goal`(`FollowPathGoal` 컨트롤러 안의 값), `vision_obstacles`(비전 관측원의 값), `peer_layer`(peer 층) 셋뿐이다. 다른 키가 있으면 launch가 뜨지 않고 시험이 실패한다. 회피 쪽 노드는 그 패키지의 `launch/avoidance.launch.py`가 띄운다. 나머지 설정은 사용자의 것이고 `nav2_params.yaml`에 있다 |
 | `launch/pode_nav_params.py` | 두 파일을 모으는 순수 함수(`with_avoidance`, `with_peers`, `foreign_keys`). ROS 없이 돈다 |

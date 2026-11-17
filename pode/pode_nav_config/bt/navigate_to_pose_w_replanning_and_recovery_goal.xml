@@ -1,7 +1,7 @@
 <!--
   MoveTo mode nav_goal(계약 0.11-draft, 기준(사용자))용 NavigateToPose BT.
   원본: ROS 2 Jazzy nav2_bt_navigator의 behavior_trees/navigate_to_pose_w_replanning_and_recovery.xml
-  원본과 다른 곳은 셋이다.
+  원본과 다른 곳은 넷이다.
   - ControllerSelector의 default_controller가 FollowPath가 아니라 FollowPathGoal이다(goal용
     controller. FollowPath 셋은 pode_fsm이 관제 경로에 쓴다).
   - FollowPath에 goal_checker_id="general_goal_checker"를 적었다(추가 지시서 3의 2-1: 후진용
@@ -9,7 +9,17 @@
   - 복구에서 Spin과 BackUp을 뺐다(추가 지시서 3의 7-4, 기준(사용자)). 지도 지우기와 Wait만 남아
     로봇을 움직이지 않는다. 물러나기는 pode_fsm의 로봇단 교착 처리만 한다: 지나온 길 안에서만,
     local_backup_m까지, 앞을 막은 로봇보다 낮은 쪽만. 그래서 BT와 pode_fsm이 함께 물러나는 일이 없다.
-  1 Hz로 다시 계획하는 것과 나머지는 원본 그대로다.
+  - 계획을 3초 동안 지킨다(2026-11-18, 사용자 지시 "아예 한 방향으로 딱 가게"). goal이 바뀌었거나, 남은
+    경로가 막혔거나(IsPathValid 실패: 발자국 아래에 벽 칸, 또는 20 ms 안에 답이 없음), 계획이 3초 묵었을
+    때만 planner를 다시 부른다. 검사는 1 Hz로 한다.
+    원본처럼 1초마다 새로 계획하면, 길이가 비슷한 두 길(가운데 통로에서 진열대 사이 틈으로 내려가는 길과
+    동쪽으로 도는 길) 사이를 오가며 로봇이 제자리에서 방향만 바꿨다. 3초면 돌아서 고른 길로 0.25 m쯤
+    가므로 두 길의 길이가 벌어진다.
+    검사 부분은 Jazzy의 navigate_w_recovery_and_replanning_only_if_path_becomes_invalid.xml에서 가져왔고
+    PathExpiringTimer만 더했다. 그 트리처럼 막힐 때까지 계획을 그대로 두면 안 된다: Jazzy의
+    controller_server는 도착 판정에서 경로 끝 자세를 "계획을 만든 시각"의 TF로 옮긴다. 묵은 계획에서는
+    로봇이 Q2 앞 0.045 m에 서서 도착으로 인정받지 못했다(한 판에 자가 복구 10번, 그 전 1번).
+  나머지는 원본 그대로다.
   아래 원본 설명은 그대로 옮겼다.
 
   This Behavior Tree replans the global path periodically at 1 Hz and it also has
@@ -24,7 +34,18 @@
         <PlannerSelector selected_planner="{selected_planner}" default_planner="GridBased" topic_name="planner_selector"/>
         <RateController hz="1.0">
           <RecoveryNode number_of_retries="1" name="ComputePathToPose">
-            <ComputePathToPose goal="{goal}" path="{path}" planner_id="{selected_planner}" error_code_id="{compute_path_error_code}"/>
+            <Fallback name="KeepThePlanFor3Seconds">
+              <ReactiveSequence name="CheckIfNewPathNeeded">
+                <Inverter>
+                  <GlobalUpdatedGoal/>
+                </Inverter>
+                <Inverter>
+                  <PathExpiringTimer seconds="3.0" path="{path}"/>
+                </Inverter>
+                <IsPathValid path="{path}"/>
+              </ReactiveSequence>
+              <ComputePathToPose goal="{goal}" path="{path}" planner_id="{selected_planner}" error_code_id="{compute_path_error_code}"/>
+            </Fallback>
             <Sequence>
               <WouldAPlannerRecoveryHelp error_code="{compute_path_error_code}"/>
               <ClearEntireCostmap name="ClearGlobalCostmap-Context" service_name="global_costmap/clear_entirely_global_costmap" server_timeout="1000"/>

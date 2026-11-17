@@ -33,6 +33,9 @@ BT = ET.parse(BT_FILE)
 # Nav2 Jazzy's own tree, the original of BT_FILE (only there when ROS 2 Jazzy is installed)
 NAV2_BT = Path("/opt/ros/jazzy/share/nav2_bt_navigator/behavior_trees/"
                "navigate_to_pose_w_replanning_and_recovery.xml")
+# Nav2 Jazzy's tree that keeps its plan while the plan stays valid: the source of our plan check
+NAV2_KEEP_BT = NAV2_BT.with_name(
+    "navigate_w_recovery_and_replanning_only_if_path_becomes_invalid.xml")
 KEEPOUT = yaml.safe_load((PKG / "params" / "keepout.yaml").read_text(encoding="utf-8"))
 
 
@@ -360,7 +363,7 @@ def test_bt_navigator_serves_only_navigate_to_pose():
     assert params("bt_navigator")["navigators"] == ["navigate_to_pose"]
 
 
-def test_the_tree_replans_at_1_hz_and_recovers_without_moving_the_robot():
+def test_the_tree_checks_its_plan_at_1_hz_and_recovers_without_moving_the_robot():
     """7-4: no Spin and no BackUp in the tree. Backing up is pode_fsm's robot-side yield only, so
     the tree and pode_fsm never back up at the same time."""
     tags = [el.tag for el in BT.iter()]
@@ -383,17 +386,68 @@ def test_the_tree_replans_at_1_hz_and_recovers_without_moving_the_robot():
     assert follow.get("goal_checker_id") in params("controller_server")["goal_checker_plugins"]
 
 
+def _plan_step(tree):
+    """(RecoveryNode around planning, the Fallback that keeps a valid plan, ComputePathToPose)."""
+    [rate] = tree.getroot().iter("RateController")
+    [recovery] = list(rate)
+    keep = recovery[0]
+    return recovery, keep, keep.find("ComputePathToPose")
+
+
+def test_the_tree_keeps_its_plan_for_3_s_unless_the_goal_changes_or_the_plan_is_blocked():
+    """2026-11-18, Gazebo (obstacle game, goal Q2): from (1.05, 0.55) the way down through the
+    shelf gap and the way east were 0.93 to 1.07 m, and the 1 Hz replan flipped between them nine
+    and ten times a game; a robot stood there turning its head for over 3 s. The tree now asks the
+    planner again only when the goal changed, IsPathValid fails (a lethal cell under the footprint
+    on the rest of the plan) or the plan is 3 s old. 3 s is enough to turn and drive a quarter
+    metre down the chosen way, which ends the tie.
+    Not 'until the plan is blocked' alone (tried first): Jazzy's controller checks the goal with
+    the TF of the plan's own stamp, so with a plan many seconds old the robot stood 0.045 m from
+    Q2 and was never 'there' (10 self-recoveries in a game against 1)."""
+    recovery, keep, plan = _plan_step(BT)
+    assert recovery.tag == "RecoveryNode" and keep.tag == "Fallback"
+    check, last = list(keep)
+    assert check.tag == "ReactiveSequence" and last is plan
+    new_goal, old, valid = list(check)
+    assert new_goal.tag == "Inverter" and [el.tag for el in new_goal] == ["GlobalUpdatedGoal"]
+    assert old.tag == "Inverter" and [el.tag for el in old] == ["PathExpiringTimer"]
+    [timer] = old
+    assert float(timer.get("seconds")) == 3.0
+    assert valid.tag == "IsPathValid"
+    assert timer.get("path") == valid.get("path") == plan.get("path") == "{path}"
+    # TF 버퍼(기본 10초)보다 넉넉히 짧아야 도착 판정이 계획 시각의 TF를 읽을 수 있다
+    assert float(timer.get("seconds")) <= 5.0
+
+
+@pytest.mark.skipif(not NAV2_KEEP_BT.exists(), reason="ROS 2 Jazzy nav2_bt_navigator not installed")
+def test_the_plan_check_is_nav2s_replan_only_if_invalid_check_plus_the_3_s_timer():
+    def shape(el):
+        return [(e.tag, sorted((k, v) for k, v in e.attrib.items() if k != "name"))
+                for e in el.iter()]
+
+    _, ours, _ = _plan_step(ET.parse(BT_FILE))
+    [check] = ours.iter("ReactiveSequence")
+    [old] = [el for el in check if el.find("PathExpiringTimer") is not None]
+    check.remove(old)
+    _, theirs, _ = _plan_step(ET.parse(NAV2_KEEP_BT))
+    assert shape(ours) == shape(theirs)
+
+
 def _canon(tree):
     return [(el.tag, sorted(el.attrib.items())) for el in tree.iter()]
 
 
 @pytest.mark.skipif(not NAV2_BT.exists(), reason="ROS 2 Jazzy nav2_bt_navigator not installed")
-def test_the_tree_is_nav2s_default_tree_with_the_goal_controller_checker_and_no_moving_recovery():
+def test_the_rest_of_the_tree_is_nav2s_default_with_the_goal_controller_and_no_moving_recovery():
     ours = ET.parse(BT_FILE)
     [select] = ours.getroot().iter("ControllerSelector")
     select.set("default_controller", "FollowPath")
     [follow] = ours.getroot().iter("FollowPath")
     del follow.attrib["goal_checker_id"]
+    # 계획을 지키는 Fallback은 다른 Nav2 트리에서 가져온 것이라 벗기고 비교한다
+    recovery, keep, plan = _plan_step(ours)
+    recovery.remove(keep)
+    recovery.insert(0, plan)
     # 회복 Clear 노드의 server_timeout은 우리가 더한 것이라 비교에서 뺀다
     for clear in ours.getroot().iter("ClearEntireCostmap"):
         clear.attrib.pop("server_timeout", None)
