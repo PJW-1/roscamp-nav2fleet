@@ -156,7 +156,7 @@ class Blocked:
         m.blocked.since = None
         if link.a and zone is not None and site.zones[zone].kind != SHARED:
             self._set_retreat(m, link, now)
-            self._event("INFO", "REROUTE", f"backs out to {m.retreat_to}, then another way",
+            self._event("INFO", "REROUTE", f"backs out to {m.avoid.retreat_to}, then another way",
                         m.name)
         else:
             self._event("INFO", "REROUTE", f"another way to {m.trip.goal}", m.name)

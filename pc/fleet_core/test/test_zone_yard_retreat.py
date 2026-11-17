@@ -163,7 +163,7 @@ def test_the_retreat_follows_the_bends_of_the_way_down():
                     starts={"pode1": "P-1", "pode2": "P-2", "pode3": "P-3"})
     m = world.traffic._robots["pode1"]
     m.x, m.y = 1.80, 0.88  # 급행 들머리에서 막혔다
-    m.retreat_to, m.retreat_via = "N_E", "W_X"
+    m.avoid.retreat_to, m.avoid.retreat_via = "N_E", "W_X"
     back = world.traffic._back_link(m)
     assert back.points[1:] == ((1.88, 0.80), (1.70, 0.70), world.site.node_pose("N_E"))
     gap = min(point_segment_distance((1.78, 0.63), a, b)

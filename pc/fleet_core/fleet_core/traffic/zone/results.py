@@ -49,7 +49,7 @@ class Results:
         if m is None:
             return
         if success:
-            m.behind_since = None
+            m.avoid.behind_since = None
             self._succeeded(m)
         else:
             self._move_failed(m, reason or "RETREAT_FAILED")
@@ -128,11 +128,11 @@ class Results:
             m.attempts = 0
         m.not_sent_warned = False
         m.node, m.off_node = goal.end, None
-        m.behind_since = None
+        m.avoid.behind_since = None
         if m.trip is not None:
             m.trip.done = m.trip.sent = goal.links
         if goal.kind == RETREAT:
-            m.retreat_to = ""
+            m.avoid.retreat_to = ""
             self._event("INFO", "RETREAT_DONE", f"stands at {goal.end}", m.name)
 
     # ---- goal 잊기와 끝 지점에 서 있는지 판정 ----
@@ -199,7 +199,7 @@ class Results:
             m.node = node
             self._event("INFO", "SEGMENT_DONE", f"{order_id} seq {seq} ({via}) to {node}", m.name)
             if via == RETREAT:
-                m.retreat_to = ""
+                m.avoid.retreat_to = ""
                 self._event("INFO", "RETREAT_DONE", f"stands at {node}", m.name)
         self._set_goal(m, target, reset_watch=False)
         self._segment_done(m)

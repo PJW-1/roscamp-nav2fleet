@@ -147,7 +147,7 @@ def test_a_robot_held_back_for_a_retry_or_a_yield_is_not_silent(monkeypatch):
     world = quiet_goal()
     m = world.traffic._robots["pode2"]
     world.run(LIMIT - 5.0)
-    m.yield_until = world.now + 3.0
+    m.avoid.yield_until = world.now + 3.0
     world.run(LIMIT - 1.0)
     assert count(world, "SILENT_STALL") == 0, "the yield ended an episode"
     m.retry_at = world.now + 3.0

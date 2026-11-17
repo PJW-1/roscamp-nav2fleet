@@ -138,5 +138,5 @@ class BlockMarks:
             self._mark_memory.append((mark.x, mark.y, mark.retry_s, now))
 
     def _yielded_lately(self, m, now: float) -> bool:
-        return m.robot_yield_at is not None and now - m.robot_yield_at <= (
+        return m.avoid.robot_yield_at is not None and now - m.avoid.robot_yield_at <= (
             self.params.blocked_retry_s)

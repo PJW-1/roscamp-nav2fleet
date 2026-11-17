@@ -33,12 +33,13 @@ def detour_kind(site, old_goal: str, old_zones, trip) -> str:
 class Detours:
     def _remember_way(self, m) -> None:
         trip = m.trip
-        m.detour = (trip.goal, frozenset(z for link in trip.links[trip.done:] for z in link.zones))
+        m.avoid.detour = (trip.goal, frozenset(z for link in trip.links[trip.done:]
+                                               for z in link.zones))
 
     def _note_detour(self, m, trip) -> None:
-        if m.detour is None:
+        if m.avoid.detour is None:
             return
-        goal, zones = m.detour
-        m.detour = None
+        goal, zones = m.avoid.detour
+        m.avoid.detour = None
         self._event("INFO", "DETOUR", f"{detour_kind(self.site, goal, zones, trip)}: "
                     f"{'->'.join(trip.route())}", m.name)

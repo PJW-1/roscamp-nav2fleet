@@ -37,7 +37,7 @@ class Drive:
             if m.goal.via == ORDER:
                 self._extend_order(m)
             return
-        if now < m.retry_at or now < m.yield_until:
+        if now < m.retry_at or now < m.avoid.yield_until:
             return
         if m.phase in (TO_WORK, TO_OUTBOUND, TO_PARK):
             self._drive(m)
@@ -111,7 +111,7 @@ class Drive:
 
     # ---- 목적지 도착 판정과 다음 단계 ----
     def _at_purpose(self, m) -> bool:
-        if not self._on_node(m) or m.retreat_to:
+        if not self._on_node(m) or m.avoid.retreat_to:
             return False
         if m.phase == TO_PARK:
             return m.node in self.site.parking

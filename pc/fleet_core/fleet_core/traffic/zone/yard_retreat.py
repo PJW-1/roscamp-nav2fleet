@@ -25,18 +25,18 @@ def yard_retreat(site, link) -> tuple[str, str]:
 class YardRetreat:
     def _waits_behind(self, m) -> bool:
         now = self._clock()
-        if m.behind_since is None:
-            m.behind_since = now
+        if m.avoid.behind_since is None:
+            m.avoid.behind_since = now
             self._event("INFO", "RETREAT_WAIT", "something is behind it, backs out when it is "
                         "gone", m.name)
-        if now - m.behind_since >= self.params.blocked_timeout_s:
+        if now - m.avoid.behind_since >= self.params.blocked_timeout_s:
             return False
         m.retry_at = now + self.params.move_retry_wait_s
         return True
 
     def _set_retreat(self, m, link, now: float) -> None:
-        m.retreat_to, m.retreat_via = yard_retreat(self.site, link)
-        m.retreat_since = now
+        m.avoid.retreat_to, m.avoid.retreat_via = yard_retreat(self.site, link)
+        m.avoid.retreat_since = now
 
     # ---- 꺾인 물러나기 길 뒤에 있는 로봇 확인 ----
     def _behind_on_the_bent_way(self, m, target: str, via: str) -> str:
@@ -61,22 +61,22 @@ class YardRetreat:
         return ""
 
     def _retreat_held_up(self, m) -> bool:
-        behind = (self._behind_on_the_bent_way(m, m.retreat_to, m.retreat_via)
-                  if m.retreat_via else "")
-        if behind and behind != m.retreat_behind:
+        behind = (self._behind_on_the_bent_way(m, m.avoid.retreat_to, m.avoid.retreat_via)
+                  if m.avoid.retreat_via else "")
+        if behind and behind != m.avoid.retreat_behind:
             self._event("INFO", "RETREAT_WAIT", f"{behind} is behind it, backs out after it",
                         m.name)
-        m.retreat_behind = behind
+        m.avoid.retreat_behind = behind
         return bool(behind)
 
     # ---- 물러나기를 너무 오래 못 하면 실패 처리 ----
     def _watch_retreat_wait(self, m, now: float) -> None:
-        if (not m.retreat_to or m.goal is not None or m.retreat_since is None
-                or now - m.retreat_since < self.params.blocked_timeout_s):
+        if (not m.avoid.retreat_to or m.goal is not None or m.avoid.retreat_since is None
+                or now - m.avoid.retreat_since < self.params.blocked_timeout_s):
             return
-        self._event("ERROR", "GOAL_FAILED", f"could not back out to {m.retreat_to} for "
-                    f"{now - m.retreat_since:.0f} s", m.name)
-        m.retreat_since = None
+        self._event("ERROR", "GOAL_FAILED", f"could not back out to {m.avoid.retreat_to} for "
+                    f"{now - m.avoid.retreat_since:.0f} s", m.name)
+        m.avoid.retreat_since = None
         self._fail(m, BLOCKED)
 
     # ---- 다른 로봇에게 길 양보 ----
@@ -91,13 +91,13 @@ class YardRetreat:
         if not in_lane and not sent_off and self._parked(other):
             return False
         m.blocked.since = None
-        m.robot_yield_at = now
+        m.avoid.robot_yield_at = now
         if in_lane:
             self._cancel_goal(m)
             self._set_retreat(m, link, now)
             self._drop_trip(m)
-            self._event("INFO", "HALL_YIELD", f"backs out to {m.retreat_to} for {other.name}, "
-                        "nothing marked", m.name)
+            self._event("INFO", "HALL_YIELD", f"backs out to {m.avoid.retreat_to} for "
+                        f"{other.name}, nothing marked", m.name)
             return True
         if sent_off:
             self._event("INFO", "HALL_YIELD", f"waits for {other.name} to clear the way, "

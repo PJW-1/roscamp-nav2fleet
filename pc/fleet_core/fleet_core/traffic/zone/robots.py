@@ -72,6 +72,21 @@ class Health:
     suspect_quiet_until: float = 0.0
 
 
+# ---- 양보, 물러나기, 우회 기록 ----
+@dataclass
+class Avoid:
+    yield_until: float = 0.0
+    yielded: tuple | None = None
+    retreat_to: str = ""
+    retreat_via: str = ""
+    retreat_since: float | None = None
+    retreat_behind: str = ""
+    backoff_from: tuple | None = None
+    detour: tuple | None = None
+    robot_yield_at: float | None = None
+    behind_since: float | None = None
+
+
 # ---- 로봇 한 대의 관제 상태: 위치와 보고 ----
 @dataclass
 class Robot:
@@ -119,16 +134,7 @@ class Robot:
     sent_priority: int = -1
     clear_n: dict = field(default_factory=dict)
     outside: Episode = field(default_factory=Episode)
-    yield_until: float = 0.0
-    yielded: tuple | None = None
-    retreat_to: str = ""
-    retreat_via: str = ""
-    retreat_since: float | None = None
-    retreat_behind: str = ""
-    backoff_from: tuple | None = None
-    detour: tuple | None = None
-    robot_yield_at: float | None = None
-    behind_since: float | None = None
+    avoid: Avoid = field(default_factory=Avoid)
 
     # ---- 가용 여부와 표시 상태 속성 ----
     @property

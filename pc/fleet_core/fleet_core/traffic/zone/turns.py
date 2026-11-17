@@ -100,7 +100,7 @@ class Turns:
 
     def _may_stay(self, m) -> bool:
         return (self._on_node(m) and self.site.can_wait(m.node)
-                and self.site.nodes[m.node].kind != AT_DOCK and not m.retreat_to)
+                and self.site.nodes[m.node].kind != AT_DOCK and not m.avoid.retreat_to)
 
     # ---- 같은 스테이션 앞선 로봇 순위와 다음 차례 판정 ----
     def _is_next(self, m, station_id: str) -> bool:

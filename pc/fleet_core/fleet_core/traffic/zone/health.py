@@ -96,7 +96,7 @@ class Health:
         m.clear_n.clear()
         m.health.fault, m.health.fault_reason, m.health.comm = OUT_OF_SERVICE, note, ""
         m.called = m.hold = False
-        m.retreat_to = ""
+        m.avoid.retreat_to = ""
         self._event("INFO", "ZONES_CLEARED", f"released {released}: {note}", robot)
         still = self.grants.held_by(robot)
         if still:
