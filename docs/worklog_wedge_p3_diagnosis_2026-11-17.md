@@ -61,9 +61,10 @@ main_rec 녹화 [확정]:
 ## 3-2. 그 뒤 원인 확인과 고침 (19:40~21:40)
 
 원인 확인 [확정]:
-- RPP의 "collision ahead"가 걸린 칸은 모두 pode3 쪽이고 진열대는 0이다. Gazebo에서 로봇 라이다(높이 0.125 m)는 다른 Pode를 라이다 받침(약 5.6 cm)으로만 본다. 그래서 몸 칸은 peer 층(원 r 0.08)이다.
+- 녹화 420~458 s를 RPP식 테두리 검사로 재연한 범위에서, 멈춘 38/55 중 34칸은 pode3 쪽(peer)이고 4칸은 scan/other다(진열대인지는 가르지 못했다). 실제 경고 전체의 칸 위치는 로그에 없어 모른다. Gazebo에서 로봇 라이다(높이 0.125 m)는 다른 Pode를 라이다 받침(약 5.6 cm)으로만 본다. 그래서 몸 칸은 peer 층(원 r 0.08)이다.
 - pode3 동쪽 "덩어리"는 이 원이다. pode2의 AMCL 오차로 local costmap에서 약 3 cm 밀렸다. 옛 칸막이, keepout, 라이다 잡음이 아니다.
-- 직접 원인은 local_costmap에 footprint_padding이 없어서 Jazzy 기본 0.01이 붙은 것이다. 녹화 costmap에서 RPP 검사를 재연하면 padding 0.01은 38/55, 0.0은 6/55에서 멈춘다(자료 scratchpad `phantom/`).
+- [확정] 녹화 costmap에서 RPP 검사를 재연하면 padding 0.01은 38/55, 0.0은 6/55에서 멈춘다(자료 scratchpad `phantom/`).
+- [추측] local_costmap에 footprint_padding이 없어 Jazzy 기본 0.01이 붙은 것이 직접 원인이다. 재연은 기록한 costmap에 추정 자세를 쓴 가정 계산이다. 실제 반복 시험에서도 padding 0은 그대로와 같은 2/5 실패였다.
 
 P-3 장면 반복 시험 [확정]: 브랜치 `exp/p3-scene-test`, 자료 scratchpad `p3scene_runs/main2`.
 - pode1을 P-1에 두면 모든 설정이 5/5 통과했다.
@@ -75,7 +76,9 @@ P-3 장면 반복 시험 [확정]: 브랜치 `exp/p3-scene-test`, 자료 scratch
 | padding 0 | 2/5 | 9.0 s | 134줄 | |
 | padding 0 + peer 0.075 | 1/5 | 1.3 s | 92줄 | |
 
-- 로봇끼리 접촉은 없었다(다각형 기준 최소 3.9 cm).
+- 다각형 기준으로 로봇끼리 겹침은 없었다(pode2-pode3 최소 3.9 cm).
+- 물리 모양(다각형 + 바퀴 충돌 구 + screen_mount 상자) 기준으로도 pode2-pode3 최소 간격은 0.018 m(C3/B)이고 로봇끼리 접촉은 없었다.
+- 물리 모양으로 pode2와 shelf_2의 접촉이 B 묶음에서 C0 3회, C1 1회, C2 1회, C3 1회 났다. A 묶음은 없었다. 접촉 센서가 아니라 truth 자세로 계산한 값이다(자료 `p3scene_runs/main2/analysis_phys.txt`).
 - 시뮬 바퀴 충돌은 구(r 0.028, 중심 |y| 0.0486)라 옆으로 |y| 0.0766까지 나온다. 실물과 다각형은 0.056이다.
 - [추측] 좁은 틈에서 시뮬이 실물보다 더 걸릴 수 있다.
 
