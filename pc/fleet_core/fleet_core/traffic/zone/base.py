@@ -11,11 +11,13 @@ from fleet_core.traffic.mission import AT_STATION, ERROR, FILL, NOT_AT_TARGET, R
 from fleet_core.traffic.selector import RobotSelector
 
 from .capacity import CapacityCheck
+from .detours import DetourNotes
 from .grants import ZoneGrants
 from .lane_policy import LanePolicy
 from .localization import PoseJumpWatch
 from .nostart import StartWatch
 from .robots import ORDER, Robot
+from .silent import SilentWatch
 from .trips import along
 from .views import ZoneViews
 
@@ -58,6 +60,8 @@ class ZoneBase:
         self._capacity = CapacityCheck(site, self._event)
         self._pose_watch = PoseJumpWatch(params, self._event)
         self._start_watch = StartWatch(params, site, self._event)
+        self._silent = SilentWatch(params, self._robots, self._event, self._event_once)
+        self._detours = DetourNotes(site, self._event)
 
     # ---- 로봇 목록, 운행 상태, 가용 여부, 쌓인 출력 꺼내기 ----
     @property
@@ -83,7 +87,7 @@ class ZoneBase:
     # ---- 이벤트 내기와 위치 판정 ----
     def _event(self, level: str, code: str, detail: str, robot: str = "") -> None:
         self._out.append(EventOut(level, code, detail, robot))
-        self._note_robot_event(robot, code)
+        self._silent.note(robot, code)
 
     def _event_once(self, ep, level: str, code: str, detail: str, robot: str = "") -> None:
         if ep.noted:

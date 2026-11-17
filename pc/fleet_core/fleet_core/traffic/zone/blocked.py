@@ -156,7 +156,7 @@ class Blocked:
                         f"{link.a or 'here'}->{link.b} in {zone}, tried again in "
                         f"{p.blocked_retry_s:.0f} s{self._gaps_note(m)}", m.name)
         if keys:
-            self._remember_way(m)
+            self._detours.remember(m)
         self._cancel_goal(m)
         m.watch.blocked.since = None
         if link.a and zone is not None and site.zones[zone].kind != SHARED:

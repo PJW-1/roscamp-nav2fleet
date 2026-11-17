@@ -183,7 +183,7 @@ class Goals:
             self._lane_set(m, lane, want, now)
         self._event("INFO", "ZONE_GRANTED",
                     f"{'+'.join(zones)} to {trip.links[end - 1].b}", m.name)
-        self._note_detour(m, trip)
+        self._detours.note(m, trip)
         return None
 
     def _lane_spot(self, node: str) -> bool:

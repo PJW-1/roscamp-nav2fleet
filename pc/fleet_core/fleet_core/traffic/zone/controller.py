@@ -7,7 +7,6 @@ from .block_marks import BlockMarks
 from .blocked import Blocked
 from .calls import Calls
 from .clear_checks import ClearChecks
-from .detours import Detours
 from .drive import Drive
 from .goal_life import GoalLife
 from .goals import Goals
@@ -18,7 +17,6 @@ from .placement import Placement
 from .progress import Progress
 from .redock import Redock
 from .results import Results
-from .silent import Silent
 from .turns import Turns
 from .watch import Watch
 from .yard_retreat import YardRetreat
@@ -26,8 +24,8 @@ from .yard_retreat import YardRetreat
 
 # ---- ZoneTraffic 클래스와 틱 순서 ----
 class ZoneTraffic(Calls, Goals, Turns, Drive, MoveOrders, OrderAnswers, Results, Redock, Progress,
-                  Placement, Blocked, BlockMarks, YardRetreat, Detours, ClearChecks, Health, Watch,
-                  Backoff, Silent, GoalLife, ZoneBase):
+                  Placement, Blocked, BlockMarks, YardRetreat, ClearChecks, Health, Watch, Backoff,
+                  GoalLife, ZoneBase):
     # ---- 조회 위임 ----
     @property
     def everyone_placed(self) -> bool:
@@ -74,9 +72,9 @@ class ZoneTraffic(Calls, Goals, Turns, Drive, MoveOrders, OrderAnswers, Results,
             if m.available:
                 self._judge_arrival(m, now)
                 self._watch_stall(m, now)
-                self._watch_idle(m, now)
+                self._silent.watch_idle(m, now, self.running)
                 self._watch_retreat_wait(m, now)
             self._start_watch.watch(m, now, self.running)
-            self._watch_silent(m, now)
+            self._silent.watch_silent(m, now, self.running)
         self._watch_near(now)
         return self._watch_deadlock(now)

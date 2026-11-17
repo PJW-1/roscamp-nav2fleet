@@ -2,7 +2,7 @@
 
 믹스인이 열 개가 넘는다. 뜻이 다른 같은 이름이 생기면 앞에 선 믹스인의 것이 조용히 이긴다.
 브랜치를 합칠 때 실제로 있었다: 도크 차례의 _ahead와 보기(views)의 _ahead. 일부러 덮어쓰는
-것도 두지 않는다(예전의 Silent._event 가로채기는 ZoneBase._event가 _note_robot_event를 직접
+것도 두지 않는다(예전의 Silent._event 가로채기는 ZoneBase._event가 SilentWatch.note를 직접
 부르게 바꿨다). 주문 코어와 FleetManager도 믹스인으로 짜여 있어 같은 검사를 한다.
 """
 from collections import defaultdict
