@@ -11,7 +11,7 @@ START_MOVE_M = 0.02
 class NoStart:
     # ---- 목표별 출발 위치 기록과 제한 시간 내 이동 여부 판정 ----
     def _watch_start(self, m, now: float) -> None:
-        p, goal, ep = self.params, m.goal, m.start
+        p, goal, ep = self.params, m.goal, m.watch.start
         waiting = m.move_order is not None and m.move_order.waiting
         if (p.start_limit_s <= 0 or not m.available or self._run_mode != RUN or goal is None
                 or goal.kind == DOCK or m.arrival_by is not None or waiting):

@@ -14,17 +14,17 @@ class Silent:
     def _note_robot_event(self, robot: str, code: str) -> None:
         m = self._robots.get(robot)
         if m is not None and code != SILENT_STALL:
-            m.silent.clear()
+            m.watch.silent.clear()
 
     # ---- 관제가 기다리는 것이 없는 상태인지 판정 ----
     def _unattended(self, m, now: float) -> bool:
         return (m.available and self._run_mode == RUN and m.phase != AT_STATION
                 and (m.dispatch is not None or m.phase in GOING or m.phase == DOCKING)
-                and m.wait.since is None and now >= m.retry_at and now >= m.avoid.yield_until)
+                and m.watch.wait.since is None and now >= m.retry_at and now >= m.avoid.yield_until)
 
     # ---- 목표 없이 이동 단계에 머문 로봇 경고 ----
     def _watch_idle(self, m, now: float) -> None:
-        p, ep = self.params, m.idle
+        p, ep = self.params, m.watch.idle
         idle = (p.idle_watch_s > 0 and m.goal is None and m.phase in GOING
                 and self._unattended(m, now))
         if not idle:
@@ -38,7 +38,7 @@ class Silent:
 
     # ---- 진척도 이벤트도 없는 로봇 경고 ----
     def _watch_silent(self, m, now: float) -> None:
-        p, ep = self.params, m.silent
+        p, ep = self.params, m.watch.silent
         if p.silent_limit_s <= 0 or not self._unattended(m, now):
             ep.clear()
             return

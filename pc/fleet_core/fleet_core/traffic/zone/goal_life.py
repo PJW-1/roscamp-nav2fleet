@@ -15,7 +15,7 @@ class GoalLife:
         m.goal = None
 
     def _reset_stall(self, m) -> None:
-        m.stall.clear()
+        m.watch.stall.clear()
 
     def _cancel_goal(self, m) -> None:
         if m.goal is None:

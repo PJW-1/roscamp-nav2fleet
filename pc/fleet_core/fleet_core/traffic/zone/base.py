@@ -104,7 +104,7 @@ class ZoneBase:
     def _stop_wanting(self, m) -> None:
         self._wants.pop(m.name, None)
         self.grants.stop_waiting(m.name)
-        m.wait.clear()
+        m.watch.wait.clear()
 
     # ---- 로봇 격리와 goal 실패 재시도 ----
     def _fail(self, m, reason: str) -> None:

@@ -125,10 +125,10 @@ class Goals:
             self._wants[m.name] = first_want
             self._note_wait(m, first_want)
         elif self._blocked:
-            if m.wait.since is None:
-                m.wait.since = self._clock()
-                m.wait.key = ("BLOCKED",)
-        elif m.wait.key == ("BLOCKED",):
+            if m.watch.wait.since is None:
+                m.watch.wait.since = self._clock()
+                m.watch.wait.key = ("BLOCKED",)
+        elif m.watch.wait.key == ("BLOCKED",):
             self._stop_wanting(m)
         return None
 
@@ -145,8 +145,8 @@ class Goals:
                 trip.done, trip.granted = m.trip.done, after
             want = self._take(m, trip)
             if want is None:
-                if queued and not m.wait.queued:
-                    m.wait.queued = True
+                if queued and not m.watch.wait.queued:
+                    m.watch.wait.queued = True
                     self._event("INFO", "DOCK_QUEUED", f"{m.dest} is busy, waits at {goal}",
                                 m.name)
                 elif not queued:
@@ -168,7 +168,7 @@ class Goals:
         for lane in lanes:
             index = next(i for i in range(start, end) if trip.links[i].lane == lane)
             eta[lane] = left_s(self.params, trip.links[trip.done:index], m.x, m.y)
-        since = now if m.wait.since is None else m.wait.since
+        since = now if m.watch.wait.since is None else m.watch.wait.since
         want = Want(tuple(zones), tuple(nodes), lanes, since, eta)
         entered = [lane for lane in lanes if m.name not in grants.holders(lane)]
         for lane in entered:
@@ -214,7 +214,7 @@ class Goals:
     def _note_wait(self, m, want: Want) -> None:
         now = self._clock()
         blockers = self.grants.blockers(m.name, want.zones, want.nodes, want.lanes)
-        ep = m.wait
+        ep = m.watch.wait
         ep.key = tuple(blockers) or tuple(want.lanes)
         if ep.since is None:
             ep.since = now

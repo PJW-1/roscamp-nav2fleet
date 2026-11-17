@@ -28,7 +28,7 @@ class Watch:
                 or (rests and m.goal.kind not in (DOCK, BACKOFF))):
             self._reset_stall(m)
             return
-        here, ep = (m.x, m.y), m.stall
+        here, ep = (m.x, m.y), m.watch.stall
         if ep.xy is None or math.dist(ep.xy, here) >= p.stall_move_m:
             ep.xy, ep.since = here, now
             return
@@ -50,7 +50,7 @@ class Watch:
 
     # ---- 잡은 구역 밖 로봇 경고와 그 자리 구역 잡기 ----
     def _watch_outside(self, m) -> None:
-        p, ep = self.params, m.outside
+        p, ep = self.params, m.watch.outside
         held = self.grants.held_by(m.name)
         gap = min((self.site.distance_to_zone(m.x, m.y, zone) for zone in held), default=0.0)
         if gap <= p.outside_zone_m:
@@ -111,7 +111,7 @@ class Watch:
     def _watch_deadlock(self, now: float) -> frozenset:
         graph = {}
         for name, want in self._wants.items():
-            if not self._robots[name].available or self._robots[name].redock.key:
+            if not self._robots[name].available or self._robots[name].watch.redock.key:
                 continue
             blockers = self.grants.blockers(name, want.zones, want.nodes, want.lanes)
             robots = {robot for group in blockers.values() for robot in group}

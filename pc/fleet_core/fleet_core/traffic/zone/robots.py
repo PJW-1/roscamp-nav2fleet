@@ -87,6 +87,20 @@ class Avoid:
     behind_since: float | None = None
 
 
+# ---- 감시마다의 일화 기록 ----
+@dataclass
+class Watches:
+    start: Episode = field(default_factory=Episode)
+    silent: Episode = field(default_factory=Episode)
+    idle: Episode = field(default_factory=Episode)
+    stall: Episode = field(default_factory=Episode)
+    outside: Episode = field(default_factory=Episode)
+    wait: WaitEpisode = field(default_factory=WaitEpisode)
+    local_episode: Episode = field(default_factory=Episode)
+    redock: Episode = field(default_factory=Episode)
+    blocked: BlockedEpisode = field(default_factory=BlockedEpisode)
+
+
 # ---- 로봇 한 대의 관제 상태: 위치와 보고 ----
 @dataclass
 class Robot:
@@ -109,32 +123,23 @@ class Robot:
     base_until: float = 0.0
     attempts: int = 0
     dock_tries: int = 0
-    redock: Episode = field(default_factory=Episode)
     retry_at: float = 0.0
     settle_until: float = 0.0
     arrival_by: float | None = None
     heard_since_success: bool = False
     not_sent_warned: bool = False
-    # ---- 호출, 배차, 대기 기록 ----
+    dock_error_m: float = 0.0
+    sent_priority: int = -1
+    # ---- 호출, 배차 기록 ----
     called: bool = False
     dispatch: Dispatch | None = None
     hold: bool = False
     asked_at: float | None = None
     asked_gap: float = 0.0
-    wait: WaitEpisode = field(default_factory=WaitEpisode)
-    # ---- 멈춤, 막힘, 무진척, 출발 감시 기록 ----
-    stall: Episode = field(default_factory=Episode)
-    blocked: BlockedEpisode = field(default_factory=BlockedEpisode)
-    idle: Episode = field(default_factory=Episode)
-    dock_error_m: float = 0.0
-    silent: Episode = field(default_factory=Episode)
-    start: Episode = field(default_factory=Episode)
-    # ---- 자가 복구, 구역 놓기, 양보, 물러나기 기록 ----
-    local_episode: Episode = field(default_factory=Episode)
-    sent_priority: int = -1
+    # ---- 구역 놓기, 양보와 물러나기, 감시 기록 ----
     clear_n: dict = field(default_factory=dict)
-    outside: Episode = field(default_factory=Episode)
     avoid: Avoid = field(default_factory=Avoid)
+    watch: Watches = field(default_factory=Watches)
 
     # ---- 가용 여부와 표시 상태 속성 ----
     @property

@@ -316,11 +316,11 @@ def test_a_mark_that_has_run_out_does_not_stop_the_reapproach():
     assert world.run_until(lambda: "GOAL_RETRY" in world.codes("pode2"), 30.0)
     traffic = world.traffic
     m = traffic._robots["pode2"]
-    assert m.redock.key, "the re-approach is still to come"
+    assert m.watch.redock.key, "the re-approach is still to come"
     links = way_round(world)
     for link in links:
         traffic._blocked[(link.a, link.b)] = traffic._clock() - 1.0
-    assert traffic._reapproach(m) and not m.redock.key
+    assert traffic._reapproach(m) and not m.watch.redock.key
     assert m.trip is not None and m.trip.links == links
 
 

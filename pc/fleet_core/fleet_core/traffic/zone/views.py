@@ -46,7 +46,7 @@ class Views:
         views = []
         for zone in self.site.zones:
             holders = ",".join(sorted(self.grants.holders(zone)))
-            queue = tuple(sorted(m.name for m in self._robots.values() if zone in m.wait.key))
+            queue = tuple(sorted(m.name for m in self._robots.values() if zone in m.watch.wait.key))
             views.append(ZoneView(zone, holders, queue, self.grants.acquired_at(zone)))
         return views
 
@@ -86,7 +86,7 @@ class Views:
             "fsm_state": m.report.robot_state,
             "fault": m.health.fault or m.health.comm or NO_FAULT,
             "fault_reason": m.health.fault_reason or _COMM_REASON.get(m.health.comm, ""),
-            "wait_zone": m.wait.key[0] if m.wait.key else "",
+            "wait_zone": m.watch.wait.key[0] if m.watch.wait.key else "",
             "wait_robots": tuple(sorted({name for group in blockers.values() for name in group})),
             "battery": m.report.battery, "x": m.x, "y": m.y, "yaw": m.yaw,
             "base": tuple(route[:granted]), "horizon": tuple(route[granted:]),

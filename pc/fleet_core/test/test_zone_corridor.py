@@ -39,4 +39,5 @@ def test_a_robot_with_no_way_left_is_reported_as_idle():
     limit = p.blocked_mark_s + p.blocked_retry_s + p.idle_watch_s + 5.0
     idle = world.run_until(lambda: "ROBOT_IDLE" in world.codes("pode2"), limit)
     assert idle, "a robot that stands with nowhere to go is not silent"
-    assert world.traffic._robots["pode2"].wait.key == (), "it is not shown as waiting any more"
+    assert world.traffic._robots["pode2"].watch.wait.key == (), \
+        "it is not shown as waiting any more"

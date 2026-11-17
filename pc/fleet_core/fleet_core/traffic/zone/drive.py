@@ -42,7 +42,7 @@ class Drive:
         if m.phase in (TO_WORK, TO_OUTBOUND, TO_PARK):
             self._drive(m)
         elif m.phase == DOCKING:
-            if m.redock.key and self._reapproach(m):
+            if m.watch.redock.key and self._reapproach(m):
                 return
             goal_id = self._next_goal_id()
             self._set_goal(m, Goal(DOCK, goal_id))
