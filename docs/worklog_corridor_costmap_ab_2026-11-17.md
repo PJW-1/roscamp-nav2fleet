@@ -212,9 +212,10 @@ ros2 run fleet_gz_sim drive_check $CHK --json gz_result/corr1_b.json
 ros2 launch fleet_gz_sim one_pode.launch.py $ONE nav_map_variant:=ab nav_overrides:=$OV/global_padding_0p01.yaml
 ros2 run fleet_gz_sim drive_check $CHK --json gz_result/corr1_ab.json
 
-# 틈: 장애물 없이 M_E에서. 지금 지도(틈 keepout 있음)와, fix/v7-shelf-gap-open을 합쳐 빌드한 install(틈 keepout 없음)에서 같은 명령
+# 틈: 장애물 없이 M_E에서. 이 브랜치(exp/corridor-repro-gap)는 틈이 열린 지도라 결과는 gap_open.json
+# (틈 keepout이 있는 비교는 exp/corridor-repro 빌드에서 같은 명령, gap_keepout.json)
 ros2 launch fleet_gz_sim one_pode.launch.py layout:=v7 start:=M_E gui:=true rviz:=true
-ros2 run fleet_gz_sim drive_check --layout v7 --plan gap --laps 3 --json gz_result/gap_keepout.json   # 합친 빌드는 gap_open.json
+ros2 run fleet_gz_sim drive_check --layout v7 --plan gap --laps 3 --json gz_result/gap_open.json
 ```
 
 - drive_check는 앞 이동이 실패하면 멈춘다. `--wait-box`(벽시계 초)가 시간을 넘기면 그동안 상자 표시를 못 받은 것이다.
