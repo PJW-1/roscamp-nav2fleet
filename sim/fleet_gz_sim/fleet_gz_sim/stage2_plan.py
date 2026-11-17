@@ -147,7 +147,11 @@ def build(site, plan: str, laps: int = 1, points=None) -> list[Step]:
 def _point(name: str, xy) -> tuple[float, float]:
     """(x, y) 실수 둘을 float로. bool, 글자, 길이가 틀린 것, 무한·넘침은 PlanError."""
     import numbers
-    bad = PlanError(f"plan point {name} must be two finite numbers, got {xy!r}")
+    try:
+        shown = repr(xy)[:80]
+    except ValueError:  # 아주 큰 정수는 repr도 안 된다
+        shown = "a huge number"
+    bad = PlanError(f"plan point {name} must be two finite numbers, got {shown}")
     if not isinstance(xy, (tuple, list)) or len(xy) != 2:
         raise bad
     if not all(isinstance(v, numbers.Real) and not isinstance(v, bool) for v in xy):
