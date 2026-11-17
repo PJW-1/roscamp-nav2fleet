@@ -8,6 +8,7 @@ from fleet_core.fleet_map.geometry import point_segment_distance
 from fleet_core.traffic.mission import (
     BLOCKED,
     DOCK,
+    OUT_OF_SERVICE,
     SELF_RECOVERING,
     TO_OUTBOUND,
     TO_PARK,
@@ -15,6 +16,7 @@ from fleet_core.traffic.mission import (
 )
 
 from .base import HERE
+from .block_marks import keys_at
 from .robots import BACKOFF
 from .trips import segment_end
 from .yard_retreat import yard_retreat
@@ -121,6 +123,53 @@ class Blocked:
             return self._behind_on_the_bent_way(m, target, via)
         return self._behind_along(m, ((m.x, m.y), site.node_pose(link.a)))
 
+    # ---- 장애물 위치와 그 자리의 로봇 찾기 ----
+    def _obstacle_point(self, m) -> tuple | None:
+        if not self.params.blocked_by_position or m.report.obstacle is None:
+            return None
+        return m.report.obstacle[:2]
+
+    def _robot_at(self, m, point):
+        near = [other for other in self._robots.values()
+                if other is not m and other.placed and other.health.fault != OUT_OF_SERVICE
+                and math.dist(point, (other.x, other.y)) <= self.params.near_m]
+        return min(near, key=lambda o: (math.dist(point, (o.x, o.y)), o.name), default=None)
+
+    # ---- 장애물 점으로 막을 링크 키 모으기 ----
+    def _point_keys(self, m, point, link) -> list:
+        keys = keys_at(self.site, self.params, point)
+        if not keys:
+            return keys
+        if not link.a:
+            keys.append((HERE + m.name, link.b))
+        zone = self.site.zone_at(m.x, m.y)
+        if zone is not None and self.site.zones[zone].kind == SHARED:
+            reach = self.params.footprint_radius_m + self.params.release_margin_m
+            here = (m.x, m.y)
+            for node in self._reach(zone):
+                key, end = (HERE + m.name, node), self.site.node_pose(node)
+                toward = ((point[0] - here[0]) * (end[0] - here[0])
+                          + (point[1] - here[1]) * (end[1] - here[1])) > 0.0
+                if (key not in keys and toward
+                        and point_segment_distance(point, here, end) <= reach):
+                    keys.append(key)
+        return keys
+
+    # ---- 막힘 표시 만들거나 갱신하고 알리기 ----
+    def _mark_point(self, m, point, keys, now: float):
+        mark = self._mark_book.mark(m.name, point, keys, now)
+        shown = ", ".join(f"{a or 'here'}->{b}" for a, b in keys)
+        self._event("WARN", "ZONE_MARKED_BLOCKED",
+                    f"{shown} at ({point[0]:.2f}, {point[1]:.2f}) in "
+                    f"{self.site.zone_at(*point)}, tried again in {mark.retry_s:.0f} s"
+                    f"{self._gaps_note(m)}", m.name)
+        return mark
+
+    # ---- 최근에 로봇에게 양보했는지 ----
+    def _yielded_lately(self, m, now: float) -> bool:
+        return m.avoid.robot_yield_at is not None and now - m.avoid.robot_yield_at <= (
+            self.params.blocked_retry_s)
+
     # ---- 막힘 표시와 다른 길로 다시 가기 ----
     def _link_on(self, m):
         trip = m.trip
@@ -140,7 +189,7 @@ class Blocked:
             mark = self._mark_point(m, point, keys, now)
 
             def hold(key):
-                self._hold_key(mark, key)
+                self._mark_book.hold(mark, key)
         else:
             until = now + p.blocked_retry_s
 

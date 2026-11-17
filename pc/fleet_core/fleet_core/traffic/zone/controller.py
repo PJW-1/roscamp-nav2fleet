@@ -3,10 +3,8 @@ from __future__ import annotations
 
 from .backoff import Backoff
 from .base import ZoneBase
-from .block_marks import BlockMarks
 from .blocked import Blocked
 from .calls import Calls
-from .clear_checks import ClearChecks
 from .drive import Drive
 from .goal_life import GoalLife
 from .goals import Goals
@@ -24,8 +22,7 @@ from .yard_retreat import YardRetreat
 
 # ---- ZoneTraffic 클래스와 틱 순서 ----
 class ZoneTraffic(Calls, Goals, Turns, Drive, MoveOrders, OrderAnswers, Results, Redock, Progress,
-                  Placement, Blocked, BlockMarks, YardRetreat, ClearChecks, Health, Watch, Backoff,
-                  GoalLife, ZoneBase):
+                  Placement, Blocked, YardRetreat, Health, Watch, Backoff, GoalLife, ZoneBase):
     # ---- 조회 위임 ----
     @property
     def everyone_placed(self) -> bool:
@@ -42,6 +39,12 @@ class ZoneTraffic(Calls, Goals, Turns, Drive, MoveOrders, OrderAnswers, Results,
 
     def status_view(self, robot) -> dict:
         return self._views.status_view(robot)
+
+    # ---- 막힘 표시 확인 응답 ----
+    def on_clear_check(self, robot, check_id, answer) -> None:
+        said = self._mark_book.answer(robot, check_id, answer)
+        if said is not None:
+            self._event(*said, robot)
 
     # ---- 틱 한 번 ----
     def tick(self) -> list:
@@ -66,8 +69,8 @@ class ZoneTraffic(Calls, Goals, Turns, Drive, MoveOrders, OrderAnswers, Results,
     # ---- 만료 처리와 로봇별 감시 ----
     def tick_progress(self, now: float) -> frozenset:
         self._expire_blocked(now)
-        self._expire_marks(now)
-        self._ask_clear(now)
+        self._mark_book.expire(now)
+        self._out.extend(self._mark_book.ask(now))
         for m in self._robots.values():
             if m.available:
                 self._judge_arrival(m, now)
