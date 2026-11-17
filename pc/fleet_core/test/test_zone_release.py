@@ -95,6 +95,9 @@ def stopped_short_of_o_out(params=P):
         bot.run.finish_segment()  # order: 로봇은 O_OUT 조각을 끝냈다고 본다
     bot.points = []
     world.speed = 0.0
+    # 멈춘 자리는 시뮬 걸음에 따라 1~2 mm 흔들린다(O 높이를 0.895로 바꾸자 0.11 경계를 넘었다):
+    # 설명대로 O_OUT에서 0.04 못 미친 자리(구역에서 0.105)에 둔다
+    bot.y = world.site.node_pose("O_OUT")[1] + 0.04
     world.run(1.0)
     assert world.view("pode1")["node"] == "O_OUT"
     assert bot.cmd is not None or bot.run is not None, "it has the next goal"

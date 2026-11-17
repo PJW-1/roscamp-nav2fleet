@@ -55,7 +55,7 @@ def test_v7_divider_3_is_gone_and_p3_opens_to_the_east(site):
 
 def test_v7_docks_and_parking(site):
     assert site.node_pose("W") == (1.88, 0.495)
-    assert site.node_pose("O") == (0.285, 0.90)
+    assert site.node_pose("O") == (0.285, 0.895)  # 급행 가운데(2026-11-17 실측)
     assert math.degrees(site.nodes["W"].yaw) == pytest.approx(90.0)  # 남쪽에서 들어간다
     assert math.degrees(site.nodes["O"].yaw) == pytest.approx(180.0)  # 급행 서쪽 끝
     assert site.stations["WORK"].dock == "W" and site.stations["OUTBOUND"].dock == "O"
@@ -425,8 +425,8 @@ def test_v7_outbound_waits_at_the_west_end_of_the_express_too(site):
     # 여유가 없으면 위치가 1 cm만 서쪽으로 잡혀도 OUT_DOCK을 쥔 채 서서 O_IN 로봇이 출고에 들어가지
     # 못한다(Codex 검수 fb69df1). 더 동쪽이면 급행 끝에서 출고까지 멀어질 뿐이다
     assert site.distance_to_zone(spot.x, spot.y, "OUT_DOCK") == pytest.approx(RELEASE_GAP_M + 0.02)
-    assert spot.y == pytest.approx(0.90)  # 급행 가운데
-    # 북쪽 진열대에 몸 원이 닿지 않는다(2026-11-17부터 진열대가 O_X 아래까지 와서 위 면에서 0.09)
+    assert spot.y == pytest.approx(0.895)  # 급행 가운데(2026-11-17 실측)
+    # 북쪽 진열대에 몸 원이 닿지 않는다(2026-11-17부터 진열대가 O_X 아래까지 와서 위 면에서 0.085)
     assert point_rect_distance(SHELVES[0], spot.x, spot.y) > BODY_CIRCLE_M
     # 선 로봇의 몸은 HALL에 들지 않는다(진열대 서쪽 HALL 띠의 위 끝 y 0.81에서 0.09). 급행으로 오는
     # 길은 HALL을 지나지 않아 쥐지도 않는다
@@ -480,13 +480,18 @@ def test_v7_global_costmap_keeps_a_way_between_the_south_shelf_end_and_work(site
 
 
 def test_v7_north_wall_is_the_slam_measurement_and_the_express_stays_open(site):
-    """2026-11-17 SLAM: 북쪽 벽만 그림보다 1 cm 남쪽(0.98). 급행 가운데 y 0.90은 그대로라 몸 반폭
-    0.056인 로봇이 벽에서 0.024, 진열대 A에서 0.034 떨어져 지난다. 북쪽 벽에 붙은 구역은 0.98까지다."""
+    """2026-11-17 SLAM: 북쪽 벽만 그림보다 1 cm 남쪽(0.98). 급행 가운데는 실측 띠 가운데 y 0.895로
+    옮겼다: 벽과 진열대 A에서 모두 0.085(몸 원 0.083보다 멀다). 북쪽 벽에 붙은 구역은 0.98까지다.
+    급행 줄의 지점과 고정 경로 점은 모두 y 0.895다(0.86 꺾는 점은 그대로)."""
     assert site.bounds()[3] == NORTH_WALL_Y
-    assert site.node_pose("O") == (0.285, 0.90) and site.node_pose("O_X") == (0.655, 0.90)
-    half = 0.056
-    assert round(NORTH_WALL_Y - 0.90 - half, 3) == 0.024
-    assert round(0.90 - SHELVES[0][3] - half, 3) == 0.034
+    lane_y = 0.895
+    assert site.node_pose("O") == (0.285, lane_y) and site.node_pose("O_X") == (0.655, lane_y)
+    assert round(NORTH_WALL_Y - lane_y, 3) == 0.085 and round(lane_y - SHELVES[0][3], 3) == 0.085
+    assert round(NORTH_WALL_Y - lane_y, 3) > BODY_CIRCLE_M
+    # 급행 줄(0.86 꺾는 점보다 북쪽)의 경로 점은 모두 띠 가운데다
+    for link in site.links():
+        for x, y in link.points:
+            assert y <= 0.86 or y == pytest.approx(lane_y), (link.a, link.b, x, y)
     for name in ("EXPRESS", "J_E", "OUT_DOCK"):
         assert max(r[3] for r in site.zones[name].rects) == NORTH_WALL_Y, name
     for x0, y0, x1, y1 in site.keepout_extra:
