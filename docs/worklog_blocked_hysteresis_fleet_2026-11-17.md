@@ -24,6 +24,7 @@
   - `BLOCKED`도 `RECOVERING`도 아닌 보고가 `blocked_reset_s`(20 s) 이어졌다. `RECOVERING`은 이
     시간을 멈춘다(자가 복구는 막힘의 일부);
   - goal이 바뀌었거나 없어졌다(DOCK, BACKOFF goal로 바뀐 경우도 포함).
+- 끝낼 때(거리, 시간)는 막힘 아닌 보고에서도, 틈 뒤 BLOCKED가 돌아온 첫 보고에서도 본다(Codex 지적 뒤 더함).
 - 표시·양보·실패는 지금 막힘을 보고할 때만 한다. 기다린 시간이 넘었으면 `BLOCKED`가 돌아오는 첫
   보고에서 바로 한다.
 - `BLOCKED_WAIT`는 일화마다 한 번. 틈 뒤 다시 막힌 횟수를 세어 `ZONE_MARKED_BLOCKED`와
@@ -45,7 +46,7 @@
 
 ## 시험
 
-새 파일 `pc/fleet_core/test/test_zone_blocked_flicker.py`(9개). 하네스는 `zone_harness.Harness`
+새 파일 `pc/fleet_core/test/test_zone_blocked_flicker.py`(11개). 하네스는 `zone_harness.Harness`
 (속도 0, pode2가 Nav2 goal을 받고 선 채 보고만 바꾼다).
 
 - 3 s BLOCKED / 0.5 s MOVING 반복 → 일화 10~11 s에 표시, `BLOCKED_WAIT` 한 번, `after 3 short gaps`;
@@ -55,13 +56,21 @@
 - BLOCKED 1 s / MOVING 9 s·11 s(±4.5 cm 꿈틀거림) 반복 → 두 번째 BLOCKED에서 표시(Nav2 goal 다시 막힘 틈 흉내);
 - 첫 틈에 0.35 m 나아감 → 새 일화(표시가 그만큼 늦음);
 - blocked_reset_s + 1 s 틈 → 표시 없음, `BLOCKED_WAIT` 일화마다 한 번(3번);
-- 틈 사이 goal 바뀜 → 옛 goal의 기다림을 넘기지 않음.
+- 틈 사이 goal 바뀜 → 옛 goal의 기다림을 넘기지 않음;
+- BLOCKED가 돌아온 보고에서 0.30 m를 넘음 → 그 보고에서 새 일화;
+- 막힘 아닌 보고가 정확히 blocked_reset_s 이어진 뒤의 BLOCKED → 새 일화(긴 틈 시험은 멈춤 감시가 goal을 거두지 않게 `stall_s` 1000, `start_limit_s` 0으로 돌린다).
 
 결과는 아래 "결과"에 그대로 적는다.
 
 ## 결과
 
 (아래 채움)
+
+## Codex 리뷰 (62bfb98)
+
+- [확정] 거리 기준을 BLOCKED가 돌아온 보고에서 넘으면 옛 시계를 이어 썼다 → 고침(시험 먼저, 고치기 전 실패 확인).
+- [확정] 막힘 아닌 시간이 BLOCKED가 돌아온 보고에서 blocked_reset_s에 닿으면 옛 시계를 이어 썼다 → 고침(같음).
+- [확정, 고치지 않음] 같은 goal을 둔 채 상대를 주차로 보내는 양보(`yard_retreat.py` `_yield_to_robot`) 뒤 계속 막혀 있으면 시계는 새로 열지만 `BLOCKED_WAIT`는 다시 나오지 않는다. 예전 코드와 같은 동작이라 두었다.
 
 ## 남은 것
 

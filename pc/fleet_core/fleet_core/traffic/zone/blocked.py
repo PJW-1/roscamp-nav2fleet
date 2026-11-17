@@ -32,6 +32,8 @@ class Blocked:
             if not stuck:
                 self._blocked_gap(m, now)
             return
+        if m.blocked_out and self._gap_over(m, now):
+            self._end_blocked(m)  # 막힘이 돌아온 보고에서 끝낼 때가 됐어도 새 일화
         m.blocked_clear_since = None
         if m.blocked_since is None or m.blocked_goal != m.goal.id:
             if m.blocked_goal != m.goal.id:
@@ -75,22 +77,24 @@ class Blocked:
 
     # ---- 막힘 아닌 보고: 일화를 끝낼지 이어 갈지 ----
     def _blocked_gap(self, m, now: float) -> None:
-        p = self.params
         if m.blocked_since is None and not m.blocked_noted:
             return
-        moved = (m.blocked_xy is not None
-                 and math.dist(m.blocked_xy, (m.x, m.y)) > p.blocked_reset_m)
-        if m.goal is None or m.goal.id != m.blocked_goal or moved:
+        if m.goal is None or m.goal.id != m.blocked_goal or self._gap_over(m, now):
             self._end_blocked(m)
             return
         m.blocked_out = True
         if m.robot_state == SELF_RECOVERING:
             m.blocked_clear_since = None  # 자가 복구는 막힘의 일부: 끝내는 시간에 넣지 않는다
-            return
-        if m.blocked_clear_since is None:
+        elif m.blocked_clear_since is None:
             m.blocked_clear_since = now
-        elif now - m.blocked_clear_since >= p.blocked_reset_s:
-            self._end_blocked(m)
+
+    # ---- 일화 끝: 시작점에서 나아감, 막힘 아닌 보고가 오래 이어짐 ----
+    def _gap_over(self, m, now: float) -> bool:
+        p = self.params
+        moved = (m.blocked_xy is not None
+                 and math.dist(m.blocked_xy, (m.x, m.y)) > p.blocked_reset_m)
+        return moved or (m.blocked_clear_since is not None
+                         and now - m.blocked_clear_since >= p.blocked_reset_s)
 
     @staticmethod
     def _end_blocked(m) -> None:

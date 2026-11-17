@@ -9,14 +9,17 @@ from dataclasses import replace
 
 import pytest
 
+from fleet_core.common.params import load_params
 from zone_harness import Harness
 
 ROBOT = "pode2"
+# 긴 틈을 보는 시험: 멈춤 감시와 출발 감시가 goal을 거두지 않게 한다
+NO_STALL = replace(load_params(), stall_s=1000.0, start_limit_s=0.0)
 
 
-def called():
+def called(params=None):
     """pode2가 이름으로 불려 Nav2 goal을 받고 제자리에 서 있다(속도 0)."""
-    world = Harness(speed=0.0)
+    world = Harness(speed=0.0, params=params)
     world.step()
     world.call("WORK", ROBOT)
     world.step()
@@ -145,7 +148,7 @@ def test_real_progress_restarts_the_timer():
 
 
 def test_a_long_gap_restarts_the_timer():
-    world = called()
+    world = called(NO_STALL)
     p = world.params
     flicker(world, [("BLOCKED", 3.0), ("MOVING", p.blocked_reset_s + 1.0)])
     world.run(3 * (3.0 + p.blocked_reset_s + 1.0) - 1.0)  # 네 번째 BLOCKED 전까지
@@ -164,3 +167,30 @@ def test_a_new_goal_restarts_the_timer():
     took = first_mark_at(world, 3 * p.blocked_mark_s)
     assert took is not None
     assert took >= p.blocked_mark_s - 0.5, "the old goal's wait was carried over"
+
+
+# ---- 끝낼 때가 막힘이 돌아오는 보고와 겹쳐도 끝낸다 ----
+
+def test_progress_reached_on_the_report_that_blocks_again_restarts_the_timer():
+    world = called()
+    p = world.params
+    flicker(world, [("BLOCKED", 3.0), ("MOVING", 0.5)])
+    world.run(3.2)  # 첫 틈 안
+    wiggle(world, p.blocked_reset_m - 0.01)  # 아직 기준 안
+    world.run(0.2)  # 마지막 MOVING 보고
+    wiggle(world, 0.03)  # BLOCKED가 돌아오는 보고에서 기준을 넘는다
+    took = first_mark_at(world, 3 * p.blocked_mark_s)
+    assert took is not None
+    # 새 일화는 BLOCKED가 돌아온 보고에서 시작한다(다음 틈까지 미루지 않는다)
+    assert p.blocked_mark_s - 0.2 <= took <= p.blocked_mark_s + 1.0
+
+
+def test_a_gap_that_reaches_the_reset_time_on_the_blocking_report_restarts_the_timer():
+    world = called(NO_STALL)
+    p = world.params
+    gap = p.blocked_reset_s
+    flicker(world, [("BLOCKED", 3.0), ("MOVING", gap)], start=0.0)  # 시각이 정확히 떨어지게
+    world.run(3.0 + gap)  # 막힘 아닌 보고가 gap 동안 이어진 뒤 BLOCKED
+    assert marked(world) == 0, "the old episode's wait was carried over"
+    assert world.codes(ROBOT).count("BLOCKED_WAIT") == 2
+    assert "GOAL_STALLED" not in world.codes(ROBOT)
