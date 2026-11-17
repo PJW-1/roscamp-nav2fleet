@@ -2,6 +2,8 @@
 
     ros2 launch fleet_gz_sim one_pode.launch.py                          # D2, P-1, 화면 + RViz
     ros2 launch fleet_gz_sim one_pode.launch.py layout:=c start:=P-2 gui:=false rviz:=false
+    ros2 launch fleet_gz_sim one_pode.launch.py layout:=v7 start:=O_IN obstacles:=v7_corridor_box \
+        nav_map_variant:=b                                               # 가운데 통로 재현
 
 주행은 따로 `ros2 run fleet_gz_sim drive_check --layout d2 --plan stage2`(관제 대신 이동을 바로
 보냄)로 시키거나 RViz의 2D Goal Pose(bt_navigator)로 시킨다. 격리 검사(isolation.py)를 통과해야
@@ -40,6 +42,9 @@ ARGS = {
                             " 0.05는 D2 측정으로 고른 값(fixed_line_results.md)"),
     "fixed_line_collision_check": ("false", "시뮬 전용. true면 고정 경로 controller 셋도 충돌"
                                            " 검사를 켠다. 마당 goal(FollowPathGoal)은 늘 켬"),
+    "nav_map_variant": ("", "global costmap 지도 갈래(가운데 통로 비교용, v7만): a는 2.5 cm,"
+                            " b는 칸 중심 규칙, ab는 둘 다. 비면 기본 5 cm 지도. 1 cm 지도와"
+                            " keepout 마스크는 그대로(gz.launch.py와 같다)"),
 }
 STILL = "pode_still"
 
@@ -79,7 +84,8 @@ def _start(context):
         raise ValueError(f"fixed_line_collision_check must be true or false, got {fixed_check!r}")
     layout = layout_of(value("layout"))
     site = load_fleet_map(layout)
-    arena = arena_for(layout, launch_parts.share("fleet_gz_sim"))
+    arena = arena_for(layout, launch_parts.share("fleet_gz_sim"),
+                      value("nav_map_variant").strip())
     ns = value("namespace")
     if value("start") not in site.nodes:
         raise ValueError(f"start {value('start')!r} is not a node of {site.name}")

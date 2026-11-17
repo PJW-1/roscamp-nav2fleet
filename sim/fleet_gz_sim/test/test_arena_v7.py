@@ -1,4 +1,5 @@
 """배치 v7의 Gazebo 경기장과 시나리오: 월드 치수, 지도, keepout, gz_v7(_random)."""
+import math
 import xml.etree.ElementTree as ET
 from pathlib import Path
 
@@ -227,17 +228,39 @@ def _joined(grid, a, b, shut=()):
     return False
 
 
-def test_v7_the_crossing_gap_is_shut_for_nav2_on_the_5cm_costmap():
-    """건넘 틈(x 0.99~1.25)을 막는 keepout이 두 진열대 끝과 구멍 없이 이어진다: 남쪽 진열대 줄의
-    어느 열도 위아래로 지나갈 수 없다(막힘 칸 또는 keepout 칸이 그 열의 진열대 높이에 있다)."""
+V7_GAP = (0.99, 0.365, 1.25, 0.405)  # 남쪽 진열대 사이 건넘 틈
+BOTH_ENDS = [(0.0, 0.30, 0.68, 0.45), (1.56, 0.30, 1.98, 0.45)]  # 서쪽 끝과 동쪽 통로
+
+
+def test_v7_the_crossing_gap_is_open_for_nav2_on_the_5cm_costmap(site):
+    """사용자 결정 2026-11-17: 건넘 틈(x 0.99~1.25)은 지름길이라 막지 않는다. 커밋된 마스크에 틈 안
+    keepout 칸이 없고, 서쪽 끝과 동쪽 통로를 다 막아도 5 cm costmap에서 틈으로 남북이 이어진다.
+    내접 0.09로 막고 남는 열은 틈 가운데 셋(칸 중심 x 1.075, 1.125, 1.175)이다."""
+    assert V7_GAP not in site.keepout_extra
     grid, occ, kept = _costmap()
     j0, j1 = _cell(0.0, 0.365)[1], _cell(0.0, 0.405 - 1e-6)[1]
-    for x in [0.70 + 0.05 * k for k in range(18)]:  # 0.70 ~ 1.55
+    for x in (1.075, 1.125, 1.175):
         i = _cell(x, 0.0)[0]
-        assert any(occ[j][i] or kept[j][i] for j in range(j0, j1 + 1)), x
-    assert _joined(grid, (1.12, 0.55), (1.12, 0.25)) is True  # 둘레로는 이어진다
-    assert not _joined(grid, (1.12, 0.55), (1.12, 0.25),
-                       shut=[(0.0, 0.30, 0.68, 0.45), (1.56, 0.30, 1.98, 0.45)])
+        assert not any(kept[j][i] or grid[j][i] for j in range(j0, j1 + 1)), x
+    for x in (1.025, 1.225):  # 진열대 끝 칸 옆 열은 내접 반지름 안이라 닫힌다
+        i = _cell(x, 0.0)[0]
+        assert any(grid[j][i] for j in range(j0, j1 + 1)), x
+    assert _joined(grid, (1.125, 0.55), (1.125, 0.25), shut=BOTH_ENDS)
+
+
+def test_v7_the_crossing_gap_has_no_keepout_cell_in_the_fine_mask(site):
+    """1 cm 마스크(Nav2 KeepoutFilter가 읽는 것)의 틈 안 칸은 하나도 닫히지 않는다. 칸막이 둘레의
+    keepout_extra는 그대로 닫혀 있다(아래 칸막이 시험)."""
+    keep = _read_pgm(PKG / "maps" / "arena_v7_keepout.pgm")
+    x0, y0, x1, y1 = V7_GAP
+    shut = []
+    for k in range(int(round((x1 - x0) / 0.01))):
+        for m in range(int(round((y1 - y0) / 0.01))):
+            x, y = x0 + 0.005 + 0.01 * k, y0 + 0.005 + 0.01 * m
+            fi, fj = int((x - ORIGIN[0]) / 0.01), int((y - ORIGIN[1]) / 0.01)
+            if keep[fj][fi]:
+                shut.append((round(x, 3), round(y, 3)))
+    assert shut == []
 
 
 @pytest.mark.parametrize("shut, pairs", [
@@ -347,3 +370,155 @@ def test_v7_the_south_yard_stays_open_above_the_divider_keepout(site, a, b):
     if b in ("Q1", "Q2"):
         assert _joined(grid, site.node_pose(a), site.node_pose(b),
                        shut=[(0.0, 0.40, 0.68, 0.99)]), (a, b)
+
+
+# ---- 가운데 통로 갈래 지도(A: 2.5 cm, B: 칸 중심 규칙). 기본 지도는 위 시험이 그대로 본다 ----
+def _free_rows(grid, x, y0, y1, resolution, site):
+    """x 열의 y0~y1에서 빈칸 수와 빈칸 덩어리의 (아래 경계, 위 경계)."""
+    i, j0 = arena_maps.cell_of(x, y0, resolution, site)
+    _, j1 = arena_maps.cell_of(x, y1, resolution, site)
+    oy = arena_maps.map_origin(site)[1]
+    free = [j for j in range(j0, j1 + 1) if not grid[j][i]]
+    assert free == list(range(free[0], free[-1] + 1)), "빈칸은 한 덩어리"
+    return (len(free), round(oy + free[0] * resolution, 4),
+            round(oy + (free[-1] + 1) * resolution, 4))
+
+
+@pytest.mark.parametrize("resolution, paint, count, low, high", [
+    (0.05, "touch", 6, 0.45, 0.75),  # 기본: 상자가 걸친 칸은 막힘
+    (0.05, "centre", 7, 0.40, 0.75),  # B
+    (0.025, "touch", 13, 0.425, 0.75),  # A
+    (0.025, "centre", 15, 0.40, 0.775),  # A+B
+])
+def test_v7_middle_corridor_free_cells_at_x_095(site, resolution, paint, count, low, high):
+    """가운데 통로(진열대 사이 y 0.405~0.77)를 x 0.95에서 가로지르는 빈칸."""
+    grid = arena_maps.occupancy(resolution, site, paint)
+    assert _free_rows(grid, 0.95, 0.385, 0.79, resolution, site) == (count, low, high)
+
+
+def test_the_default_paint_is_the_touch_rule(site):
+    assert arena_maps.occupancy(0.05, site) == arena_maps.occupancy(0.05, site, "touch")
+    assert arena_maps.pgm(0.05, site) == (PKG / "maps" / "arena_v7.pgm").read_bytes()
+    with pytest.raises(ValueError, match="paint"):
+        arena_maps.occupancy(0.05, site, "middle")
+
+
+@pytest.mark.parametrize("resolution", [0.05, 0.025])
+def test_the_centre_rule_paints_a_subset_of_the_touch_rule(site, resolution):
+    touch = arena_maps.occupancy(resolution, site, "touch")
+    centre = arena_maps.occupancy(resolution, site, "centre")
+    assert all(t or not c for tr, cr in zip(touch, centre, strict=True)
+               for t, c in zip(tr, cr, strict=True))
+    assert centre != touch
+
+
+@pytest.mark.parametrize("resolution", [0.05, 0.025])
+def test_the_centre_rule_keeps_every_thin_divider(site, resolution):
+    """2 cm 칸막이는 칸 중심을 하나도 덮지 않는다. 그래도 사라지지 않고 한 칸 폭 줄로 남는다."""
+    from fleet_gz_sim import arena
+    grid = arena_maps.occupancy(resolution, site, "centre")
+    for box in arena.obstacles(site):
+        i, j = arena_maps.cell_of((box.x0 + box.x1) / 2, (box.y0 + box.y1) / 2, resolution, site)
+        assert grid[j][i], box.name
+    # 칸막이 1(x 0.24~0.26, y 0~0.10)은 x로 한 칸
+    j = arena_maps.cell_of(0.25, 0.05, resolution, site)[1]
+    ox = arena_maps.map_origin(site)[0]
+    row = [i for i in range(len(grid[0]))
+           if grid[j][i] and 0.15 < ox + (i + 0.5) * resolution < 0.35]
+    assert len(row) == 1
+
+
+@pytest.mark.parametrize("resolution, paint", [(0.025, "touch"), (0.05, "centre"),
+                                               (0.025, "centre")])
+def test_v7_variant_walls_leave_no_diagonal_leak_and_dividers_stay_joined(site, resolution,
+                                                                           paint):
+    """Codex 2026-11-17: 칸 중심 규칙은 상자마다 따로 칠해 맞닿은 상자 사이에 대각 틈을 낼 수 있다.
+    v7에서는 벽 밖 빈칸이 8 이웃으로도 안쪽에 닿지 않고, 칸막이는 남쪽 벽과 이어진다."""
+    from collections import deque
+
+    from fleet_gz_sim import arena
+    grid = arena_maps.occupancy(resolution, site, paint)
+    h, w = len(grid), len(grid[0])
+    ox, oy = arena_maps.map_origin(site)
+    x0, y0, x1, y1 = site.bounds()
+    seen, todo = {(0, 0)}, deque([(0, 0)])
+    while todo:
+        i, j = todo.popleft()
+        for di in (-1, 0, 1):
+            for dj in (-1, 0, 1):
+                a, b = i + di, j + dj
+                if 0 <= a < w and 0 <= b < h and not grid[b][a] and (a, b) not in seen:
+                    seen.add((a, b))
+                    todo.append((a, b))
+    assert not [(a, b) for a, b in seen if x0 < ox + (a + 0.5) * resolution < x1
+                and y0 < oy + (b + 0.5) * resolution < y1]
+    wall_j = arena_maps.cell_of(0.5, -0.001, resolution, site)[1]
+    for box in arena.shelves(site):
+        if box.y0 > 1e-9:
+            continue  # 남쪽 벽에 닿는 칸막이만
+        i, j = arena_maps.cell_of((box.x0 + box.x1) / 2, box.y1 - 0.001, resolution, site)
+        assert all(grid[k][i] for k in range(wall_j, j + 1)), box.name
+
+
+def test_a_cell_centre_on_a_box_edge_counts_as_inside():
+    # 원점 0, 0.05 칸: 칸 0 중심 0.025, 칸 1 중심 0.075
+    grid = arena_maps.centre_filled([(0.025, 0.0, 0.075, 0.05)], 4, 2, 0.05, (0.0, 0.0))
+    assert grid == [[True, True, False, False], [False] * 4]
+    # 중심을 하나도 덮지 않는 상자: 가운데(0.0875)가 든 칸 하나
+    grid = arena_maps.centre_filled([(0.08, 0.0, 0.095, 0.05)], 4, 1, 0.05, (0.0, 0.0))
+    assert grid == [[False, True, False, False]]
+    # 가운데가 칸 경계(0.05)에 놓여도 한 칸만
+    grid = arena_maps.centre_filled([(0.026, 0.0, 0.074, 0.05)], 4, 1, 0.05, (0.0, 0.0))
+    assert sum(grid[0]) == 1 and not grid[0][2] and not grid[0][3]
+    # 격자 밖 상자는 칸을 칠하지 않는다
+    assert arena_maps.centre_filled([(0.3, 0.0, 0.4, 0.05)], 4, 1, 0.05, (0.0, 0.0)) == [
+        [False] * 4]
+
+
+def test_v7_committed_nav_variant_maps_are_the_generator_output(tmp_path, site):
+    from fleet_gz_sim import arena
+    written = arena.generate_nav_variants(tmp_path, site)
+    assert set(written) == {f"maps/arena_v7_{v}.{ext}" for v in ("a", "b", "ab")
+                            for ext in ("yaml", "pgm")}
+    for name in written:
+        assert (tmp_path / name).read_bytes() == (PKG / name).read_bytes(), name
+    for variant, resolution in (("a", 0.025), ("b", 0.05), ("ab", 0.025)):
+        text = (PKG / "maps" / f"arena_v7_{variant}.yaml").read_text(encoding="utf-8")
+        assert f"image: arena_v7_{variant}.pgm\n" in text
+        assert f"resolution: {resolution}\n" in text
+        assert "origin: [-0.15, -0.15, 0.0]\n" in text
+    assert arena_maps.NAV_VARIANTS == {"a": (0.025, "touch"), "b": (0.05, "centre"),
+                                       "ab": (0.025, "centre")}
+
+
+def test_only_v7_has_nav_variant_maps():
+    from fleet_gz_sim import arena
+    assert arena.NAV_VARIANT_LAYOUTS == ("v7",)
+    for layout in ("d2", "d", "c", "d2_shelf"):
+        for variant in arena_maps.NAV_VARIANTS:
+            assert not (PKG / "maps" / f"arena_{layout}_{variant}.yaml").exists()
+
+
+def test_v7_corridor_box_keeps_one_box_in_the_middle_corridor_for_the_whole_run(site):
+    """가운데 통로 재현(2026-11-17): v7_yard_mix의 상자 4와 같은 자리·크기, 한 번 놓고 판 내내 둔다.
+    O_IN에 선 로봇이 놓기를 막지 않는다(sim_obstacles clearance_m 기본 0.35)."""
+    from fleet_core.fleet_map.model import NAV_GOAL
+    from fleet_gz_sim.obstacles import Planner, load_schedule
+    mix = load_schedule(PKG / "obstacles" / "v7_yard_mix.yaml", site)
+    schedule = load_schedule(PKG / "obstacles" / "v7_corridor_box.yaml", site)
+    [box] = schedule.obstacles
+    assert box.link == ("O_IN", "M_E") and box.fraction == 0.4
+    assert site.link(*box.link).via == NAV_GOAL
+    assert (box.x, box.y) == pytest.approx((0.952, 0.595))
+    assert (box.x, box.y) == pytest.approx((mix.obstacles[3].x, mix.obstacles[3].y))
+    assert schedule.size_m == mix.size_m
+    # at_s는 시뮬 절대 시각이고 노드가 뜨기 전 항목은 건너뛴다: 노드가 늦게 떠도 되게 30 s
+    assert box.at_s == 30, "sim_obstacles가 뜬 뒤"
+    assert box.duration_s >= 1800
+    assert schedule.repeat_every_s is None
+    o_in = site.node_pose("O_IN")
+    assert math.dist(o_in, (box.x, box.y)) > 0.35 + 0.1
+    for start_s in (1.0, 25.0):  # 노드의 첫 tick이 늦어도(시뮬 25 s) 놓는다
+        planner = Planner(schedule, start_s=start_s, max_delay_s=20.0)
+        step = planner.step(box.at_s, [o_in], 0.35)
+        assert [occ.obstacle for occ in step.spawn] == [box]

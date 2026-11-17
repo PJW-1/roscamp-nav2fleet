@@ -35,6 +35,31 @@ def test_an_unknown_layout_or_missing_files_are_refused(tmp_path):
         fleet_setup.arena_for("d2", tmp_path)
 
 
+@pytest.mark.parametrize("variant", ["a", "b", "ab"])
+def test_a_nav_map_variant_swaps_only_the_costmap_map(variant):
+    """가운데 통로 갈래: 5 cm 지도만 바뀐다. 1 cm 지도(AMCL)와 keepout 마스크는 그대로."""
+    base = fleet_setup.arena_for("v7", PKG)
+    found = fleet_setup.arena_for("v7", PKG, variant)
+    assert Path(found.nav_map) == PKG / "maps" / f"arena_v7_{variant}.yaml"
+    assert Path(found.nav_map).is_file()
+    assert found.world == base.world and found.nav_map_fine == base.nav_map_fine
+    assert found.keepout_mask == base.keepout_mask and found.layout == "v7"
+
+
+def test_the_default_nav_map_variant_is_the_plain_map():
+    assert fleet_setup.arena_for("v7", PKG) == fleet_setup.arena_for("v7", PKG, "")
+    assert Path(fleet_setup.arena_for("v7", PKG).nav_map) == PKG / "maps" / "arena_v7.yaml"
+
+
+def test_an_unknown_nav_map_variant_or_a_layout_without_it_is_refused():
+    with pytest.raises(fleet_setup.ScenarioUnfit, match="nav_map_variant"):
+        fleet_setup.arena_for("v7", PKG, "c")
+    # Codex 2026-11-17: d2에 갈래를 주면 고칠 수 없는 생성 명령을 권했다
+    with pytest.raises(fleet_setup.ScenarioUnfit, match="only for layout v7") as err:
+        fleet_setup.arena_for("d2", PKG, "b")
+    assert "python3 -m" not in str(err.value)
+
+
 def test_the_test_layout_has_a_three_robot_gazebo_scenario():
     data = fleet_setup.read_scenario(SCENARIOS / "gz_d2_shelf.yaml")
     assert data["map"] == "d2_shelf"

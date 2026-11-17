@@ -147,10 +147,11 @@ def test_v7_a_robot_at_work_plans_its_way_out_to_the_hall():
 
 def test_v7_keepout_extra_is_not_floor():
     """Nav2 마스크는 keepout_extra 사각형을 덧대지 않고 막는다(fleet_core keepout.mask). 머리 없는
-    세계도 그 안으로 길을 내지 않는다: 남쪽 진열대 사이 틈과 칸막이 3 위 끝 둘레."""
+    세계도 그 안으로 길을 내지 않는다: 칸막이 3 위 끝 둘레. 남쪽 진열대 사이 틈은 지름길이라
+    막지 않는다(사용자 결정 2026-11-17): 머리 없는 세계에서도 바닥이다."""
     site = load_fleet_map("v7")
     space = FreeSpace(site, R)
-    assert not space.free(space.static, 1.12, 0.385), "the gap between the south shelves"
+    assert space.free(space.static, 1.12, 0.385), "the gap between the south shelves is floor"
     assert not space.free(space.static, 0.84, 0.19), "around the top of divider 3"
     assert space.free(space.static, 1.12, 0.25), "the south corridor below the gap stays floor"
 
@@ -166,7 +167,7 @@ def test_v7_keepout_extra_closes_every_cell_it_touches_like_the_mask():
     leaks = [space.centre(ix, iy) for iy in range(space.h) for ix in range(space.w)
              if closed[iy][ix] and space.static[iy * space.w + ix] == 0]
     assert leaks == []
-    assert not space.free(space.static, 1.11, 0.41)
+    assert space.free(space.static, 1.11, 0.41), "the open gap leaks nothing either"
 
 
 V7_SOUTH_SHELF_Y = 0.365
@@ -187,13 +188,15 @@ def test_v7_a_robot_passes_a_robot_parked_in_a_west_bay_along_the_south_corridor
     assert all(path_gap((x, y), way) >= 2 * R for x, y, _ in parked)
 
 
-def test_v7_a_robot_parked_at_p3_closes_the_south_corridor_in_the_headless_world():
+def test_v7_a_robot_parked_at_p3_sends_others_through_the_crossing_gap():
     """P-3에 주차한 로봇(y 0.10)과 남쪽 진열대 서쪽 끝 사이에는 머리 없는 세계의 계획 여유(반지름
-    둘 + 0.03)가 들어가지 않는다. 진열대 사이 틈은 막혀 있으므로 가운데 통로로 돈다(Gazebo에서는
-    0.08을 목표로 해도 0.118~0.148에 섰으므로 지금까지도 같은 자리였다)."""
+    둘 + 0.03)가 들어가지 않는다. 남쪽 진열대 서쪽 끝을 돌아 북쪽으로 올라갔다가, 열린 건넘 틈
+    (사용자 결정 2026-11-17, 지름길)으로 다시 남쪽 통로에 내려온다. 동쪽 통로까지 돌지 않는다."""
     way, _ = _parked_plan(["P-3"])
-    assert way is not None, "the middle aisle is still a way"
+    assert way is not None, "a way is left"
     assert max(y for _, y in way) > 0.405 + R, way
     along = [(ax + (bx - ax) * i / 50, ay + (by - ay) * i / 50)
              for (ax, ay), (bx, by) in pairwise(way) for i in range(51)]
-    assert not any(0.99 < x < 1.25 and V7_SOUTH_SHELF_Y <= y <= 0.405 for x, y in along), way
+    # 진열대 줄을 건너는 점(서쪽 끝 x < 0.68 말고): 모두 틈 안이고 몸 반지름만큼 모서리에서 떨어진다
+    crossing = [x for x, y in along if V7_SOUTH_SHELF_Y <= y <= 0.405 and x > 0.68]
+    assert crossing and all(0.99 + R <= x <= 1.25 - R for x in crossing), way

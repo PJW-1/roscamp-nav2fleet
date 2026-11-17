@@ -1,0 +1,7 @@
+# 가운데 통로 갈래 A(시뮬 전용, gz.launch.py nav_overrides): global costmap의
+# footprint_padding만 0.03 -> 0.0. resolution은 덮지 않는다: global costmap은 rolling이
+# 아니라 StaticLayer가 지도 해상도로 맞춘다. 2.5 cm는 nav_map_variant:=a 또는 ab로.
+global_costmap:
+  global_costmap:
+    ros__parameters:
+      footprint_padding: 0.0

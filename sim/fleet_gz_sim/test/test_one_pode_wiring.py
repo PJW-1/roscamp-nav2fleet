@@ -126,3 +126,46 @@ def test_joint_states_cover_every_moving_joint():
                   if p.get("name") == "gz::sim::systems::JointStatePublisher")
     listed = {e.text for e in plugin.iter("joint_name")}
     assert moving and (not listed or moving <= listed)
+
+
+# ---- 가운데 통로 갈래(2026-11-17): gz.launch.py의 nav_map_variant와 같은 뜻 ----
+def nav_arguments(actions) -> dict:
+    """nav2.launch.py include의 인자(map_server는 map, AMCL은 map_fine을 읽는다)."""
+    from launch.utilities import normalize_to_list_of_substitutions, perform_substitutions
+    context = launch.LaunchContext()
+
+    def text(subs):
+        return perform_substitutions(context, normalize_to_list_of_substitutions(subs))
+    found = [{text(k): text(v) for k, v in a.launch_arguments} for a in actions
+             if type(a).__name__ == "IncludeLaunchDescription"]
+    [nav] = [args for args in found if "map_fine" in args]  # nav2.launch.py만 map_fine을 받는다
+    return nav
+
+
+@pytest.mark.parametrize("variant", ["a", "b", "ab"])
+def test_nav_map_variant_changes_only_the_costmap_map(one, variant):
+    need("pinky_description", "pode_nav_config", "pode_fsm")
+    nav = nav_arguments(run(one, layout="v7", start="O_IN", nav_map_variant=variant))
+    assert nav["map"].endswith(f"maps/arena_v7_{variant}.yaml")
+    assert Path(nav["map"]).is_file()
+    assert nav["map_fine"].endswith("maps/arena_v7_fine.yaml")
+    assert nav["keepout_mask"].endswith("maps/arena_v7_keepout.yaml")
+
+
+def test_nav_map_variant_is_empty_by_default_and_v7_only(one):
+    need("pinky_description", "pode_nav_config", "pode_fsm")
+    from fleet_gz_sim.fleet_setup import ScenarioUnfit
+    assert one.ARGS["nav_map_variant"][0] == ""
+    assert nav_arguments(run(one, layout="v7", start="O_IN"))["map"].endswith(
+        "maps/arena_v7.yaml")
+    with pytest.raises(ScenarioUnfit, match="only for layout v7"):
+        run(one, nav_map_variant="b")
+    with pytest.raises(ScenarioUnfit, match="nav_map_variant"):
+        run(one, layout="v7", start="O_IN", nav_map_variant="x")
+
+
+def test_the_corridor_box_schedule_runs_with_one_pode_on_o_in(one):
+    need("pinky_description", "pode_nav_config", "pode_fsm")
+    actions = run(one, layout="v7", start="O_IN", obstacles="v7_corridor_box")
+    assert [a for a in actions if type(a).__name__ == "Node"
+            and a.node_executable == "sim_obstacles"]

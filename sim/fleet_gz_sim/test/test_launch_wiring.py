@@ -195,6 +195,54 @@ def test_keepout_can_be_left_off_for_a_comparison(made):
     assert [nav["keepout_mask"] for nav in navs] == ["", "", ""]
 
 
+# ---- 가운데 통로 갈래(2026-11-17): 5 cm 지도 대신 고른 지도, global costmap 덮어쓰기 ----
+@pytest.mark.parametrize("variant", ["a", "b", "ab"])
+def test_nav_map_variant_gives_every_robot_that_costmap_map_only(made, variant):
+    actions = run(made, layout="v7", nav_map_variant=variant)
+    [server] = [a for a in flat(actions) if isinstance(a, Made) and a.kind == "ExecuteProcess"
+                and "-s" in a.kw["cmd"]]
+    assert server.kw["cmd"][-1].endswith("worlds/arena_v7.sdf")
+    navs = [launch_args(i) for i in includes(actions, "nav2.launch.py")]
+    assert len(navs) == 3
+    for nav in navs:
+        assert nav["map"].endswith(f"maps/arena_v7_{variant}.yaml")
+        assert Path(nav["map"]).is_file()
+        assert nav["map_fine"].endswith("maps/arena_v7_fine.yaml")
+        assert nav["keepout_mask"].endswith("maps/arena_v7_keepout.yaml")
+
+
+def test_nav_map_variant_is_empty_by_default_and_refuses_a_layout_without_it(made):
+    from fleet_gz_sim.fleet_setup import ScenarioUnfit
+    assert made.ARGS["nav_map_variant"][0] == ""
+    navs = [launch_args(i) for i in includes(run(made, layout="v7"), "nav2.launch.py")]
+    assert all(nav["map"].endswith("maps/arena_v7.yaml") for nav in navs)
+    with pytest.raises(ScenarioUnfit, match="only for layout v7"):
+        run(made, nav_map_variant="b")
+    with pytest.raises(ScenarioUnfit, match="nav_map_variant"):
+        run(made, layout="v7", nav_map_variant="x")
+
+
+NAV_OVERRIDES = Path(__file__).parents[1] / "nav_overrides"
+
+
+@pytest.mark.parametrize("name, padding", [("global_padding_0p01", 0.01),
+                                           ("global_padding_0", 0.0)])
+def test_global_padding_overrides_touch_only_the_global_costmap_padding(made, name, padding):
+    path = NAV_OVERRIDES / f"{name}.yaml"
+    assert yaml.safe_load(path.read_text(encoding="utf-8")) == {
+        "global_costmap": {"global_costmap": {"ros__parameters": {
+            "footprint_padding": padding}}}}
+    plain = yaml.safe_load(Path(launch_args(includes(run(made), "nav2.launch.py")[0])[
+        "params_file"]).read_text(encoding="utf-8"))
+    navs = includes(run(made, nav_overrides=str(path)), "nav2.launch.py")
+    for nav in navs:
+        data = yaml.safe_load(Path(launch_args(nav)["params_file"]).read_text(encoding="utf-8"))
+        assert data["global_costmap"]["global_costmap"]["ros__parameters"][
+            "footprint_padding"] == padding
+        data["global_costmap"]["global_costmap"]["ros__parameters"]["footprint_padding"] = 0.03
+        assert data == plain
+
+
 def test_a_scenario_for_another_layout_starts_nothing(made):
     from fleet_gz_sim.fleet_setup import ScenarioUnfit
     with pytest.raises(ScenarioUnfit, match="layout"):

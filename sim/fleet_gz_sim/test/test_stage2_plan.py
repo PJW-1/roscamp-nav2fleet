@@ -11,8 +11,8 @@ SITE = load_fleet_map("d2")
 
 
 @pytest.mark.parametrize("plan", sorted(sp.PLANS))
-def test_every_plan_is_made_of_d2_links_and_ends_where_it_started(plan):
-    steps = sp.build(SITE, plan, laps=2)
+def test_every_plan_is_made_of_its_layout_links_and_ends_where_it_started(plan):
+    steps = sp.build(load_fleet_map(sp.plan_layout(plan)), plan, laps=2)
     assert len(steps) == 2 * len(sp.PLANS[plan])
     assert steps[0].nodes[0] == sp.start_node(plan) == steps[-1].nodes[-1]
     for one, two in zip(steps, steps[1:], strict=False):
@@ -75,3 +75,134 @@ def test_keepout_zones_lists_each_non_shared_zone_once_in_order():
     points = [(0.4, 0.5), (0.99, 0.89), (1.2, 0.89), (0.40, 0.89), (5.0, 5.0)]
     assert sp.keepout_zones(SITE, points) == ["EXPRESS", "J_W"]
     assert sp.keepout_zones(SITE, [(0.4, 0.5), (1.0, 0.3)]) == []
+
+
+# ---- 가운데 통로 재현(v7, 2026-11-17) ----
+V7 = load_fleet_map("v7")
+
+
+def test_corridor_plan_goes_o_in_to_m_e_and_back_by_nav_goal_on_v7():
+    assert sp.plan_layout("corridor") == "v7" and sp.plan_layout("stage2") == "d2"
+    assert sp.start_node("corridor") == "O_IN"
+    steps = sp.build(V7, "corridor", laps=3)
+    assert [s.label for s in steps] == ["nav_goal O_IN>M_E", "nav_goal M_E>O_IN"] * 3
+    # M_E는 yaw도 이어지는 고정 경로도 없어 시작→끝 방향, O_IN은 지점 yaw 108도
+    assert steps[0].target == pytest.approx((1.645, 0.55, math.atan2(-0.075, 1.155)))
+    assert steps[1].target == pytest.approx((0.49, 0.625, math.radians(108)))
+
+
+def test_corridor_plan_is_refused_on_another_layout():
+    with pytest.raises(sp.PlanError, match="v7"):
+        sp.build(SITE, "corridor")
+
+
+def test_the_corridor_link_and_the_robot_body_along_it_are_outside_the_keepout_mask():
+    """keepout 마스크가 가운데 통로를 막으면 재현이 안 된다. 통로 안 keepout은 북쪽 끝 띠(y 0.75~)와,
+    틈 keepout이 있는 지도에서는 남쪽 경계선뿐."""
+    from fleet_gz_sim import arena_maps as am
+    mask = am.keepout(am.FINE_M, V7)
+
+    def inside(x, y):
+        i, j = am.cell_of(x, y, am.FINE_M, V7)
+        return mask[j][i]
+    (ax, ay), (bx, by) = V7.node_pose("O_IN"), V7.node_pose("M_E")
+    for n in range(201):
+        x, y = ax + n / 200 * (bx - ax), ay + n / 200 * (by - ay)
+        assert not any(inside(x, y + d) for d in (-0.06, 0.0, 0.06)), (x, y)
+    x0, y0, x1, y1 = sp.CORRIDOR_GATES[V7.name]
+    blocked = {round(y0 + n * 0.005, 3) for n in range(round((y1 - y0) / 0.005) + 1)
+               for x in (x0, (x0 + x1) / 2, x1 - 1e-6) if inside(x, y0 + n * 0.005)}
+    # 남쪽 끝 0.405는 틈 keepout_extra가 있던 지도에서만 막힌다(틈을 연 지도에서는 북쪽 띠뿐)
+    assert blocked and all(y >= 0.75 or y <= y0 + 1e-9 for y in blocked), sorted(blocked)
+
+
+def test_through_gate_decimate_and_min_distance():
+    gate = (0.90, 0.405, 1.00, 0.77)
+    assert sp.through_gate([(0.5, 0.6), (0.95, 0.5), (1.6, 0.55)], gate)
+    assert sp.through_gate([(1.6, 0.55), (0.95, 0.5), (0.93, 0.6), (0.5, 0.6)], gate)
+    assert not sp.through_gate([(0.5, 0.6), (0.95, 0.2), (1.6, 0.55)], gate)  # 남쪽 통로
+    assert not sp.through_gate([(0.5, 0.6), (0.95, 0.5), (0.6, 0.6)], gate)  # 들어갔다 되돌아옴
+    assert not sp.through_gate([(0.5, 0.6), (0.95, 0.5)], gate)  # 안에서 멈춤
+    assert not sp.through_gate([], gate)
+    # axis=1: 남북으로 지나기(진열대 사이 틈)
+    gap = (0.99, 0.365, 1.25, 0.405)
+    assert sp.through_gate([(1.12, 0.55), (1.12, 0.385), (1.12, 0.24)], gap, axis=1)
+    assert not sp.through_gate([(0.6, 0.55), (0.6, 0.385), (0.6, 0.24)], gap, axis=1)
+    line = [(0.01 * i, 0.0) for i in range(31)]
+    assert sp.decimate(line, 0.05) == [line[0], line[5], line[10], line[15], line[20],
+                                       line[25], line[30]]
+    assert sp.decimate([(0.0, 0.0), (0.01, 0.0)], 0.05) == [(0.0, 0.0), (0.01, 0.0)]
+    assert sp.decimate([], 0.05) == []
+    assert sp.min_distance([(0.0, 0.0), (1.0, 0.0)], (1.0, 0.3)) == pytest.approx(0.3)
+    assert sp.min_distance([], (0.0, 0.0)) is None
+
+
+# ---- 남쪽 진열대 사이 건넘 틈(v7, 2026-11-17) ----
+def test_gap_plan_crosses_the_gap_both_ways_between_two_plan_points():
+    assert sp.plan_layout("gap") == "v7" and sp.start_node("gap") == "M_E"
+    steps = sp.build(V7, "gap", laps=2)
+    assert [s.label for s in steps] == ["nav_goal M_E>GAP_N", "nav_goal GAP_N>GAP_S",
+                                        "nav_goal GAP_S>GAP_N", "nav_goal GAP_N>M_E"] * 2
+    north, south = sp.PLAN_POINTS["gap"]["GAP_N"], sp.PLAN_POINTS["gap"]["GAP_S"]
+    assert [s.target for s in steps[:4]] == [
+        pytest.approx((*north, math.pi)), pytest.approx((*south, -math.pi / 2)),
+        pytest.approx((*north, math.pi / 2)), pytest.approx((1.645, 0.55, 0.0))]
+    gate = sp.GAP_GATES[V7.name]
+    assert sp.through_gate([north, south], gate, axis=1)
+    assert sp.through_gate([south, north], gate, axis=1)
+    with pytest.raises(sp.PlanError, match="v7"):
+        sp.build(SITE, "gap")
+
+
+def test_gap_points_can_be_moved_and_a_point_needs_a_nav_goal():
+    steps = sp.build(V7, "gap", points={"GAP_N": (1.10, 0.56)})
+    assert steps[0].target[:2] == pytest.approx((1.10, 0.56))
+    with pytest.raises(sp.PlanError, match="nav_goal"):
+        sp.make_step(V7, FOLLOW_PATH, ("M_E", "GAP_N"), sp.PLAN_POINTS["gap"])
+    # 계획 전용 점만 바꾼다: 지도 지점, 오타, 다른 계획, 유한하지 않은 좌표는 거부
+    for plan, points in (("gap", {"M_E": (1.6, 0.5)}), ("gap", {"GAP_X": (1.1, 0.5)}),
+                         ("corridor", {"GAP_N": (1.1, 0.5)}),
+                         ("gap", {"GAP_N": (math.nan, 0.55)}), ("gap", {"GAP_N": 1.1}),
+                         ("gap", {"GAP_N": (1.1, "x")}), ("gap", {"GAP_N": {1.1: 0, 0.5: 1}}),
+                         ("gap", {"GAP_N": (True, 0.5)}), ("gap", {"GAP_N": (10 ** 400, 0.5)}),
+                         ("gap", {"GAP_N": (10 ** 5000, 0.5)})):  # repr도 못 하는 큰 수
+        with pytest.raises(sp.PlanError, match="point"):
+            sp.build(V7, plan, points=points)
+    # 정수와 numpy 수도 받고, 목표는 float로 보낸다(Pose2D는 float만 받는다)
+    np = pytest.importorskip("numpy")
+    for xy in ((1, 0), (np.float32(1.1), np.int64(0))):
+        target = sp.build(V7, "gap", points={"GAP_N": xy})[0].target
+        assert all(type(v) is float for v in target), target
+
+
+def test_gap_points_sit_clear_of_shelves_walls_and_keepout():
+    """끝점이 진열대·벽에서 내접 0.09보다 멀고 keepout 마스크 밖이다(goal이 거절되지 않게)."""
+    from fleet_gz_sim import arena_maps as am
+    mask = am.keepout(am.FINE_M, V7)
+    for x, y in sp.PLAN_POINTS["gap"].values():
+        i, j = am.cell_of(x, y, am.FINE_M, V7)
+        assert not mask[j][i], (x, y)
+        for b in am.obstacles(V7):
+            dx, dy = max(b.x0 - x, 0, x - b.x1), max(b.y0 - y, 0, y - b.y1)
+            assert math.hypot(dx, dy) > 0.09, (x, y, b)
+        assert min(x, y, 1.98 - x, 0.99 - y) > 0.09
+
+
+def test_body_distance_and_pose_error():
+    square = [(0.06, 0.06), (0.06, -0.06), (-0.06, -0.06), (-0.06, 0.06)]
+    assert sp.body_distance((0.0, 0.0, 0.0), square, (0.16, 0.0)) == pytest.approx(0.10)
+    assert sp.body_distance((0.0, 0.0, 0.0), square, (0.03, 0.02)) == 0.0  # 몸 안
+    # 45도 돌면 모서리가 0.0849까지 나온다
+    assert sp.body_distance((0.0, 0.0, math.pi / 4), square, (0.16, 0.0)) == \
+        pytest.approx(0.16 - 0.06 * math.sqrt(2))
+    truth = [(0.0, 0.0, 0.0, 0.0), (1.0, 1.0, 0.0, 0.0), (2.0, 2.0, 0.0, 0.0)]
+    # 시각이 가장 가까운 실제 위치와 비교한다
+    assert sp.max_pose_error([(0.9, 1.0, 0.1), (2.1, 2.0, 0.0)], truth) == pytest.approx(0.1)
+    assert sp.max_pose_error([], truth) is None
+    assert sp.max_pose_error([(0.0, 0.0, 0.0)], []) is None
+    # 실제 위치와 시각이 max_dt_s보다 먼 추정은 버린다(끊긴 기록, 늦게 온 메시지)
+    assert sp.max_pose_error([(5.0, 9.0, 9.0), (1.0, 1.0, 0.05)], truth, max_dt_s=0.2) == \
+        pytest.approx(0.05)
+    assert sp.max_pose_error([(5.0, 9.0, 9.0)], truth, max_dt_s=0.2) is None
+    assert sp.parse_footprint("[[0.06, 0.06], [0.06, -0.06], [-0.06, -0.06]]") == \
+        [(0.06, 0.06), (0.06, -0.06), (-0.06, -0.06)]
