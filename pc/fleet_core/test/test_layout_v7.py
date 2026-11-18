@@ -453,8 +453,8 @@ def test_v7_outbound_waits_at_the_west_end_of_the_express_too(site):
     # 돌 수 없다. 서쪽을 보고 서서 서쪽 O로만 가므로 몸 반폭(0.056) 밖이면 된다
     assert point_rect_distance(SHELVES[0], spot.x, spot.y) > BODY_HALF_M
     # 줄을 내리면서 HALL(진열대 서쪽 띠, y 0.77 띠)에 가까워져 x를 0.71로 옮겼다. O_X는 도킹 자리가
-    # 아니라 놓기 거리 0.135로 재므로 여기서 기다리는 로봇은 HALL을 쥔다(Codex 검수: 0.098).
-    # b545901의 O_X(0.655, 0.888)도 0.089라 쥐었다: 그보다 가깝지 않다
+    # 아니라 놓기 거리 0.135로 재므로, 오기 전에 HALL을 쥐었던 로봇은 여기서 기다리는 동안 그대로 쥔다
+    # (Codex 검수: 0.098). b545901의 O_X(0.655, 0.888)도 0.089였다: 그보다 가깝지 않다
     assert spot.x == pytest.approx(0.71)
     assert 0.09 < site.distance_to_zone(spot.x, spot.y, "HALL") < RELEASE_GAP_M
     # 선 로봇의 몸은 HALL에 들지 않는다(진열대 서쪽 HALL 띠의 위 끝 모서리(0.63, 0.803)에서 약 0.089). 급행으로 오는
