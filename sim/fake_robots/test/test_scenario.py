@@ -43,7 +43,7 @@ def test_defaults_are_filled(site):
     assert sc.arm.fail_rate == 0.0 and sc.dock.duration_s == 3.0 and sc.faults == []
     assert sc.expect.zone_holder_max == 1 and sc.expect.all_orders_finished is True
     assert sc.expect.orders_shipped is None and sc.expect.orders_shipped_min == 0
-    assert sc.expect.fifo_violations == 0 and sc.expect.dual_arm_overlaps == 0
+    assert sc.expect.fifo_violations == 0
     assert sc.robots["pode1"].report_delay_s == 0.0 and sc.robots["pode1"].stop_error_m == 0.0
 
 
@@ -285,10 +285,10 @@ def test_every_robot_starts_in_a_waiting_cell(site, name):
 
 
 @pytest.mark.parametrize("name", sorted(SIX))
-def test_every_scenario_checks_order_of_work_and_the_arms(site, name):
+def test_every_scenario_checks_order_of_work(site, name):
     path = SCENARIOS / f"{name}.yaml"
     raw = load_scenario(path, site_of(path, site)).expect
-    assert raw.fifo_violations == 0 and raw.dual_arm_overlaps == 0
+    assert raw.fifo_violations == 0
     assert max(raw.orders_shipped or 0, raw.orders_shipped_min) >= 1
 
 

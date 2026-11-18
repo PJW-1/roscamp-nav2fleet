@@ -18,15 +18,11 @@ def start_all(harness, tmp_path):
     from fake_robots.fake_arm_node import FakeArmNode
     from fake_robots.fake_central_node import FakeCentralNode
     from fake_robots.fake_pode_node import FakePodeNode
-    from fake_robots.fake_vision_node import FakeVisionNode
     from fake_robots.fake_workcell_node import FakeWorkcellNode
     scn = write_scenario(tmp_path)
     for r in ("pode1", "pode2", "pode3"):
         harness.add(FakePodeNode(parameter_overrides=harness.params(
             robot_id=r, scenario_file=scn)))
-    for a in ("arm1", "arm2"):
-        harness.add(FakeVisionNode(parameter_overrides=harness.params(
-            arm_id=a, scenario_file=scn)))
     harness.add(FakeWorkcellNode(parameter_overrides=harness.params(scenario_file=scn)))
     harness.add(FakeArmNode(parameter_overrides=harness.params(
         arm_id="arm3", scenario_file=scn)))

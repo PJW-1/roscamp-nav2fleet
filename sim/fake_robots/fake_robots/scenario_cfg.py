@@ -24,7 +24,6 @@ EXPECT_DEFAULTS = {
     "orders_held": None,
     "orders_shipped_min": 0,
     "fifo_violations": 0,
-    "dual_arm_overlaps": 0,
     "zone_holder_max": 1,
     "released_without_position_check": 0,
     "unheld_zone_pose": 0,
@@ -110,7 +109,6 @@ class Expect:
     orders_held: int | None = None
     orders_shipped_min: int = 0
     fifo_violations: int = 0
-    dual_arm_overlaps: int = 0
     zone_holder_max: int = 1
     released_without_position_check: int = 0
     unheld_zone_pose: int = 0

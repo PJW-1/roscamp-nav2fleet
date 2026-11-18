@@ -48,10 +48,8 @@ def test_expand_lists_every_instance_with_type_and_kind(contract):
     entries = {e.name: e for e in contract.expanded()}
     assert entries["/pode3/move_to"].kind == "action"
     assert entries["/pode3/move_to"].type == "fleet_interfaces/action/MoveTo"
-    assert entries["/arm3/state"].qos.reliability == "best_effort"
+    assert entries["/pode3/state"].qos.reliability == "best_effort"
     assert entries["/workcell/fill_basket"].type == "fleet_interfaces/action/FillBasket"
-    assert "/arm1/vision/items" in entries and "/arm2/vision/items" in entries
-    assert "/arm3/vision/items" not in entries, "instances must limit the expansion"
     assert "/arm3/swap_basket" in entries
     assert "/arm1/swap_basket" not in entries
 

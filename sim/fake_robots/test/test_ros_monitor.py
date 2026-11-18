@@ -98,8 +98,6 @@ def test_a_finished_run_writes_a_passing_summary(harness, tmp_path):
     assert summary["orders_shipped"] == 1 and summary["timed_out"] is False
     for name in ("events.csv", "zones.csv", "robots.csv", "releases.csv"):
         assert (tmp_path / "result" / name).exists()
-    events = (tmp_path / "result" / "events.csv").read_text(encoding="utf-8")
-    assert "ARM_STATE" in events
 
 
 def test_a_wrong_count_fails_the_run_with_exit_code_one(harness, tmp_path):

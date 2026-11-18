@@ -414,8 +414,8 @@ def test_the_fleet_runs_the_layout_map_after_every_pode_is_ready(made):
         if "map_file" in params(node):
             assert params(node)["map_file"] == "d", node.kw["executable"]
     fakes = sorted(n.kw["executable"] for n in nodes(fleet) if n.kw["package"] == "fake_robots")
-    assert fakes == sorted(["fake_workcell_node", "fake_vision_node", "fake_vision_node",
-                            "fake_arm_node", "fake_central_node", "scenario_monitor_node"])
+    assert fakes == sorted(["fake_workcell_node", "fake_arm_node", "fake_central_node",
+                            "scenario_monitor_node"])
 
 
 def test_the_fleet_params_must_run_the_zone_traffic(gz, tmp_path):

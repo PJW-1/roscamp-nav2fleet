@@ -1,4 +1,4 @@
-"""가짜 로봇, 작업셀, 팔, 비전, 중앙 대역, 시뮬 시계, 시나리오 모니터를 띄운다.
+"""가짜 로봇, 작업셀, 팔, 중앙 대역, 시뮬 시계, 시나리오 모니터를 띄운다.
 
   ros2 launch fake_robots fakes.launch.py scenario:=basic_orders result_dir:=/tmp/run1
   ros2 launch fake_robots fakes.launch.py fake_robots:="pode2 pode3"   # pode1은 실물
@@ -8,7 +8,7 @@
   ros2 launch fake_robots fakes.launch.py fake_robots:=none use_sim_clock:=false monitor:=false \
       scenario:=real_three_orders dock_wait_robots:="pode1 pode2 pode3"    # 실물 세 대, PC 도킹 대역
 
-fake_arms: arm1과 arm2를 함께 주면 가짜 작업셀과 비전 노드 둘이 뜬다.
+fake_arms: arm1과 arm2를 함께 주면 가짜 작업셀이 뜬다.
 fill_basket 서버 하나가 둘을 맡기 때문이다. arm3은 가짜 출고 팔을 띄운다.
 fake_robots:=none은 가짜 로봇 없음이다(ros2 launch는 빈 값을 받지 않는다).
 dock_wait_robots: 실물 로봇의 도킹을 PC가 대신 받는다(real_dock_wait_node, 기다린 뒤 자세 확인).
@@ -89,12 +89,10 @@ def _setup(context):
     for robot in fakes:
         actions.append(node("fake_pode_node", f"fake_{robot}", robot_id=robot,
                             params_file=arg["params_file"]))
-    workcell, vision_arms, swap_arms = split_fake_arms(
+    workcell, _, swap_arms = split_fake_arms(
         arg["fake_arms"], load_site(arg["map_file"] or None))
     if workcell:
         actions.append(node("fake_workcell_node", "fake_workcell"))
-    for arm in vision_arms:
-        actions.append(node("fake_vision_node", f"fake_vision_{arm}", arm_id=arm))
     for arm in swap_arms:
         actions.append(node("fake_arm_node", f"fake_{arm}", arm_id=arm))
     if _truthy(arg["fake_central"]):
@@ -118,7 +116,7 @@ def generate_launch_description():
     return LaunchDescription([
         declare("scenario", "basic_orders", "scenario name or path to a scenario YAML"),
         declare("fake_robots", ALL_ROBOTS, "space separated robots to fake (others are real)"),
-        declare("fake_arms", ALL_ARMS, "arm1 and arm2 together (workcell, vision), arm3"),
+        declare("fake_arms", ALL_ARMS, "arm1 and arm2 together (workcell), arm3"),
         declare("fake_central", "true", "run the central stand-in"),
         declare("use_sim_clock", "true", "run the sim clock and use sim time everywhere"),
         declare("result_dir", "sim_result", "where the monitor writes summary.json and CSVs"),

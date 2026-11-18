@@ -40,9 +40,9 @@ def test_missing_entries_are_reported_per_kind(contract):
     obs = healthy(contract)
     del obs["topics"]["/pode1/state"]
     del obs["actions"]["/pode2/dock"]
-    del obs["services"]["/central/set_run_mode"]
+    del obs["services"]["/central/report_order"]
     assert kinds(compare(contract, obs)) == [
-        ("missing", "/central/set_run_mode"),
+        ("missing", "/central/report_order"),
         ("missing", "/pode1/state"),
         ("missing", "/pode2/dock"),
     ]

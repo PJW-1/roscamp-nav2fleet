@@ -2,7 +2,7 @@
 <package format="3">
   <name>fake_robots</name>
   <version>0.1.0</version>
-  <description>Fake Pode, workcell, arm, vision and central nodes for testing without hardware</description>
+  <description>Fake Pode, workcell, arm and central nodes for testing without hardware</description>
   <maintainer email="team@example.com">team-2</maintainer>
   <license>Apache-2.0</license>
   <exec_depend>rclpy</exec_depend>

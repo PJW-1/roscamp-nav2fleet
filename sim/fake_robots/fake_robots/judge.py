@@ -22,7 +22,6 @@ from fake_robots.zone_checks import EPS, ZoneChecks
 
 RATE_PERIOD_S = 0.5  # robots.csv는 2 Hz로 줄여 쓴다
 OFF_LANE_GRACE_S = 1.0  # drift 시작부터 FMS가 연속 보고로 알아챌 때까지의 여유
-PLACING = "PLACING"
 FINAL_CODES = {"ORDER_SHIPPED": "SHIPPED", "ORDER_PARTIAL": "PARTIAL", "ORDER_HELD": "HELD"}
 ORDER_ID = re.compile(r"[^\s:,;]+")
 
@@ -94,12 +93,6 @@ class ScenarioJudge(ZoneChecks, Laps, OrderChecks, Outcome):
         self.error_codes: list[str] = []
         self.board: list[str] = []
         self._bound_now: set[str] = set()
-        # 팔
-        fill_arms = [a for s in site.stations.values() if s.action == "fill" for a in s.arms]
-        self._placing: dict[str, list[tuple[float, float]]] = {a: [] for a in fill_arms}
-        self._placing_open: dict[str, float | None] = dict.fromkeys(fill_arms)
-        self._placing_seen: set[str] = set()
-        self._arm_stamp: dict[str, float] = {}
         # 바퀴
         self._work_zones = self._station_zones("fill")
         self._out_zones = self._station_zones("swap")
@@ -220,20 +213,6 @@ class ScenarioJudge(ZoneChecks, Laps, OrderChecks, Outcome):
 
     def on_board(self, order_ids: list[str]) -> None:
         self.board = list(order_ids)
-
-    def on_arm_state(self, stamp: float, arm: str, state: str) -> None:
-        """팔 자신의 스탬프를 쓴다. 두 토픽은 서로 순서가 뒤바뀌어 올 수 있다."""
-        if arm not in self._placing or stamp < self._arm_stamp.get(arm, -1e18):
-            return
-        self._arm_stamp[arm] = stamp
-        if state == PLACING:
-            self._placing_seen.add(arm)
-        since = self._placing_open[arm]
-        if state == PLACING and since is None:
-            self._placing_open[arm] = stamp
-        elif state != PLACING and since is not None:
-            self._placing[arm].append((since, stamp))
-            self._placing_open[arm] = None
 
     # -- checks -------------------------------------------------------------------------
 

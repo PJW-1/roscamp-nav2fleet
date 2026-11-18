@@ -563,65 +563,6 @@ def test_a_submitted_order_ranks_after_the_scenario_orders():
     assert check(j, "fifo_violations")["value"] == 1
 
 
-# -- dual_arm_overlaps --------------------------------------------------------------------
-
-
-def place(j, arm, start, end):
-    j.on_arm_state(start, arm, "PLACING")
-    j.on_arm_state(end, arm, "IDLE")
-
-
-def test_both_arms_placing_at_once_is_an_overlap():
-    j = judge()
-    place(j, "arm1", 1.0, 3.0)
-    place(j, "arm2", 2.0, 4.0)
-    assert check(j, "dual_arm_overlaps")["value"] == 1
-    assert check(j, "dual_arm_overlaps")["ok"] is False and j.summary(1.0)["pass"] is False
-    assert any("PLACING" in v for v in j.summary(1.0)["violations"])
-
-
-def test_one_arm_after_the_other_is_no_overlap():
-    j = judge()
-    place(j, "arm1", 1.0, 2.0)
-    place(j, "arm2", 2.0, 3.0)  # 같은 스탬프에서 인계
-    place(j, "arm1", 3.0, 4.0)
-    assert check(j, "dual_arm_overlaps")["value"] == 0
-
-
-def test_delivery_order_between_the_arms_does_not_matter():
-    """arm2의 시작이 arm1의 끝보다 나중에 발행됐어도 먼저 도착할 수 있다."""
-    j = judge()
-    j.on_arm_state(1.0, "arm1", "PLACING")
-    j.on_arm_state(2.0, "arm2", "PLACING")  # 먼저 도착
-    j.on_arm_state(2.0, "arm1", "IDLE")
-    j.on_arm_state(3.0, "arm2", "IDLE")
-    assert check(j, "dual_arm_overlaps")["value"] == 0
-
-
-def test_an_arm_that_never_left_the_basket_space_still_overlaps():
-    j = judge()
-    j.on_arm_state(1.0, "arm1", "PLACING")
-    j.on_arm_state(2.0, "arm2", "PLACING")
-    j.on_arm_state(3.0, "arm2", "PLACING")  # 하트비트이고 arm1은 더 보고하지 않는다
-    assert check(j, "dual_arm_overlaps")["value"] == 1
-
-
-def test_a_heartbeat_does_not_start_a_second_span():
-    j = judge()
-    j.on_arm_state(1.0, "arm1", "PLACING")
-    j.on_arm_state(1.5, "arm1", "PLACING")
-    j.on_arm_state(2.0, "arm1", "IDLE")
-    place(j, "arm2", 3.0, 4.0)
-    assert check(j, "dual_arm_overlaps")["value"] == 0
-
-
-def test_the_outbound_arm_is_not_part_of_the_overlap():
-    j = judge()
-    place(j, "arm1", 1.0, 3.0)
-    place(j, "arm3", 1.0, 3.0)
-    assert check(j, "dual_arm_overlaps")["value"] == 0
-
-
 # -- laps ---------------------------------------------------------------------------------
 
 
@@ -1053,58 +994,6 @@ def test_order_results_that_match_pass():
 def test_an_order_results_entry_that_never_finished_fails():
     j = judge(order_results={"O-1": "SHIPPED"})
     assert check(j, "order_results")["ok"] is False
-
-
-# -- no arm data --------------------------------------------------------------------------
-
-
-def both_arm_judge():
-    sc = parse_scenario({
-        "seed": 1, "speed_factor": 1.0, "timeout_s": 100,
-        "stock": {"arm1": {"A": 9}, "arm2": {"C": 9}},
-        "orders": [{"at_s": 0, "id": "O-1", "items": {"A": 1, "C": 1}}],
-        "robots": {"pode1": {"start": "P-1"}, "pode2": {"start": "P-2"}},
-    }, SITE)
-    j = ScenarioJudge(SITE, sc, margin_m=0.13, grace_s=1.0)
-    bind(j, "O-1")
-    ship(j, "O-1")
-    put(j, 1.0, "pode1", WAITING[0], "IDLE")
-    put(j, 1.0, "pode2", WAITING[1], "IDLE")
-    j.on_zones(1.0, {"HALL": "pode1,pode2"})
-    j.tick(1.0)
-    return j
-
-
-def placed(j, arm, start):
-    j.on_arm_state(start, arm, "PLACING")
-    j.on_arm_state(start + 1.0, arm, "IDLE")
-
-
-def test_no_arm_data_fails_when_the_shipped_orders_needed_both_arms():
-    j = both_arm_judge()
-    s = j.summary(5.0)
-    c = s["checks"]["dual_arm_overlaps"]
-    assert c["value"] == 0 and c["arms_never_placing"] == ["arm1", "arm2"] and c["ok"] is False
-    assert s["pass"] is False
-
-
-def test_one_arm_never_placing_fails_too():
-    j = both_arm_judge()
-    placed(j, "arm1", 1.0)
-    assert check(j, "dual_arm_overlaps")["arms_never_placing"] == ["arm2"]
-    assert j.summary(5.0)["pass"] is False
-
-
-def test_both_arms_seen_placing_without_overlap_passes():
-    j = both_arm_judge()
-    placed(j, "arm1", 1.0)
-    placed(j, "arm2", 3.0)
-    assert check(j, "dual_arm_overlaps")["ok"] is True and j.summary(5.0)["pass"] is True
-
-
-def test_orders_for_one_arm_do_not_need_the_other():
-    j = clean_run(judge())  # 이 시나리오의 주문은 모두 arm1의 물건 A
-    assert check(j, "dual_arm_overlaps")["arms_never_placing"] == []
 
 
 # -- 레인 이탈 중 해제 ---------------------------------------------------------------------

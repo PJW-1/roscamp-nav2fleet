@@ -19,7 +19,6 @@ setup(
         'fake_pode_node = fake_robots.fake_pode_node:main',
         'fake_workcell_node = fake_robots.fake_workcell_node:main',
         'fake_arm_node = fake_robots.fake_arm_node:main',
-        'fake_vision_node = fake_robots.fake_vision_node:main',
         'fake_central_node = fake_robots.fake_central_node:main',
         'sim_clock_node = fake_robots.sim_clock_node:main',
         'scenario_monitor_node = fake_robots.scenario_monitor_node:main',
