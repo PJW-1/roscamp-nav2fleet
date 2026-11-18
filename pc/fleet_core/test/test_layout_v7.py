@@ -237,7 +237,8 @@ def test_v7_routes(site):
     # 방식으로 풀면 된다": 급행이 막혀도 돌아갈 길이 있다). 들어오는 길은 Q1에서 고정 경로 하나다.
     # 넓은 곳으로 바로 나가던 옛 고정 경로와 그 끝점 N_E는 없다
     exit_ = site.nodes["W_X"]
-    assert exit_.kind == PASS and exit_.zone == "J_E" and exit_.x == pytest.approx(1.88)
+    # 2026-11-18: W_X는 급행으로 도는 원호의 30도 점이다(원호 시험)
+    assert exit_.kind == PASS and exit_.zone == "J_E" and exit_.x == pytest.approx(1.8649)
     assert site.distance_to_zone(exit_.x, exit_.y, "WORK_DOCK") >= RELEASE_GAP_M
     assert sorted((link.b, link.via) for link in site.links() if link.a == "W") == [
         ("M_E", NAV_GOAL), ("W_X", FOLLOW_PATH)]
@@ -539,17 +540,18 @@ def _body_gaps(points, x_min):
 def test_v7_express_turn_is_a_tangent_arc_from_a_lower_w_x(site):
     """2026-11-18 실물: W에서 북쪽으로 나와 급행으로 서쪽으로 꺾는 곳에서 pode1이 첫 모서리를
     2 cm 안으로 자르고 나온 뒤 급행 줄 북쪽으로 1.8 cm까지 넘어가(x 1.72~1.47) 오른쪽(북쪽)이 벽에
-    닿았다. 사용자 결정: W_X를 내려 더 일찍, 더 크게 돈다. W_X는 J_E 안이어야 하므로(지나가는
-    지점은 HALL에 둘 수 없고 0.77은 HALL과의 경계) 0.775가 가장 낮다. 꺾는 점 둘 대신 W_X에서
-    북쪽으로 시작해 급행 줄 0.888에 접해 끝나는 원호(반지름 0.113, 15도마다 점)로 돈다.
-    pode_fsm이 꺾는 점을 r 0.10으로 다시 둥글리지만 점이 촘촘해 거의 그대로다(worklog)."""
+    닿았다. 사용자 결정: 더 일찍, 더 크게 돈다. 원호는 J_E 바닥 바로 위 y 0.775(지나가는 지점은
+    HALL에 둘 수 없고 0.77은 HALL과의 경계)에서 북쪽으로 시작해 급행 줄 0.888에 접해 끝난다(반지름
+    0.113, 15도마다 점). W_X 노드는 원호의 30도 점이다: 0.775에 두면 노드 좌표로 재는 놓기
+    지름길이 WORK_DOCK을 일찍 놓는다(아래 지름길 시험, Codex 검수 73edbab). 원호 앞 두 점은 work_out에
+    있다. pode_fsm이 꺾는 점을 r 0.10으로 다시 둥글리지만 점이 촘촘해 거의 그대로다(worklog)."""
     out, express = site.link("W", "W_X"), site.link("W_X", "O_X")
     w, exit_ = site.node_pose("W"), site.nodes["W_X"]
-    assert (exit_.x, exit_.y) == (w[0], 0.775) and exit_.zone == "J_E"
-    assert site.distance_to_zone(exit_.x, exit_.y, "WORK_DOCK") >= RELEASE_GAP_M
-    assert out.points == (w, (exit_.x, exit_.y)), "W에서 W_X까지는 곧게 북쪽"
-    last = next(i for i, p in enumerate(express.points) if p[1] == pytest.approx(LANE_Y))
-    arc = express.points[:last + 1]
+    assert exit_.zone == "J_E" and site.zone_at(exit_.x, exit_.y) == "J_E"
+    assert out.points[:2] == (w, (w[0], 0.775)), "W에서 원호 시작까지는 곧게 북쪽"
+    route_ = list(out.points[1:]) + list(express.points[1:])
+    last = next(i for i, p in enumerate(route_) if p[1] == pytest.approx(LANE_Y))
+    arc = route_[:last + 1]
     centre = (arc[-1][0], arc[0][1])
     radius = w[0] - centre[0]
     assert LANE_Y - centre[1] == pytest.approx(radius, abs=1e-3)
@@ -567,3 +569,36 @@ def test_v7_express_turn_is_a_tangent_arc_from_a_lower_w_x(site):
     points = list(out.points) + list(express.points[1:])
     east, north, shelf = _body_gaps(points, 1.40)
     assert east >= 0.035 and north >= 0.025 and shelf >= 0.025, (east, north, shelf)
+
+
+def test_v7_pass_node_shortcut_cannot_release_a_dock_early(site):
+    """Codex 검수 73edbab: 링크를 지난 것으로 본 뒤(끝에서 ON_NODE_M) 로봇이 노드에서
+    release_margin_m 안이면 놓기 거리를 노드 좌표로 잰다(progress._release_behind). 도크 구역에서
+    나오는 링크 끝의 지나가는 지점은, 로봇이 그만큼 덜 왔어도 놓기 거리를 지키도록 멀어야 한다.
+    W_X를 y 0.775에 두었을 때 로봇은 WORK_DOCK에서 0.115에 있어도 0.145로 재어 놓았다."""
+    from fleet_core.traffic.zone.progress import release_gap
+    from fleet_core.traffic.zone.trips import ON_NODE_M
+    p = load_params()
+    gap = release_gap(p)
+    checked = []
+    for link in site.links():
+        node = site.nodes[link.b]
+        start = site.nodes[link.a]
+        if node.kind != PASS or site.zones[start.zone].kind != "dock" or start.zone == node.zone:
+            continue
+        here = (node.x, node.y)
+        # 노드에서 링크를 따라 ON_NODE_M 되돌아간 점(지난 것으로 보는 가장 이른 자리)
+        back, left = here, ON_NODE_M
+        for a, b in reversed(list(pairwise(link.points))):
+            span = math.dist(a, b)
+            if span >= left:
+                t = left / span
+                back = (b[0] + (a[0] - b[0]) * t, b[1] + (a[1] - b[1]) * t)
+                break
+            left -= span
+        dock = start.zone
+        assert site.distance_to_zone(*back, dock) >= gap - 1e-9, (link.a, link.b, back)
+        assert site.distance_to_zone(*here, dock) - p.release_margin_m >= gap - 1e-9, (
+            link.a, link.b, round(site.distance_to_zone(*here, dock), 4))
+        checked.append(link.b)
+    assert "W_X" in checked
