@@ -283,7 +283,8 @@ def test_a_waiting_robot_without_a_goal_shows_the_merged_way_from_its_node():
     view = fv.FleetView(V7)
     view.set_statuses([Status("pode1", x=0.12, y=0.24, horizon=["E-3", "Q2"])])
     [horizon] = by_ns(view.specs(now=0.0), "way_horizon")
-    slope = (0.16 - 0.24) / (1.66 - 0.12)
+    q2 = V7.node_pose("Q2")  # 지도에서 읽는다(2026-11-18 밤 y 0.16 -> 0.15)
+    slope = (q2[1] - 0.24) / (q2[0] - 0.12)
     assert horizon.points[0] == pytest.approx((0.12, 0.24))
     assert all(y == pytest.approx(0.24 + (x - 0.12) * slope) for x, y in horizon.points)
 

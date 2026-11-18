@@ -103,14 +103,15 @@ def test_v7_work_queue_is_two_spots_entered_at_q2(site):
     turns = [q1, q2] + list(site.link("Q2", "Q1").points[1:-1])
     for x, y in turns:
         assert min(1.98 - x, y) >= WALL_NAV_M - 1e-9, (x, y)
-    # 앞자리에는 북쪽으로 곧게 닿는다(앞자리에서 돌지 않는다)
-    bend = site.link("Q2", "Q1").points[-2]
-    assert bend[0] == pytest.approx(q1[0]) and bend[1] < q1[1]
-    # 두 자리 사이는 노드 놓는 거리(0.20)보다 멀다: 한 칸 당긴 로봇이 서면 뒷자리를 놓는다
-    assert math.dist(q1, q2) > load_params().node_clear_m
-    # Q2에 동쪽을 보고 선 로봇이 북쪽을 보고 선 앞자리 로봇 뒤 모서리와 겹치지 않는다
-    front_rear_y = q1[1] - REAR_M
-    assert q2[0] + FRONT_M < q1[0] - HALF_WIDTH_M or q2[1] + HALF_WIDTH_M < front_rear_y
+    # 앞자리는 W로 드는 원호 위에 있고 원호 방향을 본다(앞자리에서 돌지 않는다, 원호 시험)
+    # 두 자리 사이는 노드 놓는 거리(0.20)보다 1.5 cm 넘게 멀다: 한 칸 당긴 로봇이 서면 뒷자리를 놓는다.
+    # 실물은 길 끝에서 1~2 cm 못 미쳐 선다(run6_1, peer_on_order_on_3의 Q1 대기)
+    assert math.dist(q1, q2) > load_params().node_clear_m + 0.015
+    # Q2에 동쪽을 보고 선 로봇이 원호 방향으로 선 앞자리 로봇과 겹치지 않는다(앞자리 몸이 더 동쪽)
+    yaw1 = site.nodes["Q1"].yaw
+    c, s = math.cos(yaw1), math.sin(yaw1)
+    front_body_west = min(q1[0] + c * u - s * v for u, v in FOOTPRINT)
+    assert q2[0] + FRONT_M < front_body_west, (q2, front_body_west)
     # 흐름: Q2 -> 앞자리 -> W, 모두 한 방향 고정 경로
     for a, b in (("Q2", "Q1"), ("Q1", "W")):
         assert site.link(a, b).via == FOLLOW_PATH, (a, b)
@@ -366,7 +367,49 @@ def test_v7_queue_is_entered_at_q2_and_flows_one_way(site):
                               + [("Q1", "W", FOLLOW_PATH), ("Q2", "Q1", FOLLOW_PATH)])
     # Q2는 도착 방향(동쪽)을 본다: 북쪽으로 돌면 몸 원이 앞자리 로봇에 닿는다
     assert math.degrees(site.nodes["Q2"].yaw) == pytest.approx(0.0)
-    assert math.degrees(site.nodes["Q1"].yaw) == pytest.approx(90.0)
+    # 2026-11-18 밤: 앞자리는 W로 드는 원호 위라 원호 방향(69.3도)을 본다(원호 시험)
+    assert math.degrees(site.nodes["Q1"].yaw) == pytest.approx(69.3, abs=0.05)
+
+
+W_ENTRY_R = 0.17
+
+
+def test_v7_w_entry_is_one_wide_arc_through_q1(site):
+    """2026-11-18 밤 run7_1(실물 pode2): Q2에서 동쪽으로 와 (1.85, 0.16)에서 r 0.10으로 꺾어 Q1로
+    들던 길에서, 로봇이 r 0.11~0.13으로밖에 못 돌아 동쪽으로 2.9~4.6 cm 넘어갔고(x 최대 1.879,
+    1.896) 몸이 AMCL 동쪽 벽에 0.2~2.1 cm까지 붙었다. 같은 경기에서 r 0.16 출고 출구 원호는
+    1.2~2.2 cm만 넘었다. 사용자: 조금 더 멀리서 호를 그린다. Q2 줄과 W 줄(x 1.86)에 접하는 원호
+    하나로 바꾸고, 앞자리 Q1은 그 원호 위(y 0.26, 원호 방향)에 둔다. 두 규칙이 막는다: Q1은
+    WORK_DOCK에서 놓기 거리(0.135) 밖이라 y 0.26이 끝이고, Q1-Q2는 노드 놓는 거리(0.20)보다 1.5 cm
+    넘게 멀어야 한다(실물은 길 끝에서 1~2 cm 못 미쳐 선다). Q2 y 0.16이면 반지름 0.17에서 0.2102라
+    Q2를 0.15로 내려 0.2187(못 미쳐 서도 2.4 cm까지 Q2를 놓는다). Q1은 동쪽 벽(그림 1.98)에서 0.131."""
+    q_step, work_in = site.link("Q2", "Q1"), site.link("Q1", "W")
+    q2, q1, w = site.node_pose("Q2"), site.node_pose("Q1"), site.node_pose("W")
+    route_ = list(q_step.points) + list(work_in.points[1:])
+    centre = (w[0] - W_ENTRY_R, q2[1] + W_ENTRY_R)
+    # Q2에서 원호 시작까지 곧게 동쪽, 원호 끝에서 W까지 곧게 북쪽
+    assert route_[1] == pytest.approx((centre[0], q2[1]), abs=1e-4), route_[1]
+    assert route_[-2] == pytest.approx((w[0], centre[1]), abs=1e-4), route_[-2]
+    arc = route_[1:-1]
+    for p in arc:
+        assert math.dist(p, centre) == pytest.approx(W_ENTRY_R, abs=1e-3), p
+    heads = [math.degrees(math.atan2(q[1] - p[1], q[0] - p[0])) for p, q in pairwise(arc)]
+    assert all(0.0 < b - a <= 10.5 for a, b in pairwise([0.0, *heads, 90.0])), heads
+    # 앞자리는 원호 위, 원호 방향을 본다: 서 있다가 W로 갈 때 제자리에서 돌지 않는다
+    assert math.dist(q1, centre) == pytest.approx(W_ENTRY_R, abs=1e-3)
+    tangent = math.degrees(math.atan2(q1[1] - centre[1], q1[0] - centre[0])) + 90.0
+    assert math.degrees(site.nodes["Q1"].yaw) == pytest.approx(tangent, abs=0.1)
+    assert q1 in q_step.points and q_step.points[-1] == q1
+    # 앞자리는 WORK_DOCK을 쥐지 않는다(놓기 거리 밖)
+    assert site.distance_to_zone(*q1, "WORK_DOCK") >= RELEASE_GAP_M - 1e-9
+    # 실물은 길 끝에서 1~2 cm 못 미쳐 선다: 원호를 따라 2 cm 앞에 서도 Q2를 놓는다(Q2 y 0.16이면 0.194)
+    at = math.atan2(q1[1] - centre[1], q1[0] - centre[0]) - 0.02 / W_ENTRY_R
+    short = (centre[0] + W_ENTRY_R * math.cos(at), centre[1] + W_ENTRY_R * math.sin(at))
+    assert math.dist(short, q2) >= load_params().node_clear_m, short
+    # 몸(경로 방향의 발자국)과 AMCL 동쪽 벽: 원호 끝 x 1.86에서 0.049, 원호 80도 근처가 가장 가깝다
+    east, _, _ = _body_gaps(route_, 1.60)
+    assert east >= 0.045, east
+    assert site.warnings == (), site.warnings
 
 
 BODY_CIRCLE_M = 0.083  # Pode 뒤 모서리 회전 반지름(docs/실측_2026-11-10.md)
@@ -400,7 +443,8 @@ def test_v7_robots_standing_in_line_or_at_a_fork_leave_every_other_way_open(site
             if gap < 0.175:
                 low[frozenset((link.a, link.b)), spot] = round(gap, 3)
     assert min(low.values()) >= FRONT_M + HALF_WIDTH_M + 0.03, low
-    assert min(low.values()) == pytest.approx(0.14, abs=1e-3)  # 입구 줄과 E-3 -> Q2
+    # 입구 줄 0.14, E-3 -> Q2는 Q2를 0.15로 내린 뒤(2026-11-18 밤) 0.139
+    assert min(low.values()) == pytest.approx(0.139, abs=1e-3)
     standing = ["W", "O", "Q1", "Q2", "O_IN", "O_OUT", "M_E", "O_X"]
     for name in standing:
         here = site.node_pose(name)

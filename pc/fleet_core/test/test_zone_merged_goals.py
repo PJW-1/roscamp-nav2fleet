@@ -72,7 +72,8 @@ def test_a_merged_nav_goal_faces_the_last_node():
     way = route(V7, "O_OUT", "Q2")
     cmd = trips.move_command(V7, "pode1", 3, way, 0.15, 0.62)
     assert (cmd.mode, cmd.target_id, cmd.path) == (NAV_GOAL, "Q2", ())
-    assert (cmd.x, cmd.y, cmd.yaw) == (pytest.approx(1.66), pytest.approx(0.16), 0.0)
+    # Q2 자리는 지도에서 읽는다(2026-11-18 밤 y 0.16 -> 0.15)
+    assert (cmd.x, cmd.y, cmd.yaw) == pytest.approx((*V7.node_pose("Q2"), 0.0))
 
 
 @pytest.mark.parametrize("order", [False, True])
