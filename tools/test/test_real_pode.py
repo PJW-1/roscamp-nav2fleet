@@ -466,7 +466,8 @@ def test_start_refuses_while_another_start_holds_the_lock(tmp_path):
     assert run.returncode == 1 and "ENV_REACHED" in run.stdout
 
 
-def _start_with_fake_ros2(tmp_path, peer_robots, dock_stub=None, fixed_line=None):
+def _start_with_fake_ros2(tmp_path, peer_robots, dock_stub=None, fixed_line=None,
+                          plan_keep=None):
     # 대역 ros2가 받은 인자를 파일에 적고 끝난다. PEER_ROBOTS=None이면 변수를 빼고 돌린다
     start = _stub_kit(tmp_path)
     (tmp_path / "env.sh").write_text("return 0\n")
@@ -484,6 +485,9 @@ def _start_with_fake_ros2(tmp_path, peer_robots, dock_stub=None, fixed_line=None
     env.pop("FIXED_LINE_CHECK", None)
     if fixed_line is not None:
         env["FIXED_LINE_CHECK"] = fixed_line
+    env.pop("PLAN_KEEP", None)
+    if plan_keep is not None:
+        env["PLAN_KEEP"] = plan_keep
     run = subprocess.run(["bash", str(start), "pode1", "0.12", "0.10", "1.5708"],
                          capture_output=True, text=True, env=env, timeout=30)
     args = tmp_path / "ros2.args"
@@ -565,6 +569,29 @@ def test_start_refuses_bad_fixed_line_check(tmp_path, value):
     run, argv = _start_with_fake_ros2(tmp_path, None, None, value)
     assert run.returncode == 2
     assert "FIXED_LINE_CHECK" in run.stdout + run.stderr
+    assert "params ok" not in run.stdout and argv == []
+
+
+# ---- PLAN_KEEP ----
+@pytest.mark.parametrize("value", [None, "", "1"])
+def test_start_plan_keep_default_keeps_old_argv(tmp_path, value):
+    run, argv = _start_with_fake_ros2(tmp_path, None, plan_keep=value)
+    assert run.returncode == 0, run.stdout + run.stderr
+    assert argv == OLD_ARGV  # launch 기본값(켜짐) 그대로
+
+
+def test_start_plan_keep_off_adds_argument(tmp_path):
+    run, argv = _start_with_fake_ros2(tmp_path, "pode1,pode2", "1", plan_keep="0")
+    assert run.returncode == 0, run.stdout + run.stderr
+    assert argv == OLD_ARGV + ["peer_obstacles:=true", "peer_robots:=pode1,pode2",
+                               "dock_aside:=true", "plan_keep:=false"]
+
+
+@pytest.mark.parametrize("value", ["yes", "false", "2", "0;rm", " 0"])
+def test_start_refuses_bad_plan_keep(tmp_path, value):
+    run, argv = _start_with_fake_ros2(tmp_path, None, plan_keep=value)
+    assert run.returncode == 2
+    assert "PLAN_KEEP" in run.stdout + run.stderr
     assert "params ok" not in run.stdout and argv == []
 
 
