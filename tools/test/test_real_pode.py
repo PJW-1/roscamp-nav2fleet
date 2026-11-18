@@ -278,25 +278,30 @@ def _start_with_fake_ros2(tmp_path, peer_robots):
         if args.exists() and args.read_text().strip():
             break
         time.sleep(0.1)
-    return run, (args.read_text().split("\n") if args.exists() else [])
+    return run, (args.read_text().splitlines() if args.exists() else [])
 
 
-def test_start_peer_robots_adds_peer_arguments(tmp_path):
-    run, argv = _start_with_fake_ros2(tmp_path, "pode1,pode2")
+# 예전 start.sh가 ros2에 넘기던 인자 그대로
+OLD_ARGV = ["launch", "./real_pode.launch.py", "namespace:=pode1", "initial_x:=0.12",
+            "initial_y:=0.10", "initial_yaw:=1.5708"]
+
+
+@pytest.mark.parametrize("value", ["pode1,pode2", "pode2,pode3", "pode_a"])
+def test_start_peer_robots_adds_peer_arguments(tmp_path, value):
+    run, argv = _start_with_fake_ros2(tmp_path, value)
     assert run.returncode == 0, run.stdout + run.stderr
-    assert "peer_obstacles:=true" in argv and "peer_robots:=pode1,pode2" in argv
-    assert "namespace:=pode1" in argv
+    assert argv == OLD_ARGV + ["peer_obstacles:=true", f"peer_robots:={value}"]
 
 
 @pytest.mark.parametrize("value", [None, ""])
 def test_start_without_peer_robots_has_no_peer_arguments(tmp_path, value):
     run, argv = _start_with_fake_ros2(tmp_path, value)
     assert run.returncode == 0, run.stdout + run.stderr
-    assert "namespace:=pode1" in argv
-    assert not any("peer" in a for a in argv)
+    assert argv == OLD_ARGV
 
 
-@pytest.mark.parametrize("value", ["pode1;rm", "pode1,,pode2", "Pode1", "pode1,", ",pode1", "a b"])
+@pytest.mark.parametrize("value", ["pode1;rm", "pode1,,pode2", "Pode1", "pode1,", ",pode1", "a b",
+                                   "2robot", "pode1,3x"])
 def test_start_refuses_bad_peer_robots_before_make_params(tmp_path, value):
     run, argv = _start_with_fake_ros2(tmp_path, value)
     assert run.returncode == 2

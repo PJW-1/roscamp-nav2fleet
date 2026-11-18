@@ -7,7 +7,7 @@ cd "$(dirname "$(readlink -f "$0")")" || exit 1
 speed=${5:-0.12}
 # 시작 전에 이름 목록을 검사한다
 peers=${PEER_ROBOTS:-}
-if [ -n "$peers" ] && ! [[ $peers =~ ^[a-z0-9_]+(,[a-z0-9_]+)*$ ]]; then
+if [ -n "$peers" ] && ! [[ $peers =~ ^[a-z_][a-z0-9_]*(,[a-z_][a-z0-9_]*)*$ ]]; then
   echo "bad PEER_ROBOTS: use names like pode1,pode2"; exit 2
 fi
 mkdir -p logs || exit 1
