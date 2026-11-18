@@ -86,4 +86,8 @@
 
 ## 6. 남은 것
 
-- main 병합, 로컬 갱신, 로봇 배포는 사용자 확인 뒤(아래에 적는다).
+- 사용자 "곧 할 거니까 준비해"(11-18)에 따라 했다:
+  - main 병합: 4fa6124에 `feat/real-two-robot-orders`(5bc150e), `feat/real-dock-aside`(8f1b487)를 --no-ff로 합쳐 푸시. 두 브랜치는 고친 파일이 겹치지 않는다. 합친 상태에서 fake_robots 관련 177 passed, `test_launch_args.py` 3 passed, `tools/test/test_real_pode.py` 73 passed(도메인 68).
+  - 이 PC: main 체크아웃을 8f1b487로 올리고 `colcon build --packages-select fake_robots iponic_bringup`(2 packages finished). 설치에 `real_dock_wait_node`, `real_two_orders.yaml`, pc.launch의 `dock_wait_robots`가 있다.
+  - 로봇: 두 대 모두 launch가 돌지 않는 것을 보고 `tools/real_pode/deploy.sh`로 8f1b487을 보냈다. 192.168.0.200 = wlan e4:5f:01:b9:27:a7(27a6, pode1), 192.168.0.201 = d8:3a:dd:26:07:d8(07d7, pode2). 로봇 패키지는 4fa6124 뒤로 바뀌지 않아 로봇에서 빌드하지 않았다. 두 대 모두 start.sh에 DOCK_STUB이 있고 문법 검사를 통과했으며, `DOCK_STUB=7`은 아무것도 띄우기 전에 거부된다.
+  - 실물 시험은 아직 하지 않았다.
