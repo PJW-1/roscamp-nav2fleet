@@ -6,7 +6,11 @@
 저장소의 pode_nav_config/params/nav2_params.yaml과 pode_avoidance/params/avoidance.yaml을
 그대로 베끼고 앞으로 가는 컨트롤러의 desired_linear_vel만 S로 바꾼다:
 FollowPath, FollowPathThrough(nav2_params.yaml), follow_path_goal(avoidance.yaml, FollowPathGoal).
-FollowPathReverse(0.05)는 그대로다. 바꾼 줄 말고는 주석까지 그대로 두고, 다시 읽어 값을 확인한다.
+FollowPathReverse(0.05)는 그대로다.
+고정 경로 컨트롤러(FollowPath, FollowPathThrough, FollowPathReverse)의 use_collision_detection은
+기본으로 false로 쓴다(시뮬 기본과 같다). --fixed-line-check를 주면 원본 값과 상관없이 true로 쓴다.
+FollowPathGoal(follow_path_goal)의 검사는 늘 그대로다.
+바꾼 줄 말고는 주석까지 그대로 두고, 다시 읽어 값을 확인한다.
 """
 import argparse
 import copy
@@ -27,6 +31,8 @@ SOURCE_ROOTS = (HERE.parents[1], Path.home() / "nav2fleet_ws" / "src")
 NAV2_TARGETS = (("controller_server", "ros__parameters", "FollowPath", "desired_linear_vel"),
                 ("controller_server", "ros__parameters", "FollowPathThrough",
                  "desired_linear_vel"))
+COLLISION_TARGETS = tuple(("controller_server", "ros__parameters", name, "use_collision_detection")
+                          for name in ("FollowPath", "FollowPathThrough", "FollowPathReverse"))
 AVOID_TARGETS = (("follow_path_goal", "desired_linear_vel"),)
 FORWARD = ("FollowPath", "FollowPathThrough")
 
@@ -51,8 +57,11 @@ def _text(value: float) -> str:
 
 
 # ---- 줄 단위 바꾸기(주석 보존) ----
-def replace_values(text: str, targets, value: float) -> str:
+def replace_values(text: str, targets, value, note=None) -> str:
     """targets 경로의 스칼라 값 줄만 바꾼다. 경로마다 정확히 한 번 바뀌어야 한다."""
+    if note is None:
+        note = f"make_params.py --speed (저장소 {MAX_SPEED})"
+    shown = _text(value) if isinstance(value, float) else str(value).lower()
     lines = text.splitlines(keepends=True)
     stack = []  # (들여쓰기, 키)
     hits = {t: 0 for t in targets}
@@ -69,8 +78,7 @@ def replace_values(text: str, targets, value: float) -> str:
         path = tuple(k for _, k in stack)
         if path in hits:
             end = "\n" if line.endswith("\n") else ""
-            lines[i] = (" " * indent + f"{key}: {_text(value)}"
-                        f"  # make_params.py --speed (저장소 {MAX_SPEED}){end}")
+            lines[i] = " " * indent + f"{key}: {shown}  # {note}{end}"
             hits[path] += 1
     bad = {".".join(t): n for t, n in hits.items() if n != 1}
     if bad:
@@ -84,14 +92,19 @@ def _set(data: dict, path, value) -> None:
     data[path[-1]] = value
 
 
-def _converted(src: Path, targets, value: float) -> str:
+def _converted(src: Path, targets, value: float, collision=(), collision_on=False) -> str:
     text = src.read_text(encoding="utf-8")
     out = replace_values(text, targets, value)
+    if collision:
+        out = replace_values(out, collision, collision_on,
+                             f"make_params.py 고정 경로 충돌 검사 {'켬' if collision_on else '끔'}")
     want = copy.deepcopy(yaml.safe_load(text))
     for path in targets:
         _set(want, path, value)
+    for path in collision:
+        _set(want, path, collision_on)
     if yaml.safe_load(out) != want:
-        raise RuntimeError(f"{src}: the copy differs from the source beyond the speed values")
+        raise RuntimeError(f"{src}: the copy differs from the source beyond the changed values")
     return out
 
 
@@ -104,10 +117,11 @@ def find_source(rel: Path, given=None) -> Path:
     raise FileNotFoundError(f"{rel} not found under {', '.join(map(str, SOURCE_ROOTS))}")
 
 
-def write_params(speed, out_dir, nav2_src=None, avoid_src=None) -> tuple:
+def write_params(speed, out_dir, nav2_src=None, avoid_src=None, fixed_line_check=False) -> tuple:
     """두 사본을 out_dir에 쓴다. 확인을 모두 통과해야 쓴다."""
     value = checked_speed(speed)
-    nav2 = _converted(find_source(NAV2_REL, nav2_src), NAV2_TARGETS, value)
+    nav2 = _converted(find_source(NAV2_REL, nav2_src), NAV2_TARGETS, value, COLLISION_TARGETS,
+                      bool(fixed_line_check))
     avoid = _converted(find_source(AVOID_REL, avoid_src), AVOID_TARGETS, value)
     out = Path(out_dir)
     out.mkdir(parents=True, exist_ok=True)
@@ -151,13 +165,17 @@ def main(argv=None) -> int:
     parser.add_argument("--out", required=True, type=Path, help="사본을 쓸 폴더")
     parser.add_argument("--nav2-src", help="원본 nav2_params.yaml(기본: 저장소 또는 로봇 src)")
     parser.add_argument("--avoidance-src", help="원본 avoidance.yaml(기본: 같은 곳)")
+    parser.add_argument("--fixed-line-check", action="store_true",
+                        help="고정 경로 충돌 검사를 켜 둔다(기본: 끔)")
     args = parser.parse_args(argv)
     try:
-        nav2, avoid = write_params(args.speed, args.out, args.nav2_src, args.avoidance_src)
+        nav2, avoid = write_params(args.speed, args.out, args.nav2_src, args.avoidance_src,
+                                  args.fixed_line_check)
     except (ValueError, FileNotFoundError, RuntimeError) as problem:
         print(f"make_params: {problem}", file=sys.stderr)
         return 2
     print(f"make_params: speed {_text(checked_speed(args.speed))} m/s -> {nav2}, {avoid}")
+    print(f"make_params: fixed-line check {'on' if args.fixed_line_check else 'off'}")
     return 0
 
 
