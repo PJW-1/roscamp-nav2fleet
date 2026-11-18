@@ -8,7 +8,7 @@ set -eu
 [ $# -ge 1 ] || { echo "사용: $0 pode1 [pode2 ...]" >&2; exit 2; }
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 set +u
-source /opt/ros/jazzy/setup.bash
+source "${ROS_SETUP:-/opt/ros/jazzy/setup.bash}"
 # PC 관제와 같은 작업공간(있으면)
 WS_SETUP="${NAV2FLEET_WS_SETUP:-$HOME/ros2camp/nav2fleet_ws/install/setup.bash}"
 [ ! -f "$WS_SETUP" ] || source "$WS_SETUP"

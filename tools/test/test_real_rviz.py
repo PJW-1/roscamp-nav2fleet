@@ -51,10 +51,46 @@ def test_script_syntax_and_args():
     assert "ROS_DOMAIN_ID=12" in text and "SUBNET" in text
 
 
-def test_overview_reads_the_first_robot_tf_and_the_pc_overlay():
-    """전체 창도 map 틀이 있어야 해서 첫 로봇의 TF를 읽는다(로봇 TF는 /<ns>/tf, Codex d56a034).
-    PC 관제와 같은 작업공간 오버레이를 source한다."""
-    text = (KIT / "rviz_pc.sh").read_text()
-    overview = next(line for line in text.splitlines() if "overview.rviz\"" in line and "rviz2" in line)
-    assert '-r "/tf:=/$1/tf"' in overview and '-r "/tf_static:=/$1/tf_static"' in overview
-    assert "nav2fleet_ws/install/setup.bash" in text
+def _run_stubbed(tmp_path, ws_setup):
+    """가짜 rviz2를 PATH 맨 앞에 두고 실제 스크립트를 돌려 호출 인자를 읽는다."""
+    bindir = tmp_path / "bin"
+    bindir.mkdir()
+    log = tmp_path / "calls.log"
+    fake = bindir / "rviz2"
+    fake.write_text(f'#!/usr/bin/env bash\necho "MARK=${{STUB_MARK:-none}} $*" >> {log}\nexit 0\n')
+    fake.chmod(0o755)
+    ros = tmp_path / "ros_setup.bash"
+    ros.write_text("")
+    env = {"PATH": f"{bindir}:/usr/bin:/bin", "HOME": str(tmp_path), "ROS_SETUP": str(ros),
+           "NAV2FLEET_WS_SETUP": str(ws_setup)}
+    r = subprocess.run(["bash", str(KIT / "rviz_pc.sh"), "pode1", "pode2"], env=env,
+                       capture_output=True, text=True, timeout=30)
+    calls = log.read_text().splitlines() if log.exists() else []
+    return r, calls
+
+
+def _check_calls(calls, mark):
+    assert len(calls) == 3
+    assert all(c.startswith(f"MARK={mark} ") for c in calls)
+    ov = [c for c in calls if "overview.rviz" in c]
+    assert len(ov) == 1
+    assert "-r /tf:=/pode1/tf -r /tf_static:=/pode1/tf_static" in ov[0]
+    assert " -d " in ov[0] and ov[0].split(" -d ")[1].split()[0].endswith("/overview.rviz")
+    for ns in ("pode1", "pode2"):
+        per = [c for c in calls if f"/{ns}.rviz" in c]
+        assert len(per) == 1
+        assert f"-r /tf:=/{ns}/tf -r /tf_static:=/{ns}/tf_static" in per[0]
+
+
+def test_launcher_with_overlay(tmp_path):
+    ws = tmp_path / "ws_setup.bash"
+    ws.write_text("export STUB_MARK=overlay\n")
+    r, calls = _run_stubbed(tmp_path, ws)
+    assert r.returncode == 0, r.stderr
+    _check_calls(calls, "overlay")
+
+
+def test_launcher_overlay_missing_is_skipped(tmp_path):
+    r, calls = _run_stubbed(tmp_path, tmp_path / "nope.bash")
+    assert r.returncode == 0, r.stderr
+    _check_calls(calls, "none")
