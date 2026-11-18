@@ -135,8 +135,18 @@ class ZoneBase:
         if (at is not None and now - at <= LOCALIZING_GRACE_S and m.attempts > 0
                 and not m.health.fault):
             m.attempts -= 1
+            m.health.final_abort = None
             self._event("WARN", "GOAL_ABORTED_LOCALIZING", "the last NAV_ABORTED came just "
                         f"before LOCALIZING, not an attempt (now {m.attempts})", m.name)
+
+    # ---- 미뤄 둔 마지막 NAV_ABORTED: 기다린 동안 LOCALIZING이 없으면 격리 ----
+    def _settle_final_abort(self, m, now: float) -> None:
+        final = m.health.final_abort
+        if final is None or now <= final[0]:
+            return
+        m.health.final_abort = None
+        if not m.health.fault:  # 그새 새 구간으로 시도 수가 0이 돼도 예전처럼 격리한다
+            self._give_up(m, final[1])
 
     def _localized(self, m) -> None:
         since, m.health.localizing_since = m.health.localizing_since, None
@@ -181,6 +191,7 @@ class ZoneBase:
         m.health.pose_doubt = m.health.pose_doubt or reason == NOT_AT_TARGET
         m.health.fault = ERROR
         m.health.fault_reason = reason
+        m.health.final_abort = None
         m.called = False
         self._stop_wanting(m)
         if m.dispatch:
@@ -193,11 +204,22 @@ class ZoneBase:
             held = list(self.grants.held_by(m.name))
             self._event("ERROR", "ROBOT_ISOLATED", f"{reason}; holds {held}", m.name)
 
-    def _goal_failed(self, m, reason: str) -> None:
+    def _goal_failed(self, m, reason: str, grace: bool = False) -> None:
         m.attempts += 1
-        m.retry_at = self._clock() + self.params.move_retry_wait_s
+        now = self._clock()
+        m.retry_at = now + self.params.move_retry_wait_s
         if m.attempts > self.params.move_retry_limit:
-            self._event("ERROR", "GOAL_FAILED", f"{reason} after {m.attempts} attempts", m.name)
-            self._fail(m, reason)
+            if grace:
+                # 곧 LOCALIZING이 오면 되돌릴 수 있게 격리를 LOCALIZING_GRACE_S 미룬다
+                m.health.final_abort = (now + LOCALIZING_GRACE_S, reason)
+                self._event("WARN", "GOAL_FAIL_PENDING", f"{reason} after {m.attempts} "
+                            f"attempts, isolates unless LOCALIZING within "
+                            f"{LOCALIZING_GRACE_S:.1f} s", m.name)
+                return
+            self._give_up(m, reason)
         else:
             self._event("WARN", "GOAL_RETRY", f"{reason}, attempt {m.attempts}", m.name)
+
+    def _give_up(self, m, reason: str) -> None:
+        self._event("ERROR", "GOAL_FAILED", f"{reason} after {m.attempts} attempts", m.name)
+        self._fail(m, reason)

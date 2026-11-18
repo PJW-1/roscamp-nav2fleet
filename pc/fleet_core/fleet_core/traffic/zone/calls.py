@@ -41,7 +41,7 @@ class Calls:
         m = self._robots.get(robot_id)
         if m is None:
             self._out.append(DispatchResult(goal_id, False, robot_id, "NO_SUCH_ROBOT"))
-        elif not self.available(robot_id):
+        elif not self.available(robot_id) or m.health.final_abort:
             self._out.append(DispatchResult(goal_id, False, robot_id, "NOT_AVAILABLE"))
         elif m.dispatch:
             self._out.append(DispatchResult(goal_id, False, robot_id, "BUSY"))
@@ -93,7 +93,7 @@ class Calls:
     def _robot_info(self, m, stopped: bool) -> RobotInfo:
         node = m.trip.goal if m.trip is not None and m.phase == TO_PARK else m.node
         eligible = (self.available(m.name) and not m.hold and m.dispatch is None and not stopped
-                    and not self._localizing(m)
+                    and not self._localizing(m) and not m.health.final_abort
                     and (not m.report.charge or (m.called and self._committed(m))))
         return RobotInfo(m.name, node, m.called or self._committed(m), eligible)
 

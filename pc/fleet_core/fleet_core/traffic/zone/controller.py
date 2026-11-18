@@ -72,6 +72,7 @@ class ZoneTraffic(Calls, Goals, Turns, Drive, MoveOrders, OrderAnswers, Results,
         self._mark_book.expire(now)
         self._out.extend(self._mark_book.ask(now))
         for m in self._robots.values():
+            self._settle_final_abort(m, now)
             if m.available:
                 self._judge_arrival(m, now)
                 self._watch_stall(m, now)

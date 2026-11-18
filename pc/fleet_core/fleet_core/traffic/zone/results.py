@@ -222,4 +222,4 @@ class Results:
                 self._drop_trip(m)
         if reason == NAV_ABORTED:
             m.health.aborted_at = self._clock()
-        self._goal_failed(m, reason)
+        self._goal_failed(m, reason, grace=reason == NAV_ABORTED)

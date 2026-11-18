@@ -5,7 +5,8 @@
 끝냈고, 시도 셋이 5 s 안에 쌓여 pode2가 격리됐다.
 """
 import pytest
-from fleet_core.common.commands import CancelCmd, MoveCmd, MoveOrderCmd, RobotIsolated
+from fleet_core.common.commands import (CancelCmd, DispatchResult, MoveCmd, MoveOrderCmd,
+                                        RobotIsolated)
 from fleet_core.traffic.zone.base import LOCALIZING_GRACE_S
 from fleet_core.traffic.zone.lane_policy import Want
 from zone_harness import DT, Harness
@@ -344,7 +345,123 @@ def test_at_the_retry_limit_a_nav_aborted_while_localizing_does_not_isolate():
     assert moves(world) == sent + 1
     world.traffic.on_move_result("pode2", last_goal(world), False, "NAV_ABORTED")
     world.step()
+    assert not isolations(world), "held for LOCALIZING_GRACE_S"
+    world.run(LOCALIZING_GRACE_S + 0.1)
     assert isolations(world), "the next real failure still ends in isolation"
+
+
+def at_the_limit():
+    """위치가 있는 진짜 실패로 시도 수를 한도까지 채운다."""
+    world = sent_and_open()
+    p = world.params
+    for attempt in range(1, p.move_retry_limit + 1):
+        world.traffic.on_move_result("pode2", last_goal(world), False, "NAV_ABORTED")
+        world.run(p.move_retry_wait_s + 0.3)
+        assert world.view("pode2")["attempts"] == attempt
+    assert not isolations(world)
+    return world
+
+
+def test_at_the_retry_limit_nav_aborted_heard_just_before_localizing_does_not_isolate():
+    """결과가 먼저 오고 LOCALIZING이 1 s 안에 오면 한도 아래와 똑같이 시도로 세지 않는다."""
+    world = at_the_limit()
+    p = world.params
+    sent = moves(world)
+    world.traffic.on_move_result("pode2", last_goal(world), False, "NAV_ABORTED")
+    world.now = round(world.now + LOCALIZING_GRACE_S / 2, 6)
+    bot = world.bots["pode2"]
+    world.traffic.on_robot_state("pode2", bot.x, bot.y, bot.yaw, "LOCALIZING")
+    reports(world, "pode2", "LOCALIZING")
+    world.run(p.move_retry_wait_s + 2.0)
+    assert not isolations(world) and world.view("pode2")["state"] == "TO_WORK"
+    assert world.view("pode2")["attempts"] == p.move_retry_limit, "not counted"
+    assert "GOAL_ABORTED_LOCALIZING" in world.codes("pode2")
+    assert moves(world) == sent, "no goal while LOCALIZING"
+    reports(world, "pode2", None)
+    world.run(p.move_retry_wait_s + 0.3)
+    assert moves(world) == sent + 1, "sent again once it reports a pose"
+
+
+def test_at_the_retry_limit_nav_aborted_without_localizing_still_isolates_after_the_grace():
+    world = at_the_limit()
+    p = world.params
+    sent = moves(world)
+    world.traffic.on_move_result("pode2", last_goal(world), False, "NAV_ABORTED")
+    world.run(LOCALIZING_GRACE_S + 0.3)
+    assert isolations(world) and world.view("pode2")["state"] == "ERROR"
+    assert "GOAL_FAILED" in world.codes("pode2")
+    assert moves(world) == sent, "no goal in the grace window"
+
+
+def test_at_the_retry_limit_a_localizing_report_after_the_grace_still_isolates():
+    world = at_the_limit()
+    world.traffic.on_move_result("pode2", last_goal(world), False, "NAV_ABORTED")
+    world.now = round(world.now + LOCALIZING_GRACE_S + 0.01, 6)
+    bot = world.bots["pode2"]
+    world.traffic.on_robot_state("pode2", bot.x, bot.y, bot.yaw, "LOCALIZING")
+    world.step()
+    assert isolations(world)
+
+
+def test_at_the_retry_limit_nothing_is_released_or_sent_in_the_grace_window():
+    world = at_the_limit()
+    held = sorted(world.traffic.grants.held_by("pode2"))
+    sent = moves(world)
+    world.traffic.on_move_result("pode2", last_goal(world), False, "NAV_ABORTED")
+    nodes = sorted(world.traffic.grants.nodes_of("pode2"))
+    world.run(LOCALIZING_GRACE_S - 0.2)
+    assert not isolations(world)
+    assert sorted(world.traffic.grants.held_by("pode2")) == held
+    assert sorted(world.traffic.grants.nodes_of("pode2")) == nodes
+    assert moves(world) == sent
+
+
+def test_at_the_retry_limit_no_side_road_sends_a_goal_in_the_grace_window():
+    """step을 거치지 않는 길(교착 비키기, 양보)도 판정 중인 로봇에 goal을 보내지 않는다."""
+    for limit, sends in ((False, True), (True, False)):  # 한도 아래면 이 길로 실제로 보낸다
+        world = Harness()
+        world.step()
+        world.call("WORK", "pode2")
+        world.run(3.0)  # 주차 자리로 비킬 수 있는 곳까지 간다
+        m = world.traffic._robots["pode2"]
+        if limit:
+            m.attempts = world.params.move_retry_limit
+        world.traffic.on_move_result("pode2", last_goal(world), False, "NAV_ABORTED")
+        world.traffic.take_output()
+        assert world.traffic._evade(m) is sends
+        out = world.traffic.take_output()
+        assert bool([c for c in out if isinstance(c, (MoveCmd, MoveOrderCmd))]) is sends
+
+
+def test_at_the_retry_limit_a_new_leg_in_the_grace_window_still_isolates():
+    """판정 중에 배차가 취소돼 시도 수가 0이 돼도 마지막 실패는 격리로 끝난다(예전과 같다)."""
+    world = at_the_limit()
+    world.traffic.on_move_result("pode2", last_goal(world), False, "NAV_ABORTED")
+    m = world.traffic._robots["pode2"]
+    world.traffic.on_dispatch_cancel(m.dispatch.goal_id)
+    assert m.attempts == 0
+    world.run(LOCALIZING_GRACE_S + 0.3)
+    assert isolations(world)
+
+
+def test_at_the_retry_limit_a_named_dispatch_in_the_grace_window_is_refused():
+    world = at_the_limit()
+    world.traffic.on_move_result("pode2", last_goal(world), False, "NAV_ABORTED")
+    m = world.traffic._robots["pode2"]
+    world.traffic.on_dispatch_cancel(m.dispatch.goal_id)
+    world.traffic.take_output()
+    world.traffic.on_dispatch(999, "WORK", "pode2")
+    answers = [c for c in world.traffic.take_output() if isinstance(c, DispatchResult)]
+    assert answers and answers[0].reason == "NOT_AVAILABLE"
+
+
+def test_a_fault_in_the_grace_window_keeps_its_own_reason():
+    world = at_the_limit()
+    world.traffic.on_move_result("pode2", last_goal(world), False, "NAV_ABORTED")
+    world.traffic.on_robot_fault("pode2", "ESTOP")
+    world.run(LOCALIZING_GRACE_S + 0.3)
+    assert [i.reason for i in isolations(world)] == ["ESTOP"]
+    assert world.traffic._robots["pode2"].health.fault_reason == "ESTOP"
 
 
 # ---- 감시와 양보가 LOCALIZING 로봇을 움직이지 않는다 ----

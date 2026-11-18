@@ -58,7 +58,8 @@ class Progress:
             self._begin_recovery(m)
         elif not m.health.fault and not m.health.comm:
             self._track(m)
-            self._release_behind(m)
+            if not m.health.final_abort:  # 격리 판정 중에는 놓지 않는다
+                self._release_behind(m)
             self._watch_outside(m)
             self._watch_blocked(m, now)
         elif m.health.fault == ERROR and not m.health.comm and m.goal is None:

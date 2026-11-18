@@ -124,8 +124,8 @@ class Watch:
         return self._to_parking(m, "WARN", "DEADLOCK_SEEN", f"{m.name} gives way to")
 
     def _to_parking(self, m, level: str, code: str, why: str, clear_of=None) -> bool:
-        # step을 거치지 않는 길: LOCALIZING 로봇에는 보내지 않는다
-        if m.goal is not None or self._localizing(m):
+        # step을 거치지 않는 길: LOCALIZING이나 격리 판정 중인 로봇에는 보내지 않는다
+        if m.goal is not None or self._localizing(m) or m.health.final_abort:
             return False
         waited = self.grants.waiting().get(m.name)
         free = [spot for spot in self.site.parking

@@ -40,7 +40,7 @@ class Drive:
             if m.goal.via == ORDER:
                 self._extend_order(m)
             return
-        if now < m.retry_at or now < m.avoid.yield_until:
+        if now < m.retry_at or now < m.avoid.yield_until or m.health.final_abort:
             return
         if m.phase in (TO_WORK, TO_OUTBOUND, TO_PARK):
             self._drive(m)

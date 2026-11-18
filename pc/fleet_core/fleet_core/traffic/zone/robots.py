@@ -71,6 +71,7 @@ class Health:
     localizing_since: float | None = None
     localizing_at: float | None = None
     aborted_at: float | None = None
+    final_abort: tuple | None = None  # 한도를 넘긴 NAV_ABORTED (격리 판정 시각, 사유)
 
 
 # ---- 양보, 물러나기, 우회 기록 ----
