@@ -87,3 +87,37 @@ cd pc/fleet_manager && python3 -m pytest -q -p no:cacheprovider test
   pode_fsm은 자세가 없으면 바로 끝내므로 드물다고 본다 [추측].
 - 짧게 깜박이는 LOCALIZING으로 불린 로봇(TO_WORK, 아직 도크 구역을 쥐지 않음)이 후보에서 빠지면 주차로 돌고 다른
   로봇이 호출을 받는다. 호출이 오가는 일이 늘 수 있다 [추측].
+
+## 후속 (Codex 리뷰 a190119 반영)
+
+리뷰 지적: 막는 곳이 `Drive.step`뿐이라 `step`을 거치지 않는 `_to_parking`(`watch.py`)이 LOCALIZING 로봇에도
+주차 자리로 가는 goal을 보낼 수 있었다. 부르는 곳은 HALL_YIELD(`blocked.py` `_make_way`, `yard_retreat.py`
+`_yield_to_robot`, `backoff.py` `_stand_aside`)와 교착 감시의 `_evade`(DEADLOCK_SEEN)다.
+
+바꾼 것:
+
+- `_to_parking`: 로봇이 LOCALIZING이면 False(아무것도 보내지 않음). 부르는 곳은 원래 False(빈 주차 자리 없음 등)를
+  받는 길이 있다: `_make_way`는 다음 후보를 보고 없으면 막힘 표시 대기, `_yield_to_robot`은 막힌 로봇이 비키거나
+  기다림, `_stand_aside`는 그 자리에서 `near_stuck_s` 섬, `_watch_deadlock`은 다음 희생 로봇을 고른다.
+- `_watch_near`: LOCALIZING 로봇은 뺀다(자세가 묵은 값). 그래서 그 로봇의 goal을 근접 감시가 취소하지 않는다.
+- 명령을 내는 곳을 모두 grep했다(`_out.append`, `_send`, `_send_order`, `_send_update`, `_turn_order`,
+  `_refresh_horizon`, `_extend_order`, `_reapproach`, `move_command`, `retreat_command`, `DockCmd`). `watch.py`의
+  `_send` 하나(`_to_parking` 안) 말고는 모두 `Drive.step` 아래에서만 불린다. `CancelCmd`(취소)와 `DispatchResult`는
+  이동 명령이 아니라 그대로 둔다.
+
+새 시험(같은 파일): 교착 순환에서 LOCALIZING 로봇 대신 다른 로봇이 비킴, 막힌 로봇의 길 위에 선 LOCALIZING
+로봇을 주차로 보내지 않음(test_zone_make_way 세계), 가까운 두 로봇 중 하나가 LOCALIZING이면 근접 감시가 떼지
+않음(이 셋은 바꾸기 전에 실패). 지키는 시험: 위치가 있을 때 보낸 order가 위치를 잃어 끝남을 세 번(보고 먼저/결과
+먼저), 1.0 s 경계 앞뒤(0.99 s는 LOCALIZING 중, 1.01 s는 시도), 시도가 `move_retry_limit`에 닿은 뒤 LOCALIZING 중의
+NAV_ABORTED는 격리하지 않고 횟수는 유지(다음 진짜 실패에 격리). 예전 재현 시험은 이동이 나가지 않아 NAV_ABORTED
+줄이 돌지 않았으므로 "LOCALIZING이면 아무것도 보내지 않음" 시험으로 바꾸었다.
+
+그대로 둔 정책 문제: 결과가 먼저 와서 세 번째 시도로 이미 격리된 뒤 1.0 s 안에 LOCALIZING이 와도 되돌리지 않는다
+(사용자 결정 필요).
+
+[추측] `yard_retreat.py`의 `_yield_to_robot`에서 앞 로봇이 LOCALIZING이라 보내지 못하면, 빈 주차 자리가 없을 때와
+같은 길(막힌 로봇이 물러나거나 기다림)을 탄다. 이 경우만 따로 시험하지 않았다.
+
+후속 결과(같은 명령): 새 파일 25 passed(바꾸기 전 3 failed, 22 passed). 관련 묶음(wait_localizing, watch, make_way,
+make_way_order, backoff, traffic, standby) 76 passed. pc/fleet_core 전체 `1105 passed, 5 xfailed in 50.34s`,
+pc/fleet_manager 전체 `131 passed in 703.28s`.

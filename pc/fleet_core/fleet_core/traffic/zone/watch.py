@@ -77,9 +77,10 @@ class Watch:
     def _watch_near(self, now: float) -> None:
         p = self.params
 
+        # LOCALIZING 로봇의 자세는 묵은 값이라 뺀다
         def roams(m) -> bool:
             return (m.available and m.goal is not None and m.goal.kind == MOVE
-                    and self._via(m) == NAV_GOAL)
+                    and self._via(m) == NAV_GOAL and not self._localizing(m))
 
         moving = [m for m in self._robots.values() if roams(m)]
         seen = set()
@@ -123,7 +124,8 @@ class Watch:
         return self._to_parking(m, "WARN", "DEADLOCK_SEEN", f"{m.name} gives way to")
 
     def _to_parking(self, m, level: str, code: str, why: str, clear_of=None) -> bool:
-        if m.goal is not None:
+        # step을 거치지 않는 길: LOCALIZING 로봇에는 보내지 않는다
+        if m.goal is not None or self._localizing(m):
             return False
         waited = self.grants.waiting().get(m.name)
         free = [spot for spot in self.site.parking
