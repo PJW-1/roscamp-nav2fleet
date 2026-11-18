@@ -259,6 +259,51 @@ def test_start_refuses_while_another_start_holds_the_lock(tmp_path):
     assert run.returncode == 1 and "ENV_REACHED" in run.stdout
 
 
+def _start_with_fake_ros2(tmp_path, peer_robots):
+    # 대역 ros2가 받은 인자를 파일에 적고 끝난다. PEER_ROBOTS=None이면 변수를 빼고 돌린다
+    start = _stub_kit(tmp_path)
+    (tmp_path / "env.sh").write_text("return 0\n")
+    fake = tmp_path / "bin"
+    fake.mkdir()
+    (fake / "ros2").write_text(f'#!/bin/bash\nprintf "%s\\n" "$@" > "{tmp_path}/ros2.args"\n')
+    (fake / "ros2").chmod(0o755)
+    env = dict(os.environ, PATH=f"{fake}:{os.environ['PATH']}")
+    env.pop("PEER_ROBOTS", None)
+    if peer_robots is not None:
+        env["PEER_ROBOTS"] = peer_robots
+    run = subprocess.run(["bash", str(start), "pode1", "0.12", "0.10", "1.5708"],
+                         capture_output=True, text=True, env=env, timeout=30)
+    args = tmp_path / "ros2.args"
+    for _ in range(50):
+        if args.exists() and args.read_text().strip():
+            break
+        time.sleep(0.1)
+    return run, (args.read_text().split("\n") if args.exists() else [])
+
+
+def test_start_peer_robots_adds_peer_arguments(tmp_path):
+    run, argv = _start_with_fake_ros2(tmp_path, "pode1,pode2")
+    assert run.returncode == 0, run.stdout + run.stderr
+    assert "peer_obstacles:=true" in argv and "peer_robots:=pode1,pode2" in argv
+    assert "namespace:=pode1" in argv
+
+
+@pytest.mark.parametrize("value", [None, ""])
+def test_start_without_peer_robots_has_no_peer_arguments(tmp_path, value):
+    run, argv = _start_with_fake_ros2(tmp_path, value)
+    assert run.returncode == 0, run.stdout + run.stderr
+    assert "namespace:=pode1" in argv
+    assert not any("peer" in a for a in argv)
+
+
+@pytest.mark.parametrize("value", ["pode1;rm", "pode1,,pode2", "Pode1", "pode1,", ",pode1", "a b"])
+def test_start_refuses_bad_peer_robots_before_make_params(tmp_path, value):
+    run, argv = _start_with_fake_ros2(tmp_path, value)
+    assert run.returncode == 2
+    assert "PEER_ROBOTS" in run.stdout + run.stderr
+    assert "params ok" not in run.stdout and argv == []
+
+
 # 대역 setsid들: launch.pid를 쓰지 않고 잠만 잔다(ros2까지 가지 않는다)
 SLEEPER = '#!/bin/bash\necho $$ > "{d}/fake.pid"\nexec sleep 30\n'
 # 진짜 setsid로 새 그룹을 만들고 그룹에 프로세스 둘을 둔다
