@@ -15,7 +15,8 @@ from fleet_core.fleet_map import load_fleet_map
 
 SCENARIOS = Path(__file__).parents[1] / "scenarios"
 SIX = {"basic_orders", "order_burst", "shared_lane_failure", "stock_shortage", "stuck_robot",
-       "operator_recovery", "blocked_lane", "auto_isolation", "reinstate"}
+       "operator_recovery", "blocked_lane", "auto_isolation", "reinstate",
+       "real_two_orders"}  # 실물 두 대 시험(2026-11-18), 가짜 로봇 없이 쓴다
 
 
 @pytest.fixture(scope="module")
