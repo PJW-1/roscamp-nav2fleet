@@ -225,7 +225,8 @@ def test_v7_the_robot_at_the_front_goes_before_a_turn_taken_from_behind(order):
 
 @pytest.mark.parametrize("order", [False, True], ids=["order_off", "order_on"])
 def test_v7_three_robots_all_dock_after_a_turn_taken_from_behind(order):
-    """위와 같은데 셋째 로봇이 칸(P-3)에서 온다: 고치기 전 order 모델은 300 s 동안 아무도 못 들어갔다.
+    """위와 같은데 셋째 로봇이 칸(P-3)에서 온다: 고치기 전 order 모델은 300 s 동안 아무도
+    못 들어갔다.
     세 쌍의 순서가 서로 어긋나 모두 서는지(비추이) 본다(Codex 검토 지적)."""
     world = Harness(layout="v7", starts={"pode1": "P-1", "pode2": "Q1", "pode3": "P-3"},
                     params=replace(load_params(), use_order_model=order))
