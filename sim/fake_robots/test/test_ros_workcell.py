@@ -1,4 +1,5 @@
 """실제 액션으로 FakeWorkcell을 시험한다."""
+import threading
 import time
 
 import pytest
@@ -103,11 +104,13 @@ def test_arms_never_place_at_once_but_do_pick_at_once(harness, tmp_path):
     cell = Cell(harness, tmp_path, stock={"arm1": {"A": 6}, "arm2": {"C": 6}},
                 arm={"seconds_per_item": 0.3, "swap_seconds": 0.4, "fail_rate": 0.0})
     log = []
+    order = threading.Lock()
     set_state = cell.node._set_state
 
     def recorded(arm, state):
-        set_state(arm, state)
-        log.append((time.monotonic(), arm, state))
+        with order:
+            set_state(arm, state)
+            log.append((time.monotonic(), arm, state))
 
     cell.node._set_state = recorded
     result, _ = cell.fill(A=4, C=4)
@@ -117,7 +120,7 @@ def test_arms_never_place_at_once_but_do_pick_at_once(harness, tmp_path):
     spans = {arm: [] for arm in arms}
     picking_overlap = False
     state_now = dict.fromkeys(arms, "")
-    for t, arm, state in sorted(log):
+    for t, arm, state in log:
         if state == STATE_PLACING and arm not in started:
             started[arm] = t
         elif state != STATE_PLACING and arm in started:
