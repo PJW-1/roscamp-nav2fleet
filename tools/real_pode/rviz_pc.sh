@@ -9,6 +9,9 @@ set -eu
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 set +u
 source /opt/ros/jazzy/setup.bash
+# PC 관제와 같은 작업공간(있으면)
+WS_SETUP="${NAV2FLEET_WS_SETUP:-$HOME/ros2camp/nav2fleet_ws/install/setup.bash}"
+[ ! -f "$WS_SETUP" ] || source "$WS_SETUP"
 set -u
 export ROS_DOMAIN_ID=12
 unset ROS_LOCALHOST_ONLY ROS_STATIC_PEERS
@@ -18,7 +21,8 @@ TMP="$(mktemp -d)"
 trap 'kill $(jobs -p) 2>/dev/null || true; rm -rf "$TMP"' EXIT INT TERM
 if [ "$MODE" != robots ]; then
   python3 "$HERE/rviz_config.py" overview "$@" > "$TMP/overview.rviz"
-  rviz2 -d "$TMP/overview.rviz" &
+  # map 틀이 있어야 해서 첫 로봇의 TF를 읽는다
+  rviz2 -d "$TMP/overview.rviz" --ros-args -r "/tf:=/$1/tf" -r "/tf_static:=/$1/tf_static" &
 fi
 if [ "$MODE" != overview ]; then
   for ns in "$@"; do

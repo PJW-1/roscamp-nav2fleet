@@ -49,3 +49,12 @@ def test_script_syntax_and_args():
     assert subprocess.run(["bash", str(sh)], capture_output=True, text=True).returncode == 2
     text = sh.read_text()
     assert "ROS_DOMAIN_ID=12" in text and "SUBNET" in text
+
+
+def test_overview_reads_the_first_robot_tf_and_the_pc_overlay():
+    """전체 창도 map 틀이 있어야 해서 첫 로봇의 TF를 읽는다(로봇 TF는 /<ns>/tf, Codex d56a034).
+    PC 관제와 같은 작업공간 오버레이를 source한다."""
+    text = (KIT / "rviz_pc.sh").read_text()
+    overview = next(line for line in text.splitlines() if "overview.rviz\"" in line and "rviz2" in line)
+    assert '-r "/tf:=/$1/tf"' in overview and '-r "/tf_static:=/$1/tf_static"' in overview
+    assert "nav2fleet_ws/install/setup.bash" in text
