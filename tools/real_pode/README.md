@@ -45,7 +45,10 @@ Nav2 goal을 모는 컨트롤러(FollowPathGoal)의 속도는 `nav2_params.yaml`
 ## Gazebo와 다른 실물 기본값
 
 - peer 층 꺼짐(`peer_obstacles:=false`). 두 대 이상이면 `PEER_ROBOTS=pode1,pode2 ./start.sh pode1 ...`(start.sh가 `peer_obstacles:=true peer_robots:=...`를 붙인다). 두 로봇 모두 같은 목록(두 이름 다)을 줘도 된다: 자기 이름은 건너뛴다(`pode_peer_obstacles/body.py:19`, `node.py:60`).
-- 고정 경로 충돌 검사 켬(저장소 값 그대로. Gazebo의 `fixed_line_collision_check` 같은 끄기는 없다).
+- 고정 경로 충돌 검사 꺼짐(시뮬 기본과 같다, 사용자 결정 2026-11-18). `make_params.py`가 `params/nav2_params.yaml`의
+  FollowPath, FollowPathThrough, FollowPathReverse에 `use_collision_detection: false`를 쓴다. 마당 goal(FollowPathGoal,
+  `avoidance.yaml`)은 그대로 켜 있다. 켜 두려면 `FIXED_LINE_CHECK=1 ./start.sh ...`(`--fixed-line-check`). 안 주거나 `0`이면 끔,
+  다른 값은 start.sh가 거절한다(종료 2). 위험: 고정 경로에서는 앞의 충돌을 미리 알아채는 곳이 없어진다. 로봇 사이 간격은 관제에 맡긴다.
 - 속도 상한 없음: `params/` 사본의 값이 곧 최고 속도다.
 - keepout은 `keepout_mask`를 줄 때만 켜진다. 이 묶음은 기본으로 `maps/arena_v7_keepout.yaml`을 준다.
 - 스캔 거르개 꺼짐(`narrow_strips` 비움).
