@@ -71,6 +71,8 @@ class SimStandIn(Node):
         self.declare_parameter("robots", ["pode1", "pode2", "pode3"])
         stub = bool(self.declare_parameter("dock_stub", False).value)
         self.declare_parameter("peer_obstacles", False)  # main이 읽는다(peer_nodes)
+        self.declare_parameter("plan_keep_nodes", False)  # main이 읽는다(plan_keep_nodes)
+        self.declare_parameter("plan_keep", True)
         if stub:  # before anything else: never serve a dock outside an isolated Gazebo run
             require_dock_stub_allowed(bool(self.get_parameter("use_sim_time").value),
                                       os.environ, rmw=rclpy.get_rmw_implementation_identifier(),
@@ -211,11 +213,26 @@ def peer_nodes(node) -> list:
     return make_fleet(robots, node.get_parameter("use_sim_time").value, node.context)
 
 
+def plan_keep_nodes(node) -> list:
+    """node의 plan_keep_nodes가 참이면 로봇마다의 길 유지 노드(pode_plan_keep), 아니면 빈 목록.
+    Nav2 행동 트리가 compute_path_keep을 부르므로 plan_keep이 거짓이어도(비교용) 노드는 둔다."""
+    if not node.get_parameter("plan_keep_nodes").value:
+        return []
+    from pode_plan_keep.node import make_fleet
+    return make_fleet(list(node.get_parameter("robots").value),
+                      bool(node.get_parameter("plan_keep").value),
+                      node.get_parameter("use_sim_time").value, node.context)
+
+
 def main(args=None):
     rclpy.init(args=args)
     node = SimStandIn()
-    peers = peer_nodes(node)
-    executor = MultiThreadedExecutor()
+    peers = peer_nodes(node) + plan_keep_nodes(node)
+    # 도크 대역과 길 유지 노드의 실행 콜백은 끝날 때까지 스레드를 쥔다. 로봇마다 도크 하나와
+    # 길 유지 요청 둘(pode_plan_keep MAX_RUNNING)이 쥐어도 응답과 취소 콜백이 돌 스레드가
+    # 남게 한다(CPU 수로 정하는 기본값은 작을 수 있다)
+    robots = len(node.get_parameter("robots").value)
+    executor = MultiThreadedExecutor(num_threads=robots * 3 + 4)
     for each in (node, *peers):
         executor.add_node(each)
     try:

@@ -25,6 +25,7 @@
   <exec_depend>pode_avoidance</exec_depend>
   <exec_depend>pode_fsm</exec_depend>
   <exec_depend>pode_peer_obstacles</exec_depend>
+  <exec_depend>pode_plan_keep</exec_depend>
   <exec_depend>robot_state_publisher</exec_depend>
   <exec_depend>xacro</exec_depend>
   <exec_depend>ros_gz_sim</exec_depend>

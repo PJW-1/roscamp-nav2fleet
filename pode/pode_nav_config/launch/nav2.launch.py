@@ -183,6 +183,12 @@ def generate_launch_description():
         output="screen", arguments=log, remappings=TF_REMAPS, condition=filtered,
         parameters=[{"wall_band_m": ParameterValue(arg("wall_band_m"), value_type=float),
                      "strips": ParameterValue(arg("narrow_strips"), value_type=str)}])
+    plan_keep = Node(
+        package="pode_plan_keep", executable="plan_keep", name="plan_keep", output="screen",
+        arguments=log, respawn=True,
+        condition=IfCondition(Flag("plan_keep_node", arg("plan_keep_node"))),
+        parameters=[{"keep": ParameterValue(Flag("plan_keep", arg("plan_keep")),
+                                            value_type=bool)}])
     avoidance = IncludeLaunchDescription(
         PythonLaunchDescriptionSource([FindPackageShare(arg("avoidance_package")),
                                        AVOIDANCE_LAUNCH]),
@@ -239,6 +245,13 @@ def generate_launch_description():
         DeclareLaunchArgument("peer_robots", default_value="",
                               description="peer_obstacles:=true일 때 로봇 이름들"
                                           "(pode1,pode2,pode3). 나를 뺀 로봇의 몸을 찍는다"),
+        DeclareLaunchArgument("plan_keep", default_value="true",
+                              description="true면 Nav2 goal을 다시 계획할 때 길이가 비슷한 다른"
+                                          " 길로 바꾸지 않고 지금 길을 지킨다(pode_plan_keep)."
+                                          " false면 planner 결과를 그대로 쓴다(비교용)"),
+        DeclareLaunchArgument("plan_keep_node", default_value="true",
+                              description="false면 길 유지 노드를 띄우지 않는다(다른 프로세스가"
+                                          " compute_path_keep을 낸다. 행동 트리가 그것을 부른다)"),
         DeclareLaunchArgument("initial_x", default_value="0.0"),
         DeclareLaunchArgument("initial_y", default_value="0.0"),
         DeclareLaunchArgument("initial_yaw", default_value="0.0"),
@@ -261,6 +274,7 @@ def generate_launch_description():
             PushRosNamespace(namespace),
             SetParameter("use_sim_time", arg("use_sim_time")),
             scan_filter,
+            plan_keep,
             avoidance,
         ]),
     ])
