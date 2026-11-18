@@ -191,8 +191,6 @@ REFUSED = {
     "empty": ([], "no first line"),
     "no inputs": ([head()], "no inputs"),
     "no map": ([head(map=None), TICK], "the first line has no ['map']"),
-    "unknown parameter": ([head(params={**asdict(load_params()), "warp_speed": 9}), TICK],
-                          "these parameters do not fit this code"),
     "a broken line in the middle": ([head(), "{oops", TICK], "line 2 is not JSON"),
 }
 
@@ -203,6 +201,31 @@ def test_a_record_that_cannot_be_played_back_is_refused_with_its_reason(tmp_path
     path.write_text("".join(line + "\n" for line in lines), encoding="utf-8")
     with pytest.raises(ValueError, match=why.replace("[", r"\[").replace("]", r"\]")):
         replay.replay(path)
+
+
+GONE = {**asdict(load_params()), "yard_backoff": False, "warp_speed": 9}
+
+
+def test_a_parameter_this_code_no_longer_has_is_skipped_and_named(tmp_path):
+    path = tmp_path / "run.jsonl"
+    path.write_text(head(params=GONE) + "\n" + TICK + "\n", encoding="utf-8")
+    result = replay.replay(path)
+    assert result.skipped == ("warp_speed", "yard_backoff") and result.inputs == 1
+
+
+def test_the_command_line_warns_about_the_parameters_it_skipped(tmp_path, monkeypatch, capsys):
+    path = tmp_path / "run.jsonl"
+    path.write_text(head(params=GONE) + "\n" + TICK + "\n", encoding="utf-8")
+    monkeypatch.setattr(sys, "argv", ["replay.py", str(path)])
+    assert replay.main() == 0
+    assert capsys.readouterr().out.splitlines()[0] == (
+        "warning: skipped 2 parameters this code no longer has: warp_speed, yard_backoff")
+
+
+def test_a_record_with_every_parameter_known_skips_nothing(tmp_path):
+    path = tmp_path / "run.jsonl"
+    path.write_text(head() + "\n" + TICK + "\n", encoding="utf-8")
+    assert replay.replay(path).skipped == ()
 
 
 def test_a_record_cut_in_the_middle_of_its_last_line_plays_the_rest(tmp_path):
