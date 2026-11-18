@@ -123,6 +123,21 @@ def test_make_params_cli_fixed_line_check(tmp_path, flag, word):
     assert all(ctl[n]["use_collision_detection"] is (word == "on") for n in FIXED_LINE)
 
 
+@pytest.mark.parametrize("flag", [True, False])
+def test_make_params_fixed_line_check_writes_explicit_value(tmp_path, flag):
+    # 원본이 반대 값이어도 플래그대로 세 키를 명시해서 쓴다
+    src = tmp_path / "src.yaml"
+    text = NAV2_SRC.read_text(encoding="utf-8")
+    src.write_text(text.replace("use_collision_detection: true",
+                                f"use_collision_detection: {str(not flag).lower()}"),
+                   encoding="utf-8")
+    mp = _make_params()
+    mp.write_params(0.12, tmp_path / "o", nav2_src=src, fixed_line_check=flag)
+    ctl = _load(tmp_path / "o" / "nav2_params.yaml")["controller_server"]["ros__parameters"]
+    for name in FIXED_LINE:
+        assert ctl[name]["use_collision_detection"] is flag
+
+
 def test_make_params_cli_writes_and_speed_of_reads(tmp_path):
     run = subprocess.run([sys.executable, str(KIT / "make_params.py"), "--speed", "0.12",
                           "--out", str(tmp_path / "p")], capture_output=True, text=True)

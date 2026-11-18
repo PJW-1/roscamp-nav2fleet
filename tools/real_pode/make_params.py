@@ -8,7 +8,7 @@
 FollowPath, FollowPathThrough(nav2_params.yaml), follow_path_goal(avoidance.yaml, FollowPathGoal).
 FollowPathReverse(0.05)는 그대로다.
 고정 경로 컨트롤러(FollowPath, FollowPathThrough, FollowPathReverse)의 use_collision_detection은
-기본으로 false로 바꾼다(시뮬 기본과 같다). --fixed-line-check를 주면 저장소 값(true) 그대로다.
+기본으로 false로 쓴다(시뮬 기본과 같다). --fixed-line-check를 주면 원본 값과 상관없이 true로 쓴다.
 FollowPathGoal(follow_path_goal)의 검사는 늘 그대로다.
 바꾼 줄 말고는 주석까지 그대로 두고, 다시 읽어 값을 확인한다.
 """
@@ -92,17 +92,17 @@ def _set(data: dict, path, value) -> None:
     data[path[-1]] = value
 
 
-def _converted(src: Path, targets, value: float, collision_off=()) -> str:
+def _converted(src: Path, targets, value: float, collision=(), collision_on=False) -> str:
     text = src.read_text(encoding="utf-8")
     out = replace_values(text, targets, value)
-    if collision_off:
-        out = replace_values(out, collision_off, False,
-                             "make_params.py 고정 경로 충돌 검사 끔(저장소 true)")
+    if collision:
+        out = replace_values(out, collision, collision_on,
+                             f"make_params.py 고정 경로 충돌 검사 {'켬' if collision_on else '끔'}")
     want = copy.deepcopy(yaml.safe_load(text))
     for path in targets:
         _set(want, path, value)
-    for path in collision_off:
-        _set(want, path, False)
+    for path in collision:
+        _set(want, path, collision_on)
     if yaml.safe_load(out) != want:
         raise RuntimeError(f"{src}: the copy differs from the source beyond the changed values")
     return out
@@ -120,8 +120,8 @@ def find_source(rel: Path, given=None) -> Path:
 def write_params(speed, out_dir, nav2_src=None, avoid_src=None, fixed_line_check=False) -> tuple:
     """두 사본을 out_dir에 쓴다. 확인을 모두 통과해야 쓴다."""
     value = checked_speed(speed)
-    off = () if fixed_line_check else COLLISION_TARGETS
-    nav2 = _converted(find_source(NAV2_REL, nav2_src), NAV2_TARGETS, value, off)
+    nav2 = _converted(find_source(NAV2_REL, nav2_src), NAV2_TARGETS, value, COLLISION_TARGETS,
+                      bool(fixed_line_check))
     avoid = _converted(find_source(AVOID_REL, avoid_src), AVOID_TARGETS, value)
     out = Path(out_dir)
     out.mkdir(parents=True, exist_ok=True)
