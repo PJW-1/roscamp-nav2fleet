@@ -369,22 +369,24 @@ def test_real_slam_map_file():
     from PIL import Image
     meta = _load(KIT / "maps" / f"{REAL_MAP}.yaml")
     assert meta["image"] == f"{REAL_MAP}.pgm" and meta["mode"] == "trinary"
-    assert meta["resolution"] == 0.025 and meta["origin"] == [-0.1, -0.1, 0.0]
+    assert meta["resolution"] == 0.005 and meta["origin"] == [-0.1, -0.1, 0.0]
     # 205(미지)는 미지로 남아야 한다
     p_unknown = (255 - 205) / 255.0
     assert meta["free_thresh"] < p_unknown < meta["occupied_thresh"]
     img = Image.open(KIT / "maps" / meta["image"])
-    assert img.size == (88, 48)
+    assert img.size == (440, 240)
     px = img.load()
 
     def cell(x, y):  # 경기장 좌표 -> 픽셀 값
-        return px[int((x + 0.1) / 0.025), 47 - int((y + 0.1) / 0.025)]
-    # 네 벽은 직선: 안쪽 면 x 0 / 1.975, y 0 / 0.975
+        return px[int((x + 0.1) / 0.005), 239 - int((y + 0.1) / 0.005)]
+    # 네 벽은 직선: 안쪽 면 x 0.01 / 1.965, y 0.01 / 0.965 (11-18, 1 cm 안쪽)
     for i in range(79):
         x = 0.0125 + i * 0.025
+        assert cell(x, 0.0075) == 0 and cell(x, 0.9675) == 0
         assert cell(x, -0.0125) == 0 and cell(x, 0.9875) == 0
     for i in range(39):
         y = 0.0125 + i * 0.025
+        assert cell(0.0075, y) == 0 and cell(1.9675, y) == 0
         assert cell(-0.0125, y) == 0 and cell(1.9875, y) == 0
     # 급행 통로 가운데와 남쪽 통로는 빈칸, 진열대 B 는 점유
     assert cell(1.0, 0.89) == 254 and cell(1.0, 0.2) == 254
