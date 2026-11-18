@@ -16,8 +16,6 @@ ZERO_MEANS_OFF = frozenset({"zone_clear_m", "idle_watch_s", "silent_limit_s", "s
                             "battery_low_pct"})
 # 이 끝말의 키가 시간·거리·속도·백분율이다
 MEASURE_SUFFIXES = ("_s", "_m", "_mps", "_pct")
-# 접미사 규칙에 안 걸리는 시간 값: 유한, 0 이상(0이면 품목 시간 없음)
-NONNEGATIVE_EXTRA = ("eta_fill_s_per_item",)
 # Pode 기본 blocked_after_s(pode_fsm/params.py). 계약에 없어 기본값을 적는다
 ROBOT_BLOCKED_AFTER_S = 10.0
 # 상태 보고 주기 0.5 s, 두 쪽 진전 재기 시작 차이, 여유
@@ -71,9 +69,6 @@ class FleetParams:
     dispatch_retry_limit: int = 3
     self_recovery_limit_s: float = 45.0
     traffic_mode: str = "zones"
-    eta_fill_s_per_item: float = 4.0
-    eta_fill_base_s: float = 4.0
-    eta_swap_s: float = 8.0
     nav_speed_mps: float = 0.12
     follow_speed_mps: float = 0.12
     retreat_speed_mps: float = 0.05
@@ -162,9 +157,6 @@ def check_types(data: dict, source="params") -> None:
     if data.get("release_confirm_samples", 1) < 1:
         raise ValueError(f"{source}: release_confirm_samples must be >= 1, "
                          f"got {data['release_confirm_samples']!r}")
-    for name in NONNEGATIVE_EXTRA:
-        if name in data and data[name] < 0:
-            raise ValueError(f"{source}: {name} must be >= 0, got {data[name]!r}")
 
 
 # ---- 시간·거리 값 검사: 유한, 음수 아님, 끔이 아니면 0보다 큼 ----

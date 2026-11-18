@@ -141,15 +141,8 @@ def test_release_confirm_samples_is_a_positive_integer(tmp_path, bad):
         load_params(write(tmp_path, {**SHIPPED, "release_confirm_samples": bad}))
 
 
-@pytest.mark.parametrize("bad", [-1.0, math.nan, math.inf, "4", True])
-def test_eta_fill_s_per_item_is_finite_and_not_negative(tmp_path, bad):
-    with pytest.raises(ValueError, match="eta_fill_s_per_item"):
-        load_params(write(tmp_path, {**SHIPPED, "eta_fill_s_per_item": bad}))
-
-
-def test_eta_fill_s_per_item_may_be_zero(tmp_path):
-    params = load_params(write(tmp_path, {**SHIPPED, "eta_fill_s_per_item": 0.0}))
-    assert params.eta_fill_s_per_item == 0.0
+def test_the_station_time_estimates_are_gone():
+    assert not {"eta_fill_s_per_item", "eta_fill_base_s", "eta_swap_s"} & set(FIELDS)
 
 
 NUMBER_KEYS = sorted(name for name, f in FIELDS.items() if f.type in ("int", "float"))

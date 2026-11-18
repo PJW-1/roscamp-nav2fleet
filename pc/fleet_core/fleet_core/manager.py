@@ -43,8 +43,6 @@ class FleetManager(ManagerRoute, ManagerViews, ManagerRecord):
         self.orchestrator = OrderOrchestrator(site.stations, params, robots, self._frozen)
         self.arm = ArmJobs(site.stations, params, robots, self._frozen, self._next_goal_id)
         self._work = next(s.id for s in site.stations.values() if s.action == FILL)
-        if hasattr(self.traffic, "station_left"):
-            self.traffic.station_left = self.station_left_s
         self._outbound = next(s.id for s in site.stations.values() if s.action == SWAP)
         self._out: list = []
         self._bounds = site.bounds()
@@ -53,20 +51,7 @@ class FleetManager(ManagerRoute, ManagerViews, ManagerRecord):
         self.last_clear_reason = ""
         self.last_reinstate_reason = ""
 
-    # ---- 스테이션 작업 남은 시간 추정과 읽기 전용 속성 ----
-    def station_left_s(self, robot) -> float | None:
-        job = self.orchestrator.station_job(robot)
-        if job is None:
-            return None
-        kind, items = job
-        sent = self.arm.sent_at(robot)
-        p = self.params
-        total = (p.eta_fill_base_s + items * p.eta_fill_s_per_item if kind == FILL
-                 else p.eta_swap_s)
-        if sent is None:
-            return total
-        return max(1.0, total - (self._frozen() - sent))
-
+    # ---- 읽기 전용 속성 ----
     @property
     def zones(self):
         return self.traffic.zones

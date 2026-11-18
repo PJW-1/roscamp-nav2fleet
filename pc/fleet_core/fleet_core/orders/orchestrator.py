@@ -164,15 +164,6 @@ class OrderOrchestrator(Faults, Stations):
         out, self._out = self._out, []
         return out
 
-    def station_job(self, robot) -> tuple[str, int] | None:
-        r = self._robots.get(robot)
-        if r is None or r.stage not in (FILLING, SWAPPING):
-            return None
-        if r.stage == SWAPPING:
-            return SWAP, 1
-        left = subtract_items(r.order.items, r.order.placed, r.order.missing) if r.order else {}
-        return FILL, sum(left.values())
-
     def order_of(self, robot) -> str:
         r = self._robots.get(robot)
         return r.order.order_id if r and r.order else ""

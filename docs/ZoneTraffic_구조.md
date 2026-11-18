@@ -6,6 +6,8 @@
 
 이 브랜치(`refactor/yield-owner`)에서는 그 뒤에 2부 A2로 마당 물러나기를 지웠고, 아래 표에는 반영하지 않았다. 지워진 것: `Backoff`의 `_back_off`, `_awaits_blocked`, `_backoff_result`, `_backoff_ended`와 `backoff_spot`, goal 종류 `BACKOFF`, `Avoid.backoff_from`. `Backoff`에는 `_stand_aside`만 남았다(`docs/worklog_overnight_2026-11-18.md` 4절).
 
+그 뒤 `refactor/remove-station-left`에서 아무도 읽지 않던 `ZoneBase.station_left`를 지웠다. 값을 넣던 `FleetManager.station_left_s`, 그것만 쓰던 `OrderOrchestrator.station_job`과 파라미터 `eta_fill_s_per_item`, `eta_fill_base_s`, `eta_swap_s`도 함께 지웠다. 3.1 표에서는 그 줄을 뺐지만 속성 수(31개)와 줄 번호는 지우기 전 값이다.
+
 ## 정리 전후
 
 정리는 동작을 바꾸지 않았다. 명령, 이벤트, 순서, 보유 구역이 기준 기록(trace, situations, store, order_v7, order_d2 다섯 표와 시험별 하네스 기록)과 0줄 차이다.
@@ -193,7 +195,6 @@ tick 말고 입력으로 들어오는 길도 있다. 가장 중요한 것은 `on
 | `_near` | Watch(6) | - | |
 | `order_fault` | MoveOrders(1) | - | |
 | `clear_reason` | Health(2) | - | |
-| `station_left` | - | - | (FleetManager가 넣는다, 7절 3) |
 | `_views` | - | ZoneTraffic(5) | |
 | `_capacity` | - | ZoneTraffic(1) | |
 | `_pose_watch` | - | Progress(1) | |
@@ -367,7 +368,7 @@ MarkBook이 표시 만들기·갱신(`mark`), 키 보유(`hold`), 만료(`expire
 
 1. `_watch_deadlock`은 항상 빈 `frozenset()`을 반환한다(watch.py `_watch_deadlock` 끝). 그래서 `tick_progress`의 반환값 `stopped`는 항상 비어 있고, `tick_pick(stopped)`와 `robot not in stopped`(controller.py:57, manager.py:232)는 아무 일도 하지 않는다. [확정] 이유(2026-11-18 확인): 이 모양은 자유바닥 교통 층에서 그대로 옮겨 왔다(1da1e61). 거기서는 대기 순환에 든 로봇 이름을 돌려주어 그 tick에 `tick_pick`이 고르지 않고 `step`이 걷지 않게 했다("robots of a wait cycle stand still (H1)"). 구역 교통(817343e)은 순환을 `_evade`로 한 대를 주차 자리로 보내 풀 뿐 세울 로봇을 고르지 않아 늘 빈 집합을 돌려준다. `tick_pick(stopped)`는 `TrafficApi`의 공개 API라 고치지 않고, 코드에 같은 주석을 달았다.
 2. (고침) `ZoneBase._outbound`는 읽는 곳이 없었다. 2단계에서 지웠다.
-3. `station_left`(base.py)는 FleetManager가 `hasattr`로 보고 값을 넣어 준다(manager.py:46-47). traffic 패키지 안에서 읽는 곳은 없다. [확정] `test_traffic_api.py`가 이 이름을 OPTIONAL로 두므로 남겼다.
+3. (고침) `station_left`(base.py)는 FleetManager가 `hasattr`로 보고 값을 넣어 주기만 하고 traffic 패키지 안에서 읽는 곳이 없었다. `refactor/remove-station-left`에서 지웠다.
 4. (고침) `_capacity_checked`는 acfa45b에서 이미 `__init__`에 있었다. 지금은 CapacityCheck의 `checked`다.
 5. (고침) Silent의 `_event` 가로채기. 지금은 `ZoneBase._event`가 `SilentWatch.note`를 직접 부른다. 동작(로봇을 지정한 이벤트가 SILENT_STALL이 아니면 그 로봇의 무진척 일화를 지운다)은 같다.
 6. `ZoneGrants.force`는 차선 방향과 간격을 보지 않는다(정원과 노드 점유는 본다, 5.2).

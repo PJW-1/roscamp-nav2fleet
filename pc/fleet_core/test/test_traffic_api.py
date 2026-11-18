@@ -23,7 +23,6 @@ LANE_CONTROLLER_API = {
     "robot_view", "status_view",
 }
 ALSO_CALLED = {"zones", "confirm_clear", "clear_reason", "reinstate", "reinstate_refusal"}
-OPTIONAL = {"station_left"}  # FleetManager가 있을 때만 채운다(hasattr)
 KEPT = ("mission", "selector", "deadlock", "modes", "api", "site", "zone.controller")
 
 
@@ -52,7 +51,7 @@ def test_the_api_holds_the_public_methods_of_the_removed_lane_controller():
 def test_everything_the_manager_calls_on_traffic_is_in_the_api():
     used = used_on(PACKAGE / "manager.py", "self")
     assert used, "the walk found nothing, so it would pass anything"
-    assert used - OPTIONAL <= declared()
+    assert used <= declared()
 
 
 @pytest.mark.skipif(not FLEET_MANAGER_NODE.is_file(), reason="only in the source tree")

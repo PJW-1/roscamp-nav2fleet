@@ -51,7 +51,6 @@ class ZoneBase:
         self._near: dict = {}
         self.order_fault = ""
         self.clear_reason = ""
-        self.station_left = None
         self._views = ZoneViews(site, self.grants, self._robots, self._joining, self._wants,
                                 self._blocked, self._marks)
         self._capacity = CapacityCheck(site, self._event)
