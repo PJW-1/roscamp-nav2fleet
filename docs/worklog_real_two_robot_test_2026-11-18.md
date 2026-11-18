@@ -67,10 +67,13 @@
   - `sim/fake_robots/test/test_dock_wait.py`(판정, 켜도 되는 조건, 시나리오), `test_ros_dock_wait.py`(실제 Dock 액션: 성공, 멀면 실패, state 없음, 없는 도크, 두 로봇 따로, 취소, 새 목표가 옛 목표를 끝냄, LOCALIZING은 자세가 아님, stop이 돌던 목표를 끝내고 기다림, use_sim_time 켜기 거부, 같은 이름의 서버 찾기), `test_launch_dock_wait.py`(기본 꺼짐, 켜기, 시뮬 시계 거부, 가짜 로봇과 겹침 거부, `none`).
   - 41148e2 전에 처음 쓴 21개: 모듈이 없어 수집 오류(실패). 41148e2에서 21 passed. 리뷰 반영으로 6개를 더 쓰고 5개 실패를 본 뒤 2ac02c6에서 27 passed.
   - `pc/fleet_manager/test/test_launch_args.py`(이 파일만, ROS 도메인을 쓰지 않는다): 새 시험 1개 실패를 본 뒤 3 passed.
-- fake_robots 전체 시험: (결과를 아래에 적는다)
+- fake_robots 전체 시험(도메인 66, LOCALHOST, 혼자 씀):
+  - 41148e2: 1 failed, 1071 passed, 1 skipped, 27 xfailed. 실패는 `test_exactly_the_six_scenarios_are_shipped`(새 시나리오가 목록에 없었음). 70cbece에서 목록에 넣었다.
+  - 70cbece: 1082 passed, 1 skipped, 27 xfailed (769 s). 그 뒤 커밋(75ae9e7, f961723, 9b4eb3c)은 `test_dock_wait.py`, `test_ros_dock_wait.py`만 바꿨고 두 파일은 따로 돌려 통과했다(13 passed, 도메인 67).
+  - 이 결과는 앞서 도메인 67에서 집중 시험과 전체 시험을 겹쳐 돌려 오염됐던 결과를 대신한다.
 - PC 쪽 실제 실행(도메인 67, LOCALHOST, 로봇 없음, 별도 설치 공간): 위 PC 명령으로 `fleet_manager`, `fake_central`, `fake_arm3`, `real_dock_wait`가 떴고 액션 `/pode1/dock`, `/pode2/dock`, `/workcell/fill_basket`, `/arm3/swap_basket`이 보였다. `/central/orders`에 O-001, O-002가 RUN으로 올라왔다. 내 launch 프로세스 묶음만 내렸다.
 - 남은 작은 위험: `test_losing_localization_drops_the_last_pose`는 LOCALIZING이 도킹 대기(1 s)보다 늦게 처리되면 정상 노드에서도 실패할 수 있다(Codex [추측], 같은 PC 안 메시지라 1 s 넘게 늦을 일은 드물어 고치지 않음).
-- 로봇 쪽: 서브에이전트가 `tools/test/test_real_pode.py`에 시험을 먼저 넣고(8 failed 62 passed) 구현 뒤 70 passed. 실제 remap 적용은 (결과를 아래에 적는다).
+- 로봇 쪽: 서브에이전트가 `tools/test/test_real_pode.py`에 시험을 먼저 넣고(8 failed 62 passed) 구현 뒤 70 passed. 리뷰 반영으로 시험을 다듬어 `feat/real-dock-aside`는 9c1db1e까지 왔다. 실제 remap은 `test_launch_dock_aside_moves_real_fsm_server`가 진짜 pode_fsm을 real_pode.launch.py의 `_fsm()`으로 띄워 `ros2 action info`로 확인한다: `dock_aside:=true`면 `/pode1/dock_fsm` 서버가 `/pode1/pode_fsm` 하나이고 `/pode1/dock`은 서버 0, `false`면 반대. 5ad6e57에서 내가 도메인 68로 파일 전체를 다시 돌려 73 passed(이 시험 포함, 건너뛰지 않음). Nav2와 bringup까지 띄운 확인은 아니다.
 
 ## 5. 시뮬과 다른 점, 조심할 것
 
