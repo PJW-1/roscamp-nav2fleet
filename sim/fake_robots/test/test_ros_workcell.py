@@ -98,6 +98,39 @@ def test_stock_is_used_up_across_goals(harness, tmp_path):
     assert second.placed == [] and counts(second.missing) == {"A": 1}
 
 
+def test_arms_never_place_at_once_but_do_pick_at_once(harness, tmp_path):
+    from fake_robots.fake_workcell_node import STATE_PICKING, STATE_PLACING
+    cell = Cell(harness, tmp_path, stock={"arm1": {"A": 6}, "arm2": {"C": 6}},
+                arm={"seconds_per_item": 0.3, "swap_seconds": 0.4, "fail_rate": 0.0})
+    log = []
+    set_state = cell.node._set_state
+
+    def recorded(arm, state):
+        set_state(arm, state)
+        log.append((time.monotonic(), arm, state))
+
+    cell.node._set_state = recorded
+    result, _ = cell.fill(A=4, C=4)
+    assert counts(result.placed) == {"A": 4, "C": 4}
+    arms = ("arm1", "arm2")
+    started = {}
+    spans = {arm: [] for arm in arms}
+    picking_overlap = False
+    state_now = dict.fromkeys(arms, "")
+    for t, arm, state in sorted(log):
+        if state == STATE_PLACING and arm not in started:
+            started[arm] = t
+        elif state != STATE_PLACING and arm in started:
+            spans[arm].append((started.pop(arm), t))
+        state_now[arm] = state
+        picking_overlap |= all(now == STATE_PICKING for now in state_now.values())
+    assert len(spans["arm1"]) == 4 and len(spans["arm2"]) == 4
+    for a_start, a_end in spans["arm1"]:
+        for b_start, b_end in spans["arm2"]:
+            assert a_end <= b_start or b_end <= a_start, "both arms were PLACING at once"
+    assert picking_overlap, "the arms never picked in parallel"
+
+
 def test_the_lock_is_what_keeps_them_apart(harness, tmp_path):
     """다른 쪽이 잠금을 쥐면 아무도 바구니에 놓지 못한다."""
     cell = Cell(harness, tmp_path)
