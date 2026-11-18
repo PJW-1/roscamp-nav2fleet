@@ -6,12 +6,14 @@ pytest.importorskip("fleet_interfaces.msg")
 
 from conftest import CONTRACT, wait_until, write_scenario  # noqa: E402
 from fleet_core.common.contract import load_contract, to_ros_qos  # noqa: E402
+from fleet_core.fleet_map import load_fleet_map  # noqa: E402
 from fleet_interfaces.action import Dock  # noqa: E402
 from fleet_interfaces.msg import RobotState  # noqa: E402
 from rclpy.action import ActionClient  # noqa: E402
 
 C = load_contract(CONTRACT)
-WORK_DOCK = (1.88, 0.495)  # v7 WORK 도크 지점 W
+# v7 WORK 도크 지점 W는 지도에서 읽는다(2026-11-18 저녁 x 1.88 -> 1.86, 박아 둔 값이 4 cm 어긋났다)
+WORK_DOCK = load_fleet_map("v7").node_pose("W")
 
 
 def start(harness, tmp_path, robots="pode1 pode2", duration=0.6, **extra):
