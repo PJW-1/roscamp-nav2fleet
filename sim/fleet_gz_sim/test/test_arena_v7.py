@@ -50,7 +50,9 @@ def test_v7_charging_stalls_and_express_are_open_in_the_fine_map(site):
         assert free(x, 0.05)
     assert not free(0.25, 0.05) and not free(0.51, 0.05)
     assert free(0.77, 0.05)  # 칸막이 3이 있던 자리
-    assert free(1.0, 0.85) and free(1.0, 0.95)   # 급행 0.18 안
+    assert free(1.0, 0.85) and free(1.0, 0.95)   # 급행 0.17(실측) 안
+    # 북쪽 벽 안쪽 면은 SLAM 실측 0.98(2026-11-17): 1 cm 지도에서 0.98~0.99 칸은 벽이다
+    assert free(1.0, 0.975) and not free(1.0, 0.985)
 
 
 def test_v7_standing_nodes_are_outside_the_keepout(site):
@@ -316,7 +318,7 @@ def test_v7_p3_joins_the_south_yard_to_the_east_below_y_020(site):
     """5 cm costmap(내접 inflation + keepout)에서 P-3 앞(y 0.165)과 동쪽 (0.85, 0.15)이 y 0.20
     아래로만 이어진다. 칸막이 3이 있을 때는 그 둘레 keepout 때문에 끊겼다."""
     grid, _, _ = _costmap()
-    assert _joined(grid, (0.64, 0.165), (0.85, 0.15), shut=[(0.0, 0.20, 1.98, 0.99)])
+    assert _joined(grid, (0.64, 0.165), (0.85, 0.15), shut=[(0.0, 0.20, 1.98, 0.98)])
 
 
 # ---- 칸막이 1, 2 위 끝: 칸을 나와 동쪽으로 가는 Nav2 goal 경로 ----
@@ -356,7 +358,7 @@ def test_v7_a_robot_that_left_its_bay_passes_the_next_divider_only_above_it(
     grid, _, _ = _costmap()
     east = (next_bay_x, 0.175)
     assert _joined(grid, (x, y), east), (x, y)
-    above = (divider_x - 0.10, 0.20, divider_x + 0.10, 0.99)
+    above = (divider_x - 0.10, 0.20, divider_x + 0.10, 0.98)
     assert not _joined(grid, (x, y), east, shut=[above]), (x, y)
 
 
@@ -382,7 +384,7 @@ def test_v7_the_south_yard_stays_open_above_the_divider_keepout(site, a, b):
     # 동쪽으로 가는 길은 남쪽 마당으로 이어진다: 서쪽 끝을 막아도 이어진다
     if b in ("Q1", "Q2"):
         assert _joined(grid, site.node_pose(a), site.node_pose(b),
-                       shut=[(0.0, 0.40, 0.68, 0.99)]), (a, b)
+                       shut=[(0.0, 0.40, 0.68, 0.98)]), (a, b)
 
 
 # ---- 가운데 통로 갈래 지도(A: 2.5 cm, B: 칸 중심 규칙). 기본 지도는 위 시험이 그대로 본다 ----
@@ -535,3 +537,12 @@ def test_v7_corridor_box_keeps_one_box_in_the_middle_corridor_for_the_whole_run(
         planner = Planner(schedule, start_s=start_s, max_delay_s=20.0)
         step = planner.step(box.at_s, [o_in], 0.35)
         assert [occ.obstacle for occ in step.spawn] == [box]
+
+
+def test_v7_world_north_wall_inner_face_is_the_slam_measurement():
+    """2026-11-17 SLAM: 북쪽 벽 안쪽 면 y 0.98. 커밋된 월드의 wall_north도 그 자리다."""
+    from fleet_gz_sim import arena
+    root = ET.fromstring((PKG / "worlds" / "arena_v7.sdf").read_text(encoding="utf-8"))
+    boxes = {c.get("name"): c for c in root.iter("collision")}
+    y = float(boxes["wall_north"].find("pose").text.split()[1])
+    assert y - arena.WALL_M / 2 == pytest.approx(0.98)
