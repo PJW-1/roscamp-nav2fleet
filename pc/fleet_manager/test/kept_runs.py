@@ -30,5 +30,9 @@ def pytest_runtest_makereport(item, call):
     run_dir = getattr(item, "funcargs", {}).get("tmp_path")
     if report.when != "call" or not report.failed or run_dir is None:
         return
-    kept = keep(item.name, run_dir, keep_root(), time.strftime("%Y%m%d_%H%M%S"))
+    try:
+        kept = keep(item.name, run_dir, keep_root(), time.strftime("%Y%m%d_%H%M%S"))
+    except OSError as error:
+        report.sections.append(("kept run", f"the run could not be kept: {error}"))
+        return
     report.sections.append(("kept run", f"the run is kept in {kept}"))

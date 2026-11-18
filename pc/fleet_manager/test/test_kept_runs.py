@@ -61,3 +61,16 @@ def test_only_a_failed_test_with_a_run_folder_is_kept_and_the_report_says_where(
     assert (folder / "summary.json").exists() and (folder / "bag" / "data.txt").exists()
     assert f"the run is kept in {folder}" in done.stdout
     assert "2 failed, 1 passed" in done.stdout
+
+
+def test_a_run_that_cannot_be_kept_does_not_hide_the_failure(tmp_path):
+    (tmp_path / "suite").mkdir()
+    (tmp_path / "suite" / "test_sample.py").write_text(FAILING, encoding="utf-8")
+    (tmp_path / "kept").write_text("a file where the folder should be", encoding="utf-8")
+    env = dict(os.environ, FLEET_TEST_KEEP_DIR=str(tmp_path / "kept"), PYTHONPATH=str(HERE))
+    done = subprocess.run(
+        [sys.executable, "-m", "pytest", "-q", "-p", "kept_runs", "-p", "no:cacheprovider",
+         "--rootdir", str(tmp_path / "suite"), str(tmp_path / "suite")],
+        env=env, capture_output=True, text=True, timeout=120)
+    assert "2 failed, 1 passed" in done.stdout and "INTERNALERROR" not in done.stdout, done.stdout
+    assert "the run could not be kept:" in done.stdout

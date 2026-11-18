@@ -106,7 +106,10 @@ def start_core(head: dict, clock) -> FleetManager:
     missing = {"robots", "params", "map"} - set(head)
     if missing:
         raise ValueError(f"the first line has no {sorted(missing)}")
-    params = FleetParams(**{**RECORD_DEFAULTS, **_known(head["params"])})
+    try:
+        params = FleetParams(**{**RECORD_DEFAULTS, **_known(head["params"])})
+    except TypeError as error:
+        raise ValueError(f"these parameters do not fit this code: {error}") from error
     site = site_from_text(head["map"])
     return FleetManager(site, params, head["robots"], clock)
 

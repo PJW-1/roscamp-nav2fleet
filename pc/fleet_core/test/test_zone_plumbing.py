@@ -191,6 +191,9 @@ REFUSED = {
     "empty": ([], "no first line"),
     "no inputs": ([head()], "no inputs"),
     "no map": ([head(map=None), TICK], "the first line has no ['map']"),
+    "a parameter the code needs is missing": (
+        [head(params={k: v for k, v in asdict(load_params()).items() if k != "basket_capacity"}),
+         TICK], "these parameters do not fit this code"),
     "a broken line in the middle": ([head(), "{oops", TICK], "line 2 is not JSON"),
 }
 
