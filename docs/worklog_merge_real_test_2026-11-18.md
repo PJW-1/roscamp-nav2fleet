@@ -26,7 +26,7 @@
 - 매장 상황 다섯을 v7 씨드 1로 병합 전(40354a4)과 병합 뒤(689e298)에 직접 돌려 `failures`를 비교했다. 스크립트는 세션 임시 폴더에 있다(저장소 밖).
   - 넷(person_in_express, person_at_dock, corridor_box, box_stays)은 양쪽 다 0이다.
   - box_removed는 양쪽 다 `I5_STANDING` 2개다(pode3이 J_E에 섬). 병합 전 55.6/60.7 s와 132.2/137.3 s, 병합 뒤 55.2/60.3 s와 132.0/137.1 s.
-  - 병합 전 값은 `worklog_v7_store_2026-11-18.md`에 적힌 값과 같다. 병합으로 새 실패는 생기지 않았다. 시각이 0.2~0.4 s 당겨진 것은 급행 중심선 이동 때문으로 본다 [추측].
+  - 병합 전 값은 `worklog_v7_store_2026-11-18.md`에 적힌 값과 같다. 비교한 다섯 상황(v7 씨드 1)에서 병합으로 새 실패는 생기지 않았다. 다른 배치와 씨드는 비교하지 않았다. 시각이 0.2~0.4 s 당겨진 것은 급행 중심선 이동 때문으로 본다 [추측].
 - Gazebo 판은 돌리지 않았다.
 
 ## 3. 병합 리뷰가 짚은 것 (Codex, 689e298)
@@ -45,7 +45,7 @@
 
 - **같은 커밋:** 로봇 두 대와 관제 PC에 같은 main 커밋을 쓴다.
 - **도메인:** `tools/real_pode/env.sh`는 `ROS_DOMAIN_ID=12`, `ROS_AUTOMATIC_DISCOVERY_RANGE=SUBNET`이다. PC에서도 같은 값을 export한다.
-- **관제 PC를 먼저 띄운다.** 로봇은 관제 heartbeat가 1.5 s 끊기면 선다(`real_pode.launch.py`의 `heartbeat_timeout_s`).
+- **관제 PC를 먼저 띄운다.** 로봇은 하던 동작(이동 등)이 있을 때 마지막 관제 heartbeat나 요청에서 1.5 s가 지나면 그 동작을 멈춘다(`real_pode.launch.py`의 `heartbeat_timeout_s`, `pode/pode_fsm/pode_fsm/core.py`의 `tick()`).
   - `ros2 launch iponic_bringup pc.launch.py use_fake:=false map_file:=v7 robots:="pode1 pode2"`
   - `robots` 기본값은 `"pode1 pode2 pode3"`다. 두 대면 꼭 준다. 이름은 로봇 namespace와 글자까지 같아야 한다.
   - `map_file`을 안 주면 d2 배치를 읽는다.
@@ -76,7 +76,7 @@
 | 로봇 | 주소 | 전 상태 | 한 일 |
 |---|---|---|---|
 | pinky_27a6 | 192.168.0.200 (MAC e4:5f:01:b9:27:a7) | 03a100d가 `pode_*` 이름으로 배포돼 있었다. 옛 `pinky_*` 없음. launch 안 돎 | cfa0de3 배포, `colcon build` 7개 패키지 통과(50.1 s) |
-| pinky_07d7 | 192.168.0.201 (MAC d8:3a:dd:26:07:d8) | 이 저장소 코드 없음(어제 SLAM은 제조사 bringup만 썼다). launch 안 돎 | cfa0de3 첫 배포, `colcon build` |
+| pinky_07d7 | 192.168.0.201 (MAC d8:3a:dd:26:07:d8) | 이 저장소 코드 없음(어제 SLAM은 제조사 bringup만 썼다). launch 안 돎 | cfa0de3 첫 배포, `colcon build` 7개 패키지 통과(첫 빌드라 4 min 24 s, 경고 0) |
 
 - 배포는 `feat/start-peer-robots` worktree의 HEAD(cfa0de3)에서 했다. 이 기록 커밋만 빼면 main과 같은 코드다. 로봇의 `~/nav2fleet_ws/src/SOURCE_COMMIT`에 cfa0de3을 적었다.
 - 빌드 기록: 로봇의 `~/nav2fleet_ws/build_cfa0de3.log`.
