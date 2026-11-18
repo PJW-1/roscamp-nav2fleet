@@ -160,6 +160,7 @@ def _fsm_actions(dock_aside):
 
 def test_launch_declares_dock_aside_default_false():
     import importlib.util
+    pytest.importorskip("launch")
     from launch.actions import DeclareLaunchArgument
     spec = importlib.util.spec_from_file_location("real_pode_launch2", KIT / "real_pode.launch.py")
     mod = importlib.util.module_from_spec(spec)
@@ -212,8 +213,25 @@ def generate_launch_description():
 def _action_servers(env, name):
     run = subprocess.run(["ros2", "action", "info", name], capture_output=True, text=True,
                          env=env, timeout=30)
+    assert run.returncode == 0, f"ros2 action info {name} failed: {run.stderr}"
+    assert "Action servers:" in run.stdout, f"unexpected output: {run.stdout!r}"
     text = run.stdout.split("Action servers:")[-1]
     return [t.strip() for t in text.splitlines()[1:] if t.strip()]
+
+
+def _stop_group(proc):
+    # INT -> TERM -> KILL 순서로 내린다. 정리 오류가 시험 결과를 가리지 않게 한다
+    import signal
+    for sig, wait in ((signal.SIGINT, 15), (signal.SIGTERM, 10), (signal.SIGKILL, 10)):
+        try:
+            os.killpg(proc.pid, sig)
+        except (ProcessLookupError, PermissionError):
+            pass
+        try:
+            proc.wait(timeout=wait)
+            return
+        except subprocess.TimeoutExpired:
+            continue
 
 
 @pytest.mark.parametrize("aside,present,absent", [("true", "dock_fsm", "dock"),
@@ -223,14 +241,21 @@ def test_launch_dock_aside_moves_real_fsm_server(tmp_path, aside, present, absen
         pytest.skip("ros2 not available")
     if subprocess.run(["ros2", "pkg", "prefix", "pode_fsm"], capture_output=True).returncode:
         pytest.skip("pode_fsm not installed")
+    # 호출한 쪽이 도메인을 정한다(12, 50~59는 쓰지 않는다)
+    domain = os.environ.get("ROS_DOMAIN_ID", "")
+    if (not domain.isdigit() or int(domain) == 12 or 50 <= int(domain) <= 59
+            or os.environ.get("ROS_AUTOMATIC_DISCOVERY_RANGE") != "LOCALHOST"):
+        pytest.skip("set ROS_DOMAIN_ID (not 12, 50-59) and ROS_AUTOMATIC_DISCOVERY_RANGE=LOCALHOST")
+    env = dict(os.environ)
+    # 같은 도메인에 이미 서버가 있으면 결과를 믿을 수 없다
+    for name in ("/pode1/dock", "/pode1/dock_fsm"):
+        if _action_servers(env, name):
+            pytest.skip(f"a server already exists on {name} in this domain")
     import make_params
     make_params.write_params(0.12, tmp_path / "params")
     (tmp_path / "probe.launch.py").write_text(PROBE_LAUNCH.format(
         path=str(KIT / "real_pode.launch.py"),
         params=str(tmp_path / "params" / "nav2_params.yaml")))
-    # 다른 시험과 겹치지 않게 별도 도메인, 이 PC 안에서만 찾는다
-    env = dict(os.environ, ROS_DOMAIN_ID=os.environ.get("DOCK_TEST_DOMAIN", "68"),
-               ROS_AUTOMATIC_DISCOVERY_RANGE="LOCALHOST")
     launch = subprocess.Popen(["ros2", "launch", str(tmp_path / "probe.launch.py"),
                                f"dock_aside:={aside}"], env=env, start_new_session=True,
                               stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
@@ -245,12 +270,7 @@ def test_launch_dock_aside_moves_real_fsm_server(tmp_path, aside, present, absen
         assert servers == ["/pode1/pode_fsm"]
         assert _action_servers(env, other) == []
     finally:
-        os.killpg(launch.pid, 2)
-        try:
-            launch.wait(timeout=15)
-        except subprocess.TimeoutExpired:
-            os.killpg(launch.pid, 15)
-            launch.wait(timeout=10)
+        _stop_group(launch)
 
 
 def test_launch_keeps_shutdown():
