@@ -158,6 +158,19 @@ def _fsm_actions(dock_aside):
     return mod._fsm(ctx), ctx
 
 
+def test_launch_declares_dock_aside_default_false():
+    import importlib.util
+    from launch.actions import DeclareLaunchArgument
+    spec = importlib.util.spec_from_file_location("real_pode_launch2", KIT / "real_pode.launch.py")
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    mod.get_package_share_directory = lambda name: "/nonexistent/" + name
+    decl = [a for a in mod.generate_launch_description().entities
+            if isinstance(a, DeclareLaunchArgument) and a.name == "dock_aside"]
+    assert len(decl) == 1
+    assert "".join(t.text for t in decl[0].default_value) == "false"
+
+
 def test_launch_default_does_not_wrap_fsm():
     from launch.actions import GroupAction, IncludeLaunchDescription
     acts, _ = _fsm_actions("false")
@@ -176,6 +189,68 @@ def test_launch_dock_aside_wraps_fsm_with_remap():
     assert perform_substitutions(ctx, remap.src) == "/pode1/dock"
     assert perform_substitutions(ctx, remap.dst) == "/pode1/dock_fsm"
     assert any(isinstance(a, IncludeLaunchDescription) for a in inner)
+
+
+# ---- 실제 pode_fsm으로 확인: remap이 Dock 서버 이름에 닿는가 ----
+PROBE_LAUNCH = """import importlib.util
+from launch import LaunchDescription
+from launch.actions import DeclareLaunchArgument, OpaqueFunction
+spec = importlib.util.spec_from_file_location("rp", {path!r})
+mod = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(mod)
+
+
+def generate_launch_description():
+    d = {{"namespace": "pode1", "use_sim_time": "false", "heartbeat_timeout_s": "0",
+         "horizon_cap_mps": "0.1", "battery_topic": "", "params_file": {params!r},
+         "dock_aside": "false", "through_controller_id": "FollowPathThrough"}}
+    return LaunchDescription([DeclareLaunchArgument(k, default_value=v) for k, v in d.items()]
+                             + [OpaqueFunction(function=mod._fsm)])
+"""
+
+
+def _action_servers(env, name):
+    run = subprocess.run(["ros2", "action", "info", name], capture_output=True, text=True,
+                         env=env, timeout=30)
+    text = run.stdout.split("Action servers:")[-1]
+    return [t.strip() for t in text.splitlines()[1:] if t.strip()]
+
+
+@pytest.mark.parametrize("aside,present,absent", [("true", "dock_fsm", "dock"),
+                                                  ("false", "dock", "dock_fsm")])
+def test_launch_dock_aside_moves_real_fsm_server(tmp_path, aside, present, absent):
+    if shutil.which("ros2") is None:
+        pytest.skip("ros2 not available")
+    if subprocess.run(["ros2", "pkg", "prefix", "pode_fsm"], capture_output=True).returncode:
+        pytest.skip("pode_fsm not installed")
+    import make_params
+    make_params.write_params(0.12, tmp_path / "params")
+    (tmp_path / "probe.launch.py").write_text(PROBE_LAUNCH.format(
+        path=str(KIT / "real_pode.launch.py"),
+        params=str(tmp_path / "params" / "nav2_params.yaml")))
+    # 다른 시험과 겹치지 않게 별도 도메인, 이 PC 안에서만 찾는다
+    env = dict(os.environ, ROS_DOMAIN_ID=os.environ.get("DOCK_TEST_DOMAIN", "68"),
+               ROS_AUTOMATIC_DISCOVERY_RANGE="LOCALHOST")
+    launch = subprocess.Popen(["ros2", "launch", str(tmp_path / "probe.launch.py"),
+                               f"dock_aside:={aside}"], env=env, start_new_session=True,
+                              stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    try:
+        want, other = f"/pode1/{present}", f"/pode1/{absent}"
+        servers = []
+        for _ in range(20):
+            servers = _action_servers(env, want)
+            if servers:
+                break
+            time.sleep(0.5)
+        assert servers == ["/pode1/pode_fsm"]
+        assert _action_servers(env, other) == []
+    finally:
+        os.killpg(launch.pid, 2)
+        try:
+            launch.wait(timeout=15)
+        except subprocess.TimeoutExpired:
+            os.killpg(launch.pid, 15)
+            launch.wait(timeout=10)
 
 
 def test_launch_keeps_shutdown():
