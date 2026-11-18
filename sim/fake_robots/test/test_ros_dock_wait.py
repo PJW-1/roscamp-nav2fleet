@@ -217,6 +217,8 @@ def test_losing_localization_drops_the_last_pose(harness, tmp_path):
             stop.wait(0.1)
     handle, _ = dock(clients["pode1"])
     threading.Thread(target=loop, daemon=True).start()  # 기다리는 동안 위치를 잃는다
+    dropped = wait_until(lambda: "pode1" not in node._pose, 2.0)  # 시간 초과가 아니라 자세를 버려서 실패해야 한다
     result = result_of(handle)
     stop.set()
+    assert dropped
     assert result.success is False
