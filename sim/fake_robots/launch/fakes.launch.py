@@ -5,6 +5,8 @@
   ros2 launch fake_robots fakes.launch.py fake_arms:="arm3"              # 작업셀은 실물
   ros2 launch fake_robots fakes.launch.py fake_robots:=none use_sim_clock:=false monitor:=false \
       scenario:=real_two_orders dock_wait_robots:="pode1 pode2"            # 실물 두 대, PC 도킹 대역
+  ros2 launch fake_robots fakes.launch.py fake_robots:=none use_sim_clock:=false monitor:=false \
+      scenario:=real_three_orders dock_wait_robots:="pode1 pode2 pode3"    # 실물 세 대, PC 도킹 대역
 
 fake_arms: arm1과 arm2를 함께 주면 가짜 작업셀과 비전 노드 둘이 뜬다.
 fill_basket 서버 하나가 둘을 맡기 때문이다. arm3은 가짜 출고 팔을 띄운다.

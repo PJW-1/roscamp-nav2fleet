@@ -96,3 +96,32 @@ def test_real_two_orders_are_the_first_four_of_gz_v7_shifted_20_s():
     assert real.arm == sim.arm
     assert real.dock == sim.dock
     assert real.stock == sim.stock
+
+
+# ---- 세 대 실물 시나리오 ----
+THREE = Path(__file__).parents[1] / "scenarios" / "real_three_orders.yaml"
+
+
+def test_real_three_orders_is_v7_three_robots_wall_speed():
+    assert scenario_map_file(THREE) == "v7"
+    site = load_site("v7")
+    scn = load_scenario(str(THREE), site)
+    assert sorted(scn.robots) == ["pode1", "pode2", "pode3"]
+    assert [scn.robots[r].start for r in ("pode1", "pode2", "pode3")] == ["P-1", "P-2", "P-3"]
+    assert scn.speed_factor == 1.0
+    assert scn.dock.duration_s == 3.0
+    assert scn.faults == []
+
+
+def test_real_three_orders_equal_real_two_orders_except_pode3():
+    site = load_site("v7")
+    two = load_scenario(str(SCENARIO), site)
+    three = load_scenario(str(THREE), site)
+    assert [(o.at_s, o.id, o.items) for o in three.orders] == [
+        (o.at_s, o.id, o.items) for o in two.orders]
+    assert three.arm == two.arm
+    assert three.dock == two.dock
+    assert three.stock == two.stock
+    assert three.expect == two.expect
+    for r in ("pode1", "pode2"):
+        assert three.robots[r] == two.robots[r]
