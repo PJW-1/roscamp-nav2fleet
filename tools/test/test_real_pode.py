@@ -233,7 +233,7 @@ def _group_alive(pgid):
         os.killpg(pgid, 0)
     except ProcessLookupError:
         return False
-    except PermissionError:
+    except OSError:
         return True
     return True
 
@@ -245,7 +245,7 @@ def _stop_group(proc):
     for sig, wait in ((signal.SIGINT, 15), (signal.SIGTERM, 10), (signal.SIGKILL, 10)):
         try:
             os.killpg(pgid, sig)
-        except (ProcessLookupError, PermissionError):
+        except OSError:
             pass
         end = time.time() + wait
         while time.time() < end:
@@ -254,11 +254,14 @@ def _stop_group(proc):
             if not _group_alive(pgid):
                 return
             time.sleep(0.1)
+    import warnings
+    warnings.warn(f"process group {pgid} still alive after SIGKILL")
 
 
 @pytest.mark.parametrize("aside,present,absent", [("true", "dock_fsm", "dock"),
                                                   ("false", "dock", "dock_fsm")])
 def test_launch_dock_aside_moves_real_fsm_server(tmp_path, aside, present, absent):
+    _need_launch()
     if shutil.which("ros2") is None:
         pytest.skip("ros2 not available")
     if subprocess.run(["ros2", "pkg", "prefix", "pode_fsm"], capture_output=True).returncode:
