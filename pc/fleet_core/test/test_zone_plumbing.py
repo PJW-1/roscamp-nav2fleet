@@ -131,7 +131,7 @@ def test_a_failed_retreat_is_a_failed_attempt():
 
 
 def test_something_behind_a_retreat_is_waited_out_until_blocked_timeout_s():
-    """추가 지시서 3의 5절(도크 앞 사람): 뒤에 사람이 잠깐 서 있어도 곧바로 격리하지 않는다."""
+    """도크 앞 사람: 뒤에 사람이 잠깐 서 있어도 곧바로 격리하지 않는다."""
     core, now = manager_at_the_work_dock()
     x, y = core.site.node_pose("W")
     codes = []

@@ -1,7 +1,7 @@
 """The back-up primitive (backup.py): how far the robot may back up and what a result means.
 
-The self-recovery uses it now; the version 2 Retreat action will use the same code
-(FMS 개선 계획 버전 2, 1-A). ROS is needed only for the last test.
+The self-recovery uses it now; the version 2 Retreat action will use the same code.
+ROS is needed only for the last test.
 """
 import pytest
 from pode_fsm.backup import (
@@ -69,7 +69,7 @@ def test_reasons_follow_the_version_2_retreat_result():
 
 
 def test_a_reverse_follow_path_stopped_by_its_collision_check_is_an_obstacle_behind():
-    """Retreat.path(제안): RPP collision check on the backing motion ends FollowPath with
+    """Retreat.path: RPP collision check on the backing motion ends FollowPath with
     NO_VALID_CONTROL. Other FollowPath failures (no progress, TF) are FAILED."""
     assert reason_of("aborted", NAV2_NO_VALID_CONTROL) == OBSTACLE_BEHIND
     assert reason_of("aborted", 105) == FAILED

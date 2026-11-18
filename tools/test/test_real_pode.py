@@ -20,7 +20,7 @@ NAV2_LAUNCH = ROOT / "pode" / "pode_nav_config" / "launch" / "nav2.launch.py"
 FSM_LAUNCH = ROOT / "pode" / "pode_fsm" / "launch" / "pode_fsm.launch.py"
 FORWARD = ("FollowPath", "FollowPathThrough")
 FIXED_LINE = ("FollowPath", "FollowPathThrough", "FollowPathReverse")
-# 전역 costmap 지도는 2.5 cm(arena_v7_a, 사용자 결정 2026-11-17), 위치 추정 1 cm, keepout
+# 전역 costmap 지도는 2.5 cm(arena_v7_a, 팀 결정 2026-11-17), 위치 추정 1 cm, keepout
 MAPS = ("arena_v7_a", "arena_v7_fine", "arena_v7_keepout")
 # 위치 추정은 실물 SLAM 지도(2026-11-17 확정), costmap·keepout 은 v7 도면 지도
 REAL_MAP = "arena_real_slam"
@@ -203,6 +203,7 @@ def _fsm_actions(dock_aside):
     # _fsm()이 돌려주는 액션 목록(패키지 설치 없이: 경로 조회와 속도 읽기는 대역)
     _need_launch()
     import importlib.util
+
     from launch import LaunchContext
     spec = importlib.util.spec_from_file_location("real_pode_launch", KIT / "real_pode.launch.py")
     mod = importlib.util.module_from_spec(spec)
@@ -290,7 +291,8 @@ def _group_alive(pgid):
 
 
 def _stop_group(proc):
-    # 그룹 전체가 없어질 때까지 INT -> TERM -> KILL로 올린다. 정리 오류가 시험 결과를 가리지 않게 한다
+    # 그룹 전체가 없어질 때까지 INT -> TERM -> KILL로 올린다.
+    # 정리 오류가 시험 결과를 가리지 않게 한다
     import signal
     pgid = proc.pid
     for sig, wait in ((signal.SIGINT, 15), (signal.SIGTERM, 10), (signal.SIGKILL, 10)):
@@ -306,7 +308,7 @@ def _stop_group(proc):
                 return
             time.sleep(0.1)
     import warnings
-    warnings.warn(f"process group {pgid} still alive after SIGKILL")
+    warnings.warn(f"process group {pgid} still alive after SIGKILL")  # noqa: B028
 
 
 @pytest.mark.parametrize("aside,present,absent", [("true", "dock_fsm", "dock"),

@@ -16,7 +16,7 @@ from fleet_core.fleet_map import load_fleet_map
 SCENARIOS = Path(__file__).parents[1] / "scenarios"
 SIX = {"basic_orders", "order_burst", "shared_lane_failure", "stock_shortage", "stuck_robot",
        "operator_recovery", "blocked_lane", "auto_isolation", "reinstate",
-       "real_two_orders", "real_three_orders"}  # 실물 두/세 대 시험(2026-11-18), 가짜 로봇 없이 쓴다
+       "real_two_orders", "real_three_orders"}  # 실물 두/세 대 시험(2026-11-18), 가짜 로봇 없이
 
 
 @pytest.fixture(scope="module")
@@ -43,7 +43,7 @@ def test_defaults_are_filled(site):
     assert sc.arm.fail_rate == 0.0 and sc.dock.duration_s == 3.0 and sc.faults == []
     assert sc.expect.zone_holder_max == 1 and sc.expect.all_orders_finished is True
     assert sc.expect.orders_shipped is None and sc.expect.orders_shipped_min == 0
-    assert sc.expect.fifo_violations == 0 and sc.expect.dual_arm_overlaps == 0
+    assert sc.expect.fifo_violations == 0
     assert sc.robots["pode1"].report_delay_s == 0.0 and sc.robots["pode1"].stop_error_m == 0.0
 
 
@@ -257,14 +257,14 @@ def test_a_scenario_can_choose_a_layout(tmp_path, layout):
 
 
 def test_every_scenario_checks_path_not_connected(site):
-    """지시서 7.5: 정상이면 PATH_NOT_CONNECTED는 0이다."""
+    """정상이면 PATH_NOT_CONNECTED는 0이다."""
     expected = {name: load_scenario(f, site_of(f, site)).expect.path_not_connected
                 for name, f in shipped().items()}
     assert set(expected.values()) == {0}
 
 
 def test_only_the_fault_scenarios_leave_robot_idle_unchecked(site):
-    """1.1 지시서 H2: 고장 없는 시나리오에서 ROBOT_IDLE은 0이어야 한다(오탐 검사)."""
+    """고장 없는 시나리오에서 ROBOT_IDLE은 0이어야 한다(오탐 검사)."""
     for name, f in shipped().items():
         sc = load_scenario(f, site_of(f, site))
         assert sc.expect.robot_idle == (None if sc.faults else 0), name
@@ -285,10 +285,10 @@ def test_every_robot_starts_in_a_waiting_cell(site, name):
 
 
 @pytest.mark.parametrize("name", sorted(SIX))
-def test_every_scenario_checks_order_of_work_and_the_arms(site, name):
+def test_every_scenario_checks_order_of_work(site, name):
     path = SCENARIOS / f"{name}.yaml"
     raw = load_scenario(path, site_of(path, site)).expect
-    assert raw.fifo_violations == 0 and raw.dual_arm_overlaps == 0
+    assert raw.fifo_violations == 0
     assert max(raw.orders_shipped or 0, raw.orders_shipped_min) >= 1
 
 

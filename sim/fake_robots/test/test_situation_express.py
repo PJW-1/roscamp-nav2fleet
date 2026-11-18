@@ -1,4 +1,4 @@
-"""상황 시험(지시서 6-2): 급행 양 끝에서 동시에, 급행 안 장애물(오래)."""
+"""상황 시험: 급행 양 끝에서 동시에, 급행 안 장애물(오래)."""
 import pytest
 from situation_helpers import ALL_LAYOUTS, SEEDS, check
 

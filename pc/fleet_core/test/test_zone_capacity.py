@@ -1,4 +1,4 @@
-"""넓은 구역 정원의 합이 로봇 수보다 작으면 시작할 때 한 번 알린다(추가 지시서 2의 5절)."""
+"""넓은 구역 정원의 합이 로봇 수보다 작으면 시작할 때 한 번 알린다."""
 from fleet_core.fleet_map import KNOWN_LAYOUTS
 from zone_harness import Harness
 

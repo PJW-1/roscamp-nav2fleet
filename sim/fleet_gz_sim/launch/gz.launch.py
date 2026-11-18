@@ -11,7 +11,7 @@
   nav_max_speed(0.12~0.20 m/s)로 묶는다. 충돌 검사는 마당 goal(FollowPathGoal)만 늘 켜고,
   고정 경로 셋은 fixed_line_collision_check:=true일 때만 켠다(기본 끔).
 - 모든 로봇이 IDLE이 되면(wait_ready) 관제(map_file = 배치 이름, traffic_mode zones), 가짜
-  작업셀·비전·출고 팔·central, 시나리오 모니터를 띄운다. 모니터가 결과를 쓰고 launch를 끝낸다.
+  작업셀·출고 팔·central, 시나리오 모니터를 띄운다. 모니터가 결과를 쓰고 launch를 끝낸다.
 - 시계는 Gazebo /clock 하나를 모두 쓴다. 주문 시각(at_s)은 Gazebo 시계 0부터 센다.
 - 도크: 기본은 진짜 pode_fsm(DOCK_UNAVAILABLE). sim_dock_stub:=true면 시뮬 전용 대역
   (sim_stand_in)이 /{pode}/dock을 맡고 pode_fsm의 dock 서버는 /{pode}/dock_fsm으로 비켜 둔다.
@@ -70,7 +70,7 @@ ARGS = {
     "fixed_line_collision_check": ("false", "시뮬 전용. true면 고정 경로 controller 셋(FollowPath,"
                                            " Through, Reverse)도 충돌 검사를 켠다. 마당은 늘 켬"),
     "scan_filter": ("true", "좁은 띠 안에서 벽·진열대에 붙은 라이다 점을 costmap에서 지우는 거르개"
-                            "(pode_scan_filter, 추가지시서3 7-2). false면 띄우지 않는다(비교용)"),
+                            "(pode_scan_filter). false면 띄우지 않는다(비교용)"),
     "wall_band_m": ("0.05", "스캔 거르개: 벽·진열대에서 이만큼 안의 점을 지운다(m)."
                             " 0.05는 D2 측정으로 고른 값(fixed_line_results.md)"),
     "peer_obstacles": ("true", "로봇마다 다른 로봇의 몸을 costmap에 찍는다"
@@ -198,7 +198,7 @@ def fleet(scenario_file: str, robots: list[str], result_dir: str, monitor: bool,
           layout: str, params_file: str = "", obstacles_file: str = "", check: bool = True,
           scenario_seed: int | None = None, use_order_model: bool | None = None,
           record: str = "") -> list:
-    """진짜 관제와 가짜 작업셀·비전·출고 팔·central·모니터, 장애물(있으면). 모두 Gazebo 시계.
+    """진짜 관제와 가짜 작업셀·출고 팔·central·모니터, 장애물(있으면). 모두 Gazebo 시계.
     record: 관제 기록 파일(fleet_manager --record). 비면 남기지 않는다.
     layout: 관제와 가짜들의 map_file(배치 이름).
     scenario_seed: 시나리오를 읽는 노드에 넘길 seed. None이면 넘기지 않는다(파일의 seed).
@@ -219,10 +219,9 @@ def fleet(scenario_file: str, robots: list[str], result_dir: str, monitor: bool,
                                  "params_file": params_file, **map_file,
                                  **({} if use_order_model is None
                                     else {"use_order_model": use_order_model})}])]
-    workcell, vision_arms, swap_arms = split_fake_arms(ARMS, load_fleet_map(layout))
+    workcell, _, swap_arms = split_fake_arms(ARMS, load_fleet_map(layout))
     if workcell:
         actions.append(fake("fake_workcell_node", "fake_workcell"))
-    actions += [fake("fake_vision_node", f"fake_vision_{arm}", arm_id=arm) for arm in vision_arms]
     actions += [fake("fake_arm_node", f"fake_{arm}", arm_id=arm) for arm in swap_arms]
     actions.append(fake("fake_central_node", "fake_central", params_file=params_file))
     if obstacles_file:

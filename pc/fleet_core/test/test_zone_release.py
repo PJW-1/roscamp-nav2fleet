@@ -1,4 +1,4 @@
-"""뒤 구역 놓기: 로봇 중심이 아니라 몸 전체가 빠져나간 뒤(추가 지시서 2의 5절).
+"""뒤 구역 놓기: 로봇 중심이 아니라 몸 전체가 빠져나간 뒤.
 
 보고 중심이 구역에서 footprint_radius_m(발자국 0.12 x 0.12 m의 반 대각선) + release_margin_m
 넘게 떨어진 보고가 release_confirm_samples번 이어지면 놓는다.
@@ -106,7 +106,7 @@ def stopped_short_of_o_out(params=P):
 
 @pytest.mark.parametrize("order", [False, True], ids=["order_off", "order_on"])
 def test_a_robot_standing_within_the_margin_of_its_node_is_measured_from_the_node(order):
-    """2026-11-15 G6: O_OUT(출고 구역에서 0.145 m)에 0.04 m 못 미쳐 선 로봇은 구역에서 0.105 m라
+    """2026-11-15 Gazebo: O_OUT(출고 구역에서 0.145 m)에 0.04 m 못 미쳐 선 로봇은 구역에서 0.105 m라
     출고 구역을 놓지 못했고, 제자리에서 돌고 떠날 때까지 O_X의 로봇이 들어오지 못했다(교대 8.5초).
     지점에서 release_margin_m 안에 선 로봇은 그 지점의 좌표로 잰다: 지도가 서는 지점을 구역에서
     0.135 m 넘게 띄워 두었으므로 몸(반지름 0.085 m)은 구역 밖이다."""

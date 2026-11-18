@@ -11,9 +11,8 @@ import threading
 from collections import Counter
 
 import rclpy
-from fleet_core.common.contract import to_ros_qos
 from fleet_interfaces.action import FillBasket
-from fleet_interfaces.msg import ArmState, OrderItem
+from fleet_interfaces.msg import OrderItem
 from rclpy.action import ActionServer, CancelResponse, GoalResponse
 from rclpy.callback_groups import ReentrantCallbackGroup
 from rclpy.executors import MultiThreadedExecutor
@@ -35,6 +34,10 @@ ERROR_HOLD_S = 2.0
 REASON_ARM_FAULT = "ARM_FAULT"
 REASON_CANCELED = "CANCELED"
 LOCK_POLL_S = 0.01
+STATE_IDLE = "IDLE"
+STATE_PICKING = "PICKING"
+STATE_PLACING = "PLACING"
+STATE_ERROR = "ERROR"
 
 STOCK_QOS = QoSProfile(depth=1, reliability=ReliabilityPolicy.RELIABLE,
                        durability=DurabilityPolicy.TRANSIENT_LOCAL)
@@ -73,14 +76,10 @@ class FakeWorkcellNode(Node):
         # 실제 서버도 지킬 규칙: 이 잠금을 쥔 쪽만 PLACING이 될 수 있다.
         self._basket_space = threading.Lock()
         self._state_lock = threading.Lock()
-        self._state = {arm: (ArmState.STATE_IDLE, "") for arm in self._arms}
+        self._state = dict.fromkeys(self._arms, STATE_IDLE)
         self._error_until = dict.fromkeys(self._arms, 0.0)
         self._cancel_at: float | None = None
 
-        self._state_pubs = {
-            arm: self.create_publisher(ArmState, contract.name("arm_state", arm=arm),
-                                       to_ros_qos(contract.qos("arm_state")))
-            for arm in self._arms}
         self._stock_pubs = {
             arm: self.create_publisher(String, STOCK_TOPIC.format(arm=arm), STOCK_QOS)
             for arm in self._arms}
@@ -92,7 +91,6 @@ class FakeWorkcellNode(Node):
             callback_group=ReentrantCallbackGroup())
         self.create_timer(0.5, self._tick)
         for arm in self._arms:
-            self._publish_state(arm)
             self._publish_stock(arm)
 
     def stop(self) -> None:
@@ -108,29 +106,15 @@ class FakeWorkcellNode(Node):
 
     # -- state and stock ----------------------------------------------------------------
 
-    def _set_state(self, arm: str, state: str, detail: str = "") -> None:
+    def _set_state(self, arm: str, state: str) -> None:
         with self._state_lock:
-            self._state[arm] = (state, detail)
-            self._publish_state(arm, locked=True)
-
-    def _publish_state(self, arm: str, locked: bool = False) -> None:
-        if not locked:
-            with self._state_lock:
-                self._publish_state(arm, locked=True)
-            return
-        # 읽기, 스탬프, 발행을 한데 묶어 상태 변화보다 스탬프가 앞서지 않게 한다.
-        # 심판이 팔 사이의 스탬프를 비교한다.
-        state, detail = self._state[arm]
-        self._state_pubs[arm].publish(ArmState(
-            arm_id=arm, state=state, detail=detail, stamp=self.get_clock().now().to_msg()))
+            self._state[arm] = state
 
     def _tick(self) -> None:
         t = self._sc.now()
         for arm in self._arms:
-            if self._state[arm][0] == ArmState.STATE_ERROR and t >= self._error_until[arm]:
-                self._set_state(arm, ArmState.STATE_IDLE)
-            else:
-                self._publish_state(arm)
+            if self._state[arm] == STATE_ERROR and t >= self._error_until[arm]:
+                self._set_state(arm, STATE_IDLE)
 
     def _publish_stock(self, arm: str) -> None:
         with self._stock_lock:
@@ -230,16 +214,15 @@ class FakeWorkcellNode(Node):
 
     def _work(self, run: _Run, arm: str, kinds: list[str], fail_at: int | None) -> None:
         half = self._cfg.seconds_per_item / 2
-        robot = run.handle.request.robot_id
         for i, kind in enumerate(kinds):
             if not self._go_on(run):
                 break
             if fail_at == i:
                 run.fault.set()
                 self._error_until[arm] = self._sc.now() + ERROR_HOLD_S
-                self._set_state(arm, ArmState.STATE_ERROR, robot)
+                self._set_state(arm, STATE_ERROR)
                 return
-            self._set_state(arm, ArmState.STATE_PICKING, robot)
+            self._set_state(arm, STATE_PICKING)
             if not self._sc.sleep_until(self._sc.now() + half, lambda: self._go_on(run)):
                 break
             self._change_stock(arm, kind, -1)
@@ -247,10 +230,9 @@ class FakeWorkcellNode(Node):
                 self._change_stock(arm, kind, +1)  # 바구니에 못 닿았으니 선반으로 되돌린다
                 break
             try:
-                self._set_state(arm, ArmState.STATE_PLACING, robot)
+                self._set_state(arm, STATE_PLACING)
                 placed = self._sc.sleep_until(self._sc.now() + half, self._running)
-                # 잠금을 풀기 전에 발행해야 다른 팔의 PLACING이 뒤에 온다.
-                self._set_state(arm, ArmState.STATE_IDLE)
+                self._set_state(arm, STATE_IDLE)
             finally:
                 self._basket_space.release()
             if not placed:
@@ -260,7 +242,7 @@ class FakeWorkcellNode(Node):
                 total = sum(run.placed.values())
             run.handle.publish_feedback(FillBasket.Feedback(
                 arm_id=arm, phase="PLACED", placed_total=total))
-        self._set_state(arm, ArmState.STATE_IDLE)
+        self._set_state(arm, STATE_IDLE)
 
     def _enter_basket_space(self, run: _Run) -> bool:
         while self._go_on(run):

@@ -24,7 +24,6 @@ EXPECT_DEFAULTS = {
     "orders_held": None,
     "orders_shipped_min": 0,
     "fifo_violations": 0,
-    "dual_arm_overlaps": 0,
     "zone_holder_max": 1,
     "released_without_position_check": 0,
     "unheld_zone_pose": 0,
@@ -37,11 +36,11 @@ EXPECT_DEFAULTS = {
     "order_results": {},  # 주문 id: SHIPPED, PARTIAL, HELD
     "events_include": [],
     "event_counts": {},  # 코드: 정확히 몇 번 나와야 하는지
-    "shipped_before_operator_min": 0,  # 격리 뒤 confirm_clear 전 출고(지시서 5.5)
+    "shipped_before_operator_min": 0,  # 격리 뒤 confirm_clear 전 출고
     "detours_around_isolated_min": 0,  # 격리된 로봇이 서 있는 동안의 REROUTE(치우기 전)
     "released_while_off_lane": 0,  # drift로 레인 밖이라 보고하는 동안 그 로봇이 놓은 구역 수
-    "path_not_connected": 0,  # 관제가 처리한 PATH_NOT_CONNECTED 실패 수(지시서 7.5). null이면 안 봄
-    "robot_idle": 0,  # ROBOT_IDLE 이벤트 수(1.1 지시서 H2). 정상이면 0, null이면 안 봄
+    "path_not_connected": 0,  # 관제가 처리한 PATH_NOT_CONNECTED 실패 수. null이면 안 봄
+    "robot_idle": 0,  # ROBOT_IDLE 이벤트 수(오탐 검사). 정상이면 0, null이면 안 봄
 }
 TOP_LEVEL_KEYS = {"seed", "speed_factor", "timeout_s", "stock", "inventory", "orders", "robots",
                   "arm", "dock", "faults", "expect", "map", "random"}
@@ -110,7 +109,6 @@ class Expect:
     orders_held: int | None = None
     orders_shipped_min: int = 0
     fifo_violations: int = 0
-    dual_arm_overlaps: int = 0
     zone_holder_max: int = 1
     released_without_position_check: int = 0
     unheld_zone_pose: int = 0

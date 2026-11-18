@@ -1,4 +1,4 @@
-"""상황 시험(지시서 6-2): 마당 장애물, 사람이 잠깐 지나감."""
+"""상황 시험: 마당 장애물, 사람이 잠깐 지나감."""
 import pytest
 from situation_helpers import ALL_LAYOUTS, SEEDS, check
 

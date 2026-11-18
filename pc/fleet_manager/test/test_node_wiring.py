@@ -526,7 +526,7 @@ def test_a_lost_result_of_a_canceled_robot_goal_is_no_rejection():
 
 def test_a_dropped_cancel_of_a_robot_goal_is_told_to_the_core_as_lost():
     """결과를 잃은 취소를 그만둘 때 코어에 알린다. 코어는 막힘 표시 때 취소한 goal이 끝나야
-    이어 가기 때문이다(1.1 지시서 H2 재현 2)."""
+    이어 가기 때문이다."""
     key = ("pode1", 7)
     goals = GoalTracker()
     goals.sent(key)
@@ -554,7 +554,7 @@ def test_the_heartbeat_comes_twice_a_second(graph):
 
 
 def test_the_heartbeat_goes_out_with_the_reliable_profile_of_the_contract(graph):
-    """지시서 1.5: 노드는 heartbeat QoS를 계약에서 읽는다. 계약이 reliable이면 그렇게 나간다."""
+    """노드는 heartbeat QoS를 계약에서 읽는다. 계약이 reliable이면 그렇게 나간다."""
     from rclpy.qos import DurabilityPolicy, ReliabilityPolicy
     topic, me = graph.fms.contract.name("heartbeat"), graph.fms.get_name()
 

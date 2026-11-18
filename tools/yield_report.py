@@ -5,7 +5,7 @@
 
 읽기만 한다. 기록 형식은 tools/replay.py 머리에 있다.
 
-추정 규칙(틀릴 수 있다. 자세한 한계는 docs/worklog_yield_report_2026-11-18.md):
+추정 규칙(틀릴 수 있다):
 - HALL_YIELD가 BLOCKED 뒤인지: 이벤트를 낸 로봇, 또는 `out of the way of <로봇>`이 가리키는 로봇이
   그 줄 앞에서 마지막으로 보고한 상태가 BLOCKED면 뒤(`_yield_to_robot`), 아니면 앞(`_watch_near`).
   `waits for`와 `backs out to ... for`는 `_yield_to_robot`만 내므로 문구로 뒤로 정한다.

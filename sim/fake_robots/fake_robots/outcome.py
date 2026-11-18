@@ -18,9 +18,7 @@ class Outcome:
         ex = self.scenario.expect
         counts = self.final_counts
         fifo = self.fifo_problems()
-        overlaps = self.dual_arm_overlap_list()
         missing = [c for c in ex.events_include if c not in self.events_seen]
-        never_placing = self.arms_never_placing()
         allowed_errors = {*ex.events_include, *ex.event_counts}
         unexpected = [c for c in self.error_codes if c not in allowed_errors]
         timed_out = not self._complete()
@@ -40,10 +38,6 @@ class Outcome:
             "orders_held": exact(counts["HELD"], ex.orders_held),
             "orders_shipped_min": at_least(counts["SHIPPED"], ex.orders_shipped_min),
             "fifo_violations": exact(len(fifo), ex.fifo_violations),
-            "dual_arm_overlaps": {
-                "value": len(overlaps), "expected": ex.dual_arm_overlaps,
-                "arms_never_placing": never_placing,
-                "ok": len(overlaps) == ex.dual_arm_overlaps and not never_placing},
             "zone_holder_max": exact(self.max_occupancy, ex.zone_holder_max),
             "released_without_position_check": exact(self.release_violations,
                                                      ex.released_without_position_check),
@@ -84,10 +78,7 @@ class Outcome:
             "duration_s": float(t),
             "timed_out": timed_out,
             "violations": [*self.violations, *fifo,
-                           *(f"unexpected ERROR event {c}" for c in unexpected),
-                           *(f"{a} never showed PLACING" for a in never_placing),
-                           *(f"arm1 and arm2 both PLACING at {start:.2f}-{end:.2f}"
-                             for start, end in overlaps)],
+                           *(f"unexpected ERROR event {c}" for c in unexpected)],
             "min_release_distance_m": min((r[3] for r in self.release_rows), default=None),
             "checks": checks,
         }

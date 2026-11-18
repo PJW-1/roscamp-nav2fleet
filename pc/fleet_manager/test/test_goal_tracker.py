@@ -78,7 +78,7 @@ def test_a_lost_cancel_is_warned_about_once_and_then_dropped():
 
 
 def test_a_dropped_lost_cancel_is_handed_out_once_so_the_core_can_hear_of_it():
-    """그만둔 취소는 한 번 돌려준다. 노드가 코어에 on_goal_lost로 알린다(1.1 지시서 H2)."""
+    """그만둔 취소는 한 번 돌려준다. 노드가 코어에 on_goal_lost로 알린다."""
     goals, handle = running()
     goals.cancel("k", 0.0)
     goals.lost("k")

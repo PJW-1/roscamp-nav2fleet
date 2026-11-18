@@ -189,7 +189,7 @@ def test_a_name_that_only_starts_like_a_holder_is_not_one():
     assert c.summary()["robots"]["pode1"]["no_zone_held_samples"] == 1
 
 
-# keepout 침범 깊이(추가 지시서 3의 7-3): 마당에 있는 몸이 쥐지 않은 좁은 구역에 걸친 깊이
+# keepout 침범 깊이: 마당에 있는 몸이 쥐지 않은 좁은 구역에 걸친 깊이
 
 BODY = [(0.06, 0.06), (-0.06, 0.06), (-0.06, -0.06), (0.06, -0.06)]
 
@@ -245,7 +245,7 @@ def test_a_robot_on_a_fixed_line_is_not_measured_against_the_next_zone():
 
 
 def test_the_keepout_depth_counts_only_after_the_fleet_publishes_zones():
-    """Nothing measured is not 'no intrusion': the judge must not pass it (Codex review)."""
+    """Nothing measured is not 'no intrusion': the judge must not pass it."""
     c = body_check()
     c.on_truth("pode1", 1.0, 0.40, 0.76, 0.0, 0.0, yaw=0.0)
     assert c.summary()["keepout_depth_m"] is None

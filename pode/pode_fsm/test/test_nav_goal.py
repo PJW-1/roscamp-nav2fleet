@@ -40,7 +40,7 @@ def obstacle(_points):
 
 
 def ready(t=0.0, pose=HERE, **params):
-    # 이 파일은 로봇단 교착 처리(7-4) 전의 nav_goal을 본다(스위치 끔, 0.12의 blocked_after_s 5 s).
+    # 이 파일은 로봇단 교착 처리를 끈 nav_goal을 본다(스위치 끔, 0.12의 blocked_after_s 5 s).
     # 켠 것은 test_yield_nav.py
     params.setdefault("local_yield", False)
     params.setdefault("blocked_after_s", 5.0)
@@ -200,7 +200,7 @@ def test_no_progress_for_blocked_after_s_reports_blocked_and_keeps_the_goal():
 
 
 def test_standing_with_an_obstacle_ahead_never_starts_the_follow_path_self_recovery():
-    """User decision 2026-11-12: Nav2's behavior tree recovers in nav_goal, not pode_fsm."""
+    """Nav2's behavior tree recovers in nav_goal, not pode_fsm (team decision 2026-11-12)."""
     fsm = ready()
     nav(fsm, "g1", 1.0)
     cmds = run(fsm, 1.1, 20.0, seen=obstacle)

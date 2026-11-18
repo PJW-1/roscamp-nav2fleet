@@ -258,7 +258,7 @@ def test_a_result_future_with_no_result_counts_as_lost(kind, monkeypatch):
 
 
 def test_a_lost_backup_result_is_not_reported_while_the_cancel_is_only_in_progress(monkeypatch):
-    """Codex 리뷰(f75977e) 1: goals_canceling은 취소 중이지 종료가 아니다. 그때 aborted를 알리면
+    """goals_canceling은 취소 중이지 종료가 아니다. 그때 aborted를 알리면
     core가 _backup_unanswered를 지워 후진이 도는 중에 다음 동작이 나갈 수 있다."""
     rig = Rig("backup", monkeypatch)
     handle = rig.accepted(3)
@@ -296,7 +296,7 @@ def test_a_lost_backup_result_with_a_refused_cancel_is_left_to_the_fsm_timeout(m
 
 
 def test_a_backup_cancel_in_progress_keeps_the_handle(monkeypatch):
-    """Codex 리뷰(f75977e) 1: 결과를 잃기 전에 취소 중 응답을 받아도 핸들을 지우지 않는다.
+    """결과를 잃기 전에 취소 중 응답을 받아도 핸들을 지우지 않는다.
     지우면 결과를 잃었을 때 이미 끝났다고 보고 바로 aborted를 알린다."""
     rig = Rig("backup", monkeypatch)
     handle = rig.accepted(3)
@@ -323,7 +323,7 @@ def _raise(*_a, **_k):
 
 @pytest.mark.parametrize("kind", KINDS)
 def test_a_send_call_that_raises_returns_false(kind, monkeypatch):
-    """Codex 리뷰(f75977e) 2: send()가 False면 노드는 다음 tick에 거절로 넘긴다
+    """send()가 False면 노드는 다음 tick에 거절로 넘긴다
     (서버가 없을 때와 같은 길)."""
     rig = Rig(kind, monkeypatch)
     rig.client.send_goal_async = _raise

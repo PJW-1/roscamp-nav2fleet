@@ -77,7 +77,7 @@ def test_move_to_publishes_state_feedback_and_succeeds(harness, tmp_path):
 
 
 def test_a_path_goal_follows_the_lanes_round_the_corner(harness, tmp_path):
-    """path 모드(지시서 7번): 꺾인 선을 그대로 따르고 끝에서 성공한다."""
+    """path 모드: 꺾인 선을 그대로 따르고 끝에서 성공한다."""
     p = start(harness, tmp_path, robots={
         "pode1": {"start": "P-1", "speed_mps": 0.5, "pose_noise_m": 0.0}})
     assert wait_until(lambda: p.states, 5.0)
@@ -492,7 +492,7 @@ def test_blocked_lasts_past_a_cancel_while_the_obstacle_is_there(harness, tmp_pa
 
 
 def test_a_robot_put_back_does_not_keep_saying_blocked(harness, tmp_path):
-    """막혀 선 로봇을 치웠다 다른 곳에 놓으면 앞 막힘을 잊는다(병합 리뷰 2번)."""
+    """막혀 선 로봇을 치웠다 다른 곳에 놓으면 앞 막힘을 잊는다."""
     began = time.monotonic()
     p = start(harness, tmp_path, robots=ONE, node=NO_RECOVERY, faults=[
         {"at_s": 1.0, "robot": "pode1", "type": "blocked", "duration_s": 20.0},
@@ -539,7 +539,7 @@ def test_a_robot_says_localizing_until_it_has_a_pose(harness, tmp_path):
 
 
 def test_the_heartbeat_is_heard_with_the_reliable_profile_of_the_contract(harness, tmp_path):
-    """지시서 1.5: FakePode도 heartbeat QoS를 계약에서 읽는다."""
+    """FakePode도 heartbeat QoS를 계약에서 읽는다."""
     from rclpy.qos import DurabilityPolicy, ReliabilityPolicy
     p = start(harness, tmp_path)
     topic, fake = CONTRACT_OBJ.name("heartbeat"), harness.nodes[0].get_name()
@@ -557,7 +557,7 @@ def test_the_heartbeat_is_heard_with_the_reliable_profile_of_the_contract(harnes
     assert depths == [1]
 
 
-# ---- path connection (지시서 7.5) -------------------------------------------------------
+# ---- path connection -----------------------------------------------------------------
 
 def send_path(p, points, target_id):
     tx, ty = points[-1]
@@ -617,7 +617,7 @@ def test_a_refused_path_ends_the_old_goal_and_a_path_from_here_arrives(harness, 
     assert result_of(again).result.success is True
 
 
-# ---- 자기 복구(제안, 2026-11-09 공유 명세 '로봇 쪽') ----------------------------------------
+# ---- 자기 복구(2026-11-09 공유 명세 '로봇 쪽') --------------------------------------------
 
 RECOVERING = RobotState.STATE_RECOVERING
 LONG = {"pode1": {"start": "P-1", "speed_mps": 0.2, "pose_noise_m": 0.0}}  # O_Q까지 2.3 m
@@ -893,7 +893,7 @@ def test_a_low_battery_drops_and_charges_back_at_the_parking_spot(harness, tmp_p
     assert any(20.0 < v < 80.0 for v in levels[low:])
 
 
-# ---- 관제가 시키는 물러나기(버전 2 1-A, 계약 0.9-draft 제안. path는 자유바닥) -----------------
+# ---- 관제가 시키는 물러나기(계약 0.9-draft. path는 자유바닥) ------------------------------
 
 
 def _retreat(p, distance_m, speed_mps=0.1, path=()):
@@ -949,7 +949,7 @@ def test_a_robot_behind_ends_a_retreat_with_obstacle_behind(harness, tmp_path):
 
 
 def test_a_lost_heartbeat_ends_a_retreat_with_a_contract_reason(harness, tmp_path):
-    """1-A Codex 7: Retreat 결과 reason은 계약의 값만 쓴다(heartbeat가 끊기면 FAILED)."""
+    """Retreat 결과 reason은 계약의 값만 쓴다(heartbeat가 끊기면 FAILED)."""
     from fleet_interfaces.action import Retreat
     p = start(harness, tmp_path, heartbeat_timeout_s=0.5, robots=LONG)
     assert wait_until(lambda: p.states, 5.0)
@@ -965,7 +965,7 @@ def _drive_out(p, truth, metres):
 
 
 def test_the_fake_reverses_a_path_at_the_fleet_retreat_speed():
-    """Codex 2026-11-14: the fleet sends path retreats at retreat_speed_mps and times them with it,
+    """The fleet sends path retreats at retreat_speed_mps and times them with it,
     so the ROS fake pode caps them at the same speed (it kept 0.05 while the fleet sent 0.10).
     Kept with the ROS tests: pode_retreat needs fleet_interfaces."""
     assert REVERSE_SPEED_MPS == load_params().retreat_speed_mps
@@ -974,7 +974,7 @@ def test_the_fake_reverses_a_path_at_the_fleet_retreat_speed():
 def test_a_retreat_with_a_path_backs_along_it_round_the_corner(harness, tmp_path):
     """path는 지나온 길을 거꾸로 적은 것이다. 첫 점은 로봇 자리, 끝 점은 설 곳. 로봇은 돌지
     않고 꺾인 곳까지 간 뒤 다음 선분을 따라 끝 점에 선다. 속도는 실물(FollowPathReverse)처럼
-    REVERSE_SPEED_MPS(0.05 m/s)를 넘지 않는다(Codex 리뷰 4)."""
+    REVERSE_SPEED_MPS(0.05 m/s)를 넘지 않는다."""
     p = start(harness, tmp_path, robots=LONG)
     truth = watch_truth(p)
     assert wait_until(lambda: p.states and truth, 5.0)
@@ -998,7 +998,7 @@ def test_a_retreat_with_a_path_backs_along_it_round_the_corner(harness, tmp_path
 
 def test_a_path_retreat_starts_from_the_point_of_the_path_nearest_the_robot(harness, tmp_path):
     """실물 pode_fsm처럼 제 자리를 path에 투영해 거기서부터 간다. 이미 지난 앞 점으로 되돌아
-    가지 않는다(Codex 리뷰 4)."""
+    가지 않는다."""
     p = start(harness, tmp_path, robots=LONG)
     truth = watch_truth(p)
     assert wait_until(lambda: p.states and truth, 5.0)
@@ -1039,7 +1039,7 @@ def _frame_at_p6():
 
 
 def test_a_path_retreat_whose_end_is_beside_the_robot_fails(harness, tmp_path):
-    """Codex 재검토 3: 실물처럼 남은 길은 제 자리를 투영한 점부터 끝까지 잰다. 끝 점 0.1 m
+    """실물처럼 남은 길은 제 자리를 투영한 점부터 끝까지 잰다. 끝 점 0.1 m
     옆의 로봇은 남은 길이 0이라 FAILED이고 움직이지 않는다."""
     from fleet_interfaces.action import Retreat
     p = start(harness, tmp_path, robots=LONG)
@@ -1052,7 +1052,7 @@ def test_a_path_retreat_whose_end_is_beside_the_robot_fails(harness, tmp_path):
 
 
 def test_a_path_retreat_as_near_two_segments_takes_the_earlier_one(harness, tmp_path):
-    """Codex 재검토 3: 두 선분이 똑같이 가까우면 실물(Polyline.project)처럼 앞 선분이다. 접힌
+    """두 선분이 똑같이 가까우면 실물(Polyline.project)처럼 앞 선분이다. 접힌
     path를 처음부터 끝까지 간다."""
     p = start(harness, tmp_path, robots=LONG)
     truth = watch_truth(p)

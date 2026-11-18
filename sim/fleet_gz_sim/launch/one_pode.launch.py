@@ -37,7 +37,7 @@ ARGS = {
     "obstacles": ("", "상자를 놓았다 치우는 일정(fleet_gz_sim/obstacles의 이름이나 파일)"),
     "lidar_noise": ("", "라이다 거리 잡음 표준편차(m, 비교용). 비면 모델 기본값 0.02"),
     "scan_filter": ("true", "좁은 띠 안에서 벽·진열대에 붙은 라이다 점을 costmap에서 지우는 거르개"
-                            "(pode_scan_filter, 추가지시서3 7-2). false면 띄우지 않는다(비교용)"),
+                            "(pode_scan_filter). false면 띄우지 않는다(비교용)"),
     "wall_band_m": ("0.05", "스캔 거르개: 벽·진열대에서 이만큼 안의 점을 지운다(m)."
                             " 0.05는 D2 측정으로 고른 값(fixed_line_results.md)"),
     "fixed_line_collision_check": ("false", "시뮬 전용. true면 고정 경로 controller 셋도 충돌"

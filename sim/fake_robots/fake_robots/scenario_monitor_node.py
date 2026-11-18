@@ -14,7 +14,6 @@ from pathlib import Path
 import rclpy
 from fleet_core.common.contract import to_ros_qos
 from fleet_interfaces.msg import (
-    ArmState,
     AssignmentArray,
     FleetEvent,
     OrderBoard,
@@ -87,9 +86,6 @@ class ScenarioMonitorNode(Node):
             self.create_subscription(
                 RobotState, TRUTH_TOPIC.format(robot=robot), self._on_truth,
                 to_ros_qos(contract.qos("robot_state")))
-        for station in site.stations.values():
-            for arm in station.arms:
-                sub(ArmState, "arm_state", self._on_arm, arm=arm)
         sub(ZoneStateArray, "zones", self._on_zones)
         sub(FleetEvent, "events", self._on_event)
         sub(AssignmentArray, "assignments", self._on_assignments)
@@ -134,11 +130,6 @@ class ScenarioMonitorNode(Node):
                    r.wait_zone, " ".join(r.wait_robots)]
             if self._changed(f"status:{r.robot_id}", "|".join(row)):
                 self._status_rows.append([round(self._sc.now(), 3), *row])
-
-    def _on_arm(self, msg: ArmState) -> None:
-        self.judge.on_arm_state(msg.stamp.sec + msg.stamp.nanosec * 1e-9, msg.arm_id, msg.state)
-        if self._changed(f"arm:{msg.arm_id}", msg.state):
-            self.judge.note(self._sc.now(), msg.arm_id, "ARM_STATE", msg.state)
 
     def _on_board(self, msg: OrderBoard) -> None:
         self.judge.on_board([o.order_id for o in msg.orders])

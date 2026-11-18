@@ -14,7 +14,7 @@ from fleet_core.traffic.api import TrafficApi
 PACKAGE = Path(fleet_core.__file__).parent
 FLEET_MANAGER_NODE = (Path(__file__).resolve().parents[2] / "fleet_manager" / "fleet_manager"
                       / "fleet_manager_node.py")
-# 지운 레인 제어기의 공개 메서드(1da1e61 traffic/controller.py)와 FleetManager가 더 부르는 것
+# 지운 레인 제어기의 공개 메서드(traffic/controller.py)와 FleetManager가 더 부르는 것
 LANE_CONTROLLER_API = {
     "on_robot_state", "on_run_mode", "on_dispatch", "on_dispatch_cancel", "on_release",
     "on_robot_fault", "on_move_result", "on_goal_rejected", "on_goal_not_sent", "on_goal_lost",

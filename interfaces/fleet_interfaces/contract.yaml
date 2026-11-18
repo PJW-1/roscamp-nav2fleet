@@ -1,11 +1,11 @@
 # ---- 관제와 로봇 사이 연결의 이름, 타입, QoS 원본 ----
 
-version: 0.13-draft
+version: 0.5
 
 # ---- 이름 틀에 채울 로봇과 팔 이름 ----
 placeholders:
   pode: [pode1, pode2, pode3]
-  arm: [arm1, arm2, arm3]
+  arm: [arm3]
 
 # ---- QoS 프로필 ----
 qos_profiles:
@@ -17,8 +17,6 @@ qos_profiles:
 # ---- 토픽 ----
 topics:
   - {key: robot_state, name: "/{pode}/state", type: fleet_interfaces/msg/RobotState, qos: STATE}
-  - {key: arm_state, name: "/{arm}/state", type: fleet_interfaces/msg/ArmState, qos: STATE}
-  - {key: vision_items, name: "/{arm}/vision/items", type: fleet_interfaces/msg/ItemArray, qos: LATCHED, instances: {arm: [arm1, arm2]}}
   - {key: order_board, name: "/central/orders", type: fleet_interfaces/msg/OrderBoard, qos: LATCHED}
   - {key: assignments, name: "/fleet/assignments", type: fleet_interfaces/msg/AssignmentArray, qos: LATCHED}
   - {key: robots, name: "/fleet/robots", type: fleet_interfaces/msg/RobotStatusArray, qos: LATCHED}
@@ -38,8 +36,6 @@ actions:
 
 # ---- 서비스 ----
 services:
-  - {key: set_run_mode, name: "/central/set_run_mode", type: fleet_interfaces/srv/SetRunMode}
-  - {key: submit_order, name: "/central/submit_order", type: fleet_interfaces/srv/SubmitOrder}
   - {key: report_order, name: "/central/report_order", type: fleet_interfaces/srv/ReportOrder}
   - {key: confirm_clear, name: "/fleet/confirm_clear", type: fleet_interfaces/srv/ConfirmClear}
   - {key: reinstate, name: "/fleet/reinstate", type: fleet_interfaces/srv/Reinstate}

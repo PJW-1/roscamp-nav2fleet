@@ -155,7 +155,7 @@ def _pairs(points):
 
 
 def test_base_is_a_solid_line_from_the_robot_and_horizon_a_lighter_dashed_one():
-    """RobotStatus.base/horizon(order-model 95b5215): 쥔 길은 실선, 아직 안 받은 길은 옅은 점선."""
+    """RobotStatus.base/horizon: 쥔 길은 실선, 아직 안 받은 길은 옅은 점선."""
     view = fv.FleetView(SITE)
     view.set_statuses([Status("pode1", "MOVING", x=0.35, y=0.65, base=["X_W", "W"],
                               horizon=["X_E"])])
@@ -216,7 +216,7 @@ def test_a_node_passed_inside_one_nav_goal_does_not_bend_the_way():
 @pytest.mark.parametrize("goal", ["E-3", "Q2", ""])
 @pytest.mark.parametrize("y", [0.10, 0.17, 0.23])
 def test_a_bay_door_reached_on_a_fixed_path_stays_on_the_way(goal, y):
-    """Codex 검수(2026-11-16): 상태와 goal은 다른 토픽이라 어긋날 수 있다. 칸을 나오는 고정 경로
+    """상태와 goal은 다른 토픽이라 어긋날 수 있다. 칸을 나오는 고정 경로
     위에 있는 로봇의 칸 입구는 보고된 goal이 무엇이든 남긴다."""
     view = fv.FleetView(V7)
     view.set_statuses([Status("pode1", "MOVING", x=0.64, y=y, base=["E-3", "Q2"])])
@@ -267,7 +267,7 @@ def test_a_bay_door_before_backing_in_stays_on_the_way():
 
 
 def test_a_goal_already_sent_stays_on_the_way_when_the_granted_way_grows():
-    """Codex 검수(2026-11-16): 관제는 goal을 보낼 때의 허가 끝까지만 합친다. 그 뒤에 허가가 늘어도
+    """관제는 goal을 보낼 때의 허가 끝까지만 합친다. 그 뒤에 허가가 늘어도
     로봇은 받은 goal의 끝에 서므로, 보고된 goal 지점은 선에 남는다."""
     view = fv.FleetView(V7)
     view.set_statuses([Status("pode1", "MOVING", x=0.15, y=0.62, base=["E-1", "E-2", "E-3"])])

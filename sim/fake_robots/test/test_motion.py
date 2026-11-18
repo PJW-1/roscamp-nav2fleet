@@ -143,7 +143,7 @@ def test_a_nav_abort_given_back_is_taken_by_the_next_goal():
 
 
 def test_a_nav_abort_is_given_back_to_the_schedule_that_goal_used():
-    """일정이 겹치면 조건에 맞는 첫 일정이 아니라 그 목표가 쓴 일정에 돌려준다(Codex 5)."""
+    """일정이 겹치면 조건에 맞는 첫 일정이 아니라 그 목표가 쓴 일정에 돌려준다."""
     s = FaultSchedule([Fault(at_s=0, robot="pode1", type="nav_abort", count=1),
                        Fault(at_s=0, robot="pode1", type="nav_abort", count=1, target="F2")],
                       "pode1")
@@ -183,7 +183,7 @@ def test_an_obstacle_is_there_for_its_window_and_only_for_its_robot():
 
 
 def test_an_obstacle_stays_where_the_robot_was_taken_off_the_course():
-    """치운 뒤에는 앞 물체가 따라오지 않는다(수정 리뷰)."""
+    """치운 뒤에는 앞 물체가 따라오지 않는다."""
     block = Fault(at_s=8, robot="pode1", type="blocked", duration_s=15)
     removed = FaultSchedule([block, Fault(at_s=10, robot="pode1", type="operator_remove")],
                             "pode1")
@@ -215,7 +215,7 @@ def test_operator_reinstate_ends_a_removal_until_the_next_one():
 
 
 def test_a_reinstate_ends_a_stuck_before_it_and_not_one_after_it():
-    """운영자가 고쳐 다시 넣었다. 그 뒤의 stuck은 다시 멈춘다(리뷰 5번)."""
+    """운영자가 고쳐 다시 넣었다. 그 뒤의 stuck은 다시 멈춘다."""
     own = [Fault(at_s=5, robot="pode1", type="stuck"),
            Fault(at_s=10, robot="pode1", type="operator_remove"),
            Fault(at_s=20, robot="pode1", type="operator_reinstate", start=(3, 4)),
@@ -303,7 +303,7 @@ def test_a_drifted_report_is_to_the_left_of_the_heading():
 
 
 def test_path_gap_is_the_distance_to_the_nearest_segment_of_the_path():
-    """지시서 7.5의 연결 검사: 로봇 자리에서 받은 path까지의 수직 거리."""
+    """path 연결 검사: 로봇 자리에서 받은 path까지의 수직 거리."""
     assert path_gap(0.5, 0.1, [(0.0, 0.0), (1.0, 0.0)]) == pytest.approx(0.1)
     assert path_gap(1.0, 0.5, [(0.0, 0.0), (1.0, 0.0), (1.0, 1.0)]) == pytest.approx(0.0)
     assert path_gap(2.0, 0.0, [(0.0, 0.0), (1.0, 0.0)]) == pytest.approx(1.0)  # 끝을 지남

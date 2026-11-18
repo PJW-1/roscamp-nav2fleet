@@ -563,65 +563,6 @@ def test_a_submitted_order_ranks_after_the_scenario_orders():
     assert check(j, "fifo_violations")["value"] == 1
 
 
-# -- dual_arm_overlaps --------------------------------------------------------------------
-
-
-def place(j, arm, start, end):
-    j.on_arm_state(start, arm, "PLACING")
-    j.on_arm_state(end, arm, "IDLE")
-
-
-def test_both_arms_placing_at_once_is_an_overlap():
-    j = judge()
-    place(j, "arm1", 1.0, 3.0)
-    place(j, "arm2", 2.0, 4.0)
-    assert check(j, "dual_arm_overlaps")["value"] == 1
-    assert check(j, "dual_arm_overlaps")["ok"] is False and j.summary(1.0)["pass"] is False
-    assert any("PLACING" in v for v in j.summary(1.0)["violations"])
-
-
-def test_one_arm_after_the_other_is_no_overlap():
-    j = judge()
-    place(j, "arm1", 1.0, 2.0)
-    place(j, "arm2", 2.0, 3.0)  # 같은 스탬프에서 인계
-    place(j, "arm1", 3.0, 4.0)
-    assert check(j, "dual_arm_overlaps")["value"] == 0
-
-
-def test_delivery_order_between_the_arms_does_not_matter():
-    """arm2의 시작이 arm1의 끝보다 나중에 발행됐어도 먼저 도착할 수 있다."""
-    j = judge()
-    j.on_arm_state(1.0, "arm1", "PLACING")
-    j.on_arm_state(2.0, "arm2", "PLACING")  # 먼저 도착
-    j.on_arm_state(2.0, "arm1", "IDLE")
-    j.on_arm_state(3.0, "arm2", "IDLE")
-    assert check(j, "dual_arm_overlaps")["value"] == 0
-
-
-def test_an_arm_that_never_left_the_basket_space_still_overlaps():
-    j = judge()
-    j.on_arm_state(1.0, "arm1", "PLACING")
-    j.on_arm_state(2.0, "arm2", "PLACING")
-    j.on_arm_state(3.0, "arm2", "PLACING")  # 하트비트이고 arm1은 더 보고하지 않는다
-    assert check(j, "dual_arm_overlaps")["value"] == 1
-
-
-def test_a_heartbeat_does_not_start_a_second_span():
-    j = judge()
-    j.on_arm_state(1.0, "arm1", "PLACING")
-    j.on_arm_state(1.5, "arm1", "PLACING")
-    j.on_arm_state(2.0, "arm1", "IDLE")
-    place(j, "arm2", 3.0, 4.0)
-    assert check(j, "dual_arm_overlaps")["value"] == 0
-
-
-def test_the_outbound_arm_is_not_part_of_the_overlap():
-    j = judge()
-    place(j, "arm1", 1.0, 3.0)
-    place(j, "arm3", 1.0, 3.0)
-    assert check(j, "dual_arm_overlaps")["value"] == 0
-
-
 # -- laps ---------------------------------------------------------------------------------
 
 
@@ -833,7 +774,7 @@ def test_a_robot_put_back_has_a_short_while_to_be_placed():
 
 
 def test_a_robot_put_back_that_is_never_placed_is_counted():
-    """서비스 거부나 PLACEMENT_CONFLICT로 잠금을 못 얻으면 놓치지 않는다(리뷰 4번)."""
+    """서비스 거부나 PLACEMENT_CONFLICT로 잠금을 못 얻으면 놓치지 않는다."""
     j = _put_back_off_its_start(1.0)
     for t in (1.0, 2.0, 3.0, 4.0, 5.0):
         j.tick(t)
@@ -841,7 +782,7 @@ def test_a_robot_put_back_that_is_never_placed_is_counted():
 
 
 def test_a_robot_put_back_unplaced_is_counted_when_its_grace_ends():
-    """2차 리뷰 4번: 유예가 끝난 뒤 다시 grace_s를 기다리지 않는다."""
+    """유예가 끝난 뒤 다시 grace_s를 기다리지 않는다."""
     j = _put_back_off_its_start(1.0)
     for t in (1.0, 1.5, 1.99):
         j.tick(t)
@@ -1055,58 +996,6 @@ def test_an_order_results_entry_that_never_finished_fails():
     assert check(j, "order_results")["ok"] is False
 
 
-# -- no arm data --------------------------------------------------------------------------
-
-
-def both_arm_judge():
-    sc = parse_scenario({
-        "seed": 1, "speed_factor": 1.0, "timeout_s": 100,
-        "stock": {"arm1": {"A": 9}, "arm2": {"C": 9}},
-        "orders": [{"at_s": 0, "id": "O-1", "items": {"A": 1, "C": 1}}],
-        "robots": {"pode1": {"start": "P-1"}, "pode2": {"start": "P-2"}},
-    }, SITE)
-    j = ScenarioJudge(SITE, sc, margin_m=0.13, grace_s=1.0)
-    bind(j, "O-1")
-    ship(j, "O-1")
-    put(j, 1.0, "pode1", WAITING[0], "IDLE")
-    put(j, 1.0, "pode2", WAITING[1], "IDLE")
-    j.on_zones(1.0, {"HALL": "pode1,pode2"})
-    j.tick(1.0)
-    return j
-
-
-def placed(j, arm, start):
-    j.on_arm_state(start, arm, "PLACING")
-    j.on_arm_state(start + 1.0, arm, "IDLE")
-
-
-def test_no_arm_data_fails_when_the_shipped_orders_needed_both_arms():
-    j = both_arm_judge()
-    s = j.summary(5.0)
-    c = s["checks"]["dual_arm_overlaps"]
-    assert c["value"] == 0 and c["arms_never_placing"] == ["arm1", "arm2"] and c["ok"] is False
-    assert s["pass"] is False
-
-
-def test_one_arm_never_placing_fails_too():
-    j = both_arm_judge()
-    placed(j, "arm1", 1.0)
-    assert check(j, "dual_arm_overlaps")["arms_never_placing"] == ["arm2"]
-    assert j.summary(5.0)["pass"] is False
-
-
-def test_both_arms_seen_placing_without_overlap_passes():
-    j = both_arm_judge()
-    placed(j, "arm1", 1.0)
-    placed(j, "arm2", 3.0)
-    assert check(j, "dual_arm_overlaps")["ok"] is True and j.summary(5.0)["pass"] is True
-
-
-def test_orders_for_one_arm_do_not_need_the_other():
-    j = clean_run(judge())  # 이 시나리오의 주문은 모두 arm1의 물건 A
-    assert check(j, "dual_arm_overlaps")["arms_never_placing"] == []
-
-
 # -- 레인 이탈 중 해제 ---------------------------------------------------------------------
 
 
@@ -1137,7 +1026,7 @@ def test_a_release_from_a_drifting_robot_is_counted(t, robot, counted):
     assert result["value"] == counted
     assert result["ok"] is (counted == 0)
     assert check(j, "released_without_position_check", t)["value"] == 0
-# ---- 자동 격리(지시서 5.5) -------------------------------------------------------------------
+# ---- 자동 격리 ---------------------------------------------------------------------------------
 
 
 def test_shipped_before_operator_counts_from_the_isolation_to_the_first_clear():
@@ -1198,7 +1087,7 @@ def test_detours_around_isolated_count_a_reroute_once_with_two_isolated_robots()
 
 
 
-# ---- 경로 연결 확인(지시서 7.5) ----------------------------------------------------------
+# ---- 경로 연결 확인 ------------------------------------------------------------------------
 
 
 def test_a_path_not_connected_failure_is_counted_and_none_is_expected_by_default():
@@ -1213,7 +1102,7 @@ def test_a_path_not_connected_failure_is_counted_and_none_is_expected_by_default
 
 
 def test_robot_idle_is_counted_and_none_is_expected_by_default():
-    """1.1 지시서 H2: 정상 운행에서 ROBOT_IDLE이 나면 오탐이다. 고장 시나리오는 null로 안 본다."""
+    """정상 운행에서 ROBOT_IDLE이 나면 오탐이다. 고장 시나리오는 null로 안 본다."""
     j = judge()
     assert check(j, "robot_idle") == {"value": 0, "expected": 0, "ok": True}
     j.on_event(2.0, "WARN", "pode1", "ROBOT_IDLE", "TO_PARK at F0 for 10 s")

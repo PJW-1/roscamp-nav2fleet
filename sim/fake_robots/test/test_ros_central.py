@@ -7,7 +7,7 @@ pytest.importorskip("fleet_interfaces.msg")
 from conftest import CONTRACT, wait_until, write_scenario  # noqa: E402
 from fleet_core.common.contract import load_contract, to_ros_qos  # noqa: E402
 from fleet_interfaces.msg import FleetEvent, OrderBoard, OrderItem  # noqa: E402
-from fleet_interfaces.srv import ReportOrder, SetRunMode, SubmitOrder  # noqa: E402
+from fleet_interfaces.srv import ReportOrder  # noqa: E402
 
 C = load_contract(CONTRACT)
 ORDERS = [
@@ -17,24 +17,20 @@ ORDERS = [
 
 
 class Central:
-    def __init__(self, harness, tmp_path, params_file=None, **scenario):
+    def __init__(self, harness, tmp_path, **scenario):
         import rclpy.node
         from fake_robots.fake_central_node import FakeCentralNode
         scenario.setdefault("orders", ORDERS)
-        extra = {"params_file": str(params_file)} if params_file else {}
         self.node = harness.add(FakeCentralNode(parameter_overrides=harness.params(
-            scenario_file=write_scenario(tmp_path, **scenario), **extra)))
+            scenario_file=write_scenario(tmp_path, **scenario))))
         probe = harness.add(rclpy.node.Node("central_probe"))
         self.boards, self.events = [], []
         probe.create_subscription(OrderBoard, C.name("order_board"), self.boards.append,
                                   to_ros_qos(C.qos("order_board")))
         probe.create_subscription(FleetEvent, C.name("events"), self.events.append,
                                   to_ros_qos(C.qos("events")))
-        self.submit_cli = probe.create_client(SubmitOrder, C.name("submit_order"))
         self.report_cli = probe.create_client(ReportOrder, C.name("report_order"))
-        self.mode_cli = probe.create_client(SetRunMode, C.name("set_run_mode"))
-        for cli in (self.submit_cli, self.report_cli, self.mode_cli):
-            assert cli.wait_for_service(5.0)
+        assert self.report_cli.wait_for_service(5.0)
 
     def ids(self):
         return [o.order_id for o in self.boards[-1].orders] if self.boards else None
@@ -46,10 +42,6 @@ class Central:
         fut = cli.call_async(request)
         assert wait_until(fut.done, 5.0)
         return fut.result()
-
-    def submit(self, **items):
-        return self.call(self.submit_cli, SubmitOrder.Request(
-            items=[OrderItem(kind=k, count=c) for k, c in items.items()]))
 
     def report(self, order_id, status, placed=None, missing=None, detail=""):
         return self.call(self.report_cli, ReportOrder.Request(
@@ -87,54 +79,6 @@ def test_orders_are_released_at_their_time_in_order(harness, tmp_path):
     c.wait_ids(["early"])
     c.wait_ids(["early", "late"], timeout=6.0)
     assert [e.detail for e in c.events if e.code == "ORDER_ACCEPTED"][-1] == "late"
-
-
-def test_set_run_mode_reaches_the_board(harness, tmp_path):
-    c = Central(harness, tmp_path)
-    assert c.call(c.mode_cli, SetRunMode.Request(mode=OrderBoard.MODE_PAUSE)).accepted
-    assert wait_until(lambda: c.boards and c.boards[-1].run_mode == OrderBoard.MODE_PAUSE, 5.0)
-    assert not c.call(c.mode_cli, SetRunMode.Request(mode="FAST")).accepted
-
-
-def test_submit_accepts_and_appends_to_the_board(harness, tmp_path):
-    c = Central(harness, tmp_path)
-    c.wait_ids(["O-1", "O-2"])
-    res = c.submit(A=2, C=1)
-    assert res.accepted and res.order_id and res.reason == ""
-    c.wait_ids(["O-1", "O-2", res.order_id])
-    assert c.wait_code("ORDER_ACCEPTED")
-
-
-@pytest.mark.parametrize("items", [{"Z": 1}, {"A": 4}, {}, {"A": 0}])
-def test_submit_rejects_unknown_out_of_stock_and_empty(harness, tmp_path, items):
-    c = Central(harness, tmp_path, orders=[])  # 기록: A 3, B 1, C 3
-    res = c.submit(**items)
-    assert not res.accepted and res.reason and res.order_id == ""
-    c.wait_code("ORDER_REJECTED")
-    assert c.ids() in ([], None)
-
-
-def test_submit_goes_by_the_record_not_the_shelves(harness, tmp_path):
-    c = Central(harness, tmp_path, orders=[], inventory={"A": 0, "E": 2})
-    assert not c.submit(A=1).accepted  # 선반에는 있고 기록은 0
-    assert c.submit(E=1).accepted  # 선반에는 없고 기록은 있음
-
-
-def test_submit_rejects_over_capacity(harness, tmp_path):
-    c = Central(harness, tmp_path, orders=[], stock={"arm1": {"A": 9}, "arm2": {"C": 9}})
-    res = c.submit(A=3, C=2)  # 5는 fleet_params.yaml의 용량 4를 넘는다
-    assert not res.accepted and "fit" in res.reason
-
-
-def test_capacity_comes_from_the_params_file(harness, tmp_path):
-    from fake_robots.common import DEFAULT_PARAMS
-    params = tmp_path / "params.yaml"
-    params.write_text(DEFAULT_PARAMS.read_text(encoding="utf-8").replace(
-        "basket_capacity: 4", "basket_capacity: 2"), encoding="utf-8")
-    c = Central(harness, tmp_path, params_file=params, orders=[],
-                stock={"arm1": {"A": 9}, "arm2": {"C": 9}})
-    assert c.submit(A=2).accepted
-    assert not c.submit(A=3).accepted
 
 
 def test_scenario_orders_skip_the_submit_checks(harness, tmp_path):

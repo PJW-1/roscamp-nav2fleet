@@ -1,4 +1,4 @@
-"""로봇단 교착 처리의 순수 판단(추가 지시서 3의 7-4, 기준(사용자)). ROS 없이 돈다."""
+"""로봇단 교착 처리의 순수 판단. ROS 없이 돈다."""
 import math
 from types import SimpleNamespace
 

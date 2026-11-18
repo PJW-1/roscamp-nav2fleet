@@ -50,7 +50,7 @@ def test_the_line_key_is_read_and_is_off_by_default():
     for layout in ("d2", "d", "c"):
         assert not any(s.line for s in load_fleet_map(layout).stations.values()), layout
     v7 = load_fleet_map("v7").stations
-    assert v7["WORK"].line and not v7["OUTBOUND"].line  # 사용자 결정: WORK에만
+    assert v7["WORK"].line and not v7["OUTBOUND"].line  # WORK에만
     text = line_map().source_text.replace("line: true", "line: 3")
     with pytest.raises(FleetMapError, match="line"):
         fleet_map_from_text(text)
@@ -121,7 +121,7 @@ def test_a_robot_low_on_battery_leaves_the_line_and_the_rest_still_dock():
 
 def test_a_spot_held_by_a_robot_leaving_the_line_is_not_the_tail():
     """줄을 떠나는 로봇(이 스테이션으로 가지 않는 로봇)이 아직 쥔 자리는 줄 꼬리로 세지 않는다
-    (40b9767 리뷰): 앞자리가 비었으면 새 로봇은 앞자리로 간다."""
+    앞자리가 비었으면 새 로봇은 앞자리로 간다."""
     world = Harness(site=line_map(), starts={"pode1": "W", "pode2": "P-1", "pode3": "Q3"})
     world.report()
     world.call("WORK", "pode1")
@@ -136,8 +136,8 @@ def test_a_spot_held_by_a_robot_leaving_the_line_is_not_the_tail():
 
 @pytest.mark.parametrize("order_model", [False, True])
 def test_a_robot_stepping_forward_ranks_by_the_spot_it_goes_to(order_model):
-    """한 칸 당기는 로봇은 마지막으로 선 자리가 아니라 가는 자리로 순위를 받는다(40b9767 리뷰).
-    order 모델은 대기 트립 끝에 도크까지 붙여 trip.goal이 도크가 된다(6810b3b 리뷰)."""
+    """한 칸 당기는 로봇은 마지막으로 선 자리가 아니라 가는 자리로 순위를 받는다.
+    order 모델은 대기 트립 끝에 도크까지 붙여 trip.goal이 도크가 된다."""
     world = Harness(site=line_map(), starts={"pode1": "W", "pode2": "Q2", "pode3": "Q3"},
                     params=replace(load_params(), use_order_model=order_model))
     world.report()
@@ -203,7 +203,7 @@ def test_v7_a_full_line_pulls_forward_as_soon_as_the_front_moves():
 
 @pytest.mark.parametrize("order", [False, True], ids=["order_off", "order_on"])
 def test_v7_the_robot_at_the_front_goes_before_a_turn_taken_from_behind(order):
-    """실물 run8_1(2026-11-18): 뒤에서 도크 차례(turn)를 먼저 가져간 로봇이 줄 앞자리 로봇보다
+    """실물(2026-11-18): 뒤에서 도크 차례(turn)를 먼저 가져간 로봇이 줄 앞자리 로봇보다
     앞 순위라, 앞자리 로봇은 도크를 못 잡고 뒤 로봇은 앞자리 로봇이 쥔 자리를 기다려 142 s 섰다.
     한 방향 줄에서는 남의 길 위 자리를 쥔 앞 로봇이 먼저다."""
     world = Harness(layout="v7", starts={"pode1": "P-1", "pode2": "Q1"},
@@ -227,7 +227,7 @@ def test_v7_the_robot_at_the_front_goes_before_a_turn_taken_from_behind(order):
 def test_v7_three_robots_all_dock_after_a_turn_taken_from_behind(order):
     """위와 같은데 셋째 로봇이 칸(P-3)에서 온다: 고치기 전 order 모델은 300 s 동안 아무도
     못 들어갔다.
-    세 쌍의 순서가 서로 어긋나 모두 서는지(비추이) 본다(Codex 검토 지적)."""
+    세 쌍의 순서가 서로 어긋나 모두 서는지(비추이) 본다."""
     world = Harness(layout="v7", starts={"pode1": "P-1", "pode2": "Q1", "pode3": "P-3"},
                     params=replace(load_params(), use_order_model=order))
     world.report()
@@ -251,10 +251,10 @@ def test_v7_three_robots_all_dock_after_a_turn_taken_from_behind(order):
     assert not world.problems
 
 
-# 열린 위험(worklog): order는 빈 칸으로 주차하러 가던 order를 O_OUT 조각 끝(위치로 판정)에서
+# 열린 위험: order는 빈 칸으로 주차하러 가던 order를 O_OUT 조각 끝(위치로 판정)에서
 # 대기 자리로 돌리는데, 그때 E-3의 로봇이 아직 입구를 쥐고 있어 O_IN, M_E로 돈다(도킹 2.6 s 늦다).
 # 2026-11-18 밤: 벽 쪽 경로를 2 cm 안쪽으로 옮겨 O -> O_OUT이 약 4 cm 짧아지자 order를 끈 판도
-# 같은 경쟁에 든다(P-3 둘, Codex 검수: 0.33 s 빨리 닿는다). 고치기 전까지 같은 열린 위험으로 둔다
+# 같은 경쟁에 든다(P-3 둘, 0.33 s 빨리 닿는다). 고치기 전까지 같은 열린 위험으로 둔다
 class Detour(AssertionError):
     """M_E로 돌았다(다른 단언은 그냥 실패한다)."""
 
@@ -271,7 +271,7 @@ P3_DETOUR = pytest.mark.xfail(strict=True, raises=Detour,
 def test_v7_a_robot_leaving_outbound_passes_the_doors_of_parked_robots(parked, order):
     """칸에 선 로봇은 자기 칸만 쥔다(2026-11-14: 주차 0.10에서 칸과 입구가 0.14라 node_clear_m으로는
     입구를 놓지 못해, E-1, E-2에서 Q2로 가는 길이 E-3에서 막혔다). 출고에서 나온 로봇은 칸 입구를
-    지나는 Nav2 goal 하나로 줄 입구에 간다(b5f1e8f 리뷰: 길이 있다는 것만이 아니라 관제가 그 길을
+    지나는 Nav2 goal 하나로 줄 입구에 간다(길이 있다는 것만이 아니라 관제가 그 길을
     고르는지)."""
     doors = ["E-" + spot.removeprefix("P-") for spot in parked]
     world = Harness(layout="v7", starts={"pode1": doors[0], "pode2": doors[1], "pode3": "O"},
@@ -350,9 +350,9 @@ def test_v7_the_robot_at_the_entry_low_on_battery_leaves_at_once():
 
 
 def test_v7_the_front_robot_low_on_battery_leaves_through_the_docks():
-    """v7: 앞자리 Q1에서 나가는 길은 W뿐이다(사용자 결정 2026-11-13 밤: N_E와 G가 없다). 앞자리
+    """v7: 앞자리 Q1에서 나가는 길은 W뿐이다(N_E와 G가 없다). 앞자리
     로봇이 배터리가 낮으면 도크가 빌 때까지 줄을 막고 서 있다가, W를 도킹 없이 지나 Nav2 goal로
-    넓은 곳의 M_E에 풀려 나가(사용자 결정 2026-11-14) 칸에 선다. 급행과 출고는 지나지 않는다.
+    넓은 곳의 M_E에 풀려 나가 칸에 선다. 급행과 출고는 지나지 않는다.
     늦을 뿐 교착은 없고, 뒤 로봇은 그다음에 도크에 들어간다."""
     world, asked, low, rest = low_battery_in_line("Q1")
     world.run(60.0)

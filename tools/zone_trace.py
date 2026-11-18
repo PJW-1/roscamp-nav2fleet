@@ -3,7 +3,7 @@
     python tools/zone_trace.py > trace.txt
     python tools/zone_trace.py -s serve_three --orders manager --models on
 
-정리 전후의 출력을 diff로 비교하는 데 쓴다(ZoneTraffic 정리 지시서 0단계). 판마다 tick 순서
+정리 전후의 출력을 diff로 비교하는 데 쓴다(ZoneTraffic 정리). 판마다 tick 순서
 (zone, manager)와 order 모델(켬, 끔)을 바꿔 가며 돌린다. 한 tick에 쓰는 것:
     - `t <시각> out <항목>`: 그 tick에 나온 명령, 이벤트, 결과를 나온 순서대로 한 목록에
     - `t <시각> <로봇> held=... nodes=... view=... status=...`:

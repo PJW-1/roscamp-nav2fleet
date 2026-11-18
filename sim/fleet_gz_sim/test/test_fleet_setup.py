@@ -47,7 +47,7 @@ def test_a_nav_map_variant_swaps_only_the_costmap_map(variant):
 
 
 def test_v7_uses_the_2p5_cm_map_by_default_and_base_gives_the_5_cm_map():
-    """사용자 결정(2026-11-17): v7 기본은 갈래 a(2.5 cm). base는 예전 5 cm 지도(비교용)."""
+    """팀 결정(2026-11-17): v7 기본은 갈래 a(2.5 cm). base는 예전 5 cm 지도(비교용)."""
     assert fleet_setup.arena_for("v7", PKG) == fleet_setup.arena_for("v7", PKG, "")
     assert Path(fleet_setup.arena_for("v7", PKG).nav_map) == PKG / "maps" / "arena_v7_a.yaml"
     assert Path(fleet_setup.arena_for("v7", PKG, "base").nav_map) == PKG / "maps" / "arena_v7.yaml"
@@ -61,7 +61,7 @@ def test_other_layouts_keep_their_plain_map():
 def test_an_unknown_nav_map_variant_or_a_layout_without_it_is_refused():
     with pytest.raises(fleet_setup.ScenarioUnfit, match="nav_map_variant"):
         fleet_setup.arena_for("v7", PKG, "c")
-    # Codex 2026-11-17: d2에 갈래를 주면 고칠 수 없는 생성 명령을 권했다
+    # d2에 갈래를 주면 고칠 수 없는 생성 명령을 권하지 않는다
     with pytest.raises(fleet_setup.ScenarioUnfit, match="only for layout v7") as err:
         fleet_setup.arena_for("d2", PKG, "b")
     assert "python3 -m" not in str(err.value)
@@ -174,7 +174,7 @@ def test_an_obstacle_schedule_is_off_a_share_name_or_a_file(tmp_path):
 
 
 def test_narrow_strips_are_the_dock_junction_and_lane_rectangles_not_the_hall():
-    """스캔 거르개(추가지시서3 7-2)가 받을 좁은 띠: 넓은 구역(shared)이 아닌 구역의 사각형."""
+    """스캔 거르개가 받을 좁은 띠: 넓은 구역(shared)이 아닌 구역의 사각형."""
     site = load_fleet_map("d2")
     strips = fleet_setup.narrow_strips(site)
     # 경기장 벽에 닿은 변은 band(0.05)만큼 벽 너머로 넓힌다: 벽 면 너머로 잰 잡음 점(과 AMCL 오차로
@@ -186,7 +186,7 @@ def test_narrow_strips_are_the_dock_junction_and_lane_rectangles_not_the_hall():
 
 
 def test_narrow_strips_add_a_box_around_each_shelf_end_face():
-    """진열대 끝면마다 끝면을 band만큼 사방으로 넓힌 사각형을 더한다(2-1 후진 모퉁이).
+    """진열대 끝면마다 끝면을 band만큼 사방으로 넓힌 사각형을 더한다(후진 모퉁이).
 
     끝면 잡음은 좁은 띠 바로 밖(HALL의 1.5 cm 띠)에 떨어지므로 띠만으로는 지워지지 않는다."""
     site = load_fleet_map("d2")

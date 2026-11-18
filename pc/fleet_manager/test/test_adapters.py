@@ -133,7 +133,7 @@ def test_a_move_goal_says_whether_its_end_is_the_last_point():
 
 
 def test_move_goals_carry_the_yield_priority_and_an_empty_one_is_minus_one():
-    """로봇단 교착 처리(추가 지시서 3의 7-4, 계약 0.13-draft)."""
+    """로봇단 교착 처리(계약 0.13-draft)."""
     assert adapters.move_goal(MoveCmd("pode1", 7, "N", 1.0, 2.0, 0.0, priority=3)).priority == 3
     assert adapters.move_goal(MoveCmd("pode1", 7, "N", 1.0, 2.0, 0.0)).priority == -1
     assert MoveTo.Goal().priority == -1

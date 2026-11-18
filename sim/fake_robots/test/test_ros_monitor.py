@@ -98,8 +98,6 @@ def test_a_finished_run_writes_a_passing_summary(harness, tmp_path):
     assert summary["orders_shipped"] == 1 and summary["timed_out"] is False
     for name in ("events.csv", "zones.csv", "robots.csv", "releases.csv"):
         assert (tmp_path / "result" / name).exists()
-    events = (tmp_path / "result" / "events.csv").read_text(encoding="utf-8")
-    assert "ARM_STATE" in events
 
 
 def test_a_wrong_count_fails_the_run_with_exit_code_one(harness, tmp_path):
@@ -200,7 +198,7 @@ def _serve_both(probe, calls, clear_ok=True):
 
 
 def test_a_later_second_removal_does_not_hold_back_the_first_reinstate(harness, tmp_path):
-    """리뷰 3번: 앞으로 올 치우기는 지금의 재투입과 상관없다."""
+    """앞으로 올 치우기는 지금의 재투입과 상관없다."""
     _, probe = start(
         harness, tmp_path, orders=ONE_ORDER, timeout_s=60,
         expect={"orders_shipped_min": 1},
@@ -226,7 +224,7 @@ def test_no_reinstate_after_a_refused_clear(harness, tmp_path):
 
 
 def test_a_reinstate_not_ready_does_not_hold_back_another_robot(harness, tmp_path):
-    """2차 리뷰 5번: pode2의 치우기가 끝나지 않아도 pode1은 다시 넣는다."""
+    """pode2의 치우기가 끝나지 않아도 pode1은 다시 넣는다."""
     robots = {**ONE_ROBOT, "pode2": {"start": "P-3", "speed_mps": 1.0, "pose_noise_m": 0.0}}
     _, probe = start(
         harness, tmp_path, orders=ONE_ORDER, timeout_s=60, robots=robots,

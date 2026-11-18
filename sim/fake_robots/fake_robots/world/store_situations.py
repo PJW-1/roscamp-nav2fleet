@@ -1,6 +1,6 @@
-"""매장 상황(추가 지시서 3의 5절, 머리 없는 부분): 사람과 상자로 막힘 처리 보완(4절)을 본다.
+"""매장 상황(머리 없는 부분): 사람과 상자로 막힘 처리 보완을 본다.
 
-| 이름 | 지시서의 상황 | 만드는 법 |
+| 이름 | 상황 | 만드는 법 |
 |---|---|---|
 | person_in_express | 급행 안 사람 | 급행 가운데 물체 8 s(로봇이 들어오는 때) |
 | person_at_dock | 도크 앞 사람 | 작업 도크에 가장 가까운 지나가는 점(d2 X_W, v7 W_X) 물체 8 s |
@@ -8,8 +8,9 @@
 | box_removed | 상자 치움 뒤 표시 지우기 | 급행 가운데 상자 20~140 s, 주문을 나눠 넣는다 |
 | box_stays | 상자 그대로 | 급행 가운데 상자 20~620 s, 주문을 나눠 넣는다 |
 
-급행 안 상자(오래, 120 s)와 마당 가운데 상자(120 s)는 지시서 6-2의 express_obstacle과
-hall_obstacle을 4절 규칙으로 다시 돌린다. 라이다보다 낮은 상자는 Gazebo에서만 본다(여기 없음).
+급행 안 상자(오래, 120 s)와 마당 가운데 상자(120 s)는 열 가지 상황의 express_obstacle과
+hall_obstacle을 막힘 처리 보완 규칙으로 다시 돌린다. 라이다보다 낮은 상자는 Gazebo에서만
+본다(여기 없음).
 """
 from __future__ import annotations
 
@@ -24,7 +25,7 @@ from .stations import six_orders
 STORE_NAMES = ("person_in_express", "person_at_dock", "corridor_box", "box_removed",
                "box_stays")
 STORE_ROWS = ("person_in_express", "person_at_dock", "express_obstacle", "corridor_box",
-              "hall_obstacle", "box_removed", "box_stays")  # 지시서 5절 표의 순서
+              "hall_obstacle", "box_removed", "box_stays")  # 매장 상황 표의 순서
 PERSON_S = 8.0  # 사람이 서 있는 시간(blocked_mark_s 10 s보다 짧다)
 QUIET_AFTER_S = 30.0  # 사람이 떠난 뒤 이만큼까지의 우회와 후진만 사람 탓으로 센다
 BOX_R = 0.04  # 상자 반지름(급행 띠 0.20 m 안에서 지나갈 틈이 없다)

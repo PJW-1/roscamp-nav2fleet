@@ -45,7 +45,7 @@ class Laps:
             return
         elif place == "park" and self._tasks.get(robot) in ON_THE_WAY:
             # 구역 관제는 스테이션으로 가는 로봇을 주차 자리에서 기다리게 한다(도크 대기 줄, 구역
-            # 기다림. docs/관제_구역교통.md 규칙 5): 바퀴가 끊기지 않는다. WAIT(주차시킴)만 센다
+            # 기다림. 구역 교통 규칙 5): 바퀴가 끊기지 않는다. WAIT(주차시킴)만 센다
             self._last_zone.pop(robot, None)
             return
         elif place == "work":

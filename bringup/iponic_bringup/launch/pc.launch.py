@@ -5,17 +5,17 @@ Mixed:     ros2 launch iponic_bringup pc.launch.py use_fake:=true fake_robots:="
 Real arms: ros2 launch iponic_bringup pc.launch.py use_fake:=true fake_arms:="arm3"
 All real:  ros2 launch iponic_bringup pc.launch.py use_fake:=false
 Real two-robot test (robots real, central/arms fake, PC answers docking; robots run DOCK_STUB=1):
-           ros2 launch iponic_bringup pc.launch.py use_fake:=true use_sim_clock:=false fake_robots:=none \
-               robots:="pode1 pode2" map_file:=v7 scenario:=real_two_orders monitor:=false \
-               dock_wait_robots:="pode1 pode2"
+           ros2 launch iponic_bringup pc.launch.py use_fake:=true use_sim_clock:=false \
+               fake_robots:=none robots:="pode1 pode2" map_file:=v7 \
+               scenario:=real_two_orders monitor:=false dock_wait_robots:="pode1 pode2"
 Real three-robot test (same, plus pode3):
-           ros2 launch iponic_bringup pc.launch.py use_fake:=true use_sim_clock:=false fake_robots:=none \
-               robots:="pode1 pode2 pode3" map_file:=v7 scenario:=real_three_orders monitor:=false \
-               dock_wait_robots:="pode1 pode2 pode3"
+           ros2 launch iponic_bringup pc.launch.py use_fake:=true use_sim_clock:=false \
+               fake_robots:=none robots:="pode1 pode2 pode3" map_file:=v7 \
+               scenario:=real_three_orders monitor:=false dock_wait_robots:="pode1 pode2 pode3"
 
 record:=PATH 는 tools/replay.py용 FMS 기록을 남긴다.
 
-fake_arms: arm1과 arm2는 함께 가짜 워크셀 서버와 비전 노드를 띄운다.
+fake_arms: arm1과 arm2는 함께 가짜 워크셀 서버를 띄운다.
 fill_basket 서버 하나가 둘을 맡으므로 하나만 적으면 오류다. arm3는 가짜 출고 팔을 띄운다.
 monitor: 시나리오 감시 노드. 시뮬 전용 자세(/sim/truth)를 읽으므로 실물 시험에서는 false로 둔다.
 dock_wait_robots: 실물 로봇의 도킹을 PC가 대신 받는다(fake_robots real_dock_wait_node).

@@ -132,7 +132,7 @@ def test_a_retreat_stopped_by_something_behind_backs_out_again_when_it_is_gone(o
 
 
 def test_a_robot_sent_somewhere_else_forgets_how_long_something_was_behind():
-    """Codex 검수(2026-11-15): 뒤가 막혀 기다리던 로봇의 배차가 취소되면 가던 길은 버리는데 기다린
+    """뒤가 막혀 기다리던 로봇의 배차가 취소되면 가던 길은 버리는데 기다린
     시각은 남았다. 나중의 다른 후진이 그 시각부터 blocked_timeout_s를 셌다."""
     world = Harness(starts={"pode1": "W", "pode2": "P-2", "pode3": "P-3"})
     world.report()
@@ -368,8 +368,8 @@ def test_a_robot_heard_again_most_of_the_way_into_the_bay_is_taken_as_parked():
 
 def test_a_short_reverse_link_failed_near_its_end_is_taken_as_reached():
     """후진 링크가 짧으면(0.03) 절반을 못 갔어도 끝에 허용치 절반(0.075) 안이면 닿은 것으로 본다.
-    다시 보내면 pode_fsm의 가장 짧은 후진(backup_min_m 0.02)보다 짧아 곧바로 실패한다(Codex 검수
-    821c18d). 칸 입구에 그대로 선 로봇(0.14)은 여전히 닿지 않았다."""
+    다시 보내면 pode_fsm의 가장 짧은 후진(backup_min_m 0.02)보다 짧아 곧바로 실패한다.
+    칸 입구에 그대로 선 로봇(0.14)은 여전히 닿지 않았다."""
     from types import SimpleNamespace
 
     from fleet_core.fleet_map import RETREAT, Link

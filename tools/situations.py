@@ -1,10 +1,10 @@
-"""상황 시험(지시서 6-2)을 상황 x 배치 x 씨드로 돌려 결과 표를 markdown으로 찍는다.
+"""상황 시험을 상황 x 배치 x 씨드로 돌려 결과 표를 markdown으로 찍는다.
 
     python3 tools/situations.py                       # 열 상황, d2 d c, 씨드 1 2 3
     python3 tools/situations.py -s order_burst -l d2 --seeds 1 2 --set use_order_model=true
     python3 tools/situations.py --avoid all           # 회피 흉내 none, perfect, mixed 모두
-    python3 tools/situations.py --store --avoid all   # 매장 상황(추가 지시서 3의 5절)
-    python3 tools/situations.py --store --set blocked_by_position=false   # 4절 전(비교)
+    python3 tools/situations.py --store --avoid all   # 매장 상황
+    python3 tools/situations.py --store --set blocked_by_position=false   # 막힘 처리 보완 전(비교)
     python3 tools/situations.py -l v7 --local-yield   # 가짜 로봇이 로봇단 양보 사다리를 한다
 
 --set 이름=값은 플릿 파라미터를 바꾼다(값은 yaml로 읽는다). 못 지킨 기대는 표 아래에 적는다.
@@ -65,7 +65,7 @@ def main(argv=None) -> int:
     parser.add_argument("-s", "--situations", nargs="+", default=None,
                         choices=[*NAMES, *STORE_NAMES])
     parser.add_argument("--store", action="store_true",
-                        help="매장 상황(추가 지시서 3의 5절)을 돌린다. -s를 주지 않았을 때만")
+                        help="매장 상황을 돌린다. -s를 주지 않았을 때만")
     parser.add_argument("-l", "--layouts", nargs="+", default=list(LAYOUTS),
                         choices=KNOWN_LAYOUTS, help="기본 d2 d c, 시험용은 d2_shelf")
     parser.add_argument("--seeds", nargs="+", type=int, default=[1, 2, 3])

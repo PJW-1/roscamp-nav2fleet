@@ -23,7 +23,6 @@ expect:
   orders_partial: 0
   orders_held: 0
   fifo_violations: 0
-  dual_arm_overlaps: 0
   zone_holder_max: 1
   released_without_position_check: 0
   unheld_zone_pose: 0

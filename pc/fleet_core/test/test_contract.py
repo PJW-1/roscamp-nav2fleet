@@ -25,7 +25,7 @@ def test_qos_lookup_returns_the_profile_of_the_entry(contract):
 
 
 def test_the_heartbeat_is_reliable_with_depth_one(contract):
-    """지시서 1.5: 빠짐 자체가 정지 조건이라 재전송이 필요하다. 최신 하나만 다시 보낸다.
+    """빠짐 자체가 정지 조건이라 재전송이 필요하다. 최신 하나만 다시 보낸다.
 
     상태는 best_effort 그대로다. 주기적으로 계속 와서 하나를 잃어도 다음 값이 대신한다.
     """
@@ -48,10 +48,8 @@ def test_expand_lists_every_instance_with_type_and_kind(contract):
     entries = {e.name: e for e in contract.expanded()}
     assert entries["/pode3/move_to"].kind == "action"
     assert entries["/pode3/move_to"].type == "fleet_interfaces/action/MoveTo"
-    assert entries["/arm3/state"].qos.reliability == "best_effort"
+    assert entries["/pode3/state"].qos.reliability == "best_effort"
     assert entries["/workcell/fill_basket"].type == "fleet_interfaces/action/FillBasket"
-    assert "/arm1/vision/items" in entries and "/arm2/vision/items" in entries
-    assert "/arm3/vision/items" not in entries, "instances must limit the expansion"
     assert "/arm3/swap_basket" in entries
     assert "/arm1/swap_basket" not in entries
 

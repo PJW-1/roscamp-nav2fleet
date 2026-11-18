@@ -1,4 +1,4 @@
-"""머리 없는 세계의 local costmap 흉내: BLOCKED의 장애물 위치(4-1), CheckClear의 답(4-3)."""
+"""머리 없는 세계의 local costmap 흉내: BLOCKED의 장애물 위치, CheckClear의 답."""
 import math
 
 from fake_robots.world import ZoneWorld

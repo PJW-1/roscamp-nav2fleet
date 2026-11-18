@@ -27,7 +27,7 @@ WORLD = "arena"  # 모든 배치의 월드 이름(launch와 장애물 노드가 
 WALL_M = 0.05
 WALL_HEIGHT_M = 0.30  # 라이다 높이(약 0.125 m)보다 높게
 LIDAR_Z_M = 0.125
-MIN_SHELF_HEIGHT_M = 0.15  # 지시서 5절: 라이다가 바닥 위 0.125 m를 본다
+MIN_SHELF_HEIGHT_M = 0.15  # 라이다가 바닥 위 0.125 m를 본다
 PKG = Path(__file__).resolve().parents[1]
 NAV_VARIANT_LAYOUTS = ("v7",)  # 갈래 지도(arena_maps.NAV_VARIANTS)를 만드는 배치
 
@@ -101,7 +101,8 @@ def nav_variant_outputs(name: str) -> tuple[str, ...]:
 
 
 def generate_nav_variants(out: Path, site) -> tuple[str, ...]:
-    """costmap용 갈래 지도를 out/maps에 쓰고 쓴 파일 목록을 돌려준다. 기본 지도는 건드리지 않는다."""
+    """costmap용 갈래 지도를 out/maps에 쓰고 쓴 파일 목록을 돌려준다.
+    기본 지도는 건드리지 않는다."""
     from fleet_gz_sim.arena_maps import NAV_VARIANTS, map_yaml, pgm
     name = site.name
     (out / "maps").mkdir(parents=True, exist_ok=True)

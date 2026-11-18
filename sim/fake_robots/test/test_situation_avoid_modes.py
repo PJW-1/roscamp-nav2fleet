@@ -1,7 +1,7 @@
-"""열 상황(지시서 6-2)을 회피 흉내 none, mixed로(추가 지시서 2의 1·3절).
+"""열 상황을 회피 흉내 none, mixed로 돌린다.
 
 perfect는 test_situation_*.py가 같은 판정(table.judge, Situation.for_mode)으로 돌린다.
-none과 mixed는 3절 기준이다: 안전 불변식과 관제 반응 시간, 늦더라도 주문이 모두 끝남.
+none과 mixed는 rough 기준이다: 안전 불변식과 관제 반응 시간, 늦더라도 주문이 모두 끝남.
 
 관제 탓으로 못 끝나는 칸이 생기면 아래 FLEET_FAILS에 적고 strict xfail로 둔다. 관제를 고쳐 그 칸이
 통과하면 XPASS로 실패하니 그 줄을 지운다. 그 칸에 주문 못 끝냄 말고 다른 실패(불변식, 반응 시간)가

@@ -42,7 +42,8 @@ def test_box_centres_is_empty_when_nothing_is_placed():
 
 
 def test_the_body_footprint_comes_from_the_local_costmap_of_pode_nav_config():
-    """FollowPath 충돌 검사와 같은 몸 다각형(base_footprint 틀). 없으면 None(중심 - 0.056으로 잰다)."""
+    """FollowPath 충돌 검사와 같은 몸 다각형(base_footprint 틀).
+    없으면 None(중심 - 0.056으로 잰다)."""
     polygon = drive_check.load_footprint()
     if polygon is None:
         pytest.skip("pode_nav_config is not installed")

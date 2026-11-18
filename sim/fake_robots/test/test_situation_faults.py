@@ -1,4 +1,4 @@
-"""상황 시험(지시서 6-2): 앞 로봇 고장, 통신 끊김과 재투입, 위치가 크게 튐."""
+"""상황 시험: 앞 로봇 고장, 통신 끊김과 재투입, 위치가 크게 튐."""
 import pytest
 from situation_helpers import (
     ALL_LAYOUTS,

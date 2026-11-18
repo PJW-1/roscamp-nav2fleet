@@ -61,7 +61,7 @@ def test_shelves_are_thin_and_tall_enough_for_the_lidar(site):
     assert len(shelves) == len(site.shelves) > 0
     for shelf in shelves:
         sx, sy, sz = (float(v) for v in shelf.find("geometry/box/size").text.split())
-        # D 계열은 지시서의 1.5 cm, v7은 사용자 치수(진열대 0.04, 칸막이 0.02)
+        # D 계열은 1.5 cm, v7은 실제 경기장 치수(진열대 0.04, 칸막이 0.02)
         thin = 0.04 if site.name == "arena_v7" else 0.015
         assert min(sx, sy) <= thin + 1e-9
         if site.name != "arena_v7":

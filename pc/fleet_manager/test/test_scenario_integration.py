@@ -25,7 +25,7 @@ CHECKER = Path(__file__).parents[3] / "scripts" / "check_interfaces.py"
 REPLAY = Path(__file__).parents[3] / "tools" / "replay.py"
 # 구역을 몸이 아직 걸친 채 놓는 것(R1)은 다른 판정과 똑같이 실패다. 놓는 거리가 0.10 m이던 때에는
 # 보고 잡음에 따라 가끔 나와서 그 판정만 틀린 실행을 건너뛰었다. 몸 전체가 나간 뒤에 놓게 바꾼
-# 뒤로는(0.135 m, 추가 지시서 2의 5절) 건너뛰지 않는다
+# 뒤로는(0.135 m) 건너뛰지 않는다
 
 
 def unexplained_safety(summary: dict, safety: dict) -> tuple[int, int]:

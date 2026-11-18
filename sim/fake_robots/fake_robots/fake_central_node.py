@@ -2,24 +2,21 @@
 from __future__ import annotations
 
 import threading
-from collections import Counter
 from dataclasses import dataclass
 
 import rclpy
 from fleet_core.common.contract import to_ros_qos
 from fleet_interfaces.msg import FleetEvent, Order, OrderBoard, OrderItem
-from fleet_interfaces.srv import ReportOrder, SetRunMode, SubmitOrder
+from fleet_interfaces.srv import ReportOrder
 from rclpy.node import Node
 
 from fake_robots.common import (
     ScenarioClock,
     load_contract_param,
-    load_params_param,
     load_scenario_param,
     load_site_param,
 )
 
-MODES = (OrderBoard.MODE_RUN, OrderBoard.MODE_PAUSE, OrderBoard.MODE_STOP)
 SOURCE = "central"
 FINAL_EVENTS = {
     ReportOrder.Request.STATUS_SHIPPED: ("INFO", "ORDER_SHIPPED"),
@@ -45,7 +42,6 @@ class FakeCentralNode(Node):
         contract = load_contract_param(self)
         site = load_site_param(self)
         scenario = load_scenario_param(self, site)
-        self._capacity = int(load_params_param(self)["basket_capacity"])
         self._sc = ScenarioClock(self)
         self._lock = threading.Lock()
         self._mode = OrderBoard.MODE_RUN
@@ -53,15 +49,11 @@ class FakeCentralNode(Node):
         self._waiting_release = list(scenario.orders)  # 등록 순서
         self._board: list[_Entry] = []  # 오래된 순
         self._final: set[str] = set()
-        self._known_ids = set(scenario.order_ids)
-        self._submitted = 0
 
         self._pub = self.create_publisher(
             OrderBoard, contract.name("order_board"), to_ros_qos(contract.qos("order_board")))
         self._events = self.create_publisher(
             FleetEvent, contract.name("events"), to_ros_qos(contract.qos("events")))
-        self.create_service(SetRunMode, contract.name("set_run_mode"), self._set_mode)
-        self.create_service(SubmitOrder, contract.name("submit_order"), self._submit)
         self.create_service(ReportOrder, contract.name("report_order"), self._report)
         self.create_timer(0.1, self._release_due)
         self.create_timer(1.0, self._publish)
@@ -92,46 +84,6 @@ class FakeCentralNode(Node):
             self._event("INFO", "ORDER_ACCEPTED", order_id)
         if released:
             self._publish()
-
-    def _reject_reason(self, items: Counter) -> str:
-        """지금 기록 기준으로 판단한다. 보드의 주문은 재고를 잡아 두지 않는다."""
-        if not items:
-            return "the order has no items"
-        if min(items.values()) <= 0:
-            return "every item needs a count of at least 1"
-        total = sum(items.values())
-        if total > self._capacity:
-            return f"{total} items do not fit a basket of {self._capacity}"
-        for kind, count in sorted(items.items()):
-            if kind not in self._record:
-                return f"unknown item kind {kind}"
-            if self._record[kind] < count:
-                return f"{kind}: {count} requested, {self._record[kind]} in the record"
-        return ""
-
-    def _submit(self, request, response):
-        items: Counter = Counter()
-        for item in request.items:
-            items[item.kind] += item.count
-        with self._lock:
-            reason = self._reject_reason(items)
-            if not reason:
-                self._submitted += 1
-                order_id = f"O-U{self._submitted:03d}"
-                while order_id in self._known_ids:
-                    self._submitted += 1
-                    order_id = f"O-U{self._submitted:03d}"
-                self._known_ids.add(order_id)
-                self._add(order_id, dict(items))
-        response.accepted = not reason
-        response.reason = reason
-        if reason:
-            self._event("WARN", "ORDER_REJECTED", f"{_text(request.items)}: {reason}")
-        else:
-            response.order_id = order_id
-            self._event("INFO", "ORDER_ACCEPTED", order_id)
-            self._publish()
-        return response
 
     def _settle_stock(self, request) -> list[tuple[str, str, str]]:
         """놓은 만큼 빼고 없던 만큼 바로잡는다. 잠금을 잡은 채 호출한다."""
@@ -167,16 +119,6 @@ class FakeCentralNode(Node):
                                  f"placed={_text(request.placed)} "
                                  f"missing={_text(request.missing)} {request.detail}".rstrip())
         self._publish()
-        return response
-
-    def _set_mode(self, request, response):
-        response.accepted = request.mode in MODES
-        if response.accepted:
-            with self._lock:
-                self._mode = request.mode
-            self._publish()
-        else:
-            response.reason = f"unknown mode {request.mode!r}"
         return response
 
     def _publish(self) -> None:

@@ -263,7 +263,7 @@ def test_a_failed_docking_is_sent_again_only_after_the_wait(fail):
 
 
 def test_a_failed_docking_backs_out_and_comes_in_again_before_the_next_try():
-    """The reported pose may be off (B-G5). Driving the fixed line again lets the robot find its
+    """The reported pose may be off. Driving the fixed line again lets the robot find its
     place before it docks at the same spot."""
     world, _ = at_the_dock()
     assert world.run_until(lambda: docks(world) == 2, 60.0)

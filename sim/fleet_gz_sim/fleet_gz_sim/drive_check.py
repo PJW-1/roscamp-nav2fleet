@@ -1,4 +1,4 @@
-"""관제 없이 Gazebo Pode 한 대에 이동을 바로 보내고 2단계 지표를 잰다(지시서 6-3, 7절 2단계).
+"""관제 없이 Gazebo Pode 한 대에 이동을 바로 보내고 2단계 지표를 잰다.
 
     ros2 run fleet_gz_sim drive_check --layout d2 --plan stage2 --laps 3 --json out.json
 
@@ -12,7 +12,8 @@ stage2_plan의 계획(nav_goal, follow_path, retreat)을 차례로 보낸다. �
   - nav_goal: 실제 위치를 0.05 m마다 줄인 자취(track). v7은 가운데 통로를 지났는지(through_corridor)
   - 상자(/sim/obstacle_markers)가 놓인 동안 실제 위치와 상자 중심 사이의 가장 짧은 거리(box_min_m)
 
-  - 실제 위치와 시각이 가장 가까운 AMCL 추정(/{robot}/amcl_pose) 사이의 가장 큰 거리(amcl_max_error_m)
+  - 실제 위치와 시각이 가장 가까운 AMCL 추정(/{robot}/amcl_pose) 사이의 가장 큰
+    거리(amcl_max_error_m)
   - v7: 남쪽 진열대 사이 틈을 지났는지(through_gap)와 틈의 네 모서리까지 가장 짧은 거리(중심
     gap_corner_min_m, 몸 gap_corner_body_min_m: local costmap 발자국 다각형, 못 읽으면 중심 - 0.056)
 
@@ -51,10 +52,10 @@ from fleet_gz_sim.stage2_plan import (
     build,
     cross_track,
     decimate,
+    keepout_zones,
     max_pose_error,
     min_distance,
     parse_footprint,
-    keepout_zones,
     start_node,
     through_gate,
     yaw_error,
@@ -326,9 +327,11 @@ def main(argv=None) -> None:
     parser.add_argument("--timeout", type=float, default=120.0,
                         help="이동 하나의 한도(벽시계 초)")
     parser.add_argument("--wait-box", type=float, default=0.0,
-                        help="상자가 하나라도 놓일 때까지 이만큼(벽시계 초) 기다린 뒤 출발. 0이면 안 기다림")
+                        help="상자가 하나라도 놓일 때까지 이만큼(벽시계 초) 기다린 뒤 출발. "
+                             "0이면 안 기다림")
     parser.add_argument("--point", type=_named_point, action="append", default=[],
-                        metavar="NAME=X,Y", help="계획 전용 점을 바꾼다(gap의 GAP_N, GAP_S). 여러 번")
+                        metavar="NAME=X,Y",
+                        help="계획 전용 점을 바꾼다(gap의 GAP_N, GAP_S). 여러 번")
     parser.add_argument("--contract", default=None)
     parser.add_argument("--json", default=None, help="요약을 이 파일에도 쓴다")
     args = parser.parse_args(argv)
