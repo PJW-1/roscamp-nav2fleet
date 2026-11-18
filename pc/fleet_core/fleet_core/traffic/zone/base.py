@@ -7,7 +7,7 @@ import math
 from fleet_core.common.commands import DispatchResult, EventOut, RobotIsolated
 from fleet_core.fleet_map import SHARED
 from fleet_core.traffic.deadlock import priority
-from fleet_core.traffic.mission import AT_STATION, ERROR, FILL, NOT_AT_TARGET, RUN
+from fleet_core.traffic.mission import AT_STATION, ERROR, FILL, LOCALIZING, NOT_AT_TARGET, RUN
 from fleet_core.traffic.selector import RobotSelector
 
 from .block_marks import MarkBook
@@ -24,6 +24,8 @@ from .trips import along
 from .views import ZoneViews
 
 HERE = "@"
+# LOCALIZING 보고 앞뒤로 이 안에 온 NAV_ABORTED는 위치를 잃어 끝난 것으로 본다(Pode pose_timeout_s)
+LOCALIZING_GRACE_S = 1.0
 
 
 # ---- 로봇, 허락, 호출, 막힘 표시 상태 초기화 ----
@@ -108,6 +110,39 @@ class ZoneBase:
         if m.off_node is not None and self._in_yard(m):
             limit /= 2
         return self._gap(m, m.node) <= limit
+
+    # ---- 위치를 잃은 로봇(LOCALIZING): 새 goal 없이 기다린다 ----
+    @staticmethod
+    def _localizing(m) -> bool:
+        return m.report.robot_state == LOCALIZING
+
+    def _lost_pose_lately(self, m) -> bool:
+        at = m.health.localizing_at
+        return self._localizing(m) or (at is not None
+                                       and self._clock() - at <= LOCALIZING_GRACE_S)
+
+    def _wait_localizing(self, m) -> None:
+        if m.health.localizing_since is not None:
+            return
+        m.health.localizing_since = self._clock()
+        self._event("WARN", "WAIT_LOCALIZING", f"{m.phase}: no new goal until it reports a "
+                    f"pose, keeps {list(self.grants.held_by(m.name))}", m.name)
+
+    # ---- LOCALIZING 보고 바로 앞에 센 NAV_ABORTED는 되돌린다 ----
+    def _note_localizing(self, m, now: float) -> None:
+        m.health.localizing_at = now
+        at, m.health.aborted_at = m.health.aborted_at, None
+        if (at is not None and now - at <= LOCALIZING_GRACE_S and m.attempts > 0
+                and not m.health.fault):
+            m.attempts -= 1
+            self._event("WARN", "GOAL_ABORTED_LOCALIZING", "the last NAV_ABORTED came just "
+                        f"before LOCALIZING, not an attempt (now {m.attempts})", m.name)
+
+    def _localized(self, m) -> None:
+        since, m.health.localizing_since = m.health.localizing_since, None
+        if since is not None:
+            self._event("INFO", "LOCALIZED", f"reports a pose again after "
+                        f"{self._clock() - since:.1f} s", m.name)
 
     def _in_yard(self, m) -> bool:
         zone = self.site.zone_at(m.x, m.y)

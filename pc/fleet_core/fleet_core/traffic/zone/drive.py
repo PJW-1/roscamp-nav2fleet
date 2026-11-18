@@ -23,6 +23,9 @@ class Drive:
         m = self._robots.get(robot)
         if m is None or not m.available:
             return
+        if self._localizing(m):
+            self._wait_localizing(m)
+            return
         for _ in range(4):
             before = (m.phase, m.dest)
             self._step_phase(m)

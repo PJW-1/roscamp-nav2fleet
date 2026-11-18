@@ -8,6 +8,7 @@ from fleet_core.traffic.deadlock import choose_retreat
 from fleet_core.traffic.mission import (
     BLOCKED,
     DOCK,
+    LOCALIZING,
     MOVE,
     RUN,
     SELF_RECOVERING,
@@ -24,7 +25,7 @@ class Watch:
         waiting = m.move_order is not None and m.move_order.waiting
         rests = m.report.robot_state in (BLOCKED, SELF_RECOVERING)
         if (m.goal is None or self._run_mode != RUN or m.arrival_by is not None or waiting
-                or (rests and m.goal.kind != DOCK)):
+                or (rests and m.goal.kind != DOCK) or m.report.robot_state == LOCALIZING):
             self._reset_stall(m)
             return
         here, ep = (m.x, m.y), m.watch.stall

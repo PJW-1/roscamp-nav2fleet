@@ -10,6 +10,7 @@ from fleet_core.traffic.mission import (
     HEARTBEAT_LOST,
     LOCALIZING,
     MOVE,
+    NAV_ABORTED,
     NOT_AT_TARGET,
     PATH_NOT_CONNECTED,
     RETREAT,
@@ -209,8 +210,16 @@ class Results:
         if reason == HEARTBEAT_LOST:
             m.retry_at = self._clock() + self.params.move_retry_wait_s
             return
+        if reason == NAV_ABORTED and self._lost_pose_lately(m):
+            # 위치를 잃어 로봇이 끝낸 goal: 세지 않고 위치가 돌아온 뒤 다시 보낸다
+            m.retry_at = self._clock() + self.params.move_retry_wait_s
+            self._event("WARN", "GOAL_ABORTED_LOCALIZING", "not an attempt, sends it again "
+                        "once it reports a pose", m.name)
+            return
         if reason == PATH_NOT_CONNECTED:
             if self._in_yard(m):
                 m.off_node = (m.x, m.y)
                 self._drop_trip(m)
+        if reason == NAV_ABORTED:
+            m.health.aborted_at = self._clock()
         self._goal_failed(m, reason)

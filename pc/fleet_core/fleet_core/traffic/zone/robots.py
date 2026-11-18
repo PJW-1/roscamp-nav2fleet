@@ -68,6 +68,9 @@ class Health:
     recover_at: float = 0.0
     pose_at: float | None = None
     suspect_quiet_until: float = 0.0
+    localizing_since: float | None = None
+    localizing_at: float | None = None
+    aborted_at: float | None = None
 
 
 # ---- 양보, 물러나기, 우회 기록 ----
