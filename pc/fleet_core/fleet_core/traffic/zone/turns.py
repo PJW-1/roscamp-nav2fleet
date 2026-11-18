@@ -118,10 +118,26 @@ class Turns:
             left = trip is not None and trip.turn and not trip.stale and trip.goal == dock
             return (not (left or r.dock_tries), spot(r), r.asked_at or 0.0, r.asked_gap, r.name)
 
+        def first(other) -> bool:
+            # 줄: 상대 길 위의 줄 자리를 한쪽만 쥐었으면 쥔 로봇이 먼저(몸으로 앞선 로봇)
+            if station.line:
+                theirs, ours = self._blocks(other, m, station), self._blocks(m, other, station)
+                if theirs != ours:
+                    return theirs
+            return rank(other) < mine
+
         mine = rank(m)
         return [other for other in self._robots.values()
                 if (other is not m and other.available and other.dest == station_id
-                    and other.phase in (TO_WORK, TO_OUTBOUND) and rank(other) < mine)]
+                    and other.phase in (TO_WORK, TO_OUTBOUND) and first(other))]
+
+    def _blocks(self, a, b, station) -> bool:
+        """a가 b의 남은 길 위 줄 자리를 쥐었다."""
+        trip = b.trip
+        if trip is None or trip.stale:
+            return False
+        return any(spot in station.queue and self.grants.node_holder(spot) == a.name
+                   for spot in trip.route())
 
     def _waits_for(self, other, m) -> bool:
         return (other.goal is None and m.goal is None and self._on_node(m)

@@ -201,6 +201,55 @@ def test_v7_a_full_line_pulls_forward_as_soon_as_the_front_moves():
     assert not world.problems
 
 
+@pytest.mark.parametrize("order", [False, True], ids=["order_off", "order_on"])
+def test_v7_the_robot_at_the_front_goes_before_a_turn_taken_from_behind(order):
+    """실물 run8_1(2026-11-18): 뒤에서 도크 차례(turn)를 먼저 가져간 로봇이 줄 앞자리 로봇보다
+    앞 순위라, 앞자리 로봇은 도크를 못 잡고 뒤 로봇은 앞자리 로봇이 쥔 자리를 기다려 142 s 섰다.
+    한 방향 줄에서는 남의 길 위 자리를 쥔 앞 로봇이 먼저다."""
+    world = Harness(layout="v7", starts={"pode1": "P-1", "pode2": "Q1"},
+                    params=replace(load_params(), use_order_model=order))
+    world.report()
+    behind = world.call("WORK", "pode1")
+    world.step()  # pode2는 아직 WORK로 가지 않는다: pode1이 도크 차례를 가져간다
+    trip = world.traffic._robots["pode1"].trip
+    assert trip is not None and trip.turn and trip.goal == "W" and "Q1" in trip.route()
+    front = world.call("WORK", "pode2")
+    assert world.run_until(lambda: world.result_of(front) is not None, 120.0), world.log[-10:]
+    assert world.result_of(front).robot_id == "pode2" and world.result_of(front).success
+    assert world.result_of(behind) is None
+    world.traffic.on_release("pode2")
+    assert world.run_until(lambda: world.result_of(behind) is not None, 300.0), world.log[-10:]
+    assert world.result_of(behind).robot_id == "pode1" and world.result_of(behind).success
+    assert not world.problems
+
+
+@pytest.mark.parametrize("order", [False, True], ids=["order_off", "order_on"])
+def test_v7_three_robots_all_dock_after_a_turn_taken_from_behind(order):
+    """위와 같은데 셋째 로봇이 칸(P-3)에서 온다: 고치기 전 order 모델은 300 s 동안 아무도 못 들어갔다.
+    세 쌍의 순서가 서로 어긋나 모두 서는지(비추이) 본다(Codex 검토 지적)."""
+    world = Harness(layout="v7", starts={"pode1": "P-1", "pode2": "Q1", "pode3": "P-3"},
+                    params=replace(load_params(), use_order_model=order))
+    world.report()
+    asked = [world.call("WORK", "pode1")]
+    world.step()
+    trip = world.traffic._robots["pode1"].trip
+    assert trip.turn and trip.goal == "W" and "Q1" in trip.route()
+    asked += [world.call("WORK", "pode2"), world.call("WORK", "pode3")]
+    docked = []
+
+    def next_done():
+        return next((world.result_of(g).robot_id for g in asked if world.result_of(g) is not None
+                     and world.result_of(g).robot_id not in docked), None)
+
+    for _ in asked:
+        assert world.run_until(lambda: next_done() is not None, 300.0), (docked, world.log[-10:])
+        docked.append(next_done())
+        world.traffic.on_release(docked[-1])
+    assert docked[0] == "pode2", "the robot at the front docks first"
+    assert all(world.result_of(g).success for g in asked)
+    assert not world.problems
+
+
 # 열린 위험(worklog): order는 빈 칸으로 주차하러 가던 order를 O_OUT 조각 끝(위치로 판정)에서
 # 대기 자리로 돌리는데, 그때 E-3의 로봇이 아직 입구를 쥐고 있어 O_IN, M_E로 돈다(도킹 2.6 s 늦다).
 # 2026-11-18 밤: 벽 쪽 경로를 2 cm 안쪽으로 옮겨 O -> O_OUT이 약 4 cm 짧아지자 order를 끈 판도
