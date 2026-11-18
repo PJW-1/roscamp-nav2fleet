@@ -38,11 +38,18 @@
    PEER_ROBOTS=pode1,pode2 DOCK_STUB=1 ~/nav2fleet_real/start.sh pode2 0.38 0.10 1.5708   # 07d7
    ```
 
-4. 확인:
+4. RViz(PC, 로봇이 IDLE이 된 뒤 PC launch 전에):
+
+   ```
+   ros2 run fleet_gz_sim fleet_view --ros-args -p robots:="[pode1, pode2]" -p map_file:=v7 -p pose_source:=fleet &
+   rviz2 -d $(ros2 pkg prefix fleet_gz_sim)/share/fleet_gz_sim/rviz/fleet_view.rviz
+   ```
+
+5. 확인:
    - 로봇 launch 로그에 `real_pode: dock_aside on, pode_fsm Dock -> /pode1/dock_fsm`.
    - PC 로그에 `REAL DOCK WAIT for ['pode1', 'pode2']`. `another node also serves /pode1/dock` 오류가 나오면 그 로봇을 `DOCK_STUB=1` 없이 띄운 것이다(로봇의 pode_fsm도 도킹을 받아 DOCK_UNAVAILABLE로 실패시킨다). 다시 띄운다.
    - 도킹마다 PC 로그에 `pode1: dock WORK ok (x, y) cm` 또는 `FAILED`.
-5. 끌 때: 로봇마다 `~/nav2fleet_real/stop.sh`, PC는 Ctrl-C.
+6. 끌 때: 로봇마다 `~/nav2fleet_real/stop.sh`, PC는 Ctrl-C.
 
 ## 3. 시험하면서 볼 것 (사용자가 준 목록을 코드와 맞춰 고침, 11-18)
 
@@ -91,3 +98,77 @@
   - 이 PC: main 체크아웃을 8f1b487로 올리고 `colcon build --packages-select fake_robots iponic_bringup`(2 packages finished). 설치에 `real_dock_wait_node`, `real_two_orders.yaml`, pc.launch의 `dock_wait_robots`가 있다.
   - 로봇: 두 대 모두 launch가 돌지 않는 것을 보고 `tools/real_pode/deploy.sh`로 8f1b487을 보냈다. 192.168.0.200 = wlan e4:5f:01:b9:27:a7(27a6, pode1), 192.168.0.201 = d8:3a:dd:26:07:d8(07d7, pode2). 로봇 패키지는 4fa6124 뒤로 바뀌지 않아 로봇에서 빌드하지 않았다. 두 대 모두 start.sh에 DOCK_STUB이 있고 문법 검사를 통과했으며, `DOCK_STUB=7`은 아무것도 띄우기 전에 거부된다.
   - 실물 시험은 아직 하지 않았다.
+  - 실물 시험 결과는 7절에 있다.
+
+## 7. 실물 시험 결과 (2026-11-18 오후)
+
+기록과 로봇 로그에서 옮겼다. 원인 진단은 Codex 리뷰를 거쳤고 [확정]/[추측] 표시는 그대로 둔다. 선택지는 아직 정하지 않았다(사용자가 정한다).
+
+### 7.1 설정
+
+- pode1 = 27a6(192.168.0.200), pode2 = 07d7(192.168.0.201). `PEER_ROBOTS=pode1,pode2 DOCK_STUB=1 start.sh`로 P-1, P-2에서 띄웠고 속도는 0.12.
+- PC: `pc.launch.py`, 시나리오 `real_two_orders`, `dock_wait_robots "pode1 pode2"`, 도메인 12.
+- RViz는 2절 4번 명령으로 띄웠고 잘 동작했다.
+
+### 7.2 세 판
+
+| 판 | 기록 | 시작 | 결과 |
+|---|---|---|---|
+| 1 | `~/real_runs/peer_on_order_on_1.jsonl` | 15:19 | PC를 로봇보다 먼저 띄웠고 로봇은 15:21/15:22에 띄웠다. 일찍 멈췄다. ROBOT_NOT_REPORTING뿐이라 유효한 판이 아니다 |
+| 2 | `peer_on_order_on_2.jsonl` | 15:27:35 | 로봇이 PC 시작 전에 IDLE이었다. 아래 7.3 |
+| 3 | `peer_on_order_on_3.jsonl` | 15:37:57 | 로봇을 하나씩 띄운 뒤 state 감시와 RViz를 켜고 PC를 띄웠다. 실행 중 ros2 CLI 없음. 아래 7.4 |
+
+### 7.3 판 2: LOCALIZING 때문에 격리
+
+- 첫 로봇 보고는 15.4 s에 LOCALIZING, 24 s에 IDLE.
+- pode2가 24 s에 주문을 받고 움직였다. 약 35 s에 pode2 controller_server가 "Control loop missed its desired rate of 20 Hz"(4~12 Hz)를 남겼고, 곧 LOCALIZING, 36 s에 NAV_ABORTED.
+- 관제가 38.1 s, 40.2 s에 다시 보냈다. 그때도 pode2는 LOCALIZING이었고 둘 다 0.5 s 안에 실패했다. 세 번째 실패로 GOAL_FAILED, 40.7 s에 ROBOT_ISOLATED(HALL 점유). pode1은 O_IN에서 Q2를 기다렸다.
+- 로봇 load average 6~7(4코어). Nav2 컨테이너 약 100%, pode_fsm 약 69% CPU.
+- 35 s 즈음 내가 PC에서 `ros2 topic echo`를 돌렸다. 손으로 멈췄다.
+
+### 7.4 판 3: 4건 중 3건
+
+- 시작 전 유휴 load: pode1 7.0, pode2 5.5(Nav2 컨테이너 80~120%, pode_fsm 47~67%).
+- PC를 띄운 순간 PC의 감시기가 두 로봇이 15:37:58에 IDLE -> LOCALIZING, 15:38:16에 IDLE로 돌아오는 것을 봤다(18 s).
+- pode2를 띄웠을 때 pode1이 30 s(15:36:08~15:36:38) LOCALIZING이었다. 그때 pode1 자신의 Nav2도 아직 올라오는 중이라 원인을 나눌 수 없다.
+- 4건 중 3건 출고(R-001, R-002, R-003. 마지막은 모두 pode1이 했고 주문판에는 R-004만 남았다). R-004는 291.4 s에 NO_ROBOT_AVAILABLE.
+- 이벤트 수: GOAL_RETRY 5, LOCAL_YIELD 6, BASE_END_WAIT 5, GOAL_FAILED 2, ROBOT_ISOLATED 2.
+
+PC 도킹 대기 7번, 모두 성공(오차 cm):
+
+| 시각 s | 로봇 | 도크 | x | y |
+|---|---|---|---|---|
+| 52.3 | pode2 | WORK | 1.4 | -4.9 |
+| 73.4 | pode1 | WORK | 0.6 | -3.7 |
+| 102.4 | pode1 | OUTBOUND | 2.8 | -1.6 |
+| 140.3 | pode1 | WORK | -0.1 | -4.1 |
+| 167.2 | pode1 | OUTBOUND | 4.3 | -0.0 |
+| 211.5 | pode1 | WORK | -0.2 | -2.9 |
+| 241.0 | pode1 | OUTBOUND | 2.2 | -0.4 |
+
+모두 5 cm 안이다.
+
+### 7.5 판 3에서 멈춘 두 번
+
+- pode2: 20.5 s에 짧은 LOCALIZING 중 NAV_ABORTED가 한 번 났고 재시도로 성공했다. WORK에 도킹해 R-001을 받고 급행 차선으로 보냈다(경로 W (1.88,0.495) -> W_X (1.88,0.80) -> (1.84,0.86) -> (1.70,0.895) -> O_X (0.655,0.895)). 64 s에 (1.78,0.89) yaw 2.63(동쪽 입구 J_E)에서 서서 LOCAL_YIELD. 그 뒤 세 번 시도했고 매번 "RegulatedPurePursuitController detected collision ahead!"가 약 20번 나온 뒤 "Controller patience exceeded". 72.8 s에 ROBOT_ISOLATED(HALL, J_E 점유). R-001은 다시 대기열로(바구니 A1 C1은 쥔 채). 이때 pode1은 남쪽으로 0.4 m 넘게 떨어져 있었다.
+- pode1: 가운데 길(M_E)로 3사이클을 다 돌았다. 282 s에 고정 경로 Q1 -> W에서 (1.90, 0.24~0.25)에 서서(Q1 (1.85,0.26), W (1.88,0.495)) LOCAL_YIELD. 같은 collision ahead + patience 패턴이 세 번 나와 291.4 s에 ROBOT_ISOLATED(HALL 점유). 바로 뒤에 "LOW BATTERY WARNING Voltage 6.80V".
+
+### 7.6 진단
+
+| 표시 | 내용 | 근거 |
+|---|---|---|
+| [확정] | 고정 경로는 컨트롤러 FollowPath(RPP)이고 `use_collision_detection` true, `max_allowed_time_to_collision_up_to_carrot` 0.6이다. FollowPathThrough, FollowPathReverse도 같다. `make_params.py`는 `desired_linear_vel`만 바꾼다 | `pode/pode_nav_config/params/nav2_params.yaml:156-157` |
+| [확정] | RPP는 투영한 호를 따라 회전한 발자국을 로컬 코스트맵(lethal)과 맞춰 본다. 로컬 코스트맵은 obstacle_layer(라이다)와 inflation_layer(`nav2_params.yaml:290`), PEER_ROBOTS가 있으면 peer_layer(`pode/pode_nav_config/launch/pode_nav_params.py:38,59`)로 이뤄진다. static layer와 keepout은 없다(keepout은 글로벌 코스트맵에만). 그래서 그린 지도와 keepout은 이 검사에 들어가지 않고, 지도를 다시 만들어도 바뀌지 않는다 | 위 파일들 |
+| [확정] | "Controller patience exceeded"는 controller_server `failure_tolerance` 1.0 s다. collision ahead가 1 s 이어지면 FollowPath 액션이 중단된다 | `nav2_params.yaml:85` |
+| [확정] | 두 번 선 자리에서 위치 추정은 좋았다(LOCALIZING 아님). 도킹도 5 cm 안이었다 | 기록, 7.4 표 |
+| [추측] | 막힌 칸이 무엇이었는지는 기록에 없다. 좁은 곳의 라이다 벽일 가능성이 가장 크다. 급행 차선 폭은 0.17 m(`fleet_map_v7.yaml`), 발자국은 0.116 x 0.112 m(`nav2_params.yaml:286`)로 한쪽 여유가 1.5~2.9 cm다. pode2는 모서리 직후 경로에서 약 0.27 rad 틀어져 있었고, pode1은 Q1 -> W 선에서 동쪽 벽 쪽으로 2~5 cm 치우쳐 있었다. peer 층은 상대를 보고 자세에 반지름 0.075 m 원으로 표시하지만(`pode/pode_peer_obstacles/pode_peer_obstacles/node.py:53`), 상대가 0.4 m 넘게 떨어져 있어 가능성은 낮다(배제는 못 함) | |
+| [확정] | 관제 쪽: 재시도는 LOCALIZING 로봇이 회복하기를 기다리지 않는다. 실패마다 세고, 2 s 뒤 다시 보내고, 세 번째에 격리한다. pode_fsm도 자세가 없으면 도는 goal을 NAV_ABORTED로 끝낸다. 그래서 몇 초짜리 LOCALIZING에도 로봇이 격리될 수 있고, 격리된 로봇은 구역을 쥔 채 다른 로봇을 막는다 | `pc/fleet_core/fleet_core/traffic/zone/progress.py:31`, `drive.py:22`, `base.py:141`, `fleet_params.yaml:15`, `pode/pode_fsm/pode_fsm/core.py:103,250` |
+| [추측] | LOCALIZING 깜박임은 Pi의 CPU 멈춤(여유가 적음)이 새 DDS 참가자(PC launch, 로봇 launch, ros2 CLI)가 들어올 때 겹쳐서 난다. 증명하지 못했다. 네트워크/DDS 지연, TF lookup 예외, 센서·AMCL 끊김일 수도 있다. 다음에는 TF lookup 실패 이유와 시각, scan/odom/AMCL 주기, 선 자리의 로컬 코스트맵을 기록한다 | |
+
+### 7.7 남은 것과 선택지 (결정 없음)
+
+1. 고정 경로 충돌 검사: FollowPath만 `use_collision_detection`을 끄거나, 0.6 s 예측 시간을 줄이거나, 로컬 발자국을 줄인다. 위험 [확정]: 이 설정에는 collision_monitor가 없고 peer 층은 코스트맵에만 들어가므로, 끄면 고정 경로에서 앞을 내다보고 멈추는 유일한 장치가 없어진다. 시간을 줄여도 지금 발자국이 이미 닿아 있으면 소용없다. 발자국을 줄이면 로컬 코스트맵을 쓰는 모든 검사에 영향이 간다. 대안: 먼저 선 자리의 로컬 코스트맵을 기록한다.
+2. 관제: 로봇이 LOCALIZING이라고 보고하는 동안은 재시도 횟수를 쓰지 않고 회복을 기다린다. 그리고/또는 좁은 곳의 collision ahead 중단은 빠른 세 번 실패로 격리하지 않고 다시 시도한다. 시험을 먼저 써야 한다.
+3. 로봇 부하: 유휴 load 5.5~7(4코어). 유휴일 때 pode_fsm이 CPU 47~69%인 것은 FSM치고 높다. 프로파일링할 만하다.
+4. 판 3에서 쓴 운영 규칙: 로봇 시작 -> IDLE 대기 -> 감시기와 RViz 시작 -> PC 시작. 실행 중에는 도메인 12에서 ros2 CLI를 쓰지 않는다.
+5. 작은 것: 로봇 `stop.sh`가 "still alive after 20 s: joint_state_publisher"를 보고하지만 몇 초 뒤 그룹은 비워진다. pode1 배터리가 낮다(6.80 V).
