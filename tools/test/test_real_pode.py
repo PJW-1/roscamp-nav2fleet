@@ -142,9 +142,164 @@ def test_fsm_arguments_exist_in_current_launch():
             "horizon_cap_mps"} <= passed
 
 
-def test_launch_drops_dock_stand_in_and_keeps_shutdown():
+def _need_launch():
+    # launch 계열이 없으면 이 시험들은 건너뛴다
+    for name in ("launch", "launch_ros", "ament_index_python"):
+        pytest.importorskip(name)
+
+
+def _fsm_actions(dock_aside):
+    # _fsm()이 돌려주는 액션 목록(패키지 설치 없이: 경로 조회와 속도 읽기는 대역)
+    _need_launch()
+    import importlib.util
+    from launch import LaunchContext
+    spec = importlib.util.spec_from_file_location("real_pode_launch", KIT / "real_pode.launch.py")
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    mod.get_package_share_directory = lambda name: "/nonexistent/" + name
+    mod.horizon_cap = lambda cap, params: "0.1"
+    ctx = LaunchContext()
+    ctx.launch_configurations.update(
+        namespace="pode1", use_sim_time="false", heartbeat_timeout_s="1.5",
+        horizon_cap_mps="", battery_topic="", params_file="x", dock_aside=dock_aside)
+    return mod._fsm(ctx), ctx
+
+
+def test_launch_declares_dock_aside_default_false():
+    import importlib.util
+    _need_launch()
+    from launch.actions import DeclareLaunchArgument
+    spec = importlib.util.spec_from_file_location("real_pode_launch2", KIT / "real_pode.launch.py")
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    mod.get_package_share_directory = lambda name: "/nonexistent/" + name
+    decl = [a for a in mod.generate_launch_description().entities
+            if isinstance(a, DeclareLaunchArgument) and a.name == "dock_aside"]
+    assert len(decl) == 1
+    assert "".join(t.text for t in decl[0].default_value) == "false"
+
+
+def test_launch_default_does_not_wrap_fsm():
+    _need_launch()
+    from launch.actions import GroupAction, IncludeLaunchDescription
+    acts, _ = _fsm_actions("false")
+    assert any(isinstance(a, IncludeLaunchDescription) for a in acts)
+    assert not any(isinstance(a, GroupAction) for a in acts)
+
+
+def test_launch_dock_aside_wraps_fsm_with_remap():
+    _need_launch()
+    from launch.actions import GroupAction, IncludeLaunchDescription
+    from launch.utilities import perform_substitutions
+    from launch_ros.actions import SetRemap
+    acts, ctx = _fsm_actions("true")
+    group = next(a for a in acts if isinstance(a, GroupAction))
+    inner = group.get_sub_entities()
+    remap = next(a for a in inner if isinstance(a, SetRemap))
+    assert perform_substitutions(ctx, remap.src) == "/pode1/dock"
+    assert perform_substitutions(ctx, remap.dst) == "/pode1/dock_fsm"
+    assert any(isinstance(a, IncludeLaunchDescription) for a in inner)
+
+
+# ---- 실제 pode_fsm으로 확인: remap이 Dock 서버 이름에 닿는가 ----
+PROBE_LAUNCH = """import importlib.util
+from launch import LaunchDescription
+from launch.actions import DeclareLaunchArgument, OpaqueFunction
+spec = importlib.util.spec_from_file_location("rp", {path!r})
+mod = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(mod)
+
+
+def generate_launch_description():
+    d = {{"namespace": "pode1", "use_sim_time": "false", "heartbeat_timeout_s": "0",
+         "horizon_cap_mps": "0.1", "battery_topic": "", "params_file": {params!r},
+         "dock_aside": "false", "through_controller_id": "FollowPathThrough"}}
+    return LaunchDescription([DeclareLaunchArgument(k, default_value=v) for k, v in d.items()]
+                             + [OpaqueFunction(function=mod._fsm)])
+"""
+
+
+def _action_servers(env, name):
+    run = subprocess.run(["ros2", "action", "info", name], capture_output=True, text=True,
+                         env=env, timeout=30)
+    assert run.returncode == 0, f"ros2 action info {name} failed: {run.stderr}"
+    assert "Action servers:" in run.stdout, f"unexpected output: {run.stdout!r}"
+    text = run.stdout.split("Action servers:")[-1]
+    return [t.strip() for t in text.splitlines()[1:] if t.strip()]
+
+
+def _group_alive(pgid):
+    try:
+        os.killpg(pgid, 0)
+    except ProcessLookupError:
+        return False
+    except OSError:
+        return True
+    return True
+
+
+def _stop_group(proc):
+    # 그룹 전체가 없어질 때까지 INT -> TERM -> KILL로 올린다. 정리 오류가 시험 결과를 가리지 않게 한다
+    import signal
+    pgid = proc.pid
+    for sig, wait in ((signal.SIGINT, 15), (signal.SIGTERM, 10), (signal.SIGKILL, 10)):
+        try:
+            os.killpg(pgid, sig)
+        except OSError:
+            pass
+        end = time.time() + wait
+        while time.time() < end:
+            if proc.poll() is not None:
+                proc.wait()  # 리더 좀비를 거둔다
+            if not _group_alive(pgid):
+                return
+            time.sleep(0.1)
+    import warnings
+    warnings.warn(f"process group {pgid} still alive after SIGKILL")
+
+
+@pytest.mark.parametrize("aside,present,absent", [("true", "dock_fsm", "dock"),
+                                                  ("false", "dock", "dock_fsm")])
+def test_launch_dock_aside_moves_real_fsm_server(tmp_path, aside, present, absent):
+    _need_launch()
+    if shutil.which("ros2") is None:
+        pytest.skip("ros2 not available")
+    if subprocess.run(["ros2", "pkg", "prefix", "pode_fsm"], capture_output=True).returncode:
+        pytest.skip("pode_fsm not installed")
+    # 호출한 쪽이 도메인을 정한다(12, 50~59는 쓰지 않는다)
+    domain = os.environ.get("ROS_DOMAIN_ID", "")
+    if (not domain.isdigit() or int(domain) == 12 or 50 <= int(domain) <= 59
+            or os.environ.get("ROS_AUTOMATIC_DISCOVERY_RANGE") != "LOCALHOST"):
+        pytest.skip("set ROS_DOMAIN_ID (not 12, 50-59) and ROS_AUTOMATIC_DISCOVERY_RANGE=LOCALHOST")
+    env = dict(os.environ)
+    # 같은 도메인에 이미 서버가 있으면 결과를 믿을 수 없다
+    for name in ("/pode1/dock", "/pode1/dock_fsm"):
+        if _action_servers(env, name):
+            pytest.skip(f"a server already exists on {name} in this domain")
+    import make_params
+    make_params.write_params(0.12, tmp_path / "params")
+    (tmp_path / "probe.launch.py").write_text(PROBE_LAUNCH.format(
+        path=str(KIT / "real_pode.launch.py"),
+        params=str(tmp_path / "params" / "nav2_params.yaml")))
+    launch = subprocess.Popen(["ros2", "launch", str(tmp_path / "probe.launch.py"),
+                               f"dock_aside:={aside}"], env=env, start_new_session=True,
+                              stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    try:
+        want, other = f"/pode1/{present}", f"/pode1/{absent}"
+        servers = []
+        for _ in range(20):
+            servers = _action_servers(env, want)
+            if servers:
+                break
+            time.sleep(0.5)
+        assert servers == ["/pode1/pode_fsm"]
+        assert _action_servers(env, other) == []
+    finally:
+        _stop_group(launch)
+
+
+def test_launch_keeps_shutdown():
     text = (KIT / "real_pode.launch.py").read_text(encoding="utf-8")
-    assert "dock_aside" not in text and "dock_fsm" not in text
     assert "OnProcessExit" in text and "Shutdown(" in text
     assert "cmd_watchdog.py" in text
     assert "bringup_robot.launch.xml" in text
@@ -259,7 +414,7 @@ def test_start_refuses_while_another_start_holds_the_lock(tmp_path):
     assert run.returncode == 1 and "ENV_REACHED" in run.stdout
 
 
-def _start_with_fake_ros2(tmp_path, peer_robots):
+def _start_with_fake_ros2(tmp_path, peer_robots, dock_stub=None):
     # 대역 ros2가 받은 인자를 파일에 적고 끝난다. PEER_ROBOTS=None이면 변수를 빼고 돌린다
     start = _stub_kit(tmp_path)
     (tmp_path / "env.sh").write_text("return 0\n")
@@ -271,6 +426,9 @@ def _start_with_fake_ros2(tmp_path, peer_robots):
     env.pop("PEER_ROBOTS", None)
     if peer_robots is not None:
         env["PEER_ROBOTS"] = peer_robots
+    env.pop("DOCK_STUB", None)
+    if dock_stub is not None:
+        env["DOCK_STUB"] = dock_stub
     run = subprocess.run(["bash", str(start), "pode1", "0.12", "0.10", "1.5708"],
                          capture_output=True, text=True, env=env, timeout=30)
     args = tmp_path / "ros2.args"
@@ -306,6 +464,35 @@ def test_start_refuses_bad_peer_robots_before_make_params(tmp_path, value):
     run, argv = _start_with_fake_ros2(tmp_path, value)
     assert run.returncode == 2
     assert "PEER_ROBOTS" in run.stdout + run.stderr
+    assert "params ok" not in run.stdout and argv == []
+
+
+# ---- DOCK_STUB ----
+def test_start_dock_stub_adds_dock_aside(tmp_path):
+    run, argv = _start_with_fake_ros2(tmp_path, None, "1")
+    assert run.returncode == 0, run.stdout + run.stderr
+    assert argv == OLD_ARGV + ["dock_aside:=true"]
+
+
+def test_start_dock_stub_with_peers_order(tmp_path):
+    run, argv = _start_with_fake_ros2(tmp_path, "pode1,pode2", "1")
+    assert run.returncode == 0, run.stdout + run.stderr
+    assert argv == OLD_ARGV + ["peer_obstacles:=true", "peer_robots:=pode1,pode2",
+                               "dock_aside:=true"]
+
+
+@pytest.mark.parametrize("value", [None, "", "0"])
+def test_start_dock_stub_off_keeps_old_argv(tmp_path, value):
+    run, argv = _start_with_fake_ros2(tmp_path, None, value)
+    assert run.returncode == 0, run.stdout + run.stderr
+    assert argv == OLD_ARGV
+
+
+@pytest.mark.parametrize("value", ["yes", "true", "2", "1;rm", " 1"])
+def test_start_refuses_bad_dock_stub(tmp_path, value):
+    run, argv = _start_with_fake_ros2(tmp_path, None, value)
+    assert run.returncode == 2
+    assert "DOCK_STUB" in run.stdout + run.stderr
     assert "params ok" not in run.stdout and argv == []
 
 
