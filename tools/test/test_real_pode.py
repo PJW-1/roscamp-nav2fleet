@@ -142,8 +142,15 @@ def test_fsm_arguments_exist_in_current_launch():
             "horizon_cap_mps"} <= passed
 
 
+def _need_launch():
+    # launch 계열이 없으면 이 시험들은 건너뛴다
+    for name in ("launch", "launch_ros", "ament_index_python"):
+        pytest.importorskip(name)
+
+
 def _fsm_actions(dock_aside):
     # _fsm()이 돌려주는 액션 목록(패키지 설치 없이: 경로 조회와 속도 읽기는 대역)
+    _need_launch()
     import importlib.util
     from launch import LaunchContext
     spec = importlib.util.spec_from_file_location("real_pode_launch", KIT / "real_pode.launch.py")
@@ -160,7 +167,7 @@ def _fsm_actions(dock_aside):
 
 def test_launch_declares_dock_aside_default_false():
     import importlib.util
-    pytest.importorskip("launch")
+    _need_launch()
     from launch.actions import DeclareLaunchArgument
     spec = importlib.util.spec_from_file_location("real_pode_launch2", KIT / "real_pode.launch.py")
     mod = importlib.util.module_from_spec(spec)
@@ -173,6 +180,7 @@ def test_launch_declares_dock_aside_default_false():
 
 
 def test_launch_default_does_not_wrap_fsm():
+    _need_launch()
     from launch.actions import GroupAction, IncludeLaunchDescription
     acts, _ = _fsm_actions("false")
     assert any(isinstance(a, IncludeLaunchDescription) for a in acts)
@@ -180,6 +188,7 @@ def test_launch_default_does_not_wrap_fsm():
 
 
 def test_launch_dock_aside_wraps_fsm_with_remap():
+    _need_launch()
     from launch.actions import GroupAction, IncludeLaunchDescription
     from launch.utilities import perform_substitutions
     from launch_ros.actions import SetRemap
@@ -219,19 +228,32 @@ def _action_servers(env, name):
     return [t.strip() for t in text.splitlines()[1:] if t.strip()]
 
 
+def _group_alive(pgid):
+    try:
+        os.killpg(pgid, 0)
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True
+    return True
+
+
 def _stop_group(proc):
-    # INT -> TERM -> KILL 순서로 내린다. 정리 오류가 시험 결과를 가리지 않게 한다
+    # 그룹 전체가 없어질 때까지 INT -> TERM -> KILL로 올린다. 정리 오류가 시험 결과를 가리지 않게 한다
     import signal
+    pgid = proc.pid
     for sig, wait in ((signal.SIGINT, 15), (signal.SIGTERM, 10), (signal.SIGKILL, 10)):
         try:
-            os.killpg(proc.pid, sig)
+            os.killpg(pgid, sig)
         except (ProcessLookupError, PermissionError):
             pass
-        try:
-            proc.wait(timeout=wait)
-            return
-        except subprocess.TimeoutExpired:
-            continue
+        end = time.time() + wait
+        while time.time() < end:
+            if proc.poll() is not None:
+                proc.wait()  # 리더 좀비를 거둔다
+            if not _group_alive(pgid):
+                return
+            time.sleep(0.1)
 
 
 @pytest.mark.parametrize("aside,present,absent", [("true", "dock_fsm", "dock"),
