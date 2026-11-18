@@ -3,8 +3,8 @@
 | 이름 | 지시서의 상황 | 만드는 법 |
 |---|---|---|
 | person_in_express | 급행 안 사람 | 급행 가운데 물체 8 s(로봇이 들어오는 때) |
-| person_at_dock | 도크 앞 사람 | 서쪽 갈림목(X_W) 물체 8 s |
-| corridor_box | 통로 안 상자 (D) | 지점 없는 통로 가운데 상자 120 s. 통로가 있는 배치만(d, c) |
+| person_at_dock | 도크 앞 사람 | 작업 도크에 가장 가까운 지나가는 점(d2 X_W, v7 W_X) 물체 8 s |
+| corridor_box | 통로 안 상자 (D) | 지점 없는 통로 가운데 상자 120 s. 통로가 있는 배치만(d, c, v7) |
 | box_removed | 상자 치움 뒤 표시 지우기 | 급행 가운데 상자 20~140 s, 주문을 나눠 넣는다 |
 | box_stays | 상자 그대로 | 급행 가운데 상자 20~620 s, 주문을 나눠 넣는다 |
 
@@ -13,9 +13,10 @@ hall_obstacle을 4절 규칙으로 다시 돌린다. 라이다보다 낮은 상�
 """
 from __future__ import annotations
 
+import math
 from dataclasses import replace
 
-from fleet_core.fleet_map import SHARED
+from fleet_core.fleet_map import PASS, SHARED
 
 from .injections import Obstacle
 from .stations import six_orders
@@ -27,16 +28,31 @@ STORE_ROWS = ("person_in_express", "person_at_dock", "express_obstacle", "corrid
 PERSON_S = 8.0  # 사람이 서 있는 시간(blocked_mark_s 10 s보다 짧다)
 QUIET_AFTER_S = 30.0  # 사람이 떠난 뒤 이만큼까지의 우회와 후진만 사람 탓으로 센다
 BOX_R = 0.04  # 상자 반지름(급행 띠 0.20 m 안에서 지나갈 틈이 없다)
+NODE_CORRIDORS = {"v7": ("남쪽 통로", "E-3", "Q2")}
 
 
 def applies(name: str, layout: str, site) -> bool:
     """corridor_box는 지점 없는 통로가 있는 배치에서만 돌린다."""
-    return name != "corridor_box" or bool(_corridor(site))
+    return name != "corridor_box" or _corridor(layout, site) is not None
 
 
-def _corridor(site):
+def _corridor(layout, site):
     corridors = [z for z in site.zones.values() if z.kind == SHARED and not site.nodes_in(z.id)]
-    return min(corridors, key=lambda z: z.id, default=None)
+    zone = min(corridors, key=lambda z: z.id, default=None)
+    if zone is not None:
+        return zone.id, _middle(zone)
+    if layout not in NODE_CORRIDORS:
+        return None
+    label, a, b = NODE_CORRIDORS[layout]
+    (ax, ay), (bx, by) = site.node_pose(a), site.node_pose(b)
+    return label, ((ax + bx) / 2, (ay + by) / 2)
+
+
+def _dock_door(site):
+    dock = site.node_pose(site.stations["WORK"].dock)
+    doors = [n for n in site.nodes.values() if n.kind == PASS]
+    door = min(doors, key=lambda n: math.dist((n.x, n.y), dock))
+    return (door.x, door.y)
 
 
 def _middle(zone):
@@ -55,16 +71,17 @@ def build_store(name, layout, site, lane, situation):
                          quiet_until_s=21.0 + PERSON_S + QUIET_AFTER_S)
     if name == "person_at_dock":
         return situation(name, "도크 앞 사람",
-                         injections=[Obstacle(*site.node_pose("X_W"), 0.05, 15.0,
+                         injections=[Obstacle(*_dock_door(site), 0.05, 15.0,
                                               15.0 + PERSON_S)],
                          no_events=quiet,  # 도크에서 나오는 후진은 사람이 비킬 때까지 다시 낸다
                          quiet_until_s=15.0 + PERSON_S + QUIET_AFTER_S)
     if name == "corridor_box":
-        zone = _corridor(site)
-        if zone is None:
+        corridor = _corridor(layout, site)
+        if corridor is None:
             raise KeyError(f"no corridor in layout {layout}")
-        return situation(name, f"통로 안 상자 ({zone.id})",
-                         injections=[Obstacle(*_middle(zone), BOX_R, 20.0, 140.0)])
+        label, middle = corridor
+        return situation(name, f"통로 안 상자 ({label})",
+                         injections=[Obstacle(*middle, BOX_R, 20.0, 140.0)])
     if name == "box_removed":
         return situation(name, "상자 치움 뒤 표시 지우기",
                          orders=six_orders(gap_s=20.0, count=12),
