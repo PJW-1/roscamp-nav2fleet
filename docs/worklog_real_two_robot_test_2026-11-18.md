@@ -146,7 +146,7 @@ PC 도킹 대기 7번, 모두 성공(오차 cm):
 | 211.5 | pode1 | WORK | -0.2 | -2.9 |
 | 241.0 | pode1 | OUTBOUND | 2.2 | -0.4 |
 
-모두 5 cm 안이다.
+축마다 5 cm 안이다(평면 거리로는 가장 큰 오차 5.1 cm, 첫 도킹).
 
 ### 7.5 판 3에서 멈춘 두 번
 
@@ -158,16 +158,18 @@ PC 도킹 대기 7번, 모두 성공(오차 cm):
 | 표시 | 내용 | 근거 |
 |---|---|---|
 | [확정] | 고정 경로는 컨트롤러 FollowPath(RPP)이고 `use_collision_detection` true, `max_allowed_time_to_collision_up_to_carrot` 0.6이다. FollowPathThrough, FollowPathReverse도 같다. `make_params.py`는 `desired_linear_vel`만 바꾼다 | `pode/pode_nav_config/params/nav2_params.yaml:156-157` |
-| [확정] | RPP는 투영한 호를 따라 회전한 발자국을 로컬 코스트맵(lethal)과 맞춰 본다. 로컬 코스트맵은 obstacle_layer(라이다)와 inflation_layer(`nav2_params.yaml:290`), PEER_ROBOTS가 있으면 peer_layer(`pode/pode_nav_config/launch/pode_nav_params.py:38,59`)로 이뤄진다. static layer와 keepout은 없다(keepout은 글로벌 코스트맵에만). 그래서 그린 지도와 keepout은 이 검사에 들어가지 않고, 지도를 다시 만들어도 바뀌지 않는다 | 위 파일들 |
-| [확정] | "Controller patience exceeded"는 controller_server `failure_tolerance` 1.0 s다. collision ahead가 1 s 이어지면 FollowPath 액션이 중단된다 | `nav2_params.yaml:85` |
-| [확정] | 두 번 선 자리에서 위치 추정은 좋았다(LOCALIZING 아님). 도킹도 5 cm 안이었다 | 기록, 7.4 표 |
-| [추측] | 막힌 칸이 무엇이었는지는 기록에 없다. 좁은 곳의 라이다 벽일 가능성이 가장 크다. 급행 차선 폭은 0.17 m(`fleet_map_v7.yaml`), 발자국은 0.116 x 0.112 m(`nav2_params.yaml:286`)로 한쪽 여유가 1.5~2.9 cm다. pode2는 모서리 직후 경로에서 약 0.27 rad 틀어져 있었고, pode1은 Q1 -> W 선에서 동쪽 벽 쪽으로 2~5 cm 치우쳐 있었다. peer 층은 상대를 보고 자세에 반지름 0.075 m 원으로 표시하지만(`pode/pode_peer_obstacles/pode_peer_obstacles/node.py:53`), 상대가 0.4 m 넘게 떨어져 있어 가능성은 낮다(배제는 못 함) | |
-| [확정] | 관제 쪽: 재시도는 LOCALIZING 로봇이 회복하기를 기다리지 않는다. 실패마다 세고, 2 s 뒤 다시 보내고, 세 번째에 격리한다. pode_fsm도 자세가 없으면 도는 goal을 NAV_ABORTED로 끝낸다. 그래서 몇 초짜리 LOCALIZING에도 로봇이 격리될 수 있고, 격리된 로봇은 구역을 쥔 채 다른 로봇을 막는다 | `pc/fleet_core/fleet_core/traffic/zone/progress.py:31`, `drive.py:22`, `base.py:141`, `fleet_params.yaml:15`, `pode/pode_fsm/pode_fsm/core.py:103,250` |
+| [확정] | RPP는 투영한 호를 따라 회전한 발자국을 로컬 코스트맵(lethal)과 맞춰 본다. 로컬 코스트맵은 obstacle_layer(라이다)와 inflation_layer(`nav2_params.yaml:290`), PEER_ROBOTS가 있으면 peer_layer(`pode/pode_nav_config/launch/pode_nav_params.py:38,59`)로 이뤄진다. static layer와 keepout은 없다(keepout은 글로벌 코스트맵에만). 그래서 그린 지도와 keepout은 이 검사에 들어가지 않고, 지도 칸이 이 RPP 검사에 직접 들어가지는 않는다(로컬 코스트맵에 static layer와 keepout이 없다). 다만 지도는 AMCL도 쓰므로 새 지도가 주행에 간접으로 영향을 줄 수는 있다 | 위 파일들 |
+| [확정] | "Controller patience exceeded"는 controller_server `failure_tolerance` 1.0 s다. collision ahead가 1 s 이어지면 FollowPath 액션이 중단된다 | `nav2_params.yaml:92` |
+| [확정] | 두 번 선 자리에서 로봇은 LOCALIZING이 아니었다. 도킹 오차도 축마다 5 cm 안이었다(평면 최대 5.1 cm). 다만 도킹 오차는 로봇이 스스로 보고한 자세로 잰 값이라 위치 추정이 정확했다는 독립된 증거는 아니다 | 기록, 7.4 표 |
+| [추측] | 막힌 칸이 무엇이었는지는 기록에 없다. 좁은 곳의 라이다 벽일 가능성이 가장 크다. 급행 차선 폭은 0.17 m(`fleet_map_v7.yaml`), 발자국은 0.116 x 0.112 m(`nav2_params.yaml:286`)로 한쪽 여유가 1.5~2.9 cm다. pode2는 모서리 직후 경로에서 약 0.27 rad 틀어져 있었고, pode1은 Q1 -> W 선에서 동쪽 벽 쪽으로 2~5 cm 치우쳐 있었다. peer 층은 상대를 보고 자세에 반지름 0.075 m 원으로 표시하지만(기본값 `RADIUS_M = 0.075`는 `pode/pode_peer_obstacles/pode_peer_obstacles/body.py:10`, 파라미터 선언은 `node.py:53`), 상대가 0.4 m 넘게 떨어져 있어 가능성은 낮다(배제는 못 함) | |
+| [확정] | 관제 쪽: 재시도는 LOCALIZING 로봇이 회복하기를 기다리지 않는다. 이번 NAV_ABORTED 실패들은 실패로 세고, 2 s 뒤 다시 보내고, 세 번째에 격리한다(HEARTBEAT_LOST, NOT_AT_TARGET, 로봇이 이미 구간 끝에 서 있는 실패는 다른 경로를 탄다, `pc/fleet_core/fleet_core/traffic/zone/results.py:200-205`). pode_fsm도 자세가 없으면 도는 goal을 NAV_ABORTED로 끝낸다. 그래서 몇 초짜리 LOCALIZING에도 로봇이 격리될 수 있고, 격리된 로봇은 구역을 쥔 채 다른 로봇을 막는다 | `pc/fleet_core/fleet_core/traffic/zone/progress.py:31`, `drive.py:22`, `base.py:141`, `fleet_params.yaml:15`, `pode/pode_fsm/pode_fsm/core.py:103,250` |
 | [추측] | LOCALIZING 깜박임은 Pi의 CPU 멈춤(여유가 적음)이 새 DDS 참가자(PC launch, 로봇 launch, ros2 CLI)가 들어올 때 겹쳐서 난다. 증명하지 못했다. 네트워크/DDS 지연, TF lookup 예외, 센서·AMCL 끊김일 수도 있다. 다음에는 TF lookup 실패 이유와 시각, scan/odom/AMCL 주기, 선 자리의 로컬 코스트맵을 기록한다 | |
 
 ### 7.7 남은 것과 선택지 (결정 없음)
 
 1. 고정 경로 충돌 검사: FollowPath만 `use_collision_detection`을 끄거나, 0.6 s 예측 시간을 줄이거나, 로컬 발자국을 줄인다. 위험 [확정]: 이 설정에는 collision_monitor가 없고 peer 층은 코스트맵에만 들어가므로, 끄면 고정 경로에서 앞을 내다보고 멈추는 유일한 장치가 없어진다. 시간을 줄여도 지금 발자국이 이미 닿아 있으면 소용없다. 발자국을 줄이면 로컬 코스트맵을 쓰는 모든 검사에 영향이 간다. 대안: 먼저 선 자리의 로컬 코스트맵을 기록한다.
+   - 사용자 결정(2026-11-18): 시뮬처럼 실물 로봇의 고정 경로 충돌 검사를 끈다. 구현은 브랜치 `feat/real-fixed-line-check-off`(d3b9487)에 있고 아직 배포하지 않았다.
+   - Codex 리뷰: [확정] 구역 잠금만으로는 분리가 보장되지 않는다. 잠금은 노드를 쥐는 것이지 연속된 공간을 쥐는 것이 아니고, HALL은 공유(용량 3)다. [추측] 구체적인 충돌 경우: 노드 사이에 서 있는 로봇, 선두가 차선 한가운데서 서는 EXPRESS 뒤따르기, 고정선을 가로지르는 야드 goal 로봇이 고정선 로봇과 만날 수 있다.
 2. 관제: 로봇이 LOCALIZING이라고 보고하는 동안은 재시도 횟수를 쓰지 않고 회복을 기다린다. 그리고/또는 좁은 곳의 collision ahead 중단은 빠른 세 번 실패로 격리하지 않고 다시 시도한다. 시험을 먼저 써야 한다.
 3. 로봇 부하: 유휴 load 5.5~7(4코어). 유휴일 때 pode_fsm이 CPU 47~69%인 것은 FSM치고 높다. 프로파일링할 만하다.
 4. 판 3에서 쓴 운영 규칙: 로봇 시작 -> IDLE 대기 -> 감시기와 RViz 시작 -> PC 시작. 실행 중에는 도메인 12에서 ros2 CLI를 쓰지 않는다.
