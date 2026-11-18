@@ -13,6 +13,8 @@
 - 속도는 params/의 사본(make_params.py, start.sh가 만든다)이 정한다. pode_fsm의
   horizon_cap_mps는 비우면 그 사본의 FollowPath 속도와 같게 둔다.
 - 도킹은 없다(pode_fsm dock()은 DOCK_UNAVAILABLE). 시험은 거기서 멈춘다.
+  dock_aside:=true(start.sh는 DOCK_STUB=1)면 pode_fsm의 Dock 서버를 /<namespace>/dock_fsm으로
+  비킨다. 그 자리(/<namespace>/dock)는 PC의 도킹 대역 노드가 맡는다.
 """
 import sys
 from pathlib import Path
@@ -64,10 +66,19 @@ def _fsm(context):
     given = {name: FIXED.get(name) or LaunchConfiguration(name) for name in FSM_ARGS}
     given["horizon_cap_mps"] = cap
     fsm = Path(get_package_share_directory("pode_fsm"))
-    return [LogInfo(msg=f"real_pode: pode_fsm horizon_cap_mps {cap}"),
-            IncludeLaunchDescription(
-                PythonLaunchDescriptionSource(str(fsm / "launch" / "pode_fsm.launch.py")),
-                launch_arguments=given.items())]
+    include = IncludeLaunchDescription(
+        PythonLaunchDescriptionSource(str(fsm / "launch" / "pode_fsm.launch.py")),
+        launch_arguments=given.items())
+    out = [LogInfo(msg=f"real_pode: pode_fsm horizon_cap_mps {cap}")]
+    if value("dock_aside") == "true":
+        # 서버 이름은 계약의 절대 이름(/<ns>/dock)이라 절대 이름으로 비킨다(시뮬과 같다)
+        ns = value("namespace")
+        out += [LogInfo(msg=f"real_pode: dock_aside on, pode_fsm Dock -> /{ns}/dock_fsm"
+                            f" (PC dock stub must serve /{ns}/dock)"),
+                GroupAction([SetRemap(f"/{ns}/dock", f"/{ns}/dock_fsm"), include])]
+    else:
+        out.append(include)
+    return out
 
 
 def generate_launch_description():
@@ -102,6 +113,8 @@ def generate_launch_description():
                               description="0이면 관제 heartbeat가 끊겨도 서지 않는다"),
         DeclareLaunchArgument("battery_topic", default_value="",
                               description="BatteryState 토픽. 비면 배터리를 모름으로 알린다"),
+        DeclareLaunchArgument("dock_aside", default_value="false",
+                              description="true면 pode_fsm Dock 서버를 /<ns>/dock_fsm으로 비킨다"),
         DeclareLaunchArgument("log_level", default_value="warn"),
         # ---- 제조사 bringup ----
         GroupAction([

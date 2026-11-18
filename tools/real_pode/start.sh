@@ -2,6 +2,7 @@
 # bringup + Nav2 + pode_fsm을 뒤에서 띄운다:  start.sh pode1 0.12 0.10 1.5708 [0.12]
 # (namespace, 지도 위 로봇 자리 x y yaw, 속도 m/s 기본 0.12). 기록: logs/launch_*.log
 # 두 대 이상이면 PEER_ROBOTS=pode1,pode2 start.sh ...  (peer 층을 켠다. 안 주면 꺼짐)
+# 도킹 대역을 PC에서 돌리면 DOCK_STUB=1 start.sh ...  (pode_fsm Dock 서버를 /<ns>/dock_fsm으로 비킨다)
 cd "$(dirname "$(readlink -f "$0")")" || exit 1
 [ $# -eq 4 ] || [ $# -eq 5 ] || { echo "usage: start.sh NAMESPACE X Y YAW [SPEED]"; exit 2; }
 speed=${5:-0.12}
@@ -10,6 +11,13 @@ peers=${PEER_ROBOTS:-}
 if [ -n "$peers" ] && ! [[ $peers =~ ^[a-z_][a-z0-9_]*(,[a-z_][a-z0-9_]*)*$ ]]; then
   echo "bad PEER_ROBOTS: use names like pode1,pode2"; exit 2
 fi
+# DOCK_STUB는 1이면 켜고, 비었거나 0이면 끈다. 그 밖의 값은 거절한다
+dock=${DOCK_STUB:-0}
+case $dock in
+  0) dock= ;;
+  1) ;;
+  *) echo "bad DOCK_STUB: use 1 (or unset/0)"; exit 2 ;;
+esac
 mkdir -p logs || exit 1
 # 동시에 두 번 시작하지 않게 잠근다(pid 파일이 써질 때까지 쥔다)
 exec 9> logs/start.lock || exit 1
@@ -25,9 +33,10 @@ rm -f logs/launch.pid
 # launch에는 잠금 fd를 넘기지 않는다
 setsid bash -c 'echo $$ > logs/launch.pid
   extra=(); [ -z "$5" ] || extra=(peer_obstacles:=true peer_robots:="$5")
+  [ -z "$6" ] || extra+=(dock_aside:=true)
   exec ros2 launch ./real_pode.launch.py \
   namespace:="$1" initial_x:="$2" initial_y:="$3" initial_yaw:="$4" "${extra[@]}"' \
-  _ "$1" "$2" "$3" "$4" "$peers" \
+  _ "$1" "$2" "$3" "$4" "$peers" "$dock" \
   > "$log" 2>&1 < /dev/null 9>&- &
 child=$!
 for _ in $(seq 50); do [ -s logs/launch.pid ] && break; sleep 0.1; done

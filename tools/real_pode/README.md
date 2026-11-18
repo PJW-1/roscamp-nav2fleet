@@ -49,7 +49,10 @@ Nav2 goal을 모는 컨트롤러(FollowPathGoal)의 속도는 `nav2_params.yaml`
 - 속도 상한 없음: `params/` 사본의 값이 곧 최고 속도다.
 - keepout은 `keepout_mask`를 줄 때만 켜진다. 이 묶음은 기본으로 `maps/arena_v7_keepout.yaml`을 준다.
 - 스캔 거르개 꺼짐(`narrow_strips` 비움).
-- 도킹 없음: `pode_fsm` dock()은 DOCK_UNAVAILABLE을 돌려준다. 관제는 도킹을 3번 다시 시도한 뒤 WORK
+- 도킹 대역: `DOCK_STUB=1 ./start.sh ...`(`dock_aside:=true`)면 `pode_fsm`의 Dock 서버가
+  `/<ns>/dock_fsm`으로 비킨다. 이때 PC에서 도킹 대역 노드가 `/<ns>/dock`을 맡아야 한다. 없으면 도킹
+  goal을 받는 서버가 없다. 안 주거나 `0`이면 아래 "도킹 없음"과 같다. 다른 값은 start.sh가 거절한다(종료 2).
+- 도킹 없음(DOCK_STUB 없이): `pode_fsm` dock()은 DOCK_UNAVAILABLE을 돌려준다. 관제는 도킹을 3번 다시 시도한 뒤 WORK
   도크 구역을 쥔 채로 로봇을 격리한다. 시험은 거기서 멈춘다.
 - 배터리 토픽 비움(`battery_topic`): 배터리를 모름(-1)으로 알린다.
 

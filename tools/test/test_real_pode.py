@@ -142,9 +142,44 @@ def test_fsm_arguments_exist_in_current_launch():
             "horizon_cap_mps"} <= passed
 
 
-def test_launch_drops_dock_stand_in_and_keeps_shutdown():
+def _fsm_actions(dock_aside):
+    # _fsm()이 돌려주는 액션 목록(패키지 설치 없이: 경로 조회와 속도 읽기는 대역)
+    import importlib.util
+    from launch import LaunchContext
+    spec = importlib.util.spec_from_file_location("real_pode_launch", KIT / "real_pode.launch.py")
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    mod.get_package_share_directory = lambda name: "/nonexistent/" + name
+    mod.horizon_cap = lambda cap, params: "0.1"
+    ctx = LaunchContext()
+    ctx.launch_configurations.update(
+        namespace="pode1", use_sim_time="false", heartbeat_timeout_s="1.5",
+        horizon_cap_mps="", battery_topic="", params_file="x", dock_aside=dock_aside)
+    return mod._fsm(ctx), ctx
+
+
+def test_launch_default_does_not_wrap_fsm():
+    from launch.actions import GroupAction, IncludeLaunchDescription
+    acts, _ = _fsm_actions("false")
+    assert any(isinstance(a, IncludeLaunchDescription) for a in acts)
+    assert not any(isinstance(a, GroupAction) for a in acts)
+
+
+def test_launch_dock_aside_wraps_fsm_with_remap():
+    from launch.actions import GroupAction, IncludeLaunchDescription
+    from launch.utilities import perform_substitutions
+    from launch_ros.actions import SetRemap
+    acts, ctx = _fsm_actions("true")
+    group = next(a for a in acts if isinstance(a, GroupAction))
+    inner = group.get_sub_entities()
+    remap = next(a for a in inner if isinstance(a, SetRemap))
+    assert perform_substitutions(ctx, remap.src) == "/pode1/dock"
+    assert perform_substitutions(ctx, remap.dst) == "/pode1/dock_fsm"
+    assert any(isinstance(a, IncludeLaunchDescription) for a in inner)
+
+
+def test_launch_keeps_shutdown():
     text = (KIT / "real_pode.launch.py").read_text(encoding="utf-8")
-    assert "dock_aside" not in text and "dock_fsm" not in text
     assert "OnProcessExit" in text and "Shutdown(" in text
     assert "cmd_watchdog.py" in text
     assert "bringup_robot.launch.xml" in text
@@ -259,7 +294,7 @@ def test_start_refuses_while_another_start_holds_the_lock(tmp_path):
     assert run.returncode == 1 and "ENV_REACHED" in run.stdout
 
 
-def _start_with_fake_ros2(tmp_path, peer_robots):
+def _start_with_fake_ros2(tmp_path, peer_robots, dock_stub=None):
     # 대역 ros2가 받은 인자를 파일에 적고 끝난다. PEER_ROBOTS=None이면 변수를 빼고 돌린다
     start = _stub_kit(tmp_path)
     (tmp_path / "env.sh").write_text("return 0\n")
@@ -271,6 +306,9 @@ def _start_with_fake_ros2(tmp_path, peer_robots):
     env.pop("PEER_ROBOTS", None)
     if peer_robots is not None:
         env["PEER_ROBOTS"] = peer_robots
+    env.pop("DOCK_STUB", None)
+    if dock_stub is not None:
+        env["DOCK_STUB"] = dock_stub
     run = subprocess.run(["bash", str(start), "pode1", "0.12", "0.10", "1.5708"],
                          capture_output=True, text=True, env=env, timeout=30)
     args = tmp_path / "ros2.args"
@@ -306,6 +344,35 @@ def test_start_refuses_bad_peer_robots_before_make_params(tmp_path, value):
     run, argv = _start_with_fake_ros2(tmp_path, value)
     assert run.returncode == 2
     assert "PEER_ROBOTS" in run.stdout + run.stderr
+    assert "params ok" not in run.stdout and argv == []
+
+
+# ---- DOCK_STUB ----
+def test_start_dock_stub_adds_dock_aside(tmp_path):
+    run, argv = _start_with_fake_ros2(tmp_path, None, "1")
+    assert run.returncode == 0, run.stdout + run.stderr
+    assert argv == OLD_ARGV + ["dock_aside:=true"]
+
+
+def test_start_dock_stub_with_peers_order(tmp_path):
+    run, argv = _start_with_fake_ros2(tmp_path, "pode1,pode2", "1")
+    assert run.returncode == 0, run.stdout + run.stderr
+    assert argv == OLD_ARGV + ["peer_obstacles:=true", "peer_robots:=pode1,pode2",
+                               "dock_aside:=true"]
+
+
+@pytest.mark.parametrize("value", [None, "", "0"])
+def test_start_dock_stub_off_keeps_old_argv(tmp_path, value):
+    run, argv = _start_with_fake_ros2(tmp_path, None, value)
+    assert run.returncode == 0, run.stdout + run.stderr
+    assert argv == OLD_ARGV
+
+
+@pytest.mark.parametrize("value", ["yes", "true", "2", "1;rm", " 1"])
+def test_start_refuses_bad_dock_stub(tmp_path, value):
+    run, argv = _start_with_fake_ros2(tmp_path, None, value)
+    assert run.returncode == 2
+    assert "DOCK_STUB" in run.stdout + run.stderr
     assert "params ok" not in run.stdout and argv == []
 
 
