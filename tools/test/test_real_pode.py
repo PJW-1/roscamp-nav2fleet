@@ -19,6 +19,7 @@ AVOID_SRC = ROOT / "pode" / "pode_avoidance" / "params" / "avoidance.yaml"
 NAV2_LAUNCH = ROOT / "pode" / "pode_nav_config" / "launch" / "nav2.launch.py"
 FSM_LAUNCH = ROOT / "pode" / "pode_fsm" / "launch" / "pode_fsm.launch.py"
 FORWARD = ("FollowPath", "FollowPathThrough")
+FIXED_LINE = ("FollowPath", "FollowPathThrough", "FollowPathReverse")
 # 전역 costmap 지도는 2.5 cm(arena_v7_a, 사용자 결정 2026-11-17), 위치 추정 1 cm, keepout
 MAPS = ("arena_v7_a", "arena_v7_fine", "arena_v7_keepout")
 # 위치 추정은 실물 SLAM 지도(2026-11-17 확정), costmap·keepout 은 v7 도면 지도
@@ -69,6 +70,8 @@ def test_make_params_sets_forward_speeds_only(tmp_path, speed):
     want = copy.deepcopy(nav_src)
     for name in FORWARD:
         want["controller_server"]["ros__parameters"][name]["desired_linear_vel"] = speed
+    for name in FIXED_LINE:
+        want["controller_server"]["ros__parameters"][name]["use_collision_detection"] = False
     assert nav == want
     want = copy.deepcopy(avoid_src)
     want["follow_path_goal"]["desired_linear_vel"] = speed
@@ -83,8 +86,56 @@ def test_make_params_keeps_comments(tmp_path):
         orig = src.read_text(encoding="utf-8").splitlines()
         assert len(got) == len(orig)
         changed = [i for i, (a, b) in enumerate(zip(got, orig, strict=True)) if a != b]
-        assert all("desired_linear_vel" in got[i] for i in changed)
-        assert len(changed) == (2 if out == "nav2_params.yaml" else 1)
+        assert all("desired_linear_vel" in got[i] or "use_collision_detection" in got[i]
+                   for i in changed)
+        assert len(changed) == (5 if out == "nav2_params.yaml" else 1)
+
+
+# ---- 고정 경로 충돌 검사(FIXED_LINE_CHECK) ----
+def test_make_params_fixed_line_check_off_by_default(tmp_path):
+    mp = _make_params()
+    mp.write_params(0.12, tmp_path)
+    ctl = _load(tmp_path / "nav2_params.yaml")["controller_server"]["ros__parameters"]
+    for name in FIXED_LINE:
+        assert ctl[name]["use_collision_detection"] is False
+    # 마당 goal(FollowPathGoal)은 그대로 켜 둔다
+    assert _load(tmp_path / "avoidance.yaml")["follow_path_goal"]["use_collision_detection"] is True
+    assert _load(AVOID_SRC)["follow_path_goal"]["use_collision_detection"] is True
+
+
+def test_make_params_fixed_line_check_flag_keeps_true(tmp_path):
+    mp = _make_params()
+    mp.write_params(0.12, tmp_path, fixed_line_check=True)
+    ctl = _load(tmp_path / "nav2_params.yaml")["controller_server"]["ros__parameters"]
+    for name in FIXED_LINE:
+        assert ctl[name]["use_collision_detection"] is True
+    assert _load(tmp_path / "avoidance.yaml")["follow_path_goal"]["use_collision_detection"] is True
+
+
+@pytest.mark.parametrize("flag,word", [([], "off"), (["--fixed-line-check"], "on")])
+def test_make_params_cli_fixed_line_check(tmp_path, flag, word):
+    run = subprocess.run([sys.executable, str(KIT / "make_params.py"), "--speed", "0.12",
+                          "--out", str(tmp_path / "p"), *flag], capture_output=True, text=True)
+    assert run.returncode == 0, run.stderr
+    lines = [ln for ln in run.stdout.splitlines() if "fixed-line check" in ln]
+    assert len(lines) == 1 and lines[0].endswith(word)
+    ctl = _load(tmp_path / "p" / "nav2_params.yaml")["controller_server"]["ros__parameters"]
+    assert all(ctl[n]["use_collision_detection"] is (word == "on") for n in FIXED_LINE)
+
+
+@pytest.mark.parametrize("flag", [True, False])
+def test_make_params_fixed_line_check_writes_explicit_value(tmp_path, flag):
+    # 원본이 반대 값이어도 플래그대로 세 키를 명시해서 쓴다
+    src = tmp_path / "src.yaml"
+    text = NAV2_SRC.read_text(encoding="utf-8")
+    src.write_text(text.replace("use_collision_detection: true",
+                                f"use_collision_detection: {str(not flag).lower()}"),
+                   encoding="utf-8")
+    mp = _make_params()
+    mp.write_params(0.12, tmp_path / "o", nav2_src=src, fixed_line_check=flag)
+    ctl = _load(tmp_path / "o" / "nav2_params.yaml")["controller_server"]["ros__parameters"]
+    for name in FIXED_LINE:
+        assert ctl[name]["use_collision_detection"] is flag
 
 
 def test_make_params_cli_writes_and_speed_of_reads(tmp_path):
@@ -392,7 +443,8 @@ def test_start_usage_and_speed_refusal():
 def _stub_kit(tmp_path):
     # start.sh만 진짜, make_params와 env는 대역(env에서 멈춰 launch까지 가지 않는다)
     shutil.copy(KIT / "start.sh", tmp_path)
-    (tmp_path / "make_params.py").write_text("print('params ok')\n")
+    (tmp_path / "make_params.py").write_text(
+        "import sys\nprint('params ok', *sys.argv[1:])\n")
     (tmp_path / "env.sh").write_text("echo ENV_REACHED\nreturn 1\n")
     return tmp_path / "start.sh"
 
@@ -414,7 +466,7 @@ def test_start_refuses_while_another_start_holds_the_lock(tmp_path):
     assert run.returncode == 1 and "ENV_REACHED" in run.stdout
 
 
-def _start_with_fake_ros2(tmp_path, peer_robots, dock_stub=None):
+def _start_with_fake_ros2(tmp_path, peer_robots, dock_stub=None, fixed_line=None):
     # 대역 ros2가 받은 인자를 파일에 적고 끝난다. PEER_ROBOTS=None이면 변수를 빼고 돌린다
     start = _stub_kit(tmp_path)
     (tmp_path / "env.sh").write_text("return 0\n")
@@ -429,6 +481,9 @@ def _start_with_fake_ros2(tmp_path, peer_robots, dock_stub=None):
     env.pop("DOCK_STUB", None)
     if dock_stub is not None:
         env["DOCK_STUB"] = dock_stub
+    env.pop("FIXED_LINE_CHECK", None)
+    if fixed_line is not None:
+        env["FIXED_LINE_CHECK"] = fixed_line
     run = subprocess.run(["bash", str(start), "pode1", "0.12", "0.10", "1.5708"],
                          capture_output=True, text=True, env=env, timeout=30)
     args = tmp_path / "ros2.args"
@@ -493,6 +548,23 @@ def test_start_refuses_bad_dock_stub(tmp_path, value):
     run, argv = _start_with_fake_ros2(tmp_path, None, value)
     assert run.returncode == 2
     assert "DOCK_STUB" in run.stdout + run.stderr
+    assert "params ok" not in run.stdout and argv == []
+
+
+# ---- FIXED_LINE_CHECK ----
+@pytest.mark.parametrize("value,flag", [(None, False), ("", False), ("0", False), ("1", True)])
+def test_start_fixed_line_check_passes_flag(tmp_path, value, flag):
+    run, argv = _start_with_fake_ros2(tmp_path, None, None, value)
+    assert run.returncode == 0, run.stdout + run.stderr
+    assert ("--fixed-line-check" in run.stdout) is flag
+    assert argv == OLD_ARGV  # launch 인자는 그대로
+
+
+@pytest.mark.parametrize("value", ["yes", "true", "2", "1;rm", " 1"])
+def test_start_refuses_bad_fixed_line_check(tmp_path, value):
+    run, argv = _start_with_fake_ros2(tmp_path, None, None, value)
+    assert run.returncode == 2
+    assert "FIXED_LINE_CHECK" in run.stdout + run.stderr
     assert "params ok" not in run.stdout and argv == []
 
 
