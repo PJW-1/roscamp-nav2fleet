@@ -12,7 +12,7 @@ from fleet_interfaces.msg import RobotState  # noqa: E402
 from rclpy.action import ActionClient  # noqa: E402
 
 C = load_contract(CONTRACT)
-# v7 WORK 도크 지점 W는 지도에서 읽는다(2026-11-18 저녁 x 1.88 -> 1.86, 박아 둔 값이 4 cm 어긋났다)
+# v7 WORK 도크 지점 W는 지도에서 읽는다(2026-11-18 저녁 W x 1.88 -> 1.86: 2 cm 동쪽 보고가 4 cm 오차가 돼 실패했다)
 WORK_DOCK = load_fleet_map("v7").node_pose("W")
 
 
