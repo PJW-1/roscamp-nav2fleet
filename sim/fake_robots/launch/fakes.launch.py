@@ -3,14 +3,19 @@
   ros2 launch fake_robots fakes.launch.py scenario:=basic_orders result_dir:=/tmp/run1
   ros2 launch fake_robots fakes.launch.py fake_robots:="pode2 pode3"   # pode1은 실물
   ros2 launch fake_robots fakes.launch.py fake_arms:="arm3"              # 작업셀은 실물
+  ros2 launch fake_robots fakes.launch.py fake_robots:= use_sim_clock:=false monitor:=false \
+      scenario:=real_two_orders dock_wait_robots:="pode1 pode2"            # 실물 두 대, PC 도킹 대역
 
 fake_arms: arm1과 arm2를 함께 주면 가짜 작업셀과 비전 노드 둘이 뜬다.
 fill_basket 서버 하나가 둘을 맡기 때문이다. arm3은 가짜 출고 팔을 띄운다.
+dock_wait_robots: 실물 로봇의 도킹을 PC가 대신 받는다(real_dock_wait_node, 기다린 뒤 자세 확인).
+로봇은 DOCK_STUB=1로 떠야 한다. 시뮬 시계나 가짜 로봇과 함께 주면 거부한다.
 """
 import os
 
 from ament_index_python.packages import get_package_share_directory
 from fake_robots.common import split_fake_arms
+from fake_robots.dock_wait import dock_wait_problems
 from fake_robots.scenario import scenario_map_file
 from fleet_core.traffic.site import load_site
 from launch import LaunchDescription
@@ -42,10 +47,16 @@ def _setup(context):
     arg = {name: LaunchConfiguration(name).perform(context) for name in (
         "scenario", "fake_robots", "fake_arms", "fake_central", "use_sim_clock", "result_dir",
         "monitor", "map_file", "contract_file", "params_file")}
+    arg["dock_wait_robots"] = LaunchConfiguration("dock_wait_robots", default="").perform(context)
     scenario = _scenario_path(arg["scenario"])
     if not arg["map_file"]:
         arg["map_file"] = scenario_map_file(scenario)  # 시나리오가 고른 지도, 없으면 기본
     sim_clock = _truthy(arg["use_sim_clock"])
+    dock_robots = arg["dock_wait_robots"].split()
+    if dock_robots:  # 노드를 하나도 만들기 전에 막는다
+        found = dock_wait_problems(dock_robots, arg["fake_robots"].split(), sim_clock=sim_clock)
+        if found:
+            raise RuntimeError("dock_wait_robots refused:\n  " + "\n  ".join(found))
     common = {"use_sim_time": sim_clock, "scenario_file": scenario}
     if arg["map_file"]:
         common["map_file"] = arg["map_file"]
@@ -79,6 +90,8 @@ def _setup(context):
         actions.append(node("fake_arm_node", f"fake_{arm}", arm_id=arm))
     if _truthy(arg["fake_central"]):
         actions.append(node("fake_central_node", "fake_central", params_file=arg["params_file"]))
+    if dock_robots:
+        actions.append(node("real_dock_wait_node", "real_dock_wait", robots=" ".join(dock_robots)))
     if _truthy(arg["monitor"]):
         monitor = Node(package="fake_robots", executable="scenario_monitor_node",
                        name="scenario_monitor", output="screen",
@@ -104,5 +117,6 @@ def generate_launch_description():
         declare("map_file", "", "fleet map YAML (default: the one in fleet_core)"),
         declare("contract_file", "", "contract YAML (default: the installed one)"),
         declare("params_file", "", "fleet parameters YAML, for basket capacity and release limits"),
+        declare("dock_wait_robots", "", "real robots whose dock the PC answers (they run DOCK_STUB=1)"),
         OpaqueFunction(function=_setup),
     ])

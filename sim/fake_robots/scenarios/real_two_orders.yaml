@@ -1,0 +1,25 @@
+# 실물 두 대 시험(2026-11-18): v7, pode1은 P-1, pode2는 P-2. 로봇만 실물이고 central·팔은 가짜다.
+# 도킹은 PC 대역(dock_wait_robots, 로봇은 DOCK_STUB=1)이 dock.duration_s만큼 기다린다.
+# 벽시계로 돈다(use_sim_clock:=false). 첫 주문은 로봇을 띄울 시간을 두고 20 s에 들어온다.
+# robots의 speed_mps, pose_noise_m은 가짜 로봇용이라 실물에는 쓰이지 않는다(실물 속도는 start.sh).
+map: v7
+seed: 1
+speed_factor: 1.0
+timeout_s: 1800
+stock: {arm1: {A: 4, B: 4}, arm2: {C: 4, D: 4}}
+orders:
+  - {at_s: 20, id: O-001, items: {A: 1, C: 1}}
+  - {at_s: 20, id: O-002, items: {B: 1, D: 1}}
+  - {at_s: 60, id: O-003, items: {A: 1}}
+  - {at_s: 90, id: O-004, items: {C: 1, D: 1}}
+robots:
+  pode1: {start: P-1, speed_mps: 0.12, pose_noise_m: 0.03}
+  pode2: {start: P-2, speed_mps: 0.12, pose_noise_m: 0.03}
+arm: {seconds_per_item: 4.0, swap_seconds: 8.0, fail_rate: 0.0}
+dock: {duration_s: 3.0, error_cm: 1.0}
+faults: []
+expect:
+  all_orders_finished: true
+  orders_shipped: 4
+  orders_partial: 0
+  orders_held: 0
