@@ -8,6 +8,10 @@ Real two-robot test (robots real, central/arms fake, PC answers docking; robots 
            ros2 launch iponic_bringup pc.launch.py use_fake:=true use_sim_clock:=false fake_robots:=none \
                robots:="pode1 pode2" map_file:=v7 scenario:=real_two_orders monitor:=false \
                dock_wait_robots:="pode1 pode2"
+Real three-robot test (same, plus pode3):
+           ros2 launch iponic_bringup pc.launch.py use_fake:=true use_sim_clock:=false fake_robots:=none \
+               robots:="pode1 pode2 pode3" map_file:=v7 scenario:=real_three_orders monitor:=false \
+               dock_wait_robots:="pode1 pode2 pode3"
 
 record:=PATH 는 tools/replay.py용 FMS 기록을 남긴다.
 

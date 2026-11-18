@@ -2,6 +2,7 @@
 from pathlib import Path
 
 import pytest
+import yaml
 from fake_robots.dock_wait import (
     REACH_M,
     dock_done,
@@ -96,3 +97,36 @@ def test_real_two_orders_are_the_first_four_of_gz_v7_shifted_20_s():
     assert real.arm == sim.arm
     assert real.dock == sim.dock
     assert real.stock == sim.stock
+
+
+# ---- 세 대 실물 시나리오 ----
+THREE = Path(__file__).parents[1] / "scenarios" / "real_three_orders.yaml"
+
+
+def _two_text():
+    return SCENARIO.read_text(encoding="utf-8")
+
+
+def test_real_three_orders_is_v7_three_robots_wall_speed():
+    assert scenario_map_file(THREE) == "v7"
+    site = load_site("v7")
+    scn = load_scenario(str(THREE), site)
+    assert sorted(scn.robots) == ["pode1", "pode2", "pode3"]
+    assert [scn.robots[r].start for r in ("pode1", "pode2", "pode3")] == ["P-1", "P-2", "P-3"]
+    assert scn.speed_factor == 1.0
+    assert scn.dock.duration_s == 3.0
+    assert scn.faults == []
+
+
+def test_real_three_orders_equal_real_two_orders_except_pode3():
+    site = load_site("v7")
+    two = load_scenario(str(SCENARIO), site)
+    three = load_scenario(str(THREE), site)
+    assert [(o.at_s, o.id, o.items) for o in three.orders] == [
+        (o.at_s, o.id, o.items) for o in two.orders]
+    for r in ("pode1", "pode2"):
+        assert three.robots[r] == two.robots[r]
+    # robots 말고는 모두 같다(seed, timeout, 재고 등도. Codex 7a8e942)
+    a, b = yaml.safe_load(_two_text()), yaml.safe_load(THREE.read_text(encoding="utf-8"))
+    a.pop("robots"), b.pop("robots")
+    assert a == b
