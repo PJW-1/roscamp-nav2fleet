@@ -25,6 +25,7 @@ from fake_robots.dock_wait import dock_done, dock_outcome, dock_phase, pose_fres
 
 STEP_S = 0.02
 DUPLICATE_CHECK_S = 3.0  # 같은 이름의 dock 서버를 찾는 주기
+DOCK_TYPE = "fleet_interfaces/action/Dock"
 THREADS = 8  # 로봇마다 도킹 하나가 스레드 하나를 쥔다. 상태 수신과 취소가 밀리지 않게 넉넉히
 
 
@@ -107,7 +108,7 @@ class RealDockWaitNode(Node):
                 served = get_action_server_names_and_types_by_node(self, name, ns)
             except Exception:  # 그새 사라진 노드
                 continue
-            names = {n for n, _ in served}
+            names = {n for n, types in served if DOCK_TYPE in types}
             found |= {robot for robot, action in self._names.items() if action in names}
         return sorted(found)
 
@@ -122,9 +123,12 @@ class RealDockWaitNode(Node):
         self._warned = found
 
     def _on_state(self, robot: str, msg: RobotState) -> None:
-        if msg.robot_id != robot or msg.state == RobotState.STATE_LOCALIZING:
-            return  # 위치를 아직 못 잡은 보고는 자세가 아니다
+        if msg.robot_id != robot:
+            return
         with self._lock:
+            if msg.state == RobotState.STATE_LOCALIZING:  # 위치를 잃으면 직전 자세도 버린다
+                self._pose.pop(robot, None)
+                return
             self._pose[robot] = (float(msg.pose.x), float(msg.pose.y), time.monotonic())
 
     # ---- 도킹 한 번: 받은 순서로 차례를 매기고, 기다린 뒤 자세 확인 ----

@@ -198,3 +198,21 @@ def test_reports_a_second_dock_server_for_the_same_robot(harness, tmp_path):
     ActionServer(robot_side, Dock, C.name("dock", pode="pode2"),
                  execute_callback=lambda h: Dock.Result(success=False))
     assert wait_until(lambda: node.other_dock_servers() == ["pode2"], 10.0)
+
+
+def test_losing_localization_drops_the_last_pose(harness, tmp_path):
+    pubs, clients = start(harness, tmp_path, duration=1.0)
+    for _ in range(5):  # 도크에서 정상 자세를 보낸 뒤
+        report(pubs["pode1"], "pode1", *WORK_DOCK)
+    import threading
+    stop = threading.Event()
+
+    def loop():
+        while not stop.is_set():
+            pubs["pode1"].publish(RobotState(robot_id="pode1", state="LOCALIZING"))
+            stop.wait(0.1)
+    handle, _ = dock(clients["pode1"])
+    threading.Thread(target=loop, daemon=True).start()  # 기다리는 동안 위치를 잃는다
+    result = result_of(handle)
+    stop.set()
+    assert result.success is False
