@@ -1,4 +1,4 @@
-"""Nav2 goal(NavigateToPose) 흉내 (지시서 6-1, 계약 5절).
+"""Nav2 goal(NavigateToPose) 흉내 (계약 5절).
 
 로봇이 넓은 구역 안에서 스스로 길을 짠다(planner.py). 충돌 검사를 켠 Nav2처럼 서 있는 로봇이나
 물체는 자리가 있으면 돌아가고, 바로 앞에 무엇이 있으면 선다. blocked_after_s 동안 못 나아가면

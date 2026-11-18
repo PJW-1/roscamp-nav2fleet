@@ -85,7 +85,7 @@ def test_the_tool_writes_a_mask_next_to_a_map(tmp_path):
 
 # ---- 구역이 아닌 keepout 사각형(keepout_extra) ----
 V7_GAP = (0.99, 0.365, 1.25, 0.405)  # v7 남쪽 진열대 사이 건넘 틈
-# 칸막이 3과 그 둘레(0.71, 0.0, 0.86, 0.20)는 2026-11-17에 뺐다(사용자)
+# 칸막이 3과 그 둘레(0.71, 0.0, 0.86, 0.20)는 2026-11-17에 뺐다
 V7_DIVIDER_KEEPS = ((0.19, 0.0, 0.31, 0.20), (0.45, 0.0, 0.57, 0.20))
 
 
@@ -108,8 +108,8 @@ def test_keepout_extra_closes_its_rectangle_without_padding_and_is_no_zone():
 
 
 def test_v7_the_crossing_gap_stays_open_as_a_shortcut():
-    """사용자 결정 2026-11-17: 남쪽 진열대 사이 건넘 틈은 지름길이라 막지 않는다(4079c40에서
-    막았던 것을 연다). 마스크의 틈 안 칸은 하나도 닫히지 않고, 그 자리는 HALL이다."""
+    """남쪽 진열대 사이 건넘 틈은 지름길이라 막지 않는다(팀 결정 2026-11-17). 마스크의
+    틈 안 칸은 하나도 닫히지 않고, 그 자리는 HALL이다."""
     site = load_fleet_map("v7")
     assert V7_GAP not in site.keepout_extra
     assert V7_GAP not in keepout_rects(site) and V7_GAP not in keepout_rects(site, 0.0)

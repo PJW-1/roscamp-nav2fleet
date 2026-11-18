@@ -1,8 +1,8 @@
-"""TRAFFIC_CONTRACT 7절과 추가 지시서 2의 2절 불변식을 매 걸음 본다. 예외를 내지 않고 위반을 모은다.
+"""TRAFFIC_CONTRACT 7절과 도크 구역의 안전 불변식을 매 걸음 본다. 예외를 내지 않고 위반을 모은다.
 
 교통 층의 grants(holders, held_by, nodes_of ...)와 로봇의 실제 자리를 쓴다. 같은 위반이 이어지면
 처음 한 번만 적고, 풀렸다가 다시 생기면 또 적는다. 관제 반응 시간은 reaction.py가 본다.
-base 밖 진입(추가 지시서 2의 2절)은 order 모델(다른 브랜치)이 들어온 뒤 여기에 더한다.
+base 밖 진입은 order 모델(다른 브랜치)이 들어온 뒤 여기에 더한다.
 """
 from __future__ import annotations
 

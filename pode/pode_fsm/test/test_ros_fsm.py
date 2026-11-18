@@ -17,7 +17,7 @@ from probe import WAYPOINTS, Probe, lane_goal  # noqa: E402
 
 def start(harness, heartbeat_timeout_s=0.0, nav=True, beat_hz=0.0, **fsm_params):
     from pode_fsm.node import PodeFsmNode
-    # 이 파일은 로봇단 교착 처리(7-4) 전의 자가 복구를 본다(스위치 끔). 켠 것은
+    # 이 파일은 로봇단 교착 처리를 끈 자가 복구를 본다(스위치 끔). 켠 것은
     # test_ros_local_yield.py
     fsm_params.setdefault("local_yield", False)
     fake = harness.add(FakeNav()) if nav else None
@@ -64,7 +64,7 @@ def test_path_goal_arrives_within_the_tolerance(harness):
 
 
 def test_extension_replaces_the_goal_without_stopping(harness):
-    """안내 2.1: 경로를 늘린 새 move_to가 와도 서지 않는다."""
+    """경로를 늘린 새 move_to가 와도 서지 않는다."""
     fake, probe = start(harness)
     first = probe.send(lane_goal(["P-3", "P-4"]))
     time.sleep(0.4)
@@ -92,7 +92,7 @@ def test_cancel_stops_and_returns_canceled(harness):
 
 
 def test_disconnected_path_fails_and_is_not_followed(harness):
-    """안내 2.2: 로봇에서 0.15 m 넘게 떨어진 경로는 따라가지 않는다."""
+    """로봇에서 0.15 m 넘게 떨어진 경로는 따라가지 않는다."""
     fake, probe = start(harness)
     goal = lane_goal(["P-5", "P-6"])  # 로봇은 P-3에 있다
     res = probe.result(probe.send(goal))
@@ -154,7 +154,7 @@ def test_default_distance_rule_only_clears_the_costmap_close_to_the_path_start(h
 
 
 def test_obstacle_ahead_backs_up_twice_then_reports_blocked(harness):
-    """Pode_계약 3절 7번(2026-11-09 제안): 물러나고 지도를 비운 뒤 다시 가 보기를 두 번까지
+    """Pode_계약 3절 7번: 물러나고 지도를 비운 뒤 다시 가 보기를 두 번까지
     하고, 그동안 RECOVERING으로 보고한다. 그래도 막히면 4절의 BLOCKED로 넘긴다."""
     # FakeNav의 레인은 짧다. release_distance_m=0으로 물러날 자리를 만든다(거리 규칙은 test_core)
     fake, probe = start(harness, release_distance_m=0.0)
@@ -199,7 +199,7 @@ def _retreat_client(probe):
 
 
 def test_a_retreat_stops_the_move_and_backs_up_with_the_same_backup_code(harness):
-    """버전 2 1-A(계약 0.9-draft 제안): 이동을 멈추고 Nav2 BackUp으로 곧게 물러난다."""
+    """계약 0.9-draft의 Retreat: 이동을 멈추고 Nav2 BackUp으로 곧게 물러난다."""
     from fleet_interfaces.action import Retreat
     fake, probe = start(harness)
     move = probe.send(lane_goal(["P-3", "P-4", "P-5"]))
@@ -231,7 +231,7 @@ def _back_path(*ids):
 
 
 def test_a_retreat_with_a_path_backs_along_it_on_the_reverse_controller(harness):
-    """Retreat.path(계약 0.9-draft 제안): 지나온 길을 거꾸로 적은 경로를 FollowPathReverse로
+    """Retreat.path(계약 0.9-draft): 지나온 길을 거꾸로 적은 경로를 FollowPathReverse로
     후진해 따른다. BackUp은 쓰지 않고, 로봇은 돌지 않는다(북쪽을 본 채 남쪽으로)."""
     from fleet_interfaces.action import Retreat
     fake, probe = start(harness)
@@ -241,7 +241,7 @@ def test_a_retreat_with_a_path_backs_along_it_on_the_reverse_controller(harness)
     res = probe.result(h, timeout=10.0).result
     assert (res.success, res.reason) == (True, "")
     assert fake.controller_ids[-1] == "FollowPathReverse" and fake.backups == []
-    # 후진은 방향을 보지 않는 goal checker로 끝낸다(2-1: 후진은 제자리에서 방향을 고칠 수 없다).
+    # 후진은 방향을 보지 않는 goal checker로 끝낸다(후진은 제자리에서 방향을 고칠 수 없다).
     # 앞으로 가는 경로는 원래 checker 그대로.
     assert fake.goal_checker_ids[-1] == "retreat_goal_checker"
     assert set(fake.goal_checker_ids[:-1]) == {"general_goal_checker"}
@@ -297,7 +297,7 @@ def _broken():
 
 
 def test_a_follow_path_goal_whose_send_fails_counts_as_rejected():
-    """Codex 리뷰 2: future 예외로 콜백이 죽으면 그 FollowPath는 끝내 결과가 없다."""
+    """future 예외로 콜백이 죽으면 그 FollowPath는 끝내 결과가 없다."""
     from types import SimpleNamespace
     runner, infos, seen = _runner(pending={3})
     runner._on_response(3, SimpleNamespace(result=_broken))
@@ -318,7 +318,7 @@ class _CancelFuture:
 
 
 def test_only_an_accepted_cancel_lets_the_core_forget_a_follow_path():
-    """재검토 1: 취소 응답에 그 goal이 들어 있을 때만 core에 알린다(거절, 오류는 알리지 않는다)."""
+    """취소 응답에 그 goal이 들어 있을 때만 core에 알린다(거절, 오류는 알리지 않는다)."""
     from action_msgs.srv import CancelGoal
     runner, infos, seen = _runner()
     yes = CancelGoal.Response(goals_canceling=[_goal_info()])
@@ -330,7 +330,7 @@ def test_only_an_accepted_cancel_lets_the_core_forget_a_follow_path():
 
 
 def test_a_cancel_answered_goal_terminated_or_unknown_also_lets_the_core_forget():
-    """재검토 2: 이미 끝났거나 서버가 모르는 goal은 돌지 않는다. 결과를 잃은 goal이 끝나 있으면
+    """이미 끝났거나 서버가 모르는 goal은 돌지 않는다. 결과를 잃은 goal이 끝나 있으면
     취소는 이렇게 답하고, 그때 잊지 않으면 그 뒤 모든 Retreat가 TIMEOUT이다."""
     from action_msgs.srv import CancelGoal
     runner, _, seen = _runner(handles={3: object(), 4: object()})
@@ -357,7 +357,7 @@ def test_every_follow_path_cancel_reports_its_answer():
 
 
 def test_a_lost_follow_path_result_keeps_the_goal_and_cancels_it():
-    """재검토 2: 결과를 잃어도 goal은 돌 수 있다. 핸들을 두고 취소를 보내며, core에는
+    """결과를 잃어도 goal은 돌 수 있다. 핸들을 두고 취소를 보내며, core에는
     nav_lost로 알린다(이동은 aborted처럼 끝나지만 취소가 받아들여질 때까지 잊지 않는다)."""
     from types import SimpleNamespace
     futures = []
@@ -372,7 +372,7 @@ def test_a_lost_follow_path_result_keeps_the_goal_and_cancels_it():
 
 
 def test_a_goal_at_a_lock_boundary_publishes_a_speed_limit_and_lifts_it_at_the_end(harness):
-    """버전 2 4절 horizon 최소판(계약 0.8-draft 제안): final_goal이 거짓이면 끝 근처에서
+    """horizon 최소판(계약 0.8-draft): final_goal이 거짓이면 끝 근처에서
     nav2 speed_limit으로 줄이고, 목표가 끝나면 푼다."""
     fake, probe = start(harness)
     goal = lane_goal(["P-3", "P-4"])

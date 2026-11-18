@@ -86,7 +86,7 @@ def test_real_two_orders_is_v7_two_robots_wall_speed():
 
 
 def test_real_two_orders_are_the_first_four_of_gz_v7_shifted_20_s():
-    """사용자 결정(11-18): 시뮬(gz_v7)과 같게, 건수만 4건. 로봇을 띄울 시간으로 20 s 늦춘다."""
+    """시뮬(gz_v7)과 같게, 건수만 4건. 로봇을 띄울 시간으로 20 s 늦춘다."""
     site = load_site("v7")
     real = load_scenario(str(SCENARIO), site)
     sim = load_scenario(str(GZ_V7), site)
@@ -126,7 +126,7 @@ def test_real_three_orders_equal_real_two_orders_except_pode3():
         (o.at_s, o.id, o.items) for o in two.orders]
     for r in ("pode1", "pode2"):
         assert three.robots[r] == two.robots[r]
-    # robots 말고는 모두 같다(seed, timeout, 재고 등도. Codex 7a8e942)
+    # robots 말고는 모두 같다(seed, timeout, 재고 등도)
     a, b = yaml.safe_load(_two_text()), yaml.safe_load(THREE.read_text(encoding="utf-8"))
     a.pop("robots"), b.pop("robots")
     assert a == b

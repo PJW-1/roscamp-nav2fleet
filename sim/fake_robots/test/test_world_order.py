@@ -1,4 +1,4 @@
-"""order 모델의 가짜 로봇(계약 0.11-draft 제안): base를 잇달아 달리고, base 끝에서 서고,
+"""order 모델의 가짜 로봇(계약 0.11-draft): base를 잇달아 달리고, base 끝에서 서고,
 조건 넷이 맞는 update만 붙인다. 관제는 대역이라 시험이 명령을 직접 넣는다."""
 import math
 

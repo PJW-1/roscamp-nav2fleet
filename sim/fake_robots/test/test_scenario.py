@@ -257,14 +257,14 @@ def test_a_scenario_can_choose_a_layout(tmp_path, layout):
 
 
 def test_every_scenario_checks_path_not_connected(site):
-    """지시서 7.5: 정상이면 PATH_NOT_CONNECTED는 0이다."""
+    """정상이면 PATH_NOT_CONNECTED는 0이다."""
     expected = {name: load_scenario(f, site_of(f, site)).expect.path_not_connected
                 for name, f in shipped().items()}
     assert set(expected.values()) == {0}
 
 
 def test_only_the_fault_scenarios_leave_robot_idle_unchecked(site):
-    """1.1 지시서 H2: 고장 없는 시나리오에서 ROBOT_IDLE은 0이어야 한다(오탐 검사)."""
+    """고장 없는 시나리오에서 ROBOT_IDLE은 0이어야 한다(오탐 검사)."""
     for name, f in shipped().items():
         sc = load_scenario(f, site_of(f, site))
         assert sc.expect.robot_idle == (None if sc.faults else 0), name

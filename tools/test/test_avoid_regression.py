@@ -49,7 +49,7 @@ def test_a_yard_move_through_a_keepout_zone_fails():
 
 
 def test_a_drive_summary_without_its_counts_does_not_pass():
-    """One success in a summary that does not say how many moves were planned (Codex review)."""
+    """One success in a summary that does not say how many moves were planned."""
     assert reg.drive_problems({"results": [step("yard")]})
     assert reg.drive_problems({**drive(step("yard")), "steps": 0})
 
@@ -102,7 +102,7 @@ def test_the_script_passes_only_arguments_the_launch_files_declare():
 
 
 def test_the_script_runs_both_gazebo_stages_with_the_fixed_line_check_it_was_given():
-    # 기본은 끔이다(사용자 결정 2026-11-13). --fixed-line-check true로 켠다
+    # 기본은 끔이다(팀 결정 2026-11-13). --fixed-line-check true로 켠다
     script = (TOOLS / "avoid_regression.sh").read_text(encoding="utf-8")
     assert re.search(r"\bfixed_check=false\b", script)
     given = r'\s*fixed_line_collision_check:="\$fixed_check"'
@@ -175,7 +175,7 @@ def record_text(*entries):
 
 
 def test_a_game_that_did_not_end_or_took_no_order_does_not_pass():
-    """A launch that died early leaves a record with nothing wrong in it (Codex review)."""
+    """A launch that died early leaves a record with nothing wrong in it."""
     played = reg.read_fleet_record(record_text(BOARD, SHIPPED).splitlines())
     empty = reg.read_fleet_record(record_text().splitlines())
     assert reg.record_problems(played, finished=True) == []

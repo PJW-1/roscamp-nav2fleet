@@ -1,4 +1,4 @@
-"""끝나지 않은 주문의 원인을 표로 찍는다(지시서 6절).
+"""끝나지 않은 주문의 원인을 표로 찍는다.
 
     python tools/triage record run.jsonl [--obstacles x.yaml]   # fleet_manager --record 기록
     python tools/triage csv rec.csv [--obstacles x.yaml]        # 옛 Gazebo 기록기의 rec.csv

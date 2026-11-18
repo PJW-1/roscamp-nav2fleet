@@ -73,7 +73,7 @@ class PodeGoals:
                                             target, t, (m.x, m.y))
                     self._take_nav_abort(t, goal, math.dist((m.x, m.y), target))
                 elif path and self._path_misses_me(t, path):
-                    # 지시서 7.5: 따라가지 않고 실패한다. 이전 목표는 위에서 끝났으니 선다(R6)
+                    # 따라가지 않고 실패한다. 이전 목표는 위에서 끝났으니 선다(R6)
                     self._end(goal, False, MoveTo.Result.REASON_PATH_NOT_CONNECTED)
                 else:
                     # path: 첫 점은 로봇 자리라 건너뛰고, 끝 점은 target_pose다
@@ -128,7 +128,7 @@ class PodeGoals:
         return self._faults.comms_down(t) or self._faults.stuck(t) or self._faults.removed(t)
 
     def _path_misses_me(self, t: float, path) -> bool:
-        """받은 path가 로봇이 아는 제 자리에서 연결 허용 거리보다 먼가(지시서 7.5).
+        """받은 path가 로봇이 아는 제 자리에서 연결 허용 거리보다 먼가.
 
         로봇이 보고하는 자리로 잰다. drift는 들어가고 잡음은 빠진다. 실물 Pode도 제가 아는
         자리, 곧 보고하는 자리로 잰다. path가 비면(point 모드) 부르지 않는다.

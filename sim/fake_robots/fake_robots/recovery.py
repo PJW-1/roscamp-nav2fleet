@@ -1,6 +1,6 @@
 """앞 물체 앞에서 서고, 짧게 후진해 다시 가 보고, 그래도 막히면 BLOCKED. ROS를 쓰지 않는다.
 
-자기 복구는 제안이다(2026-11-09 공유 명세 '로봇 쪽'). pode_fsm과 같은 순서로 움직인다.
+자기 복구는 2026-11-09 공유 명세의 '로봇 쪽'을 따른다. pode_fsm과 같은 순서로 움직인다.
   - 물체 앞에 block_report_s 서 있으면 시도를 하나 쓰고 RECOVERING이다.
   - 후진 거리 d = min(backup_max_m, s_ref - robot_radius_m - backup_margin_m), s_ref는 마지막으로
     지난 path 꼭짓점(첫 점 포함)부터 온 거리다. d < backup_min_m이면 후진하지 않는다.

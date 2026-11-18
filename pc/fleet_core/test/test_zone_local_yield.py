@@ -1,4 +1,4 @@
-"""로봇단 교착 처리(추가 지시서 3의 7-4, 기준(사용자), 계약 0.13-draft)의 관제 쪽.
+"""로봇단 교착 처리(계약 0.13-draft)의 관제 쪽.
 
 관제는 MoveTo에 priority를 싣고 /fleet/robots에 마지막으로 보낸 값을 보인다. 로봇이 RECOVERING과
 local_yield(wait/backup/retry)를 보고하면 사건 LOCAL_YIELD로 남기기만 한다. 움직임(HALL_YIELD,

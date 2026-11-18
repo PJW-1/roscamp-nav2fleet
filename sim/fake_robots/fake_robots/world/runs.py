@@ -111,7 +111,7 @@ class Turning:
 
 
 class FollowRun(Run):
-    """주어진 선을 따라간다. 충돌 검사가 세우고, 선을 떠나지 않는다(지시서 2-2, R14)."""
+    """주어진 선을 따라간다. 충돌 검사가 세우고, 선을 떠나지 않는다(R14)."""
 
     def __init__(self, goal_id, points, target, yaw, speed, connect_m, turn_at_end=True):
         super().__init__(goal_id)

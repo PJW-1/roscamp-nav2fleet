@@ -112,7 +112,7 @@ class Watch:
             victim = choose_retreat(rest, lambda name: self._priority(self._robots[name]))
             watch.acted = self._evade(self._robots[victim])
             rest.remove(victim)
-        # 늘 빈 집합이다. 자유바닥 교통 층(1da1e61)은 대기 순환에 든 로봇을 돌려주어 그 tick에
+        # 늘 빈 집합이다. 지운 자유바닥 교통 층은 대기 순환에 든 로봇을 돌려주어 그 tick에
         # tick_pick이 고르지 않고 step이 걷지 않게 했다("robots of a wait cycle stand still").
         # 구역 교통은 순환을 _evade(한 대를 주차 자리로)로만 풀고 세울 로봇을 고르지 않는다.
         # 순환의 로봇은 구역을 잡지 못해 이미 기다리는 중이다. tick_progress의 반환값과

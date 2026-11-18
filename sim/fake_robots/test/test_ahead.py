@@ -128,7 +128,7 @@ def test_a_robot_yields_to_one_that_moves_close_by():
 
 
 def test_two_poses_at_the_same_instant_give_no_speed_to_carry_on():
-    """Codex 검수(2026-11-15): 한 시계 걸음에 자세 둘이 오면 속도를 잴 수 없다. 앞의 속도를 물려주면
+    """한 시계 걸음에 자세 둘이 오면 속도를 잴 수 없다. 앞의 속도를 물려주면
     그사이 선 로봇을 0.3초 동안 계속 밀었다."""
     moving = seen(seen(None, 1.00, 0.50, 3.0), 1.02, 0.50, 3.1)
     stopped = seen(moving, 1.03, 0.50, 3.1)
@@ -136,7 +136,7 @@ def test_two_poses_at_the_same_instant_give_no_speed_to_carry_on():
 
 
 def test_a_clock_that_went_back_does_not_keep_a_robot_yielding():
-    """Codex 검수(2026-11-15): 시뮬 시계가 되감기면 움직인 시각이 앞날에 남아, 선 로봇에게 그 시각이
+    """시뮬 시계가 되감기면 움직인 시각이 앞날에 남아, 선 로봇에게 그 시각이
     올 때까지 양보했다."""
     moving = seen(seen(None, 1.00, 0.50, 30.0), 1.02, 0.50, 30.1)
     assert not yields(1.25, 0.50, [moving], 2.0)

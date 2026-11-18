@@ -1,4 +1,4 @@
-"""nav_goal 흉내(지시서 6-1): 스스로 길을 짜 가고, 돌아가고, 서고, BLOCKED, NAV_ABORTED."""
+"""nav_goal 흉내: 스스로 길을 짜 가고, 돌아가고, 서고, BLOCKED, NAV_ABORTED."""
 import math
 
 from fake_robots.world import Obstacle

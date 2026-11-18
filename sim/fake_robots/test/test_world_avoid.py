@@ -1,4 +1,4 @@
-"""회피 흉내 세 모드(추가 지시서 2의 1절): none은 정적 지도 길만, perfect는 돌아감, mixed는 섞음."""
+"""회피 흉내 세 모드: none은 정적 지도 길만, perfect는 돌아감, mixed는 섞음."""
 import math
 
 import pytest

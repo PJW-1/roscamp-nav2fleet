@@ -1,6 +1,6 @@
 # arm1이 채움에 세 번 연속 실패해 재시도 한도를 다 쓴다. 구역 관제(D2)에서는 pode2가 먼저
 # 작업 도크에 닿고(pode1은 W_Q에서 줄을 선다) 주문을 쥔 채 ERROR가 된다. 플릿이 바로 격리해
-# 주문을 맨 앞에 돌려놓는다(지시서 5.5). 60초에 운영자가 pode2를 들어내고 confirm_clear는 구역만 푼다.
+# 주문을 맨 앞에 돌려놓는다. 60초에 운영자가 pode2를 들어내고 confirm_clear는 구역만 푼다.
 # 줄 맨 앞의 pode1이 그 주문을 받고 68초, 채우는 도중에 운영자가 이것도 들어낸다.
 # (레인 관제 때는 pode1이 먼저 닿아 들어내는 순서가 pode1, pode2였다)
 # 작업셀은 멈추는 데 cancel_seconds가 걸려 그때까지 바쁘고, pode3은 clear 약 3초 뒤 도크에 닿는다.
@@ -27,7 +27,7 @@ faults:
   - {at_s: 60, robot: pode2, type: operator_remove}
   - {at_s: 68, robot: pode1, type: operator_remove}
 expect:
-  robot_idle: null  # 고장 시나리오는 ROBOT_IDLE을 세지 않는다(1.1 지시서 H2)
+  robot_idle: null  # 고장 시나리오는 ROBOT_IDLE을 세지 않는다
   all_orders_finished: true
   orders_shipped: 4
   orders_partial: 0

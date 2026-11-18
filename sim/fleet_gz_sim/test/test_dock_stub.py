@@ -169,7 +169,7 @@ def test_a_stalled_clock_counts_as_stopped():
 
 
 def test_a_dock_ends_only_after_gazebo_time_moved():
-    """duration_s 0 must not succeed on a clock that stopped before the goal came (Codex 19bd994).
+    """duration_s 0 must not succeed on a clock that stopped before the goal came.
 
     The loop then keeps waiting until the clock moves or ClockWatch calls it stalled."""
     from fleet_gz_sim.dock_stand_in import dock_done
@@ -270,7 +270,7 @@ def _dock(node):
 
 
 def test_the_dock_loop_fails_a_goal_on_a_clock_that_stopped_before_it(ros, monkeypatch):
-    """The _dock loop itself, not only dock_done (Codex review of c98c086)."""
+    """The _dock loop itself, not only dock_done."""
     from fleet_gz_sim.stand_in_node import CLOCK_STALL_S
     node, wall = _docking_stub(ros, monkeypatch, lambda wall_s: 12.0)
     try:
@@ -282,7 +282,7 @@ def test_the_dock_loop_fails_a_goal_on_a_clock_that_stopped_before_it(ros, monke
 
 def test_the_dock_loop_succeeds_once_a_stopped_clock_moves_again(ros, monkeypatch):
     """Gazebo time stands still for 2 wall seconds after the goal, then runs: the loop keeps
-    waiting and ends once duration_s of Gazebo time has passed (Codex review of 35d7ede)."""
+    waiting and ends once duration_s of Gazebo time has passed."""
     node, wall = _docking_stub(ros, monkeypatch, lambda wall_s: 12.0 + max(0.0, wall_s - 2.0),
                                duration=1.0)
     try:

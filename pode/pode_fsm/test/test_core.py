@@ -1,4 +1,4 @@
-"""Pode FSM의 판단(안내 2절, Pode_계약 3·4절). ROS 없이 돈다.
+"""Pode FSM의 판단(Pode_계약 3·4절). ROS 없이 돈다.
 
 시각은 벽시계 초(time.monotonic과 같은 축)로 준다.
 """
@@ -43,7 +43,7 @@ def obstacle(_points):
 
 
 def ready(t=0.0, pose=(*P3, NORTH), **params):
-    # 이 파일은 로봇단 교착 처리(7-4) 전의 자가 복구를 본다(스위치 끔). 켠 것은 test_yield_core.py
+    # 이 파일은 로봇단 교착 처리를 끈 자가 복구를 본다(스위치 끔). 켠 것은 test_yield_core.py
     params.setdefault("local_yield", False)
     fsm = PodeFsm(FsmParams(**params))
     fsm.tick(t, pose, STILL, no_obstacle)
@@ -130,7 +130,7 @@ def test_path_ending_short_of_the_target_still_ends_at_the_target():
     assert send.poses[-1] == pytest.approx((*P5, 0.2))
 
 
-# ---- 목표 교체 (안내 2.1) ------------------------------------------------------------------
+# ---- 목표 교체 ---------------------------------------------------------------------------
 
 
 def test_new_goal_ends_the_old_one_without_stopping():
@@ -151,7 +151,7 @@ def test_old_nav_results_after_a_replacement_are_ignored():
     assert fsm.state() == MOVING
 
 
-# ---- 경로 연결 확인 (안내 2.2, R20) ----------------------------------------------------------
+# ---- 경로 연결 확인 (R20) ------------------------------------------------------------------
 
 
 def test_path_far_from_the_robot_fails_and_the_robot_stops():
@@ -173,7 +173,7 @@ def test_path_within_the_tolerance_is_followed():
 
 def test_connection_is_judged_on_the_received_path_not_the_line_to_the_target():
     """path 끝이 target_pose와 다르면 target까지 잇는 선을 붙인다. 그 선이 로봇을 지나도
-    받은 path가 떨어져 있으면 따라가지 않는다(안내 2.2, Codex 리뷰)."""
+    받은 path가 떨어져 있으면 따라가지 않는다."""
     fsm = ready()
     away = [(0.70, 1.95), (0.70, 1.55)]  # 로봇에서 0.35 m 옆, 끝이 target과 다르다
     cmds = fsm.move("g1", 1.0, "X", (*P3, NORTH), away, (*P3, NORTH))
@@ -224,7 +224,7 @@ def test_success_far_from_the_target_sends_the_rest_again():
     cmds = fsm.nav_result(send.seq, "succeeded", 5.0, (0.35, 1.90, NORTH), no_obstacle)
     [again] = sends(cmds)
     assert kinds(cmds) == ["SendPath"] and again.seq > send.seq
-    # 0.05 m 앞이 꺾이는 곳이라 다시 보낸 선은 그 자리에서 가장 가까운 호 위의 점에서 시작한다(2-1)
+    # 0.05 m 앞이 꺾이는 곳이라 다시 보낸 선은 그 자리에서 가장 가까운 호 위의 점에서 시작한다
     assert again.poses[0][:2] == pytest.approx((0.35, 1.90), abs=0.01)
     assert fsm.state() == MOVING
 
@@ -529,7 +529,7 @@ def test_heartbeat_loss_while_blocked_ends_the_goal():
     assert Finish("g1", False, HEARTBEAT_LOST) in cmds
 
 
-# ---- 자가 복구 (Pode_계약 3절 7번, 4절; 2026-11-09 제안) ---------------------------------------
+# ---- 자가 복구 (Pode_계약 3절 7번, 4절) ------------------------------------------------------
 
 # 후진 거리 = min(0.15, 마지막으로 지난 꼭짓점(경로 시작 포함)부터 온 거리 - (0.2 + 0.03)).
 # 0.2는 관제 release_distance_m: 꼭짓점에서 이만큼 가면 뒤 레인을 놓고 뒤차가 꼭짓점에 설 수 있다
@@ -850,7 +850,7 @@ def test_distance_remaining_follows_the_path():
     assert fsm.distance_remaining(None) == pytest.approx(0.40 + math.dist(P4, P5))
 
 
-# ---- 버전 2 1-A: 관제가 시키는 물러나기(Retreat, 계약 0.9-draft 제안) ----------------------
+# ---- 관제가 시키는 물러나기(Retreat, 계약 0.9-draft) -----------------------------------
 
 
 def test_a_retreat_stops_the_move_first_then_backs_up_straight():
@@ -867,14 +867,14 @@ def test_a_retreat_stops_the_move_first_then_backs_up_straight():
     assert not backups(cmds), "FollowPath가 아직 안 끝났다(1-A 재검수 1)"
     fsm.nav_result(send.seq, "canceled", 1.35, (*P3, NORTH), no_obstacle)
     fsm.heartbeat(1.4)
-    (b,) = backups(fsm.tick(1.4, (*P3, NORTH), STILL, no_obstacle))  # 1-A Codex 1
+    (b,) = backups(fsm.tick(1.4, (*P3, NORTH), STILL, no_obstacle))  # 취소 결과가 온 뒤에 후진
     assert (b.distance_m, b.speed_mps) == (0.3, 0.1)
     assert b.time_allowance_s >= 0.3 / 0.1
     assert fsm.state() == MOVING and fsm.is_running("r1")
 
 
 def test_a_second_retreat_while_waiting_still_waits_for_the_follow_path_to_end():
-    """1-A 재검수 2: 첫 Retreat가 CancelNav를 냈어도 두 번째가 기다림을 건너뛰지 않는다."""
+    """첫 Retreat가 CancelNav를 냈어도 두 번째가 기다림을 건너뛰지 않는다."""
     fsm = ready()
     (send,) = [c for c in move(fsm, "g1", 0.0) if isinstance(c, SendPath)]
     fsm.retreat("r1", 1.0, 0.3, 0.1)
@@ -889,7 +889,7 @@ def test_a_second_retreat_while_waiting_still_waits_for_the_follow_path_to_end()
 
 
 def test_a_retreat_during_a_self_recovery_backup_waits_for_that_backup_to_end():
-    """V2 교차 검수 1: 자가 복구 BackUp이 도는 중이면 그 결과가 오고 바퀴가 설 때까지
+    """자가 복구 BackUp이 도는 중이면 그 결과가 오고 바퀴가 설 때까지
     Retreat의 BackUp을 미룬다. 같은 behavior_server라 바로 보내면 앞 후진이 다 서기 전에
     새 후진이 이어진다."""
     fsm = ready()
@@ -942,7 +942,7 @@ def test_a_retreat_whose_earlier_backup_never_answers_times_out_without_backing_
 
 @pytest.mark.parametrize("drop", ["cancel", "heartbeat"])
 def test_a_new_retreat_still_waits_for_a_backup_whose_waiting_retreat_was_dropped(drop):
-    """V2 교차 재검수 1: 기다리던 Retreat가 끝나도 결과가 안 온 BackUp은 계속 기다린다."""
+    """기다리던 Retreat가 끝나도 결과가 안 온 BackUp은 계속 기다린다."""
     fsm = ready()
     (b1,) = backups(fsm.retreat("r1", 1.0, 0.3, 0.1))
     fsm.retreat("r2", 1.5, 0.2, 0.1)
@@ -1012,7 +1012,7 @@ def test_a_robot_that_never_stops_does_not_back_up():
 
 
 def test_a_lost_heartbeat_ends_a_retreat_failed():
-    """1-A Codex 7: Retreat 결과 reason은 계약의 넷(OBSTACLE_BEHIND 등)뿐이다."""
+    """Retreat 결과 reason은 계약의 넷(OBSTACLE_BEHIND 등)뿐이다."""
     fsm = ready()
     fsm.retreat("r1", 1.0, 0.3, 0.1)
     cmds = fsm.tick(1.0 + FsmParams().heartbeat_timeout_s + 0.1, (*P3, NORTH), STILL,
@@ -1073,7 +1073,7 @@ def test_a_new_move_during_a_retreat_stops_the_backup():
     assert Finish("r1", False, CANCELED) in cmds and CancelBackUp() in cmds
 
 
-# ---- 물러나기 경로(Retreat.path, 계약 0.9-draft 제안): 지나온 길을 후진으로 되짚는다 ---------
+# ---- 물러나기 경로(Retreat.path, 계약 0.9-draft): 지나온 길을 후진으로 되짚는다 ------------
 
 AT_P4 = (*P4, NORTH)  # P3에서 P4로 올라와 북쪽을 본다
 BACK = [P4, P3]  # 지나온 길을 거꾸로 적은 경로
@@ -1104,7 +1104,7 @@ def _sharpest(poses):
 
 
 def test_a_corner_of_the_lane_is_sent_as_an_arc_so_the_robot_does_not_pivot_on_it():
-    """추가 지시서 3의 2-1(기준(사용자)): 꺾이는 곳은 turn_radius_m의 호로 지난다."""
+    """꺾이는 곳은 turn_radius_m의 호로 지난다."""
     (send,) = sends(move(ready(), "g1", 1.0))
     assert _sharpest(send.poses) < 0.3
     assert min(math.dist(p[:2], P4) for p in send.poses) > 0.02, "the corner itself is cut"
@@ -1204,7 +1204,7 @@ def test_a_heartbeat_loss_ends_a_path_retreat_failed():
 
 @pytest.mark.parametrize("path", [[(1.0, 1.0), (1.0, 0.6)], [P4], [P4, P4]])
 def test_a_path_retreat_that_is_not_from_the_robot_fails_at_once(path):
-    """MoveTo의 연결 확인(안내 2.2)과 같은 0.15 m. 길이가 없는 경로도 실패다."""
+    """MoveTo의 연결 확인과 같은 0.15 m. 길이가 없는 경로도 실패다."""
     fsm = ready(pose=AT_P4)
     cmds = fsm.retreat("r1", 1.0, 0.4, 0.05, path=path, pose=AT_P4)
     assert cmds[-1] == Finish("r1", False, "FAILED") and not sends(cmds) and not backups(cmds)
@@ -1212,7 +1212,7 @@ def test_a_path_retreat_that_is_not_from_the_robot_fails_at_once(path):
 
 @pytest.mark.parametrize("path", [False, True])
 def test_a_follow_path_with_an_accepted_cancel_but_no_result_holds_a_retreat_for_a_grace(path):
-    """Codex 리뷰 2, 재검토 1: FollowPath 결과를 잃어도 다음 Retreat가 모두 TIMEOUT으로 끝나지
+    """FollowPath 결과를 잃어도 다음 Retreat가 모두 TIMEOUT으로 끝나지
     않는다. 취소가 받아들여진 FollowPath만 그때부터 nav_result_grace_s 기다리고, 바퀴가 서
     있으면 간다."""
     fsm = ready()
@@ -1232,7 +1232,7 @@ def test_a_follow_path_with_an_accepted_cancel_but_no_result_holds_a_retreat_for
 
 
 def test_a_follow_path_whose_cancel_is_not_answered_keeps_holding_and_the_retreat_times_out():
-    """재검토 1: 서 있는 것은 goal이 끝났다는 증거가 아니다. 취소가 받아들여지지 않은(거절,
+    """서 있는 것은 goal이 끝났다는 증거가 아니다. 취소가 받아들여지지 않은(거절,
     무응답) FollowPath는 계속 기다리고 Retreat는 retreat_stop_wait_s 뒤 TIMEOUT이다."""
     fsm = ready()
     move(fsm, "g1", 0.0)
@@ -1262,7 +1262,7 @@ def test_a_running_reverse_path_is_waited_for_from_when_its_cancel_is_accepted()
 
 @pytest.mark.parametrize("accept_lost", [False, True])
 def test_a_lost_follow_path_result_ends_the_move_but_still_holds_a_retreat(accept_lost):
-    """재검토 2: 결과 future 오류는 goal이 끝났다는 뜻이 아니다. 이동은 aborted처럼 다루되,
+    """결과 future 오류는 goal이 끝났다는 뜻이 아니다. 이동은 aborted처럼 다루되,
     그 FollowPath는 취소가 받아들여질 때까지 다음 Retreat를 붙든다."""
     twin, fsm = ready(), ready()
     (send,) = sends(move(fsm, "g1", 0.0))
@@ -1300,7 +1300,7 @@ def test_an_accepted_cancel_of_a_finished_follow_path_changes_nothing():
 
 
 def test_a_path_retreat_with_the_robot_already_at_its_end_fails_at_once():
-    """Codex 리뷰 3: 끝 점 0.15 m 안의 로봇은 따를 길이 없다. 점 하나짜리 FollowPath를 보내지
+    """끝 점 0.15 m 안의 로봇은 따를 길이 없다. 점 하나짜리 FollowPath를 보내지
     않고 FAILED로 끝낸다(backup_min_m보다 짧으면)."""
     fsm = ready(pose=(*P3, NORTH))
     cmds = fsm.retreat("r1", 1.0, 0.4, 0.05, path=BACK, pose=(0.35, 1.56, NORTH))
@@ -1364,7 +1364,7 @@ def test_the_robot_and_the_fleet_agree_on_the_reverse_speed():
     """The fleet times and sends retreats at its retreat_speed_mps, and the robot caps them at
     reverse_speed_mps. 0.10 (drive tuning 2026-11-14) was put back to 0.05: it moved the timing
     of the c-layout pose_jumps situation onto a junction, where the fleet let go of a zone the
-    robot was still in because it trusts a jumped report (docs/주행_계획서.md 6.6)."""
+    robot was still in because it trusts a jumped report."""
     import yaml
     from conftest import REPO
     data = REPO / "pc" / "fleet_core" / "fleet_core" / "data"
@@ -1372,7 +1372,7 @@ def test_the_robot_and_the_fleet_agree_on_the_reverse_speed():
     assert FsmParams().reverse_speed_mps == fleet["retreat_speed_mps"] == 0.05
 
 
-# ---- 버전 2 4절 horizon 최소판(MoveTo.final_goal, 계약 0.8-draft 제안) ----------------------
+# ---- horizon 최소판(MoveTo.final_goal, 계약 0.8-draft) ---------------------------------
 
 
 def limits(cmds):
@@ -1435,7 +1435,7 @@ def test_the_limit_is_lifted_when_the_goal_becomes_final_or_ends():
 
 
 def test_a_fresh_fsm_lifts_any_limit_left_from_before_a_restart():
-    """horizon 1 Codex 검수 2: 재시작 전 FSM이 건 제한이 controller에 남아 있을 수 있다."""
+    """재시작 전 FSM이 건 제한이 controller에 남아 있을 수 있다."""
     fsm = PodeFsm(FsmParams())
     assert limits(fsm.tick(0.0, (*P3, NORTH), STILL, no_obstacle)) == [0.0]
     assert limits(fsm.tick(0.1, (*P3, NORTH), STILL, no_obstacle)) == []
@@ -1507,7 +1507,7 @@ def test_the_resend_after_a_self_recovery_keeps_the_mark():
     assert again.final_goal is False
 
 
-# ---- 이음 정밀도 (추가 지시서 3의 2-4) --------------------------------------------------------
+# ---- 이음 정밀도 ------------------------------------------------------------------------
 
 BESIDE = (0.43, 1.55, NORTH)  # P3에서 0.08 m 옆: Nav2 goal이 지점 옆에서 끝난 로봇
 

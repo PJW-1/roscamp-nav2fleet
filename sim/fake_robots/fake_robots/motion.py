@@ -150,7 +150,7 @@ def noisy_pose(x: float, y: float, sigma: float, rng: random.Random) -> tuple[fl
 
 
 def path_gap(x: float, y: float, points) -> float:
-    """(x, y)에서 꺾은선 points까지의 가장 짧은 거리. 점이 하나면 그 점까지(지시서 7.5)."""
+    """(x, y)에서 꺾은선 points까지의 가장 짧은 거리. 점이 하나면 그 점까지."""
     if len(points) == 1:
         return math.dist((x, y), points[0])
     return min(_segment_gap(x, y, a, b) for a, b in zip(points, points[1:], strict=False))

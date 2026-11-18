@@ -15,7 +15,7 @@ def test_ready_when_every_robot_reported_idle_just_now():
 
 
 def test_an_old_idle_report_does_not_count():
-    """IDLE을 한 번 보내고 끊긴 로봇을 준비됐다고 치면 관제가 없는 로봇에 명령한다(Codex)."""
+    """IDLE을 한 번 보내고 끊긴 로봇을 준비됐다고 치면 관제가 없는 로봇에 명령한다."""
     seen = last(pode1=("IDLE", 0.1), pode2=("IDLE", 2.0), pode3=("IDLE", 0.1))
     assert not everyone_idle(seen, ROBOTS, now=10.0, fresh_s=0.5)
 

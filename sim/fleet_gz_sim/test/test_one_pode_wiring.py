@@ -98,7 +98,7 @@ def test_isolated_launch_keeps_gazebo_transport_on_this_computer(one, monkeypatc
 
 
 def test_gazebo_ip_from_the_shell_is_not_used(one, monkeypatch):
-    """셸에 LAN 주소가 GZ_IP로 남아 있어도 Gazebo는 이 컴퓨터 안에서만 통신한다(Codex 리뷰)."""
+    """셸에 LAN 주소가 GZ_IP로 남아 있어도 Gazebo는 이 컴퓨터 안에서만 통신한다."""
     need("pinky_description", "pode_nav_config", "pode_fsm")
     monkeypatch.setenv("GZ_IP", "192.168.0.10")
     assert environment(run(one))["GZ_IP"] == "127.0.0.1"

@@ -1,9 +1,9 @@
-"""v7 급행 서쪽 끝 대기 자리 O_X(사용자 결정 2026-11-14, 안 A).
+"""v7 급행 서쪽 끝 대기 자리 O_X(팀 결정 2026-11-14).
 
 W에서 출고로 가는 짐 실은 로봇은 출고가 바빠도 급행으로 간다. 도착했을 때 출고가 아직 바쁘면 급행
 서쪽 끝 O_X(출고 바로 옆)에서 기다렸다 비면 들어간다. 그 전에는 출고가 바쁘면 넓은 곳의 O_IN으로
 돌아가 23~25 s가 걸렸다(급행으로는 17 s, Gazebo). 한 로봇이 O_X에서 기다리는 동안에도 넓은 곳에서
-오는 로봇은 O_IN에서 출고로 들어갈 수 있어야 한다(사용자 요청).
+오는 로봇은 O_IN에서 출고로 들어갈 수 있어야 한다.
 """
 from dataclasses import replace
 
@@ -72,7 +72,7 @@ def test_a_robot_in_the_hall_still_waits_for_a_busy_outbound_at_o_in(order):
 
 @pytest.mark.parametrize("order", [False, True], ids=["order_off", "order_on"])
 def test_while_one_robot_waits_at_o_x_a_robot_from_the_hall_enters_outbound_on_its_turn(order):
-    """사용자 요청: O_X에 하나가 기다려도 넓은 곳에서 온 로봇은 O_IN에서 출고로 들어간다. 차례는
+    """O_X에 하나가 기다려도 넓은 곳에서 온 로봇은 O_IN에서 출고로 들어간다. 차례는
     지금 규칙(_ahead, 먼저 바란 로봇)이다: 먼저 바란 O_IN의 로봇이 먼저, 그다음 O_X의 로봇."""
     world, hall, express = outbound_busy({"pode1": "W", "pode2": "O_IN", "pode3": "O"},
                                          ("pode2", "pode1"),

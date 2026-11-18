@@ -133,7 +133,7 @@ def test_code_defaults_match_the_shipped_file_except_record_compat_watches():
     assert FIELDS["stall_s"].default == SHIPPED["stall_s"] == 12.0
 
 
-# ---- 접미사 밖 숫자 키와 타입 검사(Codex 리뷰 e0acac6) ----
+# ---- 접미사 밖 숫자 키와 타입 검사 ----
 @pytest.mark.parametrize("bad", [0, -1, True, 2.5, "3"])
 def test_release_confirm_samples_is_a_positive_integer(tmp_path, bad):
     """0이나 음수면 첫 보고만으로 구역을 놓는다(progress.py _counted)."""
@@ -177,7 +177,7 @@ def test_a_float_key_written_as_an_integer_loads(tmp_path):
     assert load_params(write(tmp_path, {**SHIPPED, "stall_s": 12})).stall_s == 12
 
 
-# ---- 옛 기록 재생: stall_s 없는 기록은 그때 기본값 6 s(Codex 리뷰 e0acac6) ----
+# ---- 옛 기록 재생: stall_s 없는 기록은 그때 기본값 6 s ----
 REPO = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(REPO / "tools"))
 import replay  # noqa: E402

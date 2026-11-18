@@ -162,7 +162,7 @@ def test_follow_path_after_cancel_blocked_stays_until_unblock_clear_s():
     assert fsm.state() == IDLE
 
 
-# ---- Codex 리뷰(d1d9ac8)에서 나온 경우 ----
+# ---- 보고 늦춤이 판단을 바꾸지 않는 경우 ---------
 
 
 def test_follow_path_the_hold_only_reports_and_an_abort_after_resend_may_still_recover():

@@ -1,6 +1,6 @@
 """FakePode: robot_state, move_to, dock을 가진 가짜 이동 로봇. 일정대로 고장을 낸다.
 
-retreat(버전 2 1-A, 계약 0.9-draft 제안)는 보는 방향 그대로 뒤로 간다. path가 없으면 곧게,
+retreat(계약 0.9-draft)는 보는 방향 그대로 뒤로 간다. path가 없으면 곧게,
 있으면 그 꺾은선(첫 점은 로봇 자리, 끝 점은 설 곳)을 따라 시킨 속도로 간다. 뒤에 다른 로봇이나
 물체가 있으면 그 자리에 서서 OBSTACLE_BEHIND로 끝낸다(자기 복구의 뒤 보기와 같은 검사).
 
@@ -72,7 +72,7 @@ class FakePodeNode(PodeGoals, PodeOrder, PodeRetreat, PodeReport, Node):
         self._off_course = (x0 - OFF_COURSE_M, y0 - OFF_COURSE_M)
         self._site = site
         self._removed = False
-        # 앞 물체와 자기 복구(제안). 값은 노드 파라미터로 바꾼다(recovery_attempts 0: 복구 없음)
+        # 앞 물체와 자기 복구. 값은 노드 파라미터로 바꾼다(recovery_attempts 0: 복구 없음)
         self._recovery = ObstacleRecovery(RecoveryParams(**{
             f.name: self.declare_parameter(f.name, f.default).value
             for f in fields(RecoveryParams)}))
@@ -88,7 +88,7 @@ class FakePodeNode(PodeGoals, PodeOrder, PodeRetreat, PodeReport, Node):
         params = load_params_param(self)
         timeout = float(self.get_parameter("heartbeat_timeout_s").value)
         self._beat_timeout = timeout if timeout >= 0 else float(params["heartbeat_timeout_s"])
-        # 지시서 7.5: path가 로봇 자리에서 이보다 멀면 따라가지 않는다(관제 lane_error_warn_m)
+        # path가 로봇 자리에서 이보다 멀면 따라가지 않는다(관제 lane_error_warn_m)
         self._connect_tolerance = float(params["lane_error_warn_m"])
         self._last_beat = time.monotonic()
 

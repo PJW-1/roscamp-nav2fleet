@@ -1,4 +1,4 @@
-"""order 추가지시서 6-2의 상황: order 모델을 끄고 켜서 D2에서 씨드 셋으로 돌린다."""
+"""order 모델 상황: order 모델을 끄고 켜서 D2에서 씨드 셋으로 돌린다."""
 import pytest
 from fake_robots.world import CommLoss, OrderFault, ZoneWorld
 from fake_robots.world.order_run import OrderRun

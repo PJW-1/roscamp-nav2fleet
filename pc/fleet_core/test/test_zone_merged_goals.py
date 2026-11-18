@@ -1,10 +1,10 @@
-"""넓은 곳(한 공유 구역) 안에서 이어지는 Nav2 goal 이음은 goal 하나로 합친다(사용자 결정
-2026-11-14 "합쳐"). 로봇은 중간 지점에 들르지 않고 Nav2가 그 끝까지 매끈한 길을 짠다.
+"""넓은 곳(한 공유 구역) 안에서 이어지는 Nav2 goal 이음은 goal 하나로 합친다(팀 결정
+2026-11-14). 로봇은 중간 지점에 들르지 않고 Nav2가 그 끝까지 매끈한 길을 짠다.
 - 합치는 것: 이음 방식이 모두 Nav2 goal이고 구역이 모두 같은 공유 구역 하나이며, 중간 지점이
   지도에서 `through`로 표시된 이음들(v7은 칸 입구 E-1~E-3), 그리고 두 끝 사이의 가장 짧은 길일 때.
 - 안 합치는 것: 구역을 넘는 이음(v7 leave_dock W -> M_E는 WORK_DOCK과 HALL), 설 수 있는 지점(O_IN,
   Q2)이나 우회 지점(M_E)을 거치는 이음, 돌아가는 길. 합친 goal은 Nav2에 끝만 알리므로, 관제가
-  무엇을 피해 고른 길을 합치면 Nav2가 피한 곳으로 간다(Codex 검수 2026-11-14).
+  무엇을 피해 고른 길을 합치면 Nav2가 피한 곳으로 간다.
 - 중간 지점은 goal을 보내기 전에 모두 잡는다.
 - 중간 지점은 합친 조각이 끝나면 놓는다.
 """
@@ -64,7 +64,7 @@ def test_a_detour_through_bay_entrances_is_not_merged():
 
 def test_a_free_link_from_off_the_graph_is_not_merged():
     """노드 밖에서 다시 계획한 로봇의 첫 이음(free_link)은 시작 노드가 없다. 가장 짧은 길인지 잴 수
-    없으니 합치지 않는다(Codex 검수 4c93494: distance(site, "", ...)가 KeyError로 관제를 멈췄다)."""
+    없으니 합치지 않는다(distance(site, "", ...)가 KeyError로 관제를 멈췄다)."""
     way = [trips.free_link(V7, 0.45, 0.30, "E-3"), V7.link("E-3", "Q2")]
     assert trips.segment_end(V7, way, 0, 2) == 1
 
@@ -128,8 +128,8 @@ def test_a_robot_parked_at_p3_holds_only_its_bay_so_p1_leaves_by_e3(order):
 
 
 def test_a_parked_robot_seen_at_its_door_keeps_the_door():
-    """칸에 선 로봇은 칸 노드와 입구 사이 절반보다 칸에 가까울 때만 입구를 놓는다(Codex 검수
-    4c93494: 도착 허용치 0.15로는 입구(0.14)에 선 로봇도 칸 위로 보여 입구를 놓았다)."""
+    """칸에 선 로봇은 칸 노드와 입구 사이 절반보다 칸에 가까울 때만 입구를 놓는다(도착
+    허용치 0.15로는 입구(0.14)에 선 로봇도 칸 위로 보여 입구를 놓았다)."""
     world = world_for(False, {"pode1": "P-2", "pode2": "W", "pode3": "P-1"})
     world.report()
     world.traffic.on_release("pode2")

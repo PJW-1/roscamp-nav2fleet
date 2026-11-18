@@ -1,9 +1,7 @@
 """order 모델이 꺼져 있으면(use_order_model false) 세계는 order를 넣기 전과 똑같이 돈다.
 
-data/world_off_golden.txt는 order 지원이 없는 nav2-base의 코드로 만든 사건 기록이다. 지금 것은
-06cc2db의 것이다(추가 지시서 2로 관제의 동작을 바꾼 뒤. 처음은 world-order에 world를 합친 때였다).
-추가 지시서 3의 2-1에서 D2의 갈림목 선, 도크 후진(마당까지), 대기 자리를 옮겨 다시 만들었다.
-그 뒤 도크 후진 꺾는 점을 x 0.30, 1.68로 옮겨 다시 만들었다(시각과 사건 하나의 차례만 바뀌었다).
+data/world_off_golden.txt는 order 지원이 없는 코드로 만든 사건 기록이다. D2의 갈림목 선,
+도크 후진(마당까지, 꺾는 점 x 0.30, 1.68)과 대기 자리가 지금 값일 때 만든 것이다.
 """
 from pathlib import Path
 

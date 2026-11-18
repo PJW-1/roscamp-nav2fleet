@@ -7,7 +7,7 @@
 2.5 cm 지도. NAV_VARIANTS의 지도는 v7에만 만든다(arena.generate_nav_variants). 기본 지도와
 keepout 마스크, 1 cm 지도는 그대로 TOUCH다.
 
-keepout(지시서 3절, pode_nav_config/params/keepout.yaml): shared가 아닌 구역(급행 lane, 갈림목과
+keepout(pode_nav_config/params/keepout.yaml): shared가 아닌 구역(급행 lane, 갈림목과
 도크 dock)을 막아 Nav2 goal 경로(NavFn)가 그 구역으로 들어가지 않게 한다. keepout 필터는 inflation
 뒤에 얹혀 부풀지 않으므로 구역을 몸 반폭(KEEPOUT_PAD_M)만큼 넓혀 막는다: 경로가 구역 경계에 붙어
 지나가도 몸이 구역에 걸치지 않는다. shared 구역의 지점(대기 자리, 주차, 갈림 지점)은 늘 빈칸이다

@@ -109,10 +109,10 @@ class ScenarioJudge(ZoneChecks, Laps, OrderChecks, Outcome):
         # 격리된 로봇(치우기 전)이 서 있는 동안 다른 로봇의 REROUTE 수(계약 4절: 코드와 로봇만 본다)
         self.detours_around_isolated = 0
         self._standing_isolated: set[str] = set()
-        # 지시서 7.5: 관제가 처리한 이 이유의 실패. 실패 한 번은 GOAL_RETRY나 GOAL_FAILED 하나다.
+        # 관제가 처리한 이 이유의 실패. 실패 한 번은 GOAL_RETRY나 GOAL_FAILED 하나다.
         # 관제가 버린 결과(이미 바뀐 목표의 결과)는 이벤트가 없어 세지 않는다
         self.path_not_connected = 0
-        self.robot_idle = 0  # 1.1 지시서 H2: 목적지가 있는데 goal도 구역 대기표도 없이 섰다
+        self.robot_idle = 0  # 목적지가 있는데 goal도 구역 대기표도 없이 섰다
 
     def _station_zones(self, action: str) -> set[str]:
         return {self.site.nodes[s.dock].zone for s in self.site.stations.values()

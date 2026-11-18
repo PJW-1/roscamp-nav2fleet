@@ -155,13 +155,13 @@ def test_a_retreat_that_ends_inside_a_narrow_strip_is_a_warning():
 
 
 def test_a_fixed_line_that_leaves_a_zone_and_comes_back_into_it_is_refused():
-    """구역 쥐기는 한 연결이 구역을 한 번 지난다고 본다(Codex 검토 1): 다시 들어오면 받지 않는다."""
+    """구역 쥐기는 한 연결이 구역을 한 번 지난다고 본다: 다시 들어오면 받지 않는다."""
     refused("leaves DOCK_W and comes back into it",
             paths=edited("paths", "work_out", points=["W", [0.4, 0.9], [0.25, 0.85], "X_W"]))
 
 
 def test_a_fixed_line_that_turns_back_or_crosses_itself_is_refused():
-    """진행 자리는 가장 가까운 조각에 내린다(Codex 검토 2): 되돌아가거나 스스로 건너는 선은
+    """진행 자리는 가장 가까운 조각에 내린다: 되돌아가거나 스스로 건너는 선은
     받지 않는다."""
     refused("turns back", paths=edited("paths", "work_out",
                                        points=["W", [0.45, 0.9], [0.35, 0.92], "N_W"]))
@@ -172,7 +172,7 @@ def test_a_fixed_line_that_turns_back_or_crosses_itself_is_refused():
 
 
 def test_the_shelf_end_check_measures_the_arc_the_robot_drives_at_a_corner():
-    """Pode는 꺾이는 곳을 turn_radius_m 호로 돈다(Codex 검토 4). 진열대 끝 밖에 놓인 호의 점도
+    """Pode는 꺾이는 곳을 turn_radius_m 호로 돈다. 진열대 끝 밖에 놓인 호의 점도
     잰다."""
     site = build()
     corner = [w for w in site.warnings if "corner" in w]
@@ -185,7 +185,7 @@ def test_the_shelf_end_check_measures_the_arc_the_robot_drives_at_a_corner():
 def test_corner_arc_on_a_first_or_last_piece_may_use_the_whole_piece():
     """Pode(geometry.rounded)는 선의 첫 선분과 마지막 선분에서는 호가 그 선분을 다 쓸 수 있다.
     D2 work_out W -> (0.35, 0.89) -> N_W: 첫 선분이 0.17 m라 반으로 줄인 호는 접점 거리 0.085 m,
-    다 쓰는 호는 0.10 m다(Codex 검토 2-1 둘째 차례). 90° 호의 가운데는 꼭짓점에서 접점 거리 x
+    다 쓰는 호는 0.10 m다. 90° 호의 가운데는 꼭짓점에서 접점 거리 x
     (sqrt 2 - 1)."""
     from fleet_core.fleet_map.checks import corner_arc
     a, b, c = (0.18, 0.89), (0.35, 0.89), (0.35, 0.65)
@@ -265,7 +265,7 @@ LEAVE_W = {"nodes": ["W", "N_W"], "leave_dock": True}
 
 
 def test_a_robot_may_leave_its_dock_by_nav_goal_one_way():
-    """도크에서 마당으로 Nav2 goal로 풀려 나간다(사용자 2026-11-14). 들어오는 쪽은 그대로 고정
+    """도크에서 마당으로 Nav2 goal로 풀려 나간다. 들어오는 쪽은 그대로 고정
     경로다: 도크 자리는 정확히 서야 한다."""
     site = build(nav=[*SMALL["nav"], LEAVE_W])
     out = site.link("W", "N_W")
@@ -437,7 +437,7 @@ def lane_spot(kind="wait", queue=True, onward=("O",), at=(1.3, 0.9)):
 
 
 def test_a_queue_spot_may_wait_in_a_lane_if_it_leads_only_to_its_dock():
-    """사용자 결정 2026-11-14(v7 급행 서쪽 끝 대기): 대기 노드는 넓은 곳에만 서지만, 한 줄 구역 안의
+    """v7 급행 서쪽 끝 대기: 대기 노드는 넓은 곳에만 서지만, 한 줄 구역 안의
     대기 노드라도 스테이션의 대기 자리이고 그 도크로만 이어지면 받는다."""
     site = build(**lane_spot())
     spot = site.nodes["O_X"]
@@ -531,7 +531,7 @@ def test_d2_is_the_default_and_matches_the_instruction():
     assert site.zones["HALL"].capacity == 3
     assert [link.b for link in route(site, "W", "O")] == ["N_W", "X_W", "X_E", "O"]
     # 곧은 선은 진열대 끝에서 0.15 m다. 급행과 갈림목 사이의 호(반지름 0.10)는 0.115 m까지 다가간다.
-    # 갈림목 선을 더 옮기면 도크 W, O와 너무 가까워지므로 남겨 둔 경고다(2-1, 사용자 결정 거리)
+    # 갈림목 선을 더 옮기면 도크 W, O와 너무 가까워지므로 남겨 둔 경고다(팀이 정한 거리)
     assert len(site.warnings) == 4
     assert all("corner" in w and "0.115 m" in w for w in site.warnings), site.warnings
     assert not any("ends at" in w for w in site.warnings), "D2 backs into the hall"

@@ -1,4 +1,4 @@
-"""order model (contract 0.11-draft proposal, order addendum 3 and 6-1): the decision part, no ROS.
+"""order model (contract 0.11-draft): the decision part, no ROS.
 
 A MoveTo with an order_id carries base segments (released, the robot may drive them) and horizon
 segments (not released, for display and a pre-check only). Updates arrive as new goals and are
@@ -279,7 +279,7 @@ def test_a_line_joined_on_the_way_takes_the_end_heading_rule_of_its_new_end():
 
 
 def test_an_update_that_changes_what_comes_next_sends_the_line_again_with_the_new_rule():
-    """Codex 2026-11-17: an update that does not join the running line (a Nav2 goal added to base,
+    """An update that does not join the running line (a Nav2 goal added to base,
     a horizon replaced) left the rule of the first send in place, so the robot still turned to
     the end heading before a Nav2 goal that arrived on the way."""
     fsm = ready()
@@ -329,8 +329,8 @@ def test_a_nav_goal_follows_another_without_stopping_at_the_middle_point():
 
 
 def test_a_nav_goal_hands_over_to_the_next_fixed_line_before_it_stops():
-    """사용자 2026-11-14("order로 미리 경로를 주는데 효과가 낮다"): Nav2 goal 다음 조각이 고정
-    선이면 끝 pass_m 안에서 넘긴다. 끝까지 기어가 방향을 맞추고 결과를 기다리지 않는다."""
+    """Nav2 goal 다음 조각이 고정 선이면 끝 pass_m 안에서 넘긴다. 끝까지 기어가 방향을 맞추고
+    결과를 기다리지 않는다."""
     fsm = ready()
     nav, fixed = goal_seg(1, 0.8, 0.3), line(2, 0.8, 1.3)
     [first] = of(order(fsm, "g1", 1.0, [nav, fixed]), SendNavGoal)
@@ -359,7 +359,7 @@ def test_a_nav_goal_keeps_going_when_the_next_fixed_line_starts_too_far_to_join(
 
 
 def test_a_nav_goal_keeps_going_when_the_next_line_itself_is_out_of_reach():
-    """Codex 검수 2026-11-14 1번: goal 끝에 가까워도 다음 선의 시작이 떨어져 있으면(여기서
+    """goal 끝에 가까워도 다음 선의 시작이 떨어져 있으면(여기서
     0.156 m) 미리 넘기지 않는다. 넘기면 goal을 취소한 뒤 PATH_NOT_CONNECTED로 주문이 끝난다."""
     fsm = ready()
     off_line = line(2, 0.8, 1.3, y=0.42)
@@ -371,7 +371,7 @@ def test_a_nav_goal_keeps_going_when_the_next_line_itself_is_out_of_reach():
 
 
 def test_a_robot_that_slid_off_the_line_while_stopping_ends_the_order():
-    """Codex 검수 2026-11-14 2번: 넘긴 뒤 서는 동안 선에서 connect_tolerance_m 밖으로 밀려나면
+    """넘긴 뒤 서는 동안 선에서 connect_tolerance_m 밖으로 밀려나면
     서고 나서 다시 재어 PATH_NOT_CONNECTED로 끝낸다. 어긋난 자리에서 선을 따라가지 않는다."""
     fsm = ready()
     [first] = of(order(fsm, "g1", 1.0, [goal_seg(1, 0.8, 0.3), line(2, 0.8, 1.3)]),
@@ -533,11 +533,11 @@ def test_the_order_fsm_is_a_pode_fsm():
     assert issubclass(OrderFsm, PodeFsm)
 
 
-# ---- Codex review 2026-11-12 ---------------------------------------------------------------
+# ---- order edge cases ----------------------------------------------------------------------
 
 
 def test_starting_the_next_segment_is_not_a_heartbeat():
-    """Codex P1: a segment start is not a goal from the fleet manager."""
+    """A segment start is not a goal from the fleet manager."""
     fsm = ready(comm_loss_policy="base_end")
     [send] = of(order(fsm, "g1", 1.0, [S1, line(2, 0.8, 1.3, ctrl=THROUGH)], [S3]), SendPath)
     cmds = fsm.nav_result(send.seq, "succeeded", 6.0, (0.8, 0.3, 0.0), no_obstacle)
@@ -547,7 +547,7 @@ def test_starting_the_next_segment_is_not_a_heartbeat():
 
 
 def test_comm_loss_stops_a_nav_goal_that_makes_no_progress():
-    """Codex P1: without the fleet manager the robot drives on only while it gets somewhere."""
+    """Without the fleet manager the robot drives on only while it gets somewhere."""
     fsm = ready()
     [first] = of(order(fsm, "g1", 1.0, [goal_seg(1, 1.3, 0.6)], [S3]), SendNavGoal)
     cmds = []
@@ -557,14 +557,14 @@ def test_comm_loss_stops_a_nav_goal_that_makes_no_progress():
 
 
 def test_a_new_order_must_start_at_seq_id_one():
-    """Codex P2: 0 means "nothing done" in last_done_seq_id."""
+    """0 means "nothing done" in last_done_seq_id."""
     fsm = ready()
     [done] = finishes(order(fsm, "g1", 1.0, [line(0, 0.3, 0.8)]))
     assert (done.goal_id, done.success) == ("g1", False)
 
 
 def test_a_joined_run_counts_the_segment_end_on_the_path_it_sent():
-    """Codex P2: ends up to 2 cm apart are joined; the bound is where the sent path has the end
+    """Ends up to 2 cm apart are joined; the bound is where the sent path has the end
     (the next segment's first point is dropped)."""
     fsm = ready()
     s2 = Seg(2, MODE_FOLLOW_PATH, FP, ((0.8, 0.315, 0.0), (1.3, 0.315, 0.0)), None, "N2")
@@ -581,7 +581,7 @@ def test_a_joined_run_counts_the_segment_end_on_the_path_it_sent():
 
 
 def test_a_late_map_is_used_for_the_running_horizon():
-    """Codex P2: the map or mask may come after the order."""
+    """The map or mask may come after the order."""
     seen = {"map": False}
 
     def check(seg):

@@ -1,4 +1,4 @@
-"""결과 표(지시서 6-2)의 숫자: 끝난 주문, 끝 시각, 로봇마다 기다린 시간, 로봇 사이 최소 거리,
+"""결과 표의 숫자: 끝난 주문, 끝 시각, 로봇마다 기다린 시간, 로봇 사이 최소 거리,
 교착(DEADLOCK_SEEN), 구역 밖(OUTSIDE_ZONE), Retreat 수, 급행 사용과 방향 바뀜."""
 from __future__ import annotations
 

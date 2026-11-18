@@ -1,6 +1,6 @@
 """같은 목표 순서에 FakePode와 pode_fsm(+FakeNav)이 같은 결과와 상태 값을 내는지 본다.
 
-FakePode는 관제가 시험받은 기준 동작이다(안내 1절, 4절 2번). fake_robots는 이 비교에만 쓰고
+FakePode는 관제가 시험받은 기준 동작이다. fake_robots는 이 비교에만 쓰고
 pode_fsm 패키지 코드는 그것을 import하지 않는다.
 
 Compared: lane goals, replacement, cancel, point goals, heartbeat loss, PATH_NOT_CONNECTED,

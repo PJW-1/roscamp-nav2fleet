@@ -104,7 +104,7 @@ def test_a_reinstate_ends_the_removal():
 
 
 def test_no_reinstate_until_a_late_still_held_event_has_had_time_to_come():
-    """응답이 ZONES_STILL_HELD보다 먼저 와도 잠시 기다린 뒤에만 재투입한다(Codex)."""
+    """응답이 ZONES_STILL_HELD보다 먼저 와도 잠시 기다린 뒤에만 재투입한다."""
     op = removed()
     op.on_cleared("pode2", True, ["W"], t=40.0)
     assert not op.ready("pode2", [], t=40.1)

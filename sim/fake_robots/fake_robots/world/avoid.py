@@ -1,4 +1,4 @@
-"""회피 흉내 세 모드(추가 지시서 2의 1절). Nav2 goal 하나(nav_goal.py)마다 하나씩 만든다.
+"""회피 흉내 세 모드. Nav2 goal 하나(nav_goal.py)마다 하나씩 만든다.
 
 - none(최악): 정적 지도 위 길만 간다. 무엇이 길에 있으면 서고, 돌아가는 길을 짜지 않는다.
 - perfect(최선): 격자 A*로 다른 로봇과 물체를 돌아간다(기본, 지금까지의 동작).
@@ -18,7 +18,7 @@ AVOID_MODES = (NONE, PERFECT, MIXED)
 
 @dataclass(frozen=True)
 class MixedSettings:
-    """mixed의 값(추가 지시서 2의 9절 제안값)."""
+    """mixed의 값."""
 
     p_detour: float = 0.7  # 막힘마다 돌아갈 확률
     delay_max_s: float = 3.0  # 돌아가기 전 0~이만큼 기다림

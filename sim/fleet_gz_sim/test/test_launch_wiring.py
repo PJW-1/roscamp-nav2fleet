@@ -326,7 +326,7 @@ def test_no_controller_turns_faster_than_the_simulated_drive_can(made):
 
 @pytest.mark.parametrize("asked", [{}, {"fixed_line_collision_check": "false"}])
 def test_the_fixed_line_check_is_off_for_every_robot_unless_asked(made, asked):
-    # 사용자 결정 2026-11-13: 켠 세 대 경기가 끝나지 않아 기본을 끔으로 둔다
+    # 팀 결정 2026-11-13: 켠 세 대 경기가 끝나지 않아 기본을 끔으로 둔다
     navs = includes(run(made, **asked), "nav2.launch.py")
     assert len(navs) == 3
     for nav in navs:
@@ -371,10 +371,10 @@ NEW_LISTED = {"controller_server": {"ros__parameters": {"Other": {"steps": [{"pl
                                   "controller_server:\n  ros__parameters:\n    FollowPath: 3",
                                   "amcl: 5"])
 def test_nav_overrides_must_be_a_mapping_and_never_swaps_a_plugin(made, tmp_path, text):
-    """Codex 2026-11-14: an empty file quietly meant nothing, a list crashed in the merge, and a
-    plugin swap would slip past the RPP speed cap and collision check. Second review: a plugin
-    inside a list was not looked at, and a value that replaced a whole mapping (a controller
-    given as a list or a number) passed the check and crashed later in the launch."""
+    """An empty file, a list, a plugin swap (also one inside a list) and a value that replaces a
+    whole mapping (a controller given as a list or a number) are refused before the launch:
+    otherwise they mean nothing, crash the merge or slip past the RPP speed cap and collision
+    check."""
     extra = tmp_path / "bad.yaml"
     extra.write_text(text, encoding="utf-8")
     with pytest.raises(ValueError, match="nav_overrides"):
@@ -526,7 +526,7 @@ def test_the_bodies_of_other_robots_stay_out_of_the_costmaps_when_switched_off(m
 @pytest.mark.parametrize("asked", [{}, {"peer_obstacles": "true"}])
 def test_peer_obstacles_adds_the_layer_to_every_robot_and_the_stand_in_sends_the_bodies(
         made, asked):
-    # 기본이 켜짐이다(사용자 결정 2026-11-13, 작업 기록 11절)
+    # 기본이 켜짐이다(팀 결정 2026-11-13)
     before = len(nodes(run(made, peer_obstacles="false")))
     actions = run(made, **asked)
     navs = includes(actions, "nav2.launch.py")

@@ -135,7 +135,7 @@ def test_every_node_of_a_shared_zone_is_floor(layout):
 
 
 def test_v7_a_robot_at_work_plans_its_way_out_to_the_hall():
-    """v7의 W는 WORK_DOCK 안이다. 그 도크를 Nav2 goal로 떠나는 이음(W -> M_E, 사용자 2026-11-14)의
+    """v7의 W는 WORK_DOCK 안이다. 그 도크를 Nav2 goal로 떠나는 이음(W -> M_E)의
     곧은 선 둘레는 바닥으로 열고, 도크의 나머지는 그대로 막는다(fleet_core keepout_openings)."""
     site = load_fleet_map("v7")
     space = FreeSpace(site, R)
@@ -148,8 +148,8 @@ def test_v7_a_robot_at_work_plans_its_way_out_to_the_hall():
 def test_v7_keepout_extra_is_not_floor():
     """Nav2 마스크는 keepout_extra 사각형을 덧대지 않고 막는다(fleet_core keepout.mask). 머리 없는
     세계도 그 안으로 길을 내지 않는다: 칸막이 1, 2 위 끝 둘레. 남쪽 진열대 사이 틈은 지름길이라
-    막지 않는다(사용자 결정 2026-11-17): 머리 없는 세계에서도 바닥이다. 칸막이 3과 그 둘레는
-    2026-11-17에 뺐다(사용자): 그 자리도 바닥이다."""
+    막지 않는다(팀 결정 2026-11-17): 머리 없는 세계에서도 바닥이다. 칸막이 3과 그 둘레는
+    없다: 그 자리도 바닥이다."""
     site = load_fleet_map("v7")
     space = FreeSpace(site, R)
     assert space.free(space.static, 1.12, 0.385), "the gap between the south shelves is floor"
@@ -161,7 +161,7 @@ def test_v7_keepout_extra_is_not_floor():
 
 def test_v7_keepout_extra_closes_every_cell_it_touches_like_the_mask():
     """마스크(fleet_core keepout.filled)는 사각형과 겹치는 칸을 모두 막는다. 칸 중심이
-    사각형 밖이어도 같은 격자에서 겹치면 머리 없는 세계도 막는다(Codex 21b6fff: 중심
+    사각형 밖이어도 같은 격자에서 겹치면 머리 없는 세계도 막는다(예: 중심
     (1.11, 0.41) 칸)."""
     from fleet_core.fleet_map.keepout import filled
     site = load_fleet_map("v7")
@@ -184,7 +184,7 @@ def _parked_plan(spots):
 
 
 def test_v7_a_robot_passes_a_robot_parked_in_a_west_bay_along_the_south_corridor():
-    """주차 자리 y 0.10(사용자 2026-11-14). P-1, P-2 위에는 진열대가 없어 넓다: E-1에서 Q2로 가는
+    """주차 자리 y 0.10. P-1, P-2 위에는 진열대가 없어 넓다: E-1에서 Q2로 가는
     로봇은 그 앞을 몸 둘 + 여유를 두고 남쪽 통로로 지난다."""
     way, parked = _parked_plan(["P-2"])
     assert way is not None and max(y for _, y in way) < V7_SOUTH_SHELF_Y, way
@@ -194,7 +194,7 @@ def test_v7_a_robot_passes_a_robot_parked_in_a_west_bay_along_the_south_corridor
 def test_v7_a_robot_parked_at_p3_sends_others_through_the_crossing_gap():
     """P-3에 주차한 로봇(y 0.10)과 남쪽 진열대 서쪽 끝 사이에는 머리 없는 세계의 계획 여유(반지름
     둘 + 0.03)가 들어가지 않는다. 남쪽 진열대 서쪽 끝을 돌아 북쪽으로 올라갔다가, 열린 건넘 틈
-    (사용자 결정 2026-11-17, 지름길)으로 다시 남쪽 통로에 내려온다. 동쪽 통로까지 돌지 않는다."""
+    (팀 결정 2026-11-17, 지름길)으로 다시 남쪽 통로에 내려온다. 동쪽 통로까지 돌지 않는다."""
     way, _ = _parked_plan(["P-3"])
     assert way is not None, "a way is left"
     assert max(y for _, y in way) > 0.405 + R, way

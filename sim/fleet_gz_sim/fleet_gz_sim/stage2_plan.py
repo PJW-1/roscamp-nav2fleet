@@ -1,4 +1,4 @@
-"""2단계 Gazebo 한 대 주행(지시서 6-3, 7절 2단계)의 계획과 지표. ROS를 쓰지 않는다.
+"""2단계 Gazebo 한 대 주행의 계획과 지표. ROS를 쓰지 않는다.
 
 관제 없이 로봇에 바로 보낼 이동을 구역 지도에서 만든다. 이동 하나(Step)는 계약의 구간 하나다
 (TRAFFIC_CONTRACT 2절): nav_goal(MoveTo mode nav_goal), follow_path(MoveTo mode follow_path,
@@ -12,7 +12,7 @@ from dataclasses import dataclass
 from fleet_core.fleet_map import FOLLOW_PATH, NAV_GOAL, RETREAT, SHARED
 
 # 계획 이름 -> (방식, 지점들). 시작 지점에 로봇이 서 있어야 한다. 한 바퀴가 끝나면 시작 지점이다.
-# stage2(D2, 추가 지시서 3의 2-5 구간 모두): 마당 Nav2 goal로 N_W, work_in으로 작업 도크, Retreat로
+# stage2(D2, 주행 완료 기준의 구간 모두): 마당 Nav2 goal로 N_W, work_in으로 작업 도크, Retreat로
 # 마당(N_W)까지, 급행 동쪽으로 가서 J_E로 내려옴, out_in으로 출고 도크, Retreat로 N_E, 급행 서쪽으로
 # 가서 J_W로 내려옴, 마당 Nav2 goal로 P-1. 좁은 띠 안에서는 제자리 회전이 없다.
 PLANS = {

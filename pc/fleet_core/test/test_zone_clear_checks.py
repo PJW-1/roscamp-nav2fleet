@@ -1,4 +1,4 @@
-"""지나가는 로봇이 확인하면 막힘 표시를 지운다(추가 지시서 3의 4-3)."""
+"""지나가는 로봇이 확인하면 막힘 표시를 지운다."""
 from fleet_core.common.commands import NO_ANSWER, CheckClearCmd
 from zone_harness import Harness
 

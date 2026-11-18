@@ -1,4 +1,4 @@
-"""관제 반응 시간 상한(추가 지시서 2의 3절): BLOCKED 뒤 첫 사건 1 s, 규칙 7의 다음 단계는 + 5 s."""
+"""관제 반응 시간 상한: BLOCKED 뒤 첫 사건 1 s, 규칙 7의 다음 단계는 + 5 s."""
 from fake_robots.world.reaction import REACT_FIRST, REACT_NEXT, ReactionWatch
 from fake_robots.world.robot import SimRobot
 from fleet_core.common.commands import CancelCmd, EventOut

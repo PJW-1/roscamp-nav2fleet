@@ -51,7 +51,7 @@ def test_the_tool_reads_parameter_overrides_as_yaml_and_the_avoid_modes():
 
 
 def test_perfect_keeps_the_situation_expectations_and_the_others_use_section_three():
-    """추가 지시서 2의 3절: none과 mixed는 '늦더라도 다 끝남'과 불변식만 본다."""
+    """none과 mixed는 '늦더라도 다 끝남'과 불변식만 본다."""
     s = build("person_passing", "d2")
     assert s.for_mode("perfect") is s
     rough = s.for_mode("none")

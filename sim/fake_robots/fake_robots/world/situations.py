@@ -1,9 +1,9 @@
-"""지시서 6-2의 열 가지 상황: 평소 흐름에서는 잘 안 생기는 일을 일부러 만든다.
+"""열 가지 상황: 평소 흐름에서는 잘 안 생기는 일을 일부러 만든다.
 
 상황마다 세계를 만드는 값(출발 자리, 주문, 주입, 시간 한도)과 기대(expect)가 있다. 기대는 세계를
 다 돌린 뒤 보고, 못 지킨 것을 글로 돌려준다. 자리는 배치(d2, d, c, v7)마다 지도에서 읽는다.
 
-기대는 회피 흉내 perfect의 것이다. none과 mixed는 rough(추가 지시서 2의 3절)로 본다: 늦더라도
+기대는 회피 흉내 perfect의 것이다. none과 mixed는 rough로 본다: 늦더라도
 주문이 다 끝나면 된다. 기다림, 우회, 물러나기 횟수와 사건 수는 성능이라 판정하지 않는다.
 안전 불변식과 관제 반응 시간은 모든 모드에서 본다(table.py correctness).
 """
@@ -21,7 +21,7 @@ from .store_situations import QUIET_AFTER_S, STORE_NAMES, build_store
 
 @dataclass(frozen=True)
 class Rough:
-    """none, mixed 모드의 합격 기준(추가 지시서 2의 3절)."""
+    """none, mixed 모드의 합격 기준."""
 
     finish_all: bool = True  # 일시 장애물, 마주침, 통신 끊김: 늦더라도 주문이 모두 끝남
     allowed: tuple[str, ...] = ()  # 생겨도 되는 불변식 위반 코드(상황 탓, 모드 탓이 아님)
@@ -30,7 +30,7 @@ class Rough:
 @dataclass
 class Situation:
     name: str
-    title: str  # 지시서 표의 상황 이름
+    title: str  # 결과 표에 적는 상황 이름
     robots: dict | None = None  # 이름 -> 출발 지점. None이면 주차 자리
     orders: list = field(default_factory=six_orders)
     injections: list = field(default_factory=list)

@@ -202,7 +202,7 @@ def generate_launch_description():
                               description="1 cm 지도 yaml(AMCL, R15). 없으면 map"),
         DeclareLaunchArgument("params_file",
                               default_value=str(SHARE / "params" / "nav2_params.yaml"),
-                              description="사용자의 Nav2 설정"),
+                              description="주행 담당의 Nav2 설정"),
         DeclareLaunchArgument("avoidance_package", default_value=AVOIDANCE_PACKAGE,
                               description="회피 패키지. 그 share의 params/avoidance.yaml을 읽고"
                                           " launch/avoidance.launch.py를 로봇 namespace 안에서"
@@ -210,7 +210,7 @@ def generate_launch_description():
         DeclareLaunchArgument("avoidance_params_file", default_value="",
                               description="회피 담당의 설정(FollowPathGoal 값, 비전 관측원 값,"
                                           " peer 층). 비면 avoidance_package의 것."
-                                          " 사용자의 키가 들어 있으면 뜨지 않는다"),
+                                          " 주행 담당의 키가 들어 있으면 뜨지 않는다"),
         DeclareLaunchArgument(
             "bt_xml", default_value=str(
                 SHARE / "bt" / "navigate_to_pose_w_replanning_and_recovery_goal.xml")),

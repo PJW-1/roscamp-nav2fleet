@@ -61,7 +61,7 @@ class Commands:
             self._violation(f"unknown output {item!r}")
 
     def _check_clear(self, cmd, r) -> None:
-        """CheckClear 흉내(추가 지시서 3의 4-3): 지금 자리에서 답하고 다음 걸음에 돌려준다."""
+        """CheckClear 흉내: 지금 자리에서 답하고 다음 걸음에 돌려준다."""
         if r is None or r.removed or not r.comm_up:
             return  # 서비스가 답하지 않았다. 관제는 간격 뒤 다시 묻는다
         answer = clear_answer(r.pose, (cmd.x, cmd.y), cmd.radius_m,

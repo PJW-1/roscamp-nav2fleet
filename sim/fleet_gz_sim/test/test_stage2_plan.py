@@ -20,7 +20,7 @@ def test_every_plan_is_made_of_its_layout_links_and_ends_where_it_started(plan):
 
 
 def test_stage2_covers_every_segment_type_of_the_acceptance():
-    """추가 지시서 3의 2-5: 마당 goal, 도크 진입 둘, Retreat 둘, 급행 양방향, 갈림목 내려오기 둘."""
+    """완료 기준 구간: 마당 goal, 도크 진입 둘, Retreat 둘, 급행 양방향, 갈림목 내려오기 둘."""
     kinds = {(s.kind, s.nodes) for s in sp.build(SITE, "stage2")}
     assert (FOLLOW_PATH, ("N_W", "X_W", "W")) in kinds
     assert (FOLLOW_PATH, ("N_E", "X_E", "O")) in kinds
@@ -39,7 +39,7 @@ def test_a_nav_goal_ends_on_the_node_yaw_or_the_fixed_path_it_joins():
 
 def test_a_retreat_path_keeps_its_bend_and_faces_the_way_the_robot_looks():
     step = sp.make_step(SITE, RETREAT, ("W", "N_W"))
-    # D2 후진 꺾는 점 (0.30, 0.89): 마지막 조각은 N_W로 비스듬히 내려간다(2-1)
+    # D2 후진 꺾는 점 (0.30, 0.89): 마지막 조각은 N_W로 비스듬히 내려간다
     assert [p[:2] for p in step.poses] == [pytest.approx((0.18, 0.89)), pytest.approx((0.30, 0.89)),
                                            pytest.approx((0.35, 0.65))]
     assert abs(abs(step.poses[0][2]) - math.pi) < 1e-9  # facing west, driving east

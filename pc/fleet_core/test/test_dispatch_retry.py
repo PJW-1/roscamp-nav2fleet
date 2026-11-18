@@ -1,4 +1,4 @@
-"""A failed outbound dispatch is sent again (work order 1.1, H3 item 1).
+"""A failed outbound dispatch is sent again.
 
 Before, on_dispatch_result only cleared outbound_goal and step() resent only a robot without a
 basket, so a robot with a full basket was left with no next job.

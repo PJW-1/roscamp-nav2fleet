@@ -1,4 +1,4 @@
-"""로봇단 교착 처리(추가 지시서 3의 7-4, 기준(사용자))의 mode nav_goal 쪽. ROS 없이 돈다.
+"""로봇단 교착 처리의 mode nav_goal 쪽. ROS 없이 돈다.
 
 진전 없이 block_report_s가 지나면 RECOVERING(wait)으로 local_wait_s 기다린다(NavigateToPose는 그대로
 돈다. BT의 복구는 지도 지우기와 기다리기뿐이라 움직이지 않는다). 앞을 막은 것이 관제가 아는 다른

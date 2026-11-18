@@ -1,4 +1,4 @@
-"""머리 없는 구역 세계(지시서 6-1): 가짜 Pode 세 대가 관제의 명령을 해 보인다. ROS를 쓰지 않는다."""
+"""머리 없는 구역 세계: 가짜 Pode 세 대가 관제의 명령을 해 보인다. ROS를 쓰지 않는다."""
 from .injections import (
     CommLoss,
     LowBattery,

@@ -1,4 +1,4 @@
-"""매장 상황(추가 지시서 3의 5절)이 개발 배치 d2와 실제 경기장 v7에서 서고 끝까지 돈다."""
+"""매장 상황이 개발 배치 d2와 실제 경기장 v7에서 서고 끝까지 돈다."""
 import pytest
 from fake_robots.world.situations import build
 from fake_robots.world.store_situations import STORE_NAMES, applies

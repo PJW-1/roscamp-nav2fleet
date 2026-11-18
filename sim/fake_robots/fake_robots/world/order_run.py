@@ -1,4 +1,4 @@
-"""order 모델의 goal 하나(계약 0.11-draft 제안의 로봇 쪽 규칙): base 조각을 쉬지 않고 잇달아 달린다.
+"""order 모델의 goal 하나(계약 0.11-draft의 로봇 쪽 규칙): base 조각을 쉬지 않고 잇달아 달린다.
 
 - 조각 사이에서 관제를 기다리지 않는다. 조각 하나는 FollowRun, NavGoalRun, RetreatRun 가운데
   하나로 달린다(make가 만든다).

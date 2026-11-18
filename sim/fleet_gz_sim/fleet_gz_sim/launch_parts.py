@@ -120,12 +120,12 @@ CONTROLLERS = ("FollowPath", THROUGH_CONTROLLER, REVERSE_CONTROLLER, GOAL_CONTRO
 # 고정 경로(FollowPath, 잠금 경계, Retreat)를 모는 controller. 시뮬 전용 스위치
 # fixed_line_collision_check가 거짓이면 이 셋만 충돌 검사를 끈다(리드 결정 2026-11-12: D2의 0.10 m
 # 통로에서 켜면 work_in이 0/3이라 3대 경기를 볼 수 없다). 마당 goal(FollowPathGoal)은 늘 켠다.
-# launch 인자의 기본은 끔이다(사용자 결정 2026-11-13: scan 거르개를 넣고 켠 세 대 경기 여섯 판이
+# launch 인자의 기본은 끔이다(팀 결정 2026-11-13: scan 거르개를 넣고 켠 세 대 경기 여섯 판이
 # 끝나지 않았고, 끈 판은 끝났다). 실물의 파라미터 파일(nav2_params.yaml)은 켬 그대로다
 FIXED_LINE_CONTROLLERS = ("FollowPath", THROUGH_CONTROLLER, REVERSE_CONTROLLER)
-# 경기장 속도 상한. 앞으로 가는 controller 셋이 이 값으로 간다. 지시서 3절은 0.12~0.15 m/s이고,
-# 0.20까지는 더 빠른 주행을 시뮬에서 보려고 받는다(2026-11-12). 기본값은 0.20이다(2026-11-15,
-# 주행 계획서 6.7: 속도 비례 앞보기를 넣자 0.20에서도 급행의 흔들림이 0.12 때와 같았다)
+# 경기장 속도 상한. 앞으로 가는 controller 셋이 이 값으로 간다. 기준은 0.12~0.15 m/s이고,
+# 0.20까지는 더 빠른 주행을 시뮬에서 보려고 받는다(2026-11-12). 기본값은 0.20이다(2026-11-15:
+# 속도 비례 앞보기를 넣자 0.20에서도 급행의 흔들림이 0.12 때와 같았다)
 SPEED_RANGE_MPS = (0.12, 0.20)
 DEFAULT_SPEED_MPS = 0.20
 # sim_stand_in이 내는 로봇마다의 시뮬 배터리(BatteryState). low_battery가 있으면 pode_fsm이 본다
@@ -185,7 +185,7 @@ def sim_nav_params(base: Path, out: Path, amcl: dict | None = None,
     - AMCL: SIM_AMCL(또는 amcl).
     - overrides: 그 위에 깊이 덮을 값(merge). launch 인자 nav_overrides(yaml 파일). AMCL 값도
       바꾼다.
-    - controller 넷(CONTROLLERS) 모두 충돌 검사를 켠다(지시서 3절: 모든 실행에서 켬). overrides로도
+    - controller 넷(CONTROLLERS) 모두 충돌 검사를 켠다(모든 실행에서 켬). overrides로도
       끌 수 없다. fixed_line_check가 거짓일 때만 FIXED_LINE_CONTROLLERS의 검사를 끈다.
     - max_speed가 있으면 controller마다 desired_linear_vel을 max_speed와 원래 값 중 작은 것으로
       (후진 FollowPathReverse 0.05 m/s는 그대로 남는다)."""
@@ -203,7 +203,7 @@ def sim_nav_params(base: Path, out: Path, amcl: dict | None = None,
     missing = [name for name in CONTROLLERS if name not in controllers]
     if missing:
         raise ValueError(f"{base} has no controller {', '.join(missing)}")
-    # FollowPathGoal은 회피 담당의 것이라 RPP가 아닐 수 있다(7-1). 아래의 두 값은 RPP의 키이므로
+    # FollowPathGoal은 회피 담당의 것이라 RPP가 아닐 수 있다. 아래의 두 값은 RPP의 키이므로
     # 다른 플러그인에는 넣지 않는다: 그때 속도 상한은 회피 담당 파일이 스스로 지킨다(회피_약속.md)
     names = [name for name in CONTROLLERS
              if name != GOAL_CONTROLLER or "desired_linear_vel" in controllers[name]]
@@ -264,7 +264,7 @@ def pode(ns: str, x, y, yaw, *, nav_map: str, nav_map_fine: str, keepout_mask: s
     battery_topic: pode_fsm이 볼 BatteryState 토픽(sim_stand_in의 BATTERY_TOPIC). 비면 없음.
     nav_overrides: Nav2 설정 위에 덮을 값(sim_nav_params overrides).
     fixed_line_check: 거짓이면 고정 경로 controller 셋의 충돌 검사를 끈다(시뮬 전용).
-    narrow_strips, wall_band_m: 스캔 거르개(pode_scan_filter, 추가지시서3 7-2)의 좁은 띠와 띠 폭.
+    narrow_strips, wall_band_m: 스캔 거르개(pode_scan_filter)의 좁은 띠와 띠 폭.
     narrow_strips가 비면 거르개를 띄우지 않고 costmap은 원래 scan을 읽는다.
     peer_layer: 참이면 두 costmap에 다른 로봇의 몸을 찍는 층을 넣는다(임시, 주행 시험용). 토픽은
     sim_stand_in 프로세스가 세 대분을 낸다(peer_obstacles 파라미터).

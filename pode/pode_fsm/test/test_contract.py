@@ -16,7 +16,7 @@ def test_names_come_from_the_contract():
 
 
 def test_heartbeat_is_reliable_with_depth_one():
-    """안내 2.3: Wi-Fi에서 best_effort로 3번 빠지면 서므로 RELIABLE, depth 1(제안)."""
+    """Wi-Fi에서 best_effort로 3번 빠지면 서므로 RELIABLE, depth 1."""
     assert CONTRACT.qos("heartbeat") == ("reliable", "volatile", 1)
 
 
@@ -25,7 +25,7 @@ def test_state_stays_best_effort():
 
 
 def test_move_to_has_the_path_not_connected_reason():
-    """안내 2.2: 경로가 로봇 위치를 지나지 않으면 이 reason으로 실패한다(제안)."""
+    """경로가 로봇 위치를 지나지 않으면 이 reason으로 실패한다."""
     action = (INTERFACES / "action" / "MoveTo.action").read_text(encoding="utf-8")
     assert 'string REASON_PATH_NOT_CONNECTED="PATH_NOT_CONNECTED"' in action
     assert "geometry_msgs/Pose[] path" in action

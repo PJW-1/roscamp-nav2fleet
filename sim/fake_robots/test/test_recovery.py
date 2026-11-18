@@ -1,4 +1,4 @@
-"""Pode 자기 복구(제안, 2026-11-09 공유 명세 '로봇 쪽'): 짧게 후진하고 다시 간다."""
+"""Pode 자기 복구(2026-11-09 공유 명세 '로봇 쪽'): 짧게 후진하고 다시 간다."""
 import math
 
 import pytest
@@ -241,7 +241,7 @@ def test_an_obstacle_behind_that_comes_during_the_back_up_stops_it():
 
 
 def test_a_robot_beside_the_way_back_round_a_corner_stops_the_back_up():
-    """모서리를 막 돌았으면 지나온 선이 지금 방향의 앞쪽 옆에 있을 수 있다(검토 지적)."""
+    """모서리를 막 돌았으면 지나온 선이 지금 방향의 앞쪽 옆에 있을 수 있다."""
     m = Motion(0.0, 0.0)
     m.set_target(0.0, 0.25, via=[(1.0, 0.0), (1.0, 0.25)])  # 동, 북, 서로 되돌아간다
     rec = ObstacleRecovery()
@@ -292,7 +292,7 @@ def test_the_back_up_is_measured_from_the_last_vertex_passed():
 
 
 def test_a_closer_obstacle_behind_during_the_back_up_stops_it():
-    """먼저 본 먼 뒤 물체가 나중에 나타난 가까운 물체를 가리지 않는다(검토 지적)."""
+    """먼저 본 먼 뒤 물체가 나중에 나타난 가까운 물체를 가리지 않는다."""
     r = Run()
     r.drive_to(1.0)
     r.run(1.2, ahead=True, wall_behind_m=0.5)  # 후진을 막지 않는 물체

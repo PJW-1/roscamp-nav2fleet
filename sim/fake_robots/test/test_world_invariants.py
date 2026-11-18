@@ -143,7 +143,7 @@ def test_commands_must_stay_in_held_zones():
 
 
 def test_two_robots_inside_one_dock_zone_by_true_position():
-    """추가 지시서 2의 2절: 도크 구역(도크, 갈림목)에 실제로 두 대. 쥔 것과 상관없이 본다."""
+    """도크 구역(도크, 갈림목)에 실제로 두 대. 쥔 것과 상관없이 본다."""
     inv = Invariants(SITE, PARAMS)
     robots = {"pode1": SimRobot("pode1", 0.31, 0.89), "pode2": SimRobot("pode2", 0.49, 0.89)}
     assert _check(inv, None, robots) == [DOCK_TWO]  # 둘 다 J_W 안, 몸은 닿지 않는다

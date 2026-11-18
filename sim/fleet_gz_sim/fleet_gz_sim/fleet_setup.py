@@ -70,7 +70,7 @@ class Arena:
     keepout_mask: str
 
 
-# 배치별 기본 갈래. v7은 2.5 cm 지도(사용자 결정 2026-11-17, 통로 Gazebo 비교 판)
+# 배치별 기본 갈래. v7은 2.5 cm 지도(팀 결정 2026-11-17, 통로 Gazebo 비교 판)
 DEFAULT_NAV_VARIANT = {"v7": "a"}
 BASE_NAV_VARIANT = "base"  # 갈래 없는 5 cm 지도(비교용)
 
@@ -189,10 +189,10 @@ def narrow_strips(site, band: float = 0.05) -> str:
     """스캔 거르개의 좁은 띠를 "x0,y0,x1,y1; ..." 글로.
 
     넓은 구역이 아닌 구역의 사각형(x0, y0 순) 뒤에 진열대 끝면 상자(shelf_end_boxes)를 붙인다.
-    끝면 잡음은 좁은 띠 바로 밖(D2에서는 HALL의 1.5 cm 띠)에 떨어져 띠만으로는 남기 때문이다(2-1
-    후진 모퉁이). 구역 사각형의 변이 경기장 벽에 닿으면 그 변을 band만큼 벽 너머로 넓힌다. 벽 면
+    끝면 잡음은 좁은 띠 바로 밖(D2에서는 HALL의 1.5 cm 띠)에 떨어져 띠만으로는 남기 때문이다(후진
+    모퉁이). 구역 사각형의 변이 경기장 벽에 닿으면 그 변을 band만큼 벽 너머로 넓힌다. 벽 면
     너머로 잰 잡음 점과 AMCL 오차로 너머에 놓인 점도 띠에 들게 한다. band는 거르개의 wall_band_m과
-    같게 준다. pode_nav_config nav2.launch.py의 narrow_strips 인자 꼴이다(추가지시서3 7-2).
+    같게 준다. pode_nav_config nav2.launch.py의 narrow_strips 인자 꼴이다.
     """
     bx0, by0, bx1, by1 = site.bounds()
 

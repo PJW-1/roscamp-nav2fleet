@@ -1,4 +1,4 @@
-"""회피 회귀 시험의 판정(추가 지시서 3의 7-3). tools/avoid_regression.sh가 부른다. ROS 없이 돈다.
+"""회피 회귀 시험의 판정. tools/avoid_regression.sh가 부른다. ROS 없이 돈다.
 
     python3 tools/avoid_regression.py drive drive_check.json   # 한 대: 이동마다 끝까지 갔나
     python3 tools/avoid_regression.py game <결과 폴더>          # 세 대 경기: "주행" 원인, keepout

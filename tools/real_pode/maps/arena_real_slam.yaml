@@ -5,7 +5,7 @@
 #   1 cm 를 나타내려고 해상도를 0.025 에서 0.005 로 바꿈(칸 값은 그대로 5x5 로 늘림)
 # SLAM 이 아닌 칸: 진열대 A 북쪽 면 줄(급행 통로 측정 폭 0.170), 통로 안 빈칸,
 #   북쪽 벽 x 1.125~1.35 (라이다 반사가 거의 없음: 2칸 관측, 7칸 보간), 그 아래 띠 빈칸 추정
-# 용도: AMCL(map_fine). costmap 은 도면 지도 arena_v7_a. 만든 과정은 docs/worklog_real_slam_map_2026-11-17.md
+# 용도: AMCL(map_fine). costmap 은 도면 지도 arena_v7_a.
 image: arena_real_slam.pgm
 mode: trinary
 resolution: 0.005

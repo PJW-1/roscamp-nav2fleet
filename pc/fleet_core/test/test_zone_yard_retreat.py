@@ -1,4 +1,4 @@
-"""급행에서 막힌 로봇은 갈림목 안이 아니라 마당 지점까지 물러난다(추가 지시서 3의 4절, 2-1 지도).
+"""급행에서 막힌 로봇은 갈림목 안이 아니라 마당 지점까지 물러난다(D2 지도).
 
 갈림목 지점(X_W, X_E)은 도크에서 0.17 m라서 도크에 로봇이 있으면 갈림목에 설 수 없다
 (`retreat_clear_m`, `node_clear_m`). 그래서 급행 → 갈림목 → 마당 지점(N_W, N_E)의 꺾이는 후진으로
@@ -146,7 +146,7 @@ def test_the_junction_is_kept_until_the_robot_says_it_has_backed_down(order):
 
 
 def test_the_retreat_follows_the_bends_of_the_way_down():
-    """물러나는 길은 갈림 -> 마당 지점 고정 경로의 꺾는 점을 따른다(cededa0 리뷰). 시험 지도는 N_E가
+    """물러나는 길은 갈림 -> 마당 지점 고정 경로의 꺾는 점을 따른다. 시험 지도는 N_E가
     있던 옛 v7(test/data/fleet_map_line3.yaml)에 예전 W_X -> N_E 길(work_west)을 되살린 것이다.
     W_X -> N_E를
     곧게 가면 WORK_DOCK 모서리 (1.78, 0.63)에 0.058까지 붙지만 그 구역은 잡지 않는다. 꺾는 점

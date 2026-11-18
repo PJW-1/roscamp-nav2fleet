@@ -20,7 +20,7 @@ NAV2_LAUNCH = ROOT / "pode" / "pode_nav_config" / "launch" / "nav2.launch.py"
 FSM_LAUNCH = ROOT / "pode" / "pode_fsm" / "launch" / "pode_fsm.launch.py"
 FORWARD = ("FollowPath", "FollowPathThrough")
 FIXED_LINE = ("FollowPath", "FollowPathThrough", "FollowPathReverse")
-# 전역 costmap 지도는 2.5 cm(arena_v7_a, 사용자 결정 2026-11-17), 위치 추정 1 cm, keepout
+# 전역 costmap 지도는 2.5 cm(arena_v7_a, 팀 결정 2026-11-17), 위치 추정 1 cm, keepout
 MAPS = ("arena_v7_a", "arena_v7_fine", "arena_v7_keepout")
 # 위치 추정은 실물 SLAM 지도(2026-11-17 확정), costmap·keepout 은 v7 도면 지도
 REAL_MAP = "arena_real_slam"

@@ -1,4 +1,4 @@
-"""관제 없이 Gazebo Pode 한 대에 이동을 바로 보내고 2단계 지표를 잰다(지시서 6-3, 7절 2단계).
+"""관제 없이 Gazebo Pode 한 대에 이동을 바로 보내고 2단계 지표를 잰다.
 
     ros2 run fleet_gz_sim drive_check --layout d2 --plan stage2 --laps 3 --json out.json
 

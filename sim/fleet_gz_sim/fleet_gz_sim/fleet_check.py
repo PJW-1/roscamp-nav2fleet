@@ -11,7 +11,7 @@ reports, and the zone holders the fleet publishes. It keeps:
     the robot holds no zone at all. Counted only after the first zone message, so the time
     before the fleet starts does not count
   - sim and wall time spans and their ratio (real-time factor)
-  - the keepout depth (third addendum 7-3, keepout_intrusion_max_m): how deep a corner of the body
+  - the keepout depth (keepout_intrusion_max_m): how deep a corner of the body
     reaches into a zone that is not a yard while the robot's centre is in a yard. Zones the robot
     holds, or held up to left_s ago (its tail is still leaving), do not count. The depth is the
     distance to the nearest side of the zone rectangle. Needs the body outline and the heading

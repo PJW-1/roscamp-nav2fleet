@@ -774,7 +774,7 @@ def test_a_robot_put_back_has_a_short_while_to_be_placed():
 
 
 def test_a_robot_put_back_that_is_never_placed_is_counted():
-    """서비스 거부나 PLACEMENT_CONFLICT로 잠금을 못 얻으면 놓치지 않는다(리뷰 4번)."""
+    """서비스 거부나 PLACEMENT_CONFLICT로 잠금을 못 얻으면 놓치지 않는다."""
     j = _put_back_off_its_start(1.0)
     for t in (1.0, 2.0, 3.0, 4.0, 5.0):
         j.tick(t)
@@ -782,7 +782,7 @@ def test_a_robot_put_back_that_is_never_placed_is_counted():
 
 
 def test_a_robot_put_back_unplaced_is_counted_when_its_grace_ends():
-    """2차 리뷰 4번: 유예가 끝난 뒤 다시 grace_s를 기다리지 않는다."""
+    """유예가 끝난 뒤 다시 grace_s를 기다리지 않는다."""
     j = _put_back_off_its_start(1.0)
     for t in (1.0, 1.5, 1.99):
         j.tick(t)
@@ -1026,7 +1026,7 @@ def test_a_release_from_a_drifting_robot_is_counted(t, robot, counted):
     assert result["value"] == counted
     assert result["ok"] is (counted == 0)
     assert check(j, "released_without_position_check", t)["value"] == 0
-# ---- 자동 격리(지시서 5.5) -------------------------------------------------------------------
+# ---- 자동 격리 ---------------------------------------------------------------------------------
 
 
 def test_shipped_before_operator_counts_from_the_isolation_to_the_first_clear():
@@ -1087,7 +1087,7 @@ def test_detours_around_isolated_count_a_reroute_once_with_two_isolated_robots()
 
 
 
-# ---- 경로 연결 확인(지시서 7.5) ----------------------------------------------------------
+# ---- 경로 연결 확인 ------------------------------------------------------------------------
 
 
 def test_a_path_not_connected_failure_is_counted_and_none_is_expected_by_default():
@@ -1102,7 +1102,7 @@ def test_a_path_not_connected_failure_is_counted_and_none_is_expected_by_default
 
 
 def test_robot_idle_is_counted_and_none_is_expected_by_default():
-    """1.1 지시서 H2: 정상 운행에서 ROBOT_IDLE이 나면 오탐이다. 고장 시나리오는 null로 안 본다."""
+    """정상 운행에서 ROBOT_IDLE이 나면 오탐이다. 고장 시나리오는 null로 안 본다."""
     j = judge()
     assert check(j, "robot_idle") == {"value": 0, "expected": 0, "ok": True}
     j.on_event(2.0, "WARN", "pode1", "ROBOT_IDLE", "TO_PARK at F0 for 10 s")

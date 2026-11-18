@@ -257,7 +257,7 @@ def test_vision_obstacles_and_keepout_work_together():
     assert glob["obstacle_layer"]["observation_sources"] == "scan vision"
 
 
-# ---- who owns which setting (third addendum 7-1) -------------------------------------------
+# ---- who owns which setting ----------------------------------------------------------------
 
 def _avoidance_file() -> dict:
     import yaml
@@ -284,7 +284,7 @@ def test_an_avoidance_file_with_a_user_owned_key_stops_the_launch(tmp_path):
         _expand("false", avoidance=str(bad))
 
 
-# ---- scan filter (추가지시서3 7-2) ------------------------------------------------------------
+# ---- scan filter -------------------------------------------------------------------------
 
 STRIPS = "0.0,0.79,0.30,0.99; 0.30,0.79,0.50,0.99"
 

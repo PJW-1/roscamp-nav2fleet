@@ -12,7 +12,7 @@ from fleet_gz_sim import launch_parts  # noqa: E402
 REPO = Path(__file__).resolve().parents[3]
 MAPS = {"nav_map": "/m/arena_d2.yaml", "nav_map_fine": "/m/arena_d2_fine.yaml"}
 NAV = REPO / "pode" / "pode_nav_config" / "params" / "nav2_params.yaml"
-# the avoidance teammate's file (third addendum 7-1), from the default avoidance package
+# the avoidance teammate's file, from the default avoidance package
 AVOIDANCE = REPO / "pode" / "pode_avoidance" / "params" / "avoidance.yaml"
 
 
@@ -21,7 +21,7 @@ def _sim(base, out, **kw):
 
 
 def _base() -> dict:
-    """The real robot's settings: the user's file with the avoidance teammate's goal controller."""
+    """The real robot's settings: the driving file with the avoidance teammate's goal controller."""
     data = yaml.safe_load(NAV.read_text(encoding="utf-8"))
     theirs = yaml.safe_load(AVOIDANCE.read_text(encoding="utf-8"))
     data["controller_server"]["ros__parameters"]["FollowPathGoal"] = theirs["follow_path_goal"]
@@ -87,7 +87,6 @@ def test_each_pode_starts_nav2_with_the_sim_params(tmp_path, monkeypatch):
         path = Path(nav["params_file"])
         assert path.parent == tmp_path
         # one file per launch process: two sim runs with the same robot names do not share it
-        # (Codex review of 5a0587b)
         assert ns in path.name and str(launch_parts.os.getpid()) in path.name
         amcl = _amcl(yaml.safe_load(path.read_text(encoding="utf-8")))
         assert {k: amcl[k] for k in launch_parts.SIM_AMCL} == launch_parts.SIM_AMCL
@@ -144,7 +143,7 @@ def test_a_speed_cap_must_be_a_number_between_zero_and_the_robot_speed(tmp_path,
 
 
 def test_every_controller_checks_collisions_even_if_the_base_file_turned_it_off(tmp_path):
-    """Instruction 3: the collision check is on in every run (it was off on the last arena)."""
+    """The collision check is on in every run (it was off on the last arena)."""
     base = _base()
     for name in launch_parts.CONTROLLERS:
         _rpp(base, name)["use_collision_detection"] = False
@@ -219,7 +218,7 @@ def test_pode_passes_the_fixed_line_switch_to_its_nav2_params(tmp_path, monkeypa
 
 
 def test_the_goal_controller_comes_from_the_avoidance_file(tmp_path):
-    """Third addendum 7-1: the goal controller's values are the avoidance teammate's. The sim
+    """The goal controller's values are the avoidance teammate's. The sim
     puts them in before its own changes, so the speed cap and the collision check reach them."""
     sim = yaml.safe_load(_sim(NAV, tmp_path / "s.yaml", max_speed=0.12)
                          .read_text(encoding="utf-8"))
@@ -229,7 +228,7 @@ def test_the_goal_controller_comes_from_the_avoidance_file(tmp_path):
 
 
 def test_a_goal_controller_that_is_no_rpp_is_left_as_the_avoidance_teammate_wrote_it(tmp_path):
-    """The teammate may swap the plugin (7-1). The sim's speed cap and collision switch are RPP
+    """The teammate may swap the plugin. The sim's speed cap and collision switch are RPP
     keys; they are not pushed into another plugin, and the three fixed-line RPPs keep them."""
     base = _base()
     mppi = {"plugin": "nav2_mppi_controller::MPPIController", "vx_max": 0.12}

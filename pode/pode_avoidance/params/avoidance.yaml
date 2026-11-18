@@ -1,25 +1,25 @@
-# 회피 담당의 설정 파일(사용자 기준: docs/회피_약속.md의 "설정의 주인", 추가 지시서 3의 7-1).
+# 회피 담당의 설정 파일(회피 약속의 "설정의 주인").
 # 임시 회피 패키지 pode_avoidance의 것이다. 회피 담당은 자기 패키지에 같은 이름의 파일을 두고
-# nav2.launch.py에 avoidance_package:=<패키지>를 주어 바꾼다(docs/회피_약속.md "교체하는 법").
+# nav2.launch.py에 avoidance_package:=<패키지>를 주어 바꾼다(회피 약속의 "교체하는 법").
 #
 # 키는 셋뿐이다: follow_path_goal, vision_obstacles, peer_layer(peer_layer는 없어도 된다). 다른 키를
 # 넣으면 nav2.launch.py가 뜨지 않고 pode_nav_config의 test/test_nav_config.py가 실패한다.
 # 그 밖의 Nav2 설정(발자국, costmap, inflation, keepout, 라이다 관측원과 scan 거르기, progress
-# checker와 goal checker, bt_navigator와 BT, planner, FollowPath 셋)은 사용자의 것이라
-# nav2_params.yaml에 있다. 바꾸려면 사용자에게 요청한다.
+# checker와 goal checker, bt_navigator와 BT, planner, FollowPath 셋)은 주행 담당의 것이라
+# nav2_params.yaml에 있다. 바꾸려면 주행 담당에게 요청한다.
 #
 # follow_path_goal: controller_server의 FollowPathGoal 안에 그대로 들어간다. 이름 FollowPathGoal은
 #   고정이고, 플러그인과 값은 회피 담당이 정한다(MPPI나 DWB로 바꿔도 된다). 넓은 구역의 Nav2 goal
 #   (MoveTo mode nav_goal)을 bt_navigator가 이 컨트롤러로 몬다. 속도 상한은 nav_max_speed를 따른다.
 #   시뮬레이션은 RPP의 desired_linear_vel만 nav_max_speed로 낮춘다. 다른 플러그인으로 바꾸면 그
-#   플러그인의 최고 속도를 nav_max_speed 이하로 직접 맞추고 사용자에게 알린다(그때 fleet_gz_sim의
+#   플러그인의 최고 속도를 nav_max_speed 이하로 직접 맞추고 주행 담당에게 알린다(그때 fleet_gz_sim의
 #   속도 상한 시험이 실패한다: 시뮬레이션의 상한 적용을 그 플러그인에 맞춰야 한다는 표시다).
-#   시작값은 고정 경로 컨트롤러 FollowPath를 2-1 전의 값으로 옮겨 온 것이다(RPP, 충돌 검사 켬).
+#   시작값은 고정 경로 컨트롤러 FollowPath의 예전 값을 옮겨 온 것이다(RPP, 충돌 검사 켬).
 #   2026-11-15(주행 담당, Gazebo 0.20 m/s): 앞보기 1.5초는 0.20 m/s에서 상한 0.25 m에 닿아 진열대
 #   동쪽 끝을 스쳤다(실제 방향이 AMCL과 26도 어긋나 그 자리에 섰다). 고정 경로와 같이 0.8초 앞을
 #   보고(0.20 m/s에서 0.16 m), 급한 굽이에서 속도를 줄이고, goal 0.2 m 앞에서야 줄이게 했다
 #   (전에는 0.6 m 앞부터). 급행 판 356.5초 -> 327.3초, 견고함 판 12/12에 닿은 곳 없음
-#   (docs/주행_계획서.md 6.8). 같은 날 제자리 회전을 2.0 rad/s(각가속도 6.4)로 올렸다가 되돌렸다:
+#   제자리 회전은 1.0 rad/s로 둔다(2.0 rad/s, 각가속도 6.4로 명령해도 같다):
 #   Gazebo의 구동 플러그인은 회전을 1.0 rad/s, 2.0 rad/s^2로 자른다. 2.0으로 명령한 판(G7, G8)과
 #   1.0인 판(G6, G9)에서 로봇이 돈 속도가 같았다(90번째 백분위 1.0 rad/s). 실물의 회전 한계는
 #   재지 않았다.
@@ -75,7 +75,7 @@ vision_obstacles:
   expected_update_rate: 0.0
   observation_persistence: 0.5
 
-# peer_layer: 다른 Pode의 몸을 costmap에 넣는 층(임시: 사용자의 주행 시험용. 회피 담당의 영역이라
+# peer_layer: 다른 Pode의 몸을 costmap에 넣는 층(임시: 주행 시험용. 회피 담당의 영역이라
 #   회피 담당이 자기 방식으로 바꾸거나 빼도 된다). nav2.launch.py가 인자 peer_obstacles:=true일 때만
 #   이 층을 두 costmap의 inflation_layer 바로 앞에 넣는다. 그 노드(pode_peer_obstacles)는
 #   launch/avoidance.launch.py가 띄운다. 기본은 꺼짐이고, 꺼져 있으면 아무것도 바뀌지 않는다.

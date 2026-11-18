@@ -1,4 +1,4 @@
-"""상황 시험(지시서 6-2): 출고 도크 오래 씀, 주문 몰림, 세 대가 갈림목에 동시에."""
+"""상황 시험: 출고 도크 오래 씀, 주문 몰림, 세 대가 갈림목에 동시에."""
 import pytest
 from situation_helpers import ALL_LAYOUTS, SEEDS, check
 

@@ -1,5 +1,5 @@
 #!/bin/bash
-# 회피 회귀 시험(추가 지시서 3의 7-3): 주행 완료 기준(2-5)과 매장 상황(5절)을 한 명령으로 돌린다.
+# 회피 회귀 시험: 주행 완료 기준과 매장 상황을 한 명령으로 돌린다.
 # 회피 담당의 변경(params/avoidance.yaml, 비전 노드)은 이 명령이 0으로 끝나야 들어온다.
 #
 #   source /opt/ros/jazzy/setup.bash && source install/setup.bash    # colcon build 한 뒤

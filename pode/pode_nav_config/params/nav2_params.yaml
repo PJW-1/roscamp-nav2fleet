@@ -63,10 +63,10 @@ map_server_fine:
     frame_id: map
     yaml_filename: ""  # launch 인자 map_fine
 
-# 계약의 navigate_to_pose. pode_fsm은 MoveTo mode nav_goal(계약 0.11-draft, 기준(사용자))일 때 이것을
+# 계약의 navigate_to_pose. pode_fsm은 MoveTo mode nav_goal(계약 0.11-draft)일 때 이것을
 # 부르고, follow_path일 때는 controller의 follow_path를 바로 부른다. BT는 launch가
 # bt/navigate_to_pose_w_replanning_and_recovery_goal.xml(Nav2 기본 BT, controller만 FollowPathGoal)로
-# 준다. 복구(Spin, Wait, BackUp, 지도 지우기)는 nav_goal에서만 허용한다(사용자 결정 2026-11-12)
+# 준다. 복구(Spin, Wait, BackUp, 지도 지우기)는 nav_goal에서만 허용한다(팀 결정 2026-11-12)
 bt_navigator:
   ros__parameters:
     global_frame: map
@@ -91,7 +91,7 @@ controller_server:
     min_theta_velocity_threshold: 0.001
     failure_tolerance: 1.0  # 전달사항(제조사 0.3)
     odom_topic: odom
-    # 안내 3절: 버전 2에서 관제가 /{pode}/speed_limit로 로봇별 속도 제한을 보낸다. 지우지 않는다
+    # 버전 2에서 관제가 /{pode}/speed_limit로 로봇별 속도 제한을 보낸다. 지우지 않는다
     speed_limit_topic: speed_limit
     enable_stamped_cmd_vel: false
     publish_zero_velocity: true
@@ -108,10 +108,10 @@ controller_server:
       plugin: "nav2_controller::SimpleGoalChecker"
       xy_goal_tolerance: 0.05  # R4: 관제 도착 허용치 0.15 m보다 작게(제조사 0.25)
       yaw_goal_tolerance: 0.12  # 전달사항(제조사 0.25)
-    # 추가 지시서 3의 2-1: 후진(FollowPathReverse)은 제자리에서 방향을 고칠 수 없으니 끝 방향을 보지
+    # 후진(FollowPathReverse)은 제자리에서 방향을 고칠 수 없으니 끝 방향을 보지
     # 않는다(pi보다 큰 허용치). 후진은 마당 지점에서 끝나고 다음 움직임은 Nav2 goal이다.
     # pode_fsm reverse_goal_checker_id가 이 이름을 쓴다.
-    # 위치 허용치 0.02(사용자 2026-11-14 "제안대로"): 충전 칸 후진이 0.05 앞에서 도착으로 끝나 칸 목표
+    # 위치 허용치 0.02(2026-11-14): 충전 칸 후진이 0.05 앞에서 도착으로 끝나 칸 목표
     # y 0.08에 0.118~0.148로 섰다. 모든 후진(물러나기 포함)에 같이 쓴다
     retreat_goal_checker:
       stateful: true
@@ -130,10 +130,10 @@ controller_server:
     FollowPath:
       plugin: "nav2_regulated_pure_pursuit_controller::RegulatedPurePursuitController"
       desired_linear_vel: 0.25  # 전달사항(제조사 0.2)
-      # 앞보기는 속도에 비례한다: 0.8초 앞, 0.10~0.25 m(주행 계획서 6.7, 2026-11-15). 0.10 m 고정
-      # (추가 지시서 3의 2-1 3번)은 0.20 m/s에서 0.5초 앞만 봐서 폭 0.18 m 급행에서 방향이 표준편차
+      # 앞보기는 속도에 비례한다: 0.8초 앞, 0.10~0.25 m(2026-11-15). 0.10 m 고정은
+      # 0.20 m/s에서 0.5초 앞만 봐서 폭 0.18 m 급행에서 방향이 표준편차
       # 10.3도로 흔들렸고, 0.8초로 두자 1.6도였다. 0.12 m/s에서는 전과 같은 0.10 m다. 예전의 속도
-      # 비례(1.5초, 0.12 m/s에서 0.18 m)는 모퉁이 9 cm 앞에서 돌기 시작했다(작업 기록 4.2). 지금은
+      # 비례(1.5초, 0.12 m/s에서 0.18 m)는 모퉁이 9 cm 앞에서 돌기 시작했다. 지금은
       # 아래의 곡률 규칙이 반지름 0.10 m 호에서 속도를 낮춘다(후보 0.4배). 다 낮춘 뒤에는 앞보기가
       # 0.10 m로 돌아온다. RPP는 지금 속도로 앞보기를 먼저 구하므로, 0.20 m/s 그대로 호에 들어서면
       # 앞보기 점이 0.70 rad보다 옆에 놓여 한 번 서서 돌 수 있다. Gazebo G3와 G4에서 모퉁이
@@ -146,11 +146,11 @@ controller_server:
       rotate_to_heading_angular_vel: 1.0
       transform_tolerance: 0.2
       min_approach_linear_velocity: 0.08  # 2026-11-15, 0.05에서(아래 주석)
-      # 0.2(사용자 2026-11-14 "계속해서 개선해", 0.6에서): 끝 0.6 m 앞부터 줄이면 Gazebo v7
+      # 0.2(2026-11-14, 0.6에서): 끝 0.6 m 앞부터 줄이면 Gazebo v7
       # 경기에서 MOVING 시간의 절반(1058 s 가운데 503 s)을 0.06 m/s 아래로 기었다. 0.12 m/s에서
       # 서는 데 3 cm면 된다. FollowPathReverse도 같은 값이다(test_nav_config가 견준다)
       # 0.10(2026-11-15, 0.2에서): v7의 고정 경로는 0.14~0.40 m라 0.2 m도 구간의 절반을 덮었다.
-      # 바닥 속도도 0.08로 올렸다. Gazebo 급행 판 317.6 s -> 303.6 s(주행 계획서 6.8),
+      # 바닥 속도도 0.08로 올렸다. Gazebo 급행 판 317.6 s -> 303.6 s,
       # 도킹 오차는 그대로(x 평균 2.9 cm, y 1.9 cm). 실물의 서는 거리는 재지 않았다
       approach_velocity_scaling_dist: 0.10
       use_collision_detection: true
@@ -161,8 +161,8 @@ controller_server:
       use_cost_regulated_linear_velocity_scaling: true
       regulated_linear_scaling_min_radius: 0.25
       regulated_linear_scaling_min_speed: 0.05
-      # use_rotate_to_heading과 allow_reversing은 함께 켤 수 없어 후진은 BackUp으로 한다(안내 3절).
-      # 추가 지시서 3의 2-1: 0.70(R12의 0.25에서 올림). pode_fsm이 꺾이는 곳을 반지름 0.10 m 호로
+      # use_rotate_to_heading과 allow_reversing은 함께 켤 수 없어 후진은 BackUp으로 한다.
+      # 0.70(R12의 0.25에서 올림). pode_fsm이 꺾이는 곳을 반지름 0.10 m 호로
       # 보내므로 호 위의 앞보기 점은 asin(0.10 / 0.20) = 0.52 rad 옆에 있다. 0.25면 호 위에서 서서
       # 돌기를 되풀이한다. R12의 0.8(충돌 경고 717건)은 꺾인 선을 곡선으로 질러 가던 때의 값이다.
       # 선의 시작에서 0.70보다 많이 어긋나면 지금처럼 서서 돈다(넓은 구역에서만 일어난다)
@@ -206,8 +206,8 @@ controller_server:
       use_cost_regulated_linear_velocity_scaling: true
       regulated_linear_scaling_min_radius: 0.25
       regulated_linear_scaling_min_speed: 0.05
-      # use_rotate_to_heading과 allow_reversing은 함께 켤 수 없어 후진은 BackUp으로 한다(안내 3절).
-      # 추가 지시서 3의 2-1: 0.70(R12의 0.25에서 올림). pode_fsm이 꺾이는 곳을 반지름 0.10 m 호로
+      # use_rotate_to_heading과 allow_reversing은 함께 켤 수 없어 후진은 BackUp으로 한다.
+      # 0.70(R12의 0.25에서 올림). pode_fsm이 꺾이는 곳을 반지름 0.10 m 호로
       # 보내므로 호 위의 앞보기 점은 asin(0.10 / 0.20) = 0.52 rad 옆에 있다. 0.25면 호 위에서 서서
       # 돌기를 되풀이한다. R12의 0.8(충돌 경고 717건)은 꺾인 선을 곡선으로 질러 가던 때의 값이다.
       # 선의 시작에서 0.70보다 많이 어긋나면 지금처럼 서서 돈다(넓은 구역에서만 일어난다)
@@ -223,7 +223,7 @@ controller_server:
       use_cancel_deceleration: false
       cancel_deceleration: 3.2
 
-    # Retreat with a path (계약, 사용자 기준): pode_fsm sends the driven way reversed here
+    # Retreat with a path (계약): pode_fsm sends the driven way reversed here
     # (pode_fsm reverse_controller_id). RPP drives backwards when the carrot is behind the robot
     # (allow_reversing), and the collision check looks along that motion, so something behind
     # stops it (FollowPath NO_VALID_CONTROL -> Retreat OBSTACLE_BEHIND). It stays loaded in every
@@ -231,7 +231,7 @@ controller_server:
     # use_rotate_to_heading and allow_reversing differ (test_nav_config checks it)
     FollowPathReverse:
       plugin: "nav2_regulated_pure_pursuit_controller::RegulatedPurePursuitController"
-      desired_linear_vel: 0.05  # 물러나기는 천천히(기준(사용자))
+      desired_linear_vel: 0.05  # 물러나기는 천천히
       # FollowPath와 같다: 앞보기는 속도에 비례한다(0.8초 앞, 0.10~0.25 m)
       lookahead_dist: 0.10  # 속도 비례를 켜서 쓰지 않는다
       min_lookahead_dist: 0.10  # 전달사항(제조사 0.3)
@@ -265,8 +265,8 @@ controller_server:
       cancel_deceleration: 3.2
 
     # FollowPathGoal(넓은 구역의 Nav2 goal을 모는 컨트롤러)의 값은 회피 담당의 것이라 여기에 없다.
-    # params/avoidance.yaml의 follow_path_goal에 있고 nav2.launch.py가 넣는다(추가 지시서 3의 7-1).
-    # 이름 FollowPathGoal(위 controller_plugins)만 사용자의 것이고 고정이다
+    # params/avoidance.yaml의 follow_path_goal에 있고 nav2.launch.py가 넣는다.
+    # 이름 FollowPathGoal(위 controller_plugins)만 주행 담당의 것이고 고정이다
 
 local_costmap:
   local_costmap:
@@ -279,7 +279,7 @@ local_costmap:
       width: 3
       height: 3
       resolution: 0.025  # 전달사항(제조사 0.05)
-      # 추가 지시서 3의 2-1 2번: 사각형 0.12 x 0.12 m 대신 몸 모양에 가까운 다각형(base_footprint 틀).
+      # 사각형 0.12 x 0.12 m 대신 몸 모양에 가까운 다각형(base_footprint 틀).
       # pinky_description base_link 충돌 메시의 바닥 윤곽(x -0.0745~0.0387, y -0.041~0.047)과 바퀴
       # (x ±0.028, y ±0.055)를 1~2 mm 넉넉히 덮는다. 회전 중심(바퀴 축)이 앞쪽이라 뒤 모서리까지
       # 0.0845 m다. FollowPath 셋의 충돌 검사와 pode_fsm의 막힘 판단이 이 발자국을 쓴다
@@ -316,16 +316,16 @@ global_costmap:
       publish_frequency: 1.0
       global_frame: map
       robot_base_frame: base_footprint
-      # 사각형 그대로 둔다(추가 지시서 3의 2-1 가정): NavFn은 점으로 계획하고 이 발자국은 inscribed
+      # 사각형 그대로 둔다: NavFn은 점으로 계획하고 이 발자국은 inscribed
       # 반지름으로만 쓴다. 바꾸면 마당 Nav2 goal 경로가 벽에 더 붙는다
       footprint: "[[0.06, 0.06], [0.06, -0.06], [-0.06, -0.06], [-0.06, 0.06]]"
-      # 2.5 cm 지도, padding 0.01, inflation 15.0/0.15(사용자 결정 2026-11-17, 통로 Gazebo 비교 판).
+      # 2.5 cm 지도, padding 0.01, inflation 15.0/0.15(팀 결정 2026-11-17, 통로 Gazebo 비교 판).
       # 정적 층이 지도 해상도를 따르므로 resolution은 기록용이다. inscribed 0.07 m는 제자리 회전
       # 반지름(뒤 모서리 0.0845 m)보다 작다: 벽에 붙은 경로 칸에서 돌면 닿을 수 있다
       footprint_padding: 0.01
       resolution: 0.025
       track_unknown_space: true
-      # 안내 3절: 버전 2 우회 경로 계산을 위해 라이다 장애물 층을 둔다
+      # 버전 2 우회 경로 계산을 위해 라이다 장애물 층을 둔다
       plugins: ["static_layer", "obstacle_layer", "inflation_layer"]
       static_layer:
         plugin: "nav2_costmap_2d::StaticLayer"
@@ -356,7 +356,7 @@ global_costmap:
       always_send_full_costmap: true
       # keepout(급행, 도크 구역)은 launch 인자 keepout_mask가 있을 때만 params/keepout.yaml로 더한다
 
-# 안내 3절: 관제가 /{pode}/compute_path_to_pose, /{pode}/is_path_valid를 부를 수 있게 띄워 둔다
+# 관제가 /{pode}/compute_path_to_pose, /{pode}/is_path_valid를 부를 수 있게 띄워 둔다
 planner_server:
   ros__parameters:
     expected_planner_frequency: 20.0
@@ -368,8 +368,8 @@ planner_server:
       use_astar: false
       allow_unknown: true
 
-# backup: pode_fsm의 로봇단 교착 처리(추가 지시서 3의 7-4), 끈 때의 자가 복구, Retreat.
-# wait: NavigateToPose BT의 복구(지도 지우기와 기다리기만). spin은 7-4에서 뺐다
+# backup: pode_fsm의 로봇단 교착 처리, 끈 때의 자가 복구, Retreat.
+# wait: NavigateToPose BT의 복구(지도 지우기와 기다리기만). spin은 뺐다
 behavior_server:
   ros__parameters:
     local_costmap_topic: local_costmap/costmap_raw

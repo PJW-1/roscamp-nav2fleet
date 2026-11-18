@@ -1,4 +1,4 @@
-"""로봇단 교착 처리(추가 지시서 3의 7-4, 기준(사용자))가 core에서 도는 순서. ROS 없이 돈다.
+"""로봇단 교착 처리가 core에서 도는 순서. ROS 없이 돈다.
 
 고정 경로(follow_path): 물체 앞에 block_report_s 서면 RECOVERING(local_yield wait)으로
 local_wait_s 기다린다. 앞을 막은 것이 관제가 아는 다른 로봇이고 내가 낮은 쪽이면 지나온 길 안에서
@@ -201,7 +201,7 @@ def test_the_resend_after_waiting_starts_from_where_the_robot_stands():
     stand(fsm, 1.0, STUCK)
     tick(fsm, 2.5, STUCK, no_obstacle)
     [send] = [c for c in tick(fsm, 3.6, STUCK, no_obstacle) if isinstance(c, SendPath)]
-    assert math.dist(send.poses[0][:2], STUCK[:2]) < 0.03  # 꺾이는 곳 호(2-1) 위의 가장 가까운 점
+    assert math.dist(send.poses[0][:2], STUCK[:2]) < 0.03  # 꺾이는 곳 호 위의 가장 가까운 점
 
 
 # ---- order 모델: 합친 경로도 지금 goal이다. priority는 order goal의 것이다 ----------------------

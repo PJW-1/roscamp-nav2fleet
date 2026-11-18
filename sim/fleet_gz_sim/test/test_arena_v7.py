@@ -11,7 +11,7 @@ from fleet_core.fleet_map import load_fleet_map  # noqa: E402
 from fleet_gz_sim import arena_maps, fleet_setup  # noqa: E402
 
 PKG = Path(__file__).resolve().parents[1]
-# 칸막이 3(0.76~0.78)은 2026-11-17에 뺐다(사용자)
+# 칸막이 3(0.76~0.78)은 2026-11-17에 뺐다
 # 북쪽 진열대 A는 2026-11-17에 서쪽으로 0.05 늘렸다(0.68 -> 0.63), 2026-11-18에 북쪽 면을 실측 0.803으로
 BOXES = [(0.63, 0.77, 1.56, 0.803), (0.68, 0.365, 0.99, 0.405), (1.25, 0.365, 1.56, 0.405),
          (0.24, 0.0, 0.26, 0.10), (0.50, 0.0, 0.52, 0.10)]
@@ -82,7 +82,7 @@ def test_v7_random_scenario_has_the_random_block():
 
 
 def test_v7_varied_scenario_mixes_order_bursts_with_staggered_low_batteries(site):
-    """사용자 2026-11-13 밤: 더 다양한 상황. 주문이 몰렸다 쉬고,
+    """더 다양한 상황. 주문이 몰렸다 쉬고,
     로봇마다 다른 때에 배터리가 떨어진다."""
     from fake_robots.scenario import load_scenario
     path = PKG / "scenarios" / "gz_v7_varied.yaml"
@@ -121,7 +121,7 @@ def test_v7_rush_scenario_sends_twelve_orders_at_once_without_faults(site):
 def test_v7_obstacle_schedule_puts_small_boxes_on_nav_goal_links_only(site):
     """고정 경로는 Gazebo에서 충돌 검사를 하지 않는다. 상자는 Nav2 goal 이음 위에만 놓는다.
     상자가 작아 로봇이 스스로 돌아갈 틈이 남는다
-    (사용자 2026-11-13 밤: 장애물이 생기면 회피가 보여야 한다)."""
+    (장애물이 생기면 회피가 보여야 한다)."""
     from fleet_core.fleet_map.model import NAV_GOAL
     from fleet_gz_sim.obstacles import load_schedule
     schedule = load_schedule(PKG / "obstacles" / "v7_yard_mix.yaml", site)
@@ -238,7 +238,7 @@ BOTH_ENDS = [(0.0, 0.30, 0.68, 0.45), (1.56, 0.30, 1.98, 0.45)]  # 서쪽 끝과
 
 
 def test_v7_the_crossing_gap_is_open_for_nav2_on_the_5cm_costmap(site):
-    """사용자 결정 2026-11-17: 건넘 틈(x 0.99~1.25)은 지름길이라 막지 않는다. 커밋된 마스크에 틈 안
+    """팀 결정 2026-11-17: 건넘 틈(x 0.99~1.25)은 지름길이라 막지 않는다. 커밋된 마스크에 틈 안
     keepout 칸이 없고, 서쪽 끝과 동쪽 통로를 다 막아도 5 cm costmap에서 틈으로 남북이 이어진다.
     내접 0.09로 막고 남는 열은 틈 가운데 셋(칸 중심 x 1.075, 1.125, 1.175)이다."""
     assert V7_GAP not in site.keepout_extra
@@ -285,7 +285,7 @@ def test_v7_north_and_south_stay_joined_by_each_way_alone(site, shut, pairs):
 
 
 def test_v7_work_is_joined_to_the_hall_for_its_nav_goal_way_out(site):
-    """W -> M_E(사용자 2026-11-14 "W에서 HALL로는 goal 방식으로 풀면 된다"): W는 WORK_DOCK keepout
+    """W -> M_E는 Nav2 goal로 나간다: W는 WORK_DOCK keepout
     안이지만, 커밋된 마스크가 그 도크를 나가는 곧은 선 둘레를 열어 두어 5 cm costmap에서 W 칸부터
     M_E까지 이어진다. 연 주머니는 막다른 곳이라 그 둘레의 도크는 그대로 막혀 있다."""
     grid, _, kept = _costmap()
@@ -295,7 +295,7 @@ def test_v7_work_is_joined_to_the_hall_for_its_nav_goal_way_out(site):
         assert kept[j][i], (x, y)
 
 
-# ---- 칸막이 3은 없다(사용자 2026-11-17): 칸막이도 그 둘레 keepout도 뺐다 ----
+# ---- 칸막이 3은 없다(2026-11-17): 칸막이도 그 둘레 keepout도 뺐다 --------
 DIVIDER_3_KEEP = (0.71, 0.0, 0.86, 0.20)  # 칸막이 3이 있을 때의 둘레 차단
 
 
@@ -366,7 +366,7 @@ def test_v7_a_robot_that_left_its_bay_passes_the_next_divider_only_above_it(
 @pytest.mark.parametrize("dx", [-0.05, -0.02, 0.0, 0.02, 0.05])
 @pytest.mark.parametrize("y", [0.12, 0.15, 0.165, 0.195])
 def test_v7_the_cell_a_robot_leaves_its_bay_from_is_not_kept_out(site, bay, dx, y):
-    """Codex 검수(2026-11-15): 칸막이 차단이 칸 안이나 칸을 나온 로봇의 출발 칸을 닫으면 Nav2
+    """칸막이 차단이 칸 안이나 칸을 나온 로봇의 출발 칸을 닫으면 Nav2
     계획이 실패한다. 칸 가운데에서 0.05 m까지 치우친 자리, y 0.12~0.20의 5 cm 칸은 keepout이
     아니다(낮은 y에서 칸막이 inflation에 걸리는 칸은 이 차단과 상관없이 전부터 있었다)."""
     _, _, kept = _costmap()
@@ -447,7 +447,7 @@ def test_the_centre_rule_keeps_every_thin_divider(site, resolution):
                                                (0.025, "centre")])
 def test_v7_variant_walls_leave_no_diagonal_leak_and_dividers_stay_joined(site, resolution,
                                                                            paint):
-    """Codex 2026-11-17: 칸 중심 규칙은 상자마다 따로 칠해 맞닿은 상자 사이에 대각 틈을 낼 수 있다.
+    """칸 중심 규칙은 상자마다 따로 칠해 맞닿은 상자 사이에 대각 틈을 낼 수 있다.
     v7에서는 벽 밖 빈칸이 8 이웃으로도 안쪽에 닿지 않고, 칸막이는 남쪽 벽과 이어진다."""
     from collections import deque
 
