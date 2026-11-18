@@ -1,17 +1,20 @@
 # 실물 두 대 시험(2026-11-18): v7, pode1은 P-1, pode2는 P-2. 로봇만 실물이고 central·팔은 가짜다.
+# 주문은 시뮬 게임 gz_v7(fleet_gz_sim/scenarios)의 앞 4건과 같다(품목, 20 s 간격, 팔·도킹 시간,
+# 재고). 사용자 결정(11-18): "시뮬이랑 같게 하는데 건수만 4건으로". 로봇을 띄울 시간을 두려고
+# 모두 20 s 늦췄다(gz_v7은 0, 20, 40, 60 s). 4건을 한 번 넣고 끝난다(반복 없음).
 # 도킹은 PC 대역(dock_wait_robots, 로봇은 DOCK_STUB=1)이 dock.duration_s만큼 기다린다.
-# 벽시계로 돈다(use_sim_clock:=false). 첫 주문은 로봇을 띄울 시간을 두고 20 s에 들어온다.
-# robots의 speed_mps, pose_noise_m은 가짜 로봇용이라 실물에는 쓰이지 않는다(실물 속도는 start.sh).
+# 벽시계로 돈다(use_sim_clock:=false). robots의 speed_mps, pose_noise_m은 가짜 로봇용이라
+# 실물에는 쓰이지 않는다(실물 속도는 start.sh).
 map: v7
-seed: 1
+seed: 65
 speed_factor: 1.0
 timeout_s: 1800
-stock: {arm1: {A: 4, B: 4}, arm2: {C: 4, D: 4}}
+stock: {arm1: {A: 20, B: 20}, arm2: {C: 20, D: 20}}
 orders:
-  - {at_s: 20, id: O-001, items: {A: 1, C: 1}}
-  - {at_s: 20, id: O-002, items: {B: 1, D: 1}}
-  - {at_s: 60, id: O-003, items: {A: 1}}
-  - {at_s: 90, id: O-004, items: {C: 1, D: 1}}
+  - {at_s: 20, id: R-001, items: {A: 1, C: 1}}
+  - {at_s: 40, id: R-002, items: {B: 1}}
+  - {at_s: 60, id: R-003, items: {D: 1, A: 1}}
+  - {at_s: 80, id: R-004, items: {C: 1}}
 robots:
   pode1: {start: P-1, speed_mps: 0.12, pose_noise_m: 0.03}
   pode2: {start: P-2, speed_mps: 0.12, pose_noise_m: 0.03}

@@ -14,6 +14,7 @@ from fake_robots.scenario import load_scenario, scenario_map_file
 from fleet_core.traffic.site import load_site
 
 SCENARIO = Path(__file__).parents[1] / "scenarios" / "real_two_orders.yaml"
+GZ_V7 = Path(__file__).parents[3] / "sim" / "fleet_gz_sim" / "scenarios" / "gz_v7.yaml"
 
 
 # ---- 단계와 끝남 ----
@@ -81,5 +82,15 @@ def test_real_two_orders_is_v7_two_robots_wall_speed():
     assert scn.speed_factor == 1.0
     assert scn.dock.duration_s == 3.0
     assert scn.faults == []
-    assert len(scn.orders) >= 3
-    assert all(o.at_s >= 15.0 for o in scn.orders)  # 로봇을 띄울 시간을 둔다
+
+
+def test_real_two_orders_are_the_first_four_of_gz_v7_shifted_20_s():
+    """사용자 결정(11-18): 시뮬(gz_v7)과 같게, 건수만 4건. 로봇을 띄울 시간으로 20 s 늦춘다."""
+    site = load_site("v7")
+    real = load_scenario(str(SCENARIO), site)
+    sim = load_scenario(str(GZ_V7), site)
+    assert [(o.id, o.items) for o in real.orders] == [(o.id, o.items) for o in sim.orders[:4]]
+    assert [o.at_s for o in real.orders] == [o.at_s + 20.0 for o in sim.orders[:4]]
+    assert real.arm == sim.arm
+    assert real.dock == sim.dock
+    assert real.stock == sim.stock
