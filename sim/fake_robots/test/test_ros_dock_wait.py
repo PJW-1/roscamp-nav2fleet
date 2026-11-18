@@ -202,8 +202,12 @@ def test_reports_a_second_dock_server_for_the_same_robot(harness, tmp_path):
 
 def test_losing_localization_drops_the_last_pose(harness, tmp_path):
     pubs, clients = start(harness, tmp_path, duration=1.0)
-    for _ in range(5):  # 도크에서 정상 자세를 보낸 뒤
+    node = harness.nodes[0]
+
+    def stored():  # 도크에서 보낸 정상 자세가 노드에 들어갔는지
         report(pubs["pode1"], "pode1", *WORK_DOCK)
+        return "pode1" in node._pose
+    assert wait_until(stored, 5.0)
     import threading
     stop = threading.Event()
 

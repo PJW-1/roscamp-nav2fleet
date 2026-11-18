@@ -89,6 +89,8 @@ def test_real_two_orders_are_the_first_four_of_gz_v7_shifted_20_s():
     site = load_site("v7")
     real = load_scenario(str(SCENARIO), site)
     sim = load_scenario(str(GZ_V7), site)
+    assert len(real.orders) == 4
+    assert [o.at_s for o in real.orders] == [20.0, 40.0, 60.0, 80.0]
     assert [(o.id, o.items) for o in real.orders] == [(o.id, o.items) for o in sim.orders[:4]]
     assert [o.at_s for o in real.orders] == [o.at_s + 20.0 for o in sim.orders[:4]]
     assert real.arm == sim.arm
