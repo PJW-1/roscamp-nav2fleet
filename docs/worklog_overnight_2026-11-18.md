@@ -252,3 +252,75 @@
   3. 지시서 2부 4절의 관문 둘(실물에서 로봇단 양보의 후진이 동작하는지, 그 기록에서 로봇 사다리가 실제로 마주침을 푸는지)을
      확인한 뒤 B단계를 시작할지 정한다.
   4. `feat/goal-plan-keeper`를 실물에서 한 번 돌려 보고 main에 넣을지 정한다.
+
+## 10. 사용자의 답과 그 뒤에 한 일 (2026-11-18 오전)
+
+7절의 질문에 사용자가 답했다.
+
+| 7절 번호 | 질문 | 답 |
+|---|---|---|
+| 1 | `station_left` 삭제 | 지운다 |
+| 2 | `reset_watch=False` 두 자리 | 지금은 그대로 둔다. 진척 감시를 합칠 때 다시 본다 |
+| 3 | v7 매장 상황의 `KeyError: 'X_W'` | 고친다. v7이 실제 배치이고 원래 있던 결함이다 |
+| 4 | `pode_fsm`의 `test_depend fake_robots` 제거 | 그대로 둔다 |
+| 5, 6, 10 | 가짜 로봇의 BLOCKED 유지, `--grace` 10 s, 구조 시험의 동적 접근 | 지금은 그대로 둔다 |
+| 7 | 계약 문서의 마당 물러나기 문구 | 뺀다 |
+| 8 | 두 모드의 양보가 끝나는 방식이 다른 것 | 실물을 보고 정한다. 오늘 실물에서 가장 중요한 관찰 지점이다 |
+| 9 | `feat/goal-plan-keeper` | 실물에서 한 번 돌려 보고 정한다 |
+| 11 | A2 이전 기록을 `replay.py`가 거절하는 것 | 고친다. 없어진 파라미터는 경고만 내고 건너뛴다 |
+| 12 | `fleet_manager` 시험의 간헐 실패 | 실패할 때 출력을 남기게 고친다 |
+
+8번에서 실물로 볼 것: 고정 경로(`follow_path`)로 가던 로봇이 양보 재시도를 다 쓴 뒤 앞이 비어 있으면 `BLOCKED`가 아니라
+`NAV_ABORTED`로 끝나고(`pode_fsm`의 `recovery.py`), `blocked_after_s`가 지나도 앞이 비어 있으면 포기하지 않는다
+(`yield_moves.py`). Nav2 goal 모드는 조건 없이 `BLOCKED`로 끝난다. `docs/회피_약속.md` 5절은 두 모드 모두 "또 막히면
+BLOCKED"라고 적는다. 실물에서 고정 경로 구간(급행, 도크)에서 막힌 로봇이 어떤 상태와 이유로 끝나는지, 관제가 그 뒤에 무엇을
+하는지(막힘 표시와 다시 잡기인지, `GOAL_RETRY NAV_ABORTED`인지)를 기록(`record:=`)과 함께 본다.
+
+그 뒤에 한 일:
+
+- **브랜치:** `fix/followups-2026-11-18`에 아래 세 브랜치를 합쳤다. main(ad2cd83)에는 넣지 않았다. main 병합은 사용자가 정한다
+  (오늘 main으로 실물 시험 중이다).
+- **`station_left` 삭제(`refactor/remove-station-left`, 2b87d4a, def63ae):** `ZoneBase.station_left`, `FleetManager.station_left_s`,
+  그것만 부르던 `OrderOrchestrator.station_job`, 파라미터 셋(`eta_fill_s_per_item`, `eta_fill_base_s`, `eta_swap_s`)과
+  `NONNEGATIVE_EXTRA` 검사, `test_traffic_api.py`의 `OPTIONAL`을 지웠다. 세 파라미터를 읽는 곳은 저장소에 더 없었다.
+  fleet_core 시험은 1090개에서 1076개가 됐다(지운 것 15개: `eta_fill_s_per_item` 시험 6개와 파라미터마다 만들어지던 9개. 더한 것 1개).
+  `ArmJobs.sent_at`은 제품 코드에서 쓰는 곳이 없어졌지만 `test_arm_jobs.py`가 써서 남겼다.
+- **v7 매장 상황(`fix/v7-store-situations`, 87efaa9, db3cfd1, 3c58186):** `tools/situations.py --store -l v7`이 돈다. 사람이 서는 자리를
+  이름(`X_W`) 대신 지도에서 고르고(WORK 도크에 가장 가까운 지나는 점: d2는 `X_W`, v7은 `W_X`), v7의 통로 상자는 남쪽 통로
+  (`E-3`과 `Q2`의 가운데)에 둔다. d2 표는 기준과 0줄 차이다. 자세한 것과 v7 결과 표는 `docs/worklog_v7_store_2026-11-18.md`에 있다.
+- **재생 도구(`fix/replay-and-test-output`, ea8c5f6, e1c4dfa):** `tools/replay.py`가 지금 코드에 없는 파라미터를 거절하지 않고 빼며,
+  `warning: skipped N parameters this code no longer has: ...` 줄로 이름을 알린다. 꼭 있어야 하는 파라미터가 빠진 기록은 전처럼 거절한다.
+- **실패한 시험의 결과 남기기(같은 브랜치, 01eacfc, e1c4dfa):** `pc/fleet_manager/test/kept_runs.py`와 `conftest.py`. `tmp_path`를 쓴
+  시험이 실패하면 그 폴더(summary, launch.log, `fms.jsonl` 등)를 `~/fleet_test_failures/<시험 이름>_<시각>/`으로 복사하고 실패 보고의
+  `kept run` 절에 경로를 적는다. 폴더는 환경변수 `FLEET_TEST_KEEP_DIR`로 바꿀 수 있다. 복사가 실패해도 원래 실패 보고는 그대로 나온다.
+- **계약 문서(같은 브랜치, f209898):** `docs/Pode_계약.md` 10번에서 "넓은 구역 안의 물러나기" 문단을 뺐다.
+
+합친 브랜치에서 확인한 것(Windows 파이썬, 2026-11-18 11시대):
+
+| 확인 | 결과 |
+|---|---|
+| `~/zone_baseline/quick.sh`(trace, store d2, order v7, order d2) | 넷 모두 기준과 0줄 차이 |
+| fleet_core 시험 | 1079 passed, 5 xfailed(1076 + 재생 시험 3개) |
+| 어젯밤 Gazebo 기록 12개를 `tools/replay.py`로 재생 | 12개 모두 `same as recorded`(없어진 파라미터 3~7개는 경고) |
+| fake_robots 시험(브랜치별) | `station_left` 쪽 892 passed 7 skipped 27 xfailed, v7 쪽 912 passed 8 skipped 27 xfailed |
+| tools 시험(브랜치별) | 89 passed, 14 failed(Windows에서 `test_real_pode.py`가 늘 실패하는 14개) |
+| `fleet_manager` 시험(WSL, ROS, 재생 도구 브랜치) | 99 passed, 30 skipped |
+| ruff(바뀐 파이썬 파일) | 통과 |
+
+하지 않은 확인: 전체 비교(`tools/zone_compare.sh`, 14분)와 합친 브랜치의 `fleet_manager` 시험은 돌리지 않았다. 같은 PC에서 실물
+관제가 돌 수 있어 무거운 계산을 피했다. 밤에 `tools/zone_compare.sh <worktree>`를 한 번 돌리면 된다.
+
+새로 알게 된 것과 남은 질문:
+
+1. **v7 매장 상황 두 가지가 기대를 못 지킨다.** "급행 안 장애물(오래)"과 "상자 치움 뒤 표시 지우기"에서 로봇이 한 대짜리 구역
+   `J_E`에 5 s 넘게 서 있다(`I5_STANDING`, 씨드 셋 모두. 예: 씨드 1에서 60.8 s와 137.8 s부터). 주문은 모두 끝나고 교착은 없다.
+   앞의 것은 어젯밤 기준 표에도 있던 것이고, 뒤의 것은 v7에서 처음 돌려 본 것이다. 급행이 막혀 있을 때 `J_E`에서 기다리는 것이
+   의도한 동작인지, 규칙 5를 고쳐야 하는지는 관제 동작의 문제라 손대지 않았다.
+2. **사람 상황 둘은 v7에서 아무것도 시험하지 못한다.** 사람이 서 있는 동안(급행 21~29 s, 도크 앞 15~23 s) 로봇이 가장 가까이
+   온 거리가 0.30~0.41 m다. 시각을 d2에 맞춰 둔 탓이다. v7용 시각을 따로 둘지 정해야 한다.
+3. **v7에서 "통로 안 상자"와 "마당 장애물"이 같은 자리를 시험한다.** 하나를 빼거나 가운데 우회 통로(`O_IN`과 `M_E` 사이)로 옮길 수 있다.
+4. **저장소 밖의 파라미터 파일에 지워진 키가 남아 있으면 관제가 시작하지 않는다.** `load_params`는 모르는 키를 거절한다
+   (`params.py`의 `unknown keys`). main(ad2cd83)은 `yard_backoff*` 넷, 이 브랜치는 `eta_*` 셋이 더 해당한다. 저장소의 기본 파일은
+   고쳐져 있다. 로봇이나 다른 PC에 복사해 둔 파일이 있으면 그 줄을 지워야 한다. 재생 도구처럼 경고만 내고 건너뛰게 할지는
+   사용자가 정한다.
+5. 새 v7 시험(`test_store_situations.py`)은 상황이 만들어지고 끝까지 도는지만 본다. 결과의 통과 여부는 보지 않는다(1번 때문이다).

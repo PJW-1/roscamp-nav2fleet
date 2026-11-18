@@ -362,7 +362,7 @@ MarkBook이 표시 만들기·갱신(`mark`), 키 보유(`hold`), 만료(`expire
 - Goals, MoveOrders, Turns, Drive, Results, Blocked, Backoff, Watch의 `_to_parking` 쪽은 서로 맞물려 있다(4절). 한꺼번에 떼면 보유 구역이 흔들린다.
 - `grants`의 쓰기 호출 지점 10곳은 합치지 않는다. 이미 객체로 분리되어 있고 시험이 있다.
 - `trip`, `phase`, `node`를 한 곳으로 모으는 일은 하지 않았다. 쓰는 모듈이 5~10개다(3.2).
-- Backoff(마당 물러나기)는 2부에서 따로 다룬다. 이 정리에서는 `.goal =`을 GoalLife로 바꾼 것 말고 건드리지 않았다.
+- 마당 물러나기는 2부 A2에서 지웠다. `Backoff`에는 가까이 선 로봇을 비켜 세우는 `_stand_aside`만 남아 있다.
 
 ## 7. 코드를 읽다 찾은 이상한 점
 
