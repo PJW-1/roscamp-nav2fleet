@@ -132,10 +132,12 @@ class ZoneBase:
     def _note_localizing(self, m, now: float) -> None:
         m.health.localizing_at = now
         at, m.health.aborted_at = m.health.aborted_at, None
-        if (at is not None and now - at <= LOCALIZING_GRACE_S and m.attempts > 0
-                and not m.health.fault):
+        if at is None or now - at > LOCALIZING_GRACE_S or m.health.fault:
+            return
+        # 그새 새 구간으로 시도 수가 0이 됐어도 미룬 격리는 거둔다
+        m.health.final_abort = None
+        if m.attempts > 0:
             m.attempts -= 1
-            m.health.final_abort = None
             self._event("WARN", "GOAL_ABORTED_LOCALIZING", "the last NAV_ABORTED came just "
                         f"before LOCALIZING, not an attempt (now {m.attempts})", m.name)
 

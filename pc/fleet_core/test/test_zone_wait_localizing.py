@@ -444,6 +444,22 @@ def test_at_the_retry_limit_a_new_leg_in_the_grace_window_still_isolates():
     assert isolations(world)
 
 
+def test_at_the_retry_limit_a_new_leg_then_localizing_in_the_grace_window_does_not_isolate():
+    """배차 취소로 시도 수가 0이 된 뒤에도 1 s 안의 LOCALIZING은 미룬 격리를 거둔다."""
+    world = at_the_limit()
+    world.traffic.on_move_result("pode2", last_goal(world), False, "NAV_ABORTED")
+    m = world.traffic._robots["pode2"]
+    world.traffic.on_dispatch_cancel(m.dispatch.goal_id)
+    assert m.attempts == 0
+    world.now = round(world.now + LOCALIZING_GRACE_S / 2, 6)
+    bot = world.bots["pode2"]
+    world.traffic.on_robot_state("pode2", bot.x, bot.y, bot.yaw, "LOCALIZING")
+    reports(world, "pode2", "LOCALIZING")
+    world.run(LOCALIZING_GRACE_S + 0.5)
+    assert not isolations(world)
+    assert m.attempts == 0
+
+
 def test_at_the_retry_limit_a_named_dispatch_in_the_grace_window_is_refused():
     world = at_the_limit()
     world.traffic.on_move_result("pode2", last_goal(world), False, "NAV_ABORTED")
