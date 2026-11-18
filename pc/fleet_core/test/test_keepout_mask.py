@@ -134,8 +134,9 @@ def test_a_dock_left_by_nav_goal_is_open_along_its_way_out():
     site = load_fleet_map("v7")
     (x0, y0, x1, y1), = keepout_openings(site)
     # 곧은 선이 덧댄 keepout(x 1.72)을 나서는 y 0.532까지의 상자에 몸 반폭 0.06을 두르고
+    # 2026-11-18 밤: W를 x 1.86으로(2 cm 서쪽) 옮겨 동쪽 끝 1.94 -> 1.92, 나서는 y 0.532 -> 0.531
     # 덧댄 도크 상자 안으로 자른다
-    assert (x0, y0, x1, y1) == pytest.approx((1.72, 0.435, 1.94, 0.5925), abs=1e-3)
+    assert (x0, y0, x1, y1) == pytest.approx((1.72, 0.435, 1.92, 0.5908), abs=1e-3)
     grid = mask(site, *SIZE, RESOLUTION, ORIGIN)
     for x, y in ((1.88, 0.495), (1.80, 0.51), (1.73, 0.53), (1.88, 0.45), (1.88, 0.58)):
         assert not cell(grid, x, y), (x, y)

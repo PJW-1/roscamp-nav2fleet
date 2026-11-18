@@ -16,7 +16,15 @@ DIVIDERS = [(0.24, 0.0, 0.26, 0.10), (0.50, 0.0, 0.52, 0.10)]
 # 북쪽 벽 안쪽 면: 2026-11-17 라이다 SLAM 실측 0.98(그림 0.99). 급행 실측 폭 0.170
 NORTH_WALL_Y = 0.98
 REAL_NORTH_WALL_Y = 0.975  # SLAM 벽 칸 점유로 고른 실측 면(docs/worklog_real_slam_map_2026-11-17.md)
-LANE_Y = 0.888             # 급행 가운데: 실측 진열대 면 0.803과 벽 0.975의 가운데(2026-11-18)
+# 2026-11-18 밤 AMCL 지도(tools/real_pode/maps/arena_real_slam): 새 SLAM으로 테두리를 1 cm 안쪽으로.
+# 벽 쪽 몸 여유는 이 면으로 잰다
+AMCL_EAST_WALL_X = 1.965
+AMCL_NORTH_WALL_Y = 0.965
+# 급행 줄: 실측 진열대 면 0.803과 벽 0.975의 가운데 0.888에서 2 cm 남쪽(2026-11-18 저녁 사용자 실측:
+# 로봇이 벽 쪽으로 약 2 cm 붙어 간다, 벽에 붙은 고정 경로와 도크를 모두 2 cm 안쪽으로)
+LANE_Y = 0.868
+WALL_SHIFT_M = 0.02
+BODY_HALF_M = 0.056          # local footprint 반폭(nav2_params)
 RELEASE_GAP_M = 0.135  # footprint_radius_m 0.085 + release_margin_m 0.05
 NODE_CLEAR_M = 0.20
 
@@ -58,8 +66,9 @@ def test_v7_divider_3_is_gone_and_p3_opens_to_the_east(site):
 
 
 def test_v7_docks_and_parking(site):
-    assert site.node_pose("W") == (1.88, 0.495)
-    assert site.node_pose("O") == (0.285, LANE_Y)  # 급행 가운데(2026-11-18 실측)
+    # 2026-11-18 저녁(사용자: 도크도 2 cm 안쪽으로): W는 동쪽 벽에서, O는 북쪽 벽에서 2 cm 더 떨어진다
+    assert site.node_pose("W") == (1.86, 0.495)
+    assert site.node_pose("O") == (0.285, LANE_Y)
     assert math.degrees(site.nodes["W"].yaw) == pytest.approx(90.0)  # 남쪽에서 들어간다
     assert math.degrees(site.nodes["O"].yaw) == pytest.approx(180.0)  # 급행 서쪽 끝
     assert site.stations["WORK"].dock == "W" and site.stations["OUTBOUND"].dock == "O"
@@ -218,12 +227,15 @@ def test_v7_bays_are_entered_backwards_and_left_forwards_on_a_straight_line(site
 
 
 def test_v7_dock_releases_neighbours_after_docking(site):
-    # 도킹을 마친 로봇은 도크에서 0.085 + 오차(시뮬 0.01) 넘게 떨어진 구역을 놓는다
+    # 도킹을 마친 로봇은 도크에서 0.085 + 오차(시뮬 0.01) 넘게 떨어진 구역을 놓는다.
+    # 예외(2026-11-18 저녁 사용자 결정, W를 2 cm 서쪽으로): W와 서쪽 HALL은 0.08이라 W에 선 로봇이
+    # HALL 한 자리(정원 3)를 쥔다. WORK_DOCK을 넓히면 M_E가 WORK_DOCK에 0.135보다 가까워진다
     for dock in ("W", "O"):
         x, y = site.node_pose(dock)
         for zone in site.zones:
             if zone != site.nodes[dock].zone:
-                assert site.distance_to_zone(x, y, zone) >= 0.10 - 1e-9, (dock, zone)
+                need = 0.08 if (dock, zone) == ("W", "HALL") else 0.10
+                assert site.distance_to_zone(x, y, zone) >= need - 1e-9, (dock, zone)
 
 
 def test_v7_routes(site):
@@ -237,8 +249,8 @@ def test_v7_routes(site):
     # 방식으로 풀면 된다": 급행이 막혀도 돌아갈 길이 있다). 들어오는 길은 Q1에서 고정 경로 하나다.
     # 넓은 곳으로 바로 나가던 옛 고정 경로와 그 끝점 N_E는 없다
     exit_ = site.nodes["W_X"]
-    # 2026-11-18 저녁: W_X는 반지름 0.19 원호의 50도 점이다(원호 시험)
-    assert exit_.kind == PASS and exit_.zone == "J_E" and exit_.x == pytest.approx(1.8121)
+    # 2026-11-18 저녁: W_X는 원호의 50도 점이다(원호 시험). 2 cm 안쪽으로 옮기며 반지름 0.19 -> 0.16
+    assert exit_.kind == PASS and exit_.zone == "J_E" and exit_.x == pytest.approx(1.8028)
     assert site.distance_to_zone(exit_.x, exit_.y, "WORK_DOCK") >= RELEASE_GAP_M
     assert sorted((link.b, link.via) for link in site.links() if link.a == "W") == [
         ("M_E", NAV_GOAL), ("W_X", FOLLOW_PATH)]
@@ -283,7 +295,9 @@ def test_v7_routes(site):
     # 2026-11-17(사용자: 딱 1 cm만): O_OUT을 벽에서 0.15 -> 0.16으로. 여기서 동쪽으로 돌 때 뒤가
     # 서쪽 벽 쪽으로 돌아가 Nav2가 "collision ahead"로 섰다. 꺾는 점(0.16)과 x가 같아져 마지막
     # 구간이 곧게 남쪽이다
-    assert o_out[0] == pytest.approx(0.16) and out.points[-2][0] == pytest.approx(o_out[0])
+    # 2026-11-18 저녁(사용자 실측: 출고에서 나오는 곳이 위험하다): 꺾는 점과 O_OUT을 2 cm 더 동쪽 0.18로
+    assert o_out[0] == pytest.approx(0.18) and out.points[-2][0] == pytest.approx(o_out[0])
+    assert out.points[-2][1] == pytest.approx(o[1] - 0.028), "꺾는 점은 O보다 0.028 아래(옛 0.888 -> 0.86과 같다)"
     # 나가는 점으로 들어오는 고정 경로도, 들어오는 점에서 나가는 고정 경로도 없다
     fixed = [link for link in site.links() if link.via != NAV_GOAL]
     assert [link.a for link in fixed if link.b == "O_OUT"] == ["O"]
@@ -413,9 +427,13 @@ def test_v7_fixed_path_bends_leave_the_body_clear_of_walls_and_shelves(site):
         for x, y in link.points[1:-1]:
             assert wall_gap(site.bounds(), x, y) > BODY_CIRCLE_M, (link.a, link.b, (x, y))
         for a, b in pairwise(link.points):
+            # 2026-11-18 저녁(사용자 결정, 급행 줄 0.868): 급행 줄 위 곧은 구간은 돌지 않고 서쪽으로만
+            # 가므로 진열대 A 면에서 몸 반폭 밖이면 된다(0.065). 나머지는 몸 원으로 본다
+            on_lane = a[1] == pytest.approx(LANE_Y) and b[1] == pytest.approx(LANE_Y)
+            need = BODY_HALF_M if on_lane else BODY_CIRCLE_M
             for shelf in site.shelves:
                 gap = segment_rect_distance(a, b, shelf)
-                assert gap > BODY_CIRCLE_M, (link.a, link.b, shelf, round(gap, 3))
+                assert gap > need, (link.a, link.b, shelf, round(gap, 3))
 
 
 def test_v7_outbound_waits_at_the_west_end_of_the_express_too(site):
@@ -429,10 +447,16 @@ def test_v7_outbound_waits_at_the_west_end_of_the_express_too(site):
     # OUT_DOCK 동쪽 끝 0.50 + 놓기 거리 0.135 + 위치 오차 여유 0.02: 선 로봇이 OUT_DOCK을 놓는다.
     # 여유가 없으면 위치가 1 cm만 서쪽으로 잡혀도 OUT_DOCK을 쥔 채 서서 O_IN 로봇이 출고에 들어가지
     # 못한다(Codex 검수 fb69df1). 더 동쪽이면 급행 끝에서 출고까지 멀어질 뿐이다
-    assert site.distance_to_zone(spot.x, spot.y, "OUT_DOCK") == pytest.approx(RELEASE_GAP_M + 0.02)
-    assert spot.y == pytest.approx(LANE_Y)  # 급행 가운데(2026-11-18 실측)
-    # 북쪽 진열대에 몸 원이 닿지 않는다(2026-11-17부터 진열대가 O_X 아래까지 와서 위 면에서 0.085)
-    assert point_rect_distance(SHELVES[0], spot.x, spot.y) > BODY_CIRCLE_M
+    assert site.distance_to_zone(spot.x, spot.y, "OUT_DOCK") >= RELEASE_GAP_M + 0.02
+    assert spot.y == pytest.approx(LANE_Y)
+    # 2026-11-18 저녁(사용자 결정, 급행 줄 0.868): 진열대 위 면에서 0.065라 몸 원(0.083)으로는
+    # 돌 수 없다. 서쪽을 보고 서서 서쪽 O로만 가므로 몸 반폭(0.056) 밖이면 된다
+    assert point_rect_distance(SHELVES[0], spot.x, spot.y) > BODY_HALF_M
+    # 줄을 내리면서 HALL(진열대 서쪽 띠, y 0.77 띠)에 가까워져 x를 0.71로 옮겼다. O_X는 도킹 자리가
+    # 아니라 놓기 거리 0.135로 재므로 여기서 기다리는 로봇은 HALL을 쥔다(Codex 검수: 0.098).
+    # b545901의 O_X(0.655, 0.888)도 0.089라 쥐었다: 그보다 가깝지 않다
+    assert spot.x == pytest.approx(0.71)
+    assert 0.09 < site.distance_to_zone(spot.x, spot.y, "HALL") < RELEASE_GAP_M
     # 선 로봇의 몸은 HALL에 들지 않는다(진열대 서쪽 HALL 띠의 위 끝 모서리(0.63, 0.803)에서 약 0.089). 급행으로 오는
     # 길은 HALL을 지나지 않아 쥐지도 않는다
     assert site.distance_to_zone(spot.x, spot.y, "HALL") > 0.085
@@ -449,7 +473,7 @@ def test_v7_outbound_waits_at_the_west_end_of_the_express_too(site):
     gaps = {name: min(point_segment_distance(site.node_pose("O_X"), a, b)
                       for a, b in pairwise(site.link(*pair).points))
             for name, pair in (("out_in", ("O_IN", "O")), ("out_out", ("O", "O_OUT")))}
-    assert gaps["out_in"] == pytest.approx(0.242, abs=1e-3), gaps
+    assert gaps["out_in"] == pytest.approx(0.291, abs=1e-3), gaps  # O_X를 0.71로 옮겨 0.242 -> 0.291
     assert gaps["out_out"] > gaps["out_in"] >= 2 * BODY_CIRCLE_M + 0.01, gaps
 
 
@@ -490,10 +514,14 @@ def test_v7_north_wall_is_the_slam_measurement_and_the_express_stays_open(site):
     가운데를 실측 띠 가운데 0.888로 옮겼다(그 전 0.895는 실측 가운데보다 7 mm 북쪽). 북쪽 벽에 붙은
     구역은 지도 벽 0.98까지다. 진열대 A 위(x 0.63~1.56)의 급행 줄 경로 점은 모두 띠 가운데다."""
     assert site.bounds()[3] == NORTH_WALL_Y
-    assert site.node_pose("O") == (0.285, LANE_Y) and site.node_pose("O_X") == (0.655, LANE_Y)
-    # 실측 벽과 실측 진열대 면에서 거의 같은 거리(0.087, 0.085)이고 몸 원보다 멀다
-    assert abs((REAL_NORTH_WALL_Y - LANE_Y) - (LANE_Y - SHELVES[0][3])) <= 0.0025
-    assert min(REAL_NORTH_WALL_Y - LANE_Y, LANE_Y - SHELVES[0][3]) > BODY_CIRCLE_M
+    assert site.node_pose("O") == (0.285, LANE_Y) and site.node_pose("O_X") == (0.71, LANE_Y)
+    # 2026-11-18 저녁(사용자 실측): 줄은 실측 띠 가운데보다 2 cm 남쪽이다. 벽 0.107, 진열대 0.065,
+    # 둘 다 몸 반폭보다 멀다(진열대 쪽 몸 여유 0.9 cm는 사용자가 고른 값)
+    middle = (REAL_NORTH_WALL_Y + SHELVES[0][3]) / 2
+    assert 0.888 <= middle <= 0.889 and LANE_Y == pytest.approx(0.888 - WALL_SHIFT_M)
+    assert min(REAL_NORTH_WALL_Y - LANE_Y, LANE_Y - SHELVES[0][3]) > BODY_HALF_M
+    # 11-18 밤 AMCL 북쪽 벽 0.965에서도 줄 위 몸 여유가 4 cm 남는다
+    assert AMCL_NORTH_WALL_Y - LANE_Y - BODY_HALF_M >= 0.04
     for link in site.links():
         for x, y in link.points:
             if SHELVES[0][0] <= x <= SHELVES[0][2] and y > SHELVES[0][3]:
@@ -515,7 +543,7 @@ FOOTPRINT = [(0.040, 0.021), (0.036, 0.031), (0.029, 0.056), (-0.029, 0.056), (-
 
 
 def _body_gaps(points, x_min):
-    """경로를 5 mm마다 따라가며 경로 방향의 발자국과 동쪽 벽, 실측 북쪽 벽, 진열대 A 사이 최소 거리."""
+    """경로를 5 mm마다 따라가며 경로 방향의 발자국과 AMCL 지도의 동쪽, 북쪽 벽, 진열대 A 사이 최소 거리."""
     from fleet_core.fleet_map.geometry import point_rect_distance, point_segment_distance
     shelf = SHELVES[0]
     corners = [(shelf[0], shelf[1]), (shelf[2], shelf[1]), (shelf[2], shelf[3]), (shelf[0], shelf[3])]
@@ -529,8 +557,8 @@ def _body_gaps(points, x_min):
             if x < x_min:
                 continue
             body = [(x + c * u - s * v, y + s * u + c * v) for u, v in FOOTPRINT]
-            east = min(east, 1.98 - max(p[0] for p in body))
-            north = min(north, REAL_NORTH_WALL_Y - max(p[1] for p in body))
+            east = min(east, AMCL_EAST_WALL_X - max(p[0] for p in body))
+            north = min(north, AMCL_NORTH_WALL_Y - max(p[1] for p in body))
             near = min(near, min(point_rect_distance(shelf, *p) for p in body),
                        min(point_segment_distance(k, p, q) for k in corners
                            for p, q in pairwise(body + body[:1])))
@@ -548,18 +576,25 @@ def test_v7_express_turn_is_a_tangent_arc_from_a_lower_w_x(site):
 
     2026-11-18 저녁(run5_2, 사용자 결정 A): 반지름 0.113에서도 두 로봇이 원호 출구에서 줄 북쪽으로
     1.4~2.7 cm 넘어가 벽에 붙어 섰다. 원호를 HALL 안 y 0.698에서 시작해 반지름 0.19(10도마다 점)로
-    키운다(0.20은 원호 끝이 진열대 A 끝 모서리 검사 0.15에 걸린다). 원호 시작은 노드가 아니라 work_out의 꺾는 점이라 HALL에 있어도 된다. W_X는 50도 점이다."""
+    키운다(0.20은 원호 끝이 진열대 A 끝 모서리 검사 0.15에 걸린다). 원호 시작은 노드가 아니라 work_out의 꺾는 점이라 HALL에 있어도 된다. W_X는 50도 점이다.
+
+    2026-11-18 저녁(사용자 실측: 로봇이 벽 쪽으로 약 2 cm 붙어 간다): W를 x 1.86, 급행 줄을 0.868로
+    옮기고 원호를 반지름 0.16(가운데 (1.70, 0.708))으로 줄였다. 0.165부터는 원호 끝이 진열대 끝
+    검사에 걸린다."""
     out, express = site.link("W", "W_X"), site.link("W_X", "O_X")
     w, exit_ = site.node_pose("W"), site.nodes["W_X"]
     assert exit_.zone == "J_E" and site.zone_at(exit_.x, exit_.y) == "J_E"
-    assert out.points[:2] == (w, (w[0], 0.698)), "W에서 원호 시작까지는 곧게 북쪽"
+    assert out.points[:2] == (w, (w[0], 0.708)), "W에서 원호 시작까지는 곧게 북쪽"
     route_ = list(out.points[1:]) + list(express.points[1:])
     last = next(i for i, p in enumerate(route_) if p[1] == pytest.approx(LANE_Y))
     arc = route_[:last + 1]
     centre = (arc[-1][0], arc[0][1])
     radius = w[0] - centre[0]
     assert LANE_Y - centre[1] == pytest.approx(radius, abs=1e-3)
-    assert radius == pytest.approx(0.19, abs=1e-3), radius
+    # 2026-11-18 저녁: 2 cm 안쪽으로 옮기며 0.19 -> 0.16. 0.165부터는 원호 끝이 진열대 끝 검사(0.15)에
+    # 걸린다. 순수 추종 근사로는 넘침 차이가 1 mm 안쪽이다
+    assert radius == pytest.approx(0.16, abs=1e-3)
+    assert site.warnings == (), site.warnings
     for p in arc:
         assert math.dist(p, centre) == pytest.approx(radius, abs=1e-3), p
     heads = [math.degrees(math.atan2(q[1] - p[1], q[0] - p[0])) for p, q in pairwise(arc)]
@@ -572,7 +607,9 @@ def test_v7_express_turn_is_a_tangent_arc_from_a_lower_w_x(site):
     # 몸(경로 방향의 발자국) 여유: 동쪽 벽, 실측 북쪽 벽, 진열대 A. 옛 길은 동쪽 0.026, 북쪽 0.020
     points = list(out.points) + list(express.points[1:])
     east, north, shelf = _body_gaps(points, 1.40)
-    assert east >= 0.035 and north >= 0.025 and shelf >= 0.025, (east, north, shelf)
+    # 2026-11-18 저녁(사용자 결정): 벽 쪽을 2 cm 넓히고 진열대 쪽은 1 cm 아래로 남는다.
+    # 11-18 밤 AMCL 벽(1.965, 0.965)으로 b545901 길은 동쪽 0.026, 북쪽 0.018, 이 길은 0.046, 0.038
+    assert east >= 0.045 and north >= 0.035 and shelf >= 0.005, (east, north, shelf)
 
 
 def test_v7_pass_node_shortcut_cannot_release_a_dock_early(site):
