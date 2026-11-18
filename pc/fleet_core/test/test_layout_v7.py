@@ -237,8 +237,8 @@ def test_v7_routes(site):
     # 방식으로 풀면 된다": 급행이 막혀도 돌아갈 길이 있다). 들어오는 길은 Q1에서 고정 경로 하나다.
     # 넓은 곳으로 바로 나가던 옛 고정 경로와 그 끝점 N_E는 없다
     exit_ = site.nodes["W_X"]
-    # 2026-11-18: W_X는 급행으로 도는 원호의 30도 점이다(원호 시험)
-    assert exit_.kind == PASS and exit_.zone == "J_E" and exit_.x == pytest.approx(1.8649)
+    # 2026-11-18 저녁: W_X는 반지름 0.19 원호의 50도 점이다(원호 시험)
+    assert exit_.kind == PASS and exit_.zone == "J_E" and exit_.x == pytest.approx(1.8121)
     assert site.distance_to_zone(exit_.x, exit_.y, "WORK_DOCK") >= RELEASE_GAP_M
     assert sorted((link.b, link.via) for link in site.links() if link.a == "W") == [
         ("M_E", NAV_GOAL), ("W_X", FOLLOW_PATH)]
@@ -544,22 +544,26 @@ def test_v7_express_turn_is_a_tangent_arc_from_a_lower_w_x(site):
     HALL에 둘 수 없고 0.77은 HALL과의 경계)에서 북쪽으로 시작해 급행 줄 0.888에 접해 끝난다(반지름
     0.113, 15도마다 점). W_X 노드는 원호의 30도 점이다: 0.775에 두면 노드 좌표로 재는 놓기
     지름길이 WORK_DOCK을 일찍 놓는다(아래 지름길 시험, Codex 검수 73edbab). 원호 앞 두 점은 work_out에
-    있다. pode_fsm이 꺾는 점을 r 0.10으로 다시 둥글리지만 점이 촘촘해 거의 그대로다(worklog)."""
+    있다. pode_fsm이 꺾는 점을 r 0.10으로 다시 둥글리지만 점이 촘촘해 거의 그대로다(worklog).
+
+    2026-11-18 저녁(run5_2, 사용자 결정 A): 반지름 0.113에서도 두 로봇이 원호 출구에서 줄 북쪽으로
+    1.4~2.7 cm 넘어가 벽에 붙어 섰다. 원호를 HALL 안 y 0.698에서 시작해 반지름 0.19(10도마다 점)로
+    키운다(0.20은 원호 끝이 진열대 A 끝 모서리 검사 0.15에 걸린다). 원호 시작은 노드가 아니라 work_out의 꺾는 점이라 HALL에 있어도 된다. W_X는 50도 점이다."""
     out, express = site.link("W", "W_X"), site.link("W_X", "O_X")
     w, exit_ = site.node_pose("W"), site.nodes["W_X"]
     assert exit_.zone == "J_E" and site.zone_at(exit_.x, exit_.y) == "J_E"
-    assert out.points[:2] == (w, (w[0], 0.775)), "W에서 원호 시작까지는 곧게 북쪽"
+    assert out.points[:2] == (w, (w[0], 0.698)), "W에서 원호 시작까지는 곧게 북쪽"
     route_ = list(out.points[1:]) + list(express.points[1:])
     last = next(i for i, p in enumerate(route_) if p[1] == pytest.approx(LANE_Y))
     arc = route_[:last + 1]
     centre = (arc[-1][0], arc[0][1])
     radius = w[0] - centre[0]
     assert LANE_Y - centre[1] == pytest.approx(radius, abs=1e-3)
-    assert radius >= 0.11, radius
+    assert radius == pytest.approx(0.19, abs=1e-3), radius
     for p in arc:
         assert math.dist(p, centre) == pytest.approx(radius, abs=1e-3), p
     heads = [math.degrees(math.atan2(q[1] - p[1], q[0] - p[0])) for p, q in pairwise(arc)]
-    assert all(0.0 < b - a <= 15.5 for a, b in pairwise([90.0, *heads, 180.0])), heads
+    assert all(0.0 < b - a <= 10.5 for a, b in pairwise([90.0, *heads, 180.0])), heads
     # 원호가 끝난 뒤 진열대 A 동쪽 끝까지 곧은 줄이 한 lookahead(0.10) 넘게 남는다
     assert arc[-1][0] - SHELVES[0][2] >= 0.10
     # 구역: work_out은 지금처럼 WORK_DOCK, HALL, J_E만, 급행은 HALL을 지나지 않는다
