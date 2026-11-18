@@ -93,6 +93,7 @@ class Calls:
     def _robot_info(self, m, stopped: bool) -> RobotInfo:
         node = m.trip.goal if m.trip is not None and m.phase == TO_PARK else m.node
         eligible = (self.available(m.name) and not m.hold and m.dispatch is None and not stopped
+                    and not self._localizing(m)
                     and (not m.report.charge or (m.called and self._committed(m))))
         return RobotInfo(m.name, node, m.called or self._committed(m), eligible)
 

@@ -40,9 +40,11 @@ class Progress:
         m.report.local_yield = local_yield if state == SELF_RECOVERING else ""
         self._note_battery(m, battery)
         if state == LOCALIZING:
+            self._note_localizing(m, now)
             m.health.pose_at = None
             m.clear_n.clear()
             return
+        self._localized(m)
         if m.health.comm == COMM_LOST:
             m.health.pose_at = None
         self._pose_watch.watch(m, x, y, yaw, now)
