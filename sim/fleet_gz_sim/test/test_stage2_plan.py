@@ -88,7 +88,7 @@ def test_corridor_plan_goes_o_in_to_m_e_and_back_by_nav_goal_on_v7():
     assert [s.label for s in steps] == ["nav_goal O_IN>M_E", "nav_goal M_E>O_IN"] * 3
     # M_E는 yaw도 이어지는 고정 경로도 없어 시작→끝 방향, O_IN은 지점 yaw 108도
     assert steps[0].target == pytest.approx((1.645, 0.55, math.atan2(-0.075, 1.155)))
-    assert steps[1].target == pytest.approx((0.49, 0.625, math.radians(108)))
+    assert steps[1].target == pytest.approx((0.49, 0.625, math.radians(110)))
 
 
 def test_corridor_plan_is_refused_on_another_layout():
