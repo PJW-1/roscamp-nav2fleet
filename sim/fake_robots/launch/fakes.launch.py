@@ -4,9 +4,9 @@
   ros2 launch fake_robots fakes.launch.py fake_robots:="pode2 pode3"   # pode1은 실물
   ros2 launch fake_robots fakes.launch.py fake_arms:="arm3"              # 작업셀은 실물
   ros2 launch fake_robots fakes.launch.py fake_robots:=none use_sim_clock:=false monitor:=false \
-      scenario:=real_two_orders dock_wait_robots:="pode1 pode2"            # 실물 두 대, PC 도킹 대역
+      scenario:=real_two_orders dock_wait_robots:="pode1 pode2"      # 실물 두 대, PC 도킹 대역
   ros2 launch fake_robots fakes.launch.py fake_robots:=none use_sim_clock:=false monitor:=false \
-      scenario:=real_three_orders dock_wait_robots:="pode1 pode2 pode3"    # 실물 세 대, PC 도킹 대역
+      scenario:=real_three_orders dock_wait_robots:="pode1 pode2 pode3"   # 실물 세 대, PC 도킹 대역
 
 fake_arms: arm1과 arm2를 함께 주면 가짜 작업셀이 뜬다.
 fill_basket 서버 하나가 둘을 맡기 때문이다. arm3은 가짜 출고 팔을 띄운다.
@@ -124,6 +124,7 @@ def generate_launch_description():
         declare("map_file", "", "fleet map YAML (default: the one in fleet_core)"),
         declare("contract_file", "", "contract YAML (default: the installed one)"),
         declare("params_file", "", "fleet parameters YAML, for basket capacity and release limits"),
-        declare("dock_wait_robots", "", "real robots whose dock the PC answers (they run DOCK_STUB=1)"),
+        declare("dock_wait_robots", "",
+                "real robots whose dock the PC answers (they run DOCK_STUB=1)"),
         OpaqueFunction(function=_setup),
     ])

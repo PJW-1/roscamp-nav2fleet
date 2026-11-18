@@ -245,7 +245,8 @@ def test_global_padding_overrides_touch_only_the_global_costmap_padding(made, na
         data = yaml.safe_load(Path(launch_args(nav)["params_file"]).read_text(encoding="utf-8"))
         assert data["global_costmap"]["global_costmap"]["ros__parameters"][
             "footprint_padding"] == padding
-        data["global_costmap"]["global_costmap"]["ros__parameters"]["footprint_padding"] = base_padding
+        data["global_costmap"]["global_costmap"]["ros__parameters"][
+            "footprint_padding"] = base_padding
         assert data == plain
 
 

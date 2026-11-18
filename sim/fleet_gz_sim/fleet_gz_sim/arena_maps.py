@@ -1,7 +1,8 @@
 """경기장의 Nav2 지도(PGM, YAML)와 global costmap keepout 마스크. ROS를 쓰지 않는다.
 
 지도는 벽 안쪽에서 MAP_PAD_M씩 넓다(벽 0.05 m가 들어간다). 막힌 칸은 0(검정), 빈칸은 254다.
-상자가 칸에 조금이라도 걸치면 막힌 칸이라 1.5 cm 진열대도 5 cm 지도에서 사라지지 않는다(TOUCH, 기본).
+상자가 칸에 조금이라도 걸치면 막힌 칸이라 1.5 cm 진열대도 5 cm 지도에서
+사라지지 않는다(TOUCH, 기본).
 
 가운데 통로 갈래(2026-11-17, Gazebo 비교용): 칸 중심이 상자 안일 때만 막는 규칙(CENTRE)과
 2.5 cm 지도. NAV_VARIANTS의 지도는 v7에만 만든다(arena.generate_nav_variants). 기본 지도와

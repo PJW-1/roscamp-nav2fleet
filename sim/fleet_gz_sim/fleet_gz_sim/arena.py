@@ -101,7 +101,8 @@ def nav_variant_outputs(name: str) -> tuple[str, ...]:
 
 
 def generate_nav_variants(out: Path, site) -> tuple[str, ...]:
-    """costmap용 갈래 지도를 out/maps에 쓰고 쓴 파일 목록을 돌려준다. 기본 지도는 건드리지 않는다."""
+    """costmap용 갈래 지도를 out/maps에 쓰고 쓴 파일 목록을 돌려준다.
+    기본 지도는 건드리지 않는다."""
     from fleet_gz_sim.arena_maps import NAV_VARIANTS, map_yaml, pgm
     name = site.name
     (out / "maps").mkdir(parents=True, exist_ok=True)

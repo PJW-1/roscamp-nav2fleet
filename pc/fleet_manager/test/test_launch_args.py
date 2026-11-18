@@ -87,4 +87,5 @@ def test_real_test_arguments_are_declared_and_forwarded():
     assert forwarded["dock_wait_robots"] == "pode1 pode2"
     assert forwarded["fake_robots"] == "none"
     doc = PC_LAUNCH.read_text(encoding="utf-8")
-    assert "fake_robots:= " not in doc and "fake_robots:=none" in doc  # 빈 값은 ros2 launch가 거부한다
+    # 빈 값은 ros2 launch가 거부한다
+    assert "fake_robots:= " not in doc and "fake_robots:=none" in doc

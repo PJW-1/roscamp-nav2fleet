@@ -8,7 +8,6 @@
 from dataclasses import replace
 
 import pytest
-
 from fleet_core.common.params import load_params
 from zone_harness import Harness
 

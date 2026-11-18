@@ -12,7 +12,8 @@ from fleet_interfaces.msg import RobotState  # noqa: E402
 from rclpy.action import ActionClient  # noqa: E402
 
 C = load_contract(CONTRACT)
-# v7 WORK 도크 지점 W는 지도에서 읽는다(2026-11-18 저녁 W x 1.88 -> 1.86: 2 cm 동쪽 보고가 4 cm 오차가 돼 실패했다)
+# v7 WORK 도크 지점 W는 지도에서 읽는다
+# (2026-11-18 저녁 W x 1.88 -> 1.86: 2 cm 동쪽 보고가 4 cm 오차가 돼 실패했다)
 WORK_DOCK = load_fleet_map("v7").node_pose("W")
 
 
@@ -219,7 +220,8 @@ def test_losing_localization_drops_the_last_pose(harness, tmp_path):
             stop.wait(0.1)
     handle, _ = dock(clients["pode1"])
     threading.Thread(target=loop, daemon=True).start()  # 기다리는 동안 위치를 잃는다
-    dropped = wait_until(lambda: "pode1" not in node._pose, 5.0)  # 시간 초과가 아니라 자세를 버려서 실패해야 한다
+    # 시간 초과가 아니라 자세를 버려서 실패해야 한다
+    dropped = wait_until(lambda: "pode1" not in node._pose, 5.0)
     result = result_of(handle)
     stop.set()
     assert dropped

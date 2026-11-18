@@ -93,7 +93,8 @@ def generate_launch_description():
         DeclareLaunchArgument("initial_x", default_value="0.12"),
         DeclareLaunchArgument("initial_y", default_value="0.10"),
         DeclareLaunchArgument("initial_yaw", default_value="1.5708"),
-        DeclareLaunchArgument("map", default_value=str(MAPS / "arena_v7_a.yaml")),  # 2.5 cm 지도(11-17 결정)
+        # 2.5 cm 지도(11-17 결정)
+        DeclareLaunchArgument("map", default_value=str(MAPS / "arena_v7_a.yaml")),
         # 위치 추정은 실물 SLAM 지도(2026-11-17 확정)
         DeclareLaunchArgument("map_fine", default_value=str(MAPS / "arena_real_slam.yaml")),
         DeclareLaunchArgument("keepout_mask", default_value=str(MAPS / "arena_v7_keepout.yaml"),

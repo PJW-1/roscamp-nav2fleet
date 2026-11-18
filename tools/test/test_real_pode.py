@@ -203,6 +203,7 @@ def _fsm_actions(dock_aside):
     # _fsm()이 돌려주는 액션 목록(패키지 설치 없이: 경로 조회와 속도 읽기는 대역)
     _need_launch()
     import importlib.util
+
     from launch import LaunchContext
     spec = importlib.util.spec_from_file_location("real_pode_launch", KIT / "real_pode.launch.py")
     mod = importlib.util.module_from_spec(spec)
@@ -290,7 +291,8 @@ def _group_alive(pgid):
 
 
 def _stop_group(proc):
-    # 그룹 전체가 없어질 때까지 INT -> TERM -> KILL로 올린다. 정리 오류가 시험 결과를 가리지 않게 한다
+    # 그룹 전체가 없어질 때까지 INT -> TERM -> KILL로 올린다.
+    # 정리 오류가 시험 결과를 가리지 않게 한다
     import signal
     pgid = proc.pid
     for sig, wait in ((signal.SIGINT, 15), (signal.SIGTERM, 10), (signal.SIGKILL, 10)):
@@ -306,7 +308,7 @@ def _stop_group(proc):
                 return
             time.sleep(0.1)
     import warnings
-    warnings.warn(f"process group {pgid} still alive after SIGKILL")
+    warnings.warn(f"process group {pgid} still alive after SIGKILL")  # noqa: B028
 
 
 @pytest.mark.parametrize("aside,present,absent", [("true", "dock_fsm", "dock"),

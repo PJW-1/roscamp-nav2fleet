@@ -28,9 +28,11 @@ PLANS = {
     ),
     # 다른 Pode가 서 있는 마당을 가로지르는 Nav2 goal 한 번(item 6). 서 있는 Pode는 launch가 놓는다
     "cross": ((NAV_GOAL, ("P-1", "P-3")), (NAV_GOAL, ("P-3", "P-1"))),
-    # v7 가운데 통로 재현(2026-11-17): O_IN에서 M_E로 갔다가 돌아온다. 상자는 v7_corridor_box가 놓는다
+    # v7 가운데 통로 재현(2026-11-17): O_IN에서 M_E로 갔다가 돌아온다.
+    # 상자는 v7_corridor_box가 놓는다
     "corridor": ((NAV_GOAL, ("O_IN", "M_E")), (NAV_GOAL, ("M_E", "O_IN"))),
-    # v7 남쪽 진열대 사이 건넘 틈(2026-11-17): 틈 바로 북쪽(GAP_N)과 남쪽(GAP_S)을 Nav2 goal로 오간다.
+    # v7 남쪽 진열대 사이 건넘 틈(2026-11-17): 틈 바로 북쪽(GAP_N)과 남쪽(GAP_S)을
+    # Nav2 goal로 오간다.
     # 둘을 잇는 지점 쌍이 구역 지도에 없어 계획 전용 점을 쓴다(PLAN_POINTS)
     "gap": ((NAV_GOAL, ("M_E", "GAP_N")), (NAV_GOAL, ("GAP_N", "GAP_S")),
             (NAV_GOAL, ("GAP_S", "GAP_N")), (NAV_GOAL, ("GAP_N", "M_E"))),
@@ -198,9 +200,10 @@ def keepout_zones(site, points) -> list[str]:
 
 
 def through_gate(points, gate, axis: int = 0) -> bool:
-    """사각형(x0, y0, x1, y1)을 axis(0이면 x, 1이면 y) 방향으로 한쪽에서 들어가 반대쪽으로 나간 적이
-    있으면 참. 들어갔다 되돌아오거나 안에서 멈추면 거짓. 다른 축으로 사각형 밖이면 처음부터 다시 본다.
-    점 사이는 보지 않는다: 문 옆이 진열대 면이고 실제 위치가 촘촘하다(약 30 Hz)고 본다."""
+    """사각형(x0, y0, x1, y1)을 axis(0이면 x, 1이면 y) 방향으로 한쪽에서 들어가 반대쪽으로
+    나간 적이 있으면 참. 들어갔다 되돌아오거나 안에서 멈추면 거짓. 다른 축으로 사각형 밖이면
+    처음부터 다시 본다. 점 사이는 보지 않는다: 문 옆이 진열대 면이고 실제 위치가
+    촘촘하다(약 30 Hz)고 본다."""
     lo, hi = gate[axis], gate[axis + 2]
     other_lo, other_hi = gate[1 - axis], gate[3 - axis]
     last = None  # 마지막으로 있던 바깥쪽(-1 앞, 1 뒤)
