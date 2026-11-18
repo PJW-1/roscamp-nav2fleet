@@ -9,7 +9,7 @@
 |---|---|
 | `real_pode.launch.py` | 제조사 bringup(`/<ns>` 안, `/tf` remap), `cmd_watchdog.py`, `pode_nav_config` `nav2.launch.py`, `pode_fsm`을 띄운다. 프로세스 하나라도 끝나면 전체를 내린다. 이 규칙은 프로세스만 본다: Nav2 노드는 컨테이너 한 프로세스 안의 컴포넌트라, 컴포넌트 하나가 뜨지 못해도 launch는 계속된다. 달리기 전에 기록에서 "Failed to load"나 lifecycle이 active가 되지 못한 노드가 없는지 본다 |
 | `cmd_watchdog.py` | 움직이는 cmd_vel이 0.4 s 넘게 새로 오지 않으면 속도 0을 보낸다(0.05 s 타이머로 보므로 마지막 움직이는 명령에서 약 0.40~0.45 s 뒤). 제조사 bringup은 마지막 명령을 끝없이 지킨다 |
-| `make_params.py --speed S --out DIR` | 저장소의 `nav2_params.yaml`과 `avoidance.yaml`을 베끼고 앞으로 가는 속도(FollowPath, FollowPathThrough, FollowPathGoal)만 S로 바꾼다. 0 < S ≤ 0.25를 반올림 전에 보고, 소수 넷째 자리로 반올림해 쓴다(반올림해서 0이 되는 값은 거부). FollowPathReverse(0.05)는 그대로. 또 기본으로 고정 경로 컨트롤러 셋(FollowPath, FollowPathThrough, FollowPathReverse)의 `use_collision_detection`을 false로 쓰고, `--fixed-line-check`를 주면 true로 쓴다(마당 goal FollowPathGoal의 검사는 그대로 true) |
+| `make_params.py --speed S --out DIR` | 저장소의 `nav2_params.yaml`과 `avoidance.yaml`을 베끼고 앞으로 가는 속도(FollowPath, FollowPathThrough, FollowPathGoal)만 S로 바꾼다. 0 < S ≤ 0.25를 반올림 전에 보고, 소수 넷째 자리로 반올림해 쓴다(반올림해서 0이 되는 값은 거부). FollowPathReverse(0.05)는 그대로. 또 기본으로 고정 경로 컨트롤러 셋(FollowPath, FollowPathThrough, FollowPathReverse)의 `use_collision_detection`을 false로 쓰고, `--fixed-line-check`를 주면 true로 쓴다(마당 goal FollowPathGoal의 검사는 원본 값 그대로다. 저장소 원본은 true) |
 | `start.sh NS X Y YAW [SPEED]` | `params/`를 다시 만들고(SPEED 기본 0.12) launch를 뒤에서 띄운다. 기록은 `logs/launch_*.log`, 프로세스 그룹은 `logs/launch.pid`. `logs/start.lock`(flock)으로 동시에 두 번 시작하지 않는다. 5 s 안에 pid 파일이 생기지 않으면 그 launch에 TERM을 보내고 약 2 s 기다린 뒤 실패로 끝난다(그래도 남아 있으면 그렇다고 알린다. KILL은 쓰지 않는다) |
 | `stop.sh` | start.sh가 띄운 그룹에 SIGTERM. 그룹 안에 `real_pode.launch.py` 명령이 없으면 내리지 않는다 |
 | `env.sh` | ROS, `~/pinky_pro`, `~/nav2fleet_ws`를 읽고 `ROS_DOMAIN_ID=12`, `ROS_AUTOMATIC_DISCOVERY_RANGE=SUBNET` (11-10에 로봇과 PC가 쓴 값) |
@@ -47,7 +47,7 @@ Nav2 goal을 모는 컨트롤러(FollowPathGoal)의 속도는 `nav2_params.yaml`
 - peer 층 꺼짐(`peer_obstacles:=false`). 두 대 이상이면 `PEER_ROBOTS=pode1,pode2 ./start.sh pode1 ...`(start.sh가 `peer_obstacles:=true peer_robots:=...`를 붙인다). 두 로봇 모두 같은 목록(두 이름 다)을 줘도 된다: 자기 이름은 건너뛴다(`pode_peer_obstacles/body.py:19`, `node.py:60`).
 - 고정 경로 충돌 검사 꺼짐(시뮬 기본과 같다, 사용자 결정 2026-11-18). `make_params.py`가 `params/nav2_params.yaml`의
   FollowPath, FollowPathThrough, FollowPathReverse에 `use_collision_detection: false`를 쓴다. 마당 goal(FollowPathGoal,
-  `avoidance.yaml`)은 그대로 켜 있다. 켜 두려면 `FIXED_LINE_CHECK=1 ./start.sh ...`(`--fixed-line-check`). 안 주거나 `0`이면 끔,
+  `avoidance.yaml`)의 검사는 원본 값 그대로다(저장소 원본은 켬). 켜 두려면 `FIXED_LINE_CHECK=1 ./start.sh ...`(`--fixed-line-check`). 안 주거나 `0`이면 끔,
   다른 값은 start.sh가 거절한다(종료 2). 위험: 고정 경로에서는 앞의 충돌을 미리 알아채는 곳이 없어진다. 로봇 사이 간격은 관제에 맡긴다.
 - 속도 상한 없음: `params/` 사본의 값이 곧 최고 속도다.
 - keepout은 `keepout_mask`를 줄 때만 켜진다. 이 묶음은 기본으로 `maps/arena_v7_keepout.yaml`을 준다.
