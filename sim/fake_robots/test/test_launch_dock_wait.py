@@ -76,3 +76,10 @@ def test_refused_with_sim_clock():
 def test_refused_for_a_faked_robot():
     with pytest.raises(RuntimeError, match="pode2"):
         _setup(dock_wait_robots="pode1 pode2", fake_robots="pode2")
+
+
+def test_none_means_no_fake_robots():
+    """ros2 launch는 빈 값(fake_robots:=)을 받지 않는다. none이 '가짜 로봇 없음'이다."""
+    actions = _setup(fake_robots="none", dock_wait_robots="pode1 pode2")
+    assert "fake_pode_node" not in _executables(actions)
+    assert _executables(actions).count("real_dock_wait_node") == 1

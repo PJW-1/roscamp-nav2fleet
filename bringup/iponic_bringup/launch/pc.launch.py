@@ -5,7 +5,7 @@ Mixed:     ros2 launch iponic_bringup pc.launch.py use_fake:=true fake_robots:="
 Real arms: ros2 launch iponic_bringup pc.launch.py use_fake:=true fake_arms:="arm3"
 All real:  ros2 launch iponic_bringup pc.launch.py use_fake:=false
 Real two-robot test (robots real, central/arms fake, PC answers docking; robots run DOCK_STUB=1):
-           ros2 launch iponic_bringup pc.launch.py use_fake:=true use_sim_clock:=false fake_robots:= \
+           ros2 launch iponic_bringup pc.launch.py use_fake:=true use_sim_clock:=false fake_robots:=none \
                robots:="pode1 pode2" map_file:=v7 scenario:=real_two_orders monitor:=false \
                dock_wait_robots:="pode1 pode2"
 

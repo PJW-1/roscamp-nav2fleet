@@ -3,11 +3,12 @@
   ros2 launch fake_robots fakes.launch.py scenario:=basic_orders result_dir:=/tmp/run1
   ros2 launch fake_robots fakes.launch.py fake_robots:="pode2 pode3"   # pode1은 실물
   ros2 launch fake_robots fakes.launch.py fake_arms:="arm3"              # 작업셀은 실물
-  ros2 launch fake_robots fakes.launch.py fake_robots:= use_sim_clock:=false monitor:=false \
+  ros2 launch fake_robots fakes.launch.py fake_robots:=none use_sim_clock:=false monitor:=false \
       scenario:=real_two_orders dock_wait_robots:="pode1 pode2"            # 실물 두 대, PC 도킹 대역
 
 fake_arms: arm1과 arm2를 함께 주면 가짜 작업셀과 비전 노드 둘이 뜬다.
 fill_basket 서버 하나가 둘을 맡기 때문이다. arm3은 가짜 출고 팔을 띄운다.
+fake_robots:=none은 가짜 로봇 없음이다(ros2 launch는 빈 값을 받지 않는다).
 dock_wait_robots: 실물 로봇의 도킹을 PC가 대신 받는다(real_dock_wait_node, 기다린 뒤 자세 확인).
 로봇은 DOCK_STUB=1로 떠야 한다. 시뮬 시계나 가짜 로봇과 함께 주면 거부한다.
 """
@@ -33,6 +34,11 @@ def _truthy(text: str) -> bool:
     return text.strip().lower() in ("1", "true", "yes", "on")
 
 
+def _robot_list(text: str) -> list[str]:
+    """빈칸으로 나눈 로봇 이름. none은 없음이다."""
+    return [] if text.strip().lower() == "none" else text.split()
+
+
 def _scenario_path(value: str) -> str:
     if os.path.isfile(value):
         return os.path.abspath(value)
@@ -52,9 +58,10 @@ def _setup(context):
     if not arg["map_file"]:
         arg["map_file"] = scenario_map_file(scenario)  # 시나리오가 고른 지도, 없으면 기본
     sim_clock = _truthy(arg["use_sim_clock"])
+    fakes = _robot_list(arg["fake_robots"])
     dock_robots = arg["dock_wait_robots"].split()
     if dock_robots:  # 노드를 하나도 만들기 전에 막는다
-        found = dock_wait_problems(dock_robots, arg["fake_robots"].split(), sim_clock=sim_clock)
+        found = dock_wait_problems(dock_robots, fakes, sim_clock=sim_clock)
         if found:
             raise RuntimeError("dock_wait_robots refused:\n  " + "\n  ".join(found))
     common = {"use_sim_time": sim_clock, "scenario_file": scenario}
@@ -77,7 +84,7 @@ def _setup(context):
                             parameters=[{"speed_factor": factor,
                                          "start_delay_s": CLOCK_START_DELAY_S,
                                          "rate_hz": CLOCK_RATE_HZ}]))
-    for robot in arg["fake_robots"].split():
+    for robot in fakes:
         actions.append(node("fake_pode_node", f"fake_{robot}", robot_id=robot,
                             params_file=arg["params_file"]))
     workcell, vision_arms, swap_arms = split_fake_arms(

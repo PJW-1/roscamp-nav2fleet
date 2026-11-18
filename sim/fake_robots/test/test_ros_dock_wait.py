@@ -137,3 +137,64 @@ def test_refuses_sim_time(rclpy_session, tmp_path):
         RealDockWaitNode(parameter_overrides=[
             Parameter("robots", value="pode1"), Parameter("scenario_file", value=scn),
             Parameter("map_file", value="v7"), Parameter("use_sim_time", value=True)])
+
+
+def test_a_newer_goal_replaces_the_older_one(harness, tmp_path):
+    pubs, clients = start(harness, tmp_path, duration=1.0)
+    stops = []
+    keep_reporting(pubs["pode1"], "pode1", *WORK_DOCK, stops)
+    first, _ = dock(clients["pode1"])
+    second, _ = dock(clients["pode1"])
+    r1, r2 = result_of(first), result_of(second)
+    stops[0].set()
+    assert (r1.success, r2.success) == (False, True)
+
+
+def test_localizing_state_is_not_a_pose(harness, tmp_path):
+    pubs, clients = start(harness, tmp_path)
+    import threading
+    stop = threading.Event()
+
+    def loop():
+        while not stop.is_set():
+            msg = RobotState(robot_id="pode1", state="LOCALIZING")
+            msg.pose.x, msg.pose.y = WORK_DOCK
+            pubs["pode1"].publish(msg)
+            stop.wait(0.1)
+    threading.Thread(target=loop, daemon=True).start()
+    handle, _ = dock(clients["pode1"])
+    result = result_of(handle)
+    stop.set()
+    assert result.success is False
+
+
+def test_stop_ends_a_running_goal_and_waits_for_it(harness, tmp_path):
+    pubs, clients = start(harness, tmp_path, duration=30.0)
+    node = harness.nodes[0]
+    report(pubs["pode1"], "pode1", *WORK_DOCK)
+    handle, _ = dock(clients["pode1"])
+    assert wait_until(lambda: node.running_goals() == 1, 3.0)
+    node.stop()
+    assert node.wait_idle(3.0)
+    assert result_of(handle, timeout=3.0).success is False
+
+
+def test_sim_time_cannot_be_switched_on_later(harness, tmp_path):
+    from rclpy.parameter import Parameter
+    start(harness, tmp_path)
+    node = harness.nodes[0]
+    results = node.set_parameters([Parameter("use_sim_time", value=True)])
+    assert results[0].successful is False
+    assert node.get_parameter("use_sim_time").value is False
+
+
+def test_reports_a_second_dock_server_for_the_same_robot(harness, tmp_path):
+    import rclpy.node
+    from rclpy.action import ActionServer
+    start(harness, tmp_path)
+    node = harness.nodes[0]
+    assert node.other_dock_servers() == []
+    robot_side = harness.add(rclpy.node.Node("pode_fsm_stand_in"))
+    ActionServer(robot_side, Dock, C.name("dock", pode="pode2"),
+                 execute_callback=lambda h: Dock.Result(success=False))
+    assert wait_until(lambda: node.other_dock_servers() == ["pode2"], 10.0)
