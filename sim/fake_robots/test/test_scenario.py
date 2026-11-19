@@ -16,7 +16,8 @@ from fleet_core.fleet_map import load_fleet_map
 SCENARIOS = Path(__file__).parents[1] / "scenarios"
 SIX = {"basic_orders", "order_burst", "shared_lane_failure", "stock_shortage", "stuck_robot",
        "operator_recovery", "blocked_lane", "auto_isolation", "reinstate",
-       "real_two_orders", "real_three_orders", "arm_fault"}  # 실물 두/세 대 시험(2026-11-18), 가짜 로봇 없이
+       # real_*: 실물 두/세 대 시험(2026-11-18), 가짜 로봇 없이
+       "real_two_orders", "real_three_orders", "arm_fault"}
 
 
 @pytest.fixture(scope="module")
@@ -374,20 +375,31 @@ def test_operator_recovery_fails_three_times_then_clears(site):
     assert sc.expect.orders_shipped == len(sc.orders)
     assert sc.expect.all_orders_finished is True
     assert "ORDER_REQUEUED" in sc.expect.events_include
+    # v2.4: 팔 고장은 격리하지 않고 HELD ARM_FAULT. 치울 때 빈 바구니라 되돌린다
+    counts = sc.expect.event_counts
+    assert (counts["ROBOT_ISOLATED"], counts["ORDER_HELD"], counts["ORDER_REQUEUED"]) == (0, 1, 2)
+    assert sc.force_ship_after_s is None
+    assert sc.expect.robots_isolated == 0 and sc.expect.hold_reasons == {"O-001": "ARM_FAULT"}
 
 
 def test_auto_isolation_ships_before_the_operator_and_requeues_once(site):
+    """v2.4: 팔 고장은 격리하지 않는다. O-002는 HELD ARM_FAULT로 작업대에 묶였다가
+    운영자가 치울 때(담은 것 없음) 한 번 되돌려져 출고된다. 이름은 통합 시험 목록 때문에 그대로."""
     sc = load_scenario(SCENARIOS / "auto_isolation.yaml", site)
     fail = next(f for f in sc.faults if f.type == "arm_fail")
     remove = next(f for f in sc.faults if f.type == "operator_remove")
     assert fail.count == 3 and remove.at_s > fail.at_s
+    assert sc.force_ship_after_s is None, "the operator clears it, nobody force-ships"
     first = sc.orders[0]
     assert all(sc.stock[fail.arm].get(kind, 0) == 0 for kind in first.items), \
         "the first order needs no item of the failing arm"
-    assert sc.expect.shipped_before_operator_min >= 1
-    assert sc.expect.event_counts["ORDER_REQUEUED"] == 1, "the clear does not requeue again"
-    assert sc.expect.event_counts["ROBOT_ISOLATED"] == 1
-    assert sc.expect.orders_shipped == len(sc.orders)
+    counts = sc.expect.event_counts
+    assert (counts["ROBOT_ISOLATED"], counts["ORDER_HELD"]) == (0, 1)
+    assert sc.expect.robots_isolated == 0
+    assert sc.expect.hold_reasons == {"O-002": "ARM_FAULT"}
+    assert counts["ORDER_REQUEUED"] == 1 and counts["ZONES_CLEARED"] == 1
+    assert sc.expect.orders_shipped == len(sc.orders) and sc.expect.orders_held == 0
+    assert sc.expect.shipped_before_operator_min >= 1  # O-001은 묶인 pode1을 치우기 전에 나간다
 
 
 def test_params_file_gives_the_basket_capacity():
@@ -703,7 +715,8 @@ def test_arm_fault_holds_for_the_arm_then_force_ships_into_partial(site):
     retries = load_fleet_params()["move_retry_limit"]
     assert fail.count == retries + 1 and fail.after_items >= 1
     units = held.items.get("A", 0) + held.items.get("B", 0)
-    assert capacity >= units > (retries + 1) * fail.after_items, "every attempt must reach the fault"
+    assert capacity >= units > (retries + 1) * fail.after_items, \
+        "every attempt must reach the fault"
     assert sc.force_ship_after_s is not None and sc.force_ship_after_s > 0
     ex = sc.expect
     assert ex.order_results[held.id] == "PARTIAL"

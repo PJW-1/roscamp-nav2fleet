@@ -1,6 +1,8 @@
 # arm1이 채움에 세 번 연속 실패해 재시도 한도를 다 쓴다. 구역 관제(D2)에서는 pode2가 먼저
-# 작업 도크에 닿고(pode1은 W_Q에서 줄을 선다) 주문을 쥔 채 ERROR가 된다. 플릿이 바로 격리해
-# 주문을 맨 앞에 돌려놓는다. 60초에 운영자가 pode2를 들어내고 confirm_clear는 구역만 푼다.
+# 작업 도크에 닿고(pode1은 W_Q에서 줄을 선다) 주문을 쥔 채 팔 고장을 만난다.
+# v2.4: 관제는 pode2를 격리하지 않고 O-001을 HELD ARM_FAULT로 보고한다(하나도 못 놓음).
+# pode2는 주문에 묶인 채 작업 도크에 선다(강제 출고는 부르지 않는다).
+# 60초에 운영자가 pode2를 들어내면 바구니가 비었으니 confirm_clear가 구역을 풀고 주문을 되돌린다.
 # 줄 맨 앞의 pode1이 그 주문을 받고 68초, 채우는 도중에 운영자가 이것도 들어낸다.
 # (레인 관제 때는 pode1이 먼저 닿아 들어내는 순서가 pode1, pode2였다)
 # 작업셀은 멈추는 데 cancel_seconds가 걸려 그때까지 바쁘고, pode3은 clear 약 3초 뒤 도크에 닿는다.
@@ -37,7 +39,10 @@ expect:
   zone_holder_max: 1
   released_without_position_check: 0
   unheld_zone_pose: 0
-  events_include: [FILL_RETRY, FILL_FAILED, ZONES_CLEARED, ORDER_REQUEUED, ROBOT_ISOLATED]
-  # ORDER_REQUEUED 2: pode2는 격리 때, pode1은 격리 없이 치울 때 한 번씩
-  event_counts: {FILL_RETRY: 2, FILL_FAILED: 1, ZONES_CLEARED: 2, ORDER_REQUEUED: 2, ROBOT_ISOLATED: 1, ROBOT_NOT_REPORTING: 0}
+  orders_canceled: 0
+  robots_isolated: 0
+  events_include: [FILL_RETRY, FILL_FAILED, ORDER_HELD, ZONES_CLEARED, ORDER_REQUEUED]
+  # ORDER_REQUEUED 2: pode2, pode1 모두 격리 없이 치울 때 한 번씩
+  event_counts: {FILL_RETRY: 2, FILL_FAILED: 1, ORDER_HELD: 1, ZONES_CLEARED: 2, ORDER_REQUEUED: 2, ROBOT_ISOLATED: 0, ROBOT_NOT_REPORTING: 0}
   order_results: {O-001: SHIPPED, O-002: SHIPPED, O-003: SHIPPED, O-004: SHIPPED}
+  hold_reasons: {O-001: ARM_FAULT}

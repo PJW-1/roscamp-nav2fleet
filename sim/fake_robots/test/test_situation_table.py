@@ -76,7 +76,8 @@ def test_a_detour_long_after_the_person_left_is_not_blamed_on_the_person():
     def world(reroute_at, retreat_at=()):
         events = [(reroute_at, SimpleNamespace(code="REROUTE"))]
         return SimpleNamespace(
-            events=events, t=300.0, central=SimpleNamespace(total=6, finished=6),
+            events=events, t=300.0, central=SimpleNamespace(total=6, finished=6,
+                                                           closed_by_hand=[]),
             metrics=SimpleNamespace(count=lambda code: sum(e.code == code for _, e in events),
                                     retreats=len(retreat_at), retreat_times=list(retreat_at)))
 

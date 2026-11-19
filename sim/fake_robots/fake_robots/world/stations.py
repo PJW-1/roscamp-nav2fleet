@@ -6,7 +6,13 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-from fleet_core.common.commands import HELD, FillCmd, OrderRecord, ReportOrderCmd
+from fleet_core.common.commands import (
+    HELD,
+    HOLD_ROBOT_FAULT,
+    FillCmd,
+    OrderRecord,
+    ReportOrderCmd,
+)
 
 
 def six_orders(at_s=0.0, gap_s=0.0, count=6):
@@ -15,14 +21,19 @@ def six_orders(at_s=0.0, gap_s=0.0, count=6):
 
 
 class Central:
-    """주문을 시각에 맞춰 판에 올리고, 보고가 오면 내린다."""
+    """주문을 시각에 맞춰 판에 올리고, 최종 보고가 오면 내린다.
+
+    ROBOT_FAULT 보류는 central이 손으로 닫는다(v2.4). 세계 안에서는 아무도 닫지 않으므로
+    판에 남긴 채 끝난 것으로 본다(closed_by_hand). ARM_FAULT 보류는 최종 보고를 기다린다.
+    """
 
     def __init__(self, orders, violation):
         self.future = sorted(orders, key=lambda o: o["at_s"])
         self.total = len(self.future)
         self.registered: list[OrderRecord] = []
         self.reports: list[ReportOrderCmd] = []  # 최종 보고만(SHIPPED, PARTIAL, CANCELED)
-        self.held: dict[str, ReportOrderCmd] = {}  # 보류 보고(마지막 것)
+        self.held: dict[str, ReportOrderCmd] = {}  # 지금 보류 중인 주문(최종 보고가 오면 지움)
+        self.hold_reports: list[ReportOrderCmd] = []  # 받은 보류 보고 전부, 도착 순
         self._new_reports: list[ReportOrderCmd] = []
         self._violation = violation
         self.last_report_t: float | None = None
@@ -43,10 +54,22 @@ class Central:
         if cmd.order_id not in {o.order_id for o in self.registered}:
             self._violation(f"{cmd.order_id} reported but not on the board")
             return
+        hold = self.held.get(cmd.order_id)
+        if hold is not None and hold.hold_reason == HOLD_ROBOT_FAULT:
+            # ROBOT_FAULT 보류 주문은 관제가 더 진행하지 않는다(central이 닫는다)
+            self._violation(f"{cmd.order_id} {cmd.status} after a ROBOT_FAULT hold")
+            return
         if cmd.status == HELD:  # 보류는 끝이 아니다. 판에 남고 최종 보고를 한 번 더 받는다
+            # 사유가 바뀌는 것(ARM_FAULT 뒤 담은 채 격리)은 된다. 같은 사유의 반복은 위반이다
+            if any(r.order_id == cmd.order_id and r.hold_reason == cmd.hold_reason
+                   for r in self.hold_reports):
+                self._violation(f"{cmd.order_id} held twice for {cmd.hold_reason}")
+                return
             self.held[cmd.order_id] = cmd
+            self.hold_reports.append(cmd)
             self.last_report_t = t
             return
+        self.held.pop(cmd.order_id, None)
         self.reports.append(cmd)
         self._new_reports.append(cmd)
         self.last_report_t = t
@@ -55,8 +78,15 @@ class Central:
     def finished(self) -> int:
         return len(self.reports)
 
+    @property
+    def closed_by_hand(self) -> list[str]:
+        """central이 손으로 닫을 주문(ROBOT_FAULT 보류), 보류 순."""
+        return [o for o, r in self.held.items() if r.hold_reason == HOLD_ROBOT_FAULT]
+
     def all_final(self) -> bool:
-        return not self.future and not self.registered and not self._new_reports
+        waiting = set(self.closed_by_hand)
+        return (not self.future and not self._new_reports
+                and all(o.order_id in waiting for o in self.registered))
 
 
 @dataclass
