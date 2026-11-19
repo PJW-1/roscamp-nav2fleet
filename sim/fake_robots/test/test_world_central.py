@@ -91,3 +91,26 @@ def test_a_final_report_after_a_robot_fault_hold_is_a_violation():
     c.take_report(1.0, report("O-1", "HELD", {"A": 1}, "ROBOT_FAULT"))
     c.take_report(2.0, report("O-1", "SHIPPED", {"A": 1}))
     assert len(v) == 1 and "ROBOT_FAULT" in v[0] and c.finished == 0
+
+
+def test_an_arm_fault_hold_may_turn_into_a_robot_fault_hold():
+    """ARM_FAULT로 묶인 Pode가 담은 채 격리되거나 치워지면 코어가 ROBOT_FAULT로 다시 보고한다."""
+    c, v = central(1)
+    c.take_report(1.0, report("O-1", "HELD", {"A": 1}, "ARM_FAULT"))
+    c.take_report(2.0, report("O-1", "HELD", {"A": 1}, "ROBOT_FAULT"))
+    assert v == [] and c.closed_by_hand == ["O-1"] and c.all_final()
+    assert [r.hold_reason for r in c.hold_reports] == ["ARM_FAULT", "ROBOT_FAULT"]
+
+
+def test_nothing_may_follow_a_robot_fault_hold():
+    c, v = central(1)
+    c.take_report(1.0, report("O-1", "HELD", {"A": 1}, "ROBOT_FAULT"))
+    c.take_report(2.0, report("O-1", "HELD", {"A": 1}, "ARM_FAULT"))
+    assert len(v) == 1 and c.closed_by_hand == ["O-1"]
+
+
+def test_a_refused_final_keeps_the_robot_fault_hold():
+    c, v = central(1)
+    c.take_report(1.0, report("O-1", "HELD", {"A": 1}, "ROBOT_FAULT"))
+    c.take_report(2.0, report("O-1", "SHIPPED", {"A": 1}))
+    assert len(v) == 1 and c.closed_by_hand == ["O-1"] and c.all_final()

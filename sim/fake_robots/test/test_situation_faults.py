@@ -36,6 +36,14 @@ def test_comm_loss_then_removal_and_reinstate(layout, seed):
     assert central.finished + len(held) == central.total
 
 
+def test_comm_loss_removal_with_items_really_holds_the_order():
+    """위 시험이 빈 경우로만 통과하지 않게: d2 씨드 1은 치울 때 O-001이 바구니에 있다."""
+    central = check("comm_loss_reinstate", "d2", 1).world.central
+    assert [(r.order_id, r.hold_reason) for r in central.hold_reports] == [
+        ("O-001", "ROBOT_FAULT")]
+    assert central.finished == central.total - 1
+
+
 @pytest.mark.parametrize("seed", SEEDS)
 @pytest.mark.parametrize("layout", ALL_LAYOUTS)
 def test_jumping_reports_leave_every_invariant_but_standing_intact(layout, seed):

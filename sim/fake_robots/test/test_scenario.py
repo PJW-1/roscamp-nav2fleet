@@ -378,6 +378,7 @@ def test_operator_recovery_fails_three_times_then_clears(site):
     # v2.4: 팔 고장은 격리하지 않고 HELD ARM_FAULT. 치울 때 빈 바구니라 되돌린다
     counts = sc.expect.event_counts
     assert (counts["ROBOT_ISOLATED"], counts["ORDER_HELD"], counts["ORDER_REQUEUED"]) == (0, 1, 2)
+    assert sc.force_ship_after_s is None
     assert sc.expect.robots_isolated == 0 and sc.expect.hold_reasons == {"O-001": "ARM_FAULT"}
 
 
@@ -398,6 +399,7 @@ def test_auto_isolation_ships_before_the_operator_and_requeues_once(site):
     assert sc.expect.hold_reasons == {"O-002": "ARM_FAULT"}
     assert counts["ORDER_REQUEUED"] == 1 and counts["ZONES_CLEARED"] == 1
     assert sc.expect.orders_shipped == len(sc.orders) and sc.expect.orders_held == 0
+    assert sc.expect.shipped_before_operator_min >= 1  # O-001은 묶인 pode1을 치우기 전에 나간다
 
 
 def test_params_file_gives_the_basket_capacity():

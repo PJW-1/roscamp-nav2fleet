@@ -422,6 +422,25 @@ def test_a_canceled_order_does_not_count_as_shipped():
     assert check(j, "orders_shipped_min")["ok"] is False
 
 
+def test_shipping_while_an_arm_held_robot_waits_counts_before_the_operator():
+    """팔 고장으로 묶인 Pode도 사람을 기다린다. 그 Pode를 치우기 전 출고를 센다."""
+    j = judge(shipped_before_operator_min=1)
+    event(j, "ORDER_HELD", "O-2 robot=pode1 hold_reason=ARM_FAULT placed=- missing=A:1",
+          t=1.0, source="central")
+    ship(j, "O-1")
+    event(j, "ZONES_CLEARED", "released ['WORK_DOCK']: operator_remove", t=3.0, source="pode1")
+    ship(j, "O-3")
+    assert check(j, "shipped_before_operator") == {"value": 1, "minimum": 1, "ok": True}
+
+
+def test_a_clear_of_another_robot_is_not_the_operator_for_the_held_one():
+    j = judge(shipped_before_operator_min=2)
+    event(j, "ORDER_HELD", "O-2 robot=pode1 hold_reason=ARM_FAULT", source="central")
+    event(j, "ZONES_CLEARED", "released []: operator_remove", t=2.0, source="pode2")
+    ship(j, "O-1", "O-3")
+    assert check(j, "shipped_before_operator")["value"] == 2
+
+
 @pytest.mark.parametrize("code", ["ORDER_SHIPPED", "ORDER_PARTIAL", "ORDER_CANCELED",
                                   "ORDER_HELD"])
 def test_any_report_for_an_order_over_capacity_is_a_violation(code):

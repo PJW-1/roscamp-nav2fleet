@@ -54,18 +54,22 @@ class Central:
         if cmd.order_id not in {o.order_id for o in self.registered}:
             self._violation(f"{cmd.order_id} reported but not on the board")
             return
+        hold = self.held.get(cmd.order_id)
+        if hold is not None and hold.hold_reason == HOLD_ROBOT_FAULT:
+            # ROBOT_FAULT 보류 주문은 관제가 더 진행하지 않는다(central이 닫는다)
+            self._violation(f"{cmd.order_id} {cmd.status} after a ROBOT_FAULT hold")
+            return
         if cmd.status == HELD:  # 보류는 끝이 아니다. 판에 남고 최종 보고를 한 번 더 받는다
-            if cmd.order_id in {r.order_id for r in self.hold_reports}:
-                self._violation(f"{cmd.order_id} held twice")
+            # 사유가 바뀌는 것(ARM_FAULT 뒤 담은 채 격리)은 된다. 같은 사유의 반복은 위반이다
+            if any(r.order_id == cmd.order_id and r.hold_reason == cmd.hold_reason
+                   for r in self.hold_reports):
+                self._violation(f"{cmd.order_id} held twice for {cmd.hold_reason}")
                 return
             self.held[cmd.order_id] = cmd
             self.hold_reports.append(cmd)
             self.last_report_t = t
             return
-        hold = self.held.pop(cmd.order_id, None)
-        if hold is not None and hold.hold_reason == HOLD_ROBOT_FAULT:
-            self._violation(f"{cmd.order_id} {cmd.status} after a ROBOT_FAULT hold")
-            return
+        self.held.pop(cmd.order_id, None)
         self.reports.append(cmd)
         self._new_reports.append(cmd)
         self.last_report_t = t

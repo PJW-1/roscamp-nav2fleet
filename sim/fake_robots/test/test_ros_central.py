@@ -222,36 +222,37 @@ def test_a_final_report_after_a_hold_deducts_and_closes(harness, tmp_path):
     assert c.node.held_reasons() == {}
 
 
-def test_missing_after_an_arm_fault_hold_is_not_a_stock_shortage(harness, tmp_path):
-    """팔 고장 뒤 강제 출고의 missing은 고장 난 팔이 못 놓은 것이다. 재고를 0으로 만들지 않는다."""
-    c = Central(harness, tmp_path)
+def test_missing_after_an_accepted_force_ship_is_not_a_stock_shortage(harness, tmp_path):
+    """강제 출고의 missing은 고장 난 팔이 못 놓은 것이다. 재고를 0으로 만들지 않는다."""
+    c = Central(harness, tmp_path, force_ship_after_s=0.5)
+    c.serve_force_ship()
     c.wait_ids(["O-1", "O-2"])
     c.report("O-1", HELD, placed={"A": 1}, hold_reason=ARM_FAULT)
-    c.wait_code("ORDER_HELD")
+    assert "accepted=True" in c.wait_code("FORCE_SHIP", timeout=6.0).detail
     assert c.report("O-1", PARTIAL, placed={"A": 1}, missing={"A": 1}).accepted
     c.wait_code("ORDER_PARTIAL")
     assert c.node.inventory()["A"] == 2
     assert not {"OUT_OF_STOCK", "STOCK_MISMATCH"} & set(c.codes())
 
 
-def test_missing_after_a_robot_fault_hold_is_still_judged_as_stock(harness, tmp_path):
-    """ARM_FAULT 보류만 뺀다. 다른 주문의 missing은 예전처럼 재고를 바로잡는다."""
-    c = Central(harness, tmp_path)
-    c.wait_ids(["O-1", "O-2"])
-    c.report("O-1", HELD, placed={"A": 1}, hold_reason=ARM_FAULT)
-    c.report("O-1", PARTIAL, placed={"A": 1}, missing={"A": 1})
-    assert c.report("O-2", PARTIAL, placed={"C": 1}, missing={"C": 1}).accepted
-    c.wait_code("STOCK_MISMATCH")
-    assert c.node.inventory()["C"] == 0
-
-
-def test_missing_from_another_robot_after_an_arm_fault_hold_is_stock_again(harness, tmp_path):
-    """치워서 되돌린 ARM_FAULT 주문을 다른 Pode가 끝내면 그 missing은 진짜 재고 문제다."""
+def test_missing_after_an_arm_fault_hold_without_force_ship_is_stock(harness, tmp_path):
+    """강제 출고 없이 끝난 주문(치워서 되돌린 뒤 다시 채움 등)의 missing은 예전처럼 재고로 본다."""
     c = Central(harness, tmp_path)
     c.wait_ids(["O-1", "O-2"])
     c.report("O-1", HELD, hold_reason=ARM_FAULT)
     c.wait_code("ORDER_HELD")
-    assert c.report("O-1", PARTIAL, placed={"A": 1}, missing={"A": 1}, robot="pode3").accepted
+    assert c.report("O-1", PARTIAL, placed={"A": 1}, missing={"A": 1}).accepted
+    c.wait_code("STOCK_MISMATCH")
+    assert c.node.inventory()["A"] == 0
+
+
+def test_missing_after_a_refused_force_ship_is_stock(harness, tmp_path):
+    c = Central(harness, tmp_path, force_ship_after_s=0.5)
+    c.serve_force_ship(accepted=False, reason="NOT_HELD")
+    c.wait_ids(["O-1", "O-2"])
+    c.report("O-1", HELD, hold_reason=ARM_FAULT)
+    c.wait_code("FORCE_SHIP", timeout=6.0)
+    assert c.report("O-1", PARTIAL, placed={"A": 1}, missing={"A": 1}).accepted
     c.wait_code("STOCK_MISMATCH")
     assert c.node.inventory()["A"] == 0
 
