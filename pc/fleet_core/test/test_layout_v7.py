@@ -34,9 +34,11 @@ def site():
     return load_fleet_map("v7")
 
 
-def test_v7_is_a_candidate_but_not_the_default():
+def test_v7_is_a_candidate_and_the_default():
     assert "v7" in LAYOUTS and "v7" in KNOWN_LAYOUTS
-    assert load_fleet_map().name == "arena_d2"
+    assert load_fleet_map().name == "arena_v7"
+    # 옛 배치는 이름으로 남는다
+    assert {"d2", "d", "c", "d2_shelf"} <= set(KNOWN_LAYOUTS)
 
 
 def test_v7_dimensions(site):

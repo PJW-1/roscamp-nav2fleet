@@ -28,7 +28,7 @@ from .parse import (
 
 # ---- 레이아웃 이름과 검사 기준 상수 ----
 DATA = Path(__file__).parents[1] / "data"
-DEFAULT_LAYOUT = "d2"
+DEFAULT_LAYOUT = "v7"  # 확정된 실제 경기장
 LAYOUTS = ("d2", "d", "c", "v7")
 TEST_LAYOUTS = ("d2_shelf",)
 KNOWN_LAYOUTS = (*LAYOUTS, *TEST_LAYOUTS)

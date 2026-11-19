@@ -6,6 +6,7 @@
 # 더는 출고할 수 없다: 출고 2건.
 # 플릿 매니저는 경고(pode1은 COMM_LOST)를 내고 구역을 계속 쥐어야 한다.
 # (레인 관제 때는 모두가 AVENUE 레인 하나를 기다려 ZONE_WAIT였다. D2에서 막히는 것은 도크다)
+map: d2  # D2 배치용 시나리오(기본 배치는 v7)
 seed: 5
 speed_factor: 5.0
 timeout_s: 400

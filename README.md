@@ -37,9 +37,11 @@ flowchart LR
 
 | 배치 | 모양 | 넓은 구역 | 급행(폭 0.20 m) |
 |---|---|---|---|
-| `d2`(기본) | 북쪽 벽을 따라 급행, 그 아래는 통째로 마당 | `HALL` 하나(3대) | 진열대 뒤, y 0.79~0.99 |
+| `d2` | 북쪽 벽을 따라 급행, 그 아래는 통째로 마당 | `HALL` 하나(3대) | 진열대 뒤, y 0.79~0.99 |
 | `d` | `d2`에 가운데 진열대를 더해 마당을 서쪽, 동쪽과 그 사이 통로 둘로 나눔 | `HALL_W`, `HALL_E`(3대씩), 통로 `CORR_M`, `CORR_S`(1대씩) | `d2`와 같음 |
 | `c` | 가운데에 급행, 위아래로 통로 | 네 모퉁이 마당(2대씩), 통로 `CORR_N`, `CORR_S`(1대씩) | 가운데, y 0.395~0.595 |
+
+기본 배치는 확정된 실제 경기장 `v7`이다(2026-11-19부터, [기록](docs/worklog_v7_default_layout_2026-11-19.md)). 배치를 주지 않으면 관제(`load_site`), Gazebo launch, `drive_check`가 모두 `v7`을 쓴다. 위 셋은 이름을 주면 그대로 돈다.
 
 `d2_shelf`는 실제 후보가 아니라 아래 절차를 시험하려고 `d2`에 짧은 진열대(마당 한가운데, 0.30 m) 하나만 더한 시험용 배치다. 기본 목록(`d2 d c`)에는 없고 이름을 주면 돈다.
 
@@ -102,7 +104,7 @@ ros2 launch fleet_gz_sim gz.launch.py layout:=d2 sim_dock_stub:=true
 ros2 launch fleet_gz_sim gz.launch.py layout:=d2 sim_dock_stub:=true peer_obstacles:=false
 
 # Gazebo: Pode 한 대만(관제 없음), 다른 터미널에서 정해진 구간을 달리게 한다
-ros2 launch fleet_gz_sim one_pode.launch.py gui:=false rviz:=false
+ros2 launch fleet_gz_sim one_pode.launch.py layout:=d2 gui:=false rviz:=false
 ros2 run fleet_gz_sim drive_check --layout d2 --plan stage2
 
 # 실제 지도에 맞춘 keepout 마스크 만들기

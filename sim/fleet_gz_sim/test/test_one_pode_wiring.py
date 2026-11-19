@@ -1,5 +1,6 @@
 """one_pode.launch.py가 무엇을 띄우기 전에 격리를 검사하는지 본다."""
 import importlib.util
+import math
 import xml.etree.ElementTree as ET
 from pathlib import Path
 
@@ -37,6 +38,63 @@ def run(module, **overrides):
         action.visit(context)
     context.launch_configurations.update(overrides)
     return start.execute(context)
+
+
+def test_the_default_layout_is_the_real_arena_v7(one):
+    assert one.ARGS["layout"][0] == "v7"
+    assert one.ARGS["start"][0] == ""  # 비면 drive_check 기본 계획의 시작 지점
+
+
+def spawned_at(one, monkeypatch, **overrides):
+    """pode()에 넘긴 (x, y, yaw)."""
+    need("pinky_description", "pode_nav_config", "pode_fsm")
+    from fleet_gz_sim import launch_parts
+    seen = []
+    monkeypatch.setattr(launch_parts, "pode", lambda ns, x, y, yaw, **kw: seen.append((x, y, yaw))
+                        or [])
+    run(one, **overrides)
+    [pose] = seen
+    return pose
+
+
+def test_without_layout_and_start_the_pode_stands_where_drive_check_starts(one, monkeypatch):
+    from fleet_core.fleet_map import load_fleet_map
+    from fleet_gz_sim.stage2_plan import pick_layout_plan, start_node
+    layout, plan = pick_layout_plan(None, None)
+    site = load_fleet_map(layout)
+    x, y, _ = spawned_at(one, monkeypatch)
+    assert (x, y) == site.node_pose("O_IN")
+    # drive_check의 시작 검사(START_M 0.15 m)를 통과한다
+    assert math.dist((x, y), site.node_pose(start_node(plan))) <= 0.15
+
+
+def test_d2_without_start_stands_on_p1(one, monkeypatch):
+    from fleet_core.fleet_map import load_fleet_map
+    x, y, _ = spawned_at(one, monkeypatch, layout="d2")
+    assert (x, y) == load_fleet_map("d2").node_pose("P-1")
+
+
+@pytest.mark.parametrize("layout, node", [("v7", "O_IN"), ("d2", "P-1"), ("d", "P-1"),
+                                          ("c", "P-1"), ("d2_shelf", "P-1")])
+def test_without_start_every_layout_stands_on_its_plan_start_with_its_yaw(
+        one, monkeypatch, layout, node):
+    import fleet_core
+    import yaml
+    from fleet_gz_sim.stage2_plan import pick_layout_plan, start_node
+    assert start_node(pick_layout_plan(layout, None)[1]) == node
+    # 정답은 지도 yaml 원문에서 바로 읽는다(launch가 쓰는 start_poses를 거치지 않게)
+    data = Path(fleet_core.__file__).parent / "data" / f"fleet_map_{layout}.yaml"
+    raw = yaml.safe_load(data.read_text())["nodes"][node]
+    want = (raw["x"], raw["y"], math.radians(raw.get("yaw_deg", 0.0)))
+    assert spawned_at(one, monkeypatch, layout=layout) == pytest.approx(want)
+
+
+def test_an_explicit_start_wins(one, monkeypatch):
+    from fleet_core.fleet_map import load_fleet_map
+    x, y, _ = spawned_at(one, monkeypatch, start="P-2")
+    assert (x, y) == load_fleet_map("v7").node_pose("P-2")
+    x, y, _ = spawned_at(one, monkeypatch, layout="d2", start="P-3")
+    assert (x, y) == load_fleet_map("d2").node_pose("P-3")
 
 
 def test_the_fixed_line_check_is_off_unless_asked(one, monkeypatch):
@@ -162,7 +220,7 @@ def test_nav_map_variant_is_empty_by_default_and_v7_only(one):
     assert nav_arguments(run(one, layout="v7", start="O_IN", nav_map_variant="base"))[
         "map"].endswith("maps/arena_v7.yaml")
     with pytest.raises(ScenarioUnfit, match="only for layout v7"):
-        run(one, nav_map_variant="b")
+        run(one, layout="d2", nav_map_variant="b")
     with pytest.raises(ScenarioUnfit, match="nav_map_variant"):
         run(one, layout="v7", start="O_IN", nav_map_variant="x")
 

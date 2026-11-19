@@ -70,7 +70,7 @@ def test_launch_checks_the_working_directory(gz, tmp_path):
 
 
 def test_the_launch_takes_a_layout_and_no_site_argument(gz):
-    assert gz.ARGS["layout"][0] == "d2"
+    assert gz.ARGS["layout"][0] == "v7"
     assert "site" not in gz.ARGS and "traffic_mode" not in gz.ARGS
     # 마당 goal의 충돌 검사는 끌 수 없다. 고정 경로 셋은 fixed_line_collision_check로 정한다
     assert "nav_collision_check" not in gz.ARGS
@@ -153,7 +153,7 @@ def scenario(name="gz_d2") -> str:
 
 
 def test_three_podes_start_on_the_parking_nodes_in_order(made):
-    actions = run(made)
+    actions = run(made, layout="d2")
     spawned = {}
     for create in nodes(actions, "create"):
         a = create.kw["arguments"]
@@ -221,7 +221,7 @@ def test_nav_map_variant_is_empty_by_default_and_refuses_a_layout_without_it(mad
                                              "nav2.launch.py")]
     assert navs and all(nav["map"].endswith("maps/arena_v7.yaml") for nav in navs)
     with pytest.raises(ScenarioUnfit, match="only for layout v7"):
-        run(made, nav_map_variant="b")
+        run(made, layout="d2", nav_map_variant="b")
     with pytest.raises(ScenarioUnfit, match="nav_map_variant"):
         run(made, layout="v7", nav_map_variant="x")
 
@@ -439,7 +439,7 @@ def test_battery_low_pct_goes_into_a_params_copy(gz, tmp_path):
 
 
 def test_the_real_pode_fsm_answers_dock_by_default(made):
-    actions = run(made)
+    actions = run(made, layout="d2")
     assert not [a for a in flat(actions) if isinstance(a, Made) and a.kind == "SetRemap"]
     [stand_in] = nodes(actions, "sim_stand_in")
     assert params(stand_in)["dock_stub"] is False and params(stand_in)["map_file"] == "d2"
@@ -461,7 +461,7 @@ def test_a_misspelt_switch_stops_the_launch(made, name):
 
 
 def test_obstacles_take_a_link_schedule_checked_against_the_layout(made):
-    fleet = after_wait(run(made, obstacles="d2_yard_express"))
+    fleet = after_wait(run(made, layout="d2", obstacles="d2_yard_express"))
     [node] = nodes(fleet, "sim_obstacles")
     assert params(node)["obstacles_file"].endswith("obstacles/d2_yard_express.yaml")
     assert params(node)["map_file"] == "d2"
@@ -482,7 +482,7 @@ def test_a_use_order_model_typo_stops_the_launch(made):
 
 
 def test_one_rviz_shows_the_whole_fleet_by_default(made):
-    actions = run(made)
+    actions = run(made, layout="d2")
     [view] = nodes(actions, "fleet_view")
     assert params(view)["robots"] == ROBOTS and params(view)["map_file"] == "d2"
     closed = run(made, rviz="none")
@@ -495,7 +495,7 @@ SPARE = 6  # launch 프로세스, RViz, 사람이 띄우는 ros2 명령 몇 개
 
 
 def test_ros_process_budget_leaves_room_under_the_localhost_limit(made):
-    actions = run(made, obstacles="d2_yard_express")
+    actions = run(made, layout="d2", obstacles="d2_yard_express")
     fleet = after_wait(actions)
     count = len(nodes(actions)) + len(nodes(fleet))
     for nav in includes(actions, "nav2.launch.py"):

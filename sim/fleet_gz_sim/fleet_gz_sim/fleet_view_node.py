@@ -49,7 +49,7 @@ class FleetViewNode(Node):
     def __init__(self):
         super().__init__("fleet_view")
         self.declare_parameter("robots", ["pode1", "pode2", "pode3"])
-        self.declare_parameter("map_file", "")  # layout name (d2, d, c) or file, "" = d2
+        self.declare_parameter("map_file", "")  # 배치 이름이나 파일, 비면 기본(v7)
         self.declare_parameter("pose_source", "truth")
         self.declare_parameter("contract_file", "")
         robots = list(self.get_parameter("robots").value)

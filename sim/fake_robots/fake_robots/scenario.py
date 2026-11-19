@@ -49,7 +49,7 @@ from fake_robots.scenario_parts import (  # noqa: F401
 
 
 def scenario_map_file(scenario_path) -> str:
-    """시나리오의 `map`: 배치 이름(d2, d, c, 시험용 d2_shelf). 없으면 빈 값(기본 배치 d2).
+    """시나리오의 `map`: 배치 이름(v7, d2, d, c, 시험용 d2_shelf). 없으면 빈 값(기본 배치 v7).
 
     load_site와 load_fleet_map이 이 이름을 그대로 받는다.
     """

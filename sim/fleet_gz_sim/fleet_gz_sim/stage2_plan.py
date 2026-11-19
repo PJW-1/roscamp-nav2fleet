@@ -15,6 +15,7 @@ from fleet_core.fleet_map import FOLLOW_PATH, NAV_GOAL, RETREAT, SHARED
 # stage2(D2, 주행 완료 기준의 구간 모두): 마당 Nav2 goal로 N_W, work_in으로 작업 도크, Retreat로
 # 마당(N_W)까지, 급행 동쪽으로 가서 J_E로 내려옴, out_in으로 출고 도크, Retreat로 N_E, 급행 서쪽으로
 # 가서 J_W로 내려옴, 마당 Nav2 goal로 P-1. 좁은 띠 안에서는 제자리 회전이 없다.
+# 배치마다 첫 계획이 drive_check와 one_pode의 기본(시작 지점)이다. 순서를 바꾸면 기본 시작도 바뀐다
 PLANS = {
     "stage2": (
         (NAV_GOAL, ("P-1", "N_W")),
@@ -126,6 +127,18 @@ def make_step(site, kind: str, nodes, points=None) -> Step:
 
 def plan_layout(plan: str) -> str:
     return PLAN_LAYOUTS.get(plan, "d2")
+
+
+def pick_layout_plan(layout: str | None, plan: str | None) -> tuple[str, str]:
+    """drive_check의 배치와 계획. 둘 다 없으면 v7과 그 첫 계획(corridor).
+
+    계획만 주면 그 계획의 배치, 배치만 주면 그 배치의 첫 계획(없으면 stage2).
+    """
+    if layout is None:
+        layout = plan_layout(plan) if plan is not None else "v7"
+    if plan is None:
+        plan = next((p for p in PLANS if PLAN_LAYOUTS.get(p) == layout), "stage2")
+    return layout, plan
 
 
 def build(site, plan: str, laps: int = 1, points=None) -> list[Step]:

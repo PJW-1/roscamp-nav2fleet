@@ -1,8 +1,8 @@
 """gz.launch.py가 배치와 시나리오에서 정하는 것. ROS 없이 돈다(fleet_core, fake_robots 순수 파이썬).
 
-- 배치(layout): d2(기본), d, c, 시험용 d2_shelf. 구역 지도 fleet_core/data/fleet_map_<배치>.yaml과,
+- 배치(layout): v7(기본), d2, d, c, 시험용 d2_shelf. 구역 지도 fleet_core/data/fleet_map_<배치>.yaml과,
   arena.py가 그 지도로 만든 월드·지도·keepout 마스크(Arena)를 고른다.
-- 시나리오의 `map`은 배치 이름이다(없으면 d2). launch의 layout과 다르면 띄우지 않는다.
+- 시나리오의 `map`은 배치 이름이다(없으면 v7). launch의 layout과 다르면 띄우지 않는다.
 - Pode를 놓는 자리: 시나리오 robots의 start(지점 이름). start가 없으면 주차 지점을 차례로 준다.
   방향은 그 지점의 yaw(없으면 0).
 - 돌릴 수 없는 시나리오: 로봇 고장이 있는 것(가짜 Pode가 일으키는 고장이라 진짜 pode_fsm에는
@@ -17,7 +17,7 @@ import yaml
 from fleet_core.fleet_map import KNOWN_LAYOUTS, load_fleet_map
 from fleet_core.fleet_map.model import SHARED
 
-DEFAULT_LAYOUT = "d2"
+DEFAULT_LAYOUT = "v7"
 ARENA_FAULTS = ("low_battery",)  # 경기장에서도 일으킬 수 있는 로봇 고장(sim_stand_in)
 
 
@@ -113,7 +113,7 @@ def read_scenario(path) -> dict:
 
 
 def scenario_layout(data: dict) -> str:
-    """시나리오의 map(배치 이름). 없으면 d2."""
+    """시나리오의 map(배치 이름). 없으면 v7."""
     return layout_of(str(data.get("map") or DEFAULT_LAYOUT))
 
 
