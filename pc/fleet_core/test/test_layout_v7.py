@@ -492,8 +492,11 @@ def test_v7_fixed_path_bends_leave_the_body_clear_of_walls_and_shelves(site):
             # 급행 줄 0.868(2026-11-18 저녁): 급행 줄 위 곧은 구간은 돌지 않고 서쪽으로만
             # 가므로 진열대 A 면에서 몸 반폭 밖이면 된다(0.065). 나머지는 몸 원으로 본다
             # 2026-11-19: 진열대 옆 0.878과 0.868 사이를 잇는 완만한 구간도 서쪽으로만 간다
-            on_lane = (b[0] < a[0] and min(a[1], b[1]) >= LANE_Y - 1e-9
-                       and max(a[1], b[1]) <= SHELF_LANE_Y + 1e-9)
+            # 급행과 out_in의 서쪽 곧은 끝만, 기울기 5도 안
+            on_lane = (edge.path in ("express", "out_in") and b[0] < a[0]
+                       and min(a[1], b[1]) >= LANE_Y - 1e-9
+                       and max(a[1], b[1]) <= SHELF_LANE_Y + 1e-9
+                       and abs(b[1] - a[1]) <= math.tan(math.radians(5)) * (a[0] - b[0]))
             need = BODY_HALF_M if on_lane else BODY_CIRCLE_M
             for shelf in site.shelves:
                 gap = segment_rect_distance(a, b, shelf)
@@ -634,7 +637,7 @@ def test_v7_express_beside_shelf_a_runs_1cm_further_out(site):
         assert _y_at(route_, x) == pytest.approx(SHELF_LANE_Y), x
     for x in (SHELVES[0][2], SHELVES[0][0]):
         assert _y_at(route_, x) >= SHELF_LANE_Y - 0.001, x
-    # 급행 띠 서쪽 경계(0.50)부터 O까지는 0.868로 곧게 든다
+    # 0.49부터 O까지는 0.868로 곧게 든다(경계 0.50에서는 0.8687)
     for x in (0.49, 0.40, o[0]):
         assert _y_at(route_, x) == pytest.approx(LANE_Y), x
     assert _y_at(route_, 0.50) <= LANE_Y + 0.001
