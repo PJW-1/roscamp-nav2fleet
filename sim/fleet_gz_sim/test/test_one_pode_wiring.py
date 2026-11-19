@@ -78,12 +78,15 @@ def test_d2_without_start_stands_on_p1(one, monkeypatch):
                                           ("c", "P-1"), ("d2_shelf", "P-1")])
 def test_without_start_every_layout_stands_on_its_plan_start_with_its_yaw(
         one, monkeypatch, layout, node):
-    from fleet_core.fleet_map import load_fleet_map
-    from fleet_gz_sim.fleet_setup import start_poses
+    import fleet_core
+    import yaml
     from fleet_gz_sim.stage2_plan import pick_layout_plan, start_node
     assert start_node(pick_layout_plan(layout, None)[1]) == node
-    want = start_poses(load_fleet_map(layout), {"pode1": node})["pode1"]
-    assert spawned_at(one, monkeypatch, layout=layout) == want  # x, y, yaw 모두
+    # 정답은 지도 yaml 원문에서 바로 읽는다(launch가 쓰는 start_poses를 거치지 않게)
+    data = Path(fleet_core.__file__).parent / "data" / f"fleet_map_{layout}.yaml"
+    raw = yaml.safe_load(data.read_text())["nodes"][node]
+    want = (raw["x"], raw["y"], math.radians(raw.get("yaw_deg", 0.0)))
+    assert spawned_at(one, monkeypatch, layout=layout) == pytest.approx(want)
 
 
 def test_an_explicit_start_wins(one, monkeypatch):
