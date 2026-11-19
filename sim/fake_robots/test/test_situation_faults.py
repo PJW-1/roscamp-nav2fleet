@@ -23,7 +23,17 @@ def test_a_stuck_robot_is_isolated_and_the_others_keep_working(layout, seed):
 @pytest.mark.parametrize("seed", SEEDS)
 @pytest.mark.parametrize("layout", ALL_LAYOUTS)
 def test_comm_loss_then_removal_and_reinstate(layout, seed):
-    check("comm_loss_reinstate", layout, seed)
+    """v2.4: 치울 때 바구니에 담긴 것이 있으면 그 주문은 HELD ROBOT_FAULT로 한 번 보고하고
+    되돌리지 않는다(central이 닫는다). 비었거나 이미 출고했으면 예전처럼 다 끝난다."""
+    central = check("comm_loss_reinstate", layout, seed).world.central
+    held = central.hold_reports
+    assert len({r.order_id for r in held}) == len(held)  # 보류 보고는 주문마다 한 번
+    for r in held:
+        assert (r.robot, r.hold_reason) == ("pode2", "ROBOT_FAULT") and r.placed, r
+    assert central.closed_by_hand == [r.order_id for r in held]
+    finals = [r.order_id for r in central.reports]
+    assert len(finals) == len(set(finals)) and not set(finals) & set(central.closed_by_hand)
+    assert central.finished + len(held) == central.total
 
 
 @pytest.mark.parametrize("seed", SEEDS)

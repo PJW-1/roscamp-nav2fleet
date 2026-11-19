@@ -3,8 +3,8 @@ from fake_robots.world.stations import Central
 from fleet_core.common.commands import ReportOrderCmd
 
 
-def report(order, status, placed=None):
-    return ReportOrderCmd(order, "pode1", status, placed or {}, {}, "")
+def report(order, status, placed=None, reason=""):
+    return ReportOrderCmd(order, "pode1", status, placed or {}, {}, "", reason)
 
 
 def central(count=2):
@@ -53,3 +53,41 @@ def test_two_finals_without_a_hold_are_still_a_violation():
     c.take_report(1.0, report("O-1", "SHIPPED"))
     c.take_report(1.5, report("O-1", "SHIPPED"))
     assert len(v) == 1 and "twice" in v[0]
+
+
+def test_the_hold_is_cleared_when_the_final_report_comes():
+    c, v = central()
+    c.take_report(1.0, report("O-1", "HELD", {"A": 1}, "ARM_FAULT"))
+    assert set(c.held) == {"O-1"}
+    c.take_report(2.0, report("O-1", "PARTIAL", {"A": 1}))
+    assert c.held == {} and [r.order_id for r in c.hold_reports] == ["O-1"] and v == []
+
+
+def test_a_robot_fault_hold_waits_for_the_central_and_counts_as_settled():
+    """ROBOT_FAULT 보류는 central이 손으로 닫는다. 판에 남아도 세계는 기다리지 않는다."""
+    c, v = central(2)
+    c.take_report(1.0, report("O-1", "HELD", {"A": 1}, "ROBOT_FAULT"))
+    c.take_report(1.0, report("O-2", "SHIPPED", {"A": 1}))
+    assert ids(c, 2.0) == ["O-1"] and c.finished == 1 and c.closed_by_hand == ["O-1"]
+    assert c.all_final() and v == []
+
+
+def test_an_arm_fault_hold_still_waits_for_a_final_report():
+    c, v = central(1)
+    c.take_report(1.0, report("O-1", "HELD", {"A": 1}, "ARM_FAULT"))
+    assert c.closed_by_hand == [] and not c.all_final() and v == []
+
+
+def test_a_second_hold_report_is_a_violation():
+    c, v = central(1)
+    c.take_report(1.0, report("O-1", "HELD", {"A": 1}, "ARM_FAULT"))
+    c.take_report(2.0, report("O-1", "HELD", {"A": 1}, "ARM_FAULT"))
+    assert len(v) == 1 and "held twice" in v[0]
+
+
+def test_a_final_report_after_a_robot_fault_hold_is_a_violation():
+    """ROBOT_FAULT 보류 주문은 관제가 더 진행하지 않는다(central이 닫는다)."""
+    c, v = central(1)
+    c.take_report(1.0, report("O-1", "HELD", {"A": 1}, "ROBOT_FAULT"))
+    c.take_report(2.0, report("O-1", "SHIPPED", {"A": 1}))
+    assert len(v) == 1 and "ROBOT_FAULT" in v[0] and c.finished == 0

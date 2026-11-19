@@ -71,9 +71,11 @@ def correctness(s, world) -> list[str]:
 
 def expectations(s, world) -> list[str]:
     m, out = world.metrics, []
-    total = world.central.total
-    if s.finish_all and world.central.finished < total:
-        out.append(f"finished {world.central.finished}/{total} by {world.t:.0f} s")
+    total, finished = world.central.total, world.central.finished
+    by_hand = len(world.central.closed_by_hand)  # ROBOT_FAULT 보류: central이 닫으니 끝난 셈
+    if s.finish_all and finished + by_hand < total:
+        out.append(f"finished {finished}/{total} (+{by_hand} held for the central) "
+                   f"by {world.t:.0f} s")
     for code in s.no_events:
         seen = (m.count(code) if s.quiet_until_s is None else
                 sum(e.code == code and t <= s.quiet_until_s for t, e in world.events))
