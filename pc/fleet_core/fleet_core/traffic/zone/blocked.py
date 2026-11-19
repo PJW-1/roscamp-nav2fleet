@@ -50,7 +50,7 @@ class Blocked:
                          f"to {m.goal.end}", m.name)
         # ---- 기다린 시간에 따라 양보, 막힘 표시, 실패 결정 ----
         waited = now - ep.since
-        backing = self._via(m) == RETREAT
+        backing = self._mode(m) == RETREAT
         if not backing and waited >= p.blocked_mark_s:
             behind = self._behind_on_the_way_back(m)
             point = self._obstacle_point(m) if not behind else None
@@ -173,7 +173,7 @@ class Blocked:
     def _edge_on(self, m):
         trip = m.trip
         first = trip.done
-        if trip.edges[first].via != NAV_GOAL:
+        if trip.edges[first].mode != NAV_GOAL:
             return trip.edges[first]
         end = segment_end(self.site, trip.edges, first, max(m.goal.edges, first + 1))
         return min(trip.edges[first:end], key=lambda edge: point_segment_distance(

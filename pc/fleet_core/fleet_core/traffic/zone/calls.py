@@ -138,7 +138,7 @@ class Calls:
         goal = m.goal
         if goal is None:
             self._drop_trip(m)
-        elif goal.kind == MOVE and self._via(m) == NAV_GOAL:
+        elif goal.kind == MOVE and self._mode(m) == NAV_GOAL:
             self._cancel_goal(m)
             self._drop_trip(m)
         elif m.trip is not None:

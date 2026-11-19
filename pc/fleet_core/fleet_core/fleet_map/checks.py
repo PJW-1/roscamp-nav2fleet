@@ -21,7 +21,7 @@ def check_clearance(site, clearance: float) -> None:
                 raise FleetMapError(
                     f"node {node.id} is {gap:.3f} m from the shelf {shelf}, needs {clearance}")
     for edge in site.edges():
-        if edge.via == NAV_GOAL:
+        if edge.mode == NAV_GOAL:
             continue
         for shelf in site.shelves:
             gap = min(segment_rect_distance(a, b, shelf) for a, b in pairwise(edge.points))
@@ -71,13 +71,13 @@ def corner_arc(a, b, c, radius: float, count: int = 20, shares=(0.5, 0.5)) -> li
 
 def _corners(site):
     for edge in site.edges():
-        if edge.via == NAV_GOAL:
+        if edge.mode == NAV_GOAL:
             continue
         points = edge.points
         for a, b, c in zip(points, points[1:], points[2:], strict=False):
             yield f"path {edge.path} from {edge.a} to {edge.b} at {b}", a, b, c
         for nxt in site.edges_from(edge.b):
-            if nxt.via == edge.via and nxt.b != edge.a:
+            if nxt.mode == edge.mode and nxt.b != edge.a:
                 yield (f"path {edge.path} from {edge.a} to {edge.b}, then {nxt.path} at {edge.b}",
                        points[-2], points[-1], nxt.points[1])
 
@@ -86,7 +86,7 @@ def _corners(site):
 def shelf_end_warnings(site, clear: float, turn_radius: float = 0.0) -> list[str]:
     out = []
     for edge in site.edges():
-        if edge.via == NAV_GOAL:
+        if edge.mode == NAV_GOAL:
             continue
         for shelf in site.shelves:
             gaps = [segment_rect_distance(a, b, shelf) for a, b in pairwise(edge.points)
@@ -111,10 +111,10 @@ def shelf_end_warnings(site, clear: float, turn_radius: float = 0.0) -> list[str
 def retreat_end_warnings(site) -> list[str]:
     out = []
     for edge in site.edges():
-        if edge.via != RETREAT:
+        if edge.mode != RETREAT:
             continue
         end = site.nodes[edge.b]
-        onward = any(nxt.via == RETREAT and nxt.path == edge.path
+        onward = any(nxt.mode == RETREAT and nxt.path == edge.path
                      for nxt in site.edges_from(end.id))
         if not onward and site.zones[end.zone].kind != SHARED:
             out.append(f"path {edge.path} ends at {end.id} inside {end.zone}: the robot would "

@@ -22,7 +22,7 @@ class Goals:
         def cost(edge) -> float:
             if self._blocked.get((edge.a, edge.b), 0.0) > now:
                 return math.inf
-            seconds = edge.price_m / speed(p, edge.via)
+            seconds = edge.price_m / speed(p, edge.mode)
             for zone in edge.zones:
                 holders = grants.holders(zone)
                 others = [name for name in holders if name != m.name]
@@ -84,7 +84,7 @@ class Goals:
         memo = self.__dict__.setdefault("_reach_memo", {})
         if zone not in memo:
             site = self.site
-            by_goal = {edge.b for edge in site.edges() if edge.via == NAV_GOAL}
+            by_goal = {edge.b for edge in site.edges() if edge.mode == NAV_GOAL}
             inside = {name: (zone,) for name in site.nodes_in(zone)
                       if name in by_goal or not by_goal}
             if inside:
@@ -92,7 +92,7 @@ class Goals:
             else:
                 reach = {}
                 for edge in site.edges():
-                    if edge.via == NAV_GOAL and zone in edge.zones:
+                    if edge.mode == NAV_GOAL and zone in edge.zones:
                         reach.setdefault(edge.b, edge.zones[edge.zones.index(zone):])
                 memo[zone] = reach
         return memo[zone]

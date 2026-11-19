@@ -38,7 +38,7 @@ def path_segments(site) -> list[tuple[tuple[float, float], tuple[float, float], 
     seen, out = set(), []
     for edge in site.edges():
         key = frozenset((edge.a, edge.b))
-        if edge.via not in (FOLLOW_PATH, RETREAT) or key in seen:
+        if edge.mode not in (FOLLOW_PATH, RETREAT) or key in seen:
             continue
         seen.add(key)
         pieces = list(zip(edge.points, edge.points[1:], strict=False))

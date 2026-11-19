@@ -49,13 +49,13 @@ class OrderAnswers:
             return
         for number, first, end in mo.cuts:
             if mo.done_seq < number <= seq:
-                via = trip.edges[first].via
+                mode = trip.edges[first].mode
                 trip.done = max(trip.done, end)
                 m.node = trip.edges[end - 1].b
                 m.avoid.behind_since = None
-                self._event("INFO", "SEGMENT_DONE", f"{mo.id} seq {number} ({via}) to {m.node}",
+                self._event("INFO", "SEGMENT_DONE", f"{mo.id} seq {number} ({mode}) to {m.node}",
                             m.name)
-                if via == RETREAT:
+                if mode == RETREAT:
                     m.avoid.retreat_to = ""
                     self._event("INFO", "RETREAT_DONE", f"stands at {m.node}", m.name)
         mo.done_seq = max(mo.done_seq, seq)

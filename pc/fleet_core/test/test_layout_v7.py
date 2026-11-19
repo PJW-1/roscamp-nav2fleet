@@ -123,9 +123,9 @@ def test_v7_work_queue_is_two_spots_entered_at_q2(site):
     assert q2[0] + FRONT_M < front_body_west, (q2, front_body_west)
     # 흐름: Q2 -> 앞자리 -> W, 모두 한 방향 고정 경로
     for a, b in (("Q2", "Q1"), ("Q1", "W")):
-        assert site.edge(a, b).via == FOLLOW_PATH, (a, b)
+        assert site.edge(a, b).mode == FOLLOW_PATH, (a, b)
         assert site.edge(b, a) is None, (b, a)
-    into_w = [(edge.a, edge.via) for edge in site.edges() if edge.b == "W"]
+    into_w = [(edge.a, edge.mode) for edge in site.edges() if edge.b == "W"]
     assert into_w == [("Q1", FOLLOW_PATH)]
     # 줄 밖에서 W로 가는 길은 모두 Q2로 들어와 Q1을 거친다. 줄 서기에서는 줄에 선 로봇이 줄 밖
     # 로봇보다 앞 차례라, 줄을 지나야 하는 로봇이 앞 차례가 되지 않는다
@@ -205,8 +205,8 @@ def test_v7_bays_are_entered_backwards_and_left_forwards_on_a_straight_line(site
         for shelf in site.shelves:
             assert point_rect_distance(shelf, e.x, e.y) >= BODY_CIRCLE_M + TURN_MARGIN_M, (door,
                                                                                          shelf)
-        into = [(edge.a, edge.via) for edge in site.edges() if edge.b == spot]
-        out = [(edge.b, edge.via) for edge in site.edges() if edge.a == spot]
+        into = [(edge.a, edge.mode) for edge in site.edges() if edge.b == spot]
+        out = [(edge.b, edge.mode) for edge in site.edges() if edge.a == spot]
         assert into == [(door, RETREAT)] and out == [(door, FOLLOW_PATH)]
         for edge in (site.edge(door, spot), site.edge(spot, door)):
             assert len(edge.points) == 2  # 곧은 선
@@ -216,7 +216,7 @@ def test_v7_bays_are_entered_backwards_and_left_forwards_on_a_straight_line(site
                 assert gap >= HALF_WIDTH_M + TURN_MARGIN_M, (spot, shelf, gap)
     # 마당 Nav2 goal은 칸 안을 지나지 않는다: 곧은 선이 칸막이에서 몸 원 + 여유만큼 떨어진다
     for edge in site.edges():
-        if edge.via != NAV_GOAL:
+        if edge.mode != NAV_GOAL:
             continue
         assert not {edge.a, edge.b} & set(site.parking), (edge.a, edge.b)
         for shelf in DIVIDERS:
@@ -228,7 +228,7 @@ def test_v7_bays_are_entered_backwards_and_left_forwards_on_a_straight_line(site
     # 진열대 모서리도 곧은 선에서 몸 원보다 멀다(G-E-3은 남쪽 진열대 동쪽 끝에서
     # 0.043이라 머리 없는 판에서 로봇이 그 앞에 막혀 섰다)
     for edge in site.edges():
-        if edge.via != NAV_GOAL:
+        if edge.mode != NAV_GOAL:
             continue
         from fleet_core.fleet_map.geometry import segment_rect_distance
         gap = min(segment_rect_distance(edge.points[0], edge.points[-1], shelf)
@@ -252,7 +252,7 @@ def test_v7_routes(site):
     # 급행: WORK에서 출고로 고정 경로. 급행이 비어 있으면 이쪽을 고른다
     way = shortest_path(site, "W", "O")
     assert [edge.b for edge in way] == ["W_X", "O_X", "O"]
-    assert all(edge.via == FOLLOW_PATH for edge in way)
+    assert all(edge.mode == FOLLOW_PATH for edge in way)
     assert "EXPRESS" in way[1].zones and way[2].zones == ("EXPRESS", "OUT_DOCK")
     # WORK에서 나가는 길은 둘이다. 급행 들머리 W_X로 앞으로 곧게(고정 경로), 그리고 넓은 곳의 M_E로
     # Nav2 goal로 풀려 나가기(팀 결정 2026-11-14: 급행이 막혀도 돌아갈 길이 있다).
@@ -262,12 +262,12 @@ def test_v7_routes(site):
     # 2026-11-18 저녁: W_X는 원호의 50도 점이다(원호 시험). 2 cm 안쪽으로 옮기며 반지름 0.19 -> 0.16
     assert exit_.kind == PASS and exit_.zone == "J_E" and exit_.x == pytest.approx(1.8028)
     assert site.distance_to_zone(exit_.x, exit_.y, "WORK_DOCK") >= RELEASE_GAP_M
-    assert sorted((edge.b, edge.via) for edge in site.edges() if edge.a == "W") == [
+    assert sorted((edge.b, edge.mode) for edge in site.edges() if edge.a == "W") == [
         ("M_E", NAV_GOAL), ("W_X", FOLLOW_PATH)]
     assert site.edge("W", "M_E").zones == ("WORK_DOCK", "HALL")
     assert [edge.a for edge in site.edges() if edge.b == "W"] == ["Q1"]
     # W_X는 W와 급행만 잇는다(W로 물러나는 후진도 없다: W 띠 안에서 제자리 돌기가 된다)
-    assert [(k.b, k.via) for k in site.edges() if k.a == "W_X"] == [("O_X", FOLLOW_PATH)]
+    assert [(k.b, k.mode) for k in site.edges() if k.a == "W_X"] == [("O_X", FOLLOW_PATH)]
     assert [k.a for k in site.edges() if k.b == "W_X"] == ["W"]
     assert not {"X_E", "N_E", "N_O", "O_Q"} & set(site.nodes)
 
@@ -288,7 +288,7 @@ def test_v7_routes(site):
     assert sorted(edge.a for edge in site.edges() if edge.b == "O") == ["O_IN", "O_X"]
     assert [edge.b for edge in site.edges() if edge.a == "O"] == ["O_OUT"]
     out, into = site.edge("O", "O_OUT"), site.edge("O_IN", "O")
-    assert out.via == FOLLOW_PATH and into.via == FOLLOW_PATH
+    assert out.mode == FOLLOW_PATH and into.mode == FOLLOW_PATH
     assert "EXPRESS" not in into.zones
     o, o_in, o_out = (site.node_pose(n) for n in ("O", "O_IN", "O_OUT"))
     assert o_out[0] < o[0] < o_in[0]
@@ -310,7 +310,7 @@ def test_v7_routes(site):
     assert out.points[-2][1] == pytest.approx(o[1] - 0.028), (
         "꺾는 점은 O보다 0.028 아래(옛 0.888 -> 0.86과 같다)")
     # 나가는 점으로 들어오는 고정 경로도, 들어오는 점에서 나가는 고정 경로도 없다
-    fixed = [edge for edge in site.edges() if edge.via != NAV_GOAL]
+    fixed = [edge for edge in site.edges() if edge.mode != NAV_GOAL]
     assert [edge.a for edge in fixed if edge.b == "O_OUT"] == ["O"]
     assert [edge.b for edge in fixed if edge.a == "O_IN"] == ["O"]
     # 출고가 바쁘면 들어오는 점이나 급행 서쪽 끝 O_X에서 기다린다(아래 O_X 시험)
@@ -321,7 +321,7 @@ def test_v7_routes(site):
         for b in yard:
             edge = site.edge(a, b)
             if edge is not None:
-                assert edge.via == NAV_GOAL and edge.zones == ("HALL",), (a, b, edge.zones)
+                assert edge.mode == NAV_GOAL and edge.zones == ("HALL",), (a, b, edge.zones)
     # 칸 입구 셋은 서로, 그리고 출고의 두 점과 곧게 이어진다: 칸에 선 로봇이 자기 입구를 쥐고
     # 있어도 나머지 입구로 다닌다. 줄 입구 Q2와는 E-3만 잇는다(주차 0.10 뒤 E-1, E-2 -> Q2의
     # 곧은 선이 P-3에 주차한 로봇 앞 0.113, 0.124를 지난다). 가운데 통로를 돌지 않는다
@@ -355,7 +355,7 @@ def test_v7_routes(site):
     # 진열대를 곧게 가로지르는 Nav2 이음이 없다(그래프 값이 실제보다 짧아진다)
     from fleet_core.fleet_map.geometry import inside
     for edge in site.edges():
-        if edge.via != NAV_GOAL:
+        if edge.mode != NAV_GOAL:
             continue
         (ax, ay), (bx, by) = edge.points[0], edge.points[-1]
         for k in range(101):
@@ -369,7 +369,7 @@ def test_v7_routes(site):
 def test_v7_queue_is_entered_at_q2_and_flows_one_way(site):
     """줄에 닿는 이음: 칸 입구 E-3 <-> Q2(들어오고, 줄을 떠날 때 나간다), 줄 안은 한 방향.
     앞자리 Q1은 줄 안에서만 닿고 W로만 나간다."""
-    touching = sorted((edge.a, edge.b, edge.via) for edge in site.edges()
+    touching = sorted((edge.a, edge.b, edge.mode) for edge in site.edges()
                       if {"Q1", "Q2"} & {edge.a, edge.b})
     doors = ["E-3"]  # E-1, E-2는 E-3을 거친다(test_v7_routes)
     doors.append("M_E")  # 우회로의 끝도 줄 입구로 들어온다
@@ -449,7 +449,7 @@ def test_v7_robots_standing_in_line_or_at_a_fork_leave_every_other_way_open(site
     # 가운데 통로(M_E)로 돌린다
     low = {}
     for edge in site.edges():
-        if edge.via != NAV_GOAL:
+        if edge.mode != NAV_GOAL:
             continue
         for spot in site.parking:
             gap = point_segment_distance(site.node_pose(spot), edge.points[0], edge.points[-1])
@@ -468,7 +468,7 @@ def test_v7_robots_standing_in_line_or_at_a_fork_leave_every_other_way_open(site
             assert gap >= BODY_CIRCLE_M + HALF_WIDTH_M, (name, edge.a, edge.b, round(gap, 3))
             # 고정 경로는 비켜 가지 못한다: 지나가는 로봇도 몸 원으로 본다(머리 없는 판: 출고 출구가
             # O_Q에 선 로봇에서 0.152라 출고 로봇이 나가지 못하고 O_Q 로봇은 출고를 기다려 교착)
-            if edge.via != NAV_GOAL:
+            if edge.mode != NAV_GOAL:
                 assert gap >= 2 * BODY_CIRCLE_M + 0.01, (name, edge.a, edge.b, round(gap, 3))
 
 
@@ -479,7 +479,7 @@ def test_v7_fixed_path_bends_leave_the_body_clear_of_walls_and_shelves(site):
 
     from fleet_core.fleet_map.geometry import segment_rect_distance, wall_gap
     for edge in site.edges():
-        if edge.via == NAV_GOAL:
+        if edge.mode == NAV_GOAL:
             continue
         for x, y in edge.points[1:-1]:
             assert wall_gap(site.bounds(), x, y) > BODY_CIRCLE_M, (edge.a, edge.b, (x, y))
@@ -519,7 +519,7 @@ def test_v7_outbound_waits_at_the_west_end_of_the_express_too(site):
     assert site.distance_to_zone(spot.x, spot.y, "HALL") > 0.085
     assert "HALL" not in site.edge("W_X", "O_X").zones
     # 나가는 길은 출고 하나, 들어오는 길은 급행 하나(한 방향 서쪽)
-    assert [(k.b, k.via) for k in site.edges() if k.a == "O_X"] == [("O", FOLLOW_PATH)]
+    assert [(k.b, k.mode) for k in site.edges() if k.a == "O_X"] == [("O", FOLLOW_PATH)]
     assert [k.a for k in site.edges() if k.b == "O_X"] == ["W_X"]
     assert site.edge("O_X", "W_X") is None and site.edge("O", "O_X") is None
     # 넓은 곳에서 들어오는 고정 경로 out_in과 출구 out_out은 O_X에 선 로봇을 몸 둘 + 0.01 넘게 비켜

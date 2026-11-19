@@ -32,12 +32,12 @@ def test_a_stretch_needs_its_zones_its_nodes_and_the_lane_direction():
 
 def test_one_command_per_nav_goal_edge_and_one_per_run_of_fixed_path():
     to_work = way("P-1", "W")
-    assert [edge.via for edge in to_work] == [NAV_GOAL, FOLLOW_PATH, FOLLOW_PATH]
+    assert [edge.mode for edge in to_work] == [NAV_GOAL, FOLLOW_PATH, FOLLOW_PATH]
     assert trips.segment_end(D2, to_work, 0, 3) == 1
     assert trips.segment_end(D2, to_work, 1, 3) == 3
     assert trips.segment_end(D2, to_work, 1, 2) == 2, "never past what is granted"
     to_out = way("W", "O")
-    assert [edge.via for edge in to_out] == [RETREAT, FOLLOW_PATH, FOLLOW_PATH, FOLLOW_PATH]
+    assert [edge.mode for edge in to_out] == [RETREAT, FOLLOW_PATH, FOLLOW_PATH, FOLLOW_PATH]
     assert trips.segment_end(D2, to_out, 0, 4) == 1
     assert trips.segment_end(D2, to_out, 1, 4) == 4
 
@@ -117,10 +117,10 @@ def test_where_a_robot_is_along_an_edge():
 
 def test_edges_that_are_not_on_the_map():
     free = trips.free_edge(D2, 1.00, 0.30, "N_E")
-    assert (free.a, free.b, free.via, free.zones) == ("", "N_E", NAV_GOAL, ("HALL",))
+    assert (free.a, free.b, free.mode, free.zones) == ("", "N_E", NAV_GOAL, ("HALL",))
     assert free.length == pytest.approx(math.dist((1.00, 0.30), (1.63, 0.65)))
     back = trips.back_edge(D2, 0.90, 0.89, "X_W", ("EXPRESS", "J_W"))
-    assert (back.b, back.via, back.zones, back.lane) == ("X_W", RETREAT, ("EXPRESS", "J_W"), "")
+    assert (back.b, back.mode, back.zones, back.lane) == ("X_W", RETREAT, ("EXPRESS", "J_W"), "")
     assert back.length == pytest.approx(0.55)
 
 

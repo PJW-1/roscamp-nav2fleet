@@ -55,7 +55,7 @@ class Node:
 class Edge:
     a: str
     b: str
-    via: str
+    mode: str
     path: str
     points: tuple[Point, ...]
     zones: tuple[str, ...]

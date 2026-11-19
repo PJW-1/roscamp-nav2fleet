@@ -38,7 +38,7 @@ def dock_openings(site, pad: float = BODY_HALF_WIDTH_M) -> list[tuple[str, tuple
     opened = []
     for edge in site.edges():
         zone = site.zones[site.nodes[edge.a].zone]
-        if edge.via != NAV_GOAL or zone.kind == SHARED:
+        if edge.mode != NAV_GOAL or zone.kind == SHARED:
             continue
         start, end = edge.points[0], edge.points[-1]
         grown = [(x0 - pad, y0 - pad, x1 + pad, y1 + pad) for x0, y0, x1, y1 in zone.rects]

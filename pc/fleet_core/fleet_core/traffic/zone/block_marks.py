@@ -41,7 +41,7 @@ def keys_at(site, params, point) -> list:
     zone = site.zone_at(*point)
     keys = []
     for edge in site.edges():
-        if edge.via != NAV_GOAL:
+        if edge.mode != NAV_GOAL:
             hit = polyline_gap(point, edge.points) <= reach
         elif zone is None or zone not in edge.zones:
             hit = False

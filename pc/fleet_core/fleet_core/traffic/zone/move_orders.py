@@ -28,15 +28,15 @@ class MoveOrders:
     def _segment(self, m, trip, cut, here: bool) -> SegmentOut:
         seq, first, end = cut
         edges = trip.edges[first:end]
-        via, node = edges[0].via, edges[-1].b
+        mode, node = edges[0].mode, edges[-1].b
         x, y = (m.x, m.y) if here or not edges[0].a else self.site.node_pose(edges[0].a)
         zones = tuple(dict.fromkeys(zone for edge in edges for zone in edge.zones))
-        if via == RETREAT:
+        if mode == RETREAT:
             path = retreat_command(self.params, m.name, 0, edges, x, y).path
-            return SegmentOut(seq, via, node, zones, path, *path[-1], CONTROLLER[via])
+            return SegmentOut(seq, mode, node, zones, path, *path[-1], CONTROLLER[mode])
         after = trip.edges[end] if end < len(trip.edges) else None
         cmd = move_command(self.site, m.name, 0, edges, x, y, after)
-        return SegmentOut(seq, via, node, zones, cmd.path, cmd.x, cmd.y, cmd.yaw, CONTROLLER[via])
+        return SegmentOut(seq, mode, node, zones, cmd.path, cmd.x, cmd.y, cmd.yaw, CONTROLLER[mode])
 
     # ---- base와 horizon 조각, 도크까지 이은 트립 ----
     def _fresh_base(self, m, trip, here: bool = False, upto: int | None = None) -> tuple:
@@ -104,9 +104,9 @@ class MoveOrders:
         if mo.broken or trip.stale:
             # 목적이 바뀐 트립: nav_goal이면 바로, 고정 경로면 넓은 구역의 노드에 섰을 때 멈춘다
             # (고정 경로 가운데서는 끊지 않는다)
-            via = self._via(m)
-            at_yard_node = via != RETREAT and self._in_yard(m) and self._on_node(m)
-            if mo.waiting or (trip.stale and (via == NAV_GOAL or at_yard_node)):
+            mode = self._mode(m)
+            at_yard_node = mode != RETREAT and self._in_yard(m) and self._on_node(m)
+            if mo.waiting or (trip.stale and (mode == NAV_GOAL or at_yard_node)):
                 self._cancel_goal(m)
                 if trip.stale:
                     self._drop_trip(m)
@@ -154,14 +154,14 @@ class MoveOrders:
             return None
         mo, end = m.move_order, None
         for _, first, stop in mo.cuts[mo.given:]:
-            if stop > trip.granted or trip.edges[first].via != FOLLOW_PATH:
+            if stop > trip.granted or trip.edges[first].mode != FOLLOW_PATH:
                 break
             end = stop
         return end if end is not None and end < trip.granted else None
 
     def _held_end(self, m) -> int:
         trip, goal, mo = m.trip, m.goal, m.move_order
-        if (goal is None or goal.via != ORDER or mo is None or mo.before is not None
+        if (goal is None or goal.mode != ORDER or mo is None or mo.before is not None
                 or mo.broken or trip.stale or goal.edges >= trip.granted):
             return 0
         return goal.edges

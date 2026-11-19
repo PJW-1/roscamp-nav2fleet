@@ -10,7 +10,7 @@ KEEPOUT, CORRIDOR, DESTINATION, IN_ZONE = "keepout", "corridor", "destination", 
 def detour_kind(site, old_goal: str, old_zones, trip) -> str:
     if trip.goal != old_goal:
         return DESTINATION
-    new = {zone for edge in trip.edges if edge.a or edge.via != RETREAT for zone in edge.zones}
+    new = {zone for edge in trip.edges if edge.a or edge.mode != RETREAT for zone in edge.zones}
     old = set(old_zones)
 
     def of(zones, test):

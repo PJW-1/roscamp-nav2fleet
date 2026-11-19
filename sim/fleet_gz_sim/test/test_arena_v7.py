@@ -129,7 +129,7 @@ def test_v7_obstacle_schedule_puts_small_boxes_on_nav_goal_edges_only(site):
     assert [one.edge for one in schedule.obstacles] == [("E-3", "Q2"), ("O_OUT", "E-3"),
                                                          ("O_IN", "E-1"), ("O_IN", "M_E")]
     for one in schedule.obstacles:
-        assert site.edge(*one.edge).via == NAV_GOAL
+        assert site.edge(*one.edge).mode == NAV_GOAL
         assert one.at_s >= 15, "sim_obstacles가 뜬 뒤"
     assert max(schedule.size_m[:2]) <= 0.08
     # 남쪽 통로의 상자 남쪽에 로봇 폭(0.112) + 양쪽 0.03의 틈이 남는다
@@ -524,7 +524,7 @@ def test_v7_corridor_box_keeps_one_box_in_the_middle_corridor_for_the_whole_run(
     schedule = load_schedule(PKG / "obstacles" / "v7_corridor_box.yaml", site)
     [box] = schedule.obstacles
     assert box.edge == ("O_IN", "M_E") and box.fraction == 0.4
-    assert site.edge(*box.edge).via == NAV_GOAL
+    assert site.edge(*box.edge).mode == NAV_GOAL
     assert (box.x, box.y) == pytest.approx((0.952, 0.595))
     assert (box.x, box.y) == pytest.approx((mix.obstacles[3].x, mix.obstacles[3].y))
     assert schedule.size_m == mix.size_m

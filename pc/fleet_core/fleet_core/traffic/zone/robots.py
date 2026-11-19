@@ -15,7 +15,7 @@ class Goal:
     id: int
     edges: int = 0
     end: str = ""
-    via: str = ""
+    mode: str = ""
 
 
 # ---- order 모델 주문 기록 ----

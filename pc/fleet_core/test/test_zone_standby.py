@@ -85,7 +85,7 @@ def released_on_the_way_out(order_model, delay_s=1.6, **changes):
     world.step()
     m = world.traffic._robots["pode1"]
     assert m.trip.standby and m.trip.goal in world.site.parking, "no spot yet: heads for a bay"
-    assert m.trip.edges[0].b == "O_OUT" and m.trip.edges[0].via == "follow_path"
+    assert m.trip.edges[0].b == "O_OUT" and m.trip.edges[0].mode == "follow_path"
     return world, m
 
 

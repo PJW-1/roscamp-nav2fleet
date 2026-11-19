@@ -65,7 +65,7 @@ class Watch:
         zone = self.site.zone_at(m.x, m.y)
         if zone is None or self.site.zones[zone].kind != SHARED:
             return
-        if m.goal is not None and self._via(m) != NAV_GOAL:
+        if m.goal is not None and self._mode(m) != NAV_GOAL:
             return
         if self.grants.force(m.name, [zone], []):
             if m.goal is None:
@@ -80,7 +80,7 @@ class Watch:
         # LOCALIZING 로봇의 자세는 묵은 값이라 뺀다
         def roams(m) -> bool:
             return (m.available and m.goal is not None and m.goal.kind == MOVE
-                    and self._via(m) == NAV_GOAL and not self._localizing(m))
+                    and self._mode(m) == NAV_GOAL and not self._localizing(m))
 
         moving = [m for m in self._robots.values() if roams(m)]
         seen = set()

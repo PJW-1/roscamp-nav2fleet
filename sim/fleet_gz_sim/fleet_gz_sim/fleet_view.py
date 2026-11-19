@@ -102,7 +102,7 @@ def map_specs(site) -> list[Spec]:
     seen, points = set(), []
     for edge in site.edges():
         key = frozenset((edge.a, edge.b))
-        if edge.via not in (FOLLOW_PATH, RETREAT) or key in seen:
+        if edge.mode not in (FOLLOW_PATH, RETREAT) or key in seen:
             continue
         seen.add(key)
         for p, q in zip(edge.points, edge.points[1:], strict=False):
@@ -177,13 +177,13 @@ def _gap(points, x: float, y: float) -> float:
 
 def fixed_ends(site, x: float, y: float) -> set:
     return {edge.b for edge in site.edges()
-            if edge.via in (FOLLOW_PATH, RETREAT) and _gap(edge.points, x, y) <= ON_PATH_M}
+            if edge.mode in (FOLLOW_PATH, RETREAT) and _gap(edge.points, x, y) <= ON_PATH_M}
 
 
 def _passed(site, base, edges, goal: str, arriving) -> bool:
     node, out = edges[0].a, edges[0]
     return (len(base) != 1 and site.nodes[node].through and node != goal
-            and node not in arriving and out.via == NAV_GOAL and len(out.zones) == 1
+            and node not in arriving and out.mode == NAV_GOAL and len(out.zones) == 1
             and site.zones[out.zones[0]].kind == SHARED)
 
 
@@ -198,7 +198,7 @@ def stops(site, base, horizon, goal: str = "", arriving=()) -> tuple[list, list]
     while i < len(edges):
         limit = split if i < split else len(edges)
         end = i + 1
-        if edges[i] is not None and edges[i].via == NAV_GOAL:
+        if edges[i] is not None and edges[i].mode == NAV_GOAL:
             known = next((j for j in range(i, limit)
                           if edges[j] is None or (j > i and edges[j].a == goal)), limit)
             end = segment_end(site, edges, i, known)

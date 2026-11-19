@@ -149,13 +149,13 @@ class ZoneBase:
         return zone is not None and self.site.zones[zone].kind == SHARED
 
     # ---- 현재 주행 방식과 우선순위 ----
-    def _via(self, m) -> str:
+    def _mode(self, m) -> str:
         goal, trip = m.goal, m.trip
         if goal is None:
             return ""
-        if goal.via != ORDER or trip is None or trip.done >= len(trip.edges):
-            return goal.via
-        return trip.edges[trip.done].via
+        if goal.mode != ORDER or trip is None or trip.done >= len(trip.edges):
+            return goal.mode
+        return trip.edges[trip.done].mode
 
     def _priority(self, m) -> int:
         return priority(self.params, m.phase == AT_STATION, m.dispatch is not None)

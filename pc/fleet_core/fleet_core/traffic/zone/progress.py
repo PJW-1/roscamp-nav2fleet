@@ -71,11 +71,11 @@ class Progress:
             return
         while trip.done < goal.edges - 1:
             edge = trip.edges[trip.done]
-            if edge.via == NAV_GOAL or not passed(edge, m.x, m.y):
+            if edge.mode == NAV_GOAL or not passed(edge, m.x, m.y):
                 break
             # 물러나기는 놓을 구역 쪽에서 노드로 다가간다:
             # 노드 좌표로 잴 거리 안이면 끝냈다는 답을 기다린다
-            if edge.via == RETREAT and self._gap(m, edge.b) <= self.params.release_margin_m:
+            if edge.mode == RETREAT and self._gap(m, edge.b) <= self.params.release_margin_m:
                 break
             m.node = edge.b
             trip.done += 1
@@ -90,7 +90,7 @@ class Progress:
         if edges:
             crossed = edges[0].zones
             here = self.site.zone_at(m.x, m.y)
-            if edges[0].via != NAV_GOAL and here in crossed:
+            if edges[0].mode != NAV_GOAL and here in crossed:
                 crossed = crossed[crossed.index(here):]
             zones.update(crossed)
             for edge in edges[1:]:

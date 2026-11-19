@@ -37,7 +37,7 @@ class Drive:
         if m.goal is not None:
             if self._leave_standby(m):
                 return
-            if m.goal.via == ORDER:
+            if m.goal.mode == ORDER:
                 self._extend_order(m)
             return
         if now < m.retry_at or now < m.avoid.yield_until:
@@ -94,7 +94,7 @@ class Drive:
             return False
         after = self._held_end(m) if self.params.use_order_model else 0
         if goal is not None and not after and not (goal.kind == MOVE
-                                                   and self._via(m) == NAV_GOAL):
+                                                   and self._mode(m) == NAV_GOAL):
             return False
         waited = self.grants.waiting().get(m.name)
         fresh, _ = self._grab(m, self._station_spots(m), after)
@@ -139,15 +139,15 @@ class Drive:
         end = segment_end(self.site, trip.edges, start, trip.granted)
         edges = trip.edges[start:end]
         goal_id = self._next_goal_id()
-        via, target = edges[0].via, edges[-1].b
-        if via == RETREAT:
+        mode, target = edges[0].mode, edges[-1].b
+        if mode == RETREAT:
             self._out.append(retreat_command(self.params, m.name, goal_id, edges, m.x, m.y))
             self._event("INFO", "RETREAT_START", f"backs to {target}", m.name)
         else:
             after = trip.edges[end] if end < len(trip.edges) else None
             self._out.append(move_command(self.site, m.name, goal_id, edges, m.x, m.y, after,
                                           self._goal_priority(m)))
-            code = "NAV_GOAL_SENT" if via == NAV_GOAL else "FOLLOW_SENT"
+            code = "NAV_GOAL_SENT" if mode == NAV_GOAL else "FOLLOW_SENT"
             self._event("INFO", code, f"to {target}", m.name)
-        self._set_goal(m, Goal(RETREAT if via == RETREAT else MOVE, goal_id, end, target, via))
+        self._set_goal(m, Goal(RETREAT if mode == RETREAT else MOVE, goal_id, end, target, mode))
         trip.sent = end

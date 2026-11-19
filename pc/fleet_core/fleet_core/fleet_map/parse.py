@@ -172,10 +172,10 @@ def _line_problem(zones: dict[str, Zone], points) -> str:
 
 
 # ---- 링크 하나 만들기 ----
-def _edge(nodes, zones, a: str, b: str, via: str, path: str, crossed=None, bends=(),
+def _edge(nodes, zones, a: str, b: str, mode: str, path: str, crossed=None, bends=(),
           extra_m: float = 0.0) -> Edge:
     points = ((nodes[a].x, nodes[a].y), *bends, (nodes[b].x, nodes[b].y))
-    if via != NAV_GOAL:
+    if mode != NAV_GOAL:
         problem = _line_problem(zones, points)
         if problem:
             raise FleetMapError(f"path {path}: the line from {a} to {b} {problem}")
@@ -186,7 +186,7 @@ def _edge(nodes, zones, a: str, b: str, via: str, path: str, crossed=None, bends
         ordered.append(nodes[b].zone)
     lane = next((z for z in ordered if zones[z].kind == LANE), "")
     length = sum(math.dist(p, q) for p, q in pairwise(points))
-    return Edge(a, b, via, path, points, tuple(ordered), length, lane, extra_m)
+    return Edge(a, b, mode, path, points, tuple(ordered), length, lane, extra_m)
 
 
 # ---- 경로 지점 읽기 ----
@@ -235,11 +235,11 @@ def read_edges(paths: dict, nav: list, nodes: dict[str, Node], zones: dict[str, 
         reverse, two_way = bool(entry.get("reverse")), bool(entry.get("two_way"))
         if reverse and two_way:
             raise FleetMapError(f"{what}: a reverse path runs one way")
-        via = RETREAT if reverse else FOLLOW_PATH
+        mode = RETREAT if reverse else FOLLOW_PATH
         for (a, _), (b, bends) in pairwise(stops):
-            add(_edge(nodes, zones, a, b, via, str(name), bends=bends), what)
+            add(_edge(nodes, zones, a, b, mode, str(name), bends=bends), what)
             if two_way:
-                add(_edge(nodes, zones, b, a, via, str(name), bends=bends[::-1]), what)
+                add(_edge(nodes, zones, b, a, mode, str(name), bends=bends[::-1]), what)
 
     for index, group in enumerate(nav or ()):
         what = f"nav group {index + 1}"

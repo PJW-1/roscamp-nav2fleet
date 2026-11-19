@@ -51,7 +51,7 @@ def needs(edges) -> tuple[list, list, dict]:
 
 
 def joins(site, a, b) -> bool:
-    return (a.via == b.via == NAV_GOAL and len(a.zones) == 1 and a.zones == b.zones
+    return (a.mode == b.mode == NAV_GOAL and len(a.zones) == 1 and a.zones == b.zones
             and site.zones[a.zones[0]].kind == SHARED and site.nodes[a.b].through)
 
 
@@ -61,10 +61,10 @@ def _shortest(site, edges) -> bool:
 
 
 def segment_end(site, edges, start: int, limit: int) -> int:
-    via = edges[start].via
+    mode = edges[start].mode
     end = start + 1
-    if via != NAV_GOAL:
-        while end < limit and edges[end].via == via:
+    if mode != NAV_GOAL:
+        while end < limit and edges[end].mode == mode:
             end += 1
         return end
     while (end < limit and joins(site, edges[end - 1], edges[end])
@@ -130,10 +130,10 @@ def _line(edges, x: float, y: float) -> tuple[list, list]:
 def move_command(site, robot: str, goal_id: int, edges, x: float, y: float,
                  after=None, priority: int = -1) -> MoveCmd:
     node = site.nodes[edges[-1].b]
-    if edges[0].via == NAV_GOAL:
+    if edges[0].mode == NAV_GOAL:
         if node.yaw is not None:
             yaw = node.yaw
-        elif after is not None and after.via == FOLLOW_PATH:
+        elif after is not None and after.mode == FOLLOW_PATH:
             yaw = heading(*_pieces(after)[0])
         else:
             yaw = heading(edges[-1].points[-2] if len(edges) > 1 else (x, y),
@@ -172,20 +172,20 @@ def back_edge(site, x: float, y: float, node: str, zones, via: str = "", bends=(
 
 
 # ---- 속도와 남은 주행 시간 계산 ----
-def speed(params, via: str) -> float:
-    if via == NAV_GOAL:
+def speed(params, mode: str) -> float:
+    if mode == NAV_GOAL:
         return params.nav_speed_mps
-    return params.follow_speed_mps if via == FOLLOW_PATH else params.retreat_speed_mps
+    return params.follow_speed_mps if mode == FOLLOW_PATH else params.retreat_speed_mps
 
 
 def travel_s(params, edges) -> float:
-    return sum(edge.length / speed(params, edge.via) for edge in edges)
+    return sum(edge.length / speed(params, edge.mode) for edge in edges)
 
 
 def left_s(params, edges, x: float, y: float) -> float:
     if not edges:
         return 0.0
     first = edges[0]
-    here = (math.dist((x, y), first.points[-1]) if first.via == NAV_GOAL
+    here = (math.dist((x, y), first.points[-1]) if first.mode == NAV_GOAL
             else first.length - along(first, x, y))
-    return here / speed(params, first.via) + travel_s(params, edges[1:])
+    return here / speed(params, first.mode) + travel_s(params, edges[1:])

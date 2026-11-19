@@ -15,7 +15,7 @@ def yard_retreat(site, edge) -> tuple[str, str]:
     if not a or site.nodes[a].kind != PASS:
         return a, ""
     for down in site.edges():
-        if (down.a == a and down.via == FOLLOW_PATH and down.b != edge.b
+        if (down.a == a and down.mode == FOLLOW_PATH and down.b != edge.b
                 and site.zones[site.nodes[down.b].zone].kind == SHARED):
             return down.b, a
     return a, ""

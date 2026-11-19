@@ -80,7 +80,7 @@ def nav_yaw(site, start: str, end: str, points=None) -> float:
         node = site.nodes[end]
         if node.yaw is not None:
             return node.yaw
-        fixed = [edge for edge in site.edges_from(end) if edge.via == FOLLOW_PATH]
+        fixed = [edge for edge in site.edges_from(end) if edge.mode == FOLLOW_PATH]
         if fixed:
             return _heading(*fixed[0].points[:2])
     return _heading(_xy(site, start, points), _xy(site, end, points))
@@ -115,7 +115,7 @@ def make_step(site, kind: str, nodes, points=None) -> Step:
         return Step(kind, nodes, ((x, y, nav_yaw(site, *nodes, points)),))
     for a, b in zip(nodes, nodes[1:], strict=False):
         edge = site.edge(a, b)
-        if edge is None or edge.via != kind:
+        if edge is None or edge.mode != kind:
             raise PlanError(f"{a}->{b} is not a {kind} link of {site.name}")
     if kind == NAV_GOAL:
         if len(nodes) != 2:

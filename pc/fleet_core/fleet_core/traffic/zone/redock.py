@@ -10,10 +10,10 @@ from .trips import Trip
 def way_in(site, start: str, dock: str) -> list | None:
     direct = site.edge(start, dock)
     if direct is not None:
-        return [direct] if direct.via == FOLLOW_PATH else None
+        return [direct] if direct.mode == FOLLOW_PATH else None
     for first in site.edges_from(start):
         second = site.edge(first.b, dock)
-        if first.via == FOLLOW_PATH and second is not None and second.via == FOLLOW_PATH:
+        if first.mode == FOLLOW_PATH and second is not None and second.mode == FOLLOW_PATH:
             return [first, second]
     return None
 
@@ -31,7 +31,7 @@ class Redock:
     def _reapproach(self, m) -> bool:
         now = self._clock()
         dock = self.site.stations[m.dest].dock
-        out = next((edge for edge in self.site.edges_from(dock) if edge.via == RETREAT), None)
+        out = next((edge for edge in self.site.edges_from(dock) if edge.mode == RETREAT), None)
         back = way_in(self.site, out.b, dock) if out is not None else None
         ep = m.watch.redock
         if ep.since is None:

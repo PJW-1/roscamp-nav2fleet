@@ -157,7 +157,7 @@ def test_straight_nav_goal_edges_run_clear_of_the_keepout(site):
     way inside the shared zones."""
     grid = arena_maps.keepout(arena_maps.FINE_M, site)
     for edge in site.edges():
-        if edge.via != NAV_GOAL:
+        if edge.mode != NAV_GOAL:
             continue
         (ax, ay), (bx, by) = edge.points[0], edge.points[-1]
         steps = max(2, int(math.dist((ax, ay), (bx, by)) / 0.01))

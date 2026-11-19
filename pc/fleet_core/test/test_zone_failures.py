@@ -285,7 +285,7 @@ def way_out(world, robot="pode2"):
     """The link a robot at its dock backs out on."""
     site = world.traffic.site
     dock = site.stations[world.traffic._robots[robot].dest].dock
-    return next(edge for edge in site.edges_from(dock) if edge.via == RETREAT)
+    return next(edge for edge in site.edges_from(dock) if edge.mode == RETREAT)
 
 
 def way_round(world, robot="pode2"):
