@@ -608,10 +608,11 @@ NOUNSET_STATE = 'case $- in *u*) echo NOUNSET_ON ;; *) echo NOUNSET_OFF ;; esac'
 @pytest.mark.parametrize("nounset", [True, False])
 def test_pc_env_missing_ros_returns_without_closing_the_shell(tmp_path, nounset):
     run, got = _sourced((["set -u"] if nounset else []) + [
-        f'source "{KIT}/pc_env.sh"', 'echo "RC=$?"', NOUNSET_STATE],
-        {"ROS_SETUP": str(tmp_path / "nope.bash")})
+        f'source "{KIT}/pc_env.sh"', 'echo "RC=$?"', NOUNSET_STATE,
+        'compgen -v _pc_ || echo NO_HELPERS'], {"ROS_SETUP": str(tmp_path / "nope.bash")})
     assert "RC=1" in run.stdout
     assert ("NOUNSET_ON" if nounset else "NOUNSET_OFF") in run.stdout
+    assert "NO_HELPERS" in run.stdout
     assert str(tmp_path / "nope.bash") in run.stderr
 
 
@@ -641,9 +642,12 @@ def test_pc_env_net_failure_returns_1(tmp_path, net, nounset):
     shutil.copy(KIT / "pc_env.sh", kit)
     if net is not None:
         (kit / "net.sh").write_text(net)
+    setups = _pc_setups(tmp_path)
+    # 작업공간 대역은 nounset을 건드리지 않게 해, net.sh가 켠 것만 남는지 본다
+    Path(setups["NAV2FLEET_WS_SETUP"]).write_text("export STUB_MARK=overlay\n")
     run, got = _sourced((["set -u"] if nounset else []) + [
         f'source "{kit}/pc_env.sh"', 'echo "RC=$?"', NOUNSET_STATE,
-        'compgen -v _pc_ || echo NO_HELPERS'], _pc_setups(tmp_path))
+        'compgen -v _pc_ || echo NO_HELPERS'], setups)
     assert "RC=1" in run.stdout
     assert ("NOUNSET_ON" if nounset else "NOUNSET_OFF") in run.stdout
     assert "NO_HELPERS" in run.stdout
