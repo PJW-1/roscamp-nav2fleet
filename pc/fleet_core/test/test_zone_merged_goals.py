@@ -63,7 +63,7 @@ def test_a_detour_through_bay_entrances_is_not_merged():
 
 
 def test_a_free_edge_from_off_the_graph_is_not_merged():
-    """노드 밖에서 다시 계획한 로봇의 첫 이음(free_link)은 시작 노드가 없다. 가장 짧은 길인지 잴 수
+    """노드 밖에서 다시 계획한 로봇의 첫 이음(free_edge)은 시작 노드가 없다. 가장 짧은 길인지 잴 수
     없으니 합치지 않는다(distance(site, "", ...)가 KeyError로 관제를 멈췄다)."""
     way = [routes.free_edge(V7, 0.45, 0.30, "E-3"), V7.edge("E-3", "Q2")]
     assert routes.segment_end(V7, way, 0, 2) == 1
