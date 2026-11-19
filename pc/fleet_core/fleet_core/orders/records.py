@@ -62,3 +62,4 @@ class RobotRecord:
     asked: str = ""
     bound: int = 0
     isolated: str = ""
+    held: str = ""  # 팔 고장으로 작업대에 붙잡힘(HOLD_ARM_FAULT)

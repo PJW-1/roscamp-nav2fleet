@@ -17,7 +17,8 @@ from ament_index_python.packages import (  # noqa: E402
 )
 
 SCENARIOS = ["basic_orders", "order_burst", "shared_lane_failure", "stock_shortage",
-             "stuck_robot", "operator_recovery", "blocked_lane", "auto_isolation", "reinstate"]
+             "stuck_robot", "operator_recovery", "blocked_lane", "auto_isolation", "reinstate",
+             "arm_fault"]
 WALL_TIMEOUT_S = 420
 # 시나리오마다 도메인 하나, 로봇 네트워크와 겹치지 않는 범위. 환경변수로 옮길 수 있다
 FIRST_DOMAIN = int(os.environ.get("SCENARIO_FIRST_DOMAIN", "50"))

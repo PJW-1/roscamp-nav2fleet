@@ -377,17 +377,121 @@ def test_all_orders_finished_true_fails_while_one_is_open():
 
 def test_all_orders_finished_false_fails_when_all_finished():
     j = judge(all_orders_finished=False)
-    event(j, "ORDER_HELD", "O-1")
+    event(j, "ORDER_CANCELED", "O-1")
     ship(j, "O-2", "O-3")
     assert check(j, "all_orders_finished")["ok"] is False
 
 
-def test_held_and_partial_count_as_finished():
+def test_canceled_and_partial_count_as_finished():
     j = judge()
-    event(j, "ORDER_HELD", "O-1")
+    event(j, "ORDER_CANCELED", "O-1")
     event(j, "ORDER_PARTIAL", "O-2")
     ship(j, "O-3")
     assert check(j, "all_orders_finished")["ok"] is True
+
+
+def test_a_held_order_is_not_finished_until_it_ends():
+    j = judge()
+    event(j, "ORDER_HELD", "O-1 robot=pode1 hold_reason=ARM_FAULT")
+    event(j, "ORDER_PARTIAL", "O-2")
+    ship(j, "O-3")
+    assert check(j, "all_orders_finished")["ok"] is False
+    event(j, "ORDER_PARTIAL", "O-1 robot=pode1")
+    assert check(j, "all_orders_finished")["ok"] is True
+
+
+def test_a_held_order_that_ends_is_no_longer_held():
+    j = judge(orders_held=0, orders_partial=1)
+    event(j, "ORDER_HELD", "O-1 robot=pode1 hold_reason=ARM_FAULT")
+    event(j, "ORDER_PARTIAL", "O-1 robot=pode1")
+    assert check(j, "orders_held")["ok"] is True and check(j, "orders_partial")["ok"] is True
+
+
+def test_orders_canceled_must_match_exactly():
+    j = judge(orders_canceled=2)
+    event(j, "ORDER_CANCELED", "O-1 robot=pode1")
+    assert check(j, "orders_canceled")["value"] == 1 and check(j, "orders_canceled")["ok"] is False
+    event(j, "ORDER_CANCELED", "O-2 robot=pode1")
+    assert check(j, "orders_canceled")["ok"] is True
+    assert j.summary(1.0)["orders_canceled"] == 2
+
+
+def test_a_canceled_order_does_not_count_as_shipped():
+    j = judge(orders_shipped_min=1)
+    event(j, "ORDER_CANCELED", "O-1")
+    assert check(j, "orders_shipped_min")["ok"] is False
+
+
+def test_shipping_while_an_arm_held_robot_waits_counts_before_the_operator():
+    """팔 고장으로 묶인 Pode도 사람을 기다린다. 그 Pode를 치우기 전 출고를 센다."""
+    j = judge(shipped_before_operator_min=1)
+    event(j, "ORDER_HELD", "O-2 robot=pode1 hold_reason=ARM_FAULT placed=- missing=A:1",
+          t=1.0, source="central")
+    ship(j, "O-1")
+    event(j, "ZONES_CLEARED", "released ['WORK_DOCK']: operator_remove", t=3.0, source="pode1")
+    ship(j, "O-3")
+    assert check(j, "shipped_before_operator") == {"value": 1, "minimum": 1, "ok": True}
+
+
+def test_a_clear_of_another_robot_is_not_the_operator_for_the_held_one():
+    j = judge(shipped_before_operator_min=2)
+    event(j, "ORDER_HELD", "O-2 robot=pode1 hold_reason=ARM_FAULT", source="central")
+    event(j, "ZONES_CLEARED", "released []: operator_remove", t=2.0, source="pode2")
+    ship(j, "O-1", "O-3")
+    assert check(j, "shipped_before_operator")["value"] == 2
+
+
+@pytest.mark.parametrize("code", ["ORDER_SHIPPED", "ORDER_PARTIAL", "ORDER_CANCELED",
+                                  "ORDER_HELD"])
+def test_any_report_for_an_order_over_capacity_is_a_violation(code):
+    """용량 초과 주문은 ReportOrder를 보내지 않는다. 그 뒤의 최종이나 보류 이벤트는 위반이다."""
+    j = judge(order_results={"O-1": "OVER_CAPACITY"})
+    event(j, "ORDER_OVER_CAPACITY", "O-1 items=5 capacity=4")
+    event(j, code, "O-1 robot=pode1 hold_reason=ARM_FAULT", t=2.0, source="central")
+    assert j.final["O-1"] == "OVER_CAPACITY" and "O-1" not in j.held
+    assert len(j.violations) == 1 and "O-1" in j.violations[0]
+    assert check(j, "order_results")["ok"] is True  # 결과는 그대로, 위반으로만 잡는다
+
+
+def test_an_order_over_capacity_is_settled_without_a_report():
+    j = judge(order_results={"O-1": "OVER_CAPACITY"})
+    event(j, "ORDER_OVER_CAPACITY", "O-1 items=5 capacity=4")
+    ship(j, "O-2", "O-3")
+    assert check(j, "all_orders_finished")["ok"] is True
+    assert check(j, "order_results")["ok"] is True
+    assert j.summary(1.0)["orders_shipped"] == 2
+
+
+@pytest.mark.parametrize("detail, expected, ok", [
+    ("O-1 robot=pode1 hold_reason=ARM_FAULT", "ARM_FAULT", True),
+    ("O-1 robot=pode1 hold_reason=ROBOT_FAULT", "ARM_FAULT", False),
+    ("O-1 robot=pode1", "ARM_FAULT", False),
+])
+def test_the_hold_reason_is_read_from_the_held_event(detail, expected, ok):
+    j = judge(hold_reasons={"O-1": expected})
+    event(j, "ORDER_HELD", detail)
+    assert check(j, "hold_reasons")["ok"] is ok
+
+
+def test_the_hold_reason_is_kept_after_the_order_ends():
+    j = judge(hold_reasons={"O-1": "ARM_FAULT"}, order_results={"O-1": "PARTIAL"})
+    event(j, "ORDER_HELD", "O-1 robot=pode1 hold_reason=ARM_FAULT")
+    event(j, "ORDER_PARTIAL", "O-1 robot=pode1")
+    assert check(j, "hold_reasons")["ok"] and check(j, "order_results")["ok"]
+
+
+def test_a_held_order_can_be_named_in_order_results():
+    j = judge(order_results={"O-1": "HELD"})
+    event(j, "ORDER_HELD", "O-1 robot=pode1 hold_reason=ROBOT_FAULT")
+    assert check(j, "order_results")["ok"] is True
+
+
+@pytest.mark.parametrize("isolated, ok", [(0, True), (1, False)])
+def test_robots_isolated_counts_isolation_events(isolated, ok):
+    j = judge(robots_isolated=0)
+    for _ in range(isolated):
+        j.on_event(1.0, "ERROR", "pode1", "ROBOT_ISOLATED", "workcell: ARM_FAULT")
+    assert check(j, "robots_isolated")["ok"] is ok
 
 
 def test_a_submitted_order_also_has_to_finish():
@@ -461,10 +565,10 @@ def test_a_partial_counts_in_the_shipping_order():
     assert check(j, "fifo_violations")["value"] == 1
 
 
-def test_a_held_order_does_not_count_in_the_shipping_order():
+def test_a_canceled_order_does_not_count_in_the_shipping_order():
     j = judge()
     bind(j, "O-1", "O-2", "O-3")
-    event(j, "ORDER_HELD", "O-1 robot=pode1")
+    event(j, "ORDER_CANCELED", "O-1 robot=pode1")
     ship(j, "O-2", "O-3")
     assert check(j, "fifo_violations")["value"] == 0
 
@@ -848,10 +952,10 @@ def test_an_order_bound_before_the_clear_does_not_count():
     assert check(j, "shipped_after_reinstate_min") == {"value": 0, "minimum": 1, "ok": False}
 
 
-def test_a_held_order_bound_after_a_reinstate_does_not_count():
+def test_a_canceled_order_bound_after_a_reinstate_does_not_count():
     j = reinstated_judge()
     event(j, "ORDER_BOUND", "O-1", t=3.0, source="pode2")
-    event(j, "ORDER_HELD", "O-1", t=6.0)
+    event(j, "ORDER_CANCELED", "O-1", t=6.0)
     assert check(j, "shipped_after_reinstate_min")["value"] == 0
 
 
@@ -865,13 +969,24 @@ def test_an_order_rebound_by_another_reinstated_robot_counts_for_neither_twice()
     assert check(j, "shipped_after_reinstate_min")["value"] == 1  # 끝낸 pode1 몫 하나
 
 
-def test_a_final_event_twice_counts_once():
+def test_a_second_final_event_is_a_violation_and_changes_nothing():
+    """최종은 한 번이다. 두 번째 최종 이벤트는 덮어쓰지 않고 위반으로 센다."""
     j = reinstated_judge()
     event(j, "ORDER_BOUND", "O-1", t=3.0, source="pode2")
-    event(j, "ORDER_HELD", "O-1", t=5.0)
+    event(j, "ORDER_CANCELED", "O-1", t=5.0)
     event(j, "ORDER_SHIPPED", "O-1", t=6.0)
     event(j, "ORDER_SHIPPED", "O-1", t=7.0)
     assert check(j, "shipped_after_reinstate_min")["value"] == 0
+    assert j.final["O-1"] == "CANCELED"
+    assert j.final_counts == {"SHIPPED": 0, "PARTIAL": 0, "CANCELED": 1}
+    assert len([v for v in j.violations if "O-1" in v and "after" in v]) == 2
+    assert j.summary(10.0)["pass"] is False
+
+
+def test_a_duplicate_shipped_counts_once_and_is_a_violation():
+    j = judge(orders_shipped=1)
+    ship(j, "O-1", "O-1")
+    assert check(j, "orders_shipped")["value"] == 1 and len(j.violations) == 1
 
 
 def test_a_partial_order_bound_after_a_reinstate_counts():
@@ -972,11 +1087,11 @@ def test_warnings_are_not_unexpected_errors():
 
 
 def test_right_counts_on_the_wrong_orders_fail():
-    j = judge(orders_shipped=2, orders_held=1,
-              order_results={"O-1": "HELD", "O-2": "SHIPPED", "O-3": "SHIPPED"})
+    j = judge(orders_shipped=2, orders_canceled=1,
+              order_results={"O-1": "CANCELED", "O-2": "SHIPPED", "O-3": "SHIPPED"})
     bind(j, "O-1", "O-2", "O-3")
     ship(j, "O-1", "O-2")
-    event(j, "ORDER_HELD", "O-3 robot=pode1", source="central")
+    event(j, "ORDER_CANCELED", "O-3 robot=pode1", source="central")
     put(j, 1.0, "pode1", WAITING[0], "IDLE")
     put(j, 1.0, "pode2", WAITING[1], "IDLE")
     j.on_zones(1.0, {"HALL": "pode1,pode2"})

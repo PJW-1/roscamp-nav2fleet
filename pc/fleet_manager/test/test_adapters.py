@@ -42,6 +42,7 @@ from fleet_interfaces.msg import (  # noqa: E402
 )
 from fleet_interfaces.srv import (
     ConfirmClear,  # noqa: E402
+    ForceShip,  # noqa: E402
     ReportOrder,  # noqa: E402
 )
 from fleet_manager import adapters  # noqa: E402
@@ -186,6 +187,34 @@ def test_report_request_copies_every_field():
         "O-001", "pode1", "PARTIAL", "short")
     assert {i.kind: i.count for i in request.placed} == {"A": 1}
     assert {i.kind: i.count for i in request.missing} == {"C": 1}
+    assert request.hold_reason == ""
+
+
+@pytest.mark.parametrize("reason", [ReportOrder.Request.HOLD_ARM_FAULT,
+                                    ReportOrder.Request.HOLD_ROBOT_FAULT])
+def test_report_request_carries_the_hold_reason(reason):
+    request = adapters.report_request(ReportOrderCmd(
+        "O-002", "pode1", ReportOrder.Request.STATUS_HELD, {"A": 1}, {"B": 2}, "stuck",
+        hold_reason=reason))
+    assert (request.status, request.hold_reason) == ("HELD", reason)
+
+
+def test_order_status_and_hold_words_match_the_contract():
+    from fleet_core.common import commands
+    req = ReportOrder.Request
+    assert (commands.SHIPPED, commands.PARTIAL, commands.HELD, commands.CANCELED) == (
+        req.STATUS_SHIPPED, req.STATUS_PARTIAL, req.STATUS_HELD, req.STATUS_CANCELED)
+    assert (commands.HOLD_ROBOT_FAULT, commands.HOLD_ARM_FAULT) == (
+        req.HOLD_ROBOT_FAULT, req.HOLD_ARM_FAULT)
+
+
+def test_force_ship_request_and_response_are_handled_here():
+    assert adapters.force_ship_args(ForceShip.Request(order_id="O-003")) == "O-003"
+    yes = adapters.force_ship_response(ForceShip.Response(), True, "ignored")
+    assert yes.accepted is True and yes.reason == ""
+    no = adapters.force_ship_response(ForceShip.Response(), False,
+                                      ForceShip.Response.REASON_NOT_HELD)
+    assert no.accepted is False and no.reason == "NOT_HELD"
 
 
 def test_item_lists_add_up_a_kind_named_twice():

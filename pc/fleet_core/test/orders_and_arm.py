@@ -8,7 +8,7 @@ from fleet_core.common.commands import ARM_COMMANDS, ARM_REPORTS
 from fleet_core.orders.orchestrator import OrderOrchestrator
 
 _ORDER_INPUTS = ("on_dispatch_feedback", "on_dispatch_result", "on_robot_removed",
-                 "on_robot_reinstated", "on_robot_isolated", "step")
+                 "on_robot_reinstated", "on_robot_isolated", "on_force_ship", "step")
 
 
 class OrdersAndArm:
@@ -23,8 +23,9 @@ class OrdersAndArm:
             return found
 
         def call(*args, **kwargs):
-            found(*args, **kwargs)
+            answer = found(*args, **kwargs)
             self._settle()
+            return answer
         return call
 
     def on_order_board(self, run_mode, orders) -> None:

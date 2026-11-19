@@ -452,6 +452,17 @@ def test_a_run_with_rejected_inputs_plays_back_the_same(tmp_path):
     assert json.loads(lines[0])["params"]["input_pose_margin_m"] == 1.0
 
 
+def test_a_force_ship_input_is_recorded_and_plays_back(tmp_path):
+    core, now, lines = _recorded()
+    assert core.force_ship("O-404") == (False, "UNKNOWN_ORDER")
+    assert core.force_ship(None) == (False, "UNKNOWN_ORDER")
+    now[0] += 0.1
+    core.tick()
+    assert any('"in": "force_ship"' in line for line in lines)
+    result = _play(tmp_path, lines)
+    assert result.same and result.compared, result
+
+
 def _recorded():
     """기록을 켜고 주문 하나로 시작한 코어."""
     now = [0.0]

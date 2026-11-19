@@ -102,6 +102,8 @@ def parse_scenario(data: dict, site, seed: int | None = None) -> Scenario:
         dock=DockCfg(float(dock.get("duration_s", 3.0)), float(dock.get("error_cm", 1.0))),
         faults=faults,
         expect=_parse_expect(data, faults),
+        force_ship_after_s=(_not_negative(data, "force_ship_after_s")
+                            if "force_ship_after_s" in data else None),
     )
 
 

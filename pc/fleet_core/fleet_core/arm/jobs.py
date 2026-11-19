@@ -9,6 +9,7 @@ from fleet_core.common.commands import (
     ArmDeclined,
     ArmDropCmd,
     ArmFailedCmd,
+    ArmFault,
     ArmFillCmd,
     ArmFillResult,
     ArmLate,
@@ -20,7 +21,6 @@ from fleet_core.common.commands import (
     CancelCmd,
     EventOut,
     FillCmd,
-    RobotFaultCmd,
     SwapCmd,
 )
 
@@ -106,7 +106,7 @@ class ArmJobs:
                 r.job = None
                 self._out.append(ArmLost(r.name, job.goal_id, job.server, job.kind))
                 reason = f"{job.server} goal {job.goal_id} never reported"
-                self._out.append(RobotFaultCmd(r.name, reason))
+                self._out.append(ArmFault(r.name, job.kind, job.server, reason))
                 self._event("ERROR", "ARM_NO_RESULT", reason, r.name)
 
     # ---- 팔 명령 처리 ----
@@ -204,7 +204,7 @@ class ArmJobs:
                                  bound=command.bound))
         r.job = None
 
-    # ---- 실패한 시도의 재시도 또는 고장 처리 ----
+    # ---- 실패한 시도의 재시도 또는 팔 고장 보고 ----
     def _attempt_failed(self, r: _Robot) -> None:
         if r.last is None:
             return
@@ -215,8 +215,9 @@ class ArmJobs:
         r.attempts += 1
         r.retry_at = self._clock() + self.params.arm_retry_wait_s
         if r.attempts > self.params.move_retry_limit:
-            self._out.append(RobotFaultCmd(r.name, f"{job.server}: {reason}"))
-            self._event("ERROR", failed_code, f"{job.server}: {reason}", r.name)
+            detail = f"{job.server}: {reason}"
+            self._out.append(ArmFault(r.name, job.kind, job.server, detail))
+            self._event("ERROR", failed_code, detail, r.name)
         else:
             self._event("WARN", retry_code,
                         f"{job.server} attempt {r.attempts} failed: {reason}", r.name)

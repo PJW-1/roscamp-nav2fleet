@@ -70,3 +70,46 @@ def test_entry_with_undefined_qos_profile_is_rejected(tmp_path):
     )
     with pytest.raises(ContractError):
         load_contract(bad)
+
+
+# ---- 계약 0.6: 팀 레포 지시서와 글자 하나까지 같다 ----
+SRV = CONTRACT.parent / "srv"
+REPORT_ORDER_0_6 = """string STATUS_SHIPPED="SHIPPED"
+string STATUS_PARTIAL="PARTIAL"
+string STATUS_HELD="HELD"
+string STATUS_CANCELED="CANCELED"
+string HOLD_ROBOT_FAULT="ROBOT_FAULT"
+string HOLD_ARM_FAULT="ARM_FAULT"
+string order_id
+string robot_id
+string status
+string hold_reason
+OrderItem[] placed
+OrderItem[] missing
+string detail
+---
+bool accepted
+"""
+FORCE_SHIP_0_6 = """string order_id
+---
+string REASON_NOT_HELD="NOT_HELD"
+string REASON_ROBOT_FAULT="ROBOT_FAULT"
+string REASON_UNKNOWN_ORDER="UNKNOWN_ORDER"
+string REASON_NOT_IMPLEMENTED="NOT_IMPLEMENTED"
+bool accepted
+string reason
+"""
+
+
+def test_order_services_match_the_team_contract_text():
+    assert (SRV / "ReportOrder.srv").read_text(encoding="utf-8") == REPORT_ORDER_0_6
+    assert (SRV / "ForceShip.srv").read_text(encoding="utf-8") == FORCE_SHIP_0_6
+
+
+def test_contract_0_6_opens_the_force_ship_service(contract):
+    import yaml
+    assert yaml.safe_load(CONTRACT.read_text(encoding="utf-8"))["version"] == 0.6
+    assert contract.name("force_ship") == "/fleet/force_ship"
+    assert contract.type("force_ship") == "fleet_interfaces/srv/ForceShip"
+    cmake = (CONTRACT.parent / "CMakeLists.txt").read_text(encoding="utf-8")
+    assert '"srv/ForceShip.srv"' in cmake

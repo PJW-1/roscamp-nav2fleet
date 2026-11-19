@@ -6,6 +6,7 @@ import math
 from fleet_core.arm.jobs import ArmJobs
 from fleet_core.common.commands import (
     FILL,
+    FORCE_UNKNOWN_ORDER,
     LOCAL_YIELD_STEPS,
     OBSTACLE_KINDS,
     SWAP,
@@ -24,7 +25,7 @@ from fleet_core.manager_record import ManagerRecord
 from fleet_core.manager_route import ManagerRoute
 from fleet_core.manager_views import ManagerViews
 from fleet_core.orders.orchestrator import OrderOrchestrator
-from fleet_core.orders.validate import orders_problem, reinstate_problem
+from fleet_core.orders.validate import force_ship_problem, orders_problem, reinstate_problem
 from fleet_core.traffic.mission import LOCALIZING
 from fleet_core.traffic.modes import build_traffic
 
@@ -198,6 +199,19 @@ class FleetManager(ManagerRoute, ManagerViews, ManagerRecord):
                                   name))
         self._pump()
         return True
+
+    # ---- 운영자 조작: 팔 고장으로 보류된 주문의 강제 출고 ----
+    def force_ship(self, order_id) -> tuple[bool, str]:
+        self._input("force_ship", order_id)
+        problem = checked(force_ship_problem, order_id)
+        if problem:
+            self._reject(f"force_ship refused: {problem}")
+            return False, FORCE_UNKNOWN_ORDER
+        accepted, reason = self.orchestrator.on_force_ship(text(order_id))
+        if not accepted:
+            self._reject(f"force_ship refused: {text(order_id)} {reason}")
+        self._pump()
+        return accepted, reason
 
     # ---- 주기 처리: 코어를 순서대로 진행하고 나온 출력 반환 ----
     def tick(self) -> list:

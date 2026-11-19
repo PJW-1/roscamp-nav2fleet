@@ -22,8 +22,13 @@ from fake_robots.zone_checks import EPS, ZoneChecks
 
 RATE_PERIOD_S = 0.5  # robots.csv는 2 Hz로 줄여 쓴다
 OFF_LANE_GRACE_S = 1.0  # drift 시작부터 FMS가 연속 보고로 알아챌 때까지의 여유
-FINAL_CODES = {"ORDER_SHIPPED": "SHIPPED", "ORDER_PARTIAL": "PARTIAL", "ORDER_HELD": "HELD"}
+# ORDER_HELD는 끝이 아니다(관리자의 강제 출고나 central의 취소를 기다린다)
+FINAL_CODES = {"ORDER_SHIPPED": "SHIPPED", "ORDER_PARTIAL": "PARTIAL",
+               "ORDER_CANCELED": "CANCELED"}
+OVER_CAPACITY = "OVER_CAPACITY"  # 보고 없이 관제가 접수만 거절한 주문의 결과
 ORDER_ID = re.compile(r"[^\s:,;]+")
+HOLD_REASON = re.compile(r"hold_reason=(\w+)")
+HELD_ROBOT = re.compile(r"robot=(\S+)")
 
 
 def order_id_of(detail: str) -> str:
@@ -86,7 +91,11 @@ class ScenarioJudge(ZoneChecks, Laps, OrderChecks, Outcome):
         # 주문
         self.registered: list[str] = list(scenario.order_ids)
         self.final: dict[str, str] = {}
-        self.final_counts = {"SHIPPED": 0, "PARTIAL": 0, "HELD": 0}
+        self.final_counts = {"SHIPPED": 0, "PARTIAL": 0, "CANCELED": 0}
+        self.held: dict[str, str] = {}  # 지금 보류 중인 주문 -> 사유
+        self.hold_reasons: dict[str, str] = {}  # 주문 -> 처음 보류된 사유(끝난 뒤에도 남김)
+        self.order_report_problems: list[str] = []  # 끝난 주문에 또 온 최종, 보류 이벤트
+        self.robots_isolated = 0
         self.bound_log: list[str] = []
         self.ship_log: list[str] = []
         self.order_log: list[tuple[str, str]] = []  # BOUND와 REQUEUED, 도착 순
@@ -102,9 +111,10 @@ class ScenarioJudge(ZoneChecks, Laps, OrderChecks, Outcome):
         self.direct_returns = 0
         self.parked_while_backlog = 0
         self._tasks: dict[str, str] = {}  # 로봇 -> /fleet/assignments의 task_type
-        # 자동 격리: 첫 ROBOT_ISOLATED부터 격리된 로봇의 첫 ZONES_CLEARED 전까지 출고한 수
+        # 첫 ROBOT_ISOLATED나 ARM_FAULT 보류부터 그 로봇의 첫 ZONES_CLEARED 전까지 출고한 수
         self.shipped_before_operator = 0
         self._isolated: set[str] = set()  # source가 로봇이다
+        self._arm_held: set[str] = set()  # ARM_FAULT 보류로 작업대에 묶여 사람을 기다리는 로봇
         self._operator_came = False
         # 격리된 로봇(치우기 전)이 서 있는 동안 다른 로봇의 REROUTE 수(계약 4절: 코드와 로봇만 본다)
         self.detours_around_isolated = 0
@@ -154,7 +164,7 @@ class ScenarioJudge(ZoneChecks, Laps, OrderChecks, Outcome):
         if code == "ROBOT_ISOLATED":
             self._isolated.add(source)
             self._standing_isolated.add(source)
-        elif code == "ZONES_CLEARED" and source in self._isolated:
+        elif code == "ZONES_CLEARED" and source in self._isolated | self._arm_held:
             self._operator_came = True
             self._standing_isolated.discard(source)
         elif code == "REROUTE" and self._standing_isolated - {source}:
@@ -162,6 +172,22 @@ class ScenarioJudge(ZoneChecks, Laps, OrderChecks, Outcome):
             # 다른 로봇이 길을 바꾼 수
             self.detours_around_isolated += 1
         order = order_id_of(detail)
+        if code == "ROBOT_ISOLATED":
+            self.robots_isolated += 1
+        if code in ("ORDER_HELD", "ORDER_OVER_CAPACITY", *FINAL_CODES) and order in self.final:
+            # 최종은 한 번이다. 끝난 주문(용량 초과 포함)의 보고는 덮어쓰지 않고 위반으로 센다
+            self._bad_report(t, f"{order} {code} after {self.final[order]}")
+            return
+        if code == "ORDER_HELD":
+            match = HOLD_REASON.search(detail)
+            reason = match.group(1) if match else ""
+            self.held[order] = reason
+            self.hold_reasons.setdefault(order, reason)
+            robot = HELD_ROBOT.search(detail)
+            if reason == "ARM_FAULT" and robot:
+                self._arm_held.add(robot.group(1))
+        elif code == "ORDER_OVER_CAPACITY":
+            self.final[order] = OVER_CAPACITY
         if code == "ORDER_ACCEPTED" and order not in self.registered:
             self.registered.append(order)  # 시나리오 주문은 처음부터 등록돼 있다
         elif code == "ROBOT_REINSTATED":
@@ -185,15 +211,20 @@ class ScenarioJudge(ZoneChecks, Laps, OrderChecks, Outcome):
             self._bound_by_reinstated.discard(order)
         elif code in FINAL_CODES:
             self.final[order] = FINAL_CODES[code]
+            self.held.pop(order, None)
             mine = order in self._bound_by_reinstated
             self._bound_by_reinstated.discard(order)  # 최종 이벤트는 한 번만 센다
             self.final_counts[FINAL_CODES[code]] += 1
-            if code != "ORDER_HELD":
+            if code != "ORDER_CANCELED":
                 self.ship_log.append(order)
                 if mine:
                     self.shipped_after_reinstate += 1
-                if self._isolated and not self._operator_came:
+                if (self._isolated or self._arm_held) and not self._operator_came:
                     self.shipped_before_operator += 1
+
+    def _bad_report(self, t: float, text: str) -> None:
+        self.order_report_problems.append(text)
+        self._violate(t, text)
 
     def note(self, t: float, source: str, code: str, detail: str) -> None:
         """events.csv에 남기되 플릿 이벤트로 세면 안 되는 것을 기록한다."""

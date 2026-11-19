@@ -7,7 +7,7 @@ from dataclasses import dataclass
 import rclpy
 from fleet_core.common.contract import to_ros_qos
 from fleet_interfaces.msg import FleetEvent, Order, OrderBoard, OrderItem
-from fleet_interfaces.srv import ReportOrder
+from fleet_interfaces.srv import ForceShip, ReportOrder
 from rclpy.node import Node
 
 from fake_robots.common import (
@@ -21,8 +21,10 @@ SOURCE = "central"
 FINAL_EVENTS = {
     ReportOrder.Request.STATUS_SHIPPED: ("INFO", "ORDER_SHIPPED"),
     ReportOrder.Request.STATUS_PARTIAL: ("WARN", "ORDER_PARTIAL"),
-    ReportOrder.Request.STATUS_HELD: ("WARN", "ORDER_HELD"),
+    ReportOrder.Request.STATUS_CANCELED: ("WARN", "ORDER_CANCELED"),
 }
+HELD = ReportOrder.Request.STATUS_HELD  # 끝이 아니다. 관리자의 강제 출고나 취소를 기다린다
+ARM_FAULT = ReportOrder.Request.HOLD_ARM_FAULT
 
 
 @dataclass
@@ -49,13 +51,21 @@ class FakeCentralNode(Node):
         self._waiting_release = list(scenario.orders)  # 등록 순서
         self._board: list[_Entry] = []  # 오래된 순
         self._final: set[str] = set()
+        self._held: dict[str, str] = {}  # 보류 중인 주문 -> hold_reason
+        # 강제 출고를 보낸 주문. 거절되면 뺀다(최종 보고가 응답보다 먼저 올 수 있어 보낼 때 넣는다)
+        self._force_sent: set[str] = set()
+        self._force_after_s = scenario.force_ship_after_s
+        self._force_due: dict[str, float] = {}  # 주문 -> 부를 시각(시나리오 초). 아직 안 부른 것
+        self._forced: set[str] = set()
 
         self._pub = self.create_publisher(
             OrderBoard, contract.name("order_board"), to_ros_qos(contract.qos("order_board")))
         self._events = self.create_publisher(
             FleetEvent, contract.name("events"), to_ros_qos(contract.qos("events")))
         self.create_service(ReportOrder, contract.name("report_order"), self._report)
+        self._force_cli = self.create_client(ForceShip, contract.name("force_ship"))
         self.create_timer(0.1, self._release_due)
+        self.create_timer(0.2, self._force_due_orders)
         self.create_timer(1.0, self._publish)
         self._release_due()
         self._publish()
@@ -63,6 +73,10 @@ class FakeCentralNode(Node):
     def inventory(self) -> dict:
         with self._lock:
             return dict(self._record)
+
+    def held_reasons(self) -> dict:
+        with self._lock:
+            return dict(self._held)
 
     def _event(self, level: str, code: str, detail: str) -> None:
         self._events.publish(FleetEvent(level=level, source=SOURCE, code=code, detail=detail,
@@ -85,13 +99,19 @@ class FakeCentralNode(Node):
         if released:
             self._publish()
 
-    def _settle_stock(self, request) -> list[tuple[str, str, str]]:
-        """놓은 만큼 빼고 없던 만큼 바로잡는다. 잠금을 잡은 채 호출한다."""
+    def _settle_stock(self, request, forced: bool) -> list[tuple[str, str, str]]:
+        """놓은 만큼 빼고 없던 만큼 바로잡는다. 잠금을 잡은 채 호출한다.
+
+        forced: 강제 출고 뒤의 최종. missing은 고장 난 팔이 못 놓은 것이라 재고로 보지 않는다.
+        강제 출고 없이 끝난 것(치워서 되돌린 뒤 다시 채움 등)은 예전대로 본다.
+        한계: 출고 팔(SWAP) 고장 뒤의 강제 출고는 채울 때의 진짜 부족도 missing에 섞여 있지만
+        보고만으로는 가를 수 없어 같이 뺀다.
+        """
         out = []
         for item in request.placed:
             if item.kind in self._record:
                 self._record[item.kind] = max(0, self._record[item.kind] - item.count)
-        for item in request.missing:
+        for item in () if forced else request.missing:
             left = self._record.get(item.kind, 0)
             text = f"{request.order_id} {item.kind} missing {item.count}, record {left}"
             out.append(("WARN", "STOCK_MISMATCH" if left > 0 else "OUT_OF_STOCK", text))
@@ -99,7 +119,56 @@ class FakeCentralNode(Node):
                 self._record[item.kind] = 0  # 팔이 하나도 못 찾았으니 재고는 0
         return out
 
+    def _force_due_orders(self) -> None:
+        """보류 시각에서 force_ship_after_s가 지난 주문마다 /fleet/force_ship을 한 번 부른다."""
+        with self._lock:
+            now = self._sc.now()
+            due = [o for o, t in self._force_due.items() if t <= now]
+        if not due or not self._force_cli.service_is_ready():
+            return  # 서버가 뜰 때까지 다음 틱에 다시
+        for order_id in due:
+            with self._lock:
+                self._force_due.pop(order_id, None)
+                self._forced.add(order_id)
+                self._force_sent.add(order_id)
+            future = self._force_cli.call_async(ForceShip.Request(order_id=order_id))
+            future.add_done_callback(lambda f, o=order_id: self._force_answer(o, f))
+
+    def _force_answer(self, order_id: str, future) -> None:
+        result = future.result() if future.exception() is None else None
+        if result is None or not result.accepted:
+            with self._lock:
+                self._force_sent.discard(order_id)
+        if result is None:
+            self._event("WARN", "FORCE_SHIP", f"{order_id} accepted=False reason=NO_ANSWER")
+            return
+        level = "INFO" if result.accepted else "WARN"
+        self._event(level, "FORCE_SHIP",
+                    f"{order_id} accepted={result.accepted} reason={result.reason}".rstrip())
+
+    def _on_held(self, request, response):
+        """보류는 주문을 판에 두고 사유만 적는다. 같은 보류가 또 와도 바뀌는 것이 없다."""
+        with self._lock:
+            if not any(e.order_id == request.order_id for e in self._board):
+                response.accepted = False
+                return response
+            response.accepted = True
+            if self._held.get(request.order_id) == request.hold_reason:
+                return response
+            self._held[request.order_id] = request.hold_reason
+            if (self._force_after_s is not None and request.hold_reason == ARM_FAULT
+                    and request.order_id not in self._forced):
+                self._force_due.setdefault(request.order_id,
+                                           self._sc.now() + self._force_after_s)
+        self._event("WARN", "ORDER_HELD",
+                    f"{request.order_id} robot={request.robot_id} "
+                    f"hold_reason={request.hold_reason} placed={_text(request.placed)} "
+                    f"missing={_text(request.missing)} {request.detail}".rstrip())
+        return response
+
     def _report(self, request, response):
+        if request.status == HELD:
+            return self._on_held(request, response)
         final = FINAL_EVENTS.get(request.status)
         with self._lock:
             entry = next((e for e in self._board if e.order_id == request.order_id), None)
@@ -111,7 +180,10 @@ class FakeCentralNode(Node):
                 return response
             self._board.remove(entry)
             self._final.add(request.order_id)
-            events = self._settle_stock(request)
+            self._held.pop(request.order_id, None)
+            forced = request.order_id in self._force_sent
+            self._force_due.pop(request.order_id, None)
+            events = self._settle_stock(request, forced)
         for level, code, text in events:
             self._event(level, code, text)
         level, code = final

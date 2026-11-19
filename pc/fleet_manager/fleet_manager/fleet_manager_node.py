@@ -34,7 +34,7 @@ from fleet_interfaces.msg import (
     RobotStatusArray,
     ZoneStateArray,
 )
-from fleet_interfaces.srv import CheckClear, ConfirmClear, Reinstate, ReportOrder
+from fleet_interfaces.srv import CheckClear, ConfirmClear, ForceShip, Reinstate, ReportOrder
 from rcl_interfaces.msg import ParameterDescriptor
 from rclpy.action import ActionClient
 from rclpy.clock import Clock, ClockType
@@ -143,6 +143,7 @@ class FleetManagerNode(Node):
         self._report_client = self.create_client(ReportOrder, name("report_order"))
         self.create_service(ConfirmClear, name("confirm_clear"), self._on_confirm_clear)
         self.create_service(Reinstate, name("reinstate"), self._on_reinstate)
+        self.create_service(ForceShip, name("force_ship"), self._on_force_ship)
 
     # ---- 토픽과 서비스 수신 콜백 ----
     def _on_robot_state(self, robot, msg: RobotState) -> None:
@@ -168,6 +169,10 @@ class FleetManagerNode(Node):
     def _on_reinstate(self, request, response):
         accepted = self.core.reinstate(*adapters.reinstate_args(request))
         return adapters.reinstate_response(response, accepted, self.core.last_reinstate_reason)
+
+    def _on_force_ship(self, request, response):
+        accepted, reason = self.core.force_ship(adapters.force_ship_args(request))
+        return adapters.force_ship_response(response, accepted, reason)
 
     # ---- 주기 틱: 명령 내보내기, 취소 재시도, 주문 보고, 상태 발행 ----
     def _on_tick(self) -> None:

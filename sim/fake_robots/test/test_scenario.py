@@ -16,7 +16,8 @@ from fleet_core.fleet_map import load_fleet_map
 SCENARIOS = Path(__file__).parents[1] / "scenarios"
 SIX = {"basic_orders", "order_burst", "shared_lane_failure", "stock_shortage", "stuck_robot",
        "operator_recovery", "blocked_lane", "auto_isolation", "reinstate",
-       "real_two_orders", "real_three_orders"}  # 실물 두/세 대 시험(2026-11-18), 가짜 로봇 없이
+       # real_*: 실물 두/세 대 시험(2026-11-18), 가짜 로봇 없이
+       "real_two_orders", "real_three_orders", "arm_fault"}
 
 
 @pytest.fixture(scope="module")
@@ -335,18 +336,22 @@ def fillable(sc, order):
 def test_stock_shortage_derivation_matches_the_expected_counts(site):
     sc = load_scenario(SCENARIOS / "stock_shortage.yaml", site)
     capacity = load_fleet_params()["basket_capacity"]
-    outcome = {"SHIPPED": 0, "PARTIAL": 0, "HELD": 0}
+    outcome = {"SHIPPED": 0, "PARTIAL": 0, "CANCELED": 0, "OVER_CAPACITY": 0}
     for order in sc.orders:
         got = fillable(sc, order)
-        if sum(order.items.values()) > capacity or not any(got.values()):
-            outcome["HELD"] += 1
+        if sum(order.items.values()) > capacity:
+            outcome["OVER_CAPACITY"] += 1  # 보고 없이 ORDER_OVER_CAPACITY
+        elif not any(got.values()):
+            outcome["CANCELED"] += 1
         elif got == order.items:
             outcome["SHIPPED"] += 1
         else:
             outcome["PARTIAL"] += 1
     ex = sc.expect
     assert outcome == {"SHIPPED": ex.orders_shipped, "PARTIAL": ex.orders_partial,
-                       "HELD": ex.orders_held}
+                       "CANCELED": ex.orders_canceled,
+                       "OVER_CAPACITY": list(ex.order_results.values()).count("OVER_CAPACITY")}
+    assert ex.orders_held == 0
     on_shelf = {k for s in sc.stock.values() for k in s}
     wanted = {k for o in sc.orders for k in o.items}
     gone = wanted - on_shelf
@@ -370,20 +375,31 @@ def test_operator_recovery_fails_three_times_then_clears(site):
     assert sc.expect.orders_shipped == len(sc.orders)
     assert sc.expect.all_orders_finished is True
     assert "ORDER_REQUEUED" in sc.expect.events_include
+    # v2.4: 팔 고장은 격리하지 않고 HELD ARM_FAULT. 치울 때 빈 바구니라 되돌린다
+    counts = sc.expect.event_counts
+    assert (counts["ROBOT_ISOLATED"], counts["ORDER_HELD"], counts["ORDER_REQUEUED"]) == (0, 1, 2)
+    assert sc.force_ship_after_s is None
+    assert sc.expect.robots_isolated == 0 and sc.expect.hold_reasons == {"O-001": "ARM_FAULT"}
 
 
 def test_auto_isolation_ships_before_the_operator_and_requeues_once(site):
+    """v2.4: 팔 고장은 격리하지 않는다. O-002는 HELD ARM_FAULT로 작업대에 묶였다가
+    운영자가 치울 때(담은 것 없음) 한 번 되돌려져 출고된다. 이름은 통합 시험 목록 때문에 그대로."""
     sc = load_scenario(SCENARIOS / "auto_isolation.yaml", site)
     fail = next(f for f in sc.faults if f.type == "arm_fail")
     remove = next(f for f in sc.faults if f.type == "operator_remove")
     assert fail.count == 3 and remove.at_s > fail.at_s
+    assert sc.force_ship_after_s is None, "the operator clears it, nobody force-ships"
     first = sc.orders[0]
     assert all(sc.stock[fail.arm].get(kind, 0) == 0 for kind in first.items), \
         "the first order needs no item of the failing arm"
-    assert sc.expect.shipped_before_operator_min >= 1
-    assert sc.expect.event_counts["ORDER_REQUEUED"] == 1, "the clear does not requeue again"
-    assert sc.expect.event_counts["ROBOT_ISOLATED"] == 1
-    assert sc.expect.orders_shipped == len(sc.orders)
+    counts = sc.expect.event_counts
+    assert (counts["ROBOT_ISOLATED"], counts["ORDER_HELD"]) == (0, 1)
+    assert sc.expect.robots_isolated == 0
+    assert sc.expect.hold_reasons == {"O-002": "ARM_FAULT"}
+    assert counts["ORDER_REQUEUED"] == 1 and counts["ZONES_CLEARED"] == 1
+    assert sc.expect.orders_shipped == len(sc.orders) and sc.expect.orders_held == 0
+    assert sc.expect.shipped_before_operator_min >= 1  # O-001은 묶인 pode1을 치우기 전에 나간다
 
 
 def test_params_file_gives_the_basket_capacity():
@@ -409,8 +425,10 @@ def test_stock_shortage_results_are_tied_to_each_order(site):
     derived = {}
     for order in sc.orders:
         got = fillable(sc, order)
-        if sum(order.items.values()) > capacity or not any(got.values()):
-            derived[order.id] = "HELD"
+        if sum(order.items.values()) > capacity:
+            derived[order.id] = "OVER_CAPACITY"
+        elif not any(got.values()):
+            derived[order.id] = "CANCELED"
         else:
             derived[order.id] = "SHIPPED" if got == order.items else "PARTIAL"
     assert sc.expect.order_results == derived
@@ -685,3 +703,46 @@ def test_the_shipped_scenarios_parse_as_before_with_no_object(site):
         for fault in load_scenario(f, site_of(f, site)).faults:
             assert fault.type != "object", name
             assert (fault.x, fault.y, fault.radius_m) == (0.0, 0.0, OBJECT_RADIUS_M), name
+
+
+def test_arm_fault_holds_for_the_arm_then_force_ships_into_partial(site):
+    path = SCENARIOS / "arm_fault.yaml"
+    sc = load_scenario(path, site_of(path, site))
+    capacity = load_fleet_params()["basket_capacity"]
+    held = sc.orders[0]
+    fail = next(f for f in sc.faults if f.type == "arm_fail")
+    # 재시도 한도를 넘도록 계속 실패하고, 매번 일부는 놓은 뒤에 실패한다
+    retries = load_fleet_params()["move_retry_limit"]
+    assert fail.count == retries + 1 and fail.after_items >= 1
+    units = held.items.get("A", 0) + held.items.get("B", 0)
+    assert capacity >= units > (retries + 1) * fail.after_items, \
+        "every attempt must reach the fault"
+    assert sc.force_ship_after_s is not None and sc.force_ship_after_s > 0
+    ex = sc.expect
+    assert ex.order_results[held.id] == "PARTIAL"
+    assert ex.hold_reasons == {held.id: "ARM_FAULT"}
+    assert ex.robots_isolated == 0 and ex.orders_held == 0
+    assert {"ORDER_HELD", "FORCE_SHIP", "ORDER_PARTIAL"} <= set(ex.events_include)
+    assert ex.event_counts["ROBOT_ISOLATED"] == 0
+
+
+def test_force_ship_after_s_must_not_be_negative(site):
+    assert parse_scenario(minimal(), site).force_ship_after_s is None
+    assert parse_scenario(minimal(force_ship_after_s=5), site).force_ship_after_s == 5.0
+    with pytest.raises(ScenarioError, match="force_ship_after_s"):
+        parse_scenario(minimal(force_ship_after_s=-1), site)
+
+
+def test_hold_reasons_need_a_scenario_order_and_a_known_reason(site):
+    for bad in ({"O-9": "ARM_FAULT"}, {"O-1": "LOST"}):
+        with pytest.raises(ScenarioError):
+            parse_scenario(minimal(expect={"hold_reasons": bad}), site)
+    ok = parse_scenario(minimal(expect={"hold_reasons": {"O-1": "ARM_FAULT"}}), site)
+    assert ok.expect.hold_reasons == {"O-1": "ARM_FAULT"}
+
+
+def test_order_results_accept_canceled_held_and_over_capacity(site):
+    data = {"robots": {"pode1": {"start": "P-1"}},
+            "orders": [{"id": "O-1", "items": {"A": 1}}]}
+    for result in ("CANCELED", "HELD", "OVER_CAPACITY"):
+        parse_scenario({**data, "expect": {"order_results": {"O-1": result}}}, site)

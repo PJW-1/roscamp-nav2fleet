@@ -161,19 +161,42 @@ def test_clearing_a_robot_in_two_calls_puts_its_order_back_once():
     assert list(core.zones.held_by("r1")) == []
 
 
-def test_a_robot_faulted_by_the_arm_stops_being_available_to_traffic():
+def _arm_held():
+    """팔이 재시도 한도를 넘어 주문이 ARM_FAULT로 보류된 코어."""
     core, now = make({"r1": "P-1"}, [O1])
     out = drive(core, "r1", lambda: core.robot_view("r1")["order"] == "O-001")
     goal = cmds(out, "FillCmd")[0].goal_id
+    seen = []
     for _ in range(core.params.move_retry_limit + 1):
         core.on_fill_result(goal, False, {}, {}, "GRIPPER")
         now[0] += core.params.arm_retry_wait_s
         report(core, "r1", "W", "DOCKED")
-        fills = cmds(core.tick(), "FillCmd")
+        out = core.tick()
+        seen += out
+        fills = cmds(out, "FillCmd")
         if fills:
             goal = fills[0].goal_id
-    assert core.robot_view("r1")["state"] == "ERROR"
-    assert not core.traffic.available("r1")
+    return core, now, seen
+
+
+def test_an_arm_fault_holds_the_order_and_leaves_the_robot_in_service():
+    core, _, seen = _arm_held()
+    assert [(r.status, r.hold_reason) for r in cmds(seen, "ReportOrderCmd")] == [
+        ("HELD", "ARM_FAULT")]
+    assert core.robot_view("r1")["state"] != "ERROR"
+    assert core.traffic.available("r1")
+    assert core.robot_view("r1")["order"] == "O-001"
+
+
+def test_force_ship_goes_through_the_manager():
+    core, now, _ = _arm_held()
+    assert core.force_ship("O-404") == (False, "UNKNOWN_ORDER")
+    assert core.force_ship(7) == (False, "UNKNOWN_ORDER")
+    assert core.force_ship("O-001") == (True, "")
+    now[0] += 0.1
+    out = core.tick()
+    assert [r.status for r in cmds(out, "ReportOrderCmd")] == ["CANCELED"]
+    assert core.force_ship("O-001") == (False, "NOT_HELD")
 
 
 def _filled_and_leaving(robot="r1"):

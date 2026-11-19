@@ -71,9 +71,11 @@ def correctness(s, world) -> list[str]:
 
 def expectations(s, world) -> list[str]:
     m, out = world.metrics, []
-    total = world.central.total
-    if s.finish_all and world.central.finished < total:
-        out.append(f"finished {world.central.finished}/{total} by {world.t:.0f} s")
+    total, finished = world.central.total, world.central.finished
+    by_hand = len(world.central.closed_by_hand)  # ROBOT_FAULT 보류: central이 닫으니 끝난 셈
+    if s.finish_all and finished + by_hand < total:
+        out.append(f"finished {finished}/{total} (+{by_hand} held for the central) "
+                   f"by {world.t:.0f} s")
     for code in s.no_events:
         seen = (m.count(code) if s.quiet_until_s is None else
                 sum(e.code == code and t <= s.quiet_until_s for t, e in world.events))
@@ -96,7 +98,7 @@ def row(s, layout, seed, world, failures) -> tuple:
     waits = "/".join(f"{m.wait_s[n]:.0f}" for n in sorted(m.wait_s))
     gap = f"{m.min_gap:.3f}" if math.isfinite(m.min_gap) else "-"
     return (s.title, layout, seed, world.avoid_mode,
-            f"{world.central.finished}/{world.central.total}", end,
+            _done(world.central), end,
             waits, gap, m.count("DEADLOCK_SEEN"),
             f"{m.count('OUTSIDE_ZONE')} / {world.invariants.shared_outside}",
             f"{m.retreats} (+{m.dock_exits})",
@@ -105,6 +107,12 @@ def row(s, layout, seed, world, failures) -> tuple:
             detours["in_zone"], detours["keepout"] + detours["corridor"], watch.cleared_cell(),
             len(world.violations),
             "통과" if not failures else "실패", "")
+
+
+def _done(central) -> str:
+    """완료 칸: 최종 보고 수/전체. central이 손으로 닫을 ROBOT_FAULT 보류는 따로 적는다."""
+    by_hand = len(central.closed_by_hand)
+    return f"{central.finished}/{central.total}" + (f" (+{by_hand} 보류)" if by_hand else "")
 
 
 def markdown(rows) -> str:
