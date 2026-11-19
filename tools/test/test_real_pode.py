@@ -570,7 +570,8 @@ def _pc_setups(tmp_path, workspace=True):
     ros.write_text(': "${UNDEFINED_IN_TEST}"\nexport ROS_STUB=1\n')
     ws = tmp_path / "ws_setup.bash"
     if workspace:
-        ws.write_text('export STUB_MARK=overlay\n')
+        # setup이 셸 옵션을 바꿔도 pc_env.sh가 원래대로 돌린다
+        ws.write_text('export STUB_MARK=overlay\nset -u\n')
     return {"ROS_SETUP": str(ros), "NAV2FLEET_WS_SETUP": str(ws)}
 
 
@@ -619,20 +620,33 @@ def test_pc_env_missing_ros_returns_without_closing_the_shell(tmp_path, nounset)
 def test_pc_env_failing_setup_returns_1(tmp_path, broken, nounset):
     # setup 파일은 있는데 실패하면 성공처럼 넘어가지 않는다
     setups = _pc_setups(tmp_path)
-    Path(setups["ROS_SETUP" if broken == "ros" else "NAV2FLEET_WS_SETUP"]).write_text("return 3\n")
+    # 실패하면서 nounset까지 켜는 setup
+    Path(setups["ROS_SETUP" if broken == "ros" else "NAV2FLEET_WS_SETUP"]).write_text(
+        "set -u\nreturn 3\n")
     run, got = _sourced((["set -u"] if nounset else []) + [
-        f'source "{KIT}/pc_env.sh"', 'echo "RC=$?"', NOUNSET_STATE], setups)
+        f'source "{KIT}/pc_env.sh"', 'echo "RC=$?"', NOUNSET_STATE,
+        'compgen -v _pc_ || echo NO_HELPERS'], setups)
     assert "RC=1" in run.stdout
     assert ("NOUNSET_ON" if nounset else "NOUNSET_OFF") in run.stdout
+    assert "NO_HELPERS" in run.stdout
     assert "pc_env.sh" in run.stderr
 
 
-def test_pc_env_without_net_returns_1(tmp_path):
+@pytest.mark.parametrize("net", [None, "set -u\nreturn 2\n"])
+@pytest.mark.parametrize("nounset", [True, False])
+def test_pc_env_net_failure_returns_1(tmp_path, net, nounset):
+    # net.sh가 없거나, 있는데 실패하는 경우
     kit = tmp_path / "kit"
     kit.mkdir()
     shutil.copy(KIT / "pc_env.sh", kit)
-    run, got = _sourced([f'source "{kit}/pc_env.sh"', 'echo "RC=$?"'], _pc_setups(tmp_path))
+    if net is not None:
+        (kit / "net.sh").write_text(net)
+    run, got = _sourced((["set -u"] if nounset else []) + [
+        f'source "{kit}/pc_env.sh"', 'echo "RC=$?"', NOUNSET_STATE,
+        'compgen -v _pc_ || echo NO_HELPERS'], _pc_setups(tmp_path))
     assert "RC=1" in run.stdout
+    assert ("NOUNSET_ON" if nounset else "NOUNSET_OFF") in run.stdout
+    assert "NO_HELPERS" in run.stdout
     assert "net.sh" in run.stderr
 
 
