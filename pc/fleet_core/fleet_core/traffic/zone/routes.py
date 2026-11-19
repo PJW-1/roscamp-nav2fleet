@@ -83,16 +83,21 @@ def _pieces(edge) -> list:
             if math.dist(a, b) > 0.0]
 
 
-def along(edge, x: float, y: float) -> float:
-    best, best_gap, start = 0.0, math.inf, 0.0
-    for (ax, ay), (bx, by) in _pieces(edge):
+def _nearest(pieces, x: float, y: float) -> tuple[int, float]:
+    best, best_gap, start = (0, 0.0), math.inf, 0.0
+    for index, ((ax, ay), (bx, by)) in enumerate(pieces):
         span = math.dist((ax, ay), (bx, by))
-        t = ((x - ax) * (bx - ax) + (y - ay) * (by - ay)) / (span * span)
+        t = ((x - ax) * (bx - ax) + (y - ay) * (by - ay)) / (span * span) if span else 0.0
         t = min(max(t, 0.0), 1.0)
         gap = math.hypot(x - ax - t * (bx - ax), y - ay - t * (by - ay))
         if gap < best_gap - 1e-12:
-            best, best_gap = start + t * span, gap
+            best, best_gap = (index, start + t * span), gap
         start += span
+    return best
+
+
+def along(edge, x: float, y: float) -> float:
+    _, best = _nearest(_pieces(edge), x, y)
     return min(max(best, 0.0), edge.length)
 
 
@@ -186,6 +191,13 @@ def left_s(params, edges, x: float, y: float) -> float:
     if not edges:
         return 0.0
     first = edges[0]
-    here = (math.dist((x, y), first.points[-1]) if first.mode == NAV_GOAL
-            else first.length - along(first, x, y))
-    return here / speed(params, first.mode) + travel_s(params, edges[1:])
+    if first.mode != NAV_GOAL:
+        here = first.length - along(first, x, y)
+        return here / speed(params, first.mode) + travel_s(params, edges[1:])
+    end = 1
+    while end < len(edges) and edges[end].mode == NAV_GOAL and edges[end].a == edges[end - 1].b:
+        end += 1
+    pieces = [(edge.points[0], edge.points[-1]) for edge in edges[:end]]
+    index, _ = _nearest(pieces, x, y)
+    here = math.dist((x, y), pieces[index][1]) + sum(math.dist(*p) for p in pieces[index + 1:])
+    return here / speed(params, NAV_GOAL) + travel_s(params, edges[end:])
