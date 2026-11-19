@@ -91,10 +91,12 @@ def test_failures_past_the_limit_are_an_error_like_the_other_retry_limits():
     errors = [e for e in cmds(out, "EventOut") if e.code == "DISPATCH_FAILED"]
     assert len(errors) == 1 and errors[0].level == "ERROR" and "BUSY" in errors[0].detail
     assert [c.robot for c in out if isinstance(c, RobotFaultCmd)] == ["r1"]
-    assert not cmds(out, "ReportOrderCmd"), "no HELD: the isolation puts the order back"
+    assert not cmds(out, "ReportOrderCmd"), "the isolation decides"
     core.on_robot_isolated("r1", errors[0].detail)
     after = core.take_output()
-    assert "ORDER_REQUEUED" in codes(after)
+    held = cmds(after, "ReportOrderCmd")
+    assert [(r.status, r.hold_reason) for r in held] == [("HELD", "ROBOT_FAULT")]
+    assert "ORDER_REQUEUED" not in codes(after), "a full basket is held, not requeued"
     now[0] += PARAMS.dispatch_retry_wait_s
     core.step("r1")
     assert not core.take_output(), "said once"

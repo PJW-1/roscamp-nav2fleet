@@ -120,26 +120,14 @@ def test_a_finished_fill_names_the_robot_for_the_outbound_station():
     assert core.robot_view("r1")["basket"] == "FULL"
 
 
-def test_nothing_placed_reports_held_and_releases_the_robot():
+def test_nothing_placed_reports_canceled_and_releases_the_robot():
     core, _, fill = filling()
     core.on_fill_result(fill.goal_id, True, {}, {"A": 1, "C": 1})
     core.step("r1")
     out = core.take_output()
-    assert [c.status for c in cmds(out, "ReportOrderCmd")] == ["HELD"]
+    assert [c.status for c in cmds(out, "ReportOrderCmd")] == ["CANCELED"]
     assert only(out, ReleaseCmd) == [ReleaseCmd("r1")]
     assert core.order_of("r1") == ""
-
-
-def test_an_order_over_capacity_is_held_without_calling_an_arm():
-    big = OrderRecord("O-BIG", {"A": load_params().basket_capacity + 1})
-    core, _ = make([big])
-    core.take_output()
-    bound(core)
-    core.step("r1")
-    out = core.take_output()
-    assert not cmds(out, "FillCmd")
-    assert [c.status for c in cmds(out, "ReportOrderCmd")] == ["HELD"]
-    assert only(out, ReleaseCmd) == [ReleaseCmd("r1")]
 
 
 def test_an_outbound_result_starts_the_swap_and_the_finished_swap_releases():
@@ -167,7 +155,7 @@ def test_the_order_is_reported_on_the_take_even_if_the_put_still_has_to_be_done(
     assert (retry.take_full, retry.put_empty) == (False, True)
 
 
-def test_running_out_of_arm_attempts_faults_the_robot_on_the_traffic_side():
+def test_running_out_of_arm_attempts_holds_the_order_and_faults_no_robot():
     core, now, fill = filling()
     for _ in range(core.params.move_retry_limit):
         core.on_fill_result(fill.goal_id, False, {}, {}, "GRIPPER")
@@ -177,11 +165,12 @@ def test_running_out_of_arm_attempts_faults_the_robot_on_the_traffic_side():
     core.on_fill_result(fill.goal_id, False, {}, {}, "GRIPPER")
     out = core.take_output()
     assert "FILL_FAILED" in codes(out)
-    assert [c.robot for c in only(out, RobotFaultCmd)] == ["r1"]
+    assert not only(out, RobotFaultCmd)
+    assert [c.status for c in cmds(out, "ReportOrderCmd")] == ["HELD"]
     assert core.order_of("r1") == "O-001", "kept for the operator"
 
 
-def test_an_arm_that_never_answers_a_cancel_faults_the_robot():
+def test_an_arm_that_never_answers_a_cancel_holds_the_order():
     core, now, _ = filling()
     now[0] += core.params.fill_timeout_s + 0.1
     core.check_arm_timeouts(now[0])
@@ -190,7 +179,8 @@ def test_an_arm_that_never_answers_a_cancel_faults_the_robot():
     core.check_arm_timeouts(now[0])
     out = core.take_output()
     assert "ARM_NO_RESULT" in codes(out)
-    assert [c.robot for c in only(out, RobotFaultCmd)] == ["r1"]
+    assert not only(out, RobotFaultCmd)
+    assert [c.status for c in cmds(out, "ReportOrderCmd")] == ["HELD"]
 
 
 def test_stop_cancels_the_arm_and_keeps_every_dispatch_open():
@@ -270,7 +260,7 @@ def test_a_server_that_keeps_canceling_by_itself_runs_out_of_attempts():
     core.on_fill_result(fill.goal_id, False, {}, {}, "CANCELED")
     out = core.take_output()
     assert "FILL_FAILED" in codes(out)
-    assert [c.robot for c in only(out, RobotFaultCmd)] == ["r1"]
+    assert not only(out, RobotFaultCmd)
 
 
 def test_a_cancel_this_fms_asked_for_stays_harmless():
@@ -379,17 +369,22 @@ def test_a_late_result_counts_only_once():
     assert core.shipped == 1
 
 
+def held_by_robot_fault(out):
+    return [(c.status, c.hold_reason) for c in cmds(out, "ReportOrderCmd")] == [
+        ("HELD", "ROBOT_FAULT")]
+
+
 def test_a_late_swap_result_after_the_clear_warns_of_a_second_shipment_and_changes_nothing():
     core, swap = lost_swap()
     core.on_robot_removed("r1")
-    assert "ORDER_REQUEUED" in codes(core.take_output())
+    assert held_by_robot_fault(core.take_output()), "a full basket is held, not requeued"
     core.on_swap_result(swap.goal_id, False, True, False, "CANCELED")
     out = core.take_output()
     detail = late_event(out)
     assert "took_full=True" in detail and "O-001" in detail and "twice" in detail
     assert not cmds(out, "ReportOrderCmd")
     assert core.shipped == 0
-    assert [o.order_id for o in core._pending()] == ["O-001"], "the requeue stays"
+    assert core._pending() == [], "the hold stays"
 
 
 def test_a_late_fill_result_after_the_clear_warns_of_a_second_fill_and_changes_nothing():
@@ -432,7 +427,7 @@ def test_a_fill_the_clear_canceled_that_still_placed_something_warns_of_a_second
 def test_a_swap_the_clear_canceled_that_took_the_basket_warns_of_a_second_shipment():
     core, _, swap = swapping()
     core.on_robot_removed("r1")
-    assert "ORDER_REQUEUED" in codes(core.take_output())
+    assert held_by_robot_fault(core.take_output())
     core.on_swap_result(swap.goal_id, False, True, False, "CANCELED")
     out = core.take_output()
     detail = late_event(out)

@@ -3,10 +3,16 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-# ---- 주문 상태 상수와 주문 기록 ----
+# ---- 주문 상태, 보류 사유, 강제 출고 거절 사유 상수와 주문 기록 ----
 SHIPPED = "SHIPPED"
 PARTIAL = "PARTIAL"
 HELD = "HELD"
+CANCELED = "CANCELED"
+HOLD_ROBOT_FAULT = "ROBOT_FAULT"
+HOLD_ARM_FAULT = "ARM_FAULT"
+FORCE_NOT_HELD = "NOT_HELD"
+FORCE_ROBOT_FAULT = "ROBOT_FAULT"
+FORCE_UNKNOWN_ORDER = "UNKNOWN_ORDER"
 
 
 @dataclass(frozen=True)
@@ -125,6 +131,7 @@ class ReportOrderCmd:
     placed: dict[str, int]
     missing: dict[str, int]
     detail: str
+    hold_reason: str = ""  # status가 HELD일 때만 채움
 
 
 # ---- 이벤트 출력과 화면 조회 구조 ----
@@ -285,7 +292,16 @@ class ArmLate:
     put_empty_done: bool = False
 
 
-ARM_REPORTS = (ArmDeclined, ArmFillResult, ArmSwapResult, ArmLost, ArmLate)
+# 팔이 재시도 한도를 넘었거나 답이 없음. Pode 고장이 아님
+@dataclass(frozen=True)
+class ArmFault:
+    robot: str
+    kind: str
+    server: str
+    reason: str
+
+
+ARM_REPORTS = (ArmDeclined, ArmFillResult, ArmSwapResult, ArmLost, ArmLate, ArmFault)
 
 
 # ---- 배차 보고와 로봇 격리 ----
