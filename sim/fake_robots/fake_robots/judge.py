@@ -22,8 +22,12 @@ from fake_robots.zone_checks import EPS, ZoneChecks
 
 RATE_PERIOD_S = 0.5  # robots.csv는 2 Hz로 줄여 쓴다
 OFF_LANE_GRACE_S = 1.0  # drift 시작부터 FMS가 연속 보고로 알아챌 때까지의 여유
-FINAL_CODES = {"ORDER_SHIPPED": "SHIPPED", "ORDER_PARTIAL": "PARTIAL", "ORDER_HELD": "HELD"}
+# ORDER_HELD는 끝이 아니다(관리자의 강제 출고나 central의 취소를 기다린다)
+FINAL_CODES = {"ORDER_SHIPPED": "SHIPPED", "ORDER_PARTIAL": "PARTIAL",
+               "ORDER_CANCELED": "CANCELED"}
+OVER_CAPACITY = "OVER_CAPACITY"  # 보고 없이 관제가 접수만 거절한 주문의 결과
 ORDER_ID = re.compile(r"[^\s:,;]+")
+HOLD_REASON = re.compile(r"hold_reason=(\w+)")
 
 
 def order_id_of(detail: str) -> str:
@@ -86,7 +90,10 @@ class ScenarioJudge(ZoneChecks, Laps, OrderChecks, Outcome):
         # 주문
         self.registered: list[str] = list(scenario.order_ids)
         self.final: dict[str, str] = {}
-        self.final_counts = {"SHIPPED": 0, "PARTIAL": 0, "HELD": 0}
+        self.final_counts = {"SHIPPED": 0, "PARTIAL": 0, "CANCELED": 0}
+        self.held: dict[str, str] = {}  # 지금 보류 중인 주문 -> 사유
+        self.hold_reasons: dict[str, str] = {}  # 주문 -> 처음 보류된 사유(끝난 뒤에도 남김)
+        self.robots_isolated = 0
         self.bound_log: list[str] = []
         self.ship_log: list[str] = []
         self.order_log: list[tuple[str, str]] = []  # BOUND와 REQUEUED, 도착 순
@@ -162,6 +169,15 @@ class ScenarioJudge(ZoneChecks, Laps, OrderChecks, Outcome):
             # 다른 로봇이 길을 바꾼 수
             self.detours_around_isolated += 1
         order = order_id_of(detail)
+        if code == "ROBOT_ISOLATED":
+            self.robots_isolated += 1
+        if code == "ORDER_HELD":
+            match = HOLD_REASON.search(detail)
+            reason = match.group(1) if match else ""
+            self.held[order] = reason
+            self.hold_reasons.setdefault(order, reason)
+        elif code == "ORDER_OVER_CAPACITY":
+            self.final[order] = OVER_CAPACITY
         if code == "ORDER_ACCEPTED" and order not in self.registered:
             self.registered.append(order)  # 시나리오 주문은 처음부터 등록돼 있다
         elif code == "ROBOT_REINSTATED":
@@ -185,10 +201,11 @@ class ScenarioJudge(ZoneChecks, Laps, OrderChecks, Outcome):
             self._bound_by_reinstated.discard(order)
         elif code in FINAL_CODES:
             self.final[order] = FINAL_CODES[code]
+            self.held.pop(order, None)
             mine = order in self._bound_by_reinstated
             self._bound_by_reinstated.discard(order)  # 최종 이벤트는 한 번만 센다
             self.final_counts[FINAL_CODES[code]] += 1
-            if code != "ORDER_HELD":
+            if code != "ORDER_CANCELED":
                 self.ship_log.append(order)
                 if mine:
                     self.shipped_after_reinstate += 1

@@ -3,7 +3,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-ORDER_RESULTS = ("SHIPPED", "PARTIAL", "HELD")
+ORDER_RESULTS = ("SHIPPED", "PARTIAL", "CANCELED", "HELD", "OVER_CAPACITY")
+HOLD_REASONS = ("ROBOT_FAULT", "ARM_FAULT")
 ROBOT_FAULTS = ("comm_loss", "nav_abort", "stuck", "operator_remove", "blocked", "drift",
                 "operator_reinstate", "obstacle_behind", "low_battery")
 ARM_FAULTS = ("arm_fail", "swap_partial")
@@ -21,7 +22,9 @@ EXPECT_DEFAULTS = {
     "all_orders_finished": True,
     "orders_shipped": None,  # None은 검사 안 함, 숫자는 정확히 일치해야 함
     "orders_partial": None,
-    "orders_held": None,
+    "orders_held": None,  # 지금 보류 중인 주문 수(끝난 것은 뺀다)
+    "orders_canceled": None,
+    "robots_isolated": None,  # ROBOT_ISOLATED 이벤트 수. null이면 안 봄
     "orders_shipped_min": 0,
     "fifo_violations": 0,
     "zone_holder_max": 1,
@@ -33,7 +36,8 @@ EXPECT_DEFAULTS = {
     "unexpected_errors": 0,  # 코드가 events_include나 event_counts에 없는 ERROR 이벤트
     "bound_after_reinstate_min": 0,  # 다시 투입한 로봇이 그 뒤에 묶은 주문 수
     "shipped_after_reinstate_min": 0,  # 그중 되돌려지지 않고 출고까지 간 주문 수
-    "order_results": {},  # 주문 id: SHIPPED, PARTIAL, HELD
+    "order_results": {},  # 주문 id: SHIPPED, PARTIAL, CANCELED, HELD(아직 보류), OVER_CAPACITY
+    "hold_reasons": {},  # 주문 id: 보류됐던 사유(ROBOT_FAULT, ARM_FAULT)
     "events_include": [],
     "event_counts": {},  # 코드: 정확히 몇 번 나와야 하는지
     "shipped_before_operator_min": 0,  # 격리 뒤 confirm_clear 전 출고
@@ -43,7 +47,7 @@ EXPECT_DEFAULTS = {
     "robot_idle": 0,  # ROBOT_IDLE 이벤트 수(오탐 검사). 정상이면 0, null이면 안 봄
 }
 TOP_LEVEL_KEYS = {"seed", "speed_factor", "timeout_s", "stock", "inventory", "orders", "robots",
-                  "arm", "dock", "faults", "expect", "map", "random"}
+                  "arm", "dock", "faults", "expect", "map", "random", "force_ship_after_s"}
 RANDOM_KEYS = {"order_gap_s", "low_battery"}
 LOW_BATTERY_KEYS = {"from_s", "to_s", "charge_s"}
 
@@ -107,6 +111,8 @@ class Expect:
     orders_shipped: int | None = None
     orders_partial: int | None = None
     orders_held: int | None = None
+    orders_canceled: int | None = None
+    robots_isolated: int | None = None
     orders_shipped_min: int = 0
     fifo_violations: int = 0
     zone_holder_max: int = 1
@@ -119,6 +125,7 @@ class Expect:
     bound_after_reinstate_min: int = 0
     shipped_after_reinstate_min: int = 0
     order_results: dict = field(default_factory=dict)
+    hold_reasons: dict = field(default_factory=dict)
     events_include: list = field(default_factory=list)
     event_counts: dict = field(default_factory=dict)
     shipped_before_operator_min: int = 0
@@ -141,6 +148,8 @@ class Scenario:
     dock: DockCfg
     faults: list
     expect: Expect
+    # central이 ARM_FAULT 보류를 받고 이만큼 뒤에 /fleet/force_ship을 부른다. None이면 안 부른다
+    force_ship_after_s: float | None = None
 
     @property
     def order_ids(self) -> list[str]:

@@ -2,11 +2,11 @@
 # E와 F는 기록에만 있고 선반에 없어 STOCK_MISMATCH로 끝난다.
 #   O-001 전부 있음                     SHIPPED
 #   O-002 A 있음, D 없음                PARTIAL  OUT_OF_STOCK
-#   O-003 D만                           HELD     OUT_OF_STOCK
+#   O-003 D만                           CANCELED OUT_OF_STOCK
 #   O-004 C 있음, E 선반에 없음         PARTIAL  STOCK_MISMATCH
-#   O-005 F만                           HELD     STOCK_MISMATCH
+#   O-005 F만                           CANCELED STOCK_MISMATCH
 #   O-006 전부 있음                     SHIPPED
-#   O-007 basket_capacity 초과          HELD     팔을 부르지 않으니 부족분이 없다
+#   O-007 basket_capacity 초과          보고 없음 ORDER_OVER_CAPACITY, 팔을 부르지 않으니 부족분이 없다
 map: d2  # D2 배치용 시나리오(기본 배치는 v7)
 seed: 17
 speed_factor: 5.0
@@ -32,12 +32,13 @@ expect:
   all_orders_finished: true
   orders_shipped: 2
   orders_partial: 2
-  orders_held: 3
+  orders_held: 0
+  orders_canceled: 2
   fifo_violations: 0
   zone_holder_max: 1
   released_without_position_check: 0
   unheld_zone_pose: 0
-  events_include: [ORDER_PARTIAL, ORDER_HELD, OUT_OF_STOCK, STOCK_MISMATCH]
-  event_counts: {OUT_OF_STOCK: 2, STOCK_MISMATCH: 2, ROBOT_NOT_REPORTING: 0}
-  order_results: {O-001: SHIPPED, O-002: PARTIAL, O-003: HELD, O-004: PARTIAL, O-005: HELD,
-                  O-006: SHIPPED, O-007: HELD}
+  events_include: [ORDER_PARTIAL, ORDER_CANCELED, ORDER_OVER_CAPACITY, OUT_OF_STOCK, STOCK_MISMATCH]
+  event_counts: {OUT_OF_STOCK: 2, STOCK_MISMATCH: 2, ORDER_OVER_CAPACITY: 1, ROBOT_NOT_REPORTING: 0}
+  order_results: {O-001: SHIPPED, O-002: PARTIAL, O-003: CANCELED, O-004: PARTIAL, O-005: CANCELED,
+                  O-006: SHIPPED, O-007: OVER_CAPACITY}
