@@ -235,6 +235,34 @@ def test_missing_after_an_accepted_force_ship_is_not_a_stock_shortage(harness, t
     assert not {"OUT_OF_STOCK", "STOCK_MISMATCH"} & set(c.codes())
 
 
+def test_a_final_that_beats_the_force_ship_answer_is_still_forced(harness, tmp_path):
+    """빈 바구니면 관제가 강제 출고 응답과 거의 같이 CANCELED를 보낸다.
+    응답보다 먼저 와도 재고 문제가 아니다."""
+    import threading
+
+    import rclpy.node
+    c = Central(harness, tmp_path, force_ship_after_s=0.3)
+    gate, asked = threading.Event(), []
+
+    def handle(request, response):
+        asked.append(request.order_id)
+        gate.wait(5.0)  # 최종 보고가 먼저 닿도록 응답을 붙잡는다
+        response.accepted = True
+        return response
+    server = harness.add(rclpy.node.Node("slow_force_ship"))
+    server.create_service(ForceShip, C.name("force_ship"), handle)
+    c.wait_ids(["O-1", "O-2"])
+    c.report("O-1", HELD, hold_reason=ARM_FAULT)
+    assert wait_until(lambda: asked == ["O-1"], 6.0)
+    try:
+        assert c.report("O-1", CANCELED, missing={"A": 1}).accepted
+        c.wait_code("ORDER_CANCELED")
+    finally:
+        gate.set()
+    assert c.node.inventory()["A"] == 3
+    assert not {"OUT_OF_STOCK", "STOCK_MISMATCH"} & set(c.codes())
+
+
 def test_missing_after_an_arm_fault_hold_without_force_ship_is_stock(harness, tmp_path):
     """강제 출고 없이 끝난 주문(치워서 되돌린 뒤 다시 채움 등)의 missing은 예전처럼 재고로 본다."""
     c = Central(harness, tmp_path)

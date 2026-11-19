@@ -52,7 +52,8 @@ class FakeCentralNode(Node):
         self._board: list[_Entry] = []  # 오래된 순
         self._final: set[str] = set()
         self._held: dict[str, str] = {}  # 보류 중인 주문 -> hold_reason
-        self._force_accepted: set[str] = set()  # 강제 출고를 관제가 받아들인 주문
+        # 강제 출고를 보낸 주문. 거절되면 뺀다(최종 보고가 응답보다 먼저 올 수 있어 보낼 때 넣는다)
+        self._force_sent: set[str] = set()
         self._force_after_s = scenario.force_ship_after_s
         self._force_due: dict[str, float] = {}  # 주문 -> 부를 시각(시나리오 초). 아직 안 부른 것
         self._forced: set[str] = set()
@@ -101,8 +102,10 @@ class FakeCentralNode(Node):
     def _settle_stock(self, request, forced: bool) -> list[tuple[str, str, str]]:
         """놓은 만큼 빼고 없던 만큼 바로잡는다. 잠금을 잡은 채 호출한다.
 
-        forced: 관제가 받아들인 강제 출고 뒤의 최종. missing은 고장 난 팔이 못 놓은 것이라
-        재고로 보지 않는다. 강제 출고 없이 끝난 것(치워서 되돌린 뒤 다시 채움 등)은 예전대로 본다.
+        forced: 강제 출고 뒤의 최종. missing은 고장 난 팔이 못 놓은 것이라 재고로 보지 않는다.
+        강제 출고 없이 끝난 것(치워서 되돌린 뒤 다시 채움 등)은 예전대로 본다.
+        한계: 출고 팔(SWAP) 고장 뒤의 강제 출고는 채울 때의 진짜 부족도 missing에 섞여 있지만
+        보고만으로는 가를 수 없어 같이 뺀다.
         """
         out = []
         for item in request.placed:
@@ -127,17 +130,18 @@ class FakeCentralNode(Node):
             with self._lock:
                 self._force_due.pop(order_id, None)
                 self._forced.add(order_id)
+                self._force_sent.add(order_id)
             future = self._force_cli.call_async(ForceShip.Request(order_id=order_id))
             future.add_done_callback(lambda f, o=order_id: self._force_answer(o, f))
 
     def _force_answer(self, order_id: str, future) -> None:
         result = future.result() if future.exception() is None else None
+        if result is None or not result.accepted:
+            with self._lock:
+                self._force_sent.discard(order_id)
         if result is None:
             self._event("WARN", "FORCE_SHIP", f"{order_id} accepted=False reason=NO_ANSWER")
             return
-        if result.accepted:
-            with self._lock:
-                self._force_accepted.add(order_id)
         level = "INFO" if result.accepted else "WARN"
         self._event(level, "FORCE_SHIP",
                     f"{order_id} accepted={result.accepted} reason={result.reason}".rstrip())
@@ -177,7 +181,7 @@ class FakeCentralNode(Node):
             self._board.remove(entry)
             self._final.add(request.order_id)
             self._held.pop(request.order_id, None)
-            forced = request.order_id in self._force_accepted
+            forced = request.order_id in self._force_sent
             self._force_due.pop(request.order_id, None)
             events = self._settle_stock(request, forced)
         for level, code, text in events:
