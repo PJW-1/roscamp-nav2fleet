@@ -12,7 +12,11 @@
 | `make_params.py --speed S --out DIR` | 저장소의 `nav2_params.yaml`과 `avoidance.yaml`을 베끼고 앞으로 가는 속도(FollowPath, FollowPathThrough, FollowPathGoal)만 S로 바꾼다. 0 < S ≤ 0.25를 반올림 전에 보고, 소수 넷째 자리로 반올림해 쓴다(반올림해서 0이 되는 값은 거부). FollowPathReverse(0.05)는 그대로. 또 기본으로 고정 경로 컨트롤러 셋(FollowPath, FollowPathThrough, FollowPathReverse)의 `use_collision_detection`을 false로 쓰고, `--fixed-line-check`를 주면 true로 쓴다(마당 goal FollowPathGoal의 검사는 원본 값 그대로다. 저장소 원본은 true) |
 | `start.sh NS X Y YAW [SPEED]` | `params/`를 다시 만들고(SPEED 기본 0.12) launch를 뒤에서 띄운다. 기록은 `logs/launch_*.log`, 프로세스 그룹은 `logs/launch.pid`. `logs/start.lock`(flock)으로 동시에 두 번 시작하지 않는다. 5 s 안에 pid 파일이 생기지 않으면 그 launch에 TERM을 보내고 약 2 s 기다린 뒤 실패로 끝난다(그래도 남아 있으면 그렇다고 알린다. KILL은 쓰지 않는다) |
 | `stop.sh` | start.sh가 띄운 그룹에 SIGTERM. 그룹 안에 `real_pode.launch.py` 명령이 없으면 내리지 않는다 |
-| `env.sh` | ROS, `~/pinky_pro`, `~/nav2fleet_ws`를 읽고 `ROS_DOMAIN_ID=12`, `ROS_AUTOMATIC_DISCOVERY_RANGE=SUBNET` (11-10에 로봇과 PC가 쓴 값) |
+| `env.sh` | 로봇용: ROS, `~/pinky_pro`, `~/nav2fleet_ws`를 읽고 통신 설정은 `net.sh`를 읽는다. `start.sh`가 이 파일을 읽으므로 로봇 명령은 그대로다 |
+| `net.sh` | source 전용. 통신 설정을 한곳에 모은다. `env.sh`와 `pc_env.sh`가 둘 다 읽는다. `ROS_DOMAIN_ID=12`, `RMW_IMPLEMENTATION=rmw_fastrtps_cpp`, `ROS_AUTOMATIC_DISCOVERY_RANGE=SUBNET`을 정하고, 먼저 `ROS_DISCOVERY_SERVER`, `ROS_SUPER_CLIENT`, `ROS_LOCALHOST_ONLY`, `ROS_STATIC_PEERS`를 지운다(다시 source해도 이전 값이 남지 않는다). `DISCOVERY_SERVER`로 서버 주소를 정한다(기본 `192.168.0.252:11811`, 관제 PC 유선 주소. 다른 주소는 `DISCOVERY_SERVER=IP:PORT`. `off`면 서버 없이 예전처럼 멀티캐스트). `SUPER=1`이면 `ROS_SUPER_CLIENT=TRUE`(ros2 명령, RViz처럼 전체 그래프를 봐야 하는 터미널용. `off`일 때는 무시). 도메인 번호는 팀이 아직 정하지 않았다(2026-11-19). 정해지면 `net.sh` 한 줄만 바꾼다 |
+| `pc_env.sh` | PC 터미널에서 source한다. `/opt/ros/jazzy/setup.bash`와 PC 작업공간 `~/ros2camp/nav2fleet_ws/install/setup.bash`를 읽고(`ROS_SETUP`, `NAV2FLEET_WS_SETUP`로 바꿀 수 있다) `net.sh`를 읽는다. 관제 터미널은 `source tools/real_pode/pc_env.sh`, ros2 명령 터미널은 `SUPER=1 source tools/real_pode/pc_env.sh`. 새 bash 터미널에서 쓴다(PC 작업공간 setup이 `/opt/ros/jazzy`, `~/pinky_pro`, `~/ros2_ws`를 같이 읽어서, 다른 작업공간을 읽은 터미널이면 섞일 수 있다) |
+| `discovery_server.sh` | PC에서 실행한다. ROS를 읽고 `fastdds discovery -i 0 -p 11811`을 앞에서 돌린다. 끌 때는 Ctrl+C(이 도구는 sh, python, 서버 프로그램이 겹쳐 있어서 PID 하나에 TERM을 보내면 서버가 남을 수 있다) |
+| `rviz_pc.sh pode1 pode2` | PC에서 RViz를 띄운다. 안에서 `SUPER=1`로 `pc_env.sh`를 읽는다. `DISCOVERY_SERVER=off rviz_pc.sh ...`도 된다 |
 | `deploy.sh ROBOT_HOST` | PC에서: 커밋된 HEAD의 패키지를 `ROBOT:~/nav2fleet_ws/src/<저장소 경로>/`에, 이 폴더(지도 포함)를 `ROBOT:~/nav2fleet_real/`에 복사한다. 빌드와 실행은 하지 않는다 |
 | `maps/` | `arena_real_slam`: 실물 경기장 SLAM 지도(2.5 cm, 2026-11-17 확정). AMCL(`map_fine`)의 기본이다. 나머지는 `sim/fleet_gz_sim/maps/`의 v7 지도 사본이다: `arena_v7_a`(전역 costmap 2.5 cm, 2026-11-17 결정), `arena_v7_keepout`, `arena_v7_fine`(1 cm 도면 지도, 이제 기본 아님). `arena_v7`(5 cm)은 비교용으로 남긴다 |
 
@@ -31,7 +35,7 @@ Nav2 goal을 모는 컨트롤러(FollowPathGoal)의 속도는 `nav2_params.yaml`
 4. 로봇 옆에 들어 올릴 사람을 둔다.
 5. `~/nav2fleet_real/start.sh pode1 0.12 0.10 1.5708` (속도 0.12 기본). 기록을 본다:
    `tail -f ~/nav2fleet_real/logs/launch_*.log`.
-6. PC에서 같은 도메인(12)으로 관제를 띄워 시험한다.
+6. PC에서 `source tools/real_pode/pc_env.sh`(도메인 12와 디스커버리 서버 설정이 들어 있다)로 관제를 띄워 시험한다. 아래 "디스커버리 서버 (기본)"을 본다.
 7. 끝나면(또는 이상하면) `~/nav2fleet_real/stop.sh`.
 
 ### 옛 이름(pinky)으로 배포된 로봇에 다시 배포할 때 (2026-11-16 이름 변경)
@@ -41,6 +45,30 @@ Nav2 goal을 모는 컨트롤러(FollowPathGoal)의 속도는 `nav2_params.yaml`
 - `deploy.sh`는 옛 `~/nav2fleet_ws/src/pinky/`와 `build/`, `install/`의 `pinky_*`를 지우지 않는다.
   옛 것은 `~/nav2fleet_ws` 밖의 보관 폴더로 옮기고 `build/`, `install/`을 비운 뒤 다시 빌드한다. 그러지 않으면 옛
   패키지가 함께 남는다.
+
+## 디스커버리 서버 (기본)
+
+실물 시험은 PC의 Fast DDS 디스커버리 서버로 서로를 찾는다. 시험 날 순서는 이렇다.
+
+1. PC: `tools/real_pode/discovery_server.sh`를 먼저 켜 둔다(또는 `source /opt/ros/jazzy/setup.bash` 뒤 `fastdds discovery -i 0 -p 11811`).
+2. PC 관제: `source tools/real_pode/pc_env.sh` 뒤 평소처럼 `ros2 launch iponic_bringup pc.launch.py ...`.
+3. 로봇: 예전 그대로 `~/nav2fleet_real/start.sh pode1 ...`.
+4. RViz: `rviz_pc.sh pode1 pode2`.
+5. 확인(ros2 명령 터미널): `SUPER=1 source tools/real_pode/pc_env.sh`, `ros2 daemon stop`, `ros2 daemon start`, 몇 초 뒤 `ros2 node list`, `ros2 topic echo /pode1/state --qos-reliability best_effort --once --timeout 10`.
+
+### 서버 없이 돌리기
+
+- 로봇은 `DISCOVERY_SERVER=off ~/nav2fleet_real/start.sh ...`, PC는 `DISCOVERY_SERVER=off source tools/real_pode/pc_env.sh`.
+- 모드를 바꿀 때는 돌던 노드를 모두 다시 띄운다. 옛 설정 터미널에서 `ros2 daemon stop`을 한 뒤 새 터미널에서 daemon을 다시 띄운다.
+- 서버를 끄기만 하면 이미 서로 찾은 노드는 계속 통신한다. off로 돌아가려면 로봇을 `stop.sh` 뒤 다시 start한다.
+
+### 알아 둘 것
+
+- 서버가 꺼진 동안 새로 뜨거나 다시 뜬 노드는 상대를 못 찾는다. 서버를 다시 켜면 회복한다. 늦게 켠 서버에도 붙는다(2026-11-19 PC 한 대 시험, Wi-Fi는 아직 확인 안 함).
+- 서버 아래에서는 도메인 번호로 갈라지지 않는다. 같은 서버에 붙은 다른 도메인끼리도 보인다(2026-11-19 PC 시험).
+- `ROS_DISCOVERY_SERVER`를 `~/.bashrc`에 넣지 않는다. Gazebo 시뮬은 이 변수가 있으면 띄우지 않는다(`sim/fleet_gz_sim/fleet_gz_sim/isolation.py`의 `FAST_DDS_VARIABLES`).
+- 로봇에서 ros2 명령을 손으로 칠 때는 먼저 `source ~/nav2fleet_real/env.sh`.
+- `deploy.sh`는 패키지도 보내므로 배포 뒤 로봇마다 `cd ~/nav2fleet_ws && colcon build`(위 "첫 실행 순서" 2번).
 
 ## Gazebo와 다른 실물 기본값
 
