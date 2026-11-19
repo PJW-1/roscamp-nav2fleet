@@ -601,28 +601,72 @@ def test_pc_env_missing_workspace_warns_and_still_sets(tmp_path):
     assert got == SERVER_MODE
 
 
-def test_pc_env_missing_ros_returns_without_closing_the_shell(tmp_path):
-    run, got = _sourced([f'source "{KIT}/pc_env.sh"', 'echo "RC=$?"'],
-                        {"ROS_SETUP": str(tmp_path / "nope.bash")})
+NOUNSET_STATE = 'case $- in *u*) echo NOUNSET_ON ;; *) echo NOUNSET_OFF ;; esac'
+
+
+@pytest.mark.parametrize("nounset", [True, False])
+def test_pc_env_missing_ros_returns_without_closing_the_shell(tmp_path, nounset):
+    run, got = _sourced((["set -u"] if nounset else []) + [
+        f'source "{KIT}/pc_env.sh"', 'echo "RC=$?"', NOUNSET_STATE],
+        {"ROS_SETUP": str(tmp_path / "nope.bash")})
     assert "RC=1" in run.stdout
+    assert ("NOUNSET_ON" if nounset else "NOUNSET_OFF") in run.stdout
     assert str(tmp_path / "nope.bash") in run.stderr
+
+
+@pytest.mark.parametrize("broken", ["ros", "workspace"])
+@pytest.mark.parametrize("nounset", [True, False])
+def test_pc_env_failing_setup_returns_1(tmp_path, broken, nounset):
+    # setup 파일은 있는데 실패하면 성공처럼 넘어가지 않는다
+    setups = _pc_setups(tmp_path)
+    Path(setups["ROS_SETUP" if broken == "ros" else "NAV2FLEET_WS_SETUP"]).write_text("return 3\n")
+    run, got = _sourced((["set -u"] if nounset else []) + [
+        f'source "{KIT}/pc_env.sh"', 'echo "RC=$?"', NOUNSET_STATE], setups)
+    assert "RC=1" in run.stdout
+    assert ("NOUNSET_ON" if nounset else "NOUNSET_OFF") in run.stdout
+    assert "pc_env.sh" in run.stderr
+
+
+def test_pc_env_without_net_returns_1(tmp_path):
+    kit = tmp_path / "kit"
+    kit.mkdir()
+    shutil.copy(KIT / "pc_env.sh", kit)
+    run, got = _sourced([f'source "{kit}/pc_env.sh"', 'echo "RC=$?"'], _pc_setups(tmp_path))
+    assert "RC=1" in run.stdout
+    assert "net.sh" in run.stderr
+
+
+def test_pc_env_leaves_no_helper_variables(tmp_path):
+    run, got = _sourced([f'source "{KIT}/pc_env.sh"', 'compgen -v _pc_ || echo NONE'],
+                        _pc_setups(tmp_path))
+    assert run.stdout.splitlines()[0] == "NONE"
 
 
 def test_discovery_server_runs_fastdds_in_front(tmp_path):
     fake = tmp_path / "bin"
     fake.mkdir()
     seen = tmp_path / "fastdds.args"
-    (fake / "fastdds").write_text(f'#!/bin/bash\nprintf "%s\\n" "$@" > "{seen}"\n')
+    # 대역 fastdds: 자기 PID, 서버 변수, 인자를 적는다
+    (fake / "fastdds").write_text(
+        '#!/bin/bash\n{ echo "PID=$$"; echo "DS=${ROS_DISCOVERY_SERVER-unset}"; '
+        'echo "SUPER=${ROS_SUPER_CLIENT-unset}"; printf "%s\\n" "$@"; } > "' + str(seen) + '"\n')
     (fake / "fastdds").chmod(0o755)
     ros = tmp_path / "ros_setup.bash"
-    ros.write_text(': "${UNDEFINED_IN_TEST}"\n')
-    env = {"PATH": f"{fake}:/usr/bin:/bin", "HOME": str(tmp_path), "ROS_SETUP": str(ros)}
-    run = subprocess.run(["bash", str(KIT / "discovery_server.sh")], env=env,
-                         capture_output=True, text=True, timeout=10)
-    assert run.returncode == 0, run.stderr
+    # 진짜 setup처럼 정의되지 않은 변수를 읽고, 서버 변수를 export해도 서버에는 가지 않는다
+    ros.write_text(': "${UNDEFINED_IN_TEST}"\nexport ROS_DISCOVERY_SERVER=10.9.9.7:1\n')
+    env = {"PATH": f"{fake}:/usr/bin:/bin", "HOME": str(tmp_path), "ROS_SETUP": str(ros),
+           "ROS_DISCOVERY_SERVER": "10.9.9.9:1", "ROS_SUPER_CLIENT": "TRUE"}
+    proc = subprocess.Popen(["bash", str(KIT / "discovery_server.sh")], env=env,
+                            stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    out, err = proc.communicate(timeout=10)
+    assert proc.returncode == 0, err
+    lines = seen.read_text().splitlines()
+    # exec: 스크립트 프로세스가 그대로 fastdds가 된다(터미널의 Ctrl+C가 바로 간다)
+    assert lines[0] == f"PID={proc.pid}"
+    assert lines[1:3] == ["DS=unset", "SUPER=unset"]
     # 포트는 net.sh 기본 주소의 포트와 같다
     port = DEFAULT_SERVER.split(":")[1]
-    assert seen.read_text().splitlines() == ["discovery", "-i", "0", "-p", port]
+    assert lines[3:] == ["discovery", "-i", "0", "-p", port]
 
 
 def test_discovery_server_without_ros(tmp_path):

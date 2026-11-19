@@ -59,8 +59,9 @@ def _run_stubbed(tmp_path, ws_setup, extra=None):
     bindir.mkdir()
     log = tmp_path / "calls.log"
     fake = bindir / "rviz2"
-    net = ("NET=${ROS_DOMAIN_ID:-}|${RMW_IMPLEMENTATION:-}|${ROS_DISCOVERY_SERVER:-}"
-           "|${ROS_SUPER_CLIENT:-}")
+    # 빈 값과 없는 값을 가른다
+    net = ("NET=${ROS_DOMAIN_ID-unset}|${RMW_IMPLEMENTATION-unset}|${ROS_DISCOVERY_SERVER-unset}"
+           "|${ROS_SUPER_CLIENT-unset}")
     fake.write_text(f'#!/usr/bin/env bash\necho "MARK=${{STUB_MARK:-none}} {net} $*" >> {log}\n'
                     'exit 0\n')
     fake.chmod(0o755)
@@ -106,10 +107,12 @@ def test_launcher_overlay_missing_is_skipped(tmp_path):
 def test_launcher_rviz_is_super_client_of_the_server(tmp_path):
     r, calls = _run_stubbed(tmp_path, tmp_path / "nope.bash")
     assert r.returncode == 0, r.stderr
-    assert calls and all(" NET=12|rmw_fastrtps_cpp|192.168.0.252:11811|TRUE " in c for c in calls)
+    assert len(calls) == 3
+    assert all(" NET=12|rmw_fastrtps_cpp|192.168.0.252:11811|TRUE " in c for c in calls)
 
 
 def test_launcher_off_is_multicast(tmp_path):
     r, calls = _run_stubbed(tmp_path, tmp_path / "nope.bash", {"DISCOVERY_SERVER": "off"})
     assert r.returncode == 0, r.stderr
-    assert calls and all(" NET=12|rmw_fastrtps_cpp|| " in c for c in calls)
+    assert len(calls) == 3
+    assert all(" NET=12|rmw_fastrtps_cpp|unset|unset " in c for c in calls)
