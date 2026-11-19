@@ -51,7 +51,7 @@
   - SLAM 지도를 쓸 때는 `real_pode.launch.py`에 `map:=`, `map_fine:=`, `keepout_mask:=`로 넘긴다. `start.sh`는 인자를 4개(namespace, x, y, yaw)나 5개(+속도)만 받는다. 지도 인자를 붙여 6개 이상이 되면 인자 개수 검사에서 멈추고, 속도 없이 하나만 붙여 5개가 되면 그 값이 속도 자리로 들어가 `make_params.py`에서 실패한다. 그래서 launch를 직접 부르거나 `start.sh`를 고쳐야 한다.
   - keepout은 `python3 tools/make_keepout.py --layout <관제 지도.yaml> --map <지도.yaml>`로 만든다. 이 도구는 지도 그림에서 크기와 원점만 읽고, 막는 자리는 `--layout`의 관제 지도 구역에서 그린다. 관제 지도를 고쳤다면 고친 yaml 경로를 `--layout`에 준다.
 - **관제 PC:**
-  - `pc.launch.py use_fake:=false`에서 `map_file`을 안 주면 d2 배치를 읽는다(`pc/fleet_core/fleet_core/fleet_map/fleet_map.py` 31줄 `DEFAULT_LAYOUT = "d2"`).
+  - `pc.launch.py use_fake:=false`에서 `map_file`을 안 주면 d2 배치를 읽는다(`pc/fleet_core/fleet_core/fleet_map/fleet_map.py` 31줄 `DEFAULT_LAYOUT = "d2"`). 2026-11-19부터는 기본이 `v7`이라 안 주면 v7을 읽는다.
   - v7 경기장이면 `ros2 launch iponic_bringup pc.launch.py use_fake:=false map_file:=v7`로 띄운다.
 - **도메인:** `tools/real_pode/env.sh`는 12다. 관제도 같은 도메인으로 띄운다.
 - 도킹은 실물에 없다(DOCK_UNAVAILABLE). 주문 하나를 끝까지 돌릴 수 없다.

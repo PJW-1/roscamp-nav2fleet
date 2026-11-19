@@ -33,7 +33,7 @@ flowchart LR
 
 ## 배치
 
-경기장은 1.98 × 0.99 m이고 세 가지 배치를 지도로 넣었다(`pc/fleet_core/fleet_core/data/fleet_map_<배치>.yaml`). 어느 것을 쓸지는 아직 정하지 않았다. 비교표는 [작업 기록](docs/worklog_nav2base_2026-11-12.md)에 있다.
+경기장은 1.98 × 0.99 m이고 세 가지 배치를 지도로 넣었다(`pc/fleet_core/fleet_core/data/fleet_map_<배치>.yaml`). 실제 경기장은 따로 `v7`로 확정했다(아래). 셋의 비교표는 [작업 기록](docs/worklog_nav2base_2026-11-12.md)에 있다.
 
 | 배치 | 모양 | 넓은 구역 | 급행(폭 0.20 m) |
 |---|---|---|---|
