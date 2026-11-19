@@ -4,7 +4,14 @@ from itertools import pairwise
 
 import pytest
 from fleet_core.common.params import load_params
-from fleet_core.fleet_map import KNOWN_LAYOUTS, LAYOUTS, PASS, SHARED, load_fleet_map, route
+from fleet_core.fleet_map import (
+    KNOWN_LAYOUTS,
+    LAYOUTS,
+    PASS,
+    SHARED,
+    load_fleet_map,
+    shortest_path,
+)
 from fleet_core.fleet_map.model import FOLLOW_PATH, NAV_GOAL, RETREAT
 
 # 자유바닥 저장소 sites/arena_v7.yaml의 치수(권위 있는 값)
@@ -125,7 +132,7 @@ def test_v7_work_queue_is_two_spots_entered_at_q2(site):
     for start in site.nodes:
         if start in station.queue or start == "W":
             continue
-        way = route(site, start, "W")
+        way = shortest_path(site, start, "W")
         assert way is not None and [link.b for link in way][-3:] == ["Q2", "Q1", "W"], start
 
 
@@ -175,7 +182,7 @@ def test_v7_a_robot_parked_in_a_bay_cuts_no_other_way(site, spot):
     for a in others:
         for b in others:
             if a != b:
-                assert route(site, a, b, cost) is not None, (spot, a, b)
+                assert shortest_path(site, a, b, cost) is not None, (spot, a, b)
 
 
 DIVIDER_TOP_M = 0.10
@@ -243,7 +250,7 @@ def test_v7_dock_releases_neighbours_after_docking(site):
 
 def test_v7_routes(site):
     # 급행: WORK에서 출고로 고정 경로. 급행이 비어 있으면 이쪽을 고른다
-    way = route(site, "W", "O")
+    way = shortest_path(site, "W", "O")
     assert [link.b for link in way] == ["W_X", "O_X", "O"]
     assert all(link.via == FOLLOW_PATH for link in way)
     assert "EXPRESS" in way[1].zones and way[2].zones == ("EXPRESS", "OUT_DOCK")
@@ -266,7 +273,7 @@ def test_v7_routes(site):
 
     def no_express(link):
         return math.inf if "EXPRESS" in link.zones else link.price_m
-    hall = route(site, "W", "O", no_express)
+    hall = shortest_path(site, "W", "O", no_express)
     assert [link.b for link in hall] == ["M_E", "O_IN", "O"]
     # 넓은 곳 쪽이 0.09 m 짧다. 그 이음에 extra_m(W에서 M_E 쪽으로 약 100도 제자리 돌기)을 더해
     # 급행이 비면 급행을 고르고, 급행 들머리 J_E를 다른 로봇이 쥐고 있으면(TRANSIT_WAIT_S)
@@ -335,15 +342,15 @@ def test_v7_routes(site):
     # 평소에는 남쪽 통로가 짧다(E-1, E-2는 E-3을 거쳐도 곧은 선과 길이가 같다). 남쪽 통로(칸 입구
     # <-> Q2)를 못 쓰면 가운데 통로로 돈다
     for door, way in (("E-1", ["E-3", "Q2"]), ("E-2", ["E-3", "Q2"]), ("E-3", ["Q2"])):
-        assert [link.b for link in route(site, door, "Q2")] == way, door
-    assert sum(link.length for link in route(site, "E-1", "Q2")) == pytest.approx(
+        assert [link.b for link in shortest_path(site, door, "Q2")] == way, door
+    assert sum(link.length for link in shortest_path(site, "E-1", "Q2")) == pytest.approx(
         math.dist(site.node_pose("E-1"), site.node_pose("Q2")), abs=0.002)
 
     def south_shut(link):
         return math.inf if "Q2" in (link.a, link.b) and "M_E" not in (link.a, link.b) \
             else link.length
     for start in (*doors, "O_OUT"):
-        way = [link.b for link in route(site, start, "Q2", south_shut)]
+        way = [link.b for link in shortest_path(site, start, "Q2", south_shut)]
         assert way[-3:] == ["O_IN", "M_E", "Q2"], (start, way)
     # 진열대를 곧게 가로지르는 Nav2 이음이 없다(그래프 값이 실제보다 짧아진다)
     from fleet_core.fleet_map.geometry import inside
@@ -355,7 +362,8 @@ def test_v7_routes(site):
             x, y = ax + (bx - ax) * k / 100, ay + (by - ay) * k / 100
             assert not any(inside(shelf, x, y) for shelf in site.shelves), (link.a, link.b)
     for spot in site.parking:
-        assert route(site, spot, "W") is not None and route(site, "O", spot) is not None
+        assert (shortest_path(site, spot, "W") is not None
+                and shortest_path(site, "O", spot) is not None)
 
 
 def test_v7_queue_is_entered_at_q2_and_flows_one_way(site):

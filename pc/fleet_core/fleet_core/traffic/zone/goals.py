@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import math
 
-from fleet_core.fleet_map import AT_DOCK, LANE, NAV_GOAL, SHARED, WAIT, route
+from fleet_core.fleet_map import AT_DOCK, LANE, NAV_GOAL, SHARED, WAIT, shortest_path
 from fleet_core.traffic.mission import TO_OUTBOUND, TO_PARK, TO_WORK
 
 from .base import HERE
@@ -57,10 +57,10 @@ class Goals:
             if self._retreat_held_up(m):
                 return None
             back = self._back_link(m)
-            rest = route(site, m.avoid.retreat_to, goal, cost)
+            rest = shortest_path(site, m.avoid.retreat_to, goal, cost)
             return None if rest is None or back is None else [back, *rest]
         if self._on_node(m):
-            return route(site, m.node, goal, cost)
+            return shortest_path(site, m.node, goal, cost)
         zone = site.zone_at(m.x, m.y)
         if zone is None or site.zones[zone].kind != SHARED:
             return None
@@ -70,7 +70,7 @@ class Goals:
             if self._blocked.get((HERE + m.name, name), 0.0) > now:
                 continue
             first = free_link(site, m.x, m.y, name, zones)
-            rest = route(site, name, goal, cost)
+            rest = shortest_path(site, name, goal, cost)
             if rest is None:
                 continue
             total = (first.length / self.params.nav_speed_mps + self._node_wait(m, name)

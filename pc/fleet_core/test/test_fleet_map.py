@@ -11,7 +11,7 @@ from fleet_core.fleet_map import (
     FleetMapError,
     distance,
     load_fleet_map,
-    route,
+    shortest_path,
 )
 
 # 가로 2 m, 세로 1 m. 북쪽 띠가 도크(서) - 갈림목 - 급행 - 갈림목 - 도크(동), 나머지는 마당이다.
@@ -272,7 +272,7 @@ def test_a_robot_may_leave_its_dock_by_nav_goal_one_way():
     assert (out.via, out.path, out.zones) == ("nav_goal", "", ("DOCK_W", "HALL"))
     assert out.length == pytest.approx(math.hypot(0.2, 0.3)) and out.extra_m == 0.0
     assert site.link("N_W", "W") is None
-    assert route(site, "W", "O")[0].via == "retreat", "the shorter way still wins"
+    assert shortest_path(site, "W", "O")[0].via == "retreat", "the shorter way still wins"
 
 
 def test_a_nav_group_may_add_length_to_the_price_of_its_links():
@@ -286,9 +286,9 @@ def test_a_nav_group_may_add_length_to_the_price_of_its_links():
         return math.inf if link.lane else link.price_m
     # 급행 없이: 도크에서 바로 마당으로(0.36 + 1.2 + 0.5)가 X_W로 물러났다 내려가는 길
     # (0.2 + 0.3 + 1.2 + 0.5)보다 짧지만, 0.3을 더하면 뒤집힌다
-    assert route(site, "W", "O", no_express)[0].b == "X_W"
+    assert shortest_path(site, "W", "O", no_express)[0].b == "X_W"
     plain = build(nav=[*SMALL["nav"], LEAVE_W])
-    assert route(plain, "W", "O", no_express)[0].b == "N_W"
+    assert shortest_path(plain, "W", "O", no_express)[0].b == "N_W"
 
 
 def test_stations_keep_the_fields_orders_and_arms_read():
@@ -350,13 +350,13 @@ def test_node_pose_gives_the_point():
 
 def test_route_is_the_shortest_chain_of_links():
     site = build()
-    way = route(site, "P-1", "W")
+    way = shortest_path(site, "P-1", "W")
     assert [link.b for link in way] == ["N_W", "X_W", "W"]
     assert [link.via for link in way] == ["nav_goal", "follow_path", "follow_path"]
 
 
 def test_route_takes_the_express_from_dock_to_dock():
-    way = route(build(), "W", "O")
+    way = shortest_path(build(), "W", "O")
     assert [(link.via, link.b) for link in way] == [
         ("retreat", "X_W"), ("follow_path", "X_E"), ("follow_path", "O")]
 
@@ -367,14 +367,14 @@ def test_route_follows_the_cost_it_is_given():
     def no_express(link):
         return math.inf if link.lane else link.length
 
-    way = route(site, "W", "O", cost=no_express)
+    way = shortest_path(site, "W", "O", cost=no_express)
     assert [link.b for link in way] == ["X_W", "N_W", "N_E", "X_E", "O"]
 
 
 def test_route_to_the_same_node_is_empty_and_an_unreachable_one_is_none():
     site = build()
-    assert route(site, "W", "W") == []
-    assert route(site, "W", "O", cost=lambda link: math.inf) is None
+    assert shortest_path(site, "W", "W") == []
+    assert shortest_path(site, "W", "O", cost=lambda link: math.inf) is None
 
 
 def test_distance_is_the_shortest_real_length_not_the_price():
@@ -382,7 +382,7 @@ def test_distance_is_the_shortest_real_length_not_the_price():
     data["nav"].append({"nodes": ["W", "N_W"], "leave_dock": True, "extra_m": 0.3})
     site = FleetMap(data)
     assert distance(site, "W", "N_E") == pytest.approx(math.hypot(0.2, 0.3) + 1.2)
-    assert [link.b for link in route(site, "W", "N_E")][0] == "X_W"
+    assert [link.b for link in shortest_path(site, "W", "N_E")][0] == "X_W"
     assert distance(site, "W", "W") == 0.0
 
 
@@ -529,7 +529,7 @@ def test_d2_matches_the_instruction():
     assert site.shelves == ((0.50, 0.775, 1.48, 0.79),)
     assert site.node_pose("W") == (0.18, 0.89) and site.node_pose("O") == (1.80, 0.89)
     assert site.zones["HALL"].capacity == 3
-    assert [link.b for link in route(site, "W", "O")] == ["N_W", "X_W", "X_E", "O"]
+    assert [link.b for link in shortest_path(site, "W", "O")] == ["N_W", "X_W", "X_E", "O"]
     # 곧은 선은 진열대 끝에서 0.15 m다. 급행과 갈림목 사이의 호(반지름 0.10)는 0.115 m까지 다가간다.
     # 갈림목 선을 더 옮기면 도크 W, O와 너무 가까워지므로 남겨 둔 경고다(팀이 정한 거리)
     assert len(site.warnings) == 4

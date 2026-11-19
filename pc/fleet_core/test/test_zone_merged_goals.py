@@ -13,7 +13,7 @@ from dataclasses import replace
 import pytest
 from fleet_core.common.commands import MoveCmd, MoveOrderCmd
 from fleet_core.common.params import load_params
-from fleet_core.fleet_map import NAV_GOAL, load_fleet_map, route
+from fleet_core.fleet_map import NAV_GOAL, load_fleet_map, shortest_path
 from fleet_core.traffic.zone import trips
 from zone_harness import Harness
 
@@ -34,7 +34,7 @@ def nav_targets(world, robot) -> list:
 
 
 def test_a_run_of_hall_nav_links_is_one_segment():
-    way = route(V7, "O_OUT", "Q2")
+    way = shortest_path(V7, "O_OUT", "Q2")
     assert [link.b for link in way] == ["E-3", "Q2"]
     assert trips.segment_end(V7, way, 0, 2) == 2
     assert trips.segment_end(V7, way, 0, 1) == 1, "never past what is granted"
@@ -42,7 +42,7 @@ def test_a_run_of_hall_nav_links_is_one_segment():
 
 def test_a_run_merges_only_through_nodes_marked_through():
     assert [name for name, spec in V7.nodes.items() if spec.through] == ["E-1", "E-2", "E-3"]
-    way = route(V7, "W", "E-2")
+    way = shortest_path(V7, "W", "E-2")
     assert [link.b for link in way] == ["M_E", "O_IN", "E-2"]
     assert way[0].zones == ("WORK_DOCK", "HALL")
     assert trips.segment_end(V7, way, 0, 3) == 1, "a leave_dock link crosses zones"
@@ -69,7 +69,7 @@ def test_a_free_link_from_off_the_graph_is_not_merged():
     assert trips.segment_end(V7, way, 0, 2) == 1
 
 def test_a_merged_nav_goal_faces_the_last_node():
-    way = route(V7, "O_OUT", "Q2")
+    way = shortest_path(V7, "O_OUT", "Q2")
     cmd = trips.move_command(V7, "pode1", 3, way, 0.15, 0.62)
     assert (cmd.mode, cmd.target_id, cmd.path) == (NAV_GOAL, "Q2", ())
     # Q2 자리는 지도에서 읽는다(2026-11-18 밤 y 0.16 -> 0.15)

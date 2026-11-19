@@ -3,7 +3,7 @@ import math
 
 import pytest
 from fleet_core.common.params import load_params
-from fleet_core.fleet_map import FOLLOW_PATH, NAV_GOAL, RETREAT, load_fleet_map, route
+from fleet_core.fleet_map import FOLLOW_PATH, NAV_GOAL, RETREAT, load_fleet_map, shortest_path
 from fleet_core.traffic.zone import trips
 
 D2 = load_fleet_map("d2")
@@ -11,7 +11,7 @@ PARAMS = load_params()
 
 
 def way(start, goal):
-    return route(D2, start, goal)
+    return shortest_path(D2, start, goal)
 
 
 def test_a_stretch_runs_to_the_next_node_where_a_robot_may_wait():

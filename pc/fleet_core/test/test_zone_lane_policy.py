@@ -1,6 +1,6 @@
 """한 줄 구역의 방향: 먼저 닿는 쪽, 직전 방향의 히스테리시스, 오래 기다린 쪽에 넘기기."""
 from fleet_core.common.params import load_params
-from fleet_core.fleet_map import load_fleet_map, route
+from fleet_core.fleet_map import load_fleet_map, shortest_path
 from fleet_core.traffic.zone.controller import ZoneTraffic
 from fleet_core.traffic.zone.lane_policy import LanePolicy, Want
 from fleet_core.traffic.zone.trips import Trip
@@ -61,7 +61,7 @@ def across(site, robot_at, *nodes):
     """nodes를 차례로 지나는 길. 시험이 급행을 지나는 길을 손으로 고른다."""
     links = []
     for a, b in zip((robot_at, *nodes), nodes, strict=False):
-        links += route(site, a, b)
+        links += shortest_path(site, a, b)
     return links
 
 

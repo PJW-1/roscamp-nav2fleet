@@ -5,7 +5,7 @@ import math
 from itertools import pairwise
 
 from .geometry import EPS, point_rect_distance, segment_rect_distance, wall_gap
-from .graph import route
+from .graph import shortest_path
 from .model import NAV_GOAL, RETREAT, SHARED, WAIT, FleetMapError
 
 
@@ -129,7 +129,7 @@ def check_reach(site) -> None:
     pairs += [(dock, spot) for dock in docks for spot in site.parking]
     pairs += [(a, b) for a in docks for b in docks if a != b]
     for start, goal in pairs:
-        if route(site, start, goal) is None:
+        if shortest_path(site, start, goal) is None:
             raise FleetMapError(f"there is no way from {start} to {goal}")
 
 

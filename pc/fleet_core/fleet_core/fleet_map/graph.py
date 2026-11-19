@@ -6,7 +6,7 @@ import math
 
 
 # ---- start에서 goal까지 최단 링크 순서 찾기 ----
-def route(site, start: str, goal: str, cost=None) -> list | None:
+def shortest_path(site, start: str, goal: str, cost=None) -> list | None:
     if start == goal:
         return []
     price = cost or (lambda link: link.price_m)
@@ -40,5 +40,5 @@ def route(site, start: str, goal: str, cost=None) -> list | None:
 
 # ---- start에서 goal까지 실제 최단 길이 ----
 def distance(site, start: str, goal: str) -> float:
-    way = route(site, start, goal, lambda link: link.length)
+    way = shortest_path(site, start, goal, lambda link: link.length)
     return math.inf if way is None else sum(link.length for link in way)
