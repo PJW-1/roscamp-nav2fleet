@@ -1,12 +1,12 @@
 """Gazebo에서 Pode 한 대를 Nav2, pode_fsm과 함께 돌린다. 관제(fleet_manager)는 띄우지 않는다.
 
-    ros2 launch fleet_gz_sim one_pode.launch.py                          # v7, P-1, 화면 + RViz
+    ros2 launch fleet_gz_sim one_pode.launch.py                          # v7, O_IN, 화면 + RViz
     ros2 launch fleet_gz_sim one_pode.launch.py layout:=c start:=P-2 gui:=false rviz:=false
-    ros2 launch fleet_gz_sim one_pode.launch.py layout:=v7 start:=O_IN obstacles:=v7_corridor_box \
+    ros2 launch fleet_gz_sim one_pode.launch.py obstacles:=v7_corridor_box \
         nav_map_variant:=b                                               # 가운데 통로 재현
 
-주행은 따로 `ros2 run fleet_gz_sim drive_check --layout d2 --plan stage2`(관제 대신 이동을 바로
-보냄)로 시키거나 RViz의 2D Goal Pose(bt_navigator)로 시킨다. 격리 검사(isolation.py)를 통과해야
+주행은 따로 `ros2 run fleet_gz_sim drive_check`(관제 대신 이동을 바로 보냄. 인자 없으면 v7
+corridor이고 이 launch의 기본 시작 O_IN과 맞다. d2는 둘 다 layout d2로)로 시키거나 RViz의 2D Goal Pose(bt_navigator)로 시킨다. 격리 검사(isolation.py)를 통과해야
 무엇이든 띄운다. 월드와 Pode는 gz.launch.py와 같은 조각(fleet_gz_sim.launch_parts)으로 만든다.
 still_pode:="x,y,yaw"를 주면 Nav2 없이 서 있기만 하는 Pode(pode_still)를 그 자리에 놓는다
 (다른 Pode가 라이다에 보이는지 재기).
@@ -24,7 +24,8 @@ from rclpy import get_rmw_implementation_identifier
 ARGS = {
     "namespace": ("pode1", "로봇 이름이자 namespace"),
     "layout": ("v7", "배치: v7(기본, 실제 경기장), d2, d, c, 시험용 d2_shelf"),
-    "start": ("P-1", "시작 지점(구역 지도의 지점 이름). 방향은 그 지점의 yaw"),
+    "start": ("", "시작 지점(구역 지도의 지점 이름). 방향은 그 지점의 yaw. 비면 인자 없는"
+                  " drive_check가 그 배치에서 고르는 계획의 시작(v7은 O_IN, 그 밖은 P-1)"),
     "gui": ("true", "Gazebo 화면"),
     "rviz": ("true", "RViz"),
     "fsm": ("true", "pode_fsm(move_to, retreat, dock, state)"),
@@ -72,6 +73,7 @@ def _start(context):
         start_poses,
     )
     from fleet_gz_sim.obstacles import load_schedule
+    from fleet_gz_sim.stage2_plan import pick_layout_plan, start_node
     from launch_ros.actions import Node
 
     def value(name):
@@ -87,9 +89,11 @@ def _start(context):
     arena = arena_for(layout, launch_parts.share("fleet_gz_sim"),
                       value("nav_map_variant").strip())
     ns = value("namespace")
-    if value("start") not in site.nodes:
-        raise ValueError(f"start {value('start')!r} is not a node of {site.name}")
-    x, y, yaw = start_poses(site, {ns: value("start")})[ns]
+    # 비면 drive_check(--layout만 준)의 계획 시작 지점
+    start = value("start").strip() or start_node(pick_layout_plan(layout, None)[1])
+    if start not in site.nodes:
+        raise ValueError(f"start {start!r} is not a node of {site.name}")
+    x, y, yaw = start_poses(site, {ns: start})[ns]
     overrides = None
     if value("nav_overrides"):
         overrides = yaml.safe_load(Path(value("nav_overrides")).read_text(encoding="utf-8"))

@@ -1,5 +1,6 @@
 """one_pode.launch.py가 무엇을 띄우기 전에 격리를 검사하는지 본다."""
 import importlib.util
+import math
 import xml.etree.ElementTree as ET
 from pathlib import Path
 
@@ -41,7 +42,44 @@ def run(module, **overrides):
 
 def test_the_default_layout_is_the_real_arena_v7(one):
     assert one.ARGS["layout"][0] == "v7"
-    assert one.ARGS["start"][0] == "P-1"  # v7에도 있는 주차 지점
+    assert one.ARGS["start"][0] == ""  # 비면 drive_check 기본 계획의 시작 지점
+
+
+def spawned_at(one, monkeypatch, **overrides):
+    """pode()에 넘긴 (x, y, yaw)."""
+    need("pinky_description", "pode_nav_config", "pode_fsm")
+    from fleet_gz_sim import launch_parts
+    seen = []
+    monkeypatch.setattr(launch_parts, "pode", lambda ns, x, y, yaw, **kw: seen.append((x, y, yaw))
+                        or [])
+    run(one, **overrides)
+    [pose] = seen
+    return pose
+
+
+def test_without_layout_and_start_the_pode_stands_where_drive_check_starts(one, monkeypatch):
+    from fleet_core.fleet_map import load_fleet_map
+    from fleet_gz_sim.stage2_plan import pick_layout_plan, start_node
+    layout, plan = pick_layout_plan(None, None)
+    site = load_fleet_map(layout)
+    x, y, _ = spawned_at(one, monkeypatch)
+    assert (x, y) == site.node_pose("O_IN")
+    # drive_check의 시작 검사(START_M 0.15 m)를 통과한다
+    assert math.dist((x, y), site.node_pose(start_node(plan))) <= 0.15
+
+
+def test_d2_without_start_stands_on_p1(one, monkeypatch):
+    from fleet_core.fleet_map import load_fleet_map
+    x, y, _ = spawned_at(one, monkeypatch, layout="d2")
+    assert (x, y) == load_fleet_map("d2").node_pose("P-1")
+
+
+def test_an_explicit_start_wins(one, monkeypatch):
+    from fleet_core.fleet_map import load_fleet_map
+    x, y, _ = spawned_at(one, monkeypatch, start="P-2")
+    assert (x, y) == load_fleet_map("v7").node_pose("P-2")
+    x, y, _ = spawned_at(one, monkeypatch, layout="d2", start="P-3")
+    assert (x, y) == load_fleet_map("d2").node_pose("P-3")
 
 
 def test_the_fixed_line_check_is_off_unless_asked(one, monkeypatch):

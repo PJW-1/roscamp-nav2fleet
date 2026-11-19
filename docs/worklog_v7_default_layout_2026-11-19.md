@@ -73,3 +73,22 @@ sim/fleet_gz_sim을 install 없이(PYTHONPATH에 pc/fleet_core, sim/fake_robots,
 origin/main에서도 같은 시험이 같은 수로 실패한다(실패 목록 diff 없음). 모두 ROS 메시지를 쓰는 시험이고 `UnsupportedTypeSupport: Could not import 'rosidl_typesupport_c' for package 'fleet_interfaces'`(설치된 fleet_interfaces와 이 셸의 환경 문제)이거나 tools의 `test_real_pode.py` 두 개(설치된 pode_fsm launch)다. 이번 변경과 상관없다.
 
 돌리지 않은 것: `pc/fleet_manager` ROS 시험(도메인 50~59를 스스로 잡음), Gazebo(띄우지 않음).
+
+## 4. 후속: one_pode 기본 시작 지점 (Codex b07ff12 지적)
+
+문제: 인자 없는 `drive_check`는 v7 + corridor라 O_IN에서 시작하는데, `one_pode.launch.py`의 기본 `start`는 P-1이었다. v7에서 두 점은 0.642 m 떨어져 있고 `drive_check`의 시작 검사(`START_M` 0.15 m)에 걸려, 기본 launch 둘을 함께 쓰면 출발 전에 멈췄다. b07ff12 전에는 d2 + stage2라 둘 다 P-1이었다.
+
+고친 것: `one_pode`의 `start` 기본을 빈 값으로 두고, 비면 `start_node(pick_layout_plan(layout, None)[1])`을 쓴다(규칙은 `stage2_plan` 한 곳). v7은 O_IN, d2·d·c·d2_shelf는 stage2의 시작 P-1로 전과 같다. `start:=X`를 주면 그대로 쓴다. docstring, 인자 설명, sim README(`start:=O_IN`을 붙이라던 줄)를 고쳤다.
+
+시험(`sim/fleet_gz_sim/test/test_one_pode_wiring.py`, 먼저 씀):
+
+| 시험 | 고치기 전 |
+|---|---|
+| `test_the_default_layout_is_the_real_arena_v7`(`start` 기본은 빈 값) | `AssertionError: assert 'P-1' == ''` |
+| `test_without_layout_and_start_the_pode_stands_where_drive_check_starts`(새, O_IN이고 START_M 안) | `assert (0.12, 0.1) == (0.49, 0.625)` |
+| `test_d2_without_start_stands_on_p1`(새) | 통과(지금 동작을 지키는 시험) |
+| `test_an_explicit_start_wins`(새) | 통과(지금 동작을 지키는 시험) |
+
+결과: `test_one_pode_wiring.py` 18 passed. sim/fleet_gz_sim 전체(위와 같은 환경, `ROS_DOMAIN_ID=70`, install의 fleet_interfaces는 10:10쯤 새로 빌드됨) `593 passed in 21.57s`. 앞서 실패하던 12개(test_dock_stub, test_recovery_probe, test_stand_in_battery)가 이제 통과한다(세 파일만 돌려 `38 passed`).
+
+그대로 둔 것: fake_robots의 머리 없는 상황 도구(`ZoneWorld()`, `situations.build`, `table.run_situation`, 시험 도우미 `world_helpers.quiet_world`, `zone_harness`)의 기본 d2는 그 상황들이 d2 구역(HALL, EXPRESS, J_E 등)으로 짜여 있어 바꾸지 않는다(코디네이터 결정).

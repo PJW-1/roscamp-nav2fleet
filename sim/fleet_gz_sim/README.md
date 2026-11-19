@@ -156,18 +156,18 @@ source ~/pinky_deps_ws/install/local_setup.bash   # pinky_description
 source ~/fleet_ws/install/local_setup.bash
 export ROS_DOMAIN_ID=47 ROS_AUTOMATIC_DISCOVERY_RANGE=LOCALHOST RMW_IMPLEMENTATION=rmw_fastrtps_cpp
 
-ros2 launch fleet_gz_sim one_pode.launch.py                          # v7, P-1, Gazebo 화면 + RViz
+ros2 launch fleet_gz_sim one_pode.launch.py                          # v7, O_IN, Gazebo 화면 + RViz
 ros2 launch fleet_gz_sim one_pode.launch.py gui:=false rviz:=false   # 화면 없이
 ```
 
-인자: `namespace`(pode1), `layout`(v7), `start`(P-1, 지점 이름이고 방향은 그 지점의 yaw), `gui`, `rviz`, `fsm`, `heartbeat_timeout_s`(1.5), `nav_log_level`(warn), `nav_max_speed`(0.20), `keepout`(true), `still_pode`(`x,y,yaw`를 주면 Nav2 없이 서 있기만 하는 `pode_still`을 놓는다).
+인자: `namespace`(pode1), `layout`(v7), `start`(지점 이름이고 방향은 그 지점의 yaw. 비면 인자 없는 `drive_check`가 그 배치에서 고르는 계획의 시작: v7은 O_IN, d2·d·c·d2_shelf는 P-1), `gui`, `rviz`, `fsm`, `heartbeat_timeout_s`(1.5), `nav_log_level`(warn), `nav_max_speed`(0.20), `keepout`(true), `still_pode`(`x,y,yaw`를 주면 Nav2 없이 서 있기만 하는 `pode_still`을 놓는다).
 
 로봇이 IDLE이 되면(약 10 s) 다른 터미널에서 같은 환경으로 주행시킨다.
 
 ```bash
 ros2 run fleet_gz_sim drive_check --layout d2 --plan stage2 --json stage2.json   # one_pode는 layout:=d2로
 ros2 run fleet_gz_sim drive_check --plan cross     # P-1 -> P-3 -> P-1 Nav2 goal(d2, 둘째 Pode 확인용)
-ros2 run fleet_gz_sim drive_check                  # 인자 없으면 v7 corridor(one_pode는 start:=O_IN으로)
+ros2 run fleet_gz_sim drive_check                  # 인자 없으면 v7 corridor(one_pode 기본 시작 O_IN과 맞음)
 ```
 
 `drive_check`는 관제 없이 로봇에 바로 이동을 보낸다(`fleet_gz_sim/stage2_plan.py`). `stage2`는 고정 선을 한 바퀴 도는 계획이다(추가지시서3 2-1): P-1에서 Nav2 goal로 N_W, `work_in`으로 W, 후진으로 N_W, 급행 동쪽으로 N_E, `out_in`으로 O, 후진으로 N_E, 급행 서쪽으로 N_W, Nav2 goal로 P-1. 고정 선의 꺾는 점도 경로에 넣는다. 결과는 `results/fixed_line_results.md`. 구간마다 결과, 걸린 시간(벽시계, 시뮬), 끝 위치와 방향 오차, 고정 경로에서 벗어난 최대 거리, Nav2 계획이 지난 keepout 구역을 적는다. `/fleet/heartbeat`는 2 Hz로 보낸다.
