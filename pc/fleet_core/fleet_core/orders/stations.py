@@ -2,8 +2,8 @@
 from __future__ import annotations
 
 from fleet_core.common.commands import (
+    CANCELED,
     FILL,
-    HELD,
     SWAP,
     ArmFillCmd,
     ArmResetCmd,
@@ -35,15 +35,8 @@ class Stations:
         self._out.append(ArmResetCmd(r.name))
         order.missing = subtract_items(order.items, order.placed)
         if not order.placed:
-            self._report(r, HELD, f"nothing could be placed, missing {order.missing}")
+            self._report(r, CANCELED, f"nothing could be placed, missing {order.missing}")
             self._leave_station(r)
-        elif order.missing and not self.params.ship_partial:
-            detail = f"{order.order_id} partial not allowed, basket holds {order.placed}"
-            r.basket = FULL
-            r.stage = ""
-            self._report(r, HELD, detail)
-            self._fail(r, detail)
-            self._event("ERROR", "FILL_FAILED", detail, r.name)
         else:
             r.basket = FULL
             r.stage = ""
@@ -78,11 +71,6 @@ class Stations:
         if r.asked:
             return
         order = r.order
-        if sum(order.items.values()) > self.params.basket_capacity:
-            self._report(r, HELD, f"{sum(order.items.values())} items exceed the basket "
-                                  f"capacity of {self.params.basket_capacity}")
-            self._leave_station(r)
-            return
         remaining = subtract_items(order.items, order.placed, order.missing)
         if not remaining:
             self._finish_fill(r)

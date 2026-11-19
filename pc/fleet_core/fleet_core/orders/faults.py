@@ -1,9 +1,21 @@
-# ---- 주문 코어의 고장 처리: 로봇 제거, 격리, 늦은 팔 결과 ----
+# ---- 주문 코어의 고장 처리: 로봇 제거, 격리, 팔 고장, 강제 출고, 늦은 팔 결과 ----
 from __future__ import annotations
 
-from fleet_core.common.commands import FILL, SWAP, ArmDropCmd, ArmResetCmd, ArmStopCmd
+from fleet_core.common.commands import (
+    FILL,
+    FORCE_NOT_HELD,
+    FORCE_ROBOT_FAULT,
+    FORCE_UNKNOWN_ORDER,
+    HOLD_ARM_FAULT,
+    HOLD_ROBOT_FAULT,
+    SWAP,
+    ArmDropCmd,
+    ArmFault,
+    ArmResetCmd,
+    ArmStopCmd,
+)
 
-from .records import EMPTY, FULL, NONE, LostJob, RobotRecord, merge_items
+from .records import EMPTY, FILLING, FULL, NONE, SWAPPING, LostJob, RobotRecord, merge_items
 
 
 # ---- 로봇 치움, 다시 투입, 격리와 주문 되돌리기 ----
@@ -15,10 +27,15 @@ class Faults:
         r.isolated = ""
         if r.asked:
             self._drop_arm(r)
-        if r.order:
+        if r.order and r.order.placed:
+            self._hold(r, HOLD_ROBOT_FAULT, "robot cleared")
+            r.order = None
+        elif r.order:
+            self._held.pop(r.order.order_id, None)
             self._event("INFO", "ORDER_REQUEUED",
                         f"{r.order.order_id} was bound, basket held {r.order.placed}", robot)
             r.order = None
+        r.held = ""
         r.stage = ""
         r.outbound_goal = None
         self._forget_dispatch_failures(r)
@@ -31,22 +48,31 @@ class Faults:
 
     def on_robot_isolated(self, robot, reason) -> None:
         r = self._robots.get(robot)
-        if r is None or self._result_still_due(r):
+        if r is None:
             return
         r.isolated = reason
         if r.asked == SWAP and r.order:
             self._out.append(ArmStopCmd(r.name))
             return
+        # 담는 중이면 팔 결과를 기다린 뒤 판단한다
+        if r.asked == FILL:
+            return
         if r.asked:
             self._drop_arm(r, isolated=True)
         self._requeue_isolated(r)
 
+    # 담은 것이 있으면 보류, 없으면 대기로 되돌림
     def _requeue_isolated(self, r: RobotRecord) -> None:
-        if r.order:
+        if r.order and r.order.placed:
+            self._hold(r, HOLD_ROBOT_FAULT, f"robot isolated: {r.isolated}")
+            r.order = None
+        elif r.order:
+            self._held.pop(r.order.order_id, None)
             self._event("INFO", "ORDER_REQUEUED",
                         f"{r.order.order_id} was bound, basket held {r.order.placed}, "
                         f"robot isolated: {r.isolated}", r.name)
             r.order = None
+        r.held = ""
         r.basket = NONE
         r.stage = ""
         r.outbound_goal = None
@@ -58,9 +84,37 @@ class Faults:
         self._out.append(ArmDropCmd(r.name, isolated, self.order_of(r.name), r.bound))
         r.asked = ""
 
-    def _result_still_due(self, r: RobotRecord) -> bool:
-        return any(lost.robot == r.name and not lost.cleared and self._still_bound(lost)
-                   for lost in self._lost_jobs.values())
+    # ---- 팔 고장: 주문을 보류하고 Pode는 작업대에 붙잡아 둠 ----
+    def _on_arm_fault(self, r: RobotRecord, fault: ArmFault) -> None:
+        r.asked = ""
+        if r.isolated:
+            self._requeue_isolated(r)
+            return
+        r.held = HOLD_ARM_FAULT
+        if r.order:
+            self._hold(r, HOLD_ARM_FAULT, fault.reason)
+
+    # ---- 강제 출고: 팔 고장 보류만 받음 ----
+    def on_force_ship(self, order_id) -> tuple[bool, str]:
+        hold = self._held.get(order_id)
+        if hold is None:
+            known = (any(o.order_id == order_id for o in self._board)
+                     or any(self.order_of(name) == order_id for name in self._robots))
+            return False, FORCE_NOT_HELD if known else FORCE_UNKNOWN_ORDER
+        robot, reason = hold
+        if reason == HOLD_ROBOT_FAULT:
+            return False, FORCE_ROBOT_FAULT
+        r = self._robots[robot]
+        if (r.isolated or not r.held or self.order_of(robot) != order_id
+                or r.stage not in (FILLING, SWAPPING)):
+            return False, FORCE_NOT_HELD
+        del self._held[order_id]
+        r.held = ""
+        if r.stage == FILLING:
+            self._finish_fill(r)
+        else:
+            self._out.append(ArmResetCmd(r.name))
+        return True, ""
 
     # ---- 늦게 도착한 팔 결과 처리 ----
     def _late_fill(self, goal_id: int, placed: dict[str, int]) -> None:

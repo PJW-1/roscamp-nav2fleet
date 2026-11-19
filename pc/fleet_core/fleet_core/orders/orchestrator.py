@@ -3,12 +3,14 @@ from __future__ import annotations
 
 from fleet_core.common.commands import (
     FILL,
+    HELD,
     NO_ROBOT,
     PARTIAL,
     SHIPPED,
     SWAP,
     ArmDeclined,
     ArmFailedCmd,
+    ArmFault,
     ArmFillResult,
     ArmLate,
     ArmLost,
@@ -52,7 +54,9 @@ class OrderOrchestrator(Faults, Stations):
         self._out: list = []
         self._run_mode: str | None = None
         self._board: list = []
-        self._reported: set[str] = set()
+        self._reported: set[str] = set()  # 최종 보고(SHIPPED, PARTIAL, CANCELED)
+        self._held: dict[str, tuple[str, str]] = {}  # 보류 중: 주문 id -> (로봇, 사유)
+        self._over_capacity: set[str] = set()  # 용량 초과를 알린 주문
         self._open_calls: list[int] = []
         self._work = next(s.id for s in stations.values() if s.action == FILL)
         self._outbound = next(s.id for s in stations.values() if s.action == SWAP)
@@ -62,7 +66,14 @@ class OrderOrchestrator(Faults, Stations):
     def on_order_board(self, run_mode, orders) -> None:
         self._run_mode = run_mode
         self._board = list(orders)
-        self._reported &= {o.order_id for o in self._board}
+        ids = {o.order_id for o in self._board}
+        self._reported &= ids
+        self._over_capacity &= ids
+        self._held = {k: v for k, v in self._held.items() if k in ids}
+        for r in self._robots.values():
+            if r.held and r.order and r.order.order_id not in ids:
+                r.order = None
+        self._warn_over_capacity()
         self._sync_calls()
 
     def on_dispatch_feedback(self, goal_id, robot_id, phase) -> None:
@@ -108,11 +119,16 @@ class OrderOrchestrator(Faults, Stations):
             self._on_swap_result(r, report.took_full, report.put_empty_done)
         elif isinstance(report, ArmLost):
             self._on_arm_lost(r, report)
+        elif isinstance(report, ArmFault):
+            self._on_arm_fault(r, report)
 
     # ---- 팔 결과를 주문에 반영하고 결과를 잃은 작업 기록 ----
     def _on_fill_result(self, r: RobotRecord, success, placed) -> None:
         r.asked = ""
         merge_items(r.order.placed, placed)
+        if r.isolated:
+            self._requeue_isolated(r)
+            return
         if success:
             r.order.missing = subtract_items(r.order.items, r.order.placed)
             return
@@ -146,7 +162,7 @@ class OrderOrchestrator(Faults, Stations):
     # ---- 로봇 한 대의 단계 진행 ----
     def step(self, robot) -> None:
         r = self._robots.get(robot)
-        if r is None:
+        if r is None or r.held:
             return
         if r.stage == FILLING:
             self._step_filling(r)
@@ -192,9 +208,18 @@ class OrderOrchestrator(Faults, Stations):
 
     # ---- 대기 주문 계산과 배차 요청 맞추기 ----
     def _pending(self) -> list:
-        bound = {r.order.order_id for r in self._robots.values() if r.order}
-        return [o for o in self._board
-                if o.order_id not in bound and o.order_id not in self._reported]
+        skip = ({r.order.order_id for r in self._robots.values() if r.order}
+                | self._reported | self._held.keys() | self._over_capacity)
+        return [o for o in self._board if o.order_id not in skip]
+
+    def _warn_over_capacity(self) -> None:
+        capacity = self.params.basket_capacity
+        for o in self._board:
+            count = sum(o.items.values())
+            if count > capacity and o.order_id not in self._over_capacity:
+                self._over_capacity.add(o.order_id)
+                self._event("WARN", "ORDER_OVER_CAPACITY",
+                            f"{o.order_id}: {count} items exceed the basket capacity of {capacity}")
 
     def _sync_calls(self) -> None:
         wanted = len(self._pending())
@@ -212,9 +237,18 @@ class OrderOrchestrator(Faults, Stations):
     # ---- 주문 보고 만들기 ----
     def _report(self, r: RobotRecord, status: str, detail: str = "") -> None:
         order, r.order = r.order, None
+        r.held = ""
         self._reported.add(order.order_id)
+        self._held.pop(order.order_id, None)
         self._out.append(ReportOrderCmd(order.order_id, r.name, status, dict(order.placed),
                                         dict(order.missing), detail))
+
+    def _hold(self, r: RobotRecord, reason: str, detail: str) -> None:
+        order = r.order
+        order.missing = subtract_items(order.items, order.placed)
+        self._held[order.order_id] = (r.name, reason)
+        self._out.append(ReportOrderCmd(order.order_id, r.name, HELD, dict(order.placed),
+                                        dict(order.missing), detail, reason))
 
     def _report_shipped(self, r: RobotRecord) -> None:
         self.shipped += 1

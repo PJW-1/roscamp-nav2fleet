@@ -26,7 +26,6 @@ BLOCKED_REPORT_MARGIN_S = 2.0
 @dataclass(frozen=True)
 class FleetParams:
     basket_capacity: int
-    ship_partial: bool
     robot_radius_m: float
     release_margin_extra_m: float
     release_distance_m: float

@@ -33,6 +33,13 @@ def orders_problem(orders) -> str:
     return ""
 
 
+# ---- 강제 출고 입력 검사 ----
+def force_ship_problem(order_id) -> str:
+    if not _name(order_id):
+        return f"order id {shown(order_id)} is not a name"
+    return ""
+
+
 # ---- 다시 투입 입력 검사 ----
 def reinstate_problem(robot, basket, robots) -> str:
     problem = robot_problem(robot, robots)

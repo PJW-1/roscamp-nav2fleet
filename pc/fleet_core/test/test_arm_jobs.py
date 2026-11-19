@@ -7,6 +7,7 @@ from fleet_core.common.commands import (
     ArmDeclined,
     ArmDropCmd,
     ArmFailedCmd,
+    ArmFault,
     ArmFillCmd,
     ArmFillResult,
     ArmLate,
@@ -20,7 +21,6 @@ from fleet_core.common.commands import (
     FillCmd,
     OrderRecord,
     ReportOrderCmd,
-    RobotFaultCmd,
     SwapCmd,
 )
 from fleet_core.common.params import load_params
@@ -90,7 +90,7 @@ def test_no_new_goal_goes_out_during_the_wait_after_a_failure():
     assert cmds(jobs.take_output(), "FillCmd")[0].goal_id == goal.goal_id + 1
 
 
-def test_past_the_retry_limit_the_robot_is_reported_faulty():
+def test_past_the_retry_limit_the_arm_is_reported_faulty_not_the_robot():
     jobs, now, goal = started(ASK_SWAP)
     for _ in range(jobs.params.move_retry_limit):
         jobs.on_swap_result(goal.goal_id, False, False, False, "GRIPPER")
@@ -101,8 +101,9 @@ def test_past_the_retry_limit_the_robot_is_reported_faulty():
     jobs.on_swap_result(goal.goal_id, False, False, False, "GRIPPER")
     jobs.on_command(ArmFailedCmd("r1"))
     out = jobs.take_output()
-    assert [type(c) for c in out] == [ArmSwapResult, RobotFaultCmd, EventOut]
-    assert out[1].reason == "arm3: GRIPPER" and codes(out) == ["SWAP_FAILED"]
+    assert [type(c) for c in out] == [ArmSwapResult, ArmFault, EventOut]
+    assert out[1] == ArmFault("r1", SWAP, "arm3", "arm3: GRIPPER")
+    assert codes(out) == ["SWAP_FAILED"] and out[2].detail == "arm3: GRIPPER"
 
 
 def test_a_goal_stopped_by_the_run_mode_is_no_failed_attempt():
@@ -126,7 +127,9 @@ def test_a_goal_past_its_time_is_canceled_and_then_given_up():
     jobs.check_timeouts(now[0])
     out = jobs.take_output()
     assert out[0] == ArmLost("r1", goal.goal_id, "workcell", FILL)
-    assert [type(c) for c in out[1:]] == [RobotFaultCmd, EventOut]
+    assert out[1] == ArmFault("r1", FILL, "workcell",
+                              f"workcell goal {goal.goal_id} never reported")
+    assert isinstance(out[2], EventOut)
     assert codes(out) == ["ARM_NO_RESULT"] and jobs.sent_at("r1") is None
     jobs.on_fill_result(goal.goal_id, True, {"A": 1}, {})
     assert jobs.take_output() == [ArmLate(goal.goal_id, FILL, placed={"A": 1})]
@@ -214,9 +217,9 @@ def test_a_swap_that_took_the_basket_and_failed_reports_the_order_before_the_ret
     assert [type(c) for c in out] == [ReportOrderCmd, EventOut] and codes(out) == ["SWAP_RETRY"]
 
 
-def test_removing_a_robot_cancels_its_goal_before_the_order_goes_back():
+def test_removing_a_robot_cancels_its_goal_before_the_order_is_held():
     core, _, swap = joined_swapping()
     core.on_robot_removed("r1")
     out = core.take_output()
     assert out[0] == CancelCmd("arm3", swap.goal_id)
-    assert codes(out)[0] == "ORDER_REQUEUED"
+    assert isinstance(out[1], ReportOrderCmd) and out[1].hold_reason == "ROBOT_FAULT"
