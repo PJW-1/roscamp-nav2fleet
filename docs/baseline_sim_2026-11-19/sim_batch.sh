@@ -2,7 +2,7 @@
 # 시뮬 묶음(판마다 실제 위치 기록기 같이): 한 판씩 차례로, 도메인 61
 # 사용: sim_batch.sh BASE_DIR OVERLAY_SETUP|- name:scenario ...
 # PC마다 다른 것은 환경 변수로 준다(안 주면 2026-11-19 기준 묶음을 돌린 PC의 값):
-#   SIM_BATCH_INSTALL  공유 install의 setup.bash
+#   SIM_BATCH_INSTALL  공유 install의 setup.bash(경로에 작은따옴표는 쓰지 못한다)
 #   SIM_BATCH_ENV      깨끗한 env에 더 넣을 변수들(예: "WAYLAND_DISPLAY=wayland-0 GALLIUM_DRIVER=d3d12")
 #                      빈칸으로 나눈 NAME=value 목록이다. 값에 빈칸이나 *를 쓰지 못한다
 #   SIM_BATCH_PAUSE_S  판마다 시작하기 전에 쉬는 시간(초). 첫 판 앞에서도 쉰다

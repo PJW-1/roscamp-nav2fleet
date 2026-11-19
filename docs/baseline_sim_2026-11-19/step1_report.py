@@ -60,13 +60,14 @@ def resume_after(rows, t):
 def q2_from(cmds, seq, t_arr, start_xy):
     """Q2에 닿은 nav_goal Segment(seq)의 시작 node와, 그것을 위치로 어림했는지.
 
-    그 Segment를 담은 마지막 명령(도착 전)에서 바로 앞 Segment의 끝 node를 본다. 갱신 명령의 첫
-    Segment면 그 전 명령들의 seq - 1을 쓴다(다시 자른 Route는 seq_id가 겹치므로 최신 것).
+    그 Segment를 담은 마지막 명령(도착한 때까지)에서 바로 앞 Segment의 끝 node를 본다. 갱신 명령의
+    첫 Segment면 그 전 명령들의 seq - 1을 쓴다(다시 자른 Route는 seq_id가 겹치므로 최신 것. 다시 자르며
+    앞 Segment까지 바뀐 Route라면 옛 Segment를 집을 수 있다: 그런 명령은 이번 묶음에 없었다).
     Route의 첫 Segment면 명령에 시작 node가 없어, Route를 받은 자리에서 가장 가까운 node로 어림한다.
     """
     seen, found = {}, None
     for c in cmds:
-        if c["t"] > t_arr + 0.2:
+        if c["t"] > t_arr:
             break
         segs_ = [*c.get("base", []), *c.get("horizon", [])]
         for i, s in enumerate(segs_):
@@ -139,7 +140,7 @@ def q2_routes(ev, rec, pos):
                     "joined": start not in (None, "?", *NEXT_TO_Q2),
                     "arrive_Q2": round(t_arr, 2), "update_lead_s": lead,
                     "base_end_wait": stood, "stop_cause": cause, "zone_wait_near": len(zw),
-                    "route_s": round(ds[-1][0] - sent[oid], 2), "end": ds[-1][1]})
+                    "route_s": ds[-1][0] - sent[oid], "end": ds[-1][1]})
     return sorted(out, key=lambda r: r["sent"])
 
 
@@ -198,7 +199,8 @@ def main():
             print("| " + " | ".join(keys) + " |")
             print("|" + "---|" * len(keys))
             for r in rs:
-                print("| " + " | ".join(str(r[k]) for k in keys) + " |")
+                print("| " + " | ".join(str(round(r[k], 2) if k == "route_s" else r[k])
+                                        for k in keys) + " |")
     keys = list(table[0].keys())
     print("\n| " + " | ".join(keys) + " |")
     print("|" + "---|" * len(keys))
