@@ -34,6 +34,9 @@ def play(path):
     core.record_to(produced.append)
     error = ""
     for number, entry in enumerate(rest, start=2):
+        if "unrecordable" in entry:  # tools/replay.py도 여기서 재생을 그만둔다
+            error = f"line {number}: this input could not be recorded ({entry['unrecordable']})"
+            break
         if "in" in entry:
             now[0] = entry["t"]
             try:
@@ -62,13 +65,16 @@ def main():
                       if a != b), None)
         print(f"\n### {name}: {len(lines)} recorded lines, {len(produced)} produced"
               + (f", ERROR {error}" if error else ", no error"))
-        if first is None:
-            print("same as recorded" if len(lines) == len(produced)
-                  else "same up to the shorter end")
+        if first is None and len(lines) == len(produced):
+            print("same as recorded")
             continue
-        print(f"first difference at line {first + 2}")
-        print(f"  recorded: {brief(lines[first + 1])}")
-        print(f"  produced: {brief(produced[first + 1])}")
+        if first is None:  # 한쪽이 다른 쪽의 앞부분과 같다
+            first = min(len(lines), len(produced)) - 1
+            print(f"same up to line {first + 1}, then only one side goes on")
+        else:
+            print(f"first difference at line {first + 2}")
+        for name_, side in (("recorded", lines), ("produced", produced)):
+            print(f"  {name_}: {brief(side[first + 1]) if first + 1 < len(side) else '(nothing)'}")
         after = [line for line in produced[first + 1:] if kind(json.loads(line))][:6]
         print("  what the code put out from there:")
         for line in after:

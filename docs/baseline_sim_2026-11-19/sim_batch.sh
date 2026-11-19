@@ -4,7 +4,9 @@
 # PC마다 다른 것은 환경 변수로 준다(안 주면 2026-11-19 기준 묶음을 돌린 PC의 값):
 #   SIM_BATCH_INSTALL  공유 install의 setup.bash
 #   SIM_BATCH_ENV      깨끗한 env에 더 넣을 변수들(예: "WAYLAND_DISPLAY=wayland-0 GALLIUM_DRIVER=d3d12")
-#   SIM_BATCH_PAUSE_S  판 사이에 쉬는 시간(초)
+#                      빈칸으로 나눈 NAME=value 목록이다. 값에 빈칸이나 *를 쓰지 못한다
+#   SIM_BATCH_PAUSE_S  판마다 시작하기 전에 쉬는 시간(초). 첫 판 앞에서도 쉰다
+# 기록기(truth_logger.py)는 이 스크립트가 있는 폴더의 것을 쓴다.
 S=$(cd "$(dirname "$(readlink -f "$0")")" && pwd)
 INSTALL=${SIM_BATCH_INSTALL:-$HOME/ros2camp/nav2fleet_ws/install/setup.bash}
 EXTRA_ENV=${SIM_BATCH_ENV-XAUTHORITY=/run/user/1000/gdm/Xauthority}
@@ -24,7 +26,7 @@ for run in "$@"; do
   ( cd $R && env -i HOME=$HOME PATH=/usr/local/bin:/usr/bin:/bin DISPLAY=:0 XDG_RUNTIME_DIR=/run/user/1000 LANG=${LANG:-C.UTF-8} $EXTRA_ENV bash --norc --noprofile -c "
 source /opt/ros/jazzy/setup.bash
 source ~/pinky_deps_ws/install/local_setup.bash
-source $INSTALL
+source '$INSTALL'
 $ovl_line
 export ROS_DOMAIN_ID=61 ROS_AUTOMATIC_DISCOVERY_RANGE=LOCALHOST RMW_IMPLEMENTATION=rmw_fastrtps_cpp
 python3 -c 'import fleet_core; print(\"fleet_core from\", fleet_core.__file__)'
