@@ -15,7 +15,7 @@
 |---|---|---|
 | `pc/fleet_core/fleet_core/fleet_map/fleet_map.py` `DEFAULT_LAYOUT` (`load_fleet_map`, `load_site`의 기본) | `d2` | `v7` |
 | `sim/fleet_gz_sim/launch/gz.launch.py` 인자 `layout` | `d2` | `v7`(기본 시나리오도 `gz_v7`) |
-| `sim/fleet_gz_sim/launch/one_pode.launch.py` 인자 `layout` | `d2` | `v7`(`start` 기본 P-1은 v7에도 있다) |
+| `sim/fleet_gz_sim/launch/one_pode.launch.py` 인자 `layout` | `d2` | `v7`. `start` 기본은 `""`로, 인자 없는 drive_check 계획의 시작(v7은 O_IN, 그 밖은 P-1). 4절 참고 |
 | `sim/fleet_gz_sim/fleet_gz_sim/fleet_setup.py` `DEFAULT_LAYOUT` (`map` 없는 시나리오의 배치) | `d2` | `v7` |
 | `sim/fleet_gz_sim/fleet_gz_sim/drive_check.py` `--layout`, `--plan` | `d2`, `stage2` | 둘 다 비면 `v7`, `corridor` |
 
@@ -91,4 +91,4 @@ origin/main에서도 같은 시험이 같은 수로 실패한다(실패 목록 d
 
 결과: `test_one_pode_wiring.py` 18 passed. sim/fleet_gz_sim 전체(위와 같은 환경, `ROS_DOMAIN_ID=70`, install의 fleet_interfaces는 10:10쯤 새로 빌드됨) `593 passed in 21.57s`. 앞서 실패하던 12개(test_dock_stub, test_recovery_probe, test_stand_in_battery)가 이제 통과한다(세 파일만 돌려 `38 passed`).
 
-그대로 둔 것: fake_robots의 머리 없는 상황 도구(`ZoneWorld()`, `situations.build`, `table.run_situation`, 시험 도우미 `world_helpers.quiet_world`, `zone_harness`)의 기본 d2는 그 상황들이 d2 구역(HALL, EXPRESS, J_E 등)으로 짜여 있어 바꾸지 않는다(코디네이터 결정).
+그대로 둔 것: fake_robots의 머리 없는 상황 도구(`ZoneWorld()`, `situations.build`, `table.run_situation`, 시험 도우미 `world_helpers.quiet_world`, `zone_harness`)의 기본 d2는 바꾸지 않는다(코디네이터 결정). 기존 상황과 시험이 이 기본을 통해 d2 지점(HALL, EXPRESS, J_E 등)을 쓴다. `situations.build`처럼 v7 분기가 있는 상황도 있으므로 모두 d2 전용은 아니고, "공통 기본은 v7"의 예외로 둔 것이다. 공통 기본 v7은 `load_fleet_map()`과 v7을 명시한 시험이 확인한다.

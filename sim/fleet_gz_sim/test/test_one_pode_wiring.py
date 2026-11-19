@@ -74,6 +74,18 @@ def test_d2_without_start_stands_on_p1(one, monkeypatch):
     assert (x, y) == load_fleet_map("d2").node_pose("P-1")
 
 
+@pytest.mark.parametrize("layout, node", [("v7", "O_IN"), ("d2", "P-1"), ("d", "P-1"),
+                                          ("c", "P-1"), ("d2_shelf", "P-1")])
+def test_without_start_every_layout_stands_on_its_plan_start_with_its_yaw(
+        one, monkeypatch, layout, node):
+    from fleet_core.fleet_map import load_fleet_map
+    from fleet_gz_sim.fleet_setup import start_poses
+    from fleet_gz_sim.stage2_plan import pick_layout_plan, start_node
+    assert start_node(pick_layout_plan(layout, None)[1]) == node
+    want = start_poses(load_fleet_map(layout), {"pode1": node})["pode1"]
+    assert spawned_at(one, monkeypatch, layout=layout) == want  # x, y, yaw 모두
+
+
 def test_an_explicit_start_wins(one, monkeypatch):
     from fleet_core.fleet_map import load_fleet_map
     x, y, _ = spawned_at(one, monkeypatch, start="P-2")
