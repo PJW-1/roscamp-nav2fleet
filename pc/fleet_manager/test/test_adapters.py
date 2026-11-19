@@ -190,11 +190,13 @@ def test_report_request_copies_every_field():
     assert request.hold_reason == ""
 
 
-def test_report_request_carries_the_hold_reason():
+@pytest.mark.parametrize("reason", [ReportOrder.Request.HOLD_ARM_FAULT,
+                                    ReportOrder.Request.HOLD_ROBOT_FAULT])
+def test_report_request_carries_the_hold_reason(reason):
     request = adapters.report_request(ReportOrderCmd(
-        "O-002", "pode1", ReportOrder.Request.STATUS_HELD, {"A": 1}, {"B": 2}, "arm stuck",
-        hold_reason=ReportOrder.Request.HOLD_ARM_FAULT))
-    assert (request.status, request.hold_reason) == ("HELD", "ARM_FAULT")
+        "O-002", "pode1", ReportOrder.Request.STATUS_HELD, {"A": 1}, {"B": 2}, "stuck",
+        hold_reason=reason))
+    assert (request.status, request.hold_reason) == ("HELD", reason)
 
 
 def test_order_status_and_hold_words_match_the_contract():

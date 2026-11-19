@@ -417,6 +417,25 @@ def test_force_ship_refuses_an_order_it_does_not_know_with_the_reason(graph):
     assert reply.result().reason == ForceShip.Response.REASON_UNKNOWN_ORDER
 
 
+@pytest.mark.parametrize("answer", [(True, ""), (False, "ROBOT_FAULT"), (False, "NOT_HELD")])
+def test_force_ship_passes_the_order_to_the_core_and_returns_its_answer(graph, monkeypatch,
+                                                                         answer):
+    fms = graph.fms
+    asked = []
+
+    def force_ship(order_id):
+        asked.append(order_id)
+        return answer
+
+    monkeypatch.setattr(fms.core, "force_ship", force_ship)
+    client = graph.create_client(ForceShip, fms.contract.name("force_ship"))
+    assert client.wait_for_service(timeout_sec=10.0)
+    reply = client.call_async(ForceShip.Request(order_id="O-007"))
+    assert wait_for(reply.done, 10.0), "no reply: the callback raised"
+    assert asked == ["O-007"]
+    assert (reply.result().accepted, reply.result().reason) == answer
+
+
 def test_an_event_is_logged_at_its_own_level(graph, monkeypatch):
     """rclpy는 한 호출 위치의 두 번째 심각도를 거부하므로 실제 로거를 먼저 부른다."""
     fms = graph.fms
