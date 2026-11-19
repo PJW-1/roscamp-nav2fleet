@@ -34,7 +34,7 @@ class FleetCheckNode(Node):
     def __init__(self):
         super().__init__("fleet_check")
         robots = list(self.declare_parameter("robots", ["pode1", "pode2", "pode3"]).value)
-        map_file = self.declare_parameter("map_file", "").value  # layout name or file, "" = d2
+        map_file = self.declare_parameter("map_file", "").value  # 배치 이름이나 파일, 비면 기본(v7)
         contract_file = self.declare_parameter("contract_file", "").value
         self.output = Path(self.declare_parameter("output", "fleet_check.json").value)
         period = float(self.declare_parameter("period_s", 10.0).value)

@@ -2,7 +2,7 @@
 
 - 배치(layout): v7(기본), d2, d, c, 시험용 d2_shelf. 구역 지도 fleet_core/data/fleet_map_<배치>.yaml과,
   arena.py가 그 지도로 만든 월드·지도·keepout 마스크(Arena)를 고른다.
-- 시나리오의 `map`은 배치 이름이다(없으면 d2). launch의 layout과 다르면 띄우지 않는다.
+- 시나리오의 `map`은 배치 이름이다(없으면 v7). launch의 layout과 다르면 띄우지 않는다.
 - Pode를 놓는 자리: 시나리오 robots의 start(지점 이름). start가 없으면 주차 지점을 차례로 준다.
   방향은 그 지점의 yaw(없으면 0).
 - 돌릴 수 없는 시나리오: 로봇 고장이 있는 것(가짜 Pode가 일으키는 고장이라 진짜 pode_fsm에는

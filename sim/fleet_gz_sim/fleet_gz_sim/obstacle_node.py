@@ -47,7 +47,7 @@ class ObstacleNode(Node):
         super().__init__("sim_obstacles")
         robots = self.declare_parameter("robots", ["pode1", "pode2", "pode3"]).value
         path = self.declare_parameter("obstacles_file", "").value
-        map_file = self.declare_parameter("map_file", "").value  # layout name or file, "" = d2
+        map_file = self.declare_parameter("map_file", "").value  # 배치 이름이나 파일, 비면 기본(v7)
         self.world = self.declare_parameter("world", WORLD).value
         self.clearance_m = obstacles.check_clearance(
             float(self.declare_parameter("clearance_m", 0.35).value))
