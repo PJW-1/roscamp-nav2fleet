@@ -310,14 +310,29 @@ def test_isolation_after_a_swap_timeout_still_ships_on_a_late_take():
     assert [r.status for r in reports(core.take_output())] == ["SHIPPED"]
 
 
-def test_an_arm_timeout_on_an_isolated_robot_waits_for_the_late_fill():
-    core, now, fill = filling()
+def test_an_arm_timeout_on_an_isolated_robot_ends_the_wait_and_decides():
+    core, now, _ = filling()
     core.on_robot_isolated("r1", "GOAL_FAILED")
     core.take_output()
-    assert not reports(time_out(core, now, core.params.fill_timeout_s))
-    core.on_fill_result(fill.goal_id, False, {}, {}, "CANCELED")
-    out = core.take_output()
+    out = time_out(core, now, core.params.fill_timeout_s)
     assert "ORDER_REQUEUED" in codes(out) and not reports(out)
+
+
+def test_isolation_during_a_forced_swap_stops_it_even_with_an_old_result_due():
+    core, now, swap = swapping()
+    old = swap
+    time_out(core, now, core.params.swap_timeout_s)
+    assert core.on_force_ship("O-001") == (True, "")
+    now[0] += core.params.arm_retry_wait_s
+    core.step("r1")
+    new = cmds(core.take_output(), "SwapCmd")[0]
+    core.on_robot_isolated("r1", "GOAL_FAILED")
+    out = core.take_output()
+    assert [(c.robot, c.goal_id) for c in cmds(out, "CancelCmd")] == [("arm3", new.goal_id)]
+    core.on_swap_result(old.goal_id, False, False, False, "CANCELED")
+    assert not reports(core.take_output()), "the new swap is still running"
+    core.on_swap_result(new.goal_id, False, True, False, "CANCELED")
+    assert [r.status for r in reports(core.take_output())] == ["SHIPPED"]
 
 
 def test_a_late_fill_after_a_forced_ship_keeps_placed_and_missing_in_step():

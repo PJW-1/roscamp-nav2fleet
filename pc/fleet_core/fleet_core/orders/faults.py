@@ -62,7 +62,7 @@ class Faults:
             return
         r.isolated = reason
         # 답 없던 팔 결과가 아직 올 수 있으면 그 결과를 기다린 뒤 판단한다
-        if self._result_still_due(r):
+        if not r.asked and self._result_still_due(r):
             return
         if r.asked == SWAP and r.order:
             self._out.append(ArmStopCmd(r.name))
@@ -104,9 +104,9 @@ class Faults:
     # ---- 팔 고장: 주문을 보류하고 Pode는 작업대에 붙잡아 둠 ----
     def _on_arm_fault(self, r: RobotRecord, fault: ArmFault) -> None:
         r.asked = ""
+        # 격리 중이면 시간 초과가 기다림의 끝이다
         if r.isolated:
-            if not self._result_still_due(r):
-                self._requeue_isolated(r)
+            self._requeue_isolated(r)
             return
         r.held = HOLD_ARM_FAULT
         if r.order:
@@ -160,7 +160,7 @@ class Faults:
 
     # 격리 중 기다리던 결과가 오면 판단
     def _decide_if_isolated(self, r: RobotRecord) -> None:
-        if r.isolated and not self._result_still_due(r):
+        if r.isolated and not r.asked and not self._result_still_due(r):
             self._requeue_isolated(r)
 
     def _take_lost_job(self, goal_id: int, kind: str) -> LostJob | None:
