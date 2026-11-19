@@ -2,6 +2,13 @@
 
 사용: python3 step1_report.py NAME=RESULT_DIR [NAME=RESULT_DIR ...] [--routes]
 Route = 주문 하나(order_id), ORDER_SENT부터 그 주문의 마지막 SEGMENT_DONE까지.
+
+합친 nav_goal Q2 Route(2026-11-20 정의): Q2로 가는 nav_goal Segment의 시작 node가 Q2와 바로 이어진
+node(E-3, M_E)가 아닌 Route. E-1, E-2, O_OUT 출발이 들어간다(열 q2_from, joined).
+Q2에서 선 Route의 원인(열 stop_cause): 도착한 때 다른 로봇의 보고 위치가 Q1에서 0.20 m(노드를
+놓는 거리) 안이면 q1_busy, 아니고 도착 1 s 전부터 5 s 뒤 사이에 ZONE_WAIT가 있으면 zone_wait,
+둘 다 아니면 other(이 두 조건에 걸리지 않은 것). 위치로 본 어림이고 Q1을 누가 쥐었는지 직접 읽은
+것이 아니다. 누가 쥐었는지는 fleet_robots.csv의 wait_zone, wait_robots로 본다.
 """
 import csv
 import json
@@ -12,7 +19,14 @@ from collections import defaultdict
 from pathlib import Path
 
 Q2 = (1.66, 0.15)
+Q1 = (1.8491, 0.26)
 MOVING = 0.03  # m/s, 이보다 빠르면 다시 움직인 것으로 본다
+NEXT_TO_Q2 = ("E-3", "M_E")  # Q2와 nav 이음으로 바로 이어진 node
+YARD = {"E-1": (0.12, 0.24), "E-2": (0.38, 0.24), "E-3": (0.64, 0.24), "O_OUT": (0.18, 0.62),
+        "O_IN": (0.49, 0.625), "M_E": (1.645, 0.55)}  # v7에서 nav_goal이 시작할 수 있는 node
+ON_NODE = 0.10   # m, Route를 받은 자리가 node에서 이 안이면 그 node에서 출발한 것으로 본다
+HOLDS_Q1 = 0.20  # m, 노드를 놓는 거리
+STALE_S = 1.0    # s, 보고 위치 표본(약 2 Hz)을 그때의 위치로 보는 한도
 
 
 def load(d):
@@ -43,6 +57,44 @@ def resume_after(rows, t):
     return None
 
 
+def q2_from(cmds, seq, t_arr, start_xy):
+    """Q2에 닿은 nav_goal Segment(seq)의 시작 node와, 그것을 위치로 어림했는지.
+
+    그 Segment를 담은 마지막 명령(도착한 때까지)에서 바로 앞 Segment의 끝 node를 본다. 갱신 명령의
+    첫 Segment면 그 전 명령들의 seq - 1을 쓴다(다시 자른 Route는 seq_id가 겹치므로 최신 것. 다시 자르며
+    앞 Segment까지 바뀐 Route라면 옛 Segment를 집을 수 있다: 그런 명령은 이번 묶음에 없었다).
+    Route의 첫 Segment면 명령에 시작 node가 없어, Route를 받은 자리에서 가장 가까운 node로 어림한다.
+    """
+    seen, found = {}, None
+    for c in cmds:
+        if c["t"] > t_arr:
+            break
+        segs_ = [*c.get("base", []), *c.get("horizon", [])]
+        for i, s in enumerate(segs_):
+            if s["seq_id"] == seq and s["mode"] == "nav_goal" and s["end_node"] == "Q2":
+                before = segs_[i - 1] if i else seen.get(seq - 1)
+                found = before["end_node"] if before is not None else ""
+        seen.update({s["seq_id"]: s for s in segs_})
+    if found is None:
+        return None, False
+    if found:
+        return found, False
+    if start_xy is None:
+        return "?", True
+    node = min(YARD, key=lambda n: math.dist(YARD[n], start_xy))
+    return (node if math.dist(YARD[node], start_xy) <= ON_NODE else "?"), True
+
+
+def others_at(pos, robot, t):
+    """다른 로봇들의 t 때 보고 위치. STALE_S보다 오래된 표본은 쓰지 않는다."""
+    out = []
+    for name, rows in pos.items():
+        at = [p for p in rows if p[0] <= t]
+        if name != robot and at and t - at[-1][0] <= STALE_S:
+            out.append((at[-1][1], at[-1][2]))
+    return out
+
+
 def q2_routes(ev, rec, pos):
     cmds = defaultdict(list)
     for r in rec:
@@ -61,10 +113,11 @@ def q2_routes(ev, rec, pos):
     zone_waits = [(e["t"], e["source"], e["detail"]) for e in ev if e["code"] == "ZONE_WAIT"]
     out = []
     for oid, ds in done.items():
-        arr = [t for t, node, _ in ds if node == "Q2"]
+        arr = [(t, detail) for t, node, detail in ds if node == "Q2"]
         if not arr or oid not in sent:
             continue
-        t_arr = arr[0]
+        t_arr = arr[0][0]
+        seq = int(arr[0][1].split(" seq ", 1)[1].split(" ", 1)[0])
         first = cmds[oid][0] if cmds[oid] else {}
         base, horizon = segs(first)
         robot = first.get("robot") or oid.split("-")[0]
@@ -78,11 +131,16 @@ def q2_routes(ev, rec, pos):
         at = [p for p in rows if p[0] <= sent[oid]]
         if at:
             prev_end = (round(at[-1][1], 2), round(at[-1][2], 2))
+        start, guessed = q2_from(cmds[oid], seq, t_arr, at[-1][1:] if at else None)
+        q1_busy = any(math.dist(p, Q1) < HOLDS_Q1 for p in others_at(pos, robot, t_arr))
+        cause = "" if not stood else "q1_busy" if q1_busy else "zone_wait" if zw else "other"
         out.append({"route": oid, "robot": robot, "sent": round(sent[oid], 2),
                     "start_xy": prev_end, "base": " ".join(base), "horizon": " ".join(horizon),
+                    "q2_from": start, "q2_from_guessed": guessed,
+                    "joined": start not in (None, "?", *NEXT_TO_Q2),
                     "arrive_Q2": round(t_arr, 2), "update_lead_s": lead,
-                    "base_end_wait": stood, "zone_wait_near": len(zw),
-                    "route_s": round(ds[-1][0] - sent[oid], 2), "end": ds[-1][1]})
+                    "base_end_wait": stood, "stop_cause": cause, "zone_wait_near": len(zw),
+                    "route_s": ds[-1][0] - sent[oid], "end": ds[-1][1]})
     return sorted(out, key=lambda r: r["sent"])
 
 
@@ -117,6 +175,14 @@ def main():
             "q2_routes": len(rs),
             "q2_route_mean_s": round(st.mean(r["route_s"] for r in rs), 2) if rs else None,
             "q2_stood": sum(r["base_end_wait"] for r in rs),
+            "joined_q2": sum(r["joined"] for r in rs),
+            "joined_before": sum(1 for r in rs if r["joined"] and (r["update_lead_s"] or 0) > 0.1),
+            "joined_stood": sum(1 for r in rs if r["joined"] and r["base_end_wait"]),
+            "q2_from_unknown": sum(1 for r in rs if r["q2_from"] in (None, "?")),
+            "q2_from_guessed": sum(r["q2_from_guessed"] for r in rs),
+            "stop_q1_busy": sum(r["stop_cause"] == "q1_busy" for r in rs),
+            "stop_zone_wait": sum(r["stop_cause"] == "zone_wait" for r in rs),
+            "stop_other": sum(r["stop_cause"] == "other" for r in rs),
             # 기록 시각은 0.1 s 틱이라 ±0.1 s 안은 도착과 같은 때로 본다
             "update_before": sum(1 for x in leads if x > 0.1),
             "update_at_arrival": sum(1 for x in leads if -0.1 <= x <= 0.1),
@@ -133,7 +199,8 @@ def main():
             print("| " + " | ".join(keys) + " |")
             print("|" + "---|" * len(keys))
             for r in rs:
-                print("| " + " | ".join(str(r[k]) for k in keys) + " |")
+                print("| " + " | ".join(str(round(r[k], 2) if k == "route_s" else r[k])
+                                        for k in keys) + " |")
     keys = list(table[0].keys())
     print("\n| " + " | ".join(keys) + " |")
     print("|" + "---|" * len(keys))
