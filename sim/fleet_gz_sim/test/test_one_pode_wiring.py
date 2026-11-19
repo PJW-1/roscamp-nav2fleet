@@ -172,3 +172,23 @@ def test_the_corridor_box_schedule_runs_with_one_pode_on_o_in(one):
     actions = run(one, layout="v7", start="O_IN", obstacles="v7_corridor_box")
     assert [a for a in actions if type(a).__name__ == "Node"
             and a.node_executable == "sim_obstacles"]
+
+
+# ---- 길 유지(pode_plan_keep): 한 대는 nav2.launch.py가 노드를 띄운다 ----
+@pytest.mark.parametrize("text, keep", [(None, True), ("true", True), ("false", False)])
+def test_the_plan_keep_switch_reaches_pode(one, monkeypatch, text, keep):
+    need("pinky_description", "pode_nav_config", "pode_fsm")
+    from fleet_gz_sim import launch_parts
+    seen = {}
+    monkeypatch.setattr(launch_parts, "pode", lambda *a, **kw: seen.update(kw) or [])
+    run(one, **({} if text is None else {"plan_keep": text}))
+    assert seen["plan_keep"] is keep
+    assert seen.get("plan_keep_node", True) is True
+    with pytest.raises(ValueError, match="plan_keep"):
+        run(one, plan_keep="no")
+
+
+def test_one_pode_passes_plan_keep_to_nav2(one):
+    need("pinky_description", "pode_nav_config", "pode_fsm")
+    nav = nav_arguments(run(one, plan_keep="false"))
+    assert (nav["plan_keep"], nav["plan_keep_node"]) == ("false", "true")

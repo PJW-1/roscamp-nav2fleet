@@ -40,6 +40,8 @@ ARGS = {
                             "(pode_scan_filter). false면 띄우지 않는다(비교용)"),
     "wall_band_m": ("0.05", "스캔 거르개: 벽·진열대에서 이만큼 안의 점을 지운다(m)."
                             " 0.05는 D2 측정으로 고른 값(fixed_line_results.md)"),
+    "plan_keep": ("true", "Nav2 goal을 다시 계획할 때 길이가 비슷한 다른 길로 바꾸지 않고 지금 길을"
+                          " 지킨다(pode_plan_keep). false면 planner 결과를 그대로 쓴다(비교용)"),
     "fixed_line_collision_check": ("false", "시뮬 전용. true면 고정 경로 controller 셋도 충돌"
                                            " 검사를 켠다. 마당 goal(FollowPathGoal)은 늘 켬"),
     "nav_map_variant": ("", "global costmap 지도 갈래(v7만): 비면 배치 기본(v7은 a, 2.5 cm),"
@@ -82,6 +84,9 @@ def _start(context):
     fixed_check = value("fixed_line_collision_check").strip().lower()
     if fixed_check not in ("true", "false", "1", "0"):  # 오타가 '끔'으로 바뀌지 않게
         raise ValueError(f"fixed_line_collision_check must be true or false, got {fixed_check!r}")
+    keep = value("plan_keep").strip().lower()
+    if keep not in ("true", "false", "1", "0"):
+        raise ValueError(f"plan_keep must be true or false, got {keep!r}")
     layout = layout_of(value("layout"))
     site = load_fleet_map(layout)
     arena = arena_for(layout, launch_parts.share("fleet_gz_sim"),
@@ -109,6 +114,7 @@ def _start(context):
                                    narrow_strips=narrow_strips(site, float(value("wall_band_m")))
                                    if on["scan_filter"] else "",
                                    wall_band_m=float(value("wall_band_m")),
+                                   plan_keep=keep in ("true", "1"),
                                    lidar_noise=(float(value("lidar_noise"))
                                                 if value("lidar_noise") else None))]
     if obstacles_file:

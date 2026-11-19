@@ -183,7 +183,7 @@ def test_nav2_arguments_exist_in_current_launch():
     assert passed <= _declared(NAV2_LAUNCH)
     assert {"namespace", "use_sim_time", "map", "map_fine", "keepout_mask", "params_file",
             "avoidance_params_file", "initial_x", "initial_y", "initial_yaw",
-            "peer_obstacles", "peer_robots", "log_level", "use_composition"} <= passed
+            "peer_obstacles", "peer_robots", "plan_keep", "log_level", "use_composition"} <= passed
 
 
 def test_fsm_arguments_exist_in_current_launch():
@@ -699,7 +699,7 @@ def test_stop_stops_our_group(tmp_path):
 
 PACKAGES = ("interfaces/fleet_interfaces", "pode/pode_fsm", "pode/pode_nav_config",
             "pode/pode_avoidance", "pode/pode_peer_obstacles", "pode/pode_scan_filter",
-            "pode/pode_dock")
+            "pode/pode_plan_keep", "pode/pode_dock")
 
 
 def _fake_repo(tmp_path):

@@ -1,7 +1,7 @@
 <!--
   MoveTo mode nav_goal(계약 0.11-draft)용 NavigateToPose BT.
   원본: ROS 2 Jazzy nav2_bt_navigator의 behavior_trees/navigate_to_pose_w_replanning_and_recovery.xml
-  원본과 다른 곳은 셋이다.
+  원본과 다른 곳은 넷이다.
   - ControllerSelector의 default_controller가 FollowPath가 아니라 FollowPathGoal이다(goal용
     controller. FollowPath 셋은 pode_fsm이 관제 경로에 쓴다).
   - FollowPath에 goal_checker_id="general_goal_checker"를 적었다(후진용
@@ -9,6 +9,11 @@
   - 복구에서 Spin과 BackUp을 뺐다. 지도 지우기와 Wait만 남아
     로봇을 움직이지 않는다. 물러나기는 pode_fsm의 로봇단 교착 처리만 한다: 지나온 길 안에서만,
     local_backup_m까지, 앞을 막은 로봇보다 낮은 쪽만. 그래서 BT와 pode_fsm이 함께 물러나는 일이 없다.
+  - ComputePathToPose에 server_name="compute_path_keep"을 적었다. 계획 요청이 planner로 바로 가지
+    않고 길 유지 노드(pode_plan_keep)를 거친다. 그 노드는 planner의 새 경로가 길이가 비슷한 다른
+    길일 뿐이고 지금 길이 막히지 않았으면 지금 길을 돌려준다(두 길을 1초마다 번갈아 가지 않게).
+    server_timeout="1000"도 같이 적었다. 그 노드는 rclpy라 goal 승인이 전역 기본값 20 ms보다 늦을 수
+    있고, 늦으면 BT가 그 계획을 실패로 본다(Gazebo 세 대 판에서 goal 실패와 격리로 이어졌다).
   1 Hz로 다시 계획하는 것과 나머지는 원본 그대로다.
   아래 원본 설명은 그대로 옮겼다.
 
@@ -24,7 +29,7 @@
         <PlannerSelector selected_planner="{selected_planner}" default_planner="GridBased" topic_name="planner_selector"/>
         <RateController hz="1.0">
           <RecoveryNode number_of_retries="1" name="ComputePathToPose">
-            <ComputePathToPose goal="{goal}" path="{path}" planner_id="{selected_planner}" error_code_id="{compute_path_error_code}"/>
+            <ComputePathToPose goal="{goal}" path="{path}" planner_id="{selected_planner}" server_name="compute_path_keep" server_timeout="1000" error_code_id="{compute_path_error_code}"/>
             <Sequence>
               <WouldAPlannerRecoveryHelp error_code="{compute_path_error_code}"/>
               <ClearEntireCostmap name="ClearGlobalCostmap-Context" service_name="global_costmap/clear_entirely_global_costmap" server_timeout="1000"/>

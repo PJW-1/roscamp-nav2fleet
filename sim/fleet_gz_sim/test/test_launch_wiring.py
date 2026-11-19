@@ -500,6 +500,7 @@ def test_ros_process_budget_leaves_room_under_the_localhost_limit(made):
     count = len(nodes(actions)) + len(nodes(fleet))
     for nav in includes(actions, "nav2.launch.py"):
         count += 1 if launch_args(nav)["use_composition"] == "true" else NAV2_NODES
+        count += launch_args(nav).get("plan_keep_node", "true") == "true"  # 길 유지 노드
     count += len(includes(actions, "pode_fsm.launch.py"))
     assert count + SPARE <= LOCALHOST_PARTICIPANTS
 
@@ -566,3 +567,30 @@ def test_an_unknown_avoidance_package_stops_the_launch(made):
     from ament_index_python.packages import PackageNotFoundError
     with pytest.raises(PackageNotFoundError):
         run(made, avoidance_package="no_such_avoidance_package")
+
+
+# ---- 길 유지(pode_plan_keep): 프로세스를 늘리지 않게 sim_stand_in 안에서 ------------------------
+
+def test_every_robot_keeps_its_route_by_default_inside_the_stand_in_process(made):
+    assert made.ARGS["plan_keep"][0] == "true"
+    before = len(nodes(run(made, plan_keep="false")))
+    actions = run(made)
+    navs = includes(actions, "nav2.launch.py")
+    assert len(navs) == 3
+    for nav in navs:
+        assert launch_args(nav)["plan_keep"] == "true"
+        assert launch_args(nav)["plan_keep_node"] == "false", "no extra process per robot"
+    [stand_in] = nodes(actions, "sim_stand_in")
+    assert params(stand_in)["plan_keep_nodes"] is True and params(stand_in)["plan_keep"] is True
+    assert len(nodes(actions)) == before
+
+
+def test_plan_keep_can_be_turned_off_for_a_comparison_but_the_nodes_stay(made):
+    actions = run(made, plan_keep="false")
+    navs = includes(actions, "nav2.launch.py")
+    assert [launch_args(nav)["plan_keep"] for nav in navs] == ["false"] * 3
+    [stand_in] = nodes(actions, "sim_stand_in")
+    assert params(stand_in)["plan_keep_nodes"] is True  # 행동 트리가 compute_path_keep을 부른다
+    assert params(stand_in)["plan_keep"] is False
+    with pytest.raises(ValueError, match="plan_keep"):
+        run(made, plan_keep="on")

@@ -26,7 +26,7 @@ flowchart LR
 | 관제: 주문, 팔 | 그대로 |
 | 관제: 교통 (새로) | 길 그래프(지점, 구역), 구역 허락, 목표 쪼개기, 급행 방향, 도크 줄, 막힘 처리 |
 | 로봇: pode_fsm | `mode`에 따라 Nav2 goal 또는 FollowPath. Retreat. 상태 보고 |
-| 로봇: Nav2 | AMCL, bt_navigator(NavigateToPose), planner_server, controller_server(goal용 컨트롤러 하나 + FollowPath 셋) |
+| 로봇: Nav2 | AMCL, bt_navigator(NavigateToPose), planner_server, 길 유지(`pode_plan_keep`: 다시 계획해도 비슷한 길이의 다른 길로 바꾸지 않음), controller_server(goal용 컨트롤러 하나 + FollowPath 셋) |
 | 로봇: 회피 (팀원) | 라이다 + 비전 → costmap, goal용 컨트롤러 조정 |
 
 판단(`pc/fleet_core`, `pode/pode_fsm/pode_fsm/core.py`)은 ROS를 모르고, ROS 노드는 메시지만 옮긴다.
