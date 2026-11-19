@@ -19,7 +19,7 @@ from fleet_interfaces.msg import (
     ZoneState,
     ZoneStateArray,
 )
-from fleet_interfaces.srv import CheckClear, ReportOrder
+from fleet_interfaces.srv import CheckClear, ForceShip, ReportOrder
 from geometry_msgs.msg import Pose, PoseStamped
 from nav_msgs.msg import Path
 
@@ -172,6 +172,16 @@ def reinstate_response(response, accepted: bool, reason: str = ""):
     return response
 
 
+def force_ship_args(request: ForceShip.Request) -> str:
+    return request.order_id
+
+
+def force_ship_response(response, accepted: bool, reason: str = ""):
+    response.accepted = bool(accepted)
+    response.reason = "" if accepted else str(reason)
+    return response
+
+
 # ---- 주문 보드 메시지 변환 ----
 def order_board_mode(msg: OrderBoard) -> str:
     return msg.run_mode
@@ -273,6 +283,7 @@ def report_request(cmd) -> ReportOrder.Request:
         order_id=cmd.order_id,
         robot_id=cmd.robot,
         status=cmd.status,
+        hold_reason=cmd.hold_reason,
         placed=to_order_items(cmd.placed),
         missing=to_order_items(cmd.missing),
         detail=cmd.detail,

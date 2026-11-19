@@ -31,7 +31,7 @@ from fleet_interfaces.msg import (  # noqa: E402
     RobotStatusArray,
     ZoneStateArray,
 )
-from fleet_interfaces.srv import ConfirmClear, Reinstate, ReportOrder  # noqa: E402
+from fleet_interfaces.srv import ConfirmClear, ForceShip, Reinstate, ReportOrder  # noqa: E402
 from fleet_manager.fleet_manager_node import FleetManagerNode  # noqa: E402
 from fleet_manager.goal_tracker import GoalTracker, ReportOutbox  # noqa: E402
 from rclpy.action import ActionServer, CancelResponse  # noqa: E402
@@ -404,6 +404,17 @@ def test_reinstate_takes_a_cleared_robot_back_and_refuses_a_bad_call_with_a_reas
     rejected = [e for e in graph.events if e.code == "INPUT_REJECTED"]
     assert len(rejected) == 2 and all(e.level == "WARN" for e in rejected)
     assert wait_for(lambda: fms.core.traffic.robot_view("pode1")["on_map"]), "not back on"
+
+
+def test_force_ship_refuses_an_order_it_does_not_know_with_the_reason(graph):
+    """계약 0.6: 관리자의 강제 출고 창구. 모르는 주문은 UNKNOWN_ORDER로 거절한다."""
+    fms = graph.fms
+    client = graph.create_client(ForceShip, fms.contract.name("force_ship"))
+    assert client.wait_for_service(timeout_sec=10.0)
+    reply = client.call_async(ForceShip.Request(order_id="O-NOPE"))
+    assert wait_for(reply.done, 10.0), "no reply: the callback raised"
+    assert not reply.result().accepted
+    assert reply.result().reason == ForceShip.Response.REASON_UNKNOWN_ORDER
 
 
 def test_an_event_is_logged_at_its_own_level(graph, monkeypatch):
