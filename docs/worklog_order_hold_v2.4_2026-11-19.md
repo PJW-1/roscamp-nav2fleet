@@ -18,6 +18,7 @@
   - 새 노드는 만들지 않았다. 기존 fleet_manager 노드에 서버만 더했다.
 
 ## 동작 (fleet_core)
+- 아래는 대표 경로만 적었다. 주문이 아직 로봇에 묶여 있는지, 남은 팔 작업이나 기다릴 결과가 있는지 같은 세부 조건은 `orders/faults.py`, `orders/stations.py`와 `test/test_order_hold.py`가 기준이다.
 - **보류의 뜻**: HELD는 끝(최종)이 아니다. 끝은 SHIPPED, PARTIAL, CANCELED 셋뿐이다. 보류 중인 주문은 다시 배정하지 않는다.
 - **① 용량 초과**: 물건 수 합이 바구니 용량을 넘는 주문은 배정하지 않는다. WARN `ORDER_OVER_CAPACITY`를 주문마다 한 번 내고, ReportOrder는 보내지 않는다.
 - **② 하나도 못 담음**: CANCELED로 보고한다.
