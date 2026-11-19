@@ -1,5 +1,6 @@
 """가는 길을 구간(한꺼번에 잡는 단위)과 조각(명령 하나)으로 나누기."""
 import math
+from dataclasses import replace
 
 import pytest
 from fleet_core.common.params import load_params
@@ -186,6 +187,13 @@ def test_time_left_on_one_nav_goal_edge_is_the_straight_distance_to_its_end(x, y
     assert routes.left_s(PARAMS, edges, x, y) == pytest.approx(left, abs=0.1)
     assert routes.left_s(PARAMS, edges, x, y) == pytest.approx(
         math.dist((x, y), (1.66, 0.15)) / NAV)
+
+
+def test_time_left_before_the_through_node_adds_the_later_edge_by_its_own_length():
+    first, last = v7_way("E-1", "Q2")
+    longer = replace(last, length=last.length + 0.3)
+    assert routes.left_s(PARAMS, [first, longer], 0.60, 0.24) == pytest.approx(
+        (math.dist((0.60, 0.24), (0.64, 0.24)) + longer.length) / NAV)
 
 
 def test_time_left_past_e3_adds_the_fixed_path_after_the_joined_run():
