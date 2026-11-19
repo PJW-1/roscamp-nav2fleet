@@ -48,21 +48,28 @@ def test_script_syntax_and_args():
     assert subprocess.run(["bash", "-n", str(sh)]).returncode == 0
     assert subprocess.run(["bash", str(sh)], capture_output=True, text=True).returncode == 2
     text = sh.read_text()
-    assert "ROS_DOMAIN_ID=12" in text and "SUBNET" in text
+    # 통신 설정은 pc_env.sh(→ net.sh) 한곳에서 읽는다
+    assert "pc_env.sh" in text and "SUPER=1" in text
+    assert "ROS_DOMAIN_ID" not in text
 
 
-def _run_stubbed(tmp_path, ws_setup):
-    """가짜 rviz2를 PATH 맨 앞에 두고 실제 스크립트를 돌려 호출 인자를 읽는다."""
+def _run_stubbed(tmp_path, ws_setup, extra=None):
+    """가짜 rviz2를 PATH 맨 앞에 두고 실제 스크립트를 돌려 호출 인자와 통신 변수를 읽는다."""
     bindir = tmp_path / "bin"
     bindir.mkdir()
     log = tmp_path / "calls.log"
     fake = bindir / "rviz2"
-    fake.write_text(f'#!/usr/bin/env bash\necho "MARK=${{STUB_MARK:-none}} $*" >> {log}\nexit 0\n')
+    net = ("NET=${ROS_DOMAIN_ID:-}|${RMW_IMPLEMENTATION:-}|${ROS_DISCOVERY_SERVER:-}"
+           "|${ROS_SUPER_CLIENT:-}")
+    fake.write_text(f'#!/usr/bin/env bash\necho "MARK=${{STUB_MARK:-none}} {net} $*" >> {log}\n'
+                    'exit 0\n')
     fake.chmod(0o755)
     ros = tmp_path / "ros_setup.bash"
     ros.write_text("")
+    # 다른 도메인과 서버 값이 남은 셸에서 띄운다
     env = {"PATH": f"{bindir}:/usr/bin:/bin", "HOME": str(tmp_path), "ROS_SETUP": str(ros),
-           "NAV2FLEET_WS_SETUP": str(ws_setup)}
+           "NAV2FLEET_WS_SETUP": str(ws_setup), "ROS_DOMAIN_ID": "6",
+           "ROS_DISCOVERY_SERVER": "10.9.9.9:1", **(extra or {})}
     r = subprocess.run(["bash", str(KIT / "rviz_pc.sh"), "pode1", "pode2"], env=env,
                        capture_output=True, text=True, timeout=30)
     calls = log.read_text().splitlines() if log.exists() else []
@@ -94,3 +101,15 @@ def test_launcher_overlay_missing_is_skipped(tmp_path):
     r, calls = _run_stubbed(tmp_path, tmp_path / "nope.bash")
     assert r.returncode == 0, r.stderr
     _check_calls(calls, "none")
+
+
+def test_launcher_rviz_is_super_client_of_the_server(tmp_path):
+    r, calls = _run_stubbed(tmp_path, tmp_path / "nope.bash")
+    assert r.returncode == 0, r.stderr
+    assert calls and all(" NET=12|rmw_fastrtps_cpp|192.168.0.252:11811|TRUE " in c for c in calls)
+
+
+def test_launcher_off_is_multicast(tmp_path):
+    r, calls = _run_stubbed(tmp_path, tmp_path / "nope.bash", {"DISCOVERY_SERVER": "off"})
+    assert r.returncode == 0, r.stderr
+    assert calls and all(" NET=12|rmw_fastrtps_cpp|| " in c for c in calls)

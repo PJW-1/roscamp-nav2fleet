@@ -3,19 +3,12 @@
 #   rviz_pc.sh pode1 pode2                            # 전체 창 1개 + 로봇별 창 2개
 #   RVIZ_MODE=overview rviz_pc.sh pode1 pode2 pode3   # 전체 창만
 #   RVIZ_MODE=robots rviz_pc.sh pode1 pode2           # 로봇별 창만
-# 환경은 PC 관제와 같다: 도메인 12, SUBNET (env.sh와 같은 값. PC에는 ~/nav2fleet_ws가 없어 직접 둔다).
+#   DISCOVERY_SERVER=off rviz_pc.sh pode1 pode2       # 서버 없이 예전처럼
+# 환경은 PC 관제와 같다(pc_env.sh). 전체 그래프를 봐야 해서 슈퍼 클라이언트로 붙는다
 set -eu
 [ $# -ge 1 ] || { echo "사용: $0 pode1 [pode2 ...]" >&2; exit 2; }
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-set +u
-source "${ROS_SETUP:-/opt/ros/jazzy/setup.bash}"
-# PC 관제와 같은 작업공간(있으면)
-WS_SETUP="${NAV2FLEET_WS_SETUP:-$HOME/ros2camp/nav2fleet_ws/install/setup.bash}"
-[ ! -f "$WS_SETUP" ] || source "$WS_SETUP"
-set -u
-export ROS_DOMAIN_ID=12
-unset ROS_LOCALHOST_ONLY ROS_STATIC_PEERS
-export ROS_AUTOMATIC_DISCOVERY_RANGE=SUBNET
+SUPER=1 source "$HERE/pc_env.sh" || exit 1
 MODE="${RVIZ_MODE:-all}"
 TMP="$(mktemp -d)"
 trap 'kill $(jobs -p) 2>/dev/null || true; rm -rf "$TMP"' EXIT INT TERM

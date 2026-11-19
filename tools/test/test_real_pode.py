@@ -413,7 +413,8 @@ def test_watchdog_rule_without_ros():
 
 
 # ---- 셸 스크립트 ----
-SCRIPTS = ("start.sh", "stop.sh", "env.sh", "deploy.sh")
+SCRIPTS = ("start.sh", "stop.sh", "env.sh", "deploy.sh", "net.sh", "pc_env.sh",
+           "discovery_server.sh")
 
 
 @pytest.mark.parametrize("name", SCRIPTS)
@@ -423,12 +424,212 @@ def test_scripts_parse(name):
 
 def test_env_values():
     text = (KIT / "env.sh").read_text(encoding="utf-8")
-    assert "export ROS_DOMAIN_ID=12" in text
-    assert "export ROS_AUTOMATIC_DISCOVERY_RANGE=SUBNET" in text
-    assert re.search(r"unset ROS_LOCALHOST_ONLY ROS_STATIC_PEERS", text)
+    assert "net.sh" in text
     for path in ("/opt/ros/jazzy/setup.bash", "pinky_pro/install/local_setup.bash",
                  "nav2fleet_ws/install/local_setup.bash"):
         assert path in text
+    # 도메인은 net.sh 한곳에만 둔다
+    assert "export ROS_DOMAIN_ID=12" in (KIT / "net.sh").read_text(encoding="utf-8")
+    assert "ROS_DOMAIN_ID" not in text
+
+
+# ---- 통신 설정: net.sh(로봇과 PC 공통), env.sh, pc_env.sh, discovery_server.sh ----
+NET_VARS = ("ROS_DOMAIN_ID", "RMW_IMPLEMENTATION", "ROS_AUTOMATIC_DISCOVERY_RANGE",
+            "ROS_DISCOVERY_SERVER", "ROS_SUPER_CLIENT", "ROS_LOCALHOST_ONLY", "ROS_STATIC_PEERS")
+DEFAULT_SERVER = "192.168.0.252:11811"
+# 다른 설정이 남아 있는 셸에서 시작한다
+POLLUTED = {"ROS_DOMAIN_ID": "6", "RMW_IMPLEMENTATION": "rmw_cyclonedds_cpp",
+            "ROS_AUTOMATIC_DISCOVERY_RANGE": "LOCALHOST", "ROS_DISCOVERY_SERVER": "10.9.9.9:1",
+            "ROS_SUPER_CLIENT": "TRUE", "ROS_LOCALHOST_ONLY": "1", "ROS_STATIC_PEERS": "10.9.9.8"}
+SERVER_MODE = {"ROS_DOMAIN_ID": "12", "RMW_IMPLEMENTATION": "rmw_fastrtps_cpp",
+               "ROS_AUTOMATIC_DISCOVERY_RANGE": "SUBNET", "ROS_DISCOVERY_SERVER": DEFAULT_SERVER}
+MULTICAST_MODE = {k: v for k, v in SERVER_MODE.items() if k != "ROS_DISCOVERY_SERVER"}
+PRINT_NET = ('for v in ' + " ".join(NET_VARS)
+             + '; do [ -z "${!v+x}" ] || echo "$v=${!v}"; done')
+
+
+def _net_values(text):
+    out = {}
+    for line in text.splitlines():
+        key, sep, value = line.partition("=")
+        if sep and key in NET_VARS:
+            out[key] = value
+    return out
+
+
+def _sourced(lines, extra=None, cwd=None):
+    """다른 값이 남은 bash에서 줄들을 돌리고, 끝난 뒤의 통신 변수를 읽는다."""
+    env = {"PATH": "/usr/bin:/bin", "HOME": "/nonexistent", **POLLUTED, **(extra or {})}
+    run = subprocess.run(["bash", "-c", "\n".join(lines + [PRINT_NET])], env=env, cwd=cwd,
+                         capture_output=True, text=True, timeout=30)
+    return run, _net_values(run.stdout)
+
+
+def test_net_default_is_server_mode_and_clears_old_values():
+    run, got = _sourced([f'source "{KIT}/net.sh"'])
+    assert run.returncode == 0, run.stderr
+    assert got == SERVER_MODE
+
+
+def test_net_other_server_address():
+    run, got = _sourced([f'DISCOVERY_SERVER=10.0.0.5:12000 source "{KIT}/net.sh"'])
+    assert got == {**SERVER_MODE, "ROS_DISCOVERY_SERVER": "10.0.0.5:12000"}
+
+
+@pytest.mark.parametrize("extra", [{}, {"SUPER": "1"}])
+def test_net_off_is_multicast_and_ignores_super(extra):
+    run, got = _sourced([f'source "{KIT}/net.sh"'], {"DISCOVERY_SERVER": "off", **extra})
+    assert run.returncode == 0, run.stderr
+    assert got == MULTICAST_MODE
+
+
+def test_net_super_client():
+    run, got = _sourced([f'SUPER=1 source "{KIT}/net.sh"'])
+    assert got == {**SERVER_MODE, "ROS_SUPER_CLIENT": "TRUE"}
+
+
+def test_net_resourcing_super_normal_off_in_one_shell():
+    run, got = _sourced([
+        f'SUPER=1 source "{KIT}/net.sh"', 'echo "A $ROS_SUPER_CLIENT"',
+        f'source "{KIT}/net.sh"', 'echo "B ${ROS_SUPER_CLIENT:-none} $ROS_DISCOVERY_SERVER"',
+        f'DISCOVERY_SERVER=off source "{KIT}/net.sh"',
+        'echo "C ${ROS_DISCOVERY_SERVER:-none} ${ROS_SUPER_CLIENT:-none}"',
+        # 앞에 붙인 값은 셸에 남지 않는다
+        'echo "D ${SUPER:-unset} ${DISCOVERY_SERVER:-unset}"'])
+    out = run.stdout.splitlines()
+    assert "A TRUE" in out
+    assert f"B none {DEFAULT_SERVER}" in out
+    assert "C none none" in out
+    assert "D unset unset" in out
+    assert got == MULTICAST_MODE
+
+
+@pytest.mark.parametrize("nounset", [True, False])
+def test_net_works_under_caller_nounset(nounset):
+    run, got = _sourced((["set -u"] if nounset else []) + [f'source "{KIT}/net.sh"'])
+    assert run.returncode == 0, run.stderr
+    assert got == SERVER_MODE
+
+
+def _robot_home(tmp_path):
+    """로봇의 ~/pinky_pro, ~/nav2fleet_ws setup과 ROS setup 대역."""
+    home = tmp_path / "home"
+    for rel in ("pinky_pro/install/local_setup.bash", "nav2fleet_ws/install/local_setup.bash"):
+        path = home / rel
+        path.parent.mkdir(parents=True)
+        path.write_text("")
+    ros = tmp_path / "ros_setup.bash"
+    ros.write_text("export ROS_STUB=1\n")
+    return {"HOME": str(home), "ROS_SETUP": str(ros)}
+
+
+def test_env_reads_net_next_to_itself(tmp_path):
+    # 다른 폴더에서 source해도 옆의 net.sh를 읽는다(launch 설명의 사용법)
+    run, got = _sourced([f'source "{KIT}/env.sh"'], _robot_home(tmp_path), cwd=tmp_path)
+    assert run.returncode == 0, run.stdout + run.stderr
+    assert got == SERVER_MODE
+
+
+def _start_with_real_env(tmp_path, extra):
+    """start.sh, env.sh, net.sh는 진짜. 대역 ros2가 받은 통신 변수를 적는다."""
+    kit = tmp_path / "kit"
+    kit.mkdir()
+    for name in ("start.sh", "env.sh", "net.sh"):
+        shutil.copy(KIT / name, kit)
+    (kit / "make_params.py").write_text("print('params ok')\n")
+    fake = tmp_path / "bin"
+    fake.mkdir()
+    seen = tmp_path / "ros2.env"
+    (fake / "ros2").write_text(f'#!/bin/bash\n{PRINT_NET} > "{seen}"\n')
+    (fake / "ros2").chmod(0o755)
+    env = {"PATH": f"{fake}:/usr/bin:/bin", **POLLUTED, **_robot_home(tmp_path), **extra}
+    run = subprocess.run(["bash", str(kit / "start.sh"), "pode1", "0.12", "0.10", "1.5708"],
+                         env=env, capture_output=True, text=True, timeout=30)
+    for _ in range(50):
+        if seen.exists() and seen.read_text().strip():
+            break
+        time.sleep(0.1)
+    return run, _net_values(seen.read_text() if seen.exists() else "")
+
+
+def test_start_launch_gets_server_mode(tmp_path):
+    run, got = _start_with_real_env(tmp_path, {})
+    assert run.returncode == 0, run.stdout + run.stderr
+    assert got == SERVER_MODE
+
+
+def test_start_launch_gets_multicast_when_off(tmp_path):
+    run, got = _start_with_real_env(tmp_path, {"DISCOVERY_SERVER": "off"})
+    assert run.returncode == 0, run.stdout + run.stderr
+    assert got == MULTICAST_MODE
+
+
+def _pc_setups(tmp_path, workspace=True):
+    """PC의 ROS setup과 작업공간 setup 대역. 진짜 setup처럼 정의되지 않은 변수를 읽는다."""
+    ros = tmp_path / "ros_setup.bash"
+    ros.write_text(': "${UNDEFINED_IN_TEST}"\nexport ROS_STUB=1\n')
+    ws = tmp_path / "ws_setup.bash"
+    if workspace:
+        ws.write_text('export STUB_MARK=overlay\n')
+    return {"ROS_SETUP": str(ros), "NAV2FLEET_WS_SETUP": str(ws)}
+
+
+@pytest.mark.parametrize("nounset", [True, False])
+def test_pc_env_reads_setups_and_keeps_caller_nounset(tmp_path, nounset):
+    run, got = _sourced((["set -u"] if nounset else []) + [
+        f'source "{KIT}/pc_env.sh"', 'echo "MARK=${STUB_MARK:-none}"',
+        'case $- in *u*) echo NOUNSET_ON ;; *) echo NOUNSET_OFF ;; esac'], _pc_setups(tmp_path))
+    assert run.returncode == 0, run.stderr
+    assert "MARK=overlay" in run.stdout
+    assert ("NOUNSET_ON" if nounset else "NOUNSET_OFF") in run.stdout
+    assert got == SERVER_MODE
+
+
+def test_pc_env_super_and_off(tmp_path):
+    setups = _pc_setups(tmp_path)
+    run, got = _sourced([f'SUPER=1 source "{KIT}/pc_env.sh"'], setups)
+    assert got == {**SERVER_MODE, "ROS_SUPER_CLIENT": "TRUE"}
+    run, got = _sourced([f'SUPER=1 DISCOVERY_SERVER=off source "{KIT}/pc_env.sh"'], setups)
+    assert got == MULTICAST_MODE
+
+
+def test_pc_env_missing_workspace_warns_and_still_sets(tmp_path):
+    setups = _pc_setups(tmp_path, workspace=False)
+    run, got = _sourced([f'source "{KIT}/pc_env.sh"', 'echo "RC=$?"'], setups)
+    assert "RC=0" in run.stdout
+    assert setups["NAV2FLEET_WS_SETUP"] in run.stderr
+    assert got == SERVER_MODE
+
+
+def test_pc_env_missing_ros_returns_without_closing_the_shell(tmp_path):
+    run, got = _sourced([f'source "{KIT}/pc_env.sh"', 'echo "RC=$?"'],
+                        {"ROS_SETUP": str(tmp_path / "nope.bash")})
+    assert "RC=1" in run.stdout
+    assert str(tmp_path / "nope.bash") in run.stderr
+
+
+def test_discovery_server_runs_fastdds_in_front(tmp_path):
+    fake = tmp_path / "bin"
+    fake.mkdir()
+    seen = tmp_path / "fastdds.args"
+    (fake / "fastdds").write_text(f'#!/bin/bash\nprintf "%s\\n" "$@" > "{seen}"\n')
+    (fake / "fastdds").chmod(0o755)
+    ros = tmp_path / "ros_setup.bash"
+    ros.write_text(': "${UNDEFINED_IN_TEST}"\n')
+    env = {"PATH": f"{fake}:/usr/bin:/bin", "HOME": str(tmp_path), "ROS_SETUP": str(ros)}
+    run = subprocess.run(["bash", str(KIT / "discovery_server.sh")], env=env,
+                         capture_output=True, text=True, timeout=10)
+    assert run.returncode == 0, run.stderr
+    # 포트는 net.sh 기본 주소의 포트와 같다
+    port = DEFAULT_SERVER.split(":")[1]
+    assert seen.read_text().splitlines() == ["discovery", "-i", "0", "-p", port]
+
+
+def test_discovery_server_without_ros(tmp_path):
+    env = {"PATH": "/usr/bin:/bin", "HOME": str(tmp_path), "ROS_SETUP": str(tmp_path / "nope")}
+    run = subprocess.run(["bash", str(KIT / "discovery_server.sh")], env=env,
+                         capture_output=True, text=True, timeout=10)
+    assert run.returncode == 1
 
 
 def test_start_usage_and_speed_refusal():
