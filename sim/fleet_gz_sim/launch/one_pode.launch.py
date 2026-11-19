@@ -4,6 +4,8 @@
     ros2 launch fleet_gz_sim one_pode.launch.py layout:=c start:=P-2 gui:=false rviz:=false
     ros2 launch fleet_gz_sim one_pode.launch.py obstacles:=v7_corridor_box \
         nav_map_variant:=b                                               # 가운데 통로 재현
+    ros2 launch fleet_gz_sim one_pode.launch.py start:=P-1             # v7 주차 지점에서(전 기본)
+    ros2 launch fleet_gz_sim one_pode.launch.py start:=M_E             # v7 gap 계획은 M_E에서 시작
 
 주행은 따로 `ros2 run fleet_gz_sim drive_check`(관제 대신 이동을 바로 보냄. 인자 없으면 v7
 corridor이고 이 launch의 기본 시작 O_IN과 맞다. d2는 둘 다 layout d2로)로 시키거나 RViz의 2D Goal Pose(bt_navigator)로 시킨다. 격리 검사(isolation.py)를 통과해야

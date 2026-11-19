@@ -15,6 +15,7 @@ from fleet_core.fleet_map import FOLLOW_PATH, NAV_GOAL, RETREAT, SHARED
 # stage2(D2, 주행 완료 기준의 구간 모두): 마당 Nav2 goal로 N_W, work_in으로 작업 도크, Retreat로
 # 마당(N_W)까지, 급행 동쪽으로 가서 J_E로 내려옴, out_in으로 출고 도크, Retreat로 N_E, 급행 서쪽으로
 # 가서 J_W로 내려옴, 마당 Nav2 goal로 P-1. 좁은 띠 안에서는 제자리 회전이 없다.
+# 배치마다 첫 계획이 drive_check와 one_pode의 기본(시작 지점)이다. 순서를 바꾸면 기본 시작도 바뀐다
 PLANS = {
     "stage2": (
         (NAV_GOAL, ("P-1", "N_W")),

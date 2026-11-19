@@ -78,7 +78,7 @@ origin/main에서도 같은 시험이 같은 수로 실패한다(실패 목록 d
 
 문제: 인자 없는 `drive_check`는 v7 + corridor라 O_IN에서 시작하는데, `one_pode.launch.py`의 기본 `start`는 P-1이었다. v7에서 두 점은 0.642 m 떨어져 있고 `drive_check`의 시작 검사(`START_M` 0.15 m)에 걸려, 기본 launch 둘을 함께 쓰면 출발 전에 멈췄다. b07ff12 전에는 d2 + stage2라 둘 다 P-1이었다.
 
-고친 것: `one_pode`의 `start` 기본을 빈 값으로 두고, 비면 `start_node(pick_layout_plan(layout, None)[1])`을 쓴다(규칙은 `stage2_plan` 한 곳). v7은 O_IN, d2·d·c·d2_shelf는 stage2의 시작 P-1로 전과 같다. `start:=X`를 주면 그대로 쓴다. docstring, 인자 설명, sim README(`start:=O_IN`을 붙이라던 줄)를 고쳤다.
+고친 것: `one_pode`의 `start` 기본을 빈 값으로 두고, 비면 `start_node(pick_layout_plan(layout, None)[1])`을 쓴다(규칙은 `stage2_plan` 한 곳). v7은 O_IN, d2·d·c·d2_shelf는 stage2의 시작 P-1로 전과 같다. `start:=X`를 주면 그대로 쓴다. docstring, 인자 설명, sim README(`start:=O_IN`을 붙이라던 줄)를 고쳤다. v7 기본 시작이 주차 지점 P-1에서 O_IN으로 바뀌므로 문서에 `start:=P-1`(전처럼 주차 지점)과 `start:=M_E`(v7의 다른 계획 gap의 시작)를 적었다. 기본 시작은 `PLANS`에서 배치마다 첫 계획을 따르므로, 순서를 바꾸면 바뀐다는 주석을 `PLANS` 옆에 달았다. `tools/avoid_regression.sh`는 `layout:=d2 start:=P-1`을 직접 주고, gz.launch는 one_pode를 쓰지 않아 v7 시나리오는 P-1 그대로라 바꿀 것이 없다.
 
 시험(`sim/fleet_gz_sim/test/test_one_pode_wiring.py`, 먼저 씀):
 

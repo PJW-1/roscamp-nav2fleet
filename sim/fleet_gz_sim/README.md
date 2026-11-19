@@ -157,6 +157,8 @@ source ~/fleet_ws/install/local_setup.bash
 export ROS_DOMAIN_ID=47 ROS_AUTOMATIC_DISCOVERY_RANGE=LOCALHOST RMW_IMPLEMENTATION=rmw_fastrtps_cpp
 
 ros2 launch fleet_gz_sim one_pode.launch.py                          # v7, O_IN, Gazebo 화면 + RViz
+ros2 launch fleet_gz_sim one_pode.launch.py start:=P-1             # v7 주차 지점에서(전 기본)
+ros2 launch fleet_gz_sim one_pode.launch.py start:=M_E             # v7 gap 계획(drive_check --plan gap)은 M_E에서 시작
 ros2 launch fleet_gz_sim one_pode.launch.py gui:=false rviz:=false   # 화면 없이
 ```
 
