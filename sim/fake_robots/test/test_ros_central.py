@@ -242,11 +242,12 @@ def test_a_final_that_beats_the_force_ship_answer_is_still_forced(harness, tmp_p
 
     import rclpy.node
     c = Central(harness, tmp_path, force_ship_after_s=0.3)
-    gate, asked = threading.Event(), []
+    gate, asked, answered = threading.Event(), [], []
 
     def handle(request, response):
         asked.append(request.order_id)
         gate.wait(5.0)  # 최종 보고가 먼저 닿도록 응답을 붙잡는다
+        answered.append(request.order_id)
         response.accepted = True
         return response
     server = harness.add(rclpy.node.Node("slow_force_ship"))
@@ -257,6 +258,7 @@ def test_a_final_that_beats_the_force_ship_answer_is_still_forced(harness, tmp_p
     try:
         assert c.report("O-1", CANCELED, missing={"A": 1}).accepted
         c.wait_code("ORDER_CANCELED")
+        assert answered == [], "the answer must still be held back"
     finally:
         gate.set()
     assert c.node.inventory()["A"] == 3
