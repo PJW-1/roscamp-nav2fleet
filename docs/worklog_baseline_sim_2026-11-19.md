@@ -207,7 +207,7 @@ Drive 문서 `nav2fleet_다음_작업_순서_2026-11-19`의 1번 단계다. main
   - 이번 기준 묶음은 이 감시 장치와 판별 기록기 없이 같은 launch 줄로 돌렸다. 기록기는 묶음 전체에 하나를 따로 돌렸다.
 - `step1_report.py NAME=RESULT_DIR ... [--routes]`: Route, Q2, 갱신 표
 - `express_metrics.py TRUTH.csv BATCH.log [--date=YYYY-MM-DD] | NAME=TRUTH.csv ... [--passes]`: 급행 여유
-  - 묶음 로그 시각은 KST로 읽는다. 실행하는 PC의 시간대와는 상관없다.
+  - 묶음 로그 시각은 KST로 읽는다. 실행하는 PC의 시간대와는 상관없다. `sim_batch.sh`도 로그를 KST로 적는다(`TZ=Asia/Seoul`).
   - 날짜는 `--date`로 주고, 없으면 로그 파일이 바뀐 날(KST)을 쓴다. 이 기록은 `--date=2026-11-19`다. `q2_dwell.py`도 같다.
 - `q2_dwell.py ...`: Q2에서 실제로 선 시간
 - 경로의 스크래치 폴더(`/tmp/claude-1000/...`)는 이 PC의 것이다. 다른 곳에서는 `S=` 줄을 고쳐 쓴다.
@@ -234,3 +234,4 @@ Drive 문서 `nav2fleet_다음_작업_순서_2026-11-19`의 1번 단계다. main
   - 시각 차이 상한 0.05 s → 0.06 s.
   - 표 머리의 걸림 정의.
   - 로그 시각을 실행 PC 시간대 대신 KST로 고정했다.
+- ec45be5(두 번째 고친 판, Codex, 도착해서 읽음): `sim_batch.sh`가 로그를 실행 PC 시간대로 적어, 다른 시간대에서 새로 돌리면 KST로 읽는 스크립트와 9시간 어긋난다는 지적을 고쳤다. 이번 묶음은 KST PC에서 돌려 숫자는 그대로다.

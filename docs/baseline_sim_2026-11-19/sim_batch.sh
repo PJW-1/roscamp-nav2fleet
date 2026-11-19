@@ -3,6 +3,8 @@
 # 사용: sim_batch.sh BASE_DIR OVERLAY_SETUP|- name:scenario ...
 S=/tmp/claude-1000/-home-ane-ros2camp/255eff68-4c77-42b3-b9fc-325ae2037b61/scratchpad
 B=$1; OVL=$2; shift 2
+# 묶음 로그 시각은 KST로 적는다(express_metrics.py, q2_dwell.py가 KST로 읽음)
+export TZ=Asia/Seoul
 left61() { for p in /proc/[0-9]*; do { tr '\0' '\n' < $p/environ; } 2>/dev/null | grep -qx ROS_DOMAIN_ID=61 && echo ${p#/proc/}; done; }
 for run in "$@"; do
   name=${run%%:*}; scen=${run#*:}; R=$B/$name
