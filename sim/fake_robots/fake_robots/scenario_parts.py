@@ -8,6 +8,7 @@ import random
 from fake_robots.scenario_cfg import (
     EXPECT_DEFAULTS,
     FAULT_TYPES,
+    HOLD_REASONS,
     LOW_BATTERY_KEYS,
     OBJECT_KEYS,
     OBJECT_MAP_MARGIN_M,
@@ -188,6 +189,10 @@ def _parse_expect(data: dict, faults: list) -> Expect:
         if order not in ids or result not in ORDER_RESULTS:
             raise ScenarioError(f"order_results: {order}: {result} needs a scenario order and "
                                 f"one of {ORDER_RESULTS}")
+    for order, reason in (raw.get("hold_reasons") or {}).items():
+        if order not in ids or reason not in HOLD_REASONS:
+            raise ScenarioError(f"hold_reasons: {order}: {reason} needs a scenario order and "
+                                f"one of {HOLD_REASONS}")
     expect = Expect(**{**EXPECT_DEFAULTS, **raw})
     if faults and max(expect.orders_shipped or 0, expect.orders_shipped_min) < 1:
         raise ScenarioError("a scenario with faults must expect at least one shipped order "

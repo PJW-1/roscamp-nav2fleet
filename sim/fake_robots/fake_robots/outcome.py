@@ -8,6 +8,10 @@ class Outcome:
         return all(order in self.final for order in self.registered)
 
 
+    def _result_of(self, order: str):
+        """끝난 결과, 아직 끝나지 않았으면 보류 중인 것은 HELD."""
+        return self.final.get(order) or ("HELD" if order in self.held else None)
+
     def _complete(self) -> bool:
         return self.all_final and self._all_parked()
 
@@ -35,7 +39,9 @@ class Outcome:
                                     "ok": self.all_final == ex.all_orders_finished},
             "orders_shipped": exact(counts["SHIPPED"], ex.orders_shipped),
             "orders_partial": exact(counts["PARTIAL"], ex.orders_partial),
-            "orders_held": exact(counts["HELD"], ex.orders_held),
+            "orders_held": exact(len(self.held), ex.orders_held),
+            "orders_canceled": exact(counts["CANCELED"], ex.orders_canceled),
+            "robots_isolated": exact(self.robots_isolated, ex.robots_isolated),
             "orders_shipped_min": at_least(counts["SHIPPED"], ex.orders_shipped_min),
             "fifo_violations": exact(len(fifo), ex.fifo_violations),
             "zone_holder_max": exact(self.max_occupancy, ex.zone_holder_max),
@@ -60,9 +66,13 @@ class Outcome:
                                   "codes": unexpected,
                                   "ok": len(unexpected) == ex.unexpected_errors},
             "order_results": {
-                "value": {o: self.final.get(o) for o in ex.order_results},
+                "value": {o: self._result_of(o) for o in ex.order_results},
                 "expected": ex.order_results,
-                "ok": all(self.final.get(o) == r for o, r in ex.order_results.items())},
+                "ok": all(self._result_of(o) == r for o, r in ex.order_results.items())},
+            "hold_reasons": {
+                "value": {o: self.hold_reasons.get(o) for o in ex.hold_reasons},
+                "expected": ex.hold_reasons,
+                "ok": all(self.hold_reasons.get(o) == r for o, r in ex.hold_reasons.items())},
             "events_include": {"missing": missing, "ok": not missing},
             "event_counts": {
                 "value": {c: self.event_counts.get(c, 0) for c in ex.event_counts},
@@ -74,7 +84,8 @@ class Outcome:
             "orders_total": len(self.registered),
             "orders_shipped": counts["SHIPPED"],
             "orders_partial": counts["PARTIAL"],
-            "orders_held": counts["HELD"],
+            "orders_held": len(self.held),
+            "orders_canceled": counts["CANCELED"],
             "duration_s": float(t),
             "timed_out": timed_out,
             "violations": [*self.violations, *fifo,

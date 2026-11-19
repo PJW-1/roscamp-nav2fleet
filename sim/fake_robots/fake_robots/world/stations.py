@@ -21,7 +21,8 @@ class Central:
         self.future = sorted(orders, key=lambda o: o["at_s"])
         self.total = len(self.future)
         self.registered: list[OrderRecord] = []
-        self.reports: list[ReportOrderCmd] = []
+        self.reports: list[ReportOrderCmd] = []  # 최종 보고만(SHIPPED, PARTIAL, CANCELED)
+        self.held: dict[str, ReportOrderCmd] = {}  # 보류 보고(마지막 것)
         self._new_reports: list[ReportOrderCmd] = []
         self._violation = violation
         self.last_report_t: float | None = None
@@ -42,13 +43,17 @@ class Central:
         if cmd.order_id not in {o.order_id for o in self.registered}:
             self._violation(f"{cmd.order_id} reported but not on the board")
             return
+        if cmd.status == HELD:  # 보류는 끝이 아니다. 판에 남고 최종 보고를 한 번 더 받는다
+            self.held[cmd.order_id] = cmd
+            self.last_report_t = t
+            return
         self.reports.append(cmd)
         self._new_reports.append(cmd)
         self.last_report_t = t
 
     @property
     def finished(self) -> int:
-        return sum(1 for r in self.reports if r.status != HELD)
+        return len(self.reports)
 
     def all_final(self) -> bool:
         return not self.future and not self.registered and not self._new_reports
