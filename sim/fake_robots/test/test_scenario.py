@@ -249,7 +249,10 @@ def test_exactly_the_six_scenarios_are_shipped(site):
 
 @pytest.mark.parametrize("layout", ["d2", "d", "c"])
 def test_a_scenario_can_choose_a_layout(tmp_path, layout):
-    assert scenario_map_file(SCENARIOS / "basic_orders.yaml") == ""
+    assert scenario_map_file(SCENARIOS / "basic_orders.yaml") == "d2"
+    plain = tmp_path / "plain.yaml"
+    plain.write_text("seed: 1\n", encoding="utf-8")
+    assert scenario_map_file(plain) == ""  # map이 없으면 빈 값(기본 배치)
     path = tmp_path / "x.yaml"
     path.write_text(f"map: {layout}\n", encoding="utf-8")
     assert scenario_map_file(path) == layout

@@ -60,17 +60,17 @@ export ROS_DOMAIN_ID=47 ROS_AUTOMATIC_DISCOVERY_RANGE=LOCALHOST RMW_IMPLEMENTATI
 ```
 
 ```bash
-# 기본: D2 배치, Gazebo 화면 + 3대를 한 RViz에, 시나리오 gz_d2(주문 8개), 도킹은 진짜 pode_fsm(실패)
+# 기본: v7 배치(실제 경기장), Gazebo 화면 + 3대를 한 RViz에, 시나리오 gz_v7, 도킹은 진짜 pode_fsm(실패)
 ros2 launch fleet_gz_sim gz.launch.py
 
 # 임무를 끝까지(도킹 대역), 마당과 급행에 상자를 놓았다 치우는 일정
-ros2 launch fleet_gz_sim gz.launch.py sim_dock_stub:=true obstacles:=d2_yard_express
+ros2 launch fleet_gz_sim gz.launch.py layout:=d2 sim_dock_stub:=true obstacles:=d2_yard_express
 
 # 다른 배치, 한 대만, 화면 없이
 ros2 launch fleet_gz_sim gz.launch.py layout:=c scenario:=gz_c_one gui:=false rviz:=none
 ```
 
-배치(`layout`)는 `d2`(기본), `d`, `c`이고 구역 지도는 `fleet_core`의 `load_fleet_map(<배치>)`다. 배치마다 월드 `worlds/arena_<배치>.sdf`, Nav2 지도 `maps/arena_<배치>[_fine].yaml`, keepout 마스크 `maps/arena_<배치>_keepout.yaml`을 쓴다. 시나리오의 `map`은 배치와 같아야 한다. Pode는 시나리오의 `start`(지점 이름)에, 없으면 주차 지점(P-1, P-2, P-3)에 차례로 놓인다. 관제는 같은 배치를 `map_file`로 받고 교통 방식은 `zones`다.
+배치(`layout`)는 `v7`(기본, 실제 경기장), `d2`, `d`, `c`이고 구역 지도는 `fleet_core`의 `load_fleet_map(<배치>)`다. 배치마다 월드 `worlds/arena_<배치>.sdf`, Nav2 지도 `maps/arena_<배치>[_fine].yaml`, keepout 마스크 `maps/arena_<배치>_keepout.yaml`을 쓴다. 시나리오의 `map`은 배치와 같아야 한다. Pode는 시나리오의 `start`(지점 이름)에, 없으면 주차 지점(P-1, P-2, P-3)에 차례로 놓인다. 관제는 같은 배치를 `map_file`로 받고 교통 방식은 `zones`다.
 
 WSL2에서 화면이 느리면 GPU를 쓰게 한다: `export GALLIUM_DRIVER=d3d12 MESA_D3D12_DEFAULT_ADAPTER_NAME=NVIDIA`(그래픽 카드 이름).
 
@@ -156,17 +156,18 @@ source ~/pinky_deps_ws/install/local_setup.bash   # pinky_description
 source ~/fleet_ws/install/local_setup.bash
 export ROS_DOMAIN_ID=47 ROS_AUTOMATIC_DISCOVERY_RANGE=LOCALHOST RMW_IMPLEMENTATION=rmw_fastrtps_cpp
 
-ros2 launch fleet_gz_sim one_pode.launch.py                          # D2, P-1, Gazebo 화면 + RViz
+ros2 launch fleet_gz_sim one_pode.launch.py                          # v7, P-1, Gazebo 화면 + RViz
 ros2 launch fleet_gz_sim one_pode.launch.py gui:=false rviz:=false   # 화면 없이
 ```
 
-인자: `namespace`(pode1), `layout`(d2), `start`(P-1, 지점 이름이고 방향은 그 지점의 yaw), `gui`, `rviz`, `fsm`, `heartbeat_timeout_s`(1.5), `nav_log_level`(warn), `nav_max_speed`(0.20), `keepout`(true), `still_pode`(`x,y,yaw`를 주면 Nav2 없이 서 있기만 하는 `pode_still`을 놓는다).
+인자: `namespace`(pode1), `layout`(v7), `start`(P-1, 지점 이름이고 방향은 그 지점의 yaw), `gui`, `rviz`, `fsm`, `heartbeat_timeout_s`(1.5), `nav_log_level`(warn), `nav_max_speed`(0.20), `keepout`(true), `still_pode`(`x,y,yaw`를 주면 Nav2 없이 서 있기만 하는 `pode_still`을 놓는다).
 
 로봇이 IDLE이 되면(약 10 s) 다른 터미널에서 같은 환경으로 주행시킨다.
 
 ```bash
-ros2 run fleet_gz_sim drive_check --layout d2 --plan stage2 --json stage2.json
-ros2 run fleet_gz_sim drive_check --plan cross     # P-1 -> P-3 -> P-1 Nav2 goal(둘째 Pode 확인용)
+ros2 run fleet_gz_sim drive_check --layout d2 --plan stage2 --json stage2.json   # one_pode는 layout:=d2로
+ros2 run fleet_gz_sim drive_check --plan cross     # P-1 -> P-3 -> P-1 Nav2 goal(d2, 둘째 Pode 확인용)
+ros2 run fleet_gz_sim drive_check                  # 인자 없으면 v7 corridor(one_pode는 start:=O_IN으로)
 ```
 
 `drive_check`는 관제 없이 로봇에 바로 이동을 보낸다(`fleet_gz_sim/stage2_plan.py`). `stage2`는 고정 선을 한 바퀴 도는 계획이다(추가지시서3 2-1): P-1에서 Nav2 goal로 N_W, `work_in`으로 W, 후진으로 N_W, 급행 동쪽으로 N_E, `out_in`으로 O, 후진으로 N_E, 급행 서쪽으로 N_W, Nav2 goal로 P-1. 고정 선의 꺾는 점도 경로에 넣는다. 결과는 `results/fixed_line_results.md`. 구간마다 결과, 걸린 시간(벽시계, 시뮬), 끝 위치와 방향 오차, 고정 경로에서 벗어난 최대 거리, Nav2 계획이 지난 keepout 구역을 적는다. `/fleet/heartbeat`는 2 Hz로 보낸다.

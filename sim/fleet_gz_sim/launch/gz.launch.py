@@ -1,9 +1,9 @@
 """Gazebo Pode 3대 + 진짜 관제(관제·pode_fsm·Nav2는 진짜, central·팔은 가짜).
 
-    ros2 launch fleet_gz_sim gz.launch.py                          # 배치 D2, 시나리오 gz_d2
+    ros2 launch fleet_gz_sim gz.launch.py                          # 배치 v7, 시나리오 gz_v7
     ros2 launch fleet_gz_sim gz.launch.py layout:=c gui:=false rviz:=none
 
-- 배치(layout: d2 기본, d, c)가 월드, Nav2 지도, keepout 마스크, 관제 구역 지도를 고른다
+- 배치(layout: v7 기본, d2, d, c)가 월드, Nav2 지도, keepout 마스크, 관제 구역 지도를 고른다
   (fleet_setup.arena_for). 시나리오는 비면 gz_<배치>이고, 시나리오의 map이 배치와 같아야 한다.
 - Pode는 시나리오의 start 지점(없으면 주차 지점 차례)에 그 지점의 yaw로 놓는다(fleet_setup).
 - 로봇마다 Nav2(pode_nav_config)에 배치의 지도와 keepout_mask를 준다. sim_nav_params가
@@ -40,7 +40,7 @@ from launch_ros.actions import Node
 from rclpy import get_rmw_implementation_identifier
 
 ARGS = {
-    "layout": ("d2", "배치: d2(기본), d, c, 시험용 d2_shelf"),
+    "layout": ("v7", "배치: v7(기본, 실제 경기장), d2, d, c, 시험용 d2_shelf"),
     "scenario": ("", "시나리오 이름(fleet_gz_sim, fake_robots 순서로 찾음)이나 파일."
                      " 비면 gz_<배치>(주문 8건, 3대)"),
     "gui": ("true", "Gazebo 화면"),

@@ -17,6 +17,7 @@ stage2_plan의 계획(nav_goal, follow_path, retreat)을 차례로 보낸다. �
   - v7: 남쪽 진열대 사이 틈을 지났는지(through_gap)와 틈의 네 모서리까지 가장 짧은 거리(중심
     gap_corner_min_m, 몸 gap_corner_body_min_m: local costmap 발자국 다각형, 못 읽으면 중심 - 0.056)
 
+인자 없이 돌리면 v7(실제 경기장)의 corridor 계획이다. --plan만 주면 그 계획의 배치(stage2, cross는 d2).
 가운데 통로 재현(v7): --layout v7 --plan corridor --wait-box 120. 상자가 놓인 뒤에 출발한다.
 틈 건너기(v7): --layout v7 --plan gap. 끝점은 --point GAP_N=1.12,0.55처럼 바꾼다.
 """
@@ -56,6 +57,7 @@ from fleet_gz_sim.stage2_plan import (
     max_pose_error,
     min_distance,
     parse_footprint,
+    pick_layout_plan,
     start_node,
     through_gate,
     yaw_error,
@@ -318,11 +320,13 @@ def _named_point(text: str) -> tuple[str, tuple[float, float]]:
     return name.strip(), (x, y)
 
 
-def main(argv=None) -> None:
+def parse_args(argv=None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--robot", default="pode1")
-    parser.add_argument("--layout", default="d2")
-    parser.add_argument("--plan", default="stage2")
+    parser.add_argument("--layout", default=None,
+                        help="배치. 비면 계획의 배치, 둘 다 비면 v7(실제 경기장)")
+    parser.add_argument("--plan", default=None,
+                        help="계획. 비면 배치의 첫 계획(v7은 corridor, 그 밖은 stage2)")
     parser.add_argument("--laps", type=int, default=1)
     parser.add_argument("--timeout", type=float, default=120.0,
                         help="이동 하나의 한도(벽시계 초)")
@@ -335,6 +339,12 @@ def main(argv=None) -> None:
     parser.add_argument("--contract", default=None)
     parser.add_argument("--json", default=None, help="요약을 이 파일에도 쓴다")
     args = parser.parse_args(argv)
+    args.layout, args.plan = pick_layout_plan(args.layout, args.plan)
+    return args
+
+
+def main(argv=None) -> None:
+    args = parse_args(argv)
     if args.contract is None:
         from ament_index_python.packages import get_package_share_directory
         args.contract = get_package_share_directory("fleet_interfaces") + "/contract.yaml"

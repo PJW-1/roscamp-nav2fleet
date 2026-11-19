@@ -76,3 +76,12 @@ def test_amcl_error_key_is_always_written_null_when_not_measurable():
     out = drive_check.run_step(_FakeNode(), site, step, timeout=1.0)
     assert out["result"] == "success"
     assert "amcl_max_error_m" in out and out["amcl_max_error_m"] is None
+
+
+def test_without_arguments_the_check_drives_the_real_arena_v7():
+    args = drive_check.parse_args(["--contract", "c.yaml"])
+    assert (args.layout, args.plan) == ("v7", "corridor")
+    args = drive_check.parse_args(["--contract", "c.yaml", "--layout", "d2"])
+    assert (args.layout, args.plan) == ("d2", "stage2")
+    args = drive_check.parse_args(["--contract", "c.yaml", "--plan", "cross"])
+    assert (args.layout, args.plan) == ("d2", "cross")

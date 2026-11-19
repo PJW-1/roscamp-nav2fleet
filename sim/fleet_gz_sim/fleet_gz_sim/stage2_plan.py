@@ -128,6 +128,18 @@ def plan_layout(plan: str) -> str:
     return PLAN_LAYOUTS.get(plan, "d2")
 
 
+def pick_layout_plan(layout: str | None, plan: str | None) -> tuple[str, str]:
+    """drive_check의 배치와 계획. 둘 다 없으면 v7과 그 첫 계획(corridor).
+
+    계획만 주면 그 계획의 배치, 배치만 주면 그 배치의 첫 계획(없으면 stage2).
+    """
+    if layout is None:
+        layout = plan_layout(plan) if plan is not None else "v7"
+    if plan is None:
+        plan = next((p for p in PLANS if PLAN_LAYOUTS.get(p) == layout), "stage2")
+    return layout, plan
+
+
 def build(site, plan: str, laps: int = 1, points=None) -> list[Step]:
     """points: 계획 전용 점을 바꾸거나 더한다(이름 -> (x, y))."""
     if plan not in PLANS:

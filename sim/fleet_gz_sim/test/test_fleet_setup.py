@@ -121,21 +121,22 @@ def test_a_scenario_for_another_layout_is_refused():
         fleet_setup.check_fits(data, "gz_c.yaml", "d2")
 
 
-def test_a_scenario_without_a_map_is_for_d2():
-    assert fleet_setup.scenario_layout({}) == "d2"
+def test_a_scenario_without_a_map_is_for_v7():
+    assert fleet_setup.DEFAULT_LAYOUT == "v7"
+    assert fleet_setup.scenario_layout({}) == "v7"
     with pytest.raises(fleet_setup.ScenarioUnfit):
         fleet_setup.scenario_layout({"map": "warehouse"})
 
 
 def test_a_scenario_with_robot_faults_is_refused():
-    data = {"robots": {"pode1": {}}, "faults": [{"type": "stuck", "robot": "pode1",
-                                                  "at_s": 5}]}
+    data = {"map": "d2", "robots": {"pode1": {}},
+            "faults": [{"type": "stuck", "robot": "pode1", "at_s": 5}]}
     with pytest.raises(fleet_setup.ScenarioUnfit, match="stuck"):
         fleet_setup.check_fits(data, "s.yaml", "d2")
 
 
 def test_a_low_battery_runs_in_the_arena_the_stand_in_reports_it(tmp_path):
-    data = {"robots": {"pode1": {}}, "dock": {"duration_s": 4.5},
+    data = {"map": "d2", "robots": {"pode1": {}}, "dock": {"duration_s": 4.5},
             "faults": [{"type": "low_battery", "robot": "pode1", "at_s": 5,
                         "duration_s": 30}]}
     fleet_setup.check_fits(data, "s.yaml", "d2")

@@ -39,6 +39,11 @@ def run(module, **overrides):
     return start.execute(context)
 
 
+def test_the_default_layout_is_the_real_arena_v7(one):
+    assert one.ARGS["layout"][0] == "v7"
+    assert one.ARGS["start"][0] == "P-1"  # v7에도 있는 주차 지점
+
+
 def test_the_fixed_line_check_is_off_unless_asked(one, monkeypatch):
     need("pinky_description", "pode_nav_config", "pode_fsm")
     from fleet_gz_sim import launch_parts
@@ -162,7 +167,7 @@ def test_nav_map_variant_is_empty_by_default_and_v7_only(one):
     assert nav_arguments(run(one, layout="v7", start="O_IN", nav_map_variant="base"))[
         "map"].endswith("maps/arena_v7.yaml")
     with pytest.raises(ScenarioUnfit, match="only for layout v7"):
-        run(one, nav_map_variant="b")
+        run(one, layout="d2", nav_map_variant="b")
     with pytest.raises(ScenarioUnfit, match="nav_map_variant"):
         run(one, layout="v7", start="O_IN", nav_map_variant="x")
 

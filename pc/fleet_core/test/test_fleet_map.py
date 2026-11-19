@@ -523,8 +523,8 @@ def test_shipped_maps_load(layout):
     assert site.source_text
 
 
-def test_d2_is_the_default_and_matches_the_instruction():
-    site = load_fleet_map()
+def test_d2_matches_the_instruction():
+    site = load_fleet_map("d2")
     assert site.name == "arena_d2"
     assert site.shelves == ((0.50, 0.775, 1.48, 0.79),)
     assert site.node_pose("W") == (0.18, 0.89) and site.node_pose("O") == (1.80, 0.89)

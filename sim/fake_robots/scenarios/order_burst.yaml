@@ -3,6 +3,7 @@
 # direct_returns_min은 그런 바퀴를, parked_while_backlog는 반대 경우를 센다.
 # 첫 3건은 대기 칸에서 오는 로봇이 받는다. 마지막 2건이 배정될 때까지 주문이 계속 밀려 있으므로
 # 나머지 7건은 모두 곧장 돌아온 바퀴에서 나와야 한다.
+map: d2  # D2 배치용 시나리오(기본 배치는 v7)
 seed: 11
 speed_factor: 5.0
 timeout_s: 1200

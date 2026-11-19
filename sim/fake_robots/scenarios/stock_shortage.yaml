@@ -7,6 +7,7 @@
 #   O-005 F만                           HELD     STOCK_MISMATCH
 #   O-006 전부 있음                     SHIPPED
 #   O-007 basket_capacity 초과          HELD     팔을 부르지 않으니 부족분이 없다
+map: d2  # D2 배치용 시나리오(기본 배치는 v7)
 seed: 17
 speed_factor: 5.0
 timeout_s: 900

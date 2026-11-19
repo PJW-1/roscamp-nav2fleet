@@ -1,6 +1,6 @@
 """Gazebo에서 Pode 한 대를 Nav2, pode_fsm과 함께 돌린다. 관제(fleet_manager)는 띄우지 않는다.
 
-    ros2 launch fleet_gz_sim one_pode.launch.py                          # D2, P-1, 화면 + RViz
+    ros2 launch fleet_gz_sim one_pode.launch.py                          # v7, P-1, 화면 + RViz
     ros2 launch fleet_gz_sim one_pode.launch.py layout:=c start:=P-2 gui:=false rviz:=false
     ros2 launch fleet_gz_sim one_pode.launch.py layout:=v7 start:=O_IN obstacles:=v7_corridor_box \
         nav_map_variant:=b                                               # 가운데 통로 재현
@@ -23,7 +23,7 @@ from rclpy import get_rmw_implementation_identifier
 
 ARGS = {
     "namespace": ("pode1", "로봇 이름이자 namespace"),
-    "layout": ("d2", "배치: d2(기본), d, c, 시험용 d2_shelf"),
+    "layout": ("v7", "배치: v7(기본, 실제 경기장), d2, d, c, 시험용 d2_shelf"),
     "start": ("P-1", "시작 지점(구역 지도의 지점 이름). 방향은 그 지점의 yaw"),
     "gui": ("true", "Gazebo 화면"),
     "rviz": ("true", "RViz"),

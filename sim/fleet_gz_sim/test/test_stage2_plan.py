@@ -81,6 +81,19 @@ def test_keepout_zones_lists_each_non_shared_zone_once_in_order():
 V7 = load_fleet_map("v7")
 
 
+def test_without_layout_and_plan_the_check_drives_v7_by_its_corridor_plan():
+    assert sp.pick_layout_plan(None, None) == ("v7", "corridor")
+    # 계획만 주면 그 계획의 배치, 배치만 주면 그 배치의 첫 계획(없으면 stage2)
+    assert sp.pick_layout_plan(None, "stage2") == ("d2", "stage2")
+    assert sp.pick_layout_plan(None, "cross") == ("d2", "cross")
+    assert sp.pick_layout_plan(None, "gap") == ("v7", "gap")
+    assert sp.pick_layout_plan("d2", None) == ("d2", "stage2")
+    assert sp.pick_layout_plan("v7", None) == ("v7", "corridor")
+    assert sp.pick_layout_plan("c", "stage2") == ("c", "stage2")
+    layout, plan = sp.pick_layout_plan(None, None)
+    assert sp.build(load_fleet_map(layout), plan)
+
+
 def test_corridor_plan_goes_o_in_to_m_e_and_back_by_nav_goal_on_v7():
     assert sp.plan_layout("corridor") == "v7" and sp.plan_layout("stage2") == "d2"
     assert sp.start_node("corridor") == "O_IN"
