@@ -1,6 +1,6 @@
 # ---- 관제와 로봇 사이 연결의 이름, 타입, QoS 원본 ----
 
-version: 0.5
+version: 0.6
 
 # ---- 이름 틀에 채울 로봇과 팔 이름 ----
 placeholders:
@@ -39,4 +39,5 @@ services:
   - {key: report_order, name: "/central/report_order", type: fleet_interfaces/srv/ReportOrder}
   - {key: confirm_clear, name: "/fleet/confirm_clear", type: fleet_interfaces/srv/ConfirmClear}
   - {key: reinstate, name: "/fleet/reinstate", type: fleet_interfaces/srv/Reinstate}
+  - {key: force_ship, name: "/fleet/force_ship", type: fleet_interfaces/srv/ForceShip}
   - {key: check_clear, name: "/{pode}/check_clear", type: fleet_interfaces/srv/CheckClear, real_only: true}

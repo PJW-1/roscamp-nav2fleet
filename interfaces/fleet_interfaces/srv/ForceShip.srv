@@ -1,0 +1,8 @@
+string order_id
+---
+string REASON_NOT_HELD="NOT_HELD"
+string REASON_ROBOT_FAULT="ROBOT_FAULT"
+string REASON_UNKNOWN_ORDER="UNKNOWN_ORDER"
+string REASON_NOT_IMPLEMENTED="NOT_IMPLEMENTED"
+bool accepted
+string reason
