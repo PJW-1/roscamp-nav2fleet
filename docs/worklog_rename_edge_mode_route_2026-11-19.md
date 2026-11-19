@@ -53,6 +53,7 @@ LOCALHOST, rmw_fastrtps_cpp, 시나리오 도메인 80~88(전)/90~98(후).
 - 재생: run8 기록이 재부팅으로 없어져 ~/real_runs의 8개(fixedline_off_1, peer_on_order_on_1~3, run5_1, run5_2,
   run6_1, run7_1)로 대신했다. `tools/replay.py` 출력과, 코어가 낸 줄 전체를 덤프한 것을 비교했다.
   바꾸기 전 두 번 돌려 바이트 단위로 같음(결정적)을 확인했고, 단계마다와 마지막에 8개 모두 바이트 단위로 같았다.
-  (fixedline_off_1, peer_on_order_on_2, peer_on_order_on_3은 바꾸기 전부터 기록과 다른 줄이 있다. 기록을 만든 뒤 코드가 바뀐 것이며, 전후 출력은 같다.)
-- 지시서 3.4의 grep: 첫째는 fake_robots의 통신 링크 `Link`(3줄)와 order_metrics의 `trips`(3줄)만 남았다.
+  (fixedline_off_1, peer_on_order_on_2, peer_on_order_on_3은 바꾸기 전부터 기록과 다른 줄이 있다. 기록을 만든 뒤 코드가 바뀐 탓으로 보지만 확인하지 않았다. 전후 출력은 같다.)
+- 지시서 3.4의 grep(`git grep -nwE "Link|links_from|free_link|back_link|Trip|trips" -- '*.py' ':!docs'`,
+  `git grep -nE "\.via\b|\bvia\s*[=:]" -- 'pc/*.py' 'sim/*.py' 'tools/*.py'`): 첫째는 fake_robots의 통신 링크 `Link`(3줄)와 order_metrics의 `trips`(3줄)만 남았다.
   둘째는 via point 뜻만 남았다(blocked.py, goals.py, routes.py, yard_retreat.py, test_zone_block_marks.py, fake_robots의 거칠 점).
