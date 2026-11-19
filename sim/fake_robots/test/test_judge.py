@@ -422,6 +422,18 @@ def test_a_canceled_order_does_not_count_as_shipped():
     assert check(j, "orders_shipped_min")["ok"] is False
 
 
+@pytest.mark.parametrize("code", ["ORDER_SHIPPED", "ORDER_PARTIAL", "ORDER_CANCELED",
+                                  "ORDER_HELD"])
+def test_any_report_for_an_order_over_capacity_is_a_violation(code):
+    """용량 초과 주문은 ReportOrder를 보내지 않는다. 그 뒤의 최종이나 보류 이벤트는 위반이다."""
+    j = judge(order_results={"O-1": "OVER_CAPACITY"})
+    event(j, "ORDER_OVER_CAPACITY", "O-1 items=5 capacity=4")
+    event(j, code, "O-1 robot=pode1 hold_reason=ARM_FAULT", t=2.0, source="central")
+    assert j.final["O-1"] == "OVER_CAPACITY" and "O-1" not in j.held
+    assert len(j.violations) == 1 and "O-1" in j.violations[0]
+    assert check(j, "order_results")["ok"] is True  # 결과는 그대로, 위반으로만 잡는다
+
+
 def test_an_order_over_capacity_is_settled_without_a_report():
     j = judge(order_results={"O-1": "OVER_CAPACITY"})
     event(j, "ORDER_OVER_CAPACITY", "O-1 items=5 capacity=4")
@@ -938,13 +950,24 @@ def test_an_order_rebound_by_another_reinstated_robot_counts_for_neither_twice()
     assert check(j, "shipped_after_reinstate_min")["value"] == 1  # 끝낸 pode1 몫 하나
 
 
-def test_a_final_event_twice_counts_once():
+def test_a_second_final_event_is_a_violation_and_changes_nothing():
+    """최종은 한 번이다. 두 번째 최종 이벤트는 덮어쓰지 않고 위반으로 센다."""
     j = reinstated_judge()
     event(j, "ORDER_BOUND", "O-1", t=3.0, source="pode2")
     event(j, "ORDER_CANCELED", "O-1", t=5.0)
     event(j, "ORDER_SHIPPED", "O-1", t=6.0)
     event(j, "ORDER_SHIPPED", "O-1", t=7.0)
     assert check(j, "shipped_after_reinstate_min")["value"] == 0
+    assert j.final["O-1"] == "CANCELED"
+    assert j.final_counts == {"SHIPPED": 0, "PARTIAL": 0, "CANCELED": 1}
+    assert len([v for v in j.violations if "O-1" in v and "after" in v]) == 2
+    assert j.summary(10.0)["pass"] is False
+
+
+def test_a_duplicate_shipped_counts_once_and_is_a_violation():
+    j = judge(orders_shipped=1)
+    ship(j, "O-1", "O-1")
+    assert check(j, "orders_shipped")["value"] == 1 and len(j.violations) == 1
 
 
 def test_a_partial_order_bound_after_a_reinstate_counts():

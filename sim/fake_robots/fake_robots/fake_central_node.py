@@ -52,6 +52,7 @@ class FakeCentralNode(Node):
         self._board: list[_Entry] = []  # 오래된 순
         self._final: set[str] = set()
         self._held: dict[str, str] = {}  # 보류 중인 주문 -> hold_reason
+        self._held_robot: dict[str, str] = {}  # 보류 중인 주문 -> 보류를 보고한 Pode
         self._force_after_s = scenario.force_ship_after_s
         self._force_due: dict[str, float] = {}  # 주문 -> 부를 시각(시나리오 초). 아직 안 부른 것
         self._forced: set[str] = set()
@@ -97,13 +98,17 @@ class FakeCentralNode(Node):
         if released:
             self._publish()
 
-    def _settle_stock(self, request) -> list[tuple[str, str, str]]:
-        """놓은 만큼 빼고 없던 만큼 바로잡는다. 잠금을 잡은 채 호출한다."""
+    def _settle_stock(self, request, arm_fault: bool) -> list[tuple[str, str, str]]:
+        """놓은 만큼 빼고 없던 만큼 바로잡는다. 잠금을 잡은 채 호출한다.
+
+        arm_fault: 같은 Pode가 낸 ARM_FAULT 보류 뒤의 최종(강제 출고). missing은 고장 난 팔이
+        못 놓은 것이라 재고로 보지 않는다. 치워서 되돌린 뒤 다른 Pode가 끝낸 것은 예전대로 본다.
+        """
         out = []
         for item in request.placed:
             if item.kind in self._record:
                 self._record[item.kind] = max(0, self._record[item.kind] - item.count)
-        for item in request.missing:
+        for item in () if arm_fault else request.missing:
             left = self._record.get(item.kind, 0)
             text = f"{request.order_id} {item.kind} missing {item.count}, record {left}"
             out.append(("WARN", "STOCK_MISMATCH" if left > 0 else "OUT_OF_STOCK", text))
@@ -144,6 +149,7 @@ class FakeCentralNode(Node):
             if self._held.get(request.order_id) == request.hold_reason:
                 return response
             self._held[request.order_id] = request.hold_reason
+            self._held_robot[request.order_id] = request.robot_id
             if (self._force_after_s is not None and request.hold_reason == ARM_FAULT
                     and request.order_id not in self._forced):
                 self._force_due.setdefault(request.order_id,
@@ -168,9 +174,11 @@ class FakeCentralNode(Node):
                 return response
             self._board.remove(entry)
             self._final.add(request.order_id)
-            self._held.pop(request.order_id, None)
+            held_by = self._held_robot.pop(request.order_id, None)
+            arm_fault = (self._held.pop(request.order_id, None) == ARM_FAULT
+                         and held_by == request.robot_id)
             self._force_due.pop(request.order_id, None)
-            events = self._settle_stock(request)
+            events = self._settle_stock(request, arm_fault)
         for level, code, text in events:
             self._event(level, code, text)
         level, code = final

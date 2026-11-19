@@ -93,6 +93,7 @@ class ScenarioJudge(ZoneChecks, Laps, OrderChecks, Outcome):
         self.final_counts = {"SHIPPED": 0, "PARTIAL": 0, "CANCELED": 0}
         self.held: dict[str, str] = {}  # 지금 보류 중인 주문 -> 사유
         self.hold_reasons: dict[str, str] = {}  # 주문 -> 처음 보류된 사유(끝난 뒤에도 남김)
+        self.order_report_problems: list[str] = []  # 끝난 주문에 또 온 최종, 보류 이벤트
         self.robots_isolated = 0
         self.bound_log: list[str] = []
         self.ship_log: list[str] = []
@@ -171,6 +172,10 @@ class ScenarioJudge(ZoneChecks, Laps, OrderChecks, Outcome):
         order = order_id_of(detail)
         if code == "ROBOT_ISOLATED":
             self.robots_isolated += 1
+        if code in ("ORDER_HELD", "ORDER_OVER_CAPACITY", *FINAL_CODES) and order in self.final:
+            # 최종은 한 번이다. 끝난 주문(용량 초과 포함)의 보고는 덮어쓰지 않고 위반으로 센다
+            self._bad_report(t, f"{order} {code} after {self.final[order]}")
+            return
         if code == "ORDER_HELD":
             match = HOLD_REASON.search(detail)
             reason = match.group(1) if match else ""
@@ -211,6 +216,10 @@ class ScenarioJudge(ZoneChecks, Laps, OrderChecks, Outcome):
                     self.shipped_after_reinstate += 1
                 if self._isolated and not self._operator_came:
                     self.shipped_before_operator += 1
+
+    def _bad_report(self, t: float, text: str) -> None:
+        self.order_report_problems.append(text)
+        self._violate(t, text)
 
     def note(self, t: float, source: str, code: str, detail: str) -> None:
         """events.csv에 남기되 플릿 이벤트로 세면 안 되는 것을 기록한다."""

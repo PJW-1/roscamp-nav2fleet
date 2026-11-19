@@ -41,6 +41,7 @@ class Outcome:
             "orders_partial": exact(counts["PARTIAL"], ex.orders_partial),
             "orders_held": exact(len(self.held), ex.orders_held),
             "orders_canceled": exact(counts["CANCELED"], ex.orders_canceled),
+            "order_reported_after_final": exact(len(self.order_report_problems), 0),
             "robots_isolated": exact(self.robots_isolated, ex.robots_isolated),
             "orders_shipped_min": at_least(counts["SHIPPED"], ex.orders_shipped_min),
             "fifo_violations": exact(len(fifo), ex.fifo_violations),
