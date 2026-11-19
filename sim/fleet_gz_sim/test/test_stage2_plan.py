@@ -48,7 +48,7 @@ def test_a_retreat_path_keeps_its_bend_and_faces_the_way_the_robot_looks():
 
 
 @pytest.mark.parametrize("kind, nodes", [
-    (FOLLOW_PATH, ("W", "X_W")),     # a Retreat link, not a fixed path
+    (FOLLOW_PATH, ("W", "X_W")),     # a Retreat edge, not a fixed path
     (RETREAT, ("X_W", "W")),
     (NAV_GOAL, ("X_W", "X_E")),
     (NAV_GOAL, ("P-1", "nowhere")),

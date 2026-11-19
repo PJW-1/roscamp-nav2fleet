@@ -5,7 +5,7 @@ import heapq
 import math
 
 
-# ---- start에서 goal까지 최단 링크 순서 찾기 ----
+# ---- start에서 goal까지 최단 edge 순서 찾기 ----
 def shortest_path(site, start: str, goal: str, cost=None) -> list | None:
     if start == goal:
         return []

@@ -245,7 +245,7 @@ def test_the_robot_answers_reach_the_traffic_layer_in_order_feedback_superseded_
 @pytest.mark.parametrize("order", [False, True], ids=["order_off", "order_on"])
 def test_a_parking_robot_whose_spot_was_taken_while_it_waited_chooses_again(order):
     """v7: pode1은 하나 남은 칸 P-3으로 가다가 Q2(base 끝)에서 칸 입구 E-3을 기다린다. 그동안 P-3을
-    남이 잡고 P-1이 빈다. 끈 길은 트립을 버리고 다시 고르는데, order는 base 끝에서 P-3을 계속
+    남이 잡고 P-1이 빈다. 끈 길은 route를 버리고 다시 고르는데, order는 base 끝에서 P-3을 계속
     기다렸다. 끊긴 두 로봇의 자리는 손으로 잡고 놓는다."""
     world = Harness(layout="v7", starts={"pode1": "W", "pode2": "P-2", "pode3": "P-1"},
                     params=replace(ON, use_order_model=order))

@@ -13,7 +13,7 @@ UPDATE_ANSWER_S = 2.0
 CONTROLLER = {FOLLOW_PATH: "FollowPath", RETREAT: "FollowPathReverse", NAV_GOAL: ""}
 
 
-# ---- 트립을 seq 조각으로 나누고 조각 명령 만들기 ----
+# ---- route를 seq 조각으로 나누고 조각 명령 만들기 ----
 class MoveOrders:
     def _cut(self, route, start: int, first_seq: int) -> list:
         cuts, seq, index = [], first_seq, start
@@ -38,7 +38,7 @@ class MoveOrders:
         cmd = move_command(self.site, m.name, 0, edges, x, y, after)
         return SegmentOut(seq, mode, node, zones, cmd.path, cmd.x, cmd.y, cmd.yaw, CONTROLLER[mode])
 
-    # ---- base와 horizon 조각, 도크까지 이은 트립 ----
+    # ---- base와 horizon 조각, 도크까지 이은 route ----
     def _fresh_base(self, m, route, here: bool = False, upto: int | None = None) -> tuple:
         mo = m.move_order
         upto = route.granted if upto is None else upto
@@ -102,7 +102,7 @@ class MoveOrders:
                 self._end_both(m, f"no answer in {UPDATE_ANSWER_S:.0f} s")
             return
         if mo.broken or route.stale:
-            # 목적이 바뀐 트립: nav_goal이면 바로, 고정 경로면 넓은 구역의 노드에 섰을 때 멈춘다
+            # 목적이 바뀐 route: nav_goal이면 바로, 고정 경로면 넓은 구역의 노드에 섰을 때 멈춘다
             # (고정 경로 가운데서는 끊지 않는다)
             mode = self._mode(m)
             at_yard_node = mode != RETREAT and self._in_yard(m) and self._on_node(m)
@@ -148,7 +148,7 @@ class MoveOrders:
         self._event("INFO", "ORDER_UPDATED",
                     f"{mo.id} update {mo.update}: base to {m.goal.end}", m.name)
 
-    # ---- 주차하러 가는 트립: 첫 고정 경로까지만 base로 주고, 그 끝에 새 길을 잇기 ----
+    # ---- 주차하러 가는 route: 첫 고정 경로까지만 base로 주고, 그 끝에 새 길을 잇기 ----
     def _standby_end(self, m, route) -> int | None:
         if not route.standby:
             return None

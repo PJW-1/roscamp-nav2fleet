@@ -124,7 +124,7 @@ class Calls:
     def _leg_of(self, station_id: str) -> str:
         return TO_WORK if self.site.stations[station_id].action == FILL else TO_OUTBOUND
 
-    # ---- 새 단계와 목적지로 바꾸고 트립 정리 ----
+    # ---- 새 단계와 목적지로 바꾸고 route 정리 ----
     def _head_for(self, m, phase: str, station_id) -> None:
         if (m.phase, m.dest) == (phase, station_id):
             return

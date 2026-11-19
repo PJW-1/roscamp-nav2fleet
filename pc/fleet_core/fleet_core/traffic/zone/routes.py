@@ -1,4 +1,4 @@
-# ---- 트립 자료형, 경로 계산, 이동 명령 만들기 ----
+# ---- route 자료형, 경로 계산, 이동 명령 만들기 ----
 from __future__ import annotations
 
 import math
@@ -11,7 +11,7 @@ from fleet_core.fleet_map import FOLLOW_PATH, NAV_GOAL, RETREAT, SHARED, Edge, d
 ON_NODE_M = 0.03
 
 
-# ---- 링크 목록과 진행 위치를 담은 트립 ----
+# ---- edge 목록과 진행 위치를 담은 route ----
 @dataclass
 class Route:
     goal: str
@@ -73,7 +73,7 @@ def segment_end(site, edges, start: int, limit: int) -> int:
     return end
 
 
-# ---- 링크 위 진행 거리와 지나감 판정 ----
+# ---- edge 위 진행 거리와 지나감 판정 ----
 def heading(a, b) -> float:
     return math.atan2(b[1] - a[1], b[0] - a[0])
 
@@ -156,7 +156,7 @@ def retreat_command(params, robot: str, goal_id: int, edges, x: float, y: float)
     return RetreatCmd(robot, goal_id, distance, params.retreat_speed_mps, path)
 
 
-# ---- 현재 위치에서 노드로 가는 임시 링크 ----
+# ---- 현재 위치에서 노드로 가는 임시 edge ----
 def free_edge(site, x: float, y: float, node: str, zones=()) -> Edge:
     end = site.nodes[node]
     points = ((x, y), (end.x, end.y))

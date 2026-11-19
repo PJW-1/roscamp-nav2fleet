@@ -80,7 +80,7 @@ class Turns:
         route = r.route
         if route is not None and not route.stale:
             # 받은 구간에서 앞으로 처음 닿는 대기 자리. 지나온 자리는 세지 않는다
-            # (order 모델은 트립 끝에 도크까지 붙인다)
+            # (order 모델은 route 끝에 도크까지 붙인다)
             spots = [edge.b for edge in route.edges[route.done:route.granted]
                      if edge.b in station.queue]
             if spots:

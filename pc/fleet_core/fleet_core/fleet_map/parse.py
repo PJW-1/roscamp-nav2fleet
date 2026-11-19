@@ -1,4 +1,4 @@
-# ---- 지도 데이터 해석과 검사: 구역, 노드, 링크, 스테이션, 주차 ----
+# ---- 지도 데이터 해석과 검사: 구역, 노드, edge, 스테이션, 주차 ----
 from __future__ import annotations
 
 import math
@@ -171,7 +171,7 @@ def _line_problem(zones: dict[str, Zone], points) -> str:
     return ""
 
 
-# ---- 링크 하나 만들기 ----
+# ---- edge 하나 만들기 ----
 def _edge(nodes, zones, a: str, b: str, mode: str, path: str, crossed=None, bends=(),
           extra_m: float = 0.0) -> Edge:
     points = ((nodes[a].x, nodes[a].y), *bends, (nodes[b].x, nodes[b].y))
@@ -211,7 +211,7 @@ def _path_stops(entry, nodes, what: str) -> list[tuple[str, tuple]]:
     return stops
 
 
-# ---- 경로와 nav 그룹에서 링크 읽기 ----
+# ---- 경로와 nav 그룹에서 edge 읽기 ----
 def read_edges(paths: dict, nav: list, nodes: dict[str, Node], zones: dict[str, Zone]) -> dict:
     edges: dict[tuple[str, str], Edge] = {}
 

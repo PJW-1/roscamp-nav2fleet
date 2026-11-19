@@ -219,7 +219,7 @@ def test_a_robot_on_its_way_to_the_dock_keeps_the_turn():
     assert world.run_until(lambda: world.moves("pode3"), 5.0)
     route = traffic._robots["pode3"].route
     assert route.goal == "O" and route.granted < len(route.edges), "the dock zone comes later"
-    assert route.turn, "the trip carries the turn it was given"
+    assert route.turn, "the route carries the turn it was given"
     late = world.call("OUTBOUND", "pode2")
     traffic._robots["pode2"].asked_at = -1.0  # 먼저 불렸다가 앞지름을 당한 로봇인 셈이다
     while world.result_of(going) is None:

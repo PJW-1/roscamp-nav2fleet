@@ -124,14 +124,14 @@ def test_it_backs_out_to_the_yard_even_with_no_way_on_from_there():
 @pytest.mark.parametrize("order", [False, True], ids=["order_off", "order_on"])
 def test_the_junction_is_kept_until_the_robot_says_it_has_backed_down(order):
     """2026-11-16: order면 마당 지점까지의 물러나기 뒤에 다음 조각이 같은 goal에 붙는다. 보고가 N_E
-    0.03 m 안에 들었다고 진행이 물러나기 링크를 넘기면 N_E 좌표로 재어 갈림목 J_E를 일찍 놓는다.
+    0.03 m 안에 들었다고 진행이 물러나기 edge를 넘기면 N_E 좌표로 재어 갈림목 J_E를 일찍 놓는다.
     물러나기는 끝냈다는 답 전에는 보고 위치로 잰다."""
     params = replace(load_params(), use_order_model=order)
     world, call = blocked_toward_work(docked=False, params=params)
     assert world.run_until(lambda: world.retreats("pode1"), 200.0)
     if order:
         base = world.sent(MoveOrderCmd, "pode1")[-1].base
-        assert base[0].mode == "retreat" and len(base) > 1, "the retreat is not the last link"
+        assert base[0].mode == "retreat" and len(base) > 1, "the retreat is not the last edge"
     bot, n_e = world.bots["pode1"], world.site.node_pose("N_E")
     assert world.run_until(lambda: math.dist((bot.x, bot.y), n_e) < 0.028, 60.0)
     world._move = lambda b: None  # N_E 앞에서 멈추고 답하지 않는다

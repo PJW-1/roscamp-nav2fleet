@@ -29,7 +29,7 @@ class Mark:
     asked_last: dict = field(default_factory=dict)
 
 
-# ---- 점 근처를 지나는 링크 키 찾기 ----
+# ---- 점 근처를 지나는 edge 키 찾기 ----
 def polyline_gap(point, points) -> float:
     if len(points) == 1:
         return math.dist(point, points[0])
@@ -88,7 +88,7 @@ class MarkBook:
             self.hold(mark, key)
         return mark
 
-    # ---- 링크 막기, 표시 지우기와 만료 ----
+    # ---- edge 막기, 표시 지우기와 만료 ----
     def hold(self, mark, key) -> None:
         if key not in mark.keys:
             mark.keys.append(key)

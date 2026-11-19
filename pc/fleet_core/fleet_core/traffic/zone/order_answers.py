@@ -37,7 +37,7 @@ class OrderAnswers:
             mo.warned = True
             self._event("WARN", "HORIZON_INVALID", horizon_warning, m.name)
 
-    # ---- 끝낸 seq까지 트립 진행 반영 ----
+    # ---- 끝낸 seq까지 route 진행 반영 ----
     def _order_progress(self, m, seq: int, edges: int) -> None:
         route, mo = m.route, m.move_order
         last = max((number for number, _, end in mo.cuts if end <= edges), default=0)

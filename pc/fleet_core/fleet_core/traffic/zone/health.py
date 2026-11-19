@@ -33,7 +33,7 @@ class Health:
                             f"keeps {list(self.grants.held_by(m.name))}"
                             f"{self._hold_base(m, now)}", m.name)
 
-    # ---- 통신 복구 뒤 위치 확인과 트립 재개 ----
+    # ---- 통신 복구 뒤 위치 확인과 route 재개 ----
     def _begin_recovery(self, m) -> None:
         m.health.comm = RECOVERING
         m.health.recover_at = self._clock() + self.params.recover_check_s

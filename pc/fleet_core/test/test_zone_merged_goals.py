@@ -45,7 +45,7 @@ def test_a_run_merges_only_through_nodes_marked_through():
     way = shortest_path(V7, "W", "E-2")
     assert [edge.b for edge in way] == ["M_E", "O_IN", "E-2"]
     assert way[0].zones == ("WORK_DOCK", "HALL")
-    assert routes.segment_end(V7, way, 0, 3) == 1, "a leave_dock link crosses zones"
+    assert routes.segment_end(V7, way, 0, 3) == 1, "a leave_dock edge crosses zones"
     assert routes.segment_end(V7, way, 1, 3) == 2, "O_IN is a place to wait"
     detour = [V7.edge("O_IN", "M_E"), V7.edge("M_E", "Q2")]
     assert routes.segment_end(V7, detour, 0, 2) == 1, "M_E is the detour point"

@@ -43,7 +43,7 @@ def test_parse_reads_repeat_and_size():
 
 
 def test_an_edge_may_be_named_against_its_direction():
-    """W->X_W is a Retreat link only; X_W->W is part of work_in. Either names the same floor."""
+    """W->X_W is a Retreat edge only; X_W->W is part of work_in. Either names the same floor."""
     schedule = obstacles.parse_schedule({"obstacles": [entry(link=["X_W", "W"]),
                                                        entry(at_s=40, link=["N_W", "P-1"])]},
                                         SITE)

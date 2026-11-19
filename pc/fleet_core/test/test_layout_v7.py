@@ -675,9 +675,9 @@ def test_v7_express_turn_is_a_tangent_arc_from_a_lower_w_x(site):
 
 
 def test_v7_pass_node_shortcut_cannot_release_a_dock_early(site):
-    """링크를 지난 것으로 본 뒤(끝에서 ON_NODE_M) 로봇이 노드에서
+    """edge를 지난 것으로 본 뒤(끝에서 ON_NODE_M) 로봇이 노드에서
     release_margin_m 안이면 놓기 거리를 노드 좌표로 잰다(progress._release_behind). 도크 구역에서
-    나오는 링크 끝의 지나가는 지점은, 로봇이 그만큼 덜 왔어도 놓기 거리를 지키도록 멀어야 한다.
+    나오는 edge 끝의 지나가는 지점은, 로봇이 그만큼 덜 왔어도 놓기 거리를 지키도록 멀어야 한다.
     W_X를 y 0.775에 두었을 때 로봇은 WORK_DOCK에서 0.115에 있어도 0.145로 재어 놓았다."""
     from fleet_core.traffic.zone.progress import release_gap
     from fleet_core.traffic.zone.routes import ON_NODE_M
@@ -690,7 +690,7 @@ def test_v7_pass_node_shortcut_cannot_release_a_dock_early(site):
         if node.kind != PASS or site.zones[start.zone].kind != "dock" or start.zone == node.zone:
             continue
         here = (node.x, node.y)
-        # 노드에서 링크를 따라 ON_NODE_M 되돌아간 점(지난 것으로 보는 가장 이른 자리)
+        # 노드에서 edge를 따라 ON_NODE_M 되돌아간 점(지난 것으로 보는 가장 이른 자리)
         back, left = here, ON_NODE_M
         for a, b in reversed(list(pairwise(edge.points))):
             span = math.dist(a, b)

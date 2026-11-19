@@ -64,7 +64,7 @@ class Progress:
         elif m.health.fault == ERROR and not m.health.comm and m.goal is None:
             self._return_unreached(m)
 
-    # ---- 지나간 링크만큼 트립 진행 ----
+    # ---- 지나간 edge만큼 route 진행 ----
     def _track(self, m) -> None:
         route, goal = m.route, m.goal
         if route is None or goal is None or goal.kind == DOCK:

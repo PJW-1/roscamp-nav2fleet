@@ -51,7 +51,7 @@ class Drive:
             self._set_goal(m, Goal(DOCK, goal_id))
             self._out.append(DockCmd(m.name, goal_id, m.dest))
 
-    # ---- 트립 따라 주행하고 새 트립으로 바꾸기 ----
+    # ---- route 따라 주행하고 새 route로 바꾸기 ----
     def _drive(self, m) -> None:
         route = m.route
         if route is not None:

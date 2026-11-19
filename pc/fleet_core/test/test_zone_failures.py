@@ -282,14 +282,14 @@ def test_a_failed_docking_backs_out_and_comes_in_again_before_the_next_try():
 
 
 def way_out(world, robot="pode2"):
-    """The link a robot at its dock backs out on."""
+    """The edge a robot at its dock backs out on."""
     site = world.traffic.site
     dock = site.stations[world.traffic._robots[robot].dest].dock
     return next(edge for edge in site.edges_from(dock) if edge.mode == RETREAT)
 
 
 def way_round(world, robot="pode2"):
-    """Every link of the way out of the dock and back in."""
+    """Every edge of the way out of the dock and back in."""
     from fleet_core.traffic.zone.redock import way_in
     out = way_out(world, robot)
     return [out, *way_in(world.traffic.site, out.b, out.a)]
@@ -301,7 +301,7 @@ def test_a_reapproach_over_an_edge_marked_blocked_docks_where_it_stands(index):
     world, _ = at_the_dock()
     assert world.run_until(lambda: "GOAL_RETRY" in world.codes("pode2"), 30.0)
     edges = way_round(world)
-    assert len(edges) == 3, "D2: back out to the yard point, then two links in"
+    assert len(edges) == 3, "D2: back out to the yard point, then two edges in"
     edge = edges[index]
     world.traffic._blocked[(edge.a, edge.b)] = world.traffic._clock() + 100.0
     assert world.run_until(lambda: docks(world) == 2, 30.0)
@@ -384,7 +384,7 @@ def test_a_reapproaching_robot_keeps_its_dock_turn():
 
 
 def test_a_robot_that_docked_and_failed_stays_first_for_that_dock():
-    """Also when its way back in was not granted and the trip was dropped."""
+    """Also when its way back in was not granted and the route was dropped."""
     world, _ = at_the_dock()
     world.call("WORK", "pode3")
     assert world.run_until(lambda: "RETREAT_DONE" in world.codes("pode2"), 60.0)

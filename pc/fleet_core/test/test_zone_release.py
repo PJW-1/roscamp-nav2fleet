@@ -206,8 +206,8 @@ def short_of_n_w(order: bool, short_m: float = 0.025):
 
 @pytest.mark.parametrize("order", [False, True], ids=["order_off", "order_on"])
 def test_a_robot_backing_out_is_measured_from_its_report_until_the_retreat_is_done(order):
-    """2026-11-16 stock_shortage: order의 물러나기 조각(N_W)이 goal의 마지막 링크가 아니라서 보고가
-    N_W 0.03 m 안에 들자 진행이 링크를 넘기고 N_W 좌표로 재어 J_W를 놓았다(참 거리 0.076 m).
+    """2026-11-16 stock_shortage: order의 물러나기 조각(N_W)이 goal의 마지막 edge가 아니라서 보고가
+    N_W 0.03 m 안에 들자 진행이 edge를 넘기고 N_W 좌표로 재어 J_W를 놓았다(참 거리 0.076 m).
     물러나는 로봇은 놓을 구역 쪽에서 노드로 다가가므로, 끝냈다는 답 전에는 보고 위치로 잰다."""
     world, bot = short_of_n_w(order)
     need = P.footprint_radius_m + P.release_margin_m

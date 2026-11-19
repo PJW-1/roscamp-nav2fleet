@@ -38,7 +38,7 @@ TURN_RADIUS_M = 0.10
 _log = logging.getLogger(__name__)
 
 
-# ---- FleetMap 생성: 구역, 노드, 링크, 스테이션 읽기와 검사 ----
+# ---- FleetMap 생성: 구역, 노드, edge, 스테이션 읽기와 검사 ----
 class FleetMap:
     def __init__(self, data: dict, source_text: str = ""):
         self.source_text = source_text
@@ -66,7 +66,7 @@ class FleetMap:
         for warning in self.warnings:
             _log.warning("fleet map %s: %s", self.name, warning)
 
-    # ---- 링크와 노드 조회 ----
+    # ---- edge와 노드 조회 ----
     def edge(self, a: str, b: str) -> Edge | None:
         return self._edges.get((a, b))
 

@@ -113,7 +113,7 @@ class Robot:
     # ---- 단계, 고장, 통신 상태 ----
     phase: str = IDLE
     health: Health = field(default_factory=Health)
-    # ---- 트립, goal, 재시도 기록 ----
+    # ---- route, goal, 재시도 기록 ----
     node: str = ""
     off_node: tuple | None = None
     dest: str | None = None

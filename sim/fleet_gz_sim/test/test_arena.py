@@ -153,7 +153,7 @@ def test_shared_nodes_and_their_footprint_stay_out_of_the_keepout(site):
 
 
 def test_straight_nav_goal_edges_run_clear_of_the_keepout(site):
-    """The straight line of every nav_goal link stays out of the keepout, so the planner has a
+    """The straight line of every nav_goal edge stays out of the keepout, so the planner has a
     way inside the shared zones."""
     grid = arena_maps.keepout(arena_maps.FINE_M, site)
     for edge in site.edges():

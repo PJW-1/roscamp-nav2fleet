@@ -137,7 +137,7 @@ def test_a_spot_held_by_a_robot_leaving_the_line_is_not_the_tail():
 @pytest.mark.parametrize("order_model", [False, True])
 def test_a_robot_stepping_forward_ranks_by_the_spot_it_goes_to(order_model):
     """한 칸 당기는 로봇은 마지막으로 선 자리가 아니라 가는 자리로 순위를 받는다.
-    order 모델은 대기 트립 끝에 도크까지 붙여 trip.goal이 도크가 된다."""
+    order 모델은 대기 route 끝에 도크까지 붙여 route.goal이 도크가 된다."""
     world = Harness(site=line_map(), starts={"pode1": "W", "pode2": "Q2", "pode3": "Q3"},
                     params=replace(load_params(), use_order_model=order_model))
     world.report()
@@ -171,7 +171,7 @@ def test_v7_new_robot_stands_behind_the_front_and_the_line_docks_in_order():
 
 @pytest.mark.parametrize("order", [False, True], ids=["order_off", "order_on"])
 def test_v7_the_front_robot_docks_first_even_if_the_one_behind_asked_first(order):
-    """줄 순서는 지금 선 자리다. order 모델은 트립을 도크까지 이어 두므로 이미 지나온 자리(Q2)로
+    """줄 순서는 지금 선 자리다. order 모델은 route를 도크까지 이어 두므로 이미 지나온 자리(Q2)로
     순위를 매기면 앞자리 로봇이 먼저 부른 뒷자리 로봇을 기다리고, 뒷자리 로봇은 앞자리가 비기를
     기다려 둘 다 선다(Gazebo v7 2026-11-14: Q1의 로봇이 도크가 빈 채 60 s 넘게 섰다)."""
     world = Harness(layout="v7", starts={"pode1": "W", "pode2": "E-3", "pode3": "P-1"},

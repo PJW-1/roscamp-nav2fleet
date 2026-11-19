@@ -164,7 +164,7 @@ class ZoneBase:
         m.sent_priority = self._priority(m)
         return m.sent_priority
 
-    # ---- 트립과 대기 정리 ----
+    # ---- route와 대기 정리 ----
     def _drop_route(self, m) -> None:
         m.route = None
 

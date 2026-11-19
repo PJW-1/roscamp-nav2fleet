@@ -1,4 +1,4 @@
-# ---- 경로 비용, 트립 고르기, 구역 잡기 믹스인 ----
+# ---- 경로 비용, route 고르기, 구역 잡기 믹스인 ----
 from __future__ import annotations
 
 import math
@@ -14,7 +14,7 @@ TRANSIT_WAIT_S = 6.0
 STANDING_WAIT_S = 300.0
 
 
-# ---- 링크 비용과 노드 대기 시간 추정 ----
+# ---- edge 비용과 노드 대기 시간 추정 ----
 class Goals:
     def _cost(self, m):
         now, p, site, grants = self._clock(), self.params, self.site, self.grants
@@ -50,7 +50,7 @@ class Goals:
             return STANDING_WAIT_S
         return self.params.dock_wait_estimate_s
 
-    # ---- 현재 위치에서 목적지까지 링크 찾기 ----
+    # ---- 현재 위치에서 목적지까지 edge 찾기 ----
     def _way(self, m, goal: str):
         site, cost = self.site, self._cost(m)
         if m.avoid.retreat_to:
@@ -79,7 +79,7 @@ class Goals:
                 best, best_cost = [first, *rest], total
         return best
 
-    # ---- 구역에서 닿는 노드와 물러나기 링크 ----
+    # ---- 구역에서 닿는 노드와 물러나기 edge ----
     def _reach(self, zone: str) -> dict:
         memo = self.__dict__.setdefault("_reach_memo", {})
         if zone not in memo:
@@ -109,7 +109,7 @@ class Goals:
         bends = down.points[1:-1] if down is not None else ()
         return back_edge(site, m.x, m.y, to, dict.fromkeys(zones), via_node, bends)
 
-    # ---- 후보 중 잡을 수 있는 트립 고르기 ----
+    # ---- 후보 중 잡을 수 있는 route 고르기 ----
     def _choose(self, m):
         route, first_want = self._grab(m, self._candidates(m))
         if route is not None:

@@ -134,7 +134,7 @@ class Blocked:
                 and math.dist(point, (other.x, other.y)) <= self.params.near_m]
         return min(near, key=lambda o: (math.dist(point, (o.x, o.y)), o.name), default=None)
 
-    # ---- 장애물 점으로 막을 링크 키 모으기 ----
+    # ---- 장애물 점으로 막을 edge 키 모으기 ----
     def _point_keys(self, m, point, edge) -> list:
         keys = keys_at(self.site, self.params, point)
         if not keys:
