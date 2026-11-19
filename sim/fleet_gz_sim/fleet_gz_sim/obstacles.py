@@ -33,7 +33,7 @@ class ScheduleError(ValueError):
 @dataclass(frozen=True)
 class Obstacle:
     at_s: float
-    link: tuple  # (from, to) 지점
+    edge: tuple  # (from, to) 지점
     fraction: float
     duration_s: float
     x: float
@@ -42,7 +42,7 @@ class Obstacle:
 
     @property
     def label(self) -> str:
-        return f"{self.link[0]}->{self.link[1]}"
+        return f"{self.edge[0]}->{self.edge[1]}"
 
 
 @dataclass(frozen=True)
@@ -78,9 +78,9 @@ def _number(raw, what: str) -> float:
     return float(raw)
 
 
-def link_point(site, link: tuple, fraction: float) -> tuple[float, float, float]:
+def edge_point(site, edge: tuple, fraction: float) -> tuple[float, float, float]:
     """지점 a→b 직선에서 fraction만큼 간 (x, y)와 그 방향 yaw."""
-    (ax, ay), (bx, by) = site.node_pose(link[0]), site.node_pose(link[1])
+    (ax, ay), (bx, by) = site.node_pose(edge[0]), site.node_pose(edge[1])
     return (ax + fraction * (bx - ax), ay + fraction * (by - ay),
             math.atan2(by - ay, bx - ax))
 
@@ -104,14 +104,14 @@ def _entry(raw, i: int, site) -> Obstacle:
     fraction = _number(raw.get("fraction", 0.5), f"{where}.fraction")
     if not 0.0 < fraction < 1.0:
         raise ScheduleError(f"{where}.fraction must be between 0 and 1, got {fraction}")
-    link = raw["link"]
-    if not isinstance(link, (list, tuple)) or len(link) != 2:
+    edge = raw["link"]
+    if not isinstance(edge, (list, tuple)) or len(edge) != 2:
         raise ScheduleError(f"{where}.link must be [from, to]")
-    link = (str(link[0]), str(link[1]))
+    edge = (str(edge[0]), str(edge[1]))
     # 상자는 바닥 위 선분에 놓이므로 어느 방향 연결이든 있으면 된다
-    if site.link(*link) is None and site.link(*link[::-1]) is None:
-        raise ScheduleError(f"{where}: link {link[0]}->{link[1]} is not on the map")
-    return Obstacle(at_s, link, fraction, duration_s, *link_point(site, link, fraction))
+    if site.edge(*edge) is None and site.edge(*edge[::-1]) is None:
+        raise ScheduleError(f"{where}: link {edge[0]}->{edge[1]} is not on the map")
+    return Obstacle(at_s, edge, fraction, duration_s, *edge_point(site, edge, fraction))
 
 
 def parse_schedule(data, site) -> Schedule:
@@ -142,7 +142,7 @@ def parse_schedule(data, site) -> Schedule:
             raise ScheduleError(f"{one.label} at {one.at_s:g} s ends after repeat_every_s")
     for i, one in enumerate(found):
         for other in found[i + 1:]:
-            same = frozenset(one.link) == frozenset(other.link)
+            same = frozenset(one.edge) == frozenset(other.edge)
             if same and other.at_s < one.at_s + one.duration_s:
                 raise ScheduleError(f"{one.label} at {one.at_s:g} s and {other.label} at "
                                     f"{other.at_s:g} s overlap on the same link")

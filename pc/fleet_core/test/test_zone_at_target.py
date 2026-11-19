@@ -366,20 +366,20 @@ def test_a_robot_heard_again_most_of_the_way_into_the_bay_is_taken_as_parked():
     assert len(world.retreats("pode1")) == 1
 
 
-def test_a_short_reverse_link_failed_near_its_end_is_taken_as_reached():
+def test_a_short_reverse_edge_failed_near_its_end_is_taken_as_reached():
     """후진 링크가 짧으면(0.03) 절반을 못 갔어도 끝에 허용치 절반(0.075) 안이면 닿은 것으로 본다.
     다시 보내면 pode_fsm의 가장 짧은 후진(backup_min_m 0.02)보다 짧아 곧바로 실패한다.
     칸 입구에 그대로 선 로봇(0.14)은 여전히 닿지 않았다."""
     from types import SimpleNamespace
 
-    from fleet_core.fleet_map import RETREAT, Link
+    from fleet_core.fleet_map import RETREAT, Edge
     world = Harness(layout="v7", starts={"pode1": "P-1"})
     traffic, limit = world.traffic, world.params.arrival_tolerance_m
-    short = Link("", "P-1", RETREAT, "", ((0.12, 0.13), (0.12, 0.10)), ("HALL",), 0.03)
-    assert traffic._link_reached(SimpleNamespace(x=0.12, y=0.118), short, limit)
-    bay = world.site.link("E-1", "P-1")
-    assert not traffic._link_reached(SimpleNamespace(x=0.12, y=0.24), bay, limit)
-    assert traffic._link_reached(SimpleNamespace(x=0.12, y=0.13), bay, limit)
+    short = Edge("", "P-1", RETREAT, "", ((0.12, 0.13), (0.12, 0.10)), ("HALL",), 0.03)
+    assert traffic._edge_reached(SimpleNamespace(x=0.12, y=0.118), short, limit)
+    bay = world.site.edge("E-1", "P-1")
+    assert not traffic._edge_reached(SimpleNamespace(x=0.12, y=0.24), bay, limit)
+    assert traffic._edge_reached(SimpleNamespace(x=0.12, y=0.13), bay, limit)
 
 
 # ---- order 안의 끝내지 않은 조각 끝에 서 있는 로봇 ----

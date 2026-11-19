@@ -40,17 +40,17 @@ def keys_at(site, params, point) -> list:
     reach = params.footprint_radius_m + params.release_margin_m
     zone = site.zone_at(*point)
     keys = []
-    for link in site.links():
-        if link.via != NAV_GOAL:
-            hit = polyline_gap(point, link.points) <= reach
-        elif zone is None or zone not in link.zones:
+    for edge in site.edges():
+        if edge.via != NAV_GOAL:
+            hit = polyline_gap(point, edge.points) <= reach
+        elif zone is None or zone not in edge.zones:
             hit = False
         elif not site.nodes_in(zone):
             hit = True
         else:
-            hit = point_segment_distance(point, link.points[0], link.points[-1]) <= reach
+            hit = point_segment_distance(point, edge.points[0], edge.points[-1]) <= reach
         if hit:
-            keys.append((link.a, link.b))
+            keys.append((edge.a, edge.b))
     return keys
 
 

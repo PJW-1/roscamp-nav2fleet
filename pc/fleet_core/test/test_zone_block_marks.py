@@ -69,9 +69,9 @@ def test_a_point_in_the_yard_marks_only_nav_goals_whose_straight_line_passes_it(
 def test_a_point_in_a_corridor_marks_every_nav_goal_through_that_corridor_and_no_other():
     site, p = load_fleet_map("d"), load_params()
     keys = set(keys_at(site, p, (0.99, 0.60)))
-    through = {(link.a, link.b) for link in site.links() if "CORR_M" in link.zones}
+    through = {(edge.a, edge.b) for edge in site.edges() if "CORR_M" in edge.zones}
     assert keys == through
-    assert not any("CORR_S" in site.link(*key).zones for key in keys)
+    assert not any("CORR_S" in site.edge(*key).zones for key in keys)
 
 
 # ---- 표시 ----
@@ -116,7 +116,7 @@ def test_v7_a_robot_at_work_leaves_through_the_hall_while_the_express_is_marked(
     assert not world.problems
 
 
-def test_without_a_position_the_driven_link_is_marked_as_before():
+def test_without_a_position_the_driven_edge_is_marked_as_before():
     world, call = from_work_to_outbound(world_type=Harness)
     world.obstacles.append((1.0, 0.89, 0.15))
     assert world.run_until(lambda: "ZONE_MARKED_BLOCKED" in world.codes("pode1"), 120.0)
@@ -260,14 +260,14 @@ def test_detour_kinds():
     from fleet_core.traffic.zone.detours import detour_kind
     from fleet_core.traffic.zone.trips import Trip
     site = load_fleet_map("d")
-    via = [site.link("N_W", "N_E")]
-    south = [site.link("N_W", "W_Q"), site.link("W_Q", "P-2"), site.link("P-2", "P-3")]
+    via = [site.edge("N_W", "N_E")]
+    south = [site.edge("N_W", "W_Q"), site.edge("W_Q", "P-2"), site.edge("P-2", "P-3")]
     old = {"HALL_W", "CORR_M", "HALL_E"}
     assert detour_kind(site, "N_E", old, Trip("O_Q", via)) == "destination"
     assert detour_kind(site, "P-3", old, Trip("P-3", south)) == "corridor"
-    inside = [site.link("N_W", "W_Q"), site.link("W_Q", "P-2")]
+    inside = [site.edge("N_W", "W_Q"), site.edge("W_Q", "P-2")]
     assert detour_kind(site, "P-2", {"HALL_W"}, Trip("P-2", inside)) == "in_zone"
-    express = [site.link("N_W", "X_W"), site.link("X_W", "X_E"), site.link("X_E", "N_E")]
+    express = [site.edge("N_W", "X_W"), site.edge("X_W", "X_E"), site.edge("X_E", "N_E")]
     assert detour_kind(site, "N_E", old, Trip("N_E", express)) == "keepout"
 
 

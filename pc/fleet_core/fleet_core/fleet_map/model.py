@@ -52,7 +52,7 @@ class Node:
 
 
 @dataclass(frozen=True)
-class Link:
+class Edge:
     a: str
     b: str
     via: str

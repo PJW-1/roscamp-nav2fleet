@@ -20,13 +20,13 @@ def check_clearance(site, clearance: float) -> None:
             if gap < clearance:
                 raise FleetMapError(
                     f"node {node.id} is {gap:.3f} m from the shelf {shelf}, needs {clearance}")
-    for link in site.links():
-        if link.via == NAV_GOAL:
+    for edge in site.edges():
+        if edge.via == NAV_GOAL:
             continue
         for shelf in site.shelves:
-            gap = min(segment_rect_distance(a, b, shelf) for a, b in pairwise(link.points))
+            gap = min(segment_rect_distance(a, b, shelf) for a, b in pairwise(edge.points))
             if gap < clearance:
-                raise FleetMapError(f"path {link.path} from {link.a} to {link.b} passes "
+                raise FleetMapError(f"path {edge.path} from {edge.a} to {edge.b} passes "
                                     f"{gap:.3f} m from the shelf {shelf}, needs {clearance}")
 
 
@@ -70,29 +70,29 @@ def corner_arc(a, b, c, radius: float, count: int = 20, shares=(0.5, 0.5)) -> li
 
 
 def _corners(site):
-    for link in site.links():
-        if link.via == NAV_GOAL:
+    for edge in site.edges():
+        if edge.via == NAV_GOAL:
             continue
-        points = link.points
+        points = edge.points
         for a, b, c in zip(points, points[1:], points[2:], strict=False):
-            yield f"path {link.path} from {link.a} to {link.b} at {b}", a, b, c
-        for nxt in site.links_from(link.b):
-            if nxt.via == link.via and nxt.b != link.a:
-                yield (f"path {link.path} from {link.a} to {link.b}, then {nxt.path} at {link.b}",
+            yield f"path {edge.path} from {edge.a} to {edge.b} at {b}", a, b, c
+        for nxt in site.edges_from(edge.b):
+            if nxt.via == edge.via and nxt.b != edge.a:
+                yield (f"path {edge.path} from {edge.a} to {edge.b}, then {nxt.path} at {edge.b}",
                        points[-2], points[-1], nxt.points[1])
 
 
 # ---- 선반 끝과 모서리 근접 경고 ----
 def shelf_end_warnings(site, clear: float, turn_radius: float = 0.0) -> list[str]:
     out = []
-    for link in site.links():
-        if link.via == NAV_GOAL:
+    for edge in site.edges():
+        if edge.via == NAV_GOAL:
             continue
         for shelf in site.shelves:
-            gaps = [segment_rect_distance(a, b, shelf) for a, b in pairwise(link.points)
+            gaps = [segment_rect_distance(a, b, shelf) for a, b in pairwise(edge.points)
                     if _rounds_the_end(a, b, shelf)]
             if gaps and min(gaps) < clear - EPS:
-                out.append(f"path {link.path} from {link.a} to {link.b} passes {min(gaps):.3f} m "
+                out.append(f"path {edge.path} from {edge.a} to {edge.b} passes {min(gaps):.3f} m "
                            f"from the end of the shelf {shelf}, wants {clear}")
     for name, a, b, c in _corners(site):
         arc = [p for shares in ((0.5, 0.5), (1.0, 0.5), (0.5, 1.0), (1.0, 1.0))
@@ -110,14 +110,14 @@ def shelf_end_warnings(site, clear: float, turn_radius: float = 0.0) -> list[str
 # ---- 물러나기 경로 끝 경고 ----
 def retreat_end_warnings(site) -> list[str]:
     out = []
-    for link in site.links():
-        if link.via != RETREAT:
+    for edge in site.edges():
+        if edge.via != RETREAT:
             continue
-        end = site.nodes[link.b]
-        onward = any(nxt.via == RETREAT and nxt.path == link.path
-                     for nxt in site.links_from(end.id))
+        end = site.nodes[edge.b]
+        onward = any(nxt.via == RETREAT and nxt.path == edge.path
+                     for nxt in site.edges_from(end.id))
         if not onward and site.zones[end.zone].kind != SHARED:
-            out.append(f"path {link.path} ends at {end.id} inside {end.zone}: the robot would "
+            out.append(f"path {edge.path} ends at {end.id} inside {end.zone}: the robot would "
                        "turn in place in a narrow strip")
     return out
 
@@ -142,7 +142,7 @@ def check_lane_waits(site) -> None:
         if not docks:
             raise FleetMapError(f"node {node.id} (wait) must stand in a shared zone, not "
                                 f"{node.zone}, unless it is a station queue spot")
-        onward = sorted({link.b for link in site.links_from(node.id)})
+        onward = sorted({edge.b for edge in site.edges_from(node.id)})
         if onward != docks:
             raise FleetMapError(f"queue spot {node.id} waits in {node.zone}, so it must lead "
                                 f"only to its dock {docks}, not {onward}")

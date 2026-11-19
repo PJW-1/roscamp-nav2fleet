@@ -85,7 +85,7 @@ def released_on_the_way_out(order_model, delay_s=1.6, **changes):
     world.step()
     m = world.traffic._robots["pode1"]
     assert m.trip.standby and m.trip.goal in world.site.parking, "no spot yet: heads for a bay"
-    assert m.trip.links[0].b == "O_OUT" and m.trip.links[0].via == "follow_path"
+    assert m.trip.edges[0].b == "O_OUT" and m.trip.edges[0].via == "follow_path"
     return world, m
 
 
@@ -147,8 +147,8 @@ def left_when_the_bay_is_stitched(standby_lookahead_s) -> float:
     world.silent.add("pode3")  # 자리가 비지 않는다
     since = len(world.commands)
     assert world.run_until(lambda: len(pode1_orders(world, since)) == 1, 10.0)
-    bot, link = world.bots["pode1"], m.trip.links[0]
-    return left_s(world.params, [link], bot.x, bot.y)
+    bot, edge = world.bots["pode1"], m.trip.edges[0]
+    return left_s(world.params, [edge], bot.x, bot.y)
 
 
 @pytest.mark.parametrize("standby_lookahead_s", [0.5, 1.5])

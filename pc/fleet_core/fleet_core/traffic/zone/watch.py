@@ -132,10 +132,10 @@ class Watch:
                 if self.grants.node_holder(spot) in ("", m.name)
                 and (clear_of is None or self._gap(m, spot) < self._gap(clear_of, spot))]
         for spot in sorted(free, key=lambda spot: (self._gap(m, spot), spot)):
-            links = self._way(m, spot)
-            if not links:
+            edges = self._way(m, spot)
+            if not edges:
                 continue
-            trip = Trip(spot, links)
+            trip = Trip(spot, edges)
             if self._take(m, trip) is None:
                 m.trip = trip
                 self._event(level, code, f"{why} {spot}", m.name)

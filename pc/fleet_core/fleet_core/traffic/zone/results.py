@@ -123,7 +123,7 @@ class Results:
         m.node, m.off_node = goal.end, None
         m.avoid.behind_since = None
         if m.trip is not None:
-            m.trip.done = m.trip.sent = goal.links
+            m.trip.done = m.trip.sent = goal.edges
         if goal.kind == RETREAT:
             m.avoid.retreat_to = ""
             self._event("INFO", "RETREAT_DONE", f"stands at {goal.end}", m.name)
@@ -158,8 +158,8 @@ class Results:
             return [(goal, ())]
         ends, passed = [], []
         for seq, first, end in mo.cuts:
-            if mo.done_seq < seq and end <= goal.links:
-                via, node = trip.links[first].via, trip.links[end - 1].b
+            if mo.done_seq < seq and end <= goal.edges:
+                via, node = trip.edges[first].via, trip.edges[end - 1].b
                 passed.append((mo.id, seq, via, node))
                 ends.append((Goal(MOVE, goal.id, end, node, via), tuple(passed)))
         return ends or [(goal, ())]
@@ -173,14 +173,14 @@ class Results:
             return self._gap(m, end.end) <= limit / 2
         if m.trip is None:
             return self._gap(m, end.end) <= limit
-        return self._link_reached(m, m.trip.links[end.links - 1], limit)
+        return self._edge_reached(m, m.trip.edges[end.edges - 1], limit)
 
     # ---- 뒤가 막혀 선 로봇이 선을 따라 끝에 못 미쳤는지 ----
     def _short_of_end(self, m, end) -> bool:
         if m.trip is None or self._end_via(m, end) == NAV_GOAL:
             return False
-        link = m.trip.links[end.links - 1]
-        return link.length - along(link, m.x, m.y) > self.params.arrival_tolerance_m / 2
+        edge = m.trip.edges[end.edges - 1]
+        return edge.length - along(edge, m.x, m.y) > self.params.arrival_tolerance_m / 2
 
     def _arrived_anyway(self, m, reason: str, end, goal) -> None:
         target, passed = end

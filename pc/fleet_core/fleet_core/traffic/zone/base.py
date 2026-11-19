@@ -99,9 +99,9 @@ class ZoneBase:
     def _gap(self, m, node: str) -> float:
         return math.dist((m.x, m.y), self.site.node_pose(node))
 
-    def _link_reached(self, m, link, limit: float) -> bool:
-        gap = self._gap(m, link.b)
-        return gap <= limit and (2 * along(link, m.x, m.y) > link.length or gap <= limit / 2)
+    def _edge_reached(self, m, edge, limit: float) -> bool:
+        gap = self._gap(m, edge.b)
+        return gap <= limit and (2 * along(edge, m.x, m.y) > edge.length or gap <= limit / 2)
 
     def _on_node(self, m) -> bool:
         if not m.node or self.grants.node_holder(m.node) not in ("", m.name):
@@ -153,9 +153,9 @@ class ZoneBase:
         goal, trip = m.goal, m.trip
         if goal is None:
             return ""
-        if goal.via != ORDER or trip is None or trip.done >= len(trip.links):
+        if goal.via != ORDER or trip is None or trip.done >= len(trip.edges):
             return goal.via
-        return trip.links[trip.done].via
+        return trip.edges[trip.done].via
 
     def _priority(self, m) -> int:
         return priority(self.params, m.phase == AT_STATION, m.dispatch is not None)

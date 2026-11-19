@@ -42,8 +42,8 @@ class Turns:
             yield spot, True
 
     def _price(self, m, spot: str, cost) -> float:
-        links = self._way(m, spot)
-        return math.inf if links is None else sum(cost(link) for link in links)
+        edges = self._way(m, spot)
+        return math.inf if edges is None else sum(cost(edge) for edge in edges)
 
     # ---- 줄(line) 스테이션: 빈 앞자리로 한 칸 당기기, 새 로봇은 맨 뒤 로봇 바로 뒤로 ----
     def _line_step(self, m, station):
@@ -81,8 +81,8 @@ class Turns:
         if trip is not None and not trip.stale:
             # 받은 구간에서 앞으로 처음 닿는 대기 자리. 지나온 자리는 세지 않는다
             # (order 모델은 트립 끝에 도크까지 붙인다)
-            spots = [link.b for link in trip.links[trip.done:trip.granted]
-                     if link.b in station.queue]
+            spots = [edge.b for edge in trip.edges[trip.done:trip.granted]
+                     if edge.b in station.queue]
             if spots:
                 return station.queue.index(spots[0])
         if r.node in station.queue:

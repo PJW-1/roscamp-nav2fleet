@@ -8,7 +8,7 @@ from fleet_core.traffic.mission import TO_OUTBOUND, TO_PARK, TO_WORK
 
 from .base import HERE
 from .lane_policy import Want
-from .trips import Trip, back_link, free_link, left_s, needs, speed, stretch_end
+from .trips import Trip, back_edge, free_edge, left_s, needs, speed, stretch_end
 
 TRANSIT_WAIT_S = 6.0
 STANDING_WAIT_S = 300.0
@@ -19,11 +19,11 @@ class Goals:
     def _cost(self, m):
         now, p, site, grants = self._clock(), self.params, self.site, self.grants
 
-        def cost(link) -> float:
-            if self._blocked.get((link.a, link.b), 0.0) > now:
+        def cost(edge) -> float:
+            if self._blocked.get((edge.a, edge.b), 0.0) > now:
                 return math.inf
-            seconds = link.price_m / speed(p, link.via)
-            for zone in link.zones:
+            seconds = edge.price_m / speed(p, edge.via)
+            for zone in edge.zones:
                 holders = grants.holders(zone)
                 others = [name for name in holders if name != m.name]
                 if not others or m.name in holders:
@@ -32,13 +32,13 @@ class Goals:
                 if spec.kind == SHARED:
                     seconds += TRANSIT_WAIT_S if len(others) >= spec.capacity else 0.0
                 elif spec.kind == LANE:
-                    same = grants.lane_direction(zone) == link.a and len(others) < spec.capacity
-                    seconds += p.lane_follow_gap_s if same else link.length / p.follow_speed_mps
-                elif site.nodes[link.b].kind == AT_DOCK and site.nodes[link.b].zone == zone:
+                    same = grants.lane_direction(zone) == edge.a and len(others) < spec.capacity
+                    seconds += p.lane_follow_gap_s if same else edge.length / p.follow_speed_mps
+                elif site.nodes[edge.b].kind == AT_DOCK and site.nodes[edge.b].zone == zone:
                     seconds += p.dock_wait_estimate_s
                 else:
                     seconds += TRANSIT_WAIT_S
-            return seconds + self._node_wait(m, link.b)
+            return seconds + self._node_wait(m, edge.b)
         return cost
 
     def _node_wait(self, m, node: str) -> float:
@@ -56,7 +56,7 @@ class Goals:
         if m.avoid.retreat_to:
             if self._retreat_held_up(m):
                 return None
-            back = self._back_link(m)
+            back = self._back_edge(m)
             rest = shortest_path(site, m.avoid.retreat_to, goal, cost)
             return None if rest is None or back is None else [back, *rest]
         if self._on_node(m):
@@ -69,12 +69,12 @@ class Goals:
         for name, zones in self._reach(zone).items():
             if self._blocked.get((HERE + m.name, name), 0.0) > now:
                 continue
-            first = free_link(site, m.x, m.y, name, zones)
+            first = free_edge(site, m.x, m.y, name, zones)
             rest = shortest_path(site, name, goal, cost)
             if rest is None:
                 continue
             total = (first.length / self.params.nav_speed_mps + self._node_wait(m, name)
-                     + sum(cost(link) for link in rest))
+                     + sum(cost(edge) for edge in rest))
             if total < best_cost:
                 best, best_cost = [first, *rest], total
         return best
@@ -84,20 +84,20 @@ class Goals:
         memo = self.__dict__.setdefault("_reach_memo", {})
         if zone not in memo:
             site = self.site
-            by_goal = {link.b for link in site.links() if link.via == NAV_GOAL}
+            by_goal = {edge.b for edge in site.edges() if edge.via == NAV_GOAL}
             inside = {name: (zone,) for name in site.nodes_in(zone)
                       if name in by_goal or not by_goal}
             if inside:
                 memo[zone] = inside
             else:
                 reach = {}
-                for link in site.links():
-                    if link.via == NAV_GOAL and zone in link.zones:
-                        reach.setdefault(link.b, link.zones[link.zones.index(zone):])
+                for edge in site.edges():
+                    if edge.via == NAV_GOAL and zone in edge.zones:
+                        reach.setdefault(edge.b, edge.zones[edge.zones.index(zone):])
                 memo[zone] = reach
         return memo[zone]
 
-    def _back_link(self, m):
+    def _back_edge(self, m):
         site = self.site
         here = site.zone_at(m.x, m.y)
         via = site.nodes[m.avoid.retreat_via].zone if m.avoid.retreat_via else None
@@ -105,9 +105,9 @@ class Goals:
         zones = [zone for zone in (here, via, target) if zone is not None]
         # 갈림 -> 마당 지점 고정 경로의 꺾는 점을 따른다(곧게 가면 다른 구역 모서리에 붙을 수 있다)
         to, via_node = m.avoid.retreat_to, m.avoid.retreat_via
-        down = site.link(via_node, to) if via_node else None
+        down = site.edge(via_node, to) if via_node else None
         bends = down.points[1:-1] if down is not None else ()
-        return back_link(site, m.x, m.y, to, dict.fromkeys(zones), via_node, bends)
+        return back_edge(site, m.x, m.y, to, dict.fromkeys(zones), via_node, bends)
 
     # ---- 후보 중 잡을 수 있는 트립 고르기 ----
     def _choose(self, m):
@@ -117,7 +117,7 @@ class Goals:
                             and trip.goal in self.site.parking)
             return trip
         if first_want is None and m.avoid.retreat_to and not self._retreat_held_up(m):
-            back = self._back_link(m)
+            back = self._back_edge(m)
             trip = None if back is None else Trip(m.avoid.retreat_to, [back])
             if trip is not None and self._take(m, trip) is None:
                 return trip
@@ -135,10 +135,10 @@ class Goals:
     def _grab(self, m, candidates, after: int = 0):
         first_want = None
         for goal, queued in candidates:
-            links = self._way_after(m, after, goal) if after else self._way(m, goal)
-            if not links:
+            edges = self._way_after(m, after, goal) if after else self._way(m, goal)
+            if not edges:
                 continue
-            trip = Trip(goal, links)
+            trip = Trip(goal, edges)
             if queued and self.params.use_order_model:
                 trip = self._through(m, trip)
             if after:
@@ -159,15 +159,15 @@ class Goals:
     def _take(self, m, trip):
         site, grants, now = self.site, self.grants, self._clock()
         start = trip.granted
-        end = stretch_end(site, trip.links, start)
+        end = stretch_end(site, trip.edges, start)
         if not self.params.use_order_model and trip.goal in site.docks:
-            while end < len(trip.links) and self._lane_spot(trip.links[end - 1].b):
-                end = stretch_end(site, trip.links, end)
-        zones, nodes, lanes = needs(trip.links[start:end])
+            while end < len(trip.edges) and self._lane_spot(trip.edges[end - 1].b):
+                end = stretch_end(site, trip.edges, end)
+        zones, nodes, lanes = needs(trip.edges[start:end])
         eta = {}
         for lane in lanes:
-            index = next(i for i in range(start, end) if trip.links[i].lane == lane)
-            eta[lane] = left_s(self.params, trip.links[trip.done:index], m.x, m.y)
+            index = next(i for i in range(start, end) if trip.edges[i].lane == lane)
+            eta[lane] = left_s(self.params, trip.edges[trip.done:index], m.x, m.y)
         since = now if m.watch.wait.since is None else m.watch.wait.since
         want = Want(tuple(zones), tuple(nodes), lanes, since, eta)
         entered = [lane for lane in lanes if m.name not in grants.holders(lane)]
@@ -182,7 +182,7 @@ class Goals:
         for lane in empty:
             self._lane_set(m, lane, want, now)
         self._event("INFO", "ZONE_GRANTED",
-                    f"{'+'.join(zones)} to {trip.links[end - 1].b}", m.name)
+                    f"{'+'.join(zones)} to {trip.edges[end - 1].b}", m.name)
         self._detours.note(m, trip)
         return None
 

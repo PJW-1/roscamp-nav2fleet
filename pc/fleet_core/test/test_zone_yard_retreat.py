@@ -18,10 +18,10 @@ from zone_harness import Harness
 
 def test_a_junction_retreat_goes_down_to_the_yard_node():
     site = Harness().traffic.site
-    assert yard_retreat(site, site.link("X_W", "X_E")) == ("N_W", "X_W")
-    assert yard_retreat(site, site.link("X_E", "X_W")) == ("N_E", "X_E")
-    assert yard_retreat(site, site.link("N_W", "X_W")) == ("N_W", ""), "not from a yard node"
-    assert yard_retreat(site, site.link("X_W", "N_W")) == ("X_W", ""), "already going down"
+    assert yard_retreat(site, site.edge("X_W", "X_E")) == ("N_W", "X_W")
+    assert yard_retreat(site, site.edge("X_E", "X_W")) == ("N_E", "X_E")
+    assert yard_retreat(site, site.edge("N_W", "X_W")) == ("N_W", ""), "not from a yard node"
+    assert yard_retreat(site, site.edge("X_W", "N_W")) == ("X_W", ""), "already going down"
 
 
 def blocked_toward_work(docked: bool, **kw):
@@ -107,9 +107,9 @@ def test_it_backs_out_to_the_yard_even_with_no_way_on_from_there():
     world, call = blocked_toward_work(docked=False, params=params)
     t = world.traffic
     assert world.run_until(lambda: "BLOCKED_WAIT" in world.codes("pode1"), 200.0)
-    for link in t.site.links():  # 다른 길도 모두 막혔다
-        if {link.a, link.b} != {"X_E", "X_W"}:
-            t._blocked[(link.a, link.b)] = 1e9
+    for edge in t.site.edges():  # 다른 길도 모두 막혔다
+        if {edge.a, edge.b} != {"X_E", "X_W"}:
+            t._blocked[(edge.a, edge.b)] = 1e9
     assert world.run_until(lambda: world.retreats("pode1"), 60.0)
     assert back_path(world)[-1] == tuple(t.site.node_pose("N_E"))
     assert world.run_until(lambda: "RETREAT_DONE" in world.codes("pode1"), 60.0)
@@ -164,7 +164,7 @@ def test_the_retreat_follows_the_bends_of_the_way_down():
     m = world.traffic._robots["pode1"]
     m.x, m.y = 1.80, 0.88  # 급행 들머리에서 막혔다
     m.avoid.retreat_to, m.avoid.retreat_via = "N_E", "W_X"
-    back = world.traffic._back_link(m)
+    back = world.traffic._back_edge(m)
     assert back.points[1:] == ((1.88, 0.80), (1.70, 0.70), world.site.node_pose("N_E"))
     gap = min(point_segment_distance((1.78, 0.63), a, b)
               for a, b in zip(back.points, back.points[1:], strict=False))

@@ -10,7 +10,7 @@ KEEPOUT, CORRIDOR, DESTINATION, IN_ZONE = "keepout", "corridor", "destination", 
 def detour_kind(site, old_goal: str, old_zones, trip) -> str:
     if trip.goal != old_goal:
         return DESTINATION
-    new = {zone for link in trip.links if link.a or link.via != RETREAT for zone in link.zones}
+    new = {zone for edge in trip.edges if edge.a or edge.via != RETREAT for zone in edge.zones}
     old = set(old_zones)
 
     def of(zones, test):
@@ -37,8 +37,8 @@ class DetourNotes:
 
     def remember(self, m) -> None:
         trip = m.trip
-        m.avoid.detour = (trip.goal, frozenset(z for link in trip.links[trip.done:]
-                                               for z in link.zones))
+        m.avoid.detour = (trip.goal, frozenset(z for edge in trip.edges[trip.done:]
+                                               for z in edge.zones))
 
     def note(self, m, trip) -> None:
         if m.avoid.detour is None:

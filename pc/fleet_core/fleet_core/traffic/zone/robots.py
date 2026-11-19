@@ -13,7 +13,7 @@ from .episodes import BlockedEpisode, Episode, WaitEpisode
 class Goal:
     kind: str
     id: int
-    links: int = 0
+    edges: int = 0
     end: str = ""
     via: str = ""
 

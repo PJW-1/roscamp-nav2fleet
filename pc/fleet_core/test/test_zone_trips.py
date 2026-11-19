@@ -16,7 +16,7 @@ def way(start, goal):
 
 def test_a_stretch_runs_to_the_next_node_where_a_robot_may_wait():
     to_work = way("P-1", "W")
-    assert [link.b for link in to_work] == ["N_W", "X_W", "W"]
+    assert [edge.b for edge in to_work] == ["N_W", "X_W", "W"]
     assert trips.stretch_end(D2, to_work, 0) == 3, "the fork and the junction are no place to wait"
     to_queue = way("P-1", "W_Q")
     assert trips.stretch_end(D2, to_queue, 0) == 1
@@ -30,14 +30,14 @@ def test_a_stretch_needs_its_zones_its_nodes_and_the_lane_direction():
     assert lanes == {"EXPRESS": "X_W"}, "the lane runs from the node the robot enters by"
 
 
-def test_one_command_per_nav_goal_link_and_one_per_run_of_fixed_path():
+def test_one_command_per_nav_goal_edge_and_one_per_run_of_fixed_path():
     to_work = way("P-1", "W")
-    assert [link.via for link in to_work] == [NAV_GOAL, FOLLOW_PATH, FOLLOW_PATH]
+    assert [edge.via for edge in to_work] == [NAV_GOAL, FOLLOW_PATH, FOLLOW_PATH]
     assert trips.segment_end(D2, to_work, 0, 3) == 1
     assert trips.segment_end(D2, to_work, 1, 3) == 3
     assert trips.segment_end(D2, to_work, 1, 2) == 2, "never past what is granted"
     to_out = way("W", "O")
-    assert [link.via for link in to_out] == [RETREAT, FOLLOW_PATH, FOLLOW_PATH, FOLLOW_PATH]
+    assert [edge.via for edge in to_out] == [RETREAT, FOLLOW_PATH, FOLLOW_PATH, FOLLOW_PATH]
     assert trips.segment_end(D2, to_out, 0, 4) == 1
     assert trips.segment_end(D2, to_out, 1, 4) == 4
 
@@ -98,7 +98,7 @@ def test_a_retreat_sent_again_past_the_start_keeps_the_bend_ahead():
     assert cmd.distance_m == pytest.approx(SLANT * 0.10 / 0.24, abs=0.002)
 
 
-def test_where_a_robot_is_along_a_bent_link():
+def test_where_a_robot_is_along_a_bent_edge():
     out = way("W", "O")[0]
     assert out.length == pytest.approx(0.12 + SLANT)
     assert trips.along(out, 0.25, 0.90) == pytest.approx(0.07)
@@ -107,7 +107,7 @@ def test_where_a_robot_is_along_a_bent_link():
     assert trips.passed(out, 0.35, 0.66)
 
 
-def test_where_a_robot_is_along_a_link():
+def test_where_a_robot_is_along_an_edge():
     express = way("X_W", "X_E")[0]
     assert trips.along(express, 0.90, 0.95) == pytest.approx(0.55)
     assert trips.along(express, 0.10, 0.89) == 0.0
@@ -115,16 +115,16 @@ def test_where_a_robot_is_along_a_link():
     assert trips.passed(express, 1.61, 0.89)
 
 
-def test_links_that_are_not_on_the_map():
-    free = trips.free_link(D2, 1.00, 0.30, "N_E")
+def test_edges_that_are_not_on_the_map():
+    free = trips.free_edge(D2, 1.00, 0.30, "N_E")
     assert (free.a, free.b, free.via, free.zones) == ("", "N_E", NAV_GOAL, ("HALL",))
     assert free.length == pytest.approx(math.dist((1.00, 0.30), (1.63, 0.65)))
-    back = trips.back_link(D2, 0.90, 0.89, "X_W", ("EXPRESS", "J_W"))
+    back = trips.back_edge(D2, 0.90, 0.89, "X_W", ("EXPRESS", "J_W"))
     assert (back.b, back.via, back.zones, back.lane) == ("X_W", RETREAT, ("EXPRESS", "J_W"), "")
     assert back.length == pytest.approx(0.55)
 
 
-def test_time_left_on_a_run_of_links():
+def test_time_left_on_a_run_of_edges():
     to_out = way("W", "O")
     whole = ((0.12 + SLANT) / PARAMS.retreat_speed_mps
              + (0.24 + 1.28 + 0.17) / PARAMS.follow_speed_mps)

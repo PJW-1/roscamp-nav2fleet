@@ -460,7 +460,7 @@ def test_a_misspelt_switch_stops_the_launch(made, name):
         run(made, **{name: "ture"})
 
 
-def test_obstacles_take_a_link_schedule_checked_against_the_layout(made):
+def test_obstacles_take_an_edge_schedule_checked_against_the_layout(made):
     fleet = after_wait(run(made, layout="d2", obstacles="d2_yard_express"))
     [node] = nodes(fleet, "sim_obstacles")
     assert params(node)["obstacles_file"].endswith("obstacles/d2_yard_express.yaml")

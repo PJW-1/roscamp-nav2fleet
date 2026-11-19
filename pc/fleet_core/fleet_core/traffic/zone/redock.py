@@ -8,11 +8,11 @@ from .trips import Trip
 
 # ---- 도크로 들어가는 FOLLOW_PATH 경로 찾기 ----
 def way_in(site, start: str, dock: str) -> list | None:
-    direct = site.link(start, dock)
+    direct = site.edge(start, dock)
     if direct is not None:
         return [direct] if direct.via == FOLLOW_PATH else None
-    for first in site.links_from(start):
-        second = site.link(first.b, dock)
+    for first in site.edges_from(start):
+        second = site.edge(first.b, dock)
         if first.via == FOLLOW_PATH and second is not None and second.via == FOLLOW_PATH:
             return [first, second]
     return None
@@ -31,19 +31,19 @@ class Redock:
     def _reapproach(self, m) -> bool:
         now = self._clock()
         dock = self.site.stations[m.dest].dock
-        out = next((link for link in self.site.links_from(dock) if link.via == RETREAT), None)
+        out = next((edge for edge in self.site.edges_from(dock) if edge.via == RETREAT), None)
         back = way_in(self.site, out.b, dock) if out is not None else None
         ep = m.watch.redock
         if ep.since is None:
             ep.since = now
-        links = [out, *back] if back is not None else []
-        marked = any(self._blocked.get((link.a, link.b), 0.0) > now for link in links)
-        if (not links or marked or m.node != dock
+        edges = [out, *back] if back is not None else []
+        marked = any(self._blocked.get((edge.a, edge.b), 0.0) > now for edge in edges)
+        if (not edges or marked or m.node != dock
                 or now - ep.since >= self.params.redock_wait_s):
             ep.clear()
             self._stop_wanting(m)
             return False
-        trip = Trip(dock, links)
+        trip = Trip(dock, edges)
         want = self._take(m, trip)
         if want is not None:
             self._wants[m.name] = want

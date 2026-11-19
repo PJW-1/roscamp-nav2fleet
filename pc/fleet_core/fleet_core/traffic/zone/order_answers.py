@@ -27,7 +27,7 @@ class OrderAnswers:
         if m.goal.id != goal_id:
             return
         mo.before = None
-        self._order_progress(m, last_done_seq, m.goal.links)
+        self._order_progress(m, last_done_seq, m.goal.edges)
         mo.waiting = bool(waiting_at_base_end)
         if mo.waiting and not mo.waited:
             mo.waited = True
@@ -38,9 +38,9 @@ class OrderAnswers:
             self._event("WARN", "HORIZON_INVALID", horizon_warning, m.name)
 
     # ---- 끝낸 seq까지 트립 진행 반영 ----
-    def _order_progress(self, m, seq: int, links: int) -> None:
+    def _order_progress(self, m, seq: int, edges: int) -> None:
         trip, mo = m.trip, m.move_order
-        last = max((number for number, _, end in mo.cuts if end <= links), default=0)
+        last = max((number for number, _, end in mo.cuts if end <= edges), default=0)
         if seq > last:
             if not mo.overrun:
                 mo.overrun = True
@@ -49,9 +49,9 @@ class OrderAnswers:
             return
         for number, first, end in mo.cuts:
             if mo.done_seq < number <= seq:
-                via = trip.links[first].via
+                via = trip.edges[first].via
                 trip.done = max(trip.done, end)
-                m.node = trip.links[end - 1].b
+                m.node = trip.edges[end - 1].b
                 m.avoid.behind_since = None
                 self._event("INFO", "SEGMENT_DONE", f"{mo.id} seq {number} ({via}) to {m.node}",
                             m.name)
@@ -69,7 +69,7 @@ class OrderAnswers:
         if reason == SUPERSEDED:
             return True
         mo.before = None
-        self._order_progress(m, last_done_seq, m.goal.links)
+        self._order_progress(m, last_done_seq, m.goal.edges)
         return False
 
     def _old_goal_result(self, m, goal_id: int, reason: str) -> bool:
@@ -110,10 +110,10 @@ class OrderAnswers:
 
     def _restore(self, m) -> None:
         mo, trip = m.move_order, m.trip
-        goal_id, links, waiting = mo.before
-        self._set_goal(m, Goal(MOVE, goal_id, links, trip.links[links - 1].b, ORDER),
+        goal_id, edges, waiting = mo.before
+        self._set_goal(m, Goal(MOVE, goal_id, edges, trip.edges[edges - 1].b, ORDER),
                        reset_watch=False)
-        trip.sent = links
+        trip.sent = edges
         mo.before = None
         mo.waiting = waiting
         mo.waited = mo.waited or waiting
@@ -123,6 +123,6 @@ class OrderAnswers:
         trip = m.trip
         if m.move_order is None or trip is None or m.goal is None:
             return ""
-        left = left_s(self.params, trip.links[trip.done:trip.granted], m.x, m.y)
+        left = left_s(self.params, trip.edges[trip.done:trip.granted], m.x, m.y)
         m.base_until = now + left + max(0.0, self.params.comm_base_hold_extra_s)
         return f", drives on to {m.goal.end} (about {left:.0f} s)"

@@ -142,7 +142,7 @@ class Calls:
             self._cancel_goal(m)
             self._drop_trip(m)
         elif m.trip is not None:
-            del m.trip.links[m.trip.granted:]
+            del m.trip.edges[m.trip.granted:]
             m.trip.stale = True
 
     def _metres_to_dock(self, m, station_id: str) -> float:

@@ -69,15 +69,15 @@ class Progress:
         trip, goal = m.trip, m.goal
         if trip is None or goal is None or goal.kind == DOCK:
             return
-        while trip.done < goal.links - 1:
-            link = trip.links[trip.done]
-            if link.via == NAV_GOAL or not passed(link, m.x, m.y):
+        while trip.done < goal.edges - 1:
+            edge = trip.edges[trip.done]
+            if edge.via == NAV_GOAL or not passed(edge, m.x, m.y):
                 break
             # 물러나기는 놓을 구역 쪽에서 노드로 다가간다:
             # 노드 좌표로 잴 거리 안이면 끝냈다는 답을 기다린다
-            if link.via == RETREAT and self._gap(m, link.b) <= self.params.release_margin_m:
+            if edge.via == RETREAT and self._gap(m, edge.b) <= self.params.release_margin_m:
                 break
-            m.node = link.b
+            m.node = edge.b
             trip.done += 1
 
     # ---- 아직 필요한 구역과 노드 계산 ----
@@ -86,16 +86,16 @@ class Progress:
         zones, nodes = set(), set()
         if trip is None:
             return zones, nodes
-        links = trip.links[trip.done:trip.granted]
-        if links:
-            crossed = links[0].zones
+        edges = trip.edges[trip.done:trip.granted]
+        if edges:
+            crossed = edges[0].zones
             here = self.site.zone_at(m.x, m.y)
-            if links[0].via != NAV_GOAL and here in crossed:
+            if edges[0].via != NAV_GOAL and here in crossed:
                 crossed = crossed[crossed.index(here):]
             zones.update(crossed)
-            for link in links[1:]:
-                zones.update(link.zones)
-            nodes.update(link.b for link in links)
+            for edge in edges[1:]:
+                zones.update(edge.zones)
+            nodes.update(edge.b for edge in edges)
         return zones, nodes
 
     # ---- 지나온 구역과 노드 놓기 ----

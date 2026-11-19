@@ -59,10 +59,10 @@ def test_a_side_that_waited_long_gets_the_lane_before_a_newcomer():
 
 def across(site, robot_at, *nodes):
     """nodes를 차례로 지나는 길. 시험이 급행을 지나는 길을 손으로 고른다."""
-    links = []
+    edges = []
     for a, b in zip((robot_at, *nodes), nodes, strict=False):
-        links += shortest_path(site, a, b)
-    return links
+        edges += shortest_path(site, a, b)
+    return edges
 
 
 def traffic_with_two():

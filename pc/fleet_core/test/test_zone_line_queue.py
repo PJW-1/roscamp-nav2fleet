@@ -147,7 +147,7 @@ def test_a_robot_stepping_forward_ranks_by_the_spot_it_goes_to(order_model):
     traffic = world.traffic
     moving = traffic._robots["pode2"]
     assert moving.node == "Q2" and moving.trip is not None
-    assert moving.trip.links[0].b == "Q1"
+    assert moving.trip.edges[0].b == "Q1"
     assert traffic._line_spot(moving, world.site.stations["WORK"]) == 0
 
 

@@ -136,16 +136,16 @@ class Drive:
             return
         trip = m.trip
         start = trip.sent
-        end = segment_end(self.site, trip.links, start, trip.granted)
-        links = trip.links[start:end]
+        end = segment_end(self.site, trip.edges, start, trip.granted)
+        edges = trip.edges[start:end]
         goal_id = self._next_goal_id()
-        via, target = links[0].via, links[-1].b
+        via, target = edges[0].via, edges[-1].b
         if via == RETREAT:
-            self._out.append(retreat_command(self.params, m.name, goal_id, links, m.x, m.y))
+            self._out.append(retreat_command(self.params, m.name, goal_id, edges, m.x, m.y))
             self._event("INFO", "RETREAT_START", f"backs to {target}", m.name)
         else:
-            after = trip.links[end] if end < len(trip.links) else None
-            self._out.append(move_command(self.site, m.name, goal_id, links, m.x, m.y, after,
+            after = trip.edges[end] if end < len(trip.edges) else None
+            self._out.append(move_command(self.site, m.name, goal_id, edges, m.x, m.y, after,
                                           self._goal_priority(m)))
             code = "NAV_GOAL_SENT" if via == NAV_GOAL else "FOLLOW_SENT"
             self._event("INFO", code, f"to {target}", m.name)

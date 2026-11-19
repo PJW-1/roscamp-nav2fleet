@@ -32,8 +32,8 @@ def test_parse_fills_defaults_and_sorts_by_time():
     assert schedule.repeat_every_s is None
     assert schedule.size_m == obstacles.DEFAULT_SIZE_M
     first, second = schedule.obstacles
-    assert (first.at_s, first.link, first.fraction) == (10.0, ("X_W", "X_E"), 0.25)
-    assert (second.link, second.fraction, second.duration_s) == (("N_W", "N_E"), 0.5, 20.0)
+    assert (first.at_s, first.edge, first.fraction) == (10.0, ("X_W", "X_E"), 0.25)
+    assert (second.edge, second.fraction, second.duration_s) == (("N_W", "N_E"), 0.5, 20.0)
 
 
 def test_parse_reads_repeat_and_size():
@@ -42,12 +42,12 @@ def test_parse_reads_repeat_and_size():
     assert schedule.size_m == (0.1, 0.2, 0.3)
 
 
-def test_a_link_may_be_named_against_its_direction():
+def test_an_edge_may_be_named_against_its_direction():
     """W->X_W is a Retreat link only; X_W->W is part of work_in. Either names the same floor."""
     schedule = obstacles.parse_schedule({"obstacles": [entry(link=["X_W", "W"]),
                                                        entry(at_s=40, link=["N_W", "P-1"])]},
                                         SITE)
-    assert [o.link for o in schedule.obstacles] == [("X_W", "W"), ("N_W", "P-1")]
+    assert [o.edge for o in schedule.obstacles] == [("X_W", "W"), ("N_W", "P-1")]
 
 
 @pytest.mark.parametrize("data, words", [
@@ -91,7 +91,7 @@ def test_bad_schedules_are_refused_with_the_reason(data, words):
         obstacles.parse_schedule(data, SITE)
 
 
-def test_back_to_back_and_other_links_do_not_overlap():
+def test_back_to_back_and_other_edges_do_not_overlap():
     schedule = obstacles.parse_schedule({"obstacles": [
         entry(at_s=10, duration_s=20), entry(at_s=30, duration_s=5),
         entry(at_s=12, link=["N_W", "N_E"])]}, SITE)
@@ -107,15 +107,15 @@ def test_non_mapping_file_is_refused(tmp_path):
 
 # ---- 연결 위 점 ------------------------------------------------------------------------------
 
-def test_link_point_is_along_the_segment_with_the_link_yaw():
+def test_edge_point_is_along_the_segment_with_the_edge_yaw():
     # X_W (0.35, 0.89) -> X_E (1.63, 0.89): 동쪽
-    x, y, yaw = obstacles.link_point(SITE, ("X_W", "X_E"), 0.25)
+    x, y, yaw = obstacles.edge_point(SITE, ("X_W", "X_E"), 0.25)
     assert (x, y) == pytest.approx((0.67, 0.89))
     assert yaw == pytest.approx(0.0)
 
 
-def test_link_point_follows_the_named_direction():
-    x, y, yaw = obstacles.link_point(SITE, ("X_E", "X_W"), 0.5)
+def test_edge_point_follows_the_named_direction():
+    x, y, yaw = obstacles.edge_point(SITE, ("X_E", "X_W"), 0.5)
     assert (x, y) == pytest.approx((0.99, 0.89))
     assert yaw == pytest.approx(math.pi)
 

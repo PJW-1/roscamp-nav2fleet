@@ -152,19 +152,19 @@ def test_shared_nodes_and_their_footprint_stay_out_of_the_keepout(site):
                 (node.id, (x0, y0, x1, y1))
 
 
-def test_straight_nav_goal_links_run_clear_of_the_keepout(site):
+def test_straight_nav_goal_edges_run_clear_of_the_keepout(site):
     """The straight line of every nav_goal link stays out of the keepout, so the planner has a
     way inside the shared zones."""
     grid = arena_maps.keepout(arena_maps.FINE_M, site)
-    for link in site.links():
-        if link.via != NAV_GOAL:
+    for edge in site.edges():
+        if edge.via != NAV_GOAL:
             continue
-        (ax, ay), (bx, by) = link.points[0], link.points[-1]
+        (ax, ay), (bx, by) = edge.points[0], edge.points[-1]
         steps = max(2, int(math.dist((ax, ay), (bx, by)) / 0.01))
         hits = [i for i in range(steps + 1)
                 if _value(grid, ax + (bx - ax) * i / steps, ay + (by - ay) * i / steps,
                           arena_maps.FINE_M, site)]
-        assert not hits, f"{link.a}->{link.b}"
+        assert not hits, f"{edge.a}->{edge.b}"
 
 
 def test_a_thin_shelf_off_the_grid_still_fills_the_cells_it_touches():

@@ -196,7 +196,7 @@ def short_of_n_w(order: bool, short_m: float = 0.025):
         assert [(s.seq_id, s.mode) for s in base] == [(1, "retreat"), (2, "nav_goal")]
         assert base[0].end_node == "N_W"
     world._move = lambda bot: None  # 로봇이 멈추고 답하지 않는다
-    (ax, ay), (bx, by) = world.site.link("W", "N_W").points[-2:]
+    (ax, ay), (bx, by) = world.site.edge("W", "N_W").points[-2:]
     span = math.dist((ax, ay), (bx, by))
     bot = world.bots["pode1"]
     bot.x, bot.y = bx - (bx - ax) * short_m / span, by - (by - ay) * short_m / span

@@ -17,25 +17,25 @@ CONTROLLER = {FOLLOW_PATH: "FollowPath", RETREAT: "FollowPathReverse", NAV_GOAL:
 class MoveOrders:
     def _cut(self, trip, start: int, first_seq: int) -> list:
         cuts, seq, index = [], first_seq, start
-        while index < len(trip.links):
-            stop = stretch_end(self.site, trip.links, index)
+        while index < len(trip.edges):
+            stop = stretch_end(self.site, trip.edges, index)
             while index < stop:
-                end = segment_end(self.site, trip.links, index, stop)
+                end = segment_end(self.site, trip.edges, index, stop)
                 cuts.append((seq, index, end))
                 seq, index = seq + 1, end
         return cuts
 
     def _segment(self, m, trip, cut, here: bool) -> SegmentOut:
         seq, first, end = cut
-        links = trip.links[first:end]
-        via, node = links[0].via, links[-1].b
-        x, y = (m.x, m.y) if here or not links[0].a else self.site.node_pose(links[0].a)
-        zones = tuple(dict.fromkeys(zone for link in links for zone in link.zones))
+        edges = trip.edges[first:end]
+        via, node = edges[0].via, edges[-1].b
+        x, y = (m.x, m.y) if here or not edges[0].a else self.site.node_pose(edges[0].a)
+        zones = tuple(dict.fromkeys(zone for edge in edges for zone in edge.zones))
         if via == RETREAT:
-            path = retreat_command(self.params, m.name, 0, links, x, y).path
+            path = retreat_command(self.params, m.name, 0, edges, x, y).path
             return SegmentOut(seq, via, node, zones, path, *path[-1], CONTROLLER[via])
-        after = trip.links[end] if end < len(trip.links) else None
-        cmd = move_command(self.site, m.name, 0, links, x, y, after)
+        after = trip.edges[end] if end < len(trip.edges) else None
+        cmd = move_command(self.site, m.name, 0, edges, x, y, after)
         return SegmentOut(seq, via, node, zones, cmd.path, cmd.x, cmd.y, cmd.yaw, CONTROLLER[via])
 
     # ---- base와 horizon 조각, 도크까지 이은 트립 ----
@@ -54,7 +54,7 @@ class MoveOrders:
     def _through(self, m, trip):
         dock = self.site.stations[m.dest].dock
         rest = shortest_path(self.site, trip.goal, dock, self._cost(m))
-        return Trip(dock, [*trip.links, *rest]) if rest else trip
+        return Trip(dock, [*trip.edges, *rest]) if rest else trip
 
     # ---- 첫 주문 보내기와 갱신 보내기 ----
     def _send_order(self, m) -> None:
@@ -75,13 +75,13 @@ class MoveOrders:
     def _order_goal(self, m, goal_id: int) -> None:
         trip, mo = m.trip, m.move_order
         end = mo.cuts[mo.given - 1][2] if mo.given else trip.granted
-        self._set_goal(m, Goal(MOVE, goal_id, end, trip.links[end - 1].b, ORDER))
+        self._set_goal(m, Goal(MOVE, goal_id, end, trip.edges[end - 1].b, ORDER))
         trip.sent = end
 
     def _send_update(self, m, before: tuple, base: tuple) -> None:
         trip, mo = m.trip, m.move_order
         goal_id = self._next_goal_id()
-        stitch = trip.links[before[1] - 1].b
+        stitch = trip.edges[before[1] - 1].b
         if self.order_fault == "stitch":
             stitch, self.order_fault = "?", ""
         mo.update += 1
@@ -112,17 +112,17 @@ class MoveOrders:
                     self._drop_trip(m)
             return
         p = self.params
-        end = m.goal.links
+        end = m.goal.edges
         if end < trip.granted:
-            left = left_s(p, trip.links[trip.done:end], m.x, m.y)
+            left = left_s(p, trip.edges[trip.done:end], m.x, m.y)
             if mo.waiting or left <= p.standby_lookahead_s:
                 self._send_update(m, (m.goal.id, end), self._fresh_base(m, trip))
                 self._event("INFO", "ORDER_UPDATED",
                             f"{mo.id} update {mo.update}: base to {m.goal.end}", m.name)
             return
-        if trip.granted >= len(trip.links) or (
+        if trip.granted >= len(trip.edges) or (
                 not mo.waiting
-                and left_s(p, trip.links[trip.done:trip.granted], m.x, m.y) > p.lookahead_s):
+                and left_s(p, trip.edges[trip.done:trip.granted], m.x, m.y) > p.lookahead_s):
             return
         if self._refresh_horizon(m):
             return
@@ -154,7 +154,7 @@ class MoveOrders:
             return None
         mo, end = m.move_order, None
         for _, first, stop in mo.cuts[mo.given:]:
-            if stop > trip.granted or trip.links[first].via != FOLLOW_PATH:
+            if stop > trip.granted or trip.edges[first].via != FOLLOW_PATH:
                 break
             end = stop
         return end if end is not None and end < trip.granted else None
@@ -162,16 +162,16 @@ class MoveOrders:
     def _held_end(self, m) -> int:
         trip, goal, mo = m.trip, m.goal, m.move_order
         if (goal is None or goal.via != ORDER or mo is None or mo.before is not None
-                or mo.broken or trip.stale or goal.links >= trip.granted):
+                or mo.broken or trip.stale or goal.edges >= trip.granted):
             return 0
-        return goal.links
+        return goal.edges
 
     def _way_after(self, m, end: int, goal: str):
-        rest = shortest_path(self.site, m.trip.links[end - 1].b, goal, self._cost(m))
-        return [*m.trip.links[:end], *rest] if rest else None
+        rest = shortest_path(self.site, m.trip.edges[end - 1].b, goal, self._cost(m))
+        return [*m.trip.edges[:end], *rest] if rest else None
 
     def _turn_order(self, m, fresh) -> None:
-        mo, end = m.move_order, m.goal.links
+        mo, end = m.move_order, m.goal.edges
         before = (m.goal.id, end)
         m.trip = fresh
         mo.cuts[mo.given:] = self._cut(fresh, end, mo.cuts[mo.given - 1][0] + 1)
@@ -182,9 +182,9 @@ class MoveOrders:
 
     # ---- 앞쪽 도크 확인과 horizon 경로 다시 짜기 ----
     def _dock_ahead(self, m, trip):
-        end = stretch_end(self.site, trip.links, trip.granted)
+        end = stretch_end(self.site, trip.edges, trip.granted)
         station = self.site.stations.get(m.dest) if m.dest else None
-        if station is not None and trip.links[end - 1].b == station.dock:
+        if station is not None and trip.edges[end - 1].b == station.dock:
             return station
         return None
 
@@ -193,16 +193,16 @@ class MoveOrders:
         now = self._clock()
         if now - mo.horizon_at < HORIZON_HOLD_S:
             return False
-        old = trip.links[trip.granted:]
-        fresh = shortest_path(self.site, trip.links[trip.granted - 1].b, trip.goal, self._cost(m))
+        old = trip.edges[trip.granted:]
+        fresh = shortest_path(self.site, trip.edges[trip.granted - 1].b, trip.goal, self._cost(m))
         if not fresh or [(k.a, k.b) for k in fresh] == [(k.a, k.b) for k in old]:
             return False
         station = self.site.stations.get(m.dest) if m.dest else None
         if station is not None and station.line:
-            spots = [[k.b for k in links if k.b in station.queue] for links in (old, fresh)]
+            spots = [[k.b for k in edges if k.b in station.queue] for edges in (old, fresh)]
             if spots[0] and spots[0] != spots[1]:
                 return False  # 줄에 서는 자리가 바뀌는 새 길은 쓰지 않는다(줄 순서가 바뀐다)
-        trip.links[trip.granted:] = fresh
+        trip.edges[trip.granted:] = fresh
         mo.cuts[mo.given:] = self._cut(trip, trip.granted, mo.cuts[mo.given - 1][0] + 1)
         mo.horizon_at = now
         self._send_update(m, (m.goal.id, trip.granted), ())
