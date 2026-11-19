@@ -12,7 +12,9 @@ import re
 import sys
 from collections import defaultdict
 from datetime import datetime
+from zoneinfo import ZoneInfo
 
+KST = ZoneInfo("Asia/Seoul")
 SHELF_A = (0.63, 0.77, 1.56, 0.803)
 WALL_N = 0.98
 FOOT = [(0.040, 0.021), (0.036, 0.031), (0.029, 0.056), (-0.029, 0.056), (-0.049, 0.049),
@@ -41,20 +43,20 @@ def rect_dist(px, py, r):
 
 
 def runs_from_log(path):
-    """판 이름, 시작, 끝(epoch). 로그 시각은 이 PC 현지 시각(KST)이다.
+    """판 이름, 시작, 끝(epoch). 로그 시각은 KST로 읽는다(실행하는 PC의 시간대와 무관).
 
     날짜는 --date=YYYY-MM-DD로 주고, 없으면 로그 파일이 마지막으로 바뀐 날을 쓴다(자정을 넘긴 묶음은 안 된다)."""
     opt = [a.split("=", 1)[1] for a in sys.argv[1:] if a.startswith("--date=")]
-    day = opt[0] if opt else datetime.fromtimestamp(os.path.getmtime(path)).strftime("%Y-%m-%d")
+    day = opt[0] if opt else datetime.fromtimestamp(os.path.getmtime(path), KST).strftime("%Y-%m-%d")
     out, cur = [], None
     for line in open(path):
         m = re.match(r"== (\S+) (\S+) start (\d\d:\d\d:\d\d)", line)
         if m:
-            cur = [m.group(1), datetime.fromisoformat(f"{day} {m.group(3)}").timestamp(), None]
+            cur = [m.group(1), datetime.fromisoformat(f"{day} {m.group(3)}").replace(tzinfo=KST).timestamp(), None]
             out.append(cur)
         m = re.match(r"== (\S+) exit \S+ end (\d\d:\d\d:\d\d)", line)
         if m and cur and cur[0] == m.group(1):
-            cur[2] = datetime.fromisoformat(f"{day} {m.group(2)}").timestamp()
+            cur[2] = datetime.fromisoformat(f"{day} {m.group(2)}").replace(tzinfo=KST).timestamp()
     return out
 
 

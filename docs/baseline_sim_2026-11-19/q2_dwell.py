@@ -12,7 +12,8 @@ sys.path.insert(0, __file__.rsplit("/", 1)[0])
 from express_metrics import read_truth, runs_from_log  # noqa: E402
 
 Q2 = (1.66, 0.15)
-OPT = {k: float(v) for k, v in (a[2:].split("=") for a in sys.argv[1:] if a.startswith("--"))}
+OPT = {k: float(v) for k, v in (a[2:].split("=") for a in sys.argv[1:]
+                                 if a.startswith("--") and not a.startswith("--date="))}
 RADIUS, SPEED, MIN_S = OPT.get("radius", 0.10), OPT.get("speed", 0.03), OPT.get("min", 0.1)
 
 
