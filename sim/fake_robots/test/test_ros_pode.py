@@ -49,9 +49,11 @@ class Probe:
 def start(harness, tmp_path, heartbeat_timeout_s=0.0, node=None, **scenario):
     """여기엔 FMS가 없으니 기본적으로 로봇은 FMS 소식을 기다리지 않는다. node: 노드 파라미터."""
     from fake_robots.fake_pode_node import FakePodeNode
-    harness.add(FakePodeNode(parameter_overrides=harness.params(
-        robot_id="pode1", scenario_file=write_scenario(tmp_path, **scenario),
-        state_rate_hz=20.0, heartbeat_timeout_s=heartbeat_timeout_s, **(node or {}))))
+    # 시험 좌표는 d2(SITE)라 지도도 d2로 준다. 기본 배치는 v7이다
+    values = {"robot_id": "pode1", "scenario_file": write_scenario(tmp_path, **scenario),
+              "state_rate_hz": 20.0, "heartbeat_timeout_s": heartbeat_timeout_s,
+              "map_file": "d2", **(node or {})}
+    harness.add(FakePodeNode(parameter_overrides=harness.params(**values)))
     return Probe(harness)
 
 
