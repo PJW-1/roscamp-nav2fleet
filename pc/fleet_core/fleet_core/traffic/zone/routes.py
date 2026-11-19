@@ -199,5 +199,5 @@ def left_s(params, edges, x: float, y: float) -> float:
         end += 1
     pieces = [(edge.points[0], edge.points[-1]) for edge in edges[:end]]
     index, _ = _nearest(pieces, x, y)
-    here = math.dist((x, y), pieces[index][1]) + sum(math.dist(*p) for p in pieces[index + 1:])
-    return here / speed(params, NAV_GOAL) + travel_s(params, edges[end:])
+    here = math.dist((x, y), pieces[index][1])
+    return here / speed(params, NAV_GOAL) + travel_s(params, edges[index + 1:])

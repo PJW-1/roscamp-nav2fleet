@@ -152,12 +152,6 @@ def v7_way(start, goal):
     return shortest_path(V7, start, goal)
 
 
-def old_left_s(edges, x, y):
-    first = edges[0]
-    here = first.length - routes.along(first, x, y)
-    return here / routes.speed(PARAMS, first.mode) + routes.travel_s(PARAMS, edges[1:])
-
-
 def test_the_v7_runs_through_e3_are_nav_goal_edges_joined_at_a_through_node():
     for start in ("E-1", "O_OUT"):
         run = v7_way(start, "Q2")
@@ -229,12 +223,17 @@ def test_time_left_on_a_run_joined_at_a_node_that_is_not_through_counts_the_same
 def test_time_left_on_a_fixed_path_or_a_retreat_is_unchanged():
     fixed = v7_way("Q2", "W")
     assert [edge.mode for edge in fixed] == [FOLLOW_PATH, FOLLOW_PATH]
-    assert routes.left_s(PARAMS, fixed, 1.75, 0.16) == pytest.approx(
-        old_left_s(fixed, 1.75, 0.16))
+    assert routes.left_s(PARAMS, fixed, 1.75, 0.16) == pytest.approx(3.1736922120633286)
     back = [V7.edge("E-3", "P-3")]
     assert back[0].mode == RETREAT
-    assert routes.left_s(PARAMS, back, 0.64, 0.18) == pytest.approx(
-        old_left_s(back, 0.64, 0.18))
+    assert routes.left_s(PARAMS, back, 0.64, 0.18) == pytest.approx(1.6)
     to_out = way("W", "O")
-    assert routes.left_s(PARAMS, to_out, 0.25, 0.90) == pytest.approx(
-        old_left_s(to_out, 0.25, 0.90))
+    assert routes.left_s(PARAMS, to_out, 0.25, 0.90) == pytest.approx(19.98639360218584)
+
+
+def test_the_distance_along_a_fixed_path_is_unchanged():
+    q_step = v7_way("Q2", "W")[0]
+    assert routes.along(q_step, 1.75, 0.16) == pytest.approx(0.09082939335088909, abs=1e-12)
+    assert routes.along(q_step, 1.8202, 0.2107) == pytest.approx(
+        0.17810845532961123, abs=1e-12), "on a bend point the earlier piece is taken"
+    assert routes.along(V7.edge("E-3", "P-3"), 0.64, 0.18) == pytest.approx(0.06, abs=1e-12)
