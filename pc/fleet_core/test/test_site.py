@@ -19,5 +19,5 @@ def test_a_site_is_rebuilt_from_the_text_kept_in_a_record():
     site = load_site("d")
     again = site_from_text(site.source_text)
     assert again.name == "arena_d"
-    assert again.links() == site.links()
+    assert again.edges() == site.edges()
     assert again.source_text == site.source_text

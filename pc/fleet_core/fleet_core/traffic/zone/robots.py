@@ -13,9 +13,9 @@ from .episodes import BlockedEpisode, Episode, WaitEpisode
 class Goal:
     kind: str
     id: int
-    links: int = 0
+    edges: int = 0
     end: str = ""
-    via: str = ""
+    mode: str = ""
 
 
 # ---- order 모델 주문 기록 ----
@@ -113,11 +113,11 @@ class Robot:
     # ---- 단계, 고장, 통신 상태 ----
     phase: str = IDLE
     health: Health = field(default_factory=Health)
-    # ---- 트립, goal, 재시도 기록 ----
+    # ---- route, goal, 재시도 기록 ----
     node: str = ""
     off_node: tuple | None = None
     dest: str | None = None
-    trip: object = None
+    route: object = None
     goal: Goal | None = None
     move_order: MoveOrder | None = None
     base_until: float = 0.0

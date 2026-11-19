@@ -11,7 +11,7 @@ SITE = load_fleet_map("d2")
 
 
 @pytest.mark.parametrize("plan", sorted(sp.PLANS))
-def test_every_plan_is_made_of_its_layout_links_and_ends_where_it_started(plan):
+def test_every_plan_is_made_of_its_layout_edges_and_ends_where_it_started(plan):
     steps = sp.build(load_fleet_map(sp.plan_layout(plan)), plan, laps=2)
     assert len(steps) == 2 * len(sp.PLANS[plan])
     assert steps[0].nodes[0] == sp.start_node(plan) == steps[-1].nodes[-1]
@@ -48,7 +48,7 @@ def test_a_retreat_path_keeps_its_bend_and_faces_the_way_the_robot_looks():
 
 
 @pytest.mark.parametrize("kind, nodes", [
-    (FOLLOW_PATH, ("W", "X_W")),     # a Retreat link, not a fixed path
+    (FOLLOW_PATH, ("W", "X_W")),     # a Retreat edge, not a fixed path
     (RETREAT, ("X_W", "W")),
     (NAV_GOAL, ("X_W", "X_E")),
     (NAV_GOAL, ("P-1", "nowhere")),
@@ -110,7 +110,7 @@ def test_corridor_plan_is_refused_on_another_layout():
         sp.build(SITE, "corridor")
 
 
-def test_the_corridor_link_and_the_robot_body_along_it_are_outside_the_keepout_mask():
+def test_the_corridor_edge_and_the_robot_body_along_it_are_outside_the_keepout_mask():
     """keepout 마스크가 가운데 통로를 막으면 재현이 안 된다.
     통로 안 keepout은 북쪽 끝 띠(y 0.75~)와,
     틈 keepout이 있는 지도에서는 남쪽 경계선뿐."""

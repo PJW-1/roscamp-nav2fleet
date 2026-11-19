@@ -91,7 +91,7 @@ class Calls:
                 self._redirect(m)
 
     def _robot_info(self, m, stopped: bool) -> RobotInfo:
-        node = m.trip.goal if m.trip is not None and m.phase == TO_PARK else m.node
+        node = m.route.goal if m.route is not None and m.phase == TO_PARK else m.node
         eligible = (self.available(m.name) and not m.hold and m.dispatch is None and not stopped
                     and not self._localizing(m)
                     and (not m.report.charge or (m.called and self._committed(m))))
@@ -124,7 +124,7 @@ class Calls:
     def _leg_of(self, station_id: str) -> str:
         return TO_WORK if self.site.stations[station_id].action == FILL else TO_OUTBOUND
 
-    # ---- 새 단계와 목적지로 바꾸고 트립 정리 ----
+    # ---- 새 단계와 목적지로 바꾸고 route 정리 ----
     def _head_for(self, m, phase: str, station_id) -> None:
         if (m.phase, m.dest) == (phase, station_id):
             return
@@ -137,13 +137,13 @@ class Calls:
         self._stop_wanting(m)
         goal = m.goal
         if goal is None:
-            self._drop_trip(m)
-        elif goal.kind == MOVE and self._via(m) == NAV_GOAL:
+            self._drop_route(m)
+        elif goal.kind == MOVE and self._mode(m) == NAV_GOAL:
             self._cancel_goal(m)
-            self._drop_trip(m)
-        elif m.trip is not None:
-            del m.trip.links[m.trip.granted:]
-            m.trip.stale = True
+            self._drop_route(m)
+        elif m.route is not None:
+            del m.route.edges[m.route.granted:]
+            m.route.stale = True
 
     def _metres_to_dock(self, m, station_id: str) -> float:
         return distance(self.site, m.node, self.site.stations[station_id].dock)

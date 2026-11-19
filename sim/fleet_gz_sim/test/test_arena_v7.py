@@ -119,17 +119,17 @@ def test_v7_rush_scenario_sends_twelve_orders_at_once_without_faults(site):
     assert scenario.expect.orders_shipped == 12
 
 
-def test_v7_obstacle_schedule_puts_small_boxes_on_nav_goal_links_only(site):
+def test_v7_obstacle_schedule_puts_small_boxes_on_nav_goal_edges_only(site):
     """고정 경로는 Gazebo에서 충돌 검사를 하지 않는다. 상자는 Nav2 goal 이음 위에만 놓는다.
     상자가 작아 로봇이 스스로 돌아갈 틈이 남는다
     (장애물이 생기면 회피가 보여야 한다)."""
     from fleet_core.fleet_map.model import NAV_GOAL
     from fleet_gz_sim.obstacles import load_schedule
     schedule = load_schedule(PKG / "obstacles" / "v7_yard_mix.yaml", site)
-    assert [one.link for one in schedule.obstacles] == [("E-3", "Q2"), ("O_OUT", "E-3"),
+    assert [one.edge for one in schedule.obstacles] == [("E-3", "Q2"), ("O_OUT", "E-3"),
                                                          ("O_IN", "E-1"), ("O_IN", "M_E")]
     for one in schedule.obstacles:
-        assert site.link(*one.link).via == NAV_GOAL
+        assert site.edge(*one.edge).mode == NAV_GOAL
         assert one.at_s >= 15, "sim_obstacles가 뜬 뒤"
     assert max(schedule.size_m[:2]) <= 0.08
     # 남쪽 통로의 상자 남쪽에 로봇 폭(0.112) + 양쪽 0.03의 틈이 남는다
@@ -523,8 +523,8 @@ def test_v7_corridor_box_keeps_one_box_in_the_middle_corridor_for_the_whole_run(
     mix = load_schedule(PKG / "obstacles" / "v7_yard_mix.yaml", site)
     schedule = load_schedule(PKG / "obstacles" / "v7_corridor_box.yaml", site)
     [box] = schedule.obstacles
-    assert box.link == ("O_IN", "M_E") and box.fraction == 0.4
-    assert site.link(*box.link).via == NAV_GOAL
+    assert box.edge == ("O_IN", "M_E") and box.fraction == 0.4
+    assert site.edge(*box.edge).mode == NAV_GOAL
     assert (box.x, box.y) == pytest.approx((0.952, 0.595))
     assert (box.x, box.y) == pytest.approx((mix.obstacles[3].x, mix.obstacles[3].y))
     assert schedule.size_m == mix.size_m

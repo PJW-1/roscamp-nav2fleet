@@ -1,4 +1,4 @@
-# ---- 지도 데이터 해석과 검사: 구역, 노드, 링크, 스테이션, 주차 ----
+# ---- 지도 데이터 해석과 검사: 구역, 노드, edge, 스테이션, 주차 ----
 from __future__ import annotations
 
 import math
@@ -21,8 +21,8 @@ from .model import (
     SWAP,
     WAIT,
     ZONE_KINDS,
+    Edge,
     FleetMapError,
-    Link,
     Node,
     Station,
     Zone,
@@ -171,11 +171,11 @@ def _line_problem(zones: dict[str, Zone], points) -> str:
     return ""
 
 
-# ---- 링크 하나 만들기 ----
-def _link(nodes, zones, a: str, b: str, via: str, path: str, crossed=None, bends=(),
-          extra_m: float = 0.0) -> Link:
+# ---- edge 하나 만들기 ----
+def _edge(nodes, zones, a: str, b: str, mode: str, path: str, crossed=None, bends=(),
+          extra_m: float = 0.0) -> Edge:
     points = ((nodes[a].x, nodes[a].y), *bends, (nodes[b].x, nodes[b].y))
-    if via != NAV_GOAL:
+    if mode != NAV_GOAL:
         problem = _line_problem(zones, points)
         if problem:
             raise FleetMapError(f"path {path}: the line from {a} to {b} {problem}")
@@ -186,7 +186,7 @@ def _link(nodes, zones, a: str, b: str, via: str, path: str, crossed=None, bends
         ordered.append(nodes[b].zone)
     lane = next((z for z in ordered if zones[z].kind == LANE), "")
     length = sum(math.dist(p, q) for p, q in pairwise(points))
-    return Link(a, b, via, path, points, tuple(ordered), length, lane, extra_m)
+    return Edge(a, b, mode, path, points, tuple(ordered), length, lane, extra_m)
 
 
 # ---- 경로 지점 읽기 ----
@@ -211,16 +211,16 @@ def _path_stops(entry, nodes, what: str) -> list[tuple[str, tuple]]:
     return stops
 
 
-# ---- 경로와 nav 그룹에서 링크 읽기 ----
-def read_links(paths: dict, nav: list, nodes: dict[str, Node], zones: dict[str, Zone]) -> dict:
-    links: dict[tuple[str, str], Link] = {}
+# ---- 경로와 nav 그룹에서 edge 읽기 ----
+def read_edges(paths: dict, nav: list, nodes: dict[str, Node], zones: dict[str, Zone]) -> dict:
+    edges: dict[tuple[str, str], Edge] = {}
 
-    def add(link: Link, what: str):
-        if link.a == link.b:
-            raise FleetMapError(f"{what}: link from {link.a} to itself")
-        if (link.a, link.b) in links:
-            raise FleetMapError(f"{what}: the link from {link.a} to {link.b} is written twice")
-        links[(link.a, link.b)] = link
+    def add(edge: Edge, what: str):
+        if edge.a == edge.b:
+            raise FleetMapError(f"{what}: link from {edge.a} to itself")
+        if (edge.a, edge.b) in edges:
+            raise FleetMapError(f"{what}: the link from {edge.a} to {edge.b} is written twice")
+        edges[(edge.a, edge.b)] = edge
 
     def known(name, what: str) -> str:
         if name not in nodes:
@@ -235,11 +235,11 @@ def read_links(paths: dict, nav: list, nodes: dict[str, Node], zones: dict[str, 
         reverse, two_way = bool(entry.get("reverse")), bool(entry.get("two_way"))
         if reverse and two_way:
             raise FleetMapError(f"{what}: a reverse path runs one way")
-        via = RETREAT if reverse else FOLLOW_PATH
+        mode = RETREAT if reverse else FOLLOW_PATH
         for (a, _), (b, bends) in pairwise(stops):
-            add(_link(nodes, zones, a, b, via, str(name), bends=bends), what)
+            add(_edge(nodes, zones, a, b, mode, str(name), bends=bends), what)
             if two_way:
-                add(_link(nodes, zones, b, a, via, str(name), bends=bends[::-1]), what)
+                add(_edge(nodes, zones, b, a, mode, str(name), bends=bends[::-1]), what)
 
     for index, group in enumerate(nav or ()):
         what = f"nav group {index + 1}"
@@ -259,14 +259,14 @@ def read_links(paths: dict, nav: list, nodes: dict[str, Node], zones: dict[str, 
                 if a == b:
                     continue
                 named = None if crossed is None else (crossed if a == members[0] else crossed[::-1])
-                link = _link(nodes, zones, a, b, NAV_GOAL, "", named, extra_m=extra)
-                for zone in link.zones:
+                edge = _edge(nodes, zones, a, b, NAV_GOAL, "", named, extra_m=extra)
+                for zone in edge.zones:
                     if zones[zone].kind != SHARED:
                         raise FleetMapError(
                             f"{what}: the line from {a} to {b} crosses {zone}, which is not "
                             "shared; write the zones it may use as `zones:`")
-                add(link, what)
-    return links
+                add(edge, what)
+    return edges
 
 
 # ---- nav 그룹의 덧붙는 길이와 도크에서 풀려 나가는 이음 ----
@@ -278,7 +278,7 @@ def _extra_m(group, what: str) -> float:
     return float(value)
 
 
-def _leave_dock(nodes, zones, members: list, what: str, extra: float) -> Link:
+def _leave_dock(nodes, zones, members: list, what: str, extra: float) -> Edge:
     if len(members) != 2:
         raise FleetMapError(f"{what}: leave_dock is for a pair of nodes, got {len(members)}")
     dock, out = (nodes[name] for name in members)
@@ -286,12 +286,12 @@ def _leave_dock(nodes, zones, members: list, what: str, extra: float) -> Link:
         raise FleetMapError(f"{what}: leave_dock starts at {dock.id}, which is not a dock")
     if zones[out.zone].kind != SHARED:
         raise FleetMapError(f"{what}: {out.id} is not in a shared zone")
-    link = _link(nodes, zones, dock.id, out.id, NAV_GOAL, "", extra_m=extra)
-    for zone in link.zones[1:]:
+    edge = _edge(nodes, zones, dock.id, out.id, NAV_GOAL, "", extra_m=extra)
+    for zone in edge.zones[1:]:
         if zones[zone].kind != SHARED:
             raise FleetMapError(f"{what}: the line from {dock.id} to {out.id} crosses {zone}, "
                                 "which is not shared")
-    return link
+    return edge
 
 
 # ---- nav 그룹의 지정 구역 검사 ----

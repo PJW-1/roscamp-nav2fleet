@@ -312,7 +312,7 @@ def test_a_robot_back_from_silence_halfway_resumes_from_the_node_it_passed():
     assert targets(world, "pode1") == [("follow_path", "W"), ("follow_path", "W")]
     resent = world.moves("pode1")[-1]
     assert resent.path[0][:2] == world.site.node_pose("X_W"), "it starts where it is"
-    assert len(resent.path) == 2, "only the link still ahead"
+    assert len(resent.path) == 2, "only the edge still ahead"
 
 
 def test_a_robot_back_from_silence_at_the_dock_docks_without_driving_again():

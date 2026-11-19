@@ -42,8 +42,8 @@ class Turns:
             yield spot, True
 
     def _price(self, m, spot: str, cost) -> float:
-        links = self._way(m, spot)
-        return math.inf if links is None else sum(cost(link) for link in links)
+        edges = self._way(m, spot)
+        return math.inf if edges is None else sum(cost(edge) for edge in edges)
 
     # ---- 줄(line) 스테이션: 빈 앞자리로 한 칸 당기기, 새 로봇은 맨 뒤 로봇 바로 뒤로 ----
     def _line_step(self, m, station):
@@ -77,12 +77,12 @@ class Turns:
 
     def _line_spot(self, r, station) -> int:
         """줄 순서(앞이 0). 한 칸 당기는 로봇은 가는 자리로, 줄에 안 선 로봇은 맨 뒤 다음."""
-        trip = r.trip
-        if trip is not None and not trip.stale:
+        route = r.route
+        if route is not None and not route.stale:
             # 받은 구간에서 앞으로 처음 닿는 대기 자리. 지나온 자리는 세지 않는다
-            # (order 모델은 트립 끝에 도크까지 붙인다)
-            spots = [link.b for link in trip.links[trip.done:trip.granted]
-                     if link.b in station.queue]
+            # (order 모델은 route 끝에 도크까지 붙인다)
+            spots = [edge.b for edge in route.edges[route.done:route.granted]
+                     if edge.b in station.queue]
             if spots:
                 return station.queue.index(spots[0])
         if r.node in station.queue:
@@ -114,8 +114,8 @@ class Turns:
             return self._line_spot(r, station) if station.line else 0
 
         def rank(r) -> tuple:
-            trip = r.trip
-            left = trip is not None and trip.turn and not trip.stale and trip.goal == dock
+            route = r.route
+            left = route is not None and route.turn and not route.stale and route.goal == dock
             return (not (left or r.dock_tries), spot(r), r.asked_at or 0.0, r.asked_gap, r.name)
 
         def first(other) -> bool:
@@ -133,24 +133,24 @@ class Turns:
 
     def _blocks(self, a, b, station) -> bool:
         """a가 b의 남은 길 위 줄 자리를 쥐었다."""
-        trip = b.trip
-        if trip is None or trip.stale:
+        route = b.route
+        if route is None or route.stale:
             return False
         return any(spot in station.queue and self.grants.node_holder(spot) == a.name
-                   for spot in trip.route())
+                   for spot in route.nodes_left())
 
     def _waits_for(self, other, m) -> bool:
         return (other.goal is None and m.goal is None and self._on_node(m)
                 and m.node in other.watch.wait.key and self.grants.node_holder(m.node) == m.name)
 
     # ---- 도크 차례 가져가기와 도크 빈 여부 확인 ----
-    def _take_turn(self, m, trip) -> None:
-        if m.phase not in (TO_WORK, TO_OUTBOUND) or trip.goal != self.site.stations[m.dest].dock:
+    def _take_turn(self, m, route) -> None:
+        if m.phase not in (TO_WORK, TO_OUTBOUND) or route.goal != self.site.stations[m.dest].dock:
             return
         for other in self._ahead(m, m.dest):
             self._event("INFO", "DOCK_TURN_TAKEN",
                         f"goes before {other.name}, which waits for {m.node}", m.name)
-        trip.turn = True
+        route.turn = True
 
     def _dock_free(self, m, dock: str) -> bool:
         zone = self.site.nodes[dock].zone

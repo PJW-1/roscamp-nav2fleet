@@ -15,10 +15,10 @@ from .checks import (
     shelf_end_warnings,
 )
 from .geometry import inside, point_rect_distance
-from .model import WAITING_KINDS, FleetMapError, Link
+from .model import WAITING_KINDS, Edge, FleetMapError
 from .parse import (
+    read_edges,
     read_keepout_extra,
-    read_links,
     read_nodes,
     read_parking,
     read_rect,
@@ -38,7 +38,7 @@ TURN_RADIUS_M = 0.10
 _log = logging.getLogger(__name__)
 
 
-# ---- FleetMap 생성: 구역, 노드, 링크, 스테이션 읽기와 검사 ----
+# ---- FleetMap 생성: 구역, 노드, edge, 스테이션 읽기와 검사 ----
 class FleetMap:
     def __init__(self, data: dict, source_text: str = ""):
         self.source_text = source_text
@@ -49,10 +49,10 @@ class FleetMap:
         self.keepout_extra = read_keepout_extra(data.get("keepout_extra"), self._bounds)
         self.zones = read_zones(data.get("zones"), self._bounds)
         self.nodes = read_nodes(data.get("nodes"), self.zones)
-        self._links = read_links(data.get("paths"), data.get("nav"), self.nodes, self.zones)
-        self._all_links = tuple(self._links.values())
-        self._from: dict[str, tuple[Link, ...]] = {
-            node: tuple(link for (a, _), link in self._links.items() if a == node)
+        self._edges = read_edges(data.get("paths"), data.get("nav"), self.nodes, self.zones)
+        self._all_edges = tuple(self._edges.values())
+        self._from: dict[str, tuple[Edge, ...]] = {
+            node: tuple(edge for (a, _), edge in self._edges.items() if a == node)
             for node in self.nodes}
         self.stations = read_stations(data.get("stations"), self.nodes)
         self.parking = read_parking(data.get("parking"), self.nodes)
@@ -66,14 +66,14 @@ class FleetMap:
         for warning in self.warnings:
             _log.warning("fleet map %s: %s", self.name, warning)
 
-    # ---- 링크와 노드 조회 ----
-    def link(self, a: str, b: str) -> Link | None:
-        return self._links.get((a, b))
+    # ---- edge와 노드 조회 ----
+    def edge(self, a: str, b: str) -> Edge | None:
+        return self._edges.get((a, b))
 
-    def links(self) -> tuple[Link, ...]:
-        return self._all_links
+    def edges(self) -> tuple[Edge, ...]:
+        return self._all_edges
 
-    def links_from(self, node: str) -> tuple[Link, ...]:
+    def edges_from(self, node: str) -> tuple[Edge, ...]:
         return self._from[node]
 
     def can_wait(self, node: str) -> bool:

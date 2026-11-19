@@ -113,7 +113,7 @@ def test_a_goal_to_where_the_robot_already_stands_is_not_watched():
     world = Harness(speed=0.0)
     world.step()
     m = world.traffic._robots["pode2"]
-    m.goal = Goal(MOVE, 99, end="P-2", via=NAV_GOAL)
+    m.goal = Goal(MOVE, 99, end="P-2", mode=NAV_GOAL)
     world.run(LIMIT + 0.5)
     assert count(world, "NO_START") == 0
 

@@ -11,7 +11,7 @@ from fleet_core.fleet_map import (
     FleetMapError,
     distance,
     load_fleet_map,
-    route,
+    shortest_path,
 )
 
 # 가로 2 m, 세로 1 m. 북쪽 띠가 도크(서) - 갈림목 - 급행 - 갈림목 - 도크(동), 나머지는 마당이다.
@@ -102,30 +102,30 @@ def test_only_docks_wait_spots_and_parking_are_places_to_wait():
     assert waiting == {"W", "O", "W_Q", "O_Q", "P-1", "P-2"}
 
 
-def test_a_fixed_path_becomes_one_follow_link_per_stretch():
+def test_a_fixed_path_becomes_one_follow_edge_per_stretch():
     site = build()
-    first, second = site.link("N_W", "X_W"), site.link("X_W", "W")
-    assert (first.via, first.path, first.zones) == ("follow_path", "work_in", ("HALL", "J_W"))
-    assert (second.via, second.zones) == ("follow_path", ("J_W", "DOCK_W"))
+    first, second = site.edge("N_W", "X_W"), site.edge("X_W", "W")
+    assert (first.mode, first.path, first.zones) == ("follow_path", "work_in", ("HALL", "J_W"))
+    assert (second.mode, second.zones) == ("follow_path", ("J_W", "DOCK_W"))
     assert first.points == ((0.4, 0.6), (0.4, 0.9))
     assert first.length == pytest.approx(0.3)
-    assert site.link("W", "N_W") is None
+    assert site.edge("W", "N_W") is None
 
 
 def test_a_reverse_path_is_driven_as_a_retreat():
     site = build()
-    out = site.link("W", "X_W")
-    assert (out.via, out.path, out.zones) == ("retreat", "work_out", ("DOCK_W", "J_W"))
+    out = site.edge("W", "X_W")
+    assert (out.mode, out.path, out.zones) == ("retreat", "work_out", ("DOCK_W", "J_W"))
 
 
 def test_a_path_may_bend_at_a_point_that_is_not_a_node():
     paths = edited("paths", "work_out", points=["W", [0.4, 0.9], "N_W"])
     site = build(paths=paths)
-    out = site.link("W", "N_W")
-    assert (out.via, out.zones) == ("retreat", ("DOCK_W", "J_W", "HALL"))
+    out = site.edge("W", "N_W")
+    assert (out.mode, out.zones) == ("retreat", ("DOCK_W", "J_W", "HALL"))
     assert out.points == ((0.2, 0.9), (0.4, 0.9), (0.4, 0.6))
     assert out.length == pytest.approx(0.5)
-    assert site.link("W", "X_W") is None
+    assert site.edge("W", "X_W") is None
 
 
 def test_a_bend_is_a_pair_of_numbers_between_two_nodes():
@@ -206,45 +206,45 @@ def test_the_shelf_end_check_warns_with_the_arc_closer_to_the_shelf():
     from fleet_core.fleet_map.checks import corner_arc, shelf_end_warnings
     from fleet_core.fleet_map.geometry import point_rect_distance
 
-    class Link:
-        via, path, a, b = "follow_path", "probe", "A", "C"
+    class Edge:
+        mode, path, a, b = "follow_path", "probe", "A", "C"
         points = ((0.18, 0.89), (0.35, 0.89), (0.35, 0.65))
 
     class Site:
         nodes = {}
         shelves = ((0.20, 0.775, 0.30, 0.79),)
 
-        def links(self):
-            return [Link]
+        def edges(self):
+            return [Edge]
 
-        def links_from(self, _node):
+        def edges_from(self, _node):
             return []
 
     shelf = Site.shelves[0]
-    halved = min(point_rect_distance(shelf, *p) for p in corner_arc(*Link.points, 0.10))
+    halved = min(point_rect_distance(shelf, *p) for p in corner_arc(*Edge.points, 0.10))
     whole = min(point_rect_distance(shelf, *p)
-                for p in corner_arc(*Link.points, 0.10, shares=(1.0, 1.0)))
+                for p in corner_arc(*Edge.points, 0.10, shares=(1.0, 1.0)))
     assert whole < halved
     clear = (whole + halved) / 2
     warnings = [w for w in shelf_end_warnings(Site(), clear, turn_radius=0.10) if "corner" in w]
     assert len(warnings) == 1 and f"{whole:.3f} m" in warnings[0]
 
 
-def test_a_two_way_path_gives_a_link_each_way_and_names_the_lane_it_crosses():
+def test_a_two_way_path_gives_an_edge_each_way_and_names_the_lane_it_crosses():
     site = build()
-    east, west = site.link("X_W", "X_E"), site.link("X_E", "X_W")
+    east, west = site.edge("X_W", "X_E"), site.edge("X_E", "X_W")
     assert east.zones == ("J_W", "EXPRESS", "J_E") and west.zones == ("J_E", "EXPRESS", "J_W")
     assert east.lane == west.lane == "EXPRESS"
-    assert site.link("N_W", "X_W").lane == ""
+    assert site.edge("N_W", "X_W").lane == ""
 
 
 def test_nodes_of_one_nav_group_reach_each_other_by_nav_goal():
     site = build()
-    hop = site.link("P-1", "O_Q")
-    assert (hop.via, hop.path, hop.zones) == ("nav_goal", "", ("HALL",))
+    hop = site.edge("P-1", "O_Q")
+    assert (hop.mode, hop.path, hop.zones) == ("nav_goal", "", ("HALL",))
     assert hop.length == pytest.approx(math.hypot(1.6, 0.35))
-    assert site.link("O_Q", "P-1").via == "nav_goal"
-    assert {link.b for link in site.links_from("N_W")} == {"X_W", "N_E", "W_Q", "O_Q", "P-1", "P-2"}
+    assert site.edge("O_Q", "P-1").mode == "nav_goal"
+    assert {edge.b for edge in site.edges_from("N_W")} == {"X_W", "N_E", "W_Q", "O_Q", "P-1", "P-2"}
 
 
 def test_a_nav_group_may_name_the_zones_it_crosses():
@@ -256,9 +256,9 @@ def test_a_nav_group_may_name_the_zones_it_crosses():
     nav = [{"nodes": ["N_W", "W_Q", "P-1"]}, {"nodes": ["N_E", "O_Q", "P-2"]},
            {"nodes": ["N_W", "N_E"], "zones": ["HALL", "GAP", "HALL_E"]}]
     site = build(zones=zones, nav=nav)
-    assert site.link("N_W", "N_E").zones == ("HALL", "GAP", "HALL_E")
-    assert site.link("N_E", "N_W").zones == ("HALL_E", "GAP", "HALL")
-    assert site.link("W_Q", "O_Q") is None
+    assert site.edge("N_W", "N_E").zones == ("HALL", "GAP", "HALL_E")
+    assert site.edge("N_E", "N_W").zones == ("HALL_E", "GAP", "HALL")
+    assert site.edge("W_Q", "O_Q") is None
 
 
 LEAVE_W = {"nodes": ["W", "N_W"], "leave_dock": True}
@@ -268,27 +268,27 @@ def test_a_robot_may_leave_its_dock_by_nav_goal_one_way():
     """도크에서 마당으로 Nav2 goal로 풀려 나간다. 들어오는 쪽은 그대로 고정
     경로다: 도크 자리는 정확히 서야 한다."""
     site = build(nav=[*SMALL["nav"], LEAVE_W])
-    out = site.link("W", "N_W")
-    assert (out.via, out.path, out.zones) == ("nav_goal", "", ("DOCK_W", "HALL"))
+    out = site.edge("W", "N_W")
+    assert (out.mode, out.path, out.zones) == ("nav_goal", "", ("DOCK_W", "HALL"))
     assert out.length == pytest.approx(math.hypot(0.2, 0.3)) and out.extra_m == 0.0
-    assert site.link("N_W", "W") is None
-    assert route(site, "W", "O")[0].via == "retreat", "the shorter way still wins"
+    assert site.edge("N_W", "W") is None
+    assert shortest_path(site, "W", "O")[0].mode == "retreat", "the shorter way still wins"
 
 
-def test_a_nav_group_may_add_length_to_the_price_of_its_links():
+def test_a_nav_group_may_add_length_to_the_price_of_its_edges():
     """extra_m: 길 고르기에서 그 이음을 이만큼 더 길게 친다(ETA의 길이는 그대로)."""
     site = build(nav=[*SMALL["nav"], {**LEAVE_W, "extra_m": 0.3}])
-    out = site.link("W", "N_W")
+    out = site.edge("W", "N_W")
     assert out.extra_m == 0.3 and out.price_m == pytest.approx(out.length + 0.3)
-    assert site.link("N_W", "N_E").price_m == site.link("N_W", "N_E").length
+    assert site.edge("N_W", "N_E").price_m == site.edge("N_W", "N_E").length
 
-    def no_express(link):
-        return math.inf if link.lane else link.price_m
+    def no_express(edge):
+        return math.inf if edge.lane else edge.price_m
     # 급행 없이: 도크에서 바로 마당으로(0.36 + 1.2 + 0.5)가 X_W로 물러났다 내려가는 길
     # (0.2 + 0.3 + 1.2 + 0.5)보다 짧지만, 0.3을 더하면 뒤집힌다
-    assert route(site, "W", "O", no_express)[0].b == "X_W"
+    assert shortest_path(site, "W", "O", no_express)[0].b == "X_W"
     plain = build(nav=[*SMALL["nav"], LEAVE_W])
-    assert route(plain, "W", "O", no_express)[0].b == "N_W"
+    assert shortest_path(plain, "W", "O", no_express)[0].b == "N_W"
 
 
 def test_stations_keep_the_fields_orders_and_arms_read():
@@ -348,33 +348,33 @@ def test_node_pose_gives_the_point():
 # ---- 길 -------------------------------------------------------------------------------------
 
 
-def test_route_is_the_shortest_chain_of_links():
+def test_route_is_the_shortest_chain_of_edges():
     site = build()
-    way = route(site, "P-1", "W")
-    assert [link.b for link in way] == ["N_W", "X_W", "W"]
-    assert [link.via for link in way] == ["nav_goal", "follow_path", "follow_path"]
+    way = shortest_path(site, "P-1", "W")
+    assert [edge.b for edge in way] == ["N_W", "X_W", "W"]
+    assert [edge.mode for edge in way] == ["nav_goal", "follow_path", "follow_path"]
 
 
 def test_route_takes_the_express_from_dock_to_dock():
-    way = route(build(), "W", "O")
-    assert [(link.via, link.b) for link in way] == [
+    way = shortest_path(build(), "W", "O")
+    assert [(edge.mode, edge.b) for edge in way] == [
         ("retreat", "X_W"), ("follow_path", "X_E"), ("follow_path", "O")]
 
 
 def test_route_follows_the_cost_it_is_given():
     site = build()
 
-    def no_express(link):
-        return math.inf if link.lane else link.length
+    def no_express(edge):
+        return math.inf if edge.lane else edge.length
 
-    way = route(site, "W", "O", cost=no_express)
-    assert [link.b for link in way] == ["X_W", "N_W", "N_E", "X_E", "O"]
+    way = shortest_path(site, "W", "O", cost=no_express)
+    assert [edge.b for edge in way] == ["X_W", "N_W", "N_E", "X_E", "O"]
 
 
 def test_route_to_the_same_node_is_empty_and_an_unreachable_one_is_none():
     site = build()
-    assert route(site, "W", "W") == []
-    assert route(site, "W", "O", cost=lambda link: math.inf) is None
+    assert shortest_path(site, "W", "W") == []
+    assert shortest_path(site, "W", "O", cost=lambda edge: math.inf) is None
 
 
 def test_distance_is_the_shortest_real_length_not_the_price():
@@ -382,7 +382,7 @@ def test_distance_is_the_shortest_real_length_not_the_price():
     data["nav"].append({"nodes": ["W", "N_W"], "leave_dock": True, "extra_m": 0.3})
     site = FleetMap(data)
     assert distance(site, "W", "N_E") == pytest.approx(math.hypot(0.2, 0.3) + 1.2)
-    assert [link.b for link in route(site, "W", "N_E")][0] == "X_W"
+    assert [edge.b for edge in shortest_path(site, "W", "N_E")][0] == "X_W"
     assert distance(site, "W", "W") == 0.0
 
 
@@ -443,7 +443,7 @@ def test_a_queue_spot_may_wait_in_a_lane_if_it_leads_only_to_its_dock():
     spot = site.nodes["O_X"]
     assert (spot.kind, spot.zone) == ("wait", "EXPRESS") and site.can_wait("O_X")
     assert site.stations["OUTBOUND"].queue == ("O_Q", "O_X")
-    assert [link.b for link in site.links_from("O_X")] == ["O"]
+    assert [edge.b for edge in site.edges_from("O_X")] == ["O"]
 
 
 def test_waiting_outside_shared_zones_is_still_refused_otherwise():
@@ -468,7 +468,7 @@ def test_a_fixed_path_needs_known_nodes_and_room_beside_the_shelves():
     refused("shelf", nodes=nodes)
 
 
-def test_a_link_is_written_once():
+def test_an_edge_is_written_once():
     paths = copy.deepcopy(SMALL["paths"])
     paths["again"] = {"points": ["X_W", "N_W"]}
     refused("twice", paths=paths)
@@ -529,7 +529,7 @@ def test_d2_matches_the_instruction():
     assert site.shelves == ((0.50, 0.775, 1.48, 0.79),)
     assert site.node_pose("W") == (0.18, 0.89) and site.node_pose("O") == (1.80, 0.89)
     assert site.zones["HALL"].capacity == 3
-    assert [link.b for link in route(site, "W", "O")] == ["N_W", "X_W", "X_E", "O"]
+    assert [edge.b for edge in shortest_path(site, "W", "O")] == ["N_W", "X_W", "X_E", "O"]
     # 곧은 선은 진열대 끝에서 0.15 m다. 급행과 갈림목 사이의 호(반지름 0.10)는 0.115 m까지 다가간다.
     # 갈림목 선을 더 옮기면 도크 W, O와 너무 가까워지므로 남겨 둔 경고다(팀이 정한 거리)
     assert len(site.warnings) == 4

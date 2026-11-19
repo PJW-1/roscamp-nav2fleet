@@ -5,7 +5,7 @@ from fleet_core.fleet_map import RETREAT
 from fleet_core.traffic.mission import MOVE
 
 from .robots import ORDER, Goal
-from .trips import left_s
+from .routes import left_s
 
 REJECTED = "ORDER_UPDATE_REJECTED"
 SUPERSEDED = "SUPERSEDED"
@@ -27,7 +27,7 @@ class OrderAnswers:
         if m.goal.id != goal_id:
             return
         mo.before = None
-        self._order_progress(m, last_done_seq, m.goal.links)
+        self._order_progress(m, last_done_seq, m.goal.edges)
         mo.waiting = bool(waiting_at_base_end)
         if mo.waiting and not mo.waited:
             mo.waited = True
@@ -37,10 +37,10 @@ class OrderAnswers:
             mo.warned = True
             self._event("WARN", "HORIZON_INVALID", horizon_warning, m.name)
 
-    # ---- 끝낸 seq까지 트립 진행 반영 ----
-    def _order_progress(self, m, seq: int, links: int) -> None:
-        trip, mo = m.trip, m.move_order
-        last = max((number for number, _, end in mo.cuts if end <= links), default=0)
+    # ---- 끝낸 seq까지 route 진행 반영 ----
+    def _order_progress(self, m, seq: int, edges: int) -> None:
+        route, mo = m.route, m.move_order
+        last = max((number for number, _, end in mo.cuts if end <= edges), default=0)
         if seq > last:
             if not mo.overrun:
                 mo.overrun = True
@@ -49,13 +49,13 @@ class OrderAnswers:
             return
         for number, first, end in mo.cuts:
             if mo.done_seq < number <= seq:
-                via = trip.links[first].via
-                trip.done = max(trip.done, end)
-                m.node = trip.links[end - 1].b
+                mode = route.edges[first].mode
+                route.done = max(route.done, end)
+                m.node = route.edges[end - 1].b
                 m.avoid.behind_since = None
-                self._event("INFO", "SEGMENT_DONE", f"{mo.id} seq {number} ({via}) to {m.node}",
+                self._event("INFO", "SEGMENT_DONE", f"{mo.id} seq {number} ({mode}) to {m.node}",
                             m.name)
-                if via == RETREAT:
+                if mode == RETREAT:
                     m.avoid.retreat_to = ""
                     self._event("INFO", "RETREAT_DONE", f"stands at {m.node}", m.name)
         mo.done_seq = max(mo.done_seq, seq)
@@ -69,7 +69,7 @@ class OrderAnswers:
         if reason == SUPERSEDED:
             return True
         mo.before = None
-        self._order_progress(m, last_done_seq, m.goal.links)
+        self._order_progress(m, last_done_seq, m.goal.edges)
         return False
 
     def _old_goal_result(self, m, goal_id: int, reason: str) -> bool:
@@ -109,20 +109,20 @@ class OrderAnswers:
         mo.broken = True
 
     def _restore(self, m) -> None:
-        mo, trip = m.move_order, m.trip
-        goal_id, links, waiting = mo.before
-        self._set_goal(m, Goal(MOVE, goal_id, links, trip.links[links - 1].b, ORDER),
+        mo, route = m.move_order, m.route
+        goal_id, edges, waiting = mo.before
+        self._set_goal(m, Goal(MOVE, goal_id, edges, route.edges[edges - 1].b, ORDER),
                        reset_watch=False)
-        trip.sent = links
+        route.sent = edges
         mo.before = None
         mo.waiting = waiting
         mo.waited = mo.waited or waiting
 
     # ---- 통신 끊김 때 base 끝까지 갈 시간 잡기 ----
     def _hold_base(self, m, now: float) -> str:
-        trip = m.trip
-        if m.move_order is None or trip is None or m.goal is None:
+        route = m.route
+        if m.move_order is None or route is None or m.goal is None:
             return ""
-        left = left_s(self.params, trip.links[trip.done:trip.granted], m.x, m.y)
+        left = left_s(self.params, route.edges[route.done:route.granted], m.x, m.y)
         m.base_until = now + left + max(0.0, self.params.comm_base_hold_extra_s)
         return f", drives on to {m.goal.end} (about {left:.0f} s)"

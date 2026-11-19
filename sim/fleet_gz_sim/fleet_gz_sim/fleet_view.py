@@ -100,12 +100,12 @@ def map_specs(site) -> list[Spec]:
         specs.append(Spec("zone_labels", len(specs), "TEXT", (cx, cy, 0.03, 0.0),
                           (0.0, 0.0, 0.04), _faded(LABEL, 0.6), text=zone.id))
     seen, points = set(), []
-    for link in site.links():
-        key = frozenset((link.a, link.b))
-        if link.via not in (FOLLOW_PATH, RETREAT) or key in seen:
+    for edge in site.edges():
+        key = frozenset((edge.a, edge.b))
+        if edge.mode not in (FOLLOW_PATH, RETREAT) or key in seen:
             continue
         seen.add(key)
-        for p, q in zip(link.points, link.points[1:], strict=False):
+        for p, q in zip(edge.points, edge.points[1:], strict=False):
             points += [tuple(p), tuple(q)]
     specs.append(Spec("paths", 0, "LINE_LIST", (0.0, 0.0, 0.005, 0.0), (0.008, 0.0, 0.0),
                       _faded(GRAY, 0.9), tuple(points)))
@@ -176,32 +176,32 @@ def _gap(points, x: float, y: float) -> float:
 
 
 def fixed_ends(site, x: float, y: float) -> set:
-    return {link.b for link in site.links()
-            if link.via in (FOLLOW_PATH, RETREAT) and _gap(link.points, x, y) <= ON_PATH_M}
+    return {edge.b for edge in site.edges()
+            if edge.mode in (FOLLOW_PATH, RETREAT) and _gap(edge.points, x, y) <= ON_PATH_M}
 
 
-def _passed(site, base, links, goal: str, arriving) -> bool:
-    node, out = links[0].a, links[0]
+def _passed(site, base, edges, goal: str, arriving) -> bool:
+    node, out = edges[0].a, edges[0]
     return (len(base) != 1 and site.nodes[node].through and node != goal
-            and node not in arriving and out.via == NAV_GOAL and len(out.zones) == 1
+            and node not in arriving and out.mode == NAV_GOAL and len(out.zones) == 1
             and site.zones[out.zones[0]].kind == SHARED)
 
 
 def stops(site, base, horizon, goal: str = "", arriving=()) -> tuple[list, list]:
     route = [*base, *horizon]
-    links = [site.link(a, b) for a, b in zip(route, route[1:], strict=False)]
+    edges = [site.edge(a, b) for a, b in zip(route, route[1:], strict=False)]
     gone = set()
-    if links and links[0] is not None and _passed(site, base, links, goal, arriving):
+    if edges and edges[0] is not None and _passed(site, base, edges, goal, arriving):
         gone.add(0)
     split = len(base) - 1
     i = 0
-    while i < len(links):
-        limit = split if i < split else len(links)
+    while i < len(edges):
+        limit = split if i < split else len(edges)
         end = i + 1
-        if links[i] is not None and links[i].via == NAV_GOAL:
+        if edges[i] is not None and edges[i].mode == NAV_GOAL:
             known = next((j for j in range(i, limit)
-                          if links[j] is None or (j > i and links[j].a == goal)), limit)
-            end = segment_end(site, links, i, known)
+                          if edges[j] is None or (j > i and edges[j].a == goal)), limit)
+            end = segment_end(site, edges, i, known)
         gone.update(range(i + 1, end))
         i = end
     return ([n for j, n in enumerate(base) if j not in gone],

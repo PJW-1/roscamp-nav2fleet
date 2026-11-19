@@ -8,7 +8,7 @@ from .fleet_map import (
     fleet_map_from_text,
     load_fleet_map,
 )
-from .graph import distance, route
+from .graph import distance, shortest_path
 from .model import (
     AT_DOCK,
     DOCK,
@@ -23,8 +23,8 @@ from .model import (
     SHARED,
     SWAP,
     WAIT,
+    Edge,
     FleetMapError,
-    Link,
     Node,
     Station,
     Zone,
@@ -33,6 +33,6 @@ from .model import (
 __all__ = [
     "AT_DOCK", "DEFAULT_LAYOUT", "DOCK", "FILL", "FOLLOW_PATH", "FORK", "KNOWN_LAYOUTS", "LANE",
     "LAYOUTS", "NAV_GOAL", "PARKING", "PASS", "RETREAT", "SHARED", "SWAP", "TEST_LAYOUTS", "WAIT",
-    "FleetMap", "FleetMapError", "Link", "Node", "Station", "Zone", "fleet_map_from_text",
-    "distance", "load_fleet_map", "route",
+    "Edge", "FleetMap", "FleetMapError", "Node", "Station", "Zone", "fleet_map_from_text",
+    "distance", "load_fleet_map", "shortest_path",
 ]

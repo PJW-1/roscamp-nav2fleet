@@ -80,7 +80,7 @@ def nav_yaw(site, start: str, end: str, points=None) -> float:
         node = site.nodes[end]
         if node.yaw is not None:
             return node.yaw
-        fixed = [link for link in site.links_from(end) if link.via == FOLLOW_PATH]
+        fixed = [edge for edge in site.edges_from(end) if edge.mode == FOLLOW_PATH]
         if fixed:
             return _heading(*fixed[0].points[:2])
     return _heading(_xy(site, start, points), _xy(site, end, points))
@@ -95,7 +95,7 @@ def path_poses(site, nodes, reverse: bool = False) -> tuple[tuple[float, float, 
     로봇이 보는 방향(달리는 방향의 반대)이다."""
     xy = [site.node_pose(nodes[0])]
     for a, b in zip(nodes, nodes[1:], strict=False):
-        xy += site.link(a, b).points[1:]
+        xy += site.edge(a, b).points[1:]
     out = []
     for i, p in enumerate(xy):
         yaw = _heading(p, xy[i + 1]) if i + 1 < len(xy) else _heading(xy[i - 1], p)
@@ -114,8 +114,8 @@ def make_step(site, kind: str, nodes, points=None) -> Step:
         x, y = _xy(site, nodes[1], points)
         return Step(kind, nodes, ((x, y, nav_yaw(site, *nodes, points)),))
     for a, b in zip(nodes, nodes[1:], strict=False):
-        link = site.link(a, b)
-        if link is None or link.via != kind:
+        edge = site.edge(a, b)
+        if edge is None or edge.mode != kind:
             raise PlanError(f"{a}->{b} is not a {kind} link of {site.name}")
     if kind == NAV_GOAL:
         if len(nodes) != 2:

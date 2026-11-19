@@ -27,5 +27,5 @@ class GoalLife:
         m.move_order = None
         m.arrival_by = None
         m.settle_until = self._clock() + self.params.arrival_settle_s
-        if m.trip is not None:
-            m.trip.sent = m.trip.done
+        if m.route is not None:
+            m.route.sent = m.route.done

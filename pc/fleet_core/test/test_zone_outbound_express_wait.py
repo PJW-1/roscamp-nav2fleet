@@ -117,7 +117,7 @@ def test_a_second_robot_from_work_takes_the_hall_while_o_x_is_held_and_nobody_lo
 
 def test_without_the_order_model_a_free_outbound_is_reached_in_one_follow_goal():
     """order 모델이 꺼져 있으면(Gazebo v7 경기) 대기 노드마다 조각을 끊는다(Q2, Q1). 급행 안의 대기
-    자리 O_X는 예외다: 도크로 가는 트립이면 O_X에서 끊지 않고 OUT_DOCK까지 한 번에 잡아 한 goal로
+    자리 O_X는 예외다: 도크로 가는 route면 O_X에서 끊지 않고 OUT_DOCK까지 한 번에 잡아 한 goal로
     간다(O_X 전과 같다). O_X에서 끊으면 경기마다 출고로 갈 때 O_X에서 섰다 다시 떠난다."""
     world = Harness(layout="v7", starts={"pode1": "W", "pode2": "P-2", "pode3": "P-3"},
                     params=OFF)
@@ -132,8 +132,8 @@ def test_without_the_order_model_a_free_outbound_is_reached_in_one_follow_goal()
 
 
 def test_with_the_order_model_a_robot_drives_through_o_x_when_outbound_frees_in_time():
-    """order 모델(쇼): O_X로 가는 트립 끝에 도크가 horizon으로 붙는다. 도착 전에 출고가 비면 O_X에서
-    서지 않고 그대로 들어간다."""
+    """order 모델(쇼): O_X로 가는 route 끝에 도크가 horizon으로 붙는다. 도착 전에 출고가 비면
+    O_X에서 서지 않고 그대로 들어간다."""
     params = replace(load_params(), use_order_model=True)
     world, call = outbound_busy({"pode1": "W", "pode2": "P-2", "pode3": "O"}, params=params)
     assert world.run_until(lambda: world.bots["pode1"].run is not None, 10.0)

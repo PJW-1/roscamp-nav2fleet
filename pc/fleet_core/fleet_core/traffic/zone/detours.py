@@ -7,10 +7,10 @@ KEEPOUT, CORRIDOR, DESTINATION, IN_ZONE = "keepout", "corridor", "destination", 
 
 
 # ---- 이전 경로와 새 경로 비교해 우회 종류 판정 ----
-def detour_kind(site, old_goal: str, old_zones, trip) -> str:
-    if trip.goal != old_goal:
+def detour_kind(site, old_goal: str, old_zones, route) -> str:
+    if route.goal != old_goal:
         return DESTINATION
-    new = {zone for link in trip.links if link.a or link.via != RETREAT for zone in link.zones}
+    new = {zone for edge in route.edges if edge.a or edge.mode != RETREAT for zone in edge.zones}
     old = set(old_zones)
 
     def of(zones, test):
@@ -36,14 +36,14 @@ class DetourNotes:
         self.emit = emit
 
     def remember(self, m) -> None:
-        trip = m.trip
-        m.avoid.detour = (trip.goal, frozenset(z for link in trip.links[trip.done:]
-                                               for z in link.zones))
+        route = m.route
+        m.avoid.detour = (route.goal, frozenset(z for edge in route.edges[route.done:]
+                                               for z in edge.zones))
 
-    def note(self, m, trip) -> None:
+    def note(self, m, route) -> None:
         if m.avoid.detour is None:
             return
         goal, zones = m.avoid.detour
         m.avoid.detour = None
-        self.emit("INFO", "DETOUR", f"{detour_kind(self.site, goal, zones, trip)}: "
-                  f"{'->'.join(trip.route())}", m.name)
+        self.emit("INFO", "DETOUR", f"{detour_kind(self.site, goal, zones, route)}: "
+                  f"{'->'.join(route.nodes_left())}", m.name)

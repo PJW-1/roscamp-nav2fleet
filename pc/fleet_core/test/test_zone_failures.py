@@ -282,28 +282,28 @@ def test_a_failed_docking_backs_out_and_comes_in_again_before_the_next_try():
 
 
 def way_out(world, robot="pode2"):
-    """The link a robot at its dock backs out on."""
+    """The edge a robot at its dock backs out on."""
     site = world.traffic.site
     dock = site.stations[world.traffic._robots[robot].dest].dock
-    return next(link for link in site.links_from(dock) if link.via == RETREAT)
+    return next(edge for edge in site.edges_from(dock) if edge.mode == RETREAT)
 
 
 def way_round(world, robot="pode2"):
-    """Every link of the way out of the dock and back in."""
+    """Every edge of the way out of the dock and back in."""
     from fleet_core.traffic.zone.redock import way_in
     out = way_out(world, robot)
     return [out, *way_in(world.traffic.site, out.b, out.a)]
 
 
 @pytest.mark.parametrize("index", [0, 1, 2])
-def test_a_reapproach_over_a_link_marked_blocked_docks_where_it_stands(index):
+def test_a_reapproach_over_an_edge_marked_blocked_docks_where_it_stands(index):
     """The way out and back is picked by hand, so it has to respect the block marks itself."""
     world, _ = at_the_dock()
     assert world.run_until(lambda: "GOAL_RETRY" in world.codes("pode2"), 30.0)
-    links = way_round(world)
-    assert len(links) == 3, "D2: back out to the yard point, then two links in"
-    link = links[index]
-    world.traffic._blocked[(link.a, link.b)] = world.traffic._clock() + 100.0
+    edges = way_round(world)
+    assert len(edges) == 3, "D2: back out to the yard point, then two edges in"
+    edge = edges[index]
+    world.traffic._blocked[(edge.a, edge.b)] = world.traffic._clock() + 100.0
     assert world.run_until(lambda: docks(world) == 2, 30.0)
     assert not retreats(world)
     assert "DOCK_REAPPROACH" not in world.codes("pode2")
@@ -317,11 +317,11 @@ def test_a_mark_that_has_run_out_does_not_stop_the_reapproach():
     traffic = world.traffic
     m = traffic._robots["pode2"]
     assert m.watch.redock.key, "the re-approach is still to come"
-    links = way_round(world)
-    for link in links:
-        traffic._blocked[(link.a, link.b)] = traffic._clock() - 1.0
+    edges = way_round(world)
+    for edge in edges:
+        traffic._blocked[(edge.a, edge.b)] = traffic._clock() - 1.0
     assert traffic._reapproach(m) and not m.watch.redock.key
-    assert m.trip is not None and m.trip.links == links
+    assert m.route is not None and m.route.edges == edges
 
 
 def test_a_reapproach_whose_way_is_taken_waits_and_goes_when_it_is_free():
@@ -352,13 +352,13 @@ def test_a_robot_waiting_to_reapproach_is_no_part_of_a_wait_cycle():
     """A cycle would send it to a parking spot with the re-approach still pending."""
     world, _ = at_the_dock()
     assert world.run_until(lambda: "GOAL_RETRY" in world.codes("pode2"), 30.0)
-    traffic, link = world.traffic, way_out(world)
-    assert traffic.grants.take("ghost", (), (link.b,))
+    traffic, edge = world.traffic, way_out(world)
+    assert traffic.grants.take("ghost", (), (edge.b,))
     world.run(world.params.move_retry_wait_s + 0.2)
     assert "pode2" in traffic._wants
-    traffic.grants.release_node("ghost", link.b)
-    assert traffic.grants.take("pode1", (), (link.b,))  # pode1 holds the way out
-    dock_zone = world.site.nodes[link.a].zone  # and waits for the dock zone pode2 holds
+    traffic.grants.release_node("ghost", edge.b)
+    assert traffic.grants.take("pode1", (), (edge.b,))  # pode1 holds the way out
+    dock_zone = world.site.nodes[edge.a].zone  # and waits for the dock zone pode2 holds
     traffic._wants["pode1"] = Want((dock_zone,), (), {}, world.now, {})
     traffic._watch_deadlock(world.now)
     assert traffic._deadlock.cycle == ()
@@ -384,7 +384,7 @@ def test_a_reapproaching_robot_keeps_its_dock_turn():
 
 
 def test_a_robot_that_docked_and_failed_stays_first_for_that_dock():
-    """Also when its way back in was not granted and the trip was dropped."""
+    """Also when its way back in was not granted and the route was dropped."""
     world, _ = at_the_dock()
     world.call("WORK", "pode3")
     assert world.run_until(lambda: "RETREAT_DONE" in world.codes("pode2"), 60.0)
@@ -392,7 +392,7 @@ def test_a_robot_that_docked_and_failed_stays_first_for_that_dock():
     m, other = traffic._robots["pode2"], traffic._robots["pode3"]
     assert other.dest == m.dest
     other.asked_at = (m.asked_at or 0.0) - 1.0  # the other one asked first
-    m.trip = None
+    m.route = None
     assert not traffic._ahead(m, m.dest)
     assert m in traffic._ahead(other, other.dest)
 

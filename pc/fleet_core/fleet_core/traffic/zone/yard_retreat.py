@@ -10,12 +10,12 @@ from fleet_core.traffic.mission import BLOCKED
 
 
 # ---- PASS 노드에서 SHARED 구역 쪽 물러날 지점 찾기 ----
-def yard_retreat(site, link) -> tuple[str, str]:
-    a = link.a
+def yard_retreat(site, edge) -> tuple[str, str]:
+    a = edge.a
     if not a or site.nodes[a].kind != PASS:
         return a, ""
-    for down in site.links():
-        if (down.a == a and down.via == FOLLOW_PATH and down.b != link.b
+    for down in site.edges():
+        if (down.a == a and down.mode == FOLLOW_PATH and down.b != edge.b
                 and site.zones[site.nodes[down.b].zone].kind == SHARED):
             return down.b, a
     return a, ""
@@ -34,15 +34,15 @@ class YardRetreat:
         m.retry_at = now + self.params.move_retry_wait_s
         return True
 
-    def _set_retreat(self, m, link, now: float) -> None:
-        m.avoid.retreat_to, m.avoid.retreat_via = yard_retreat(self.site, link)
+    def _set_retreat(self, m, edge, now: float) -> None:
+        m.avoid.retreat_to, m.avoid.retreat_via = yard_retreat(self.site, edge)
         m.avoid.retreat_since = now
 
     # ---- 꺾인 물러나기 길 뒤에 있는 로봇 확인 ----
     def _behind_on_the_bent_way(self, m, target: str, via: str) -> str:
         site = self.site
         here, corner, end = (m.x, m.y), site.node_pose(via), site.node_pose(target)
-        down = site.link(via, target)
+        down = site.edge(via, target)
         way_pts = (here, corner, *(down.points[1:-1] if down is not None else ()), end)
         return self._behind_along(m, way_pts)
 
@@ -81,9 +81,9 @@ class YardRetreat:
 
     # ---- 다른 로봇에게 길 양보 ----
     def _yield_to_robot(self, m, other, now: float) -> bool:
-        link = m.trip.links[m.trip.done]
+        edge = m.route.edges[m.route.done]
         zone = self.site.zone_at(m.x, m.y)
-        in_lane = link.a and zone is not None and self.site.zones[zone].kind != SHARED
+        in_lane = edge.a and zone is not None and self.site.zones[zone].kind != SHARED
         sent_off = (not in_lane and other.available and other.goal is None
                     and self._in_yard(other)
                     and self._to_parking(other, "INFO", "HALL_YIELD",
@@ -94,8 +94,8 @@ class YardRetreat:
         m.avoid.robot_yield_at = now
         if in_lane:
             self._cancel_goal(m)
-            self._set_retreat(m, link, now)
-            self._drop_trip(m)
+            self._set_retreat(m, edge, now)
+            self._drop_route(m)
             self._event("INFO", "HALL_YIELD", f"backs out to {m.avoid.retreat_to} for "
                         f"{other.name}, nothing marked", m.name)
             return True

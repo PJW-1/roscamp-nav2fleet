@@ -43,13 +43,13 @@ class ZoneViews:
         m = self._robots.get(robot)
         if m is None:
             return {}
-        route, granted = self._route_left(m)
+        nodes, granted = self._route_left(m)
         return {
             "state": m.state, "phase": m.phase, "on_map": m.placed, "fault": m.health.fault,
             "comm": m.health.comm, "called": m.called, "charging": m.report.charge,
             "held": list(self.grants.held_by(robot)), "nodes": list(self.grants.nodes_of(robot)),
             "node": m.node, "waypoint": m.node, "target": m.goal.end if m.goal else "",
-            "route": route, "path": route, "base": route[:granted], "horizon": route[granted:],
+            "route": nodes, "path": nodes, "base": nodes[:granted], "horizon": nodes[granted:],
             "destination": m.dest, "goal_id": m.goal.id if m.goal else None,
             "attempts": m.attempts, "blocked_lane": None, "x": m.x, "y": m.y,
         }
@@ -57,16 +57,16 @@ class ZoneViews:
     # ---- 남은 경로 계산과 상태 보기 ----
     @staticmethod
     def _route_left(m) -> tuple[list[str], int]:
-        trip = m.trip
-        if trip is None:
+        route = m.route
+        if route is None:
             return [], 0
-        return trip.route(), trip.granted - trip.done
+        return route.nodes_left(), route.granted - route.done
 
     def status_view(self, robot) -> dict:
         m = self._robots.get(robot)
         if m is None:
             return {}
-        route, granted = self._route_left(m)
+        nodes, granted = self._route_left(m)
         want = self._wants.get(robot)
         blockers = (self.grants.blockers(robot, want.zones, want.nodes, want.lanes)
                     if want is not None else {})
@@ -77,6 +77,6 @@ class ZoneViews:
             "wait_zone": m.watch.wait.key[0] if m.watch.wait.key else "",
             "wait_robots": tuple(sorted({name for group in blockers.values() for name in group})),
             "battery": m.report.battery, "x": m.x, "y": m.y, "yaw": m.yaw,
-            "base": tuple(route[:granted]), "horizon": tuple(route[granted:]),
+            "base": tuple(nodes[:granted]), "horizon": tuple(nodes[granted:]),
             "priority": m.sent_priority,
         }

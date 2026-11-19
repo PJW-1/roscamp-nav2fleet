@@ -1,4 +1,4 @@
-"""작업대로 불린 로봇이 대기 자리가 없어 주차하러 가는 길(standby 트립).
+"""작업대로 불린 로봇이 대기 자리가 없어 주차하러 가는 길(standby route).
 - 가는 동안 대기 자리가 비면 주차 칸에 들어가지 않고 그 자리로 간다
   (2026-11-15 Gazebo: 12건 가운데 9번, 자리가 빈 뒤에도 합계 81초를 주차하러 더 갔다).
   고정 경로 위에서는 그 구간 끝에서, 마당 goal로 가는 중이면 goal을 취소하고 돌린다.
@@ -13,7 +13,7 @@ from dataclasses import replace
 import pytest
 from fleet_core.common.commands import CancelCmd, MoveCmd, MoveOrderCmd, RetreatCmd
 from fleet_core.common.params import load_params
-from fleet_core.traffic.zone.trips import left_s
+from fleet_core.traffic.zone.routes import left_s
 from zone_harness import Harness
 
 ORDER_MODEL = pytest.mark.parametrize("order_model", [False, True])
@@ -45,12 +45,12 @@ def test_a_spot_that_frees_on_the_way_to_parking_turns_the_robot_to_the_line(ord
     assert world.run_until(lambda: world.bots["pode3"].x >= 1.3, 60.0)
     world.traffic.on_release("pode1")
     world.step()
-    trip = world.traffic._robots["pode1"].trip
-    assert trip.goal in world.site.parking and trip.standby, "no spot yet: heads for a bay"
+    route = world.traffic._robots["pode1"].route
+    assert route.goal in world.site.parking and route.standby, "no spot yet: heads for a bay"
     assert world.run_until(lambda: world.view("pode1")["node"] == "Q2", 120.0), world.log[-30:]
     assert world.sent(CancelCmd, "pode1"), "the yard goal to the bay is canceled"
-    trip = world.traffic._robots["pode1"].trip
-    assert trip is None or not trip.standby
+    route = world.traffic._robots["pode1"].route
+    assert route is None or not route.standby
     assert not world.problems
 
 
@@ -84,8 +84,8 @@ def released_on_the_way_out(order_model, delay_s=1.6, **changes):
     world.traffic.on_release("pode1")
     world.step()
     m = world.traffic._robots["pode1"]
-    assert m.trip.standby and m.trip.goal in world.site.parking, "no spot yet: heads for a bay"
-    assert m.trip.links[0].b == "O_OUT" and m.trip.links[0].via == "follow_path"
+    assert m.route.standby and m.route.goal in world.site.parking, "no spot yet: heads for a bay"
+    assert m.route.edges[0].b == "O_OUT" and m.route.edges[0].mode == "follow_path"
     return world, m
 
 
@@ -110,7 +110,7 @@ def test_a_spot_that_frees_on_the_fixed_path_turns_the_order_before_its_end(dela
     assert [s.end_node for s in first[0].base] == ["O_OUT"], "the base stops at the fixed path end"
     assert world.run_until(lambda: "STANDBY_LEFT" in world.codes("pode1"), 10.0)
     bot = world.bots["pode1"]
-    assert m.trip.done == 0 and (bot.x, bot.y) != world.site.node_pose("O_OUT"), \
+    assert m.route.done == 0 and (bot.x, bot.y) != world.site.node_pose("O_OUT"), \
         "it turns while still on the fixed path"
     assert world.run_until(lambda: world.view("pode1")["node"] == "Q2", 120.0), world.log[-30:]
     orders = pode1_orders(world, since)
@@ -147,8 +147,8 @@ def left_when_the_bay_is_stitched(standby_lookahead_s) -> float:
     world.silent.add("pode3")  # 자리가 비지 않는다
     since = len(world.commands)
     assert world.run_until(lambda: len(pode1_orders(world, since)) == 1, 10.0)
-    bot, link = world.bots["pode1"], m.trip.links[0]
-    return left_s(world.params, [link], bot.x, bot.y)
+    bot, edge = world.bots["pode1"], m.route.edges[0]
+    return left_s(world.params, [edge], bot.x, bot.y)
 
 
 @pytest.mark.parametrize("standby_lookahead_s", [0.5, 1.5])
@@ -173,7 +173,7 @@ def test_a_spot_freed_while_the_bay_update_is_unanswered_waits_for_the_answer(mo
     world.hold_answers = True  # 로봇의 답과 피드백이 관제에 닿지 않는다
     assert world.run_until(lambda: world.bots["pode1"].run.done_seq >= 1, 10.0)
     world.inputs.on_move_feedback("pode1", old, 1, False)  # 옛 goal의 피드백만 먼저 닿았다
-    assert m.trip.done == 1 and m.move_order.before is not None
+    assert m.route.done == 1 and m.move_order.before is not None
     closed[0] = False
     world.run(0.5)
     assert not world.sent(CancelCmd, "pode1"), "nothing is canceled while the update is unanswered"
@@ -205,7 +205,7 @@ def test_a_spot_whose_zones_cannot_be_taken_does_not_turn_the_order(monkeypatch)
         if world.view("pode1")["node"] in world.site.parking:
             break
         world.step()
-        if m.trip is not None and m.trip.done == 0:
+        if m.route is not None and m.route.done == 0:
             assert {"OUT_DOCK", "HALL"} <= set(grants.held_by("pode1"))
             tried = tried or grants.node_holder("Q2") == ""
     assert world.view("pode1")["node"] in world.site.parking
@@ -238,7 +238,7 @@ def test_a_free_spot_it_cannot_be_granted_leaves_no_waiting_record(monkeypatch):
     world.traffic.on_release("pode1")
     world.step()
     grants, m = world.traffic.grants, world.traffic._robots["pode1"]
-    assert m.trip.standby and m.goal is not None
+    assert m.route.standby and m.goal is not None
     real = grants.take
 
     def take(robot, zones=(), nodes=(), lanes=None):
@@ -272,6 +272,6 @@ def test_a_robot_that_gives_way_to_a_bay_is_not_turned_back():
     m = world.traffic._robots["pode1"]
     assert m.phase == "TO_WORK" and m.goal is None and m.node == "Q2"
     assert world.traffic._evade(m)
-    assert not m.trip.standby
+    assert not m.route.standby
     assert world.run_until(lambda: world.view("pode1")["node"] in world.site.parking, 120.0)
     assert backed_into_a_bay(world, "pode1")

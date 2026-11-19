@@ -36,11 +36,11 @@ def filled(rects, width: int, height: int, resolution: float, origin) -> list[li
 # ---- 도크를 Nav2 goal로 떠나는 곧은 선 둘레의 열린 상자 ----
 def dock_openings(site, pad: float = BODY_HALF_WIDTH_M) -> list[tuple[str, tuple]]:
     opened = []
-    for link in site.links():
-        zone = site.zones[site.nodes[link.a].zone]
-        if link.via != NAV_GOAL or zone.kind == SHARED:
+    for edge in site.edges():
+        zone = site.zones[site.nodes[edge.a].zone]
+        if edge.mode != NAV_GOAL or zone.kind == SHARED:
             continue
-        start, end = link.points[0], link.points[-1]
+        start, end = edge.points[0], edge.points[-1]
         grown = [(x0 - pad, y0 - pad, x1 + pad, y1 + pad) for x0, y0, x1, y1 in zone.rects]
         rect = next((r for r in grown if inside(r, *start)), None)
         if rect is None:

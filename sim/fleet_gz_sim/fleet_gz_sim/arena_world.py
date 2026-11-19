@@ -36,14 +36,14 @@ def _box_xml(box) -> str:
 def path_segments(site) -> list[tuple[tuple[float, float], tuple[float, float], str]]:
     """고정 경로(FollowPath, Retreat) 연결의 선분. 방향을 빼고 한 번씩, (a, b, 이름)."""
     seen, out = set(), []
-    for link in site.links():
-        key = frozenset((link.a, link.b))
-        if link.via not in (FOLLOW_PATH, RETREAT) or key in seen:
+    for edge in site.edges():
+        key = frozenset((edge.a, edge.b))
+        if edge.mode not in (FOLLOW_PATH, RETREAT) or key in seen:
             continue
         seen.add(key)
-        pieces = list(zip(link.points, link.points[1:], strict=False))
+        pieces = list(zip(edge.points, edge.points[1:], strict=False))
         for index, (p, q) in enumerate(pieces):  # 꺾는 점이 있으면 조각마다 이름이 다르다
-            name = f"{link.a}-{link.b}" if len(pieces) == 1 else f"{link.a}-{link.b}-{index + 1}"
+            name = f"{edge.a}-{edge.b}" if len(pieces) == 1 else f"{edge.a}-{edge.b}-{index + 1}"
             out.append((tuple(p), tuple(q), name))
     return out
 

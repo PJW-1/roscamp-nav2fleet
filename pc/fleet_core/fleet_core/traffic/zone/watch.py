@@ -15,7 +15,7 @@ from fleet_core.traffic.mission import (
     STALLED,
 )
 
-from .trips import Trip
+from .routes import Route
 
 
 # ---- goal 중 움직임이 없으면 멈춤 처리 ----
@@ -65,7 +65,7 @@ class Watch:
         zone = self.site.zone_at(m.x, m.y)
         if zone is None or self.site.zones[zone].kind != SHARED:
             return
-        if m.goal is not None and self._via(m) != NAV_GOAL:
+        if m.goal is not None and self._mode(m) != NAV_GOAL:
             return
         if self.grants.force(m.name, [zone], []):
             if m.goal is None:
@@ -80,7 +80,7 @@ class Watch:
         # LOCALIZING 로봇의 자세는 묵은 값이라 뺀다
         def roams(m) -> bool:
             return (m.available and m.goal is not None and m.goal.kind == MOVE
-                    and self._via(m) == NAV_GOAL and not self._localizing(m))
+                    and self._mode(m) == NAV_GOAL and not self._localizing(m))
 
         moving = [m for m in self._robots.values() if roams(m)]
         seen = set()
@@ -132,12 +132,12 @@ class Watch:
                 if self.grants.node_holder(spot) in ("", m.name)
                 and (clear_of is None or self._gap(m, spot) < self._gap(clear_of, spot))]
         for spot in sorted(free, key=lambda spot: (self._gap(m, spot), spot)):
-            links = self._way(m, spot)
-            if not links:
+            edges = self._way(m, spot)
+            if not edges:
                 continue
-            trip = Trip(spot, links)
-            if self._take(m, trip) is None:
-                m.trip = trip
+            route = Route(spot, edges)
+            if self._take(m, route) is None:
+                m.route = route
                 self._event(level, code, f"{why} {spot}", m.name)
                 self._send(m)
                 return True

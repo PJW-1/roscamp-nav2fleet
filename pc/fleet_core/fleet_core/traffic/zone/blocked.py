@@ -17,7 +17,7 @@ from fleet_core.traffic.mission import (
 
 from .base import HERE
 from .block_marks import keys_at
-from .trips import segment_end
+from .routes import segment_end
 from .yard_retreat import yard_retreat
 
 
@@ -50,7 +50,7 @@ class Blocked:
                          f"to {m.goal.end}", m.name)
         # ---- 기다린 시간에 따라 양보, 막힘 표시, 실패 결정 ----
         waited = now - ep.since
-        backing = self._via(m) == RETREAT
+        backing = self._mode(m) == RETREAT
         if not backing and waited >= p.blocked_mark_s:
             behind = self._behind_on_the_way_back(m)
             point = self._obstacle_point(m) if not behind else None
@@ -113,14 +113,14 @@ class Blocked:
     # ---- 되돌아갈 길 뒤에 있는 로봇 확인 ----
     def _behind_on_the_way_back(self, m) -> str:
         site = self.site
-        link = m.trip.links[m.trip.done]
+        edge = m.route.edges[m.route.done]
         zone = site.zone_at(m.x, m.y)
-        if not link.a or zone is None or site.zones[zone].kind == SHARED:
+        if not edge.a or zone is None or site.zones[zone].kind == SHARED:
             return ""
-        target, via = yard_retreat(site, link)
+        target, via = yard_retreat(site, edge)
         if via:
             return self._behind_on_the_bent_way(m, target, via)
-        return self._behind_along(m, ((m.x, m.y), site.node_pose(link.a)))
+        return self._behind_along(m, ((m.x, m.y), site.node_pose(edge.a)))
 
     # ---- 장애물 위치와 그 자리의 로봇 찾기 ----
     def _obstacle_point(self, m) -> tuple | None:
@@ -134,13 +134,13 @@ class Blocked:
                 and math.dist(point, (other.x, other.y)) <= self.params.near_m]
         return min(near, key=lambda o: (math.dist(point, (o.x, o.y)), o.name), default=None)
 
-    # ---- 장애물 점으로 막을 링크 키 모으기 ----
-    def _point_keys(self, m, point, link) -> list:
+    # ---- 장애물 점으로 막을 edge 키 모으기 ----
+    def _point_keys(self, m, point, edge) -> list:
         keys = keys_at(self.site, self.params, point)
         if not keys:
             return keys
-        if not link.a:
-            keys.append((HERE + m.name, link.b))
+        if not edge.a:
+            keys.append((HERE + m.name, edge.b))
         zone = self.site.zone_at(m.x, m.y)
         if zone is not None and self.site.zones[zone].kind == SHARED:
             reach = self.params.footprint_radius_m + self.params.release_margin_m
@@ -170,19 +170,19 @@ class Blocked:
             self.params.blocked_retry_s)
 
     # ---- 막힘 표시와 다른 길로 다시 가기 ----
-    def _link_on(self, m):
-        trip = m.trip
-        first = trip.done
-        if trip.links[first].via != NAV_GOAL:
-            return trip.links[first]
-        end = segment_end(self.site, trip.links, first, max(m.goal.links, first + 1))
-        return min(trip.links[first:end], key=lambda link: point_segment_distance(
-            (m.x, m.y), link.points[0], link.points[-1]))
+    def _edge_on(self, m):
+        route = m.route
+        first = route.done
+        if route.edges[first].mode != NAV_GOAL:
+            return route.edges[first]
+        end = segment_end(self.site, route.edges, first, max(m.goal.edges, first + 1))
+        return min(route.edges[first:end], key=lambda edge: point_segment_distance(
+            (m.x, m.y), edge.points[0], edge.points[-1]))
 
     def _mark_blocked(self, m, now: float, point=None) -> None:
         p, site = self.params, self.site
-        link = self._link_on(m)
-        keys = self._point_keys(m, point, link) if point is not None else []
+        edge = self._edge_on(m)
+        keys = self._point_keys(m, point, edge) if point is not None else []
         zone = site.zone_at(m.x, m.y)
         if keys:
             mark = self._mark_point(m, point, keys, now)
@@ -194,28 +194,28 @@ class Blocked:
 
             def hold(key):
                 self._blocked[key] = until
-            if link.a:
-                hold((link.a, link.b))
-                if site.link(link.b, link.a) is not None:
-                    hold((link.b, link.a))
+            if edge.a:
+                hold((edge.a, edge.b))
+                if site.edge(edge.b, edge.a) is not None:
+                    hold((edge.b, edge.a))
             else:
-                hold((HERE + m.name, link.b))
+                hold((HERE + m.name, edge.b))
             self._event("WARN", "ZONE_MARKED_BLOCKED",
-                        f"{link.a or 'here'}->{link.b} in {zone}, tried again in "
+                        f"{edge.a or 'here'}->{edge.b} in {zone}, tried again in "
                         f"{p.blocked_retry_s:.0f} s{self._gaps_note(m)}", m.name)
         if keys:
             self._detours.remember(m)
         self._cancel_goal(m)
         m.watch.blocked.since = None
-        if link.a and zone is not None and site.zones[zone].kind != SHARED:
-            self._set_retreat(m, link, now)
+        if edge.a and zone is not None and site.zones[zone].kind != SHARED:
+            self._set_retreat(m, edge, now)
             self._event("INFO", "REROUTE", f"backs out to {m.avoid.retreat_to}, then another way",
                         m.name)
         else:
-            self._event("INFO", "REROUTE", f"another way to {m.trip.goal}", m.name)
-            if not self._make_way(m, link.b):
-                hold((HERE + m.name, link.b))
-        self._drop_trip(m)
+            self._event("INFO", "REROUTE", f"another way to {m.route.goal}", m.name)
+            if not self._make_way(m, edge.b):
+                hold((HERE + m.name, edge.b))
+        self._drop_route(m)
 
     # ---- 길을 막고 선 로봇 주차 지점으로 보내기 ----
     def _make_way(self, m, node: str) -> bool:

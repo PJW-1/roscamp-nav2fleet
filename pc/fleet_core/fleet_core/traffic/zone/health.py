@@ -33,7 +33,7 @@ class Health:
                             f"keeps {list(self.grants.held_by(m.name))}"
                             f"{self._hold_base(m, now)}", m.name)
 
-    # ---- 통신 복구 뒤 위치 확인과 트립 재개 ----
+    # ---- 통신 복구 뒤 위치 확인과 route 재개 ----
     def _begin_recovery(self, m) -> None:
         m.health.comm = RECOVERING
         m.health.recover_at = self._clock() + self.params.recover_check_s
@@ -52,15 +52,15 @@ class Health:
     def _resume(self, m) -> None:
         m.health.comm = ""
         self._reset_stall(m)
-        trip = m.trip
-        if trip is None:
+        route = m.route
+        if route is None:
             return
         tolerance = self.params.arrival_tolerance_m
-        for index in range(trip.granted - 1, trip.done - 1, -1):
-            if self._link_reached(m, trip.links[index], tolerance):
-                trip.done, m.node = index + 1, trip.links[index].b
+        for index in range(route.granted - 1, route.done - 1, -1):
+            if self._edge_reached(m, route.edges[index], tolerance):
+                route.done, m.node = index + 1, route.edges[index].b
                 break
-        trip.sent = trip.done
+        route.sent = route.done
 
     # ---- confirm_clear 입력 검사와 거부 판단 ----
     def confirm_clear(self, robot, zone_ids, note="") -> list[str] | None:
@@ -92,7 +92,7 @@ class Health:
         self._stop_wanting(m)
         if m.goal:
             self._cancel_goal(m)
-        m.trip = None
+        m.route = None
         m.clear_n.clear()
         m.health.fault, m.health.fault_reason, m.health.comm = OUT_OF_SERVICE, note, ""
         m.called = m.hold = False

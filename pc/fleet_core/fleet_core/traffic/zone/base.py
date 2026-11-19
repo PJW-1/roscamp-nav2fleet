@@ -19,8 +19,8 @@ from .lane_policy import LanePolicy
 from .localization import PoseJumpWatch
 from .nostart import StartWatch
 from .robots import ORDER, Robot
+from .routes import along
 from .silent import SilentWatch
-from .trips import along
 from .views import ZoneViews
 
 HERE = "@"
@@ -99,9 +99,9 @@ class ZoneBase:
     def _gap(self, m, node: str) -> float:
         return math.dist((m.x, m.y), self.site.node_pose(node))
 
-    def _link_reached(self, m, link, limit: float) -> bool:
-        gap = self._gap(m, link.b)
-        return gap <= limit and (2 * along(link, m.x, m.y) > link.length or gap <= limit / 2)
+    def _edge_reached(self, m, edge, limit: float) -> bool:
+        gap = self._gap(m, edge.b)
+        return gap <= limit and (2 * along(edge, m.x, m.y) > edge.length or gap <= limit / 2)
 
     def _on_node(self, m) -> bool:
         if not m.node or self.grants.node_holder(m.node) not in ("", m.name):
@@ -149,13 +149,13 @@ class ZoneBase:
         return zone is not None and self.site.zones[zone].kind == SHARED
 
     # ---- 현재 주행 방식과 우선순위 ----
-    def _via(self, m) -> str:
-        goal, trip = m.goal, m.trip
+    def _mode(self, m) -> str:
+        goal, route = m.goal, m.route
         if goal is None:
             return ""
-        if goal.via != ORDER or trip is None or trip.done >= len(trip.links):
-            return goal.via
-        return trip.links[trip.done].via
+        if goal.mode != ORDER or route is None or route.done >= len(route.edges):
+            return goal.mode
+        return route.edges[route.done].mode
 
     def _priority(self, m) -> int:
         return priority(self.params, m.phase == AT_STATION, m.dispatch is not None)
@@ -164,9 +164,9 @@ class ZoneBase:
         m.sent_priority = self._priority(m)
         return m.sent_priority
 
-    # ---- 트립과 대기 정리 ----
-    def _drop_trip(self, m) -> None:
-        m.trip = None
+    # ---- route와 대기 정리 ----
+    def _drop_route(self, m) -> None:
+        m.route = None
 
     def _stop_wanting(self, m) -> None:
         self._wants.pop(m.name, None)

@@ -18,10 +18,10 @@ from zone_harness import Harness
 
 def test_a_junction_retreat_goes_down_to_the_yard_node():
     site = Harness().traffic.site
-    assert yard_retreat(site, site.link("X_W", "X_E")) == ("N_W", "X_W")
-    assert yard_retreat(site, site.link("X_E", "X_W")) == ("N_E", "X_E")
-    assert yard_retreat(site, site.link("N_W", "X_W")) == ("N_W", ""), "not from a yard node"
-    assert yard_retreat(site, site.link("X_W", "N_W")) == ("X_W", ""), "already going down"
+    assert yard_retreat(site, site.edge("X_W", "X_E")) == ("N_W", "X_W")
+    assert yard_retreat(site, site.edge("X_E", "X_W")) == ("N_E", "X_E")
+    assert yard_retreat(site, site.edge("N_W", "X_W")) == ("N_W", ""), "not from a yard node"
+    assert yard_retreat(site, site.edge("X_W", "N_W")) == ("X_W", ""), "already going down"
 
 
 def blocked_toward_work(docked: bool, **kw):
@@ -107,9 +107,9 @@ def test_it_backs_out_to_the_yard_even_with_no_way_on_from_there():
     world, call = blocked_toward_work(docked=False, params=params)
     t = world.traffic
     assert world.run_until(lambda: "BLOCKED_WAIT" in world.codes("pode1"), 200.0)
-    for link in t.site.links():  # 다른 길도 모두 막혔다
-        if {link.a, link.b} != {"X_E", "X_W"}:
-            t._blocked[(link.a, link.b)] = 1e9
+    for edge in t.site.edges():  # 다른 길도 모두 막혔다
+        if {edge.a, edge.b} != {"X_E", "X_W"}:
+            t._blocked[(edge.a, edge.b)] = 1e9
     assert world.run_until(lambda: world.retreats("pode1"), 60.0)
     assert back_path(world)[-1] == tuple(t.site.node_pose("N_E"))
     assert world.run_until(lambda: "RETREAT_DONE" in world.codes("pode1"), 60.0)
@@ -124,14 +124,14 @@ def test_it_backs_out_to_the_yard_even_with_no_way_on_from_there():
 @pytest.mark.parametrize("order", [False, True], ids=["order_off", "order_on"])
 def test_the_junction_is_kept_until_the_robot_says_it_has_backed_down(order):
     """2026-11-16: order면 마당 지점까지의 물러나기 뒤에 다음 조각이 같은 goal에 붙는다. 보고가 N_E
-    0.03 m 안에 들었다고 진행이 물러나기 링크를 넘기면 N_E 좌표로 재어 갈림목 J_E를 일찍 놓는다.
+    0.03 m 안에 들었다고 진행이 물러나기 edge를 넘기면 N_E 좌표로 재어 갈림목 J_E를 일찍 놓는다.
     물러나기는 끝냈다는 답 전에는 보고 위치로 잰다."""
     params = replace(load_params(), use_order_model=order)
     world, call = blocked_toward_work(docked=False, params=params)
     assert world.run_until(lambda: world.retreats("pode1"), 200.0)
     if order:
         base = world.sent(MoveOrderCmd, "pode1")[-1].base
-        assert base[0].mode == "retreat" and len(base) > 1, "the retreat is not the last link"
+        assert base[0].mode == "retreat" and len(base) > 1, "the retreat is not the last edge"
     bot, n_e = world.bots["pode1"], world.site.node_pose("N_E")
     assert world.run_until(lambda: math.dist((bot.x, bot.y), n_e) < 0.028, 60.0)
     world._move = lambda b: None  # N_E 앞에서 멈추고 답하지 않는다
@@ -164,7 +164,7 @@ def test_the_retreat_follows_the_bends_of_the_way_down():
     m = world.traffic._robots["pode1"]
     m.x, m.y = 1.80, 0.88  # 급행 들머리에서 막혔다
     m.avoid.retreat_to, m.avoid.retreat_via = "N_E", "W_X"
-    back = world.traffic._back_link(m)
+    back = world.traffic._back_edge(m)
     assert back.points[1:] == ((1.88, 0.80), (1.70, 0.70), world.site.node_pose("N_E"))
     gap = min(point_segment_distance((1.78, 0.63), a, b)
               for a, b in zip(back.points, back.points[1:], strict=False))

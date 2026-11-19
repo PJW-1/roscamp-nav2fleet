@@ -74,7 +74,7 @@ def test_a_robot_carried_into_the_yard_takes_the_yard_and_gives_the_dock_back():
 
 @pytest.mark.parametrize("order", [False, True], ids=["order_off", "order_on"])
 def test_a_purpose_changed_during_a_fixed_stretch_switches_at_the_next_node(order):
-    """order 모델: 넓은 구역에 닿은 뒤 목적이 바뀐 트립은 nav_goal 조각이 아니어도 바로 멈춘다.
+    """order 모델: 넓은 구역에 닿은 뒤 목적이 바뀐 route는 nav_goal 조각이 아니어도 바로 멈춘다.
     전에는 고속로(follow_path) 조각을 끝까지 달린 뒤에야 돌아왔다."""
     world = Harness(starts={"pode1": "W", "pode2": "P-2", "pode3": "P-3"},
                     params=replace(OFF, use_order_model=order))
@@ -271,7 +271,7 @@ def test_a_robot_isolated_inside_the_junction_keeps_the_junction():
     world.run(2.0)
     held = world.view("pode1")["held"]
     assert "J_W" in held, "it stands there"
-    assert "J_E" not in held and "OUT_DOCK" not in held, "the far end of the trip goes back"
+    assert "J_E" not in held and "OUT_DOCK" not in held, "the far end of the route goes back"
     assert set(held) <= {"WORK_DOCK", "J_W", "HALL"}, "at most what it stands next to"
 
 

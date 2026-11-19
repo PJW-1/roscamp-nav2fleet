@@ -1,9 +1,9 @@
 """한 줄 구역의 방향: 먼저 닿는 쪽, 직전 방향의 히스테리시스, 오래 기다린 쪽에 넘기기."""
 from fleet_core.common.params import load_params
-from fleet_core.fleet_map import load_fleet_map, route
+from fleet_core.fleet_map import load_fleet_map, shortest_path
 from fleet_core.traffic.zone.controller import ZoneTraffic
 from fleet_core.traffic.zone.lane_policy import LanePolicy, Want
-from fleet_core.traffic.zone.trips import Trip
+from fleet_core.traffic.zone.routes import Route
 
 LANE = "EXPRESS"
 P = load_params()
@@ -59,10 +59,10 @@ def test_a_side_that_waited_long_gets_the_lane_before_a_newcomer():
 
 def across(site, robot_at, *nodes):
     """nodes를 차례로 지나는 길. 시험이 급행을 지나는 길을 손으로 고른다."""
-    links = []
+    edges = []
     for a, b in zip((robot_at, *nodes), nodes, strict=False):
-        links += route(site, a, b)
-    return links
+        edges += shortest_path(site, a, b)
+    return edges
 
 
 def traffic_with_two():
@@ -71,8 +71,8 @@ def traffic_with_two():
     traffic.on_robot_state("pode1", *site.node_pose("P-1"), 0.0, "IDLE")
     traffic.on_robot_state("pode3", *site.node_pose("P-3"), 0.0, "IDLE")
     robots = traffic._robots
-    east = Trip("O_Q", across(site, "P-1", "N_W", "X_W", "X_E", "N_E", "O_Q"))
-    west = Trip("W_Q", across(site, "P-3", "N_E", "X_E", "X_W", "N_W", "W_Q"))
+    east = Route("O_Q", across(site, "P-1", "N_W", "X_W", "X_E", "N_E", "O_Q"))
+    west = Route("W_Q", across(site, "P-3", "N_E", "X_E", "X_W", "N_W", "W_Q"))
     return traffic, robots["pode1"], east, robots["pode3"], west
 
 

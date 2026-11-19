@@ -242,8 +242,8 @@ def test_the_end_of_the_granted_way_is_never_merged_into_the_horizon():
     assert _corners(view) == [(0.15, 0.70), V7.node_pose("O_OUT"), V7.node_pose("E-3")]
 
 
-def test_an_unknown_link_further_on_does_not_undo_a_merge_before_it():
-    assert V7.link("Q2", "P-1") is None
+def test_an_unknown_edge_further_on_does_not_undo_a_merge_before_it():
+    assert V7.edge("Q2", "P-1") is None
     view = fv.FleetView(V7)
     view.set_statuses([Status("pode1", "MOVING", x=0.15, y=0.70,
                               base=["O_OUT", "E-3", "Q2", "P-1"])])

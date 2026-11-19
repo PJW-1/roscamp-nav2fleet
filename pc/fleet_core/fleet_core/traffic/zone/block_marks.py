@@ -29,7 +29,7 @@ class Mark:
     asked_last: dict = field(default_factory=dict)
 
 
-# ---- 점 근처를 지나는 링크 키 찾기 ----
+# ---- 점 근처를 지나는 edge 키 찾기 ----
 def polyline_gap(point, points) -> float:
     if len(points) == 1:
         return math.dist(point, points[0])
@@ -40,17 +40,17 @@ def keys_at(site, params, point) -> list:
     reach = params.footprint_radius_m + params.release_margin_m
     zone = site.zone_at(*point)
     keys = []
-    for link in site.links():
-        if link.via != NAV_GOAL:
-            hit = polyline_gap(point, link.points) <= reach
-        elif zone is None or zone not in link.zones:
+    for edge in site.edges():
+        if edge.mode != NAV_GOAL:
+            hit = polyline_gap(point, edge.points) <= reach
+        elif zone is None or zone not in edge.zones:
             hit = False
         elif not site.nodes_in(zone):
             hit = True
         else:
-            hit = point_segment_distance(point, link.points[0], link.points[-1]) <= reach
+            hit = point_segment_distance(point, edge.points[0], edge.points[-1]) <= reach
         if hit:
-            keys.append((link.a, link.b))
+            keys.append((edge.a, edge.b))
     return keys
 
 
@@ -88,7 +88,7 @@ class MarkBook:
             self.hold(mark, key)
         return mark
 
-    # ---- 링크 막기, 표시 지우기와 만료 ----
+    # ---- edge 막기, 표시 지우기와 만료 ----
     def hold(self, mark, key) -> None:
         if key not in mark.keys:
             mark.keys.append(key)

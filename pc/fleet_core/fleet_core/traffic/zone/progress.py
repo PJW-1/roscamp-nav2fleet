@@ -16,7 +16,7 @@ from fleet_core.traffic.mission import (
     SELF_RECOVERING,
 )
 
-from .trips import passed
+from .routes import passed
 
 # ---- 노드 키 접두사와 구역 놓는 거리 ----
 NODE_KEY = "node:"
@@ -64,42 +64,42 @@ class Progress:
         elif m.health.fault == ERROR and not m.health.comm and m.goal is None:
             self._return_unreached(m)
 
-    # ---- 지나간 링크만큼 트립 진행 ----
+    # ---- 지나간 edge만큼 route 진행 ----
     def _track(self, m) -> None:
-        trip, goal = m.trip, m.goal
-        if trip is None or goal is None or goal.kind == DOCK:
+        route, goal = m.route, m.goal
+        if route is None or goal is None or goal.kind == DOCK:
             return
-        while trip.done < goal.links - 1:
-            link = trip.links[trip.done]
-            if link.via == NAV_GOAL or not passed(link, m.x, m.y):
+        while route.done < goal.edges - 1:
+            edge = route.edges[route.done]
+            if edge.mode == NAV_GOAL or not passed(edge, m.x, m.y):
                 break
             # 물러나기는 놓을 구역 쪽에서 노드로 다가간다:
             # 노드 좌표로 잴 거리 안이면 끝냈다는 답을 기다린다
-            if link.via == RETREAT and self._gap(m, link.b) <= self.params.release_margin_m:
+            if edge.mode == RETREAT and self._gap(m, edge.b) <= self.params.release_margin_m:
                 break
-            m.node = link.b
-            trip.done += 1
+            m.node = edge.b
+            route.done += 1
 
     # ---- 아직 필요한 구역과 노드 계산 ----
     def _still_needed(self, m) -> tuple[set, set]:
-        trip = m.trip
+        route = m.route
         zones, nodes = set(), set()
-        if trip is None:
+        if route is None:
             return zones, nodes
-        links = trip.links[trip.done:trip.granted]
-        if links:
-            crossed = links[0].zones
+        edges = route.edges[route.done:route.granted]
+        if edges:
+            crossed = edges[0].zones
             here = self.site.zone_at(m.x, m.y)
-            if links[0].via != NAV_GOAL and here in crossed:
+            if edges[0].mode != NAV_GOAL and here in crossed:
                 crossed = crossed[crossed.index(here):]
             zones.update(crossed)
-            for link in links[1:]:
-                zones.update(link.zones)
-            nodes.update(link.b for link in links)
+            for edge in edges[1:]:
+                zones.update(edge.zones)
+            nodes.update(edge.b for edge in edges)
         return zones, nodes
 
     # ---- 지나온 구역과 노드 놓기 ----
-    def _release_behind(self, m, keep_trip: bool = True) -> list[str]:
+    def _release_behind(self, m, keep_route: bool = True) -> list[str]:
         p, site, grants = self.params, self.site, self.grants
         held = grants.held_by(m.name)
         if (self._clock() < m.settle_until
@@ -107,7 +107,7 @@ class Progress:
                        for zone in held)):
             m.clear_n.clear()
             return []
-        zones, nodes = self._still_needed(m) if keep_trip else (set(), set())
+        zones, nodes = self._still_needed(m) if keep_route else (set(), set())
         if m.phase == AT_STATION and m.node in site.nodes and not p.zone_clear_m:
             (x, y), gap = site.node_pose(m.node), p.footprint_radius_m + m.dock_error_m
         elif (m.node in site.nodes and not p.zone_clear_m
@@ -139,9 +139,9 @@ class Progress:
         if m.report.robot_state in NOT_PLACEABLE or moved or m.health.pose_doubt:
             m.clear_n.clear()
             return
-        released = self._release_behind(m, keep_trip=False)
+        released = self._release_behind(m, keep_route=False)
         if released:
-            m.trip = None
+            m.route = None
             self._event("INFO", "ZONES_RETURNED", f"gives back {released} it did not reach, "
                         f"keeps {list(self.grants.held_by(m.name))}", m.name)
 

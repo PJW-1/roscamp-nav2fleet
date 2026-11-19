@@ -1,11 +1,11 @@
-# ---- 지도 모델: 상수와 구역, 노드, 링크, 스테이션 데이터 클래스 ----
+# ---- 지도 모델: 상수와 구역, 노드, edge, 스테이션 데이터 클래스 ----
 from __future__ import annotations
 
 from dataclasses import dataclass
 
 from .geometry import Point, Rect
 
-# ---- 구역, 노드, 링크, 작업 종류 상수 ----
+# ---- 구역, 노드, edge, 작업 종류 상수 ----
 SHARED = "shared"
 LANE = "lane"
 DOCK = "dock"
@@ -52,10 +52,10 @@ class Node:
 
 
 @dataclass(frozen=True)
-class Link:
+class Edge:
     a: str
     b: str
-    via: str
+    mode: str
     path: str
     points: tuple[Point, ...]
     zones: tuple[str, ...]

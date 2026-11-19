@@ -286,7 +286,7 @@ def test_the_sim_does_not_reach_into_the_traffic_internals():
 
 
 def test_the_sim_check_can_fail():
-    assert _inside_traffic("from fleet_core.traffic.zone.trips import x\n") == [1]
+    assert _inside_traffic("from fleet_core.traffic.zone.routes import x\n") == [1]
     assert _inside_traffic("a = self.world.traffic._blocked\n") == [1]
     assert _inside_traffic("a = getattr(traffic, '_marks', {})\n") == [1]
     assert _inside_traffic("from fleet_core.traffic import zone\n") == [1]
