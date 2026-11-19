@@ -8,7 +8,7 @@
 
 ## 계약 0.6
 - **`ReportOrder.srv`**: `STATUS_CANCELED`, `HOLD_ROBOT_FAULT`, `HOLD_ARM_FAULT` 상수와 `hold_reason` 필드를 더했다.
-- **`ForceShip.srv`(새 파일)**: 요청은 `order_id`, 응답은 `accepted`와 `reason`이다. reason은 NOT_HELD, ROBOT_FAULT, UNKNOWN_ORDER, NOT_IMPLEMENTED 중 하나다.
+- **`ForceShip.srv`(새 파일)**: 요청은 `order_id`, 응답은 `accepted`와 `reason`이다. 받아들이면 reason은 빈 문자열이다. 거절 사유 상수는 NOT_HELD, ROBOT_FAULT, UNKNOWN_ORDER, NOT_IMPLEMENTED 넷이다.
 - **`contract.yaml`**: `version: 0.6`으로 올리고 `force_ship`(`/fleet/force_ship`)을 더했다.
 - **CMakeLists**: ForceShip.srv를 더했다.
 - 두 srv는 팀 지시서의 글자와 같다. `test_contract.py`가 이를 확인한다.
@@ -29,17 +29,22 @@
 - **⑥ 팔 고장**
   - `arm/jobs.py`가 재시도 한도와 시간 초과 때 `RobotFaultCmd` 대신 `ArmFault(robot, kind, server, reason)`를 낸다.
   - 주문은 HELD/ARM_FAULT가 된다. Pode는 격리하지 않고 작업대에 붙잡아 둔다.
+  - 예외가 둘 있다.
+    - 이미 격리된 Pode면 늦은 결과나 치움을 기다려 ④ 기준으로 판단한다.
+    - 출고 보고 뒤 빈 바구니를 넣다가 고장 나면 주문이 없으므로 Pode만 붙잡는다.
 - **⑦ 강제 출고**: `on_force_ship`이 ARM_FAULT 보류만 받는다.
-  - 담은 것이 있으면 출고하고 PARTIAL로 보고한다.
-  - 담은 것이 없으면 CANCELED로 보고하고 Pode를 놓아 준다.
+  - 채우기 보류에서 담은 것이 있으면 출고한다. 출고 보고는 모자란 것이 있으면 PARTIAL, 없으면 SHIPPED다.
+  - 출고 팔(SWAP) 보류면 교환을 다시 시도한다. 보고 규칙은 같다.
+  - 채우기 보류에서 담은 것이 없으면 출고하지 않는다. CANCELED로 보고하고 Pode를 놓아 준다.
   - 그 밖에는 UNKNOWN_ORDER, ROBOT_FAULT, NOT_HELD로 거절한다.
   - 입력은 기록에 남고 재생된다.
 
 ## 교통 쪽 영향
-- **팔 고장**: 이제 교통에 알리지 않는다. 그래서 ROBOT_ISOLATED가 나오지 않는다.
+- **팔 고장**: 이제 교통에 알리지 않는다. 팔 고장 때문에 ROBOT_ISOLATED가 나오지는 않는다. 다른 원인(주행 고장, 무응답)의 격리는 예전과 같다.
   - 붙잡힌 Pode는 사용 가능 상태로 작업대 구역을 계속 잡고 있다.
-  - force_ship이 오면 출고 경로로 떠나고, confirm_clear가 오면 구역을 놓는다.
-- **교통에 고장을 알리는 길**: 남은 것은 배차 실패(`stations.py`의 `_fail`) 하나다.
+  - force_ship이 오면 담은 것이 있을 때만 출고 경로로 떠난다. 담은 것이 없으면 놓아 준다.
+  - confirm_clear는 예전 조건대로 거절될 수 있다. 받아들여져도 요청에 적은 구역만 놓는다.
+- **교통에 고장을 알리는 길**: 주문 쪽에 남은 것은 출고 배차 재시도 한도 초과 하나다. `_fail`은 `orchestrator.py`에 정의되어 있고 `stations.py`에서 부른다.
 - **`ship_partial`**: 파라미터 로더는 모르는 키를 거부한다. 그래서 `ship_partial`이 든 예전 `fleet_params.yaml` 복사본으로는 fleet manager가 뜨지 않는다.
 
 ## 가짜 노드와 시나리오
@@ -90,6 +95,9 @@
 2. ARM_FAULT 보류 주문이 주문판에서 사라지면 Pode를 붙잡아 둔다. 운영자가 confirm_clear와 reinstate로 푼다.
 3. ARM_FAULT로 붙잡힌 Pode가 격리되거나 치워지면 ④ 규칙을 따른다.
 4. 이미 격리된 Pode의 팔이 시간 초과되면 늦은 결과나 치움을 기다린다.
-5. HELD 뒤 늦은 팔 결과가 오면 placed와 missing만 고친다. ARM_LATE_RESULT 문구는 그대로다.
+5. HELD 뒤 늦은 팔 결과가 오면 처리가 갈린다.
+   - 늦은 FILL 결과는 placed와 missing만 고친다.
+   - 늦은 SWAP 결과는 바구니 상태를 바꾸고 출고를 보고할 수 있다.
+   - ARM_LATE_RESULT 문구는 그대로다.
 6. 가짜 central의 재고 보정에는 SWAP 강제 출고와 응답 경합 때 한계가 있다.
 7. `tools/situations.py`의 미완료 원인 분류는 ROBOT_FAULT 보류를 아직 모른다.
