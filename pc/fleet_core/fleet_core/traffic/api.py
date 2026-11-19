@@ -8,7 +8,7 @@ from fleet_core.common.commands import ZoneView
 # 시뮬이 쓰는 순수 함수(keys_at, segment_end)와 상수의 공개 자리. 상태가 아니라 계산이다.
 from .zone.block_marks import keys_at  # noqa: F401
 from .zone.detours import CORRIDOR, DESTINATION, IN_ZONE, KEEPOUT  # noqa: F401
-from .zone.trips import segment_end  # noqa: F401
+from .zone.routes import segment_end  # noqa: F401
 
 
 # ---- TrafficApi 프로토콜과 거부 사유 ----

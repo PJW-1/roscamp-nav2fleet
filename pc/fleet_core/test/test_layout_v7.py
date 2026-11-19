@@ -680,7 +680,7 @@ def test_v7_pass_node_shortcut_cannot_release_a_dock_early(site):
     나오는 링크 끝의 지나가는 지점은, 로봇이 그만큼 덜 왔어도 놓기 거리를 지키도록 멀어야 한다.
     W_X를 y 0.775에 두었을 때 로봇은 WORK_DOCK에서 0.115에 있어도 0.145로 재어 놓았다."""
     from fleet_core.traffic.zone.progress import release_gap
-    from fleet_core.traffic.zone.trips import ON_NODE_M
+    from fleet_core.traffic.zone.routes import ON_NODE_M
     p = load_params()
     gap = release_gap(p)
     checked = []

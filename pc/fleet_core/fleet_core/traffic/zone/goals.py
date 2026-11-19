@@ -8,7 +8,7 @@ from fleet_core.traffic.mission import TO_OUTBOUND, TO_PARK, TO_WORK
 
 from .base import HERE
 from .lane_policy import Want
-from .trips import Trip, back_edge, free_edge, left_s, needs, speed, stretch_end
+from .routes import Route, back_edge, free_edge, left_s, needs, speed, stretch_end
 
 TRANSIT_WAIT_S = 6.0
 STANDING_WAIT_S = 300.0
@@ -111,16 +111,16 @@ class Goals:
 
     # ---- 후보 중 잡을 수 있는 트립 고르기 ----
     def _choose(self, m):
-        trip, first_want = self._grab(m, self._candidates(m))
-        if trip is not None:
-            trip.standby = (m.phase in (TO_WORK, TO_OUTBOUND)
-                            and trip.goal in self.site.parking)
-            return trip
+        route, first_want = self._grab(m, self._candidates(m))
+        if route is not None:
+            route.standby = (m.phase in (TO_WORK, TO_OUTBOUND)
+                            and route.goal in self.site.parking)
+            return route
         if first_want is None and m.avoid.retreat_to and not self._retreat_held_up(m):
             back = self._back_edge(m)
-            trip = None if back is None else Trip(m.avoid.retreat_to, [back])
-            if trip is not None and self._take(m, trip) is None:
-                return trip
+            route = None if back is None else Route(m.avoid.retreat_to, [back])
+            if route is not None and self._take(m, route) is None:
+                return route
         if first_want is not None:
             self._wants[m.name] = first_want
             self._note_wait(m, first_want)
@@ -138,36 +138,36 @@ class Goals:
             edges = self._way_after(m, after, goal) if after else self._way(m, goal)
             if not edges:
                 continue
-            trip = Trip(goal, edges)
+            route = Route(goal, edges)
             if queued and self.params.use_order_model:
-                trip = self._through(m, trip)
+                route = self._through(m, route)
             if after:
-                trip.done, trip.granted = m.trip.done, after
-            want = self._take(m, trip)
+                route.done, route.granted = m.route.done, after
+            want = self._take(m, route)
             if want is None:
                 if queued and not m.watch.wait.queued:
                     m.watch.wait.queued = True
                     self._event("INFO", "DOCK_QUEUED", f"{m.dest} is busy, waits at {goal}",
                                 m.name)
                 elif not queued:
-                    self._take_turn(m, trip)
-                return trip, None
+                    self._take_turn(m, route)
+                return route, None
             first_want = first_want or want
         return None, first_want
 
     # ---- 다음 구간의 구역, 노드, 차선 잡기 ----
-    def _take(self, m, trip):
+    def _take(self, m, route):
         site, grants, now = self.site, self.grants, self._clock()
-        start = trip.granted
-        end = stretch_end(site, trip.edges, start)
-        if not self.params.use_order_model and trip.goal in site.docks:
-            while end < len(trip.edges) and self._lane_spot(trip.edges[end - 1].b):
-                end = stretch_end(site, trip.edges, end)
-        zones, nodes, lanes = needs(trip.edges[start:end])
+        start = route.granted
+        end = stretch_end(site, route.edges, start)
+        if not self.params.use_order_model and route.goal in site.docks:
+            while end < len(route.edges) and self._lane_spot(route.edges[end - 1].b):
+                end = stretch_end(site, route.edges, end)
+        zones, nodes, lanes = needs(route.edges[start:end])
         eta = {}
         for lane in lanes:
-            index = next(i for i in range(start, end) if trip.edges[i].lane == lane)
-            eta[lane] = left_s(self.params, trip.edges[trip.done:index], m.x, m.y)
+            index = next(i for i in range(start, end) if route.edges[i].lane == lane)
+            eta[lane] = left_s(self.params, route.edges[route.done:index], m.x, m.y)
         since = now if m.watch.wait.since is None else m.watch.wait.since
         want = Want(tuple(zones), tuple(nodes), lanes, since, eta)
         entered = [lane for lane in lanes if m.name not in grants.holders(lane)]
@@ -177,13 +177,13 @@ class Goals:
         empty = [lane for lane in entered if not grants.holders(lane)]
         if not grants.take(m.name, zones, nodes, lanes):
             return want
-        trip.granted = end
+        route.granted = end
         self._stop_wanting(m)
         for lane in empty:
             self._lane_set(m, lane, want, now)
         self._event("INFO", "ZONE_GRANTED",
-                    f"{'+'.join(zones)} to {trip.edges[end - 1].b}", m.name)
-        self._detours.note(m, trip)
+                    f"{'+'.join(zones)} to {route.edges[end - 1].b}", m.name)
+        self._detours.note(m, route)
         return None
 
     def _lane_spot(self, node: str) -> bool:

@@ -52,15 +52,15 @@ class Health:
     def _resume(self, m) -> None:
         m.health.comm = ""
         self._reset_stall(m)
-        trip = m.trip
-        if trip is None:
+        route = m.route
+        if route is None:
             return
         tolerance = self.params.arrival_tolerance_m
-        for index in range(trip.granted - 1, trip.done - 1, -1):
-            if self._edge_reached(m, trip.edges[index], tolerance):
-                trip.done, m.node = index + 1, trip.edges[index].b
+        for index in range(route.granted - 1, route.done - 1, -1):
+            if self._edge_reached(m, route.edges[index], tolerance):
+                route.done, m.node = index + 1, route.edges[index].b
                 break
-        trip.sent = trip.done
+        route.sent = route.done
 
     # ---- confirm_clear 입력 검사와 거부 판단 ----
     def confirm_clear(self, robot, zone_ids, note="") -> list[str] | None:
@@ -92,7 +92,7 @@ class Health:
         self._stop_wanting(m)
         if m.goal:
             self._cancel_goal(m)
-        m.trip = None
+        m.route = None
         m.clear_n.clear()
         m.health.fault, m.health.fault_reason, m.health.comm = OUT_OF_SERVICE, note, ""
         m.called = m.hold = False

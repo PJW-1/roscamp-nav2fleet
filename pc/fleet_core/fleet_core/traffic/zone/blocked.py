@@ -17,7 +17,7 @@ from fleet_core.traffic.mission import (
 
 from .base import HERE
 from .block_marks import keys_at
-from .trips import segment_end
+from .routes import segment_end
 from .yard_retreat import yard_retreat
 
 
@@ -113,7 +113,7 @@ class Blocked:
     # ---- 되돌아갈 길 뒤에 있는 로봇 확인 ----
     def _behind_on_the_way_back(self, m) -> str:
         site = self.site
-        edge = m.trip.edges[m.trip.done]
+        edge = m.route.edges[m.route.done]
         zone = site.zone_at(m.x, m.y)
         if not edge.a or zone is None or site.zones[zone].kind == SHARED:
             return ""
@@ -171,12 +171,12 @@ class Blocked:
 
     # ---- 막힘 표시와 다른 길로 다시 가기 ----
     def _edge_on(self, m):
-        trip = m.trip
-        first = trip.done
-        if trip.edges[first].mode != NAV_GOAL:
-            return trip.edges[first]
-        end = segment_end(self.site, trip.edges, first, max(m.goal.edges, first + 1))
-        return min(trip.edges[first:end], key=lambda edge: point_segment_distance(
+        route = m.route
+        first = route.done
+        if route.edges[first].mode != NAV_GOAL:
+            return route.edges[first]
+        end = segment_end(self.site, route.edges, first, max(m.goal.edges, first + 1))
+        return min(route.edges[first:end], key=lambda edge: point_segment_distance(
             (m.x, m.y), edge.points[0], edge.points[-1]))
 
     def _mark_blocked(self, m, now: float, point=None) -> None:
@@ -212,10 +212,10 @@ class Blocked:
             self._event("INFO", "REROUTE", f"backs out to {m.avoid.retreat_to}, then another way",
                         m.name)
         else:
-            self._event("INFO", "REROUTE", f"another way to {m.trip.goal}", m.name)
+            self._event("INFO", "REROUTE", f"another way to {m.route.goal}", m.name)
             if not self._make_way(m, edge.b):
                 hold((HERE + m.name, edge.b))
-        self._drop_trip(m)
+        self._drop_route(m)
 
     # ---- 길을 막고 선 로봇 주차 지점으로 보내기 ----
     def _make_way(self, m, node: str) -> bool:

@@ -14,7 +14,7 @@ import pytest
 from fleet_core.common.commands import MoveCmd, MoveOrderCmd
 from fleet_core.common.params import load_params
 from fleet_core.fleet_map import NAV_GOAL, load_fleet_map, shortest_path
-from fleet_core.traffic.zone import trips
+from fleet_core.traffic.zone import routes
 from zone_harness import Harness
 
 V7 = load_fleet_map("v7")
@@ -36,8 +36,8 @@ def nav_targets(world, robot) -> list:
 def test_a_run_of_hall_nav_edges_is_one_segment():
     way = shortest_path(V7, "O_OUT", "Q2")
     assert [edge.b for edge in way] == ["E-3", "Q2"]
-    assert trips.segment_end(V7, way, 0, 2) == 2
-    assert trips.segment_end(V7, way, 0, 1) == 1, "never past what is granted"
+    assert routes.segment_end(V7, way, 0, 2) == 2
+    assert routes.segment_end(V7, way, 0, 1) == 1, "never past what is granted"
 
 
 def test_a_run_merges_only_through_nodes_marked_through():
@@ -45,32 +45,32 @@ def test_a_run_merges_only_through_nodes_marked_through():
     way = shortest_path(V7, "W", "E-2")
     assert [edge.b for edge in way] == ["M_E", "O_IN", "E-2"]
     assert way[0].zones == ("WORK_DOCK", "HALL")
-    assert trips.segment_end(V7, way, 0, 3) == 1, "a leave_dock link crosses zones"
-    assert trips.segment_end(V7, way, 1, 3) == 2, "O_IN is a place to wait"
+    assert routes.segment_end(V7, way, 0, 3) == 1, "a leave_dock link crosses zones"
+    assert routes.segment_end(V7, way, 1, 3) == 2, "O_IN is a place to wait"
     detour = [V7.edge("O_IN", "M_E"), V7.edge("M_E", "Q2")]
-    assert trips.segment_end(V7, detour, 0, 2) == 1, "M_E is the detour point"
+    assert routes.segment_end(V7, detour, 0, 2) == 1, "M_E is the detour point"
 
 
 def test_a_detour_through_bay_entrances_is_not_merged():
     """O_OUT -> E-3을 피해 O_OUT -> E-2 -> E-3 -> Q2로 돌 때 합치면 Nav2는 피한 곧은 길로 간다.
     두 끝 사이의 가장 짧은 길인 데까지만 합친다."""
     straight = [V7.edge("O_OUT", "E-3"), V7.edge("E-3", "Q2")]
-    assert trips.segment_end(V7, straight, 0, 2) == 2
+    assert routes.segment_end(V7, straight, 0, 2) == 2
     around = [V7.edge("O_OUT", "E-2"), V7.edge("E-2", "E-3"), V7.edge("E-3", "Q2")]
-    assert trips.segment_end(V7, around, 0, 3) == 1
-    assert trips.segment_end(V7, around, 1, 3) == 3, "E-2 -> E-3 -> Q2 is the shortest way"
+    assert routes.segment_end(V7, around, 0, 3) == 1
+    assert routes.segment_end(V7, around, 1, 3) == 3, "E-2 -> E-3 -> Q2 is the shortest way"
 
 
 
 def test_a_free_edge_from_off_the_graph_is_not_merged():
     """노드 밖에서 다시 계획한 로봇의 첫 이음(free_link)은 시작 노드가 없다. 가장 짧은 길인지 잴 수
     없으니 합치지 않는다(distance(site, "", ...)가 KeyError로 관제를 멈췄다)."""
-    way = [trips.free_edge(V7, 0.45, 0.30, "E-3"), V7.edge("E-3", "Q2")]
-    assert trips.segment_end(V7, way, 0, 2) == 1
+    way = [routes.free_edge(V7, 0.45, 0.30, "E-3"), V7.edge("E-3", "Q2")]
+    assert routes.segment_end(V7, way, 0, 2) == 1
 
 def test_a_merged_nav_goal_faces_the_last_node():
     way = shortest_path(V7, "O_OUT", "Q2")
-    cmd = trips.move_command(V7, "pode1", 3, way, 0.15, 0.62)
+    cmd = routes.move_command(V7, "pode1", 3, way, 0.15, 0.62)
     assert (cmd.mode, cmd.target_id, cmd.path) == (NAV_GOAL, "Q2", ())
     # Q2 자리는 지도에서 읽는다(2026-11-18 밤 y 0.16 -> 0.15)
     assert (cmd.x, cmd.y, cmd.yaw) == pytest.approx((*V7.node_pose("Q2"), 0.0))

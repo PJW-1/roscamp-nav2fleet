@@ -81,7 +81,7 @@ class YardRetreat:
 
     # ---- 다른 로봇에게 길 양보 ----
     def _yield_to_robot(self, m, other, now: float) -> bool:
-        edge = m.trip.edges[m.trip.done]
+        edge = m.route.edges[m.route.done]
         zone = self.site.zone_at(m.x, m.y)
         in_lane = edge.a and zone is not None and self.site.zones[zone].kind != SHARED
         sent_off = (not in_lane and other.available and other.goal is None
@@ -95,7 +95,7 @@ class YardRetreat:
         if in_lane:
             self._cancel_goal(m)
             self._set_retreat(m, edge, now)
-            self._drop_trip(m)
+            self._drop_route(m)
             self._event("INFO", "HALL_YIELD", f"backs out to {m.avoid.retreat_to} for "
                         f"{other.name}, nothing marked", m.name)
             return True

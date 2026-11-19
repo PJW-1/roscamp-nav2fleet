@@ -146,8 +146,8 @@ def test_a_robot_stepping_forward_ranks_by_the_spot_it_goes_to(order_model):
     world.step()
     traffic = world.traffic
     moving = traffic._robots["pode2"]
-    assert moving.node == "Q2" and moving.trip is not None
-    assert moving.trip.edges[0].b == "Q1"
+    assert moving.node == "Q2" and moving.route is not None
+    assert moving.route.edges[0].b == "Q1"
     assert traffic._line_spot(moving, world.site.stations["WORK"]) == 0
 
 
@@ -211,8 +211,8 @@ def test_v7_the_robot_at_the_front_goes_before_a_turn_taken_from_behind(order):
     world.report()
     behind = world.call("WORK", "pode1")
     world.step()  # pode2는 아직 WORK로 가지 않는다: pode1이 도크 차례를 가져간다
-    trip = world.traffic._robots["pode1"].trip
-    assert trip is not None and trip.turn and trip.goal == "W" and "Q1" in trip.route()
+    route = world.traffic._robots["pode1"].route
+    assert route is not None and route.turn and route.goal == "W" and "Q1" in route.nodes_left()
     front = world.call("WORK", "pode2")
     assert world.run_until(lambda: world.result_of(front) is not None, 120.0), world.log[-10:]
     assert world.result_of(front).robot_id == "pode2" and world.result_of(front).success
@@ -233,8 +233,8 @@ def test_v7_three_robots_all_dock_after_a_turn_taken_from_behind(order):
     world.report()
     asked = [world.call("WORK", "pode1")]
     world.step()
-    trip = world.traffic._robots["pode1"].trip
-    assert trip.turn and trip.goal == "W" and "Q1" in trip.route()
+    route = world.traffic._robots["pode1"].route
+    assert route.turn and route.goal == "W" and "Q1" in route.nodes_left()
     asked += [world.call("WORK", "pode2"), world.call("WORK", "pode3")]
     docked = []
 

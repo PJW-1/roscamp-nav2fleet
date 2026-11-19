@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from fleet_core.fleet_map import FOLLOW_PATH, RETREAT
 
-from .trips import Trip
+from .routes import Route
 
 
 # ---- 도크로 들어가는 FOLLOW_PATH 경로 찾기 ----
@@ -43,14 +43,14 @@ class Redock:
             ep.clear()
             self._stop_wanting(m)
             return False
-        trip = Trip(dock, edges)
-        want = self._take(m, trip)
+        route = Route(dock, edges)
+        want = self._take(m, route)
         if want is not None:
             self._wants[m.name] = want
             self._note_wait(m, want)
             return True
         ep.clear()
-        m.trip, m.phase = trip, self._leg_of(m.dest)
+        m.route, m.phase = route, self._leg_of(m.dest)
         self._event("INFO", "DOCK_REAPPROACH", f"backs to {out.b} and comes in to {dock} again",
                     m.name)
         return True

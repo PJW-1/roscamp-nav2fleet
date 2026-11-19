@@ -117,7 +117,7 @@ class Robot:
     node: str = ""
     off_node: tuple | None = None
     dest: str | None = None
-    trip: object = None
+    route: object = None
     goal: Goal | None = None
     move_order: MoveOrder | None = None
     base_until: float = 0.0

@@ -13,7 +13,7 @@ ON_NODE_M = 0.03
 
 # ---- 링크 목록과 진행 위치를 담은 트립 ----
 @dataclass
-class Trip:
+class Route:
     goal: str
     edges: list
     done: int = 0
@@ -27,7 +27,7 @@ class Trip:
     def finished(self) -> bool:
         return self.done >= len(self.edges)
 
-    def route(self) -> list[str]:
+    def nodes_left(self) -> list[str]:
         return [edge.b for edge in self.edges[self.done:]]
 
 

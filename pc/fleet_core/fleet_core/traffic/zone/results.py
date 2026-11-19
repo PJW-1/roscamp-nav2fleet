@@ -17,7 +17,7 @@ from fleet_core.traffic.mission import (
 )
 
 from .robots import ORDER, Goal
-from .trips import along
+from .routes import along
 
 
 # ---- 지금 goal과 맞는 로봇 찾기와 이동 결과 ----
@@ -122,8 +122,8 @@ class Results:
         m.not_sent_warned = False
         m.node, m.off_node = goal.end, None
         m.avoid.behind_since = None
-        if m.trip is not None:
-            m.trip.done = m.trip.sent = goal.edges
+        if m.route is not None:
+            m.route.done = m.route.sent = goal.edges
         if goal.kind == RETREAT:
             m.avoid.retreat_to = ""
             self._event("INFO", "RETREAT_DONE", f"stands at {goal.end}", m.name)
@@ -133,8 +133,8 @@ class Results:
         self._clear_goal(m)
         m.move_order = None
         m.arrival_by = None
-        if m.trip is not None:
-            m.trip.sent = m.trip.done
+        if m.route is not None:
+            m.route.sent = m.route.done
 
     def _stands_at_end(self, m, behind: bool = False):
         """로봇이 서 있는 goal의 끝: (끝 goal, 그 끝까지 끝내지 않은 조각들). order면 끝내지 않은
@@ -153,13 +153,13 @@ class Results:
     # ---- 닿았다고 볼 수 있는 끝: goal의 끝, order면 끝내지 않은 조각 끝마다 ----
     def _goal_ends(self, m) -> list:
         """[(끝 goal, 그 끝까지 끝내지 않은 조각들)]. 조각은 (order id, seq, 방식, 끝 노드)."""
-        goal, mo, trip = m.goal, m.move_order, m.trip
-        if goal.mode != ORDER or mo is None or trip is None:
+        goal, mo, route = m.goal, m.move_order, m.route
+        if goal.mode != ORDER or mo is None or route is None:
             return [(goal, ())]
         ends, passed = [], []
         for seq, first, end in mo.cuts:
             if mo.done_seq < seq and end <= goal.edges:
-                mode, node = trip.edges[first].mode, trip.edges[end - 1].b
+                mode, node = route.edges[first].mode, route.edges[end - 1].b
                 passed.append((mo.id, seq, mode, node))
                 ends.append((Goal(MOVE, goal.id, end, node, mode), tuple(passed)))
         return ends or [(goal, ())]
@@ -171,15 +171,15 @@ class Results:
         limit = self.params.arrival_tolerance_m
         if self._end_mode(m, end) == NAV_GOAL:
             return self._gap(m, end.end) <= limit / 2
-        if m.trip is None:
+        if m.route is None:
             return self._gap(m, end.end) <= limit
-        return self._edge_reached(m, m.trip.edges[end.edges - 1], limit)
+        return self._edge_reached(m, m.route.edges[end.edges - 1], limit)
 
     # ---- 뒤가 막혀 선 로봇이 선을 따라 끝에 못 미쳤는지 ----
     def _short_of_end(self, m, end) -> bool:
-        if m.trip is None or self._end_mode(m, end) == NAV_GOAL:
+        if m.route is None or self._end_mode(m, end) == NAV_GOAL:
             return False
-        edge = m.trip.edges[end.edges - 1]
+        edge = m.route.edges[end.edges - 1]
         return edge.length - along(edge, m.x, m.y) > self.params.arrival_tolerance_m / 2
 
     def _arrived_anyway(self, m, reason: str, end, goal) -> None:
@@ -219,7 +219,7 @@ class Results:
         if reason == PATH_NOT_CONNECTED:
             if self._in_yard(m):
                 m.off_node = (m.x, m.y)
-                self._drop_trip(m)
+                self._drop_route(m)
         if reason == NAV_ABORTED:
             m.health.aborted_at = self._clock()
         self._goal_failed(m, reason)

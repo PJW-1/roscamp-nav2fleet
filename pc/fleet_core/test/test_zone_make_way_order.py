@@ -49,9 +49,9 @@ def test_a_robot_on_its_way_to_the_dock_keeps_the_turn_when_its_order_is_extende
     for edge in (("P-3", "N_E"), ("P-3", "O_Q")):
         traffic._blocked[edge] = 1e9  # pode3은 남쪽 통로로 돌아간다
     going = world.call("OUTBOUND", "pode3")
-    assert world.run_until(lambda: traffic._robots["pode3"].trip is not None, 5.0)
-    trip = traffic._robots["pode3"].trip
-    assert trip.goal == "O" and trip.granted < len(trip.edges), "the dock zone comes later"
+    assert world.run_until(lambda: traffic._robots["pode3"].route is not None, 5.0)
+    route = traffic._robots["pode3"].route
+    assert route.goal == "O" and route.granted < len(route.edges), "the dock zone comes later"
     late = world.call("OUTBOUND", "pode2")
     traffic._robots["pode2"].asked_at = -1.0  # 먼저 불렸다가 앞지름을 당한 로봇인 셈이다
     while world.result_of(going) is None:

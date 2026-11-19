@@ -3,7 +3,7 @@ from fleet_core.common.params import load_params
 from fleet_core.fleet_map import load_fleet_map, shortest_path
 from fleet_core.traffic.zone.controller import ZoneTraffic
 from fleet_core.traffic.zone.lane_policy import LanePolicy, Want
-from fleet_core.traffic.zone.trips import Trip
+from fleet_core.traffic.zone.routes import Route
 
 LANE = "EXPRESS"
 P = load_params()
@@ -71,8 +71,8 @@ def traffic_with_two():
     traffic.on_robot_state("pode1", *site.node_pose("P-1"), 0.0, "IDLE")
     traffic.on_robot_state("pode3", *site.node_pose("P-3"), 0.0, "IDLE")
     robots = traffic._robots
-    east = Trip("O_Q", across(site, "P-1", "N_W", "X_W", "X_E", "N_E", "O_Q"))
-    west = Trip("W_Q", across(site, "P-3", "N_E", "X_E", "X_W", "N_W", "W_Q"))
+    east = Route("O_Q", across(site, "P-1", "N_W", "X_W", "X_E", "N_E", "O_Q"))
+    west = Route("W_Q", across(site, "P-3", "N_E", "X_E", "X_W", "N_W", "W_Q"))
     return traffic, robots["pode1"], east, robots["pode3"], west
 
 

@@ -5,7 +5,7 @@ from fleet_core.fleet_map import RETREAT
 from fleet_core.traffic.mission import MOVE
 
 from .robots import ORDER, Goal
-from .trips import left_s
+from .routes import left_s
 
 REJECTED = "ORDER_UPDATE_REJECTED"
 SUPERSEDED = "SUPERSEDED"
@@ -39,7 +39,7 @@ class OrderAnswers:
 
     # ---- 끝낸 seq까지 트립 진행 반영 ----
     def _order_progress(self, m, seq: int, edges: int) -> None:
-        trip, mo = m.trip, m.move_order
+        route, mo = m.route, m.move_order
         last = max((number for number, _, end in mo.cuts if end <= edges), default=0)
         if seq > last:
             if not mo.overrun:
@@ -49,9 +49,9 @@ class OrderAnswers:
             return
         for number, first, end in mo.cuts:
             if mo.done_seq < number <= seq:
-                mode = trip.edges[first].mode
-                trip.done = max(trip.done, end)
-                m.node = trip.edges[end - 1].b
+                mode = route.edges[first].mode
+                route.done = max(route.done, end)
+                m.node = route.edges[end - 1].b
                 m.avoid.behind_since = None
                 self._event("INFO", "SEGMENT_DONE", f"{mo.id} seq {number} ({mode}) to {m.node}",
                             m.name)
@@ -109,20 +109,20 @@ class OrderAnswers:
         mo.broken = True
 
     def _restore(self, m) -> None:
-        mo, trip = m.move_order, m.trip
+        mo, route = m.move_order, m.route
         goal_id, edges, waiting = mo.before
-        self._set_goal(m, Goal(MOVE, goal_id, edges, trip.edges[edges - 1].b, ORDER),
+        self._set_goal(m, Goal(MOVE, goal_id, edges, route.edges[edges - 1].b, ORDER),
                        reset_watch=False)
-        trip.sent = edges
+        route.sent = edges
         mo.before = None
         mo.waiting = waiting
         mo.waited = mo.waited or waiting
 
     # ---- 통신 끊김 때 base 끝까지 갈 시간 잡기 ----
     def _hold_base(self, m, now: float) -> str:
-        trip = m.trip
-        if m.move_order is None or trip is None or m.goal is None:
+        route = m.route
+        if m.move_order is None or route is None or m.goal is None:
             return ""
-        left = left_s(self.params, trip.edges[trip.done:trip.granted], m.x, m.y)
+        left = left_s(self.params, route.edges[route.done:route.granted], m.x, m.y)
         m.base_until = now + left + max(0.0, self.params.comm_base_hold_extra_s)
         return f", drives on to {m.goal.end} (about {left:.0f} s)"

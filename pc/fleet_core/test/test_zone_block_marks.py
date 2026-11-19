@@ -258,17 +258,17 @@ def test_blocked_inside_a_corridor_it_turns_back_and_does_not_drive_past_the_box
 
 def test_detour_kinds():
     from fleet_core.traffic.zone.detours import detour_kind
-    from fleet_core.traffic.zone.trips import Trip
+    from fleet_core.traffic.zone.routes import Route
     site = load_fleet_map("d")
     via = [site.edge("N_W", "N_E")]
     south = [site.edge("N_W", "W_Q"), site.edge("W_Q", "P-2"), site.edge("P-2", "P-3")]
     old = {"HALL_W", "CORR_M", "HALL_E"}
-    assert detour_kind(site, "N_E", old, Trip("O_Q", via)) == "destination"
-    assert detour_kind(site, "P-3", old, Trip("P-3", south)) == "corridor"
+    assert detour_kind(site, "N_E", old, Route("O_Q", via)) == "destination"
+    assert detour_kind(site, "P-3", old, Route("P-3", south)) == "corridor"
     inside = [site.edge("N_W", "W_Q"), site.edge("W_Q", "P-2")]
-    assert detour_kind(site, "P-2", {"HALL_W"}, Trip("P-2", inside)) == "in_zone"
+    assert detour_kind(site, "P-2", {"HALL_W"}, Route("P-2", inside)) == "in_zone"
     express = [site.edge("N_W", "X_W"), site.edge("X_W", "X_E"), site.edge("X_E", "N_E")]
-    assert detour_kind(site, "N_E", old, Trip("N_E", express)) == "keepout"
+    assert detour_kind(site, "N_E", old, Route("N_E", express)) == "keepout"
 
 
 # ---- 읽기 전용 관측 API(시뮬용) ----

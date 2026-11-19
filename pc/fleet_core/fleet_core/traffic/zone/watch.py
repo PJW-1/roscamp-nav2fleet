@@ -15,7 +15,7 @@ from fleet_core.traffic.mission import (
     STALLED,
 )
 
-from .trips import Trip
+from .routes import Route
 
 
 # ---- goal 중 움직임이 없으면 멈춤 처리 ----
@@ -135,9 +135,9 @@ class Watch:
             edges = self._way(m, spot)
             if not edges:
                 continue
-            trip = Trip(spot, edges)
-            if self._take(m, trip) is None:
-                m.trip = trip
+            route = Route(spot, edges)
+            if self._take(m, route) is None:
+                m.route = route
                 self._event(level, code, f"{why} {spot}", m.name)
                 self._send(m)
                 return True

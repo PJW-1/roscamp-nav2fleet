@@ -41,7 +41,7 @@ def base_zones_are_held(world, robot):
 
 # ---- order 만들기 ----
 
-def test_an_order_carries_the_whole_trip_and_its_base_is_what_was_taken():
+def test_an_order_carries_the_whole_route_and_its_base_is_what_was_taken():
     world = Harness(params=ON)
     world.step()
     call = world.call("WORK")
@@ -255,7 +255,7 @@ def test_a_parking_robot_whose_spot_was_taken_while_it_waited_chooses_again(orde
     assert grants.force("pode2", nodes=("E-3",))
     world.traffic.on_release("pode1")
     world.step()
-    assert world.traffic._robots["pode1"].trip.goal == "P-3"
+    assert world.traffic._robots["pode1"].route.goal == "P-3"
     assert world.run_until(lambda: world.view("pode1")["node"] == "Q2"
                            and "ZONE_WAIT" in world.codes("pode1"), 60.0)
     world.run(1.0)
@@ -302,10 +302,10 @@ def test_a_queued_robot_takes_the_dock_turn_when_its_order_is_extended_into_the_
     잡으면 그때 차례를 받는다."""
     world, call = queued_for_outbound()
     assert world.run_until(lambda: "BASE_END_WAIT" in world.codes("pode1"), 60.0)
-    trip = world.traffic._robots["pode1"].trip
-    assert trip.goal == "O" and not trip.turn
+    route = world.traffic._robots["pode1"].route
+    assert route.goal == "O" and not route.turn
     world.traffic.on_release("pode2")
-    assert world.run_until(lambda: trip.turn, 30.0)
+    assert world.run_until(lambda: route.turn, 30.0)
     assert world.run_until(lambda: world.result_of(call) is not None, 120.0)
     assert world.result_of(call).success and not world.problems
 

@@ -5,7 +5,7 @@ Gazebo 3대 경기에서 나왔다: 출고 대기 자리로 가던 로봇이 진
 아무것도 하지 않았고, 막힌 로봇이 세 번 실패한 뒤 격리됐다.
 """
 from fleet_core.traffic.zone.goals import STANDING_WAIT_S
-from fleet_core.traffic.zone.trips import Trip
+from fleet_core.traffic.zone.routes import Route
 from zone_harness import DT, Harness
 
 BODY_M = 0.12  # 두 로봇의 중심이 이보다 가까우면 몸이 닿는다
@@ -217,14 +217,14 @@ def test_a_robot_on_its_way_to_the_dock_keeps_the_turn():
         traffic._blocked[edge] = 1e9  # pode3은 남쪽 통로로 돌아간다
     going = world.call("OUTBOUND", "pode3")
     assert world.run_until(lambda: world.moves("pode3"), 5.0)
-    trip = traffic._robots["pode3"].trip
-    assert trip.goal == "O" and trip.granted < len(trip.edges), "the dock zone comes later"
-    assert trip.turn, "the trip carries the turn it was given"
+    route = traffic._robots["pode3"].route
+    assert route.goal == "O" and route.granted < len(route.edges), "the dock zone comes later"
+    assert route.turn, "the trip carries the turn it was given"
     late = world.call("OUTBOUND", "pode2")
     traffic._robots["pode2"].asked_at = -1.0  # 먼저 불렸다가 앞지름을 당한 로봇인 셈이다
     while world.result_of(going) is None:
         world.step()
-        other = traffic._robots["pode2"].trip
+        other = traffic._robots["pode2"].route
         # order 모델은 대기 자리로 가는 길을 도크까지 잇는다(goal이 O). 차례(turn)를 받은 길만
         # 도크로 떠난 것이다
         left = other is not None and other.goal == "O" and other.turn
@@ -234,7 +234,7 @@ def test_a_robot_on_its_way_to_the_dock_keeps_the_turn():
     assert world.result_of(going).success and world.result_of(late) is None
 
 
-def test_only_a_trip_that_took_the_dock_turn_counts_as_on_its_way():
+def test_only_a_route_that_took_the_dock_turn_counts_as_on_its_way():
     """order 모델에서는 대기 자리로 가는 길이 도크까지 이어진다(도크 쪽은 horizon이다). 길이
     도크에서 끝나도 차례를 받아 떠난 길(turn)이 아니면 줄에 선 것이다: 먼저 불린 로봇의 차례를
     가져가지 않는다. 차례를 받아 떠난 로봇은 앞이고, 목적이 바뀌어 그 길을 버리면(stale) 차례도
@@ -246,9 +246,9 @@ def test_only_a_trip_that_took_the_dock_turn_counts_as_on_its_way():
     world.now += DT / 2  # pode3이 먼저 불렸다
     world.call("OUTBOUND", "pode2")
     first, other = traffic._robots["pode3"], traffic._robots["pode2"]
-    other.trip = Trip("O", traffic._way(other, "O"))
+    other.route = Route("O", traffic._way(other, "O"))
     assert traffic._is_next(first, first.dest)
-    other.trip.turn = True
+    other.route.turn = True
     assert not traffic._is_next(first, first.dest)
-    other.trip.stale = True
+    other.route.stale = True
     assert traffic._is_next(first, first.dest)

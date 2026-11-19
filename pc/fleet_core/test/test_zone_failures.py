@@ -321,7 +321,7 @@ def test_a_mark_that_has_run_out_does_not_stop_the_reapproach():
     for edge in edges:
         traffic._blocked[(edge.a, edge.b)] = traffic._clock() - 1.0
     assert traffic._reapproach(m) and not m.watch.redock.key
-    assert m.trip is not None and m.trip.edges == edges
+    assert m.route is not None and m.route.edges == edges
 
 
 def test_a_reapproach_whose_way_is_taken_waits_and_goes_when_it_is_free():
@@ -392,7 +392,7 @@ def test_a_robot_that_docked_and_failed_stays_first_for_that_dock():
     m, other = traffic._robots["pode2"], traffic._robots["pode3"]
     assert other.dest == m.dest
     other.asked_at = (m.asked_at or 0.0) - 1.0  # the other one asked first
-    m.trip = None
+    m.route = None
     assert not traffic._ahead(m, m.dest)
     assert m in traffic._ahead(other, other.dest)
 
