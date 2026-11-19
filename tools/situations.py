@@ -67,7 +67,7 @@ def main(argv=None) -> int:
     parser.add_argument("--store", action="store_true",
                         help="매장 상황을 돌린다. -s를 주지 않았을 때만")
     parser.add_argument("-l", "--layouts", nargs="+", default=list(LAYOUTS),
-                        choices=KNOWN_LAYOUTS, help="기본 d2 d c, 시험용은 d2_shelf")
+                        choices=KNOWN_LAYOUTS, help="기본 d2 d c v7, 시험용은 d2_shelf")
     parser.add_argument("--seeds", nargs="+", type=int, default=[1, 2, 3])
     parser.add_argument("--set", action="append", metavar="NAME=VALUE")
     parser.add_argument("--avoid", nargs="+", default=["perfect"],
