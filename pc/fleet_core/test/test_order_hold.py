@@ -310,11 +310,23 @@ def test_isolation_after_a_swap_timeout_still_ships_on_a_late_take():
     assert [r.status for r in reports(core.take_output())] == ["SHIPPED"]
 
 
-def test_an_arm_timeout_on_an_isolated_robot_ends_the_wait_and_decides():
+def test_an_arm_timeout_on_an_isolated_robot_waits_for_the_late_result():
+    core, now, fill = filling()
+    core.on_robot_isolated("r1", "GOAL_FAILED")
+    core.take_output()
+    assert not reports(time_out(core, now, core.params.fill_timeout_s))
+    core.on_fill_result(fill.goal_id, True, {"A": 1}, {})
+    [report] = reports(core.take_output())
+    assert (report.hold_reason, report.placed) == (HOLD_ROBOT_FAULT, {"A": 1})
+
+
+def test_a_clear_decides_an_isolated_robot_whose_arm_never_answered():
     core, now, _ = filling()
     core.on_robot_isolated("r1", "GOAL_FAILED")
     core.take_output()
-    out = time_out(core, now, core.params.fill_timeout_s)
+    time_out(core, now, core.params.fill_timeout_s)
+    core.on_robot_removed("r1")
+    out = core.take_output()
     assert "ORDER_REQUEUED" in codes(out) and not reports(out)
 
 

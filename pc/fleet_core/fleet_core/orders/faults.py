@@ -104,9 +104,9 @@ class Faults:
     # ---- 팔 고장: 주문을 보류하고 Pode는 작업대에 붙잡아 둠 ----
     def _on_arm_fault(self, r: RobotRecord, fault: ArmFault) -> None:
         r.asked = ""
-        # 격리 중이면 시간 초과가 기다림의 끝이다
+        # 격리 중이면 늦은 결과나 치움이 판단한다
         if r.isolated:
-            self._requeue_isolated(r)
+            self._decide_if_isolated(r)
             return
         r.held = HOLD_ARM_FAULT
         if r.order:
