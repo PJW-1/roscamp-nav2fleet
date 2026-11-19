@@ -7,6 +7,7 @@ TRUTH.csv: wall,sim_t,robot,x,y,yaw (truth_logger.py).
 """
 import csv
 import math
+import os
 import re
 import sys
 from collections import defaultdict
@@ -40,7 +41,11 @@ def rect_dist(px, py, r):
 
 
 def runs_from_log(path):
-    day = datetime.now().strftime("%Y-%m-%d")
+    """판 이름, 시작, 끝(epoch). 로그 시각은 이 PC 현지 시각(KST)이다.
+
+    날짜는 --date=YYYY-MM-DD로 주고, 없으면 로그 파일이 마지막으로 바뀐 날을 쓴다(자정을 넘긴 묶음은 안 된다)."""
+    opt = [a.split("=", 1)[1] for a in sys.argv[1:] if a.startswith("--date=")]
+    day = opt[0] if opt else datetime.fromtimestamp(os.path.getmtime(path)).strftime("%Y-%m-%d")
     out, cur = [], None
     for line in open(path):
         m = re.match(r"== (\S+) (\S+) start (\d\d:\d\d:\d\d)", line)
@@ -90,7 +95,7 @@ def measure(p):
     arc = [r[2] for r in p if 1.56 <= r[1] <= 1.75]
     lane = [r[2] for r in p if 0.63 <= r[1] <= 1.56]
     corner = min((math.hypot(r[1] - 1.56, r[2] - 0.803) for r in p), default=None)
-    return {"t0": round(p[0][0], 1), "t1": round(p[-1][0], 1),
+    return {"t0": round(p[0][0], 1), "t1": round(p[-1][0], 1), "shelf_raw_m": shelf,
             "shelf_clear_cm": round(shelf * 100, 1), "wall_clear_cm": round(wall * 100, 1),
             "arc_max_y": round(max(arc), 3) if arc else None,
             "lane_min_y": round(min(lane), 3) if lane else None,
@@ -134,8 +139,9 @@ def main():
         if not ms:
             print(f"| {name} | 0 | - | - | - | - | - | - |")
             continue
-        print(f"| {name} | {len(ms)} | {min(m['shelf_clear_cm'] for m in ms)} "
-              f"| {sum(m['shelf_clear_cm'] < 0.5 for m in ms)} | {min(m['wall_clear_cm'] for m in ms)} "
+        # 0.5 cm 비교는 반올림 전 값으로 한다
+        print(f"| {name} | {len(ms)} | {round(min(m['shelf_raw_m'] for m in ms) * 100, 1)} "
+              f"| {sum(m['shelf_raw_m'] < 0.005 for m in ms)} | {min(m['wall_clear_cm'] for m in ms)} "
               f"| {max(m['arc_max_y'] or 0 for m in ms)} "
               f"| {min(m['lane_min_y'] or 9 for m in ms)}~{max(m['lane_max_y'] or 0 for m in ms)} "
               f"| {sum(m['stuck_entry'] for m in ms)} |")

@@ -28,6 +28,8 @@ def dwells(rr):
         elif start is not None:
             out.append(t0 - start)
             start = None
+    if start is not None:  # 끝까지 서 있던 구간
+        out.append(rr[-1][0] - start)
     return [d for d in out if d >= MIN_S]
 
 
