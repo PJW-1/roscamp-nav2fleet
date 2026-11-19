@@ -209,14 +209,17 @@ class OrderOrchestrator(Faults, Stations):
     # ---- 대기 주문 계산과 배차 요청 맞추기 ----
     def _pending(self) -> list:
         skip = ({r.order.order_id for r in self._robots.values() if r.order}
-                | self._reported | self._held.keys() | self._over_capacity)
-        return [o for o in self._board if o.order_id not in skip]
+                | self._reported | self._held.keys())
+        return [o for o in self._board if o.order_id not in skip
+                and sum(o.items.values()) <= self.params.basket_capacity]
 
     def _warn_over_capacity(self) -> None:
         capacity = self.params.basket_capacity
         for o in self._board:
             count = sum(o.items.values())
-            if count > capacity and o.order_id not in self._over_capacity:
+            if count <= capacity:
+                self._over_capacity.discard(o.order_id)
+            elif o.order_id not in self._over_capacity:
                 self._over_capacity.add(o.order_id)
                 self._event("WARN", "ORDER_OVER_CAPACITY",
                             f"{o.order_id}: {count} items exceed the basket capacity of {capacity}")

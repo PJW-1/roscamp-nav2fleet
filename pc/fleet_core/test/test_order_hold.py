@@ -289,12 +289,62 @@ def test_an_arm_held_robot_with_nothing_placed_that_gets_cleared_puts_the_order_
     assert [o.order_id for o in core._pending()] == ["O-001"]
 
 
-def test_an_arm_timeout_on_an_isolated_robot_decides_as_a_robot_fault():
-    core, now, _ = filling()
+def test_isolation_after_an_arm_timeout_waits_for_the_late_fill_and_counts_it():
+    core, now, fill = filling()
+    time_out(core, now, core.params.fill_timeout_s)
+    core.on_robot_isolated("r1", "GOAL_FAILED")
+    out = core.take_output()
+    assert not reports(out) and "ORDER_REQUEUED" not in codes(out), "a result is still due"
+    core.on_fill_result(fill.goal_id, True, {"A": 1}, {})
+    [report] = reports(core.take_output())
+    assert (report.status, report.hold_reason, report.placed) == (
+        "HELD", HOLD_ROBOT_FAULT, {"A": 1})
+
+
+def test_isolation_after_a_swap_timeout_still_ships_on_a_late_take():
+    core, now, swap = swapping()
+    time_out(core, now, core.params.swap_timeout_s)
+    core.on_robot_isolated("r1", "GOAL_FAILED")
+    assert not reports(core.take_output())
+    core.on_swap_result(swap.goal_id, False, True, False, "CANCELED")
+    assert [r.status for r in reports(core.take_output())] == ["SHIPPED"]
+
+
+def test_an_arm_timeout_on_an_isolated_robot_waits_for_the_late_fill():
+    core, now, fill = filling()
     core.on_robot_isolated("r1", "GOAL_FAILED")
     core.take_output()
-    out = time_out(core, now, core.params.fill_timeout_s)
+    assert not reports(time_out(core, now, core.params.fill_timeout_s))
+    core.on_fill_result(fill.goal_id, False, {}, {}, "CANCELED")
+    out = core.take_output()
     assert "ORDER_REQUEUED" in codes(out) and not reports(out)
+
+
+def test_a_late_fill_after_a_forced_ship_keeps_placed_and_missing_in_step():
+    core, now, fill = filling()
+    core.on_fill_result(fill.goal_id, False, {"A": 1}, {}, "GRIPPER")
+    now[0] += core.params.arm_retry_wait_s
+    core.step("r1")
+    retry = cmds(core.take_output(), "FillCmd")[0]
+    time_out(core, now, core.params.fill_timeout_s)
+    assert core.on_force_ship("O-001") == (True, "")
+    goal = [c for c in only(core.take_output(), DispatchCmd) if c.robot_id == "r1"][0]
+    core.on_fill_result(retry.goal_id, True, {"C": 1}, {})
+    core.take_output()
+    core.on_dispatch_result(goal.goal_id, True, "r1")
+    now[0] += core.params.arm_retry_wait_s
+    core.step("r1")
+    swap = cmds(core.take_output(), "SwapCmd")[0]
+    core.on_swap_result(swap.goal_id, True, True, True)
+    [report] = reports(core.take_output())
+    assert (report.status, report.placed, report.missing) == ("SHIPPED", {"A": 1, "C": 1}, {})
+
+
+def test_an_order_cut_down_to_fit_under_the_same_id_gets_a_robot():
+    core, _ = make([BIG])
+    core.take_output()
+    core.on_order_board("RUN", [OrderRecord("O-BIG", {"A": 1})])
+    assert len(calls(core.take_output())) == 1
 
 
 def test_a_late_fill_after_an_arm_hold_goes_on_the_held_order_without_a_new_report():
