@@ -43,10 +43,20 @@
 
 ## 다시 설치하는 법 (Git Bash)
 
+먼저 PowerShell에서 Omniverse 캐시를 D로 돌린다(`%LOCALAPPDATA%\ov`가 이미 있으면 내용을 옮기거나 지운 뒤에 한다).
+
+```powershell
+New-Item -ItemType Directory -Force D:\isaac\ov | Out-Null
+New-Item -ItemType Junction -Path "$env:LOCALAPPDATA\ov" -Target D:\isaac\ov
+```
+
+그다음 Git Bash에서 설치한다. 같은 코드를 받으려면 기록한 커밋으로 checkout한다(`release/3.0.0` 브랜치는 계속 움직인다).
+
 ```bash
 export UV_CACHE_DIR='D:\isaac\uv-cache' OMNI_KIT_ACCEPT_EULA=YES PYTHONUTF8=1
 git -c core.longpaths=true clone --branch release/3.0.0 https://github.com/isaac-sim/IsaacLab.git /d/isaac/IsaacLab
 cd /d/isaac/IsaacLab
+git checkout 39394453c
 uv sync                                                    # Newton만. 78 s
 uv sync --inexact --extra isaacsim --extra importers       # Isaac Sim 6.2와 URDF 변환기를 더함. 208 s
 ```
@@ -63,7 +73,7 @@ uv sync --inexact --extra isaacsim --extra importers       # Isaac Sim 6.2와 UR
 | Isaac Sim PhysX | 256 | 성공 | 68 s (전체 83 s) | 0.45 s | 0.09 → 2.07 → 4.86 → 4.94 → 4.94 | 3686 MiB |
 | Isaac Sim PhysX, 다시 | 4096 | 성공 | 74 s (전체 91 s) | 0.49 s | 0.13 → 2.76 → 4.92 → 4.94 → 4.94 | 4257 MiB (1045 MiB) |
 
-- GPU 메모리는 nvidia-smi가 2초마다 잰 GPU 전체 사용량이다. 화면 몫(약 1.0~1.2 GB)이 들어 있으므로 학습 몫은 "최고 − 시작 전"으로 본다: Newton 약 0.4 GB, Isaac Sim PhysX 약 3.2 GB.
+- GPU 메모리는 nvidia-smi가 2초마다 잰 GPU 전체 사용량이라 화면과 다른 프로그램 몫(시작 전 약 1.0~1.2 GB)이 들어 있다. "최고 − 시작 전"은 Newton 판에서 약 0.4 GB, Isaac Sim PhysX 4096개 판에서 약 3.2 GB였다. 다만 PhysX 판은 아래처럼 다른 GPU 작업과 겹쳤을 수 있어서, 이 차이는 같은 조건에서 잰 엔진별 사용량이 아니라 대략적인 크기로만 본다.
 - Newton 판의 준비 시간은 해석기 초기화 23 s, 시뮬레이션 시작 39 s였다. Isaac Sim 판은 두 번째부터 시뮬레이션 시작이 2.3 s였다.
 - Isaac Sim의 첫 실행 실패는 `physx_manager.py:590`(`play`)에서 텐서 뷰 백엔드가 먼저 내려가며(`RuntimeError: Tensor view backend has been unloaded`) 접근 위반이 난 것이다. 같은 명령을 다시 돌리니 성공했다. 첫 실행 때 캐시를 만드는 과정과 겹친 것으로 보지만 원인은 확인하지 않았다. 로그는 `D:\isaac\logs\p2_cartpole_physx.log`다.
 - Isaac Sim 판 두 번은 핑키 Newton 시험이 같은 GPU를 쓰던 때와 겹쳤을 수 있다. 시간 비교는 Newton 판만 깨끗하다.
@@ -71,6 +81,6 @@ uv sync --inexact --extra isaacsim --extra importers       # Isaac Sim 6.2와 UR
 
 ## 판단에 쓸 것
 
-- 우리 학습은 거의 화면 없이 돌리므로 Newton으로 충분하다. GPU 메모리도 Newton이 훨씬 적게 쓴다(같은 Cartpole 4096개에서 0.4 GB 대 3.2 GB).
+- 우리 학습은 거의 화면 없이 돌리므로 Newton으로 충분하다. GPU 메모리도 Newton 쪽이 적게 쓰는 것으로 보인다(Cartpole 4096개에서 대략 0.4 GB 대 3.2 GB. PhysX 판은 다른 GPU 작업과 겹쳤을 수 있어 정확한 비교는 아니다).
 - Isaac Sim은 지금 3080에서도 Cartpole이 돌지만 공식 최소 사양 밖이다. 화면이 필요한 일(Kit viewer, 카메라 센서)에만 쓴다.
 - 핑키를 Newton에 올린 바퀴 속도 제어와 접촉 시험은 브랜치 `feat/newton-pinky-check-2026-11-21`에 따로 남긴다.
