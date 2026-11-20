@@ -395,12 +395,40 @@ def test_real_slam_map_file():
     assert cell(0.83, 0.37) == 0  # 진열대 B 남쪽 면 (속은 미지)
 
 
-def test_kit_maps_equal_sim_maps():
+def _real_v7_site():
+    """시뮬 전용 진열대(sim_shelves)를 뺀 v7: 실물 키트 지도는 실측 진열대로 그린다."""
+    from fleet_core.fleet_map import FleetMap
+    path = ROOT / "pc" / "fleet_core" / "fleet_core" / "data" / "fleet_map_v7.yaml"
+    data = yaml.safe_load(path.read_text(encoding="utf-8"))
+    data.pop("sim_shelves", None)
+    return FleetMap(data)
+
+
+def test_kit_maps_are_drawn_from_the_real_shelves(tmp_path):
+    pytest.importorskip("fleet_core")
+    arena = pytest.importorskip("fleet_gz_sim.arena")
+    site = _real_v7_site()
+    arena.generate(tmp_path, site)
+    arena.generate_nav_variants(tmp_path, site)
     for name in MAPS:
         for ext in (".yaml", ".pgm"):
             kit = KIT / "maps" / (name + ext)
-            assert kit.read_bytes() == (ROOT / "sim" / "fleet_gz_sim" / "maps" /
-                                        (name + ext)).read_bytes()
+            assert kit.read_bytes() == (tmp_path / "maps" / (name + ext)).read_bytes(), name
+
+
+def test_kit_costmap_keeps_the_measured_shelf_face_while_the_sim_map_is_thinner():
+    # 2026-11-20: 시뮬 진열대 A만 1 cm 얇다. 1 cm 지도의 0.80~0.81 칸(x 1.0)
+    from PIL import Image
+
+    def cell(path, x, y):
+        meta = _load(path)
+        img = Image.open(path.parent / meta["image"])
+        ox, oy = meta["origin"][:2]
+        res = meta["resolution"]
+        return img.getpixel((int((x - ox) / res), img.height - 1 - int((y - oy) / res)))
+    kit = cell(KIT / "maps" / "arena_v7_fine.yaml", 1.0, 0.805)
+    sim = cell(ROOT / "sim" / "fleet_gz_sim" / "maps" / "arena_v7_fine.yaml", 1.0, 0.805)
+    assert kit == 0 and sim == 254
 
 
 # ---- cmd_watchdog.py ----

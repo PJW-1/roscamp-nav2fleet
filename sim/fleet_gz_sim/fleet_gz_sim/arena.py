@@ -61,8 +61,9 @@ def shelves(site) -> list[Box]:
     if height < MIN_SHELF_HEIGHT_M - 1e-9:
         raise ArenaError(f"{site.name}: shelf_height_m {height} is below {MIN_SHELF_HEIGHT_M} m; "
                          f"the lidar at {LIDAR_Z_M} m would not see the shelves")
+    # 시뮬 전용 진열대(sim_shelves): 월드와 시뮬 지도가 같은 상자를 쓴다
     return [Box(f"shelf_{i}", *rect, "shelf", height)
-            for i, rect in enumerate(site.shelves, start=1)]
+            for i, rect in enumerate(site.sim_shelves, start=1)]
 
 
 def obstacles(site) -> list[Box]:

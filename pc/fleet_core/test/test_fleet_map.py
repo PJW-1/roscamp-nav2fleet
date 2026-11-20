@@ -307,6 +307,23 @@ def test_bounds_and_shelves_are_kept_for_the_world_builders():
     assert site.name == "small"
 
 
+def test_sim_shelves_default_to_the_shelves():
+    assert build().sim_shelves == ((0.5, 0.75, 1.5, 0.8),)
+
+
+def test_sim_shelves_change_only_the_sim_copy():
+    site = build(sim_shelves=[[0.5, 0.75, 1.5, 0.79]])
+    assert site.sim_shelves == ((0.5, 0.75, 1.5, 0.79),)
+    assert site.shelves == ((0.5, 0.75, 1.5, 0.8),)
+
+
+@pytest.mark.parametrize("raw", [[], [[0.5, 0.75, 1.5, 0.79], [0.1, 0.1, 0.2, 0.2]],
+                                 [[0.5, 0.8, 1.5, 0.75]]])
+def test_sim_shelves_need_one_rectangle_per_shelf(raw):
+    with pytest.raises(FleetMapError, match="sim shel"):
+        build(sim_shelves=raw)
+
+
 # ---- 자리 묻기 ------------------------------------------------------------------------------
 
 

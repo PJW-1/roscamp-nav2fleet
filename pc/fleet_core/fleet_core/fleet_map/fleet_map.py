@@ -45,6 +45,8 @@ class FleetMap:
         self.name = str(data.get("name", ""))
         self._bounds = read_rect(data.get("bounds"), "bounds")
         self.shelves = tuple(read_rect(rect, "shelf") for rect in data.get("shelves") or ())
+        # 시뮬(Gazebo 월드, 시뮬 지도, 가짜 로봇)만 쓰는 진열대. 없으면 shelves와 같다
+        self.sim_shelves = self._read_sim_shelves(data.get("sim_shelves"))
         self.shelf_height_m = float(data.get("shelf_height_m", 0.15))
         self.keepout_extra = read_keepout_extra(data.get("keepout_extra"), self._bounds)
         self.zones = read_zones(data.get("zones"), self._bounds)
@@ -65,6 +67,15 @@ class FleetMap:
         self.warnings = tuple(shelf_end_warnings(self, clear, turn) + retreat_end_warnings(self))
         for warning in self.warnings:
             _log.warning("fleet map %s: %s", self.name, warning)
+
+    def _read_sim_shelves(self, raw) -> tuple:
+        if raw is None:
+            return self.shelves
+        rects = tuple(read_rect(rect, "sim shelf") for rect in raw)
+        if len(rects) != len(self.shelves):
+            raise FleetMapError(f"sim shelves: {len(rects)} rectangles for "
+                                f"{len(self.shelves)} shelves (one per shelf, same order)")
+        return rects
 
     # ---- edge와 노드 조회 ----
     def edge(self, a: str, b: str) -> Edge | None:

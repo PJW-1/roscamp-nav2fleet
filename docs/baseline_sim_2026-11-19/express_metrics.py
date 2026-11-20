@@ -2,6 +2,7 @@
 
 사용: python3 express_metrics.py TRUTH.csv BATCH.log [--passes]  (한 파일에 여러 판, 로그로 나눔)
      python3 express_metrics.py NAME=TRUTH.csv ... [--passes]      (판마다 파일 하나)
+     --shelf-top=Y: 진열대 A 북쪽 면(기본 0.803 실측. 2026-11-20부터 시뮬 월드는 0.793)
 TRUTH.csv: wall,sim_t,robot,x,y,yaw (truth_logger.py).
 발자국은 pode_nav_config nav2_params.yaml:286 다각형이다(Gazebo 충돌 모양과 같다고 가정).
 """
@@ -96,7 +97,7 @@ def measure(p):
     wall = min(WALL_N - max(py for _, py in foot_points(x, y, yaw)) for _, x, y, yaw in p)
     arc = [r[2] for r in p if 1.56 <= r[1] <= 1.75]
     lane = [r[2] for r in p if 0.63 <= r[1] <= 1.56]
-    corner = min((math.hypot(r[1] - 1.56, r[2] - 0.803) for r in p), default=None)
+    corner = min((math.hypot(r[1] - 1.56, r[2] - SHELF_A[3]) for r in p), default=None)
     return {"t0": round(p[0][0], 1), "t1": round(p[-1][0], 1), "shelf_raw_m": shelf,
             "shelf_clear_cm": round(shelf * 100, 1), "wall_clear_cm": round(wall * 100, 1),
             "arc_max_y": round(max(arc), 3) if arc else None,
@@ -112,7 +113,11 @@ def read_truth(path):
 
 
 def main():
+    global SHELF_A
     args = [a for a in sys.argv[1:] if not a.startswith("--")]
+    for a in sys.argv[1:]:
+        if a.startswith("--shelf-top="):
+            SHELF_A = (*SHELF_A[:3], float(a.split("=", 1)[1]))
     show = "--passes" in sys.argv
     if len(args) == 2 and args[1].endswith(".log"):
         rows = read_truth(args[0])
