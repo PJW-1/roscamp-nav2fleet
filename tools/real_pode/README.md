@@ -100,4 +100,76 @@ Nav2 goal을 모는 컨트롤러(FollowPathGoal)의 속도는 `nav2_params.yaml`
 
 ```bash
 python3 -m pytest -q tools/test/test_real_pode.py   # ROS 필요 없음
+python3 -m pytest -q tools/test/test_step_probe.py  # 응답 측정 도구. rclpy가 있으면 도메인 63에서 안전 장치도 본다
 ```
+
+## 응답 측정 도구 (sim2real, 2026-11-21)
+
+Isaac Lab의 로봇 응답과 무작위화 범위를 정하려고 실물 Pode의 cmd_vel 응답을 잰다(계획 문서 5-3 가).
+
+| 파일 | 하는 일 |
+|---|---|
+| `cmd_step_probe.py` | Nav2 없이 `/<ns>/cmd_vel`에 계단 입력을 20 Hz로 내고, 보낸 명령과 `/<ns>/odom`(속도, 자세)을 CSV에 적는다(명령마다, odom마다 한 줄, monotonic과 ROS 시각). 같은 이름 뒤에 `.json`을 붙인 파일에 인자, 일정, 끝난 까닭(exit)을 적는다 |
+| `step_report.py` | probe CSV로 `report.md`와 그림(PNG)을 만든다. 계단마다 지연(명령에서 odom이 목표의 10%에 닿기까지), 상승 시간(10→90%), 정상 비(odom÷명령, 계단 뒤쪽 절반 평균), 최대 가속·감속. 작은 회전에서 데드밴드(평균 비 0.5 이상인 가장 작은 ω). 원호에서 실제 반지름(odom 궤적의 원 맞춤, odom v÷ω)과 명령 반지름 v÷ω, 왼쪽·오른쪽 차이 |
+| `path_overlay.py` | `record`: Nav2와 관제가 모는 동안 `/<ns>/odom`, `/<ns>/amcl_pose`, `/<ns>/tf`의 map→odom을 CSV에 적는다. `overlay`: 기록을 v7 계획 경로 W→W_X→O_X→O(구역 지도 `fleet_map_v7.yaml`에서 읽음) 위에 그려 PNG로 저장하고, 모서리마다 바깥쪽으로 가장 많이 벗어난 거리(cm)와 경로 어디서든 가장 큰 옆 거리를 낸다. map→odom이 있으면 odom 자세를 그것으로 옮긴 촘촘한 궤적을, 없으면 amcl_pose를 쓴다 |
+| `scan_info.py` | `/<ns>/scan`을 몇 초 받아 빔 수, 각도 범위, 거리 범위, 주기(헤더 시각으로 셈), 유효 거리 비율을 JSON으로 낸다. Gazebo 기준값도 같이 적는다 |
+| `bringup_only.launch.py` | Nav2·pode_fsm 없이 제조사 bringup(`/<ns>` 안)과 `cmd_watchdog.py`만 띄운다. probe는 이것과 함께 쓴다 |
+| `gz_probe.launch.py`, `gz_step_probe.sh` | Gazebo Pode 한 대(Nav2 없음, 경기장 밖 빈 바닥 (5, 5))에 probe 네 묶음을 모두 돌리고 보고서를 `results/<날짜>/step_probe_gz/`에 쓴다 |
+
+### probe 묶음과 거리 안전
+
+한 번 실행에 한 묶음(`--set`)만 돈다. 각 묶음은 3번 되풀이하고(`--repeats`), 계단마다 정지 2 s → 명령 → 정지 2 s → 출발 자리로 돌아오기 순서다. 돌아오기는 odom으로 닫힌 고리다: 출발 자리가 뒤에 있으면 후진, 0.10 m/s 이하, 방향을 먼저 맞추고(0.3~0.6 rad/s), 3 cm 안에 들면 처음 방향으로 돌아선다. 그래서 어느 계단도 출발 자리에서 한 계단 거리 이상 멀어지지 않는다. 돌아오기 줄은 `phase=home`이고 분석에서 뺀다(`--no-home`으로 끈다).
+
+| `--set` | 명령 | 한 계단의 가장 먼 거리 |
+|---|---|---|
+| `linear` | v 0.05, 0.10, 0.15, 0.20, 0.25 m/s, 각 2 s | 0.50 m |
+| `angular` | ω 0.5, 1.0, 1.5 rad/s, 각 2 s | 제자리 |
+| `small_rot` | ω 0.05, 0.1, 0.2, 0.3 rad/s를 v 0과 v 0.12에서, 각 3 s(`--small-s`) | 0.36 m |
+| `arc` | v 0.10, ω ±0.5(R 0.20 m) 왼쪽·오른쪽, 각 4 s(`--arc-s`, `--arc-v`, `--arc-w`) | 0.34 m |
+
+안전 장치:
+
+- odom 자세가 출발 자리에서 `--limit`(기본 0.6 m, 직선 거리)보다 멀어지면 바로 멈춘다(종료 4). 일정 안의 계단이 한도를 넘을 수 있으면 시작하지 않는다(종료 3). `--dry-run`은 일정과 계단마다 가장 먼 거리만 찍는다.
+- 시작 전에 cmd_vel의 publisher를 센다. `cmd_watchdog` 말고 다른 publisher(Nav2 controller 등)가 있으면 시작하지 않는다(종료 3, `--allow`로 이름을 더할 수 있다). 도는 중에 새 publisher가 생기면 멈춘다(종료 4).
+- odom이 1 s(`--odom-timeout`) 넘게 안 오면 멈춘다. 돌아오기가 30 s(`--home-s`) 안에 안 끝나면 멈춘다.
+- Ctrl+C(종료 130), SIGTERM, 안전 정지, 오류 등 어떻게 끝나든 속도 0을 5번 보낸다. 프로세스가 통째로 죽어도 `cmd_watchdog`이 0.4 s 뒤 0을 보낸다.
+
+### 실물에서 재는 순서 (한 대)
+
+1. 넓고 빈 곳(사방 1 m 이상, 경기장 밖 평평한 바닥)에 로봇을 놓는다. 옆에 들어 올릴 사람을 둔다. 배터리를 채운다.
+2. 로봇에 이 폴더가 있어야 한다(`deploy.sh`로 보냄). Nav2 묶음이 돌고 있으면 `~/nav2fleet_real/stop.sh`로 내린다.
+3. 로봇 터미널 1(Nav2 없이): `source ~/nav2fleet_real/env.sh && ros2 launch ~/nav2fleet_real/bringup_only.launch.py namespace:=pode1`
+4. 로봇 터미널 2(probe는 로봇에서 돌린다. 실제 운용에서도 Nav2가 로봇 안에서 명령을 내므로 Wi-Fi 지연을 섞지 않는다):
+   ```bash
+   source ~/nav2fleet_real/env.sh && cd ~/nav2fleet_real && mkdir -p probe
+   python3 cmd_step_probe.py --set linear --dry-run          # 일정 확인
+   python3 cmd_step_probe.py --set linear --out probe/step_linear.csv
+   python3 cmd_step_probe.py --set angular --out probe/step_angular.csv
+   python3 cmd_step_probe.py --set small_rot --out probe/step_small_rot.csv
+   python3 cmd_step_probe.py --set arc --out probe/step_arc.csv
+   python3 scan_info.py --seconds 10 --out probe/scan_real.json
+   ```
+   묶음 사이에 로봇을 빈 곳 가운데로 다시 옮겨도 된다(출발 자리는 실행마다 새로 잡는다).
+5. PC로 가져와 보고서를 만든다: `scp -r pinky@<로봇 주소>:~/nav2fleet_real/probe results/<날짜>/step_probe_real` 뒤
+   `python3 tools/real_pode/step_report.py results/<날짜>/step_probe_real/step_*.csv --out results/<날짜>/step_probe_real`.
+6. 경로 겹쳐 보기(Nav2 켬, 관제가 W→W_X→O_X→O로 몰 때): 평소대로 `start.sh`로 띄우고 PC에서
+   `SUPER=1 source tools/real_pode/pc_env.sh && python3 tools/real_pode/path_overlay.py record --ns pode1 --out results/<날짜>/path_pode1.csv`
+   (Ctrl+C로 끝냄), 그 뒤 `python3 tools/real_pode/path_overlay.py overlay results/<날짜>/path_pode1.csv`(PNG와 `_overlay.txt`가 옆에 생긴다).
+
+주의:
+
+- 실물 odom 속도는 제조사 bringup이 30 Hz마다 엔코더 차이로 계산한 값이다(바퀴 미끄러짐은 안 보인다). 바퀴 최고 100 rpm(약 0.28 m/s)에서 명령이 비율대로 잘린다.
+- `small_rot`은 양(+)의 ω만 잰다.
+- 실물 토픽 이름(`/<ns>/cmd_vel`, `/<ns>/odom`, `/<ns>/scan`, `/<ns>/amcl_pose`, `/<ns>/tf`)은 제조사 코드와 launch에서 읽은 것이고 실물에서 아직 확인하지 않았다. 처음에 `ros2 topic list`로 본다.
+
+### Gazebo에서 같은 측정
+
+작업공간을 빌드하고 source한 셸에서(도메인은 43~101, 6·12·48·50~59·61은 안 됨):
+
+```bash
+export ROS_DOMAIN_ID=63 ROS_AUTOMATIC_DISCOVERY_RANGE=LOCALHOST RMW_IMPLEMENTATION=rmw_fastrtps_cpp
+tools/real_pode/gz_step_probe.sh                 # 화면 없이, 네 묶음 모두, results/<날짜>/step_probe_gz/
+GUI=true SETS="linear" PROBE_ARGS="--repeats 1" tools/real_pode/gz_step_probe.sh   # 짧게, 화면 켬
+```
+
+probe는 `--use-sim-time`으로 Gazebo 시계에 맞춰 돈다. 다른 무거운 작업이 돌면 실시간 비율이 떨어져 걸리는 시간이 늘고, 메시지 전달 지연이 시뮬 시각으로 커 보일 수 있으므로 PC가 한가할 때 잰다. Gazebo 모델은 DiffDrive 속도 ±1.0, 가속 ±2.0(이 상한은 선속도 m/s와 각속도 rad/s 모두에 걸린다. 그래서 angular 1.5 계단은 1.0에서 멈춘다), odom 30 Hz이고, 라이다 기준값은 640빔, 360°, 0.05~12 m, 10 Hz다(`sim/fleet_gz_sim/urdf/pode_sim.urdf.xacro`). 실물 값은 `scan_info.py`로 잰다.
