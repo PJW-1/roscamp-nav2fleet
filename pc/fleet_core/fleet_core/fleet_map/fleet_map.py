@@ -14,7 +14,7 @@ from .checks import (
     retreat_end_warnings,
     shelf_end_warnings,
 )
-from .geometry import inside, point_rect_distance
+from .geometry import inside, overlap_area, point_rect_distance
 from .model import WAITING_KINDS, Edge, FleetMapError
 from .parse import (
     read_edges,
@@ -46,7 +46,7 @@ class FleetMap:
         self._bounds = read_rect(data.get("bounds"), "bounds")
         self.shelves = tuple(read_rect(rect, "shelf") for rect in data.get("shelves") or ())
         # 시뮬(Gazebo 월드, 시뮬 지도, 가짜 로봇)만 쓰는 진열대. 없으면 shelves와 같다
-        self.sim_shelves = self._read_sim_shelves(data.get("sim_shelves"))
+        self.sim_shelves = self._read_sim_shelves(data)
         self.shelf_height_m = float(data.get("shelf_height_m", 0.15))
         self.keepout_extra = read_keepout_extra(data.get("keepout_extra"), self._bounds)
         self.zones = read_zones(data.get("zones"), self._bounds)
@@ -68,15 +68,26 @@ class FleetMap:
         for warning in self.warnings:
             _log.warning("fleet map %s: %s", self.name, warning)
 
-    def _read_sim_shelves(self, raw) -> tuple:
-        if raw is None:
+    def _read_sim_shelves(self, data: dict) -> tuple:
+        """sim_shelves 키가 없을 때만 shelves와 같다. 값이 빈(null) 키는 거절한다. 사각형마다
+        같은 자리의 진열대와 어느 다른 진열대보다도 많이 겹쳐야 한다. 같은 넓이로 겹치면 짝을
+        가릴 수 없어 거절한다(진열대끼리 겹쳐도 순서가 바뀐 목록을 거른다)."""
+        if "sim_shelves" not in data:
             return self.shelves
+        raw = data["sim_shelves"]
         if not isinstance(raw, list):
             raise FleetMapError(f"sim shelves: a list of [x0, y0, x1, y1], got {raw!r}")
         rects = tuple(read_rect(rect, "sim shelf") for rect in raw)
         if len(rects) != len(self.shelves):
             raise FleetMapError(f"sim shelves: {len(rects)} rectangles for "
                                 f"{len(self.shelves)} shelves (one per shelf, same order)")
+        for number, (sim, real) in enumerate(zip(rects, self.shelves, strict=True), start=1):
+            own = overlap_area(sim, real)
+            others = (shelf for index, shelf in enumerate(self.shelves, start=1) if index != number)
+            if own <= 0.0 or any(overlap_area(sim, other) >= own for other in others):
+                raise FleetMapError(f"sim shelves: rectangle {number} {list(sim)} does not overlap "
+                                    f"shelf {number} {list(real)} more than any other shelf "
+                                    f"(one per shelf, same order)")
         return rects
 
     # ---- edge와 노드 조회 ----

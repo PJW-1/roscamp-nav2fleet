@@ -33,6 +33,8 @@ AMCL_NORTH_WALL_Y = 0.965
 # 로봇이 벽 쪽으로 약 2 cm 붙어 간다, 벽에 붙은 고정 경로와 도크를 모두 2 cm 안쪽으로)
 LANE_Y = 0.868
 WALL_SHIFT_M = 0.02
+# 급행 들머리 원호(W_X 다음 네 점, 끝점이 줄 위)
+EXPRESS_ARC = [(1.78, 0.8466), (1.7547, 0.8584), (1.7278, 0.8656), (1.7, LANE_Y)]
 BODY_HALF_M = 0.056          # local footprint 반폭(nav2_params)
 RELEASE_GAP_M = 0.135  # footprint_radius_m 0.085 + release_margin_m 0.05
 NODE_CLEAR_M = 0.20
@@ -602,6 +604,31 @@ def test_v7_north_wall_is_the_slam_measurement_and_the_express_stays_open(site):
     # 구역은 진열대 면을 따른다: 급행 띠 아래 끝과 진열대 서쪽 HALL 띠 위 끝이 0.803
     assert [r[1] for r in site.zones["EXPRESS"].rects] == [SHELVES[0][3]]
     assert [0.50, 0.77, 0.63, SHELVES[0][3]] in [list(r) for r in site.zones["HALL"].rects]
+
+
+def _y_at(points, x):
+    """서쪽으로 가는 꺾은선에서 x 자리의 y."""
+    for (ax, ay), (bx, by) in pairwise(points):
+        if bx <= x <= ax and ax > bx:
+            return ay + (by - ay) * (ax - x) / (ax - bx)
+    raise AssertionError(x)
+
+
+def test_v7_express_runs_straight_on_the_lane_from_the_arc_to_o(site):
+    """2026-11-20 사용자 결정으로 진열대 옆 0.878 줄을 0.868로 되돌렸다. 되돌리며 지운 0.878
+    시험이 보던 것을 0.868로 다시 본다: O_X와 O의 방향, 급행 두 edge의 점, 원호 끝부터 O까지
+    (진열대 A 양 끝 포함) 곧은 줄."""
+    into, out = site.edge("W_X", "O_X"), site.edge("O_X", "O")
+    w_x, o_x, o = site.node_pose("W_X"), site.node_pose("O_X"), site.node_pose("O")
+    assert w_x == (1.8028, 0.8306) and o_x == (0.71, LANE_Y) and o == (0.285, LANE_Y)
+    assert math.degrees(site.nodes["O_X"].yaw) == pytest.approx(180.0)
+    assert math.degrees(site.nodes["O"].yaw) == pytest.approx(180.0)
+    assert list(into.points) == [w_x, *EXPRESS_ARC, o_x]
+    assert list(out.points) == [o_x, o]
+    route_ = list(into.points) + list(out.points[1:])
+    for x in (EXPRESS_ARC[-1][0], SHELVES[0][2], 1.40, 1.20, 1.00, 0.80, SHELVES[0][0], o_x[0],
+              0.50, 0.40, o[0]):
+        assert _y_at(route_, x) == pytest.approx(LANE_Y), x
 
 
 # local footprint(pode/pode_nav_config/params/nav2_params.yaml의 local_costmap footprint)
