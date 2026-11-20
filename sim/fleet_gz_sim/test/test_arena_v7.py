@@ -65,10 +65,18 @@ def test_v7_real_kit_maps_are_drawn_with_the_measured_shelf(tmp_path):
     site = load_fleet_map("v7")
     assert arena.real_site(site).sim_shelves == site.shelves
     assert site.sim_shelves != site.shelves  # 원본은 그대로
-    head = (tmp_path / "maps" / "arena_v7_fine.yaml").read_text(encoding="utf-8").splitlines()[0]
-    # 머리 줄 명령을 그대로 쳐도 되게 --out을 적는다
-    assert head == ("# 생성 파일: python3 -m fleet_gz_sim.arena --layout v7 --real --out <임시>"
-                    " (maps/를 tools/real_pode/maps로 복사)")
+    lines = (tmp_path / "maps" / "arena_v7_fine.yaml").read_text(encoding="utf-8").splitlines()
+    assert lines[1] == "# 실물 키트: /tmp/real_v7/maps/의 지도를 tools/real_pode/maps로 복사한다"
+    # 머리 줄 명령은 셸에 그대로 쳐도 돈다(--out만 시험 폴더로 바꿔 같은 파일이 나오는지 본다)
+    import shlex
+    words = shlex.split(lines[0].removeprefix("# 생성 파일: "))
+    assert words[:3] == ["python3", "-m", "fleet_gz_sim.arena"]
+    args = words[3:]
+    assert args[args.index("--out") + 1] == "/tmp/real_v7"
+    args[args.index("--out") + 1] = str(tmp_path / "again")
+    arena.main(args)
+    for path in sorted((tmp_path / "maps").iterdir()):
+        assert (tmp_path / "again" / "maps" / path.name).read_bytes() == path.read_bytes()
     real = arena_maps.pgm(arena_maps.FINE_M, arena.real_site(site))
     assert (tmp_path / "maps" / "arena_v7_fine.pgm").read_bytes() == real
     assert real != arena_maps.pgm(arena_maps.FINE_M, site)

@@ -104,13 +104,20 @@ def keepout_pgm(resolution: float, site) -> bytes:
     return _pgm(keepout(resolution, site))
 
 
+REAL_EXAMPLE_OUT = "/tmp/real_v7"  # 실물 지도 머리 줄의 예시 --out(패키지 밖)
+
+
 def map_yaml(name: str, resolution: float, site, note: str = "", real: bool = False) -> str:
     """map_server 형식. 마스크도 같은 형식이고 막힌 칸(100)이 keepout이다. note: 둘째 줄 설명.
     real: 실물 키트 지도(머리 줄 명령에 --real)."""
     ox, oy = map_origin(site)
     layout = site.name.removeprefix("arena_")
-    real_part = " --real --out <임시> (maps/를 tools/real_pode/maps로 복사)" if real else ""
-    head = f"# 생성 파일: python3 -m fleet_gz_sim.arena --layout {layout}{real_part}\n"
+    head = f"# 생성 파일: python3 -m fleet_gz_sim.arena --layout {layout}"
+    if real:
+        # 셸에 그대로 쳐도 도는 명령 + 복사 안내는 따로 한 줄
+        head += (f" --real --out {REAL_EXAMPLE_OUT}\n"
+                 f"# 실물 키트: {REAL_EXAMPLE_OUT}/maps/의 지도를 tools/real_pode/maps로 복사한다")
+    head += "\n"
     if note:
         head += f"# {note}\n"
     return (head + f"image: {name}.pgm\nmode: trinary\nresolution: {resolution}\n"
