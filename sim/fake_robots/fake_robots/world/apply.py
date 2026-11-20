@@ -65,7 +65,7 @@ class Commands:
         if r is None or r.removed or not r.comm_up:
             return  # 서비스가 답하지 않았다. 관제는 간격 뒤 다시 묻는다
         answer = clear_answer(r.pose, (cmd.x, cmd.y), cmd.radius_m,
-                              self.schedule.objects_now(self.t), self.site.shelves,
+                              self.schedule.objects_now(self.t), self.site.sim_shelves,
                               self.params.check_range_m)
         self.queued_checks.append((cmd.robot, cmd.check_id, answer))
 

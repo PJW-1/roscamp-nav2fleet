@@ -12,6 +12,16 @@ from fleet_core.fleet_map import FleetMap, load_fleet_map
 
 R = 0.08
 
+
+def test_free_space_keeps_clear_of_the_sim_shelves_not_the_measured_ones():
+    # 진열대 남쪽 면: 실측 0.75, 시뮬 0.78(2026-11-20, 가짜 로봇은 시뮬 진열대로 본다)
+    sim = copy.deepcopy(SMALL)
+    sim["sim_shelves"] = [[0.5, 0.78, 1.5, 0.8]]
+    real_fs, sim_fs = FreeSpace(FleetMap(SMALL), R), FreeSpace(FleetMap(sim), R)
+    cx, cy = sim_fs.centre(*sim_fs.cell(1.0, 0.69))
+    assert 0.75 - cy < R <= 0.78 - cy
+    assert sim_fs.free(sim_fs.static, cx, cy) and not real_fs.free(real_fs.static, cx, cy)
+
 # pc/fleet_core/test/test_fleet_map.py의 SMALL과 같은 작은 지도
 SMALL = {
     "name": "small",

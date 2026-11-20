@@ -204,7 +204,7 @@ def narrow_strips(site, band: float = 0.05) -> str:
 
     rects = sorted(past_walls(rect) for zone in site.zones.values() if zone.kind != SHARED
                    for rect in zone.rects)
-    rects += shelf_end_boxes(site.shelves, band)
+    rects += shelf_end_boxes(site.sim_shelves, band)
     return "; ".join(",".join(f"{v:g}" for v in rect) for rect in rects)
 
 

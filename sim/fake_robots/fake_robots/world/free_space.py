@@ -41,7 +41,8 @@ class FreeSpace:
                     for zid, rect in keepout if zid not in owners)
                 ok = (floor and not extra[iy][ix]
                       and wall_gap(bounds, x, y) >= radius_m
-                      and all(point_rect_distance(rect, x, y) >= radius_m for rect in site.shelves))
+                      and all(point_rect_distance(rect, x, y) >= radius_m
+                              for rect in site.sim_shelves))
                 cells[iy * self.w + ix] = 0 if ok else 1
         self.static = bytes(cells)
 

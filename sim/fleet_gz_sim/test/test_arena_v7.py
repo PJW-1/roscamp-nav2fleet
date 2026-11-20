@@ -13,8 +13,8 @@ from fleet_gz_sim import arena_maps, fleet_setup  # noqa: E402
 PKG = Path(__file__).resolve().parents[1]
 # 칸막이 3(0.76~0.78)은 2026-11-17에 뺐다
 # 북쪽 진열대 A는 2026-11-17에 서쪽으로 0.05 늘렸다(0.68 -> 0.63),
-# 2026-11-18에 북쪽 면을 실측 0.803으로
-BOXES = [(0.63, 0.77, 1.56, 0.803), (0.68, 0.365, 0.99, 0.405), (1.25, 0.365, 1.56, 0.405),
+# 2026-11-18에 북쪽 면을 실측 0.803으로, 2026-11-20에 시뮬만 1 cm 물려 0.793으로(sim_shelves)
+BOXES = [(0.63, 0.77, 1.56, 0.793), (0.68, 0.365, 0.99, 0.405), (1.25, 0.365, 1.56, 0.405),
          (0.24, 0.0, 0.26, 0.10), (0.50, 0.0, 0.52, 0.10)]
 
 
@@ -52,8 +52,42 @@ def test_v7_charging_stalls_and_express_are_open_in_the_fine_map(site):
     assert not free(0.25, 0.05) and not free(0.51, 0.05)
     assert free(0.77, 0.05)  # 칸막이 3이 있던 자리
     assert free(1.0, 0.85) and free(1.0, 0.95)   # 급행 0.17(실측) 안
+    # 시뮬 진열대 A 북쪽 면 0.793: 1 cm 지도에서 0.79~0.80 칸까지 진열대, 0.80~0.81 칸은 빈칸
+    assert not free(1.0, 0.795) and free(1.0, 0.805)
     # 북쪽 벽 안쪽 면은 SLAM 실측 0.98(2026-11-17): 1 cm 지도에서 0.98~0.99 칸은 벽이다
     assert free(1.0, 0.975) and not free(1.0, 0.985)
+
+
+def test_v7_real_kit_maps_are_drawn_with_the_measured_shelf(tmp_path):
+    # 실물 키트 지도는 --real: 시뮬 전용 진열대 대신 실측 진열대(북쪽 면 0.803)로 그린다
+    from fleet_gz_sim import arena
+    arena.main(["--layout", "v7", "--real", "--out", str(tmp_path)])
+    site = load_fleet_map("v7")
+    assert arena.real_site(site).sim_shelves == site.shelves
+    assert site.sim_shelves != site.shelves  # 원본은 그대로
+    lines = (tmp_path / "maps" / "arena_v7_fine.yaml").read_text(encoding="utf-8").splitlines()
+    assert lines[1] == "# 실물 키트: /tmp/real_v7/maps/의 지도를 tools/real_pode/maps로 복사한다"
+    # 머리 줄 명령은 셸에 그대로 쳐도 돈다(--out만 시험 폴더로 바꿔 같은 파일이 나오는지 본다)
+    import shlex
+    words = shlex.split(lines[0].removeprefix("# 생성 파일: "))
+    assert words[:3] == ["python3", "-m", "fleet_gz_sim.arena"]
+    args = words[3:]
+    assert args[args.index("--out") + 1] == "/tmp/real_v7"
+    args[args.index("--out") + 1] = str(tmp_path / "again")
+    arena.main(args)
+    for path in sorted((tmp_path / "maps").iterdir()):
+        assert (tmp_path / "again" / "maps" / path.name).read_bytes() == path.read_bytes()
+    real = arena_maps.pgm(arena_maps.FINE_M, arena.real_site(site))
+    assert (tmp_path / "maps" / "arena_v7_fine.pgm").read_bytes() == real
+    assert real != arena_maps.pgm(arena_maps.FINE_M, site)
+    assert (tmp_path / "maps" / "arena_v7_a.yaml").exists()
+
+
+def test_v7_real_maps_are_never_written_over_the_sim_files(capsys):
+    from fleet_gz_sim import arena
+    with pytest.raises(SystemExit):
+        arena.main(["--layout", "v7", "--real"])
+    assert "실물 지도는 --out" in capsys.readouterr().err
 
 
 def test_v7_standing_nodes_are_outside_the_keepout(site):
