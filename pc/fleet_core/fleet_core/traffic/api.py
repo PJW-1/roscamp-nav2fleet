@@ -41,8 +41,8 @@ class TrafficApi(Protocol):
 
     # ---- 이동, 물러나기, 도킹 goal 결과 ----
     def on_move_feedback(self, robot, goal_id, last_done_seq, waiting_at_base_end,
-                         horizon_warning="") -> None:
-        """order 모델 이동 피드백을 받는다."""
+                         horizon_warning="", distance_remaining=None) -> None:
+        """order 모델 이동 피드백을 받는다. distance_remaining은 지금 조각의 남은 거리(m)다."""
 
     def on_move_result(self, robot, goal_id, success, reason, last_done_seq=0) -> None:
         """이동 goal 결과를 받는다."""

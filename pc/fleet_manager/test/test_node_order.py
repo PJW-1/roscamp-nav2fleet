@@ -24,9 +24,9 @@ def order(goal_id, update_id=0, base=BASE):
     return MoveOrderCmd("pode1", goal_id, "M-1", update_id, "C3" if update_id else "", base)
 
 
-def feedback(seq, waiting=False, warning=""):
+def feedback(seq, waiting=False, warning="", left=0.25):
     return SimpleNamespace(feedback=MoveTo.Feedback(
-        distance_remaining=0.3, last_done_seq_id=seq, waiting_at_base_end=waiting,
+        distance_remaining=left, last_done_seq_id=seq, waiting_at_base_end=waiting,
         horizon_warning=warning))
 
 
@@ -60,12 +60,13 @@ def test_order_feedback_reaches_the_core_only_when_a_value_changed(node):
     client = node._move["pode1"]
     node._dispatch(order(7), 1.0)
     callback = client.send_goal_async.call_args.kwargs["feedback_callback"]
-    for msg in (feedback(0), feedback(0), feedback(1), feedback(1, True), feedback(1, True),
-                feedback(1, True, "HORIZON_INVALID: x")):
+    for msg in (feedback(0), feedback(0), feedback(0, left=0.125), feedback(1), feedback(1, True),
+                feedback(1, True), feedback(1, True, "HORIZON_INVALID: x")):
         callback(msg)
     assert [c.args for c in node.core.on_move_feedback.call_args_list] == [
-        ("pode1", 7, 0, False, ""), ("pode1", 7, 1, False, ""), ("pode1", 7, 1, True, ""),
-        ("pode1", 7, 1, True, "HORIZON_INVALID: x")]
+        ("pode1", 7, 0, False, "", 0.25), ("pode1", 7, 0, False, "", 0.125),
+        ("pode1", 7, 1, False, "", 0.25), ("pode1", 7, 1, True, "", 0.25),
+        ("pode1", 7, 1, True, "HORIZON_INVALID: x", 0.25)]
 
 
 def test_feedback_of_two_goals_is_told_apart(node):

@@ -121,12 +121,13 @@ class FleetManager(ManagerRoute, ManagerViews, ManagerRecord):
             self._pump()
 
     def on_move_feedback(self, robot, goal_id, last_done_seq, waiting_at_base_end,
-                         horizon_warning="") -> None:
+                         horizon_warning="", distance_remaining=None) -> None:
+        distance = () if distance_remaining is None else (distance_remaining,)
         self._input("on_move_feedback", robot, goal_id, last_done_seq, waiting_at_base_end,
-                    horizon_warning)
+                    horizon_warning, *distance)
         if not self._robot_refused("move feedback", robot):
             self.traffic.on_move_feedback(robot, goal_id, last_done_seq, waiting_at_base_end,
-                                          horizon_warning)
+                                          horizon_warning, distance_remaining)
             self._pump()
 
     def on_goal_rejected(self, robot, goal_id) -> None:
