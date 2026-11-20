@@ -8,7 +8,7 @@ N=${2:-16}
 HERE=$(cd "$(dirname "$0")" && pwd)
 PY=/d/isaac/IsaacLab/.venv/Scripts/python.exe
 export PYTHONUTF8=1 OMNI_KIT_ACCEPT_EULA=YES PXR_WORK_THREAD_LIMIT=1
-mkdir -p "$OUT"
+mkdir -p "$OUT" && OUT=$(cd "$OUT" && pwd) || exit 1
 cd /d/isaac/IsaacLab || exit 1
 for spec in "step:0:0" "ramp:1.0:3.0"; do
   IFS=: read -r tag acc alp <<<"$spec"

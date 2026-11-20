@@ -8,7 +8,7 @@ COUNTS=${*:-16 256 1024 4096}
 HERE=$(cd "$(dirname "$0")" && pwd)
 PY=/d/isaac/IsaacLab/.venv/Scripts/python.exe
 export PYTHONUTF8=1 OMNI_KIT_ACCEPT_EULA=YES PXR_WORK_THREAD_LIMIT=1
-mkdir -p "$OUT"
+mkdir -p "$OUT" && OUT=$(cd "$OUT" && pwd) || exit 1
 cd /d/isaac/IsaacLab || exit 1
 for n in $COUNTS; do
   tag="bench_n${n}"

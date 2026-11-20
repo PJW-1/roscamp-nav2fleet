@@ -6,7 +6,7 @@ OUT=${1:?out dir}
 HERE=$(cd "$(dirname "$0")" && pwd)
 PY=/d/isaac/IsaacLab/.venv/Scripts/python.exe
 export PYTHONUTF8=1 OMNI_KIT_ACCEPT_EULA=YES PXR_WORK_THREAD_LIMIT=1
-mkdir -p "$OUT"
+mkdir -p "$OUT" && OUT=$(cd "$OUT" && pwd) || exit 1
 cd /d/isaac/IsaacLab || exit 1
 for kd in 0.02 0.05 0.1 0.2 0.5; do
   for eff in 0.2 0.5; do
