@@ -178,7 +178,10 @@ WSL 전체 시험(`fulltest.sh`). 출력 그대로다.
   - `pc/fleet_manager: 2 failed, 101 passed, 34 skipped`. 실패 둘:
     - `stock_shortage`: 위반 `t=110.6 WORK_DOCK released from pode1 while 0.08 m from it`. 다시 돌려 `1 passed`. main에서도 간헐 실패가 알려진 시나리오다.
     - `shared_lane_failure`: 900 s 시간 초과, 위반 `unexpected ERROR event ROBOT_ISOLATED`, GOAL_FAILED 1(기대 0), O-005 HELD. 다시 네 번 돌려 네 번 다 `1 passed`(약 48 s).
-    - 이 실패는 지금까지 알려진 "위반 0의 시간 초과"와 다르다. 결과 폴더(`/tmp`)가 사라져 원인을 보지 못했다. dist1(필터 있음)에서는 나지 않았으므로, 피드백을 모두 넘기게 바꾼 것(코어 입력과 `_pump`가 0.2 s마다 늚)과 관계있을 수 있다. 확인하지 못했다.
+    - 이 실패는 지금까지 알려진 "위반 0의 시간 초과"와 다르다. 처음에는 결과 폴더가 사라진 줄 알았지만, `kept_runs.py`가 실패한 판을 WSL `~/fleet_test_failures/test_scenario_finishes_and_matches_the_contract-shared_lane_failure_20261121_025505/`에 남겨 두었다(2026-11-21 04:50에 확인).
+    - **실패한 판에서 본 것:** 시나리오는 50 s부터 pode1에 nav 중단 두 번을 넣는다. 그 두 번은 70.8 s, 73.3 s에 쓰였고 세 번째 시도(75.3 s)로 지나갔다. 그 뒤 127.0 s에 pode1이 WORK 도크에서 물러나다 "뒤에 무언가 있음"(RETREAT_WAIT)으로 멈췄고, 128.9 s에 관제가 대기 자리를 버리고 O_Q로 가는 order(STANDBY_LEFT, pode1-40)를 보냈다. 그때 pode3은 W_Q 쪽(약 (0.18, 0.55))에서 움직이고 있었고 pode1(약 (0.31, 0.85))과 0.3 m쯤 떨어져 있었다. pode1은 129.8, 132.5, 135.2 s에 NAV_ABORTED를 받아 GOAL_FAILED → ROBOT_ISOLATED가 됐다. 넣은 고장은 이미 다 썼으므로 이 세 번은 가짜 로봇의 길 찾기(`fake_pode_node.py`의 `goal.nav.update`)가 막힌 것으로 본다. 코드로 한 줄씩 따라가 확인하지는 않았다.
+    - **남은 거리가 판단을 바꿨는지:** 이 판의 `fms.jsonl`은 이 브랜치 코드로 그대로 재생된다("same as recorded"). 피드백 줄 955개에서 남은 거리를 지우고(main과 같은 판단) 재생하면 75.5 s에서 갈린다. 남은 거리가 없으면 pode2의 구역 허가(HALL+J_W+WORK_DOCK → W)가 75.5 s에 나고, 기록(남은 거리 있음)에서는 75.7 s에 났다. 곧 이 브랜치는 가짜 로봇 시나리오에서도 판단 시각을 0.2 s쯤 바꾸고, 그 뒤 흐름은 main과 다를 수 있다. 129 s의 막힘이 이 차이 때문인지, main에서도 같은 시각 배치가 오면 나는지는 가려내지 못했다. 다시 만든 기록은 남기지 않았다(scratchpad).
+    - **다시 돌림(2026-11-21 04:32~04:45, Gazebo 판이 모두 끝난 뒤):** `shared_lane_failure` 하나만 main(a6265b0 빌드)과 이 브랜치(같은 소스의 빌드)에서 번갈아 8번씩 돌렸다. **16번 모두 `1 passed`**(한 번에 47~54 s). 따로 돌리면 재현되지 않았다. 로그는 WSL `~/nf_logs/lane_reruns_2026-11-21/`.
 - 로컬(Windows) `docs/distance_remaining_2026-11-21/test_eta_error.py`: `4 passed`.
 
 ## Gazebo 결과
