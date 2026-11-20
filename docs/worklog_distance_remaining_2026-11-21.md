@@ -166,7 +166,17 @@ for b in main_a6265b0 dist_<SHA>; do bash docs/distance_remaining_2026-11-21/rep
 
 ## 시험 결과
 
-(전체 시험 결과는 아래에 그대로 옮긴다.)
+WSL 전체 시험(`fulltest.sh`). 출력 그대로다.
+
+- dist1(c23c185, 피드백 필터를 지우기 전):
+  - `pc/fleet_core: 1193 passed, 7 xfailed`, `pode/pode_fsm: 467 passed, 6 skipped`, `sim/fake_robots: 1120 passed, 1 skipped, 27 xfailed`, `sim/fleet_gz_sim: 600 passed`, `tools: 194 passed`, `pc/fleet_manager: 106 passed, 34 skipped`, 노드 시험 `34 passed, 1 warning`. 나머지 pode 패키지도 모두 통과.
+- dist2(fcf3cd0, 최종):
+  - `pc/fleet_core: 1200 passed, 7 xfailed`, `pode/pode_fsm: 467 passed, 6 skipped`, `sim/fake_robots: 1120 passed, 1 skipped, 27 xfailed`, `sim/fleet_gz_sim: 600 passed`, `tools: 194 passed`, 노드 시험 `34 passed`.
+  - `pc/fleet_manager: 2 failed, 101 passed, 34 skipped`. 실패 둘:
+    - `stock_shortage`: 위반 `t=110.6 WORK_DOCK released from pode1 while 0.08 m from it`. 다시 돌려 `1 passed`. main에서도 간헐 실패가 알려진 시나리오다.
+    - `shared_lane_failure`: 900 s 시간 초과, 위반 `unexpected ERROR event ROBOT_ISOLATED`, GOAL_FAILED 1(기대 0), O-005 HELD. 다시 네 번 돌려 네 번 다 `1 passed`(약 48 s).
+    - 이 실패는 지금까지 알려진 "위반 0의 시간 초과"와 다르다. 결과 폴더(`/tmp`)가 사라져 원인을 보지 못했다. dist1(필터 있음)에서는 나지 않았으므로, 피드백을 모두 넘기게 바꾼 것(코어 입력과 `_pump`가 0.2 s마다 늚)과 관계있을 수 있다. 확인하지 못했다.
+- 로컬(Windows) `docs/distance_remaining_2026-11-21/test_eta_error.py`: `4 passed`.
 
 ## Gazebo 결과
 
