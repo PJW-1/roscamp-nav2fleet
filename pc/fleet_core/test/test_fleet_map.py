@@ -325,6 +325,29 @@ def test_sim_shelves_need_one_rectangle_per_shelf(raw):
         build(sim_shelves=raw)
 
 
+def test_sim_shelves_written_without_a_value_are_refused():
+    # `sim_shelves:`만 쓰고 값을 빠뜨리면 YAML은 null이다. 없는 키처럼 실측 진열대로 넘어가지 않는다
+    data = copy.deepcopy(SMALL)
+    data["sim_shelves"] = None
+    with pytest.raises(FleetMapError, match="sim shel"):
+        FleetMap(data)
+
+
+SECOND_SHELF = [0.8, 0.3, 1.2, 0.35]  # 고정 경로가 없는 마당 가운데
+
+
+def test_sim_shelves_in_another_order_are_refused():
+    shelves = [[0.5, 0.75, 1.5, 0.8], SECOND_SHELF]
+    assert build(shelves=shelves, sim_shelves=shelves).sim_shelves == tuple(map(tuple, shelves))
+    with pytest.raises(FleetMapError, match="sim shelves: rectangle 1"):
+        build(shelves=shelves, sim_shelves=shelves[::-1])
+
+
+def test_a_sim_shelf_must_overlap_its_own_shelf():
+    with pytest.raises(FleetMapError, match="sim shelves: rectangle 1"):
+        build(sim_shelves=[SECOND_SHELF])
+
+
 # ---- 자리 묻기 ------------------------------------------------------------------------------
 
 
