@@ -58,8 +58,8 @@ def segments(rows):
 
 
 # ---- 계단 응답 ----
-def crossing(t, y, level, t_from):
-    idx = np.nonzero((t >= t_from) & (y >= level))[0]
+def crossing(t, y, level, t_from, t_to):
+    idx = np.nonzero((t >= t_from) & (t <= t_to) & (y >= level))[0]
     if idx.size == 0:
         return math.nan
     i = idx[0]
@@ -84,18 +84,19 @@ def step_metrics(t, y, target, t0, t1, t2=None):
     s = math.copysign(1.0, target)
     a = abs(target)
     yy = s * y
-    t10 = crossing(t, yy, 0.1 * a, t0)
-    t90 = crossing(t, yy, 0.9 * a, t0)
+    t10 = crossing(t, yy, 0.1 * a, t0, t1)
+    t90 = crossing(t, yy, 0.9 * a, t0, t1)
     tail = (t >= t0 + 0.5 * (t1 - t0)) & (t <= t1)
     ratio = float(np.mean(yy[tail]) / a) if tail.any() else math.nan
     acc = slopes(t, yy)
     up = (t >= t0) & (t <= t1)
+    acc_up = slopes(t[up], yy[up])
     down = (t > t1) & (t <= (t2 if t2 is not None else t1 + 1.0))
     return {
         "latency": t10 - t0,
         "rise": t90 - t10,
         "ratio": ratio,
-        "acc_max": float(np.nanmax(acc[up])) if np.isfinite(acc[up]).any() else math.nan,
+        "acc_max": float(np.nanmax(acc_up)) if np.isfinite(acc_up).any() else math.nan,
         "dec_max": float(-np.nanmin(acc[down])) if np.isfinite(acc[down]).any() else math.nan,
     }
 
@@ -147,6 +148,10 @@ def _fmt(x, nd=3):
     return "-" if x is None or (isinstance(x, float) and math.isnan(x)) else f"{x:.{nd}f}"
 
 
+def _reach(x):
+    return "미도달" if math.isnan(x) else f"{x:.3f}"
+
+
 def summarize(segs):
     lines = []
     steps = [s for s in segs if s["set"] in ("linear", "angular")]
@@ -159,19 +164,23 @@ def summarize(segs):
             target, y = response_of(s)
             m = step_metrics(s["t"], y, target, s["t0"], s["t1"], s["t2"])
             per[(s["set"], s["label"])].append(m)
-            lines.append(f"| {s['set']} | {s['label']} | {s['repeat']} | {_fmt(m['latency'])} |"
-                         f" {_fmt(m['rise'])} | {_fmt(m['ratio'])} | {_fmt(m['acc_max'], 2)} |"
+            lines.append(f"| {s['set']} | {s['label']} | {s['repeat']} | {_reach(m['latency'])} |"
+                         f" {_reach(m['rise'])} | {_fmt(m['ratio'])} | {_fmt(m['acc_max'], 2)} |"
                          f" {_fmt(m['dec_max'], 2)} |")
         lines += ["", "평균(반복 묶음):", "",
                   "| set | label | 지연 s | 상승 s | 정상 비 | 최대 가속 | 최대 감속 |",
                   "|---|---|---|---|---|---|---|"]
         for (set_name, label), ms in per.items():
             avg = {k: float(np.nanmean([m[k] for m in ms])) for k in ms[0]}
-            lines.append(f"| {set_name} | {label} | {_fmt(avg['latency'])} | {_fmt(avg['rise'])} |"
-                         f" {_fmt(avg['ratio'])} | {_fmt(avg['acc_max'], 2)} |"
-                         f" {_fmt(avg['dec_max'], 2)} |")
+            for k in ("latency", "rise"):
+                if any(math.isnan(m[k]) for m in ms):
+                    avg[k] = math.nan
+            lines.append(f"| {set_name} | {label} | {_reach(avg['latency'])} |"
+                         f" {_reach(avg['rise'])} | {_fmt(avg['ratio'])} |"
+                         f" {_fmt(avg['acc_max'], 2)} | {_fmt(avg['dec_max'], 2)} |")
         lines += ["", "가속 단위: linear는 m/s², angular는 rad/s². 지연은 명령에서 odom이"
-                  " 목표의 10%에 닿기까지, 상승은 10%에서 90%까지.", ""]
+                  " 목표의 10%에 닿기까지, 상승은 10%에서 90%까지. 둘 다 명령을 내는 동안에서만"
+                  " 찾고, 그 안에 닿지 못하면 미도달(평균은 한 번이라도 못 닿으면 미도달).", ""]
     table, db = deadband(segs)
     if table:
         lines += ["## 작은 회전(데드밴드)", "", "| v | ω 명령 | 평균 ω 비 |", "|---|---|---|"]

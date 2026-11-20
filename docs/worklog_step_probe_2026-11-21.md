@@ -34,6 +34,19 @@
   - angular 1.5는 정상 비 0.667: Gazebo DiffDrive의 `max_velocity 1.0`, `max_acceleration 2.0`이 각속도에도 걸린다
     (`pode_sim.urdf.xacro`). 시뮬은 1.0 rad/s 넘게 돌지 못한다. 실물 바퀴 상한(100 rpm)으로는 약 5.9 rad/s다.
 
+## 리뷰 반영
+
+코드 리뷰 지적 여섯 건을 시험을 먼저 쓰고 고쳤다(새 시험은 고치기 전 5cb0b47에서 모두 실패).
+
+- 두 번째 probe: 시작 검사를 자기 publisher를 만들기 전에 하고 자기 이름도 빼지 않는다. 도는 중에는 자기 publisher만
+  endpoint gid로 뺀다. 같은 이름의 probe가 이미 돌면 거절(종료 3). `--allow`(기본 `cmd_watchdog`)는 그대로 이름으로 본다.
+- NaN·inf odom: 하나라도 유한하지 않으면 멈춘다(새 종료 5). 거리 한도도 NaN이면 넘은 것으로 본다. 유한하지 않은 명령은 내지 않는다.
+- 속도 0 다섯 번: 먼저 다 보내고 CSV는 뒤에 적는다. 적기 실패는 삼키고, 보내는 동안 SIGINT·SIGTERM을 무시한다.
+- `step_report.py`: 10%·90% 교차와 최대 가속을 계단 구간 [t0, t1] 안에서만 찾는다. 못 닿으면 표에 미도달.
+- `path_overlay.py`: 경로에서 25 cm 넘게 떨어진 점도 버리지 않는다(몇 개인지 따로 적는다). 표본이 없는 모서리는 `-inf` 대신 `no samples`.
+- 돌아오기: 출발 자리까지의 거리가 그 돌아오기에서 가장 가까웠던 거리보다 5 cm 넘게 늘면 멈춘다(새 종료 6). README의
+  "한 계단 거리 이상 멀어지지 않는다"는 이 규칙대로 고쳤다.
+
 ## 확인하지 못한 것
 
 - 실물 토픽 이름은 제조사 `pinky_bringup/bringup.py`(cmd_vel, odom 30 Hz, Twist)와 `real_pode.launch.py`(namespace)에서 읽었다. 실물에서 보지 않았다.

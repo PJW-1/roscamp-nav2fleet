@@ -88,15 +88,16 @@ def project(points, p):
 
 def deviations(points, samples, near=NEAR_M):
     cs = corners(points)
-    worst = {"outward": -math.inf, "abs": 0.0}
+    worst = {"outward": -math.inf, "abs": 0.0, "far": 0}
     per = [{"turn_deg": math.degrees(c["turn"]), "at": c["at"], "outward": -math.inf, "n": 0}
            for c in cs]
     used = 0
     for p in samples:
         dist, s, lateral, end_out = project(points, p)
-        if end_out or dist > near:
+        if end_out:
             continue
         used += 1
+        worst["far"] += dist > near
         worst["abs"] = max(worst["abs"], abs(lateral))
         for c, out in zip(cs, per, strict=True):
             if c["s_from"] <= s <= c["s_to"]:
@@ -136,12 +137,14 @@ def overlay(args):
         print("no map-frame samples (need map_odom tf rows or amcl rows)")
         return 1
     worst, per, used = deviations(points, samples)
-    lines = [f"path {' -> '.join(nodes)} ({args.layout}), {used}/{len(samples)} samples near the"
-             f" path, source {source}",
-             f"largest outward deviation at a corner: {worst['outward'] * 100:.1f} cm,"
+    outward = ("no samples" if math.isinf(worst["outward"])
+               else f"{worst['outward'] * 100:.1f} cm")
+    lines = [f"path {' -> '.join(nodes)} ({args.layout}), {used}/{len(samples)} samples beside the"
+             f" path ({worst['far']} farther than {NEAR_M * 100:.0f} cm), source {source}",
+             f"largest outward deviation at a corner: {outward},"
              f" largest |lateral| anywhere: {worst['abs'] * 100:.1f} cm"]
     for i, c in enumerate(per, 1):
-        out = "-" if c["n"] == 0 else f"{c['outward'] * 100:.1f} cm"
+        out = "no samples" if c["n"] == 0 else f"{c['outward'] * 100:.1f} cm"
         lines.append(f"corner {i} at ({c['at'][0]:.3f}, {c['at'][1]:.3f}), turn"
                      f" {c['turn_deg']:+.0f} deg: outward {out} ({c['n']} samples)")
     print("\n".join(lines))

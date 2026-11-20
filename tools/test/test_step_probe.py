@@ -69,10 +69,24 @@ def test_distance_limit():
 
 
 def test_other_publishers_are_found_but_the_watchdog_is_allowed():
-    assert probe.foreign_publishers(["cmd_watchdog", "cmd_step_probe"],
-                                    own="cmd_step_probe") == []
-    assert probe.foreign_publishers(["controller_server", "cmd_watchdog"]) == [
+    assert probe.foreign_publishers([("cmd_watchdog", b"1"), ("cmd_step_probe", b"2")],
+                                    own=(b"2",)) == []
+    assert probe.foreign_publishers([("controller_server", b"3"), ("cmd_watchdog", b"1")]) == [
         "controller_server"]
+
+
+def test_another_probe_is_foreign_even_with_our_name():
+    assert probe.foreign_publishers([("cmd_step_probe", b"9")]) == ["cmd_step_probe"]
+    assert probe.foreign_publishers([("cmd_step_probe", b"2"), ("cmd_step_probe", b"9")],
+                                    own=(b"2",)) == ["cmd_step_probe"]
+
+
+def test_non_finite_odom_and_commands_are_caught():
+    assert probe.all_finite((0.1, 0.0, 1.0, 2.0, 0.3))
+    for bad in (math.nan, math.inf, -math.inf):
+        assert not probe.all_finite((0.1, 0.0, bad, 2.0, 0.3))
+    assert probe.over_limit((0, 0), (math.nan, 0.0), 0.6)
+    assert probe.EXIT_BAD_ODOM not in (probe.EXIT_ABORTED, probe.EXIT_REFUSED)
 
 
 def test_stale_odom():
@@ -85,6 +99,37 @@ def test_zero_burst():
     sent = []
     probe.send_zeros(lambda v, w: sent.append((v, w)), sleep=lambda s: None)
     assert sent == [(0.0, 0.0)] * probe.ZERO_BURST
+
+
+def test_zero_burst_survives_a_logging_error():
+    sent = []
+
+    def broken_log():
+        raise OSError("disk full")
+
+    probe.send_zeros(lambda v, w: sent.append((v, w)), sleep=lambda s: None, after=broken_log)
+    assert sent == [(0.0, 0.0)] * probe.ZERO_BURST
+
+
+def test_zero_burst_ignores_ctrl_c_and_sigterm():
+    sent = []
+    before = signal.getsignal(signal.SIGINT)
+
+    def publish(v, w):
+        if not sent:
+            os.kill(os.getpid(), signal.SIGINT)
+            os.kill(os.getpid(), signal.SIGTERM)
+        sent.append((v, w))
+
+    probe.send_zeros(publish, sleep=lambda s: time.sleep(0.01))
+    assert sent == [(0.0, 0.0)] * probe.ZERO_BURST
+    assert signal.getsignal(signal.SIGINT) is before
+
+
+def test_home_move_that_gets_farther_is_caught():
+    assert not probe.home_diverged(0.30, 0.28)
+    assert probe.home_diverged(0.34, 0.28)
+    assert probe.EXIT_HOME_DIVERGED not in (probe.EXIT_ABORTED, probe.EXIT_BAD_ODOM)
 
 
 @pytest.mark.parametrize("start", [(0.5, 0.0, 0.0), (-0.3, 0.2, 2.0), (0.0, 0.0, 3.0)])
@@ -108,12 +153,12 @@ def _row(kind, t, seg, cmd, odom=("", "", "", "", "")):
             "x": odom[2], "y": odom[3], "yaw": odom[4], "disp": ""}
 
 
-def synth(schedule, plant, rate=30.0, cmd_rate=20.0, noise=0.0005, seed=1):
+def synth(schedule, plant, rate=30.0, cmd_rate=20.0, noise=0.0005, seed=1, home=False):
     rng = random.Random(seed)
     rows, t = [], 0.0
     x = y = yaw = 0.0
     for seg in schedule:
-        if seg.phase == "home":
+        if seg.phase == "home" and not home:
             continue
         t_end = t + seg.duration
         tc = t
@@ -183,6 +228,27 @@ def test_angular_steps_use_odom_w(tmp_path):
         assert m["rise"] == pytest.approx(0.8 * seg["w"] / ACC_W, abs=0.015)
         assert m["ratio"] == pytest.approx(GAIN, abs=0.01)
         assert m["acc_max"] == pytest.approx(ACC_W, rel=0.1)
+
+
+def short_plant(seg, dt, state):
+    if seg.phase == "step":
+        return min(0.8 * seg.v, ACC * max(0.0, dt - LAT)), 0.0
+    return (0.10, 0.0) if seg.phase == "home" else (0.0, 0.0)
+
+
+def test_rise_is_not_reached_when_only_the_home_move_passes_90_percent(tmp_path):
+    sched = [s for s in probe.build_schedule("linear", repeats=1, home_s=2.0)
+             if s.label == "v0.10"]
+    rows = synth(sched, {"f": short_plant}, home=True)
+    segs = step_report.segments(step_report.load_rows([write_csv(rows, tmp_path / "h.csv")]))
+    assert len(segs) == 1
+    seg = segs[0]
+    assert np.nanmax(seg["ov"][seg["t"] > seg["t2"]]) > 0.09
+    m = step_report.step_metrics(seg["t"], seg["ov"], seg["v"], seg["t0"], seg["t1"], seg["t2"])
+    assert math.isfinite(m["latency"])
+    assert math.isnan(m["rise"])
+    assert m["ratio"] == pytest.approx(0.8, abs=0.01)
+    assert "미도달" in step_report.summarize(segs)
 
 
 def dead_plant(seg, dt, state):
@@ -270,6 +336,50 @@ def test_inward_cut_is_not_outward():
     assert worst["abs"] == pytest.approx(0.02, abs=0.001)
 
 
+def _bump_at(mid, amp):
+    return lambda s: amp * math.exp(-((s - mid) / 0.03) ** 2)
+
+
+def test_a_30_cm_outward_excursion_at_the_corner_is_reported():
+    points, _ = path_overlay.planned_path()
+    c = path_overlay.corners(points)[0]
+    mid = (c["s_from"] + c["s_to"]) / 2
+    samples = _offset_path(points, _bump_at(mid, 0.30))
+    worst, per, used = path_overlay.deviations(points, samples)
+    assert worst["outward"] == pytest.approx(0.30, abs=0.005)
+    assert per[0]["outward"] == pytest.approx(0.30, abs=0.005)
+    assert worst["abs"] == pytest.approx(0.30, abs=0.005)
+
+
+def test_a_30_cm_excursion_on_a_straight_is_reported():
+    points, _ = path_overlay.planned_path()
+    s_end = path_overlay.cumulative(points)[-1]
+    samples = _offset_path(points, _bump_at(s_end - 0.6, 0.30))
+    worst, per, _ = path_overlay.deviations(points, samples)
+    assert worst["abs"] == pytest.approx(0.30, abs=0.005)
+    assert per[0]["outward"] < 0.001
+
+
+def test_overlay_never_prints_minus_infinity(tmp_path, capsys):
+    pytest.importorskip("matplotlib")
+    points, _ = path_overlay.planned_path()
+    (ax, ay), (bx, by) = points[-2], points[-1]
+    path = tmp_path / "straight.csv"
+    with open(path, "w", newline="", encoding="utf-8") as fh:
+        w = csv.DictWriter(fh, fieldnames=path_overlay.COLUMNS)
+        w.writeheader()
+        for k in range(20):
+            u = k / 19
+            w.writerow({"kind": "amcl", "t_mono": k, "t_ros": k, "t_stamp": k,
+                        "x": ax + u * (bx - ax), "y": ay + u * (by - ay), "yaw": 0})
+    args = path_overlay.argparse.Namespace(csv=str(path), route=",".join(path_overlay.ROUTE),
+                                           layout="v7", png=str(tmp_path / "o.png"))
+    assert path_overlay.overlay(args) == 0
+    out = capsys.readouterr().out
+    assert "inf" not in out
+    assert "no samples" in out
+
+
 def test_odom_samples_go_through_map_to_odom():
     rows = [{"kind": "map_odom", "t_ros": "1.0", "x": "1.0", "y": "2.0", "yaw": str(math.pi / 2)},
             {"kind": "odom", "t_ros": "1.5", "x": "0.5", "y": "0.0", "yaw": "0"},
@@ -300,11 +410,14 @@ if mode == "intruder":
     other.create_publisher(Twist, f"/{ns}/cmd_vel", 10)
 def tick():
     dt = 1 / 30
+    v = -s["v"] if mode == "reverse" else s["v"]
     s["yaw"] += s["w"] * dt
-    s["x"] += s["v"] * math.cos(s["yaw"]) * dt + (0.05 if mode == "jump" and s["moved"] else 0)
-    s["y"] += s["v"] * math.sin(s["yaw"]) * dt
+    s["x"] += v * math.cos(s["yaw"]) * dt + (0.05 if mode == "jump" and s["moved"] else 0)
+    s["y"] += v * math.sin(s["yaw"]) * dt
     m = Odometry()
     m.pose.pose.position.x, m.pose.pose.position.y = s["x"], s["y"]
+    if mode == "nan" and s["moved"]:
+        m.pose.pose.position.x = math.nan
     q = m.pose.pose.orientation
     q.z, q.w = math.sin(s["yaw"] / 2), math.cos(s["yaw"] / 2)
     m.twist.twist.linear.x, m.twist.twist.angular.z = s["v"], s["w"]
@@ -397,3 +510,50 @@ def test_probe_sends_zeros_on_ctrl_c(ros_env, tmp_path):
     assert _cmds(log)[-probe.ZERO_BURST:] == [(0.0, 0.0)] * probe.ZERO_BURST
     rows = list(csv.DictReader(open(tmp_path / "c.csv", encoding="utf-8")))
     assert {r["kind"] for r in rows} == {"cmd", "odom"}
+
+
+def test_a_second_probe_is_refused(ros_env, tmp_path):
+    env, start = ros_env
+    ns = f"t{os.getpid()}d"
+    log = start(ns, "plain")
+    first = _probe(env, ns, tmp_path / "d1.csv", "--step-s", "8")
+    deadline = time.monotonic() + 20
+    while time.monotonic() < deadline:
+        if log.exists() and any(c != (0.0, 0.0) for c in _cmds(log)):
+            break
+        time.sleep(0.05)
+    else:
+        first.kill()
+        pytest.fail("first probe never sent a moving command")
+    second = _probe(env, ns, tmp_path / "d2.csv")
+    out, _ = second.communicate(timeout=30)
+    first.send_signal(signal.SIGINT)
+    first_out, _ = first.communicate(timeout=15)
+    assert second.returncode == probe.EXIT_REFUSED, out
+    assert "cmd_step_probe" in out
+    assert first.returncode == probe.EXIT_INTERRUPTED, first_out
+
+
+def test_probe_stops_on_non_finite_odom(ros_env, tmp_path):
+    env, start = ros_env
+    ns = f"t{os.getpid()}e"
+    log = start(ns, "nan")
+    p = _probe(env, ns, tmp_path / "e.csv", "--home-s", "5")
+    out, _ = p.communicate(timeout=30)
+    assert p.returncode == probe.EXIT_BAD_ODOM, out
+    time.sleep(0.3)
+    cmds = _cmds(log)
+    assert all(math.isfinite(v) and math.isfinite(w) for v, w in cmds)
+    assert cmds[-probe.ZERO_BURST:] == [(0.0, 0.0)] * probe.ZERO_BURST
+
+
+def test_probe_stops_when_the_home_move_gets_farther(ros_env, tmp_path):
+    env, start = ros_env
+    ns = f"t{os.getpid()}f"
+    log = start(ns, "reverse")
+    p = _probe(env, ns, tmp_path / "f.csv", "--set", "linear", "--step-s", "0.5",
+               "--home-s", "10")
+    out, _ = p.communicate(timeout=60)
+    assert p.returncode == probe.EXIT_HOME_DIVERGED, out
+    time.sleep(0.3)
+    assert _cmds(log)[-probe.ZERO_BURST:] == [(0.0, 0.0)] * probe.ZERO_BURST

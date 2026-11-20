@@ -17,7 +17,9 @@ SMALL_ROT_SPEEDS = (0.0, 0.12)
 ALLOWED_PUBLISHERS = ("cmd_watchdog",)
 ZERO_BURST = 5
 ZERO_GAP_S = 0.02
+HOME_MARGIN_M = 0.05
 EXIT_DONE, EXIT_USAGE, EXIT_REFUSED, EXIT_ABORTED, EXIT_INTERRUPTED = 0, 2, 3, 4, 130
+EXIT_BAD_ODOM, EXIT_HOME_DIVERGED = 5, 6
 COLUMNS = ("kind", "t_mono", "t_ros", "t_stamp", "set", "repeat", "step", "phase", "label",
            "cmd_v", "cmd_w", "odom_v", "odom_w", "x", "y", "yaw", "disp")
 
@@ -97,21 +99,43 @@ def displacement(start, pose):
 
 
 def over_limit(start, pose, limit):
-    return displacement(start, pose) > limit
+    return not displacement(start, pose) <= limit
 
 
-def foreign_publishers(node_names, allowed=ALLOWED_PUBLISHERS, own=""):
-    return sorted(n for n in node_names if n not in allowed and n != own)
+def all_finite(values):
+    return all(math.isfinite(v) for v in values)
+
+
+def home_diverged(dist, closest, margin=HOME_MARGIN_M):
+    return dist > closest + margin
+
+
+def foreign_publishers(endpoints, allowed=ALLOWED_PUBLISHERS, own=()):
+    return sorted(name for name, gid in endpoints if name not in allowed and gid not in own)
 
 
 def odom_stale(last_odom_mono, now_mono, timeout_s):
     return last_odom_mono is None or now_mono - last_odom_mono > timeout_s
 
 
-def send_zeros(publish, sleep=time.sleep, count=ZERO_BURST, gap=ZERO_GAP_S):
-    for _ in range(count):
-        publish(0.0, 0.0)
-        sleep(gap)
+def send_zeros(publish, sleep=time.sleep, count=ZERO_BURST, gap=ZERO_GAP_S, after=None):
+    signals = (signal.SIGINT, signal.SIGTERM)
+    old = [signal.signal(s, signal.SIG_IGN) for s in signals]
+    try:
+        for _ in range(count):
+            try:
+                publish(0.0, 0.0)
+            except Exception:
+                pass
+            sleep(gap)
+    finally:
+        for s, handler in zip(signals, old, strict=True):
+            signal.signal(s, handler)
+    if after is not None:
+        try:
+            after()
+        except Exception:
+            pass
 
 
 def wrap(angle):
@@ -182,7 +206,9 @@ def schedule_of(args):
 
 # ---- 실행 ----
 class Aborted(Exception):
-    pass
+    def __init__(self, message, code=EXIT_ABORTED):
+        super().__init__(message)
+        self.code = code
 
 
 def run(args, schedule):
@@ -209,12 +235,13 @@ def run(args, schedule):
     def ros_now():
         return node.get_clock().now().nanoseconds * 1e-9
 
-    def row(kind, cmd, odom=None, stamp=""):
+    def row(kind, cmd, odom=None, stamp="", at=None):
         seg = state["seg"]
         meta = (seg.set, seg.repeat, seg.step, seg.phase, seg.label) if seg else ("",) * 5
         pose = odom or ("", "", "", "", "")
         disp = displacement(state["home"], odom[2:]) if odom and state["home"] else ""
-        writer.writerow((kind, f"{time.monotonic():.6f}", f"{ros_now():.6f}", stamp, *meta,
+        mono, ros = at or (time.monotonic(), ros_now())
+        writer.writerow((kind, f"{mono:.6f}", f"{ros:.6f}", stamp, *meta,
                          f"{cmd[0]:.4f}", f"{cmd[1]:.4f}", *pose, disp))
 
     sent = [0.0, 0.0]
@@ -233,17 +260,27 @@ def run(args, schedule):
         while time.monotonic() < end:
             rclpy.spin_once(node, timeout_sec=0.01)
 
+    def endpoints():
+        return [(i.node_name, bytes(i.endpoint_gid))
+                for i in node.get_publishers_info_by_topic(cmd_topic)]
+
+    own = ()
+
     def others():
-        names = [i.node_name for i in node.get_publishers_info_by_topic(cmd_topic)]
-        return foreign_publishers(names, allowed, own=node.get_name())
+        return foreign_publishers(endpoints(), allowed, own=own)
 
     pub = None
 
-    def publish(v, w):
+    def send(v, w):
         msg = Twist()
         msg.linear.x, msg.angular.z = float(v), float(w)
         pub.publish(msg)
         sent[0], sent[1] = float(v), float(w)
+
+    def publish(v, w):
+        if not all_finite((v, w)):
+            raise Aborted(f"refusing to send a non-finite command ({v}, {w})", EXIT_BAD_ODOM)
+        send(v, w)
         row("cmd", sent)
 
     code = EXIT_DONE
@@ -260,9 +297,22 @@ def run(args, schedule):
             log.error(f"refusing: no odom on {odom_topic} (or no /clock with --use-sim-time)")
             code = EXIT_REFUSED
             return code
+        before = set(endpoints())
         pub = node.create_publisher(Twist, cmd_topic, 10)
+        mine = []
+        for _ in range(100):
+            mine = [e for e in set(endpoints()) - before if e[0] == node.get_name()]
+            if mine:
+                break
+            spin_for(0.01)
+        if len(mine) != 1:
+            raise Aborted(f"cannot tell our own publisher on {cmd_topic} apart: {mine}",
+                          EXIT_REFUSED)
+        own = (mine[0][1],)
         spin_for(0.5)
         o = state["odom"]
+        if not all_finite(o):
+            raise Aborted(f"odom has a non-finite value {o}", EXIT_BAD_ODOM)
         state["home"] = (o[2], o[3], o[4])
         log.info(f"start pose {state['home']}, {len(schedule)} segments, limit {args.limit} m")
         period = 1.0 / args.rate
@@ -271,10 +321,13 @@ def run(args, schedule):
             state["seg"] = seg
             t_end = ros_now() + seg.duration
             next_tick = ros_now()
+            closest = math.inf
             while True:
                 rclpy.spin_once(node, timeout_sec=0.002)
                 now_mono, now = time.monotonic(), ros_now()
                 o = state["odom"]
+                if not all_finite(o):
+                    raise Aborted(f"odom has a non-finite value {o}", EXIT_BAD_ODOM)
                 if over_limit(state["home"], o[2:], args.limit):
                     raise Aborted(f"odom moved {displacement(state['home'], o[2:]):.3f} m"
                                   f" > limit {args.limit} m")
@@ -286,6 +339,11 @@ def run(args, schedule):
                     if found:
                         raise Aborted(f"another publisher appeared on {cmd_topic}: {found}")
                 if seg.phase == "home":
+                    dist = displacement(state["home"], o[2:])
+                    closest = min(closest, dist)
+                    if home_diverged(dist, closest):
+                        raise Aborted(f"home move got farther: {dist:.3f} m from the start after"
+                                      f" {closest:.3f} m", EXIT_HOME_DIVERGED)
                     v, w, done = home_command(o[2:], state["home"])
                     if done:
                         break
@@ -302,13 +360,23 @@ def run(args, schedule):
         log.info(f"done, wrote {out}")
     except Aborted as e:
         log.error(f"ABORT: {e}")
-        code = EXIT_ABORTED
+        code = e.code
     except KeyboardInterrupt:
         log.warn("interrupted")
         code = EXIT_INTERRUPTED
     finally:
         if pub is not None:
-            send_zeros(publish)
+            stamps = []
+
+            def zero(v, w):
+                send(v, w)
+                stamps.append((time.monotonic(), ros_now()))
+
+            def log_zeros():
+                for at in stamps:
+                    row("cmd", (0.0, 0.0), at=at)
+
+            send_zeros(zero, after=log_zeros)
         fh.close()
         Path(str(out) + ".json").write_text(json.dumps({
             "args": vars(args), "exit": code, "segments": [asdict(s) for s in schedule]},
