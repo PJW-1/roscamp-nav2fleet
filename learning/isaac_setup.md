@@ -37,7 +37,8 @@
 | Omniverse 캐시 | `%LOCALAPPDATA%\ov`는 `D:\isaac\ov`로 가는 junction이다 |
 | 설치·학습 로그 | `D:\isaac\logs` |
 | 학습 결과 | `D:\isaac\IsaacLab\logs\rsl_rl\cartpole_direct\<날짜시각>` |
-| C에 남는 것 | Warp 커널 캐시 `%LOCALAPPDATA%\NVIDIA\warp\Cache`, 내려받은 asset 캐시 `%LOCALAPPDATA%\Temp\...`, uv가 쓰는 Python `%APPDATA%\uv\python`(138 MB, 전부터 있던 것) |
+| 가상 환경의 Python | `%APPDATA%\uv\python\cpython-3.12.14-windows-x86_64-none`(70 MB, uv 기본 위치). 01:47에 처음 만들 때는 `UV_PYTHON_INSTALL_DIR=D:\isaac\uv-python`을 썼지만, 01:59에 그 변수 없이 `uv run`을 하자 uv가 기본 위치에 Python을 새로 받고 가상 환경을 다시 만들었다. 지금은 기본 위치를 쓴다. `D:\isaac\uv-python`은 쓰지 않는 사본이다 |
+| C에 남는 것 | 위 Python, Warp 커널 캐시 `%LOCALAPPDATA%\NVIDIA\warp\Cache`, 내려받은 asset 캐시 `%LOCALAPPDATA%\Temp\...` |
 
 예전에 시스템 Python 3.12에 pip로 깔았던 Isaac Sim 6.0.1(패키지 25개, 18.4 GB)과 Omniverse 캐시(4.8 GB)는 지웠다. C 드라이브 여유가 59 GB에서 81 GB로 늘었다. torch 등 다른 패키지는 다른 프로그램이 써서 남겼다.
 
@@ -61,6 +62,7 @@ uv sync                                                    # Newton만. 78 s
 uv sync --inexact --extra isaacsim --extra importers       # Isaac Sim 6.2와 URDF 변환기를 더함. 208 s
 ```
 
+- **`UV_PYTHON_INSTALL_DIR`를 바꾸지 않는다.** 가상 환경을 만든 Python과 다른 위치를 가리키면 uv가 Python을 새로 받고 가상 환경을 지운 뒤 다시 만든다. 그때 Isaac Lab이 돌고 있으면 실행 중인 파일이 지워진다(아래 첫 실행 실패).
 - **extra를 빼고 `uv sync`를 다시 하지 않는다.** `uv sync`는 기본이 "정확히 맞추기"라 extra로 깐 Isaac Sim을 지운다. 실행은 `uv run --extra isaacsim --extra importers ...`로 한다(`uv run`은 지우지 않는다).
 - **EULA:** `OMNI_KIT_ACCEPT_EULA=YES`로 동의했다. 사용자가 2026-11-21 01시 40분쯤 "승인이 필요한 것은 다 승인한 것"이라고 해서 이 설정으로 진행했다.
 
@@ -75,7 +77,7 @@ uv sync --inexact --extra isaacsim --extra importers       # Isaac Sim 6.2와 UR
 
 - GPU 메모리는 nvidia-smi가 2초마다 잰 GPU 전체 사용량이라 화면과 다른 프로그램 몫(시작 전 약 1.0~1.2 GB)이 들어 있다. "최고 − 시작 전"은 Newton 판에서 약 0.4 GB, Isaac Sim PhysX 4096개 판에서 약 3.2 GB였다. 다만 PhysX 판은 아래처럼 다른 GPU 작업과 겹쳤을 수 있어서, 이 차이는 같은 조건에서 잰 엔진별 사용량이 아니라 대략적인 크기로만 본다.
 - Newton 판의 준비 시간은 해석기 초기화 23 s, 시뮬레이션 시작 39 s였다. Isaac Sim 판은 두 번째부터 시뮬레이션 시작이 2.3 s였다.
-- Isaac Sim의 첫 실행 실패는 `physx_manager.py:590`(`play`)에서 텐서 뷰 백엔드가 먼저 내려가며(`RuntimeError: Tensor view backend has been unloaded`) 접근 위반이 난 것이다. 같은 명령을 다시 돌리니 성공했다. 첫 실행 때 캐시를 만드는 과정과 겹친 것으로 보지만 원인은 확인하지 않았다. 로그는 `D:\isaac\logs\p2_cartpole_physx.log`다.
+- Isaac Sim의 첫 실행 실패는 `physx_manager.py:590`(`play`)에서 텐서 뷰 백엔드가 먼저 내려가며(`RuntimeError: Tensor view backend has been unloaded`) 접근 위반이 난 것이다. 같은 명령을 다시 돌리니 성공했다. 실행 중이던 01:58에 다른 작업(핑키 Newton 시험)이 `UV_PYTHON_INSTALL_DIR` 없이 `uv run`을 해서 uv가 이 가상 환경을 지우고 다시 만들려 했다(파일 시각과 그 작업의 보고로 확인). 실행 중인 Isaac Sim의 파일이 지워진 것이 원인일 가능성이 높지만, 같은 조건으로 다시 일으켜 보지는 않았다. 로그는 `D:\isaac\logs\p2_cartpole_physx.log`다.
 - Isaac Sim 판 두 번은 핑키 Newton 시험이 같은 GPU를 쓰던 때와 겹쳤을 수 있다. 시간 비교는 Newton 판만 깨끗하다.
 - 학습한 정책을 눈으로 보는 `isaaclab play ... --viz newton_gl`은 화면이 필요해 아직 하지 않았다.
 

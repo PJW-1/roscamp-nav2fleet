@@ -9,7 +9,7 @@
 3. **01:47 Newton 판 설치:** `D:\isaac\IsaacLab`에 `release/3.0.0`을 받고 `uv sync`(78 s).
 4. **01:49 Newton Cartpole:** 4096개 환경, 150회, 학습 79 s, 보상 0.13 → 4.93.
 5. **01:52 Isaac Sim 더함:** `uv sync --inexact --extra isaacsim --extra importers`(208 s). 가상 환경이 18 GB가 됐다.
-6. **01:58 Isaac Sim PhysX Cartpole:** 처음 4096개는 시작 중 접근 위반으로 죽었다. 256개로 줄여 성공했고, 다시 4096개로 돌려도 성공했다.
+6. **01:58 Isaac Sim PhysX Cartpole:** 처음 4096개는 시작 중 접근 위반으로 죽었다. 256개로 줄여 성공했고, 다시 4096개로 돌려도 성공했다. 첫 실행 도중 다른 작업이 `UV_PYTHON_INSTALL_DIR` 없이 `uv run`을 해서 가상 환경을 다시 만들려 한 것이 원인일 가능성이 높다. 그 뒤로 가상 환경은 uv 기본 위치의 Python(`%APPDATA%\uv\python`)을 쓴다.
 
 ## 판단
 
@@ -20,4 +20,4 @@
 ## 남은 것
 
 - 학습한 정책을 화면으로 보기(`--viz newton_gl`)는 하지 않았다.
-- Isaac Sim 첫 실행 실패의 원인은 확인하지 않았다. 다시 나면 `D:\isaac\logs\p2_cartpole_physx.log`와 비교한다.
+- Isaac Sim 첫 실행 실패를 같은 조건으로 다시 일으켜 보지는 않았다. 다시 나면 `D:\isaac\logs\p2_cartpole_physx.log`와 비교하고, 그때 다른 `uv` 명령이 돌고 있었는지 본다.
