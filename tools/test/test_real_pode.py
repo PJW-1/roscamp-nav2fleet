@@ -25,6 +25,15 @@ MAPS = ("arena_v7_a", "arena_v7_fine", "arena_v7_keepout")
 # 위치 추정은 실물 SLAM 지도(2026-11-17 확정), costmap·keepout 은 v7 도면 지도
 REAL_MAP = "arena_real_slam"
 LAUNCH_MAPS = ("arena_v7_a", REAL_MAP, "arena_v7_keepout")
+# 실물 키트 지도 그림(실측 진열대)의 SHA-256. 생성기와 저장 파일을 함께 바꿔도 여기서 걸린다.
+# 실물 지도를 일부러 바꿀 때만 같이 고친다(2026-11-20: main 593b1f9, 52a7e1f와 같은 바이트)
+KIT_MAP_SHA256 = {
+    "arena_v7.pgm": "c638e8db3dd54c0aa9ac158368a5cea33b8e202ac566cea13f721a2a97a22995",
+    "arena_v7_a.pgm": "e5aa3bfe211c855797bad75ef03ef3f1a24512fa6da687833e362d13dacd4874",
+    "arena_v7_fine.pgm": "892316b1a982912a5301f2b00d56e2b0365cb36a336ce986e0b8c57ead17d85e",
+    "arena_v7_keepout.pgm": "cd185f9fb116c843688141b1f5ee15254f399aa0436a73f1708079676af29dc8",
+    "arena_real_slam.pgm": "553e4be9dee15d25f480b5b5dfbb29c94b8f9d981cf7859d4f6a213ec78643d1",
+}
 
 sys.path.insert(0, str(KIT))
 
@@ -404,6 +413,15 @@ def test_kit_maps_are_drawn_from_the_real_shelves(tmp_path):
         for ext in (".yaml", ".pgm"):
             kit = KIT / "maps" / (name + ext)
             assert kit.read_bytes() == (tmp_path / "maps" / (name + ext)).read_bytes(), name
+
+
+def test_kit_map_images_are_the_pinned_measured_maps():
+    # 위 생성 비교는 fleet_gz_sim이 없으면 건너뛴다. 이 시험은 늘 돈다
+    import hashlib
+    names = sorted(path.name for path in (KIT / "maps").glob("*.pgm"))
+    assert names == sorted(KIT_MAP_SHA256), "새 키트 지도는 KIT_MAP_SHA256에도 적는다"
+    for name, digest in KIT_MAP_SHA256.items():
+        assert hashlib.sha256((KIT / "maps" / name).read_bytes()).hexdigest() == digest, name
 
 
 def test_kit_costmap_keeps_the_measured_shelf_face_while_the_sim_map_is_thinner():
