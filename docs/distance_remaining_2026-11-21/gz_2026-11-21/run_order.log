@@ -1,0 +1,33 @@
+03:09:27 main rush1:gz_v7_rush available 15201 MB
+batch done
+03:14:16 dist rush1:gz_v7_rush available 15139 MB
+batch done
+03:19:09 dist rush2:gz_v7_rush available 15225 MB
+batch done
+03:24:03 main rush2:gz_v7_rush available 15217 MB
+batch done
+03:28:56 main rush3:gz_v7_rush available 15224 MB
+batch done
+03:33:50 dist rush3:gz_v7_rush available 15218 MB
+batch done
+03:38:45 dist rush4:gz_v7_rush available 15217 MB
+batch done
+03:43:37 main rush4:gz_v7_rush available 15213 MB
+batch done
+03:48:31 main v7a:gz_v7 available 15213 MB
+batch done
+03:52:34 dist v7a:gz_v7 available 15219 MB
+batch done
+03:56:35 dist v7b:gz_v7 available 15216 MB
+batch done
+04:00:36 main v7b:gz_v7 available 15208 MB
+batch done
+04:04:38 main v7c:gz_v7 available 15214 MB
+batch done
+04:08:45 dist v7c:gz_v7 available 15205 MB
+batch done
+04:12:48 dist v7d:gz_v7 available 15212 MB
+batch done
+04:16:51 main v7d:gz_v7 available 15213 MB
+batch done
+04:20:53 all done
