@@ -60,13 +60,15 @@ def core_jumps(record) -> list[dict]:
         m = traffic._robots.get(entry["args"][0]) if entry["in"] == "on_move_feedback" else None
         before = m.move_order if m is not None else None
         old = before.left if before is not None else None
+        core._time = now[0]
         usable = before is not None and traffic._reported_end(m, m.route) is not None
         getattr(core, entry["in"])(*replay._arguments(entry))
         if before is None or m.move_order is not before or before.left is None:
             continue
         new = before.left
         first.setdefault((m.name, before.id, new.seq), now[0])
-        if new is old or new.jumped_at != now[0]:
+        stamped_before = old.jumped_at if old is not None else None
+        if new is old or new.jumped_at != now[0] or stamped_before == now[0]:
             continue
         cut = next((c for c in before.cuts[:before.given] if c[0] == new.seq), None)
         straight = mode = None
