@@ -109,6 +109,27 @@ def test_a_replan_jump_falls_back_until_the_value_stays_calm():
     assert eta(world, m) == pytest.approx(from_distance(world, m, value))
 
 
+@pytest.mark.parametrize("gap", [None, math.nan, -0.1], ids=["missing", "nan", "negative"])
+def test_a_bad_sample_after_a_jump_does_not_end_the_calm_wait(gap):
+    world, goal_id, m = driving_to_n_w()
+    feed(world, goal_id, 0.80)
+    feed(world, goal_id, 1.00)  # 길이 뒤집혔다
+    feed(world, goal_id, gap)
+    assert eta(world, m) == pytest.approx(projected(world, m))
+    feed(world, goal_id, 0.98)
+    assert eta(world, m) == pytest.approx(projected(world, m)), "still inside the calm time"
+
+
+@pytest.mark.parametrize("bad", [math.nan, math.inf, -0.05], ids=["nan", "inf", "negative"])
+def test_a_value_that_is_not_a_distance_is_not_used(bad):
+    world, goal_id, m = driving_to_n_w()
+    world.bots["pode2"].x, world.bots["pode2"].y = world.site.node_pose("N_W")
+    m.x, m.y = world.site.node_pose("N_W")
+    feed(world, goal_id, bad)
+    assert eta(world, m) == pytest.approx(projected(world, m))
+    assert eta(world, m) >= 0.0
+
+
 def test_flipping_back_and_forth_keeps_falling_back():
     world, goal_id, m = driving_to_n_w()
     for step in range(20):

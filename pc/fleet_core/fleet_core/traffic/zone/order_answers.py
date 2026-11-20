@@ -47,10 +47,14 @@ class OrderAnswers:
 
     # ---- 로봇이 보낸 지금 조각의 남은 거리 ----
     def _note_left(self, mo, done, waiting, distance) -> None:
-        if waiting or not isinstance(distance, (int, float)) or not math.isfinite(distance):
+        if waiting:
             mo.left = None
             return
         now, seq, old = self._clock(), int(done) + 1, mo.left
+        if not isinstance(distance, (int, float)) or not 0.0 <= distance < math.inf:
+            if old is not None:
+                old.at = -math.inf
+            return
         same = old is not None and old.seq == seq
         jumped_at = old.jumped_at if same else None
         if same and distance > old.m + LEFT_JUMP_M:

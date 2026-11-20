@@ -56,16 +56,16 @@ def test_a_plain_move_command_gets_no_feedback_callback(node):
     assert client.send_goal_async.call_args.kwargs == {}
 
 
-def test_order_feedback_reaches_the_core_only_when_a_value_changed(node):
+def test_every_order_feedback_reaches_the_core_so_the_distance_stays_fresh(node):
     client = node._move["pode1"]
     node._dispatch(order(7), 1.0)
     callback = client.send_goal_async.call_args.kwargs["feedback_callback"]
-    for msg in (feedback(0), feedback(0), feedback(0, left=0.125), feedback(1), feedback(1, True),
-                feedback(1, True), feedback(1, True, "HORIZON_INVALID: x")):
+    for msg in (feedback(0), feedback(0), feedback(0, left=0.125), feedback(1, True),
+                feedback(1, True, "HORIZON_INVALID: x")):
         callback(msg)
     assert [c.args for c in node.core.on_move_feedback.call_args_list] == [
-        ("pode1", 7, 0, False, "", 0.25), ("pode1", 7, 0, False, "", 0.125),
-        ("pode1", 7, 1, False, "", 0.25), ("pode1", 7, 1, True, "", 0.25),
+        ("pode1", 7, 0, False, "", 0.25), ("pode1", 7, 0, False, "", 0.25),
+        ("pode1", 7, 0, False, "", 0.125), ("pode1", 7, 1, True, "", 0.25),
         ("pode1", 7, 1, True, "HORIZON_INVALID: x", 0.25)]
 
 
