@@ -18,6 +18,7 @@ v7만 더(가운데 통로 갈래, gz.launch.py nav_map_variant로 고른다):
 from __future__ import annotations
 
 import argparse
+import copy
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -66,6 +67,13 @@ def shelves(site) -> list[Box]:
             for i, rect in enumerate(site.sim_shelves, start=1)]
 
 
+def real_site(site):
+    """실물 키트 지도용 사본: 시뮬 전용 진열대(sim_shelves) 대신 실측 진열대(shelves)로 그린다."""
+    out = copy.copy(site)
+    out.sim_shelves = site.shelves
+    return out
+
+
 def obstacles(site) -> list[Box]:
     """벽과 진열대. 지도에 막힌 칸으로 들어가는 것들이다."""
     return [*walls(site), *shelves(site)]
@@ -77,10 +85,17 @@ def outputs(name: str) -> tuple[str, ...]:
             f"maps/{name}_keepout.yaml", f"maps/{name}_keepout.pgm")
 
 
-def generate(out: Path, site) -> tuple[str, ...]:
-    """site의 월드와 지도를 out/worlds, out/maps에 쓰고 쓴 파일 목록을 돌려준다."""
-    from fleet_gz_sim.arena_maps import COARSE_M, FINE_M, keepout_pgm, map_yaml, pgm
+def generate(out: Path, site, real: bool = False) -> tuple[str, ...]:
+    """site의 월드와 지도를 out/worlds, out/maps에 쓰고 쓴 파일 목록을 돌려준다.
+    real: 실물 키트 지도(실측 진열대)."""
+    from functools import partial
+
+    from fleet_gz_sim.arena_maps import COARSE_M, FINE_M, keepout_pgm, pgm
+    from fleet_gz_sim.arena_maps import map_yaml as plain_yaml
     from fleet_gz_sim.arena_world import world_sdf
+    if real:
+        site = real_site(site)
+    map_yaml = partial(plain_yaml, real=real)
     name = site.name
     (out / "worlds").mkdir(parents=True, exist_ok=True)
     (out / "maps").mkdir(parents=True, exist_ok=True)
@@ -101,17 +116,19 @@ def nav_variant_outputs(name: str) -> tuple[str, ...]:
                  for ext in ("yaml", "pgm"))
 
 
-def generate_nav_variants(out: Path, site) -> tuple[str, ...]:
+def generate_nav_variants(out: Path, site, real: bool = False) -> tuple[str, ...]:
     """costmap용 갈래 지도를 out/maps에 쓰고 쓴 파일 목록을 돌려준다.
-    기본 지도는 건드리지 않는다."""
+    기본 지도는 건드리지 않는다. real: 실물 키트 지도(실측 진열대)."""
     from fleet_gz_sim.arena_maps import NAV_VARIANTS, map_yaml, pgm
+    if real:
+        site = real_site(site)
     name = site.name
     (out / "maps").mkdir(parents=True, exist_ok=True)
     for variant, (resolution, paint) in NAV_VARIANTS.items():
         stem = f"{name}_{variant}"
         note = f"갈래 {variant}: {resolution} m, 칠하기 {paint} (nav_map_variant:={variant})"
         (out / "maps" / f"{stem}.yaml").write_text(
-            map_yaml(stem, resolution, site, note), encoding="utf-8", newline="\n")
+            map_yaml(stem, resolution, site, note, real=real), encoding="utf-8", newline="\n")
         (out / "maps" / f"{stem}.pgm").write_bytes(pgm(resolution, site, paint))
     return nav_variant_outputs(name)
 
@@ -123,12 +140,17 @@ def main(argv=None) -> None:
                         help="worlds/, maps/를 쓸 폴더(기본: 이 패키지 소스)")
     parser.add_argument("--layout", choices=KNOWN_LAYOUTS, action="append",
                         help="배치(여러 번). 없으면 후보 셋. 시험용 d2_shelf는 이름을 줘야 한다")
+    parser.add_argument("--real", action="store_true",
+                        help="실물 키트 지도(tools/real_pode/maps): 시뮬 전용 진열대 대신 실측 진열대로"
+                             " 그린다. --out에 다른 폴더를 꼭 준다")
     args = parser.parse_args(argv)
+    if args.real and args.out.resolve() == PKG:
+        parser.error("실물 지도는 --out으로 이 패키지 밖의 폴더에 쓴다(시뮬 파일을 덮지 않는다)")
     for layout in args.layout or LAYOUTS:
         site = load_fleet_map(layout)
-        written = generate(args.out, site)
+        written = generate(args.out, site, real=args.real)
         if layout in NAV_VARIANT_LAYOUTS:
-            written += generate_nav_variants(args.out, site)
+            written += generate_nav_variants(args.out, site, real=args.real)
         print(f"{layout}: wrote {', '.join(written)} under {args.out}")
 
 

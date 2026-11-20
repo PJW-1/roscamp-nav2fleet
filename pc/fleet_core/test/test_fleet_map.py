@@ -318,7 +318,8 @@ def test_sim_shelves_change_only_the_sim_copy():
 
 
 @pytest.mark.parametrize("raw", [[], [[0.5, 0.75, 1.5, 0.79], [0.1, 0.1, 0.2, 0.2]],
-                                 [[0.5, 0.8, 1.5, 0.75]]])
+                                 [[0.5, 0.8, 1.5, 0.75]], 1, "0.5 0.75 1.5 0.79",
+                                 {"a": [0.5, 0.75, 1.5, 0.79]}])
 def test_sim_shelves_need_one_rectangle_per_shelf(raw):
     with pytest.raises(FleetMapError, match="sim shel"):
         build(sim_shelves=raw)

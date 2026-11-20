@@ -104,11 +104,12 @@ def keepout_pgm(resolution: float, site) -> bytes:
     return _pgm(keepout(resolution, site))
 
 
-def map_yaml(name: str, resolution: float, site, note: str = "") -> str:
-    """map_server 형식. 마스크도 같은 형식이고 막힌 칸(100)이 keepout이다. note: 둘째 줄 설명."""
+def map_yaml(name: str, resolution: float, site, note: str = "", real: bool = False) -> str:
+    """map_server 형식. 마스크도 같은 형식이고 막힌 칸(100)이 keepout이다. note: 둘째 줄 설명.
+    real: 실물 키트 지도(머리 줄 명령에 --real)."""
     ox, oy = map_origin(site)
     layout = site.name.removeprefix("arena_")
-    head = f"# 생성 파일: python3 -m fleet_gz_sim.arena --layout {layout}\n"
+    head = f"# 생성 파일: python3 -m fleet_gz_sim.arena --layout {layout}{' --real' if real else ''}\n"
     if note:
         head += f"# {note}\n"
     return (head + f"image: {name}.pgm\nmode: trinary\nresolution: {resolution}\n"

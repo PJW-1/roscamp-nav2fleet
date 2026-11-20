@@ -395,22 +395,12 @@ def test_real_slam_map_file():
     assert cell(0.83, 0.37) == 0  # 진열대 B 남쪽 면 (속은 미지)
 
 
-def _real_v7_site():
-    """시뮬 전용 진열대(sim_shelves)를 뺀 v7: 실물 키트 지도는 실측 진열대로 그린다."""
-    from fleet_core.fleet_map import FleetMap
-    path = ROOT / "pc" / "fleet_core" / "fleet_core" / "data" / "fleet_map_v7.yaml"
-    data = yaml.safe_load(path.read_text(encoding="utf-8"))
-    data.pop("sim_shelves", None)
-    return FleetMap(data)
-
-
 def test_kit_maps_are_drawn_from_the_real_shelves(tmp_path):
+    # 키트 지도 = python3 -m fleet_gz_sim.arena --layout v7 --real 의 결과(실측 진열대)
     pytest.importorskip("fleet_core")
     arena = pytest.importorskip("fleet_gz_sim.arena")
-    site = _real_v7_site()
-    arena.generate(tmp_path, site)
-    arena.generate_nav_variants(tmp_path, site)
-    for name in MAPS:
+    arena.main(["--layout", "v7", "--real", "--out", str(tmp_path)])
+    for name in ("arena_v7", *MAPS):
         for ext in (".yaml", ".pgm"):
             kit = KIT / "maps" / (name + ext)
             assert kit.read_bytes() == (tmp_path / "maps" / (name + ext)).read_bytes(), name

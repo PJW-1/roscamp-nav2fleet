@@ -71,6 +71,8 @@ class FleetMap:
     def _read_sim_shelves(self, raw) -> tuple:
         if raw is None:
             return self.shelves
+        if not isinstance(raw, list):
+            raise FleetMapError(f"sim shelves: a list of [x0, y0, x1, y1], got {raw!r}")
         rects = tuple(read_rect(rect, "sim shelf") for rect in raw)
         if len(rects) != len(self.shelves):
             raise FleetMapError(f"sim shelves: {len(rects)} rectangles for "
