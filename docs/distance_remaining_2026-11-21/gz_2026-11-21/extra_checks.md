@@ -2,18 +2,34 @@ lead main_a6265b0 rush: n 48 median 0.50 mean 0.30 min -5.19 max 0.70
 lead main_a6265b0 v7: n 32 median 0.50 mean 0.53 min 0.50 max 0.70
 lead dist_fcf3cd0 rush: n 48 median 0.30 mean 0.14 min -5.90 max 0.51
 lead dist_fcf3cd0 v7: n 32 median 0.50 mean 0.42 min 0.30 max 0.70
-rise dist_fcf3cd0 rush1 t 48.5 robot pode1 goal 19 done 1 feedback #2 1.586 -> 1.763 m
-rise dist_fcf3cd0 rush1 t 123.6 robot pode1 goal 59 done 1 feedback #5 0.065 -> 1.245 m
-rise dist_fcf3cd0 rush1 t 208.2 robot pode3 goal 104 done 1 feedback #6 0.053 -> 1.235 m
-rise dist_fcf3cd0 rush2 t 17.0 robot pode2 goal 4 done 1 feedback #6 1.342 -> 1.500 m
-rise dist_fcf3cd0 rush2 t 28.6 robot pode3 goal 10 done 1 feedback #2 1.541 -> 1.643 m
-rise dist_fcf3cd0 rush2 t 123.8 robot pode1 goal 59 done 1 feedback #2 0.126 -> 1.388 m
-rise dist_fcf3cd0 rush3 t 17.3 robot pode2 goal 4 done 1 feedback #6 1.341 -> 1.450 m
-rise dist_fcf3cd0 rush3 t 209.1 robot pode3 goal 105 done 1 feedback #4 0.088 -> 1.271 m
-rise dist_fcf3cd0 rush4 t 122.5 robot pode1 goal 59 done 1 feedback #4 0.113 -> 1.296 m
-rise dist_fcf3cd0 rush4 t 207.9 robot pode3 goal 104 done 1 feedback #6 0.065 -> 1.253 m
-rise dist_fcf3cd0 v7c t 60.9 robot pode1 goal 25 done 1 feedback #2 1.529 -> 1.641 m
-rise dist_fcf3cd0 v7d t 69.2 robot pode2 goal 27 done 1 feedback #11 0.084 -> 0.488 m
+jumps main_a6265b0 rush1: 0 by segment mode {}
+jumps main_a6265b0 rush2: 0 by segment mode {}
+jumps main_a6265b0 rush3: 0 by segment mode {}
+jumps main_a6265b0 rush4: 0 by segment mode {}
+jumps main_a6265b0 v7a: 0 by segment mode {}
+jumps main_a6265b0 v7b: 0 by segment mode {}
+jumps main_a6265b0 v7c: 0 by segment mode {}
+jumps main_a6265b0 v7d: 0 by segment mode {}
+jumps dist_fcf3cd0 rush1: 15 by segment mode {'follow_path': 12, 'nav_goal': 3}
+jump dist_fcf3cd0 rush1 t 48.5 pode1 pode1-19 seq 2 1.586 -> 1.763 m, straight 1.588 m, old value usable True, 0.2 s after the first value of this seq
+jump dist_fcf3cd0 rush1 t 123.6 pode1 pode1-59 seq 2 0.065 -> 1.245 m, straight 1.198 m, old value usable False, 0.8 s after the first value of this seq
+jump dist_fcf3cd0 rush1 t 208.2 pode3 pode3-104 seq 2 0.053 -> 1.235 m, straight 1.196 m, old value usable False, 1.0 s after the first value of this seq
+jumps dist_fcf3cd0 rush2: 16 by segment mode {'follow_path': 13, 'nav_goal': 3}
+jump dist_fcf3cd0 rush2 t 17.0 pode2 pode2-4 seq 2 1.342 -> 1.500 m, straight 1.281 m, old value usable True, 1.0 s after the first value of this seq
+jump dist_fcf3cd0 rush2 t 28.6 pode3 pode3-10 seq 2 1.541 -> 1.643 m, straight 1.541 m, old value usable True, 0.2 s after the first value of this seq
+jump dist_fcf3cd0 rush2 t 123.8 pode1 pode1-59 seq 2 0.126 -> 1.388 m, straight 1.250 m, old value usable False, 0.2 s after the first value of this seq
+jumps dist_fcf3cd0 rush3: 16 by segment mode {'follow_path': 14, 'nav_goal': 2}
+jump dist_fcf3cd0 rush3 t 17.3 pode2 pode2-4 seq 2 1.341 -> 1.450 m, straight 1.281 m, old value usable True, 1.0 s after the first value of this seq
+jump dist_fcf3cd0 rush3 t 209.1 pode3 pode3-105 seq 2 0.088 -> 1.271 m, straight 1.221 m, old value usable False, 0.6 s after the first value of this seq
+jumps dist_fcf3cd0 rush4: 15 by segment mode {'follow_path': 13, 'nav_goal': 2}
+jump dist_fcf3cd0 rush4 t 122.5 pode1 pode1-59 seq 2 0.113 -> 1.296 m, straight 1.242 m, old value usable False, 0.6 s after the first value of this seq
+jump dist_fcf3cd0 rush4 t 207.9 pode3 pode3-104 seq 2 0.065 -> 1.253 m, straight 1.212 m, old value usable False, 1.0 s after the first value of this seq
+jumps dist_fcf3cd0 v7a: 15 by segment mode {'follow_path': 15}
+jumps dist_fcf3cd0 v7b: 15 by segment mode {'follow_path': 15}
+jumps dist_fcf3cd0 v7c: 16 by segment mode {'follow_path': 15, 'nav_goal': 1}
+jump dist_fcf3cd0 v7c t 60.9 pode1 pode1-25 seq 2 1.529 -> 1.641 m, straight 1.529 m, old value usable True, 0.2 s after the first value of this seq
+jumps dist_fcf3cd0 v7d: 16 by segment mode {'follow_path': 15, 'nav_goal': 1}
+jump dist_fcf3cd0 v7d t 69.2 pode2 pode2-27 seq 2 0.084 -> 0.488 m, straight 0.059 m, old value usable True, 2.1 s after the first value of this seq
 
 speed fit main_a6265b0: 1848 samples
 | speed m/s | proj mean abs | proj p90 | proj mean | used mean abs | used p90 | used mean |
