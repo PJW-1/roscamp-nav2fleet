@@ -147,6 +147,17 @@ def test_a_value_shorter_than_the_straight_line_falls_back():
     assert eta(world, m) == pytest.approx(projected(world, m))
 
 
+def test_a_repeated_same_value_stays_fresh_and_repeated_feedback_says_things_once():
+    world, goal_id, m = driving_to_n_w()
+    for _ in range(int(2 * order_answers.LEFT_STALE_S / 0.2) + 1):
+        feed(world, goal_id, 0.80)  # 서 있는 로봇: 같은 피드백이 거듭 온다
+    assert eta(world, m) == pytest.approx(from_distance(world, m, 0.80))
+    for _ in range(5):
+        feed(world, goal_id, 0.0, waiting=True)
+    world.step()
+    assert world.codes("pode2").count("BASE_END_WAIT") == 1
+
+
 def test_waiting_at_the_base_end_is_not_a_distance():
     world, goal_id, m = driving_to_n_w()
     feed(world, goal_id, 0.80)
