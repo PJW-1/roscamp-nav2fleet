@@ -1,0 +1,44 @@
+##################################################################
+#  PXR_WORK_THREAD_LIMIT is overridden to '1'.  Default is '0'.  #
+##################################################################
+I: Initializing Version 2.74.0-release.7316+gl.ec99a64b
+I: Client ID: 2C62Z5IW
+I: ThreadId(02) hub_client::client::Client::new Launching client mode=Shared with_cleaner=false cache_path=None cache_size=None
+I: ThreadId(03) launch self=Launcher { discovery_lock: RwLock { lock: RwLock { inner: File { handle: 0x554, path: "\\\\?\\C:\\Users\\pjw\\AppData\\Local\\Temp\\hub-pjw.lock" } } }, mode: Shared, with_cleaner: false, config_file: "C:\\Users\\pjw\\AppData\\Local\\Temp\\hub-pjw-406D612C.config.json" } cmd="hub.exe" "--mode=shared" "--write-config" "C:\\Users\\pjw\\AppData\\Local\\Temp\\hub-pjw-406D612C.config.json" "--"
+I: Not using Hub: Hub not found
+I: Successfully created S3 provider for https://omniverse-content-production.s3-us-west-2.amazonaws.com
+I: Using CloudFront http://dcb18d6mfegct.cloudfront.net/, List = No
+Serving remote assets from the local cache under 'C:\Users\pjw\AppData\Local\Temp'. Each copy is checked against the server before use; delete the directory to force a full re-download.
+D:\isaac\IsaacLab\source\isaaclab_newton\isaaclab_newton\cloner\newton_clone_utils.py:165: FutureWarning: Newton shape color replacement is enabled; this workaround will be deprecated in a future release.
+  replace_newton_builder_shape_colors(builder, stage)
+C:\Users\pjw\ros2camp\pd-newton-check\learning\sim_check\pinky_newton_sensors.py:112: DeprecationWarning: ContactSensor.body_names is deprecated; use ContactSensor.sensor_names instead.
+  print(f"[CHECK] lidar rays: {lidar.num_rays}; bumper bodies: {bumper.body_names}")
+C:\Users\pjw\ros2camp\pd-newton-check\learning\sim_check\pinky_newton_sensors.py:138: DeprecationWarning: Articulation.set_joint_velocity_target_index is deprecated. Use articulation.actuators.target_command.set_velocity_index instead.
+  robot.set_joint_velocity_target_index(target=target, joint_ids=wheel_ids)
+Finalize builder took: Last: 0.061022 s, Mean: 0.061022 s, Std: 0.000000 s, N: 1
+Contact sensor construction took: Last: 0.005012 s, Mean: 0.005012 s, Std: 0.000000 s, N: 1
+Contact sensor construction took: Last: 0.001198 s, Mean: 0.003105 s, Std: 0.002697 s, N: 2
+Contact sensor construction took: Last: 0.001055 s, Mean: 0.002422 s, Std: 0.002244 s, N: 3
+Contact sensor construction took: Last: 0.001044 s, Mean: 0.002077 s, Std: 0.001958 s, N: 4
+Initialize solver took: Last: 1.540924 s, Mean: 1.540924 s, Std: 0.000000 s, N: 1
+[CHECK] lidar rays: 360; bumper bodies: ['base_link']
+[CHECK] forward ray index (base +x) = 180, dir = [1.0, 0.0, 0.0]
+CUDA graph took: Last: 0.205069 s, Mean: 0.205069 s, Std: 0.000000 s, N: 1
+[CHECK] lidar pos_w env0: [1.9999948740005493, -2.0, 0.02707056887447834] base pos_w env0: [1.9999948740005493, -2.0, 0.02707056887447834]
+[CHECK] ray 0: start_w [1.9326951503753662, -2.0, 0.12386289238929749] hit_w [inf, inf, inf] dist inf
+[CHECK] ray 90: start_w [1.9826949834823608, -2.049999952316284, 0.12401752918958664] hit_w [inf, inf, inf] dist inf
+[CHECK] ray 180: start_w [2.0326948165893555, -2.0, 0.1241721659898758] hit_w [3.5, -2.0, 0.12871022522449493] dist 1.5173
+[CHECK] ray 270: start_w [1.9826949834823608, -1.9500000476837158, 0.12401752918958664] hit_w [inf, inf, inf] dist inf
+[CHECK] t=2.0 contact bumper: net_forces_w env0 = [0.0, 0.0, 0.0]
+[CHECK] t=2.0 contact bumper_cam: net_forces_w env0 = [0.0, 0.0, 0.0]
+[CHECK] t=2.0 contact contact_lwheel: net_forces_w env0 = [0.0, 0.0, 5.094]
+[CHECK] t=2.0 contact contact_screen: net_forces_w env0 = [0.0, 0.0, 0.0]
+[CHECK] t=10.0 contact bumper: net_forces_w env0 = [0.0, 0.0, 0.0]
+[CHECK] t=10.0 contact bumper_cam: net_forces_w env0 = [0.0, 0.0, 0.0]
+[CHECK] t=10.0 contact contact_lwheel: net_forces_w env0 = [0.0, 0.0, 5.094]
+[CHECK] t=10.0 contact contact_screen: net_forces_w env0 = [0.0, 0.0, 0.0]
+[CHECK] t=15.0 contact bumper: net_forces_w env0 = [0.0, 0.0, 0.0]
+[CHECK] t=15.0 contact bumper_cam: net_forces_w env0 = [0.0, 0.0, 0.0]
+[CHECK] t=15.0 contact contact_lwheel: net_forces_w env0 = [1.666, 0.879, 2.546]
+[CHECK] t=15.0 contact contact_screen: net_forces_w env0 = [-5.588, -0.314, -1.761]
+[CHECK] done
