@@ -1,4 +1,4 @@
-# 생성 파일: python3 -m fleet_gz_sim.arena --layout v7 --real
+# 생성 파일: python3 -m fleet_gz_sim.arena --layout v7 --real --out <임시> (maps/를 tools/real_pode/maps로 복사)
 image: arena_v7_fine.pgm
 mode: trinary
 resolution: 0.01

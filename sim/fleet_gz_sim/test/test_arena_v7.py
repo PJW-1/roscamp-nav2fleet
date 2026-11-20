@@ -66,7 +66,9 @@ def test_v7_real_kit_maps_are_drawn_with_the_measured_shelf(tmp_path):
     assert arena.real_site(site).sim_shelves == site.shelves
     assert site.sim_shelves != site.shelves  # 원본은 그대로
     head = (tmp_path / "maps" / "arena_v7_fine.yaml").read_text(encoding="utf-8").splitlines()[0]
-    assert head == "# 생성 파일: python3 -m fleet_gz_sim.arena --layout v7 --real"
+    # 머리 줄 명령을 그대로 쳐도 되게 --out을 적는다
+    assert head == ("# 생성 파일: python3 -m fleet_gz_sim.arena --layout v7 --real --out <임시>"
+                    " (maps/를 tools/real_pode/maps로 복사)")
     real = arena_maps.pgm(arena_maps.FINE_M, arena.real_site(site))
     assert (tmp_path / "maps" / "arena_v7_fine.pgm").read_bytes() == real
     assert real != arena_maps.pgm(arena_maps.FINE_M, site)
