@@ -139,10 +139,11 @@ def overlay(args):
     worst, per, used = deviations(points, samples)
     outward = ("no samples" if math.isinf(worst["outward"])
                else f"{worst['outward'] * 100:.1f} cm")
+    lateral = "no samples" if used == 0 else f"{worst['abs'] * 100:.1f} cm"
     lines = [f"path {' -> '.join(nodes)} ({args.layout}), {used}/{len(samples)} samples beside the"
              f" path ({worst['far']} farther than {NEAR_M * 100:.0f} cm), source {source}",
              f"largest outward deviation at a corner: {outward},"
-             f" largest |lateral| anywhere: {worst['abs'] * 100:.1f} cm"]
+             f" largest |lateral| anywhere: {lateral}"]
     for i, c in enumerate(per, 1):
         out = "no samples" if c["n"] == 0 else f"{c['outward'] * 100:.1f} cm"
         lines.append(f"corner {i} at ({c['at'][0]:.3f}, {c['at'][1]:.3f}), turn"

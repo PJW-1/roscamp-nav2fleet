@@ -130,10 +130,10 @@ Isaac Lab의 로봇 응답과 무작위화 범위를 정하려고 실물 Pode의
 안전 장치:
 
 - odom 자세가 출발 자리에서 `--limit`(기본 0.6 m, 직선 거리)보다 멀어지면 바로 멈춘다(종료 4). 일정 안의 계단이 한도를 넘을 수 있으면 시작하지 않는다(종료 3). `--dry-run`은 일정과 계단마다 가장 먼 거리만 찍는다.
-- 시작 전에(자기 publisher를 만들기 전에) cmd_vel의 publisher를 센다. `cmd_watchdog` 말고 다른 publisher(Nav2 controller, 이미 돌고 있는 다른 probe 등)가 있으면 시작하지 않는다(종료 3, `--allow`로 이름을 더할 수 있다. 허용은 노드 이름으로만 본다). 도는 중에는 자기 publisher 하나만(이름이 아니라 endpoint gid로) 빼고 세며, 새 publisher가 생기면 멈춘다(종료 4).
+- 시작 전에(자기 publisher를 만들기 전에) cmd_vel의 publisher를 센다. `cmd_watchdog` 말고 다른 publisher(Nav2 controller, 이미 돌고 있는 다른 probe 등)가 있으면 시작하지 않는다(종료 3, `--allow`로 이름을 더할 수 있다. 허용은 노드 이름으로만 본다). 자기 publisher를 만든 뒤 첫 명령 전에 한 번 더 세어 새 publisher가 있으면 시작하지 않는다(종료 3). 도는 중에는 자기 publisher 하나만(이름이 아니라 endpoint gid로) 빼고 세며, 새 publisher가 생기면 멈춘다(종료 4). probe 노드 이름은 `cmd_step_probe_<pid>`로 실행마다 다르다.
 - odom이 1 s(`--odom-timeout`) 넘게 안 오면 멈춘다. 돌아오기가 30 s(`--home-s`) 안에 안 끝나면 멈춘다.
-- odom의 속도나 자세에 NaN·inf가 하나라도 오면 멈춘다(종료 5). 유한하지 않은 명령은 보내지 않는다.
-- Ctrl+C(종료 130), SIGTERM, 안전 정지, 오류 등 어떻게 끝나든 속도 0을 5번 보낸다. 다섯 번을 먼저 다 보내고 CSV에는 그 뒤에 적으며(CSV 쓰기가 실패해도 0은 다 나간다), 보내는 동안에는 Ctrl+C와 SIGTERM을 무시한다. 프로세스가 통째로 죽어도 `cmd_watchdog`이 0.4 s 뒤 0을 보낸다.
+- odom의 속도, 위치, 방향 쿼터니언에 NaN·inf가 하나라도 오면 멈춘다(종료 5). 유한하지 않은 명령은 보내지 않는다.
+- Ctrl+C(종료 130), SIGTERM, 안전 정지, 오류 등 어떻게 끝나든 속도 0을 5번 보낸다. 다섯 번을 먼저 다 보내고 CSV에는 그 뒤에 적으며(CSV 쓰기가 실패해도 0은 다 나간다), Ctrl+C·SIGTERM은 처음 한 번만 멈춤으로 받고, 그 뒤(정리하는 동안, 안전 정지로 끝나는 중에도)는 무시한다. 프로세스가 통째로 죽어도 `cmd_watchdog`이 0.4 s 뒤 0을 보낸다.
 
 ### 실물에서 재는 순서 (한 대)
 

@@ -3,6 +3,7 @@ import argparse
 import csv
 import json
 import math
+import os
 import signal
 import sys
 import time
@@ -168,6 +169,8 @@ def home_command(pose, home, max_v=0.10, max_w=0.6, min_w=0.3, pos_tol=0.03, yaw
 
 
 def yaw_of(q):
+    if not all_finite((q.x, q.y, q.z, q.w)):
+        return math.nan
     return math.atan2(2.0 * (q.w * q.z + q.x * q.y), 1.0 - 2.0 * (q.y * q.y + q.z * q.z))
 
 
@@ -211,7 +214,17 @@ class Aborted(Exception):
         self.code = code
 
 
-def run(args, schedule):
+class StopSignal:
+    def __init__(self):
+        self.stopping = False
+
+    def __call__(self, signum, frame):
+        if not self.stopping:
+            self.stopping = True
+            raise KeyboardInterrupt
+
+
+def run(args, schedule, stop):
     import rclpy
     from geometry_msgs.msg import Twist
     from nav_msgs.msg import Odometry
@@ -220,7 +233,7 @@ def run(args, schedule):
     from rclpy.signals import SignalHandlerOptions
 
     rclpy.init(signal_handler_options=SignalHandlerOptions.NO)
-    node = rclpy.create_node("cmd_step_probe", parameter_overrides=[
+    node = rclpy.create_node(f"cmd_step_probe_{os.getpid()}", parameter_overrides=[
         Parameter("use_sim_time", value=args.use_sim_time)])
     log = node.get_logger()
     cmd_topic, odom_topic = f"/{args.ns}/cmd_vel", f"/{args.ns}/odom"
@@ -310,13 +323,17 @@ def run(args, schedule):
                           EXIT_REFUSED)
         own = (mine[0][1],)
         spin_for(0.5)
+        found = others()
+        if found:
+            raise Aborted(f"refusing: {cmd_topic} got publishers {found} before the first command",
+                          EXIT_REFUSED)
         o = state["odom"]
         if not all_finite(o):
             raise Aborted(f"odom has a non-finite value {o}", EXIT_BAD_ODOM)
         state["home"] = (o[2], o[3], o[4])
         log.info(f"start pose {state['home']}, {len(schedule)} segments, limit {args.limit} m")
         period = 1.0 / args.rate
-        last_check = time.monotonic()
+        last_check = -math.inf
         for seg in schedule:
             state["seg"] = seg
             t_end = ros_now() + seg.duration
@@ -359,12 +376,15 @@ def run(args, schedule):
         state["seg"] = None
         log.info(f"done, wrote {out}")
     except Aborted as e:
+        stop.stopping = True
         log.error(f"ABORT: {e}")
         code = e.code
     except KeyboardInterrupt:
+        stop.stopping = True
         log.warn("interrupted")
         code = EXIT_INTERRUPTED
     finally:
+        stop.stopping = True
         if pub is not None:
             stamps = []
 
@@ -398,11 +418,10 @@ def main(argv):
         print(f"refusing: a step reaches {worst:.3f} m > --limit {args.limit} m")
         return EXIT_REFUSED
 
-    def on_term(signum, frame):
-        raise KeyboardInterrupt
-
-    signal.signal(signal.SIGTERM, on_term)
-    return run(args, schedule)
+    stop = StopSignal()
+    signal.signal(signal.SIGINT, stop)
+    signal.signal(signal.SIGTERM, stop)
+    return run(args, schedule, stop)
 
 
 if __name__ == "__main__":

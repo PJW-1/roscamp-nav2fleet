@@ -126,6 +126,28 @@ def test_zero_burst_ignores_ctrl_c_and_sigterm():
     assert signal.getsignal(signal.SIGINT) is before
 
 
+def test_only_the_first_stop_signal_interrupts():
+    stop = probe.StopSignal()
+    with pytest.raises(KeyboardInterrupt):
+        stop(signal.SIGINT, None)
+    assert stop.stopping
+    stop(signal.SIGINT, None)
+    stop(signal.SIGTERM, None)
+
+
+def test_a_signal_during_cleanup_does_not_interrupt():
+    stop = probe.StopSignal()
+    stop.stopping = True
+    stop(signal.SIGTERM, None)
+
+
+def test_non_finite_quaternion_gives_a_non_finite_yaw():
+    from types import SimpleNamespace as Q
+    assert math.isnan(probe.yaw_of(Q(x=0.0, y=0.0, z=math.inf, w=1.0)))
+    assert math.isnan(probe.yaw_of(Q(x=math.nan, y=0.0, z=0.0, w=1.0)))
+    assert probe.yaw_of(Q(x=0.0, y=0.0, z=math.sin(0.25), w=math.cos(0.25))) == pytest.approx(0.5)
+
+
 def test_home_move_that_gets_farther_is_caught():
     assert not probe.home_diverged(0.30, 0.28)
     assert probe.home_diverged(0.34, 0.28)
@@ -380,6 +402,28 @@ def test_overlay_never_prints_minus_infinity(tmp_path, capsys):
     assert "no samples" in out
 
 
+def test_overlay_with_no_usable_sample_does_not_print_zero(tmp_path, capsys):
+    pytest.importorskip("matplotlib")
+    points, _ = path_overlay.planned_path()
+    (ax, ay), (bx, by) = points[-2], points[-1]
+    dx, dy = bx - ax, by - ay
+    path = tmp_path / "past_end.csv"
+    with open(path, "w", newline="", encoding="utf-8") as fh:
+        w = csv.DictWriter(fh, fieldnames=path_overlay.COLUMNS)
+        w.writeheader()
+        for k in range(1, 11):
+            u = 1.0 + 0.02 * k
+            w.writerow({"kind": "amcl", "t_mono": k, "t_ros": k, "t_stamp": k,
+                        "x": ax + u * dx, "y": ay + u * dy, "yaw": 0})
+    args = path_overlay.argparse.Namespace(csv=str(path), route=",".join(path_overlay.ROUTE),
+                                           layout="v7", png=str(tmp_path / "o.png"))
+    assert path_overlay.overlay(args) == 0
+    out = capsys.readouterr().out
+    assert "0/10 samples" in out
+    assert "largest |lateral| anywhere: no samples" in out
+    assert "0.0 cm" not in out
+
+
 def test_odom_samples_go_through_map_to_odom():
     rows = [{"kind": "map_odom", "t_ros": "1.0", "x": "1.0", "y": "2.0", "yaw": str(math.pi / 2)},
             {"kind": "odom", "t_ros": "1.5", "x": "0.5", "y": "0.0", "yaw": "0"},
@@ -405,10 +449,14 @@ def on_cmd(m):
     fh.write(f"{m.linear.x} {m.angular.z}\n"); fh.flush()
 node.create_subscription(Twist, f"/{ns}/cmd_vel", on_cmd, 10)
 pub = node.create_publisher(Odometry, f"/{ns}/odom", 10)
+late = []
 if mode == "intruder":
     other = rclpy.create_node("intruder")
     other.create_publisher(Twist, f"/{ns}/cmd_vel", 10)
 def tick():
+    if mode == "late_intruder" and not late and node.count_publishers(f"/{ns}/cmd_vel"):
+        late.append(rclpy.create_node("intruder"))
+        late[0].create_publisher(Twist, f"/{ns}/cmd_vel", 10)
     dt = 1 / 30
     v = -s["v"] if mode == "reverse" else s["v"]
     s["yaw"] += s["w"] * dt
@@ -420,6 +468,8 @@ def tick():
         m.pose.pose.position.x = math.nan
     q = m.pose.pose.orientation
     q.z, q.w = math.sin(s["yaw"] / 2), math.cos(s["yaw"] / 2)
+    if mode == "badq" and s["moved"]:
+        q.x, q.y, q.z, q.w = 0.0, 0.0, math.inf, 1.0
     m.twist.twist.linear.x, m.twist.twist.angular.z = s["v"], s["w"]
     pub.publish(m)
 node.create_timer(1 / 30, tick)
@@ -555,5 +605,50 @@ def test_probe_stops_when_the_home_move_gets_farther(ros_env, tmp_path):
                "--home-s", "10")
     out, _ = p.communicate(timeout=60)
     assert p.returncode == probe.EXIT_HOME_DIVERGED, out
+    time.sleep(0.3)
+    assert _cmds(log)[-probe.ZERO_BURST:] == [(0.0, 0.0)] * probe.ZERO_BURST
+
+
+def test_probe_stops_on_a_non_finite_quaternion(ros_env, tmp_path):
+    env, start = ros_env
+    ns = f"t{os.getpid()}g"
+    log = start(ns, "badq")
+    p = _probe(env, ns, tmp_path / "g.csv", "--home-s", "5")
+    out, _ = p.communicate(timeout=30)
+    assert p.returncode == probe.EXIT_BAD_ODOM, out
+    time.sleep(0.3)
+    assert _cmds(log)[-probe.ZERO_BURST:] == [(0.0, 0.0)] * probe.ZERO_BURST
+
+
+def test_a_publisher_that_appears_before_the_first_command_is_refused(ros_env, tmp_path):
+    env, start = ros_env
+    ns = f"t{os.getpid()}h"
+    log = start(ns, "late_intruder")
+    p = _probe(env, ns, tmp_path / "h.csv")
+    out, _ = p.communicate(timeout=30)
+    assert p.returncode == probe.EXIT_REFUSED, out
+    assert "intruder" in out
+    time.sleep(0.3)
+    assert all(c == (0.0, 0.0) for c in _cmds(log))
+
+
+def test_two_quick_signals_still_send_the_zeros(ros_env, tmp_path):
+    env, start = ros_env
+    ns = f"t{os.getpid()}i"
+    log = start(ns, "plain")
+    p = _probe(env, ns, tmp_path / "i.csv", "--step-s", "5")
+    deadline = time.monotonic() + 20
+    while time.monotonic() < deadline:
+        if log.exists() and any(c != (0.0, 0.0) for c in _cmds(log)):
+            break
+        time.sleep(0.05)
+    else:
+        p.kill()
+        pytest.fail("probe never sent a moving command")
+    p.send_signal(signal.SIGINT)
+    p.send_signal(signal.SIGTERM)
+    p.send_signal(signal.SIGINT)
+    out, _ = p.communicate(timeout=15)
+    assert p.returncode == probe.EXIT_INTERRUPTED, out
     time.sleep(0.3)
     assert _cmds(log)[-probe.ZERO_BURST:] == [(0.0, 0.0)] * probe.ZERO_BURST
