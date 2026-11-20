@@ -348,6 +348,15 @@ def test_a_sim_shelf_must_overlap_its_own_shelf():
         build(sim_shelves=[SECOND_SHELF])
 
 
+def test_sim_shelves_swapped_between_overlapping_shelves_are_refused():
+    # 진열대끼리 겹쳐도 순서가 바뀐 목록을 거른다: 자기 짝과 가장 많이 겹쳐야 한다
+    shelves = [[0.5, 0.75, 1.5, 0.8], [0.7, 0.3, 1.1, 0.35], [0.9, 0.3, 1.3, 0.35]]
+    assert build(shelves=shelves, sim_shelves=shelves).sim_shelves == tuple(map(tuple, shelves))
+    swapped = [shelves[0], shelves[2], shelves[1]]
+    with pytest.raises(FleetMapError, match="sim shelves: rectangle 2"):
+        build(shelves=shelves, sim_shelves=swapped)
+
+
 # ---- 자리 묻기 ------------------------------------------------------------------------------
 
 

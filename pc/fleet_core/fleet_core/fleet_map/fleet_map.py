@@ -14,7 +14,7 @@ from .checks import (
     retreat_end_warnings,
     shelf_end_warnings,
 )
-from .geometry import inside, point_rect_distance
+from .geometry import inside, overlap_area, point_rect_distance
 from .model import WAITING_KINDS, Edge, FleetMapError
 from .parse import (
     read_edges,
@@ -70,7 +70,8 @@ class FleetMap:
 
     def _read_sim_shelves(self, data: dict) -> tuple:
         """sim_shelves 키가 없을 때만 shelves와 같다. 값이 빈(null) 키는 거절한다. 사각형마다
-        같은 자리의 진열대와 겹쳐야 한다(순서가 바뀐 목록을 거른다)."""
+        같은 자리의 진열대와 겹치고, 다른 진열대보다 그 진열대와 더 적게 겹치지 않아야 한다
+        (진열대끼리 겹쳐도 순서가 바뀐 목록을 거른다)."""
         if "sim_shelves" not in data:
             return self.shelves
         raw = data["sim_shelves"]
@@ -81,11 +82,11 @@ class FleetMap:
             raise FleetMapError(f"sim shelves: {len(rects)} rectangles for "
                                 f"{len(self.shelves)} shelves (one per shelf, same order)")
         for number, (sim, real) in enumerate(zip(rects, self.shelves, strict=True), start=1):
-            overlap = (sim[0] < real[2] and real[0] < sim[2]
-                       and sim[1] < real[3] and real[1] < sim[3])
-            if not overlap:
+            own = overlap_area(sim, real)
+            if own <= 0.0 or any(overlap_area(sim, other) > own for other in self.shelves):
                 raise FleetMapError(f"sim shelves: rectangle {number} {list(sim)} does not overlap "
-                                    f"shelf {number} {list(real)} (one per shelf, same order)")
+                                    f"shelf {number} {list(real)} the most "
+                                    f"(one per shelf, same order)")
         return rects
 
     # ---- edge와 노드 조회 ----
