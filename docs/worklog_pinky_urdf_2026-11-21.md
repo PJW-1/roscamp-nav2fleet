@@ -20,3 +20,8 @@ bash learning/assets/test_make_pinky_urdf.sh -> PASS
 
 - 바퀴 간격: URDF 관절은 0.0811 m, 충돌 구 중심은 0.0971 m인데 Gazebo DiffDrive는 0.0961 m다. 어느 쪽도 고치지 않았고 README에 적었다. Isaac 쪽 값은 사용자가 정해야 한다.
 - 반지름 0.028 m, 라이다 `rplidar_link`(base_footprint 기준 높이 0.125 m), 총 질량 1.54 kg은 기대와 같다.
+
+## 리뷰 보강 (2026-11-21)
+
+- `make_pinky_urdf.sh`: 임시 폴더에서 만들고 모든 검사를 마친 뒤에만 OUT_DIR를 바꾼다(실패하면 기존 출력 유지). OUT_DIR가 소스 패키지 안이면 거부한다. 모든 `<mesh>`의 `filename`을 XML로 읽어 확인한다(기본: 상대 경로이고 파일 존재, `--abs-prefix`: 접두사로 시작하고 파일 존재).
+- `test_make_pinky_urdf.sh`: 모든 메시 경로 검사, 메시 없음(0이 아닌 종료, 이전 출력 그대로), OUT_DIR가 소스 안(거부, 소스 그대로) 시험 추가. 소스는 `PINKY_DESCRIPTION_DIR`로 임시 복사본을 가리킨다.
