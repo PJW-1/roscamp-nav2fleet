@@ -357,6 +357,14 @@ def test_sim_shelves_swapped_between_overlapping_shelves_are_refused():
         build(shelves=shelves, sim_shelves=swapped)
 
 
+def test_a_sim_shelf_overlapping_two_shelves_equally_is_refused():
+    # 두 진열대와 같은 넓이로 겹치면 짝을 가릴 수 없다: 순서가 바뀌어도 모르니 거절한다
+    shelves = [[0.5, 0.75, 1.5, 0.8], [0.7, 0.3, 1.1, 0.35], [0.9, 0.3, 1.3, 0.35]]
+    both = [0.95, 0.3, 1.05, 0.35]  # 둘이 겹친 띠(0.9~1.1) 안
+    with pytest.raises(FleetMapError, match="sim shelves: rectangle 2"):
+        build(shelves=shelves, sim_shelves=[shelves[0], both, shelves[2]])
+
+
 # ---- 자리 묻기 ------------------------------------------------------------------------------
 
 
