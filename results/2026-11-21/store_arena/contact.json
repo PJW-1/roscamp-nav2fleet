@@ -1,0 +1,260 @@
+{
+ "mode": "contact",
+ "num_envs": 8,
+ "arena": {
+  "layout": "v7",
+  "wall_height_m": 0.3,
+  "shelf_height_m": 0.3,
+  "env_spacing": 3.0,
+  "start_x": 0.3,
+  "start_y": 0.55
+ },
+ "boxes": [
+  {
+   "name": "wall_south",
+   "x0": -0.05,
+   "y0": -0.05,
+   "x1": 2.03,
+   "y1": 0.0,
+   "kind": "wall",
+   "height_m": 0.3
+  },
+  {
+   "name": "wall_north",
+   "x0": -0.05,
+   "y0": 0.98,
+   "x1": 2.03,
+   "y1": 1.03,
+   "kind": "wall",
+   "height_m": 0.3
+  },
+  {
+   "name": "wall_west",
+   "x0": -0.05,
+   "y0": 0.0,
+   "x1": 0.0,
+   "y1": 0.98,
+   "kind": "wall",
+   "height_m": 0.3
+  },
+  {
+   "name": "wall_east",
+   "x0": 1.98,
+   "y0": 0.0,
+   "x1": 2.03,
+   "y1": 0.98,
+   "kind": "wall",
+   "height_m": 0.3
+  },
+  {
+   "name": "shelf_1",
+   "x0": 0.63,
+   "y0": 0.77,
+   "x1": 1.56,
+   "y1": 0.803,
+   "kind": "shelf",
+   "height_m": 0.3
+  },
+  {
+   "name": "shelf_2",
+   "x0": 0.68,
+   "y0": 0.365,
+   "x1": 0.99,
+   "y1": 0.405,
+   "kind": "shelf",
+   "height_m": 0.3
+  },
+  {
+   "name": "shelf_3",
+   "x0": 1.25,
+   "y0": 0.365,
+   "x1": 1.56,
+   "y1": 0.405,
+   "kind": "shelf",
+   "height_m": 0.3
+  },
+  {
+   "name": "shelf_4",
+   "x0": 0.24,
+   "y0": 0.0,
+   "x1": 0.26,
+   "y1": 0.1,
+   "kind": "shelf",
+   "height_m": 0.3
+  },
+  {
+   "name": "shelf_5",
+   "x0": 0.5,
+   "y0": 0.0,
+   "x1": 0.52,
+   "y1": 0.1,
+   "kind": "shelf",
+   "height_m": 0.3
+  }
+ ],
+ "build_s": 7.76,
+ "gpu_mib_before_env": 964,
+ "gpu_mib_after_build": 1207,
+ "contact_bodies": [
+  "base_link",
+  "front_camera_mount",
+  "rplidar_mount",
+  "screen_mount"
+ ],
+ "cases": {
+  "west_wall_forward": {
+   "result": {
+    "step": 22,
+    "collided": true,
+    "oob": false
+   },
+   "start": [
+    0.3,
+    0.55
+   ],
+   "yaw_deg": 180.0,
+   "speed": 0.25,
+   "last_pose_before_end": [
+    0.052,
+    0.551
+   ],
+   "centre_to_face_m_before_end": 0.052,
+   "lidar_min_m_before_end": 0.0694
+  },
+  "north_wall_forward": {
+   "result": {
+    "step": 33,
+    "collided": true,
+    "oob": false
+   },
+   "start": [
+    0.3,
+    0.55
+   ],
+   "yaw_deg": 90.0,
+   "speed": 0.25,
+   "last_pose_before_end": [
+    0.3002,
+    0.9347
+   ],
+   "centre_to_face_m_before_end": 0.0453,
+   "lidar_min_m_before_end": 0.0627
+  },
+  "shelfA_south_face_forward": {
+   "result": {
+    "step": 16,
+    "collided": true,
+    "oob": false
+   },
+   "start": [
+    1.0,
+    0.55
+   ],
+   "yaw_deg": 90.0,
+   "speed": 0.25,
+   "last_pose_before_end": [
+    1.0001,
+    0.7233
+   ],
+   "centre_to_face_m_before_end": 0.0467,
+   "lidar_min_m_before_end": 0.0641
+  },
+  "south_shelf_north_face_forward": {
+   "result": {
+    "step": 10,
+    "collided": true,
+    "oob": false
+   },
+   "start": [
+    0.85,
+    0.55
+   ],
+   "yaw_deg": -90.0,
+   "speed": 0.25,
+   "last_pose_before_end": [
+    0.848,
+    0.4506
+   ],
+   "centre_to_face_m_before_end": 0.0456,
+   "lidar_min_m_before_end": 0.0629
+  },
+  "east_wall_slow": {
+   "result": {
+    "step": 49,
+    "collided": true,
+    "oob": false
+   },
+   "start": [
+    1.7,
+    0.55
+   ],
+   "yaw_deg": 0.0,
+   "speed": 0.1,
+   "last_pose_before_end": [
+    1.9373,
+    0.5499
+   ],
+   "centre_to_face_m_before_end": 0.0427,
+   "lidar_min_m_before_end": 0.0601
+  },
+  "west_wall_reverse": {
+   "result": {
+    "step": 91,
+    "collided": true,
+    "oob": false
+   },
+   "start": [
+    0.3,
+    0.55
+   ],
+   "yaw_deg": 0.0,
+   "speed": -0.05,
+   "last_pose_before_end": [
+    0.0765,
+    0.55
+   ],
+   "centre_to_face_m_before_end": 0.0765,
+   "lidar_min_m_before_end": 0.0587
+  },
+  "west_wall_diag45": {
+   "result": {
+    "step": 32,
+    "collided": true,
+    "oob": false
+   },
+   "start": [
+    0.3,
+    0.4
+   ],
+   "yaw_deg": 135.0,
+   "speed": 0.25,
+   "last_pose_before_end": [
+    0.0516,
+    0.6473
+   ],
+   "centre_to_face_m_before_end": 0.0516,
+   "lidar_min_m_before_end": 0.069
+  },
+  "south_wall_forward": {
+   "result": {
+    "step": 14,
+    "collided": true,
+    "oob": false
+   },
+   "start": [
+    1.1,
+    0.2
+   ],
+   "yaw_deg": -90.0,
+   "speed": 0.25,
+   "last_pose_before_end": [
+    1.0999,
+    0.0516
+   ],
+   "centre_to_face_m_before_end": 0.0516,
+   "lidar_min_m_before_end": 0.0689
+  }
+ },
+ "pass": true,
+ "note": "see contact_push.json for the non-terminating pass"
+}
