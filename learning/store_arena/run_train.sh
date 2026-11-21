@@ -37,8 +37,8 @@ for c in $(seq 1 "$CHUNKS"); do
     ${resume:+--resume "$resume"} "$@" > "$OUT/stdout.log" 2>&1
   rc=$?
   kill $SMI
+  trap - EXIT  # before the release: never remove a lock another track took after it
   rm -rf "$LOCK"
-  trap - EXIT
   echo "chunk $c exit=$rc wall_total_s=$(( $(date +%s) - start ))" | tee "$OUT/run_status.txt"
   [ $rc -eq 0 ] || exit $rc
   resume=$(ls -1v "$OUT"/model_*.pt | tail -1)
