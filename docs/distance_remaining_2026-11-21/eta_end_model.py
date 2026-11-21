@@ -109,6 +109,9 @@ def main(argv: list[str]) -> int:
               ("robot stops at the end (retreat, none)",
                [r for r in rows if r["after"] not in PASSING]))
     for title, part in groups:
+        if not part:
+            print(f"\n### {title}: no samples")
+            continue
         print(f"\n### {title}: {len(part)} samples, distance used in "
               f"{sum(r['from_distance'] for r in part)}")
         print("| estimate | mean s | mean abs s | p90 abs s | " + " | ".join(bins) + " |")

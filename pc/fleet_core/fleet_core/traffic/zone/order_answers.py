@@ -7,7 +7,7 @@ from fleet_core.fleet_map import NAV_GOAL, RETREAT
 from fleet_core.traffic.mission import MOVE
 
 from .robots import ORDER, Goal, LeftReport
-from .routes import left_s, nav_end_s, nav_stretch, speed, travel_s
+from .routes import PASS, STOP, left_s, nav_end_s, nav_stretch, speed, travel_s
 
 REJECTED = "ORDER_UPDATE_REJECTED"
 SUPERSEDED = "SUPERSEDED"
@@ -79,18 +79,22 @@ class OrderAnswers:
             return None
         return cut[2]
 
-    def _left_s(self, m, route, end: int, passing: bool = True) -> float:
+    def _left_s(self, m, route, end: int, ending: str = PASS) -> float:
         p, edges, done = self.params, route.edges, route.done
-        if end <= done or edges[done].mode != NAV_GOAL:
-            return left_s(p, edges[done:end], m.x, m.y)
-        chain = done + nav_stretch(edges[done:end])
         stop = self._reported_end(m, route)
+        nav_first = end > done and edges[done].mode == NAV_GOAL
+        chain = done + nav_stretch(edges[done:end]) if nav_first else done
+        adjust = (nav_end_s(p, self.site, edges, chain, m.x, m.y, m.yaw, ending)
+                  if nav_first else 0.0)
+        if adjust == 0.0:
+            if stop is None or stop > end:
+                return left_s(p, edges[done:end], m.x, m.y)
+            return m.move_order.left.m / speed(p, NAV_GOAL) + travel_s(p, edges[stop:end])
         if stop is not None and stop <= chain:
             nav = m.move_order.left.m / speed(p, NAV_GOAL) + travel_s(p, edges[stop:chain])
         else:
             nav = left_s(p, edges[done:chain], m.x, m.y)
-        nav += nav_end_s(p, self.site, edges, chain, m.x, m.y, m.yaw, passing)
-        return max(0.0, nav) + travel_s(p, edges[chain:end])
+        return max(0.0, nav + adjust) + travel_s(p, edges[chain:end])
 
     # ---- 끝낸 seq까지 route 진행 반영 ----
     def _order_progress(self, m, seq: int, edges: int) -> None:
@@ -178,6 +182,6 @@ class OrderAnswers:
         route = m.route
         if m.move_order is None or route is None or m.goal is None:
             return ""
-        left = self._left_s(m, route, route.granted, passing=False)
+        left = self._left_s(m, route, route.granted, STOP)
         m.base_until = now + left + max(0.0, self.params.comm_base_hold_extra_s)
         return f", drives on to {m.goal.end} (about {left:.0f} s)"

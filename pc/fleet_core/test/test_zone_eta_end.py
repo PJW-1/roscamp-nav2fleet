@@ -4,17 +4,31 @@
   (pode_fsm pass_m). 그만큼 덜 달린다.
 - 다음 조각이 후진이거나 Route가 끝나면 로봇은 끝에 서서 끝 방향으로 제자리에서 돈다
   (nav_turn_rps). 아직 오는 중이면 다가오는 방향에서, 끝에 닿았으면 지금 방향에서 잰다.
-- 통신이 끊긴 로봇은 다음 조각을 못 받으니 넘어가지 않는다(passing=False).
+- 통신이 끊긴 로봇은 다음 조각을 못 받으니 넘어가지 않는다(STOP).
+- 차선 순서는 입구에 닿는 시각을 견주므로 끝 보정 없이 잰다(ARRIVE).
+  로봇은 넘어가도 입구까지는 간다.
+- 끝 보정이 0이면 예전 식 그대로 계산한다(옛 기록 재생과 같은 값).
 - 옛 기록의 파라미터에는 두 키가 없다. 기본값 0은 꺼짐이라 옛 기록은 예전 판단 그대로 재생된다.
 """
 import math
 from dataclasses import fields, replace
+from itertools import pairwise
 from types import SimpleNamespace
 
 import pytest
 from fleet_core.common.params import FleetParams, load_params
 from fleet_core.fleet_map import FOLLOW_PATH, NAV_GOAL, RETREAT, Edge, load_fleet_map
-from fleet_core.traffic.zone.routes import left_s, nav_end_s, speed, travel_s
+from fleet_core.fleet_map.graph import shortest_path
+from fleet_core.traffic.zone.controller import ZoneTraffic
+from fleet_core.traffic.zone.routes import (
+    ARRIVE,
+    STOP,
+    Route,
+    left_s,
+    nav_end_s,
+    speed,
+    travel_s,
+)
 from zone_harness import Harness
 
 P = load_params()
@@ -43,7 +57,9 @@ def test_a_following_piece_takes_nav_pass_m_off(after):
 
 def test_without_passing_nothing_is_taken_off():
     edges = [TO_E1, edge("E-1", "P-1", FOLLOW_PATH)]
-    assert nav_end_s(P, SITE, edges, 1, E2.x, E2.y, math.pi, passing=False) >= 0.0
+    assert nav_end_s(P, SITE, edges, 1, E2.x, E2.y, math.pi, STOP) >= 0.0
+    assert nav_end_s(P, SITE, edges, 1, E2.x, E2.y, math.pi, ARRIVE) == 0.0
+    assert nav_end_s(P, SITE, [TO_E1, BACK_P1], 1, E2.x, E2.y, math.pi, ARRIVE) == 0.0
 
 
 # ---- 끝에서 도는 시간 ----
@@ -136,6 +152,45 @@ def test_a_cut_off_robot_drives_to_the_end_and_does_not_hand_over():
     route = m.route
     raw = left_s(ON, route.edges[route.done:route.granted], m.x, m.y)
     passing = world.traffic._left_s(m, route, route.granted)
-    held = world.traffic._left_s(m, route, route.granted, passing=False)
+    held = world.traffic._left_s(m, route, route.granted, STOP)
     assert passing < held
     assert held >= raw - 1e-9
+
+
+def test_with_both_parts_off_the_old_sum_comes_out_exactly():
+    world, m = driving_to_n_w()
+    route = m.route
+    world.traffic.params = replace(ON, nav_pass_m=0.0, nav_turn_rps=0.0)
+    old = left_s(ON, route.edges[route.done:route.granted], m.x, m.y)
+    assert world.traffic._left_s(m, route, route.granted) == old
+    world.now += 0.2
+    world.traffic.on_move_feedback("pode2", m.goal.id, 0, False, "", 0.8)
+    _, _, stop = m.move_order.cuts[0]
+    old = 0.8 / speed(ON, NAV_GOAL) + travel_s(ON, route.edges[stop:route.granted])
+    assert world.traffic._left_s(m, route, route.granted) == old
+
+
+def test_the_lane_order_compares_arrival_at_the_entry_without_the_end_parts():
+    """d2: pode1이 N_W에서 X_W로 급행에 들어가려 한다. 입구까지의 남은 시간은 끝 보정 없이 잰다."""
+    site = load_fleet_map("d2")
+    traffic = ZoneTraffic(site, ON, ["pode1"], lambda: 10.0)
+    traffic.on_robot_state("pode1", *site.node_pose("P-1"), 0.0, "IDLE")
+    m = traffic._robots["pode1"]
+    edges = []
+    for a, b in pairwise(("P-1", "N_W", "X_W", "X_E", "N_E", "O_Q")):
+        edges += shortest_path(site, a, b)
+    east = Route("O_Q", edges)
+    seen = []
+    ask = traffic.lanes.refusal
+
+    def spy(robot, zone, want, now, rivals):
+        seen.append((zone, want.eta[zone]))
+        return ask(robot, zone, want, now, rivals)
+
+    traffic.lanes.refusal = spy
+    traffic._take(m, east)
+    [(zone, eta)] = seen
+    index = next(i for i, e in enumerate(edges) if e.lane == zone)
+    assert edges[0].mode == NAV_GOAL, "the robot drives a Nav2 goal to the entry"
+    assert edges[index].mode in (NAV_GOAL, FOLLOW_PATH), "a hand-over would apply at the entry"
+    assert eta == left_s(ON, edges[:index], m.x, m.y)

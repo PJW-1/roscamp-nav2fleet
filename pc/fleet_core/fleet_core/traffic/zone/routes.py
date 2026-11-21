@@ -9,6 +9,8 @@ from fleet_core.common.commands import MoveCmd, RetreatCmd
 from fleet_core.fleet_map import FOLLOW_PATH, NAV_GOAL, RETREAT, SHARED, Edge, distance
 
 ON_NODE_M = 0.03
+# Nav2 goal 끝 보정의 뜻: 다음 조각으로 넘어갈 때까지, 끝 노드에 닿을 때까지, 끝에 설 때까지
+PASS, ARRIVE, STOP = "pass", "arrive", "stop"
 
 
 # ---- edge 목록과 진행 위치를 담은 route ----
@@ -210,9 +212,11 @@ def left_s(params, edges, x: float, y: float) -> float:
 
 # ---- Nav2 goal 끝: 다음 조각으로 넘어가는 거리, 서서 끝 방향으로 도는 시간 ----
 def nav_end_s(params, site, edges, end: int, x: float, y: float, yaw: float,
-              passing: bool = True) -> float:
+              ending: str = PASS) -> float:
+    if ending == ARRIVE:
+        return 0.0
     after = edges[end] if end < len(edges) else None
-    if passing and after is not None and after.mode in (NAV_GOAL, FOLLOW_PATH):
+    if ending == PASS and after is not None and after.mode in (NAV_GOAL, FOLLOW_PATH):
         return -params.nav_pass_m / speed(params, NAV_GOAL)
     if params.nav_turn_rps <= 0.0:
         return 0.0
