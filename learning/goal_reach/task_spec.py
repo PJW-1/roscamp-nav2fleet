@@ -60,6 +60,9 @@ class TaskSpec:
     intent_points: int = 3
     intent_spacing_m: float = 0.2  # m along the robot's route (what fleet_manager can publish)
     intent_obs_max: float = 2.0  # m, as the lidar
+    # 1: after each robot's present flag, a priority flag (1: that robot has right of way over
+    # ours and does not wait for it; store arena robot_priority_prob). 0 keeps the layouts above
+    intent_priority: int = 0
     # collision: largest contact-force norm on COLLISION_BODIES above this ends the episode
     collision_force: float = 1.0  # N; the robot weighs 15 N, a wall push measured 5-11 N
     # reward weights (per 20 Hz step)
@@ -95,6 +98,7 @@ OVERRIDABLE = (
     "intent_points",
     "intent_spacing_m",
     "intent_obs_max",
+    "intent_priority",
 )
 
 
@@ -140,7 +144,8 @@ OBS_LIDAR = SPEC.lidar_sectors
 
 def obs_dim(spec: TaskSpec = SPEC) -> int:
     """lidar sectors, goal (dist, sin, cos), (v, w), then per intent robot a mask and its points."""
-    return spec.lidar_sectors + 3 + 2 + spec.intent_robots * (1 + 2 * spec.intent_points)
+    per = 1 + int(spec.intent_priority > 0) + 2 * spec.intent_points
+    return spec.lidar_sectors + 3 + 2 + spec.intent_robots * per
 
 
 def obs_names(spec: TaskSpec = SPEC) -> list[str]:
@@ -149,6 +154,8 @@ def obs_names(spec: TaskSpec = SPEC) -> list[str]:
     names += ["goal_dist", "goal_sin", "goal_cos", "v", "w"]
     for r in range(spec.intent_robots):
         names.append(f"robot{r}_present")
+        if spec.intent_priority:
+            names.append(f"robot{r}_priority")
         for k in range(spec.intent_points):
             names += [f"robot{r}_p{k + 1}_x", f"robot{r}_p{k + 1}_y"]
     return names
@@ -210,6 +217,7 @@ def build_observation(
     lim: ActionLimits = ACTION_LIMITS,
     intent: torch.Tensor | None = None,
     intent_mask: torch.Tensor | None = None,
+    intent_priority: torch.Tensor | None = None,
 ) -> torch.Tensor:
     """Observation vector, every entry roughly in [-1, 1]:
     [lidar sector / lidar_obs_max (36), goal dist / goal_obs_max, sin(bearing), cos(bearing),
@@ -234,7 +242,11 @@ def build_observation(
         m = intent_mask[:, : spec.intent_robots].float()
         p = (intent[:, : spec.intent_robots] / spec.intent_obs_max).clamp(-1.0, 1.0)
         p = p.flatten(2) * m[..., None]
-        parts.append(torch.cat((m[..., None], p), -1).flatten(1))
+        head = [m[..., None]]
+        if spec.intent_priority:  # (N, R) bool; absent robots get 0
+            prio = torch.zeros_like(m) if intent_priority is None else intent_priority.float()
+            head.append((prio[:, : spec.intent_robots] * m)[..., None])
+        parts.append(torch.cat((*head, p), -1).flatten(1))
     return torch.cat(parts, dim=-1)
 
 

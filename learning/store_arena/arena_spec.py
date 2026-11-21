@@ -103,6 +103,18 @@ class ArenaSpec:
     robot_backoff_s: float = 2.0  # for this long, then drives on
     robot_retreat: int = 1  # 1: backs off to the last route node behind it; 0: for robot_backoff_s
     robot_lock_m: float = 0.0  # > 0: waits at a node while our robot is this near the next link
+    # node reservation as fleet_manager's (robot_spec.robot_step blocked): 1 = on. Our robot holds
+    # every node within robot_reserve_m of its route until it is robot_release_m past it; robots
+    # hold the node they are at and the end of the link they drive; robots never start on ours
+    robot_reserve: int = 0
+    robot_reserve_m: float = 0.12
+    robot_release_m: float = 0.2
+    # right of way: each robot has priority over ours with this probability per episode; it then
+    # never waits for our robot (TaskSpec intent_priority shows the flag)
+    robot_priority_prob: float = 0.0
+    # 1: evaluation set where robot 0 always drives head-on, from our goal node to our start node
+    # by the graph (routes whose start and goal are graph nodes), then on at random
+    robot_headon: int = 0
     intent_ablate: int = 0  # 1: the intent entries are zeros (robots look absent): evaluation only
 
 

@@ -165,9 +165,100 @@ def test_edge_lock_also_holds_at_the_route_start():
     assert t.item() == 0.0
 
 
+class _Node:
+    def __init__(self, x, y):
+        self.x, self.y, self.zone = x, y, "HALL"
+
+
+class _Edge:
+    def __init__(self, a, b):
+        self.a, self.b, self.mode = a, b, "nav_goal"
+
+
+class _Site:
+    """A line of nodes A (0, 0) - B (1, 0) - C (2, 0) - D (3, 0), links between neighbours."""
+
+    nodes = {n: _Node(i, 0.0) for i, n in enumerate("ABCD")}
+
+    def edges(self):
+        pairs = ("AB", "BC", "CD")
+        return [_Edge(a, b) for a, b in pairs] + [_Edge(b, a) for a, b in pairs]
+
+
+def _line_graph():
+    g = RS.node_graph(_Site())
+    return g, RS.graph_tensors(g)
+
+
+def test_route_vertices_know_their_nodes_and_goals():
+    g, gt = _line_graph()
+    a, b, c, d = (g.names.index(x) for x in "ABCD")
+    r = RS.chain_route(gt, torch.tensor([[a, c, a]]), torch.tensor([0.1]), torch.ones(1, 2))
+    pts_node = r["vnode"][0].tolist()
+    # every vertex sits on the node it is named after
+    for v, node in enumerate(pts_node):
+        assert r["pts"][0, v].tolist() == pytest.approx(g.xy[node].tolist())
+    goals = [pts_node[v] for v in range(len(pts_node)) if r["is_goal"][0, v]]
+    assert set(goals) == {a, c} and b not in goals and d not in goals
+    # robot_nodes: in the link A -> B it holds A and has B next; pausing at C it holds C only
+    cur, nxt = RS.robot_nodes(r, torch.tensor([5.0]))
+    assert (cur.item(), nxt.item()) == (a, b)
+    cur, nxt = RS.robot_nodes(r, torch.tensor([20.5]))
+    assert (cur.item(), nxt.item()) == (c, -1)
+
+
+def _run(r, blocked, steps=400, our=(9.0, 9.0)):
+    t, wait, back = torch.zeros(1), torch.zeros(1), torch.zeros(1)
+    xs = []
+    for _ in range(steps):
+        t, wait, back = RS.robot_step(r, t, wait, back, 0.05, torch.tensor([our]), 0.25, 3.0,
+                                      2.0, blocked=blocked)
+        xs.append(RS.robot_pose(r, t)[0][0, 0].item())
+    return xs
+
+
+def test_reservation_waits_at_its_node_before_a_taken_goal():
+    g, gt = _line_graph()
+    a, b, c = (g.names.index(x) for x in "ABC")
+    r = RS.chain_route(gt, torch.tensor([[a, c]]), torch.tensor([0.15]), torch.zeros(1, 1))
+    blocked = torch.zeros(1, len(g.names), dtype=torch.bool)
+    blocked[0, c] = True  # its goal is taken: it may not stop there
+    blocked[0, b] = True  # B is taken too: no free node to stop at after A
+    assert max(_run(r, blocked)) == pytest.approx(0.0, abs=1e-6)  # stays at A
+    blocked[0, b] = False
+    assert max(_run(r, blocked)) == pytest.approx(1.0, abs=0.01)  # goes to B, waits there
+
+
+def test_reservation_passes_through_a_taken_node_it_need_not_stop_at():
+    g, gt = _line_graph()
+    a, b, c = (g.names.index(x) for x in "ABC")
+    r = RS.chain_route(gt, torch.tensor([[a, c]]), torch.tensor([0.15]), torch.zeros(1, 1))
+    blocked = torch.zeros(1, len(g.names), dtype=torch.bool)
+    blocked[0, b] = True  # B taken, but it only passes B on its way to the free goal C
+    assert max(_run(r, blocked)) == pytest.approx(2.0, abs=1e-6)
+
+
 def test_to_body_and_robot_gap():
     pts = torch.tensor([[[1.0, 1.0]]])
     b = RS.to_body(pts, torch.tensor([[1.0, 0.0]]), torch.tensor([math.pi / 2]))
     assert b[0, 0].tolist() == pytest.approx([1.0, 0.0], abs=1e-6)  # 1 m straight ahead
     g = RS.robot_gap(torch.tensor([[0.5, 0.0]]), torch.zeros(1, 2), torch.zeros(1))
     assert g.item() == pytest.approx(0.5 - 0.06)
+
+
+def test_start_banned_moves_the_start_off_our_nodes():
+    g, gt = _line_graph()
+    banned = torch.zeros(64, 4, dtype=torch.bool)
+    ours = torch.zeros(64, 4, dtype=torch.bool)
+    ours[:, :3] = True  # A, B, C are on our route: robots start at D
+    chain = RS.sample_chains(gt, 64, 2, banned, start_banned=ours)
+    assert (chain[:, 0] == 3).all() and (chain[:, 1] != 3).all()
+
+
+def test_robot_with_priority_does_not_wait_for_us():
+    r = _line_route()
+    t = torch.zeros(1)
+    for _ in range(160):  # our robot stands on its line at 0.6: yield_m 0 drives into it
+        t, _, _ = RS.robot_step(r, t, torch.zeros(1), torch.zeros(1), 0.05,
+                                torch.tensor([[0.6, 0.0]]), torch.zeros(1), 3.0, 2.0)
+    assert RS.robot_pose(r, t)[0][0, 0].item() > 0.6
