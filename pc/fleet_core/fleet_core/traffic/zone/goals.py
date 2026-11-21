@@ -8,7 +8,7 @@ from fleet_core.traffic.mission import TO_OUTBOUND, TO_PARK, TO_WORK
 
 from .base import HERE
 from .lane_policy import Want
-from .routes import Route, back_edge, free_edge, left_s, needs, speed, stretch_end
+from .routes import ARRIVE, Route, back_edge, free_edge, needs, speed, stretch_end
 
 TRANSIT_WAIT_S = 6.0
 STANDING_WAIT_S = 300.0
@@ -167,7 +167,7 @@ class Goals:
         eta = {}
         for lane in lanes:
             index = next(i for i in range(start, end) if route.edges[i].lane == lane)
-            eta[lane] = left_s(self.params, route.edges[route.done:index], m.x, m.y)
+            eta[lane] = self._left_s(m, route, index, ARRIVE)
         since = now if m.watch.wait.since is None else m.watch.wait.since
         want = Want(tuple(zones), tuple(nodes), lanes, since, eta)
         entered = [lane for lane in lanes if m.name not in grants.holders(lane)]

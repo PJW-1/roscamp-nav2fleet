@@ -6,10 +6,13 @@
 #   SIM_BATCH_ENV      깨끗한 env에 더 넣을 변수들(예: "WAYLAND_DISPLAY=wayland-0 GALLIUM_DRIVER=d3d12")
 #                      빈칸으로 나눈 NAME=value 목록이다. 값에 빈칸이나 *를 쓰지 못한다
 #   SIM_BATCH_PAUSE_S  판마다 시작하기 전에 쉬는 시간(초). 첫 판 앞에서도 쉰다
+#   SIM_BATCH_ARGS     화면 인자 대신 쓸 launch 인자들(안 주면 "rviz:=fleet gui:=true").
+#                      예: "rviz:=none gui:=false nav_max_speed:=0.12". 값에 빈칸을 쓰지 못한다
 # 기록기(truth_logger.py)는 이 스크립트가 있는 폴더의 것을 쓴다.
 S=$(cd "$(dirname "$(readlink -f "$0")")" && pwd)
 INSTALL=${SIM_BATCH_INSTALL:-$HOME/ros2camp/nav2fleet_ws/install/setup.bash}
 EXTRA_ENV=${SIM_BATCH_ENV-XAUTHORITY=/run/user/1000/gdm/Xauthority}
+LAUNCH_ARGS=${SIM_BATCH_ARGS-rviz:=fleet gui:=true}
 B=$1; OVL=$2; shift 2
 # 묶음 로그 시각은 KST로 적는다(express_metrics.py, q2_dwell.py가 KST로 읽음)
 export TZ=Asia/Seoul
@@ -21,7 +24,7 @@ for run in "$@"; do
   sleep "${SIM_BATCH_PAUSE_S:-0}"
   mkdir -p $R
   ovl_line=""; [ "$OVL" != - ] && ovl_line="source $OVL"
-  echo "scenario $scen, layout v7, use_order_model true, sim_dock_stub true, fleet_record true, domain 61, overlay $OVL, start $(date +%T)" > $R/run_info.txt
+  echo "scenario $scen, layout v7, use_order_model true, sim_dock_stub true, fleet_record true, $LAUNCH_ARGS, domain 61, overlay $OVL, start $(date +%T)" > $R/run_info.txt
   echo "== $name $scen start $(date +%T)"
   ( cd $R && env -i HOME=$HOME PATH=/usr/local/bin:/usr/bin:/bin DISPLAY=:0 XDG_RUNTIME_DIR=/run/user/1000 LANG=${LANG:-C.UTF-8} $EXTRA_ENV bash --norc --noprofile -c "
 source /opt/ros/jazzy/setup.bash
@@ -37,7 +40,7 @@ LOG=\$!
     if [ \$iso != 0 ] && [ \$iso != stop ] && [ \$(( \$(date +%s) - iso )) -ge 45 ]; then echo \"watchdog: ROBOT_ISOLATED, Ctrl+C at \$(date +%T)\" > watchdog.txt; kill -INT \$\$; iso=stop; fi
     sleep 3
   done; kill -INT \$LOG ) &
-exec timeout -s INT -k 60 1500 ros2 launch fleet_gz_sim gz.launch.py layout:=v7 scenario:=$scen use_order_model:=true sim_dock_stub:=true fleet_record:=true rviz:=fleet gui:=true result_dir:=$R/result
+exec timeout -s INT -k 60 1500 ros2 launch fleet_gz_sim gz.launch.py layout:=v7 scenario:=$scen use_order_model:=true sim_dock_stub:=true fleet_record:=true $LAUNCH_ARGS result_dir:=$R/result
 " > launch.out 2>&1 )
   rc=$?
   echo "== $name exit $rc end $(date +%T) summary: $(python3 -c "import json;d=json.load(open('$R/result/summary.json'));print(d['pass'],d['orders_shipped'],'/',d['orders_total'],round(d['duration_s'],1),'s')" 2>&1 | tail -1)"
