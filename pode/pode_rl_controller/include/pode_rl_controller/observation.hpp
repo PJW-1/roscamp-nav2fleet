@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cstddef>
 #include <vector>
 
 #include "pode_rl_controller/policy_spec.hpp"
@@ -22,6 +23,24 @@ struct Twist2
   double v;
   double w;
 };
+
+struct Point2
+{
+  double x;
+  double y;
+};
+
+struct GoalPolar
+{
+  double dist;
+  double angle;
+};
+
+// ---- 경로 따라가기(route_spec.follow와 같은 정의) ----
+size_t follow_progress(
+  const std::vector<Point2> & path, size_t prog, const Point2 & robot, int window);
+size_t lookahead_index(const std::vector<Point2> & path, size_t prog, double lookahead);
+GoalPolar goal_in_robot_frame(const Point2 & robot, double yaw, const Point2 & goal);
 
 std::vector<float> scan_to_rays(const Scan & scan, double lidar_yaw, const PolicySpec & spec);
 std::vector<float> build_observation(

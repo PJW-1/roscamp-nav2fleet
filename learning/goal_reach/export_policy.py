@@ -1,14 +1,19 @@
-"""Package a trained goal-reach policy for the Nav2 controller plugin FollowPathRL.
+"""Package a trained goal-reach or store-arena policy for the Nav2 controller plugin FollowPathRL.
 
 Writes into --out:
-  policy.onnx       the rsl_rl export (observation normalizer + MLP, no action clamp) as one file
-                    (the export keeps its weights in policy.onnx.data next to it)
+  policy.onnx       observation normalizer + MLP, no action clamp, as one file: the rsl_rl export
+                    given with --onnx (it keeps its weights in policy.onnx.data next to it), or,
+                    without --onnx, the same graph exported here from the checkpoint
   policy_spec.json  every number the plugin needs, taken from task_spec: observation layout and
-                    scales, lidar ray layout, action limits and rate limits, control period
+                    scales, lidar ray layout, action limits and rate limits, control period; the
+                    goal rule the policy was trained with (--goal-rule) and where it came from
 and with --fixtures <dir> the parity fixtures read by pode_rl_controller's tests:
   obs_cases.json        scan -> 360 training rays -> observation (scan_to_rays + build_observation)
   action_cases.json     action sequences -> rate-limited (v, w) (action_to_target + rate_limit)
   inference_cases.json  observations -> actions from the checkpoint in PyTorch
+  follow_cases.json     (goal rule lookahead) robot poses along paths -> progress index, lookahead
+                        point, goal distance and bearing, goal and velocity observation entries,
+                        from the training code: route_spec.follow (--route-spec) and task_spec
 
 The script also runs the exported ONNX in onnxruntime (python) on the inference cases and stops if
 it differs from PyTorch by more than INFER_ATOL.
@@ -19,13 +24,22 @@ onnxruntime). Run from the repo root, e.g.
     --onnx D:/isaac/runs/goal_reach/base_4096/play_final/policy.onnx \\
     --checkpoint D:/isaac/runs/goal_reach/base_4096/model_299.pt \\
     --out pode/pode_rl_controller/policies/goal_reach_base_4096 \\
-    --fixtures pode/pode_rl_controller/test/fixtures
+    --fixtures pode/pode_rl_controller/test/fixtures/goal_reach_base_4096
+The store-arena policy (route_spec.py taken from the commit it was trained at, e.g.
+git show <commit>:learning/store_arena/route_spec.py > <tmp>/route_spec.py):
+  python learning/goal_reach/export_policy.py \\
+    --checkpoint D:/isaac/runs/store_arena/ppo_g/c1/model_499.pt \\
+    --goal-rule lookahead --lookahead-m 0.40 --follow-window 20 --route-spec <tmp>/route_spec.py \\
+    --source-branch feat/store-arena-2026-11-21 --source-commit <commit> \\
+    --out pode/pode_rl_controller/policies/store_arena_4b \\
+    --fixtures pode/pode_rl_controller/test/fixtures/store_arena_4b
 
 JSON has no inf / nan: the fixtures write them as the YAML strings ".inf", "-.inf", ".nan", which
 yaml-cpp (the plugin's reader; JSON is YAML) turns back into floats.
 """
 
 import argparse
+import importlib.util
 import json
 import math
 import os
@@ -40,7 +54,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 import task_spec as ts  # noqa: E402
 
-SPEC_FORMAT = 1
+SPEC_FORMAT = 2  # 2: goal rule (path_end | lookahead) and the policy's origin
 # float32 MLP 41-128-128-2: summation order differs between PyTorch and onnxruntime, so the two
 # agree to float32 rounding (eps 1.2e-7) times the size of the sums, not exactly. Pass when
 # |onnx - torch| <= INFER_ATOL + INFER_RTOL * |torch| (numpy.allclose). Inside the training range
@@ -63,7 +77,7 @@ def obs_layout() -> list[str]:
     ]
 
 
-def make_spec(source: dict) -> dict:
+def make_spec(source: dict, goal_rule: dict) -> dict:
     s, lim = ts.SPEC, ts.ACTION_LIMITS
     return {
         "format": SPEC_FORMAT,
@@ -80,7 +94,7 @@ def make_spec(source: dict) -> dict:
             "min_range": s.lidar_min_range,
             "obs_max": s.lidar_obs_max,
         },
-        "goal": {"obs_max": s.goal_obs_max, "success_radius": s.success_radius},
+        "goal": {"obs_max": s.goal_obs_max, "success_radius": s.success_radius, **goal_rule},
         "action": {
             "v_min": lim.v_min,
             "v_max": lim.v_max,
@@ -199,6 +213,117 @@ def torch_policy(checkpoint: str):
     return run
 
 
+def load_route_spec(path: str):
+    spec = importlib.util.spec_from_file_location("route_spec", path)
+    mod = importlib.util.module_from_spec(spec)
+    sys.modules["route_spec"] = mod  # its dataclasses look their module up
+    spec.loader.exec_module(mod)
+    return mod
+
+
+def follow_paths(rng) -> dict:
+    """Paths in their own frame, before a random placement: points every `step` m with a little
+    jitter (a planner's path is never evenly spaced, and exact spacing would put the lookahead
+    target on a float tie)."""
+
+    def line(n, step):
+        return np.stack((np.arange(n) * step, np.zeros(n)), -1)
+
+    turn = np.stack((np.full(24, 1.0), np.arange(1, 25) * 0.025), -1)
+    paths = {
+        "straight": line(81, 0.025),
+        "shorter_than_lookahead": line(9, 0.025),
+        "corner": np.concatenate((line(41, 0.025), turn)),
+        "coarse_5cm": line(41, 0.05),
+    }
+    return {k: p + rng.uniform(-0.002, 0.002, p.shape) for k, p in paths.items()}
+
+
+def follow_cases(rng, route_spec, lookahead: float, window: int) -> list[dict]:
+    """Robot poses walked along each path (with sideways error, one jump past the follow window,
+    then standing at the end), fed through route_spec.follow step by step as the env does."""
+    cases = []
+    for name, p0 in follow_paths(rng).items():
+        th = float(rng.uniform(-math.pi, math.pi))
+        rot = np.array([[math.cos(th), -math.sin(th)], [math.sin(th), math.cos(th)]])
+        path = p0 @ rot.T + rng.uniform(-2.0, 2.0, 2)
+        seg = np.diff(path, axis=0)
+        cum = np.concatenate(([0.0], np.cumsum(np.hypot(seg[:, 0], seg[:, 1]))))
+        n = len(path)
+        along = list(range(0, n, 3)) + [n - 1] * 3
+        if n > window + 10:
+            along.insert(4, along[3] + window + 6)  # the progress index moves at most window
+        prog = torch.zeros(1, dtype=torch.long)
+        steps = []
+        for i in along:
+            xy = path[min(i, n - 1)] + rng.uniform(-0.03, 0.03, 2)
+            yaw = float(rng.uniform(-math.pi, math.pi))
+            v, w = float(rng.uniform(-0.05, 0.25)), float(rng.uniform(-1.0, 1.0))
+            xy_t = torch.tensor(xy[None], dtype=torch.float64)
+            prog, _, la = route_spec.follow(
+                torch.tensor(path[None]),
+                torch.tensor(cum[None]),
+                torch.tensor([n]),
+                prog,
+                xy_t,
+                lookahead,
+                window,
+            )
+            dist, ang = ts.goal_in_robot_frame(xy_t, torch.tensor([yaw], dtype=torch.float64), la)
+            obs = ts.build_observation(
+                torch.full((1, ts.SPEC.lidar_rays), ts.SPEC.lidar_obs_max, dtype=torch.float64),
+                dist,
+                ang,
+                torch.tensor([[v, w]], dtype=torch.float64),
+            )[0]
+            steps.append(
+                {
+                    "xy": xy.tolist(),
+                    "yaw": yaw,
+                    "v": v,
+                    "w": w,
+                    "prog": int(prog[0]),
+                    "lookahead_xy": la[0].tolist(),
+                    "goal_dist": float(dist[0]),
+                    "goal_angle": float(ang[0]),
+                    "obs_goal_vel": obs[ts.OBS_LIDAR :].tolist(),
+                }
+            )
+        cases.append({"name": name, "path": path.tolist(), "steps": steps})
+    return cases
+
+
+class CheckpointPolicy(torch.nn.Module):
+    """The rsl_rl actor graph: (obs - mean) / (std + eps), then the ELU MLP, no action clamp."""
+
+    def __init__(self, checkpoint: str):
+        super().__init__()
+        sd = torch.load(checkpoint, map_location="cpu", weights_only=False)["actor_state_dict"]
+        self.register_buffer("mean", sd["obs_normalizer._mean"])
+        self.register_buffer("std", sd["obs_normalizer._std"])
+        layers = []
+        for i in (0, 2, 4):
+            out_dim, in_dim = sd[f"mlp.{i}.weight"].shape
+            layers += [torch.nn.Linear(in_dim, out_dim), torch.nn.ELU()]
+        self.mlp = torch.nn.Sequential(*layers[:-1])
+        self.mlp.load_state_dict({k[4:]: v for k, v in sd.items() if k.startswith("mlp.")})
+
+    def forward(self, obs):
+        return self.mlp((obs - self.mean) / (self.std + NORMALIZER_EPS))
+
+
+def export_from_checkpoint(checkpoint: str, path: str) -> None:
+    torch.onnx.export(
+        CheckpointPolicy(checkpoint).eval(),
+        torch.zeros(1, ts.OBS_DIM),
+        path,
+        input_names=["obs"],
+        output_names=["actions"],
+        opset_version=18,
+        dynamo=False,
+    )
+
+
 def inference_obs(rng, n: int) -> np.ndarray:
     """Observations in the ranges the policy sees: sectors in (0, 1], goal dist in [0, 1], a unit
     bearing vector, v in [-0.2, 1], w in [-1, 1]; the last few are out-of-range extremes."""
@@ -217,30 +342,52 @@ def inference_obs(rng, n: int) -> np.ndarray:
 
 def main():
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawTextHelpFormatter)
-    p.add_argument("--onnx", required=True, help="policy.onnx written by play.py")
+    p.add_argument("--onnx", default="", help="policy.onnx written by play.py, else made here")
     p.add_argument("--checkpoint", required=True, help="the model_*.pt it was exported from")
     p.add_argument("--out", required=True)
     p.add_argument("--fixtures", default="")
     p.add_argument("--seed", type=int, default=7)
+    p.add_argument("--goal-rule", choices=("path_end", "lookahead"), default="path_end")
+    p.add_argument("--lookahead-m", type=float, default=0.0, help="ArenaSpec.lookahead_m")
+    p.add_argument("--follow-window", type=int, default=0, help="ArenaSpec.follow_window")
+    p.add_argument("--route-spec", default="", help="route_spec.py the policy was trained with")
+    p.add_argument("--source-branch", default="")
+    p.add_argument("--source-commit", default="")
     args = p.parse_args()
+    if args.goal_rule == "lookahead":
+        if args.lookahead_m <= 0 or args.follow_window <= 0 or not args.route_spec:
+            p.error("--goal-rule lookahead needs --lookahead-m, --follow-window and --route-spec")
+        goal_rule = {
+            "rule": "lookahead",
+            "lookahead_m": args.lookahead_m,
+            "follow_window": args.follow_window,
+        }
+    else:
+        goal_rule = {"rule": "path_end"}
     rng = np.random.default_rng(args.seed)
     os.makedirs(args.out, exist_ok=True)
 
-    model = onnx.load(args.onnx)  # also reads policy.onnx.data
-    onnx.checker.check_model(model)
     out_onnx = os.path.join(args.out, "policy.onnx")
+    if not args.onnx:
+        export_from_checkpoint(args.checkpoint, out_onnx)
+    model = onnx.load(args.onnx or out_onnx)  # also reads policy.onnx.data
+    onnx.checker.check_model(model)
     onnx.save(model, out_onnx, save_as_external_data=False)
     source = {
         "checkpoint": os.path.basename(os.path.dirname(args.checkpoint))
         + "/"
         + os.path.basename(args.checkpoint),
+        "checkpoint_path": args.checkpoint.replace("\\", "/"),
+        "onnx_from": "rsl_rl export" if args.onnx else "export_policy.py torch.onnx.export",
+        "branch": args.source_branch,
+        "commit": args.source_commit,
         "onnx_opset": [o.version for o in model.opset_import],
         "onnx_inputs": [i.name for i in model.graph.input],
         "onnx_outputs": [o.name for o in model.graph.output],
         "action_clamp_in_graph": False,
     }
     with open(os.path.join(args.out, "policy_spec.json"), "w", encoding="utf-8") as f:
-        json.dump(make_spec(source), f, indent=1)
+        json.dump(make_spec(source, goal_rule), f, indent=1)
         f.write("\n")
 
     obs = inference_obs(rng, 32)
@@ -270,6 +417,14 @@ def main():
                 "actions_onnxruntime_python": ort_out.tolist(),
             },
         }
+        if args.goal_rule == "lookahead":
+            files["follow_cases.json"] = {
+                "lookahead_m": args.lookahead_m,
+                "follow_window": args.follow_window,
+                "cases": follow_cases(
+                    rng, load_route_spec(args.route_spec), args.lookahead_m, args.follow_window
+                ),
+            }
         for name, data in files.items():
             with open(os.path.join(args.fixtures, name), "w", encoding="utf-8") as f:
                 json.dump(data, f)

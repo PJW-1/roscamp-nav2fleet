@@ -5,16 +5,16 @@
 # 고르기: ros2 topic pub --once /<로봇>/controller_selector std_msgs/msg/String "{data: FollowPathRL}"
 # 그 뒤의 Nav2 goal(navigate_to_pose)이 이 controller로 간다. 되돌리기는 data: FollowPathGoal.
 # 값과 고른 까닭: docs/worklog_follow_path_rl_2026-11-21.md 결정 대기 목록. 정책의 숫자(관측 배율,
-# 라이다 광선, 행동·가속 한계, 주기)는 정책 폴더의 policy_spec.json에 있다.
+# 라이다 광선, 행동·가속 한계, 주기)와 목표점 규칙(경로 끝 / 경로 위 앞보기 점과 그 거리)은 정책 폴더의
+# policy_spec.json에 있다. goal_rule, lookahead_dist를 여기 적으면 명세를 덮고 WARN 로그를 남긴다
+# (정책이 배우지 않은 목표가 된다. 시험할 때만 쓴다).
 controller_server:
   ros__parameters:
     controller_plugins: ["FollowPath", "FollowPathThrough", "FollowPathReverse", "FollowPathGoal",
                          "FollowPathRL"]
     FollowPathRL:
       plugin: "pode_rl_controller::FollowPathRL"
-      policy: "goal_reach_base_4096"  # share/pode_rl_controller/policies/<이름> 또는 절대 경로
-      goal_rule: "path_end"  # path_end: 경로 끝, lookahead: 경로 위 lookahead_dist 앞의 점
-      lookahead_dist: 0.4
+      policy: "store_arena_4b"  # share/pode_rl_controller/policies/<이름> 또는 절대 경로
       scan_topic: "scan"
       scan_timeout: 0.5
       transform_tolerance: 0.2

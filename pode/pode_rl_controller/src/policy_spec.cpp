@@ -22,8 +22,8 @@ std::vector<std::string> expected_obs_layout(int sectors)
 PolicySpec load_policy_spec(const std::string & path)
 {
   const YAML::Node root = YAML::LoadFile(path);
-  if (root["format"].as<int>() != 1) {
-    throw std::runtime_error(path + ": unknown policy spec format");
+  if (root["format"].as<int>() != 2) {
+    throw std::runtime_error(path + ": policy spec format must be 2 (export it again)");
   }
   PolicySpec s{};
   s.control_dt = root["control_dt"].as<double>();
@@ -34,6 +34,17 @@ PolicySpec load_policy_spec(const std::string & path)
     l["sectors"].as<int>(), l["min_range"].as<double>(), l["obs_max"].as<double>()};
   s.goal_obs_max = root["goal"]["obs_max"].as<double>();
   s.success_radius = root["goal"]["success_radius"].as<double>();
+  const YAML::Node g = root["goal"];
+  s.goal_rule = {g["rule"].as<std::string>(), 0.0, 0};
+  if (s.goal_rule.rule == "lookahead") {
+    s.goal_rule.lookahead_m = g["lookahead_m"].as<double>();
+    s.goal_rule.follow_window = g["follow_window"].as<int>();
+    if (s.goal_rule.lookahead_m <= 0.0 || s.goal_rule.follow_window <= 0) {
+      throw std::runtime_error(path + ": lookahead_m and follow_window must be positive");
+    }
+  } else if (s.goal_rule.rule != "path_end") {
+    throw std::runtime_error(path + ": goal rule must be path_end or lookahead");
+  }
   const YAML::Node a = root["action"];
   s.action = {a["v_min"].as<double>(), a["v_max"].as<double>(), a["w_max"].as<double>(),
     a["acc_v"].as<double>(), a["acc_w"].as<double>()};

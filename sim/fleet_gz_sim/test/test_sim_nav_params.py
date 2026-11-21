@@ -183,7 +183,9 @@ def test_the_rl_controller_comes_only_from_its_overrides_file_and_keeps_the_base
     server = sim["controller_server"]["ros__parameters"]
     assert server["controller_plugins"] == [*base, "FollowPathRL"]
     assert server["FollowPathRL"]["plugin"] == "pode_rl_controller::FollowPathRL"
-    assert server["FollowPathRL"]["goal_rule"] == "path_end"
+    assert server["FollowPathRL"]["policy"] == "store_arena_4b"
+    assert "goal_rule" not in server["FollowPathRL"]  # the policy spec decides
+    assert "lookahead_dist" not in server["FollowPathRL"]
 
 
 def test_overrides_win_over_the_sim_amcl_values(tmp_path):

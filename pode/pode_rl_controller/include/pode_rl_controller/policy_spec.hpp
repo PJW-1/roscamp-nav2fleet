@@ -26,6 +26,13 @@ struct ActionSpec
   double acc_w;
 };
 
+struct GoalRule
+{
+  std::string rule;
+  double lookahead_m;
+  int follow_window;
+};
+
 struct PolicySpec
 {
   double control_dt;
@@ -34,6 +41,7 @@ struct PolicySpec
   LidarSpec lidar;
   double goal_obs_max;
   double success_radius;
+  GoalRule goal_rule;
   ActionSpec action;
 };
 

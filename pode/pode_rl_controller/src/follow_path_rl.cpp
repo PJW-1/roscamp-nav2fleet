@@ -3,7 +3,6 @@
 #include <algorithm>
 #include <chrono>
 #include <cmath>
-#include <limits>
 #include <vector>
 
 #include "ament_index_cpp/get_package_share_directory.hpp"
@@ -42,9 +41,9 @@ void FollowPathRL::configure(
 
   using nav2_util::declare_parameter_if_not_declared;
   using rclcpp::ParameterValue;
-  declare_parameter_if_not_declared(node, name_ + ".policy", ParameterValue("goal_reach_base_4096"));
-  declare_parameter_if_not_declared(node, name_ + ".goal_rule", ParameterValue("path_end"));
-  declare_parameter_if_not_declared(node, name_ + ".lookahead_dist", ParameterValue(0.4));
+  declare_parameter_if_not_declared(node, name_ + ".policy", ParameterValue("store_arena_4b"));
+  declare_parameter_if_not_declared(node, name_ + ".goal_rule", ParameterValue(""));
+  declare_parameter_if_not_declared(node, name_ + ".lookahead_dist", ParameterValue(-1.0));
   declare_parameter_if_not_declared(node, name_ + ".scan_topic", ParameterValue("scan"));
   declare_parameter_if_not_declared(node, name_ + ".scan_timeout", ParameterValue(0.5));
   declare_parameter_if_not_declared(node, name_ + ".transform_tolerance", ParameterValue(0.2));
@@ -53,24 +52,42 @@ void FollowPathRL::configure(
   declare_parameter_if_not_declared(node, name_ + ".log_period", ParameterValue(1.0));
 
   const std::string policy = node->get_parameter(name_ + ".policy").as_string();
-  goal_rule_ = node->get_parameter(name_ + ".goal_rule").as_string();
-  lookahead_dist_ = node->get_parameter(name_ + ".lookahead_dist").as_double();
+  const std::string rule_param = node->get_parameter(name_ + ".goal_rule").as_string();
+  const double lookahead_param = node->get_parameter(name_ + ".lookahead_dist").as_double();
   scan_topic_ = node->get_parameter(name_ + ".scan_topic").as_string();
   scan_timeout_ = node->get_parameter(name_ + ".scan_timeout").as_double();
   transform_tolerance_ = node->get_parameter(name_ + ".transform_tolerance").as_double();
   const int threads = node->get_parameter(name_ + ".intra_op_threads").as_int();
   rotate_gain_ = node->get_parameter(name_ + ".rotate_gain").as_double();
   log_period_ = node->get_parameter(name_ + ".log_period").as_double();
-  if (goal_rule_ != "path_end" && goal_rule_ != "lookahead") {
-    throw std::runtime_error("FollowPathRL: goal_rule must be path_end or lookahead");
-  }
-
   const std::string dir = policy.rfind('/', 0) == 0 ? policy :
     ament_index_cpp::get_package_share_directory("pode_rl_controller") + "/policies/" + policy;
   spec_ = load_policy_spec(dir + "/policy_spec.json");
   policy_ = std::make_unique<OnnxPolicy>(
     dir + "/policy.onnx", spec_.obs_dim, spec_.act_dim, threads);
   speed_limit_ = spec_.action.v_max;
+
+  goal_rule_ = spec_.goal_rule.rule;
+  lookahead_dist_ = spec_.goal_rule.lookahead_m;
+  follow_window_ = spec_.goal_rule.follow_window > 0 ? spec_.goal_rule.follow_window : 20;
+  if (!rule_param.empty() && rule_param != goal_rule_) {
+    if (rule_param != "path_end" && rule_param != "lookahead") {
+      throw std::runtime_error("FollowPathRL: goal_rule must be path_end or lookahead");
+    }
+    RCLCPP_WARN(
+      logger_, "FollowPathRL %s: goal_rule %s OVERRIDES the policy spec (%s): the policy was not "
+      "trained with this goal", name_.c_str(), rule_param.c_str(), goal_rule_.c_str());
+    goal_rule_ = rule_param;
+  }
+  if (lookahead_param >= 0.0 && lookahead_param != lookahead_dist_) {
+    RCLCPP_WARN(
+      logger_, "FollowPathRL %s: lookahead_dist %.2f m OVERRIDES the policy spec (%.2f m): the "
+      "policy was not trained with this goal", name_.c_str(), lookahead_param, lookahead_dist_);
+    lookahead_dist_ = lookahead_param;
+  }
+  if (goal_rule_ == "lookahead" && lookahead_dist_ <= 0.0) {
+    throw std::runtime_error("FollowPathRL: goal_rule lookahead needs lookahead_dist > 0");
+  }
 
   scan_sub_ = node->create_subscription<sensor_msgs::msg::LaserScan>(
     scan_topic_, rclcpp::SensorDataQoS(),
@@ -80,9 +97,10 @@ void FollowPathRL::configure(
     });
   RCLCPP_INFO(
     logger_, "FollowPathRL %s: policy %s (obs %d, dt %.3f s, v %.2f..%.2f m/s, w %.2f rad/s), "
-    "goal_rule %s (lookahead %.2f m), scan %s, ORT CPU threads %d", name_.c_str(), dir.c_str(),
-    spec_.obs_dim, spec_.control_dt, spec_.action.v_min, spec_.action.v_max, spec_.action.w_max,
-    goal_rule_.c_str(), lookahead_dist_, scan_topic_.c_str(), threads);
+    "goal_rule %s (lookahead %.2f m, window %d points), scan %s, ORT CPU threads %d", name_.c_str(),
+    dir.c_str(), spec_.obs_dim, spec_.control_dt, spec_.action.v_min, spec_.action.v_max,
+    spec_.action.w_max, goal_rule_.c_str(), lookahead_dist_, follow_window_, scan_topic_.c_str(),
+    threads);
 }
 
 void FollowPathRL::cleanup()
@@ -103,12 +121,14 @@ void FollowPathRL::deactivate()
 void FollowPathRL::setPlan(const nav_msgs::msg::Path & path)
 {
   plan_ = path;
+  prog_ = 0;
 }
 
 void FollowPathRL::reset()
 {
   cmd_ = {0.0, 0.0};
   have_last_call_ = false;
+  prog_ = 0;
 }
 
 void FollowPathRL::setSpeedLimit(const double & speed_limit, const bool & percentage)
@@ -152,11 +172,12 @@ void FollowPathRL::goal_in_base(double & x, double & y, double & yaw_end, double
   } catch (const tf2::TransformException & e) {
     throw nav2_core::ControllerTFError(std::string("FollowPathRL: plan frame: ") + e.what());
   }
-  std::vector<geometry_msgs::msg::Pose> poses(plan_.poses.size());
-  for (size_t i = 0; i < poses.size(); ++i) {
-    tf2::doTransform(plan_.poses[i].pose, poses[i], t);
+  std::vector<Point2> path(plan_.poses.size());
+  geometry_msgs::msg::Pose end;
+  for (size_t i = 0; i < path.size(); ++i) {
+    tf2::doTransform(plan_.poses[i].pose, end, t);
+    path[i] = {end.position.x, end.position.y};
   }
-  const auto & end = poses.back();
   x = end.position.x;
   y = end.position.y;
   yaw_end = tf2::getYaw(end.orientation);
@@ -164,22 +185,10 @@ void FollowPathRL::goal_in_base(double & x, double & y, double & yaw_end, double
   if (goal_rule_ != "lookahead") {
     return;
   }
-  size_t closest = 0;
-  double best = std::numeric_limits<double>::infinity();
-  for (size_t i = 0; i < poses.size(); ++i) {
-    const double d = std::hypot(poses[i].position.x, poses[i].position.y);
-    if (d < best) {
-      best = d;
-      closest = i;
-    }
-  }
-  for (size_t i = closest; i < poses.size(); ++i) {
-    if (std::hypot(poses[i].position.x, poses[i].position.y) >= lookahead_dist_) {
-      x = poses[i].position.x;
-      y = poses[i].position.y;
-      return;
-    }
-  }
+  prog_ = follow_progress(path, prog_, {0.0, 0.0}, follow_window_);
+  const Point2 & p = path[lookahead_index(path, prog_, lookahead_dist_)];
+  x = p.x;
+  y = p.y;
 }
 
 // ---- 한 주기: 관측 -> 정책 -> (v, w) ----
@@ -231,8 +240,9 @@ geometry_msgs::msg::TwistStamped FollowPathRL::computeVelocityCommands(
     const Scan s{scan->angle_min, scan->angle_increment, scan->range_min, scan->range_max,
       scan->ranges};
     const auto rays = scan_to_rays(s, lidar_yaw(scan->header.frame_id), spec_);
+    const GoalPolar goal = goal_in_robot_frame({0.0, 0.0}, 0.0, {gx, gy});
     const auto obs = build_observation(
-      rays, std::hypot(gx, gy), std::atan2(gy, gx), velocity.linear.x, velocity.angular.z, spec_);
+      rays, goal.dist, goal.angle, velocity.linear.x, velocity.angular.z, spec_);
     const auto t_infer = std::chrono::steady_clock::now();
     act = policy_->run(obs);
     infer_us = us_since(t_infer);

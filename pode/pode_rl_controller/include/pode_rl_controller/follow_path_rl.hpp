@@ -54,8 +54,10 @@ private:
   std::string lidar_frame_;
   double lidar_yaw_{0.0};
   nav_msgs::msg::Path plan_;
+  size_t prog_{0};
   std::string goal_rule_;
   double lookahead_dist_{0.4};
+  int follow_window_{20};
   double scan_timeout_{0.5};
   double transform_tolerance_{0.2};
   double rotate_gain_{1.5};

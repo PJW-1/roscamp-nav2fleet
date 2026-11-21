@@ -13,6 +13,45 @@ constexpr double kPi = 3.14159265358979323846;
 constexpr double kTwoPi = 2.0 * kPi;
 }  // namespace
 
+// ---- 경로 따라가기 ----
+size_t follow_progress(
+  const std::vector<Point2> & path, size_t prog, const Point2 & robot, int window)
+{
+  const size_t n = path.size();
+  prog = std::min(prog, n - 1);
+  const size_t last = std::min(n - 1, prog + static_cast<size_t>(window));
+  size_t near = prog;
+  double best = std::numeric_limits<double>::infinity();
+  for (size_t i = prog; i <= last; ++i) {
+    const double d = std::hypot(path[i].x - robot.x, path[i].y - robot.y);
+    if (d < best) {
+      best = d;
+      near = i;
+    }
+  }
+  return near;
+}
+
+size_t lookahead_index(const std::vector<Point2> & path, size_t prog, double lookahead)
+{
+  std::vector<double> cum(path.size(), 0.0);
+  for (size_t i = 1; i < path.size(); ++i) {
+    cum[i] = cum[i - 1] + std::hypot(path[i].x - path[i - 1].x, path[i].y - path[i - 1].y);
+  }
+  const double target = cum[prog] + lookahead;
+  const auto it = std::lower_bound(cum.begin(), cum.end(), target);
+  return std::min(static_cast<size_t>(it - cum.begin()), path.size() - 1);
+}
+
+GoalPolar goal_in_robot_frame(const Point2 & robot, double yaw, const Point2 & goal)
+{
+  const double dx = goal.x - robot.x;
+  const double dy = goal.y - robot.y;
+  double ang = std::atan2(dy, dx) - yaw;
+  ang = std::atan2(std::sin(ang), std::cos(ang));
+  return {std::hypot(dx, dy), ang};
+}
+
 // ---- 스캔 -> 학습 광선 360개 ----
 std::vector<float> scan_to_rays(const Scan & scan, double lidar_yaw, const PolicySpec & spec)
 {

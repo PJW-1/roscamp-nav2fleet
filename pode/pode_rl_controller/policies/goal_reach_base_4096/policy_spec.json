@@ -1,7 +1,11 @@
 {
- "format": 1,
+ "format": 2,
  "source": {
   "checkpoint": "base_4096/model_299.pt",
+  "checkpoint_path": "D:/isaac/runs/goal_reach/base_4096/model_299.pt",
+  "onnx_from": "rsl_rl export",
+  "branch": "",
+  "commit": "",
   "onnx_opset": [
    18
   ],
@@ -69,7 +73,8 @@
  },
  "goal": {
   "obs_max": 3.0,
-  "success_radius": 0.05
+  "success_radius": 0.05,
+  "rule": "path_end"
  },
  "action": {
   "v_min": -0.05,
