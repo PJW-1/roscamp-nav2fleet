@@ -78,7 +78,7 @@ def main():
         succ_times, succ_ratio, lidar_min = [], [], float("inf")
         K = min(args_cli.track, n)
         traj = {"xy": [], "done": [], "route": [], "cmd": [], "mover_xy": [], "mover_on": []}
-        traj.update(robot_xy=[], robot_on=[])
+        traj.update(robot_xy=[], robot_on=[], outcome=[])  # outcome: keys index at done, else -1
         # per counted episode: smallest mover gap, smallest scripted-robot gap, outcome index,
         # what the collision is put down to
         gaps, rgaps, codes, hits = [], [], [], []
@@ -115,6 +115,10 @@ def main():
                 path_s = torch.as_tensor(routes.total, device=raw.device)[route[s]] / 0.25
                 succ_ratio += (raw.last_ep_len_s[s] / path_s).tolist()
             ep_done += d.long()
+            o_all = torch.stack(
+                (raw.success, raw.collided, raw.oob, ~(raw.success | raw.collided | raw.oob)), -1
+            ).float().argmax(-1)
+            traj["outcome"].append(torch.where(d, o_all, -1)[:K].cpu().numpy())
             pos, _ = raw.robot_pose()
             traj["xy"].append(pos[:K].cpu().numpy())
             traj["done"].append(d[:K].cpu().numpy())

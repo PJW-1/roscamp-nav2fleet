@@ -87,6 +87,8 @@ class ArenaSpec:
     # ... and turns back after waiting this long (as a person would), so a robot and a mover
     # waiting for each other do not stand until the episode times out.
     mover_wait_s: float = 2.0
+    # share of episodes whose movers never wait (yield 0, as the Gazebo benchmark's movers)
+    mover_noyield_prob: float = 0.0
     # --- scripted fleet robots (stage 4c, robot_spec): routes over the HALL nav graph
     robot_max: int = 0  # robots per episode, uniform 0..robot_max (0: the 4b arena; 4c: 2)
     robot_speed_scale: tuple[float, float] = (0.67, 1.33)  # times robot_spec.ROBOT.speed 0.15

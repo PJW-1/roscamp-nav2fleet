@@ -32,7 +32,10 @@ def classify(z, episode_s=30.0, window_s=10.0, near_m=0.35, still_m=0.05):
     out = []
     for e in range(z["xy"].shape[1]):
         for s, t in episodes(z["done"][:, e]):
-            if t - s + 1 < full:  # ended before the time limit: not a timeout
+            if "outcome" in z.files:  # play.py records why each episode ended
+                if z["outcome"][t, e] != 3:
+                    continue
+            elif t - s + 1 < full:  # older rollouts: by length (a last-step success counts too)
                 continue
             # the done step t already shows the next episode's reset pose: leave it out
             a = max(s, t - w)
