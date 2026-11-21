@@ -182,6 +182,18 @@ def test_an_mppi_from_the_overrides_is_capped_without_changing_the_callers_dict(
         assert sim.get("time_steps") == (80 if extra else None)
 
 
+def test_a_goal_controller_from_the_overrides_is_capped_without_changing_the_callers_dict(
+        tmp_path):
+    goal = yaml.safe_load(AVOIDANCE.read_text(encoding="utf-8"))["follow_path_goal"]
+    overrides = {"controller_server": {"ros__parameters": {"FollowPathGoal": goal}}}
+    before = yaml.safe_dump(overrides)
+    out = launch_parts.sim_nav_params(NAV, tmp_path / "sim.yaml", avoidance=None,
+                                      overrides=overrides, max_speed=0.06)
+    assert yaml.safe_dump(overrides) == before
+    sim = _rpp(yaml.safe_load(out.read_text(encoding="utf-8")), "FollowPathGoal")
+    assert sim["desired_linear_vel"] == 0.06 and sim["use_collision_detection"] is True
+
+
 @pytest.mark.parametrize("bad", [0.0, -0.1, float("nan"), float("inf"), 0.3, True, "0.1"])
 def test_a_speed_cap_must_be_a_number_between_zero_and_the_robot_speed(tmp_path, bad):
     with pytest.raises(ValueError, match="max_speed"):

@@ -7,6 +7,7 @@ ROS 프로세스 하나가 DDS 참여자 하나다. LOCALHOST 탐색에서는 32
 """
 from __future__ import annotations
 
+import copy
 import math
 import os
 import tempfile
@@ -214,7 +215,7 @@ def sim_nav_params(base: Path, out: Path, amcl: dict | None = None,
     if replaced:
         raise ValueError("nav_overrides may not replace a mapping with a non-mapping: "
                          + ", ".join(replaced))
-    merge(data, overrides or {})
+    merge(data, copy.deepcopy(overrides or {}))
     controllers = data["controller_server"]["ros__parameters"]
     if MPPI_CONTROLLER in controllers and MPPI_CONTROLLER not in controllers["controller_plugins"]:
         controllers["controller_plugins"] = [*controllers["controller_plugins"], MPPI_CONTROLLER]
