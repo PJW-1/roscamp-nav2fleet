@@ -305,9 +305,11 @@ controller_server:
         enabled: true
         cost_power: 1
         cost_weight: 4.0
-      # 비용 무게 1.0(Nav2 기본 3.81, 2026-11-21 Gazebo): 3.81에서는 통로 가운데로 난 경로가 남쪽 진열대에서
-      # 0.15 m(local inflation 반경) 안쪽 띠(비용 약 180)를 지나 경로 따르기보다 비용이 커서, 비용 0인 칸에
-      # 서서 앞뒤로 흔들렸다(progress 실패 10번, goal 못 감). 1.0과 0.3은 네 구간 모두 실패 없이 갔다
+      # 비용 무게 1.0(Nav2 기본 3.81, 2026-11-21 Gazebo): 가운데 통로의 Nav2 경로는 y 0.55~0.57(통로 한가운데
+      # 0.5875보다 남쪽)로 나서 남쪽 진열대에서 0.15 m(local inflation 반경) 안쪽 띠(비용 약 180)를 지난다.
+      # 3.81에서는 그 비용이 경로 따르기보다 커서 비용 0인 칸에 서서 앞뒤로 흔들렸다(progress 실패 10번,
+      # goal 못 감). 1.0과 0.3은 네 구간 모두 실패 없이 갔다. 이 무게는 충돌 비용(collision_cost)에도 곱해지지만
+      # 충돌 판정 자체는 그대로다
       CostCritic:
         enabled: true
         cost_power: 1
