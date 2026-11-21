@@ -173,12 +173,29 @@ def surface_gap(shape: MoverShape, xy: torch.Tensor, pos: torch.Tensor, yaw: tor
     return torch.sqrt(ex * ex + ey * ey)
 
 
-def yield_step(legs, t, dt: float, shape: MoverShape, robot_xy, yield_m: float) -> torch.Tensor:
-    """The mover's clock after one control step: it advances by dt unless that step would bring
-    the mover closer to the robot centre than yield_m (surface to centre) while approaching; then
-    the mover waits where it is. It goes on once the robot leaves (or it would move away)."""
+def turn_back(legs, t: torch.Tensor) -> torch.Tensor:
+    """The clock time at which the mover is at the same place going the other way (a mover in
+    a pause stays in it): the cycle mirrored about its middle."""
+    v, pause = legs["speed"], legs["pause"]
+    length = (legs["b"] - legs["a"]).norm(dim=-1)
+    t_leg = torch.where(v > 0, length / v.clamp(min=1e-9), torch.ones_like(v))
+    cycle = 2 * (t_leg + pause)
+    tau = torch.remainder(t + legs["phase"] * cycle, cycle)
+    return t + torch.remainder(3 * pause + 2 * t_leg - 2 * tau, cycle)
+
+
+def yield_step(legs, t, dt: float, shape: MoverShape, robot_xy, yield_m: float, wait, wait_s):
+    """One control step of the mover's clock t and its waiting time wait [s]. The clock advances
+    by dt unless that step would bring the mover closer to the robot centre than yield_m (surface
+    to centre) while approaching; then the mover waits where it is. It goes on once the robot
+    leaves (or the step would move away), and after waiting wait_s it turns back.
+    Returns (t, wait, turned)."""
     pos0, yaw0, _ = mover_pose(legs, t)
     pos1, yaw1, _ = mover_pose(legs, t + dt)
     g0 = surface_gap(shape, robot_xy, pos0, yaw0)
     g1 = surface_gap(shape, robot_xy, pos1, yaw1)
-    return torch.where((g1 < yield_m) & (g1 < g0), t, t + dt)
+    held = (g1 < yield_m) & (g1 < g0)
+    wait = torch.where(held, wait + dt, torch.zeros_like(wait))
+    turned = wait >= wait_s
+    t = torch.where(turned, turn_back(legs, t), torch.where(held, t, t + dt))
+    return t, torch.where(turned, torch.zeros_like(wait), wait), turned

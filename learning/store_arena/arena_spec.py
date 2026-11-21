@@ -80,7 +80,10 @@ class ArenaSpec:
     # A mover waits while its next step would bring it closer than this to the robot centre
     # (surface to centre; the robot's footprint reaches 0.06-0.082 m): any contact is then the
     # robot's doing. Movers that walked into a waiting robot made half of all episodes collide.
-    mover_yield_m: float = 0.15  # the whole leg keeps this far from the start and goal
+    mover_yield_m: float = 0.15
+    # ... and turns back after waiting this long (as a person would), so a robot and a mover
+    # waiting for each other do not stand until the episode times out.
+    mover_wait_s: float = 2.0  # the whole leg keeps this far from the start and goal
 
 
 ARENA = ArenaSpec()

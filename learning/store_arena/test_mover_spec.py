@@ -118,18 +118,20 @@ def test_mover_waits_for_the_robot_and_goes_on_when_it_leaves():
     }
     dt, yield_m = 0.05, 0.15
     robot = torch.tensor([[0.5, 0.0], [0.5, 0.0]])  # env 0 on the leg; env 1 the robot leaves
-    t = torch.zeros(2)
+    t, wait = torch.zeros(2), torch.zeros(2)
     for k in range(200):
         if k == 100:
             robot[1] = torch.tensor([0.5, 1.0])
-        t = M.yield_step(legs, t, dt, person, robot, yield_m)
+        t, wait, _ = M.yield_step(legs, t, dt, person, robot, yield_m, wait, math.inf)
         pos, _, _ = M.mover_pose(legs, t)
         gap = M.surface_gap(person, robot, pos, torch.zeros(2))
         assert gap[0] >= yield_m - 1e-6  # never walks closer than yield_m into the robot
     assert pos[0, 0] == pytest.approx(0.5 - person.size[0] - yield_m, abs=0.006)  # waiting
     assert pos[1, 0] > 0.5  # went on once the robot was gone
     # a mover walking away from a robot close behind it is not held
-    t2 = M.yield_step(legs, torch.tensor([0.5, 0.5]), dt, person, torch.zeros(2, 2), yield_m)
+    t2, _, _ = M.yield_step(
+        legs, torch.tensor([0.5, 0.5]), dt, person, torch.zeros(2, 2), yield_m, wait, math.inf
+    )
     assert t2.tolist() == pytest.approx([0.55, 0.55])
 
 
@@ -139,3 +141,42 @@ def test_surface_gap_of_a_turned_box():
     g0 = M.surface_gap(cart, xy, torch.zeros(1, 2), torch.zeros(1))
     g1 = M.surface_gap(cart, xy, torch.zeros(1, 2), torch.tensor([math.pi / 2]))
     assert g0.item() == pytest.approx(0.5 - 0.045) and g1.item() == pytest.approx(0.5 - 0.07)
+
+
+def test_turn_back_mirrors_the_mover_onto_the_other_way():
+    legs = {
+        "a": torch.zeros(3, 2),
+        "b": torch.tensor([[1.0, 0.0]] * 3),
+        "speed": torch.tensor([0.5, 0.5, 0.5]),
+        "pause": torch.tensor([1.0, 1.0, 1.0]),
+        "phase": torch.zeros(3),
+    }
+    # cycle 6 s: out 1..3 s, back 4..6 s; t 2.0 going out, 5.5 coming back, 0.5 pausing at a
+    t = torch.tensor([2.0, 5.5, 0.5])
+    p0, _, v0 = M.mover_pose(legs, t)
+    p1, _, v1 = M.mover_pose(legs, M.turn_back(legs, t))
+    assert p1.flatten().tolist() == pytest.approx(p0.flatten().tolist(), abs=1e-5)  # same place
+    assert v1[:2].flatten().tolist() == pytest.approx((-v0[:2]).flatten().tolist(), abs=1e-5)
+    assert v1[2].abs().max() == 0  # a pausing mover stays paused
+
+
+def test_waiting_mover_turns_back_after_mover_wait_s():
+    person = M.MOVERS[0]
+    legs = {
+        "a": torch.tensor([[0.0, 0.0]]),
+        "b": torch.tensor([[1.0, 0.0]]),
+        "speed": torch.tensor([0.1]),
+        "pause": torch.tensor([0.0]),
+        "phase": torch.tensor([0.0]),
+    }
+    dt, robot = 0.05, torch.tensor([[0.5, 0.0]])  # the robot stands on the leg
+    t, wait = torch.zeros(1), torch.zeros(1)
+    turned_at = None
+    for k in range(200):
+        t, wait, turned = M.yield_step(legs, t, dt, person, robot, 0.15, wait, 2.0)
+        if turned.any() and turned_at is None:
+            turned_at = k
+    pos, _, _ = M.mover_pose(legs, t)
+    first_hold = int((0.5 - 0.04 - 0.15) / (0.1 * dt))  # steps to reach the yield distance
+    assert turned_at == pytest.approx(first_hold + 2.0 / dt, abs=2)
+    assert pos[0, 0] < 0.2  # walked back toward a
