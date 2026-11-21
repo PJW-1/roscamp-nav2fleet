@@ -208,8 +208,6 @@ def test_route_vertices_know_their_nodes_and_goals():
     assert [h.item() for h in held] == [b, c, -1]
     held = RS.robot_nodes(r, torch.tensor([20.5]))
     assert [h.item() for h in held] == [c, -1, -1]
-    held = RS.robot_nodes(r, torch.tensor([10.0]))  # exactly on B, which it only passes
-    assert [h.item() for h in held] == [b, -1, c]
 
 
 def _run(r, blocked, steps=400, our=(9.0, 9.0)):
@@ -235,7 +233,7 @@ def test_reservation_waits_at_its_node_before_a_taken_goal():
     assert max(xs) == pytest.approx(1.0, abs=1e-6) and xs[-1] == pytest.approx(1.0, abs=1e-6)
 
 
-def test_waiting_robot_waits_on_its_node_and_holds_the_next():
+def test_waiting_robot_holds_only_the_node_it_waits_at():
     g, gt = _line_graph()
     a, b, c = (g.names.index(x) for x in "ABC")
     r = RS.chain_route(gt, torch.tensor([[a, c]]), torch.tensor([0.15]), torch.zeros(1, 1))
@@ -245,8 +243,7 @@ def test_waiting_robot_waits_on_its_node_and_holds_the_next():
     for _ in range(400):
         t, wait, back = RS.robot_step(r, t, wait, back, 0.05, torch.tensor([[9.0, 9.0]]), 0.25,
                                       3.0, 2.0, blocked=blocked)
-    # (and C, where it goes next, so no one else stops there before it)
-    assert [h.item() for h in RS.robot_nodes(r, t)] == [b, -1, c]
+    assert [h.item() for h in RS.robot_nodes(r, t)] == [b, -1, -1]
 
 
 def test_no_yield_stop_on_a_taken_node():

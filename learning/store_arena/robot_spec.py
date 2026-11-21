@@ -176,11 +176,7 @@ def robot_nodes(route: dict, t: torch.Tensor):
     none = torch.full_like(cur, -1)
     nxt = torch.where(in_link, route["vnode"][rows, i], none)
     passing = in_link & ~route["is_goal"][rows, i]
-    after = torch.where(passing, route["next_node"][rows, i], none)
-    # standing on a node it only passes (or waits at for the next one): the next node too
-    at_pass = ~in_link & ~route["is_goal"][rows, i - 1] & (i - 1 > 0)
-    after = torch.where(at_pass, route["next_node"][rows, i - 1], after)
-    return cur, nxt, after
+    return cur, nxt, torch.where(passing, route["next_node"][rows, i], none)
 
 
 def _interp(xs: torch.Tensor, x: torch.Tensor, ys: torch.Tensor):
