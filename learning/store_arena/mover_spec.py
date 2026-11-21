@@ -202,7 +202,7 @@ def yield_step(legs, t, dt: float, shape: MoverShape, robot_xy, yield_m: float, 
     pos1, yaw1, _ = mover_pose(legs, t + dt)
     g0 = surface_gap(shape, robot_xy, pos0, yaw0)
     g1 = surface_gap(shape, robot_xy, pos1, yaw1)
-    held = (g1 < yield_m) & (g1 < g0)
+    held = (g1 < yield_m) & (g1 < g0) & (torch.as_tensor(yield_m) > 0)  # 0: never waits
     wait = torch.where(held, wait + dt, torch.zeros_like(wait))
     turned = held & (wait >= wait_s)
     t = torch.where(turned, turn_back(legs, t), torch.where(held, t, t + dt))
