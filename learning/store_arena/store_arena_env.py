@@ -188,6 +188,7 @@ class StoreArenaEnv(GoalReachEnv):
         ]
         self.mover_park = torch.tensor([mover_park_xy(i) for i in range(len(ms.MOVERS))], **f32)
         self.mover_t = torch.zeros(len(ms.MOVERS), n, **f32)  # each mover's own clock
+        self.mover_held = torch.zeros(len(ms.MOVERS), n, dtype=torch.bool, device=dev)  # waiting
         self.mover_gap = torch.full((n,), float("inf"), **f32)
         self.last_ep_mover_gap = torch.full((n,), float("inf"), **f32)
         self._routes_ready = True
@@ -240,6 +241,7 @@ class StoreArenaEnv(GoalReachEnv):
         self.d_prev[env_ids] = self.d_now[env_ids]
         self._sample_movers(env_ids, r)
         self.mover_t[:, env_ids] = 0.0
+        self.mover_held[:, env_ids] = False
         self._write_movers(env_ids)
         self.mover_gap[env_ids] = self.mover_gaps(self.start_xy[env_ids], env_ids)  # at t = 0
 
@@ -276,7 +278,8 @@ class StoreArenaEnv(GoalReachEnv):
             pos, yaw, vel = ms.mover_pose(sub, self.mover_t[i, ids])
             act = sub["active"]
             pos = torch.where(act[:, None], pos, self.mover_park[i].expand_as(pos))
-            vel = torch.where(act[:, None], vel, torch.zeros_like(vel))
+            moving = act & ~self.mover_held[i, ids]
+            vel = torch.where(moving[:, None], vel, torch.zeros_like(vel))
             out.append((pos, yaw, vel, act))
         return out
 
@@ -306,9 +309,11 @@ class StoreArenaEnv(GoalReachEnv):
         if self._routes_ready:
             xy, _ = self.robot_pose()
             for i, (shape, legs) in enumerate(zip(ms.MOVERS, self.mover_legs, strict=True)):
-                self.mover_t[i] = ms.yield_step(
+                t = ms.yield_step(
                     legs, self.mover_t[i], self.step_dt, shape, xy, self.arena.mover_yield_m
                 )
+                self.mover_held[i] = t == self.mover_t[i]
+                self.mover_t[i] = t
             self._write_movers(torch.arange(self.num_envs, device=self.device))
 
     def obstacle_xy(self) -> torch.Tensor:
