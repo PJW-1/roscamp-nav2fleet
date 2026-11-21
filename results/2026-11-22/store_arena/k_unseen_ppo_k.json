@@ -1,0 +1,171 @@
+{
+ "checkpoint": "D:/isaac/runs/store_arena/ppo_k/c2/model_998.pt",
+ "num_envs": 1024,
+ "episodes": 2048,
+ "rates": {
+  "success": 0.8081,
+  "collision": 0.1802,
+  "oob": 0.0,
+  "timeout": 0.0117
+ },
+ "by_boxes_on_route": {
+  "0": {
+   "success": 474,
+   "collision": 58,
+   "oob": 0,
+   "timeout": 0,
+   "success_rate": 0.891
+  },
+  "1": {
+   "success": 449,
+   "collision": 73,
+   "oob": 0,
+   "timeout": 1,
+   "success_rate": 0.8585
+  },
+  "2": {
+   "success": 374,
+   "collision": 117,
+   "oob": 0,
+   "timeout": 12,
+   "success_rate": 0.7435
+  },
+  "3": {
+   "success": 358,
+   "collision": 121,
+   "oob": 0,
+   "timeout": 11,
+   "success_rate": 0.7306
+  }
+ },
+ "by_mover_gap": {
+  "no mover": {
+   "success": 201,
+   "collision": 10,
+   "oob": 0,
+   "timeout": 6,
+   "success_rate": 0.9263
+  },
+  "gap -inf-0.10 m": {
+   "success": 167,
+   "collision": 272,
+   "oob": 0,
+   "timeout": 3,
+   "success_rate": 0.3778
+  },
+  "gap 0.10-0.25 m": {
+   "success": 424,
+   "collision": 27,
+   "oob": 0,
+   "timeout": 5,
+   "success_rate": 0.9298
+  },
+  "gap 0.25-0.50 m": {
+   "success": 505,
+   "collision": 23,
+   "oob": 0,
+   "timeout": 2,
+   "success_rate": 0.9528
+  },
+  "gap 0.50-inf m": {
+   "success": 358,
+   "collision": 37,
+   "oob": 0,
+   "timeout": 8,
+   "success_rate": 0.8883
+  }
+ },
+ "by_robot_gap": {
+  "no robot": {
+   "success": 1655,
+   "collision": 369,
+   "oob": 0,
+   "timeout": 24,
+   "success_rate": 0.8081
+  },
+  "gap -inf-0.10 m": {
+   "success": 0,
+   "collision": 0,
+   "oob": 0,
+   "timeout": 0,
+   "success_rate": 0.0
+  },
+  "gap 0.10-0.25 m": {
+   "success": 0,
+   "collision": 0,
+   "oob": 0,
+   "timeout": 0,
+   "success_rate": 0.0
+  },
+  "gap 0.25-0.50 m": {
+   "success": 0,
+   "collision": 0,
+   "oob": 0,
+   "timeout": 0,
+   "success_rate": 0.0
+  },
+  "gap 0.50-inf m": {
+   "success": 0,
+   "collision": 0,
+   "oob": 0,
+   "timeout": 0,
+   "success_rate": 0.0
+  }
+ },
+ "collisions_by_nearest": {
+  "wall_shelf": 63,
+  "box": 43,
+  "mover": 263,
+  "robot": 0
+ },
+ "collisions_graze_only": 346,
+ "by_start": {
+  "corner": {
+   "episodes": 532,
+   "success": 0.7857,
+   "collision": 0.2049,
+   "oob": 0.0,
+   "timeout": 0.0094
+  },
+  "other": {
+   "episodes": 1516,
+   "success": 0.816,
+   "collision": 0.1715,
+   "oob": 0.0,
+   "timeout": 0.0125
+  }
+ },
+ "success_time_s_mean": 12.43,
+ "success_time_s_p90": 19.2,
+ "success_time_over_path_at_vmax_mean": 1.211,
+ "lidar_min_m": 0.0517,
+ "spec_overrides": {},
+ "arena_overrides": {
+  "route_seed": 1
+ },
+ "timeouts_tracked": {
+  "robot_still": 0,
+  "robot_moving": 0,
+  "mover": 6,
+  "alone": 18
+ },
+ "alone_timeouts": {
+  "tracked_episodes": 2048,
+  "timeouts": 24,
+  "count": 18,
+  "per_4096": 36.0,
+  "by_motion": {
+   "stopped": 7,
+   "dithering": 7,
+   "facing_wall": 3,
+   "moving": 1
+  },
+  "by_place": {
+   "between nodes": 9,
+   "O_IN": 4,
+   "E-3": 3,
+   "E-1": 1,
+   "M_E": 1
+  }
+ }
+}

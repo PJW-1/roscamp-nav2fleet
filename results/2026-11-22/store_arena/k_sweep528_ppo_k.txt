@@ -1,0 +1,8 @@
+== guard False noise 0.0: 528 starts (44 routes x 12 headings)
+   success 528/528, mean time 11.25 s, body min <= 0.005 m: 0 (in the first 3 s: 0), contact (<= 0): 0, guard steps 0
+   grazes by start node: {}
+   early grazes: 
+   Q2->E-3 by heading: [(-180, 0.099), (-150, 0.086), (-120, 0.095), (-90, 0.1), (-60, 0.082), (-30, 0.085), (0, 0.085), (30, 0.069), (60, 0.039), (90, 0.068), (120, 0.063), (150, 0.073)]
+== guard True noise 0.0: 528 starts (44 routes x 12 headings)
+   success 528/528, mean time 11.25 s, body min <= 0.005 m: 0 (in the first 3 s: 0), contact (<= 0): 0, guard steps 481
+   grazes by start node: {}

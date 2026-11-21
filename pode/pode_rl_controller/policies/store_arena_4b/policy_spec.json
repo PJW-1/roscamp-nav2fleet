@@ -1,11 +1,11 @@
 {
  "format": 2,
  "source": {
-  "checkpoint": "c1/model_499.pt",
-  "checkpoint_path": "D:/isaac/runs/store_arena/ppo_g/c1/model_499.pt",
+  "checkpoint": "c2/model_998.pt",
+  "checkpoint_path": "D:/isaac/runs/store_arena/ppo_k/c2/model_998.pt",
   "onnx_from": "export_policy.py torch.onnx.export",
-  "branch": "feat/store-arena-2026-11-21",
-  "commit": "d2abc2ca77363d4571bee654481fb1ae8027d16e",
+  "branch": "feat/retrain-012-2026-11-22",
+  "commit": "95e2054",
   "onnx_opset": [
    18
   ],
@@ -80,7 +80,7 @@
  },
  "action": {
   "v_min": -0.05,
-  "v_max": 0.25,
+  "v_max": 0.12,
   "w_max": 1.0,
   "acc_v": 2.0,
   "acc_w": 2.0
