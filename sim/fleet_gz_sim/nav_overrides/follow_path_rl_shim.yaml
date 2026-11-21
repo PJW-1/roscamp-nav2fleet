@@ -15,7 +15,8 @@ controller_server:
       rotate_to_heading_angular_vel: 1.0
       max_angular_accel: 2.0
       simulate_ahead_time: 1.0
-      rotate_to_goal_heading: true  # goal에서의 마지막 방향 맞추기도 shim이 한다(플러그인의 회전 대신)
+      rotate_to_goal_heading: true  # goal에서의 마지막 방향 맞추기도 shim이 먼저 한다. shim의 회전 충돌
+      # 검사가 거부하면 Jazzy shim은 RL로 넘기고, RL의 제자리 회전은 충돌 검사가 없다(RL만일 때와 같음)
       policy: "store_arena_4b"  # share/pode_rl_controller/policies/<이름> 또는 절대 경로
       scan_topic: "scan"
       scan_timeout: 0.5
