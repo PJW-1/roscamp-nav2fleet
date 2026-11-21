@@ -5,13 +5,24 @@
   contact: per scripted drive, contact force per body against the gap between the robot centre
            and the obstacle face, and a small CSV of the first step above the collision force
 
+  curves:  training curves of a chunked run (run_train.sh): success, collision and timeout rate
+           and success episode time against training minutes, chunks joined end to end
+  traj:    top-down paths of the tracked envs of play.py with their global paths and boxes
+  routes:  the global paths route_spec plans (ArenaSpec defaults): every node pair without boxes,
+           and a few layouts with boxes
+
   python learning/store_arena/plot_arena.py scene <scene.json> <out.png>
   python learning/store_arena/plot_arena.py contact <contact_push.json> <out.png> <out.csv>
+  python learning/store_arena/plot_arena.py curves <out.png> <run_dir> [<out.csv>]
+  python learning/store_arena/plot_arena.py traj <out.png> <rollouts.npz> [episodes]
+  python learning/store_arena/plot_arena.py routes <out.png>
 """
 
 import csv
+import glob
 import json
 import math
+import os
 import sys
 
 import matplotlib
@@ -137,10 +148,154 @@ def plot_contact(src: str, out: str, out_csv: str, threshold: float = 1.0) -> No
     print(f"wrote {out}, {out_csv}")
 
 
+def read_chunks(run_dir: str) -> dict:
+    """metrics.csv of c1, c2, ... joined: wall time and iterations continue across chunks."""
+    cols, wall0, it0 = {}, 0.0, 0
+    dirs = sorted(glob.glob(os.path.join(run_dir, "c*")), key=lambda d: int(d.rsplit("c", 1)[1]))
+    for d in dirs:
+        with open(os.path.join(d, "metrics.csv"), encoding="utf-8") as fh:
+            rows = list(csv.DictReader(fh))
+        for r in rows:
+            r = {k: float(v) for k, v in r.items()}
+            r["wall_s"] += wall0
+            r["iteration"] += it0
+            for k, v in r.items():
+                cols.setdefault(k, []).append(v)
+        wall0, it0 = cols["wall_s"][-1], int(cols["iteration"][-1])
+    return cols
+
+
+def plot_curves(out: str, run_dir: str, out_csv: str = "") -> None:
+    m = read_chunks(run_dir)
+    t = [w / 60 for w in m["wall_s"]]
+    fig, (a1, a2) = plt.subplots(1, 2, figsize=(11, 4), dpi=120)
+    for key, col, lab in (
+        ("success_rate", "#1baf7a", "success"),
+        ("collision_rate", "#e34948", "collision"),
+        ("timeout_rate", "#eda100", "timeout"),
+    ):
+        a1.plot(t, m[key], color=col, lw=1.4, label=lab)
+    a1.set_ylim(0, 1)
+    a1.set_xlabel("training time [min] (env build excluded)")
+    a1.set_ylabel("share of episodes ended")
+    a1.legend(frameon=False)
+    a1.grid(alpha=0.3)
+    a2.plot(t, m["success_time_s"], color="#2a78d6", lw=1.4)
+    a2.set_xlabel("training time [min]")
+    a2.set_ylabel("successful episode time [s]")
+    a2.grid(alpha=0.3)
+    fig.tight_layout()
+    fig.savefig(out)
+    if out_csv:  # every 10th row, small enough for the results folder
+        keys = list(m)
+        with open(out_csv, "w", newline="", encoding="utf-8") as fh:
+            wr = csv.writer(fh)
+            wr.writerow(keys)
+            for i in range(0, len(t), 10):
+                wr.writerow([round(m[k][i], 4) for k in keys])
+    print(f"wrote {out}")
+
+
+def plot_traj(out: str, src: str, episodes: int = 1) -> None:
+    import numpy as np
+
+    z = np.load(src)
+    xy, done, route = z["xy"], z["done"], z["route"]
+    k = xy.shape[1]
+    cols = int(math.ceil(k / 4))
+    fig, axes = plt.subplots(4, cols, figsize=(3.4 * cols, 7.6), dpi=110)
+    for e, ax in enumerate(axes.T.ravel()[:k]):
+        for b in z["boxes"]:
+            ax.add_patch(Rectangle(b[:2], b[2] - b[0], b[3] - b[1], color="#8c8c99", lw=0))
+        ends = np.flatnonzero(done[:, e])[:episodes]
+        start = 0
+        for j, end in enumerate(ends):
+            r = int(route[end, e])
+            p = z["path"][r, : z["npts"][r]]
+            ax.plot(p[:, 0], p[:, 1], "--", color="#52514e", lw=0.8)
+            for c, sz in zip(z["obstacle_xy"][r], z["obstacle_sizes"], strict=True):
+                if not np.isnan(c[0]):
+                    ax.add_patch(
+                        Rectangle(c - sz / 2, sz, sz, color="#2a78d6", alpha=0.6 if j == 0 else 0.3)
+                    )
+            seg = xy[start : end + 1, e]
+            ax.plot(seg[:-1, 0], seg[:-1, 1], color="#eb6834", lw=1.4)
+            ax.plot(*p[0], "o", color="#1baf7a", ms=4)
+            ax.add_patch(Circle(p[-1], 0.05, fill=False, color="#e34948", lw=1))
+            ax.set_title(f"env {e}: {(end - start) * float(z['dt']):.1f} s", fontsize=8)
+            start = end + 1
+        ax.set_xlim(-0.08, 2.06)
+        ax.set_ylim(-0.08, 1.06)
+        ax.set_aspect("equal")
+        ax.set_xticks([])
+        ax.set_yticks([])
+    fig.tight_layout()
+    fig.savefig(out)
+    print(f"wrote {out}")
+
+
+def plot_routes(out: str) -> None:
+    import numpy as np
+
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    import arena_spec as A
+    import route_spec as R
+
+    site = A.load_site()
+    boxes = A.arena_boxes(site=site)
+    static = np.array([(b.x0, b.y0, b.x1, b.y1) for b in boxes])
+    r = R.build_routes(A.ARENA, site, static)
+    fig, axes = plt.subplots(2, 3, figsize=(13, 5.4), dpi=110)
+    rng = np.random.default_rng(1)
+    picks = rng.choice(np.flatnonzero(np.arange(r.count) % r.layouts != 0), 5, replace=False)
+    for i, ax in enumerate(axes.ravel()):
+        for b in boxes:
+            ax.add_patch(
+                Rectangle((b.x0, b.y0), b.x1 - b.x0, b.y1 - b.y0, color=COLORS[b.kind], lw=0)
+            )
+        sel = range(0, r.count, r.layouts) if i == 0 else [picks[i - 1]]
+        for j in sel:
+            p = r.path[j, : r.npts[j]]
+            ax.plot(p[:, 0], p[:, 1], color="#2a78d6", lw=0.8 if i == 0 else 1.5, alpha=0.7)
+            if i:
+                for c, sz in zip(r.obstacle_xy[j], r.obstacle_sizes, strict=True):
+                    if not np.isnan(c[0]):
+                        ax.add_patch(Rectangle(c - sz / 2, sz, sz, color="#e34948", alpha=0.7))
+                s_, g_ = r.start_goal(j)
+                ax.plot(*s_, "o", color="#1baf7a", ms=5)
+                ax.plot(*g_, "*", color="#0b0b0b", ms=8)
+                a, b = r.pairs[j // r.layouts]
+                ax.set_title(
+                    f"{r.node_names[a]} -> {r.node_names[b]}, layout {j % r.layouts}, "
+                    f"{r.total[j]:.2f} m",
+                    fontsize=9,
+                )
+        if i == 0:
+            ax.set_title(f"{len(r.pairs)} node pairs, no boxes", fontsize=9)
+        for name, xy in zip(r.node_names, r.node_xy, strict=True):
+            ax.plot(*xy, ".", color="#0b0b0b", ms=3)
+            if i == 0:
+                ax.annotate(name, xy, fontsize=6, xytext=(2, 2), textcoords="offset points")
+        ax.set_xlim(-0.08, 2.06)
+        ax.set_ylim(-0.08, 1.06)
+        ax.set_aspect("equal")
+        ax.set_xticks([])
+        ax.set_yticks([])
+    fig.tight_layout()
+    fig.savefig(out)
+    print(f"wrote {out}")
+
+
 if __name__ == "__main__":
     if sys.argv[1] == "scene":
         plot_scene(sys.argv[2], sys.argv[3])
     elif sys.argv[1] == "contact":
         plot_contact(sys.argv[2], sys.argv[3], sys.argv[4])
+    elif sys.argv[1] == "curves":
+        plot_curves(sys.argv[2], sys.argv[3], *sys.argv[4:5])
+    elif sys.argv[1] == "routes":
+        plot_routes(sys.argv[2])
+    elif sys.argv[1] == "traj":
+        plot_traj(sys.argv[2], sys.argv[3], *(int(x) for x in sys.argv[4:5]))
     else:
         raise SystemExit(__doc__)

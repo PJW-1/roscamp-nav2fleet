@@ -45,9 +45,29 @@ class ArenaSpec:
     # Arena cells are this far apart. Rays and contacts stay inside their own env (Newton world),
     # checked by arena_check.py --mode crossenv, so this only has to keep the arenas from touching.
     env_spacing: float = 3.0
-    # Fixed start for phase A checks (start sampling from HALL nodes is the next phase).
+    # Robot position used by arena_check.py when it places robots by hand (phase A checks).
     start_x: float = 0.30
     start_y: float = 0.55
+    episode_s: float = 30.0  # longest route ~3 m at 0.25 m/s is 12 s, plus turns and detours
+    # --- start and goal (route_spec.hall_nodes): nodes in zone HALL except these kinds
+    excluded_node_kinds: str = "parking"  # P-1..3 sit between the charging dividers
+    min_start_goal_m: float = 0.40  # straight-line start-goal distance
+    # --- global path (route_spec, like Nav2 NavFn on the robot's global costmap)
+    grid_m: float = 0.025  # global costmap resolution
+    inscribed_m: float = 0.07  # footprint half-side 0.06 + footprint_padding 0.01
+    inflation_m: float = 0.15  # inflation_radius
+    cost_scaling: float = 15.0  # cost_scaling_factor
+    lookahead_m: float = 0.40  # observed goal: this far along the path beyond the robot
+    follow_window: int = 20  # path points the progress index may jump per step (~0.5 m)
+    # --- static obstacles (stage 4a): square boxes, one size per slot
+    obstacle_sizes: tuple[float, float, float] = (0.10, 0.15, 0.20)  # side [m]
+    obstacle_height_m: float = 0.30
+    obstacle_max: int = 3  # boxes per episode, uniform 0..obstacle_max
+    obstacle_layouts: int = 32  # layouts per start-goal pair (layout 0 has no boxes)
+    obstacle_on_path_prob: float = 0.7  # a box is put on the obstacle-free path, else anywhere
+    obstacle_lateral_m: float = 0.08  # sideways shift of a box put on the path
+    obstacle_node_clear_m: float = 0.25  # box edge to the start and goal nodes
+    route_seed: int = 0  # layouts are drawn once at env build with this seed
 
 
 ARENA = ArenaSpec()
@@ -104,7 +124,8 @@ def raycast_rects(
     it: each ray starts min_range out and the range is measured from the centre. A ray that starts
     inside a rectangle returns its far side. No hit within max_range -> inf.
 
-    origin (N, 2) lidar centre, yaw (N,) robot yaw, rects (B, 4) -> (N, n_rays) ranges [m]."""
+    origin (N, 2) lidar centre, yaw (N,) robot yaw, rects (B, 4) or per env (N, B, 4)
+    -> (N, n_rays) ranges [m]."""
     ang = yaw[:, None] + ray_angles(n_rays, origin.device)[None, :]  # (N, R)
     dx, dy = torch.cos(ang), torch.sin(ang)
     sx = origin[:, 0:1] + min_range * dx  # ray start (N, R)
@@ -122,7 +143,8 @@ def raycast_rects(
         tmax = torch.where(parallel, torch.where(inside, big, -big), torch.maximum(t1, t2))
         return tmin, tmax
 
-    x0, y0, x1, y1 = (rects[:, i] for i in range(4))
+    rr = rects if rects.dim() == 2 else rects[:, None]  # (B, 4) or (N, 1, B, 4)
+    x0, y0, x1, y1 = (rr[..., i] for i in range(4))
     txn, txx = slab(sx, dx, x0, x1)
     tyn, tyx = slab(sy, dy, y0, y1)
     tmin = torch.maximum(txn, tyn)

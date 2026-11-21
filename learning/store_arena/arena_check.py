@@ -7,7 +7,12 @@
   crossenv  arenas placed on top of each other (--set env_spacing=0.5) with a second robot in each
             env: does env i's lidar see env j's walls or robots, does it see its own second robot
   reset     time out some envs while the robot is far from its start: is the first observation
-            after the reset built from the new pose or the old one
+            after the reset built from the new pose (and the new obstacle boxes) or the old one
+  obstacle  drive robots into the obstacle boxes of their route: does the collision fire, does the
+            box stay where it was put (kinematic), does the lidar see it
+
+The expected scans include each env's obstacle boxes. contact and crossenv place robots by hand,
+so run them with --set obstacle_max=0.
 
 Writes <out>/<mode>.json (and scene_topdown.png with --render). Run from D:\\isaac\\IsaacLab:
   .venv/Scripts/python.exe <repo>/learning/store_arena/arena_check.py --mode scene --num_envs 64 \
@@ -26,7 +31,9 @@ import time
 from isaaclab.app import add_launcher_args, launch_simulation
 
 parser = argparse.ArgumentParser(description=__doc__)
-parser.add_argument("--mode", choices=("scene", "contact", "crossenv", "reset"), required=True)
+parser.add_argument(
+    "--mode", choices=("scene", "contact", "crossenv", "reset", "obstacle"), required=True
+)
 parser.add_argument("--num_envs", type=int, default=4)
 parser.add_argument("--out", type=str, required=True)
 parser.add_argument("--render", action="store_true", help="scene mode: top-down image of env 0")
@@ -102,6 +109,8 @@ def main():
         env = sae.StoreArenaEnv(env_cfg)
         obs0, _ = env.reset()
         build_s = time.time() - t0
+        obst0 = env.obstacle_xy().clone()  # obstacle boxes of the initial reset
+        sides = torch.tensor(env.routes.obstacle_sizes, device=env.device)
         mib_built = gpu_mib()
         rects = arena.boxes_tensor(env.boxes, env.device)
         lim = arena.ts.ACTION_LIMITS
@@ -126,9 +135,16 @@ def main():
         def lidar_center(pos, yaw):  # lidar is 0.017 m behind base_link
             return pos - 0.017 * torch.stack((torch.cos(yaw), torch.sin(yaw)), -1)
 
-        def expected_scan(pos, yaw, grow=0.0):
-            r = rects + torch.tensor((-grow, -grow, grow, grow), device=env.device)
-            return arena.raycast_rects(lidar_center(pos, yaw), yaw, r)
+        def world_rects(ids=slice(None), obst=None):
+            """(n, B + slots, 4): yaml boxes plus each env's obstacle boxes (parked included)."""
+            xy = (env.obstacle_xy() if obst is None else obst)[ids]
+            half = 0.5 * sides[None, :, None]
+            boxes = torch.cat((xy - half, xy + half), -1)
+            return torch.cat((rects.expand(len(xy), -1, -1), boxes), 1)
+
+        def expected_scan(pos, yaw, grow=0.0, ids=slice(None), obst=None):
+            g = torch.tensor((-grow, -grow, grow, grow), device=env.device)
+            return arena.raycast_rects(lidar_center(pos, yaw), yaw, world_rects(ids, obst) + g)
 
         def scan_error(sim, pos, yaw, mask=None):
             """Sim lidar vs the 2D ray cast of the yaml boxes. A ray that grazes a box corner can
@@ -437,6 +453,7 @@ def main():
             for _ in range(40):
                 env.step(go)
             pos_old, yaw_old = env.robot_pose()
+            obst_old = env.obstacle_xy().clone()
             env.episode_length_buf[:half] = env.max_episode_length - 1
             obs, rew, term, trunc, extras = env.step(go)
             assert bool(trunc[:half].all()) and not bool(trunc[half:].any())
@@ -447,12 +464,13 @@ def main():
             def sec(r):
                 return arena.ts.lidar_sectors(r, spec_t)
 
-            def sector_misses(obs_sec, pos, yaw):
+            def sector_misses(obs_sec, pos, yaw, ids=slice(None), obst=None):
                 """(envs, sectors) of the observation that are more than 1 cm outside the ray
                 cast of the yaml boxes grown and shrunk by 2 mm (as scan_error: a ray grazing a
                 thin divider top moves a sector minimum by up to its whole range)."""
-                a, b = sec(expected_scan(pos, yaw, 0.002)), sec(expected_scan(pos, yaw, -0.002))
-                e = sec(expected_scan(pos, yaw))
+                a = sec(expected_scan(pos, yaw, 0.002, ids, obst))
+                b = sec(expected_scan(pos, yaw, -0.002, ids, obst))
+                e = sec(expected_scan(pos, yaw, 0.0, ids, obst))
                 bad = ((obs_sec - a).abs() > 0.01) & ((obs_sec - b).abs() > 0.01)
                 bad &= (obs_sec - e).abs() > 0.01
                 bad |= ~torch.isfinite(obs_sec)  # a NaN would pass every comparison above
@@ -462,20 +480,24 @@ def main():
             report["reset_envs"] = half
             report["moved_m"] = round(float((pos_new[rs] - pos_old[rs]).norm(dim=-1).mean()), 3)
             report["first_obs_off_vs_new_pose"] = sector_misses(
-                sectors[rs], pos_new[rs], yaw_new[rs]
+                sectors[rs], pos_new[rs], yaw_new[rs], rs
             )
             report["first_obs_off_vs_old_pose"] = sector_misses(
-                sectors[rs], pos_old[rs], yaw_old[rs]
+                sectors[rs], pos_old[rs], yaw_old[rs], rs, obst_old
             )
             # envs that kept going: their obs should match their current pose
-            report["running_envs_obs_off"] = sector_misses(sectors[run], pos_new[run], yaw_new[run])
+            report["running_envs_obs_off"] = sector_misses(
+                sectors[run], pos_new[run], yaw_new[run], run
+            )
+            moved = (env.obstacle_xy()[rs] - obst_old[rs]).norm(dim=-1).amax(-1) > 0.01
+            report["reset_envs_whose_obstacles_moved"] = int(moved.sum())
             obs2, *_ = env.step(action(0.0))
             pos2, yaw2 = env.robot_pose()
             s2 = obs2["policy"][:, : arena.ts.OBS_LIDAR] * spec_t.lidar_obs_max
             report["second_obs_off"] = sector_misses(s2, pos2, yaw2)
             # the observation returned by the initial env.reset() (pose written, no step yet)
             s0 = obs0["policy"][:, : arena.ts.OBS_LIDAR] * spec_t.lidar_obs_max
-            report["initial_reset_obs_off"] = sector_misses(s0, *pose0)
+            report["initial_reset_obs_off"] = sector_misses(s0, *pose0, obst=obst0)
             report["pass"] = (
                 report["first_obs_off_vs_new_pose"]["envs"] == 0
                 and report["initial_reset_obs_off"]["envs"] == 0
@@ -483,6 +505,107 @@ def main():
                 and report["second_obs_off"]["sectors"] <= 1e-4 * n * arena.ts.OBS_LIDAR
                 # the test can tell: (nearly) every reset env's obs differs from the old pose
                 and report["first_obs_off_vs_old_pose"]["envs"] >= 0.9 * half
+            )
+
+        elif mode == "obstacle":
+            import numpy as np
+            import route_spec as rs_
+
+            n = env.num_envs
+            stop = action(0.0)
+            for _ in range(5):
+                env.step(stop)
+            xy0 = env.obstacle_xy().clone()
+            for _ in range(100):  # 5 s standing: kinematic, gravity-free boxes must not move
+                env.step(stop)
+            xy1 = env.obstacle_xy()
+            used = (xy1[..., 1] > 0.0).cpu().numpy()  # parked boxes wait at y = -0.4
+            report["box_drift_standing_max_m"] = round(float((xy1 - xy0).norm(dim=-1).max()), 6)
+            want = torch.as_tensor(env.r_obstacle, device=env.device)[env.route]
+            report["box_vs_route_layout_max_m"] = round(float((xy1 - want).norm(dim=-1).max()), 6)
+            # one robot per env with a box: 0.20 m from the face of its biggest box, facing it, with
+            # a free strip in between; the collision must fire within 0.10 m of the face
+            static = rects.cpu().numpy()
+            xyn = xy1.cpu().numpy()
+            sz = np.array(env.routes.obstacle_sizes)
+            ids, starts, yaws, faces = [], [], [], []
+            for e in range(n):
+                ks = [k for k in np.argsort(-sz) if used[e, k]]
+                if not ks:
+                    continue
+                k = ks[0]
+                js = [j for j in range(len(sz)) if used[e, j]]
+                others = [rs_.box_rect(xyn[e, j], sz[j]) for j in js if j != k]
+                world = np.array(list(static) + others)
+                for ang in (0.0, math.pi / 2, math.pi, -math.pi / 2):
+                    u = np.array((math.cos(ang), math.sin(ang)))
+                    p = xyn[e, k] - u * (0.5 * sz[k] + 0.20)
+                    f = xyn[e, k] - u * 0.5 * sz[k]
+                    # the strip the robot sweeps from its start (rear corner 0.085 m behind the
+                    # centre) to the box face, 0.07 m to each side, must be free of anything else
+                    a, b = p - u * 0.09, f
+                    lo, hi = np.minimum(a, b) - 0.07 * np.abs(u[::-1]), np.maximum(a, b)
+                    hi = hi + 0.07 * np.abs(u[::-1])
+                    if not rs_.rects_overlap(np.concatenate((lo, hi)), world):
+                        ids.append(e)
+                        starts.append(p)
+                        yaws.append(ang)
+                        faces.append((0 if abs(u[0]) > 0.5 else 1, f))
+                        break
+            report["envs_with_a_box"] = int(used.any(1).sum())
+            report["envs_driven"] = len(ids)
+            tested = torch.zeros(n, dtype=torch.bool, device=env.device)
+            tested[ids] = True
+            env.reset()
+            # the reset drew new routes: put back the boxes this check measured
+            for k, obj in enumerate(env.obstacles):
+                pose = obj.data.root_pose_w.torch.clone()
+                pose[:, :2] = xy1[:, k] + env.scene.env_origins[:, :2]
+                obj.write_root_pose_to_sim_index(root_pose=pose)
+            place(ids, np.array(starts), yaws)
+            back = (env.obstacle_xy() - xy1).norm(dim=-1).max()
+            report["boxes_put_back_max_err_m"] = round(float(back), 6)
+            act = torch.where(tested[:, None], action(0.25), stop)
+            first = torch.full((n,), -1, dtype=torch.long, device=env.device)
+            gap = torch.full((n,), float("nan"), device=env.device)
+            ax = torch.zeros(n, dtype=torch.long, device=env.device)
+            face = torch.zeros(n, device=env.device)
+            for e, (a_, f_) in zip(ids, faces, strict=True):
+                ax[e] = a_
+                face[e] = float(f_[a_])
+            rows = torch.arange(n, device=env.device)
+            for k in range(60):
+                pos_prev, _ = env.robot_pose()
+                env.step(act)
+                hit = env.collided & tested & (first < 0)
+                first[hit] = k + 1
+                gap[hit] = (pos_prev[rows, ax] - face).abs()[hit]
+            t_ids = torch.tensor(ids, device=env.device)
+            ok = first[t_ids] > 0
+            report["collided"] = int(ok.sum())
+            report["first_collision_step"] = [int(first[t_ids].min()), int(first[t_ids].max())]
+            g = gap[t_ids][ok]
+            report["centre_to_box_face_before_collision_m"] = [
+                round(float(g.min()), 4),
+                round(float(g.max()), 4),
+            ]
+            report["per_env"] = [
+                {
+                    "env": e,
+                    "step": int(first[e]),
+                    "centre_to_face_m": round(float(gap[e]), 4),
+                    "start": [round(float(v), 3) for v in st],
+                    "yaw_deg": round(math.degrees(yw)),
+                }
+                for e, st, yw in zip(ids, starts, yaws, strict=True)
+            ]
+            report["pass"] = (
+                report["box_drift_standing_max_m"] < 1e-3
+                and report["box_vs_route_layout_max_m"] < 1e-3
+                and report["boxes_put_back_max_err_m"] < 1e-3
+                and len(ids) > 0
+                and bool(ok.all())
+                and float(g.max()) < 0.10
             )
 
         report["gpu_mib_end"] = gpu_mib()
