@@ -197,3 +197,41 @@ def test_the_table_keeps_legs_outside_the_corridor_on_their_own_row_with_rates()
     outside = [ln for ln in text.splitlines() if "| 밖 |" in ln]
     assert len(corridor) == 1 and len(outside) == 1
     assert "2/2" in corridor[0] and "| 2 (2.0/분, 0.67/m) |" in corridor[0]
+
+
+# ---- 세 컨트롤러 ----
+def test_three_controllers_rotate_so_each_takes_every_place_and_follows_every_other_equally():
+    names = ["A", "B", "C"]
+    orders = [mt.run_order(r, names) for r in range(6)]
+    for place in range(3):
+        assert sorted(o[place] for o in orders) == ["A", "A", "B", "B", "C", "C"]
+    pairs = [(o[i], o[i + 1]) for o in orders for i in range(2)]
+    assert all(pairs.count((a, b)) == 2 for a in names for b in names if a != b)
+    assert [mt.run_order(r, ["A", "B"]) for r in range(4)] == [
+        ["A", "B"], ["B", "A"], ["B", "A"], ["A", "B"]]
+
+
+def test_welch_gives_the_difference_its_standard_error_and_t():
+    diff, se, t = mt.welch([10.0, 12.0, 14.0], [7.0, 8.0, 9.0])
+    assert diff == pytest.approx(4.0)
+    assert se == pytest.approx(math.sqrt(4.0 / 3 + 1.0 / 3))
+    assert t == pytest.approx(diff / se)
+    assert mt.welch([1.0], [2.0, 3.0]) == (None, None, None)
+
+
+def test_the_report_takes_the_controllers_from_the_legs_and_names_rl():
+    import report
+    cfg = mv.load(CONFIG)
+    base = {"scenario": "a_hall", "controller": "FollowPathGoal", "ok": True, "time_s": 10.0,
+            "path_m": 1.5, "lidar_min_m": 0.1, "body_min_m": 0.1, "doridori": 6,
+            "collisions": 0, "blocked": 0, "cpu_pct": 10.0, "cmd_dt_p95_ms": 52.0,
+            "plan_in_band": True, "truth_in_band": True, "in_corridor": True, "drive_vx": 0.2}
+    rows = [dict(base, time_s=t) for t in (10.0, 11.0)] + \
+           [dict(base, controller="FollowPathRL", time_s=t) for t in (6.0, 7.0)]
+    cfg = report.with_controllers(cfg, rows)
+    assert cfg["controllers"] == ["FollowPathGoal", "FollowPathMPPI", "FollowPathRL"]
+    assert report.label("FollowPathRL") == "RL" and report.label("FollowPathGoal") == "RPP"
+    assert any("| FollowPathRL |" in ln for ln in report.table(rows, cfg).splitlines())
+    diffs = report.diff_table(rows, cfg)
+    line = next(ln for ln in diffs.splitlines() if ln.startswith("| a_hall | RL - RPP | 시간 s"))
+    assert "-4.00 ± 0.71" in line and "t -5.7" in line

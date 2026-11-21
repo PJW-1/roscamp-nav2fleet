@@ -312,8 +312,11 @@ def main(argv=None):
     ap.add_argument("--scenario", required=True)
     ap.add_argument("--out", required=True)
     ap.add_argument("--repeats", type=int)
+    ap.add_argument("--controllers", nargs="+", help="replaces the config list (first drives back)")
     args = ap.parse_args(argv)
     cfg = mv.load(args.config)
+    if args.controllers:
+        cfg["controllers"] = list(args.controllers)
     repeats = args.repeats or cfg["repeats"]
     rclpy.init()
     node = Bench(cfg, args.scenario, args.out)

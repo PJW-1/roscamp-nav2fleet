@@ -12,6 +12,19 @@ COLUMNS = ("time_s", "path_m", "lidar_min_m", "body_min_m", "doridori", "cpu_pct
 COUNTS = ("collisions", "blocked")
 DIGITS = {"doridori": 0, "cpu_pct": 0, "time_s": 1, "cmd_dt_p95_ms": 1}
 SPLIT = ("wait_s", "turn_s", "stop_s", "drive_s", "drive_vx")
+LABELS = {"FollowPathGoal": "RPP", "FollowPathMPPI": "MPPI", "FollowPathRL": "RL"}
+DIFFS = (("time_s", "시간 s"), ("path_m", "달린 길 m"), ("body_min_m", "몸 최소 거리 m"),
+         ("doridori_per_min", "도리도리 /분"), ("drive_vx", "주행 vx m/s"))
+
+
+def label(ctl):
+    return LABELS.get(ctl, ctl)
+
+
+def with_controllers(cfg, rows):
+    names = list(cfg["controllers"])
+    names += [c for c in dict.fromkeys(r["controller"] for r in rows) if c not in names]
+    return {**cfg, "controllers": names}
 
 
 # ---- 표 ----
@@ -105,6 +118,36 @@ def fairness_table(rows, cfg):
     return "\n".join(lines)
 
 
+def diff_value(row, col):
+    if col == "doridori_per_min":
+        return row["doridori"] / (row["time_s"] / 60.0) if row["time_s"] > 0 else None
+    if col == "time_s" and not row["ok"]:
+        return None
+    return row.get(col)
+
+
+def diff_table(rows, cfg):
+    lines = ["| 시나리오 | 차이 | 지표 | 평균 차이 ± 표준오차 | Welch t | 판 수 |",
+             "|---|---|---|---|---|---|"]
+    names = [c for c in cfg["controllers"] if any(r["controller"] == c for r in rows)]
+    pairs = [(a, b) for i, a in enumerate(names) for b in names[:i]]
+    pairs.sort(key=lambda p: (-names.index(p[0]), names.index(p[1])))
+    for scenario in cfg["scenarios"]:
+        legs = [r for r in rows if r["scenario"] == scenario and band(r) != "밖"]
+        for a, b in pairs:
+            for col, name in DIFFS:
+                va = [diff_value(r, col) for r in legs if r["controller"] == a]
+                vb = [diff_value(r, col) for r in legs if r["controller"] == b]
+                diff, se, t = mt.welch(va, vb)
+                if diff is None:
+                    continue
+                n = f"{sum(v is not None for v in va)}/{sum(v is not None for v in vb)}"
+                tt = f"t {t:.1f}" if t is not None else "-"
+                lines.append(f"| {scenario} | {label(a)} - {label(b)} | {name}"
+                             f" | {diff:.2f} ± {se:.2f} | {tt} | {n} |")
+    return "\n".join(lines)
+
+
 def figure(rows, cfg, out):
     import matplotlib
     matplotlib.use("Agg")
@@ -123,9 +166,11 @@ def figure(rows, cfg, out):
                 m, sd = mt.summary(src)
                 means.append(m or 0.0)
                 sds.append(sd or 0.0)
-            ax.bar([i + 0.38 * j for i in range(len(names))], means, 0.36, yerr=sds,
-                   label="RPP" if j == 0 else "MPPI", capsize=3)
-        ax.set_xticks([i + 0.19 for i in range(len(names))], names, fontsize=8)
+            w = 0.8 / len(cfg["controllers"])
+            ax.bar([i + w * j for i in range(len(names))], means, w * 0.95, yerr=sds,
+                   label=label(ctl), capsize=3)
+        ax.set_xticks([i + 0.4 - 0.4 / len(cfg["controllers"]) for i in range(len(names))], names,
+                      fontsize=8)
         ax.set_title(label, fontsize=9)
     axes[0].legend(fontsize=8)
     fig.tight_layout()
@@ -147,12 +192,13 @@ def tracks(raw, cfg, out):
                 continue
             xs = [p[1] for p in rec["truth"]]
             ys = [p[2] for p in rec["truth"]]
-            rpp = rec["controller"] == cfg["controllers"][0]
-            ax.plot(xs, ys, lw=0.8, color="C0" if rpp else "C1")
+            ax.plot(xs, ys, lw=0.8, color=f"C{cfg['controllers'].index(rec['controller'])}")
         ax.set_xlim(0.0, 1.98)
         ax.set_ylim(0.0, 0.98)
         ax.set_aspect("equal")
-        ax.set_title(f"{s} (blue RPP, orange MPPI)", fontsize=9)
+        colours = ("blue", "orange", "green", "red")
+        key = ", ".join(f"{colours[j % 4]} {label(c)}" for j, c in enumerate(cfg["controllers"]))
+        ax.set_title(f"{s} ({key})", fontsize=9)
     fig.tight_layout()
     fig.savefig(out, dpi=110)
 
@@ -169,13 +215,15 @@ def main(argv=None):
     raw = [json.loads(p.read_text(encoding="utf-8"))
            for d in args.legs for p in sorted(Path(d).glob("*.json"))]
     rows = [mt.leg_metrics(rec, cfg, body, statics) for rec in raw]
+    cfg = with_controllers(cfg, rows)
     out = Path(args.out)
     out.mkdir(parents=True, exist_ok=True)
     with open(out / "legs.csv", "w", newline="", encoding="utf-8") as f:
         w = csv.DictWriter(f, fieldnames=list(rows[0]))
         w.writeheader()
         w.writerows(rows)
-    text = "\n\n".join([table(rows, cfg), split_table(rows, cfg), fairness_table(rows, cfg)])
+    text = "\n\n".join([table(rows, cfg), split_table(rows, cfg), fairness_table(rows, cfg),
+                         diff_table(rows, cfg)])
     (out / "table.md").write_text(text + "\n", encoding="utf-8")
     figure(rows, cfg, out / "compare.png")
     tracks(raw, cfg, out / "tracks.png")

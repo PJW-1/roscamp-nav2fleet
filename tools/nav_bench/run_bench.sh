@@ -33,10 +33,10 @@ n=$#; k=0
 for scenario in "$@"; do
   k=$((k + 1))
   if [ -n "$LOCKD" ]; then
-    for i in $(seq 240); do
+    for i in $(seq 480); do
       mkdir "$LOCKD" 2>/dev/null && { HAVE_LOCK=1; break; }
       [ "$i" = 1 ] && echo "$scenario: lock held by $(cat "$LOCKD/owner" 2>/dev/null), waiting $(date +%T)"
-      sleep 120
+      sleep 60
     done
     [ "$HAVE_LOCK" = 1 ] || { echo "$scenario: no lock, stop"; exit 3; }
     echo "nav_bench $$ $scenario $(date -Is)" > "$LOCKD/owner"
@@ -62,8 +62,10 @@ for scenario in "$@"; do
   done
   if [ $ok = 1 ]; then
     sleep 5
-    BENCH_RUN=$$ GZ_PARTITION=nav_bench_$$_$scenario python3 "$HERE/bench_node.py" --config "$HERE/scenarios.yaml" \
-      --scenario "$scenario" --out "$OUT/legs" ${BENCH_REPEATS:+--repeats $BENCH_REPEATS} > "$R/bench.out" 2>&1
+    BENCH_RUN=$$ GZ_PARTITION=nav_bench_$$_$scenario python3 "$HERE/bench_node.py" \
+      --config "${BENCH_CONFIG:-$HERE/scenarios.yaml}" --scenario "$scenario" --out "$OUT/legs" \
+      ${BENCH_REPEATS:+--repeats $BENCH_REPEATS} ${BENCH_CONTROLLERS:+--controllers $BENCH_CONTROLLERS} \
+      > "$R/bench.out" 2>&1
     rc=$?
     [ $rc = 0 ] || FAILED=1
     echo "$scenario: exit $rc, $(tail -1 "$R/bench.out")" | tee -a "$OUT/runs.txt"

@@ -93,7 +93,10 @@ def within(rows, t0, t1):
 
 # ---- 공정성, 통로 띠, 시간 나누기 ----
 def run_order(repeat, controllers):
-    return list(controllers) if repeat % 4 in (0, 3) else list(reversed(controllers))
+    n = len(controllers)
+    k = repeat % n
+    order = list(controllers[k:]) + list(controllers[:k])
+    return order[::-1] if (repeat // n) % 2 else order
 
 
 def start_error(pose, start):
@@ -185,3 +188,13 @@ def summary(values):
     if not vals:
         return None, None
     return statistics.fmean(vals), (statistics.stdev(vals) if len(vals) > 1 else 0.0)
+
+
+def welch(a, b):
+    a = [v for v in a if v is not None]
+    b = [v for v in b if v is not None]
+    if len(a) < 2 or len(b) < 2:
+        return None, None, None
+    diff = statistics.fmean(a) - statistics.fmean(b)
+    se = math.sqrt(statistics.variance(a) / len(a) + statistics.variance(b) / len(b))
+    return diff, se, (diff / se if se > 0 else None)
