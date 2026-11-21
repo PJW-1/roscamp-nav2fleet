@@ -22,11 +22,11 @@ HAVE_LOCK=0
 FAILED=0
 mine() { for p in /proc/[0-9]*; do { tr '\0' '\n' < "$p/environ"; } 2>/dev/null | grep -qx "BENCH_RUN=$$" && echo "${p#/proc/}"; done; }
 unlock() { [ "$HAVE_LOCK" = 1 ] && rm -rf "$LOCKD"; HAVE_LOCK=0; }
-stop_all() {
+stop_keep_lock() {
   rest=$(mine); [ -n "$rest" ] && { kill -INT $rest 2>/dev/null; sleep 10; }
   rest=$(mine); [ -n "$rest" ] && { kill -9 $rest 2>/dev/null; sleep 1; }
-  unlock
 }
+stop_all() { stop_keep_lock; unlock; }
 trap 'stop_all' EXIT
 trap 'exit 130' INT TERM
 n=$#; k=0
@@ -46,11 +46,19 @@ for scenario in "$@"; do
   R=$OUT/$scenario; mkdir -p "$R"
   echo "$scenario start $(date -Is) avail ${avail}MB domain $ROS_DOMAIN_ID" | tee -a "$OUT/runs.txt"
   ovr=""; [ -n "${BENCH_OVERRIDES:-}" ] && ovr="nav_overrides:=$BENCH_OVERRIDES"
-  ( cd "$R" && BENCH_RUN=$$ GZ_PARTITION=nav_bench_$$_$scenario ros2 launch fleet_gz_sim one_pode.launch.py \
-      gui:=false rviz:=false fsm:=false start:=O_IN $ovr > launch.out 2>&1 ) &
   ok=0
-  for i in $(seq 90); do
-    BENCH_RUN=$$ ros2 lifecycle get /pode1/bt_navigator 2>/dev/null | grep -q active && { ok=1; break; }; sleep 2
+  for try in 1 2; do
+    ( cd "$R" && BENCH_RUN=$$ GZ_PARTITION=nav_bench_$$_$scenario ros2 launch fleet_gz_sim one_pode.launch.py \
+        gui:=false rviz:=false fsm:=false start:=O_IN $ovr > "launch_$try.out" 2>&1 ) &
+    up=$!
+    for i in $(seq 90); do
+      kill -0 "$up" 2>/dev/null || break
+      BENCH_RUN=$$ timeout 10 ros2 lifecycle get /pode1/bt_navigator 2>/dev/null | grep -q active && { ok=1; break; }
+      sleep 2
+    done
+    [ $ok = 1 ] && break
+    echo "$scenario: Nav2 did not come up (try $try), see $R/launch_$try.out" | tee -a "$OUT/runs.txt"
+    stop_keep_lock
   done
   if [ $ok = 1 ]; then
     sleep 5
@@ -61,7 +69,6 @@ for scenario in "$@"; do
     echo "$scenario: exit $rc, $(tail -1 "$R/bench.out")" | tee -a "$OUT/runs.txt"
   else
     FAILED=1
-    echo "$scenario: Nav2 did not come up" | tee -a "$OUT/runs.txt"
   fi
   stop_all
   echo "$scenario end $(date -Is)" | tee -a "$OUT/runs.txt"
