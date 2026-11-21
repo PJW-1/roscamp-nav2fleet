@@ -49,7 +49,7 @@ def test_boxes_are_read_from_the_yaml_at_run_time(tmp_path):
     text = open(MAP, encoding="utf-8").read()
     text = text.replace("- [0.68, 0.365, 0.99, 0.405]   # 남쪽 진열대, 서쪽",
                         "- [0.70, 0.36, 0.99, 0.40]   # moved", 1)
-    text = text.replace("sim_shelves:\n  - [0.63, 0.77, 1.56, 0.793]",
+    text = text.replace("sim_shelves:\n  - [0.63, 0.77, 1.56, 0.783]",
                         "sim_shelves:\n  - [0.63, 0.77, 1.50, 0.79]", 1)
     assert "# moved" in text and "1.50, 0.79]" in text
     path = tmp_path / "fleet_map_moved.yaml"
