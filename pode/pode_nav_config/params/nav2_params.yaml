@@ -277,7 +277,17 @@ controller_server:
     # DiffDrive(회전 1.0 rad/s, 2.0 rad/s^2)와 같다. 시뮬은 vx_max를 nav_max_speed로 낮추고
     # make_params.py는 --speed로 바꾼다
     FollowPathMPPI:
-      plugin: "nav2_mppi_controller::MPPIController"
+      # 제자리 회전은 RotationShim이 맡고 나머지는 MPPI(2026-11-21 Gazebo): MPPI만으로는 출발 때 방향 오차 55°에서
+      # 0.03~0.09 rad/s로만 돌았다(PathAngle은 57° 넘어야 일함). 대안인 PathAngle 무게 5·문턱 0.35 rad는 움직이는
+      # 장애물 판에서 2번 다 실패해 버렸다. 회전 속도는 FollowPathGoal의 제자리 회전, 가속은 az_max·Gazebo와 같게
+      plugin: "nav2_rotation_shim_controller::RotationShimController"
+      primary_controller: "nav2_mppi_controller::MPPIController"
+      angular_dist_threshold: 0.25  # 경로 방향과 이만큼(약 14°) 넘게 틀어지면 먼저 제자리에서 돈다
+      forward_sampling_distance: 0.15  # 경로 방향을 이만큼 앞 점으로 잰다
+      rotate_to_heading_angular_vel: 1.0
+      max_angular_accel: 2.0
+      simulate_ahead_time: 1.0  # 돌 때 이만큼 앞까지 충돌 검사
+      rotate_to_goal_heading: true  # goal에서 마지막 방향 맞추기도 제자리 회전으로
       time_steps: 40  # 40 x 0.05 = 2.0초 앞(0.25 m/s에서 0.5 m)
       model_dt: 0.05  # controller_frequency 20 Hz와 같게
       batch_size: 1000  # 실물 Pi4 CPU를 생각해 기본(2000)의 반

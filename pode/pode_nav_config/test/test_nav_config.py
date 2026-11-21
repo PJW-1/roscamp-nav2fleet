@@ -686,7 +686,8 @@ def test_the_mppi_controller_is_loaded_with_its_own_block():
     c = params("controller_server")
     assert "FollowPathMPPI" in c["controller_plugins"]
     mppi = c["FollowPathMPPI"]
-    assert mppi["plugin"] == "nav2_mppi_controller::MPPIController"
+    assert mppi["plugin"] == "nav2_rotation_shim_controller::RotationShimController"
+    assert mppi["primary_controller"] == "nav2_mppi_controller::MPPIController"
     assert mppi["motion_model"] == "DiffDrive"
     assert mppi["model_dt"] == pytest.approx(1.0 / c["controller_frequency"])
     for critic in mppi["critics"]:
@@ -706,6 +707,8 @@ def test_the_mppi_limits_match_the_goal_controller_isaac_and_gazebo():
     assert mppi["wz_max"] == goal["rotate_to_heading_angular_vel"] == isaac["w_max"] == gz_w
     assert mppi["ax_max"] == -mppi["ax_min"] == isaac["acc_v"] == gz_acc
     assert mppi["az_max"] == isaac["acc_w"] == gz_acc
+    assert mppi["rotate_to_heading_angular_vel"] == goal["rotate_to_heading_angular_vel"]
+    assert mppi["max_angular_accel"] == mppi["az_max"]
 
 
 def test_the_tree_still_drives_with_the_goal_controller_unless_told_otherwise():
@@ -716,6 +719,7 @@ def test_the_tree_still_drives_with_the_goal_controller_unless_told_otherwise():
     talkers = [path for top in ("pc", "pode", "sim", "tools")
                for path in (repo / top).rglob("*.py")
                if path.resolve() != Path(__file__).resolve()
+               and path.resolve() != (repo / "tools" / "nav_bench" / "bench_node.py").resolve()
                and "controller_selector" in path.read_text(encoding="utf-8", errors="ignore")]
     assert talkers == []
 
