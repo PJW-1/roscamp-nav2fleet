@@ -1,0 +1,16 @@
+# recovery_probe event=start lines in every launch.out (batch run sim_time robot (truth x,y,yaw) amcl err)
+main_a6265b0_v012 rush1 229.040 pode1 (0.533,0.605,2.693) err 0.002
+main_a6265b0_v012 rush2 53.572 pode3 (1.629,0.172,-0.181) err 0.016
+main_a6265b0_v012 rush2 81.512 pode3 (0.522,0.595,2.651) err 0.007
+main_a6265b0_v012 rush2 230.120 pode1 (0.533,0.602,2.656) err 0.002
+main_a6265b0_v012 rush3 53.288 pode3 (1.617,0.168,0.015) err 0.015
+main_a6265b0_v012 rush3 81.604 pode3 (0.533,0.602,2.653) err 0.002
+main_a6265b0_v012 v7b 83.828 pode2 (0.190,0.741,-1.751) err 0.019
+main_a6265b0_v012 v7d 60.436 pode2 (0.528,0.608,2.632) err 0.007
+main_a6265b0_v012 v7d 127.480 pode2 (0.534,0.602,2.662) err 0.002
+dist_fcf3cd0_v012 rush3 227.788 pode1 (0.519,0.601,2.520) err 0.009
+dist_fcf3cd0_v012 v7a 168.012 pode3 (0.186,0.303,-1.994) err 0.026
+dist_fcf3cd0_v012 v7b 173.696 pode3 (0.173,0.280,-2.357) err 0.019
+main_a6265b0 v7c 194.724 pode2 (0.609,0.244,0.251) err 0.028
+dist_fcf3cd0 v7b 172.016 pode1 (0.172,0.282,1.868) err 0.023
+dist_fcf3cd0 v7d 134.656 pode2 (0.175,0.280,-2.406) err 0.016
