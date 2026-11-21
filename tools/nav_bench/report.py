@@ -72,7 +72,7 @@ def tracks(raw, cfg, out):
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
     names = list(cfg["scenarios"])
-    fig, axes = plt.subplots(len(names), 1, figsize=(8, 2.6 * len(names)))
+    fig, axes = plt.subplots(len(names), 1, figsize=(8, 3.6 * len(names)))
     for ax, s in zip(axes, names, strict=False):
         for r in mt.arena_rects():
             xs, ys = zip(*(r + r[:1]), strict=False)
@@ -84,8 +84,8 @@ def tracks(raw, cfg, out):
             ys = [p[2] for p in rec["truth"]]
             rpp = rec["controller"] == cfg["controllers"][0]
             ax.plot(xs, ys, lw=0.8, color="C0" if rpp else "C1")
-        ax.set_xlim(0.3, 1.8)
-        ax.set_ylim(0.3, 0.85)
+        ax.set_xlim(0.0, 1.98)
+        ax.set_ylim(0.0, 0.98)
         ax.set_aspect("equal")
         ax.set_title(f"{s} (blue RPP, orange MPPI)", fontsize=9)
     fig.tight_layout()
