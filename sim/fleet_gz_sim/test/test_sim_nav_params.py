@@ -133,6 +133,9 @@ def test_sim_params_cap_every_forward_controller_and_change_nothing_else(tmp_pat
         assert _rpp(capped, name)["desired_linear_vel"] == 0.12
         assert _rpp(plain, name)["desired_linear_vel"] == 0.25
         _rpp(plain, name)["desired_linear_vel"] = 0.12
+    assert _rpp(capped, launch_parts.MPPI_CONTROLLER)["vx_max"] == 0.12
+    assert _rpp(plain, launch_parts.MPPI_CONTROLLER)["vx_max"] == 0.25
+    _rpp(plain, launch_parts.MPPI_CONTROLLER)["vx_max"] = 0.12
     assert capped == plain
 
 
@@ -182,10 +185,27 @@ def test_the_rl_controller_comes_only_from_its_overrides_file_and_keeps_the_base
                          .read_text(encoding="utf-8"))
     server = sim["controller_server"]["ros__parameters"]
     assert server["controller_plugins"] == [*base, "FollowPathRL"]
+    assert "FollowPathMPPI" in server["controller_plugins"]  # RPP·MPPI·RL을 한 판에서 비교
     assert server["FollowPathRL"]["plugin"] == "pode_rl_controller::FollowPathRL"
     assert server["FollowPathRL"]["policy"] == "store_arena_4b"
     assert "goal_rule" not in server["FollowPathRL"]  # the policy spec decides
     assert "lookahead_dist" not in server["FollowPathRL"]
+
+
+def test_the_rl_controller_gets_the_same_speed_cap_as_rpp_and_mppi(tmp_path):
+    """세 controller 비교가 공정하도록 FollowPathRL의 max_linear_vel도 max_speed로 자른다."""
+    path = REPO / "sim" / "fleet_gz_sim" / "nav_overrides" / "follow_path_rl.yaml"
+    overrides = yaml.safe_load(path.read_text(encoding="utf-8"))
+    for speed in (0.20, 0.15):
+        sim = yaml.safe_load(_sim(NAV, tmp_path / "rl.yaml", overrides=overrides, max_speed=speed)
+                             .read_text(encoding="utf-8"))
+        server = sim["controller_server"]["ros__parameters"]
+        assert server["FollowPathRL"]["max_linear_vel"] == speed
+        assert server["FollowPathMPPI"]["vx_max"] == speed
+        assert server["FollowPathGoal"]["desired_linear_vel"] == speed
+    sim = yaml.safe_load(_sim(NAV, tmp_path / "rl.yaml", overrides=overrides)
+                         .read_text(encoding="utf-8"))
+    assert "max_linear_vel" not in sim["controller_server"]["ros__parameters"]["FollowPathRL"]
 
 
 def test_overrides_win_over_the_sim_amcl_values(tmp_path):

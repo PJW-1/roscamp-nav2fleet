@@ -52,6 +52,7 @@ void FollowPathRL::configure(
   declare_parameter_if_not_declared(node, name_ + ".log_period", ParameterValue(1.0));
   declare_parameter_if_not_declared(node, name_ + ".rear_stop_range", ParameterValue(0.12));
   declare_parameter_if_not_declared(node, name_ + ".rear_half_width_deg", ParameterValue(30.0));
+  declare_parameter_if_not_declared(node, name_ + ".max_linear_vel", ParameterValue(0.0));
 
   const std::string policy = node->get_parameter(name_ + ".policy").as_string();
   const std::string rule_param = node->get_parameter(name_ + ".goal_rule").as_string();
@@ -64,12 +65,14 @@ void FollowPathRL::configure(
   log_period_ = node->get_parameter(name_ + ".log_period").as_double();
   rear_stop_range_ = node->get_parameter(name_ + ".rear_stop_range").as_double();
   rear_half_width_deg_ = node->get_parameter(name_ + ".rear_half_width_deg").as_double();
+  const double max_v_param = node->get_parameter(name_ + ".max_linear_vel").as_double();
   const std::string dir = policy.rfind('/', 0) == 0 ? policy :
     ament_index_cpp::get_package_share_directory("pode_rl_controller") + "/policies/" + policy;
   spec_ = load_policy_spec(dir + "/policy_spec.json");
   policy_ = std::make_unique<OnnxPolicy>(
     dir + "/policy.onnx", spec_.obs_dim, spec_.act_dim, threads);
-  speed_limit_ = spec_.action.v_max;
+  max_v_ = max_v_param > 0.0 ? std::min(max_v_param, spec_.action.v_max) : spec_.action.v_max;
+  speed_limit_ = max_v_;
 
   rule_ = spec_.goal_rule;
   if (rule_.follow_window <= 0) {
@@ -102,10 +105,11 @@ void FollowPathRL::configure(
     });
   RCLCPP_INFO(
     logger_, "FollowPathRL %s: policy %s (obs %d, dt %.3f s, v %.2f..%.2f m/s, w %.2f rad/s), "
-    "goal_rule %s (lookahead %.2f m, window %d points), scan %s, ORT CPU threads %d", name_.c_str(),
+    "goal_rule %s (lookahead %.2f m, window %d points), scan %s, ORT CPU threads %d, "
+    "max linear vel %.2f m/s", name_.c_str(),
     dir.c_str(), spec_.obs_dim, spec_.control_dt, spec_.action.v_min, spec_.action.v_max,
     spec_.action.w_max, rule_.rule.c_str(), rule_.lookahead_m, rule_.follow_window,
-    scan_topic_.c_str(), threads);
+    scan_topic_.c_str(), threads, max_v_);
 }
 
 void FollowPathRL::cleanup()
@@ -143,11 +147,11 @@ void FollowPathRL::reset()
 void FollowPathRL::setSpeedLimit(const double & speed_limit, const bool & percentage)
 {
   if (speed_limit == nav2_costmap_2d::NO_SPEED_LIMIT) {
-    speed_limit_ = spec_.action.v_max;
+    speed_limit_ = max_v_;
   } else if (percentage) {
-    speed_limit_ = spec_.action.v_max * speed_limit / 100.0;
+    speed_limit_ = max_v_ * speed_limit / 100.0;
   } else {
-    speed_limit_ = speed_limit;
+    speed_limit_ = std::min(speed_limit, max_v_);
   }
 }
 
