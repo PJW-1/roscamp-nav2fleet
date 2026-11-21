@@ -40,6 +40,7 @@ sys.path.insert(0, os.path.join(HERE, "..", "goal_reach"))
 def main():
     import arena_spec as arena
     import store_arena_env as sae
+    import timeouts
 
     task_over, arena_over = arena.split_overrides(args_cli.set)
     env_cfg = sae.StoreArenaEnvCfg()
@@ -79,6 +80,9 @@ def main():
         K = min(args_cli.track, n)
         traj = {"xy": [], "done": [], "route": [], "cmd": [], "mover_xy": [], "mover_on": []}
         traj.update(robot_xy=[], robot_on=[], outcome=[])  # outcome: keys index at done, else -1
+        traj.update(front_m=[])  # nearest lidar range within 30 deg of straight ahead
+        n_rays = raw.lidar_ranges().shape[1]  # rays from -180 deg: straight ahead is n_rays // 2
+        front = slice(n_rays // 2 - n_rays // 12, n_rays // 2 + n_rays // 12 + 1)
         # per counted episode: smallest mover gap, smallest scripted-robot gap, outcome index,
         # what the collision is put down to
         gaps, rgaps, codes, hits = [], [], [], []
@@ -124,6 +128,7 @@ def main():
             traj["done"].append(d[:K].cpu().numpy())
             traj["route"].append(route[:K].cpu().numpy())
             traj["cmd"].append(raw.cmd[:K].cpu().numpy())
+            traj["front_m"].append(raw.lidar_ranges()[:K, front].amin(-1).cpu().numpy())
             ms_state = raw.mover_state()
             traj["mover_xy"].append(torch.stack([m[0][:K] for m in ms_state], 1).cpu().numpy())
             traj["mover_on"].append(torch.stack([m[3][:K] for m in ms_state], 1).cpu().numpy())
@@ -181,11 +186,17 @@ def main():
             "spec_overrides": task_over,
             "arena_overrides": arena_over,
         }
+        tz = {k: np.stack(v) for k, v in traj.items()}
+        tz.update(dt=raw.step_dt, node_xy=raw.graph.xy, node_names=np.array(raw.graph.names))
+        rows = timeouts.classify(tz, raw.max_episode_length * raw.step_dt)
+        # timeouts of the tracked envs by what was near; alone ones are the policy's own
+        report["timeouts_tracked"] = {k: sum(r["kind"] == k for r in rows) for k in timeouts.KINDS}
+        report["alone_timeouts"] = timeouts.alone_summary(tz, rows)
         with open(os.path.join(args_cli.out, "eval.json"), "w", encoding="utf-8") as f:
             json.dump(report, f, indent=1)
         np.savez_compressed(
             os.path.join(args_cli.out, "rollouts.npz"),
-            **{k: np.stack(v) for k, v in traj.items()},
+            **{k: v for k, v in tz.items() if k != "dt"},
             path=routes.path,
             npts=routes.npts,
             obstacle_xy=routes.obstacle_xy,
