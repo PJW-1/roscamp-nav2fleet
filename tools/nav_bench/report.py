@@ -183,8 +183,8 @@ def tracks(raw, cfg, out):
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
     names = list(cfg["scenarios"])
-    fig, axes = plt.subplots(len(names), 1, figsize=(8, 3.6 * len(names)))
-    for ax, s in zip(axes, names, strict=False):
+    fig, axes = plt.subplots(len(names), 1, figsize=(8, 3.6 * len(names)), squeeze=False)
+    for ax, s in zip(axes[:, 0], names, strict=False):
         for r in mt.arena_rects():
             xs, ys = zip(*(r + r[:1]), strict=False)
             ax.fill(xs, ys, color="0.8")

@@ -241,3 +241,13 @@ def test_the_report_takes_the_controllers_from_the_legs_and_names_rl(tmp_path):
     pytest.importorskip("matplotlib")
     report.figure(rows, cfg, tmp_path / "compare.png")
     assert (tmp_path / "compare.png").stat().st_size > 0
+
+
+def test_the_track_plot_draws_a_config_with_one_scenario(tmp_path):
+    import report
+    pytest.importorskip("matplotlib")
+    cfg = {"scenarios": {"a_hall": {}}, "controllers": ["FollowPathGoal"]}
+    raw = [{"scenario": "a_hall", "controller": "FollowPathGoal",
+            "truth": [[0.0, 0.2, 0.2, 0.0], [0.1, 0.3, 0.2, 0.0]]}]
+    report.tracks(raw, cfg, tmp_path / "tracks.png")
+    assert (tmp_path / "tracks.png").stat().st_size > 0
