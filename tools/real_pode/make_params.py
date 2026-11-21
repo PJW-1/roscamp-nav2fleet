@@ -6,7 +6,8 @@
 저장소의 pode_nav_config/params/nav2_params.yaml과 pode_avoidance/params/avoidance.yaml을
 그대로 베끼고 앞으로 가는 컨트롤러의 desired_linear_vel만 S로 바꾼다:
 FollowPath, FollowPathThrough(nav2_params.yaml), follow_path_goal(avoidance.yaml, FollowPathGoal).
-비교용 MPPI(FollowPathMPPI)는 nav2_params.yaml의 블록을 그대로 베끼고 vx_max만 S로 바꾼다.
+S는 0 초과, 단일 출처 pode_nav_config/params/nav_speed.yaml의 값 이하다.
+비교용 MPPI(FollowPathMPPI)는 실물 controller 목록에 없어 뜨지 않는다(블록은 그대로 베낀다).
 FollowPathReverse(0.05)는 그대로다.
 고정 경로 컨트롤러(FollowPath, FollowPathThrough, FollowPathReverse)의 use_collision_detection은
 기본으로 false로 쓴다(시뮬 기본과 같다). --fixed-line-check를 주면 원본 값과 상관없이 true로 쓴다.
@@ -22,21 +23,37 @@ from pathlib import Path
 import yaml
 
 HERE = Path(__file__).resolve().parent
-MAX_SPEED = 0.25  # 저장소 값
 NAV2_NAME = "nav2_params.yaml"
 AVOID_NAME = "avoidance.yaml"
 NAV2_REL = Path("pode") / "pode_nav_config" / "params" / NAV2_NAME
 AVOID_REL = Path("pode") / "pode_avoidance" / "params" / AVOID_NAME
+SPEED_REL = Path("pode") / "pode_nav_config" / "params" / "nav_speed.yaml"
 # 저장소 안(PC)과 로봇(~/nav2fleet_ws/src, deploy.sh가 놓는 곳) 순서로 찾는다
 SOURCE_ROOTS = (HERE.parents[1], Path.home() / "nav2fleet_ws" / "src")
 NAV2_TARGETS = (("controller_server", "ros__parameters", "FollowPath", "desired_linear_vel"),
                 ("controller_server", "ros__parameters", "FollowPathThrough",
-                 "desired_linear_vel"),
-                ("controller_server", "ros__parameters", "FollowPathMPPI", "vx_max"))
+                 "desired_linear_vel"))
 COLLISION_TARGETS = tuple(("controller_server", "ros__parameters", name, "use_collision_detection")
                           for name in ("FollowPath", "FollowPathThrough", "FollowPathReverse"))
 AVOID_TARGETS = (("follow_path_goal", "desired_linear_vel"),)
 FORWARD = ("FollowPath", "FollowPathThrough")
+
+
+def find_source(rel: Path, given=None) -> Path:
+    if given:
+        return Path(given)
+    for root in SOURCE_ROOTS:
+        if (root / rel).is_file():
+            return root / rel
+    raise FileNotFoundError(f"{rel} not found under {', '.join(map(str, SOURCE_ROOTS))}")
+
+
+def repo_speed(path=None) -> float:
+    text = find_source(SPEED_REL, path).read_text(encoding="utf-8")
+    return float(yaml.safe_load(text)["nav_speed_mps"])
+
+
+MAX_SPEED = repo_speed()
 
 
 # ---- 속도 확인 ----
@@ -108,15 +125,6 @@ def _converted(src: Path, targets, value: float, collision=(), collision_on=Fals
     if yaml.safe_load(out) != want:
         raise RuntimeError(f"{src}: the copy differs from the source beyond the changed values")
     return out
-
-
-def find_source(rel: Path, given=None) -> Path:
-    if given:
-        return Path(given)
-    for root in SOURCE_ROOTS:
-        if (root / rel).is_file():
-            return root / rel
-    raise FileNotFoundError(f"{rel} not found under {', '.join(map(str, SOURCE_ROOTS))}")
 
 
 def write_params(speed, out_dir, nav2_src=None, avoid_src=None, fixed_line_check=False) -> tuple:

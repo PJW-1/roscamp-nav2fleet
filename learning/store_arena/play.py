@@ -112,7 +112,10 @@ def main():
                 s = raw.success & counted
                 succ_times += raw.last_ep_len_s[s].tolist()
                 # episode time vs the global path at full speed
-                path_s = torch.as_tensor(routes.total, device=raw.device)[route[s]] / 0.25
+                path_s = (
+                    torch.as_tensor(routes.total, device=raw.device)[route[s]]
+                    / arena.ts.ACTION_LIMITS.v_max
+                )
                 succ_ratio += (raw.last_ep_len_s[s] / path_s).tolist()
             ep_done += d.long()
             o_all = torch.stack(

@@ -48,4 +48,8 @@ struct PolicySpec
 std::vector<std::string> expected_obs_layout(int sectors);
 PolicySpec load_policy_spec(const std::string & path);
 
+// ---- 주행 최고 속도의 단일 출처(pode_nav_config/params/nav_speed.yaml) ----
+double load_nav_speed(const std::string & path);
+std::string speed_mismatch(double policy_v_max, double nav_speed);
+
 }  // namespace pode_rl_controller

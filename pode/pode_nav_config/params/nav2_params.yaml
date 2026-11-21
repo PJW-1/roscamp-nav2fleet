@@ -98,8 +98,7 @@ controller_server:
     progress_checker_plugins: ["progress_checker"]
     goal_checker_plugins: ["general_goal_checker", "retreat_goal_checker",
                            "free_heading_goal_checker"]
-    controller_plugins: ["FollowPath", "FollowPathThrough", "FollowPathReverse", "FollowPathGoal",
-                         "FollowPathMPPI"]
+    controller_plugins: ["FollowPath", "FollowPathThrough", "FollowPathReverse", "FollowPathGoal"]
     progress_checker:
       plugin: "nav2_controller::SimpleProgressChecker"
       required_movement_radius: 0.05  # 전달사항(제조사 0.5)
@@ -130,7 +129,7 @@ controller_server:
       yaw_goal_tolerance: 3.2
     FollowPath:
       plugin: "nav2_regulated_pure_pursuit_controller::RegulatedPurePursuitController"
-      desired_linear_vel: 0.25  # 전달사항(제조사 0.2)
+      desired_linear_vel: 0.12  # nav_speed.yaml(제조사 0.2)
       # 앞보기는 속도에 비례한다: 0.8초 앞, 0.10~0.25 m(2026-11-15). 0.10 m 고정은
       # 0.20 m/s에서 0.5초 앞만 봐서 폭 0.18 m 급행에서 방향이 표준편차
       # 10.3도로 흔들렸고, 0.8초로 두자 1.6도였다. 0.12 m/s에서는 전과 같은 0.10 m다. 예전의 속도
@@ -188,7 +187,7 @@ controller_server:
     # An explicit copy of FollowPath (keep every other key equal; test_nav_config checks it)
     FollowPathThrough:
       plugin: "nav2_regulated_pure_pursuit_controller::RegulatedPurePursuitController"
-      desired_linear_vel: 0.25  # 전달사항(제조사 0.2)
+      desired_linear_vel: 0.12  # nav_speed.yaml(제조사 0.2)
       # FollowPath와 같다: 앞보기는 속도에 비례한다(0.8초 앞, 0.10~0.25 m)
       lookahead_dist: 0.10  # 속도 비례를 켜서 쓰지 않는다
       min_lookahead_dist: 0.10  # 전달사항(제조사 0.3)
@@ -269,7 +268,9 @@ controller_server:
     # params/avoidance.yaml의 follow_path_goal에 있고 nav2.launch.py가 넣는다.
     # 이름 FollowPathGoal(위 controller_plugins)만 주행 담당의 것이고 고정이다
 
-    # 2026-11-21: Nav2 goal용 MPPI(RPP와 비교용). 늘 뜨지만 고르지 않으면 쓰지 않는다.
+    # 2026-11-21: Nav2 goal용 MPPI(RPP와 비교용). 시뮬에서만 뜬다(fleet_gz_sim이 controller_plugins에
+    # 넣는다). 실물은 nav2_mppi_controller 없이 떠야 해서 위 목록에 없다(사용자 결정 2026-11-22).
+    # 시뮬에서 고르지 않으면 쓰지 않는다.
     # bt의 ControllerSelector(토픽 controller_selector, 기본 FollowPathGoal)에 이 이름을 보내면
     # 마당 Nav2 goal만 이것으로 간다. 고정 경로(FollowPath 셋)는 pode_fsm이 RPP로 바로 부른다.
     # MPPI 값은 모두 여기에만 둔다. 고른 까닭은 docs/worklog_mppi_controller_2026-11-21.md의
@@ -288,7 +289,7 @@ controller_server:
       max_angular_accel: 2.0
       simulate_ahead_time: 1.0  # 돌 때 이만큼 앞까지 충돌 검사
       rotate_to_goal_heading: true  # goal에서 마지막 방향 맞추기도 제자리 회전으로
-      time_steps: 40  # 40 x 0.05 = 2.0초 앞(0.25 m/s에서 0.5 m)
+      time_steps: 40  # 40 x 0.05 = 2.0초 앞(0.12 m/s에서 0.24 m)
       model_dt: 0.05  # controller_frequency 20 Hz와 같게
       batch_size: 1000  # 실물 Pi4 CPU를 생각해 기본(2000)의 반
       iteration_count: 1
@@ -299,7 +300,7 @@ controller_server:
       # 0.097 m/s(RPP 0.176)였다. 0.2로 0.150 m/s, 16.6 → 12.2 s
       vx_std: 0.2
       wz_std: 0.4
-      vx_max: 0.25  # FollowPathGoal desired_linear_vel, Isaac v_max
+      vx_max: 0.12  # nav_speed.yaml
       vx_min: -0.05  # Isaac v_min(실물 후진 0.05 m/s)
       wz_max: 1.0  # Gazebo DiffDrive, Isaac w_max, FollowPathGoal rotate_to_heading_angular_vel
       ax_max: 2.0  # Gazebo DiffDrive max_acceleration, Isaac acc_v

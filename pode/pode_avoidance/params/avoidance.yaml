@@ -25,7 +25,7 @@
 #   재지 않았다.
 follow_path_goal:
   plugin: "nav2_regulated_pure_pursuit_controller::RegulatedPurePursuitController"
-  desired_linear_vel: 0.25  # 전달사항(제조사 0.2)
+  desired_linear_vel: 0.12  # pode_nav_config/params/nav_speed.yaml(제조사 0.2)
   lookahead_dist: 0.15  # 전달사항(제조사 0.6)
   min_lookahead_dist: 0.10  # 전달사항(제조사 0.3)
   max_lookahead_dist: 0.25  # 전달사항(제조사 0.9)

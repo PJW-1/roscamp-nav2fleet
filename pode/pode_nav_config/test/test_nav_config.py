@@ -34,6 +34,9 @@ BT = ET.parse(BT_FILE)
 NAV2_BT = Path("/opt/ros/jazzy/share/nav2_bt_navigator/behavior_trees/"
                "navigate_to_pose_w_replanning_and_recovery.xml")
 KEEPOUT = yaml.safe_load((PKG / "params" / "keepout.yaml").read_text(encoding="utf-8"))
+# 주행 최고 속도의 단일 출처(사용자 결정 2026-11-22)
+NAV_SPEED = yaml.safe_load(
+    (PKG / "params" / "nav_speed.yaml").read_text(encoding="utf-8"))["nav_speed_mps"]
 
 
 def params(node, sub=None):
@@ -44,14 +47,14 @@ def params(node, sub=None):
 def test_controller_uses_rpp_with_the_agreed_start_values():
     c = params("controller_server")
     assert c["controller_plugins"] == ["FollowPath", "FollowPathThrough", "FollowPathReverse",
-                                       "FollowPathGoal", "FollowPathMPPI"]
+                                       "FollowPathGoal"]
     assert c["failure_tolerance"] == 1.0
     rpp = c["FollowPath"]
     assert rpp["plugin"] == "nav2_regulated_pure_pursuit_controller::RegulatedPurePursuitController"
     assert rpp["use_rotate_to_heading"] is True and rpp["allow_reversing"] is False
     assert (rpp["lookahead_dist"], rpp["min_lookahead_dist"], rpp["max_lookahead_dist"]) == (
         0.10, 0.10, 0.25)
-    assert rpp["desired_linear_vel"] == 0.25
+    assert rpp["desired_linear_vel"] == NAV_SPEED
     assert rpp["use_collision_detection"] is True
     assert rpp["max_allowed_time_to_collision_up_to_carrot"] == 0.6
 
@@ -678,13 +681,13 @@ def _action_limits():
     import ast
     tree = ast.parse(TASK_SPEC.read_text(encoding="utf-8"))
     [cls] = [n for n in tree.body if isinstance(n, ast.ClassDef) and n.name == "ActionLimits"]
-    return {n.target.id: ast.literal_eval(n.value)
-            for n in cls.body if isinstance(n, ast.AnnAssign)}
+    return {n.target.id: ast.literal_eval(n.value) if not isinstance(n.value, ast.Name)
+            else n.value.id for n in cls.body if isinstance(n, ast.AnnAssign)}
 
 
-def test_the_mppi_controller_is_loaded_with_its_own_block():
+def test_the_mppi_block_is_there_but_the_real_robot_does_not_load_it():
     c = params("controller_server")
-    assert "FollowPathMPPI" in c["controller_plugins"]
+    assert "FollowPathMPPI" not in c["controller_plugins"]
     mppi = c["FollowPathMPPI"]
     assert mppi["plugin"] == "nav2_rotation_shim_controller::RotationShimController"
     assert mppi["primary_controller"] == "nav2_mppi_controller::MPPIController"
@@ -702,7 +705,8 @@ def test_the_mppi_limits_match_the_goal_controller_isaac_and_gazebo():
     urdf = SIM_URDF.read_text(encoding="utf-8")
     gz_w = float(re.search(r"<max_velocity>([^<]+)</max_velocity>", urdf).group(1))
     gz_acc = float(re.search(r"<max_acceleration>([^<]+)</max_acceleration>", urdf).group(1))
-    assert mppi["vx_max"] == goal["desired_linear_vel"] == isaac["v_max"]
+    assert mppi["vx_max"] == goal["desired_linear_vel"] == NAV_SPEED
+    assert isaac["v_max"] == "NAV_SPEED_MPS"
     assert mppi["vx_min"] == isaac["v_min"]
     assert mppi["wz_max"] == goal["rotate_to_heading_angular_vel"] == isaac["w_max"] == gz_w
     assert mppi["ax_max"] == -mppi["ax_min"] == isaac["acc_v"] == gz_acc
@@ -727,3 +731,44 @@ def test_the_tree_still_drives_with_the_goal_controller_unless_told_otherwise():
 def test_the_goal_controller_is_still_the_avoidance_block():
     assert "FollowPathGoal" not in USER["controller_server"]["ros__parameters"]
     assert params("controller_server")["FollowPathGoal"] == AVOIDANCE["follow_path_goal"]
+
+
+# ---- 주행 최고 속도의 단일 출처 ----
+REPO = PKG.parents[1]
+
+
+def _literal_default(path: Path, cls_name: str, field: str):
+    import ast
+    tree = ast.parse(path.read_text(encoding="utf-8"))
+    [cls] = [n for n in tree.body if isinstance(n, ast.ClassDef) and n.name == cls_name]
+    [node] = [n for n in cls.body if isinstance(n, ast.AnnAssign) and n.target.id == field]
+    return ast.literal_eval(node.value)
+
+
+def test_every_copy_of_the_top_speed_is_the_one_source():
+    """nav_speed.yaml을 바꾸면 여기의 사본이 모두 틀려 이 시험이 실패한다(그때 사본을 맞춘다).
+    읽어서 따르는 곳(Isaac, fleet_gz_sim launch, make_params, FollowPathRL)은 각자의 시험이 본다."""
+    c = params("controller_server")
+    fleet_file = REPO / "pc" / "fleet_core" / "fleet_core" / "data" / "fleet_params.yaml"
+    fleet = yaml.safe_load(fleet_file.read_text(encoding="utf-8"))
+    params_py = REPO / "pc" / "fleet_core" / "fleet_core" / "common" / "params.py"
+    bench = yaml.safe_load((REPO / "tools" / "nav_bench" / "scenarios.yaml")
+                           .read_text(encoding="utf-8"))
+    import re
+    start = (REPO / "tools" / "real_pode" / "start.sh").read_text(encoding="utf-8")
+    copies = {
+        "nav2 FollowPath": c["FollowPath"]["desired_linear_vel"],
+        "nav2 FollowPathThrough": c["FollowPathThrough"]["desired_linear_vel"],
+        "avoidance FollowPathGoal": AVOIDANCE["follow_path_goal"]["desired_linear_vel"],
+        "nav2 FollowPathMPPI vx_max": c["FollowPathMPPI"]["vx_max"],
+        "fleet_params nav_speed_mps": fleet["nav_speed_mps"],
+        "fleet_params follow_speed_mps": fleet["follow_speed_mps"],
+        "params.py nav_speed_mps": _literal_default(params_py, "FleetParams", "nav_speed_mps"),
+        "params.py follow_speed_mps": _literal_default(params_py, "FleetParams",
+                                                       "follow_speed_mps"),
+        "nav_bench robot mover": bench["movers"]["robot"]["speed"],
+        "pode_fsm horizon_cap_mps": _literal_default(
+            REPO / "pode" / "pode_fsm" / "pode_fsm" / "params.py", "FsmParams", "horizon_cap_mps"),
+        "start.sh speed": float(re.search(r"^speed=\$\{5:-([0-9.]+)\}$", start, re.M).group(1)),
+    }
+    assert {name: value for name, value in copies.items() if value != NAV_SPEED} == {}

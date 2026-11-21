@@ -12,6 +12,7 @@ from fleet_gz_sim import launch_parts  # noqa: E402
 REPO = Path(__file__).resolve().parents[3]
 MAPS = {"nav_map": "/m/arena_d2.yaml", "nav_map_fine": "/m/arena_d2_fine.yaml"}
 NAV = REPO / "pode" / "pode_nav_config" / "params" / "nav2_params.yaml"
+SPEED_FILE = REPO / "pode" / "pode_nav_config" / "params" / "nav_speed.yaml"
 # the avoidance teammate's file, from the default avoidance package
 AVOIDANCE = REPO / "pode" / "pode_avoidance" / "params" / "avoidance.yaml"
 
@@ -32,11 +33,12 @@ def _amcl(data: dict) -> dict:
     return data["amcl"]["ros__parameters"]
 
 
-def test_sim_params_change_amcl_only_and_leave_the_real_file(tmp_path):
+def test_sim_params_change_amcl_and_the_mppi_entry_only_and_leave_the_real_file(tmp_path):
     before = NAV.read_bytes(), AVOIDANCE.read_bytes()
     out = _sim(NAV, tmp_path / "nav2_sim.yaml")
     assert (NAV.read_bytes(), AVOIDANCE.read_bytes()) == before
     base, sim = _base(), yaml.safe_load(out.read_text(encoding="utf-8"))
+    base["controller_server"]["ros__parameters"]["controller_plugins"].append("FollowPathMPPI")
     assert {k: v for k, v in sim.items() if k != "amcl"} == {
         k: v for k, v in base.items() if k != "amcl"}
     for key, value in launch_parts.SIM_AMCL.items():
@@ -112,8 +114,8 @@ def test_one_pode_sends_lock_boundary_paths_to_the_through_rpp_by_default(tmp_pa
     assert fsm_args(through_controller_id="")["through_controller_id"] == ""
     # A speed cap also caps the FSM's lock-boundary speed limit: RPP takes that limit as its
     # desired_linear_vel, so a limit above the cap would speed the robot up again.
-    assert fsm_args()["horizon_cap_mps"] == str(launch_parts.DEFAULT_SPEED_MPS)
-    assert fsm_args(nav_max_speed=0.14)["horizon_cap_mps"] == "0.14"
+    assert fsm_args()["horizon_cap_mps"] == str(launch_parts.nav_speed_mps())
+    assert fsm_args(nav_max_speed=0.10)["horizon_cap_mps"] == "0.1"
 
 
 def _rpp(data: dict, name: str) -> dict:
@@ -121,21 +123,23 @@ def _rpp(data: dict, name: str) -> dict:
 
 
 def test_sim_params_cap_every_forward_controller_and_change_nothing_else(tmp_path):
-    """The arena runs at 0.12 to 0.20 m/s; the reverse controller keeps its slower 0.05 m/s."""
+    """A cap below the one source slows every forward controller; the reverse controller keeps
+    its slower 0.05 m/s."""
+    top = launch_parts.nav_speed_mps(SPEED_FILE)
     capped = yaml.safe_load(_sim(
-        NAV, tmp_path / "capped.yaml", max_speed=0.12).read_text(encoding="utf-8"))
+        NAV, tmp_path / "capped.yaml", max_speed=0.10).read_text(encoding="utf-8"))
     plain = yaml.safe_load(_sim(
         NAV, tmp_path / "plain.yaml").read_text(encoding="utf-8"))
     for name in launch_parts.CONTROLLERS:
         if name == launch_parts.REVERSE_CONTROLLER:
             assert _rpp(capped, name)["desired_linear_vel"] == 0.05
             continue
-        assert _rpp(capped, name)["desired_linear_vel"] == 0.12
-        assert _rpp(plain, name)["desired_linear_vel"] == 0.25
-        _rpp(plain, name)["desired_linear_vel"] = 0.12
-    assert _rpp(capped, launch_parts.MPPI_CONTROLLER)["vx_max"] == 0.12
-    assert _rpp(plain, launch_parts.MPPI_CONTROLLER)["vx_max"] == 0.25
-    _rpp(plain, launch_parts.MPPI_CONTROLLER)["vx_max"] = 0.12
+        assert _rpp(capped, name)["desired_linear_vel"] == 0.10
+        assert _rpp(plain, name)["desired_linear_vel"] == top
+        _rpp(plain, name)["desired_linear_vel"] = 0.10
+    assert _rpp(capped, launch_parts.MPPI_CONTROLLER)["vx_max"] == 0.10
+    assert _rpp(plain, launch_parts.MPPI_CONTROLLER)["vx_max"] == top
+    _rpp(plain, launch_parts.MPPI_CONTROLLER)["vx_max"] = 0.10
     assert capped == plain
 
 
@@ -184,19 +188,32 @@ def test_the_rl_controller_comes_only_from_its_overrides_file_and_keeps_the_base
     sim = yaml.safe_load(_sim(NAV, tmp_path / "rl.yaml", overrides=overrides)
                          .read_text(encoding="utf-8"))
     server = sim["controller_server"]["ros__parameters"]
-    assert server["controller_plugins"] == [*base, "FollowPathRL"]
-    assert "FollowPathMPPI" in server["controller_plugins"]  # RPP·MPPI·RL을 한 판에서 비교
+    assert server["controller_plugins"] == [*base, "FollowPathMPPI", "FollowPathRL"]
     assert server["FollowPathRL"]["plugin"] == "pode_rl_controller::FollowPathRL"
     assert server["FollowPathRL"]["policy"] == "store_arena_4b"
     assert "goal_rule" not in server["FollowPathRL"]  # the policy spec decides
     assert "lookahead_dist" not in server["FollowPathRL"]
 
 
+def test_mppi_is_loaded_only_in_the_sim(tmp_path):
+    """사용자 결정 2026-11-22: 실물 Nav2는 nav2_mppi_controller 없이 떠야 해서 nav2_params.yaml의
+    목록에 FollowPathMPPI가 없다. 시뮬은 블록이 있으면 목록 끝에 더한다(한 번만)."""
+    base = _base()["controller_server"]["ros__parameters"]
+    assert "FollowPathMPPI" not in base["controller_plugins"] and "FollowPathMPPI" in base
+    sim = yaml.safe_load(_sim(NAV, tmp_path / "s.yaml").read_text(encoding="utf-8"))
+    assert sim["controller_server"]["ros__parameters"]["controller_plugins"] == [
+        *base["controller_plugins"], "FollowPathMPPI"]
+
+
+def test_the_launch_speed_default_is_the_one_source():
+    assert launch_parts.speed_of("") == launch_parts.nav_speed_mps(SPEED_FILE)
+
+
 def test_the_rl_controller_gets_the_same_speed_cap_as_rpp_and_mppi(tmp_path):
     """세 controller 비교가 공정하도록 FollowPathRL의 max_linear_vel도 max_speed로 자른다."""
     path = REPO / "sim" / "fleet_gz_sim" / "nav_overrides" / "follow_path_rl.yaml"
     overrides = yaml.safe_load(path.read_text(encoding="utf-8"))
-    for speed in (0.20, 0.15):
+    for speed in (0.12, 0.10):
         sim = yaml.safe_load(_sim(NAV, tmp_path / "rl.yaml", overrides=overrides, max_speed=speed)
                              .read_text(encoding="utf-8"))
         server = sim["controller_server"]["ros__parameters"]
@@ -207,9 +224,9 @@ def test_the_rl_controller_gets_the_same_speed_cap_as_rpp_and_mppi(tmp_path):
                          .read_text(encoding="utf-8"))
     assert "max_linear_vel" not in sim["controller_server"]["ros__parameters"]["FollowPathRL"]
     overrides["controller_server"]["ros__parameters"]["FollowPathRL"]["max_linear_vel"] = 0.0
-    sim = yaml.safe_load(_sim(NAV, tmp_path / "rl.yaml", overrides=overrides, max_speed=0.15)
+    sim = yaml.safe_load(_sim(NAV, tmp_path / "rl.yaml", overrides=overrides, max_speed=0.10)
                          .read_text(encoding="utf-8"))
-    assert sim["controller_server"]["ros__parameters"]["FollowPathRL"]["max_linear_vel"] == 0.15
+    assert sim["controller_server"]["ros__parameters"]["FollowPathRL"]["max_linear_vel"] == 0.10
 
 
 def test_overrides_win_over_the_sim_amcl_values(tmp_path):
@@ -292,12 +309,12 @@ def test_a_base_file_without_one_of_the_controllers_is_refused(tmp_path):
         launch_parts.sim_nav_params(path, tmp_path / "sim.yaml")
 
 
-@pytest.mark.parametrize("text, value", [("", 0.20), ("0.12", 0.12), ("0.15", 0.15), ("0.2", 0.2)])
+@pytest.mark.parametrize("text, value", [("", 0.12), ("0.12", 0.12), ("0.05", 0.05), ("0.1", 0.1)])
 def test_the_launch_speed_is_the_arena_range(text, value):
     assert launch_parts.speed_of(text) == value
 
 
-@pytest.mark.parametrize("bad", ["0.11", "0.21", "0.25", "fast", "nan", "inf"])
+@pytest.mark.parametrize("bad", ["0.04", "0.13", "0.25", "fast", "nan", "inf"])
 def test_a_launch_speed_outside_the_arena_range_is_refused(bad):
     with pytest.raises(ValueError, match="nav_max_speed"):
         launch_parts.speed_of(bad)

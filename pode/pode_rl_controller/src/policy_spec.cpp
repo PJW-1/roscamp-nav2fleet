@@ -2,6 +2,8 @@
 
 #include <yaml-cpp/yaml.h>
 
+#include <cmath>
+#include <cstdio>
 #include <stdexcept>
 
 namespace pode_rl_controller
@@ -61,6 +63,27 @@ PolicySpec load_policy_spec(const std::string & path)
     throw std::runtime_error(path + ": act_dim must be 2 (v, w)");
   }
   return s;
+}
+
+double load_nav_speed(const std::string & path)
+{
+  const double v = YAML::LoadFile(path)["nav_speed_mps"].as<double>();
+  if (!std::isfinite(v) || v <= 0.0) {
+    throw std::runtime_error(path + ": nav_speed_mps must be above 0");
+  }
+  return v;
+}
+
+std::string speed_mismatch(double policy_v_max, double nav_speed)
+{
+  if (std::abs(policy_v_max - nav_speed) <= 1e-9) {
+    return "";
+  }
+  char text[160];
+  std::snprintf(
+    text, sizeof(text), "policy v_max %.3f m/s differs from the one top speed %.3f m/s "
+    "(nav_speed.yaml)", policy_v_max, nav_speed);
+  return text;
 }
 
 }  // namespace pode_rl_controller

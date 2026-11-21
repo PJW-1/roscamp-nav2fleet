@@ -48,7 +48,8 @@ class ArenaSpec:
     # Robot position used by arena_check.py when it places robots by hand (phase A checks).
     start_x: float = 0.30
     start_y: float = 0.55
-    episode_s: float = 30.0  # longest route ~3 m at 0.25 m/s is 12 s, plus turns and detours
+    # longest route ~3 m at 0.25 m/s is 12 s, plus turns and detours: 30 s at 0.25 m/s
+    episode_s: float = ts.travel_time(30.0)
     # --- start and goal (route_spec.hall_nodes): nodes in zone HALL except these kinds
     excluded_node_kinds: str = "parking"  # P-1..3 sit between the charging dividers
     min_start_goal_m: float = 0.40  # straight-line start-goal distance
@@ -86,19 +87,20 @@ class ArenaSpec:
     mover_yield_m: float = 0.15
     # ... and turns back after waiting this long (as a person would), so a robot and a mover
     # waiting for each other do not stand until the episode times out.
-    mover_wait_s: float = 2.0
+    mover_wait_s: float = ts.travel_time(2.0)  # 2 s at 0.25 m/s
     # share of episodes whose movers never wait (yield 0, as the Gazebo benchmark's movers)
     mover_noyield_prob: float = 0.0
     # --- scripted fleet robots (stage 4c, robot_spec): routes over the HALL nav graph
     robot_max: int = 0  # robots per episode, uniform 0..robot_max (0: the 4b arena; 4c: 2)
-    robot_speed_scale: tuple[float, float] = (0.67, 1.33)  # times robot_spec.ROBOT.speed 0.15
+    robot_speed_scale: tuple[float, float] = (0.67, 1.33)  # times robot_spec.ROBOT.speed
     robot_pause_s: tuple[float, float] = (0.0, 2.0)  # at each route goal
     robot_routes: int = 4  # routes chained per episode (then it stays at the last goal)
     # waits while its next step would bring its centre within this of our robot's centre and
     # closer (Gazebo nav_bench robot: yield_m 0.25, whatever its direction)
     robot_yield_m: float = 0.25
-    robot_wait_s: float = 3.0  # ... and after waiting this long backs off along its route
-    robot_backoff_s: float = 2.0  # for this long, then drives on
+    # ... and after waiting this long backs off along its route (3 s at 0.25 m/s)
+    robot_wait_s: float = ts.travel_time(3.0)
+    robot_backoff_s: float = ts.travel_time(2.0)  # for this long, then drives on (2 s)
     robot_retreat: int = 0  # 1: backs off to the last route node behind it instead (robot_spec)
     robot_lock_m: float = 0.0  # > 0: waits at a node while our robot is this near the next link
     intent_ablate: int = 0  # 1: the intent entries are zeros (robots look absent): evaluation only

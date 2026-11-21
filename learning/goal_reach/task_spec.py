@@ -14,9 +14,35 @@ from __future__ import annotations
 
 import dataclasses
 import math
+import os
 from dataclasses import dataclass
 
 import torch
+import yaml
+
+# One top speed for every Pode limit (user decision 2026-11-22): the Nav2 package's file.
+NAV_SPEED_FILE = os.path.join(
+    os.path.dirname(os.path.abspath(__file__)), "..", "..", "pode", "pode_nav_config",
+    "params", "nav_speed.yaml"
+)
+# Episode lengths and the waits that depend on robot travel were tuned at this speed.
+TIMES_TUNED_AT_MPS = 0.25
+
+
+def nav_speed_mps(path: str = NAV_SPEED_FILE) -> float:
+    with open(path, encoding="utf-8") as f:
+        value = float(yaml.safe_load(f)["nav_speed_mps"])
+    if not (math.isfinite(value) and value > 0):
+        raise ValueError(f"{path}: nav_speed_mps must be above 0, got {value!r}")
+    return value
+
+
+NAV_SPEED_MPS = nav_speed_mps()
+
+
+def travel_time(seconds_at_tuned_speed: float, speed: float = NAV_SPEED_MPS) -> float:
+    """A time tuned at TIMES_TUNED_AT_MPS, stretched so the robot covers the same distance."""
+    return seconds_at_tuned_speed * TIMES_TUNED_AT_MPS / speed
 
 
 @dataclass(frozen=True)
@@ -26,7 +52,7 @@ class ActionLimits:
     v_min: float = (
         -0.05
     )  # m/s; small reverse, the speed of the Nav2 retreat (BackUp) on the real robot
-    v_max: float = 0.25  # m/s; Nav2 RPP desired_linear_vel on the real robot
+    v_max: float = NAV_SPEED_MPS  # m/s; pode_nav_config/params/nav_speed.yaml
     w_max: float = 1.0  # rad/s; Gazebo DiffDrive max_velocity, Nav2 max_rotational_vel
     acc_v: float = 2.0  # m/s^2; Gazebo DiffDrive max_acceleration
     acc_w: float = 2.0  # rad/s^2; same Gazebo limit (the plugin applies it to both)
@@ -41,7 +67,8 @@ class RobotGeometry:
 @dataclass(frozen=True)
 class TaskSpec:
     control_dt: float = 0.05  # s, 20 Hz policy
-    episode_s: float = 20.0  # s; straight 2 m at 0.25 m/s plus a half turn is about 11 s
+    # s; straight 2 m at 0.25 m/s plus a half turn is about 11 s: 20 s at 0.25 m/s
+    episode_s: float = travel_time(20.0)
     goal_dist_range: tuple[float, float] = (1.0, 2.0)  # m from the start
     success_radius: float = 0.05  # m; same as Nav2 xy_goal_tolerance on the real robot
     out_of_bounds: float = (

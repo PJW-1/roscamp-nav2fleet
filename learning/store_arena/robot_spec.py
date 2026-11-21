@@ -13,9 +13,11 @@ from dataclasses import dataclass
 
 import numpy as np
 import torch
+from arena_spec import ts
 from mover_spec import MoverShape, point_segment_distance, surface_gap
 
-ROBOT = MoverShape("robot", "box", (0.12, 0.112, 0.20), 0.15)  # Pode footprint; Gazebo nav_bench
+# Pode footprint (Gazebo nav_bench); a Pode drives at the one top speed (nav_speed.yaml)
+ROBOT = MoverShape("robot", "box", (0.12, 0.112, 0.20), ts.NAV_SPEED_MPS)
 
 
 @dataclass(frozen=True)

@@ -64,6 +64,7 @@ private:
   double log_period_{1.0};
   double rear_stop_range_{0.12};
   double max_v_{0.0};
+  std::string speed_mismatch_;
   double rear_half_width_deg_{30.0};
   int rear_blocks_{0};
   double speed_limit_{0.0};

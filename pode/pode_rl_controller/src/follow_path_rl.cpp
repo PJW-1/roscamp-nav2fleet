@@ -71,7 +71,17 @@ void FollowPathRL::configure(
   spec_ = load_policy_spec(dir + "/policy_spec.json");
   policy_ = std::make_unique<OnnxPolicy>(
     dir + "/policy.onnx", spec_.obs_dim, spec_.act_dim, threads);
-  max_v_ = max_v_param > 0.0 ? std::min(max_v_param, spec_.action.v_max) : spec_.action.v_max;
+  const double nav_speed = load_nav_speed(
+    ament_index_cpp::get_package_share_directory("pode_nav_config") + "/params/nav_speed.yaml");
+  speed_mismatch_ = speed_mismatch(spec_.action.v_max, nav_speed);
+  if (!speed_mismatch_.empty()) {
+    RCLCPP_ERROR(
+      logger_, "FollowPathRL %s: %s. Retrain or export the policy at %.3f m/s; until then the "
+      "command is capped at %.3f m/s and this error repeats while it drives", name_.c_str(),
+      speed_mismatch_.c_str(), nav_speed, nav_speed);
+  }
+  const double top = std::min(spec_.action.v_max, nav_speed);
+  max_v_ = max_v_param > 0.0 ? std::min(max_v_param, top) : top;
   speed_limit_ = max_v_;
 
   rule_ = spec_.goal_rule;
@@ -204,6 +214,10 @@ geometry_msgs::msg::TwistStamped FollowPathRL::computeVelocityCommands(
   {
     std::lock_guard<std::mutex> lock(scan_mutex_);
     scan = scan_;
+  }
+  if (!speed_mismatch_.empty()) {
+    RCLCPP_ERROR_THROTTLE(
+      logger_, *clock_, 10000, "FollowPathRL %s: %s", name_.c_str(), speed_mismatch_.c_str());
   }
   if (!scan) {
     throw nav2_core::ControllerException("FollowPathRL: no scan on " + scan_topic_);

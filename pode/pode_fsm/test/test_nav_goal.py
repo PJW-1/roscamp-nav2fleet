@@ -365,7 +365,7 @@ def test_a_lost_nav_goal_result_ends_the_goal_but_keeps_waiting_for_the_cancel()
 
 
 def test_a_nav_goal_lifts_a_lock_boundary_speed_limit():
-    fsm = ready()
+    fsm = ready(horizon_cap_mps=0.25)
     fsm.move("g1", 1.0, "P", (0.5, 0.3, 0.0), [], HERE, final_goal=False)
     assert any(c.mps > 0 for c in of(run(fsm, 1.1, 1.1), LimitSpeed))
     nav(fsm, "g2", 2.0)

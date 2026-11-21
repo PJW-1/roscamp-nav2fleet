@@ -112,7 +112,8 @@ SIM_AMCL = {"z_hit": 0.95, "z_rand": 0.05, "max_beams": 120, "laser_max_range": 
 THROUGH_CONTROLLER = "FollowPathThrough"
 REVERSE_CONTROLLER = "FollowPathReverse"
 GOAL_CONTROLLER = "FollowPathGoal"
-# 비교용 Nav2 goal MPPI(ControllerSelector로 고를 때만 씀). 속도 상한은 vx_max에 건다
+# 비교용 Nav2 goal MPPI(ControllerSelector로 고를 때만 씀). 실물 목록에는 없어 시뮬이 넣는다.
+# 속도 상한은 vx_max에 건다
 MPPI_CONTROLLER = "FollowPathMPPI"
 # RL 주행 정책(nav_overrides로만 띄움). 속도 상한은 max_linear_vel에 건다
 RL_PLUGIN = "pode_rl_controller::FollowPathRL"
@@ -127,24 +128,33 @@ CONTROLLERS = ("FollowPath", THROUGH_CONTROLLER, REVERSE_CONTROLLER, GOAL_CONTRO
 # launch 인자의 기본은 끔이다(팀 결정 2026-11-13: scan 거르개를 넣고 켠 세 대 경기 여섯 판이
 # 끝나지 않았고, 끈 판은 끝났다). 실물의 파라미터 파일(nav2_params.yaml)은 켬 그대로다
 FIXED_LINE_CONTROLLERS = ("FollowPath", THROUGH_CONTROLLER, REVERSE_CONTROLLER)
-# 경기장 속도 상한. 앞으로 가는 controller 셋이 이 값으로 간다. 기준은 0.12~0.15 m/s이고,
-# 0.20까지는 더 빠른 주행을 시뮬에서 보려고 받는다(2026-11-12). 기본값은 0.20이다(2026-11-15:
-# 속도 비례 앞보기를 넣자 0.20에서도 급행의 흔들림이 0.12 때와 같았다)
-SPEED_RANGE_MPS = (0.12, 0.20)
-DEFAULT_SPEED_MPS = 0.20
+# 경기장 속도 상한. 앞으로 가는 controller들이 이 값으로 간다. 기본과 위 끝은 단일 출처
+# pode_nav_config/params/nav_speed.yaml이다(사용자 결정 2026-11-22). 더 느린 시험은 0.05까지 받는다
+NAV_SPEED_FILE = Path("params") / "nav_speed.yaml"
+SLOWEST_SPEED_MPS = 0.05
 # sim_stand_in이 내는 로봇마다의 시뮬 배터리(BatteryState). low_battery가 있으면 pode_fsm이 본다
 BATTERY_TOPIC = "/{robot}/sim/battery"
 
 
+def nav_speed_mps(path: Path | None = None) -> float:
+    """단일 출처의 주행 최고 속도(m/s)."""
+    path = share("pode_nav_config") / NAV_SPEED_FILE if path is None else Path(path)
+    value = float(yaml.safe_load(path.read_text(encoding="utf-8"))["nav_speed_mps"])
+    if not (math.isfinite(value) and value > 0):
+        raise ValueError(f"{path}: nav_speed_mps must be above 0, got {value!r}")
+    return value
+
+
 def speed_of(text) -> float:
-    """launch 인자 nav_max_speed. 비면 DEFAULT_SPEED_MPS. 오타가 최고 속도로 바뀌지 않게 막는다."""
+    """launch 인자 nav_max_speed. 비면 nav_speed_mps(). 오타가 최고 속도로 바뀌지 않게 막는다."""
+    top = nav_speed_mps()
     if not str(text).strip():
-        return DEFAULT_SPEED_MPS
+        return top
     try:
         value = float(text)
     except ValueError:
         raise ValueError(f"nav_max_speed must be a number in m/s, got {text!r}") from None
-    low, high = SPEED_RANGE_MPS
+    low, high = min(SLOWEST_SPEED_MPS, top), top
     if not (math.isfinite(value) and low <= value <= high):
         raise ValueError(f"nav_max_speed must be from {low} to {high} m/s, got {text!r}")
     return value
@@ -205,6 +215,8 @@ def sim_nav_params(base: Path, out: Path, amcl: dict | None = None,
                          + ", ".join(replaced))
     merge(data, overrides or {})
     controllers = data["controller_server"]["ros__parameters"]
+    if MPPI_CONTROLLER in controllers and MPPI_CONTROLLER not in controllers["controller_plugins"]:
+        controllers["controller_plugins"] = [*controllers["controller_plugins"], MPPI_CONTROLLER]
     missing = [name for name in CONTROLLERS if name not in controllers]
     if missing:
         raise ValueError(f"{base} has no controller {', '.join(missing)}")
@@ -258,7 +270,7 @@ def model(ns: str, x, y, yaw, lidar_noise: float | None = None) -> list:
 def pode(ns: str, x, y, yaw, *, nav_map: str, nav_map_fine: str, keepout_mask: str = "",
           heartbeat_timeout_s="1.5", nav_log_level="warn", fsm=True, rviz=False,
           dock_aside=False, nav_composition=False, through_controller_id=THROUGH_CONTROLLER,
-          nav_max_speed: float = DEFAULT_SPEED_MPS, battery_topic: str = "",
+          nav_max_speed: float | None = None, battery_topic: str = "",
           nav_overrides: dict | None = None, lidar_noise: float | None = None,
           fixed_line_check: bool = True, narrow_strips: str = "",
           wall_band_m: float = 0.05, peer_layer: bool = False,
@@ -273,7 +285,7 @@ def pode(ns: str, x, y, yaw, *, nav_map: str, nav_map_fine: str, keepout_mask: s
     FollowPath로 간다. Nav2는 controller 넷(CONTROLLERS)을 늘 띄운다. 충돌 검사는 넷 모두 켜고,
     fixed_line_check가 거짓일 때만 고정 경로 셋을 끈다.
     nav_max_speed: controller들의 최고 속도(m/s). pode_fsm이 잠금 경계에서 내는 속도 제한의
-    상한(horizon_cap_mps)도 이 값으로: RPP는 그 제한을 속도로 쓴다.
+    상한(horizon_cap_mps)도 이 값으로: RPP는 그 제한을 속도로 쓴다. None이면 nav_speed_mps().
     battery_topic: pode_fsm이 볼 BatteryState 토픽(sim_stand_in의 BATTERY_TOPIC). 비면 없음.
     nav_overrides: Nav2 설정 위에 덮을 값(sim_nav_params overrides).
     fixed_line_check: 거짓이면 고정 경로 controller 셋의 충돌 검사를 끈다(시뮬 전용).
@@ -284,6 +296,7 @@ def pode(ns: str, x, y, yaw, *, nav_map: str, nav_map_fine: str, keepout_mask: s
     avoidance_package: 회피 패키지(FollowPathGoal 값, 비전·peer 층, 회피 쪽 노드).
     vision_stand_in: 참이면 회피 패키지의 임시 비전 대역을 띄우고 비전 관측원을 켠다."""
     nav = share("pode_nav_config")
+    nav_max_speed = nav_speed_mps() if nav_max_speed is None else nav_max_speed
     x, y, yaw = str(x), str(y), str(yaw)
     actions = [
         *model(ns, x, y, yaw, lidar_noise),

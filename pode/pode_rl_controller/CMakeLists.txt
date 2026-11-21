@@ -62,7 +62,8 @@ if(BUILD_TESTING)
   target_compile_definitions(test_observation PRIVATE
     FIXTURE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/test/fixtures/store_arena_4b"
     POLICY_DIR="${CMAKE_CURRENT_SOURCE_DIR}/policies/store_arena_4b"
-    PATH_END_POLICY_DIR="${CMAKE_CURRENT_SOURCE_DIR}/test/fixtures/goal_reach_base_4096")
+    PATH_END_POLICY_DIR="${CMAKE_CURRENT_SOURCE_DIR}/test/fixtures/goal_reach_base_4096"
+    NAV_SPEED_FILE="${CMAKE_CURRENT_SOURCE_DIR}/../pode_nav_config/params/nav_speed.yaml")
 endif()
 
 ament_export_include_directories(include)

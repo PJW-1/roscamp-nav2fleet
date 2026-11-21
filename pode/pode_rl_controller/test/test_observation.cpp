@@ -247,3 +247,12 @@ TEST(ReverseGuard, LooksOnlyWithinTheRearHalfWidth)
   rays[30] = 0.05f;
   EXPECT_DOUBLE_EQ(pode_rl_controller::block_reverse(back, rays, 0.15, 30.0, s).v, 0.0);
 }
+
+// ---- 정책 v_max와 단일 출처 속도 ----
+TEST(NavSpeed, PolicyCheckedAgainstTheOneSource)
+{
+  const double nav = pode_rl_controller::load_nav_speed(NAV_SPEED_FILE);
+  EXPECT_GT(nav, 0.0);
+  EXPECT_EQ(pode_rl_controller::speed_mismatch(nav, nav), "");
+  EXPECT_NE(pode_rl_controller::speed_mismatch(nav + 0.01, nav), "");
+}

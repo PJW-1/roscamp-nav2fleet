@@ -48,8 +48,12 @@ def _make_params():
 
 
 # ---- make_params.py ----
-@pytest.mark.parametrize("speed", [0.0, -0.1, 0.26, 0.25001, 0.00001, 1.0, float("nan"),
-                                   float("inf")])
+SPEED_SRC = ROOT / "pode" / "pode_nav_config" / "params" / "nav_speed.yaml"
+TOP = _load(SPEED_SRC)["nav_speed_mps"]
+
+
+@pytest.mark.parametrize("speed", [0.0, -0.1, TOP + 0.01, TOP + 0.00001, 0.00001, 1.0,
+                                   float("nan"), float("inf")])
 def test_make_params_refuses_bad_speed(tmp_path, speed):
     mp = _make_params()
     with pytest.raises(ValueError):
@@ -64,7 +68,7 @@ def test_make_params_cli_refuses_bad_speed(tmp_path):
     assert not (tmp_path / "p").exists()
 
 
-@pytest.mark.parametrize("speed", [0.12, 0.05, 0.25])
+@pytest.mark.parametrize("speed", [TOP, 0.05, 0.10])
 def test_make_params_sets_forward_speeds_only(tmp_path, speed):
     mp = _make_params()
     mp.write_params(speed, tmp_path)
@@ -73,14 +77,13 @@ def test_make_params_sets_forward_speeds_only(tmp_path, speed):
     ctl = nav["controller_server"]["ros__parameters"]
     for name in FORWARD:
         assert ctl[name]["desired_linear_vel"] == pytest.approx(speed)
-    assert ctl["FollowPathMPPI"]["vx_max"] == pytest.approx(speed)
+    assert "FollowPathMPPI" not in ctl["controller_plugins"]
     assert ctl["FollowPathReverse"]["desired_linear_vel"] == pytest.approx(0.05)
     assert avoid["follow_path_goal"]["desired_linear_vel"] == pytest.approx(speed)
     # 그 밖의 값은 저장소와 같다
     want = copy.deepcopy(nav_src)
     for name in FORWARD:
         want["controller_server"]["ros__parameters"][name]["desired_linear_vel"] = speed
-    want["controller_server"]["ros__parameters"]["FollowPathMPPI"]["vx_max"] = speed
     for name in FIXED_LINE:
         want["controller_server"]["ros__parameters"][name]["use_collision_detection"] = False
     assert nav == want
@@ -98,8 +101,8 @@ def test_make_params_keeps_comments(tmp_path):
         assert len(got) == len(orig)
         changed = [i for i, (a, b) in enumerate(zip(got, orig, strict=True)) if a != b]
         assert all("desired_linear_vel" in got[i] or "use_collision_detection" in got[i]
-                   or "vx_max" in got[i] for i in changed)
-        assert len(changed) == (6 if out == "nav2_params.yaml" else 1)
+                   for i in changed)
+        assert len(changed) == (5 if out == "nav2_params.yaml" else 1)
 
 
 # ---- 고정 경로 충돌 검사(FIXED_LINE_CHECK) ----

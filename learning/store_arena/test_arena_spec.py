@@ -98,3 +98,18 @@ def test_raycast_range_limits_and_inside_start():
     r = arena.raycast_rects(torch.tensor([[0.97, 0.0]]), torch.zeros(1), rects, max_range=2.0)
     assert r[0, 180].item() == pytest.approx(0.13, abs=1e-6)
 
+
+
+def test_episode_time_and_travel_waits_follow_the_one_top_speed():
+    """Times tuned at 0.25 m/s are multiplied by 0.25 / v; pauses are not about travel and stay."""
+    import robot_spec
+
+    ts = arena.ts
+    k = 0.25 / ts.NAV_SPEED_MPS
+    a = arena.ARENA
+    assert a.episode_s == pytest.approx(30.0 * k)
+    assert a.mover_wait_s == pytest.approx(2.0 * k)
+    assert a.robot_wait_s == pytest.approx(3.0 * k)
+    assert a.robot_backoff_s == pytest.approx(2.0 * k)
+    assert a.mover_pause_s == (0.0, 1.0) and a.robot_pause_s == (0.0, 2.0)
+    assert robot_spec.ROBOT.speed == ts.NAV_SPEED_MPS == ts.ACTION_LIMITS.v_max

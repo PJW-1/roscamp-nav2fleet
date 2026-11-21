@@ -299,7 +299,7 @@ def _controllers(path) -> dict:
 
 def test_every_controller_checks_collisions_when_asked_and_keeps_the_speed_cap(made):
     from fleet_gz_sim.launch_parts import CONTROLLERS
-    for speed in ("", "0.15"):
+    for speed in ("", "0.10"):
         made_with = run(made, nav_max_speed=speed, fixed_line_collision_check="true")
         for nav in includes(made_with, "nav2.launch.py"):
             controllers = _controllers(launch_args(nav)["params_file"])
@@ -307,9 +307,9 @@ def test_every_controller_checks_collisions_when_asked_and_keeps_the_speed_cap(m
                 assert controllers[name]["use_collision_detection"] is True, name
             forward = [controllers[n]["desired_linear_vel"] for n in CONTROLLERS
                        if n != "FollowPathReverse"]
-            assert forward == [float(speed or 0.20)] * 3
+            assert forward == [float(speed or 0.12)] * 3
             assert controllers["FollowPathReverse"]["desired_linear_vel"] == 0.05
-            assert controllers["FollowPathMPPI"]["vx_max"] == float(speed or 0.20)
+            assert controllers["FollowPathMPPI"]["vx_max"] == float(speed or 0.12)
 
 
 def test_no_controller_turns_faster_than_the_simulated_drive_can(made):
@@ -383,7 +383,7 @@ def test_nav_overrides_must_be_a_mapping_and_never_swaps_a_plugin(made, tmp_path
         run(made, nav_overrides=str(extra))
 
 
-@pytest.mark.parametrize("bad", ["0.25", "0.1", "fast", "nan"])
+@pytest.mark.parametrize("bad", ["0.25", "0.13", "0.04", "fast", "nan"])
 def test_a_speed_outside_the_arena_range_stops_the_launch(made, bad):
     with pytest.raises(ValueError, match="nav_max_speed"):
         run(made, nav_max_speed=bad)
@@ -391,8 +391,8 @@ def test_a_speed_outside_the_arena_range_stops_the_launch(made, bad):
 
 def test_the_speed_cap_also_caps_the_fsm_speed_limit_of_every_robot(made):
     caps = [launch_args(i)["horizon_cap_mps"]
-            for i in includes(run(made, nav_max_speed="0.14"), "pode_fsm.launch.py")]
-    assert caps == ["0.14"] * 3
+            for i in includes(run(made, nav_max_speed="0.10"), "pode_fsm.launch.py")]
+    assert caps == ["0.1"] * 3
 
 
 def test_gazebo_time_and_every_pode_share_one_bridge(made):

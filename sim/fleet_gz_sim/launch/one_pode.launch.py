@@ -33,7 +33,8 @@ ARGS = {
     "fsm": ("true", "pode_fsm(move_to, retreat, dock, state)"),
     "heartbeat_timeout_s": ("1.5", "pode_fsm heartbeat 끊김 판정. 0이면 서지 않는다"),
     "nav_log_level": ("warn", "Nav2 노드 로그 수준"),
-    "nav_max_speed": ("0.20", "controller들의 최고 속도(m/s), 0.12~0.20"),
+    "nav_max_speed": ("", "controller들의 최고 속도(m/s), 0.05~단일 출처."
+                          " 비면 pode_nav_config/params/nav_speed.yaml(0.12)"),
     "keepout": ("true", "false면 global costmap keepout 필터를 띄우지 않는다(비교용)"),
     "still_pode": ("", "x,y,yaw: 서 있기만 하는 둘째 Pode(pode_still)를 놓는다. 비면 없음"),
     "nav_overrides": ("", "Nav2 설정 위에 덮을 yaml 파일(시뮬 전용, 비교용). 비면 없음"),
