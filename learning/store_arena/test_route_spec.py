@@ -144,3 +144,15 @@ def test_follow_progress_remaining_and_lookahead():
     # near the end the lookahead is the goal
     _, rem4, la4 = R.follow(path, cum, npts, prog, torch.tensor([[0.95, 0.0]]), 0.4, 20)
     assert la4[0].tolist() == pytest.approx([1.0, 0.0]) and rem4.item() == pytest.approx(0.05)
+
+
+def test_diagonal_steps_do_not_cut_blocked_corners():
+    """A diagonal step needs both side cells free too (NavFn spreads over 4 neighbours)."""
+    grid = R.Grid((0.0, 0.0, 0.05, 0.05), 0.025)  # 2 x 2 cells, flat index = i * 2 + j
+    cost = np.zeros((2, 2))
+    cost[1, 0] = cost[0, 1] = R.LETHAL
+    assert grid.graph(cost).toarray()[0, 3] == 0
+    cost[0, 1] = 0.0
+    assert grid.graph(cost).toarray()[0, 3] == 0  # one blocked side cell is enough
+    cost[1, 0] = 0.0
+    assert grid.graph(cost).toarray()[0, 3] > 0

@@ -580,15 +580,16 @@ def main():
                 hit = env.collided & tested & (first < 0)
                 first[hit] = k + 1
                 gap[hit] = (pos_prev[rows, ax] - face).abs()[hit]
-            t_ids = torch.tensor(ids, device=env.device)
+            t_ids = torch.tensor(ids, device=env.device, dtype=torch.long)
             ok = first[t_ids] > 0
-            report["collided"] = int(ok.sum())
-            report["first_collision_step"] = [int(first[t_ids].min()), int(first[t_ids].max())]
             g = gap[t_ids][ok]
-            report["centre_to_box_face_before_collision_m"] = [
-                round(float(g.min()), 4),
-                round(float(g.max()), 4),
-            ]
+            report["collided"] = int(ok.sum())
+            if len(g):  # empty when no drive collided: still write the failing report
+                report["first_collision_step"] = [int(first[t_ids].min()), int(first[t_ids].max())]
+                report["centre_to_box_face_before_collision_m"] = [
+                    round(float(g.min()), 4),
+                    round(float(g.max()), 4),
+                ]
             report["per_env"] = [
                 {
                     "env": e,
@@ -605,6 +606,7 @@ def main():
                 and report["boxes_put_back_max_err_m"] < 1e-3
                 and len(ids) > 0
                 and bool(ok.all())
+                and len(g) > 0
                 and float(g.max()) < 0.10
             )
 

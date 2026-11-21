@@ -105,6 +105,9 @@ class Grid:
             a = idx[i0:i1, j0:j1].ravel()
             b = idx[i0 + di : i1 + di, j0 + dj : j1 + dj].ravel()
             ok = free.ravel()[a] & free.ravel()[b]
+            if di and dj:  # diagonal: both side cells free too, so no blocked corner is cut
+                ok &= free[i0 + di : i1 + di, j0:j1].ravel()
+                ok &= free[i0:i1, j0 + dj : j1 + dj].ravel()
             a, b = a[ok], b[ok]
             step = math.hypot(di, dj)
             ww = 0.5 * (trav.ravel()[a] + trav.ravel()[b]) * step
