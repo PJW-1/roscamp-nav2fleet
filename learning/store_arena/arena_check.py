@@ -87,6 +87,7 @@ def main():
         arena_over.setdefault("mover_prob", 0.0)
     if args_cli.mode == "robot":
         arena_over.setdefault("robot_max", 2)
+        task_over.setdefault("intent_robots", 2)  # so the present flags are checked
         arena_over.setdefault("mover_prob", 0.0)  # the expected scans have no movers
     env_cfg = sae.StoreArenaEnvCfg()
     env_cfg.scene.num_envs = args_cli.num_envs
@@ -877,6 +878,7 @@ def main():
                 and ray_ok
                 and hit_standing == 0
                 and mask_bad == 0
+                and env.spec.intent_robots > 0
                 and len(ids) >= 0.8 * n_with
                 and bool(ok.all())
                 and report["collisions_put_down_to_robot"] == len(ids)

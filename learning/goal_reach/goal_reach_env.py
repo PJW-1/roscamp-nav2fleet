@@ -109,6 +109,7 @@ class GoalReachEnv(DirectRLEnv):
 
     def __init__(self, cfg: GoalReachEnvCfg, render_mode: str | None = None, **kwargs):
         self.spec = ts.make_spec(cfg.spec_overrides)
+        cfg.observation_space = ts.obs_dim(self.spec)  # wider with intent_robots
         super().__init__(cfg, render_mode, **kwargs)
         self.robot = self.scene["robot"]
         self.lidar = self.scene["lidar"]

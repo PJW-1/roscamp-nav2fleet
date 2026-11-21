@@ -216,7 +216,7 @@ def build_observation(
      v / v_max, w / w_max], then for each of spec.intent_robots robots (nearest first):
     [present (0/1), x1, y1, ..., xP, yP] with the route points (intent (N, R, P, 2), our robot
     frame, m) / intent_obs_max clipped to [-1, 1]; an absent robot (intent_mask (N, R) false) is
-    all zeros."""
+    all zeros, and so is every robot when intent is None (an env without fleet robots)."""
     lid = lidar_sectors(lidar_ranges, spec) / spec.lidar_obs_max
     g = torch.stack(
         (
@@ -228,7 +228,9 @@ def build_observation(
     )
     v = torch.stack((vel[:, 0] / lim.v_max, vel[:, 1] / lim.w_max), dim=-1)
     parts = [lid, g, v]
-    if spec.intent_robots:
+    if spec.intent_robots and intent is None:
+        parts.append(lid.new_zeros(lid.shape[0], obs_dim(spec) - OBS_DIM))
+    elif spec.intent_robots:
         m = intent_mask[:, : spec.intent_robots].float()
         p = (intent[:, : spec.intent_robots] / spec.intent_obs_max).clamp(-1.0, 1.0)
         p = p.flatten(2) * m[..., None]

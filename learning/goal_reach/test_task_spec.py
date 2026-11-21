@@ -105,3 +105,11 @@ def test_intent_observation_layout_mask_and_clip():
     assert (row["robot0_p1_x"], row["robot0_p2_x"], row["robot0_p3_x"]) == (0.5, 1.0, -1.0)
     assert row["robot0_p2_y"] == 0.25
     assert all(row[f"robot1_p{k}_{a}"] == 0.0 for k in (1, 2, 3) for a in "xy")
+
+
+def test_intent_layout_without_intent_input_is_all_absent():
+    # an env with no fleet robots (goal-reach) still builds the wider layout: robots absent
+    spec = ts.make_spec({"intent_robots": 2})
+    obs = ts.build_observation(*_obs_inputs(), spec)
+    assert obs.shape == (2, 55)
+    assert (obs[:, 41:] == 0).all()

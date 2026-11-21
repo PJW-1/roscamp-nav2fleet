@@ -172,7 +172,6 @@ class StoreArenaEnv(GoalReachEnv):
         for k in range(int(a.robot_max)):
             setattr(cfg.scene, f"fleet_robot_{k}", robot_cfg(k))
         self.graph = rbs.node_graph(site)
-        cfg.observation_space = ts.obs_dim(ts.make_spec(cfg.spec_overrides))
         cfg.scene.env_spacing = a.env_spacing
         cfg.episode_length_s = a.episode_s
         self._routes_ready = False
@@ -321,6 +320,8 @@ class StoreArenaEnv(GoalReachEnv):
         other than our start and goal (and other robots' starts)."""
         a, n, dev = self.arena, len(env_ids), self.device
         nk = len(self.robot_objs)
+        if nk == 0:  # no draw at all: the 4b arena keeps its random sequence (same seed, same run)
+            return
         count = torch.randint(0, nk + 1, (n,), device=dev)
         banned = torch.zeros(n, len(self.graph.names), dtype=torch.bool, device=dev)
         sg = self.r_sg_node[r]
@@ -522,9 +523,7 @@ class StoreArenaEnv(GoalReachEnv):
 
     def _get_observations(self) -> dict:
         if not self._routes_ready:
-            obs = super()._get_observations()["policy"]
-            pad = ts.obs_dim(self.spec) - obs.shape[1]  # no intent before the routes exist
-            return {"policy": torch.cat((obs, obs.new_zeros(obs.shape[0], pad)), -1)}
+            return super()._get_observations()  # no intent before the routes exist
         intent = mask = None
         if self.spec.intent_robots:
             intent, mask = self.robot_intent(*self.robot_pose())
