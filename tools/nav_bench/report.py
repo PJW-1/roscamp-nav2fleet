@@ -83,8 +83,8 @@ def split_table(rows, cfg):
 def fairness_table(rows, cfg):
     lines = ["| 시나리오 | 컨트롤러 | 통로 판 | 계획 경로 띠 안 | 실제 궤적 띠 안"
              " | 출발 위치 오차 m (평균 ± sd, 최대) | 출발 방향 오차 ° (최대)"
-             " | 옮긴 판 | 다시 보낸 판 |",
-             "|---|---|---|---|---|---|---|---|---|"]
+             " | 옮긴 판 | 옮겨도 벗어난 판 | 다시 보낸 판 |",
+             "|---|---|---|---|---|---|---|---|---|---|"]
     for scenario in cfg["scenarios"]:
         for ctl in cfg["controllers"]:
             legs = [r for r in rows if r["scenario"] == scenario and r["controller"] == ctl]
@@ -99,6 +99,7 @@ def fairness_table(rows, cfg):
                      f"{sum(r.get('truth_in_band') is True for r in legs)}/{n}", pos,
                      f"{max(degs):.1f}" if degs else "-",
                      str(sum(bool(r.get("replaced")) for r in legs)),
+                     str(sum(r.get("start_ok") is False for r in legs)),
                      str(sum(bool(r.get("retried")) for r in legs))]
             lines.append("| " + " | ".join(cells) + " |")
     return "\n".join(lines)

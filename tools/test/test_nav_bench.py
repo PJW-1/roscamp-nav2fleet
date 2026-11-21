@@ -153,6 +153,19 @@ def test_the_time_split_separates_waiting_turning_stopping_and_driving():
     assert split["stop_s"] == pytest.approx(0.1)
     assert split["drive_s"] == pytest.approx(0.2)
     assert split["drive_vx"] == pytest.approx(0.1)
+    tail = mt.time_split([[0.0, 0.0, 0.0], [1.0, 0.1, 0.0]], 0.0, 3.0, 0.3)
+    assert tail["drive_s"] == pytest.approx(2.0)
+
+
+def test_only_plans_inside_the_leg_window_decide_the_band():
+    cfg = mv.load(CONFIG)
+    rec = {"scenario": "a_hall", "controller": "FollowPathGoal", "repeat": 0, "status": "SUCCEEDED",
+           "t_start": 10.0, "t_end": 20.0, "movers_names": [], "movers": [],
+           "plans": [[9.0, [[1.0, 0.18]]], [10.5, [[1.0, 0.56]]]],
+           "truth": [[10.0, 0.5, 0.62, 0.0], [20.0, 1.645, 0.55, 0.0]], "cmd": [], "scan_min": []}
+    assert mt.leg_metrics(rec, cfg, mt.footprint(), mt.arena_rects())["plan_in_band"] is True
+    rec["plans"] = [[9.0, [[1.0, 0.56]]]]
+    assert mt.leg_metrics(rec, cfg, mt.footprint(), mt.arena_rects())["plan_in_band"] is None
 
 
 def test_a_leg_records_its_start_pose_band_and_time_split():
@@ -168,7 +181,7 @@ def test_a_leg_records_its_start_pose_band_and_time_split():
     assert row["start_err_deg"] == pytest.approx(2.0)
     assert row["replaced"] is True
     assert row["plan_in_band"] and row["truth_in_band"] and row["in_corridor"]
-    assert row["drive_s"] == pytest.approx(1.0)
+    assert row["drive_s"] == pytest.approx(9.0)
 
 
 def test_the_table_keeps_legs_outside_the_corridor_on_their_own_row_with_rates():

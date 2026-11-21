@@ -165,7 +165,7 @@ class Bench(Node):
     def _on_plan(self, msg):
         if self.rec is not None and msg.poses:
             pts = [[q.pose.position.x, q.pose.position.y] for q in msg.poses]
-            self.rec["plans"].append([self.now(), pts[::4] + pts[-1:]])
+            self.rec["plans"].append([self.now(), pts])
 
     def _on_scan(self, msg):
         if self.rec is not None:
@@ -216,6 +216,7 @@ class Bench(Node):
         if replaced:
             self.teleport_to_start()
         start_pose = self.pose()
+        start_ok = not self.start_off()
         self.place(True)
         self.wait(0.5)
         self.rec = self.new_rec()
@@ -238,7 +239,7 @@ class Bench(Node):
         rec.update({"scenario": self.scenario, "controller": controller, "repeat": repeat,
                     "status": status, "t_start": t0, "t_end": t1, "retried": retried,
                     "pose_errors": self.pose_errors, "start_pose": start_pose,
-                    "replaced": replaced,
+                    "replaced": replaced, "start_ok": start_ok,
                     "movers_names": [m.name for m in self.active],
                     "cpu_s": None if cpu0 is None or cpu1 is None else cpu1 - cpu0,
                     "wall_s": wall1 - wall0})

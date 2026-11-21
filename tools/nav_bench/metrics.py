@@ -129,6 +129,15 @@ def time_split(cmd, t0, t1, turn_wz):
             out["turn_s"] += dt
         else:
             out["stop_s"] += dt
+    if cmd and cmd[-1][0] >= first and t1 > cmd[-1][0]:
+        last, dt = cmd[-1], t1 - cmd[-1][0]
+        if abs(last[1]) >= 0.005:
+            out["drive_s"] += dt
+            dist += last[1] * dt
+        elif abs(last[2]) >= turn_wz:
+            out["turn_s"] += dt
+        else:
+            out["stop_s"] += dt
     out["drive_vx"] = dist / out["drive_s"] if out["drive_s"] > 0 else None
     return out
 
@@ -145,7 +154,7 @@ def leg_metrics(rec, cfg, body, statics):
     goal = cfg["goal"]
     end_err = math.dist(truth[-1][1:3], (goal["x"], goal["y"])) if truth else None
     ok = rec["status"] == "SUCCEEDED" and end_err is not None and end_err <= cfg["arrive_m"]
-    plan_pts = [pt for _, pts in rec.get("plans", []) for pt in pts]
+    plan_pts = [pt for _, pts in within(rec.get("plans", []), t0, t1) for pt in pts]
     plan_ok = in_band(plan_pts, cfg["corridor_band"])
     truth_ok = in_band([p[1:3] for p in truth], cfg["corridor_band"])
     err = start_error(rec["start_pose"], cfg["start"]) if rec.get("start_pose") else (None, None)
@@ -154,6 +163,7 @@ def leg_metrics(rec, cfg, body, statics):
         "plan_in_band": plan_ok, "truth_in_band": truth_ok,
         "in_corridor": bool(plan_ok) and bool(truth_ok),
         "start_err_m": err[0], "start_err_deg": err[1], "replaced": rec.get("replaced", False),
+        "start_ok": rec.get("start_ok"),
         **time_split(cmd, t0, t1, cfg["turn_wz"]),
         "status": rec["status"], "ok": ok, "end_err_m": end_err,
         "retried": rec.get("retried", False), "pose_errors": rec.get("pose_errors", 0),
