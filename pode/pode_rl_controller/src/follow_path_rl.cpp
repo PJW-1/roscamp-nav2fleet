@@ -185,7 +185,7 @@ void FollowPathRL::goal_in_base(double & x, double & y, double & yaw_end, double
 // ---- 한 주기: 관측 -> 정책 -> (v, w) ----
 geometry_msgs::msg::TwistStamped FollowPathRL::computeVelocityCommands(
   const geometry_msgs::msg::PoseStamped & pose, const geometry_msgs::msg::Twist & velocity,
-  nav2_core::GoalChecker *)
+  nav2_core::GoalChecker * goal_checker)
 {
   const auto t_call = std::chrono::steady_clock::now();
   const rclcpp::Time now = clock_->now();
@@ -218,7 +218,13 @@ geometry_msgs::msg::TwistStamped FollowPathRL::computeVelocityCommands(
   Twist2 target{0.0, 0.0};
   std::vector<float> act{0.0f, 0.0f};
   double infer_us = 0.0;
-  const bool rotating = dist_end < spec_.success_radius;
+  double turn_radius = spec_.success_radius;
+  geometry_msgs::msg::Pose pose_tol;
+  geometry_msgs::msg::Twist vel_tol;
+  if (goal_checker && goal_checker->getTolerances(pose_tol, vel_tol)) {
+    turn_radius = pose_tol.position.x;
+  }
+  const bool rotating = dist_end < turn_radius;
   if (rotating) {
     target.w = std::clamp(rotate_gain_ * yaw_end, -lim.w_max, lim.w_max);
   } else {

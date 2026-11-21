@@ -34,7 +34,20 @@ std::vector<T> vec(const YAML::Node & n)
 {
   return n.as<std::vector<T>>();
 }
+
+double gap(double got, double want)
+{
+  const double d = std::abs(got - want);
+  return std::isfinite(d) ? d : std::numeric_limits<double>::infinity();
+}
 }  // namespace
+
+TEST(Gap, NonFiniteNeverPasses)
+{
+  EXPECT_GT(gap(std::nan(""), 1.0), 1.0);
+  EXPECT_GT(gap(1.0, std::numeric_limits<double>::infinity()), 1.0);
+  EXPECT_DOUBLE_EQ(gap(1.5, 1.0), 0.5);
+}
 
 // ---- 명세 파일 ----
 TEST(PolicySpec, ReadsTheExportedTaskSpec)
@@ -62,7 +75,7 @@ TEST(Observation, MatchesTaskSpec)
     const auto want_rays = vec<double>(c["rays"]);
     ASSERT_EQ(rays.size(), want_rays.size());
     for (size_t k = 0; k < rays.size(); ++k) {
-      worst_rays = std::max(worst_rays, std::abs(rays[k] - want_rays[k]));
+      worst_rays = std::max(worst_rays, gap(rays[k], want_rays[k]));
     }
     const auto obs = pode_rl_controller::build_observation(
       rays, c["goal_dist"].as<double>(), c["goal_angle"].as<double>(), c["v"].as<double>(),
@@ -70,7 +83,7 @@ TEST(Observation, MatchesTaskSpec)
     const auto want_obs = vec<double>(c["obs"]);
     ASSERT_EQ(obs.size(), want_obs.size());
     for (size_t k = 0; k < obs.size(); ++k) {
-      worst_obs = std::max(worst_obs, std::abs(obs[k] - want_obs[k]));
+      worst_obs = std::max(worst_obs, gap(obs[k], want_obs[k]));
     }
   }
   std::printf("[parity] rays max |diff| %.3g, obs max |diff| %.3g\n", worst_rays, worst_obs);
@@ -106,7 +119,7 @@ TEST(Action, MatchesTaskSpec)
       cmd = pode_rl_controller::rate_limit(
         cmd, pode_rl_controller::action_to_target(a[0], a[1], s.action), s.control_dt, s.action);
       const auto want = vec<double>(cmds[t]);
-      worst = std::max({worst, std::abs(cmd.v - want[0]), std::abs(cmd.w - want[1])});
+      worst = std::max({worst, gap(cmd.v, want[0]), gap(cmd.w, want[1])});
     }
   }
   std::printf("[parity] action -> (v, w) max |diff| %.3g\n", worst);
@@ -130,9 +143,9 @@ TEST(Inference, MatchesTorch)
     const auto want = vec<double>(f["actions_torch"][i]);
     const auto ort_py = vec<double>(f["actions_onnxruntime_python"][i]);
     for (int j = 0; j < s.act_dim; ++j) {
-      const double d = std::abs(a[j] - want[j]);
+      const double d = gap(a[j], want[j]);
       worst_torch = std::max(worst_torch, d);
-      worst_ort_py = std::max(worst_ort_py, std::abs(a[j] - ort_py[j]));
+      worst_ort_py = std::max(worst_ort_py, gap(a[j], ort_py[j]));
       worst_excess = std::max(worst_excess, d - atol - rtol * std::abs(want[j]));
     }
   }
