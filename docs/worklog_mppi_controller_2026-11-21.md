@@ -36,7 +36,9 @@ ros2 topic pub -t 3 -r 2 --qos-durability transient_local --qos-reliability reli
 
 - 고른 값은 BT가 다음에 틱할 때(다음 Nav2 goal부터, 달리는 중이면 다음 틱에) 읽는다. goal 사이에 보내면 된다.
   BT 노드는 마지막 하나(KeepLast 1)만 본다.
-- 고른 값은 bt_navigator가 다시 뜰 때까지 남는다. 되돌리려면 `FollowPathGoal`을 보낸다.
+- 고른 값은 같은 BT 트리가 쓰이는 동안만 남는다. bt_navigator가 다시 뜨거나 다른 BT 파일을 지정한 goal로 트리가 새로 만들어지면
+  기본 `FollowPathGoal`로 돌아간다(위 `ros2 topic pub -t 3`은 보내고 끝나므로 새 트리에 값을 다시 주지 않는다). 그때는 다시 보낸다.
+  되돌리려면 `FollowPathGoal`을 보낸다.
 - 없는 이름을 보내면 controller_server가 그 goal을 거절한다(Nav2 코드 기준 `INVALID_CONTROLLER`, 시험하지 않음). 오타에 조심한다.
 - 확인: controller_server를 debug로 띄우면 1 Hz 다시 계획 때마다 `Selected controller: FollowPathMPPI.`가 찍힌다.
   Gazebo: `ros2 launch fleet_gz_sim one_pode.launch.py ... nav_log_level:=pode1.controller_server:=debug`
@@ -167,7 +169,9 @@ controller_server:
       PathAlignCritic:
         cost_weight: 7.0
 Y
-# 터미널 1 (도메인 43~101 중 남이 안 쓰는 것, LOCALHOST)
+# 두 터미널 모두 같은 도메인(43~101 중 남이 안 쓰는 것)과 LOCALHOST로 둔다. 안 두면 launch가 격리 검사에서 멈춘다
+export ROS_DOMAIN_ID=61 ROS_AUTOMATIC_DISCOVERY_RANGE=LOCALHOST RMW_IMPLEMENTATION=rmw_fastrtps_cpp
+# 터미널 1
 ros2 launch fleet_gz_sim one_pode.launch.py start:=O_IN nav_overrides:=/tmp/mppi_align7.yaml \
   nav_log_level:=pode1.controller_server:=debug
 # 터미널 2
