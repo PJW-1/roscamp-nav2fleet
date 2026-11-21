@@ -87,6 +87,17 @@ class ArenaSpec:
     # ... and turns back after waiting this long (as a person would), so a robot and a mover
     # waiting for each other do not stand until the episode times out.
     mover_wait_s: float = 2.0
+    # --- scripted fleet robots (stage 4c, robot_spec): routes over the HALL nav graph
+    robot_max: int = 0  # robots per episode, uniform 0..robot_max (0: the 4b arena; 4c: 2)
+    robot_speed_scale: tuple[float, float] = (0.67, 1.33)  # times robot_spec.ROBOT.speed 0.15
+    robot_pause_s: tuple[float, float] = (0.0, 2.0)  # at each route goal
+    robot_routes: int = 4  # routes chained per episode (then it stays at the last goal)
+    # waits while its next step would bring its centre within this of our robot's centre and
+    # closer (Gazebo nav_bench robot: yield_m 0.25, whatever its direction)
+    robot_yield_m: float = 0.25
+    robot_wait_s: float = 3.0  # ... and after waiting this long backs off along its route
+    robot_backoff_s: float = 2.0  # for this long, then drives on
+    intent_ablate: int = 0  # 1: the intent entries are zeros (robots look absent): evaluation only
 
 
 ARENA = ArenaSpec()

@@ -6,17 +6,23 @@ No Isaac needed:  python learning/store_arena/normalizer_std.py <model_*.pt> [ou
 """
 
 import csv
+import dataclasses
+import os
 import sys
 
 import torch
 
-NAMES = [f"lidar_sector_{i}" for i in range(36)] + [
-    "goal_dist",
-    "goal_sin",
-    "goal_cos",
-    "v",
-    "w",
-]
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "goal_reach"))
+import task_spec as ts  # noqa: E402
+
+
+def obs_names(dim: int) -> list[str]:
+    """Names of a dim-long observation: the 41-dim layout plus whole intent robots (task_spec)."""
+    per = 1 + 2 * ts.SPEC.intent_points
+    extra = dim - ts.OBS_DIM
+    if extra < 0 or extra % per:
+        return [f"obs_{i}" for i in range(dim)]
+    return ts.obs_names(dataclasses.replace(ts.SPEC, intent_robots=extra // per))
 
 
 def normalizer_stats(path: str) -> tuple[torch.Tensor, torch.Tensor]:
@@ -36,7 +42,7 @@ def normalizer_stats(path: str) -> tuple[torch.Tensor, torch.Tensor]:
 
 if __name__ == "__main__":
     mean, std = normalizer_stats(sys.argv[1])
-    names = NAMES if len(mean) == len(NAMES) else [f"obs_{i}" for i in range(len(mean))]
+    names = obs_names(len(mean))
     rows = [
         (n, round(float(m), 5), round(float(s), 5))
         for n, m, s in zip(names, mean, std, strict=True)

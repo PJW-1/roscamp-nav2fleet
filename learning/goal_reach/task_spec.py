@@ -53,6 +53,13 @@ class TaskSpec:
     lidar_min_range: float = 0.05  # m; rays start this far out (RPLIDAR C1 minimum is also 0.05 m)
     lidar_obs_max: float = 2.0  # m; ranges are clipped here before scaling to [0, 1]
     goal_obs_max: float = 3.0  # m; goal distance is clipped here before scaling
+    # fleet intent (store arena stage 4c): for the intent_robots nearest other robots, a mask and
+    # intent_points route points intent_spacing_m apart ahead of each, in our robot frame, / and
+    # clipped at intent_obs_max. 0 robots = the 41-dim layout of the goal-reach, 4a and 4b policies
+    intent_robots: int = 0
+    intent_points: int = 3
+    intent_spacing_m: float = 0.2  # m along the robot's route (what fleet_manager can publish)
+    intent_obs_max: float = 2.0  # m, as the lidar
     # collision: largest contact-force norm on COLLISION_BODIES above this ends the episode
     collision_force: float = 1.0  # N; the robot weighs 15 N, a wall push measured 5-11 N
     # reward weights (per 20 Hz step)
@@ -82,6 +89,12 @@ OVERRIDABLE = (
     "w_time",
     "w_arrival",
     "w_collision",
+    # these change the observation size: an env built with them sets its observation_space from
+    # obs_dim(spec), and a policy only runs on the layout it was trained with
+    "intent_robots",
+    "intent_points",
+    "intent_spacing_m",
+    "intent_obs_max",
 )
 
 
@@ -94,6 +107,8 @@ def parse_overrides(items, spec=SPEC) -> dict:
         default = getattr(spec, key, None)
         if isinstance(default, str):
             out[key] = text
+        elif isinstance(default, int) and not isinstance(default, bool):
+            out[key] = int(float(text))
         elif isinstance(default, tuple):
             values = tuple(float(x) for x in text.split(","))
             if len(values) != len(default):
@@ -121,7 +136,25 @@ def make_spec(overrides: dict) -> TaskSpec:
 
 
 OBS_LIDAR = SPEC.lidar_sectors
-OBS_DIM = OBS_LIDAR + 3 + 2  # lidar sectors, goal (dist, sin, cos), (v, w)
+
+
+def obs_dim(spec: TaskSpec = SPEC) -> int:
+    """lidar sectors, goal (dist, sin, cos), (v, w), then per intent robot a mask and its points."""
+    return spec.lidar_sectors + 3 + 2 + spec.intent_robots * (1 + 2 * spec.intent_points)
+
+
+def obs_names(spec: TaskSpec = SPEC) -> list[str]:
+    """Name of every observation entry, in order (for the policy export's policy_spec.json)."""
+    names = [f"lidar_sector_{i}" for i in range(spec.lidar_sectors)]
+    names += ["goal_dist", "goal_sin", "goal_cos", "v", "w"]
+    for r in range(spec.intent_robots):
+        names.append(f"robot{r}_present")
+        for k in range(spec.intent_points):
+            names += [f"robot{r}_p{k + 1}_x", f"robot{r}_p{k + 1}_y"]
+    return names
+
+
+OBS_DIM = obs_dim(SPEC)  # 41
 ACT_DIM = 2
 
 
@@ -175,10 +208,15 @@ def build_observation(
     vel: torch.Tensor,
     spec: TaskSpec = SPEC,
     lim: ActionLimits = ACTION_LIMITS,
+    intent: torch.Tensor | None = None,
+    intent_mask: torch.Tensor | None = None,
 ) -> torch.Tensor:
     """Observation vector, every entry roughly in [-1, 1]:
     [lidar sector / lidar_obs_max (36), goal dist / goal_obs_max, sin(bearing), cos(bearing),
-     v / v_max, w / w_max]."""
+     v / v_max, w / w_max], then for each of spec.intent_robots robots (nearest first):
+    [present (0/1), x1, y1, ..., xP, yP] with the route points (intent (N, R, P, 2), our robot
+    frame, m) / intent_obs_max clipped to [-1, 1]; an absent robot (intent_mask (N, R) false) is
+    all zeros."""
     lid = lidar_sectors(lidar_ranges, spec) / spec.lidar_obs_max
     g = torch.stack(
         (
@@ -189,7 +227,13 @@ def build_observation(
         dim=-1,
     )
     v = torch.stack((vel[:, 0] / lim.v_max, vel[:, 1] / lim.w_max), dim=-1)
-    return torch.cat((lid, g, v), dim=-1)
+    parts = [lid, g, v]
+    if spec.intent_robots:
+        m = intent_mask[:, : spec.intent_robots].float()
+        p = (intent[:, : spec.intent_robots] / spec.intent_obs_max).clamp(-1.0, 1.0)
+        p = p.flatten(2) * m[..., None]
+        parts.append(torch.cat((m[..., None], p), -1).flatten(1))
+    return torch.cat(parts, dim=-1)
 
 
 def is_success(goal_dist: torch.Tensor, spec: TaskSpec = SPEC) -> torch.Tensor:

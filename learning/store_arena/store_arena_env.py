@@ -31,6 +31,7 @@ sys.path.insert(0, os.path.join(HERE, "..", "goal_reach"))
 import arena_spec as arena  # noqa: E402
 import mover_spec as ms  # noqa: E402
 import numpy as np  # noqa: E402
+import robot_spec as rbs  # noqa: E402
 import route_spec as rs  # noqa: E402
 import task_spec as ts  # noqa: E402
 import torch  # noqa: E402
@@ -41,7 +42,10 @@ COLORS = {
     "shelf": (0.75, 0.55, 0.3),
     "obstacle": (0.2, 0.45, 0.8),
     "mover": (0.85, 0.2, 0.25),
+    "robot": (0.2, 0.7, 0.35),
 }
+# what a collision is put down to (the nearest of them at the collision step)
+HIT_KINDS = ("wall_shelf", "box", "mover", "robot")
 LIFT_M = 0.002  # obstacle boxes float this far above the floor (no floor contacts)
 
 
@@ -119,6 +123,31 @@ def mover_cfg(i: int, shape: ms.MoverShape) -> RigidObjectCfg:
     )
 
 
+def robot_park_xy(k: int) -> tuple[float, float]:
+    """Where an inactive scripted robot waits: behind the south wall, below the other slots."""
+    return (0.3 + 0.5 * k, -0.9)
+
+
+def robot_cfg(k: int) -> RigidObjectCfg:
+    """Scripted fleet robot k: a kinematic, gravity-free Pode-sized box moved every step."""
+    sx, sy, sz = rbs.ROBOT.size
+    x, y = robot_park_xy(k)
+    return RigidObjectCfg(
+        prim_path=f"{{ENV_REGEX_NS}}/fleet_robot_{k}",
+        spawn=sim_utils.CuboidCfg(
+            size=(sx, sy, sz),
+            rigid_props=[
+                sim_utils.UsdPhysicsRigidBodyCfg(kinematic_enabled=True),
+                PhysxRigidBodyCfg(disable_gravity=True),
+            ],
+            mass_props=sim_utils.MassCfg(mass=10.0),
+            collision_props=sim_utils.UsdPhysicsCollisionCfg(),
+            visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=COLORS["robot"]),
+        ),
+        init_state=RigidObjectCfg.InitialStateCfg(pos=(x, y, 0.5 * sz + LIFT_M)),
+    )
+
+
 @configclass
 class StoreArenaEnvCfg(GoalReachEnvCfg):
     # ArenaSpec fields to override (arena_spec.split_overrides); read when the env is built
@@ -140,6 +169,10 @@ class StoreArenaEnv(GoalReachEnv):
             setattr(cfg.scene, f"obstacle_{k}", obstacle_cfg(k, side, a.obstacle_height_m))
         for i, shape in enumerate(ms.MOVERS):
             setattr(cfg.scene, f"mover_{shape.name}", mover_cfg(i, shape))
+        for k in range(int(a.robot_max)):
+            setattr(cfg.scene, f"fleet_robot_{k}", robot_cfg(k))
+        self.graph = rbs.node_graph(site)
+        cfg.observation_space = ts.obs_dim(ts.make_spec(cfg.spec_overrides))
         cfg.scene.env_spacing = a.env_spacing
         cfg.episode_length_s = a.episode_s
         self._routes_ready = False
@@ -192,6 +225,37 @@ class StoreArenaEnv(GoalReachEnv):
         self.mover_wait = torch.zeros(len(ms.MOVERS), n, **f32)  # how long it has waited [s]
         self.mover_gap = torch.full((n,), float("inf"), **f32)
         self.last_ep_mover_gap = torch.full((n,), float("inf"), **f32)
+        # scripted fleet robots
+        g = self.graph
+        self.g_t = {
+            "xy": torch.as_tensor(g.xy, **f32),
+            "path": torch.as_tensor(g.path, **f32),
+            "npts": torch.as_tensor(g.npts, device=dev),
+        }
+        gi = {name: i for i, name in enumerate(g.names)}
+        # graph index of each route's start and goal node (-1: not a graph node, e.g. Q1)
+        self.r_sg_node = torch.tensor(
+            [[gi.get(r.node_names[s], -1), gi.get(r.node_names[e], -1)] for s, e in r.pairs],
+            device=dev,
+        ).repeat_interleave(r.layouts, 0)  # (R, 2)
+        nk = int(a.robot_max)
+        self.robot_objs = [self.scene[f"fleet_robot_{k}"] for k in range(nk)]
+        self.robot_park = torch.tensor([robot_park_xy(k) for k in range(nk)], **f32)
+        lay = rbs.chain_route(
+            self.g_t,
+            torch.zeros(n, int(a.robot_routes) + 1, dtype=torch.long, device=dev),
+            torch.ones(n, device=dev),
+            torch.zeros(n, int(a.robot_routes), device=dev),
+        )
+        self.robot_routes = [{k_: v.clone() for k_, v in lay.items()} for _ in range(nk)]
+        self.robot_active = torch.zeros(nk, n, dtype=torch.bool, device=dev)
+        self.robot_t = torch.zeros(nk, n, **f32)
+        self.robot_wait = torch.zeros(nk, n, **f32)
+        self.robot_back = torch.zeros(nk, n, **f32)
+        self.robot_gap_min = torch.full((n,), float("inf"), **f32)
+        self.last_ep_robot_gap = torch.full((n,), float("inf"), **f32)
+        self.hit_kind = torch.zeros(n, dtype=torch.long, device=dev)
+        self.last_ep_hit_kind = torch.zeros(n, dtype=torch.long, device=dev)
         self._routes_ready = True
 
     def sample_start(self, n: int) -> tuple[torch.Tensor, torch.Tensor]:
@@ -224,6 +288,8 @@ class StoreArenaEnv(GoalReachEnv):
             env_ids = torch.arange(self.num_envs, device=self.device)
         if self._routes_ready:
             self.last_ep_mover_gap[env_ids] = self.mover_gap[env_ids]
+            self.last_ep_robot_gap[env_ids] = self.robot_gap_min[env_ids]
+            self.last_ep_hit_kind[env_ids] = self.hit_kind[env_ids]
         super()._reset_idx(env_ids)
         if not self._routes_ready:
             return
@@ -246,6 +312,99 @@ class StoreArenaEnv(GoalReachEnv):
         self.mover_wait[:, env_ids] = 0.0
         self._write_movers(env_ids)
         self.mover_gap[env_ids] = self.mover_gaps(self.start_xy[env_ids], env_ids)  # at t = 0
+        self._sample_robots(env_ids, r)
+        self._write_robots(env_ids)
+        self.robot_gap_min[env_ids] = self.robot_gaps(self.start_xy[env_ids], env_ids)
+
+    def _sample_robots(self, env_ids, r) -> None:
+        """Route chains for env_ids: 0..robot_max robots, starting and stopping on graph nodes
+        other than our start and goal (and other robots' starts)."""
+        a, n, dev = self.arena, len(env_ids), self.device
+        nk = len(self.robot_objs)
+        count = torch.randint(0, nk + 1, (n,), device=dev)
+        banned = torch.zeros(n, len(self.graph.names), dtype=torch.bool, device=dev)
+        sg = self.r_sg_node[r]
+        for c in range(2):
+            ok = sg[:, c] >= 0
+            banned[ok.nonzero()[:, 0], sg[ok, c]] = True
+        lo, hi = a.robot_speed_scale
+        p0, p1 = a.robot_pause_s
+        legs = int(a.robot_routes)
+        for k in range(nk):
+            chain = rbs.sample_chains(self.g_t, n, legs, banned)
+            speed = rbs.ROBOT.speed * (lo + torch.rand(n, device=dev) * (hi - lo))
+            pause = p0 + torch.rand(n, legs, device=dev) * (p1 - p0)
+            route = rbs.chain_route(self.g_t, chain, speed, pause)
+            for key, v in route.items():
+                self.robot_routes[k][key][env_ids] = v
+            banned[torch.arange(n, device=dev), chain[:, 0]] = True
+            self.robot_active[k, env_ids] = k < count
+            self.robot_t[k, env_ids] = 0.0
+            self.robot_wait[k, env_ids] = 0.0
+            self.robot_back[k, env_ids] = 0.0
+
+    def robot_state(self, ids=None):
+        """Per scripted robot: position (n, 2), yaw (n,), active (n,); inactive ones parked."""
+        ids = slice(None) if ids is None else ids
+        out = []
+        for k, route in enumerate(self.robot_routes):
+            sub = {key: v[ids] for key, v in route.items()}
+            pos, yaw, _ = rbs.robot_pose(sub, self.robot_t[k, ids])
+            act = self.robot_active[k, ids]
+            pos = torch.where(act[:, None], pos, self.robot_park[k].expand_as(pos))
+            out.append((pos, yaw, act))
+        return out
+
+    def _write_robots(self, ids) -> None:
+        origins = self.scene.env_origins[ids]
+        for obj, (pos, yaw, _) in zip(self.robot_objs, self.robot_state(ids), strict=True):
+            pose = obj.data.default_root_pose.torch[ids].clone()
+            pose[:, :2] = origins[:, :2] + pos
+            z = torch.zeros_like(yaw)
+            pose[:, 3:7] = torch.stack((z, z, torch.sin(yaw / 2), torch.cos(yaw / 2)), -1)
+            obj.write_root_pose_to_sim_index(root_pose=pose, env_ids=ids)
+
+    def robot_gaps(self, xy: torch.Tensor, ids=None) -> torch.Tensor:
+        """(n,) our robot centre to the nearest active scripted robot's box; inf without one."""
+        gap = torch.full((len(xy),), float("inf"), device=self.device)
+        for pos, yaw, act in self.robot_state(ids):
+            gap = torch.where(act, torch.minimum(gap, rbs.robot_gap(xy, pos, yaw)), gap)
+        return gap
+
+    def robot_intent(self, xy, yaw):
+        """Fleet intent of the intent_robots nearest active robots, nearest first: route points
+        (n, R, P, 2) in our robot frame and a mask (n, R)."""
+        s = self.spec
+        pts, dist, act = [], [], []
+        for k, (pos, _, a_) in enumerate(self.robot_state()):
+            p = rbs.intent_points(
+                self.robot_routes[k], self.robot_t[k], s.intent_spacing_m, s.intent_points
+            )
+            pts.append(rbs.to_body(p, xy, yaw))
+            dist.append(torch.where(a_, (pos - xy).norm(dim=-1), torch.full_like(xy[:, 0], 1e9)))
+            act.append(a_)
+        n, r = len(xy), s.intent_robots
+        out_p = torch.zeros(n, r, s.intent_points, 2, device=self.device)
+        out_m = torch.zeros(n, r, dtype=torch.bool, device=self.device)
+        if pts and not self.arena.intent_ablate:
+            pts, dist, act = torch.stack(pts, 1), torch.stack(dist, 1), torch.stack(act, 1)
+            order = dist.argsort(1)[:, :r]
+            m = min(r, order.shape[1])
+            rows = torch.arange(n, device=self.device)[:, None]
+            out_p[:, :m] = pts[rows, order[:, :m]]
+            out_m[:, :m] = act[rows, order[:, :m]]
+        return out_p, out_m
+
+    def nearest_hit_kind(self, xy: torch.Tensor) -> torch.Tensor:
+        """(n,) index into HIT_KINDS of what is nearest to our robot centre."""
+        n = len(xy)
+        d_static = ms.point_rect_distance(xy[:, None], self.static_rects.expand(n, -1, -1))[:, 0]
+        sizes = torch.tensor(self.routes.obstacle_sizes, device=self.device)
+        bxy = self.r_obstacle[self.route]
+        half = 0.5 * sizes[None, :, None]
+        d_box = ms.point_rect_distance(xy[:, None], torch.cat((bxy - half, bxy + half), -1))[:, 0]
+        d = torch.stack((d_static, d_box, self.mover_gaps(xy), self.robot_gaps(xy)), -1)
+        return d.argmin(-1)
 
     def _sample_movers(self, env_ids, r, chunk: int = 256) -> None:
         """New legs for env_ids (routes r), avoiding walls, shelves and the route's boxes."""
@@ -323,7 +482,23 @@ class StoreArenaEnv(GoalReachEnv):
                 )
                 self.mover_held[i] = t == self.mover_t[i]
                 self.mover_t[i] = t
-            self._write_movers(torch.arange(self.num_envs, device=self.device))
+            all_ids = torch.arange(self.num_envs, device=self.device)
+            self._write_movers(all_ids)
+            a = self.arena
+            for k, route in enumerate(self.robot_routes):
+                self.robot_t[k], self.robot_wait[k], self.robot_back[k] = rbs.robot_step(
+                    route,
+                    self.robot_t[k],
+                    self.robot_wait[k],
+                    self.robot_back[k],
+                    self.step_dt,
+                    xy,
+                    a.robot_yield_m,
+                    a.robot_wait_s,
+                    a.robot_backoff_s,
+                )
+            if self.robot_objs:
+                self._write_robots(all_ids)
 
     def obstacle_xy(self) -> torch.Tensor:
         """(N, slots, 2) obstacle box centres in the env frame (parked ones included)."""
@@ -334,6 +509,8 @@ class StoreArenaEnv(GoalReachEnv):
         xy, yaw = self.robot_pose()
         self._follow(torch.arange(self.num_envs, device=self.device), xy, yaw)
         self.mover_gap = torch.minimum(self.mover_gap, self.mover_gaps(xy))
+        self.robot_gap_min = torch.minimum(self.robot_gap_min, self.robot_gaps(xy))
+        self.hit_kind = self.nearest_hit_kind(xy)
         self.success, self.collided, self.oob = ts.episode_outcome(
             self.d_goal, self.max_contact_force(), xy, self.start_xy, self.spec
         )
@@ -345,8 +522,19 @@ class StoreArenaEnv(GoalReachEnv):
 
     def _get_observations(self) -> dict:
         if not self._routes_ready:
-            return super()._get_observations()
+            obs = super()._get_observations()["policy"]
+            pad = ts.obs_dim(self.spec) - obs.shape[1]  # no intent before the routes exist
+            return {"policy": torch.cat((obs, obs.new_zeros(obs.shape[0], pad)), -1)}
+        intent = mask = None
+        if self.spec.intent_robots:
+            intent, mask = self.robot_intent(*self.robot_pose())
         obs = ts.build_observation(
-            self.lidar_ranges(), self.la_dist, self.la_ang, self.body_velocity(), self.spec
+            self.lidar_ranges(),
+            self.la_dist,
+            self.la_ang,
+            self.body_velocity(),
+            self.spec,
+            intent=intent,
+            intent_mask=mask,
         )
         return {"policy": obs}

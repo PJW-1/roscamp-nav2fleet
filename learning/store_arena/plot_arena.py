@@ -225,6 +225,11 @@ def plot_traj(out: str, src: str, episodes: int = 1) -> None:
                     if z["mover_on"][start, e, m]:
                         mt = z["mover_xy"][start:end, e, m]
                         ax.plot(mt[:, 0], mt[:, 1], color="#d6336c", lw=2.5, alpha=0.35)
+            if "robot_xy" in z.files:  # scripted fleet robot tracks (stage 4c)
+                for m in range(z["robot_xy"].shape[2]):
+                    if z["robot_on"][start, e, m]:
+                        mt = z["robot_xy"][start:end, e, m]
+                        ax.plot(mt[:, 0], mt[:, 1], color="#1f9e6a", lw=2.5, alpha=0.35)
             ax.plot(seg[:-1, 0], seg[:-1, 1], color="#eb6834", lw=1.4)
             ax.plot(*p[0], "o", color="#1baf7a", ms=4)
             ax.add_patch(Circle(p[-1], 0.05, fill=False, color="#e34948", lw=1))
@@ -322,6 +327,10 @@ def plot_anim(out: str, src: str, env: int = 0, seconds: float = 30.0) -> None:
         for m, shape in enumerate(M.MOVERS):
             if z["mover_on"][k, env, m]:
                 ax.add_patch(Circle(z["mover_xy"][k, env, m], shape.radius, color="#d6336c"))
+        if "robot_xy" in z.files:  # scripted fleet robots, as their clearance circles
+            for m in range(z["robot_xy"].shape[2]):
+                if z["robot_on"][k, env, m]:
+                    ax.add_patch(Circle(z["robot_xy"][k, env, m], 0.082, color="#1f9e6a"))
         start = k
         while start > 0 and not done[start - 1] and not new_ep:
             start -= 1
@@ -333,7 +342,7 @@ def plot_anim(out: str, src: str, env: int = 0, seconds: float = 30.0) -> None:
         ax.set_aspect("equal")
         ax.set_xticks([])
         ax.set_yticks([])
-        ax.set_title(f"t {k * dt:4.1f} s   (movers drawn as their clearance circles)", fontsize=8)
+        ax.set_title(f"t {k * dt:4.1f} s   (movers red, robots green)", fontsize=8)
 
     FuncAnimation(fig, draw, frames=steps // every).save(out, writer=PillowWriter(fps=10))
     print(f"wrote {out}")

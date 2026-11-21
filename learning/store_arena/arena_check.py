@@ -16,6 +16,10 @@ so run them with --set obstacle_max=0. scene, contact, crossenv and reset park t
 (mover_prob 0) unless --set mover_prob is given: their expected scans have no movers.
   mover     movers follow their legs (sim pose vs mover_spec), the lidar sees the person, and
             driving into a mover that has stopped is a collision
+  robot     scripted fleet robots (robot_max 2, movers parked) follow their routes (sim pose vs
+            robot_spec), the lidar sees them, the intent mask counts them (with --set
+            intent_robots=2), and driving into a robot that is held still is a collision put down
+            to a robot
 
 Writes <out>/<mode>.json (and scene_topdown.png with --render). Run from D:\\isaac\\IsaacLab:
   .venv/Scripts/python.exe <repo>/learning/store_arena/arena_check.py --mode scene --num_envs 64 \
@@ -36,7 +40,7 @@ from isaaclab.app import add_launcher_args, launch_simulation
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument(
     "--mode",
-    choices=("scene", "contact", "crossenv", "reset", "obstacle", "mover"),
+    choices=("scene", "contact", "crossenv", "reset", "obstacle", "mover", "robot"),
     required=True,
 )
 parser.add_argument("--num_envs", type=int, default=4)
@@ -81,6 +85,9 @@ def main():
     if args_cli.mode in ("scene", "contact", "crossenv", "reset"):
         # their expected scans have no movers: movers stay parked unless asked for explicitly
         arena_over.setdefault("mover_prob", 0.0)
+    if args_cli.mode == "robot":
+        arena_over.setdefault("robot_max", 2)
+        arena_over.setdefault("mover_prob", 0.0)  # the expected scans have no movers
     env_cfg = sae.StoreArenaEnvCfg()
     env_cfg.scene.num_envs = args_cli.num_envs
     env_cfg.spec_overrides = task_over
@@ -745,6 +752,134 @@ def main():
                 and report["boxes_put_back_max_err_m"] < 1e-3
                 and len(ids) >= 0.8 * report["envs_with_a_box"]
                 and bool(ok.all())
+                and len(g) > 0
+                and float(g.max()) < 0.10
+            )
+
+        elif mode == "robot":
+            import numpy as np
+            import robot_spec as rbs_
+            import route_spec as rs_
+
+            n = env.num_envs
+            stop = action(0.0)
+            err, hit_standing, mask_bad = 0.0, 0, 0
+            seen = []  # (sim range, nearest, farthest possible) on the ray toward a robot
+            org = env.scene.env_origins[:, :2]
+            half = 0.5 * min(rbs_.ROBOT.size[:2])
+            for k in range(100):  # 5 s standing; robots drive, but wait for our robot
+                obs, _, _, _, _ = env.step(stop)
+                hit_standing += int(env.collided.sum())
+                st = env.robot_state()
+                for obj, (pos, _, _) in zip(env.robot_objs, st, strict=True):
+                    sim_xy = obj.data.root_pos_w.torch[:, :2] - org
+                    err = max(err, float((sim_xy - pos).norm(dim=-1).max()))
+                if env.spec.intent_robots:  # present flags = active robots (up to intent_robots)
+                    names = sae.ts.obs_names(env.spec)
+                    cols = [names.index(f"robot{r}_present") for r in range(env.spec.intent_robots)]
+                    present = obs["policy"][:, cols].sum(-1)
+                    active = torch.stack([a for _, _, a in st], -1).sum(-1)
+                    want = active.clamp(max=env.spec.intent_robots).float()
+                    mask_bad += int((present != want).sum())
+                if k % 10 == 9:
+                    rp, ryaw = env.robot_pose()
+                    c = lidar_center(rp, ryaw)
+                    rows = torch.arange(n, device=env.device)
+                    lid = env.lidar_ranges()
+                    exp_all = expected_scan(rp, ryaw)  # walls, shelves, boxes
+                    for m, (pos, _, act) in enumerate(st):
+                        d = (pos - c).norm(dim=-1)
+                        bearing = torch.atan2(pos[:, 1] - c[:, 1], pos[:, 0] - c[:, 0]) - ryaw
+                        i = torch.remainder(torch.round(torch.rad2deg(bearing)) + 180, 360).long()
+                        other_far = torch.ones_like(act)
+                        for m2, (p2, _, a2) in enumerate(st):
+                            if m2 != m:
+                                other_far &= ~a2 | ((p2 - c).norm(dim=-1) > d + 0.2)
+                        ok = act & (exp_all[rows, i] > d + 0.1) & other_far & (d < 1.8)
+                        near, far = d - rbs_.ROBOT.radius, d - half
+                        seen.append(torch.stack((lid[rows, i][ok], near[ok], far[ok]), -1))
+            report["robot_pose_err_max_m"] = round(err, 6)
+            report["standing_robots_hit_by_robots"] = hit_standing
+            report["intent_present_flags_wrong"] = mask_bad
+            t_ = torch.cat(seen)
+            out = (t_[:, 1] - t_[:, 0]).clamp(min=0) + (t_[:, 0] - t_[:, 2]).clamp(min=0)
+            report["robot_rays_compared"] = len(t_)
+            ray_ok = len(t_) > 0
+            if len(t_):
+                report["robot_ray_outside_band_m"] = {
+                    "max": round(float(out.max()), 4),
+                    "p99": round(float(out.quantile(0.99)), 4),
+                }
+                ray_ok = float(out.quantile(0.99)) < 0.01
+            st = env.robot_state()
+            report["robot_active_share"] = [round(float(a.float().mean()), 3) for _, _, a in st]
+            # collision: hold every robot where it is, put our robot 0.20 m from a face of the
+            # first active robot with a free strip, drive at 0.25 m/s
+            sae.rbs.robot_step = lambda route, t, wait, back, *a_: (t, wait, back)
+            static = rects.cpu().numpy()
+            obst = env.obstacle_xy().cpu().numpy()
+            sz = np.array(env.routes.obstacle_sizes)
+            ids, starts, yaws = [], [], []
+            for e in range(n):
+                act_k = [k for k in range(len(st)) if bool(st[k][2][e])]
+                if not act_k:
+                    continue
+                k = act_k[0]
+                centre = st[k][0][e].cpu().numpy()
+                ryaw0 = float(st[k][1][e])
+                world = list(static) + [rs_.box_rect(obst[e, j], sz[j]) for j in range(len(sz))]
+                for k2 in act_k[1:]:
+                    world.append(rs_.box_rect(st[k2][0][e].cpu().numpy(), 0.17))
+                world = np.array(world)
+                for q in range(4):
+                    ang = ryaw0 + q * math.pi / 2
+                    u = np.array((math.cos(ang), math.sin(ang)))
+                    face = rbs_.ROBOT.size[q % 2] / 2
+                    pnt = centre - u * (face + 0.20)
+                    a_, b_ = pnt - u * 0.09, centre - u * face
+                    w = STRIP_HALF_M * np.abs(u[::-1])
+                    strip = np.concatenate((np.minimum(a_, b_) - w, np.maximum(a_, b_) + w))
+                    if not rs_.rects_overlap(strip, world):
+                        ids.append(e)
+                        starts.append(pnt)
+                        yaws.append(ang)
+                        break
+            n_with = int(torch.stack([a for _, _, a in st], -1).any(-1).sum())
+            report["envs_with_a_robot"] = n_with
+            report["envs_driven"] = len(ids)
+            place(ids, np.array(starts), yaws)
+            tested = torch.zeros(n, dtype=torch.bool, device=env.device)
+            tested[ids] = True
+            act_ = torch.where(tested[:, None], action(0.25), stop)
+            first = torch.full((n,), -1, dtype=torch.long, device=env.device)
+            gap_at = torch.full((n,), float("nan"), device=env.device)
+            kind_at = torch.full((n,), -1, dtype=torch.long, device=env.device)
+            for k in range(60):
+                rp, _ = env.robot_pose()
+                g = env.robot_gaps(rp)
+                env.step(act_)
+                hit = env.collided & tested & (first < 0)
+                first[hit] = k + 1
+                gap_at[hit] = g[hit]
+                kind_at[hit] = env.hit_kind[hit]
+            t_ids = torch.tensor(ids, device=env.device, dtype=torch.long)
+            ok = first[t_ids] > 0
+            g = gap_at[t_ids][ok]
+            report["collided"] = int(ok.sum())
+            report["collisions_put_down_to_robot"] = int((kind_at[t_ids][ok] == 3).sum())
+            if len(g):
+                report["centre_to_robot_surface_before_collision_m"] = [
+                    round(float(g.min()), 4),
+                    round(float(g.max()), 4),
+                ]
+            report["pass"] = (
+                err < 1e-3
+                and ray_ok
+                and hit_standing == 0
+                and mask_bad == 0
+                and len(ids) >= 0.8 * n_with
+                and bool(ok.all())
+                and report["collisions_put_down_to_robot"] == len(ids)
                 and len(g) > 0
                 and float(g.max()) < 0.10
             )

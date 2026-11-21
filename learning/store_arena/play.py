@@ -78,7 +78,10 @@ def main():
         succ_times, succ_ratio, lidar_min = [], [], float("inf")
         K = min(args_cli.track, n)
         traj = {"xy": [], "done": [], "route": [], "cmd": [], "mover_xy": [], "mover_on": []}
-        gaps, codes = [], []  # per counted episode: smallest mover gap, outcome index
+        traj.update(robot_xy=[], robot_on=[])
+        # per counted episode: smallest mover gap, smallest scripted-robot gap, outcome index,
+        # what the collision is put down to
+        gaps, rgaps, codes, hits = [], [], [], []
         obs = env.get_observations()
         route = raw.route.clone()
         step = 0
@@ -102,6 +105,8 @@ def main():
                     for k, o in zip(keys, outs, strict=True):
                         row[k] += int((o & sel).sum())
                 gaps += raw.last_ep_mover_gap[counted].tolist()
+                rgaps += raw.last_ep_robot_gap[counted].tolist()
+                hits += raw.last_ep_hit_kind[counted].tolist()
                 code = torch.stack(outs, -1).float().argmax(-1)
                 codes += code[counted].tolist()
                 s = raw.success & counted
@@ -118,6 +123,9 @@ def main():
             ms_state = raw.mover_state()
             traj["mover_xy"].append(torch.stack([m[0][:K] for m in ms_state], 1).cpu().numpy())
             traj["mover_on"].append(torch.stack([m[3][:K] for m in ms_state], 1).cpu().numpy())
+            rb = raw.robot_state() or [(pos * 0 + 9.0, None, pos[:, 0] < -1)]  # none: one absent
+            traj["robot_xy"].append(torch.stack([b[0][:K] for b in rb], 1).cpu().numpy())
+            traj["robot_on"].append(torch.stack([b[2][:K] for b in rb], 1).cpu().numpy())
             route = raw.route.clone()
             if bool((ep_done >= E).all()):
                 break
@@ -126,16 +134,24 @@ def main():
                 break
 
         total = {k: sum(r[k] for r in by_boxes.values()) for k in keys}
-        gaps, codes = np.array(gaps), np.array(codes)
-        bins = {"no mover": np.isinf(gaps)}
-        edges = (-np.inf, 0.10, 0.25, 0.50, np.inf)  # below 0: centre inside a person
-        for lo, hi in zip(edges[:-1], edges[1:], strict=True):
-            bins[f"gap {lo:.2f}-{hi:.2f} m"] = (gaps >= lo) & (gaps < hi) & ~np.isinf(gaps)
-        by_gap = {}
-        for name, sel in bins.items():
-            row = {k: int(((codes == i) & sel).sum()) for i, k in enumerate(keys)}
-            row["success_rate"] = round(row["success"] / max(int(sel.sum()), 1), 4)
-            by_gap[name] = row
+        gaps, rgaps, codes = np.array(gaps), np.array(rgaps), np.array(codes)
+
+        def split_by_gap(g, none_label):
+            bins = {none_label: np.isinf(g)}
+            edges = (-np.inf, 0.10, 0.25, 0.50, np.inf)  # below 0: centre inside a person
+            for lo, hi in zip(edges[:-1], edges[1:], strict=True):
+                bins[f"gap {lo:.2f}-{hi:.2f} m"] = (g >= lo) & (g < hi) & ~np.isinf(g)
+            out = {}
+            for name, sel in bins.items():
+                row = {k: int(((codes == i) & sel).sum()) for i, k in enumerate(keys)}
+                row["success_rate"] = round(row["success"] / max(int(sel.sum()), 1), 4)
+                out[name] = row
+            return out
+
+        by_gap = split_by_gap(gaps, "no mover")
+        hits = np.array(hits)
+        coll = codes == keys.index("collision")
+        by_hit = {kind: int((coll & (hits == i)).sum()) for i, kind in enumerate(sae.HIT_KINDS)}
         n_ep = max(sum(total.values()), 1)
         report = {
             "checkpoint": args_cli.checkpoint,
@@ -147,6 +163,9 @@ def main():
                 for b, r in sorted(by_boxes.items())
             },
             "by_mover_gap": by_gap,
+            "by_robot_gap": split_by_gap(rgaps, "no robot"),
+            # nearest of walls/shelves, boxes, movers, robots to our robot centre at the collision
+            "collisions_by_nearest": by_hit,
             "success_time_s_mean": round(float(np.mean(succ_times)), 2) if succ_times else None,
             "success_time_s_p90": round(float(np.percentile(succ_times, 90)), 2)
             if succ_times
