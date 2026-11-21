@@ -34,15 +34,16 @@ def classify(z, episode_s=30.0, window_s=10.0, near_m=0.35, still_m=0.05):
         for s, t in episodes(z["done"][:, e]):
             if t - s + 1 < full:  # ended before the time limit: not a timeout
                 continue
-            a = max(s, t - w + 1)
-            us = z["xy"][a : t + 1, e]
+            # the done step t already shows the next episode's reset pose: leave it out
+            a = max(s, t - w)
+            us = z["xy"][a:t, e]
             kind = "alone"
             moved_us = float(np.linalg.norm(us[-1] - us[0]))
             if "robot_xy" in z.files:
                 for r in range(z["robot_xy"].shape[2]):
                     if not z["robot_on"][s, e, r]:
                         continue
-                    rx = z["robot_xy"][a : t + 1, e, r]
+                    rx = z["robot_xy"][a:t, e, r]
                     if np.linalg.norm(rx - us, axis=-1).min() >= near_m:
                         continue
                     moved = np.linalg.norm(np.diff(rx, axis=0), axis=-1).sum()
@@ -51,7 +52,7 @@ def classify(z, episode_s=30.0, window_s=10.0, near_m=0.35, still_m=0.05):
             if kind == "alone" and "mover_xy" in z.files:
                 for m in range(z["mover_xy"].shape[2]):
                     on = z["mover_on"][s, e, m]
-                    mx = z["mover_xy"][a : t + 1, e, m]
+                    mx = z["mover_xy"][a:t, e, m]
                     if on and np.linalg.norm(mx - us, axis=-1).min() < near_m:
                         kind = "mover"
             out.append(
