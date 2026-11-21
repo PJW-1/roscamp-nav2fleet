@@ -1,0 +1,7 @@
+<class_libraries>
+  <library path="pode_rl_controller">
+    <class type="pode_rl_controller::FollowPathRL" base_class_type="nav2_core::Controller">
+      <description>RL driving policy (ONNX) as a Nav2 controller</description>
+    </class>
+  </library>
+</class_libraries>
