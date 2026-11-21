@@ -71,7 +71,12 @@ O_OUT 설명). 지도 모양과 keepout 생성기는 건드리지 않았다.
 
 - 비슷한 띠가 다른 도크 노드에도 있을 수 있으나 이 규칙은 노드가 도크 노드이면 모두 막으므로
   같은 꼴은 함께 막힌다. 반대로, 넓은 구역 노드에서 0.15 안이면서 다른 도크의 keepout 띠 안인
-  자리(예: O_IN (0.49, 0.625) 위쪽, OUT_DOCK에서 0.14)에서 고정 경로를 끊고 nav_goal을 주는 경우는
-  그대로다. 지금 out_in 위의 로봇은 호출로 목적이 바뀌지 않아(`_redirect`는 TO_OUTBOUND를
-  돌리지 않는다) 이 갈래를 타지 않는다.
+  자리에서 고정 경로를 끊고 nav_goal을 주는 경우는 그대로다(열린 결함). 예: 출고 들어가는 고정
+  경로 out_in(O_IN (0.49, 0.625) -> (0.40, 0.868)) 위 y 0.705~0.765 부분은 HALL 안, O_IN에서
+  0.085~0.13, OUT_DOCK keepout 안이다. 자동 호출은 TO_OUTBOUND를 돌리지 않지만(`_redirect`),
+  명시 출고 배차를 그 자리에서 취소하면 `on_dispatch_cancel` -> `_head_for(TO_PARK)`로 route가
+  stale이 되어 같은 꼴로 끊길 수 있다(Codex 리뷰 지적, 지도 좌표로 확인함. 시험으로 재현하지는 않았다).
+  막으려면 후보 2(위치가 keepout 밖일 때만 끊기)가 필요한데, 그러면 d2의
+  `test_a_purpose_changed_and_changed_back_still_arrives_at_the_dock[order_on]`에 고정된 동작(N_W를
+  지난 고정 경로를 끊고 다시 보내기)이 바뀐다. 어느 쪽을 지킬지는 사용자가 정할 일로 남긴다.
 - Gazebo로 다시 확인하지 않았다(다른 작업이 GPU를 쓴다).
