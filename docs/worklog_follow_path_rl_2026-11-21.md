@@ -17,7 +17,7 @@
 ### 1.1 플러그인 한 주기(20 Hz)
 
 1. 부모 노드(controller_server)로 직접 받은 최신 `scan`을 꺼낸다. 없거나 0.5 s보다 오래되면 `ControllerException`.
-2. 경로를 TF로 `base_footprint` 틀로 옮겨 목표점을 정한다(`goal_rule`: 경로 끝 또는 경로 위 `lookahead_dist` 앞의 점).
+2. 경로를 TF로 `base_footprint` 틀로 옮겨 목표점을 정한다(`goal_rule`: 경로 끝, 또는 로봇에서 가장 가까운 경로 점부터 앞으로 가며 로봇에서 직선거리가 `lookahead_dist` 이상인 첫 점. 그런 점이 없으면 경로 끝).
 3. 경로 끝이 goal checker의 xy 허용치 안이면 정책을 부르지 않고 끝 방향으로 제자리 회전(ω = 1.5 × 방향 오차, ±w_max).
 4. 아니면 스캔 → 광선 360개 → 관측 41개 → ORT → 행동 2개 → `action_to_target` → 속도 제한(`setSpeedLimit`) → `rate_limit`(학습과 같은 dt 0.05 s).
 5. 1 s마다 INFO 한 줄: 호출 수, 추론·호출 시간(평균, 최대), 목표 거리·각도, 행동, 명령.
@@ -85,17 +85,36 @@ Summary: 7 tests, 0 errors, 0 failures, 0 skipped
 
 ### 3.2 Gazebo
 
-명령(`ROS_DOMAIN_ID=62`, `GZ_PARTITION=rl_plugin_62`, 무거운 실행 잠금을 잡고):
+재현 순서. 모든 터미널에 `export ROS_DOMAIN_ID=62 GZ_PARTITION=rl_plugin_62 GZ_IP=127.0.0.1 ROS_AUTOMATIC_DISCOVERY_RANGE=LOCALHOST`을 두고, 무거운 실행 잠금을 잡은 뒤 한다.
 
-```bash
-ros2 launch fleet_gz_sim one_pode.launch.py gui:=false rviz:=false fsm:=false keepout:=false \
-  scan_filter:=false start:=P-3 nav_log_level:=info nav_overrides:=<follow_path_rl.yaml + AMCL 멈춤>
-gz service -s /world/arena/set_pose ... 'name: "pode1", position: {x: 0.64, y: -4.0}'   # 경기장 밖
-ros2 topic pub --qos-durability transient_local --qos-reliability reliable -r 2 \
-  /pode1/controller_selector std_msgs/msg/String "{data: FollowPathRL}"
-ros2 action send_goal /pode1/navigate_to_pose nav2_msgs/action/NavigateToPose \
-  "{pose: {header: {frame_id: map}, pose: {position: {x: 1.40, y: 0.20}, orientation: {w: 1.0}}}}"
-```
+1. 확인용 덮어쓰기 파일 `/tmp/rl_check.yaml`을 만든다: `sim/fleet_gz_sim/nav_overrides/follow_path_rl.yaml`을 그대로 복사하고 끝에 아래를 더한다.
+   ```yaml
+   amcl:
+     ros__parameters:
+       update_min_d: 100.0
+       update_min_a: 100.0
+   ```
+2. 터미널 A(계속 돈다):
+   ```bash
+   ros2 launch fleet_gz_sim one_pode.launch.py gui:=false rviz:=false fsm:=false keepout:=false \
+     scan_filter:=false start:=P-3 nav_log_level:=info nav_overrides:=/tmp/rl_check.yaml
+   ```
+3. 터미널 B, 로그에 `Managed nodes are active`가 나온 뒤 로봇을 경기장 밖으로 옮긴다:
+   ```bash
+   gz service -s /world/arena/set_pose --reqtype gz.msgs.Pose --reptype gz.msgs.Boolean --timeout 5000 \
+     --req 'name: "pode1", position: {x: 0.64, y: -4.0, z: 0.02}, orientation: {z: 0.7071068, w: 0.7071068}'
+   ```
+4. 터미널 C(계속 돈다, goal 동안 켜 둔다): 
+   ```bash
+   ros2 topic pub --qos-durability transient_local --qos-reliability reliable -r 2 \
+     /pode1/controller_selector std_msgs/msg/String "{data: FollowPathRL}"
+   ```
+5. 터미널 B:
+   ```bash
+   ros2 action send_goal /pode1/navigate_to_pose nav2_msgs/action/NavigateToPose \
+     "{pose: {header: {frame_id: map}, pose: {position: {x: 1.40, y: 0.20}, orientation: {w: 1.0}}}}"
+   ```
+6. 되돌리기: 터미널 C를 Ctrl-C로 끄고 같은 명령을 `{data: FollowPathGoal}`로 다시 띄운 뒤, 터미널 B에서 goal `{x: 0.90, y: 0.20}`, 방향 `{z: 1.0, w: 0.0}`을 보낸다. 끝나면 모든 터미널을 끄고 잠금을 푼다.
 
 경기장 밖으로 옮긴 까닭과 방법: v7 경기장은 안쪽이 1.9 × 0.9 m라 어디서든 2 m 안에 벽이 보인다. 빈 바닥 정책은 그런 관측을 본 적이 없다(5절). 그래서 Nav2가 P-3(0.64, 0.10)에서 떠서 위치를 잡은 뒤 Gazebo에서 로봇만 (0.64, −4.0)으로 옮겼다. 바퀴 odom은 순간 이동을 모르므로 Nav2는 계속 P-3 둘레에 있다고 믿고 지도 위에서 경로를 짜고, 실제 로봇은 벽이 3.9 m 떨어진 빈 바닥을 같은 모양으로 달린다. AMCL이 옮겨진 스캔을 쫓지 않게 이번 확인에만 `update_min_d`, `update_min_a`를 100으로 덮었다(이 값은 저장소에 넣지 않았다). 옮긴 뒤 스캔: `frame rplidar_link n 640 angle_min -3.1416 inc 0.009833`, 맞은 빔 53개, 최솟값 3.93 m(모두 2.0 m로 들어감).
 
@@ -173,7 +192,7 @@ Codex 검토(0aeffaa..3ffb097)에서 [확정] 넷:
 
 **숫자 읽는 법.**
 - 패리티 "max |diff|": 같은 입력에 두 구현이 낸 값의 가장 큰 차이. float32 한 칸은 1 근처에서 1.2e-7이라 관측의 5e-8은 "반올림만 다르다"는 뜻이다. 추론 1.5e-5는 행동 크기 34에서 난 것이라 상대로는 4.5e-7이다.
-- 로그 한 줄 `20 calls, infer mean 50 max 83 us, call mean 116 max 202 us | policy goal 0.481 m at -0.09 rad ... act (1.31, -0.25) cmd v 0.250 w -0.316`: 지난 1 s 동안 20번 불렸고, 목표까지 0.48 m, 거의 정면(−0.09 rad), 정책 행동 v 쪽 1.31은 자르면 1.0 → v_max 0.25 m/s다. ω가 −1.0이 아니라 −0.316인 것은 가속 제한(한 주기 0.1 rad/s) 때문에 목표를 따라가는 중이어서다.
+- 로그 한 줄 `20 calls, infer mean 50 max 83 us, call mean 116 max 202 us | policy goal 0.481 m at -0.09 rad ... act (1.31, -0.25) cmd v 0.250 w -0.316`: 지난 1 s 동안 20번 불렸고, 목표까지 0.48 m, 거의 정면(−0.09 rad), 정책 행동 v 쪽 1.31은 자르면 1.0 → v_max 0.25 m/s다. ω 쪽 −0.25는 목표 ω −0.25 rad/s이고, 명령이 −0.316인 것은 1 s 전의 −1.0에서 가속 제한(한 주기 0.1 rad/s)으로 −0.25 쪽으로 다가가는 중이어서다.
 - `act`가 ±1을 넘으면(예: −2.24) 정책이 자르기 경계 밖을 내고 있다는 뜻이다. 빈 바닥(라이다 모두 2.0)에서도 −2.24가 나왔으니 이 정책은 원래 경계 밖을 내고 자르기에 기대어 "최대로"를 표현한다. 라이다 입력이 학습 범위를 벗어나면 이 값이 수십~백으로 커진다(5절).
 
 **스스로 점검.**
@@ -183,7 +202,7 @@ Codex 검토(0aeffaa..3ffb097)에서 [확정] 넷:
 
 ## 8. 직접 해 볼 것
 
-`goal_rule`을 `lookahead`로 바꿔 같은 goal을 다시 몰아 보고, 로그의 `goal ... m`이 경로 끝 거리(`end`)와 어떻게 다른지 본다. 덮어쓰기 파일의 `goal_rule: "path_end"`를 `"lookahead"`로 고치고(`lookahead_dist: 0.4`) 3.2의 명령을 그대로 쓴다. 빈 바닥 정책은 1~2 m 목표로 배웠으니 0.4 m 앞 점을 쫓으면 늘 "가까운 목표"를 보게 된다. 속도(`cmd v`)가 경로 끝 규칙 때와 어떻게 달라지는지 적어 둔다. 그 차이가 매장 정책을 앞보기 점으로 학습해야 하는 까닭이다.
+`goal_rule`을 `lookahead`로 바꿔 같은 goal을 다시 몰아 보고, 로그의 `goal ... m`이 경로 끝 거리(`end`)와 어떻게 다른지 본다. 덮어쓰기 파일의 `goal_rule: "path_end"`를 `"lookahead"`로 고치고(`lookahead_dist: 0.4`, 직선거리 기준이라 굽은 경로에서는 경로를 따라 0.4 m 앞선 점과 다를 수 있다) 3.2의 재현 순서를 그대로 따른다. 빈 바닥 정책은 1~2 m 목표로 배웠으니 0.4 m 앞 점을 쫓으면 늘 "가까운 목표"를 보게 된다. 속도(`cmd v`)가 경로 끝 규칙 때와 어떻게 달라지는지 적어 둔다. 그 차이가 매장 정책을 앞보기 점으로 학습해야 하는 까닭이다.
 
 ## 9. 남은 일
 
