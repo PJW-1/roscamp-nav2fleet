@@ -200,11 +200,14 @@ def test_route_vertices_know_their_nodes_and_goals():
         assert r["pts"][0, v].tolist() == pytest.approx(g.xy[node].tolist())
     goals = [pts_node[v] for v in range(len(pts_node)) if r["is_goal"][0, v]]
     assert set(goals) == {a, c} and b not in goals and d not in goals
-    # robot_nodes: in the link A -> B it holds A and has B next; pausing at C it holds C only
-    cur, nxt = RS.robot_nodes(r, torch.tensor([5.0]))
-    assert (cur.item(), nxt.item()) == (a, b)
-    cur, nxt = RS.robot_nodes(r, torch.tensor([20.5]))
-    assert (cur.item(), nxt.item()) == (c, -1)
+    # robot_nodes: in the link A -> B it holds A, B and, as it only passes B, C too (so it
+    # never has to stop on B); in the link B -> C it holds B and its goal C; pausing at C, C only
+    held = RS.robot_nodes(r, torch.tensor([5.0]))
+    assert [h.item() for h in held] == [a, b, c]
+    held = RS.robot_nodes(r, torch.tensor([15.0]))
+    assert [h.item() for h in held] == [b, c, -1]
+    held = RS.robot_nodes(r, torch.tensor([20.5]))
+    assert [h.item() for h in held] == [c, -1, -1]
 
 
 def _run(r, blocked, steps=400, our=(9.0, 9.0)):
@@ -240,8 +243,7 @@ def test_waiting_robot_holds_only_the_node_it_waits_at():
     for _ in range(400):
         t, wait, back = RS.robot_step(r, t, wait, back, 0.05, torch.tensor([[9.0, 9.0]]), 0.25,
                                       3.0, 2.0, blocked=blocked)
-    cur, nxt = RS.robot_nodes(r, t)
-    assert (cur.item(), nxt.item()) == (b, -1)
+    assert [h.item() for h in RS.robot_nodes(r, t)] == [b, -1, -1]
 
 
 def test_no_yield_stop_on_a_taken_node():

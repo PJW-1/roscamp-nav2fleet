@@ -165,14 +165,18 @@ def route_nodes_held(node_arc: torch.Tensor, done_arc: torch.Tensor, release_m: 
 
 
 def robot_nodes(route: dict, t: torch.Tensor):
-    """Nodes a robot holds at clock t: the node it is at or last left (n,), and the node at the
-    end of the link it is driving (n,; -1 when it stands at a node)."""
+    """Nodes a robot holds at clock t, each (n,), -1 for none: the node it is at or last left;
+    the end of the link it is driving; and when it only passes that end (no goal), the node after
+    it, so it never has to stop on a node it passes (robot_step lets it in only when free)."""
     _, i = _interp(route["time"], t, route["arc"][..., None])
     rows = torch.arange(len(t), device=t.device)
     moving = (route["pts"][rows, i] - route["pts"][rows, i - 1]).norm(dim=-1) > 1e-6
     in_link = moving & (t > route["time"][rows, i - 1] + 1e-6)
     cur = route["vnode"][rows, i - 1]
-    return cur, torch.where(in_link, route["vnode"][rows, i], torch.full_like(cur, -1))
+    none = torch.full_like(cur, -1)
+    nxt = torch.where(in_link, route["vnode"][rows, i], none)
+    passing = in_link & ~route["is_goal"][rows, i]
+    return cur, nxt, torch.where(passing, route["next_node"][rows, i], none)
 
 
 def _interp(xs: torch.Tensor, x: torch.Tensor, ys: torch.Tensor):

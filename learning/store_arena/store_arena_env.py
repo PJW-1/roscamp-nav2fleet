@@ -378,11 +378,10 @@ class StoreArenaEnv(GoalReachEnv):
         for j, route in enumerate(self.robot_routes):
             if j == k:
                 continue
-            cur, nxt = rbs.robot_nodes(route, self.robot_t[j])
             act = self.robot_active[j]
-            held[rows[act], cur[act]] = True
-            on = act & (nxt >= 0)
-            held[rows[on], nxt[on]] = True
+            for node in rbs.robot_nodes(route, self.robot_t[j]):
+                on = act & (node >= 0)
+                held[rows[on], node[on]] = True
         return held
 
     def robot_state(self, ids=None):
