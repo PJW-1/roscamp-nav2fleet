@@ -5,6 +5,10 @@
 마당(HALL) Nav2 goal을 몬다. 고정 경로(`FollowPath`, `FollowPathThrough`, `FollowPathReverse`)는 pode_fsm이
 controller의 `follow_path`를 바로 부르므로 언제나 RPP다. RPP와 MPPI 비교 묶음은 다음 단계다(이번에는 짧은 연기 실행만).
 
+같은 날 오후(2·3단계): 흔들림의 원인을 찾아 `CostCritic` 무게를 1.0으로 낮추고, 제자리 회전을 `RotationShimController`에 맡겼다
+(`FollowPathMPPI`의 플러그인이 shim이고 그 안의 `primary_controller`가 MPPI다). 그 뒤 움직이는 장애물을 넣은 비교 묶음(`tools/nav_bench`)을 돌렸다.
+아래 "2단계", "3단계" 절에 있다.
+
 ## 만든 것
 
 | 파일 | 바꾼 것 |
@@ -12,12 +16,12 @@ controller의 `follow_path`를 바로 부르므로 언제나 RPP다. RPP와 MPPI
 | `pode/pode_nav_config/params/nav2_params.yaml` | `controller_plugins`에 `FollowPathMPPI`를 더하고(맨 끝), `FollowPathMPPI` 블록을 새로 두었다. MPPI 값은 모두 이 블록에만 있다 |
 | `sim/fleet_gz_sim/fleet_gz_sim/launch_parts.py` | `sim_nav_params`가 `nav_max_speed`로 RPP의 `desired_linear_vel`을 낮출 때 MPPI의 `vx_max`도 같이 낮춘다. 비교 때 두 컨트롤러의 최고 속도가 같아야 한다 |
 | `tools/real_pode/make_params.py` | 실물 사본은 원래 nav2_params.yaml을 통째로 베끼므로 MPPI 블록도 그대로 따라간다(값을 따로 두지 않음). `--speed S`일 때 `FollowPathMPPI.vx_max`도 S로 바꾼다 |
-| `pode/pode_nav_config/test/test_nav_config.py` | 새 시험 넷: MPPI가 뜨고 블록이 맞는지(플러그인, DiffDrive, `model_dt` = 1/`controller_frequency`, critic 모두 켬), 한계가 FollowPathGoal·Isaac `ActionLimits`·Gazebo DiffDrive와 같은지, BT 기본이 여전히 `FollowPathGoal`이고 저장소의 어떤 Python도 `controller_selector`에 쓰지 않는지, `FollowPathGoal`이 여전히 회피 담당 파일의 `follow_path_goal` 그대로인지 |
+| `pode/pode_nav_config/test/test_nav_config.py` | 새 시험 넷: MPPI가 뜨고 블록이 맞는지(플러그인, DiffDrive, `model_dt` = 1/`controller_frequency`, critic 모두 켬), 한계가 FollowPathGoal·Isaac `ActionLimits`·Gazebo DiffDrive와 같은지, BT 기본이 여전히 `FollowPathGoal`이고 저장소의 어떤 Python도 `controller_selector`에 쓰지 않는지(3단계부터 비교 도구 `tools/nav_bench/bench_node.py`만 예외), `FollowPathGoal`이 여전히 회피 담당 파일의 `follow_path_goal` 그대로인지 |
 | `pode/pode_nav_config/test/test_nav2_launch.py`, `tools/test/test_real_pode.py`, `sim/fleet_gz_sim/test/test_launch_wiring.py` | 컨트롤러 목록, make_params의 바뀐 줄 수(5 → 6), 시뮬 속도 상한이 `vx_max`에도 걸리는지 |
 
 BT(`bt/navigate_to_pose_w_replanning_and_recovery_goal.xml`)는 바꾸지 않았다. 이미 ControllerSelector
 (`topic_name="controller_selector"`, `default_controller="FollowPathGoal"`)가 있다. pode_fsm, fleet, sim, tools 어디에도
-`controller_selector`에 쓰는 코드가 없어(시험이 확인) 아무도 고르지 않으면 지금과 똑같이 돈다.
+`controller_selector`에 쓰는 코드가 없어(시험이 확인, 비교 도구만 예외) 아무도 고르지 않으면 지금과 똑같이 돈다.
 `FollowPathGoal` 값(`pode/pode_avoidance/params/avoidance.yaml`)은 건드리지 않았다(`git diff main -- pode/pode_avoidance` 비어 있음).
 
 ## 컨트롤러 바꾸는 법
@@ -47,7 +51,7 @@ ros2 topic pub -t 3 -r 2 --qos-durability transient_local --qos-reliability reli
 
 ## 결정 대기 목록
 
-모두 `nav2_params.yaml`의 `FollowPathMPPI` 블록에 있다. 지금 값은 "처음 돌려 볼 값"이고 비교 묶음에서 다시 본다.
+모두 `nav2_params.yaml`의 `FollowPathMPPI` 블록에 있다. 1단계에서 처음 돌려 본 값이다. 2·3단계에서 바꾸거나 더한 것은 아래 "결정 대기 목록 (2·3단계에서 더한 것)"에 있다.
 
 | 항목 | 후보 | 고른 값 | 까닭 |
 |---|---|---|---|
@@ -65,7 +69,7 @@ ros2 topic pub -t 3 -r 2 --qos-durability transient_local --qos-reliability reli
 | `ax_max`, `ax_min`, `az_max` | 2.0(Gazebo), 3.0/-3.0/3.5(기본) | 2.0, -2.0, 2.0 | Gazebo DiffDrive `max_acceleration` 2.0, Isaac `acc_v`, `acc_w`. FollowPathGoal의 `max_angular_accel`은 3.2지만 Gazebo가 2.0으로 자른다 |
 | `prune_distance` | 1.7(기본), 1.0 | 1.0 | 앞보기 0.5 m의 두 배. 짧게 잘라 계산을 줄인다 |
 | `critics` | 기본 8개, 줄인 것 | 기본 8개: Constraint, Cost, Goal, GoalAngle, PathAlign, PathFollow, PathAngle, PreferForward | Nav2 문서의 DiffDrive 예와 같다. 비교 전에는 빼지 않는다 |
-| critic 무게 | Nav2 기본 | 기본(Constraint 4, Cost 3.81, Goal 5, GoalAngle 3, PathAlign 14, PathFollow 5, PathAngle 2, PreferForward 5) | 기본값에서 시작. 무게를 바꾼 판은 비교 묶음에서 |
+| critic 무게 | Nav2 기본 | 기본에서 Cost만 1.0(Constraint 4, Cost 1.0, Goal 5, GoalAngle 3, PathAlign 14, PathFollow 5, PathAngle 2, PreferForward 5) | 기본값에서 시작. Cost는 2단계에서 3.81 → 1.0(아래 "2단계") |
 | critic `threshold_to_consider` | 기본 1.4 m / 0.5 m | 1.4 → 0.5, 0.5 → 0.25 | 기본은 vx 0.5 m/s, 2.8 s(1.4 m 앞보기)에 맞춘 값이다. 앞보기가 0.5 m라 1.4는 0.5로, 0.5는 0.25로 줄였다(goal 가까이서 경로 따르기에서 goal 맞추기로 넘어가는 거리) |
 | `CostCritic.consider_footprint` | false(원), true(다각형) | true | 몸 모양 다각형 발자국(local_costmap)으로 본다. 0.38 m 통로와 진열대 끝에서 원으로 보면 너무 넓거나 좁다. 계산이 늘어 `trajectory_point_step` 2로 줄였다 |
 | `CostCritic.near_goal_distance` | 0.5(기본), 0.3 | 0.3 | goal 가까이서 비용 벌점을 늦게 끈다. 지점이 진열대·벽에 가깝다 |
@@ -117,7 +121,7 @@ A O_IN → M_E(기본, FollowPathGoal), MPPI 고름, B M_E → O_IN, C O_IN → 
 
 ## 막힌 것
 
-- MPPI 흔들림(위 표). 판 2 C에서 통로 x 0.61 부근, 방향은 맞는데 x가 0.58~0.63을 30 s 오갔다. 판 2 B는 출발 때 168° 제자리 회전에 9 s가 걸렸다(RPP는 1 rad/s로 3 s 안).
+- MPPI 흔들림(위 표). → 2단계에서 원인(경로가 비용 띠 안, `CostCritic` 3.81)을 확인하고 고쳤다. 판 2 C에서 통로 x 0.61 부근, 방향은 맞는데 x가 0.58~0.63을 30 s 오갔다. 판 2 B는 출발 때 168° 제자리 회전에 9 s가 걸렸다(RPP는 1 rad/s로 3 s 안).
   짐작하는 원인(확인하지 않음): (1) NavFn 경로 점 간격이 2.5 cm라 `offset_from_furthest`(점 개수)가 앞보기를 반으로 줄임,
   (2) 앞보기 0.5 m와 progress checker의 0.05 m/10 s, (3) `CostCritic` 발자국 비용이 좁은 통로에서 앞으로 가는 표본을 깎음,
   (4) `vx_std` 0.1이 속도 0.2에 비해 작아 정지 근처 표본이 많음. 비교 묶음 전에 하나씩 `nav_overrides`로 본다.
@@ -131,6 +135,138 @@ A O_IN → M_E(기본, FollowPathGoal), MPPI 고름, B M_E → O_IN, C O_IN → 
 - MPPI는 제자리 회전을 따로 하지 않고 표본 궤적 중에서 고른다. 그래서 RPP의 `rotate_to_heading`처럼 1 rad/s로 깔끔하게 돌지 않았다.
 - progress checker는 위치만 본다. 제자리 회전이나 앞뒤 흔들림은 "진전 없음"으로 센다. MPPI 판의 실패는 거의 이것이었다.
 - 후진 허용(`vx_min` < 0)은 goal 바로 앞에서 옆으로 어긋났을 때 다가가는 데 필요했다(판 3 C).
+
+## 2단계: 흔들림의 원인과 조정
+
+### 원인 (증거로 확인)
+
+`nav_overrides`로 `visualize: true`를 켜고, controller_server debug 로그, `/pode1/local_costmap/costmap`, 실제 위치, `cmd_vel`을 bag으로 남긴 판(trace1,
+`CostCritic.cost_weight` 3.81, WSL `~/gz_runs/mppi_tune_2026-11-21/trace1`)에서 본 것:
+
+- 흔들린 곳은 가운데 통로 x 0.61~0.65와 x 1.17~1.23, y 약 0.55다. NavFn 경로는 y 0.55~0.57로 난다(통로 한가운데 0.5875보다 남쪽).
+- 로봇 중심은 local costmap 비용 0인 칸에 있었고, 앞쪽 경로 칸은 OccupancyGrid 70~87(Nav2 비용 약 180~223)이었다. 남쪽 진열대(y 0.365~0.405)에서
+  0.15 m(local inflation 반경) 안쪽 띠다.
+- 그 사이 `cmd_vel` vx는 1초에 1~4번 부호가 바뀌고 평균은 약 0이었다. C 구간은 150 s 안에 끝나지 않았고 그 구간에서만 `Failed to make progress` 10번(판 전체 12번).
+- 0.2 m/s로 빠져나간 때는 BT 복구가 local costmap을 처음 지운 뒤 약 4 s였다(장애물 띠가 잠깐 사라진 때).
+
+결론: Nav2 기본 `CostCritic` 무게 3.81에서는 경로를 따라 비용 띠로 들어가는 궤적의 벌점이 경로 따르기 critic들의 이득보다 커서, 비용 0인 칸에 멈춰 앞뒤 표본을
+섞은 평균(≈ 0)을 냈다. 1단계에서 짐작한 원인 넷 중 (3)이 맞았다. (1) 경로 점 간격, (4) `vx_std`는 바꾸지 않고도 아래 조정으로 흔들림이 사라졌다.
+
+### 무게 시험 (같은 네 구간 C, B, C2, B2, 판마다 한 번)
+
+| `CostCritic.cost_weight` | 도착 | progress 실패 | sim 시간(구간별) |
+|---|---|---|---|
+| 3.81(기본, trace1) | C에서 못 감 | 12 | C 150 s+ |
+| 1.0 | 4/4 | 0 | 13.8 ~ 19.7 s |
+| 0.3 | 4/4 | 0 | 13.8 ~ 17.3 s |
+
+1.0을 골랐다. 0.3도 됐지만 진열대에 붙는 쪽으로 더 기우는 값이라, 실패가 없어지는 가장 큰 무게 근처를 둔다. 충돌 판정(`collision_cost`, 발자국)은 무게와 상관없이 그대로다.
+
+### 반복 연기 실행 (무게 1.0, 덮어쓰기 없음)
+
+같은 goal 묶음: RPP로 O_IN → M_E(RC), M_E → O_IN(RB), MPPI로 다시 C(MC), B(MB). sim 시간, 판마다 새로 띄움.
+
+| 판 | RC (RPP) | RB (RPP) | MC (MPPI) | MB (MPPI) | progress 실패 |
+|---|---|---|---|---|---|
+| final_1 | planner 응답 시간 초과(아래) | 출발점이라 짧음 | 14.0 s | planner 시간 초과 | 0 |
+| final_2 | 11.0 s | 12.8 s | 16.4 s | 18.5 s | 0 |
+| final_3 | 10.8 s | 13.1 s | 18.6 s | 15.8 s | 0 |
+| final_4 | planner 응답 시간 초과 | 출발점이라 짧음 | 15.1 s | 16.7 s | 0 |
+
+MPPI는 모든 판에서 HALL goal에 progress 실패 없이 갔다. RPP보다 약 1.3~1.5배 느리다.
+"planner 응답 시간 초과"는 띄운 직후 첫 goal에서 BT가 `compute_path_to_pose` 응답을 20 ms 안에 못 받아 ABORT한 것으로, 컨트롤러와 상관없다
+(`Timed out while waiting for action server to acknowledge goal request`). 비교 묶음은 3 s 안의 ABORT를 한 번 다시 보내고 `retried`로 남긴다.
+
+### 남은 느림: 제자리 회전
+
+비교 묶음 시범(`~/gz_runs/nav_bench_smoke`, 판마다 1번)에서 MPPI는 a_hall 23.5 s(RPP 9.5 s)였다. 출발 때 방향 오차 55°에서 wz가 -0.03~-0.09 rad/s뿐이었다.
+`PathAngleCritic`은 `max_angle_to_furthest` 1.0 rad(57°)을 넘을 때만 일하므로 55°에서는 꺼져 있고, 다른 critic은 제자리 회전을 거의 밀지 않는다.
+두 판을 견줬다(a_hall, c_moving, 판마다 2번, RPP와 번갈아):
+
+| 판(덮어쓰기) | 시나리오 | RPP 시간 | MPPI 시간 | MPPI 성공 | MPPI 충돌·BLOCKED |
+|---|---|---|---|---|---|
+| 회전 shim(`RotationShimController`가 MPPI를 감쌈) | a_hall | 9.7, 9.9 s | 14.1, 16.1 s | 2/2 | 0, 0 |
+| 회전 shim | c_moving | 20.2, 19.4 s | 61.0, 53.2 s | 2/2 | 0, 1 |
+| PathAngle 무게 5, `max_angle_to_furthest` 0.35 rad | a_hall | 9.4, 9.6 s | 12.2, 12.2 s | 2/2 | 0, 0 |
+| PathAngle 무게 5, 0.35 rad | c_moving | 20.0 s | 시간 초과 91 s, 52.6 s(끝 위치가 goal에서 벗어나 실패) | 0/2 | 1, 3 |
+
+shim을 골랐다. PathAngle 판은 마당에서는 더 빨랐지만 움직이는 장애물 판에서 두 번 다 실패했다(진열대 서쪽 끝 x 0.55, y 0.3 부근에서 70 s 넘게 맴돌고,
+돌아오기도 못 해 그 판은 1회로 끝났다). shim은 경로 방향과 14° 넘게 틀어지면 MPPI를 멈추고 1 rad/s로 제자리에서 돈 뒤 MPPI에 넘긴다.
+
+## 3단계: 움직이는 장애물과 비교 묶음 (계획 6번)
+
+### 만든 것
+
+- `tools/nav_bench/scenarios.yaml`: 장애물 크기·속도·길, 시나리오, 지표 기준값을 모두 여기 한 곳에 둔다.
+- `tools/nav_bench/movers.py`: 장애물 모델(SDF), 길 위의 위치(왕복 또는 한 번), 몸 다각형과 진열대·벽·장애물 사이 거리.
+- `tools/nav_bench/bench_node.py`: 장애물을 Gazebo `set_pose_vector`로 20 Hz 움직이고, `controller_selector`로 컨트롤러를 고르고, goal을 보내고,
+  실제 위치(`/pode1/sim/truth`), `cmd_vel`, `scan`, controller_server CPU 시간을 판마다 JSON으로 남긴다. 판이 끝나면 RPP로 출발점에 돌아온다
+  (세 번 실패하면 Gazebo에서 출발점으로 옮기고 AMCL에 `initialpose`를 준다).
+- `tools/nav_bench/metrics.py`, `report.py`: 지표와 표·그림.
+- `tools/nav_bench/run_bench.sh`: 시나리오마다 잠금(`.heavy_run.lock`)을 잡고 Gazebo 한 대를 띄워 RPP와 MPPI를 판마다 번갈아(짝수 판 RPP 먼저, 홀수 판 MPPI 먼저) 돈 뒤
+  모두 끄고 잠금을 놓는다. 다음 시나리오 전에 180 s 쉰다.
+
+다시 돌리기(WSL, install을 source한 셸):
+
+```bash
+BENCH_REPEATS=5 bash tools/nav_bench/run_bench.sh ~/gz_runs/nav_bench_2026-11-21 a_hall b_static c_moving d_robot
+python3 tools/nav_bench/report.py --config tools/nav_bench/scenarios.yaml \
+  --legs ~/gz_runs/nav_bench_2026-11-21/legs --out results/2026-11-21/mppi_benchmark
+```
+
+### 결정 대기 목록 (2·3단계에서 더한 것)
+
+MPPI 값은 `nav2_params.yaml`의 `FollowPathMPPI` 블록에, 장애물·지표 값은 `tools/nav_bench/scenarios.yaml`에만 있다.
+
+| 항목 | 후보 | 고른 값 | 까닭과 잰 것 |
+|---|---|---|---|
+| `CostCritic.cost_weight` | 3.81(기본), 1.0, 0.3 | 1.0 | 3.81은 통로에서 흔들려 C 구간을 못 갔다(progress 실패 12). 1.0과 0.3은 네 구간 모두 실패 0(위 표). 실패가 없는 쪽에서 큰 값을 골라 진열대에서 떨어지려는 힘을 남겼다 |
+| 제자리 회전 | MPPI 그대로, PathAngle 무게 5·문턱 0.35 rad, `RotationShimController` | shim(문턱 0.25 rad, 1.0 rad/s, 2.0 rad/s², 앞 0.15 m, 1.0 s 앞 충돌 검사, goal 방향도 제자리 회전) | 그대로는 a_hall 23.5 s(RPP 9.5 s). PathAngle 판은 a_hall 12.2 s지만 c_moving 0/2. shim은 a_hall 14.1·16.1 s, c_moving 2/2(위 표). 회전 값은 FollowPathGoal(1.0 rad/s)과 `az_max`·Gazebo(2.0)와 같다 |
+| MPPI 전용 progress checker | 같이 씀, 따로 둠 | 같이 씀(0.05 m/10 s) | 무게 1.0과 shim으로 HALL goal에서 progress 실패가 0이 되어 따로 둘 까닭이 없었다. RPP 값도 그대로다 |
+| (b) 가만히 있는 상자 | | 0.10 × 0.10 × 0.25 m, (1.10, 0.66) | 통로 북쪽 절반을 막아 남쪽으로 0.215 m(몸 폭 0.112 m + 여유)를 남긴다. 피해 갈지 돌아갈지 컨트롤러와 planner가 정한다 |
+| (c) 사람 대역 | | 원기둥 반지름 0.04 m, 높이 0.25 m, (1.12, 0.28)↔(1.12, 0.70), 0.10 m/s | 축척 1/10쯤의 사람 발 둘레. 남쪽 진열대 틈(x 0.99~1.25)으로 통로를 가로지른다. 걷는 속도의 1/10 |
+| (c) 카트 대역 | | 상자 0.14 × 0.09 × 0.20 m, (0.80, 0.68)↔(1.45, 0.68), 0.06 m/s | 통로 북쪽 줄을 천천히 오가는 짐수레. 우리 로봇보다 느려 앞지르거나 마주친다 |
+| (d) 마주 오는 로봇 | 둘째 Nav2 로봇, 대본대로 움직이는 Pode 크기 상자 | 대본 상자 0.12 × 0.112 × 0.20 m, (1.62, 0.70) → (0.50, 0.70) 한 번, 0.15 m/s, 우리 로봇 중심과 0.25 m 안이면 멈춤 | 둘째 Nav2는 판마다 결과가 그 로봇의 컨트롤러에도 달려 비교가 흐려지고 메모리도 두 배다. 멈춤은 Pode가 충돌 검사로 서는 것을 흉내 낸다. 처음 둔 y 0.65는 남쪽 진열대와의 틈이 몸 폭과 비슷해 RPP도 끝나지 않아 0.70으로 옮겼다 |
+| 장애물 높이 | | 모두 0.20 m 이상 | 라이다 높이 약 0.125 m 위로 올라와야 scan에 보인다 |
+| 충돌 | Gazebo 접촉, 거리 | 몸 다각형(local_costmap 발자국을 실제 위치에 놓음)과 벽·진열대(`sim_shelves`)·장애물 면의 거리 ≤ 0.005 m가 된 횟수(떨어졌다 다시 닿으면 다시 셈) | 접촉 센서를 붙이려면 모델을 바꿔야 한다. 거리는 실제 위치에서 바로 잰다. 0.005 m는 다각형과 실제 몸의 차보다 작다 |
+| BLOCKED | | 실제 위치가 10 s 동안 0.05 m보다 덜 움직인 구간 하나 | pode_fsm `blocked_after_s` 10 s, progress checker 0.05 m와 같다 |
+| 성공 | Nav2 결과만, 실제 위치 | SUCCEEDED이면서 실제 끝 위치가 goal에서 0.10 m 안 | 시범 판에서 AMCL이 틀린 채 SUCCEEDED로 끝난 판이 있었다(실제로는 0.2 m 넘게 벗어남) |
+| 시간 | | goal을 보낸 때부터 결과까지 sim 초 | 출발·도착 사건. 시간 초과는 90 s |
+| 라이다 최소 | | 그 판 scan 최솟값 | 계획 7절. 라이다는 몸 가운데라 몸 끝과의 거리와 다르다. 그래서 몸 최소 거리를 따로 둔다 |
+| 도리도리 | | `cmd_vel` 각속도 부호가 바뀐 횟수, \|wz\| < 0.02 rad/s는 건너뜀 | 0 근처 잡음까지 세지 않게 |
+| CPU 대역 | 루프 시간 직접, 프로세스 CPU | controller_server 프로세스 CPU %(한 코어 기준, /proc)와 `cmd_vel` 간격 p95 | 루프 시간을 Nav2가 바깥으로 내지 않는다. 같은 PC에서 두 컨트롤러가 같은 프로세스라 차이가 컨트롤러 몫이다 |
+| 시작 직후 ABORT | 실패로 셈, 다시 보냄 | 3 s 안에 움직이지 않고 ABORT면 한 번 다시 보내고 `retried`로 남김 | planner 응답 20 ms 시간 초과로, 컨트롤러와 상관없다(2단계) |
+| 돌아오기 실패 | 그 시나리오를 멈춤, 옮김 | RPP로 세 번 못 돌아오면 Gazebo에서 출발점으로 옮기고 AMCL에 알림 | 시범에서 한 번의 돌아오기 실패로 시나리오가 반만 돌았다. 옮긴 횟수는 `runs.txt`에 남는다 |
+
+### 비교 표 (2026-11-21 17:05~17:42, 시나리오마다 컨트롤러마다 5판)
+
+조건: v7 경기장 한 대, O_IN → M_E, `nav_max_speed` 기본 0.20 m/s(두 컨트롤러 모두), 도메인 61, `GALLIUM_DRIVER=d3d12`, 덮어쓰기 없음
+(커밋 4456358의 `FollowPathMPPI` = shim + MPPI, `CostCritic` 1.0). 시간·거리는 성공한 판의 평균 ± 표준편차, 충돌과 BLOCKED는 5판의 합이다.
+같은 표와 판별 값, 그림은 `results/2026-11-21/mppi_benchmark/`(`table.md`, `legs.csv`, `compare.png`, `tracks.png`, `runs.txt`)에 있고,
+판별 원본 JSON과 launch 로그는 WSL `~/gz_runs/nav_bench_2026-11-21/`에 있다.
+
+| 시나리오 | 컨트롤러 | 성공 | 시간 s | 달린 길 m | 라이다 최소 m | 몸 최소 거리 m | 도리도리 | 충돌 | BLOCKED | CPU % | cmd 간격 p95 ms |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| a_hall | RPP | 5/5 | 9.6 ± 0.2 | 1.095 ± 0.028 | 0.097 ± 0.003 | 0.101 ± 0.004 | 9 ± 2 | 0 | 0 | 10 ± 0 | 52.0 ± 0.0 |
+| a_hall | MPPI | 5/5 | 16.6 ± 5.1 | 1.126 ± 0.065 | 0.097 ± 0.010 | 0.098 ± 0.012 | 7 ± 4 | 0 | 1 | 12 ± 0 | 60.0 ± 0.0 |
+| b_static | RPP | 5/5 | 16.5 ± 3.7 | 1.544 ± 0.364 | 0.075 ± 0.023 | 0.066 ± 0.019 | 9 ± 2 | 0 | 0 | 10 ± 0 | 52.0 ± 0.0 |
+| b_static | MPPI | 5/5 | 33.6 ± 7.4 | 1.782 ± 0.322 | 0.061 ± 0.014 | 0.053 ± 0.020 | 10 ± 3 | 0 | 0 | 12 ± 1 | 60.0 ± 0.0 |
+| c_moving | RPP | 5/5 | 20.7 ± 4.0 | 1.666 ± 0.309 | 0.075 ± 0.015 | 0.060 ± 0.034 | 12 ± 4 | 2 | 0 | 10 ± 0 | 52.0 ± 0.0 |
+| c_moving | MPPI | 5/5 | 37.2 ± 13.4 | 1.981 ± 0.140 | 0.056 ± 0.005 | 0.039 ± 0.022 | 11 ± 4 | 1 | 0 | 11 ± 0 | 60.0 ± 0.0 |
+| d_robot | RPP | 5/5 | 11.5 ± 1.0 | 1.108 ± 0.023 | 0.053 ± 0.003 | 0.046 ± 0.005 | 13 ± 3 | 0 | 0 | 10 ± 0 | 52.0 ± 0.0 |
+| d_robot | MPPI | 5/5 | 25.4 ± 8.3 | 1.380 ± 0.286 | 0.060 ± 0.019 | 0.055 ± 0.013 | 11 ± 3 | 0 | 2 | 13 ± 1 | 60.0 ± 0.0 |
+
+- 40판 모두 성공(Nav2 SUCCEEDED, 실제 끝 위치 0.10 m 안)이고, 돌아오기 실패로 옮긴 판도, 시작 직후 ABORT로 다시 보낸 판(`retried`)도 없다.
+  controller_server의 `Failed to make progress`는 a_hall·b_static·c_moving 0줄, d_robot 2줄(둘 다 MPPI 판 3·4, 로그 시각으로 맞춤)이다.
+- MPPI는 모든 시나리오에서 RPP보다 1.7~2.2배 느리고 퍼짐도 크다. 도리도리(각속도 부호 바꿈)는 비슷하다(퍼짐 안).
+- 길: b_static과 c_moving은 planner가 가운데 통로가 막혔다고 보고 남쪽 진열대 바깥(y 약 0.18)으로 돌아간 판이 많다.
+  남쪽으로 돈 판: b_static RPP 3/5, MPPI 4/5, c_moving RPP 4/5, MPPI 5/5, d_robot MPPI 1/5. 그래서 이 두 시나리오의 시간 차이는
+  "통로에서 피하는 솜씨"보다 "긴 길을 도는 속도와 길 고르기"의 차이가 크다. 통로 안 회피만 견주려면 장애물 자리를 바꿔야 한다(남은 일).
+- 충돌 셋은 모두 사람 대역과의 접촉이다(c_moving RPP는 한 판에서 두 번, x 1.04 통로 안. MPPI는 한 판에서 한 번, x 1.14·y 0.20 남쪽 길). 사람 대역은 비키지 않고
+  정해진 길(y 0.28~0.70)을 가므로, 사람이 로봇에 걸어 들어온 경우도 충돌로 센다. 진열대·벽과의 최소 거리는 모든 판에서 0.045 m 이상이었다.
+- CPU %는 controller_server 프로세스 전체로 RPP 10 %, MPPI 11~13 %(이 PC 한 코어 기준)이다. `cmd_vel` 간격 p95는 RPP 52 ms, MPPI 60 ms(20 Hz면 50 ms)로,
+  MPPI 루프가 가끔 50 ms를 넘는다는 뜻이다. Pi4에서는 재지 않았다.
+- a_hall MPPI 다섯 판은 progress 실패 없이 갔다(2단계의 "약 3번 반복" 기준을 shim 판에서도 확인). 실제 위치로 센 BLOCKED 1번은 25.3 s 판이다.
 
 ## 알아야 할 포인트 (개념 E: MPPI 기초)
 
@@ -155,6 +291,36 @@ A O_IN → M_E(기본, FollowPathGoal), MPPI 고름, B M_E → O_IN, C O_IN → 
   1. `time_steps`를 40에서 60으로 늘리면 앞보기 거리와 계산량은 각각 어떻게 바뀌나? `model_dt`는 왜 그대로 두나?
   2. `temperature`를 0.3에서 0.05로 낮추면 흔들림이 늘까 줄까? 이유는?
   3. 판 3에서 `vx_min`을 0으로 두자 goal 10 cm 앞에서 왜 멈췄나? RPP(FollowPathGoal)는 같은 자리에서 어떻게 했을까?
+
+### 2단계에서 더한 것 (개념 E: critic 무게의 균형, 제자리 회전)
+
+- **critic 무게는 서로의 비로 읽는다**: MPPI는 궤적마다 critic 비용을 더한 합으로 고른다. `CostCritic`은 궤적이 지나는 칸의 costmap 비용(0~254)을
+  254로 나눠 무게를 곱한다. 경로가 inflation 띠(비용 약 180) 안으로 나 있으면 경로를 따라가는 궤적일수록 벌점을 받는다. 그 벌점이 PathFollow·PathAlign의
+  이득보다 크면, 로봇은 비용 0인 칸에 멈춰 앞뒤 표본의 평균(≈ 0)을 낸다. 이것이 1~3 cm 흔들림의 정체였다.
+- **원인을 찾는 순서**: (1) 흔들리는 자리와 시간을 실제 위치로 찾는다. (2) 그때의 local costmap에서 로봇 중심 칸과 앞쪽 경로 칸의 비용을 읽는다.
+  (3) `cmd_vel` vx의 부호 바꿈과 평균을 본다. (4) 의심 critic 하나의 무게만 `nav_overrides`로 바꿔 같은 구간을 다시 몬다. 하나씩 바꿔야 무엇이 고쳤는지 안다.
+- **제자리 회전은 MPPI의 약점**: MPPI는 잡음 섞인 표본의 평균이라, 큰 각속도 하나로 도는 궤적이 드물고 평균하면 작아진다. `PathAngleCritic`은
+  `max_angle_to_furthest`(1.0 rad)를 넘어야 일한다. `RotationShimController`는 경로 방향(0.15 m 앞 점)과 로봇 방향이 0.25 rad 넘게 다르면
+  MPPI를 쉬게 하고 1 rad/s로 제자리에서 돈 뒤 넘긴다. 플러그인 이름만 shim으로 바뀌고 MPPI 값은 같은 `FollowPathMPPI` 이름 아래에서 그대로 읽힌다.
+- **스스로 점검**:
+  1. 경로가 통로 한가운데(y 0.5875)로 났다면 `CostCritic` 3.81에서도 흔들렸을까? 남쪽 진열대에서 그 점까지의 거리와 inflation 반경 0.15 m로 따져 본다.
+  2. `CostCritic` 무게를 0으로 하면 무엇을 잃나? 충돌 판정(`collision_cost`)도 사라지나?
+  3. shim의 `angular_dist_threshold`를 0.25에서 0.8로 올리면 a_hall 시간은 어느 쪽으로 움직일까?
+
+### 3단계에서 더한 것 (개념 C: 같은 조건에서 비교하고 재기)
+
+- **공정한 비교의 조건**: 같은 Gazebo 한 번 안에서 같은 출발점·goal·장애물 시작 위치로, 두 컨트롤러를 판마다 번갈아(순서도 판마다 바꿔) 돈다.
+  그래야 시간이 지나며 생기는 차이(costmap에 남은 흔적, AMCL 흔들림, PC 부하)가 한쪽에 몰리지 않는다. 장애물의 길은 sim 시간으로 정해져 판마다 같다.
+- **AMCL 없이 잰다**: 성공, 시간, 거리, 충돌은 모두 Gazebo의 실제 위치(`/pode1/sim/truth`)로 잰다. Nav2가 SUCCEEDED라고 해도 AMCL이 틀리면 엉뚱한 곳에
+  서 있을 수 있다(시범 판에서 실제로 0.2 m 넘게 벗어난 SUCCEEDED가 있었다).
+- **평균과 퍼짐, 실패는 따로**: 시간·거리는 성공한 판만으로 평균 ± 표준편차를 낸다. 실패한 판의 시간을 섞으면 시간 초과(90 s)가 평균을 끌어올려 뜻이 흐려진다.
+  그래서 성공 수를 같이 본다. 판 수가 5라 1~2 s 차이는 우연일 수 있다. 퍼짐보다 큰 차이만 차이로 읽는다.
+- **대역 지표의 한계**: 라이다 최소는 몸 가운데에서 잰 값이라 몸 끝과의 거리보다 크다. CPU %는 controller_server 프로세스 전체(costmap 갱신 포함)라
+  컨트롤러만의 몫이 아니다. 같은 프로세스에서 컨트롤러만 바꿨으니 차이는 컨트롤러 몫으로 읽는다. Pi4에서의 값은 따로 재야 한다.
+- **스스로 점검**:
+  1. RPP 판을 모두 먼저 돌고 MPPI 판을 나중에 몰아 돌면 어떤 차이가 한쪽에 몰릴 수 있나?
+  2. 성공 3/5, 시간 20 ± 2 s인 컨트롤러와 성공 5/5, 시간 25 ± 8 s인 컨트롤러 중 어느 쪽이 나은가? 무엇을 더 보고 정하나?
+  3. 충돌을 "라이다 최소 ≤ 0.10 m"로 정의하면 무엇이 잘못 세어질까?
 
 ## 직접 해 볼 것
 
@@ -183,7 +349,32 @@ time ros2 action send_goal /pode1/navigate_to_pose nav2_msgs/action/NavigateToPo
 
 RViz에서 로봇이 앞뒤로 흔들리는지 보고, 위 표의 판 2 C(73.6 s, 실패 4번)와 견준다.
 
+
+### 3단계: 흔들림을 직접 되살려 보기
+
+`CostCritic` 무게를 Nav2 기본 3.81로 되돌려 a_hall만 한 판(컨트롤러마다 1번) 돌리고 위 비교 표의 a_hall 줄과 견준다. 파일은 고치지 않는다.
+Gazebo를 쓰므로 `.heavy_run.lock`을 run_bench.sh가 잡는다(다른 작업이 잡고 있으면 기다린다).
+
+```bash
+cat > /tmp/cost381.yaml <<'Y'
+controller_server:
+  ros__parameters:
+    FollowPathMPPI:
+      CostCritic:
+        cost_weight: 3.81
+Y
+BENCH_REPEATS=1 BENCH_OVERRIDES=/tmp/cost381.yaml bash tools/nav_bench/run_bench.sh ~/gz_runs/try_cost381 a_hall
+python3 tools/nav_bench/report.py --config tools/nav_bench/scenarios.yaml --legs ~/gz_runs/try_cost381/legs --out /tmp/try_cost381
+cat /tmp/try_cost381/table.md
+```
+
+MPPI 줄의 BLOCKED, 도리도리, 시간이 어떻게 바뀌는지 보고 `/tmp/try_cost381/tracks.png`에서 멈춘 자리가 x 0.6, 1.2 부근인지 확인한다.
+
 ## 남은 일
 
-- RPP와 MPPI 비교 묶음(Isaac 학습과 겹치지 않게). 그 전에 "막힌 것"의 원인 넷을 하나씩.
+- ~~RPP와 MPPI 비교 묶음~~ 3단계에서 했다. 흔들림 원인은 2단계에서 찾았다.
+- MPPI가 RPP보다 1.7~2.2배 느린 까닭: 통로에서 속도를 덜 내는지, shim 회전과 MPPI가 넘겨받을 때 멈추는지 판별 기록(`cmd`)으로 나눠 본다. 이번에는 조사하지 않았다.
+- 통로 안 회피만 보는 시나리오: b_static·c_moving은 planner가 남쪽으로 돌아가는 판이 많아 컨트롤러끼리의 회피 비교가 흐리다. 장애물을 통로가 열려 있는 자리에 두는 판을 더한다.
+- 사람 대역이 비키지 않아 생긴 접촉을 충돌에서 따로 셀지(누가 다가갔는지) 정한다.
+- 판 수 5는 작다. MPPI 시간 퍼짐(± 5~13 s)이 커서 값을 바꾼 판끼리 견주려면 판을 늘린다.
 - 실물 Pi4에서 MPPI 계산 시간(`batch_size` 1000, `time_steps` 40이 20 Hz를 맞추는지)과 패키지 설치 확인.
