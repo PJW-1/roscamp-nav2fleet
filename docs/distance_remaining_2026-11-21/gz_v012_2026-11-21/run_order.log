@@ -1,0 +1,27 @@
+10:28:35 main rush1:gz_v7_rush available 15348 MB
+== rush1 exit 1 end 10:34:25 summary: True 12 / 12 305.8 s
+10:34:25 dist rush1:gz_v7_rush available 15293 MB
+== rush1 exit 1 end 10:40:28 summary: True 12 / 12 312.9 s
+10:40:28 dist rush2:gz_v7_rush available 15294 MB
+== rush2 exit 1 end 10:46:22 summary: True 12 / 12 304.5 s
+10:46:22 main rush2:gz_v7_rush available 15291 MB
+== rush2 exit 1 end 10:52:19 summary: True 12 / 12 307.7 s
+10:52:19 main rush3:gz_v7_rush available 15287 MB
+== rush3 exit 1 end 10:58:16 summary: True 12 / 12 306.6 s
+10:58:16 dist rush3:gz_v7_rush available 15280 MB
+== rush3 exit 1 end 11:04:14 summary: True 12 / 12 308.3 s
+11:04:14 dist v7a:gz_v7 available 15282 MB
+== v7a exit 1 end 11:08:42 summary: True 8 / 8 215.7 s
+11:08:42 main v7a:gz_v7 available 15265 MB
+== v7a exit 1 end 11:13:09 summary: True 8 / 8 217.1 s
+11:13:09 main v7b:gz_v7 available 15255 MB
+== v7b exit 1 end 11:17:25 summary: FileNotFoundError: [Errno 2] No such file or directory: '/home/pjw/gz_runs/main_a6265b0_v012/v7b/result/summary.json'
+11:17:25 dist v7b:gz_v7 available 15255 MB
+== v7b exit 1 end 11:21:52 summary: True 8 / 8 218.4 s
+11:21:52 dist v7c:gz_v7 available 15252 MB
+== v7c exit 1 end 11:26:21 summary: True 8 / 8 216.9 s
+11:26:21 main v7c:gz_v7 available 15257 MB
+== v7c exit 1 end 11:30:46 summary: True 8 / 8 216.1 s
+11:30:46 all done
+11:31:12 main v7d:gz_v7 (rerun of failed v7b) available 15326 MB
+== v7d exit 1 end 11:34:49 summary: FileNotFoundError: [Errno 2] No such file or directory: '/home/pjw/gz_runs/main_a6265b0_v012/v7d/result/summary.json'

@@ -89,7 +89,7 @@ def core_jumps(record) -> list[dict]:
 def jumps(batch: Path) -> None:
     for run in (*RUSH, *V7):
         record = batch / run / "result" / "fleet_record.jsonl"
-        if not record.exists():
+        if not (record.parent / "summary.json").exists():
             continue
         found = core_jumps(record)
         modes = {}
@@ -110,7 +110,7 @@ def speed_fit(batch: Path) -> None:
     rows = []
     for run in (*RUSH, *V7):
         result = batch / run / "result"
-        if not (result / "fleet_record.jsonl").exists():
+        if not (result / "summary.json").exists():
             continue
         found, differ = eta_error.samples(result / "fleet_record.jsonl", 0.5)
         if differ is not None:
