@@ -240,10 +240,10 @@ class StoreArenaEnv(GoalReachEnv):
         self.d_prev[env_ids] = self.d_now[env_ids]
         self._sample_movers(env_ids, r)
         self.mover_t[env_ids] = 0.0
-        self.mover_gap[env_ids] = float("inf")
         self._write_movers(env_ids)
+        self.mover_gap[env_ids] = self.mover_gaps(self.start_xy[env_ids], env_ids)  # at t = 0
 
-    def _sample_movers(self, env_ids, r, chunk: int = 1024) -> None:
+    def _sample_movers(self, env_ids, r, chunk: int = 256) -> None:
         """New legs for env_ids (routes r), avoiding walls, shelves and the route's boxes."""
         sizes = torch.tensor(self.routes.obstacle_sizes, device=self.device)
         bounds = tuple(float(v) for v in self.routes_bounds)
@@ -292,10 +292,11 @@ class StoreArenaEnv(GoalReachEnv):
             obj.write_root_pose_to_sim_index(root_pose=pose, env_ids=ids)
             obj.write_root_velocity_to_sim_index(root_velocity=v6, env_ids=ids)
 
-    def mover_gaps(self, xy: torch.Tensor) -> torch.Tensor:
-        """(N,) distance from the robot centre xy (N, 2) to the nearest active mover surface."""
+    def mover_gaps(self, xy: torch.Tensor, ids=None) -> torch.Tensor:
+        """(n,) distance from the robot centre xy (n, 2) of envs ids (all if None) to the nearest
+        active mover surface; negative if the centre is inside a person; inf without movers."""
         gap = torch.full((len(xy),), float("inf"), device=self.device)
-        for shape, (pos, yaw, _, act) in zip(ms.MOVERS, self.mover_state(), strict=True):
+        for shape, (pos, yaw, _, act) in zip(ms.MOVERS, self.mover_state(ids), strict=True):
             d = xy - pos
             if shape.kind == "cylinder":
                 g = d.norm(dim=-1) - shape.size[0]

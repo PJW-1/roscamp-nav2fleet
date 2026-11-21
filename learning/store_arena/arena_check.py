@@ -12,7 +12,8 @@
             box stay where it was put (kinematic), does the lidar see it
 
 The expected scans include each env's obstacle boxes. contact and crossenv place robots by hand,
-so run them with --set obstacle_max=0 --set mover_prob=0 (the expected scans have no movers).
+so run them with --set obstacle_max=0. scene, contact, crossenv and reset park the movers
+(mover_prob 0) unless --set mover_prob is given: their expected scans have no movers.
   mover     movers follow their legs (sim pose vs mover_spec), the lidar sees the person, and
             driving into a mover that has stopped is a collision
 
@@ -77,6 +78,9 @@ def main():
     import store_arena_env as sae
 
     task_over, arena_over = arena.split_overrides(args_cli.set)
+    if args_cli.mode in ("scene", "contact", "crossenv", "reset"):
+        # their expected scans have no movers: movers stay parked unless asked for explicitly
+        arena_over.setdefault("mover_prob", 0.0)
     env_cfg = sae.StoreArenaEnvCfg()
     env_cfg.scene.num_envs = args_cli.num_envs
     env_cfg.spec_overrides = task_over
@@ -521,38 +525,50 @@ def main():
 
             n = env.num_envs
             stop = action(0.0)
-            err, seen = 0.0, []
+            err = 0.0
+            seen = {m.name: [] for m in ms_.MOVERS}  # (sim range, nearest, farthest possible)
             org = env.scene.env_origins[:, :2]
-            person = ms_.MOVERS[0]
             for k in range(100):  # 5 s standing; movers walk
                 env.step(stop)
                 for obj, (pos, _, _, _) in zip(env.mover_objs, env.mover_state(), strict=True):
                     sim_xy = obj.data.root_pos_w.torch[:, :2] - org
                     err = max(err, float((sim_xy - pos).norm(dim=-1).max()))
-                if k % 10 == 9:  # lidar ray toward the person vs the distance to its surface
+                if k % 10 == 9:  # lidar ray toward each mover vs the distance to its surface
                     rp, ryaw = env.robot_pose()
                     c = lidar_center(rp, ryaw)
-                    ppos, _, _, pact = env.mover_state()[0]
-                    cpos, _, _, cact = env.mover_state()[1]
-                    d = (ppos - c).norm(dim=-1)
-                    bearing = torch.atan2(ppos[:, 1] - c[:, 1], ppos[:, 0] - c[:, 0]) - ryaw
-                    i = torch.remainder(torch.round(torch.rad2deg(bearing)) + 180, 360).long()
+                    st = env.mover_state()
                     rows = torch.arange(n, device=env.device)
-                    sim_r = env.lidar_ranges()[rows, i]
-                    exp_static = expected_scan(rp, ryaw)[rows, i]  # walls, shelves, boxes
-                    cart_far = ~cact | ((cpos - c).norm(dim=-1) > d + 0.2)
-                    ok = pact & (exp_static > d + 0.1) & cart_far & (d < 1.8)
-                    seen.append(torch.stack((sim_r[ok], d[ok] - person.size[0]), -1))
-            seen = torch.cat(seen)
+                    lid = env.lidar_ranges()
+                    exp_all = expected_scan(rp, ryaw)  # walls, shelves, boxes
+                    for m, shape in enumerate(ms_.MOVERS):
+                        pos, _, _, act = st[m]
+                        opos, _, _, oact = st[1 - m]
+                        d = (pos - c).norm(dim=-1)
+                        bearing = torch.atan2(pos[:, 1] - c[:, 1], pos[:, 0] - c[:, 0]) - ryaw
+                        i = torch.remainder(torch.round(torch.rad2deg(bearing)) + 180, 360).long()
+                        other_far = ~oact | ((opos - c).norm(dim=-1) > d + 0.2)
+                        ok = act & (exp_all[rows, i] > d + 0.1) & other_far & (d < 1.8)
+                        if shape.kind == "cylinder":
+                            near, far = d - shape.size[0], d - shape.size[0]
+                        else:  # a ray at the centre meets a box face between these distances
+                            near, far = d - shape.radius, d - 0.5 * min(shape.size[:2])
+                        seen[shape.name].append(
+                            torch.stack((lid[rows, i][ok], near[ok], far[ok]), -1)
+                        )
             # the ray at the nearest whole degree passes up to 0.5 deg off the centre: at 1.8 m
             # that is 1.6 cm sideways, which lengthens the hit on a 4 cm radius by up to 0.4 cm
-            diff = (seen[:, 0] - seen[:, 1]).abs()
             report["mover_pose_err_max_m"] = round(err, 6)
-            report["person_rays_compared"] = len(seen)
-            report["person_ray_err_m"] = {
-                "max": round(float(diff.max()), 4),
-                "p99": round(float(diff.quantile(0.99)), 4),
-            }
+            ray_ok = True
+            for name, rows_ in seen.items():
+                t_ = torch.cat(rows_)
+                out = (t_[:, 1] - t_[:, 0]).clamp(min=0) + (t_[:, 0] - t_[:, 2]).clamp(min=0)
+                report[f"{name}_rays_compared"] = len(t_)
+                if len(t_):
+                    report[f"{name}_ray_outside_band_m"] = {
+                        "max": round(float(out.max()), 4),
+                        "p99": round(float(out.quantile(0.99)), 4),
+                    }
+                ray_ok &= len(t_) > 0 and float(out.quantile(0.99)) < 0.01
             act = [legs["active"].float().mean().item() for legs in env.mover_legs]
             report["mover_active_share"] = dict(
                 zip([m.name for m in ms_.MOVERS], [round(a, 3) for a in act], strict=True)
@@ -590,6 +606,8 @@ def main():
                         yaws.append(ang)
                         target.append(k)
                         break
+            n_with_mover = int((states[0][3] | states[1][3]).sum())
+            report["envs_with_a_mover"] = n_with_mover
             report["envs_driven"] = len(ids)
             place(ids, np.array(starts), yaws)
             tested = torch.zeros(n, dtype=torch.bool, device=env.device)
@@ -616,9 +634,9 @@ def main():
                 ]
             report["pass"] = (
                 err < 1e-3
-                and len(seen) > 0
-                and float(diff.quantile(0.99)) < 0.01
-                and len(ids) > 0
+                and ray_ok
+                and len(ids) >= 0.8 * n_with_mover
+                and min(target.count(0), target.count(1)) > 0
                 and bool(ok.all())
                 and len(g) > 0
                 and float(g.max()) < 0.10
@@ -721,7 +739,7 @@ def main():
                 report["box_drift_standing_max_m"] < 1e-3
                 and report["box_vs_route_layout_max_m"] < 1e-3
                 and report["boxes_put_back_max_err_m"] < 1e-3
-                and len(ids) > 0
+                and len(ids) >= 0.8 * report["envs_with_a_box"]
                 and bool(ok.all())
                 and len(g) > 0
                 and float(g.max()) < 0.10

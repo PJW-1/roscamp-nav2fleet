@@ -308,6 +308,8 @@ def plot_anim(out: str, src: str, env: int = 0, seconds: float = 30.0) -> None:
 
     def draw(f):
         k = f * every
+        if done[k] and k > 0:  # a done frame already holds the next episode's reset state
+            k -= 1
         ax.clear()
         for b in z["boxes"]:
             ax.add_patch(Rectangle(b[:2], b[2] - b[0], b[3] - b[1], color="#8c8c99", lw=0))

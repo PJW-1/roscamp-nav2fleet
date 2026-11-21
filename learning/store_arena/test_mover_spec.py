@@ -27,6 +27,15 @@ def test_shapes_match_the_gazebo_benchmark():
     assert cart.radius == pytest.approx(0.5 * math.hypot(0.14, 0.09))
 
 
+def test_leg_check_catches_a_corner_between_samples():
+    """A box corner 0.035 m beside an 0.8 m leg, halfway between two of 9 evenly spaced points:
+    the checked clearance must not exceed the true one by more than the 0.01 m margin."""
+    a, b = torch.tensor([[[0.0, 0.0]]]), torch.tensor([[[0.8, 0.0]]])
+    rects = torch.tensor([[[0.05 - 0.2, 0.035, 0.05, 0.3]]])  # corner at (0.05, 0.035)
+    clear = M.leg_clearance(a, b, rects)
+    assert clear.item() <= 0.035 + M.LEG_CHECK_MARGIN_M + 1e-6
+
+
 @pytest.fixture(scope="module")
 def batch():
     site = A.load_site(SPEC)

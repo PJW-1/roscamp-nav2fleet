@@ -58,6 +58,21 @@ def point_segment_distance(p: torch.Tensor, a: torch.Tensor, b: torch.Tensor) ->
     return (p[:, None] - q).norm(dim=-1)
 
 
+# Legs are checked at points at most 2 * LEG_CHECK_MARGIN_M apart, so the true clearance of the
+# whole leg is at most LEG_CHECK_MARGIN_M below the checked one (a corner halfway between points).
+LEG_CHECK_MARGIN_M = 0.01
+
+
+def leg_clearance(a: torch.Tensor, b: torch.Tensor, rects: torch.Tensor) -> torch.Tensor:
+    """a, b (N, C, 2) legs, rects (N, B, 4) -> (N, C) smallest distance from points along each
+    leg (spaced <= 2 * LEG_CHECK_MARGIN_M) to the rects."""
+    n, c = a.shape[:2]
+    m = int(math.ceil(float((b - a).norm(dim=-1).max()) / (2 * LEG_CHECK_MARGIN_M))) + 1
+    s = torch.linspace(0.0, 1.0, max(m, 2), device=a.device)
+    pts = a[:, :, None] + s[None, None, :, None] * (b - a)[:, :, None]  # (N, C, m, 2)
+    return point_rect_distance(pts.reshape(n, -1, 2), rects).reshape(n, c, -1).amin(-1)
+
+
 def sample_legs(
     rects: torch.Tensor,
     bounds: tuple[float, float, float, float],
@@ -75,7 +90,8 @@ def sample_legs(
 
     A candidate leg is centred on a random path point (probability mover_on_path_prob) or anywhere
     in the bounds, has a random direction and a length in mover_leg_m. It is valid when every
-    point of it keeps the mover (clearance radius + 0.01 m) off walls, shelves and boxes and the
+    point of it keeps the mover (clearance radius + LEG_CHECK_MARGIN_M at the checked points, so
+    at least the radius everywhere) off walls, shelves and boxes, stays inside the bounds and the
     whole leg stays mover_node_clear_m from the start and the goal. The first valid candidate is
     used; an env with none, or not drawn (mover_prob), has the mover inactive (parked)."""
     n, dev = start.shape[0], start.device
@@ -95,13 +111,11 @@ def sample_legs(
     half = 0.5 * (lo + rand(n, c) * (hi - lo))
     d = torch.stack((torch.cos(ang), torch.sin(ang)), -1)
     a, b = centre - half[..., None] * d, centre + half[..., None] * d
-    s = torch.linspace(0.0, 1.0, 9, device=dev)
-    pts = a[:, :, None] + s[None, None, :, None] * (b - a)[:, :, None]  # (N, C, 9, 2)
-    clear = point_rect_distance(pts.reshape(n, c * 9, 2), rects).reshape(n, c, 9)
     r = shape.radius
-    inside = (pts[..., 0] > x0 + r) & (pts[..., 0] < x1 - r)
-    inside &= (pts[..., 1] > y0 + r) & (pts[..., 1] < y1 - r)
-    ok = ((clear > r + 0.01) & inside).all(-1)
+    ends = torch.stack((a, b), -2)  # a straight leg is inside the bounds when both ends are
+    inside = (ends[..., 0] > x0 + r) & (ends[..., 0] < x1 - r)
+    inside &= (ends[..., 1] > y0 + r) & (ends[..., 1] < y1 - r)
+    ok = (leg_clearance(a, b, rects) > r + LEG_CHECK_MARGIN_M) & inside.all(-1)
     ok &= point_segment_distance(start, a, b) > spec.mover_node_clear_m
     ok &= point_segment_distance(goal, a, b) > spec.mover_node_clear_m
     first = ok.float().argmax(-1)  # 0 when none is valid (then inactive)

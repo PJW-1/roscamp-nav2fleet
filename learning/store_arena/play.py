@@ -128,7 +128,7 @@ def main():
         total = {k: sum(r[k] for r in by_boxes.values()) for k in keys}
         gaps, codes = np.array(gaps), np.array(codes)
         bins = {"no mover": np.isinf(gaps)}
-        edges = (0.0, 0.10, 0.25, 0.50, np.inf)
+        edges = (-np.inf, 0.10, 0.25, 0.50, np.inf)  # below 0: centre inside a person
         for lo, hi in zip(edges[:-1], edges[1:], strict=True):
             bins[f"gap {lo:.2f}-{hi:.2f} m"] = (gaps >= lo) & (gaps < hi) & ~np.isinf(gaps)
         by_gap = {}
