@@ -195,11 +195,13 @@ SUCCEEDED인데 실패로 센 세 판(c_moving RL 둘, d_robot RL 하나)은 부
    ```
 
    `/tmp/cmp012/table.md`의 첫 표가 위 본 비교 표와 같은지(성공, 시간) 본다.
-2. d_robot에서 RL 혼자와 RL+shim을 두 판씩만 돌려 본다(잠금을 잡은 뒤, 도메인 62):
+2. d_robot에서 RL 혼자와 RL+shim을 두 판씩만 돌려 본다(도메인 62). `run_bench.sh`가 무거운 작업 잠금을 스스로 잡고
+   놓으므로 잠금이 비어 있을 때 돌린다. 빌드한 작업 공간의 `install/setup.bash`를 먼저 source한다. 스크립트가 launch 전에
+   다른 폴더로 옮겨 가므로 덮어쓰기 파일은 절대 경로로 준다:
 
    ```bash
    export BENCH_DOMAIN=62 BENCH_REPEATS=2 \
-     BENCH_OVERRIDES=results/2026-11-22/compare_012/rl_and_shim.yaml \
+     BENCH_OVERRIDES=$PWD/results/2026-11-22/compare_012/rl_and_shim.yaml \
      BENCH_CONTROLLERS="FollowPathRL FollowPathRLShim"
    bash tools/nav_bench/run_bench.sh /tmp/try_d_robot d_robot
    python3 tools/nav_bench/report.py --config tools/nav_bench/scenarios.yaml \
@@ -209,7 +211,8 @@ SUCCEEDED인데 실패로 센 세 판(c_moving RL 둘, d_robot RL 하나)은 부
    `/tmp/try_d_robot/report/tracks.png`에서 빨강(RL)이 y 0.65 부근으로, 초록(RL+shim)이 y 0.57 부근으로 가는지 본다.
 3. `rl_and_shim.yaml`의 `angular_dist_threshold`를 0.785에서 0.4로 바꿔 2번을 다시 돌린다. 제자리 회전 시간(표 둘째 칸
    "제자리 회전 s")이 늘고 RL이 넘겨받을 때의 방향 오차가 줄어드는지 본다.
-4. Q2 → E-3을 RL+shim으로 세 판 돌려(`BENCH_CONFIG=results/2026-11-22/compare_012/q2e3.yaml`, 시나리오 `a_hall`)
+4. Q2 → E-3을 RL+shim으로 세 판 돌려(2번과 같이 하되 `BENCH_CONFIG=$PWD/results/2026-11-22/compare_012/q2e3.yaml`,
+   `BENCH_REPEATS=3`, `BENCH_CONTROLLERS=FollowPathRLShim`, 시나리오 `a_hall`)
    출발 3~4 s 사이에 남쪽 벽(y 0)에 붙는 판이 있는지 `tracks.png`에서 본다.
 
 ## 남은 것
