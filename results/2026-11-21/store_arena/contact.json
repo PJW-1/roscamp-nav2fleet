@@ -92,9 +92,9 @@
    "height_m": 0.3
   }
  ],
- "build_s": 8.74,
- "gpu_mib_before_env": 1206,
- "gpu_mib_after_build": 1472,
+ "build_s": 7.76,
+ "gpu_mib_before_env": 964,
+ "gpu_mib_after_build": 1207,
  "contact_bodies": [
   "base_link",
   "front_camera_mount",
@@ -210,11 +210,11 @@
    "yaw_deg": 0.0,
    "speed": -0.05,
    "last_pose_before_end": [
-    0.0764,
+    0.0765,
     0.55
    ],
-   "centre_to_face_m_before_end": 0.0764,
-   "lidar_min_m_before_end": 0.0586
+   "centre_to_face_m_before_end": 0.0765,
+   "lidar_min_m_before_end": 0.0587
   },
   "west_wall_diag45": {
    "result": {

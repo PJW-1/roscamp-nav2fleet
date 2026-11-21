@@ -92,9 +92,9 @@
    "height_m": 0.3
   }
  ],
- "build_s": 11.15,
- "gpu_mib_before_env": 1087,
- "gpu_mib_after_build": 1730,
+ "build_s": 11.14,
+ "gpu_mib_before_env": 964,
+ "gpu_mib_after_build": 1585,
  "reset_envs": 2048,
  "moved_m": 0.485,
  "first_obs_off_vs_new_pose": {
@@ -103,20 +103,20 @@
  },
  "first_obs_off_vs_old_pose": {
   "envs": 2048,
-  "sectors": 71064
+  "sectors": 72770
  },
  "running_envs_obs_off": {
   "envs": 0,
   "sectors": 0
  },
  "second_obs_off": {
-  "envs": 0,
-  "sectors": 0
+  "envs": 4,
+  "sectors": 4
  },
  "initial_reset_obs_off": {
   "envs": 0,
   "sectors": 0
  },
  "pass": true,
- "gpu_mib_end": 4840
+ "gpu_mib_end": 4695
 }

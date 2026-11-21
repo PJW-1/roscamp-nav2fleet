@@ -92,9 +92,9 @@
    "height_m": 0.3
   }
  ],
- "build_s": 8.94,
- "gpu_mib_before_env": 1206,
- "gpu_mib_after_build": 1472,
+ "build_s": 8.21,
+ "gpu_mib_before_env": 964,
+ "gpu_mib_after_build": 1232,
  "origins_first4": [
   [
    0.75,
@@ -117,14 +117,14 @@
    0.0
   ]
  ],
- "scan_vs_yaml_rays_away_from_robot2": {
+ "scan_vs_yaml_rays_not_at_robot2": {
   "max_abs_err_m": 0.00094,
   "rays_err_gt_1cm": 0,
   "rays_hit_miss_disagree": 0,
-  "rays_outside_2mm_corner_band": 0,
-  "rays_compared": 5106
+  "rays_off_both_2mm_casts": 0,
+  "rays_compared": 5365
  },
- "rays_that_would_differ_if_envs_leaked": 4507,
+ "rays_that_would_differ_if_envs_leaked": 4766,
  "robot2_ahead_range_m": {
   "mean": 0.5747,
   "min": 0.5747,
@@ -133,7 +133,8 @@
  },
  "robot2_after_move_0p2_range_m": {
   "mean": 0.7748,
-  "delta_mean": 0.2001
+  "delta_mean": 0.2001,
+  "delta_max_err_vs_0p2": 0.0001
  },
  "robot_z_range_m": [
   0.0277,
@@ -141,5 +142,5 @@
  ],
  "robot_xy_drift_max_m": 0.0,
  "pass": true,
- "gpu_mib_end": 1516
+ "gpu_mib_end": 1276
 }

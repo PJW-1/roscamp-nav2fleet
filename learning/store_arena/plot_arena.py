@@ -64,7 +64,7 @@ def plot_scene(src: str, out: str) -> None:
     err = rep["scan_vs_yaml_all_envs"]
     ax.set_title(
         f"store arena, env 0 of {rep['num_envs']}; lidar of all envs vs yaml ray cast: "
-        f"{err['rays_outside_2mm_corner_band']} of {err['rays_compared']} rays off by > 1 cm "
+        f"{err['rays_off_both_2mm_casts']} of {err['rays_compared']} rays off by > 1 cm "
         "(boxes +-2 mm)",
         fontsize=10,
     )

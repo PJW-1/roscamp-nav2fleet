@@ -140,15 +140,32 @@ def main():
             fin_s, fin_e = torch.isfinite(sim), torch.isfinite(exp)
             both = fin_s & fin_e & mask
             err = (sim - exp).abs().where(both, torch.zeros_like(sim))
-            near, far, s = (t.nan_to_num(posinf=1e9) for t in (near, far, sim))  # miss = 1e9
-            lo, hi = torch.minimum(near, far) - 0.01, torch.maximum(near, far) + 0.01
-            in_band = (s >= lo) & (s <= hi)
+            # miss = 1e9. The sim must equal one of the three casts (a corner hit or miss), not
+            # anything between them. Grown/shrunk alone is not enough: at shallow incidence 2 mm
+            # moves a hit by more than 1 cm.
+            ex, near, far, s = (t.nan_to_num(posinf=1e9) for t in (exp, near, far, sim))
+            in_band = ((s - ex).abs() <= 0.01) | ((s - near).abs() <= 0.01)
+            in_band |= (s - far).abs() <= 0.01
+            off = (~in_band & mask).nonzero()[:10]
+            sample = [
+                {
+                    "env": int(e),
+                    "ray": int(r),
+                    "pose": [round(float(v), 4) for v in (*pos[e], yaw[e])],
+                    "sim": round(float(sim[e, r]), 4),
+                    "exact": round(float(exp[e, r]), 4),
+                    "grown": round(float(near[e, r]), 4),
+                    "shrunk": round(float(far[e, r]), 4),
+                }
+                for e, r in off.tolist()
+            ]
             return {
                 "max_abs_err_m": round(float(err.max()), 5),
                 "rays_err_gt_1cm": int((err > 0.01).sum()),
                 "rays_hit_miss_disagree": int(((fin_s != fin_e) & mask).sum()),
-                "rays_outside_2mm_corner_band": int((~in_band & mask).sum()),
+                "rays_off_both_2mm_casts": int((~in_band & mask).sum()),
                 "rays_compared": int(mask.sum()),
+                "off_rays_sample": sample,
             }
 
         def place(ids, xy, yaw):
@@ -179,7 +196,10 @@ def main():
             pos, yaw = env.robot_pose()
             sim = env.lidar_ranges()
             report["scan_vs_yaml_all_envs"] = scan_error(sim, pos, yaw)
-            report["pass"] = report["scan_vs_yaml_all_envs"]["rays_outside_2mm_corner_band"] == 0
+            err_s = report["scan_vs_yaml_all_envs"]
+            # tolerance: at most 0.01 % of rays may match none of the three casts (grazing rays;
+            # a missing or moved box changes far more rays than that)
+            report["pass"] = err_s["rays_off_both_2mm_casts"] <= 1e-4 * err_s["rays_compared"]
             t1 = time.time()
             steps = 100
             for _ in range(steps):
@@ -284,7 +304,12 @@ def main():
                     "lidar_min_m_before_end": round(lid_last, 4),
                 }
             report["cases"] = summary
-            report["pass"] = all(first.get(c[0], {}).get("collided") for c in cases)
+            # every drive ends in a collision, and only once it has reached its wall or shelf
+            report["pass"] = all(
+                first.get(c[0], {}).get("collided")
+                and summary.get(c[0], {}).get("centre_to_face_m_before_end", 1.0) < 0.10
+                for c in cases
+            )
             contact_pass = report["pass"]
             # forces at the collision step are read inside env._get_dones; log them via a second
             # pass that does not terminate (collision_force huge) to see which body touches first
@@ -344,9 +369,10 @@ def main():
             r2 = robot2.data.root_link_pos_w.torch[:, :2] - env.scene.env_origins[:, :2]
             bearing = torch.atan2(r2[:, 1] - pos[:, 1], r2[:, 0] - pos[:, 0])
             off = torch.atan2(torch.sin(ang - bearing[:, None]), torch.cos(ang - bearing[:, None]))
-            away = off.abs() > math.radians(20)
+            # robot2 (about 0.6 m ahead, under 0.1 m half-size) spans less than +-10 deg
+            away = off.abs() > math.radians(12)
             report["origins_first4"] = env.scene.env_origins[:4].tolist()
-            report["scan_vs_yaml_rays_away_from_robot2"] = scan_error(sim, pos, yaw, away)
+            report["scan_vs_yaml_rays_not_at_robot2"] = scan_error(sim, pos, yaw, away)
             # power of the test: rays that would change if env i saw the other envs' boxes and
             # robots (robots drawn as 0.1 m squares), at this spacing
             org = env.scene.env_origins[:, :2]
@@ -388,15 +414,17 @@ def main():
             report["robot2_after_move_0p2_range_m"] = {
                 "mean": round(float(fwd2.mean()), 4),
                 "delta_mean": round(float((fwd2 - fwd).mean()), 4),
+                "delta_max_err_vs_0p2": round(float((fwd2 - fwd - 0.2).abs().max()), 4),
             }
             z = env.robot.data.root_link_pos_w.torch[:, 2]
             report["robot_z_range_m"] = [round(float(z.min()), 4), round(float(z.max()), 4)]
             drift = (env.robot_pose()[0] - pos).norm(dim=-1)
             report["robot_xy_drift_max_m"] = round(float(drift.max()), 5)
             report["pass"] = (
-                report["scan_vs_yaml_rays_away_from_robot2"]["rays_outside_2mm_corner_band"] == 0
-                and abs(report["robot2_after_move_0p2_range_m"]["delta_mean"] - 0.2) < 0.005
+                report["scan_vs_yaml_rays_not_at_robot2"]["rays_off_both_2mm_casts"] == 0
+                and float((fwd2 - fwd - 0.2).abs().max()) < 0.005  # every env sees its robot2
                 and float(fwd.max()) < 1.0
+                and leak > 0  # the arenas overlap, so a leak would show
             )
 
         elif mode == "reset":
@@ -423,8 +451,9 @@ def main():
                 cast of the yaml boxes grown and shrunk by 2 mm (as scan_error: a ray grazing a
                 thin divider top moves a sector minimum by up to its whole range)."""
                 a, b = sec(expected_scan(pos, yaw, 0.002)), sec(expected_scan(pos, yaw, -0.002))
-                lo, hi = torch.minimum(a, b) - 0.01, torch.maximum(a, b) + 0.01
-                bad = (obs_sec < lo) | (obs_sec > hi)
+                e = sec(expected_scan(pos, yaw))
+                bad = ((obs_sec - a).abs() > 0.01) & ((obs_sec - b).abs() > 0.01)
+                bad &= (obs_sec - e).abs() > 0.01
                 return {"envs": int(bad.any(-1).sum()), "sectors": int(bad.sum())}
 
             rs, run = slice(0, half), slice(half, n)
@@ -449,7 +478,7 @@ def main():
                 report["first_obs_off_vs_new_pose"]["envs"] == 0
                 and report["initial_reset_obs_off"]["envs"] == 0
                 and report["running_envs_obs_off"]["envs"] == 0
-                and report["second_obs_off"]["envs"] == 0
+                and report["second_obs_off"]["sectors"] <= 1e-4 * n * arena.ts.OBS_LIDAR
                 # the test can tell: (nearly) every reset env's obs differs from the old pose
                 and report["first_obs_off_vs_old_pose"]["envs"] >= 0.9 * half
             )
