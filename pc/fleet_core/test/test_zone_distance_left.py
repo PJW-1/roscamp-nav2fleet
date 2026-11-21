@@ -1,7 +1,7 @@
 """order 모델에서 지금 Nav2 goal 조각의 남은 시간은 로봇이 피드백에 실어 보내는 남은 거리
 (distance_remaining)로 잰다. 남은 조각은 travel_s 그대로다. 값이 없거나 오래됐거나, 경로를
 새로 짜서 뛰었거나, 로봇 자리보다 가깝다고 하거나, 끝난 조각의 값이면 예전처럼 투영(left_s)으로
-잰다."""
+잰다. 어느 쪽이든 Nav2 goal 이어짐의 끝 보정(nav_end_s, test_zone_eta_end.py)은 똑같이 붙는다."""
 import json
 import math
 import sys
@@ -14,7 +14,7 @@ from fleet_core.common.params import load_params
 from fleet_core.fleet_map import NAV_GOAL, load_fleet_map
 from fleet_core.manager import FleetManager
 from fleet_core.traffic.zone import order_answers
-from fleet_core.traffic.zone.routes import left_s, speed, travel_s
+from fleet_core.traffic.zone.routes import left_s, nav_end_s, nav_stretch, speed, travel_s
 from zone_harness import Harness
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "tools"))
@@ -38,16 +38,31 @@ def eta(world, m):
     return world.traffic._left_s(m, m.route, m.route.granted)
 
 
+def chain_end(m):
+    route = m.route
+    return route.done + nav_stretch(route.edges[route.done:route.granted])
+
+
+def with_end(world, m, nav_s, chain):
+    route = m.route
+    adjust = nav_end_s(world.params, world.site, route.edges, chain, m.x, m.y, m.yaw)
+    return max(0.0, nav_s + adjust) + travel_s(world.params, route.edges[chain:route.granted])
+
+
 def projected(world, m):
     route = m.route
-    return left_s(world.params, route.edges[route.done:route.granted], m.x, m.y)
+    if route.edges[route.done].mode != NAV_GOAL:
+        return left_s(world.params, route.edges[route.done:route.granted], m.x, m.y)
+    chain = chain_end(m)
+    return with_end(world, m, left_s(world.params, route.edges[route.done:chain], m.x, m.y), chain)
 
 
 def from_distance(world, m, distance):
-    route = m.route
+    route, chain = m.route, chain_end(m)
     _, _, end = m.move_order.cuts[m.move_order.done_seq]
-    return distance / speed(world.params, NAV_GOAL) + travel_s(world.params,
-                                                               route.edges[end:route.granted])
+    nav_s = (distance / speed(world.params, NAV_GOAL)
+             + travel_s(world.params, route.edges[end:chain]))
+    return with_end(world, m, nav_s, chain)
 
 
 def feed(world, goal_id, distance, done=0, waiting=False, dt=0.2):

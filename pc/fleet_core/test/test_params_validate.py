@@ -96,7 +96,8 @@ def test_zero_is_an_error_where_zero_does_not_mean_off(tmp_path, key):
 
 def test_zero_means_off_keys_are_the_documented_ones():
     assert ZERO_MEANS_OFF == frozenset({"zone_clear_m", "idle_watch_s", "silent_limit_s",
-                                        "start_limit_s", "battery_low_pct"})
+                                        "start_limit_s", "battery_low_pct", "nav_pass_m",
+                                        "nav_turn_rps"})
 
 
 @pytest.mark.parametrize("key", sorted(ZERO_MEANS_OFF - OPTIONAL))
@@ -114,14 +115,15 @@ def test_score_values_may_be_negative(tmp_path):
     assert params.score_same_call == -9.0
 
 
-RECORD_COMPAT = {"idle_watch_s", "silent_limit_s", "start_limit_s"}
+RECORD_COMPAT = {"idle_watch_s", "silent_limit_s", "start_limit_s", "nav_pass_m", "nav_turn_rps"}
 
 
 def test_code_defaults_match_the_shipped_file_except_record_compat_watches():
     """FleetParams(**fields)로 바로 만들 때(tools/replay.py의 옛 기록)의 기본값.
 
     stall_s는 파일과 같다(12 s). 0이 '끔'인 세 감시는 그 키가 없는 옛 기록을 감시 없이
-    재생하려고 0으로 둔다(test_zone_silent, test_zone_no_start). load_params는 빠진 키를
+    재생하려고 0으로 둔다(test_zone_silent, test_zone_no_start). Nav2 goal 끝 보정 두 키도
+    같은 까닭으로 0이다(test_zone_eta_end). load_params는 빠진 키를
     오류로 내므로 운영 파일에는 이 기본값이 쓰이지 않는다.
     """
     differ = {name: (f.default, SHIPPED[name]) for name, f in FIELDS.items()
