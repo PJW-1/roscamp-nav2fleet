@@ -125,8 +125,9 @@ class ArenaSpec:
     robot_lock_m: float = 0.0  # > 0: waits at a node while our robot is this near the next link
     # node reservation as fleet_manager's (robot_spec.robot_step blocked): 1 = on. Our robot holds
     # every node within robot_reserve_m of its route until it is robot_release_m past it; robots
-    # hold the node they are at and the end of the link they drive; robots never start on ours
-    robot_reserve: int = 0
+    # hold the node they are at and the end of the link they drive; robots never start on ours.
+    # Default 1 since 2026-11-22 (B52: ppo_h timeouts 8.5 -> 3.7 %); 0 for the arena before
+    robot_reserve: int = 1
     robot_reserve_m: float = 0.12
     robot_release_m: float = 0.2
     # right of way: each robot has priority over ours with this probability per episode; it then
