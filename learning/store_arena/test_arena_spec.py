@@ -98,3 +98,11 @@ def test_raycast_range_limits_and_inside_start():
     r = arena.raycast_rects(torch.tensor([[0.97, 0.0]]), torch.zeros(1), rects, max_range=2.0)
     assert r[0, 180].item() == pytest.approx(0.13, abs=1e-6)
 
+
+
+def test_scripted_robot_defaults_are_the_user_decision():
+    # 2026-11-22: 12 routes + retreat to the node before; 4c (ppo_h) used --set robot_routes=4
+    # --set robot_retreat=0
+    assert (arena.ARENA.robot_routes, arena.ARENA.robot_retreat) == (12, 1)
+    old = arena.make_arena_spec({"robot_routes": 4, "robot_retreat": 0})
+    assert (old.robot_routes, old.robot_retreat) == (4, 0)
