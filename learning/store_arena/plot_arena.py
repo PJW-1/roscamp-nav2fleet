@@ -308,12 +308,12 @@ def plot_anim(out: str, src: str, env: int = 0, seconds: float = 30.0) -> None:
 
     def draw(f):
         k = f * every
-        if done[k] and k > 0:  # a done frame already holds the next episode's reset state
-            k -= 1
+        # a done frame holds the next episode's reset state; its route is the finished one's
+        new_ep = bool(done[k])
         ax.clear()
         for b in z["boxes"]:
             ax.add_patch(Rectangle(b[:2], b[2] - b[0], b[3] - b[1], color="#8c8c99", lw=0))
-        r = int(route[k])
+        r = int(route[min(k + 1, len(route) - 1)] if new_ep else route[k])
         p = z["path"][r, : z["npts"][r]]
         ax.plot(p[:, 0], p[:, 1], "--", color="#52514e", lw=0.8)
         for c, sz in zip(z["obstacle_xy"][r], z["obstacle_sizes"], strict=True):
@@ -323,7 +323,7 @@ def plot_anim(out: str, src: str, env: int = 0, seconds: float = 30.0) -> None:
             if z["mover_on"][k, env, m]:
                 ax.add_patch(Circle(z["mover_xy"][k, env, m], shape.radius, color="#d6336c"))
         start = k
-        while start > 0 and not done[start - 1]:
+        while start > 0 and not done[start - 1] and not new_ep:
             start -= 1
         ax.plot(xy[start : k + 1, 0], xy[start : k + 1, 1], color="#eb6834", lw=1.2)
         ax.add_patch(Circle(xy[k], 0.085, fill=False, color="#0b0b0b", lw=1.2))
