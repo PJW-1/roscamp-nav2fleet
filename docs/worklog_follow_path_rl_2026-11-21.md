@@ -47,7 +47,7 @@ Gazebo(`pode_sim.urdf.xacro`): 640빔, −π~π(첫 빔과 끝 빔이 같은 방
 | 1 | 띄우는 방법 | (a) `nav2_params.yaml` controller_plugins에 더함 (b) 덮어쓰기 파일 | (b) **기본으로는 띄우지 않고 덮어쓰기 파일(`follow_path_rl.yaml`)로만 띄운다** | 다른 트랙이 같은 목록을 고치고 있다(FollowPathMPPI). 실물 설정을 바꾸지 않는다. 대가: 기본 목록이 바뀌면 이 파일도 고쳐야 한다(시험이 알려 줌). gz.launch.py는 덮어쓰기의 `plugin` 키를 거부하므로 세 대 경기에는 못 쓴다 |
 | 2 | 관측 숫자의 출처 | (a) C++에 상수로 다시 적음 (b) `task_spec`에서 만든 명세 파일 | (b) `policy_spec.json`. 관측 배치 이름 목록까지 적어 C++가 자기가 만드는 배치와 다르면 시작하지 않는다 | 학습 쪽을 바꾸고 다시 내보내면 플러그인이 따라간다. 배치 순서 자체는 코드(양쪽)라 다르면 거부로 막는다 |
 | 3 | 명세 파일 형식 | YAML, JSON | JSON(표준 라이브러리로 씀), C++는 yaml-cpp로 읽는다(JSON은 YAML) | python 쪽에 PyYAML이 필요 없고 C++ 의존은 Nav2가 이미 쓰는 yaml-cpp 하나 |
-| 4 | 목표점 규칙 | 경로 끝, 경로 위 앞보기 점 | 파라미터 `goal_rule`, **이번 기본 `path_end`**, `lookahead_dist` 0.4 m | 빈 바닥 정책은 1~2 m 떨어진 목표점으로 학습했다. 매장 정책은 경로 위 0.3~0.5 m 앞 점으로 학습할 예정이라 그때 `lookahead`로 바꾼다 |
+| 4 | 목표점 규칙 | 경로 끝, 경로 위 앞보기 점 | ~~파라미터 `goal_rule`, 이번 기본 `path_end`, `lookahead_dist` 0.4 m~~ → 결정 14로 바뀜(규칙은 정책 명세에서 읽는다) | 빈 바닥 정책은 1~2 m 떨어진 목표점으로 학습했다. 매장 정책은 경로 위 0.40 m 앞 점으로 학습했다 |
 | 5 | 끝 방향 맞추기 | (a) goal checker 방향 허용치를 덮어써 끈다 (b) 플러그인이 마지막에 제자리 회전 | (b) goal checker xy 허용치 안에서 ω = `rotate_gain`(1.5) × 방향 오차 | 정책은 위치만 배웠고 BT는 `general_goal_checker`(방향 0.12 rad)를 쓴다. (a)는 되돌린 FollowPathGoal에도 영향을 준다. 허용치는 goal checker에서 읽으므로 2 cm checker에도 맞다 |
 | 6 | ORT 실행 설정 | CPU / XNNPACK·ACL EP, 스레드 수, 순차·병렬, spinning | **CPU EP, intra_op 1(파라미터 `intra_op_threads`), inter_op 1, 순차, spinning 끔, 그래프 최적화 전부** | 41-128-128-2 MLP는 한 번에 수십 µs라 스레드를 늘려도 이득이 없고, 20 Hz 호출 사이에 도는(spin) 스레드는 Pi4 CPU만 먹는다 |
 | 7 | 정책 파일 커밋 | (a) `*.onnx` 무시 유지, 내보내기 스크립트로 만듦 (b) 예외로 커밋 | (b) `policies/*/policy.onnx`만 예외(99 KB) | 플러그인 기본값과 추론 패리티 시험이 그 파일을 연다. 새 체크아웃·Pi에서 바로 돈다. 저장소 규칙(모델은 커밋 안 함)을 좁게 푼 것이라 사용자 확인 필요 |
@@ -56,6 +56,14 @@ Gazebo(`pode_sim.urdf.xacro`): 640빔, −π~π(첫 빔과 끝 빔이 같은 방
 | 10 | 속도 입력 | 명령, 측정 | 측정(controller_server가 주는 odom 속도) | 학습 관측이 몸체 속도(`root_link_lin_vel_b`)다 |
 | 11 | 스캔 받기 | costmap, 스캔 직접 | 부모 노드로 `scan` 직접(SensorDataQoS) | 관측은 원래 거리값이다. costmap은 0.025 m 칸과 inflation으로 바뀐다 |
 | 12 | 추론 비교 허용치 | 절대만, 절대+상대 | atol 1e-5 + rtol 1e-5(numpy.allclose) | 아래 3.1. 학습 범위 밖 입력에서 행동이 100을 넘어 절대 허용치만으로는 float32 반올림을 못 덮는다 |
+| 13 | 매장 정책 ONNX를 만드는 곳 | (a) Isaac에서 rsl_rl 내보내기(play, GPU 잠금 필요) (b) 체크포인트에서 `export_policy.py`가 직접 `torch.onnx.export` | (b) 정규화 + ELU MLP를 같은 모양(opset 18, 입력 `obs` [1, 41], 출력 `actions`, 자르기 없음)으로 만든다. `policy_spec.json` `source.onnx_from`에 적힌다 | Isaac과 잠금이 필요 없다. 같은 그래프인지는 PyTorch 대 ORT python 2.86e-6, ORT python 대 ORT C++ 0(비트까지 같음)으로 본다. 대가: rsl_rl 쪽 내보내기 코드가 바뀌어도 따라가지 않는다(정책 모양이 바뀌면 `CheckpointPolicy`도 고친다) |
+| 14 | 목표점 규칙의 출처 | (a) 덮어쓰기 YAML의 `goal_rule`, `lookahead_dist` (b) 정책 명세(`goal.rule`, `lookahead_m`, `follow_window`), 파라미터는 덮어쓰기만 | (b) 명세 형식 2. 파라미터 `goal_rule`, `lookahead_dist`를 적으면 명세를 덮고 **WARN 로그**(`... OVERRIDES the policy spec ...`)를 남긴다. 덮어쓰기 YAML에서는 두 줄을 뺐다 | YAML이 틀리면 정책이 배우지 않은 목표를 보면서도 조용히 돈다. 명세는 학습 쪽에서 만들어지므로 정책과 함께 다닌다. 덮어쓰기는 시험(예: 규칙을 바꿔 보기)에 싸게 남겼다. 형식 1 명세는 거부한다(다시 내보내라는 메시지) |
+| 15 | 앞보기 점 정의 | (a) 이전 뼈대: 가장 가까운 점부터 로봇과의 직선거리가 0.4 m 이상인 첫 점 (b) 학습의 `route_spec.follow` 그대로 | (b) 진행 번호는 [진행, 진행 + 20점] 안에서 가장 가까운 점으로만 앞으로 가고(뒤로 안 감), 앞보기 점은 진행 점에서 **경로 길이로** 0.40 m 이상 떨어진 첫 점(없으면 끝점) | 정책이 본 목표와 같아야 한다. 굽은 경로에서 (a)는 직선거리라 경로를 질러 더 먼 점을 고른다. fixture로 학습 코드와 견준다(아래 10.2) |
+| 16 | 경로를 따라가는 틀 | (a) 매 주기 경로를 `base_footprint`로 옮겨 계산 (b) 경로 틀(map) 그대로, 로봇 위치를 TF로 그 틀에서 읽음 | (b) | 학습도 map 틀에서 계산한다. (a)는 로봇 자세에 따라 누적 길이가 반올림만큼 바뀌어, 고르게 놓인 경로에서 앞보기 점이 이웃 점과 번갈아 바뀔 수 있다(Codex 검토 지적, 고침) |
+| 17 | 새 경로를 받을 때 진행 번호 | (a) 0으로 되돌림 (b) 새 경로에 로봇을 투영해 이어감 | (a) `setPlan`과 `reset`에서 0 | BT가 1 Hz로 다시 계획하고 NavFn 경로는 로봇 자리에서 시작하므로 0 근처가 맞다. 학습도 에피소드 시작에 0이다. 대가: 경로 시작이 로봇보다 20점(0.5 m) 넘게 뒤에 있으면 진행이 한 주기 늦게 따라간다 |
+| 18 | `follow_window` 단위 | 점 개수(학습 그대로), 미터 | 점 개수 20(명세) | 학습 경로는 0.025 m 칸이라 약 0.5 m. 실물 global costmap도 0.025 m라 같다. 시뮬 지도 해상도가 다르면 미터로는 달라진다(10.3에서 시뮬 경로 점 간격을 적었다) |
+| 19 | 정책마다 fixture | 한 폴더, 정책 폴더마다 | `test/fixtures/<정책>/`, 패리티 시험은 정책마다 한 번씩 빌드(`test_parity_<정책>`) | 관측·행동 fixture는 정책과 무관하지만 추론 fixture와 앞보기 fixture는 정책마다 다르다. 정책을 더하면 CMake 목록에 이름 하나만 더한다 |
+| 20 | 플러그인 기본 정책 | `goal_reach_base_4096`, `store_arena_4b` | `store_arena_4b`(플러그인 기본값과 덮어쓰기 YAML 모두) | 빈 바닥 정책은 경기장 안에서 관측이 학습 범위를 벗어난다(5절). 배포할 것은 매장 정책이다 |
 
 ## 3. 결과
 
@@ -210,4 +218,147 @@ Codex 검토(0aeffaa..3ffb097)에서 [확정] 넷:
 - 충돌 검사 없음. 매장 정책을 올릴 때 local costmap으로 앞을 보는 안전장치(RPP의 `use_collision_detection`과 같은 것)를 더할지 정한다.
 - 경기장 안에서 빈 바닥 정책을 돌린 기록은 없다(5절 때문에 의미가 적다).
 - Pi4(arm64)에서 빌드·추론 시간 재기. Eigen 직접 계산과 비교.
-- 매장 정책을 `export_policy.py`로 내보내 `policies/<이름>/`에 넣고 RPP, MPPI와 같은 goal로 견주기.
+- ~~매장 정책을 `export_policy.py`로 내보내 `policies/<이름>/`에 넣기~~ 끝(10절). RPP, MPPI와 같은 goal로 견주기는 10.5.
+
+## 10. 매장 정책 4b를 플러그인에 올리기 (2026-11-21 밤)
+
+매장 경기장 4b 정책(사람·카트가 움직이는 경기장에서 학습, `D:/isaac/runs/store_arena/ppo_g/c1/model_499.pt`, 평가 성공 94.6 %)을 `policies/store_arena_4b/`로 내보내고, 학습 때 본 목표(경로 위 0.40 m 앞 점)를 플러그인이 똑같이 만들게 했다. Gazebo one_pode(도메인 62)에서 HALL goal 셋을 세 번씩, 그리고 nav_bench e_corridor를 두 번 몰았다.
+
+**한 줄 결론:** 22판 모두 Nav2 SUCCEEDED, 실제 위치가 goal에서 0.10 m 안이다(RL 11판, RPP 11판). RL은 O_IN → M_E를 평균 6.3 s(RPP 9.9 s)에 갔고 제자리 돌기나 좌우 흔들림은 보이지 않았다. **단, Q2 → E-3 세 판 모두 RL 몸이 남쪽 벽이나 칸막이 2 끝에 0~3 mm까지 붙었다**(nav_bench 판정으로 충돌 1, 2, 1번. RPP는 같은 goal에서 0.065 m). 한 번 추론은 Gazebo 안에서 1 s 평균의 가운데값 50 µs다.
+
+### 10.1 학습 설정이 goal_reach와 같은지
+
+학습 commit은 `feat/store-arena-2026-11-21` d2abc2c다(체크포인트 `model_0.pt`가 18:53, 그 전 마지막 commit이 18:42 d2abc2c, 다음 commit은 19:30). 그 commit과 이 브랜치를 견주었다.
+
+| 항목 | 같은가 | 근거 |
+|---|---|---|
+| `task_spec.py`(관측 배치·축척, 라이다 360광선·36구역·0.05~2.0 m, 행동 한계 v −0.05~0.25, ω ±1.0, 가속 2.0, 주기 0.05 s) | 같다 | 차이는 `parse_overrides`(문자열 필드 받기) 하나. 관측·행동 함수는 글자까지 같다 |
+| 라이다 설정(`goal_reach_env.make_lidar_cfg`) | 같다 | `goal_reach_env.py` 차이는 주석과 시작점 고르기(`sample_start`)뿐 |
+| 관측 | 같다 | `store_arena_env._get_observations`가 `ts.build_observation(lidar, la_dist, la_ang, body_velocity, spec)`를 부른다. `--set` 덮어쓰기 없음(`run.json` `spec_overrides: {}`) |
+| 정책 망과 행동 자르기 | 같다 | `agent_cfg`: ELU 128-128, 관측 정규화, `clip_actions` 1.0 |
+| 정규화 통계 | **다르다(좋은 쪽)** | 4b: 라이다 구역 std 0.095~0.150(0인 칸 없음), `goal_dist` 평균 0.118(0.35 m) std 0.032(0.096 m). goal_reach: 라이다 std 0(5절의 문제). 그래서 4b는 벽이 보이는 관측에서 행동 크기가 최대 10.7(추론 fixture 32개)로 goal_reach의 126보다 작다 |
+| 목표 | **다르다** | 경로 위 앞보기 점(`ArenaSpec.lookahead_m` 0.40, `follow_window` 20). 명세 `goal`에 적었다(결정 14, 15) |
+
+### 10.2 만든 것과 시험
+
+| 파일 | 바뀐 것 |
+|---|---|
+| `learning/goal_reach/export_policy.py` | `--onnx` 없이 체크포인트에서 ONNX를 만든다(결정 13). `--goal-rule lookahead --lookahead-m --follow-window --route-spec --source-branch --source-commit`. 명세 형식 2: `goal.rule`, `lookahead_m`, `follow_window`, `source.checkpoint_path`, `onnx_from`, `branch`, `commit`. `follow_cases.json`: 학습 commit의 `route_spec.py`(`git show d2abc2c:learning/store_arena/route_spec.py`로 꺼낸 파일)의 `follow`와 `task_spec`으로 만든다 |
+| `pode/pode_rl_controller/src/observation.cpp` | `follow_progress`, `lookahead_index`, `goal_in_robot_frame`, `path_goal`(학습 정의를 옮김) |
+| `pode/pode_rl_controller/src/follow_path_rl.cpp` | 규칙을 명세에서 읽고, 파라미터는 덮어쓰기와 WARN만. 경로를 경로 틀(map)에 두고 로봇 자세를 TF로 그 틀에서 읽는다(결정 16). 진행 번호는 `setPlan`, `reset`에서 0 |
+| `pode/pode_rl_controller/policies/store_arena_4b/` | `policy.onnx`(88 KB), `policy_spec.json` |
+| `test/fixtures/<정책>/`, `test/test_observation.cpp` | 정책마다 fixture(결정 19). 새 시험 9개 |
+| `sim/fleet_gz_sim/nav_overrides/follow_path_rl.yaml` | `policy: store_arena_4b`, `goal_rule`·`lookahead_dist` 줄을 뺌(시험도 그렇게 바꿈) |
+
+시험(WSL, `colcon test --packages-select pode_rl_controller`): `Summary: 24 tests, 0 errors, 0 failures, 0 skipped`(gtest 21개 + ctest 3개).
+
+```
+== test_parity_store_arena_4b
+[parity] rays max |diff| 5.91e-08, obs max |diff| 4.47e-08
+[parity] action -> (v, w) max |diff| 3.58e-08
+[parity] onnxruntime C++ vs torch max |diff| 2.86e-06 (bound margin 9.33e-06), vs onnxruntime python 0
+[parity] inference 6.8 us per call (mean of 2000, 1 thread)
+== test_observation
+[follow] 81 steps, lookahead point max |diff| 0 m
+[follow] path_goal over 81 steps, goal max |diff| 5.55e-17
+[goal] polar max |diff| 5.55e-17, goal and velocity obs max |diff| 2.96e-08
+```
+
+- 허용치는 그대로다: 관측 1e-6, 추론 atol 1e-5 + rtol 1e-5, 기하 1e-9. 늦춘 것 없음.
+- 앞보기 fixture 네 경로: 곧은 2 m(0.025 m 간격), 0.40 m보다 짧은 0.2 m, ㄱ자(1 m 뒤 0.6 m 꺾임), 0.05 m 간격. 각 경로를 무작위로 돌리고 옮긴 뒤 점마다 ±2 mm 흔들었다(고르게 놓인 점에서 앞보기 거리가 정확히 점에 걸리는 반올림 경계를 피하려고). 로봇은 경로를 따라가며 옆으로 ±3 cm 벗어나고, 한 번은 창(20점)보다 멀리 뛰고, 끝에서 세 번 선다.
+- 손으로 쓴 시험: 짧은 경로와 경로 끝에서는 끝점, 진행은 창만큼만 앞으로 가고 뒤로 안 감, `path_end` 규칙은 끝점, yaw π 라이다: 0번 빔(라이다 뒤 = 로봇 정면)이 광선 180, 160번 빔이 광선 270(왼쪽), 320번 빔(라이다 정면 = 로봇 뒤)이 광선 0.
+- `goal_reach_base_4096`도 형식 2로 다시 내보냈다(`rule: path_end`). `policy.onnx`와 fixture 셋은 바이트까지 그대로다.
+- `sim/fleet_gz_sim/test/test_sim_nav_params.py` 36개 통과(WSL), `learning/goal_reach` 9개 통과, ruff check 통과.
+
+Codex 검토(df4c2e3..ed79583) [확정] 둘: (1) 매 주기 경로를 base 틀로 옮겨 누적 길이를 다시 재면 반올림으로 앞보기 점이 이웃 점과 번갈아 바뀔 수 있다 → 맞다. 경로 틀에서 계산하게 고쳤다(결정 16). (2) 새 시험이 빈 fixture에서도 통과한다 → 맞다. 걸음 수가 40을 넘는지 본다. 시험을 먼저 쓰고(빌드 실패 확인) 고친 63b8107의 재검토는 "결함 없음".
+
+### 10.3 Gazebo
+
+설정: one_pode(`gui:=false rviz:=false fsm:=false start:=O_IN nav_log_level:=info nav_overrides:=sim/fleet_gz_sim/nav_overrides/follow_path_rl.yaml`), 도메인 62, LOCALHOST. 판을 모는 것은 MPPI 브랜치의 `tools/nav_bench/bench_node.py`를 그 worktree에서 읽기만 하며 돌렸다(10.5). 설정 파일은 그쪽 `scenarios.yaml`을 복사해 controller를 `[FollowPathGoal, FollowPathRL]`, 판 수 3(e_corridor 2), 판 시간 상한 60 s, 출발·goal만 바꿨다. 판마다 RL과 RPP를 번갈아(ABBA) 돌고, 판 사이에 RPP로 출발점에 돌아간다. 성공 = Nav2 SUCCEEDED이면서 `/pode1/sim/truth`가 goal에서 0.10 m 안. 기록 `~/rl_gz_check/4b_215805/`(WSL). 22:24 잠금을 잡고 22:33에 풀었다(끝난 뒤 남은 Gazebo·Nav2 프로세스 0개, 여유 메모리 15.3 GB 그대로).
+
+controller_server 로그: `FollowPathRL FollowPathRL: policy .../policies/store_arena_4b (obs 41, dt 0.050 s, v -0.05..0.25 m/s, w 1.00 rad/s), goal_rule lookahead (lookahead 0.40 m, window 20 points)`, `lidar rplidar_link in base_footprint at (-0.017, 0.000) m, yaw 3.142 rad`. `OVERRIDES` 경고 0줄.
+
+| goal | controller | 성공 | 시간 s(판마다) | 끝 오차 m | 라이다 최소 m | 몸 최소 m | 충돌 | ω 부호 바뀜 | 제자리 회전 s |
+|---|---|---|---|---|---|---|---|---|---|
+| O_IN → M_E (1.645, 0.55) | RL | 3/3 | 6.2, 6.5, 6.1 | 0.033~0.051 | 0.073 | 0.072 | 0 | 10, 5, 6 | 0.0~0.1 |
+| | RPP | 3/3 | 9.2, 10.7, 9.9 | 0.035~0.053 | 0.097 | 0.100 | 0 | 11, 11, 7 | 2.4~3.4 |
+| M_E → Q2 (1.66, 0.15) | RL | 3/3 | 6.5, 6.5, 6.7 | 0.021~0.027 | 0.078 | 0.074 | 0 | 1, 1, 1 | 3.1~3.2 |
+| | RPP | 3/3 | 6.4, 6.0, 8.3 | 0.052~0.055 | 0.085 | 0.084 | 0 | 3, 1, 3 | 3.2~4.6 |
+| Q2 → E-3 (0.64, 0.24, 방향 90°) | RL | 3/3 | 8.0, 11.4, 8.4 | 0.029~0.079 | 0.050 | **0.000** | **1, 2, 1** | 5, 4, 3 | 0.0~1.6 |
+| | RPP | 3/3 | 11.2, 10.9, 10.3 | 0.034~0.043 | 0.069 | 0.065 | 0 | 13, 13, 3 | 3.8~4.7 |
+| e_corridor(O_IN → M_E, 진열대 A 밑 상자와 오가는 카트) | RL | 2/2 | 6.1, 6.1 | 0.036~0.039 | 0.050 | 0.048 | 0 | 5, 5 | 0.0 |
+| | RPP | 2/2 | 8.8, 9.3 | 0.037~0.049 | 0.074 | 0.082 | 0 | 6, 8 | 2.3~2.4 |
+
+본 것:
+- **Q2 → E-3에서 벽에 붙는다.** 세 판 중 두 판은 출발 2.2 s에 (1.60, 0.085), 방향 1.93 rad에서 남쪽 벽(y 0)과 몸 사이가 0.000, 0.002 m였다. Q2에서 동쪽을 보고 서서 서쪽 goal을 받으면, 정책은 첫 명령부터 뒤로 빼며(로그 첫 줄 `act (-1.75, -0.52) cmd v -0.050`) 왼쪽으로 돈다. 그사이 몸 뒤가 벽 쪽(0.15 m 남쪽)으로 간다. 남은 한 판은 E-3 앞에서 칸막이 2 끝과 0.003 m였다. 학습에서는 접촉 힘 1 N 넘게 닿아야 충돌이고, nav_bench는 몸과 면의 실제 거리 0.005 m 이하를 충돌로 센다(스치기도 센다). 그래도 실물에서는 벽을 긁을 수 있다. 시뮬 라이다 최소 0.050 m(측정 하한)도 같은 판에서 나왔다.
+- **제자리 돌기와 흔들림은 없었다.** RL은 출발할 때 서서 돌지 않고 돌면서 나간다(O_IN → M_E 제자리 회전 0~0.1 s, RPP 2.4~3.4 s). M_E → Q2의 3.1 s는 끝에서 goal 방향 0°로 맞추는 플러그인의 회전(결정 5)이다. ω 부호 바뀜은 RL 1~10번으로 RPP(1~13번)보다 적다.
+- **시간 비교는 공정하지 않다.** RL은 v 상한 0.25 m/s(명세)로 달리고, RPP는 시뮬 덮어쓰기로 0.20 m/s다. 달린 구간 평균 속도는 RL 0.10~0.18, RPP 0.14~0.18 m/s로 비슷하고, 시간 차이의 대부분은 RPP의 출발 제자리 돌기다. RL 길은 RPP보다 0.07~0.33 m 길다(돌면서 나가 부푼다).
+- RL은 진열대 A에 0.072 m까지 붙어 간다(RPP 0.100 m). 학습한 경로가 inflation 0.15 m 비용으로 짠 길인데도 정책은 경로 위 0.40 m 앞 점을 쫓아 모서리를 조금 자른다.
+- 시뮬 NavFn 경로 점 간격은 0.0125 m였다(판마다 처음 세 경로의 가운데값). 학습 경로는 0.025 m라 `follow_window` 20점은 시뮬에서 0.25 m다(학습 0.5 m). 앞보기 0.40 m는 경로 길이로 재므로 영향이 없고, 창은 한 주기(5 cm 미만 이동)에 넉넉하다.
+- 판마다 RPP로 출발점에 돌아온 뒤 nav_bench가 Gazebo에서 출발점으로 옮겼다(goal 하나에 4~6번). 돌아온 자리가 nav_bench의 출발 허용치(0.03 m, 5°)보다 넓은 goal checker(0.05 m)로 끝나서다. 판은 모두 정확한 출발점에서 시작했다.
+
+### 10.4 추론 시간
+
+controller_server 1 s 로그에서 정책을 20번 가까이 부른 59개 구간: 1 s 평균의 p10 / p50 / p90 = 46 / 50 / 55 µs, 1 s 최대의 가운데값 67 µs, 가장 큰 값 167 µs. 한 주기 전체(TF, 관측, 추론) 평균 가운데값 102 µs. goal을 받은 첫 호출은 1592 µs(한 번, 첫 호출만 느리다). gtest의 이어 부르기 평균은 6.8 µs다(3.3절과 같은 까닭으로 띄엄띄엄 부르면 느리다).
+
+### 10.5 nav_bench 다시 쓰기와 RL·RPP·MPPI 비교에 필요한 것
+
+- **nav_bench는 고치지 않고 쓸 수 있었다.** `bench_node.py`는 `--config`로 아무 설정 파일이나 받고 controller 이름, 출발, goal이 설정에 있다. 이 브랜치의 install을 source하고 MPPI worktree의 `tools/nav_bench/bench_node.py`를 `PYTHONDONTWRITEBYTECODE=1`로 돌렸다(그쪽 파일을 바꾸지 않음). `run_bench.sh`는 `--config "$HERE/scenarios.yaml"`이 박혀 있고 그 설정의 controller가 `[FollowPathGoal, FollowPathMPPI]`라, 이 브랜치 install(MPPI 없음)로는 그대로 못 쓴다. 그래서 launch와 잠금은 내 스크립트가 하고 bench_node만 불렀다. 지표는 `metrics.leg_metrics`를 그대로 불렀다.
+- **세 controller를 한 판에 견주려면** 두 브랜치를 합쳐야 한다(`feat/follow-path-rl-2026-11-21` + `feat/mppi-controller-2026-11-21`). `git merge-tree`로 보면 글자 충돌은 없다. 하지만 합친 뒤 `nav2_params.yaml`의 `controller_plugins`에 `FollowPathMPPI`가 들어가고, `follow_path_rl.yaml`은 예전 넷 + FollowPathRL을 적고 있어서, RL을 띄우면 MPPI가 빠지고 `test_sim_nav_params.py`의 `test_the_rl_controller_comes_only_from_its_overrides_file_and_keeps_the_base_ones`(`[*base, "FollowPathRL"]`)가 실패한다. 합칠 때 `follow_path_rl.yaml` 목록에 `FollowPathMPPI`를 더하면 된다. 그 뒤 nav_bench 설정의 `controllers`를 `[FollowPathGoal, FollowPathMPPI, FollowPathRL]`로 둔다(`run_order`가 셋을 받는지, `report.py`의 범례가 "RPP"/"MPPI" 둘로 박혀 있는 것은 그때 고친다).
+- 공정하게 견주려면 속도 상한을 맞춰야 한다(RPP 시뮬 0.20, RL 0.25 m/s).
+
+### 10.6 알아야 할 포인트 (계획 개념: 학습 정의를 배포에 똑같이 옮기기, 경로 따라가기, 패리티 시험)
+
+**쓴 개념.**
+- 앞보기 점(lookahead point): 경로 끝 대신 경로 위 조금 앞의 점을 목표로 보여 주면 정책은 "가까운 점 쫓기"만 배우면 되고, 길 고르기(벽·진열대 돌기)는 전역 계획(NavFn)이 맡는다. RPP의 lookahead와 같은 생각이다.
+- 진행 번호(progress index): 로봇이 경로의 어디까지 왔는지. 뒤로 가지 않고 한 번에 창만큼만 앞으로 가게 해, 경로가 자기와 가까이 지나는 곳(U자)에서 엉뚱한 점으로 뛰지 않는다.
+- 경로 길이로 잰 거리와 직선거리: 굽은 경로에서는 다르다. 학습은 경로 길이(누적 길이 `cum`)로 쟀다.
+- 학습·배포 일치(train-deploy parity): 같은 입력에 같은 관측이 나와야 한다. 이번에는 fixture를 학습 코드(`route_spec.follow`, `task_spec`)가 직접 만들어 C++가 그것과 같은지만 본다. 공식을 시험에 다시 적지 않는다.
+- 부동소수점 동점(tie): "0.40 m 이상인 첫 점"이 정확히 0.40 m에 걸리면 반올림 한 칸이 답을 바꾼다. 같은 틀에서 같은 순서로 더해야 학습과 같은 점이 나온다(결정 16).
+
+**먼저 읽을 코드 세 곳.**
+1. `pode/pode_rl_controller/src/observation.cpp` `follow_progress`, `lookahead_index`, `path_goal`: 학습 `route_spec.follow`를 옮긴 곳.
+2. `pode/pode_rl_controller/src/follow_path_rl.cpp` `configure`(명세의 규칙, 덮어쓰기 WARN)와 `goals`(경로 틀에서 로봇 자세 읽기).
+3. `learning/goal_reach/export_policy.py` `follow_cases`, `CheckpointPolicy`: fixture와 ONNX를 만드는 곳.
+
+**숫자 읽는 법.**
+- 로그 `policy goal 0.386 m at -2.05 rad, end 1.159 m`: 정책이 보는 목표(앞보기 점)는 0.39 m 앞, 거의 뒤쪽(−2.05 rad), 경로 끝은 1.16 m. 학습에서 이 거리는 평균 0.35 m, 표준편차 0.096 m였다. 0.6 m를 넘게 자주 보이면 로봇이 경로에서 멀리 벗어났다는 뜻이다.
+- 표의 "몸 최소": 발자국 다각형과 벽·진열대 면의 실제(Gazebo) 거리. 0.005 m 이하면 nav_bench가 충돌로 센다. "라이다 최소"는 스캔에서 가장 가까운 유효 거리이고 0.050이면 측정 하한에 닿은 것이다.
+- "ω 부호 바뀜": 0.02 rad/s 넘는 ω 명령의 부호가 바뀐 횟수. 크면 좌우로 흔들린다. 판 길이가 다르니 같은 goal끼리만 견준다.
+- 추론 시간: 1 s 평균의 가운데값 50 µs가 controller 주기 50 ms의 0.1 %다. 첫 호출 1.6 ms는 ORT가 처음 한 번 준비하는 값이다.
+
+**스스로 점검.**
+1. 곧은 경로에서 점 간격이 0.025 m이면 진행 점에서 0.40 m 앞은 몇 번째 점인가? 간격이 0.0125 m(시뮬)면? 창 20점은 각각 몇 m인가?
+2. 플러그인이 경로를 매 주기 `base_footprint`로 옮겨 앞보기 점을 고르면 무엇이 흔들릴 수 있나? 경로 틀(map)에서 고르면 왜 괜찮은가?
+3. Q2 → E-3에서 정책은 왜 뒤로 빼며 도는가? 학습 경기장에서 Q2처럼 벽에 0.15 m 붙은 출발점이 얼마나 자주 나왔을지, 그리고 접촉 힘 1 N 판정이 스치기를 놓치는지 생각해 본다.
+4. YAML에 `lookahead_dist: 0.3`을 적으면 무슨 로그가 나오고, 정책이 보는 `goal_dist` 관측은 학습 분포(평균 0.35 m)와 어떻게 달라지나?
+
+### 10.7 직접 해 볼 것
+
+Q2 → E-3의 벽 붙기를 직접 본다(RL만, 세 판, 약 3분). WSL에서 무거운 실행 잠금을 잡고 한다. `SP`는 이번 설정 파일을 둔 곳으로, 아래처럼 `g3_q2_e3.yaml`을 만들어 두면 된다(MPPI worktree `tools/nav_bench/scenarios.yaml`을 복사하고 `controllers: [FollowPathGoal, FollowPathRL]`, `repeats: 3`, `start: {x: 1.66, y: 0.15, yaw_deg: 0}`, `goal: {x: 0.64, y: 0.24, yaw_deg: 90}`, `scenarios: {a_hall: []}`로 바꾼다). 아래를 파일로 저장해 `bash 파일`로 돌린다(잠금이 잡혀 있으면 주인을 보여 주고 끝난다).
+
+```bash
+SP=$HOME/rl_cfg   # g3_q2_e3.yaml을 둔 폴더
+LOCK=/mnt/c/Users/pjw/ros2camp/.heavy_run.lock
+mkdir "$LOCK" && echo "me $$ rl-q2-e3 $(date -Is)" > "$LOCK/owner" || { cat "$LOCK/owner"; exit; }
+trap 'rm -rf "$LOCK"' EXIT
+set +u; source /opt/ros/jazzy/setup.bash; source ~/ros2_deps_ws/install/setup.bash
+source ~/pinky_deps_ws/install/local_setup.bash; source ~/gg_build/pd-rl-plugin/install/setup.bash
+export ROS_DOMAIN_ID=62 ROS_AUTOMATIC_DISCOVERY_RANGE=LOCALHOST GZ_PARTITION=me_62 GZ_IP=127.0.0.1
+ros2 launch fleet_gz_sim one_pode.launch.py gui:=false rviz:=false fsm:=false start:=Q2 nav_log_level:=info \
+  nav_overrides:=$HOME/nf_src/pd-rl-plugin/sim/fleet_gz_sim/nav_overrides/follow_path_rl.yaml > /tmp/me_launch.log 2>&1 &
+# bt_navigator가 active가 되면(ros2 lifecycle get /pode1/bt_navigator)
+PYTHONDONTWRITEBYTECODE=1 python3 /mnt/c/Users/pjw/ros2camp/pd-mppi/tools/nav_bench/bench_node.py \
+  --config "$SP/g3_q2_e3.yaml" --scenario a_hall --out /tmp/me_legs
+grep "FollowPathRL:.*policy goal" /tmp/me_launch.log | head -5
+kill %1; sleep 10   # 남은 gz·Nav2 프로세스가 없는지 ps로 확인한다
+```
+
+볼 것: 첫 몇 줄의 `act`(v 쪽이 −1 아래면 뒤로 뺀다)와 `goal ... at ... rad`. 판 기록 `/tmp/me_legs/*.json`의 `truth`에서 y가 0.09 아래로 내려가는 때를 찾는다. 출발 방향을 서쪽(`yaw_deg: 180`)으로 바꾸면 벽 붙기가 사라지는지 보면, 원인이 "뒤로 빼며 돌기"인지 가릴 수 있다.
+
+### 10.8 남은 일
+
+- Q2 → E-3 벽 붙기: 정책을 다시 학습할지(벽에 붙은 출발점과 출발 방향을 더 섞기, 스치기 판정 강화), 플러그인에 뒤로 빼기 제한이나 costmap 충돌 검사를 더할지 정한다.
+- RL·RPP·MPPI를 같은 속도 상한으로 한 판에 견주기(10.5의 브랜치 합치기와 목록 고치기가 먼저).
+- Pi4에서 빌드·추론 시간 재기(6절).
+- 플러그인 단위 시험(가짜 TF·경로로 `computeVelocityCommands`의 연결 보기)은 여전히 없다. 이번에 그 연결 중 목표점 계산은 `path_goal`로 빼서 시험한다.
