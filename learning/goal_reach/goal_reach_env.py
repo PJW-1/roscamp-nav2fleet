@@ -182,9 +182,11 @@ class GoalReachEnv(DirectRLEnv):
         self.success, self.collided, self.oob = ts.episode_outcome(
             self.d_now, self.max_contact_force(), xy, self.start_xy, self.spec
         )
-        terminated = self.success | self.collided | self.oob
-        time_out = self.episode_length_buf >= self.max_episode_length
-        return terminated, time_out
+        return ts.split_dones(
+            self.success | self.collided | self.oob,
+            self.episode_length_buf,
+            self.max_episode_length,
+        )
 
     def _get_rewards(self) -> torch.Tensor:
         rew, terms = ts.compute_reward(

@@ -85,6 +85,31 @@ OVERRIDABLE = (
 )
 
 
+def parse_overrides(items) -> dict:
+    """FIELD=VALUE strings from --set. A tuple field takes comma-separated numbers (a,b)."""
+    out = {}
+    for item in items:
+        key, text = item.split("=", 1)
+        default = getattr(SPEC, key, None)
+        if isinstance(default, tuple):
+            values = tuple(float(x) for x in text.split(","))
+            if len(values) != len(default):
+                raise ValueError(
+                    f"{key} takes {len(default)} comma-separated numbers, got {text!r}"
+                )
+            out[key] = values
+        else:
+            out[key] = float(text)
+    return out
+
+
+def split_dones(outcome_done: torch.Tensor, length: torch.Tensor, max_length: int):
+    """(terminated, time_out). An episode that ends by success, collision or out of bounds on
+    the last step is terminated only: PPO bootstraps the value on time_out."""
+    time_out = (length >= max_length) & ~outcome_done
+    return outcome_done, time_out
+
+
 def make_spec(overrides: dict) -> TaskSpec:
     bad = sorted(set(overrides) - set(OVERRIDABLE))
     if bad:

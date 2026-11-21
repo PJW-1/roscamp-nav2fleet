@@ -58,3 +58,23 @@ def test_lidar_sectors_index_and_inf():
     s = ts.lidar_sectors(r)
     assert s[0, 18].item() == pytest.approx(0.3)
     assert (s[0, :18] == ts.SPEC.lidar_obs_max).all()
+
+
+def test_a_tuple_field_is_set_with_comma_separated_numbers():
+    got = ts.parse_overrides(["goal_dist_range=0.5,1.0", "w_time=-0.2"])
+    assert got == {"goal_dist_range": (0.5, 1.0), "w_time": -0.2}
+    assert ts.make_spec(got).goal_dist_range == (0.5, 1.0)
+
+
+def test_a_tuple_field_with_the_wrong_count_is_refused():
+    with pytest.raises(ValueError, match="goal_dist_range"):
+        ts.parse_overrides(["goal_dist_range=1.5"])
+
+
+def test_an_outcome_on_the_last_step_is_not_also_a_timeout():
+    # env 0: success on the last step; 1: still driving at the last step; 2: success earlier
+    done = torch.tensor([True, False, True])
+    length = torch.tensor([400, 400, 120])
+    terminated, time_out = ts.split_dones(done, length, 400)
+    assert terminated.tolist() == [True, False, True]
+    assert time_out.tolist() == [False, True, False]

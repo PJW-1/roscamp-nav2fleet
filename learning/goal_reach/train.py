@@ -27,19 +27,11 @@ parser.add_argument(
     action="append",
     default=[],
     metavar="FIELD=VALUE",
-    help="Override a TaskSpec field (reward weights, success_radius), e.g. --set w_time=-0.1",
+    help="Override a TaskSpec field, e.g. --set w_time=-0.1 or --set goal_dist_range=0.5,1.0",
 )
 add_launcher_args(parser)
 args_cli = parser.parse_args()
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-
-
-def parse_overrides(items):
-    out = {}
-    for it in items:
-        k, v = it.split("=", 1)
-        out[k] = float(v)
-    return out
 
 
 def main():
@@ -48,6 +40,8 @@ def main():
     env_cfg = GoalReachEnvCfg()
     env_cfg.scene.num_envs = args_cli.num_envs
     env_cfg.seed = args_cli.seed
+    from task_spec import parse_overrides
+
     env_cfg.spec_overrides = parse_overrides(args_cli.set)
     os.makedirs(args_cli.out, exist_ok=True)
     out = os.path.abspath(args_cli.out)

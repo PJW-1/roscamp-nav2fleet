@@ -92,7 +92,7 @@ def main():
     env_cfg = gre.GoalReachEnvCfg()
     env_cfg.scene = scene_cls(num_envs=args_cli.num_envs, env_spacing=8.0, replicate_physics=True)
     env_cfg.seed = args_cli.seed
-    env_cfg.spec_overrides = {k: float(v) for k, v in (s.split("=", 1) for s in args_cli.set)}
+    env_cfg.spec_overrides = gre.ts.parse_overrides(args_cli.set)
     os.makedirs(args_cli.out, exist_ok=True)
 
     with launch_simulation(env_cfg, args_cli):
