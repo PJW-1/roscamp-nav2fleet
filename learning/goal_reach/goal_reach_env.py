@@ -9,7 +9,6 @@ functions and writes wheel velocity targets. Next week's store arena adds walls 
 from __future__ import annotations
 
 import csv
-import dataclasses
 import os
 import sys
 import time
@@ -97,12 +96,10 @@ class GoalReachEnvCfg(DirectRLEnvCfg):
     scene: GoalReachSceneCfg = GoalReachSceneCfg(
         num_envs=4096, env_spacing=8.0, replicate_physics=True
     )
-    metrics_csv: str = (
-        ""  # if set, the env appends one row of episode outcomes per metrics_every steps
-    )
+    # if set, the env appends one row of episode outcomes per metrics_every steps
+    metrics_csv: str = ""
     metrics_every: int = 24
-    # TaskSpec fields to override (reward weights, success_radius, ...). Fields that shape the env
-    # itself (control_dt, episode_s, lidar_*) are read at import time and must not be overridden.
+    # TaskSpec fields to override; only task_spec.OVERRIDABLE (reward weights, success_radius, ...)
     spec_overrides: dict = {}
 
 
@@ -110,7 +107,7 @@ class GoalReachEnv(DirectRLEnv):
     cfg: GoalReachEnvCfg
 
     def __init__(self, cfg: GoalReachEnvCfg, render_mode: str | None = None, **kwargs):
-        self.spec = dataclasses.replace(ts.SPEC, **cfg.spec_overrides)
+        self.spec = ts.make_spec(cfg.spec_overrides)
         super().__init__(cfg, render_mode, **kwargs)
         self.robot = self.scene["robot"]
         self.lidar = self.scene["lidar"]
@@ -182,9 +179,9 @@ class GoalReachEnv(DirectRLEnv):
     def _get_dones(self) -> tuple[torch.Tensor, torch.Tensor]:
         xy, yaw = self.robot_pose()
         self.d_now, self.ang_now = ts.goal_in_robot_frame(xy, yaw, self.goal_xy)
-        self.success = ts.is_success(self.d_now, self.spec)
-        self.collided = ts.is_collision(self.max_contact_force(), self.spec)
-        self.oob = ts.is_out_of_bounds(xy, self.start_xy, self.spec)
+        self.success, self.collided, self.oob = ts.episode_outcome(
+            self.d_now, self.max_contact_force(), xy, self.start_xy, self.spec
+        )
         terminated = self.success | self.collided | self.oob
         time_out = self.episode_length_buf >= self.max_episode_length
         return terminated, time_out
@@ -208,7 +205,7 @@ class GoalReachEnv(DirectRLEnv):
                 done.sum(),
                 succ.sum(),
                 (self.collided & done).sum(),
-                (self.oob & done & ~self.collided).sum(),
+                (self.oob & done).sum(),
                 (self.reset_time_outs & ~self.reset_terminated).sum(),
             ]
         ).float()

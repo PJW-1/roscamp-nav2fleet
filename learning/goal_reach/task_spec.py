@@ -12,6 +12,7 @@ Frames: world x/y on the floor, yaw counter-clockwise from +x. Lidar ray i point
 
 from __future__ import annotations
 
+import dataclasses
 import math
 from dataclasses import dataclass
 
@@ -68,6 +69,28 @@ COLLISION_BODIES = ("base_link", "screen_mount", "front_camera_mount", "rplidar_
 ACTION_LIMITS = ActionLimits()
 GEOMETRY = RobotGeometry()
 SPEC = TaskSpec()
+
+# TaskSpec fields an experiment may change (train.py --set). The rest shape the env itself
+# (decimation, episode length, sensor, observation size) and are read once at import.
+OVERRIDABLE = (
+    "goal_dist_range",
+    "success_radius",
+    "out_of_bounds",
+    "goal_obs_max",
+    "collision_force",
+    "w_progress",
+    "w_time",
+    "w_arrival",
+    "w_collision",
+)
+
+
+def make_spec(overrides: dict) -> TaskSpec:
+    bad = sorted(set(overrides) - set(OVERRIDABLE))
+    if bad:
+        raise ValueError(f"TaskSpec fields {bad} cannot be overridden; allowed: {OVERRIDABLE}")
+    return dataclasses.replace(SPEC, **overrides)
+
 
 OBS_LIDAR = SPEC.lidar_sectors
 OBS_DIM = OBS_LIDAR + 3 + 2  # lidar sectors, goal (dist, sin, cos), (v, w)
@@ -152,6 +175,22 @@ def is_collision(max_contact_force: torch.Tensor, spec: TaskSpec = SPEC) -> torc
 
 def is_out_of_bounds(robot_xy: torch.Tensor, start_xy: torch.Tensor, spec: TaskSpec = SPEC):
     return (robot_xy - start_xy).norm(dim=-1) > spec.out_of_bounds
+
+
+def episode_outcome(
+    goal_dist: torch.Tensor,
+    max_contact_force: torch.Tensor,
+    robot_xy: torch.Tensor,
+    start_xy: torch.Tensor,
+    spec: TaskSpec = SPEC,
+) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+    """(success, collision, out_of_bounds), at most one true per env. Failure wins: reaching the
+    goal while colliding is a collision, and out of bounds while colliding is a collision.
+    A timeout on the same step as success is the env's business (it counts success first)."""
+    collision = is_collision(max_contact_force, spec)
+    oob = is_out_of_bounds(robot_xy, start_xy, spec) & ~collision
+    success = is_success(goal_dist, spec) & ~collision & ~oob
+    return success, collision, oob
 
 
 def compute_reward(

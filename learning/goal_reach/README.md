@@ -13,6 +13,7 @@ Results: `results/2026-11-21/goal_reach_rl/`. Design choices and what was learne
 | `play.py` | evaluates a checkpoint (deterministic policy), saves trajectories, exports ONNX, `--video` renders a top-down camera with the Newton Warp renderer |
 | `lidar_close_check.py` | what the lidar returns when a box is closer than the 0.05 m minimum range |
 | `plot_results.py` | success-rate curve, trajectory plot, top-down animation from saved rollouts (no Isaac needed) |
+| `test_task_spec.py` | tests of the task rules without Isaac: `python -m pytest learning/goal_reach -q` (system python with torch; the Isaac venv has no pytest) |
 
 ## Commands (Git Bash, repo root)
 

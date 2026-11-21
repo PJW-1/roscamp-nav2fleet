@@ -153,7 +153,7 @@ def main():
             if counted.any():
                 s = raw.success & counted
                 c = raw.collided & counted
-                o = raw.oob & counted & ~raw.collided
+                o = raw.oob & counted  # outcomes are exclusive (task_spec.episode_outcome)
                 t = counted & ~(raw.success | raw.collided | raw.oob)
                 outcome["success"] += int(s.sum())
                 outcome["collision"] += int(c.sum())
