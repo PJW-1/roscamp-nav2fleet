@@ -55,7 +55,8 @@ if(BUILD_TESTING)
     target_link_libraries(test_parity_${policy} pode_rl_core)
     target_compile_definitions(test_parity_${policy} PRIVATE
       FIXTURE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/test/fixtures/${policy}"
-      POLICY_DIR="${CMAKE_CURRENT_SOURCE_DIR}/policies/${policy}")
+      POLICY_DIR="${CMAKE_CURRENT_SOURCE_DIR}/policies/${policy}"
+      NAV_SPEED_FILE="${CMAKE_CURRENT_SOURCE_DIR}/../pode_nav_config/params/nav_speed.yaml")
   endforeach()
   ament_add_gtest(test_observation test/test_observation.cpp)
   target_link_libraries(test_observation pode_rl_core)

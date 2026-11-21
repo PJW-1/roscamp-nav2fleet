@@ -1,0 +1,103 @@
+world: arena
+robot: pode1
+controllers:
+- FollowPathGoal
+- FollowPathMPPI
+repeats: 10
+leg_timeout_s: 90.0
+flake_s: 3.0
+settle_s: 2.0
+start:
+  x: 1.66
+  y: 0.15
+  yaw_deg: 0
+goal:
+  x: 0.64
+  y: 0.24
+  yaw_deg: 90
+park:
+  x: 5.0
+  y: 5.0
+blocked_window_s: 10.0
+blocked_move_m: 0.05
+arrive_m: 0.1
+collision_m: 0.005
+doridori_deadband: 0.02
+corridor_band:
+- 0.405
+- 0.77
+turn_wz: 0.3
+start_tol_m: 0.03
+start_tol_deg: 5.0
+movers:
+  box:
+    shape: box
+    size:
+    - 0.1
+    - 0.1
+    - 0.25
+    path:
+    - - 1.1
+      - 0.66
+    speed: 0.0
+  person:
+    shape: cylinder
+    size:
+    - 0.04
+    - 0.25
+    path:
+    - - 1.12
+      - 0.28
+    - - 1.12
+      - 0.7
+    speed: 0.1
+  cart:
+    shape: box
+    size:
+    - 0.14
+    - 0.09
+    - 0.2
+    path:
+    - - 0.8
+      - 0.68
+    - - 1.45
+      - 0.68
+    speed: 0.06
+  robot:
+    shape: box
+    size:
+    - 0.12
+    - 0.112
+    - 0.2
+    path:
+    - - 1.62
+      - 0.7
+    - - 0.5
+      - 0.7
+    speed: 0.12
+    once: true
+    yield_m: 0.25
+  e_box:
+    shape: box
+    size:
+    - 0.06
+    - 0.06
+    - 0.25
+    path:
+    - - 0.9
+      - 0.735
+    speed: 0.0
+  e_cart:
+    shape: box
+    size:
+    - 0.1
+    - 0.06
+    - 0.2
+    path:
+    - - 1.15
+      - 0.735
+    - - 1.45
+      - 0.735
+    speed: 0.05
+scenarios:
+  a_hall: []

@@ -7,6 +7,7 @@ ROS 프로세스 하나가 DDS 참여자 하나다. LOCALHOST 탐색에서는 32
 """
 from __future__ import annotations
 
+import copy
 import math
 import os
 import tempfile
@@ -202,7 +203,8 @@ def sim_nav_params(base: Path, out: Path, amcl: dict | None = None,
     - controller 넷(CONTROLLERS) 모두 충돌 검사를 켠다(모든 실행에서 켬). overrides로도
       끌 수 없다. fixed_line_check가 거짓일 때만 FIXED_LINE_CONTROLLERS의 검사를 끈다.
     - max_speed가 있으면 controller마다 desired_linear_vel을 max_speed와 원래 값 중 작은 것으로
-      (후진 FollowPathReverse 0.05 m/s는 그대로 남는다). MPPI_CONTROLLER가 있으면 그 vx_max도,
+      (후진 FollowPathReverse 0.05 m/s는 그대로 남는다). MPPI_CONTROLLER가 있으면 그 vx_max도
+      (time_steps는 같은 거리를 내다보도록 원래 vx_max / 새 vx_max 배로 늘린다),
       RL_PLUGIN controller가 있으면 그 max_linear_vel도."""
     data = yaml.safe_load(base.read_text(encoding="utf-8"))
     if GOAL_CONTROLLER not in data["controller_server"]["ros__parameters"] and avoidance:
@@ -213,7 +215,7 @@ def sim_nav_params(base: Path, out: Path, amcl: dict | None = None,
     if replaced:
         raise ValueError("nav_overrides may not replace a mapping with a non-mapping: "
                          + ", ".join(replaced))
-    merge(data, overrides or {})
+    merge(data, copy.deepcopy(overrides or {}))
     controllers = data["controller_server"]["ros__parameters"]
     if MPPI_CONTROLLER in controllers and MPPI_CONTROLLER not in controllers["controller_plugins"]:
         controllers["controller_plugins"] = [*controllers["controller_plugins"], MPPI_CONTROLLER]
@@ -238,7 +240,11 @@ def sim_nav_params(base: Path, out: Path, amcl: dict | None = None,
             rpp["desired_linear_vel"] = min(float(rpp["desired_linear_vel"]), float(max_speed))
         if MPPI_CONTROLLER in controllers:
             mppi = controllers[MPPI_CONTROLLER]
-            mppi["vx_max"] = min(float(mppi["vx_max"]), float(max_speed))
+            own = float(mppi["vx_max"])
+            capped = {**mppi, "vx_max": min(own, float(max_speed))}
+            if "time_steps" in mppi:
+                capped["time_steps"] = round(int(mppi["time_steps"]) * own / capped["vx_max"])
+            controllers[MPPI_CONTROLLER] = capped
         for name, rl in list(controllers.items()):
             if isinstance(rl, dict) and RL_PLUGIN in (rl.get("plugin"),
                                                       rl.get("primary_controller")):

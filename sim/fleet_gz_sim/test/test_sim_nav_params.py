@@ -140,7 +140,58 @@ def test_sim_params_cap_every_forward_controller_and_change_nothing_else(tmp_pat
     assert _rpp(capped, launch_parts.MPPI_CONTROLLER)["vx_max"] == 0.10
     assert _rpp(plain, launch_parts.MPPI_CONTROLLER)["vx_max"] == top
     _rpp(plain, launch_parts.MPPI_CONTROLLER)["vx_max"] = 0.10
+    steps = _rpp(plain, launch_parts.MPPI_CONTROLLER)["time_steps"]
+    assert _rpp(capped, launch_parts.MPPI_CONTROLLER)["time_steps"] == round(steps * top / 0.10)
+    _rpp(plain, launch_parts.MPPI_CONTROLLER)["time_steps"] = round(steps * top / 0.10)
     assert capped == plain
+
+
+def test_a_speed_cap_keeps_the_mppi_horizon_distance(tmp_path):
+    """A slower cap lengthens MPPI's time_steps so it still looks the same distance ahead."""
+    def mppi(out, **kw):
+        data = yaml.safe_load(_sim(NAV, tmp_path / out, **kw).read_text(encoding="utf-8"))
+        return _rpp(data, launch_parts.MPPI_CONTROLLER)
+
+    def reach(m):
+        return m["time_steps"] * m["model_dt"] * m["vx_max"]
+    plain = mppi("plain.yaml")
+    for speed in (0.05, 0.08, 0.10, launch_parts.nav_speed_mps(SPEED_FILE)):
+        capped = mppi(f"c{speed}.yaml", max_speed=speed)
+        assert abs(reach(capped) - reach(plain)) <= capped["model_dt"] * speed / 2 + 1e-9
+    assert mppi("same.yaml", max_speed=plain["vx_max"])["time_steps"] == plain["time_steps"]
+
+
+def test_an_mppi_from_the_overrides_is_capped_without_changing_the_callers_dict(tmp_path):
+    """An MPPI mapping handed in whole through the overrides is capped in the output only, and
+    one that leaves time_steps to the Nav2 default keeps it unset."""
+    base = _base()
+    del base["controller_server"]["ros__parameters"][launch_parts.MPPI_CONTROLLER]
+    path = tmp_path / "base.yaml"
+    path.write_text(yaml.safe_dump(base), encoding="utf-8")
+    for extra in ({}, {"time_steps": 40}):
+        mppi = {"plugin": "nav2_mppi_controller::MPPIController", "vx_max": 0.12,
+                "model_dt": 0.05, **extra}
+        overrides = {"controller_server": {"ros__parameters": {
+            launch_parts.MPPI_CONTROLLER: mppi}}}
+        out = launch_parts.sim_nav_params(path, tmp_path / "sim.yaml", avoidance=AVOIDANCE,
+                                          overrides=overrides, max_speed=0.06)
+        sim = _rpp(yaml.safe_load(out.read_text(encoding="utf-8")), launch_parts.MPPI_CONTROLLER)
+        assert mppi == {"plugin": "nav2_mppi_controller::MPPIController", "vx_max": 0.12,
+                        "model_dt": 0.05, **extra}
+        assert sim["vx_max"] == 0.06
+        assert sim.get("time_steps") == (80 if extra else None)
+
+
+def test_a_goal_controller_from_the_overrides_is_capped_without_changing_the_callers_dict(
+        tmp_path):
+    goal = yaml.safe_load(AVOIDANCE.read_text(encoding="utf-8"))["follow_path_goal"]
+    overrides = {"controller_server": {"ros__parameters": {"FollowPathGoal": goal}}}
+    before = yaml.safe_dump(overrides)
+    out = launch_parts.sim_nav_params(NAV, tmp_path / "sim.yaml", avoidance=None,
+                                      overrides=overrides, max_speed=0.06)
+    assert yaml.safe_dump(overrides) == before
+    sim = _rpp(yaml.safe_load(out.read_text(encoding="utf-8")), "FollowPathGoal")
+    assert sim["desired_linear_vel"] == 0.06 and sim["use_collision_detection"] is True
 
 
 @pytest.mark.parametrize("bad", [0.0, -0.1, float("nan"), float("inf"), 0.3, True, "0.1"])

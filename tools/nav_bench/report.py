@@ -12,7 +12,8 @@ COLUMNS = ("time_s", "path_m", "lidar_min_m", "body_min_m", "doridori", "cpu_pct
 COUNTS = ("collisions", "blocked")
 DIGITS = {"doridori": 0, "cpu_pct": 0, "time_s": 1, "cmd_dt_p95_ms": 1}
 SPLIT = ("wait_s", "turn_s", "stop_s", "drive_s", "drive_vx")
-LABELS = {"FollowPathGoal": "RPP", "FollowPathMPPI": "MPPI", "FollowPathRL": "RL"}
+LABELS = {"FollowPathGoal": "RPP", "FollowPathMPPI": "MPPI", "FollowPathRL": "RL",
+          "FollowPathRLShim": "RL+shim"}
 DIFFS = (("time_s", "시간 s"), ("path_m", "달린 길 m"), ("body_min_m", "몸 최소 거리 m"),
          ("doridori_per_min", "도리도리 /분"), ("drive_vx", "주행 vx m/s"))
 
@@ -182,8 +183,8 @@ def tracks(raw, cfg, out):
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
     names = list(cfg["scenarios"])
-    fig, axes = plt.subplots(len(names), 1, figsize=(8, 3.6 * len(names)))
-    for ax, s in zip(axes, names, strict=False):
+    fig, axes = plt.subplots(len(names), 1, figsize=(8, 3.6 * len(names)), squeeze=False)
+    for ax, s in zip(axes[:, 0], names, strict=False):
         for r in mt.arena_rects():
             xs, ys = zip(*(r + r[:1]), strict=False)
             ax.fill(xs, ys, color="0.8")

@@ -233,6 +233,7 @@ def test_the_report_takes_the_controllers_from_the_legs_and_names_rl(tmp_path):
     cfg = report.with_controllers(cfg, rows)
     assert cfg["controllers"] == ["FollowPathGoal", "FollowPathMPPI", "FollowPathRL"]
     assert report.label("FollowPathRL") == "RL" and report.label("FollowPathGoal") == "RPP"
+    assert report.label("FollowPathRLShim") == "RL+shim"
     assert any("| FollowPathRL |" in ln for ln in report.table(rows, cfg).splitlines())
     diffs = report.diff_table(rows, cfg)
     line = next(ln for ln in diffs.splitlines() if ln.startswith("| a_hall | RL - RPP | 시간 s"))
@@ -240,3 +241,13 @@ def test_the_report_takes_the_controllers_from_the_legs_and_names_rl(tmp_path):
     pytest.importorskip("matplotlib")
     report.figure(rows, cfg, tmp_path / "compare.png")
     assert (tmp_path / "compare.png").stat().st_size > 0
+
+
+def test_the_track_plot_draws_a_config_with_one_scenario(tmp_path):
+    import report
+    pytest.importorskip("matplotlib")
+    cfg = {"scenarios": {"a_hall": {}}, "controllers": ["FollowPathGoal"]}
+    raw = [{"scenario": "a_hall", "controller": "FollowPathGoal",
+            "truth": [[0.0, 0.2, 0.2, 0.0], [0.1, 0.3, 0.2, 0.0]]}]
+    report.tracks(raw, cfg, tmp_path / "tracks.png")
+    assert (tmp_path / "tracks.png").stat().st_size > 0
