@@ -146,6 +146,7 @@ def main():
             ex, near, far, s = (t.nan_to_num(posinf=1e9) for t in (exp, near, far, sim))
             in_band = ((s - ex).abs() <= 0.01) | ((s - near).abs() <= 0.01)
             in_band |= (s - far).abs() <= 0.01
+            in_band &= ~torch.isnan(sim)
             off = (~in_band & mask).nonzero()[:10]
             sample = [
                 {
@@ -454,6 +455,7 @@ def main():
                 e = sec(expected_scan(pos, yaw))
                 bad = ((obs_sec - a).abs() > 0.01) & ((obs_sec - b).abs() > 0.01)
                 bad &= (obs_sec - e).abs() > 0.01
+                bad |= ~torch.isfinite(obs_sec)  # a NaN would pass every comparison above
                 return {"envs": int(bad.any(-1).sum()), "sectors": int(bad.sum())}
 
             rs, run = slice(0, half), slice(half, n)
