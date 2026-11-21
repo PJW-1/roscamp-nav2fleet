@@ -97,6 +97,8 @@ class ArenaSpec:
     robot_yield_m: float = 0.25
     robot_wait_s: float = 3.0  # ... and after waiting this long backs off along its route
     robot_backoff_s: float = 2.0  # for this long, then drives on
+    robot_retreat: int = 0  # 1: backs off to the last route node behind it instead (robot_spec)
+    robot_lock_m: float = 0.0  # > 0: waits at a node while our robot is this near the next link
     intent_ablate: int = 0  # 1: the intent entries are zeros (robots look absent): evaluation only
 
 

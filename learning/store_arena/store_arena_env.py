@@ -497,6 +497,8 @@ class StoreArenaEnv(GoalReachEnv):
                     a.robot_yield_m,
                     a.robot_wait_s,
                     a.robot_backoff_s,
+                    retreat=bool(a.robot_retreat),
+                    lock_m=a.robot_lock_m,
                 )
             if self.robot_objs:
                 self._write_robots(all_ids)

@@ -13,7 +13,7 @@ from dataclasses import dataclass
 
 import numpy as np
 import torch
-from mover_spec import MoverShape, surface_gap
+from mover_spec import MoverShape, point_segment_distance, surface_gap
 
 ROBOT = MoverShape("robot", "box", (0.12, 0.112, 0.20), 0.15)  # Pode footprint; Gazebo nav_bench
 
@@ -172,23 +172,46 @@ def intent_points(route: dict, t: torch.Tensor, spacing_m: float, points: int) -
     return torch.stack(res, 1)
 
 
-def robot_step(route, t, wait, back, dt, our_xy, yield_m, wait_s, backoff_s):
+def robot_step(
+    route, t, wait, back, dt, our_xy, yield_m, wait_s, backoff_s, retreat=False, lock_m=0.0
+):
     """One control step of a scripted robot's clock t, waiting time wait and backing-off time left
     back (all (n,)). It waits while its next step would bring its centre within yield_m of our
     robot's centre and closer (the Gazebo nav_bench robot waits at 0.25 m whatever its direction).
-    After waiting wait_s it backs off along its route for backoff_s, then drives on.
+    After waiting wait_s it backs off along its route: for backoff_s, or with retreat back to the
+    last route node at least 5 cm behind it; then drives on.
+    lock_m > 0: a link lock as fleet_manager's lanes. Before driving into the next link (crossing a
+    node) it waits at the node while our robot's centre is within lock_m of that link.
     Returns (t, wait, back)."""
     t_end = route["time"][:, -1]
-    direction = torch.where(back > 0, -1.0, 1.0)
+    backing = back > 0
+    direction = torch.where(backing, -1.0, 1.0)
     t1 = torch.minimum((t + direction * dt).clamp(min=0.0), t_end)
-    p0, _, _ = robot_pose(route, t)
+    t1 = torch.where(backing, torch.maximum(t1, t - back), t1)  # stop where the back-off ends
+    p0, _, arc0 = robot_pose(route, t)
     p1, _, _ = robot_pose(route, t1)
     g0, g1 = (p0 - our_xy).norm(dim=-1), (p1 - our_xy).norm(dim=-1)
     held = (g1 < yield_m) & (g1 < g0 - 1e-9)
-    wait = torch.where(held, wait + dt, torch.zeros_like(wait))
+    locked = torch.zeros_like(held)
+    if lock_m > 0:
+        _, i0 = _interp(route["time"], t, route["arc"][..., None])
+        _, i1 = _interp(route["time"], t1, route["arc"][..., None])
+        rows = torch.arange(len(t), device=t.device)
+        a, b = route["pts"][rows, i1 - 1], route["pts"][rows, i1]
+        d = point_segment_distance(our_xy, a[:, None], b[:, None])[:, 0]
+        moving = (b - a).norm(dim=-1) > 1e-6
+        locked = ~backing & (i1 > i0) & moving & (d < lock_m)
+    wait = torch.where(held, wait + dt, torch.where(locked, wait, torch.zeros_like(wait)))
     start_back = held & (wait >= wait_s)
-    t = torch.where(held, t, t1)
-    back = torch.where(start_back, torch.full_like(back, backoff_s), (back - dt).clamp(min=0.0))
+    t = torch.where(held | locked, t, t1)
+    if retreat:  # back to the last vertex at least 5 cm of route behind
+        behind = route["arc"] <= (arc0 - 0.05)[:, None]
+        k = (behind.long().cumsum(-1) * behind).argmax(-1)  # last True (0 if none)
+        target = torch.where(behind.any(-1), route["time"].gather(1, k[:, None])[:, 0], 0.0)
+        new_back = (t - target).clamp(min=0.0)
+    else:
+        new_back = torch.full_like(back, backoff_s)
+    back = torch.where(start_back, new_back, (back - dt).clamp(min=0.0))
     wait = torch.where(start_back, torch.zeros_like(wait), wait)
     return t, wait, back
 
