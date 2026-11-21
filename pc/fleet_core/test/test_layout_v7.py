@@ -18,8 +18,11 @@ from fleet_core.fleet_map.model import FOLLOW_PATH, NAV_GOAL, RETREAT
 # 북쪽 진열대 A는 2026-11-17에 자리는 그대로 두고 서쪽으로만 0.05 늘렸다: 0.68 -> 0.63
 # 진열대 A 북쪽 면은 2026-11-18에 SLAM 실측 0.803으로(그림 0.81, 실물이 북쪽 벽을 긁었다)
 SHELVES = [(0.63, 0.77, 1.56, 0.803), (0.68, 0.365, 0.99, 0.405), (1.25, 0.365, 1.56, 0.405)]
-# 시뮬(Gazebo 월드, 시뮬 지도)만 진열대 A 급행 쪽 면을 1 cm 물린다(2026-11-20 사용자 결정)
-SIM_SHELF_A = (0.63, 0.77, 1.56, 0.793)
+# 시뮬(Gazebo 월드, 시뮬 지도)만 진열대 A 급행 쪽 면을 2 cm 물린다(2026-11-20 사용자 결정 1 cm,
+# 2026-11-21 바퀴 충돌 구 여유로 2 cm)
+SIM_SHELF_A = (0.63, 0.77, 1.56, 0.783)
+# 시뮬 바퀴 충돌 구: 몸 중심 y +-0.04855, 반지름 0.028 -> 중심에서 바깥 끝 0.0766(pinky.urdf.xacro)
+SIM_WHEEL_OUTER_M = 0.04855 + 0.028
 # 칸막이 3(x 0.76~0.78)은 뺐다(2026-11-17, 충전 자리는 그대로)
 DIVIDERS = [(0.24, 0.0, 0.26, 0.10), (0.50, 0.0, 0.52, 0.10)]
 # 북쪽 벽 안쪽 면: 2026-11-17 라이다 SLAM 실측 0.98(그림 0.99). 급행 실측 폭 0.170
@@ -68,11 +71,18 @@ def test_v7_dimensions(site):
     assert site.zone_at(0.64, 0.79) is None and site.zone_at(0.60, 0.79) == "HALL"
 
 
-def test_v7_sim_shelf_a_is_1cm_thinner_on_the_express_side(site):
+def test_v7_sim_shelf_a_is_2cm_thinner_on_the_express_side(site):
     # 실측 진열대(관제 검사, 실물 키트 지도)는 그대로다
     assert list(site.shelves) == SHELVES + DIVIDERS
     assert list(site.sim_shelves) == [SIM_SHELF_A] + SHELVES[1:] + DIVIDERS
-    assert round(SHELVES[0][3] - SIM_SHELF_A[3], 3) == 0.01
+    assert round(SHELVES[0][3] - SIM_SHELF_A[3], 3) == 0.02
+
+
+def test_v7_sim_wheel_spheres_clear_shelf_a_on_the_express_lane(site):
+    lane_y = site.nodes["O"].y
+    assert lane_y == site.nodes["O_X"].y == 0.868
+    clearance = lane_y - SIM_WHEEL_OUTER_M - site.sim_shelves[0][3]
+    assert clearance >= 0.005, clearance
 
 
 def test_v7_divider_3_is_gone_and_p3_opens_to_the_east(site):
