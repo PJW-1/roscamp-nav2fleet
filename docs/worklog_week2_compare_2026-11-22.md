@@ -209,8 +209,9 @@ SUCCEEDED인데 실패로 센 세 판(c_moving RL 둘, d_robot RL 하나)은 부
    ```
 
    `/tmp/try_d_robot/report/tracks.png`에서 빨강(RL)이 y 0.65 부근으로, 초록(RL+shim)이 y 0.57 부근으로 가는지 본다.
-3. `rl_and_shim.yaml`의 `angular_dist_threshold`를 0.785에서 0.4로 바꿔 2번을 다시 돌린다. 제자리 회전 시간(표 둘째 칸
-   "제자리 회전 s")이 늘고 RL이 넘겨받을 때의 방향 오차가 줄어드는지 본다.
+3. `rl_and_shim.yaml`을 `/tmp/shim_04.yaml`로 복사하고(결과 폴더의 원본은 이번 비교의 기록이라 고치지 않는다), 복사본의
+   `angular_dist_threshold`를 0.785에서 0.4로 바꾼 뒤 `BENCH_OVERRIDES=/tmp/shim_04.yaml`로 2번을 다시 돌린다. 제자리 회전
+   시간(표 둘째 칸 "제자리 회전 s")이 늘고 RL이 넘겨받을 때의 방향 오차가 줄어드는지 본다.
 4. Q2 → E-3을 RL+shim으로 세 판 돌려(2번과 같이 하되 `BENCH_CONFIG=$PWD/results/2026-11-22/compare_012/q2e3.yaml`,
    `BENCH_REPEATS=3`, `BENCH_CONTROLLERS=FollowPathRLShim`, 시나리오 `a_hall`)
    출발 3~4 s 사이에 남쪽 벽(y 0)에 붙는 판이 있는지 `tracks.png`에서 본다.
