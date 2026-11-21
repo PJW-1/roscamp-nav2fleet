@@ -121,6 +121,23 @@ Twist2 action_to_target(float a_v, float a_w, const ActionSpec & lim)
   return {lim.v_min + (av + 1.0) * 0.5 * (lim.v_max - lim.v_min), aw * lim.w_max};
 }
 
+Twist2 block_reverse(
+  const Twist2 & target, const std::vector<float> & rays, double stop_range, double half_width_deg,
+  const PolicySpec & spec)
+{
+  if (stop_range <= 0.0 || target.v >= 0.0) {
+    return target;
+  }
+  for (size_t k = 0; k < rays.size(); ++k) {
+    const double deg = spec.lidar.first_ray_deg + k * spec.lidar.ray_step_deg;
+    const double off = std::abs(std::remainder(deg, 360.0));
+    if (off >= 180.0 - half_width_deg - 1e-9 && rays[k] < stop_range) {
+      return {0.0, target.w};
+    }
+  }
+  return target;
+}
+
 Twist2 rate_limit(const Twist2 & cmd, const Twist2 & target, double dt, const ActionSpec & lim)
 {
   const double sv = lim.acc_v * dt;

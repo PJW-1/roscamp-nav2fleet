@@ -213,3 +213,37 @@ TEST(Lidar, YawPiMountPutsTheLidarBackAtRayZero)
   EXPECT_FLOAT_EQ(unturned[180], 1.2f);
   EXPECT_FLOAT_EQ(unturned[0], 0.5f);
 }
+
+// ---- 뒤가 가까우면 후진 막기 ----
+TEST(ReverseGuard, BlocksReverseOnlyWhenTheRearIsClose)
+{
+  const PolicySpec s = spec();
+  std::vector<float> rays(s.lidar.rays, static_cast<float>(s.lidar.obs_max));
+  const pode_rl_controller::Twist2 back{-0.05, 0.8};
+  const pode_rl_controller::Twist2 ahead{0.2, -0.3};
+  EXPECT_DOUBLE_EQ(pode_rl_controller::block_reverse(back, rays, 0.15, 30.0, s).v, -0.05);
+  rays[0] = 0.10f;
+  const auto blocked = pode_rl_controller::block_reverse(back, rays, 0.15, 30.0, s);
+  EXPECT_DOUBLE_EQ(blocked.v, 0.0);
+  EXPECT_DOUBLE_EQ(blocked.w, 0.8);
+  EXPECT_DOUBLE_EQ(pode_rl_controller::block_reverse(ahead, rays, 0.15, 30.0, s).v, 0.2);
+  EXPECT_DOUBLE_EQ(pode_rl_controller::block_reverse(back, rays, 0.0, 30.0, s).v, -0.05);
+  rays[0] = 0.30f;
+  EXPECT_DOUBLE_EQ(pode_rl_controller::block_reverse(back, rays, 0.15, 30.0, s).v, -0.05);
+}
+
+TEST(ReverseGuard, LooksOnlyWithinTheRearHalfWidth)
+{
+  const PolicySpec s = spec();
+  std::vector<float> rays(s.lidar.rays, static_cast<float>(s.lidar.obs_max));
+  const pode_rl_controller::Twist2 back{-0.05, 0.0};
+  rays[90] = 0.05f;
+  EXPECT_DOUBLE_EQ(pode_rl_controller::block_reverse(back, rays, 0.15, 30.0, s).v, -0.05);
+  rays[329] = 0.05f;
+  EXPECT_DOUBLE_EQ(pode_rl_controller::block_reverse(back, rays, 0.15, 30.0, s).v, -0.05);
+  rays[330] = 0.05f;
+  EXPECT_DOUBLE_EQ(pode_rl_controller::block_reverse(back, rays, 0.15, 30.0, s).v, 0.0);
+  rays[330] = 2.0f;
+  rays[30] = 0.05f;
+  EXPECT_DOUBLE_EQ(pode_rl_controller::block_reverse(back, rays, 0.15, 30.0, s).v, 0.0);
+}

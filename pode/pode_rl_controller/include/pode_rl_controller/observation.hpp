@@ -50,6 +50,9 @@ std::vector<float> build_observation(
   const std::vector<float> & rays, double goal_dist, double goal_angle, double v, double w,
   const PolicySpec & spec);
 Twist2 action_to_target(float a_v, float a_w, const ActionSpec & lim);
+Twist2 block_reverse(
+  const Twist2 & target, const std::vector<float> & rays, double stop_range, double half_width_deg,
+  const PolicySpec & spec);
 Twist2 rate_limit(const Twist2 & cmd, const Twist2 & target, double dt, const ActionSpec & lim);
 
 }  // namespace pode_rl_controller

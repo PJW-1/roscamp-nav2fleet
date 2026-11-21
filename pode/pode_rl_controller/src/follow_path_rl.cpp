@@ -50,6 +50,8 @@ void FollowPathRL::configure(
   declare_parameter_if_not_declared(node, name_ + ".intra_op_threads", ParameterValue(1));
   declare_parameter_if_not_declared(node, name_ + ".rotate_gain", ParameterValue(1.5));
   declare_parameter_if_not_declared(node, name_ + ".log_period", ParameterValue(1.0));
+  declare_parameter_if_not_declared(node, name_ + ".rear_stop_range", ParameterValue(0.12));
+  declare_parameter_if_not_declared(node, name_ + ".rear_half_width_deg", ParameterValue(30.0));
 
   const std::string policy = node->get_parameter(name_ + ".policy").as_string();
   const std::string rule_param = node->get_parameter(name_ + ".goal_rule").as_string();
@@ -60,6 +62,8 @@ void FollowPathRL::configure(
   const int threads = node->get_parameter(name_ + ".intra_op_threads").as_int();
   rotate_gain_ = node->get_parameter(name_ + ".rotate_gain").as_double();
   log_period_ = node->get_parameter(name_ + ".log_period").as_double();
+  rear_stop_range_ = node->get_parameter(name_ + ".rear_stop_range").as_double();
+  rear_half_width_deg_ = node->get_parameter(name_ + ".rear_half_width_deg").as_double();
   const std::string dir = policy.rfind('/', 0) == 0 ? policy :
     ament_index_cpp::get_package_share_directory("pode_rl_controller") + "/policies/" + policy;
   spec_ = load_policy_spec(dir + "/policy_spec.json");
@@ -245,6 +249,9 @@ geometry_msgs::msg::TwistStamped FollowPathRL::computeVelocityCommands(
       throw nav2_core::NoValidControl("FollowPathRL: policy returned a non-finite action");
     }
     target = action_to_target(act[0], act[1], lim);
+    const double policy_v = target.v;
+    target = block_reverse(target, rays, rear_stop_range_, rear_half_width_deg_, spec_);
+    rear_blocks_ += target.v != policy_v ? 1 : 0;
   }
   target.v = std::min(target.v, speed_limit_);
   cmd_ = rate_limit(cmd_, target, spec_.control_dt, lim);
@@ -261,12 +268,13 @@ geometry_msgs::msg::TwistStamped FollowPathRL::computeVelocityCommands(
   if ((now - last_log_).seconds() >= log_period_) {
     RCLCPP_INFO(
       logger_, "FollowPathRL: %d calls, infer mean %.0f max %.0f us, call mean %.0f max %.0f us | "
-      "%s goal %.3f m at %.2f rad, end %.3f m | act (%.2f, %.2f) cmd v %.3f w %.3f | scan age %.2f s",
+      "%s goal %.3f m at %.2f rad, end %.3f m | act (%.2f, %.2f) cmd v %.3f w %.3f | rear blocks %d | scan age %.2f s",
       calls_, infer_sum_us_ / calls_, infer_max_us_, call_sum_us_ / calls_, call_max_us_,
       rotating ? "rotate" : "policy", goal.dist, goal.angle, end.dist, act[0],
-      act[1], cmd_.v, cmd_.w, scan_age);
+      act[1], cmd_.v, cmd_.w, rear_blocks_, scan_age);
     last_log_ = now;
     calls_ = 0;
+    rear_blocks_ = 0;
     infer_sum_us_ = infer_max_us_ = call_sum_us_ = call_max_us_ = 0.0;
   }
 
