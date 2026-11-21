@@ -58,7 +58,7 @@ TEST(PolicySpec, ReadsTheExportedTaskSpec)
   EXPECT_EQ(s.lidar.sectors, 36);
   EXPECT_DOUBLE_EQ(s.control_dt, 0.05);
   EXPECT_DOUBLE_EQ(s.action.v_min, -0.05);
-  EXPECT_DOUBLE_EQ(s.action.v_max, 0.25);
+  EXPECT_DOUBLE_EQ(s.action.v_max, pode_rl_controller::load_nav_speed(NAV_SPEED_FILE));
   EXPECT_DOUBLE_EQ(s.action.w_max, 1.0);
 }
 
