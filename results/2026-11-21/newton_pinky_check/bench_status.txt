@@ -1,0 +1,4 @@
+bench_n16 exit=0 wall_total_s=14
+bench_n256 exit=0 wall_total_s=14
+bench_n1024 exit=0 wall_total_s=14
+bench_n4096 exit=0 wall_total_s=17

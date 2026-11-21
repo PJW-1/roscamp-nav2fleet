@@ -1,0 +1,24 @@
+##################################################################
+#  PXR_WORK_THREAD_LIMIT is overridden to '1'.  Default is '0'.  #
+##################################################################
+I: Initializing Version 2.74.0-release.7316+gl.ec99a64b
+I: Client ID: H9PDVRU4
+I: ThreadId(02) hub_client::client::Client::new Launching client mode=Shared with_cleaner=false cache_path=None cache_size=None
+I: ThreadId(03) launch self=Launcher { discovery_lock: RwLock { lock: RwLock { inner: File { handle: 0xbbc, path: "\\\\?\\C:\\Users\\pjw\\AppData\\Local\\Temp\\hub-pjw.lock" } } }, mode: Shared, with_cleaner: false, config_file: "C:\\Users\\pjw\\AppData\\Local\\Temp\\hub-pjw-6368CCD4.config.json" } cmd="hub.exe" "--mode=shared" "--write-config" "C:\\Users\\pjw\\AppData\\Local\\Temp\\hub-pjw-6368CCD4.config.json" "--"
+I: Not using Hub: Hub not found
+I: Successfully created S3 provider for https://omniverse-content-production.s3-us-west-2.amazonaws.com
+I: Using CloudFront http://dcb18d6mfegct.cloudfront.net/, List = No
+Serving remote assets from the local cache under 'C:\Users\pjw\AppData\Local\Temp'. Each copy is checked against the server before use; delete the directory to force a full re-download.
+D:\isaac\IsaacLab\source\isaaclab_newton\isaaclab_newton\cloner\newton_clone_utils.py:165: FutureWarning: Newton shape color replacement is enabled; this workaround will be deprecated in a future release.
+  replace_newton_builder_shape_colors(builder, stage)
+C:\Users\pjw\ros2camp\pd-newton-check\learning\sim_check\pinky_newton_sensors.py:84: DeprecationWarning: ContactSensor.body_names is deprecated; use ContactSensor.sensor_names instead.
+  print(f"[CHECK] lidar rays: {lidar.num_rays}; bumper bodies: {bumper.body_names}")
+C:\Users\pjw\ros2camp\pd-newton-check\learning\sim_check\pinky_newton_sensors.py:110: DeprecationWarning: Articulation.set_joint_velocity_target_index is deprecated. Use articulation.actuators.target_command.set_velocity_index instead.
+  robot.set_joint_velocity_target_index(target=target, joint_ids=wheel_ids)
+Finalize builder took: Last: 0.061862 s, Mean: 0.061862 s, Std: 0.000000 s, N: 1
+Contact sensor construction took: Last: 0.671636 s, Mean: 0.671636 s, Std: 0.000000 s, N: 1
+Initialize solver took: Last: 2.486543 s, Mean: 2.486543 s, Std: 0.000000 s, N: 1
+[CHECK] lidar rays: 360; bumper bodies: ['base_link']
+[CHECK] forward ray index (lidar frame -x) = 180, dir = [-1.0, 0.0, 0.0]
+CUDA graph took: Last: 0.210675 s, Mean: 0.210675 s, Std: 0.000000 s, N: 1
+[CHECK] done

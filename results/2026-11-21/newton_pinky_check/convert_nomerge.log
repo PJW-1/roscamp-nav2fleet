@@ -1,0 +1,51 @@
+Warning: Possible version incompatibility. Attempting to load carb::ujitso::IFactory with version v0.3 against v0.2.
+[ISAACLAB] KitLauncher initialization complete
+--------------------------------------------------------------------------------
+--------------------------------------------------------------------------------
+Input URDF file: C:\isaac_assets\pinky\pinky.urdf
+URDF importer config:
+    asset_path: C:\isaac_assets\pinky\pinky.urdf
+    usd_dir: C:\isaac_assets\pinky\usd\nomerge
+    usd_file_name: None
+    force_usd_conversion: True
+    make_instanceable: True
+    physics_variant: physics
+    fix_base: False
+    root_link_name: None
+    link_density: 0.0
+    merge_fixed_joints: False
+    convert_mimic_joints_to_normal_joints: False
+    joint_drive: 
+        drive_type: force
+        target_type: velocity
+        gains: 
+            stiffness: 0.0
+            damping: 1.0
+    collision_from_visuals: False
+    collision_type: Convex Hull
+    self_collision: False
+    replace_cylinders_with_capsules: False
+    merge_mesh: False
+    ros_package_paths: []
+    robot_type: Default
+    run_asset_transformer: True
+    run_multi_physics_conversion: True
+    debug_mode: False
+--------------------------------------------------------------------------------
+--------------------------------------------------------------------------------
+Warp 1.17.0 initialized:
+   CUDA Toolkit 12.9, Driver 13.3
+   Devices:
+     "cpu"      : "Intel64 Family 6 Model 165 Stepping 5, GenuineIntel"
+     "cuda:0"   : "NVIDIA GeForce RTX 3080" (10 GiB, sm_86, mempool enabled)
+   Kernel cache:
+     \\?\C:\Users\pjw\AppData\Local\NVIDIA\warp\Cache\1.17.0
+URDF importer output:
+Generated USD file: C:\isaac_assets\pinky\usd\nomerge\pinky\pinky.usda
+--------------------------------------------------------------------------------
+--------------------------------------------------------------------------------
+Loading user config located at: 'd:/isaac/isaaclab/.venv/lib/site-packages/isaacsim/kit/data/Kit/IsaacLab/3.0/user.config.json'
+2026-11-20T17:00:16Z [0ms] [Warning] [omni.usd_config.extension] Enable omni.materialx.libs extension to use MaterialX
+2026-11-20T17:00:18Z [1,446ms] [Warning] [omni.ext._impl._internal] There is already a module 'warp' in 'D:\isaac\IsaacLab\.venv\Lib\site-packages\warp\__init__.py'. Can't import another module with the same name in public space from 'd:\isaac\isaaclab\.venv\lib\site-packages\isaacsim\extscache\omni.warp.core-1.17.0+wx64'.
+2026-11-20T17:00:18Z [2,086ms] [Warning] [omni.usd] Encountered USD Warnings but USD Diagnostics are currently muted. To view USD Warnings, please set the '/persistent/app/usd/muteUsdDiagnostics' setting to false in Preferences page.
+2026-11-20T17:00:23Z [6,361ms] [Warning] [isaacsim.asset.transformer.rules.utils] omni.kit.material.library is not available; using hardcoded built-in MDL list (15 basename(s)).
