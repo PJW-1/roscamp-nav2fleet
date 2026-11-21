@@ -295,7 +295,9 @@ controller_server:
       temperature: 0.3
       gamma: 0.015
       motion_model: "DiffDrive"
-      vx_std: 0.1
+      # vx_std 0.2(Nav2 기본, 2026-11-21 Gazebo): 0.1에서는 평균 명령이 속도를 늦게 따라가 a_hall 주행 중 평균
+      # 0.097 m/s(RPP 0.176)였다. 0.2로 0.150 m/s, 16.6 → 12.2 s
+      vx_std: 0.2
       wz_std: 0.4
       vx_max: 0.25  # FollowPathGoal desired_linear_vel, Isaac v_max
       vx_min: -0.05  # Isaac v_min(실물 후진 0.05 m/s)
