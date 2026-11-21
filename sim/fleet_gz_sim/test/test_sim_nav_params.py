@@ -140,7 +140,25 @@ def test_sim_params_cap_every_forward_controller_and_change_nothing_else(tmp_pat
     assert _rpp(capped, launch_parts.MPPI_CONTROLLER)["vx_max"] == 0.10
     assert _rpp(plain, launch_parts.MPPI_CONTROLLER)["vx_max"] == top
     _rpp(plain, launch_parts.MPPI_CONTROLLER)["vx_max"] = 0.10
+    steps = _rpp(plain, launch_parts.MPPI_CONTROLLER)["time_steps"]
+    assert _rpp(capped, launch_parts.MPPI_CONTROLLER)["time_steps"] == round(steps * top / 0.10)
+    _rpp(plain, launch_parts.MPPI_CONTROLLER)["time_steps"] = round(steps * top / 0.10)
     assert capped == plain
+
+
+def test_a_speed_cap_keeps_the_mppi_horizon_distance(tmp_path):
+    """A slower cap lengthens MPPI's time_steps so it still looks the same distance ahead."""
+    def mppi(out, **kw):
+        data = yaml.safe_load(_sim(NAV, tmp_path / out, **kw).read_text(encoding="utf-8"))
+        return _rpp(data, launch_parts.MPPI_CONTROLLER)
+
+    def reach(m):
+        return m["time_steps"] * m["model_dt"] * m["vx_max"]
+    plain = mppi("plain.yaml")
+    for speed in (0.05, 0.08, 0.10, launch_parts.nav_speed_mps(SPEED_FILE)):
+        capped = mppi(f"c{speed}.yaml", max_speed=speed)
+        assert abs(reach(capped) - reach(plain)) <= capped["model_dt"] * speed / 2 + 1e-9
+    assert mppi("same.yaml", max_speed=plain["vx_max"])["time_steps"] == plain["time_steps"]
 
 
 @pytest.mark.parametrize("bad", [0.0, -0.1, float("nan"), float("inf"), 0.3, True, "0.1"])
