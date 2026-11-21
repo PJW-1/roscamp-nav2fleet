@@ -161,6 +161,27 @@ def test_a_speed_cap_keeps_the_mppi_horizon_distance(tmp_path):
     assert mppi("same.yaml", max_speed=plain["vx_max"])["time_steps"] == plain["time_steps"]
 
 
+def test_an_mppi_from_the_overrides_is_capped_without_changing_the_callers_dict(tmp_path):
+    """An MPPI mapping handed in whole through the overrides is capped in the output only, and
+    one that leaves time_steps to the Nav2 default keeps it unset."""
+    base = _base()
+    del base["controller_server"]["ros__parameters"][launch_parts.MPPI_CONTROLLER]
+    path = tmp_path / "base.yaml"
+    path.write_text(yaml.safe_dump(base), encoding="utf-8")
+    for extra in ({}, {"time_steps": 40}):
+        mppi = {"plugin": "nav2_mppi_controller::MPPIController", "vx_max": 0.12,
+                "model_dt": 0.05, **extra}
+        overrides = {"controller_server": {"ros__parameters": {
+            launch_parts.MPPI_CONTROLLER: mppi}}}
+        out = launch_parts.sim_nav_params(path, tmp_path / "sim.yaml", avoidance=AVOIDANCE,
+                                          overrides=overrides, max_speed=0.06)
+        sim = _rpp(yaml.safe_load(out.read_text(encoding="utf-8")), launch_parts.MPPI_CONTROLLER)
+        assert mppi == {"plugin": "nav2_mppi_controller::MPPIController", "vx_max": 0.12,
+                        "model_dt": 0.05, **extra}
+        assert sim["vx_max"] == 0.06
+        assert sim.get("time_steps") == (80 if extra else None)
+
+
 @pytest.mark.parametrize("bad", [0.0, -0.1, float("nan"), float("inf"), 0.3, True, "0.1"])
 def test_a_speed_cap_must_be_a_number_between_zero_and_the_robot_speed(tmp_path, bad):
     with pytest.raises(ValueError, match="max_speed"):

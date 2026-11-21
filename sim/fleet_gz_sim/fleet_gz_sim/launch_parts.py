@@ -240,8 +240,10 @@ def sim_nav_params(base: Path, out: Path, amcl: dict | None = None,
         if MPPI_CONTROLLER in controllers:
             mppi = controllers[MPPI_CONTROLLER]
             own = float(mppi["vx_max"])
-            mppi["vx_max"] = min(own, float(max_speed))
-            mppi["time_steps"] = round(int(mppi["time_steps"]) * own / mppi["vx_max"])
+            capped = {**mppi, "vx_max": min(own, float(max_speed))}
+            if "time_steps" in mppi:
+                capped["time_steps"] = round(int(mppi["time_steps"]) * own / capped["vx_max"])
+            controllers[MPPI_CONTROLLER] = capped
         for name, rl in list(controllers.items()):
             if isinstance(rl, dict) and RL_PLUGIN in (rl.get("plugin"),
                                                       rl.get("primary_controller")):
