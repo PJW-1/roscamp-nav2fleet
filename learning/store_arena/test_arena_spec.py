@@ -106,3 +106,37 @@ def test_scripted_robot_defaults_are_the_user_decision():
     assert (arena.ARENA.robot_routes, arena.ARENA.robot_retreat) == (12, 1)
     old = arena.make_arena_spec({"robot_routes": 4, "robot_retreat": 0})
     assert (old.robot_routes, old.robot_retreat) == (4, 0)
+
+
+def test_footprint_clearance_to_rects_boxes_and_cylinders():
+    half = (0.06, 0.056)  # Pode footprint 0.12 x 0.112
+    xy, yaw = torch.tensor([[0.0, 0.0]]), torch.zeros(1)
+    wall = torch.tensor([[[0.065, -1.0, 0.2, 1.0]]])  # face 5 mm ahead of the front edge
+    assert arena.footprint_clearance(xy, yaw, half, wall).item() == pytest.approx(0.005, abs=1e-6)
+    # turned 45 deg the corner reaches sqrt(0.06^2 + 0.056^2) = 0.0821 ahead: overlaps
+    assert arena.footprint_clearance(xy, torch.tensor([math.pi / 4]), half, wall).item() == 0.0
+    # a wall corner pointing into the side: the rect corner, not a footprint corner, is nearest
+    corner = torch.tensor([[[-0.01, 0.059, 0.3, 0.5]]])
+    c = arena.footprint_clearance(xy, yaw, half, corner)
+    assert c.item() == pytest.approx(0.003, abs=1e-6)
+    # a turned box (a cart) and a cylinder (a person of radius 0.04)
+    g = arena.box_clearance(xy, yaw, half, torch.tensor([[0.2, 0.0]]), torch.zeros(1),
+                            (0.07, 0.045))
+    assert g.item() == pytest.approx(0.2 - 0.07 - 0.06, abs=1e-6)
+    c = arena.cylinder_clearance(xy, yaw, half, torch.tensor([[0.0, 0.2]]), 0.04)
+    assert c.item() == pytest.approx(0.2 - 0.04 - 0.056, abs=1e-6)
+
+
+def test_near_wall_penalty_is_linear_and_bounded():
+    c = torch.tensor([0.0, 0.025, 0.05, 0.3])
+    p = arena.near_wall_penalty(c, near_m=0.05, weight=-0.1)
+    assert p.tolist() == pytest.approx([-0.1, -0.05, 0.0, 0.0])
+
+
+def test_corner_start_routes_and_away_heading():
+    rects = torch.tensor([[0.0, -0.1, 3.0, 0.0]])  # south wall face at y = 0
+    start = torch.tensor([[1.66, 0.15], [1.0, 0.8]])
+    assert arena.near_wall_starts(start, rects, 0.2).tolist() == [True, False]
+    path = torch.tensor([[[1.66, 0.15], [1.5, 0.15], [1.0, 0.15]]])  # heads west
+    yaw = arena.away_heading(path, torch.zeros(1))
+    assert yaw.item() == pytest.approx(0.0, abs=1e-6)  # faces east, as the Gazebo Q2 case

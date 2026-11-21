@@ -222,7 +222,18 @@ class StoreArenaEnv(GoalReachEnv):
         self.mover_t = torch.zeros(len(ms.MOVERS), n, **f32)  # each mover's own clock
         self.mover_held = torch.zeros(len(ms.MOVERS), n, dtype=torch.bool, device=dev)  # waiting
         self.mover_wait = torch.zeros(len(ms.MOVERS), n, **f32)  # how long it has waited [s]
-        self.mover_yield = torch.full((n,), float(a.mover_yield_m), **f32)  # per env
+        # yield distance per mover and env (mover_yield_mix, mover_noyield_prob)
+        self.mover_yield = torch.full((len(ms.MOVERS), n), float(a.mover_yield_m), **f32)
+        # wall grazes and corner starts (arena_spec graze_m, near_wall_m, corner_start_prob)
+        self.half_fp = (0.5 * a.footprint_m[0], 0.5 * a.footprint_m[1])
+        self.wall_clear = torch.full((n,), float("inf"), **f32)
+        self.graze_only = torch.zeros(n, dtype=torch.bool, device=dev)
+        self.r_corner = torch.nonzero(
+            arena.near_wall_starts(self.r_start, self.static_rects, a.corner_start_m)
+        )[:, 0]
+        self.corner_start = torch.zeros(n, dtype=torch.bool, device=dev)
+        self.last_ep_corner = torch.zeros(n, dtype=torch.bool, device=dev)
+        self._new_corner = torch.zeros(n, dtype=torch.bool, device=dev)
         self.mover_gap = torch.full((n,), float("inf"), **f32)
         self.last_ep_mover_gap = torch.full((n,), float("inf"), **f32)
         # scripted fleet robots
@@ -269,6 +280,15 @@ class StoreArenaEnv(GoalReachEnv):
             xy = torch.tensor((self.arena.start_x, self.arena.start_y), device=self.device)
             return xy.expand(n, 2).clone(), yaw
         self._new_route = torch.randint(0, self.routes.count, (n,), device=self.device)
+        p = self.arena.corner_start_prob
+        self._new_corner = torch.zeros(n, dtype=torch.bool, device=self.device)
+        if p > 0 and len(self.r_corner):  # no draw otherwise: earlier arenas stay the same
+            self._new_corner = torch.rand(n, device=self.device) < p
+            pick = self.r_corner[torch.randint(0, len(self.r_corner), (n,), device=self.device)]
+            self._new_route = torch.where(self._new_corner, pick, self._new_route)
+            jit = (2 * torch.rand(n, device=self.device) - 1) * self.arena.corner_yaw_jitter
+            away = arena.away_heading(self.r_path[self._new_route], jit)
+            yaw = torch.where(self._new_corner, away, yaw)
         self._new_yaw = yaw
         return self.r_start[self._new_route], yaw
 
@@ -294,9 +314,11 @@ class StoreArenaEnv(GoalReachEnv):
             self.last_ep_mover_gap[env_ids] = self.mover_gap[env_ids]
             self.last_ep_robot_gap[env_ids] = self.robot_gap_min[env_ids]
             self.last_ep_hit_kind[env_ids] = self.hit_kind[env_ids]
+            self.last_ep_corner[env_ids] = self.corner_start[env_ids]
         super()._reset_idx(env_ids)
         if not self._routes_ready:
             return
+        self.corner_start[env_ids] = self._new_corner
         r = self._new_route
         self.route[env_ids] = r
         self.goal_xy[env_ids] = self.r_goal[r]
@@ -314,9 +336,15 @@ class StoreArenaEnv(GoalReachEnv):
         self.mover_t[:, env_ids] = 0.0
         self.mover_held[:, env_ids] = False
         self.mover_wait[:, env_ids] = 0.0
-        if self.arena.mover_noyield_prob > 0:  # no draw otherwise: 4b and 4c runs stay the same
-            noyield = torch.rand(len(env_ids), device=self.device) < self.arena.mover_noyield_prob
-            self.mover_yield[env_ids] = torch.where(noyield, 0.0, self.arena.mover_yield_m)
+        a = self.arena
+        if a.mover_yield_mix:  # B48
+            n_ = len(env_ids)
+            self.mover_yield[:, env_ids] = ms.mixed_yield(
+                n_, len(ms.MOVERS), a.mover_yield_m, device=self.device
+            )
+        elif a.mover_noyield_prob > 0:  # no draw otherwise: 4b and 4c runs stay the same
+            noyield = torch.rand(len(env_ids), device=self.device) < a.mover_noyield_prob
+            self.mover_yield[:, env_ids] = torch.where(noyield, 0.0, a.mover_yield_m)
         self._write_movers(env_ids)
         self.mover_gap[env_ids] = self.mover_gaps(self.start_xy[env_ids], env_ids)  # at t = 0
         self._sample_robots(env_ids, r)
@@ -519,7 +547,7 @@ class StoreArenaEnv(GoalReachEnv):
                     self.step_dt,
                     shape,
                     xy,
-                    self.mover_yield,
+                    self.mover_yield[i],
                     self.mover_wait[i],
                     self.arena.mover_wait_s,
                 )
@@ -564,11 +592,52 @@ class StoreArenaEnv(GoalReachEnv):
         self.success, self.collided, self.oob = ts.episode_outcome(
             self.d_goal, self.max_contact_force(), xy, self.start_xy, self.spec
         )
+        clear = self.footprint_clearance(xy, yaw)
+        graze = clear <= self.arena.graze_m if self.arena.graze_m > 0 else torch.zeros_like(clear)
+        self.graze_only = graze & ~self.collided  # the contact sensor did not see it
+        self.collided = self.collided | graze
+        self.success = self.success & ~graze
+        self.oob = self.oob & ~graze
         return ts.split_dones(
             self.success | self.collided | self.oob,
             self.episode_length_buf,
             self.max_episode_length,
         )
+
+    def footprint_clearance(self, xy, yaw) -> torch.Tensor:
+        """(n,) our footprint to the nearest wall, shelf, box, mover or robot; also keeps the part
+        to walls, shelves and boxes in self.wall_clear (near-wall penalty)."""
+        n, h = len(xy), self.half_fp
+        sizes = torch.tensor(self.routes.obstacle_sizes, device=self.device)
+        bxy = self.r_obstacle[self.route]
+        half = 0.5 * sizes[None, :, None]
+        boxes = torch.cat((bxy - half, bxy + half), -1)
+        rects = torch.cat((self.static_rects.expand(n, -1, -1), boxes), 1)
+        self.wall_clear = arena.footprint_clearance(xy, yaw, h, rects)
+        clear = self.wall_clear
+        inf = torch.full_like(clear, float("inf"))
+        for shape, (pos, myaw, _, act) in zip(ms.MOVERS, self.mover_state(), strict=True):
+            if shape.kind == "cylinder":
+                c = arena.cylinder_clearance(xy, yaw, h, pos, shape.size[0])
+            else:
+                hm = (0.5 * shape.size[0], 0.5 * shape.size[1])
+                c = arena.box_clearance(xy, yaw, h, pos, myaw, hm)
+            clear = torch.minimum(clear, torch.where(act, c, inf))
+        hr = (0.5 * rbs.ROBOT.size[0], 0.5 * rbs.ROBOT.size[1])
+        for pos, ryaw, act in self.robot_state():
+            c = arena.box_clearance(xy, yaw, h, pos, ryaw, hr)
+            clear = torch.minimum(clear, torch.where(act, c, inf))
+        return clear
+
+    def _get_rewards(self) -> torch.Tensor:
+        rew = super()._get_rewards()
+        if not self._routes_ready:
+            return rew
+        a = self.arena
+        pen = arena.near_wall_penalty(self.wall_clear, a.near_wall_m, a.w_near_wall)
+        self.ep_reward_terms.setdefault("near_wall", torch.zeros_like(pen))
+        self.ep_reward_terms["near_wall"] += pen
+        return rew + pen
 
     def _get_observations(self) -> dict:
         if not self._routes_ready:
