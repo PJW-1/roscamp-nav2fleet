@@ -1,0 +1,14 @@
+{
+ "checkpoint": "D:/isaac/runs/goal_reach/base_4096/model_299.pt",
+ "num_envs": 256,
+ "episodes": 1024,
+ "success_rate": 1.0,
+ "collision_rate": 0.0,
+ "oob_rate": 0.0,
+ "timeout_rate": 0.0,
+ "success_time_s_mean": 6.695,
+ "success_time_s_p95": 8.85,
+ "final_dist_m_mean": 0.0438,
+ "lidar_min_seen_m": Infinity,
+ "spec_overrides": {}
+}
