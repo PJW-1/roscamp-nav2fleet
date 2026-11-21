@@ -1,0 +1,47 @@
+{
+ "checkpoint": "D:/isaac/runs/store_arena/ppo_b/c1/model_999.pt",
+ "num_envs": 1024,
+ "episodes": 4096,
+ "rates": {
+  "success": 0.9651,
+  "collision": 0.02,
+  "oob": 0.0,
+  "timeout": 0.0149
+ },
+ "by_boxes_on_route": {
+  "0": {
+   "success": 1145,
+   "collision": 1,
+   "oob": 0,
+   "timeout": 4,
+   "success_rate": 0.9957
+  },
+  "1": {
+   "success": 950,
+   "collision": 6,
+   "oob": 0,
+   "timeout": 3,
+   "success_rate": 0.9906
+  },
+  "2": {
+   "success": 915,
+   "collision": 22,
+   "oob": 0,
+   "timeout": 18,
+   "success_rate": 0.9581
+  },
+  "3": {
+   "success": 943,
+   "collision": 53,
+   "oob": 0,
+   "timeout": 36,
+   "success_rate": 0.9138
+  }
+ },
+ "success_time_s_mean": 6.65,
+ "success_time_s_p90": 9.7,
+ "success_time_over_path_at_vmax_mean": 1.327,
+ "lidar_min_m": 0.0583,
+ "spec_overrides": {},
+ "arena_overrides": {}
+}

@@ -8,8 +8,8 @@
 - Pode는 시나리오의 start 지점(없으면 주차 지점 차례)에 그 지점의 yaw로 놓는다(fleet_setup).
 - 로봇마다 Nav2(pode_nav_config)에 배치의 지도와 keepout_mask를 준다. sim_nav_params가
   controller 넷(FollowPath, FollowPathThrough, FollowPathReverse, FollowPathGoal)의 속도를
-  nav_max_speed(0.12~0.20 m/s)로 묶는다. 충돌 검사는 마당 goal(FollowPathGoal)만 늘 켜고,
-  고정 경로 셋은 fixed_line_collision_check:=true일 때만 켠다(기본 끔).
+  nav_max_speed(기본은 단일 출처 nav_speed.yaml)로 묶는다. 충돌 검사는 마당 goal(FollowPathGoal)만
+  늘 켜고, 고정 경로 셋은 fixed_line_collision_check:=true일 때만 켠다(기본 끔).
 - 모든 로봇이 IDLE이 되면(wait_ready) 관제(map_file = 배치 이름, traffic_mode zones), 가짜
   작업셀·출고 팔·central, 시나리오 모니터를 띄운다. 모니터가 결과를 쓰고 launch를 끝낸다.
 - 시계는 Gazebo /clock 하나를 모두 쓴다. 주문 시각(at_s)은 Gazebo 시계 0부터 센다.
@@ -60,7 +60,8 @@ ARGS = {
                                " false면 진짜 pode_fsm(DOCK_UNAVAILABLE)"),
     "fleet_check": ("true", "로봇 사이 최소 거리, 정지 횟수, 쥔 구역 밖 위치 수를"
                             " result_dir/fleet_check.json에"),
-    "nav_max_speed": ("0.20", "controller들의 최고 속도(m/s), 0.12~0.20"),
+    "nav_max_speed": ("", "controller들의 최고 속도(m/s), 0.05~단일 출처."
+                          " 비면 pode_nav_config/params/nav_speed.yaml(0.12)"),
     "keepout": ("true", "false면 Nav2 global costmap의 keepout 필터를 띄우지 않는다(비교용)"),
     "nav_pass_through": ("true", "잠금 경계에서 끝나는 이동(final_goal 거짓)을 접근 감속 없는 둘째"
                                 " RPP(FollowPathThrough)로. false면 모두 FollowPath(둘 다 뜬다)"),

@@ -1,0 +1,166 @@
+{
+ "mode": "mover",
+ "num_envs": 256,
+ "arena": {
+  "layout": "v7",
+  "wall_height_m": 0.3,
+  "shelf_height_m": 0.3,
+  "env_spacing": 3.0,
+  "start_x": 0.3,
+  "start_y": 0.55,
+  "episode_s": 30.0,
+  "excluded_node_kinds": "parking",
+  "min_start_goal_m": 0.4,
+  "grid_m": 0.025,
+  "inscribed_m": 0.07,
+  "inflation_m": 0.15,
+  "cost_scaling": 15.0,
+  "lookahead_m": 0.4,
+  "follow_window": 20,
+  "obstacle_sizes": [
+   0.1,
+   0.15,
+   0.2
+  ],
+  "obstacle_height_m": 0.3,
+  "obstacle_max": 3,
+  "obstacle_layouts": 96,
+  "obstacle_on_path_prob": 0.7,
+  "obstacle_lateral_m": 0.08,
+  "obstacle_node_clear_m": 0.25,
+  "route_seed": 0,
+  "mover_prob": 0.75,
+  "mover_on_path_prob": 0.6,
+  "mover_leg_m": [
+   0.3,
+   0.8
+  ],
+  "mover_speed_scale": [
+   0.5,
+   1.5
+  ],
+  "mover_pause_s": [
+   0.0,
+   1.0
+  ],
+  "mover_node_clear_m": 0.25,
+  "mover_end_path_clear_m": 0.07,
+  "mover_yield_m": 0.15,
+  "mover_wait_s": 2.0
+ },
+ "boxes": [
+  {
+   "name": "wall_south",
+   "x0": -0.05,
+   "y0": -0.05,
+   "x1": 2.03,
+   "y1": 0.0,
+   "kind": "wall",
+   "height_m": 0.3
+  },
+  {
+   "name": "wall_north",
+   "x0": -0.05,
+   "y0": 0.98,
+   "x1": 2.03,
+   "y1": 1.03,
+   "kind": "wall",
+   "height_m": 0.3
+  },
+  {
+   "name": "wall_west",
+   "x0": -0.05,
+   "y0": 0.0,
+   "x1": 0.0,
+   "y1": 0.98,
+   "kind": "wall",
+   "height_m": 0.3
+  },
+  {
+   "name": "wall_east",
+   "x0": 1.98,
+   "y0": 0.0,
+   "x1": 2.03,
+   "y1": 0.98,
+   "kind": "wall",
+   "height_m": 0.3
+  },
+  {
+   "name": "shelf_1",
+   "x0": 0.63,
+   "y0": 0.77,
+   "x1": 1.56,
+   "y1": 0.803,
+   "kind": "shelf",
+   "height_m": 0.3
+  },
+  {
+   "name": "shelf_2",
+   "x0": 0.68,
+   "y0": 0.365,
+   "x1": 0.99,
+   "y1": 0.405,
+   "kind": "shelf",
+   "height_m": 0.3
+  },
+  {
+   "name": "shelf_3",
+   "x0": 1.25,
+   "y0": 0.365,
+   "x1": 1.56,
+   "y1": 0.405,
+   "kind": "shelf",
+   "height_m": 0.3
+  },
+  {
+   "name": "shelf_4",
+   "x0": 0.24,
+   "y0": 0.0,
+   "x1": 0.26,
+   "y1": 0.1,
+   "kind": "shelf",
+   "height_m": 0.3
+  },
+  {
+   "name": "shelf_5",
+   "x0": 0.5,
+   "y0": 0.0,
+   "x1": 0.52,
+   "y1": 0.1,
+   "kind": "shelf",
+   "height_m": 0.3
+  }
+ ],
+ "build_s": 14.62,
+ "gpu_mib_before_env": 969,
+ "gpu_mib_after_build": 1960,
+ "mover_pose_err_max_m": 1e-06,
+ "standing_robots_hit_by_movers": 0,
+ "person_rays_compared": 725,
+ "person_ray_outside_band_m": {
+  "max": 0.0021,
+  "p99": 0.0014
+ },
+ "cart_rays_compared": 467,
+ "cart_ray_outside_band_m": {
+  "max": 0.002,
+  "p99": 0.0002
+ },
+ "mover_active_share": {
+  "person": 0.793,
+  "cart": 0.5
+ },
+ "envs_with_a_mover": 235,
+ "envs_driven": 205,
+ "collided": 205,
+ "targets": {
+  "person": 173,
+  "cart": 32
+ },
+ "centre_to_mover_surface_before_collision_m": [
+  0.0509,
+  0.0525
+ ],
+ "pass": true,
+ "gpu_mib_end": 2134
+}

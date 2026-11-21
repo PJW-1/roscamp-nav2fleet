@@ -1,0 +1,12 @@
+a_hall start 2026-11-21T17:05:08+09:00 avail 15337MB domain 61
+a_hall: exit 0, bench a_hall: 5/5 repeats, 0 resets
+a_hall end 2026-11-21T17:10:10+09:00
+b_static start 2026-11-21T17:13:10+09:00 avail 15330MB domain 61
+b_static: exit 0, bench b_static: 5/5 repeats, 0 resets
+b_static end 2026-11-21T17:20:46+09:00
+c_moving start 2026-11-21T17:23:46+09:00 avail 15325MB domain 61
+c_moving: exit 0, bench c_moving: 5/5 repeats, 0 resets
+c_moving end 2026-11-21T17:31:29+09:00
+d_robot start 2026-11-21T17:36:29+09:00 avail 15326MB domain 61
+d_robot: exit 0, bench d_robot: 5/5 repeats, 0 resets
+d_robot end 2026-11-21T17:42:28+09:00

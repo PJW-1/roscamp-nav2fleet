@@ -78,3 +78,77 @@ def test_an_outcome_on_the_last_step_is_not_also_a_timeout():
     terminated, time_out = ts.split_dones(done, length, 400)
     assert terminated.tolist() == [True, False, True]
     assert time_out.tolist() == [False, True, False]
+
+
+def _obs_inputs(n=2):
+    return torch.full((n, 360), 1.0), torch.ones(n), torch.zeros(n), torch.zeros(n, 2)
+
+
+def test_the_default_observation_is_the_41_dim_layout():
+    assert ts.OBS_DIM == ts.obs_dim(ts.SPEC) == 41 == len(ts.obs_names())
+    obs = ts.build_observation(*_obs_inputs())
+    assert obs.shape == (2, 41)
+
+
+def test_intent_observation_layout_mask_and_clip():
+    spec = ts.make_spec(ts.parse_overrides(["intent_robots=2"]))
+    assert spec.intent_robots == 2 and isinstance(spec.intent_robots, int)
+    assert ts.obs_dim(spec) == 41 + 2 * 7 == len(ts.obs_names(spec))
+    intent = torch.zeros(2, 2, 3, 2)
+    intent[:, 0] = torch.tensor([[1.0, 0.0], [3.0, 0.5], [-5.0, -1.0]])  # m, robot frame
+    intent[:, 1] = 9.0  # absent robot: must come out as zeros
+    mask = torch.tensor([[True, False], [True, False]])
+    obs = ts.build_observation(*_obs_inputs(), spec, intent=intent, intent_mask=mask)
+    names = ts.obs_names(spec)
+    row = dict(zip(names, obs[0].tolist(), strict=True))
+    assert row["robot0_present"] == 1.0 and row["robot1_present"] == 0.0
+    assert (row["robot0_p1_x"], row["robot0_p2_x"], row["robot0_p3_x"]) == (0.5, 1.0, -1.0)
+    assert row["robot0_p2_y"] == 0.25
+    assert all(row[f"robot1_p{k}_{a}"] == 0.0 for k in (1, 2, 3) for a in "xy")
+
+
+def test_intent_layout_without_intent_input_is_all_absent():
+    # an env with no fleet robots (goal-reach) still builds the wider layout: robots absent
+    spec = ts.make_spec({"intent_robots": 2})
+    obs = ts.build_observation(*_obs_inputs(), spec)
+    assert obs.shape == (2, 55)
+    assert (obs[:, 41:] == 0).all()
+
+
+def test_the_top_speed_is_the_one_source(tmp_path):
+    import yaml
+
+    with open(ts.NAV_SPEED_FILE, encoding="utf-8") as f:
+        want = yaml.safe_load(f)["nav_speed_mps"]
+    assert ts.ACTION_LIMITS.v_max == ts.NAV_SPEED_MPS == want
+    other = tmp_path / "nav_speed.yaml"
+    other.write_text("nav_speed_mps: 0.2\n", encoding="utf-8")
+    assert ts.nav_speed_mps(str(other)) == 0.2
+    other.write_text("nav_speed_mps: 0\n", encoding="utf-8")
+    with pytest.raises(ValueError):
+        ts.nav_speed_mps(str(other))
+
+
+def test_times_stretch_so_the_robot_covers_the_tuned_distance():
+    """Rule: a time tuned at TIMES_TUNED_AT_MPS (0.25 m/s) is multiplied by 0.25 / v."""
+    assert ts.TIMES_TUNED_AT_MPS == 0.25
+    assert ts.travel_time(20.0, 0.25) == pytest.approx(20.0)
+    assert ts.travel_time(20.0, 0.12) == pytest.approx(20.0 * 0.25 / 0.12)
+    assert ts.SPEC.episode_s == pytest.approx(ts.travel_time(20.0))
+    assert ts.SPEC.episode_s * ts.NAV_SPEED_MPS == pytest.approx(20.0 * 0.25)
+
+
+def test_priority_flag_follows_the_present_flag_when_on():
+    spec = ts.make_spec(ts.parse_overrides(["intent_robots=2", "intent_priority=1"]))
+    names = ts.obs_names(spec)
+    assert ts.obs_dim(spec) == 41 + 2 * 8 == len(names)
+    assert names[41:43] == ["robot0_present", "robot0_priority"]
+    intent = torch.ones(2, 2, 3, 2)
+    mask = torch.tensor([[True, True], [True, False]])
+    prio = torch.tensor([[True, False], [True, True]])
+    obs = ts.build_observation(*_obs_inputs(), spec, intent=intent, intent_mask=mask,
+                               intent_priority=prio)
+    row1 = dict(zip(names, obs[1].tolist(), strict=True))
+    assert row1["robot0_priority"] == 1.0 and row1["robot1_priority"] == 0.0  # absent: 0
+    off = ts.make_spec(ts.parse_overrides(["intent_robots=2"]))
+    assert "robot0_priority" not in ts.obs_names(off)  # default off: 55 dims as before

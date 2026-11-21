@@ -1,0 +1,320 @@
+{
+ "g_base": {
+  "arena_overrides": {
+   "robot_max": 2
+  },
+  "episodes": 4096,
+  "rates": {
+   "success": 0.854,
+   "collision": 0.0613,
+   "oob": 0.0,
+   "timeout": 0.0847
+  },
+  "rate_se_pp": {
+   "success": 0.55,
+   "collision": 0.37,
+   "oob": 0.0,
+   "timeout": 0.44
+  },
+  "by_robot_gap": {
+   "no robot": {
+    "success": 1330,
+    "collision": 35,
+    "oob": 0,
+    "timeout": 39,
+    "success_rate": 0.9473
+   },
+   "gap -inf-0.10 m": {
+    "success": 364,
+    "collision": 121,
+    "oob": 0,
+    "timeout": 187,
+    "success_rate": 0.5417
+   },
+   "gap 0.10-0.25 m": {
+    "success": 1093,
+    "collision": 51,
+    "oob": 0,
+    "timeout": 110,
+    "success_rate": 0.8716
+   },
+   "gap 0.25-0.50 m": {
+    "success": 406,
+    "collision": 19,
+    "oob": 0,
+    "timeout": 9,
+    "success_rate": 0.9355
+   },
+   "gap 0.50-inf m": {
+    "success": 305,
+    "collision": 25,
+    "oob": 0,
+    "timeout": 2,
+    "success_rate": 0.9187
+   }
+  },
+  "collisions_by_nearest": {
+   "wall_shelf": 102,
+   "box": 13,
+   "mover": 36,
+   "robot": 100
+  },
+  "tracked_episodes": 4096,
+  "timeouts_by_kind": {
+   "robot_still": 172,
+   "robot_moving": 121,
+   "mover": 18,
+   "alone": 36
+  },
+  "robot_timeouts_by_place": {
+   "robot_moving @ E-2": 17,
+   "robot_moving @ E-3": 18,
+   "robot_moving @ M_E": 30,
+   "robot_moving @ O_IN": 20,
+   "robot_moving @ O_OUT": 1,
+   "robot_moving @ Q2": 18,
+   "robot_moving @ link": 17,
+   "robot_still @ E-1": 2,
+   "robot_still @ E-2": 12,
+   "robot_still @ E-3": 36,
+   "robot_still @ M_E": 49,
+   "robot_still @ O_IN": 12,
+   "robot_still @ Q2": 61
+  },
+  "junction_waits": 276,
+  "junction_waits_se": 16.0,
+  "alone_timeouts": {
+   "tracked_episodes": 4096,
+   "timeouts": 347,
+   "count": 36,
+   "per_4096": 36.0,
+   "by_motion": {
+    "stopped": 2,
+    "dithering": 9,
+    "facing_wall": 21,
+    "moving": 4
+   },
+   "by_place": {
+    "between nodes": 22,
+    "O_IN": 6,
+    "E-3": 5,
+    "M_E": 2,
+    "Q2": 1
+   }
+  }
+ },
+ "g_base2": {
+  "arena_overrides": {
+   "robot_max": 2,
+   "mover_yield_mix": 0,
+   "graze_m": 0.0,
+   "w_near_wall": 0.0,
+   "corner_start_prob": 0.0
+  },
+  "episodes": 4096,
+  "rates": {
+   "success": 0.8511,
+   "collision": 0.061,
+   "oob": 0.0,
+   "timeout": 0.0879
+  },
+  "rate_se_pp": {
+   "success": 0.56,
+   "collision": 0.37,
+   "oob": 0.0,
+   "timeout": 0.44
+  },
+  "by_robot_gap": {
+   "no robot": {
+    "success": 1308,
+    "collision": 49,
+    "oob": 0,
+    "timeout": 39,
+    "success_rate": 0.937
+   },
+   "gap -inf-0.10 m": {
+    "success": 384,
+    "collision": 115,
+    "oob": 0,
+    "timeout": 184,
+    "success_rate": 0.5622
+   },
+   "gap 0.10-0.25 m": {
+    "success": 1079,
+    "collision": 42,
+    "oob": 0,
+    "timeout": 128,
+    "success_rate": 0.8639
+   },
+   "gap 0.25-0.50 m": {
+    "success": 422,
+    "collision": 19,
+    "oob": 0,
+    "timeout": 7,
+    "success_rate": 0.942
+   },
+   "gap 0.50-inf m": {
+    "success": 293,
+    "collision": 25,
+    "oob": 0,
+    "timeout": 2,
+    "success_rate": 0.9156
+   }
+  },
+  "collisions_by_nearest": {
+   "wall_shelf": 105,
+   "box": 17,
+   "mover": 35,
+   "robot": 93
+  },
+  "tracked_episodes": 4096,
+  "timeouts_by_kind": {
+   "robot_still": 175,
+   "robot_moving": 134,
+   "mover": 18,
+   "alone": 33
+  },
+  "robot_timeouts_by_place": {
+   "robot_moving @ E-2": 17,
+   "robot_moving @ E-3": 20,
+   "robot_moving @ M_E": 30,
+   "robot_moving @ O_IN": 19,
+   "robot_moving @ O_OUT": 3,
+   "robot_moving @ Q2": 20,
+   "robot_moving @ link": 25,
+   "robot_still @ E-1": 2,
+   "robot_still @ E-2": 9,
+   "robot_still @ E-3": 33,
+   "robot_still @ M_E": 44,
+   "robot_still @ O_IN": 18,
+   "robot_still @ Q2": 69
+  },
+  "junction_waits": 284,
+  "junction_waits_se": 16.3,
+  "alone_timeouts": {
+   "tracked_episodes": 4096,
+   "timeouts": 360,
+   "count": 33,
+   "per_4096": 33.0,
+   "by_motion": {
+    "stopped": 3,
+    "dithering": 7,
+    "facing_wall": 19,
+    "moving": 4
+   },
+   "by_place": {
+    "between nodes": 22,
+    "M_E": 5,
+    "E-3": 4,
+    "O_IN": 2
+   }
+  }
+ },
+ "g_reserve": {
+  "arena_overrides": {
+   "robot_max": 2,
+   "mover_yield_mix": 0,
+   "graze_m": 0.0,
+   "w_near_wall": 0.0,
+   "corner_start_prob": 0.0,
+   "robot_reserve": 1
+  },
+  "episodes": 4096,
+  "rates": {
+   "success": 0.9099,
+   "collision": 0.053,
+   "oob": 0.0,
+   "timeout": 0.0371
+  },
+  "rate_se_pp": {
+   "success": 0.45,
+   "collision": 0.35,
+   "oob": 0.0,
+   "timeout": 0.3
+  },
+  "by_robot_gap": {
+   "no robot": {
+    "success": 1298,
+    "collision": 44,
+    "oob": 0,
+    "timeout": 32,
+    "success_rate": 0.9447
+   },
+   "gap -inf-0.10 m": {
+    "success": 230,
+    "collision": 92,
+    "oob": 0,
+    "timeout": 57,
+    "success_rate": 0.6069
+   },
+   "gap 0.10-0.25 m": {
+    "success": 1187,
+    "collision": 31,
+    "oob": 0,
+    "timeout": 42,
+    "success_rate": 0.9421
+   },
+   "gap 0.25-0.50 m": {
+    "success": 688,
+    "collision": 20,
+    "oob": 0,
+    "timeout": 12,
+    "success_rate": 0.9556
+   },
+   "gap 0.50-inf m": {
+    "success": 324,
+    "collision": 30,
+    "oob": 0,
+    "timeout": 9,
+    "success_rate": 0.8926
+   }
+  },
+  "collisions_by_nearest": {
+   "wall_shelf": 78,
+   "box": 15,
+   "mover": 38,
+   "robot": 86
+  },
+  "tracked_episodes": 4096,
+  "timeouts_by_kind": {
+   "robot_still": 20,
+   "robot_moving": 63,
+   "mover": 24,
+   "alone": 45
+  },
+  "robot_timeouts_by_place": {
+   "robot_moving @ E-2": 2,
+   "robot_moving @ E-3": 25,
+   "robot_moving @ M_E": 4,
+   "robot_moving @ O_IN": 21,
+   "robot_moving @ Q2": 6,
+   "robot_moving @ link": 5,
+   "robot_still @ E-2": 7,
+   "robot_still @ E-3": 3,
+   "robot_still @ O_IN": 6,
+   "robot_still @ O_OUT": 2,
+   "robot_still @ Q2": 2
+  },
+  "junction_waits": 78,
+  "junction_waits_se": 8.7,
+  "alone_timeouts": {
+   "tracked_episodes": 4096,
+   "timeouts": 152,
+   "count": 45,
+   "per_4096": 45.0,
+   "by_motion": {
+    "stopped": 3,
+    "dithering": 15,
+    "facing_wall": 24,
+    "moving": 3
+   },
+   "by_place": {
+    "between nodes": 20,
+    "O_IN": 8,
+    "M_E": 7,
+    "Q2": 5,
+    "E-3": 5
+   }
+  }
+ }
+}

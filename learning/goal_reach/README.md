@@ -11,6 +11,7 @@ Results: `results/2026-11-21/goal_reach_rl/`. Design choices and what was learne
 | `agent_cfg.py` | rsl_rl PPO runner settings |
 | `train.py`, `run_train.sh` | training (writes `metrics.csv` with wall time per iteration, checkpoints, tensorboard, `run.json`); the shell wrapper also logs `nvidia-smi` |
 | `play.py` | evaluates a checkpoint (deterministic policy), saves trajectories, exports ONNX, `--video` renders a top-down camera with the Newton Warp renderer |
+| `export_policy.py` | packages a policy for the Nav2 plugin `pode/pode_rl_controller`: one-file `policy.onnx`, `policy_spec.json` from `task_spec`, parity fixtures; checks onnxruntime against the checkpoint (system python with torch, onnx, onnxruntime) |
 | `lidar_close_check.py` | what the lidar returns when a box is closer than the 0.05 m minimum range |
 | `plot_results.py` | success-rate curve, trajectory plot, top-down animation from saved rollouts (no Isaac needed) |
 | `test_task_spec.py` | tests of the task rules without Isaac: `python -m pytest learning/goal_reach -q` (system python with torch; the Isaac venv has no pytest) |

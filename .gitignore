@@ -11,3 +11,4 @@ __pycache__/
 *.mcap
 *.pt
 *.onnx
+!pode/pode_rl_controller/policies/store_arena_4b/policy.onnx

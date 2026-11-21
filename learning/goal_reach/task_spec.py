@@ -14,9 +14,35 @@ from __future__ import annotations
 
 import dataclasses
 import math
+import os
 from dataclasses import dataclass
 
 import torch
+import yaml
+
+# One top speed for every Pode limit (user decision 2026-11-22): the Nav2 package's file.
+NAV_SPEED_FILE = os.path.join(
+    os.path.dirname(os.path.abspath(__file__)), "..", "..", "pode", "pode_nav_config",
+    "params", "nav_speed.yaml"
+)
+# Episode lengths and the waits that depend on robot travel were tuned at this speed.
+TIMES_TUNED_AT_MPS = 0.25
+
+
+def nav_speed_mps(path: str = NAV_SPEED_FILE) -> float:
+    with open(path, encoding="utf-8") as f:
+        value = float(yaml.safe_load(f)["nav_speed_mps"])
+    if not (math.isfinite(value) and value > 0):
+        raise ValueError(f"{path}: nav_speed_mps must be above 0, got {value!r}")
+    return value
+
+
+NAV_SPEED_MPS = nav_speed_mps()
+
+
+def travel_time(seconds_at_tuned_speed: float, speed: float = NAV_SPEED_MPS) -> float:
+    """A time tuned at TIMES_TUNED_AT_MPS, stretched so the robot covers the same distance."""
+    return seconds_at_tuned_speed * TIMES_TUNED_AT_MPS / speed
 
 
 @dataclass(frozen=True)
@@ -26,7 +52,7 @@ class ActionLimits:
     v_min: float = (
         -0.05
     )  # m/s; small reverse, the speed of the Nav2 retreat (BackUp) on the real robot
-    v_max: float = 0.25  # m/s; Nav2 RPP desired_linear_vel on the real robot
+    v_max: float = NAV_SPEED_MPS  # m/s; pode_nav_config/params/nav_speed.yaml
     w_max: float = 1.0  # rad/s; Gazebo DiffDrive max_velocity, Nav2 max_rotational_vel
     acc_v: float = 2.0  # m/s^2; Gazebo DiffDrive max_acceleration
     acc_w: float = 2.0  # rad/s^2; same Gazebo limit (the plugin applies it to both)
@@ -41,7 +67,8 @@ class RobotGeometry:
 @dataclass(frozen=True)
 class TaskSpec:
     control_dt: float = 0.05  # s, 20 Hz policy
-    episode_s: float = 20.0  # s; straight 2 m at 0.25 m/s plus a half turn is about 11 s
+    # s; straight 2 m at 0.25 m/s plus a half turn is about 11 s: 20 s at 0.25 m/s
+    episode_s: float = travel_time(20.0)
     goal_dist_range: tuple[float, float] = (1.0, 2.0)  # m from the start
     success_radius: float = 0.05  # m; same as Nav2 xy_goal_tolerance on the real robot
     out_of_bounds: float = (
@@ -53,6 +80,16 @@ class TaskSpec:
     lidar_min_range: float = 0.05  # m; rays start this far out (RPLIDAR C1 minimum is also 0.05 m)
     lidar_obs_max: float = 2.0  # m; ranges are clipped here before scaling to [0, 1]
     goal_obs_max: float = 3.0  # m; goal distance is clipped here before scaling
+    # fleet intent (store arena stage 4c): for the intent_robots nearest other robots, a mask and
+    # intent_points route points intent_spacing_m apart ahead of each, in our robot frame, / and
+    # clipped at intent_obs_max. 0 robots = the 41-dim layout of the goal-reach, 4a and 4b policies
+    intent_robots: int = 0
+    intent_points: int = 3
+    intent_spacing_m: float = 0.2  # m along the robot's route (what fleet_manager can publish)
+    intent_obs_max: float = 2.0  # m, as the lidar
+    # 1: after each robot's present flag, a priority flag (1: that robot has right of way over
+    # ours and does not wait for it; store arena robot_priority_prob). 0 keeps the layouts above
+    intent_priority: int = 0
     # collision: largest contact-force norm on COLLISION_BODIES above this ends the episode
     collision_force: float = 1.0  # N; the robot weighs 15 N, a wall push measured 5-11 N
     # reward weights (per 20 Hz step)
@@ -82,16 +119,28 @@ OVERRIDABLE = (
     "w_time",
     "w_arrival",
     "w_collision",
+    # these change the observation size: an env built with them sets its observation_space from
+    # obs_dim(spec), and a policy only runs on the layout it was trained with
+    "intent_robots",
+    "intent_points",
+    "intent_spacing_m",
+    "intent_obs_max",
+    "intent_priority",
 )
 
 
-def parse_overrides(items) -> dict:
-    """FIELD=VALUE strings from --set. A tuple field takes comma-separated numbers (a,b)."""
+def parse_overrides(items, spec=SPEC) -> dict:
+    """FIELD=VALUE strings from --set, typed by the field's default in ``spec`` (a dataclass).
+    A tuple field takes comma-separated numbers (a,b); a str field keeps the text."""
     out = {}
     for item in items:
         key, text = item.split("=", 1)
-        default = getattr(SPEC, key, None)
-        if isinstance(default, tuple):
+        default = getattr(spec, key, None)
+        if isinstance(default, str):
+            out[key] = text
+        elif isinstance(default, int) and not isinstance(default, bool):
+            out[key] = int(float(text))
+        elif isinstance(default, tuple):
             values = tuple(float(x) for x in text.split(","))
             if len(values) != len(default):
                 raise ValueError(
@@ -118,7 +167,28 @@ def make_spec(overrides: dict) -> TaskSpec:
 
 
 OBS_LIDAR = SPEC.lidar_sectors
-OBS_DIM = OBS_LIDAR + 3 + 2  # lidar sectors, goal (dist, sin, cos), (v, w)
+
+
+def obs_dim(spec: TaskSpec = SPEC) -> int:
+    """lidar sectors, goal (dist, sin, cos), (v, w), then per intent robot a mask and its points."""
+    per = 1 + int(spec.intent_priority > 0) + 2 * spec.intent_points
+    return spec.lidar_sectors + 3 + 2 + spec.intent_robots * per
+
+
+def obs_names(spec: TaskSpec = SPEC) -> list[str]:
+    """Name of every observation entry, in order (for the policy export's policy_spec.json)."""
+    names = [f"lidar_sector_{i}" for i in range(spec.lidar_sectors)]
+    names += ["goal_dist", "goal_sin", "goal_cos", "v", "w"]
+    for r in range(spec.intent_robots):
+        names.append(f"robot{r}_present")
+        if spec.intent_priority:
+            names.append(f"robot{r}_priority")
+        for k in range(spec.intent_points):
+            names += [f"robot{r}_p{k + 1}_x", f"robot{r}_p{k + 1}_y"]
+    return names
+
+
+OBS_DIM = obs_dim(SPEC)  # 41
 ACT_DIM = 2
 
 
@@ -172,10 +242,16 @@ def build_observation(
     vel: torch.Tensor,
     spec: TaskSpec = SPEC,
     lim: ActionLimits = ACTION_LIMITS,
+    intent: torch.Tensor | None = None,
+    intent_mask: torch.Tensor | None = None,
+    intent_priority: torch.Tensor | None = None,
 ) -> torch.Tensor:
     """Observation vector, every entry roughly in [-1, 1]:
     [lidar sector / lidar_obs_max (36), goal dist / goal_obs_max, sin(bearing), cos(bearing),
-     v / v_max, w / w_max]."""
+     v / v_max, w / w_max], then for each of spec.intent_robots robots (nearest first):
+    [present (0/1), x1, y1, ..., xP, yP] with the route points (intent (N, R, P, 2), our robot
+    frame, m) / intent_obs_max clipped to [-1, 1]; an absent robot (intent_mask (N, R) false) is
+    all zeros, and so is every robot when intent is None (an env without fleet robots)."""
     lid = lidar_sectors(lidar_ranges, spec) / spec.lidar_obs_max
     g = torch.stack(
         (
@@ -186,7 +262,19 @@ def build_observation(
         dim=-1,
     )
     v = torch.stack((vel[:, 0] / lim.v_max, vel[:, 1] / lim.w_max), dim=-1)
-    return torch.cat((lid, g, v), dim=-1)
+    parts = [lid, g, v]
+    if spec.intent_robots and intent is None:
+        parts.append(lid.new_zeros(lid.shape[0], obs_dim(spec) - OBS_DIM))
+    elif spec.intent_robots:
+        m = intent_mask[:, : spec.intent_robots].float()
+        p = (intent[:, : spec.intent_robots] / spec.intent_obs_max).clamp(-1.0, 1.0)
+        p = p.flatten(2) * m[..., None]
+        head = [m[..., None]]
+        if spec.intent_priority:  # (N, R) bool; absent robots get 0
+            prio = torch.zeros_like(m) if intent_priority is None else intent_priority.float()
+            head.append((prio[:, : spec.intent_robots] * m)[..., None])
+        parts.append(torch.cat((*head, p), -1).flatten(1))
+    return torch.cat(parts, dim=-1)
 
 
 def is_success(goal_dist: torch.Tensor, spec: TaskSpec = SPEC) -> torch.Tensor:

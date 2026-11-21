@@ -1,0 +1,23 @@
+# launch.out (shelf_0a426fe_v012/v7a) 발췌: pode2 출구 실패. 원본은 커밋하지 않음
+207:[pode_fsm_node-12] [INFO] [1795234783.451847701] [pode2.pode_fsm]: goal ended: SUPERSEDED
+224:[fleet_manager_node-20] [INFO] [1795234798.451023995] [fleet_manager]: ORDER_SENT pode2-29: base to P-1
+227:[pode_fsm_node-12] [INFO] [1795234801.278381193] [pode2.pode_fsm]: goal ended: CANCELED
+230:[fleet_manager_node-20] [INFO] [1795234801.355478393] [fleet_manager]: ORDER_SENT pode2-31: base to Q2, horizon to W
+237:[pode_fsm_node-12] [INFO] [1795234802.388801292] [pode2.pode_fsm]: state MOVING -> RECOVERING wait (self-recovery attempts used 1)
+250:[pode_fsm_node-12] [INFO] [1795234804.436853290] [pode2.pode_fsm]: state RECOVERING -> BLOCKED  (self-recovery attempts used 1)
+273:[fleet_manager_node-20] [INFO] [1795234814.455660284] [fleet_manager]: ORDER_SENT pode2-34: base to Q2, horizon to W
+274:[pode_fsm_node-12] [INFO] [1795234814.467005484] [pode2.pode_fsm]: goal ended: CANCELED
+298:[pode_fsm_node-12] [INFO] [1795234825.799775146] [pode2.pode_fsm]: goal ended: NAV_ABORTED
+299:[fleet_manager_node-20] [WARN] [1795234825.851166946] [fleet_manager]: GOAL_RETRY NAV_ABORTED, attempt 1
+339:[fleet_manager_node-20] [INFO] [1795234847.955978400] [fleet_manager]: ORDER_SENT pode2-36: base to Q2, horizon to W
+340:[pode_fsm_node-12] [INFO] [1795234847.959655800] [pode2.pode_fsm]: goal ended: CANCELED
+341:[fleet_manager_node-20] [INFO] [1795234848.250716299] [fleet_manager]: SEGMENT_DONE pode2-36 seq 1 (nav_goal) to O_OUT
+351:[pode_fsm_node-12] [INFO] [1795234852.801373601] [pode2.pode_fsm]: goal ended: NAV_ABORTED
+352:[fleet_manager_node-20] [WARN] [1795234852.851224001] [fleet_manager]: GOAL_RETRY NAV_ABORTED, attempt 2
+392:[fleet_manager_node-20] [INFO] [1795234874.955989010] [fleet_manager]: ORDER_SENT pode2-38: base to Q2, horizon to W
+393:[pode_fsm_node-12] [INFO] [1795234874.962079910] [pode2.pode_fsm]: goal ended: CANCELED
+402:[pode_fsm_node-12] [INFO] [1795234879.800052108] [pode2.pode_fsm]: goal ended: NAV_ABORTED
+403:[fleet_manager_node-20] [ERROR] [1795234879.852110607] [fleet_manager]: GOAL_FAILED NAV_ABORTED after 3 attempts
+404:[fleet_manager_node-20] [ERROR] [1795234879.852615607] [fleet_manager]: ROBOT_ISOLATED NAV_ABORTED; holds ['HALL', 'OUT_DOCK']
+231:[component_container_isolated-10] [WARN] [1795234801.359839493] [pode2.planner_server]: GridBased plugin failed to plan from (0.17, 0.75) to (1.66, 0.15): "Failed to create plan with tolerance of: 0.500000"
+234:[component_container_isolated-10] [WARN] [1795234801.771760692] [pode2.planner_server]: GridBased plugin failed to plan from (0.17, 0.75) to (1.66, 0.15): "Failed to create plan with tolerance of: 0.500000"
