@@ -171,6 +171,23 @@ def test_overrides_go_deep_and_cannot_turn_the_collision_check_off(tmp_path):
     assert _rpp(sim, "FollowPath")["use_collision_detection"] is True
 
 
+def test_the_rl_controller_comes_only_from_its_overrides_file_and_keeps_the_base_ones(tmp_path):
+    """FollowPathRL(pode_rl_controller)은 기본으로 띄우지 않고 one_pode nav_overrides 파일로만
+    더 띄운다. nav2_params.yaml에 controller가 늘면 그 파일의 목록에도 더해야 한다."""
+    base = _base()["controller_server"]["ros__parameters"]["controller_plugins"]
+    assert "FollowPathRL" not in base
+    path = REPO / "sim" / "fleet_gz_sim" / "nav_overrides" / "follow_path_rl.yaml"
+    overrides = yaml.safe_load(path.read_text(encoding="utf-8"))
+    sim = yaml.safe_load(_sim(NAV, tmp_path / "rl.yaml", overrides=overrides)
+                         .read_text(encoding="utf-8"))
+    server = sim["controller_server"]["ros__parameters"]
+    assert server["controller_plugins"] == [*base, "FollowPathRL"]
+    assert server["FollowPathRL"]["plugin"] == "pode_rl_controller::FollowPathRL"
+    assert server["FollowPathRL"]["policy"] == "store_arena_4b"
+    assert "goal_rule" not in server["FollowPathRL"]  # the policy spec decides
+    assert "lookahead_dist" not in server["FollowPathRL"]
+
+
 def test_overrides_win_over_the_sim_amcl_values(tmp_path):
     """nav_overrides로 AMCL 값도 바꿀 수 있다(위치 추정을 조사할 때 쓴다)."""
     overrides = {"amcl": {"ros__parameters": {"z_hit": 0.5}}}

@@ -1,0 +1,25 @@
+# RL 주행 정책 controller FollowPathRL(pode_rl_controller)을 더 띄운다(시뮬 전용, one_pode
+# nav_overrides). 기본 Nav2 설정은 FollowPathRL을 띄우지 않는다. controller_plugins는 목록이라
+# 통째로 바뀌므로 nav2_params.yaml의 controller 넷을 모두 다시 적고 FollowPathRL을 더한다
+# (nav2_params.yaml에 controller가 늘면 여기에도 더한다. test_launch_wiring이 견준다).
+# 고르기: ros2 topic pub --once /<로봇>/controller_selector std_msgs/msg/String "{data: FollowPathRL}"
+# 그 뒤의 Nav2 goal(navigate_to_pose)이 이 controller로 간다. 되돌리기는 data: FollowPathGoal.
+# 값과 고른 까닭: docs/worklog_follow_path_rl_2026-11-21.md 결정 대기 목록. 정책의 숫자(관측 배율,
+# 라이다 광선, 행동·가속 한계, 주기)와 목표점 규칙(경로 끝 / 경로 위 앞보기 점과 그 거리)은 정책 폴더의
+# policy_spec.json에 있다. goal_rule, lookahead_dist를 여기 적으면 명세를 덮고 WARN 로그를 남긴다
+# (정책이 배우지 않은 목표가 된다. 시험할 때만 쓴다).
+controller_server:
+  ros__parameters:
+    controller_plugins: ["FollowPath", "FollowPathThrough", "FollowPathReverse", "FollowPathGoal",
+                         "FollowPathRL"]
+    FollowPathRL:
+      plugin: "pode_rl_controller::FollowPathRL"
+      policy: "store_arena_4b"  # share/pode_rl_controller/policies/<이름> 또는 절대 경로
+      scan_topic: "scan"
+      scan_timeout: 0.5
+      transform_tolerance: 0.2
+      intra_op_threads: 1
+      rotate_gain: 1.5
+      log_period: 1.0
+      rear_stop_range: 0.12
+      rear_half_width_deg: 30.0
