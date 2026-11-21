@@ -26,13 +26,14 @@ def episodes(done: np.ndarray):
 
 
 def classify(z, episode_s=30.0, window_s=10.0, near_m=0.35, still_m=0.05):
+    z = {k: z[k] for k in z}  # an npz decompresses on every access: read it once
     dt = float(z["dt"])
     full = int(round(episode_s / dt))
     w = int(round(window_s / dt))
     out = []
     for e in range(z["xy"].shape[1]):
         for s, t in episodes(z["done"][:, e]):
-            if "outcome" in z.files:  # play.py records why each episode ended
+            if "outcome" in z:  # play.py records why each episode ended
                 if z["outcome"][t, e] != 3:
                     continue
             elif t - s + 1 < full:  # older rollouts: by length (a last-step success counts too)
@@ -42,7 +43,7 @@ def classify(z, episode_s=30.0, window_s=10.0, near_m=0.35, still_m=0.05):
             us = z["xy"][a:t, e]
             kind = "alone"
             moved_us = float(np.linalg.norm(us[-1] - us[0]))
-            if "robot_xy" in z.files:
+            if "robot_xy" in z:
                 for r in range(z["robot_xy"].shape[2]):
                     if not z["robot_on"][s, e, r]:
                         continue
@@ -52,7 +53,7 @@ def classify(z, episode_s=30.0, window_s=10.0, near_m=0.35, still_m=0.05):
                     moved = np.linalg.norm(np.diff(rx, axis=0), axis=-1).sum()
                     k = "robot_still" if moved < still_m else "robot_moving"
                     kind = k if kind != "robot_still" else kind
-            if kind == "alone" and "mover_xy" in z.files:
+            if kind == "alone" and "mover_xy" in z:
                 for m in range(z["mover_xy"].shape[2]):
                     on = z["mover_on"][s, e, m]
                     mx = z["mover_xy"][a:t, e, m]
