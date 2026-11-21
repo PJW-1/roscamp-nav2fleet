@@ -1,0 +1,16 @@
+e_corridor start 2026-11-21T18:42:08+09:00 avail 15302MB domain 61
+e_corridor: exit 0, bench e_corridor: 10/10 repeats, 19 resets
+e_corridor end 2026-11-21T18:51:59+09:00
+a_hall start 2026-11-21T19:26:59+09:00 avail 15287MB domain 61
+a_hall start 2026-11-21T19:55:30+09:00 avail 15291MB domain 61
+a_hall: exit 0, bench a_hall: 10/10 repeats, 19 resets
+a_hall end 2026-11-21T20:05:25+09:00
+b_static start 2026-11-21T20:08:25+09:00 avail 15289MB domain 61
+b_static: exit 0, bench b_static: 10/10 repeats, 19 resets
+b_static end 2026-11-21T20:22:59+09:00
+c_moving start 2026-11-21T20:25:59+09:00 avail 15280MB domain 61
+c_moving: exit 0, bench c_moving: 10/10 repeats, 19 resets
+c_moving end 2026-11-21T20:42:51+09:00
+d_robot start 2026-11-21T20:45:51+09:00 avail 15284MB domain 61
+d_robot: exit 0, bench d_robot: 10/10 repeats, 19 resets
+d_robot end 2026-11-21T20:56:30+09:00
