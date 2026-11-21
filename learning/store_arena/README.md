@@ -31,7 +31,7 @@ bash learning/store_arena/run_train.sh /d/isaac/runs/store_arena/ppo_b 1 1000 40
 
 cd /d/isaac/IsaacLab
 export PYTHONUTF8=1 OMNI_KIT_ACCEPT_EULA=YES PXR_WORK_THREAD_LIMIT=1
-S=<repo>/learning/store_arena
+S=/c/Users/pjw/ros2camp/pd-arena/learning/store_arena   # this checkout
 .venv/Scripts/python.exe $S/arena_check.py --mode scene --num_envs 64 --out /d/isaac/runs/store_arena/b_scene_64 --viz none
 .venv/Scripts/python.exe $S/arena_check.py --mode obstacle --num_envs 256 --out /d/isaac/runs/store_arena/b_obstacle_256 --viz none
 .venv/Scripts/python.exe $S/arena_check.py --mode contact --num_envs 8 --set obstacle_max=0 --out /d/isaac/runs/store_arena/contact_8 --viz none
