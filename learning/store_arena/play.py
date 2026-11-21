@@ -86,6 +86,7 @@ def main():
         # per counted episode: smallest mover gap, smallest scripted-robot gap, outcome index,
         # what the collision is put down to
         gaps, rgaps, codes, hits = [], [], [], []
+        grazes, corners = [], []  # per counted episode: graze-only collision, corner start
         obs = env.get_observations()
         route = raw.route.clone()
         step = 0
@@ -111,6 +112,8 @@ def main():
                 gaps += raw.last_ep_mover_gap[counted].tolist()
                 rgaps += raw.last_ep_robot_gap[counted].tolist()
                 hits += raw.last_ep_hit_kind[counted].tolist()
+                grazes += raw.graze_only[counted].tolist()
+                corners += raw.last_ep_corner[counted].tolist()
                 code = torch.stack(outs, -1).float().argmax(-1)
                 codes += code[counted].tolist()
                 s = raw.success & counted
@@ -161,6 +164,13 @@ def main():
             return out
 
         by_gap = split_by_gap(gaps, "no mover")
+        grazes, corners = np.array(grazes, dtype=bool), np.array(corners, dtype=bool)
+
+        def rates_of(sel):
+            m = max(int(sel.sum()), 1)
+            return {"episodes": int(sel.sum()),
+                    **{k: round(float(((codes == i) & sel).sum()) / m, 4)
+                       for i, k in enumerate(keys)}}
         hits = np.array(hits)
         coll = codes == keys.index("collision")
         by_hit = {kind: int((coll & (hits == i)).sum()) for i, kind in enumerate(sae.HIT_KINDS)}
@@ -178,6 +188,10 @@ def main():
             "by_robot_gap": split_by_gap(rgaps, "no robot"),
             # nearest of walls/shelves, boxes, movers, robots to our robot centre at the collision
             "collisions_by_nearest": by_hit,
+            # collisions the contact sensor missed: footprint clearance <= graze_m
+            "collisions_graze_only": int(grazes.sum()),
+            # episodes started near a wall facing away from the path (corner_start_prob)
+            "by_start": {"corner": rates_of(corners), "other": rates_of(~corners)},
             "success_time_s_mean": round(float(np.mean(succ_times)), 2) if succ_times else None,
             "success_time_s_p90": round(float(np.percentile(succ_times, 90)), 2)
             if succ_times

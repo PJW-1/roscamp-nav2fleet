@@ -207,3 +207,13 @@ def test_waiting_mover_turns_back_after_mover_wait_s():
     # a zero-length leg stays finite and in place
     legs0 = dict(legs, b=legs["a"].clone())
     assert torch.isfinite(M.turn_back(legs0, torch.tensor([1.0]))).all()
+
+
+def test_mixed_yield_draws_a_fraction_per_episode_then_each_mover():
+    g = torch.Generator().manual_seed(0)
+    y = M.mixed_yield(20000, 2, 0.15, g)
+    assert y.shape == (2, 20000) and ((y == 0) | (y == torch.tensor(0.15))).all()
+    assert (y > 0).float().mean().item() == pytest.approx(0.5, abs=0.02)  # fraction U(0, 1)
+    # the movers of one episode share the fraction: both yield in E[f^2] = 1/3 of episodes
+    both = ((y[0] > 0) & (y[1] > 0)).float().mean().item()
+    assert both == pytest.approx(1 / 3, abs=0.02)

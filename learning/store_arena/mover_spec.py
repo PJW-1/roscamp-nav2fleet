@@ -192,6 +192,14 @@ def turn_back(legs, t: torch.Tensor) -> torch.Tensor:
     return t + torch.remainder(3 * pause + 2 * t_leg - 2 * tau, cycle)
 
 
+def mixed_yield(n: int, movers: int, yield_m: float, gen=None, device="cpu") -> torch.Tensor:
+    """(movers, n) yield distance per mover and env (B48): each env draws a fraction U(0, 1),
+    and each of its movers waits (yield_m) with that probability, else never waits (0)."""
+    frac = torch.rand(n, generator=gen, device=device)
+    waits = torch.rand(movers, n, generator=gen, device=device) < frac
+    return torch.where(waits, yield_m, 0.0)
+
+
 def yield_step(legs, t, dt: float, shape: MoverShape, robot_xy, yield_m: float, wait, wait_s):
     """One control step of the mover's clock t and its waiting time wait [s]. The clock advances
     by dt unless that step would bring the mover closer to the robot centre than yield_m (surface
