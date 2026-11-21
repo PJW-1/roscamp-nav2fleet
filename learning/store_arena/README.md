@@ -30,8 +30,8 @@ python -m pytest learning -q -p no:cacheprovider       # system python (torch cp
 python learning/store_arena/plot_arena.py routes routes.png
 
 # training: chunks of N iterations; takes /c/Users/pjw/ros2camp/.heavy_run.lock per chunk
-bash learning/store_arena/run_train.sh /d/isaac/runs/store_arena/ppo_g 1 500 4096
-python learning/store_arena/plot_arena.py anim out.gif <eval dir>/rollouts.npz 8 12  # env 8, 12 s
+bash learning/store_arena/run_train.sh /d/isaac/runs/store_arena/my_run 1 500 4096  # new dir
+python learning/store_arena/plot_arena.py anim out.gif /d/isaac/runs/store_arena/c_eval_499/rollouts.npz 8 12
 
 cd /d/isaac/IsaacLab
 export PYTHONUTF8=1 OMNI_KIT_ACCEPT_EULA=YES PXR_WORK_THREAD_LIMIT=1
