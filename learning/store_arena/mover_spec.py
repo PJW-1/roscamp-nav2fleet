@@ -177,7 +177,7 @@ def turn_back(legs, t: torch.Tensor) -> torch.Tensor:
     """The clock time at which the mover is at the same place going the other way (a mover in
     a pause stays in it): the cycle mirrored about its middle."""
     v, pause = legs["speed"], legs["pause"]
-    length = (legs["b"] - legs["a"]).norm(dim=-1)
+    length = (legs["b"] - legs["a"]).norm(dim=-1).clamp(min=1e-9)  # as mover_pose
     t_leg = torch.where(v > 0, length / v.clamp(min=1e-9), torch.ones_like(v))
     cycle = 2 * (t_leg + pause)
     tau = torch.remainder(t + legs["phase"] * cycle, cycle)
@@ -196,6 +196,6 @@ def yield_step(legs, t, dt: float, shape: MoverShape, robot_xy, yield_m: float, 
     g1 = surface_gap(shape, robot_xy, pos1, yaw1)
     held = (g1 < yield_m) & (g1 < g0)
     wait = torch.where(held, wait + dt, torch.zeros_like(wait))
-    turned = wait >= wait_s
+    turned = held & (wait >= wait_s)
     t = torch.where(turned, turn_back(legs, t), torch.where(held, t, t + dt))
     return t, torch.where(turned, torch.zeros_like(wait), wait), turned

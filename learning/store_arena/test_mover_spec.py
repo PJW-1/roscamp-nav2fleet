@@ -180,3 +180,10 @@ def test_waiting_mover_turns_back_after_mover_wait_s():
     first_hold = int((0.5 - 0.04 - 0.15) / (0.1 * dt))  # steps to reach the yield distance
     assert turned_at == pytest.approx(first_hold + 2.0 / dt, abs=2)
     assert pos[0, 0] < 0.2  # walked back toward a
+    # only a mover that is actually held turns back, even with wait_s 0
+    far = torch.tensor([[0.5, 5.0]])
+    t1, _, turned = M.yield_step(legs, torch.tensor([1.0]), dt, person, far, 0.15, wait * 0, 0.0)
+    assert not turned.any() and t1.item() == pytest.approx(1.05)
+    # a zero-length leg stays finite and in place
+    legs0 = dict(legs, b=legs["a"].clone())
+    assert torch.isfinite(M.turn_back(legs0, torch.tensor([1.0]))).all()
