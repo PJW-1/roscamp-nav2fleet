@@ -8,7 +8,7 @@ from pathlib import Path
 
 import rclpy
 from action_msgs.msg import GoalStatus
-from geometry_msgs.msg import Twist
+from geometry_msgs.msg import PoseWithCovarianceStamped, Twist
 from nav2_msgs.action import NavigateToPose
 from nav_msgs.msg import Odometry
 from rclpy.action import ActionClient
@@ -85,6 +85,8 @@ class Bench(Node):
         latched = QoSProfile(depth=1, reliability=ReliabilityPolicy.RELIABLE,
                              durability=DurabilityPolicy.TRANSIENT_LOCAL)
         self.select_pub = self.create_publisher(String, f"/{ns}/controller_selector", latched)
+        self.init_pub = self.create_publisher(PoseWithCovarianceStamped, f"/{ns}/initialpose", 1)
+        self.resets = 0
         self.create_subscription(Odometry, f"/{ns}/sim/truth", self._on_truth,
                                  qos_profile_sensor_data)
         self.create_subscription(Twist, f"/{ns}/cmd_vel", self._on_cmd, 50)
@@ -246,7 +248,35 @@ class Bench(Node):
             status, _, _ = self.go(self.cfg["start"], self.cfg["leg_timeout_s"])
             if status == "SUCCEEDED":
                 return True
-        return False
+        return self.teleport_to_start()
+
+    def teleport_to_start(self):
+        st = self.cfg["start"]
+        z, w = quat(math.radians(st["yaw_deg"]))
+        req = Pose_V()
+        p = req.pose.add()
+        p.name = self.cfg["robot"]
+        p.position.x, p.position.y, p.position.z = st["x"], st["y"], 0.01
+        p.orientation.z, p.orientation.w = z, w
+        ok, rep = self.gz.request(f"/world/{self.world}/set_pose_vector", req, Pose_V, Boolean,
+                                  2000)
+        if not (ok and rep.data):
+            return False
+        init = PoseWithCovarianceStamped()
+        init.header.frame_id = "map"
+        init.pose.pose.position.x, init.pose.pose.position.y = st["x"], st["y"]
+        init.pose.pose.orientation.z, init.pose.pose.orientation.w = z, w
+        init.pose.covariance[0] = init.pose.covariance[7] = 0.0025
+        init.pose.covariance[35] = 0.01
+        for _ in range(3):
+            init.header.stamp = self.get_clock().now().to_msg()
+            self.init_pub.publish(init)
+            self.wait(1.0)
+        self.resets += 1
+        self.get_logger().warn(f"teleported to the start (reset {self.resets})")
+        if self.robot is None:
+            return False
+        return math.hypot(self.robot[0] - st["x"], self.robot[1] - st["y"]) <= self.cfg["arrive_m"]
 
 
 # ---- 실행 ----
@@ -271,12 +301,12 @@ def main(argv=None):
             for ctl in order:
                 node.leg(ctl, r)
                 if not node.back():
-                    node.get_logger().error("could not return to the start, stop")
+                    node.get_logger().error("could not return or reset to the start, stop")
                     raise SystemExit(2)
             done += 1
     finally:
         node.select(cfg["controllers"][0])
-        print(f"bench {args.scenario}: {done}/{repeats} repeats", flush=True)
+        print(f"bench {args.scenario}: {done}/{repeats} repeats, {node.resets} resets", flush=True)
         node.destroy_node()
         rclpy.try_shutdown()
 
