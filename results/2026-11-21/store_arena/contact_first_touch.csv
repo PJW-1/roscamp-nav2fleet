@@ -1,0 +1,9 @@
+case,t_s,body,force_N,centre_to_face_m,lidar_min_m,max_force_N,end_centre_to_face_m
+west_wall_forward,1.1,screen_mount,39.004,0.0402,0.0577,39.0,0.041
+north_wall_forward,1.65,screen_mount,4.69,0.0398,0.0583,9.53,0.0411
+shelfA_south_face_forward,0.8,screen_mount,17.786,0.0397,0.0584,17.79,0.0411
+south_shelf_north_face_forward,0.5,screen_mount,15.443,0.04,0.0585,15.44,0.0517
+east_wall_slow,2.45,screen_mount,6.871,0.0409,0.0589,7.91,0.0411
+west_wall_reverse,4.55,base_link,5.033,0.0745,0.0569,6.02,0.0743
+west_wall_diag45,1.6,screen_mount,11.38,0.0465,0.0642,26.16,0.0518
+south_wall_forward,0.7,screen_mount,29.69,0.0403,0.058,29.69,0.0411

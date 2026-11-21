@@ -1,0 +1,145 @@
+{
+ "mode": "crossenv",
+ "num_envs": 16,
+ "arena": {
+  "layout": "v7",
+  "wall_height_m": 0.3,
+  "shelf_height_m": 0.3,
+  "env_spacing": 0.5,
+  "start_x": 0.3,
+  "start_y": 0.55
+ },
+ "boxes": [
+  {
+   "name": "wall_south",
+   "x0": -0.05,
+   "y0": -0.05,
+   "x1": 2.03,
+   "y1": 0.0,
+   "kind": "wall",
+   "height_m": 0.3
+  },
+  {
+   "name": "wall_north",
+   "x0": -0.05,
+   "y0": 0.98,
+   "x1": 2.03,
+   "y1": 1.03,
+   "kind": "wall",
+   "height_m": 0.3
+  },
+  {
+   "name": "wall_west",
+   "x0": -0.05,
+   "y0": 0.0,
+   "x1": 0.0,
+   "y1": 0.98,
+   "kind": "wall",
+   "height_m": 0.3
+  },
+  {
+   "name": "wall_east",
+   "x0": 1.98,
+   "y0": 0.0,
+   "x1": 2.03,
+   "y1": 0.98,
+   "kind": "wall",
+   "height_m": 0.3
+  },
+  {
+   "name": "shelf_1",
+   "x0": 0.63,
+   "y0": 0.77,
+   "x1": 1.56,
+   "y1": 0.803,
+   "kind": "shelf",
+   "height_m": 0.3
+  },
+  {
+   "name": "shelf_2",
+   "x0": 0.68,
+   "y0": 0.365,
+   "x1": 0.99,
+   "y1": 0.405,
+   "kind": "shelf",
+   "height_m": 0.3
+  },
+  {
+   "name": "shelf_3",
+   "x0": 1.25,
+   "y0": 0.365,
+   "x1": 1.56,
+   "y1": 0.405,
+   "kind": "shelf",
+   "height_m": 0.3
+  },
+  {
+   "name": "shelf_4",
+   "x0": 0.24,
+   "y0": 0.0,
+   "x1": 0.26,
+   "y1": 0.1,
+   "kind": "shelf",
+   "height_m": 0.3
+  },
+  {
+   "name": "shelf_5",
+   "x0": 0.5,
+   "y0": 0.0,
+   "x1": 0.52,
+   "y1": 0.1,
+   "kind": "shelf",
+   "height_m": 0.3
+  }
+ ],
+ "build_s": 8.94,
+ "gpu_mib_before_env": 1206,
+ "gpu_mib_after_build": 1472,
+ "origins_first4": [
+  [
+   0.75,
+   -0.75,
+   0.0
+  ],
+  [
+   0.75,
+   -0.25,
+   0.0
+  ],
+  [
+   0.75,
+   0.25,
+   0.0
+  ],
+  [
+   0.75,
+   0.75,
+   0.0
+  ]
+ ],
+ "scan_vs_yaml_rays_away_from_robot2": {
+  "max_abs_err_m": 0.00094,
+  "rays_err_gt_1cm": 0,
+  "rays_hit_miss_disagree": 0,
+  "rays_outside_2mm_corner_band": 0,
+  "rays_compared": 5106
+ },
+ "rays_that_would_differ_if_envs_leaked": 4507,
+ "robot2_ahead_range_m": {
+  "mean": 0.5747,
+  "min": 0.5747,
+  "max": 0.5747,
+  "centre_gap_m": 0.6
+ },
+ "robot2_after_move_0p2_range_m": {
+  "mean": 0.7748,
+  "delta_mean": 0.2001
+ },
+ "robot_z_range_m": [
+  0.0277,
+  0.0277
+ ],
+ "robot_xy_drift_max_m": 0.0,
+ "pass": true,
+ "gpu_mib_end": 1516
+}

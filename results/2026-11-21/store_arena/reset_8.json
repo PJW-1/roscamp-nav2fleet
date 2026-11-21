@@ -1,0 +1,122 @@
+{
+ "mode": "reset",
+ "num_envs": 8,
+ "arena": {
+  "layout": "v7",
+  "wall_height_m": 0.3,
+  "shelf_height_m": 0.3,
+  "env_spacing": 3.0,
+  "start_x": 0.3,
+  "start_y": 0.55
+ },
+ "boxes": [
+  {
+   "name": "wall_south",
+   "x0": -0.05,
+   "y0": -0.05,
+   "x1": 2.03,
+   "y1": 0.0,
+   "kind": "wall",
+   "height_m": 0.3
+  },
+  {
+   "name": "wall_north",
+   "x0": -0.05,
+   "y0": 0.98,
+   "x1": 2.03,
+   "y1": 1.03,
+   "kind": "wall",
+   "height_m": 0.3
+  },
+  {
+   "name": "wall_west",
+   "x0": -0.05,
+   "y0": 0.0,
+   "x1": 0.0,
+   "y1": 0.98,
+   "kind": "wall",
+   "height_m": 0.3
+  },
+  {
+   "name": "wall_east",
+   "x0": 1.98,
+   "y0": 0.0,
+   "x1": 2.03,
+   "y1": 0.98,
+   "kind": "wall",
+   "height_m": 0.3
+  },
+  {
+   "name": "shelf_1",
+   "x0": 0.63,
+   "y0": 0.77,
+   "x1": 1.56,
+   "y1": 0.803,
+   "kind": "shelf",
+   "height_m": 0.3
+  },
+  {
+   "name": "shelf_2",
+   "x0": 0.68,
+   "y0": 0.365,
+   "x1": 0.99,
+   "y1": 0.405,
+   "kind": "shelf",
+   "height_m": 0.3
+  },
+  {
+   "name": "shelf_3",
+   "x0": 1.25,
+   "y0": 0.365,
+   "x1": 1.56,
+   "y1": 0.405,
+   "kind": "shelf",
+   "height_m": 0.3
+  },
+  {
+   "name": "shelf_4",
+   "x0": 0.24,
+   "y0": 0.0,
+   "x1": 0.26,
+   "y1": 0.1,
+   "kind": "shelf",
+   "height_m": 0.3
+  },
+  {
+   "name": "shelf_5",
+   "x0": 0.5,
+   "y0": 0.0,
+   "x1": 0.52,
+   "y1": 0.1,
+   "kind": "shelf",
+   "height_m": 0.3
+  }
+ ],
+ "build_s": 7.78,
+ "gpu_mib_before_env": 1092,
+ "gpu_mib_after_build": 1357,
+ "reset_envs": 4,
+ "moved_m": 0.484,
+ "first_obs_off_vs_new_pose": {
+  "envs": 0,
+  "sectors": 0
+ },
+ "first_obs_off_vs_old_pose": {
+  "envs": 4,
+  "sectors": 138
+ },
+ "running_envs_obs_off": {
+  "envs": 0,
+  "sectors": 0
+ },
+ "second_obs_off": {
+  "envs": 0,
+  "sectors": 0
+ },
+ "initial_reset_obs_off": {
+  "envs": 0,
+  "sectors": 0
+ },
+ "pass": true,
+ "gpu_mib_end": 1397
+}

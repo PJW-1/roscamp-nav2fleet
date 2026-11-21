@@ -70,7 +70,8 @@ def make_lidar_cfg(max_range: float) -> NewtonRaycastSensorCfg:
 class GoalReachSceneCfg(InteractiveSceneCfg):
     ground = AssetBaseCfg(prim_path="/World/defaultGroundPlane", spawn=sim_utils.GroundPlaneCfg())
     robot = make_pinky_cfg()
-    # The ray caster may see other envs' robots: keep range <= env_spacing - 2 * out_of_bounds.
+    # Rays only hit shapes of their own env (Newton world) and the global ground: checked with
+    # overlapping arenas in learning/store_arena/arena_check.py --mode crossenv.
     lidar = make_lidar_cfg(ts.SPEC.lidar_obs_max)
     contact_base = ContactSensorCfg(prim_path="{ENV_REGEX_NS}/Robot/" + BODY)
     contact_parts = ContactSensorCfg(
@@ -91,8 +92,8 @@ class GoalReachEnvCfg(DirectRLEnvCfg):
     sim: SimulationCfg = SimulationCfg(
         dt=PHYSICS_DT, render_interval=DECIMATION, physics=make_newton_cfg()
     )
-    # 8 m cells: each robot stays within out_of_bounds (3 m) of its centre, so two robots are at
-    # least 2 m apart, which is the lidar range.
+    # 8 m cells keep the robots (out_of_bounds 3 m) visibly apart; lidar and contacts do not need
+    # it (envs are separate Newton worlds, see the scene comment above).
     scene: GoalReachSceneCfg = GoalReachSceneCfg(
         num_envs=4096, env_spacing=8.0, replicate_physics=True
     )
@@ -243,6 +244,11 @@ class GoalReachEnv(DirectRLEnv):
         self._win_succ_time.zero_()
         self._win_final_dist.zero_()
 
+    def sample_start(self, n: int) -> tuple[torch.Tensor, torch.Tensor]:
+        """Start (x, y) in the env frame and yaw for n resetting envs: cell centre, random yaw."""
+        yaw = (2 * torch.rand(n, device=self.device) - 1) * torch.pi
+        return torch.zeros(n, 2, device=self.device), yaw
+
     def _reset_idx(self, env_ids):
         if env_ids is None:
             env_ids = self.robot._ALL_INDICES
@@ -256,9 +262,10 @@ class GoalReachEnv(DirectRLEnv):
         super()._reset_idx(env_ids)
         n = len(env_ids)
         origins = self.scene.env_origins[env_ids]
-        yaw = (2 * torch.rand(n, device=self.device) - 1) * torch.pi
+        start, yaw = self.sample_start(n)
         pose = self.robot.data.default_root_pose.torch[env_ids].clone()
         pose[:, :3] += origins
+        pose[:, :2] += start
         pose[:, 3:7] = torch.stack(
             (torch.zeros_like(yaw), torch.zeros_like(yaw), torch.sin(yaw / 2), torch.cos(yaw / 2)),
             -1,
@@ -271,13 +278,12 @@ class GoalReachEnv(DirectRLEnv):
         self.robot.write_joint_position_to_sim_index(position=jp, env_ids=env_ids)
         self.robot.write_joint_velocity_to_sim_index(velocity=torch.zeros_like(jp), env_ids=env_ids)
         self.cmd[env_ids] = 0.0
-        self.start_xy[env_ids] = 0.0
-        self.goal_xy[env_ids] = ts.sample_goal(n, self.device, self.spec)
-        self.d_prev[env_ids] = self.goal_xy[env_ids].norm(dim=-1)
+        self.start_xy[env_ids] = start
+        offset = ts.sample_goal(n, self.device, self.spec)
+        self.goal_xy[env_ids] = start + offset
+        self.d_prev[env_ids] = offset.norm(dim=-1)
         self.d_now[env_ids] = self.d_prev[env_ids]
-        self.ang_now[env_ids] = (
-            torch.atan2(self.goal_xy[env_ids, 1], self.goal_xy[env_ids, 0]) - yaw
-        )
+        self.ang_now[env_ids] = torch.atan2(offset[:, 1], offset[:, 0]) - yaw
         self.ang_now[env_ids] = torch.atan2(
             torch.sin(self.ang_now[env_ids]), torch.cos(self.ang_now[env_ids])
         )

@@ -85,13 +85,16 @@ OVERRIDABLE = (
 )
 
 
-def parse_overrides(items) -> dict:
-    """FIELD=VALUE strings from --set. A tuple field takes comma-separated numbers (a,b)."""
+def parse_overrides(items, spec=SPEC) -> dict:
+    """FIELD=VALUE strings from --set, typed by the field's default in ``spec`` (a dataclass).
+    A tuple field takes comma-separated numbers (a,b); a str field keeps the text."""
     out = {}
     for item in items:
         key, text = item.split("=", 1)
-        default = getattr(SPEC, key, None)
-        if isinstance(default, tuple):
+        default = getattr(spec, key, None)
+        if isinstance(default, str):
+            out[key] = text
+        elif isinstance(default, tuple):
             values = tuple(float(x) for x in text.split(","))
             if len(values) != len(default):
                 raise ValueError(
