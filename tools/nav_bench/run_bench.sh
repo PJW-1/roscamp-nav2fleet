@@ -53,7 +53,7 @@ for scenario in "$@"; do
     up=$!
     for i in $(seq 90); do
       kill -0 "$up" 2>/dev/null || break
-      BENCH_RUN=$$ timeout 10 ros2 lifecycle get /pode1/bt_navigator 2>/dev/null | grep -q active && { ok=1; break; }
+      BENCH_RUN=$$ timeout 10 ros2 lifecycle get /pode1/bt_navigator 2>/dev/null | grep -q "^active" && { ok=1; break; }
       sleep 2
     done
     [ $ok = 1 ] && break
