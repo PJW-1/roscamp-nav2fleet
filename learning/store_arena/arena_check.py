@@ -12,7 +12,9 @@
             box stay where it was put (kinematic), does the lidar see it
 
 The expected scans include each env's obstacle boxes. contact and crossenv place robots by hand,
-so run them with --set obstacle_max=0.
+so run them with --set obstacle_max=0 --set mover_prob=0 (the expected scans have no movers).
+  mover     movers follow their legs (sim pose vs mover_spec), the lidar sees the person, and
+            driving into a mover that has stopped is a collision
 
 Writes <out>/<mode>.json (and scene_topdown.png with --render). Run from D:\\isaac\\IsaacLab:
   .venv/Scripts/python.exe <repo>/learning/store_arena/arena_check.py --mode scene --num_envs 64 \
@@ -32,7 +34,9 @@ from isaaclab.app import add_launcher_args, launch_simulation
 
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument(
-    "--mode", choices=("scene", "contact", "crossenv", "reset", "obstacle"), required=True
+    "--mode",
+    choices=("scene", "contact", "crossenv", "reset", "obstacle", "mover"),
+    required=True,
 )
 parser.add_argument("--num_envs", type=int, default=4)
 parser.add_argument("--out", type=str, required=True)
@@ -50,6 +54,9 @@ sys.path.insert(0, os.path.join(HERE, "..", "sim_check"))
 
 CAM_H = 2.6  # m above the floor, over the arena centre
 ROBOT2_XY = (0.90, 0.55)  # crossenv: second robot in the same env, ahead of the first
+# obstacle/mover drives: half-width of the strip that must be free between robot and target.
+# Robot half-width 0.056 m; 0.07 let 3 of 190 robots start 1-2 cm from a divider or wall
+STRIP_HALF_M = 0.09
 
 
 def gpu_mib() -> int:
@@ -507,6 +514,116 @@ def main():
                 and report["first_obs_off_vs_old_pose"]["envs"] >= 0.9 * half
             )
 
+        elif mode == "mover":
+            import mover_spec as ms_
+            import numpy as np
+            import route_spec as rs_
+
+            n = env.num_envs
+            stop = action(0.0)
+            err, seen = 0.0, []
+            org = env.scene.env_origins[:, :2]
+            person = ms_.MOVERS[0]
+            for k in range(100):  # 5 s standing; movers walk
+                env.step(stop)
+                for obj, (pos, _, _, _) in zip(env.mover_objs, env.mover_state(), strict=True):
+                    sim_xy = obj.data.root_pos_w.torch[:, :2] - org
+                    err = max(err, float((sim_xy - pos).norm(dim=-1).max()))
+                if k % 10 == 9:  # lidar ray toward the person vs the distance to its surface
+                    rp, ryaw = env.robot_pose()
+                    c = lidar_center(rp, ryaw)
+                    ppos, _, _, pact = env.mover_state()[0]
+                    cpos, _, _, cact = env.mover_state()[1]
+                    d = (ppos - c).norm(dim=-1)
+                    bearing = torch.atan2(ppos[:, 1] - c[:, 1], ppos[:, 0] - c[:, 0]) - ryaw
+                    i = torch.remainder(torch.round(torch.rad2deg(bearing)) + 180, 360).long()
+                    rows = torch.arange(n, device=env.device)
+                    sim_r = env.lidar_ranges()[rows, i]
+                    exp_static = expected_scan(rp, ryaw)[rows, i]  # walls, shelves, boxes
+                    cart_far = ~cact | ((cpos - c).norm(dim=-1) > d + 0.2)
+                    ok = pact & (exp_static > d + 0.1) & cart_far & (d < 1.8)
+                    seen.append(torch.stack((sim_r[ok], d[ok] - person.size[0]), -1))
+            seen = torch.cat(seen)
+            # the ray at the nearest whole degree passes up to 0.5 deg off the centre: at 1.8 m
+            # that is 1.6 cm sideways, which lengthens the hit on a 4 cm radius by up to 0.4 cm
+            diff = (seen[:, 0] - seen[:, 1]).abs()
+            report["mover_pose_err_max_m"] = round(err, 6)
+            report["person_rays_compared"] = len(seen)
+            report["person_ray_err_m"] = {
+                "max": round(float(diff.max()), 4),
+                "p99": round(float(diff.quantile(0.99)), 4),
+            }
+            act = [legs["active"].float().mean().item() for legs in env.mover_legs]
+            report["mover_active_share"] = dict(
+                zip([m.name for m in ms_.MOVERS], [round(a, 3) for a in act], strict=True)
+            )
+            # collision: stop every mover where it is, put each robot 0.20 m from the person's or
+            # (if absent) the cart's surface facing it with a free strip, drive at 0.25 m/s
+            states = env.mover_state()
+            for legs, (pos, _, _, _) in zip(env.mover_legs, states, strict=True):
+                legs["a"], legs["b"] = pos.clone(), pos.clone()
+                legs["speed"].zero_()
+            static = rects.cpu().numpy()
+            obst = env.obstacle_xy().cpu().numpy()
+            sz = np.array(env.routes.obstacle_sizes)
+            ids, starts, yaws, target = [], [], [], []
+            for e in range(n):
+                k = 0 if bool(states[0][3][e]) else 1 if bool(states[1][3][e]) else -1
+                if k < 0:
+                    continue
+                centre = states[k][0][e].cpu().numpy()
+                r_m = ms_.MOVERS[k].radius
+                world = list(static) + [rs_.box_rect(obst[e, j], sz[j]) for j in range(len(sz))]
+                other = 1 - k
+                if bool(states[other][3][e]):
+                    world.append(rs_.box_rect(states[other][0][e].cpu().numpy(), 0.2))
+                world = np.array(world)
+                for ang in (0.0, math.pi / 2, math.pi, -math.pi / 2):
+                    u = np.array((math.cos(ang), math.sin(ang)))
+                    pnt = centre - u * (r_m + 0.20)
+                    a_, b_ = pnt - u * 0.09, centre - u * r_m
+                    w = STRIP_HALF_M * np.abs(u[::-1])
+                    strip = np.concatenate((np.minimum(a_, b_) - w, np.maximum(a_, b_) + w))
+                    if not rs_.rects_overlap(strip, world):
+                        ids.append(e)
+                        starts.append(pnt)
+                        yaws.append(ang)
+                        target.append(k)
+                        break
+            report["envs_driven"] = len(ids)
+            place(ids, np.array(starts), yaws)
+            tested = torch.zeros(n, dtype=torch.bool, device=env.device)
+            tested[ids] = True
+            act_ = torch.where(tested[:, None], action(0.25), stop)
+            first = torch.full((n,), -1, dtype=torch.long, device=env.device)
+            gap_at = torch.full((n,), float("nan"), device=env.device)
+            for k in range(60):
+                rp, _ = env.robot_pose()
+                g = env.mover_gaps(rp)
+                env.step(act_)
+                hit = env.collided & tested & (first < 0)
+                first[hit] = k + 1
+                gap_at[hit] = g[hit]
+            t_ids = torch.tensor(ids, device=env.device, dtype=torch.long)
+            ok = first[t_ids] > 0
+            g = gap_at[t_ids][ok]
+            report["collided"] = int(ok.sum())
+            report["targets"] = {"person": target.count(0), "cart": target.count(1)}
+            if len(g):
+                report["centre_to_mover_surface_before_collision_m"] = [
+                    round(float(g.min()), 4),
+                    round(float(g.max()), 4),
+                ]
+            report["pass"] = (
+                err < 1e-3
+                and len(seen) > 0
+                and float(diff.quantile(0.99)) < 0.01
+                and len(ids) > 0
+                and bool(ok.all())
+                and len(g) > 0
+                and float(g.max()) < 0.10
+            )
+
         elif mode == "obstacle":
             import numpy as np
             import route_spec as rs_
@@ -542,10 +659,10 @@ def main():
                     p = xyn[e, k] - u * (0.5 * sz[k] + 0.20)
                     f = xyn[e, k] - u * 0.5 * sz[k]
                     # the strip the robot sweeps from its start (rear corner 0.085 m behind the
-                    # centre) to the box face, 0.07 m to each side, must be free of anything else
+                    # centre) to the box face, STRIP_HALF_M to each side, must be free
                     a, b = p - u * 0.09, f
-                    lo, hi = np.minimum(a, b) - 0.07 * np.abs(u[::-1]), np.maximum(a, b)
-                    hi = hi + 0.07 * np.abs(u[::-1])
+                    lo, hi = np.minimum(a, b) - STRIP_HALF_M * np.abs(u[::-1]), np.maximum(a, b)
+                    hi = hi + STRIP_HALF_M * np.abs(u[::-1])
                     if not rs_.rects_overlap(np.concatenate((lo, hi)), world):
                         ids.append(e)
                         starts.append(p)

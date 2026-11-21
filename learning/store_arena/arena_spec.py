@@ -63,11 +63,20 @@ class ArenaSpec:
     obstacle_sizes: tuple[float, float, float] = (0.10, 0.15, 0.20)  # side [m]
     obstacle_height_m: float = 0.30
     obstacle_max: int = 3  # boxes per episode, uniform 0..obstacle_max
-    obstacle_layouts: int = 32  # layouts per start-goal pair (layout 0 has no boxes)
+    # layouts per start-goal pair (layout 0 has no boxes). 96 since 4b: the 4a policy trained on
+    # 32 dropped from 91.4 to 87.0 % on unseen 3-box layouts; 4a's own runs used 32
+    obstacle_layouts: int = 96
     obstacle_on_path_prob: float = 0.7  # a box is put on the obstacle-free path, else anywhere
     obstacle_lateral_m: float = 0.08  # sideways shift of a box put on the path
     obstacle_node_clear_m: float = 0.25  # box edge to the start and goal nodes
     route_seed: int = 0  # layouts are drawn once at env build with this seed
+    # --- moving obstacles (stage 4b, mover_spec.MOVERS: person, cart), drawn at every reset
+    mover_prob: float = 0.75  # each mover is in an episode with this probability
+    mover_on_path_prob: float = 0.6  # its leg is centred on the global path, else anywhere
+    mover_leg_m: tuple[float, float] = (0.3, 0.8)  # leg length range
+    mover_speed_scale: tuple[float, float] = (0.5, 1.5)  # times the nominal speed
+    mover_pause_s: tuple[float, float] = (0.0, 1.0)  # stop at each end of the leg
+    mover_node_clear_m: float = 0.25  # the whole leg keeps this far from the start and goal
 
 
 ARENA = ArenaSpec()

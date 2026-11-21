@@ -9,7 +9,9 @@ Each episode drives one route (route_spec.build_routes): a start and a goal HALL
 static obstacle boxes and the global path planned around them. The observed goal is the point
 ``lookahead_m`` ahead on that path; success is reaching the final goal (TaskSpec.success_radius);
 the progress reward follows the remaining path length. Obstacle boxes are kinematic bodies moved
-at reset; unused ones wait behind the south wall.
+at reset; unused ones wait behind the south wall. Movers (mover_spec: a person and a cart) are
+kinematic bodies moved every control step along a leg drawn at reset; they are not in the global
+path, as a person who just appeared is not in the deployed Nav2 plan.
 """
 
 from __future__ import annotations
@@ -27,13 +29,19 @@ sys.path.insert(0, HERE)
 sys.path.insert(0, os.path.join(HERE, "..", "goal_reach"))
 
 import arena_spec as arena  # noqa: E402
+import mover_spec as ms  # noqa: E402
 import numpy as np  # noqa: E402
 import route_spec as rs  # noqa: E402
 import task_spec as ts  # noqa: E402
 import torch  # noqa: E402
 from goal_reach_env import GoalReachEnv, GoalReachEnvCfg  # noqa: E402
 
-COLORS = {"wall": (0.55, 0.55, 0.6), "shelf": (0.75, 0.55, 0.3), "obstacle": (0.2, 0.45, 0.8)}
+COLORS = {
+    "wall": (0.55, 0.55, 0.6),
+    "shelf": (0.75, 0.55, 0.3),
+    "obstacle": (0.2, 0.45, 0.8),
+    "mover": (0.85, 0.2, 0.25),
+}
 LIFT_M = 0.002  # obstacle boxes float this far above the floor (no floor contacts)
 
 
@@ -83,6 +91,34 @@ def obstacle_cfg(k: int, side: float, height: float) -> RigidObjectCfg:
     )
 
 
+def mover_park_xy(i: int) -> tuple[float, float]:
+    """Where an inactive mover waits: behind the south wall, east of the obstacle slots."""
+    return (1.6 + 0.3 * i, -0.4)
+
+
+def mover_cfg(i: int, shape: ms.MoverShape) -> RigidObjectCfg:
+    """Mover i: a kinematic, gravity-free cylinder or box moved every control step."""
+    common = dict(
+        rigid_props=[
+            sim_utils.UsdPhysicsRigidBodyCfg(kinematic_enabled=True),
+            PhysxRigidBodyCfg(disable_gravity=True),
+        ],
+        mass_props=sim_utils.MassCfg(mass=10.0),
+        collision_props=sim_utils.UsdPhysicsCollisionCfg(),
+        visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=COLORS["mover"]),
+    )
+    if shape.kind == "cylinder":
+        spawn = sim_utils.CylinderCfg(radius=shape.size[0], height=shape.height, **common)
+    else:
+        spawn = sim_utils.CuboidCfg(size=shape.size, **common)
+    x, y = mover_park_xy(i)
+    return RigidObjectCfg(
+        prim_path=f"{{ENV_REGEX_NS}}/mover_{shape.name}",
+        spawn=spawn,
+        init_state=RigidObjectCfg.InitialStateCfg(pos=(x, y, 0.5 * shape.height + LIFT_M)),
+    )
+
+
 @configclass
 class StoreArenaEnvCfg(GoalReachEnvCfg):
     # ArenaSpec fields to override (arena_spec.split_overrides); read when the env is built
@@ -97,9 +133,13 @@ class StoreArenaEnv(GoalReachEnv):
         self.boxes = arena.arena_boxes(a)
         add_arena(cfg.scene, self.boxes)
         static = np.array([(b.x0, b.y0, b.x1, b.y1) for b in self.boxes])
-        self.routes = r = rs.build_routes(a, arena.load_site(a), static)
+        site = arena.load_site(a)
+        self.routes = r = rs.build_routes(a, site, static)
+        self.routes_bounds = site.bounds()
         for k, side in enumerate(r.obstacle_sizes):
             setattr(cfg.scene, f"obstacle_{k}", obstacle_cfg(k, side, a.obstacle_height_m))
+        for i, shape in enumerate(ms.MOVERS):
+            setattr(cfg.scene, f"mover_{shape.name}", mover_cfg(i, shape))
         cfg.scene.env_spacing = a.env_spacing
         cfg.episode_length_s = a.episode_s
         self._routes_ready = False
@@ -131,6 +171,25 @@ class StoreArenaEnv(GoalReachEnv):
         self.la_dist = torch.zeros(n, device=dev)
         self.la_ang = torch.zeros(n, device=dev)
         self.d_goal = torch.zeros(n, device=dev)
+        # movers: one leg per env and mover (mover_spec.sample_legs), time since reset, and the
+        # smallest gap between the robot centre and a mover surface in the episode (inf: none)
+        self.static_rects = torch.as_tensor(static, **f32)
+        self.mover_objs = [self.scene[f"mover_{m.name}"] for m in ms.MOVERS]
+        self.mover_legs = [
+            {
+                "a": torch.zeros(n, 2, **f32),
+                "b": torch.zeros(n, 2, **f32),
+                "speed": torch.zeros(n, **f32),
+                "pause": torch.zeros(n, **f32),
+                "phase": torch.zeros(n, **f32),
+                "active": torch.zeros(n, dtype=torch.bool, device=dev),
+            }
+            for _ in ms.MOVERS
+        ]
+        self.mover_park = torch.tensor([mover_park_xy(i) for i in range(len(ms.MOVERS))], **f32)
+        self.mover_t = torch.zeros(n, **f32)
+        self.mover_gap = torch.full((n,), float("inf"), **f32)
+        self.last_ep_mover_gap = torch.full((n,), float("inf"), **f32)
         self._routes_ready = True
 
     def sample_start(self, n: int) -> tuple[torch.Tensor, torch.Tensor]:
@@ -161,6 +220,8 @@ class StoreArenaEnv(GoalReachEnv):
     def _reset_idx(self, env_ids):
         if env_ids is None:
             env_ids = torch.arange(self.num_envs, device=self.device)
+        if self._routes_ready:
+            self.last_ep_mover_gap[env_ids] = self.mover_gap[env_ids]
         super()._reset_idx(env_ids)
         if not self._routes_ready:
             return
@@ -177,6 +238,81 @@ class StoreArenaEnv(GoalReachEnv):
             obj.write_root_velocity_to_sim_index(root_velocity=zero_vel, env_ids=env_ids)
         self._follow(env_ids, self.start_xy[env_ids], self._new_yaw)
         self.d_prev[env_ids] = self.d_now[env_ids]
+        self._sample_movers(env_ids, r)
+        self.mover_t[env_ids] = 0.0
+        self.mover_gap[env_ids] = float("inf")
+        self._write_movers(env_ids)
+
+    def _sample_movers(self, env_ids, r, chunk: int = 1024) -> None:
+        """New legs for env_ids (routes r), avoiding walls, shelves and the route's boxes."""
+        sizes = torch.tensor(self.routes.obstacle_sizes, device=self.device)
+        bounds = tuple(float(v) for v in self.routes_bounds)
+        for c0 in range(0, len(env_ids), chunk):
+            ids, rr = env_ids[c0 : c0 + chunk], r[c0 : c0 + chunk]
+            xy = self.r_obstacle[rr]  # (n, slots, 2), parked boxes stay behind the wall
+            half = 0.5 * sizes[None, :, None]
+            boxes = torch.cat((xy - half, xy + half), -1)
+            rects = torch.cat((self.static_rects.expand(len(ids), -1, -1), boxes), 1)
+            for shape, legs in zip(ms.MOVERS, self.mover_legs, strict=True):
+                new = ms.sample_legs(
+                    rects,
+                    bounds,
+                    self.r_path[rr],
+                    self.r_npts[rr],
+                    self.r_start[rr],
+                    self.r_goal[rr],
+                    shape,
+                    self.arena,
+                )
+                for k, v in new.items():
+                    legs[k][ids] = v
+
+    def mover_state(self, ids=None):
+        """Per mover: position (n, 2), yaw (n,), velocity (n, 2) in the env frame, and active."""
+        ids = slice(None) if ids is None else ids
+        out = []
+        for i, legs in enumerate(self.mover_legs):
+            sub = {k: v[ids] for k, v in legs.items()}
+            pos, yaw, vel = ms.mover_pose(sub, self.mover_t[ids])
+            act = sub["active"]
+            pos = torch.where(act[:, None], pos, self.mover_park[i].expand_as(pos))
+            vel = torch.where(act[:, None], vel, torch.zeros_like(vel))
+            out.append((pos, yaw, vel, act))
+        return out
+
+    def _write_movers(self, ids) -> None:
+        origins = self.scene.env_origins[ids]
+        for obj, (pos, yaw, _, _) in zip(self.mover_objs, self.mover_state(ids), strict=True):
+            pose = obj.data.default_root_pose.torch[ids].clone()
+            pose[:, :2] = origins[:, :2] + pos
+            z = torch.zeros_like(yaw)
+            pose[:, 3:7] = torch.stack((z, z, torch.sin(yaw / 2), torch.cos(yaw / 2)), -1)
+            # teleported every control step at rest: the lidar sees exactly mover_state()
+            v6 = torch.zeros(len(pos), 6, device=self.device)
+            obj.write_root_pose_to_sim_index(root_pose=pose, env_ids=ids)
+            obj.write_root_velocity_to_sim_index(root_velocity=v6, env_ids=ids)
+
+    def mover_gaps(self, xy: torch.Tensor) -> torch.Tensor:
+        """(N,) distance from the robot centre xy (N, 2) to the nearest active mover surface."""
+        gap = torch.full((len(xy),), float("inf"), device=self.device)
+        for shape, (pos, yaw, _, act) in zip(ms.MOVERS, self.mover_state(), strict=True):
+            d = xy - pos
+            if shape.kind == "cylinder":
+                g = d.norm(dim=-1) - shape.size[0]
+            else:  # distance to the box rotated by yaw
+                c, s_ = torch.cos(yaw), torch.sin(yaw)
+                lx, ly = c * d[:, 0] + s_ * d[:, 1], -s_ * d[:, 0] + c * d[:, 1]
+                ex = (lx.abs() - 0.5 * shape.size[0]).clamp(min=0.0)
+                ey = (ly.abs() - 0.5 * shape.size[1]).clamp(min=0.0)
+                g = torch.sqrt(ex * ex + ey * ey)
+            gap = torch.where(act, torch.minimum(gap, g), gap)
+        return gap
+
+    def _pre_physics_step(self, actions: torch.Tensor) -> None:
+        super()._pre_physics_step(actions)
+        if self._routes_ready:
+            self.mover_t += self.step_dt
+            self._write_movers(torch.arange(self.num_envs, device=self.device))
 
     def obstacle_xy(self) -> torch.Tensor:
         """(N, slots, 2) obstacle box centres in the env frame (parked ones included)."""
@@ -186,6 +322,7 @@ class StoreArenaEnv(GoalReachEnv):
     def _get_dones(self) -> tuple[torch.Tensor, torch.Tensor]:
         xy, yaw = self.robot_pose()
         self._follow(torch.arange(self.num_envs, device=self.device), xy, yaw)
+        self.mover_gap = torch.minimum(self.mover_gap, self.mover_gaps(xy))
         self.success, self.collided, self.oob = ts.episode_outcome(
             self.d_goal, self.max_contact_force(), xy, self.start_xy, self.spec
         )

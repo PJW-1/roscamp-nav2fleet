@@ -1,8 +1,10 @@
 """Evaluate a trained store-arena policy (deterministic: action mean), headless.
 
 Every env runs until it has finished --episodes episodes; the outcomes of those episodes are
-counted, also split by the number of obstacle boxes on the route. Trajectories of the first
---track envs are saved to rollouts.npz with their routes (plot_arena.py traj draws them).
+counted, also split by the number of obstacle boxes on the route and by how close the robot came
+to a mover (smallest gap between the robot centre and a mover surface in the episode).
+Trajectories of the first --track envs are saved to rollouts.npz with their routes and movers
+(plot_arena.py traj / anim draw them).
 
 Run from D:\\isaac\\IsaacLab with the venv python, e.g.
   .venv/Scripts/python.exe <repo>/learning/store_arena/play.py \\
@@ -75,7 +77,8 @@ def main():
         by_boxes = {}  # boxes on the route -> outcome counts
         succ_times, succ_ratio, lidar_min = [], [], float("inf")
         K = min(args_cli.track, n)
-        traj = {"xy": [], "done": [], "route": [], "cmd": []}
+        traj = {"xy": [], "done": [], "route": [], "cmd": [], "mover_xy": [], "mover_on": []}
+        gaps, codes = [], []  # per counted episode: smallest mover gap, outcome index
         obs = env.get_observations()
         route = raw.route.clone()
         step = 0
@@ -98,6 +101,9 @@ def main():
                     row = by_boxes.setdefault(int(b), dict.fromkeys(keys, 0))
                     for k, o in zip(keys, outs, strict=True):
                         row[k] += int((o & sel).sum())
+                gaps += raw.last_ep_mover_gap[counted].tolist()
+                code = torch.stack(outs, -1).float().argmax(-1)
+                codes += code[counted].tolist()
                 s = raw.success & counted
                 succ_times += raw.last_ep_len_s[s].tolist()
                 # episode time vs the global path at full speed
@@ -109,6 +115,9 @@ def main():
             traj["done"].append(d[:K].cpu().numpy())
             traj["route"].append(route[:K].cpu().numpy())
             traj["cmd"].append(raw.cmd[:K].cpu().numpy())
+            ms_state = raw.mover_state()
+            traj["mover_xy"].append(torch.stack([m[0][:K] for m in ms_state], 1).cpu().numpy())
+            traj["mover_on"].append(torch.stack([m[3][:K] for m in ms_state], 1).cpu().numpy())
             route = raw.route.clone()
             if bool((ep_done >= E).all()):
                 break
@@ -117,6 +126,16 @@ def main():
                 break
 
         total = {k: sum(r[k] for r in by_boxes.values()) for k in keys}
+        gaps, codes = np.array(gaps), np.array(codes)
+        bins = {"no mover": np.isinf(gaps)}
+        edges = (0.0, 0.10, 0.25, 0.50, np.inf)
+        for lo, hi in zip(edges[:-1], edges[1:], strict=True):
+            bins[f"gap {lo:.2f}-{hi:.2f} m"] = (gaps >= lo) & (gaps < hi) & ~np.isinf(gaps)
+        by_gap = {}
+        for name, sel in bins.items():
+            row = {k: int(((codes == i) & sel).sum()) for i, k in enumerate(keys)}
+            row["success_rate"] = round(row["success"] / max(int(sel.sum()), 1), 4)
+            by_gap[name] = row
         n_ep = max(sum(total.values()), 1)
         report = {
             "checkpoint": args_cli.checkpoint,
@@ -127,6 +146,7 @@ def main():
                 b: {**r, "success_rate": round(r["success"] / max(sum(r.values()), 1), 4)}
                 for b, r in sorted(by_boxes.items())
             },
+            "by_mover_gap": by_gap,
             "success_time_s_mean": round(float(np.mean(succ_times)), 2) if succ_times else None,
             "success_time_s_p90": round(float(np.percentile(succ_times, 90)), 2)
             if succ_times

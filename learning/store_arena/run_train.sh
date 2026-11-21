@@ -2,6 +2,7 @@
 # Train the store-arena policy in chunks under the shared heavy-run lock, with a GPU memory log.
 # Usage: bash learning/store_arena/run_train.sh <run_dir> <chunks> <iters_per_chunk> [num_envs] [train.py args...]
 # e.g.   bash learning/store_arena/run_train.sh /d/isaac/runs/store_arena/ppo_a 4 250 4096
+#        INIT=<4a run>/c1/model_999.pt bash learning/store_arena/run_train.sh <run> 1 1000 4096
 # Chunk c goes to <run_dir>/c<c> and resumes from the last model of chunk c-1. The lock
 # (/c/Users/pjw/ros2camp/.heavy_run.lock, also used by the Gazebo track) is taken per chunk and
 # released after it; the script then waits PAUSE_S (180 s, the Gazebo track waits the same) so a
@@ -20,7 +21,7 @@ PAUSE_S=${PAUSE_S:-180}
 export PYTHONUTF8=1 OMNI_KIT_ACCEPT_EULA=YES PXR_WORK_THREAD_LIMIT=1
 mkdir -p "$RUN" && RUN=$(cd "$RUN" && pwd) || exit 1
 cd /d/isaac/IsaacLab || exit 1
-resume=""
+resume="${INIT:-}"  # INIT=<model_*.pt> starts chunk 1 from a checkpoint (curriculum)
 for c in $(seq 1 "$CHUNKS"); do
   OUT=$RUN/c$c
   mkdir -p "$OUT"

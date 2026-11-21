@@ -16,6 +16,7 @@
   python learning/store_arena/plot_arena.py curves <out.png> <run_dir> [<out.csv>]
   python learning/store_arena/plot_arena.py traj <out.png> <rollouts.npz> [episodes]
   python learning/store_arena/plot_arena.py routes <out.png>
+  python learning/store_arena/plot_arena.py anim <out.gif> <rollouts.npz> [env]
 """
 
 import csv
@@ -219,6 +220,11 @@ def plot_traj(out: str, src: str, episodes: int = 1) -> None:
                         Rectangle(c - sz / 2, sz, sz, color="#2a78d6", alpha=0.6 if j == 0 else 0.3)
                     )
             seg = xy[start : end + 1, e]
+            if "mover_xy" in z.files:  # mover tracks of this episode, thin
+                for m in range(z["mover_xy"].shape[2]):
+                    if z["mover_on"][start, e, m]:
+                        mt = z["mover_xy"][start:end, e, m]
+                        ax.plot(mt[:, 0], mt[:, 1], color="#d6336c", lw=2.5, alpha=0.35)
             ax.plot(seg[:-1, 0], seg[:-1, 1], color="#eb6834", lw=1.4)
             ax.plot(*p[0], "o", color="#1baf7a", ms=4)
             ax.add_patch(Circle(p[-1], 0.05, fill=False, color="#e34948", lw=1))
@@ -286,6 +292,51 @@ def plot_routes(out: str) -> None:
     print(f"wrote {out}")
 
 
+def plot_anim(out: str, src: str, env: int = 0, seconds: float = 30.0) -> None:
+    """Top-down GIF of one tracked env from rollouts.npz: robot, its path, boxes and movers."""
+    import numpy as np
+    from matplotlib.animation import FuncAnimation, PillowWriter
+
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    import mover_spec as M
+
+    z = np.load(src)
+    xy, done, route, dt = z["xy"][:, env], z["done"][:, env], z["route"][:, env], float(z["dt"])
+    steps = min(len(xy), int(seconds / dt))
+    fig, ax = plt.subplots(figsize=(6.4, 3.4), dpi=90)
+    every = 2  # 10 fps of a 20 Hz rollout, real time
+
+    def draw(f):
+        k = f * every
+        ax.clear()
+        for b in z["boxes"]:
+            ax.add_patch(Rectangle(b[:2], b[2] - b[0], b[3] - b[1], color="#8c8c99", lw=0))
+        r = int(route[k])
+        p = z["path"][r, : z["npts"][r]]
+        ax.plot(p[:, 0], p[:, 1], "--", color="#52514e", lw=0.8)
+        for c, sz in zip(z["obstacle_xy"][r], z["obstacle_sizes"], strict=True):
+            if not np.isnan(c[0]):
+                ax.add_patch(Rectangle(c - sz / 2, sz, sz, color="#2a78d6", alpha=0.6))
+        for m, shape in enumerate(M.MOVERS):
+            if z["mover_on"][k, env, m]:
+                ax.add_patch(Circle(z["mover_xy"][k, env, m], shape.radius, color="#d6336c"))
+        start = k
+        while start > 0 and not done[start - 1]:
+            start -= 1
+        ax.plot(xy[start : k + 1, 0], xy[start : k + 1, 1], color="#eb6834", lw=1.2)
+        ax.add_patch(Circle(xy[k], 0.085, fill=False, color="#0b0b0b", lw=1.2))
+        ax.add_patch(Circle(p[-1], 0.05, fill=False, color="#e34948", lw=1))
+        ax.set_xlim(-0.08, 2.06)
+        ax.set_ylim(-0.08, 1.06)
+        ax.set_aspect("equal")
+        ax.set_xticks([])
+        ax.set_yticks([])
+        ax.set_title(f"t {k * dt:4.1f} s   (movers drawn as their clearance circles)", fontsize=8)
+
+    FuncAnimation(fig, draw, frames=steps // every).save(out, writer=PillowWriter(fps=10))
+    print(f"wrote {out}")
+
+
 if __name__ == "__main__":
     if sys.argv[1] == "scene":
         plot_scene(sys.argv[2], sys.argv[3])
@@ -295,6 +346,8 @@ if __name__ == "__main__":
         plot_curves(sys.argv[2], sys.argv[3], *sys.argv[4:5])
     elif sys.argv[1] == "routes":
         plot_routes(sys.argv[2])
+    elif sys.argv[1] == "anim":
+        plot_anim(sys.argv[2], sys.argv[3], *(int(x) for x in sys.argv[4:5]))
     elif sys.argv[1] == "traj":
         plot_traj(sys.argv[2], sys.argv[3], *(int(x) for x in sys.argv[4:5]))
     else:
