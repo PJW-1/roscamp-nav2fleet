@@ -1,21 +1,27 @@
 # ---- order 모델 피드백과 결과 처리 믹스인 ----
 from __future__ import annotations
 
-from fleet_core.fleet_map import RETREAT
+import math
+
+from fleet_core.fleet_map import NAV_GOAL, RETREAT
 from fleet_core.traffic.mission import MOVE
 
-from .robots import ORDER, Goal
-from .routes import left_s
+from .robots import ORDER, Goal, LeftReport
+from .routes import PASS, STOP, left_s, nav_end_s, nav_stretch, speed, travel_s
 
 REJECTED = "ORDER_UPDATE_REJECTED"
 SUPERSEDED = "SUPERSEDED"
+LEFT_STALE_S = 1.0
+LEFT_JUMP_M = 0.10
+LEFT_CALM_S = 2.0
+LEFT_SHORT_M = 0.10
 
 
 # ---- order 피드백으로 진행과 base 끝 대기 기록 ----
 class OrderAnswers:
 
     def on_move_feedback(self, robot, goal_id, last_done_seq, waiting_at_base_end,
-                         horizon_warning="") -> None:
+                         horizon_warning="", distance_remaining=None) -> None:
         m = self._robots.get(robot)
         mo = m.move_order if m is not None else None
         if mo is None or m.goal is None:
@@ -23,11 +29,13 @@ class OrderAnswers:
         if mo.before is not None and goal_id == mo.before[0]:
             self._order_progress(m, last_done_seq, mo.before[1])
             mo.before = (*mo.before[:2], bool(waiting_at_base_end))
+            self._note_left(mo, last_done_seq, waiting_at_base_end, distance_remaining)
             return
         if m.goal.id != goal_id:
             return
         mo.before = None
         self._order_progress(m, last_done_seq, m.goal.edges)
+        self._note_left(mo, last_done_seq, waiting_at_base_end, distance_remaining)
         mo.waiting = bool(waiting_at_base_end)
         if mo.waiting and not mo.waited:
             mo.waited = True
@@ -36,6 +44,57 @@ class OrderAnswers:
         if horizon_warning and not mo.warned:
             mo.warned = True
             self._event("WARN", "HORIZON_INVALID", horizon_warning, m.name)
+
+    # ---- 로봇이 보낸 지금 조각의 남은 거리 ----
+    def _note_left(self, mo, done, waiting, distance) -> None:
+        if waiting:
+            mo.left = None
+            return
+        now, seq, old = self._clock(), int(done) + 1, mo.left
+        if not isinstance(distance, (int, float)) or not 0.0 <= distance < math.inf:
+            if old is not None:
+                old.at = -math.inf
+            return
+        same = old is not None and old.seq == seq
+        jumped_at = old.jumped_at if same else None
+        if same and distance > old.m + LEFT_JUMP_M:
+            jumped_at = now
+        mo.left = LeftReport(seq, float(distance), now, jumped_at)
+
+    def _reported_end(self, m, route) -> int | None:
+        mo = m.move_order
+        report = mo.left if mo is not None and route is m.route else None
+        if report is None or report.seq != mo.done_seq + 1:
+            return None
+        cut = next((c for c in mo.cuts[:mo.given] if c[0] == report.seq), None)
+        if cut is None or cut[1] != route.done or route.edges[cut[1]].mode != NAV_GOAL:
+            return None
+        now = self._clock()
+        if now - report.at > LEFT_STALE_S:
+            return None
+        if report.jumped_at is not None and now - report.jumped_at < LEFT_CALM_S:
+            return None
+        end = self.site.node_pose(route.edges[cut[2] - 1].b)
+        if report.m < math.dist((m.x, m.y), end) - LEFT_SHORT_M:
+            return None
+        return cut[2]
+
+    def _left_s(self, m, route, end: int, ending: str = PASS) -> float:
+        p, edges, done = self.params, route.edges, route.done
+        stop = self._reported_end(m, route)
+        nav_first = end > done and edges[done].mode == NAV_GOAL
+        chain = done + nav_stretch(edges[done:end]) if nav_first else done
+        adjust = (nav_end_s(p, self.site, edges, chain, m.x, m.y, m.yaw, ending)
+                  if nav_first else 0.0)
+        if adjust == 0.0:
+            if stop is None or stop > end:
+                return left_s(p, edges[done:end], m.x, m.y)
+            return m.move_order.left.m / speed(p, NAV_GOAL) + travel_s(p, edges[stop:end])
+        if stop is not None and stop <= chain:
+            nav = m.move_order.left.m / speed(p, NAV_GOAL) + travel_s(p, edges[stop:chain])
+        else:
+            nav = left_s(p, edges[done:chain], m.x, m.y)
+        return max(0.0, nav + adjust) + travel_s(p, edges[chain:end])
 
     # ---- 끝낸 seq까지 route 진행 반영 ----
     def _order_progress(self, m, seq: int, edges: int) -> None:
@@ -123,6 +182,6 @@ class OrderAnswers:
         route = m.route
         if m.move_order is None or route is None or m.goal is None:
             return ""
-        left = left_s(self.params, route.edges[route.done:route.granted], m.x, m.y)
+        left = self._left_s(m, route, route.granted, STOP)
         m.base_until = now + left + max(0.0, self.params.comm_base_hold_extra_s)
         return f", drives on to {m.goal.end} (about {left:.0f} s)"

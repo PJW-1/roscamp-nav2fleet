@@ -6,7 +6,7 @@ from fleet_core.fleet_map import FOLLOW_PATH, NAV_GOAL, RETREAT, SHARED, shortes
 from fleet_core.traffic.mission import MOVE, TO_PARK
 
 from .robots import ORDER, Goal, MoveOrder
-from .routes import Route, left_s, move_command, retreat_command, segment_end, stretch_end
+from .routes import Route, move_command, retreat_command, segment_end, stretch_end
 
 HORIZON_HOLD_S = 5.0
 UPDATE_ANSWER_S = 2.0
@@ -115,7 +115,7 @@ class MoveOrders:
         p = self.params
         end = m.goal.edges
         if end < route.granted:
-            left = left_s(p, route.edges[route.done:end], m.x, m.y)
+            left = self._left_s(m, route, end)
             if mo.waiting or left <= p.standby_lookahead_s:
                 self._send_update(m, (m.goal.id, end), self._fresh_base(m, route))
                 self._event("INFO", "ORDER_UPDATED",
@@ -123,7 +123,7 @@ class MoveOrders:
             return
         if route.granted >= len(route.edges) or (
                 not mo.waiting
-                and left_s(p, route.edges[route.done:route.granted], m.x, m.y) > p.lookahead_s):
+                and self._left_s(m, route, route.granted) > p.lookahead_s):
             return
         if self._refresh_horizon(m):
             return

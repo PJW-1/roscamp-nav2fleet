@@ -128,9 +128,9 @@ def move_result(result) -> tuple[bool, str, int]:
     return result.success, result.reason, int(result.last_done_seq_id)
 
 
-def move_feedback(feedback) -> tuple[int, bool, str]:
+def move_feedback(feedback) -> tuple[int, bool, str, float]:
     return (int(feedback.last_done_seq_id), bool(feedback.waiting_at_base_end),
-            feedback.horizon_warning)
+            feedback.horizon_warning, float(feedback.distance_remaining))
 
 
 def retreat_result(result) -> tuple[bool, str]:
