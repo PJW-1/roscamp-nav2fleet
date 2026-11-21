@@ -16,7 +16,7 @@ CONFIG = ROOT / "tools" / "nav_bench" / "scenarios.yaml"
 # ---- 설정 ----
 def test_the_config_loads_and_every_scenario_names_known_movers():
     cfg = mv.load(CONFIG)
-    assert set(cfg["scenarios"]) == {"a_hall", "b_static", "c_moving", "d_robot"}
+    assert set(cfg["scenarios"]) == {"a_hall", "b_static", "c_moving", "d_robot", "e_corridor"}
     assert cfg["controllers"] == ["FollowPathGoal", "FollowPathMPPI"]
 
 
@@ -110,3 +110,77 @@ def test_the_metrics_count_only_the_leg_between_goal_sent_and_result():
     row = mt.leg_metrics(rec, cfg, mt.footprint(), mt.arena_rects())
     assert row["doridori"] == 0 and row["lidar_min_m"] is None
     assert row["path_m"] == pytest.approx(0.645) and row["ok"]
+
+
+# ---- 3단계: 공정성, 통로 띠, 시간 나누기 ----
+def test_the_corridor_scenario_leaves_a_gap_wide_enough_to_stay_in_the_corridor():
+    cfg = mv.load(CONFIG)
+    low, _ = cfg["corridor_band"]
+    for name in cfg["scenarios"]["e_corridor"]:
+        m = cfg["movers"][name]
+        half = (m.size[1] / 2) if m.shape == "box" else m.size[0]
+        for _, y in m.path:
+            assert y - half - low >= 0.25, name
+
+
+def test_the_run_order_is_abba_so_ten_repeats_start_five_times_with_each():
+    names = ["A", "B"]
+    orders = [mt.run_order(r, names) for r in range(10)]
+    assert orders[:4] == [["A", "B"], ["B", "A"], ["B", "A"], ["A", "B"]]
+    assert sum(o[0] == "A" for o in orders) == 5
+
+
+def test_a_start_pose_off_by_more_than_the_tolerance_is_flagged():
+    start = {"x": 0.49, "y": 0.625, "yaw_deg": 110}
+    assert not mt.pose_off((0.50, 0.63, math.radians(113)), start, 0.03, 5.0)
+    assert mt.pose_off((0.53, 0.625, math.radians(110)), start, 0.03, 5.0)
+    assert mt.pose_off((0.49, 0.625, math.radians(100)), start, 0.03, 5.0)
+    assert not mt.pose_off((0.49, 0.625, math.radians(110 - 360)), start, 0.03, 5.0)
+
+
+def test_the_band_check_fails_when_any_point_leaves_the_corridor():
+    assert mt.in_band([(0.5, 0.62), (1.0, 0.56), (1.6, 0.55)], (0.405, 0.77))
+    assert not mt.in_band([(0.5, 0.62), (1.0, 0.18), (1.6, 0.55)], (0.405, 0.77))
+    assert mt.in_band([], (0.405, 0.77)) is None
+
+
+def test_the_time_split_separates_waiting_turning_stopping_and_driving():
+    cmd = [[0.0, 0.0, 0.0], [1.0, 0.0, 1.0], [1.1, 0.0, 1.0], [1.2, 0.0, 0.0], [1.3, 0.1, 0.0],
+           [1.4, 0.1, 0.0], [1.5, 0.0, 0.0]]
+    split = mt.time_split(cmd, 0.0, 1.5, 0.3)
+    assert split["wait_s"] == pytest.approx(1.0)
+    assert split["turn_s"] == pytest.approx(0.2)
+    assert split["stop_s"] == pytest.approx(0.1)
+    assert split["drive_s"] == pytest.approx(0.2)
+    assert split["drive_vx"] == pytest.approx(0.1)
+
+
+def test_a_leg_records_its_start_pose_band_and_time_split():
+    cfg = mv.load(CONFIG)
+    rec = {"scenario": "a_hall", "controller": "FollowPathGoal", "repeat": 0, "status": "SUCCEEDED",
+           "t_start": 10.0, "t_end": 20.0, "movers_names": [], "movers": [],
+           "start_pose": [0.50, 0.62, math.radians(108)], "replaced": True,
+           "plans": [[10.1, [[0.5, 0.62], [1.0, 0.56], [1.645, 0.55]]]],
+           "truth": [[10.0, 0.5, 0.62, 0.0], [20.0, 1.645, 0.55, 0.0]],
+           "cmd": [[10.0, 0.0, 0.0], [11.0, 0.1, 0.0], [12.0, 0.1, 0.0]], "scan_min": []}
+    row = mt.leg_metrics(rec, cfg, mt.footprint(), mt.arena_rects())
+    assert row["start_err_m"] == pytest.approx(math.hypot(0.01, 0.005))
+    assert row["start_err_deg"] == pytest.approx(2.0)
+    assert row["replaced"] is True
+    assert row["plan_in_band"] and row["truth_in_band"] and row["in_corridor"]
+    assert row["drive_s"] == pytest.approx(1.0)
+
+
+def test_the_table_keeps_legs_outside_the_corridor_on_their_own_row_with_rates():
+    import report
+    cfg = mv.load(CONFIG)
+    base = {"scenario": "e_corridor", "controller": "FollowPathGoal", "ok": True, "time_s": 30.0,
+            "path_m": 1.5, "lidar_min_m": 0.1, "body_min_m": 0.1, "doridori": 6,
+            "collisions": 1, "blocked": 0, "cpu_pct": 10.0, "cmd_dt_p95_ms": 52.0,
+            "plan_in_band": True, "truth_in_band": True, "in_corridor": True}
+    rows = [base, dict(base, in_corridor=False, truth_in_band=False), base]
+    text = report.table(rows, cfg)
+    corridor = [ln for ln in text.splitlines() if "| 통로 |" in ln]
+    outside = [ln for ln in text.splitlines() if "| 밖 |" in ln]
+    assert len(corridor) == 1 and len(outside) == 1
+    assert "2/2" in corridor[0] and "| 2 (2.0/분, 0.67/m) |" in corridor[0]

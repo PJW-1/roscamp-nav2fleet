@@ -11,6 +11,7 @@ from action_msgs.msg import GoalStatus
 from geometry_msgs.msg import PoseWithCovarianceStamped, Twist
 from nav2_msgs.action import NavigateToPose
 from nav_msgs.msg import Odometry
+from nav_msgs.msg import Path as NavPath
 from rclpy.action import ActionClient
 from rclpy.node import Node
 from rclpy.parameter import Parameter
@@ -19,6 +20,7 @@ from sensor_msgs.msg import LaserScan
 from std_msgs.msg import String
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+import metrics as mt  # noqa: E402
 import movers as mv  # noqa: E402
 
 GZ_PY = ("/opt/ros/jazzy/opt/gz_transport_vendor/lib/python",
@@ -78,6 +80,7 @@ class Bench(Node):
         self.moving = False
         self.pose_errors = 0
         self.robot = None
+        self.robot_yaw = None
         self.rec = None
         self.last_t = None
         self.gz = GzNode()
@@ -91,6 +94,7 @@ class Bench(Node):
                                  qos_profile_sensor_data)
         self.create_subscription(Twist, f"/{ns}/cmd_vel", self._on_cmd, 50)
         self.create_subscription(LaserScan, f"/{ns}/scan", self._on_scan, qos_profile_sensor_data)
+        self.create_subscription(NavPath, f"/{ns}/plan", self._on_plan, 10)
         self.nav = ActionClient(self, NavigateToPose, f"/{ns}/navigate_to_pose")
         self.create_timer(0.05, self._tick)
         self.ctl_pid = find_pid("controller_server", f"/{ns}")
@@ -150,12 +154,18 @@ class Bench(Node):
     def _on_truth(self, msg):
         p = msg.pose.pose.position
         self.robot = (p.x, p.y)
+        self.robot_yaw = yaw_of(msg.pose.pose.orientation)
         if self.rec is not None:
             self.rec["truth"].append([self.now(), p.x, p.y, yaw_of(msg.pose.pose.orientation)])
 
     def _on_cmd(self, msg):
         if self.rec is not None:
             self.rec["cmd"].append([self.now(), msg.linear.x, msg.angular.z])
+
+    def _on_plan(self, msg):
+        if self.rec is not None and msg.poses:
+            pts = [[q.pose.position.x, q.pose.position.y] for q in msg.poses]
+            self.rec["plans"].append([self.now(), pts[::4] + pts[-1:]])
 
     def _on_scan(self, msg):
         if self.rec is not None:
@@ -202,15 +212,19 @@ class Bench(Node):
         self.pose_errors = 0
         self.place(False)
         self.select(controller)
+        replaced = self.start_off()
+        if replaced:
+            self.teleport_to_start()
+        start_pose = self.pose()
         self.place(True)
         self.wait(0.5)
-        self.rec = {"truth": [], "cmd": [], "scan_min": [], "movers": []}
+        self.rec = self.new_rec()
         cpu0, wall0 = cpu_seconds(self.ctl_pid), time.monotonic()
         status, t0, t1 = self.go(cfg["goal"], cfg["leg_timeout_s"])
         retried = False
         if status == "ABORTED" and t1 - t0 < cfg["flake_s"] and not self._moved(self.rec):
             retried = True
-            self.rec = {"truth": [], "cmd": [], "scan_min": [], "movers": []}
+            self.rec = self.new_rec()
             self.place(True)
             self.wait(0.5)
             cpu0, wall0 = cpu_seconds(self.ctl_pid), time.monotonic()
@@ -223,7 +237,8 @@ class Bench(Node):
             self.place_static()
         rec.update({"scenario": self.scenario, "controller": controller, "repeat": repeat,
                     "status": status, "t_start": t0, "t_end": t1, "retried": retried,
-                    "pose_errors": self.pose_errors,
+                    "pose_errors": self.pose_errors, "start_pose": start_pose,
+                    "replaced": replaced,
                     "movers_names": [m.name for m in self.active],
                     "cpu_s": None if cpu0 is None or cpu1 is None else cpu1 - cpu0,
                     "wall_s": wall1 - wall0})
@@ -231,6 +246,18 @@ class Bench(Node):
         (self.out / name).write_text(json.dumps(rec), encoding="utf-8")
         self.get_logger().info(f"leg {name}: {status} {t1 - t0:.1f} s")
         return status
+
+    @staticmethod
+    def new_rec():
+        return {"truth": [], "cmd": [], "scan_min": [], "movers": [], "plans": []}
+
+    def pose(self):
+        return None if self.robot is None else [*self.robot, self.robot_yaw]
+
+    def start_off(self):
+        pose = self.pose()
+        return pose is None or mt.pose_off(pose, self.cfg["start"], self.cfg["start_tol_m"],
+                                           self.cfg["start_tol_deg"])
 
     def _moved(self, rec):
         pts = [p[1:3] for p in rec["truth"]]
@@ -274,9 +301,7 @@ class Bench(Node):
             self.wait(1.0)
         self.resets += 1
         self.get_logger().warn(f"teleported to the start (reset {self.resets})")
-        if self.robot is None:
-            return False
-        return math.hypot(self.robot[0] - st["x"], self.robot[1] - st["y"]) <= self.cfg["arrive_m"]
+        return not self.start_off()
 
 
 # ---- 실행 ----
@@ -297,7 +322,7 @@ def main(argv=None):
     done = 0
     try:
         for r in range(repeats):
-            order = cfg["controllers"] if r % 2 == 0 else list(reversed(cfg["controllers"]))
+            order = mt.run_order(r, cfg["controllers"])
             for ctl in order:
                 node.leg(ctl, r)
                 if not node.back():

@@ -6,7 +6,7 @@
 world: arena
 robot: pode1
 controllers: [FollowPathGoal, FollowPathMPPI]  # 앞이 RPP(기본), 뒤가 MPPI
-repeats: 5  # 시나리오마다 컨트롤러마다 이만큼(번갈아 돈다)
+repeats: 10  # 시나리오마다 컨트롤러마다 이만큼. 순서는 ABBA(짝수면 두 컨트롤러가 먼저 도는 횟수가 같다)
 leg_timeout_s: 90.0  # sim 초. 넘으면 실패로 적고 goal을 취소한다
 flake_s: 3.0  # 이 sim 초 안에 움직이지도 않고 ABORTED면(planner 응답 20 ms 시간 초과 같은 Nav2 쪽 일) 한 번 다시 보낸다.
              # 다시 보낸 판은 기록에 retried로 남는다
@@ -21,6 +21,10 @@ blocked_move_m: 0.05  # pode_fsm blocked_after_s와 같은 10 s, progress checke
 arrive_m: 0.10  # 성공은 Nav2 SUCCEEDED이면서 실제 위치가 goal에서 이 거리 안일 때(AMCL이 틀려도 속지 않게)
 collision_m: 0.005  # 몸(local_costmap 다각형 발자국)과 장애물 면의 실제 거리가 이 값 이하면 충돌
 doridori_deadband: 0.02  # rad/s. |wz|가 이보다 작은 명령은 부호 바꿈을 셀 때 건너뛴다
+corridor_band: [0.405, 0.77]  # 가운데 통로의 y 범위(남쪽 진열대 위 ~ 진열대 A 아래). 계획 경로와 실제 궤적이 모두 이 안이면 "통로 판"
+turn_wz: 0.3  # rad/s. vx가 0이고 |wz|가 이 이상인 명령 시간은 "제자리 회전"으로 센다(shim은 1.0 rad/s로 돈다)
+start_tol_m: 0.03  # 판을 시작할 때 실제 위치가 출발점에서 이보다 멀면
+start_tol_deg: 5.0  # 또는 방향이 이보다 틀어지면 Gazebo에서 출발점으로 옮기고 replaced로 남긴다(goal checker 0.05 m, 6.9°보다 좁게)
 
 movers:
   box:  # (b) 가만히 있는 상자. 통로 북쪽 절반에 두어 남쪽으로 0.215 m가 남는다
@@ -47,8 +51,20 @@ movers:
     once: true  # 끝에 서 있는다(오가지 않는다)
     yield_m: 0.25  # 우리 로봇 중심과 이만큼 가까우면 멈춰 기다린다(충돌 검사로 서는 로봇처럼)
 
+  e_box:  # (e) 통로 안 회피: 북쪽에 붙인 작은 상자. 남쪽으로 0.255 m가 남아 planner가 통로를 버리지 않게(b의 상자는 0.215 m)
+    shape: box
+    size: [0.08, 0.08, 0.25]
+    path: [[0.90, 0.70]]
+    speed: 0.0
+  e_cart:  # (e) 북쪽 줄을 천천히 오가는 작은 카트. 남쪽 틈은 상자와 같다
+    shape: box
+    size: [0.10, 0.08, 0.20]
+    path: [[1.15, 0.70], [1.45, 0.70]]
+    speed: 0.05
+
 scenarios:
   a_hall: []
   b_static: [box]
   c_moving: [person, cart]
   d_robot: [robot]
+  e_corridor: [e_box, e_cart]

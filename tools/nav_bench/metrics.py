@@ -91,6 +91,48 @@ def within(rows, t0, t1):
     return [r for r in rows if t0 <= r[0] <= t1]
 
 
+# ---- 공정성, 통로 띠, 시간 나누기 ----
+def run_order(repeat, controllers):
+    return list(controllers) if repeat % 4 in (0, 3) else list(reversed(controllers))
+
+
+def start_error(pose, start):
+    dist = math.hypot(pose[0] - start["x"], pose[1] - start["y"])
+    dyaw = (pose[2] - math.radians(start["yaw_deg"]) + math.pi) % (2 * math.pi) - math.pi
+    return dist, abs(math.degrees(dyaw))
+
+
+def pose_off(pose, start, tol_m, tol_deg):
+    dist, ddeg = start_error(pose, start)
+    return dist > tol_m or ddeg > tol_deg
+
+
+def in_band(points, band):
+    if not points:
+        return None
+    low, high = band
+    return all(low <= p[1] <= high for p in points)
+
+
+def time_split(cmd, t0, t1, turn_wz):
+    first = next((c[0] for c in cmd if abs(c[1]) > 1e-3 or abs(c[2]) > 1e-3), t1)
+    out = {"wait_s": first - t0, "turn_s": 0.0, "stop_s": 0.0, "drive_s": 0.0}
+    dist = 0.0
+    for a, b in zip(cmd, cmd[1:], strict=False):
+        if a[0] < first:
+            continue
+        dt = b[0] - a[0]
+        if abs(a[1]) >= 0.005:
+            out["drive_s"] += dt
+            dist += a[1] * dt
+        elif abs(a[2]) >= turn_wz:
+            out["turn_s"] += dt
+        else:
+            out["stop_s"] += dt
+    out["drive_vx"] = dist / out["drive_s"] if out["drive_s"] > 0 else None
+    return out
+
+
 def leg_metrics(rec, cfg, body, statics):
     movers = [cfg["movers"][n] for n in rec.get("movers_names", [])]
     t0, t1 = rec["t_start"], rec["t_end"]
@@ -103,8 +145,16 @@ def leg_metrics(rec, cfg, body, statics):
     goal = cfg["goal"]
     end_err = math.dist(truth[-1][1:3], (goal["x"], goal["y"])) if truth else None
     ok = rec["status"] == "SUCCEEDED" and end_err is not None and end_err <= cfg["arrive_m"]
+    plan_pts = [pt for _, pts in rec.get("plans", []) for pt in pts]
+    plan_ok = in_band(plan_pts, cfg["corridor_band"])
+    truth_ok = in_band([p[1:3] for p in truth], cfg["corridor_band"])
+    err = start_error(rec["start_pose"], cfg["start"]) if rec.get("start_pose") else (None, None)
     return {
         "scenario": rec["scenario"], "controller": rec["controller"], "repeat": rec["repeat"],
+        "plan_in_band": plan_ok, "truth_in_band": truth_ok,
+        "in_corridor": bool(plan_ok) and bool(truth_ok),
+        "start_err_m": err[0], "start_err_deg": err[1], "replaced": rec.get("replaced", False),
+        **time_split(cmd, t0, t1, cfg["turn_wz"]),
         "status": rec["status"], "ok": ok, "end_err_m": end_err,
         "retried": rec.get("retried", False), "pose_errors": rec.get("pose_errors", 0),
         "time_s": rec["t_end"] - rec["t_start"],
