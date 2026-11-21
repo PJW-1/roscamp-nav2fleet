@@ -87,20 +87,26 @@ def events_below(series, limit):
     return count
 
 
+def within(rows, t0, t1):
+    return [r for r in rows if t0 <= r[0] <= t1]
+
+
 def leg_metrics(rec, cfg, body, statics):
     movers = [cfg["movers"][n] for n in rec.get("movers_names", [])]
-    truth = rec["truth"]
-    wz = [c[2] for c in rec["cmd"]]
-    dts = sorted(b[0] - a[0] for a, b in zip(rec["cmd"], rec["cmd"][1:], strict=False))
+    t0, t1 = rec["t_start"], rec["t_end"]
+    truth = within(rec["truth"], t0, t1)
+    cmd = within(rec["cmd"], t0, t1)
+    wz = [c[2] for c in cmd]
+    dts = sorted(b[0] - a[0] for a, b in zip(cmd, cmd[1:], strict=False))
     clear = body_clearance(truth, body, statics, movers, rec["movers"])
-    scans = [s[1] for s in rec["scan_min"] if s[1] is not None]
+    scans = [s[1] for s in within(rec["scan_min"], t0, t1) if s[1] is not None]
     goal = cfg["goal"]
     end_err = math.dist(truth[-1][1:3], (goal["x"], goal["y"])) if truth else None
     ok = rec["status"] == "SUCCEEDED" and end_err is not None and end_err <= cfg["arrive_m"]
     return {
         "scenario": rec["scenario"], "controller": rec["controller"], "repeat": rec["repeat"],
         "status": rec["status"], "ok": ok, "end_err_m": end_err,
-        "retried": rec.get("retried", False),
+        "retried": rec.get("retried", False), "pose_errors": rec.get("pose_errors", 0),
         "time_s": rec["t_end"] - rec["t_start"],
         "path_m": path_length(truth),
         "lidar_min_m": min(scans) if scans else None,

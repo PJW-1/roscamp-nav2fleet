@@ -112,11 +112,21 @@ def _inside(p, poly) -> bool:
     return inside
 
 
+def _cross(o, a, b) -> float:
+    return (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0])
+
+
+def _segments_cross(a, b, c, d) -> bool:
+    return (_cross(a, b, c) * _cross(a, b, d) < 0) and (_cross(c, d, a) * _cross(c, d, b) < 0)
+
+
 def poly_dist(p1, p2) -> float:
     if any(_inside(p, p2) for p in p1) or any(_inside(p, p1) for p in p2):
         return 0.0
     edges2 = list(zip(p2, p2[1:] + p2[:1], strict=False))
     edges1 = list(zip(p1, p1[1:] + p1[:1], strict=False))
+    if any(_segments_cross(a, b, c, d) for a, b in edges1 for c, d in edges2):
+        return 0.0
     return min(min(_seg_dist(p, a, b) for a, b in edges2 for p in p1),
                min(_seg_dist(p, a, b) for a, b in edges1 for p in p2))
 

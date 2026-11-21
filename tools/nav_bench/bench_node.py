@@ -76,6 +76,7 @@ class Bench(Node):
         self.travelled = {m.name: 0.0 for m in self.active}
         self.poses = {m.name: self._park(i) for i, m in enumerate(self.active)}
         self.moving = False
+        self.pose_errors = 0
         self.robot = None
         self.rec = None
         self.last_t = None
@@ -107,6 +108,8 @@ class Bench(Node):
             ok, rep = self.gz.request(f"/world/{self.world}/create", req, EntityFactory,
                                       Boolean, 5000)
             self.get_logger().info(f"spawn {m.name}: {ok and rep.data}")
+            if not (ok and rep.data):
+                raise RuntimeError(f"Gazebo did not create mover {m.name}")
 
     def push_poses(self):
         if not self.active:
@@ -118,7 +121,9 @@ class Bench(Node):
             p.name = f"bench_{m.name}"
             p.position.x, p.position.y = x, y
             p.orientation.z, p.orientation.w = quat(yaw)
-        self.gz.request(f"/world/{self.world}/set_pose_vector", req, Pose_V, Boolean, 500)
+        ok, rep = self.gz.request(f"/world/{self.world}/set_pose_vector", req, Pose_V, Boolean, 500)
+        if not (ok and rep.data):
+            self.pose_errors += 1
 
     def place(self, on: bool):
         for i, m in enumerate(self.active):
@@ -179,17 +184,16 @@ class Bench(Node):
         handle = future.result()
         if not handle.accepted:
             return "REJECTED", sent, self.now()
-        accepted = self.now()
         result = handle.get_result_async()
-        while rclpy.ok() and not result.done() and self.now() - accepted < timeout_s:
+        while rclpy.ok() and not result.done() and self.now() - sent < timeout_s:
             rclpy.spin_once(self, timeout_sec=0.05)
         if not result.done():
             cancel = handle.cancel_goal_async()
             while rclpy.ok() and not cancel.done():
                 rclpy.spin_once(self, timeout_sec=0.05)
             self.wait(1.0)
-            return "TIMEOUT", accepted, self.now()
-        return STATUS.get(result.result().status, str(result.result().status)), accepted, self.now()
+            return "TIMEOUT", sent, self.now()
+        return STATUS.get(result.result().status, str(result.result().status)), sent, self.now()
 
     def leg(self, controller, repeat):
         cfg = self.cfg
@@ -197,6 +201,7 @@ class Bench(Node):
         self.select(controller)
         self.place(True)
         self.wait(0.5)
+        self.pose_errors = 0
         self.rec = {"truth": [], "cmd": [], "scan_min": [], "movers": []}
         cpu0, wall0 = cpu_seconds(self.ctl_pid), time.monotonic()
         status, t0, t1 = self.go(cfg["goal"], cfg["leg_timeout_s"])
@@ -216,6 +221,7 @@ class Bench(Node):
             self.place_static()
         rec.update({"scenario": self.scenario, "controller": controller, "repeat": repeat,
                     "status": status, "t_start": t0, "t_end": t1, "retried": retried,
+                    "pose_errors": self.pose_errors,
                     "movers_names": [m.name for m in self.active],
                     "cpu_s": None if cpu0 is None or cpu1 is None else cpu1 - cpu0,
                     "wall_s": wall1 - wall0})

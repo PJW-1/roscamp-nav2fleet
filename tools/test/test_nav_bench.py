@@ -92,3 +92,21 @@ def test_the_body_distance_includes_moving_obstacles():
     track = [[0.0, [1.0, 0.5, 0.0]]]
     out = mt.body_clearance([[0.0, 0.8, 0.5, 0.0]], body, [], [m], track)
     assert out[0][1] == pytest.approx(1.0 - 0.04 - 0.84, abs=2e-3)
+
+
+def test_two_crossing_rectangles_touch_even_with_every_corner_outside():
+    long_x = mv.rect(-1.0, -0.1, 1.0, 0.1)
+    long_y = mv.rect(-0.1, -1.0, 0.1, 1.0)
+    assert mv.poly_dist(long_x, long_y) == 0.0
+    assert mv.poly_dist(long_x, mv.rect(-1.0, 0.3, 1.0, 0.4)) == pytest.approx(0.2)
+
+
+def test_the_metrics_count_only_the_leg_between_goal_sent_and_result():
+    cfg = mv.load(CONFIG)
+    rec = {"scenario": "a_hall", "controller": "FollowPathGoal", "repeat": 0, "status": "SUCCEEDED",
+           "t_start": 10.0, "t_end": 20.0, "movers_names": [], "movers": [],
+           "truth": [[5.0, 0.0, 0.0, 0.0], [10.0, 1.0, 0.55, 0.0], [20.0, 1.645, 0.55, 0.0]],
+           "cmd": [[5.0, 0.0, 0.5], [6.0, 0.0, -0.5], [12.0, 0.1, 0.3]], "scan_min": [[5.0, 0.01]]}
+    row = mt.leg_metrics(rec, cfg, mt.footprint(), mt.arena_rects())
+    assert row["doridori"] == 0 and row["lidar_min_m"] is None
+    assert row["path_m"] == pytest.approx(0.645) and row["ok"]
