@@ -158,3 +158,27 @@ def mover_pose(legs: dict[str, torch.Tensor], t: torch.Tensor):
     sign = torch.where(in_out, 1.0, torch.where(in_back, -1.0, 0.0)) * moving.float()
     vel = (sign * v)[:, None] * u
     return pos, yaw, vel
+
+
+def surface_gap(shape: MoverShape, xy: torch.Tensor, pos: torch.Tensor, yaw: torch.Tensor):
+    """(n,) distance from points xy (n, 2) to the mover surface at pos (n, 2), yaw (n,);
+    negative inside a person."""
+    d = xy - pos
+    if shape.kind == "cylinder":
+        return d.norm(dim=-1) - shape.size[0]
+    c, s_ = torch.cos(yaw), torch.sin(yaw)  # distance to the box turned by yaw
+    lx, ly = c * d[:, 0] + s_ * d[:, 1], -s_ * d[:, 0] + c * d[:, 1]
+    ex = (lx.abs() - 0.5 * shape.size[0]).clamp(min=0.0)
+    ey = (ly.abs() - 0.5 * shape.size[1]).clamp(min=0.0)
+    return torch.sqrt(ex * ex + ey * ey)
+
+
+def yield_step(legs, t, dt: float, shape: MoverShape, robot_xy, yield_m: float) -> torch.Tensor:
+    """The mover's clock after one control step: it advances by dt unless that step would bring
+    the mover closer to the robot centre than yield_m (surface to centre) while approaching; then
+    the mover waits where it is. It goes on once the robot leaves (or it would move away)."""
+    pos0, yaw0, _ = mover_pose(legs, t)
+    pos1, yaw1, _ = mover_pose(legs, t + dt)
+    g0 = surface_gap(shape, robot_xy, pos0, yaw0)
+    g1 = surface_gap(shape, robot_xy, pos1, yaw1)
+    return torch.where((g1 < yield_m) & (g1 < g0), t, t + dt)

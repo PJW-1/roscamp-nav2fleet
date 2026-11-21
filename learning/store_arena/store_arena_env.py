@@ -187,7 +187,7 @@ class StoreArenaEnv(GoalReachEnv):
             for _ in ms.MOVERS
         ]
         self.mover_park = torch.tensor([mover_park_xy(i) for i in range(len(ms.MOVERS))], **f32)
-        self.mover_t = torch.zeros(n, **f32)
+        self.mover_t = torch.zeros(len(ms.MOVERS), n, **f32)  # each mover's own clock
         self.mover_gap = torch.full((n,), float("inf"), **f32)
         self.last_ep_mover_gap = torch.full((n,), float("inf"), **f32)
         self._routes_ready = True
@@ -239,7 +239,7 @@ class StoreArenaEnv(GoalReachEnv):
         self._follow(env_ids, self.start_xy[env_ids], self._new_yaw)
         self.d_prev[env_ids] = self.d_now[env_ids]
         self._sample_movers(env_ids, r)
-        self.mover_t[env_ids] = 0.0
+        self.mover_t[:, env_ids] = 0.0
         self._write_movers(env_ids)
         self.mover_gap[env_ids] = self.mover_gaps(self.start_xy[env_ids], env_ids)  # at t = 0
 
@@ -273,7 +273,7 @@ class StoreArenaEnv(GoalReachEnv):
         out = []
         for i, legs in enumerate(self.mover_legs):
             sub = {k: v[ids] for k, v in legs.items()}
-            pos, yaw, vel = ms.mover_pose(sub, self.mover_t[ids])
+            pos, yaw, vel = ms.mover_pose(sub, self.mover_t[i, ids])
             act = sub["active"]
             pos = torch.where(act[:, None], pos, self.mover_park[i].expand_as(pos))
             vel = torch.where(act[:, None], vel, torch.zeros_like(vel))
@@ -297,22 +297,18 @@ class StoreArenaEnv(GoalReachEnv):
         active mover surface; negative if the centre is inside a person; inf without movers."""
         gap = torch.full((len(xy),), float("inf"), device=self.device)
         for shape, (pos, yaw, _, act) in zip(ms.MOVERS, self.mover_state(ids), strict=True):
-            d = xy - pos
-            if shape.kind == "cylinder":
-                g = d.norm(dim=-1) - shape.size[0]
-            else:  # distance to the box rotated by yaw
-                c, s_ = torch.cos(yaw), torch.sin(yaw)
-                lx, ly = c * d[:, 0] + s_ * d[:, 1], -s_ * d[:, 0] + c * d[:, 1]
-                ex = (lx.abs() - 0.5 * shape.size[0]).clamp(min=0.0)
-                ey = (ly.abs() - 0.5 * shape.size[1]).clamp(min=0.0)
-                g = torch.sqrt(ex * ex + ey * ey)
+            g = ms.surface_gap(shape, xy, pos, yaw)
             gap = torch.where(act, torch.minimum(gap, g), gap)
         return gap
 
     def _pre_physics_step(self, actions: torch.Tensor) -> None:
         super()._pre_physics_step(actions)
         if self._routes_ready:
-            self.mover_t += self.step_dt
+            xy, _ = self.robot_pose()
+            for i, (shape, legs) in enumerate(zip(ms.MOVERS, self.mover_legs, strict=True)):
+                self.mover_t[i] = ms.yield_step(
+                    legs, self.mover_t[i], self.step_dt, shape, xy, self.arena.mover_yield_m
+                )
             self._write_movers(torch.arange(self.num_envs, device=self.device))
 
     def obstacle_xy(self) -> torch.Tensor:

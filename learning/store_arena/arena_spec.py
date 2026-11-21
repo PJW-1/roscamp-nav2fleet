@@ -76,7 +76,11 @@ class ArenaSpec:
     mover_leg_m: tuple[float, float] = (0.3, 0.8)  # leg length range
     mover_speed_scale: tuple[float, float] = (0.5, 1.5)  # times the nominal speed
     mover_pause_s: tuple[float, float] = (0.0, 1.0)  # stop at each end of the leg
-    mover_node_clear_m: float = 0.25  # the whole leg keeps this far from the start and goal
+    mover_node_clear_m: float = 0.25
+    # A mover waits while its next step would bring it closer than this to the robot centre
+    # (surface to centre; the robot's footprint reaches 0.06-0.082 m): any contact is then the
+    # robot's doing. Movers that walked into a waiting robot made half of all episodes collide.
+    mover_yield_m: float = 0.15  # the whole leg keeps this far from the start and goal
 
 
 ARENA = ArenaSpec()

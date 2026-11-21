@@ -528,8 +528,10 @@ def main():
             err = 0.0
             seen = {m.name: [] for m in ms_.MOVERS}  # (sim range, nearest, farthest possible)
             org = env.scene.env_origins[:, :2]
-            for k in range(100):  # 5 s standing; movers walk
+            hit_standing = 0
+            for k in range(100):  # 5 s standing; movers walk, but wait for a robot in their way
                 env.step(stop)
+                hit_standing += int(env.collided.sum())
                 for obj, (pos, _, _, _) in zip(env.mover_objs, env.mover_state(), strict=True):
                     sim_xy = obj.data.root_pos_w.torch[:, :2] - org
                     err = max(err, float((sim_xy - pos).norm(dim=-1).max()))
@@ -558,6 +560,7 @@ def main():
             # the ray at the nearest whole degree passes up to 0.5 deg off the centre: at 1.8 m
             # that is 1.6 cm sideways, which lengthens the hit on a 4 cm radius by up to 0.4 cm
             report["mover_pose_err_max_m"] = round(err, 6)
+            report["standing_robots_hit_by_movers"] = hit_standing
             ray_ok = True
             for name, rows_ in seen.items():
                 t_ = torch.cat(rows_)
@@ -635,6 +638,7 @@ def main():
             report["pass"] = (
                 err < 1e-3
                 and ray_ok
+                and hit_standing == 0
                 and len(ids) >= 0.8 * n_with_mover
                 and min(target.count(0), target.count(1)) > 0
                 and bool(ok.all())
