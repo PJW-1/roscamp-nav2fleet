@@ -1,0 +1,86 @@
+{
+ "checkpoint": "D:/isaac/runs/store_arena/ppo_g/c1/model_499.pt",
+ "num_envs": 1024,
+ "episodes": 4096,
+ "rates": {
+  "success": 0.936,
+  "collision": 0.0398,
+  "oob": 0.0,
+  "timeout": 0.0242
+ },
+ "by_boxes_on_route": {
+  "0": {
+   "success": 978,
+   "collision": 28,
+   "oob": 0,
+   "timeout": 2,
+   "success_rate": 0.9702
+  },
+  "1": {
+   "success": 1054,
+   "collision": 26,
+   "oob": 0,
+   "timeout": 0,
+   "success_rate": 0.9759
+  },
+  "2": {
+   "success": 982,
+   "collision": 38,
+   "oob": 0,
+   "timeout": 27,
+   "success_rate": 0.9379
+  },
+  "3": {
+   "success": 820,
+   "collision": 71,
+   "oob": 0,
+   "timeout": 70,
+   "success_rate": 0.8533
+  }
+ },
+ "by_mover_gap": {
+  "no mover": {
+   "success": 445,
+   "collision": 11,
+   "oob": 0,
+   "timeout": 10,
+   "success_rate": 0.9549
+  },
+  "gap -inf-0.10 m": {
+   "success": 584,
+   "collision": 60,
+   "oob": 0,
+   "timeout": 12,
+   "success_rate": 0.8902
+  },
+  "gap 0.10-0.25 m": {
+   "success": 1106,
+   "collision": 29,
+   "oob": 0,
+   "timeout": 33,
+   "success_rate": 0.9469
+  },
+  "gap 0.25-0.50 m": {
+   "success": 956,
+   "collision": 32,
+   "oob": 0,
+   "timeout": 24,
+   "success_rate": 0.9447
+  },
+  "gap 0.50-inf m": {
+   "success": 743,
+   "collision": 31,
+   "oob": 0,
+   "timeout": 20,
+   "success_rate": 0.9358
+  }
+ },
+ "success_time_s_mean": 7.06,
+ "success_time_s_p90": 10.45,
+ "success_time_over_path_at_vmax_mean": 1.41,
+ "lidar_min_m": 0.0521,
+ "spec_overrides": {},
+ "arena_overrides": {
+  "route_seed": 1.0
+ }
+}

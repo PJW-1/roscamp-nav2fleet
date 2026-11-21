@@ -349,7 +349,7 @@ if __name__ == "__main__":
     elif sys.argv[1] == "routes":
         plot_routes(sys.argv[2])
     elif sys.argv[1] == "anim":
-        plot_anim(sys.argv[2], sys.argv[3], *(int(x) for x in sys.argv[4:5]))
+        plot_anim(sys.argv[2], sys.argv[3], *map(int, sys.argv[4:5]), *map(float, sys.argv[5:6]))
     elif sys.argv[1] == "traj":
         plot_traj(sys.argv[2], sys.argv[3], *(int(x) for x in sys.argv[4:5]))
     else:
