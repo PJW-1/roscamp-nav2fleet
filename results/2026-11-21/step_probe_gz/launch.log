@@ -1,0 +1,25 @@
+[INFO] [launch]: All log files can be found below /home/pjw/.ros/log/2026-11-21-04-22-23-391695-DESKTOP-6OULORO-854
+[INFO] [launch]: Default logging verbosity is set to INFO
+[INFO] [gz_server-1]: process started with pid [876]
+[INFO] [parameter_bridge-2]: process started with pid [877]
+[INFO] [robot_state_publisher-3]: process started with pid [878]
+[INFO] [create-4]: process started with pid [879]
+[create-4] [INFO] [1795202543.726910584] [pode1.ros_gz_sim]: Waiting messages on topic [/pode1/robot_description].
+[robot_state_publisher-3] [INFO] [1795202543.741318584] [pode1.robot_state_publisher]: Robot initialized
+[parameter_bridge-2] [INFO] [1795202543.768676784] [gz_bridge]: Creating GZ->ROS Bridge: [/clock (gz.msgs.Clock) -> /clock (rosgraph_msgs/msg/Clock)] (Lazy 0)
+[parameter_bridge-2] [INFO] [1795202543.771155884] [gz_bridge]: Creating GZ->ROS Bridge: [/model/pode1/scan (gz.msgs.LaserScan) -> /model/pode1/scan (sensor_msgs/msg/LaserScan)] (Lazy 0)
+[parameter_bridge-2] [INFO] [1795202543.773964084] [gz_bridge]: Creating GZ->ROS Bridge: [/model/pode1/odom (gz.msgs.Odometry) -> /model/pode1/odom (nav_msgs/msg/Odometry)] (Lazy 0)
+[parameter_bridge-2] [INFO] [1795202543.776757184] [gz_bridge]: Creating GZ->ROS Bridge: [/model/pode1/tf (gz.msgs.Pose_V) -> /model/pode1/tf (tf2_msgs/msg/TFMessage)] (Lazy 0)
+[parameter_bridge-2] [INFO] [1795202543.779044684] [gz_bridge]: Creating GZ->ROS Bridge: [/model/pode1/joint_states (gz.msgs.Model) -> /model/pode1/joint_states (sensor_msgs/msg/JointState)] (Lazy 0)
+[parameter_bridge-2] [INFO] [1795202543.779521884] [gz_bridge]: Creating ROS->GZ Bridge: [/model/pode1/cmd_vel (geometry_msgs/msg/Twist) -> /model/pode1/cmd_vel (gz.msgs.Twist)] (Lazy 0)
+[parameter_bridge-2] [INFO] [1795202543.781250284] [gz_bridge]: Creating GZ->ROS Bridge: [/model/pode1/truth (gz.msgs.Odometry) -> /model/pode1/truth (nav_msgs/msg/Odometry)] (Lazy 0)
+[create-4] [INFO] [1795202544.352650783] [pode1.ros_gz_sim]: Entity creation successful.
+[INFO] [create-4]: process has finished cleanly [pid 879]
+[gz_server-1] [1;33mWarning [Utils.cc:132][0m [/sdf/model[@name="pode"]/link[@name="base_footprint"]/sensor[@name="gpu_lidar"]/gz_frame_id:<urdf-string>:L0]: XML Element[gz_frame_id], child of element[sensor], not defined in SDF. Copying[gz_frame_id] as children of [sensor].
+[parameter_bridge-2] [INFO] [1795202552.656408267] [gz_bridge]: Passing message from ROS geometry_msgs/msg/Twist to Gazebo gz.msgs.Twist (showing msg only once per type)
+[robot_state_publisher-3] [INFO] [1795203109.495875713] [rclcpp]: signal_handler(SIGINT/SIGTERM)
+[parameter_bridge-2] [INFO] [1795203109.495901413] [rclcpp]: signal_handler(SIGINT/SIGTERM)
+[INFO] [parameter_bridge-2]: process has finished cleanly [pid 877]
+[INFO] [robot_state_publisher-3]: process has finished cleanly [pid 878]
+[ERROR] [gz_server-1]: process has died [pid 876, exit code -11, cmd 'gz sim -r -s -v 2 /home/pjw/gg_build/pd-step-probe/install/fleet_gz_sim/share/fleet_gz_sim/worlds/arena_v7.sdf'].
+[INFO] [launch]: process[gz_server-1] was required: shutting down launched system
