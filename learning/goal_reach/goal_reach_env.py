@@ -137,7 +137,7 @@ class GoalReachEnv(DirectRLEnv):
         self._t0 = time.time()
         print(f"[GOAL] contact_parts bodies: {self.scene['contact_parts'].body_names}")
         print(
-            f"[GOAL] obs dim {ts.OBS_DIM}, decimation {self.cfg.decimation}, "
+            f"[GOAL] obs dim {ts.obs_dim(self.spec)}, decimation {self.cfg.decimation}, "
             f"limits {ts.ACTION_LIMITS}"
         )
         print(f"[GOAL] spec {self.spec}")
