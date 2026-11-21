@@ -1,0 +1,19 @@
+{
+ "num_envs": 4096,
+ "max_iterations": 300,
+ "num_steps_per_env": 24,
+ "seed": 42,
+ "resume": "",
+ "spec_overrides": {
+  "intent_robots": 2
+ },
+ "arena_overrides": {
+  "robot_max": 2
+ },
+ "routes": 4224,
+ "env_build_s": 19.5,
+ "learn_s": 1565.8,
+ "env_steps": 29491200,
+ "env_steps_per_s_incl_update": 18835.0,
+ "cuda_max_mem_alloc_MB": 690.6
+}
