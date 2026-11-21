@@ -61,7 +61,7 @@ Gazebo(`pode_sim.urdf.xacro`): 640빔, −π~π(첫 빔과 끝 빔이 같은 방
 | 15 | 앞보기 점 정의 | (a) 이전 뼈대: 가장 가까운 점부터 로봇과의 직선거리가 0.4 m 이상인 첫 점 (b) 학습의 `route_spec.follow` 그대로 | (b) 진행 번호는 [진행, 진행 + 20점] 안에서 가장 가까운 점으로만 앞으로 가고(뒤로 안 감), 앞보기 점은 진행 점에서 **경로 길이로** 0.40 m 이상 떨어진 첫 점(없으면 끝점) | 정책이 본 목표와 같아야 한다. 굽은 경로에서 (a)는 직선거리라 경로를 질러 더 먼 점을 고른다. fixture로 학습 코드와 견준다(아래 10.2) |
 | 16 | 경로를 따라가는 틀 | (a) 매 주기 경로를 `base_footprint`로 옮겨 계산 (b) 경로 틀(map) 그대로, 로봇 위치를 TF로 그 틀에서 읽음 | (b) | 학습도 map 틀에서 계산한다. (a)는 로봇 자세에 따라 누적 길이가 반올림만큼 바뀌어, 고르게 놓인 경로에서 앞보기 점이 이웃 점과 번갈아 바뀔 수 있다(Codex 검토 지적, 고침) |
 | 17 | 새 경로를 받을 때 진행 번호 | (a) 0으로 되돌림 (b) 새 경로에 로봇을 투영해 이어감 | (a) `setPlan`과 `reset`에서 0 | BT가 1 Hz로 다시 계획하고 NavFn 경로는 로봇 자리에서 시작하므로 0 근처가 맞다. 학습도 에피소드 시작에 0이다. 대가: 경로 시작이 로봇보다 20점(0.5 m) 넘게 뒤에 있으면 진행이 한 주기 늦게 따라간다 |
-| 18 | `follow_window` 단위 | 점 개수(학습 그대로), 미터 | 점 개수 20(명세) | 학습 경로는 0.025 m 칸이라 약 0.5 m. 실물 global costmap도 0.025 m라 같다. 시뮬 지도 해상도가 다르면 미터로는 달라진다(10.3에서 시뮬 경로 점 간격을 적었다) |
+| 18 | `follow_window` 단위 | 점 개수(학습 그대로), 미터 | 점 개수 20(명세) | 학습 경로는 0.025 m 칸(대각선은 0.035 m)이라 약 0.5~0.7 m. 시뮬 NavFn 경로는 점 간격 0.0125 m라 0.25 m다(10.3). 실물 경로 점 간격은 재지 않았다(global costmap은 0.025 m지만 NavFn 점 간격이 칸 크기와 같다는 보장은 없다) |
 | 19 | 정책마다 fixture | 한 폴더, 정책 폴더마다 | `test/fixtures/<정책>/`, 패리티 시험은 정책마다 한 번씩 빌드(`test_parity_<정책>`) | 관측·행동 fixture는 정책과 무관하지만 추론 fixture와 앞보기 fixture는 정책마다 다르다. 정책을 더하면 CMake 목록에 이름 하나만 더한다 |
 | 20 | 플러그인 기본 정책 | `goal_reach_base_4096`, `store_arena_4b` | `store_arena_4b`(플러그인 기본값과 덮어쓰기 YAML 모두) | 빈 바닥 정책은 경기장 안에서 관측이 학습 범위를 벗어난다(5절). 배포할 것은 매장 정책이다 |
 
@@ -291,11 +291,11 @@ controller_server 로그: `FollowPathRL FollowPathRL: policy .../policies/store_
 
 본 것:
 - **Q2 → E-3에서 벽에 붙는다.** 세 판 중 두 판은 출발 2.2 s에 (1.60, 0.085), 방향 1.93 rad에서 남쪽 벽(y 0)과 몸 사이가 0.000, 0.002 m였다. Q2에서 동쪽을 보고 서서 서쪽 goal을 받으면, 정책은 첫 명령부터 뒤로 빼며(로그 첫 줄 `act (-1.75, -0.52) cmd v -0.050`) 왼쪽으로 돈다. 그사이 몸 뒤가 벽 쪽(0.15 m 남쪽)으로 간다. 남은 한 판은 E-3 앞에서 칸막이 2 끝과 0.003 m였다. 학습에서는 접촉 힘 1 N 넘게 닿아야 충돌이고, nav_bench는 몸과 면의 실제 거리 0.005 m 이하를 충돌로 센다(스치기도 센다). 그래도 실물에서는 벽을 긁을 수 있다. 시뮬 라이다 최소 0.050 m(측정 하한)도 같은 판에서 나왔다.
-- **제자리 돌기와 흔들림은 없었다.** RL은 출발할 때 서서 돌지 않고 돌면서 나간다(O_IN → M_E 제자리 회전 0~0.1 s, RPP 2.4~3.4 s). M_E → Q2의 3.1 s는 끝에서 goal 방향 0°로 맞추는 플러그인의 회전(결정 5)이다. ω 부호 바뀜은 RL 1~10번으로 RPP(1~13번)보다 적다.
+- **계속 도는 것(spinning)이나 좌우 흔들림은 보지 못했다.** RL은 O_IN → M_E와 e_corridor에서 출발할 때 서서 돌지 않고 돌면서 나간다(제자리 회전 0~0.1 s, RPP 2.4~3.4 s). 제자리 회전이 있는 판은 둘이다: M_E → Q2의 3.1~3.2 s는 끝에서 goal 방향 0°로 맞추는 플러그인의 회전(결정 5)이고, Q2 → E-3의 0~1.6 s도 끝의 방향 맞추기(90°)를 포함한다(정책의 회전과 따로 나누어 재지는 않았다). ω 부호 바뀜은 RL 1~10번으로 RPP(1~13번)보다 적거나 같다.
 - **시간 비교는 공정하지 않다.** RL은 v 상한 0.25 m/s(명세)로 달리고, RPP는 시뮬 덮어쓰기로 0.20 m/s다. 달린 구간 평균 속도는 RL 0.10~0.18, RPP 0.14~0.18 m/s로 비슷하고, 시간 차이의 대부분은 RPP의 출발 제자리 돌기다. RL 길은 RPP보다 0.07~0.33 m 길다(돌면서 나가 부푼다).
 - RL은 진열대 A에 0.072 m까지 붙어 간다(RPP 0.100 m). 학습한 경로가 inflation 0.15 m 비용으로 짠 길인데도 정책은 경로 위 0.40 m 앞 점을 쫓아 모서리를 조금 자른다.
-- 시뮬 NavFn 경로 점 간격은 0.0125 m였다(판마다 처음 세 경로의 가운데값). 학습 경로는 0.025 m라 `follow_window` 20점은 시뮬에서 0.25 m다(학습 0.5 m). 앞보기 0.40 m는 경로 길이로 재므로 영향이 없고, 창은 한 주기(5 cm 미만 이동)에 넉넉하다.
-- 판마다 RPP로 출발점에 돌아온 뒤 nav_bench가 Gazebo에서 출발점으로 옮겼다(goal 하나에 4~6번). 돌아온 자리가 nav_bench의 출발 허용치(0.03 m, 5°)보다 넓은 goal checker(0.05 m)로 끝나서다. 판은 모두 정확한 출발점에서 시작했다.
+- 시뮬 NavFn 경로 점 간격은 0.0125 m였다(판마다 처음 세 경로의 가운데값). 학습 경로는 0.025 m(대각선 0.035 m)라 `follow_window` 20점은 시뮬에서 0.25 m다(학습 0.5~0.7 m). 앞보기 점은 "경로 길이 0.40 m 이상인 첫 점"이라 점 간격만큼 더 멀어질 수 있다(시뮬 0~0.0125 m, 학습 0~0.035 m). 보간하지 않으므로 이 차이는 남지만 학습 분포(표준편차 0.096 m)에 비해 작다. 창은 한 주기 이동(5 cm 미만)에는 넉넉하지만, 경로가 로봇보다 0.25 m 넘게 뒤에서 시작하면 진행이 한 주기에 다 따라오지 못한다.
+- 판마다 RPP로 출발점에 돌아온 뒤 nav_bench가 Gazebo에서 출발점으로 옮겼다(22판 중 21판 `replaced`). 돌아온 자리가 nav_bench의 출발 허용치(0.03 m, 5°)보다 넓은 goal checker(0.05 m) 안에서 끝나서다. 판 기록의 `start_pose`로 보면 22판 모두 `start_ok`이고 출발점과의 차이는 위치 0.0000 m, 방향 0.00°였다.
 
 ### 10.4 추론 시간
 
@@ -335,24 +335,36 @@ controller_server 1 s 로그에서 정책을 20번 가까이 부른 59개 구간
 
 ### 10.7 직접 해 볼 것
 
-Q2 → E-3의 벽 붙기를 직접 본다(RL만, 세 판, 약 3분). WSL에서 무거운 실행 잠금을 잡고 한다. `SP`는 이번 설정 파일을 둔 곳으로, 아래처럼 `g3_q2_e3.yaml`을 만들어 두면 된다(MPPI worktree `tools/nav_bench/scenarios.yaml`을 복사하고 `controllers: [FollowPathGoal, FollowPathRL]`, `repeats: 3`, `start: {x: 1.66, y: 0.15, yaw_deg: 0}`, `goal: {x: 0.64, y: 0.24, yaw_deg: 90}`, `scenarios: {a_hall: []}`로 바꾼다). 아래를 파일로 저장해 `bash 파일`로 돌린다(잠금이 잡혀 있으면 주인을 보여 주고 끝난다).
+Q2 → E-3의 벽 붙기를 직접 본다(RL 세 판과 RPP 세 판, 약 3분. 판 사이에 출발점으로 돌아가는 일을 목록의 첫 controller(RPP)가 하므로 RPP를 뺄 수 없다). WSL에서 무거운 실행 잠금을 잡고 한다. `SP`는 이번 설정 파일을 둔 곳으로, 아래처럼 `g3_q2_e3.yaml`을 만들어 두면 된다(MPPI worktree `tools/nav_bench/scenarios.yaml`을 복사하고 `controllers: [FollowPathGoal, FollowPathRL]`, `repeats: 3`, `start: {x: 1.66, y: 0.15, yaw_deg: 0}`, `goal: {x: 0.64, y: 0.24, yaw_deg: 90}`, `scenarios: {a_hall: []}`로 바꾼다). 아래를 파일로 저장해 `bash 파일`로 돌린다(잠금이 잡혀 있으면 주인을 보여 주고 끝난다).
 
 ```bash
 SP=$HOME/rl_cfg   # g3_q2_e3.yaml을 둔 폴더
 LOCK=/mnt/c/Users/pjw/ros2camp/.heavy_run.lock
 mkdir "$LOCK" && echo "me $$ rl-q2-e3 $(date -Is)" > "$LOCK/owner" || { cat "$LOCK/owner"; exit; }
-trap 'rm -rf "$LOCK"' EXIT
+mine() { for p in /proc/[0-9]*; do tr '\0' '\n' < "$p/environ" 2>/dev/null | grep -qx "ME_RUN=$$" && echo "${p#/proc/}"; done; }
+stop() {
+  r=$(mine); [ -n "$r" ] && { kill -INT $r 2>/dev/null; sleep 10; }
+  r=$(mine); [ -n "$r" ] && { kill -9 $r 2>/dev/null; sleep 2; }
+  if [ -z "$(mine)" ]; then rm -rf "$LOCK"; else echo "processes left, lock kept: $(mine)"; fi
+}
+trap stop EXIT
 set +u; source /opt/ros/jazzy/setup.bash; source ~/ros2_deps_ws/install/setup.bash
 source ~/pinky_deps_ws/install/local_setup.bash; source ~/gg_build/pd-rl-plugin/install/setup.bash
-export ROS_DOMAIN_ID=62 ROS_AUTOMATIC_DISCOVERY_RANGE=LOCALHOST GZ_PARTITION=me_62 GZ_IP=127.0.0.1
+export ROS_DOMAIN_ID=62 ROS_AUTOMATIC_DISCOVERY_RANGE=LOCALHOST GZ_PARTITION=me_62 GZ_IP=127.0.0.1 ME_RUN=$$
 ros2 launch fleet_gz_sim one_pode.launch.py gui:=false rviz:=false fsm:=false start:=Q2 nav_log_level:=info \
   nav_overrides:=$HOME/nf_src/pd-rl-plugin/sim/fleet_gz_sim/nav_overrides/follow_path_rl.yaml > /tmp/me_launch.log 2>&1 &
-# bt_navigator가 active가 되면(ros2 lifecycle get /pode1/bt_navigator)
+ok=0
+for i in $(seq 90); do
+  timeout 10 ros2 lifecycle get /pode1/bt_navigator 2>/dev/null | grep -q "^active" && { ok=1; break; }
+  sleep 2
+done
+[ $ok = 1 ] || { echo "Nav2 did not come up, see /tmp/me_launch.log"; exit 1; }
 PYTHONDONTWRITEBYTECODE=1 python3 /mnt/c/Users/pjw/ros2camp/pd-mppi/tools/nav_bench/bench_node.py \
   --config "$SP/g3_q2_e3.yaml" --scenario a_hall --out /tmp/me_legs
 grep "FollowPathRL:.*policy goal" /tmp/me_launch.log | head -5
-kill %1; sleep 10   # 남은 gz·Nav2 프로세스가 없는지 ps로 확인한다
 ```
+
+끝나면 trap이 이 실행이 띄운 프로세스(환경 변수 `ME_RUN`으로 찾음)를 모두 끄고, 남은 것이 없을 때만 잠금을 푼다. 남았다고 나오면 `ps`로 보고 직접 끈 뒤 잠금을 푼다.
 
 볼 것: 첫 몇 줄의 `act`(v 쪽이 −1 아래면 뒤로 뺀다)와 `goal ... at ... rad`. 판 기록 `/tmp/me_legs/*.json`의 `truth`에서 y가 0.09 아래로 내려가는 때를 찾는다. 출발 방향을 서쪽(`yaw_deg: 180`)으로 바꾸면 벽 붙기가 사라지는지 보면, 원인이 "뒤로 빼며 돌기"인지 가릴 수 있다.
 
