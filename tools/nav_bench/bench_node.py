@@ -199,11 +199,11 @@ class Bench(Node):
 
     def leg(self, controller, repeat):
         cfg = self.cfg
+        self.pose_errors = 0
         self.place(False)
         self.select(controller)
         self.place(True)
         self.wait(0.5)
-        self.pose_errors = 0
         self.rec = {"truth": [], "cmd": [], "scan_min": [], "movers": []}
         cpu0, wall0 = cpu_seconds(self.ctl_pid), time.monotonic()
         status, t0, t1 = self.go(cfg["goal"], cfg["leg_timeout_s"])
