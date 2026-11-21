@@ -240,7 +240,8 @@ def sim_nav_params(base: Path, out: Path, amcl: dict | None = None,
             mppi = controllers[MPPI_CONTROLLER]
             mppi["vx_max"] = min(float(mppi["vx_max"]), float(max_speed))
         for name, rl in list(controllers.items()):
-            if isinstance(rl, dict) and rl.get("plugin") == RL_PLUGIN:
+            if isinstance(rl, dict) and RL_PLUGIN in (rl.get("plugin"),
+                                                      rl.get("primary_controller")):
                 own = float(rl.get("max_linear_vel", 0.0))
                 top = min(own, float(max_speed)) if own > 0 else float(max_speed)
                 controllers[name] = {**rl, "max_linear_vel": top}

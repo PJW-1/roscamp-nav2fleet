@@ -196,6 +196,14 @@ def test_the_rl_controller_comes_only_from_its_overrides_file_and_keeps_the_base
     assert server["FollowPathRL"]["rear_stop_range"] == 0.0  # 후진 막기는 후보, 기본은 끔
 
 
+def test_the_shim_variant_gets_the_same_speed_cap(tmp_path):
+    path = REPO / "sim" / "fleet_gz_sim" / "nav_overrides" / "follow_path_rl_shim.yaml"
+    overrides = yaml.safe_load(path.read_text(encoding="utf-8"))
+    sim = yaml.safe_load(_sim(NAV, tmp_path / "shim.yaml", overrides=overrides, max_speed=0.10)
+                         .read_text(encoding="utf-8"))
+    assert sim["controller_server"]["ros__parameters"]["FollowPathRL"]["max_linear_vel"] == 0.10
+
+
 def test_the_shim_variant_wraps_the_same_rl_controller(tmp_path):
     """follow_path_rl_shim.yaml은 같은 FollowPathRL을 RotationShim으로 감싼 선택지다(기본 아님)."""
     folder = REPO / "sim" / "fleet_gz_sim" / "nav_overrides"
