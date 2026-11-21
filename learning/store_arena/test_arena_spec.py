@@ -121,6 +121,8 @@ def test_scripted_robot_defaults_are_the_user_decision():
     # --set robot_retreat=0
     assert (arena.ARENA.robot_routes, arena.ARENA.robot_retreat) == (12, 1)
     assert arena.ARENA.robot_reserve == 1  # measured 2026-11-22 (B52)
+    # stand-in Podes never beat the one top speed (B60): scale at most 1.0
+    assert arena.ARENA.robot_speed_scale[1] <= 1.0
     old = arena.make_arena_spec({"robot_routes": 4, "robot_retreat": 0})
     assert (old.robot_routes, old.robot_retreat) == (4, 0)
 

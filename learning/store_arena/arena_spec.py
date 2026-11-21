@@ -112,7 +112,8 @@ class ArenaSpec:
     corner_yaw_jitter: float = 0.6
     # --- scripted fleet robots (stage 4c, robot_spec): routes over the HALL nav graph
     robot_max: int = 0  # robots per episode, uniform 0..robot_max (0: the 4b arena; 4c: 2)
-    robot_speed_scale: tuple[float, float] = (0.67, 1.33)  # times robot_spec.ROBOT.speed
+    # at most 1.0 (B60): no stand-in Pode beats the one top speed (4c used 0.67-1.33)
+    robot_speed_scale: tuple[float, float] = (0.67, 1.0)  # times robot_spec.ROBOT.speed
     robot_pause_s: tuple[float, float] = (0.0, 2.0)  # at each route goal
     # 12 routes + retreat: user decision 2026-11-22 (4c, ppo_h and the 4c worklog used 4 and 0:
     # reproduce them with --set robot_routes=4 --set robot_retreat=0)
