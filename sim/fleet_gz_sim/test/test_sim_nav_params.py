@@ -206,6 +206,10 @@ def test_the_rl_controller_gets_the_same_speed_cap_as_rpp_and_mppi(tmp_path):
     sim = yaml.safe_load(_sim(NAV, tmp_path / "rl.yaml", overrides=overrides)
                          .read_text(encoding="utf-8"))
     assert "max_linear_vel" not in sim["controller_server"]["ros__parameters"]["FollowPathRL"]
+    overrides["controller_server"]["ros__parameters"]["FollowPathRL"]["max_linear_vel"] = 0.0
+    sim = yaml.safe_load(_sim(NAV, tmp_path / "rl.yaml", overrides=overrides, max_speed=0.15)
+                         .read_text(encoding="utf-8"))
+    assert sim["controller_server"]["ros__parameters"]["FollowPathRL"]["max_linear_vel"] == 0.15
 
 
 def test_overrides_win_over_the_sim_amcl_values(tmp_path):

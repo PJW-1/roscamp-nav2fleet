@@ -94,8 +94,10 @@ def within(rows, t0, t1):
 # ---- 공정성, 통로 띠, 시간 나누기 ----
 def run_order(repeat, controllers):
     n = len(controllers)
-    k = repeat % n
-    order = list(controllers[k:]) + list(controllers[:k])
+    base = [0]
+    for i in range(1, n):
+        base.append((i + 1) // 2 if i % 2 else n - i // 2)
+    order = [controllers[(b + repeat) % n] for b in base]
     return order[::-1] if (repeat // n) % 2 else order
 
 

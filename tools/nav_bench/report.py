@@ -156,7 +156,7 @@ def figure(rows, cfg, out):
     names = list(cfg["scenarios"])
     panels = (("time_s", "time (s, succeeded)"), ("doridori", "wz sign changes"),
               ("body_min_m", "min body clearance (m)"))
-    for k, (col, label) in enumerate(panels):
+    for k, (col, title) in enumerate(panels):
         ax = axes[k]
         for j, ctl in enumerate(cfg["controllers"]):
             means, sds = [], []
@@ -171,7 +171,7 @@ def figure(rows, cfg, out):
                    label=label(ctl), capsize=3)
         ax.set_xticks([i + 0.4 - 0.4 / len(cfg["controllers"]) for i in range(len(names))], names,
                       fontsize=8)
-        ax.set_title(label, fontsize=9)
+        ax.set_title(title, fontsize=9)
     axes[0].legend(fontsize=8)
     fig.tight_layout()
     fig.savefig(out, dpi=110)
@@ -196,8 +196,9 @@ def tracks(raw, cfg, out):
         ax.set_xlim(0.0, 1.98)
         ax.set_ylim(0.0, 0.98)
         ax.set_aspect("equal")
-        colours = ("blue", "orange", "green", "red")
-        key = ", ".join(f"{colours[j % 4]} {label(c)}" for j, c in enumerate(cfg["controllers"]))
+        colours = ("blue", "orange", "green", "red", "purple", "brown", "pink", "gray", "olive",
+                   "cyan")
+        key = ", ".join(f"{colours[j % 10]} {label(c)}" for j, c in enumerate(cfg["controllers"]))
         ax.set_title(f"{s} ({key})", fontsize=9)
     fig.tight_layout()
     fig.savefig(out, dpi=110)

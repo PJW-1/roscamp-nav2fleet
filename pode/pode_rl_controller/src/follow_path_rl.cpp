@@ -149,7 +149,7 @@ void FollowPathRL::setSpeedLimit(const double & speed_limit, const bool & percen
   if (speed_limit == nav2_costmap_2d::NO_SPEED_LIMIT) {
     speed_limit_ = max_v_;
   } else if (percentage) {
-    speed_limit_ = max_v_ * speed_limit / 100.0;
+    speed_limit_ = max_v_ * std::min(speed_limit, 100.0) / 100.0;
   } else {
     speed_limit_ = std::min(speed_limit, max_v_);
   }

@@ -200,13 +200,15 @@ def test_the_table_keeps_legs_outside_the_corridor_on_their_own_row_with_rates()
 
 
 # ---- 세 컨트롤러 ----
-def test_three_controllers_rotate_so_each_takes_every_place_and_follows_every_other_equally():
-    names = ["A", "B", "C"]
-    orders = [mt.run_order(r, names) for r in range(6)]
-    for place in range(3):
-        assert sorted(o[place] for o in orders) == ["A", "A", "B", "B", "C", "C"]
-    pairs = [(o[i], o[i + 1]) for o in orders for i in range(2)]
-    assert all(pairs.count((a, b)) == 2 for a in names for b in names if a != b)
+@pytest.mark.parametrize("n", [2, 3, 4, 5])
+def test_controllers_rotate_so_each_takes_every_place_and_follows_every_other_equally(n):
+    names = [chr(ord("A") + i) for i in range(n)]
+    orders = [mt.run_order(r, names) for r in range(2 * n)]
+    for place in range(n):
+        assert sorted(o[place] for o in orders) == sorted(names * 2)
+    pairs = [(o[i], o[i + 1]) for o in orders for i in range(n - 1)]
+    counts = {pairs.count((a, b)) for a in names for b in names if a != b}
+    assert len(counts) == 1
     assert [mt.run_order(r, ["A", "B"]) for r in range(4)] == [
         ["A", "B"], ["B", "A"], ["B", "A"], ["A", "B"]]
 
@@ -219,7 +221,7 @@ def test_welch_gives_the_difference_its_standard_error_and_t():
     assert mt.welch([1.0], [2.0, 3.0]) == (None, None, None)
 
 
-def test_the_report_takes_the_controllers_from_the_legs_and_names_rl():
+def test_the_report_takes_the_controllers_from_the_legs_and_names_rl(tmp_path):
     import report
     cfg = mv.load(CONFIG)
     base = {"scenario": "a_hall", "controller": "FollowPathGoal", "ok": True, "time_s": 10.0,
@@ -235,3 +237,6 @@ def test_the_report_takes_the_controllers_from_the_legs_and_names_rl():
     diffs = report.diff_table(rows, cfg)
     line = next(ln for ln in diffs.splitlines() if ln.startswith("| a_hall | RL - RPP | 시간 s"))
     assert "-4.00 ± 0.71" in line and "t -5.7" in line
+    pytest.importorskip("matplotlib")
+    report.figure(rows, cfg, tmp_path / "compare.png")
+    assert (tmp_path / "compare.png").stat().st_size > 0
