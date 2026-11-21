@@ -35,6 +35,8 @@ def leads(batch: Path) -> None:
     for kind, runs in (("rush", RUSH), ("v7", V7)):
         found = []
         for run in runs:
+            if not (batch / run / "result" / "summary.json").exists():
+                continue
             ev, rec, pos, *_ = step1_report.load(str(batch / run / "result"))
             found += [r["update_lead_s"] for r in step1_report.q2_routes(ev, rec, pos)
                       if r["update_lead_s"] is not None]
