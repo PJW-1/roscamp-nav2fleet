@@ -49,7 +49,8 @@ Isaac 담당은 `feat/store-arena-2026-11-21`에 계속 올리고 있어, 5b55b7
 - 의미 충돌: 새 `follow_path_rl_shim.yaml`은 FollowPathRL을 RotationShim의 `primary_controller`로 감싸서, `plugin`만
   보던 시뮬 속도 상한(8a41559)을 비켜 갔다. 그리고 그 controller 목록에 FollowPathMPPI가 없어 그쪽 시험(두 파일의
   목록이 같아야 함)이 깨졌다. 상한이 `primary_controller`도 보게 하고 목록에 MPPI를 넣었다(e0183c5). 세 controller를
-  같은 상한으로 견주려던 8a41559의 뜻을 지키는 고침이고, RL 동작은 바뀌지 않는다.
+  같은 상한으로 견주려던 8a41559의 뜻을 지키는 고침이다. 바뀌는 것은 하나: `nav_max_speed`를 출처보다 낮게(예 0.10)
+  주면 shim 변형의 RL도 그 값으로 잘린다(전에는 잘리지 않았다). 기본(출처 0.12)에서는 그대로다.
 
 ## 2. 속도의 단일 출처
 
@@ -118,7 +119,7 @@ Nav2에 velocity_smoother는 없다(설정에 없음). behavior_server에는 회
 | store_arena `episode_s` | 30 s | 62.5 s |
 | store_arena `mover_wait_s`(사람이 로봇을 기다리다 돌아서는 시간) | 2 s | 4.17 s |
 | store_arena `robot_wait_s`(대본 로봇이 우리 로봇을 기다리는 시간) | 3 s | 6.25 s |
-| store_arena `robot_backoff_s`(대본 로봇이 물러나는 시간, 대본 로봇도 0.12로 감) | 2 s | 4.17 s |
+| store_arena `robot_backoff_s`(대본 로봇이 시간으로 물러날 때의 시간. 기본 `robot_retreat=1`에서는 쓰지 않고 지난 노드까지 물러난다. `robot_retreat=0`일 때만) | 2 s | 4.17 s |
 
 늘리지 않은 것: 멈춤 시간(`mover_pause_s`, `robot_pause_s`)은 이동과 상관없다. `timeouts.py`의 기본
 `episode_s=30`은 `outcome`이 없는 예전 롤아웃(0.25 m/s, 30 s)에만 쓰이므로 그대로 두었다. 보상 무게(`w_time` 등)와
