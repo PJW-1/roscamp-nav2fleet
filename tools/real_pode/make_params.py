@@ -6,6 +6,7 @@
 저장소의 pode_nav_config/params/nav2_params.yaml과 pode_avoidance/params/avoidance.yaml을
 그대로 베끼고 앞으로 가는 컨트롤러의 desired_linear_vel만 S로 바꾼다:
 FollowPath, FollowPathThrough(nav2_params.yaml), follow_path_goal(avoidance.yaml, FollowPathGoal).
+비교용 MPPI(FollowPathMPPI)는 nav2_params.yaml의 블록을 그대로 베끼고 vx_max만 S로 바꾼다.
 FollowPathReverse(0.05)는 그대로다.
 고정 경로 컨트롤러(FollowPath, FollowPathThrough, FollowPathReverse)의 use_collision_detection은
 기본으로 false로 쓴다(시뮬 기본과 같다). --fixed-line-check를 주면 원본 값과 상관없이 true로 쓴다.
@@ -30,7 +31,8 @@ AVOID_REL = Path("pode") / "pode_avoidance" / "params" / AVOID_NAME
 SOURCE_ROOTS = (HERE.parents[1], Path.home() / "nav2fleet_ws" / "src")
 NAV2_TARGETS = (("controller_server", "ros__parameters", "FollowPath", "desired_linear_vel"),
                 ("controller_server", "ros__parameters", "FollowPathThrough",
-                 "desired_linear_vel"))
+                 "desired_linear_vel"),
+                ("controller_server", "ros__parameters", "FollowPathMPPI", "vx_max"))
 COLLISION_TARGETS = tuple(("controller_server", "ros__parameters", name, "use_collision_detection")
                           for name in ("FollowPath", "FollowPathThrough", "FollowPathReverse"))
 AVOID_TARGETS = (("follow_path_goal", "desired_linear_vel"),)

@@ -112,6 +112,8 @@ SIM_AMCL = {"z_hit": 0.95, "z_rand": 0.05, "max_beams": 120, "laser_max_range": 
 THROUGH_CONTROLLER = "FollowPathThrough"
 REVERSE_CONTROLLER = "FollowPathReverse"
 GOAL_CONTROLLER = "FollowPathGoal"
+# 비교용 Nav2 goal MPPI(ControllerSelector로 고를 때만 씀). 속도 상한은 vx_max에 건다
+MPPI_CONTROLLER = "FollowPathMPPI"
 # ---- 회피 패키지 ----
 AVOIDANCE_PACKAGE = "pode_avoidance"
 AVOIDANCE_FILE = Path("params") / "avoidance.yaml"
@@ -188,7 +190,7 @@ def sim_nav_params(base: Path, out: Path, amcl: dict | None = None,
     - controller 넷(CONTROLLERS) 모두 충돌 검사를 켠다(모든 실행에서 켬). overrides로도
       끌 수 없다. fixed_line_check가 거짓일 때만 FIXED_LINE_CONTROLLERS의 검사를 끈다.
     - max_speed가 있으면 controller마다 desired_linear_vel을 max_speed와 원래 값 중 작은 것으로
-      (후진 FollowPathReverse 0.05 m/s는 그대로 남는다)."""
+      (후진 FollowPathReverse 0.05 m/s는 그대로 남는다). MPPI_CONTROLLER가 있으면 그 vx_max도."""
     data = yaml.safe_load(base.read_text(encoding="utf-8"))
     if GOAL_CONTROLLER not in data["controller_server"]["ros__parameters"] and avoidance:
         data["controller_server"]["ros__parameters"][GOAL_CONTROLLER] = yaml.safe_load(
@@ -219,6 +221,9 @@ def sim_nav_params(base: Path, out: Path, amcl: dict | None = None,
                              f"the robot's {top} m/s")
         for rpp in rpps:
             rpp["desired_linear_vel"] = min(float(rpp["desired_linear_vel"]), float(max_speed))
+        if MPPI_CONTROLLER in controllers:
+            mppi = controllers[MPPI_CONTROLLER]
+            mppi["vx_max"] = min(float(mppi["vx_max"]), float(max_speed))
     out.write_text(yaml.safe_dump(data, sort_keys=False, allow_unicode=True), encoding="utf-8")
     return out
 
