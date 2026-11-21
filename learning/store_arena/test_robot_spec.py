@@ -151,6 +151,20 @@ def test_edge_lock_holds_the_robot_at_the_node():
     assert RS.robot_pose(r, t)[0][0, 0].item() > 1.0  # drives on once the link is free
 
 
+def test_timed_backoff_steps_a_whole_dt_as_before():
+    r = _three_node_route()
+    t, _, back = RS.robot_step(r, torch.tensor([5.0]), torch.zeros(1), torch.tensor([0.02]),
+                               0.05, torch.tensor([[9.0, 9.0]]), 0.25, 3.0, 2.0)
+    assert t.item() == pytest.approx(4.95) and back.item() == 0.0
+
+
+def test_edge_lock_also_holds_at_the_route_start():
+    r = _three_node_route()
+    t, _, _ = RS.robot_step(r, torch.zeros(1), torch.zeros(1), torch.zeros(1), 0.05,
+                            torch.tensor([[0.5, 0.1]]), 0.25, 3.0, 2.0, lock_m=0.15)
+    assert t.item() == 0.0
+
+
 def test_to_body_and_robot_gap():
     pts = torch.tensor([[[1.0, 1.0]]])
     b = RS.to_body(pts, torch.tensor([[1.0, 0.0]]), torch.tensor([math.pi / 2]))
