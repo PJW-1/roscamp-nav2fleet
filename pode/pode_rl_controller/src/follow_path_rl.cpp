@@ -67,25 +67,26 @@ void FollowPathRL::configure(
     dir + "/policy.onnx", spec_.obs_dim, spec_.act_dim, threads);
   speed_limit_ = spec_.action.v_max;
 
-  goal_rule_ = spec_.goal_rule.rule;
-  lookahead_dist_ = spec_.goal_rule.lookahead_m;
-  follow_window_ = spec_.goal_rule.follow_window > 0 ? spec_.goal_rule.follow_window : 20;
-  if (!rule_param.empty() && rule_param != goal_rule_) {
+  rule_ = spec_.goal_rule;
+  if (rule_.follow_window <= 0) {
+    rule_.follow_window = 20;
+  }
+  if (!rule_param.empty() && rule_param != rule_.rule) {
     if (rule_param != "path_end" && rule_param != "lookahead") {
       throw std::runtime_error("FollowPathRL: goal_rule must be path_end or lookahead");
     }
     RCLCPP_WARN(
       logger_, "FollowPathRL %s: goal_rule %s OVERRIDES the policy spec (%s): the policy was not "
-      "trained with this goal", name_.c_str(), rule_param.c_str(), goal_rule_.c_str());
-    goal_rule_ = rule_param;
+      "trained with this goal", name_.c_str(), rule_param.c_str(), rule_.rule.c_str());
+    rule_.rule = rule_param;
   }
-  if (lookahead_param >= 0.0 && lookahead_param != lookahead_dist_) {
+  if (lookahead_param >= 0.0 && lookahead_param != rule_.lookahead_m) {
     RCLCPP_WARN(
       logger_, "FollowPathRL %s: lookahead_dist %.2f m OVERRIDES the policy spec (%.2f m): the "
-      "policy was not trained with this goal", name_.c_str(), lookahead_param, lookahead_dist_);
-    lookahead_dist_ = lookahead_param;
+      "policy was not trained with this goal", name_.c_str(), lookahead_param, rule_.lookahead_m);
+    rule_.lookahead_m = lookahead_param;
   }
-  if (goal_rule_ == "lookahead" && lookahead_dist_ <= 0.0) {
+  if (rule_.rule == "lookahead" && rule_.lookahead_m <= 0.0) {
     throw std::runtime_error("FollowPathRL: goal_rule lookahead needs lookahead_dist > 0");
   }
 
@@ -99,8 +100,8 @@ void FollowPathRL::configure(
     logger_, "FollowPathRL %s: policy %s (obs %d, dt %.3f s, v %.2f..%.2f m/s, w %.2f rad/s), "
     "goal_rule %s (lookahead %.2f m, window %d points), scan %s, ORT CPU threads %d", name_.c_str(),
     dir.c_str(), spec_.obs_dim, spec_.control_dt, spec_.action.v_min, spec_.action.v_max,
-    spec_.action.w_max, goal_rule_.c_str(), lookahead_dist_, follow_window_, scan_topic_.c_str(),
-    threads);
+    spec_.action.w_max, rule_.rule.c_str(), rule_.lookahead_m, rule_.follow_window,
+    scan_topic_.c_str(), threads);
 }
 
 void FollowPathRL::cleanup()
@@ -121,6 +122,10 @@ void FollowPathRL::deactivate()
 void FollowPathRL::setPlan(const nav_msgs::msg::Path & path)
 {
   plan_ = path;
+  path_.resize(path.poses.size());
+  for (size_t i = 0; i < path_.size(); ++i) {
+    path_[i] = {path.poses[i].pose.position.x, path.poses[i].pose.position.y};
+  }
   prog_ = 0;
 }
 
@@ -162,33 +167,22 @@ double FollowPathRL::lidar_yaw(const std::string & frame)
   return lidar_yaw_;
 }
 
-void FollowPathRL::goal_in_base(double & x, double & y, double & yaw_end, double & dist_end)
+void FollowPathRL::goals(GoalPolar & goal, GoalPolar & end, double & yaw_end)
 {
   geometry_msgs::msg::TransformStamped t;
   try {
     t = tf_->lookupTransform(
-      base_frame_, plan_.header.frame_id, tf2::TimePointZero,
+      plan_.header.frame_id, base_frame_, tf2::TimePointZero,
       tf2::durationFromSec(transform_tolerance_));
   } catch (const tf2::TransformException & e) {
     throw nav2_core::ControllerTFError(std::string("FollowPathRL: plan frame: ") + e.what());
   }
-  std::vector<Point2> path(plan_.poses.size());
-  geometry_msgs::msg::Pose end;
-  for (size_t i = 0; i < path.size(); ++i) {
-    tf2::doTransform(plan_.poses[i].pose, end, t);
-    path[i] = {end.position.x, end.position.y};
-  }
-  x = end.position.x;
-  y = end.position.y;
-  yaw_end = tf2::getYaw(end.orientation);
-  dist_end = std::hypot(x, y);
-  if (goal_rule_ != "lookahead") {
-    return;
-  }
-  prog_ = follow_progress(path, prog_, {0.0, 0.0}, follow_window_);
-  const Point2 & p = path[lookahead_index(path, prog_, lookahead_dist_)];
-  x = p.x;
-  y = p.y;
+  const Point2 robot{t.transform.translation.x, t.transform.translation.y};
+  const double yaw = tf2::getYaw(t.transform.rotation);
+  end = goal_in_robot_frame(robot, yaw, path_.back());
+  const double e = tf2::getYaw(plan_.poses.back().pose.orientation) - yaw;
+  yaw_end = std::atan2(std::sin(e), std::cos(e));
+  goal = path_goal(path_, prog_, robot, yaw, rule_);
 }
 
 // ---- 한 주기: 관측 -> 정책 -> (v, w) ----
@@ -214,8 +208,10 @@ geometry_msgs::msg::TwistStamped FollowPathRL::computeVelocityCommands(
   if (plan_.poses.empty()) {
     throw nav2_core::InvalidPath("FollowPathRL: empty plan");
   }
-  double gx, gy, yaw_end, dist_end;
-  goal_in_base(gx, gy, yaw_end, dist_end);
+  GoalPolar goal{0.0, 0.0};
+  GoalPolar end{0.0, 0.0};
+  double yaw_end = 0.0;
+  goals(goal, end, yaw_end);
 
   if (!have_last_call_ || (now - last_call_).seconds() > 2.0 * spec_.control_dt) {
     cmd_ = {velocity.linear.x, velocity.angular.z};
@@ -233,14 +229,13 @@ geometry_msgs::msg::TwistStamped FollowPathRL::computeVelocityCommands(
   if (goal_checker && goal_checker->getTolerances(pose_tol, vel_tol)) {
     turn_radius = pose_tol.position.x;
   }
-  const bool rotating = dist_end < turn_radius;
+  const bool rotating = end.dist < turn_radius;
   if (rotating) {
     target.w = std::clamp(rotate_gain_ * yaw_end, -lim.w_max, lim.w_max);
   } else {
     const Scan s{scan->angle_min, scan->angle_increment, scan->range_min, scan->range_max,
       scan->ranges};
     const auto rays = scan_to_rays(s, lidar_yaw(scan->header.frame_id), spec_);
-    const GoalPolar goal = goal_in_robot_frame({0.0, 0.0}, 0.0, {gx, gy});
     const auto obs = build_observation(
       rays, goal.dist, goal.angle, velocity.linear.x, velocity.angular.z, spec_);
     const auto t_infer = std::chrono::steady_clock::now();
@@ -261,14 +256,14 @@ geometry_msgs::msg::TwistStamped FollowPathRL::computeVelocityCommands(
   call_sum_us_ += call_us;
   call_max_us_ = std::max(call_max_us_, call_us);
   RCLCPP_DEBUG(
-    logger_, "FollowPathRL: goal (%.3f, %.3f) act (%.3f, %.3f) cmd (%.3f, %.3f) infer %.0f us",
-    gx, gy, act[0], act[1], cmd_.v, cmd_.w, infer_us);
+    logger_, "FollowPathRL: goal %.3f m at %.3f rad, prog %zu, act (%.3f, %.3f) cmd (%.3f, %.3f) "
+    "infer %.0f us", goal.dist, goal.angle, prog_, act[0], act[1], cmd_.v, cmd_.w, infer_us);
   if ((now - last_log_).seconds() >= log_period_) {
     RCLCPP_INFO(
       logger_, "FollowPathRL: %d calls, infer mean %.0f max %.0f us, call mean %.0f max %.0f us | "
       "%s goal %.3f m at %.2f rad, end %.3f m | act (%.2f, %.2f) cmd v %.3f w %.3f | scan age %.2f s",
       calls_, infer_sum_us_ / calls_, infer_max_us_, call_sum_us_ / calls_, call_max_us_,
-      rotating ? "rotate" : "policy", std::hypot(gx, gy), std::atan2(gy, gx), dist_end, act[0],
+      rotating ? "rotate" : "policy", goal.dist, goal.angle, end.dist, act[0],
       act[1], cmd_.v, cmd_.w, scan_age);
     last_log_ = now;
     calls_ = 0;

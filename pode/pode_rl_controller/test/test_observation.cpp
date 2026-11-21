@@ -94,7 +94,43 @@ TEST(Follow, MatchesRouteSpec)
     }
   }
   std::printf("[follow] %d steps, lookahead point max |diff| %.3g m\n", steps, worst_point);
+  EXPECT_GT(steps, 40);
   EXPECT_LE(worst_point, kGeomTol);
+}
+
+TEST(Follow, PathGoalMatchesTaskSpecInThePlanFrame)
+{
+  const PolicySpec s = spec();
+  double worst = 0.0;
+  int steps = 0;
+  for (const auto & c : follow_fixture()["cases"]) {
+    const auto path = path_of(c);
+    size_t prog = 0;
+    for (const auto & st : c["steps"]) {
+      const Point2 robot{st["xy"][0].as<double>(), st["xy"][1].as<double>()};
+      const auto g =
+        pode_rl_controller::path_goal(path, prog, robot, st["yaw"].as<double>(), s.goal_rule);
+      ASSERT_EQ(prog, st["prog"].as<size_t>());
+      worst = std::max(
+        {worst, gap(g.dist, st["goal_dist"].as<double>()),
+          angle_gap(g.angle, st["goal_angle"].as<double>())});
+      ++steps;
+    }
+  }
+  std::printf("[follow] path_goal over %d steps, goal max |diff| %.3g\n", steps, worst);
+  EXPECT_GT(steps, 40);
+  EXPECT_LE(worst, kGeomTol);
+}
+
+TEST(Follow, PathEndRuleTakesTheLastPoint)
+{
+  const auto path = line(81, 0.025);
+  size_t prog = 0;
+  const auto g = pode_rl_controller::path_goal(
+    path, prog, {0.0, 1.0}, 0.0, pode_rl_controller::GoalRule{"path_end", 0.0, 0});
+  EXPECT_NEAR(g.dist, std::hypot(2.0, 1.0), kGeomTol);
+  EXPECT_NEAR(g.angle, std::atan2(-1.0, 2.0), kGeomTol);
+  EXPECT_EQ(prog, 0u);
 }
 
 TEST(Follow, PathShorterThanLookaheadGivesItsEnd)
@@ -127,8 +163,10 @@ TEST(GoalAndVelocity, MatchTaskSpec)
   const auto rays = std::vector<float>(s.lidar.rays, static_cast<float>(s.lidar.obs_max));
   double worst_polar = 0.0;
   double worst_obs = 0.0;
+  int steps = 0;
   for (const auto & c : follow_fixture()["cases"]) {
     for (const auto & st : c["steps"]) {
+      ++steps;
       const Point2 robot{st["xy"][0].as<double>(), st["xy"][1].as<double>()};
       const Point2 la{st["lookahead_xy"][0].as<double>(), st["lookahead_xy"][1].as<double>()};
       const auto g = pode_rl_controller::goal_in_robot_frame(robot, st["yaw"].as<double>(), la);
@@ -146,6 +184,7 @@ TEST(GoalAndVelocity, MatchTaskSpec)
   }
   std::printf("[goal] polar max |diff| %.3g, goal and velocity obs max |diff| %.3g\n",
     worst_polar, worst_obs);
+  EXPECT_GT(steps, 40);
   EXPECT_LE(worst_polar, kGeomTol);
   EXPECT_LE(worst_obs, kObsTol);
 }

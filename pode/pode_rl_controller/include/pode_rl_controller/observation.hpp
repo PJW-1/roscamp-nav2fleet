@@ -41,6 +41,9 @@ size_t follow_progress(
   const std::vector<Point2> & path, size_t prog, const Point2 & robot, int window);
 size_t lookahead_index(const std::vector<Point2> & path, size_t prog, double lookahead);
 GoalPolar goal_in_robot_frame(const Point2 & robot, double yaw, const Point2 & goal);
+GoalPolar path_goal(
+  const std::vector<Point2> & path, size_t & prog, const Point2 & robot, double yaw,
+  const GoalRule & rule);
 
 std::vector<float> scan_to_rays(const Scan & scan, double lidar_yaw, const PolicySpec & spec);
 std::vector<float> build_observation(

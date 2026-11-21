@@ -52,6 +52,17 @@ GoalPolar goal_in_robot_frame(const Point2 & robot, double yaw, const Point2 & g
   return {std::hypot(dx, dy), ang};
 }
 
+GoalPolar path_goal(
+  const std::vector<Point2> & path, size_t & prog, const Point2 & robot, double yaw,
+  const GoalRule & rule)
+{
+  if (rule.rule != "lookahead") {
+    return goal_in_robot_frame(robot, yaw, path.back());
+  }
+  prog = follow_progress(path, prog, robot, rule.follow_window);
+  return goal_in_robot_frame(robot, yaw, path[lookahead_index(path, prog, rule.lookahead_m)]);
+}
+
 // ---- 스캔 -> 학습 광선 360개 ----
 std::vector<float> scan_to_rays(const Scan & scan, double lidar_yaw, const PolicySpec & spec)
 {
