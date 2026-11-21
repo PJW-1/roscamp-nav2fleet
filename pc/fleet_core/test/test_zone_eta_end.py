@@ -4,7 +4,7 @@
   (pode_fsm pass_m). 그만큼 덜 달린다.
 - 다음 조각이 후진이거나 Route가 끝나면 로봇은 끝에 서서 끝 방향으로 제자리에서 돈다
   (nav_turn_rps). 아직 오는 중이면 다가오는 방향에서, 끝에 닿았으면 지금 방향에서 잰다.
-- 통신이 끊긴 로봇은 다음 조각을 못 받으니 넘어가지 않는다(STOP).
+- 통신이 끊긴 로봇도 이미 받은 base 안에서는 넘어가며 달리고, base 끝에서만 선다(STOP).
 - 차선 순서는 입구에 닿는 시각을 견주므로 끝 보정 없이 잰다(ARRIVE).
   로봇은 넘어가도 입구까지는 간다.
 - 끝 보정이 0이면 예전 식 그대로 계산한다(옛 기록 재생과 같은 값).
@@ -24,6 +24,7 @@ from fleet_core.traffic.zone.routes import (
     ARRIVE,
     STOP,
     Route,
+    heading,
     left_s,
     nav_end_s,
     speed,
@@ -147,14 +148,29 @@ def test_inside_the_hand_over_the_nav_part_is_zero_and_the_rest_stays():
     assert world.traffic._left_s(m, route, route.granted) == pytest.approx(rest)
 
 
-def test_a_cut_off_robot_drives_to_the_end_and_does_not_hand_over():
+def test_a_cut_off_robot_hands_over_inside_its_base():
     world, m = driving_to_n_w()
     route = m.route
-    raw = left_s(ON, route.edges[route.done:route.granted], m.x, m.y)
+    assert m.move_order.given == len(m.move_order.cuts)
+    assert route.edges[route.granted - 1].mode == FOLLOW_PATH
     passing = world.traffic._left_s(m, route, route.granted)
-    held = world.traffic._left_s(m, route, route.granted, STOP)
-    assert passing < held
-    assert held >= raw - 1e-9
+    assert world.traffic._left_s(m, route, route.granted, STOP) == pytest.approx(passing)
+
+
+def test_a_cut_off_robot_turns_at_the_end_of_a_base_that_ends_on_a_nav_goal():
+    world, m = driving_to_n_w()
+    first, middle, last = m.route.edges
+    end = world.site.nodes[last.b]
+    assert end.yaw is not None
+    side = end.yaw + math.pi / 2
+    start = (end.x - 0.3 * math.cos(side), end.y - 0.3 * math.sin(side))
+    sideways = replace(last, mode=NAV_GOAL, points=(start, (end.x, end.y)), length=0.3)
+    route = Route(m.route.goal, [first, middle, sideways], granted=3)
+    turn = abs(math.remainder(end.yaw - heading(start, (end.x, end.y)), math.tau))
+    assert turn == pytest.approx(math.pi / 2)
+    passing = world.traffic._left_s(m, route, 3)
+    held = world.traffic._left_s(m, route, 3, STOP)
+    assert held == pytest.approx(passing + turn / ON.nav_turn_rps)
 
 
 def test_with_both_parts_off_the_old_sum_comes_out_exactly():

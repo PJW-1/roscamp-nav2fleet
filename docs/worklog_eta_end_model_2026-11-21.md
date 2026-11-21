@@ -32,7 +32,7 @@ ETA(`order_answers._left_s`) = max(0, 지금 nav_goal 이어짐의 남은 시간
   |---|---|---|
   | `move_orders._extend_order`(base 늘리기, 구역 요청, standby update) | 다음 조각을 넘겨받아야 하는 때 | 넘김 거리 빼기 또는 끝 회전 |
   | `goals._take`의 차선 ETA(`lane_policy`가 두 로봇의 입구 도착을 견줌) | 입구 노드에 닿는 때. 넘어가도 로봇은 입구까지 간다 | 없음(예전 값 그대로) |
-  | `_hold_base`(통신이 끊긴 로봇의 base를 쥐는 시간) | 다음 조각을 못 받아 끝에 서는 때 | 끝 회전만 |
+  | `_hold_base`(통신이 끊긴 로봇의 base를 쥐는 시간) | 이미 받은 base 안에서는 넘어가며 달리고, base 끝에 서는 때 | base 안 경계는 넘김 거리, base 끝이 Nav2 goal이면 그 끝 회전 |
 
 - 0으로 자르는 것은 지금 이어짐의 몫만이다. 로봇이 이미 넘김 거리 안에 있어도 뒤 조각의 시간은 그대로 남는다.
 - 끝 보정이 0이면(두 키가 꺼졌거나 차선 ETA) 예전 식을 그대로 계산한다. 덧셈 순서까지 같아 옛 기록의 판단이 부동소수 끝자리 차이로 갈리지 않는다.
@@ -45,7 +45,7 @@ ETA(`order_answers._left_s`) = max(0, 지금 nav_goal 이어짐의 남은 시간
 | `nav_turn_rps` | 1.0 | `nav2_params.yaml` FollowPathGoal `rotate_to_heading_angular_vel` | 끝 회전 없음 |
 | `nav_goal_tolerance_m` | 0.05 | `nav2_params.yaml` `general_goal_checker` `xy_goal_tolerance` | (0보다 커야 함) |
 
-- 앞의 둘은 코드 기본값이 0(꺼짐)이다. 이 키가 없는 옛 기록을 `tools/replay.py`로 재생하면 예전 판단이 그대로 나온다(`idle_watch_s`와 같은 방식). 운영 파일에는 값이 있어야 한다(`load_params`가 빠진 키를 오류로 낸다).
+- 앞의 둘은 코드 기본값이 0(꺼짐)이다. 이 키가 없는 옛 기록을 `tools/replay.py`로 재생하면 이 두 키 때문에 판단이 바뀌지는 않는다(`idle_watch_s`와 같은 방식). 통합 브랜치에서는 출구 고정 경로 고침(`fix/exit-cancel-keepout-2026-11-21`)이 같이 들어가므로, 넓은 구역에서 도크 노드 곁의 이전 고정 경로를 끊던 기록은 재생 결과가 달라진다. 운영 파일에는 값이 있어야 한다(`load_params`가 빠진 키를 오류로 낸다).
 - 경로 비용(`travel_s`)과 `nav_speed_mps` 0.12는 바꾸지 않았다.
 
 ## 결과 (기록 재생, 시뮬 속도 0.12 m/s)
@@ -94,3 +94,8 @@ Codex(gpt-6.1-terra, high)가 7f0190a를 봤다. 지적 넷.
 - 함께 고침(리뷰가 짚지 않은 것): 차선 ETA에도 넘김 거리를 빼서 Nav2 goal로 다가오는 로봇이 차선 순서에서 1.25 s 유리했다. 위 표처럼 차선은 끝 보정 없이 잰다.
 - 고치지 않음: 이어진 nav_goal 조각 둘 뒤에 후진이 오면 앞 조각의 넘김 거리 대신 뒤 끝의 회전을 더한다는 지적. `_left_s(…, end)`는 end까지 가는 시간이라, end가 뒤 끝이면 로봇은 앞 경계를 넘어가며 그대로 달리고 뒤 끝에서 돈다. end가 앞 조각 끝이면 이어짐이 거기서 끊겨 넘김 거리를 뺀다. 맞는 동작이다. `test_zone_distance_left.py` 기대값이 같은 식을 쓴다는 지적은 끝 보정 자체를 `test_zone_eta_end.py`가 따로 잡으므로 두었다.
 
+통합 범위(a6265b0..baec85c) 검토에서 세 가지가 더 나왔다.
+
+- 고침: 통신 끊김(STOP) 보정을 지금 Nav2 goal 이어짐의 끝에 붙였다. 로봇은 base(받은 조각 전부, `move_orders`가 granted까지 cut을 한 번에 보낸다) 안에서는 끊겨도 `pode_fsm` `_passes`로 넘어가므로, 이어짐 뒤에 받은 고정 경로가 있으면 회전이 아니라 넘김 거리를 빼야 한다. 반대로 base가 뒤쪽 Nav2 goal로 끝나면 그 끝 회전이 빠졌다. 이 값은 `confirm_clear`를 거부하는 시각(`base_until`)이라, 빠진 회전은 거부가 일찍 풀리는 쪽이다. 이제 이어짐이 base 끝보다 앞에서 끝나면 그 끝은 넘어감(PASS)으로 재고, base 끝 조각이 Nav2 goal이면 그 끝 회전을 더한다. 시험 둘을 먼저 썼다. 예전 시험 `test_a_cut_off_robot_drives_to_the_end_and_does_not_hand_over`는 잘못된 동작(끊긴 로봇이 base 안 경계에서도 서서 돈다)을 고정하고 있어 `test_a_cut_off_robot_hands_over_inside_its_base`로 바꿨다.
+- 고치지 않음: 이어진 Nav2 goal이 여러 Segment로 나뉘면 안쪽 경계마다 넘김 거리를 빼야 한다는 지적. 일찍 넘어가도 로봇은 다음 goal까지 남은 길을 그대로 달리므로, 곧은 길에서는 줄어드는 거리가 없다. 꺾이는 곳에서 Nav2가 모서리를 질러가고 RPP가 제자리에서 도는 몫은 이 모델도 `travel_s`도 어디서나 재지 않는다(전부터 있던 한계). 위 "맞는 동작이다"는 이 한계를 뺀 말이다.
+- 기록 재생: 두 키를 꺼도 통합 브랜치 전체가 main과 같은 판단을 하지는 않는다는 지적은 맞아 위 파라미터 설명을 고쳤다.

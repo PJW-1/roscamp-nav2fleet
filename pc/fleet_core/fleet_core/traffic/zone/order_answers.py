@@ -84,17 +84,23 @@ class OrderAnswers:
         stop = self._reported_end(m, route)
         nav_first = end > done and edges[done].mode == NAV_GOAL
         chain = done + nav_stretch(edges[done:end]) if nav_first else done
+        end_turn = 0.0
+        if ending == STOP and chain < end:
+            ending = PASS
+            if edges[end - 1].mode == NAV_GOAL:
+                end_turn = nav_end_s(p, self.site, edges, end, m.x, m.y, m.yaw, STOP)
         adjust = (nav_end_s(p, self.site, edges, chain, m.x, m.y, m.yaw, ending)
                   if nav_first else 0.0)
         if adjust == 0.0:
             if stop is None or stop > end:
-                return left_s(p, edges[done:end], m.x, m.y)
-            return m.move_order.left.m / speed(p, NAV_GOAL) + travel_s(p, edges[stop:end])
+                return left_s(p, edges[done:end], m.x, m.y) + end_turn
+            return (m.move_order.left.m / speed(p, NAV_GOAL) + travel_s(p, edges[stop:end])
+                    + end_turn)
         if stop is not None and stop <= chain:
             nav = m.move_order.left.m / speed(p, NAV_GOAL) + travel_s(p, edges[stop:chain])
         else:
             nav = left_s(p, edges[done:chain], m.x, m.y)
-        return max(0.0, nav + adjust) + travel_s(p, edges[chain:end])
+        return max(0.0, nav + adjust) + travel_s(p, edges[chain:end]) + end_turn
 
     # ---- 끝낸 seq까지 route 진행 반영 ----
     def _order_progress(self, m, seq: int, edges: int) -> None:
