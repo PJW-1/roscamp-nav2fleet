@@ -1,0 +1,15 @@
+{
+ "num_envs": 4096,
+ "max_iterations": 1000,
+ "num_steps_per_env": 24,
+ "seed": 42,
+ "resume": "",
+ "spec_overrides": {},
+ "arena_overrides": {},
+ "routes": 1408,
+ "env_build_s": 13.8,
+ "learn_s": 1096.3,
+ "env_steps": 98304000,
+ "env_steps_per_s_incl_update": 89671.0,
+ "cuda_max_mem_alloc_MB": 211.0
+}
