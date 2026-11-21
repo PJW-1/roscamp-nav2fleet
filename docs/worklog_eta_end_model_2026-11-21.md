@@ -96,6 +96,11 @@ Codex(gpt-6.1-terra, high)가 7f0190a를 봤다. 지적 넷.
 
 통합 범위(a6265b0..baec85c) 검토에서 세 가지가 더 나왔다.
 
-- 고침: 통신 끊김(STOP) 보정을 지금 Nav2 goal 이어짐의 끝에 붙였다. 로봇은 base(받은 조각 전부, `move_orders`가 granted까지 cut을 한 번에 보낸다) 안에서는 끊겨도 `pode_fsm` `_passes`로 넘어가므로, 이어짐 뒤에 받은 고정 경로가 있으면 회전이 아니라 넘김 거리를 빼야 한다. 반대로 base가 뒤쪽 Nav2 goal로 끝나면 그 끝 회전이 빠졌다. 이 값은 `confirm_clear`를 거부하는 시각(`base_until`)이라, 빠진 회전은 거부가 일찍 풀리는 쪽이다. 이제 이어짐이 base 끝보다 앞에서 끝나면 그 끝은 넘어감(PASS)으로 재고, base 끝 조각이 Nav2 goal이면 그 끝 회전을 더한다. 시험 둘을 먼저 썼다. 예전 시험 `test_a_cut_off_robot_drives_to_the_end_and_does_not_hand_over`는 잘못된 동작(끊긴 로봇이 base 안 경계에서도 서서 돈다)을 고정하고 있어 `test_a_cut_off_robot_hands_over_inside_its_base`로 바꿨다.
+- 고침: 통신 끊김(STOP) 보정을 지금 Nav2 goal 이어짐의 끝에 붙였다. 로봇은 받은 조각 안에서는 끊겨도 `pode_fsm` `_passes`로 넘어가므로, 이어짐 뒤에 받은 고정 경로가 있으면 회전이 아니라 넘김 거리를 빼야 한다. 반대로 base가 뒤쪽 Nav2 goal로 끝나면 그 끝 회전이 빠졌다. 이 값은 `confirm_clear`를 거부하는 시각(`base_until`)이라, 빠진 회전은 거부가 일찍 풀리는 쪽이다. 이제 이어짐이 base 끝보다 앞에서 끝나면 그 끝은 넘어감(PASS)으로 재고, base 끝 조각이 Nav2 goal이면 그 끝 회전을 더한다. 시험 둘을 먼저 썼다. 예전 시험 `test_a_cut_off_robot_drives_to_the_end_and_does_not_hand_over`는 잘못된 동작(끊긴 로봇이 base 안 경계에서도 서서 돈다)을 고정하고 있어 `test_a_cut_off_robot_hands_over_inside_its_base`로 바꿨다.
 - 고치지 않음: 이어진 Nav2 goal이 여러 Segment로 나뉘면 안쪽 경계마다 넘김 거리를 빼야 한다는 지적. 일찍 넘어가도 로봇은 다음 goal까지 남은 길을 그대로 달리므로, 곧은 길에서는 줄어드는 거리가 없다. 꺾이는 곳에서 Nav2가 모서리를 질러가고 RPP가 제자리에서 도는 몫은 이 모델도 `travel_s`도 어디서나 재지 않는다(전부터 있던 한계). 위 "맞는 동작이다"는 이 한계를 뺀 말이다.
 - 기록 재생: 두 키를 꺼도 통합 브랜치 전체가 main과 같은 판단을 하지는 않는다는 지적은 맞아 위 파라미터 설명을 고쳤다.
+
+STOP 고침(816a38f) 재검토에서 나온 것(세 번째 고침·검토 차례라 더 고치지 않고 사용자에게 물음):
+
+- 열린 문제: `_hold_base`는 base 끝을 `route.granted`로 잡는다(main부터 그대로). 로봇이 실제로 받은 끝은 `route.sent`다. 주차 route는 첫 고정 경로까지만 보내고(`_standby_end`), 끊기기 직전에 보낸 갱신이 유실되면 로봇은 앞 base 끝에서 서서 돈다. 이때 지금 식은 안쪽 경계를 넘어감으로 보고 넘김 거리를 빼며 회전을 더하지 않는다. 더 달릴 길이 짧고 회전이 크면 `base_until`이 실제 정지보다 이르게 끝난다. main(회전 없음, 넘김 거리 안 뺌)보다 최대 1.25 s(넘김 거리) 이르다. 거부 시각에는 `comm_base_hold_extra_s` 3.0 s가 더 붙는다. 안전한 쪽으로 고치려면 두 경우(받은 끝까지 넘어가며 감, 지금 이어짐 끝에서 섬) 가운데 긴 쪽을 쓴다.
+- 고치지 않음: 고정 경로로 넘어가려면 로봇이 다음 경로의 `connect_tolerance_m` 안에 있어야 한다는 지적. 지금 `pass_m`과 `connect_tolerance_m`이 모두 0.15라 넘김 거리는 0.15다. 두 값을 다르게 바꾸면 `nav_pass_m`도 같이 맞춰야 한다(PASS와 STOP에 같이 해당).
