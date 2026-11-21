@@ -11,6 +11,7 @@ import yaml
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import arena_spec as arena  # noqa: E402
+import route_spec as R  # noqa: E402
 
 MAP = os.path.join(arena.REPO, "pc", "fleet_core", "fleet_core", "data", "fleet_map_v7.yaml")
 
@@ -157,3 +158,27 @@ def test_graze_flags_are_booleans_also_when_off():
     assert arena.graze_flags(c, 0.005).tolist() == [True, True, False]
     off = arena.graze_flags(c, 0.0)
     assert off.dtype == torch.bool and not off.any()
+
+
+def test_corner_start_nodes_of_the_store_arena():
+    site = arena.load_site()
+    names, xy = R.hall_nodes(site, arena.ARENA.excluded_node_kinds)
+    rects = arena.boxes_tensor(arena.arena_boxes(arena.ARENA, site))
+    near = arena.near_wall_starts(torch.as_tensor(xy, dtype=torch.float32), rects,
+                                  arena.ARENA.corner_start_m)
+    assert sorted(n for n, c in zip(names, near.tolist(), strict=True) if c) == [
+        "E-1", "E-3", "M_E", "Q1", "Q2"]
+
+
+def test_footprint_box_is_off_centre_like_the_body():
+    # base_link body x -0.0745..0.0387, y +-0.047: the rear reaches further than the front
+    a = arena.ARENA
+    c, half = arena.footprint_box(torch.zeros(1, 2), torch.zeros(1), a.footprint_x, a.footprint_y)
+    assert half == pytest.approx((0.0566, 0.047)) and c[0].tolist() == pytest.approx([-0.0179, 0])
+    behind = torch.tensor([[[-0.3, -1.0, -0.08, 1.0]]])  # face 5.5 mm behind the rear edge
+    cl = arena.footprint_clearance(c, torch.zeros(1), half, behind)
+    assert cl.item() == pytest.approx(0.0055, abs=1e-6)
+    # turned around (yaw pi) the rear faces +x
+    c2, _ = arena.footprint_box(torch.zeros(1, 2), torch.tensor([math.pi]), a.footprint_x,
+                                a.footprint_y)
+    assert c2[0].tolist() == pytest.approx([0.0179, 0.0], abs=1e-6)

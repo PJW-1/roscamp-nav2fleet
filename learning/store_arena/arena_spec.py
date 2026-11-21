@@ -95,15 +95,20 @@ class ArenaSpec:
     mover_yield_mix: int = 1
     # --- wall grazes (user decision 2026-11-22, defaults since then; 0 turns each off). The
     # contact force threshold misses 0-3 mm grazes (Gazebo Q2 -> E-3: 0.000-0.003 m)
-    footprint_m: tuple[float, float] = (0.12, 0.112)  # our robot, length x width (robot_spec)
+    # our robot's body in base_link (rearmost collider; RL track measurement 2026-11-22)
+    footprint_x: tuple[float, float] = (-0.0745, 0.0387)
+    footprint_y: tuple[float, float] = (-0.047, 0.047)
     graze_m: float = 0.005  # footprint clearance at or below this ends the episode as a collision
     near_wall_m: float = 0.05  # walls, shelves, boxes: penalty while the clearance is below this
     w_near_wall: float = -0.1  # per step at clearance 0, linear to 0 at near_wall_m
     # share of episodes that start on a route whose start node is within corner_start_m of a wall
     # or shelf (centre to face), facing away from the path (+- corner_yaw_jitter rad)
+    # (0.17: E-1 0.12, E-3 0.131, Q1 0.131, Q2 0.15, M_E 0.168 m from a face: the starts of the
+    # Gazebo and sweep grazes; E-2 0.184, O_OUT 0.18, O_IN 0.202 stay out). The jitter covers
+    # goals 145-215 deg behind (the sweep grazes: goal 145-175 deg behind)
     corner_start_prob: float = 0.25
-    corner_start_m: float = 0.2
-    corner_yaw_jitter: float = 0.5
+    corner_start_m: float = 0.17
+    corner_yaw_jitter: float = 0.6
     # --- scripted fleet robots (stage 4c, robot_spec): routes over the HALL nav graph
     robot_max: int = 0  # robots per episode, uniform 0..robot_max (0: the 4b arena; 4c: 2)
     robot_speed_scale: tuple[float, float] = (0.67, 1.33)  # times robot_spec.ROBOT.speed 0.15
@@ -196,6 +201,15 @@ def graze_flags(clearance: torch.Tensor, graze_m: float) -> torch.Tensor:
     if graze_m <= 0:
         return torch.zeros_like(clearance, dtype=torch.bool)
     return clearance <= graze_m
+
+
+def footprint_box(xy, yaw, fx, fy):
+    """Centre (N, 2) and half sizes of our body box: base_link at xy (N, 2), yaw (N,), body
+    x range fx and y range fy in base_link."""
+    cx, cy = 0.5 * (fx[0] + fx[1]), 0.5 * (fy[0] + fy[1])
+    c, s = torch.cos(yaw), torch.sin(yaw)
+    centre = torch.stack((xy[:, 0] + c * cx - s * cy, xy[:, 1] + s * cx + c * cy), -1)
+    return centre, (0.5 * (fx[1] - fx[0]), 0.5 * (fy[1] - fy[0]))
 
 
 def footprint_clearance(xy, yaw, half, rects) -> torch.Tensor:

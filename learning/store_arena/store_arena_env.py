@@ -225,7 +225,6 @@ class StoreArenaEnv(GoalReachEnv):
         # yield distance per mover and env (mover_yield_mix, mover_noyield_prob)
         self.mover_yield = torch.full((len(ms.MOVERS), n), float(a.mover_yield_m), **f32)
         # wall grazes and corner starts (arena_spec graze_m, near_wall_m, corner_start_prob)
-        self.half_fp = (0.5 * a.footprint_m[0], 0.5 * a.footprint_m[1])
         self.wall_clear = torch.full((n,), float("inf"), **f32)
         self.graze_only = torch.zeros(n, dtype=torch.bool, device=dev)
         self.r_corner = torch.nonzero(
@@ -607,7 +606,8 @@ class StoreArenaEnv(GoalReachEnv):
     def footprint_clearance(self, xy, yaw) -> torch.Tensor:
         """(n,) our footprint to the nearest wall, shelf, box, mover or robot; also keeps the part
         to walls, shelves and boxes in self.wall_clear (near-wall penalty)."""
-        n, h = len(xy), self.half_fp
+        n = len(xy)
+        xy, h = arena.footprint_box(xy, yaw, self.arena.footprint_x, self.arena.footprint_y)
         sizes = torch.tensor(self.routes.obstacle_sizes, device=self.device)
         bxy = self.r_obstacle[self.route]
         half = 0.5 * sizes[None, :, None]
