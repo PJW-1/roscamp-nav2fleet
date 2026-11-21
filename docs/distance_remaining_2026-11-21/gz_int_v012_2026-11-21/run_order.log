@@ -1,0 +1,25 @@
+12:38:03 base rush1:gz_v7_rush available 14718 MB
+== rush1 exit 1 end 12:44:00 summary: True 12 / 12 305.2 s
+12:44:00 int rush1:gz_v7_rush available 14762 MB
+== rush1 exit 1 end 12:49:56 summary: True 12 / 12 306.8 s
+12:49:56 int rush2:gz_v7_rush available 15153 MB
+== rush2 exit 1 end 12:55:53 summary: True 12 / 12 308.5 s
+12:55:53 base rush2:gz_v7_rush available 15137 MB
+== rush2 exit 1 end 13:01:48 summary: True 12 / 12 305.9 s
+13:01:48 base rush3:gz_v7_rush available 15246 MB
+== rush3 exit 1 end 13:07:41 summary: True 12 / 12 305.2 s
+13:07:41 int rush3:gz_v7_rush available 15238 MB
+== rush3 exit 1 end 13:13:35 summary: True 12 / 12 305.1 s
+13:13:35 int v7a:gz_v7 available 15242 MB
+== v7a exit 1 end 13:18:02 summary: True 8 / 8 218.6 s
+13:18:02 base v7a:gz_v7 available 15250 MB
+== v7a exit 1 end 13:22:17 summary: FileNotFoundError: [Errno 2] No such file or directory: '/home/pjw/gz_runs/shelf_0a426fe_v012/v7a/result/summary.json'
+13:22:17 base v7b:gz_v7 available 15249 MB
+== v7b exit 1 end 13:26:41 summary: True 8 / 8 215.6 s
+13:26:41 int v7b:gz_v7 available 15241 MB
+== v7b exit 1 end 13:31:04 summary: True 8 / 8 216.1 s
+13:31:04 int v7c:gz_v7 available 15241 MB
+== v7c exit 1 end 13:35:30 summary: True 8 / 8 217.3 s
+13:35:30 base v7c:gz_v7 available 15239 MB
+== v7c exit 1 end 13:39:56 summary: True 8 / 8 218.2 s
+13:39:56 all done
