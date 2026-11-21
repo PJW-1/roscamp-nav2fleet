@@ -37,4 +37,4 @@ bash learning/assets/test_make_pinky_urdf.sh                 # 임시 폴더에 
 
 ## 불일치
 
-Gazebo 시뮬(`sim/fleet_gz_sim/urdf/pode_sim.urdf.xacro:22-23`)의 DiffDrive는 `wheel_separation` 0.0961, `wheel_radius` 0.028이다. 반지름은 URDF와 같다. 간격은 URDF에서 어떻게 재도 0.0961이 나오지 않는다(관절 0.0811, 충돌 구 중심 0.0971). 양쪽 다 고치지 않았다. Isaac Lab의 DiffDrive 설정에 어느 값을 쓸지는 정해야 한다. 참고로 `pode/pode_nav_config/test/test_nav_config.py:62`의 주석은 바퀴 축을 y ±0.04055로 적는다(URDF와 일치).
+Gazebo 시뮬(`sim/fleet_gz_sim/urdf/pode_sim.urdf.xacro:22-23`)의 DiffDrive는 `wheel_separation` 0.0961, `wheel_radius` 0.028이다. 반지름은 URDF와 같다. 간격은 URDF에서 어떻게 재도 0.0961이 나오지 않는다(관절 0.0811, 충돌 구 중심 0.0971). 양쪽 다 고치지 않았다. Isaac Lab에서 cmd_vel을 바퀴 속도로 바꿀 때는 실물 bringup(`pinky_params.yaml`)과 같은 0.0961을 그대로 쓴다(2026-11-21 사용자 결정). 시뮬 모델의 바퀴 위치는 고치지 않고, 실물의 회전 비율은 응답 측정 도구(`tools/real_pode/cmd_step_probe.py`)로 재서 맞춘다. 참고로 `pode/pode_nav_config/test/test_nav_config.py:62`의 주석은 바퀴 축을 y ±0.04055로 적는다(URDF와 일치).
