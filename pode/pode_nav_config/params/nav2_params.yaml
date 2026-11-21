@@ -289,7 +289,7 @@ controller_server:
       max_angular_accel: 2.0
       simulate_ahead_time: 1.0  # 돌 때 이만큼 앞까지 충돌 검사
       rotate_to_goal_heading: true  # goal에서 마지막 방향 맞추기도 제자리 회전으로
-      time_steps: 40  # 40 x 0.05 = 2.0초 앞(0.12 m/s에서 0.24 m)
+      time_steps: 83  # 83 x 0.05 = 4.15초 앞(0.12 m/s에서 0.50 m, 0.25에서 고른 40 x 0.05 x 0.25와 같은 거리)
       model_dt: 0.05  # controller_frequency 20 Hz와 같게
       batch_size: 1000  # 실물 Pi4 CPU를 생각해 기본(2000)의 반
       iteration_count: 1

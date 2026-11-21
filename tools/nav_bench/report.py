@@ -12,7 +12,8 @@ COLUMNS = ("time_s", "path_m", "lidar_min_m", "body_min_m", "doridori", "cpu_pct
 COUNTS = ("collisions", "blocked")
 DIGITS = {"doridori": 0, "cpu_pct": 0, "time_s": 1, "cmd_dt_p95_ms": 1}
 SPLIT = ("wait_s", "turn_s", "stop_s", "drive_s", "drive_vx")
-LABELS = {"FollowPathGoal": "RPP", "FollowPathMPPI": "MPPI", "FollowPathRL": "RL"}
+LABELS = {"FollowPathGoal": "RPP", "FollowPathMPPI": "MPPI", "FollowPathRL": "RL",
+          "FollowPathRLShim": "RL+shim"}
 DIFFS = (("time_s", "시간 s"), ("path_m", "달린 길 m"), ("body_min_m", "몸 최소 거리 m"),
          ("doridori_per_min", "도리도리 /분"), ("drive_vx", "주행 vx m/s"))
 

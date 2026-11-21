@@ -693,6 +693,7 @@ def test_the_mppi_block_is_there_but_the_real_robot_does_not_load_it():
     assert mppi["primary_controller"] == "nav2_mppi_controller::MPPIController"
     assert mppi["motion_model"] == "DiffDrive"
     assert mppi["model_dt"] == pytest.approx(1.0 / c["controller_frequency"])
+    assert mppi["time_steps"] * mppi["model_dt"] * mppi["vx_max"] >= 0.50 - 0.01
     for critic in mppi["critics"]:
         assert mppi[critic]["enabled"] is True, critic
 
