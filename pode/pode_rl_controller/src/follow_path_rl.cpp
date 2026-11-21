@@ -50,7 +50,7 @@ void FollowPathRL::configure(
   declare_parameter_if_not_declared(node, name_ + ".intra_op_threads", ParameterValue(1));
   declare_parameter_if_not_declared(node, name_ + ".rotate_gain", ParameterValue(1.5));
   declare_parameter_if_not_declared(node, name_ + ".log_period", ParameterValue(1.0));
-  declare_parameter_if_not_declared(node, name_ + ".rear_stop_range", ParameterValue(0.12));
+  declare_parameter_if_not_declared(node, name_ + ".rear_stop_range", ParameterValue(0.0));
   declare_parameter_if_not_declared(node, name_ + ".rear_half_width_deg", ParameterValue(30.0));
 
   const std::string policy = node->get_parameter(name_ + ".policy").as_string();
