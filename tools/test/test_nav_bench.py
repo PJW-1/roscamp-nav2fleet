@@ -120,7 +120,7 @@ def test_the_corridor_scenario_leaves_a_gap_wide_enough_to_stay_in_the_corridor(
         m = cfg["movers"][name]
         half = (m.size[1] / 2) if m.shape == "box" else m.size[0]
         for _, y in m.path:
-            assert y - half - low >= 0.25, name
+            assert y - half - low >= 0.30 - 1e-9, name
 
 
 def test_the_run_order_is_abba_so_ten_repeats_start_five_times_with_each():
