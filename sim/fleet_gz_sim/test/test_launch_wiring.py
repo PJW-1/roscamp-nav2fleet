@@ -309,6 +309,7 @@ def test_every_controller_checks_collisions_when_asked_and_keeps_the_speed_cap(m
                        if n != "FollowPathReverse"]
             assert forward == [float(speed or 0.20)] * 3
             assert controllers["FollowPathReverse"]["desired_linear_vel"] == 0.05
+            assert controllers["FollowPathMPPI"]["vx_max"] == float(speed or 0.20)
 
 
 def test_no_controller_turns_faster_than_the_simulated_drive_can(made):

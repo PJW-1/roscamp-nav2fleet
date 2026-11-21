@@ -44,7 +44,7 @@ def params(node, sub=None):
 def test_controller_uses_rpp_with_the_agreed_start_values():
     c = params("controller_server")
     assert c["controller_plugins"] == ["FollowPath", "FollowPathThrough", "FollowPathReverse",
-                                       "FollowPathGoal"]
+                                       "FollowPathGoal", "FollowPathMPPI"]
     assert c["failure_tolerance"] == 1.0
     rpp = c["FollowPath"]
     assert rpp["plugin"] == "nav2_regulated_pure_pursuit_controller::RegulatedPurePursuitController"
@@ -667,3 +667,59 @@ def test_recovery_clear_nodes_have_their_own_longer_server_timeout():
     for node in clears:
         assert int(node.get("server_timeout", "0")) >= 500, node.get("name")
     assert params("bt_navigator")["default_server_timeout"] == 20
+
+
+# ---- 비교용 MPPI(FollowPathMPPI) ----
+TASK_SPEC = PKG.parents[1] / "learning" / "goal_reach" / "task_spec.py"
+SIM_URDF = PKG.parents[1] / "sim" / "fleet_gz_sim" / "urdf" / "pode_sim.urdf.xacro"
+
+
+def _action_limits():
+    import ast
+    tree = ast.parse(TASK_SPEC.read_text(encoding="utf-8"))
+    [cls] = [n for n in tree.body if isinstance(n, ast.ClassDef) and n.name == "ActionLimits"]
+    return {n.target.id: ast.literal_eval(n.value)
+            for n in cls.body if isinstance(n, ast.AnnAssign)}
+
+
+def test_the_mppi_controller_is_loaded_with_its_own_block():
+    c = params("controller_server")
+    assert "FollowPathMPPI" in c["controller_plugins"]
+    mppi = c["FollowPathMPPI"]
+    assert mppi["plugin"] == "nav2_mppi_controller::MPPIController"
+    assert mppi["motion_model"] == "DiffDrive"
+    assert mppi["model_dt"] == pytest.approx(1.0 / c["controller_frequency"])
+    for critic in mppi["critics"]:
+        assert mppi[critic]["enabled"] is True, critic
+
+
+def test_the_mppi_limits_match_the_goal_controller_isaac_and_gazebo():
+    import re
+    mppi = params("controller_server")["FollowPathMPPI"]
+    goal = params("controller_server")["FollowPathGoal"]
+    isaac = _action_limits()
+    urdf = SIM_URDF.read_text(encoding="utf-8")
+    gz_w = float(re.search(r"<max_velocity>([^<]+)</max_velocity>", urdf).group(1))
+    gz_acc = float(re.search(r"<max_acceleration>([^<]+)</max_acceleration>", urdf).group(1))
+    assert mppi["vx_max"] == goal["desired_linear_vel"] == isaac["v_max"]
+    assert mppi["vx_min"] == isaac["v_min"]
+    assert mppi["wz_max"] == goal["rotate_to_heading_angular_vel"] == isaac["w_max"] == gz_w
+    assert mppi["ax_max"] == -mppi["ax_min"] == isaac["acc_v"] == gz_acc
+    assert mppi["az_max"] == isaac["acc_w"] == gz_acc
+
+
+def test_the_tree_still_drives_with_the_goal_controller_unless_told_otherwise():
+    [controller] = BT.getroot().iter("ControllerSelector")
+    assert controller.get("default_controller") == "FollowPathGoal"
+    assert controller.get("topic_name") == "controller_selector"
+    repo = PKG.parents[1]
+    talkers = [path for top in ("pc", "pode", "sim", "tools")
+               for path in (repo / top).rglob("*.py")
+               if path.resolve() != Path(__file__).resolve()
+               and "controller_selector" in path.read_text(encoding="utf-8", errors="ignore")]
+    assert talkers == []
+
+
+def test_the_goal_controller_is_still_the_avoidance_block():
+    assert "FollowPathGoal" not in USER["controller_server"]["ros__parameters"]
+    assert params("controller_server")["FollowPathGoal"] == AVOIDANCE["follow_path_goal"]
