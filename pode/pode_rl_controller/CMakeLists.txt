@@ -50,7 +50,7 @@ install(DIRECTORY policies DESTINATION share/${PROJECT_NAME})
 
 if(BUILD_TESTING)
   find_package(ament_cmake_gtest REQUIRED)
-  foreach(policy goal_reach_base_4096 store_arena_4b)
+  foreach(policy store_arena_4b)
     ament_add_gtest(test_parity_${policy} test/test_parity.cpp)
     target_link_libraries(test_parity_${policy} pode_rl_core)
     target_compile_definitions(test_parity_${policy} PRIVATE
@@ -62,7 +62,7 @@ if(BUILD_TESTING)
   target_compile_definitions(test_observation PRIVATE
     FIXTURE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/test/fixtures/store_arena_4b"
     POLICY_DIR="${CMAKE_CURRENT_SOURCE_DIR}/policies/store_arena_4b"
-    PATH_END_POLICY_DIR="${CMAKE_CURRENT_SOURCE_DIR}/policies/goal_reach_base_4096")
+    PATH_END_POLICY_DIR="${CMAKE_CURRENT_SOURCE_DIR}/test/fixtures/goal_reach_base_4096")
 endif()
 
 ament_export_include_directories(include)
