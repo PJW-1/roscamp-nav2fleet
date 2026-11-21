@@ -227,11 +227,14 @@ class StoreArenaEnv(GoalReachEnv):
         self.last_ep_mover_gap = torch.full((n,), float("inf"), **f32)
         # scripted fleet robots
         g = self.graph
-        self.g_t = {
-            "xy": torch.as_tensor(g.xy, **f32),
-            "path": torch.as_tensor(g.path, **f32),
-            "npts": torch.as_tensor(g.npts, device=dev),
-        }
+        self.g_t = rbs.graph_tensors(g, dev)
+        # our route's nodes for the reservation rule: arc length along each route where it passes
+        # within robot_reserve_m of a graph node (inf: it does not)
+        d = np.linalg.norm(r.path[:, :, None] - g.xy[None, None], axis=-1)  # (R, L, K)
+        d[np.arange(r.path.shape[1])[None, :] >= r.npts[:, None]] = np.inf
+        near = d.min(1) < a.robot_reserve_m
+        node_arc = np.take_along_axis(r.cum, d.argmin(1), 1)  # (R, K)
+        self.r_node_arc = torch.as_tensor(np.where(near, node_arc, np.inf), **f32)
         gi = {name: i for i, name in enumerate(g.names)}
         # graph index of each route's start and goal node (-1: not a graph node, e.g. Q1)
         self.r_sg_node = torch.tensor(
@@ -252,6 +255,7 @@ class StoreArenaEnv(GoalReachEnv):
         self.robot_t = torch.zeros(nk, n, **f32)
         self.robot_wait = torch.zeros(nk, n, **f32)
         self.robot_back = torch.zeros(nk, n, **f32)
+        self.robot_priority = torch.zeros(nk, n, dtype=torch.bool, device=dev)
         self.robot_gap_min = torch.full((n,), float("inf"), **f32)
         self.last_ep_robot_gap = torch.full((n,), float("inf"), **f32)
         self.hit_kind = torch.zeros(n, dtype=torch.long, device=dev)
@@ -335,8 +339,17 @@ class StoreArenaEnv(GoalReachEnv):
         lo, hi = a.robot_speed_scale
         p0, p1 = a.robot_pause_s
         legs = int(a.robot_routes)
+        ours = self.our_nodes(env_ids) if a.robot_reserve else None
+        headon = bool(a.robot_headon) & (sg >= 0).all(-1)
+        if a.robot_headon:
+            count = torch.where(headon, count.clamp(min=1), count)
         for k in range(nk):
-            chain = rbs.sample_chains(self.g_t, n, legs, banned)
+            chain = rbs.sample_chains(self.g_t, n, legs, banned, start_banned=ours)
+            if k == 0 and a.robot_headon:  # our goal -> our start, then on (never back to start)
+                chain[headon, 0], chain[headon, 1] = sg[headon, 1], sg[headon, 0]
+                if legs > 1:
+                    again = headon & (chain[:, 2] == sg[:, 0])
+                    chain[again, 2] = sg[again, 1]
             speed = rbs.ROBOT.speed * (lo + torch.rand(n, device=dev) * (hi - lo))
             pause = p0 + torch.rand(n, legs, device=dev) * (p1 - p0)
             route = rbs.chain_route(self.g_t, chain, speed, pause)
@@ -347,6 +360,29 @@ class StoreArenaEnv(GoalReachEnv):
             self.robot_t[k, env_ids] = 0.0
             self.robot_wait[k, env_ids] = 0.0
             self.robot_back[k, env_ids] = 0.0
+            if a.robot_priority_prob > 0:  # no draw otherwise: earlier runs stay the same
+                self.robot_priority[k, env_ids] = torch.rand(n, device=dev) < a.robot_priority_prob
+
+    def our_nodes(self, ids=None) -> torch.Tensor:
+        """(n, K) graph nodes our robot holds: on its route and not yet robot_release_m behind."""
+        ids = slice(None) if ids is None else ids
+        r = self.route[ids]
+        done_arc = self.r_cum[r].gather(1, self.prog[ids][:, None])[:, 0]  # path behind us
+        return rbs.route_nodes_held(self.r_node_arc[r], done_arc, self.arena.robot_release_m)
+
+    def blocked_nodes(self, k: int) -> torch.Tensor:
+        """(n, K) nodes robot k may only drive through: ours and the other robots'."""
+        held = self.our_nodes()
+        n = self.num_envs
+        rows = torch.arange(n, device=self.device)
+        for j, route in enumerate(self.robot_routes):
+            if j == k:
+                continue
+            act = self.robot_active[j]
+            for node in rbs.robot_nodes(route, self.robot_t[j]):
+                on = act & (node >= 0)
+                held[rows[on], node[on]] = True
+        return held
 
     def robot_state(self, ids=None):
         """Per scripted robot: position (n, 2), yaw (n,), active (n,); inactive ones parked."""
@@ -378,7 +414,7 @@ class StoreArenaEnv(GoalReachEnv):
 
     def robot_intent(self, xy, yaw):
         """Fleet intent of the intent_robots nearest active robots, nearest first: route points
-        (n, R, P, 2) in our robot frame and a mask (n, R)."""
+        (n, R, P, 2) in our robot frame, a mask (n, R) and the priority flags (n, R)."""
         s = self.spec
         pts, dist, act = [], [], []
         for k, (pos, _, a_) in enumerate(self.robot_state()):
@@ -391,6 +427,7 @@ class StoreArenaEnv(GoalReachEnv):
         n, r = len(xy), s.intent_robots
         out_p = torch.zeros(n, r, s.intent_points, 2, device=self.device)
         out_m = torch.zeros(n, r, dtype=torch.bool, device=self.device)
+        out_q = torch.zeros(n, r, dtype=torch.bool, device=self.device)
         if pts and not self.arena.intent_ablate:
             pts, dist, act = torch.stack(pts, 1), torch.stack(dist, 1), torch.stack(act, 1)
             order = dist.argsort(1)[:, :r]
@@ -398,7 +435,8 @@ class StoreArenaEnv(GoalReachEnv):
             rows = torch.arange(n, device=self.device)[:, None]
             out_p[:, :m] = pts[rows, order[:, :m]]
             out_m[:, :m] = act[rows, order[:, :m]]
-        return out_p, out_m
+            out_q[:, :m] = self.robot_priority.T[rows, order[:, :m]]
+        return out_p, out_m, out_q
 
     def nearest_hit_kind(self, xy: torch.Tensor) -> torch.Tensor:
         """(n,) index into HIT_KINDS of what is nearest to our robot centre."""
@@ -491,6 +529,9 @@ class StoreArenaEnv(GoalReachEnv):
             self._write_movers(all_ids)
             a = self.arena
             for k, route in enumerate(self.robot_routes):
+                # after the robots before it moved: two robots never take one node in one step
+                blocked = self.blocked_nodes(k) if a.robot_reserve else None
+                yield_m = torch.where(self.robot_priority[k], 0.0, a.robot_yield_m)
                 self.robot_t[k], self.robot_wait[k], self.robot_back[k] = rbs.robot_step(
                     route,
                     self.robot_t[k],
@@ -498,11 +539,13 @@ class StoreArenaEnv(GoalReachEnv):
                     self.robot_back[k],
                     self.step_dt,
                     xy,
-                    a.robot_yield_m,
+                    yield_m,
                     a.robot_wait_s,
                     a.robot_backoff_s,
                     retreat=bool(a.robot_retreat),
                     lock_m=a.robot_lock_m,
+                    blocked=blocked,
+                    node_m=a.robot_reserve_m,
                 )
             if self.robot_objs:
                 self._write_robots(all_ids)
@@ -530,9 +573,9 @@ class StoreArenaEnv(GoalReachEnv):
     def _get_observations(self) -> dict:
         if not self._routes_ready:
             return super()._get_observations()  # no intent before the routes exist
-        intent = mask = None
+        intent = mask = prio = None
         if self.spec.intent_robots:
-            intent, mask = self.robot_intent(*self.robot_pose())
+            intent, mask, prio = self.robot_intent(*self.robot_pose())
         obs = ts.build_observation(
             self.lidar_ranges(),
             self.la_dist,
@@ -541,5 +584,6 @@ class StoreArenaEnv(GoalReachEnv):
             self.spec,
             intent=intent,
             intent_mask=mask,
+            intent_priority=prio,
         )
         return {"policy": obs}

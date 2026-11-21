@@ -94,15 +94,30 @@ class ArenaSpec:
     robot_max: int = 0  # robots per episode, uniform 0..robot_max (0: the 4b arena; 4c: 2)
     robot_speed_scale: tuple[float, float] = (0.67, 1.33)  # times robot_spec.ROBOT.speed
     robot_pause_s: tuple[float, float] = (0.0, 2.0)  # at each route goal
-    robot_routes: int = 4  # routes chained per episode (then it stays at the last goal)
+    # 12 routes + retreat: user decision 2026-11-22 (4c, ppo_h and the 4c worklog used 4 and 0:
+    # reproduce them with --set robot_routes=4 --set robot_retreat=0)
+    robot_routes: int = 12  # routes chained per episode (then it stays at the last goal)
     # waits while its next step would bring its centre within this of our robot's centre and
     # closer (Gazebo nav_bench robot: yield_m 0.25, whatever its direction)
     robot_yield_m: float = 0.25
     # ... and after waiting this long backs off along its route (3 s at 0.25 m/s)
     robot_wait_s: float = ts.travel_time(3.0)
     robot_backoff_s: float = ts.travel_time(2.0)  # for this long, then drives on (2 s)
-    robot_retreat: int = 0  # 1: backs off to the last route node behind it instead (robot_spec)
+    robot_retreat: int = 1  # 1: backs off to the last route node behind it; 0: for robot_backoff_s
     robot_lock_m: float = 0.0  # > 0: waits at a node while our robot is this near the next link
+    # node reservation as fleet_manager's (robot_spec.robot_step blocked): 1 = on. Our robot holds
+    # every node within robot_reserve_m of its route until it is robot_release_m past it; robots
+    # hold the node they are at and the end of the link they drive; robots never start on ours
+    robot_reserve: int = 0
+    robot_reserve_m: float = 0.12
+    robot_release_m: float = 0.2
+    # right of way: each robot has priority over ours with this probability per episode; it then
+    # never waits for our robot (TaskSpec intent_priority shows the flag)
+    robot_priority_prob: float = 0.0
+    # 1: evaluation set where robot 0 always drives head-on, from our goal node to our start node
+    # by the graph (routes whose start and goal are graph nodes), then on at random. It starts on
+    # our goal node; with robot_reserve it then waits there until our nodes ahead are free
+    robot_headon: int = 0
     intent_ablate: int = 0  # 1: the intent entries are zeros (robots look absent): evaluation only
 
 

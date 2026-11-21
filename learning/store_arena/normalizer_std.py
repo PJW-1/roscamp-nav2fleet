@@ -18,11 +18,13 @@ import task_spec as ts  # noqa: E402
 
 def obs_names(dim: int) -> list[str]:
     """Names of a dim-long observation: the 41-dim layout plus whole intent robots (task_spec)."""
-    per = 1 + 2 * ts.SPEC.intent_points
     extra = dim - ts.OBS_DIM
-    if extra < 0 or extra % per:
-        return [f"obs_{i}" for i in range(dim)]
-    return ts.obs_names(dataclasses.replace(ts.SPEC, intent_robots=extra // per))
+    for prio in (0, 1):  # the 2-robot layouts differ in size, so the first fit is the layout
+        per = 1 + prio + 2 * ts.SPEC.intent_points
+        if extra >= 0 and extra % per == 0:
+            spec = dataclasses.replace(ts.SPEC, intent_robots=extra // per, intent_priority=prio)
+            return ts.obs_names(spec)
+    return [f"obs_{i}" for i in range(dim)]
 
 
 def normalizer_stats(path: str) -> tuple[torch.Tensor, torch.Tensor]:

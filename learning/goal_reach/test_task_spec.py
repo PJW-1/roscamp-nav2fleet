@@ -136,3 +136,19 @@ def test_times_stretch_so_the_robot_covers_the_tuned_distance():
     assert ts.travel_time(20.0, 0.12) == pytest.approx(20.0 * 0.25 / 0.12)
     assert ts.SPEC.episode_s == pytest.approx(ts.travel_time(20.0))
     assert ts.SPEC.episode_s * ts.NAV_SPEED_MPS == pytest.approx(20.0 * 0.25)
+
+
+def test_priority_flag_follows_the_present_flag_when_on():
+    spec = ts.make_spec(ts.parse_overrides(["intent_robots=2", "intent_priority=1"]))
+    names = ts.obs_names(spec)
+    assert ts.obs_dim(spec) == 41 + 2 * 8 == len(names)
+    assert names[41:43] == ["robot0_present", "robot0_priority"]
+    intent = torch.ones(2, 2, 3, 2)
+    mask = torch.tensor([[True, True], [True, False]])
+    prio = torch.tensor([[True, False], [True, True]])
+    obs = ts.build_observation(*_obs_inputs(), spec, intent=intent, intent_mask=mask,
+                               intent_priority=prio)
+    row1 = dict(zip(names, obs[1].tolist(), strict=True))
+    assert row1["robot0_priority"] == 1.0 and row1["robot1_priority"] == 0.0  # absent: 0
+    off = ts.make_spec(ts.parse_overrides(["intent_robots=2"]))
+    assert "robot0_priority" not in ts.obs_names(off)  # default off: 55 dims as before

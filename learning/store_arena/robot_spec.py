@@ -27,6 +27,7 @@ class NodeGraph:
     path: np.ndarray  # (K, K, P, 2) shortest path a -> b, node points, padded with b
     npts: np.ndarray  # (K, K) points used (1 when a == b)
     length: np.ndarray  # (K, K) m
+    path_node: np.ndarray  # (K, K, P) node index of each path point, padded with b
 
 
 def node_graph(site, zone: str = "HALL") -> NodeGraph:
@@ -65,19 +66,38 @@ def node_graph(site, zone: str = "HALL") -> NodeGraph:
     p = max(len(s) for s in seqs.values())
     path = np.zeros((k, k, p, 2))
     npts = np.zeros((k, k), dtype=np.int64)
+    path_node = np.zeros((k, k, p), dtype=np.int64)
     for (i, j), s in seqs.items():
         pts = xy[s]
         path[i, j] = np.concatenate((pts, np.repeat(pts[-1:], p - len(s), 0)))
         npts[i, j] = len(s)
-    return NodeGraph(names, xy, path, npts, dist)
+        path_node[i, j] = s + [j] * (p - len(s))
+    return NodeGraph(names, xy, path, npts, dist, path_node)
 
 
-def sample_chains(graph_t: dict, n: int, legs: int, banned: torch.Tensor, gen=None):
+def graph_tensors(g: NodeGraph, device="cpu") -> dict:
+    """The graph arrays chain_route and sample_chains take, as tensors."""
+    return {
+        "xy": torch.as_tensor(g.xy, dtype=torch.float32, device=device),
+        "path": torch.as_tensor(g.path, dtype=torch.float32, device=device),
+        "npts": torch.as_tensor(g.npts, device=device),
+        "path_node": torch.as_tensor(g.path_node, device=device),
+    }
+
+
+def sample_chains(
+    graph_t: dict, n: int, legs: int, banned: torch.Tensor, gen=None, start_banned=None
+):
     """Node indices (n, legs + 1) of a route chain per env: a start node and `legs` goals, each
     different from the one before, none in `banned` (n, K) bool (our start and goal, other robots'
-    starts). Env rows where fewer than two nodes are allowed get a chain that stays on one node."""
+    starts). Env rows where fewer than two nodes are allowed get a chain that stays on one node.
+    start_banned (n, K): further nodes the start may not be (where any other node is allowed)."""
     allowed = (~banned).float()
-    w = allowed + 1e-9 * (allowed.sum(-1, keepdim=True) == 0)  # multinomial needs a positive row
+    w = allowed
+    if start_banned is not None:
+        ws = allowed * (~start_banned).float()
+        w = torch.where(ws.sum(-1, keepdim=True) > 0, ws, allowed)
+    w = w + 1e-9 * (w.sum(-1, keepdim=True) == 0)  # multinomial needs a positive row
     nodes = [torch.multinomial(w, 1, generator=gen)[:, 0]]
     for _ in range(legs):
         wl = allowed.clone()
@@ -98,10 +118,14 @@ def chain_route(graph_t: dict, chain: torch.Tensor, speed: torch.Tensor, pause: 
     n, legs = chain.shape[0], chain.shape[1] - 1
     p = path.shape[2]
     pts = [graph_t["xy"][chain[:, 0]][:, None]]
+    vnode = [chain[:, :1]]
     for leg in range(legs):
         seg = path[chain[:, leg], chain[:, leg + 1]]  # (n, P, 2), starts at the leg's start node
         pts.append(seg)
         pts.append(seg[:, -1:])  # the pause copy
+        if "path_node" in graph_t:
+            sn = graph_t["path_node"][chain[:, leg], chain[:, leg + 1]]
+            vnode += [sn, sn[:, -1:]]
     pts = torch.cat(pts, 1)  # (n, 1 + L * (P + 1), 2); each leg repeats its start node first
     step = (pts[:, 1:] - pts[:, :-1]).norm(dim=-1)  # (n, V - 1)
     dt = step / speed[:, None].clamp(min=1e-6)
@@ -115,13 +139,46 @@ def chain_route(graph_t: dict, chain: torch.Tensor, speed: torch.Tensor, pause: 
     ).to(chain.device)
     end_arc = arc[:, pause_slot]  # (n, L)
     leg_end_arc = end_arc[:, leg_of]
-    return {
+    route = {
         "pts": pts,
         "time": time,
         "arc": arc,
         "leg_end_arc": leg_end_arc,
         "heading": route_heading(pts),
     }
+    if "path_node" in graph_t:  # node bookkeeping for the node reservation rule
+        vnode = torch.cat(vnode, 1)  # (n, V) node of every vertex
+        goal_of = torch.cat((chain[:, :1], chain[:, 1:][:, leg_of[1:]]), 1)
+        is_goal = vnode == goal_of
+        is_goal[:, 0] = False  # the start node is not a goal
+        # node of the first later vertex at another place (-1: none), for passing through
+        moved = (pts[:, 1:] - pts[:, :-1]).norm(dim=-1) > 1e-6  # (n, V - 1)
+        nxt = torch.full_like(vnode, -1)
+        for v in range(vnode.shape[1] - 2, -1, -1):
+            nxt[:, v] = torch.where(moved[:, v], vnode[:, v + 1], nxt[:, v + 1])
+        route.update(vnode=vnode, is_goal=is_goal, next_node=nxt)
+    return route
+
+
+def route_nodes_held(node_arc: torch.Tensor, done_arc: torch.Tensor, release_m: float):
+    """(n, K) nodes our robot holds: node_arc (n, K) path length at which its route passes each
+    node (inf: it does not), done_arc (n,) path length behind it."""
+    return torch.isfinite(node_arc) & (node_arc + release_m > done_arc[:, None])
+
+
+def robot_nodes(route: dict, t: torch.Tensor):
+    """Nodes a robot holds at clock t, each (n,), -1 for none: the node it is at or last left;
+    the end of the link it is driving; and when it only passes that end (no goal), the node after
+    it, so it never has to stop on a node it passes (robot_step lets it in only when free)."""
+    _, i = _interp(route["time"], t, route["arc"][..., None])
+    rows = torch.arange(len(t), device=t.device)
+    moving = (route["pts"][rows, i] - route["pts"][rows, i - 1]).norm(dim=-1) > 1e-6
+    in_link = moving & (t > route["time"][rows, i - 1] + 1e-6)
+    cur = route["vnode"][rows, i - 1]
+    none = torch.full_like(cur, -1)
+    nxt = torch.where(in_link, route["vnode"][rows, i], none)
+    passing = in_link & ~route["is_goal"][rows, i]
+    return cur, nxt, torch.where(passing, route["next_node"][rows, i], none)
 
 
 def _interp(xs: torch.Tensor, x: torch.Tensor, ys: torch.Tensor):
@@ -175,7 +232,19 @@ def intent_points(route: dict, t: torch.Tensor, spacing_m: float, points: int) -
 
 
 def robot_step(
-    route, t, wait, back, dt, our_xy, yield_m, wait_s, backoff_s, retreat=False, lock_m=0.0
+    route,
+    t,
+    wait,
+    back,
+    dt,
+    our_xy,
+    yield_m,
+    wait_s,
+    backoff_s,
+    retreat=False,
+    lock_m=0.0,
+    blocked=None,
+    node_m=0.12,
 ):
     """One control step of a scripted robot's clock t, waiting time wait and backing-off time left
     back (all (n,)). It waits while its next step would bring its centre within yield_m of our
@@ -184,6 +253,11 @@ def robot_step(
     last route node at least 5 cm behind it; then drives on.
     lock_m > 0: a link lock as fleet_manager's lanes. Before driving into the next link (crossing a
     node) it waits at the node while our robot's centre is within lock_m of that link.
+    blocked (n, K) bool: node reservation as fleet_manager's. Nodes reserved by others may only be
+    driven through: before a link it waits at its node unless the link's end node is free, or is
+    not one of its goals and the node after it is free. Held at a link it waits on its node. Nor
+    does it yield within node_m of a taken node: it drives on and yields past it. Route vertices
+    must carry nodes (chain_route with graph_tensors).
     Returns (t, wait, back)."""
     t_end = route["time"][:, -1]
     backing = back > 0
@@ -196,19 +270,39 @@ def robot_step(
     g0, g1 = (p0 - our_xy).norm(dim=-1), (p1 - our_xy).norm(dim=-1)
     held = (g1 < yield_m) & (g1 < g0 - 1e-9)
     locked = torch.zeros_like(held)
+    rows = torch.arange(len(t), device=t.device)
+    _, i1 = _interp(route["time"], t1, route["arc"][..., None])
+    a, b = route["pts"][rows, i1 - 1], route["pts"][rows, i1]
+    moving = (b - a).norm(dim=-1) > 1e-6
+    entering = t <= route["time"][rows, i1 - 1] + 1e-6  # at or before the link's first node
     if lock_m > 0:
-        _, i1 = _interp(route["time"], t1, route["arc"][..., None])
-        rows = torch.arange(len(t), device=t.device)
-        a, b = route["pts"][rows, i1 - 1], route["pts"][rows, i1]
         d = point_segment_distance(our_xy, a[:, None], b[:, None])[:, 0]
-        moving = (b - a).norm(dim=-1) > 1e-6
-        entering = t <= route["time"][rows, i1 - 1] + 1e-6  # at or before the link's first node
         locked = ~backing & entering & moving & (d < lock_m)
+    t_lock = t
+    if blocked is not None:
+
+        def taken(node):
+            return blocked.gather(1, node.clamp(min=0)[:, None])[:, 0] & (node >= 0)
+
+        after = route["next_node"][rows, i1]
+        end_taken = taken(route["vnode"][rows, i1])
+        no_stop = end_taken & (route["is_goal"][rows, i1] | (after < 0) | taken(after))
+        res = ~backing & entering & moving & no_stop
+        locked = locked | res
+        # a step that would cross the node stops on it, not just short of it
+        t_lock = torch.where(res, route["time"][rows, i1 - 1], t)
+        # no yield stop within node_m of a node someone else holds
+        _, i0 = _interp(route["time"], t, route["arc"][..., None])
+        on_taken = torch.zeros_like(held)
+        for v in (i0 - 1, i0):
+            near = (p0 - route["pts"][rows, v]).norm(dim=-1) < node_m
+            on_taken = on_taken | (near & taken(route["vnode"][rows, v]))
+        held = held & ~on_taken
     held = held & ~locked  # a lock wait is not a yield wait: it never starts a back-off
     wait = torch.where(held, wait + dt, torch.where(locked, wait, torch.zeros_like(wait)))
     start_back = held & (wait >= wait_s)
     t_old = t
-    t = torch.where(held | locked, t, t1)
+    t = torch.where(locked, t_lock, torch.where(held, t, t1))
     if retreat:  # back to the last vertex at least 5 cm of route behind
         behind = route["arc"] <= (arc0 - 0.05)[:, None]
         k = (behind.long().cumsum(-1) * behind).argmax(-1)  # last True (0 if none)
