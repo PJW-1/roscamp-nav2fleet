@@ -144,6 +144,15 @@ def test_mover_waits_for_the_robot_and_goes_on_when_it_leaves():
         legs, torch.tensor([0.5, 0.5]), dt, person, torch.zeros(2, 2), yield_m, wait, math.inf
     )
     assert t2.tolist() == pytest.approx([0.55, 0.55])
+    # a per-env yield distance: env 1 (0, a Gazebo-like mover) walks into the robot
+    on_leg = torch.tensor([[0.5, 0.0], [0.5, 0.0]])
+    t3, _, _ = M.yield_step(legs, torch.tensor([3.1, 3.1]), dt, person, on_leg,
+                            torch.tensor([0.15, 0.0]), wait * 0, math.inf)
+    assert t3.tolist() == pytest.approx([3.1, 3.15])
+    # yield 0 never waits, even with the robot centre inside the person (negative gap)
+    t4, _, _ = M.yield_step(legs, torch.tensor([4.7, 4.7]), dt, person, on_leg,
+                            torch.tensor([0.0, 0.0]), wait * 0, math.inf)
+    assert t4.tolist() == pytest.approx([4.75, 4.75])
 
 
 def test_surface_gap_of_a_turned_box():

@@ -222,6 +222,7 @@ class StoreArenaEnv(GoalReachEnv):
         self.mover_t = torch.zeros(len(ms.MOVERS), n, **f32)  # each mover's own clock
         self.mover_held = torch.zeros(len(ms.MOVERS), n, dtype=torch.bool, device=dev)  # waiting
         self.mover_wait = torch.zeros(len(ms.MOVERS), n, **f32)  # how long it has waited [s]
+        self.mover_yield = torch.full((n,), float(a.mover_yield_m), **f32)  # per env
         self.mover_gap = torch.full((n,), float("inf"), **f32)
         self.last_ep_mover_gap = torch.full((n,), float("inf"), **f32)
         # scripted fleet robots
@@ -309,6 +310,9 @@ class StoreArenaEnv(GoalReachEnv):
         self.mover_t[:, env_ids] = 0.0
         self.mover_held[:, env_ids] = False
         self.mover_wait[:, env_ids] = 0.0
+        if self.arena.mover_noyield_prob > 0:  # no draw otherwise: 4b and 4c runs stay the same
+            noyield = torch.rand(len(env_ids), device=self.device) < self.arena.mover_noyield_prob
+            self.mover_yield[env_ids] = torch.where(noyield, 0.0, self.arena.mover_yield_m)
         self._write_movers(env_ids)
         self.mover_gap[env_ids] = self.mover_gaps(self.start_xy[env_ids], env_ids)  # at t = 0
         self._sample_robots(env_ids, r)
@@ -477,7 +481,7 @@ class StoreArenaEnv(GoalReachEnv):
                     self.step_dt,
                     shape,
                     xy,
-                    self.arena.mover_yield_m,
+                    self.mover_yield,
                     self.mover_wait[i],
                     self.arena.mover_wait_s,
                 )
@@ -497,6 +501,8 @@ class StoreArenaEnv(GoalReachEnv):
                     a.robot_yield_m,
                     a.robot_wait_s,
                     a.robot_backoff_s,
+                    retreat=bool(a.robot_retreat),
+                    lock_m=a.robot_lock_m,
                 )
             if self.robot_objs:
                 self._write_robots(all_ids)

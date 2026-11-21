@@ -112,6 +112,59 @@ def test_robot_waits_backs_off_and_drives_on():
     assert t2.item() == pytest.approx(3.05)
 
 
+def _three_node_route(speed=0.15):
+    # A (0, 0) -> B (1, 0) -> C (2, 0) as one route (B is a node on the way)
+    gt = {
+        "xy": torch.tensor([[0.0, 0.0], [2.0, 0.0]]),
+        "path": torch.tensor([[[[0.0, 0.0]] * 3, [[0.0, 0.0], [1.0, 0.0], [2.0, 0.0]]],
+                              [[[2.0, 0.0], [1.0, 0.0], [0.0, 0.0]], [[2.0, 0.0]] * 3]]),
+        "npts": torch.tensor([[1, 3], [3, 1]]),
+    }
+    return RS.chain_route(gt, torch.tensor([[0, 1]]), torch.tensor([speed]), torch.zeros(1, 1))
+
+
+def test_retreat_goes_back_to_the_node_before():
+    r = _three_node_route()
+    our = torch.tensor([[1.6, 0.0]])  # in the way on the B -> C link
+    t, wait, back = torch.zeros(1), torch.zeros(1), torch.zeros(1)
+    xs = []
+    for _ in range(400):
+        t, wait, back = RS.robot_step(r, t, wait, back, 0.05, our, 0.25, 3.0, 2.0, retreat=True)
+        xs.append(RS.robot_pose(r, t)[0][0, 0].item())
+    xs = np.array(xs)
+    peak = int(np.argmax(xs > 1.34))  # first stop, 0.25 m before our robot
+    assert xs.max() == pytest.approx(1.35, abs=0.01)
+    assert xs[peak:].min() == pytest.approx(1.0, abs=0.01)  # back to node B, not further
+
+
+def test_edge_lock_holds_the_robot_at_the_node():
+    r = _three_node_route()
+    our = torch.tensor([[1.5, 0.08]])  # beside the B -> C link, not in the way of a 0.25 m yield
+    t, wait, back = torch.zeros(1), torch.zeros(1), torch.zeros(1)
+    xs = []
+    for _ in range(200):
+        t, wait, back = RS.robot_step(r, t, wait, back, 0.05, our, 0.25, 99.0, 2.0, lock_m=0.15)
+        xs.append(RS.robot_pose(r, t)[0][0, 0].item())
+    assert max(xs) == pytest.approx(1.0, abs=0.01)  # waits at B while our robot is on B -> C
+    t, wait, back = RS.robot_step(r, t, wait, back, 0.05, torch.tensor([[5.0, 5.0]]), 0.25,
+                                  99.0, 2.0, lock_m=0.15)
+    assert RS.robot_pose(r, t)[0][0, 0].item() > 1.0  # drives on once the link is free
+
+
+def test_timed_backoff_steps_a_whole_dt_as_before():
+    r = _three_node_route()
+    t, _, back = RS.robot_step(r, torch.tensor([5.0]), torch.zeros(1), torch.tensor([0.02]),
+                               0.05, torch.tensor([[9.0, 9.0]]), 0.25, 3.0, 2.0)
+    assert t.item() == pytest.approx(4.95) and back.item() == 0.0
+
+
+def test_edge_lock_also_holds_at_the_route_start():
+    r = _three_node_route()
+    t, _, _ = RS.robot_step(r, torch.zeros(1), torch.zeros(1), torch.zeros(1), 0.05,
+                            torch.tensor([[0.5, 0.1]]), 0.25, 3.0, 2.0, lock_m=0.15)
+    assert t.item() == 0.0
+
+
 def test_to_body_and_robot_gap():
     pts = torch.tensor([[[1.0, 1.0]]])
     b = RS.to_body(pts, torch.tensor([[1.0, 0.0]]), torch.tensor([math.pi / 2]))
