@@ -83,6 +83,17 @@ def test_legs_are_free_and_clear_of_start_and_goal(batch, shape):
     assert length.min() >= SPEC.mover_leg_m[0] - 1e-5 and length.max() <= SPEC.mover_leg_m[1] + 1e-5
     lo, hi = SPEC.mover_speed_scale
     assert legs["speed"].min() >= shape.speed * lo and legs["speed"].max() <= shape.speed * hi
+    # both ends (where it pauses) beside the route: it crosses the route but does not stay on it
+    valid = torch.arange(t["path"].shape[1])[None] < t["npts"][act][:, None]
+    for end in (a, b):
+        d = (end[:, None] - t["path"][act]).norm(dim=-1)
+        d = torch.where(valid, d, torch.full_like(d, 9.0)).amin(-1)
+        assert d.min() - shape.radius >= SPEC.mover_end_path_clear_m - 1e-5
+    # and a good share of legs still cross the route (middle of the leg on the path)
+    mid = 0.5 * (a + b)
+    dm = (mid[:, None] - t["path"][act]).norm(dim=-1)
+    dm = torch.where(valid, dm, torch.full_like(dm, 9.0)).amin(-1)
+    assert (dm < 0.05).float().mean() > 0.2
 
 
 def test_motion_back_and_forth_with_pauses():

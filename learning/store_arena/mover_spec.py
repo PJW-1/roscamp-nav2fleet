@@ -83,7 +83,7 @@ def sample_legs(
     shape: MoverShape,
     spec,
     gen: torch.Generator | None = None,
-    candidates: int = 128,
+    candidates: int = 256,
 ) -> dict[str, torch.Tensor]:
     """One leg per env for one mover. rects (N, B, 4) static boxes plus this env's obstacle boxes,
     path (N, L, 2) / npts (N,) the env's global path, start / goal (N, 2).
@@ -92,7 +92,9 @@ def sample_legs(
     in the bounds, has a random direction and a length in mover_leg_m. It is valid when every
     point of it keeps the mover (clearance radius + LEG_CHECK_MARGIN_M at the checked points, so
     at least the radius everywhere) off walls, shelves and boxes, stays inside the bounds and the
-    whole leg stays mover_node_clear_m from the start and the goal. The first valid candidate is
+    whole leg stays mover_node_clear_m from the start and the goal, and both ends keep the mover
+    mover_end_path_clear_m off the path (it crosses the route but cannot patrol along it, which
+    would block the only way for good). The first valid candidate is
     used; an env with none, or not drawn (mover_prob), has the mover inactive (parked)."""
     n, dev = start.shape[0], start.device
 
@@ -118,6 +120,12 @@ def sample_legs(
     ok = (leg_clearance(a, b, rects) > r + LEG_CHECK_MARGIN_M) & inside.all(-1)
     ok &= point_segment_distance(start, a, b) > spec.mover_node_clear_m
     ok &= point_segment_distance(goal, a, b) > spec.mover_node_clear_m
+    # both ends (where it pauses and turns) beside the route, so it cannot stay on the only way
+    on = torch.arange(path.shape[1], device=dev)[None, None] < npts[:, None, None]  # (N, 1, L)
+    for end in (a, b):
+        d = (end[:, :, None] - path[:, None]).norm(dim=-1)  # (N, C, L)
+        d = torch.where(on, d, torch.full_like(d, 9.0)).amin(-1)
+        ok &= d - r >= spec.mover_end_path_clear_m
     first = ok.float().argmax(-1)  # 0 when none is valid (then inactive)
     rows = torch.arange(n, device=dev)
     active = ok.any(-1) & (rand(n) < spec.mover_prob)
