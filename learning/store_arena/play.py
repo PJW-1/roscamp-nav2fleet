@@ -188,10 +188,11 @@ def main():
         }
         tz = {k: np.stack(v) for k, v in traj.items()}
         tz.update(dt=raw.step_dt, node_xy=raw.graph.xy, node_names=np.array(raw.graph.names))
-        rows = timeouts.classify(tz, raw.max_episode_length * raw.step_dt)
+        # each env's first E episodes: an env keeps running until all envs have E
+        rows = timeouts.classify(tz, raw.max_episode_length * raw.step_dt, max_episodes=E)
         # timeouts of the tracked envs by what was near; alone ones are the policy's own
         report["timeouts_tracked"] = {k: sum(r["kind"] == k for r in rows) for k in timeouts.KINDS}
-        report["alone_timeouts"] = timeouts.alone_summary(tz, rows)
+        report["alone_timeouts"] = timeouts.alone_summary(tz, rows, max_episodes=E)
         with open(os.path.join(args_cli.out, "eval.json"), "w", encoding="utf-8") as f:
             json.dump(report, f, indent=1)
         np.savez_compressed(

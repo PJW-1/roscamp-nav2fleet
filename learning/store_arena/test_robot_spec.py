@@ -226,7 +226,40 @@ def test_reservation_waits_at_its_node_before_a_taken_goal():
     blocked[0, b] = True  # B is taken too: no free node to stop at after A
     assert max(_run(r, blocked)) == pytest.approx(0.0, abs=1e-6)  # stays at A
     blocked[0, b] = False
-    assert max(_run(r, blocked)) == pytest.approx(1.0, abs=0.01)  # goes to B, waits there
+    xs = _run(r, blocked)  # goes to B and waits there: on B itself (steps do not end at B)
+    assert max(xs) == pytest.approx(1.0, abs=1e-6) and xs[-1] == pytest.approx(1.0, abs=1e-6)
+
+
+def test_waiting_robot_holds_only_the_node_it_waits_at():
+    g, gt = _line_graph()
+    a, b, c = (g.names.index(x) for x in "ABC")
+    r = RS.chain_route(gt, torch.tensor([[a, c]]), torch.tensor([0.15]), torch.zeros(1, 1))
+    blocked = torch.zeros(1, len(g.names), dtype=torch.bool)
+    blocked[0, c] = True
+    t, wait, back = torch.zeros(1), torch.zeros(1), torch.zeros(1)
+    for _ in range(400):
+        t, wait, back = RS.robot_step(r, t, wait, back, 0.05, torch.tensor([[9.0, 9.0]]), 0.25,
+                                      3.0, 2.0, blocked=blocked)
+    cur, nxt = RS.robot_nodes(r, t)
+    assert (cur.item(), nxt.item()) == (b, -1)
+
+
+def test_no_yield_stop_on_a_taken_node():
+    g, gt = _line_graph()
+    a, b, c = (g.names.index(x) for x in "ABC")
+    r = RS.chain_route(gt, torch.tensor([[a, c]]), torch.tensor([0.15]), torch.zeros(1, 1))
+    blocked = torch.zeros(1, len(g.names), dtype=torch.bool)
+    blocked[0, b] = True  # B taken: it drives through B even with our robot near ...
+    xs = _run(r, blocked, our=(1.2, 0.0))
+    # ... and yields only once it is node_m (0.12) past B, short of our robot
+    assert 1.0 + 0.12 <= max(xs) < 1.2  # (then it backs off: robot_backoff_s)
+    assert max(_run(r, torch.zeros_like(blocked), our=(1.2, 0.0))) < 1.0  # free B: yields before
+
+
+def test_route_nodes_are_ours_until_we_are_past_them():
+    node_arc = torch.tensor([[0.5, float("inf"), 2.0]])  # node 1 is not on our route
+    held = RS.route_nodes_held(node_arc, torch.tensor([0.8]), 0.2)
+    assert held.tolist() == [[False, False, True]]
 
 
 def test_reservation_passes_through_a_taken_node_it_need_not_stop_at():

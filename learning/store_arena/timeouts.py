@@ -48,7 +48,10 @@ def episodes(done: np.ndarray):
     return list(zip(starts, ends, strict=True))
 
 
-def classify(z, episode_s=30.0, window_s=10.0, near_m=0.35, still_m=0.05, tail_s=3.0):
+def classify(
+    z, episode_s=30.0, window_s=10.0, near_m=0.35, still_m=0.05, tail_s=3.0, max_episodes=None
+):
+    """Rows of the timed-out episodes; max_episodes: only each env's first ones."""
     z = {k: z[k] for k in z}  # an npz decompresses on every access: read it once
     dt = float(z["dt"])
     full = int(round(episode_s / dt))
@@ -56,7 +59,7 @@ def classify(z, episode_s=30.0, window_s=10.0, near_m=0.35, still_m=0.05, tail_s
     tail = max(int(round(tail_s / dt)), 2)
     out = []
     for e in range(z["xy"].shape[1]):
-        for s, t in episodes(z["done"][:, e]):
+        for s, t in episodes(z["done"][:, e])[:max_episodes]:
             if "outcome" in z:  # play.py records why each episode ended
                 if z["outcome"][t, e] != 3:
                     continue
@@ -102,10 +105,12 @@ def classify(z, episode_s=30.0, window_s=10.0, near_m=0.35, still_m=0.05, tail_s
     return out
 
 
-def alone_summary(z, rows, n_episodes=None):
+def alone_summary(z, rows, n_episodes=None, max_episodes=None):
     """The alone timeouts of classify rows: count, rate per 4096 episodes, where, how."""
     if n_episodes is None:
-        n_episodes = sum(len(episodes(z["done"][:, e])) for e in range(z["xy"].shape[1]))
+        n_episodes = sum(
+            len(episodes(z["done"][:, e])[:max_episodes]) for e in range(z["xy"].shape[1])
+        )
     alone = [r for r in rows if r["kind"] == "alone"]
     by_place = {}
     for r in alone:

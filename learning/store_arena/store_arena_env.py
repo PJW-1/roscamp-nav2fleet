@@ -367,8 +367,8 @@ class StoreArenaEnv(GoalReachEnv):
         """(n, K) graph nodes our robot holds: on its route and not yet robot_release_m behind."""
         ids = slice(None) if ids is None else ids
         r = self.route[ids]
-        done_arc = self.r_cum[r].gather(1, self.prog[ids][:, None])  # path length behind us
-        return self.r_node_arc[r] + self.arena.robot_release_m > done_arc
+        done_arc = self.r_cum[r].gather(1, self.prog[ids][:, None])[:, 0]  # path behind us
+        return rbs.route_nodes_held(self.r_node_arc[r], done_arc, self.arena.robot_release_m)
 
     def blocked_nodes(self, k: int) -> torch.Tensor:
         """(n, K) nodes robot k may only drive through: ours and the other robots'."""
@@ -529,9 +529,9 @@ class StoreArenaEnv(GoalReachEnv):
             all_ids = torch.arange(self.num_envs, device=self.device)
             self._write_movers(all_ids)
             a = self.arena
-            nk = len(self.robot_routes)
-            blocked = [self.blocked_nodes(k) if a.robot_reserve else None for k in range(nk)]
             for k, route in enumerate(self.robot_routes):
+                # after the robots before it moved: two robots never take one node in one step
+                blocked = self.blocked_nodes(k) if a.robot_reserve else None
                 yield_m = torch.where(self.robot_priority[k], 0.0, a.robot_yield_m)
                 self.robot_t[k], self.robot_wait[k], self.robot_back[k] = rbs.robot_step(
                     route,
@@ -545,7 +545,8 @@ class StoreArenaEnv(GoalReachEnv):
                     a.robot_backoff_s,
                     retreat=bool(a.robot_retreat),
                     lock_m=a.robot_lock_m,
-                    blocked=blocked[k],
+                    blocked=blocked,
+                    node_m=a.robot_reserve_m,
                 )
             if self.robot_objs:
                 self._write_robots(all_ids)

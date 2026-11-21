@@ -54,5 +54,12 @@ def test_alone_summary_says_where_and_how_it_ended():
     rows = TO.classify(z, episode_s=20.0, window_s=5.0)
     s = TO.alone_summary(z, rows, n_episodes=8)
     assert s["count"] == 4 and s["per_4096"] == 2048.0
+    # play.py keeps recording an env after its requested episodes: those are left out
+    done2 = np.zeros((2 * T, K), dtype=bool)
+    done2[[T - 1, 2 * T - 1]] = True
+    z2 = _Z({**z, "xy": np.concatenate((xy, xy)), "done": done2,
+             "front_m": np.concatenate((front, front)), "cmd": np.concatenate((cmd, cmd))})
+    rows2 = TO.classify(z2, episode_s=20.0, window_s=5.0, max_episodes=1)
+    assert len(rows2) == 4 and TO.alone_summary(z2, rows2, max_episodes=1)["tracked_episodes"] == 4
     assert s["by_motion"] == {"stopped": 1, "dithering": 1, "facing_wall": 1, "moving": 1}
     assert s["by_place"]["N0"] == 1 and s["by_place"]["N1"] == 1

@@ -113,7 +113,8 @@ class ArenaSpec:
     # never waits for our robot (TaskSpec intent_priority shows the flag)
     robot_priority_prob: float = 0.0
     # 1: evaluation set where robot 0 always drives head-on, from our goal node to our start node
-    # by the graph (routes whose start and goal are graph nodes), then on at random
+    # by the graph (routes whose start and goal are graph nodes), then on at random. It starts on
+    # our goal node; with robot_reserve it then waits there until our nodes ahead are free
     robot_headon: int = 0
     intent_ablate: int = 0  # 1: the intent entries are zeros (robots look absent): evaluation only
 
