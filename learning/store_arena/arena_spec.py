@@ -76,7 +76,7 @@ class ArenaSpec:
     mover_leg_m: tuple[float, float] = (0.3, 0.8)  # leg length range
     mover_speed_scale: tuple[float, float] = (0.5, 1.5)  # times the nominal speed
     mover_pause_s: tuple[float, float] = (0.0, 1.0)  # stop at each end of the leg
-    mover_node_clear_m: float = 0.25
+    mover_node_clear_m: float = 0.25  # the whole leg keeps this far from the start and goal
     # Mover surface to the global path at both leg ends: the planner's inscribed 0.07 m. With
     # ends on the path (half of the legs) a mover patrolled the route: 21 % of episodes timed out.
     mover_end_path_clear_m: float = 0.07
@@ -86,7 +86,7 @@ class ArenaSpec:
     mover_yield_m: float = 0.15
     # ... and turns back after waiting this long (as a person would), so a robot and a mover
     # waiting for each other do not stand until the episode times out.
-    mover_wait_s: float = 2.0  # the whole leg keeps this far from the start and goal
+    mover_wait_s: float = 2.0
 
 
 ARENA = ArenaSpec()
