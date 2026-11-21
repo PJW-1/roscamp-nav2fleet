@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from fleet_core.common.commands import MoveOrderCmd, SegmentOut
-from fleet_core.fleet_map import FOLLOW_PATH, NAV_GOAL, RETREAT, shortest_path
+from fleet_core.fleet_map import FOLLOW_PATH, NAV_GOAL, RETREAT, SHARED, shortest_path
 from fleet_core.traffic.mission import MOVE, TO_PARK
 
 from .robots import ORDER, Goal, MoveOrder
@@ -105,7 +105,8 @@ class MoveOrders:
             # 목적이 바뀐 route: nav_goal이면 바로, 고정 경로면 넓은 구역의 노드에 섰을 때 멈춘다
             # (고정 경로 가운데서는 끊지 않는다)
             mode = self._mode(m)
-            at_yard_node = mode != RETREAT and self._in_yard(m) and self._on_node(m)
+            at_yard_node = (mode != RETREAT and self._in_yard(m) and self._on_node(m)
+                            and self._yard_node(m.node))
             if mo.waiting or (route.stale and (mode == NAV_GOAL or at_yard_node)):
                 self._cancel_goal(m)
                 if route.stale:
@@ -147,6 +148,10 @@ class MoveOrders:
         self._send_update(m, before, self._fresh_base(m, route))
         self._event("INFO", "ORDER_UPDATED",
                     f"{mo.id} update {mo.update}: base to {m.goal.end}", m.name)
+
+    def _yard_node(self, node: str) -> bool:
+        zone = self.site.zones.get(self.site.nodes[node].zone)
+        return zone is not None and zone.kind == SHARED
 
     # ---- 주차하러 가는 route: 첫 고정 경로까지만 base로 주고, 그 끝에 새 길을 잇기 ----
     def _standby_end(self, m, route) -> int | None:
