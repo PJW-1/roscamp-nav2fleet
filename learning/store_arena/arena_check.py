@@ -868,6 +868,20 @@ def main():
             g = gap_at[t_ids][ok]
             report["collided"] = int(ok.sum())
             report["collisions_put_down_to_robot"] = int((kind_at[t_ids][ok] == 3).sum())
+            rp, ryaw = env.robot_pose()
+            st = env.robot_state()
+            report["not_collided"] = [
+                {
+                    "env": int(e),
+                    "start": [round(float(v), 3) for v in starts[j]],
+                    "yaw_deg": round(math.degrees(yaws[j])),
+                    "end": [round(float(v), 3) for v in rp[e]],
+                    "robots": [[round(float(v), 3) for v in b[0][e]] + [bool(b[2][e])] for b in st],
+                    "ep_len": int(env.episode_length_buf[e]),
+                }
+                for j, e in enumerate(ids)
+                if not bool(ok[j])
+            ]
             if len(g):
                 report["centre_to_robot_surface_before_collision_m"] = [
                     round(float(g.min()), 4),

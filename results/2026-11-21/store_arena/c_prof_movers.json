@@ -1,0 +1,26 @@
+{
+ "is_floating_base": [
+  true,
+  true
+ ],
+ "A_committed": {
+  "ms_per_step": 106.65,
+  "sim_vs_state_max_m": 5e-06
+ },
+ "B_no_writes": {
+  "ms_per_step": 117.59,
+  "sim_vs_state_max_m": 2.16853
+ },
+ "C_pose_only": {
+  "ms_per_step": 107.01,
+  "sim_vs_state_max_m": 5e-06
+ },
+ "D_pose_skip_forward": {
+  "ms_per_step": 101.83,
+  "sim_vs_state_max_m": 5e-06
+ },
+ "E_no_notify": {
+  "ms_per_step": 108.35,
+  "sim_vs_state_max_m": 5e-06
+ }
+}
