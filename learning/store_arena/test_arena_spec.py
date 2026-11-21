@@ -11,6 +11,7 @@ import yaml
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import arena_spec as arena  # noqa: E402
+import route_spec as R  # noqa: E402
 
 MAP = os.path.join(arena.REPO, "pc", "fleet_core", "fleet_core", "data", "fleet_map_v7.yaml")
 
@@ -119,5 +120,83 @@ def test_scripted_robot_defaults_are_the_user_decision():
     # 2026-11-22: 12 routes + retreat to the node before; 4c (ppo_h) used --set robot_routes=4
     # --set robot_retreat=0
     assert (arena.ARENA.robot_routes, arena.ARENA.robot_retreat) == (12, 1)
+    assert arena.ARENA.robot_reserve == 1  # measured 2026-11-22 (B52)
+    # stand-in Podes never beat the one top speed (B60): scale at most 1.0
+    assert arena.ARENA.robot_speed_scale[1] <= 1.0
     old = arena.make_arena_spec({"robot_routes": 4, "robot_retreat": 0})
     assert (old.robot_routes, old.robot_retreat) == (4, 0)
+
+
+def test_footprint_clearance_to_rects_boxes_and_cylinders():
+    half = (0.06, 0.056)  # Pode footprint 0.12 x 0.112
+    xy, yaw = torch.tensor([[0.0, 0.0]]), torch.zeros(1)
+    wall = torch.tensor([[[0.065, -1.0, 0.2, 1.0]]])  # face 5 mm ahead of the front edge
+    assert arena.footprint_clearance(xy, yaw, half, wall).item() == pytest.approx(0.005, abs=1e-6)
+    # turned 45 deg the corner reaches sqrt(0.06^2 + 0.056^2) = 0.0821 ahead: overlaps
+    assert arena.footprint_clearance(xy, torch.tensor([math.pi / 4]), half, wall).item() == 0.0
+    # a wall corner pointing into the side: the rect corner, not a footprint corner, is nearest
+    corner = torch.tensor([[[-0.01, 0.059, 0.3, 0.5]]])
+    c = arena.footprint_clearance(xy, yaw, half, corner)
+    assert c.item() == pytest.approx(0.003, abs=1e-6)
+    # a turned box (a cart) and a cylinder (a person of radius 0.04)
+    g = arena.box_clearance(xy, yaw, half, torch.tensor([[0.2, 0.0]]), torch.zeros(1),
+                            (0.07, 0.045))
+    assert g.item() == pytest.approx(0.2 - 0.07 - 0.06, abs=1e-6)
+    c = arena.cylinder_clearance(xy, yaw, half, torch.tensor([[0.0, 0.2]]), 0.04)
+    assert c.item() == pytest.approx(0.2 - 0.04 - 0.056, abs=1e-6)
+
+
+def test_near_wall_penalty_is_linear_and_bounded():
+    c = torch.tensor([0.0, 0.025, 0.05, 0.3])
+    p = arena.near_wall_penalty(c, near_m=0.05, weight=-0.1)
+    assert p.tolist() == pytest.approx([-0.1, -0.05, 0.0, 0.0])
+
+
+def test_corner_start_routes_and_away_heading():
+    rects = torch.tensor([[0.0, -0.1, 3.0, 0.0]])  # south wall face at y = 0
+    start = torch.tensor([[1.66, 0.15], [1.0, 0.8]])
+    assert arena.near_wall_starts(start, rects, 0.2).tolist() == [True, False]
+    path = torch.tensor([[[1.66, 0.15], [1.5, 0.15], [1.0, 0.15]]])  # heads west
+    yaw = arena.away_heading(path, torch.zeros(1))
+    assert yaw.item() == pytest.approx(0.0, abs=1e-6)  # faces east, as the Gazebo Q2 case
+
+
+def test_cross_overlap_without_corners_inside_is_zero_clearance():
+    half = (0.06, 0.056)
+    xy, yaw = torch.tensor([[0.0, 0.0]]), torch.zeros(1)
+    bar = torch.tensor([[[-0.2, -0.01, 0.2, 0.01]]])  # a thin bar through the footprint
+    assert arena.footprint_clearance(xy, yaw, half, bar).item() == 0.0
+    g = arena.box_clearance(xy, yaw, half, torch.tensor([[0.0, 0.0]]), torch.zeros(1),
+                            (0.2, 0.01))
+    assert g.item() == 0.0
+
+
+def test_graze_flags_are_booleans_also_when_off():
+    c = torch.tensor([0.0, 0.004, 0.006])
+    assert arena.graze_flags(c, 0.005).tolist() == [True, True, False]
+    off = arena.graze_flags(c, 0.0)
+    assert off.dtype == torch.bool and not off.any()
+
+
+def test_corner_start_nodes_of_the_store_arena():
+    site = arena.load_site()
+    names, xy = R.hall_nodes(site, arena.ARENA.excluded_node_kinds)
+    rects = arena.boxes_tensor(arena.arena_boxes(arena.ARENA, site))
+    near = arena.near_wall_starts(torch.as_tensor(xy, dtype=torch.float32), rects,
+                                  arena.ARENA.corner_start_m)
+    assert sorted(n for n, c in zip(names, near.tolist(), strict=True) if c) == [
+        "E-1", "E-3", "M_E", "Q1", "Q2"]
+
+
+def test_footprint_box_is_off_centre_like_the_body():
+    # base_link body x -0.0745..0.0387, y +-0.047: the rear reaches further than the front
+    a = arena.ARENA
+    c, half = arena.footprint_box(torch.zeros(1, 2), torch.zeros(1), a.footprint_x, a.footprint_y)
+    assert half == pytest.approx((0.0566, 0.047)) and c[0].tolist() == pytest.approx([-0.0179, 0])
+    behind = torch.tensor([[[-0.3, -1.0, -0.08, 1.0]]])  # face 5.5 mm behind the rear edge
+    cl = arena.footprint_clearance(c, torch.zeros(1), half, behind)
+    assert cl.item() == pytest.approx(0.0055, abs=1e-6)
+    # turned around (yaw pi) the rear faces +x
+    c2, _ = arena.footprint_box(torch.zeros(1, 2), torch.tensor([math.pi]), a.footprint_x,
+                                a.footprint_y)
+    assert c2[0].tolist() == pytest.approx([0.0179, 0.0], abs=1e-6)

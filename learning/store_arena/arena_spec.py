@@ -90,9 +90,30 @@ class ArenaSpec:
     mover_wait_s: float = ts.travel_time(2.0)  # 2 s at 0.25 m/s
     # share of episodes whose movers never wait (yield 0, as the Gazebo benchmark's movers)
     mover_noyield_prob: float = 0.0
+    # 1 (B48, user decision, default since 2026-11-22): each episode draws a yield fraction
+    # U(0, 1) and each mover then waits (mover_yield_m) with that probability, else never waits.
+    # Replaces mover_noyield_prob; 0 for the 4b/4c arena (all movers wait)
+    mover_yield_mix: int = 1
+    # --- wall grazes (user decision 2026-11-22, defaults since then; 0 turns each off). The
+    # contact force threshold misses 0-3 mm grazes (Gazebo Q2 -> E-3: 0.000-0.003 m)
+    # our robot's body in base_link (rearmost collider; RL track measurement 2026-11-22)
+    footprint_x: tuple[float, float] = (-0.0745, 0.0387)
+    footprint_y: tuple[float, float] = (-0.047, 0.047)
+    graze_m: float = 0.005  # footprint clearance at or below this ends the episode as a collision
+    near_wall_m: float = 0.05  # walls, shelves, boxes: penalty while the clearance is below this
+    w_near_wall: float = -0.1  # per step at clearance 0, linear to 0 at near_wall_m
+    # share of episodes that start on a route whose start node is within corner_start_m of a wall
+    # or shelf (centre to face), facing away from the path (+- corner_yaw_jitter rad)
+    # (0.17: E-1 0.12, E-3 0.131, Q1 0.131, Q2 0.15, M_E 0.168 m from a face: the starts of the
+    # Gazebo and sweep grazes; E-2 0.184, O_OUT 0.18, O_IN 0.202 stay out). The jitter covers
+    # goals 145-215 deg behind (the sweep grazes: goal 145-175 deg behind)
+    corner_start_prob: float = 0.25
+    corner_start_m: float = 0.17
+    corner_yaw_jitter: float = 0.6
     # --- scripted fleet robots (stage 4c, robot_spec): routes over the HALL nav graph
     robot_max: int = 0  # robots per episode, uniform 0..robot_max (0: the 4b arena; 4c: 2)
-    robot_speed_scale: tuple[float, float] = (0.67, 1.33)  # times robot_spec.ROBOT.speed
+    # at most 1.0 (B60): no stand-in Pode beats the one top speed (4c used 0.67-1.33)
+    robot_speed_scale: tuple[float, float] = (0.67, 1.0)  # times robot_spec.ROBOT.speed
     robot_pause_s: tuple[float, float] = (0.0, 2.0)  # at each route goal
     # 12 routes + retreat: user decision 2026-11-22 (4c, ppo_h and the 4c worklog used 4 and 0:
     # reproduce them with --set robot_routes=4 --set robot_retreat=0)
@@ -107,8 +128,9 @@ class ArenaSpec:
     robot_lock_m: float = 0.0  # > 0: waits at a node while our robot is this near the next link
     # node reservation as fleet_manager's (robot_spec.robot_step blocked): 1 = on. Our robot holds
     # every node within robot_reserve_m of its route until it is robot_release_m past it; robots
-    # hold the node they are at and the end of the link they drive; robots never start on ours
-    robot_reserve: int = 0
+    # hold the node they are at and the end of the link they drive; robots never start on ours.
+    # Default 1 since 2026-11-22 (B52: ppo_h timeouts 8.5 -> 3.7 %); 0 for the arena before
+    robot_reserve: int = 1
     robot_reserve_m: float = 0.12
     robot_release_m: float = 0.2
     # right of way: each robot has priority over ours with this probability per episode; it then
@@ -135,6 +157,127 @@ def split_overrides(items) -> tuple[dict, dict]:
     task_items = [i for i in items if i.split("=", 1)[0] not in arena_fields]
     arena_items = [i for i in items if i.split("=", 1)[0] in arena_fields]
     return ts.parse_overrides(task_items), ts.parse_overrides(arena_items, ARENA)
+
+
+def _box_points_clearance(pts: torch.Tensor, half) -> torch.Tensor:
+    """pts (..., 2) in a box frame -> (...) distance to the box [-hx, hx] x [-hy, hy] (0 inside)."""
+    dx = (pts[..., 0].abs() - half[0]).clamp(min=0.0)
+    dy = (pts[..., 1].abs() - half[1]).clamp(min=0.0)
+    return torch.sqrt(dx * dx + dy * dy)
+
+
+def _corners(xy: torch.Tensor, yaw: torch.Tensor, half) -> torch.Tensor:
+    """(..., 4, 2) corners of boxes at xy (..., 2), yaw (...), half sizes (hx, hy)."""
+    sx = torch.tensor([1.0, 1.0, -1.0, -1.0], device=xy.device) * half[0]
+    sy = torch.tensor([1.0, -1.0, -1.0, 1.0], device=xy.device) * half[1]
+    c, s = torch.cos(yaw)[..., None], torch.sin(yaw)[..., None]
+    return torch.stack((xy[..., 0:1] + c * sx - s * sy, xy[..., 1:2] + s * sx + c * sy), -1)
+
+
+def _to_frame(p: torch.Tensor, xy: torch.Tensor, yaw: torch.Tensor) -> torch.Tensor:
+    """Points p (N, M, 2) into the frames at xy (N, 2), yaw (N,)."""
+    d = p - xy[:, None]
+    c, s = torch.cos(yaw)[:, None], torch.sin(yaw)[:, None]
+    return torch.stack((c * d[..., 0] + s * d[..., 1], -s * d[..., 0] + c * d[..., 1]), -1)
+
+
+def _boxes_overlap(c1, yaw1, h1, c2, yaw2, h2) -> torch.Tensor:
+    """Separating axis test of boxes (centres (..., 2), yaws (...), half sizes (..., 2))."""
+    def axes(yaw):
+        c, s = torch.cos(yaw), torch.sin(yaw)
+        return torch.stack((c, s), -1), torch.stack((-s, c), -1)
+
+    a1, a2 = axes(yaw1)
+    b1, b2 = axes(yaw2)
+    d = c2 - c1
+    sep = torch.zeros(d.shape[:-1], dtype=torch.bool, device=d.device)
+    def reach(u, v, h, ax):  # half extent of a box with axes u, v along ax
+        return h[..., 0] * (u * ax).sum(-1).abs() + h[..., 1] * (v * ax).sum(-1).abs()
+
+    for ax in (a1, a2, b1, b2):
+        span = reach(a1, a2, h1, ax) + reach(b1, b2, h2, ax)
+        sep = sep | ((d * ax).sum(-1).abs() > span)
+    return ~sep
+
+
+def graze_flags(clearance: torch.Tensor, graze_m: float) -> torch.Tensor:
+    """(n,) bool: clearance at or below graze_m (none when graze_m <= 0)."""
+    if graze_m <= 0:
+        return torch.zeros_like(clearance, dtype=torch.bool)
+    return clearance <= graze_m
+
+
+def footprint_box(xy, yaw, fx, fy):
+    """Centre (N, 2) and half sizes of our body box: base_link at xy (N, 2), yaw (N,), body
+    x range fx and y range fy in base_link."""
+    cx, cy = 0.5 * (fx[0] + fx[1]), 0.5 * (fy[0] + fy[1])
+    c, s = torch.cos(yaw), torch.sin(yaw)
+    centre = torch.stack((xy[:, 0] + c * cx - s * cy, xy[:, 1] + s * cx + c * cy), -1)
+    return centre, (0.5 * (fx[1] - fx[0]), 0.5 * (fy[1] - fy[0]))
+
+
+def footprint_clearance(xy, yaw, half, rects) -> torch.Tensor:
+    """(N,) distance from our footprint (centre xy (N, 2), yaw (N,), half sizes) to the nearest
+    axis-aligned rect (N, B, 4) x0 y0 x1 y1; 0 when a corner of either is inside the other. The
+    nearest points of two disjoint convex polygons include a vertex of one of them."""
+    fc = _corners(xy, yaw, half)  # (N, 4, 2)
+    r = rects[:, None]  # (N, 1, B, 4)
+    dx = torch.clamp(torch.maximum(r[..., 0] - fc[..., 0:1], fc[..., 0:1] - r[..., 2]), min=0.0)
+    dy = torch.clamp(torch.maximum(r[..., 1] - fc[..., 1:2], fc[..., 1:2] - r[..., 3]), min=0.0)
+    d1 = torch.sqrt(dx * dx + dy * dy).flatten(1).amin(-1)
+    rc = torch.stack(
+        (rects[..., [0, 2, 2, 0]], rects[..., [1, 1, 3, 3]]), -1
+    ).flatten(1, 2)  # (N, 4B, 2)
+    d2 = _box_points_clearance(_to_frame(rc, xy, yaw), half).amin(-1)
+    # overlaps with no corner inside the other (a bar through the footprint)
+    hf = torch.tensor(half, device=xy.device)
+    hr = 0.5 * (rects[..., 2:] - rects[..., :2])
+    over = _boxes_overlap(
+        xy[:, None], yaw[:, None], hf, 0.5 * (rects[..., :2] + rects[..., 2:]),
+        torch.zeros_like(rects[..., 0]), hr,
+    ).any(-1)
+    return torch.where(over, 0.0, torch.minimum(d1, d2))
+
+
+def box_clearance(xy, yaw, half, pos, yaw2, half2) -> torch.Tensor:
+    """(N,) distance from our footprint to a box at pos (N, 2), yaw2 (N,), half sizes half2."""
+    d1 = _box_points_clearance(_to_frame(_corners(xy, yaw, half), pos, yaw2), half2).amin(-1)
+    d2 = _box_points_clearance(_to_frame(_corners(pos, yaw2, half2), xy, yaw), half).amin(-1)
+    hf, h2 = torch.tensor(half, device=xy.device), torch.tensor(half2, device=xy.device)
+    over = _boxes_overlap(xy, yaw, hf, pos, yaw2, h2)
+    return torch.where(over, 0.0, torch.minimum(d1, d2))
+
+
+def cylinder_clearance(xy, yaw, half, pos, radius: float) -> torch.Tensor:
+    """(N,) distance from our footprint to a cylinder at pos (N, 2) (0 when they overlap)."""
+    d = _box_points_clearance(_to_frame(pos[:, None], xy, yaw), half)[:, 0]
+    return (d - radius).clamp(min=0.0)
+
+
+def near_wall_penalty(clearance: torch.Tensor, near_m: float, weight: float) -> torch.Tensor:
+    """Per-step reward: weight at clearance 0, linear to 0 at near_m and beyond."""
+    if near_m <= 0:
+        return torch.zeros_like(clearance)
+    return weight * (1.0 - clearance / near_m).clamp(min=0.0)
+
+
+def near_wall_starts(start_xy: torch.Tensor, rects: torch.Tensor, max_m: float) -> torch.Tensor:
+    """(R,) routes whose start (R, 2) is within max_m (centre to face) of a rect (B, 4)."""
+    x, y = start_xy[:, 0:1], start_xy[:, 1:2]
+    dx = torch.clamp(torch.maximum(rects[:, 0] - x, x - rects[:, 2]), min=0.0)
+    dy = torch.clamp(torch.maximum(rects[:, 1] - y, y - rects[:, 3]), min=0.0)
+    return torch.sqrt(dx * dx + dy * dy).amin(-1) < max_m
+
+
+def away_heading(path: torch.Tensor, jitter: torch.Tensor, ahead_m: float = 0.1) -> torch.Tensor:
+    """(N,) yaw facing away from the path direction at its start: path (N, L, 2) towards its
+    first point at least ahead_m away (else its last point), turned by pi + jitter (N,)."""
+    d = path - path[:, :1]
+    far = d.norm(dim=-1) >= ahead_m
+    k = torch.where(far.any(-1), far.float().argmax(-1), torch.full_like(far[:, 0], -1).long())
+    v = d[torch.arange(len(path), device=path.device), k]
+    yaw = torch.atan2(v[:, 1], v[:, 0]) + math.pi + jitter
+    return torch.atan2(torch.sin(yaw), torch.cos(yaw))
 
 
 def load_site(spec: ArenaSpec = ARENA):
