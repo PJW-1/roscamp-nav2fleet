@@ -593,7 +593,7 @@ class StoreArenaEnv(GoalReachEnv):
             self.d_goal, self.max_contact_force(), xy, self.start_xy, self.spec
         )
         clear = self.footprint_clearance(xy, yaw)
-        graze = clear <= self.arena.graze_m if self.arena.graze_m > 0 else torch.zeros_like(clear)
+        graze = arena.graze_flags(clear, self.arena.graze_m)
         self.graze_only = graze & ~self.collided  # the contact sensor did not see it
         self.collided = self.collided | graze
         self.success = self.success & ~graze

@@ -172,6 +172,32 @@ def _to_frame(p: torch.Tensor, xy: torch.Tensor, yaw: torch.Tensor) -> torch.Ten
     return torch.stack((c * d[..., 0] + s * d[..., 1], -s * d[..., 0] + c * d[..., 1]), -1)
 
 
+def _boxes_overlap(c1, yaw1, h1, c2, yaw2, h2) -> torch.Tensor:
+    """Separating axis test of boxes (centres (..., 2), yaws (...), half sizes (..., 2))."""
+    def axes(yaw):
+        c, s = torch.cos(yaw), torch.sin(yaw)
+        return torch.stack((c, s), -1), torch.stack((-s, c), -1)
+
+    a1, a2 = axes(yaw1)
+    b1, b2 = axes(yaw2)
+    d = c2 - c1
+    sep = torch.zeros(d.shape[:-1], dtype=torch.bool, device=d.device)
+    def reach(u, v, h, ax):  # half extent of a box with axes u, v along ax
+        return h[..., 0] * (u * ax).sum(-1).abs() + h[..., 1] * (v * ax).sum(-1).abs()
+
+    for ax in (a1, a2, b1, b2):
+        span = reach(a1, a2, h1, ax) + reach(b1, b2, h2, ax)
+        sep = sep | ((d * ax).sum(-1).abs() > span)
+    return ~sep
+
+
+def graze_flags(clearance: torch.Tensor, graze_m: float) -> torch.Tensor:
+    """(n,) bool: clearance at or below graze_m (none when graze_m <= 0)."""
+    if graze_m <= 0:
+        return torch.zeros_like(clearance, dtype=torch.bool)
+    return clearance <= graze_m
+
+
 def footprint_clearance(xy, yaw, half, rects) -> torch.Tensor:
     """(N,) distance from our footprint (centre xy (N, 2), yaw (N,), half sizes) to the nearest
     axis-aligned rect (N, B, 4) x0 y0 x1 y1; 0 when a corner of either is inside the other. The
@@ -185,14 +211,23 @@ def footprint_clearance(xy, yaw, half, rects) -> torch.Tensor:
         (rects[..., [0, 2, 2, 0]], rects[..., [1, 1, 3, 3]]), -1
     ).flatten(1, 2)  # (N, 4B, 2)
     d2 = _box_points_clearance(_to_frame(rc, xy, yaw), half).amin(-1)
-    return torch.minimum(d1, d2)
+    # overlaps with no corner inside the other (a bar through the footprint)
+    hf = torch.tensor(half, device=xy.device)
+    hr = 0.5 * (rects[..., 2:] - rects[..., :2])
+    over = _boxes_overlap(
+        xy[:, None], yaw[:, None], hf, 0.5 * (rects[..., :2] + rects[..., 2:]),
+        torch.zeros_like(rects[..., 0]), hr,
+    ).any(-1)
+    return torch.where(over, 0.0, torch.minimum(d1, d2))
 
 
 def box_clearance(xy, yaw, half, pos, yaw2, half2) -> torch.Tensor:
     """(N,) distance from our footprint to a box at pos (N, 2), yaw2 (N,), half sizes half2."""
     d1 = _box_points_clearance(_to_frame(_corners(xy, yaw, half), pos, yaw2), half2).amin(-1)
     d2 = _box_points_clearance(_to_frame(_corners(pos, yaw2, half2), xy, yaw), half).amin(-1)
-    return torch.minimum(d1, d2)
+    hf, h2 = torch.tensor(half, device=xy.device), torch.tensor(half2, device=xy.device)
+    over = _boxes_overlap(xy, yaw, hf, pos, yaw2, h2)
+    return torch.where(over, 0.0, torch.minimum(d1, d2))
 
 
 def cylinder_clearance(xy, yaw, half, pos, radius: float) -> torch.Tensor:

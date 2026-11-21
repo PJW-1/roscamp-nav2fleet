@@ -140,3 +140,20 @@ def test_corner_start_routes_and_away_heading():
     path = torch.tensor([[[1.66, 0.15], [1.5, 0.15], [1.0, 0.15]]])  # heads west
     yaw = arena.away_heading(path, torch.zeros(1))
     assert yaw.item() == pytest.approx(0.0, abs=1e-6)  # faces east, as the Gazebo Q2 case
+
+
+def test_cross_overlap_without_corners_inside_is_zero_clearance():
+    half = (0.06, 0.056)
+    xy, yaw = torch.tensor([[0.0, 0.0]]), torch.zeros(1)
+    bar = torch.tensor([[[-0.2, -0.01, 0.2, 0.01]]])  # a thin bar through the footprint
+    assert arena.footprint_clearance(xy, yaw, half, bar).item() == 0.0
+    g = arena.box_clearance(xy, yaw, half, torch.tensor([[0.0, 0.0]]), torch.zeros(1),
+                            (0.2, 0.01))
+    assert g.item() == 0.0
+
+
+def test_graze_flags_are_booleans_also_when_off():
+    c = torch.tensor([0.0, 0.004, 0.006])
+    assert arena.graze_flags(c, 0.005).tolist() == [True, True, False]
+    off = arena.graze_flags(c, 0.0)
+    assert off.dtype == torch.bool and not off.any()
