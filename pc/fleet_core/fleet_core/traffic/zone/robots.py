@@ -23,6 +23,14 @@ ORDER = "order"
 
 
 @dataclass
+class LeftReport:
+    seq: int
+    m: float
+    at: float
+    jumped_at: float | None = None
+
+
+@dataclass
 class MoveOrder:
     id: str
     cuts: list
@@ -37,6 +45,7 @@ class MoveOrder:
     horizon_at: float = 0.0
     warned: bool = False
     overrun: bool = False
+    left: LeftReport | None = None
 
 
 # ---- 배차 기록 ----

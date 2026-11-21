@@ -1,0 +1,12 @@
+segments 93 (first sample per nav_goal segment where the distance was used and proj > 2 s)
+straight / driven: median 1.072  p10 1.041  p90 1.131
+nav2 / driven: median 1.130  p10 1.059  p90 1.194
+driven / actual time (m/s): median 0.101
+  rush1 pode1-1 seq 2: straight 1.021 nav2 1.069 driven 0.895 m, actual 9.32 s
+  rush1 pode2-4 seq 2: straight 1.288 nav2 1.391 driven 1.191 m, actual 11.62 s
+  rush1 pode3-10 seq 2: straight 1.546 nav2 1.635 driven 1.542 m, actual 16.04 s
+  rush1 pode1-19 seq 2: straight 1.664 nav2 1.746 driven 1.539 m, actual 13.87 s
+  rush1 pode3-24 seq 2: straight 1.246 nav2 1.308 driven 1.214 m, actual 12.07 s
+  rush1 pode2-30 seq 2: straight 1.662 nav2 1.583 driven 1.585 m, actual 14.10 s
+  rush1 pode3-38 seq 2: straight 1.653 nav2 1.755 driven 1.533 m, actual 15.33 s
+  rush1 pode1-48 seq 2: straight 1.653 nav2 1.769 driven 1.551 m, actual 13.65 s

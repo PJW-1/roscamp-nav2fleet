@@ -52,6 +52,9 @@ traffic_mode: zones           # 교통 층: zones(지점·구역 그래프의 �
 nav_speed_mps: 0.12           # 넓은 구역(Nav2 goal)의 ETA와 길 비용에 쓰는 속도
 follow_speed_mps: 0.12        # 고정 경로(FollowPath)의 같은 값
 retreat_speed_mps: 0.05       # 후진(Retreat) 속도
+nav_pass_m: 0.15              # 넓은 구역 ETA: 다음 조각이 있으면 로봇은 끝 노드 이만큼 앞에서 넘어간다(pode_fsm pass_m와 같게). 0이면 끔
+nav_turn_rps: 1.0             # 넓은 구역 ETA: 후진이 이어지거나 Route가 끝나면 끝에 서서 이 각속도로 끝 방향으로 돈다(RPP rotate_to_heading_angular_vel). 0이면 끔
+nav_goal_tolerance_m: 0.05    # 넓은 구역 ETA: 끝 노드에서 이만큼 안이면 이미 닿아 도는 중으로 본다(Nav2 general_goal_checker xy_goal_tolerance)
 footprint_radius_m: 0.085     # Nav2 발자국(0.12 x 0.12 m)의 반 대각선
 release_margin_m: 0.05        # 제안: 보고 중심이 뒤 구역에서 footprint_radius_m + 이 값(0.135 m) 넘게 벗어나면 그 구역을 놓는다
 node_clear_m: 0.20            # 뒤 지점에서 이만큼 멀어지면 그 지점을 놓는다

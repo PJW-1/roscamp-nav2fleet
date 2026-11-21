@@ -430,7 +430,8 @@ def test_a_move_result_carries_the_last_done_segment():
     assert adapters.move_result(result) == (False, "SUPERSEDED", 4)
 
 
-def test_move_feedback_values_are_the_three_order_fields():
+def test_move_feedback_values_are_the_order_fields_and_the_distance_left():
     feedback = MoveTo.Feedback(last_done_seq_id=3, waiting_at_base_end=True,
-                               horizon_warning="HORIZON_INVALID: x")
-    assert adapters.move_feedback(feedback) == (3, True, "HORIZON_INVALID: x")
+                               horizon_warning="HORIZON_INVALID: x", distance_remaining=0.75)
+    assert adapters.move_feedback(feedback) == (3, True, "HORIZON_INVALID: x", 0.75)
+    assert isinstance(adapters.move_feedback(feedback)[3], float)
