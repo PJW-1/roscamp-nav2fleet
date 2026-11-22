@@ -15,7 +15,7 @@ from fleet_interfaces.srv import ConfirmClear, Reinstate, ReportOrder  # noqa: E
 from rclpy.action import ActionClient  # noqa: E402
 
 C = load_contract(CONTRACT)
-ONE_ROBOT = {"pode1": {"start": "P-1", "speed_mps": 1.0, "pose_noise_m": 0.0}}
+ONE_ROBOT = {"pode1": {"start": "P-1", "speed_scale": 1.0, "pose_noise_m": 0.0}}
 
 
 def start(harness, tmp_path, **scenario):
@@ -225,7 +225,7 @@ def test_no_reinstate_after_a_refused_clear(harness, tmp_path):
 
 def test_a_reinstate_not_ready_does_not_hold_back_another_robot(harness, tmp_path):
     """pode2의 치우기가 끝나지 않아도 pode1은 다시 넣는다."""
-    robots = {**ONE_ROBOT, "pode2": {"start": "P-3", "speed_mps": 1.0, "pose_noise_m": 0.0}}
+    robots = {**ONE_ROBOT, "pode2": {"start": "P-3", "speed_scale": 1.0, "pose_noise_m": 0.0}}
     _, probe = start(
         harness, tmp_path, orders=ONE_ORDER, timeout_s=60, robots=robots,
         expect={"orders_shipped_min": 1},

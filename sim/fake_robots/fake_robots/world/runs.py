@@ -39,7 +39,9 @@ def blocked_ahead(ctx, robot, way, look) -> bool:
 
 def jittered(ctx, speed: float) -> float:
     spread = ctx.imperfect.speed_jitter
-    return speed * (1.0 + ctx.rng.uniform(-spread, spread)) if spread else speed
+    if not spread:
+        return speed
+    return min(ctx.top_speed_mps, speed * (1.0 + ctx.rng.uniform(-spread, spread)))
 
 
 def move_along(ctx, robot, way, step):

@@ -23,8 +23,8 @@ def scenario(faults=(), orders=("O-1", "O-2", "O-3"), **expect):
         "stock": {"arm1": {"A": 9}, "arm2": {"C": 9}},
         "orders": [{"at_s": i, "id": o, "items": {"A": 1}} for i, o in enumerate(orders)],
         "robots": {
-            "pode1": {"start": "P-1", "speed_mps": 0.2, "pose_noise_m": NOISE},
-            "pode2": {"start": "P-2", "speed_mps": 0.2, "pose_noise_m": NOISE},
+            "pode1": {"start": "P-1", "speed_scale": 1.0, "pose_noise_m": NOISE},
+            "pode2": {"start": "P-2", "speed_scale": 1.0, "pose_noise_m": NOISE},
         },
         "faults": list(faults),
         "expect": expect,
@@ -183,7 +183,7 @@ def test_release_inside_the_zone_is_a_violation_even_with_large_noise():
     noisy = parse_scenario({
         "seed": 1, "speed_factor": 1.0, "timeout_s": 100,
         "stock": {"arm1": {"A": 1}},
-        "robots": {"pode1": {"start": "P-1", "speed_mps": 0.2, "pose_noise_m": 0.10}},
+        "robots": {"pode1": {"start": "P-1", "speed_scale": 1.0, "pose_noise_m": 0.10}},
     }, SITE)
     j = ScenarioJudge(SITE, noisy, margin_m=0.13, grace_s=1.0)
     x, y = at(SAME_ZONE[1])

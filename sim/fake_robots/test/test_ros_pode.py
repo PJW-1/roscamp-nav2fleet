@@ -81,7 +81,7 @@ def test_move_to_publishes_state_feedback_and_succeeds(harness, tmp_path):
 def test_a_path_goal_follows_the_lanes_round_the_corner(harness, tmp_path):
     """path 모드: 꺾인 선을 그대로 따르고 끝에서 성공한다."""
     p = start(harness, tmp_path, robots={
-        "pode1": {"start": "P-1", "speed_mps": 0.5, "pose_noise_m": 0.0}})
+        "pode1": {"start": "P-1", "speed_scale": 1.0, "pose_noise_m": 0.0}})
     assert wait_until(lambda: p.states, 5.0)
     points = [SITE.node_pose(w) for w in ("P-1", "N_W", "N_E")]
     msg = MoveTo.Goal(target_id="N_E", target_pose=Pose2D(x=points[-1][0], y=points[-1][1]))
@@ -100,8 +100,8 @@ def test_a_path_goal_waits_for_a_robot_on_the_line_ahead(harness, tmp_path):
     """path 모드도 바로 앞에 다른 로봇이 있으면 서서 BLOCKED를 보고하고, 비키면 이어 간다(R3)."""
     from fake_robots.common import TRUTH_TOPIC
     p = start(harness, tmp_path, robots={
-        "pode1": {"start": "P-1", "speed_mps": 0.5, "pose_noise_m": 0.0},
-        "pode2": {"start": "P-2", "speed_mps": 0.5, "pose_noise_m": 0.0}})
+        "pode1": {"start": "P-1", "speed_scale": 1.0, "pose_noise_m": 0.0},
+        "pode2": {"start": "P-2", "speed_scale": 1.0, "pose_noise_m": 0.0}})
     points = [SITE.node_pose(w) for w in ("P-1", "N_W", "N_E")]
     (x0, y), (x1, _) = points[1:]
     spot = [(x0 + x1) / 2, y]  # pode2가 선 한가운데에 서 있다
@@ -133,7 +133,7 @@ def send_nav_goal(p, x, y, target_id="P-3"):
 def test_a_nav_goal_plans_its_own_way_and_arrives(harness, tmp_path):
     """계약 5절: nav_goal 모드는 path 없이 지도 위에서 스스로 길을 짠다."""
     p = start(harness, tmp_path, robots={
-        "pode1": {"start": "P-1", "speed_mps": 1.0, "pose_noise_m": 0.0}})
+        "pode1": {"start": "P-1", "speed_scale": 1.0, "pose_noise_m": 0.0}})
     assert wait_until(lambda: p.states, 5.0)
     there = SITE.node_pose("P-3")
     assert result_of(send_nav_goal(p, *there)).result.success is True
@@ -143,14 +143,14 @@ def test_a_nav_goal_plans_its_own_way_and_arrives(harness, tmp_path):
 
 def test_a_nav_goal_off_the_map_is_nav_aborted(harness, tmp_path):
     p = start(harness, tmp_path, robots={
-        "pode1": {"start": "P-1", "speed_mps": 1.0, "pose_noise_m": 0.0}})
+        "pode1": {"start": "P-1", "speed_scale": 1.0, "pose_noise_m": 0.0}})
     res = result_of(send_nav_goal(p, -1.0, -1.0, "nowhere"), 5.0).result
     assert res.success is False and res.reason == MoveTo.Result.REASON_NAV_ABORTED
 
 
 def test_new_goal_supersedes_the_active_one(harness, tmp_path):
     p = start(harness, tmp_path, robots={
-        "pode1": {"start": "P-1", "speed_mps": 0.2, "pose_noise_m": 0.0}})
+        "pode1": {"start": "P-1", "speed_scale": 1.0, "pose_noise_m": 0.0}})
     first = p.goal("N_E")
     assert first.accepted
     second = p.goal("O_Q")
@@ -161,7 +161,7 @@ def test_new_goal_supersedes_the_active_one(harness, tmp_path):
 
 def test_cancel_is_honoured(harness, tmp_path):
     p = start(harness, tmp_path, robots={
-        "pode1": {"start": "P-1", "speed_mps": 0.2, "pose_noise_m": 0.0}})
+        "pode1": {"start": "P-1", "speed_scale": 1.0, "pose_noise_m": 0.0}})
     handle = p.goal("N_E")
     cancel = handle.cancel_goal_async()
     assert wait_until(cancel.done, 5.0)
@@ -181,7 +181,7 @@ def test_nav_abort_hits_the_next_goals_only(harness, tmp_path):
 def test_a_nav_abort_comes_before_the_robot_reaches_the_release_distance(harness, tmp_path):
     """관제는 해제 거리(0.2 m)를 지나야 선을 늘린다. 그 전에 중단해야 늘림과 겹치지 않는다."""
     p = start(harness, tmp_path, robots={
-        "pode1": {"start": "P-1", "speed_mps": 0.2, "pose_noise_m": 0.0}}, faults=[
+        "pode1": {"start": "P-1", "speed_scale": 1.0, "pose_noise_m": 0.0}}, faults=[
         {"at_s": 0, "robot": "pode1", "type": "nav_abort", "count": 1}])
     assert wait_until(lambda: p.states, 5.0)
     x0, y0 = p.states[-1][1].pose.x, p.states[-1][1].pose.y
@@ -194,7 +194,7 @@ def test_a_nav_abort_comes_before_the_robot_reaches_the_release_distance(harness
 def test_a_nav_abort_is_not_lost_on_a_goal_superseded_before_it_fires(harness, tmp_path):
     """FMS가 선을 늘려 목표를 바꿔도 중단 횟수만큼 NAV_ABORTED가 난다."""
     p = start(harness, tmp_path, robots={
-        "pode1": {"start": "P-1", "speed_mps": 0.2, "pose_noise_m": 0.0}}, faults=[
+        "pode1": {"start": "P-1", "speed_scale": 1.0, "pose_noise_m": 0.0}}, faults=[
         {"at_s": 0, "robot": "pode1", "type": "nav_abort", "count": 1}])
     time.sleep(0.3)
     first = p.goal("N_E")
@@ -221,7 +221,7 @@ def test_comm_loss_silences_state_rejects_goals_and_recovers(harness, tmp_path):
 def test_true_pose_has_no_noise_and_keeps_coming_during_comm_loss(harness, tmp_path):
     from fake_robots.common import TRUTH_TOPIC
     p = start(harness, tmp_path, robots={
-        "pode1": {"start": "P-3", "speed_mps": 0.2, "pose_noise_m": 0.05}},
+        "pode1": {"start": "P-3", "speed_scale": 1.0, "pose_noise_m": 0.05}},
         faults=[{"at_s": 1.0, "robot": "pode1", "type": "comm_loss", "duration_s": 60.0}])
     truth = []
     p.node.create_subscription(
@@ -248,7 +248,7 @@ def truth_of(p):
 
 def test_a_late_report_says_where_the_robot_was_when_it_was_measured(harness, tmp_path):
     p = start(harness, tmp_path, robots={"pode1": {
-        "start": "P-1", "speed_mps": 0.1, "pose_noise_m": 0.0, "report_delay_s": 1.0}})
+        "start": "P-1", "speed_scale": 0.83, "pose_noise_m": 0.0, "report_delay_s": 1.0}})
     truth = truth_of(p)
     assert wait_until(lambda: p.states and truth, 5.0)
     p.goal("N_W")
@@ -265,7 +265,7 @@ def test_a_late_report_says_where_the_robot_was_when_it_was_measured(harness, tm
 
 def test_reports_measured_during_a_comm_loss_never_come(harness, tmp_path):
     p = start(harness, tmp_path, robots={"pode1": {
-        "start": "P-1", "speed_mps": 0.1, "pose_noise_m": 0.0, "report_delay_s": 1.0}},
+        "start": "P-1", "speed_scale": 0.83, "pose_noise_m": 0.0, "report_delay_s": 1.0}},
         faults=[{"at_s": 2.0, "robot": "pode1", "type": "comm_loss", "duration_s": 2.0}])
     assert wait_until(lambda: p.states, 5.0)
     assert wait_until(lambda: time.monotonic() - p.states[-1][0] > 0.5, 6.0), "never went silent"
@@ -279,7 +279,7 @@ def test_reports_measured_during_a_comm_loss_never_come(harness, tmp_path):
 
 def test_a_move_ends_off_its_target_by_the_stop_error(harness, tmp_path):
     p = start(harness, tmp_path, robots={"pode1": {
-        "start": "P-1", "speed_mps": 1.0, "pose_noise_m": 0.0, "stop_error_m": 0.05}})
+        "start": "P-1", "speed_scale": 1.0, "pose_noise_m": 0.0, "stop_error_m": 0.05}})
     truth = truth_of(p)
     target = SITE.node_pose("N_W")
     assert result_of(p.goal("N_W")).result.success
@@ -300,7 +300,7 @@ def test_start_accepts_a_waiting_cell_name(harness, tmp_path):
 def test_operator_remove_takes_the_robot_off_the_course_for_good(harness, tmp_path):
     from fake_robots.common import TRUTH_TOPIC
     p = start(harness, tmp_path, robots={
-        "pode1": {"start": "P-1", "speed_mps": 0.2, "pose_noise_m": 0.0}},
+        "pode1": {"start": "P-1", "speed_scale": 1.0, "pose_noise_m": 0.0}},
         faults=[{"at_s": 1.5, "robot": "pode1", "type": "operator_remove"}])
     truth = []
     p.node.create_subscription(
@@ -319,7 +319,7 @@ def test_operator_remove_takes_the_robot_off_the_course_for_good(harness, tmp_pa
 
 def test_operator_reinstate_puts_the_robot_back_and_it_reports_again(harness, tmp_path):
     p = start(harness, tmp_path, robots={
-        "pode1": {"start": "P-1", "speed_mps": 0.2, "pose_noise_m": 0.0}},
+        "pode1": {"start": "P-1", "speed_scale": 1.0, "pose_noise_m": 0.0}},
         faults=[{"at_s": 0.5, "robot": "pode1", "type": "operator_remove"},
                 {"at_s": 2.0, "robot": "pode1", "type": "operator_reinstate", "start": "P-3"}])
     assert wait_until(lambda: p.states, 5.0)
@@ -356,7 +356,7 @@ def test_a_dock_reports_its_dock_id_as_the_current_goal(harness, tmp_path):
 
 # ---- the heartbeat ----------------------------------------------------------------------
 
-SLOW = {"pode1": {"start": "P-1", "speed_mps": 0.1, "pose_noise_m": 0.0}}
+SLOW = {"pode1": {"start": "P-1", "speed_scale": 0.83, "pose_noise_m": 0.0}}
 BEAT_TIMEOUT_S = 0.5
 
 
@@ -398,7 +398,7 @@ def test_a_move_stops_when_no_heartbeat_comes(harness, tmp_path):
 
 def test_a_heartbeat_keeps_a_move_going_past_the_timeout(harness, tmp_path):
     p = start(harness, tmp_path, heartbeat_timeout_s=BEAT_TIMEOUT_S, robots={
-        "pode1": {"start": "P-3", "speed_mps": 0.2, "pose_noise_m": 0.0}})
+        "pode1": {"start": "P-3", "speed_scale": 1.0, "pose_noise_m": 0.0}})
     beat(p)
     time.sleep(0.3)
     target = "P-1"
@@ -451,7 +451,7 @@ def test_a_robot_with_nothing_to_do_does_not_mind_the_silence(harness, tmp_path)
 
 # ---- 앞 물체와 위치 잡기(계약 3절 6번, 4절) -----------------------------------------------
 
-ONE = {"pode1": {"start": "P-1", "speed_mps": 0.2, "pose_noise_m": 0.0}}
+ONE = {"pode1": {"start": "P-1", "speed_scale": 1.0, "pose_noise_m": 0.0}}
 NO_RECOVERY = {"recovery_attempts": 0}  # 자기 복구 없이 BLOCKED로 바로 가는 동작(계약 4절)
 
 
@@ -530,7 +530,7 @@ def test_a_robot_put_back_does_not_keep_saying_blocked(harness, tmp_path):
 
 def test_a_robot_says_localizing_until_it_has_a_pose(harness, tmp_path):
     p = start(harness, tmp_path, robots={
-        "pode1": {"start": "P-1", "speed_mps": 0.2, "pose_noise_m": 0.0, "localizing_s": 3.0}})
+        "pode1": {"start": "P-1", "speed_scale": 1.0, "pose_noise_m": 0.0, "localizing_s": 3.0}})
     assert wait_until(lambda: p.states and p.states[-1][1].state == RobotState.STATE_IDLE, 8.0)
     seen = [s for _, s in p.states]
     first = next(i for i, s in enumerate(seen) if s.state == RobotState.STATE_IDLE)
@@ -588,7 +588,7 @@ def test_a_path_that_misses_the_robot_is_refused_and_the_robot_stays(harness, tm
 def test_a_path_within_the_tolerance_is_followed(harness, tmp_path):
     """0.15 m 안이면 연결된 것이다. 위치 잡음과 보고 지연만큼은 받아 준다."""
     p = start(harness, tmp_path, robots={
-        "pode1": {"start": "P-1", "speed_mps": 0.5, "pose_noise_m": 0.0}})
+        "pode1": {"start": "P-1", "speed_scale": 1.0, "pose_noise_m": 0.0}})
     assert wait_until(lambda: p.states, 5.0)
     res = result_of(send_path(p, lane_points("P-1", "N_W", "N_E", shift=0.07), "N_E")).result
     assert res.success is True
@@ -598,7 +598,7 @@ def test_a_refused_path_ends_the_old_goal_and_a_path_from_here_arrives(harness, 
     """이전 목표는 새 목표를 받는 순간 끝나므로(R6) 로봇은 선다. 지금 자리에서 다시 만든 path로
     도착한다. 관제는 이 실패를 한 번으로 세고 move_retry_wait_s 뒤 그렇게 다시 보낸다."""
     p = start(harness, tmp_path, robots={
-        "pode1": {"start": "P-1", "speed_mps": 0.2, "pose_noise_m": 0.0}})
+        "pode1": {"start": "P-1", "speed_scale": 1.0, "pose_noise_m": 0.0}})
     assert wait_until(lambda: p.states, 5.0)
     first = send_path(p, lane_points("P-1", "N_W", "N_E"), "N_E")
     assert wait_until(lambda: p.states[-1][1].state == RobotState.STATE_MOVING, 5.0)
@@ -622,7 +622,7 @@ def test_a_refused_path_ends_the_old_goal_and_a_path_from_here_arrives(harness, 
 # ---- 자기 복구(2026-11-09 공유 명세 '로봇 쪽') --------------------------------------------
 
 RECOVERING = RobotState.STATE_RECOVERING
-LONG = {"pode1": {"start": "P-1", "speed_mps": 0.2, "pose_noise_m": 0.0}}  # O_Q까지 2.3 m
+LONG = {"pode1": {"start": "P-1", "speed_scale": 1.0, "pose_noise_m": 0.0}}  # O_Q까지 2.3 m
 
 
 def runs(states):

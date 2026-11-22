@@ -9,8 +9,8 @@ from dataclasses import dataclass, field
 class Imperfections:
     """세계 전체의 흠 크기. 로봇마다 실제 값은 씨드로 고른다(같은 씨드면 같다)."""
 
-    speed_spread: float = 0.10  # 속도 상한의 (1 - spread)..1 사이에서 로봇마다
-    speed_jitter: float = 0.03  # 걸음마다 더하는 흔들림(비율)
+    speed_spread: float = 0.33  # 최고 속도의 (1 - spread)..1 배율을 로봇마다(Isaac 대본 로봇처럼)
+    speed_jitter: float = 0.03  # 걸음마다 더하는 흔들림(비율). 최고 속도는 넘지 않는다
     arrival_error_m: float = 0.01  # 목표에서 이 안의 아무 자리에 선다
     pose_noise_m: float = 0.005  # 보고 위치의 가우스 잡음(표준편차)
     report_delay_max_s: float = 0.2  # 로봇마다 0..이 값 사이로 보고가 늦다

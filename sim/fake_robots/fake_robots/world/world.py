@@ -17,6 +17,7 @@ from fleet_core.common.params import load_params
 from fleet_core.fleet_map import PARKING, WAIT, load_fleet_map
 
 from ..battery import Battery
+from ..nav_speed import nav_speed_mps
 from .apply import Commands
 from .avoid import PERFECT, MixedSettings, check_mode
 from .free_space import FreeSpace
@@ -59,6 +60,8 @@ class ZoneWorld(Commands, Link):
         self.seed = seed
         self.rng = random.Random(seed)
         self.imperfect = Imperfections() if imperfect is None else imperfect
+        # 로봇은 관제가 믿는 속도(params.nav_speed_mps)가 아니라 단일 출처 x 배율로 간다
+        self.top_speed_mps = nav_speed_mps()
         self.t = 0.0
         self.dt = DT
         self.radius = self.params.robot_radius_m

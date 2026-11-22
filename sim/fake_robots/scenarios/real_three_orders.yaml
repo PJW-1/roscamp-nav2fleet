@@ -4,7 +4,7 @@
 # 재고). 건수만 4건으로 줄였다(팀 결정 11-18). 로봇을 띄울 시간을 두려고
 # 모두 20 s 늦췄다(gz_v7은 0, 20, 40, 60 s). 4건을 한 번 넣고 끝난다(반복 없음).
 # 도킹은 PC 대역(dock_wait_robots, 로봇은 DOCK_STUB=1)이 dock.duration_s만큼 기다린다.
-# 벽시계로 돈다(use_sim_clock:=false). robots의 speed_mps, pose_noise_m은 가짜 로봇용이라
+# 벽시계로 돈다(use_sim_clock:=false). robots의 speed_scale, pose_noise_m은 가짜 로봇용이라
 # 실물에는 쓰이지 않는다(실물 속도는 start.sh).
 map: v7
 seed: 65
@@ -17,9 +17,9 @@ orders:
   - {at_s: 60, id: R-003, items: {D: 1, A: 1}}
   - {at_s: 80, id: R-004, items: {C: 1}}
 robots:
-  pode1: {start: P-1, speed_mps: 0.12, pose_noise_m: 0.03}
-  pode2: {start: P-2, speed_mps: 0.12, pose_noise_m: 0.03}
-  pode3: {start: P-3, speed_mps: 0.12, pose_noise_m: 0.03}
+  pode1: {start: P-1, speed_scale: 1.0, pose_noise_m: 0.03}
+  pode2: {start: P-2, speed_scale: 1.0, pose_noise_m: 0.03}
+  pode3: {start: P-3, speed_scale: 1.0, pose_noise_m: 0.03}
 arm: {seconds_per_item: 4.0, swap_seconds: 8.0, fail_rate: 0.0}
 dock: {duration_s: 3.0, error_cm: 1.0}
 faults: []

@@ -58,7 +58,8 @@ class ScenarioError(ValueError):
 @dataclass(frozen=True)
 class RobotCfg:
     start: str  # 지도의 지점
-    speed_mps: float = 0.2
+    speed_mps: float  # speed_scale x 단일 출처의 최고 속도(nav_speed.py). 읽을 때 정한다
+    speed_scale: float = 1.0  # 0 초과 1 이하. 시나리오 파일은 nav_speed.SCALE_RANGE 안
     pose_noise_m: float = 0.0
     report_delay_s: float = 0.0  # 측정하고 이만큼 지난 뒤에 보고가 나간다
     stop_error_m: float = 0.0  # 축마다 표준편차: 이동이 목표 주변 어디서 끝나는지

@@ -15,8 +15,8 @@ from test_ros_pode import SITE, result_of, start  # noqa: E402
 X0, Y0 = SITE.node_pose("P-1")
 STEP_M = 0.3
 NODES = {1: "a", 2: "b", 3: "c"}  # seq_id -> 끝 노드
-SLOW = {"pode1": {"start": "P-1", "speed_mps": 0.1, "pose_noise_m": 0.0, "stop_error_m": 0.0}}
-FAST = {"pode1": {"start": "P-1", "speed_mps": 1.0, "pose_noise_m": 0.0, "stop_error_m": 0.0}}
+SLOW = {"pode1": {"start": "P-1", "speed_scale": 0.83, "pose_noise_m": 0.0, "stop_error_m": 0.0}}
+FAST = {"pode1": {"start": "P-1", "speed_scale": 1.0, "pose_noise_m": 0.0, "stop_error_m": 0.0}}
 
 
 def end_of(seq):
