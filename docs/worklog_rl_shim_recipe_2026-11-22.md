@@ -61,8 +61,10 @@ WSL에 설치된 판은 `ros-jazzy-nav2-rotation-shim-controller` 1.3.13이다. 
   불린다(:256-257). 로그는 `RCLCPP_DEBUG` 한 줄뿐이다(:246). warn 수준으로 띄운 bench에는 남지 않는다.
   **회전이 일찍 끝나는 길은 이 셋과 정상 종료(오차 0.39 rad 이하)뿐이다.** goal 근처의 방향 맞추기(:166-204)는 출발에는 해당이 없다.
 - 덤으로 본 것: 회전을 미리 돌려 볼 때 문턱에서 멈추는 조건(:352-361)이
-  `shortest_angular_distance(yaw, initial_yaw) = −w·t`를 쓴다. 그래서 오른쪽 회전(w < 0)만 문턱에서 멈추고, 왼쪽 회전(w > 0)은
-  늘 1.0 s를 다 돌려 본다. Q2의 회전은 왼쪽이다.
+  `shortest_angular_distance(yaw, initial_yaw) = −w·t`를 쓰고, 우변은 `|오차| − 0.785`다. 오차가 0.785 rad보다 크면
+  오른쪽 회전(w < 0)만 문턱에서 멈추고, 왼쪽 회전(w > 0)은 1.0 s를 다 돌려 본다. 오차가 0.785 rad 이하(돌던 중
+  0.39~0.785 rad)면 우변이 음수라, 오른쪽은 첫 칸에서 바로 멈추고 왼쪽도 0.785 − |오차|가 w × 0.05 s보다 크면 첫 칸에서
+  멈춘다. 즉 그 구간에서는 사실상 검사를 하지 않는다. Q2의 회전은 왼쪽이고 넘길 때 오차가 2.4~2.8 rad라 앞의 경우(1 s 전체)다.
 
 ### 1.2 Gazebo 기록에서 본 것
 
@@ -91,7 +93,8 @@ compare_012의 RL+shim 판(`docs/rl_shim_recipe_2026-11-22/handover.py`, `shim_c
 - 경로: 학습 경로 44개 × 출발 방향 12개, 운동학 모형(유니사이클 + 가속 제한, 학습의 측정 진열대);
 - 정책: ppo_k `model_998.pt`. 묶음 계산이라 체크포인트를 썼다. `store_arena_4b/policy.onnx`와의 차이는 무작위 관측 64개에서
   최대 1.25e-06이다;
-- shim: 위 1.1의 논리를 그대로 옮기고 1 s마다 새 계획을 낸다;
+- shim: 위 1.1의 논리를 근사로 옮기고 1 s마다 새 계획을 낸다. 다른 점 둘: 0.15 m 표본점을 계획 첫 점이 아니라 로봇 위치에서
+  재고, costmap 충돌 검사는 구현하지 않았다(그 대신 아래 "회전 끊김" 가정);
 - "회전 끊김 T s"는 shim이 T s 돈 뒤 오차와 상관없이 정책에 넘기고 다시 돌지 않는 경우다. 충돌 검사가 계속 거부하는 상황을 흉내 낸다;
 - 스침 = 몸(URDF base_link 상자) 거리 0.005 m 이하.
 
@@ -142,7 +145,9 @@ Gazebo 판을 운동학으로 다시 돌린 것(Gazebo 계획 그대로):
 
 - RL+shim으로 Q2 → E-3를 3판, O_IN → M_E를 2판 돌린다(compare_012와 같은 조건).
 - controller_server만 DEBUG로 띄우고(`--ros-args --log-level <ns>.controller_server:=debug`), local costmap을 bag으로 남긴다.
-- 셀 것: "a rotational collision was detected" 줄이 회전이 일찍 끝난 때와 맞는지, 그 순간 발자국 둘레의 LETHAL 칸 위치.
+- 셀 것: catch의 DEBUG 줄(:246)이 회전이 일찍 끝난 때와 맞는지, 그 순간 발자국 둘레의 LETHAL 칸 위치. 이 줄의 앞부분 문구는
+  세 예외에 공통이라, 원인은 끝의 `what():` 내용으로 가른다("detected collision ahead!" 또는 "detected a potential collision
+  ahead!"면 충돌 검사, "Failed to transform"이면 TF, "Path is too short"면 짧은 경로).
 - 무거운 작업 잠금 아래에서, 22시 이후에 한다.
 
 ## 2. policy_spec format 3 지원 (항목 8 준비)
@@ -201,11 +206,11 @@ Isaac 쪽을 기다리는 것:
 
 ## 직접 해 볼 것
 
-1. 운동학 검사를 다시 돌린다(Windows, 저장소 `C:/Users/pjw/ros2camp/pd-plugin2`, 체크포인트가 D:에 있어야 함). Gazebo 판
+1. 운동학 검사를 다시 돌린다(Windows의 Git Bash, 저장소 `C:/Users/pjw/ros2camp/pd-plugin2`, 체크포인트가 D:에 있어야 함). Gazebo 판
    JSON 세 개를 WSL `~/rl_gz_check/cmp012_025415/q2e3/legs/a_hall_FollowPathRLShim_{0,1,2}.json`에서 가져온다:
 
    ```bash
-   PYTHONUTF8=1 python docs/rl_shim_recipe_2026-11-22/shim_sweep.py shim0.json shim1.json shim2.json /tmp/out.json
+   PYTHONUTF8=1 python docs/rl_shim_recipe_2026-11-22/shim_sweep.py shim0.json shim1.json shim2.json shim_out.json
    ```
 
    첫 줄의 체크포인트-ONNX 차이가 1e-5 아래인지, "shim abort 1.0 s" 줄에 M_E->E-3 한 판이 나오는지 본다.
