@@ -69,6 +69,7 @@ if(BUILD_TESTING)
   target_link_libraries(test_format3 pode_rl_core)
   target_compile_definitions(test_format3 PRIVATE
     POLICY_DIR="${CMAKE_CURRENT_SOURCE_DIR}/policies/store_arena_4b"
+    FORMAT3_FIXTURE="${CMAKE_CURRENT_SOURCE_DIR}/test/fixtures/format3/format3_cases.json"
     NAV_SPEED_FILE="${CMAKE_CURRENT_SOURCE_DIR}/../pode_nav_config/params/nav_speed.yaml")
 endif()
 

@@ -32,7 +32,7 @@
 5. **format 3 명세에서 기본 v, w 배율과 다른 블록 배율은 거부한다.** 기본 관측의 v, w는 지금처럼 `action.v_max`,
    `action.w_max`로 나눈다. 계약은 prev_action과 speed_cap이 같은 상수(0.12, 1.0)를 쓴다고 했다. 그래서
    `prev_action.v_scale/w_scale`이나 `speed_cap.obs_scale`이 `action.v_max/w_max`와 다르면 configure에서 멈춘다.
-   Isaac이 `action.v_max`에 다른 값(예: speed_cap 최댓값)을 적으면 이 검사가 멈추게 하므로, 최종 명세를 받으면 다시 본다.
+   Isaac의 내보내기(f3b5352 `export_policy.block_entries`)는 `action.v_max` = 0.12와 같은 배율을 적으므로 이 검사를 통과한다.
 6. **compare_012 조건으로 다시 잴 때는 `results/2026-11-22/compare_012/rl_and_shim.yaml`을 쓴다.** 그 파일에서는
    `FollowPathRL`이 RL 혼자이고 `FollowPathRLShim`이 RL+shim이라, `report.py`의 이름표("RL", "RL+shim")가 맞는다.
    새 기본 덮어쓰기로 재면 `FollowPathRL`이 RL+shim인데 표에는 "RL"로 나온다(`FollowPathRLAlone`은 "RL alone").
@@ -183,10 +183,32 @@ Gazebo 판을 운동학으로 다시 돌린 것(Gazebo 계획 그대로):
 `colcon test --packages-select pode_rl_controller`: `Summary: 33 tests, 0 errors, 0 failures, 0 skipped`(기존 parity와
 관측 시험 포함). pytest `sim/fleet_gz_sim/test`, `tools/test/test_nav_bench.py`, `pode/pode_nav_config/test`: 747 통과.
 
+### 2.1 관측 parity (Isaac f3b5352, ONNX 없이)
+
+`tools/rl_fixtures/make_format3_cases.py`가 레시피 코드로 고정값을 만든다. `task_spec.build_observation`,
+`task_spec.action_to_target`, `export_policy.block_entries`, `obs_names`를 그대로 부르고, 기록 칸은
+`store_arena_env.py`의 `lidar_history` 메서드 본문을 그대로 떼어 실행한다(Isaac Lab 없이). 순서는 env와 같다: 초기화
+때 target 0과 새 기록, 관측, 행동 -> target. 입력은 19단계(에피소드 13단계 + 초기화 후 6단계, stride 4 기록이 다 차고
+다시 비는 것까지), 행동은 [-1.3, 1.3]이라 자르기도 지난다. 블록 묶음 넷(prev_action, lidar_history, speed_cap(0.06~0.12),
+셋 다)의 관측과 (v, w)를 `pode/pode_rl_controller/test/fixtures/format3/format3_cases.json`(169 KB)에 적었다. f3b5352의
+파일은 `git archive`로 꺼내 썼다(Isaac 작업 트리의 HEAD는 그 뒤 cf473cc였지만 이 세 파일은 같다).
+
+```bash
+git archive -o recipe.tar f3b5352 learning pode/pode_nav_config/params && mkdir recipe && tar -xf recipe.tar -C recipe
+PYTHONUTF8=1 python tools/rl_fixtures/make_format3_cases.py recipe pode/pode_rl_controller/test/fixtures/format3/format3_cases.json --commit f3b5352
+```
+
+gtest `Format3Parity.ObservationAndTargetMatchTheRecipe`는 각 묶음의 명세를 base 명세 + 고정값의 블록 항목·`obs_layout`·
+`obs_dim`으로 읽고(configure 검사 통과), `ObsMemory`와 `action_to_target`을 단계마다 1e-6 안에서 비교한다:
+```
+[       OK ] Format3Parity.ObservationAndTargetMatchTheRecipe (75 ms)
+[  PASSED  ] 13 tests.
+```
+`colcon test --packages-select pode_rl_controller`: `Summary: 34 tests, 0 errors, 0 failures, 0 skipped`. 기록 칸 번호를
+일부러 하나 밀면(`f * stride - 1` -> `f * stride`) 이 시험이 `lidar_history step 5 entry 41`부터 646건 실패한다.
+
 Isaac 쪽을 기다리는 것:
-- 최종 필드 이름과 관측 이름(특히 speed_cap 한 칸의 이름, `obs_layout`에 적는 방식);
-- format 3 명세의 `action.v_max`에 무엇을 적는지(결정 5);
-- Isaac이 커밋한 SHA로 만드는 parity 고정값: 관측 블록, 기록 칸, 행동 매핑을 Python `task_spec.py`와 맞춘다;
+- ONNX 수준 parity: 내일 고를 레시피 정책을 배포 정책으로 커밋할 때 그 정책으로 만든다;
 - 새 레시피 정책이 나오면 compare_012와 같은 조건(결정 6)으로 네 컨트롤러를 다른 밤에 다시 잰다.
 
 ## 주의

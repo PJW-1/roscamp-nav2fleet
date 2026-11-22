@@ -13,7 +13,7 @@ Runtime CPU) trained in `learning/goal_reach` or `learning/store_arena`. Design,
 | `policies/<name>/` | `policy.onnx` + `policy_spec.json` (goal rule, lookahead, origin); parameter `policy` picks one, default `store_arena_4b`. Only the deployed policy's onnx is committed (user decision 2026-11-22); `goal_reach_base_4096` keeps only its spec, under `test/fixtures` |
 | `test/test_parity.cpp` | gtest against `test/fixtures/<policy>` (made by `export_policy.py --fixtures`), built once per policy |
 | `test/test_observation.cpp` | gtest: lookahead point and progress against `route_spec.follow`, goal and velocity terms against `task_spec`, lidar with the yaw-pi mount, reverse guard |
-| `test/test_format3.cpp` | gtest: format 3 spec loading and refusals, `ObsMemory` (prev_action, lidar history, speed_cap), the cap-aware action mapping, when the memory resets |
+| `test/test_format3.cpp` | gtest: format 3 spec loading and refusals, `ObsMemory` (prev_action, lidar history, speed_cap), the cap-aware action mapping, when the memory resets, and observation parity against `test/fixtures/format3/format3_cases.json` (made by `tools/rl_fixtures/make_format3_cases.py` from the recipe's `task_spec.py` and `store_arena_env.lidar_history`) |
 
 Format 3 memory (`ObsMemory`): prev_action is the policy's mapped target before the guard, the speed limit
 and the rate limit; the lidar history holds earlier sector vectors, newest first. Both return to the episode

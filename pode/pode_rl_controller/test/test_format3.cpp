@@ -249,3 +249,52 @@ TEST(EpisodeRules, ANewEpisodeStartsOnlyWhenTheGoalMoves)
   EXPECT_FALSE(pode_rl_controller::new_episode(true, {1.0, 1.0}, {1.0005, 1.0}));
   EXPECT_TRUE(pode_rl_controller::new_episode(true, {1.0, 1.0}, {1.2, 1.0}));
 }
+
+// ---- 레시피(task_spec.py, store_arena_env.lidar_history)와 관측 일치 ----
+TEST(Format3Parity, ObservationAndTargetMatchTheRecipe)
+{
+  const YAML::Node f = YAML::LoadFile(std::string(FORMAT3_FIXTURE));
+  const YAML::Node steps = f["steps"];
+  ASSERT_EQ(f["sets"].size(), 4u);
+  for (const auto & kv : f["sets"]) {
+    const std::string name = kv.first.as<std::string>();
+    const YAML::Node set = kv.second;
+    YAML::Node s = base_spec();
+    s["format"] = 3;
+    for (const char * key : {"obs_blocks", "prev_action", "lidar_history", "speed_cap",
+        "obs_layout", "obs_dim"})
+    {
+      if (set[key]) {
+        s[key] = set[key];
+      }
+    }
+    const PolicySpec spec = load(s, "parity_" + name);
+    const bool capped = spec.has_block("speed_cap");
+    ObsMemory memory(spec);
+    ASSERT_EQ(set["obs"].size(), steps.size());
+    for (size_t k = 0; k < steps.size(); ++k) {
+      const YAML::Node st = steps[k];
+      if (st["reset"].as<bool>()) {
+        memory.reset();
+      }
+      const double cap = capped ? st["speed_cap"].as<double>() : spec.action.v_max;
+      std::vector<float> obs = pode_rl_controller::build_observation(
+        st["rays"].as<std::vector<float>>(), st["goal_dist"].as<double>(),
+        st["goal_angle"].as<double>(), st["v"].as<double>(), st["w"].as<double>(), spec);
+      const std::vector<float> sectors(obs.begin(), obs.begin() + 36);
+      const std::vector<float> extra = memory.blocks(sectors, cap);
+      obs.insert(obs.end(), extra.begin(), extra.end());
+      const auto want = set["obs"][k].as<std::vector<double>>();
+      ASSERT_EQ(obs.size(), want.size()) << name << " step " << k;
+      for (size_t i = 0; i < want.size(); ++i) {
+        EXPECT_NEAR(obs[i], want[i], 1e-6) << name << " step " << k << " entry " << i;
+      }
+      const auto a = st["action"].as<std::vector<float>>();
+      const Twist2 target = pode_rl_controller::action_to_target(a[0], a[1], spec.action, cap);
+      const auto t = set["target"][k].as<std::vector<double>>();
+      EXPECT_NEAR(target.v, t[0], 1e-6) << name << " step " << k;
+      EXPECT_NEAR(target.w, t[1], 1e-6) << name << " step " << k;
+      memory.step(sectors, target);
+    }
+  }
+}
