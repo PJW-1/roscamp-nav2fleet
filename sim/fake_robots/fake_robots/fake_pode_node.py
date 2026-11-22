@@ -90,6 +90,10 @@ class FakePodeNode(PodeGoals, PodeOrder, PodeRetreat, PodeReport, Node):
         self._beat_timeout = timeout if timeout >= 0 else float(params["heartbeat_timeout_s"])
         # path가 로봇 자리에서 이보다 멀면 따라가지 않는다(관제 lane_error_warn_m)
         self._connect_tolerance = float(params["lane_error_warn_m"])
+        # 실물 Pode처럼: 다음 조각을 받았으면 nav_goal 끝 노드 이만큼 앞에서 넘어가고(pode_fsm
+        # pass_m), 아니면 끝에 서서 이 각속도로 목표 방향으로 돈다(RPP). 값은 관제 파일에서 읽는다
+        self._pass_m = float(params["nav_pass_m"])
+        self._turn_rps = float(params["nav_turn_rps"])
         self._last_beat = time.monotonic()
 
         self._state_pub = self.create_publisher(
@@ -233,6 +237,9 @@ class FakePodeNode(PodeGoals, PodeOrder, PodeRetreat, PodeReport, Node):
         self._recovery.drive(t, dt, self._motion, self._cfg.speed_mps if clear else 0.0,
                              others, self._faults.behind(t))
         if not self._motion.moving and (goal.nav is None or goal.nav.has_way):
+            if (goal.nav is not None and goal.end_yaw is not None and self._turn_rps > 0.0
+                    and not self._motion.turn(goal.end_yaw, self._turn_rps, dt)):
+                return None
             self._recovery.succeeded()
             return True, ""
         return None

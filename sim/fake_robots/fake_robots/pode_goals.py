@@ -14,9 +14,14 @@ from fake_robots.nav_goal_drive import NavGoalDrive
 from fake_robots.pode_goal import NAV_ABORT_DELAY_S, _Goal
 from fake_robots.pode_order import order_cmd
 
-FEEDBACK_PERIOD_S = 0.2
+FEEDBACK_PERIOD_S = 0.2  # 시뮬 초
 RETREAT_REASONS = (Retreat.Result.REASON_OBSTACLE_BEHIND, Retreat.Result.REASON_TIMEOUT,
                    Retreat.Result.REASON_CANCELED, Retreat.Result.REASON_FAILED)
+
+
+def feedback_due(now: float, last: float) -> bool:
+    """진행 소식을 보낼 때다. 시뮬 시계가 되감기면(now < last) 바로 다시 보낸다."""
+    return now - last >= FEEDBACK_PERIOD_S or now < last
 
 
 class PodeGoals:
@@ -71,6 +76,7 @@ class PodeGoals:
                     target = noisy_pose(pose.x, pose.y, self._cfg.stop_error_m, self._rng)
                     goal.nav = NavGoalDrive(self._space, self._recovery.p.robot_radius_m,
                                             target, t, (m.x, m.y))
+                    goal.end_yaw = pose.theta
                     self._take_nav_abort(t, goal, math.dist((m.x, m.y), target))
                 elif path and self._path_misses_me(t, path):
                     # 따라가지 않고 실패한다. 이전 목표는 위에서 끝났으니 선다(R6)
@@ -138,14 +144,14 @@ class PodeGoals:
 
     def _execute(self, handle, action_type):
         goal = self._goals[bytes(handle.goal_id.uuid)]
-        last_fb, last_phase = 0.0, ""
+        last_fb, last_phase = -math.inf, ""
         while not goal.done.is_set() and not handle.is_cancel_requested:
             if not self._running():
                 abort_at_shutdown(handle)
                 return action_type.Result()
-            now = time.monotonic()
-            if not self._faults.comms_down(self._sc.now()):
-                if goal.kind == "move" and now - last_fb >= FEEDBACK_PERIOD_S:
+            now = self._sc.now()
+            if not self._faults.comms_down(now):
+                if goal.kind == "move" and feedback_due(now, last_fb):
                     last_fb = now
                     with self._lock:  # update와 엇갈리지 않게 락 안에서 보낸다
                         order = goal.order
