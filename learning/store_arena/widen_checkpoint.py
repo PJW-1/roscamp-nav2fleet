@@ -41,6 +41,48 @@ def widen_state(sd: dict, new_dim: int, mean: torch.Tensor, var: torch.Tensor) -
     return out
 
 
+def insert_state(sd: dict, at: int, mean: torch.Tensor, var: torch.Tensor) -> dict:
+    """One model state dict with len(mean) new inputs inserted before input index at."""
+    k = len(mean)
+    out = dict(sd)
+    w = sd["mlp.0.weight"]
+    out["mlp.0.weight"] = torch.cat((w[:, :at], w.new_zeros(w.shape[0], k), w[:, at:]), 1)
+    m, v = mean.to(w.dtype)[None], var.to(w.dtype)[None]
+    for key, new in (("_mean", m), ("_var", v), ("_std", v.sqrt())):
+        old = sd["obs_normalizer." + key]
+        out["obs_normalizer." + key] = torch.cat((old[:, :at], new, old[:, at:]), 1)
+    return out
+
+
+def intent_stats(spec) -> tuple[torch.Tensor, torch.Tensor]:
+    """Rough normaliser stats of the intent block: present flag about half the time, priority
+    flag a quarter, route points around 0 with std about 0.3 (scaled by intent_obs_max)."""
+    head_m, head_v = [0.5], [0.25]
+    if spec.intent_priority:
+        head_m, head_v = head_m + [0.25], head_v + [0.1875]
+    m = torch.tensor(head_m + [0.0] * (2 * spec.intent_points)).repeat(spec.intent_robots)
+    v = torch.tensor(head_v + [0.1] * (2 * spec.intent_points)).repeat(spec.intent_robots)
+    return m, v
+
+
+def add_intent(ck: dict, spec) -> dict:
+    """ck trained with spec's layout minus the intent block (item 6: the recipe checkpoint);
+    the intent block goes at the end of the actor input and before the critic's privileged
+    entries, with zero first-layer weights, so both outputs stay the same."""
+    if not spec.intent_robots:
+        raise ValueError("spec has no intent block")
+    base = dataclasses.replace(spec, intent_robots=0, intent_priority=0)
+    at = ts.obs_dim(base)
+    actor, critic = ck["actor_state_dict"], ck["critic_state_dict"]
+    if actor["mlp.0.weight"].shape[1] != at:
+        raise ValueError(f"checkpoint actor takes {actor['mlp.0.weight'].shape[1]}, not {at}")
+    m, v = intent_stats(spec)
+    out = {k: x for k, x in ck.items() if k != "optimizer_state_dict"}
+    out["actor_state_dict"] = insert_state(actor, at, m, v)
+    out["critic_state_dict"] = insert_state(critic, at, m, v)
+    return out
+
+
 def block_stats(sd: dict, spec) -> tuple[torch.Tensor, torch.Tensor]:
     """Normaliser mean and variance for the optional actor blocks of spec (not intent): each
     repeats the base entry it copies; the speed cap is uniform over speed_cap_range."""
@@ -99,15 +141,27 @@ def main():
     p.add_argument("out")
     p.add_argument("--set", action="append", default=[], metavar="FIELD=VALUE")
     p.add_argument("--robot_max", type=int, default=2, help="ArenaSpec.robot_max (privileged)")
+    p.add_argument(
+        "--add_intent",
+        action="store_true",
+        help="the checkpoint already has the --set layout without intent (a recipe run): only "
+        "insert the intent block",
+    )
     args = p.parse_args()
     spec = ts.make_spec(ts.parse_overrides(args.set))
     ck = torch.load(args.checkpoint, map_location="cpu", weights_only=False)
-    out = widen_checkpoint(ck, spec, N_MOVERS + args.robot_max)
+    if args.add_intent:
+        out = add_intent(ck, spec)
+    else:
+        out = widen_checkpoint(ck, spec, N_MOVERS + args.robot_max)
     out["widened_spec"] = {k: v for k, v in dataclasses.asdict(spec).items()}
     torch.save(out, args.out)
     a_dim = out["actor_state_dict"]["mlp.0.weight"].shape[1]
     c_dim = out["critic_state_dict"]["mlp.0.weight"].shape[1]
-    print(f"actor {out['widened_from']['actor']} -> {a_dim}, critic -> {c_dim}: {args.out}")
+    print(
+        f"actor {ck['actor_state_dict']['mlp.0.weight'].shape[1]} -> {a_dim}, critic -> {c_dim}"
+        f": {args.out}"
+    )
 
 
 if __name__ == "__main__":

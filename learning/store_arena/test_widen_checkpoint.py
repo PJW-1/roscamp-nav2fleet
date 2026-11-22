@@ -126,3 +126,24 @@ def test_new_entries_take_the_stats_of_the_entries_they_repeat():
 
 def test_the_privileged_object_count_matches_the_movers():
     assert wc.N_MOVERS == len(ms.MOVERS)
+
+
+@pytest.mark.parametrize("prio", [0, 1])
+@pytest.mark.parametrize("privileged", [0, 1])
+def test_adding_intent_to_a_recipe_checkpoint_keeps_the_outputs(prio, privileged):
+    recipe = {"prev_action_obs": 1, "lidar_frames": 3, "critic_privileged": privileged}
+    spec0 = dataclasses.replace(ts.SPEC, **recipe)
+    ck = wc.widen_checkpoint(fake_checkpoint(), spec0, wc.N_MOVERS + 2)
+    spec = dataclasses.replace(spec0, intent_robots=2, intent_priority=prio)
+    new = wc.add_intent(ck, spec)
+    at, a_dim = ts.obs_dim(spec0), ts.obs_dim(spec)
+    n_priv = ts.PRIV_PER_OBJECT * (wc.N_MOVERS + 2) if privileged else 0
+    assert new["actor_state_dict"]["mlp.0.weight"].shape[1] == a_dim
+    assert new["critic_state_dict"]["mlp.0.weight"].shape[1] == a_dim + n_priv
+    g = torch.Generator().manual_seed(2)
+    x = torch.rand(2048, a_dim + n_priv, generator=g, dtype=torch.float64) * 4 - 2
+    keep = torch.cat((torch.arange(at), torch.arange(a_dim, a_dim + n_priv)))
+    old_a = forward(ck["actor_state_dict"], x[:, :at])
+    old_c = forward(ck["critic_state_dict"], x[:, keep])
+    assert torch.equal(forward(new["actor_state_dict"], x[:, :a_dim]), old_a)
+    assert torch.equal(forward(new["critic_state_dict"], x), old_c)
