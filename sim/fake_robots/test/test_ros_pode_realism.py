@@ -127,3 +127,42 @@ def test_progress_feedback_runs_on_sim_time(harness, tmp_path):
     time.sleep(1.0)
     per_wall_s = len(p.feedback) - first
     assert per_wall_s >= 0.6 * FAST_CLOCK / FEEDBACK_PERIOD_S, per_wall_s
+
+
+def test_a_segment_heading_reads_the_full_quaternion():
+    """실물 quaternion_yaw와 같다: x, y 성분이 있어도 yaw만 꺼낸다."""
+    from fake_robots.pode_order import segment
+    roll, pitch, yaw = 0.3, 0.2, 1.0
+    cr, sr = math.cos(roll / 2), math.sin(roll / 2)
+    cp, sp = math.cos(pitch / 2), math.sin(pitch / 2)
+    cy, sy = math.cos(yaw / 2), math.sin(yaw / 2)
+    msg = nav_seg(1)
+    q = msg.target_pose.pose.orientation
+    q.w, q.x = cr * cp * cy + sr * sp * sy, sr * cp * cy - cr * sp * sy
+    q.y, q.z = cr * sp * cy + sr * cp * sy, cr * cp * sy - sr * sp * cy
+    assert segment(msg).yaw == pytest.approx(yaw)
+
+
+def test_the_pass_rule_measures_from_the_reported_pose():
+    """실물은 넘김과 다음 path의 연결 검사를 둘 다 보고 자세로 잰다(drift가 들어간 자리)."""
+    from types import SimpleNamespace
+
+    from fake_robots.motion import Motion
+    from fake_robots.pode_order import FOLLOW_PATH, NAV_GOAL, PodeOrder, Seg
+    end = Seg(1, NAV_GOAL, "a", (), 1.0, 0.0)
+    nxt = Seg(2, FOLLOW_PATH, "b", ((1.0, 0.0), (2.0, 0.0)), 2.0, 0.0)
+    goal = SimpleNamespace(seg_mode=NAV_GOAL, seg=end, order=SimpleNamespace(queue=[nxt]))
+
+    def node(drift):
+        return SimpleNamespace(_motion=Motion(0.9, 0.0, yaw=0.0), _pass_m=0.15,
+                               _connect_tolerance=0.15,
+                               _faults=SimpleNamespace(drift=lambda t: drift))
+    assert PodeOrder._passes(node(0.0), goal, 0.0) is True
+    assert PodeOrder._passes(node(0.2), goal, 0.0) is False, "the next path would be refused"
+
+
+def test_feedback_is_due_again_after_the_sim_clock_goes_back():
+    from fake_robots.pode_goals import FEEDBACK_PERIOD_S, feedback_due
+    assert feedback_due(10.0, 9.75) and FEEDBACK_PERIOD_S < 0.25
+    assert not feedback_due(10.0, 9.9)
+    assert feedback_due(0.5, 100.0), "a rewound clock would stop feedback for 100 s"

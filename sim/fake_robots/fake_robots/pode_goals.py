@@ -19,6 +19,11 @@ RETREAT_REASONS = (Retreat.Result.REASON_OBSTACLE_BEHIND, Retreat.Result.REASON_
                    Retreat.Result.REASON_CANCELED, Retreat.Result.REASON_FAILED)
 
 
+def feedback_due(now: float, last: float) -> bool:
+    """진행 소식을 보낼 때다. 시뮬 시계가 되감기면(now < last) 바로 다시 보낸다."""
+    return now - last >= FEEDBACK_PERIOD_S or now < last
+
+
 class PodeGoals:
     def _goal_policy(self):
         return GoalResponse.REJECT if self._unreachable() else GoalResponse.ACCEPT
@@ -146,7 +151,7 @@ class PodeGoals:
                 return action_type.Result()
             now = self._sc.now()
             if not self._faults.comms_down(now):
-                if goal.kind == "move" and now - last_fb >= FEEDBACK_PERIOD_S:
+                if goal.kind == "move" and feedback_due(now, last_fb):
                     last_fb = now
                     with self._lock:  # update와 엇갈리지 않게 락 안에서 보낸다
                         order = goal.order
