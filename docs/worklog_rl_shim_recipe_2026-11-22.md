@@ -177,7 +177,7 @@ SUCCEEDED: Q2 → E-3 16.8 / 36.5 / 20.6 s, O_IN → M_E 12.5 / 12.5 s. 판마�
   전부 `RotationShimController detected collision ahead!`이다. 이 줄은 15번 찍혔다(한 회전에 두 번 찍힌 때 포함).
   controller_server 로그 파일(`roslog/controller_server_*.log`)에도 같은 15줄이 있다. TF 실패와 짧은 경로는 0번이다.
   즉 `isCollisionFree`(:377)가 local costmap의 LETHAL 칸을 보고 예외를 던졌고, shim이 그걸 삼키고 정책에 넘겼다.
-- 이른 넘김 때의 상태: 오차 +2.4~+3.0 rad 또는 −2.8~−2.9 rad, w 0.04~0.94 rad/s(회전을 막 시작했거나 다시 시작한 때),
+- 이른 넘김 때의 상태: 오차 +2.4~+3.0 rad 또는 −2.8~−2.9 rad, |w| 0.04~0.94 rad/s(오차 쪽으로 도는 중, 회전을 막 시작했거나 다시 시작한 때),
   자세 (1.46~1.66, 0.11~0.15). 남쪽 벽까지 실제 몸 거리는 0.051~0.092 m였다.
 - 그 근처(넘김 −0.6~+0.2 s)의 local costmap과 odom으로 shim 검사를 다시 돌리면 11번 중 10번에서 발자국 외곽이 LETHAL 칸에
   닿는다(`debug_cells.py`). 닿은 칸은 세계 좌표 y = 0.024~0.073 m, 즉 남쪽 벽(y = 0) 선보다 2.4~7.3 cm 안쪽이다.
