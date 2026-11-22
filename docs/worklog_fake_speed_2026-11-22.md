@@ -220,7 +220,7 @@ ETA 절대 오차 평균 2.37 → 3.23 s, 부호 있는 평균 -2.36 → -3.22 s
 - 가짜 로봇에 절대 속도를 줄 길이 없다. 느린 대역이 필요하면 `speed_scale`을 1보다 작게 준다(예: `fms_restart.yaml` 0.1667).
 - 세계(situations)에서 `--set nav_speed_mps=...`는 관제의 시간 추정(ETA, 길 비용, 길 고르기)만 바꾼다. 로봇 속도를 바꾸려면 출처를 바꾸거나 `Imperfections`를 준다.
 - 출처를 바꾸면(예: 0.15) 가짜 로봇은 저절로 따라간다. 사본 시험은 가짜 로봇 항목에서는 실패하지 않지만 Nav2·관제 등 고정 사본 항목에서 실패하므로 그것들은 함께 바꿔야 한다. 시나리오의 고장 시각도 다시 볼 일이다.
-- `docs/IFP_공통설계.md` 179행은 `detour_speed_mps` 0.2를 "FakePode와 시나리오의 기본 속도"라고 적고 있다. 이제는 맞지 않는다(고치지 않음).
+- `docs/IFP_공통설계.md` 179행의 가짜 로봇 속도 설명은 2단계에서 출처 × 배율로 고쳤다(9절). 그 행의 `detour_speed_mps`는 지금 `fleet_params.yaml`에 없다(고치지 않음).
 - 이 PC의 측정 결과(JSON 줄)는 WSL `~/fake_speed_out/`에 있다(저장소에 넣지 않음).
 
 ## 8. 리뷰
@@ -234,3 +234,134 @@ Codex(gpt-6.1-terra) 두 번. 첫 리뷰(092fdc4..3c1b2a3)의 지적과 처리:
   그 칸에서 I3가 다른 자리에 새로 나도 가려진다.
 
 수정 범위(3c1b2a3..229b118)의 짧은 재리뷰: "결함 없음".
+
+## 9. 2단계: 사용자 결정 반영 (같은 날)
+
+결정: 단위 시험은 시뮬 시계를 빠르게 하고 이동 대기를 계산한다, 실패 시나리오 셋은 고장 시각을 사건으로 다시 맞춘다,
+reinstate는 관제 동작을 바꾸지 않고 시나리오를 원래 의도(빈 로봇)로, 배율 1.0/0.9는 그대로, 공통설계 179행 고침.
+
+### 9.1 사건으로 시작하고 끝나는 고장
+
+`scenario_cfg.Fault`에 `after_event`, `after_detail`, `until_event`를 더했다. 사건은 관제 사건(`/central/events`)이고 출처가
+그 로봇이거나 설명에 `robot=<로봇>`이 있어야 한다.
+
+- `after_event`(stuck, blocked, operator_remove): 그 사건이 처음 난 뒤 `at_s`초에 시작한다. `at_s`는 시각이 아니라 지연이다.
+- `until_event`(blocked): 시작한 뒤 그 사건이 나면 끝난다. `duration_s`는 사건이 끝내 안 날 때의 상한이다.
+- 가짜 Pode는 이런 고장이 있을 때만 `/central/events`를 듣는다. 계약 검사(`check_interfaces --mode fake`)는 구독자의 QoS만
+  보며 계약 QoS를 그대로 쓰므로 문제가 없다(시나리오 시험 10개 통과로도 확인).
+- 사건으로 치우는 로봇은 그 치우기가 그 로봇의 하나뿐인 `operator_remove`여야 한다(파서가 거부). 다시 투입은 그 치우기
+  시작 + 10 s보다 이르지 않다(`motion.REINSTATE_AFTER_S`). 시각 치우기의 다시 투입 시각은 그대로다.
+
+시나리오:
+
+| 시나리오 | 전 | 후 | 노린 순간 |
+|---|---|---|---|
+| stuck_robot | 70 s에 pode1 멈춤 | pode1이 출고 도크에 선(`DOCKED at OUTBOUND`) 4 s 뒤 | O-002 교체 중, OUT_DOCK을 쥔 채 |
+| blocked_lane | 20 s부터 24 s 물체 | pode1이 W_Q에 서면(`BASE_END_WAIT at W_Q`) 두고 `ZONE_MARKED_BLOCKED`에 치움, 상한 50 s | 떠날 때 이미 앞에 있고 표시까지 남음 |
+| reinstate | 43 s에 pode2 치움 | pode2가 출고(`ORDER_SHIPPED robot=pode2`)한 2.5 s 뒤 | 빈 바구니로 물러나는 중 |
+
+실행 기록으로 확인(WSL, 시뮬 s, 상한 50 s로 바꾸기 전의 한 번): stuck_robot은 pode1 도크 82.8, 응답 끊김 89.8, O-002 출고 91.0, 출고 2건.
+blocked_lane은 W_Q에 섬 5.5, BLOCKED 38.2, 표시 48.4, 주문 6건 모두 출고. reinstate는 O-001 출고 50.9, 치움 54.0(구역 셋을
+한 번에 풂, `ZONES_CLEARED` 1), 다시 투입 160.1, pode2가 다시 출고(O-005). 마지막 코드로 돌린 전체 묶음에서도 셋 다 통과했다(9.7).
+
+짐 실은 로봇을 치우는 경우: 관제는 HELD/ROBOT_FAULT를 한 번 알리고 되돌리지 않는다(v2.4). fleet_core
+`test_order_hold.py::test_a_cleared_robot_with_a_filled_basket_holds_the_order`가 한 번 치울 때의 보고 하나를 이미 본다.
+두 번 치워도 다시 알리지 않고 HELD로 남는지 보는 시험을 더했다
+(`test_a_loaded_robot_cleared_twice_holds_its_order_once_and_keeps_it_held`). 더할 때 이미 통과했다(동작 고정용).
+
+### 9.2 단위 시험의 대기 계산
+
+`test_ros_pode.py`: `move_wait(거리, 배율, 시계) = 거리 ÷ (출처 속도 × 배율) × 1.5 ÷ 시계 배율 + 2 s`.
+가짜 Pode는 돌기나 가감속 없이 거리 ÷ 속도로 가므로 1.5배는 실행기와 시계 발행이 밀리는 몫이고, 2 s는 목표 접수와 첫 보고처럼
+거리와 무관한 몫이다. 긴 이동 넷(꺾인 길 따라가기, 앞 로봇 앞에서 서기, 하트비트로 이동 이어 가기, 허용 오차 안 path)은
+시뮬 시계 4배(`SimClockNode`, 400 Hz)로 돈다. 하트비트 판정은 그대로 실제 시간이다.
+
+| 대기 | 거리 | 전(실제 s, 그때 속도로 갈 수 있던 거리) | 후(실제 s = 시뮬 s, 갈 수 있는 거리) | 필요 시간 대비 |
+|---|---|---|---|---|
+| 꺾인 길 결과(시험 1, 2, 4) | 1.83 m | 15 (7.5 m) | 7.7 = 30.8 (3.7 m) | 2.0배 |
+| 앞 로봇 앞 BLOCKED(시험 2) | 1.19 m | 5 (2.5 m) | 5.7 = 22.8 (2.7 m) | 2.3배 |
+| 하트비트 이동 결과(시험 3) | 1.72 m | 10 (10 m) | 7.4 = 29.5 (3.5 m) | 2.1배 |
+| base 끝에 서기(순서 시험) | 0.30 m | 10 (10 m) | 5.8 (0.7 m) | 2.3배 |
+
+갈 수 있는 거리로 보면 모든 이동 대기가 전보다 좁다. 시뮬 초로는 커졌지만(로봇이 느려서) 필요 시간 대비로는 4~10배에서 2배 남짓으로 줄었다.
+앞 로봇 앞 BLOCKED 대기만 갈 수 있는 거리가 2.5 m에서 2.7 m로 조금 늘었다(필요 1.19 m).
+
+복구 시험: 물체 시각을 3.0 s 고정에서 `1.0 + 0.6 m ÷ 출처 속도`(6.0 s)로 바꿨다(0.4 m 넘게 가야 0.15 m를 다 후진). BLOCKED
+대기는 `물체 시각 + 복구 시간 × 1.5 + 2 s` = 21.9 s다.
+
+### 9.3 바꾼 시험 기대값과 이유
+
+- `test_a_persistent_obstacle_gives_two_recovering_attempts_then_blocked`: RECOVERING 길이의 기대값 7.25 s → 8.25 s(허용 ±0.8 그대로).
+  이유: 되돌아가기 속도를 옛 주행 속도 0.2로 적어 두었다. 지금 주행 속도(출처 0.12)로 계산한다.
+- 같은 시험과 `test_no_back_up_into_a_robot_behind`, `test_no_back_up_into_an_obstacle_behind`: 물체 시각 3.0 → 6.0 s(이유 9.2).
+  `test_no_back_up_into_a_robot_behind`의 서기 대기는 10 → 8 s(물체 시각 + 2 s).
+- `test_ros_pode_order.py::test_an_obstacle_that_shows_up_while_waiting...`: 물체 시각 1.5 s → `move_wait(0.3 m)`(5.75 s), 기다림은 그
+  시각 + 1 s까지. 이유: 0.12에서 0.3 m는 2.5 s라 1.5 s에는 아직 달리는 중이었다(노린 것은 서 있는 동안 나타남).
+- `test_scenario.py`의 blocked_lane 검사(물체 길이 < `blocked_timeout_s` 60)는 그대로 두고 시나리오 상한을 50 s로 맞췄다.
+
+### 9.4 느슨해진 기준
+
+- 복구 시험의 BLOCKED 대기: `test_a_persistent_obstacle...` 20 → 21.9 s, `test_no_back_up_into_an_obstacle_behind` 10 → 21.9 s.
+  실제 초로 늘었다. 이유: 물체 시각이 3 s 늦어졌고 대기를 한 식으로 계산한다. 필요 시간 대비로는 앞 시험은 1.8배에서 1.4배로 좁아졌고,
+  뒤 시험(후진 없음, 필요 약 9 s)은 1.7배에서 2.4배로 넓어졌다.
+- 앞 로봇 앞 BLOCKED 대기(9.2 표): 갈 수 있는 거리 2.5 → 2.7 m.
+- 다른 이동 대기는 9.2 표처럼 좁아졌다. 시뮬 시계 4배는 대기를 실제 초로 줄이고 시뮬 초로 늘린다(로봇이 느려진 만큼).
+- 시나리오 `timeout_s`, 시험 `WALL_TIMEOUT_S`는 바꾸지 않았다.
+
+### 9.5 빠듯한 대기(결정 대기, 값은 바꾸지 않음)
+
+전체 묶음에서 고정 15 s 결과 대기(`result_of` 기본값)를 쓰는 시험 몇이 시험 전체 14.5~14.9 s 걸렸다(`--durations`, 준비 시간 포함):
+`test_move_to_publishes_state_feedback_and_succeeds` 14.89 s, `test_ros_pode_order.py::test_a_move_without_an_order_is_unchanged`
+14.75 s, `test_new_goal_supersedes_the_active_one` 14.62 s, `test_a_nav_goal_plans_its_own_way_and_arrives` 14.48 s. 통과했지만
+같은 방식(거리로 계산, 필요하면 빠른 시계)으로 바꿀지 결정이 필요하다.
+
+### 9.6 찾은 것
+
+**hall_obstacle v7 씨드 2의 DEADLOCK_SEEN**(situations, 다시 돌려 사건 기록으로 확인). 108.8 s에 `wait cycle pode2 -> pode3`.
+pode2는 Q2에 서서(105.8 `BASE_END_WAIT`) E-3+E-2를 기다리고(100.9 `ZONE_WAIT`), pode3은 P-2로 비켜 선 뒤(108.7 `RETREAT_DONE`)
+Q2를 기다렸다(108.7 `ZONE_WAIT`). 같은 108.8 s에 pode2의 길이 바뀌어(108.7 `HORIZON_CHANGED`, E-3 O_OUT O_IN O) O_IN을 받았고
+(108.8 `ZONE_GRANTED`) 순환은 0.1 s 안에 풀렸다. 교착 처리 유예(`deadlock_grace_s` 5 s) 전이라 양보나 물러나기는 없었고,
+주문 6건이 모두 끝났다(261.1 s). 판정에 실패로 세는 것은 이 한 번의 감지 사건뿐이다. 느린 로봇(pode1 0.685, pode3 0.724배)
+때문에 비키는 시각이 겹쳐 생긴 순간 감지다.
+
+**I3_OUTSIDE_HELD 횟수**(situations 전체: 상황 x 배치 x 씨드 1~3, 121판, perfect 모드):
+
+| | 전(092fdc4) | 후 |
+|---|---|---|
+| I3_OUTSIDE_HELD 합계 | 15(9판) | 16(9판) |
+| 나온 판 | pose_jumps d2·d 각 1회 x 씨드 3, c 3회 x 씨드 3 | 같음, c 씨드 2만 3 → 4 |
+| (참고) I4_COMMAND | 6(front_robot_stuck v7 씨드 1, 3) | 0 |
+
+I3는 위치를 튀게 만드는 pose_jumps에서만 나오고, 늘어난 한 번은 1단계에서 xfail로 둔 c 씨드 2다.
+
+### 9.7 결과
+
+| 묶음 | 1단계 끝 | 2단계 끝 |
+|---|---|---|
+| fake_robots | 8 failed, 1123 passed, 1 skipped, 30 xfailed | 1148 passed, 1 skipped, 30 xfailed |
+| fleet_manager | 3 failed, 134 passed | 137 passed |
+| fleet_core | 1229 passed, 7 xfailed | 1230 passed, 7 xfailed |
+| pode_nav_config | 111 passed | 111 passed |
+
+관제 시나리오(전 = 092fdc4, 후 = 2단계):
+
+| 시나리오 | 판정 | 끝 시각(시뮬 s) | 여유(시뮬 s) | 벽시계 s(상한 420) | ETA 절대 오차 평균 s | ETA 오차 평균(부호) |
+|---|---|---|---|---|---|---|
+| basic_orders | 통과 → 통과 | 193.4 → 230.0 | 707 → 670 | 38.6 → 46.0 | 1.7 → 2.36 | 0.73 → -1.73 |
+| order_burst | 통과 → 통과 | 296.9 → 390.3 | 903 → 810 | 59.3 → 78.0 | 1.47 → 2.76 | 0.4 → -2.43 |
+| shared_lane_failure | 통과 → 통과 | 203.0 → 242.7 | 697 → 657 | 40.6 → 48.5 | 1.81 → 2.25 | 1.12 → -1.63 |
+| stock_shortage | 통과 → 통과 | 150.7 → 187.7 | 749 → 712 | 30.1 → 37.5 | 1.76 → 3.58 | 1.05 → -2.86 |
+| stuck_robot | 통과 → 통과 | 400 → 400(목적) | 시간 초과(목적) | 80.0 → 80.0 | 1.45 → 2.17 | 0.26 → -1.84 |
+| operator_recovery | 통과 → 통과 | 275.3 → 322.8 | 625 → 577 | 55.0 → 64.5 | 1.96 → 2.13 | 0.75 → -1.35 |
+| blocked_lane | 통과 → 통과 | 219.6 → 263.8 | 680 → 636 | 43.5 → 52.3 | 1.58 → 2.28 | 0.63 → -1.62 |
+| auto_isolation | 통과 → 통과 | 226.6 → 255.5 | 673 → 644 | 45.3 → 51.1 | 1.63 → 2.3 | 0.62 → -1.46 |
+| reinstate | 통과 → 통과 | 331.2 → 357.4 | 569 → 543 | 66.2 → 71.4 | 2.0 → 1.81 | 0.92 → -0.83 |
+| arm_fault | 통과 → 통과 | 111.2 → 132.4 | 789 → 768 | 22.2 → 26.4 | 2.76 → 2.03 | 2.3 → -0.63 |
+
+ROS 시나리오 배율은 1.0/0.9 그대로다. 0.67~1.0으로 넓히는 일은 하지 않았다.
+
+### 9.8 리뷰
+
+Codex 세 번(코드). 1회: 사건으로 늦게 난 치우기가 고정 시각 다시 투입보다 뒤면 로봇이 영영 치워진 채 남는다 [확정] → 시험 먼저,
+다시 투입을 치우기 뒤로 미룸(74fe8c5). 2회: 시각 치우기에도 10 s 하한이 붙음, 짝을 파일 순서로 고름, 모니터와 순서가 어긋날 수 있음
+[확정 셋] → 하한은 사건 치우기에만, 사건 치우기는 그 로봇의 하나뿐인 치우기로 제한(6f2f98e). 3회: "결함을 발견하지 못했습니다".
