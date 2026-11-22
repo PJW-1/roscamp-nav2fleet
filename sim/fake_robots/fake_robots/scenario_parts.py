@@ -180,6 +180,11 @@ def _object_place(raw: dict, site) -> tuple[float, float, float]:
 
 def _check_reinstates(faults: list) -> None:
     """다시 투입은 그 로봇을 치운 뒤에만 할 수 있다."""
+    for f in faults:
+        if f.type == "operator_remove" and f.after_event and sum(
+                g.type == "operator_remove" and g.robot == f.robot for g in faults) > 1:
+            raise ScenarioError(f"operator_remove of {f.robot} on an event must be its only "
+                                "operator_remove (the put-back waits for it)")
     removed: set[str] = set()
     for f in sorted(faults, key=lambda f: f.at_s):
         if f.type == "operator_remove":

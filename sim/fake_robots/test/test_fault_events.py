@@ -87,6 +87,20 @@ def test_a_removal_on_time_keeps_the_put_back_time():
     assert s.start_of(back) == 160.0
 
 
+def test_a_timed_removal_keeps_a_put_back_soon_after_it():
+    gone = Fault(at_s=0.5, robot="pode2", type="operator_remove")
+    back = Fault(at_s=2.0, robot="pode2", type="operator_reinstate", start="P-1")
+    assert FaultSchedule([gone, back], "pode2").start_of(back) == 2.0
+
+
+def test_an_event_removal_is_the_only_removal_of_its_robot(site):
+    with pytest.raises(ScenarioError):
+        parse_scenario(scenario(
+            {"at_s": 1, "robot": "pode1", "type": "operator_remove", "after_event": "DOCKED"},
+            {"at_s": 50, "robot": "pode1", "type": "operator_reinstate", "start": "P-1"},
+            {"at_s": 80, "robot": "pode1", "type": "operator_remove"}), site)
+
+
 def test_event_fields_are_read(site):
     sc = parse_scenario(scenario(
         {"at_s": 4, "robot": "pode1", "type": "stuck", "after_event": "DOCKED",
