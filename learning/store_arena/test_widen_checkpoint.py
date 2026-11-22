@@ -134,6 +134,10 @@ def test_adding_intent_to_a_recipe_checkpoint_keeps_the_outputs(prio, privileged
     recipe = {"prev_action_obs": 1, "lidar_frames": 3, "critic_privileged": privileged}
     spec0 = dataclasses.replace(ts.SPEC, **recipe)
     ck = wc.widen_checkpoint(fake_checkpoint(), spec0, wc.N_MOVERS + 2)
+    g0 = torch.Generator().manual_seed(5)
+    for key in ("actor_state_dict", "critic_state_dict"):  # trained: every column nonzero
+        w = ck[key]["mlp.0.weight"]
+        ck[key]["mlp.0.weight"] = torch.randn(w.shape, generator=g0) * 0.3
     spec = dataclasses.replace(spec0, intent_robots=2, intent_priority=prio)
     new = wc.add_intent(ck, spec)
     at, a_dim = ts.obs_dim(spec0), ts.obs_dim(spec)
