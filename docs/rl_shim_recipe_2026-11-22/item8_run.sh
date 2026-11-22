@@ -25,11 +25,16 @@ export BENCH_CONTROLLERS="FollowPathGoal FollowPathMPPI FollowPathRLShim FollowP
 SHIMS="FollowPathRLShim FollowPathRLShimC FollowPathRLShimACD"
 echo "item8 start $(date -Is) out $OUT" | tee -a "$OUT/item8.txt"
 
+CHILD=
+trap '[ -n "$CHILD" ] && { kill -TERM "$CHILD" 2>/dev/null; wait "$CHILD"; }; exit 130' INT TERM
+bench() { bash "$BENCH/run_bench.sh" "$@" & CHILD=$!; wait "$CHILD"; local r=$?; CHILD=; return $r; }
+
 rc=0
 BENCH_CONFIG=$SRC/results/2026-11-22/compare_012/q2e3.yaml BENCH_REPEATS=3 \
-  bash "$BENCH/run_bench.sh" "$OUT/q2e3" a_hall || rc=1
+  bench "$OUT/q2e3" a_hall || rc=1
 sleep 180
-BENCH_REPEATS=6 bash "$BENCH/run_bench.sh" "$OUT/main" a_hall e_corridor d_robot c_moving || rc=1
+BENCH_CONFIG=$BENCH/scenarios.yaml BENCH_REPEATS=6 \
+  bench "$OUT/main" a_hall e_corridor d_robot c_moving || rc=1
 echo "gazebo done $(date -Is) rc $rc" | tee -a "$OUT/item8.txt"
 
 python3 "$BENCH/report.py" --config "$SRC/results/2026-11-22/compare_012/q2e3.yaml" \
