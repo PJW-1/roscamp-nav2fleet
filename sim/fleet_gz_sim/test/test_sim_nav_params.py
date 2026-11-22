@@ -259,13 +259,14 @@ def test_the_default_rl_option_is_the_shim_wrapped_policy_and_rl_alone_stays(tmp
     assert rl["plugin"] == "pode_rl_controller::FollowPathRL"
     assert wrapped.pop("plugin") == "nav2_rotation_shim_controller::RotationShimController"
     assert wrapped.pop("primary_controller") == rl["plugin"]
-    shim_keys = {"angular_dist_threshold", "forward_sampling_distance",
-                 "rotate_to_heading_angular_vel", "max_angular_accel", "simulate_ahead_time",
-                 "rotate_to_goal_heading"}
+    shim_keys = {"angular_dist_threshold", "angular_disengage_threshold",
+                 "forward_sampling_distance", "rotate_to_heading_angular_vel",
+                 "max_angular_accel", "simulate_ahead_time", "rotate_to_goal_heading"}
     assert set(wrapped) - set(rl) == shim_keys
     assert {k: v for k, v in wrapped.items() if k not in shim_keys} == \
         {k: v for k, v in rl.items() if k != "plugin"}
     assert wrapped["angular_dist_threshold"] == 0.785
+    assert wrapped["angular_disengage_threshold"] == 0.39
     assert wrapped["rotate_to_goal_heading"] is True
     sim = yaml.safe_load(_sim(NAV, tmp_path / "rl.yaml", overrides=data, max_speed=0.10)
                          .read_text(encoding="utf-8"))

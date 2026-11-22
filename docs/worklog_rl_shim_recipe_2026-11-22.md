@@ -139,7 +139,7 @@ Gazebo 판을 운동학으로 다시 돌린 것(Gazebo 계획 그대로):
 | local costmap 해상도 0.025 → 0.01 m | 잡음으로 안쪽에 찍히는 칸이 얇아져 거부가 준다 | 계산이 늘고 팀 설정(costmap 해상도)과 엮인다. 실물 라이다 잡음은 아직 모른다 |
 | `angular_dist_threshold` 0.785 → 더 크게(예: 1.2) | shim이 덜 끼어들어 정책이 큰 오차를 스스로 다룬다(학습한 상황) | RL 혼자의 약점(O_IN 북쪽으로 휨, d_robot 1/6)이 돌아온다 |
 | `rotate_to_heading_once: true` | 같은 goal의 재계획마다 다시 돌지 않는다. 일찍 끝나기의 되풀이가 준다 | 경로가 크게 바뀌어도 다시 돌지 않는다 |
-| `angular_disengage_threshold`를 적어 둠(0.39) | 동작은 같고 기본값에 기대지 않게 된다 | 없음 |
+| `angular_disengage_threshold`를 적어 둠(0.39) | 동작은 같고 기본값에 기대지 않게 된다 | 없음. 사용자 결정 2026-11-23: 적용. `follow_path_rl.yaml`과 8번 비교 설정 `item8_overrides.yaml`의 shim 셋에 0.39. compare_012는 기본값 0.785 / 2 = 0.3925를 썼으므로 8번은 그보다 0.0025 rad 작다. 나머지 shim 선택지는 8번 비교 뒤에 정한다 |
 | 학습 출발 분포(1.3절) | shim이 어떻게 넘기든 정책이 그 상태를 겪어 본다 | 재학습 한 번. 오늘 밤 Isaac 기본에 들어감 |
 
 ### 1.5 원인을 [확정]하는 Gazebo 실행

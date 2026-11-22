@@ -3,8 +3,8 @@
 # nav2_params.yaml의 controller 넷과 시뮬이 더하는 FollowPathMPPI를 모두 다시 적고 RL 둘을 더한다
 # (nav2_params.yaml에 controller가 늘면 여기에도 더한다. test_sim_nav_params가 견준다).
 # - FollowPathRL: RL 기본. RotationShim이 정책을 감싼다(사용자 결정 2026-11-22: RL 기본은 RL+shim).
-#   경로 방향과 0.785 rad보다 틀어지면 먼저 제자리에서 돌고, 0.39 rad(Jazzy 기본
-#   angular_disengage_threshold = 0.785 / 2) 안으로 들어오면 정책에 넘긴다.
+#   경로 방향과 0.785 rad보다 틀어지면 먼저 제자리에서 돌고, 0.39 rad(angular_disengage_threshold,
+#   Jazzy 기본 0.785 / 2에 기대지 않게 적어 둠. 사용자 결정 2026-11-23) 안으로 들어오면 정책에 넘긴다.
 # - FollowPathRLAlone: 감싸지 않은 같은 정책(비교용).
 # 고르기: ros2 topic pub --once /<로봇>/controller_selector std_msgs/msg/String "{data: FollowPathRL}"
 # 그 뒤의 Nav2 goal(navigate_to_pose)이 이 controller로 간다. 되돌리기는 data: FollowPathGoal.
@@ -19,6 +19,7 @@ controller_server:
       plugin: "nav2_rotation_shim_controller::RotationShimController"
       primary_controller: "pode_rl_controller::FollowPathRL"
       angular_dist_threshold: 0.785  # 45°. MPPI는 0.25
+      angular_disengage_threshold: 0.39
       forward_sampling_distance: 0.15
       rotate_to_heading_angular_vel: 1.0
       max_angular_accel: 2.0
