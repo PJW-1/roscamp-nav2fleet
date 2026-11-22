@@ -109,10 +109,8 @@ def outline_hit(grid, res, ox, oy, body, x, y, yaw):
         cells.append((j, i))
     for a, b in zip(cells, cells[1:] + cells[:1], strict=True):
         for j, i in cells_on_line(a, b):
-            v = grid[i, j]
-            if v >= 100 or v < 0:
-                kind = "lethal" if v >= 100 else "unknown"
-                return (kind, round(ox + (j + 0.5) * res, 3), round(oy + (i + 0.5) * res, 3))
+            if grid[i, j] >= 100:
+                return ("lethal", round(ox + (j + 0.5) * res, 3), round(oy + (i + 0.5) * res, 3))
     return None
 
 
@@ -140,10 +138,10 @@ def rotations(rec):
         if v == 0.0 and w != 0.0:
             cur = [t, t] if cur is None else [cur[0], t]
         elif cur is not None:
-            runs.append((cur[0], cur[1], t))
+            runs.append((cur[0], cur[1], t, False))
             cur = None
     if cur is not None:
-        runs.append((cur[0], cur[1], cur[1]))
+        runs.append((cur[0], cur[1], cur[1], True))
     return runs
 
 
@@ -151,7 +149,7 @@ def leg_events(rec, bag, body):
     t0, t1 = rec["t_start"], rec["t_end"]
     truth = rec["truth"]
     rows = []
-    for start, last, end in rotations(rec):
+    for start, last, end, open_end in rotations(rec):
         pose = nearest(truth, end)
         err = heading_error(rec, end, pose)
         logs = [g for g in bag["log"] if last - 0.1 <= g[0] <= end + 0.25 and g[1] != "rotating"]
@@ -163,8 +161,9 @@ def leg_events(rec, bag, body):
         row = {"t_rot": round(start - t0, 2), "t_end": round(end - t0, 2),
                "rot_s": round(last - start, 2), "pose": [round(v, 3) for v in pose[1:]],
                "err": None if err is None else round(err, 3), "w": round(w, 2),
-               "goal_turn": at_goal, "shim_rotating_lines": shim,
-               "early": not at_goal and err is not None and abs(err) > DISENGAGE + 0.05,
+               "goal_turn": at_goal, "shim_rotating_lines": shim, "open_at_leg_end": open_end,
+               "early": not (at_goal or open_end) and err is not None
+               and abs(err) > DISENGAGE + 0.05,
                "log": [(round(g[0] - t0, 2), g[1], cause_of(g[2]) if g[1] == "catch" else "", g[2])
                        for g in logs]}
         cm, od = before(bag["costmap"], end), nearest(bag["odom"], end)
@@ -178,13 +177,13 @@ def leg_events(rec, bag, body):
 
 def main():
     out = Path(sys.argv[1])
-    if (out / "bag").exists():
+    if "--legs-only" in sys.argv:
+        bag = {"log": [], "costmap": [], "odom": []}
+    elif (out / "bag").exists():
         bag = read_bag(out / "bag")
         if not bag["log"] or not bag["costmap"] or not bag["odom"]:
             sys.exit(f"bag is missing data: {len(bag['log'])} shim log lines, "
                      f"{len(bag['costmap'])} costmaps, {len(bag['odom'])} odom")
-    elif "--legs-only" in sys.argv:
-        bag = {"log": [], "costmap": [], "odom": []}
     else:
         sys.exit(f"no bag in {out} (pass --legs-only to read the legs alone)")
     body = mt.footprint()
