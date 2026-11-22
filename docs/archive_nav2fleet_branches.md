@@ -159,7 +159,7 @@ git switch -c <새 이름> origin/archive/nav2fleet/<원래 이름>
 ### refactor/yield-a3-fake-ladder (25664cf), tools/yield-report (bf7848c)
 
 - 위 "이미 main에 내용이 있는 두 브랜치"를 본다. 병합하지 않은 것이 아니라 같은 패치가 다른 커밋으로 main에 들어갔다.
-- 다시 꺼낼 때: 꺼낼 필요 없다. 도구 설명은 `tools/yield-report:docs/worklog_yield_report_2026-11-18.md`에 있고, 이 기록 파일은 main에 없다.
+- 다시 꺼낼 때: 꺼낼 필요 없다. 도구 설명은 `main:docs/worklog_yield_report_2026-11-18.md`에 있다(보관 브랜치의 같은 파일과 내용이 같다).
 
 ## 기록이 없는 것 모음
 
