@@ -26,7 +26,14 @@ SHIMS="FollowPathRLShim FollowPathRLShimC FollowPathRLShimACD"
 echo "item8 start $(date -Is) out $OUT" | tee -a "$OUT/item8.txt"
 
 CHILD=
-trap '[ -n "$CHILD" ] && { kill -TERM "$CHILD" 2>/dev/null; wait "$CHILD"; }; exit 130' INT TERM
+marked() { for p in /proc/[0-9]*; do { tr '\0' '\n' < "$p/environ"; } 2>/dev/null | grep -qx "BENCH_RUN=$1" && echo "${p#/proc/}"; done; }
+stop_child() {
+  [ -n "$CHILD" ] || return
+  kill -TERM "$CHILD" 2>/dev/null
+  rest=$(marked "$CHILD"); [ -n "$rest" ] && kill -TERM $rest 2>/dev/null
+  wait "$CHILD"
+}
+trap 'stop_child; exit 130' INT TERM
 bench() { bash "$BENCH/run_bench.sh" "$@" & CHILD=$!; wait "$CHILD"; local r=$?; CHILD=; return $r; }
 
 rc=0
