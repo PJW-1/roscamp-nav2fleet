@@ -104,6 +104,16 @@ class Fault:
     x: float = 0.0  # object: 물체 중심(맵 좌표, m)
     y: float = 0.0
     radius_m: float = OBJECT_RADIUS_M  # object: 물체 반지름
+    # 사건으로 시작·끝(AFTER_EVENT_FAULTS, UNTIL_EVENT_FAULTS). 로봇 속도가 바뀌어도 노린 순간에 난다.
+    # 사건은 관제 사건(/central/events)이고, 출처가 그 로봇이거나 설명에 robot=<로봇>이 있어야 한다
+    after_event: str = ""  # 이 사건이 처음 난 뒤 at_s초에 시작한다(at_s는 시각이 아니라 지연)
+    after_detail: str = ""  # after_event의 설명에 이 글이 있어야 한다
+    until_event: str = ""  # 시작한 뒤 이 사건이 나면 끝난다(duration_s는 상한)
+
+
+# 사건 고장을 받는 종류
+AFTER_EVENT_FAULTS = ("stuck", "blocked", "operator_remove")
+UNTIL_EVENT_FAULTS = ("blocked",)
 
 
 @dataclass(frozen=True)
