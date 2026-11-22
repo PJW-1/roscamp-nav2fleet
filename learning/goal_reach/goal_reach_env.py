@@ -168,8 +168,16 @@ class GoalReachEnv(DirectRLEnv):
         )
 
     # ---------------------------------------------------------------- DirectRLEnv hooks
+    def action_target(self, actions: torch.Tensor) -> torch.Tensor:
+        """(v, w) target of the policy action (the store arena maps v onto a per-episode cap)."""
+        return ts.action_to_target(actions)
+
+    def reward_v_cap(self) -> torch.Tensor | None:
+        """Per-env top speed for the progress reward (None: ActionLimits.v_max)."""
+        return None
+
     def _pre_physics_step(self, actions: torch.Tensor) -> None:
-        target = ts.action_to_target(actions)
+        self.target = target = self.action_target(actions)
         self.cmd = ts.rate_limit(self.cmd, target, self.step_dt)
         self._wheel_target = ts.twist_to_wheels(self.cmd)
 
@@ -192,7 +200,12 @@ class GoalReachEnv(DirectRLEnv):
 
     def _get_rewards(self) -> torch.Tensor:
         rew, terms = ts.compute_reward(
-            self.d_prev, self.d_now, self.success, self.collided | self.oob, self.spec
+            self.d_prev,
+            self.d_now,
+            self.success,
+            self.collided | self.oob,
+            self.spec,
+            v_cap=self.reward_v_cap(),
         )
         self.d_prev = self.d_now.clone()
         for k, v in terms.items():

@@ -173,7 +173,16 @@ class StoreArenaEnv(GoalReachEnv):
             setattr(cfg.scene, f"fleet_robot_{k}", robot_cfg(k))
         self.graph = rbs.node_graph(site)
         cfg.scene.env_spacing = a.env_spacing
-        cfg.episode_length_s = a.episode_s
+        spec = ts.make_spec(cfg.spec_overrides)
+        # per-episode top speed (speed_cap_range): times are stretched for the slowest cap, and
+        # each env times out at its own cap's length (ep_limit)
+        lo, hi = spec.speed_cap_range
+        self.cap_varies = lo != hi
+        self.cap_active = self.cap_varies or lo != ts.NAV_SPEED_MPS  # else exactly ppo_k's rules
+        cfg.episode_length_s = a.episode_s * ts.NAV_SPEED_MPS / min(spec.speed_cap_range)
+        # critic-only entries: movers, then scripted robot slots (task_spec.privileged_block)
+        self.n_priv = len(ms.MOVERS) + int(a.robot_max)
+        cfg.state_space = ts.PRIV_PER_OBJECT * self.n_priv if spec.critic_privileged else 0
         self._routes_ready = False
         super().__init__(cfg, render_mode, **kwargs)
         print(f"[ARENA] {a}")
@@ -233,6 +242,16 @@ class StoreArenaEnv(GoalReachEnv):
         self.corner_start = torch.zeros(n, dtype=torch.bool, device=dev)
         self.last_ep_corner = torch.zeros(n, dtype=torch.bool, device=dev)
         self._new_corner = torch.zeros(n, dtype=torch.bool, device=dev)
+        # handover starts (handover_start_prob): routes from handover_nodes, initial w per env
+        names = set(a.handover_nodes.split(","))
+        starts = [r.node_names[r.pairs[i // r.layouts][0]] for i in range(r.count)]
+        self.r_handover = torch.tensor(
+            [i for i, s_ in enumerate(starts) if s_ in names], device=dev, dtype=torch.long
+        )
+        self.handover_start = torch.zeros(n, dtype=torch.bool, device=dev)
+        self.last_ep_handover = torch.zeros(n, dtype=torch.bool, device=dev)
+        self._new_handover = torch.zeros(n, dtype=torch.bool, device=dev)
+        self._new_w0 = torch.zeros(n, **f32)
         self.mover_gap = torch.full((n,), float("inf"), **f32)
         self.last_ep_mover_gap = torch.full((n,), float("inf"), **f32)
         # scripted fleet robots
@@ -270,6 +289,24 @@ class StoreArenaEnv(GoalReachEnv):
         self.last_ep_robot_gap = torch.full((n,), float("inf"), **f32)
         self.hit_kind = torch.zeros(n, dtype=torch.long, device=dev)
         self.last_ep_hit_kind = torch.zeros(n, dtype=torch.long, device=dev)
+        # recipe blocks (task_spec obs_blocks): per-episode top speed and time limit, the previous
+        # targets, w sign flips (penalty on the target, the nav_bench metric on the command),
+        # the lidar frames kept for lidar_history, scripted robot positions one step ago
+        s = self.spec
+        self.v_cap = torch.full((n,), float(min(s.speed_cap_range)), **f32)
+        self.ep_limit = torch.full((n,), self.max_episode_length, device=dev, dtype=torch.long)
+        self.target = torch.zeros(n, 2, **f32)
+        self.prev_target = torch.zeros(n, 2, **f32)
+        self.target_sign = torch.zeros(n, **f32)
+        self.target_flipped = torch.zeros(n, dtype=torch.bool, device=dev)
+        self.cmd_sign = torch.zeros(n, **f32)
+        self.cmd_flips = torch.zeros(n, **f32)
+        self.last_ep_cmd_flips = torch.zeros(n, **f32)
+        self.last_ep_cap = torch.zeros(n, **f32)
+        hist = max(s.lidar_frames - 1, 0) * s.lidar_stride_steps + 1
+        self.lid_buf = torch.zeros(n, hist, s.lidar_sectors, **f32)
+        self.lid_fresh = torch.ones(n, dtype=torch.bool, device=dev)
+        self.robot_prev_xy = torch.zeros(n, nk, 2, **f32)
         self._routes_ready = True
 
     def sample_start(self, n: int) -> tuple[torch.Tensor, torch.Tensor]:
@@ -288,6 +325,22 @@ class StoreArenaEnv(GoalReachEnv):
             jit = (2 * torch.rand(n, device=self.device) - 1) * self.arena.corner_yaw_jitter
             away = arena.away_heading(self.r_path[self._new_route], jit)
             yaw = torch.where(self._new_corner, away, yaw)
+        q = self.arena.handover_start_prob
+        self._new_handover = torch.zeros(n, dtype=torch.bool, device=self.device)
+        self._new_w0 = torch.zeros(n, device=self.device)
+        if q > 0 and len(self.r_handover):  # no draw otherwise: earlier arenas stay the same
+            ho = torch.rand(n, device=self.device) < q
+            pick = self.r_handover[torch.randint(0, len(self.r_handover), (n,), device=self.device)]
+            self._new_route = torch.where(ho, pick, self._new_route)
+            self._new_corner = self._new_corner & ~ho
+            ho_yaw, w0 = arena.handover_start(
+                arena.path_heading(self.r_path[self._new_route]),
+                torch.rand(n, 4, device=self.device),
+                self.arena,
+            )
+            yaw = torch.where(ho, ho_yaw, yaw)
+            self._new_handover = ho
+            self._new_w0 = torch.where(ho, w0, 0.0)
         self._new_yaw = yaw
         return self.r_start[self._new_route], yaw
 
@@ -310,14 +363,33 @@ class StoreArenaEnv(GoalReachEnv):
         if env_ids is None:
             env_ids = torch.arange(self.num_envs, device=self.device)
         if self._routes_ready:
+            self.last_ep_cmd_flips[env_ids] = self.cmd_flips[env_ids]
+            self.last_ep_cap[env_ids] = self.v_cap[env_ids]
             self.last_ep_mover_gap[env_ids] = self.mover_gap[env_ids]
             self.last_ep_robot_gap[env_ids] = self.robot_gap_min[env_ids]
             self.last_ep_hit_kind[env_ids] = self.hit_kind[env_ids]
             self.last_ep_corner[env_ids] = self.corner_start[env_ids]
+            self.last_ep_handover[env_ids] = self.handover_start[env_ids]
         super()._reset_idx(env_ids)
         if not self._routes_ready:
             return
         self.corner_start[env_ids] = self._new_corner
+        self.handover_start[env_ids] = self._new_handover
+        if self._new_handover.any():
+            self._spin_up(env_ids, self._new_w0)
+        s = self.spec
+        if self.cap_varies:  # no draw otherwise: fixed-cap runs keep their random sequence
+            self.v_cap[env_ids] = ts.sample_speed_cap(len(env_ids), self.device, s)
+        if self.cap_active:
+            cap = self.v_cap[env_ids]
+            steps = torch.ceil(self.arena.episode_s * ts.NAV_SPEED_MPS / cap / self.step_dt)
+            self.ep_limit[env_ids] = steps.long().clamp(max=self.max_episode_length)
+        self.target[env_ids] = 0.0
+        self.prev_target[env_ids] = 0.0
+        self.target_sign[env_ids] = 0.0
+        self.cmd_sign[env_ids] = 0.0
+        self.cmd_flips[env_ids] = 0.0
+        self.lid_fresh[env_ids] = True
         r = self._new_route
         self.route[env_ids] = r
         self.goal_xy[env_ids] = self.r_goal[r]
@@ -349,6 +421,20 @@ class StoreArenaEnv(GoalReachEnv):
         self._sample_robots(env_ids, r)
         self._write_robots(env_ids)
         self.robot_gap_min[env_ids] = self.robot_gaps(self.start_xy[env_ids], env_ids)
+        for k, (pos, _, _) in enumerate(self.robot_state(env_ids)):
+            self.robot_prev_xy[env_ids, k] = pos
+
+    def _spin_up(self, env_ids, w0) -> None:
+        """Start env_ids turning on the spot at w0 (n,) rad/s: body yaw rate, wheel speeds and
+        the rate-limited command (the policy's first target moves on from it)."""
+        vel = torch.zeros(len(env_ids), 6, device=self.device)
+        vel[:, 5] = w0
+        self.robot.write_root_velocity_to_sim_index(root_velocity=vel, env_ids=env_ids)
+        cmd = torch.stack((torch.zeros_like(w0), w0), -1)
+        jv = torch.zeros_like(self.robot.data.default_joint_pos.torch[env_ids])
+        jv[:, self.wheel_ids] = ts.twist_to_wheels(cmd)
+        self.robot.write_joint_velocity_to_sim_index(velocity=jv, env_ids=env_ids)
+        self.cmd[env_ids] = cmd
 
     def _sample_robots(self, env_ids, r) -> None:
         """Route chains for env_ids: 0..robot_max robots, starting and stopping on graph nodes
@@ -378,6 +464,8 @@ class StoreArenaEnv(GoalReachEnv):
                     again = headon & (chain[:, 2] == sg[:, 0])
                     chain[again, 2] = sg[again, 1]
             speed = rbs.ROBOT.speed * (lo + torch.rand(n, device=dev) * (hi - lo))
+            if self.cap_active:  # scripted robots drive at the episode's cap times their scale
+                speed = speed * self.v_cap[env_ids] / ts.NAV_SPEED_MPS
             pause = p0 + torch.rand(n, legs, device=dev) * (p1 - p0)
             route = rbs.chain_route(self.g_t, chain, speed, pause)
             for key, v in route.items():
@@ -535,9 +623,29 @@ class StoreArenaEnv(GoalReachEnv):
             gap = torch.where(act, torch.minimum(gap, g), gap)
         return gap
 
+    def action_target(self, actions: torch.Tensor) -> torch.Tensor:
+        if not (self._routes_ready and self.cap_active):
+            return super().action_target(actions)  # exactly the ppo_k mapping
+        return ts.action_to_target(actions, v_cap=self.v_cap)
+
+    def reward_v_cap(self) -> torch.Tensor | None:
+        return self.v_cap if self._routes_ready and self.cap_active else None
+
+    def wait_scale(self):
+        """Travel-time waits follow the episode cap: 1 for a fixed cap, else (n,)."""
+        return ts.NAV_SPEED_MPS / self.v_cap if self.cap_active else 1.0
+
     def _pre_physics_step(self, actions: torch.Tensor) -> None:
+        if self._routes_ready:
+            self.prev_target = self.target.clone()
         super()._pre_physics_step(actions)
         if self._routes_ready:
+            s = self.spec
+            self.target_flipped, self.target_sign = ts.flip_step(
+                self.target[:, 1], self.target_sign, s.flip_deadband
+            )
+            flipped, self.cmd_sign = ts.flip_step(self.cmd[:, 1], self.cmd_sign, s.flip_deadband)
+            self.cmd_flips += flipped.float()
             xy, _ = self.robot_pose()
             for i, (shape, legs) in enumerate(zip(ms.MOVERS, self.mover_legs, strict=True)):
                 t, self.mover_wait[i], _ = ms.yield_step(
@@ -548,7 +656,7 @@ class StoreArenaEnv(GoalReachEnv):
                     xy,
                     self.mover_yield[i],
                     self.mover_wait[i],
-                    self.arena.mover_wait_s,
+                    self.arena.mover_wait_s * self.wait_scale(),
                 )
                 self.mover_held[i] = t == self.mover_t[i]
                 self.mover_t[i] = t
@@ -567,8 +675,8 @@ class StoreArenaEnv(GoalReachEnv):
                     self.step_dt,
                     xy,
                     yield_m,
-                    a.robot_wait_s,
-                    a.robot_backoff_s,
+                    a.robot_wait_s * self.wait_scale(),
+                    a.robot_backoff_s * self.wait_scale(),
                     retreat=bool(a.robot_retreat),
                     lock_m=a.robot_lock_m,
                     blocked=blocked,
@@ -600,7 +708,7 @@ class StoreArenaEnv(GoalReachEnv):
         return ts.split_dones(
             self.success | self.collided | self.oob,
             self.episode_length_buf,
-            self.max_episode_length,
+            self.ep_limit if self.cap_active else self.max_episode_length,
         )
 
     def footprint_clearance(self, xy, yaw) -> torch.Tensor:
@@ -635,18 +743,59 @@ class StoreArenaEnv(GoalReachEnv):
             return rew
         a = self.arena
         pen = arena.near_wall_penalty(self.wall_clear, a.near_wall_m, a.w_near_wall)
-        self.ep_reward_terms.setdefault("near_wall", torch.zeros_like(pen))
-        self.ep_reward_terms["near_wall"] += pen
-        return rew + pen
+        terms = {"near_wall": pen}
+        s = self.spec
+        if s.w_action_rate or s.w_w_flip:
+            terms.update(
+                ts.action_rate_terms(self.target, self.prev_target, self.target_flipped, s)
+            )
+        for k, v in terms.items():
+            self.ep_reward_terms.setdefault(k, torch.zeros_like(v))
+            self.ep_reward_terms[k] += v
+        return rew + sum(terms.values())
+
+    def lidar_history(self, ranges: torch.Tensor) -> torch.Tensor | None:
+        """(n, frames - 1, sectors) earlier scaled sector vectors, newest first, stride steps
+        apart; a fresh episode fills every slot with its current frame. Called once per step."""
+        s = self.spec
+        if s.lidar_frames <= 1:
+            return None
+        cur = ts.lidar_sectors(ranges, s) / s.lidar_obs_max
+        buf = torch.cat((cur[:, None], self.lid_buf[:, :-1]), 1)
+        fresh = self.lid_fresh[:, None, None]
+        self.lid_buf = torch.where(fresh, cur[:, None].expand_as(buf), buf)
+        self.lid_fresh[:] = False
+        return self.lid_buf[:, s.lidar_stride_steps :: s.lidar_stride_steps]
+
+    def privileged_states(self, xy, yaw) -> torch.Tensor:
+        """Critic-only entries: true positions and velocities of the movers and robots."""
+        pos, vel, on = [], [], []
+        for p, _, v, a_ in self.mover_state():
+            pos.append(p)
+            vel.append(v)
+            on.append(a_)
+        for k, (p, _, a_) in enumerate(self.robot_state()):
+            pos.append(p)
+            vel.append((p - self.robot_prev_xy[:, k]) / self.step_dt)
+            on.append(a_)
+            self.robot_prev_xy[:, k] = p
+        return ts.privileged_block(
+            torch.stack(pos, 1), torch.stack(vel, 1), torch.stack(on, 1), xy, yaw
+        )
 
     def _get_observations(self) -> dict:
         if not self._routes_ready:
-            return super()._get_observations()  # no intent before the routes exist
+            out = super()._get_observations()  # no intent before the routes exist
+            if self.cfg.state_space:
+                out["critic"] = torch.zeros(self.num_envs, self.cfg.state_space, device=self.device)
+            return out
         intent = mask = prio = None
+        xy, yaw = self.robot_pose()
         if self.spec.intent_robots:
-            intent, mask, prio = self.robot_intent(*self.robot_pose())
+            intent, mask, prio = self.robot_intent(xy, yaw)
+        ranges = self.lidar_ranges()
         obs = ts.build_observation(
-            self.lidar_ranges(),
+            ranges,
             self.la_dist,
             self.la_ang,
             self.body_velocity(),
@@ -654,5 +803,11 @@ class StoreArenaEnv(GoalReachEnv):
             intent=intent,
             intent_mask=mask,
             intent_priority=prio,
+            prev_target=self.target,
+            lidar_history=self.lidar_history(ranges),
+            speed_cap=self.v_cap,
         )
-        return {"policy": obs}
+        out = {"policy": obs}
+        if self.cfg.state_space:
+            out["critic"] = self.privileged_states(xy, yaw)
+        return out

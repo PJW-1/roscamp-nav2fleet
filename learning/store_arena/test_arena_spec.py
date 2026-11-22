@@ -200,3 +200,24 @@ def test_footprint_box_is_off_centre_like_the_body():
     c2, _ = arena.footprint_box(torch.zeros(1, 2), torch.tensor([math.pi]), a.footprint_x,
                                 a.footprint_y)
     assert c2[0].tolist() == pytest.approx([0.0179, 0.0], abs=1e-6)
+
+
+def test_handover_start_turns_towards_the_path_with_the_chosen_error():
+    torch.manual_seed(0)
+    n = 20000
+    path_dir = (torch.rand(n) * 2 - 1) * math.pi
+    yaw, w = arena.handover_start(path_dir, torch.rand(n, 4))
+    err = torch.atan2(torch.sin(yaw - path_dir), torch.cos(yaw - path_dir))
+    assert torch.all(torch.sign(w) == -torch.sign(err))  # w turns the error towards 0
+    assert set(w.abs().unique().tolist()) == {0.5, 1.0}
+    a = err.abs().rad2deg()
+    normal = a < 30
+    assert torch.all((a[normal] >= 16 - 1e-3) & (a[normal] <= 26 + 1e-3))
+    assert torch.all((a[~normal] >= 40 - 1e-3) & (a[~normal] <= 160 + 1e-3))
+    assert abs(normal.float().mean().item() - 0.5) < 0.02
+    assert abs((err > 0).float().mean().item() - 0.5) < 0.02
+
+
+def test_path_heading_points_along_the_path_start():
+    path = torch.tensor([[[0.0, 0.0], [0.05, 0.0], [0.05, 0.2], [0.05, 0.4]]])
+    assert torch.allclose(arena.path_heading(path), torch.tensor([math.atan2(0.2, 0.05)]))

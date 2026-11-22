@@ -110,6 +110,18 @@ class ArenaSpec:
     corner_start_prob: float = 0.25
     corner_start_m: float = 0.17
     corner_yaw_jitter: float = 0.6
+    # share of episodes that start as an RL+shim handover (RL plugin track, 2026-11-22): on a
+    # route from one of handover_nodes, standing (v 0) but turning at w0 = +-handover_w (one of
+    # the two, sign towards the path), heading error to the path either about handover_normal_deg
+    # (+- jitter; a normal handover) or uniform in handover_cut_deg (a handover cut short while
+    # the shim still spins). Drawn before the corner starts; 0: no draw (earlier arenas)
+    handover_start_prob: float = 0.0
+    handover_nodes: str = "Q2,M_E,E-3"
+    handover_normal_deg: float = 21.0
+    handover_normal_jitter_deg: float = 5.0
+    handover_normal_share: float = 0.5  # the rest are cut short
+    handover_cut_deg: tuple[float, float] = (40.0, 160.0)
+    handover_w: tuple[float, float] = (0.5, 1.0)  # rad/s, half the starts each
     # --- scripted fleet robots (stage 4c, robot_spec): routes over the HALL nav graph
     robot_max: int = 0  # robots per episode, uniform 0..robot_max (0: the 4b arena; 4c: 2)
     # at most 1.0 (B60): no stand-in Pode beats the one top speed (4c used 0.67-1.33)
@@ -269,15 +281,36 @@ def near_wall_starts(start_xy: torch.Tensor, rects: torch.Tensor, max_m: float) 
     return torch.sqrt(dx * dx + dy * dy).amin(-1) < max_m
 
 
-def away_heading(path: torch.Tensor, jitter: torch.Tensor, ahead_m: float = 0.1) -> torch.Tensor:
-    """(N,) yaw facing away from the path direction at its start: path (N, L, 2) towards its
-    first point at least ahead_m away (else its last point), turned by pi + jitter (N,)."""
+def path_heading(path: torch.Tensor, ahead_m: float = 0.1) -> torch.Tensor:
+    """(N,) direction of the path (N, L, 2) at its start: towards its first point at least
+    ahead_m away (else its last point)."""
     d = path - path[:, :1]
     far = d.norm(dim=-1) >= ahead_m
     k = torch.where(far.any(-1), far.float().argmax(-1), torch.full_like(far[:, 0], -1).long())
     v = d[torch.arange(len(path), device=path.device), k]
-    yaw = torch.atan2(v[:, 1], v[:, 0]) + math.pi + jitter
+    return torch.atan2(v[:, 1], v[:, 0])
+
+
+def away_heading(path: torch.Tensor, jitter: torch.Tensor, ahead_m: float = 0.1) -> torch.Tensor:
+    """(N,) yaw facing away from the path direction at its start (path_heading), turned by
+    pi + jitter (N,)."""
+    yaw = path_heading(path, ahead_m) + math.pi + jitter
     return torch.atan2(torch.sin(yaw), torch.cos(yaw))
+
+
+def handover_start(path_dir: torch.Tensor, u: torch.Tensor, spec: ArenaSpec = ARENA):
+    """Yaw (N,) and initial w (N,) of handover starts; u (N, 4) uniform draws in [0, 1): kind
+    (normal or cut short), error size, error side, |w|. w turns the robot towards the path."""
+    normal = u[:, 0] < spec.handover_normal_share
+    j = math.radians(spec.handover_normal_jitter_deg)
+    err_n = math.radians(spec.handover_normal_deg) + (2 * u[:, 1] - 1) * j
+    lo, hi = (math.radians(d) for d in spec.handover_cut_deg)
+    err_c = lo + u[:, 1] * (hi - lo)
+    side = torch.where(u[:, 2] < 0.5, 1.0, -1.0)
+    err = side * torch.where(normal, err_n, err_c)
+    yaw = path_dir + err
+    w_mag = torch.where(u[:, 3] < 0.5, spec.handover_w[0], spec.handover_w[1])
+    return torch.atan2(torch.sin(yaw), torch.cos(yaw)), -side * w_mag
 
 
 def load_site(spec: ArenaSpec = ARENA):

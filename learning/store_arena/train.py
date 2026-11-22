@@ -26,6 +26,13 @@ parser.add_argument("--seed", type=int, default=42)
 parser.add_argument("--out", type=str, required=True)
 parser.add_argument("--resume", type=str, default="", help="model_*.pt of the previous chunk")
 parser.add_argument(
+    "--init",
+    type=str,
+    default="",
+    help="start from these weights without the optimizer state (a widen_checkpoint.py output, "
+    "or a plain checkpoint for the control run of the same recipe comparison)",
+)
+parser.add_argument(
     "--set", action="append", default=[], metavar="FIELD=VALUE", help="TaskSpec/ArenaSpec field"
 )
 add_launcher_args(parser)
@@ -65,6 +72,8 @@ def main():
         agent_cfg.experiment_name = "pode_store_arena"
         agent_cfg.max_iterations = args_cli.max_iterations
         agent_cfg.seed = args_cli.seed
+        if arena.ts.make_spec(task_over).critic_privileged:  # the env adds a "critic" group
+            agent_cfg.obs_groups = {"actor": ["policy"], "critic": ["policy", "critic"]}
         agent_cfg = handle_deprecated_rsl_rl_cfg(agent_cfg, check_rsl_rl_version())
         env_cfg.metrics_every = agent_cfg.num_steps_per_env
 
@@ -76,6 +85,9 @@ def main():
         runner = create_rsl_rl_runner(env, agent_cfg, log_dir=out)
         if args_cli.resume:
             runner.load(args_cli.resume)
+        elif args_cli.init:
+            no_opt = {"actor": True, "critic": True, "optimizer": False, "iteration": True}
+            runner.load(args_cli.init, load_cfg=no_opt)
         t1 = time.time()
         runner.learn(num_learning_iterations=agent_cfg.max_iterations, init_at_random_ep_len=True)
         torch.cuda.synchronize()
@@ -87,6 +99,7 @@ def main():
             "num_steps_per_env": agent_cfg.num_steps_per_env,
             "seed": args_cli.seed,
             "resume": args_cli.resume,
+            "init": args_cli.init,
             "spec_overrides": task_over,
             "arena_overrides": arena_over,
             "routes": routes.count,

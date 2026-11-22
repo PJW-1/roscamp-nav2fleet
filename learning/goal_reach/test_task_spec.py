@@ -1,5 +1,7 @@
 """Tests for the simulator-free task rules. Run: <venv python> -m pytest learning/goal_reach -q"""
 
+import dataclasses
+import math
 import os
 import sys
 
@@ -152,3 +154,123 @@ def test_priority_flag_follows_the_present_flag_when_on():
     assert row1["robot0_priority"] == 1.0 and row1["robot1_priority"] == 0.0  # absent: 0
     off = ts.make_spec(ts.parse_overrides(["intent_robots=2"]))
     assert "robot0_priority" not in ts.obs_names(off)  # default off: 55 dims as before
+
+
+def _base_inputs(n=3, seed=0):
+    g = torch.Generator().manual_seed(seed)
+    ranges = 0.1 + 2.5 * torch.rand(n, 360, generator=g)
+    vel = torch.rand(n, 2, generator=g)
+    return ranges, torch.rand(n, generator=g), torch.rand(n, generator=g), vel
+
+
+def test_optional_blocks_go_between_base_and_intent_in_order():
+    spec = dataclasses.replace(
+        ts.SPEC, prev_action_obs=1, lidar_frames=3, speed_cap_obs=1, intent_robots=1
+    )
+    assert ts.obs_blocks(spec) == ["prev_action", "lidar_history", "speed_cap", "intent"]
+    names = ts.obs_names(spec)
+    assert len(names) == ts.obs_dim(spec) == 41 + 2 + 72 + 1 + 7
+    assert names[41:43] == ["prev_v", "prev_w"]
+    assert names[43] == "lidar_hist1_sector_0" and names[43 + 36] == "lidar_hist2_sector_0"
+    assert names[115] == "speed_cap" and names[116] == "robot0_present"
+    ranges, d, a, vel = _base_inputs()
+    hist = torch.rand(3, 2, 36)
+    obs = ts.build_observation(
+        ranges, d, a, vel, spec, prev_target=torch.tensor([[0.06, -0.5]] * 3),
+        lidar_history=hist, speed_cap=torch.full((3,), 0.16),
+    )
+    base = ts.build_observation(ranges, d, a, vel)
+    assert obs.shape == (3, ts.obs_dim(spec))
+    assert torch.equal(obs[:, :41], base)  # base entries unchanged
+    v_scale = ts.ACTION_LIMITS.v_max
+    assert torch.allclose(obs[:, 41:43], torch.tensor([0.06 / v_scale, -0.5]).expand(3, 2))
+    assert torch.equal(obs[:, 43:115], hist.reshape(3, -1))  # newest first, as given
+    assert torch.allclose(obs[:, 115], torch.full((3,), 0.16 / v_scale))
+    assert torch.equal(obs[:, 116:], torch.zeros(3, 7))  # intent None: absent
+
+
+def test_missing_block_inputs_take_their_episode_start_values():
+    spec = dataclasses.replace(ts.SPEC, prev_action_obs=1, lidar_frames=3, speed_cap_obs=1)
+    ranges, d, a, vel = _base_inputs()
+    obs = ts.build_observation(ranges, d, a, vel, spec)
+    assert torch.equal(obs[:, 41:43], torch.zeros(3, 2))
+    assert torch.equal(obs[:, 43:79], obs[:, :36]) and torch.equal(obs[:, 79:115], obs[:, :36])
+    assert torch.allclose(obs[:, 115], torch.ones(3))
+
+
+def test_default_spec_keeps_the_ppo_k_layout():
+    assert ts.obs_blocks(ts.SPEC) == []
+    assert ts.obs_dim(ts.SPEC) == ts.BASE_DIM == 41
+
+
+def test_speed_cap_sets_the_v_upper_limit_and_still_action_stops():
+    lim = ts.ACTION_LIMITS
+    cap = torch.tensor([0.08, 0.12, 0.16])
+    full = ts.action_to_target(torch.ones(3, 2), v_cap=cap)
+    assert torch.allclose(full[:, 0], cap)
+    low = ts.action_to_target(-torch.ones(3, 2), v_cap=cap)
+    assert torch.allclose(low[:, 0], torch.full((3,), lim.v_min))
+    assert torch.allclose(ts.action_to_target(torch.ones(1, 2))[:, 0], torch.tensor([lim.v_max]))
+    still = ts.action_to_target(ts.still_action(3, v_cap=cap), v_cap=cap)
+    assert torch.allclose(still, torch.zeros(3, 2), atol=1e-7)
+    assert torch.allclose(ts.action_to_target(ts.still_action(2)), torch.zeros(2, 2), atol=1e-7)
+
+
+def test_speed_cap_draw_stays_in_range_and_a_single_value_draws_nothing():
+    spec = dataclasses.replace(ts.SPEC, speed_cap_range=(0.08, 0.16))
+    torch.manual_seed(0)
+    c = ts.sample_speed_cap(10000, "cpu", spec)
+    assert c.min() >= 0.08 and c.max() <= 0.16 and abs(c.mean().item() - 0.12) < 0.002
+    state = torch.random.get_rng_state()
+    assert torch.equal(ts.sample_speed_cap(4, "cpu"), torch.full((4,), ts.NAV_SPEED_MPS))
+    assert torch.equal(state, torch.random.get_rng_state())  # fixed cap: random stream unchanged
+
+
+def test_flip_step_counts_like_nav_bench_sign_changes():
+    here = os.path.dirname(os.path.abspath(__file__))
+    sys.path.insert(0, os.path.join(here, "..", "..", "tools", "nav_bench"))
+    import metrics
+
+    g = torch.Generator().manual_seed(3)
+    seq = (torch.rand(200, 5, generator=g) - 0.5) * 0.2  # many values near the deadband
+    seq[:, 0] = 0.0
+    seq[50, 1] = 0.02  # exactly on the deadband counts (nav_bench skips only |w| < deadband)
+    last = torch.zeros(5)
+    count = torch.zeros(5)
+    for w in seq:
+        f, last = ts.flip_step(w, last, 0.02)
+        count += f.float()
+    for e in range(5):
+        assert count[e].item() == metrics.sign_changes(seq[:, e].tolist(), 0.02)
+
+
+def test_action_rate_terms():
+    spec = dataclasses.replace(ts.SPEC, w_action_rate=-0.1, w_w_flip=-0.5)
+    lim = ts.ACTION_LIMITS
+    t = torch.tensor([[lim.v_max, 1.0], [0.0, 0.0]])
+    p = torch.tensor([[0.0, -1.0], [0.0, 0.0]])
+    terms = ts.action_rate_terms(t, p, torch.tensor([True, False]), spec)
+    assert torch.allclose(terms["action_rate"], torch.tensor([-0.1 * (1 + 4), 0.0]))
+    assert torch.allclose(terms["w_flip"], torch.tensor([-0.5, 0.0]))
+
+
+def test_progress_reward_scales_with_the_episode_cap():
+    lim = ts.ACTION_LIMITS
+    dt = ts.SPEC.control_dt
+    no = torch.zeros(2, dtype=torch.bool)
+    cap = torch.tensor([0.08, 0.16])
+    _, terms = ts.compute_reward(cap * dt, torch.zeros(2), no, no, v_cap=cap)
+    assert torch.allclose(terms["progress"], torch.ones(2))
+    _, terms = ts.compute_reward(torch.tensor([lim.v_max * dt]), torch.zeros(1), no[:1], no[:1])
+    assert torch.allclose(terms["progress"], torch.ones(1))
+
+
+def test_privileged_block_is_in_our_frame_and_zero_when_absent():
+    xy = torch.tensor([[1.0, 1.0]])
+    yaw = torch.tensor([math.pi / 2])  # facing +y
+    pos = torch.tensor([[[1.0, 2.0], [5.0, 5.0]]])  # 1 m ahead; far away
+    vel = torch.tensor([[[0.25, 0.0], [0.1, 0.1]]])  # moving +x = to our right
+    out = ts.privileged_block(pos, vel, torch.tensor([[True, False]]), xy, yaw)
+    assert out.shape == (1, 2 * ts.PRIV_PER_OBJECT)
+    assert torch.allclose(out[0, :5], torch.tensor([1.0, 0.5, 0.0, 0.0, -0.5]), atol=1e-6)
+    assert torch.equal(out[0, 5:], torch.zeros(5))

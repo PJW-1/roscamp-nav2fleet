@@ -90,6 +90,22 @@ class TaskSpec:
     # 1: after each robot's present flag, a priority flag (1: that robot has right of way over
     # ours and does not wait for it; store arena robot_priority_prob). 0 keeps the layouts above
     intent_priority: int = 0
+    # optional observation blocks between the 41 base entries and the intent block, in this order
+    # (all off: the ppo_k layout). prev_action_obs 1: the (v, w) target of the previous control
+    # step after the clamp, / (v_max, w_max) as the base v and w entries; 0 at episode start.
+    prev_action_obs: int = 0
+    # lidar_frames > 1: the frames - 1 earlier sector vectors (same scaling), newest first,
+    # lidar_stride_steps control steps apart; at episode start every slot holds the current frame
+    lidar_frames: int = 1
+    lidar_stride_steps: int = 4
+    # speed_cap_obs 1: the episode's top linear speed / v_max (ActionLimits, the nav_speed.yaml
+    # value). The cap is drawn per episode from speed_cap_range; the action's v upper limit, the
+    # episode time and the scripted robots' speeds follow it. The v obs keeps / v_max.
+    speed_cap_obs: int = 0
+    speed_cap_range: tuple[float, float] = (NAV_SPEED_MPS, NAV_SPEED_MPS)  # m/s
+    # critic_privileged 1: the critic (not the actor) also gets the true positions and velocities
+    # of the movers and scripted robots (privileged_block)
+    critic_privileged: int = 0
     # collision: largest contact-force norm on COLLISION_BODIES above this ends the episode
     collision_force: float = 1.0  # N; the robot weighs 15 N, a wall push measured 5-11 N
     # reward weights (per 20 Hz step)
@@ -97,6 +113,11 @@ class TaskSpec:
     w_time: float = -0.05  # every step
     w_arrival: float = 10.0  # once, on success
     w_collision: float = -10.0  # once, on collision or out of bounds
+    # smoothness (stage 5a): times the squared change of the normalised (v, w) target per step,
+    # and per sign flip of the w target (flip_deadband as tools/nav_bench doridori)
+    w_action_rate: float = 0.0
+    w_w_flip: float = 0.0
+    flip_deadband: float = 0.02  # rad/s; |w| below this is skipped when counting sign flips
 
 
 # Bodies whose contact counts as a collision. Wheels and caster are excluded (they touch the floor).
@@ -126,6 +147,15 @@ OVERRIDABLE = (
     "intent_spacing_m",
     "intent_obs_max",
     "intent_priority",
+    "prev_action_obs",
+    "lidar_frames",
+    "lidar_stride_steps",
+    "speed_cap_obs",
+    "speed_cap_range",
+    "critic_privileged",
+    "w_action_rate",
+    "w_w_flip",
+    "flip_deadband",
 )
 
 
@@ -169,16 +199,46 @@ def make_spec(overrides: dict) -> TaskSpec:
 OBS_LIDAR = SPEC.lidar_sectors
 
 
+BASE_DIM = OBS_LIDAR + 3 + 2  # lidar sectors, goal (dist, sin, cos), (v, w): the ppo_k layout
+
+
+def obs_blocks(spec: TaskSpec = SPEC) -> list[str]:
+    """Names of the optional blocks present after the base entries, in their fixed order."""
+    out = []
+    if spec.prev_action_obs:
+        out.append("prev_action")
+    if spec.lidar_frames > 1:
+        out.append("lidar_history")
+    if spec.speed_cap_obs:
+        out.append("speed_cap")
+    if spec.intent_robots:
+        out.append("intent")
+    return out
+
+
 def obs_dim(spec: TaskSpec = SPEC) -> int:
-    """lidar sectors, goal (dist, sin, cos), (v, w), then per intent robot a mask and its points."""
+    """Base entries, then prev_action (2), lidar_history (sectors x (frames - 1)), speed_cap (1),
+    and per intent robot a mask, optionally a priority flag, and its points."""
     per = 1 + int(spec.intent_priority > 0) + 2 * spec.intent_points
-    return spec.lidar_sectors + 3 + 2 + spec.intent_robots * per
+    return (
+        BASE_DIM
+        + 2 * int(spec.prev_action_obs > 0)
+        + spec.lidar_sectors * max(spec.lidar_frames - 1, 0)
+        + int(spec.speed_cap_obs > 0)
+        + spec.intent_robots * per
+    )
 
 
 def obs_names(spec: TaskSpec = SPEC) -> list[str]:
     """Name of every observation entry, in order (for the policy export's policy_spec.json)."""
     names = [f"lidar_sector_{i}" for i in range(spec.lidar_sectors)]
     names += ["goal_dist", "goal_sin", "goal_cos", "v", "w"]
+    if spec.prev_action_obs:
+        names += ["prev_v", "prev_w"]
+    for f in range(1, spec.lidar_frames):
+        names += [f"lidar_hist{f}_sector_{i}" for i in range(spec.lidar_sectors)]
+    if spec.speed_cap_obs:
+        names.append("speed_cap")
     for r in range(spec.intent_robots):
         names.append(f"robot{r}_present")
         if spec.intent_priority:
@@ -192,12 +252,76 @@ OBS_DIM = obs_dim(SPEC)  # 41
 ACT_DIM = 2
 
 
-def action_to_target(actions: torch.Tensor, lim: ActionLimits = ACTION_LIMITS) -> torch.Tensor:
-    """Policy action in [-1, 1]^2 -> target (v, w). v maps affinely onto [v_min, v_max]."""
+def action_to_target(
+    actions: torch.Tensor, lim: ActionLimits = ACTION_LIMITS, v_cap: torch.Tensor | None = None
+) -> torch.Tensor:
+    """Policy action in [-1, 1]^2 -> target (v, w). v maps affinely onto [v_min, v_max], or onto
+    [v_min, v_cap] with a per-env top speed v_cap (N,) (speed_cap_obs)."""
     a = actions.clamp(-1.0, 1.0)
-    v = lim.v_min + (a[:, 0] + 1.0) * 0.5 * (lim.v_max - lim.v_min)
+    top = lim.v_max if v_cap is None else v_cap
+    v = lim.v_min + (a[:, 0] + 1.0) * 0.5 * (top - lim.v_min)
     w = a[:, 1] * lim.w_max
     return torch.stack((v, w), dim=-1)
+
+
+def still_action(n: int, device=None, lim: ActionLimits = ACTION_LIMITS, v_cap=None):
+    """(n, 2) action whose target is (0, 0): the robot stands still (item 7 ceiling runs)."""
+    top = lim.v_max if v_cap is None else v_cap
+    a0 = 2.0 * (0.0 - lim.v_min) / (top - lim.v_min) - 1.0
+    out = torch.zeros(n, 2, device=device)
+    out[:, 0] = a0
+    return out
+
+
+def sample_speed_cap(n: int, device, spec: TaskSpec = SPEC) -> torch.Tensor:
+    """(n,) per-episode top speeds, uniform in speed_cap_range (no draw when it is one value)."""
+    lo, hi = spec.speed_cap_range
+    if lo == hi:
+        return torch.full((n,), float(lo), device=device)
+    return lo + (hi - lo) * torch.rand(n, device=device)
+
+
+def flip_step(w: torch.Tensor, last_sign: torch.Tensor, deadband: float):
+    """One step of tools/nav_bench sign_changes for every env: (flipped (N,) bool, new last_sign).
+    |w| < deadband is skipped; last_sign 0 means no sign seen yet in the episode."""
+    s = torch.sign(w) * (w.abs() >= deadband)
+    flipped = (s != 0) & (last_sign != 0) & (s != last_sign)
+    return flipped, torch.where(s != 0, s, last_sign)
+
+
+def action_rate_terms(
+    target: torch.Tensor,
+    prev_target: torch.Tensor,
+    flipped: torch.Tensor,
+    spec: TaskSpec = SPEC,
+    lim: ActionLimits = ACTION_LIMITS,
+) -> dict[str, torch.Tensor]:
+    """Smoothness reward terms: w_action_rate x squared change of (v / v_max, w / w_max) and
+    w_w_flip per flip of the w target."""
+    scale = torch.tensor((lim.v_max, lim.w_max), device=target.device)
+    d = ((target - prev_target) / scale).square().sum(-1)
+    return {"action_rate": spec.w_action_rate * d, "w_flip": spec.w_w_flip * flipped.float()}
+
+
+PRIV_POS_M = 2.0  # m; privileged positions are / this, as the lidar range
+PRIV_VEL_MPS = 0.5  # m/s; privileged velocities are / this
+PRIV_PER_OBJECT = 5  # present, x, y, vx, vy
+
+
+def privileged_block(
+    pos: torch.Tensor, vel: torch.Tensor, present: torch.Tensor, xy: torch.Tensor, yaw: torch.Tensor
+) -> torch.Tensor:
+    """Critic-only entries (critic_privileged): for each object (movers, then scripted robots;
+    pos and vel (N, K, 2) in the env frame, present (N, K)) [present, x, y, vx, vy] in our robot
+    frame, / PRIV_POS_M and / PRIV_VEL_MPS, clipped to [-1, 1]; absent objects are all zeros."""
+    c, s = torch.cos(yaw)[:, None], torch.sin(yaw)[:, None]
+    d = pos - xy[:, None]
+    p = torch.stack((c * d[..., 0] + s * d[..., 1], -s * d[..., 0] + c * d[..., 1]), -1)
+    v = torch.stack((c * vel[..., 0] + s * vel[..., 1], -s * vel[..., 0] + c * vel[..., 1]), -1)
+    m = present.float()[..., None]
+    p = (p / PRIV_POS_M).clamp(-1, 1) * m
+    v = (v / PRIV_VEL_MPS).clamp(-1, 1) * m
+    return torch.cat((m, p, v), -1).flatten(1)
 
 
 def rate_limit(
@@ -245,13 +369,20 @@ def build_observation(
     intent: torch.Tensor | None = None,
     intent_mask: torch.Tensor | None = None,
     intent_priority: torch.Tensor | None = None,
+    prev_target: torch.Tensor | None = None,
+    lidar_history: torch.Tensor | None = None,
+    speed_cap: torch.Tensor | None = None,
 ) -> torch.Tensor:
     """Observation vector, every entry roughly in [-1, 1]:
     [lidar sector / lidar_obs_max (36), goal dist / goal_obs_max, sin(bearing), cos(bearing),
      v / v_max, w / w_max], then for each of spec.intent_robots robots (nearest first):
     [present (0/1), x1, y1, ..., xP, yP] with the route points (intent (N, R, P, 2), our robot
     frame, m) / intent_obs_max clipped to [-1, 1]; an absent robot (intent_mask (N, R) false) is
-    all zeros, and so is every robot when intent is None (an env without fleet robots)."""
+    all zeros, and so is every robot when intent is None (an env without fleet robots).
+    The optional blocks (obs_blocks) go between (v, w) and the intent block: prev_target (N, 2)
+    in m/s and rad/s, lidar_history (N, frames - 1, sectors) already scaled as the current
+    sectors, newest first, and speed_cap (N,) in m/s; a missing input of a present block is 0
+    (prev_target), the current frame (lidar_history) or v_max (speed_cap)."""
     lid = lidar_sectors(lidar_ranges, spec) / spec.lidar_obs_max
     g = torch.stack(
         (
@@ -263,8 +394,21 @@ def build_observation(
     )
     v = torch.stack((vel[:, 0] / lim.v_max, vel[:, 1] / lim.w_max), dim=-1)
     parts = [lid, g, v]
+    n = lid.shape[0]
+    if spec.prev_action_obs:
+        p = lid.new_zeros(n, 2) if prev_target is None else prev_target
+        parts.append(torch.stack((p[:, 0] / lim.v_max, p[:, 1] / lim.w_max), -1))
+    if spec.lidar_frames > 1:
+        h = lidar_history
+        if h is None:
+            h = lid[:, None].expand(n, spec.lidar_frames - 1, -1)
+        parts.append(h.reshape(n, -1))
+    if spec.speed_cap_obs:
+        cap = lid.new_full((n,), lim.v_max) if speed_cap is None else speed_cap
+        parts.append((cap / lim.v_max)[:, None])
+    per = 1 + int(spec.intent_priority > 0) + 2 * spec.intent_points
     if spec.intent_robots and intent is None:
-        parts.append(lid.new_zeros(lid.shape[0], obs_dim(spec) - OBS_DIM))
+        parts.append(lid.new_zeros(n, spec.intent_robots * per))
     elif spec.intent_robots:
         m = intent_mask[:, : spec.intent_robots].float()
         p = (intent[:, : spec.intent_robots] / spec.intent_obs_max).clamp(-1.0, 1.0)
@@ -313,10 +457,13 @@ def compute_reward(
     failed: torch.Tensor,
     spec: TaskSpec = SPEC,
     lim: ActionLimits = ACTION_LIMITS,
+    v_cap: torch.Tensor | None = None,
 ) -> tuple[torch.Tensor, dict[str, torch.Tensor]]:
-    """Per-step reward and its terms. failed = collision or out of bounds (not timeout)."""
+    """Per-step reward and its terms. failed = collision or out of bounds (not timeout).
+    Progress is +1 per step at the top speed: v_max, or the per-env v_cap (speed_cap_obs)."""
+    top = lim.v_max if v_cap is None else v_cap
     terms = {
-        "progress": spec.w_progress * (d_prev - d_now) / (lim.v_max * spec.control_dt),
+        "progress": spec.w_progress * (d_prev - d_now) / (top * spec.control_dt),
         "time": torch.full_like(d_now, spec.w_time),
         "arrival": spec.w_arrival * success.float(),
         "collision": spec.w_collision * failed.float(),
