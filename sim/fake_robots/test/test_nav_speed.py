@@ -53,7 +53,7 @@ def test_a_scenario_robot_drives_at_its_scale_of_the_top_speed(site):
     assert (cfg.speed_scale, cfg.speed_mps) == (0.8, pytest.approx(0.8 * TOP))
 
 
-@pytest.mark.parametrize("scale", [1.01, 0, -0.5, True, "fast"])
+@pytest.mark.parametrize("scale", [1.01, 0, -0.5, True, "fast", float("nan")])
 def test_a_scale_above_one_or_not_positive_is_refused(site, scale):
     with pytest.raises(ScenarioError, match="speed_scale"):
         parse_scenario(scenario({"speed_scale": scale}), site)
@@ -98,3 +98,25 @@ def test_step_jitter_never_takes_a_robot_above_the_top_speed():
     assert max(steps) == TOP and min(steps) < TOP
     slow = [jittered(ctx, 0.5 * TOP) for _ in range(2000)]
     assert max(slow) > 0.5 * TOP
+
+
+def test_a_fast_retreat_command_is_held_to_the_top_speed_even_without_jitter():
+    world = quiet_world()
+    from fleet_core.common.commands import RetreatCmd
+    world.send(RetreatCmd("pode1", 1, 0.3, 2 * TOP))
+    world.run(0.2)
+    assert jittered(world, world.robots["pode1"].run.speed) == TOP
+
+
+def test_the_ros_fake_backs_up_no_faster_than_the_top_speed():
+    pytest.importorskip("fleet_interfaces.action")
+    from fake_robots.motion import Motion
+    from fake_robots.pode_goal import _Goal
+    from fake_robots.pode_retreat import PodeRetreat
+
+    class Pode(PodeRetreat):
+        _motion = Motion(1.0, 0.5)
+
+    goal = _Goal.__new__(_Goal)
+    assert Pode()._begin_retreat(0.0, goal, 0.3, 2 * TOP, [])
+    assert goal.speed == TOP

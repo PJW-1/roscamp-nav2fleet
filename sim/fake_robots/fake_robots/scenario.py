@@ -79,7 +79,7 @@ def parse_scenario(data: dict, site, seed: int | None = None) -> Scenario:
             raise ScenarioError(f"robot {name}: speed_mps is gone, give speed_scale (0..1] "
                                 f"of the one top speed {top} m/s")
         scale = _positive(raw, "speed_scale", 1.0)
-        if scale > 1.0:
+        if not scale <= 1.0:  # nan도 여기서 거부
             raise ScenarioError(f"robot {name}: speed_scale must be at most 1, got {scale!r}")
         robots[name] = RobotCfg(
             start=_resolve_start(raw["start"], site),

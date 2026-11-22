@@ -5,6 +5,7 @@ import math
 
 from fleet_interfaces.action import Retreat
 
+from fake_robots.nav_speed import nav_speed_mps
 from fake_robots.pode_goal import _Goal, _project
 
 # 실물 pode_fsm의 경로 물러나기와 같게(FollowPathReverse 속도, 이보다 짧게 남으면 FAILED)
@@ -32,6 +33,7 @@ class PodeRetreat:
         """후진을 준비한다. 따를 수 없는 요청이면 False(order 조각도 이것을 쓴다)."""
         m = self._motion
         rest = math.inf
+        speed = min(speed, nav_speed_mps())  # 시킨 속도가 커도 단일 출처의 최고 속도까지
         if path:
             i, rest = _project(m.x, m.y, path)
             ahead = path[i + 1:]
