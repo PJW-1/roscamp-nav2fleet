@@ -1,20 +1,30 @@
-# RL 주행 정책 controller FollowPathRL(pode_rl_controller)을 더 띄운다(시뮬 전용, one_pode
-# nav_overrides). 기본 Nav2 설정은 FollowPathRL을 띄우지 않는다. controller_plugins는 목록이라
-# 통째로 바뀌므로 nav2_params.yaml의 controller 넷과 시뮬이 더하는 FollowPathMPPI를 모두 다시 적고
-# FollowPathRL을 더한다
-# (nav2_params.yaml에 controller가 늘면 여기에도 더한다. test_launch_wiring이 견준다).
+# RL 주행 정책 controller(pode_rl_controller)를 더 띄운다(시뮬 전용, one_pode nav_overrides).
+# 기본 Nav2 설정은 RL을 띄우지 않는다. controller_plugins는 목록이라 통째로 바뀌므로
+# nav2_params.yaml의 controller 넷과 시뮬이 더하는 FollowPathMPPI를 모두 다시 적고 RL 둘을 더한다
+# (nav2_params.yaml에 controller가 늘면 여기에도 더한다. test_sim_nav_params가 견준다).
+# - FollowPathRL: RL 기본. RotationShim이 정책을 감싼다(사용자 결정 2026-11-22: RL 기본은 RL+shim).
+#   경로 방향과 0.785 rad보다 틀어지면 먼저 제자리에서 돌고, 0.39 rad(Jazzy 기본
+#   angular_disengage_threshold = 0.785 / 2) 안으로 들어오면 정책에 넘긴다.
+# - FollowPathRLAlone: 감싸지 않은 같은 정책(비교용).
 # 고르기: ros2 topic pub --once /<로봇>/controller_selector std_msgs/msg/String "{data: FollowPathRL}"
 # 그 뒤의 Nav2 goal(navigate_to_pose)이 이 controller로 간다. 되돌리기는 data: FollowPathGoal.
-# 값과 고른 까닭: docs/worklog_follow_path_rl_2026-11-21.md 결정 대기 목록. 정책의 숫자(관측 배율,
-# 라이다 광선, 행동·가속 한계, 주기)와 목표점 규칙(경로 끝 / 경로 위 앞보기 점과 그 거리)은 정책 폴더의
-# policy_spec.json에 있다. goal_rule, lookahead_dist를 여기 적으면 명세를 덮고 WARN 로그를 남긴다
-# (정책이 배우지 않은 목표가 된다. 시험할 때만 쓴다).
+# 실물 nav2_params.yaml에는 아직 넣지 않는다(Q2 -> E-3 벽 접촉의 원인을 안 뒤,
+# docs/worklog_rl_shim_recipe_2026-11-22.md). 정책의 숫자와 목표점 규칙은 정책 폴더의 policy_spec.json에
+# 있다. goal_rule, lookahead_dist를 여기 적으면 명세를 덮고 WARN 로그를 남긴다(시험할 때만 쓴다).
 controller_server:
   ros__parameters:
     controller_plugins: ["FollowPath", "FollowPathThrough", "FollowPathReverse", "FollowPathGoal",
-                         "FollowPathMPPI", "FollowPathRL"]
+                         "FollowPathMPPI", "FollowPathRL", "FollowPathRLAlone"]
     FollowPathRL:
-      plugin: "pode_rl_controller::FollowPathRL"
+      plugin: "nav2_rotation_shim_controller::RotationShimController"
+      primary_controller: "pode_rl_controller::FollowPathRL"
+      angular_dist_threshold: 0.785  # 45°. MPPI는 0.25
+      forward_sampling_distance: 0.15
+      rotate_to_heading_angular_vel: 1.0
+      max_angular_accel: 2.0
+      simulate_ahead_time: 1.0
+      rotate_to_goal_heading: true  # goal에서의 마지막 방향 맞추기도 shim이 먼저 한다. shim의 회전 충돌
+      # 검사가 거부하면 Jazzy shim은 돌던 중이라도 그 주기에 정책으로 넘긴다(Q2 -> E-3 접촉의 유력한 길)
       policy: "store_arena_4b"  # share/pode_rl_controller/policies/<이름> 또는 절대 경로
       scan_topic: "scan"
       scan_timeout: 0.5
@@ -22,5 +32,16 @@ controller_server:
       intra_op_threads: 1
       rotate_gain: 1.5
       log_period: 1.0
-      rear_stop_range: 0.0  # 후진 막기(후보, 기본 끔). 켜려면 0.12
+      rear_stop_range: 0.0  # 후진 막기는 기본 끔이고 벽 스침 대책이 아니다(사용자 결정 2026-11-22)
+      rear_half_width_deg: 30.0
+    FollowPathRLAlone:
+      plugin: "pode_rl_controller::FollowPathRL"
+      policy: "store_arena_4b"
+      scan_topic: "scan"
+      scan_timeout: 0.5
+      transform_tolerance: 0.2
+      intra_op_threads: 1
+      rotate_gain: 1.5
+      log_period: 1.0
+      rear_stop_range: 0.0
       rear_half_width_deg: 30.0
