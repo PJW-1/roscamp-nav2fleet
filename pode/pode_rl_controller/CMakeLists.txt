@@ -50,7 +50,7 @@ install(DIRECTORY policies DESTINATION share/${PROJECT_NAME})
 
 if(BUILD_TESTING)
   find_package(ament_cmake_gtest REQUIRED)
-  foreach(policy store_arena_4b)
+  foreach(policy store_arena_4b store_arena_c store_arena_acd)
     ament_add_gtest(test_parity_${policy} test/test_parity.cpp)
     target_link_libraries(test_parity_${policy} pode_rl_core)
     target_compile_definitions(test_parity_${policy} PRIVATE

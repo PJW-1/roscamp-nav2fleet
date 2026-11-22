@@ -40,6 +40,37 @@ double gap(double got, double want)
   const double d = std::abs(got - want);
   return std::isfinite(d) ? d : std::numeric_limits<double>::infinity();
 }
+
+double case_cap(const PolicySpec & s, const YAML::Node & c)
+{
+  return c["speed_cap"] ? c["speed_cap"].as<double>() : s.action.v_max;
+}
+
+std::vector<float> with_blocks(const PolicySpec & s, std::vector<float> obs, const YAML::Node & c)
+{
+  if (s.obs_blocks.empty()) {
+    return obs;
+  }
+  pode_rl_controller::ObsMemory memory(s);
+  const std::vector<float> sectors(obs.begin(), obs.begin() + s.lidar.sectors);
+  pode_rl_controller::Twist2 prev{0.0, 0.0};
+  if (c["prev_target"]) {
+    const auto p = vec<double>(c["prev_target"]);
+    prev = {p[0], p[1]};
+  }
+  if (s.has_block("lidar_history")) {
+    const auto hist = c["lidar_history"].as<std::vector<std::vector<float>>>();
+    const int stride = s.lidar_history.stride_steps;
+    for (int k = (s.lidar_history.frames - 1) * stride - 1; k >= 0; --k) {
+      memory.step(hist[static_cast<size_t>(k / stride)], prev);
+    }
+  } else {
+    memory.step(sectors, prev);
+  }
+  const auto extra = memory.blocks(sectors, case_cap(s, c));
+  obs.insert(obs.end(), extra.begin(), extra.end());
+  return obs;
+}
 }  // namespace
 
 TEST(Gap, NonFiniteNeverPasses)
@@ -53,7 +84,7 @@ TEST(Gap, NonFiniteNeverPasses)
 TEST(PolicySpec, ReadsTheExportedTaskSpec)
 {
   const PolicySpec s = spec();
-  EXPECT_EQ(s.obs_dim, 41);
+  EXPECT_EQ(s.obs_dim, static_cast<int>(pode_rl_controller::expected_obs_layout(s).size()));
   EXPECT_EQ(s.lidar.rays, 360);
   EXPECT_EQ(s.lidar.sectors, 36);
   EXPECT_DOUBLE_EQ(s.control_dt, 0.05);
@@ -77,9 +108,9 @@ TEST(Observation, MatchesTaskSpec)
     for (size_t k = 0; k < rays.size(); ++k) {
       worst_rays = std::max(worst_rays, gap(rays[k], want_rays[k]));
     }
-    const auto obs = pode_rl_controller::build_observation(
-      rays, c["goal_dist"].as<double>(), c["goal_angle"].as<double>(), c["v"].as<double>(),
-      c["w"].as<double>(), s);
+    const auto obs = with_blocks(s, pode_rl_controller::build_observation(
+        rays, c["goal_dist"].as<double>(), c["goal_angle"].as<double>(), c["v"].as<double>(),
+        c["w"].as<double>(), s), c);
     const auto want_obs = vec<double>(c["obs"]);
     ASSERT_EQ(obs.size(), want_obs.size());
     for (size_t k = 0; k < obs.size(); ++k) {
@@ -117,13 +148,36 @@ TEST(Action, MatchesTaskSpec)
     for (size_t t = 0; t < acts.size(); ++t) {
       const auto a = vec<float>(acts[t]);
       cmd = pode_rl_controller::rate_limit(
-        cmd, pode_rl_controller::action_to_target(a[0], a[1], s.action), s.control_dt, s.action);
+        cmd, pode_rl_controller::action_to_target(a[0], a[1], s.action, case_cap(s, c)),
+        s.control_dt, s.action);
       const auto want = vec<double>(cmds[t]);
       worst = std::max({worst, gap(cmd.v, want[0]), gap(cmd.w, want[1])});
     }
   }
   std::printf("[parity] action -> (v, w) max |diff| %.3g\n", worst);
   EXPECT_LE(worst, kObsTol);
+}
+
+// ---- speed_cap 원천: nav_speed.yaml, 학습 범위 밖이면 잘라서 알린다 ----
+TEST(SpeedCap, NavSpeedIsTheSourceAndOutOfRangeIsClamped)
+{
+  const PolicySpec s = spec();
+  if (!s.has_block("speed_cap")) {
+    std::printf("[parity] no speed_cap block: v top is action.v_max %.3f\n", s.action.v_max);
+    return;
+  }
+  const double nav = pode_rl_controller::load_nav_speed(NAV_SPEED_FILE);
+  const auto in = pode_rl_controller::speed_cap_value(nav, s.speed_cap);
+  std::printf("[parity] speed_cap range [%.3f, %.3f], nav speed %.3f -> %.3f\n",
+    s.speed_cap.min, s.speed_cap.max, nav, in.value);
+  EXPECT_DOUBLE_EQ(in.value, nav);
+  EXPECT_TRUE(in.error.empty());
+  const auto low = pode_rl_controller::speed_cap_value(s.speed_cap.min - 0.01, s.speed_cap);
+  EXPECT_DOUBLE_EQ(low.value, s.speed_cap.min);
+  EXPECT_FALSE(low.error.empty());
+  const auto high = pode_rl_controller::speed_cap_value(s.speed_cap.max + 0.01, s.speed_cap);
+  EXPECT_DOUBLE_EQ(high.value, s.speed_cap.max);
+  EXPECT_FALSE(high.error.empty());
 }
 
 // ---- ONNX Runtime C++ 대 PyTorch ----
