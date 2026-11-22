@@ -141,14 +141,29 @@ Gazebo 판을 운동학으로 다시 돌린 것(Gazebo 계획 그대로):
 | `angular_disengage_threshold`를 적어 둠(0.39) | 동작은 같고 기본값에 기대지 않게 된다 | 없음 |
 | 학습 출발 분포(1.3절) | shim이 어떻게 넘기든 정책이 그 상태를 겪어 본다 | 재학습 한 번. 오늘 밤 Isaac 기본에 들어감 |
 
-### 1.5 원인을 [확정]하는 Gazebo 실행 계획 (다른 밤)
+### 1.5 원인을 [확정]하는 Gazebo 실행
 
 - RL+shim으로 Q2 → E-3를 3판, O_IN → M_E를 2판 돌린다(compare_012와 같은 조건).
 - controller_server만 DEBUG로 띄우고(`--ros-args --log-level <ns>.controller_server:=debug`), local costmap을 bag으로 남긴다.
+- 실행(WSL, `plug.sh` 방식으로 `~/nf_src/pd-plugin2`에 맞추고 빌드한 뒤):
+  `bash ~/nf_src/pd-plugin2/docs/rl_shim_recipe_2026-11-22/debug_run.sh [OUT]`.
+  - 잠금 `.heavy_run.lock`을 한 번 잡고(owner 줄), Gazebo 한 대(도메인 61)에서 `bench_node`를 두 번 돈다:
+    `q2e3.yaml` 3판, `scenarios.yaml` a_hall 2판, 모두 `--controllers FollowPathRLShim`(되돌아가는 길도 RL+shim).
+  - Nav2 설정은 `debug_overrides.yaml` = compare_012 `rl_and_shim.yaml` + local costmap `publish_frequency` 5.0
+    (갱신 주기 5 Hz와 같게, 발행만 바뀌고 주행에는 영향 없음). compare_012와 다른 점은 이것과 로그 수준뿐이다.
+    `nav_log_level:=pode1.controller_server:=debug`라 다른 Nav2 노드는 warn 대신 기본 info로 찍는다.
+  - `ros2 bag record --use-sim-time`으로 `/rosout`, local costmap, odom, cmd_vel, plan, sim truth를 남긴다(시각이 판 기록과
+    같은 sim 시간).
+  - Gazebo가 끝나면 바로 잠금을 놓고 `gazebo done` 줄을 `runs.txt`에 쓴다.
+- 분석: `python3 docs/rl_shim_recipe_2026-11-22/debug_extract.py OUT`. 판마다 제자리 회전(v = 0, w ≠ 0)을 찾아,
+  끝날 때의 오차로 이른 끝(EARLY, |오차| > 0.44 rad), 정상 끝, goal 방향 맞추기(goal)를 가르고, 그 사이의 :246 줄의
+  `what()`으로 원인(collision / tf / short_path)을 붙인다. 로봇 상태(실제 자세, 오차, w)와, 그때의 local costmap과 odom
+  자세로 shim의 충돌 검사(1 s, 0.05 s 칸, LETHAL 칸이 발자국 외곽에 닿는지)를 다시 돌린 결과(닿은 시각과 칸)를 붙인다.
+  결과는 `OUT/debug_extract.json`.
 - 셀 것: catch의 DEBUG 줄(:246)이 회전이 일찍 끝난 때와 맞는지, 그 순간 발자국 둘레의 LETHAL 칸 위치. 이 줄의 앞부분 문구는
   세 예외에 공통이라, 원인은 끝의 `what():` 내용으로 가른다("detected collision ahead!" 또는 "detected a potential collision
   ahead!"면 충돌 검사, "Failed to transform"이면 TF, "Path is too short"면 짧은 경로).
-- 무거운 작업 잠금 아래에서, 22시 이후에 한다.
+- 무거운 작업 잠금 아래에서 조정자가 "go"를 보내면 돌린다.
 
 ## 2. policy_spec format 3 지원 (항목 8 준비)
 
