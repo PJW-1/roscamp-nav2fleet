@@ -189,8 +189,9 @@ Gazebo 판을 운동학으로 다시 돌린 것(Gazebo 계획 그대로):
 `task_spec.action_to_target`, `export_policy.block_entries`, `obs_names`를 그대로 부르고, 기록 칸은
 `store_arena_env.py`의 `lidar_history` 메서드 본문을 그대로 떼어 실행한다(Isaac Lab 없이). 순서는 env와 같다: 초기화
 때 target 0과 새 기록, 관측, 행동 -> target. 입력은 19단계(에피소드 13단계 + 초기화 후 6단계, stride 4 기록이 다 차고
-다시 비는 것까지), 행동은 [-1.3, 1.3]이라 자르기도 지난다. 블록 묶음 넷(prev_action, lidar_history, speed_cap(0.06~0.12),
-셋 다)의 관측과 (v, w)를 `pode/pode_rl_controller/test/fixtures/format3/format3_cases.json`(169 KB)에 적었다. f3b5352의
+다시 비는 것까지), 행동은 [-1.3, 1.3]이라 자르기도 지난다. 단계마다 네 섹터는 광선이 모두 2 m를 넘어 상한 자르기도
+지난다. 블록 묶음 넷(prev_action, lidar_history, speed_cap(0.06~0.12),
+셋 다)의 관측과 (v, w)를 `pode/pode_rl_controller/test/fixtures/format3/format3_cases.json`(159 KB)에 적었다. f3b5352의
 파일은 `git archive`로 꺼내 썼다(Isaac 작업 트리의 HEAD는 그 뒤 cf473cc였지만 이 세 파일은 같다).
 
 ```bash
@@ -201,11 +202,12 @@ PYTHONUTF8=1 python tools/rl_fixtures/make_format3_cases.py recipe pode/pode_rl_
 gtest `Format3Parity.ObservationAndTargetMatchTheRecipe`는 각 묶음의 명세를 base 명세 + 고정값의 블록 항목·`obs_layout`·
 `obs_dim`으로 읽고(configure 검사 통과), `ObsMemory`와 `action_to_target`을 단계마다 1e-6 안에서 비교한다:
 ```
-[       OK ] Format3Parity.ObservationAndTargetMatchTheRecipe (75 ms)
+[       OK ] Format3Parity.ObservationAndTargetMatchTheRecipe (66 ms)
 [  PASSED  ] 13 tests.
 ```
 `colcon test --packages-select pode_rl_controller`: `Summary: 34 tests, 0 errors, 0 failures, 0 skipped`. 기록 칸 번호를
-일부러 하나 밀면(`f * stride - 1` -> `f * stride`) 이 시험이 `lidar_history step 5 entry 41`부터 646건 실패한다.
+일부러 하나 밀면(`f * stride - 1` -> `f * stride`) 이 시험이 `lidar_history step 5 entry 41`부터 646건 실패한다(첫 고정값 기준).
+섹터의 2 m 상한을 없애면 608건 실패한다.
 
 Isaac 쪽을 기다리는 것:
 - ONNX 수준 parity: 내일 고를 레시피 정책을 배포 정책으로 커밋할 때 그 정책으로 만든다;
