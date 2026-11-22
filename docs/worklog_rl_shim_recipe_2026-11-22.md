@@ -139,7 +139,7 @@ Gazebo 판을 운동학으로 다시 돌린 것(Gazebo 계획 그대로):
 | local costmap 해상도 0.025 → 0.01 m | 잡음으로 안쪽에 찍히는 칸이 얇아져 거부가 준다 | 계산이 늘고 팀 설정(costmap 해상도)과 엮인다. 실물 라이다 잡음은 아직 모른다 |
 | `angular_dist_threshold` 0.785 → 더 크게(예: 1.2) | shim이 덜 끼어들어 정책이 큰 오차를 스스로 다룬다(학습한 상황) | RL 혼자의 약점(O_IN 북쪽으로 휨, d_robot 1/6)이 돌아온다 |
 | `rotate_to_heading_once: true` | 같은 goal의 재계획마다 다시 돌지 않는다. 일찍 끝나기의 되풀이가 준다 | 경로가 크게 바뀌어도 다시 돌지 않는다 |
-| `angular_disengage_threshold`를 적어 둠(0.39) | 동작은 같고 기본값에 기대지 않게 된다 | 없음. 사용자 결정 2026-11-23: 적용. `follow_path_rl.yaml`과 8번 비교 설정 `item8_overrides.yaml`의 shim 셋에 0.39. compare_012는 기본값 0.785 / 2 = 0.3925를 썼으므로 8번은 그보다 0.0025 rad 작다. 나머지 shim 선택지는 8번 비교 뒤에 정한다 |
+| `angular_disengage_threshold`를 적어 둠(0.39) | 기본값(0.3925)에 기대지 않게 된다. 회전을 끝내는 문턱이 0.0025 rad 작아질 뿐이라 동작 차이는 작다고 본다[추측] | 없음. 사용자 결정 2026-11-23: 적용. `follow_path_rl.yaml`과 8번 비교 설정 `item8_overrides.yaml`의 shim 셋에 0.39. compare_012는 기본값 0.785 / 2 = 0.3925를 썼으므로 8번은 그보다 0.0025 rad 작다. 나머지 shim 선택지는 8번 비교 뒤에 정한다 |
 | 학습 출발 분포(1.3절) | shim이 어떻게 넘기든 정책이 그 상태를 겪어 본다 | 재학습 한 번. 오늘 밤 Isaac 기본에 들어감 |
 
 ### 1.5 원인을 [확정]하는 Gazebo 실행
@@ -291,7 +291,7 @@ acd 사례는 세 관측 모두 prev_target과 speed_cap이 있고, 행동 사�
 
 - 실행(WSL, `plug.sh`로 맞추고 빌드한 뒤): `bash ~/nf_src/pd-plugin2/docs/rl_shim_recipe_2026-11-22/item8_run.sh [OUT]`.
 - 컨트롤러: RPP(`FollowPathGoal`), MPPI, RL+shim(store_arena_4b, 지금 기본), RL+shim c, RL+shim acd.
-  Nav2 설정 `item8_overrides.yaml` = compare_012 `rl_and_shim.yaml` + 같은 shim 설정에 정책만 바꾼 둘. 합친 설정을 미리
+  Nav2 설정 `item8_overrides.yaml` = compare_012 `rl_and_shim.yaml` + 같은 shim 설정에 정책만 바꾼 둘. 단 세 shim 모두 `angular_disengage_threshold`를 0.39로 적었다(사용자 결정 2026-11-23). compare_012는 기본값 0.3925를 써서, 회전을 끝내는 문턱이 0.0025 rad 다르다. 합친 설정을 미리
   만들어 확인함: 세 shim 모두 max_linear_vel 0.12, MPPI vx_max 0.12와 time_steps 83(compare_012와 같음).
 - 묶음: Q2 → E-3 칸마다 3판, 그다음 O_IN → M_E 네 시나리오(a_hall e_corridor d_robot c_moving) 칸마다 6판. compare_012와
   같은 설정 파일, 판 수, 도메인 규칙이다. 잠금은 `run_bench.sh`가 시나리오마다 잡고 놓는다(사이 180 s).
