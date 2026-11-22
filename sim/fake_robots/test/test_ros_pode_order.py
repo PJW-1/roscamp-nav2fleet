@@ -10,7 +10,7 @@ from conftest import wait_until  # noqa: E402
 from fleet_interfaces.action import MoveTo  # noqa: E402
 from fleet_interfaces.msg import Segment  # noqa: E402
 from geometry_msgs.msg import PoseStamped  # noqa: E402
-from test_ros_pode import SITE, result_of, start  # noqa: E402
+from test_ros_pode import SITE, move_wait, result_of, start  # noqa: E402
 
 X0, Y0 = SITE.node_pose("P-1")
 STEP_M = 0.3
@@ -224,12 +224,14 @@ def test_an_obstacle_that_shows_up_while_waiting_holds_the_next_segment_from_its
     """base 끝에 서 있는 동안 나타난 앞 물체는 goal이 없던 로봇과 같이 다음에 달릴 때 그 자리에서
     막는다(blocked_lane 시나리오). 서 있을 때 물체 자리를 잡으면 다음 조각을 그만큼 달려 버린다."""
     from fleet_interfaces.msg import RobotState
+    appear_s = move_wait(STEP_M)  # 첫 조각을 다 달려 base 끝에 선 뒤(넉넉히)
+    begun = time.monotonic()
     p = start(harness, tmp_path, robots=FAST, node={"recovery_attempts": 0}, faults=[
-        {"at_s": 1.5, "robot": "pode1", "type": "blocked", "duration_s": 60.0}])
+        {"at_s": appear_s, "robot": "pode1", "type": "blocked", "duration_s": 60.0}])
     assert wait_until(lambda: p.states, 5.0)
     first, feedback = order(p, [1], horizon=[2])
-    assert wait_until(lambda: any(f.waiting_at_base_end for f in feedback), 10.0)
-    time.sleep(2.0)  # 물체가 나타난 뒤
+    assert wait_until(lambda: any(f.waiting_at_base_end for f in feedback), appear_s)
+    time.sleep(max(0.0, begun + appear_s + 1.0 - time.monotonic()))  # 물체가 나타난 뒤
     second, _ = order(p, [2], update=1, stitch="a")
     assert wait_until(lambda: p.states[-1][1].state == RobotState.STATE_BLOCKED, 8.0)
     assert here(p) == pytest.approx(end_of(1), abs=1e-3)
