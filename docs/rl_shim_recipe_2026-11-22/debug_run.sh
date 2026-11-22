@@ -3,7 +3,6 @@
 # 한 Gazebo에서 RL+shim(compare_012의 FollowPathRLShim)으로 Q2 -> E-3 3판, O_IN -> M_E 2판.
 # controller_server만 DEBUG, rosout·local costmap·odom·cmd_vel을 sim 시간으로 bag에 남긴다.
 # 무거운 작업 잠금을 한 번 잡고, Gazebo가 끝나면 바로 놓는다. 남의 잠금은 지우지 않는다.
-set -u
 SRC=${SRC:-$HOME/nf_src/pd-plugin2}
 B=${B:-$HOME/gg_build/pd-plugin2}
 OUT=${1:-$HOME/rl_gz_check/shimdbg_$(date +%m%d_%H%M%S)}
@@ -20,6 +19,7 @@ source "$HOME/pinky_deps_ws/install/local_setup.bash"
 export CMAKE_PREFIX_PATH=$HOME/ort_probe/x/opt/ros/jazzy:${CMAKE_PREFIX_PATH:-}
 export AMENT_PREFIX_PATH=$HOME/ort_probe/x/opt/ros/jazzy:${AMENT_PREFIX_PATH}
 source "$B/install/setup.bash"
+set -u
 export ROS_DOMAIN_ID=${DBG_DOMAIN:-61} ROS_AUTOMATIC_DISCOVERY_RANGE=LOCALHOST
 export RMW_IMPLEMENTATION=rmw_fastrtps_cpp GALLIUM_DRIVER=${GALLIUM_DRIVER:-d3d12}
 case $ROS_DOMAIN_ID in 61|62) ;; *) echo "domain $ROS_DOMAIN_ID not allowed"; exit 2 ;; esac
