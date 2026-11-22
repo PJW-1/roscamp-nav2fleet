@@ -150,7 +150,9 @@ def test_the_pass_rule_measures_from_the_reported_pose():
     from fake_robots.motion import Motion
     from fake_robots.pode_order import FOLLOW_PATH, NAV_GOAL, PodeOrder, Seg
     end = Seg(1, NAV_GOAL, "a", (), 1.0, 0.0)
-    nxt = Seg(2, FOLLOW_PATH, "b", ((1.0, 0.0), (2.0, 0.0)), 2.0, 0.0)
+    # 진짜 자리(0.9, 0)는 다음 path에서 0.141 m, 보고 자리(0.9, 0.05)는 0.180 m(허용 0.15).
+    # 끝 노드까지는 둘 다 넘김 거리 안이다
+    nxt = Seg(2, FOLLOW_PATH, "b", ((1.0, -0.1), (2.0, -0.1)), 2.0, -0.1)
     goal = SimpleNamespace(seg_mode=NAV_GOAL, seg=end, order=SimpleNamespace(queue=[nxt]))
 
     def node(drift):
@@ -158,7 +160,7 @@ def test_the_pass_rule_measures_from_the_reported_pose():
                                _connect_tolerance=0.15,
                                _faults=SimpleNamespace(drift=lambda t: drift))
     assert PodeOrder._passes(node(0.0), goal, 0.0) is True
-    assert PodeOrder._passes(node(0.2), goal, 0.0) is False, "the next path would be refused"
+    assert PodeOrder._passes(node(0.05), goal, 0.0) is False, "the next path would be refused"
 
 
 def test_feedback_is_due_again_after_the_sim_clock_goes_back():
