@@ -1,6 +1,7 @@
-# pode1이 O-002를 싣고 출고 도크에 선 뒤인 70초에 영영 멈추고 응답이 끊긴다(D2, 구역 관제).
-# (66초였다. pode1이 출고 도크에 닿는 때가 62.5~66.0초라, 늦은 판은 닿기 전에 멈춰 출고가 1건이었다.
-# 70초에는 도크에서 교체 중이거나 막 물러나는 중이다. 어느 쪽이든 OUT_DOCK을 쥔 채 남는다)
+# pode1이 O-002를 싣고 출고 도크에 선 지 4초 뒤에 영영 멈추고 응답이 끊긴다(D2, 구역 관제).
+# 시각이 아니라 사건(DOCKED at OUTBOUND)에서 잰다: 로봇 속도가 바뀌면 도크에 닿는 때도 바뀐다
+# (70초로 두었을 때 속도 0.12에서는 닿기 전에 멈춰 출고가 1건이었다). 4초 뒤에는 도크에서
+# 교체 중이다. OUT_DOCK을 쥔 채 남는다.
 # pode1은 OUT_DOCK, J_E, HALL을 쥔 채 남는다. 출고 도크가 하나뿐이라 나머지는 그 앞에 줄을 선다:
 # pode3은 O_Q에서, 다음 주문을 채운 pode2는 주차 자리에서 출고 도크를 기다린다(DOCK_QUEUED).
 # 더는 출고할 수 없다: 출고 2건.
@@ -19,13 +20,13 @@ orders:
   - {at_s: 40, id: O-005, items: {B: 2, C: 2}}
   - {at_s: 60, id: O-006, items: {D: 1}}
 robots:
-  pode1: {start: P-1, speed_mps: 0.20, pose_noise_m: 0.03}
-  pode2: {start: P-2, speed_mps: 0.18, pose_noise_m: 0.03}
-  pode3: {start: P-3, speed_mps: 0.20, pose_noise_m: 0.03}
+  pode1: {start: P-1, speed_scale: 1.0, pose_noise_m: 0.03}
+  pode2: {start: P-2, speed_scale: 0.9, pose_noise_m: 0.03}
+  pode3: {start: P-3, speed_scale: 1.0, pose_noise_m: 0.03}
 arm: {seconds_per_item: 4.0, swap_seconds: 8.0, fail_rate: 0.0}
 dock: {duration_s: 3.0, error_cm: 1.0}
 faults:
-  - {at_s: 70, robot: pode1, type: stuck}
+  - {at_s: 4, robot: pode1, type: stuck, after_event: DOCKED, after_detail: "at OUTBOUND"}
 expect:
   robot_idle: null  # 고장 시나리오는 ROBOT_IDLE을 세지 않는다
   all_orders_finished: false

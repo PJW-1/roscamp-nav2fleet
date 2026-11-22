@@ -6,6 +6,7 @@ from pathlib import Path
 import yaml
 from fleet_core.fleet_map import KNOWN_LAYOUTS
 
+from fake_robots.nav_speed import nav_speed_mps
 from fake_robots.scenario_cfg import (  # noqa: F401  (다른 모듈이 여기서 가져간다)
     ARM_FAULTS,
     EXPECT_DEFAULTS,
@@ -69,13 +70,21 @@ def parse_scenario(data: dict, site, seed: int | None = None) -> Scenario:
     if unknown:
         raise ScenarioError(f"unknown scenario keys: {sorted(unknown)}")
     robots = {}
+    top = nav_speed_mps()
     for name, raw in (data.get("robots") or {}).items():
         raw = raw or {}
         if "start" not in raw:
             raise ScenarioError(f"robot {name} has no start")
+        if "speed_mps" in raw:
+            raise ScenarioError(f"robot {name}: speed_mps is gone, give speed_scale (0..1] "
+                                f"of the one top speed {top} m/s")
+        scale = _positive(raw, "speed_scale", 1.0)
+        if not scale <= 1.0:  # nan도 여기서 거부
+            raise ScenarioError(f"robot {name}: speed_scale must be at most 1, got {scale!r}")
         robots[name] = RobotCfg(
             start=_resolve_start(raw["start"], site),
-            speed_mps=_positive(raw, "speed_mps", 0.2),
+            speed_mps=scale * top,
+            speed_scale=scale,
             pose_noise_m=float(raw.get("pose_noise_m", 0.0)),
             report_delay_s=_not_negative(raw, "report_delay_s"),
             stop_error_m=_not_negative(raw, "stop_error_m"),

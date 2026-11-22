@@ -16,7 +16,7 @@ from dataclasses import fields
 import rclpy
 from fleet_core.common.contract import to_ros_qos
 from fleet_interfaces.action import Dock, MoveTo, Retreat
-from fleet_interfaces.msg import RobotState
+from fleet_interfaces.msg import FleetEvent, RobotState
 from rclpy.action import ActionServer
 from rclpy.callback_groups import ReentrantCallbackGroup
 from rclpy.executors import MultiThreadedExecutor
@@ -101,6 +101,12 @@ class FakePodeNode(PodeGoals, PodeOrder, PodeRetreat, PodeReport, Node):
         self.create_subscription(
             Header, contract.name("heartbeat"), self._on_heartbeat,
             to_ros_qos(contract.qos("heartbeat")))
+        if any(f.robot == self.robot_id and (f.after_event or f.until_event)
+               for f in scenario.faults):
+            # 사건으로 시작하거나 끝나는 고장만 관제 사건을 듣는다(scenario_cfg.Fault)
+            self.create_subscription(
+                FleetEvent, contract.name("events"), self._on_event,
+                to_ros_qos(contract.qos("events")))
         for other in scenario.robots:
             if other != self.robot_id:
                 self.create_subscription(
@@ -144,6 +150,10 @@ class FakePodeNode(PodeGoals, PodeOrder, PodeRetreat, PodeReport, Node):
     def _on_other(self, msg: RobotState) -> None:
         self._others[msg.robot_id] = seen(
             self._others.get(msg.robot_id), msg.pose.x, msg.pose.y, self._sc.now())
+
+    def _on_event(self, msg) -> None:
+        with self._lock:
+            self._faults.on_event(self._sc.now(), msg.source, msg.code, msg.detail)
 
     # -- the heartbeat ------------------------------------------------------------------
 

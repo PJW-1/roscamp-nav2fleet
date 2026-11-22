@@ -32,7 +32,7 @@ def minimal(**over):
         "timeout_s": 100,
         "stock": {"arm1": {"A": 2}, "arm2": {"C": 1}},
         "orders": [{"at_s": 0, "id": "O-1", "items": {"A": 1}}],
-        "robots": {"pode1": {"start": "P-1", "speed_mps": 0.2, "pose_noise_m": 0.0}},
+        "robots": {"pode1": {"start": "P-1", "speed_scale": 1.0, "pose_noise_m": 0.0}},
     }
     data.update(over)
     return data
@@ -315,7 +315,7 @@ def test_shared_lane_failure_has_both_faults(site):
 
 def test_nav_abort_target_must_be_a_node_and_only_for_nav_abort(site):
     def with_fault(fault):
-        robots = {"pode1": {"start": "P-3", "speed_mps": 0.2, "pose_noise_m": 0.0}}
+        robots = {"pode1": {"start": "P-3", "speed_scale": 1.0, "pose_noise_m": 0.0}}
         return minimal(robots=robots, faults=[fault], expect={"orders_shipped": 1})
     sc = parse_scenario(with_fault({"at_s": 0, "robot": "pode1", "type": "nav_abort",
                                     "target": "W"}), site)

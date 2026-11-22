@@ -132,12 +132,12 @@ class Commands:
         speed_factor = r.profile.speed_factor
         if segment.mode == "nav_goal":
             return NavGoalRun(goal_id, (segment.x, segment.y), segment.yaw,
-                              self.params.nav_speed_mps * speed_factor, self.blocked_after_s)
+                              self.top_speed_mps * speed_factor, self.blocked_after_s)
         if segment.mode == "retreat":
             return RetreatRun(goal_id, segment.path, 0.0, self.params.retreat_speed_mps,
                               self.params.lane_error_warn_m)
         return FollowRun(goal_id, segment.path, (segment.x, segment.y), segment.yaw,
-                         self.params.follow_speed_mps * speed_factor,
+                         self.top_speed_mps * speed_factor,
                          self.params.lane_error_warn_m, turn_at_end=final)
 
     def _start(self, cmd) -> None:
@@ -164,10 +164,10 @@ class Commands:
         speed_factor = r.profile.speed_factor
         if cmd.mode == "nav_goal":
             return NavGoalRun(cmd.goal_id, (cmd.x, cmd.y), cmd.yaw,
-                              self.params.nav_speed_mps * speed_factor, self.blocked_after_s,
+                              self.top_speed_mps * speed_factor, self.blocked_after_s,
                               Avoidance(self.avoid_mode, self.avoid_settings))
         return FollowRun(cmd.goal_id, cmd.path, (cmd.x, cmd.y), cmd.yaw,
-                         self.params.follow_speed_mps * speed_factor,
+                         self.top_speed_mps * speed_factor,
                          self.params.lane_error_warn_m, turn_at_end=cmd.final_goal)
 
     def _dock_run(self, r, cmd):

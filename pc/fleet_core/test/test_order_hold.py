@@ -166,6 +166,17 @@ def test_a_cleared_robot_with_a_filled_basket_holds_the_order():
     assert not calls(out)
 
 
+def test_a_loaded_robot_cleared_twice_holds_its_order_once_and_keeps_it_held():
+    core, _, _ = full_and_heading_out()
+    core.on_robot_removed("r1")
+    assert [(r.status, r.hold_reason) for r in reports(core.take_output())] == [
+        ("HELD", HOLD_ROBOT_FAULT)]
+    core.on_robot_removed("r1")
+    out = core.take_output()
+    assert not reports(out) and "ORDER_REQUEUED" not in codes(out) and not calls(out)
+    assert core._held == {"O-001": ("r1", HOLD_ROBOT_FAULT)}
+
+
 def test_a_hold_is_forgotten_when_central_takes_the_order_off_the_board():
     core, _, _ = full_and_heading_out()
     core.on_robot_isolated("r1", "GOAL_FAILED")

@@ -8,7 +8,9 @@ pytest.importorskip("rclpy")
 pytest.importorskip("fleet_interfaces.msg")
 
 from conftest import CONTRACT, wait_until, write_scenario  # noqa: E402
+from fake_robots.nav_speed import nav_speed_mps  # noqa: E402
 from fake_robots.pode_retreat import REVERSE_SPEED_MPS  # noqa: E402
+from fake_robots.recovery import RecoveryParams  # noqa: E402
 from fake_robots.world.geom import segment_gap  # noqa: E402
 from fleet_core.common.contract import load_contract, to_ros_qos  # noqa: E402
 from fleet_core.common.params import load_params  # noqa: E402
@@ -20,6 +22,26 @@ from rclpy.action import ActionClient  # noqa: E402
 
 CONTRACT_OBJ = load_contract(CONTRACT)
 SITE = load_fleet_map("d2")
+
+# 이동을 기다리는 시간은 고정 숫자가 아니라 거리 ÷ (출처 속도 × 배율) × 여유로 잰다.
+# 출처(pode_nav_config nav_speed.yaml)를 바꿔도 시험이 다시 깨지지 않게 한다
+TOP = nav_speed_mps()
+# 가짜 Pode는 돌기나 가감속 없이 거리 ÷ 속도로 간다(20 Hz 걸음). 여유는 실행기와 시계 발행이
+# 밀리는 몫이다(WSL에 다른 일이 돌 때). 1.5배: 이동 시간이 그만큼 늘어도 기다린다
+MOVE_MARGIN = 1.5
+START_S = 2.0  # 목표 접수와 첫 보고까지처럼 거리와 무관한 몫(실제 초)
+# 긴 이동 시험의 시뮬 시계 배율. 시나리오 시간이 실제의 4배로 가므로 이동도 4배 빨리 끝난다
+FAST_CLOCK = 4.0
+
+
+def path_m(*cells):
+    points = [SITE.node_pose(c) for c in cells]
+    return sum(math.dist(a, b) for a, b in zip(points, points[1:], strict=False))
+
+
+def move_wait(metres, scale=1.0, clock=1.0):
+    """이동 하나를 기다릴 실제 초: 거리 ÷ (출처 속도 × 배율) × 여유 ÷ 시계 배율 + 시작 몫."""
+    return metres / (TOP * scale) * MOVE_MARGIN / clock + START_S
 
 
 class Probe:
@@ -46,13 +68,21 @@ class Probe:
         return fut.result()
 
 
-def start(harness, tmp_path, heartbeat_timeout_s=0.0, node=None, **scenario):
-    """여기엔 FMS가 없으니 기본적으로 로봇은 FMS 소식을 기다리지 않는다. node: 노드 파라미터."""
+def start(harness, tmp_path, heartbeat_timeout_s=0.0, node=None, clock=1.0, **scenario):
+    """여기엔 FMS가 없으니 기본적으로 로봇은 FMS 소식을 기다리지 않는다. node: 노드 파라미터.
+
+    clock이 1이 아니면 /clock을 그 배율로 내고 로봇은 시뮬 시간을 쓴다(하트비트는 실제 시간).
+    """
     from fake_robots.fake_pode_node import FakePodeNode
     # 시험 좌표는 d2(SITE)라 지도도 d2로 준다. 기본 배치는 v7이다
     values = {"robot_id": "pode1", "scenario_file": write_scenario(tmp_path, **scenario),
               "state_rate_hz": 20.0, "heartbeat_timeout_s": heartbeat_timeout_s,
               "map_file": "d2", **(node or {})}
+    if clock != 1.0:
+        from fake_robots.sim_clock_node import SimClockNode
+        harness.add(SimClockNode(parameter_overrides=harness.params(
+            speed_factor=clock, rate_hz=400.0)))
+        values["use_sim_time"] = True
     harness.add(FakePodeNode(parameter_overrides=harness.params(**values)))
     return Probe(harness)
 
@@ -80,15 +110,16 @@ def test_move_to_publishes_state_feedback_and_succeeds(harness, tmp_path):
 
 def test_a_path_goal_follows_the_lanes_round_the_corner(harness, tmp_path):
     """path 모드: 꺾인 선을 그대로 따르고 끝에서 성공한다."""
-    p = start(harness, tmp_path, robots={
-        "pode1": {"start": "P-1", "speed_mps": 0.5, "pose_noise_m": 0.0}})
+    p = start(harness, tmp_path, clock=FAST_CLOCK, robots={
+        "pode1": {"start": "P-1", "speed_scale": 1.0, "pose_noise_m": 0.0}})
     assert wait_until(lambda: p.states, 5.0)
     points = [SITE.node_pose(w) for w in ("P-1", "N_W", "N_E")]
     msg = MoveTo.Goal(target_id="N_E", target_pose=Pose2D(x=points[-1][0], y=points[-1][1]))
     msg.path = [Pose(position=Point(x=x, y=y)) for x, y in points]
     fut = p.move.send_goal_async(msg)
     assert wait_until(fut.done, 5.0) and fut.result().accepted
-    assert result_of(fut.result()).result.success is True
+    wait = move_wait(path_m("P-1", "N_W", "N_E"), clock=FAST_CLOCK)
+    assert result_of(fut.result(), wait).result.success is True
     seen = [(s.pose.x, s.pose.y) for _, s in p.states]
     off = max(min(segment_gap((x, y), a, b) for a, b in zip(points, points[1:], strict=False))
               for x, y in seen)
@@ -99,9 +130,9 @@ def test_a_path_goal_follows_the_lanes_round_the_corner(harness, tmp_path):
 def test_a_path_goal_waits_for_a_robot_on_the_line_ahead(harness, tmp_path):
     """path 모드도 바로 앞에 다른 로봇이 있으면 서서 BLOCKED를 보고하고, 비키면 이어 간다(R3)."""
     from fake_robots.common import TRUTH_TOPIC
-    p = start(harness, tmp_path, robots={
-        "pode1": {"start": "P-1", "speed_mps": 0.5, "pose_noise_m": 0.0},
-        "pode2": {"start": "P-2", "speed_mps": 0.5, "pose_noise_m": 0.0}})
+    p = start(harness, tmp_path, clock=FAST_CLOCK, robots={
+        "pode1": {"start": "P-1", "speed_scale": 1.0, "pose_noise_m": 0.0},
+        "pode2": {"start": "P-2", "speed_scale": 1.0, "pose_noise_m": 0.0}})
     points = [SITE.node_pose(w) for w in ("P-1", "N_W", "N_E")]
     (x0, y), (x1, _) = points[1:]
     spot = [(x0 + x1) / 2, y]  # pode2가 선 한가운데에 서 있다
@@ -115,11 +146,14 @@ def test_a_path_goal_waits_for_a_robot_on_the_line_ahead(harness, tmp_path):
     msg.path = [Pose(position=Point(x=px, y=py)) for px, py in points]
     fut = p.move.send_goal_async(msg)
     assert wait_until(fut.done, 5.0) and fut.result().accepted
-    assert wait_until(lambda: p.states[-1][1].state == RobotState.STATE_BLOCKED, 5.0)
+    to_spot = path_m("P-1", "N_W") + (x1 - x0) / 2
+    assert wait_until(lambda: p.states[-1][1].state == RobotState.STATE_BLOCKED,
+                      move_wait(to_spot, clock=FAST_CLOCK))
     stood = p.states[-1][1].pose.x
     assert x0 + 0.1 < stood <= spot[0] - 2 * 0.08, "it did not stop short of the other robot"
     spot[:] = SITE.node_pose("P-2")
-    assert result_of(fut.result()).result.success is True
+    wait = move_wait(path_m("P-1", "N_W", "N_E"), clock=FAST_CLOCK)
+    assert result_of(fut.result(), wait).result.success is True
 
 
 def send_nav_goal(p, x, y, target_id="P-3"):
@@ -133,7 +167,7 @@ def send_nav_goal(p, x, y, target_id="P-3"):
 def test_a_nav_goal_plans_its_own_way_and_arrives(harness, tmp_path):
     """계약 5절: nav_goal 모드는 path 없이 지도 위에서 스스로 길을 짠다."""
     p = start(harness, tmp_path, robots={
-        "pode1": {"start": "P-1", "speed_mps": 1.0, "pose_noise_m": 0.0}})
+        "pode1": {"start": "P-1", "speed_scale": 1.0, "pose_noise_m": 0.0}})
     assert wait_until(lambda: p.states, 5.0)
     there = SITE.node_pose("P-3")
     assert result_of(send_nav_goal(p, *there)).result.success is True
@@ -143,14 +177,14 @@ def test_a_nav_goal_plans_its_own_way_and_arrives(harness, tmp_path):
 
 def test_a_nav_goal_off_the_map_is_nav_aborted(harness, tmp_path):
     p = start(harness, tmp_path, robots={
-        "pode1": {"start": "P-1", "speed_mps": 1.0, "pose_noise_m": 0.0}})
+        "pode1": {"start": "P-1", "speed_scale": 1.0, "pose_noise_m": 0.0}})
     res = result_of(send_nav_goal(p, -1.0, -1.0, "nowhere"), 5.0).result
     assert res.success is False and res.reason == MoveTo.Result.REASON_NAV_ABORTED
 
 
 def test_new_goal_supersedes_the_active_one(harness, tmp_path):
     p = start(harness, tmp_path, robots={
-        "pode1": {"start": "P-1", "speed_mps": 0.2, "pose_noise_m": 0.0}})
+        "pode1": {"start": "P-1", "speed_scale": 1.0, "pose_noise_m": 0.0}})
     first = p.goal("N_E")
     assert first.accepted
     second = p.goal("O_Q")
@@ -161,7 +195,7 @@ def test_new_goal_supersedes_the_active_one(harness, tmp_path):
 
 def test_cancel_is_honoured(harness, tmp_path):
     p = start(harness, tmp_path, robots={
-        "pode1": {"start": "P-1", "speed_mps": 0.2, "pose_noise_m": 0.0}})
+        "pode1": {"start": "P-1", "speed_scale": 1.0, "pose_noise_m": 0.0}})
     handle = p.goal("N_E")
     cancel = handle.cancel_goal_async()
     assert wait_until(cancel.done, 5.0)
@@ -181,7 +215,7 @@ def test_nav_abort_hits_the_next_goals_only(harness, tmp_path):
 def test_a_nav_abort_comes_before_the_robot_reaches_the_release_distance(harness, tmp_path):
     """관제는 해제 거리(0.2 m)를 지나야 선을 늘린다. 그 전에 중단해야 늘림과 겹치지 않는다."""
     p = start(harness, tmp_path, robots={
-        "pode1": {"start": "P-1", "speed_mps": 0.2, "pose_noise_m": 0.0}}, faults=[
+        "pode1": {"start": "P-1", "speed_scale": 1.0, "pose_noise_m": 0.0}}, faults=[
         {"at_s": 0, "robot": "pode1", "type": "nav_abort", "count": 1}])
     assert wait_until(lambda: p.states, 5.0)
     x0, y0 = p.states[-1][1].pose.x, p.states[-1][1].pose.y
@@ -194,7 +228,7 @@ def test_a_nav_abort_comes_before_the_robot_reaches_the_release_distance(harness
 def test_a_nav_abort_is_not_lost_on_a_goal_superseded_before_it_fires(harness, tmp_path):
     """FMS가 선을 늘려 목표를 바꿔도 중단 횟수만큼 NAV_ABORTED가 난다."""
     p = start(harness, tmp_path, robots={
-        "pode1": {"start": "P-1", "speed_mps": 0.2, "pose_noise_m": 0.0}}, faults=[
+        "pode1": {"start": "P-1", "speed_scale": 1.0, "pose_noise_m": 0.0}}, faults=[
         {"at_s": 0, "robot": "pode1", "type": "nav_abort", "count": 1}])
     time.sleep(0.3)
     first = p.goal("N_E")
@@ -221,7 +255,7 @@ def test_comm_loss_silences_state_rejects_goals_and_recovers(harness, tmp_path):
 def test_true_pose_has_no_noise_and_keeps_coming_during_comm_loss(harness, tmp_path):
     from fake_robots.common import TRUTH_TOPIC
     p = start(harness, tmp_path, robots={
-        "pode1": {"start": "P-3", "speed_mps": 0.2, "pose_noise_m": 0.05}},
+        "pode1": {"start": "P-3", "speed_scale": 1.0, "pose_noise_m": 0.05}},
         faults=[{"at_s": 1.0, "robot": "pode1", "type": "comm_loss", "duration_s": 60.0}])
     truth = []
     p.node.create_subscription(
@@ -248,7 +282,7 @@ def truth_of(p):
 
 def test_a_late_report_says_where_the_robot_was_when_it_was_measured(harness, tmp_path):
     p = start(harness, tmp_path, robots={"pode1": {
-        "start": "P-1", "speed_mps": 0.1, "pose_noise_m": 0.0, "report_delay_s": 1.0}})
+        "start": "P-1", "speed_scale": 0.83, "pose_noise_m": 0.0, "report_delay_s": 1.0}})
     truth = truth_of(p)
     assert wait_until(lambda: p.states and truth, 5.0)
     p.goal("N_W")
@@ -265,7 +299,7 @@ def test_a_late_report_says_where_the_robot_was_when_it_was_measured(harness, tm
 
 def test_reports_measured_during_a_comm_loss_never_come(harness, tmp_path):
     p = start(harness, tmp_path, robots={"pode1": {
-        "start": "P-1", "speed_mps": 0.1, "pose_noise_m": 0.0, "report_delay_s": 1.0}},
+        "start": "P-1", "speed_scale": 0.83, "pose_noise_m": 0.0, "report_delay_s": 1.0}},
         faults=[{"at_s": 2.0, "robot": "pode1", "type": "comm_loss", "duration_s": 2.0}])
     assert wait_until(lambda: p.states, 5.0)
     assert wait_until(lambda: time.monotonic() - p.states[-1][0] > 0.5, 6.0), "never went silent"
@@ -279,7 +313,7 @@ def test_reports_measured_during_a_comm_loss_never_come(harness, tmp_path):
 
 def test_a_move_ends_off_its_target_by_the_stop_error(harness, tmp_path):
     p = start(harness, tmp_path, robots={"pode1": {
-        "start": "P-1", "speed_mps": 1.0, "pose_noise_m": 0.0, "stop_error_m": 0.05}})
+        "start": "P-1", "speed_scale": 1.0, "pose_noise_m": 0.0, "stop_error_m": 0.05}})
     truth = truth_of(p)
     target = SITE.node_pose("N_W")
     assert result_of(p.goal("N_W")).result.success
@@ -300,7 +334,7 @@ def test_start_accepts_a_waiting_cell_name(harness, tmp_path):
 def test_operator_remove_takes_the_robot_off_the_course_for_good(harness, tmp_path):
     from fake_robots.common import TRUTH_TOPIC
     p = start(harness, tmp_path, robots={
-        "pode1": {"start": "P-1", "speed_mps": 0.2, "pose_noise_m": 0.0}},
+        "pode1": {"start": "P-1", "speed_scale": 1.0, "pose_noise_m": 0.0}},
         faults=[{"at_s": 1.5, "robot": "pode1", "type": "operator_remove"}])
     truth = []
     p.node.create_subscription(
@@ -319,7 +353,7 @@ def test_operator_remove_takes_the_robot_off_the_course_for_good(harness, tmp_pa
 
 def test_operator_reinstate_puts_the_robot_back_and_it_reports_again(harness, tmp_path):
     p = start(harness, tmp_path, robots={
-        "pode1": {"start": "P-1", "speed_mps": 0.2, "pose_noise_m": 0.0}},
+        "pode1": {"start": "P-1", "speed_scale": 1.0, "pose_noise_m": 0.0}},
         faults=[{"at_s": 0.5, "robot": "pode1", "type": "operator_remove"},
                 {"at_s": 2.0, "robot": "pode1", "type": "operator_reinstate", "start": "P-3"}])
     assert wait_until(lambda: p.states, 5.0)
@@ -356,7 +390,7 @@ def test_a_dock_reports_its_dock_id_as_the_current_goal(harness, tmp_path):
 
 # ---- the heartbeat ----------------------------------------------------------------------
 
-SLOW = {"pode1": {"start": "P-1", "speed_mps": 0.1, "pose_noise_m": 0.0}}
+SLOW = {"pode1": {"start": "P-1", "speed_scale": 0.83, "pose_noise_m": 0.0}}
 BEAT_TIMEOUT_S = 0.5
 
 
@@ -397,13 +431,13 @@ def test_a_move_stops_when_no_heartbeat_comes(harness, tmp_path):
 
 
 def test_a_heartbeat_keeps_a_move_going_past_the_timeout(harness, tmp_path):
-    p = start(harness, tmp_path, heartbeat_timeout_s=BEAT_TIMEOUT_S, robots={
-        "pode1": {"start": "P-3", "speed_mps": 0.2, "pose_noise_m": 0.0}})
+    p = start(harness, tmp_path, heartbeat_timeout_s=BEAT_TIMEOUT_S, clock=FAST_CLOCK, robots={
+        "pode1": {"start": "P-3", "speed_scale": 1.0, "pose_noise_m": 0.0}})
     beat(p)
     time.sleep(0.3)
     target = "P-1"
     sent = time.monotonic()
-    res = result_of(p.goal(target), 10.0).result
+    res = result_of(p.goal(target), move_wait(path_m("P-3", target), clock=FAST_CLOCK)).result
     assert res.success is True
     assert time.monotonic() - sent > BEAT_TIMEOUT_S, "the move has to outlast the timeout"
 
@@ -451,7 +485,7 @@ def test_a_robot_with_nothing_to_do_does_not_mind_the_silence(harness, tmp_path)
 
 # ---- 앞 물체와 위치 잡기(계약 3절 6번, 4절) -----------------------------------------------
 
-ONE = {"pode1": {"start": "P-1", "speed_mps": 0.2, "pose_noise_m": 0.0}}
+ONE = {"pode1": {"start": "P-1", "speed_scale": 1.0, "pose_noise_m": 0.0}}
 NO_RECOVERY = {"recovery_attempts": 0}  # 자기 복구 없이 BLOCKED로 바로 가는 동작(계약 4절)
 
 
@@ -530,7 +564,7 @@ def test_a_robot_put_back_does_not_keep_saying_blocked(harness, tmp_path):
 
 def test_a_robot_says_localizing_until_it_has_a_pose(harness, tmp_path):
     p = start(harness, tmp_path, robots={
-        "pode1": {"start": "P-1", "speed_mps": 0.2, "pose_noise_m": 0.0, "localizing_s": 3.0}})
+        "pode1": {"start": "P-1", "speed_scale": 1.0, "pose_noise_m": 0.0, "localizing_s": 3.0}})
     assert wait_until(lambda: p.states and p.states[-1][1].state == RobotState.STATE_IDLE, 8.0)
     seen = [s for _, s in p.states]
     first = next(i for i, s in enumerate(seen) if s.state == RobotState.STATE_IDLE)
@@ -587,10 +621,11 @@ def test_a_path_that_misses_the_robot_is_refused_and_the_robot_stays(harness, tm
 
 def test_a_path_within_the_tolerance_is_followed(harness, tmp_path):
     """0.15 m 안이면 연결된 것이다. 위치 잡음과 보고 지연만큼은 받아 준다."""
-    p = start(harness, tmp_path, robots={
-        "pode1": {"start": "P-1", "speed_mps": 0.5, "pose_noise_m": 0.0}})
+    p = start(harness, tmp_path, clock=FAST_CLOCK, robots={
+        "pode1": {"start": "P-1", "speed_scale": 1.0, "pose_noise_m": 0.0}})
     assert wait_until(lambda: p.states, 5.0)
-    res = result_of(send_path(p, lane_points("P-1", "N_W", "N_E", shift=0.07), "N_E")).result
+    handle = send_path(p, lane_points("P-1", "N_W", "N_E", shift=0.07), "N_E")
+    res = result_of(handle, move_wait(path_m("P-1", "N_W", "N_E"), clock=FAST_CLOCK)).result
     assert res.success is True
 
 
@@ -598,7 +633,7 @@ def test_a_refused_path_ends_the_old_goal_and_a_path_from_here_arrives(harness, 
     """이전 목표는 새 목표를 받는 순간 끝나므로(R6) 로봇은 선다. 지금 자리에서 다시 만든 path로
     도착한다. 관제는 이 실패를 한 번으로 세고 move_retry_wait_s 뒤 그렇게 다시 보낸다."""
     p = start(harness, tmp_path, robots={
-        "pode1": {"start": "P-1", "speed_mps": 0.2, "pose_noise_m": 0.0}})
+        "pode1": {"start": "P-1", "speed_scale": 1.0, "pose_noise_m": 0.0}})
     assert wait_until(lambda: p.states, 5.0)
     first = send_path(p, lane_points("P-1", "N_W", "N_E"), "N_E")
     assert wait_until(lambda: p.states[-1][1].state == RobotState.STATE_MOVING, 5.0)
@@ -622,7 +657,13 @@ def test_a_refused_path_ends_the_old_goal_and_a_path_from_here_arrives(harness, 
 # ---- 자기 복구(2026-11-09 공유 명세 '로봇 쪽') --------------------------------------------
 
 RECOVERING = RobotState.STATE_RECOVERING
-LONG = {"pode1": {"start": "P-1", "speed_mps": 0.2, "pose_noise_m": 0.0}}  # O_Q까지 2.3 m
+LONG = {"pode1": {"start": "P-1", "speed_scale": 1.0, "pose_noise_m": 0.0}}  # O_Q까지 2.3 m
+# 물체는 로봇이 0.6 m쯤 간 뒤에 나타난다(0.4 m보다 멀어야 0.15 m를 다 후진한다).
+# 노드가 뜬 뒤 목표를 보내기까지 1초를 더한다
+BLOCK_AT_S = 1.0 + 0.6 / TOP
+BACKUP_MPS = RecoveryParams().backup_speed_mps
+# 서기 1 s, 0.15 m 후진, 되돌아가기(주행 속도)를 두 번, 마지막에 1 s 서서 BLOCKED
+RECOVERY_S = 2 * (1.0 + 0.15 / BACKUP_MPS + 0.15 / TOP) + 1.0
 
 
 def runs(states):
@@ -678,11 +719,12 @@ def test_a_persistent_obstacle_gives_two_recovering_attempts_then_blocked(harnes
     """명세 3~5번: 1 s 서면 RECOVERING, 0.15 m 후진 뒤 다시 가서 또 서면 두 번째 시도,
     그래도 서면 BLOCKED. 목표는 끝내지 않는다."""
     p = start(harness, tmp_path, robots=LONG, faults=[
-        {"at_s": 3.0, "robot": "pode1", "type": "blocked", "duration_s": 60.0}])
+        {"at_s": BLOCK_AT_S, "robot": "pode1", "type": "blocked", "duration_s": 60.0}])
     truth = watch_truth(p)
     assert wait_until(lambda: p.states, 5.0)
     handle = p.goal("O_Q")
-    assert wait_until(lambda: p.states[-1][1].state == RobotState.STATE_BLOCKED, 20.0)
+    assert wait_until(lambda: p.states[-1][1].state == RobotState.STATE_BLOCKED,
+                      BLOCK_AT_S + RECOVERY_S * MOVE_MARGIN + START_S)
     seen = runs(states_since(p))
     assert seen[seen.index(RobotState.STATE_MOVING):] == [
         RobotState.STATE_MOVING, RECOVERING, RobotState.STATE_BLOCKED]
@@ -691,8 +733,8 @@ def test_a_persistent_obstacle_gives_two_recovering_attempts_then_blocked(harnes
     assert max(d) > 0.4, "too near the start: it would back up less than 0.15 m"
     assert dip_depths(d) == pytest.approx([0.15, 0.15], abs=0.02)
     span = [w for w, s in p.states if s.state == RECOVERING]
-    # 후진 0.15 m(0.08 m/s), 되돌아가기(0.2 m/s), 1 s 서기를 두 번
-    assert span[-1] - span[0] == pytest.approx(2 * (0.15 / 0.08 + 0.15 / 0.2 + 1.0), abs=0.8)
+    # 후진 0.15 m(0.08 m/s), 되돌아가기(주행 속도), 1 s 서기를 두 번
+    assert span[-1] - span[0] == pytest.approx(RECOVERY_S - 1.0, abs=0.8)
     assert not ended(handle), "the goal is held, not ended"
 
 
@@ -726,13 +768,13 @@ def test_no_back_up_into_a_robot_behind(harness, tmp_path):
     from fake_robots.common import TRUTH_TOPIC
     robots = {**LONG, "pode2": {"start": "P-3"}}  # 시나리오의 다른 로봇만 본다
     p = start(harness, tmp_path, robots=robots, faults=[
-        {"at_s": 3.0, "robot": "pode1", "type": "blocked", "duration_s": 60.0}])
+        {"at_s": BLOCK_AT_S, "robot": "pode1", "type": "blocked", "duration_s": 60.0}])
     truth = watch_truth(p)
     other = p.node.create_publisher(RobotState, TRUTH_TOPIC.format(robot="pode2"),
                                     to_ros_qos(CONTRACT_OBJ.qos("robot_state")))
     assert wait_until(lambda: p.states, 5.0)
     p.goal("O_Q")
-    x, y = stood(p, truth)
+    x, y = stood(p, truth, timeout=BLOCK_AT_S + START_S)
     assert p.states[-1][1].state == RobotState.STATE_MOVING, "too late: already recovering"
     assert max(along(truth)) > 0.4, "too near the start: it would back up less than 0.15 m"
     (x0, y0), (x1, y1) = SITE.node_pose("P-1"), SITE.node_pose("O_Q")
@@ -747,13 +789,14 @@ def test_no_back_up_into_a_robot_behind(harness, tmp_path):
 
 def test_no_back_up_into_an_obstacle_behind(harness, tmp_path):
     p = start(harness, tmp_path, robots=LONG, faults=[
-        {"at_s": 3.0, "robot": "pode1", "type": "blocked", "duration_s": 60.0},
+        {"at_s": BLOCK_AT_S, "robot": "pode1", "type": "blocked", "duration_s": 60.0},
         {"at_s": 0.0, "robot": "pode1", "type": "obstacle_behind", "duration_s": 60.0,
          "distance_m": 0.1}])
     truth = watch_truth(p)
     assert wait_until(lambda: p.states, 5.0)
     p.goal("O_Q")
-    assert wait_until(lambda: p.states[-1][1].state == RobotState.STATE_BLOCKED, 10.0)
+    assert wait_until(lambda: p.states[-1][1].state == RobotState.STATE_BLOCKED,
+                      BLOCK_AT_S + RECOVERY_S * MOVE_MARGIN + START_S)
     assert RECOVERING in states_since(p)
     assert max(along(truth)) > 0.4, "too near the start: it would back up less than 0.15 m"
     assert back_ups(along(truth)) == 0

@@ -16,11 +16,13 @@ from fake_robots.world.situations import NAMES
 from fake_robots.world.table import run_situation
 from situation_helpers import (
     ALL_LAYOUTS,
+    POSE_JUMPS_OFF_OPEN,
     POSE_JUMPS_OPEN,
     SEEDS,
     PoseJumpsOpen,
     check,
     check_pose_jumps,
+    pose_jumps_off_marks,
 )
 
 MODES = ("none", "mixed")
@@ -41,6 +43,8 @@ def _cells():
                     reason = FLEET_FAILS.get((name, layout, mode, seed))
                     marks = ([pytest.mark.xfail(strict=True, raises=Unfinished, reason=reason)]
                              if reason else [])
+                    if name == "pose_jumps":
+                        marks = pose_jumps_off_marks(layout, seed)
                     yield pytest.param(name, layout, mode, seed, None, marks=marks,
                                        id=f"{name}-{layout}-{mode}-{seed}")
                     if name == "pose_jumps":
@@ -60,6 +64,9 @@ def test_every_listed_failure_is_a_real_cell():
 def test_situation_in_avoid_mode(name, layout, mode, seed, order):
     if order:
         check_pose_jumps(layout, seed, avoid_mode=mode)
+        return
+    if name == "pose_jumps" and (layout, seed) in POSE_JUMPS_OFF_OPEN:
+        check_pose_jumps(layout, seed, avoid_mode=mode, order=False)
         return
     off = {"use_order_model": False} if name == "pose_jumps" else None
     if (name, layout, mode, seed) not in FLEET_FAILS:
