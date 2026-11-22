@@ -40,7 +40,8 @@
 사용자가 정할 것:
 
 7. **shim 쪽 선택지**(아래 1.4절에 장단점). 실물 `nav2_params.yaml`은 이것과 원인 확인 뒤에 바꾼다.
-8. **원인을 [확정]하는 Gazebo 실행**(DEBUG 로그, 1.5절)은 다른 밤에 한다. 오늘 밤은 Isaac 차례다.
+8. **원인 확인 끝**(1.6절): 이른 넘김은 모두 회전 충돌 검사의 예외였다. shim을 실물에 넣을지는 새 레시피 정책으로
+   item 8 비교를 한 뒤 정한다(1.6절의 뜻).
 
 ## 1. shim이 넘겨준 직후의 상태 (항목 1)
 
@@ -155,7 +156,8 @@ Gazebo 판을 운동학으로 다시 돌린 것(Gazebo 계획 그대로):
   - `ros2 bag record --use-sim-time`으로 `/rosout`, local costmap, odom, cmd_vel, plan, sim truth를 남긴다(시각이 판 기록과
     같은 sim 시간).
   - Gazebo가 끝나면 바로 잠금을 놓고 `gazebo done` 줄을 `runs.txt`에 쓴다.
-- 분석: `python3 docs/rl_shim_recipe_2026-11-22/debug_extract.py OUT`. 판마다 제자리 회전(v = 0, w ≠ 0)을 찾아,
+- 분석: (bag이 강제 종료됐으면 먼저 `ros2 bag reindex OUT/bag -s mcap`) `python3 docs/rl_shim_recipe_2026-11-22/debug_extract.py OUT`,
+  그다음 이른 넘김마다 닿는 칸을 세계 좌표로 보는 `debug_cells.py OUT`. 판마다 제자리 회전(v = 0, w ≠ 0)을 찾아,
   끝날 때의 오차로 이른 끝(EARLY, |오차| > 0.44 rad), 정상 끝, goal 방향 맞추기(goal)를 가르고, 그 사이의 :246 줄의
   `what()`으로 원인(collision / tf / short_path)을 붙인다. 로봇 상태(실제 자세, 오차, w)와, 그때의 local costmap과 odom
   자세로 shim의 충돌 검사(1 s, 0.05 s 칸, LETHAL 칸이 발자국 외곽에 닿는지)를 다시 돌린 결과(닿은 시각과 칸)를 붙인다.
@@ -164,6 +166,40 @@ Gazebo 판을 운동학으로 다시 돌린 것(Gazebo 계획 그대로):
   세 예외에 공통이라, 원인은 끝의 `what():` 내용으로 가른다("detected collision ahead!" 또는 "detected a potential collision
   ahead!"면 충돌 검사, "Failed to transform"이면 TF, "Path is too short"면 짧은 경로).
 - 무거운 작업 잠금 아래에서 조정자가 "go"를 보내면 돌린다.
+
+### 1.6 결과: 이른 넘김은 회전 충돌 검사다 [확정]
+
+2026-11-22 16:35:46~16:39:57에 돌렸다(잠금을 잡고 놓음, 도메인 61, WSL `~/rl_gz_check/shimdbg_1122/`). 다섯 판 모두
+SUCCEEDED: Q2 → E-3 16.8 / 36.5 / 20.6 s, O_IN → M_E 12.5 / 12.5 s. 판마다 출발점으로는 순간이동했다
+(RL+shim으로 되돌아가기가 실패해 bench가 옮김). 기록한 판은 그대로 compare_012와 같은 출발이다.
+
+- **원인 [확정]**: Q2 → E-3 세 판의 이른 넘김 11번(판별 3 / 1 / 7번) 모두 바로 그 주기에 :246 줄이 있고, `what()`이
+  전부 `RotationShimController detected collision ahead!`이다. 이 줄은 15번 찍혔다(한 회전에 두 번 찍힌 때 포함).
+  controller_server 로그 파일(`roslog/controller_server_*.log`)에도 같은 15줄이 있다. TF 실패와 짧은 경로는 0번이다.
+  즉 `isCollisionFree`(:377)가 local costmap의 LETHAL 칸을 보고 예외를 던졌고, shim이 그걸 삼키고 정책에 넘겼다.
+- 이른 넘김 때의 상태: 오차 +2.4~+3.0 rad 또는 −2.8~−2.9 rad, w 0.04~0.94 rad/s(회전을 막 시작했거나 다시 시작한 때),
+  자세 (1.46~1.66, 0.11~0.15). 남쪽 벽까지 실제 몸 거리는 0.051~0.092 m였다.
+- 그 근처(넘김 −0.6~+0.2 s)의 local costmap과 odom으로 shim 검사를 다시 돌리면 11번 중 10번에서 발자국 외곽이 LETHAL 칸에
+  닿는다(`debug_cells.py`). 닿은 칸은 세계 좌표 y = 0.024~0.073 m, 즉 남쪽 벽(y = 0) 선보다 2.4~7.3 cm 안쪽이다.
+  벽을 잡은 라이다 점이 잡음(σ 0.02 m)과 0.025 m 칸으로 안쪽에 찍힌 것으로 본다(왜 7 cm까지 들어오는지는 [추측]:
+  잡음만으로는 크다. Gazebo 벽 두께나 라이다 위치 차이일 수 있다). 1번은 bag의 5 Hz costmap 사이에 놓쳤다.
+- O_IN 출발 두 판은 예외 없이 정상 종료(오차 −0.40, −0.44 rad, "is at the new path's rough heading" 줄)였다.
+- 결과 지표(Q2 → E-3 3판): 몸 최소 0.036 ± 0.013 m, 충돌 0, BLOCKED 1(36.5 s 판, E-3에서 방향 맞추기를 여러 번 함).
+  compare_012의 같은 칸은 0.033 ± 0.034 m, 충돌 1이었다. 판 수가 3이라 차이를 말할 수는 없다.
+- 실행의 흠: bag 기록기가 백그라운드라 SIGINT를 무시해 마지막에 강제 종료됐다. `ros2 bag reindex bag -s mcap`으로
+  색인을 다시 만들어 전부 읽었다(29331 메시지). 그 뒤 `debug_run.sh`는 기록기에 SIGTERM을 보낸다(WSL에서 따로 확인함:
+  SIGTERM이면 `metadata.yaml`까지 쓰고 끝난다).
+
+실물 `nav2_params.yaml`에 shim을 넣는 일에 대한 뜻(실물 파일은 그대로, 사용자 결정):
+
+- 벽에서 몸이 5~9 cm인 자리(Q2 같은 남쪽 진열대 앞)에서 shim은 제자리 회전을 자주 거부하고, 그때마다 정책이
+  큰 오차와 0이 아닌 w로 출발한다. "shim이 벽 옆 회전을 대신 맡는다"는 기대는 이 자리에서 맞지 않는다.
+- 거부 자체는 맞는 판단에 가깝다. 1 s 앞을 보면 뒤 모서리가 벽 칸에 닿기 때문이다. 그래서 검사를 끄는 쪽
+  (`max_cost_threshold` 255)은 권하지 않는다.
+- 넣는다면 정책이 그 넘김 상태를 학습한 뒤여야 한다(1.3절 출발 분포, 오늘 Isaac 기본에 들어감). 그 정책으로 item 8
+  비교를 한 뒤 정하는 것이 순서다. 거부를 줄이는 손잡이는 1.4절의 `simulate_ahead_time`(더 짧게)과
+  `rotate_to_heading_once`(같은 goal의 재계획마다 다시 돌지 않음)다. 둘 다 아직 Gazebo로 재 보지 않았다.
+- 실물 라이다 잡음과 실물 벽에서의 costmap은 모른다. 실물에서도 같은 빈도일지는 실물 시험 전까지 [추측]이다.
 
 ## 2. policy_spec format 3 지원 (항목 8 준비)
 
@@ -231,7 +267,8 @@ Isaac 쪽을 기다리는 것:
 ## 주의
 
 - 1.3의 검사는 운동학 모형이다. Isaac 물리도 Gazebo도 아니다. Gazebo가 닿은 상태를 0.026 m로만 재현했다.
-- 1.2의 원인(회전 충돌 검사)은 [추측]이다. 소스에서 [확정]한 것은 "예외 세 가지 중 하나면 돌던 중에도 정책으로 넘긴다"는 것까지다.
+- 1.2의 원인(회전 충돌 검사)은 1.6절의 DEBUG 실행에서 로그 줄로 [확정]했다. LETHAL 칸이 벽 선보다 최대 7 cm 안쪽에
+  찍히는 까닭은 [추측]이다.
 - 플러그인의 기억 규칙(결정 3)은 단위 시험으로만 확인했다. ROS 안에서 shim과 같이 돈 확인은 다음 Gazebo 밤에 한다.
 
 ## 알아야 할 포인트

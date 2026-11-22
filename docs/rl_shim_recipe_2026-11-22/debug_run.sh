@@ -31,7 +31,7 @@ mine() { for p in /proc/[0-9]*; do { tr '\0' '\n' < "$p/environ"; } 2>/dev/null 
 OWNER="rl-plugin shim-debug $$"
 stop_all() {
   if [ -n "${BAG:-}" ]; then
-    kill -INT "$BAG" 2>/dev/null
+    kill -TERM "$BAG" 2>/dev/null
     for i in $(seq 20); do kill -0 "$BAG" 2>/dev/null || break; sleep 1; done
     BAG=
   fi
