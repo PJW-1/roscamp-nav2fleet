@@ -736,6 +736,7 @@ def test_the_goal_controller_is_still_the_avoidance_block():
 
 # ---- 주행 최고 속도의 단일 출처 ----
 REPO = PKG.parents[1]
+FAKES = REPO / "sim" / "fake_robots"
 
 
 def _literal_default(path: Path, cls_name: str, field: str):
@@ -748,7 +749,9 @@ def _literal_default(path: Path, cls_name: str, field: str):
 
 def test_every_copy_of_the_top_speed_is_the_one_source():
     """nav_speed.yaml을 바꾸면 여기의 사본이 모두 틀려 이 시험이 실패한다(그때 사본을 맞춘다).
-    읽어서 따르는 곳(Isaac, fleet_gz_sim launch, make_params, FollowPathRL)은 각자의 시험이 본다."""
+    읽어서 따르는 곳(Isaac, fleet_gz_sim launch, make_params, FollowPathRL)은 각자의 시험이 본다.
+    가짜 로봇(sim/fake_robots)은 읽어서 따르지만 여기서도 본다: 읽는 함수가 출처 값을 내고,
+    시나리오 파일의 로봇은 절대 속도(speed_mps) 없이 1 이하의 배율(speed_scale)만 적는다."""
     c = params("controller_server")
     fleet_file = REPO / "pc" / "fleet_core" / "fleet_core" / "data" / "fleet_params.yaml"
     fleet = yaml.safe_load(fleet_file.read_text(encoding="utf-8"))
@@ -771,5 +774,15 @@ def test_every_copy_of_the_top_speed_is_the_one_source():
         "pode_fsm horizon_cap_mps": _literal_default(
             REPO / "pode" / "pode_fsm" / "pode_fsm" / "params.py", "FsmParams", "horizon_cap_mps"),
         "start.sh speed": float(re.search(r"^speed=\$\{5:-([0-9.]+)\}$", start, re.M).group(1)),
+        "fake_robots nav_speed_mps()": _module(
+            "fake_nav_speed", FAKES / "fake_robots" / "nav_speed.py").nav_speed_mps(),
     }
     assert {name: value for name, value in copies.items() if value != NAV_SPEED} == {}
+    files = [*(FAKES / "scenarios").glob("*.yaml"),
+             *(REPO / "pc" / "fleet_manager" / "test").glob("*.yaml")]
+    robots = {f"{path.name} {name}": raw or {} for path in sorted(files)
+              for name, raw in (yaml.safe_load(path.read_text(encoding="utf-8"))
+                                .get("robots") or {}).items()}
+    assert robots
+    assert {name: raw for name, raw in robots.items()
+            if "speed_mps" in raw or not 0 < raw.get("speed_scale", 1.0) <= 1.0} == {}
