@@ -190,6 +190,9 @@ class DelayLine:
         self._waiting.clear()
 
 
+REINSTATE_AFTER_S = 10.0  # 사건으로 늦게 치운 로봇을 다시 놓기까지 적어도 이만큼
+
+
 class FaultSchedule:
     """한 로봇의 고장 여부를 시나리오 시각 기준으로 답한다.
 
@@ -216,6 +219,13 @@ class FaultSchedule:
                 self._until[id(f)] = t
 
     def start_of(self, f) -> float:
+        if f.type == "operator_reinstate":
+            # 다시 투입은 짝인 치우기(파일에서 그 앞 마지막) 뒤다. 치우기가 사건으로 늦게 나도
+            # 운영자가 구역을 풀 시간(REINSTATE_AFTER_S)만큼은 치운 채로 둔다
+            gone = [g for g in self._own if g.type == "operator_remove" and g.at_s <= f.at_s]
+            if not gone:
+                return f.at_s
+            return max(f.at_s, self.start_of(gone[-1]) + REINSTATE_AFTER_S)
         if not f.after_event:
             return f.at_s
         fired = self._fired.get(id(f))

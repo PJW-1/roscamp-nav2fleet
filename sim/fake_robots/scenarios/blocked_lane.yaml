@@ -5,7 +5,8 @@
 # 서면(BASE_END_WAIT) 두어 떠날 때 이미 앞에 있게 하고, 관제가 그 길을 막힘으로 표시하면
 # (ZONE_MARKED_BLOCKED) 치운다. 시각으로 두면 로봇 속도에 따라 표시 전에 물체가 사라졌다
 # (20~44초로 두었을 때 속도 0.12에서는 BLOCKED 보고가 39초라 표시가 나오지 않았다).
-# 서 있는 동안의 물체는 아무 일도 하지 않는다. duration_s는 표시가 끝내 안 날 때의 상한이다.
+# 서 있는 동안의 물체는 아무 일도 하지 않는다. duration_s는 표시가 끝내 안 날 때의 상한이다
+# (blocked_timeout_s 60보다 짧게: 그보다 길면 표시 대신 ERROR가 난다).
 map: d2  # D2 배치용 시나리오(기본 배치는 v7)
 seed: 7
 speed_factor: 5.0
@@ -25,7 +26,7 @@ robots:
 arm: {seconds_per_item: 4.0, swap_seconds: 8.0, fail_rate: 0.0}
 dock: {duration_s: 3.0, error_cm: 1.0}
 faults:
-  - {at_s: 0, robot: pode1, type: blocked, duration_s: 120.0, after_event: BASE_END_WAIT,
+  - {at_s: 0, robot: pode1, type: blocked, duration_s: 50.0, after_event: BASE_END_WAIT,
      after_detail: "at W_Q", until_event: ZONE_MARKED_BLOCKED}
 expect:
   robot_idle: null  # 고장 시나리오는 ROBOT_IDLE을 세지 않는다

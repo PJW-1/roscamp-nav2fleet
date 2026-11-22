@@ -2,7 +2,7 @@
 import math
 
 import pytest
-from fake_robots.motion import FaultSchedule
+from fake_robots.motion import REINSTATE_AFTER_S, FaultSchedule
 from fake_robots.scenario import ScenarioError, parse_scenario
 from fake_robots.scenario_cfg import Fault
 from fleet_core.fleet_map import load_fleet_map
@@ -66,6 +66,25 @@ def test_without_the_event_the_obstacle_ends_at_its_duration():
 def test_a_fault_that_never_fires_starts_at_infinity():
     f = Fault(at_s=1.0, robot="pode1", type="stuck", after_event="DOCKED")
     assert FaultSchedule([f], "pode1").start_of(f) == math.inf
+
+
+def test_a_put_back_waits_for_a_removal_that_fires_late():
+    gone = Fault(at_s=2.5, robot="pode2", type="operator_remove", after_event="ORDER_SHIPPED")
+    back = Fault(at_s=160.0, robot="pode2", type="operator_reinstate", start="P-1")
+    s = FaultSchedule([gone, back], "pode2")
+    assert (s.removed(170.0), s.put_back(170.0)) == (False, None), "nothing to put back yet"
+    s.on_event(200.0, "central", "ORDER_SHIPPED", "O-001 robot=pode2 placed=A:1")
+    assert (s.removed(202.5), s.put_back(202.5)) == (True, None)
+    assert s.start_of(back) == 202.5 + REINSTATE_AFTER_S, "the operator gets time to clear it"
+    assert (s.removed(212.4), s.put_back(212.6)) == (True, "P-1")
+
+
+def test_a_removal_on_time_keeps_the_put_back_time():
+    gone = Fault(at_s=2.5, robot="pode2", type="operator_remove", after_event="ORDER_SHIPPED")
+    back = Fault(at_s=160.0, robot="pode2", type="operator_reinstate", start="P-1")
+    s = FaultSchedule([gone, back], "pode2")
+    s.on_event(50.0, "central", "ORDER_SHIPPED", "O-001 robot=pode2 placed=A:1")
+    assert s.start_of(back) == 160.0
 
 
 def test_event_fields_are_read(site):
