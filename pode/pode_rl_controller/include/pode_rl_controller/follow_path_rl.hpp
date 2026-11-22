@@ -69,6 +69,13 @@ private:
   int rear_blocks_{0};
   double speed_limit_{0.0};
   Twist2 cmd_{0.0, 0.0};
+  ObsMemory memory_;
+  double v_top_{0.0};
+  double speed_cap_{0.0};
+  rclcpp::Time last_policy_{0, 0, RCL_ROS_TIME};
+  bool policy_ran_{false};
+  Point2 plan_end_{0.0, 0.0};
+  bool have_plan_{false};
   rclcpp::Time last_call_{0, 0, RCL_ROS_TIME};
   bool have_last_call_{false};
   rclcpp::Time last_log_{0, 0, RCL_ROS_TIME};
