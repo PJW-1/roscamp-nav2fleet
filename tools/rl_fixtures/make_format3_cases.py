@@ -46,6 +46,8 @@ def make_steps(rng):
         cap = round(float(rng.uniform(0.06, 0.12)), 3)
         for k in range(length):
             rays = np.round(rng.uniform(0.06, 3.0, 360), 3)
+            for sector in rng.choice(36, size=4, replace=False):
+                rays[sector * 10 : sector * 10 + 10] = np.round(rng.uniform(2.05, 3.0, 10), 3)
             steps.append(
                 {
                     "reset": k == 0,
