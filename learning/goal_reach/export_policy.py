@@ -96,6 +96,9 @@ def block_entries(spec) -> dict:
 def make_spec(source: dict, goal_rule: dict, spec=ts.SPEC) -> dict:
     s, lim = spec, ts.ACTION_LIMITS
     blocks = ts.obs_blocks(spec)
+    if not spec.speed_cap_obs and tuple(spec.speed_cap_range) != (lim.v_max, lim.v_max):
+        # the env maps v onto this cap, but the spec would tell the plugin v_max
+        raise ValueError(f"speed_cap_range {spec.speed_cap_range} needs speed_cap_obs=1")
     return {
         "format": SPEC_FORMAT_BLOCKS if blocks else SPEC_FORMAT,
         "source": source,

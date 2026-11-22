@@ -109,6 +109,15 @@ class GoalReachEnv(DirectRLEnv):
 
     def __init__(self, cfg: GoalReachEnvCfg, render_mode: str | None = None, **kwargs):
         self.spec = ts.make_spec(cfg.spec_overrides)
+        s = self.spec
+        recipe = set(ts.obs_blocks(s)) - {"intent"} or s.critic_privileged or s.w_action_rate
+        recipe = recipe or s.w_w_flip
+        recipe = recipe or tuple(s.speed_cap_range) != (ts.NAV_SPEED_MPS, ts.NAV_SPEED_MPS)
+        if type(self) is GoalReachEnv and recipe:  # only the store arena feeds these
+            raise ValueError(
+                "the recipe fields (task_spec obs_blocks, speed cap, critic_privileged, "
+                "action-rate weights) need the store arena env"
+            )
         cfg.observation_space = ts.obs_dim(self.spec)  # wider with intent_robots
         super().__init__(cfg, render_mode, **kwargs)
         self.robot = self.scene["robot"]
