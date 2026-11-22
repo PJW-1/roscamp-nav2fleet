@@ -28,11 +28,23 @@ export ROS_LOG_DIR=$OUT/roslog GZ_PARTITION=shimdbg_$$
 
 HAVE_LOCK=0
 mine() { for p in /proc/[0-9]*; do { tr '\0' '\n' < "$p/environ"; } 2>/dev/null | grep -qx "DBG_RUN=$$" && echo "${p#/proc/}"; done; }
+OWNER="rl-plugin shim-debug $$"
 stop_all() {
-  [ -n "${BAG:-}" ] && kill -INT "$BAG" 2>/dev/null && { wait "$BAG" 2>/dev/null; BAG=; }
+  if [ -n "${BAG:-}" ]; then
+    kill -INT "$BAG" 2>/dev/null
+    for i in $(seq 20); do kill -0 "$BAG" 2>/dev/null || break; sleep 1; done
+    BAG=
+  fi
   rest=$(mine); [ -n "$rest" ] && { kill -INT $rest 2>/dev/null; sleep 10; }
   rest=$(mine); [ -n "$rest" ] && { kill -9 $rest 2>/dev/null; sleep 1; }
-  if [ "$HAVE_LOCK" = 1 ]; then rm -rf "$LOCKD"; HAVE_LOCK=0; echo "lock released $(date -Is)" | tee -a "$OUT/runs.txt"; fi
+  if [ "$HAVE_LOCK" = 1 ]; then
+    if grep -q "^$OWNER " "$LOCKD/owner" 2>/dev/null; then
+      rm -rf "$LOCKD"; echo "lock released $(date -Is)" | tee -a "$OUT/runs.txt"
+    else
+      echo "lock owner changed ($(cat "$LOCKD/owner" 2>/dev/null)), left alone" | tee -a "$OUT/runs.txt"
+    fi
+    HAVE_LOCK=0
+  fi
 }
 trap stop_all EXIT
 trap 'exit 130' INT TERM
@@ -43,7 +55,7 @@ for i in $(seq 240); do
   sleep 60
 done
 [ "$HAVE_LOCK" = 1 ] || { echo "no lock, stop"; exit 3; }
-echo "rl-plugin shim-debug $$ $(date -Is)" > "$LOCKD/owner"
+echo "$OWNER $(date -Is)" > "$LOCKD/owner"
 avail=$(free -m | awk '/Mem:/{print $7}')
 [ "$avail" -lt 3072 ] && { echo "only $avail MB free, stop"; exit 4; }
 echo "start $(date -Is) avail ${avail}MB domain $ROS_DOMAIN_ID out $OUT" | tee -a "$OUT/runs.txt"
@@ -64,7 +76,8 @@ sleep 5
 DBG_RUN=$$ ros2 bag record --use-sim-time -o "$OUT/bag" --topics /rosout /pode1/local_costmap/costmap \
   /pode1/odom /pode1/cmd_vel /pode1/plan /pode1/sim/truth > "$OUT/bag.out" 2>&1 &
 BAG=$!
-sleep 3
+sleep 5
+kill -0 "$BAG" 2>/dev/null && [ -d "$OUT/bag" ] || { echo "bag recorder did not start, see $OUT/bag.out" | tee -a "$OUT/runs.txt"; exit 6; }
 
 rc=0
 DBG_RUN=$$ python3 "$BENCH/bench_node.py" --config "$SRC/results/2026-11-22/compare_012/q2e3.yaml" \
