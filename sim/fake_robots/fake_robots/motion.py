@@ -111,6 +111,15 @@ class Motion:
                 return
             self.via.insert(0, self.trail.pop())
 
+    def turn(self, heading: float, rate: float, dt: float) -> bool:
+        """제자리에서 heading 쪽으로 짧은 방향으로 rate(rad/s)로 dt만큼 돈다. 맞춰졌으면 True."""
+        left = math.remainder(heading - self.yaw, math.tau)
+        if abs(left) <= rate * dt:
+            self.yaw = heading
+            return True
+        self.yaw += math.copysign(rate * dt, left)
+        return False
+
     @property
     def moving(self) -> bool:
         return self.target is not None and self.remaining() > 0.0

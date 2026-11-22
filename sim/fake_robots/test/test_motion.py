@@ -26,6 +26,17 @@ def test_moves_toward_target_at_speed():
     assert m.moving
 
 
+def test_turns_in_place_toward_a_heading_at_its_rate_the_short_way():
+    m = Motion(1.0, 2.0, yaw=0.1)
+    assert m.turn(-0.4, 1.0, 0.2) is False
+    assert (m.x, m.y, m.yaw) == (1.0, 2.0, pytest.approx(-0.1))
+    assert m.turn(-0.4, 1.0, 0.2) is False
+    assert m.turn(-0.4, 1.0, 0.2) is True and m.yaw == pytest.approx(-0.4)
+    m.yaw = 3.0
+    m.turn(-3.0, 1.0, 0.1)  # 0.28 rad 떨어짐: pi를 넘어 도는 쪽이 짧다
+    assert m.yaw == pytest.approx(3.1)
+
+
 def test_arrival_snaps_and_stops():
     m = Motion(0.0, 0.0)
     m.set_target(0.0, 0.1)
