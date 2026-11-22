@@ -263,9 +263,46 @@ gtest `Format3Parity.ObservationAndTargetMatchTheRecipe`는 각 묶음의 명세
 일부러 하나 밀면(`f * stride - 1` -> `f * stride`) 이 시험이 `lidar_history step 5 entry 41`부터 646건 실패한다(첫 고정값 기준).
 섹터의 2 m 상한을 없애면 608건 실패한다.
 
-Isaac 쪽을 기다리는 것:
-- ONNX 수준 parity: 내일 고를 레시피 정책을 배포 정책으로 커밋할 때 그 정책으로 만든다;
-- 새 레시피 정책이 나오면 compare_012와 같은 조건(결정 6)으로 네 컨트롤러를 다른 밤에 다시 잰다.
+### 2.2 레시피 후보 둘의 ONNX parity
+
+Isaac `feat/recipe-2026-11-22` f178e50의 내보내기 둘(그 브랜치 worklog B79):
+- `store_arena_c`: run `t_c/model_1197.pt`, 비대칭 critic만, actor 입력은 ppo_k와 같은 41개(format 2);
+- `store_arena_acd`: run `t_combo_acd/model_1197.pt`, format 3, `obs_blocks` [prev_action, speed_cap], cap 0.08~0.16
+  (44개).
+
+`policy_spec.json`(출처 `source` 포함)과 parity 고정값(`test/fixtures/<이름>/`)을 커밋했다. `policy.onnx` 둘은 작업
+트리에만 둔다. `.gitignore`가 배포 정책(store_arena_4b)의 onnx만 받는 것이 사용자 결정(2026-11-22)이라, 고른 정책만
+그 예외를 옮겨 커밋한다. 그래서 이 브랜치를 새로 받으면 두 parity 시험은 onnx를 복사하기 전까지 실패한다.
+
+`test_parity.cpp`는 이제 format 3 블록을 각 사례의 `prev_target`/`lidar_history`/`speed_cap`으로 `ObsMemory`에 채워
+관측을 만들고, 행동 사례의 `speed_cap`을 매핑 상한으로 쓴다. format 2 정책은 전과 같은 길을 탄다. 결과(WSL):
+```
+store_arena_4b : obs 4.47e-08, action 3.58e-08, onnxruntime C++ vs torch 2.62e-06 (bound margin 1.01e-05), 7 tests PASSED
+store_arena_c  : obs 4.47e-08, action 3.58e-08, onnxruntime C++ vs torch 2.86e-06 (bound margin 1.07e-05), 7 tests PASSED
+store_arena_acd: obs 1.19e-07, action 7.15e-08, onnxruntime C++ vs torch 3.81e-06 (bound margin 1.01e-05), 7 tests PASSED
+[parity] speed_cap range [0.080, 0.160], nav speed 0.120 -> 0.120
+```
+acd 사례는 세 관측 모두 prev_target과 speed_cap이 있고, 행동 사례는 cap 0.08과 0.16 끝을 지난다. speed_cap 원천은
+플러그인 configure에서 min(max_linear_vel, nav_speed.yaml)이고, 시뮬에서는 max_linear_vel이 0.12(`sim_nav_params`)라 0.12다.
+범위 밖이면 잘라서 ERROR를 낸다는 것은 `speed_cap_value`의 시험(0.07 -> 0.08, 0.17 -> 0.16, 둘 다 오류 글)으로 확인했다.
+`colcon test --packages-select pode_rl_controller`: `Summary: 51 tests, 0 errors, 0 failures, 0 skipped`.
+
+### 2.3 item 8 다섯 컨트롤러 비교 준비
+
+- 실행(WSL, `plug.sh`로 맞추고 빌드한 뒤): `bash ~/nf_src/pd-plugin2/docs/rl_shim_recipe_2026-11-22/item8_run.sh [OUT]`.
+- 컨트롤러: RPP(`FollowPathGoal`), MPPI, RL+shim(store_arena_4b, 지금 기본), RL+shim c, RL+shim acd.
+  Nav2 설정 `item8_overrides.yaml` = compare_012 `rl_and_shim.yaml` + 같은 shim 설정에 정책만 바꾼 둘. 합친 설정을 미리
+  만들어 확인함: 세 shim 모두 max_linear_vel 0.12, MPPI vx_max 0.12와 time_steps 83(compare_012와 같음).
+- 묶음: Q2 → E-3 칸마다 3판, 그다음 O_IN → M_E 네 시나리오(a_hall e_corridor d_robot c_moving) 칸마다 6판. compare_012와
+  같은 설정 파일, 판 수, 도메인 규칙이다. 잠금은 `run_bench.sh`가 시나리오마다 잡고 놓는다(사이 180 s).
+- 끝나면 `report.py` 표 둘(성공, 충돌, 몸 최소 거리, 도리도리 /분, 시간 등 compare_012와 같은 지표)과 shim 셋의 이른
+  넘김 수(`early_count.py`)를 만든다. 이른 넘김은 로그 없이 판 기록만으로 센다(오차 0.44 rad 넘게 남기고 끝난 제자리 회전).
+  1.6절 DEBUG 실행의 판에서 이 셈은 로그로 확인한 11번과 같았다.
+- 예상 시간: compare_012의 네 컨트롤러가 Q2 → E-3 8분, 본 비교 74분(사이 쉼 제외)이었다. 다섯이면 ×1.25로 10분 + 92분,
+  쉼 4번 12분을 더해 약 1시간 55분이다.
+- compare_012와 다른 점: 기준 코드가 이 브랜치다(format 3 지원, 시뮬 기본 RL 옵션 변경). format 2 정책의 길은 parity와
+  단위 시험으로 같다는 것을 확인했고, 비교에 쓰는 이름(`FollowPathRLShim` 등)은 모두 overrides 파일에서 정한다.
+  Williams 순서는 다섯이면 10판이 완전 균형이라 6판은 compare_012처럼 완전하지 않다.
 
 ## 주의
 
