@@ -39,7 +39,7 @@ def main():
                     continue
                 for ww in (w, math.copysign(1.0, w)):
                     c = de.shim_check(cm, od, body, r["err"], ww)
-                    if c["hit"]:
+                    if c["hit"] and c["hit"][0] == "lethal":
                         hx, hy = to_world(truth, od, c["hit"][1], c["hit"][2])
                         wall = min(mv.poly_dist([(hx, hy)], s) for s in statics)
                         hits.append((round(cm[0] - end, 2), ww, c["hit_s"], round(hx, 3),
