@@ -63,6 +63,7 @@ class ArmJobs:
         self._run_mode: str | None = None
         self._cleared_jobs: dict[str, tuple[int, float]] = {}
 
+    # TODO(Q-05) PAUSE 때 담기 목표 안에서 멈추는 신호 미정(W-42), 지금은 STOP만 취소
     def on_run_mode(self, run_mode) -> None:
         if run_mode == STOP and self._run_mode != STOP:
             for r in self._robots.values():
