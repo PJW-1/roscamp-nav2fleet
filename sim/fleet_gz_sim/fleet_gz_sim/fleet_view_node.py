@@ -12,7 +12,7 @@ import rclpy
 from ament_index_python.packages import get_package_share_directory
 from fleet_core.common.contract import load_contract, to_ros_qos
 from fleet_core.traffic.site import load_site
-from fleet_interfaces.msg import RobotState, RobotStatusArray, ZoneStateArray
+from fleet_interfaces.msg import RobotState, RobotStatus, RobotStatusArray, ZoneStateArray
 from geometry_msgs.msg import Point, TransformStamped
 from nav_msgs.msg import Odometry, Path
 from rclpy.executors import ExternalShutdownException
@@ -94,10 +94,12 @@ class FleetViewNode(Node):
         return self.get_clock().now().nanoseconds * 1e-9
 
     def _on_robots(self, msg):
-        self.view.set_statuses(msg.robots)
+        # 팔(kind ARM)은 위치가 없어 그리지 않는다
+        podes = [r for r in msg.robots if r.kind != RobotStatus.KIND_ARM]
+        self.view.set_statuses(podes)
         if self.pose_source == "fleet":
             now = self._now()
-            for r in msg.robots:
+            for r in podes:
                 self.view.set_pose(r.robot_id, r.x, r.y, r.yaw, now)
 
     def _on_plan(self, robot, msg):

@@ -73,7 +73,7 @@ def station_with_action(site, action: str):
 def split_fake_arms(text: str, site) -> tuple[bool, list[str], list[str]]:
     """launch 인자 fake_arms를 (가짜 작업셀 실행 여부, 채움 팔, 교체 팔)로 푼다.
 
-    arm1과 arm2는 채움 서버 하나를 같이 쓰므로 함께 가짜로 만들거나 둘 다 안 만든다.
+    arm_left와 arm_right는 채움 서버 하나를 같이 쓰므로 함께 가짜로 만들거나 둘 다 안 만든다.
     """
     fill_arms = list(station_with_action(site, "fill").arms)
     swap_arms = list(station_with_action(site, "swap").arms)

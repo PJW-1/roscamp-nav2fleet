@@ -31,7 +31,7 @@ def start(harness, tmp_path, **scenario):
         robot_id="pode1", scenario_file=scn)))
     harness.add(FakeWorkcellNode(parameter_overrides=harness.params(scenario_file=scn)))
     harness.add(FakeArmNode(parameter_overrides=harness.params(
-        arm_id="arm3", scenario_file=scn)))
+        arm_id="arm_ship", scenario_file=scn)))
     harness.add(FakeCentralNode(parameter_overrides=harness.params(scenario_file=scn)))
     monitor = harness.add(ScenarioMonitorNode(parameter_overrides=harness.params(
         scenario_file=scn, result_dir=str(tmp_path / "result"))))
@@ -64,7 +64,7 @@ def run_one_order(probe, emit):
     """플릿 매니저가 주문 하나에 하는 일(주행 제외)."""
     items = [OrderItem(kind="A", count=1), OrderItem(kind="C", count=1)]
     fill = ActionClient(probe, FillBasket, C.name("fill_basket"))
-    swap = ActionClient(probe, SwapBasket, C.name("swap_basket", arm="arm3"))
+    swap = ActionClient(probe, SwapBasket, C.name("swap_basket", arm="arm_ship"))
     report = probe.create_client(ReportOrder, C.name("report_order"))
     assert report.wait_for_service(5.0)
     emit("ORDER_BOUND", "O-1")

@@ -1,9 +1,9 @@
 # 팔 고장 보류(v2.4). 이름은 옛 이야기(자동 격리) 그대로 둔다: 통합 시험 목록에 있다.
-# arm1이 세 번 연속 실패해 재시도 한도를 다 쓴다.
+# arm_left가 세 번 연속 실패해 재시도 한도를 다 쓴다.
 # 구역 관제(D2)에서는 pode2가 먼저 작업 도크에 닿고 pode1은 W_Q에서 줄을 선다.
-# O-001은 arm2 물건만 있어 pode2는 정상으로 채우고 사람을 기다리지 않고 출고한다
+# O-001은 arm_right 물건만 있어 pode2는 정상으로 채우고 사람을 기다리지 않고 출고한다
 # (shipped_before_operator: ARM_FAULT로 묶인 pode1을 치우기 전 출고).
-# pode1은 O-002(arm1 물건)를 쥔 채 팔 고장을 만난다. 관제는 pode1을 격리하지 않고
+# pode1은 O-002(arm_left 물건)를 쥔 채 팔 고장을 만난다. 관제는 pode1을 격리하지 않고
 # O-002를 HELD ARM_FAULT로 보고한다(하나도 못 놓음). pode1은 주문에 묶인 채 작업 도크에 선다.
 # 이 시나리오는 강제 출고를 부르지 않는다(force_ship_after_s 없음). 작업 도크는 하나라
 # 나머지는 도크 앞에서 기다린다.
@@ -13,7 +13,7 @@ map: d2  # D2 배치용 시나리오(기본 배치는 v7)
 seed: 29
 speed_factor: 5.0
 timeout_s: 900
-stock: {arm1: {A: 6, B: 6}, arm2: {C: 6, D: 6}}
+stock: {arm_left: {A: 6, B: 6}, arm_right: {C: 6, D: 6}}
 orders:
   - {at_s: 0, id: O-001, items: {C: 1}}
   - {at_s: 0, id: O-002, items: {A: 1}}
@@ -26,7 +26,7 @@ robots:
 arm: {seconds_per_item: 4.0, swap_seconds: 8.0, fail_rate: 0.0}
 dock: {duration_s: 1.0, error_cm: 1.0}
 faults:
-  - {at_s: 0, arm: arm1, type: arm_fail, count: 3}
+  - {at_s: 0, arm: arm_left, type: arm_fail, count: 3}
   - {at_s: 120, robot: pode1, type: operator_remove}
 expect:
   robot_idle: null  # 고장 시나리오는 ROBOT_IDLE을 세지 않는다

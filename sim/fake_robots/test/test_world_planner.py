@@ -59,9 +59,9 @@ SMALL = {
     },
     "nav": [{"nodes": ["N_W", "N_E", "W_Q", "O_Q", "P-1", "P-2"]}],
     "stations": {
-        "WORK": {"dock": "W", "queue": ["W_Q"], "server": "workcell", "arms": ["arm1", "arm2"],
-                 "action": "fill"},
-        "OUTBOUND": {"dock": "O", "queue": ["O_Q"], "server": "arm3", "arms": ["arm3"],
+        "WORK": {"dock": "W", "queue": ["W_Q"], "server": "workcell",
+                 "arms": ["arm_left", "arm_right"], "action": "fill"},
+        "OUTBOUND": {"dock": "O", "queue": ["O_Q"], "server": "arm_ship", "arms": ["arm_ship"],
                      "action": "swap"},
     },
     "parking": ["P-1", "P-2"],

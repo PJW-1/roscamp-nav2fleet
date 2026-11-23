@@ -1,0 +1,6 @@
+# ---- 끝나지 않은 운반 건 받기 ----
+uint32 epoch
+---
+bool accepted
+OpenTrip[] trips             # submitted_at 순 (마지막 변경 시각 순 금지)
+string reason

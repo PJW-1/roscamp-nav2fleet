@@ -16,7 +16,7 @@ def write_scenario(tmp_path, **over):
         "seed": 3,
         "speed_factor": 1.0,
         "timeout_s": 600,
-        "stock": {"arm1": {"A": 3, "B": 1}, "arm2": {"C": 3}},
+        "stock": {"arm_left": {"A": 3, "B": 1}, "arm_right": {"C": 3}},
         "robots": {
             "pode1": {"start": "P-1", "speed_scale": 1.0, "pose_noise_m": 0.0},
             "pode2": {"start": "P-3", "speed_scale": 1.0, "pose_noise_m": 0.0},

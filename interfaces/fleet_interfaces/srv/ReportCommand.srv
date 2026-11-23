@@ -1,0 +1,14 @@
+# ---- 관리 명령 결과 ----
+string RESULT_ACCEPTED="ACCEPTED"     # DB admin_action.final_result와 같은 값
+string RESULT_REJECTED="REJECTED"
+string RESULT_UNCONFIRMED="UNCONFIRMED"   # ROBOT_TIMEOUT 직후 (결과 모름)
+string RESULT_TIMEOUT="TIMEOUT"           # 30초 안에 확정 못 함
+string request_id
+string command               # 3.3 서비스 이름의 끝 (예: set_lock)
+string target                # robot_id 또는 trip_id
+string result
+string reason                # ROBOT_REJECTED · ROBOT_TIMEOUT · 거절 코드
+string detail
+builtin_interfaces/Time stamp
+---
+bool accepted                # 같은 request_id는 UNCONFIRMED 뒤 끝 상태 한 번만 받음

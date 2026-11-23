@@ -1,0 +1,15 @@
+# ---- 시험용 강제 입력 (시험 모드에서만) ----
+string KIND_CONDITION="CONDITION"   # 판단 값 덮기 (배터리 · 장애물 · 집기 실패 등)
+string KIND_STATE="STATE"           # 멈춤 계열 상태만
+string KIND_CLEAR="CLEAR"           # 강제 값 지우기
+string request_id
+string robot_id
+string kind
+string key
+string value
+---
+# ---- 관리 명령 공통 응답: 정상 운영이면 NOT_TEST_MODE ----
+bool accepted
+string reason                # 2.2 요청 거절 코드
+string request_id
+string detail

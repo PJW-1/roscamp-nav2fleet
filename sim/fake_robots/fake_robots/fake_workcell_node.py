@@ -1,4 +1,4 @@
-"""FakeWorkcell: arm1, arm2를 뒤에 둔 fill_basket 서버.
+"""FakeWorkcell: arm_left, arm_right를 뒤에 둔 fill_basket 서버.
 
 요청한 물건은 그 종류의 재고가 있는 팔에 간다. 두 팔이 동시에 집지만
 잠금 하나로 바구니 공간(PLACING)에는 한 팔만 들어간다.
@@ -8,11 +8,13 @@ from __future__ import annotations
 import json
 import random
 import threading
+import uuid
 from collections import Counter
 
 import rclpy
+from fleet_core.common.contract import to_ros_qos
 from fleet_interfaces.action import FillBasket
-from fleet_interfaces.msg import OrderItem
+from fleet_interfaces.msg import ArmState, OrderItem
 from rclpy.action import ActionServer, CancelResponse, GoalResponse
 from rclpy.callback_groups import ReentrantCallbackGroup
 from rclpy.executors import MultiThreadedExecutor
@@ -38,6 +40,7 @@ STATE_IDLE = "IDLE"
 STATE_PICKING = "PICKING"
 STATE_PLACING = "PLACING"
 STATE_ERROR = "ERROR"
+STATE_PERIOD_S = 0.2  # IR-34: 초당 5번
 
 STOCK_QOS = QoSProfile(depth=1, reliability=ReliabilityPolicy.RELIABLE,
                        durability=DurabilityPolicy.TRANSIENT_LOCAL)
@@ -79,6 +82,14 @@ class FakeWorkcellNode(Node):
         self._state = dict.fromkeys(self._arms, STATE_IDLE)
         self._error_until = dict.fromkeys(self._arms, 0.0)
         self._cancel_at: float | None = None
+        self._boot_id = str(uuid.uuid4())
+        self._order_id = ""
+        self._placed = dict.fromkeys(self._arms, 0)
+        self._state_pubs = {
+            arm: self.create_publisher(ArmState, contract.name("arm_state", arm=arm),
+                                       to_ros_qos(contract.qos("arm_state")))
+            for arm in self._arms}
+        self.create_timer(STATE_PERIOD_S, self._publish_states)
 
         self._stock_pubs = {
             arm: self.create_publisher(String, STOCK_TOPIC.format(arm=arm), STOCK_QOS)
@@ -115,6 +126,19 @@ class FakeWorkcellNode(Node):
         for arm in self._arms:
             if self._state[arm] == STATE_ERROR and t >= self._error_until[arm]:
                 self._set_state(arm, STATE_IDLE)
+
+    def _publish_states(self) -> None:
+        # 두 팔 모두 락 잠김, 모드는 받기 전이라 UNKNOWN(IR-72). 놓는 동안 상품을 쥐고 있다
+        stamp = self.get_clock().now().to_msg()
+        for arm in self._arms:
+            state = self._state[arm]
+            holding = state == STATE_PLACING
+            self._state_pubs[arm].publish(ArmState(
+                arm_id=arm, boot_id=self._boot_id, state=state,
+                detail=REASON_ARM_FAULT if state == STATE_ERROR else "", lock=True,
+                gripper=ArmState.GRIPPER_CLOSED if holding else ArmState.GRIPPER_OPEN,
+                holding=holding, order_id=self._order_id, placed_total=self._placed[arm],
+                mode="UNKNOWN", stamp=stamp))
 
     def _publish_stock(self, arm: str) -> None:
         with self._stock_lock:
@@ -174,6 +198,8 @@ class FakeWorkcellNode(Node):
 
     def _execute(self, handle):
         self._cancel_at = None
+        self._order_id = handle.request.order_id
+        self._placed = dict.fromkeys(self._arms, 0)
         units, missing = self._plan(handle.request.items)
         fail_at = self._plan_failures(units)
         run = _Run(handle)
@@ -200,6 +226,7 @@ class FakeWorkcellNode(Node):
         result = FillBasket.Result(
             success=success, placed=order_items(run.placed),
             missing=order_items(missing) if success else [], reason=reason)
+        self._order_id = ""
         with self._busy_lock:
             self._busy = False
         if self._running():
@@ -240,6 +267,7 @@ class FakeWorkcellNode(Node):
             with run.lock:
                 run.placed[kind] += 1
                 total = sum(run.placed.values())
+            self._placed[arm] += 1
             run.handle.publish_feedback(FillBasket.Feedback(
                 arm_id=arm, phase="PLACED", placed_total=total))
         self._set_state(arm, STATE_IDLE)

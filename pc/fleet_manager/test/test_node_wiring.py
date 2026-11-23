@@ -22,6 +22,7 @@ from fleet_core.common.contract import to_ros_qos  # noqa: E402
 from fleet_core.fleet_map import load_fleet_map  # noqa: E402
 from fleet_interfaces.action import Dock, FillBasket, MoveTo, Retreat, SwapBasket  # noqa: E402
 from fleet_interfaces.msg import (  # noqa: E402
+    ArmState,
     AssignmentArray,
     FleetEvent,
     Order,
@@ -31,7 +32,7 @@ from fleet_interfaces.msg import (  # noqa: E402
     RobotStatusArray,
     ZoneStateArray,
 )
-from fleet_interfaces.srv import ConfirmClear, ForceShip, Reinstate, ReportOrder  # noqa: E402
+from fleet_interfaces.srv import ConfirmClear, Reinstate, ReportOrder, TripCommand  # noqa: E402
 from fleet_manager.fleet_manager_node import FleetManagerNode  # noqa: E402
 from fleet_manager.goal_tracker import GoalTracker, ReportOutbox  # noqa: E402
 from rclpy.action import ActionServer, CancelResponse  # noqa: E402
@@ -103,7 +104,7 @@ class World(Node):
         self._servers = [
             ActionServer(self, FillBasket, name("fill_basket"), self._on_fill,
                          callback_group=group, cancel_callback=self._on_fill_cancel),
-            ActionServer(self, SwapBasket, name("swap_basket", arm="arm3"), self._on_swap,
+            ActionServer(self, SwapBasket, name("swap_basket", arm="arm_ship"), self._on_swap,
                          callback_group=group),
         ]
         self._contract, self._group = contract, group
@@ -231,6 +232,24 @@ def test_the_status_of_every_robot_comes_out_about_once_a_second(graph):
     robot = last.robots[0]
     assert (robot.robot_id, robot.fsm_state, robot.fault) == ("pode1", "IDLE", "NONE")
     assert (robot.x, robot.y) != (0.0, 0.0)
+
+
+def test_the_status_lists_the_three_arms_after_the_podes(graph):
+    pub = graph.create_publisher(ArmState, graph.fms.contract.name("arm_state", arm="arm_left"),
+                                 to_ros_qos(graph.fms.contract.qos("arm_state")))
+    graph.create_timer(0.1, lambda: pub.publish(ArmState(arm_id="arm_left", state="PICKING",
+                                                         lock=True, boot_id="b-7")))
+
+    def left_seen():
+        rows = graph.status[-1].robots if graph.status else []
+        return any(r.robot_id == "arm_left" and r.fsm_state == "PICKING" for r in rows)
+    assert wait_for(left_seen, 10.0)
+    rows = {r.robot_id: r for r in graph.status[-1].robots}
+    assert list(rows) == ["pode1", "arm_left", "arm_right", "arm_ship"]
+    assert (rows["pode1"].kind, rows["arm_left"].kind) == ("POD", "ARM")
+    assert (rows["arm_left"].fault, rows["arm_left"].lock, rows["arm_left"].boot_id) == (
+        "NONE", True, "b-7")
+    assert rows["arm_right"].fault == "COMM_LOST"
 
 
 def test_a_new_fms_stays_silent_until_any_goal_of_an_old_one_must_have_stopped(graph):
@@ -407,14 +426,15 @@ def test_reinstate_takes_a_cleared_robot_back_and_refuses_a_bad_call_with_a_reas
 
 
 def test_force_ship_refuses_an_order_it_does_not_know_with_the_reason(graph):
-    """계약 0.6: 관리자의 강제 출고 창구. 모르는 주문은 UNKNOWN_ORDER로 거절한다."""
+    """계약 0.7: 관리자의 강제 출고 창구(TripCommand). 모르는 주문은 UNKNOWN_ORDER로 거절한다."""
     fms = graph.fms
-    client = graph.create_client(ForceShip, fms.contract.name("force_ship"))
+    client = graph.create_client(TripCommand, fms.contract.name("force_ship"))
     assert client.wait_for_service(timeout_sec=10.0)
-    reply = client.call_async(ForceShip.Request(order_id="O-NOPE"))
+    reply = client.call_async(TripCommand.Request(request_id="r-9", trip_id="O-NOPE"))
     assert wait_for(reply.done, 10.0), "no reply: the callback raised"
     assert not reply.result().accepted
-    assert reply.result().reason == ForceShip.Response.REASON_UNKNOWN_ORDER
+    assert reply.result().reason == "UNKNOWN_ORDER"
+    assert reply.result().request_id == "r-9"
 
 
 @pytest.mark.parametrize("answer", [(True, ""), (False, "ROBOT_FAULT"), (False, "NOT_HELD")])
@@ -428,9 +448,9 @@ def test_force_ship_passes_the_order_to_the_core_and_returns_its_answer(graph, m
         return answer
 
     monkeypatch.setattr(fms.core, "force_ship", force_ship)
-    client = graph.create_client(ForceShip, fms.contract.name("force_ship"))
+    client = graph.create_client(TripCommand, fms.contract.name("force_ship"))
     assert client.wait_for_service(timeout_sec=10.0)
-    reply = client.call_async(ForceShip.Request(order_id="O-007"))
+    reply = client.call_async(TripCommand.Request(trip_id="O-007"))
     assert wait_for(reply.done, 10.0), "no reply: the callback raised"
     assert asked == ["O-007"]
     assert (reply.result().accepted, reply.result().reason) == answer
@@ -476,7 +496,7 @@ def test_a_robot_goal_with_no_server_is_not_a_rejection_and_an_arm_goal_still_is
         node.core.on_goal_rejected.assert_not_called()
         node._send(client, None, ("workcell", 9), node._fill_done, node._fill_rejected)
         node.core.on_fill_result.assert_called_once_with(9, False, {}, {}, "REJECTED")
-        node._send(client, None, ("arm3", 10), node._swap_done, node._swap_rejected)
+        node._send(client, None, ("arm_ship", 10), node._swap_done, node._swap_rejected)
         node.core.on_swap_result.assert_called_once_with(10, False, False, False, "REJECTED")
         assert node.core.on_goal_not_sent.call_count == 2
         client.send_goal_async.assert_not_called()

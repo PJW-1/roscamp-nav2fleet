@@ -27,6 +27,7 @@ from fleet_core.manager import FleetManager
 from fleet_core.traffic.site import load_site
 from fleet_interfaces.action import Dock, FillBasket, MoveTo, Retreat, SwapBasket
 from fleet_interfaces.msg import (
+    ArmState,
     AssignmentArray,
     FleetEvent,
     OrderBoard,
@@ -34,7 +35,7 @@ from fleet_interfaces.msg import (
     RobotStatusArray,
     ZoneStateArray,
 )
-from fleet_interfaces.srv import CheckClear, ConfirmClear, ForceShip, Reinstate, ReportOrder
+from fleet_interfaces.srv import CheckClear, ConfirmClear, Reinstate, ReportOrder, TripCommand
 from rcl_interfaces.msg import ParameterDescriptor
 from rclpy.action import ActionClient
 from rclpy.clock import Clock, ClockType
@@ -83,6 +84,8 @@ class FleetManagerNode(Node):
         self._reached = set()
         self._last_zones = None
         self._last_assignments = None
+        self._pode_states = {}
+        self._arm_states = {}
         self._create_interfaces(robots)
         self.create_timer(1.0 / self.get_parameter("tick_hz").value, self._on_tick)
         self.create_timer(1.0, self._publish_robots)
@@ -131,6 +134,10 @@ class FleetManagerNode(Node):
             self._retreat[robot] = ActionClient(self, Retreat, name("retreat", pode=robot))
             self._check_clear[robot] = self.create_client(CheckClear,
                                                           name("check_clear", pode=robot))
+        for arm in self.contract.placeholders.get("arm", []):
+            self.create_subscription(
+                ArmState, name("arm_state", arm=arm), partial(self._on_arm_state, arm),
+                self._qos("arm_state"))
         self._fill = {}
         self._swap = {}
         for station in self.site.stations.values():
@@ -142,15 +149,27 @@ class FleetManagerNode(Node):
         self._report_client = self.create_client(ReportOrder, name("report_order"))
         self.create_service(ConfirmClear, name("confirm_clear"), self._on_confirm_clear)
         self.create_service(Reinstate, name("reinstate"), self._on_reinstate)
-        self.create_service(ForceShip, name("force_ship"), self._on_force_ship)
+        self.create_service(TripCommand, name("force_ship"), self._on_force_ship)
 
     # ---- 토픽과 서비스 수신 콜백 ----
     def _on_robot_state(self, robot, msg: RobotState) -> None:
+        self._pode_states[robot] = msg
         if not self.silent() and self._reachable(robot):
             self.core.on_robot_state(robot, *adapters.robot_report(msg),
                                      adapters.robot_report_id(msg),
                                      *adapters.robot_obstacle(msg),
                                      adapters.robot_local_yield(msg))
+
+    def _on_arm_state(self, arm, msg: ArmState) -> None:
+        self._arm_states[arm] = (msg, time.monotonic())
+
+    def _arm_rows(self) -> list:
+        rows = []
+        for arm in self.contract.placeholders.get("arm", []):
+            msg, at = self._arm_states.get(arm, (None, None))
+            fresh = at is not None and time.monotonic() - at <= self.core.params.comm_timeout_s
+            rows.append((arm, msg, fresh))
+        return rows
 
     def _reachable(self, robot) -> bool:
         if (robot not in self._reached and self._move[robot].server_is_ready()
@@ -163,15 +182,17 @@ class FleetManagerNode(Node):
 
     def _on_confirm_clear(self, request, response):
         released = self.core.confirm_clear(*adapters.confirm_clear_args(request))
-        return adapters.confirm_clear_response(response, released, self.core.last_clear_reason)
+        return adapters.confirm_clear_response(response, released, self.core.last_clear_reason,
+                                               request.request_id)
 
     def _on_reinstate(self, request, response):
         accepted = self.core.reinstate(*adapters.reinstate_args(request))
-        return adapters.reinstate_response(response, accepted, self.core.last_reinstate_reason)
+        return adapters.reinstate_response(response, accepted, self.core.last_reinstate_reason,
+                                           request.request_id)
 
     def _on_force_ship(self, request, response):
         accepted, reason = self.core.force_ship(adapters.force_ship_args(request))
-        return adapters.force_ship_response(response, accepted, reason)
+        return adapters.force_ship_response(response, accepted, reason, request.request_id)
 
     # ---- 주기 틱: 명령 내보내기, 취소 재시도, 주문 보고, 상태 발행 ----
     def _on_tick(self) -> None:
@@ -231,7 +252,8 @@ class FleetManagerNode(Node):
     def _publish_robots(self) -> None:
         now = self._now()
         if now > 0.0:
-            self._robots_pub.publish(adapters.robots_to_msg(self.core.robots_view(), now))
+            self._robots_pub.publish(adapters.robots_to_msg(
+                self.core.robots_view(), now, self._pode_states, self._arm_rows()))
 
     # ---- 코어 명령 처리: 액션, 막힘 지점 확인, 취소, 주문 보고, 사건 ----
     def _dispatch(self, command, now: float) -> None:

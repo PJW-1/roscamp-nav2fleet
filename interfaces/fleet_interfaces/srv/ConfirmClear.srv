@@ -4,8 +4,13 @@
 string robot_id
 string[] zone_ids
 string note
+# ---- request: 칸 추가 ----
+string request_id
 ---
 # ---- response: 결과와 푼 구역 ----
 bool accepted
 string[] released_zones
 string reason
+# ---- response: 칸 추가 ----
+string request_id
+string detail

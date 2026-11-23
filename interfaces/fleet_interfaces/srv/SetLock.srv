@@ -1,0 +1,11 @@
+# ---- 락 해제 · 잠금 (브리지 → fleet, fleet → 로봇 같은 타입) ----
+string request_id
+string robot_id
+bool locked                  # 목표 값
+bool confirm_drop            # 팔이 상품을 쥐고 있을 때 "떨어짐"을 관리자가 확인함
+---
+# ---- 관리 명령 공통 응답: holding인데 confirm_drop=false면 HOLDING_ITEM ----
+bool accepted
+string reason                # 2.2 요청 거절 코드
+string request_id
+string detail

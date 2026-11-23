@@ -8,7 +8,12 @@ string BASKET_NONE="NONE"
 string robot_id
 string basket
 string note
+# ---- request: 칸 추가 ----
+string request_id
 ---
 # ---- response: 결과와 거부 이유 ----
 bool accepted
 string reason
+# ---- response: 칸 추가 ----
+string request_id
+string detail

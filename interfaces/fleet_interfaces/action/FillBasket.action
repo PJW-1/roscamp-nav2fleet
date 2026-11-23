@@ -8,14 +8,26 @@ OrderItem[] items
 ---
 # ---- result: reason에 넣는 값 ----
 string REASON_CANCELED="CANCELED"
+# 취소 후 새 목표가 되는 이유 (fleet은 ReportTrip FILLING_PAUSE, [담기 재개]를 기다림, #19 ②)
+string REASON_PICK_FAILED="PICK_FAILED"
+string REASON_RECOGNITION_ERROR="RECOGNITION_ERROR"
+string REASON_OUT_OF_STOCK="OUT_OF_STOCK"   # 담는 도중 결품
+# 팔 장애로 끝남 (fleet은 ReportTrip HELD · ARM_FAULT, 새 목표를 내지 않음, #20)
+string REASON_ARM_FAULT="ARM_FAULT"
 
 # ---- result: 담은 것과 못 담은 것 ----
 bool success
 OrderItem[] placed
 OrderItem[] missing
 string reason
+
+# ---- result: 칸 추가 ----
+OrderItem[] placed_confirmed # 확인된 담은 수 (#26). 0.6 placed는 호환을 위해 같은 값
+OrderItem[] uncertain        # 쥐고 있던 상품 (비어 있지 않으면 반드시 보류)
 ---
 # ---- feedback: 진행 상황 ----
 string arm_id
 string phase
 int32 placed_total
+# ---- feedback: phase에 더하는 값 (목표 안에서 멈춤, 주문은 담는 중 그대로) ----
+# PAUSED_DISTANCE · PAUSED_SERVICE

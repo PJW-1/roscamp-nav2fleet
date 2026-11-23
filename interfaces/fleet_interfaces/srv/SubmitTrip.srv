@@ -1,0 +1,10 @@
+# ---- 웹이 나눈 운반 건 하나를 central에 넘김 ----
+string trip_id
+string order_id
+uint32 trip_index
+uint32 trip_count
+OrderItem[] items
+builtin_interfaces/Time submitted_at
+---
+bool accepted                # 같은 trip_id가 다시 오면 처음 응답을 그대로
+string reason

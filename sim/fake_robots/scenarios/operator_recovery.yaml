@@ -1,4 +1,4 @@
-# arm1이 채움에 세 번 연속 실패해 재시도 한도를 다 쓴다. 구역 관제(D2)에서는 pode2가 먼저
+# arm_left가 채움에 세 번 연속 실패해 재시도 한도를 다 쓴다. 구역 관제(D2)에서는 pode2가 먼저
 # 작업 도크에 닿고(pode1은 W_Q에서 줄을 선다) 주문을 쥔 채 팔 고장을 만난다.
 # v2.4: 관제는 pode2를 격리하지 않고 O-001을 HELD ARM_FAULT로 보고한다(하나도 못 놓음).
 # pode2는 주문에 묶인 채 작업 도크에 선다(강제 출고는 부르지 않는다).
@@ -13,7 +13,7 @@ map: d2  # D2 배치용 시나리오(기본 배치는 v7)
 seed: 23
 speed_factor: 5.0
 timeout_s: 900
-stock: {arm1: {A: 6, B: 6}, arm2: {C: 6, D: 6}}
+stock: {arm_left: {A: 6, B: 6}, arm_right: {C: 6, D: 6}}
 orders:
   - {at_s: 0, id: O-001, items: {A: 2, C: 2}}
   - {at_s: 0, id: O-002, items: {B: 1, D: 1}}
@@ -26,7 +26,7 @@ robots:
 arm: {seconds_per_item: 4.0, swap_seconds: 8.0, fail_rate: 0.0, cancel_seconds: 4.0}
 dock: {duration_s: 1.0, error_cm: 1.0}
 faults:
-  - {at_s: 0, arm: arm1, type: arm_fail, count: 3}
+  - {at_s: 0, arm: arm_left, type: arm_fail, count: 3}
   - {at_s: 60, robot: pode2, type: operator_remove}
   - {at_s: 68, robot: pode1, type: operator_remove}
 expect:

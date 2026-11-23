@@ -264,7 +264,7 @@ nav:  # Nav2 goal 이음(HALL 안). 곧은 선이 keepout이나 진열대를 지
   # 급행, 급행이 막혔다고 표시되거나 들머리 J_E를 다른 로봇이 쥐고 있으면(6 s) 넓은 곳으로 간다
   - {nodes: [W, M_E], leave_dock: true, extra_m: 0.3}
 stations:
-  WORK: {dock: W, queue: [Q1, Q2], line: true, server: workcell, arms: [arm1, arm2], action: fill}
+  WORK: {dock: W, queue: [Q1, Q2], line: true, server: workcell, arms: [arm_left, arm_right], action: fill}
   # 대기 자리 둘 중 길 값이 싼 쪽으로 간다(W에서는 급행 끝 O_X, 넓은 곳에서는 O_IN)
-  OUTBOUND: {dock: O, queue: [O_IN, O_X], server: arm3, arms: [arm3], action: swap}
+  OUTBOUND: {dock: O, queue: [O_IN, O_X], server: arm_ship, arms: [arm_ship], action: swap}
 parking: [P-1, P-2, P-3]

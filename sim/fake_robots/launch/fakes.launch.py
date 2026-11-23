@@ -2,14 +2,14 @@
 
   ros2 launch fake_robots fakes.launch.py scenario:=basic_orders result_dir:=/tmp/run1
   ros2 launch fake_robots fakes.launch.py fake_robots:="pode2 pode3"   # pode1은 실물
-  ros2 launch fake_robots fakes.launch.py fake_arms:="arm3"              # 작업셀은 실물
+  ros2 launch fake_robots fakes.launch.py fake_arms:="arm_ship"          # 작업셀은 실물
   ros2 launch fake_robots fakes.launch.py fake_robots:=none use_sim_clock:=false monitor:=false \
       scenario:=real_two_orders dock_wait_robots:="pode1 pode2"      # 실물 두 대, PC 도킹 대역
   ros2 launch fake_robots fakes.launch.py fake_robots:=none use_sim_clock:=false monitor:=false \
       scenario:=real_three_orders dock_wait_robots:="pode1 pode2 pode3"   # 실물 세 대, PC 도킹 대역
 
-fake_arms: arm1과 arm2를 함께 주면 가짜 작업셀이 뜬다.
-fill_basket 서버 하나가 둘을 맡기 때문이다. arm3은 가짜 출고 팔을 띄운다.
+fake_arms: arm_left와 arm_right를 함께 주면 가짜 작업셀이 뜬다.
+fill_basket 서버 하나가 둘을 맡기 때문이다. arm_ship은 가짜 출고 팔을 띄운다.
 fake_robots:=none은 가짜 로봇 없음이다(ros2 launch는 빈 값을 받지 않는다).
 dock_wait_robots: 실물 로봇의 도킹을 PC가 대신 받는다(real_dock_wait_node, 기다린 뒤 자세 확인).
 로봇은 DOCK_STUB=1로 떠야 한다. 시뮬 시계나 가짜 로봇과 함께 주면 거부한다.
@@ -27,7 +27,7 @@ from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node
 
 ALL_ROBOTS = "pode1 pode2 pode3"
-ALL_ARMS = "arm1 arm2 arm3"
+ALL_ARMS = "arm_left arm_right arm_ship"
 CLOCK_START_DELAY_S = 5.0  # 모든 노드가 뜨고 서로를 찾는 데 쓰는 실제 시간
 CLOCK_RATE_HZ = 50.0  # 틱마다 모든 노드가 깬다. speed factor 5에서 시뮬 시간 0.1초
 
@@ -116,7 +116,7 @@ def generate_launch_description():
     return LaunchDescription([
         declare("scenario", "basic_orders", "scenario name or path to a scenario YAML"),
         declare("fake_robots", ALL_ROBOTS, "space separated robots to fake (others are real)"),
-        declare("fake_arms", ALL_ARMS, "arm1 and arm2 together (workcell), arm3"),
+        declare("fake_arms", ALL_ARMS, "arm_left and arm_right together (workcell), arm_ship"),
         declare("fake_central", "true", "run the central stand-in"),
         declare("use_sim_clock", "true", "run the sim clock and use sim time everywhere"),
         declare("result_dir", "sim_result", "where the monitor writes summary.json and CSVs"),
