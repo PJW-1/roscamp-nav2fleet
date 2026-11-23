@@ -410,17 +410,22 @@ def test_real_slam_map_file():
 
 
 # 2026-11-23 줄자 실측으로 관제 진열대 끝을 옮겼지만 키트 지도는 사용자가 11-24 스캔을 본 뒤 정한다.
-# 그때까지 생성 결과와 다르다. 키트 지도를 다시 만들면 XPASS로 실패하니 이 표시를 지운다
-@pytest.mark.xfail(strict=True, reason="키트 지도는 11-23 실측 진열대 끝 반영 전(사용자 결정 대기)")
+# 그때까지 진열대를 그린 세 그림만 생성 결과와 다르다. 키트 지도를 다시 만들면 이 목록을 비운다
+KIT_PENDING_TAPE_2026_11_23 = {"arena_v7.pgm", "arena_v7_a.pgm", "arena_v7_fine.pgm"}
+
+
 def test_kit_maps_are_drawn_from_the_real_shelves(tmp_path):
     # 키트 지도 = python3 -m fleet_gz_sim.arena --layout v7 --real 의 결과(실측 진열대)
     pytest.importorskip("fleet_core")
     arena = pytest.importorskip("fleet_gz_sim.arena")
     arena.main(["--layout", "v7", "--real", "--out", str(tmp_path)])
+    differ = set()
     for name in ("arena_v7", *MAPS):
         for ext in (".yaml", ".pgm"):
             kit = KIT / "maps" / (name + ext)
-            assert kit.read_bytes() == (tmp_path / "maps" / (name + ext)).read_bytes(), name
+            if kit.read_bytes() != (tmp_path / "maps" / (name + ext)).read_bytes():
+                differ.add(name + ext)
+    assert differ == KIT_PENDING_TAPE_2026_11_23
 
 
 def test_kit_map_images_are_the_pinned_measured_maps():
