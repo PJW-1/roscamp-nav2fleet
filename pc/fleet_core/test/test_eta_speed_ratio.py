@@ -44,6 +44,12 @@ def test_a_ratio_outside_zero_to_one_is_refused(ratio):
         replace(P, nav_eta_speed_ratio=ratio)
 
 
+def test_a_ratio_so_small_the_eta_speed_is_zero_is_refused():
+    assert P.nav_speed_mps * 5e-324 == 0.0
+    with pytest.raises(ValueError, match="nav_eta_speed_ratio"):
+        replace(P, nav_eta_speed_ratio=5e-324)
+
+
 @pytest.mark.parametrize("ratio", [0.0, 1.5, True])
 def test_the_file_check_refuses_a_bad_ratio(tmp_path, ratio):
     data = yaml.safe_load(DEFAULT_PARAMS.read_text(encoding="utf-8"))

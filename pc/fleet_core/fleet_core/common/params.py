@@ -117,6 +117,10 @@ class FleetParams:
         if (isinstance(ratio, bool) or not isinstance(ratio, (int, float))
                 or not _finite(ratio) or not 0.0 < ratio <= 1.0):
             raise ValueError(f"nav_eta_speed_ratio must be a number in (0, 1], got {ratio!r}")
+        # 너무 작으면 곱이 0이 되어 ETA 나누기가 깨진다. 속도 자체는 check_measures가 본다
+        speed = self.nav_speed_mps
+        if isinstance(speed, (int, float)) and speed > 0.0 and not speed * ratio > 0.0:
+            raise ValueError(f"nav_eta_speed_ratio {ratio!r} makes the ETA speed zero")
 
 
 # ---- 파라미터 파일 읽기 ----
