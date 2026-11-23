@@ -42,7 +42,7 @@ train.py --num_envs 4096 --max_iterations 250 --seed s --init D:/isaac/runs/stor
 | B85 | 내보낼 seed(결과를 보기 전에 정함) | 평가 칸 7개(0.12 무작위·마주 오기·인계 출발, 0.08과 0.16 무작위·마주 오기) 성공률 평균이 가장 높은 seed. 0.1 %p 안에서 같으면 0.12 무작위의 분당 부호 바뀜이 적은 쪽 | 0.12만 보기 | 사용자는 여러 상한에서 쓰는 한 정책을 원한다(B78). 첫 실물 시험은 0.08이다 |
 | B86 | 내보내기 | 앞보기 0.40 m, 창 20, 형식 3(입력 44, obs_blocks `prev_action`, `speed_cap`, 상한 0.08~0.16), 정책 폴더 `pode/pode_rl_controller/policies/store_arena_acd2`(spec과 fixture는 커밋, onnx는 gitignore). onnx 사본은 `D:/isaac/runs/store_arena/acd24/export/` | 5번 `store_arena_acd` 덮어쓰기 | 5번 판과 구별한다. 기본 정책 `store_arena_4b`와 기본 설정은 건드리지 않는다 |
 | B87 (코디네이터, 2026-11-24 06:00 무렵) | 순서와 비교 평가 줄이기 | seed 3이 끝나면 내보내기와 parity를 먼저 하고, Gazebo 비교를 "go"를 기다리지 않고 바로 돌린다(잠금이 비어 있고 1번 트랙 회귀가 끝났다). 비교 평가는 Gazebo 뒤에 4b의 0.08·0.16 무작위·마주 오기 넷만 돌린다(`jobs_base2.txt`). ctrl·c 단독의 0.08·0.16과 c 단독의 인계 출발(19개)은 돌리지 않는다 | `jobs_base.txt` 23개 모두 | 사용자 질문은 "4b보다 나은가"다. 첫 실물 시험이 0.08이라 4b의 0.08이 필요하다. 0.16은 상한 입력이 무엇을 사는지 보여 준다. 0.12의 4b·ctrl·c 평가는 같은 seed와 설정으로 이미 있어 다시 쓴다(첫 에피소드 확인 통과) |
-| B88 | Gazebo 비교 | `gz_run.sh`: RL+shim 4b 대 RL+shim acd2, Q2 → E-3(`results/2026-11-22/compare_012/q2e3.yaml`)과 c_moving(`tools/nav_bench/scenarios.yaml`), 칸마다 20판, 도메인 61, GUI 없음. shim 설정은 item 8과 같다(angular_disengage_threshold 0.39). 표는 `gz_results.py`(판마다 성공, 충돌, 시간, 분당 부호 바뀜, 몸 여유 최솟값, 이른 넘김; acd2 − 4b를 성공은 Wald SE와 Fisher 정확 p, 나머지는 Welch로) | item 8 시나리오 다섯 | 코디네이터 지시. `gz_results.py`를 item 8 legs에 돌려 4b 줄이 `item8_results.md`와 같음을 확인했다 |
+| B88 | Gazebo 비교 | `gz_run.sh`: RL+shim 4b 대 RL+shim acd2, Q2 → E-3(`results/2026-11-22/compare_012/q2e3.yaml`)과 c_moving(`tools/nav_bench/scenarios.yaml`), 칸마다 20판, 도메인 61, GUI 없음. shim 설정은 item 8과 같다(angular_disengage_threshold 0.39). 표는 `gz_results.py`(판마다 성공, 충돌, 시간, 분당 부호 바뀜, 몸 여유 최솟값, 이른 넘김; acd2 − 4b를 성공은 Wald SE와 Fisher 정확 p, 나머지는 Welch로) | item 8 시나리오 다섯 | 코디네이터 지시. `gz_results.py`를 item 8 legs에 돌려 4b 줄이 `item8_results.md`와 같음을 확인했다. `gz_results.py`와 `gz_run.sh`는 pd-plugin2 복사본(`~/nf_src/pd-acd`)에서만 돈다. `tools/nav_bench/debug_extract.py`와 `docs/rl_shim_recipe_2026-11-22/item8_results.py`가 이 브랜치에는 없기 때문이다 |
 
 ## 4. 알아야 할 포인트
 
@@ -65,9 +65,9 @@ train.py --num_envs 4096 --max_iterations 250 --seed s --init D:/isaac/runs/stor
 ## 6. 결과
 
 결론 셋:
-1. **성공은 4b와 같거나 조금 낫다.** Isaac의 일곱 칸 어디서도 4b보다 낮지 않았다. 무작위·인계 출발과 0.16에서 +1.0~+2.4 %p로 seed 퍼짐 밖이다. 마주 오기 0.12·0.08은 +0.4·+0.8 %p로 잡음 안이다. Gazebo에서는 두 시나리오 모두 20/20(4b 19/20)이지만 20판으로는 차이를 가를 수 없다.
+1. **성공은 4b보다 낮아진 칸이 없고, 일부 칸에서 조금 낫다.** Isaac의 일곱 칸 어디서도 평균이 4b보다 낮지 않았다. 무작위·인계 출발과 0.16에서 +1.0~+2.4 %p로 seed 퍼짐 밖이다. 마주 오기 0.12·0.08은 +0.4·+0.8 %p로 잡음 안이다(같다고 증명한 것은 아니고, 2 SE로 보면 약 −0.2·−0.3 %p까지의 손해를 배제하지 못한다). Gazebo에서는 두 시나리오 모두 20/20(4b 19/20)이지만 20판으로는 차이를 가를 수 없다.
 2. **흔들림(분당 w 부호 바뀜)은 크게 줄었다.** Isaac 0.12에서 80~84회가 46~48회로 약 43 % 줄었다(0.08에서 30~36 %, 0.16에서 약 50 %). Gazebo에서는 Q2 → E-3에서 66 → 51회(−23 %), c_moving에서 47 → 30회(−37 %)였다.
-3. **실물 시험 후보로 볼 만하다.** 성공을 잃지 않고 흔들림만 줄었다. 다만 두 가지를 실물에서 함께 보아야 한다. 하나는 Gazebo Q2 → E-3에서 벽·장애물과의 여유가 4b보다 작은 것이다(판마다 최솟값의 중앙값 3.3 cm 대 6.5 cm). 다른 하나는 Isaac 마주 오기에서 시간 초과가 줄고 충돌이 2 %p 늘어난 것이다. 첫 시험은 0.08에서 4b를 대비로 두고 하기를 권한다.
+3. **실물 시험 후보로 볼 만하다.** 성공이 떨어진 칸 없이 흔들림이 줄었다. 다만 두 가지를 실물에서 함께 보아야 한다. 하나는 Gazebo Q2 → E-3에서 벽·장애물과의 여유가 4b보다 작은 것이다(판마다 최솟값의 중앙값 3.3 cm 대 6.5 cm). 다른 하나는 Isaac 마주 오기에서 시간 초과가 줄고 충돌이 2 %p 늘어난 것이다. 첫 시험은 0.08에서 4b를 대비로 두고 하기를 권한다.
 
 ### 6.1 Isaac 성공률(%)과 분당 부호 바뀜
 
@@ -133,6 +133,6 @@ c_moving의 충돌 판 5 대 2의 Fisher p는 0.41이다. 4b의 실패 둘은 �
 - **500번 대 200번:** acd200(5번 판)과 비교하면 0.12 무작위 +0.42(안), 인계 출발 +1.02(밖), 마주 오기 −1.25(밖) %p다. 더 학습해도 성공은 크게 오르지 않았다. 흔들림은 더 줄었다(0.12 무작위 54.7 → 45.9회).
 - **0.16에서의 4b:** 4b는 0.12를 넘지 않는다. 그래서 0.16 칸의 이득(+2.4 / +1.6 %p, 성공 판 시간 12.5 → 9.7 s)의 일부는 더 빨리 가서 생긴다. nav_speed를 올려도 형식 2 정책은 이 이득을 얻지 못한다.
 - **Gazebo의 몸 여유:** Q2 → E-3에서 acd2의 판별 최솟값의 중앙값이 4b의 절반이다(0.033 대 0.065 m, 차이 −0.018 ± 0.007 m). 충돌 판 수는 같았다(1 대 1). 더 빨리 가면서 모서리를 가깝게 도는 것으로 보인다. 실물에서 볼 첫 항목이다.
-- **이른 넘김:** shim이 방향을 다 맞추기 전에 정책에 넘기는 수가 조금 줄었다(2.8 → 2.1, 1.35 → 1.0). 차이는 SE 안이다.
+- **이른 넘김:** shim이 방향을 다 맞추기 전에 정책에 넘기는 수가 조금 줄었다(2.8 → 2.1, 1.35 → 1.0). 차이는 2 SE 안이다(Q2 → E-3 −0.7 ± 0.49, c_moving −0.35 ± 0.37).
 - **parity:** Python onnxruntime 대 torch 최대 차이는 3.81e-06이다. C++ gtest(pd-plugin2 플러그인 복사본 + acd2)는 `colcon test` 59개, 실패 0이다. onnx는 커밋하지 않았다. 사본: `D:/isaac/runs/store_arena/acd24/export/policy.onnx`. 형식 3 플러그인은 아직 `feat/rl-shim-recipe-2026-11-22`에만 있어, 이 브랜치의 CMakeLists에는 acd2 시험을 더하지 않았다(WSL 복사본에서만 더함).
 - **건드리지 않은 것:** 기본 정책 `store_arena_4b`와 기본 설정(nav2_params, follow_path_rl 기본값, pode_avoidance, FollowPathGoal), 실물 로봇, `deploy.sh`, ROS 도메인 6·12, main.
