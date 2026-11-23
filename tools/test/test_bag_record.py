@@ -154,3 +154,45 @@ def test_usage_and_bad_names(tmp_path):
         run = _run(kit, env, *args)
         assert run.returncode == 2, args
     assert not (tmp_path / "ros2.args").exists()
+
+
+# 0.5 s 동안 명령 인자에 bags/NAME이 따로 보이지 않다가 진짜 setsid가 된다(exec 전 상태 흉내)
+FAKE_SETSID = r'''#!/usr/bin/env python3
+import os, sys
+os.execv(sys.executable, [sys.executable, "-c",
+    "import os, sys, time; time.sleep(0.5); os.execv(sys.argv[1], ['setsid'] + sys.argv[2].split('\x01'))",
+    REAL, "\x01".join(sys.argv[1:])])
+'''
+
+
+def test_start_keeps_a_recorder_it_cannot_recognise_yet(tmp_path):
+    real = shutil.which("setsid")
+    kit, env = _kit(tmp_path)
+    (tmp_path / "bin" / "setsid").write_text(FAKE_SETSID.replace("REAL", repr(real)))
+    (tmp_path / "bin" / "setsid").chmod(0o755)
+    run = _run(kit, env, "start", "pode1", "run1")
+    pid = None
+    try:
+        assert run.returncode == 0, run.stdout + run.stderr
+        pid = _pid(kit)
+        assert _run(kit, env, "stop").returncode == 0
+        assert (kit / "bags" / "run1" / "metadata.yaml").exists()
+    finally:
+        time.sleep(1)  # 실패했을 때 늦게 뜬 녹화기까지 정리한다
+        subprocess.run(["pkill", "-f", f"{tmp_path}/bin/ros2"])
+    out = subprocess.run(["pgrep", "-f", f"{tmp_path}/bin/ros2"], capture_output=True, text=True)
+    assert out.stdout.strip() == ""
+
+
+def test_stop_reports_a_recorder_that_died_while_recording(tmp_path):
+    kit, env = _kit(tmp_path)
+    assert _run(kit, env, "start", "pode1", "run1").returncode == 0
+    pid = _pid(kit)
+    os.kill(pid, 9)  # SIGKILL: bag을 마무리하지 못한다
+    for _ in range(50):
+        if not _alive(pid):
+            break
+        time.sleep(0.1)
+    run = _run(kit, env, "stop")
+    assert run.returncode == 1 and "reindex" in run.stdout, run.stdout
+    assert not (kit / "logs" / "bag.pid").exists()

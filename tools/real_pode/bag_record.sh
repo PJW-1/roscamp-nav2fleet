@@ -26,11 +26,14 @@ ours() {
   echo "$pid $name"
 }
 
+# 살아 있는 프로세스인지 본다(좀비 제외)
+alive() { [[ $(ps -o stat= -p "$1" 2> /dev/null | tr -d ' ') == [^Z]* ]]; }
+
 # 녹화기 그룹에 신호를 보내고 끝나기를 기다린다. 끝나면 0
 signal_and_wait() {  # PID SIGNAL TRIES(0.5 s)
   kill "-$2" -- "-$1" 2> /dev/null || kill "-$2" "$1" 2> /dev/null
-  for _ in $(seq "$3"); do ours > /dev/null || return 0; sleep 0.5; done
-  ! ours > /dev/null
+  for _ in $(seq "$3"); do alive "$1" || return 0; sleep 0.5; done
+  ! alive "$1"
 }
 
 case $1 in
@@ -55,14 +58,15 @@ case $1 in
     pid=$!
     echo "$pid $name" > logs/bag.pid
     # bag 파일이 생기면 녹화기가 준비된 것이다(rosbag2는 첫 메시지 전에 파일을 연다)
+    # 방금 띄운 자식이라 exec 전이어도 놓치지 않게 ours 대신 alive로 본다
     for _ in $(seq $((timeout_s * 10))); do
-      ours > /dev/null || break
+      alive "$pid" || break
       if compgen -G "bags/$name/*.mcap" > /dev/null; then
         echo "recording /$ns to $here/bags/$name (pid $pid), log logs/bag_$name.log"; exit 0
       fi
       sleep 0.1
     done
-    if ours > /dev/null; then
+    if alive "$pid"; then
       echo "recorder did not open bags/$name in $timeout_s s; stopping it"
       signal_and_wait "$pid" INT 10 || signal_and_wait "$pid" TERM 10 || {
         echo "recorder $pid is still alive; stop it by hand"; exit 1; }
@@ -75,7 +79,17 @@ case $1 in
   stop)
     [ $# -eq 1 ] || usage
     lock
-    cur=$(ours) || { rm -f logs/bag.pid; echo "not recording"; exit 0; }
+    if ! cur=$(ours); then
+      # pid 파일만 남았다: 녹화 중에 죽었으면 bag이 마무리되지 않았을 수 있다
+      name=
+      read -r _ name 2> /dev/null < logs/bag.pid
+      rm -f logs/bag.pid
+      if [[ $name =~ ^[A-Za-z0-9_.-]+$ && -d bags/$name && ! -f bags/$name/metadata.yaml ]]; then
+        echo "recorder for bags/$name is gone and the bag was not finalized; run: ros2 bag reindex bags/$name"
+        exit 1
+      fi
+      echo "not recording"; exit 0
+    fi
     pid=${cur% *} name=${cur#* }
     # SIGINT로 멈춰야 bag을 마무리한다(metadata.yaml이 써진다)
     signal_and_wait "$pid" INT 40 || { echo "still alive after 20 s (pid $pid)"; exit 1; }
