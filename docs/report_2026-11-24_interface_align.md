@@ -281,7 +281,8 @@
 | `/arm_ship/swap_basket`(SwapBasket) | 액션 | **팀 팔 노드(Phony)** | 우리 `fleet_manager` | 팀 쪽 없음 |
 | `/pode{1,2,3}/set_lock` · `set_mode` · `charge_end` | 서비스 | 우리 `pode_fsm` | fleet(W-31 전까지는 손으로 부름) | 있음 |
 | `/pode{1,2,3}/force` | 서비스 | 우리 `pode_fsm` | fleet | 없음 |
-| `/arm_*/set_lock` · `set_mode` · `force`, `/arm_{left,right}/fault_resolved` | 서비스 | 팀 팔 노드 | 우리 fleet | 양쪽 다 없음 |
+| `/arm_{left,right}/set_lock`, `/arm_{left,right}/fault_resolved` | 서비스 | 팀 팔 노드(Phody 두 팔. `arm_ship`은 `set_lock`을 열지 않는다) | 우리 fleet | 양쪽 다 없음 |
+| `/arm_{left,right,ship}/set_mode` · `force` | 서비스 | 팀 팔 노드 | 우리 fleet | 양쪽 다 없음 |
 | `/fleet/confirm_clear` · `reinstate` · `force_ship` | 서비스 | 우리 `fleet_manager` | 팀 브리지 | 있음(`force_ship`은 `TripCommand`) |
 | `/fleet/set_lock` 등 나머지 관리 명령 | 서비스 | 우리 `fleet_manager` | 팀 브리지 | 없음(W-30) |
 | `/central/report_order` | 서비스 | 팀 central | 우리 `fleet_manager` | 팀 쪽 없음 |
