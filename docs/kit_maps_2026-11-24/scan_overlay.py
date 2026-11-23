@@ -31,6 +31,7 @@ from scipy import ndimage, optimize
 LASER_XY = (-0.017, 0.0)  # base_link->rplidar_mount, 방향 pi(rplidar_link)
 LASER_YAW = math.pi
 SIGMA, Z_HIT, Z_RAND, MAX_RANGE = 0.05, 0.5, 0.5, 100.0
+MAX_DIST = 2.0  # laser_likelihood_max_dist
 GRID = 0.005  # 거리장 칸(지도를 이 칸으로 나눠 그림)
 X_LO, X_HI = 0.80, 1.45
 SELF_M = 0.10  # 이보다 가까운 점은 로봇 자기 몸(급행에서 y 0.84, 0.91 줄로 찍힘)
@@ -112,16 +113,20 @@ class Field:
         self.inn = ndimage.distance_transform_edt(self.occ) * GRID  # 점유 칸 안에서 빈칸까지
 
     def idx(self, pts):
-        i = np.clip(((pts[:, 0] - self.ox) / GRID).astype(int), 0, self.occ.shape[1] - 1)
-        j = np.clip(((pts[:, 1] - self.oy) / GRID).astype(int), 0, self.occ.shape[0] - 1)
-        return j, i
+        """칸 번호와 지도 안 여부. 지도 밖 점은 AMCL처럼 가장 먼 거리(MAX_DIST)로 본다."""
+        i = np.floor((pts[:, 0] - self.ox) / GRID).astype(int)
+        j = np.floor((pts[:, 1] - self.oy) / GRID).astype(int)
+        inside = (i >= 0) & (j >= 0) & (i < self.occ.shape[1]) & (j < self.occ.shape[0])
+        return np.where(inside, j, 0), np.where(inside, i, 0), inside
 
     def dist(self, pts):
-        return self.out[self.idx(pts)]
+        j, i, inside = self.idx(pts)
+        return np.where(inside, self.out[j, i], MAX_DIST)
 
     def signed(self, pts):
-        j, i = self.idx(pts)
-        return np.where(self.occ[j, i], -self.inn[j, i] + GRID / 2, self.out[j, i] - GRID / 2)
+        j, i, inside = self.idx(pts)
+        d = np.where(self.occ[j, i], -self.inn[j, i] + GRID / 2, self.out[j, i] - GRID / 2)
+        return np.where(inside, d, MAX_DIST)
 
 
 def to_map(pose, pts):
@@ -150,7 +155,8 @@ def refit(field, pose, pts):
                                                      (pose[1] - 0.1, pose[1] + 0.1),
                                                      (pose[2] - 0.105, pose[2] + 0.105)],
                             options={"xtol": 1e-4, "ftol": 1e-6})
-    return tuple(res.x)
+    found = tuple(res.x)
+    return found if score(field, found, pts) >= best_s else best
 
 
 def groups(world):
