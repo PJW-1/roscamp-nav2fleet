@@ -310,6 +310,7 @@ OpenCode 검토(읽기 전용)가 찾은 것 가운데 동작이 틀린 셋을 �
   - 체크리스트: 로봇 · 관제 PC 재배포와 재빌드, 로봇 쪽 `env.sh` 경로, daemon 재시작, 팀 팔 도메인 83, 가짜 팔 끄기, 비교할 정의 목록, 락 확인 순서 → 아래 체크리스트를 고쳤다.
 - `d70cec6..70a5438` 검토: `OrderFsm`이 base 끝에서 기다릴 때 `has_goal()`이 거짓이 된다는 지적 → `18a4d44`. 같은 값 락 요청 지적은 "사용자가 정할 것" 8번.
 - `70a5438..18a4d44` 재검토: `18a4d44` 자체에 대한 지적은 없었다. 기존 `admin.py` 동작 두 가지만 다시 짚었다("사용자가 정할 것" 8번).
+- 고친 체크리스트(`be2a2e0`) 검토: 띄우는 단계가 없음, 상태 없는 Pode는 `fault=NONE`, 고정 요청 ID는 60초 안에 다시 돌리면 처음 답이 재사용됨. 셋 다 코드에서 확인하고 체크리스트를 고쳤다. 문서라 다시 검토하지 않았다.
 
 ## 내일 연결 시험 체크리스트
 
@@ -354,10 +355,20 @@ OpenCode 검토(읽기 전용)가 찾은 것 가운데 동작이 틀린 셋을 �
    - 로봇: `start.sh`가 `~/nav2fleet_real/env.sh`를 읽는다(같은 `net.sh`). 손으로 볼 때는 `source ~/nav2fleet_real/env.sh`.
    - **팀 팔 노드는 지금 도메인 83이다**(Phondy `INTERFACES.md`). 팔 노드, 또는 그 앞에서 `/{arm}/state`를 낼 노드를 도메인 6과 같은 디스커버리 설정으로 띄워야 아래 확인이 된다.
    - 팀 노드도 같은 디스커버리 서버를 써야 한다. 팀이 서버 없이 멀티캐스트로 띄우면 `DISCOVERY_SERVER=off`로 맞춘다. 이때 PC 터미널만이 아니라 로봇의 `start.sh`도 같은 값으로 다시 띄운다(값은 프로세스마다 따로 정해진다).
-3. **PC에서 무엇을 띄우나.** 실물 시험 명령(`pc.launch.py` 머리말의 "Real three-robot test")은 `fake_arms` 기본값으로 가짜 팔 셋(가짜 워크셀, 가짜 출고 팔)을 띄운다. 그대로 두면 `/arm_*/state`와 `/workcell/fill_basket`, `/arm_ship/swap_basket`을 우리 가짜가 채운다.
-   - 팀 팔이 붙는 팔은 `fake_arms`에서 뺀다. `arm_left`와 `arm_right`는 함께 빼야 한다(채움 서버 하나).
-   - 셋 다 팀 팔이면 `fake_arms:=none`.
-   - 가짜 central(`fake_central`)도 같은 식으로, 팀 central이 붙을 때만 끈다.
+3. **띄우기.** 1 · 2번이 끝난 뒤 로봇을 먼저, PC를 다음에 띄운다.
+   - 로봇마다: `DOCK_STUB=1 ~/nav2fleet_real/start.sh pode1 <x> <y> <yaw>`. 시작 자세는 README "첫 실행 순서" 6번과 지난 실물 시험(P-1 ~ P-3)을 따른다. pode2 · pode3도 같다.
+   - 관제 PC(`source tools/real_pode/pc_env.sh` 터미널):
+     ```bash
+     ros2 launch iponic_bringup pc.launch.py use_fake:=true use_sim_clock:=false \
+         fake_robots:=none robots:="pode1 pode2 pode3" map_file:=v7 \
+         scenario:=real_three_orders monitor:=false dock_wait_robots:="pode1 pode2 pode3" \
+         fake_central:=false fake_arms:=none
+     ```
+   - `fake_central:=false`면 가짜 central이 주문을 넣지 않아 로봇이 움직이지 않는다. 연결 확인, 특히 락 확인은 멈춘 로봇에서 한다. 주문 흐름까지 볼 때만 `fake_central:=true`로 다시 띄운다. 그러면 20 s 뒤부터 주문 4건이 들어가고 로봇이 움직인다.
+   - `fake_arms`: 기본값(`arm_left arm_right arm_ship`)으로 두면 `/arm_*/state`와 `/workcell/fill_basket`, `/arm_ship/swap_basket`을 우리 가짜가 채운다.
+     - 팀 팔이 붙는 팔만 뺀다. `arm_left`와 `arm_right`는 함께 빼야 한다(채움 서버 하나).
+     - 셋 다 팀 팔이면 `fake_arms:=none`(이 브랜치 `70a5438`부터 받는다).
+     - 팀 팔이 아직 없으면 `fake_arms:="arm_left arm_right arm_ship"`로 우리 가짜를 써서 나머지를 확인한다.
 4. 이 PC의 시험 도메인(42 ~ 48, 50 ~ 59, 61, 62)은 6과 겹치지 않는다. 그래도 연결 시험 동안 이 PC에서 Gazebo · 시나리오 시험을 돌리지 않는다.
 
 ### 확인 명령 (`SUPER=1 source tools/real_pode/pc_env.sh`, daemon 다시 띄운 뒤)
@@ -367,16 +378,18 @@ echo $ROS_DOMAIN_ID $ROS_DISCOVERY_SERVER          # 6 192.168.0.252:11811
 ros2 node list                                       # 팀 노드와 우리 노드가 함께 보이는지
 ros2 topic info -v /arm_left/state                   # 발행 1(팀 팔. 가짜 팔도 켰으면 2), 구독 1(fleet_manager), 타입 해시 같은지
 ros2 topic echo --once /arm_left/state
-ros2 topic echo --once /fleet/robots                 # pode 3줄 뒤에 kind=ARM 3줄. 상태가 아직 없는 줄은 fault=COMM_LOST
+ros2 topic echo --once /fleet/robots                 # pode 3줄 뒤에 kind=ARM 3줄. 상태를 아직 못 받은 줄은 boot_id가 비어 있다
 ros2 topic hz /pode1/state                           # 약 5 Hz
 ros2 action info /workcell/fill_basket               # 서버 1(팀, 가짜 워크셀을 껐을 때), 클라이언트 1(fleet_manager)
 ros2 action info /arm_ship/swap_basket
-ros2 service call /pode1/set_mode fleet_interfaces/srv/SetMode "{request_id: t-1, mode: TEST}"
-ros2 service call /pode1/set_lock fleet_interfaces/srv/SetLock "{request_id: t-2, robot_id: pode1, locked: false}"
-ros2 topic echo --once /pode1/state                  # lock false, mode TEST, last_request_id t-2
-ros2 service call /pode1/set_lock fleet_interfaces/srv/SetLock "{request_id: t-3, robot_id: pode1, locked: true}"
+ID=$(date +%s)                                       # 요청 ID는 판마다 새로(같은 ID는 60초 동안 처음 답을 재사용)
+ros2 service call /pode1/set_mode fleet_interfaces/srv/SetMode "{request_id: t-$ID-1, mode: TEST}"
+ros2 service call /pode1/set_lock fleet_interfaces/srv/SetLock "{request_id: t-$ID-2, robot_id: pode1, locked: false}"
+ros2 topic echo --once /pode1/state                  # lock false, mode TEST, last_request_id t-$ID-2
+ros2 service call /pode1/set_lock fleet_interfaces/srv/SetLock "{request_id: t-$ID-3, robot_id: pode1, locked: true}"
 python3 scripts/check_interfaces.py --mode real      # contract 전체 대조 (실물 모드)
 ```
 
 - 켜진 직후 락은 이미 잠김(true)이라 `locked: true`만 보내면 값이 바뀌지 않는다. 그래서 풀었다가 다시 잠근다. 로봇이 움직이는 중이면 `NOT_STOPPED`로 거절된다.
+- `/fleet/robots`에서 연결을 판단할 때 `fault`를 보지 않는다. 상태를 한 번도 못 받은 팔은 `COMM_LOST`로 나오지만, Pode는 `NONE`으로 나온다(관제가 한 번 자리를 잡은 로봇만 `COMM_LOST`로 바꾼다). 빈 `boot_id`가 "아직 못 받음"이다.
 - `check_interfaces.py --mode real`은 `not_in_fake` 항목까지 모두 본다. 그래서 팀 쪽에 아직 없는 이름(브리지 · central 서비스 등)은 빠졌다고 나온다. 위 표의 "없음" 줄과 맞는지만 본다.
