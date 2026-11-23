@@ -17,10 +17,11 @@ from fleet_core.fleet_map.model import FOLLOW_PATH, NAV_GOAL, RETREAT
 # 자유바닥 저장소 sites/arena_v7.yaml의 치수(권위 있는 값)
 # 북쪽 진열대 A는 2026-11-17에 자리는 그대로 두고 서쪽으로만 0.05 늘렸다: 0.68 -> 0.63
 # 진열대 A 북쪽 면은 2026-11-18에 SLAM 실측 0.803으로(그림 0.81, 실물이 북쪽 벽을 긁었다)
-SHELVES = [(0.63, 0.77, 1.56, 0.803), (0.68, 0.365, 0.99, 0.405), (1.25, 0.365, 1.56, 0.405)]
+# 2026-11-23 줄자 실측: 진열대 A 서쪽 끝 0.63 -> 0.70, 남쪽 서쪽 진열대 서쪽 끝 0.68 -> 0.65
+SHELVES = [(0.70, 0.77, 1.56, 0.803), (0.65, 0.365, 0.99, 0.405), (1.25, 0.365, 1.56, 0.405)]
 # 시뮬(Gazebo 월드, 시뮬 지도)만 진열대 A 급행 쪽 면을 2 cm 물린다(2026-11-20 사용자 결정 1 cm,
 # 2026-11-21 바퀴 충돌 구 여유로 2 cm)
-SIM_SHELF_A = (0.63, 0.77, 1.56, 0.783)
+SIM_SHELF_A = (0.70, 0.77, 1.56, 0.783)
 # 시뮬 바퀴 충돌 구: 몸 중심 y +-0.04855, 반지름 0.028 -> 중심에서 바깥 끝 0.0766(pinky.urdf.xacro)
 SIM_WHEEL_OUTER_M = 0.04855 + 0.028
 # 칸막이 3(x 0.76~0.78)은 뺐다(2026-11-17, 충전 자리는 그대로)
@@ -65,10 +66,11 @@ def test_v7_dimensions(site):
     assert round(SHELVES[2][0] - SHELVES[1][2], 3) == 0.26
     assert round(NORTH_WALL_Y - SHELVES[0][3], 3) == 0.177  # 지도 벽 기준
     assert round(REAL_NORTH_WALL_Y - SHELVES[0][3], 3) == 0.172  # 실측 벽 기준
-    # 진열대 A는 0.93(0.88 + 서쪽 0.05), 동쪽 끝 1.56과 높이는 그대로
-    assert round(SHELVES[0][2] - SHELVES[0][0], 3) == 0.93 and SHELVES[0][2] == 1.56
+    # 진열대 A는 0.86(11-23 줄자 실측, 11-17의 0.93에서 서쪽 끝 0.07 줄임), 동쪽 끝 1.56과 높이는 그대로
+    assert round(SHELVES[0][2] - SHELVES[0][0], 3) == 0.86 and SHELVES[0][2] == 1.56
     # 진열대 자리는 어느 구역도 아니다. 그 서쪽 띠(OUT_DOCK과 진열대 사이)는 HALL이다
-    assert site.zone_at(0.64, 0.79) is None and site.zone_at(0.60, 0.79) == "HALL"
+    # (11-23: 진열대가 0.70부터라 진열대 자리를 0.71에서 본다)
+    assert site.zone_at(0.71, 0.79) is None and site.zone_at(0.64, 0.79) == "HALL"
 
 
 def test_v7_sim_shelf_a_is_2cm_thinner_on_the_express_side(site):
@@ -351,7 +353,8 @@ def test_v7_routes(site):
     pairs += [(door, "O_OUT") for door in doors] + [("E-3", "Q2")]
     for door in ("E-1", "E-2"):
         assert site.edge(door, "Q2") is None and site.edge("Q2", door) is None, door
-    # O_IN은 E-1, E-2와만 잇는다: E-3까지의 곧은 선은 남쪽 진열대 서쪽 끝 아래 모서리에서 0.082다.
+    # O_IN은 E-1, E-2와만 잇는다: E-3까지의 곧은 선은 남쪽 진열대 서쪽 끝 아래 모서리에서 0.082였고
+    # 11-23 실측(서쪽 끝 0.65)으로 0.055다.
     # E-3으로는 다른 입구나 O_OUT을 거쳐 간다
     pairs += [("O_IN", "E-1"), ("O_IN", "E-2")]
     assert site.edge("O_IN", "E-3") is None and site.edge("E-3", "O_IN") is None
@@ -534,11 +537,12 @@ def test_v7_outbound_waits_at_the_west_end_of_the_express_too(site):
     assert point_rect_distance(SHELVES[0], spot.x, spot.y) > BODY_HALF_M
     # 줄을 내리면서 HALL(진열대 서쪽 띠, y 0.77 띠)에 가까워져 x를 0.71로 옮겼다. O_X는 도킹 자리가
     # 아니라 놓기 거리 0.135로 재므로, 오기 전에 HALL을 쥐었던 로봇은 여기서 기다리는 동안
-    # 그대로 쥔다(0.098). 예전 O_X(0.655, 0.888)도 0.089였다: 그보다 가깝지 않다
+    # 그대로 쥔다(0.098, 11-23 HALL 띠를 0.645로 늘려 띠 모서리에서 0.092). 예전 O_X(0.655, 0.888)도
+    # 0.089였다: 그보다 가깝지 않다
     assert spot.x == pytest.approx(0.71)
     assert 0.09 < site.distance_to_zone(spot.x, spot.y, "HALL") < RELEASE_GAP_M
-    # 선 로봇의 몸은 HALL에 들지 않는다(진열대 서쪽 HALL 띠의 위 끝 모서리(0.63, 0.803)에서
-    # 약 0.089). 급행으로 오는 길은 HALL을 지나지 않아 쥐지도 않는다
+    # 선 로봇의 몸은 HALL에 들지 않는다(진열대 서쪽 HALL 띠의 위 끝 모서리(0.645, 0.803)에서
+    # 0.092, 11-23). 급행으로 오는 길은 HALL을 지나지 않아 쥐지도 않는다
     assert site.distance_to_zone(spot.x, spot.y, "HALL") > 0.085
     assert "HALL" not in site.edge("W_X", "O_X").zones
     # 나가는 길은 출고 하나, 들어오는 길은 급행 하나(한 방향 서쪽)
@@ -613,7 +617,9 @@ def test_v7_north_wall_is_the_slam_measurement_and_the_express_stays_open(site):
         assert y1 <= NORTH_WALL_Y
     # 구역은 진열대 면을 따른다: 급행 띠 아래 끝과 진열대 서쪽 HALL 띠 위 끝이 0.803
     assert [r[1] for r in site.zones["EXPRESS"].rects] == [SHELVES[0][3]]
-    assert [0.50, 0.77, 0.63, SHELVES[0][3]] in [list(r) for r in site.zones["HALL"].rects]
+    # 11-23: 띠는 진열대 끝에서 몸 반폭 안까지(0.645). 로봇 중심이 설 수 있는 바닥은 구역 밖이 아니다
+    assert [0.50, 0.77, 0.645, SHELVES[0][3]] in [list(r) for r in site.zones["HALL"].rects]
+    assert SHELVES[0][0] - 0.645 <= BODY_HALF_M
 
 
 def _y_at(points, x):
