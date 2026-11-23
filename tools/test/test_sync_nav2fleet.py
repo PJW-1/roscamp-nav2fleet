@@ -122,3 +122,47 @@ def test_refuses_a_clone_of_another_repo(tmp_path):
     run = _run(src, tmp_path, "--push")  # origin이 pode-drive다
     assert run.returncode == 1 and "not roscamp-nav2fleet" in run.stdout
     assert _run(src, tmp_path, "--force").returncode == 2
+
+
+def _worktrees(repo):
+    return [line for line in _git(repo, "worktree", "list", "--porcelain").splitlines()
+            if line.startswith("worktree ")]
+
+
+def test_relative_clone_path_leaves_no_worktree_behind(tmp_path):
+    src, dst, dst_bare = _setup(tmp_path)
+    _push_src(src, {"learning/a.py": "x\n", "b.txt": "b\n"}, "add")
+    env = dict(ENV, SRC_URL=str(tmp_path / "roscamp-pode-drive.git"))
+    run = subprocess.run(["bash", str(SCRIPT), "dst", "--push"], cwd=tmp_path, env=env,
+                         capture_output=True, text=True, timeout=120)
+    assert run.returncode == 0, run.stdout + run.stderr
+    assert len(_worktrees(dst)) == 1
+    # 충돌로 멈춰도 임시 worktree가 남지 않는다
+    _git(dst, "pull", "-q", "--ff-only")
+    _commit(dst, {"b.txt": "nav2fleet\n"}, "direct")
+    _git(dst, "push", "-q", "origin", "HEAD:main")
+    _push_src(src, {"b.txt": "pode-drive\n"}, "edit")
+    run = subprocess.run(["bash", str(SCRIPT), "dst", "--push"], cwd=tmp_path, env=env,
+                         capture_output=True, text=True, timeout=120)
+    assert run.returncode == 1
+    assert len(_worktrees(dst)) == 1
+
+
+def test_main_that_already_has_the_source_with_learning_gets_it_dropped(tmp_path):
+    src, dst, dst_bare = _setup(tmp_path)
+    _push_src(src, {"learning/a.py": "x\n"}, "add")
+    # 누가 nav2fleet main을 원본 그대로 옮겨 놓았다
+    _git(src, "push", "-q", str(dst_bare), "main:main")
+    run = _run(dst, tmp_path, "--push")
+    assert run.returncode == 0, run.stdout + run.stderr
+    assert not any(name.startswith("learning/") for name in _tree(dst_bare))
+    run = _run(dst, tmp_path, "--push")
+    assert run.returncode == 0 and "already has" in run.stdout
+
+
+def test_refuses_a_push_url_of_another_repo(tmp_path):
+    src, dst, dst_bare = _setup(tmp_path)
+    _git(dst, "remote", "set-url", "--push", "origin", str(tmp_path / "roscamp-pode-drive.git"))
+    _push_src(src, {"b.txt": "b\n"}, "add")
+    run = _run(dst, tmp_path, "--push")
+    assert run.returncode == 1 and "not roscamp-nav2fleet" in run.stdout
