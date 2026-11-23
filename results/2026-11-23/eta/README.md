@@ -15,8 +15,8 @@
   (그 Segment의 `SEGMENT_DONE`까지)을 잰다. Gazebo 숫자를 낸 도구와 같다. 재생 경고는 두 판 모두 0이다.
   출력 `eta_split_*.txt`, 표본 `rows_*.json`.
 - 오차 = ETA - 실제. -면 관제가 일찍 닿는다고 본 것이다.
-- Gazebo 값의 출처: 정지 2/80은 `docs/worklog_left_s_projection_2026-11-20.md`(Q2에서 선 Route, 6판 80개),
-  ETA는 `docs/worklog_eta_cause_2026-11-22.md` 3절(nav2fleet 9612003, 6판, 2136표본).
+- Gazebo 값의 출처: 정지 2/80은 `docs/worklog_left_s_projection_2026-11-20.md` 비교 표(Q2에서 선 Route, 8판: rush 2/48,
+  gz_v7 0/32. 선 두 번은 5.47 s씩), ETA는 `docs/worklog_eta_cause_2026-11-22.md` 3절(nav2fleet 9612003, 6판, 2136표본, Segment 98개).
 
 ## 1. 구간 끝 정지 (BASE_END_WAIT)
 
@@ -80,13 +80,14 @@
 ## 3. 읽는 법
 
 - **실물도 관제가 일찍 본다. Gazebo보다 크다:** 전체 평균 -0.79 s(Gazebo -0.41), 출발 -2.29 s(Gazebo -1.47).
-- **끝 무렵은 Gazebo처럼 맞는다:** 실제 남은 0~1 s pass -0.04 s. 넘어가기 위치(SEGMENT_DONE 때 끝 노드 앞 거리 중앙값)도
-  -0.146 m로 Gazebo -0.132 m와 비슷하다. 끝 보정(-1.25 s)은 실물에서도 맞는다.
+- **끝 무렵은 Gazebo와 비슷하다:** 실제 남은 0~1 s pass -0.04 s(11표본). 넘어가기 위치(SEGMENT_DONE 때 끝 노드 앞 거리 중앙값)도
+  -0.146 m(5개 Segment)로 Gazebo -0.132 m와 비슷하다. 다음이 follow_path인 구간에서는 끝 보정(-1.25 s)이 맞는 쪽이다.
+  다음이 nav_goal인 구간은 1개뿐이라 그 경우는 확인하지 못했다.
 - **출발 오차가 커진 몫은 속도, 회전, 서 있음이다**(켬 판 출발 pass, Gazebo 대비): 속도 -0.90(-0.72), 회전 -0.89(-0.67),
   서 있음 -0.31(-0.07). 관제 모델에 없는 출발 제자리 회전과 0.12보다 느린 순항이 Gazebo보다 더 크게 나왔다.
 - **같은 O_OUT → Q2라도 판마다 다르다:** 켬 판 -0.91, -0.78, 혼자 판 -0.60, -0.19는 Gazebo 출발 값보다 작다.
-  혼자 판 pode2-11#2는 -6.31로 크고, 대부분 속도 몫(-2.89)이다(움직일 때 0.100 m/s). 왜 느렸는지는 이 기록으로 가를 수 없다.
-- **표본이 적다:** 켬 판 nav_goal Segment 7개, 혼자 판 5개다. Gazebo 2136표본, 수백 Segment와 같은 무게로 볼 수 없다.
+  혼자 판 pode2-11#2는 -6.31로 크다. 속도 몫 -2.89(움직일 때 0.100 m/s)와 회전 몫 -2.00이 크다. 왜 그랬는지는 이 기록으로 가를 수 없다.
+- **표본이 적다:** 켬 판 nav_goal Segment 7개, 혼자 판 5개다. Gazebo 2136표본, Segment 98개와 같은 무게로 볼 수 없다.
   turn과 next=nav_goal은 각 1개뿐이라 그 줄의 숫자는 참고만 한다.
 - 이 숫자는 `docs/worklog_eta_cause_2026-11-22.md` 5절 결정 E1(순항 속도 비율), E2(출발 회전 항), E3(끝 회전 속도)의 실물 자료다.
   E4(다음 조각이 잡혀 있을 때만 넘어가기 보정)는 next=nav_goal 표본이 1개라 이 판으로 정할 수 없다.
@@ -96,8 +97,9 @@
 ```bash
 cd results/2026-11-23/analysis
 python3 base_end_stops.py ../runs/1123_ds_on.jsonl
+REC=$(readlink -f ../runs/1123_ds_on.jsonl)
 # ETA: b9e86c5 코드에 eta_split.py를 넣어 재생한다(ROS 불필요)
 D=$(mktemp -d); git -C <nav2fleet> archive b9e86c5 | tar -x -C $D; mkdir -p $D/tools/eta_cause
 git -C <pode-drive> show b905ac4:tools/eta_cause/eta_split.py > $D/tools/eta_cause/eta_split.py
-(cd $D && python3 tools/eta_cause/eta_split.py ds_on=$PWD/../runs/1123_ds_on.jsonl --rows=rows.json)
+(cd $D && python3 tools/eta_cause/eta_split.py ds_on=$REC --rows=rows.json)
 ```
