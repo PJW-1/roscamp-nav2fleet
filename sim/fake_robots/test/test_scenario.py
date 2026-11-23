@@ -414,6 +414,11 @@ def test_fake_arms_together_or_not_at_all(site):
     assert split_fake_arms("", site) == (False, [], [])
 
 
+@pytest.mark.parametrize("none", ["none", "None", "NONE", " none "])
+def test_fake_arms_none_means_no_fake_arms(site, none):
+    assert split_fake_arms(none, site) == (False, [], [])
+
+
 @pytest.mark.parametrize("bad", ["arm_left", "arm_right arm_ship", "arm9",
                                  "arm_left arm_right workcell"])
 def test_fake_arms_rejects_half_a_workcell_and_unknown_names(site, bad):

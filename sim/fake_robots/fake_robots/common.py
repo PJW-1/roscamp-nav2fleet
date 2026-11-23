@@ -77,7 +77,8 @@ def split_fake_arms(text: str, site) -> tuple[bool, list[str], list[str]]:
     """
     fill_arms = list(station_with_action(site, "fill").arms)
     swap_arms = list(station_with_action(site, "swap").arms)
-    named = text.split()
+    # none은 빈 값과 같다(ros2 launch는 빈 값을 받지 않는다)
+    named = [] if text.strip().lower() == "none" else text.split()
     unknown = sorted(set(named) - set(fill_arms) - set(swap_arms))
     if unknown:
         raise ValueError(f"fake_arms names unknown arms: {unknown}")

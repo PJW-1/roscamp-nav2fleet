@@ -10,6 +10,7 @@
 
 fake_arms: arm_left와 arm_right를 함께 주면 가짜 작업셀이 뜬다.
 fill_basket 서버 하나가 둘을 맡기 때문이다. arm_ship은 가짜 출고 팔을 띄운다.
+fake_arms:=none은 가짜 팔 없음이다(대소문자 무시).
 fake_robots:=none은 가짜 로봇 없음이다(ros2 launch는 빈 값을 받지 않는다).
 dock_wait_robots: 실물 로봇의 도킹을 PC가 대신 받는다(real_dock_wait_node, 기다린 뒤 자세 확인).
 로봇은 DOCK_STUB=1로 떠야 한다. 시뮬 시계나 가짜 로봇과 함께 주면 거부한다.
