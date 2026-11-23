@@ -5,8 +5,8 @@
 #   SUPER=1                    전체 그래프를 보는 터미널(ros2 명령, RViz)
 # 다시 source해도 이전 값이 남지 않게 먼저 지운다
 unset ROS_LOCALHOST_ONLY ROS_STATIC_PEERS ROS_DISCOVERY_SERVER ROS_SUPER_CLIENT
-# 도메인은 팀이 아직 정하지 않았다(2026-11-19). 정해지면 이 줄만 바꾼다
-export ROS_DOMAIN_ID=12
+# 로봇 네트워크 도메인은 6(팀 통신 규칙 IR-81, 2026-11-20). 시험은 6이 아닌 도메인 + LOCALHOST
+export ROS_DOMAIN_ID=6
 export RMW_IMPLEMENTATION=rmw_fastrtps_cpp
 export ROS_AUTOMATIC_DISCOVERY_RANGE=SUBNET
 _net_ds=${DISCOVERY_SERVER:-192.168.0.252:11811}
