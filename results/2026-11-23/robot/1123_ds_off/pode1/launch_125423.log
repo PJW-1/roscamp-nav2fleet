@@ -1,0 +1,185 @@
+[INFO] [launch]: All log files can be found below /home/pinky/.ros/log/2026-11-23-12-54-25-699264-raspi-3019
+[INFO] [launch]: Default logging verbosity is set to INFO
+[INFO] [launch.user]: real_pode: pode_fsm horizon_cap_mps 0.12
+[INFO] [launch.user]: real_pode: dock_aside on, pode_fsm Dock -> /pode1/dock_fsm (PC dock stub must serve /pode1/dock)
+[INFO] [robot_state_publisher-1]: process started with pid [3116]
+[INFO] [joint_state_publisher-2]: process started with pid [3117]
+[INFO] [sllidar_node-3]: process started with pid [3118]
+[INFO] [bringup-4]: process started with pid [3119]
+[INFO] [battery_publisher-5]: process started with pid [3120]
+[INFO] [cmd_watchdog-6]: process started with pid [3121]
+[INFO] [component_container_isolated-7]: process started with pid [3122]
+[INFO] [peer_obstacles-8]: process started with pid [3123]
+[INFO] [pode_fsm_node-9]: process started with pid [3124]
+[sllidar_node-3] [INFO] [1795406072.402861568] [pode1.sllidar_node]: SLLidar running on ROS2 package SLLidar.ROS2 SDK Version:1.0.1, SLLIDAR SDK Version:2.1.0
+[robot_state_publisher-1] [INFO] [1795406072.862129793] [pode1.robot_state_publisher]: Robot initialized
+[sllidar_node-3] [INFO] [1795406072.924140051] [pode1.sllidar_node]: SLLidar S/N: CAE7E18DC2E699D6C89792F43044416E
+[sllidar_node-3] [INFO] [1795406072.924309238] [pode1.sllidar_node]: Firmware Ver: 1.02
+[sllidar_node-3] [INFO] [1795406072.924351072] [pode1.sllidar_node]: Hardware Rev: 18
+[sllidar_node-3] [INFO] [1795406072.924902430] [pode1.sllidar_node]: SLLidar health status : 0
+[sllidar_node-3] [INFO] [1795406072.924983023] [pode1.sllidar_node]: SLLidar health status : OK.
+[sllidar_node-3] [INFO] [1795406073.164630171] [pode1.sllidar_node]: current scan mode: DenseBoost, sample rate: 5 Khz, max_distance: 40.0 m, scan frequency:10.0 Hz, 
+[INFO] [launch_ros.actions.load_composable_nodes]: Loaded node '/pode1/map_server' in container '/pode1/nav2_container'
+[INFO] [launch_ros.actions.load_composable_nodes]: Loaded node '/pode1/map_server_fine' in container '/pode1/nav2_container'
+[INFO] [launch_ros.actions.load_composable_nodes]: Loaded node '/pode1/amcl' in container '/pode1/nav2_container'
+[joint_state_publisher-2] [INFO] [1795406076.409820459] [pode1.joint_state_publisher]: Waiting for robot_description to be published on the robot_description topic...
+[cmd_watchdog-6] [INFO] [1795406076.526739860] [cmd_watchdog]: watching /pode1/cmd_vel
+[joint_state_publisher-2] [INFO] [1795406076.594101465] [pode1.joint_state_publisher]: Got description, configuring robot
+[bringup-4] [INFO] [1795406077.514224250] [pode1.pinky_bringup]: Initializing Pinky Bringup Node with Dynamixel...
+[bringup-4] [INFO] [1795406077.519859112] [pode1.pinky_bringup]: Wheel radius: 0.027
+[bringup-4] [INFO] [1795406077.522649932] [pode1.pinky_bringup]: Wheel separation: 0.0961
+[bringup-4] [INFO] [1795406077.528556296] [pode1.pinky_bringup]: 1. Opening serial port...
+[bringup-4] [INFO] [1795406077.538865809] [pode1.pinky_bringup]: 2. Initializing motors...
+[INFO] [launch_ros.actions.load_composable_nodes]: Loaded node '/pode1/controller_server' in container '/pode1/nav2_container'
+[INFO] [launch_ros.actions.load_composable_nodes]: Loaded node '/pode1/planner_server' in container '/pode1/nav2_container'
+[bringup-4] [INFO] [1795406078.571523198] [pode1.pinky_bringup]: Waiting for motors to be ready...
+[INFO] [launch_ros.actions.load_composable_nodes]: Loaded node '/pode1/behavior_server' in container '/pode1/nav2_container'
+[bringup-4] [INFO] [1795406079.575245166] [pode1.pinky_bringup]: 3. Setting initial RPM to zero...
+[bringup-4] [INFO] [1795406079.581683881] [pode1.pinky_bringup]: 4. Reading initial encoder values...
+[bringup-4] [INFO] [1795406079.589131769] [pode1.pinky_bringup]: Initial Encoder read: L=3324, R=268. Controller is responsive.
+[bringup-4] [INFO] [1795406079.750929855] [pode1.pinky_bringup]: Pinky Bringup with Dynamixel has been started successfully.
+[INFO] [launch_ros.actions.load_composable_nodes]: Loaded node '/pode1/bt_navigator' in container '/pode1/nav2_container'
+[INFO] [launch_ros.actions.load_composable_nodes]: Loaded node '/pode1/lifecycle_manager_localization' in container '/pode1/nav2_container'
+[pode_fsm_node-9] [INFO] [1795406081.225248224] [pode1.pode_fsm]: pode_fsm for pode1 ready
+[INFO] [launch_ros.actions.load_composable_nodes]: Loaded node '/pode1/lifecycle_manager_navigation' in container '/pode1/nav2_container'
+[INFO] [launch_ros.actions.load_composable_nodes]: Loaded node '/pode1/keepout_mask_server' in container '/pode1/nav2_container'
+[INFO] [launch_ros.actions.load_composable_nodes]: Loaded node '/pode1/costmap_filter_info_server' in container '/pode1/nav2_container'
+[INFO] [launch_ros.actions.load_composable_nodes]: Loaded node '/pode1/lifecycle_manager_keepout' in container '/pode1/nav2_container'
+[component_container_isolated-7] [WARN] [1795406149.068364986] [pode1.controller_server]: No progress checker was specified in parameter 'current_progress_checker'. Server will use only plugin loaded progress_checker . This warning will appear once.
+[component_container_isolated-7] [WARN] [1795406149.723664951] [pode1.controller_server]: RegulatedPurePursuitController detected collision ahead!
+[component_container_isolated-7] [WARN] [1795406149.783285629] [pode1.controller_server]: RegulatedPurePursuitController detected collision ahead!
+[pode_fsm_node-9] [INFO] [1795406151.838193762] [pode1.pode_fsm]: goal ended: SUPERSEDED
+[pode_fsm_node-9] [INFO] [1795406166.610363871] [pode1.pode_fsm]: goal ended: SUPERSEDED
+[pode_fsm_node-9] [INFO] [1795406169.480408436] [pode1.pode_fsm]: goal ended: SUPERSEDED
+[component_container_isolated-7] [WARN] [1795406169.520042730] [pode1.controller_server]: [follow_path] [ActionServer] Aborting handle.
+[pode_fsm_node-9] [INFO] [1795406198.198913525] [pode1.pode_fsm]: goal ended: SUPERSEDED
+[component_container_isolated-7] [WARN] [1795406219.558723830] [pode1.controller_server]: RegulatedPurePursuitController detected collision ahead!
+[component_container_isolated-7] [WARN] [1795406219.608016059] [pode1.controller_server]: RegulatedPurePursuitController detected collision ahead!
+[component_container_isolated-7] [WARN] [1795406219.657912310] [pode1.controller_server]: RegulatedPurePursuitController detected collision ahead!
+[component_container_isolated-7] [WARN] [1795406221.765930516] [pode1.controller_server]: RegulatedPurePursuitController detected collision ahead!
+[component_container_isolated-7] [WARN] [1795406221.808219798] [pode1.controller_server]: RegulatedPurePursuitController detected collision ahead!
+[component_container_isolated-7] [WARN] [1795406221.859070686] [pode1.controller_server]: RegulatedPurePursuitController detected collision ahead!
+[pode_fsm_node-9] [INFO] [1795406222.099357436] [pode1.pode_fsm]: state MOVING -> RECOVERING wait (self-recovery attempts used 1)
+[pode_fsm_node-9] [INFO] [1795406223.619176331] [pode1.pode_fsm]: state RECOVERING -> MOVING  (self-recovery attempts used 1)
+[component_container_isolated-7] [WARN] [1795406224.560602521] [pode1.controller_server]: RegulatedPurePursuitController detected collision ahead!
+[component_container_isolated-7] [WARN] [1795406224.609332300] [pode1.controller_server]: RegulatedPurePursuitController detected collision ahead!
+[component_container_isolated-7] [WARN] [1795406224.660552162] [pode1.controller_server]: RegulatedPurePursuitController detected collision ahead!
+[component_container_isolated-7] [WARN] [1795406224.761533164] [pode1.controller_server]: RegulatedPurePursuitController detected collision ahead!
+[component_container_isolated-7] [WARN] [1795406224.812350388] [pode1.controller_server]: RegulatedPurePursuitController detected collision ahead!
+[component_container_isolated-7] [WARN] [1795406224.858843337] [pode1.controller_server]: RegulatedPurePursuitController detected collision ahead!
+[pode_fsm_node-9] [INFO] [1795406237.039886073] [pode1.pode_fsm]: goal ended: SUPERSEDED
+[pode_fsm_node-9] [INFO] [1795406238.599042093] [pode1.pode_fsm]: goal ended: SUPERSEDED
+[pode_fsm_node-9] [INFO] [1795406265.298113195] [pode1.pode_fsm]: goal ended: SUPERSEDED
+[pode_fsm_node-9] [INFO] [1795406298.793889925] [pode1.pode_fsm]: goal ended: SUPERSEDED
+[component_container_isolated-7] [ERROR] [1795406300.512233465] [pode1.bt_navigator_navigate_to_pose_rclcpp_node]: Failed to get result for follow_path in node halt!
+[pode_fsm_node-9] [INFO] [1795406300.595947858] [pode1.pode_fsm]: goal ended: SUPERSEDED
+[pode_fsm_node-9] [INFO] [1795406328.303158296] [pode1.pode_fsm]: goal ended: SUPERSEDED
+[pode_fsm_node-9] [INFO] [1795406361.315298384] [pode1.pode_fsm]: goal ended: SUPERSEDED
+[component_container_isolated-7] [ERROR] [1795406363.118854565] [pode1.bt_navigator_navigate_to_pose_rclcpp_node]: Failed to get result for follow_path in node halt!
+[pode_fsm_node-9] [INFO] [1795406363.427469937] [pode1.pode_fsm]: goal ended: SUPERSEDED
+[pode_fsm_node-9] [INFO] [1795406388.576384911] [pode1.pode_fsm]: goal ended: SUPERSEDED
+[component_container_isolated-7] [WARN] [1795406411.046456737] [pode1.controller_server]: RegulatedPurePursuitController detected collision ahead!
+[component_container_isolated-7] [WARN] [1795406411.097639936] [pode1.controller_server]: RegulatedPurePursuitController detected collision ahead!
+[component_container_isolated-7] [WARN] [1795406411.146795476] [pode1.controller_server]: RegulatedPurePursuitController detected collision ahead!
+[component_container_isolated-7] [WARN] [1795406411.200894907] [pode1.controller_server]: RegulatedPurePursuitController detected collision ahead!
+[component_container_isolated-7] [WARN] [1795406411.247866477] [pode1.controller_server]: RegulatedPurePursuitController detected collision ahead!
+[component_container_isolated-7] [WARN] [1795406411.298227120] [pode1.controller_server]: RegulatedPurePursuitController detected collision ahead!
+[component_container_isolated-7] [WARN] [1795406411.348182180] [pode1.controller_server]: RegulatedPurePursuitController detected collision ahead!
+[component_container_isolated-7] [WARN] [1795406411.396624847] [pode1.controller_server]: RegulatedPurePursuitController detected collision ahead!
+[component_container_isolated-7] [WARN] [1795406411.447586829] [pode1.controller_server]: RegulatedPurePursuitController detected collision ahead!
+[component_container_isolated-7] [WARN] [1795406411.496975234] [pode1.controller_server]: RegulatedPurePursuitController detected collision ahead!
+[component_container_isolated-7] [WARN] [1795406411.546747076] [pode1.controller_server]: RegulatedPurePursuitController detected collision ahead!
+[component_container_isolated-7] [WARN] [1795406411.596860910] [pode1.controller_server]: RegulatedPurePursuitController detected collision ahead!
+[component_container_isolated-7] [WARN] [1795406411.647767059] [pode1.controller_server]: RegulatedPurePursuitController detected collision ahead!
+[component_container_isolated-7] [WARN] [1795406411.697444514] [pode1.controller_server]: RegulatedPurePursuitController detected collision ahead!
+[component_container_isolated-7] [WARN] [1795406411.748071133] [pode1.controller_server]: RegulatedPurePursuitController detected collision ahead!
+[component_container_isolated-7] [WARN] [1795406411.799064170] [pode1.controller_server]: RegulatedPurePursuitController detected collision ahead!
+[component_container_isolated-7] [WARN] [1795406411.847533133] [pode1.controller_server]: RegulatedPurePursuitController detected collision ahead!
+[component_container_isolated-7] [WARN] [1795406411.901350273] [pode1.controller_server]: RegulatedPurePursuitController detected collision ahead!
+[component_container_isolated-7] [WARN] [1795406411.946917893] [pode1.controller_server]: RegulatedPurePursuitController detected collision ahead!
+[component_container_isolated-7] [WARN] [1795406411.996635254] [pode1.controller_server]: RegulatedPurePursuitController detected collision ahead!
+[component_container_isolated-7] [WARN] [1795406412.047712289] [pode1.controller_server]: RegulatedPurePursuitController detected collision ahead!
+[component_container_isolated-7] [ERROR] [1795406412.047934099] [pode1.controller_server]: Controller patience exceeded
+[component_container_isolated-7] [WARN] [1795406412.049231107] [pode1.controller_server]: [follow_path] [ActionServer] Aborting handle.
+[pode_fsm_node-9] [INFO] [1795406412.053218482] [pode1.pode_fsm]: state MOVING -> RECOVERING wait (self-recovery attempts used 1)
+[component_container_isolated-7] [WARN] [1795406412.112355431] [pode1.controller_server]: RegulatedPurePursuitController detected collision ahead!
+[component_container_isolated-7] [WARN] [1795406412.113565441] [pode1.controller_server]: Control loop missed its desired rate of 20.0000 Hz. Current loop rate is 18.7778 Hz.
+[component_container_isolated-7] [WARN] [1795406412.115188942] [pode1.controller_server]: RegulatedPurePursuitController detected collision ahead!
+[component_container_isolated-7] [WARN] [1795406412.166134406] [pode1.controller_server]: RegulatedPurePursuitController detected collision ahead!
+[component_container_isolated-7] [WARN] [1795406412.215130301] [pode1.controller_server]: RegulatedPurePursuitController detected collision ahead!
+[component_container_isolated-7] [WARN] [1795406412.266138652] [pode1.controller_server]: RegulatedPurePursuitController detected collision ahead!
+[component_container_isolated-7] [WARN] [1795406412.318113038] [pode1.controller_server]: RegulatedPurePursuitController detected collision ahead!
+[component_container_isolated-7] [WARN] [1795406412.367178099] [pode1.controller_server]: RegulatedPurePursuitController detected collision ahead!
+[component_container_isolated-7] [WARN] [1795406412.415200127] [pode1.controller_server]: RegulatedPurePursuitController detected collision ahead!
+[component_container_isolated-7] [WARN] [1795406412.467394118] [pode1.controller_server]: RegulatedPurePursuitController detected collision ahead!
+[component_container_isolated-7] [WARN] [1795406412.515439202] [pode1.controller_server]: RegulatedPurePursuitController detected collision ahead!
+[component_container_isolated-7] [WARN] [1795406412.567284775] [pode1.controller_server]: RegulatedPurePursuitController detected collision ahead!
+[component_container_isolated-7] [WARN] [1795406412.615316581] [pode1.controller_server]: RegulatedPurePursuitController detected collision ahead!
+[component_container_isolated-7] [WARN] [1795406412.665349973] [pode1.controller_server]: RegulatedPurePursuitController detected collision ahead!
+[component_container_isolated-7] [WARN] [1795406412.715074037] [pode1.controller_server]: RegulatedPurePursuitController detected collision ahead!
+[component_container_isolated-7] [WARN] [1795406412.765553937] [pode1.controller_server]: RegulatedPurePursuitController detected collision ahead!
+[component_container_isolated-7] [WARN] [1795406412.815126061] [pode1.controller_server]: RegulatedPurePursuitController detected collision ahead!
+[component_container_isolated-7] [WARN] [1795406412.865552295] [pode1.controller_server]: RegulatedPurePursuitController detected collision ahead!
+[component_container_isolated-7] [WARN] [1795406412.915200621] [pode1.controller_server]: RegulatedPurePursuitController detected collision ahead!
+[component_container_isolated-7] [WARN] [1795406412.965667521] [pode1.controller_server]: RegulatedPurePursuitController detected collision ahead!
+[component_container_isolated-7] [WARN] [1795406413.015233997] [pode1.controller_server]: RegulatedPurePursuitController detected collision ahead!
+[component_container_isolated-7] [WARN] [1795406413.069051008] [pode1.controller_server]: RegulatedPurePursuitController detected collision ahead!
+[component_container_isolated-7] [ERROR] [1795406413.069291817] [pode1.controller_server]: Controller patience exceeded
+[component_container_isolated-7] [WARN] [1795406413.069639217] [pode1.controller_server]: [follow_path] [ActionServer] Aborting handle.
+[component_container_isolated-7] [WARN] [1795406413.583946079] [pode1.controller_server]: RegulatedPurePursuitController detected collision ahead!
+[component_container_isolated-7] [WARN] [1795406413.633834715] [pode1.controller_server]: RegulatedPurePursuitController detected collision ahead!
+[component_container_isolated-7] [WARN] [1795406413.683953234] [pode1.controller_server]: RegulatedPurePursuitController detected collision ahead!
+[component_container_isolated-7] [WARN] [1795406414.083944722] [pode1.controller_server]: RegulatedPurePursuitController detected collision ahead!
+[pode_fsm_node-9] [INFO] [1795406414.085675387] [pode1.pode_fsm]: state RECOVERING -> BLOCKED  (self-recovery attempts used 1)
+[component_container_isolated-7] [WARN] [1795406414.137955043] [pode1.controller_server]: RegulatedPurePursuitController detected collision ahead!
+[component_container_isolated-7] [WARN] [1795406414.183850397] [pode1.controller_server]: RegulatedPurePursuitController detected collision ahead!
+[component_container_isolated-7] [WARN] [1795406414.233947713] [pode1.controller_server]: RegulatedPurePursuitController detected collision ahead!
+[component_container_isolated-7] [WARN] [1795406414.284777827] [pode1.controller_server]: RegulatedPurePursuitController detected collision ahead!
+[component_container_isolated-7] [WARN] [1795406414.483937303] [pode1.controller_server]: RegulatedPurePursuitController detected collision ahead!
+[component_container_isolated-7] [WARN] [1795406414.884807123] [pode1.controller_server]: RegulatedPurePursuitController detected collision ahead!
+[component_container_isolated-7] [WARN] [1795406414.933846166] [pode1.controller_server]: RegulatedPurePursuitController detected collision ahead!
+[component_container_isolated-7] [WARN] [1795406414.984256975] [pode1.controller_server]: RegulatedPurePursuitController detected collision ahead!
+[component_container_isolated-7] [WARN] [1795406415.985195221] [pode1.controller_server]: RegulatedPurePursuitController detected collision ahead!
+[component_container_isolated-7] [WARN] [1795406416.035078764] [pode1.controller_server]: RegulatedPurePursuitController detected collision ahead!
+[component_container_isolated-7] [WARN] [1795406416.083946292] [pode1.controller_server]: RegulatedPurePursuitController detected collision ahead!
+[component_container_isolated-7] [WARN] [1795406418.385177577] [pode1.controller_server]: RegulatedPurePursuitController detected collision ahead!
+[component_container_isolated-7] [WARN] [1795406418.433814537] [pode1.controller_server]: RegulatedPurePursuitController detected collision ahead!
+[component_container_isolated-7] [WARN] [1795406418.483832151] [pode1.controller_server]: RegulatedPurePursuitController detected collision ahead!
+[component_container_isolated-7] [WARN] [1795406418.938148139] [pode1.controller_server]: RegulatedPurePursuitController detected collision ahead!
+[component_container_isolated-7] [WARN] [1795406418.983988698] [pode1.controller_server]: RegulatedPurePursuitController detected collision ahead!
+[component_container_isolated-7] [WARN] [1795406419.033941369] [pode1.controller_server]: RegulatedPurePursuitController detected collision ahead!
+[component_container_isolated-7] [WARN] [1795406419.083948964] [pode1.controller_server]: RegulatedPurePursuitController detected collision ahead!
+[component_container_isolated-7] [WARN] [1795406419.935584945] [pode1.controller_server]: RegulatedPurePursuitController detected collision ahead!
+[component_container_isolated-7] [WARN] [1795406419.984745523] [pode1.controller_server]: RegulatedPurePursuitController detected collision ahead!
+[component_container_isolated-7] [WARN] [1795406420.033897711] [pode1.controller_server]: RegulatedPurePursuitController detected collision ahead!
+[component_container_isolated-7] [WARN] [1795406420.218472844] [pode1.planner_server]: GridBased plugin failed to plan from (0.34, 0.75) to (0.12, 0.24): "Failed to create plan with tolerance of: 0.500000"
+[component_container_isolated-7] [WARN] [1795406420.218676247] [pode1.planner_server]: [compute_path_to_pose] [ActionServer] Aborting handle.
+[component_container_isolated-7] [WARN] [1795406420.484451895] [pode1.planner_server]: GridBased plugin failed to plan from (0.38, 0.77) to (0.12, 0.24): "Failed to create plan with tolerance of: 0.500000"
+[component_container_isolated-7] [WARN] [1795406420.484636335] [pode1.planner_server]: [compute_path_to_pose] [ActionServer] Aborting handle.
+[component_container_isolated-7] [WARN] [1795406420.486557922] [pode1.controller_server]: RegulatedPurePursuitController detected collision ahead!
+[component_container_isolated-7] [ERROR] [1795406420.516625700] [pode1.bt_navigator_navigate_to_pose_rclcpp_node]: Failed to get result for follow_path in node halt!
+[component_container_isolated-7] [WARN] [1795406420.739343691] [pode1.global_costmap.global_costmap]: KeepoutFilter: New filter mask arrived from /pode1/keepout_filter_mask topic. Updating old filter mask.
+[component_container_isolated-7] [WARN] [1795406421.483306281] [pode1.planner_server]: GridBased plugin failed to plan from (0.48, 0.79) to (0.12, 0.24): "Failed to create plan with tolerance of: 0.500000"
+[component_container_isolated-7] [WARN] [1795406421.483470240] [pode1.planner_server]: [compute_path_to_pose] [ActionServer] Aborting handle.
+[component_container_isolated-7] [WARN] [1795406421.712931971] [pode1.global_costmap.global_costmap]: KeepoutFilter: New filter mask arrived from /pode1/keepout_filter_mask topic. Updating old filter mask.
+[component_container_isolated-7] [WARN] [1795406422.486075988] [pode1.planner_server]: GridBased plugin failed to plan from (0.49, 0.79) to (0.12, 0.24): "Failed to create plan with tolerance of: 0.500000"
+[component_container_isolated-7] [WARN] [1795406422.486258151] [pode1.planner_server]: [compute_path_to_pose] [ActionServer] Aborting handle.
+[pode_fsm_node-9] [INFO] [1795406422.502189594] [pode1.pode_fsm]: state MOVING -> RECOVERING wait (self-recovery attempts used 1)
+[pode_fsm_node-9] [INFO] [1795406424.561153621] [pode1.pode_fsm]: state RECOVERING -> BLOCKED  (self-recovery attempts used 1)
+[component_container_isolated-7] [WARN] [1795406427.517854019] [pode1.planner_server]: GridBased plugin failed to plan from (0.49, 0.79) to (0.12, 0.24): "Failed to create plan with tolerance of: 0.500000"
+[component_container_isolated-7] [WARN] [1795406427.518083199] [pode1.planner_server]: [compute_path_to_pose] [ActionServer] Aborting handle.
+[component_container_isolated-7] [WARN] [1795406427.726497266] [pode1.global_costmap.global_costmap]: KeepoutFilter: New filter mask arrived from /pode1/keepout_filter_mask topic. Updating old filter mask.
+[component_container_isolated-7] [WARN] [1795406428.483657416] [pode1.planner_server]: GridBased plugin failed to plan from (0.49, 0.79) to (0.12, 0.24): "Failed to create plan with tolerance of: 0.500000"
+[component_container_isolated-7] [WARN] [1795406428.483853523] [pode1.planner_server]: [compute_path_to_pose] [ActionServer] Aborting handle.
+[component_container_isolated-7] [WARN] [1795406428.722185650] [pode1.global_costmap.global_costmap]: KeepoutFilter: New filter mask arrived from /pode1/keepout_filter_mask topic. Updating old filter mask.
+[component_container_isolated-7] [WARN] [1795406429.480623476] [pode1.planner_server]: GridBased plugin failed to plan from (0.49, 0.79) to (0.12, 0.24): "Failed to create plan with tolerance of: 0.500000"
+[component_container_isolated-7] [WARN] [1795406429.480807898] [pode1.planner_server]: [compute_path_to_pose] [ActionServer] Aborting handle.
+[component_container_isolated-7] [WARN] [1795406429.671768945] [pode1.global_costmap.global_costmap]: KeepoutFilter: New filter mask arrived from /pode1/keepout_filter_mask topic. Updating old filter mask.
+[component_container_isolated-7] [WARN] [1795406430.481475394] [pode1.planner_server]: GridBased plugin failed to plan from (0.49, 0.79) to (0.12, 0.24): "Failed to create plan with tolerance of: 0.500000"
+[component_container_isolated-7] [WARN] [1795406430.481657464] [pode1.planner_server]: [compute_path_to_pose] [ActionServer] Aborting handle.
+[pode_fsm_node-9] [INFO] [1795406434.797497530] [pode1.pode_fsm]: goal ended: CANCELED
+[component_container_isolated-7] [ERROR] [1795406434.829787389] [pode1.bt_navigator_navigate_to_pose_rclcpp_node]: Failed to get result for wait in node halt!
+[pode_fsm_node-9] [INFO] [1795406434.861645480] [pode1.pode_fsm]: navigate_to_pose #7 canceled: 208 
+[pode_fsm_node-9] [INFO] [1795406453.099605924] [pode1.pode_fsm]: goal ended: TIMEOUT
+[pode_fsm_node-9] [INFO] [1795406455.197583429] [pode1.pode_fsm]: goal ended: FAILED
+[pode_fsm_node-9] [INFO] [1795406457.302556225] [pode1.pode_fsm]: goal ended: FAILED
