@@ -179,14 +179,22 @@ def back_edge(site, x: float, y: float, node: str, zones, via: str = "", bends=(
 
 
 # ---- 속도와 남은 주행 시간 계산 ----
+# 길 비용(route 고르기)용 속도. 비율을 곱하지 않는다
 def speed(params, mode: str) -> float:
     if mode == NAV_GOAL:
         return params.nav_speed_mps
     return params.follow_speed_mps if mode == FOLLOW_PATH else params.retreat_speed_mps
 
 
+# ETA(남은 시간)용 속도. Nav2 goal만 nav_eta_speed_ratio를 곱한다
+def eta_speed(params, mode: str) -> float:
+    if mode == NAV_GOAL:
+        return params.nav_speed_mps * params.nav_eta_speed_ratio
+    return speed(params, mode)
+
+
 def travel_s(params, edges) -> float:
-    return sum(edge.length / speed(params, edge.mode) for edge in edges)
+    return sum(edge.length / eta_speed(params, edge.mode) for edge in edges)
 
 
 def nav_stretch(edges) -> int:
@@ -202,12 +210,12 @@ def left_s(params, edges, x: float, y: float) -> float:
     first = edges[0]
     if first.mode != NAV_GOAL:
         here = first.length - along(first, x, y)
-        return here / speed(params, first.mode) + travel_s(params, edges[1:])
+        return here / eta_speed(params, first.mode) + travel_s(params, edges[1:])
     end = nav_stretch(edges)
     pieces = [(edge.points[0], edge.points[-1]) for edge in edges[:end]]
     index, _ = _nearest(pieces, x, y)
     here = math.dist((x, y), pieces[index][1])
-    return here / speed(params, NAV_GOAL) + travel_s(params, edges[index + 1:])
+    return here / eta_speed(params, NAV_GOAL) + travel_s(params, edges[index + 1:])
 
 
 # ---- Nav2 goal 끝: 다음 조각으로 넘어가는 거리, 서서 끝 방향으로 도는 시간 ----
@@ -217,7 +225,7 @@ def nav_end_s(params, site, edges, end: int, x: float, y: float, yaw: float,
         return 0.0
     after = edges[end] if end < len(edges) else None
     if ending == PASS and after is not None and after.mode in (NAV_GOAL, FOLLOW_PATH):
-        return -params.nav_pass_m / speed(params, NAV_GOAL)
+        return -params.nav_pass_m / eta_speed(params, NAV_GOAL)
     if params.nav_turn_rps <= 0.0:
         return 0.0
     node = site.nodes[edges[end - 1].b]
