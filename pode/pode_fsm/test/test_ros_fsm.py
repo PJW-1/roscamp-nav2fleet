@@ -61,7 +61,7 @@ def test_a_fresh_node_reports_locked_unknown_mode_and_a_boot_id(harness):
 def test_the_admin_services_answer_with_the_request_id_and_the_state_shows_them(harness):
     import rclpy.node
     from fleet_interfaces.srv import RobotCommand, SetLock, SetMode
-    _, probe = start(harness, nav=False)
+    _, probe = start(harness)
     caller = harness.add(rclpy.node.Node("admin_caller"))
 
     def call(srv, name, request):
@@ -79,7 +79,8 @@ def test_the_admin_services_answer_with_the_request_id_and_the_state_shows_them(
     charge = call(RobotCommand, "/pode1/charge_end",
                   RobotCommand.Request(request_id="c-1", robot_id="pode1"))
     assert (charge.accepted, charge.reason) == (False, "BATTERY_LOW"), "battery unknown"
-    assert wait_until(lambda: probe.last_state().last_request_id == "l-1", 3.0)
+    assert wait_until(lambda: (s := probe.last_state()) is not None
+                      and s.last_request_id == "l-1", 3.0)
     s = probe.last_state()
     assert (s.lock, s.mode) == (False, "TEST")
 

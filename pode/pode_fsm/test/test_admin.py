@@ -22,14 +22,16 @@ def test_a_fresh_robot_is_locked_in_unknown_mode_with_nothing_forced():
         "boot-1", True, "UNKNOWN", [], "")
 
 
-def test_the_lock_opens_only_on_a_stopped_robot_and_closes_again():
+def test_the_lock_changes_only_on_a_stopped_robot():
     a = fresh()
     assert a.set_lock("r1", "pode1", False, stopped=False, now=0.0) == Reply(
         False, NOT_STOPPED, "the robot has a goal")
     assert a.lock is True and a.last_request_id == ""
     assert a.set_lock("r2", "pode1", False, stopped=True, now=1.0).accepted
     assert (a.lock, a.last_request_id) == (False, "r2")
-    assert a.set_lock("r3", "pode1", True, stopped=False, now=2.0).accepted
+    assert a.set_lock("r3", "pode1", True, stopped=False, now=2.0).reason == NOT_STOPPED
+    assert a.lock is False
+    assert a.set_lock("r4", "pode1", True, stopped=True, now=3.0).accepted
     assert a.lock is True
 
 
