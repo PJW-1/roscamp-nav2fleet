@@ -1,0 +1,41 @@
+records: 1 with samples, nav_speed_mps [0.12]
+## split
+ALL: n=149 segs=7 mean=-0.79 median=-0.22 mean_abs=0.91 adj_mean=-0.84
+ kind=pass: n=132 segs=6 mean=-0.74 median=-0.17 mean_abs=0.88 adj_mean=-1.25
+ kind=turn: n=17 segs=1 mean=-1.20 median=-1.22 mean_abs=1.20 adj_mean=+2.33
+ next=follow_path: n=126 segs=5 mean=-0.73 median=-0.16 mean_abs=0.87 adj_mean=-1.25
+ next=nav_goal: n=6 segs=1 mean=-0.89 median=-0.77 mean_abs=0.93 adj_mean=-1.25
+ next=retreat: n=17 segs=1 mean=-1.20 median=-1.22 mean_abs=1.20 adj_mean=+2.33
+ robot=pode1: n=70 segs=3 mean=-0.38 median=+0.03 mean_abs=0.61 adj_mean=-0.38
+ robot=pode2: n=79 segs=4 mean=-1.16 median=-0.32 mean_abs=1.18 adj_mean=-1.25
+ actual 0-1 kind=pass: n=11 segs=6 mean=-0.04 median=+0.06 mean_abs=0.19 adj_mean=-1.25
+ actual 0-1 kind=turn: n=2 segs=1 mean=-0.11 median=-0.11 mean_abs=0.11 adj_mean=+0.35
+ actual 1-2 kind=pass: n=11 segs=6 mean=-0.30 median=+0.05 mean_abs=0.46 adj_mean=-1.25
+ actual 1-2 kind=turn: n=2 segs=1 mean=-0.25 median=-0.25 mean_abs=0.25 adj_mean=+1.21
+ actual 2-4 kind=pass: n=19 segs=6 mean=-0.73 median=-0.10 mean_abs=0.82 adj_mean=-1.25
+ actual 2-4 kind=turn: n=3 segs=1 mean=-0.61 median=-0.65 mean_abs=0.61 adj_mean=+2.20
+ actual 4-8 kind=pass: n=36 segs=5 mean=-0.66 median=-0.12 mean_abs=0.85 adj_mean=-1.25
+ actual 4-8 kind=turn: n=7 segs=1 mean=-1.63 median=-1.80 mean_abs=1.63 adj_mean=+2.98
+ actual 8-inf kind=pass: n=55 segs=5 mean=-1.02 median=-0.42 mean_abs=1.13 adj_mean=-1.25
+ actual 8-inf kind=turn: n=3 segs=1 mean=-2.13 median=-1.99 mean_abs=2.13 adj_mean=+2.98
+dispatch (first sample per segment): n=7 segs=7 mean=-2.29 median=-2.53 mean_abs=2.29 adj_mean=-0.65
+ dispatch kind=pass: n=6 segs=6 mean=-2.24 median=-2.42 mean_abs=2.24 adj_mean=-1.25
+ dispatch kind=turn: n=1 segs=1 mean=-2.59 median=-2.59 mean_abs=2.59 adj_mean=+2.98
+## causes
+all samples: n=149 err=-0.79 adj=-0.84 length=+1.29 speed=-0.53 turn=-0.57 wait=-0.14 unseen=+0.00 actual=+6.64 moving_mps=0.102
+ kind=pass: n=132 err=-0.74 adj=-1.25 length=+1.39 speed=-0.51 turn=-0.25 wait=-0.12 unseen=+0.00 actual=+6.87 moving_mps=0.105
+ kind=turn: n=17 err=-1.20 adj=+2.33 length=+0.48 speed=-0.65 turn=-3.08 wait=-0.27 unseen=+0.00 actual=+4.87 moving_mps=0.057
+dispatch: n=7 err=-2.29 adj=-0.65 length=+1.06 speed=-0.98 turn=-1.31 wait=-0.41 unseen=+0.00 actual=+11.66 moving_mps=0.102
+ dispatch kind=pass: n=6 err=-2.24 adj=-1.25 length=+1.11 speed=-0.90 turn=-0.89 wait=-0.31 unseen=+0.00 actual=+12.04 moving_mps=0.106
+   dispatch kind=pass pode1: n=2 err=-2.08 adj=-1.25 length=+0.95 speed=-0.78 turn=-0.75 wait=-0.25 unseen=+0.00 actual=+14.57 moving_mps=0.113
+   dispatch kind=pass pode2: n=4 err=-2.31 adj=-1.25 length=+1.19 speed=-0.96 turn=-0.95 wait=-0.34 unseen=+0.00 actual=+10.77 moving_mps=0.102
+ dispatch kind=turn: n=1 err=-2.59 adj=+2.98 length=+0.75 speed=-1.49 turn=-3.83 wait=-1.00 unseen=+0.00 actual=+9.40 moving_mps=0.081
+   dispatch kind=turn pode1: n=1 err=-2.59 adj=+2.98 length=+0.75 speed=-1.49 turn=-3.83 wait=-1.00 unseen=+0.00 actual=+9.40 moving_mps=0.081
+   dispatch kind=turn pode2: n=0
+## end of segment
+pose at SEGMENT_DONE kind=pass: n=5 along median=-0.146 m dist median=0.148 m
+  done - reached 0.16 m kind=pass: reached 5/5 median=+0.23 s mean=+0.79 s
+pose at SEGMENT_DONE kind=turn: n=1 along median=-0.011 m dist median=0.031 m
+  done - reached 0.04 m kind=turn: reached 1/1 median=+2.33 s mean=+2.33 s
+  done - reached 0.16 m kind=turn: reached 1/1 median=+6.33 s mean=+6.33 s
+samples using distance_remaining: 146/149

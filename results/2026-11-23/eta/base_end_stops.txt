@@ -1,0 +1,28 @@
+=== 1123_ds_on
+node: stood / segments ending there
+  E-1: 0 / 2
+  E-2: 0 / 1
+  M_E: 0 / 1
+  O: 0 / 4
+  O_IN: 1 / 1
+  O_OUT: 0 / 3
+  O_X: 1 / 3
+  P-1: 0 / 1
+  Q1: 0 / 4
+  Q2: 0 / 4
+  W: 0 / 4
+  total: 2 / 28
+wait pode2 at O_IN t=+134.7 stood=2.2 s; next: [(136.8, 'ZONE_GRANTED', 'HALL+OUT_DOCK to O'), (136.8, 'ORDER_UPDATED', 'pode2-13 update 1: base to O'), (141.0, 'SEGMENT_DONE', 'pode2-13 seq 3 (follow_path) to O')]
+wait pode2 at O_X t=+198.6 stood=3.2 s; next: [(201.6, 'ZONE_GRANTED', 'EXPRESS+OUT_DOCK to O'), (201.6, 'ORDER_UPDATED', 'pode2-33 update 1: base to O'), (206.1, 'SEGMENT_DONE', 'pode2-33 seq 2 (follow_path) to O')]
+=== 1123_pode2_ds_on
+node: stood / segments ending there
+  E-1: 0 / 1
+  E-2: 0 / 1
+  O: 0 / 4
+  O_OUT: 0 / 4
+  O_X: 0 / 4
+  P-1: 0 / 1
+  Q1: 0 / 4
+  Q2: 0 / 4
+  W: 0 / 4
+  total: 0 / 27
