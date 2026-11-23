@@ -19,6 +19,7 @@ NAMES = {"FollowPathGoal": "RPP", "FollowPathMPPI": "MPPI", "FollowPathRLShim": 
          "FollowPathRLShimC": "RL+shim c", "FollowPathRLShimACD": "RL+shim acd"}
 BATCHES = (("q2e3", ROOT / "results/2026-11-22/compare_012/q2e3.yaml"),
            ("main", ROOT / "tools/nav_bench/scenarios.yaml"))
+NOTES = "## 셈 기준"
 COLUMNS = ["controller", "name", "scenario", "runs", "successes", "wall_obstacle_contacts",
            "robot_contacts", "timeouts", "mean_time_s", "p90_time_s", "min_clearance_m"]
 
@@ -136,7 +137,10 @@ def main():
               for r in rows]
     md = ["# item 8 다섯 컨트롤러 비교 결과", "", f"원본: `{out}`", "", "## 컨트롤러", "",
           *controller_lines(), "", "## 결과", "", *table, ""]
-    (dest / "item8_results.md").write_text("\n".join(md), encoding="utf-8")
+    target = dest / "item8_results.md"
+    old = target.read_text(encoding="utf-8") if target.exists() else ""
+    keep = old[old.find(NOTES):] if NOTES in old else ""
+    target.write_text("\n".join(md) + keep, encoding="utf-8")
     print("\n".join(table))
 
 
