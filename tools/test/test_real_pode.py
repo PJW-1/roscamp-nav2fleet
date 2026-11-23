@@ -409,6 +409,9 @@ def test_real_slam_map_file():
     assert cell(0.83, 0.37) == 0  # 진열대 B 남쪽 면 (속은 미지)
 
 
+# 2026-11-23 줄자 실측으로 관제 진열대 끝을 옮겼지만 키트 지도는 사용자가 11-24 스캔을 본 뒤 정한다.
+# 그때까지 생성 결과와 다르다. 키트 지도를 다시 만들면 XPASS로 실패하니 이 표시를 지운다
+@pytest.mark.xfail(strict=True, reason="키트 지도는 11-23 실측 진열대 끝 반영 전(사용자 결정 대기)")
 def test_kit_maps_are_drawn_from_the_real_shelves(tmp_path):
     # 키트 지도 = python3 -m fleet_gz_sim.arena --layout v7 --real 의 결과(실측 진열대)
     pytest.importorskip("fleet_core")
