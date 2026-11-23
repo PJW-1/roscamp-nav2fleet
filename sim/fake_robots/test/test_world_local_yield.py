@@ -183,16 +183,20 @@ def test_the_wait_ends_when_the_way_clears():
 
 
 def test_with_the_real_fleet_the_steps_become_local_yield_events_in_order():
-    """hall_obstacle d2 씨드 2: 두 대가 마주쳐 낮은 pode1이 물러나고 높은 pode2는 BLOCKED."""
-    outcome = run_situation("hall_obstacle", "d2", 2, local_yield=True)
+    """hall_obstacle v7 씨드 11: 두 대가 마주쳐 낮은 pode1이 물러나고 높은 pode3은 BLOCKED.
+
+    전에는 d2 씨드 2였다. 가짜 로봇 배율을 0.67..1로 넓힌 뒤(2026-11-22) d2 씨드 1~40에는 이렇게
+    마주치는 판이 없어 판을 옮겼다. 2026-11-23 진열대 끝 실측(v7)으로 씨드 6에서는 마주치지 않아
+    씨드 1~10에 없는 이 판을 처음 나오는 씨드 11로 옮겼다."""
+    outcome = run_situation("hall_obstacle", "v7", 11, local_yield=True)
     by_robot: dict = {}
     for _, e in outcome.world.events:
         if e.code == "LOCAL_YIELD":
             by_robot.setdefault(e.robot, []).append(e.detail)
     assert by_robot["pode1"][:4] == ["wait", "backup", "retry", by_robot["pode1"][3]]
     assert by_robot["pode1"][3].startswith("ends BLOCKED")
-    assert by_robot["pode2"][0] == "wait"
-    assert by_robot["pode2"][1].startswith("ends BLOCKED")
+    assert by_robot["pode3"][0] == "wait"
+    assert by_robot["pode3"][1].startswith("ends BLOCKED")
     for details in by_robot.values():  # 단계마다 wait로 시작해 ends로 끝난다
         first = [d.split()[0] for d in details]
         assert first[0] == "wait" and first[-1] == "ends"

@@ -48,8 +48,12 @@ def _make_params():
 
 
 # ---- make_params.py ----
-@pytest.mark.parametrize("speed", [0.0, -0.1, 0.26, 0.25001, 0.00001, 1.0, float("nan"),
-                                   float("inf")])
+SPEED_SRC = ROOT / "pode" / "pode_nav_config" / "params" / "nav_speed.yaml"
+TOP = _load(SPEED_SRC)["nav_speed_mps"]
+
+
+@pytest.mark.parametrize("speed", [0.0, -0.1, TOP + 0.01, TOP + 0.00001, 0.00001, 1.0,
+                                   float("nan"), float("inf")])
 def test_make_params_refuses_bad_speed(tmp_path, speed):
     mp = _make_params()
     with pytest.raises(ValueError):
@@ -64,7 +68,7 @@ def test_make_params_cli_refuses_bad_speed(tmp_path):
     assert not (tmp_path / "p").exists()
 
 
-@pytest.mark.parametrize("speed", [0.12, 0.05, 0.25])
+@pytest.mark.parametrize("speed", [TOP, 0.05, 0.10])
 def test_make_params_sets_forward_speeds_only(tmp_path, speed):
     mp = _make_params()
     mp.write_params(speed, tmp_path)
@@ -73,6 +77,7 @@ def test_make_params_sets_forward_speeds_only(tmp_path, speed):
     ctl = nav["controller_server"]["ros__parameters"]
     for name in FORWARD:
         assert ctl[name]["desired_linear_vel"] == pytest.approx(speed)
+    assert "FollowPathMPPI" not in ctl["controller_plugins"]
     assert ctl["FollowPathReverse"]["desired_linear_vel"] == pytest.approx(0.05)
     assert avoid["follow_path_goal"]["desired_linear_vel"] == pytest.approx(speed)
     # 그 밖의 값은 저장소와 같다
@@ -404,15 +409,36 @@ def test_real_slam_map_file():
     assert cell(0.83, 0.37) == 0  # 진열대 B 남쪽 면 (속은 미지)
 
 
+# 2026-11-23 줄자 실측으로 관제 진열대 끝을 옮겼지만 키트 지도는 사용자가 11-24 스캔을 본 뒤 정한다.
+# 그때까지 진열대를 그린 세 그림은 옛 진열대 끝(A 0.63, 남쪽 서쪽 0.68)으로 그린 것과 같아야 한다.
+# 키트 지도를 다시 만들면 이 목록을 비운다
+KIT_PENDING_TAPE_2026_11_23 = {"arena_v7.pgm", "arena_v7_a.pgm", "arena_v7_fine.pgm"}
+OLD_SHELF_ENDS = (("  - [0.70, 0.77, 1.56, 0.803]", "  - [0.63, 0.77, 1.56, 0.803]"),
+                  ("  - [0.65, 0.365, 0.99, 0.405]", "  - [0.68, 0.365, 0.99, 0.405]"))
+
+
 def test_kit_maps_are_drawn_from_the_real_shelves(tmp_path):
     # 키트 지도 = python3 -m fleet_gz_sim.arena --layout v7 --real 의 결과(실측 진열대)
     pytest.importorskip("fleet_core")
     arena = pytest.importorskip("fleet_gz_sim.arena")
-    arena.main(["--layout", "v7", "--real", "--out", str(tmp_path)])
+    from fleet_core.fleet_map import load_fleet_map
+    from fleet_core.fleet_map.fleet_map import fleet_map_from_text
+    arena.main(["--layout", "v7", "--real", "--out", str(tmp_path / "now")])
+    old = load_fleet_map("v7").source_text
+    for new, before in OLD_SHELF_ENDS:
+        assert new in old, new  # --real은 shelves만 본다(sim_shelves 같은 줄도 함께 바뀐다)
+        old = old.replace(new, before)
+    before = fleet_map_from_text(old)
+    arena.generate(tmp_path / "old", before, real=True)
+    arena.generate_nav_variants(tmp_path / "old", before, real=True)
     for name in ("arena_v7", *MAPS):
         for ext in (".yaml", ".pgm"):
+            made = "old" if name + ext in KIT_PENDING_TAPE_2026_11_23 else "now"
             kit = KIT / "maps" / (name + ext)
-            assert kit.read_bytes() == (tmp_path / "maps" / (name + ext)).read_bytes(), name
+            assert kit.read_bytes() == (tmp_path / made / "maps" / (name + ext)).read_bytes(), name
+    # 대기 그림은 지금 진열대로 그린 것과 정말 다르다(같아지면 목록을 비운다)
+    for name in KIT_PENDING_TAPE_2026_11_23:
+        assert (KIT / "maps" / name).read_bytes() != (tmp_path / "now" / "maps" / name).read_bytes(), name
 
 
 def test_kit_map_images_are_the_pinned_measured_maps():

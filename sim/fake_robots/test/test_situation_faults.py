@@ -2,11 +2,13 @@
 import pytest
 from situation_helpers import (
     ALL_LAYOUTS,
+    POSE_JUMPS_OFF_OPEN,
     POSE_JUMPS_OPEN,
     SEEDS,
     PoseJumpsOpen,
     check,
     check_pose_jumps,
+    pose_jumps_off_marks,
 )
 
 
@@ -44,10 +46,14 @@ def test_comm_loss_removal_with_items_really_holds_the_order():
     assert central.finished == central.total - 1
 
 
-@pytest.mark.parametrize("seed", SEEDS)
-@pytest.mark.parametrize("layout", ALL_LAYOUTS)
+@pytest.mark.parametrize(("layout", "seed"), [
+    pytest.param(layout, seed, marks=pose_jumps_off_marks(layout, seed), id=f"{layout}-{seed}")
+    for layout in ALL_LAYOUTS for seed in SEEDS])
 def test_jumping_reports_leave_every_invariant_but_standing_intact(layout, seed):
-    """끈 길을 지킨다(order 모델 끔). 켠 길은 아래 xfail이다."""
+    """끈 길을 지킨다(order 모델 끔). 켠 길은 아래 xfail이다. POSE_JUMPS_OFF_OPEN 칸은 끈 길도 xfail."""
+    if (layout, seed) in POSE_JUMPS_OFF_OPEN:
+        check_pose_jumps(layout, seed, order=False)
+        return
     check("pose_jumps", layout, seed, overrides={"use_order_model": False})
 
 

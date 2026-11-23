@@ -129,7 +129,7 @@ controller_server:
       yaw_goal_tolerance: 3.2
     FollowPath:
       plugin: "nav2_regulated_pure_pursuit_controller::RegulatedPurePursuitController"
-      desired_linear_vel: 0.25  # 전달사항(제조사 0.2)
+      desired_linear_vel: 0.12  # nav_speed.yaml(제조사 0.2)
       # 앞보기는 속도에 비례한다: 0.8초 앞, 0.10~0.25 m(2026-11-15). 0.10 m 고정은
       # 0.20 m/s에서 0.5초 앞만 봐서 폭 0.18 m 급행에서 방향이 표준편차
       # 10.3도로 흔들렸고, 0.8초로 두자 1.6도였다. 0.12 m/s에서는 전과 같은 0.10 m다. 예전의 속도
@@ -187,7 +187,7 @@ controller_server:
     # An explicit copy of FollowPath (keep every other key equal; test_nav_config checks it)
     FollowPathThrough:
       plugin: "nav2_regulated_pure_pursuit_controller::RegulatedPurePursuitController"
-      desired_linear_vel: 0.25  # 전달사항(제조사 0.2)
+      desired_linear_vel: 0.12  # nav_speed.yaml(제조사 0.2)
       # FollowPath와 같다: 앞보기는 속도에 비례한다(0.8초 앞, 0.10~0.25 m)
       lookahead_dist: 0.10  # 속도 비례를 켜서 쓰지 않는다
       min_lookahead_dist: 0.10  # 전달사항(제조사 0.3)
@@ -267,6 +267,109 @@ controller_server:
     # FollowPathGoal(넓은 구역의 Nav2 goal을 모는 컨트롤러)의 값은 회피 담당의 것이라 여기에 없다.
     # params/avoidance.yaml의 follow_path_goal에 있고 nav2.launch.py가 넣는다.
     # 이름 FollowPathGoal(위 controller_plugins)만 주행 담당의 것이고 고정이다
+
+    # 2026-11-21: Nav2 goal용 MPPI(RPP와 비교용). 시뮬에서만 뜬다(fleet_gz_sim이 controller_plugins에
+    # 넣는다). 실물은 nav2_mppi_controller 없이 떠야 해서 위 목록에 없다(사용자 결정 2026-11-22).
+    # 시뮬에서 고르지 않으면 쓰지 않는다.
+    # bt의 ControllerSelector(토픽 controller_selector, 기본 FollowPathGoal)에 이 이름을 보내면
+    # 마당 Nav2 goal만 이것으로 간다. 고정 경로(FollowPath 셋)는 pode_fsm이 RPP로 바로 부른다.
+    # MPPI 값은 모두 여기에만 둔다. 고른 까닭은 docs/worklog_mppi_controller_2026-11-21.md의
+    # "결정 대기 목록"에 있다. 속도·가속 한계는 FollowPathGoal, Isaac(ActionLimits), Gazebo
+    # DiffDrive(회전 1.0 rad/s, 2.0 rad/s^2)와 같다. 시뮬은 vx_max를 nav_max_speed로 낮추고
+    # make_params.py는 --speed로 바꾼다
+    FollowPathMPPI:
+      # 제자리 회전은 RotationShim이 맡고 나머지는 MPPI(2026-11-21 Gazebo): MPPI만으로는 출발 때 방향 오차 55°에서
+      # 0.03~0.09 rad/s로만 돌았다(PathAngle은 57° 넘어야 일함). 대안인 PathAngle 무게 5·문턱 0.35 rad는 움직이는
+      # 장애물 판에서 2번 다 실패해 버렸다. 회전 속도는 FollowPathGoal의 제자리 회전, 가속은 az_max·Gazebo와 같게
+      plugin: "nav2_rotation_shim_controller::RotationShimController"
+      primary_controller: "nav2_mppi_controller::MPPIController"
+      angular_dist_threshold: 0.25  # 경로 방향과 이만큼(약 14°) 넘게 틀어지면 먼저 제자리에서 돈다
+      forward_sampling_distance: 0.15  # 경로 방향을 이만큼 앞 점으로 잰다
+      rotate_to_heading_angular_vel: 1.0
+      max_angular_accel: 2.0
+      simulate_ahead_time: 1.0  # 돌 때 이만큼 앞까지 충돌 검사
+      rotate_to_goal_heading: true  # goal에서 마지막 방향 맞추기도 제자리 회전으로
+      time_steps: 83  # 83 x 0.05 = 4.15초 앞(0.12 m/s에서 0.50 m, 0.25에서 고른 40 x 0.05 x 0.25와 같은 거리)
+      model_dt: 0.05  # controller_frequency 20 Hz와 같게
+      batch_size: 1000  # 실물 Pi4 CPU를 생각해 기본(2000)의 반
+      iteration_count: 1
+      temperature: 0.3
+      gamma: 0.015
+      motion_model: "DiffDrive"
+      # vx_std 0.2(Nav2 기본, 2026-11-21 Gazebo): 0.1에서는 평균 명령이 속도를 늦게 따라가 a_hall 주행 중 평균
+      # 0.097 m/s(RPP 0.176)였다. 0.2로 0.150 m/s, 16.6 → 12.2 s
+      vx_std: 0.2
+      wz_std: 0.4
+      vx_max: 0.12  # nav_speed.yaml
+      vx_min: -0.05  # Isaac v_min(실물 후진 0.05 m/s)
+      wz_max: 1.0  # Gazebo DiffDrive, Isaac w_max, FollowPathGoal rotate_to_heading_angular_vel
+      ax_max: 2.0  # Gazebo DiffDrive max_acceleration, Isaac acc_v
+      ax_min: -2.0
+      az_max: 2.0  # Gazebo DiffDrive, Isaac acc_w
+      prune_distance: 1.0
+      transform_tolerance: 0.2
+      enforce_path_inversion: false
+      regenerate_noises: false
+      retry_attempt_limit: 1
+      visualize: false
+      critics: ["ConstraintCritic", "CostCritic", "GoalCritic", "GoalAngleCritic",
+                "PathAlignCritic", "PathFollowCritic", "PathAngleCritic", "PreferForwardCritic"]
+      ConstraintCritic:
+        enabled: true
+        cost_power: 1
+        cost_weight: 4.0
+      # 비용 무게 1.0(Nav2 기본 3.81, 2026-11-21 Gazebo): 가운데 통로의 Nav2 경로는 y 0.55~0.57(통로 한가운데
+      # 0.5875보다 남쪽)로 나서 남쪽 진열대에서 0.15 m(local inflation 반경) 안쪽 띠(비용 약 180)를 지난다.
+      # 3.81에서는 그 비용이 경로 따르기보다 커서 비용 0인 칸에 서서 앞뒤로 흔들렸다(progress 실패 10번,
+      # goal 못 감). 1.0과 0.3은 네 구간 모두 실패 없이 갔다. 이 무게는 충돌 비용(collision_cost)에도 곱해지지만
+      # 충돌 판정 자체는 그대로다
+      CostCritic:
+        enabled: true
+        cost_power: 1
+        cost_weight: 1.0
+        critical_cost: 300.0
+        consider_footprint: true  # 다각형 발자국(local_costmap)으로 본다
+        collision_cost: 1000000.0
+        near_goal_distance: 0.3
+        trajectory_point_step: 2
+      GoalCritic:
+        enabled: true
+        cost_power: 1
+        cost_weight: 5.0
+        threshold_to_consider: 0.5
+      GoalAngleCritic:
+        enabled: true
+        cost_power: 1
+        cost_weight: 3.0
+        threshold_to_consider: 0.25
+      PathAlignCritic:
+        enabled: true
+        cost_power: 1
+        cost_weight: 14.0
+        max_path_occupancy_ratio: 0.05
+        trajectory_point_step: 4
+        threshold_to_consider: 0.25
+        offset_from_furthest: 20
+        use_path_orientations: false
+      PathFollowCritic:
+        enabled: true
+        cost_power: 1
+        cost_weight: 5.0
+        offset_from_furthest: 5
+        threshold_to_consider: 0.5
+      PathAngleCritic:
+        enabled: true
+        cost_power: 1
+        cost_weight: 2.0
+        offset_from_furthest: 4
+        threshold_to_consider: 0.25
+        max_angle_to_furthest: 1.0
+        mode: 0
+      PreferForwardCritic:
+        enabled: true
+        cost_power: 1
+        cost_weight: 5.0
+        threshold_to_consider: 0.25
 
 local_costmap:
   local_costmap:

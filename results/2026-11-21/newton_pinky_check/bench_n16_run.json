@@ -1,0 +1,54 @@
+{
+ "end_envs_ok": 16,
+ "end_min_upright_cos": 0.99999,
+ "end_xy_spread_mm": [
+  0.029,
+  0.022
+ ],
+ "num_envs": 16,
+ "dt": 0.005,
+ "decimation": 10,
+ "physics_steps": 3800,
+ "sim_time_s": 19.0,
+ "wall_time_loop_s": 3.15,
+ "physics_steps_per_s": 1205.8,
+ "env_steps_per_s": 19293.0,
+ "realtime_factor_per_env": 6.03,
+ "nan_seen": false,
+ "wheel_damping": 0.05,
+ "wheel_effort": 0.5,
+ "caster_damping": 0.0,
+ "accel_limit": 1.0,
+ "alpha_limit": 3.0,
+ "cuda_max_mem_alloc_MB": 0.0,
+ "joint_names": [
+  "caster_rotate_joint",
+  "caster_wheel_joint",
+  "l_wheel_joint",
+  "r_wheel_joint"
+ ],
+ "body_names": [
+  "base_link",
+  "caster_mount_link",
+  "caster_roate_link",
+  "caster_wheel",
+  "front_camera_mount",
+  "l_wheel",
+  "r_wheel",
+  "robot_lamp",
+  "rplidar_mount",
+  "screen_mount"
+ ],
+ "body_mass_env0": [
+  0.8,
+  0.1,
+  0.05,
+  0.05,
+  0.01,
+  0.2,
+  0.2,
+  0.01,
+  0.11,
+  0.01
+ ]
+}

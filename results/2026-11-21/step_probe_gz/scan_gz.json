@@ -1,0 +1,25 @@
+{
+ "messages": 45,
+ "beams": [
+  640
+ ],
+ "angle_min_deg": -180.00000500895632,
+ "angle_max_deg": 180.00000500895632,
+ "angle_increment_deg": 0.563380256282274,
+ "angle_span_deg": 360.56336402065534,
+ "range_min": 0.05000000074505806,
+ "range_max": 12.0,
+ "rate_hz": 9.999999999999794,
+ "finite_fraction": 0.059375,
+ "largest_seen_m": 6.499476909637451,
+ "scan_time_s": 0.0,
+ "frame_id": "rplidar_link",
+ "topic": "/pode1/scan",
+ "gazebo_reference": {
+  "beams": 640,
+  "angle_span_deg": 360.0,
+  "range_min": 0.05,
+  "range_max": 12.0,
+  "rate_hz": 10.0
+ }
+}

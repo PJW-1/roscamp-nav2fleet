@@ -46,6 +46,7 @@ class _Goal:
         self.order = None  # order goal이면 OrderRun(pode_order.py)
         self.seg_mode = ""  # order goal이 달리는 조각의 mode
         self.seg = None  # order goal이 달리는 조각(pode_order.Seg)
+        self.end_yaw: float | None = None  # nav_goal: 끝에 서서 이 방향으로 돈다(Nav2 goal 방향)
         self.last_done = 0  # 결과의 last_done_seq_id
 
     def blocked(self, t: float) -> bool:

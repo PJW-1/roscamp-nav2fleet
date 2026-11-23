@@ -1,7 +1,10 @@
 # operator_recovery처럼 운영자가 로봇을 치운 뒤, 다시 투입한다(11-06 6번).
-# pode2를 43초에 들어내 confirm_clear로 푼다. 쥐고 있던 주문이 있으면 맨 앞으로 돌아간다.
-# (40초였다. 출고 도크의 교체가 40.2~40.6초에 끝나 물러날 구역을 받는 순간과 운영자가 보유 구역을
-# 읽는 순간이 겹쳤고, 겹친 판은 두 번에 나눠 풀어 ZONES_CLEARED가 2였다. 43초에는 물러나는 중이다)
+# pode2가 O-001을 출고한 지 2.5초 뒤에(빈 바구니로 출고 도크에서 물러나는 중) 들어내
+# confirm_clear로 푼다. 빈 로봇을 치우고 다시 넣는 것이 이 시나리오다. 짐을 실은 로봇을 치우면
+# 그 주문은 HELD/ROBOT_FAULT로 한 번 알리고 되돌리지 않는다(v2.4 설계, fleet_core
+# test_order_hold.py가 본다). 43초로 두었을 때 속도 0.12에서는 pode2가 아직 출고 도크에 닿지
+# 않아 O-001을 실은 채 치워졌다. 바로 출고 사건에 붙이면 교체가 끝나 물러날 구역을 받는 순간과
+# 운영자가 보유 구역을 읽는 순간이 겹쳐 두 번에 나눠 풀 수 있다(ZONES_CLEARED 2, 40초 때 본 일).
 # 나머지 둘이 앞 주문을 끝내고 대기한 뒤 160초에 pode2를 빈 바구니와 함께 빈 주차 자리 P-1에 다시 놓는다.
 # (구역 관제(D2)에서는 그때 pode3이 P-2에 서 있다. 레인 관제 때는 P-2가 비어 있었다)
 # 심판이 reinstate를 부르고, 플릿 매니저는 다음 위치 보고로 pode2를 맵에 올린다.
@@ -20,13 +23,13 @@ orders:
   - {at_s: 200, id: O-006, items: {A: 1, D: 1}}
   - {at_s: 200, id: O-007, items: {C: 1}}
 robots:
-  pode1: {start: P-1, speed_mps: 0.20, pose_noise_m: 0.03}
-  pode2: {start: P-2, speed_mps: 0.18, pose_noise_m: 0.03}
-  pode3: {start: P-3, speed_mps: 0.20, pose_noise_m: 0.03}
+  pode1: {start: P-1, speed_scale: 1.0, pose_noise_m: 0.03}
+  pode2: {start: P-2, speed_scale: 0.9, pose_noise_m: 0.03}
+  pode3: {start: P-3, speed_scale: 1.0, pose_noise_m: 0.03}
 arm: {seconds_per_item: 4.0, swap_seconds: 8.0, fail_rate: 0.0}
 dock: {duration_s: 1.0, error_cm: 1.0}
 faults:
-  - {at_s: 43, robot: pode2, type: operator_remove}
+  - {at_s: 2.5, robot: pode2, type: operator_remove, after_event: ORDER_SHIPPED}
   - {at_s: 160, robot: pode2, type: operator_reinstate, start: P-1, basket: EMPTY}
 expect:
   robot_idle: null  # 고장 시나리오는 ROBOT_IDLE을 세지 않는다

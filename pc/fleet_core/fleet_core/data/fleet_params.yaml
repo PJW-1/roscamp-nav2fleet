@@ -50,6 +50,7 @@ self_recovery_limit_s: 45.0   # 제안: 로봇이 RECOVERING(자가 복구)을 �
 traffic_mode: zones           # 교통 층: zones(지점·구역 그래프의 구역 허락). 다른 값은 없다
 # 구역 교통 층(traffic/zone). 모두 제안값이고 실측 전이다
 nav_speed_mps: 0.12           # 넓은 구역(Nav2 goal)의 ETA와 길 비용에 쓰는 속도
+nav_eta_speed_ratio: 1.0      # 넓은 구역 ETA 순항 속도 = nav_speed_mps x 이 비율(0 초과 1 이하). 길 비용에는 안 씀. 사용자 결정 2026-11-23: 틀만, 값은 실측 뒤
 follow_speed_mps: 0.12        # 고정 경로(FollowPath)의 같은 값
 retreat_speed_mps: 0.05       # 후진(Retreat) 속도
 nav_pass_m: 0.15              # 넓은 구역 ETA: 다음 조각이 있으면 로봇은 끝 노드 이만큼 앞에서 넘어간다(pode_fsm pass_m와 같게). 0이면 끔

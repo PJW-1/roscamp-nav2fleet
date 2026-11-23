@@ -111,6 +111,15 @@ class Motion:
                 return
             self.via.insert(0, self.trail.pop())
 
+    def turn(self, heading: float, rate: float, dt: float) -> bool:
+        """제자리에서 heading 쪽으로 짧은 방향으로 rate(rad/s)로 dt만큼 돈다. 맞춰졌으면 True."""
+        left = math.remainder(heading - self.yaw, math.tau)
+        if abs(left) <= rate * dt:
+            self.yaw = heading
+            return True
+        self.yaw += math.copysign(rate * dt, left)
+        return False
+
     @property
     def moving(self) -> bool:
         return self.target is not None and self.remaining() > 0.0
@@ -190,26 +199,68 @@ class DelayLine:
         self._waiting.clear()
 
 
+REINSTATE_AFTER_S = 10.0  # 사건으로 늦게 치운 로봇을 다시 놓기까지 적어도 이만큼
+
+
 class FaultSchedule:
-    """한 로봇의 고장 여부를 시나리오 시각 기준으로 답한다."""
+    """한 로봇의 고장 여부를 시나리오 시각 기준으로 답한다.
+
+    사건 고장(after_event, until_event)은 on_event로 받은 관제 사건 시각에서 시작과 끝이 정해진다.
+    """
 
     def __init__(self, faults, robot: str):
+        self.robot = robot
         self._own = [f for f in faults if f.robot == robot]
         self._abort_left = {id(f): f.count for f in self._own if f.type == "nav_abort"}
+        self._fired: dict[int, float] = {}  # after_event가 난 시각
+        self._until: dict[int, float] = {}  # until_event가 난 시각
         self.last_taken = None
 
+    def on_event(self, t: float, source: str, code: str, detail: str) -> None:
+        """관제 사건 하나. 출처가 이 로봇이거나 설명에 robot=<이 로봇>이 있을 때만 본다."""
+        if source != self.robot and f"robot={self.robot}" not in detail.split():
+            return
+        for f in self._own:
+            if (f.after_event == code and id(f) not in self._fired
+                    and f.after_detail in detail):
+                self._fired[id(f)] = t
+            if f.until_event == code and id(f) not in self._until and self.start_of(f) <= t:
+                self._until[id(f)] = t
+
+    def start_of(self, f) -> float:
+        if f.type == "operator_reinstate":
+            # 사건으로 치우는 로봇은 다시 투입을 그 치우기 뒤로 미룬다. 치우기가 늦게 나도
+            # 운영자가 구역을 풀 시간(REINSTATE_AFTER_S)만큼은 치운 채로 둔다. 사건 치우기는 그
+            # 로봇의 하나뿐인 치우기다(scenario_parts._check_reinstates). 시각 치우기는 그대로다
+            gone = [g for g in self._own if g.type == "operator_remove" and g.after_event]
+            if not gone:
+                return f.at_s
+            return max(f.at_s, self.start_of(gone[0]) + REINSTATE_AFTER_S)
+        if not f.after_event:
+            return f.at_s
+        fired = self._fired.get(id(f))
+        return math.inf if fired is None else fired + f.at_s
+
+    def end_of(self, f) -> float:
+        return min(self.start_of(f) + f.duration_s, self._until.get(id(f), math.inf))
+
+    def _active(self, f, t: float) -> bool:
+        return self.start_of(f) <= t < self.end_of(f)
+
+    def _gone_since(self, f, t: float) -> bool:
+        """f가 시작한 뒤 t까지 그 로봇을 치웠다."""
+        return any(g.type == "operator_remove" and self.start_of(f) < self.start_of(g) <= t
+                   for g in self._own)
+
     def comms_down(self, t: float) -> bool:
-        return any(f.type == "comm_loss" and f.at_s <= t < f.at_s + f.duration_s
-                   for f in self._own)
+        return any(f.type == "comm_loss" and self._active(f, t) for f in self._own)
 
     def obstacle(self, t: float) -> bool:
         """경로 앞에 물체가 있다(blocked 고장). 보고와 통신은 정상이다.
 
         물체는 그 자리에 있으므로 로봇을 치우면 그 뒤로는 따라오지 않는다.
         """
-        return any(f.type == "blocked" and f.at_s <= t < f.at_s + f.duration_s
-                   and not any(g.type == "operator_remove" and f.at_s < g.at_s <= t
-                               for g in self._own)
+        return any(f.type == "blocked" and self._active(f, t) and not self._gone_since(f, t)
                    for f in self._own)
 
     def behind(self, t: float) -> float | None:
@@ -218,15 +269,15 @@ class FaultSchedule:
         후진할 때만 본다(자기 복구). 치운 로봇은 따라오지 않는다.
         """
         near = [f.distance_m for f in self._own
-                if f.type == "obstacle_behind" and f.at_s <= t < f.at_s + f.duration_s
-                and not any(g.type == "operator_remove" and f.at_s < g.at_s <= t
-                            for g in self._own)]
+                if f.type == "obstacle_behind" and self._active(f, t)
+                and not self._gone_since(f, t)]
         return min(near) if near else None
 
     def stuck(self, t: float) -> bool:
         """그 뒤 다시 투입되기 전까지 멈춘다. 운영자가 고쳐 넣은 것으로 본다."""
-        return any(f.type == "stuck" and t >= f.at_s
-                   and not any(g.type == "operator_reinstate" and f.at_s < g.at_s <= t
+        return any(f.type == "stuck" and t >= self.start_of(f)
+                   and not any(g.type == "operator_reinstate"
+                               and self.start_of(f) < self.start_of(g) <= t
                                for g in self._own)
                    for f in self._own)
 
@@ -243,8 +294,8 @@ class FaultSchedule:
     def _last(self, t: float):
         """t까지 일어난 마지막 치우기나 다시 투입. 같은 시각이면 파일 뒤쪽."""
         done = [f for f in self._own
-                if f.type in ("operator_remove", "operator_reinstate") and f.at_s <= t]
-        return sorted(done, key=lambda f: f.at_s)[-1] if done else None
+                if f.type in ("operator_remove", "operator_reinstate") and self.start_of(f) <= t]
+        return sorted(done, key=self.start_of)[-1] if done else None
 
     def drift(self, t: float) -> float:
         """이 시각 보고를 옆으로 미는 거리. 실제 위치는 그대로다."""

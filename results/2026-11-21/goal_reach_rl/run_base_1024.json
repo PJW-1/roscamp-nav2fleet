@@ -1,0 +1,12 @@
+{
+ "num_envs": 1024,
+ "max_iterations": 300,
+ "num_steps_per_env": 24,
+ "seed": 42,
+ "spec_overrides": {},
+ "env_build_s": 9.9,
+ "learn_s": 273.7,
+ "env_steps": 7372800,
+ "env_steps_per_s_incl_update": 26933.0,
+ "cuda_max_mem_alloc_MB": 65.4
+}

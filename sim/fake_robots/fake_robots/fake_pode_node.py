@@ -16,7 +16,7 @@ from dataclasses import fields
 import rclpy
 from fleet_core.common.contract import to_ros_qos
 from fleet_interfaces.action import Dock, MoveTo, Retreat
-from fleet_interfaces.msg import RobotState
+from fleet_interfaces.msg import FleetEvent, RobotState
 from rclpy.action import ActionServer
 from rclpy.callback_groups import ReentrantCallbackGroup
 from rclpy.executors import MultiThreadedExecutor
@@ -90,6 +90,10 @@ class FakePodeNode(PodeGoals, PodeOrder, PodeRetreat, PodeReport, Node):
         self._beat_timeout = timeout if timeout >= 0 else float(params["heartbeat_timeout_s"])
         # path가 로봇 자리에서 이보다 멀면 따라가지 않는다(관제 lane_error_warn_m)
         self._connect_tolerance = float(params["lane_error_warn_m"])
+        # 실물 Pode처럼: 다음 조각을 받았으면 nav_goal 끝 노드 이만큼 앞에서 넘어가고(pode_fsm
+        # pass_m), 아니면 끝에 서서 이 각속도로 목표 방향으로 돈다(RPP). 값은 관제 파일에서 읽는다
+        self._pass_m = float(params["nav_pass_m"])
+        self._turn_rps = float(params["nav_turn_rps"])
         self._last_beat = time.monotonic()
 
         self._state_pub = self.create_publisher(
@@ -101,6 +105,12 @@ class FakePodeNode(PodeGoals, PodeOrder, PodeRetreat, PodeReport, Node):
         self.create_subscription(
             Header, contract.name("heartbeat"), self._on_heartbeat,
             to_ros_qos(contract.qos("heartbeat")))
+        if any(f.robot == self.robot_id and (f.after_event or f.until_event)
+               for f in scenario.faults):
+            # 사건으로 시작하거나 끝나는 고장만 관제 사건을 듣는다(scenario_cfg.Fault)
+            self.create_subscription(
+                FleetEvent, contract.name("events"), self._on_event,
+                to_ros_qos(contract.qos("events")))
         for other in scenario.robots:
             if other != self.robot_id:
                 self.create_subscription(
@@ -144,6 +154,10 @@ class FakePodeNode(PodeGoals, PodeOrder, PodeRetreat, PodeReport, Node):
     def _on_other(self, msg: RobotState) -> None:
         self._others[msg.robot_id] = seen(
             self._others.get(msg.robot_id), msg.pose.x, msg.pose.y, self._sc.now())
+
+    def _on_event(self, msg) -> None:
+        with self._lock:
+            self._faults.on_event(self._sc.now(), msg.source, msg.code, msg.detail)
 
     # -- the heartbeat ------------------------------------------------------------------
 
@@ -223,6 +237,9 @@ class FakePodeNode(PodeGoals, PodeOrder, PodeRetreat, PodeReport, Node):
         self._recovery.drive(t, dt, self._motion, self._cfg.speed_mps if clear else 0.0,
                              others, self._faults.behind(t))
         if not self._motion.moving and (goal.nav is None or goal.nav.has_way):
+            if (goal.nav is not None and goal.end_yaw is not None and self._turn_rps > 0.0
+                    and not self._motion.turn(goal.end_yaw, self._turn_rps, dt)):
+                return None
             self._recovery.succeeded()
             return True, ""
         return None

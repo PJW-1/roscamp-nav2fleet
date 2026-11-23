@@ -48,7 +48,7 @@ class FsmParams:
     recovery_reset_m: float = 0.3
     horizon_decel_mps2: float = 0.25
     horizon_min_mps: float = 0.05
-    horizon_cap_mps: float = 0.25
+    horizon_cap_mps: float = 0.12
     horizon_latency_s: float = 0.3
     blocked_after_s: float = 10.0
     nav_progress_m: float = 0.05

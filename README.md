@@ -1,6 +1,15 @@
-# roscamp-nav2fleet
+# roscamp-pode-drive
 
 Pode 3대가 1.98 × 0.99 m 경기장에서 바구니를 나르는 입출고 관제다. 로봇은 넓은 곳을 Nav2 goal(NavigateToPose)로 스스로 길을 짜서 다니고, 도크 진입과 긴 좁은 길(급행) 한 곳만 관제가 준 선을 FollowPath로 따라간다. 관제는 "정확히 어디로 달리나"가 아니라 "어느 구역에 들어가도 되나"를 정한다.
+
+## 저장소 두 개 (2026-11-23부터)
+
+- 원본은 `PJW-1/roscamp-pode-drive`다. 관제, Pode, Gazebo, RL 학습을 모두 pode-drive에서 고친다.
+- `PJW-1/roscamp-nav2fleet`은 pode-drive `main`에서 `learning/`(RL 학습)만 뺀 사본이다. 11-22에 얼렸던 것을 11-23 사용자 결정으로 풀었다.
+  - **지금 보는 곳이 nav2fleet이면 여기서 고치지 않는다.** pode-drive `main`을 고친 뒤 `tools/sync_nav2fleet.sh <nav2fleet 클론> --push`로 맞춘다. 이 README도 pode-drive에서 복사된 것이다.
+  - 스크립트는 클론의 작업 트리를 건드리지 않고, 관제 시험(`pc/fleet_core`)이 통과해야 올린다. `learning/` 밖에서 충돌이 나면 멈춘다.
+  - `pode/pode_rl_controller`와 Gazebo의 RL 덮어쓰기(`sim/fleet_gz_sim/nav_overrides/follow_path_rl*.yaml`)는 Gazebo launch와 시험이 참조하므로 nav2fleet에도 남는다.
+- nav2fleet 태그 `rpp-baseline-2026-11-21`(b9e86c5)은 11-23 실물 시험에 쓴 판이다. 지우거나 옮기지 않는다.
 
 ## 구조
 

@@ -1,6 +1,7 @@
 """nav_goal 흉내: 스스로 길을 짜 가고, 돌아가고, 서고, BLOCKED, NAV_ABORTED."""
 import math
 
+from fake_robots.nav_speed import nav_speed_mps
 from fake_robots.world import Obstacle
 from world_helpers import nav, place, quiet_world, results, states
 
@@ -14,9 +15,10 @@ def test_drives_to_the_goal_turns_to_its_heading_and_reports_success():
     assert (goal, ok, reason) == (1, True, "")
     assert math.dist(r.pose, world.site.node_pose("N_E")) < 1e-6
     assert abs(r.yaw - math.pi / 2) < 1e-6
-    # 약 1.53 m를 0.12 m/s로, 끝에서 조금 돈다
+    # 약 1.53 m를 단일 출처의 최고 속도로, 끝에서 조금 돈다
     distance = math.dist(world.site.node_pose("P-1"), world.site.node_pose("N_E"))
-    assert distance / 0.12 < t < distance / 0.12 + 3.0
+    top = nav_speed_mps()
+    assert distance / top < t < distance / top + 3.0
     assert "MOVING" in {s for _, s in states(world)}
 
 

@@ -1,0 +1,174 @@
+{
+ "mode": "robot",
+ "num_envs": 256,
+ "arena": {
+  "layout": "v7",
+  "wall_height_m": 0.3,
+  "shelf_height_m": 0.3,
+  "env_spacing": 3.0,
+  "start_x": 0.3,
+  "start_y": 0.55,
+  "episode_s": 30.0,
+  "excluded_node_kinds": "parking",
+  "min_start_goal_m": 0.4,
+  "grid_m": 0.025,
+  "inscribed_m": 0.07,
+  "inflation_m": 0.15,
+  "cost_scaling": 15.0,
+  "lookahead_m": 0.4,
+  "follow_window": 20,
+  "obstacle_sizes": [
+   0.1,
+   0.15,
+   0.2
+  ],
+  "obstacle_height_m": 0.3,
+  "obstacle_max": 3,
+  "obstacle_layouts": 96,
+  "obstacle_on_path_prob": 0.7,
+  "obstacle_lateral_m": 0.08,
+  "obstacle_node_clear_m": 0.25,
+  "route_seed": 0,
+  "mover_prob": 0.0,
+  "mover_on_path_prob": 0.6,
+  "mover_leg_m": [
+   0.3,
+   0.8
+  ],
+  "mover_speed_scale": [
+   0.5,
+   1.5
+  ],
+  "mover_pause_s": [
+   0.0,
+   1.0
+  ],
+  "mover_node_clear_m": 0.25,
+  "mover_end_path_clear_m": 0.07,
+  "mover_yield_m": 0.15,
+  "mover_wait_s": 2.0,
+  "robot_max": 2,
+  "robot_speed_scale": [
+   0.67,
+   1.33
+  ],
+  "robot_pause_s": [
+   0.0,
+   2.0
+  ],
+  "robot_routes": 4,
+  "robot_yield_m": 0.25,
+  "robot_wait_s": 3.0,
+  "robot_backoff_s": 2.0,
+  "intent_ablate": 0
+ },
+ "boxes": [
+  {
+   "name": "wall_south",
+   "x0": -0.05,
+   "y0": -0.05,
+   "x1": 2.03,
+   "y1": 0.0,
+   "kind": "wall",
+   "height_m": 0.3
+  },
+  {
+   "name": "wall_north",
+   "x0": -0.05,
+   "y0": 0.98,
+   "x1": 2.03,
+   "y1": 1.03,
+   "kind": "wall",
+   "height_m": 0.3
+  },
+  {
+   "name": "wall_west",
+   "x0": -0.05,
+   "y0": 0.0,
+   "x1": 0.0,
+   "y1": 0.98,
+   "kind": "wall",
+   "height_m": 0.3
+  },
+  {
+   "name": "wall_east",
+   "x0": 1.98,
+   "y0": 0.0,
+   "x1": 2.03,
+   "y1": 0.98,
+   "kind": "wall",
+   "height_m": 0.3
+  },
+  {
+   "name": "shelf_1",
+   "x0": 0.63,
+   "y0": 0.77,
+   "x1": 1.56,
+   "y1": 0.803,
+   "kind": "shelf",
+   "height_m": 0.3
+  },
+  {
+   "name": "shelf_2",
+   "x0": 0.68,
+   "y0": 0.365,
+   "x1": 0.99,
+   "y1": 0.405,
+   "kind": "shelf",
+   "height_m": 0.3
+  },
+  {
+   "name": "shelf_3",
+   "x0": 1.25,
+   "y0": 0.365,
+   "x1": 1.56,
+   "y1": 0.405,
+   "kind": "shelf",
+   "height_m": 0.3
+  },
+  {
+   "name": "shelf_4",
+   "x0": 0.24,
+   "y0": 0.0,
+   "x1": 0.26,
+   "y1": 0.1,
+   "kind": "shelf",
+   "height_m": 0.3
+  },
+  {
+   "name": "shelf_5",
+   "x0": 0.5,
+   "y0": 0.0,
+   "x1": 0.52,
+   "y1": 0.1,
+   "kind": "shelf",
+   "height_m": 0.3
+  }
+ ],
+ "build_s": 13.66,
+ "gpu_mib_before_env": 969,
+ "gpu_mib_after_build": 1960,
+ "robot_pose_err_max_m": 1e-06,
+ "standing_robots_hit_by_robots": 0,
+ "intent_present_flags_wrong": 0,
+ "robot_rays_compared": 975,
+ "robot_ray_outside_band_m": {
+  "max": 0.108,
+  "p99": 0.0002
+ },
+ "robot_active_share": [
+  0.664,
+  0.293
+ ],
+ "envs_with_a_robot": 170,
+ "envs_driven": 156,
+ "collided": 156,
+ "collisions_put_down_to_robot": 156,
+ "not_collided": [],
+ "centre_to_robot_surface_before_collision_m": [
+  0.0456,
+  0.0527
+ ],
+ "pass": true,
+ "gpu_mib_end": 2134
+}

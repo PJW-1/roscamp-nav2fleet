@@ -1,0 +1,84 @@
+##################################################################
+#  PXR_WORK_THREAD_LIMIT is overridden to '1'.  Default is '0'.  #
+##################################################################
+Seed not set for the environment. The environment creation may not be deterministic.
+The render interval (1) is smaller than the decimation (10). Multiple render calls will happen for each environment step. If this is not intended, set the render interval to be equal to the decimation.
+I: Initializing Version 2.74.0-release.7316+gl.ec99a64b
+I: Client ID: MZCSDU5P
+I: ThreadId(02) hub_client::client::Client::new Launching client mode=Shared with_cleaner=false cache_path=None cache_size=None
+I: ThreadId(03) launch self=Launcher { discovery_lock: RwLock { lock: RwLock { inner: File { handle: 0x188, path: "\\\\?\\C:\\Users\\pjw\\AppData\\Local\\Temp\\hub-pjw.lock" } } }, mode: Shared, with_cleaner: false, config_file: "C:\\Users\\pjw\\AppData\\Local\\Temp\\hub-pjw-4775F5AA.config.json" } cmd="hub.exe" "--mode=shared" "--write-config" "C:\\Users\\pjw\\AppData\\Local\\Temp\\hub-pjw-4775F5AA.config.json" "--"
+I: Not using Hub: Hub not found
+I: Successfully created S3 provider for https://omniverse-content-production.s3-us-west-2.amazonaws.com
+I: Using CloudFront http://dcb18d6mfegct.cloudfront.net/, List = No
+Serving remote assets from the local cache under 'C:\Users\pjw\AppData\Local\Temp'. Each copy is checked against the server before use; delete the directory to force a full re-download.
+D:\isaac\IsaacLab\source\isaaclab_newton\isaaclab_newton\cloner\newton_clone_utils.py:165: FutureWarning: Newton shape color replacement is enabled; this workaround will be deprecated in a future release.
+  replace_newton_builder_shape_colors(builder, stage)
+D:\isaac\IsaacLab\source\isaaclab_newton\isaaclab_newton\cloner\newton_clone_utils.py:165: FutureWarning: Newton shape color replacement is enabled; this workaround will be deprecated in a future release.
+  replace_newton_builder_shape_colors(builder, stage)
+[INFO]: Base environment:
+	Environment device    : cuda:0
+	Environment seed      : None
+	Physics step-size     : 0.005
+	Rendering step-size   : 0.005
+	Environment step-size : 0.05
+[INFO]: Time taken for scene creation Last: 1.473185 s, Mean: 1.473185 s, Std: 0.000000 s, N: 1
+[INFO]: Scene manager:  <class InteractiveScene>
+	Number of environments: 16
+	Environment spacing   : 3.0
+	Source prim name      : /World/envs/env_0
+	Global prim paths     : []
+	Replicate physics     : True
+Finalize builder took: Last: 0.058283 s, Mean: 0.058283 s, Std: 0.000000 s, N: 1
+Initialize solver took: Last: 1.452047 s, Mean: 1.452047 s, Std: 0.000000 s, N: 1
+[INFO]: Time taken for simulation start Last: 1.871201 s, Mean: 1.871201 s, Std: 0.000000 s, N: 1
+[INFO] Event Manager:  <EventManager> contains 1 active terms.
++---------------------------------------+
+| Active Event Terms in Mode: 'startup' |
++----------+----------------------------+
+|  Index   | Name                       |
++----------+----------------------------+
+|    0     | wheel_friction             |
+|    1     | base_mass                  |
++----------+----------------------------+
+
+[INFO] Recorder Manager:  <RecorderManager> contains 0 active terms.
++-----------------------+
+| Active Recorder Terms |
++------------+----------+
+|   Index    | Name     |
++------------+----------+
++------------+----------+
+
+[INFO] Action Manager:  <ActionManager> contains 1 active terms.
++--------------------------------+
+| Active Action Terms (shape: 2) |
++--------+---------+-------------+
+| Index  | Name    |   Dimension |
++--------+---------+-------------+
+|   0    | wheels  |           2 |
++--------+---------+-------------+
+
+[INFO] Observation Manager: <ObservationManager> contains 1 groups.
++-----------------------------------------------------------+
+| Active Observation Terms in Group: 'policy' (shape: (6,)) |
++-------------+-----------------------------+---------------+
+|    Index    | Name                        |     Shape     |
++-------------+-----------------------------+---------------+
+|      0      | base_lin_vel                |      (3,)     |
+|      1      | base_ang_vel                |      (3,)     |
++-------------+-----------------------------+---------------+
+
+[CHECK] shape mu shape: (16, 10) bodies: ['l_wheel', 'r_wheel', 'caster_wheel', 'base_link'] backend ids: [5, 6, 3, 0]
+[CHECK] base_link mass per env: [0.589, 1.555, 1.048, 0.496, 1.195, 1.539, 0.939, 0.916, 1.228, 1.354, 1.542, 0.798, 1.148, 1.587, 1.301, 1.43]
+[CHECK] l_wheel mu per env: [0.822, 0.793, 1.0, 0.581, 0.691, 0.168, 0.968, 0.17, 0.469, 0.581, 0.188, 0.404, 0.719, 0.843, 0.78, 0.41]
+[CHECK] r_wheel mu per env: [0.363, 0.165, 0.457, 0.412, 0.575, 0.202, 0.123, 0.413, 0.8, 0.901, 0.229, 0.973, 0.921, 0.332, 0.186, 0.147]
+[CHECK] caster_wheel mu per env: [0.838, 0.999, 0.457, 0.774, 0.708, 0.129, 0.539, 0.059, 0.274, 0.278, 0.144, 0.932, 0.891, 0.607, 0.152, 0.563]
+[CHECK] base_link mu per env: [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0]
+[CHECK] global (ground) shape mu: [0.05]
+CUDA graph took: Last: 0.194548 s, Mean: 0.194548 s, Std: 0.000000 s, N: 1
+[CHECK] finite=True
+[CHECK] dist_first_0.3s mm: min 38.54 max 52.30; corr with min wheel mu 0.928, with base mass -0.361
+[CHECK] v_steady: min 0.1993 max 0.2000
+[CHECK] skid after stop mm: min 0.25 max 17.52; corr with min wheel mu -0.898, with base mass 0.415
+[CHECK] spin rate: min 0.9862 max 0.9895; corr with min wheel mu -0.728
+[CHECK] wrote C:/Users/pjw/ros2camp/pd-newton-check/results/2026-11-21/newton_pinky_check\rand_ground_mu0.05_per_env.csv

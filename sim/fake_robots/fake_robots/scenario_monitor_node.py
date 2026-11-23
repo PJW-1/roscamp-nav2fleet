@@ -33,6 +33,7 @@ from fake_robots.common import (
     load_site_param,
 )
 from fake_robots.judge import ScenarioJudge
+from fake_robots.motion import FaultSchedule
 from fake_robots.operator_clear import OperatorClear
 from fake_robots.safety_meter import SafetyMeter
 
@@ -69,8 +70,10 @@ class ScenarioMonitorNode(Node):
         self._status_rows: list[list] = []
         self.exit_code: int | None = None
         self._sc_robots = list(scenario.robots)
-        self._removals = sorted((f.at_s, f.robot) for f in scenario.faults
-                                if f.type == "operator_remove")
+        # 치우기는 시각이나 사건(after_event)으로 정해진다. 로봇 노드와 같은 일정으로 푼다
+        self._removals = [f for f in scenario.faults if f.type == "operator_remove"]
+        self._removal_times = {f.robot: FaultSchedule(scenario.faults, f.robot)
+                               for f in self._removals}
         self._confirm = self.create_client(ConfirmClear, contract.name("confirm_clear"))
         self._reinstates = sorted(((f.at_s, f.robot, f.start, f.basket) for f in scenario.faults
                                    if f.type == "operator_reinstate"), key=lambda r: r[0])
@@ -115,6 +118,8 @@ class ScenarioMonitorNode(Node):
     def _on_event(self, msg: FleetEvent) -> None:
         self.judge.on_event(self._sc.now(), msg.level, msg.source, msg.code, msg.detail)
         self._operator.on_event(msg.source, msg.code, msg.detail)
+        for schedule in self._removal_times.values():
+            schedule.on_event(self._sc.now(), msg.source, msg.code, msg.detail)
 
     def _on_assignments(self, msg: AssignmentArray) -> None:
         self.judge.on_assignments({a.robot_id: a.task_type for a in msg.assignments})
@@ -141,8 +146,12 @@ class ScenarioMonitorNode(Node):
 
         남은 구역이 있으면 같은 NOTE를 한 줄 더 남기고 다시 부른다(상한 뒤 멈춤).
         """
-        while self._removals and self._removals[0][0] <= t:
-            robot = self._removals[0][1]
+        def start(f) -> float:
+            return self._removal_times[f.robot].start_of(f)
+
+        self._removals.sort(key=start)
+        while self._removals and start(self._removals[0]) <= t:
+            robot = self._removals[0].robot
             if not self.judge.off_course(robot) or not self._confirm.service_is_ready():
                 break
             self._removals.pop(0)

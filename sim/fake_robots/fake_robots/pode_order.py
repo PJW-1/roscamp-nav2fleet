@@ -16,7 +16,7 @@ from dataclasses import dataclass
 from fleet_interfaces.action import MoveTo
 
 from fake_robots.ahead import PathWatch
-from fake_robots.motion import noisy_pose
+from fake_robots.motion import drifted, noisy_pose, path_gap
 from fake_robots.nav_goal_drive import NavGoalDrive
 from fake_robots.pode_goal import _Goal
 from fake_robots.pode_retreat import REVERSE_SPEED_MPS
@@ -42,6 +42,7 @@ class Seg:
     x: float
     y: float
     controller_id: str = ""
+    yaw: float | None = None  # nav_goal: 목표 방향
 
 
 @dataclass(frozen=True)
@@ -56,11 +57,14 @@ class OrderCmd:
 
 def segment(msg) -> Seg:
     path = tuple((p.pose.position.x, p.pose.position.y) for p in msg.path.poses)
+    yaw = None
     if msg.mode == NAV_GOAL:
         x, y = msg.target_pose.pose.position.x, msg.target_pose.pose.position.y
+        q = msg.target_pose.pose.orientation
+        yaw = math.atan2(2.0 * (q.w * q.z + q.x * q.y), 1.0 - 2.0 * (q.y * q.y + q.z * q.z))
     else:
         x, y = path[-1] if path else (math.nan, math.nan)
-    return Seg(int(msg.seq_id), msg.mode, msg.end_node_id, path, x, y, msg.controller_id)
+    return Seg(int(msg.seq_id), msg.mode, msg.end_node_id, path, x, y, msg.controller_id, yaw)
 
 
 def segments_problem(segs) -> str:
@@ -158,6 +162,7 @@ class PodeOrder:
         goal.nav = goal.line = None
         goal.aborting = False  # 앞 조각의 Nav2 중단 복구는 조각과 함께 끝난다
         goal.seg_mode, goal.seg = seg.mode, seg
+        goal.end_yaw = seg.yaw if seg.mode == NAV_GOAL else None
         target = (seg.x, seg.y)
         if final:
             target = noisy_pose(seg.x, seg.y, self._cfg.stop_error_m, self._rng)
@@ -192,11 +197,29 @@ class PodeOrder:
             self._take_nav_abort(t, goal, remaining)
             goal.target_id = target_id
 
+    def _passes(self, goal: _Goal, t: float) -> bool:
+        """실물 order_fsm._passes: 다음 조각을 이미 받았으면 nav_goal 조각은 끝 노드
+        nav_pass_m 앞에서 넘어간다. 다음이 nav_goal이거나, 지금 자리에서 이어지는 path일 때만.
+        실물처럼 보고하는 자리(drift가 들어간 자리)로 잰다. 다음 path의 연결 검사도 그 자리다."""
+        m, queue = self._motion, goal.order.queue
+        x, y = drifted(m.x, m.y, m.yaw, self._faults.drift(t))
+        if (goal.seg_mode != NAV_GOAL or not queue or self._pass_m <= 0.0
+                or math.dist((x, y), (goal.seg.x, goal.seg.y)) > self._pass_m):
+            return False
+        nxt = queue[0]
+        if nxt.mode == NAV_GOAL:
+            return True
+        return (nxt.mode == FOLLOW_PATH and bool(nxt.path)
+                and path_gap(x, y, nxt.path) <= self._connect_tolerance)
+
     def _segment_step(self, t: float, dt: float, goal: _Goal):
         if goal.seg_mode == RETREAT:
             out = self._retreat_move(t, dt, goal)
         else:
             out = self._move_step(t, dt, goal)
+            if out is None and self._passes(goal, t):
+                self._recovery.succeeded()
+                out = (True, "")
         if out is not None and out[0] and goal.abort_at is not None:
             # 아직 안 난 Nav2 중단은 그 조각의 것이다. 돌려주고 다음 조각에서 다시 잡는다
             self._faults.give_back_nav_abort(goal.abort_from)

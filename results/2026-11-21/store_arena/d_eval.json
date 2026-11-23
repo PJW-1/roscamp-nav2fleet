@@ -1,0 +1,131 @@
+{
+ "checkpoint": "D:/isaac/runs/store_arena/ppo_h/c2/model_598.pt",
+ "num_envs": 1024,
+ "episodes": 4096,
+ "rates": {
+  "success": 0.8403,
+  "collision": 0.0598,
+  "oob": 0.0,
+  "timeout": 0.0999
+ },
+ "by_boxes_on_route": {
+  "0": {
+   "success": 964,
+   "collision": 52,
+   "oob": 0,
+   "timeout": 55,
+   "success_rate": 0.9001
+  },
+  "1": {
+   "success": 904,
+   "collision": 61,
+   "oob": 0,
+   "timeout": 54,
+   "success_rate": 0.8871
+  },
+  "2": {
+   "success": 819,
+   "collision": 53,
+   "oob": 0,
+   "timeout": 103,
+   "success_rate": 0.84
+  },
+  "3": {
+   "success": 755,
+   "collision": 79,
+   "oob": 0,
+   "timeout": 197,
+   "success_rate": 0.7323
+  }
+ },
+ "by_mover_gap": {
+  "no mover": {
+   "success": 391,
+   "collision": 24,
+   "oob": 0,
+   "timeout": 57,
+   "success_rate": 0.8284
+  },
+  "gap -inf-0.10 m": {
+   "success": 504,
+   "collision": 62,
+   "oob": 0,
+   "timeout": 72,
+   "success_rate": 0.79
+  },
+  "gap 0.10-0.25 m": {
+   "success": 937,
+   "collision": 63,
+   "oob": 0,
+   "timeout": 130,
+   "success_rate": 0.8292
+  },
+  "gap 0.25-0.50 m": {
+   "success": 889,
+   "collision": 43,
+   "oob": 0,
+   "timeout": 99,
+   "success_rate": 0.8623
+  },
+  "gap 0.50-inf m": {
+   "success": 721,
+   "collision": 53,
+   "oob": 0,
+   "timeout": 51,
+   "success_rate": 0.8739
+  }
+ },
+ "by_robot_gap": {
+  "no robot": {
+   "success": 1270,
+   "collision": 37,
+   "oob": 0,
+   "timeout": 54,
+   "success_rate": 0.9331
+  },
+  "gap -inf-0.10 m": {
+   "success": 394,
+   "collision": 114,
+   "oob": 0,
+   "timeout": 191,
+   "success_rate": 0.5637
+  },
+  "gap 0.10-0.25 m": {
+   "success": 1054,
+   "collision": 52,
+   "oob": 0,
+   "timeout": 143,
+   "success_rate": 0.8439
+  },
+  "gap 0.25-0.50 m": {
+   "success": 437,
+   "collision": 19,
+   "oob": 0,
+   "timeout": 14,
+   "success_rate": 0.9298
+  },
+  "gap 0.50-inf m": {
+   "success": 287,
+   "collision": 23,
+   "oob": 0,
+   "timeout": 7,
+   "success_rate": 0.9054
+  }
+ },
+ "collisions_by_nearest": {
+  "wall_shelf": 112,
+  "box": 13,
+  "mover": 35,
+  "robot": 85
+ },
+ "success_time_s_mean": 7.57,
+ "success_time_s_p90": 12.9,
+ "success_time_over_path_at_vmax_mean": 1.519,
+ "lidar_min_m": 0.05,
+ "spec_overrides": {
+  "intent_robots": 2
+ },
+ "arena_overrides": {
+  "robot_max": 2
+ }
+}

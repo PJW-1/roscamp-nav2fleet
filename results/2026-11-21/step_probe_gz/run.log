@@ -1,0 +1,16 @@
+waiting for /pode1/odom (log /mnt/c/Users/pjw/ros2camp/pd-step-probe/results/2026-11-21/step_probe_gz/launch.log)
+== probe set linear
+[INFO] [1795202552.653346767] [cmd_step_probe_993]: start pose (2.5010061362820787e-18, -5.339558771077588e-36, -3.811566351888217e-18), 60 segments, limit 0.6 m
+[INFO] [1795202689.751307920] [cmd_step_probe_993]: done, wrote /mnt/c/Users/pjw/ros2camp/pd-step-probe/results/2026-11-21/step_probe_gz/step_linear.csv
+== probe set angular
+[INFO] [1795202692.849625743] [cmd_step_probe_1111]: start pose (0.02898193255923912, -4.2926581930255024e-13, -1.3070500571558406e-10), 36 segments, limit 0.6 m
+[INFO] [1795202774.931386114] [cmd_step_probe_1111]: done, wrote /mnt/c/Users/pjw/ros2camp/pd-step-probe/results/2026-11-21/step_probe_gz/step_angular.csv
+== probe set small_rot
+[INFO] [1795202778.017751731] [cmd_step_probe_1132]: start pose (0.02898193255343212, -1.0803595912301422e-11, 0.02378968444525374), 96 segments, limit 0.6 m
+[INFO] [1795203012.024058021] [cmd_step_probe_1132]: done, wrote /mnt/c/Users/pjw/ros2camp/pd-step-probe/results/2026-11-21/step_probe_gz/step_small_rot.csv
+== probe set arc
+[INFO] [1795203015.118821860] [cmd_step_probe_1196]: start pose (0.05492852924160785, 0.011221694289339931, 0.047932293128629), 24 segments, limit 0.6 m
+[INFO] [1795203101.223884646] [cmd_step_probe_1196]: done, wrote /mnt/c/Users/pjw/ros2camp/pd-step-probe/results/2026-11-21/step_probe_gz/step_arc.csv
+/home/pjw/nf_src/pd-step-probe/tools/real_pode/step_report.py:174: RuntimeWarning: Mean of empty slice
+  avg = {k: float(np.nanmean([m[k] for m in ms])) for k in ms[0]}
+wrote /mnt/c/Users/pjw/ros2camp/pd-step-probe/results/2026-11-21/step_probe_gz/report.md in 566 s

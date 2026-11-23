@@ -38,8 +38,11 @@ def blocked_ahead(ctx, robot, way, look) -> bool:
 
 
 def jittered(ctx, speed: float) -> float:
+    """걸음 속도. 흔들림을 더하고, 어떤 명령 속도든(물러나기 포함) 최고 속도를 넘지 않게 자른다."""
     spread = ctx.imperfect.speed_jitter
-    return speed * (1.0 + ctx.rng.uniform(-spread, spread)) if spread else speed
+    if spread:
+        speed *= 1.0 + ctx.rng.uniform(-spread, spread)
+    return min(ctx.top_speed_mps, speed)
 
 
 def move_along(ctx, robot, way, step):
