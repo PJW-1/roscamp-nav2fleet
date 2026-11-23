@@ -57,8 +57,9 @@ def seeds_of(pol):
 def same_episodes(da, db):
     """The tracked envs start the same route with the movers and robots in the same places."""
     za, zb = np.load(da + "/rollouts.npz"), np.load(db + "/rollouts.npz")
+    n = min(za["route"].shape[1], zb["route"].shape[1])  # --track 1024 (recipe) or 16 (here)
     for k in ("route", "mover_xy", "robot_xy"):
-        if not np.array_equal(za[k][0], zb[k][0]):
+        if not np.array_equal(za[k][0][:n], zb[k][0][:n]):
             return False
     return True
 
