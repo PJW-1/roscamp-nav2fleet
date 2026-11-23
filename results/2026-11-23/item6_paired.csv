@@ -1,0 +1,17 @@
+variant,vs,set,seed,diff_pp,se_pp
+intent,no intent,random,1,-1.0254,0.4446
+intent,no intent,random,2,-0.5371,0.4353
+intent,no intent,random,3,-0.7324,0.4298
+intent + priority,no intent,random,1,-0.9033,0.4148
+intent + priority,no intent,random,2,-0.0244,0.4236
+intent + priority,no intent,random,3,-0.7568,0.4178
+intent,no intent,random,mean,-0.765,0.1419
+intent + priority,no intent,random,mean,-0.5615,0.2719
+intent,no intent,head-on,1,-1.1963,0.5801
+intent,no intent,head-on,2,0.0488,0.5768
+intent,no intent,head-on,3,-1.1963,0.5832
+intent + priority,no intent,head-on,1,-2.7344,0.5742
+intent + priority,no intent,head-on,2,-0.4883,0.5705
+intent + priority,no intent,head-on,3,-1.6846,0.5546
+intent,no intent,head-on,mean,-0.7812,0.415
+intent + priority,no intent,head-on,mean,-1.6357,0.6489
