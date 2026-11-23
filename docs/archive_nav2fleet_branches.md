@@ -2,7 +2,8 @@
 
 ## 이 문서는
 
-- nav2fleet 저장소(`PJW-1/roscamp-nav2fleet`)는 RPP 주행의 되돌아갈 기준으로 얼렸다. 그 `main`(b9e86c5)에 주석 태그 `rpp-baseline-2026-11-21`을 붙였고, 그 저장소에는 더 커밋하지 않는다.
+- nav2fleet 저장소(`PJW-1/roscamp-nav2fleet`)는 11-22에 RPP 주행의 되돌아갈 기준으로 얼렸다. 그 `main`(b9e86c5)에 주석 태그 `rpp-baseline-2026-11-21`을 붙였다.
+  - 2026-11-23 사용자 결정으로 얼림을 풀었다. 지금 nav2fleet `main`은 이 저장소 `main`을 `learning/` 없이 따라간다(README "저장소 두 개", `tools/sync_nav2fleet.sh`). 태그는 그대로 둔다.
 - nav2fleet의 원격 브랜치 가운데 `main`에 없는 커밋을 가진 17개를 이 저장소(pode-drive)에 `archive/nav2fleet/<원래 이름>`으로 그대로 옮겼다. 커밋은 바꾸지 않았고 끝 SHA는 두 저장소에서 같다.
 - **아무것도 병합하지 않았다.** 이 문서는 각 브랜치가 무엇이고, 왜 main에 들어가지 않았고, 언제 다시 꺼내 볼지를 적는다.
 - 역사가 이어진다. pode-drive `main`은 nav2fleet b9e86c5를 조상으로 가진다(`git merge-base --is-ancestor b9e86c5 main` 통과, 092fdc4 기준). 그래서 보관 브랜치는 보통 브랜치처럼 비교하고 병합할 수 있다.
