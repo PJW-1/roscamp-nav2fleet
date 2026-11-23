@@ -106,13 +106,16 @@ def item7(r):
     return rows
 
 
-def item6(r):
+def item6(r, partial=False):
+    """partial: skip runs not evaluated yet (a preview while the queue runs)."""
     rows, pair_rows = [], []
     for s in ("rand", "head"):
         diffs = {}
         for name, v in ITEM6.items():
             for seed in (1, 2, 3):
                 d = run_dir(r, f"i6_{v}_s{seed}", s)
+                if partial and not os.path.exists(d + "/eval.json"):
+                    continue
                 j, rt = rates(d)
                 g = j["by_robot_gap"][GAP]
                 n_gap = sum(g[k] for k in ("success", "collision", "oob", "timeout"))
@@ -143,6 +146,8 @@ def item6(r):
                         }
                     )
         for name, ds in diffs.items():
+            if len(ds) < 2:  # no spread across seeds from one seed
+                continue
             ds = np.array(ds)
             pair_rows.append(
                 {
@@ -177,6 +182,6 @@ if __name__ == "__main__":
     if "item7" in which:
         write(f"{out}/item7.csv", item7(r))
     if "item6" in which:
-        rows, pair_rows = item6(r)
+        rows, pair_rows = item6(r, partial="partial" in which)
         write(f"{out}/item6.csv", rows)
         write(f"{out}/item6_paired.csv", pair_rows)
