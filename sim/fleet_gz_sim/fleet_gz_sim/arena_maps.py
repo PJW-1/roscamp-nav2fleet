@@ -5,7 +5,8 @@
 사라지지 않는다(TOUCH, 기본).
 
 가운데 통로 갈래(2026-11-17, Gazebo 비교용): 칸 중심이 상자 안일 때만 막는 규칙(CENTRE)과
-2.5 cm 지도. NAV_VARIANTS의 지도는 v7에만 만든다(arena.generate_nav_variants). 기본 지도와
+2.5 cm 지도. 갈래 a1(2026-11-24)은 a와 같은 TOUCH 규칙의 1 cm costmap 지도다.
+NAV_VARIANTS의 지도는 v7에만 만든다(arena.generate_nav_variants). 기본 지도와
 keepout 마스크, 1 cm 지도는 그대로 TOUCH다.
 
 keepout(pode_nav_config/params/keepout.yaml): shared가 아닌 구역(급행 lane, 갈림목과
@@ -38,7 +39,8 @@ TOUCH = "touch"  # 상자가 걸친 칸은 막힘(기본)
 CENTRE = "centre"  # 칸 중심이 상자 안(경계 포함)이면 막힘
 PAINTS = (TOUCH, CENTRE)
 # 갈래 이름: (해상도, 칠하기). 파일은 maps/<경기장>_<이름>.{yaml,pgm}
-NAV_VARIANTS = {"a": (FINER_M, TOUCH), "b": (COARSE_M, CENTRE), "ab": (FINER_M, CENTRE)}
+NAV_VARIANTS = {"a": (FINER_M, TOUCH), "b": (COARSE_M, CENTRE), "ab": (FINER_M, CENTRE),
+                "a1": (FINE_M, TOUCH)}
 
 
 def map_origin(site) -> tuple[float, float]:

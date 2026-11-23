@@ -200,7 +200,7 @@ def nav_arguments(actions) -> dict:
     return nav
 
 
-@pytest.mark.parametrize("variant", ["a", "b", "ab"])
+@pytest.mark.parametrize("variant", ["a", "b", "ab", "a1"])
 def test_nav_map_variant_changes_only_the_costmap_map(one, variant):
     need("pinky_description", "pode_nav_config", "pode_fsm")
     nav = nav_arguments(run(one, layout="v7", start="O_IN", nav_map_variant=variant))
