@@ -36,6 +36,12 @@ parser.add_argument(
     help="command (v, w) = (0, 0) for the whole episode instead of the policy (unavoidable "
     "collisions; with the same seed and --episodes 1 every env's episode is the policy run's)",
 )
+parser.add_argument(
+    "--capped",
+    action="store_true",
+    help="a policy trained without speed_cap_obs under --set speed_cap_range=c,c: its v target "
+    "at the trained top speed, clamped to c (what the plugin does with a format-2 policy)",
+)
 add_launcher_args(parser)
 args_cli = parser.parse_args()
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -81,6 +87,14 @@ def main():
             def policy(_obs):
                 cap = raw.v_cap if raw.cap_active else None
                 return arena.ts.still_action(raw.num_envs, raw.device, v_cap=cap)
+
+        elif args_cli.capped:
+            if arena.ts.make_spec(task_over).speed_cap_obs or not raw.cap_active:
+                raise ValueError("--capped needs speed_cap_obs=0 and a speed_cap_range set")
+            trained = policy
+
+            def policy(obs):
+                return arena.ts.capped_action(trained(obs), raw.v_cap)
 
         routes = raw.routes
         n_boxes = torch.as_tensor(
@@ -239,6 +253,7 @@ def main():
             "w_flips_per_min": flips_per_min(np.ones(len(flips), dtype=bool)),
             "w_flips_per_min_success": flips_per_min(codes == 0),
             "still": bool(args_cli.still),
+            "capped": bool(args_cli.capped),
             "spec_overrides": task_over,
             "arena_overrides": arena_over,
         }

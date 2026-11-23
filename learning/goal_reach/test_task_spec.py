@@ -216,6 +216,18 @@ def test_speed_cap_sets_the_v_upper_limit_and_still_action_stops():
     assert torch.allclose(ts.action_to_target(ts.still_action(2)), torch.zeros(2, 2), atol=1e-7)
 
 
+def test_capped_action_is_the_full_speed_target_clamped_to_the_cap():
+    lim = ts.ACTION_LIMITS
+    cap = torch.tensor([0.08, 0.08, 0.16, 0.16, 0.12])
+    a = torch.tensor([[1.0, 0.3], [-1.0, -0.5], [1.0, 1.0], [0.2, 0.0], [1.5, -2.0]])
+    full = ts.action_to_target(a)
+    got = ts.action_to_target(ts.capped_action(a, cap), v_cap=cap)
+    assert torch.allclose(got[:, 0], torch.minimum(full[:, 0], cap), atol=1e-7)
+    assert torch.allclose(got[:, 1], full[:, 1])
+    assert torch.allclose(got[2, 0], torch.tensor(lim.v_max))  # no faster than its own top
+    assert torch.allclose(got[4], full[4], atol=1e-7)  # at the trained top it changes nothing
+
+
 def test_speed_cap_draw_stays_in_range_and_a_single_value_draws_nothing():
     spec = dataclasses.replace(ts.SPEC, speed_cap_range=(0.08, 0.16))
     torch.manual_seed(0)

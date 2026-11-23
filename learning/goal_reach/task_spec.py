@@ -273,6 +273,19 @@ def still_action(n: int, device=None, lim: ActionLimits = ACTION_LIMITS, v_cap=N
     return out
 
 
+def capped_action(actions: torch.Tensor, v_cap: torch.Tensor, lim: ActionLimits = ACTION_LIMITS):
+    """(n, 2) action of a policy trained without speed_cap_obs, re-expressed for an env that maps
+    v onto [v_min, v_cap]: its target v at lim.v_max, clamped to v_cap. This is what the
+    controller plugin does with a format-2 policy under a lower top speed (and it never goes
+    above the policy's own v_max)."""
+    a = actions.clamp(-1.0, 1.0)
+    v = lim.v_min + (a[:, 0] + 1.0) * 0.5 * (lim.v_max - lim.v_min)
+    v = torch.minimum(v, v_cap)
+    out = a.clone()
+    out[:, 0] = 2.0 * (v - lim.v_min) / (v_cap - lim.v_min) - 1.0
+    return out
+
+
 def sample_speed_cap(n: int, device, spec: TaskSpec = SPEC) -> torch.Tensor:
     """(n,) per-episode top speeds, uniform in speed_cap_range (no draw when it is one value)."""
     lo, hi = spec.speed_cap_range
