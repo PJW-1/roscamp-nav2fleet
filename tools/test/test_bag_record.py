@@ -50,8 +50,11 @@ def _alive(pid):
         os.kill(pid, 0)
     except ProcessLookupError:
         return False
-    with open(f"/proc/{pid}/stat") as f:
-        return f.read().rsplit(")", 1)[1].split()[0] != "Z"
+    try:
+        with open(f"/proc/{pid}/stat") as f:
+            return f.read().rsplit(")", 1)[1].split()[0] != "Z"
+    except FileNotFoundError:  # 확인하는 사이에 사라졌다
+        return False
 
 
 def _pid(kit):
