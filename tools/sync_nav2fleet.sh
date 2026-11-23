@@ -14,11 +14,12 @@ dst=$(cd "$1" 2> /dev/null && pwd -P) || { echo "$1: no such directory"; exit 1;
 SRC_URL=${SRC_URL:-https://github.com/PJW-1/roscamp-pode-drive}
 DROP=(learning)
 
-# 가져오는 곳과 올리는 곳 모두 nav2fleet이어야 한다
-for url in "$(git -C "$dst" remote get-url origin 2> /dev/null)" \
-           "$(git -C "$dst" remote get-url --push origin 2> /dev/null)"; do
+# 가져오는 곳과 올리는 곳(여러 개면 전부) 모두 nav2fleet이어야 한다
+urls=$( { git -C "$dst" remote get-url origin && git -C "$dst" remote get-url --push --all origin; } 2> /dev/null) || {
+  echo "$dst: not a git clone with origin"; exit 1; }
+while read -r url; do
   [[ $url =~ roscamp-nav2fleet(\.git)?/?$ ]] || { echo "$dst: origin is '$url', not roscamp-nav2fleet"; exit 1; }
-done
+done <<< "$urls"
 
 git -C "$dst" fetch -q origin main
 git -C "$dst" fetch -q "$SRC_URL" main
@@ -31,8 +32,8 @@ if [ $synced = 1 ] && ! has_drop origin/main; then
 fi
 
 tmp=$(mktemp -d)
-cleanup() { git -C "$dst" worktree remove --force "$tmp" 2> /dev/null || true; rm -rf "$tmp"
-            git -C "$dst" worktree prune; }
+# 이 스크립트의 임시 worktree만 지운다(다른 등록은 건드리지 않는다)
+cleanup() { git -C "$dst" worktree remove --force "$tmp" 2> /dev/null || true; rm -rf "$tmp"; }
 trap cleanup EXIT
 git -C "$dst" worktree add -q --detach "$tmp" origin/main
 cd "$tmp"

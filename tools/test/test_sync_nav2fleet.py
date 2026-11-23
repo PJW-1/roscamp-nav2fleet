@@ -166,3 +166,23 @@ def test_refuses_a_push_url_of_another_repo(tmp_path):
     _push_src(src, {"b.txt": "b\n"}, "add")
     run = _run(dst, tmp_path, "--push")
     assert run.returncode == 1 and "not roscamp-nav2fleet" in run.stdout
+
+
+def test_refuses_a_second_push_url_of_another_repo(tmp_path):
+    src, dst, dst_bare = _setup(tmp_path)
+    _git(dst, "remote", "set-url", "--add", "--push", "origin", str(dst_bare))
+    _git(dst, "remote", "set-url", "--add", "--push", "origin", str(tmp_path / "roscamp-pode-drive.git"))
+    _push_src(src, {"b.txt": "b\n"}, "add")
+    run = _run(dst, tmp_path, "--push")
+    assert run.returncode == 1 and "not roscamp-nav2fleet" in run.stdout
+
+
+def test_leaves_other_worktree_registrations_alone(tmp_path):
+    src, dst, dst_bare = _setup(tmp_path)
+    other = tmp_path / "other_wt"
+    _git(dst, "worktree", "add", "-q", "--detach", str(other))
+    import shutil
+    shutil.rmtree(other)  # 디렉터리만 사라진 등록
+    _push_src(src, {"b.txt": "b\n"}, "add")
+    assert _run(dst, tmp_path, "--push").returncode == 0
+    assert any(str(other) in line for line in _worktrees(dst))
