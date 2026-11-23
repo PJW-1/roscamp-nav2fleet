@@ -17,6 +17,7 @@ record:=PATH 는 tools/replay.py용 FMS 기록을 남긴다.
 
 fake_arms: arm1과 arm2는 함께 가짜 워크셀 서버를 띄운다.
 fill_basket 서버 하나가 둘을 맡으므로 하나만 적으면 오류다. arm3는 가짜 출고 팔을 띄운다.
+fake_arms:=none은 가짜 팔 없음이다(팔 셋 모두 실물).
 monitor: 시나리오 감시 노드. 시뮬 전용 자세(/sim/truth)를 읽으므로 실물 시험에서는 false로 둔다.
 dock_wait_robots: 실물 로봇의 도킹을 PC가 대신 받는다(fake_robots real_dock_wait_node).
 """
