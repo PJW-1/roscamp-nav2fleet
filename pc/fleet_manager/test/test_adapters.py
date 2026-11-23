@@ -253,7 +253,13 @@ def test_a_pode_row_carries_kind_lock_mode_forced_and_boot_id_from_its_last_stat
     assert (out.kind, out.lock, out.mode, list(out.forced), out.boot_id) == (
         RobotStatus.KIND_POD, True, "UNKNOWN", ["battery"], "b-1")
     unseen = adapters.robots_to_msg([view], 0.0).robots[0]
-    assert (unseen.kind, unseen.lock, unseen.mode, unseen.boot_id) == ("POD", False, "", "")
+    assert (unseen.kind, unseen.lock, unseen.mode, unseen.boot_id) == ("POD", True, "", "")
+
+
+def test_a_robot_not_heard_from_yet_is_reported_locked():
+    view = RobotStatusView("pode1", "IDLE", "", "", "NONE", "", "", (), 50.0, 0.0, 0.0, 0.0)
+    rows = adapters.robots_to_msg([view], 0.0, {}, [("arm_ship", None, False)]).robots
+    assert [(r.robot_id, r.lock) for r in rows] == [("pode1", True), ("arm_ship", True)]
 
 
 def test_the_three_arms_follow_the_podes_with_their_own_state():

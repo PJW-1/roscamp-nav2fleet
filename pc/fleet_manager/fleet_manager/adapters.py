@@ -84,7 +84,7 @@ def _pode_status(v, state) -> RobotStatus:
                       wait_zone=v.wait_zone, wait_robots=list(v.wait_robots),
                       base=list(v.base), horizon=list(v.horizon), priority=int(v.priority),
                       battery=float(v.battery), x=float(v.x), y=float(v.y), yaw=float(v.yaw),
-                      kind=RobotStatus.KIND_POD)
+                      kind=RobotStatus.KIND_POD, lock=True)
     if state is not None:
         row.lock, row.mode, row.forced, row.boot_id = (
             bool(state.lock), state.mode, list(state.forced), state.boot_id)
@@ -93,7 +93,7 @@ def _pode_status(v, state) -> RobotStatus:
 
 def arm_status(arm: str, state, fresh: bool) -> RobotStatus:
     row = RobotStatus(robot_id=arm, kind=RobotStatus.KIND_ARM, battery=-1.0,
-                      fault=RobotStatus.FAULT_COMM_LOST)
+                      fault=RobotStatus.FAULT_COMM_LOST, lock=True)
     if state is None:
         return row
     row.fsm_state, row.order_id, row.fault_reason = state.state, state.order_id, state.detail
