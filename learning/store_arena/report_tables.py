@@ -80,10 +80,10 @@ def item5(r):
             ):
                 row[f"{s}_{k}"] = ""
         for s in SETS:
-            d = run_dir(r, tag, s)
-            if not os.path.exists(d + "/eval.json"):
+            if cap != 0.12 and s == "ho":  # the 0.08 / 0.16 runs were not evaluated on handover
                 continue
-            j, rt = rates(d)
+            d = run_dir(r, tag, s)
+            j, rt = rates(d)  # a missing eval raises instead of leaving a blank
             row[f"{s}_success"] = rt["success"]
             row[f"{s}_collision"] = rt["collision"]
             row[f"{s}_timeout"] = rt["timeout"]
