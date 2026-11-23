@@ -49,6 +49,8 @@
 - 팔 이름은 `arm_left` · `arm_right` · `arm_ship`이다. 지도, 시나리오, 가짜 노드, 시험, 설계 문서까지 60여 개 파일을 함께 바꿨다.
 - `/fleet/robots`에 팔 3대가 `kind=ARM`으로 붙는다. 가짜 팔도 `/{arm}/state`를 5 Hz로 낸다.
 - 시험은 모두 통과했다(아래 "시험 결과").
+- 리뷰 뒤 결함 셋을 더 고쳤다: 후진 중 락 변경, 상태 없는 로봇이 "락 풀림"으로 보임, `fake_arms:=none` 오류.
+- **로봇에는 아직 아무것도 올리지 않았다.** 내일 연결 전에 이 브랜치로 로봇 배포 · 빌드, 관제 PC 빌드가 필요하다(체크리스트 1번).
 - Gazebo gz_v7 한 판: 통과, 8/8 출고, 218.2 s, ROBOT_ISOLATED 0, BLOCKED 0.
 - 팀 main과 다른 점은 모두 "우리가 명세대로 칸을 더한 것"이다. 팀 main 쪽에 있고 우리에게 없는 칸은 없다.
 - **DDS 타입 해시 때문에 내일 연결 전에 팀 쪽도 이 브랜치의 `interfaces/fleet_interfaces`를 그대로 써야 한다.**
@@ -70,6 +72,11 @@
    - `OrderBoard.MODE_STOP` 상수와 core의 STOP 처리는 지우지 않았다. 팀 main과 해시를 맞추려면 상수가 있어야 한다.
    - 지울지 정한다(지우려면 팀과 같이 지워야 한다).
 7. **IR-72를 언제 켤지.** 아래 "알아야 할 포인트" 첫 줄 참고.
+8. **움직이는 중에 지금과 같은 락 값을 보내면.**
+   - 지금은 값이 이미 같으면 멈췄는지 보지 않고 받는다(`admin.py:44-45`, `test_admin.py`가 이 동작을 고정). 바뀌는 것이 없으니 멱등 처리로 둔 것이다.
+   - Codex는 W-34("멈춘 로봇만")대로 이때도 `NOT_STOPPED`로 거절해야 한다고 봤다. 명세는 같은 값의 경우를 따로 적지 않았다.
+   - 같은 이유로, 멈췄을 때 받은 `request_id`를 움직이는 중에 다시 보내면 저장된 성공 답이 그대로 간다(IR-21). 이것은 IR-21의 뜻대로라고 본다.
+   - 거절로 바꿀지 정한다.
 
 ## 알아야 할 포인트
 
@@ -80,6 +87,7 @@
 - `set_lock`:
   - 다른 로봇 이름이면 `UNKNOWN_TARGET`.
   - 목표가 있는 동안 바꾸려 하면 잠그든 풀든 `NOT_STOPPED`.
+    - 후진(`Retreat`) 중과, 주문이 base 끝에서 horizon을 기다리는 동안도 목표가 있는 것으로 본다(`46351f1`, `18a4d44`). 처음 판은 후진 중에 락 변경을 받았다.
   - 이미 그 값이면 그냥 받는다.
   - 실제로 락을 풀어도 주행은 바뀌지 않는다(위와 같은 이유).
 - `set_mode`: `NORMAL` · `TEST`만 받는다. 그 밖은 `MODE_MISMATCH`.
@@ -92,6 +100,8 @@
   - 거절도 기억한다. 빈 `request_id`는 기억하지 않는다.
 - `pode_fsm` 상태 발행을 10 Hz → 5 Hz로 낮췄다(IR-34). 시험 기준은 "2초에 9 ~ 11개"로 바꿨다(조인 쪽).
 - 팔 상태가 3초(`comm_timeout_s`) 넘게 없으면 `/fleet/robots`에서 그 팔은 `fault=COMM_LOST`다. 한 번도 상태를 안 낸 팔도 COMM_LOST로 나온다.
+- `/fleet/robots`에서 상태를 아직 못 받은 Pode · 팔 줄은 `lock=true`(잠김)로 나간다(`caad31f`). 처음 판은 메시지 기본값 `false`라서, 연결되지 않은 로봇이 "락 풀림"으로 보였다.
+- `fake_arms:=none`으로 가짜 팔을 하나도 띄우지 않을 수 있다(`70a5438`). 전에는 `ValueError`로 launch가 멈췄다.
 - 로컬 양보(`local_yield`)와 Gazebo 보기 노드는 `kind=ARM` 줄을 건너뛴다.
 - W-22: `adapters.trip_status()`가 내부 `CANCELED`를 밖으로 `CANCELLED` + `NOTHING_TO_FILL`로 바꾼다. 아직 부르는 곳은 없다. `ReportTrip` 보내기는 W-21이다.
 - `FillBasket` 결과의 `REASON_CANCELED`(L 하나)는 액션 안의 상수라 그대로 뒀다.
@@ -209,7 +219,40 @@
   - tools 2개: `test_real_rviz`가 아직 `NET=12`를 기대했다. 도메인 변경에서 빠뜨린 사용처다.
 - `dfc5a7c`에서 셋 모두 고쳤고, 다시 돌려 위 결과가 나왔다.
 - `32ac66c` · `dfc5a7c`는 fleet_core의 주석 한 줄, 시험과 문서만 바꿨다. 그래서 fleet_core · fleet_manager · fake_robots · fleet_gz_sim은 다시 돌리지 않았다.
-- 불안정한 시험을 따로 다시 돌린 일은 없다.
+- 이 실행에서는 불안정한 시험을 따로 다시 돌린 일이 없다. 뒤의 실행은 아래에 적었다.
+
+### `dfc5a7c`를 처음부터 다시 빌드해 전체 실행 (도메인 43, 빌드 `~/gg_build/pd-iface-verify`)
+
+| 패키지 | 결과 |
+|---|---|
+| fleet_core | 1296 passed, 7 xfailed |
+| pode_fsm | 481 passed, 6 skipped |
+| fleet_manager | 136 passed, 10 skipped |
+| fleet_manager 시나리오 통합(`iponic_bringup`까지 빌드한 뒤 따로) | 12 passed |
+| fake_robots | 1156 passed, 1 skipped, 30 xfailed |
+| fleet_gz_sim | 610 passed |
+| tools | 279 passed |
+
+- 처음 실행의 skip 10개는 시나리오 통합 시험이다. 그 빌드에 `iponic_bringup`이 없어서 건너뛰었다. 그래서 `iponic_bringup`까지 빌드하고 그 파일만 다시 돌려 12개 모두 통과를 확인했다.
+
+### 리뷰 뒤 고친 세 결함 (`46351f1` ~ `18a4d44`)
+
+OpenCode 검토(읽기 전용)가 찾은 것 가운데 동작이 틀린 셋을 시험부터 써서 고쳤다. 고치기 전 코드에서 새 시험이 실패하는 것을 확인했다.
+
+| 커밋 | 고친 것 | 새 시험 |
+|---|---|---|
+| `46351f1`, `18a4d44` | 후진 중, 그리고 주문이 base 끝에서 기다리는 동안에도 `set_lock`이 `NOT_STOPPED`로 거절 | `test_ros_fsm.py::test_the_lock_does_not_change_while_a_retreat_runs`, `test_order.py::test_an_order_waiting_at_the_end_of_base_still_has_a_goal` |
+| `caad31f` | 상태를 못 받은 줄은 `lock=true` | `test_adapters.py::test_a_robot_not_heard_from_yet_is_reported_locked` |
+| `70a5438` | `fake_arms:=none` | `test_scenario.py::test_fake_arms_none_means_no_fake_arms` |
+
+- `test_adapters.py`의 기존 단언 하나는 "상태 없는 줄은 `lock=false`"였다. 이 단언이 틀린 동작을 고정하고 있어서 `true`로 바꿨다. 바를 느슨하게 한 것이 아니라 기대값을 명세에 맞춘 것이다.
+- `18a4d44`를 다시 빌드해 바뀐 세 패키지를 전체 실행했다(도메인 43, 시나리오 통합 포함).
+  - pode_fsm: 483 passed, 6 skipped.
+  - fake_robots: 1160 passed, 1 skipped, 30 xfailed.
+  - fleet_manager: 146 passed, **1 failed**. `test_scenario_finishes_and_matches_the_contract[order_burst]`의 contract 대조(`check_interfaces.py --wait-s 15`)가 실패했다.
+    - 같은 시험만 세 번 다시 돌려 세 번 모두 통과했다(각 79 s).
+    - 같은 시각 이 PC에서 Isaac 학습이 돌고 있었다. 오늘 밤 합친 main(이 브랜치 변경 없음)에서도 같은 단계가 한 번 실패했다가 다시 돌려 통과했다. 그래서 부하 때문에 15초 안에 노드가 다 뜨지 않은 간헐 실패로 본다.
+    - 실패한 판에서 어떤 이름이 빠졌는지는 출력을 남기지 않아 모른다.
 
 ## Gazebo 결과
 
@@ -261,6 +304,12 @@
   - `not_in_fake`.
   - 도메인 6 건너뛰기.
 - 고친 커밋(`32ac66c..dfc5a7c`)은 따로 다시 검토하지 않았다.
+- `b2aea4d..d70cec6`(이 보고서 포함) 검토: 체크리스트의 `/arm_*/set_lock`이 `arm_ship`까지 가리킨다는 지적 → `d70cec6`에서 줄을 나눴다.
+- 같은 범위를 OpenCode(Opus 5.5)가 한 번 더 읽기 전용으로 검토했다.
+  - 코드: 위 세 결함 → `46351f1` ~ `70a5438`.
+  - 체크리스트: 로봇 · 관제 PC 재배포와 재빌드, 로봇 쪽 `env.sh` 경로, daemon 재시작, 팀 팔 도메인 83, 가짜 팔 끄기, 비교할 정의 목록, 락 확인 순서 → 아래 체크리스트를 고쳤다.
+- `d70cec6..70a5438` 검토: `OrderFsm`이 base 끝에서 기다릴 때 `has_goal()`이 거짓이 된다는 지적 → `18a4d44`. 같은 값 락 요청 지적은 "사용자가 정할 것" 8번.
+- `70a5438..18a4d44` 재검토: `18a4d44` 자체에 대한 지적은 없었다. 기존 `admin.py` 동작 두 가지만 다시 짚었다("사용자가 정할 것" 8번).
 
 ## 내일 연결 시험 체크리스트
 
@@ -290,34 +339,44 @@
 
 ### 먼저 맞출 것
 
-1. 팀과 우리가 **같은 `interfaces/fleet_interfaces`** 를 빌드했는지 확인한다.
-   - 양쪽에서 `ros2 interface show fleet_interfaces/msg/RobotState`와 `.../msg/ArmState` 출력을 견준다.
-   - 하나라도 다르면 토픽이 이어지지 않는다(타입 해시).
+1. **양쪽이 이 브랜치의 코드로 빌드됐는지.**
+   - 팀: 이 브랜치의 `interfaces/fleet_interfaces`를 그대로 빌드한다. 하나라도 다르면 토픽이 이어지지 않는다(타입 해시).
+     바뀐 정의 전체를 견준다: `RobotState`, `ArmState`, `RobotStatus`, `RobotStatusArray`, `OrderBoard`, `FillBasket`, `ConfirmClear`, `Reinstate`, `TripCommand`.
+     `ros2 interface show` 출력을 견주거나, `ros2 topic info -v`의 타입 해시를 본다.
+   - 로봇: `net.sh`만이 아니라 `fleet_interfaces`와 `pode_fsm`도 이 브랜치 것이어야 `/pode*/set_*`가 생기고 해시가 맞는다.
+     PC에서 이 브랜치를 체크아웃한 뒤 `tools/real_pode/deploy.sh pinky@<로봇 주소>`, 로봇마다 `cd ~/nav2fleet_ws && colcon build`(README "첫 실행 순서" 1 · 2번). 오늘 밤에는 배포하지 않았다.
+   - 관제 PC: `pc_env.sh`가 읽는 `~/ros2camp/nav2fleet_ws`도 이 브랜치로 다시 빌드한다. 안 하면 서비스 호출이 타입을 못 찾고, `check_interfaces.py`가 옛 contract를 읽는다.
 2. 도메인과 디스커버리:
    - 관제 PC: `bash tools/real_pode/discovery_server.sh`를 먼저 켠다. 포트 11811로, 모든 망에서 듣는다.
    - 관제 PC 터미널: `source tools/real_pode/pc_env.sh`.
      - `net.sh`가 정하는 값: `ROS_DOMAIN_ID=6`, `RMW_IMPLEMENTATION=rmw_fastrtps_cpp`, `ROS_AUTOMATIC_DISCOVERY_RANGE=SUBNET`, `ROS_DISCOVERY_SERVER=192.168.0.252:11811`.
-     - ros2 명령 터미널은 `SUPER=1 source tools/real_pode/pc_env.sh`.
-   - 로봇: `source tools/real_pode/env.sh`(같은 `net.sh`를 읽음).
-     - **로봇에 새 `net.sh`를 올려야 6이 된다.** 이번에는 로봇에 배포하지 않았다.
-   - 팀 노드도 같은 디스커버리 서버를 써야 한다. 팀이 서버 없이 멀티캐스트로 띄우면, 우리 쪽을 `DISCOVERY_SERVER=off source ...`로 맞춘다.
-3. 이 PC의 시험 도메인(48, 50 ~ 59, 61, 62)은 6과 겹치지 않는다. 그래도 연결 시험 동안 이 PC에서 Gazebo · 시나리오 시험을 돌리지 않는다.
+     - ros2 명령 터미널은 `SUPER=1 source tools/real_pode/pc_env.sh` 뒤 `ros2 daemon stop`, `ros2 daemon start`(옛 설정의 daemon이 남아 있으면 팀 노드가 안 보인다. README 디스커버리 절 5번).
+   - 로봇: `start.sh`가 `~/nav2fleet_real/env.sh`를 읽는다(같은 `net.sh`). 손으로 볼 때는 `source ~/nav2fleet_real/env.sh`.
+   - **팀 팔 노드는 지금 도메인 83이다**(Phondy `INTERFACES.md`). 팔 노드, 또는 그 앞에서 `/{arm}/state`를 낼 노드를 도메인 6과 같은 디스커버리 설정으로 띄워야 아래 확인이 된다.
+   - 팀 노드도 같은 디스커버리 서버를 써야 한다. 팀이 서버 없이 멀티캐스트로 띄우면 `DISCOVERY_SERVER=off`로 맞춘다. 이때 PC 터미널만이 아니라 로봇의 `start.sh`도 같은 값으로 다시 띄운다(값은 프로세스마다 따로 정해진다).
+3. **PC에서 무엇을 띄우나.** 실물 시험 명령(`pc.launch.py` 머리말의 "Real three-robot test")은 `fake_arms` 기본값으로 가짜 팔 셋(가짜 워크셀, 가짜 출고 팔)을 띄운다. 그대로 두면 `/arm_*/state`와 `/workcell/fill_basket`, `/arm_ship/swap_basket`을 우리 가짜가 채운다.
+   - 팀 팔이 붙는 팔은 `fake_arms`에서 뺀다. `arm_left`와 `arm_right`는 함께 빼야 한다(채움 서버 하나).
+   - 셋 다 팀 팔이면 `fake_arms:=none`.
+   - 가짜 central(`fake_central`)도 같은 식으로, 팀 central이 붙을 때만 끈다.
+4. 이 PC의 시험 도메인(42 ~ 48, 50 ~ 59, 61, 62)은 6과 겹치지 않는다. 그래도 연결 시험 동안 이 PC에서 Gazebo · 시나리오 시험을 돌리지 않는다.
 
-### 확인 명령 (`SUPER=1 source tools/real_pode/pc_env.sh` 뒤)
+### 확인 명령 (`SUPER=1 source tools/real_pode/pc_env.sh`, daemon 다시 띄운 뒤)
 
 ```bash
 echo $ROS_DOMAIN_ID $ROS_DISCOVERY_SERVER          # 6 192.168.0.252:11811
 ros2 node list                                       # 팀 노드와 우리 노드가 함께 보이는지
-ros2 topic info -v /arm_left/state                   # 발행 1(팀 팔), 구독 1(fleet_manager), 타입 같은지
+ros2 topic info -v /arm_left/state                   # 발행 1(팀 팔. 가짜 팔도 켰으면 2), 구독 1(fleet_manager), 타입 해시 같은지
 ros2 topic echo --once /arm_left/state
-ros2 topic echo --once /fleet/robots                 # pode 3줄 뒤에 kind=ARM 3줄
+ros2 topic echo --once /fleet/robots                 # pode 3줄 뒤에 kind=ARM 3줄. 상태가 아직 없는 줄은 fault=COMM_LOST
 ros2 topic hz /pode1/state                           # 약 5 Hz
-ros2 action info /workcell/fill_basket               # 서버 1(팀), 클라이언트 1(fleet_manager)
+ros2 action info /workcell/fill_basket               # 서버 1(팀, 가짜 워크셀을 껐을 때), 클라이언트 1(fleet_manager)
 ros2 action info /arm_ship/swap_basket
 ros2 service call /pode1/set_mode fleet_interfaces/srv/SetMode "{request_id: t-1, mode: TEST}"
-ros2 service call /pode1/set_lock fleet_interfaces/srv/SetLock "{request_id: t-2, robot_id: pode1, locked: true}"
-ros2 topic echo --once /pode1/state                  # lock, mode, last_request_id 확인
+ros2 service call /pode1/set_lock fleet_interfaces/srv/SetLock "{request_id: t-2, robot_id: pode1, locked: false}"
+ros2 topic echo --once /pode1/state                  # lock false, mode TEST, last_request_id t-2
+ros2 service call /pode1/set_lock fleet_interfaces/srv/SetLock "{request_id: t-3, robot_id: pode1, locked: true}"
 python3 scripts/check_interfaces.py --mode real      # contract 전체 대조 (실물 모드)
 ```
 
-`check_interfaces.py --mode real`은 `not_in_fake` 항목까지 모두 본다. 그래서 팀 쪽에 아직 없는 이름(브리지 · central 서비스 등)은 빠졌다고 나온다. 위 표의 "없음" 줄과 맞는지만 본다.
+- 켜진 직후 락은 이미 잠김(true)이라 `locked: true`만 보내면 값이 바뀌지 않는다. 그래서 풀었다가 다시 잠근다. 로봇이 움직이는 중이면 `NOT_STOPPED`로 거절된다.
+- `check_interfaces.py --mode real`은 `not_in_fake` 항목까지 모두 본다. 그래서 팀 쪽에 아직 없는 이름(브리지 · central 서비스 등)은 빠졌다고 나온다. 위 표의 "없음" 줄과 맞는지만 본다.
