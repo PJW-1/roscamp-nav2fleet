@@ -174,7 +174,7 @@ bag 분석 스크립트는 `docs/rl_real_prep_2026-11-24/`에 있다(맨 끝 "�
 
 0. **가만히**: Nav2 없이 bringup만(`bringup_only.launch.py`)으로 `scan_info.py`, 몸 뒤 왼쪽 물체 확인(S1).
 1. **바퀴 띄우고 빌드·parity**: 1.3절 빌드, gtest.
-2. **바퀴 띄운 채 RL 띄우기**: 2.3절 순서, `log_level:=info`. `controller_selector`에 FollowPathRL을 보내고 1 m 앞 Nav2 goal.
+2. **바퀴 띄운 채 RL 띄우기**: 2.3절 순서, `log_level:=info`. `controller_selector`에 FollowPathRL을 보내고(4.3절과 같은 QoS 옵션) 1 m 앞 Nav2 goal.
    로그에서 `infer … us`, 라이다 TF 한 줄(`lidar rplidar_link in base_footprint … yaw 3.142` 꼴 [확정 follow_path_rl.cpp:182-184]),
    scan age, 명령 v ≤ 0.12를 본다. 몸 둘레 8방향에 상자를 대 보고 명령이 그쪽을 피하는지 본다(S1, S2).
 3. **바닥, 빈 곳, 짧은 직선**: 경기장 빈 자리에서 0.5 m 앞 goal, 옆에서 끌 준비. 더 느리게 하려면 `max_linear_vel` 파라미터(예 0.06) [확정 follow_path_rl.cpp:55,84].
@@ -185,7 +185,9 @@ bag 분석 스크립트는 `docs/rl_real_prep_2026-11-24/`에 있다(맨 끝 "�
 
 ### 4.3 RPP로 되돌리기
 
-- **실행 중, 가장 빠름**: `ros2 topic pub --once /pode1/controller_selector std_msgs/msg/String "{data: FollowPathGoal}"` [확정 follow_path_rl.yaml 주석, pode/pode_nav_config/bt/navigate_to_pose_w_replanning_and_recovery_goal.xml:23].
+- **실행 중, 가장 빠름**: `ros2 topic pub --once --qos-durability transient_local --qos-reliability reliable /pode1/controller_selector std_msgs/msg/String "{data: FollowPathGoal}"` [확정 pode/pode_nav_config/bt/navigate_to_pose_w_replanning_and_recovery_goal.xml:23].
+  QoS 두 옵션을 빼면 안 된다: Jazzy `ros2 topic pub`의 기본 durability는 volatile이고 ControllerSelector는 transient_local로 구독해 짝이 맞지 않는다.
+  그러면 `--once`가 구독자를 기다리며 멈추고 아무것도 보내지 않는다 [확정 /opt/ros/jazzy ros2topic/verb/pub.py:86-95,113; 저장소의 발행 예 tools/nav_bench/bench_node.py:88-90].
   그 뒤의 goal부터 RPP다. 달리고 있는 goal 안에서 바로 바뀌는지는 [추측]이다. 확실히 하려면 goal을 취소하고 다시 보낸다.
 - **멈추기**: goal 취소. 그래도 움직이면 launch Ctrl+C(하나라도 끝나면 전체가 내려가고 bringup이 모터를 끈다 [확정 real_pode.launch.py:11-12]).
   cmd_watchdog는 움직이는 명령이 0.4 s 끊기면 0을 보낸다 [확정 tools/real_pode/cmd_watchdog.py:12].
