@@ -305,6 +305,25 @@ acd 사례는 세 관측 모두 prev_target과 speed_cap이 있고, 행동 사�
   단위 시험으로 같다는 것을 확인했고, 비교에 쓰는 이름(`FollowPathRLShim` 등)은 모두 overrides 파일에서 정한다.
   Williams 순서는 다섯이면 10판이 완전 균형이라 6판은 compare_012처럼 완전하지 않다.
 
+### 2.4 item 8 결과 (2026-11-23 09:06–10:54, 도메인 61)
+
+- 원본은 WSL `~/rl_gz_check/item8_1123`(판 JSON, `report_q2e3`·`report_main` 표, `early_*.md`)에 있다.
+  모든 시나리오에서 판이 다 돌았고(rc 0), 잠금은 10:53에 놓였다. 정리한 표는 `rl_shim_recipe_2026-11-22/item8_results.md`와 `.csv`,
+  만든 스크립트는 `item8_results.py`다.
+- 좁은 통로 셋(a_hall, e_corridor, d_robot)과 Q2 -> E-3에서는 다섯 모두 전부 성공했고, 거리 문턱 접촉은 0번이다. 좁은 통로 셋에서는 RL+shim 셋이
+  가장 빠르다(12.5–13.1 s, RPP 13.4–15.5 s, MPPI 13.8–17.1 s). Q2 -> E-3에서는 4b가 17.9 s로 가장 느리고 c 14.9 s,
+  acd 14.5 s, MPPI 13.7 s, RPP 14.1 s다. 대신 도리도리(각속도 부호 바뀜)는 판당 15–17번으로
+  MPPI(3–6번)보다 훨씬 많다.
+- 몸 최소 거리가 가장 작은 칸은 d_robot의 RL+shim c(0.022 m)와 Q2 -> E-3의 RL+shim acd(0.030 m)다. 접촉 문턱 아래는 아니다.
+- c_moving(움직이는 장애물)에서는 다섯 모두 5/6 이하이고 접촉 문턱 아래로 내려간다. 횟수는 4b 2, MPPI 8, acd 11, RPP 12,
+  c 14번이다. 실패 여섯 중 둘(4b, acd)은 Nav2가 SUCCEEDED를 냈지만 실제 위치가 목표에서 0.57 m 이상 떨어져 있었다.
+- shim 이른 넘김(판 기록으로 센 추정치): Q2 -> E-3에서 4b 12번, c 7번, acd 4번. 본 비교 합은 4b 17, c 10, acd 16번이고,
+  acd의 16번 중 14번은 c_moving이다.
+- acd의 speed_cap: launch 출력에 FollowPathRL의 ERROR가 없어 범위 밖으로 잘린 일은 없었다. 다만 출력이 WARN 이상만 남겨,
+  configure INFO에서 0.12를 읽은 것을 직접 보지는 못했다.
+- 한 칸이 3판 또는 6판이라 차이 대부분은 판 사이 흩어짐 안에 있다. 특히 c_moving은 시간 표준편차가 3–12 s다.
+  "c와 acd가 4b보다 낫다"고 말할 근거는 Q2 -> E-3의 이른 넘김 감소 정도이고, 그 칸도 3판이다.
+
 ## 주의
 
 - 1.3의 검사는 운동학 모형이다. Isaac 물리도 Gazebo도 아니다. Gazebo가 닿은 상태를 0.026 m로만 재현했다.
