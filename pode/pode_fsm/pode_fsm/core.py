@@ -122,6 +122,9 @@ class PodeFsm(NavGoalMoves, RetreatMoves, LocalYield, NavYield, SelfRecovery, Ob
             return self._active.dock_id
         return ""
 
+    def has_goal(self) -> bool:
+        return self._active is not None
+
     def distance_remaining(self, pose: Sequence[float] | None) -> float:
         g = self._active
         if isinstance(g, NavGoal):

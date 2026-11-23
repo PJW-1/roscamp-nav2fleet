@@ -260,7 +260,7 @@ class PodeFsmNode(Node):
     # ---- 관리 명령 서비스: 락, 운영 모드, 충전 끝내기 ----
     def _on_set_lock(self, request, response):
         with self._lock:
-            stopped = not self._fsm.current_goal()
+            stopped = not self._fsm.has_goal()
             reply = self._admin.set_lock(request.request_id, request.robot_id, request.locked,
                                          stopped, time.monotonic())
         return _answer(response, request.request_id, reply)

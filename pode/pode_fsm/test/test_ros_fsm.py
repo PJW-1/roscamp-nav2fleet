@@ -255,6 +255,24 @@ def test_something_behind_ends_a_retreat_with_obstacle_behind(harness):
     assert (res.success, res.reason) == (False, Retreat.Result.REASON_OBSTACLE_BEHIND)
 
 
+def test_the_lock_does_not_change_while_a_retreat_runs(harness):
+    """W-34: 락은 멈춘 로봇에서만 바뀐다. Retreat도 진행 중인 목표다."""
+    import rclpy.node
+    from fleet_interfaces.action import Retreat
+    from fleet_interfaces.srv import SetLock
+    fake, probe = start(harness)
+    caller = harness.add(rclpy.node.Node("lock_caller"))
+    client = caller.create_client(SetLock, "/pode1/set_lock")
+    assert client.wait_for_service(timeout_sec=5.0)
+    h = probe.send(Retreat.Goal(distance_m=0.2, speed_mps=0.05), client=_retreat_client(probe))
+    assert wait_until(lambda: len(fake.backups) >= 1, 5.0)
+    future = client.call_async(SetLock.Request(request_id="l-1", robot_id="pode1", locked=False))
+    assert wait_until(future.done, 5.0)
+    assert (future.result().accepted, future.result().reason) == (False, "NOT_STOPPED")
+    assert not h.get_result_async().done()
+    assert probe.last_state().lock is True
+
+
 def _back_path(*ids):
     from geometry_msgs.msg import Pose
     out = []
