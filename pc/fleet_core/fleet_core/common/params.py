@@ -69,6 +69,7 @@ class FleetParams:
     self_recovery_limit_s: float = 45.0
     traffic_mode: str = "zones"
     nav_speed_mps: float = 0.12
+    nav_eta_speed_ratio: float = 1.0  # 기록 호환: 옛 기록은 비율 없이(1.0) 돈다
     follow_speed_mps: float = 0.12
     retreat_speed_mps: float = 0.05
     nav_pass_m: float = 0.0  # 기록 호환: 이 키가 없는 옛 기록은 넘김 거리 없이 돈다(파일은 0.15)
@@ -112,6 +113,10 @@ class FleetParams:
         if self.comm_loss_policy not in COMM_LOSS_POLICIES:
             raise ValueError(f"comm_loss_policy must be one of {COMM_LOSS_POLICIES}, "
                              f"got {self.comm_loss_policy!r}")
+        ratio = self.nav_eta_speed_ratio
+        if (isinstance(ratio, bool) or not isinstance(ratio, (int, float))
+                or not _finite(ratio) or not 0.0 < ratio <= 1.0):
+            raise ValueError(f"nav_eta_speed_ratio must be a number in (0, 1], got {ratio!r}")
 
 
 # ---- 파라미터 파일 읽기 ----

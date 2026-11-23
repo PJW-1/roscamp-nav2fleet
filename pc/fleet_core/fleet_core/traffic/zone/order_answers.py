@@ -7,7 +7,7 @@ from fleet_core.fleet_map import NAV_GOAL, RETREAT
 from fleet_core.traffic.mission import MOVE
 
 from .robots import ORDER, Goal, LeftReport
-from .routes import PASS, STOP, left_s, nav_end_s, nav_stretch, speed, travel_s
+from .routes import PASS, STOP, eta_speed, left_s, nav_end_s, nav_stretch, travel_s
 
 REJECTED = "ORDER_UPDATE_REJECTED"
 SUPERSEDED = "SUPERSEDED"
@@ -94,10 +94,10 @@ class OrderAnswers:
         if adjust == 0.0:
             if stop is None or stop > end:
                 return left_s(p, edges[done:end], m.x, m.y) + end_turn
-            return (m.move_order.left.m / speed(p, NAV_GOAL) + travel_s(p, edges[stop:end])
+            return (m.move_order.left.m / eta_speed(p, NAV_GOAL) + travel_s(p, edges[stop:end])
                     + end_turn)
         if stop is not None and stop <= chain:
-            nav = m.move_order.left.m / speed(p, NAV_GOAL) + travel_s(p, edges[stop:chain])
+            nav = m.move_order.left.m / eta_speed(p, NAV_GOAL) + travel_s(p, edges[stop:chain])
         else:
             nav = left_s(p, edges[done:chain], m.x, m.y)
         return max(0.0, nav + adjust) + travel_s(p, edges[chain:end]) + end_turn
