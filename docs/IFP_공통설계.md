@@ -192,7 +192,7 @@ FMS는 컴포넌트 1개 = 프로세스 1개 = 노드 1개(`fleet_manager`, 실�
 | `cancel_retry_s` | 1 | 취소한 목표의 결과가 없을 때 취소를 다시 보내는 간격. 매번 0.8~1.2배로 무작위로 흔든다(IR-41). 추정 |
 | `cancel_warn_after` | 7 | `CANCEL_UNCONFIRMED`를 내기까지 결과 없이 지나간 재시도 주기 수. `cancel_retry_s`와 지터 하한 0.8을 곱한 값이 `arm_cancel_wait_s` 이상이어야 코어가 아직 기다리는 팔을 늦었다고 하지 않는다(시험으로 고정) |
 | `report_retry_s` | 2 | 답이 없는 주문 보고를 다시 보내기까지. 매번 0.8~1.2배로 무작위로 흔든다(IR-41). 추정 |
-| `report_max_in_flight` | 4 | 답을 기다리는 주문 보고 수의 상한(IR-41). 넘는 보고는 다음 차례에 보낸다. 로봇 세 대가 한꺼번에 끝내도 기다리지 않게 하나를 더 두었다 |
+| `report_max_in_flight` | 4 | 답을 기다리는 주문 보고 요청 수의 상한(IR-41). 다시 보내기도 요청 하나로 센다. 넘는 요청은 다음 차례에 보낸다. 로봇 세 대가 한꺼번에 끝내도 기다리지 않게 하나를 더 두었다 |
 | `zone_wait_warn_s` | 60 | `ZONE_WAIT_LONG`을 내기까지 |
 | `deadlock_grace_s` | 5 | 대기 고리를 찾고 포기 대상을 정하기까지 |
 | `score_same_call` | -4 | 이미 호출된 로봇의 점수 보정. 다른 로봇이 뚜렷이 가깝지 않으면 호출을 유지한다 |
@@ -256,7 +256,7 @@ FMS 내부 호출 (파이썬, `fleet_core` 패키지):
 - `/central/submit_order` SubmitOrder 서비스: UI → central. 재고 기록에 없거나 용량 초과면 거절
 - `/central/set_run_mode` 서비스: UI → central (RUN / PAUSE / STOP)
 - `/central/orders` OrderBoard 토픽(run_mode, 최종 보고가 안 된 주문을 오래된 순서로): central → FMS
-- `/central/report_order` ReportOrder 서비스(SHIPPED, PARTIAL, HELD, placed, missing, detail): FMS → central. FMS는 `accepted=true` 답을 받을 때까지 답이 없는 보고를 `report_retry_s`(±20%)마다 다시 보내고, 다시 보낼 때 응답 한도(IR-40 `Report*` 3 s)를 넘긴 앞선 요청만 지운다(IR-41). **central은 3 s 안에 답해야 한다.** 그보다 늦은 답은 받지 않는다. **실제 central이 지킬 것:** 같은 보고가 여러 번 와도 결과가 달라지면 안 된다. 이미 처리한 주문이면 재고를 다시 빼지 않고 `accepted=true`로 답한다(`fake_central_node`가 이렇게 한다). `accepted=false`는 다시 보내도 소용없을 때만 쓴다. FMS는 그 보고를 버리고 `ORDER_REPORT_REFUSED`를 낸다
+- `/central/report_order` ReportOrder 서비스(SHIPPED, PARTIAL, HELD, placed, missing, detail): FMS → central. FMS는 `accepted=true` 답을 받을 때까지 답이 없는 보고를 `report_retry_s`(±20%)마다 다시 보내고, 응답 한도(IR-40 `Report*` 3 s)를 넘긴 요청은 지운다(IR-41). **central은 3 s 안에 답해야 한다.** 그보다 늦은 답은 받지 않는다. **실제 central이 지킬 것:** 같은 보고가 여러 번 와도 결과가 달라지면 안 된다. 이미 처리한 주문이면 재고를 다시 빼지 않고 `accepted=true`로 답한다(`fake_central_node`가 이렇게 한다). `accepted=false`는 다시 보내도 소용없을 때만 쓴다. FMS는 그 보고를 버리고 `ORDER_REPORT_REFUSED`를 낸다
 - `/central/events` FleetEvent 토픽: FMS와 central이 발행하고 source로 구분한다
 - `/fleet/assignments` AssignmentArray 토픽(항목마다 robot_id, order_id, station_id, task_type: TO_WORK/FILL/TO_OUTBOUND/SWAP/WAIT): FMS → central
 - `/fleet/zones` ZoneStateArray 토픽: FMS → central
@@ -408,7 +408,7 @@ SWAPPING(OUTBOUND 요청의 결과를 받은 뒤):
 
 취소 확인(`fleet_manager` 노드, 이동·도킹·팔 목표 공통): 취소는 그 목표의 결과가 와야 끝난 것으로 친다. 코어는 `CancelCmd`를 내면 잊지만, 노드는 결과가 올 때까지 `cancel_retry_s`에 0.8~1.2배 무작위 배수를 곱한 간격마다 취소를 다시 보낸다(IR-41). 처음 보낸 것을 포함해 `cancel_warn_after`번이 답 없이 지나가면 `CANCEL_UNCONFIRMED`를 한 번 내고, 그 뒤에도 같은 간격으로 계속 보낸다. 다만 취소한 이동·도킹 목표의 결과를 잃으면(결과 future 오류) 결과가 다시 올 수 없으므로 이 경고 다음 재시도에서 그만둔다. 그 로봇의 구역은 코어가 결과나 `confirm_clear`까지 쥔다(5절 레인 막힘). 서버가 수락하기 전에 요청한 취소는 수락되는 순간 보내고, 수락을 기다리는 시간도 횟수에 넣는다. 수락 답이 사라져도 목표는 돌고 있을 수 있기 때문이다. 시각은 노드의 시계를 쓰므로 시뮬레이션 시간을 따른다.
 
-보고 확인(`fleet_manager` 노드): 주문 보고는 `accepted=true` 답을 받을 때까지 노드가 가지고 있고, 답이 없으면 `report_retry_s`에 0.8~1.2배 무작위 배수를 곱한 간격마다 다시 보낸다(4절, IR-41). 다시 보낼 때 응답 한도(3 s, `REPORT_REPLY_LIMIT_S`)를 넘긴 앞선 요청만 클라이언트에서 지운다(`remove_pending_request`). 한도 안의 앞선 요청은 남겨 두어 그 답으로도 보고가 끝나고, 이미 끝난 보고의 답은 무시한다. 답을 기다리는 보고는 `report_max_in_flight`개까지이고 넘는 새 보고는 자리가 날 때 보낸다. 서비스가 안 보이는 동안에는 보내지 않는다. 호출이 실패해도 가지고 있다가 다시 보낸다. `accepted=false`면 버리고 `ORDER_REPORT_REFUSED`를 낸다.
+보고 확인(`fleet_manager` 노드): 주문 보고는 `accepted=true` 답을 받을 때까지 노드가 가지고 있고, 답이 없으면 `report_retry_s`에 0.8~1.2배 무작위 배수를 곱한 간격마다 다시 보낸다(4절, IR-41). 응답 한도(3 s, `REPORT_REPLY_LIMIT_S`)를 넘긴 요청은 매 tick 클라이언트에서 지운다(`remove_pending_request`). 한도 안의 앞선 요청은 남겨 두어 그 답으로도 보고가 끝나고, 보고가 끝나면 남은 요청도 지운다. 이미 끝난 보고의 답은 무시한다. 답을 기다리는 보고는 `report_max_in_flight`개까지이고 넘는 새 보고는 자리가 날 때 보낸다. 서비스가 안 보이는 동안에는 보내지 않는다. 호출이 실패해도 가지고 있다가 다시 보낸다. `accepted=false`면 버리고 `ORDER_REPORT_REFUSED`를 낸다.
 
 STOP: 팔 작업을 취소한다. RUN으로 돌아오면 남은 일부터 다시 한다. PAUSE: 진행 중인 것은 끝내고 새 명령을 내지 않는다.
 
@@ -480,7 +480,7 @@ expect: {all_orders_finished: true, orders_shipped: 6, orders_partial: 0, orders
 - ~~고장 난 로봇의 주문은 관리자가 치울 때까지 멈춘다.~~ 닫힘(11-06, 5.5번): 로봇 1대가 고장 나도 주문은 사람을 기다리지 않는다(자동 격리, 5절). 다만 기본 지도처럼 우회로가 없는 곳에서는 격리된 로봇 뒤의 로봇이 관리자가 치울 때까지 기다린다. 격리된 로봇이 쥔 구역은 우회 계산에서 무한 벌점이라, 그 구역을 지나지 않는 길이 있을 때만 돌아간다. 특징 지도에서 확인했다(`feature_auto_isolation`): F1, F2를 쥐고 서면 좁은 통로(F0 T2 T1 QW W)로 돌아가고, 도크(W, O)나 하나뿐인 길(동쪽행 E, O->F0, 대기 줄 출구 QW)을 쥐면 기다린다. F2만 쥔 경우도 `df2a02b`부터 남은 경로의 무한 보유자를 보므로 O에서 돌아간다(SimWorld, 작업 기록 파트 5.5). 남은 일: 대기 줄로 들어가는 결정은 출구(QW)가 막힌 것을 보지 않는다. 격리된 로봇이 QW만 쥐면 대기 줄에 들어간 로봇이 갇힌다(SimWorld 6건 중 5건).
 - `ARM_NO_RESULT`로 격리된 로봇의 주문은 되돌리지 않고 관리자를 기다린다. 격리 때 교환 중이었으면 그 결과까지 기다리고, 결과가 없으면 같은 규칙이다(5-1절의 예외). 두 번 출고를 막으려는 것이다.
 - 격리로 되돌린 주문은 다른 로봇이 처음부터 다시 담는다. 격리된 로봇의 바구니에 남은 품목은 관리자가 치우며 재고를 맞춘다. FMS는 바구니를 NONE으로만 기록한다.
-- 보고는 다시 보낼 때 응답 한도(3 s)를 넘긴 앞선 요청을 지우므로(IR-41) 응답 대기 항목이 보고마다 많아야 두 개(재전송 간격이 1.6~2.4 s라서)다. 3 s보다 늘 느리게 답하는 central의 보고는 끝나지 않는다. 취소는 액션 클라이언트에 지우는 공개 API가 없어 그대로다. 서버가 발견은 되는데 답하지 않는 동안 `cancel_retry_s`마다 1개씩 늘어난다.
+- 보고 요청은 응답 한도(3 s)를 넘기면 지우고 보고가 끝나면 남은 요청도 지우므로(IR-41) 응답 대기 항목은 모두 `report_max_in_flight`개를 넘지 않는다. 3 s보다 늘 느리게 답하는 central의 보고는 끝나지 않는다. 상한은 먼저 들어온 보고부터 채우므로, 답을 못 받는 보고가 상한만큼 쌓이면 뒤 보고는 그동안 나가지 못한다(같은 주문 보고의 순서를 지키려고 그대로 둠, 정할 문제). 취소는 액션 클라이언트에 지우는 공개 API가 없어 그대로다. 서버가 발견은 되는데 답하지 않는 동안 `cancel_retry_s`마다 1개씩 늘어난다.
 - `CANCEL_UNCONFIRMED`는 알리기만 한다. 취소가 끝내 듣지 않는 로봇을 FMS가 세울 방법은 없고, `move_to`와 `dock`에는 다른 정지 수단이 없다.
 - central이 거절한 보고(`ORDER_REPORT_REFUSED`)의 주문은 보드에 남아 있어도 아무도 맡지 않고 보고하지도 않는다. 관리자가 처리한다.
 - `FakePode`는 즉시 선다. 실물의 감속 거리는 `heartbeat_timeout_s` 동안 이동 거리에 더해야 한다.

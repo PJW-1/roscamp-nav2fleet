@@ -235,7 +235,7 @@ def test_the_status_of_every_robot_comes_out_about_five_times_a_second(graph):
     assert (robot.x, robot.y) != (0.0, 0.0)
 
 
-@pytest.mark.parametrize("bad", ["0.0", "-5.0"])
+@pytest.mark.parametrize("bad", ["0.0", "-5.0", ".inf"])
 def test_a_robots_rate_that_is_not_positive_is_refused(bad):
     rclpy.init(args=["--ros-args", "-p", "robots:=[pode1]", "-p", f"robots_hz:={bad}"])
     try:
@@ -759,6 +759,19 @@ def test_a_resent_report_removes_only_requests_past_the_reply_limit():
     assert client.removed == client.sent[:1]
     answer(client.sent[1], True)  # 한도 안에 남은 앞선 요청의 답이 끝낸다
     assert not node._reports._items
+    assert client.removed == [client.sent[0], client.sent[2]], "the other waiting request goes"
+
+
+def test_a_request_past_the_reply_limit_is_dropped_without_a_resend():
+    node, _ = report_node()
+    node.core.params.report_retry_s = 10.0
+    node._reports.add(report_cmd("O-001"))
+    client = node._report_client
+    FleetManagerNode._flush_reports(node, 0.0)
+    FleetManagerNode._flush_reports(node, 2.9)
+    assert client.removed == []
+    FleetManagerNode._flush_reports(node, 3.0)
+    assert client.removed == client.sent[:1] and len(client.sent) == 1
 
 
 def test_a_late_answer_to_a_done_report_is_harmless():
@@ -770,6 +783,7 @@ def test_a_late_answer_to_a_done_report_is_harmless():
     answer(client.sent[1], True)
     answer(client.sent[0], False)  # 지웠어도 늦게 끝난 future
     assert events == [] and not node._reports._items
+    assert client.removed == client.sent[:1]
     FleetManagerNode._flush_reports(node, 10.0)
     assert len(client.sent) == 2
 
