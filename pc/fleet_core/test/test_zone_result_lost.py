@@ -106,8 +106,8 @@ def test_a_late_result_inside_the_settle_time_settles_it_like_any_result():
     assert not isolations(world, "ROBOT_TIMEOUT")
 
 
-def test_a_lost_dock_result_is_docked_once_the_robot_reports_docked():
-    """계약의 STATE_DOCKED(가짜 Pode가 보고한다)는 도킹을 끝냈다는 관측이다."""
+def test_a_lost_dock_result_docks_again_even_on_a_docked_report():
+    """DOCKED 보고에는 도킹 오차가 없다. 지어낸 오차를 넘기지 않고 다시 도킹해 잰다."""
     world, call = sent_once(speed=0.12)
     assert world.run_until(lambda: world.sent(DockCmd, "pode2"), 300.0)
     dock = world.sent(DockCmd, "pode2")[-1]
@@ -115,12 +115,14 @@ def test_a_lost_dock_result_is_docked_once_the_robot_reports_docked():
     lose(world, dock.goal_id)
     world.bots["pode2"].dock = None  # 도킹은 끝났지만 결과를 잃었다
     world.run(2.0)
-    assert world.result_of(call) is None and world.view("pode2")["goal_id"] == dock.goal_id
     reports(world, "pode2", "DOCKED")
     world.step()
-    assert world.result_of(call) is not None and world.result_of(call).success
-    assert world.view("pode2")["goal_id"] is None and len(world.sent(DockCmd, "pode2")) == 1
+    assert world.result_of(call) is None and world.codes("pode2")[-1] == "GOAL_RETRY"
     assert dock.goal_id in [c.goal_id for c in world.sent(CancelCmd, "pode2")]
+    world.__dict__.pop("_state")
+    assert world.run_until(lambda: world.result_of(call) is not None, 60.0)
+    result = world.result_of(call)
+    assert result.success and result.error_x_cm == 0.4, "the error measured by the second dock"
 
 
 def test_a_lost_dock_result_docks_again_once_the_robot_reports_idle():
@@ -204,3 +206,39 @@ def test_an_idle_report_heard_after_the_settle_time_is_too_late():
     world.step()
     assert [i.reason for i in isolations(world)] == ["ROBOT_TIMEOUT"]
     assert "GOAL_RETRY" not in world.codes("pode2")
+
+
+def test_an_idle_report_heard_in_time_settles_even_if_a_later_report_comes_before_the_tick():
+    world, call = sent_once()
+    lost_at = world.now
+    lose(world, last_goal(world))
+    world.now = lost_at + world.params.robot_timeout_settle_s - 0.05
+    stop_quietly(world)
+    world.report()  # 기한 안에 들은 IDLE
+    world.now = lost_at + world.params.robot_timeout_settle_s + 0.05
+    world.step()  # 기한 뒤의 보고가 덮어쓴 다음 tick
+    assert not isolations(world, "ROBOT_TIMEOUT")
+    assert "GOAL_RETRY" in world.codes("pode2")
+
+
+def test_a_silent_robot_that_comes_back_after_the_settle_time_is_still_isolated():
+    world, call = sent_once()
+    lost_at = world.now
+    lose(world, last_goal(world))
+    world.silent.add("pode2")
+    world.run(world.params.comm_timeout_s + 1.0)
+    assert "COMM_LOST" in world.codes("pode2")
+    world.now = lost_at + world.params.robot_timeout_settle_s + 0.5
+    world.silent.discard("pode2")
+    world.report()  # 기한이 지난 뒤 tick보다 먼저 온 보고
+    world.step()
+    assert [i.reason for i in isolations(world)] == ["ROBOT_TIMEOUT"]
+
+
+def test_a_result_after_the_settle_time_comes_too_late_even_before_the_tick():
+    world, call = sent_once()
+    lost = lose(world, last_goal(world))
+    world.now += world.params.robot_timeout_settle_s + 0.5
+    world.traffic.on_move_result("pode2", lost, True, "")
+    world.step()
+    assert [i.reason for i in isolations(world)] == ["ROBOT_TIMEOUT"]

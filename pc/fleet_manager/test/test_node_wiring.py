@@ -604,7 +604,7 @@ def test_a_dropped_cancel_of_a_robot_goal_is_told_to_the_core_as_lost():
     goals.accepted(key, SimpleNamespace(cancel_goal_async=lambda: None))
     goals.cancel(key, 0.0)
     goals.lost(key)
-    params = SimpleNamespace(cancel_retry_s=1.0, cancel_warn_after=2)
+    params = SimpleNamespace(cancel_retry_s=1.0, cancel_warn_after=2, robot_timeout_settle_s=30.0)
     events = []
     node = SimpleNamespace(_goals=goals, core=MagicMock(params=params),
                            _dispatch=lambda command, now: events.append(command.code))

@@ -427,3 +427,18 @@ def test_a_goal_whose_result_was_lost_keeps_its_handle_for_one_cancel():
     assert retry(goals, 10.0) == [] and handle.cancels == 1
     goals.cancel("k", 11.0)
     assert handle.cancels == 1, "nothing is left to cancel"
+
+
+def test_a_lost_result_handle_nobody_cancels_is_let_go_after_a_while():
+    """코어가 취소하지 않고 정한 goal(이전 order goal 등)의 handle은 오래 쥐지 않는다."""
+    goals, handle = running()
+    goals.result_lost("k")
+    goals.drop_stale_lost(0.0, 60.0)
+    goals.cancel("k", 1.0)
+    assert handle.cancels == 1, "still held before the time"
+    goals, handle = running()
+    goals.result_lost("k")
+    goals.drop_stale_lost(0.0, 60.0)
+    goals.drop_stale_lost(60.0, 60.0)
+    goals.cancel("k", 61.0)
+    assert handle.cancels == 0, "let go"
