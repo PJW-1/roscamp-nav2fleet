@@ -12,6 +12,7 @@ from pode_fsm.no_motion import (
     NoMotion,
     NoMotionParams,
     dock_phase,
+    dock_warning,
 )
 from pode_fsm.results import CANCELED, DOCKED, DOCKING, HEARTBEAT_LOST, IDLE, Finish
 
@@ -119,3 +120,16 @@ def test_fsm_dock_wait_can_be_canceled_and_stops_on_heartbeat_loss():
     out = fsm.tick(2.6, (0.0, 0.0, 0.0), (0.0, 0.0), lambda _p: False)
     assert Finish("h", False, HEARTBEAT_LOST) in out
     assert fsm.state() == IDLE
+
+
+# ---- 도킹 이름: 거리는 보지 않고, 모르는 이름이면 경고만(2026-11-24 결정) ----
+def test_default_dock_ids_are_the_fleet_station_names():
+    assert NoMotionParams().dock_ids == ("WORK", "OUTBOUND")
+
+
+def test_known_dock_ids_give_no_warning_and_others_do():
+    assert dock_warning("WORK", P.dock_ids) is None
+    assert dock_warning("OUTBOUND", P.dock_ids) is None
+    for bad in ("NOPE", "", "work"):
+        msg = dock_warning(bad, P.dock_ids)
+        assert msg is not None and repr(bad) in msg and "WORK" in msg

@@ -90,6 +90,10 @@ Nav2 goal을 모는 컨트롤러(FollowPathGoal)의 속도는 `nav2_params.yaml`
 - 도킹 없음(DOCK_STUB 없이): `pode_fsm` dock()은 DOCK_UNAVAILABLE을 돌려준다. 관제는 도킹을 3번 다시 시도한 뒤 WORK
   도크 구역을 쥔 채로 로봇을 격리한다. 시험은 거기서 멈춘다.
 - 배터리 토픽 비움(`battery_topic`): 배터리를 모름(-1)으로 알린다.
+- 동작 없음(설계 4.5): `NO_MOTION=1 ./start.sh pode2`는 bringup과 Nav2 없이 `pode_fsm`만 `no_motion:=true`로
+  띄운다. 바퀴는 돌지 않고, 목표는 정해진 시간 뒤 성공한다. 자세를 안 주면 로봇별 주차 자리(v7 P-1~P-3)를 쓰고,
+  `NO_MOTION=1 ./start.sh pode2 X Y YAW`로 바꿀 수 있다. `PEER_ROBOTS`, `DOCK_STUB`, `FIXED_LINE_CHECK`와 함께
+  주면 거절한다(종료 2). 내릴 때는 `./stop.sh`.
 
 ## 알려진 한계
 

@@ -13,9 +13,10 @@ ros2 launch pode_fsm pode_fsm.launch.py namespace:=pode1 no_motion:=true
 - `no_motion` 실행 인자 하나로 켠다. 기본은 `false`(실주행)다.
 - 동작 없음일 때는 Nav2 없이 pode_fsm 혼자 돈다. bringup, Nav2, 라이다가 필요 없다.
 - `real_pode.launch.py`와 `start.sh`에는 넣지 않았다. 그쪽은 Nav2를 함께 띄우는 실주행용이다.
-- 시작 자세는 `initial_x`, `initial_y`, `initial_yaw`(rad)로 준다. 기본은 P-1이다. 세 대를 띄울 때는 로봇마다 다른 주차 자리를 줘야 한다. 주지 않으면 세 대가 모두 P-1에 있다고 알린다.
+- 시작 자세는 `initial_x`, `initial_y`, `initial_yaw`(rad) 실행 인자로 준다. launch 파일의 기본은 P-1이다.
+- 실물 로봇에서는 `NO_MOTION=1 ~/nav2fleet_real/start.sh pode2`로 띄운다. 자세를 안 주면 `start.sh`에 적힌 로봇별 주차 자리를 쓰고, `NO_MOTION=1 start.sh pode2 X Y YAW`로 바꿀 수 있다. 내릴 때는 `stop.sh`다. pode_fsm은 지도 좌표를 모른다.
 
-| 로봇 | 자리 | 인자 (v7 지도) |
+| 로봇 | 자리 | `start.sh` 기본값 (v7 지도) |
 |---|---|---|
 | pode1 | P-1 | `initial_x:=0.12 initial_y:=0.10 initial_yaw:=1.5708` (기본) |
 | pode2 | P-2 | `initial_x:=0.38 initial_y:=0.10 initial_yaw:=1.5708` |
@@ -38,7 +39,7 @@ FSM, 액션 서버(`GoalServers`), heartbeat 판단, 상태 발행은 실주행 
 
 - 자세는 기다리는 동안 그대로이고, 끝나는 순간 목표로 옮긴다. FSM이 같은 끝점으로 경로를 다시 보내면 처음 기다림을 잇는다(0.15 m보다 짧은 이동에서 생긴다).
 - 도킹은 PC 도킹 대역(`real_dock_wait`)처럼 DOCKING을 거쳐 DOCKED가 되고, 피드백을 APPROACH → ALIGN → DONE 순서로 보낸다. DONE은 성공 직전에 꼭 보낸다. 3.0 s는 실물 시나리오의 `dock.duration_s`와 같다.
-- 도킹은 `dock_id`나 스테이션과의 거리를 확인하지 않는다. pode_fsm은 스테이션 좌표를 모르기 때문이다. PC 대역은 0.15 m 밖이면 실패시킨다.
+- 도킹은 스테이션과의 거리를 확인하지 않고 성공한다(2026-11-24 결정). `dock_id`가 `no_motion_dock_ids`(기본 `WORK`, `OUTBOUND`, 모든 fleet 지도의 스테이션 이름)에 없으면 경고 로그만 남기고 그대로 성공한다. PC 도킹 대역은 0.15 m 밖이나 모르는 이름이면 실패시킨다.
 - `check_clear`는 늘 `clear`로 답한다.
 - 상태는 동작 없음일 때 기본 5 Hz로 보낸다. 이 브랜치에서 끄면 지금처럼 10 Hz다(`feat/interface-align-2026-11-24`에 합친 판은 두 모드 모두 5 Hz). LOCALIZING 단계는 없다.
 - 기본 통신 끊김 정책(`comm_loss_policy:=stop`)에서는 heartbeat가 1.5 s 끊기면 하던 이동, 후진, 도킹을 `HEARTBEAT_LOST`로 끝내고 IDLE로 선다. `comm_loss_policy:=base_end`면 order는 받은 base 끝까지 이어 가고 자세도 바뀔 수 있다. `heartbeat_timeout_s:=0`이면 끊김을 보지 않는다. 후진은 계약상 reason이 넷뿐이라 `FAILED`가 되고, FakePode도 같다. 자세는 바뀌지 않는다.
@@ -70,6 +71,7 @@ v7 구역 지도에서 P-1 출발, 두 노드에 같은 목표를 보내고 비�
 | distance_remaining | 끝날 때까지 시작 거리 | 줄어듦 | 움직이지 않으므로 |
 | 도킹 DONE 피드백 | 늘 보냄 | 틱 순서에 따라 빠질 수 있음 | PC 대역과 같게 |
 | 도킹 오차 | 0 | 계산값 | 움직이지 않으므로 |
+| 도킹 스테이션 확인 | 거리를 보지 않음, 모르는 `dock_id`는 경고만 | (PC 도킹 대역은 0.15 m 밖이나 모르는 이름이면 실패) | 2026-11-24 결정 |
 | heartbeat 끊긴 뒤 자세 | 시작 자리 | 가던 중간 | 끝나야 자세가 옮겨지므로 |
 | 배터리 | -1(모름) | 시나리오 값 | 배터리 토픽이 없으므로 |
 | check_clear | 서비스 있음, 늘 clear | 서비스 없음 | 설계 4.5 |
@@ -107,11 +109,19 @@ v7 구역 지도에서 P-1 출발, 두 노드에 같은 목표를 보내고 비�
 
 ## TODO 표시
 
-`TODO(no-motion)`: `no_motion.py` 머리, `node.py`(파라미터, `_start_no_motion`), `core.py`와 `order_fsm.py`의 `dock_wait`, `server_ros.py` 도킹 분기, launch 인자.
+`TODO(no-motion)`: `no_motion.py` 머리, `node.py`(파라미터, `_start_no_motion`), `core.py`와 `order_fsm.py`의 `dock_wait`, `server_ros.py` 도킹 분기, launch 인자, `tools/real_pode/start.sh`의 `NO_MOTION` 분기.
 
-## 정할 것과 다음 주
+## 결정 (2026-11-24)
 
-- 도킹을 `dock_id`나 스테이션 위치와 관계없이 성공시켜도 되는지. 맞추려면 pode_fsm이 지도(스테이션 좌표)를 읽어야 한다.
-- order current_goal을 조각 묶음의 끝으로 둘지, FakePode처럼 base 끝으로 맞출지.
-- 시작 자세를 로봇 이름으로 주차 자리에서 고르게 할지(지금은 인자로 준다).
-- 실주행으로 돌아갈 때는 `no_motion`을 주지 않으면 된다. 정리할 때 TODO 코드를 지운다.
+| 항목 | 결정 | 반영 |
+|---|---|---|
+| 도킹 | 거리와 관계없이 성공 유지. `dock_id`가 예상과 다르면 경고 로그만 | `no_motion_dock_ids` 파라미터와 `dock_warning`. 알려진 차이 "dock station"에 기록 |
+| order current_goal | 실주행 pode_fsm처럼 달리는 조각 묶음의 끝 유지 | 알려진 차이 "order current_goal"에 결정 기록 |
+| 시작 위치 | 실행 인자 유지. 로봇별 기본값(P-1~P-3)은 실행 스크립트에만 | `NO_MOTION=1 start.sh NAMESPACE [X Y YAW]`, `stop.sh`가 이것도 내림 |
+
+pode_fsm이 지도 좌표를 알게 하지는 않았다. 시작 자리 표는 `tools/real_pode/start.sh`에만 있고, 시험(`tools/test/test_real_pode.py`)이 그 값을 `fleet_map_v7.yaml`의 P-1~P-3와 맞춰 본다.
+
+## 다음 주
+
+- 실주행으로 돌아갈 때는 `no_motion`(실물은 `NO_MOTION`)을 주지 않으면 된다. 정리할 때 `TODO(no-motion)` 코드와 `start.sh`의 기본 자리 표를 지운다.
+- 로봇 Pi에서 `NO_MOTION=1 start.sh`로 띄워 관제와 붙여 보기.
