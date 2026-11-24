@@ -501,6 +501,8 @@ def test_ros_process_budget_leaves_room_under_the_localhost_limit(made):
     count = len(nodes(actions)) + len(nodes(fleet))
     for nav in includes(actions, "nav2.launch.py"):
         count += 1 if launch_args(nav)["use_composition"] == "true" else NAV2_NODES
+        given = launch_args(nav)  # 길 유지 노드(켰고 nav2가 띄울 때만)
+        count += given.get("plan_keep") == "true" and given.get("plan_keep_node") == "true"
     count += len(includes(actions, "pode_fsm.launch.py"))
     assert count + SPARE <= LOCALHOST_PARTICIPANTS
 
@@ -567,3 +569,44 @@ def test_an_unknown_avoidance_package_stops_the_launch(made):
     from ament_index_python.packages import PackageNotFoundError
     with pytest.raises(PackageNotFoundError):
         run(made, avoidance_package="no_such_avoidance_package")
+
+
+# ---- 길 유지(pode_plan_keep): 프로세스를 늘리지 않게 sim_stand_in 안에서 ------------------------
+
+def test_plan_keep_is_off_by_default_like_main(made):
+    assert made.ARGS["plan_keep"][0] == "false"
+    actions = run(made)
+    navs = includes(actions, "nav2.launch.py")
+    assert [launch_args(nav)["plan_keep"] for nav in navs] == ["false"] * 3
+    assert [launch_args(nav)["bt_xml"] for nav in navs] == [""] * 3
+    [stand_in] = nodes(actions, "sim_stand_in")
+    assert params(stand_in)["plan_keep_nodes"] is False
+
+
+def test_plan_keep_runs_every_keeper_inside_the_stand_in_process(made):
+    before = len(nodes(run(made)))
+    actions = run(made, plan_keep="true")
+    navs = includes(actions, "nav2.launch.py")
+    assert len(navs) == 3
+    for nav in navs:
+        assert launch_args(nav)["plan_keep"] == "true"
+        assert launch_args(nav)["plan_keep_node"] == "false", "no extra process per robot"
+    [stand_in] = nodes(actions, "sim_stand_in")
+    assert params(stand_in)["plan_keep_nodes"] is True
+    assert len(nodes(actions)) == before
+    with pytest.raises(ValueError, match="plan_keep"):
+        run(made, plan_keep="on")
+
+
+def test_nav_bt_xml_names_a_tree_in_pode_nav_config_or_an_absolute_file(made, tmp_path):
+    name = "navigate_to_pose_w_replanning_and_recovery_goal_replan_3s.xml"
+    navs = includes(run(made, nav_bt_xml=name), "nav2.launch.py")
+    trees = {launch_args(nav)["bt_xml"] for nav in navs}
+    [tree] = trees
+    assert tree.endswith(f"pode_nav_config/bt/{name}") and Path(tree).is_file()
+    mine = tmp_path / "mine.xml"
+    mine.write_text("<root/>")
+    navs = includes(run(made, nav_bt_xml=str(mine)), "nav2.launch.py")
+    assert {launch_args(nav)["bt_xml"] for nav in navs} == {str(mine)}
+    with pytest.raises(ValueError, match="nav_bt_xml"):
+        run(made, nav_bt_xml="no_such_tree.xml")

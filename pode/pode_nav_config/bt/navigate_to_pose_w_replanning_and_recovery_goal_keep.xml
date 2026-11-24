@@ -1,0 +1,68 @@
+<!--
+  MoveTo mode nav_goal(계약 0.11-draft)용 NavigateToPose BT.
+  원본: ROS 2 Jazzy nav2_bt_navigator의 behavior_trees/navigate_to_pose_w_replanning_and_recovery.xml
+  길 유지 갈래(plan_keep:=true, 시험 중). 기본 트리
+  navigate_to_pose_w_replanning_and_recovery_goal.xml과 다른 곳은 ComputePathToPose 하나다:
+  server_name="compute_path_keep"으로 계획 요청이 길 유지 노드(pode_plan_keep)를 거친다. 그 노드는
+  새 경로가 길이가 비슷한 다른 길일 뿐이고 지금 길이 막히지 않았으면 지금 길을 돌려준다(두 길을
+  1초마다 번갈아 가지 않게). server_timeout="1000"은 그 노드가 rclpy라 goal 승인이 전역 기본값
+  20 ms보다 늦을 수 있어서다(늦으면 트리가 그 계획을 실패로 본다).
+  기본 트리의 설명:
+  원본과 다른 곳은 셋이다.
+  - ControllerSelector의 default_controller가 FollowPath가 아니라 FollowPathGoal이다(goal용
+    controller. FollowPath 셋은 pode_fsm이 관제 경로에 쓴다).
+  - FollowPath에 goal_checker_id="general_goal_checker"를 적었다(후진용
+    retreat_goal_checker가 더해져 goal checker가 둘이면 Nav2는 이름 없는 FollowPath를 거절한다).
+  - 복구에서 Spin과 BackUp을 뺐다. 지도 지우기와 Wait만 남아
+    로봇을 움직이지 않는다. 물러나기는 pode_fsm의 로봇단 교착 처리만 한다: 지나온 길 안에서만,
+    local_backup_m까지, 앞을 막은 로봇보다 낮은 쪽만. 그래서 BT와 pode_fsm이 함께 물러나는 일이 없다.
+  1 Hz로 다시 계획하는 것과 나머지는 원본 그대로다.
+  아래 원본 설명은 그대로 옮겼다.
+
+  This Behavior Tree replans the global path periodically at 1 Hz and it also has
+  recovery actions specific to planning / control as well as general system issues.
+  This will be continuous if a kinematically valid planner is selected.
+-->
+<root BTCPP_format="4" main_tree_to_execute="MainTree">
+  <BehaviorTree ID="MainTree">
+    <RecoveryNode number_of_retries="6" name="NavigateRecovery">
+      <PipelineSequence name="NavigateWithReplanning">
+        <ControllerSelector selected_controller="{selected_controller}" default_controller="FollowPathGoal" topic_name="controller_selector"/>
+        <PlannerSelector selected_planner="{selected_planner}" default_planner="GridBased" topic_name="planner_selector"/>
+        <RateController hz="1.0">
+          <RecoveryNode number_of_retries="1" name="ComputePathToPose">
+            <ComputePathToPose goal="{goal}" path="{path}" planner_id="{selected_planner}" server_name="compute_path_keep" server_timeout="1000" error_code_id="{compute_path_error_code}"/>
+            <Sequence>
+              <WouldAPlannerRecoveryHelp error_code="{compute_path_error_code}"/>
+              <ClearEntireCostmap name="ClearGlobalCostmap-Context" service_name="global_costmap/clear_entirely_global_costmap" server_timeout="1000"/>
+            </Sequence>
+          </RecoveryNode>
+        </RateController>
+        <RecoveryNode number_of_retries="1" name="FollowPath">
+          <FollowPath path="{path}" controller_id="{selected_controller}" goal_checker_id="general_goal_checker" error_code_id="{follow_path_error_code}"/>
+          <Sequence>
+            <WouldAControllerRecoveryHelp error_code="{follow_path_error_code}"/>
+            <ClearEntireCostmap name="ClearLocalCostmap-Context" service_name="local_costmap/clear_entirely_local_costmap" server_timeout="1000"/>
+          </Sequence>
+        </RecoveryNode>
+      </PipelineSequence>
+      <Sequence>
+        <Fallback>
+          <WouldAControllerRecoveryHelp error_code="{follow_path_error_code}"/>
+          <WouldAPlannerRecoveryHelp error_code="{compute_path_error_code}"/>
+        </Fallback>
+        <ReactiveFallback name="RecoveryFallback">
+          <GoalUpdated/>
+          <RoundRobin name="RecoveryActions">
+            <Sequence name="ClearingActions">
+              <!-- 모든 Clear 노드에 server_timeout 1000ms. check_future는 한 틱에 최대 max_timeout만 기다리고 RUNNING을 돌려줘 트리가 멈추지 않는다 -->
+              <ClearEntireCostmap name="ClearLocalCostmap-Subtree" service_name="local_costmap/clear_entirely_local_costmap" server_timeout="1000"/>
+              <ClearEntireCostmap name="ClearGlobalCostmap-Subtree" service_name="global_costmap/clear_entirely_global_costmap" server_timeout="1000"/>
+            </Sequence>
+            <Wait wait_duration="5.0"/>
+          </RoundRobin>
+        </ReactiveFallback>
+      </Sequence>
+    </RecoveryNode>
+  </BehaviorTree>
+</root>

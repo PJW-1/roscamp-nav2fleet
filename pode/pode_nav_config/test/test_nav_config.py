@@ -411,6 +411,26 @@ def test_the_old_plan_once_tree_is_gone():
     assert not (PKG / "bt" / "plan_once_no_recovery.xml").exists()
 
 
+# ---- 경로 뒤집힘 비교용 갈래 트리(시험 중): 기본 트리와 한 곳만 다르다 ----
+
+def test_the_keep_tree_differs_from_the_default_tree_only_in_the_planner_server():
+    keep = ET.parse(PKG / "bt" / "navigate_to_pose_w_replanning_and_recovery_goal_keep.xml")
+    [planner] = keep.getroot().iter("ComputePathToPose")
+    assert planner.attrib.pop("server_name") == "compute_path_keep"
+    # 길 유지 노드는 rclpy라 goal 승인이 전역 기본값 20 ms보다 늦을 수 있다
+    assert int(planner.attrib.pop("server_timeout")) >= 500
+    assert params("bt_navigator")["default_server_timeout"] == 20
+    assert _canon(keep) == _canon(ET.parse(BT_FILE))
+
+
+def test_the_3_s_tree_differs_from_the_default_tree_only_in_the_replanning_rate():
+    slow = ET.parse(PKG / "bt" / "navigate_to_pose_w_replanning_and_recovery_goal_replan_3s.xml")
+    [rate] = slow.getroot().iter("RateController")
+    assert abs(float(rate.get("hz")) - 1 / 3) < 1e-3
+    rate.set("hz", "1.0")
+    assert _canon(slow) == _canon(ET.parse(BT_FILE))
+
+
 # ---- global costmap for Nav2 goals --------------------------------------------------------
 
 LETHAL, INSCRIBED = 254, 253

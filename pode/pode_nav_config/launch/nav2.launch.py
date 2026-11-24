@@ -10,7 +10,8 @@ from launch.actions import DeclareLaunchArgument, GroupAction, IncludeLaunchDesc
 from launch.conditions import IfCondition, UnlessCondition
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitution import Substitution
-from launch.substitutions import LaunchConfiguration, NotEqualsSubstitution, OrSubstitution
+from launch.substitutions import (AndSubstitution, LaunchConfiguration, NotEqualsSubstitution,
+                                  OrSubstitution)
 from launch.utilities import normalize_to_list_of_substitutions, perform_substitutions
 from launch_ros.actions import ComposableNodeContainer, Node, PushRosNamespace, SetParameter
 from launch_ros.descriptions import ComposableNode, ParameterFile, ParameterValue
@@ -29,6 +30,8 @@ TF_REMAPS = [("/tf", "tf"), ("/tf_static", "tf_static")]
 AVOIDANCE_PACKAGE = "pode_avoidance"
 AVOIDANCE_PARAMS = Path("params") / "avoidance.yaml"
 AVOIDANCE_LAUNCH = "/launch/avoidance.launch.py"
+BT_DEFAULT = SHARE / "bt" / "navigate_to_pose_w_replanning_and_recovery_goal.xml"
+BT_KEEP = SHARE / "bt" / "navigate_to_pose_w_replanning_and_recovery_goal_keep.xml"
 
 
 # ---- 파라미터 읽기와 launch 치환 클래스 ----
@@ -47,6 +50,21 @@ class Flag(Substitution):
         if text not in ("true", "false"):
             raise ValueError(f"{self._name} must be true or false, got {text!r}")
         return text
+
+
+class BtXml(Substitution):
+    """bt_xml이 비면 plan_keep에 따라 기본 트리나 길 유지 트리, 주면 그 파일."""
+
+    def __init__(self, given, keep):
+        super().__init__()
+        self._given = normalize_to_list_of_substitutions(given)
+        self._keep = keep
+
+    def perform(self, context) -> str:
+        given = perform_substitutions(context, self._given).strip()
+        if given:
+            return given
+        return str(BT_KEEP if self._keep.perform(context) == "true" else BT_DEFAULT)
 
 
 class AvoidanceFile(Substitution):
@@ -107,6 +125,7 @@ def generate_launch_description():
                                   replacements={"<robot_namespace>": ("/", namespace)}),
         root_key=namespace, param_rewrites={}, convert_types=True), allow_substs=True)
     log = ["--ros-args", "--log-level", arg("log_level")]
+    keep = Flag("plan_keep", arg("plan_keep"))
 
     # ---- 라이프사이클 매니저 파라미터와 초기 위치 ----
     def manager_params(nodes):
@@ -133,7 +152,7 @@ def generate_launch_description():
         ("nav2_behaviors", "behavior_server", "behavior_server::BehaviorServer",
          "behavior_server", [], None),
         ("nav2_bt_navigator", "bt_navigator", "nav2_bt_navigator::BtNavigator", "bt_navigator",
-         [{"default_nav_to_pose_bt_xml": arg("bt_xml")}], None),
+         [{"default_nav_to_pose_bt_xml": BtXml(arg("bt_xml"), keep)}], None),
     ]
     keepout_nodes = [
         ("nav2_map_server", "map_server", "nav2_map_server::MapServer", "keepout_mask_server",
@@ -183,6 +202,11 @@ def generate_launch_description():
         output="screen", arguments=log, remappings=TF_REMAPS, condition=filtered,
         parameters=[{"wall_band_m": ParameterValue(arg("wall_band_m"), value_type=float),
                      "strips": ParameterValue(arg("narrow_strips"), value_type=str)}])
+    plan_keep = Node(
+        package="pode_plan_keep", executable="plan_keep", name="plan_keep", output="screen",
+        arguments=log, respawn=True,
+        condition=IfCondition(AndSubstitution(keep, Flag("plan_keep_node",
+                                                         arg("plan_keep_node")))))
     avoidance = IncludeLaunchDescription(
         PythonLaunchDescriptionSource([FindPackageShare(arg("avoidance_package")),
                                        AVOIDANCE_LAUNCH]),
@@ -211,9 +235,9 @@ def generate_launch_description():
                               description="회피 담당의 설정(FollowPathGoal 값, 비전 관측원 값,"
                                           " peer 층). 비면 avoidance_package의 것."
                                           " 주행 담당의 키가 들어 있으면 뜨지 않는다"),
-        DeclareLaunchArgument(
-            "bt_xml", default_value=str(
-                SHARE / "bt" / "navigate_to_pose_w_replanning_and_recovery_goal.xml")),
+        DeclareLaunchArgument("bt_xml", default_value="",
+                              description="navigate_to_pose 행동 트리 파일. 비면 plan_keep에 따라"
+                                          " bt/의 기본 트리나 길 유지 트리(_keep)"),
         DeclareLaunchArgument("keepout_mask", default_value="",
                               description="급행·도크 구역 keepout 마스크 yaml(map_server 형식)."
                                           " 비면 keepout 필터와 그 서버를 띄우지 않는다"),
@@ -239,6 +263,14 @@ def generate_launch_description():
         DeclareLaunchArgument("peer_robots", default_value="",
                               description="peer_obstacles:=true일 때 로봇 이름들"
                                           "(pode1,pode2,pode3). 나를 뺀 로봇의 몸을 찍는다"),
+        DeclareLaunchArgument("plan_keep", default_value="false",
+                              description="true면(시험 중, 실물 미확인) Nav2 goal을 다시 계획할 때"
+                                          " 길이가 비슷한 다른 길로 바꾸지 않고 지금 길을 지킨다:"
+                                          " 행동 트리가 길 유지 노드(pode_plan_keep)를 거쳐"
+                                          " 계획한다. false면 main과 같다"),
+        DeclareLaunchArgument("plan_keep_node", default_value="true",
+                              description="plan_keep:=true일 때 false면 길 유지 노드를 띄우지"
+                                          " 않는다(다른 프로세스가 compute_path_keep을 낸다)"),
         DeclareLaunchArgument("initial_x", default_value="0.0"),
         DeclareLaunchArgument("initial_y", default_value="0.0"),
         DeclareLaunchArgument("initial_yaw", default_value="0.0"),
@@ -261,6 +293,7 @@ def generate_launch_description():
             PushRosNamespace(namespace),
             SetParameter("use_sim_time", arg("use_sim_time")),
             scan_filter,
+            plan_keep,
             avoidance,
         ]),
     ])
