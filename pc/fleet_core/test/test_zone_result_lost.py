@@ -1,4 +1,9 @@
 """IR-62: goal 결과를 잃으면 결과 모름. 구역을 쥔 채 상태 보고로 한 번만 정하고, 못 정하면 격리한다."""
+import dataclasses
+import math
+
+import pytest
+
 from fleet_core.common.commands import CancelCmd, DockCmd, MoveCmd, MoveOrderCmd, RobotIsolated
 from test_zone_move_orders import orders, waiting_at_the_queue_spot
 from zone_harness import Harness
@@ -107,41 +112,89 @@ def test_a_late_result_inside_the_settle_time_settles_it_like_any_result():
     assert not isolations(world, "ROBOT_TIMEOUT")
 
 
-def test_a_lost_dock_result_docks_again_even_on_a_docked_report():
-    """DOCKED 보고에는 도킹 오차가 없다. 지어낸 오차를 넘기지 않고 다시 도킹해 잰다."""
-    world, call = sent_once(speed=0.12)
+def lost_dock(world):
+    """pode2가 작업 도크에서 도킹하다 결과를 잃었다. 로봇은 도킹을 끝내고 선다."""
     assert world.run_until(lambda: world.sent(DockCmd, "pode2"), 300.0)
     dock = world.sent(DockCmd, "pode2")[-1]
     reports(world, "pode2", "DOCKING")
     lose(world, dock.goal_id)
-    world.bots["pode2"].dock = None  # 도킹은 끝났지만 결과를 잃었다
+    world.bots["pode2"].dock = None
     world.run(2.0)
-    reports(world, "pode2", "DOCKED")
+    return dock
+
+
+def stand_by_the_dock(world, dx=0.0, dy=0.0, dyaw_deg=0.0, robot="pode2", dock="W"):
+    spec, bot = world.site.nodes[dock], world.bots[robot]
+    bot.x, bot.y, bot.yaw = spec.x + dx, spec.y + dy, spec.yaw + math.radians(dyaw_deg)
+
+
+@pytest.mark.parametrize("state", ["IDLE", "DOCKED"])
+def test_a_lost_dock_result_is_docked_when_the_robot_reports_from_the_dock_pose(state):
+    world, call = sent_once(speed=0.12)
+    dock = lost_dock(world)
+    stand_by_the_dock(world, 0.03, -0.02, 5.0)
+    reports(world, "pode2", state)
+    world.step()
+    result = world.result_of(call)
+    assert result is not None and result.success and len(world.sent(DockCmd, "pode2")) == 1
+    assert (round(result.error_x_cm, 3), round(result.error_y_cm, 3)) == (3.0, -2.0)
+    assert round(result.error_yaw_deg, 3) == 5.0, "the error is the reported pose off the dock"
+    assert dock.goal_id in [c.goal_id for c in world.sent(CancelCmd, "pode2")]
+    assert "DOCKED" in world.codes("pode2") and not isolations(world)
+
+
+@pytest.mark.parametrize(("dx", "dyaw_deg"), [(0.2, 0.0), (0.0, 30.0)])
+def test_a_lost_dock_result_docks_again_when_the_robot_reports_off_the_dock_pose(dx, dyaw_deg):
+    world, call = sent_once(speed=0.12)
+    dock = lost_dock(world)
+    stand_by_the_dock(world, dx, 0.0, dyaw_deg)
+    reports(world, "pode2", "IDLE")
     world.step()
     assert world.result_of(call) is None and world.codes("pode2")[-1] == "GOAL_RETRY"
     assert dock.goal_id in [c.goal_id for c in world.sent(CancelCmd, "pode2")]
     world.__dict__.pop("_state")
     assert world.run_until(lambda: world.result_of(call) is not None, 60.0)
     result = world.result_of(call)
-    assert result.success and result.error_x_cm == 0.4, "the error measured by the second dock"
+    assert result.success and len(world.sent(DockCmd, "pode2")) == 2
+    assert result.error_x_cm == 0.4, "the error measured by the second dock"
 
 
-def test_a_lost_dock_result_docks_again_once_the_robot_reports_idle():
-    """도킹 뒤에는 성공·실패 모두 IDLE이고 자리도 같다. 재시도로 다시 도킹해 정한다."""
+def test_a_dock_without_a_heading_on_the_map_cannot_be_settled_by_the_pose():
     world, call = sent_once(speed=0.12)
-    assert world.run_until(lambda: world.sent(DockCmd, "pode2"), 300.0)
-    dock = world.sent(DockCmd, "pode2")[-1]
-    reports(world, "pode2", "DOCKING")
-    lose(world, dock.goal_id)
-    world.bots["pode2"].dock = None  # 도킹은 끝났지만 결과를 잃었다
-    world.run(3.0)
-    assert world.result_of(call) is None and world.view("pode2")["goal_id"] == dock.goal_id
-    world.__dict__.pop("_state")
+    world.site.nodes["W"] = dataclasses.replace(world.site.nodes["W"], yaw=None)
+    lost_dock(world)
+    bot, spec = world.bots["pode2"], world.site.nodes["W"]
+    bot.x, bot.y = spec.x, spec.y
+    reports(world, "pode2", "IDLE")
     world.step()
-    assert world.view("pode2")["goal_id"] is None and world.codes("pode2")[-1] == "GOAL_RETRY"
-    assert world.run_until(lambda: world.result_of(call) is not None, 60.0)
-    assert world.result_of(call).success and len(world.sent(DockCmd, "pode2")) == 2
+    assert world.result_of(call) is None and world.codes("pode2")[-1] == "GOAL_RETRY"
+
+
+def test_a_dock_settled_just_before_the_deadline_is_judged_at_the_report_time(monkeypatch):
+    world, call = sent_once(speed=0.12)
+    lost_dock(world)
+    stand_by_the_dock(world)
+    deadline = lost_state(world) + world.params.robot_timeout_settle_s
+    reads = iter([deadline - 0.001])
+    monkeypatch.setattr(world.traffic, "_clock", lambda: next(reads, deadline + 0.001))
+    bot = world.bots["pode2"]
+    world.traffic.on_robot_state("pode2", bot.x, bot.y, bot.yaw, "IDLE")
+    monkeypatch.undo()
+    world.now = deadline + 0.001
+    world.step()
+    assert world.result_of(call) is not None and world.result_of(call).success
     assert not isolations(world)
+
+
+def test_the_dock_pose_tolerance_comes_from_the_parameters():
+    world, call = sent_once(speed=0.12)
+    world.traffic.params = dataclasses.replace(world.params, lost_dock_reach_m=0.25,
+                                               lost_dock_yaw_deg=40.0)
+    lost_dock(world)
+    stand_by_the_dock(world, 0.2, 0.0, 30.0)
+    reports(world, "pode2", "IDLE")
+    world.step()
+    assert world.result_of(call) is not None and world.result_of(call).success
 
 
 # ---- 결과 모름 동안 다른 길이 goal을 건드리지 않는다, 정하는 시각의 경계 ----
@@ -291,3 +344,15 @@ def test_an_old_order_goal_whose_result_was_lost_is_unknown_once_a_failed_update
     assert lost_state(world, "pode1") is None, "settled by the IDLE report"
     world.step()
     assert first.goal_id in [c.goal_id for c in world.sent(CancelCmd, "pode1")]
+
+
+def test_an_isolation_by_a_late_report_keeps_the_pose_of_that_report():
+    world, call = sent_once()
+    lose(world, last_goal(world))
+    world.now += world.params.robot_timeout_settle_s + 0.5
+    bot = world.bots["pode2"]
+    bot.x += 0.3
+    world.report()
+    assert world.traffic._robots["pode2"].health.fault_xy == (bot.x, bot.y)
+    world.step()
+    assert [i.reason for i in isolations(world)] == ["ROBOT_TIMEOUT"]

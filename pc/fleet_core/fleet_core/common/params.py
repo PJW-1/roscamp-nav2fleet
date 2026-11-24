@@ -15,7 +15,7 @@ OPTIONAL = frozenset({"zone_clear_m"})
 ZERO_MEANS_OFF = frozenset({"zone_clear_m", "idle_watch_s", "silent_limit_s", "start_limit_s",
                             "battery_low_pct", "nav_pass_m", "nav_turn_rps"})
 # 이 끝말의 키가 시간·거리·속도·각속도·백분율이다
-MEASURE_SUFFIXES = ("_s", "_m", "_mps", "_rps", "_pct")
+MEASURE_SUFFIXES = ("_s", "_m", "_mps", "_rps", "_pct", "_deg")
 # Pode 기본 blocked_after_s(pode_fsm/params.py). 계약에 없어 기본값을 적는다
 ROBOT_BLOCKED_AFTER_S = 10.0
 # 상태 보고 주기 0.5 s, 두 쪽 진전 재기 시작 차이, 여유
@@ -97,6 +97,8 @@ class FleetParams:
     pose_jump_m: float = 0.15
     pose_jump_quiet_s: float = 5.0
     redock_wait_s: float = 10.0
+    lost_dock_reach_m: float = 0.15
+    lost_dock_yaw_deg: float = 15.0
     retreat_clear_m: float = 0.20
     use_order_model: bool = True
     lookahead_s: float = 2.0

@@ -117,7 +117,7 @@ class Results:
                     f"{m.goal.kind} goal {goal_id} lost its result: result unknown, holds its "
                     f"zones, settles from the state report within {settle:.0f} s", m.name)
 
-    # ---- 결과 모름 정하기: 끝에서 IDLE이면 완료, 다른 곳 IDLE이면 실패, 도킹은 다시, 시간이 지나면 격리 ----
+    # ---- 결과 모름 정하기: 끝에서 IDLE이면 완료, 다른 곳이면 실패, 도킹은 도크 자세로, 기한 넘으면 격리 ----
     def _settle_lost(self, m, now: float, state: str = "") -> None:
         """state는 지금 들은 상태 보고. 비면 기한만 본다."""
         if now - m.result_lost_at >= self.params.robot_timeout_settle_s:
@@ -129,15 +129,31 @@ class Results:
         if idle:
             self._out.append(CancelCmd(m.name, m.goal.id))  # 노드가 쥔 goal을 놓게 한다
         if idle and dock:
-            # 보고에는 도킹 오차가 없고 IDLE은 성공·실패를 가르지 못해 다시 도킹해 잰다
-            self._clear_goal(m)
-            self._dock_failed(m, GOAL_RESULT_LOST)
+            error = self._dock_pose_error(m)
+            if error is not None:
+                # TODO(v0.2): pode_fsm이 DOCKED와 도킹 오차를 보고하면 그 값으로 정한다
+                m.result_lost_at = None  # 기한은 이 보고를 받은 시각으로 이미 봤다
+                self.on_dock_result(m.name, m.goal.id, True, *error)
+            else:
+                self._clear_goal(m)
+                self._dock_failed(m, GOAL_RESULT_LOST)
         elif idle:
             self._move_failed(m, GOAL_RESULT_LOST)
 
+    # ---- 보고 자세가 도크 자세 허용치 안이면 (x cm, y cm, 방향 deg) 오차, 밖이면 None ----
+    def _dock_pose_error(self, m):
+        spec, p = self.site.nodes[self.site.stations[m.dest].dock], self.params
+        if spec.yaw is None:
+            return None  # 지도에 도크 방향이 없으면 자세로 정하지 않는다
+        ex, ey = m.x - spec.x, m.y - spec.y
+        eyaw = math.degrees(math.remainder(m.yaw - spec.yaw, math.tau))
+        if math.hypot(ex, ey) > p.lost_dock_reach_m or abs(eyaw) > p.lost_dock_yaw_deg:
+            return None
+        return ex * 100.0, ey * 100.0, eyaw
+
     # ---- 기다림이 끝난 결과 모름이면 먼저 정한다. 늦게 온 결과는 버린다 ----
-    def _past_unknown(self, m) -> bool:
-        now = self._clock()
+    def _past_unknown(self, m, now: float | None = None) -> bool:
+        now = self._clock() if now is None else now
         if m.result_lost_at is None or now - m.result_lost_at < self.params.robot_timeout_settle_s:
             return False
         self._settle_lost(m, now)
