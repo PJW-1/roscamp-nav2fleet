@@ -59,7 +59,7 @@ def test_v7_dimensions(site):
     # 진열대 A는 폭 0.91, 동쪽 끝 1.56
     assert round(SHELVES[0][2] - SHELVES[0][0], 3) == 0.91 and SHELVES[0][2] == 1.56
     # 진열대 자리는 어느 구역도 아니고 그 서쪽 띠는 HALL이다
-    assert site.zone_at(0.71, 0.772) is None and site.zone_at(0.64, 0.772) == "HALL"
+    assert site.zone_at(0.66, 0.772) is None and site.zone_at(0.59, 0.772) == "HALL"
 
 
 def test_v7_sim_shelves_are_the_measured_shelves(site):
@@ -527,8 +527,8 @@ def test_v7_north_wall_is_the_slam_measurement_and_the_express_stays_open(site):
     # 구역은 진열대 면을 따른다
     assert [r[1] for r in site.zones["EXPRESS"].rects] == [SHELVES[0][3]]
     # 띠는 진열대 끝에서 몸 반폭 안까지다
-    assert [0.50, 0.77, 0.645, SHELVES[0][3]] in [list(r) for r in site.zones["HALL"].rects]
-    assert SHELVES[0][0] - 0.645 <= BODY_HALF_M
+    assert [0.50, 0.77, 0.594, SHELVES[0][3]] in [list(r) for r in site.zones["HALL"].rects]
+    assert round(SHELVES[0][0] - 0.594, 3) == BODY_HALF_M
 
 
 def _y_at(points, x):
