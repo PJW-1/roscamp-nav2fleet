@@ -224,8 +224,9 @@ def test_overrides_go_deep_and_cannot_turn_the_collision_check_off(tmp_path):
 
 
 def test_the_rl_controllers_come_only_from_their_overrides_file_and_keep_the_base_ones(tmp_path):
-    """FollowPathRL(pode_rl_controller)은 기본으로 띄우지 않고 one_pode nav_overrides 파일로만
-    더 띄운다. nav2_params.yaml에 controller가 늘면 그 파일의 목록에도 더해야 한다."""
+    """RL controller(shim으로 감싼 FollowPathRL, pode_rl_controller 단독 FollowPathRLAlone)는
+    기본으로 띄우지 않고 nav_overrides 파일로만 더 띄운다. nav2_params.yaml에 controller가 늘면
+    그 파일의 목록에도 더해야 한다."""
     base = _base()["controller_server"]["ros__parameters"]["controller_plugins"]
     assert "FollowPathRL" not in base
     path = REPO / "sim" / "fleet_gz_sim" / "nav_overrides" / "follow_path_rl.yaml"

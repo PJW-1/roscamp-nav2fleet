@@ -86,7 +86,7 @@ pgrep -af "gz sim|ruby|component_container|pode_fsm_node|fleet_manager_node"   #
 
 | 인자 | 기본 | 뜻 |
 |---|---|---|
-| `layout` | `d2` | 배치: `d2`, `d`, `c` |
+| `layout` | `v7` | 배치: `v7`(실제 경기장), `d2`, `d`, `c`, 시험용 `d2_shelf` |
 | `scenario` | `gz_<배치>` | 시나리오 이름(`fleet_gz_sim/scenarios`, 다음에 `fake_robots/scenarios`에서 찾음)이나 파일. 로봇 고장이 든 시나리오는 거부한다. `gz_<배치>`는 3대와 주문 8개, `gz_<배치>_one`은 한 대 |
 | `gui` | `true` | Gazebo 화면 |
 | `rviz` | `fleet` | `fleet`: 3대를 한 RViz에(로봇, 쥔 구역, 주문). 로봇 이름(`pode2`)이면 그 로봇의 Nav2 화면. `none`이면 없음 |

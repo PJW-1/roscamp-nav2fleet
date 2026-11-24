@@ -49,7 +49,7 @@ FMS는 컴포넌트 1개 = 프로세스 1개 = 노드 1개(`fleet_manager`, 실�
 | 컴포넌트 | 실체 | 어디서 | 갖는 상태 | 제공 | 호출, 구독 |
 |---|---|---|---|---|---|
 | 화면(고객, 관리자) | 없음. central과 HTTP로 잇는 것은 제안(v17) | 관제 PC(제안) | 없음 | 주문과 조작 입력, 상태 표시 | central |
-| central | `pc/central`은 빈 패키지. 시험: `fake_central_node` | 관제 PC | 주문, 재고 기록, 이력. DB는 제안이고 central만 쓴다 | `/central/submit_order`, `/central/set_run_mode`, `/central/report_order` 서비스. `/central/orders`, `/central/events` 발행 | 계획: `/fleet/confirm_clear` 호출, `/fleet/robots`, `/fleet/assignments`, `/fleet/zones` 구독. `fake_central_node`는 이 중 아무것도 하지 않는다(11절) |
+| central | `pc/central`은 빈 패키지. 시험: `fake_central_node` | 관제 PC | 주문, 재고 기록, 이력. DB는 제안이고 central만 쓴다 | `/central/submit_trip`, `/central/set_run_mode`, `/central/report_order` 서비스. `/central/orders`, `/central/events` 발행 | 계획: `/fleet/confirm_clear` 호출, `/fleet/robots`, `/fleet/assignments`, `/fleet/zones` 구독. `fake_central_node`는 이 중 아무것도 하지 않는다(11절) |
 | FMS (`fleet_manager`) | `pc/fleet_manager`의 노드 1개와 `pc/fleet_core` | 관제 PC | 노드 자체가 가진 것은 진행 중인 목표 핸들, 결과를 기다리는 취소, 답을 받지 못한 보고, 액션 서버를 찾은 로봇 목록, 마지막으로 낸 `/fleet/zones`와 `/fleet/assignments`, 시작 침묵 기한이다. 나머지는 아래 세 모듈. 프로세스가 죽으면 전부 사라진다(7절) | `/fleet/robots`, `/fleet/assignments`, `/fleet/zones`, `/fleet/heartbeat`, `/central/events` 발행. `/fleet/confirm_clear`, `/fleet/reinstate`(제안) 서비스 | `/{pode}/move_to`, `/{pode}/dock`, `/workcell/fill_basket`, `/arm_ship/swap_basket` 액션. `/central/report_order` 서비스. `/central/orders`, `/{pode}/state` 구독 |
 | `orders` | 모듈 `fleet_core/orders/orchestrator.py`(`OrderOrchestrator`) | FMS 안 | 대기 주문, 로봇별 묶인 주문과 담은 것·결품, `basket[robot]`, 팔 일을 요청해 두었는지, 결과 없이 끝나 늦은 결과를 기다리는 팔 작업 | `on_order_board`, `on_arm_report`, `on_dispatch_feedback`, `on_dispatch_result`, `on_robot_removed` | 명령을 내놓는다: `DispatchCmd`, `CancelDispatchCmd`, `ReleaseCmd`, `RobotFaultCmd`, `ReportOrderCmd`, 팔 쪽으로 `ArmFillCmd`, `ArmSwapCmd`, `ArmStopCmd`, `ArmDropCmd`, `ArmFailedCmd`, `ArmResetCmd` |
 | `arm` (2026-11-10 `orders`에서 분리) | 모듈 `fleet_core/arm/jobs.py`(`ArmJobs`) | FMS 안 | 로봇별 돌고 있는 팔 goal, 시도 수, 실패 뒤 대기 기한, 버린 작업을 서버가 멈추는 기한. 주문 ID와 품목은 goal에 실어 보낼 뿐이고 주문 진행과 바구니 상태는 판단하지 않는다 | `on_command`(주문 쪽 요청), `on_fill_result`, `on_swap_result`, `on_run_mode`, `check_timeouts` | 명령을 내놓는다: `FillCmd`, `SwapCmd`, `CancelCmd`, `RobotFaultCmd`, 주문 쪽으로 `ArmDeclined`, `ArmFillResult`, `ArmSwapResult`, `ArmLost`, `ArmLate` |
@@ -59,7 +59,7 @@ FMS는 컴포넌트 1개 = 프로세스 1개 = 노드 1개(`fleet_manager`, 실�
 | Pode 내부 | `pode_dock`은 빈 패키지, `pode_nav_config`는 자리표시 launch뿐이다. Nav2 + AMCL, `pinky_bringup`은 제조사 패키지 | Pode Pi 4B | 지도 위 위치 | `/{pode}/navigate_to_pose`, `/odom`, `/scan` | `/cmd_vel` |
 | workcell | 없음. 시험: `fake_workcell_node`. 구조는 팔 담당이 정한다. v17은 FMS의 arm 모듈과 `arm_planner`(임시 이름, 제안)로 그렸다 | 팔 PC 중 한 곳 | 두 팔의 작업과 재고 영역 | `/workcell/fill_basket` 액션 | arm_control |
 | arm_control | `arm/arm_control`은 빈 패키지. 시험: `fake_arm_node`(arm_ship), arm_left와 arm_right는 `fake_workcell_node`가 함께 맡는다 | 팔 PC | 팔 상태 | `/arm_ship/swap_basket` 액션. `/{arm}/state` 발행 | 팔 하드웨어 |
-| arm_vision | `arm/arm_vision`은 빈 패키지. 시험: `fake_vision_node`. Vision 서버로 옮기는 것은 제안(v17) | 팔 PC | 인식 결과 | `/{arm}/vision/items`(arm_left, arm_right) 발행 | 카메라 |
+| arm_vision | `arm/arm_vision`은 빈 패키지. Vision 서버로 옮기는 것은 제안(v17) | 팔 PC | 인식 결과 | 정하지 않음(인식 결과 토픽은 `contract.yaml`과 `interfaces/`에 없다) | 카메라 |
 | 시험 전용 | `sim_clock_node`, `scenario_monitor_node`(심판) | 관제 PC, 시험 때만 | 시뮬 시각, 판정 기록 | `/clock`, `summary.json`, `safety.json` | 관리자 역할로 `/fleet/confirm_clear`, `/fleet/reinstate`. 첫 치우기는 코스 밖 확인 뒤 `settle_s` 0.5초가 지나고 보유가 `quiet_s` 0.3초 그대로일 때, 늦어도 `act_by_s` 1.0초에 보낸다(시뮬레이션 초). `ZONES_STILL_HELD`면 남은 구역을 다시 치우고 심판이 아는 남은 구역(보유 스냅샷과 `ZONES_STILL_HELD`)이 없고 응답 뒤 2초가 지났을 때만 재투입한다(`operator_clear.py`). 알림이 그보다 늦으면 재투입이 거부될 수 있고 다시 부르지 않는다 |
 
 ### 상태 값
@@ -154,12 +154,12 @@ FMS는 컴포넌트 1개 = 프로세스 1개 = 노드 1개(`fleet_manager`, 실�
 
 ### 파라미터 (`pc/fleet_core/fleet_core/data/fleet_params.yaml`)
 
-전부 실물로 재기 전의 값이다. 표의 "추정"은 파일에도 그렇게 적혀 있다는 뜻이다.
+지금 쓰는 파라미터와 뜻은 `docs/관제_구역교통.md`가 기준이다. 아래 표는 레인 관제 시절의 것이고, "없어짐"은 `params.py`에 없는 이름이다. 전부 실물로 재기 전의 값이다. 표의 "추정"은 파일에도 그렇게 적혀 있다는 뜻이다.
 
 | 이름 | 값 | 뜻 |
 |---|---|---|
 | `basket_capacity` | 4 | 바구니 하나에 담는 최대 개수. 추정 |
-| `ship_partial` | true | 일부만 담겨도 출고한다 |
+| `ship_partial` | 없어짐 | 일부만 담겨도 출고한다 |
 | `robot_radius_m` | 0.08 | 몸체 반경 r. 추정, 트레이를 뺀 값 |
 | `release_margin_extra_m` | 0.05 | 심판 전용. r + 이 값이면 코스 밖이다 |
 | `release_distance_m` | 0.2 | 해제 거리 d(5절). 근거식 d ≥ r + ε + v·(τ + tick), d ≥ 2r + ε. 실측 전 값이고 압박 시험 표는 작업 기록 7번에 있다 |
@@ -169,16 +169,16 @@ FMS는 컴포넌트 1개 = 프로세스 1개 = 노드 1개(`fleet_manager`, 실�
 | `move_retry_wait_s` | 2 | 이동이나 도킹 실패 뒤 다시 보내기까지. 추정. 세 번 시도하는 시간이 `comm_timeout_s`보다 길어 통신 두절이면 `COMM_LOST`가 먼저 난다 |
 | `stall_s` | 12 | 이동 목표가 열린 채 이만큼 제자리면 멈춤. Pode의 `blocked_after_s`(10 s)보다 2 s 길게 둔다(2026-11-13까지 6, pinky_multi_sim과 같은 값이었다). `comm_timeout_s`보다 길어 말 없는 로봇은 `COMM_LOST`가 먼저 난다 |
 | `stall_move_m` | 0.05 | 매끄럽게 한 위치가 이보다 덜 움직이면 제자리. 지시서와 pinky_multi_sim은 0.02였지만, 위치 잡음 σ 0.01 m부터 감시가 걸리지 않아 올렸다(작업 기록 11-06 파트 2). 0.01 m/s보다 느린 로봇은 멈춤으로 본다 |
-| `stall_smooth_s` | 1 | 멈춤 감시가 보는 위치의 지수 평균 시간 상수. 잡음 하나로 시계가 다시 시작되지 않게 한다 |
+| `stall_smooth_s` | 없어짐 | 멈춤 감시가 보는 위치의 지수 평균 시간 상수. 잡음 하나로 시계가 다시 시작되지 않게 한다 |
 | `dock_stall_s` | 15 | 도킹 목표의 멈춤 시간. 도킹은 천천히 맞추므로 더 길다. 추정 |
-| `blocked_mark_s` | 5 | `BLOCKED`가 이만큼 이어지면 레인을 막힘으로 표시하고 목표를 취소한다. 추정(Pode 계약 4절) |
+| `blocked_mark_s` | 10 | `BLOCKED`가 이만큼 이어지면 레인을 막힘으로 표시하고 목표를 취소한다. 앞을 막은 것이 다른 로봇이면 그 로봇을 비키게 하고, 물러날 길 뒤에 로봇이 있으면 표시하지 않고 기다린다(`docs/관제_구역교통.md` 7번). 추정(Pode 계약 4절) |
 | `blocked_timeout_s` | 60 | `BLOCKED`로 보고된 시간이 이만큼이면 ERROR(`BLOCKED`). 추정 |
-| `blocked_rejoin_s` | 10 | 풀린 뒤 이 안에 같은 레인에서 다시 막히면 막힌 시간을 이어 센다. 5초 표시와 60초에 같은 시계를 쓴다 |
-| `queue_gap_m` | 0.6 | 경로상 같은 레인이나 다음 레인 앞 이 거리 안에 정상 로봇이 있으면 `BLOCKED`를 줄 서기로 본다. 추정 |
-| `detour_enabled` | true | 우회 규칙(5절)을 쓴다. false면 지금처럼 FIFO로 기다린다(비교용). 이 값이 없는 옛 기록은 false로 재생한다(데이터클래스 기본값) |
-| `station_wait_estimate_s` | 30 | 스테이션, 대기 칸, 할 일 대기로 선 로봇이 비키기까지의 예상 시간. 추정 |
-| `detour_speed_mps` | 0.2 | 예상 대기 시간을 거리 벌점으로 바꾸는 속도. 추정. 가짜 로봇의 속도와는 따로다: 가짜 로봇은 한 출처(`pode/pode_nav_config/params/nav_speed.yaml`, 0.12 m/s)에 로봇마다 배율 `speed_scale`(0 초과 1 이하, 시나리오 파일)을 곱한 속도로 가고 출처를 넘지 않는다 |
-| `off_lane_timeout_s` | 20 | 레인을 벗어나 세운 로봇이 이 안에 돌아오지 않으면 `OFF_LANE`(ERROR). 추정 |
+| `blocked_rejoin_s` | 없어짐 | 풀린 뒤 이 안에 같은 레인에서 다시 막히면 막힌 시간을 이어 센다. 5초 표시와 60초에 같은 시계를 쓴다 |
+| `queue_gap_m` | 없어짐 | 경로상 같은 레인이나 다음 레인 앞 이 거리 안에 정상 로봇이 있으면 `BLOCKED`를 줄 서기로 본다. 추정 |
+| `detour_enabled` | 없어짐 | 우회 규칙(5절)을 쓴다. false면 지금처럼 FIFO로 기다린다(비교용). 이 값이 없는 옛 기록은 false로 재생한다(데이터클래스 기본값) |
+| `station_wait_estimate_s` | 없어짐 | 스테이션, 대기 칸, 할 일 대기로 선 로봇이 비키기까지의 예상 시간. 추정 |
+| `detour_speed_mps` | 없어짐 | 예상 대기 시간을 거리 벌점으로 바꾸는 속도. 추정. 가짜 로봇의 속도와는 따로다: 가짜 로봇은 한 출처(`pode/pode_nav_config/params/nav_speed.yaml`, 0.12 m/s)에 로봇마다 배율 `speed_scale`(0 초과 1 이하, 시나리오 파일)을 곱한 속도로 가고 출처를 넘지 않는다 |
+| `off_lane_timeout_s` | 없어짐 | 레인을 벗어나 세운 로봇이 이 안에 돌아오지 않으면 `OFF_LANE`(ERROR). 추정 |
 | `arrival_tolerance_m` | 0.15 | 이동의 성공 결과를 도착으로 치는 목표 지점까지의 거리. 추정. 가장 짧은 레인에서 `release_distance_m`을 뺀 값(기본 지도 0.2 m)보다 작아야 한다(7절) |
 | `arrival_settle_s` | 1 | 성공 결과가 위치 보고보다 먼저 왔을 때 보고를 기다리는 시간. 추정. 보고 지연 τ보다 길어야 한다 |
 | `startup_wait_s` | 10 | `ROBOT_NOT_REPORTING`을 내기까지 |
@@ -203,8 +203,8 @@ FMS는 컴포넌트 1개 = 프로세스 1개 = 노드 1개(`fleet_manager`, 실�
 | `score_distance_weight` | 0.91 | 레인을 따른 거리 1 m당 점수 |
 | `priority_at_station`, `priority_has_cargo` | 200, 100 | 교착 때 포기 대상을 고르는 우선순위. 스테이션에 서 있는지, 이름 지정 요청을 받았는지 |
 | `input_pose_margin_m` | 1.0 | 보고 위치가 웨이포인트들의 범위(최소·최대 x, y)에서 이보다 멀면 그 보고를 버리고 `INPUT_REJECTED`. 지시서의 "음수 좌표"를 지도 밖으로 넓혔다. 실제 지도 좌표는 음수일 수 있다 |
-| `lane_goal_mode` | path | 이동 목표 모드(5절). `path`는 레인 폴리라인을 `MoveTo.path`로 보낸다(FollowPath). `point`는 같은 방향 레인 끝 지점 하나만 보낸다(호환·비교용). 이 값이 없는 옛 기록은 `point`로 재생한다(데이터클래스 기본값) |
-| `release_clear_of_floor` | true | 해제 보강(5절, 파트 7). 경로 위 해제에 "구역의 다른 바닥 선에서 중심선 거리 d 이상"을 더하고, 시작 때 구역을 떠나는 레인의 끝이 그 기준을 넘는지 본다(어기면 시작 거부). 이 값이 없는 옛 기록은 예전 규칙으로 재생한다 |
+| `lane_goal_mode` | 없어짐 | 이동 목표 모드(5절). `path`는 레인 폴리라인을 `MoveTo.path`로 보낸다(FollowPath). `point`는 같은 방향 레인 끝 지점 하나만 보낸다(호환·비교용). 이 값이 없는 옛 기록은 `point`로 재생한다(데이터클래스 기본값) |
+| `release_clear_of_floor` | 없어짐 | 해제 보강(5절, 파트 7). 경로 위 해제에 "구역의 다른 바닥 선에서 중심선 거리 d 이상"을 더하고, 시작 때 구역을 떠나는 레인의 끝이 그 기준을 넘는지 본다(어기면 시작 거부). 이 값이 없는 옛 기록은 예전 규칙으로 재생한다 |
 
 지도 파일의 값: `half_width_m`(0.05, 레인에서 이만큼까지 레인 위로 친다. 추정), `lane_entry_m`(0.25), `bundle_two_way`(true, 양방향 구간을 잠금 하나로 묶는다).
 
@@ -257,7 +257,7 @@ FMS 내부 호출 (파이썬, `fleet_core` 패키지):
 - `on_robot_fault(robot, reason)`: 팔 재시도가 소진되거나 결과가 끝내 없으면 arm이, 담은 일부를 내보낼 수 없거나 출고 호출이 거듭 실패하면 orchestrator가 traffic에 알린다. 통신 두절 판단과 호출 후보, "남은 로봇 없음" 판단이 이 상태를 본다.
 
 바깥 인터페이스 (`contract.yaml` 0.3-draft와 같다. 11-05 구조 변경으로 기존 항목의 이름, 타입, QoS는 바뀌지 않았고, 더한 것은 11-05 지시서 4, 5번의 `/fleet/robots`와 heartbeat 둘이다. 11-06에 heartbeat 토픽만 `/fms/heartbeat`에서 `/fleet/heartbeat`로 이름이 바뀌었고 필드와 QoS는 같다):
-- `/central/submit_order` SubmitOrder 서비스: UI → central. 재고 기록에 없거나 용량 초과면 거절
+- `/central/submit_trip` SubmitTrip 서비스: 브리지 → central. 웹이 나눈 운반 건 하나를 넘긴다(옛 SubmitOrder는 쓰지 않는다). 재고 기록에 없거나 용량 초과면 거절
 - `/central/set_run_mode` 서비스: UI → central (RUN / PAUSE / STOP)
 - `/central/orders` OrderBoard 토픽(run_mode, 최종 보고가 안 된 주문을 오래된 순서로): central → FMS
 - `/central/report_order` ReportOrder 서비스(SHIPPED, PARTIAL, HELD, placed, missing, detail): FMS → central. FMS는 `accepted=true` 답을 받을 때까지 답이 없는 보고를 `report_retry_s`(±20%)마다 다시 보내고, 응답 한도(IR-40 `Report*` 3 s)를 넘긴 요청은 지운다(IR-41). **central은 3 s 안에 답해야 한다.** 그보다 늦은 답은 받지 않는다. **실제 central이 지킬 것:** 같은 보고가 여러 번 와도 결과가 달라지면 안 된다. 이미 처리한 주문이면 재고를 다시 빼지 않고 `accepted=true`로 답한다(`fake_central_node`가 이렇게 한다). `accepted=false`는 다시 보내도 소용없을 때만 쓴다. FMS는 그 보고를 버리고 `ORDER_REPORT_REFUSED`를 낸다
@@ -272,7 +272,7 @@ FMS 내부 호출 (파이썬, `fleet_core` 패키지):
 - `/workcell/fill_basket` FillBasket 액션(items → placed, missing, success, reason): FMS → workcell. 팔 2대 배분과 조율은 workcell 내부 책임
 - `/arm_ship/swap_basket` SwapBasket 액션(take_full, put_empty → took_full, put_empty_done): FMS → arm_ship
 - 목표가 끝난 방식: `MoveTo`, `FillBasket`, `SwapBasket`의 결과에는 `REASON_CANCELED`("CANCELED")가 있다. 서버가 reason을 비워 두면 FMS가 목표 상태로 채운다. `STATUS_CANCELED`는 `CANCELED`, `STATUS_ABORTED`는 `ABORTED`다. 서버가 쓴 reason은 그대로 둔다. `FillBasket`, `SwapBasket`의 이 상수는 2026-11-06에 더한 관제 요구(사용자 기준)다. 값은 README에 적힌 약속 그대로이고, 형식 설명에 상수가 들어가지 않으므로 직렬화와 타입 해시는 바뀌지 않는다
-- `/{arm}/state` ArmState 토픽, `/{arm}/vision/items` ItemArray 토픽(arm_left, arm_right): 팔 파트가 발행한다. FMS의 판단에는 쓰지 않는다
+- `/{arm}/state` ArmState 토픽(arm_left, arm_right, arm_ship): 팔 파트가 발행한다. FMS의 판단에는 쓰지 않는다. 인식 결과 토픽은 `contract.yaml`과 `interfaces/`에 없다
 - `/{pode}/navigate_to_pose` 액션(Nav2): Pode 안에서 pode_fsm → Nav2. contract.yaml에 `real_only`로 있고, FMS는 부르지 않는다. `/{pode}/follow_path`(nav2_msgs/action/FollowPath)도 `real_only`로 있다. `path` 목표를 따를 때 Pode 안에서 쓰고 FMS는 부르지 않는다
 - `/cmd_vel`(Nav2, pode_dock → pinky_bringup), `/scan`, `/odom`(pinky_bringup → Nav2): Pode 안의 연결이다. 제조사 패키지와 Nav2의 일반적인 이름이고 contract.yaml에는 없다. 3대를 namespace로 나누는 구성은 시험 전이다
 
@@ -540,8 +540,8 @@ expect: {all_orders_finished: true, orders_shipped: 6, orders_partial: 0, orders
 | 자체 정지 | `/fleet/heartbeat` 2 Hz(11-06에 `/fms/heartbeat`에서 이름만 바꿈, 관제 요구). `FakePode`에 구현했고 실물은 FSM 담당 몫이다 |
 | 기록과 재생 | `fleet_manager_node --record`, `tools/replay.py` |
 | 중앙과 FMS 사이 | `fleet_manager` 노드가 `/fleet/*`, `/central/events`를 발행하고 `/fleet/confirm_clear`를 제공한다. 가짜 중앙은 `/fleet/*`를 구독하지 않고, 심판 `scenario_monitor`가 구독하며 관리자 역할로 confirm_clear를 부른다 |
-| 중앙과 팔 사이 | `contract.yaml`에 `/{arm}/state`, `/{arm}/vision/items`가 있다. FMS는 이 토픽을 판단에 쓰지 않는다. `scenario_monitor`가 심판으로 `/{arm}/state`를 구독한다 |
-| 인터페이스 | `contract.yaml` 0.5-draft. 0.5(11-09)는 Pode 상태 `RECOVERING`(자가 복구, Pode 계약 3절 7번과 4절, 제안)을 더했다. 0.4(11-07)는 `/fleet/heartbeat`를 HEARTBEAT 프로필(reliable, depth 1)로 바꾸고 `MoveTo` 결과 reason `PATH_NOT_CONNECTED`를 더했다(지시서 1.5, 7.5, 제안). 11-05에 더한 것은 `/fleet/robots`, `/fms/heartbeat`(11-06에 `/fleet/heartbeat`로 이름 변경) 둘이다. 11-06에 상수 `RobotState.STATE_BLOCKED`, `STATE_LOCALIZING`, `MoveTo` `REASON_HEARTBEAT_LOST`(파트 4), `ConfirmClear` 응답의 `reason`(파트 1), `MoveTo` goal의 `geometry_msgs/Pose[] path`(파트 7), 서비스 `/fleet/reinstate`(`Reinstate.srv`, 파트 6), `real_only` 액션 `follow_path`를 더했다. 0.3에 더한 것은 모두 관제 요구(사용자 기준)다. 그 밖의 이름, 필드, QoS는 그대로다 |
+| 중앙과 팔 사이 | `contract.yaml`에 `/{arm}/state`가 있다(인식 결과 토픽은 없다). FMS는 이 토픽을 판단에 쓰지 않는다. `scenario_monitor`가 심판으로 `/{arm}/state`를 구독한다 |
+| 인터페이스 | `contract.yaml` 0.7(팀 판). 아래 0.3~0.5는 예전 개인 저장소의 번호다. 0.5(11-09)는 Pode 상태 `RECOVERING`(자가 복구, Pode 계약 3절 7번과 4절, 제안)을 더했다. 0.4(11-07)는 `/fleet/heartbeat`를 HEARTBEAT 프로필(reliable, depth 1)로 바꾸고 `MoveTo` 결과 reason `PATH_NOT_CONNECTED`를 더했다(지시서 1.5, 7.5, 제안). 11-05에 더한 것은 `/fleet/robots`, `/fms/heartbeat`(11-06에 `/fleet/heartbeat`로 이름 변경) 둘이다. 11-06에 상수 `RobotState.STATE_BLOCKED`, `STATE_LOCALIZING`, `MoveTo` `REASON_HEARTBEAT_LOST`(파트 4), `ConfirmClear` 응답의 `reason`(파트 1), `MoveTo` goal의 `geometry_msgs/Pose[] path`(파트 7), 서비스 `/fleet/reinstate`(`Reinstate.srv`, 파트 6), `real_only` 액션 `follow_path`를 더했다. 0.3에 더한 것은 모두 관제 요구(사용자 기준)다. 그 밖의 이름, 필드, QoS는 그대로다 |
 | 양팔 규칙 | `README.md`, `fake_workcell_node`, 심판 `dual_arm_overlaps`는 아직 동시 PLACING을 위반으로 본다. 지시서가 심판을 고치지 말라고 했으므로 그대로 뒀고 2026-11-04 결정(6절)과 다르다 |
 | 중앙, Pode, 팔 | `pc/central`, `pode/*`, `arm/*`는 빈 패키지이고 가짜 노드만 동작한다 |
 | GitHub | 개인 저장소 브랜치에만 올렸다. 팀 저장소 `addinedu-roscamp-16th/roscamp-repo-2`에는 올리지 않았다 |
@@ -590,7 +590,7 @@ expect: {all_orders_finished: true, orders_shipped: 6, orders_partial: 0, orders
 | SR-03 (MUST) | 주문 상태: 대기, 배정, 담는 중, 운반 중, 출고 완료, 보류, 실패 | 5-1절: PENDING, BOUND, FILLING, TO_OUTBOUND, SWAPPING, SHIPPED, PARTIAL, HELD. "실패"가 없고, SWAPPING과 PARTIAL이 SR에 없다 | 상태 대응표와 "실패"의 뜻 |
 | SR-17 (MUST) | Pode 상태: 대기, 이동, 도킹, 담기 대기, 출고 대기, 오류 + 원인 | `/fleet/robots`(제안)로 전부 나타낼 수 있다. 위에서부터 먼저 맞는 것을 쓴다: `fault` ≠ NONE이면 오류 + `fault_reason`, `task_type` = FILL이면 담기 대기, SWAP이면 출고 대기, `fsm_state` = DOCKING이면 도킹, MOVING이면 이동, 나머지는 대기. 이 규칙의 구현은 화면 몫이다 | 메시지를 팀이 받아들일지 |
 | SR-36 (MUST) | 관리 프로그램과 별개의 비상 정지 | 이 문서와 `contract.yaml`에 경로가 없다. STOP은 화면, central, FMS를 거친다. `/fleet/heartbeat`는 FMS나 통신이 끊겼을 때 로봇이 혼자 서는 장치이고 비상 정지 경로를 대신하지 않는다 | 경로와 듣는 쪽 |
-| SR-27 (MUST) | 상품의 종류, 위치, 수량과 트레이·바구니 위치 인식 | `/{arm}/vision/items`는 arm_left, arm_right의 상품만 다룬다. 트레이·바구니 인식과 arm_ship의 인식 인터페이스가 없다 | 어디서 어떤 토픽으로 낼지 |
+| SR-27 (MUST) | 상품의 종류, 위치, 수량과 트레이·바구니 위치 인식 | 인식 결과 토픽이 `contract.yaml`과 `interfaces/`에 없다(상품, 트레이·바구니, arm_ship 모두) | 어디서 어떤 토픽으로 낼지 |
 | SR-21 (MUST) | Pode가 조금 어긋나게 서도 위치를 맞춰 담는다 | dispatch 결과에 도킹 오차가 있지만 `FillCmd`와 FillBasket goal에는 전달할 필드가 없다 | 오차를 넘길지, 카메라로 보정할지 |
 | SR-31 (MUST) | 지도 위 Pode 위치 표시 | `/fleet/robots`의 x, y, yaw(제안, 5 Hz, 마지막 보고 값) | 메시지를 팀이 받아들일지 |
 | SR-15 (SHOULD), UR-10 | 배터리가 낮으면 대기 구역으로 돌아가 충전 | `RobotState.battery`를 `/fleet/robots`로 보여 주기만 하고 `traffic`에 판단이 없다 | 넣을지 |
@@ -626,7 +626,7 @@ expect: {all_orders_finished: true, orders_shipped: 6, orders_partial: 0, orders
 - 화면에서 central로 가는 `confirm_clear`의 이름과 타입: 4절에 없다. 중앙 담당과 정한다. 화면과 central 사이를 HTTP로 할지(제안)와 실시간 상태를 띄우는 방식도 함께 정한다.
 - FMS 재시작 뒤 진행 중이던 주문과 바구니를 어떻게 할지(7절).
 - arm_planner와 workcell 구조, SR-22(한 번에 한 팔): 팔 담당. FMS 쪽은 `fill_basket`, `swap_basket` 클라이언트만 유지한다.
-- arm_ship의 인식(SR-27): v17 HW 그림에는 arm_ship 카메라가 있지만 `arm_vision`과 `/{arm}/vision/items`는 arm_left, arm_right뿐이다.
+- arm_ship의 인식(SR-27): v17 HW 그림에는 arm_ship 카메라가 있지만 `arm_vision`은 빈 패키지이고 인식 결과 토픽은 `contract.yaml`에 없다.
 - Vision 서버(v17 제안)를 둘지, 어느 PC에서 돌릴지. DB 종류(제안: SQLite, central만 읽고 쓴다).
 - workcell이 arm_left, arm_right 중 어느 팔 PC에서 도는지: 팔 파트가 정한다.
 - JetCobot의 Raspberry Pi 5를 어떻게 쓸지: 지금 구성은 팔을 팔 PC로 제어한다. 11-05 권장은 제트코봇 3대가 고정 장비이므로 Pi 5를 유선으로 잇는 것이고, 그러면 Wi-Fi는 Pode 3대만 쓴다. 10절의 역할 배정은 확인이 필요하다.

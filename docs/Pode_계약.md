@@ -2,6 +2,7 @@
 
 관제가 Pode에 요구하는 통신 규격과 동작입니다(2026-11-06, 판 0.11-draft는 2026-11-12, 0.13-draft는 2026-11-13).
 
+- 판 번호: 0.8~0.13-draft는 예전 개인 저장소의 번호이고, 지금은 팀 contract.yaml의 판(0.7)을 따릅니다.
 - 이름, 타입, QoS의 원본은 `interfaces/fleet_interfaces/contract.yaml`입니다.
 - `{pode}` = `pode1`, `pode2`, `pode3`. 같은 ROS 도메인에서 로봇마다 namespace를 씁니다. DDS는 Fast DDS입니다.
 - `BLOCKED`, `LOCALIZING`, `HEARTBEAT_LOST`는 지시서 파트 4에서, `MoveTo`의 `path`는 파트 7에서 정의 파일과 관제 코드에 넣었습니다.
@@ -17,7 +18,7 @@
 
 | 이름 | 타입 | 방향 | QoS·주기 |
 |---|---|---|---|
-| `/{pode}/state` | 토픽 `fleet_interfaces/msg/RobotState` | Pode → 관제 | best_effort, volatile, depth 5. **10 Hz**. 변할 때만이 아니라 주기적으로 계속 보냅니다(하나를 잃어도 다음 값이 대신합니다) |
+| `/{pode}/state` | 토픽 `fleet_interfaces/msg/RobotState` | Pode → 관제 | best_effort, volatile, depth 5. **5 Hz**(IR-34). 변할 때만이 아니라 주기적으로 계속 보냅니다(하나를 잃어도 다음 값이 대신합니다) |
 | `/{pode}/move_to` | 액션 `fleet_interfaces/action/MoveTo` | 관제 → Pode | 액션 기본값 |
 | `/{pode}/dock` | 액션 `fleet_interfaces/action/Dock` | 관제 → Pode | 액션 기본값 |
 | `/{pode}/retreat` | 액션 `fleet_interfaces/action/Retreat` | 관제 → Pode | 액션 기본값(0.9-draft, 기준(사용자)) |
@@ -173,7 +174,7 @@ MoveTo에 더한 칸:
 | 조각 줄 | 새 order의 base 첫 `seq_id`는 1이어야 합니다(아니면 `NAV_ABORTED`). base 조각을 차례로 실행합니다. 조각이 끝나면 `last_done_seq_id`를 올리고 관제를 기다리지 않고 다음 조각을 바로 시작합니다 |
 | 이어 붙이기 | `order_update_id`가 0이면 새 order로, 달리던 이동을 지금처럼 밀어냅니다(이전 goal은 `CANCELED`). 1 이상이면 update이고 네 조건(같은 `order_id`, `order_update_id`가 정확히 1 큼, `stitch_node_id`가 지금까지 받은 base의 마지막 `end_node_id`, 새 base 첫 `seq_id`가 그 마지막 `seq_id` + 1)이 모두 맞을 때만 줄 뒤에 붙입니다. 하나라도 틀리면 새 goal만 `ORDER_UPDATE_REJECTED: <이유>`로 끝나고 지금 줄은 그대로 갑니다. 달리는 order가 없을 때의 update도 거절합니다 |
 | 넘겨받기 | 붙인 update는 이전 goal을 `SUPERSEDED`로 끝내고 같은 줄을 새 goal 아래에서 이어 갑니다. 로봇은 서지 않습니다 |
-| 같은 방식 합치기 | `follow_path` 다음 `follow_path`가 같은 `controller_id`이고 끝점과 시작점이 2 cm 안이면 한 경로로 이어 FollowPath를 선점합니다(update로 온 조각도 달리는 경로에 이어 붙입니다). `nav_goal` 다음 `nav_goal`은 중간 목표 0.15 m 안에서 NavigateToPose 목표를 다음 것으로 바꿉니다. 중간 지점에서 서지 않습니다 |
+| 같은 방식 합치기 | `follow_path` 다음 `follow_path`가 같은 `controller_id`이고 끝점과 시작점이 2 cm 안이면 한 경로로 이어 FollowPath를 선점합니다(update로 온 조각도 달리는 경로에 이어 붙입니다). `nav_goal` 다음 `nav_goal`은 중간 목표 0.12 m(`pass_m`) 안에서 NavigateToPose 목표를 다음 것으로 바꿉니다. 중간 지점에서 서지 않습니다 |
 | 방식이 바뀜 | 그 밖(방식이 바뀜, controller가 다름, 끝이 닿지 않음, 후진과 전진 사이)은 앞 조각이 끝나 선 뒤 다음 조각을 시작합니다(3절 1번의 넘김 규칙) |
 | 넘지 않기 | base 마지막 조각이 끝나면 섭니다. horizon이 있으면 goal을 열어 둔 채 `waiting_at_base_end`를 참으로 보내고 update를 기다립니다. 그동안 `state`는 `MOVING`, `current_goal`은 base 마지막 `end_node_id`입니다. horizon이 비어 있으면 base 끝이 목적지이므로 성공으로 끝냅니다 |
 | horizon | 받을 때마다 통째로 바꿉니다. 지도 밖으로 나가는 조각이나 keepout 칸(마스크 값 100)에 놓인 nav_goal 목표가 있으면 feedback `horizon_warning`에 `HORIZON_INVALID: seq <번호>: <이유>`를 보냅니다. nav_goal은 `target_pose`만 봅니다. 고정 선 조각(`follow_path`, `retreat`)은 지도 밖만 봅니다: keepout은 급행과 도크 구역이고 고정 선은 그 안을 지납니다. 경고일 뿐 이동은 그대로 갑니다. 지도(`map`)나 마스크(`keepout_filter_mask`)를 못 받았으면 그 검사는 건너뜁니다 |

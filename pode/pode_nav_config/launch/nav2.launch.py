@@ -249,9 +249,10 @@ def generate_launch_description():
     return LaunchDescription([
         DeclareLaunchArgument("namespace", default_value="pode1"),
         DeclareLaunchArgument("use_sim_time", default_value="false"),
-        DeclareLaunchArgument("map", description="5 cm 지도 yaml(costmap)"),
+        DeclareLaunchArgument("map", description="costmap 지도 yaml(v7 기본 arena_v7_a, 2.5 cm)"),
         DeclareLaunchArgument("map_fine", default_value=arg("map"),
-                              description="1 cm 지도 yaml(AMCL, R15). 없으면 map"),
+                              description="AMCL 지도 yaml(R15. 시뮬 arena_v7_fine 1 cm,"
+                                          " 실물 arena_real_slam 0.5 cm). 없으면 map"),
         DeclareLaunchArgument("params_file",
                               default_value=str(SHARE / "params" / "nav2_params.yaml"),
                               description="주행 담당의 Nav2 설정"),

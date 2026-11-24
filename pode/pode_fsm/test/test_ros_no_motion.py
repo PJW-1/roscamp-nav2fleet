@@ -52,7 +52,7 @@ KNOWN_DIFFERENCES = {
                           "O_OUT)를, FakePode는 base 끝 노드(O_OUT)를 current_goal로 알린다. "
                           "실주행 pode_fsm도 같다(동작 없음과 무관). 2026-11-24 결정: 실주행처럼 "
                           "조각 묶음의 끝을 유지한다.",
-    "state rate": "no_motion 기본 5 Hz(설계 4.5), FakePode 기본 10 Hz.",
+    "state rate": "pode_fsm 기본 5 Hz(IR-34), FakePode 기본 10 Hz.",
 }
 
 
