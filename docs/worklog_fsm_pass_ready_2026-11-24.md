@@ -20,7 +20,8 @@ Gazebo와 시험만 했다(실물·deploy 없음).
 | `pode/pode_fsm/pode_fsm/order_fsm.py` `OrderParams.pass_m` | 0.15 | 0.12 |
 | `pc/fleet_core/fleet_core/data/fleet_params.yaml` `nav_pass_m`(관제 ETA가 같은 값을 쓴다) | 0.15 | 0.12 |
 
-이음 허용치 0.15와 3 cm 차이가 생겨, 넘긴 뒤 위치가 3 cm 안에서 흔들려도 이어 간다.
+`pass_m`은 nav_goal 끝점까지, 이음 검사는 다음 경로까지의 거리다. 이번 사례처럼 다음 경로가 그 끝점에서 시작하면 두 거리가
+같아 3 cm 여유가 생기고, 넘긴 뒤 위치가 3 cm 안에서 흔들려도 이어 간다. 다음 경로가 끝점에서 떨어져 시작하면 여유는 그만큼 준다.
 
 시험(`pode/pode_fsm/test/test_order.py`): 판의 좌표(Q2 (1.66, 0.15), 다음 조각 끝 (1.849, 0.26))로
 
@@ -41,8 +42,8 @@ Gazebo와 시험만 했다(실물·deploy 없음).
   고정하고 다시 보지 않는다.
 - 고정 전에는 `state()`가 `LOCALIZING`이다. 그때 온 move·order·retreat goal은 움직이지 않고
   `NAV_UNAVAILABLE`로 끝난다.
-- 보낼 때 서버가 없어 보내지 못한 FollowPath, NavigateToPose, BackUp(역방향 FollowPath 포함)도 `NAV_UNAVAILABLE`로
-  끝난다. 서버가 goal을 거절한 경우는 그대로다(`NAV_ABORTED`, 물러나기는 `FAILED`).
+- 보낼 때 서버가 없어 보내지 못한 FollowPath, NavigateToPose, 물러나기(retreat)의 BackUp·역방향 FollowPath도
+  `NAV_UNAVAILABLE`로 끝난다. 이동 중 자가 복구의 BackUp은 예전처럼 복구 절차가 이어 처리한다. 서버가 goal을 거절한 경우는 그대로다(`NAV_ABORTED`, 물러나기는 `FAILED`).
 - 새 상태를 만들지 않고 `LOCALIZING`을 쓴 이유: 관제는 이미 `LOCALIZING` 로봇을 지도에 올리지 않고 goal을 보내지 않는다
   (`WAIT_LOCALIZING`). 새 상태는 RobotState와 관제의 배치 규칙을 함께 바꿔야 한다.
 
@@ -50,20 +51,22 @@ Gazebo와 시험만 했다(실물·deploy 없음).
 `docs/Pode_계약.md`(3절 6번, Result 사유, 5절 표), `docs/관제_구역교통.md`(이벤트 표), `pode/pode_fsm/README.md`를 고쳤다.
 
 관제(fleet_core `traffic/zone/results.py`): `NAV_UNAVAILABLE`은 시도로 세지 않는다(`attempts` 그대로). 
-`move_retry_wait_s`(2 s) 뒤 같은 goal을 다시 보내고 `GOAL_NAV_UNAVAILABLE`(WARN)을 낸다. 로봇이 목표 지점에 이미 서 있으면
-다른 실패 사유처럼 `GOAL_ENDED_AT_TARGET`이 먼저다(기존 규칙).
+`GOAL_NAV_UNAVAILABLE`(WARN)을 내고 `move_retry_wait_s`(2 s) 뒤부터 다시 보낼 수 있게 한다(그 뒤의 재전송 조건은
+`HEARTBEAT_LOST` 재시도와 같다). 로봇이 목표 지점에 이미 서 있으면 `HEARTBEAT_LOST`·`NOT_AT_TARGET`을 뺀 다른 실패
+사유처럼 `GOAL_ENDED_AT_TARGET`이 먼저다(기존 규칙).
 
 알아 둘 점:
 
-- 로봇과 PC를 함께 올려야 한다. 로봇만 올리면 시작 때 LOCALIZING으로 goal은 막지만, 고정 뒤 서버가 사라져 생긴
-  `NAV_UNAVAILABLE`을 옛 관제는 실패 시도로 센다. `fleet_interfaces`도 다시 빌드한다.
-- 고정 뒤 서버가 사라지면 로봇은 IDLE로 남고, 관제는 2 s마다 한도 없이 다시 보낸다(`GOAL_NAV_UNAVAILABLE`이 쌓인다).
+- 관제도 함께 올려야 새 재시도 규칙이 선다. 로봇만 올리면 시작 때 LOCALIZING으로 goal은 막지만, 고정 뒤 서버가 사라져
+  생긴 `NAV_UNAVAILABLE`을 옛 관제는 실패 시도로 센다. `fleet_interfaces`도 다시 빌드한다.
+- 고정 뒤에는 준비를 다시 보지 않는다. 서버가 사라진 뒤 보내지 못한 goal은 `NAV_UNAVAILABLE`로 끝나고 관제가 세지 않으므로,
+  그 재시도에는 한도가 없다(`GOAL_NAV_UNAVAILABLE`이 쌓인다).
 
 ## 3. 시험 인자: 한 로봇의 주행 서버만 늦게 켜기
 
 - `pode/pode_nav_config/launch/nav2.launch.py` `navigation_delay_s`(기본 0): 0보다 크면 `lifecycle_manager_navigation`을
-  autostart 없이 띄우고, 그만큼 뒤에 `manage_nodes` STARTUP(command 0)을 부른다. 위치(AMCL)는 먼저 뜬다.
-- `sim/fleet_gz_sim/launch/gz.launch.py` `nav_late:=로봇:초`(예 `pode2:120`).
+  autostart 없이 띄우고, 그만큼 뒤에 `manage_nodes` STARTUP(command 0)을 부른다. autostart가 기본(true)이면 위치(AMCL)는 먼저 뜬다.
+- `sim/fleet_gz_sim/launch/gz.launch.py` `nav_late:=로봇:초`(예 `pode2:120`). 로봇은 그 배치의 이름, 초는 양수여야 하고 아니면 launch가 멈춘다.
 - 처음 판(9dbe416)은 Gazebo에서 지연 없이 바로 STARTUP을 불렀다. Jazzy `TimerAction`은 period를 기다리기 시작할 때
   계산하는데, include 인자는 바깥으로 새어 나가 그때는 마지막 로봇(pode3)의 값 0.0이 됐다. 로봇 launch를 읽을 때
   지연과 서비스 이름을 고정하도록 고쳤다(fc46c75, 시험 `test_the_delay_is_fixed_when_the_robot_s_launch_is_read`).
@@ -75,8 +78,8 @@ Codex 1회차(aff00d7..0cb8219) 확정 5건:
 | 지적 | 처리 |
 |---|---|
 | 준비 전에도 retreat가 시작된다 | 고침: 준비 전 retreat도 `NAV_UNAVAILABLE` |
-| 서버가 없어 못 보낸 물러나기가 `FAILED`가 되어 관제가 시도로 센다 | 고침: BackUp·역방향 FollowPath 모두 `NAV_UNAVAILABLE` |
-| 목표 지점에 서 있으면 `GOAL_ENDED_AT_TARGET`이 먼저다 | 그대로: 모든 실패 사유에 같은 기존 규칙이고 그 자리면 목표를 이룬 것이다 |
+| 서버가 없어 못 보낸 물러나기가 `FAILED`가 되어 관제가 시도로 센다 | 고침: 물러나기의 BackUp·역방향 FollowPath 모두 `NAV_UNAVAILABLE` |
+| 목표 지점에 서 있으면 `GOAL_ENDED_AT_TARGET`이 먼저다 | 그대로: `HEARTBEAT_LOST`·`NOT_AT_TARGET`을 뺀 실패 사유에 같은 기존 규칙이고, 그 자리면 목표를 이룬 것이다 |
 | `autostart:=1`이면 주행이 안 뜬다 | 고침: true/1 모두 참 |
 | namespace가 비면 STARTUP 서비스 이름이 `//...` | 고침 |
 
