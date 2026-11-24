@@ -1,11 +1,6 @@
-"""BLOCKED는 분명히 나아갔을 때만 풀린다(2026-11-17). ROS 없이 돈다.
+"""BLOCKED는 막힌 자리에서 unblock_m 벗어나거나(두 모드) 물체가 unblock_clear_s 동안 안 보여야(follow_path) 풀린다.
 
-좁은 곳에서 Nav2가 다시 계획하며 몇 cm 꿈틀대거나(nav_goal), 라이다 잡음으로 물체가 1초쯤
-안 보이면(follow_path) BLOCKED가 풀렸다가 다시 켜져 MOVING, RECOVERING, BLOCKED가 번갈아 보고됐다.
-이제 BLOCKED는 막힌 자리에서 unblock_m 벗어나거나(두 모드) 물체가 unblock_clear_s 동안 계속
-안 보여야(follow_path) 풀린다. 물체가 block_clear_s 안 보이면 기다리던 경로는 그대로 바로 다시
-보낸다(주행은 늦추지 않는다).
-"""
+물체가 block_clear_s 안 보이면 기다리던 경로는 바로 다시 보낸다. ROS 없이 돈다."""
 import math
 
 from pode_fsm.core import BLOCKED, IDLE, MOVING, FsmParams, LimitSpeed, PodeFsm, SendPath
@@ -166,8 +161,7 @@ def test_follow_path_after_cancel_blocked_stays_until_unblock_clear_s():
 
 
 def test_follow_path_the_hold_only_reports_and_an_abort_after_resend_may_still_recover():
-    """늦춘 해제는 보고만 바꾼다. 물체가 1초 안 보여 막힘이 실제로 풀린 뒤의 aborted는 전처럼
-    복구를 시작할 수 있다(그 사이 시도 수가 되돌아간 경우)."""
+    """늦춘 해제는 보고만 바꾼다: 막힘이 실제로 풀린 뒤의 aborted는 복구를 시작할 수 있다."""
     fsm = PodeFsm(FsmParams(), robot_id="pode1")
     fsm.tick(0.0, (*P3, NORTH), STILL, no_obstacle)
     yaw = math.atan2(P5[1] - P4[1], P5[0] - P4[0])
@@ -192,8 +186,7 @@ def test_follow_path_the_hold_only_reports_and_an_abort_after_resend_may_still_r
 
 
 def test_follow_path_moving_off_ends_the_hold_without_touching_decisions():
-    """0.15 m 벗어나면 보고를 끈다. 정지 시각은 그대로라, 정지 속도로 선 채 물체가 보이면
-    옛 규칙대로 바로 다시 막힌다(판단은 바꾸지 않는다)."""
+    """0.15 m 벗어나면 보고를 끈다. 정지 시각은 그대로라 선 채 물체가 보이면 바로 다시 막힌다."""
     fsm = path_blocked()
     for t in steps(4.2, 5.3):
         tick(fsm, t, STUCK, no_obstacle)
@@ -217,8 +210,7 @@ def test_nav_goal_clearing_on_distance_does_not_block_again_in_the_same_tick():
 
 
 def test_nav_goal_ten_seconds_without_progress_still_blocks_while_held():
-    """막힘(판단)은 옛 규칙 그대로다: 0.05 m 진전 없이 blocked_after_s면 다시 막힌다. 그때
-    보고 기준 자리도 새로 잡는다."""
+    """막힘 판단은 그대로다: 0.05 m 진전 없이 blocked_after_s면 다시 막히고 보고 기준 자리도 새로 잡는다."""
     fsm = nav_blocked()
     tick(fsm, 8.3, east(0.06), speed=DRIVING_NAV)
     tick(fsm, 8.4, east(0.12), speed=DRIVING_NAV)

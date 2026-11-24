@@ -1,11 +1,11 @@
-"""pode_fsm.launch.py arguments. Needs the launch package, not a running ROS graph."""
+"""pode_fsm.launch.py 인자. launch 패키지는 필요하고 실행 중인 ROS 그래프는 필요 없다."""
 import importlib.util
 from pathlib import Path
 
 import pytest
 
 launch = pytest.importorskip("launch")
-# The package's own launch/ folder can shadow a missing ROS launch package as an empty namespace
+# 패키지 자체 launch/ 폴더가 없는 ROS launch 패키지를 빈 namespace로 가릴 수 있다
 pytest.importorskip("launch.actions")
 
 LAUNCH = Path(__file__).resolve().parents[1] / "launch" / "pode_fsm.launch.py"
@@ -25,12 +25,11 @@ def defaults() -> dict:
 
 
 def test_lock_boundary_paths_use_the_through_controller_by_default():
-    """pode_nav_config loads FollowPathThrough next to FollowPath; "" switches it off."""
+    """pode_nav_config가 FollowPath 옆에 FollowPathThrough를 올리고, 빈 값이면 끈다."""
     assert defaults()["through_controller_id"] == "FollowPathThrough"
 
 
 def test_the_horizon_cap_defaults_to_the_fsm_params():
-    """A slower robot (a smaller Nav2 desired_linear_vel) passes its speed here: RPP takes the
-    lock-boundary limit as its speed, so the limit must never be above the robot's speed."""
+    """더 느린 로봇은 자기 속도를 여기 넘긴다(RPP가 잠금 경계 제한을 속도로 쓰므로 제한이 로봇 속도보다 높으면 안 된다)."""
     from pode_fsm.core import FsmParams
     assert float(defaults()["horizon_cap_mps"]) == FsmParams().horizon_cap_mps

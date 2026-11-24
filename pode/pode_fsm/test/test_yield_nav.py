@@ -1,10 +1,6 @@
-"""로봇단 교착 처리의 mode nav_goal 쪽. ROS 없이 돈다.
+"""로봇단 교착 처리의 mode nav_goal 쪽(ROS 없음).
 
-진전 없이 block_report_s가 지나면 RECOVERING(wait)으로 local_wait_s 기다린다(NavigateToPose는 그대로
-돈다. BT의 복구는 지도 지우기와 기다리기뿐이라 움직이지 않는다). 앞을 막은 것이 관제가 아는 다른
-로봇이고 내가 낮은 쪽이면 NavigateToPose를 멈추고, 선 뒤 지나온 길 안에서 곧게 물러나고, 같은
-goal을 다시 보낸다. 아니면 BLOCKED(goal은 그대로). 선 때부터 blocked_after_s 안에 BLOCKED다.
-"""
+진전 없이 block_report_s가 지나면 RECOVERING으로 local_wait_s 기다리고, 앞을 막은 것이 낮은 쪽 로봇이면 멈추고 지나온 길로 물러난 뒤 같은 goal을 다시 보낸다. 아니면 BLOCKED."""
 import math
 
 import pytest
@@ -81,8 +77,7 @@ def facing_west(fsm):
 
 
 def test_turning_in_place_to_face_the_goal_is_not_a_stand():
-    """Drive tuning 2026-11-14: Nav2 first turns to the path (a half turn takes about 3 s at
-    1 rad/s). In Gazebo v7 a third of the waits began in such a turn and some ended BLOCKED."""
+    """Nav2는 먼저 경로 쪽으로 돈다(반 바퀴에 약 3초). 그 회전 중에 시작한 대기가 BLOCKED로 끝나는지 본다."""
     fsm = ready()
     facing_west(fsm)
     states = turn_in_place(fsm, 0.0, 3.1, lambda t: min(t, math.pi))
@@ -93,10 +88,7 @@ def test_turning_in_place_to_face_the_goal_is_not_a_stand():
 
 
 def test_turning_delays_the_wait_at_most_nav_turn_window_s():
-    """Spinning on the spot counts only for nav_turn_window_s (4 s) after the robot last moved:
-    the wait starts by 5 s, so the fleet (stall_s 12 s) hears RECOVERING first, and with no robot
-    ahead it is BLOCKED when the 2 s wait ends. The BLOCKED clock itself (blocked_after_s from
-    when the robot last moved) never counts turns."""
+    """제자리 회전은 마지막으로 움직인 뒤 nav_turn_window_s(4초) 동안만 센다. 대기는 5초에 시작하고 앞에 로봇이 없으면 2초 대기 뒤 BLOCKED이며, BLOCKED 시계는 회전을 세지 않는다."""
     fsm = ready()
     facing_west(fsm)
     states = dict(turn_in_place(fsm, 0.0, 7.3, lambda t: t))

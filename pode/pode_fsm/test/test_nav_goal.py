@@ -1,9 +1,6 @@
-"""MoveTo mode nav_goal (contract 0.11-draft proposal): the decision part, without ROS.
+"""MoveTo mode nav_goal(계약 0.11-draft)의 판단 부분(ROS 없음).
 
-The robot sends NavigateToPose to target_pose and Nav2 plans and recovers by itself. pode_fsm
-reports BLOCKED after blocked_after_s without progress, keeps the goal running, and hands over
-between Nav2 servers (bt_navigator, controller, behavior_server) only after the old motion ended.
-"""
+NavigateToPose는 Nav2가 계획하고 복구한다. pode_fsm은 진전이 없으면 BLOCKED만 보고하고, 서버 사이는 앞 움직임이 끝난 뒤 넘긴다."""
 import math
 
 import pytest
@@ -40,8 +37,7 @@ def obstacle(_points):
 
 
 def ready(t=0.0, pose=HERE, **params):
-    # 이 파일은 로봇단 교착 처리를 끈 nav_goal을 본다(스위치 끔, 0.12의 blocked_after_s 5 s).
-    # 켠 것은 test_yield_nav.py
+    # 로봇단 교착 처리를 끈 nav_goal을 본다(blocked_after_s 5 s). 켠 것은 test_yield_nav.py
     params.setdefault("local_yield", False)
     params.setdefault("blocked_after_s", 5.0)
     fsm = PodeFsm(FsmParams(**params))
@@ -62,7 +58,7 @@ def kinds(cmds):
 
 
 def run(fsm, t0, t1, pose=HERE, speed=STILL, step=0.1, seen=no_obstacle):
-    """tick from t0 to t1 with the heartbeat alive; returns every command."""
+    """heartbeat가 살아 있게 t0에서 t1까지 tick하고 모든 명령을 돌려준다."""
     cmds, k = [], 0
     while (t := t0 + k * step) <= t1 + 1e-9:
         fsm.heartbeat(t)
@@ -71,7 +67,7 @@ def run(fsm, t0, t1, pose=HERE, speed=STILL, step=0.1, seen=no_obstacle):
     return cmds
 
 
-# ---- start, result, feedback -------------------------------------------------------------
+# ---- 시작, 결과, 피드백 -------------------------------------------------------------
 
 
 def test_a_nav_goal_sends_navigate_to_pose_to_the_target():
@@ -84,7 +80,7 @@ def test_a_nav_goal_sends_navigate_to_pose_to_the_target():
 
 
 def test_a_nav_goal_ignores_the_path_and_never_checks_it_is_connected():
-    """The fleet manager leaves path empty in nav_goal; a stray path is not followed."""
+    """nav_goal에서 관제는 path를 비운다. 엉뚱한 path는 따르지 않는다."""
     fsm = ready()
     cmds = nav(fsm, "g1", 1.0, path=[(1.9, 0.9), (1.8, 0.9)])
     assert kinds(cmds) == ["SendNavGoal"]
@@ -146,11 +142,11 @@ def test_distance_remaining_comes_from_nav2_feedback():
     assert fsm.distance_remaining(HERE) == pytest.approx(straight), "before any feedback"
     fsm.nav_goal_feedback(send.seq, 1.9)
     assert fsm.distance_remaining(HERE) == pytest.approx(1.9)
-    fsm.nav_goal_feedback(send.seq - 1, 0.1)  # an older goal's feedback
+    fsm.nav_goal_feedback(send.seq - 1, 0.1)  # 옛 goal의 피드백
     assert fsm.distance_remaining(HERE) == pytest.approx(1.9)
 
 
-# ---- stop: cancel, heartbeat, pose --------------------------------------------------------
+# ---- 정지: 취소, heartbeat, 자세 ----------------------------------------------------
 
 
 def test_cancel_stops_navigate_to_pose():
@@ -186,7 +182,7 @@ def test_a_finished_nav_goal_is_not_cancelled_again():
     assert of(fsm.cancel("g2", 3.6), CancelNavGoal) == []
 
 
-# ---- BLOCKED (no progress for blocked_after_s) --------------------------------------------
+# ---- BLOCKED(blocked_after_s 동안 진전 없음) ---------------------------------------
 
 
 def test_no_progress_for_blocked_after_s_reports_blocked_and_keeps_the_goal():
@@ -200,7 +196,7 @@ def test_no_progress_for_blocked_after_s_reports_blocked_and_keeps_the_goal():
 
 
 def test_standing_with_an_obstacle_ahead_never_starts_the_follow_path_self_recovery():
-    """Nav2's behavior tree recovers in nav_goal, not pode_fsm (team decision 2026-11-12)."""
+    """nav_goal의 복구는 pode_fsm이 아니라 Nav2의 behavior tree가 한다."""
     fsm = ready()
     nav(fsm, "g1", 1.0)
     cmds = run(fsm, 1.1, 20.0, seen=obstacle)
@@ -222,7 +218,7 @@ def test_moving_on_clears_blocked():
 
 
 def test_slow_steady_driving_is_progress():
-    """0.05 m every 4 s never stands still for blocked_after_s."""
+    """4초마다 0.05 m 움직이면 blocked_after_s 동안 서 있는 것이 아니다."""
     fsm = ready()
     nav(fsm, "g1", 1.0)
     run(fsm, 1.1, 30.0, pose=lambda t: (HERE[0] + 0.0125 * (t - 1.0), *HERE[1:]))
@@ -230,8 +226,7 @@ def test_slow_steady_driving_is_progress():
 
 
 def test_turning_in_place_is_not_progress():
-    """Without the local yield the BLOCKED clock stays on the robot centre only (turning counts
-    only for when the local-yield wait starts, test_yield_nav.py)."""
+    """로봇단 교착 처리를 끄면 BLOCKED 시계는 로봇 중심만 본다(회전은 test_yield_nav.py의 대기 시작에만 센다)."""
     fsm = ready()
     nav(fsm, "g1", 1.0)
     run(fsm, 1.1, 7.0, pose=lambda t: (*HERE[:2], t), speed=(0.0, 1.0))
@@ -253,11 +248,11 @@ def test_blocked_ends_with_the_goal():
     assert fsm.state() == IDLE
 
 
-# ---- hand-over between Nav2 servers ------------------------------------------------------
+# ---- Nav2 서버 사이 넘겨받기 --------------------------------------------------------
 
 
 def test_a_new_nav_goal_replaces_a_running_one_without_stopping():
-    """bt_navigator preempts its goal like the controller does for FollowPath (guide 2.1)."""
+    """bt_navigator도 controller가 FollowPath를 선점하듯 goal을 선점한다."""
     fsm = ready()
     nav(fsm, "g1", 1.0)
     cmds = nav(fsm, "g2", 2.0, target=(1.78, 0.55, 0.0))
@@ -324,7 +319,7 @@ def test_a_nav_goal_waits_until_a_self_recovery_backup_has_ended():
     [fp] = of(fsm.move("g1", 1.0, "P", (1.0, 0.3, 0.0), [], HERE), SendPath)
     on = (HERE[0] + 0.2, *HERE[1:])
     [b] = of(run(fsm, 1.1, 3.0, pose=on, seen=obstacle), BackUp)
-    fsm.nav_result(fp.seq, "canceled", 3.05, on, obstacle)  # the self-recovery stopped it
+    fsm.nav_result(fp.seq, "canceled", 3.05, on, obstacle)  # 자가 복구가 멈췄다
     cmds = nav(fsm, "g2", 3.1, pose=on)
     assert CancelBackUp() in cmds and not of(cmds, SendNavGoal)
     assert not of(run(fsm, 3.2, 3.4, pose=on), SendNavGoal)
@@ -351,8 +346,7 @@ def test_a_dock_cancels_the_nav_goal():
 
 
 def test_a_lost_nav_goal_result_ends_the_goal_but_keeps_waiting_for_the_cancel():
-    """The goal may still run when only its result was lost: a later motion waits for the
-    cancel to be accepted, as for a FollowPath whose result was lost."""
+    """결과만 잃었으면 goal은 돌 수 있어, 다음 움직임은 FollowPath처럼 취소 수락을 기다린다."""
     fsm = ready()
     [ng] = of(nav(fsm, "g1", 1.0), SendNavGoal)
     cmds = fsm.nav_goal_result(ng.seq, "aborted", 2.0, HERE, lost=True)
@@ -373,7 +367,7 @@ def test_a_nav_goal_lifts_a_lock_boundary_speed_limit():
 
 
 def test_cancel_nav_is_still_only_for_follow_path():
-    """CancelNav (FollowPath) and CancelNavGoal (NavigateToPose) stay apart."""
+    """CancelNav(FollowPath)와 CancelNavGoal(NavigateToPose)은 따로다."""
     fsm = ready()
     nav(fsm, "g1", 1.0)
     assert not of(fsm.cancel("g1", 2.0), CancelNav)

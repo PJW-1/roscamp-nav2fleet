@@ -17,8 +17,7 @@ from probe import WAYPOINTS, Probe, lane_goal  # noqa: E402
 
 def start(harness, heartbeat_timeout_s=0.0, nav=True, beat_hz=0.0, **fsm_params):
     from pode_fsm.node import PodeFsmNode
-    # 이 파일은 로봇단 교착 처리를 끈 자가 복구를 본다(스위치 끔). 켠 것은
-    # test_ros_local_yield.py
+    # 로봇단 교착 처리를 끈 자가 복구를 본다(켠 것은 test_ros_local_yield.py)
     fsm_params.setdefault("local_yield", False)
     fake = harness.add(FakeNav()) if nav else None
     harness.add(PodeFsmNode(parameter_overrides=harness.params(
@@ -75,7 +74,7 @@ def test_extension_replaces_the_goal_without_stopping(harness):
     new = probe.result(second)
     assert new.result.success is True
     assert fake.cancels == []  # FollowPath를 취소하지 않고 새 목표를 바로 보냈다
-    assert len(fake.goals) >= 2  # 셋째부터는 끝 근처 재전송(R13)이다
+    assert len(fake.goals) >= 2  # 셋째부터는 끝 근처 재전송이다
     assert not fake.stopped_between(t_ext - 0.2, t_ext + 0.4)
 
 
@@ -126,8 +125,7 @@ def test_heartbeat_keeps_the_goal_running(harness):
 
 
 def test_obstacle_ahead_reports_blocked_and_resumes(harness):
-    """Pode_계약 4절: 서고 2초 안에 BLOCKED, 목표는 끝내지 않고, 비키면 이어 간다.
-    recovery_attempts=0은 자가 복구 두 번을 이미 쓴 것과 같다."""
+    """Pode_계약 4절: 서고 2초 안에 BLOCKED, goal은 열어 두고, 비키면 이어 간다(recovery_attempts=0)."""
     fake, probe = start(harness, recovery_attempts=0)
     fake.obstacle = (0.35, 1.95)  # P-4 위
     h = probe.send(lane_goal(["P-3", "P-4", "P-5"]))
@@ -145,7 +143,7 @@ def test_obstacle_ahead_reports_blocked_and_resumes(harness):
 
 
 def test_default_distance_rule_only_clears_the_costmap_close_to_the_path_start(harness):
-    """0.15 m from the path start is inside release + eps (0.23 m): no back-up, only a clear."""
+    """경로 시작에서 0.15 m는 release + eps(0.23 m) 안이라 후진 없이 지우기만 한다."""
     fake, probe = start(harness)
     fake.obstacle = (0.35, 1.95)
     probe.send(lane_goal(["P-3", "P-4", "P-5"]))
@@ -154,15 +152,13 @@ def test_default_distance_rule_only_clears_the_costmap_close_to_the_path_start(h
 
 
 def test_obstacle_ahead_backs_up_twice_then_reports_blocked(harness):
-    """Pode_계약 3절 7번: 물러나고 지도를 비운 뒤 다시 가 보기를 두 번까지
-    하고, 그동안 RECOVERING으로 보고한다. 그래도 막히면 4절의 BLOCKED로 넘긴다."""
+    """Pode_계약 3절 7번: 물러나고 지도를 비운 뒤 두 번까지 다시 가며 RECOVERING을 보고하고, 그래도 막히면 BLOCKED다."""
     # FakeNav의 레인은 짧다. release_distance_m=0으로 물러날 자리를 만든다(거리 규칙은 test_core)
     fake, probe = start(harness, release_distance_m=0.0)
     fake.obstacle = (0.35, 1.95)  # P-4 위. FakeNav는 0.25 m 앞(y 1.70)에서 선다
     h = probe.send(lane_goal(["P-3", "P-4", "P-5"]))
     assert wait_until(lambda: probe.last_state().state == RobotState.STATE_RECOVERING, 5.0)
     assert wait_until(lambda: probe.last_state().state == RobotState.STATE_BLOCKED, 12.0)
-    # s = 0.15 m: min(0.15, 0.15 - (0 + 0.03)) = 0.12 m
     assert [d for _, d, _ in fake.backups] == [pytest.approx(0.12, abs=0.015)] * 2
     assert all(v == pytest.approx(0.08) for _, _, v in fake.backups)
     assert len(fake.clears) == 2
@@ -231,8 +227,7 @@ def _back_path(*ids):
 
 
 def test_a_retreat_with_a_path_backs_along_it_on_the_reverse_controller(harness):
-    """Retreat.path(계약 0.9-draft): 지나온 길을 거꾸로 적은 경로를 FollowPathReverse로
-    후진해 따른다. BackUp은 쓰지 않고, 로봇은 돌지 않는다(북쪽을 본 채 남쪽으로)."""
+    """Retreat.path: 지나온 길을 거꾸로 적은 경로를 FollowPathReverse로 후진해 따른다(BackUp 없음, 돌지 않음)."""
     from fleet_interfaces.action import Retreat
     fake, probe = start(harness)
     assert probe.result(probe.send(lane_goal(["P-3", "P-4"]))).result.success is True
@@ -241,8 +236,7 @@ def test_a_retreat_with_a_path_backs_along_it_on_the_reverse_controller(harness)
     res = probe.result(h, timeout=10.0).result
     assert (res.success, res.reason) == (True, "")
     assert fake.controller_ids[-1] == "FollowPathReverse" and fake.backups == []
-    # 후진은 방향을 보지 않는 goal checker로 끝낸다(후진은 제자리에서 방향을 고칠 수 없다).
-    # 앞으로 가는 경로는 원래 checker 그대로.
+    # 후진은 끝 방향을 보지 않는 goal checker를 쓰고, 앞으로 가는 경로는 원래 checker를 쓴다
     assert fake.goal_checker_ids[-1] == "retreat_goal_checker"
     assert set(fake.goal_checker_ids[:-1]) == {"general_goal_checker"}
     assert all(yaw == pytest.approx(math.pi / 2) for _, _, yaw in fake.path)
@@ -274,7 +268,7 @@ def test_a_retreat_path_away_from_the_robot_fails(harness):
 
 
 def _runner(handles=None, pending=()):
-    """FollowPathRunner without a ROS client: only the bookkeeping and the callbacks."""
+    """ROS 클라이언트 없이 장부와 콜백만 본다."""
     import threading
     from types import SimpleNamespace
 
@@ -372,8 +366,7 @@ def test_a_lost_follow_path_result_keeps_the_goal_and_cancels_it():
 
 
 def test_a_goal_at_a_lock_boundary_publishes_a_speed_limit_and_lifts_it_at_the_end(harness):
-    """horizon 최소판(계약 0.8-draft): final_goal이 거짓이면 끝 근처에서
-    nav2 speed_limit으로 줄이고, 목표가 끝나면 푼다."""
+    """horizon 최소판: final_goal이 거짓이면 끝 근처에서 speed_limit으로 줄이고 목표가 끝나면 푼다."""
     fake, probe = start(harness)
     goal = lane_goal(["P-3", "P-4"])
     goal.final_goal = False
@@ -402,7 +395,7 @@ def test_a_final_goal_publishes_no_speed_limit(harness):
 
 
 def test_without_a_through_controller_every_goal_uses_the_normal_controller(harness):
-    """Default through_controller_id is empty: exactly the old behaviour."""
+    """through_controller_id가 비면 옛 동작 그대로다."""
     fake, probe = start(harness)
     goal = lane_goal(["P-3", "P-4"])
     goal.final_goal = False
@@ -411,8 +404,7 @@ def test_without_a_through_controller_every_goal_uses_the_normal_controller(harn
 
 
 def test_a_goal_at_a_lock_boundary_uses_the_through_controller(harness):
-    """Nav2 RPP slows down near every path end; a non-final goal goes to a second RPP without
-    that approach slow-down and keeps the sqrt(2 a d) speed limit as its only slow-down."""
+    """끝이 최종이 아닌 goal은 접근 감속이 없는 둘째 RPP로 가고 sqrt(2 a d) 속도 제한만 쓴다."""
     fake, probe = start(harness, through_controller_id="FollowPathThrough")
     goal = lane_goal(["P-3", "P-4"])
     goal.final_goal = False
