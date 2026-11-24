@@ -138,3 +138,29 @@
   - NavFn이 goal 칸에 닿지 못할 때 tolerance 창을 훑으며 남기는 `worldToMap failed`가 pode2 planner에서만 5120줄 났다.
   - 이 goal(P-1 쪽 follow_path 뒤 nav_goal Q2)은 B가 나누지 않았다. 원인 미확정. 전역 비용 지도에 남은 표시가 Q2와 로봇
     사이를 막았을 수 있다(추측: 이 판의 bag에 costmap을 남기지 않아 확인하지 못했다).
+
+## 2회차와 3회차, 남은 의문 정리 (18:20~20:50)
+
+- queue9로 2.5 cm A 장애물·러시 각 2판, 2.5 cm 기준 2회차, 1 cm 기준 2회차, 1 cm A 3회차를 돌렸다.
+- 19:25 pode_fsm 수정 브랜치(`fix/fsm-pass-ready-2026-11-24`, 작업 기록 `docs/worklog_fsm_pass_ready_2026-11-24.md`)의
+  Nav2 늦게 켜기 판을 끼워 넣느라 queue9 바깥 반복문을 멈췄다. 돌던 `s2_a1_A_rpp_v3`는 끝까지 돌았지만 끝 줄이 batch.log에
+  남지 않아, summary를 보고 손으로 적었다(batch.log 208행).
+- 그 무렵 다른 세션이 도메인 93을 쓰기 시작해, 그 뒤 판(queue10~12)은 도메인 97로 옮겼다. 남의 프로세스는 건드리지 않았다.
+- 19:30 무렵부터 다른 세션의 시험과 Gazebo로 PC load가 45~58(12코어)이었다. 판 결과는 모두 끝났지만, 이 도메인이 받은
+  CPU 몫(판 평균 550~810 %)과 RTF가 판마다 다르다. stand_in CPU 시간도 이 몫을 따라 흔들린다.
+- 두 번째 path_not_connected(`s1_a_v2`, 2.5 cm 기준, keeper 없음, pode3 sim 340.6 s): 추정 위치 Q2에서 0.150 m일 때 넘겼고
+  선 뒤 추정 위치만 0.152 m로 물러났다(truth는 0.151 m 그대로). keeper와 costmap과 상관없이 두 판정이 같은 0.15를 쓰는
+  데서 난다. pode_fsm 브랜치에서 `pass_m`을 0.12로 내렸고, 그 브랜치는 다른 세션이 main에 병합했다(6133ba9).
+- 20:40 사용자 판단: keeper는 갈림길에서 경로가 두 길 사이로 바뀌는 문제를 막으려는 것이므로 경로 뒤집힘으로만 평가한다.
+  제자리 회전(도리도리)은 컨트롤러 문제다(11-23 비교에서 같은 경로에 MPPI가 RPP보다 약 3배 덜 흔들림). 보고서 결론을
+  이에 맞춰 고쳤다.
+- A에서 남은 뒤집힘(장애물 판 판당 0~3건): keeper 로그 `changed the route`의 사유를 셌다. 1 cm는 모두
+  "the kept route is blocked"(붙잡은 길이 비용 99 이상 칸에 막힘)이고, 2.5 cm는 판마다 막힘 1건과
+  "the new plan is clearly shorter" 1건이다. 둘 다 keeper가 설계대로 길을 놓아준 경우다.
+- 러시 판 거리 튐이 A에서 많은 까닭(2회차까지 기준 판당 3~6, A 8~12): 같은 goal·조각 안 튐을 둘로 나눴다(`docs/plan_flip_2026-11-24/dist_jump_split.py`).
+  - 조각 첫 값 바로 뒤에 커지는 튐: 기준 0~4(6판), A 6~8(5판). 나머지 튐: 기준 3~12, A 2~5.
+  - pode_fsm은 Nav2 피드백의 distance_remaining이 0인 동안 목표까지 직선거리를 보고한다(`NavGoals.distance_remaining`).
+    Nav2가 첫 피드백부터 0이 아닌 거리를 줄 때까지 걸린 시간(`nav_first_distance.py`, bag의 navigate_to_pose 피드백, 러시 판 기준 5판, A 5판)은 기준 중앙값 0.01~0.02 s,
+    A 0.08~0.16 s(최대 0.50 s)다. keeper를 거치면서 첫 계획이 그만큼 늦어지는 것으로 보고, 그래서 직선거리가 한 번 보고된 뒤 경로 길이(약 0.13 m 더 김)로
+    바뀌는 일이 A에서 잦다. 관제 ETA에 goal마다 한 번 약 0.13 m가 더해질 뿐이고 주행과는 상관없다.
+  - 장애물 판의 나머지 튐은 2.5 cm에서 A가 적다(기준 17, 19 → A 6, 12). 뒤집힘이 준 만큼 경로 길이가 덜 바뀐 것으로 본다.
