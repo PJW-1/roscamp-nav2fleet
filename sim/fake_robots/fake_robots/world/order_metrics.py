@@ -1,18 +1,8 @@
 """order 모델 표의 숫자: 이음매 공백, base 끝 기다림, 이동 한 건 시간, 정지 횟수, base 밖 진입.
 
-이동(trip)은 관제의 것을 쓴다: robot_view의 route가 비지 않은 동안이 이동 한 건이다(잡을 구역을
-기다리는 시간도 든다). 두 모델에서 같은 뜻이다.
-
-- 이음매: 이동 안에서 조각 하나가 끝난 때부터 로봇의 실제 속도가 다시 MOVING_MPS 이상이 될
-  때까지. order 모델이 꺼져 있으면 조각은 goal 하나(MoveCmd, RetreatCmd)이고, 그 끝이 이동의 끝
-  지점이 아닐 때만 이음매다. 켜져 있으면 order goal 안에서 끝난 조각(done_seq가 늘고 order가
-  이어짐)이다.
-- base 끝 기다림: 조각이 끝났을 때 받은 base가 다 떨어져 update를 기다린 시간(찬 도크 앞의
-  기다리는 자리, 못 잡은 구역 앞). 이음매 공백에 넣지 않고 따로 센다. 모델이 꺼져 있으면 같은
-  기다림이 이동과 이동 사이에 있어서 어느 쪽에도 들지 않는다.
-- 정지: 이동 안에서 실제 속도가 STOP_S 넘게 MOVING_MPS 아래인 구간(제자리 회전 포함).
-- base 밖 진입: order goal을 달리는 로봇이 받은 base 조각들의 구역(과 출발한 구역)에서
-  INSIDE_TOL_M 넘게 나간 횟수.
+이동은 robot_view의 route가 비지 않은 동안이다. 이음매는 조각이 끝난 뒤 실제 속도가 MOVING_MPS 이상이 될 때까지,
+base 끝 기다림은 base가 떨어져 update를 기다린 시간(이음매에서 뺀다), 정지는 STOP_S 넘게 MOVING_MPS 아래인 구간이다.
+base 밖 진입은 받은 base 구역에서 INSIDE_TOL_M 넘게 나간 횟수다.
 """
 from __future__ import annotations
 

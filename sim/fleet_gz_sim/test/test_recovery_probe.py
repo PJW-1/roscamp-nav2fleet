@@ -1,4 +1,4 @@
-"""recovery_probe: ROS-free logic (episodes, truth matching, CSV). Wiring: test_launch_wiring."""
+"""recovery_probe: ROS 없는 논리(구간, 실제 위치 맞춤, CSV). 배선은 test_launch_wiring."""
 import csv
 import math
 
@@ -79,11 +79,11 @@ def test_settled_row_comes_settle_s_after_leaving():
     state(p, 1.0, "RECOVERING")
     [end] = state(p, 1.5, "MOVING")
     assert end["event"] == "end"
-    assert state(p, 3.4, "MOVING") == []  # 1.9 s after leaving
+    assert state(p, 3.4, "MOVING") == []  # 떠난 지 1.9 s 뒤
     [settled] = state(p, 3.6, "MOVING")
     assert settled["event"] == "settled" and settled["episode"] == 1
     assert settled["state"] == "MOVING"
-    assert state(p, 4.0, "MOVING") == []  # only once
+    assert state(p, 4.0, "MOVING") == []  # 한 번만
 
 
 def test_reentering_before_settle_drops_the_pending_settled_row():
@@ -114,7 +114,7 @@ def test_no_truth_within_0_1_s_leaves_truth_fields_empty_and_notes_it():
     assert row["truth_x"] == "" and row["err_m"] == "" and row["yaw_err_deg"] == ""
     assert row["report_age_s"] == ""
     assert "no_truth" in row["note"]
-    [none] = state(p, 1.3, "RECOVERING", robot="pode2", stamp=1.3)  # no truth at all
+    [none] = state(p, 1.3, "RECOVERING", robot="pode2", stamp=1.3)  # 실제 위치가 전혀 없음
     assert "no_truth" in none["note"]
 
 
@@ -122,8 +122,8 @@ def test_max_err_ignores_reports_without_truth():
     p = probe()
     feed_truth(p, 1.0)
     state(p, 1.0, "RECOVERING", x=1.2)
-    state(p, 5.0, "RECOVERING", x=9.0)  # no truth near 5.0
-    [end] = state(p, 5.0, "MOVING", x=1.3)  # no truth either
+    state(p, 5.0, "RECOVERING", x=9.0)  # 5.0 근처에 실제 위치 없음
+    [end] = state(p, 5.0, "MOVING", x=1.3)  # 실제 위치 없음
     assert end["max_err_m"] == pytest.approx(0.2)
 
 
@@ -141,9 +141,9 @@ def test_csv_header_once_and_flushed_per_row(tmp_path):
     [row] = state(p, 1.0, "RECOVERING")
     sink = CsvSink(str(path))
     sink.write(row)
-    assert len(list(csv.DictReader(open(path, encoding="utf-8")))) == 1  # visible before close
+    assert len(list(csv.DictReader(open(path, encoding="utf-8")))) == 1  # 닫기 전에 보인다
     sink.close()
-    sink = CsvSink(str(path))  # reopening appends without a second header
+    sink = CsvSink(str(path))  # 다시 열면 머리 줄 없이 덧붙인다
     sink.write(row)
     sink.close()
     lines = path.read_text(encoding="utf-8").splitlines()
@@ -159,8 +159,7 @@ def test_empty_result_dir_means_log_only():
 
 
 def test_a_localizing_report_has_no_pose_to_compare():
-    """While LOCALIZING the robot has no pose; RobotState.pose is then (0, 0, 0). A recovery that
-    ends because the pose was lost must not count those zeros as an AMCL error."""
+    """LOCALIZING 동안 RobotState.pose는 (0, 0, 0)이다. 자세를 잃어 끝난 복구가 그 0을 AMCL 오차로 세면 안 된다."""
     p = probe()
     for t in (1.0, 1.5, 3.6):
         feed_truth(p, t, x=1.0, y=2.0)
@@ -173,12 +172,10 @@ def test_a_localizing_report_has_no_pose_to_compare():
     assert settled["note"] == "no_pose" and settled["err_m"] == ""
 
 
-# -- hosted in the fleet_check process ------------------------------------------------------------
+# -- fleet_check 프로세스에 얹기 --
 
 def test_a_hosted_probe_ignores_the_arguments_of_its_host(monkeypatch):
-    """gz.launch.py starts fleet_check with -r __node:=fleet_check and a /** parameter file. Those
-    apply to every node in the process, so the hosted probe must not read them: it would be
-    renamed fleet_check and could lose use_sim_time."""
+    """gz.launch.py는 fleet_check에 -r __node:=fleet_check와 /** 파라미터 파일을 준다. 얹은 probe는 이것을 읽으면 안 된다(이름이 바뀌고 use_sim_time을 잃는다)."""
     rclpy = pytest.importorskip("rclpy")
     pytest.importorskip("fleet_interfaces.msg")
     monkeypatch.setenv("ROS_DOMAIN_ID", "97")

@@ -1,33 +1,7 @@
 #!/usr/bin/env python3
-"""FMS 기록을 ROS 없이 두 코어에 다시 재생하고, 나온 결과를 비교한다.
+"""FMS 기록(fleet_record.jsonl)을 ROS 없이 두 코어에 재생하고 결과를 비교한다.
 
-    ros2 run fleet_manager fleet_manager_node --record run.jsonl
-        (또는 pc.launch.py에 record:=run.jsonl)
-    python3 tools/replay.py run.jsonl
-
-첫 줄은 코어를 띄운 설정이다(로봇, 파라미터, 지도 본문).
-이후 줄은 모두 시각 `t`와 아래 중 하나를 가진다.
-
-    {"t": 12.5, "in": "on_robot_state", "args": ["pode1", 1.2, 2.0, 0.0, "MOVING", 90.0]}
-    {"t": 12.6, "in": "tick", "args": []}
-    {"t": 12.6, "inside": "DispatchCmd", "goal_id": 3, "station_id": "WORK", "robot_id": ""}
-    {"t": 12.6, "out": "MoveCmd", "robot": "pode1", "goal_id": 4, "target_id": "N", ...}
-
-`in`은 FleetManager의 메서드, `args`는 그 인자다. 한 번의 실행은 `in` 줄이 이어지고 각각 뒤에
-그 결과가 붙는 형태다. `inside`는 두 코어끼리 주고받은 것, `out`은 ROS로 나간 것이다.
-시계는 `t`다. 코어는 호출 한 번에 시각 하나만 읽으며 실제 실행도 같다.
-노드가 코어를 거치지 않고 스스로 정하는 것은 기록에 없다. CANCEL_UNCONFIRMED,
-ORDER_REPORT_REFUSED 이벤트와 그 바탕이 되는 취소/주문 보고의 응답이다.
-두 이벤트는 /central/events로 나가므로 bag에는 있다.
-
-첫 줄의 `"recorded": true`는 코어가 직접 쓴 기록이라는 뜻이며, 결과가 파일에 있으므로 일치해야 한다.
-입력만 있는 기록(변환한 bag 등)은 `inside`, `out` 줄이 없어 그냥 돌리고 나온 것을 보고한다.
-이런 파일에는 `tick` 줄(실제 노드는 기본 초당 10번)과 첫 줄이 따로 필요하다.
-
-기록은 프로세스가 죽은 경우처럼 줄 중간에서 끝나도 된다. 있는 부분만 비교한다.
-끝 뒤의 줄은 마지막 입력이 낳은 것뿐이며, 비교하지 못한 줄 수를 알려 준다.
-
-종료 코드: 모두 같으면 0, 처음 다른 곳에서 1, 재생할 수 없으면 2.
+    python3 tools/replay.py run.jsonl   # 종료 코드: 같으면 0, 다르면 1, 재생 불가 2
 """
 from __future__ import annotations
 
@@ -46,8 +20,8 @@ from fleet_core.manager import FleetManager  # noqa: E402
 from fleet_core.traffic.modes import NoZoneTraffic  # noqa: E402
 from fleet_core.traffic.site import site_from_text  # noqa: E402
 
-# 옛 기록 호환 기본값: 기록에 없는 키는 그 기록을 만든 코드의 기본값으로 재생한다
-RECORD_DEFAULTS = {"stall_s": 6.0, "use_order_model": False}  # order: 2026-11-12 전 기록
+# 기록에 없는 키는 옛 기본값으로 재생한다
+RECORD_DEFAULTS = {"stall_s": 6.0, "use_order_model": False}
 
 
 @dataclass(frozen=True)

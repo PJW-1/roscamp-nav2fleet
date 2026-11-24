@@ -1,10 +1,5 @@
 """BLOCKED가 깜빡여도 한 막힘 일화로 센다(관제 쪽 이력 현상).
-
-로봇(pode_fsm)은 좁은 곳에서 RECOVERING, BLOCKED, 짧은 MOVING을 번갈아 보고한다. Nav2 goal이면
-5 cm만 움직여도 BLOCKED가 풀린다. 짧은 틈마다 막힘 시계를 다시 세면 blocked_mark_s(10 s)에
-닿지 못해 표시도 다른 길도 없이 제자리에서 꿈틀댄다. 같은 goal 안에서 실제로 나아가거나
-(blocked_reset_m), 막힘 아닌 보고가 오래 이어지거나(blocked_reset_s), goal이 바뀔 때만 다시 센다.
-"""
+같은 goal 안에서 실제로 나아가거나(blocked_reset_m), 막힘 아닌 보고가 오래 이어지거나(blocked_reset_s), goal이 바뀔 때만 다시 센다."""
 from dataclasses import replace
 
 import pytest
@@ -114,8 +109,7 @@ def test_the_mark_waits_for_blocked_to_come_back():
 
 @pytest.mark.parametrize("gap_s", [9.0, 11.0])
 def test_nav_goal_re_block_gaps_with_small_wiggles_keep_the_episode(gap_s):
-    """Nav2 goal 로봇은 5 cm 움직이면 BLOCKED가 풀리고, 다시 BLOCKED가 되기까지 blocked_after_s
-    (10 s)가 걸린다(pode_fsm nav_goal.py). 그 사이의 틈도 일화를 끝내지 않는다."""
+    """Nav2 goal 로봇은 5 cm 움직이면 BLOCKED가 풀리지만 그 사이의 틈도 일화를 끝내지 않는다."""
     world = called()
     p = world.params
     assert gap_s < p.blocked_reset_s

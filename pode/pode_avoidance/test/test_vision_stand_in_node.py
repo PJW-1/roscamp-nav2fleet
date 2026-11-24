@@ -157,8 +157,7 @@ def test_the_robot_frame_option_puts_the_points_relative_to_the_pose():
 
 
 def test_the_points_are_in_the_robot_frame_by_default():
-    """The obstacle layer measures obstacle_max_range from the cloud frame origin, so map-frame
-    points beyond 1.5 m of the map origin were dropped (most of the arena)."""
+    """obstacle layer는 obstacle_max_range를 점구름 틀 원점에서 재므로, map 틀 점이 map 원점에서 1.5 m 밖이어도 버려지지 않아야 한다."""
     rclpy.init()
     from pode_avoidance.vision_stand_in import VisionStandIn
     node = VisionStandIn(namespace="/pode1")

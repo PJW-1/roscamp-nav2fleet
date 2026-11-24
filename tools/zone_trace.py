@@ -1,14 +1,6 @@
-"""구역 교통 시험 판(zone_scenarios.SCENARIOS)을 모두 돌려 매 tick을 텍스트로 찍는다.
+"""구역 교통 시험 판을 모두 돌려 매 tick을 텍스트로 찍는다(출력 diff 비교용).
 
-    python tools/zone_trace.py > trace.txt
     python tools/zone_trace.py -s serve_three --orders manager --models on
-
-정리 전후의 출력을 diff로 비교하는 데 쓴다(ZoneTraffic 정리). 판마다 tick 순서
-(zone, manager)와 order 모델(켬, 끔)을 바꿔 가며 돌린다. 한 tick에 쓰는 것:
-    - `t <시각> out <항목>`: 그 tick에 나온 명령, 이벤트, 결과를 나온 순서대로 한 목록에
-    - `t <시각> <로봇> held=... nodes=... view=... status=...`:
-      보유 구역·노드, robot_view, status_view
-판이 끝나지 않으면 그 사실을 적고 다음 판으로 간다(실패도 기준의 일부다).
 """
 from __future__ import annotations
 

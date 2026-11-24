@@ -1,10 +1,6 @@
-"""FMS 기록을 지금 코드로 재생해, 처음 달라지는 곳과 종류별 출력 수를 요약한다.
+"""FMS 기록을 지금 코드로 끝까지 재생해 처음 달라지는 곳과 종류별 출력 수를 요약한다.
 
-사용: python3 replay_kinds.py NAME=fleet_record.jsonl [NAME=fleet_record.jsonl ...]
-tools/replay.py는 처음 다른 줄에서 멈춘다. 이 스크립트는 끝까지 재생하고 기록된 출력과 나온 출력을
-종류(명령 이름, 이벤트 code)별로 세어 차이를 보여 준다. 판단이 바뀌는 수정을 볼 때 쓴다.
-주의: 기록의 입력(로봇 상태, 결과)은 그때 나간 명령에 대한 것이다. 처음 달라진 뒤로는 새 코드의
-명령과 맞지 않으므로, 그 뒤의 차이는 "실제로 이렇게 달라진다"가 아니라 "여기서부터 갈린다"로 읽는다.
+    python3 replay_kinds.py NAME=fleet_record.jsonl ...   # 처음 달라진 뒤의 차이는 갈린 지점으로만 읽는다
 """
 import importlib.util
 import json

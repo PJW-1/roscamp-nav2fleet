@@ -89,8 +89,7 @@ def test_the_bodies_of_the_other_robots_go_out_as_points_in_the_map_frame(runnin
 
 
 def test_before_any_report_no_body_is_marked_but_the_cloud_is_never_empty(running):
-    """Nav2의 점구름 반복자는 빈 data에서 front()를 부른다: 빈 구름을 보내지 않는다. 늘 먼 점 하나를
-    함께 낸다. costmap은 obstacle_max_range(10 m) 밖이라 찍지 않는다."""
+    """빈 구름을 보내지 않는다(Nav2 점구름 반복자가 빈 data에서 front()를 부른다): 늘 먼 점 하나를 함께 낸다."""
     node, other, executor = running
     clouds = []
     other.create_subscription(PointCloud2, "peer_obstacles", clouds.append, 5)
@@ -105,8 +104,7 @@ def test_before_any_report_no_body_is_marked_but_the_cloud_is_never_empty(runnin
                                     _state("pode2", 0.0, 0.0, 0.0, state="IDLE"),
                                     _state("pode2", 0.7, 0.2, 0.0, state="LOCALIZING")])
 def test_a_report_without_a_known_pose_marks_nothing(running, report):
-    """pode_fsm은 위치를 모르거나 LOCALIZING이면 자세 칸을 0, 0, 0으로 둔다: 그것을 map 원점의
-    몸으로 찍지 않는다."""
+    """위치를 모르는 보고(자세 칸 0, 0, 0)는 map 원점의 몸으로 찍지 않는다."""
     node, other, executor = running
     clouds = []
     other.create_subscription(PointCloud2, "peer_obstacles", clouds.append, 5)
@@ -160,8 +158,7 @@ def test_a_robot_that_went_silent_stays_where_it_last_was(running):
 
 
 def test_the_sweep_scan_clears_all_around_the_robot(running):
-    """peer 층은 이 스캔으로 매번 둘레를 다 지우고 지금 자리만 다시 찍는다:
-    지나간 자리가 남지 않는다."""
+    """peer 층은 이 스캔으로 둘레를 매번 지우고 지금 자리만 다시 찍어, 지나간 자리가 남지 않는다."""
     node, other, executor = running
     scans = []
     other.create_subscription(LaserScan, "peer_sweep", scans.append, 5)
@@ -177,8 +174,7 @@ def test_the_sweep_scan_clears_all_around_the_robot(running):
 
 
 def test_the_sweep_is_stamped_a_little_in_the_past(running):
-    """costmap은 스캔 시각의 TF(odom <- base_footprint)로 빔을 놓는다. 지금 시각의 TF는 아직 오지
-    않았을 수 있어 조금 지난 시각을 적는다(진짜 라이다 스캔도 받을 때는 지난 시각이다)."""
+    """costmap이 스캔 시각의 TF로 빔을 놓는데 지금 시각의 TF가 아직 없을 수 있어, 조금 지난 시각을 적는다."""
     node, other, executor = running
     scans, clouds = [], []
     other.create_subscription(LaserScan, "peer_sweep", scans.append, 5)
@@ -193,8 +189,7 @@ def test_the_sweep_is_stamped_a_little_in_the_past(running):
 
 
 def test_one_process_can_run_a_node_for_every_robot():
-    """시뮬레이션은 한 프로세스(sim_stand_in)에 로봇마다 노드를 둔다: 저마다 제 namespace에 남의
-    몸만 낸다."""
+    """시뮬레이션은 한 프로세스에 로봇마다 노드를 두므로 저마다 제 namespace에 남의 몸만 낸다."""
     rclpy.init()
     from pode_peer_obstacles.node import make_fleet
     fleet = make_fleet("pode1,pode2")

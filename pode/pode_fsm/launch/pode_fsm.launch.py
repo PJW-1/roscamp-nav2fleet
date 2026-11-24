@@ -1,8 +1,6 @@
-"""Pode 한 대의 FSM. 실물에서는 Pode Pi에서, 시뮬에서는 fleet_gz_sim이 띄운다.
+"""Pode 한 대의 FSM을 띄운다. namespace가 robot_id가 된다.
 
   ros2 launch pode_fsm pode_fsm.launch.py namespace:=pode1
-
-namespace가 robot_id가 된다. TF는 Nav2와 같이 namespace의 tf, tf_static을 쓴다.
 """
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument

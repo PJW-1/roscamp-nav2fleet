@@ -1,12 +1,4 @@
-"""머리 없는 세계(sim/fake_robots/fake_robots/world)의 실행을 분류한다. world/는 건드리지 않는다.
-
-세계는 manager_factory로 관제를 만든다. 그 관제가 코어의 record_to로 줄을 쓰게 감싸면 진짜 노드의
-`--record`와 같은 기록이 나온다.
-
-    lines = []
-    outcome = run_situation(name, layout, seed, manager_factory=recording_factory(lines))
-    rows = rows_of_lines(lines, obstacles_from_injections(situation.injections))
-"""
+"""머리 없는 세계의 실행을 기록으로 받아 원인을 분류한다."""
 from __future__ import annotations
 
 import sys

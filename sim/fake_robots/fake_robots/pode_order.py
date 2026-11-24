@@ -1,11 +1,7 @@
 """가짜 Pode의 order goal: base 조각을 차례로 달리고, update를 이어 붙인다(계약 0.11-draft).
 
-- 조각 줄, 진행(done_seq), base 끝 대기, 이음 검사는 세계 모의의 OrderRun과 refusal을 쓴다
-  (world/order_run.py). 같은 규칙을 세 번째로 쓰지 않는다.
-- 조각 하나는 이 노드의 이동(path, nav_goal)이나 후진(retreat)으로 달린다.
-- update가 맞으면 이전 goal을 SUPERSEDED로 끝내고 새 goal이 달리던 것을 그대로 이어받는다.
-  안 맞으면 새 goal만 ORDER_UPDATE_REJECTED로 끝낸다(실물 pode_fsm order_fsm.py와 같다).
-- 통신이 끊기면 comm_loss_policy stop처럼 바로 선다(노드의 heartbeat 처리 그대로).
+조각 줄과 이음 검사는 world/order_run.py의 OrderRun을 쓴다. update가 맞으면 이전 goal을
+SUPERSEDED로 끝내고 이어받으며, 안 맞으면 새 goal만 ORDER_UPDATE_REJECTED로 끝낸다.
 """
 from __future__ import annotations
 

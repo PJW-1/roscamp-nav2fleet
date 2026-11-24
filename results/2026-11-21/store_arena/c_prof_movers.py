@@ -1,12 +1,4 @@
-"""Time env.step at N envs with different ways of moving the kinematic movers (Isaac, one process).
-
-  A  as committed (pose + zero velocity write per mover per control step)
-  B  no mover writes at all (movers stand still): the floor
-  C  pose write only
-  D  pose write with skip_forward=True, no velocity write
-  E  as A, with solver.notify_model_changed made a no-op during the writes
-For E it also checks that the lidar still sees the person where mover_state() says.
-"""
+"""키네마틱 mover를 옮기는 방식별로 N개 환경의 env.step 시간을 잰다(Isaac)."""
 
 import argparse
 import json
@@ -32,7 +24,7 @@ def main():
 
     cfg = sae.StoreArenaEnvCfg()
     cfg.scene.num_envs = args_cli.num_envs
-    cfg.arena_overrides = {"robot_max": 0}  # 4b scene: movers only
+    cfg.arena_overrides = {"robot_max": 0}  # mover만 둔 장면
     with launch_simulation(cfg, args_cli):
         import torch
         from isaaclab_newton.physics import NewtonManager as SimulationManager
@@ -83,7 +75,7 @@ def main():
             torch.cuda.synchronize()
             dt = (time.time() - t0) / args_cli.steps
             report[name] = {"ms_per_step": round(1000 * dt, 2)}
-            # does the sim mover sit where mover_state says (after the last write)?
+            # 마지막 쓰기 뒤 sim mover가 mover_state 자리에 있는지 본다
             org = env.scene.env_origins[:, :2]
             err = 0.0
             for obj, (pos, _, _, _) in zip(objs, env.mover_state(), strict=True):

@@ -1,19 +1,18 @@
-"""Sim-only Nav2 parameters: AMCL takes sim values, every controller checks collisions, the
-speed cap reaches every forward controller, and the real robot's file stays as it is."""
+"""시뮬 전용 Nav2 파라미터: AMCL은 시뮬 값, 모든 controller가 충돌 검사, 속도 상한은 앞으로 가는 controller 전부, 실물 파일은 그대로."""
 from pathlib import Path
 
 import pytest
 import yaml
 
 launch = pytest.importorskip("launch")
-pytest.importorskip("launch.actions")  # ROS가 없으면 이 패키지의 launch 폴더가 빈 패키지로 잡힌다
+pytest.importorskip("launch.actions")  # ROS가 없으면 launch 폴더가 빈 패키지로 잡힌다
 from fleet_gz_sim import launch_parts  # noqa: E402
 
 REPO = Path(__file__).resolve().parents[3]
 MAPS = {"nav_map": "/m/arena_d2.yaml", "nav_map_fine": "/m/arena_d2_fine.yaml"}
 NAV = REPO / "pode" / "pode_nav_config" / "params" / "nav2_params.yaml"
 SPEED_FILE = REPO / "pode" / "pode_nav_config" / "params" / "nav_speed.yaml"
-# the avoidance teammate's file, from the default avoidance package
+# 회피 담당의 파일(기본 회피 패키지)
 AVOIDANCE = REPO / "pode" / "pode_avoidance" / "params" / "avoidance.yaml"
 
 
@@ -22,7 +21,7 @@ def _sim(base, out, **kw):
 
 
 def _base() -> dict:
-    """The real robot's settings: the driving file with the avoidance teammate's goal controller."""
+    """실물 설정: 주행 파일에 회피 담당의 goal controller를 얹은 것."""
     data = yaml.safe_load(NAV.read_text(encoding="utf-8"))
     theirs = yaml.safe_load(AVOIDANCE.read_text(encoding="utf-8"))
     data["controller_server"]["ros__parameters"]["FollowPathGoal"] = theirs["follow_path_goal"]
@@ -45,21 +44,19 @@ def test_sim_params_change_amcl_and_the_mppi_entry_only_and_leave_the_real_file(
         assert _amcl(sim)[key] == value, key
     untouched = set(_amcl(base)) - set(launch_parts.SIM_AMCL)
     assert {k: _amcl(sim)[k] for k in untouched} == {k: _amcl(base)[k] for k in untouched}
-    # nav2.launch.py fills these in per robot
+    # nav2.launch.py가 로봇마다 채운다
     assert "<robot_namespace>" in out.read_text(encoding="utf-8")
 
 
 def test_sim_amcl_trusts_the_scan_more_than_the_real_config():
-    """In the warehouse A4->A3 corridor the real values let the AMCL pose sit 0.13-0.29 m to the
-    side of the true pose (2026-11-08). The sim values weigh the map match more, use more beams
-    and update the filter more often."""
+    """시뮬 AMCL 값은 지도 맞춤을 더 믿고 빔을 늘리고 갱신을 자주 한다."""
     base, sim = _amcl(yaml.safe_load(NAV.read_text(encoding="utf-8"))), launch_parts.SIM_AMCL
     assert sim["z_rand"] < base["z_rand"] and sim["z_hit"] > base["z_hit"]
     assert sim["z_hit"] + sim["z_rand"] == pytest.approx(1.0)
     assert sim["max_beams"] > base["max_beams"]
     assert sim["update_min_d"] < base["update_min_d"]
     assert sim["update_min_a"] < base["update_min_a"]
-    assert sim["laser_max_range"] == pytest.approx(12.0)  # the sim lidar's <max>
+    assert sim["laser_max_range"] == pytest.approx(12.0)  # 시뮬 라이다의 <max>
 
 
 def _need(*packages):
@@ -88,7 +85,7 @@ def test_each_pode_starts_nav2_with_the_sim_params(tmp_path, monkeypatch):
         nav = next(a for a in args if "map_fine" in a)
         path = Path(nav["params_file"])
         assert path.parent == tmp_path
-        # one file per launch process: two sim runs with the same robot names do not share it
+        # launch 프로세스마다 파일 하나: 같은 로봇 이름의 시뮬 둘이 나누지 않는다
         assert ns in path.name and str(launch_parts.os.getpid()) in path.name
         amcl = _amcl(yaml.safe_load(path.read_text(encoding="utf-8")))
         assert {k: amcl[k] for k in launch_parts.SIM_AMCL} == launch_parts.SIM_AMCL
@@ -112,8 +109,7 @@ def test_one_pode_sends_lock_boundary_paths_to_the_through_rpp_by_default(tmp_pa
 
     assert fsm_args()["through_controller_id"] == "FollowPathThrough"
     assert fsm_args(through_controller_id="")["through_controller_id"] == ""
-    # A speed cap also caps the FSM's lock-boundary speed limit: RPP takes that limit as its
-    # desired_linear_vel, so a limit above the cap would speed the robot up again.
+    # 속도 상한은 FSM의 잠금 경계 속도 제한도 자른다: RPP는 그 제한을 desired_linear_vel로 받는다.
     assert fsm_args()["horizon_cap_mps"] == str(launch_parts.nav_speed_mps())
     assert fsm_args(nav_max_speed=0.10)["horizon_cap_mps"] == "0.1"
 
@@ -123,8 +119,7 @@ def _rpp(data: dict, name: str) -> dict:
 
 
 def test_sim_params_cap_every_forward_controller_and_change_nothing_else(tmp_path):
-    """A cap below the one source slows every forward controller; the reverse controller keeps
-    its slower 0.05 m/s."""
+    """단일 출처보다 낮은 상한은 앞으로 가는 controller 전부를 늦추고 후진은 0.05 m/s를 유지한다."""
     top = launch_parts.nav_speed_mps(SPEED_FILE)
     capped = yaml.safe_load(_sim(
         NAV, tmp_path / "capped.yaml", max_speed=0.10).read_text(encoding="utf-8"))
@@ -147,7 +142,7 @@ def test_sim_params_cap_every_forward_controller_and_change_nothing_else(tmp_pat
 
 
 def test_a_speed_cap_keeps_the_mppi_horizon_distance(tmp_path):
-    """A slower cap lengthens MPPI's time_steps so it still looks the same distance ahead."""
+    """더 낮은 상한은 MPPI의 time_steps를 늘려 같은 거리를 내다보게 한다."""
     def mppi(out, **kw):
         data = yaml.safe_load(_sim(NAV, tmp_path / out, **kw).read_text(encoding="utf-8"))
         return _rpp(data, launch_parts.MPPI_CONTROLLER)
@@ -162,8 +157,7 @@ def test_a_speed_cap_keeps_the_mppi_horizon_distance(tmp_path):
 
 
 def test_an_mppi_from_the_overrides_is_capped_without_changing_the_callers_dict(tmp_path):
-    """An MPPI mapping handed in whole through the overrides is capped in the output only, and
-    one that leaves time_steps to the Nav2 default keeps it unset."""
+    """overrides로 통째로 넘긴 MPPI 매핑은 출력에서만 상한을 받고, time_steps를 Nav2 기본에 맡긴 것은 비워 둔다."""
     base = _base()
     del base["controller_server"]["ros__parameters"][launch_parts.MPPI_CONTROLLER]
     path = tmp_path / "base.yaml"
@@ -201,7 +195,7 @@ def test_a_speed_cap_must_be_a_number_between_zero_and_the_robot_speed(tmp_path,
 
 
 def test_every_controller_checks_collisions_even_if_the_base_file_turned_it_off(tmp_path):
-    """The collision check is on in every run (it was off on the last arena)."""
+    """충돌 검사는 모든 실행에서 켜 있다."""
     base = _base()
     for name in launch_parts.CONTROLLERS:
         _rpp(base, name)["use_collision_detection"] = False
@@ -225,7 +219,7 @@ def test_overrides_go_deep_and_cannot_turn_the_collision_check_off(tmp_path):
     params = sim["local_costmap"]["local_costmap"]["ros__parameters"]
     assert params["resolution"] == 0.01
     assert params["obstacle_layer"]["scan"]["obstacle_min_range"] == 0.1
-    assert params["obstacle_layer"]["scan"]["topic"]  # the rest of the layer stays
+    assert params["obstacle_layer"]["scan"]["topic"]  # 층의 나머지는 그대로
     assert _rpp(sim, "FollowPath")["use_collision_detection"] is True
 
 
@@ -242,9 +236,9 @@ def test_the_rl_controller_comes_only_from_its_overrides_file_and_keeps_the_base
     assert server["controller_plugins"] == [*base, "FollowPathMPPI", "FollowPathRL"]
     assert server["FollowPathRL"]["plugin"] == "pode_rl_controller::FollowPathRL"
     assert server["FollowPathRL"]["policy"] == "store_arena_4b"
-    assert "goal_rule" not in server["FollowPathRL"]  # the policy spec decides
+    assert "goal_rule" not in server["FollowPathRL"]  # 정책 명세가 정한다
     assert "lookahead_dist" not in server["FollowPathRL"]
-    assert server["FollowPathRL"]["rear_stop_range"] == 0.0  # 후진 막기는 후보, 기본은 끔
+    assert server["FollowPathRL"]["rear_stop_range"] == 0.0  # 후진 막기는 기본 끔
 
 
 def test_the_shim_variant_gets_the_same_speed_cap(tmp_path):
@@ -279,8 +273,7 @@ def test_the_shim_variant_wraps_the_same_rl_controller(tmp_path):
 
 
 def test_mppi_is_loaded_only_in_the_sim(tmp_path):
-    """사용자 결정 2026-11-22: 실물 Nav2는 nav2_mppi_controller 없이 떠야 해서 nav2_params.yaml의
-    목록에 FollowPathMPPI가 없다. 시뮬은 블록이 있으면 목록 끝에 더한다(한 번만)."""
+    """실물 Nav2는 nav2_mppi_controller 없이 떠서 nav2_params.yaml 목록에 FollowPathMPPI가 없다. 시뮬은 블록이 있으면 목록 끝에 한 번 더한다."""
     base = _base()["controller_server"]["ros__parameters"]
     assert "FollowPathMPPI" not in base["controller_plugins"] and "FollowPathMPPI" in base
     sim = yaml.safe_load(_sim(NAV, tmp_path / "s.yaml").read_text(encoding="utf-8"))
@@ -322,8 +315,7 @@ def test_overrides_win_over_the_sim_amcl_values(tmp_path):
 
 
 def test_the_fixed_line_check_can_be_turned_off_and_the_yard_check_stays_on(tmp_path):
-    """Lead decision 2026-11-12 (G1 not achieved): fixed lines without the RPP check, yard goals
-    with it. The default still equals the real settings."""
+    """고정 경로는 RPP 검사 없이, 마당 goal은 검사와 함께. 기본은 실물 설정과 같다."""
     sim = yaml.safe_load(_sim(NAV, tmp_path / "f.yaml",
                                                      fixed_line_check=False)
                          .read_text(encoding="utf-8"))
@@ -359,8 +351,7 @@ def test_pode_passes_the_fixed_line_switch_to_its_nav2_params(tmp_path, monkeypa
 
 
 def test_the_goal_controller_comes_from_the_avoidance_file(tmp_path):
-    """The goal controller's values are the avoidance teammate's. The sim
-    puts them in before its own changes, so the speed cap and the collision check reach them."""
+    """goal controller 값은 회피 담당의 것이다. 시뮬이 자기 변경보다 먼저 넣어 속도 상한과 충돌 검사가 닿게 한다."""
     sim = yaml.safe_load(_sim(NAV, tmp_path / "s.yaml", max_speed=0.12)
                          .read_text(encoding="utf-8"))
     theirs = yaml.safe_load(AVOIDANCE.read_text(encoding="utf-8"))["follow_path_goal"]
@@ -369,8 +360,7 @@ def test_the_goal_controller_comes_from_the_avoidance_file(tmp_path):
 
 
 def test_a_goal_controller_that_is_no_rpp_is_left_as_the_avoidance_teammate_wrote_it(tmp_path):
-    """The teammate may swap the plugin. The sim's speed cap and collision switch are RPP
-    keys; they are not pushed into another plugin, and the three fixed-line RPPs keep them."""
+    """담당이 plugin을 바꿀 수 있다. 시뮬의 속도 상한과 충돌 스위치는 RPP 키라 다른 plugin에는 넣지 않고, 고정 경로 RPP 셋은 그대로 갖는다."""
     base = _base()
     mppi = {"plugin": "nav2_mppi_controller::MPPIController", "vx_max": 0.12}
     base["controller_server"]["ros__parameters"]["FollowPathGoal"] = dict(mppi)
@@ -384,7 +374,7 @@ def test_a_goal_controller_that_is_no_rpp_is_left_as_the_avoidance_teammate_wrot
 
 
 def test_a_base_file_without_one_of_the_controllers_is_refused(tmp_path):
-    base = yaml.safe_load(NAV.read_text(encoding="utf-8"))  # no avoidance file beside the copy
+    base = yaml.safe_load(NAV.read_text(encoding="utf-8"))  # 사본 옆에 회피 파일 없음
     assert "FollowPathGoal" not in base["controller_server"]["ros__parameters"]
     path = tmp_path / "old.yaml"
     path.write_text(yaml.safe_dump(base), encoding="utf-8")
@@ -404,7 +394,7 @@ def test_a_launch_speed_outside_the_arena_range_is_refused(bad):
 
 
 def test_the_goal_controller_comes_from_the_chosen_avoidance_package_file(tmp_path):
-    """avoidance_package: the teammate's package hands in its own file; nothing beside the base."""
+    """avoidance_package: 담당 패키지가 제 파일을 내놓는다. base 옆에는 아무것도 없다."""
     theirs = yaml.safe_load(AVOIDANCE.read_text(encoding="utf-8"))
     theirs["follow_path_goal"] = {**theirs["follow_path_goal"], "lookahead_time": 0.9}
     path = tmp_path / "team" / "avoidance.yaml"

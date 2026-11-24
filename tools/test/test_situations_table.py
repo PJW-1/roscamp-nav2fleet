@@ -19,8 +19,7 @@ def cause_cell(out: str, title: str) -> str:
 
 
 def test_an_unfinished_run_names_one_cause_for_every_open_order(capsys):
-    """배치 c의 앞 로봇 고장은 주문을 하나도 못 끝낸다(갈림목이 하나다). 여섯 주문 모두에 원인이
-    붙는다."""
+    """배치 c의 앞 로봇 고장은 여섯 주문 모두에 원인을 붙인다."""
     situations.main(["-s", "front_robot_stuck", "-l", "c", "--seeds", "1"])
     cell = cause_cell(capsys.readouterr().out, "앞 로봇 고장")
     orders = []

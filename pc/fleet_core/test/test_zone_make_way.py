@@ -1,9 +1,4 @@
-"""넓은 구역에서 서서 기다리는 로봇이 다른 로봇의 길을 몸으로 막는 경우.
-
-Gazebo 3대 경기에서 나왔다: 출고 대기 자리로 가던 로봇이 진입 지점(N_E) 바로 앞에 섰고, 먼저
-도크로 가던 로봇은 N_E를 쥔 채 거기 닿지 못했다. 구역 대기 그래프에는 순환이 없어서 관제는
-아무것도 하지 않았고, 막힌 로봇이 세 번 실패한 뒤 격리됐다.
-"""
+"""넓은 구역에서 서서 기다리는 로봇이 다른 로봇의 길을 막을 때 관제가 비키게 한다."""
 from fleet_core.traffic.zone.goals import STANDING_WAIT_S
 from fleet_core.traffic.zone.routes import Route
 from zone_harness import DT, Harness
@@ -107,8 +102,7 @@ def run_past(world, done, timeout_s, body, radius):
 
 
 def test_a_way_blocked_by_a_parked_robot_is_left_for_one_through_a_free_node():
-    """P-1에서 N_E로 가는 곧은 길은 P-2에 주차한 로봇의 몸에서 0.08 m를 지난다. 로봇이 돌아가지
-    못하면(회피 흉내 none) 관제가 다른 지점을 거치게 해야 한다. P-2는 그 로봇이 쥐고 있다."""
+    """P-1에서 N_E로 가는 곧은 길이 P-2 주차 로봇의 몸에서 0.08 m를 지나면, 로봇이 돌아가지 못할 때(회피 흉내 none) 다른 지점을 거치게 한다."""
     world = Harness(starts={"pode1": "P-1", "pode2": "P-2", "pode3": "P-3"})
     world.report()
     call = world.call("OUTBOUND", "pode1")
@@ -121,8 +115,7 @@ def test_a_way_blocked_by_a_parked_robot_is_left_for_one_through_a_free_node():
 
 
 def test_a_way_blocked_by_a_queued_robot_is_left_for_one_through_a_free_node():
-    """P-3에서 N_E로 가는 곧은 길은 O_Q에서 차례를 기다리는 로봇의 몸에서 0.13 m를 지난다. 비킬
-    주차 자리가 없으면(P-2는 남이 섰고 P-1은 막힌 로봇 쪽이다) O_Q를 거치지 않는 길로 간다."""
+    """P-3에서 N_E로 가는 곧은 길이 O_Q 대기 로봇의 몸에서 0.13 m를 지나고 비킬 주차 자리가 없으면 O_Q를 거치지 않는 길로 간다."""
     world = Harness(starts={"pode1": "P-2", "pode2": "O_Q", "pode3": "P-3"})
     world.report()
     first = world.call("OUTBOUND", "pode3")
@@ -135,8 +128,7 @@ def test_a_way_blocked_by_a_queued_robot_is_left_for_one_through_a_free_node():
 
 
 def test_the_wait_charged_for_a_node_depends_on_who_stands_there():
-    """길 비용에 더하는 시간: 주차한 로봇의 지점 300 s, 차례를 기다리는 로봇의 지점은 찬 도크만큼,
-    빈 지점과 제가 쥔 지점, 지나가는 로봇이 쥔 지점, 도크 지점은 0."""
+    """길 비용에 더하는 시간: 주차한 로봇의 지점 300 s, 대기 로봇의 지점은 찬 도크만큼, 나머지는 0."""
     world = Harness(starts={"pode1": "P-2", "pode2": "O_Q", "pode3": "P-3"})
     world.report()
     world.call("OUTBOUND", "pode3")
@@ -170,8 +162,7 @@ def run_among(world, done, timeout_s, radius):
 
 
 def stuck_behind_the_queue():
-    """배치 D의 동쪽 마당. 먼저 불린 pode3(P-3)의 곧은 길은 O_Q에서 차례를 기다리는 pode2의 몸에
-    막히고, 남쪽 통로로 도는 길은 P-2에 주차한 pode1의 몸에 막힌다. 남은 길은 O_Q를 거친다."""
+    """배치 D 동쪽 마당: 먼저 불린 pode3의 곧은 길과 남쪽 통로 길이 모두 막히고 남은 길은 O_Q를 거친다."""
     world = Harness(layout="d", starts={"pode1": "P-2", "pode2": "O_Q", "pode3": "P-3"})
     world.report()
     first = world.call("OUTBOUND", "pode3")
@@ -181,8 +172,7 @@ def stuck_behind_the_queue():
 
 
 def test_a_queued_robot_that_cannot_be_passed_takes_the_dock_turn_first():
-    """pode3은 O_Q가 비기를, pode2는 pode3의 차례를 기다리면 둘 다 서 있게 된다. 그때는 앞을
-    막은 pode2가 먼저 도크에 가고, 먼저 불린 pode3은 그 뒤에 간다."""
+    """pode3은 O_Q가 비기를, pode2는 pode3의 차례를 기다려 둘 다 서면 앞을 막은 pode2가 먼저 도크에 간다."""
     world, first, second = stuck_behind_the_queue()
     assert run_among(world, lambda: world.result_of(second) is not None, 200.0, 0.2)
     assert world.result_of(second).success, "the robot in the way goes first"
@@ -207,9 +197,7 @@ def test_the_dock_turn_stays_while_the_first_robot_can_still_move():
 
 
 def test_a_robot_on_its_way_to_the_dock_keeps_the_turn():
-    """차례를 앞지른 로봇의 도크 길이 설 수 있는 지점을 거치면 도크 구역은 그 지점을 지나서 잡는다.
-    그 사이에 먼저 불린 로봇도 차례라고 보면 둘이 같은 도크로 떠난다: 가는 중인 로봇이 차례를
-    지킨다."""
+    """차례를 앞지른 로봇의 도크 길이 설 수 있는 지점을 거치면 가는 중인 로봇이 차례를 지킨다."""
     world = Harness(layout="d", starts={"pode2": "P-1", "pode3": "P-3"})
     world.report()
     traffic = world.traffic
@@ -225,8 +213,7 @@ def test_a_robot_on_its_way_to_the_dock_keeps_the_turn():
     while world.result_of(going) is None:
         world.step()
         other = traffic._robots["pode2"].route
-        # order 모델은 대기 자리로 가는 길을 도크까지 잇는다(goal이 O). 차례(turn)를 받은 길만
-        # 도크로 떠난 것이다
+        # order 모델은 대기 자리로 가는 길을 도크까지 잇는다: 차례(turn)를 받은 길만 도크로 떠난 것이다
         left = other is not None and other.goal == "O" and other.turn
         assert not left, "it does not leave for the dock as well"
         assert traffic.grants.node_holder("O") != "pode2"
@@ -235,10 +222,7 @@ def test_a_robot_on_its_way_to_the_dock_keeps_the_turn():
 
 
 def test_only_a_route_that_took_the_dock_turn_counts_as_on_its_way():
-    """order 모델에서는 대기 자리로 가는 길이 도크까지 이어진다(도크 쪽은 horizon이다). 길이
-    도크에서 끝나도 차례를 받아 떠난 길(turn)이 아니면 줄에 선 것이다: 먼저 불린 로봇의 차례를
-    가져가지 않는다. 차례를 받아 떠난 로봇은 앞이고, 목적이 바뀌어 그 길을 버리면(stale) 차례도
-    내놓는다."""
+    """order 모델: 도크까지 이어진 대기 길도 차례(turn)를 받은 길이 아니면 줄에 선 것이라 먼저 불린 로봇의 차례를 가져가지 않는다."""
     world = Harness(layout="d", starts={"pode2": "O_Q", "pode3": "P-3"})
     world.report()
     traffic = world.traffic

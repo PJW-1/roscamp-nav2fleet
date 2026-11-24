@@ -1,10 +1,6 @@
 """끝나지 않은 주문의 원인을 표로 찍는다.
 
-    python tools/triage record run.jsonl [--obstacles x.yaml]   # fleet_manager --record 기록
-    python tools/triage csv rec.csv [--obstacles x.yaml]        # 옛 Gazebo 기록기의 rec.csv
-    python tools/triage sim express_obstacle -l d2 --seeds 1 2  # 머리 없는 세계 상황
-
-장애물 yaml은 x, y가 적힌 것만 읽는다(link 항목은 지점 좌표가 필요해 파이썬에서 `nodes`를 준다).
+    python tools/triage record|csv|sim ...   # 기록 파일 또는 머리 없는 세계 상황
 """
 from __future__ import annotations
 

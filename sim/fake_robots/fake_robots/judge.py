@@ -1,13 +1,7 @@
 """ScenarioJudge: 시나리오 실행이 통과했는지 판정한다. ROS를 쓰지 않는다.
 
-구역 메시지의 holder는 그 구역을 쥔 로봇들의 이름을 쉼표로 이은 것이다(넓은 구역과 한 줄
-구역은 여러 대가 쥔다). 이중 예약은 그것만으로 드러나지 않으므로
-물리적으로 검사한다: 로봇이 실제로 어디에 있는지, 보유자가 누구였는지. 가짜 로봇은 이를 위해
-잡음 없는 위치를 내보낸다. 보고 한 번은 표준편차 몇 배씩 틀려 정상 실행을 떨어뜨릴 수 있고
-통신 두절 중에는 끊긴다. 실제 로봇은 보고로 판정한다.
-
-주문은 공통 설계 문서의 이벤트 코드로 판정한다: 중앙의 최종 보고와
-플릿 매니저의 ORDER_BOUND, ORDER_REQUEUED.
+구역 보유자는 가짜 로봇의 잡음 없는 위치로 물리적으로 검사하고,
+주문은 중앙의 최종 보고와 플릿 매니저의 ORDER_BOUND, ORDER_REQUEUED로 판정한다.
 """
 from __future__ import annotations
 
@@ -38,7 +32,7 @@ def order_id_of(detail: str) -> str:
 
 
 def is_pseudo_holder(holder: str) -> bool:
-    """'#blocked' and the like are not robots: no pose, nothing to check."""
+    """'#blocked' 같은 것은 로봇이 아니다: 자세도 검사할 것도 없다."""
     return holder.startswith("#")
 
 
@@ -128,7 +122,7 @@ class ScenarioJudge(ZoneChecks, Laps, OrderChecks, Outcome):
         return {self.site.nodes[s.dock].zone for s in self.site.stations.values()
                 if s.action == action}
 
-    # -- inputs -------------------------------------------------------------------------
+    # ---- 입력 ----
 
     def on_robot_state(self, t: float, robot: str, x: float, y: float, state: str) -> None:
         self.poses[robot] = (x, y, state)
@@ -245,7 +239,7 @@ class ScenarioJudge(ZoneChecks, Laps, OrderChecks, Outcome):
     def on_board(self, order_ids: list[str]) -> None:
         self.board = list(order_ids)
 
-    # -- checks -------------------------------------------------------------------------
+    # ---- 검사 ----
 
     def tick(self, t: float) -> None:
         by_zone: dict[str, list[str]] = {}

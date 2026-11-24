@@ -25,10 +25,7 @@ def test_qos_lookup_returns_the_profile_of_the_entry(contract):
 
 
 def test_the_heartbeat_is_reliable_with_depth_one(contract):
-    """빠짐 자체가 정지 조건이라 재전송이 필요하다. 최신 하나만 다시 보낸다.
-
-    상태는 best_effort 그대로다. 주기적으로 계속 와서 하나를 잃어도 다음 값이 대신한다.
-    """
+    """빠짐 자체가 정지 조건이라 재전송이 필요하고 최신 하나만 다시 보낸다. 상태는 best_effort다."""
     qos = contract.qos("heartbeat")
     assert (qos.reliability, qos.durability, qos.depth) == ("reliable", "volatile", 1)
     assert contract.qos("robot_state").reliability == "best_effort"

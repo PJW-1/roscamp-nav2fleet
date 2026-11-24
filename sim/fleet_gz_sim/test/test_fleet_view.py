@@ -72,7 +72,7 @@ def test_fixed_paths_are_thin_lines_and_nodes_get_dots_and_labels():
     assert paths.kind == "LINE_LIST" and paths.scale[0] <= 0.02
     points = {(round(x, 3), round(y, 3)) for x, y in paths.points}
     assert {(0.35, 0.65), (0.35, 0.89), (0.18, 0.89), (1.63, 0.89)} <= points
-    assert (0.13, 0.15) not in points  # parking is reached by Nav2 goals, no fixed path
+    assert (0.13, 0.15) not in points  # 주차는 Nav2 goal로 가므로 고정 경로 없음
     [dots] = by_ns(specs, "nodes")
     assert len(dots.points) == len(SITE.nodes)
     assert {s.text for s in by_ns(specs, "node_labels")} == set(SITE.nodes)
@@ -108,8 +108,7 @@ def test_a_zone_held_by_several_robots_gets_an_outline_and_their_names():
 @pytest.mark.parametrize("holder, names",
                          [("pode1", "pode1"), ("pode1,pode3", "pode1, pode3")])
 def test_the_shared_floor_is_only_named_never_covered_or_outlined(holder, names):
-    """2026-11-16: 한 대가 HALL을 쥐면 바닥 전부가 그 로봇 색으로 덮여 다 잠긴 것처럼 보였다.
-    HALL은 세 대가 함께 쓰는 구역이라 덮지 않고 쥔 로봇의 이름만 적는다."""
+    """한 대가 HALL을 쥐어도 HALL은 세 대가 함께 쓰는 구역이라 덮지 않고 쥔 로봇의 이름만 적는다."""
     assert SITE.zones["HALL"].kind == SHARED
     view = fv.FleetView(SITE)
     view.set_zones([Zone("HALL", holder)])
@@ -166,13 +165,13 @@ def test_base_is_a_solid_line_from_the_robot_and_horizon_a_lighter_dashed_one():
     assert _pairs(base.points) == [((0.35, 0.65), (0.35, 0.89)), ((0.35, 0.89), (0.18, 0.89))]
     assert base.color[:3] == fv.robot_color("pode1")[:3] and base.color[3] == 1.0
     assert horizon.color[3] < base.color[3] and horizon.scale[0] < base.scale[0]
-    # the horizon starts where the base ends and is cut into dashes along W -> X_E
+    # horizon은 base가 끝나는 곳에서 시작해 W -> X_E를 따라 점선으로 잘린다
     dashes = _pairs(horizon.points)
     assert dashes[0][0] == pytest.approx((0.18, 0.89))
     assert len(dashes) > 3
     assert all(abs(a[1] - 0.89) < 1e-9 and abs(b[1] - 0.89) < 1e-9 for a, b in dashes)
     covered = sum(abs(b[0] - a[0]) for a, b in dashes)
-    assert covered < 0.8 * (1.63 - 0.18)  # gaps between the dashes
+    assert covered < 0.8 * (1.63 - 0.18)  # 점선 사이 틈
 
 
 def test_no_way_ahead_draws_nothing_and_a_horizon_alone_starts_at_the_robot():
@@ -202,8 +201,7 @@ def _corners(view, ns="way_base"):
 
 
 def test_a_node_passed_inside_one_nav_goal_does_not_bend_the_way():
-    """2026-11-16: 관제의 길 E-1 -> E-3 -> Q2는 Nav2 goal 하나(Q2)로 합쳐 나가는데, 선이 E-3에서
-    꺾여 로봇이 그 지점을 꼭 지나는 것처럼 보였다. 로봇이 받은 goal의 끝까지 곧게 잇는다."""
+    """관제의 길 E-1 -> E-3 -> Q2는 Nav2 goal 하나(Q2)로 합쳐 나가므로 선은 E-3에서 꺾지 않고 goal의 끝까지 곧게 잇는다."""
     view = fv.FleetView(V7)
     view.set_statuses([Status("pode1", "MOVING", x=0.12, y=0.24, base=["E-3", "Q2"],
                               horizon=["Q1", "W"])])
@@ -283,15 +281,14 @@ def test_a_waiting_robot_without_a_goal_shows_the_merged_way_from_its_node():
     view = fv.FleetView(V7)
     view.set_statuses([Status("pode1", x=0.12, y=0.24, horizon=["E-3", "Q2"])])
     [horizon] = by_ns(view.specs(now=0.0), "way_horizon")
-    q2 = V7.node_pose("Q2")  # 지도에서 읽는다(2026-11-18 밤 y 0.16 -> 0.15)
+    q2 = V7.node_pose("Q2")  # 지도에서 읽는다
     slope = (q2[1] - 0.24) / (q2[0] - 0.12)
     assert horizon.points[0] == pytest.approx((0.12, 0.24))
     assert all(y == pytest.approx(0.24 + (x - 0.12) * slope) for x, y in horizon.points)
 
 
 def test_the_plan_nav2_made_is_drawn_while_it_is_fresh():
-    """Nav2가 실제로 계획한 경로(로봇의 plan 토픽). 넓은 구역 goal 동안 1초마다 새로 오고,
-    끊기면 지운다: 고정 경로를 달리는 동안 옛 계획이 남아 보이지 않게."""
+    """Nav2가 계획한 경로(로봇의 plan 토픽). 끊기면 지워 고정 경로 주행 중 옛 계획이 남지 않게 한다."""
     view = fv.FleetView(V7)
     view.set_plan("pode2", [(0.2, 0.3), (0.9, 0.3), (1.66, 0.16)], now=10.0)
     [plan] = by_ns(view.specs(now=11.0), "nav_plan")

@@ -1,16 +1,7 @@
 """앞 물체 앞에서 서고, 짧게 후진해 다시 가 보고, 그래도 막히면 BLOCKED. ROS를 쓰지 않는다.
 
-자기 복구는 2026-11-09 공유 명세의 '로봇 쪽'을 따른다. pode_fsm과 같은 순서로 움직인다.
-  - 물체 앞에 block_report_s 서 있으면 시도를 하나 쓰고 RECOVERING이다.
-  - 후진 거리 d = min(backup_max_m, s_ref - robot_radius_m - backup_margin_m), s_ref는 마지막으로
-    지난 path 꼭짓점(첫 점 포함)부터 온 거리다. d < backup_min_m이면 후진하지 않는다.
-    뒤에 다른 로봇이나 물체가 있으면 그 자리에서 후진을 멈춘다.
-    그다음 남은 path를 다시 간다(물체가 있으면 선 자리까지).
-  - 시도를 다 쓰고 또 서면 BLOCKED(계약 4절: 목표를 쥐고 물체가 사라지면 이어 간다).
-  - 시도를 시작한 자리에서 recovery_pass_m 더 가면 RECOVERING이 끝난다(MOVING). 시도 수는 남는다.
-  - 처음 센 시도의 자리에서 recovery_reset_m 멀어지거나 목표가 성공하면 시도 수가 0이 된다.
-물체는 시각으로만 있다(blocked 고장). 위치가 없으므로 처음 선 자리(path 위 거리)를 물체 앞으로
-본다. 물체가 block_clear_s 동안 안 보여야 사라진 것으로 본다.
+pode_fsm과 같은 순서: block_report_s 서 있으면 시도를 쓰고 RECOVERING, 뒤로 물러났다 남은 path를 다시 간다.
+시도를 다 쓰고 또 서면 BLOCKED다. 물체는 시각으로만 있어 처음 선 자리를 물체 앞으로 본다(blocked 고장).
 """
 from __future__ import annotations
 
@@ -20,7 +11,7 @@ from dataclasses import dataclass
 from fake_robots.motion import path_gap
 
 # 관제는 꼭짓점을 release_distance_m 지나면 뒤 구역을 놓는다(fleet_params).
-# 그 꼭짓점에 다음 로봇이 설 수 있으므로 후진한 중심도 꼭짓점에서 0.2 + 0.03 m 앞에 둔다.
+# 후진한 중심도 그 꼭짓점에서 0.23 m 앞에 둔다.
 RELEASE_DISTANCE_M = 0.2
 ROBOT_RADIUS_M = 0.08
 BACKUP_CLEARANCE_M = 0.03
@@ -31,8 +22,7 @@ BACKUP_MARGIN_M = RELEASE_DISTANCE_M - ROBOT_RADIUS_M + BACKUP_CLEARANCE_M  # 0.
 class RecoveryParams:
     block_report_s: float = 1.0  # 물체 앞에서 이만큼 서 있으면 시도, 시도를 다 썼으면 BLOCKED
     block_clear_s: float = 1.0  # 물체가 이만큼 안 보이면 사라진 것이다
-    # Pode는 2026-11-17부터 보고만 3초 또는 0.15 m까지 BLOCKED로 둔다.
-    # follow_path는 안 써서 맞추지 않았다
+    # follow_path는 쓰지 않아 맞추지 않았다
     recovery_attempts: int = 2
     backup_max_m: float = 0.15
     robot_radius_m: float = ROBOT_RADIUS_M

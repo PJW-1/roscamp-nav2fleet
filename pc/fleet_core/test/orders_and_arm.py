@@ -1,8 +1,4 @@
-"""OrderOrchestrator and ArmJobs joined the way FleetManager joins them, without traffic.
-
-Tests written for the single orchestrator of before run on this unchanged: what the two say to
-each other is passed on at once, in place, and everything else comes out of take_output().
-"""
+"""OrderOrchestrator와 ArmJobs를 FleetManager처럼 교통 없이 이은 것: 둘이 서로 하는 말은 바로 전하고 나머지는 take_output()으로 나온다."""
 from fleet_core.arm.jobs import ArmJobs
 from fleet_core.common.commands import ARM_COMMANDS, ARM_REPORTS
 from fleet_core.orders.orchestrator import OrderOrchestrator
@@ -58,7 +54,7 @@ class OrdersAndArm:
             self._route(item)
 
     def _route(self, item) -> None:
-        """The same as FleetManager._route: the one that was told answers before the next item."""
+        """FleetManager._route와 같다: 말을 받은 쪽이 다음 항목 전에 답한다."""
         if isinstance(item, ARM_COMMANDS):
             self.arm.on_command(item)
             for answer in self.arm.take_output():

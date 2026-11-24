@@ -28,7 +28,7 @@ from .parse import (
 
 # ---- 레이아웃 이름과 검사 기준 상수 ----
 DATA = Path(__file__).parents[1] / "data"
-DEFAULT_LAYOUT = "v7"  # 확정된 실제 경기장
+DEFAULT_LAYOUT = "v7"  # 실제 경기장
 LAYOUTS = ("d2", "d", "c", "v7")
 TEST_LAYOUTS = ("d2_shelf",)
 KNOWN_LAYOUTS = (*LAYOUTS, *TEST_LAYOUTS)
@@ -45,7 +45,7 @@ class FleetMap:
         self.name = str(data.get("name", ""))
         self._bounds = read_rect(data.get("bounds"), "bounds")
         self.shelves = tuple(read_rect(rect, "shelf") for rect in data.get("shelves") or ())
-        # 시뮬(Gazebo 월드, 시뮬 지도, 가짜 로봇)만 쓰는 진열대. 없으면 shelves와 같다
+        # 시뮬 전용 진열대. 없으면 shelves와 같다
         self.sim_shelves = self._read_sim_shelves(data)
         self.shelf_height_m = float(data.get("shelf_height_m", 0.15))
         self.keepout_extra = read_keepout_extra(data.get("keepout_extra"), self._bounds)
@@ -69,9 +69,7 @@ class FleetMap:
             _log.warning("fleet map %s: %s", self.name, warning)
 
     def _read_sim_shelves(self, data: dict) -> tuple:
-        """sim_shelves 키가 없을 때만 shelves와 같다. 값이 빈(null) 키는 거절한다. 사각형마다
-        같은 자리의 진열대와 어느 다른 진열대보다도 많이 겹쳐야 한다. 같은 넓이로 겹치면 짝을
-        가릴 수 없어 거절한다(진열대끼리 겹쳐도 순서가 바뀐 목록을 거른다)."""
+        """sim_shelves를 읽는다. 사각형마다 같은 순서의 shelves와 가장 많이 겹쳐야 한다."""
         if "sim_shelves" not in data:
             return self.shelves
         raw = data["sim_shelves"]

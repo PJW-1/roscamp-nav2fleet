@@ -1,8 +1,6 @@
-"""주행 최고 속도의 단일 출처(pode_nav_config/params/nav_speed.yaml, 사용자 결정 2026-11-22).
+"""주행 최고 속도의 단일 출처(pode_nav_config/params/nav_speed.yaml).
 
-가짜 로봇은 이 값에 로봇마다 배율을 곱해 간다. 배율은 1을 넘지 않으므로 출처보다 빨리 가는
-가짜 로봇은 없다. 배율 범위는 Isaac 대본 로봇의 robot_speed_scale에서 1 위를 뺀 것이다.
-저장소 안에서 돌면 저장소의 파일을, 설치본이면 pode_nav_config의 share 파일을 읽는다.
+가짜 로봇은 이 값에 로봇마다 1 이하의 배율을 곱해 간다. 저장소 안이면 저장소 파일, 설치본이면 share 파일을 읽는다.
 """
 from __future__ import annotations
 

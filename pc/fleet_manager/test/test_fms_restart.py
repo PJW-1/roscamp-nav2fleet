@@ -1,8 +1,4 @@
-"""FMS 프로세스를 죽이고 새로 띄운다.
-
-로봇은 실제 시간 기준 heartbeat timeout 안에 스스로 멈춘다. 새 FMS는 모든 로봇의 보고를
-기다리는 데서 다시 시작한다. 뜰 때 pode3가 조용하므로 pode3가 돌아올 때까지 아무도 안 움직인다.
-"""
+"""FMS 프로세스를 죽이고 다시 띄운다. 로봇은 heartbeat timeout 안에 멈추고, 새 FMS는 전원의 보고를 기다린다."""
 import json
 import os
 import signal
@@ -29,16 +25,16 @@ from rclpy.node import Node  # noqa: E402
 from rclpy.qos import qos_profile_action_status_default  # noqa: E402
 from rosgraph_msgs.msg import Clock  # noqa: E402
 
-# 시나리오 통합 테스트도 56까지 쓰지만 같은 pytest 안에서 차례로 돈다. 환경변수로 옮길 수 있다
+# ROS 도메인(환경변수로 옮길 수 있다)
 DOMAIN = int(os.environ.get("FMS_RESTART_DOMAIN", "56"))
 ROBOTS = ["pode1", "pode2", "pode3"]
 WALL_TIMEOUT_S = 420
 STILL_M = 0.001
 SILENT_S = 0.5
-SLACK_S = 1.0  # 부하 걸린 머신은 늦게 전달한다. 마지막 beat, kill, 정지 모두 실제 시간이다
+SLACK_S = 1.0  # 늦게 전달되는 머신 여유(실제 시간)
 MORE_MOVERS_S = 2.0
 PODE3_SILENT_S = (50.0, 120.0)  # fms_restart.yaml의 comm_loss
-SCENARIO = Path(__file__).parent / "fms_restart.yaml"  # 아래의 kill 없이는 의미가 없다
+SCENARIO = Path(__file__).parent / "fms_restart.yaml"  # kill이 있는 시나리오
 
 
 def _accepted_at(status) -> tuple[int, int]:
@@ -51,9 +47,9 @@ class Probe(Node):
         self.sim_now = 0.0
         self.state = {}
         self.pose = {}
-        self.moved = {}  # 로봇 -> 실제 위치가 마지막으로 바뀐 실제 시각
-        self.heard = {}  # 로봇 -> 마지막 보고의 실제 시각
-        self.last_goal = {}  # 로봇 -> 마지막으로 준 이동 goal의 상태
+        self.moved = {}  # 로봇 -> 위치가 마지막으로 바뀐 시각
+        self.heard = {}  # 로봇 -> 마지막 보고 시각
+        self.last_goal = {}  # 로봇 -> 마지막 이동 goal의 상태
         self.codes = []
         qos = to_ros_qos(contract.qos("robot_state"))
         self.create_subscription(Clock, "/clock", self._on_clock, 10)
@@ -87,11 +83,11 @@ class Probe(Node):
 
     def _on_goals(self, robot, msg) -> None:
         if msg.status_list:
-            # 뒤집는다. 한 clock 단계에 goal이 둘이면 목록에서 나중 것을 쓴다.
+            # 한 clock 단계에 goal이 둘이면 나중 것을 쓴다
             self.last_goal[robot] = max(reversed(msg.status_list), key=_accepted_at).status
 
     def moving(self) -> list[str]:
-        """움직인다고 말하는 로봇. 조용해진 로봇은 아무 말도 하지 않는다."""
+        """움직인다고 보고하는 로봇."""
         now = time.monotonic()
         return [r for r in ROBOTS if self.state.get(r) == RobotState.STATE_MOVING
                 and now - self.heard[r] < SILENT_S]
@@ -160,8 +156,7 @@ def test_robots_stop_without_the_fms_and_a_new_one_waits_for_all_of_them(probe, 
                   f"result_dir:={tmp_path}")
     fms = start_fms()
     try:
-        # 구역 관제는 바쁜 도크 앞에 줄을 세우므로 세 대가 함께 움직인다는 보장이 없다(레인 관제는
-        # 모두 대기 레인으로 보냈다). 처음 움직인 뒤 조금 더 기다려 그때 움직이는 로봇들을 본다
+        # 세 대가 함께 움직인다는 보장이 없어 처음 움직인 뒤 조금 더 기다려 움직이는 로봇을 본다
         assert wait_for(lambda: probe.moving(), 120), probe.state
         time.sleep(MORE_MOVERS_S)
         movers = probe.moving()
@@ -176,17 +171,17 @@ def test_robots_stop_without_the_fms_and_a_new_one_waits_for_all_of_them(probe, 
         took = {r: probe.moved[r] - killed for r in movers}
         print(f"robots moved for this long after the kill: {took}")
         assert all(t <= timeout_s + SLACK_S for t in took.values()), took
-        # 위 비교는 지켜본 때까지 움직인 로봇도 통과시킨다. 실제 위치로 세 대 모두 서 있음을 본다
+        # 실제 위치로 세 대 모두 서 있음을 본다
         still_after = dict(probe.moved)
         time.sleep(SLACK_S)
         assert probe.moved == still_after, "a robot still moves after the heartbeat timeout"
-        # 스스로 도착한 로봇은 없다. 모두 목표에 못 미쳐 goal이 끝났다.
+        # 스스로 도착한 로봇은 없고 goal이 모두 중단됐다
         assert wait_for(lambda: all(probe.last_goal.get(r) == GoalStatus.STATUS_ABORTED
                                     for r in movers), 10), probe.last_goal
         print(f"last goal of each: {probe.last_goal}")
         assert not probe.moving(), probe.state
 
-        # 침묵 전에 보고가 한 번이라도 있으면 새 FMS는 이를 통신 두절로 본다.
+        # 침묵 전 보고가 있으면 새 FMS는 통신 두절로 본다
         assert wait_for(lambda: probe.sim_now > PODE3_SILENT_S[0], 60), probe.sim_now
         still = dict(probe.moved)
         fms = start_fms()

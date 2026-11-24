@@ -1,26 +1,7 @@
-"""다른 Pode의 몸을 이 로봇의 costmap에 넣는 노드(임시, 주행 시험용. 회피 담당이 바꿀 수 있다).
+"""다른 Pode의 몸을 이 로봇의 costmap peer 층에 점구름으로 내는 노드(임시, 주행 시험용).
 
-라이다 빔은 다른 Pode의 몸 위로 지나가 costmap에 작은 점으로만 찍힌다. 그래서 Nav2가 다른 로봇을
-피해 길을 짜지 못하고 마당에서 몸이 닿았다. 이 노드는 다른 로봇이 보고한 자세로 그 몸 자리를
-점구름으로 내고, costmap의 peer 층(회피 패키지 avoidance.yaml의 peer_layer)이 그것을 찍는다.
-
-- 받는 것: 다른 로봇마다 `/<로봇>/state`(RobotState, 10 Hz, map 좌표 자세).
-- 내는 것(로봇 namespace 안, rate_hz마다):
-  `peer_obstacles`(PointCloud2, map 틀): 다른 로봇마다 몸을 덮는 원 안의 점들.
-  `peer_sweep`(LaserScan, base_footprint 틀): 모든 빔이 inf인 한 바퀴 스캔. peer 층은 inf_is_valid로
-  이 빔을 따라 둘레를 다 지운 뒤 지금 자리만 다시 찍는다. 그래서 지나간 자리가 남지 않는다.
-- 조용해진 로봇의 자리는 지우지 않는다: 통신이 끊긴 로봇은 그 자리에 서 있다(관제 heartbeat가
-  끊기면 로봇은 선다는 계약에 기댄다).
-- 위치를 모르는 보고(LOCALIZING이거나 자세가 0, 0, 0: pode_fsm은 위치를 모르면 자세 칸을 비워 둔다)
-  는 쓰지 않는다. 그 전에 알던 자리는 그대로 둔다.
-- 점구름은 비지 않는다: Nav2의 점구름 반복자는 빈 data에서 front()를 부른다. 늘 먼 점(FAR_POINT)
-  하나를 함께 낸다. costmap은 obstacle_max_range 밖이라 찍지 않는다.
-- 자세는 그 로봇의 위치 추정이다. 추정이 틀어지면 찍는 자리도 틀린다.
-- 파라미터: `robot_id`(비면 namespace), `robots`("pode1,pode2,pode3"), `radius_m`(0.075: 몸 가운데
-  에서 가장 먼 모서리 0.073 m + 2 mm), `centre_m`(-0.018: 바퀴 축에서 몸 가운데까지),
-  `step_m`, `rate_hz`, `sweep_beams`, `sweep_range_m`.
-- 실행 파일 `peer_obstacles`는 로봇 한 대의 노드다(로봇에서). 시뮬레이션은 make_fleet으로 로봇마다의
-  노드를 sim_stand_in 프로세스 안에 둔다(한 PC의 DDS 참가자 수를 늘리지 않으려고).
+- 입력: 다른 로봇마다 /<로봇>/state(map 좌표 자세). 위치를 모르는 보고는 쓰지 않고, 조용해진 로봇의 자리는 그대로 둔다.
+- 출력: peer_obstacles(PointCloud2, map 틀), peer_sweep(모든 빔 inf인 LaserScan, base_footprint 틀).
 """
 import math
 
@@ -38,10 +19,9 @@ from std_msgs.msg import Header
 from .body import CENTRE_M, RADIUS_M, body_points, others
 
 STATE_QOS = QoSProfile(depth=5, reliability=ReliabilityPolicy.BEST_EFFORT)  # 계약의 STATE
-POINT_Z_M = 0.05  # costmap 관측원의 높이 창(0~2 m) 안
-FAR_POINT = (1000.0, 1000.0, POINT_Z_M)  # 구름이 비지 않게 늘 함께 내는 점(찍히지 않는다)
-# sweep의 시각을 이만큼 지난 때로 적는다: costmap은 스캔 시각의 TF(odom <- base_footprint)로 빔을
-# 놓는데 지금 시각의 TF는 아직 오지 않았을 수 있다. 둘레를 지우는 원이라 0.2 s 전 자리여도 된다
+POINT_Z_M = 0.05  # 점 높이 (m)
+FAR_POINT = (1000.0, 1000.0, POINT_Z_M)  # 점구름이 비지 않게 늘 함께 내는 먼 점
+# sweep 시각을 이만큼 과거로 적는다: 지금 시각의 TF가 아직 없을 수 있다
 SWEEP_DELAY = Duration(seconds=0.2)
 
 
@@ -97,8 +77,7 @@ class PeerObstacles(Node):
 
 
 def make_fleet(robots: str, use_sim_time: bool = False, context=None) -> list:
-    """robots의 로봇마다 그 namespace 안의 PeerObstacles 노드 하나. 프로세스 인자(launch의 노드 이름
-    바꾸기)는 받지 않는다: 받으면 노드들의 이름이 모두 같아진다."""
+    """robots의 로봇마다 그 namespace 안에 PeerObstacles 노드 하나를 만든다."""
     return [PeerObstacles(namespace=f"/{name}", context=context, use_global_arguments=False,
                           parameter_overrides=[Parameter("robot_id", value=name),
                                                Parameter("robots", value=robots),

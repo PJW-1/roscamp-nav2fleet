@@ -1,8 +1,4 @@
-"""구역 교통 층의 실패한 명령: 이동 실패와 다시 보내기, 거절, 못 보냄, 잃음, heartbeat 끊김,
-성공 뒤의 도착 판정, 그리고 이름으로 부른 배차의 거절.
-
-로봇은 움직이지 않는다(speed 0). 결과는 시험이 손으로 넣는다.
-"""
+"""구역 교통 층의 실패한 명령(이동 실패, 거절, 못 보냄, 잃음, heartbeat 끊김, 도착 판정, 배차 거절). 로봇은 움직이지 않고 결과는 시험이 넣는다."""
 import math
 
 import pytest
@@ -177,8 +173,7 @@ def test_a_robot_that_reached_the_node_after_joining_failed_is_on_the_node_again
 
 
 def test_a_robot_that_could_not_join_stays_off_the_node_while_its_report_wanders():
-    """재시작 시험에서 나왔다: 서 있는 로봇의 보고가 0.06 m 흔들리자 관제가 다시 지점 위로 보고
-    같은 고정 경로를 또 보냈다. 로봇은 또 거절했고, 세 번째에 격리됐다."""
+    """서 있는 로봇의 보고가 0.06 m 흔들려도 같은 고정 경로를 다시 보내지 않는다."""
     world, call = beside_the_node()
     world.traffic.on_move_result("pode2", last_goal(world), False, "PATH_NOT_CONNECTED")
     bot = world.bots["pode2"]
@@ -191,8 +186,7 @@ def test_a_robot_that_could_not_join_stays_off_the_node_while_its_report_wanders
 
 
 def test_a_robot_that_could_not_join_and_now_stands_in_the_junction_gets_the_line_again():
-    """넓은 구역 밖에서는 Nav2 goal로 지점에 돌아갈 수 없다. 거기서도 좁은 기준을 쓰면 지점
-    위도 아니고 길도 못 잡는 로봇이 된다: 갈림목 안의 로봇은 전처럼 0.15 m로 본다."""
+    """넓은 구역 밖에서도 갈림목 안의 로봇은 전처럼 0.15 m로 본다."""
     world, call = beside_the_node()
     world.traffic.on_move_result("pode2", last_goal(world), False, "PATH_NOT_CONNECTED")
     bot = world.bots["pode2"]
@@ -263,8 +257,7 @@ def test_a_failed_docking_is_sent_again_only_after_the_wait(fail):
 
 
 def test_a_failed_docking_backs_out_and_comes_in_again_before_the_next_try():
-    """The reported pose may be off. Driving the fixed line again lets the robot find its
-    place before it docks at the same spot."""
+    """보고 위치가 어긋났어도 같은 고정 경로를 다시 달려 도킹 전에 자리를 찾는다."""
     world, _ = at_the_dock()
     assert world.run_until(lambda: docks(world) == 2, 60.0)
     order = ("ORDER_SENT", "ORDER_UPDATED", "SEGMENT_DONE")  # order 모델의 기록은 빼고 본다
@@ -282,14 +275,14 @@ def test_a_failed_docking_backs_out_and_comes_in_again_before_the_next_try():
 
 
 def way_out(world, robot="pode2"):
-    """The edge a robot at its dock backs out on."""
+    """도크의 로봇이 후진으로 나가는 edge."""
     site = world.traffic.site
     dock = site.stations[world.traffic._robots[robot].dest].dock
     return next(edge for edge in site.edges_from(dock) if edge.mode == RETREAT)
 
 
 def way_round(world, robot="pode2"):
-    """Every edge of the way out of the dock and back in."""
+    """도크에서 나갔다 돌아오는 길의 모든 edge."""
     from fleet_core.traffic.zone.redock import way_in
     out = way_out(world, robot)
     return [out, *way_in(world.traffic.site, out.b, out.a)]
@@ -297,7 +290,7 @@ def way_round(world, robot="pode2"):
 
 @pytest.mark.parametrize("index", [0, 1, 2])
 def test_a_reapproach_over_an_edge_marked_blocked_docks_where_it_stands(index):
-    """The way out and back is picked by hand, so it has to respect the block marks itself."""
+    """나갔다 돌아오는 길은 손으로 고르므로 block mark를 스스로 지켜야 한다."""
     world, _ = at_the_dock()
     assert world.run_until(lambda: "GOAL_RETRY" in world.codes("pode2"), 30.0)
     edges = way_round(world)
@@ -310,8 +303,7 @@ def test_a_reapproach_over_an_edge_marked_blocked_docks_where_it_stands(index):
 
 
 def test_a_mark_that_has_run_out_does_not_stop_the_reapproach():
-    """The tick drops marks that ran out, so the entry is left in place and the pick is called
-    directly: it has to compare the time, not just find the key."""
+    """tick이 기한 지난 mark를 지우므로 항목을 남긴 채 직접 고르면 키만 찾지 않고 시각을 비교한다."""
     world, _ = at_the_dock()
     assert world.run_until(lambda: "GOAL_RETRY" in world.codes("pode2"), 30.0)
     traffic = world.traffic
@@ -338,7 +330,7 @@ def test_a_reapproach_whose_way_is_taken_waits_and_goes_when_it_is_free():
 
 
 def test_a_reapproach_that_cannot_start_in_time_docks_where_it_stands():
-    """Whoever holds the way out may never leave. The robot does not wait at the dock for ever."""
+    """나가는 길을 쥔 쪽이 떠나지 않아도 로봇은 도크에서 끝없이 기다리지 않는다."""
     world, _ = at_the_dock()
     assert world.run_until(lambda: "GOAL_RETRY" in world.codes("pode2"), 30.0)
     assert world.traffic.grants.take("ghost", (), (way_out(world).b,))
@@ -349,7 +341,7 @@ def test_a_reapproach_that_cannot_start_in_time_docks_where_it_stands():
 
 
 def test_a_robot_waiting_to_reapproach_is_no_part_of_a_wait_cycle():
-    """A cycle would send it to a parking spot with the re-approach still pending."""
+    """순환이 생겨도 다시 접근이 남은 채 주차 자리로 보내지 않는다."""
     world, _ = at_the_dock()
     assert world.run_until(lambda: "GOAL_RETRY" in world.codes("pode2"), 30.0)
     traffic, edge = world.traffic, way_out(world)
@@ -357,15 +349,15 @@ def test_a_robot_waiting_to_reapproach_is_no_part_of_a_wait_cycle():
     world.run(world.params.move_retry_wait_s + 0.2)
     assert "pode2" in traffic._wants
     traffic.grants.release_node("ghost", edge.b)
-    assert traffic.grants.take("pode1", (), (edge.b,))  # pode1 holds the way out
-    dock_zone = world.site.nodes[edge.a].zone  # and waits for the dock zone pode2 holds
+    assert traffic.grants.take("pode1", (), (edge.b,))  # pode1이 나가는 길을 쥔다
+    dock_zone = world.site.nodes[edge.a].zone  # pode2가 쥔 도크 구역을 기다린다
     traffic._wants["pode1"] = Want((dock_zone,), (), {}, world.now, {})
     traffic._watch_deadlock(world.now)
     assert traffic._deadlock.cycle == ()
 
 
 def test_the_wait_for_the_way_out_has_one_limit_whatever_clears_the_wait():
-    """Lost contact clears the wait on record. The limit runs from the first try all the same."""
+    """접속이 끊겨 기록된 기다림이 지워져도 한도는 첫 시도부터 센다."""
     world, _ = at_the_dock()
     assert world.run_until(lambda: "GOAL_RETRY" in world.codes("pode2"), 30.0)
     assert world.traffic.grants.take("ghost", (), (way_out(world).b,))
@@ -384,14 +376,14 @@ def test_a_reapproaching_robot_keeps_its_dock_turn():
 
 
 def test_a_robot_that_docked_and_failed_stays_first_for_that_dock():
-    """Also when its way back in was not granted and the route was dropped."""
+    """돌아가는 길을 못 받아 route를 버린 경우에도 그렇다."""
     world, _ = at_the_dock()
     world.call("WORK", "pode3")
     assert world.run_until(lambda: "RETREAT_DONE" in world.codes("pode2"), 60.0)
     traffic = world.traffic
     m, other = traffic._robots["pode2"], traffic._robots["pode3"]
     assert other.dest == m.dest
-    other.asked_at = (m.asked_at or 0.0) - 1.0  # the other one asked first
+    other.asked_at = (m.asked_at or 0.0) - 1.0  # 상대가 먼저 물었다
     m.route = None
     assert not traffic._ahead(m, m.dest)
     assert m in traffic._ahead(other, other.dest)

@@ -137,9 +137,7 @@ class Results:
             m.route.sent = m.route.done
 
     def _stands_at_end(self, m, behind: bool = False):
-        """로봇이 서 있는 goal의 끝: (끝 goal, 그 끝까지 끝내지 않은 조각들). order면 끝내지 않은
-        조각 끝마다 본다. 여럿이면 로봇에 가장 가까운 끝, 같으면 앞의 끝. behind면 뒤가 막혀 선
-        로봇이 선을 따라 끝에 못 미친 끝은 뺀다. 없으면 None."""
+        """로봇이 서 있는 goal의 끝(끝 goal, 지나온 조각들). 여럿이면 가장 가까운 끝. 없으면 None."""
         goal = m.goal
         heard = (m.available and m.report.robot_state != LOCALIZING
                  and self._clock() - m.report.last_seen <= self.params.arrival_settle_s)
@@ -152,7 +150,7 @@ class Results:
 
     # ---- 닿았다고 볼 수 있는 끝: goal의 끝, order면 끝내지 않은 조각 끝마다 ----
     def _goal_ends(self, m) -> list:
-        """[(끝 goal, 그 끝까지 끝내지 않은 조각들)]. 조각은 (order id, seq, 방식, 끝 노드)."""
+        """[(끝 goal, 그 끝까지 끝내지 않은 조각들)]."""
         goal, mo, route = m.goal, m.move_order, m.route
         if goal.mode != ORDER or mo is None or route is None:
             return [(goal, ())]
@@ -187,7 +185,7 @@ class Results:
         self._event("WARN", "GOAL_ENDED_AT_TARGET",
                     f"{goal.kind} goal {goal.id} ended {reason}, but the robot stands at "
                     f"{target.end}", m.name)
-        # 건너뛴 order 조각도 피드백으로 끝낸 것처럼 정리한다(중간 물러나기 포함)
+        # 건너뛴 order 조각도 끝낸 것으로 정리한다
         for order_id, seq, mode, node in passed:
             m.node = node
             self._event("INFO", "SEGMENT_DONE", f"{order_id} seq {seq} ({mode}) to {node}", m.name)
@@ -211,7 +209,7 @@ class Results:
             m.retry_at = self._clock() + self.params.move_retry_wait_s
             return
         if reason == NAV_ABORTED and self._lost_pose_lately(m):
-            # 위치를 잃어 로봇이 끝낸 goal: 세지 않고 위치가 돌아온 뒤 다시 보낸다
+            # 위치를 잃어 끝낸 goal은 세지 않고 위치가 돌아온 뒤 다시 보낸다
             m.retry_at = self._clock() + self.params.move_retry_wait_s
             self._event("WARN", "GOAL_ABORTED_LOCALIZING", "not an attempt, sends it again "
                         "once it reports a pose", m.name)

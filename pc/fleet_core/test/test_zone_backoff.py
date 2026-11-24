@@ -6,10 +6,7 @@ from zone_harness import Harness
 
 
 def stuck_pair():
-    """P-1의 pode1과 P-2의 pode2가 0.25 m 떨어져 마당에서 Nav2 goal을 받고 서 있다.
-
-    배차가 없는 pode2가 비킬 쪽이다. pode2는 pode1을 마주 본다: 뒤(+x)는 비어 있다.
-    """
+    """P-1의 pode1과 P-2의 pode2가 0.25 m 떨어져 마당에서 Nav2 goal을 받고 서 있다. 배차가 없는 pode2가 비킬 쪽이다."""
     world = Harness(speed=0.0)
     world.step()
     world.call("WORK", "pode1")

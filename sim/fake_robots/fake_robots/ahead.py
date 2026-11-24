@@ -1,11 +1,6 @@
 """앞에 있는 다른 로봇을 보고 서기. ROS 가짜 Pode의 두 이동 모드가 같이 쓴다. ROS를 쓰지 않는다.
 
-world.runs.blocked_ahead와 같은 규칙을 Motion 위에서 쓴다. nav_goal 모드는 충돌 검사를 켠 Nav2가,
-path 모드는 Pode의 앞 물체 검사가 로봇을 세우는 것을 흉내 낸다(world.FollowRun).
-
-world는 로봇을 차례로 움직여 서로의 지금 자리를 본다. ROS 가짜 Pode는 따로 돌면서 남의 자세를
-0.1~0.2초 늦게 받으므로, 지금 자리를 어림하고(seen, where_now) nav_goal 모드에서는 가까이서 방금
-움직인 앞선 이름의 로봇에게 양보한다(yields). 실물 Nav2에는 없는 순서 규칙이다.
+늦게 받은 남의 자세로 지금 자리를 어림하고, nav_goal 모드는 방금 움직인 앞선 이름의 로봇에게 양보한다.
 """
 from __future__ import annotations
 

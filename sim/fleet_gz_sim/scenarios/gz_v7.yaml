@@ -1,6 +1,4 @@
-# Gazebo 배치 v7(팀 확정 경기장, 2026-11-13): Pode 3대가 충전 칸 P-3, P-2, P-1에서 출발해
-# 주문 8건을 처리한다(자유바닥 저장소 gz_arena_v7과 같은 주문). map은 배치 이름이다
-# (fleet_core/data/fleet_map_v7.yaml). 시각은 Gazebo 시계 0부터.
+# Gazebo 배치 v7: Pode 3대가 충전 칸 P-3, P-2, P-1에서 출발해 주문 8건을 처리한다. 시각은 Gazebo 시계 0부터.
 #   ros2 launch fleet_gz_sim gz.launch.py layout:=v7 scenario:=gz_v7 sim_dock_stub:=true
 map: v7
 seed: 65

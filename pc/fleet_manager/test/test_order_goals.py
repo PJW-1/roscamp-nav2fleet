@@ -1,4 +1,4 @@
-"""order goal의 파라미터 덮어쓰기. 순수 파이썬이라 ROS 없이도 돈다."""
+"""order goal의 파라미터 덮어쓰기 시험(ROS 없이 돈다)."""
 from fleet_core.common.params import load_params
 from fleet_manager.order_goals import apply_overrides
 

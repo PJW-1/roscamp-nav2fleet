@@ -1,5 +1,4 @@
-"""MoveTo mode nav_goal (contract 0.11-draft proposal) through the real action interfaces.
-FakeNav stands in for bt_navigator's navigate_to_pose and the controller's follow_path."""
+"""MoveTo mode nav_goal(계약 0.11-draft)을 실제 액션 인터페이스로 본다. FakeNav가 navigate_to_pose와 follow_path를 대신한다."""
 import math
 import time
 
@@ -72,8 +71,7 @@ def test_heartbeat_loss_stops_navigate_to_pose(harness):
 
 
 def test_a_follow_path_goal_after_a_nav_goal_waits_for_navigate_to_pose_to_end(harness):
-    """The two would fight over the controller: cancel NavigateToPose, wait for its result and
-    a standing robot, then send FollowPath."""
+    """둘이 controller를 다투므로 NavigateToPose를 취소하고 결과와 정지를 기다린 뒤 FollowPath를 보낸다."""
     fake, probe = start(harness)
     fake.speed = 0.2
     first = probe.send(nav_goal("P-4"))

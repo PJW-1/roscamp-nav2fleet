@@ -52,8 +52,7 @@ def test_a_robot_beside_the_way_back_does_not_hold_the_retreat_up():
 
 
 def test_a_robot_ahead_of_it_is_not_taken_for_one_behind():
-    """가는 쪽에 바짝 붙은 로봇은 물러날 길 위에 있지 않다. 그런 로봇까지 뒤로 보면 급행 안에서
-    가까이 선 두 대가 서로를 기다린다."""
+    """가는 쪽에 바짝 붙은 로봇은 물러날 길 위에 있지 않다(뒤로 보면 급행 안의 두 대가 서로 기다린다)."""
     world, _ = blocked_in_the_express()
     blocked, ahead = world.bots["pode1"], world.bots["pode2"]
     ahead.x, ahead.y = blocked.x + 0.15, blocked.y
@@ -91,8 +90,7 @@ def test_a_new_goal_tells_again_that_it_waits_for_the_robot_behind():
 # ---- 넓은 구역 안: 같은 자리에서 또 비키면 주차 자리로 ----
 
 def stuck_pair(starts=None):
-    """P-1의 pode1과 P-2의 pode2가 0.25 m 떨어져 마당에서 Nav2 goal을 받고 서 있다.
-    배차가 없는 pode2가 비킬 쪽이다."""
+    """P-1의 pode1과 P-2의 pode2가 0.25 m 떨어져 마당에서 Nav2 goal을 받고 서 있다. 배차가 없는 pode2가 비킬 쪽이다."""
     world = Harness(speed=0.0, params=ONLY_RULE_6, starts=starts)
     world.step()
     world.call("WORK", "pode1")
