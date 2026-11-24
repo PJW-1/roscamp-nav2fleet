@@ -3,10 +3,23 @@
 #   DISCOVERY_SERVER=off       서버 없이 예전처럼 멀티캐스트로 찾는다
 #   DISCOVERY_SERVER=IP:PORT   다른 서버
 #   SUPER=1                    전체 그래프를 보는 터미널(ros2 명령, RViz)
+#   FLEET_DOMAIN_ID=N          도메인(기본 6, 팀 규칙 IR-81). 0~232 정수
+# 도메인을 먼저 검사한다. 틀리면 아무것도 바꾸지 않고 1
+_net_dom=${FLEET_DOMAIN_ID:-6}
+case $_net_dom in
+  ''|*[!0-9]*) _net_dom= ;;
+  ????*) _net_dom= ;;
+  *) [ $((10#$_net_dom)) -le 232 ] && _net_dom=$((10#$_net_dom)) || _net_dom= ;;
+esac
+if [ -z "$_net_dom" ]; then
+  echo "net.sh: FLEET_DOMAIN_ID는 0~232 정수여야 한다: '${FLEET_DOMAIN_ID:-}'" >&2
+  unset _net_dom
+  return 1
+fi
 # 다시 source해도 이전 값이 남지 않게 먼저 지운다
 unset ROS_LOCALHOST_ONLY ROS_STATIC_PEERS ROS_DISCOVERY_SERVER ROS_SUPER_CLIENT
-# 도메인은 팀이 아직 정하지 않았다(2026-11-19). 정해지면 이 줄만 바꾼다
-export ROS_DOMAIN_ID=12
+export ROS_DOMAIN_ID=$_net_dom
+unset _net_dom
 export RMW_IMPLEMENTATION=rmw_fastrtps_cpp
 export ROS_AUTOMATIC_DISCOVERY_RANGE=SUBNET
 _net_ds=${DISCOVERY_SERVER:-192.168.0.252:11811}
