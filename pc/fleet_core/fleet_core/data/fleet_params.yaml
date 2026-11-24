@@ -29,7 +29,7 @@ recover_check_s: 1.0          # 추정
 arm_cancel_wait_s: 5.0        # 추정
 arm_retry_wait_s: 2.0         # 추정
 fill_timeout_s: 90.0          # 추정: 팔 두 대가 바구니 하나를 채움
-swap_timeout_s: 60.0          # 추정: arm_ship가 찬 바구니를 빼고 빈 바구니를 놓음
+swap_timeout_s: 60.0          # 추정: arm_ship이 찬 바구니를 빼고 빈 바구니를 놓음
 cancel_retry_s: 1.0           # 추정: 취소한 goal 결과가 없으면 이 주기로 다시 요청
 cancel_warn_after: 5          # 결과 없이 이만큼 주기가 지나면 CANCEL_UNCONFIRMED.
                               # 코어가 기다리는 팔을 늦었다고 하지 않게 arm_cancel_wait_s 이상

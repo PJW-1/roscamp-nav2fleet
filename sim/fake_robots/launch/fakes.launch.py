@@ -8,7 +8,7 @@
   ros2 launch fake_robots fakes.launch.py fake_robots:=none use_sim_clock:=false monitor:=false \
       scenario:=real_three_orders dock_wait_robots:="pode1 pode2 pode3"   # 실물 세 대, PC 도킹 대역
 
-fake_arms: arm_left과 arm_right를 함께 주면 가짜 작업셀이 뜬다.
+fake_arms: arm_left와 arm_right를 함께 주면 가짜 작업셀이 뜬다.
 fill_basket 서버 하나가 둘을 맡기 때문이다. arm_ship은 가짜 출고 팔을 띄운다.
 fake_robots:=none은 가짜 로봇 없음이다(ros2 launch는 빈 값을 받지 않는다).
 dock_wait_robots: 실물 로봇의 도킹을 PC가 대신 받는다(real_dock_wait_node, 기다린 뒤 자세 확인).
