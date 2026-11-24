@@ -415,3 +415,15 @@ def test_a_failed_request_frees_its_place():
     outbox.track(report_id, failed)
     outbox.forget(report_id, failed)
     assert due_limited(outbox, 0.1, 1) == ["b"]
+
+
+def test_a_goal_whose_result_was_lost_keeps_its_handle_for_one_cancel():
+    """결과를 잃은 goal도 아직 돌 수 있다(IR-62). 나중의 취소는 한 번 보내고, 결과가 올 수 없으니 끝낸다."""
+    goals, handle = running()
+    goals.result_lost("k")
+    assert not goals.canceling("k")
+    goals.cancel("k", 0.0)
+    assert handle.cancels == 1 and not goals.canceling("k")
+    assert retry(goals, 10.0) == [] and handle.cancels == 1
+    goals.cancel("k", 11.0)
+    assert handle.cancels == 1, "nothing is left to cancel"

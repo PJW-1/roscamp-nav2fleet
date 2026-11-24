@@ -588,6 +588,11 @@ def test_a_lost_result_of_a_robot_goal_is_no_rejection():
                                       SimpleNamespace(result=broken))
         assert (rejected, lost) == (want_rejected, want_lost)
         assert goals.canceling(key) == (canceled and on_rejected is robot_rejected)
+        if want_lost:  # 코어가 나중에 내는 취소는 아직 로봇에 닿는다
+            asked = []
+            goals._handles[key] = SimpleNamespace(cancel_goal_async=lambda: asked.append(1))
+            goals.cancel(key, 1.0)
+            assert asked == [1]
 
 
 def test_a_dropped_cancel_of_a_robot_goal_is_told_to_the_core_as_lost():

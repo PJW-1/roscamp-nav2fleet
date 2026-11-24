@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import math
 
+from fleet_core.common.commands import CancelCmd
 from fleet_core.fleet_map import NAV_GOAL
 from fleet_core.traffic.mission import (
     AT_STATION,
@@ -15,6 +16,7 @@ from fleet_core.traffic.mission import (
     NOT_AT_TARGET,
     PATH_NOT_CONNECTED,
     RETREAT,
+    ROBOT_DOCKED,
     ROBOT_IDLE,
     ROBOT_TIMEOUT,
 )
@@ -38,6 +40,7 @@ class Results:
         m = self._active(robot, goal_id, MOVE)
         if m is None:
             return
+        m.result_lost_at = None  # 늦게 온 결과가 결과 모름을 정한다
         if m.move_order is not None and self._order_result(m, reason, last_done_seq):
             return
         if success:
@@ -50,6 +53,7 @@ class Results:
         m = self._active(robot, goal_id, RETREAT)
         if m is None:
             return
+        m.result_lost_at = None
         if success:
             m.avoid.behind_since = None
             self._succeeded(m)
@@ -107,16 +111,24 @@ class Results:
                     f"{m.goal.kind} goal {goal_id} lost its result: result unknown, holds its "
                     f"zones, settles from the state report within {settle:.0f} s", m.name)
 
-    # ---- 결과 모름 정하기: 끝에서 IDLE이면 완료, 다른 곳 IDLE이면 실패, 시간이 지나면 격리 ----
+    # ---- 결과 모름 정하기: 끝에서 IDLE·도킹 DOCKED면 완료, 다른 곳 IDLE이면 실패, 시간이 지나면 격리 ----
     def _settle_lost(self, m, now: float) -> None:
-        idle = m.report.last_seen > m.result_lost_at and m.report.robot_state == ROBOT_IDLE
-        if idle and m.goal.kind == DOCK:
-            # 도킹 뒤에는 성공·실패 모두 IDLE이고 자리도 같아 다시 도킹한다
+        settle = self.params.robot_timeout_settle_s
+        heard = m.result_lost_at < m.report.last_seen < m.result_lost_at + settle
+        state = m.report.robot_state if heard else ""
+        docked = state == ROBOT_DOCKED and m.goal.kind == DOCK
+        idle = state == ROBOT_IDLE
+        if docked or idle:
+            self._out.append(CancelCmd(m.name, m.goal.id))  # 노드가 쥔 goal을 놓게 한다
+        if docked:
+            self.on_dock_result(m.name, m.goal.id, True)  # 계약의 DOCKED 보고는 끝낸 도킹이다
+        elif idle and m.goal.kind == DOCK:
+            # IDLE만으로는 도킹 성공과 실패를 가를 수 없어 다시 도킹한다
             self._clear_goal(m)
             self._dock_failed(m, GOAL_RESULT_LOST)
         elif idle:
             self._move_failed(m, GOAL_RESULT_LOST)
-        elif now - m.result_lost_at >= self.params.robot_timeout_settle_s:
+        elif now - m.result_lost_at >= settle:
             self._fail(m, ROBOT_TIMEOUT)
             self._cancel_goal(m)  # 이미 고장이던 로봇은 _fail이 취소하지 않는다
 

@@ -177,6 +177,17 @@ def test_no_result_in_the_settle_time_settles_it_as_lost_and_a_fault():
                                           put_empty_done=True)]
 
 
+def test_a_result_after_the_settle_time_comes_too_late_even_before_the_timeout_check():
+    jobs, now, goal, _ = timed_out()
+    now[0] += jobs.params.robot_timeout_settle_s + 0.5
+    jobs.on_fill_result(goal.goal_id, True, {"A": 1}, {})
+    out = jobs.take_output()
+    assert out[0] == ArmLost("r1", goal.goal_id, "workcell", FILL)
+    assert codes(out) == ["ARM_NO_RESULT"]
+    assert out[-1] == ArmLate(goal.goal_id, FILL, placed={"A": 1})
+    assert not [o for o in out if isinstance(o, ArmFillResult)]
+
+
 def test_a_stop_cancel_without_a_timeout_still_gives_up_after_the_cancel_wait():
     jobs, now, goal = started()
     jobs.on_command(ArmStopCmd("r1"))
