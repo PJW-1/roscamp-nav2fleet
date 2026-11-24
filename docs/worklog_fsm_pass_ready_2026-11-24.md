@@ -12,6 +12,9 @@ Gazebo와 시험만 했다(실물·deploy 없음).
 - 넘긴 뒤 Nav2 goal이 아직 달려 넘겨받기(`handover_since`)로 들어갔고, 멈춘 뒤 `nav_moves._hand_over`가 경로까지
   거리를 다시 잰다. 그 사이 truth는 그대로인데 AMCL 추정 위치만 2.2 cm 뒤로 물러나 0.144 → 0.163 m가 되어
   `PATH_NOT_CONNECTED`가 났다.
+- 두 번째 사례(같은 비교의 2.5 cm 기준 판 `s1_a_v2`, keeper 없음, pode3 sim 340.6 s): 추정 위치 Q2에서 0.150 m일 때 넘겼고,
+  선 뒤 추정 위치만 0.152 m로 물러나 `PATH_NOT_CONNECTED`가 났다. truth는 그동안 0.151 m 그대로였다. keeper와 costmap
+  해상도와 상관없이 두 판정이 같은 0.15를 쓰는 데서 난다.
 
 바꾼 것:
 
