@@ -85,8 +85,7 @@ def test_an_order_segment_that_finishes_forgets_how_long_something_was_behind():
 
 
 def test_an_order_retreat_that_finishes_forgets_how_long_something_was_behind():
-    """뒤가 막혀 기다리기 시작한 시각을 order의 후진 조각이 끝날 때 지우지
-    않으면, 다음 후진에서 뒤가 막혔을 때 옛 시각부터 blocked_timeout_s를 세어 바로 실패로 친다."""
+    """order의 후진 조각이 끝나면 뒤가 막혀 기다리기 시작한 시각을 지워, 다음 후진이 옛 시각부터 세지 않는다."""
     world = Harness(starts={"pode1": "W", "pode2": "P-2", "pode3": "P-3"}, params=ON)
     world.report()
     world.call("OUTBOUND", "pode1")
@@ -217,8 +216,7 @@ def test_a_dock_freed_before_the_base_end_is_taken_whole_and_the_robot_does_not_
 
 
 def test_the_robot_answers_reach_the_traffic_layer_in_order_feedback_superseded_result():
-    """도우미(legs, answer_at)에 가리지 않고 날것의 답 차례를 본다: base 끝 피드백, update를 받으면
-    옛 goal의 SUPERSEDED, 새 goal의 조각 피드백, 마지막에 새 goal의 성공 하나."""
+    """도우미 없이 날것의 답 차례를 본다: base 끝 피드백, 옛 goal의 SUPERSEDED, 새 goal의 조각 피드백, 새 goal의 성공."""
     world, call = waiting_at_the_queue_spot()
     world.traffic.on_release("pode2")
     assert world.run_until(lambda: world.result_of(call) is not None, 120.0)
@@ -244,9 +242,7 @@ def test_the_robot_answers_reach_the_traffic_layer_in_order_feedback_superseded_
 
 @pytest.mark.parametrize("order", [False, True], ids=["order_off", "order_on"])
 def test_a_parking_robot_whose_spot_was_taken_while_it_waited_chooses_again(order):
-    """v7: pode1은 하나 남은 칸 P-3으로 가다가 Q2(base 끝)에서 칸 입구 E-3을 기다린다. 그동안 P-3을
-    남이 잡고 P-1이 빈다. 끈 길은 route를 버리고 다시 고르는데, order는 base 끝에서 P-3을 계속
-    기다렸다. 끊긴 두 로봇의 자리는 손으로 잡고 놓는다."""
+    """v7: pode1이 P-3으로 가다 Q2에서 E-3을 기다리는 동안 P-3을 남이 잡고 P-1이 비면 order가 route를 다시 고른다."""
     world = Harness(layout="v7", starts={"pode1": "W", "pode2": "P-2", "pode3": "P-1"},
                     params=replace(ON, use_order_model=order))
     world.report()
@@ -286,8 +282,7 @@ def test_a_changed_route_ahead_replaces_only_the_horizon():
 
 
 def test_a_horizon_only_update_at_the_base_end_is_not_a_goal_that_did_not_start():
-    """base 끝에서 기다리는 로봇은 horizon만 바뀐 update(새 goal id)를 받아도 움직이지 않는다. 끝
-    지점에서 3 cm 떨어져 서 있어도 출발하지 않은 것(NO_START)이 아니다."""
+    """base 끝에서 기다리는 로봇은 horizon만 바뀐 update를 받아도 움직이지 않고, 끝에서 3 cm 떨어져도 NO_START가 아니다."""
     world, _ = queued_for_outbound()
     assert world.run_until(lambda: "BASE_END_WAIT" in world.codes("pode1"), 60.0)
     world.bots["pode1"].x += 0.03
@@ -298,8 +293,7 @@ def test_a_horizon_only_update_at_the_base_end_is_not_a_goal_that_did_not_start(
 
 
 def test_a_queued_robot_takes_the_dock_turn_when_its_order_is_extended_into_the_dock():
-    """줄에 선 로봇의 길은 도크까지 이어져 있어도 차례를 받은 길이 아니다. 도크가 비어 도크 구간을
-    잡으면 그때 차례를 받는다."""
+    """줄에 선 로봇의 길은 도크까지 이어져도 차례를 받은 길이 아니고, 도크 구간을 잡으면 그때 받는다."""
     world, call = queued_for_outbound()
     assert world.run_until(lambda: "BASE_END_WAIT" in world.codes("pode1"), 60.0)
     route = world.traffic._robots["pode1"].route
@@ -465,8 +459,7 @@ def test_the_base_time_also_guards_a_robot_that_has_just_started_talking_again()
 
 
 def test_an_order_whose_nav_goal_segment_fails_short_of_the_base_end_is_retried():
-    """order의 마지막 base 조각이 Nav2 goal이면 조각 하나씩 보낼 때와 같은 규칙이다: 로봇이 닿았다고
-    한 것이 아니므로 도착 허용 거리의 절반 안이어야 닿은 것으로 본다(test_zone_at_target.py)."""
+    """order의 마지막 base 조각이 Nav2 goal이면 도착 허용 거리의 절반 안이어야 닿은 것으로 본다(test_zone_at_target.py)."""
     world, _ = queued_for_outbound()
     spot = world.traffic.site.node_pose("O_Q")
     bot = world.bots["pode1"]

@@ -1,9 +1,7 @@
 """ROS 가짜 Pode의 nav_goal 모드(MoveTo mode, 계약 5절). ROS를 쓰지 않는다.
 
-world.NavGoalRun과 같은 규칙을 Motion 위에서 쓴다: 넓은 구역 안에서 다른 로봇을 피해 길을
-짜고(1 Hz로 다시), 바로 앞에 로봇이 있으면 서고, blocked_after_s 동안 못 나아가면 BLOCKED,
-지도 위에 길이 아예 없으면 곧 NAV_ABORTED, GIVE_UP_S 동안 못 나아가도 NAV_ABORTED.
-노드는 매 틱 update()를 부르고, clear_ahead()가 참일 때만 몬다.
+world.NavGoalRun과 같은 규칙: 다른 로봇을 피해 길을 짜고, 앞에 로봇이 있으면 서고,
+못 나아가면 BLOCKED 또는 NAV_ABORTED로 끝낸다. 노드는 매 틱 update()를 부른다.
 """
 from __future__ import annotations
 

@@ -1,8 +1,5 @@
-"""출고 도크를 나오는 고정 경로(out_out) 위에서 호출이 와 route가 바뀐 로봇(2026-11-21 Gazebo).
-- HALL은 y 0.765까지라 out_out 끝 무렵의 로봇은 넓은 구역 안이고, O에서 0.15 안이면 노드 위로 친다.
-- 하지만 Nav2 keepout은 OUT_DOCK을 0.06 넓혀 y 0.705까지 막는다: 거기서 goal을 끊고 nav_goal을
-  새로 주면 Nav2가 길을 찾지 못한다. 고정 경로는 로봇이 가까이 선 노드도 넓은 구역일 때만 끊는다.
-"""
+"""출고 도크를 나오는 고정 경로(out_out) 위에서 호출이 와 route가 바뀐 로봇: Nav2 keepout 띠(y 0.705까지) 안에서는 goal을 끊지 않는다.
+고정 경로는 로봇이 가까이 선 노드도 넓은 구역일 때만 끊는다."""
 from dataclasses import replace
 
 import pytest
@@ -20,8 +17,7 @@ def in_keepout(site, x, y) -> bool:
 
 
 def called_in_the_band(order_model):
-    """pode1이 출고를 끝내고 주차하러 out_out을 가다 띠 안 BAND_POSE에 섰을 때 호출이 온다.
-    그 한 걸음만 로봇을 세워 관제가 그 자리를 본다."""
+    """pode1이 출고를 끝내고 주차하러 out_out을 가다 띠 안 BAND_POSE에 섰을 때 호출이 온다."""
     world = Harness(layout="v7", starts={"pode1": "O"},
                     params=replace(load_params(), use_order_model=order_model))
     world.report()

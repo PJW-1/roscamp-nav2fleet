@@ -161,8 +161,7 @@ def test_a_fixed_line_that_leaves_a_zone_and_comes_back_into_it_is_refused():
 
 
 def test_a_fixed_line_that_turns_back_or_crosses_itself_is_refused():
-    """진행 자리는 가장 가까운 조각에 내린다: 되돌아가거나 스스로 건너는 선은
-    받지 않는다."""
+    """진행 자리는 가장 가까운 조각에 내리고, 되돌아가거나 스스로 건너는 선은 받지 않는다."""
     refused("turns back", paths=edited("paths", "work_out",
                                        points=["W", [0.45, 0.9], [0.35, 0.92], "N_W"]))
     refused("crosses itself", paths=edited("paths", "work_in",
@@ -172,37 +171,31 @@ def test_a_fixed_line_that_turns_back_or_crosses_itself_is_refused():
 
 
 def test_the_shelf_end_check_measures_the_arc_the_robot_drives_at_a_corner():
-    """Pode는 꺾이는 곳을 turn_radius_m 호로 돈다. 진열대 끝 밖에 놓인 호의 점도
-    잰다."""
+    """Pode는 꺾이는 곳을 turn_radius_m 호로 돈다. 진열대 끝 밖에 놓인 호의 점도 잰다."""
     site = build()
     corner = [w for w in site.warnings if "corner" in w]
-    # 급행에서 갈림목으로 내려가는 호의 가운데는 진열대 모서리 (0.5, 0.8)이고 반지름은 0.10이다
+    # 호의 가운데는 진열대 모서리 (0.5, 0.8), 반지름은 0.10이다
     assert any("express from X_E to X_W, then j_w_down at X_W" in w and "0.100 m" in w
                for w in corner), corner
     assert not any("corner" in w for w in build(turn_radius_m=0.0).warnings)
 
 
 def test_corner_arc_on_a_first_or_last_piece_may_use_the_whole_piece():
-    """Pode(geometry.rounded)는 선의 첫 선분과 마지막 선분에서는 호가 그 선분을 다 쓸 수 있다.
-    D2 work_out W -> (0.35, 0.89) -> N_W: 첫 선분이 0.17 m라 반으로 줄인 호는 접점 거리 0.085 m,
-    다 쓰는 호는 0.10 m다. 90° 호의 가운데는 꼭짓점에서 접점 거리 x
-    (sqrt 2 - 1)."""
+    """호는 첫 선분과 마지막 선분을 다 쓸 수 있다: D2 work_out의 첫 선분 0.17 m에서 접점 거리는 0.10 m다."""
     from fleet_core.fleet_map.checks import corner_arc
     a, b, c = (0.18, 0.89), (0.35, 0.89), (0.35, 0.65)
     halved = corner_arc(a, b, c, 0.10)
     whole = corner_arc(a, b, c, 0.10, shares=(1.0, 1.0))
     assert math.dist(halved[9], b) == pytest.approx(0.085 * (math.sqrt(2) - 1))
     assert math.dist(whole[9], b) == pytest.approx(0.10 * (math.sqrt(2) - 1))
-    # 한쪽만 다 쓰는 호(첫 선분은 다 쓰고 다음 선분은 가운데라 반): 0.08 m 첫 선분, 0.15 m 다음 선분
+    # 한쪽만 다 쓰는 호: 첫 선분 0.08 m, 다음 선분 0.15 m
     a2, c2 = (0.27, 0.89), (0.35, 0.74)
     mixed = corner_arc(a2, b, c2, 0.10, shares=(1.0, 0.5))
     assert math.dist(mixed[9], b) == pytest.approx(0.075 * (math.sqrt(2) - 1))
 
 
 def test_the_shelf_end_check_warns_with_the_arc_closer_to_the_shelf():
-    """이어 달릴 때는 어느 선분이 처음과 끝인지가 명령마다 다르니 두 호를 다 재고 진열대에 더
-    가까운 쪽으로 경고한다. 짧은 첫 선분(0.17 m) 뒤 진열대 끝 쪽으로 꺾는 선: 반 호는 경고 밖,
-    다 쓰는 호는 경고 안."""
+    """이어 달릴 때는 두 호를 다 재어 진열대에 더 가까운 쪽으로 경고한다(반 호는 경고 밖, 다 쓰는 호는 경고 안)."""
     from fleet_core.fleet_map.checks import corner_arc, shelf_end_warnings
     from fleet_core.fleet_map.geometry import point_rect_distance
 
@@ -265,8 +258,7 @@ LEAVE_W = {"nodes": ["W", "N_W"], "leave_dock": True}
 
 
 def test_a_robot_may_leave_its_dock_by_nav_goal_one_way():
-    """도크에서 마당으로 Nav2 goal로 풀려 나간다. 들어오는 쪽은 그대로 고정
-    경로다: 도크 자리는 정확히 서야 한다."""
+    """도크에서 마당으로는 Nav2 goal로 풀려 나가고, 들어오는 쪽은 도크 자리라 고정 경로다."""
     site = build(nav=[*SMALL["nav"], LEAVE_W])
     out = site.edge("W", "N_W")
     assert (out.mode, out.path, out.zones) == ("nav_goal", "", ("DOCK_W", "HALL"))
@@ -284,8 +276,7 @@ def test_a_nav_group_may_add_length_to_the_price_of_its_edges():
 
     def no_express(edge):
         return math.inf if edge.lane else edge.price_m
-    # 급행 없이: 도크에서 바로 마당으로(0.36 + 1.2 + 0.5)가 X_W로 물러났다 내려가는 길
-    # (0.2 + 0.3 + 1.2 + 0.5)보다 짧지만, 0.3을 더하면 뒤집힌다
+    # 급행 없이 도크에서 바로 마당으로 가는 길이 더 짧지만 extra_m 0.3을 더하면 뒤집힌다
     assert shortest_path(site, "W", "O", no_express)[0].b == "X_W"
     plain = build(nav=[*SMALL["nav"], LEAVE_W])
     assert shortest_path(plain, "W", "O", no_express)[0].b == "N_W"
@@ -473,8 +464,7 @@ def test_a_node_must_stand_in_a_zone_of_the_right_kind():
 
 
 def test_only_a_fork_can_be_a_through_node():
-    """through: 이어진 Nav2 goal을 그 지점을 거쳐 한 goal로 합친다(2026-11-14). 설 수 있는 지점을
-    거쳐 합치면 Nav2가 관제가 고른 길을 벗어날 수 있어 갈림만 받는다."""
+    """through: 이어진 Nav2 goal을 그 지점을 거쳐 한 goal로 합치므로 갈림만 받는다."""
     assert not build().nodes["N_W"].through
     assert build(nodes=edited("nodes", "N_W", through=True)).nodes["N_W"].through
     refused("only a fork", nodes=edited("nodes", "W_Q", through=True))
@@ -495,8 +485,7 @@ def lane_spot(kind="wait", queue=True, onward=("O",), at=(1.3, 0.9)):
 
 
 def test_a_queue_spot_may_wait_in_a_lane_if_it_leads_only_to_its_dock():
-    """v7 급행 서쪽 끝 대기: 대기 노드는 넓은 곳에만 서지만, 한 줄 구역 안의
-    대기 노드라도 스테이션의 대기 자리이고 그 도크로만 이어지면 받는다."""
+    """v7 급행 서쪽 끝 대기: 스테이션의 대기 자리이고 그 도크로만 이어지면 한 줄 구역 안의 대기 노드도 받는다."""
     site = build(**lane_spot())
     spot = site.nodes["O_X"]
     assert (spot.kind, spot.zone) == ("wait", "EXPRESS") and site.can_wait("O_X")
@@ -575,7 +564,7 @@ def test_parking_lists_every_parking_node():
 def test_shipped_maps_load(layout):
     site = load_fleet_map(layout)
     assert site.name == f"arena_{layout}"
-    # v7 북쪽 벽은 2026-11-17 SLAM 실측 0.98, 나머지 배치는 그림 0.99
+    # v7 북쪽 벽은 SLAM 실측 0.98, 나머지 배치는 그림 0.99
     assert site.bounds() == (0.0, 0.0, 1.98, 0.98 if layout == "v7" else 0.99)
     assert len(site.parking) == 3
     assert site.source_text
@@ -588,8 +577,7 @@ def test_d2_matches_the_instruction():
     assert site.node_pose("W") == (0.18, 0.89) and site.node_pose("O") == (1.80, 0.89)
     assert site.zones["HALL"].capacity == 3
     assert [edge.b for edge in shortest_path(site, "W", "O")] == ["N_W", "X_W", "X_E", "O"]
-    # 곧은 선은 진열대 끝에서 0.15 m다. 급행과 갈림목 사이의 호(반지름 0.10)는 0.115 m까지 다가간다.
-    # 갈림목 선을 더 옮기면 도크 W, O와 너무 가까워지므로 남겨 둔 경고다(팀이 정한 거리)
+    # 곧은 선은 진열대 끝에서 0.15 m, 급행과 갈림목 사이 호는 0.115 m까지 다가간다
     assert len(site.warnings) == 4
     assert all("corner" in w and "0.115 m" in w for w in site.warnings), site.warnings
     assert not any("ends at" in w for w in site.warnings), "D2 backs into the hall"

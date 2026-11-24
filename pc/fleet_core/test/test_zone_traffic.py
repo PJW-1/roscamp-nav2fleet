@@ -36,8 +36,7 @@ def test_an_open_call_brings_the_nearest_robot_to_the_work_dock():
     assert [c for c in codes if c in told] == ["ZONE_GRANTED", *sent, "DOCKED"]
     world.run(3.0)
     view = world.view("pode2")
-    # X_W는 W에서 0.17 m라 node_clear_m(0.20) 안이다: 도크에 선 로봇이 X_W를 쥔 채 일한다(2-1에서
-    # 갈림목 선을 x 0.35로 옮긴 결과). X_W를 지나는 길은 W로 가는 길과 우회뿐이다
+    # X_W는 W에서 0.17 m라 node_clear_m(0.20) 안이라 도크에 선 로봇이 X_W를 쥔 채 일한다. X_W를 지나는 길은 W로 가는 길과 우회뿐이다
     assert (view["state"], view["held"], view["nodes"]) == (
         "AT_STATION", ["WORK_DOCK"], ["X_W", "W"])
     assert not world.problems

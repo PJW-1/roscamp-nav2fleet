@@ -1,16 +1,7 @@
 """매장 상황(머리 없는 부분): 사람과 상자로 막힘 처리 보완을 본다.
 
-| 이름 | 상황 | 만드는 법 |
-|---|---|---|
-| person_in_express | 급행 안 사람 | 급행 가운데 물체 8 s(로봇이 들어오는 때) |
-| person_at_dock | 도크 앞 사람 | 작업 도크에 가장 가까운 지나가는 점(d2 X_W, v7 W_X) 물체 8 s |
-| corridor_box | 통로 안 상자 (D) | 지점 없는 통로 가운데 상자 120 s. 통로가 있는 배치만(d, c, v7) |
-| box_removed | 상자 치움 뒤 표시 지우기 | 급행 가운데 상자 20~140 s, 주문을 나눠 넣는다 |
-| box_stays | 상자 그대로 | 급행 가운데 상자 20~620 s, 주문을 나눠 넣는다 |
-
-급행 안 상자(오래, 120 s)와 마당 가운데 상자(120 s)는 열 가지 상황의 express_obstacle과
-hall_obstacle을 막힘 처리 보완 규칙으로 다시 돌린다. 라이다보다 낮은 상자는 Gazebo에서만
-본다(여기 없음).
+person_in_express, person_at_dock, corridor_box, box_removed, box_stays 다섯 가지다.
+급행 안 상자와 마당 가운데 상자는 열 가지 상황의 express_obstacle, hall_obstacle을 보완 규칙으로 다시 돌린다.
 """
 from __future__ import annotations
 
@@ -89,9 +80,8 @@ def build_store(name, layout, site, lane, situation):
                          injections=[Obstacle(*lane, BOX_R, 20.0, 140.0)], timeout_s=1500.0,
                          at_least_s=300.0)
     if name == "box_stays":
-        # 막혀 표시한 로봇은 급행 안에서 도크의 로봇이 나가기를 기다린다(RETREAT_WAIT, 정한 동작).
-        # 그 기다림은 불변식 5번(급행 안에 5 s 넘게 섬)에 걸리므로 이 상황에서, 상자가 있는 동안과
-        # 치운 뒤 QUIET_AFTER_S까지만 허용한다. 코드로만 가려서 그동안의 다른 서 있기도 지나간다
+        # 막혀 표시한 로봇은 급행 안에서 도크의 로봇이 나가기를 기다린다(RETREAT_WAIT). 이 기다림은
+        # 불변식 5번에 걸리므로 상자가 있는 동안과 치운 뒤 QUIET_AFTER_S까지만 허용한다
         waits = ("I5_STANDING",)
         s = situation(name, "상자 그대로",
                       orders=six_orders(gap_s=40.0, count=15),

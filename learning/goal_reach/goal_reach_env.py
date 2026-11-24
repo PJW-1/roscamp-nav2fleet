@@ -1,9 +1,7 @@
-"""Isaac Lab (Newton / MuJoCo-Warp) direct RL env: Pinky drives to a random goal on an empty floor.
+"""Isaac Lab(Newton / MuJoCo-Warp) direct RL env: Pinky 가 빈 바닥에서 무작위 목표로 간다.
 
-The task itself (observation, action -> (v, w), reward, success, collision) lives in
-``task_spec.py`` and has no simulator code. This file only reads sim state, feeds it to those
-functions and writes wheel velocity targets. Next week's store arena adds walls and shelves to
-``GoalReachSceneCfg`` and changes the start/goal sampling; the rest should stay.
+과제(관측, 행동, 보상, 성공, 충돌)는 task_spec.py 에 있고, 여기서는 시뮬 상태를 읽어 넘기고
+바퀴 속도 목표를 쓴다.
 """
 
 from __future__ import annotations
@@ -33,12 +31,12 @@ import task_spec as ts  # noqa: E402
 from pinky_cfg import BODY, make_newton_cfg, make_pinky_cfg  # noqa: E402
 
 PHYSICS_DT = 1.0 / 200.0
-DECIMATION = round(ts.SPEC.control_dt / PHYSICS_DT)  # 10 -> 20 Hz control
+DECIMATION = round(ts.SPEC.control_dt / PHYSICS_DT)  # 10 -> 20 Hz 제어
 
 
 def lidar_min_range_pattern(cfg, device):
-    """Rays start ``min_range`` out so the robot's own rplidar collider is not hit
-    (see learning/sim_check/README.md). Returned distance + min_range = range from the centre."""
+    """레이는 min_range 에서 시작해 로봇 자신의 rplidar 콜라이더를 안 맞힌다 (sim_check/README.md).
+    반환 거리 + min_range = 중심에서의 거리."""
     starts, dirs = patterns.lidar_pattern(cfg, device)
     return starts + cfg.min_range * dirs, dirs
 
@@ -50,7 +48,7 @@ class MinRangeLidarPatternCfg(LidarPatternCfg):
 
 
 def make_lidar_cfg(max_range: float) -> NewtonRaycastSensorCfg:
-    """Lidar at rplidar_link, base_link (-0.017, 0, 0.097); ray i at (-180 + i) deg, base frame."""
+    """rplidar_link 의 라이다, base_link (-0.017, 0, 0.097); 레이 i 는 base 프레임 (-180 + i) deg."""
     return NewtonRaycastSensorCfg(
         prim_path="{ENV_REGEX_NS}/Robot/" + BODY,
         offset=NewtonRaycastSensorCfg.OffsetCfg(pos=(-0.017, 0.0, 0.097)),
@@ -70,8 +68,7 @@ def make_lidar_cfg(max_range: float) -> NewtonRaycastSensorCfg:
 class GoalReachSceneCfg(InteractiveSceneCfg):
     ground = AssetBaseCfg(prim_path="/World/defaultGroundPlane", spawn=sim_utils.GroundPlaneCfg())
     robot = make_pinky_cfg()
-    # Rays only hit shapes of their own env (Newton world) and the global ground: checked with
-    # overlapping arenas in learning/store_arena/arena_check.py --mode crossenv.
+    # 레이는 자기 env(Newton world) 와 공용 바닥만 맞힘: arena_check.py --mode crossenv 로 확인
     lidar = make_lidar_cfg(ts.SPEC.lidar_obs_max)
     contact_base = ContactSensorCfg(prim_path="{ENV_REGEX_NS}/Robot/" + BODY)
     contact_parts = ContactSensorCfg(
@@ -92,15 +89,14 @@ class GoalReachEnvCfg(DirectRLEnvCfg):
     sim: SimulationCfg = SimulationCfg(
         dt=PHYSICS_DT, render_interval=DECIMATION, physics=make_newton_cfg()
     )
-    # 8 m cells keep the robots (out_of_bounds 3 m) visibly apart; lidar and contacts do not need
-    # it (envs are separate Newton worlds, see the scene comment above).
+    # 8 m 칸이면 로봇이 눈에 띄게 떨어짐 (env 는 별개 Newton world 라 라이다/접촉에는 불필요)
     scene: GoalReachSceneCfg = GoalReachSceneCfg(
         num_envs=4096, env_spacing=8.0, replicate_physics=True
     )
-    # if set, the env appends one row of episode outcomes per metrics_every steps
+    # 지정하면 metrics_every 스텝마다 에피소드 결과 한 행을 추가
     metrics_csv: str = ""
     metrics_every: int = 24
-    # TaskSpec fields to override; only task_spec.OVERRIDABLE (reward weights, success_radius, ...)
+    # 덮어쓸 TaskSpec 필드: task_spec.OVERRIDABLE 만
     spec_overrides: dict = {}
 
 
@@ -109,7 +105,7 @@ class GoalReachEnv(DirectRLEnv):
 
     def __init__(self, cfg: GoalReachEnvCfg, render_mode: str | None = None, **kwargs):
         self.spec = ts.make_spec(cfg.spec_overrides)
-        cfg.observation_space = ts.obs_dim(self.spec)  # wider with intent_robots
+        cfg.observation_space = ts.obs_dim(self.spec)  # intent_robots 면 넓어짐
         super().__init__(cfg, render_mode, **kwargs)
         self.robot = self.scene["robot"]
         self.lidar = self.scene["lidar"]
@@ -117,7 +113,7 @@ class GoalReachEnv(DirectRLEnv):
             ["l_wheel_joint", "r_wheel_joint"], preserve_order=True
         )
         n, dev = self.num_envs, self.device
-        self.cmd = torch.zeros(n, 2, device=dev)  # rate-limited (v, w) command
+        self.cmd = torch.zeros(n, 2, device=dev)  # 변화율 제한된 (v, w) 명령
         self.start_xy = torch.zeros(n, 2, device=dev)
         self.goal_xy = torch.zeros(n, 2, device=dev)
         self.d_prev = torch.zeros(n, device=dev)
@@ -126,10 +122,10 @@ class GoalReachEnv(DirectRLEnv):
         self.success = torch.zeros(n, dtype=torch.bool, device=dev)
         self.collided = torch.zeros(n, dtype=torch.bool, device=dev)
         self.oob = torch.zeros(n, dtype=torch.bool, device=dev)
-        self.last_ep_len_s = torch.zeros(n, device=dev)  # length and final distance of the last
-        self.last_ep_dist = torch.zeros(n, device=dev)  # finished episode, per env (for play.py)
+        self.last_ep_len_s = torch.zeros(n, device=dev)  # env 별 마지막으로 끝난 에피소드의 길이와
+        self.last_ep_dist = torch.zeros(n, device=dev)  # 최종 거리 (play.py 용)
         self.ep_reward_terms: dict[str, torch.Tensor] = {}
-        # outcome counts since the last metrics row: done, success, collision, oob, timeout
+        # 지난 metrics 행 이후 결과 수: done, success, collision, oob, timeout
         self._win = torch.zeros(5, device=dev)
         self._win_succ_time = torch.zeros((), device=dev)
         self._win_final_dist = torch.zeros((), device=dev)
@@ -142,7 +138,7 @@ class GoalReachEnv(DirectRLEnv):
         )
         print(f"[GOAL] spec {self.spec}")
 
-    # ---------------------------------------------------------------- sim state -> task inputs
+    # ---- 시뮬 상태 -> 과제 입력 ----
     def robot_pose(self) -> tuple[torch.Tensor, torch.Tensor]:
         pos = self.robot.data.root_link_pos_w.torch[:, :2] - self.scene.env_origins[:, :2]
         q = self.robot.data.root_link_quat_w.torch  # x, y, z, w
@@ -167,7 +163,7 @@ class GoalReachEnv(DirectRLEnv):
             dim=-1,
         )
 
-    # ---------------------------------------------------------------- DirectRLEnv hooks
+    # ---- DirectRLEnv 훅 ----
     def _pre_physics_step(self, actions: torch.Tensor) -> None:
         target = ts.action_to_target(actions)
         self.cmd = ts.rate_limit(self.cmd, target, self.step_dt)
@@ -246,7 +242,7 @@ class GoalReachEnv(DirectRLEnv):
         self._win_final_dist.zero_()
 
     def sample_start(self, n: int) -> tuple[torch.Tensor, torch.Tensor]:
-        """Start (x, y) in the env frame and yaw for n resetting envs: cell centre, random yaw."""
+        """리셋하는 n 개 env 의 시작 (x, y) (env 프레임)와 yaw: 칸 중심, 임의 yaw."""
         yaw = (2 * torch.rand(n, device=self.device) - 1) * torch.pi
         return torch.zeros(n, 2, device=self.device), yaw
 
@@ -255,7 +251,7 @@ class GoalReachEnv(DirectRLEnv):
             env_ids = self.robot._ALL_INDICES
         self.last_ep_len_s[env_ids] = self.episode_length_buf[env_ids].float() * self.step_dt
         self.last_ep_dist[env_ids] = self.d_now[env_ids]
-        # mean episode sums of the reward terms, for tensorboard
+        # 보상 항별 에피소드 합 평균 (텐서보드용)
         log = self.extras.setdefault("log", {})
         for k, v in self.ep_reward_terms.items():
             log[f"Episode_Reward/{k}"] = v[env_ids].mean()

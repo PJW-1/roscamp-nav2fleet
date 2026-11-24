@@ -16,8 +16,7 @@ OnResult = Callable[[int, str, int, float], None]
 
 # ---- BackUp 액션 클라이언트 생성, goal 전송 ----
 class BackUpRunner(GoalRunner):
-    """취소 수락 콜백이 없다. FSM은 결과나 자기 시간 초과로만 후진이 끝났다고 본다.
-    핸들은 결과가 오거나 goal이 이미 끝났다는 취소 응답(GONE)이 올 때만 지운다."""
+    """BackUp 액션 실행기. 결과나 FSM 시간 초과로만 후진이 끝난 것으로 본다."""
 
     _label = "backup"
 

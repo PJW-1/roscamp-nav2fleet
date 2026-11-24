@@ -1,8 +1,6 @@
 """SimClock: /clock을 실제 시간의 speed_factor배로 발행한다. 자신은 시뮬 시간을 쓰면 안 된다.
 
-시계는 실제 시간으로 start_delay_s 동안 0에 머문다. speed_factor 5에서 노드 시작에 2초가
-걸리면 시나리오 10초를 놓친다. 플릿 매니저가 로봇을 무응답으로 보고하고 심판이
-첫 이동을 놓친다.
+시계는 start_delay_s 동안 0에 머물러, 노드 시작이 늦어도 시나리오 초반을 놓치지 않는다.
 """
 from __future__ import annotations
 

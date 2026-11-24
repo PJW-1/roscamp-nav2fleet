@@ -106,7 +106,7 @@ def test_two_robots_swapping_places_pass_each_other_without_touching():
 
 
 def test_blocked_clears_only_after_unblock_m_from_where_it_started():
-    """Pode와 같이(unblock_m, 2026-11-17) 몇 cm 꿈틀대서는 BLOCKED가 풀리지 않는다."""
+    """Pode와 같이 몇 cm 꿈틀대서는 BLOCKED가 풀리지 않는다."""
     from types import SimpleNamespace
 
     from fake_robots.world.nav_goal import NavGoalRun

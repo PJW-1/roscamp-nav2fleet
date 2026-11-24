@@ -78,7 +78,7 @@ def test_a_robot_standing_on_the_goal_blocks_after_ten_seconds():
 
 
 def test_blocked_clears_only_after_unblock_m_from_where_it_started():
-    """Pode와 같이(unblock_m, 2026-11-17) 몇 cm 꿈틀대서는 BLOCKED가 풀리지 않는다."""
+    """Pode와 같이 몇 cm 꿈틀대서는 BLOCKED가 풀리지 않는다."""
     here, there = SITE.node_pose("P-1"), SITE.node_pose("P-3")
     m = Motion(*here)
     nav = NavGoalDrive(SPACE, RADIUS, there, 0.0, here)

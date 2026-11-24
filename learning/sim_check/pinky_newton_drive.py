@@ -1,10 +1,7 @@
-"""Drive Pinky (Pode) on Newton/MuJoCo-Warp headless with wheel velocity commands; log the motion.
+"""Pinky(Pode)를 Newton/MuJoCo-Warp headless 에서 바퀴 속도 명령으로 몰고 움직임을 기록한다.
 
-Sequence (sim time): settle 1 s, straight 0.10 and 0.20 m/s (3 s each), stop 1 s,
-spin 1.0 rad/s 3 s, arc (0.12 m/s, +0.6 rad/s) and (0.12 m/s, -0.6 rad/s) 3 s each, stop 2 s.
-Physics 200 Hz, control 20 Hz. Writes a CSV (all envs, 50 Hz) and a JSON run summary.
-
-Run from D:\\isaac\\IsaacLab with the venv python (see README.md in this folder).
+순서: 안정 1 s, 직진 0.10/0.20 m/s, 정지, 제자리 회전 1.0 rad/s, 호 주행 두 가지, 정지. 물리 200 Hz, 제어 20 Hz.
+CSV(모든 env, 50 Hz)와 JSON 요약을 쓴다 (실행법은 README.md).
 """
 
 import argparse
@@ -36,7 +33,7 @@ args_cli = parser.parse_args()
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-PHASES = [  # (name, duration s, v m/s, w rad/s)
+PHASES = [  # (이름, 길이 s, v m/s, w rad/s)
     ("settle", 1.0, 0.0, 0.0),
     ("straight_0.10", 3.0, 0.10, 0.0),
     ("straight_0.20", 3.0, 0.20, 0.0),
@@ -185,12 +182,12 @@ def main():
                     )
         torch.cuda.synchronize()
         wall = time.time() - t_start
-        # end-of-run health over all envs (also covers --log_every 0 benchmark runs)
+        # 전체 env 의 종료 상태 점검 (--log_every 0 벤치마크에도 해당)
         end_pos = robot.data.root_link_pos_w.torch - origins
         end_ok = (
             torch.isfinite(end_pos).all(dim=-1) & (end_pos[:, 2] > 0.02) & (end_pos[:, 2] < 0.04)
         )
-        end_up = robot.data.projected_gravity_b.torch[:, 2]  # -1 when upright
+        end_up = robot.data.projected_gravity_b.torch[:, 2]  # 똑바로 서면 -1
 
         os.makedirs(args_cli.out, exist_ok=True)
         cols = [

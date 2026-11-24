@@ -1,21 +1,7 @@
-"""시험용 가짜 Nav2 controller와 클라이언트. rclpy가 있을 때만 import한다.
+"""시험용 가짜 Nav2 controller와 클라이언트(rclpy가 있을 때만 import).
 
-FakeNav는 follow_path(FollowPath)를 받아 경로를 따라 TF(map → odom → base_footprint)와
-odom을 낸다. Nav2 controller처럼 새 목표가 오면 옛 목표를 ABORTED로 끝내고 서지 않고
-새 경로로 넘어간다(nav2_util simple_action_server의 accept_pending_goal). 앞에 물체가 있으면
-서고, 1초 뒤 FollowPath를 실패로 끝낸다(RPP 충돌 검사 + failure_tolerance 1.0).
-
-controller_id가 FollowPathReverse면 RPP allow_reversing처럼 돌지 않고 뒤로 따르고, 뒤의 물체에
-선다(Retreat.path).
-
-behavior_server의 backup(BackUp)도 흉내 낸다: 바라보는 방향의 반대로 곧게 물러나고, 뒤에
-벽(wall_behind_m)이 있으면 거기서 서고 COLLISION_AHEAD로 끝낸다. local costmap 비우기
-(ClearEntireCostmap)는 부른 시각만 적는다.
-
-bt_navigator의 navigate_to_pose(NavigateToPose, MoveTo mode nav_goal)도 흉내 낸다: 목표 자세까지
-곧게 가며 feedback에 남은 거리를 내고, 앞에 물체가 있으면 서서 기다린다(Nav2 BT가 복구하며 계속
-해 보는 것처럼 실패로 끝내지 않는다). 새 goal은 FollowPath와 같이 옛 goal을 ABORTED로 끝낸다.
-"""
+follow_path, backup, navigate_to_pose를 흉내 내 경로를 따라 TF와 odom을 낸다. 새 목표는 옛 목표를 ABORTED로 끝내고,
+앞에 물체가 있으면 서며 FollowPath는 1초 뒤 실패로 끝낸다(NavigateToPose는 서서 기다린다). FollowPathReverse는 뒤로 따른다."""
 from __future__ import annotations
 
 import math
@@ -51,11 +37,11 @@ class FakeNav(Node):
         self.index = 0
         self.v = 0.0
         self.goals = []  # (시각, 점 수)
-        self.controller_ids = []  # FollowPath controller_id of each accepted goal
-        self.goal_checker_ids = []  # FollowPath goal_checker_id of each accepted goal
+        self.controller_ids = []  # 받은 goal마다 FollowPath controller_id
+        self.goal_checker_ids = []  # 받은 goal마다 FollowPath goal_checker_id
         self.reversing = False  # 지금 목표가 후진 controller다
         self.navigating = False  # 지금 목표가 NavigateToPose다(막혀도 실패로 끝내지 않는다)
-        self.nav_goals = []  # (시각, (x, y, yaw)) of each accepted NavigateToPose
+        self.nav_goals = []  # 받은 NavigateToPose마다 (시각, (x, y, yaw))
         self.nav_goal_cancels = []  # 시각
         self.cancels = []  # 시각
         self.speed_log = []  # (시각, 선속도)

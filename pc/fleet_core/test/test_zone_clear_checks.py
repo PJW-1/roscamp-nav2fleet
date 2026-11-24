@@ -127,8 +127,7 @@ def test_no_answer_breaks_the_run_and_the_next_question_goes_to_another_robot():
 
 
 def test_a_robot_that_could_not_be_asked_is_asked_again_when_its_turn_comes():
-    """서비스가 없거나 부르기가 실패하면 fleet_manager가 NO_ANSWER를 준다. 답이 아니다.
-    서비스가 살아나면 차례가 돌아올 때 다시 묻는다."""
+    """서비스가 없거나 부르기가 실패해 NO_ANSWER가 오면 답이 아니고, 서비스가 살아나면 차례가 돌아올 때 다시 묻는다."""
     world, t, mark = world_with_a_mark()
     put(world, "pode2", (1.3, 0.65))  # 가장 가깝지만 서버가 없다
     put(world, "pode3", (1.5, 0.65))

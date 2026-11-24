@@ -1,11 +1,8 @@
-"""Plots for the goal-reach runs (plain Python + matplotlib, no Isaac).
+"""goal-reach 실행 그래프 (순수 Python + matplotlib, Isaac 불필요).
 
-python plot_results.py curve <out.png> <label>=<run_dir>/metrics.csv [...]
-    success rate vs training minutes (left) and vs env steps (right), one line per run
-python plot_results.py traj <out.png> <play_dir>/rollouts.npz
-    top-down paths of the tracked envs (one colour per env, goals as circles)
-python plot_results.py anim <out.mp4|.gif> <play_dir>/rollouts.npz [env]
-    top-down animation of one env (fallback when no rendered video exists)
+  curve <out.png> <label>=<run_dir>/metrics.csv [...]  학습 시간/스텝별 성공률
+  traj <out.png> <play_dir>/rollouts.npz               추적 env 의 상단 경로
+  anim <out.mp4|.gif> <play_dir>/rollouts.npz [env]    env 하나의 상단 애니메이션
 """
 
 import csv
@@ -45,7 +42,7 @@ def curve(out, specs):
         c = SERIES[i % len(SERIES)]
         axes[0].plot(m["wall_s"] / 60.0, 100 * m["success_rate"], color=c, lw=2, label=label)
         axes[1].plot(m["env_steps"] / 1e6, 100 * m["success_rate"], color=c, lw=2, label=label)
-    # the rise happens in the first minute; show the first 2 min / 10 M steps (CSV has the rest)
+    # 상승은 첫 1분 안에 일어남: 처음 2분 / 10 M 스텝만 표시 (나머지는 CSV)
     axes[0].set_xlim(0, min(axes[0].get_xlim()[1], 2.0))
     axes[1].set_xlim(0, min(axes[1].get_xlim()[1], 10.0))
     axes[0].set_xlabel("training wall time [min] (env build excluded; first 2 min)", color=INK)
@@ -71,7 +68,7 @@ def traj(out, npz):
         c = SERIES[k % len(SERIES)]
         cuts = np.flatnonzero(done[:, k]) + 1
         start = 0
-        for end in cuts:  # finished episodes only; the one still running at the end is left out
+        for end in cuts:  # 끝난 에피소드만, 끝에 진행 중인 것은 뺌
             seg = xy[start:end, k]
             if len(seg) > 1:
                 ax.plot(seg[:, 0], seg[:, 1], color=c, lw=1.2, alpha=0.9)
@@ -118,7 +115,7 @@ def anim(out, npz, k=0):
         p = xy[s : t + 1]
         path.set_data(p[:, 0], p[:, 1])
         c, sn = np.cos(yaw[t]), np.sin(yaw[t])
-        L, W = 0.06, 0.055  # half length / width of the footprint drawing
+        L, W = 0.06, 0.055  # 발자국 그림의 반길이 / 반폭
         pts = np.array([[L, 0], [-L, W], [-L, -W], [L, 0]]) @ np.array([[c, sn], [-sn, c]]) + xy[t]
         body.set_data(pts[:, 0], pts[:, 1])
         gc.center = tuple(goal[t])

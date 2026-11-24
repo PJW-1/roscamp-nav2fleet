@@ -1,4 +1,4 @@
-"""Tests for the simulator-free task rules. Run: <venv python> -m pytest learning/goal_reach -q"""
+"""시뮬 없는 과제 규칙 테스트. 실행: <venv python> -m pytest learning/goal_reach -q"""
 
 import os
 import sys
@@ -11,7 +11,7 @@ import task_spec as ts  # noqa: E402
 
 
 def test_outcome_is_exclusive_and_failure_wins():
-    # env 0: reached; 1: reached while colliding; 2: reached while out of bounds; 3: collides only
+    # env 0: 도달; 1: 충돌하며 도달; 2: 이탈하며 도달; 3: 충돌만
     dist = torch.tensor([0.01, 0.01, 0.01, 1.0])
     force = torch.tensor([0.0, 5.0, 0.0, 5.0])
     xy = torch.tensor([[1.0, 0.0], [1.0, 0.0], [3.5, 0.0], [0.5, 0.0]])
@@ -54,7 +54,7 @@ def test_rate_limit_and_wheels():
 
 def test_lidar_sectors_index_and_inf():
     r = torch.full((1, 360), float("inf"))
-    r[0, 185] = 0.3  # ray 185 = +5 deg, sector 18 covers rays 180..189
+    r[0, 185] = 0.3  # 레이 185 = +5 deg, 섹터 18 은 레이 180..189
     s = ts.lidar_sectors(r)
     assert s[0, 18].item() == pytest.approx(0.3)
     assert (s[0, :18] == ts.SPEC.lidar_obs_max).all()
@@ -72,7 +72,7 @@ def test_a_tuple_field_with_the_wrong_count_is_refused():
 
 
 def test_an_outcome_on_the_last_step_is_not_also_a_timeout():
-    # env 0: success on the last step; 1: still driving at the last step; 2: success earlier
+    # env 0: 마지막 스텝 성공; 1: 마지막 스텝에도 주행 중; 2: 일찍 성공
     done = torch.tensor([True, False, True])
     length = torch.tensor([400, 400, 120])
     terminated, time_out = ts.split_dones(done, length, 400)
@@ -95,8 +95,8 @@ def test_intent_observation_layout_mask_and_clip():
     assert spec.intent_robots == 2 and isinstance(spec.intent_robots, int)
     assert ts.obs_dim(spec) == 41 + 2 * 7 == len(ts.obs_names(spec))
     intent = torch.zeros(2, 2, 3, 2)
-    intent[:, 0] = torch.tensor([[1.0, 0.0], [3.0, 0.5], [-5.0, -1.0]])  # m, robot frame
-    intent[:, 1] = 9.0  # absent robot: must come out as zeros
+    intent[:, 0] = torch.tensor([[1.0, 0.0], [3.0, 0.5], [-5.0, -1.0]])  # m, 로봇 프레임
+    intent[:, 1] = 9.0  # 없는 로봇: 0 으로 나와야 함
     mask = torch.tensor([[True, False], [True, False]])
     obs = ts.build_observation(*_obs_inputs(), spec, intent=intent, intent_mask=mask)
     names = ts.obs_names(spec)
@@ -108,7 +108,7 @@ def test_intent_observation_layout_mask_and_clip():
 
 
 def test_intent_layout_without_intent_input_is_all_absent():
-    # an env with no fleet robots (goal-reach) still builds the wider layout: robots absent
+    # 플릿 로봇이 없는 env (goal-reach) 도 넓은 배치를 만듦: 로봇은 없음
     spec = ts.make_spec({"intent_robots": 2})
     obs = ts.build_observation(*_obs_inputs(), spec)
     assert obs.shape == (2, 55)
@@ -130,7 +130,7 @@ def test_the_top_speed_is_the_one_source(tmp_path):
 
 
 def test_times_stretch_so_the_robot_covers_the_tuned_distance():
-    """Rule: a time tuned at TIMES_TUNED_AT_MPS (0.25 m/s) is multiplied by 0.25 / v."""
+    """규칙: TIMES_TUNED_AT_MPS (0.25 m/s) 에 맞춘 시간은 0.25 / v 배."""
     assert ts.TIMES_TUNED_AT_MPS == 0.25
     assert ts.travel_time(20.0, 0.25) == pytest.approx(20.0)
     assert ts.travel_time(20.0, 0.12) == pytest.approx(20.0 * 0.25 / 0.12)
@@ -149,6 +149,6 @@ def test_priority_flag_follows_the_present_flag_when_on():
     obs = ts.build_observation(*_obs_inputs(), spec, intent=intent, intent_mask=mask,
                                intent_priority=prio)
     row1 = dict(zip(names, obs[1].tolist(), strict=True))
-    assert row1["robot0_priority"] == 1.0 and row1["robot1_priority"] == 0.0  # absent: 0
+    assert row1["robot0_priority"] == 1.0 and row1["robot1_priority"] == 0.0  # 없는 로봇: 0
     off = ts.make_spec(ts.parse_overrides(["intent_robots=2"]))
-    assert "robot0_priority" not in ts.obs_names(off)  # default off: 55 dims as before
+    assert "robot0_priority" not in ts.obs_names(off)  # 기본 꺼짐: 이전과 같은 55차원

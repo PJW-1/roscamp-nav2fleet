@@ -20,14 +20,12 @@ NAV2_LAUNCH = ROOT / "pode" / "pode_nav_config" / "launch" / "nav2.launch.py"
 FSM_LAUNCH = ROOT / "pode" / "pode_fsm" / "launch" / "pode_fsm.launch.py"
 FORWARD = ("FollowPath", "FollowPathThrough")
 FIXED_LINE = ("FollowPath", "FollowPathThrough", "FollowPathReverse")
-# 전역 costmap 지도는 2.5 cm(arena_v7_a, 팀 결정 2026-11-17), 위치 추정 1 cm, keepout
+# 전역 costmap 지도 2.5 cm(arena_v7_a), 위치 추정 1 cm, keepout
 MAPS = ("arena_v7_a", "arena_v7_fine", "arena_v7_keepout")
-# 위치 추정은 실물 SLAM 지도(2026-11-17 확정), costmap·keepout 은 v7 도면 지도
+# 위치 추정은 실물 SLAM 지도, costmap·keepout은 v7 도면 지도
 REAL_MAP = "arena_real_slam"
 LAUNCH_MAPS = ("arena_v7_a", REAL_MAP, "arena_v7_keepout")
-# 실물 키트 지도 그림(실측 진열대)의 SHA-256. 생성기와 저장 파일을 함께 바꿔도 여기서 걸린다.
-# 실물 지도를 일부러 바꿀 때만 같이 고친다(2026-11-24: 11-23 줄자 진열대 끝으로 다시 그림,
-# arena_v7_a1은 1 cm costmap 후보로 arena_v7_fine과 같은 그림)
+# 실물 키트 지도 그림의 SHA-256. 지도를 일부러 바꿀 때만 같이 고친다
 KIT_MAP_SHA256 = {
     "arena_v7.pgm": "277811dc44950512cf7954f412ddf43d9c7b3979e3066319c9d57a29a4ca045a",
     "arena_v7_a.pgm": "f3fbef23f3308d84799277e10e403905f448321b0111364e3653ea13270a69b8",
@@ -397,7 +395,7 @@ def test_real_slam_map_file():
 
     def cell(x, y):  # 경기장 좌표 -> 픽셀 값
         return px[int((x + 0.1) / 0.005), 239 - int((y + 0.1) / 0.005)]
-    # 네 벽은 직선: 안쪽 면 x 0.01 / 1.965, y 0.01 / 0.965 (11-18, 1 cm 안쪽)
+    # 네 벽은 직선: 안쪽 면 x 0.01 / 1.965, y 0.01 / 0.965
     for i in range(79):
         x = 0.0125 + i * 0.025
         assert cell(x, 0.0075) == 0 and cell(x, 0.9675) == 0
@@ -411,8 +409,7 @@ def test_real_slam_map_file():
     assert cell(0.83, 0.37) == 0  # 진열대 B 남쪽 면 (속은 미지)
 
 
-# 2026-11-23 줄자 실측으로 관제 진열대 끝을 옮겼다. 키트 지도는 2026-11-24에 같은 진열대로 다시 그려
-# 목록이 비었다. 다시 옛 그림을 묶어 둘 일이 생기면 그림 이름을 넣는다
+# 옛 진열대 끝으로 그린 채 둘 키트 그림. 키트 지도를 다시 만들면 비운다
 KIT_PENDING_TAPE_2026_11_23 = set()
 OLD_SHELF_ENDS = (("  - [0.70, 0.77, 1.56, 0.803]", "  - [0.63, 0.77, 1.56, 0.803]"),
                   ("  - [0.65, 0.365, 0.99, 0.405]", "  - [0.68, 0.365, 0.99, 0.405]"))
@@ -452,7 +449,7 @@ def test_kit_map_images_are_the_pinned_measured_maps():
 
 
 def test_kit_costmap_keeps_the_measured_shelf_face_while_the_sim_map_is_thinner():
-    # 2026-11-20: 시뮬 진열대 A만 1 cm 얇다. 1 cm 지도의 0.80~0.81 칸(x 1.0)
+    # 시뮬 진열대 A만 1 cm 얇다: 1 cm 지도의 0.80~0.81 칸(x 1.0)
     from PIL import Image
 
     def cell(path, x, y):

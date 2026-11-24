@@ -1,15 +1,6 @@
 """시뮬 장애물 노드: 일정대로 Gazebo 레인 위에 상자를 놓고 치운다.
-
-    ros2 run fleet_gz_sim sim_obstacles --ros-args -p use_sim_time:=true \\
-        -p obstacles_file:=<share>/obstacles/roam.yaml
-
-로봇이 clearance_m 안에 있으면 놓지 않고 기다린다(실제 위치 /<robot>/sim/truth로 본다).
-A pose older than TRUTH_MAX_AGE_S counts as unknown, so the box waits.
-gz service 호출은 작업 스레드 하나에서 차례로 돌린다. The worker checks the robots again right
-before each spawn and reports every outcome back to the planner, which retries failed removes
-and removes spawns that got no clear answer. 끝날 때 Gazebo에 있을 수 있는 상자를 모두 치운다.
-놓인 상자는 /sim/obstacle_markers(map 틀)로 RViz에 보인다. 바뀔 때와 1초마다 낸다.
-Gazebo 통신 설정(GZ_IP, GZ_PARTITION)은 launch에서 물려받는다.
+  ros2 run fleet_gz_sim sim_obstacles --ros-args -p use_sim_time:=true -p obstacles_file:=<share>/obstacles/roam.yaml
+로봇이 clearance_m 안에 있으면 기다리고, gz service는 작업 스레드 하나에서 차례로 부른다. 놓인 상자는 /sim/obstacle_markers로 낸다.
 """
 from __future__ import annotations
 
@@ -34,7 +25,7 @@ from fleet_gz_sim.arena import WORLD
 
 TICK_S = 0.2
 CALL_LIMIT_S = 5.0  # gz service 자체 한도(3 s)에 여유를 둔다
-TRUTH_MAX_AGE_S = 1.0  # wall seconds; truth arrives at about 30 Hz
+TRUTH_MAX_AGE_S = 1.0  # wall 초. 실제 위치는 약 30 Hz
 SHUTDOWN_TIMEOUT_MS = 1000  # 끝낼 때는 launch가 기다려 주는 동안 다 치우도록 짧게
 MARKER_PERIOD_S = 1.0
 MARKER_QOS = QoSProfile(depth=1, reliability=ReliabilityPolicy.RELIABLE,
@@ -52,20 +43,20 @@ class ObstacleNode(Node):
         self.clearance_m = obstacles.check_clearance(
             float(self.declare_parameter("clearance_m", 0.35).value))
         self.max_delay_s = float(self.declare_parameter("max_delay_s", 20.0).value)
-        if not math.isfinite(self.max_delay_s) or self.max_delay_s < 0:  # same rule as Planner
+        if not math.isfinite(self.max_delay_s) or self.max_delay_s < 0:  # Planner와 같은 규칙
             raise ValueError(f"max_delay_s must be a finite number >= 0, got {self.max_delay_s}")
         if not path:
             path = f"{get_package_share_directory('fleet_gz_sim')}/obstacles/d2_yard_express.yaml"
         self.schedule = obstacles.load_schedule(path, load_site(map_file or None))
         self.robots = list(robots)
-        self.truth: dict[str, tuple[tuple[float, float], float]] = {}  # (x, y), wall time
+        self.truth: dict[str, tuple[tuple[float, float], float]] = {}  # (x, y), wall 시각
         for robot in self.robots:
             self.create_subscription(Odometry, f"/{robot}/sim/truth",
                                      lambda msg, r=robot: self._on_truth(r, msg),
                                      qos_profile_sensor_data)
         self.planner: obstacles.Planner | None = None
         self.told_waiting: set[int] = set()
-        self.outcomes: queue.SimpleQueue = queue.SimpleQueue()  # from the worker to _tick
+        self.outcomes: queue.SimpleQueue = queue.SimpleQueue()  # 작업 스레드 -> _tick
         # Gazebo에 놓인 상자(이름 → 장애물). 작업 스레드에서만 바꾸고, 표시는 잠금으로 읽는다
         self.live: dict[str, obstacles.Occurrence] = {}
         self.live_lock = threading.Lock()
@@ -187,7 +178,7 @@ class ObstacleNode(Node):
     def remove_all(self):
         """작업 스레드를 멈춘 뒤 남은 상자를 치운다(될 수 있는 만큼)."""
         self.worker.shutdown(wait=True, cancel_futures=True)
-        # 작업 스레드가 멈췄으니 잠금 없이 읽는다. The planner also knows spawns without an answer
+        # 작업 스레드가 멈췄으니 잠금 없이 읽는다. 답 없는 놓기도 포함한다
         maybe = {occ.name for occ in self.planner.in_gazebo()} if self.planner else set()
         for name in sorted(maybe | set(self.live)):
             argv = obstacles.remove_argv(self.world, name, SHUTDOWN_TIMEOUT_MS)

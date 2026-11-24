@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# ZoneTraffic 정리 비교: 기준(~/zone_baseline/acfa45b)과 지금 작업 폴더의 출력을 비교한다.
+# ZoneTraffic 비교: 기준 폴더(~/zone_baseline/acfa45b)와 작업 폴더의 출력을 비교한다.
 #   [OUT=<결과 폴더>] bash tools/zone_compare.sh [작업 폴더] [기준 폴더]
 # 출력: 표마다 diff 줄 수, fleet_core / fake_robots / tools 시험 요약. 결과 파일은 $OUT에 남는다.
 set -u

@@ -1,19 +1,6 @@
 """경기장의 Nav2 지도(PGM, YAML)와 global costmap keepout 마스크. ROS를 쓰지 않는다.
-
-지도는 벽 안쪽에서 MAP_PAD_M씩 넓다(벽 0.05 m가 들어간다). 막힌 칸은 0(검정), 빈칸은 254다.
-상자가 칸에 조금이라도 걸치면 막힌 칸이라 1.5 cm 진열대도 5 cm 지도에서
-사라지지 않는다(TOUCH, 기본).
-
-가운데 통로 갈래(2026-11-17, Gazebo 비교용): 칸 중심이 상자 안일 때만 막는 규칙(CENTRE)과
-2.5 cm 지도. 갈래 a1(2026-11-24)은 a와 같은 TOUCH 규칙의 1 cm costmap 지도다.
-NAV_VARIANTS의 지도는 v7에만 만든다(arena.generate_nav_variants). 기본 지도와
-keepout 마스크, 1 cm 지도는 그대로 TOUCH다.
-
-keepout(pode_nav_config/params/keepout.yaml): shared가 아닌 구역(급행 lane, 갈림목과
-도크 dock)을 막아 Nav2 goal 경로(NavFn)가 그 구역으로 들어가지 않게 한다. keepout 필터는 inflation
-뒤에 얹혀 부풀지 않으므로 구역을 몸 반폭(KEEPOUT_PAD_M)만큼 넓혀 막는다: 경로가 구역 경계에 붙어
-지나가도 몸이 구역에 걸치지 않는다. shared 구역의 지점(대기 자리, 주차, 갈림 지점)은 늘 빈칸이다
-(test_arena가 본다).
+막힌 칸은 0(검정), 빈칸은 254. keepout은 shared가 아닌 구역을 몸 반폭만큼 넓혀 막는다.
+갈래 a1은 a와 같은 칠하기 규칙의 1 cm costmap 지도다.
 """
 from __future__ import annotations
 
@@ -56,10 +43,7 @@ def map_cells(resolution: float, site) -> tuple[int, int]:
 
 
 def centre_filled(rects, width: int, height: int, resolution: float, origin) -> list[list[bool]]:
-    """칸 중심이 사각형 안(경계 포함, 소수 오차로 HAIR 칸까지 허용)인 칸은 참. 한 축에서 중심을
-    하나도 덮지 않는 얇은 상자는 그 축에서 상자 가운데가 든 칸 하나를 칠한다(2 cm 칸막이가 지도에서
-    사라지지 않게). 상자마다 따로 칠하므로 격자에 어긋나게 맞닿은 상자 사이에는 대각 틈이 날 수
-    있다(v7은 벽 밖 빈칸이 안쪽에 닿지 않고 칸막이가 벽과 이어짐만 test_arena_v7가 본다)."""
+    """칸 중심이 사각형 안(경계 포함)이면 참. 얇은 상자는 축마다 가운데 칸 하나를 칠한다."""
     grid = [[False] * width for _ in range(height)]
 
     def cells(lo: float, hi: float, start: float, count: int) -> range:
@@ -110,8 +94,7 @@ REAL_EXAMPLE_OUT = "/tmp/real_v7"  # 실물 지도 머리 줄의 예시 --out(�
 
 
 def map_yaml(name: str, resolution: float, site, note: str = "", real: bool = False) -> str:
-    """map_server 형식. 마스크도 같은 형식이고 막힌 칸(100)이 keepout이다. note: 둘째 줄 설명.
-    real: 실물 키트 지도(머리 줄 명령에 --real)."""
+    """map_server 형식으로 쓴다. 마스크도 같은 형식이고 막힌 칸(100)이 keepout이다(real: 실물 키트 지도)."""
     ox, oy = map_origin(site)
     layout = site.name.removeprefix("arena_")
     head = f"# 생성 파일: python3 -m fleet_gz_sim.arena --layout {layout}"

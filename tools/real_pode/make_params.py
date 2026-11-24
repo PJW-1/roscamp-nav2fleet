@@ -3,16 +3,8 @@
 
     python3 make_params.py --speed 0.12 --out params
 
-저장소의 pode_nav_config/params/nav2_params.yaml과 pode_avoidance/params/avoidance.yaml을
-그대로 베끼고 앞으로 가는 컨트롤러의 desired_linear_vel만 S로 바꾼다:
-FollowPath, FollowPathThrough(nav2_params.yaml), follow_path_goal(avoidance.yaml, FollowPathGoal).
-S는 0 초과, 단일 출처 pode_nav_config/params/nav_speed.yaml의 값 이하다.
-비교용 MPPI(FollowPathMPPI)는 실물 controller 목록에 없어 뜨지 않는다(블록은 그대로 베낀다).
-FollowPathReverse(0.05)는 그대로다.
-고정 경로 컨트롤러(FollowPath, FollowPathThrough, FollowPathReverse)의 use_collision_detection은
-기본으로 false로 쓴다(시뮬 기본과 같다). --fixed-line-check를 주면 원본 값과 상관없이 true로 쓴다.
-FollowPathGoal(follow_path_goal)의 검사는 늘 그대로다.
-바꾼 줄 말고는 주석까지 그대로 두고, 다시 읽어 값을 확인한다.
+앞으로 가는 컨트롤러의 desired_linear_vel을 S로 바꾼다.
+고정 경로 컨트롤러 셋의 충돌 검사는 기본으로 끈다(--fixed-line-check로 켬).
 """
 import argparse
 import copy

@@ -112,11 +112,7 @@ class Watch:
             victim = choose_retreat(rest, lambda name: self._priority(self._robots[name]))
             watch.acted = self._evade(self._robots[victim])
             rest.remove(victim)
-        # 늘 빈 집합이다. 지운 자유바닥 교통 층은 대기 순환에 든 로봇을 돌려주어 그 tick에
-        # tick_pick이 고르지 않고 step이 걷지 않게 했다("robots of a wait cycle stand still").
-        # 구역 교통은 순환을 _evade(한 대를 주차 자리로)로만 풀고 세울 로봇을 고르지 않는다.
-        # 순환의 로봇은 구역을 잡지 못해 이미 기다리는 중이다. tick_progress의 반환값과
-        # tick_pick(stopped)는 TrafficApi의 공개 모양이라 그대로 둔다.
+        # 세울 로봇은 없어 늘 빈 집합이다(순환은 _evade로만 푼다). TrafficApi 모양을 맞추려고 둔다.
         return frozenset()
 
     # ---- 주차 지점으로 비키기 ----
@@ -124,7 +120,7 @@ class Watch:
         return self._to_parking(m, "WARN", "DEADLOCK_SEEN", f"{m.name} gives way to")
 
     def _to_parking(self, m, level: str, code: str, why: str, clear_of=None) -> bool:
-        # step을 거치지 않는 길: LOCALIZING 로봇에는 보내지 않는다
+        # step을 거치지 않는 길이라 LOCALIZING 로봇에는 보내지 않는다
         if m.goal is not None or self._localizing(m):
             return False
         waited = self.grants.waiting().get(m.name)

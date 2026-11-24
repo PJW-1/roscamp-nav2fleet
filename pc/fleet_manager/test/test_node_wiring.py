@@ -1,8 +1,4 @@
-"""직접 짠 서버들과 실제 그래프에서 노드를 시험한다. 이름, 타입, goal, 취소.
-
-가짜 로봇은 쓰지 않는다. 시나리오가 아니라 래퍼의 배선을 확인한다. 그래프에 참여하므로
-호출한 쪽이 로봇 네트워크와 분리해 둔 경우에만 돈다.
-"""
+"""직접 짠 서버와 실제 그래프로 노드의 배선(이름, 타입, goal, 취소)을 시험한다."""
 import os
 import subprocess
 import sys
@@ -54,7 +50,7 @@ def items(counts):
 
 
 class World(Node):
-    """시키는 대로 즉시 하는 로봇 하나, 팔 서버 둘, central. 로봇은 지도의 node에서 선다."""
+    """시키는 대로 즉시 하는 로봇 하나, 팔 서버 둘, central."""
 
     def __init__(self, contract, site, node, robot="pode1", robot_servers=True):
         super().__init__("wiring_world")
@@ -187,7 +183,7 @@ def graph():
     thread = threading.Thread(target=executor.spin, daemon=True)
     thread.start()
     yield world
-    world.hold_fill.clear()  # 실패한 테스트가 서버 스레드를 돌게 두면 안 된다
+    world.hold_fill.clear()  # 서버 스레드를 멈춘다
     executor.shutdown()
     thread.join(timeout=5)
     world.destroy_node()
@@ -234,7 +230,7 @@ def test_the_status_of_every_robot_comes_out_about_once_a_second(graph):
 
 
 def test_a_new_fms_stays_silent_until_any_goal_of_an_old_one_must_have_stopped(graph):
-    """먼저 읽고 나서 아직 조용한지 확인한다. 시간은 한 방향으로만 흐른다."""
+    """먼저 읽고 나서 아직 조용한지 확인한다."""
     fms = graph.fms
     while True:
         on_map, beats = fms.core.traffic.robot_view("pode1")["on_map"], list(graph.beats)
@@ -247,7 +243,7 @@ def test_a_new_fms_stays_silent_until_any_goal_of_an_old_one_must_have_stopped(g
 
 
 def test_a_short_stall_s_is_warned_once_when_the_params_are_read(tmp_path, monkeypatch):
-    """params_file의 stall_s가 로봇 BLOCKED 보고(10 s + 2 s)보다 짧으면 경고만 남기고 뜬다."""
+    """stall_s가 로봇 BLOCKED 보고보다 짧으면 경고만 남기고 뜬다."""
     import yaml
     from fleet_core.common.params import DEFAULT_PARAMS
     data = yaml.safe_load(DEFAULT_PARAMS.read_text(encoding="utf-8"))
@@ -277,13 +273,7 @@ def test_a_short_stall_s_is_warned_once_when_the_params_are_read(tmp_path, monke
 
 
 def test_a_robot_counts_only_once_its_goals_can_reach_it():
-    """새 FMS는 액션 서버를 찾기 전에 보고를 먼저 듣는다. 그때 보낸 goal은 거절되어 재시도가
-    금방 바닥난다. 전원이 로봇으로 인정되기 전에는 잠금도 알리지 않는다. 아직 모르는 것이지
-    비어 있는 것이 아니기 때문이다. heartbeat도 보내지 않는다. 이전 FMS의 goal이 그것을 자기
-    것으로 알고 계속 갈 수 있다.
-
-    pode1을 쓰지 않는 이유: 앞선 테스트의 서버가 잠시 그래프에 남아 있을 수 있다.
-    """
+    """새 FMS는 전원이 로봇으로 인정되기 전에는 goal, 잠금, heartbeat를 보내지 않는다."""
     rclpy.init(args=["--ros-args", "-p", "robots:=[pode3]", "-p", "tick_hz:=50.0"])
     node = FleetManagerNode()
     world = World(node.contract, load_fleet_map("d2"), "P-1", robot="pode3", robot_servers=False)
@@ -311,8 +301,7 @@ def test_a_robot_counts_only_once_its_goals_can_reach_it():
 
 
 def test_a_record_of_the_running_node_plays_back_to_the_same_commands(tmp_path):
-    """main()처럼 노드에 스레드 하나를 쓴다. 기록은 호출이 차례로 이어지는데, 스레드가 여럿이면
-    goal 결과가 tick과 나란히 돌 수 있다."""
+    """main()처럼 노드에 스레드 하나를 쓴다."""
     record = tmp_path / "fms.jsonl"
     rclpy.init(args=["--ros-args", "-p", "robots:=[pode1]", "-p", "tick_hz:=50.0"])
     node = FleetManagerNode(record=record)
@@ -341,7 +330,7 @@ def test_a_record_of_the_running_node_plays_back_to_the_same_commands(tmp_path):
 
 
 def test_a_zone_that_does_not_exist_is_refused_and_the_node_lives_on(graph):
-    """노드는 콜백의 예외를 모두 치명적으로 보므로 오타 하나로 프로세스가 끝났다."""
+    """콜백 예외 하나로 노드 프로세스가 끝나지 않는다."""
     fms = graph.fms
     client = graph.create_client(ConfirmClear, fms.contract.name("confirm_clear"))
     assert client.wait_for_service(timeout_sec=10.0)
@@ -354,7 +343,7 @@ def test_a_zone_that_does_not_exist_is_refused_and_the_node_lives_on(graph):
 
 
 def test_a_bad_clear_gives_a_reason_and_input_rejected_and_the_ticks_go_on(graph):
-    """11-06 1번: 응답에 거부 이유, 이벤트 한 번, 그 뒤에도 타이머와 주문이 돈다."""
+    """잘못된 치움은 거부 이유와 INPUT_REJECTED를 주고 그 뒤에도 타이머와 주문이 돈다."""
     fms = graph.fms
     client = graph.create_client(ConfirmClear, fms.contract.name("confirm_clear"))
     assert client.wait_for_service(timeout_sec=10.0)
@@ -369,7 +358,7 @@ def test_a_bad_clear_gives_a_reason_and_input_rejected_and_the_ticks_go_on(graph
     rejected = [e for e in graph.events if e.code == "INPUT_REJECTED"]
     assert len(rejected) == 1 and rejected[0].level == "WARN"
     assert not any(e.code == "CLEAR_REFUSED" for e in graph.events)
-    # 노드가 살아 있다: /fleet/robots가 계속 나오고, 두 번째 호출에도 답하고, 주문이 끝난다
+    # 노드가 살아 있다
     graph.status.clear()
     assert wait_for(lambda: len(graph.status) >= 2, 10.0), "no /fleet/robots after the call"
     second = client.call_async(ConfirmClear.Request(robot_id="pode9", zone_ids=[], note="x"))
@@ -380,7 +369,7 @@ def test_a_bad_clear_gives_a_reason_and_input_rejected_and_the_ticks_go_on(graph
 
 
 def test_reinstate_takes_a_cleared_robot_back_and_refuses_a_bad_call_with_a_reason(graph):
-    """11-06 6번: 거부는 이유와 INPUT_REJECTED, 받아들이면 ROBOT_REINSTATED."""
+    """거부는 이유와 INPUT_REJECTED, 받아들이면 ROBOT_REINSTATED."""
     fms = graph.fms
     clear = graph.create_client(ConfirmClear, fms.contract.name("confirm_clear"))
     back = graph.create_client(Reinstate, fms.contract.name("reinstate"))
@@ -407,7 +396,7 @@ def test_reinstate_takes_a_cleared_robot_back_and_refuses_a_bad_call_with_a_reas
 
 
 def test_force_ship_refuses_an_order_it_does_not_know_with_the_reason(graph):
-    """계약 0.6: 관리자의 강제 출고 창구. 모르는 주문은 UNKNOWN_ORDER로 거절한다."""
+    """강제 출고 창구. 모르는 주문은 UNKNOWN_ORDER로 거절한다."""
     fms = graph.fms
     client = graph.create_client(ForceShip, fms.contract.name("force_ship"))
     assert client.wait_for_service(timeout_sec=10.0)
@@ -437,7 +426,7 @@ def test_force_ship_passes_the_order_to_the_core_and_returns_its_answer(graph, m
 
 
 def test_an_event_is_logged_at_its_own_level(graph, monkeypatch):
-    """rclpy는 한 호출 위치의 두 번째 심각도를 거부하므로 실제 로거를 먼저 부른다."""
+    """rclpy가 한 호출 위치의 두 번째 심각도를 거부하므로 실제 로거를 먼저 부른다."""
     fms = graph.fms
     events = [EventOut(level, f"CODE_{level}", "detail") for level in ("INFO", "WARN", "ERROR")]
     for event in events * 2:
@@ -486,8 +475,7 @@ def test_a_robot_goal_with_no_server_is_not_a_rejection_and_an_arm_goal_still_is
 
 
 def test_a_retreat_command_goes_to_the_retreat_action_and_its_result_back_to_the_core():
-    """계약 0.9-draft(제안): RetreatCmd는 /{pode}/retreat goal이 되고, 결과는
-    on_retreat_result로, 거절과 서버 없음은 다른 로봇 goal과 같다."""
+    """RetreatCmd는 /{pode}/retreat goal이 되고 결과는 on_retreat_result로 간다."""
     rclpy.init(args=["--ros-args", "-p", "robots:=[pode1]"])
     node = FleetManagerNode()
     try:
@@ -513,7 +501,7 @@ def test_a_retreat_command_goes_to_the_retreat_action_and_its_result_back_to_the
 
 
 def test_a_retreat_result_with_a_core_that_has_no_handler_yet_is_logged_and_dropped():
-    """fleet_core의 on_retreat_result가 들어오기 전: 노드는 죽지 않는다."""
+    """on_retreat_result가 없어도 노드는 죽지 않는다."""
     warnings = []
     node = SimpleNamespace(core=SimpleNamespace(),
                            get_logger=lambda: SimpleNamespace(warning=warnings.append))
@@ -522,10 +510,7 @@ def test_a_retreat_result_with_a_core_that_has_no_handler_yet_is_logged_and_drop
 
 
 def test_a_lost_result_of_a_canceled_robot_goal_is_no_rejection():
-    """취소한 로봇 goal의 결과를 잃으면 끝났는지 모른다. 거절로 넘기지 않고 취소를 남긴다.
-
-    코어는 막힘 표시 때 취소한 goal이 끝나야 구역을 놓는다. 팔 goal과 취소 안 한 goal은 그대로다.
-    """
+    """취소한 로봇 goal의 결과를 잃으면 거절로 넘기지 않고 취소를 남긴다."""
     def broken():
         raise RuntimeError("result lost")
 
@@ -554,8 +539,7 @@ def test_a_lost_result_of_a_canceled_robot_goal_is_no_rejection():
 
 
 def test_a_dropped_cancel_of_a_robot_goal_is_told_to_the_core_as_lost():
-    """결과를 잃은 취소를 그만둘 때 코어에 알린다. 코어는 막힘 표시 때 취소한 goal이 끝나야
-    이어 가기 때문이다."""
+    """결과를 잃은 취소를 그만둘 때 코어에 알린다."""
     key = ("pode1", 7)
     goals = GoalTracker()
     goals.sent(key)
@@ -583,7 +567,7 @@ def test_the_heartbeat_comes_twice_a_second(graph):
 
 
 def test_the_heartbeat_goes_out_with_the_reliable_profile_of_the_contract(graph):
-    """노드는 heartbeat QoS를 계약에서 읽는다. 계약이 reliable이면 그렇게 나간다."""
+    """heartbeat QoS는 계약에서 읽는다."""
     from rclpy.qos import DurabilityPolicy, ReliabilityPolicy
     topic, me = graph.fms.contract.name("heartbeat"), graph.fms.get_name()
 
@@ -594,7 +578,7 @@ def test_the_heartbeat_goes_out_with_the_reliable_profile_of_the_contract(graph)
     qos = mine()[0].qos_profile
     assert (qos.reliability, qos.durability) == (ReliabilityPolicy.RELIABLE,
                                                  DurabilityPolicy.VOLATILE)
-    # depth는 탐색 정보에 실리지 않으므로 발행자 객체에서 본다
+    # depth는 발행자 객체에서 본다
     depths = [p.qos_profile.depth for p in graph.fms.publishers if p.topic_name == topic]
     assert depths == [1]
 
@@ -613,7 +597,7 @@ def test_stop_cancels_the_fill_on_its_server_and_run_sends_what_remains(graph):
 
 
 def test_a_stop_answered_with_the_status_alone_is_no_failed_attempt(graph):
-    """서버가 canceled()를 부르고 reason을 비워 둔다. goal 상태만으로 충분하다."""
+    """서버가 canceled()를 부르고 reason을 비워 둬도 goal 상태로 충분하다."""
     graph.hold_fill.set()
     graph.fill_cancel_reason = ""
     publish(graph, "RUN", {"A": 1, "C": 2})

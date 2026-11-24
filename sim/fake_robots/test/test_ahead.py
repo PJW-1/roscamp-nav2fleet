@@ -113,10 +113,7 @@ def test_a_robot_lifted_away_or_long_silent_is_not_carried_on():
 
 
 def test_a_robot_yields_to_one_that_moves_close_by():
-    """ROS 가짜 Pode 둘이 마당에서 마주치면 서로 늦게 본 자리를 피해 동시에 움직이다가 몸이 겹쳤다.
-    가까이(0.26 m)에서 방금(1초 안) 움직인 로봇이 있으면 양보하는 쪽은 선다. 누가 양보하는지는
-    노드가 이름 순서로 정한다. 0.30 m였을 때는 나란한 주차 칸(0.28 m)에서 떠나는 로봇까지 세워
-    stuck_robot 통합 판이 3초 늦어졌다."""
+    """가까이(0.26 m)에서 방금(1초 안) 움직인 로봇이 있으면 양보하는 쪽은 선다. 누가 양보하는지는 노드가 이름 순서로 정한다."""
     moving = seen(seen(None, 1.00, 0.50, 3.0), 1.02, 0.50, 3.1)
     assert yields(1.25, 0.50, [moving], 3.1)
     assert not yields(1.30, 0.50, [moving], 3.1), "the next parking bay is 0.28 m away"
@@ -128,16 +125,14 @@ def test_a_robot_yields_to_one_that_moves_close_by():
 
 
 def test_two_poses_at_the_same_instant_give_no_speed_to_carry_on():
-    """한 시계 걸음에 자세 둘이 오면 속도를 잴 수 없다. 앞의 속도를 물려주면
-    그사이 선 로봇을 0.3초 동안 계속 밀었다."""
+    """한 시계 걸음에 자세 둘이 오면 속도를 잴 수 없으니 앞의 속도를 물려주지 않는다."""
     moving = seen(seen(None, 1.00, 0.50, 3.0), 1.02, 0.50, 3.1)
     stopped = seen(moving, 1.03, 0.50, 3.1)
     assert where_now(stopped, 3.3) == pytest.approx((1.03, 0.50))
 
 
 def test_a_clock_that_went_back_does_not_keep_a_robot_yielding():
-    """시뮬 시계가 되감기면 움직인 시각이 앞날에 남아, 선 로봇에게 그 시각이
-    올 때까지 양보했다."""
+    """시뮬 시계가 되감기면 남은 움직인 시각 때문에 선 로봇에게 양보하지 않는다."""
     moving = seen(seen(None, 1.00, 0.50, 30.0), 1.02, 0.50, 30.1)
     assert not yields(1.25, 0.50, [moving], 2.0)
     standing = seen(moving, 1.02, 0.50, 2.0)
@@ -147,10 +142,7 @@ def test_a_clock_that_went_back_does_not_keep_a_robot_yielding():
 @pytest.mark.parametrize("late_ticks", [3, 4])
 @pytest.mark.parametrize("starts_at", [0.0, 1.5, 3.0, 4.2, 4.8, 6.0])
 def test_two_nav_robots_that_see_each_other_late_pass_without_overlap(late_ticks, starts_at):
-    """2026-11-15 통합 판(order_burst 0.146 m, reinstate 0.121 m): O_Q로 가는 로봇과, N_E에서 W_Q로
-    떠나는 로봇이 마당에서 마주쳐 몸이 겹쳤다. 서로의 자세를 0.15~0.2초 늦게 보는 이 모의 실험도
-    지금 자리를 어림하지 않으면 0.150 m까지 겹쳤고, 어림만 하면 24판에 여섯 판이 겹치고 열여덟 판이
-    서로 막고 끝내 닿지 못했다. 어림하고 한쪽이 양보하면 겹치지 않고 둘 다 닿는다."""
+    """O_Q로 가는 로봇과 N_E에서 W_Q로 떠나는 로봇이 마당에서 마주쳐도, 어림하고 한쪽이 양보하면 겹치지 않고 둘 다 닿는다."""
     a, b = Motion(*SITE.node_pose("N_W")), Motion(*SITE.node_pose("N_E"))
     nav_a = NavGoalDrive(SPACE, RADIUS, SITE.node_pose("O_Q"), 0.0, (a.x, a.y))
     nav_b, of_a, of_b, sent = None, None, None, []

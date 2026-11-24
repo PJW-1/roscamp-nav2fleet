@@ -1,7 +1,4 @@
-"""traffic/api.py의 TrafficApi가 FleetManager와 ROS 껍데기가 교통 층에 부르는 것을 모두 적는다.
-
-3단계의 ZoneTraffic은 이 목록을 채우면 manager.py를 고치지 않고 끼워진다.
-"""
+"""traffic/api.py의 TrafficApi가 FleetManager와 ROS 껍데기가 교통 층에 부르는 것을 모두 적는다."""
 import ast
 import importlib
 import typing

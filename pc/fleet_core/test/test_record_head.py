@@ -1,8 +1,4 @@
-"""기록 첫 줄: 로봇, 파라미터, 지도 본문. 재생은 지도를 그 본문으로 다시 만든다.
-
-교통 층은 가짜(conftest.py의 zone_layer)를 쓴다. 지도도 FleetManager가 읽는 칸만 있는
-가짜다. 지도 본문이 없으면 기록 파일을 열기 전에 거부한다.
-"""
+"""기록 첫 줄: 로봇, 파라미터, 지도 본문. 재생은 지도를 그 본문으로 다시 만들고, 본문이 없으면 기록 파일을 열기 전에 거부한다."""
 import json
 from dataclasses import asdict
 from types import SimpleNamespace

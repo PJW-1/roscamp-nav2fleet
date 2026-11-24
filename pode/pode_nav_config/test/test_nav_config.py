@@ -1,7 +1,4 @@
-"""Nav2 설정이 Pode 약속을 지키는지 본다. ROS 없이 돈다.
-
-근거: Pode_제어파트_전달사항_2026-11-06(R4, R12~R15).
-"""
+"""Nav2 설정이 Pode 약속을 지키는지 본다. ROS 없이 돈다."""
 import copy
 import importlib.util
 import math
@@ -30,11 +27,11 @@ AVOIDANCE = yaml.safe_load(AVOIDANCE_FILE.read_text(encoding="utf-8"))
 PARAMS = owners.with_avoidance(copy.deepcopy(USER), AVOIDANCE)
 BT_FILE = PKG / "bt" / "navigate_to_pose_w_replanning_and_recovery_goal.xml"
 BT = ET.parse(BT_FILE)
-# Nav2 Jazzy's own tree, the original of BT_FILE (only there when ROS 2 Jazzy is installed)
+# Nav2 Jazzy 자체 트리, BT_FILE의 원본(ROS 2 Jazzy가 설치된 경우만 있다)
 NAV2_BT = Path("/opt/ros/jazzy/share/nav2_bt_navigator/behavior_trees/"
                "navigate_to_pose_w_replanning_and_recovery.xml")
 KEEPOUT = yaml.safe_load((PKG / "params" / "keepout.yaml").read_text(encoding="utf-8"))
-# 주행 최고 속도의 단일 출처(사용자 결정 2026-11-22)
+# 주행 최고 속도의 단일 출처
 NAV_SPEED = yaml.safe_load(
     (PKG / "params" / "nav_speed.yaml").read_text(encoding="utf-8"))["nav_speed_mps"]
 
@@ -61,8 +58,7 @@ def test_controller_uses_rpp_with_the_agreed_start_values():
 
 # pode_fsm turn_radius_m: 꺾이는 곳을 이 반지름의 호로 보낸다
 TURN_RADIUS_M = 0.10
-# pinky_description(pinky_pro 014a09f) base_link 충돌 메시의 바닥 윤곽(볼록 껍질, base_footprint
-# 틀, m)과 바퀴(축 y ±0.04055에서 바깥으로 0.0145 m, 반지름 0.028 m)
+# base_link 충돌 메시의 바닥 윤곽(볼록 껍질, base_footprint 틀, m)과 바퀴(축 y ±0.04055에서 바깥으로 0.0145 m, 반지름 0.028 m)
 BODY_OUTLINE = [(0.0387, 0.0197), (0.0364, 0.0274), (0.0177, 0.0391), (-0.0447, 0.0473),
                 (-0.0700, 0.0399), (-0.0734, 0.0378), (-0.0745, 0.0347), (-0.0745, -0.0349),
                 (-0.0734, -0.0378), (-0.0700, -0.0399), (0.0184, -0.0386), (0.0363, -0.0276),
@@ -110,8 +106,7 @@ def _edge_gap(polygon) -> float:
 
 
 def test_the_local_footprint_is_a_polygon_round_the_real_body():
-    """사각형 0.12 x 0.12 m 대신 몸 모양에 가까운 다각형. 충돌 검사는
-    local costmap의 발자국을 쓴다. 몸과 바퀴를 모두 덮고, 다각형 밖으로 1 cm 넘게 나가지 않는다."""
+    """몸 모양에 가까운 다각형 발자국(충돌 검사는 local costmap 것). 몸과 바퀴를 덮고 다각형 밖으로 1 cm 넘게 나가지 않는다."""
     footprint = yaml.safe_load(params("local_costmap", "local_costmap")["footprint"])
     polygon = [tuple(p) for p in footprint]
     assert len(polygon) >= 8
@@ -122,8 +117,7 @@ def test_the_local_footprint_is_a_polygon_round_the_real_body():
 
 
 def test_the_local_footprint_is_not_padded():
-    """P-3 앞 멈춤(2026-11-17): padding을 안 적으면 Jazzy 기본 0.01이 붙어 RPP가 1 cm 부푼 몸으로
-    충돌을 본다. 다각형이 이미 몸을 덮으므로 0으로 둔다. global(NavFn)은 0.01 그대로다."""
+    """padding을 안 적으면 Jazzy 기본 0.01이 붙어 RPP가 부푼 몸으로 본다. 다각형이 몸을 덮으므로 local은 0이고 global(NavFn)은 0.01이다."""
     assert params("local_costmap", "local_costmap")["footprint_padding"] == 0.0
     assert params("global_costmap", "global_costmap")["footprint_padding"] == 0.01
 
@@ -134,15 +128,11 @@ def _lookahead(rpp: dict, speed: float) -> float:
 
 
 def test_fixed_lines_look_the_same_time_ahead_at_every_speed_and_take_the_arcs_without_pivoting():
-    """앞보기 0.10 m 고정은 0.20 m/s에서 0.5초 앞만 봐서 폭 0.18 m 급행에서
-    방향이 10.3도(표준편차) 흔들렸다. 속도에 비례하게(0.8초 앞, 0.10~0.25 m) 두면 1.6도였다.
-    0.12 m/s에서는 지금까지와 같은 0.10 m다.
-    반지름 TURN_RADIUS_M의 호 위에서는 곡률 규칙이 속도를 낮춰 앞보기가 0.10 m로 돌아오고,
-    앞보기 점은 asin(L / 2R)만큼 옆에 있다. 이것이 rotate_to_heading_min_angle보다 작아야 RPP가
-    호 위에서 서서 돌지 않고 호를 따라 돈다.
-    여기서 견주는 것은 속도를 다 낮춘 뒤의 상태다(곡률 규칙의 후보 속도 = 원하는 속도 x R /
-    min_radius, 바닥은 regulated_linear_scaling_min_speed). 호에 들어서는 동안의 속도는 RPP와
-    velocity_smoother가 정하므로 설정만으로는 고정하지 못한다: Gazebo G3와 G4로 쟀다."""
+    """속도에 비례하는 앞보기(0.8초 앞, 0.10~0.25 m)가 반지름 TURN_RADIUS_M 호 위에서 서서 돌지 않게 한다.
+
+    속도를 다 낮춘 뒤의 앞보기 점이 asin(L / 2R)만큼 옆에 있고, 이것이 rotate_to_heading_min_angle보다 작아야 한다.
+    곡률 규칙의 후보 속도 = 원하는 속도 x R / min_radius(바닥은 regulated_linear_scaling_min_speed).
+    """
     c = params("controller_server")
     for name in ("FollowPath", "FollowPathThrough", "FollowPathReverse"):
         rpp = c[name]
@@ -160,9 +150,7 @@ def test_fixed_lines_look_the_same_time_ahead_at_every_speed_and_take_the_arcs_w
 
 
 def test_the_through_controller_is_followpath_without_the_approach_slow_down():
-    """pode_fsm sends paths that end at a lock boundary (MoveTo.final_goal false) to
-    FollowPathThrough. Jazzy RPP always applies the approach constraint, so only a short
-    approach_velocity_scaling_dist turns it off; every other key must match FollowPath."""
+    """끝이 잠금 경계인 경로(final_goal 거짓)는 FollowPathThrough로 간다. approach_velocity_scaling_dist만 짧고 나머지 키는 FollowPath와 같아야 한다."""
     c = params("controller_server")
     normal, through = c["FollowPath"], c["FollowPathThrough"]
     assert through["approach_velocity_scaling_dist"] == 0.05
@@ -173,11 +161,7 @@ def test_the_through_controller_is_followpath_without_the_approach_slow_down():
 
 
 def test_a_fixed_line_slows_down_only_in_its_last_0_1_m():
-    """2026-11-14: 끝 0.6 m 앞부터 줄이면 Gazebo v7 경기(order 모델 끔)
-    에서 MOVING 1058 s 가운데 503 s를 0.06 m/s 아래로 기었다. 그때 0.2 m로 줄였다.
-    2026-11-15: v7의 고정 경로는 0.14~0.40 m로 짧아 0.2 m도 구간의 절반을 덮었다. 0.10 m 앞에서
-    줄이고 0.08 m/s 아래로는 내리지 않는다(Gazebo 급행 판 317.6 s -> 303.6 s, 도킹 오차는 그대로).
-    후진은 0.05 m/s라 이 값이 바꾸는 것이 없다."""
+    """고정 경로가 짧아(0.14~0.40 m) 감속은 끝 0.10 m 앞부터, 속도는 0.08 m/s 아래로 내리지 않는다. 후진은 0.05 m/s라 영향이 없다."""
     c = params("controller_server")
     for name in ("FollowPath", "FollowPathReverse"):
         assert c[name]["approach_velocity_scaling_dist"] == 0.10, name
@@ -189,10 +173,7 @@ REVERSE_ONLY = {"desired_linear_vel": 0.05, "use_rotate_to_heading": False,
 
 
 def test_the_reverse_controller_is_followpath_driven_backwards_slowly():
-    """Retreat with a path(계약): pode_fsm sends the driven way reversed to
-    FollowPathReverse. Jazzy RPP cannot reverse while use_rotate_to_heading is on, so it is off
-    (no turn in place before backing) and the robot backs at 0.05 m/s. The collision check stays
-    on: it looks along the motion, so it is what stops the robot for something behind."""
+    """FollowPathReverse는 제자리 회전을 끄고 0.05 m/s로 물러나며, 충돌 검사는 켜 둔다(뒤의 물체에 선다)."""
     c = params("controller_server")
     normal, reverse = c["FollowPath"], c["FollowPathReverse"]
     assert set(reverse) == set(normal)
@@ -203,11 +184,7 @@ def test_the_reverse_controller_is_followpath_driven_backwards_slowly():
 
 
 def test_no_obstacle_beside_the_path_slows_the_robot():
-    """Jazzy RPP scales the speed by cost_scaling_gain * d / cost_scaling_dist when d, the
-    distance it reads from the cost under the robot, is below cost_scaling_dist, and d is at
-    least the inscribed radius (footprint edge gap) until the robot touches. With 0.6 m
-    a box within the 0.15 m inflation pinned the robot to the 0.05 m/s floor in every arena gap
-    (user, 2026-11-10): the scaling may no longer cut the speed short of a touch."""
+    """RPP는 비용에서 읽은 거리 d가 cost_scaling_dist보다 작으면 속도를 줄인다. 경로 옆 상자가 속도를 바닥에 묶지 않도록 닿기 전에는 줄이지 않게 한다."""
     c = params("controller_server")
     footprint = yaml.safe_load(params("local_costmap", "local_costmap")["footprint"])
     inscribed = _edge_gap([tuple(p) for p in footprint])
@@ -223,15 +200,12 @@ def test_goal_checker_is_tighter_than_the_arrival_tolerance():
     assert c["goal_checker_plugins"] == ["general_goal_checker", "retreat_goal_checker",
                                          "free_heading_goal_checker"]
     goal = c["general_goal_checker"]
-    assert goal["xy_goal_tolerance"] == 0.05 and goal["xy_goal_tolerance"] < 0.15  # R4
+    assert goal["xy_goal_tolerance"] == 0.05 and goal["xy_goal_tolerance"] < 0.15
     assert goal["yaw_goal_tolerance"] == 0.12
 
 
 def test_free_heading_goal_checker_stops_like_the_general_one_without_the_turn():
-    """2026-11-16: 다음 조각이 Nav2 goal인 고정 경로는 끝에서 방향을 맞추지 않는다. O_OUT에서
-    끝 방향(남쪽)으로 오른쪽으로 돌고 곧바로 Nav2 goal 쪽(동쪽)으로 왼쪽으로 돌았다. 서는 자리는
-    앞으로 가는 경로와 같아야 하므로 위치 허용치는 general과 같다.
-    pode_fsm free_heading_goal_checker_id가 이 이름을 쓴다."""
+    """다음 조각이 Nav2 goal인 고정 경로는 끝 방향을 맞추지 않는다. 위치 허용치는 general과 같고 pode_fsm free_heading_goal_checker_id가 이 이름을 쓴다."""
     c = params("controller_server")
     free = c["free_heading_goal_checker"]
     assert free["plugin"] == "nav2_controller::SimpleGoalChecker"
@@ -241,9 +215,7 @@ def test_free_heading_goal_checker_stops_like_the_general_one_without_the_turn()
 
 
 def test_retreat_goal_checker_checks_the_position_only():
-    """후진(FollowPathReverse)은 제자리에서 방향을 고칠 수 없으니 끝 방향을 보지 않는다.
-    위치 허용치는 0.02로 앞으로 갈 때(0.05)보다 좁다(충전 칸에 0.05 앞에서
-    도착으로 끝나 얕게 섰다). pode_fsm reverse_goal_checker_id가 이 이름을 쓴다."""
+    """후진은 끝 방향을 보지 않고 위치 허용치는 0.02로 앞으로 갈 때(0.05)보다 좁다. pode_fsm reverse_goal_checker_id가 이 이름을 쓴다."""
     c = params("controller_server")
     retreat = c["retreat_goal_checker"]
     assert retreat["plugin"] == "nav2_controller::SimpleGoalChecker"
@@ -275,10 +247,7 @@ def test_costmap_topics_are_absolute_inside_the_robot_namespace():
 
 
 def test_the_filtered_scan_clears_along_the_beams_the_filter_dropped():
-    """거르개가 지운 빔(inf)도 칸을 지운다(세 대 경기 l3g1, l3g2: 모퉁이 앞에 남은 잡음 칸에 격리).
-
-    거르개를 켤 때 덧붙는 scan_filter.yaml에만 있다. 기본(거르개 끔)은 Nav2 기본(false) 그대로다.
-    """
+    """거르개가 지운 빔(inf)도 칸을 지운다. 거르개를 켤 때 덧붙는 scan_filter.yaml에만 있고 기본은 Nav2 기본(false)이다."""
     added = yaml.safe_load((PKG / "params" / "scan_filter.yaml").read_text(encoding="utf-8"))
     for costmap in ("local_costmap", "global_costmap"):
         scan = added[costmap][costmap]["ros__parameters"]["obstacle_layer"]["scan"]
@@ -298,16 +267,13 @@ def test_planner_server_runs_for_compute_path_and_is_path_valid():
 
 def test_amcl_reads_the_fine_map():
     amcl = params("amcl")
-    assert amcl["map_topic"] == "map_fine"  # R15
+    assert amcl["map_topic"] == "map_fine"
     assert amcl["sigma_hit"] == 0.05
     assert amcl["base_frame_id"] == "base_footprint" and amcl["scan_topic"] == "scan"
 
 
 def test_the_goal_controller_is_named_and_stops_when_blocked():
-    """MoveTo mode nav_goal: the Nav2 tree drives with FollowPathGoal. Its values are the
-    avoidance teammate's: a teammate may swap in MPPI or DWB, so this test
-    pins only what the standards ask of the file. While it is an RPP, the collision check
-    must be on: without it the robot pushes on against an obstacle and stays MOVING."""
+    """MoveTo mode nav_goal은 FollowPathGoal로 달린다. 값은 회피 담당의 것이라 표준이 요구하는 것만 확인하고, RPP인 동안은 충돌 검사를 켜야 한다."""
     goal = params("controller_server")["FollowPathGoal"]
     assert goal["plugin"], "a controller plugin is named"
     if goal["plugin"].endswith("RegulatedPurePursuitController"):
@@ -315,11 +281,7 @@ def test_the_goal_controller_is_named_and_stops_when_blocked():
 
 
 def test_the_goal_controller_keeps_its_carrot_short_at_0_20_and_brakes_late():
-    """2026-11-15, Gazebo at 0.20 m/s: with 1.5 s of lookahead the carrot reached the 0.25 m cap
-    and the robot cut the east end of the shelf (true yaw 26 deg off AMCL, then stuck). The yard
-    controller now looks 0.8 s ahead like the fixed lines, slows on tight arcs, and starts to
-    brake 0.2 m before the goal instead of 0.6 m (rush game 356.5 s -> 327.3 s). Only while it
-    is an RPP: a teammate's other plugin is not held to these numbers."""
+    """RPP인 동안 넓은 구역 컨트롤러는 고정 선처럼 0.8초 앞을 보고, 급한 굽이에서 줄이며, goal 0.2 m 앞부터 줄인다. 다른 플러그인에는 적용하지 않는다."""
     goal = params("controller_server")["FollowPathGoal"]
     if not goal["plugin"].endswith("RegulatedPurePursuitController"):
         pytest.skip("not an RPP")
@@ -333,9 +295,7 @@ def test_the_goal_controller_keeps_its_carrot_short_at_0_20_and_brakes_late():
 
 
 def test_every_controller_turns_in_place_at_1_rad_s():
-    """제자리 회전은 1.0 rad/s다. Gazebo의 구동 플러그인은 회전을 1.0 rad/s로 잘라서,
-    2.0 rad/s(각가속도 6.4)로 명령한 판에서도 로봇이 돈 속도는 같았다(2026-11-15).
-    고정 경로 셋은 1.8로 올렸던 판(G2)에서 급행이 흔들렸다."""
+    """제자리 회전은 1.0 rad/s다(Gazebo 구동 플러그인이 회전을 1.0 rad/s로 자른다)."""
     c = params("controller_server")
     goal = c["FollowPathGoal"]
     if not goal["plugin"].endswith("RegulatedPurePursuitController"):
@@ -346,8 +306,7 @@ def test_every_controller_turns_in_place_at_1_rad_s():
 
 
 def test_behavior_server_offers_what_the_tree_and_pode_fsm_call():
-    """Nav2's tree only clears costmaps and waits; pode_fsm's robot-side
-    yield, the old self-recovery and Retreat use backup. Spin is gone."""
+    """Nav2 트리는 지도 지우기와 기다리기만 하고, 후진은 pode_fsm이 backup으로 한다. Spin은 없다."""
     b = params("behavior_server")
     assert b["behavior_plugins"] == ["backup", "wait"]
     assert {name: b[name]["plugin"] for name in b["behavior_plugins"]} == {
@@ -364,8 +323,7 @@ def test_bt_navigator_serves_only_navigate_to_pose():
 
 
 def test_the_tree_replans_at_1_hz_and_recovers_without_moving_the_robot():
-    """No Spin and no BackUp in the tree. Backing up is pode_fsm's robot-side yield only, so
-    the tree and pode_fsm never back up at the same time."""
+    """트리에 Spin과 BackUp이 없다: 후진은 pode_fsm의 로봇단 처리뿐이라 둘이 동시에 후진하지 않는다."""
     tags = [el.tag for el in BT.iter()]
     for kept in ("Wait", "ClearEntireCostmap", "RecoveryNode", "RoundRobin"):
         assert kept in tags
@@ -411,14 +369,13 @@ def test_the_old_plan_once_tree_is_gone():
     assert not (PKG / "bt" / "plan_once_no_recovery.xml").exists()
 
 
-# ---- global costmap for Nav2 goals --------------------------------------------------------
+# ---- Nav2 goal용 global costmap ------------------------------------------------------
 
 LETHAL, INSCRIBED = 254, 253
 
 
 def _inflated(free_cells: int, glob: dict) -> list[int]:
-    """Nav2 inflation costs across a straight passage of free_cells cells between two wall cells
-    (InflationLayer: inscribed within the inscribed radius, then 252 * exp(-k (d - r)))."""
+    """폭 free_cells칸 통로의 Nav2 inflation 비용(InflationLayer: inscribed 안은 inscribed, 그 뒤 252 * exp(-k (d - r)))."""
     res = glob["resolution"]
     half = max(abs(v) for pt in yaml.safe_load(glob["footprint"]) for v in pt)
     inscribed = half + glob["footprint_padding"]
@@ -436,8 +393,7 @@ def _inflated(free_cells: int, glob: dict) -> list[int]:
 
 
 def test_the_global_costmap_is_the_a_plus_inflation_setting():
-    """팀 결정(2026-11-17, Gazebo 비교 판): 2.5 cm 지도, padding 0.01, inflation 15.0/0.15.
-    시뮬과 실물이 같이 쓴다."""
+    """2.5 cm 지도, padding 0.01, inflation 15.0/0.15를 시뮬과 실물이 같이 쓴다."""
     glob = params("global_costmap", "global_costmap")
     assert glob["resolution"] == 0.025 and glob["footprint_padding"] == 0.01
     infl = glob["inflation_layer"]
@@ -446,9 +402,7 @@ def test_the_global_costmap_is_the_a_plus_inflation_setting():
 
 @pytest.mark.parametrize("free_cells", [14, 15])
 def test_navfn_finds_a_way_through_a_0_38_m_passage(free_cells):
-    """0.38 m on a 2.5 cm map is 14 or 15 free cells, depending on how the walls fall on the grid.
-    NavFn treats cells at or above INSCRIBED (253) as walls; at least one cell must be below and
-    the middle must be the cheapest, so goal paths keep to the middle of the passage."""
+    """0.38 m 통로는 2.5 cm 지도에서 14~15칸이다. INSCRIBED(253) 이상 칸은 벽이라, 그보다 낮은 칸이 있고 가운데가 가장 싸야 경로가 가운데로 간다."""
     glob = params("global_costmap", "global_costmap")
     costs = _inflated(free_cells, glob)
     assert min(costs) < INSCRIBED
@@ -462,8 +416,7 @@ def test_the_wide_yard_has_cost_free_room_in_the_middle():
 
 
 def test_goal_paths_keep_some_room_but_do_not_swing_wide():
-    """벽 칸에서 0.10 m인 칸은 값이 있어 경로가 벽에 바로 붙지 않고, 0.20 m인 칸은 0이라
-    예전(0.25/6.0)처럼 벽에서 0.25 m씩 돌아가지 않는다(O_OUT 경로가 오른쪽으로 돌던 원인)."""
+    """벽 칸에서 0.10 m인 칸은 값이 있고 0.20 m인 칸은 0이라 경로가 벽에서 멀리 돌지 않는다."""
     glob = params("global_costmap", "global_costmap")
     res = glob["resolution"]
     costs = _inflated(int(0.775 / res), glob)
@@ -478,11 +431,11 @@ def test_the_local_costmap_that_followpath_uses_is_unchanged():
     assert "filters" not in local
 
 
-# ---- keepout (express lane, dock zones) for Nav2 goals only -------------------------------
+# ---- Nav2 goal 전용 keepout(급행 레인, 도크 구역) -------------------------------------
 
 
 def test_the_base_params_have_no_keepout():
-    """keepout_mask empty = no filter and no servers: nothing else changes."""
+    """keepout_mask가 비면 필터도 서버도 없고 다른 것은 바뀌지 않는다."""
     assert "filters" not in params("global_costmap", "global_costmap")
     assert "costmap_filter_info_server" not in PARAMS and "keepout_mask_server" not in PARAMS
 
@@ -497,8 +450,7 @@ def test_the_keepout_overlay_filters_only_the_global_costmap():
 
 
 def test_the_keepout_topics_meet():
-    """The costmap filter resolves relative topics inside the costmap node (Jazzy), so the
-    filter side names absolute topics; both servers run in the robot namespace."""
+    """Jazzy costmap 필터는 상대 토픽을 costmap 노드 안으로 풀므로 필터 쪽은 절대 토픽을 쓰고, 두 서버는 로봇 namespace에서 돈다."""
     glob = KEEPOUT["global_costmap"]["global_costmap"]["ros__parameters"]
     info = KEEPOUT["costmap_filter_info_server"]["ros__parameters"]
     mask = KEEPOUT["keepout_mask_server"]["ros__parameters"]
@@ -544,13 +496,13 @@ def test_a_goal_controller_is_needed_from_somewhere():
     mine = {k: v for k, v in AVOIDANCE.items() if k != "follow_path_goal"}
     with pytest.raises(ValueError, match="follow_path_goal"):
         owners.with_avoidance(copy.deepcopy(USER), mine)
-    owners.with_avoidance(copy.deepcopy(PARAMS), mine)  # the sim put it in already
+    owners.with_avoidance(copy.deepcopy(PARAMS), mine)  # 시뮬이 이미 넣어 둔 경우
 
 
 @pytest.mark.parametrize("key", ["controller_server", "local_costmap", "global_costmap",
                                  "FollowPath", "footprint", "bt_navigator", "planner_server"])
 def test_a_user_owned_key_in_the_avoidance_file_is_refused(key):
-    """Everything but the goal controller's inside and the vision source is the driving owner's."""
+    """목표 컨트롤러 안쪽과 vision 관측원을 뺀 나머지는 주행 담당의 것이다."""
     bad = {**AVOIDANCE, key: {"anything": 1}}
     assert owners.foreign_keys(bad) == [key]
     with pytest.raises(ValueError, match=key):
@@ -574,7 +526,7 @@ def test_the_goal_controller_is_what_the_avoidance_file_says():
 
 
 def test_a_goal_controller_already_in_the_file_is_kept():
-    """The simulation hands in a file whose goal controller already has the speed cap."""
+    """시뮬레이션이 목표 컨트롤러에 속도 상한이 이미 들어간 파일을 줄 때."""
     capped = copy.deepcopy(PARAMS)
     capped["controller_server"]["ros__parameters"]["FollowPathGoal"]["desired_linear_vel"] = 0.12
     out = owners.with_avoidance(capped, AVOIDANCE)
@@ -653,8 +605,7 @@ def test_the_sweep_reaches_every_cell_of_the_local_window():
 
 
 def test_a_body_point_is_marked_anywhere_on_the_arena():
-    """점구름은 map 틀이라 costmap은 거리를 map 원점에서 잰다:
-    경기장 대각선(2.3 m)보다 넉넉해야 한다."""
+    """점구름은 map 틀이라 obstacle_max_range를 경기장 대각선(2.3 m)보다 넉넉히 둔다."""
     assert PEERS["peer_layer"]["peers"]["obstacle_max_range"] >= 5.0
 
 
@@ -748,10 +699,7 @@ def _literal_default(path: Path, cls_name: str, field: str):
 
 
 def test_every_copy_of_the_top_speed_is_the_one_source():
-    """nav_speed.yaml을 바꾸면 여기의 사본이 모두 틀려 이 시험이 실패한다(그때 사본을 맞춘다).
-    읽어서 따르는 곳(Isaac, fleet_gz_sim launch, make_params, FollowPathRL)은 각자의 시험이 본다.
-    가짜 로봇(sim/fake_robots)은 읽어서 따르지만 여기서도 본다: 읽는 함수가 출처 값을 내고,
-    시나리오 파일의 로봇은 절대 속도(speed_mps) 없이 1 이하의 배율(speed_scale)만 적는다."""
+    """nav_speed.yaml을 바꾸면 여기의 사본이 틀려 실패한다(그때 맞춘다). 읽어서 따르는 곳은 각자의 시험이 본다."""
     c = params("controller_server")
     fleet_file = REPO / "pc" / "fleet_core" / "fleet_core" / "data" / "fleet_params.yaml"
     fleet = yaml.safe_load(fleet_file.read_text(encoding="utf-8"))

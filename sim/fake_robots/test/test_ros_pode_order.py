@@ -221,8 +221,7 @@ def test_a_stitched_path_that_starts_away_from_the_robot_is_not_followed(harness
 
 def test_an_obstacle_that_shows_up_while_waiting_holds_the_next_segment_from_its_start(
         harness, tmp_path):
-    """base 끝에 서 있는 동안 나타난 앞 물체는 goal이 없던 로봇과 같이 다음에 달릴 때 그 자리에서
-    막는다(blocked_lane 시나리오). 서 있을 때 물체 자리를 잡으면 다음 조각을 그만큼 달려 버린다."""
+    """base 끝에 서 있는 동안 나타난 앞 물체는 다음에 달릴 때 그 자리에서 막는다(blocked_lane 시나리오)."""
     from fleet_interfaces.msg import RobotState
     appear_s = move_wait(STEP_M)  # 첫 조각을 다 달려 base 끝에 선 뒤(넉넉히)
     begun = time.monotonic()
@@ -240,8 +239,7 @@ def test_an_obstacle_that_shows_up_while_waiting_holds_the_next_segment_from_its
 
 def test_an_obstacle_held_at_the_end_of_one_segment_holds_the_next_from_its_start(
         harness, tmp_path):
-    """물체 앞에서 이미 끝에 있던 조각이 바로 끝나도, 그 물체 자리는 다음 조각의 시작이다
-    (예전 goal 끝의 recovery.restart와 같이). 지난 조각의 거리를 다음 조각에 쓰면 그만큼 간다."""
+    """물체 앞에서 이미 끝에 있던 조각이 바로 끝나도, 그 물체 자리는 다음 조각의 시작이다."""
     from fleet_interfaces.msg import RobotState
     p = start(harness, tmp_path, robots=FAST, node={"recovery_attempts": 0}, faults=[
         {"at_s": 0.0, "robot": "pode1", "type": "blocked", "duration_s": 60.0}])
@@ -257,8 +255,7 @@ def test_an_obstacle_held_at_the_end_of_one_segment_holds_the_next_from_its_star
 
 
 def test_a_back_up_begun_as_a_segment_ends_does_not_run_on_the_next_path(harness, tmp_path):
-    """예전 goal 끝의 recovery.restart처럼 조각 시작에 후진과 선 시각을 지운다. 안 지우면 앞 조각
-    끝에서 시작한 후진이 다음 조각의 path(로봇 뒤에서 시작)를 따라 로봇을 뒤로 민다."""
+    """조각 시작에 후진과 선 시각을 지운다(recovery.restart처럼). 안 지우면 앞 조각의 후진이 다음 조각을 뒤로 민다."""
     from test_ros_pode import watch_truth
     p = start(harness, tmp_path, robots=FAST, faults=[
         {"at_s": 0.0, "robot": "pode1", "type": "blocked", "duration_s": 60.0}])
@@ -283,8 +280,7 @@ def test_a_back_up_begun_as_a_segment_ends_does_not_run_on_the_next_path(harness
 
 
 def test_after_waiting_at_the_base_end_the_next_path_is_checked_again(harness, tmp_path):
-    """실물은 base 끝에서 기다린 뒤 받은 조각을 새 줄로 시작해 연결을 다시 잰다.
-    기다리는 동안 보고 자세가 옆으로 밀리면(drift) 앞 조각에 이어진 path라도 따르지 않는다."""
+    """base 끝에서 기다린 뒤 받은 조각은 새 줄로 시작해 연결을 다시 잰다. drift로 밀렸으면 이어진 path라도 따르지 않는다."""
     p = start(harness, tmp_path, robots=FAST, faults=[
         {"at_s": 2.0, "robot": "pode1", "type": "drift", "duration_s": 100.0, "offset_m": 0.5}])
     assert wait_until(lambda: p.states, 5.0)
@@ -300,8 +296,7 @@ def test_after_waiting_at_the_base_end_the_next_path_is_checked_again(harness, t
 
 
 def test_a_zero_length_segment_that_aborts_does_not_abort_the_next_path(harness, tmp_path):
-    """길이 0인 조각은 고장이 잡힌 틱에 복구를 시작하고 바로 끝난다. 다음 조각은 새 고장이 없으면
-    중단 없이 가야 한다(고장은 한 번뿐)."""
+    """길이 0인 조각은 고장이 잡힌 틱에 복구를 시작하고 바로 끝난다. 다음 조각은 중단 없이 가야 한다."""
     p = start(harness, tmp_path, robots=FAST, faults=[
         {"at_s": 0.0, "robot": "pode1", "type": "nav_abort", "count": 1}])
     assert wait_until(lambda: p.states, 5.0)
@@ -315,9 +310,7 @@ def test_a_zero_length_segment_that_aborts_does_not_abort_the_next_path(harness,
 
 
 def test_an_abort_recovery_in_progress_as_a_segment_ends_does_not_abort_the_next_path():
-    """Nav2 중단 복구 중에 조각이 끝나면 goal.aborting이 남아, 고장이 없는데도 다음 path 조각에서
-    중단이 다시 예약된다. 조각 시작에서 지워야 한다. 상태를 ROS 틱으로 맞추기 어려워
-    노드 메서드를 stub 위에서 직접 부른다."""
+    """Nav2 중단 복구 중에 조각이 끝나도 goal.aborting은 조각 시작에서 지워진다. 노드 메서드를 stub 위에서 직접 부른다."""
     from types import SimpleNamespace
 
     from fake_robots.fake_pode_node import FakePodeNode

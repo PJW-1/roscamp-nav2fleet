@@ -1,9 +1,4 @@
-"""로봇단 교착 처리(계약 0.13-draft)의 관제 쪽.
-
-관제는 MoveTo에 priority를 싣고 /fleet/robots에 마지막으로 보낸 값을 보인다. 로봇이 RECOVERING과
-local_yield(wait/backup/retry)를 보고하면 사건 LOCAL_YIELD로 남기기만 한다. 움직임(HALL_YIELD,
-막힘 표시)은 BLOCKED 뒤다.
-"""
+"""로봇단 교착 처리(계약 0.13-draft)의 관제 쪽: MoveTo의 priority와 로봇의 RECOVERING, local_yield 보고를 LOCAL_YIELD 사건으로 남기기만 한다."""
 import math
 from dataclasses import replace
 

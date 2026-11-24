@@ -1,9 +1,6 @@
-"""nav_goal Segment마다 세 거리 비교: 곧은 거리(투영), Nav2 남은 거리, 실제로 달린 거리.
+"""nav_goal Segment마다 곧은 거리, Nav2 남은 거리, 실제 달린 거리를 비교한다.
 
-사용: python3 driven_distance.py RUN_DIR [RUN_DIR ...]   (판 폴더: result/, truth.csv)
-- 끝난 판(summary.json 있음)만 본다. 관제 기록의 시각은 시뮬 시각이라 truth.csv의 sim_t와 맞춘다.
-- Segment마다 남은 거리를 쓴 첫 표본(투영 2 s 넘음) 하나를 고른다. 그 시각부터 Segment가 끝날 때까지
-  로봇이 실제로 달린 길이와, 그 시각의 투영 거리(proj x 0.12), Nav2 거리(used x 0.12)를 비교한다.
+    python3 driven_distance.py RUN_DIR ...
 """
 import bisect
 import csv

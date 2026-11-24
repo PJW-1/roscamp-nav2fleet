@@ -1,7 +1,4 @@
-"""extra_checks.py: 코어 재생으로 남은 거리의 뜀을 코어가 본 그대로 찾는다.
-
-사용: python3 -m pytest docs/distance_remaining_2026-11-21/test_extra_checks.py -q
-"""
+"""extra_checks.py가 코어 재생에서 남은 거리의 뜀을 찾는지 시험한다."""
 import importlib.util
 import math
 import sys
@@ -26,12 +23,7 @@ ON = replace(load_params(), use_order_model=True)
 
 
 def record(tmp_path, wait_at=None, again_at=None, bad_at=None, gap=False):
-    """pode1이 P-1에서 첫 nav_goal Segment 끝까지 4 s에 곧게 간다. 2 s에 남은 거리가 0.3 m 뛴다.
-
-    again_at: 그 걸음의 피드백을 같은 시각에 한 번 더 보낸다.
-    bad_at: 그 걸음 뒤 같은 시각에 NaN 피드백을 하나 더 보낸다.
-    gap: 1.0~1.8 s에는 위치만 보내고, 1.95 s에 위치 없이 뛴 피드백 하나를 보낸다.
-    """
+    """pode1이 P-1에서 첫 nav_goal Segment 끝까지 4 s에 곧게 가는 기록을 만든다."""
     now = [0.0]
     core = FleetManager(load_fleet_map("d2"), ON, ["pode1"], lambda: now[0])
     lines = []

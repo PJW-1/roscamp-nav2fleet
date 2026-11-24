@@ -1,8 +1,4 @@
-"""시험용 로봇이 order 하나를 다루는 법: 계약 0.11-draft(제안)의 로봇 쪽 규칙을 작게 옮겼다.
-
-base 조각을 차례로 달리고, base가 끝나면 선다. horizon이 남아 있으면 update를 기다리고, 없으면
-order가 끝난다. update는 이음 조건 넷이 모두 맞을 때만 줄 뒤에 붙인다.
-"""
+"""시험용 로봇이 order 하나를 다루는 법(계약 0.11-draft 제안의 로봇 쪽 규칙): base를 달리고 끝에 서며, update는 이음 조건 넷이 맞을 때만 붙인다."""
 from __future__ import annotations
 
 

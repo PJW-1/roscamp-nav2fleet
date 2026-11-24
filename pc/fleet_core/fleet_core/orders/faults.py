@@ -61,13 +61,13 @@ class Faults:
         if r is None:
             return
         r.isolated = reason
-        # 답 없던 팔 결과가 아직 올 수 있으면 그 결과를 기다린 뒤 판단한다
+        # 답 없던 팔 결과를 기다린 뒤 판단한다
         if not r.asked and self._result_still_due(r):
             return
         if r.asked == SWAP and r.order:
             self._out.append(ArmStopCmd(r.name))
             return
-        # 담는 중이면 팔 결과를 기다린 뒤 판단한다
+        # 담는 중이면 팔 결과를 기다린다
         if r.asked == FILL:
             return
         if r.asked:

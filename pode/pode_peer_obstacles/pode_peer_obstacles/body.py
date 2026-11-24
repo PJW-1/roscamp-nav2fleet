@@ -1,19 +1,14 @@
-"""다른 Pode의 몸 자리를 costmap에 찍을 점으로 바꾼다(ROS 없이 돈다).
-
-라이다 빔은 다른 Pode의 몸 위로 지나가 costmap에 작은 점으로만 찍힌다. 그래서 그 로봇이 보고한
-자세(/<로봇>/state)로 몸을 덮는 원을 점으로 채워 준다. 원의 가운데는 몸의 가운데다: base_footprint
-(바퀴 축)에서 앞으로 centre_m(음수면 뒤)만큼이다.
-"""
+"""다른 Pode의 몸을 덮는 원 안의 점을 계산한다(ROS 없음)."""
 import math
 
-# 원 반지름: 몸 가운데에서 가장 먼 꼭짓점 0.073 m + 2 mm(0.08은 좁은 틈을 막았다, 2026-11-17)
+# 몸을 덮는 원 반지름 (m): 몸 가운데에서 가장 먼 꼭짓점 + 2 mm
 RADIUS_M = 0.075
-# 원 가운데: 바퀴 축에서 몸 가운데까지
+# 원 가운데: 바퀴 축(base_footprint)에서 몸 가운데까지 앞쪽 거리 (m)
 CENTRE_M = -0.018
 
 
 def others(names: str, me: str) -> list[str]:
-    """"pode1,pode2,pode3"에서 나를 뺀 이름들(적힌 순서, 겹친 이름은 한 번)."""
+    """"pode1,pode2,pode3"에서 나를 뺀 이름들."""
     found = []
     for name in (part.strip() for part in names.split(",")):
         if name and name != me and name not in found:
@@ -23,10 +18,9 @@ def others(names: str, me: str) -> list[str]:
 
 def body_points(x: float, y: float, yaw: float, radius_m: float, step_m: float,
                 centre_m: float) -> list[tuple[float, float]]:
-    """자세 (x, y, yaw)의 로봇 몸을 덮는 원 안의 점들(map 좌표).
+    """자세 (x, y, yaw)의 몸을 덮는 원 안의 점들(map 좌표).
 
-    안은 step_m 격자로 채우고, 가장자리는 원둘레를 step_m보다 촘촘히 돈다: 격자만으로는 둘레의
-    칸이 빠질 수 있다.
+    둘레는 격자만으로 칸이 빠질 수 있어 step_m보다 촘촘히 더 찍는다.
     """
     cx, cy = x + centre_m * math.cos(yaw), y + centre_m * math.sin(yaw)
     n = int(radius_m / step_m)

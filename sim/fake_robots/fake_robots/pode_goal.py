@@ -38,7 +38,7 @@ class _Goal:
         self.end_at = 0.0
         self.start_at = 0.0
         self.error = (0.0, 0.0, 0.0)
-        self.target_id = ""  # target_id of a move, dock_id of a dock (current_goal)
+        self.target_id = ""  # move의 target_id, dock의 dock_id(current_goal)
         self.left = 0.0  # retreat: 남은 거리
         self.speed = 0.0
         self.nav: NavGoalDrive | None = None  # move의 nav_goal 모드

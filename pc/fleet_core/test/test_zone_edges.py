@@ -1,5 +1,4 @@
-"""구역 교통 층의 가장자리 경우: 취소와 놓는 순서, 달리는 중의 목적 바뀜, 복구 중 다시 끊김,
-후진 결과, 교착 회피 다시 하기, 후진 중 막힘."""
+"""구역 교통 층의 가장자리 경우: 취소와 놓는 순서, 달리는 중의 목적 바뀜, 복구 중 다시 끊김, 후진 결과, 교착 회피 다시 하기, 후진 중 막힘."""
 from dataclasses import replace
 
 import pytest
@@ -74,8 +73,7 @@ def test_a_robot_carried_into_the_yard_takes_the_yard_and_gives_the_dock_back():
 
 @pytest.mark.parametrize("order", [False, True], ids=["order_off", "order_on"])
 def test_a_purpose_changed_during_a_fixed_stretch_switches_at_the_next_node(order):
-    """order 모델: 넓은 구역에 닿은 뒤 목적이 바뀐 route는 nav_goal 조각이 아니어도 바로 멈춘다.
-    전에는 고속로(follow_path) 조각을 끝까지 달린 뒤에야 돌아왔다."""
+    """order 모델: 넓은 구역에 닿은 뒤 목적이 바뀐 route는 nav_goal 조각이 아니어도 바로 멈춘다."""
     world = Harness(starts={"pode1": "W", "pode2": "P-2", "pode3": "P-3"},
                     params=replace(OFF, use_order_model=order))
     world.report()
@@ -195,8 +193,7 @@ def test_a_robot_blocked_while_backing_out_waits_and_then_fails():
 # ---- 세계 시험이 찾은 것(B1, B2, B3) ----
 
 def test_a_nav_goal_keeps_every_zone_it_may_cross_until_it_ends():
-    """Nav2는 잡아 준 통로 안에서 어느 길로든 돌아올 수 있다. 지나온 넓은 구역도 goal이 끝날
-    때까지 쥔다."""
+    """Nav2는 잡아 준 통로 안에서 어느 길로든 돌아오므로 지나온 넓은 구역도 goal이 끝날 때까지 쥔다."""
     world = Harness("d", starts={"pode1": "W", "pode2": "P-1", "pode3": "P-3"})
     world.report()
     world.call("WORK", "pode1")  # 도크에 서 있다. 곧바로 도킹하고 도크를 쥔다
@@ -368,8 +365,7 @@ def test_a_robot_isolated_for_not_being_where_it_says_gives_nothing_back(later):
 
 
 def test_the_start_up_wait_counts_from_the_first_tick_so_a_record_plays_back():
-    """재생은 시계가 0일 때 코어를 만들고 기록의 시각으로 건너뛴다. 만든 시각에서 세면 첫 tick에
-    ROBOT_NOT_REPORTING이 나와 기록과 달라진다(world의 B4)."""
+    """재생은 코어를 만든 뒤 시계가 크게 뛰어도 첫 tick에 ROBOT_NOT_REPORTING을 내지 않는다."""
     world = Harness()
     world.silent = set(world.bots)
     world.now = 1_000_000.0  # 코어를 만든 뒤에 시계가 크게 뛴다

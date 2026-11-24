@@ -1,9 +1,6 @@
 """운영자의 치우기와 재투입 판단. ROS 없이 시험한다(scenario_monitor_node가 부른다).
 
-치울 때 심판의 보유 스냅샷이 관제보다 늦으면 일부만 풀린다(ZONES_STILL_HELD).
-실제 운영자처럼 남은 구역을 다시 치우고, 남은 구역이 없을 때만 재투입한다.
-관제는 이미 풀린 구역도 받는다(recovery.py).
-푼 구역은 다시 보내지 않는다.
+치울 때 일부만 풀리면(ZONES_STILL_HELD) 남은 구역을 다시 치우고, 남은 구역이 없을 때만 재투입한다.
 """
 from __future__ import annotations
 
@@ -42,7 +39,7 @@ def still_held_zones(detail: str) -> list[str]:
 class OperatorClear:
     def __init__(self, max_clears: int = 5, settle_s: float = 0.5, quiet_s: float = 0.3,
                  act_by_s: float = 1.0, answer_wait_s: float = 2.0):
-        # 시간은 모두 시뮬레이션 초. 치운 직후의 배정 한 번을 기다려 첫 스냅샷을 완전하게 한다.
+        # 시간은 모두 시뮬레이션 초
         self.max_clears = max_clears
         self.settle_s = settle_s  # 코스 밖 확인 뒤 첫 치우기까지 최소
         self.quiet_s = quiet_s  # 보유가 이만큼 그대로여야 보낸다

@@ -1,8 +1,4 @@
-"""traffic 패키지는 orders 없이 쓸 수 있어야 한다. 구역과 로봇만 알고 바구니는 모른다.
-
-모듈 이름은 fleet_core 안의 점 경로다: `traffic.modes`, `orders.orchestrator`,
-`common.commands`, `manager`.
-"""
+"""traffic 패키지는 orders 없이 쓸 수 있어야 한다(구역과 로봇만 알고 바구니는 모른다). 모듈 이름은 fleet_core 안의 점 경로다."""
 import ast
 from pathlib import Path
 
@@ -23,16 +19,14 @@ def _package(name, root=PACKAGE):
 TRAFFIC = _package("traffic")
 ORDERS = _package("orders")
 ARM = _package("arm")
-ARM_GOAL_NAMES = {"FillCmd", "SwapCmd", "CancelCmd"}  # what only the arm side sends
+ARM_GOAL_NAMES = {"FillCmd", "SwapCmd", "CancelCmd"}  # 팔 쪽만 보내는 것
 ORDER_SIDE_NAMES = {
     "OrderRecord", "FillCmd", "SwapCmd", "ReportOrderCmd", "SHIPPED", "PARTIAL", "HELD",
     "OrderOrchestrator", "FleetManager",
 }
 ORDER_SIDE_ATTRIBUTES = {"basket", "order", "orders", "placed_items", "last_order_id", "arm"}
-# traffic이 commands.py에서 가져올 수 있는 이름. 허용 목록이라 추가는 결정 사항이다.
-# 1단계에서 레인 제어기를 지워 남은 모듈은 일부만 쓴다. 나머지는 3단계 교통 층의 몫이다.
-# MoveOrderCmd와 SegmentOut은 order 모델(VDA 5050의 order: 이동 하나의 조각 목록)의 명령이다.
-# 주문(OrderRecord)과는 다른 것이라 교통 층의 어휘에 넣었다.
+# traffic이 commands.py에서 가져올 수 있는 이름(허용 목록, 추가는 결정 사항이다).
+# MoveOrderCmd와 SegmentOut은 order 모델의 명령이라 교통 층의 어휘에 넣었다.
 TRAFFIC_VOCABULARY = {
     "CancelCmd", "DispatchFeedback", "DispatchResult", "DockCmd", "EventOut", "MoveCmd",
     "MoveOrderCmd", "NO_ROBOT", "RetreatCmd", "RobotIsolated", "SegmentOut", "ZoneView",
@@ -71,10 +65,7 @@ def _tree(module):
 
 
 def _imports_of(tree, here=""):
-    """파싱한 파일이 임포트하는 fleet_core 모듈(절대/상대)과 가져오는 이름.
-
-    `here`는 상대 임포트를 풀 때 쓰는, 임포트하는 쪽 모듈.
-    """
+    """파싱한 파일이 임포트하는 fleet_core 모듈(절대/상대)과 가져오는 이름. `here`는 상대 임포트를 푸는 기준 모듈."""
     modules, names = set(), set()
     for node in ast.walk(tree):
         if isinstance(node, ast.ImportFrom):
@@ -218,7 +209,7 @@ def test_modules_in_a_subpackage_are_found(tmp_path):
                                              "traffic.zones"]
 
 
-# ---- the arm side: asked by the orders through FleetManager, like traffic ---------------------
+# ---- 팔 쪽: 교통처럼 주문이 FleetManager로 묻는다 ----
 
 
 def test_the_arm_package_is_found():
@@ -235,7 +226,7 @@ def test_orders_and_traffic_do_not_import_the_arm():
 
 
 def test_orders_send_no_arm_goal_themselves():
-    """The orders ask with ArmFillCmd and ArmSwapCmd; goals and cancels are the arm side's."""
+    """주문은 ArmFillCmd와 ArmSwapCmd로 묻고, goal과 cancel은 팔 쪽 몫이다."""
     for module in ORDERS:
         assert not _package_imports(module)[1] & ARM_GOAL_NAMES, module
     assert _package_imports("arm.jobs")[1] >= ARM_GOAL_NAMES

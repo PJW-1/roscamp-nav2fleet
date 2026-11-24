@@ -1,11 +1,4 @@
-"""load_params가 파일을 검사한다(2026-11-16).
-
-params_file로 받은 yaml에서 키 하나가 빠지면 코드 기본값이 조용히 쓰였다.
-예: stall_s가 빠지면 그때 기본값 6 s가 되어 Pode가 BLOCKED를 보고하기(10 s) 전에 관제가
-goal을 거둔다. 그래서 빠진 키는 오류다.
-일부러 빼 둔 키는 OPTIONAL에 이름으로 적는다. 시간·거리 값은 유한하고 양수여야 하며, 0이
-'끔'인 키만 0을 허용한다.
-"""
+"""load_params가 yaml 파일을 검사한다: 빠진 키는 오류(OPTIONAL에 적은 키만 예외)고, 시간·거리 값은 유한하고 양수여야 하며 0이 '끔'인 키만 0을 허용한다."""
 import dataclasses
 import json
 import math
@@ -119,13 +112,7 @@ RECORD_COMPAT = {"idle_watch_s", "silent_limit_s", "start_limit_s", "nav_pass_m"
 
 
 def test_code_defaults_match_the_shipped_file_except_record_compat_watches():
-    """FleetParams(**fields)로 바로 만들 때(tools/replay.py의 옛 기록)의 기본값.
-
-    stall_s는 파일과 같다(12 s). 0이 '끔'인 세 감시는 그 키가 없는 옛 기록을 감시 없이
-    재생하려고 0으로 둔다(test_zone_silent, test_zone_no_start). Nav2 goal 끝 보정 두 키도
-    같은 까닭으로 0이다(test_zone_eta_end). load_params는 빠진 키를
-    오류로 내므로 운영 파일에는 이 기본값이 쓰이지 않는다.
-    """
+    """FleetParams(**fields)로 바로 만들 때(tools/replay.py의 옛 기록)의 기본값. 0이 '끔'인 감시는 그 키가 없는 옛 기록을 감시 없이 재생하려고 0이다."""
     differ = {name: (f.default, SHIPPED[name]) for name, f in FIELDS.items()
               if f.default is not dataclasses.MISSING and name in SHIPPED
               and f.default != SHIPPED[name]}
@@ -203,8 +190,7 @@ def test_replay_of_a_record_without_stall_s_uses_the_old_6_s():
 @pytest.mark.parametrize("recorded, played", [(None, False), (False, False), (True, True)],
                          ids=["missing", "false", "true"])
 def test_replay_keeps_the_order_model_of_the_record(recorded, played):
-    """use_order_model 키가 없는 옛 기록(2026-11-12 전)은 그때의 기본값(끔)으로 재생한다.
-    기본값을 켠 뒤에도 옛 기록이 켠 관제로 돌지 않게 한다. 키가 있으면 그 값이다."""
+    """use_order_model 키가 없는 옛 기록은 그때의 기본값(끔)으로 재생하고, 키가 있으면 그 값이다."""
     head = recorded_head()
     if recorded is None:
         del head["params"]["use_order_model"]
@@ -219,10 +205,7 @@ def test_replay_of_a_record_with_stall_s_uses_it():
 
 
 def old_stall_record(path):
-    """stall_s 키가 없던 때의 기록 흉내: 6 s 코어로 기록하고 머리에서 stall_s를 지운다.
-
-    pode1이 goal을 받고 제자리에서 10 s 보고하므로 6.3 s에 GOAL_STALLED가 기록된다.
-    """
+    """stall_s 키가 없던 때의 기록 흉내: 6 s 코어로 기록하고 머리에서 stall_s를 지운다."""
     from fleet_core.common.commands import OrderRecord
     from fleet_core.fleet_map import load_fleet_map
     from fleet_core.manager import FleetManager

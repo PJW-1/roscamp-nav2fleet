@@ -1,14 +1,6 @@
-"""1번 기준 시뮬 여러 판 합계: Q2를 지나는 Route마다 구간 모양, 갱신 시점, 선 시간.
+"""기준 시뮬 여러 판의 합계: Q2를 지나는 Route마다 구간 모양, 갱신 시점, 선 시간.
 
-사용: python3 step1_report.py NAME=RESULT_DIR [NAME=RESULT_DIR ...] [--routes]
-Route = 주문 하나(order_id), ORDER_SENT부터 그 주문의 마지막 SEGMENT_DONE까지.
-
-합친 nav_goal Q2 Route(2026-11-20 정의): Q2로 가는 nav_goal Segment의 시작 node가 Q2와 바로 이어진
-node(E-3, M_E)가 아닌 Route. E-1, E-2, O_OUT 출발이 들어간다(열 q2_from, joined).
-Q2에서 선 Route의 원인(열 stop_cause): 도착한 때 다른 로봇의 보고 위치가 Q1에서 0.20 m(노드를
-놓는 거리) 안이면 q1_busy, 아니고 도착 1 s 전부터 5 s 뒤 사이에 ZONE_WAIT가 있으면 zone_wait,
-둘 다 아니면 other(이 두 조건에 걸리지 않은 것). 위치로 본 어림이고 Q1을 누가 쥐었는지 직접 읽은
-것이 아니다. 누가 쥐었는지는 fleet_robots.csv의 wait_zone, wait_robots로 본다.
+    python3 step1_report.py NAME=RESULT_DIR ... [--routes]
 """
 import csv
 import json
@@ -58,13 +50,7 @@ def resume_after(rows, t):
 
 
 def q2_from(cmds, seq, t_arr, start_xy):
-    """Q2에 닿은 nav_goal Segment(seq)의 시작 node와, 그것을 위치로 어림했는지.
-
-    그 Segment를 담은 마지막 명령(도착한 때까지)에서 바로 앞 Segment의 끝 node를 본다. 갱신 명령의
-    첫 Segment면 그 전 명령들의 seq - 1을 쓴다(다시 자른 Route는 seq_id가 겹치므로 최신 것. 다시 자르며
-    앞 Segment까지 바뀐 Route라면 옛 Segment를 집을 수 있다: 그런 명령은 이번 묶음에 없었다).
-    Route의 첫 Segment면 명령에 시작 node가 없어, Route를 받은 자리에서 가장 가까운 node로 어림한다.
-    """
+    """Q2에 닿은 nav_goal Segment의 시작 node와, 그것을 위치로 어림했는지."""
     seen, found = {}, None
     for c in cmds:
         if c["t"] > t_arr:

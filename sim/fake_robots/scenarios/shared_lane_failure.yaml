@@ -1,7 +1,5 @@
 # 한 로봇은 통신이 끊기고 다른 로봇은 공유 레인에서 nav 중단을 겪는다.
-# 구역 잠금은 배타적이어야 하고 낡은 위치로 풀리면 안 된다. 주문은 모두 출고된다:
-# 통신은 돌아오고 중단 두 번은 재시도 한도 안이다. 로봇 3대가 주문 6건을 처리하려면
-# 한 바퀴 넘게 돌아야 해서 그 시각에 로봇들이 바쁘다.
+# 구역 잠금은 배타적이어야 하고 낡은 위치로 풀리면 안 된다. 주문은 모두 출고된다.
 map: d2  # D2 배치용 시나리오(기본 배치는 v7)
 seed: 7
 speed_factor: 5.0
@@ -34,8 +32,7 @@ expect:
   released_without_position_check: 0
   unheld_zone_pose: 0
   events_include: [COMM_LOST, COMM_RESTORED]
-  # 중단 하나는 GOAL_RETRY이거나, 로봇이 이미 그 goal 끝에 서 있으면 GOAL_ENDED_AT_TARGET이다.
-  # 어느 쪽인지는 실행 시각에 달려 GOAL_RETRY 수는 세지 않는다.
+  # 중단 하나는 GOAL_RETRY이거나 GOAL_ENDED_AT_TARGET이라 GOAL_RETRY 수는 세지 않는다.
   # 재시도 한도 안이라는 것은 GOAL_FAILED 0과 모든 주문 출고로 본다
   event_counts: {COMM_LOST: 1, COMM_RESTORED: 1, GOAL_FAILED: 0, ROBOT_NOT_REPORTING: 0}
   order_results: {O-001: SHIPPED, O-002: SHIPPED, O-003: SHIPPED, O-004: SHIPPED, O-005: SHIPPED, O-006: SHIPPED}

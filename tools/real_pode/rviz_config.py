@@ -1,9 +1,4 @@
-"""실물 시험용 RViz 설정 생성. 로봇마다 TF 가 /<ns>/tf 에 따로 있어서 RViz 도 로봇마다 한 개 띄운다.
-
-- 로봇별 창: pode_nav.rviz 의 <robot_namespace> 를 /<ns> 로 바꾼다(지도, 스캔, 경로, 발자국).
-- 전체 창: TF 없이 map 틀 토픽만(지도, 로봇별 amcl_pose, 입자, 경로).
-  스캔과 발자국은 TF 가 필요해 뺀다.
-"""
+"""실물 시험용 RViz 설정을 만든다. 로봇마다 TF가 /<ns>/tf에 따로 있어 로봇별 창과 전체 창을 둔다."""
 import sys
 from pathlib import Path
 

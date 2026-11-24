@@ -1,6 +1,4 @@
-"""격리 검사 시험. Gazebo 시뮬은 실물과 같은 /podeN/... 이름을 쓰므로
-로봇 네트워크에 붙으면 안 된다.
-"""
+"""격리 검사 시험: 시뮬이 실물과 같은 /podeN/... 이름을 쓰므로 로봇 네트워크에 붙으면 안 된다."""
 import pytest
 from fleet_gz_sim.isolation import problems, require_isolated
 
@@ -27,8 +25,7 @@ def test_domain_range_ends_are_accepted(domain):
     assert problems(with_(ROS_DOMAIN_ID=domain)) == []
 
 
-# 102~232는 리눅스 기본 임시 포트(32768~60999)와 겹치거나 프로세스 수가 모자란다.
-# "²"는 str.isdigit()이 참이지만 int()가 받지 않는다. 4300자리를 넘는 숫자도 int()가 거부한다.
+# 102~232는 임시 포트와 겹치거나 프로세스 수가 모자라다. "²"는 isdigit()이 참이지만 int()가 받지 않는다.
 @pytest.mark.parametrize("domain", [None, "", "abc", "6", "42", "102", "232", "233",
                                     "²", " 43", "43 ",
                                     pytest.param("9" * 5000, id="5000_digits")])
@@ -54,7 +51,7 @@ def test_only_the_repo_dds_is_accepted():
 
 
 def test_the_rmw_actually_loaded_wins_over_the_variable():
-    # 변수가 없을 때 실제 기본값이 Fast DDS가 아닌 설치도 있다.
+    # 변수가 없을 때 기본값이 Fast DDS가 아닌 설치도 있다.
     found = problems(SAFE, rmw="rmw_cyclonedds_cpp")
     assert len(found) == 1 and "rmw_cyclonedds_cpp" in found[0]
     assert problems(SAFE, rmw="rmw_fastrtps_cpp") == []

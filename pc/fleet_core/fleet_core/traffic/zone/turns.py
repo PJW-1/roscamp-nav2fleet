@@ -63,8 +63,7 @@ class Turns:
                 return free
             cost = self._cost(m)
             return sorted(free, key=lambda spot: self._price(m, spot, cost))
-        # 줄에 선 로봇(이 스테이션으로 가는 로봇)이 쥔 자리만 센다:
-        # 줄을 떠나는 로봇의 자리는 꼬리가 아니다
+        # 줄에 선 로봇이 쥔 자리만 센다(떠나는 로봇의 자리는 꼬리가 아니다)
         taken = [i for i, spot in enumerate(station.queue)
                  if self.grants.node_holder(spot) not in mine
                  and self._in_line(self.grants.node_holder(spot), station.id)]
@@ -79,8 +78,7 @@ class Turns:
         """줄 순서(앞이 0). 한 칸 당기는 로봇은 가는 자리로, 줄에 안 선 로봇은 맨 뒤 다음."""
         route = r.route
         if route is not None and not route.stale:
-            # 받은 구간에서 앞으로 처음 닿는 대기 자리. 지나온 자리는 세지 않는다
-            # (order 모델은 route 끝에 도크까지 붙인다)
+            # 받은 구간에서 앞으로 처음 닿는 대기 자리
             spots = [edge.b for edge in route.edges[route.done:route.granted]
                      if edge.b in station.queue]
             if spots:
@@ -119,7 +117,7 @@ class Turns:
             return (not (left or r.dock_tries), spot(r), r.asked_at or 0.0, r.asked_gap, r.name)
 
         def first(other) -> bool:
-            # 줄: 상대 길 위의 줄 자리를 한쪽만 쥐었으면 쥔 로봇이 먼저(몸으로 앞선 로봇)
+            # 줄: 상대 길 위의 줄 자리를 한쪽만 쥐었으면 쥔 로봇이 먼저
             if station.line:
                 theirs, ours = self._blocks(other, m, station), self._blocks(m, other, station)
                 if theirs != ours:
