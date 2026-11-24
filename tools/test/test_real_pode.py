@@ -197,7 +197,7 @@ def test_nav2_arguments_exist_in_current_launch():
     assert passed <= _declared(NAV2_LAUNCH)
     assert {"namespace", "use_sim_time", "map", "map_fine", "keepout_mask", "params_file",
             "avoidance_params_file", "initial_x", "initial_y", "initial_yaw",
-            "peer_obstacles", "peer_robots", "log_level", "use_composition"} <= passed
+            "peer_obstacles", "peer_robots", "log_level", "use_composition", "plan_keep"} <= passed
 
 
 def test_fsm_arguments_exist_in_current_launch():
@@ -243,6 +243,90 @@ def test_launch_declares_dock_aside_default_false():
             if isinstance(a, DeclareLaunchArgument) and a.name == "dock_aside"]
     assert len(decl) == 1
     assert "".join(t.text for t in decl[0].default_value) == "false"
+
+
+def test_launch_declares_plan_keep_default_false():
+    # 길 유지 노드(해결안 A)는 실물에서 기본 꺼짐
+    import importlib.util
+    _need_launch()
+    from launch.actions import DeclareLaunchArgument
+    spec = importlib.util.spec_from_file_location("real_pode_launch3", KIT / "real_pode.launch.py")
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    mod.get_package_share_directory = lambda name: "/nonexistent/" + name
+    decl = [a for a in mod.generate_launch_description().entities
+            if isinstance(a, DeclareLaunchArgument) and a.name == "plan_keep"]
+    assert len(decl) == 1
+    assert "".join(t.text for t in decl[0].default_value) == "false"
+
+
+# ---- deploy.sh: 복사하는 패키지가 기대는 저장소 패키지도 함께 복사한다 ----
+def _deploy_packages():
+    text = (KIT / "deploy.sh").read_text(encoding="utf-8")
+    m = re.search(r"^packages=\(([^)]*)\)", text, re.M)
+    assert m, "packages=(...) not in deploy.sh"
+    return m.group(1).split()
+
+
+def _repo_packages():
+    out = subprocess.run(["git", "-C", str(ROOT), "ls-files", "*package.xml"],
+                         capture_output=True, text=True, check=True).stdout.split()
+    found = {}
+    for rel in out:
+        name = re.search(r"<name>([^<]+)</name>", (ROOT / rel).read_text("utf-8")).group(1)
+        found[name] = str(Path(rel).parent)
+    return found
+
+
+def test_deploy_copies_every_repo_dependency():
+    repo = _repo_packages()
+    deployed = _deploy_packages()
+    assert "pode/pode_plan_keep" in deployed
+    for rel in deployed:
+        xml = (ROOT / rel / "package.xml").read_text("utf-8")
+        for dep in re.findall(r"<(?:exec_depend|depend|build_depend)>([^<]+)<", xml):
+            if dep in repo:
+                assert repo[dep] in deployed, f"{rel} needs {dep} ({repo[dep]})"
+
+
+# ---- start.sh: PLAN_KEEP=1이면 launch에 plan_keep:=true ----
+def _start_args(tmp_path, extra):
+    """start.sh는 진짜, 대역 ros2가 받은 인자를 한 줄에 하나씩 적는다."""
+    kit = tmp_path / "kit"
+    kit.mkdir()
+    for name in ("start.sh", "env.sh", "net.sh"):
+        shutil.copy(KIT / name, kit)
+    (kit / "make_params.py").write_text("print('params ok')\n")
+    fake = tmp_path / "bin"
+    fake.mkdir()
+    seen = tmp_path / "ros2.args"
+    (fake / "ros2").write_text(f'#!/bin/bash\nprintf "%s\\n" "$@" > "{seen}"\n')
+    (fake / "ros2").chmod(0o755)
+    env = {"PATH": f"{fake}:/usr/bin:/bin", **_robot_home(tmp_path), **extra}
+    run = subprocess.run(["bash", str(kit / "start.sh"), "pode1", "0.12", "0.10", "1.5708"],
+                         env=env, capture_output=True, text=True, timeout=30)
+    for _ in range(50):
+        if seen.exists() and seen.read_text().strip():
+            break
+        time.sleep(0.1)
+    return run, seen.read_text().split("\n") if seen.exists() else None
+
+
+@pytest.mark.parametrize("extra, want", [({}, False), ({"PLAN_KEEP": "0"}, False),
+                                         ({"PLAN_KEEP": "1"}, True)])
+def test_start_plan_keep(tmp_path, extra, want):
+    run, args = _start_args(tmp_path, extra)
+    assert run.returncode == 0, run.stdout + run.stderr
+    assert args is not None and "namespace:=pode1" in args
+    assert ("plan_keep:=true" in args) == want
+    assert not any(a.startswith("plan_keep:=") and a != "plan_keep:=true" for a in args)
+
+
+def test_start_refuses_bad_plan_keep(tmp_path):
+    run, args = _start_args(tmp_path, {"PLAN_KEEP": "yes"})
+    assert run.returncode == 2
+    assert "bad PLAN_KEEP" in run.stdout
+    assert args is None
 
 
 def test_launch_default_does_not_wrap_fsm():
@@ -1022,7 +1106,7 @@ def test_stop_stops_our_group(tmp_path):
 
 PACKAGES = ("interfaces/fleet_interfaces", "pode/pode_fsm", "pode/pode_nav_config",
             "pode/pode_avoidance", "pode/pode_peer_obstacles", "pode/pode_scan_filter",
-            "pode/pode_dock")
+            "pode/pode_dock", "pode/pode_plan_keep")
 
 
 def _fake_repo(tmp_path):
