@@ -14,11 +14,14 @@
   5. `bc3a9d3`, `9583e54` gz.launch.py `nav_rl` 인자(RL+shim 비교용)
   6. `db77f9e` feat/plan-flip-b-2026-11-24 merge: 해결안 B(관제가 Q2 goal을 중간 지점으로 나눔, 기본 꺼짐)
   7. `80a620b` 지표 스크립트 고침(주문 갱신 구간)
+  8. `2330bad`~`1ccb258` 도착 지연 `arrival_check.py`, 표 `make_tables.py`, 지표 창 `--until`과 고침
+  9. `dae33dc` feat/plan-flip-b-2026-11-24 다시 merge: B가 노드 출발(O_OUT→E-3→Q2)도 나눔(B 에이전트 9fa232b, bb22a46)
 - 빌드(모두 `~/gg_build/` 아래, Gazebo 판마다 launch.out의 install 경로로 확인한다)
   - `pd-flip-base`: 468f09c. 기준 판(해결안 없음, RPP).
   - `pd-flip-a`: c0e4985. A(keeper), C(BT 3 s)의 RPP 판.
   - `pd-flip-a2`: bc3a9d3. `nav_rl`이 있는 빌드. RL+shim 판 전부(기준, A, C).
-  - `pd-flip-b`: db77f9e. B 판.
+  - `pd-flip-b`: db77f9e로 빌드한 뒤 16:15에 fleet_core만 dae33dc(B 넓힘)로 다시 빌드했다
+    (db77f9e..dae33dc는 pc/fleet_core와 docs만 바뀜). B 판은 모두 넓힌 B다.
 - Gazebo: ROS_DOMAIN_ID 93, LOCALHOST, Fast DDS, GUI 없음. PC CPU가 판마다 93~97 %라 한 번에 한 판만 돌렸다.
   판 기록은 `~/gz_runs/plan_flip_2026-11-24/<판>/`(launch.out, run_info.txt, result/, truth.csv, bag/, cpu*.csv)에,
   묶음 기록은 같은 폴더의 batch.log에 있다.
@@ -87,3 +90,29 @@
   1 cm만의 문제는 아니다. 판별 오류 수: C_rpp_r1 640, base_rl_r1 320, RL 장애물 판 2240~11888, 나머지 0.
   NavFn은 goal 칸 자체에 닿지 못할 때만 이 창을 훑는다고 본다(추측: Q2 근처에 다른 로봇이 있을 때). 오류가 난 판도
   다른 지표는 정상이라 동작 영향은 확인하지 못했다(로그 양만 늘어난다).
+
+## B 넓힘, RL 정리, RPP만으로 줄임 (16:00~17:25)
+
+- B 에이전트 보고(9fa232b, bb22a46, Codex 재검수 결함 없음)를 확인하고 합쳤다(dae33dc). fleet_core 시험 1330 passed,
+  7 xfailed를 내가 다시 돌려 확인했다. 기록 재계산(B 에이전트, `two_ways.py`): 러시 판 Q2 goal 12건 중 9건(O_OUT 출발)이
+  GAP_S로 나뉘고, 장애물 판 E-1→Q2 goal은 하나도 나뉘지 않는다. s1_a_v1, s1_a1_v1에 ZONE_MARKED_BLOCKED가 0건인 것은
+  내가 launch.out에서 다시 셌다(관제가 상자를 알 신호가 없다).
+- 좁은 B로 돈 첫 B 판(Q2 goal을 하나도 안 나눔)은 `s2_a1_B0_rpp_r1`로 이름을 바꿔 표에서 뺐다.
+- RL+shim 기준 장애물 판(`s2_a1_base_rl_v1`)은 세 번 돌았다. 1회차(`s2_a1_base_rl_v3`로 이름 바꿈)와
+  2회차(`s2_a1_base_rl_v4`)는 sim 425~453 s에 로봇끼리 닿은 뒤 위치를 잃고 격리됐고, 3회차(`s2_a1_base_rl_v1`)는
+  12/12, 586.1 s로 통과했다. A, B, C의 RL 장애물 판도 각 1판씩 통과했다. 격리가 늘 나는 일은 아니다.
+- 17:23 사용자 지시: "RL 쪽은 진행 상황 그대로 두고 최근 시험까지만 올리고, RPP 쪽만 우선". 돌던
+  `s2_a1_A_rl_r1`은 내가 끊었고(`s2_a1_A_rl_r1.stopped-172300`, 판 실패가 아니라 표에서 뺐다) 이후 큐(queue8)는 RPP만이다:
+  1 cm 2단계 2회차(A, B, C × 두 판), 1단계 나머지(1 cm, 2.5 cm 각 v2, v3, r2, r3).
+- `s2_a1_A_rpp_v1`의 path_not_connected 1건(sim 447.7 s, pode1):
+  - 순서: Q2 nav_goal을 0.15 m 앞에서 먼저 넘김(SEGMENT_DONE) → 같은 order의 갱신(update 2, base to W) →
+    옛 goal SUPERSEDED → 0.12 s 뒤 PATH_NOT_CONNECTED → GOAL_RETRY(attempt 1) 뒤 정상 진행, 12/12.
+  - 먼저 넘기는 조건(`order_fsm._passes`: Q2까지 ≤ pass_m 0.15, 다음 경로까지 ≤ connect_tolerance_m 0.15)과
+    갱신을 받아 멈춘 뒤 다시 재는 조건(`nav_moves._hand_over`: 새 경로까지 ≤ 0.15)이 같은 0.15 m다. 멈춘 자리는
+    truth로 Q2에서 0.158 m였다. 넘길 때 0.15 안이던 위치가 멈춘 뒤 다시 잴 때 몇 mm 밖으로 나간 경계 문제로 본다
+    (추측: AMCL 값은 이 판에서 따로 보지 않았다).
+  - keeper와 costmap은 이 판정에 들어가지 않는다(pode_fsm이 관제 경로와 로봇 위치만 본다). 그래서 A나 1 cm 때문이
+    아니라 main에도 있는 판정 경계로 본다. `~/gz_runs` 아래 남은 모든 판 기록에서 이 실패는 이 1건뿐이다.
+- `s2_a1_C_rpp_v1`의 도착 지연 8.14 s(pode3, E-3): truth로 E-3 0.038 m 앞에서 5 s 서서 방향만 돌다가
+  RECOVERING → BLOCKED를 거친 뒤 끝을 받았다. 11-18 도착 판정 문제와 같은 꼴이다. 3 s 묵은 경로 때문인지
+  AMCL 오차 때문인지는 이 자료로 가를 수 없다.
