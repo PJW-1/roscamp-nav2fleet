@@ -184,9 +184,10 @@ TEST(SpeedCap, NavSpeedIsTheSourceAndOutOfRangeIsClamped)
 // ---- ONNX Runtime C++ 대 PyTorch ----
 TEST(Inference, MatchesTorch)
 {
-  // 정책 파일은 학습 PC가 내보낸 뒤 둔다(저장소에는 4b만): 없으면 추론 비교만 건너뛴다
+  // 정책 파일은 학습 PC가 내보낸 뒤 둔다. 저장소에 있어야 하는 후보(4b)는 없으면 실패, 나머지는 건너뛴다
   const std::string onnx = std::string(POLICY_DIR) + "/policy.onnx";
   if (!std::filesystem::exists(onnx)) {
+    ASSERT_FALSE(ONNX_REQUIRED) << "missing " << onnx << " (this policy is kept in the repo)";
     GTEST_SKIP() << "no " << onnx << "; export the policy to compare inference";
   }
   const PolicySpec s = spec();

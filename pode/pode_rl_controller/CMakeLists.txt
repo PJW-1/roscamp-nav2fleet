@@ -50,11 +50,17 @@ install(DIRECTORY policies DESTINATION share/${PROJECT_NAME})
 
 if(BUILD_TESTING)
   find_package(ament_cmake_gtest REQUIRED)
-  # 후보마다 parity 시험. 저장소에는 4b의 policy.onnx만 있어 나머지는 추론 비교만 건너뛴다
+  # 후보마다 parity 시험. 저장소에는 4b의 policy.onnx만 있어 4b는 꼭 있어야 하고, 나머지는 없으면 추론 비교만 건너뛴다
   foreach(policy store_arena_4b store_arena_c store_arena_acd store_arena_acd2)
+    if(policy STREQUAL "store_arena_4b")
+      set(onnx_required 1)
+    else()
+      set(onnx_required 0)
+    endif()
     ament_add_gtest(test_parity_${policy} test/test_parity.cpp)
     target_link_libraries(test_parity_${policy} pode_rl_core)
     target_compile_definitions(test_parity_${policy} PRIVATE
+      ONNX_REQUIRED=${onnx_required}
       FIXTURE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/test/fixtures/${policy}"
       POLICY_DIR="${CMAKE_CURRENT_SOURCE_DIR}/policies/${policy}"
       NAV_SPEED_FILE="${CMAKE_CURRENT_SOURCE_DIR}/../pode_nav_config/params/nav_speed.yaml")
