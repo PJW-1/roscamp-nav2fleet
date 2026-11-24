@@ -535,7 +535,7 @@ def test_net_default_is_server_mode_and_clears_old_values():
 
 # ---- 도메인: FLEET_DOMAIN_ID, 기본 6(팀 규칙 IR-81) ----
 @pytest.mark.parametrize("value, domain", [("12", "12"), ("0", "0"), ("232", "232"),
-                                           ("", "6")])
+                                           ("", "6"), ("0006", "6"), ("0000", "0")])
 def test_net_domain_comes_from_fleet_domain_id(value, domain):
     run, got = _sourced([f'source "{KIT}/net.sh"'], {"FLEET_DOMAIN_ID": value})
     assert run.returncode == 0, run.stderr
