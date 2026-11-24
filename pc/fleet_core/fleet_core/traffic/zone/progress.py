@@ -73,8 +73,7 @@ class Progress:
             edge = route.edges[route.done]
             if edge.mode == NAV_GOAL or not passed(edge, m.x, m.y):
                 break
-            # 물러나기는 놓을 구역 쪽에서 노드로 다가간다:
-            # 노드 좌표로 잴 거리 안이면 끝냈다는 답을 기다린다
+            # 물러나기는 노드 좌표로 잴 거리 안이면 끝냈다는 답을 기다린다
             if edge.mode == RETREAT and self._gap(m, edge.b) <= self.params.release_margin_m:
                 break
             m.node = edge.b

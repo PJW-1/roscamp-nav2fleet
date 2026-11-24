@@ -131,7 +131,7 @@ class ReportOrderCmd:
     placed: dict[str, int]
     missing: dict[str, int]
     detail: str
-    hold_reason: str = ""  # status가 HELD일 때만 채움
+    hold_reason: str = ""  # HELD일 때만 채움
 
 
 # ---- 이벤트 출력과 화면 조회 구조 ----
@@ -292,7 +292,7 @@ class ArmLate:
     put_empty_done: bool = False
 
 
-# 팔이 재시도 한도를 넘었거나 답이 없음. Pode 고장이 아님
+# 팔 고장: 재시도 한도 초과나 무응답
 @dataclass(frozen=True)
 class ArmFault:
     robot: str
