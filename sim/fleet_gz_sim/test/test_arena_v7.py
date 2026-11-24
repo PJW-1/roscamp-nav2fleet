@@ -12,7 +12,7 @@ from fleet_gz_sim import arena_maps, fleet_setup  # noqa: E402
 
 PKG = Path(__file__).resolve().parents[1]
 # v7 진열대, 칸막이 상자 목록(실측 반영)
-BOXES = [(0.65, 0.77, 1.56, 0.783), (0.70, 0.365, 0.99, 0.405), (1.25, 0.365, 1.56, 0.405),
+BOXES = [(0.65, 0.77, 1.56, 0.775), (0.70, 0.365, 0.99, 0.405), (1.25, 0.365, 1.56, 0.405),
          (0.24, 0.0, 0.26, 0.10), (0.50, 0.0, 0.52, 0.10)]
 
 
@@ -49,9 +49,9 @@ def test_v7_charging_stalls_and_express_are_open_in_the_fine_map(site):
         assert free(x, 0.05)
     assert not free(0.25, 0.05) and not free(0.51, 0.05)
     assert free(0.77, 0.05)  # 칸막이 3이 있던 자리
-    assert free(1.0, 0.85) and free(1.0, 0.95)   # 급행 0.17(실측) 안
-    # 시뮬 진열대 A 북쪽 면 0.783: 1 cm 지도에서 0.78~0.79 칸까지 진열대
-    assert not free(1.0, 0.785) and free(1.0, 0.795)
+    assert free(1.0, 0.85) and free(1.0, 0.95)   # 급행 안
+    # 진열대 A 북쪽 면 0.775: 1 cm 지도에서 0.77~0.78 칸까지 진열대
+    assert not free(1.0, 0.775) and free(1.0, 0.785)
     # 북쪽 벽 안쪽 면 0.98: 1 cm 지도에서 0.98~0.99 칸은 벽이다
     assert free(1.0, 0.975) and not free(1.0, 0.985)
 
@@ -62,7 +62,6 @@ def test_v7_real_kit_maps_are_drawn_with_the_measured_shelf(tmp_path):
     arena.main(["--layout", "v7", "--real", "--out", str(tmp_path)])
     site = load_fleet_map("v7")
     assert arena.real_site(site).sim_shelves == site.shelves
-    assert site.sim_shelves != site.shelves  # 원본은 그대로
     lines = (tmp_path / "maps" / "arena_v7_fine.yaml").read_text(encoding="utf-8").splitlines()
     assert lines[1] == "# 실물 키트: /tmp/real_v7/maps/의 지도를 tools/real_pode/maps로 복사한다"
     # 머리 줄 명령은 --out만 바꿔 돌려 같은 파일이 나오는지 본다
@@ -77,7 +76,6 @@ def test_v7_real_kit_maps_are_drawn_with_the_measured_shelf(tmp_path):
         assert (tmp_path / "again" / "maps" / path.name).read_bytes() == path.read_bytes()
     real = arena_maps.pgm(arena_maps.FINE_M, arena.real_site(site))
     assert (tmp_path / "maps" / "arena_v7_fine.pgm").read_bytes() == real
-    assert real != arena_maps.pgm(arena_maps.FINE_M, site)
     assert (tmp_path / "maps" / "arena_v7_a.yaml").exists()
 
 
@@ -417,12 +415,12 @@ def _free_rows(grid, x, y0, y1, resolution, site):
     (0.05, "touch", 6, 0.45, 0.75),  # 기본: 상자가 걸친 칸은 막힘
     (0.05, "centre", 7, 0.40, 0.75),  # B
     (0.025, "touch", 13, 0.425, 0.75),  # A
-    (0.025, "centre", 15, 0.40, 0.775),  # A+B
+    (0.025, "centre", 14, 0.40, 0.75),  # A+B
 ])
 def test_v7_middle_corridor_free_cells_at_x_095(site, resolution, paint, count, low, high):
     """가운데 통로(진열대 사이 y 0.405~0.77)를 x 0.95에서 가로지르는 빈칸."""
     grid = arena_maps.occupancy(resolution, site, paint)
-    assert _free_rows(grid, 0.95, 0.385, 0.79, resolution, site) == (count, low, high)
+    assert _free_rows(grid, 0.95, 0.385, 0.772, resolution, site) == (count, low, high)
 
 
 def test_the_default_paint_is_the_touch_rule(site):

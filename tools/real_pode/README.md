@@ -19,7 +19,7 @@
 | `discovery_server.sh` | PC에서 실행한다. ROS를 읽고 `fastdds discovery -i 0 -p 11811`을 앞에서 돌린다. 끌 때는 Ctrl+C(이 도구는 sh, python, 서버 프로그램이 겹쳐 있어서 PID 하나에 TERM을 보내면 서버가 남을 수 있다) |
 | `rviz_pc.sh` | PC에서 `tools/real_pode/rviz_pc.sh pode1 pode2`로 RViz를 띄운다. 안에서 `SUPER=1`로 `pc_env.sh`를 읽는다. `DISCOVERY_SERVER=off tools/real_pode/rviz_pc.sh ...`도 된다 |
 | `deploy.sh ROBOT_HOST` | PC에서: 커밋된 HEAD의 패키지를 `ROBOT:~/nav2fleet_ws/src/<저장소 경로>/`에, 이 폴더(지도 포함)를 `ROBOT:~/nav2fleet_real/`에 복사한다. 빌드와 실행은 하지 않는다 |
-| `maps/` | `arena_real_slam`: 실물 경기장 SLAM 지도(2.5 cm, 2026-11-17 확정). AMCL(`map_fine`)의 기본이다. 나머지는 실측 진열대로 그린 v7 지도다(`python3 -m fleet_gz_sim.arena --layout v7 --real --out /tmp/real_v7`로 만들고 `/tmp/real_v7/maps/`의 지도를 복사한다. 2026-11-20부터 시뮬 지도는 진열대 A가 1 cm 얇아 `sim/fleet_gz_sim/maps/`와 다르다): `arena_v7_a`(전역 costmap 2.5 cm, 2026-11-17 결정), `arena_v7_keepout`, `arena_v7_fine`(1 cm 도면 지도, 이제 기본 아님, AMCL 후보), `arena_v7_a1`(1 cm costmap 후보, `arena_v7_a`와 같은 칠하기 규칙이라 그림은 `arena_v7_fine`과 같다. 2026-11-24 추가, launch 기본값은 그대로). `arena_v7`(5 cm)은 비교용으로 남긴다. 진열대 끝은 11-24 줄자 값(A 서쪽 0.65, 남쪽 서쪽 0.70)으로 그렸다(`docs/report_2026-11-24_kit_maps.md`) |
+| `maps/` | `arena_real_slam`: 실물 경기장 SLAM 지도(2.5 cm, 2026-11-17 확정). AMCL(`map_fine`)의 기본이다. 나머지는 실측 진열대로 그린 v7 지도다(`python3 -m fleet_gz_sim.arena --layout v7 --real --out /tmp/real_v7`로 만들고 `/tmp/real_v7/maps/`의 지도를 복사한다): `arena_v7_a`(전역 costmap 2.5 cm, 2026-11-17 결정), `arena_v7_keepout`, `arena_v7_fine`(1 cm 도면 지도, 이제 기본 아님, AMCL 후보), `arena_v7_a1`(1 cm costmap 후보, `arena_v7_a`와 같은 칠하기 규칙이라 그림은 `arena_v7_fine`과 같다. 2026-11-24 추가, launch 기본값은 그대로). `arena_v7`(5 cm)은 비교용으로 남긴다. 진열대는 11-24 줄자 값(A 서쪽 끝 0.65, 북쪽 면 0.775(lidar 높이), 남쪽 서쪽 끝 0.70)으로 그렸다(`docs/report_2026-11-24_kit_maps.md`) |
 
 ## 왜 속도 사본이 따로 있나
 

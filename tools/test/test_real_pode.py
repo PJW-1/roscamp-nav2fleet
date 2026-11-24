@@ -27,11 +27,11 @@ REAL_MAP = "arena_real_slam"
 LAUNCH_MAPS = ("arena_v7_a", REAL_MAP, "arena_v7_keepout")
 # 실물 키트 지도 그림의 SHA-256. 지도를 일부러 바꿀 때만 같이 고친다
 KIT_MAP_SHA256 = {
-    "arena_v7.pgm": "3b37c5204cffea55478bdfc37bd8d6396bf65c30e1684bc0be930943a2231c80",
-    "arena_v7_a.pgm": "b285510cfd737f7fde048308c7ebfd075cf6e14b3e96a488d4589fb0c23bf4d9",
-    "arena_v7_a1.pgm": "58fbe2a687ffb7ae4765f8f7776e65df25a30d2a5789055b5a5c10c3522b246f",
-    "arena_v7_fine.pgm": "58fbe2a687ffb7ae4765f8f7776e65df25a30d2a5789055b5a5c10c3522b246f",
-    "arena_v7_keepout.pgm": "cd185f9fb116c843688141b1f5ee15254f399aa0436a73f1708079676af29dc8",
+    "arena_v7.pgm": "841a51e444ab75cce372b51bba01c27f3164ba5183c851cd8c251a104163dedb",
+    "arena_v7_a.pgm": "33d81df11873afd0ba2de9b7e8b5281938a0a358213c620fc1ecae4f75700098",
+    "arena_v7_a1.pgm": "d485a378a0992c3f06da276bb1617ef257691073e064b164b665e0984ed257ad",
+    "arena_v7_fine.pgm": "d485a378a0992c3f06da276bb1617ef257691073e064b164b665e0984ed257ad",
+    "arena_v7_keepout.pgm": "8264da45295e58127495d811d8c5d1635d72244d83c6441689279ad1f5d6e1f6",
     "arena_real_slam.pgm": "553e4be9dee15d25f480b5b5dfbb29c94b8f9d981cf7859d4f6a213ec78643d1",
 }
 
@@ -411,7 +411,7 @@ def test_real_slam_map_file():
 
 # 옛 진열대 끝으로 그린 채 둘 키트 그림. 키트 지도를 다시 만들면 비운다
 KIT_PENDING_TAPE_2026_11_23 = set()
-OLD_SHELF_ENDS = (("  - [0.65, 0.77, 1.56, 0.803]", "  - [0.63, 0.77, 1.56, 0.803]"),
+OLD_SHELF_ENDS = (("  - [0.65, 0.77, 1.56, 0.775]", "  - [0.63, 0.77, 1.56, 0.775]"),
                   ("  - [0.70, 0.365, 0.99, 0.405]", "  - [0.68, 0.365, 0.99, 0.405]"))
 
 
@@ -448,8 +448,8 @@ def test_kit_map_images_are_the_pinned_measured_maps():
         assert hashlib.sha256((KIT / "maps" / name).read_bytes()).hexdigest() == digest, name
 
 
-def test_kit_costmap_keeps_the_measured_shelf_face_while_the_sim_map_is_thinner():
-    # 시뮬 진열대 A만 1 cm 얇다: 1 cm 지도의 0.80~0.81 칸(x 1.0)
+def test_kit_and_sim_maps_draw_shelf_a_north_face_at_the_measured_height():
+    # 키트와 시뮬 1 cm 지도 모두 진열대 A 북쪽 면이 0.775다(x 1.0)
     from PIL import Image
 
     def cell(path, x, y):
@@ -458,9 +458,9 @@ def test_kit_costmap_keeps_the_measured_shelf_face_while_the_sim_map_is_thinner(
         ox, oy = meta["origin"][:2]
         res = meta["resolution"]
         return img.getpixel((int((x - ox) / res), img.height - 1 - int((y - oy) / res)))
-    kit = cell(KIT / "maps" / "arena_v7_fine.yaml", 1.0, 0.805)
-    sim = cell(ROOT / "sim" / "fleet_gz_sim" / "maps" / "arena_v7_fine.yaml", 1.0, 0.805)
-    assert kit == 0 and sim == 254
+    for path in (KIT / "maps" / "arena_v7_fine.yaml",
+                 ROOT / "sim" / "fleet_gz_sim" / "maps" / "arena_v7_fine.yaml"):
+        assert cell(path, 1.0, 0.772) == 0 and cell(path, 1.0, 0.785) == 254, path
 
 
 # ---- cmd_watchdog.py ----
