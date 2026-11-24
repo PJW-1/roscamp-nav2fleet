@@ -45,7 +45,7 @@
 | `fleet_core` | 1269 통과, xfail 7 |
 | `pode_nav_config` · `pode_avoidance` · `pode_scan_filter` · `pode_peer_obstacles` | 111 · 26 · 23 · 19 통과 |
 | `tools/test` | 286 통과, 건너뜀 3 |
-| `fake_robots` (작업 브랜치에서) | 993 통과, 건너뜀 2, xfail 30 |
+| `fake_robots` | 1156 통과, xfail 30. 1500초 제한에 걸려 끝까지 돌지 못했다(중단 시점에 rclpy 종료 오류 1건). 시나리오 글자를 읽는 시험 170개는 따로 돌려 통과 |
 | `fleet_manager` | 137 통과(처음 1건 실패: 아래 되살린 사용 예시) |
 | `pode_fsm` | 467 통과, 건너뜀 6 |
 | `fleet_gz_sim` | 605 통과, 5 실패. `aff00d7`에서도 같은 5건이 실패한다(v7 지도 파일과 생성기 출력 불일치) |
