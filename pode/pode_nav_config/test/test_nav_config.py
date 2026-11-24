@@ -418,7 +418,7 @@ def test_the_keep_tree_differs_from_the_default_tree_only_in_the_planner_server(
     [planner] = keep.getroot().iter("ComputePathToPose")
     assert planner.attrib.pop("server_name") == "compute_path_keep"
     # 길 유지 노드는 rclpy라 goal 승인이 전역 기본값 20 ms보다 늦을 수 있다
-    assert int(planner.attrib.pop("server_timeout")) >= 500
+    assert planner.attrib.pop("server_timeout") == "1000"
     assert params("bt_navigator")["default_server_timeout"] == 20
     assert _canon(keep) == _canon(ET.parse(BT_FILE))
 

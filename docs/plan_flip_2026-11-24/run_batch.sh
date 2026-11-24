@@ -7,7 +7,7 @@
 # 시나리오가 gz_v7_varied면 장애물 v7_yard_mix와 battery_low_pct:=20을 붙인다(11-17~18 판과 같은 조건)
 S=$(cd "$(dirname "$(readlink -f "$0")")" && pwd)
 TRUTH=$S/../baseline_sim_2026-11-19/truth_logger.py
-B=$1; INSTALL=$2; DOM=$3; shift 3
+B=$(realpath -m "$1"); INSTALL=$(realpath -m "$2"); DOM=$3; shift 3
 export TZ=Asia/Seoul
 mine() { for p in /proc/[0-9]*; do { tr '\0' '\n' < $p/environ; } 2>/dev/null | grep -qx ROS_DOMAIN_ID=$DOM && echo ${p#/proc/}; done; }
 for run in "$@"; do
@@ -16,6 +16,8 @@ for run in "$@"; do
   [ "$scen" = gz_v7_varied ] && extra="obstacles:=v7_yard_mix battery_low_pct:=20 $extra"
   R=$B/$name
   if [ -e $R/result/summary.json ]; then echo "== $name already done, skip"; continue; fi
+  # 끝나지 않은 판 폴더는 옆으로 치운다(기록이 섞이지 않게)
+  if [ -e $R ]; then mv $R $R.unfinished-$(date +%H%M%S); echo "== $name: moved an unfinished folder aside"; fi
   for i in $(seq 24); do [ -z "$(mine | grep -v "^$$\$")" ] && break; sleep 5; done
   left=$(mine | grep -v "^$$\$"); if [ -n "$left" ]; then echo "$name: domain $DOM processes left: $left, stop"; exit 1; fi
   mkdir -p $R/result
@@ -31,7 +33,7 @@ python3 $TRUTH $R/truth.csv $DOM 3 > truth_logger.out 2>&1 &
 TL=\$!
 python3 $S/cpu_sampler.py $DOM $R 5 > cpu_sampler.out 2>&1 &
 CS=\$!
-( sleep 20; exec ros2 bag record -o bag --include-hidden-topics -e '/pode[123]/(plan|plan_kept|cmd_vel|cmd_vel_nav)\$|/pode[123]/.*/_action/feedback' ) > bag.out 2>&1 &
+( exec ros2 bag record -o bag --include-hidden-topics -e '/pode[123]/(plan|plan_kept|cmd_vel|cmd_vel_nav)\$|/pode[123]/.*/_action/feedback' ) > bag.out 2>&1 &
 BG=\$!
 ( iso=0; while kill -0 \$\$ 2>/dev/null; do
     if [ \$iso = 0 ] && grep -q ROBOT_ISOLATED launch.out; then iso=\$(date +%s); fi
