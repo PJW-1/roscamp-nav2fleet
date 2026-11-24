@@ -280,7 +280,7 @@ class PodeFsmNode(Node):
                 if not self._backup.send(cmd.seq, cmd.distance_m, cmd.speed_mps,
                                          cmd.time_allowance_s):
                     self.get_logger().warn("backup server is not available")
-                    self._late_backup.append((cmd.seq, "rejected"))
+                    self._late_backup.append((cmd.seq, "unavailable"))
             elif isinstance(cmd, CancelBackUp):
                 self._backup.cancel_all()
             elif isinstance(cmd, SendNavGoal):

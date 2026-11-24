@@ -48,7 +48,7 @@ Pode 한 대의 이동·도킹 명령을 받아 Nav2로 넘기고 상태를 보�
 | 목표 실행 중 heartbeat·목표 수락이 1.5 s 없음 | 끊긴 지 1.5 s에 FollowPath를 취소해 정지 명령을 내고(제동 거리는 별도) `HEARTBEAT_LOST`로 끝낸다. 벽시계로 잰다 | R10, 계약 3절 5번 |
 | 위치를 모름 | `LOCALIZING`. 이때 온 목표는 `NAV_ABORTED`. 실행 중에 위치를 잃으면 FollowPath를 취소해 세우고 `NAV_ABORTED` | 계약 3절 6번 |
 | 시작 뒤 Nav2 `follow_path`·`navigate_to_pose` 서버가 아직 안 보임 | `LOCALIZING`. 이때 온 목표는 `NAV_UNAVAILABLE`. 둘 다 한 번 보이면 다시 보지 않는다 | 계약 3절 6번 |
-| 보낼 때 서버가 없음(FollowPath, NavigateToPose) | 세우고 `NAV_UNAVAILABLE`. 관제는 시도로 세지 않고 다시 보낸다 | 계약 3절 6번 |
+| 보낼 때 서버가 없음(FollowPath, NavigateToPose, BackUp) | 세우고 `NAV_UNAVAILABLE`. 관제는 시도로 세지 않고 다시 보낸다 | 계약 3절 6번 |
 | `retreat`(제안) | 이동을 먼저 끝내고(`CANCELED`) FollowPath 결과가 오고 로봇이 선 뒤 물러난다. path가 비면 Nav2 BackUp으로 곧게, 있으면 그 경로를 후진 controller `reverse_controller_id`(기본 `FollowPathReverse`)로 따른다. 결과 reason은 `backup.reason_of` | Pode 계약 3절 10번 |
 | `move_to`, mode `nav_goal`(제안) | `target_pose`로 NavigateToPose를 보낸다. `path`, `final_goal`은 쓰지 않는다. feedback은 Nav2의 `distance_remaining`(첫 경로 전에는 곧은 거리). 성공은 0.15 m 안일 때만이고, 실패는 `NAV_ABORTED`. 모르는 mode는 `NAV_ABORTED` | 계약 2절(0.11-draft) |
 | nav_goal 중 진전 없음 | `blocked_after_s`(10 s, 0.12까지 5 s) 동안 `nav_progress_m`(0.05 m) 이상 움직이지 않으면 `BLOCKED`. 제자리 회전은 진전이 아니다. 로봇단 교착 처리의 섬(1 s)만 움직인 뒤 `nav_turn_window_s`(4 s) 안의 회전이 끝난 때부터 센다(2026-11-14). goal은 그대로 두고, 그만큼 움직이면 `MOVING`. 로봇단 교착 처리를 켜면 그 전에 아래 줄이 앞선다. BT의 복구는 지도 지우기와 Wait뿐이다 | 계약 4절(0.11-draft, 0.13-draft) |

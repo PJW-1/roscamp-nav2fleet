@@ -104,6 +104,16 @@ def test_a_goal_before_nav2_is_ready_ends_as_unavailable_without_driving():
     assert fsm.current_goal() == ""
 
 
+def test_a_retreat_before_nav2_is_ready_ends_as_unavailable_without_moving():
+    fsm = PodeFsm(FsmParams())
+    fsm.set_nav_ready(False)
+    fsm.tick(0.0, (*P3, NORTH), STILL, no_obstacle)
+    cmds = fsm.retreat("r1", 0.1, 0.3, 0.1)
+    assert Finish("r1", False, NAV_UNAVAILABLE) in cmds
+    assert not backups(cmds) and not sends(cmds)
+    assert fsm.current_goal() == ""
+
+
 def test_a_path_the_server_was_not_there_for_ends_as_unavailable():
     fsm = ready()
     [send] = sends(move(fsm, "g1", 0.0))
@@ -1071,6 +1081,7 @@ def test_a_lost_pose_ends_a_retreat_failed():
     ("aborted", 711, False, "TIMEOUT"),
     ("canceled", 0, False, "CANCELED"),
     ("rejected", 0, False, "FAILED"),
+    ("unavailable", 0, False, "NAV_UNAVAILABLE"),
 ])
 def test_the_retreat_result_comes_from_the_backup_result(outcome, code, success, reason):
     fsm = ready()
@@ -1195,6 +1206,7 @@ def test_a_path_retreat_stops_the_move_first_and_waits_for_it_to_end():
     ("aborted", 105, False, "FAILED"),  # FAILED_TO_MAKE_PROGRESS
     ("canceled", 0, False, "CANCELED"),
     ("rejected", 0, False, "FAILED"),
+    ("unavailable", 0, False, "NAV_UNAVAILABLE"),
 ])
 def test_the_path_retreat_result_comes_from_the_follow_path_result(outcome, code, success,
                                                                     reason):

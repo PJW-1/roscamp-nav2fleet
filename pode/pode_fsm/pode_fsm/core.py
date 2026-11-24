@@ -201,6 +201,11 @@ class PodeFsm(NavGoalMoves, RetreatMoves, LocalYield, NavYield, SelfRecovery, Ob
             return []
         return self._end_active(CANCELED, stop=True)
 
+    # ---- 물러나기 결과 사유: 서버가 없어 못 보냈으면 NAV_UNAVAILABLE ----
+    @staticmethod
+    def _retreat_reason(outcome: str, error_code: int) -> str:
+        return NAV_UNAVAILABLE if outcome == "unavailable" else reason_of(outcome, error_code)
+
     # ---- FollowPath 결과 처리: 도착, 재전송, 복구, 대기, 실패 ----
     def nav_result(self, seq: int, outcome: str, now: float, pose: Sequence[float] | None,
                    obstacle: Obstacle, error_code: int = 0) -> list:
@@ -211,7 +216,8 @@ class PodeFsm(NavGoalMoves, RetreatMoves, LocalYield, NavYield, SelfRecovery, Ob
                 return []
             self._active = None
             self._rest = IDLE
-            return ([Finish(g.goal_id, outcome == "succeeded", reason_of(outcome, error_code))]
+            return ([Finish(g.goal_id, outcome == "succeeded", self._retreat_reason(outcome,
+                                                                                     error_code))]
                     + self._end_active("", stop=True))
         if not isinstance(g, Move) or seq != g.seq:
             return []
@@ -254,7 +260,8 @@ class PodeFsm(NavGoalMoves, RetreatMoves, LocalYield, NavYield, SelfRecovery, Ob
             self._backup_running = False
             self._active = None
             self._rest = IDLE
-            return [Finish(g.goal_id, outcome == "succeeded", reason_of(outcome, error_code))]
+            return [Finish(g.goal_id, outcome == "succeeded",
+                           self._retreat_reason(outcome, error_code))]
         if r is not None and r.local and r.backup_seq == seq and isinstance(g, NavGoal):
             return self._nav_backup_result(g, now, pose)
         if r is None or r.backup_seq != seq or not isinstance(g, Move):

@@ -161,6 +161,21 @@ def test_navigation_comes_up_with_localization_by_default(delay):
     assert params["lifecycle_manager_navigation"]["autostart"] is True
 
 
+@pytest.mark.parametrize("autostart", ["true", "True", "1"])
+def test_navigation_autostart_takes_every_true_spelling(autostart):
+    _, found = _expand("true", autostart=autostart)
+    params = {r.node_name: _params(r) for r in found[0][1]}
+    assert params["lifecycle_manager_navigation"]["autostart"] is True
+
+
+def test_the_late_startup_call_has_a_valid_name_without_a_namespace():
+    context, found = _expand("false", namespace="", navigation_delay_s="5")
+    [timer] = _timers(found)
+    [call] = timer.actions
+    name = launch.utilities.perform_substitutions(context, call.cmd[3])
+    assert name == "/lifecycle_manager_navigation/manage_nodes"
+
+
 @pytest.mark.parametrize("composition", ["false", "true"])
 def test_a_navigation_delay_brings_up_only_the_driving_side_later(composition):
     """시험용: 위치(AMCL)는 먼저 뜨고 controller·planner·bt_navigator만 늦게 켠다(11-23 실물 재현)."""

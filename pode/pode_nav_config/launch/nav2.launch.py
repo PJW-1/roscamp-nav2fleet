@@ -127,12 +127,15 @@ def generate_launch_description():
     # ---- 시험용: 주행 쪽만 늦게 켜기(위치는 먼저 뜬다) ----
     delay = arg("navigation_delay_s")
     delayed = PythonExpression(["float('", delay, "') > 0"])
-    nav_autostart = PythonExpression(["'", arg("autostart"), "'.lower() == 'true' and float('",
-                                      delay, "') <= 0"])
+    nav_autostart = PythonExpression(["'", arg("autostart"), "'.lower() in ('true', '1') and "
+                                      "float('", delay, "') <= 0"])
+    startup_service = PythonExpression([
+        "'/' + '/'.join(p for p in ('", namespace, "'.strip('/'), "
+        "'lifecycle_manager_navigation/manage_nodes') if p)"])
     late_navigation = TimerAction(
         period=delay, condition=IfCondition(delayed),
         actions=[ExecuteProcess(output="screen", cmd=[
-            "ros2", "service", "call", ["/", namespace, "/lifecycle_manager_navigation/manage_nodes"],
+            "ros2", "service", "call", startup_service,
             "nav2_msgs/srv/ManageLifecycleNodes", "{command: 0}"])])
 
     initial_pose = {
