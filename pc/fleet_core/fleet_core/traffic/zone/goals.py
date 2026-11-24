@@ -59,7 +59,8 @@ class Goals:
             back = self._back_edge(m)
             rest = shortest_path(site, m.avoid.retreat_to, goal, cost)
             return None if rest is None or back is None else [back, *rest]
-        if self._on_node(m):
+        # 중간 지점 전용 노드(via)의 지도 이음은 나눈 goal의 둘째 조각뿐이라 선 자리에서 다시 짠다
+        if self._on_node(m) and not site.nodes[m.node].via:
             return shortest_path(site, m.node, goal, cost)
         zone = site.zone_at(m.x, m.y)
         if zone is None or site.zones[zone].kind != SHARED:
@@ -69,15 +70,31 @@ class Goals:
         for name, zones in self._reach(zone).items():
             if self._blocked.get((HERE + m.name, name), 0.0) > now:
                 continue
-            first = free_edge(site, m.x, m.y, name, zones)
             rest = shortest_path(site, name, goal, cost)
             if rest is None:
                 continue
-            total = (first.length / self.params.nav_speed_mps + self._node_wait(m, name)
-                     + sum(cost(edge) for edge in rest))
+            first = self._split(m, name, zones, cost, now)
+            if first is None:
+                first = [free_edge(site, m.x, m.y, name, zones)]
+            total = (first[0].length / self.params.nav_speed_mps
+                     + self._node_wait(m, first[0].b)
+                     + sum(cost(edge) for edge in (*first[1:], *rest)))
             if total < best_cost:
-                best, best_cost = [first, *rest], total
+                best, best_cost = [*first, *rest], total
         return best
+
+    # ---- 나눈 goal(해결안 B): 두 길 값이 비슷한 출발 자리면 중간 지점을 거쳐 둘로 ----
+    def _split(self, m, name: str, zones, cost, now: float):
+        site = self.site
+        via = site.split_via(name, m.x, m.y) if self.params.plan_split else ""
+        # 첫 조각이 막혔거나 중간 지점을 남이 쥐고 있으면 곧장 간다
+        if (not via or self._blocked.get((HERE + m.name, via), 0.0) > now
+                or self.grants.node_holder(via) not in ("", m.name)):
+            return None
+        second = site.edge(via, name)
+        if math.isinf(cost(second)):
+            return None
+        return [free_edge(site, m.x, m.y, via, zones), second]
 
     # ---- 구역에서 닿는 노드와 물러나기 edge ----
     def _reach(self, zone: str) -> dict:
@@ -86,7 +103,7 @@ class Goals:
             site = self.site
             by_goal = {edge.b for edge in site.edges() if edge.mode == NAV_GOAL}
             inside = {name: (zone,) for name in site.nodes_in(zone)
-                      if name in by_goal or not by_goal}
+                      if (name in by_goal or not by_goal) and not site.nodes[name].via}
             if inside:
                 memo[zone] = inside
             else:

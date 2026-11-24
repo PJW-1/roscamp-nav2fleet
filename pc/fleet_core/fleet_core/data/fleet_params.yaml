@@ -87,3 +87,4 @@ check_radius_m: 0.10          # 가정: CheckClear의 r. 보고한 칸(가장 �
 check_interval_s: 5.0         # 제안: 한 표시에 이만큼마다 한 번을 넘게 묻지 않는다
 clear_confirm: 2              # 제안: clear 답이 이만큼 이어지면 표시를 지운다(BLOCK_CLEARED)
 blocked_retry_max_s: 300.0    # 제안: 보내 본 로봇이 다시 막히면 다음 지우기까지 시간을 두 배로, 이 값까지
+plan_split: false             # 해결안 B(2026-11-24): 켜면 지도 splits의 출발 자리에서 그 도착 지점으로 가는 Nav2 goal을 중간 지점을 거쳐 둘로 나눈다(도리도리 줄이기). 기본 끔(기준 판)
