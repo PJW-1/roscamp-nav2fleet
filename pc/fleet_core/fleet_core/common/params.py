@@ -22,6 +22,8 @@ ROBOT_BLOCKED_AFTER_S = 10.0
 BLOCKED_REPORT_MARGIN_S = 2.0
 # IR-41: 보고·취소를 다시 보낼 때 간격을 ±20% 무작위로 늘이고 줄인다
 RETRY_JITTER = 0.2
+# IR-40 표: Report* 응답 한도. 이보다 오래 답이 없는 요청만 클라이언트가 버린다(IR-41)
+REPORT_REPLY_LIMIT_S = 3.0
 
 
 # ---- FleetParams: 운영 파라미터 목록 ----

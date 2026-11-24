@@ -21,7 +21,7 @@ from fleet_core.common.commands import (
     SwapCmd,
 )
 from fleet_core.common.contract import load_contract, to_ros_qos
-from fleet_core.common.params import load_params, timing_warnings
+from fleet_core.common.params import REPORT_REPLY_LIMIT_S, load_params, timing_warnings
 from fleet_core.fleet_map import FILL
 from fleet_core.manager import FleetManager
 from fleet_core.traffic.site import load_site
@@ -205,9 +205,8 @@ class FleetManagerNode(Node):
                                                     params.report_retry_s,
                                                     params.report_max_in_flight):
             future = self._report_client.call_async(adapters.report_request(command))
-            # IR-41: 앞선 요청은 클라이언트에서 지운다. 늦은 답이 두 번 처리되지 않는다
-            previous = self._reports.track(report_id, future)
-            if previous is not None:
+            # IR-41: 응답 한도를 넘긴 앞선 요청만 클라이언트에서 지운다
+            for previous in self._reports.track(report_id, future, now, REPORT_REPLY_LIMIT_S):
                 self._report_client.remove_pending_request(previous)
             future.add_done_callback(partial(self._report_answered, report_id, command))
 

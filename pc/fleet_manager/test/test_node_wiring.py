@@ -71,7 +71,7 @@ class World(Node):
         self.canceled_fills = []
         self.fill_cancel_reason = "CANCELED"
         self.report_accepted = True
-        self.first_report_delay_s = 0.0
+        self.report_delay_s = 0.0
         self.refuse_fill_cancel = False
         self.fill_cancel_asks = 0
         name = contract.name
@@ -171,8 +171,7 @@ class World(Node):
 
     def _on_report(self, request, response):
         self.reports.append(request)
-        if len(self.reports) == 1:
-            time.sleep(self.first_report_delay_s)
+        time.sleep(self.report_delay_s)
         response.accepted = self.report_accepted
         return response
 
@@ -664,8 +663,8 @@ def test_a_refused_cancel_is_sent_again_and_warned_about_once_until_the_result_c
 
 
 def test_a_report_with_no_reply_yet_is_sent_again_and_ends_with_the_reply(graph):
-    """첫 요청의 답이 재전송보다 늦다. 다시 보낸 요청의 답이 보고를 끝낸다(IR-41)."""
-    graph.first_report_delay_s = 2.5  # report_retry_s × 1.2보다 길다
+    """central이 매번 재전송보다 늦게(응답 한도 3 s 안) 답해도 보고는 끝난다(IR-41)."""
+    graph.report_delay_s = 2.5  # report_retry_s × 1.2보다 길고 응답 한도 3 s보다 짧다
     publish(graph, "RUN", {"A": 1, "C": 2})
     assert wait_for(lambda: len(graph.reports) >= 2), f"reports {graph.reports}"
     assert {r.order_id for r in graph.reports} == {"O-001"}
@@ -748,17 +747,17 @@ def answer(future, accepted):
     future.set_result(ReportOrder.Response(accepted=accepted))
 
 
-def test_a_resent_report_removes_its_unanswered_request_from_the_client():
-    """IR-41: 다시 보낼 때 앞선 요청을 지워 대기 표가 늘지 않는다."""
+def test_a_resent_report_removes_only_requests_past_the_reply_limit():
+    """IR-41: 응답 한도(3 s)를 넘긴 요청만 클라이언트에서 지워 대기 표가 늘지 않는다."""
     node, _ = report_node()
     node._reports.add(report_cmd("O-001"))
     client = node._report_client
     FleetManagerNode._flush_reports(node, 0.0)
-    assert client.removed == []
     FleetManagerNode._flush_reports(node, 2.0)
+    assert client.removed == [], "the first request is still inside the reply limit"
     FleetManagerNode._flush_reports(node, 4.0)
-    assert client.removed == client.sent[:2]
-    answer(client.sent[2], True)
+    assert client.removed == client.sent[:1]
+    answer(client.sent[1], True)  # 한도 안에 남은 앞선 요청의 답이 끝낸다
     assert not node._reports._items
 
 

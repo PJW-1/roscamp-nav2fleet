@@ -376,14 +376,14 @@ def due_limited(outbox, now, limit):
     return [item for _, item in outbox.due(now, True, RETRY_S, limit)]
 
 
-def test_tracking_a_resend_hands_back_the_request_it_replaces():
+def test_a_resend_hands_back_only_the_requests_past_the_reply_limit():
+    """IR-41: 한도를 넘긴 요청만 버린다. 한도 안의 앞선 요청은 늦게 와도 보고를 끝낼 수 있다."""
     outbox = ReportOutbox(rand=middle)
     outbox.add("a")
     [(report_id, _)] = outbox.due(0.0, True, RETRY_S, LIMIT)
-    first, second = object(), object()
-    assert outbox.track(report_id, first) is None
-    [(again, _)] = outbox.due(1.0, True, RETRY_S, LIMIT)
-    assert again == report_id
-    assert outbox.track(report_id, second) is first
+    first, second, third = object(), object(), object()
+    assert outbox.track(report_id, first, 0.0, 3.0) == []
+    assert outbox.track(report_id, second, 2.0, 3.0) == [], "first is 2 s old, inside 3 s"
+    assert outbox.track(report_id, third, 3.5, 3.0) == [first]
     assert outbox.done(report_id) is True
-    assert outbox.track(report_id, object()) is None, "a done report keeps nothing"
+    assert outbox.track(report_id, object(), 9.0, 3.0) == [], "a done report keeps nothing"

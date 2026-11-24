@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import random
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from fleet_core.common.params import RETRY_JITTER
 
@@ -93,7 +93,7 @@ class _Report:
     item: object
     sent_at: float | None = None
     factor: float = 1.0
-    future: object = None
+    futures: list = field(default_factory=list)  # (보낸 시각, 답 없는 요청)
 
 
 class ReportOutbox:
@@ -124,13 +124,16 @@ class ReportOutbox:
             out.append((report_id, report.item))
         return out
 
-    def track(self, report_id, future):
-        # 새 요청을 적고 그것이 대신하는 앞선 요청을 돌려준다
+    def track(self, report_id, future, now: float, reply_limit_s: float) -> list:
+        # 새 요청을 적고 응답 한도를 넘긴 앞선 요청을 돌려준다(IR-41). 한도 안의 요청은 둔다
         report = self._items.get(report_id)
         if report is None:
-            return None
-        previous, report.future = report.future, future
-        return previous
+            return []
+        expired = [old for sent, old in report.futures if now - sent >= reply_limit_s]
+        report.futures = [(sent, old) for sent, old in report.futures
+                          if now - sent < reply_limit_s]
+        report.futures.append((now, future))
+        return expired
 
     def done(self, report_id) -> bool:
         return self._items.pop(report_id, None) is not None
