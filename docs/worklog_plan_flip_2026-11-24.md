@@ -104,15 +104,16 @@
 - 17:23 사용자 지시: "RL 쪽은 진행 상황 그대로 두고 최근 시험까지만 올리고, RPP 쪽만 우선". 돌던
   `s2_a1_A_rl_r1`은 내가 끊었고(`s2_a1_A_rl_r1.stopped-172300`, 판 실패가 아니라 표에서 뺐다) 이후 큐(queue8)는 RPP만이다:
   1 cm 2단계 2회차(A, B, C × 두 판), 1단계 나머지(1 cm, 2.5 cm 각 v2, v3, r2, r3).
-- `s2_a1_A_rpp_v1`의 path_not_connected 1건(sim 447.7 s, pode1):
-  - 순서: Q2 nav_goal을 0.15 m 앞에서 먼저 넘김(SEGMENT_DONE) → 같은 order의 갱신(update 2, base to W) →
-    옛 goal SUPERSEDED → 0.12 s 뒤 PATH_NOT_CONNECTED → GOAL_RETRY(attempt 1) 뒤 정상 진행, 12/12.
-  - 먼저 넘기는 조건(`order_fsm._passes`: Q2까지 ≤ pass_m 0.15, 다음 경로까지 ≤ connect_tolerance_m 0.15)과
-    갱신을 받아 멈춘 뒤 다시 재는 조건(`nav_moves._hand_over`: 새 경로까지 ≤ 0.15)이 같은 0.15 m다. 멈춘 자리는
-    truth로 Q2에서 0.158 m였다. 넘길 때 0.15 안이던 위치가 멈춘 뒤 다시 잴 때 몇 mm 밖으로 나간 경계 문제로 본다
-    (추측: AMCL 값은 이 판에서 따로 보지 않았다).
-  - keeper와 costmap은 이 판정에 들어가지 않는다(pode_fsm이 관제 경로와 로봇 위치만 본다). 그래서 A나 1 cm 때문이
-    아니라 main에도 있는 판정 경계로 본다. `~/gz_runs` 아래 남은 모든 판 기록에서 이 실패는 이 1건뿐이다.
+- `s2_a1_A_rpp_v1`의 path_not_connected 1건(sim 447.7 s, pode1). 처음에는 갱신과 겹친 경합으로 봤으나
+  관제 기록(fleet_record의 on_robot_state 추정 위치, MoveOrderCmd)으로 다시 보니 갱신은 원인이 아니었다:
+  - 447.39 s Q2 nav_goal을 먼저 넘김. `_passes`는 Q2까지 ≤ pass_m 0.15를 보고, 다음 조각이 follow_path면 그 경로까지
+    ≤ connect_tolerance_m 0.15도 본다(다음이 nav_goal이면 경로 거리는 보지 않는다). 이번 다음 조각은 Q2에서 시작하는
+    follow_path(seg 3)였고, 추정 위치는 Q2에서 0.144 m였다.
+  - Nav2 goal이 아직 달리고 있어 seg 3은 넘겨받기(`handover_since`)로 들어갔다. 447.51 s 갱신(update 2)은 seg 4를 그 경로 끝에
+    덧붙였을 뿐이다(`_extend`). 447.64 s 멈춘 뒤 `_hand_over`가 다시 잰 추정 위치는 Q2에서 0.163 m라 PATH_NOT_CONNECTED.
+  - 그 사이 truth는 움직이지 않았고(두 때 모두 Q2에서 0.158 m) 추정 위치만 2.2 cm 뒤로 움직였다(AMCL 보정으로 본다). 같은 0.15 m를 두 번 재는 사이의
+    위치 추정 흔들림이 원인이다. keeper와 costmap은 판정식에 없지만 접근 경로를 바꾸므로 빈도에는 간접 영향이 있을 수 있다.
+  - `~/gz_runs` 아래 남은 모든 판 기록에서 이 실패는 이 1건뿐이다.
 - `s2_a1_C_rpp_v1`의 도착 지연 8.14 s(pode3, E-3): truth로 E-3 0.038 m 앞에서 5 s 서서 방향만 돌다가
   RECOVERING → BLOCKED를 거친 뒤 끝을 받았다. 11-18 도착 판정 문제와 같은 꼴이다. 3 s 묵은 경로 때문인지
   AMCL 오차 때문인지는 이 자료로 가를 수 없다.

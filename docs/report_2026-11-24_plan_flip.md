@@ -8,10 +8,10 @@
 **중간 보고(11-24 17:50).** 안마다 아직 1판씩이다. RL+shim 판은 사용자 지시(17:23)로 여기서 멈췄고,
 RPP 2회차(1 cm 2단계 A, B, C)와 1단계 나머지(1 cm, 2.5 cm)가 돌고 있다. 2.5 cm 2단계는 아직 돌리지 않았다.
 
-1. 지금 main(RPP) 기준으로 뒤집힘은 장애물 판에만 남아 있다. 1 cm 7건, 2.5 cm 20건이다. 러시 판은 1 cm 1건, 2.5 cm 0건이다.
+1. 지금 main(RPP) 기준으로 뒤집힘은 주로 장애물 판에 남아 있다. 1 cm 7건, 2.5 cm 20건이다. 러시 판은 1 cm 1건, 2.5 cm 0건이다.
    장애물 판의 뒤집힘은 충전 뒤 E-1→Q2 goal에서 났고, 그때 장애물 상자 1번이 남쪽 통로에 있었다.
 2. 1 cm costmap에서만 나는 문제는 찾지 못했다. 원인 미확정이던 두 건 가운데 NavFn `worldToMap failed` 로그는
-   2.5 cm에서도 날 수 있다. path_not_connected 1건은 pode_fsm의 넘김 거리 판정 경계 때문이고 costmap과는 관계없다(아래 절).
+   2.5 cm에서도 날 수 있다. path_not_connected 1건은 pode_fsm이 같은 0.15 m 기준을 두 번 재는 사이에 AMCL 보정으로 넘은 것이다. costmap은 판정식에 들어가지 않는다(아래 절).
 3. 지금까지는 A(keeper)가 가장 낫다. 로봇이 받은 경로의 뒤집힘이 장애물 판 RPP 7→0, RL+shim 15→1이고 러시 판도 0이다.
    B는 설계대로 러시 판 Q2 goal 12건 중 9건을 나눴다. 그러나 뒤집힘이 나는 장애물 판 E-1→Q2 goal은 나누지 못하고,
    RL+shim 장애물 판은 21건이었다. C는 RL+shim 장애물 판에서 0건이었지만 RPP 장애물 판에서 12건으로 기준보다 많았고,
@@ -144,11 +144,17 @@ CSV는 `docs/plan_flip_2026-11-24/results/`에 있다(metrics_full.csv, metrics_
 
 - NavFn `worldToMap failed` 로그: tolerance 창이 지도 동쪽 끝을 넘는 일이다. 2.5 cm 지도도 x 2.15 m에서 끝나서 같은 일이
   날 수 있다. 동작 영향은 찾지 못했다(작업 기록 "판 실패와 오류 조사").
-- path_not_connected 1건(`s2_a1_A_rpp_v1`, sim 447.7 s, pode1, GOAL_RETRY 뒤 정상 진행):
-  Q2 nav_goal을 0.15 m 앞에서 먼저 넘긴 직후 같은 order의 갱신이 와서 로봇이 멈췄고, 멈춘 뒤 새 경로까지 거리를
-  다시 재니 허용치 0.15 m를 넘었다(truth로 Q2에서 0.158 m). 먼저 넘기는 거리(`pass_m` 0.15)와 연결 허용치
-  (`connect_tolerance_m` 0.15)가 같아서 생기는 경계 문제로 본다. 이 판정은 pode_fsm이 관제 경로와 로봇 위치만으로 하므로
-  costmap이나 keeper는 들어가지 않는다. `~/gz_runs` 아래 모든 판 기록에서 이 1건뿐이다.
+- path_not_connected 1건(`s2_a1_A_rpp_v1`, sim 447.7 s, pode1, GOAL_RETRY 뒤 정상 진행, 12/12):
+  - 447.39 s: Q2 nav_goal을 먼저 넘겼다. `order_fsm._passes`는 Q2까지 ≤ `pass_m` 0.15이고 다음 조각(follow_path,
+    Q2에서 시작)까지 ≤ `connect_tolerance_m` 0.15일 때 넘긴다. 관제가 받은 추정 위치는 Q2에서 0.144 m였다.
+  - 넘기자 다음 follow_path가 바로 시작되지 않고 넘겨받기(`handover_since`)로 들어갔다. Nav2 goal이 아직 달리고 있어서
+    로봇이 멈추기를 기다린 것이다. 멈춘 뒤 `nav_moves._hand_over`가 경로까지 거리를 다시 잰다. 447.64 s IDLE 때
+    추정 위치는 Q2에서 0.163 m였고(경로가 Q2에서 시작하므로 경로까지 거리도 같다), 0.15를 넘어 PATH_NOT_CONNECTED가 났다.
+  - 그 사이 truth는 움직이지 않았는데(두 때 모두 Q2에서 0.158 m) 추정 위치만 2.2 cm 뒤로 물러났다(AMCL 보정으로 본다). 447.51 s에 온 같은 order의
+    갱신(update 2)은 넘겨받는 경로 끝에 조각을 덧붙였을 뿐이고(`_extend`), 넘겨받기는 그보다 먼저 시작됐다.
+  - 그래서 두 판정이 같은 0.15 m를 쓰는 데다 그 사이 위치 추정이 몇 cm 흔들려서 난 일로 본다. keeper와 costmap은
+    판정식에 들어가지 않는다. 다만 로봇이 어디서 어떻게 Q2에 다가가는지에는 영향을 주므로 이 일이 나는 빈도에는 간접 영향이
+    있을 수 있다. `~/gz_runs` 아래 모든 판 기록에서 이 1건뿐이다.
 - RL+shim 장애물 판 격리(3판 중 2판): 로봇끼리 닿은 뒤 바퀴 오도메트리만 돌아 위치를 잃었다. 1 cm에서만 돌렸으므로
   1 cm 탓인지는 가를 수 없고, RPP 판에는 없었다. RL은 사용자 지시로 여기서 멈췄다.
 
