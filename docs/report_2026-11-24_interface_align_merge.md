@@ -69,13 +69,13 @@ no-motion의 결정 세 가지(사용자 결정)를 no-motion 브랜치에 넣�
 
 | 커밋 | 합친 것 |
 |---|---|
-| (21acc69 합침) | 모르는 `dock_id`는 경고만(`no_motion_dock_ids`, 기본 `WORK`, `OUTBOUND`), `NO_MOTION=1 start.sh NAMESPACE [X Y YAW]`(로봇별 기본 자리 P-1~P-3은 `start.sh`에만), `stop.sh`가 이것도 내림, order current_goal은 실주행처럼 유지 |
+| 1d507bf (21acc69 합침) | 모르는 `dock_id`는 경고만(`no_motion_dock_ids`, 기본 `WORK`, `OUTBOUND`), `NO_MOTION=1 start.sh NAMESPACE [X Y YAW]`(로봇별 기본 자리 P-1~P-3은 `start.sh`에만), `stop.sh`가 이것도 내림, order current_goal은 실주행처럼 유지 |
 | 978f533 | 리뷰로 고친 것: 자세는 숫자만, `PEER_ROBOTS`는 비어야 함, `stop.sh`는 `start.sh`의 인자 순서 그대로인 `pode_fsm.launch.py`만 내림 |
 
 | 시험 (합친 판) | 결과 |
 |---|---|
-| pode_fsm | 506 passed, 6 skipped (21acc69 합친 판) |
-| tools 전체 | 1 failed, 304 passed, 1 skipped (21acc69 합친 판) → 아래 |
+| pode_fsm | 506 passed, 6 skipped (1d507bf) |
+| tools 전체 | 1 failed, 304 passed, 1 skipped (1d507bf) → 아래 |
 | `test_real_pode.py -k "no_motion or stop or start"` | 72 passed (978f533) |
 
 - tools의 실패는 앞의 2번과 같은 `test_step_probe.py::test_a_second_probe_is_refused`다. 다른 세션의 Gazebo 측정으로 load average가 50을 넘던 때였다. 그때 따로 다섯 번 돌리면 세 번 실패했다. 이 도구와 시험은 main과 같고, 합친 것들이 건드리지 않았다. 부하가 낮던 때의 전체 실행(f3f156a, 289 passed)과 no-motion 브랜치 전체 실행(304 passed, 1 skipped)에서는 통과했다.
