@@ -25,8 +25,8 @@ ORDERS = _package("orders")
 ARM = _package("arm")
 ARM_GOAL_NAMES = {"FillCmd", "SwapCmd", "CancelCmd"}  # what only the arm side sends
 ORDER_SIDE_NAMES = {
-    "OrderRecord", "FillCmd", "SwapCmd", "ReportOrderCmd", "SHIPPED", "PARTIAL", "HELD",
-    "OrderOrchestrator", "FleetManager",
+    "OrderRecord", "FillCmd", "SwapCmd", "ReportOrderCmd", "ReportTripCmd", "SHIPPED", "PARTIAL",
+    "HELD", "OrderOrchestrator", "FleetManager",
 }
 ORDER_SIDE_ATTRIBUTES = {"basket", "order", "orders", "placed_items", "last_order_id", "arm"}
 # traffic이 commands.py에서 가져올 수 있는 이름. 허용 목록이라 추가는 결정 사항이다.

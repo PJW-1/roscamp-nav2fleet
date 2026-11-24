@@ -134,6 +134,23 @@ class ReportOrderCmd:
     hold_reason: str = ""  # status가 HELD일 때만 채움
 
 
+# ---- 운반 건 진행 보고: 끝 상태는 ReportOrderCmd가 맡는다 ----
+TRIP_ASSIGNED = "ASSIGNED"
+TRIP_FILLING = "FILLING"
+TRIP_TRANSPORTING = "TRANSPORTING"
+TRIP_STATUSES = (TRIP_ASSIGNED, TRIP_FILLING, TRIP_TRANSPORTING)
+
+
+@dataclass(frozen=True)
+class ReportTripCmd:
+    trip_id: str  # 주문판 Order.order_id 값
+    robot: str
+    status: str  # TRIP_STATUSES 중 하나
+    placed: dict[str, int]  # 누적
+    missing: dict[str, int]
+    reason: str = ""  # 사유 코드, 이번 주에는 비움
+
+
 # ---- 이벤트 출력과 화면 조회 구조 ----
 @dataclass(frozen=True)
 class EventOut:
