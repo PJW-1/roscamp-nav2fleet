@@ -31,7 +31,7 @@ HorizonCheck = Callable[[Seg], str]
 @dataclass(frozen=True)
 class OrderParams:
     join_m: float = 0.02
-    pass_m: float = 0.15
+    pass_m: float = 0.12
 
 
 @dataclass(frozen=True)
