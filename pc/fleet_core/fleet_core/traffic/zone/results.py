@@ -99,11 +99,17 @@ class Results:
                         m.name)
 
     def on_goal_lost(self, robot, goal_id) -> None:
+        mo = getattr(self._robots.get(robot), "move_order", None)
+        if mo is not None and mo.before is not None and mo.before[0] == goal_id:
+            mo.before_lost = goal_id  # 갱신이 실패해 되살리면 결과 모름으로 둔다
+            return
         m = self._active(robot, goal_id, MOVE, RETREAT, DOCK)
         if m is None or self._update_unclear(m, "the goal was lost"):
             return
-        if m.result_lost_at is not None:
-            return
+        if m.result_lost_at is None:
+            self._lose_result(m, goal_id)
+
+    def _lose_result(self, m, goal_id) -> None:
         # IR-62: 실패가 아니라 결과 모름. goal과 구역을 쥔 채 상태 보고로 정한다
         m.result_lost_at = self._clock()
         settle = self.params.robot_timeout_settle_s
@@ -112,10 +118,12 @@ class Results:
                     f"zones, settles from the state report within {settle:.0f} s", m.name)
 
     # ---- 결과 모름 정하기: 끝에서 IDLE이면 완료, 다른 곳 IDLE이면 실패, 도킹은 다시, 시간이 지나면 격리 ----
-    def _settle_lost(self, m, now: float) -> None:
-        settle = self.params.robot_timeout_settle_s
-        heard = m.result_lost_at < m.report.last_seen < m.result_lost_at + settle
-        state = m.report.robot_state if heard else ""
+    def _settle_lost(self, m, now: float, state: str = "") -> None:
+        """state는 지금 들은 상태 보고. 비면 기한만 본다."""
+        if now - m.result_lost_at >= self.params.robot_timeout_settle_s:
+            self._fail(m, ROBOT_TIMEOUT)
+            self._cancel_goal(m)  # 이미 고장이던 로봇은 _fail이 취소하지 않는다
+            return
         dock = m.goal.kind == DOCK
         idle = state == ROBOT_IDLE or (dock and state == ROBOT_DOCKED)
         if idle:
@@ -126,9 +134,6 @@ class Results:
             self._dock_failed(m, GOAL_RESULT_LOST)
         elif idle:
             self._move_failed(m, GOAL_RESULT_LOST)
-        elif now - m.result_lost_at >= settle:
-            self._fail(m, ROBOT_TIMEOUT)
-            self._cancel_goal(m)  # 이미 고장이던 로봇은 _fail이 취소하지 않는다
 
     # ---- 기다림이 끝난 결과 모름이면 먼저 정한다. 늦게 온 결과는 버린다 ----
     def _past_unknown(self, m) -> bool:

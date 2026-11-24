@@ -1,5 +1,6 @@
 """IR-62: goal 결과를 잃으면 결과 모름. 구역을 쥔 채 상태 보고로 한 번만 정하고, 못 정하면 격리한다."""
 from fleet_core.common.commands import CancelCmd, DockCmd, MoveCmd, MoveOrderCmd, RobotIsolated
+from test_zone_move_orders import orders, waiting_at_the_queue_spot
 from zone_harness import Harness
 
 
@@ -242,3 +243,51 @@ def test_a_result_after_the_settle_time_comes_too_late_even_before_the_tick():
     world.traffic.on_move_result("pode2", lost, True, "")
     world.step()
     assert [i.reason for i in isolations(world)] == ["ROBOT_TIMEOUT"]
+
+
+def test_an_idle_report_at_the_end_from_a_robot_that_was_silent_is_no_failed_attempt():
+    """통신이 끊겼던 로봇은 도착을 믿지 못하므로 결과 모름이 아니라 통신 복구가 goal을 끝낸다."""
+    world, call = sent_once()
+    lost = lose(world, last_goal(world))
+    world.silent.add("pode2")
+    world.run(world.params.comm_timeout_s + 1.0)
+    assert "COMM_LOST" in world.codes("pode2") and lost_state(world) is not None
+    stop_quietly(world, at="N_W")
+    world.silent.discard("pode2")
+    world.report()
+    assert world.view("pode2")["attempts"] == 0, "not counted as a failed attempt"
+    assert lost_state(world) is None, "the recovery ended the goal"
+    world.step()
+    assert lost in [c.goal_id for c in world.sent(CancelCmd, "pode2")]
+    assert not isolations(world)
+
+
+def test_a_localizing_report_after_the_settle_time_isolates_at_once():
+    world, call = sent_once()
+    lose(world, last_goal(world))
+    world.now += world.params.robot_timeout_settle_s + 0.5
+    reports(world, "pode2", "LOCALIZING")
+    world.report()
+    assert lost_state(world) is None, "settled by the report, not the next tick"
+    world.step()
+    assert [i.reason for i in isolations(world)] == ["ROBOT_TIMEOUT"]
+
+
+def test_an_old_order_goal_whose_result_was_lost_is_unknown_once_a_failed_update_restores_it():
+    """갱신 중 이전 goal의 결과를 잃고 갱신이 실패하면, 되살린 goal은 결과가 오지 않는 결과 모름이다."""
+    world, call = waiting_at_the_queue_spot()
+    first = orders(world, "pode1")[-1]
+    world.hold_answers = True
+    world.traffic.on_release("pode2")
+    assert world.run_until(lambda: len(orders(world, "pode1")) == 2, 30.0)
+    update = orders(world, "pode1")[-1]
+    lose(world, first.goal_id, "pode1")
+    assert lost_state(world, "pode1") is None, "the fleet still waits for the update goal"
+    world.traffic.on_goal_not_sent("pode1", update.goal_id)
+    assert world.view("pode1")["goal_id"] == first.goal_id
+    assert lost_state(world, "pode1") is not None, "the restored goal has no result to wait for"
+    stop_quietly(world, "pode1")
+    world.report()
+    assert lost_state(world, "pode1") is None, "settled by the IDLE report"
+    world.step()
+    assert first.goal_id in [c.goal_id for c in world.sent(CancelCmd, "pode1")]
