@@ -5,6 +5,7 @@
 #include <chrono>
 #include <cmath>
 #include <cstdio>
+#include <filesystem>
 #include <limits>
 #include <string>
 #include <vector>
@@ -183,9 +184,13 @@ TEST(SpeedCap, NavSpeedIsTheSourceAndOutOfRangeIsClamped)
 // ---- ONNX Runtime C++ 대 PyTorch ----
 TEST(Inference, MatchesTorch)
 {
+  // 정책 파일은 학습 PC가 내보낸 뒤 둔다(저장소에는 4b만): 없으면 추론 비교만 건너뛴다
+  const std::string onnx = std::string(POLICY_DIR) + "/policy.onnx";
+  if (!std::filesystem::exists(onnx)) {
+    GTEST_SKIP() << "no " << onnx << "; export the policy to compare inference";
+  }
   const PolicySpec s = spec();
-  pode_rl_controller::OnnxPolicy policy(
-    std::string(POLICY_DIR) + "/policy.onnx", s.obs_dim, s.act_dim, 1);
+  pode_rl_controller::OnnxPolicy policy(onnx, s.obs_dim, s.act_dim, 1);
   const auto f = fixture("inference_cases.json");
   const double atol = f["atol"].as<double>();
   const double rtol = f["rtol"].as<double>();
