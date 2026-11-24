@@ -35,7 +35,7 @@ def test_an_unknown_layout_or_missing_files_are_refused(tmp_path):
         fleet_setup.arena_for("d2", tmp_path)
 
 
-@pytest.mark.parametrize("variant", ["a", "b", "ab"])
+@pytest.mark.parametrize("variant", ["a", "b", "ab", "a1"])
 def test_a_nav_map_variant_swaps_only_the_costmap_map(variant):
     """가운데 통로 갈래: 5 cm 지도만 바뀐다. 1 cm 지도(AMCL)와 keepout 마스크는 그대로."""
     base = fleet_setup.arena_for("v7", PKG)
@@ -192,7 +192,7 @@ def test_narrow_strips_add_a_box_around_each_shelf_end_face():
     assert strips[-2:] == ["0.47,0.745,0.53,0.82", "1.45,0.745,1.51,0.82"]
     # v7은 시뮬 진열대(sim_shelves)로 그린다
     v7 = fleet_setup.narrow_strips(load_fleet_map("v7"), band=0.03).split("; ")
-    assert "0.67,0.74,0.73,0.813" in v7 and "1.53,0.74,1.59,0.813" in v7
+    assert "0.62,0.74,0.68,0.805" in v7 and "1.53,0.74,1.59,0.805" in v7
     # 세로 진열대는 위아래 끝면에 더한다.
     assert fleet_setup.shelf_end_boxes([(1.0, 0.2, 1.02, 0.6)], 0.05) == [
         (0.95, 0.15, 1.07, 0.25), (0.95, 0.55, 1.07, 0.65)]

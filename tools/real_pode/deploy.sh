@@ -7,7 +7,8 @@ set -euo pipefail
 host=$1
 repo=$(git -C "$(dirname "$(readlink -f "$0")")" rev-parse --show-toplevel)
 packages=(interfaces/fleet_interfaces pode/pode_fsm pode/pode_nav_config
-  pode/pode_avoidance pode/pode_peer_obstacles pode/pode_scan_filter pode/pode_dock)
+  pode/pode_avoidance pode/pode_peer_obstacles pode/pode_scan_filter pode/pode_dock
+  pode/pode_plan_keep)
 kit=tools/real_pode
 
 # ---- 커밋된 내용만 꺼낸다 ----

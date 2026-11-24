@@ -1,5 +1,6 @@
 """경기장의 Nav2 지도(PGM, YAML)와 global costmap keepout 마스크. ROS를 쓰지 않는다.
 막힌 칸은 0(검정), 빈칸은 254. keepout은 shared가 아닌 구역을 몸 반폭만큼 넓혀 막는다.
+갈래 a1은 a와 같은 칠하기 규칙의 1 cm costmap 지도다.
 """
 from __future__ import annotations
 
@@ -25,7 +26,8 @@ TOUCH = "touch"  # 상자가 걸친 칸은 막힘(기본)
 CENTRE = "centre"  # 칸 중심이 상자 안(경계 포함)이면 막힘
 PAINTS = (TOUCH, CENTRE)
 # 갈래 이름: (해상도, 칠하기). 파일은 maps/<경기장>_<이름>.{yaml,pgm}
-NAV_VARIANTS = {"a": (FINER_M, TOUCH), "b": (COARSE_M, CENTRE), "ab": (FINER_M, CENTRE)}
+NAV_VARIANTS = {"a": (FINER_M, TOUCH), "b": (COARSE_M, CENTRE), "ab": (FINER_M, CENTRE),
+                "a1": (FINE_M, TOUCH)}
 
 
 def map_origin(site) -> tuple[float, float]:

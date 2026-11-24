@@ -333,3 +333,28 @@ def test_the_stand_in_hosts_a_peer_node_for_every_robot_when_asked(ros):
     finally:
         for each in (node, *peers):
             each.destroy_node()
+
+
+def test_the_stand_in_hosts_no_plan_keep_nodes_unless_asked(ros):
+    from fleet_gz_sim.stand_in_node import plan_keep_nodes
+    node = stand_in(ros, use_sim_time=True)
+    try:
+        assert plan_keep_nodes(node) == []
+    finally:
+        node.destroy_node()
+
+
+def test_the_stand_in_hosts_a_plan_keep_node_for_every_robot_when_asked(ros):
+    """길 유지 노드(pode_plan_keep)를 로봇마다 이 프로세스에 둔다(DDS 참여자를 늘리지 않는다)."""
+    pytest.importorskip("pode_plan_keep")
+    from fleet_gz_sim.stand_in_node import plan_keep_nodes
+    node = stand_in(ros, use_sim_time=True, plan_keep_nodes=True)
+    keepers = plan_keep_nodes(node)
+    try:
+        assert [k.get_fully_qualified_name() for k in keepers] == [
+            "/pode1/plan_keep", "/pode2/plan_keep", "/pode3/plan_keep"]
+        assert [k.keep for k in keepers] == [True] * 3
+        assert all(k.get_parameter("use_sim_time").value for k in keepers)
+    finally:
+        for each in (node, *keepers):
+            each.destroy_node()

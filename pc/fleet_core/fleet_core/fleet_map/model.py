@@ -49,6 +49,7 @@ class Node:
     zone: str
     yaw: float | None = None
     through: bool = False
+    via: bool = False  # 나눈 goal의 중간 지점 전용: 자유 이음의 목적지가 아니다
 
 
 @dataclass(frozen=True)
@@ -66,6 +67,14 @@ class Edge:
     @property
     def price_m(self) -> float:
         return self.length + self.extra_m
+
+
+# 출발 자리가 rects 안이면 to로 가는 Nav2 goal을 via를 거쳐 둘로 나눈다(해결안 B, plan_split)
+@dataclass(frozen=True)
+class Split:
+    to: str
+    via: str
+    rects: tuple[Rect, ...]
 
 
 @dataclass(frozen=True)

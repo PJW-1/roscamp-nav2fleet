@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from fleet_core.common.commands import MoveOrderCmd, SegmentOut
-from fleet_core.fleet_map import FOLLOW_PATH, NAV_GOAL, RETREAT, SHARED, shortest_path
+from fleet_core.fleet_map import FOLLOW_PATH, NAV_GOAL, RETREAT, SHARED
 from fleet_core.traffic.mission import MOVE, TO_PARK
 
 from .robots import ORDER, Goal, MoveOrder
@@ -53,7 +53,7 @@ class MoveOrders:
 
     def _through(self, m, route):
         dock = self.site.stations[m.dest].dock
-        rest = shortest_path(self.site, route.goal, dock, self._cost(m))
+        rest = self._path(m, route.goal, dock)
         return Route(dock, [*route.edges, *rest]) if rest else route
 
     # ---- 첫 주문 보내기와 갱신 보내기 ----
@@ -171,7 +171,7 @@ class MoveOrders:
         return goal.edges
 
     def _way_after(self, m, end: int, goal: str):
-        rest = shortest_path(self.site, m.route.edges[end - 1].b, goal, self._cost(m))
+        rest = self._path(m, m.route.edges[end - 1].b, goal)
         return [*m.route.edges[:end], *rest] if rest else None
 
     def _turn_order(self, m, fresh) -> None:
@@ -198,8 +198,7 @@ class MoveOrders:
         if now - mo.horizon_at < HORIZON_HOLD_S:
             return False
         old = route.edges[route.granted:]
-        fresh = shortest_path(self.site, route.edges[route.granted - 1].b, route.goal,
-                              self._cost(m))
+        fresh = self._path(m, route.edges[route.granted - 1].b, route.goal)
         if not fresh or [(k.a, k.b) for k in fresh] == [(k.a, k.b) for k in old]:
             return False
         station = self.site.stations.get(m.dest) if m.dest else None

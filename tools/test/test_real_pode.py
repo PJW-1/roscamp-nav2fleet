@@ -27,10 +27,11 @@ REAL_MAP = "arena_real_slam"
 LAUNCH_MAPS = ("arena_v7_a", REAL_MAP, "arena_v7_keepout")
 # 실물 키트 지도 그림의 SHA-256. 지도를 일부러 바꿀 때만 같이 고친다
 KIT_MAP_SHA256 = {
-    "arena_v7.pgm": "c638e8db3dd54c0aa9ac158368a5cea33b8e202ac566cea13f721a2a97a22995",
-    "arena_v7_a.pgm": "e5aa3bfe211c855797bad75ef03ef3f1a24512fa6da687833e362d13dacd4874",
-    "arena_v7_fine.pgm": "892316b1a982912a5301f2b00d56e2b0365cb36a336ce986e0b8c57ead17d85e",
-    "arena_v7_keepout.pgm": "cd185f9fb116c843688141b1f5ee15254f399aa0436a73f1708079676af29dc8",
+    "arena_v7.pgm": "841a51e444ab75cce372b51bba01c27f3164ba5183c851cd8c251a104163dedb",
+    "arena_v7_a.pgm": "33d81df11873afd0ba2de9b7e8b5281938a0a358213c620fc1ecae4f75700098",
+    "arena_v7_a1.pgm": "d485a378a0992c3f06da276bb1617ef257691073e064b164b665e0984ed257ad",
+    "arena_v7_fine.pgm": "d485a378a0992c3f06da276bb1617ef257691073e064b164b665e0984ed257ad",
+    "arena_v7_keepout.pgm": "8264da45295e58127495d811d8c5d1635d72244d83c6441689279ad1f5d6e1f6",
     "arena_real_slam.pgm": "553e4be9dee15d25f480b5b5dfbb29c94b8f9d981cf7859d4f6a213ec78643d1",
 }
 
@@ -196,7 +197,7 @@ def test_nav2_arguments_exist_in_current_launch():
     assert passed <= _declared(NAV2_LAUNCH)
     assert {"namespace", "use_sim_time", "map", "map_fine", "keepout_mask", "params_file",
             "avoidance_params_file", "initial_x", "initial_y", "initial_yaw",
-            "peer_obstacles", "peer_robots", "log_level", "use_composition"} <= passed
+            "peer_obstacles", "peer_robots", "log_level", "use_composition", "plan_keep"} <= passed
 
 
 def test_fsm_arguments_exist_in_current_launch():
@@ -242,6 +243,90 @@ def test_launch_declares_dock_aside_default_false():
             if isinstance(a, DeclareLaunchArgument) and a.name == "dock_aside"]
     assert len(decl) == 1
     assert "".join(t.text for t in decl[0].default_value) == "false"
+
+
+def test_launch_declares_plan_keep_default_false():
+    # 길 유지 노드(해결안 A)는 실물에서 기본 꺼짐
+    import importlib.util
+    _need_launch()
+    from launch.actions import DeclareLaunchArgument
+    spec = importlib.util.spec_from_file_location("real_pode_launch3", KIT / "real_pode.launch.py")
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    mod.get_package_share_directory = lambda name: "/nonexistent/" + name
+    decl = [a for a in mod.generate_launch_description().entities
+            if isinstance(a, DeclareLaunchArgument) and a.name == "plan_keep"]
+    assert len(decl) == 1
+    assert "".join(t.text for t in decl[0].default_value) == "false"
+
+
+# ---- deploy.sh: 복사하는 패키지가 기대는 저장소 패키지도 함께 복사한다 ----
+def _deploy_packages():
+    text = (KIT / "deploy.sh").read_text(encoding="utf-8")
+    m = re.search(r"^packages=\(([^)]*)\)", text, re.M)
+    assert m, "packages=(...) not in deploy.sh"
+    return m.group(1).split()
+
+
+def _repo_packages():
+    out = subprocess.run(["git", "-C", str(ROOT), "ls-files", "*package.xml"],
+                         capture_output=True, text=True, check=True).stdout.split()
+    found = {}
+    for rel in out:
+        name = re.search(r"<name>([^<]+)</name>", (ROOT / rel).read_text("utf-8")).group(1)
+        found[name] = str(Path(rel).parent)
+    return found
+
+
+def test_deploy_copies_every_repo_dependency():
+    repo = _repo_packages()
+    deployed = _deploy_packages()
+    assert "pode/pode_plan_keep" in deployed
+    for rel in deployed:
+        xml = (ROOT / rel / "package.xml").read_text("utf-8")
+        for dep in re.findall(r"<(?:exec_depend|depend|build_depend)>([^<]+)<", xml):
+            if dep in repo:
+                assert repo[dep] in deployed, f"{rel} needs {dep} ({repo[dep]})"
+
+
+# ---- start.sh: PLAN_KEEP=1이면 launch에 plan_keep:=true ----
+def _start_args(tmp_path, extra):
+    """start.sh는 진짜, 대역 ros2가 받은 인자를 한 줄에 하나씩 적는다."""
+    kit = tmp_path / "kit"
+    kit.mkdir()
+    for name in ("start.sh", "env.sh", "net.sh"):
+        shutil.copy(KIT / name, kit)
+    (kit / "make_params.py").write_text("print('params ok')\n")
+    fake = tmp_path / "bin"
+    fake.mkdir()
+    seen = tmp_path / "ros2.args"
+    (fake / "ros2").write_text(f'#!/bin/bash\nprintf "%s\\n" "$@" > "{seen}"\n')
+    (fake / "ros2").chmod(0o755)
+    env = {"PATH": f"{fake}:/usr/bin:/bin", **_robot_home(tmp_path), **extra}
+    run = subprocess.run(["bash", str(kit / "start.sh"), "pode1", "0.12", "0.10", "1.5708"],
+                         env=env, capture_output=True, text=True, timeout=30)
+    for _ in range(50):
+        if seen.exists() and seen.read_text().strip():
+            break
+        time.sleep(0.1)
+    return run, seen.read_text().split("\n") if seen.exists() else None
+
+
+@pytest.mark.parametrize("extra, want", [({}, False), ({"PLAN_KEEP": "0"}, False),
+                                         ({"PLAN_KEEP": "1"}, True)])
+def test_start_plan_keep(tmp_path, extra, want):
+    run, args = _start_args(tmp_path, extra)
+    assert run.returncode == 0, run.stdout + run.stderr
+    assert args is not None and "namespace:=pode1" in args
+    assert ("plan_keep:=true" in args) == want
+    assert not any(a.startswith("plan_keep:=") and a != "plan_keep:=true" for a in args)
+
+
+def test_start_refuses_bad_plan_keep(tmp_path):
+    run, args = _start_args(tmp_path, {"PLAN_KEEP": "yes"})
+    assert run.returncode == 2
+    assert "bad PLAN_KEEP" in run.stdout
+    assert args is None
 
 
 def test_launch_default_does_not_wrap_fsm():
@@ -408,10 +493,10 @@ def test_real_slam_map_file():
     assert cell(0.83, 0.37) == 0  # 진열대 B 남쪽 면 (속은 미지)
 
 
-# 진열대를 그린 세 그림은 옛 진열대 끝(A 0.63, 남쪽 서쪽 0.68)으로 그린 것과 같아야 한다. 키트 지도를 다시 만들면 비운다
-KIT_PENDING_TAPE_2026_11_23 = {"arena_v7.pgm", "arena_v7_a.pgm", "arena_v7_fine.pgm"}
-OLD_SHELF_ENDS = (("  - [0.70, 0.77, 1.56, 0.803]", "  - [0.63, 0.77, 1.56, 0.803]"),
-                  ("  - [0.65, 0.365, 0.99, 0.405]", "  - [0.68, 0.365, 0.99, 0.405]"))
+# 옛 진열대 끝으로 그린 채 둘 키트 그림. 키트 지도를 다시 만들면 비운다
+KIT_PENDING_TAPE_2026_11_23 = set()
+OLD_SHELF_ENDS = (("  - [0.65, 0.77, 1.56, 0.775]", "  - [0.63, 0.77, 1.56, 0.775]"),
+                  ("  - [0.70, 0.365, 0.99, 0.405]", "  - [0.68, 0.365, 0.99, 0.405]"))
 
 
 def test_kit_maps_are_drawn_from_the_real_shelves(tmp_path):
@@ -428,7 +513,7 @@ def test_kit_maps_are_drawn_from_the_real_shelves(tmp_path):
     before = fleet_map_from_text(old)
     arena.generate(tmp_path / "old", before, real=True)
     arena.generate_nav_variants(tmp_path / "old", before, real=True)
-    for name in ("arena_v7", *MAPS):
+    for name in ("arena_v7", *MAPS, "arena_v7_a1"):
         for ext in (".yaml", ".pgm"):
             made = "old" if name + ext in KIT_PENDING_TAPE_2026_11_23 else "now"
             kit = KIT / "maps" / (name + ext)
@@ -447,8 +532,8 @@ def test_kit_map_images_are_the_pinned_measured_maps():
         assert hashlib.sha256((KIT / "maps" / name).read_bytes()).hexdigest() == digest, name
 
 
-def test_kit_costmap_keeps_the_measured_shelf_face_while_the_sim_map_is_thinner():
-    # 시뮬 진열대 A만 1 cm 얇다: 1 cm 지도의 0.80~0.81 칸(x 1.0)
+def test_kit_and_sim_maps_draw_shelf_a_north_face_at_the_measured_height():
+    # 키트와 시뮬 1 cm 지도 모두 진열대 A 북쪽 면이 0.775다(x 1.0)
     from PIL import Image
 
     def cell(path, x, y):
@@ -457,9 +542,9 @@ def test_kit_costmap_keeps_the_measured_shelf_face_while_the_sim_map_is_thinner(
         ox, oy = meta["origin"][:2]
         res = meta["resolution"]
         return img.getpixel((int((x - ox) / res), img.height - 1 - int((y - oy) / res)))
-    kit = cell(KIT / "maps" / "arena_v7_fine.yaml", 1.0, 0.805)
-    sim = cell(ROOT / "sim" / "fleet_gz_sim" / "maps" / "arena_v7_fine.yaml", 1.0, 0.805)
-    assert kit == 0 and sim == 254
+    for path in (KIT / "maps" / "arena_v7_fine.yaml",
+                 ROOT / "sim" / "fleet_gz_sim" / "maps" / "arena_v7_fine.yaml"):
+        assert cell(path, 1.0, 0.772) == 0 and cell(path, 1.0, 0.785) == 254, path
 
 
 # ---- cmd_watchdog.py ----
@@ -1021,7 +1106,7 @@ def test_stop_stops_our_group(tmp_path):
 
 PACKAGES = ("interfaces/fleet_interfaces", "pode/pode_fsm", "pode/pode_nav_config",
             "pode/pode_avoidance", "pode/pode_peer_obstacles", "pode/pode_scan_filter",
-            "pode/pode_dock")
+            "pode/pode_dock", "pode/pode_plan_keep")
 
 
 def _fake_repo(tmp_path):
