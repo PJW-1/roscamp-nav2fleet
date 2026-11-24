@@ -1,6 +1,5 @@
-"""로봇단 양보 사다리 흉내: 켜면 가짜 로봇이 pode_fsm과 같은 순서로
-1초 서고, local_wait_s 기다리고, 낮은 쪽만 물러나고, 다시 가고, 그래도 막히면 BLOCKED다.
-끄면(기본) 지금과 같다."""
+"""로봇단 양보 사다리 흉내: 켜면 가짜 로봇이 pode_fsm과 같은 순서로 1초 서고, local_wait_s 기다리고,
+낮은 쪽만 물러나고, 다시 가고, 그래도 막히면 BLOCKED다. 끄면(기본) 평소와 같다."""
 import math
 import sys
 from pathlib import Path
@@ -183,11 +182,7 @@ def test_the_wait_ends_when_the_way_clears():
 
 
 def test_with_the_real_fleet_the_steps_become_local_yield_events_in_order():
-    """hall_obstacle v7 씨드 11: 두 대가 마주쳐 낮은 pode1이 물러나고 높은 pode3은 BLOCKED.
-
-    전에는 d2 씨드 2였다. 가짜 로봇 배율을 0.67..1로 넓힌 뒤(2026-11-22) d2 씨드 1~40에는 이렇게
-    마주치는 판이 없어 판을 옮겼다. 2026-11-23 진열대 끝 실측(v7)으로 씨드 6에서는 마주치지 않아
-    씨드 1~10에 없는 이 판을 처음 나오는 씨드 11로 옮겼다."""
+    """hall_obstacle v7 씨드 11: 두 대가 마주쳐 낮은 pode1이 물러나고 높은 pode3은 BLOCKED."""
     outcome = run_situation("hall_obstacle", "v7", 11, local_yield=True)
     by_robot: dict = {}
     for _, e in outcome.world.events:

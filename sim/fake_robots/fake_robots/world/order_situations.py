@@ -54,8 +54,7 @@ def build_order(name: str) -> OrderSituation:
                               injections=[SlowStation("OUTBOUND", 6.0)],
                               on_events={"BASE_END_WAIT": 1, "ORDER_UPDATED": 1})
     if name == "express_horizon":
-        # 급행 양 끝에서 시작하고, 20~140초에 급행 안에 상자가 있다(돌아가는 길로 바뀜).
-        # D2에서는 이 상황에서도 HORIZON_CHANGED가 나오지 않았다(수만 표에 적는다, 보고서 참조)
+        # 급행 양 끝에서 시작하고, 20~140초에 급행 안에 상자가 있다(돌아가는 길로 바뀜)
         x0, y0, x1, y1 = load_fleet_map("d2").zones["EXPRESS"].rects[0]
         box = Obstacle((x0 + x1) / 2, (y0 + y1) / 2, 0.04, 20.0, 140.0)
         return OrderSituation(name, "급행 방향 넘기기 중 horizon 바뀜",

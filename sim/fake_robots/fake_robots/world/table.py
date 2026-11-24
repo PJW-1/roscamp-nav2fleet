@@ -1,10 +1,7 @@
 """상황을 돌리고 결과 표의 한 줄과 못 지킨 기대를 만든다.
 
-판정은 둘이다: 정확성(안전 불변식, 관제 반응 시간, SILENT_STALL 0)은 모든
-모드에서 같고, 상황의 기대는 모드마다 다르다(Situation.for_mode). 나머지 칸은 성능이다.
-
-회피 흉내 모드(avoid.py)마다 돌릴 수 있다. "끝나지 않은 주문 원인" 칸은 비워 둔다:
-tools/situations.py가 원인 분류(tools/triage)로 채운다.
+정확성(안전 불변식, 관제 반응 시간, SILENT_STALL 0)은 모든 모드에서 같고, 상황의 기대는 모드마다 다르다.
+"원인" 칸은 비워 둔다(tools/situations.py가 채운다).
 """
 from __future__ import annotations
 

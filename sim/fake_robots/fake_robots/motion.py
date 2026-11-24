@@ -229,9 +229,8 @@ class FaultSchedule:
 
     def start_of(self, f) -> float:
         if f.type == "operator_reinstate":
-            # 사건으로 치우는 로봇은 다시 투입을 그 치우기 뒤로 미룬다. 치우기가 늦게 나도
-            # 운영자가 구역을 풀 시간(REINSTATE_AFTER_S)만큼은 치운 채로 둔다. 사건 치우기는 그
-            # 로봇의 하나뿐인 치우기다(scenario_parts._check_reinstates). 시각 치우기는 그대로다
+            # 사건으로 치우는 로봇은 다시 투입을 REINSTATE_AFTER_S만큼 미룬다(운영자가 구역을 풀 시간).
+            # 사건 치우기는 로봇당 하나뿐이다(scenario_parts._check_reinstates)
             gone = [g for g in self._own if g.type == "operator_remove" and g.after_event]
             if not gone:
                 return f.at_s

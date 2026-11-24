@@ -1,8 +1,7 @@
 """ScenarioMonitor: 토픽 데이터를 심판에 넘기고 결과 파일을 쓰며 0 또는 1로 끝난다.
 
-운영자 역할도 한다. 로봇이 코스에서 치워지면(고장 operator_remove) 그 로봇이
-아직 쥔 구역으로 confirm_clear를 부른다. 다시 놓이면(operator_reinstate) reinstate를 부른다.
-치우기와 재투입 판단은 operator_clear.py에 있다(남은 구역은 다시 치운다).
+운영자 역할도 한다: 치워진 로봇의 구역은 confirm_clear로, 다시 놓인 로봇은 reinstate로 부른다.
+판단은 operator_clear.py에 있다.
 """
 from __future__ import annotations
 

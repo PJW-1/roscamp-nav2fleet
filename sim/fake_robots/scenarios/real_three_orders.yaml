@@ -1,11 +1,6 @@
-# 실물 세 대 시험(2026-11-18): v7, pode1은 P-1, pode2는 P-2, pode3는 P-3. real_two_orders에
-# pode3만 더한 것이다(주문·시간·팔·도킹은 같다). 로봇만 실물이고 central·팔은 가짜다.
-# 주문은 시뮬 게임 gz_v7(fleet_gz_sim/scenarios)의 앞 4건과 같다(품목, 20 s 간격, 팔·도킹 시간,
-# 재고). 건수만 4건으로 줄였다(팀 결정 11-18). 로봇을 띄울 시간을 두려고
-# 모두 20 s 늦췄다(gz_v7은 0, 20, 40, 60 s). 4건을 한 번 넣고 끝난다(반복 없음).
-# 도킹은 PC 대역(dock_wait_robots, 로봇은 DOCK_STUB=1)이 dock.duration_s만큼 기다린다.
-# 벽시계로 돈다(use_sim_clock:=false). robots의 speed_scale, pose_noise_m은 가짜 로봇용이라
-# 실물에는 쓰이지 않는다(실물 속도는 start.sh).
+# 실물 세 대 시험: v7, pode1~3은 P-1~P-3. 로봇만 실물이고 central과 팔은 가짜다.
+# 주문 4건은 gz_v7의 앞 4건과 같고 20 s 늦춰 한 번만 넣는다. 도킹은 PC 대역(DOCK_STUB=1)이 받는다.
+# 벽시계로 돈다. robots의 speed_scale, pose_noise_m은 실물에 쓰이지 않는다.
 map: v7
 seed: 65
 speed_factor: 1.0

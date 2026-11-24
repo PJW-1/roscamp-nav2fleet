@@ -1,9 +1,6 @@
 """order 모델이 꺼져 있으면(use_order_model false) 세계는 order를 넣기 전과 똑같이 돈다.
 
-data/world_off_golden.txt는 order 지원이 없는 코드로 만든 사건 기록이다. D2의 갈림목 선,
-도크 후진(마당까지, 꺾는 점 x 0.30, 1.68)과 대기 자리가 지금 값일 때 만든 것이다.
-2026-11-22에 가짜 로봇 속도(배율 0.67..1, 흔들림이 최고 속도를 넘지 않음)만 바꿔 다시 만들었다.
-옛 속도(배율 0.9..1, 흔들림 자르지 않음)로 돌리면 옛 기록과 한 줄도 다르지 않은 것을 보고 바꿨다.
+data/world_off_golden.txt는 order 지원이 없는 코드로 만든 사건 기록이다.
 """
 from pathlib import Path
 
