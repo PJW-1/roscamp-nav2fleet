@@ -397,6 +397,7 @@ def test_v7_queue_is_entered_at_q2_and_flows_one_way(site):
                       if {"Q1", "Q2"} & {edge.a, edge.b})
     doors = ["E-3"]  # E-1, E-2는 E-3을 거친다(test_v7_routes)
     doors.append("M_E")  # 우회로의 끝도 줄 입구로 들어온다
+    doors.append("GAP_S")  # 나눈 goal의 중간 지점(2026-11-24, test_layout_v7_split)
     assert touching == sorted([(door, "Q2", NAV_GOAL) for door in doors]
                               + [("Q2", door, NAV_GOAL) for door in doors]
                               + [("Q1", "W", FOLLOW_PATH), ("Q2", "Q1", FOLLOW_PATH)])

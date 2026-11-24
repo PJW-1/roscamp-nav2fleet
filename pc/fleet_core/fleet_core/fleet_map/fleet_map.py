@@ -22,6 +22,7 @@ from .parse import (
     read_nodes,
     read_parking,
     read_rect,
+    read_splits,
     read_stations,
     read_zones,
 )
@@ -59,6 +60,7 @@ class FleetMap:
         self.stations = read_stations(data.get("stations"), self.nodes)
         self.parking = read_parking(data.get("parking"), self.nodes)
         self.docks = {station.dock for station in self.stations.values()}
+        self.splits = read_splits(data.get("splits"), self.nodes, self._edges, self._bounds)
         check_lane_waits(self)
         check_clearance(self, float(data.get("clearance_m", BODY_CLEARANCE_M)))
         check_reach(self)
@@ -99,6 +101,13 @@ class FleetMap:
 
     def edges_from(self, node: str) -> tuple[Edge, ...]:
         return self._from[node]
+
+    def split_via(self, goal: str, x: float, y: float) -> str:
+        """(x, y)에서 goal로 가는 Nav2 goal을 나눌 중간 지점. 없으면 빈 문자열."""
+        for split in self.splits:
+            if split.to == goal and any(inside(rect, x, y) for rect in split.rects):
+                return split.via
+        return ""
 
     def can_wait(self, node: str) -> bool:
         return self.nodes[node].kind in WAITING_KINDS

@@ -107,6 +107,7 @@ class FleetParams:
     check_interval_s: float = 5.0
     clear_confirm: int = 2
     blocked_retry_max_s: float = 300.0
+    plan_split: bool = False  # 해결안 B(2026-11-24): 지도 splits대로 Nav2 goal을 둘로 나눈다. 기록 호환: 끔
 
     # ---- 파라미터 값 검사 ----
     def __post_init__(self):
