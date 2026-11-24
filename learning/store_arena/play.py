@@ -240,8 +240,8 @@ def main():
             if succ_ratio
             else None,
             "lidar_min_m": round(lidar_min, 4),
-            # sign changes of the commanded w per minute driven, skipping |w| < flip_deadband
-            # (tools/nav_bench doridori): all counted episodes, and the successful ones
+            # 주행 분당 명령 w 부호 반전 (nav_bench doridori, |w| < flip_deadband 건너뜀): 전체와
+            # 성공 에피소드
             "w_flips_per_min": flips_per_min(np.ones(len(flips), dtype=bool)),
             "w_flips_per_min_success": flips_per_min(codes == 0),
             "still": bool(args_cli.still),
@@ -258,7 +258,7 @@ def main():
         report["alone_timeouts"] = timeouts.alone_summary(tz, rows, max_episodes=E)
         with open(os.path.join(args_cli.out, "eval.json"), "w", encoding="utf-8") as f:
             json.dump(report, f, indent=1)
-        # per counted episode, for pairing runs of the same seed (unavoidable failures)
+        # 센 에피소드별 (같은 시드 실행 짝짓기용: 피할 수 없는 실패)
         np.savez_compressed(
             os.path.join(args_cli.out, "episodes.npz"),
             env=np.array(ep_env),

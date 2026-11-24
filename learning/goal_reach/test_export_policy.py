@@ -1,4 +1,4 @@
-"""policy_spec contents of export_policy.py. Run: python -m pytest learning/goal_reach"""
+"""export_policy.py 의 policy_spec 내용 테스트. 실행: python -m pytest learning/goal_reach"""
 
 import dataclasses
 import os

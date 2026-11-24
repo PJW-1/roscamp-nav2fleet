@@ -62,7 +62,7 @@ def make_spec(source: dict, goal_rule: dict, spec=ts.SPEC) -> dict:
     s, lim = spec, ts.ACTION_LIMITS
     blocks = ts.obs_blocks(spec)
     if not spec.speed_cap_obs and tuple(spec.speed_cap_range) != (lim.v_max, lim.v_max):
-        # the env maps v onto this cap, but the spec would tell the plugin v_max
+        # env 는 v 를 이 상한에 맞추는데 명세는 플러그인에 v_max 를 알리게 됨
         raise ValueError(f"speed_cap_range {spec.speed_cap_range} needs speed_cap_obs=1")
     return {
         "format": SPEC_FORMAT_BLOCKS if blocks else SPEC_FORMAT,
@@ -121,8 +121,8 @@ def enc(x: float):
 
 
 def obs_cases(rng, spec=ts.SPEC) -> list[dict]:
-    """Scan -> rays -> observation; with optional blocks also their inputs (prev target in m/s
-    and rad/s, earlier frames as scaled sectors newest first, speed cap in m/s)."""
+    """스캔 -> 레이 -> 관측. 선택 블록이 있으면 그 입력도 (직전 목표 m/s·rad/s, 이전 프레임 섹터
+    최신 먼저, 속도 상한 m/s)."""
     cases = []
     layouts = [
         # Gazebo pode_sim: 빔 640 개 [-pi, pi], rplidar_link 가 pi 돌아감
@@ -181,8 +181,8 @@ def obs_cases(rng, spec=ts.SPEC) -> list[dict]:
 
 
 def action_cases(rng, spec=ts.SPEC) -> list[dict]:
-    """Action sequences -> rate-limited (v, w); with the speed cap block also at its two ends
-    (the case's "speed_cap" is the v upper limit of the mapping)."""
+    """행동 열 -> 변화율 제한된 (v, w). 속도 상한 블록이 있으면 상한 양 끝에서도 ("speed_cap" 은 v
+    상한)."""
     cases = []
     caps = [None] + (list(spec.speed_cap_range) if spec.speed_cap_obs else [])
     for cap in caps:
@@ -328,7 +328,8 @@ def export_from_checkpoint(checkpoint: str, path: str, spec=ts.SPEC) -> None:
 
 
 def inference_obs(rng, n: int, spec=ts.SPEC) -> np.ndarray:
-    """정책이 보는 범위의 관측: 섹터 (0, 1], 목표 거리 [0, 1], 단위 방위, v [-0.2, 1], w [-1, 1], 선택 블록; 끝 몇 개는 범위 밖 극단값."""
+    """정책이 보는 범위의 관측: 섹터 (0, 1], 목표 거리 [0, 1], 단위 방위, v [-0.2, 1], w [-1, 1],
+    선택 블록; 끝 몇 개는 범위 밖 극단값."""
     dim = ts.obs_dim(spec)
     obs = np.empty((n, dim), dtype=np.float32)
     obs[:, : ts.OBS_LIDAR] = rng.uniform(0.025, 1.0, (n, ts.OBS_LIDAR))
@@ -344,7 +345,7 @@ def inference_obs(rng, n: int, spec=ts.SPEC) -> np.ndarray:
         obs[:, i] = rng.uniform(-0.4, 1.4, n)
         obs[:, i + 1] = rng.uniform(-1.0, 1.0, n)
         i += 2
-    for _ in range(1, spec.lidar_frames):  # earlier frames near the current one
+    for _ in range(1, spec.lidar_frames):  # 이전 프레임은 현재 프레임 근처 값
         jitter = rng.uniform(-0.05, 0.05, (n, ts.OBS_LIDAR))
         obs[:, i : i + ts.OBS_LIDAR] = np.clip(obs[:, : ts.OBS_LIDAR] + jitter, 0.025, 1.0)
         i += ts.OBS_LIDAR

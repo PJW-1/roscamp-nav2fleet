@@ -1,21 +1,16 @@
-"""CSV tables for the a+c+d seed runs (work 4, 2026-11-24) from finished eval runs; no Isaac needed.
+"""작업 4 a+c+d 시드 실행의 CSV 표를 끝난 평가에서 만든다 (Isaac 불필요).
 
   python learning/store_arena/acd_tables.py <recipe runs dir> <acd24 runs dir> <out dir> [partial]
 
-Policies: 4b (ppo_k), ctrl (item 5 control), c (item 6 "no intent", seeds 1-3), acd200 (item 5
-a+c+d, 200 iterations, seed 1) and acd (this work, seeds 1-3, 500 iterations). Cells: random,
-head-on and handover at 0.12 m/s; random and head-on at 0.08 and 0.16 (policies without the
-speed_cap input ran there with play.py --capped; ctrl and c are compared at 0.12 only, c not on
-handover: measured()). Every eval is play.py --episodes 1 --seed 7 over
-4096 envs, so runs of the same cell see the same episodes (same_episodes checks the tracked envs)
-and pair by env id.
+정책: 4b, ctrl, c (시드 1-3), acd200, acd (시드 1-3). 칸: 0.12 m/s 의 random·head-on·handover,
+0.08·0.16 의 random·head-on (ctrl, c 는 0.12 만, c 는 handover 제외: measured()).
+평가는 모두 play.py --episodes 1 --seed 7, 4096 env 라 같은 칸의 실행은 같은 에피소드를 env 번호로
+짝짓는다.
 
-cells.csv   one row per policy x seed x cell: rates, gap < 0.10 m to a robot, w flips per minute
-paired.csv  acd seed s minus a baseline in the same cell. Against a single checkpoint (4b, ctrl,
-            acd200): per seed the paired episode difference and its SE; row "mean" is the seed mean
-            with SE sd(seed diffs)/sqrt(3). Against c (3 seeds of its own): row "mean" is
-            mean(acd) - mean(c) with SE sqrt(var_acd/3 + var_c/3) over seed success rates.
-            noise: "outside" when |diff| > 2 SE, else "inside" (decided before the results, B84).
+cells.csv   정책 x 시드 x 칸마다 한 줄: 비율, 로봇과 간격 < 0.10 m, 분당 w 반전
+paired.csv  같은 칸에서 acd 시드 s - 기준. 단일 체크포인트 기준은 시드별 짝 차이와 SE, "mean" 행은
+            시드 평균 (SE sd/sqrt(3)). c 기준은 mean(acd) - mean(c) (SE sqrt(var_acd/3 + var_c/3)).
+            noise: |diff| > 2 SE 이면 "outside", 아니면 "inside".
 """
 
 import json
@@ -56,17 +51,17 @@ def seeds_of(pol):
 
 
 def measured(pol, cap, s):
-    """Cells evaluated by design (B87): ctrl and c only at 0.12, c not on handover."""
+    """설계상 평가한 칸: ctrl 과 c 는 0.12 만, c 는 handover 제외."""
     if pol in ("ctrl", "c") and cap != 0.12:
         return False
     return not (pol == "c" and s == "ho")
 
 
 def same_episodes(da, db):
-    """The tracked envs start the same route with the movers and robots in the same places."""
+    """추적한 env 들이 같은 경로, 같은 자리의 움직이는 물체·로봇으로 시작하는지."""
     za, zb = np.load(da + "/rollouts.npz"), np.load(db + "/rollouts.npz")
-    n = min(za["route"].shape[1], zb["route"].shape[1])  # --track 1024 (recipe) or 16 (here)
-    if n == 0:  # nothing tracked: no evidence that the episodes match
+    n = min(za["route"].shape[1], zb["route"].shape[1])  # --track 1024 (recipe) 또는 16 (여기)
+    if n == 0:  # 추적한 것이 없으면 같은 에피소드라는 근거 없음
         return False
     for k in ("route", "mover_xy", "robot_xy"):
         if not np.array_equal(za[k][0][:n], zb[k][0][:n]):

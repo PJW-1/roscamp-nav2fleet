@@ -1,17 +1,15 @@
 #!/usr/bin/env bash
-# 작업 4 (2026-11-24): a+c+d from ppo_k, seeds 1-3 x 500 iterations (2 x 250), then the item 5/6 evals.
-# Every Isaac job takes /c/Users/pjw/ros2camp/.heavy_run.lock and releases it after; PAUSE_S between jobs.
-# Before taking it, the queue waits while /c/Users/pjw/ros2camp/.heavy_run.queue/ holds any file.
-# Usage: bash docs/rl_acd_2026-11-24/queue.sh <job-list-file>
-# One job per line: tag|kind|args. kind: train (args given), resume:<tag> (train from the last
-# model of <tag>), eval:<tag> (play.py on the last model of <tag>), eval (play.py, args give
-# --checkpoint). A job whose output already has run.json (train) or eval.json (eval) is skipped.
+# 작업 4 작업 대기열: ppo_k에서 a+c+d 학습(시드 1-3)과 item 5/6 평가를 차례로 돌린다.
+# Isaac 작업마다 .heavy_run.lock을 잡고 놓는다(사이 PAUSE_S). .heavy_run.queue/에 파일이 있으면 기다린다.
+# 사용: bash docs/rl_acd_2026-11-24/queue.sh <작업 목록 파일>
+# 한 줄에 작업 하나: tag|kind|args. kind: train, resume:<tag>(그 tag 마지막 모델에서 이어 학습),
+# eval:<tag>(그 tag 마지막 모델로 play.py), eval(args에 --checkpoint). run.json·eval.json이 있으면 건너뛴다.
 set -u
 LIST=${1:?job list}
 HERE=$(cd "$(dirname "$0")/../.." && pwd)/learning/store_arena
 PY=/d/isaac/IsaacLab/.venv/Scripts/python.exe
 LOCK=/c/Users/pjw/ros2camp/.heavy_run.lock
-QDIR=/c/Users/pjw/ros2camp/.heavy_run.queue  # any file here: another track is next, do not take the lock
+QDIR=/c/Users/pjw/ros2camp/.heavy_run.queue  # 파일이 있으면 다른 트랙 차례: 잠금을 잡지 않음
 R=${R:-/d/isaac/runs/store_arena/acd24}
 PAUSE_S=${PAUSE_S:-90}
 export PYTHONUTF8=1 OMNI_KIT_ACCEPT_EULA=YES PXR_WORK_THREAD_LIMIT=1

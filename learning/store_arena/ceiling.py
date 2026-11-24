@@ -1,15 +1,11 @@
-"""Unavoidable failures: pair a policy run with a still-robot run of the same episodes.
+"""피할 수 없는 실패: 정책 실행과 같은 에피소드의 서 있는 로봇 실행을 짝짓는다.
 
-Both runs are play.py with the same seed and set flags and --episodes 1 (every env counts its
-first episode, which is drawn at the first reset before any policy acts; steps draw nothing
-random, so the still run sees the same layout, movers and robots). For each set:
-  still collision rate    episodes where our robot is hit even though it never moves
-  share of failures       policy failures (collision, out of bounds, timeout) whose episode also
-                          collides when standing still
-  success ceiling         1 - still collision rate (a still-hit episode cannot be won by waiting;
-                          the policy could still dodge it, so this is a ceiling for a waiting
-                          strategy, not a hard bound)
-No Isaac needed:  python learning/store_arena/ceiling.py <policy_run_dir> <still_run_dir>
+두 실행 모두 같은 시드·설정의 play.py --episodes 1 (첫 에피소드는 정책이 움직이기 전에 정해짐).
+설정마다:
+  still collision rate    움직이지 않아도 부딪힌 에피소드 비율
+  share of failures       정책 실패 가운데 서 있어도 부딪히는 에피소드 비율
+  success ceiling         1 - still collision rate (기다리기 전략의 상한, 엄격한 한계는 아님)
+Isaac 불필요:  python learning/store_arena/ceiling.py <policy_run_dir> <still_run_dir>
 """
 
 import json

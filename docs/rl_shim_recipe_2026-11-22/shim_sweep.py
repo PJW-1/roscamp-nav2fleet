@@ -1,14 +1,11 @@
-"""Kinematic 528-start sweep of store_arena_4b (ONNX) behind a RotationShim model (Nav2 Jazzy 1.3.13 logic).
+"""RotationShim 모형(Nav2 Jazzy 1.3.13 논리) 뒤의 store_arena_4b(ONNX)를 528개 시작점에서 운동학으로
+돌린다.
 
-modes:
-  nominal  : engage when |err| > 0.785 at a new plan (every PLAN_DT), rotate at 1.0 rad/s, accel 2.0 rad/s^2,
-             stop-decel sqrt(2 a |err|), hand over when |err| <= disengage (0.3925 default). Every new plan
-             re-arms the check (rotate_to_heading_once false).
-  abort_T  : the same rotation, but the shim hands the robot to the policy after T s of rotation whatever the
-             error (what a rotation-collision refusal does), and does not engage again (the refusal repeats
-             next to the wall).
-err = bearing to the first route point >= 0.15 m from the robot, after the progress point (a new plan starts at
-the robot). Clearance = URDF base_link box distance to the measured shelves and walls.
+모드:
+  nominal  : 새 계획마다 |err| > 0.785 이면 돌기 시작, |err| <= disengage 이면 정책에 넘긴다.
+  abort_T  : 같은 회전이지만 오차와 상관없이 T초 뒤 넘기고 다시 돌지 않는다(회전 충돌 거부를 흉내).
+err는 진행점 뒤 로봇에서 0.15 m 이상 떨어진 첫 경로점의 방위. 간격은 URDF base_link 상자와 진열대·벽
+거리.
 """
 
 import collections

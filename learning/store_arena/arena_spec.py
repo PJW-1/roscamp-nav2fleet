@@ -95,7 +95,8 @@ class ArenaSpec:
     corner_yaw_jitter: float = 0.6
     # ---- RL+shim 인계 시작 (RL 플러그인 트랙): 이 비율의 에피소드, 0 이면 뽑지 않음 ----
     # handover_nodes 에서 나가는 경로 위에 서서(v 0) w0 = +-handover_w (경로 쪽 부호)로 돌며 시작
-    # 경로 대비 방향 오차: handover_normal_deg +- jitter (정상 인계) 또는 handover_cut_deg 균등 (shim 회전 중 끊긴 인계)
+    # 경로 대비 방향 오차: handover_normal_deg +- jitter (정상 인계) 또는 handover_cut_deg 균등
+    # (shim 회전 중 끊긴 인계)
     handover_start_prob: float = 0.0
     handover_nodes: str = "Q2,M_E,E-3"
     handover_normal_deg: float = 21.0
@@ -260,15 +261,15 @@ def path_heading(path: torch.Tensor, ahead_m: float = 0.1) -> torch.Tensor:
 
 
 def away_heading(path: torch.Tensor, jitter: torch.Tensor, ahead_m: float = 0.1) -> torch.Tensor:
-    """(N,) yaw facing away from the path direction at its start (path_heading), turned by
-    pi + jitter (N,)."""
+    """경로 시작 방향(path_heading)의 반대 yaw (N,): pi + jitter 만큼 돌림."""
     yaw = path_heading(path, ahead_m) + math.pi + jitter
     return torch.atan2(torch.sin(yaw), torch.cos(yaw))
 
 
 def handover_start(path_dir: torch.Tensor, u: torch.Tensor, spec: ArenaSpec = ARENA):
-    """Yaw (N,) and initial w (N,) of handover starts; u (N, 4) uniform draws in [0, 1): kind
-    (normal or cut short), error size, error side, |w|. w turns the robot towards the path."""
+    """인계 시작의 yaw (N,) 와 초기 w (N,). u (N, 4) 는 [0, 1) 균등 값: 종류, 오차 크기, 오차 방향,
+    |w|.
+    w 는 로봇을 경로 쪽으로 돌림."""
     normal = u[:, 0] < spec.handover_normal_share
     j = math.radians(spec.handover_normal_jitter_deg)
     err_n = math.radians(spec.handover_normal_deg) + (2 * u[:, 1] - 1) * j

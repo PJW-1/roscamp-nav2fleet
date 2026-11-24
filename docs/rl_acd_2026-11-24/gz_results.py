@@ -1,13 +1,11 @@
 """작업 4 Gazebo 표: RL+shim 4b 대 RL+shim a+c+d(acd2), 칸마다 판별 값과 두 표본 비교.
 
-  python3 gz_results.py <gz_run.sh OUT> [dest]   (WSL, ROS install sourced; tools/nav_bench and
-  docs/rl_shim_recipe_2026-11-22 come from the pd-plugin2 copy in the same tree)
+  python3 gz_results.py <gz_run.sh OUT> [dest]   (WSL, ROS install을 source한 셸)
 
-Per leg: success (nav_bench ok), wall/obstacle and robot contact events (item 8 leg_row), body
-clearance minimum, w sign flips per minute (nav_bench doridori / leg minutes), early handovers
-(item 8 early_count: shim hands over before the heading is within the disengage threshold).
-Comparison acd2 - 4b per scenario: success difference with Wald SE and a two-sided Fisher exact p;
-time (successful legs), flips per minute, clearance and early handovers by Welch (diff, SE).
+구간마다: 성공, 벽·장애물·로봇 접촉(item 8 leg_row), 몸 최소 간격, 분당 w 부호 반전, 이른
+넘김(early_count).
+시나리오마다 acd2 - 4b: 성공 차이는 Wald SE와 양측 Fisher p, 시간·반전·간격·이른 넘김은 Welch (차이,
+SE).
 """
 
 import csv
@@ -56,7 +54,7 @@ def legs(out):
 
 
 def fisher_p(k1, n1, k2, n2):
-    """Two-sided Fisher exact p for a 2x2 table (successes k of n in each arm)."""
+    """2x2 표(두 쪽 각각 n 가운데 성공 k)의 양측 Fisher 정확 p."""
     total, ks = n1 + n2, k1 + k2
     def pr(x):
         return math.comb(n1, x) * math.comb(n2, ks - x) / math.comb(total, ks)

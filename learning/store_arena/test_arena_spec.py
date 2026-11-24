@@ -203,7 +203,7 @@ def test_handover_start_turns_towards_the_path_with_the_chosen_error():
     path_dir = (torch.rand(n) * 2 - 1) * math.pi
     yaw, w = arena.handover_start(path_dir, torch.rand(n, 4))
     err = torch.atan2(torch.sin(yaw - path_dir), torch.cos(yaw - path_dir))
-    assert torch.all(torch.sign(w) == -torch.sign(err))  # w turns the error towards 0
+    assert torch.all(torch.sign(w) == -torch.sign(err))  # w 는 오차를 0 쪽으로 돌림
     assert set(w.abs().unique().tolist()) == {0.5, 1.0}
     a = err.abs().rad2deg()
     normal = a < 30

@@ -1,14 +1,10 @@
-"""Widen an rsl_rl checkpoint for new observation entries so the policy starts unchanged.
+"""rsl_rl 체크포인트를 새 관측 항목만큼 넓혀 정책이 바뀌지 않은 채 시작하게 한다.
 
-The new entries are appended after the old ones (task_spec puts the optional blocks after the 41
-base entries, and ppo_k has no intent block; the critic's privileged entries come after the
-actor's). Their first-layer weights are zero, so actor and critic outputs equal the old ones for
-any values in the new entries. Their normaliser mean and variance are set from given values
-(e.g. the base entry they repeat): the normaliser has seen about 1e8 samples, so it barely
-moves later, and a fixed (0, 1) would leave a badly scaled input. The optimizer state is dropped
-(its moment tensors have the old shapes); train.py then loads without it (--init).
+새 항목은 옛 항목 뒤에 붙고 첫 층 가중치가 0 이라 actor, critic 출력이 그대로다.
+정규화 평균·분산은 주어진 값(보통 따라 하는 기본 항목)으로 둔다. optimizer 상태는 버린다(train.py
+--init).
 
-No Isaac needed:
+Isaac 불필요:
   python learning/store_arena/widen_checkpoint.py <model.pt> <out.pt> --set prev_action_obs=1 ...
 """
 
@@ -22,11 +18,11 @@ import torch
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "goal_reach"))
 import task_spec as ts  # noqa: E402
 
-N_MOVERS = 2  # mover_spec.MOVERS: a person and a cart
+N_MOVERS = 2  # mover_spec.MOVERS: 사람과 카트
 
 
 def widen_state(sd: dict, new_dim: int, mean: torch.Tensor, var: torch.Tensor) -> dict:
-    """One model state dict (actor or critic) with new_dim inputs: old entries first."""
+    """입력을 new_dim 개로 넓힌 모델 state dict (actor 또는 critic), 옛 항목이 앞."""
     old = sd["mlp.0.weight"].shape[1]
     k = new_dim - old
     if k < 0 or len(mean) != k or len(var) != k:
@@ -42,7 +38,7 @@ def widen_state(sd: dict, new_dim: int, mean: torch.Tensor, var: torch.Tensor) -
 
 
 def insert_state(sd: dict, at: int, mean: torch.Tensor, var: torch.Tensor) -> dict:
-    """One model state dict with len(mean) new inputs inserted before input index at."""
+    """입력 번호 at 앞에 새 입력 len(mean) 개를 끼운 모델 state dict."""
     k = len(mean)
     out = dict(sd)
     w = sd["mlp.0.weight"]
@@ -55,8 +51,8 @@ def insert_state(sd: dict, at: int, mean: torch.Tensor, var: torch.Tensor) -> di
 
 
 def intent_stats(spec) -> tuple[torch.Tensor, torch.Tensor]:
-    """Rough normaliser stats of the intent block: present flag about half the time, priority
-    flag a quarter, route points around 0 with std about 0.3 (scaled by intent_obs_max)."""
+    """intent 블록의 대략적 정규화 통계: 존재 약 절반, 우선순위 약 1/4, 경로점은 0 근처 표준편차 약
+    0.3."""
     head_m, head_v = [0.5], [0.25]
     if spec.intent_priority:
         head_m, head_v = head_m + [0.25], head_v + [0.1875]
@@ -66,9 +62,8 @@ def intent_stats(spec) -> tuple[torch.Tensor, torch.Tensor]:
 
 
 def add_intent(ck: dict, spec) -> dict:
-    """ck trained with spec's layout minus the intent block (item 6: the recipe checkpoint);
-    the intent block goes at the end of the actor input and before the critic's privileged
-    entries, with zero first-layer weights, so both outputs stay the same."""
+    """intent 블록 없이 학습한 ck 에 intent 블록을 더함 (item 6).
+    actor 입력 끝, critic 특권 항목 앞에 첫 층 가중치 0 으로 넣어 두 출력이 그대로."""
     if not spec.intent_robots:
         raise ValueError("spec has no intent block")
     base = dataclasses.replace(spec, intent_robots=0, intent_priority=0)
@@ -84,8 +79,8 @@ def add_intent(ck: dict, spec) -> dict:
 
 
 def block_stats(sd: dict, spec) -> tuple[torch.Tensor, torch.Tensor]:
-    """Normaliser mean and variance for the optional actor blocks of spec (not intent): each
-    repeats the base entry it copies; the speed cap is uniform over speed_cap_range."""
+    """spec 의 선택 actor 블록 (intent 제외) 정규화 평균·분산: 따라 하는 기본 항목 값, 속도 상한은
+    speed_cap_range 균등."""
     mean, var = sd["obs_normalizer._mean"][0], sd["obs_normalizer._var"][0]
     lid = slice(0, ts.OBS_LIDAR)
     ms, vs = [], []
@@ -107,15 +102,15 @@ def block_stats(sd: dict, spec) -> tuple[torch.Tensor, torch.Tensor]:
 
 
 def privileged_stats(n_objects: int) -> tuple[torch.Tensor, torch.Tensor]:
-    """Rough normaliser stats for the critic's privileged entries [present, x, y, vx, vy]:
-    present about half the time, positions and velocities around 0 with std 0.5 (scaled)."""
+    """critic 특권 항목 [존재, x, y, vx, vy] 의 대략적 정규화 통계: 존재 약 절반, 위치·속도는 0 근처
+    표준편차 0.5."""
     m = torch.tensor([0.5, 0.0, 0.0, 0.0, 0.0]).repeat(n_objects)
     v = torch.tensor([0.25, 0.25, 0.25, 0.25, 0.25]).repeat(n_objects)
     return m, v
 
 
 def widen_checkpoint(ck: dict, spec, n_privileged_objects: int = 0) -> dict:
-    """The checkpoint for spec's actor layout (and critic: actor layout plus privileged)."""
+    """spec 의 actor 배치 (critic 은 actor 배치 + 특권 항목) 에 맞춘 체크포인트."""
     actor, critic = ck["actor_state_dict"], ck["critic_state_dict"]
     a_dim = ts.obs_dim(spec)
     am, av = block_stats(actor, spec)

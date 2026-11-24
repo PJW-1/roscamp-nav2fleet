@@ -69,7 +69,7 @@ def main():
         agent_cfg.experiment_name = "pode_store_arena"
         agent_cfg.max_iterations = args_cli.max_iterations
         agent_cfg.seed = args_cli.seed
-        if arena.ts.make_spec(task_over).critic_privileged:  # the env adds a "critic" group
+        if arena.ts.make_spec(task_over).critic_privileged:  # env 가 "critic" 그룹을 더함
             agent_cfg.obs_groups = {"actor": ["policy"], "critic": ["policy", "critic"]}
         agent_cfg = handle_deprecated_rsl_rl_cfg(agent_cfg, check_rsl_rl_version())
         env_cfg.metrics_every = agent_cfg.num_steps_per_env

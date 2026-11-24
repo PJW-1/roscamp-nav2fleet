@@ -165,13 +165,13 @@ class StoreArenaEnv(GoalReachEnv):
         self.graph = rbs.node_graph(site)
         cfg.scene.env_spacing = a.env_spacing
         spec = ts.make_spec(cfg.spec_overrides)
-        # per-episode top speed (speed_cap_range): times are stretched for the slowest cap, and
-        # each env times out at its own cap's length (ep_limit)
+        # 에피소드별 최고속도 (speed_cap_range): 시간은 가장 느린 상한에 맞춰 늘리고 env 마다 자기
+        # 상한 길이(ep_limit)에서 끝남
         lo, hi = spec.speed_cap_range
         self.cap_varies = lo != hi
-        self.cap_active = self.cap_varies or lo != ts.NAV_SPEED_MPS  # else exactly ppo_k's rules
+        self.cap_active = self.cap_varies or lo != ts.NAV_SPEED_MPS  # 아니면 ppo_k 규칙 그대로
         cfg.episode_length_s = a.episode_s * ts.NAV_SPEED_MPS / min(spec.speed_cap_range)
-        # critic-only entries: movers, then scripted robot slots (task_spec.privileged_block)
+        # 크리틱 전용 항목: 움직이는 물체, 이어서 스크립트 로봇 칸 (task_spec.privileged_block)
         self.n_priv = len(ms.MOVERS) + int(a.robot_max)
         cfg.state_space = ts.PRIV_PER_OBJECT * self.n_priv if spec.critic_privileged else 0
         self._routes_ready = False
@@ -232,7 +232,7 @@ class StoreArenaEnv(GoalReachEnv):
         self.corner_start = torch.zeros(n, dtype=torch.bool, device=dev)
         self.last_ep_corner = torch.zeros(n, dtype=torch.bool, device=dev)
         self._new_corner = torch.zeros(n, dtype=torch.bool, device=dev)
-        # handover starts (handover_start_prob): routes from handover_nodes, initial w per env
+        # 인계 시작 (handover_start_prob): handover_nodes 에서 나가는 경로, env 별 초기 w
         names = set(a.handover_nodes.split(","))
         starts = [r.node_names[r.pairs[i // r.layouts][0]] for i in range(r.count)]
         self.r_handover = torch.tensor(
@@ -278,9 +278,9 @@ class StoreArenaEnv(GoalReachEnv):
         self.last_ep_robot_gap = torch.full((n,), float("inf"), **f32)
         self.hit_kind = torch.zeros(n, dtype=torch.long, device=dev)
         self.last_ep_hit_kind = torch.zeros(n, dtype=torch.long, device=dev)
-        # recipe blocks (task_spec obs_blocks): per-episode top speed and time limit, the previous
-        # targets, w sign flips (penalty on the target, the nav_bench metric on the command),
-        # the lidar frames kept for lidar_history, scripted robot positions one step ago
+        # 레시피 블록 상태: 에피소드 최고속도·시간 한도, 직전 목표, w 부호 반전, lidar_history
+        # 프레임, 직전 스텝 로봇 위치
+        # w 반전 벌점은 목표에, nav_bench 지표는 명령에 매김
         s = self.spec
         self.v_cap = torch.full((n,), float(min(s.speed_cap_range)), **f32)
         self.ep_limit = torch.full((n,), self.max_episode_length, device=dev, dtype=torch.long)
@@ -317,7 +317,7 @@ class StoreArenaEnv(GoalReachEnv):
         q = self.arena.handover_start_prob
         self._new_handover = torch.zeros(n, dtype=torch.bool, device=self.device)
         self._new_w0 = torch.zeros(n, device=self.device)
-        if q > 0 and len(self.r_handover):  # no draw otherwise: earlier arenas stay the same
+        if q > 0 and len(self.r_handover):  # 아니면 뽑지 않음: 이전 아레나 그대로
             ho = torch.rand(n, device=self.device) < q
             pick = self.r_handover[torch.randint(0, len(self.r_handover), (n,), device=self.device)]
             self._new_route = torch.where(ho, pick, self._new_route)
@@ -367,7 +367,7 @@ class StoreArenaEnv(GoalReachEnv):
         if self._new_handover.any():
             self._spin_up(env_ids, self._new_w0)
         s = self.spec
-        if self.cap_varies:  # no draw otherwise: fixed-cap runs keep their random sequence
+        if self.cap_varies:  # 아니면 뽑지 않음: 고정 상한 실행의 난수 순서 그대로
             self.v_cap[env_ids] = ts.sample_speed_cap(len(env_ids), self.device, s)
         if self.cap_active:
             cap = self.v_cap[env_ids]
@@ -414,8 +414,8 @@ class StoreArenaEnv(GoalReachEnv):
             self.robot_prev_xy[env_ids, k] = pos
 
     def _spin_up(self, env_ids, w0) -> None:
-        """Start env_ids turning on the spot at w0 (n,) rad/s: body yaw rate, wheel speeds and
-        the rate-limited command (the policy's first target moves on from it)."""
+        """env_ids 를 w0 (n,) rad/s 로 제자리 회전하며 시작: 몸 yaw 속도, 바퀴 속도, 변화율 제한
+        명령을 맞춤."""
         vel = torch.zeros(len(env_ids), 6, device=self.device)
         vel[:, 5] = w0
         self.robot.write_root_velocity_to_sim_index(root_velocity=vel, env_ids=env_ids)
@@ -452,7 +452,7 @@ class StoreArenaEnv(GoalReachEnv):
                     again = headon & (chain[:, 2] == sg[:, 0])
                     chain[again, 2] = sg[again, 1]
             speed = rbs.ROBOT.speed * (lo + torch.rand(n, device=dev) * (hi - lo))
-            if self.cap_active:  # scripted robots drive at the episode's cap times their scale
+            if self.cap_active:  # 스크립트 로봇은 에피소드 상한 x 자기 배율로 달림
                 speed = speed * self.v_cap[env_ids] / ts.NAV_SPEED_MPS
             pause = p0 + torch.rand(n, legs, device=dev) * (p1 - p0)
             route = rbs.chain_route(self.g_t, chain, speed, pause)
@@ -611,14 +611,14 @@ class StoreArenaEnv(GoalReachEnv):
 
     def action_target(self, actions: torch.Tensor) -> torch.Tensor:
         if not (self._routes_ready and self.cap_active):
-            return super().action_target(actions)  # exactly the ppo_k mapping
+            return super().action_target(actions)  # ppo_k 변환 그대로
         return ts.action_to_target(actions, v_cap=self.v_cap)
 
     def reward_v_cap(self) -> torch.Tensor | None:
         return self.v_cap if self._routes_ready and self.cap_active else None
 
     def wait_scale(self):
-        """Travel-time waits follow the episode cap: 1 for a fixed cap, else (n,)."""
+        """이동 시간 대기는 에피소드 상한을 따름: 고정 상한이면 1, 아니면 (n,)."""
         return ts.NAV_SPEED_MPS / self.v_cap if self.cap_active else 1.0
 
     def _pre_physics_step(self, actions: torch.Tensor) -> None:
@@ -740,8 +740,8 @@ class StoreArenaEnv(GoalReachEnv):
         return rew + sum(terms.values())
 
     def lidar_history(self, ranges: torch.Tensor) -> torch.Tensor | None:
-        """(n, frames - 1, sectors) earlier scaled sector vectors, newest first, stride steps
-        apart; a fresh episode fills every slot with its current frame. Called once per step."""
+        """이전 섹터 벡터 (n, frames - 1, sectors), 최신 먼저, stride 스텝 간격.
+        새 에피소드는 모든 칸을 현재 프레임으로 채움. 스텝마다 한 번 부름."""
         s = self.spec
         if s.lidar_frames <= 1:
             return None
@@ -753,7 +753,7 @@ class StoreArenaEnv(GoalReachEnv):
         return self.lid_buf[:, s.lidar_stride_steps :: s.lidar_stride_steps]
 
     def privileged_states(self, xy, yaw) -> torch.Tensor:
-        """Critic-only entries: true positions and velocities of the movers and robots."""
+        """크리틱 전용 항목: 움직이는 물체와 로봇의 실제 위치, 속도."""
         pos, vel, on = [], [], []
         for p, _, v, a_ in self.mover_state():
             pos.append(p)

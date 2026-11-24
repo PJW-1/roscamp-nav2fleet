@@ -91,7 +91,8 @@ class TaskSpec:
     # v 행동 상한, 에피소드 시간, 스크립트 로봇 속도가 상한을 따름. v 관측은 그대로 / v_max
     speed_cap_obs: int = 0
     speed_cap_range: tuple[float, float] = (NAV_SPEED_MPS, NAV_SPEED_MPS)  # m/s
-    # critic_privileged 1: 크리틱(액터 아님)이 움직이는 물체와 스크립트 로봇의 실제 위치, 속도도 받음
+    # critic_privileged 1: 크리틱(액터 아님)이 움직이는 물체와 스크립트 로봇의 실제 위치, 속도도
+    # 받음
     critic_privileged: int = 0
     # ---- 충돌: COLLISION_BODIES 의 최대 접촉력이 이를 넘으면 종료 ----
     collision_force: float = 1.0  # N; 로봇 무게 15 N, 벽 밀기 5-11 N
@@ -180,11 +181,11 @@ def make_spec(overrides: dict) -> TaskSpec:
 OBS_LIDAR = SPEC.lidar_sectors
 
 
-BASE_DIM = OBS_LIDAR + 3 + 2  # lidar sectors, goal (dist, sin, cos), (v, w): the ppo_k layout
+BASE_DIM = OBS_LIDAR + 3 + 2  # 라이다 섹터, 목표 (거리, sin, cos), (v, w): ppo_k 배치
 
 
 def obs_blocks(spec: TaskSpec = SPEC) -> list[str]:
-    """Names of the optional blocks present after the base entries, in their fixed order."""
+    """기본 항목 뒤에 있는 선택 블록 이름 (정해진 순서)."""
     out = []
     if spec.prev_action_obs:
         out.append("prev_action")
@@ -236,7 +237,8 @@ ACT_DIM = 2
 def action_to_target(
     actions: torch.Tensor, lim: ActionLimits = ACTION_LIMITS, v_cap: torch.Tensor | None = None
 ) -> torch.Tensor:
-    """정책 행동 [-1, 1]^2 를 목표 (v, w) 로. v 는 [v_min, v_max] 로 선형 변환 (env 별 v_cap (N,) 이 있으면 [v_min, v_cap])."""
+    """정책 행동 [-1, 1]^2 를 목표 (v, w) 로. v 는 [v_min, v_max] 로 선형 변환 (env 별 v_cap (N,) 이
+    있으면 [v_min, v_cap])."""
     a = actions.clamp(-1.0, 1.0)
     top = lim.v_max if v_cap is None else v_cap
     v = lim.v_min + (a[:, 0] + 1.0) * 0.5 * (top - lim.v_min)
@@ -245,7 +247,7 @@ def action_to_target(
 
 
 def still_action(n: int, device=None, lim: ActionLimits = ACTION_LIMITS, v_cap=None):
-    """(n, 2) action whose target is (0, 0): the robot stands still (item 7 ceiling runs)."""
+    """목표가 (0, 0) 인 (n, 2) 행동: 로봇이 서 있음 (item 7 상한 실행용)."""
     top = lim.v_max if v_cap is None else v_cap
     a0 = 2.0 * (0.0 - lim.v_min) / (top - lim.v_min) - 1.0
     out = torch.zeros(n, 2, device=device)
@@ -254,10 +256,9 @@ def still_action(n: int, device=None, lim: ActionLimits = ACTION_LIMITS, v_cap=N
 
 
 def capped_action(actions: torch.Tensor, v_cap: torch.Tensor, lim: ActionLimits = ACTION_LIMITS):
-    """(n, 2) action of a policy trained without speed_cap_obs, re-expressed for an env that maps
-    v onto [v_min, v_cap]: its target v at lim.v_max, clamped to v_cap. This is what the
-    controller plugin does with a format-2 policy under a lower top speed (and it never goes
-    above the policy's own v_max)."""
+    """speed_cap_obs 없이 학습한 정책의 행동을 v 를 [v_min, v_cap] 로 맞추는 env 용으로 바꿈.
+    목표 v 는 lim.v_max 기준 값을 v_cap 으로 자른 것 (낮은 최고속도에서 플러그인이 형식 2 정책에
+    하는 일)."""
     a = actions.clamp(-1.0, 1.0)
     v = lim.v_min + (a[:, 0] + 1.0) * 0.5 * (lim.v_max - lim.v_min)
     v = torch.minimum(v, v_cap)
@@ -267,7 +268,7 @@ def capped_action(actions: torch.Tensor, v_cap: torch.Tensor, lim: ActionLimits 
 
 
 def sample_speed_cap(n: int, device, spec: TaskSpec = SPEC) -> torch.Tensor:
-    """(n,) per-episode top speeds, uniform in speed_cap_range (no draw when it is one value)."""
+    """에피소드별 최고속도 (n,), speed_cap_range 균등 (한 값이면 뽑지 않음)."""
     lo, hi = spec.speed_cap_range
     if lo == hi:
         return torch.full((n,), float(lo), device=device)
@@ -275,8 +276,8 @@ def sample_speed_cap(n: int, device, spec: TaskSpec = SPEC) -> torch.Tensor:
 
 
 def flip_step(w: torch.Tensor, last_sign: torch.Tensor, deadband: float):
-    """One step of tools/nav_bench sign_changes for every env: (flipped (N,) bool, new last_sign).
-    |w| < deadband is skipped; last_sign 0 means no sign seen yet in the episode."""
+    """모든 env 에 tools/nav_bench sign_changes 한 스텝: (반전 여부 (N,), 새 last_sign).
+    |w| < deadband 는 건너뜀, last_sign 0 은 에피소드에서 아직 부호를 못 봄."""
     s = torch.sign(w) * (w.abs() >= deadband)
     flipped = (s != 0) & (last_sign != 0) & (s != last_sign)
     return flipped, torch.where(s != 0, s, last_sign)
@@ -289,24 +290,24 @@ def action_rate_terms(
     spec: TaskSpec = SPEC,
     lim: ActionLimits = ACTION_LIMITS,
 ) -> dict[str, torch.Tensor]:
-    """Smoothness reward terms: w_action_rate x squared change of (v / v_max, w / w_max) and
-    w_w_flip per flip of the w target."""
+    """부드러움 보상 항: w_action_rate x (v / v_max, w / w_max) 변화 제곱, w 목표 반전마다
+    w_w_flip."""
     scale = torch.tensor((lim.v_max, lim.w_max), device=target.device)
     d = ((target - prev_target) / scale).square().sum(-1)
     return {"action_rate": spec.w_action_rate * d, "w_flip": spec.w_w_flip * flipped.float()}
 
 
-PRIV_POS_M = 2.0  # m; privileged positions are / this, as the lidar range
-PRIV_VEL_MPS = 0.5  # m/s; privileged velocities are / this
-PRIV_PER_OBJECT = 5  # present, x, y, vx, vy
+PRIV_POS_M = 2.0  # m; 특권 위치를 이 값으로 나눔 (라이다 범위와 같음)
+PRIV_VEL_MPS = 0.5  # m/s; 특권 속도를 이 값으로 나눔
+PRIV_PER_OBJECT = 5  # 존재, x, y, vx, vy
 
 
 def privileged_block(
     pos: torch.Tensor, vel: torch.Tensor, present: torch.Tensor, xy: torch.Tensor, yaw: torch.Tensor
 ) -> torch.Tensor:
-    """Critic-only entries (critic_privileged): for each object (movers, then scripted robots;
-    pos and vel (N, K, 2) in the env frame, present (N, K)) [present, x, y, vx, vy] in our robot
-    frame, / PRIV_POS_M and / PRIV_VEL_MPS, clipped to [-1, 1]; absent objects are all zeros."""
+    """크리틱 전용 항목 (critic_privileged): 물체마다 (움직이는 물체, 이어서 스크립트 로봇)
+    우리 로봇 프레임의 [존재, x, y, vx, vy] / PRIV_POS_M·PRIV_VEL_MPS, [-1, 1] 로 자름. 없는 물체는
+    0."""
     c, s = torch.cos(yaw)[:, None], torch.sin(yaw)[:, None]
     d = pos - xy[:, None]
     p = torch.stack((c * d[..., 0] + s * d[..., 1], -s * d[..., 0] + c * d[..., 1]), -1)

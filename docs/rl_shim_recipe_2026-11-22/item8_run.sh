@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # item 8 다섯 컨트롤러 비교(compare_012와 같은 조건). WSL에서: bash item8_run.sh [OUT]
-# RPP, MPPI, RL+shim(store_arena_4b), RL+shim c(store_arena_c), RL+shim acd(store_arena_acd).
+# 비교 대상: RPP, MPPI, RL+shim 정책 셋(store_arena_4b, store_arena_c, store_arena_acd).
 # Q2 -> E-3 칸마다 3판, 그다음 O_IN -> M_E 시나리오 넷(a_hall e_corridor d_robot c_moving) 칸마다 6판.
 # 잠금은 run_bench.sh가 시나리오마다 잡고 놓는다(사이 180 s). 끝나면 표와 이른 넘김 수를 만든다.
 SRC=${SRC:-$HOME/nf_src/pd-plugin2}

@@ -1,4 +1,4 @@
-"""Tests for ceiling.py. Run: python -m pytest learning/store_arena"""
+"""ceiling.py 테스트. 실행: python -m pytest learning/store_arena"""
 
 import os
 import sys
@@ -14,13 +14,13 @@ KEYS = ["success", "collision", "oob", "timeout"]
 
 def test_ceiling_counts_failures_that_also_collide_standing_still():
     env = np.arange(6)
-    policy = np.array([0, 1, 1, 3, 0, 0])  # 3 failures
-    still = np.array([3, 1, 3, 1, 1, 3])  # still hit in envs 1, 3, 4
+    policy = np.array([0, 1, 1, 3, 0, 0])  # 실패 3
+    still = np.array([3, 1, 3, 1, 1, 3])  # 서 있어도 env 1, 3, 4 에서 부딪힘
     out = C.ceiling(env, policy, env, still, KEYS)
     assert out["still_collision_rate"] == round(3 / 6, 4)
-    assert out["failures_also_hit_still"] == 2  # envs 1 and 3
+    assert out["failures_also_hit_still"] == 2  # env 1, 3
     assert out["share_of_failures_hit_still"] == round(2 / 3, 4)
-    assert out["policy_success_on_still_hit"] == round(1 / 3, 4)  # env 4
+    assert out["policy_success_on_still_hit"] == round(1 / 3, 4)  # env 4 만
     assert out["success_ceiling"] == 0.5
 
 

@@ -181,12 +181,12 @@ def test_optional_blocks_go_between_base_and_intent_in_order():
     )
     base = ts.build_observation(ranges, d, a, vel)
     assert obs.shape == (3, ts.obs_dim(spec))
-    assert torch.equal(obs[:, :41], base)  # base entries unchanged
+    assert torch.equal(obs[:, :41], base)  # 기본 항목은 그대로
     v_scale = ts.ACTION_LIMITS.v_max
     assert torch.allclose(obs[:, 41:43], torch.tensor([0.06 / v_scale, -0.5]).expand(3, 2))
-    assert torch.equal(obs[:, 43:115], hist.reshape(3, -1))  # newest first, as given
+    assert torch.equal(obs[:, 43:115], hist.reshape(3, -1))  # 최신 먼저, 준 그대로
     assert torch.allclose(obs[:, 115], torch.full((3,), 0.16 / v_scale))
-    assert torch.equal(obs[:, 116:], torch.zeros(3, 7))  # intent None: absent
+    assert torch.equal(obs[:, 116:], torch.zeros(3, 7))  # intent None: 없음
 
 
 def test_missing_block_inputs_take_their_episode_start_values():
@@ -224,8 +224,8 @@ def test_capped_action_is_the_full_speed_target_clamped_to_the_cap():
     got = ts.action_to_target(ts.capped_action(a, cap), v_cap=cap)
     assert torch.allclose(got[:, 0], torch.minimum(full[:, 0], cap), atol=1e-7)
     assert torch.allclose(got[:, 1], full[:, 1])
-    assert torch.allclose(got[2, 0], torch.tensor(lim.v_max))  # no faster than its own top
-    assert torch.allclose(got[4], full[4], atol=1e-7)  # at the trained top it changes nothing
+    assert torch.allclose(got[2, 0], torch.tensor(lim.v_max))  # 자기 최고속도보다 빠르지 않음
+    assert torch.allclose(got[4], full[4], atol=1e-7)  # 학습한 최고속도에서는 그대로
 
 
 def test_speed_cap_draw_stays_in_range_and_a_single_value_draws_nothing():
@@ -235,7 +235,7 @@ def test_speed_cap_draw_stays_in_range_and_a_single_value_draws_nothing():
     assert c.min() >= 0.08 and c.max() <= 0.16 and abs(c.mean().item() - 0.12) < 0.002
     state = torch.random.get_rng_state()
     assert torch.equal(ts.sample_speed_cap(4, "cpu"), torch.full((4,), ts.NAV_SPEED_MPS))
-    assert torch.equal(state, torch.random.get_rng_state())  # fixed cap: random stream unchanged
+    assert torch.equal(state, torch.random.get_rng_state())  # 고정 상한: 난수 흐름 그대로
 
 
 def test_flip_step_counts_like_nav_bench_sign_changes():
@@ -244,9 +244,9 @@ def test_flip_step_counts_like_nav_bench_sign_changes():
     import metrics
 
     g = torch.Generator().manual_seed(3)
-    seq = (torch.rand(200, 5, generator=g) - 0.5) * 0.2  # many values near the deadband
+    seq = (torch.rand(200, 5, generator=g) - 0.5) * 0.2  # deadband 근처 값이 많음
     seq[:, 0] = 0.0
-    seq[50, 1] = 0.02  # exactly on the deadband counts (nav_bench skips only |w| < deadband)
+    seq[50, 1] = 0.02  # deadband 와 같으면 셈 (nav_bench 는 |w| < deadband 만 건너뜀)
     last = torch.zeros(5)
     count = torch.zeros(5)
     for w in seq:
@@ -279,9 +279,9 @@ def test_progress_reward_scales_with_the_episode_cap():
 
 def test_privileged_block_is_in_our_frame_and_zero_when_absent():
     xy = torch.tensor([[1.0, 1.0]])
-    yaw = torch.tensor([math.pi / 2])  # facing +y
-    pos = torch.tensor([[[1.0, 2.0], [5.0, 5.0]]])  # 1 m ahead; far away
-    vel = torch.tensor([[[0.25, 0.0], [0.1, 0.1]]])  # moving +x = to our right
+    yaw = torch.tensor([math.pi / 2])  # +y 를 봄
+    pos = torch.tensor([[[1.0, 2.0], [5.0, 5.0]]])  # 1 m 앞, 멀리
+    vel = torch.tensor([[[0.25, 0.0], [0.1, 0.1]]])  # +x 로 움직임 = 우리 오른쪽
     out = ts.privileged_block(pos, vel, torch.tensor([[True, False]]), xy, yaw)
     assert out.shape == (1, 2 * ts.PRIV_PER_OBJECT)
     assert torch.allclose(out[0, :5], torch.tensor([1.0, 0.5, 0.0, 0.0, -0.5]), atol=1e-6)

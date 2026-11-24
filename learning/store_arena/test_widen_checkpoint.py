@@ -1,4 +1,4 @@
-"""A widened checkpoint gives exactly the old outputs. Run: python -m pytest learning/store_arena"""
+"""넓힌 체크포인트가 옛 출력을 그대로 내는지. 실행: python -m pytest learning/store_arena"""
 
 import dataclasses
 import os
@@ -15,11 +15,11 @@ import task_spec as ts  # noqa: E402
 import widen_checkpoint as wc  # noqa: E402
 
 PPO_K = "D:/isaac/runs/store_arena/ppo_k/c2/model_998.pt"
-EPS = 1e-2  # rsl_rl EmpiricalNormalization default
+EPS = 1e-2  # rsl_rl EmpiricalNormalization 기본값
 
 
 def forward(sd: dict, x: torch.Tensor) -> torch.Tensor:
-    """rsl_rl MLPModel with obs normalisation: normalise, Linear-ELU-Linear-ELU-Linear."""
+    """관측 정규화가 있는 rsl_rl MLPModel: 정규화, Linear-ELU-Linear-ELU-Linear."""
     sd = {k: v.to(x.dtype) if v.is_floating_point() else v for k, v in sd.items()}
     x = (x - sd["obs_normalizer._mean"]) / (sd["obs_normalizer._std"] + EPS)
     x = torch.nn.functional.elu(x @ sd["mlp.0.weight"].T + sd["mlp.0.bias"])
@@ -82,9 +82,9 @@ def check_same_outputs(ck: dict, over: dict):
     assert new["critic_state_dict"]["mlp.0.weight"].shape[1] == c_dim
     assert "optimizer_state_dict" not in new
     g = torch.Generator().manual_seed(1)
-    x = torch.rand(4096, c_dim, generator=g, dtype=torch.float64) * 4 - 2  # new entries too
-    # float64: exactly equal (the zero weights add exact zeros). In float32 a wider matmul may
-    # sum the old terms in another order: the last bits differ (critic about 1e-4 of ~100)
+    x = torch.rand(4096, c_dim, generator=g, dtype=torch.float64) * 4 - 2  # 새 항목 포함
+    # float64 에서는 정확히 같음 (0 가중치는 정확한 0 을 더함)
+    # float32 는 넓은 행렬곱의 합산 순서가 달라 끝자리가 다를 수 있음
     old_a = forward(ck["actor_state_dict"], x[:, :41])
     old_c = forward(ck["critic_state_dict"], x[:, :41])
     assert torch.equal(forward(new["actor_state_dict"], x[:, :a_dim]), old_a)
@@ -120,7 +120,7 @@ def test_new_entries_take_the_stats_of_the_entries_they_repeat():
     sd = wc.widen_checkpoint(ck, spec)["actor_state_dict"]
     old = ck["actor_state_dict"]["obs_normalizer._mean"][0]
     m = sd["obs_normalizer._mean"][0]
-    assert torch.equal(m[41:43], old[39:41])  # prev v, w <- v, w
+    assert torch.equal(m[41:43], old[39:41])  # 직전 v, w 는 v, w 를 따름
     assert torch.equal(m[43:79], old[:36]) and torch.equal(m[79:115], old[:36])
 
 
@@ -135,7 +135,7 @@ def test_adding_intent_to_a_recipe_checkpoint_keeps_the_outputs(prio, privileged
     spec0 = dataclasses.replace(ts.SPEC, **recipe)
     ck = wc.widen_checkpoint(fake_checkpoint(), spec0, wc.N_MOVERS + 2)
     g0 = torch.Generator().manual_seed(5)
-    for key in ("actor_state_dict", "critic_state_dict"):  # trained: every column nonzero
+    for key in ("actor_state_dict", "critic_state_dict"):  # 학습됨: 모든 열이 0 아님
         w = ck[key]["mlp.0.weight"]
         ck[key]["mlp.0.weight"] = torch.randn(w.shape, generator=g0) * 0.3
     spec = dataclasses.replace(spec0, intent_robots=2, intent_priority=prio)
