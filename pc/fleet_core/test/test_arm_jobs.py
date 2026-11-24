@@ -168,8 +168,9 @@ def test_no_result_in_the_settle_time_settles_it_as_lost_and_a_fault():
     now[0] += jobs.params.robot_timeout_settle_s
     jobs.check_timeouts(now[0])
     out = jobs.take_output()
-    assert out[0] == ArmLost("r1", goal.goal_id, "arm3", SWAP)
-    assert out[1] == ArmFault("r1", SWAP, "arm3", f"arm3 goal {goal.goal_id} never reported")
+    assert out[0] == ArmLost("r1", goal.goal_id, "arm_ship", SWAP)
+    assert out[1] == ArmFault("r1", SWAP, "arm_ship",
+                              f"arm_ship goal {goal.goal_id} never reported")
     assert codes(out) == ["ARM_NO_RESULT"] and cmds(out, "EventOut")[0].level == "ERROR"
     assert jobs.sent_at("r1") is None
     jobs.on_swap_result(goal.goal_id, True, True, True)
