@@ -610,3 +610,35 @@ def test_nav_bt_xml_names_a_tree_in_pode_nav_config_or_an_absolute_file(made, tm
     assert {launch_args(nav)["bt_xml"] for nav in navs} == {str(mine)}
     with pytest.raises(ValueError, match="nav_bt_xml"):
         run(made, nav_bt_xml="no_such_tree.xml")
+
+
+# ---- 세 대 판의 RL controller(nav_rl): 저장소의 RL 설정 파일만 더한다 ----------------------------
+
+@pytest.mark.parametrize("choice, plugin", [
+    ("rl", "pode_rl_controller::FollowPathRL"),
+    ("rl_shim", "nav2_rotation_shim_controller::RotationShimController")])
+def test_nav_rl_adds_the_rl_controller_from_the_repo_file(made, choice, plugin):
+    # 시뮬 Nav2 설정 파일은 로봇과 프로세스마다 이름이 같아 다음 펼침이 덮는다: 펼친 직후에 읽는다
+    plain = [_controllers(launch_args(nav)["params_file"])
+             for nav in includes(run(made), "nav2.launch.py")]
+    navs = includes(run(made, nav_rl=choice), "nav2.launch.py")
+    assert len(navs) == 3
+    for nav, old in zip(navs, plain, strict=True):
+        controllers = _controllers(launch_args(nav)["params_file"])
+        assert "FollowPathRL" in controllers["controller_plugins"]
+        assert controllers["FollowPathRL"]["plugin"] == plugin
+        # 다른 controller(FollowPathGoal 값 등)는 그대로다
+        assert {k: v for k, v in controllers.items()
+                if k not in ("FollowPathRL", "controller_plugins")} == {
+            k: v for k, v in old.items() if k != "controller_plugins"}
+        assert [c for c in controllers["controller_plugins"] if c != "FollowPathRL"] == old[
+            "controller_plugins"]
+
+
+def test_nav_rl_is_off_by_default_and_a_wrong_choice_stops_the_launch(made):
+    assert made.ARGS["nav_rl"][0] == ""
+    for nav in includes(run(made), "nav2.launch.py"):
+        assert "FollowPathRL" not in _controllers(launch_args(nav)["params_file"])[
+            "controller_plugins"]
+    with pytest.raises(ValueError, match="nav_rl"):
+        run(made, nav_rl="mppi")

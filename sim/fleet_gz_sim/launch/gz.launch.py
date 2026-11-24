@@ -90,6 +90,9 @@ ARGS = {
     "plan_keep": ("false", "true면(시험 중) Nav2 goal을 다시 계획할 때 길이가 비슷한 다른 길로"
                            " 바꾸지 않고 지금 길을 지킨다(pode_plan_keep). 노드는 sim_stand_in"
                            " 프로세스 안에서 돈다. false면 main과 같다"),
+    "nav_rl": ("", "로봇마다 RL controller FollowPathRL을 더한다(비교용): rl은 RL만, rl_shim은"
+                   " RotationShim으로 감싼 것. 설정은 nav_overrides/follow_path_rl(_shim).yaml."
+                   " Nav2 goal에 쓰려면 controller_selector로 고른다. 비면 없음"),
     "nav_bt_xml": ("", "로봇마다 navigate_to_pose 행동 트리(pode_nav_config/bt의 파일 이름이나 절대"
                        " 경로, 비교용). 비면 plan_keep에 따라 기본 트리나 길 유지 트리"),
     "nav_overrides": ("", "로봇마다 Nav2 설정 위에 깊이 덮을 yaml 파일(주행 값 비교용). 비면 없음."
@@ -107,6 +110,21 @@ def flag(text: str, name: str) -> bool:
     if value not in ("true", "false", "1", "0"):
         raise ValueError(f"{name} must be true or false, got {text!r}")
     return value in ("true", "1")
+
+
+RL_FILES = {"rl": "follow_path_rl.yaml", "rl_shim": "follow_path_rl_shim.yaml"}
+
+
+def rl_overrides_of(choice: str) -> dict | None:
+    """launch 인자 nav_rl: 비면 None, rl이나 rl_shim이면 저장소의 그 RL 설정 파일(nav_overrides의
+    plugin 막음은 사용자 파일에만 건다. 이 두 파일은 새 controller FollowPathRL만 더한다)."""
+    choice = choice.strip()
+    if not choice:
+        return None
+    if choice not in RL_FILES:
+        raise ValueError(f"nav_rl must be one of {sorted(RL_FILES)} or empty, got {choice!r}")
+    path = launch_parts.share("fleet_gz_sim") / "nav_overrides" / RL_FILES[choice]
+    return yaml.safe_load(path.read_text(encoding="utf-8"))
 
 
 def bt_xml_of(name: str) -> str:
@@ -327,6 +345,9 @@ def _start(context):
                              value("battery_low_pct"))
     max_speed = launch_parts.speed_of(value("nav_max_speed"))
     nav_overrides = overrides_of(value("nav_overrides"))
+    rl = rl_overrides_of(value("nav_rl"))
+    if rl is not None:
+        nav_overrides = launch_parts.merge(nav_overrides or {}, rl)
     # low_battery가 있을 때만 pode_fsm이 sim_stand_in의 배터리를 본다
     battery = has_low_battery(data, scenario_seed)
     actions = [*launch_parts.world(flag(value("gui"), "gui"), arena.world),
