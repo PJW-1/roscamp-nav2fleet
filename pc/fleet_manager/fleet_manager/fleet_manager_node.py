@@ -56,10 +56,14 @@ class FleetManagerNode(Node):
         self.declare_parameter("map_file", "")
         self.declare_parameter("params_file", "")
         self.declare_parameter("tick_hz", 10.0)
+        self.declare_parameter("robots_hz", 5.0)  # 팀 명세 F-11: /fleet/robots 5 Hz 안팎
         unset = ParameterDescriptor(dynamic_typing=True)
         self.declare_parameter("use_order_model", None, unset)
         self.declare_parameter("lookahead_s", None, unset)
         robots = list(self.get_parameter("robots").value)
+        robots_hz = self.get_parameter("robots_hz").value
+        if not robots_hz > 0.0:
+            raise ValueError(f"robots_hz must be > 0, got {robots_hz!r}")
 
         contract_file = self.get_parameter("contract_file").value or (
             get_package_share_directory("fleet_interfaces") + "/contract.yaml")
@@ -85,7 +89,7 @@ class FleetManagerNode(Node):
         self._last_assignments = None
         self._create_interfaces(robots)
         self.create_timer(1.0 / self.get_parameter("tick_hz").value, self._on_tick)
-        self.create_timer(1.0, self._publish_robots)
+        self.create_timer(1.0 / robots_hz, self._publish_robots)
         self._silent_until = (time.monotonic() + params.heartbeat_timeout_s
                               + params.heartbeat_period_s)
         self.create_timer(params.heartbeat_period_s, self._publish_heartbeat,

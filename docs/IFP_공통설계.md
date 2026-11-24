@@ -273,7 +273,7 @@ FMS 내부 호출 (파이썬, `fleet_core` 패키지):
 - `/cmd_vel`(Nav2, pode_dock → pinky_bringup), `/scan`, `/odom`(pinky_bringup → Nav2): Pode 안의 연결이다. 제조사 패키지와 Nav2의 일반적인 이름이고 contract.yaml에는 없다. 3대를 namespace로 나누는 구성은 시험 전이다
 
 새로 더한 바깥 인터페이스 (사용자 기준. 코드와 `contract.yaml`에는 들어 있다. `/fleet/robots`는 11-05 제안, `/fleet/heartbeat`는 관제 요구):
-- `/fleet/robots` RobotStatusArray 토픽(LATCHED, 1 Hz): FMS → central. 로봇마다 robot_id, fsm_state(Pode 보고 그대로), task_type, order_id, fault(NONE, ERROR, COMM_LOST, OUT_OF_SERVICE, RECOVERING), fault_reason, wait_zone, wait_robots, battery, x, y, yaw, base, horizon(뒤의 둘은 제안: 앞에 남은 길의 지점 이름으로, 구역을 허락받은 부분과 아직 허락받지 않은 부분). `/fleet/assignments`와 `/fleet/zones`는 호환을 위해 유지한다. 위치, 배터리, fsm_state는 마지막 보고 값이다
+- `/fleet/robots` RobotStatusArray 토픽(LATCHED, 5 Hz, 노드 파라미터 `robots_hz`, 팀 명세 F-11): FMS → central. 로봇마다 robot_id, fsm_state(Pode 보고 그대로), task_type, order_id, fault(NONE, ERROR, COMM_LOST, OUT_OF_SERVICE, RECOVERING), fault_reason, wait_zone, wait_robots, battery, x, y, yaw, base, horizon(뒤의 둘은 제안: 앞에 남은 길의 지점 이름으로, 구역을 허락받은 부분과 아직 허락받지 않은 부분). `/fleet/assignments`와 `/fleet/zones`는 호환을 위해 유지한다. 위치, 배터리, fsm_state는 마지막 보고 값이다
 - `/fleet/heartbeat` std_msgs/Header 토픽(HEARTBEAT QoS: reliable, volatile, depth 1. 0.4-draft에서 STATE에서 바꿨다(지시서 1.5, 제안, FSM 담당 확인 전). 2 Hz, `heartbeat_period_s` 0.5 s): FMS → Pode. 토픽과 Pode 쪽 동작 모두 관제가 요구하는 것이다(팀 합의 전, Pode 계약 3절 5번). **Pode에 요구하는 것:**
   - 이동 또는 도킹 목표를 실행 중일 때, 마지막 heartbeat 또는 목표 수락에서 `heartbeat_timeout_s`(1.5 s, heartbeat 3번)가 지나면 그 목표를 취소하고 정지한다. move_to는 `reason=HEARTBEAT_LOST`로 끝낸다(11-06). 목표 수락도 FMS가 살아 있다는 증거로 친다. 새 FMS의 첫 목표가 첫 heartbeat보다 먼저 올 수 있기 때문이다.
   - 할 일이 없는 로봇은 heartbeat가 없어도 아무것도 하지 않고 상태 보고를 계속한다. 멈춘 뒤 온 새 목표는 받는다.
@@ -529,7 +529,7 @@ expect: {all_orders_finished: true, orders_shipped: 6, orders_partial: 0, orders
 | 이동 목표(레인 준수) | `traffic/lane_path.py`(파트 7). `lane_goal_mode: path`면 잠금을 쥔 데까지 레인 폴리라인을 `MoveCmd.path`로 내고 노드가 `MoveTo.path`에 싣는다. 해제 보강은 `traffic/release_floor.py`. FakePode는 선의 지점을 차례로 따른다. 규칙은 5절 |
 | 치운 로봇 재투입 | `FleetManager.reinstate`(`/fleet/reinstate`, 관제 요구)가 traffic `reinstate.py`와 `on_robot_reinstated`를 부르고 `ROBOT_REINSTATED`를 낸다. 시나리오 `reinstate` |
 | 교통 모델 | 레인 지도(3절). 잠금은 구역, 해제는 레인 투영(5절), 충돌쌍과 양방향 묶음은 지도에서 계산한다 |
-| 로봇별 상태 | `/fleet/robots` 1 Hz. `/fleet/assignments`, `/fleet/zones`는 그대로 |
+| 로봇별 상태 | `/fleet/robots` 5 Hz(11-24, 전에는 1 Hz). `/fleet/assignments`, `/fleet/zones`는 그대로 |
 | 자체 정지 | `/fleet/heartbeat` 2 Hz(11-06에 `/fms/heartbeat`에서 이름만 바꿈, 관제 요구). `FakePode`에 구현했고 실물은 FSM 담당 몫이다 |
 | 기록과 재생 | `fleet_manager_node --record`, `tools/replay.py` |
 | 중앙과 FMS 사이 | `fleet_manager` 노드가 `/fleet/*`, `/central/events`를 발행하고 `/fleet/confirm_clear`를 제공한다. 가짜 중앙은 `/fleet/*`를 구독하지 않고, 심판 `scenario_monitor`가 구독하며 관리자 역할로 confirm_clear를 부른다 |
@@ -585,7 +585,7 @@ expect: {all_orders_finished: true, orders_shipped: 6, orders_partial: 0, orders
 | SR-36 (MUST) | 관리 프로그램과 별개의 비상 정지 | 이 문서와 `contract.yaml`에 경로가 없다. STOP은 화면, central, FMS를 거친다. `/fleet/heartbeat`는 FMS나 통신이 끊겼을 때 로봇이 혼자 서는 장치이고 비상 정지 경로를 대신하지 않는다 | 경로와 듣는 쪽 |
 | SR-27 (MUST) | 상품의 종류, 위치, 수량과 트레이·바구니 위치 인식 | `/{arm}/vision/items`는 arm1, arm2의 상품만 다룬다. 트레이·바구니 인식과 arm3의 인식 인터페이스가 없다 | 어디서 어떤 토픽으로 낼지 |
 | SR-21 (MUST) | Pode가 조금 어긋나게 서도 위치를 맞춰 담는다 | dispatch 결과에 도킹 오차가 있지만 `FillCmd`와 FillBasket goal에는 전달할 필드가 없다 | 오차를 넘길지, 카메라로 보정할지 |
-| SR-31 (MUST) | 지도 위 Pode 위치 표시 | `/fleet/robots`의 x, y, yaw(제안, 1 Hz, 마지막 보고 값) | 메시지를 팀이 받아들일지, 1 Hz로 충분한지 |
+| SR-31 (MUST) | 지도 위 Pode 위치 표시 | `/fleet/robots`의 x, y, yaw(제안, 5 Hz, 마지막 보고 값) | 메시지를 팀이 받아들일지 |
 | SR-15 (SHOULD), UR-10 | 배터리가 낮으면 대기 구역으로 돌아가 충전 | `RobotState.battery`를 `/fleet/robots`로 보여 주기만 하고 `traffic`에 판단이 없다 | 넣을지 |
 | SR-09, SR-20, SR-23, SR-25, SR-28 (SHOULD) | 주문 취소, 사람 접근 대응, 작업 팔 거리 감시, 빈 바구니·출고 위치 관리, 담긴 개수 확인 | 이 문서에 전용 규칙과 인터페이스가 없다. `put_empty`와 `placed`는 있지만, 빈 바구니의 보관 수량 관리나 카메라로 하는 개수 확인은 아니다 | 어디까지 넣을지 |
 

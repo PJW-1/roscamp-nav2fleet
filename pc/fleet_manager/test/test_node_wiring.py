@@ -224,15 +224,26 @@ def test_an_order_goes_through_fill_and_swap_to_its_report(graph):
     assert ("O-001", "OUTBOUND", "SWAP") in seen
 
 
-def test_the_status_of_every_robot_comes_out_about_once_a_second(graph):
+def test_the_status_of_every_robot_comes_out_about_five_times_a_second(graph):
+    """팀 명세 F-11: /fleet/robots는 5 Hz 안팎."""
     graph.status.clear()
-    assert wait_for(lambda: len(graph.status) >= 3), f"got {len(graph.status)}"
+    assert wait_for(lambda: len(graph.status) >= 11), f"got {len(graph.status)}"
     first, last = graph.status[0], graph.status[-1]
     span = (last.stamp.sec - first.stamp.sec) + (last.stamp.nanosec - first.stamp.nanosec) / 1e9
-    assert 0.7 <= span / (len(graph.status) - 1) <= 1.3
+    assert 0.14 <= span / (len(graph.status) - 1) <= 0.26
     robot = last.robots[0]
     assert (robot.robot_id, robot.fsm_state, robot.fault) == ("pode1", "IDLE", "NONE")
     assert (robot.x, robot.y) != (0.0, 0.0)
+
+
+@pytest.mark.parametrize("bad", ["0.0", "-5.0"])
+def test_a_robots_rate_that_is_not_positive_is_refused(bad):
+    rclpy.init(args=["--ros-args", "-p", "robots:=[pode1]", "-p", f"robots_hz:={bad}"])
+    try:
+        with pytest.raises(ValueError, match="robots_hz"):
+            FleetManagerNode()
+    finally:
+        rclpy.shutdown()
 
 
 def test_a_new_fms_stays_silent_until_any_goal_of_an_old_one_must_have_stopped(graph):
