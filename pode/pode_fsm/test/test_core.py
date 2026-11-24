@@ -768,7 +768,7 @@ def test_a_successful_goal_resets_the_attempts():
     assert done == Finish("g1", True, "")
     south = -NORTH
     move(fsm, "g2", 7.0, path=(P4, P3), target=P3, pose=(*P4, south), target_id="P-3")
-    stuck = (0.35, 1.63, south)  # 0.32 m from P4
+    stuck = (0.35, 1.63, south)  # P4에서 0.32 m
     [b1] = backups(stand(fsm, 8.0, stuck))
     fsm.backup_result(b1.seq, "succeeded", 10.0, (0.35, 1.72, south))
     assert len(backups(stand(fsm, 11.0, stuck))) == 1  # 다시 두 번 시도
@@ -779,7 +779,7 @@ def test_no_progress_for_ten_seconds_counts_as_another_attempt():
     move(fsm, "g1", 0.0)
     [b1] = backups(stand(fsm, 1.0, STUCK))
     fsm.backup_result(b1.seq, "succeeded", 3.0, BEHIND)  # 3.0에 경로를 다시 보냄
-    creeping = (0.35, 1.82, NORTH)  # 0.27 m from P3: room for a 0.04 m back-up
+    creeping = (0.35, 1.82, NORTH)  # P3에서 0.27 m: 0.04 m 후진할 여유
     for t in (5.0, 8.0, 12.9):
         fsm.heartbeat(t)
         assert fsm.tick(t, creeping, DRIVING, no_obstacle) == []
