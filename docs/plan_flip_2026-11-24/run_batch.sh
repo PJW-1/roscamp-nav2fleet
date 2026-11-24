@@ -3,6 +3,7 @@
 # 사용: run_batch.sh OUT_DIR INSTALL_SETUP DOMAIN 이름:시나리오[:launch인자,launch인자...] ...
 #   launch 인자 자리의 install:=경로(setup.bash)는 그 판만 다른 빌드로, controller:=이름은 그 판의
 #   Nav2 goal controller를 고른다(select_controller.py, 예 FollowPathRL). 둘은 launch에 넘기지 않는다
+# 경로와 인자 값에 빈칸, 따옴표, 셸 특수문자를 쓰지 못한다. 묶음은 한 번에 하나만 돌린다(잠금 없음)
 #   예: run_batch.sh ~/gz_runs/pf 'path/install/setup.bash' 93 b1v1:gz_v7_varied:nav_map_variant:=a1
 # 판마다 남기는 것: launch.out, result/(summary.json, events.csv, fleet_record.jsonl), truth.csv,
 #   bag/(계획 경로, 속도 명령, action feedback), cpu.csv와 cpu_proc.csv(cpu_sampler.py), run_info.txt
@@ -22,7 +23,7 @@ for run in "$@"; do
   R=$B/$name
   if [ -e $R/result/summary.json ]; then echo "== $name already done, skip"; continue; fi
   # 끝나지 않은 판 폴더는 옆으로 치운다(기록이 섞이지 않게)
-  if [ -e $R ]; then mv $R $R.unfinished-$(date +%H%M%S); echo "== $name: moved an unfinished folder aside"; fi
+  if [ -e $R ]; then mv -n $R $R.unfinished-$(date +%H%M%S%N) && [ ! -e $R ] || { echo "$name: cannot move the unfinished folder aside, stop"; exit 1; }; echo "== $name: moved an unfinished folder aside"; fi
   for i in $(seq 24); do [ -z "$(mine | grep -v "^$$\$")" ] && break; sleep 5; done
   left=$(mine | grep -v "^$$\$"); if [ -n "$left" ]; then echo "$name: domain $DOM processes left: $left, stop"; exit 1; fi
   mkdir -p $R/result
@@ -32,7 +33,7 @@ for run in "$@"; do
   ( cd $R && env -i HOME=$HOME PATH=/usr/local/bin:/usr/bin:/bin XDG_RUNTIME_DIR=/run/user/1000 LANG=${LANG:-C.UTF-8} bash --norc --noprofile -c "
 source /opt/ros/jazzy/setup.bash
 source ~/pinky_deps_ws/install/local_setup.bash
-source '$inst'
+source '$inst' || { echo 'cannot source $inst'; exit 3; }
 export ROS_DOMAIN_ID=$DOM ROS_AUTOMATIC_DISCOVERY_RANGE=LOCALHOST RMW_IMPLEMENTATION=rmw_fastrtps_cpp
 python3 $TRUTH $R/truth.csv $DOM 3 > truth_logger.out 2>&1 &
 TL=\$!
