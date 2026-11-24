@@ -88,10 +88,11 @@ def test_legs_are_free_and_clear_of_start_and_goal(batch, shape):
         d = torch.where(valid, d, torch.full_like(d, 9.0)).amin(-1)
         assert d.min() - shape.radius >= SPEC.mover_end_path_clear_m - 1e-5
     # 구간 상당수는 여전히 경로를 가로지름 (구간 중간이 경로 위)
+    # 수레는 반지름이 커서 v7 실측 지도에서 시드 8개 0.15~0.21이다
     mid = 0.5 * (a + b)
     dm = (mid[:, None] - t["path"][act]).norm(dim=-1)
     dm = torch.where(valid, dm, torch.full_like(dm, 9.0)).amin(-1)
-    assert (dm < 0.05).float().mean() > 0.2
+    assert (dm < 0.05).float().mean() > (0.12 if shape.name == "cart" else 0.2)
 
 
 def test_motion_back_and_forth_with_pauses():

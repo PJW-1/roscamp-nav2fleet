@@ -27,9 +27,12 @@ class NodeGraph:
 
 def node_graph(site, zone: str = "HALL") -> NodeGraph:
     """zone 의 nav 링크가 있는 노드와 그 사이 모든 쌍 최단 경로."""
+    # 나눈 goal의 중간 지점(via)은 해결안 B 전용이라 뺀다
     links = [
         e for e in site.edges() if e.mode == "nav_goal"
         and site.nodes[e.a].zone == zone and site.nodes[e.b].zone == zone
+        and not getattr(site.nodes[e.a], "via", False)
+        and not getattr(site.nodes[e.b], "via", False)
     ]
     names = tuple(sorted({e.a for e in links} | {e.b for e in links}))
     k = len(names)

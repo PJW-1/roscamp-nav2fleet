@@ -126,9 +126,10 @@ def plan(grid: Grid, cost: np.ndarray, start, goal) -> np.ndarray | None:
 
 
 def hall_nodes(site, excluded_kinds: str) -> tuple[list[str], np.ndarray]:
-    """zone HALL 안에서 excluded_kinds(쉼표 구분)가 아닌 노드."""
+    """zone HALL 안에서 excluded_kinds(쉼표 구분)가 아니고 via(나눈 goal 중간 지점)도 아닌 노드."""
     skip = {k.strip() for k in excluded_kinds.split(",") if k.strip()}
-    names = [k for k, n in site.nodes.items() if n.zone == "HALL" and n.kind not in skip]
+    names = [k for k, n in site.nodes.items()
+             if n.zone == "HALL" and n.kind not in skip and not getattr(n, "via", False)]
     return names, np.array([(site.nodes[k].x, site.nodes[k].y) for k in names])
 
 
