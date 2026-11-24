@@ -1,0 +1,16 @@
+stdin is not a terminal device. Keyboard handling disabled.[INFO] [1795520737.366594586] [rosbag2_recorder]: Press SPACE for pausing/resuming
+[INFO] [1795520737.366699983] [rosbag2_recorder]: Event publisher thread: Started
+[INFO] [1795520737.391314772] [rosbag2_recorder]: Starting recording to 'bags/1124_step2_stand_pode2'
+[INFO] [1795520737.426467507] [rosbag2_recorder]: Listening for topics...
+[INFO] [1795520737.426656725] [rosbag2_recorder]: Recording...
+[INFO] [1795520737.426548902] [rosbag2_recorder]: Topics discovery started.
+[INFO] [1795520751.045942935] [rosbag2_recorder]: Subscribed to topic '/pode2/tf'
+[INFO] [1795520751.074139908] [rosbag2_recorder]: Subscribed to topic '/pode2/scan'
+[INFO] [1795520751.081402325] [rosbag2_recorder]: Subscribed to topic '/pode2/tf_static'
+[INFO] [1795520752.361294167] [rosbag2_recorder]: Subscribed to topic '/pode2/cmd_vel'
+[INFO] [1795520754.796031999] [rosbag2_recorder]: Subscribed to topic '/pode2/odom'
+[INFO] [1795522900.988629603] [rosbag2_recorder]: Topics discovery stopped.
+[INFO] [1795522900.989109795] [rosbag2_recorder]: Pausing recording.
+[INFO] [1795522900.989250244] [rosbag2_cpp]: Writing remaining messages from cache to the bag. It may take a while
+[INFO] [1795522901.002011843] [rosbag2_recorder]: Recording stopped
+[INFO] [1795522901.012439662] [rosbag2_recorder]: Event publisher thread: Exited

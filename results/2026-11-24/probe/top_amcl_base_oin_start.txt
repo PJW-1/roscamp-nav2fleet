@@ -1,0 +1,20 @@
+top - 21:43:41 up  1:01,  4 users,  load average: 8.01, 7.26, 5.72
+Tasks: 302 total,   3 running, 299 sleeping,   0 stopped,   0 zombie
+%Cpu(s): 60.3 us, 25.4 sy,  0.0 ni, 14.3 id,  0.0 wa,  0.0 hi,  0.0 si,  0.0 st 
+MiB Mem :   3784.4 total,   1348.0 free,   1257.6 used,   1376.2 buff/cache     
+MiB Swap:   1024.0 total,   1024.0 free,      0.0 used.   2526.8 avail Mem 
+
+    PID USER      PR  NI    VIRT    RES    SHR S  %CPU  %MEM     TIME+ COMMAND
+   8941 pinky     20   0 2610936 141332  61972 S 106.2   3.6  19:35.88 compone+
+   8942 pinky     20   0 1645280 100244  43612 R  62.5   2.6  11:44.42 pode_fs+
+  13797 pinky     20   0   16008   5120   3072 R  25.0   0.1   0:00.09 top
+   8938 pinky     20   0 1029172  78600  37536 R  18.8   2.0   4:32.03 bringup
+   8936 pinky     20   0 1023712  74408  36340 S  12.5   1.9   3:06.96 joint_s+
+   8812 pinky     20   0 1464512  92896  51028 S   6.2   2.4   1:56.63 ros2
+   8935 pinky     20   0  818676  34508  25036 S   6.2   0.9   1:04.84 robot_s+
+   8937 pinky     20   0  962716  32368  23152 S   6.2   0.8   4:00.42 sllidar+
+   8940 pinky     20   0 1017084  69312  35852 S   6.2   1.8   0:50.75 python3
+      1 root      20   0   24348  14360   8472 S   0.0   0.4   0:12.85 systemd
+      2 root      20   0       0      0      0 S   0.0   0.0   0:00.03 kthreadd
+      3 root      20   0       0      0      0 S   0.0   0.0   0:00.00 pool_wo+
+      4 root       0 -20       0      0      0 I   0.0   0.0   0:00.00 kworker+

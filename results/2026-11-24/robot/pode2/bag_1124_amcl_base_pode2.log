@@ -1,0 +1,20 @@
+stdin is not a terminal device. Keyboard handling disabled.[INFO] [1795523077.784155868] [rosbag2_recorder]: Press SPACE for pausing/resuming
+[INFO] [1795523077.784203792] [rosbag2_recorder]: Event publisher thread: Started
+[INFO] [1795523077.798889622] [rosbag2_recorder]: Starting recording to 'bags/1124_amcl_base_pode2'
+[INFO] [1795523077.806202558] [rosbag2_recorder]: Listening for topics...
+[INFO] [1795523077.806361531] [rosbag2_recorder]: Recording...
+[INFO] [1795523077.806259777] [rosbag2_recorder]: Topics discovery started.
+[INFO] [1795523086.357717179] [rosbag2_recorder]: Subscribed to topic '/pode2/tf'
+[INFO] [1795523086.410222419] [rosbag2_recorder]: Subscribed to topic '/pode2/tf_static'
+[INFO] [1795523086.500635227] [rosbag2_recorder]: Subscribed to topic '/pode2/scan'
+[INFO] [1795523088.251095685] [rosbag2_recorder]: Subscribed to topic '/pode2/cmd_vel'
+[INFO] [1795523091.608187091] [rosbag2_recorder]: Subscribed to topic '/pode2/particle_cloud'
+[INFO] [1795523091.648185539] [rosbag2_recorder]: Subscribed to topic '/pode2/amcl_pose'
+[INFO] [1795523092.422024301] [rosbag2_recorder]: Subscribed to topic '/pode2/odom'
+[INFO] [1795523093.578212604] [rosbag2_recorder]: Subscribed to topic '/pode2/state'
+[INFO] [1795523094.390339222] [rosbag2_recorder]: Subscribed to topic '/pode2/plan'
+[INFO] [1795524449.785203322] [rosbag2_recorder]: Topics discovery stopped.
+[INFO] [1795524449.785902918] [rosbag2_recorder]: Pausing recording.
+[INFO] [1795524449.788695263] [rosbag2_cpp]: Writing remaining messages from cache to the bag. It may take a while
+[INFO] [1795524449.816213912] [rosbag2_recorder]: Recording stopped
+[INFO] [1795524449.861846881] [rosbag2_recorder]: Event publisher thread: Exited

@@ -1,0 +1,385 @@
+{
+ "args": {
+  "ns": "pode2",
+  "set_name": "angular",
+  "out": "probe/step_angular_pode2.csv",
+  "limit": 0.6,
+  "repeats": 3,
+  "step_s": 2.0,
+  "pause_s": 2.0,
+  "small_s": 3.0,
+  "arc_s": 4.0,
+  "arc_v": 0.1,
+  "arc_w": 0.5,
+  "home_s": 30.0,
+  "no_home": false,
+  "rate": 20.0,
+  "odom_timeout": 1.0,
+  "allow": "cmd_watchdog",
+  "use_sim_time": false,
+  "dry_run": false
+ },
+ "exit": 0,
+ "segments": [
+  {
+   "set": "angular",
+   "repeat": 1,
+   "step": 1,
+   "phase": "pause",
+   "label": "w0.50",
+   "v": 0.0,
+   "w": 0.0,
+   "duration": 2.0
+  },
+  {
+   "set": "angular",
+   "repeat": 1,
+   "step": 1,
+   "phase": "step",
+   "label": "w0.50",
+   "v": 0.0,
+   "w": 0.5,
+   "duration": 2.0
+  },
+  {
+   "set": "angular",
+   "repeat": 1,
+   "step": 1,
+   "phase": "stop",
+   "label": "w0.50",
+   "v": 0.0,
+   "w": 0.0,
+   "duration": 2.0
+  },
+  {
+   "set": "angular",
+   "repeat": 1,
+   "step": 1,
+   "phase": "home",
+   "label": "w0.50",
+   "v": 0.0,
+   "w": 0.0,
+   "duration": 30.0
+  },
+  {
+   "set": "angular",
+   "repeat": 1,
+   "step": 2,
+   "phase": "pause",
+   "label": "w1.00",
+   "v": 0.0,
+   "w": 0.0,
+   "duration": 2.0
+  },
+  {
+   "set": "angular",
+   "repeat": 1,
+   "step": 2,
+   "phase": "step",
+   "label": "w1.00",
+   "v": 0.0,
+   "w": 1.0,
+   "duration": 2.0
+  },
+  {
+   "set": "angular",
+   "repeat": 1,
+   "step": 2,
+   "phase": "stop",
+   "label": "w1.00",
+   "v": 0.0,
+   "w": 0.0,
+   "duration": 2.0
+  },
+  {
+   "set": "angular",
+   "repeat": 1,
+   "step": 2,
+   "phase": "home",
+   "label": "w1.00",
+   "v": 0.0,
+   "w": 0.0,
+   "duration": 30.0
+  },
+  {
+   "set": "angular",
+   "repeat": 1,
+   "step": 3,
+   "phase": "pause",
+   "label": "w1.50",
+   "v": 0.0,
+   "w": 0.0,
+   "duration": 2.0
+  },
+  {
+   "set": "angular",
+   "repeat": 1,
+   "step": 3,
+   "phase": "step",
+   "label": "w1.50",
+   "v": 0.0,
+   "w": 1.5,
+   "duration": 2.0
+  },
+  {
+   "set": "angular",
+   "repeat": 1,
+   "step": 3,
+   "phase": "stop",
+   "label": "w1.50",
+   "v": 0.0,
+   "w": 0.0,
+   "duration": 2.0
+  },
+  {
+   "set": "angular",
+   "repeat": 1,
+   "step": 3,
+   "phase": "home",
+   "label": "w1.50",
+   "v": 0.0,
+   "w": 0.0,
+   "duration": 30.0
+  },
+  {
+   "set": "angular",
+   "repeat": 2,
+   "step": 4,
+   "phase": "pause",
+   "label": "w0.50",
+   "v": 0.0,
+   "w": 0.0,
+   "duration": 2.0
+  },
+  {
+   "set": "angular",
+   "repeat": 2,
+   "step": 4,
+   "phase": "step",
+   "label": "w0.50",
+   "v": 0.0,
+   "w": 0.5,
+   "duration": 2.0
+  },
+  {
+   "set": "angular",
+   "repeat": 2,
+   "step": 4,
+   "phase": "stop",
+   "label": "w0.50",
+   "v": 0.0,
+   "w": 0.0,
+   "duration": 2.0
+  },
+  {
+   "set": "angular",
+   "repeat": 2,
+   "step": 4,
+   "phase": "home",
+   "label": "w0.50",
+   "v": 0.0,
+   "w": 0.0,
+   "duration": 30.0
+  },
+  {
+   "set": "angular",
+   "repeat": 2,
+   "step": 5,
+   "phase": "pause",
+   "label": "w1.00",
+   "v": 0.0,
+   "w": 0.0,
+   "duration": 2.0
+  },
+  {
+   "set": "angular",
+   "repeat": 2,
+   "step": 5,
+   "phase": "step",
+   "label": "w1.00",
+   "v": 0.0,
+   "w": 1.0,
+   "duration": 2.0
+  },
+  {
+   "set": "angular",
+   "repeat": 2,
+   "step": 5,
+   "phase": "stop",
+   "label": "w1.00",
+   "v": 0.0,
+   "w": 0.0,
+   "duration": 2.0
+  },
+  {
+   "set": "angular",
+   "repeat": 2,
+   "step": 5,
+   "phase": "home",
+   "label": "w1.00",
+   "v": 0.0,
+   "w": 0.0,
+   "duration": 30.0
+  },
+  {
+   "set": "angular",
+   "repeat": 2,
+   "step": 6,
+   "phase": "pause",
+   "label": "w1.50",
+   "v": 0.0,
+   "w": 0.0,
+   "duration": 2.0
+  },
+  {
+   "set": "angular",
+   "repeat": 2,
+   "step": 6,
+   "phase": "step",
+   "label": "w1.50",
+   "v": 0.0,
+   "w": 1.5,
+   "duration": 2.0
+  },
+  {
+   "set": "angular",
+   "repeat": 2,
+   "step": 6,
+   "phase": "stop",
+   "label": "w1.50",
+   "v": 0.0,
+   "w": 0.0,
+   "duration": 2.0
+  },
+  {
+   "set": "angular",
+   "repeat": 2,
+   "step": 6,
+   "phase": "home",
+   "label": "w1.50",
+   "v": 0.0,
+   "w": 0.0,
+   "duration": 30.0
+  },
+  {
+   "set": "angular",
+   "repeat": 3,
+   "step": 7,
+   "phase": "pause",
+   "label": "w0.50",
+   "v": 0.0,
+   "w": 0.0,
+   "duration": 2.0
+  },
+  {
+   "set": "angular",
+   "repeat": 3,
+   "step": 7,
+   "phase": "step",
+   "label": "w0.50",
+   "v": 0.0,
+   "w": 0.5,
+   "duration": 2.0
+  },
+  {
+   "set": "angular",
+   "repeat": 3,
+   "step": 7,
+   "phase": "stop",
+   "label": "w0.50",
+   "v": 0.0,
+   "w": 0.0,
+   "duration": 2.0
+  },
+  {
+   "set": "angular",
+   "repeat": 3,
+   "step": 7,
+   "phase": "home",
+   "label": "w0.50",
+   "v": 0.0,
+   "w": 0.0,
+   "duration": 30.0
+  },
+  {
+   "set": "angular",
+   "repeat": 3,
+   "step": 8,
+   "phase": "pause",
+   "label": "w1.00",
+   "v": 0.0,
+   "w": 0.0,
+   "duration": 2.0
+  },
+  {
+   "set": "angular",
+   "repeat": 3,
+   "step": 8,
+   "phase": "step",
+   "label": "w1.00",
+   "v": 0.0,
+   "w": 1.0,
+   "duration": 2.0
+  },
+  {
+   "set": "angular",
+   "repeat": 3,
+   "step": 8,
+   "phase": "stop",
+   "label": "w1.00",
+   "v": 0.0,
+   "w": 0.0,
+   "duration": 2.0
+  },
+  {
+   "set": "angular",
+   "repeat": 3,
+   "step": 8,
+   "phase": "home",
+   "label": "w1.00",
+   "v": 0.0,
+   "w": 0.0,
+   "duration": 30.0
+  },
+  {
+   "set": "angular",
+   "repeat": 3,
+   "step": 9,
+   "phase": "pause",
+   "label": "w1.50",
+   "v": 0.0,
+   "w": 0.0,
+   "duration": 2.0
+  },
+  {
+   "set": "angular",
+   "repeat": 3,
+   "step": 9,
+   "phase": "step",
+   "label": "w1.50",
+   "v": 0.0,
+   "w": 1.5,
+   "duration": 2.0
+  },
+  {
+   "set": "angular",
+   "repeat": 3,
+   "step": 9,
+   "phase": "stop",
+   "label": "w1.50",
+   "v": 0.0,
+   "w": 0.0,
+   "duration": 2.0
+  },
+  {
+   "set": "angular",
+   "repeat": 3,
+   "step": 9,
+   "phase": "home",
+   "label": "w1.50",
+   "v": 0.0,
+   "w": 0.0,
+   "duration": 30.0
+  }
+ ]
+}

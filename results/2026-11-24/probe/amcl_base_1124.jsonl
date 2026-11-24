@@ -1,0 +1,1 @@
+{"label": "Q2 goal (1.66, 0.15, 0)", "wall": "21:28:43", "now": {"tag": "now", "stamp": 1795523297.4466465, "x": 1.577, "y": 0.1621, "yaw_deg": -3.07, "sx": 0.1283, "sy": 0.059, "syaw_deg": 8.94}, "later": {"tag": "+10s", "error": "no amcl_pose in 5 s"}}
