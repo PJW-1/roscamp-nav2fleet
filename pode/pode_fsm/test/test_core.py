@@ -13,6 +13,7 @@ from pode_fsm.core import (
     LOCALIZING,
     MOVING,
     NAV_ABORTED,
+    NAV_UNAVAILABLE,
     PATH_NOT_CONNECTED,
     RECOVERING,
     TIMEOUT,
@@ -70,6 +71,52 @@ def test_starts_localizing_until_a_pose_arrives():
     assert fsm.state() == LOCALIZING
     fsm.tick(0.1, (*P3, NORTH), STILL, no_obstacle)
     assert fsm.state() == IDLE and fsm.current_goal() == ""
+
+
+def test_reports_localizing_until_the_nav2_servers_are_ready():
+    """follow_path가 뜨기 전에 IDLE을 보고하면 관제가 보낸 goal이 거듭 실패해 격리된다."""
+    fsm = PodeFsm(FsmParams())
+    fsm.set_nav_ready(False)
+    fsm.tick(0.0, (*P3, NORTH), STILL, no_obstacle)
+    assert fsm.state() == LOCALIZING
+    fsm.set_nav_ready(True)
+    fsm.tick(0.1, (*P3, NORTH), STILL, no_obstacle)
+    assert fsm.state() == IDLE
+
+
+def test_once_ready_a_server_that_drops_out_does_not_turn_localizing():
+    fsm = ready()
+    fsm.set_nav_ready(True)
+    fsm.set_nav_ready(False)
+    fsm.tick(0.1, (*P3, NORTH), STILL, no_obstacle)
+    assert fsm.state() == IDLE
+
+
+def test_a_goal_before_nav2_is_ready_ends_as_unavailable_without_driving():
+    fsm = PodeFsm(FsmParams())
+    fsm.set_nav_ready(False)
+    fsm.tick(0.0, (*P3, NORTH), STILL, no_obstacle)
+    cmds = move(fsm, "g1", 0.1)
+    assert cmds == [Finish("g1", False, NAV_UNAVAILABLE)]
+    assert fsm.current_goal() == ""
+
+
+def test_a_retreat_before_nav2_is_ready_ends_as_unavailable_without_moving():
+    fsm = PodeFsm(FsmParams())
+    fsm.set_nav_ready(False)
+    fsm.tick(0.0, (*P3, NORTH), STILL, no_obstacle)
+    cmds = fsm.retreat("r1", 0.1, 0.3, 0.1)
+    assert Finish("r1", False, NAV_UNAVAILABLE) in cmds
+    assert not backups(cmds) and not sends(cmds)
+    assert fsm.current_goal() == ""
+
+
+def test_a_path_the_server_was_not_there_for_ends_as_unavailable():
+    fsm = ready()
+    [send] = sends(move(fsm, "g1", 0.0))
+    cmds = fsm.nav_result(send.seq, "unavailable", 0.2, (*P3, NORTH), no_obstacle)
+    assert Finish("g1", False, NAV_UNAVAILABLE) in cmds
+    assert fsm.current_goal() == ""
 
 
 def test_goal_without_a_pose_fails_at_once():
@@ -1017,6 +1064,7 @@ def test_a_lost_pose_ends_a_retreat_failed():
     ("aborted", 711, False, "TIMEOUT"),
     ("canceled", 0, False, "CANCELED"),
     ("rejected", 0, False, "FAILED"),
+    ("unavailable", 0, False, "NAV_UNAVAILABLE"),
 ])
 def test_the_retreat_result_comes_from_the_backup_result(outcome, code, success, reason):
     fsm = ready()
@@ -1140,6 +1188,7 @@ def test_a_path_retreat_stops_the_move_first_and_waits_for_it_to_end():
     ("aborted", 105, False, "FAILED"),  # FAILED_TO_MAKE_PROGRESS
     ("canceled", 0, False, "CANCELED"),
     ("rejected", 0, False, "FAILED"),
+    ("unavailable", 0, False, "NAV_UNAVAILABLE"),
 ])
 def test_the_path_retreat_result_comes_from_the_follow_path_result(outcome, code, success,
                                                                     reason):

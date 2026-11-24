@@ -42,6 +42,10 @@ def _walk(entities, context, found):
         condition = getattr(entity, "condition", None)
         if condition is not None and not condition.evaluate(context):
             continue
+        if isinstance(entity, launch.actions.TimerAction):
+            # 타이머는 펼치지 않고 그대로 모은다
+            found.append((entity, []))
+            continue
         if isinstance(entity, Node):
             entity._perform_substitutions(context)
             requests = []
@@ -138,6 +142,80 @@ def test_composed_nodes_get_the_same_parameters_as_the_processes():
     assert nav["node_names"] == ["controller_server", "planner_server", "behavior_server",
                                  "bt_navigator"]
     assert loc["autostart"] is True and nav["autostart"] is True
+
+
+def _timers(found):
+    return [e for e, _ in found if isinstance(e, launch.actions.TimerAction)]
+
+
+def _seconds(context, timer):
+    # TimerAction이 기다릴 때 계산하는 그대로
+    from launch.utilities import type_utils
+    return type_utils.perform_typed_substitution(context, timer.period, float)
+
+
+@pytest.mark.parametrize("delay", [None, "0", "0.0"])
+def test_navigation_comes_up_with_localization_by_default(delay):
+    more = {} if delay is None else {"navigation_delay_s": delay}
+    _, found = _expand("true", **more)
+    assert not _timers(found)
+    params = {r.node_name: _params(r) for r in found[0][1]}
+    assert params["lifecycle_manager_navigation"]["autostart"] is True
+
+
+@pytest.mark.parametrize("autostart", ["true", "True", "1"])
+def test_navigation_autostart_takes_every_true_spelling(autostart):
+    _, found = _expand("true", autostart=autostart)
+    params = {r.node_name: _params(r) for r in found[0][1]}
+    assert params["lifecycle_manager_navigation"]["autostart"] is True
+
+
+def test_the_delay_is_fixed_when_the_robot_s_launch_is_read():
+    """include로 넘긴 인자는 밖으로 새어 나가 다음 로봇의 값으로 바뀐다. 타이머는 제 값을 지킨다."""
+    context, found = _expand("true", navigation_delay_s="40")
+    [timer] = _timers(found)
+    context.launch_configurations["navigation_delay_s"] = "0.0"
+    context.launch_configurations["namespace"] = "pode3"
+    assert _seconds(context, timer) == 40.0
+    [call] = timer.actions
+    name = launch.utilities.perform_substitutions(context, call.cmd[3])
+    assert name == "/pode1/lifecycle_manager_navigation/manage_nodes"
+
+
+def test_the_late_startup_call_has_a_valid_name_without_a_namespace():
+    context, found = _expand("false", namespace="", navigation_delay_s="5")
+    [timer] = _timers(found)
+    [call] = timer.actions
+    name = launch.utilities.perform_substitutions(context, call.cmd[3])
+    assert name == "/lifecycle_manager_navigation/manage_nodes"
+
+
+@pytest.mark.parametrize("composition", ["false", "true"])
+def test_a_navigation_delay_brings_up_only_the_driving_side_later(composition):
+    """시험용: 위치(AMCL)는 먼저 뜨고 controller·planner·bt_navigator만 늦게 켠다."""
+    context, found = _expand(composition, navigation_delay_s="40")
+    if composition == "true":
+        params = {r.node_name: _params(r) for r in found[0][1]}
+        loc, nav = params["lifecycle_manager_localization"], params["lifecycle_manager_navigation"]
+    else:
+        import yaml
+
+        def given(name):
+            # launch_ros가 쓴 파라미터 파일(node_names가 tuple이라 safe_load로는 못 읽는다)
+            [node] = [n for n, _ in found if isinstance(n, Node) and n.node_name == name]
+            [path] = [p for p, is_file in node._Node__expanded_parameter_arguments if is_file]
+            [body] = yaml.unsafe_load(Path(path).read_text(encoding="utf-8")).values()
+            return body["ros__parameters"]
+        loc = given("/pode1/lifecycle_manager_localization")
+        nav = given("/pode1/lifecycle_manager_navigation")
+    assert loc["autostart"] is True and nav["autostart"] is False
+    [timer] = _timers(found)
+    assert _seconds(context, timer) == 40.0
+    [call] = timer.actions
+    cmd = [launch.utilities.perform_substitutions(context, part) for part in call.cmd]
+    assert cmd[:3] == ["ros2", "service", "call"]
+    assert cmd[3] == "/pode1/lifecycle_manager_navigation/manage_nodes"
+    assert cmd[4] == "nav2_msgs/srv/ManageLifecycleNodes" and "command: 0" in cmd[5]
 
 
 def test_composed_use_sim_time_follows_the_argument():

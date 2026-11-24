@@ -250,11 +250,13 @@ def pode(ns: str, x, y, yaw, *, nav_map: str, nav_map_fine: str, keepout_mask: s
           nav_overrides: dict | None = None, lidar_noise: float | None = None,
           fixed_line_check: bool = True, narrow_strips: str = "",
           wall_band_m: float = 0.05, peer_layer: bool = False,
-          avoidance_package: str = AVOIDANCE_PACKAGE, vision_stand_in: bool = False) -> list:
+          avoidance_package: str = AVOIDANCE_PACKAGE, vision_stand_in: bool = False,
+          navigation_delay_s: float = 0.0) -> list:
     """Pode 한 대: 모델, Nav2, pode_fsm, RViz. 브리지는 bridge()에 이 로봇 이름을 넣는다.
     nav_map, nav_map_fine: 배치의 5 cm, 1 cm 지도. keepout_mask: 비면 keepout 없음. dock_aside: dock 서버를 /<ns>/dock_fsm으로 비킴.
     nav_max_speed: controller 최고 속도(m/s), None이면 nav_speed_mps(). fixed_line_check: 거짓이면 고정 경로 셋의 충돌 검사를 끈다.
     narrow_strips, wall_band_m: 스캔 거르개 좁은 띠(비면 거르개 없음). peer_layer: 다른 로봇 몸을 costmap에 찍는 층(임시).
+    navigation_delay_s: 시험용, 0보다 크면 주행 쪽 서버만 이만큼 늦게 켠다.
     """
     nav = share("pode_nav_config")
     nav_max_speed = nav_speed_mps() if nav_max_speed is None else nav_max_speed
@@ -273,6 +275,7 @@ def pode(ns: str, x, y, yaw, *, nav_map: str, nav_map_fine: str, keepout_mask: s
                 "avoidance_package": avoidance_package,
                 "vision_stand_in": "true" if vision_stand_in else "false",
                 "use_composition": "true" if nav_composition else "false",
+                "navigation_delay_s": str(float(navigation_delay_s)),
                 "params_file": str(sim_nav_params(
                     nav / "params" / "nav2_params.yaml",
                     Path(tempfile.gettempdir()) / f"nav2_params_sim_{ns}_{os.getpid()}.yaml",

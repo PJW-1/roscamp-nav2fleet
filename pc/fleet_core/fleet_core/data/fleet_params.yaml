@@ -47,7 +47,7 @@ nav_speed_mps: 0.12           # 넓은 구역(Nav2 goal)의 ETA와 길 비용 �
 nav_eta_speed_ratio: 1.0      # 넓은 구역 ETA 순항 속도 = nav_speed_mps x 이 비율(0 초과 1 이하, 길 비용에는 안 씀)
 follow_speed_mps: 0.12        # 고정 경로(FollowPath) 속도
 retreat_speed_mps: 0.05       # 후진(Retreat) 속도
-nav_pass_m: 0.15              # 넓은 구역 ETA: 끝 노드 이만큼 앞에서 다음 조각으로 넘어간다. 0이면 끔
+nav_pass_m: 0.12              # 넓은 구역 ETA: 끝 노드 이만큼 앞에서 다음 조각으로 넘어간다(pode_fsm pass_m와 같게). 0이면 끔
 nav_turn_rps: 1.0             # 넓은 구역 ETA: 끝에서 끝 방향으로 도는 각속도. 0이면 끔
 nav_goal_tolerance_m: 0.05    # 넓은 구역 ETA: 끝 노드에서 이만큼 안이면 이미 닿은 것으로 본다
 footprint_radius_m: 0.085     # Nav2 발자국의 반 대각선

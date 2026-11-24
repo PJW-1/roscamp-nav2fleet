@@ -6,7 +6,15 @@ from collections.abc import Hashable, Sequence
 
 from pode_fsm.geometry import Pose
 from pode_fsm.nav_goal import NavGoal
-from pode_fsm.results import CANCELED, IDLE, NAV_ABORTED, PATH_NOT_CONNECTED, TIMEOUT, Finish
+from pode_fsm.results import (
+    CANCELED,
+    IDLE,
+    NAV_ABORTED,
+    NAV_UNAVAILABLE,
+    PATH_NOT_CONNECTED,
+    TIMEOUT,
+    Finish,
+)
 
 
 # ---- NavGoal 시작과 주행 중 여부 판단 ----
@@ -84,4 +92,6 @@ class NavGoalMoves:
             g.far_successes += 1
             if g.far_successes <= self.p.far_success_limit:
                 return self._goals.send(g, now, pose)
+        if outcome == "unavailable":
+            return self._end_active(NAV_UNAVAILABLE, stop=True)
         return self._end_active(NAV_ABORTED, stop=True)

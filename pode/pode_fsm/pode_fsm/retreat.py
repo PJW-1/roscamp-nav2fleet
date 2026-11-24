@@ -9,7 +9,7 @@ from pode_fsm.backup import FAILED, OBSTACLE_BEHIND, BackUp
 from pode_fsm.commands import SendPath
 from pode_fsm.geometry import Polyline, poses_backing, rounded_rest
 from pode_fsm.recovery import Obstacle
-from pode_fsm.results import CANCELED, TIMEOUT, Finish
+from pode_fsm.results import CANCELED, NAV_UNAVAILABLE, TIMEOUT, Finish
 
 # ---- 물러나기 결과 사유와 물러나기 기록 자료형 ----
 RETREAT_REASONS = (OBSTACLE_BEHIND, TIMEOUT, CANCELED, FAILED)
@@ -34,6 +34,8 @@ class RetreatMoves:
         self._alive = max(self._alive, now)
         was_driving = self._driving(now)
         cmds = self._end_active(CANCELED, stop=True)
+        if self._nav_ready is False:
+            return cmds + [Finish(goal_id, False, NAV_UNAVAILABLE)]
         route = None
         if path:
             route = Polyline([(float(q[0]), float(q[1])) for q in path])
