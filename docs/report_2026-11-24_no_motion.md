@@ -34,14 +34,14 @@ FSM, 액션 서버(`GoalServers`), heartbeat 판단, 상태 발행은 실주행 
 |---|---|---|---|
 | move_to (조각 묶음마다) | `no_motion_move_s` | 2.0 s | 자세 = 경로 끝 또는 Nav2 goal |
 | retreat | `no_motion_retreat_s` | 2.0 s | 곧은 후진: 보는 방향 반대로 `distance_m`, 경로 후진: 경로 끝 |
-| dock | `no_motion_dock_s` | 3.0 s | 성공(오차 0), 상태 DOCKED |
+| dock | `no_motion_dock_s` | 3.0 s | 성공, 상태 DOCKED (결과의 오차 칸은 0으로 나간다. 실제로 정렬한 값이 아니다) |
 
 - 자세는 기다리는 동안 그대로이고, 끝나는 순간 목표로 옮긴다. FSM이 같은 끝점으로 경로를 다시 보내면 처음 기다림을 잇는다(0.15 m보다 짧은 이동에서 생긴다).
 - 도킹은 PC 도킹 대역(`real_dock_wait`)처럼 DOCKING을 거쳐 DOCKED가 되고, 피드백을 APPROACH → ALIGN → DONE 순서로 보낸다. DONE은 성공 직전에 꼭 보낸다. 3.0 s는 실물 시나리오의 `dock.duration_s`와 같다.
 - 도킹은 `dock_id`나 스테이션과의 거리를 확인하지 않는다. pode_fsm은 스테이션 좌표를 모르기 때문이다. PC 대역은 0.15 m 밖이면 실패시킨다.
 - `check_clear`는 늘 `clear`로 답한다.
-- 상태는 동작 없음일 때 기본 5 Hz로 보낸다. 끄면 지금처럼 10 Hz다. LOCALIZING 단계는 없다.
-- heartbeat가 1.5 s 끊기면 하던 이동, 후진, 도킹을 `HEARTBEAT_LOST`로 끝내고 IDLE로 선다. 후진은 계약상 reason이 넷뿐이라 `FAILED`가 되고, FakePode도 같다. 자세는 바뀌지 않는다.
+- 상태는 동작 없음일 때 기본 5 Hz로 보낸다. 이 브랜치에서 끄면 지금처럼 10 Hz다(`feat/interface-align-2026-11-24`에 합친 판은 두 모드 모두 5 Hz). LOCALIZING 단계는 없다.
+- 기본 통신 끊김 정책(`comm_loss_policy:=stop`)에서는 heartbeat가 1.5 s 끊기면 하던 이동, 후진, 도킹을 `HEARTBEAT_LOST`로 끝내고 IDLE로 선다. `comm_loss_policy:=base_end`면 order는 받은 base 끝까지 이어 가고 자세도 바뀔 수 있다. `heartbeat_timeout_s:=0`이면 끊김을 보지 않는다. 후진은 계약상 reason이 넷뿐이라 `FAILED`가 되고, FakePode도 같다. 자세는 바뀌지 않는다.
 - 동작 없음에서는 로봇단 후진 양보(local_yield)를 끈다. 바퀴가 없는데 양보하면 자세만 뒤로 뛰기 때문이다. `no_motion_move_s`는 `blocked_after_s`(10 s)보다 짧아야 한다.
 - 끄면 바뀌는 것이 없다. 분기는 모두 `self._nm is not None` 뒤에 있고, 기존 시험이 그대로 통과한다.
 
@@ -63,7 +63,7 @@ v7 구역 지도에서 P-1 출발, 두 노드에 같은 목표를 보내고 비�
 
 ## FakePode와 일부러 다른 것
 
-`test_ros_no_motion.py`의 `KNOWN_DIFFERENCES`에 두고 하나씩 시험으로 고정했다.
+`test_ros_no_motion.py`의 `KNOWN_DIFFERENCES`에 적어 두었다. 비교 시험은 이 칸들을 빼고 비교하고, 동작 없음 쪽 값(거리 그대로, heartbeat 뒤 자세, 배터리 -1, check_clear, 5 Hz)은 따로 시험한다. FakePode 쪽 값과 도킹 오차 칸은 시험하지 않는다.
 
 | 항목 | 동작 없음 | FakePode | 이유 |
 |---|---|---|---|
@@ -103,7 +103,7 @@ v7 구역 지도에서 P-1 출발, 두 노드에 같은 목표를 보내고 비�
 | 후진 중 heartbeat가 끊기면 FAILED | 계약상 Retreat reason이 넷뿐이고 FakePode도 같아서 그대로 둠 |
 | 도킹이 스테이션 위치를 확인하지 않음 | 사용자 결정으로 남김 (아래) |
 | 도킹 피드백이 취소 뒤에 나갈 수 있음 | goal을 끝내는 것도 같은 execute 스레드라 끝난 뒤에는 나가지 않음. 결함 아님 |
-| 비교 시험이 거리 등 일부 칸을 빼고 비교함 | 모두 의도한 차이로 목록에 두고 시험으로 고정함 |
+| 비교 시험이 거리 등 일부 칸을 빼고 비교함 | 의도한 차이로 목록에 두었다. 동작 없음 쪽 값만 따로 시험한다 |
 
 ## TODO 표시
 
