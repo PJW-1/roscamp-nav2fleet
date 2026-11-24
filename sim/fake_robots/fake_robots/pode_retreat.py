@@ -17,11 +17,8 @@ class PodeRetreat:
     def _start_retreat(self, t: float, goal: _Goal, request) -> None:
         """보는 방향 그대로 뒤로. 갈 길을 지나온 선(trail)으로 두고 Motion.back으로 간다.
 
-        path가 없으면 뒤로 곧게 distance_m을 시킨 속도로. 있으면 실물 pode_fsm처럼 제 자리에서
-        가장 가까운 선분부터 끝 점까지 차례로, REVERSE_SPEED_MPS(0.05 m/s)를 넘지 않게 간다.
-        로봇 자리에서 시작하지 않는 path(이동의 path와 같은 연결 허용 거리)나 제 자리를 투영한
-        점부터 끝까지가 0.02 m보다 짧은 path는 따르지 않는다. 투영은 실물(Polyline.project)과
-        같이 같으면 앞 선분이다.
+        path가 없으면 곧게 distance_m을, 있으면 제 자리에서 가장 가까운 선분부터 끝 점까지 간다.
+        따를 수 없는 path(연결 허용 거리 밖, 남은 길 0.02 m 미만)는 거절한다.
         """
         path = [(p.position.x, p.position.y) for p in request.path]
         if not self._begin_retreat(t, goal, float(request.distance_m),

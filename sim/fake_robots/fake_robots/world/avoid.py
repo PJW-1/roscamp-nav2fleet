@@ -1,11 +1,8 @@
 """회피 흉내 세 모드. Nav2 goal 하나(nav_goal.py)마다 하나씩 만든다.
 
-- none(최악): 정적 지도 위 길만 간다. 무엇이 길에 있으면 서고, 돌아가는 길을 짜지 않는다.
-- perfect(최선): 격자 A*로 다른 로봇과 물체를 돌아간다(기본, 지금까지의 동작).
-- mixed(중간): 막힐 때마다 p_detour 확률로 delay 뒤 돌아가고, 아니면 그 막힘 동안 none처럼 선다.
-  goal마다 stray_p 확률로 길에서 옆으로 0~stray_max_m 벗어난다.
-뽑기는 세계의 rng를 쓴다(같은 씨드면 같다). perfect는 rng를 쓰지 않는다.
-FollowPath, Retreat는 회피와 상관없어 이 모드를 쓰지 않는다.
+- none: 정적 지도 위 길만 가고 막히면 선다. perfect(기본): 격자 A*로 돌아간다.
+- mixed: 막힐 때마다 p_detour 확률로 delay 뒤 돌아가고, goal마다 stray_p 확률로 길에서 벗어난다.
+뽑기는 세계의 rng를 쓴다(같은 씨드면 같다). FollowPath, Retreat는 이 모드를 쓰지 않는다.
 """
 from __future__ import annotations
 

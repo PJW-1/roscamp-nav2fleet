@@ -1,10 +1,7 @@
 """머리 없는 세계의 local costmap 흉내. 순수 함수다.
 
-- seen_ahead: BLOCKED로 선 로봇이 함께 보고할 장애물 위치. 가던 쪽(보는 방향) 띠 안, 로봇 중심에서
-  look_m 안의 가장 가까운 원 둘레의 점이다. 원은 다른 로봇과 시나리오의 물체다(costmap은 둘 다
-  본다).
-- clear_answer: CheckClear의 답. 로봇이 그 점에서 check_range_m 안이고 사이에 진열대가 없으면
-  시나리오의 물체로 답하고, 아니면 unknown이다.
+seen_ahead는 BLOCKED 로봇이 보고할 장애물 점(가던 쪽 띠 안의 가장 가까운 원 둘레)을,
+clear_answer는 CheckClear의 답(check_range_m 안이고 진열대가 없으면 물체로, 아니면 unknown)을 돌려준다.
 """
 from __future__ import annotations
 

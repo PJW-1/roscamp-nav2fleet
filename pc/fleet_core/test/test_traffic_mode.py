@@ -1,8 +1,4 @@
-"""traffic_mode는 zones 하나다. 교통 층은 traffic/zone/controller.py의 ZoneTraffic이다.
-
-build_traffic은 전과 같은 인자(site, params, robots, clock, next_goal_id)로 그것을 만든다. 그
-모듈이 없는 가지에서는 무엇이 빠졌는지 말하는 오류를 낸다.
-"""
+"""traffic_mode는 zones 하나다. build_traffic은 traffic/zone/controller.py의 ZoneTraffic을 만들고, 그 모듈이 없으면 무엇이 빠졌는지 말하는 오류를 낸다."""
 from dataclasses import asdict, replace
 
 import pytest

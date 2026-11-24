@@ -1,4 +1,4 @@
-"""CI 5번 항목: 시나리오마다 끝까지 돌고, 실행 중인 그래프가 contract.yaml과 맞는다."""
+"""시나리오마다 끝까지 돌고 실행 중인 그래프가 contract.yaml과 맞는다."""
 import csv
 import json
 import os
@@ -20,24 +20,14 @@ SCENARIOS = ["basic_orders", "order_burst", "shared_lane_failure", "stock_shorta
              "stuck_robot", "operator_recovery", "blocked_lane", "auto_isolation", "reinstate",
              "arm_fault"]
 WALL_TIMEOUT_S = 420
-# 시나리오마다 도메인 하나, 로봇 네트워크와 겹치지 않는 범위. 환경변수로 옮길 수 있다
+# 시나리오마다 도메인 하나(환경변수로 옮길 수 있다)
 FIRST_DOMAIN = int(os.environ.get("SCENARIO_FIRST_DOMAIN", "50"))
 CHECKER = Path(__file__).parents[3] / "scripts" / "check_interfaces.py"
 REPLAY = Path(__file__).parents[3] / "tools" / "replay.py"
-# 구역을 몸이 아직 걸친 채 놓는 것(R1)은 다른 판정과 똑같이 실패다. 놓는 거리가 0.10 m이던 때에는
-# 보고 잡음에 따라 가끔 나와서 그 판정만 틀린 실행을 건너뛰었다. 몸 전체가 나간 뒤에 놓게 바꾼
-# 뒤로는(0.135 m) 건너뛰지 않는다
 
 
 def unexplained_safety(summary: dict, safety: dict) -> tuple[int, int]:
-    """safety.json의 (early, near) 가운데 심판의 R1 판정으로 설명되지 않는 것.
-
-    R1과 early는 대개 같은 놓기다: 실제 자세를 아는 로봇이 구역에서 반지름 안에 있을 때 놓은 것이다.
-    같지 않은 때가 셋이고 모두 심판만 센다. 거리가 반지름과 꼭 같을 때(심판은 <=, SafetyMeter는 <),
-    실제 자세가 없어 심판이 보고 자세를 다른 한계(여유 거리 - 잡음의 두 배)로 볼 때, 자세가 전혀
-    없을 때다. 그래서 R1을 기대값으로 적은 시나리오에서는 이 차감이 early를 덜 셀 수 있다. 지금 그런
-    시나리오는 없다: R1이 0이어야 통과한다.
-    """
+    """safety.json의 (early, near) 가운데 심판의 R1 판정으로 설명되지 않는 것."""
     r1 = summary["checks"]["released_without_position_check"]["value"]
     return max(0, safety["early"] - r1), safety["near"]
 

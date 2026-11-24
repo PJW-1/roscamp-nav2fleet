@@ -1,11 +1,7 @@
 """머리 없는 구역 세계: 가짜 시계로 FleetManager(traffic_mode zones)를 돌린다. ROS를 쓰지 않는다.
 
-SimWorld(fleet_core/test/sim_world.py)가 옛 관제를 돌리던 방식을 따른다. 한 걸음(DT = 0.1 s):
-시각 진행, 미리 넣은 일, 지난 걸음의 결과, 로봇 움직임, 팔, (결과 일부) 위치 보고 (결과 나머지),
-주문판, manager.tick(), 나온 명령 옮기기, 불변식과 숫자.
-
-관제는 manager_factory(site, params, robots, clock)로 만든다. 기본은 FleetManager다. 시험은
-recording.RecordingManager를 넣어 명령 실행만 볼 수 있다.
+한 걸음(DT = 0.1 s)마다 미리 넣은 일, 결과, 로봇 움직임, 팔, 위치 보고, 주문판, manager.tick(), 명령 옮기기, 불변식 순으로 돈다.
+관제는 manager_factory로 만든다(기본 FleetManager, 시험은 RecordingManager).
 """
 from __future__ import annotations
 

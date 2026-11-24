@@ -27,5 +27,5 @@ def base_until_under(policy):
 
 
 def test_the_fleet_holds_the_base_of_a_silent_robot_under_both_policies():
-    """Holding longer is never unsafe, so a robot and a fleet that disagree stay safe."""
+    """더 오래 쥐는 것은 안전하므로 로봇과 관제가 어긋나도 안전하다."""
     assert base_until_under("stop") == base_until_under("base_end")

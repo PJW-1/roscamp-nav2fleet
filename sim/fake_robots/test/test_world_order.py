@@ -93,7 +93,7 @@ def test_without_contact_the_robot_drives_on_to_the_base_end_under_base_end():
 
 
 def test_without_contact_the_robot_stops_at_once_under_stop():
-    """The result is held until contact is back; last_done_seq_id is the last finished segment."""
+    """결과는 연결이 돌아올 때까지 쥐고, last_done_seq_id는 마지막으로 끝낸 조각이다."""
     world = quiet_world(injections=[CommLoss("pode1", 3.0, 20.0)])
     assert world.params.comm_loss_policy == "stop"
     world.send(order(1, [seg(world, 1, ["P-1", "N_W"]), seg(world, 2, ["N_W", "X_W"])],

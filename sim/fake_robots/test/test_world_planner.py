@@ -14,7 +14,7 @@ R = 0.08
 
 
 def test_free_space_keeps_clear_of_the_sim_shelves_not_the_measured_ones():
-    # 진열대 남쪽 면: 실측 0.75, 시뮬 0.78(2026-11-20, 가짜 로봇은 시뮬 진열대로 본다)
+    # 진열대 남쪽 면: 실측 0.75, 시뮬 0.78(가짜 로봇은 시뮬 진열대로 본다)
     sim = copy.deepcopy(SMALL)
     sim["sim_shelves"] = [[0.5, 0.78, 1.5, 0.8]]
     real_fs, sim_fs = FreeSpace(FleetMap(SMALL), R), FreeSpace(FleetMap(sim), R)
@@ -156,10 +156,8 @@ def test_v7_a_robot_at_work_plans_its_way_out_to_the_hall():
 
 
 def test_v7_keepout_extra_is_not_floor():
-    """Nav2 마스크는 keepout_extra 사각형을 덧대지 않고 막는다(fleet_core keepout.mask). 머리 없는
-    세계도 그 안으로 길을 내지 않는다: 칸막이 1, 2 위 끝 둘레. 남쪽 진열대 사이 틈은 지름길이라
-    막지 않는다(팀 결정 2026-11-17): 머리 없는 세계에서도 바닥이다. 칸막이 3과 그 둘레는
-    없다: 그 자리도 바닥이다."""
+    """Nav2 마스크는 keepout_extra 사각형을 덧대지 않고 막는다(fleet_core keepout.mask). 칸막이 1, 2 위 끝 둘레는
+    머리 없는 세계도 막고, 남쪽 진열대 사이 틈과 칸막이 3 둘레는 바닥이다."""
     site = load_fleet_map("v7")
     space = FreeSpace(site, R)
     assert space.free(space.static, 1.12, 0.385), "the gap between the south shelves is floor"
@@ -202,9 +200,8 @@ def test_v7_a_robot_passes_a_robot_parked_in_a_west_bay_along_the_south_corridor
 
 
 def test_v7_a_robot_parked_at_p3_sends_others_through_the_crossing_gap():
-    """P-3에 주차한 로봇(y 0.10)과 남쪽 진열대 서쪽 끝 사이에는 머리 없는 세계의 계획 여유(반지름
-    둘 + 0.03)가 들어가지 않는다. 남쪽 진열대 서쪽 끝을 돌아 북쪽으로 올라갔다가, 열린 건넘 틈
-    (팀 결정 2026-11-17, 지름길)으로 다시 남쪽 통로에 내려온다. 동쪽 통로까지 돌지 않는다."""
+    """P-3에 주차한 로봇(y 0.10)과 남쪽 진열대 서쪽 끝 사이에는 계획 여유(반지름 둘 + 0.03)가 들어가지 않는다.
+    열린 건넘 틈(지름길)으로 남쪽 통로에 내려오며, 동쪽 통로까지 돌지 않는다."""
     way, _ = _parked_plan(["P-3"])
     assert way is not None, "a way is left"
     assert max(y for _, y in way) > 0.405 + R, way

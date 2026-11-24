@@ -1,4 +1,4 @@
-"""The timeout sorter on a hand-made rollout (no Isaac)."""
+"""손으로 만든 rollout 에 대한 시간초과 분류기 테스트 (Isaac 없이)."""
 
 import os
 import sys
@@ -17,16 +17,16 @@ class _Z(dict):
 
 
 def test_sorts_timeouts_by_what_is_near():
-    T, K = 40, 4  # dt 0.5 s, 20 s episodes; env 3 ends early (not a timeout)
+    T, K = 40, 4  # dt 0.5 s, 에피소드 20 s, env 3 은 일찍 끝남 (시간초과 아님)
     xy = np.zeros((T, K, 2))
     done = np.zeros((T, K), dtype=bool)
     done[T - 1, :] = True
     done[9, 3] = True
     rxy = np.full((T, K, 1, 2), 5.0)
     ron = np.zeros((T, K, 1), dtype=bool)
-    rxy[:, 0, 0] = (0.2, 0.0)  # env 0: a robot standing 0.2 m away
+    rxy[:, 0, 0] = (0.2, 0.0)  # env 0: 0.2 m 옆에 서 있는 로봇
     ron[:, 0] = True
-    rxy[:, 1, 0, 0] = 0.2 + 0.1 * np.sin(np.arange(T))  # env 1: a robot near, moving
+    rxy[:, 1, 0, 0] = 0.2 + 0.1 * np.sin(np.arange(T))  # env 1: 가까이서 움직이는 로봇
     rxy[:, 1, 0, 1] = 0.0
     ron[:, 1] = True
     z = _Z(xy=xy, done=done, dt=0.5, robot_xy=rxy, robot_on=ron,
@@ -38,12 +38,12 @@ def test_sorts_timeouts_by_what_is_near():
 
 
 def test_alone_summary_says_where_and_how_it_ended():
-    T, K = 40, 4  # dt 0.5 s, 20 s episodes, no robots or movers: all four are alone timeouts
+    T, K = 40, 4  # dt 0.5 s, 에피소드 20 s, 로봇/mover 없음: 넷 다 alone 시간초과
     xy = np.zeros((T, K, 2))
-    xy[:, 0] = (1.0, 0.0)  # env 0: stopped at node N1, open space ahead
-    xy[:, 1, 0] = 2.0 + 0.02 * (np.arange(T) % 2)  # env 1: back and forth by 2 cm near nowhere
-    xy[:, 2] = (0.0, 0.0)  # env 2: still at node N0 with a wall 0.1 m ahead
-    xy[:, 3, 0] = np.arange(T) * 0.05  # env 3: still driving (slowly) when time ran out
+    xy[:, 0] = (1.0, 0.0)  # env 0: 노드 N1 에 정지, 앞이 트임
+    xy[:, 1, 0] = 2.0 + 0.02 * (np.arange(T) % 2)  # env 1: 아무것도 없는 곳에서 2 cm 왕복
+    xy[:, 2] = (0.0, 0.0)  # env 2: 노드 N0 에 정지, 0.1 m 앞에 벽
+    xy[:, 3, 0] = np.arange(T) * 0.05  # env 3: 시간이 끝날 때 아직 (천천히) 주행 중
     done = np.zeros((T, K), dtype=bool)
     done[T - 1] = True
     front = np.full((T, K), 2.0)
@@ -54,7 +54,7 @@ def test_alone_summary_says_where_and_how_it_ended():
     rows = TO.classify(z, episode_s=20.0, window_s=5.0)
     s = TO.alone_summary(z, rows, n_episodes=8)
     assert s["count"] == 4 and s["per_4096"] == 2048.0
-    # play.py keeps recording an env after its requested episodes: those are left out
+    # play.py 는 요청한 에피소드 뒤에도 기록을 이어 감: 그것은 뺌
     done2 = np.zeros((2 * T, K), dtype=bool)
     done2[[T - 1, 2 * T - 1]] = True
     z2 = _Z({**z, "xy": np.concatenate((xy, xy)), "done": done2,

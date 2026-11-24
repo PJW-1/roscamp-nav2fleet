@@ -1,8 +1,5 @@
-# FollowPathRL을 RotationShim으로 감싼 선택지(시뮬 전용, one_pode nav_overrides). 기본은 RL만인
-# follow_path_rl.yaml이고, 이 파일은 "RL + shim"을 견주기 위한 것이다(사용자 결정 2026-11-22: 기본은
-# 세 controller 비교를 본 뒤 정한다). 목표 방향과 크게 틀어지면 먼저 제자리에서 돈 뒤 RL에 넘긴다.
-# shim 값은 FollowPathMPPI(nav2_params.yaml)와 같고 angular_dist_threshold만 다르다.
-# 고른 까닭과 Gazebo 결과: docs/worklog_follow_path_rl_2026-11-21.md 11절.
+# FollowPathRL을 RotationShim으로 감싼 선택지(시뮬 전용 nav_overrides).
+# 목표 방향과 크게 틀어지면 먼저 제자리에서 돈 뒤 RL에 넘긴다. shim 값은 FollowPathMPPI와 같고 angular_dist_threshold만 다르다.
 controller_server:
   ros__parameters:
     controller_plugins: ["FollowPath", "FollowPathThrough", "FollowPathReverse", "FollowPathGoal",
@@ -10,13 +7,12 @@ controller_server:
     FollowPathRL:
       plugin: "nav2_rotation_shim_controller::RotationShimController"
       primary_controller: "pode_rl_controller::FollowPathRL"
-      angular_dist_threshold: 0.785  # 제안값(결정 아님): 45°. MPPI는 0.25
+      angular_dist_threshold: 0.785  # 45°
       forward_sampling_distance: 0.15
       rotate_to_heading_angular_vel: 1.0
       max_angular_accel: 2.0
       simulate_ahead_time: 1.0
-      rotate_to_goal_heading: true  # goal에서의 마지막 방향 맞추기도 shim이 먼저 한다. shim의 회전 충돌
-      # 검사가 거부하면 Jazzy shim은 RL로 넘기고, RL의 제자리 회전은 충돌 검사가 없다(RL만일 때와 같음)
+      rotate_to_goal_heading: true  # goal 마지막 방향 맞추기도 shim이 먼저 한다
       policy: "store_arena_4b"  # share/pode_rl_controller/policies/<이름> 또는 절대 경로
       scan_topic: "scan"
       scan_timeout: 0.5
@@ -24,5 +20,5 @@ controller_server:
       intra_op_threads: 1
       rotate_gain: 1.5
       log_period: 1.0
-      rear_stop_range: 0.0  # 후진 막기(후보, 기본 끔). 켜려면 0.12
+      rear_stop_range: 0.0  # 후진 막기(기본 끔)
       rear_half_width_deg: 30.0

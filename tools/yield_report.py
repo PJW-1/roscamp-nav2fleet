@@ -1,18 +1,6 @@
-"""양보 기록: 관제 기록(fleet_record.jsonl, .jsonl.gz)에서 로봇단 양보(LOCAL_YIELD)와
-관제 양보(HALL_YIELD)를 세고, 마주침마다 누가 먼저 나섰는지 시간 순서로 보인다.
+"""관제 기록에서 로봇단 양보(LOCAL_YIELD)와 관제 양보(HALL_YIELD)를 세고 마주침별로 보인다.
 
     python tools/yield_report.py 기록1.jsonl.gz 기록2.jsonl.gz [--encounters]
-
-읽기만 한다. 기록 형식은 tools/replay.py 머리에 있다.
-
-추정 규칙(틀릴 수 있다):
-- HALL_YIELD가 BLOCKED 뒤인지: 이벤트를 낸 로봇, 또는 `out of the way of <로봇>`이 가리키는 로봇이
-  그 줄 앞에서 마지막으로 보고한 상태가 BLOCKED면 뒤(`_yield_to_robot`), 아니면 앞(`_watch_near`).
-  `waits for`와 `backs out to ... for`는 `_yield_to_robot`만 내므로 문구로 뒤로 정한다.
-- 마주침 하나 = 한 로봇의 LOCAL_YIELD 사다리(첫 단계 ~ `ends`). 그 로봇이 낸 또는 이름이 나온
-  HALL_YIELD를 사다리 시작 10 s 전부터 끝난 뒤 10 s(`--grace`)까지 묶는다.
-- 관제가 먼저 끼어든 HALL_YIELD: 관계된 로봇(낸 로봇과 이름이 나온 로봇) 누구의 사다리도 그때
-  (끝난 뒤 10 s까지) 진행 중이 아닌 것.
 """
 from __future__ import annotations
 

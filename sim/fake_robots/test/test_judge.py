@@ -73,7 +73,7 @@ def finish_everything(j):
     j.tick(1.0)
 
 
-# -- physical zone checks -----------------------------------------------------------------
+# ---- 물리 구역 검사 ----
 
 
 def test_two_robots_in_one_zone_break_zone_holder_max():
@@ -290,7 +290,7 @@ def test_rows_for_csv_outputs():
     assert j.event_rows[0][3] == "X"
 
 
-# -- order counts -------------------------------------------------------------------------
+# ---- 주문 수 ----
 
 
 @pytest.mark.parametrize("detail, order", [
@@ -531,7 +531,7 @@ def test_exact_means_exact_for_the_zero_limits_too():
     assert check(j, "zone_holder_max")["ok"] is False
 
 
-# -- fifo_violations ----------------------------------------------------------------------
+# ---- fifo_violations ----
 
 
 def test_fifo_clean_run_has_no_violation():
@@ -667,7 +667,7 @@ def test_a_submitted_order_ranks_after_the_scenario_orders():
     assert check(j, "fifo_violations")["value"] == 1
 
 
-# -- laps ---------------------------------------------------------------------------------
+# ---- 바퀴 ----
 
 
 def lap(j, robot, cells, start=1.0):
@@ -716,8 +716,7 @@ def test_entering_the_waiting_loop_with_fewer_orders_than_robots_is_allowed():
 
 
 def test_passing_beside_a_parking_node_is_not_entering_it():
-    """The game ends with a robot within the arrival tolerance (0.15 m) of its parking node, but a
-    lap ends only on the spot: a robot that drives by 0.12 m away has not parked."""
+    """게임은 주차 지점에서 도착 허용 거리(0.15 m) 안의 로봇으로 끝나지만, 바퀴는 그 자리에 설 때만 끝난다."""
     for off, entered in ((0.12, 0), (0.09, 1)):
         j = judge()
         j.on_board(["O-1", "O-2"])
@@ -745,8 +744,7 @@ def test_a_requeued_order_is_a_backlog_again():
 
 
 def test_a_robot_called_to_work_may_wait_at_parking_on_the_way():
-    # 구역 관제는 바쁜 작업 도크 앞 대기 줄과 홀의 쉼터를 주차 자리에 둔다
-    # (DOCK_QUEUED, 구역 기다림). 레인 관제에는 대기 레인이 따로 있었다
+    # 구역 관제는 바쁜 작업 도크 앞 대기 줄과 홀의 쉼터를 주차 자리에 둔다(DOCK_QUEUED, 구역 기다림)
     j = judge(direct_returns_min=1)
     j.on_board(["O-1", "O-2"])
     lap(j, "pode1", [OUT, LANE])
@@ -788,7 +786,7 @@ def test_a_robot_that_starts_in_the_waiting_loop_is_no_violation():
     assert check(j, "parked_while_backlog")["value"] == 0
 
 
-# -- outcome ------------------------------------------------------------------------------
+# ---- 판정 결과 ----
 
 
 def test_finish_needs_all_orders_final_and_robots_parked():
@@ -804,8 +802,7 @@ def test_finish_needs_all_orders_final_and_robots_parked():
 
 
 def test_a_robot_within_the_arrival_tolerance_of_its_parking_node_is_parked():
-    """The fleet takes a robot as arrived within 0.15 m. A judge that asked for less never
-    ended a Gazebo game whose robot stood 0.108 m from P-3."""
+    """관제는 0.15 m 안이면 도착으로 본다. 심판이 더 좁게 묻지 않아야 한다."""
     for off, parked in ((0.149, True), (0.151, False)):
         j = judge()
         x, y = at(WAITING[0])
@@ -1035,7 +1032,7 @@ def test_held_by_lists_only_the_robots_own_zones():
     assert j.held_by("pode3") == []
 
 
-# -- timed_out, unexpected_errors, order_results ------------------------------------------
+# ---- timed_out, unexpected_errors, order_results ----
 
 
 def clean_run(j):

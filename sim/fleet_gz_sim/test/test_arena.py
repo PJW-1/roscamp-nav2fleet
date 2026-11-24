@@ -115,12 +115,12 @@ def test_every_zone_that_is_not_shared_is_keepout(site):
     from fleet_core.fleet_map.keepout import keepout_openings
     grid = arena_maps.keepout(arena_maps.FINE_M, site)
     pad = arena_maps.KEEPOUT_PAD_M
-    # 도크를 Nav2 goal로 떠나는 곧은 선 둘레는 연다(v7 W -> M_E, 2026-11-14): 그 밖을 본다
+    # 도크를 Nav2 goal로 떠나는 곧은 선 둘레는 연다: 그 밖을 본다
     opened = keepout_openings(site)
     for zone in site.zones.values():
         for x0, y0, x1, y1 in zone.rects:
             if zone.kind == SHARED and min(x1 - x0, y1 - y0) < 2 * pad:
-                continue  # a shared sliver (beside the shelf) lies inside the pad by design
+                continue  # 진열대 옆 shared 조각은 일부러 패드 안에 든다
             points = [((x0 + x1) / 2, (y0 + y1) / 2)]
             if zone.kind != SHARED:
                 points += [(x, y) for x in (x0 + 0.005, x1 - 0.005)
@@ -142,7 +142,7 @@ def test_keepout_is_widened_by_half_the_footprint(site):
 
 
 def test_shared_nodes_and_their_footprint_stay_out_of_the_keepout(site):
-    """A robot waiting on a shared node, or a Nav2 goal ending there, sits outside the keepout."""
+    """shared 지점에서 기다리는 로봇이나 거기서 끝나는 Nav2 goal은 keepout 밖에 있다."""
     half = 0.06
     for node in site.nodes.values():
         if site.zones[node.zone].kind != SHARED:
@@ -153,8 +153,7 @@ def test_shared_nodes_and_their_footprint_stay_out_of_the_keepout(site):
 
 
 def test_straight_nav_goal_edges_run_clear_of_the_keepout(site):
-    """The straight line of every nav_goal edge stays out of the keepout, so the planner has a
-    way inside the shared zones."""
+    """모든 nav_goal 이음의 직선은 keepout 밖에 있어 계획이 shared 구역 안으로 들어갈 수 있다."""
     grid = arena_maps.keepout(arena_maps.FINE_M, site)
     for edge in site.edges():
         if edge.mode != NAV_GOAL:

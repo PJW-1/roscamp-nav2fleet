@@ -16,7 +16,7 @@ from fleet_core.fleet_map import load_fleet_map
 SCENARIOS = Path(__file__).parents[1] / "scenarios"
 SIX = {"basic_orders", "order_burst", "shared_lane_failure", "stock_shortage", "stuck_robot",
        "operator_recovery", "blocked_lane", "auto_isolation", "reinstate",
-       # real_*: 실물 두/세 대 시험(2026-11-18), 가짜 로봇 없이
+       # real_*: 실물 두/세 대 시험, 가짜 로봇 없이
        "real_two_orders", "real_three_orders", "arm_fault"}
 
 
@@ -375,7 +375,7 @@ def test_operator_recovery_fails_three_times_then_clears(site):
     assert sc.expect.orders_shipped == len(sc.orders)
     assert sc.expect.all_orders_finished is True
     assert "ORDER_REQUEUED" in sc.expect.events_include
-    # v2.4: 팔 고장은 격리하지 않고 HELD ARM_FAULT. 치울 때 빈 바구니라 되돌린다
+    # 팔 고장은 격리하지 않고 HELD ARM_FAULT. 치울 때 빈 바구니라 되돌린다
     counts = sc.expect.event_counts
     assert (counts["ROBOT_ISOLATED"], counts["ORDER_HELD"], counts["ORDER_REQUEUED"]) == (0, 1, 2)
     assert sc.force_ship_after_s is None
@@ -383,8 +383,7 @@ def test_operator_recovery_fails_three_times_then_clears(site):
 
 
 def test_auto_isolation_ships_before_the_operator_and_requeues_once(site):
-    """v2.4: 팔 고장은 격리하지 않는다. O-002는 HELD ARM_FAULT로 작업대에 묶였다가
-    운영자가 치울 때(담은 것 없음) 한 번 되돌려져 출고된다. 이름은 통합 시험 목록 때문에 그대로."""
+    """팔 고장은 격리하지 않는다. O-002는 HELD ARM_FAULT로 묶였다가 운영자가 치울 때 한 번 되돌려져 출고된다."""
     sc = load_scenario(SCENARIOS / "auto_isolation.yaml", site)
     fail = next(f for f in sc.faults if f.type == "arm_fail")
     remove = next(f for f in sc.faults if f.type == "operator_remove")

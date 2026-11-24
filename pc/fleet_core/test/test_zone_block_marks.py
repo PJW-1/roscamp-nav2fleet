@@ -99,8 +99,7 @@ def test_blocked_in_the_express_with_a_position_marks_the_express_and_backs_out(
 ])
 def test_v7_a_robot_at_work_leaves_through_the_hall_while_the_express_is_marked(express_shut,
                                                                                way):
-    """v7: 급행이 막혔다고 표시돼 있으면 W의 로봇은 Nav2 goal로 넓은 곳의 M_E로
-    풀려 나가 O_IN에서 출고로 들어간다. 급행이 비어 있으면 급행이다."""
+    """v7: 급행이 막혔다고 표시돼 있으면 W의 로봇은 M_E로 풀려 나가 O_IN에서 출고로 들어가고, 비어 있으면 급행이다."""
     world = Harness(layout="v7", starts={"pode1": "W", "pode2": "P-2", "pode3": "P-3"})
     if express_shut:
         world.traffic._blocked[("W_X", "O_X")] = 1e9
@@ -169,9 +168,7 @@ def test_a_robot_standing_in_the_way_is_sent_off_and_nothing_is_marked():
 
 
 def test_a_robot_parked_in_its_bay_in_the_way_is_not_waited_for():
-    """v7: 칸에 주차한 로봇은 비킬 곳이 없다. 그 로봇에 막히면 서서 5 s 기다렸다 같은 길을 다시 받지
-    않고, blocked_mark_s 뒤 바로 그 이음을 표시하고 다른 길을 고른다(막혔다고
-    판정했으면 돌아갈 길을 바로 준다. Gazebo에서는 양보와 다시 보내기가 끼어 67 s가 걸렸다)."""
+    """v7: 칸에 주차한 로봇은 비킬 곳이 없어, 그 로봇에 막히면 blocked_mark_s 뒤 바로 그 이음을 표시하고 다른 길을 고른다."""
     world = Seeing(layout="v7", starts={"pode1": "E-1", "pode2": "P-2", "pode3": "P-3"})
     world.step()
     world.call("WORK", "pode1")

@@ -47,7 +47,7 @@ def test_a_nav_map_variant_swaps_only_the_costmap_map(variant):
 
 
 def test_v7_uses_the_2p5_cm_map_by_default_and_base_gives_the_5_cm_map():
-    """팀 결정(2026-11-17): v7 기본은 갈래 a(2.5 cm). base는 예전 5 cm 지도(비교용)."""
+    """v7 기본은 갈래 a(2.5 cm). base는 5 cm 지도(비교용)."""
     assert fleet_setup.arena_for("v7", PKG) == fleet_setup.arena_for("v7", PKG, "")
     assert Path(fleet_setup.arena_for("v7", PKG).nav_map) == PKG / "maps" / "arena_v7_a.yaml"
     assert Path(fleet_setup.arena_for("v7", PKG, "base").nav_map) == PKG / "maps" / "arena_v7.yaml"
@@ -178,8 +178,7 @@ def test_narrow_strips_are_the_dock_junction_and_lane_rectangles_not_the_hall():
     """스캔 거르개가 받을 좁은 띠: 넓은 구역(shared)이 아닌 구역의 사각형."""
     site = load_fleet_map("d2")
     strips = fleet_setup.narrow_strips(site)
-    # 경기장 벽에 닿은 변은 band(0.05)만큼 벽 너머로 넓힌다: 벽 면 너머로 잰 잡음 점(과 AMCL 오차로
-    # 너머에 놓인 점)도 띠 안에 든다(G05f: 동쪽 벽 x 1.98 너머 점이 남아 출고 도크 진입을 막았다)
+    # 경기장 벽에 닿은 변은 band(0.05)만큼 벽 너머로 넓힌다: 벽 너머로 잰 잡음 점도 띠 안에 든다
     assert strips.split("; ") == [
         "-0.05,0.79,0.3,1.04", "0.3,0.79,0.5,1.04", "0.5,0.79,1.48,1.04", "1.48,0.79,1.68,1.04",
         "1.68,0.79,2.03,1.04",
@@ -187,13 +186,11 @@ def test_narrow_strips_are_the_dock_junction_and_lane_rectangles_not_the_hall():
 
 
 def test_narrow_strips_add_a_box_around_each_shelf_end_face():
-    """진열대 끝면마다 끝면을 band만큼 사방으로 넓힌 사각형을 더한다(후진 모퉁이).
-
-    끝면 잡음은 좁은 띠 바로 밖(HALL의 1.5 cm 띠)에 떨어지므로 띠만으로는 지워지지 않는다."""
+    """진열대 끝면마다 band만큼 사방으로 넓힌 사각형을 더한다(후진 모퉁이)."""
     site = load_fleet_map("d2")
     strips = fleet_setup.narrow_strips(site, band=0.03).split("; ")
     assert strips[-2:] == ["0.47,0.745,0.53,0.82", "1.45,0.745,1.51,0.82"]
-    # v7은 시뮬 진열대(sim_shelves)로 그린다: 진열대 A 북쪽 면 0.783
+    # v7은 시뮬 진열대(sim_shelves)로 그린다
     v7 = fleet_setup.narrow_strips(load_fleet_map("v7"), band=0.03).split("; ")
     assert "0.67,0.74,0.73,0.813" in v7 and "1.53,0.74,1.59,0.813" in v7
     # 세로 진열대는 위아래 끝면에 더한다.

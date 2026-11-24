@@ -71,8 +71,7 @@ def test_an_unseen_cell_just_outside_the_circle_does_not_count():
 
 
 def test_an_unseen_cell_the_circle_touches_at_its_corner_counts():
-    """원이 칸 (22, 22)의 모서리 (1.10, 1.10)에 꼭 닿는다(0.06, 0.08, 0.10). 부동소수점으로는
-    거리가 0.10000000000000009로 나와서, 그대로 비교하면 걸치지 않았다고 보고 clear라고 답한다."""
+    """원이 칸 (22, 22)의 모서리에 꼭 닿는 경우(부동소수점 오차 0.10000000000000009)도 걸친 것으로 본다."""
     assert clear_answer(grid({(22, 22): -1}), 1.04, 1.02, 0.10) == UNKNOWN
 
 

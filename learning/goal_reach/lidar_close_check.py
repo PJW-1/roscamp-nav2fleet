@@ -1,13 +1,7 @@
-"""What does the goal-reach lidar return when an object is closer than its 0.05 m minimum range?
+"""라이다 최소 거리 0.05 m 안쪽의 물체를 goal-reach 라이다가 어떻게 돌려주는지 잰다.
 
-Pinky is fixed in place (fix_root_link) and a kinematic box (0.02 x 0.30 x 0.30 m) is teleported so
-that its near face is d metres from the lidar centre, straight behind (ray 0) and to the left
-(ray 270). For each d the script records the raw ray range (ray distance + 0.05 m start offset), the
-sector minimum the policy sees, and whether any ray in that sector reports a hit. Writes
-<out>/lidar_close.csv and prints a table.
-
-Run from D:\\isaac\\IsaacLab with the venv python, e.g.
-  .venv/Scripts/python.exe <repo>/learning/goal_reach/lidar_close_check.py --out <dir> --viz none
+Pinky 를 고정하고 kinematic 박스를 라이다 중심에서 d m 뒤(레이 0)와 왼쪽(레이 270)에 두어 원시 레이 거리,
+정책이 보는 섹터 최솟값, 섹터의 적중 여부를 기록한다. <out>/lidar_close.csv 를 쓰고 표를 출력한다.
 """
 
 import argparse
@@ -26,14 +20,14 @@ sys.path.insert(0, HERE)
 sys.path.insert(0, os.path.join(HERE, "..", "sim_check"))
 
 DT = 1.0 / 200.0
-LIDAR_XY = (-0.017, 0.0)  # in base_link; base_link is at the robot origin in x/y
-LIDAR_Z = 0.125  # above the floor
-BOX_T = 0.02  # box thickness along the ray
+LIDAR_XY = (-0.017, 0.0)  # base_link 기준
+LIDAR_Z = 0.125  # 바닥 위
+BOX_T = 0.02  # 레이 방향 박스 두께
 DISTS = [0.30, 0.15, 0.10, 0.07, 0.06, 0.055, 0.05, 0.045, 0.04, 0.03, 0.02, 0.01, 0.0]
 DIRS = {
     "rear_ray0": (180.0, 0),
     "left_ray270": (90.0, 270),
-}  # (direction deg in base frame, ray index)
+}  # (base 프레임 방향 deg, 레이 인덱스)
 
 
 def main():
@@ -103,7 +97,7 @@ def main():
             ux, uy = math.cos(math.radians(deg)), math.sin(math.radians(deg))
             sector = ray // (ts.SPEC.lidar_rays // ts.SPEC.lidar_sectors)
             for d in DISTS:
-                c = d + BOX_T / 2  # box centre along the ray
+                c = d + BOX_T / 2  # 레이를 따라 박스 중심
                 pose = box.data.default_root_pose.torch.clone()
                 pose[0, 0] = origin[0] + LIDAR_XY[0] + ux * c
                 pose[0, 1] = origin[1] + LIDAR_XY[1] + uy * c

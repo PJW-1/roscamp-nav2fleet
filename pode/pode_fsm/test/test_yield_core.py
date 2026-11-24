@@ -1,10 +1,6 @@
-"""로봇단 교착 처리가 core에서 도는 순서. ROS 없이 돈다.
+"""로봇단 교착 처리가 core에서 도는 순서(follow_path). ROS 없이 돈다.
 
-고정 경로(follow_path): 물체 앞에 block_report_s 서면 RECOVERING(local_yield wait)으로
-local_wait_s 기다린다. 앞을 막은 것이 관제가 아는 다른 로봇이고 내가 낮은 쪽이면 지나온 길 안에서
-local_backup_m까지 물러나고(backup) 지도를 비운 뒤 다시 간다(retry). 그래도 막히면 BLOCKED.
-선 때부터 blocked_after_s 안에 BLOCKED가 된다.
-"""
+물체 앞에 서면 RECOVERING으로 local_wait_s 기다리고, 앞을 막은 것이 관제가 아는 낮은 쪽 로봇이면 지나온 길로 물러나(backup) 지도를 비운 뒤 다시 간다(retry). 그래도 막히면 BLOCKED."""
 import math
 
 import pytest
@@ -27,7 +23,7 @@ P3, P4, P5 = (0.35, 1.55), (0.35, 1.95), (0.80, 2.05)
 NORTH = math.pi / 2
 STILL = (0.0, 0.0)
 DRIVING = (0.2, 0.0)
-# P3(경로 시작)에서 0.38 m. 지난 꼭짓점에서 0.38 - 0.23 = 0.15 m까지 물러날 수 있다(자가 복구 규칙)
+# P3(경로 시작)에서 0.38 m: 자가 복구 규칙으로 0.15 m까지 물러날 수 있다
 STUCK = (0.35, 1.93, NORTH)
 PEER_AHEAD = (0.40, 2.00)  # 가던 길 앞 0.5 m 안
 
@@ -84,7 +80,7 @@ def test_an_object_that_stays_is_reported_blocked_after_the_wait_with_no_backup(
     fsm = ready()
     move(fsm, 0.0)
     stand(fsm, 1.0, STUCK)
-    cmds = tick(fsm, 4.1, STUCK)  # 2.05 + 2 s
+    cmds = tick(fsm, 4.1, STUCK)
     assert backups(cmds) == [] and ClearCostmap() not in cmds
     assert fsm.state() == BLOCKED and fsm.local_yield_step() == ""
 
@@ -127,8 +123,7 @@ def test_the_higher_robot_ahead_does_not_back_up():
 
 @pytest.mark.parametrize("mine_in_row, backs", [(0, True), (3, False)])
 def test_my_own_row_in_the_same_message_decides_over_my_goal_priority(mine_in_row, backs):
-    # 두 로봇이 같은 /fleet/robots 한 장의 두 값을 비교하게 한다(priority가 바뀌는 사이에 둘 다
-    # 물러나지 않게). 그 줄이 없을 때만 MoveTo.priority를 쓴다
+    # 두 로봇이 같은 /fleet/robots 값을 비교하게 한다(그 줄이 없을 때만 MoveTo.priority)
     fsm = ready()
     move(fsm, 0.0, priority=2)
     fsm.see_peers(1.5, [Peer("pode1", *STUCK[:2], mine_in_row), Peer("pode2", *PEER_AHEAD, 1)])
@@ -227,7 +222,7 @@ def line(seq, x0, x1):
 def test_an_order_run_backs_up_by_the_priority_of_its_order_goal(mine, backs):
     fsm = order_fsm()
     order(fsm, 0.0, [line(1, 0.3, 0.8)], mine)
-    stuck = (0.7, 0.3, 0.0)  # 0.4 m 왔다. 0.4 - 0.23 = 0.17 m까지 된다
+    stuck = (0.7, 0.3, 0.0)  # 0.4 m 왔다
     fsm.see_peers(1.5, [Peer("pode2", 0.85, 0.3, 2)])
     stand(fsm, 1.0, stuck)
     found = backups(tick(fsm, 4.1, stuck))

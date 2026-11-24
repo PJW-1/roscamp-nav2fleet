@@ -24,7 +24,7 @@ from .silent import SilentWatch
 from .views import ZoneViews
 
 HERE = "@"
-# LOCALIZING 보고 앞뒤로 이 안에 온 NAV_ABORTED는 위치를 잃어 끝난 것으로 본다(Pode pose_timeout_s)
+# LOCALIZING 보고 앞뒤 이 시간 안의 NAV_ABORTED는 위치를 잃어 끝난 것으로 본다
 LOCALIZING_GRACE_S = 1.0
 
 

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Sweep the wheel velocity-drive damping (kd) and effort limit, ramped and step commands, 4 envs each.
-# Usage: bash learning/sim_check/sweep_wheel_gain.sh <out_dir>
+# 바퀴 속도 구동 감쇠(kd)와 힘 한도를 램프/스텝 명령으로 4 env 씩 훑는다.
+# 사용: bash learning/sim_check/sweep_wheel_gain.sh <out_dir>
 set -u
 OUT=${1:?out dir}
 HERE=$(cd "$(dirname "$0")" && pwd)

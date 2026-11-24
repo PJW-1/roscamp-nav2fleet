@@ -1,13 +1,7 @@
 #!/usr/bin/env bash
-# Train the store-arena policy in chunks under the shared heavy-run lock, with a GPU memory log.
-# Usage: bash learning/store_arena/run_train.sh <run_dir> <chunks> <iters_per_chunk> [num_envs] [train.py args...]
-# e.g.   bash learning/store_arena/run_train.sh /d/isaac/runs/store_arena/ppo_a 4 250 4096
-#        INIT=<4a run>/c1/model_999.pt bash learning/store_arena/run_train.sh <run> 1 1000 4096
-# Chunk c goes to <run_dir>/c<c> and resumes from the last model of chunk c-1. The lock
-# (/c/Users/pjw/ros2camp/.heavy_run.lock, also used by the Gazebo track) is taken per chunk and
-# released after it; the script then waits PAUSE_S (180 s, the Gazebo track waits the same) so a
-# waiting track can take it. Keep a chunk to about 30 minutes. Lock retries every 60 s.
-# Uses the Isaac Lab venv python directly (no `uv run`: see learning/sim_check/README.md).
+# 매장 아레나 정책을 공유 무거운 작업 락 아래 청크로 학습하고 GPU 메모리를 기록한다.
+# 사용: bash learning/store_arena/run_train.sh <run_dir> <chunks> <iters_per_chunk> [num_envs] [train.py 인자...]
+# 청크 c 는 <run_dir>/c<c> 에 쓰고 c-1 의 마지막 모델에서 이어 가며, 락은 청크마다 잡고 놓은 뒤 PAUSE_S 쉰다.
 set -u
 RUN=${1:?run dir}
 CHUNKS=${2:?chunks}
@@ -21,7 +15,7 @@ PAUSE_S=${PAUSE_S:-180}
 export PYTHONUTF8=1 OMNI_KIT_ACCEPT_EULA=YES PXR_WORK_THREAD_LIMIT=1
 mkdir -p "$RUN" && RUN=$(cd "$RUN" && pwd) || exit 1
 cd /d/isaac/IsaacLab || exit 1
-resume="${INIT:-}"  # INIT=<model_*.pt> starts chunk 1 from a checkpoint (curriculum)
+resume="${INIT:-}"  # INIT=<model_*.pt> 면 청크 1 을 그 체크포인트에서 시작 (커리큘럼)
 for c in $(seq 1 "$CHUNKS"); do
   OUT=$RUN/c$c
   mkdir -p "$OUT"
@@ -38,7 +32,7 @@ for c in $(seq 1 "$CHUNKS"); do
     ${resume:+--resume "$resume"} "$@" > "$OUT/stdout.log" 2>&1
   rc=$?
   kill $SMI
-  trap - EXIT  # before the release: never remove a lock another track took after it
+  trap - EXIT  # 해제 전에: 해제 후 다른 트랙이 잡은 락을 지우지 않도록
   rm -rf "$LOCK"
   echo "chunk $c exit=$rc wall_total_s=$(( $(date +%s) - start ))" | tee "$OUT/run_status.txt"
   [ $rc -eq 0 ] || exit $rc

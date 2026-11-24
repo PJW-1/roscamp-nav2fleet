@@ -102,8 +102,7 @@ class MoveOrders:
                 self._end_both(m, f"no answer in {UPDATE_ANSWER_S:.0f} s")
             return
         if mo.broken or route.stale:
-            # 목적이 바뀐 route: nav_goal이면 바로, 고정 경로면 넓은 구역의 노드에 섰을 때 멈춘다
-            # (고정 경로 가운데서는 끊지 않는다)
+            # 목적이 바뀐 route: nav_goal이면 바로, 고정 경로면 넓은 구역 노드에서 멈춘다
             mode = self._mode(m)
             at_yard_node = (mode != RETREAT and self._in_yard(m) and self._on_node(m)
                             and self._yard_node(m.node))
@@ -135,7 +134,7 @@ class MoveOrders:
         before = (m.goal.id, route.granted)
         want = self._take(m, route)
         if want is not None and mo.waiting and m.phase == TO_PARK:
-            # base 끝에서 기다리는 주차 로봇의 자리를 남이 잡았다: 다시 고른다
+            # 주차 자리를 남이 잡았으면 다시 고른다
             self._cancel_goal(m)
             self._drop_route(m)
             return
@@ -207,7 +206,7 @@ class MoveOrders:
         if station is not None and station.line:
             spots = [[k.b for k in edges if k.b in station.queue] for edges in (old, fresh)]
             if spots[0] and spots[0] != spots[1]:
-                return False  # 줄에 서는 자리가 바뀌는 새 길은 쓰지 않는다(줄 순서가 바뀐다)
+                return False  # 줄 자리가 바뀌는 새 길은 쓰지 않는다
         route.edges[route.granted:] = fresh
         mo.cuts[mo.given:] = self._cut(route, route.granted, mo.cuts[mo.given - 1][0] + 1)
         mo.horizon_at = now

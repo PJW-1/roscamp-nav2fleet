@@ -1,9 +1,5 @@
 """관제, Pode, 머리 없는 세계가 BLOCKED까지의 시간과 서로 맞춘 값을 같게 아는지. ROS 없이 돈다.
-
-세 패키지를 함께 보는 곳이 여기뿐이라 이 패키지의 시험에 둔다. Gazebo 세 대 경기(2026-11-13)에서
-이 시간들이 어긋나 있었다: Pode는 선 때부터 10 s 뒤에 BLOCKED를 보고하는데 관제는 6 s 만에 goal을
-거뒀고(GOAL_STALLED), 세 번 거둔 뒤 로봇을 격리했다. 머리 없는 세계의 로봇은 5 s로 남아 있어서
-이 차이가 시험에 드러나지 않았다.
+세 패키지를 함께 보는 곳이 여기뿐이라 이 패키지의 시험에 둔다.
 """
 from fake_robots import nav_goal_drive
 from fake_robots.world import nav_goal, obstacle_view, world
@@ -35,7 +31,7 @@ def test_the_headless_robots_report_blocked_when_the_real_ones_do():
 
 
 def test_the_headless_robots_clear_blocked_where_the_real_ones_do():
-    """BLOCKED는 켠 자리에서 unblock_m 벗어나야 보고를 끈다(2026-11-17)."""
+    """BLOCKED는 켠 자리에서 unblock_m 벗어나야 보고를 끈다."""
     assert nav_goal.UNBLOCK_M == FsmParams().unblock_m
 
 

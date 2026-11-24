@@ -104,7 +104,7 @@ class FakeWorkcellNode(Node):
     def _running(self) -> bool:
         return self._alive and rclpy.ok()
 
-    # -- state and stock ----------------------------------------------------------------
+    # ---- 상태와 재고 ----
 
     def _set_state(self, arm: str, state: str) -> None:
         with self._state_lock:
@@ -126,7 +126,7 @@ class FakeWorkcellNode(Node):
             self._stock[arm][kind] += delta
         self._publish_stock(arm)
 
-    # -- planning -----------------------------------------------------------------------
+    # ---- 계획 ----
 
     def _plan(self, items) -> tuple[dict[str, list[str]], Counter]:
         """요청한 물건을 그 종류가 가장 많은 팔에 준다. 나머지는 missing이다."""
@@ -158,7 +158,7 @@ class FakeWorkcellNode(Node):
             fail_at[arm] = min(i, fail_at.get(arm, i))
         return fail_at
 
-    # -- goal ---------------------------------------------------------------------------
+    # ---- 목표 ----
 
     def _on_goal(self, _request):
         with self._busy_lock:

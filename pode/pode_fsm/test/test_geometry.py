@@ -104,11 +104,11 @@ def test_yaw_quaternion_round_trip():
 
 
 def test_heading_at_is_the_direction_of_the_segment_behind_the_point():
-    """At a corner the robot came along the segment behind it; backing up goes along that one."""
+    """꺾이는 곳에서는 뒤 선분을 따라 왔으니 후진도 그 선분을 따른다."""
     line = Polyline([(0.0, 0.0), (1.0, 0.0), (1.0, 1.0)])
     assert line.heading_at(0.0) == pytest.approx(0.0)
     assert line.heading_at(0.5) == pytest.approx(0.0)
-    assert line.heading_at(1.0) == pytest.approx(0.0)  # the corner itself
+    assert line.heading_at(1.0) == pytest.approx(0.0)  # 꼭짓점 자리
     assert line.heading_at(1.2) == pytest.approx(math.pi / 2)
     assert line.heading_at(9.0) == pytest.approx(math.pi / 2)
     assert Polyline([(2.0, 3.0)]).heading_at(0.0) == 0.0
@@ -117,8 +117,8 @@ def test_heading_at_is_the_direction_of_the_segment_behind_the_point():
 def test_vertex_before_is_the_last_vertex_at_or_behind_the_point():
     line = Polyline([(0.0, 0.0), (1.0, 0.0), (1.0, 1.0)])
     assert line.vertex_before(0.0) == pytest.approx(0.0)
-    assert line.vertex_before(0.5) == pytest.approx(0.0)  # the first point counts
-    assert line.vertex_before(1.0) == pytest.approx(1.0)  # the corner itself
+    assert line.vertex_before(0.5) == pytest.approx(0.0)  # 첫 점도 센다
+    assert line.vertex_before(1.0) == pytest.approx(1.0)  # 꼭짓점 자리
     assert line.vertex_before(1.2) == pytest.approx(1.0)
     assert line.vertex_before(2.0) == pytest.approx(2.0)
     assert Polyline([(2.0, 3.0)]).vertex_before(0.5) == 0.0
@@ -194,7 +194,7 @@ def test_a_robot_beside_the_line_starts_where_it_stands_and_joins_the_line_ahead
 
 
 def test_the_join_never_cuts_across_a_corner():
-    """Close to a corner the join is the start of the arc, not a point beyond it."""
+    """꼭짓점 가까이에서는 이음이 호의 시작이다(그 너머의 점이 아니다)."""
     rest = joined(LANE, 0.50, (0.45, 0.70))  # 0.10 m 옆, 호의 시작(y 0.79)까지 0.09 m
     assert rest[0] == pytest.approx((0.45, 0.70))
     assert rest[1] == pytest.approx((0.35, 0.79))
@@ -206,8 +206,7 @@ def test_a_small_offset_keeps_the_start_on_the_line():
 
 
 def test_on_an_arc_the_rest_starts_beside_the_robot_not_behind_it():
-    """The progress s is measured on the sharp line. Its place on the arc lies behind a robot
-    that drives the arc."""
+    """진행 s는 뾰족한 선 위에서 잰다(호 위의 자리는 호를 달리는 로봇 뒤에 있다)."""
     arc = rounded(LANE.points, 0.10)
     robot = arc[len(arc) // 2]  # 호의 가운데
     s, _ = LANE.project(robot)
@@ -220,7 +219,7 @@ def test_without_a_slope_the_start_is_on_the_line_as_before():
 
 
 def _on_arc(deg, radius=0.10):
-    """A point at deg on the circle of LANE's corner arc (centre 0.25, 0.79; 0 deg is its start)."""
+    """LANE 꼭짓점 호의 원(중심 0.25, 0.79) 위 deg 자리의 점(0도가 호의 시작)."""
     a = math.radians(deg)
     return (0.25 + radius * math.cos(a), 0.79 + radius * math.sin(a))
 
@@ -247,7 +246,7 @@ def test_a_line_that_comes_back_over_itself_is_followed_from_the_second_pass():
 
 
 def test_a_short_step_back_is_not_taken_for_the_pass_before_it():
-    """The place on the rounded line is counted from the corners passed, not looked up."""
+    """둥근 선 위의 자리는 지난 꼭짓점으로 세고 찾아보지 않는다."""
     route = Polyline([(0.0, 0.0), (1.0, 0.0), (0.9, 0.0), (1.9, 0.0), (1.9, 1.0)])
     rest = rounded_rest(route, 1.15, 0.5)  # 세 번째 선분 위 x 0.95
     assert rest[0] == pytest.approx((0.95, 0.0)) and rest[1] == pytest.approx((1.4, 0.0))

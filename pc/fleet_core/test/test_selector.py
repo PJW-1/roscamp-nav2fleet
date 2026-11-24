@@ -1,8 +1,5 @@
-"""RobotSelector: 누가 채움 도크로 불리는가. 순수 함수이고 단순 로봇 기록으로 구동.
-
-D2 배치에서 W(채우기 도크)까지 길을 따라 잰 거리(m): X_W 0.17, N_W 0.41, P-2 0.91, P-1 0.96,
-N_E 1.69, P-3 1.99, O 2.10(N_E까지 후진한 뒤). 곧은 거리로는 P-1이 P-2보다 가깝다.
-"""
+"""RobotSelector: 누가 채움 도크로 불리는가(순수 함수).
+D2 길 거리(m): X_W 0.17, N_W 0.41, P-2 0.91, P-1 0.96, N_E 1.69, P-3 1.99, O 2.10. 곧은 거리로는 P-1이 P-2보다 가깝다."""
 from dataclasses import replace
 
 import pytest
@@ -64,9 +61,7 @@ def test_name_breaks_a_tie_so_a_run_can_be_replayed(selector):
 
 
 # ---- 값(price_m)과 실제 길이가 다른 길 ----
-# pc/fleet_core/test/test_fleet_map.py의 SMALL에 지점 S를 더한 지도. S -> N_W 곧은 이음(0.25 m)에
-# extra_m 1.0을 붙여, 값으로는 W_Q를 거치는 길(0.627 m)이 싸다. W까지 실제로 가장 짧은 길은 곧은
-# 이음으로 0.75 m, 값으로 고른 길의 길이는 1.127 m다. P-1에서 W까지는 0.992 m로 그 사이다.
+# test_fleet_map.py의 SMALL에 지점 S를 더한 지도: S -> N_W 곧은 이음에 extra_m 1.0을 붙여 값으로는 W_Q를 거치는 길(0.627 m)이 싸다.
 PRICED = {
     "name": "priced",
     "bounds": [0.0, 0.0, 2.0, 1.0],

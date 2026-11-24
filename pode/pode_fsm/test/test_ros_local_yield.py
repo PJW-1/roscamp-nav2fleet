@@ -1,8 +1,6 @@
-"""로봇단 교착 처리(계약 0.13-draft)를 실제 토픽과 액션으로 본다.
+"""로봇단 교착 처리(계약 0.13-draft)를 실제 토픽과 액션으로 본다. Nav2 대신 FakeNav를 쓴다.
 
-/fleet/robots(RobotStatusArray)로 앞을 막은 로봇과 그 priority를 주고, MoveTo.priority로 이 로봇의
-값을 준다. 상태(RobotState)의 state와 local_yield를 본다. Nav2 대신 FakeNav를 쓴다.
-"""
+/fleet/robots로 앞을 막은 로봇과 priority를 주고 MoveTo.priority로 이 로봇의 값을 준다."""
 import pytest
 
 pytest.importorskip("rclpy")

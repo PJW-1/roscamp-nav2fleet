@@ -9,7 +9,7 @@ from fleet_core.common.commands import MoveCmd, RetreatCmd
 from fleet_core.fleet_map import FOLLOW_PATH, NAV_GOAL, RETREAT, SHARED, Edge, distance
 
 ON_NODE_M = 0.03
-# Nav2 goal 끝 보정의 뜻: 다음 조각으로 넘어갈 때까지, 끝 노드에 닿을 때까지, 끝에 설 때까지
+# Nav2 goal 끝 보정 종류
 PASS, ARRIVE, STOP = "pass", "arrive", "stop"
 
 
@@ -179,14 +179,14 @@ def back_edge(site, x: float, y: float, node: str, zones, via: str = "", bends=(
 
 
 # ---- 속도와 남은 주행 시간 계산 ----
-# 길 비용(route 고르기)용 속도. 비율을 곱하지 않는다
+# 길 비용용 속도(비율 없음)
 def speed(params, mode: str) -> float:
     if mode == NAV_GOAL:
         return params.nav_speed_mps
     return params.follow_speed_mps if mode == FOLLOW_PATH else params.retreat_speed_mps
 
 
-# ETA(남은 시간)용 속도. Nav2 goal만 nav_eta_speed_ratio를 곱한다
+# ETA용 속도(Nav2 goal만 nav_eta_speed_ratio를 곱한다)
 def eta_speed(params, mode: str) -> float:
     if mode == NAV_GOAL:
         return params.nav_speed_mps * params.nav_eta_speed_ratio

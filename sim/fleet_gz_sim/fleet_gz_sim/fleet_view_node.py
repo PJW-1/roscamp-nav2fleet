@@ -1,10 +1,6 @@
 """관제 화면 노드(시뮬레이션 전용): 함대 전체를 RViz 하나에 마커로 그린다.
-
-/fleet/robots, /fleet/zones, 로봇마다 /<robot>/state(current_goal), Nav2가 계획한 경로
-/<robot>/plan과 자세(기본은 Gazebo 실제 위치 /<robot>/sim/truth, map 기준)를 받아
-/fleet_view/markers에 5 Hz로 낸다.
-로봇 TF는 네임스페이스 안에 있으므로 전역 /tf_static에 map -> fleet_view를 내서
-네임스페이스 없는 RViz에도 map 프레임이 있게 한다.
+함대 상태, 구역, 로봇 상태, 계획 경로, 실제 위치를 받아 /fleet_view/markers에 5 Hz로 낸다.
+네임스페이스 없는 RViz에도 map 프레임이 있도록 전역 /tf_static에 map -> fleet_view를 낸다.
 """
 import math
 
@@ -66,7 +62,7 @@ class FleetViewNode(Node):
 
         sub(RobotStatusArray, "robots", self._on_robots)
         sub(ZoneStateArray, "zones", lambda msg: self.view.set_zones(msg.zones))
-        for robot in robots:  # current_goal: where each pode is heading now
+        for robot in robots:  # 각 pode가 지금 가는 곳(current_goal)
             self.create_subscription(
                 RobotState, contract.name("robot_state", pode=robot),
                 lambda msg, robot=robot: self.view.set_goal(robot, msg.current_goal),

@@ -1,16 +1,7 @@
-"""Routes in the store arena without a simulator: start/goal nodes, global paths, static obstacles,
-and following a path (progress, remaining distance, lookahead point).
+"""시뮬레이터 없이 쓰는 매장 아레나 경로: 시작/목표 노드, 전역 경로, 정적 장애물, 경로 추종.
 
-Global path: like the robot's Nav2 global planner (NavFn, Dijkstra) on its global costmap
-(pode/pode_nav_config/params/nav2_params.yaml): 2.5 cm cells, cells within the inscribed radius
-of an obstacle are blocked, inflation cost 252 * exp(-scaling * (d - inscribed)) out to the
-inflation radius, NavFn traversal cost 50 + 0.8 * cost. Here an 8-connected Dijkstra over cell
-centres (NavFn propagates a potential on 4 neighbours and descends its gradient, so its paths
-are a little smoother). The real global costmap also has a lidar obstacle layer, so the static
-boxes of an episode are part of the map its path is planned on.
-
-Everything is planned once when the env is built: for every allowed (start, goal) node pair a set
-of obstacle layouts, each with its own path, stored as padded tensors (route = pair x layout).
+전역 경로는 로봇의 Nav2 전역 코스트맵(2.5 cm 셀)에서 8방향 Dijkstra 로 계획한다.
+env 생성 때 모든 (시작, 목표) 쌍 x 장애물 배치마다 한 번 계획해 패딩 텐서로 둔다 (route = 쌍 x 배치).
 """
 
 from __future__ import annotations
@@ -29,17 +20,17 @@ INSCRIBED = 253
 
 @dataclass
 class Routes:
-    """Padded route tensors. R routes = pairs x layouts (route r = pair r // M, layout r % M)."""
+    """패딩된 경로 텐서. R 경로 = 쌍 x 배치 (경로 r = 쌍 r // M, 배치 r % M)."""
 
     node_names: list[str]
-    pairs: list[tuple[int, int]]  # (start node, goal node) indices into node_names
+    pairs: list[tuple[int, int]]  # (시작 노드, 목표 노드) 인덱스
     node_xy: np.ndarray  # (nodes, 2)
     layouts: int  # M
-    obstacle_sizes: tuple[float, ...]  # side of the square box in each slot [m]
-    obstacle_xy: np.ndarray  # (R, K, 2) box centres; inactive slots NaN
-    path: np.ndarray  # (R, L, 2), padded with the goal
+    obstacle_sizes: tuple[float, ...]  # 슬롯별 정사각 박스 한 변 [m]
+    obstacle_xy: np.ndarray  # (R, K, 2) 박스 중심, 안 쓰는 슬롯은 NaN
+    path: np.ndarray  # (R, L, 2), 목표로 채움
     npts: np.ndarray  # (R,)
-    cum: np.ndarray  # (R, L) arc length from the start, padded with the total
+    cum: np.ndarray  # (R, L) 시작부터 호장, 전체 길이로 채움
     total: np.ndarray  # (R,)
 
     @property
@@ -52,7 +43,7 @@ class Routes:
 
 
 def point_rect_distance(px: np.ndarray, py: np.ndarray, rects: np.ndarray) -> np.ndarray:
-    """Distance from points (...) to the nearest of rects (B, 4); 0 inside."""
+    """점 (...) 에서 가장 가까운 rect (B, 4) 까지 거리, 안쪽은 0."""
     x0, y0, x1, y1 = (rects[:, i] for i in range(4))
     dx = np.maximum(np.maximum(x0 - px[..., None], 0.0), px[..., None] - x1)
     dy = np.maximum(np.maximum(y0 - py[..., None], 0.0), py[..., None] - y1)
@@ -60,7 +51,7 @@ def point_rect_distance(px: np.ndarray, py: np.ndarray, rects: np.ndarray) -> np
 
 
 class Grid:
-    """Cell centres over the arena bounds and the Nav2-like cost of each cell."""
+    """아레나 범위의 셀 중심과 셀별 Nav2 식 비용."""
 
     def __init__(self, bounds, cell: float):
         x0, y0, x1, y1 = bounds
@@ -72,7 +63,7 @@ class Grid:
         self.cx = x0 + (ix + 0.5) * cell
         self.cy = y0 + (iy + 0.5) * cell
         self.bounds = bounds
-        # 8-connected neighbour offsets and step lengths [cells]
+        # 8방향 이웃 오프셋과 걸음 길이 [셀]
         self.offsets = [(1, 0), (0, 1), (1, 1), (1, -1)]
 
     def index(self, xy) -> int:
@@ -84,7 +75,7 @@ class Grid:
         return np.stack((self.cx.ravel()[flat], self.cy.ravel()[flat]), -1)
 
     def costs(self, rects: np.ndarray, inscribed: float, inflation: float, scaling: float):
-        """Nav2 costmap value per cell for obstacles rects (B, 4); outside bounds is lethal."""
+        """장애물 rects (B, 4) 에 대한 셀별 Nav2 코스트맵 값, 범위 밖은 치명적."""
         d = point_rect_distance(self.cx, self.cy, rects)
         c = np.where(
             d <= inflation, 252.0 * np.exp(-scaling * np.maximum(d - inscribed, 0.0)), 0.0
@@ -94,7 +85,7 @@ class Grid:
         return c
 
     def graph(self, cost: np.ndarray):
-        """Sparse 8-connected graph; edge weight = mean NavFn cell cost x step length [cells]."""
+        """희소 8방향 그래프: 간선 가중치 = 평균 NavFn 셀 비용 x 걸음 길이."""
         free = cost < INSCRIBED
         trav = 50.0 + 0.8 * cost
         idx = np.arange(self.nx * self.ny).reshape(self.nx, self.ny)
@@ -105,7 +96,7 @@ class Grid:
             a = idx[i0:i1, j0:j1].ravel()
             b = idx[i0 + di : i1 + di, j0 + dj : j1 + dj].ravel()
             ok = free.ravel()[a] & free.ravel()[b]
-            if di and dj:  # diagonal: both side cells free too, so no blocked corner is cut
+            if di and dj:  # 대각선: 양옆 셀도 비어야 막힌 모서리를 안 자름
                 ok &= free[i0 + di : i1 + di, j0:j1].ravel()
                 ok &= free[i0:i1, j0 + dj : j1 + dj].ravel()
             a, b = a[ok], b[ok]
@@ -120,7 +111,7 @@ class Grid:
 
 
 def plan(grid: Grid, cost: np.ndarray, start, goal) -> np.ndarray | None:
-    """Global path start -> goal as (L, 2) points (start, cell centres, goal), or None."""
+    """시작에서 목표까지 전역 경로 (L, 2), 없으면 None."""
     s, g = grid.index(start), grid.index(goal)
     if cost.ravel()[s] >= INSCRIBED or cost.ravel()[g] >= INSCRIBED:
         return None
@@ -135,7 +126,7 @@ def plan(grid: Grid, cost: np.ndarray, start, goal) -> np.ndarray | None:
 
 
 def hall_nodes(site, excluded_kinds: str) -> tuple[list[str], np.ndarray]:
-    """Nodes inside zone HALL whose kind is not in the comma-separated excluded_kinds."""
+    """zone HALL 안에서 excluded_kinds(쉼표 구분)가 아닌 노드."""
     skip = {k.strip() for k in excluded_kinds.split(",") if k.strip()}
     names = [k for k, n in site.nodes.items() if n.zone == "HALL" and n.kind not in skip]
     return names, np.array([(site.nodes[k].x, site.nodes[k].y) for k in names])
@@ -147,10 +138,8 @@ def box_rect(xy, side: float) -> np.ndarray:
 
 
 def sample_layout(rng, spec, bounds, static_rects, path0, start, goal, sizes) -> np.ndarray:
-    """Box centres (K, 2) for one episode layout; NaN = slot not used. Each used box sits on the
-    obstacle-free path (with probability obstacle_on_path_prob, shifted sideways by up to
-    obstacle_lateral_m) or anywhere in the arena, clear of walls/shelves, other boxes and, by
-    obstacle_node_clear_m, of the start and goal."""
+    """한 에피소드 배치의 박스 중심 (K, 2), NaN = 안 쓰는 슬롯.
+    박스는 장애물 없는 경로 위(obstacle_on_path_prob, 옆 이동 obstacle_lateral_m) 또는 임의 위치에 놓고 벽, 선반, 다른 박스, 시작/목표에서 띄운다."""
     k = len(sizes)
     out = np.full((k, 2), np.nan)
     n_used = int(rng.integers(0, int(spec.obstacle_max) + 1))
@@ -186,8 +175,7 @@ def rects_overlap(r: np.ndarray, rects: np.ndarray) -> bool:
 
 
 def build_routes(spec, site, static_rects: np.ndarray) -> Routes:
-    """All routes for the arena: allowed node pairs x spec.obstacle_layouts layouts, each with the
-    global path planned around its boxes. Deterministic for a given spec (spec.route_seed)."""
+    """아레나의 모든 경로: 허용 노드 쌍 x 배치, 박스를 피한 전역 경로 포함. spec.route_seed 로 결정적."""
     rng = np.random.default_rng(int(spec.route_seed))
     names, node_xy = hall_nodes(site, spec.excluded_node_kinds)
     grid = Grid(site.bounds(), spec.grid_m)
@@ -203,8 +191,8 @@ def build_routes(spec, site, static_rects: np.ndarray) -> Routes:
                 continue
             pairs.append((a, b))
             for m in range(int(spec.obstacle_layouts)):
-                for _ in range(20):  # resample the layout until a path exists
-                    if m == 0:  # layout 0 of every pair has no boxes
+                for _ in range(20):  # 경로가 생길 때까지 배치를 다시 뽑음
+                    if m == 0:  # 모든 쌍의 배치 0 은 박스 없음
                         boxes = np.full((len(sizes), 2), np.nan)
                     else:
                         boxes = sample_layout(
@@ -265,13 +253,10 @@ def follow(
     lookahead: float,
     window: int,
 ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
-    """Per env: path (N, L, 2), cum (N, L), npts (N,), progress index prog (N,), robot xy (N, 2).
+    """env 별 경로 추종: path (N, L, 2), cum (N, L), npts (N,), 진행 인덱스 prog (N,), 로봇 xy (N, 2).
 
-    Returns (new progress index, remaining distance, lookahead point). The progress index never
-    goes back: it moves to the nearest path point among prog .. prog + window. The robot is
-    projected onto the segment from that point to the next; remaining distance = path length after
-    the projection + distance from the robot to it. The lookahead point is the first path point at
-    least `lookahead` metres of path beyond the progress point (the goal near the end)."""
+    반환 (새 진행 인덱스, 남은 거리, lookahead 점). 진행 인덱스는 prog .. prog + window 중 가장 가까운 점으로만 앞으로 간다.
+    lookahead 점은 진행점에서 경로로 lookahead m 이상 앞의 첫 점 (끝에서는 목표)."""
     n, lmax = cum.shape
     j = torch.arange(lmax, device=xy.device)[None, :]
     d = (path - xy[:, None, :]).norm(dim=-1)

@@ -1,17 +1,7 @@
-"""Sort the timed-out episodes of a play.py rollouts.npz by what was around our robot at the end.
+"""play.py rollouts.npz 의 시간초과 에피소드를 끝 무렵 우리 로봇 주변 상황으로 분류한다.
 
-For the last window_s of each timed-out episode of a tracked env:
-  robot_still   a scripted robot came within near_m of our robot and moved less than still_m
-                (parked at its last goal, pausing, or held at a node)
-  robot_moving  a scripted robot came within near_m and kept moving (yield / back-off cycles,
-                head-on in a corridor)
-  mover         no robot near, but a person or cart within near_m
-  alone         nothing moving near: our policy dithering or stuck at a box or a wall
-Each row also says how our robot ended (the last tail_s): facing_wall (an obstacle within
-wall_m ahead and no headway), stopped, dithering (turning in place or back and forth), moving
-(still making way), and where: the nearest graph node within place_m, else "between nodes".
-alone_summary is the standard alone-timeout number of every evaluation (play.py eval.json).
-No Isaac:  python learning/store_arena/timeouts.py <rollouts.npz> [episode_s]
+  robot_still / robot_moving / mover / alone 와, 우리 로봇의 끝 동작(facing_wall, stopped, dithering, moving)과 위치를 낸다.
+Isaac 없이:  python learning/store_arena/timeouts.py <rollouts.npz> [episode_s]
 """
 
 import json
@@ -24,8 +14,7 @@ MOTIONS = ("stopped", "dithering", "facing_wall", "moving")
 
 
 def motion(us, front, cmd, wall_m=0.2, turn=0.3):
-    """How our robot ended: us (T, 2) positions, front (T,) range ahead or None, cmd (T, 2)
-    commanded (v, w) or None."""
+    """우리 로봇의 끝 동작: us (T, 2) 위치, front (T,) 앞 거리 또는 None, cmd (T, 2) 명령 또는 None."""
     path = float(np.linalg.norm(np.diff(us, axis=0), axis=-1).sum())
     net = float(np.linalg.norm(us[-1] - us[0]))
     if front is not None and float(front.min()) < wall_m and net < 0.05:
@@ -42,7 +31,7 @@ def place(xy, node_xy, node_names, place_m=0.25):
 
 
 def episodes(done: np.ndarray):
-    """(start, end) step index pairs of the finished episodes of one env (end inclusive)."""
+    """env 하나의 끝난 에피소드 (시작, 끝) 스텝 인덱스 쌍 (끝 포함)."""
     ends = np.flatnonzero(done)
     starts = np.concatenate(([0], ends[:-1] + 1))
     return list(zip(starts, ends, strict=True))
@@ -51,8 +40,8 @@ def episodes(done: np.ndarray):
 def classify(
     z, episode_s=30.0, window_s=10.0, near_m=0.35, still_m=0.05, tail_s=3.0, max_episodes=None
 ):
-    """Rows of the timed-out episodes; max_episodes: only each env's first ones."""
-    z = {k: z[k] for k in z}  # an npz decompresses on every access: read it once
+    """시간초과 에피소드 행; max_episodes 면 env 마다 앞쪽만."""
+    z = {k: z[k] for k in z}  # npz 는 접근마다 풀리므로 한 번만 읽음
     dt = float(z["dt"])
     full = int(round(episode_s / dt))
     w = int(round(window_s / dt))
@@ -60,12 +49,12 @@ def classify(
     out = []
     for e in range(z["xy"].shape[1]):
         for s, t in episodes(z["done"][:, e])[:max_episodes]:
-            if "outcome" in z:  # play.py records why each episode ended
+            if "outcome" in z:  # play.py 가 종료 이유를 기록함
                 if z["outcome"][t, e] != 3:
                     continue
-            elif t - s + 1 < full:  # older rollouts: by length (a last-step success counts too)
+            elif t - s + 1 < full:  # 옛 rollouts: 길이로 판단 (마지막 스텝 성공도 포함)
                 continue
-            # the done step t already shows the next episode's reset pose: leave it out
+            # 끝난 스텝 t 는 이미 다음 에피소드 리셋 자세이므로 뺌
             a = max(s, t - w)
             us = z["xy"][a:t, e]
             kind = "alone"
@@ -106,7 +95,7 @@ def classify(
 
 
 def alone_summary(z, rows, n_episodes=None, max_episodes=None):
-    """The alone timeouts of classify rows: count, rate per 4096 episodes, where, how."""
+    """classify 행의 alone 시간초과: 개수, 4096 에피소드당 비율, 위치, 동작."""
     if n_episodes is None:
         n_episodes = sum(
             len(episodes(z["done"][:, e])[:max_episodes]) for e in range(z["xy"].shape[1])

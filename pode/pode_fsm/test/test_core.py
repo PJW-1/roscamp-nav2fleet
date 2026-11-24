@@ -1,7 +1,4 @@
-"""Pode FSM의 판단(Pode_계약 3·4절). ROS 없이 돈다.
-
-시각은 벽시계 초(time.monotonic과 같은 축)로 준다.
-"""
+"""Pode FSM의 판단(Pode_계약 3·4절). ROS 없이 돌고 시각은 벽시계 초로 준다."""
 import math
 from itertools import pairwise
 
@@ -43,7 +40,7 @@ def obstacle(_points):
 
 
 def ready(t=0.0, pose=(*P3, NORTH), **params):
-    # 이 파일은 로봇단 교착 처리를 끈 자가 복구를 본다(스위치 끔). 켠 것은 test_yield_core.py
+    # 로봇단 교착 처리를 끈 자가 복구를 본다(켠 것은 test_yield_core.py)
     params.setdefault("local_yield", False)
     fsm = PodeFsm(FsmParams(**params))
     fsm.tick(t, pose, STILL, no_obstacle)
@@ -82,8 +79,7 @@ def test_goal_without_a_pose_fails_at_once():
 
 
 def test_losing_the_pose_while_moving_stops_and_fails():
-    """Do not drive without a pose. The state turns LOCALIZING, so the fleet manager cannot
-    trust where the robot is either."""
+    """위치가 없으면 움직이지 않고 LOCALIZING을 보고한다."""
     fsm = ready()
     move(fsm, "g1", 0.0)
     fsm.heartbeat(0.5)
@@ -151,7 +147,7 @@ def test_old_nav_results_after_a_replacement_are_ignored():
     assert fsm.state() == MOVING
 
 
-# ---- 경로 연결 확인 (R20) ------------------------------------------------------------------
+# ---- 경로 연결 확인 ------------------------------------------------------------------
 
 
 def test_path_far_from_the_robot_fails_and_the_robot_stops():
@@ -172,8 +168,7 @@ def test_path_within_the_tolerance_is_followed():
 
 
 def test_connection_is_judged_on_the_received_path_not_the_line_to_the_target():
-    """path 끝이 target_pose와 다르면 target까지 잇는 선을 붙인다. 그 선이 로봇을 지나도
-    받은 path가 떨어져 있으면 따라가지 않는다."""
+    """끝이 target과 다르면 target까지 잇는 선을 붙이되, 받은 path가 떨어져 있으면 따르지 않는다."""
     fsm = ready()
     away = [(0.70, 1.95), (0.70, 1.55)]  # 로봇에서 0.35 m 옆, 끝이 target과 다르다
     cmds = fsm.move("g1", 1.0, "X", (*P3, NORTH), away, (*P3, NORTH))
@@ -187,7 +182,7 @@ def test_point_goals_are_not_checked_for_connection():
     assert kinds(cmds) == ["SendPath"]
 
 
-# ---- 취소 (R7) -----------------------------------------------------------------------------
+# ---- 취소 -----------------------------------------------------------------------------
 
 
 def test_cancel_stops_and_reports_canceled_once():
@@ -206,19 +201,19 @@ def test_cancel_of_an_old_goal_does_not_touch_the_new_one():
     assert fsm.state() == MOVING
 
 
-# ---- 도착 (R4) ----------------------------------------------------------------------------
+# ---- 도착 ----------------------------------------------------------------------------
 
 
 def test_success_only_counts_within_the_arrival_tolerance():
     fsm = ready()
     [send] = sends(move(fsm, "g1", 1.0))
     cmds = fsm.nav_result(send.seq, "succeeded", 9.0, (0.78, 2.00, 0.2), no_obstacle)
-    assert cmds == [Finish("g1", True, "")] + [CancelNav()]  # no older FollowPath may run on
+    assert cmds == [Finish("g1", True, "")] + [CancelNav()]  # 옛 FollowPath를 취소한다
     assert fsm.state() == IDLE and fsm.current_goal() == ""
 
 
 def test_success_far_from_the_target_sends_the_rest_again():
-    """Nav2가 옛 경로의 끝에서 성공을 보고한 경우(Gazebo 정리 4.3)."""
+    """Nav2가 옛 경로 끝에서 성공을 보고한 경우."""
     fsm = ready()
     [send] = sends(move(fsm, "g1", 1.0))
     cmds = fsm.nav_result(send.seq, "succeeded", 5.0, (0.35, 1.90, NORTH), no_obstacle)
@@ -239,11 +234,11 @@ def test_repeated_far_successes_give_up_with_nav_aborted():
         Finish("g1", False, NAV_ABORTED), CancelNav()]
 
 
-# ---- 실패 (R8) ----------------------------------------------------------------------------
+# ---- 실패 ----------------------------------------------------------------------------
 
 
 def test_nav_abort_without_an_obstacle_fails_with_nav_aborted():
-    """With both self-recovery attempts used (here: none allowed)."""
+    """자가 복구 횟수가 0이면 abort는 NAV_ABORTED로 끝난다."""
     fsm = ready(recovery_attempts=0)
     [send] = sends(move(fsm, "g1", 1.0))
     cmds = fsm.nav_result(send.seq, "aborted", 4.0, (0.35, 1.70, NORTH), no_obstacle)
@@ -252,8 +247,7 @@ def test_nav_abort_without_an_obstacle_fails_with_nav_aborted():
 
 
 def test_an_abort_while_the_pose_is_lost_also_cancels_older_follow_paths():
-    """Ending a goal on a FollowPath result always cancels: a replaced FollowPath whose
-    acceptance is still on its way must not start driving afterwards."""
+    """FollowPath 결과로 goal이 끝나면 늘 취소한다(수락이 오는 교체 경로가 뒤늦게 달리지 않게)."""
     fsm = ready()
     move(fsm, "g1", 0.0)
     fsm.heartbeat(0.5)
@@ -271,8 +265,7 @@ def test_rejected_nav_goal_fails_with_nav_aborted():
 
 
 def test_rejected_replacement_stops_the_follow_path_still_running():
-    """A replacement does not cancel the previous FollowPath (guide 2.1), so when the new one
-    is rejected the previous one may still be driving. It must be cancelled."""
+    """교체 경로가 거절되면 앞 FollowPath가 아직 달릴 수 있어 취소한다."""
     fsm = ready()
     move(fsm, "g1", 0.0)
     fsm.heartbeat(0.5)
@@ -282,7 +275,7 @@ def test_rejected_replacement_stops_the_follow_path_still_running():
     assert cmds == [Finish("g2", False, NAV_ABORTED), CancelNav()]
 
 
-# ---- 끝 근처 재전송 (R13) -------------------------------------------------------------------
+# ---- 끝 근처 재전송 -------------------------------------------------------------------
 
 
 def test_near_the_end_the_rest_is_sent_again_every_half_second():
@@ -300,7 +293,7 @@ def test_near_the_end_the_rest_is_sent_again_every_half_second():
     assert len(sends(fsm.tick(2.5, near, DRIVING, no_obstacle))) == 1
 
 
-# ---- heartbeat (R10) ----------------------------------------------------------------------
+# ---- heartbeat ----------------------------------------------------------------------
 
 
 def test_heartbeat_loss_stops_a_running_goal():
@@ -314,7 +307,7 @@ def test_heartbeat_loss_stops_a_running_goal():
 
 
 def test_heartbeat_loss_stops_exactly_at_the_timeout():
-    """The promise is a stop command 1.5 s after the last heartbeat, not one tick later."""
+    """약속은 마지막 heartbeat 1.5초 뒤의 정지 명령이다."""
     fsm = ready()
     move(fsm, "g1", 0.0)
     fsm.heartbeat(1.0)
@@ -343,8 +336,8 @@ def test_zero_heartbeat_timeout_never_stops():
     assert fsm.tick(100.0, (0.35, 1.7, NORTH), DRIVING, no_obstacle) == []
 
 
-# ---- BLOCKED (Pode_계약 4절, R9) -------------------------------------------------------------
-# 자가 복구를 다 쓴 뒤의 동작이다. recovery_attempts=0은 두 번을 이미 쓴 것과 같다.
+# ---- BLOCKED (Pode_계약 4절) ----------------------------------------------------------
+# 자가 복구를 다 쓴 뒤의 동작이다.
 
 
 def test_blocked_after_one_second_stopped_with_an_obstacle_ahead():
@@ -451,9 +444,7 @@ def test_blocked_stays_after_cancel_while_the_obstacle_remains():
 
 
 def test_blocked_goal_ends_with_timeout_when_the_obstacle_stays():
-    """A goal that cannot go on must end with a failure or TIMEOUT. The fleet manager cancels a
-    blocked goal after blocked_mark_s (10 s), so block_timeout_s (90 s) only matters when the
-    fleet manager does not."""
+    """더 못 가는 goal은 실패나 TIMEOUT으로 끝난다(관제가 취소하지 않으면 block_timeout_s)."""
     fsm = ready(recovery_attempts=0)
     [send] = sends(move(fsm, "g1", 0.0))
     here = (0.35, 1.70, NORTH)
@@ -468,7 +459,7 @@ def test_blocked_goal_ends_with_timeout_when_the_obstacle_stays():
 
 
 def test_a_goal_waiting_after_an_obstacle_abort_still_cancels_when_it_ends():
-    """The latest FollowPath ended, but an older one may still be on its way: cancel."""
+    """마지막 FollowPath가 끝나도 옛 것이 남을 수 있어 취소한다."""
     fsm = ready(recovery_attempts=0)
     [send] = sends(move(fsm, "g1", 0.0))
     here = (0.35, 1.70, NORTH)
@@ -477,7 +468,7 @@ def test_a_goal_waiting_after_an_obstacle_abort_still_cancels_when_it_ends():
 
 
 def test_an_obstacle_that_cleared_in_time_resends_instead_of_timing_out():
-    """Both the clear time and block_timeout_s pass before one tick: the clear wins."""
+    """해제 시간과 block_timeout_s가 한 tick 전에 모두 지나면 해제가 이긴다."""
     fsm = ready(recovery_attempts=0)
     [send] = sends(move(fsm, "g1", 0.0))
     here = (0.35, 1.70, NORTH)
@@ -490,7 +481,7 @@ def test_an_obstacle_that_cleared_in_time_resends_instead_of_timing_out():
 
 
 def test_blocked_goal_times_out_while_nav2_still_holds_it():
-    """BLOCKED for block_timeout_s also ends a goal Nav2 never gave up on, and stops Nav2."""
+    """block_timeout_s 동안 BLOCKED이면 Nav2가 포기하지 않은 goal도 끝내고 멈춘다."""
     fsm = ready(recovery_attempts=0)
     move(fsm, "g1", 0.0)
     here = (0.35, 1.70, NORTH)
@@ -510,7 +501,7 @@ def test_block_timeout_counts_again_after_the_obstacle_clears():
     fsm.heartbeat(1.5)
     fsm.tick(1.5, here, STILL, no_obstacle)
     fsm.heartbeat(2.6)
-    [again] = sends(fsm.tick(2.6, here, STILL, no_obstacle))  # cleared: send the rest again
+    [again] = sends(fsm.tick(2.6, here, STILL, no_obstacle))  # 해제: 나머지 경로를 다시 보낸다
     fsm.nav_result(again.seq, "aborted", 9.0, here, obstacle)
     for t in (10.0, 98.9):
         fsm.heartbeat(t)
@@ -531,9 +522,8 @@ def test_heartbeat_loss_while_blocked_ends_the_goal():
 
 # ---- 자가 복구 (Pode_계약 3절 7번, 4절) ------------------------------------------------------
 
-# 후진 거리 = min(0.15, 마지막으로 지난 꼭짓점(경로 시작 포함)부터 온 거리 - (0.2 + 0.03)).
-# 0.2는 관제 release_distance_m: 꼭짓점에서 이만큼 가면 뒤 레인을 놓고 뒤차가 꼭짓점에 설 수 있다
-STUCK = (0.35, 1.87, NORTH)  # P3(경로 시작)에서 0.32 m. 0.32 - 0.23 = 0.09 m
+# 후진 거리 = min(0.15, 꼭짓점에서 온 거리 - 0.23). 0.2는 관제 release_distance_m
+STUCK = (0.35, 1.87, NORTH)  # P3(경로 시작)에서 0.32 m
 BEHIND = (0.35, 1.78, NORTH)  # 0.09 m 물러난 자리
 EAST = math.atan2(P5[1] - P4[1], P5[0] - P4[0])
 
@@ -561,7 +551,7 @@ def test_standing_at_an_obstacle_backs_up_instead_of_reporting_blocked():
     fsm = ready()
     move(fsm, "g1", 0.0)
     cmds = stand(fsm, 1.0, STUCK)
-    # FollowPath first: BackUp and FollowPath both drive cmd_vel
+    # FollowPath를 먼저 취소한다(BackUp과 FollowPath 둘 다 cmd_vel을 쓴다)
     assert kinds(cmds) == ["CancelNav", "BackUp"]
     [b] = backups(cmds)
     assert b.distance_m == pytest.approx(0.09)
@@ -587,10 +577,10 @@ def test_getting_past_the_stuck_point_ends_the_recovery():
     [b] = backups(stand(fsm, 1.0, STUCK))
     fsm.backup_result(b.seq, "succeeded", 3.0, BEHIND)
     fsm.heartbeat(4.0)
-    fsm.tick(4.0, (0.35, 1.90, NORTH), DRIVING, no_obstacle)  # 0.03 m past
+    fsm.tick(4.0, (0.35, 1.90, NORTH), DRIVING, no_obstacle)  # 0.03 m 지남
     assert fsm.state() == RECOVERING
     fsm.heartbeat(4.2)
-    fsm.tick(4.2, (0.35, 1.93, NORTH), DRIVING, no_obstacle)  # 0.06 m past
+    fsm.tick(4.2, (0.35, 1.93, NORTH), DRIVING, no_obstacle)  # 0.06 m 지남
     assert fsm.state() == MOVING
 
 
@@ -608,8 +598,7 @@ def test_two_failed_attempts_fall_back_to_blocked():
 
 
 def test_a_nav_abort_starts_a_recovery_even_without_an_obstacle():
-    """RPP stops for its own collision check where the lane check sees nothing (the robot drifted
-    toward a rack, 2026-11-08). The abort itself is the trigger."""
+    """RPP 자체 충돌 검사로 선 경우(차선 검사엔 안 보임)도 abort가 후진 조건이다."""
     fsm = ready()
     [send] = sends(move(fsm, "g1", 0.0))
     fsm.heartbeat(2.0)
@@ -637,7 +626,7 @@ def test_a_nav_abort_with_both_attempts_used_fails_with_nav_aborted():
 def test_no_room_behind_only_clears_the_costmap_and_tries_again():
     fsm = ready()
     move(fsm, "g1", 0.0)
-    near_start = (0.35, 1.79, NORTH)  # 0.24 m: 0.24 - 0.23 < backup_min_m 0.02
+    near_start = (0.35, 1.79, NORTH)  # 후진할 거리가 backup_min_m보다 짧다
     cmds = stand(fsm, 1.0, near_start)
     assert kinds(cmds) == ["CancelNav", "ClearCostmap", "SendPath"]
     assert fsm.state() == RECOVERING
@@ -647,32 +636,30 @@ def test_a_skewed_robot_backs_up_less_to_stay_near_the_lane():
     fsm = ready()
     far = (0.35, 2.15)
     move(fsm, "g1", 0.0, path=(P3, far), target=far, target_id="F")
-    # 0.01 m right of the lane, facing 30 deg left of it: backing up drifts further right.
-    # The drift stops at backup_lateral_limit_m 0.03, the position error the fleet allows for
+    # 차선 오른쪽 0.01 m, 왼쪽 30도로 향함: 후진하면 오른쪽으로 더 밀려 backup_lateral_limit_m에서 멈춘다
     skewed = (0.36, 1.95, NORTH + math.radians(30))
     [b] = backups(stand(fsm, 1.0, skewed))
-    assert b.distance_m == pytest.approx(0.04, abs=1e-3)  # (0.01 + 0.03) / sin 30 deg
+    assert b.distance_m == pytest.approx(0.04, abs=1e-3)
 
 
 def test_a_robot_already_off_the_lane_does_not_back_up_further_off():
     fsm = ready()
     far = (0.35, 2.15)
     move(fsm, "g1", 0.0, path=(P3, far), target=far, target_id="F")
-    skewed = (0.40, 1.95, NORTH + math.radians(30))  # 0.05 m right, beyond the 0.03 limit
+    skewed = (0.40, 1.95, NORTH + math.radians(30))  # 오른쪽 0.05 m, 한계 0.03 밖
     cmds = stand(fsm, 1.0, skewed)
-    assert kinds(cmds) == ["CancelNav", "ClearCostmap", "SendPath"]  # no BackUp
+    assert kinds(cmds) == ["CancelNav", "ClearCostmap", "SendPath"]  # BackUp 없음
 
 
 def test_past_a_corner_the_distance_counts_from_the_corner():
-    """Back from P4 toward P3 the robot would stand on the lane behind, which the fleet manager
-    releases 0.2 m past P4. A follower may already wait at P4."""
+    """P4에서 P3 쪽으로 물러나면 뒤 레인에 서게 되므로 후진 거리를 줄인다."""
     fsm = ready()
     move(fsm, "g1", 0.0)
     for t, pose in ((0.5, (0.35, 1.80, NORTH)), (0.8, (*P4, NORTH))):
         fsm.heartbeat(t)
         fsm.tick(t, pose, DRIVING, no_obstacle)
     [b] = backups(stand(fsm, 1.0, (*along(P4, P5, 0.30), EAST)))
-    assert b.distance_m == pytest.approx(0.07, abs=1e-6)  # 0.30 - 0.23, not 0.15 from P3
+    assert b.distance_m == pytest.approx(0.07, abs=1e-6)  # P4 기준
 
 
 def test_just_past_a_corner_only_clears_the_costmap():
@@ -681,7 +668,7 @@ def test_just_past_a_corner_only_clears_the_costmap():
     for t, pose in ((0.5, (0.35, 1.80, NORTH)), (0.8, (*P4, NORTH))):
         fsm.heartbeat(t)
         fsm.tick(t, pose, DRIVING, no_obstacle)
-    cmds = stand(fsm, 1.0, (*along(P4, P5, 0.10), EAST))  # 0.50 m from P3, 0.10 m from P4
+    cmds = stand(fsm, 1.0, (*along(P4, P5, 0.10), EAST))  # P3에서 0.50 m, P4에서 0.10 m
     assert kinds(cmds) == ["CancelNav", "ClearCostmap", "SendPath"]
     assert fsm.state() == RECOVERING
 
@@ -705,10 +692,10 @@ def test_the_obstacle_watch_rests_while_backing_up():
 
 
 def test_a_lost_backup_result_does_not_hold_the_recovery():
-    """BackUp has a 5 s time allowance. Without a result 2 s after that, stop it and go on."""
+    """BackUp 시간 허용(5초) 2초 뒤에도 결과가 없으면 멈추고 계속한다."""
     fsm = ready()
     move(fsm, "g1", 0.0)
-    stand(fsm, 1.0, STUCK)  # BackUp sent at 2.05
+    stand(fsm, 1.0, STUCK)
     fsm.heartbeat(9.0)
     assert fsm.tick(9.0, BEHIND, STILL, obstacle) == []
     fsm.heartbeat(9.1)
@@ -720,7 +707,7 @@ def test_a_failed_backup_still_tries_the_path_again():
     fsm = ready()
     move(fsm, "g1", 0.0)
     [b] = backups(stand(fsm, 1.0, STUCK))
-    cmds = fsm.backup_result(b.seq, "aborted", 2.5, STUCK)  # something behind
+    cmds = fsm.backup_result(b.seq, "aborted", 2.5, STUCK)  # 뒤에 물체
     assert kinds(cmds) == ["ClearCostmap", "SendPath"]
     assert fsm.state() == RECOVERING
 
@@ -750,7 +737,7 @@ def test_a_new_goal_during_recovery_stops_the_backup_and_keeps_the_count():
     cmds = move(fsm, "g2", 2.5, pose=STUCK)
     assert kinds(cmds) == ["Finish", "CancelBackUp", "SendPath"]
     assert fsm.state() == MOVING
-    [b2] = backups(stand(fsm, 3.0, STUCK))  # the second attempt
+    [b2] = backups(stand(fsm, 3.0, STUCK))  # 두 번째 시도
     fsm.backup_result(b2.seq, "succeeded", 5.0, BEHIND)
     assert backups(stand(fsm, 6.0, STUCK)) == []
     assert fsm.state() == BLOCKED
@@ -761,19 +748,18 @@ def test_attempts_start_again_once_the_robot_drives_on():
     move(fsm, "g1", 0.0)
     [b] = backups(stand(fsm, 1.0, STUCK))
     fsm.backup_result(b.seq, "succeeded", 3.0, BEHIND)
-    later = (*along(P4, P5, 0.35), EAST)  # 0.38 m from where the attempt started
+    later = (*along(P4, P5, 0.35), EAST)  # 첫 시도 자리에서 0.38 m
     for t, pose in ((3.5, (0.35, 1.93, NORTH)), (4.0, (*P4, NORTH)), (4.5, later)):
         fsm.heartbeat(t)
         fsm.tick(t, pose, DRIVING, no_obstacle)
     assert fsm.state() == MOVING
     [b1] = backups(stand(fsm, 5.0, later))
     fsm.backup_result(b1.seq, "succeeded", 7.0, (*along(P4, P5, 0.23), EAST))
-    assert len(backups(stand(fsm, 8.0, later))) == 1  # two attempts again
+    assert len(backups(stand(fsm, 8.0, later))) == 1  # 다시 두 번 시도
 
 
 def test_a_successful_goal_resets_the_attempts():
-    """P4 is 0.08 m and the second stuck point 0.24 m from where the first attempt started, so
-    only the success can reset the count."""
+    """첫 시도 자리에서 P4가 0.08 m, 두 번째 막힘이 0.24 m라 성공만 횟수를 되돌린다."""
     fsm = ready()
     move(fsm, "g1", 0.0, path=(P3, P4), target=P4, target_id="P-4")
     [b] = backups(stand(fsm, 1.0, STUCK))
@@ -782,18 +768,18 @@ def test_a_successful_goal_resets_the_attempts():
     assert done == Finish("g1", True, "")
     south = -NORTH
     move(fsm, "g2", 7.0, path=(P4, P3), target=P3, pose=(*P4, south), target_id="P-3")
-    stuck = (0.35, 1.63, south)  # 0.32 m from P4
+    stuck = (0.35, 1.63, south)  # P4에서 0.32 m
     [b1] = backups(stand(fsm, 8.0, stuck))
     fsm.backup_result(b1.seq, "succeeded", 10.0, (0.35, 1.72, south))
-    assert len(backups(stand(fsm, 11.0, stuck))) == 1  # two attempts again
+    assert len(backups(stand(fsm, 11.0, stuck))) == 1  # 다시 두 번 시도
 
 
 def test_no_progress_for_ten_seconds_counts_as_another_attempt():
     fsm = ready()
     move(fsm, "g1", 0.0)
     [b1] = backups(stand(fsm, 1.0, STUCK))
-    fsm.backup_result(b1.seq, "succeeded", 3.0, BEHIND)  # path sent again at 3.0
-    creeping = (0.35, 1.82, NORTH)  # 0.27 m from P3: room for a 0.04 m back-up
+    fsm.backup_result(b1.seq, "succeeded", 3.0, BEHIND)  # 3.0에 경로를 다시 보냄
+    creeping = (0.35, 1.82, NORTH)  # P3에서 0.27 m: 0.04 m 후진할 여유
     for t in (5.0, 8.0, 12.9):
         fsm.heartbeat(t)
         assert fsm.tick(t, creeping, DRIVING, no_obstacle) == []
@@ -801,7 +787,7 @@ def test_no_progress_for_ten_seconds_counts_as_another_attempt():
     cmds = fsm.tick(13.0, creeping, DRIVING, no_obstacle)
     assert kinds(cmds) == ["CancelNav", "BackUp"]
     [b2] = backups(cmds)
-    fsm.backup_result(b2.seq, "succeeded", 15.0, BEHIND)  # sent again at 15.0
+    fsm.backup_result(b2.seq, "succeeded", 15.0, BEHIND)  # 15.0에 다시 보냄
     fsm.heartbeat(25.0)
     assert fsm.tick(25.0, creeping, DRIVING, no_obstacle) == [
         Finish("g1", False, NAV_ABORTED), CancelNav()]
@@ -810,7 +796,7 @@ def test_no_progress_for_ten_seconds_counts_as_another_attempt():
 def test_heartbeat_loss_during_recovery_stops_everything():
     fsm = ready()
     move(fsm, "g1", 0.0)
-    stand(fsm, 1.0, STUCK)  # last heartbeat at 2.05
+    stand(fsm, 1.0, STUCK)  # 마지막 heartbeat 2.05
     assert fsm.tick(3.6, BEHIND, STILL, obstacle) == [
         Finish("g1", False, HEARTBEAT_LOST), CancelBackUp()]
     assert fsm.state() == IDLE
@@ -889,9 +875,7 @@ def test_a_second_retreat_while_waiting_still_waits_for_the_follow_path_to_end()
 
 
 def test_a_retreat_during_a_self_recovery_backup_waits_for_that_backup_to_end():
-    """자가 복구 BackUp이 도는 중이면 그 결과가 오고 바퀴가 설 때까지
-    Retreat의 BackUp을 미룬다. 같은 behavior_server라 바로 보내면 앞 후진이 다 서기 전에
-    새 후진이 이어진다."""
+    """자가 복구 BackUp이 도는 중이면 Retreat의 BackUp은 그 결과와 정지 뒤로 미룬다(같은 behavior_server)."""
     fsm = ready()
     (send,) = sends(move(fsm, "g1", 0.0))
     [b] = backups(stand(fsm, 1.0, STUCK))
@@ -978,8 +962,7 @@ def test_a_new_retreat_still_waits_for_a_backup_whose_waiting_retreat_a_move_rep
 
 
 def test_a_backup_that_never_answers_stops_holding_retreats_after_its_time_allowance():
-    """nav2 BackUp은 time_allowance가 지나면 스스로 선다. 그 뒤(+ 여유)에는 기다리지 않는다.
-    결과를 잃어도 다음 Retreat가 모두 TIMEOUT으로 끝나지 않는다."""
+    """BackUp은 time_allowance 뒤 스스로 서므로 그 뒤(+여유)에는 기다리지 않는다."""
     fsm = ready()
     (b1,) = backups(fsm.retreat("r1", 1.0, 0.3, 0.1))
     fsm.retreat("r2", 1.5, 0.2, 0.1)
@@ -1092,8 +1075,7 @@ def test_a_retreat_with_a_path_backs_along_it_instead_of_backing_up_straight():
     assert send.poses[0][:2] == pytest.approx(P4) and send.poses[-1][:2] == pytest.approx(P3)
     assert all(math.dist(a[:2], b[:2]) <= FsmParams().path_step_m + 1e-9
                for a, b in pairwise(send.poses))
-    # 로봇은 돌지 않고 뒤로 간다: 모든 점의 방향은 진행 방향(남쪽)의 반대인 북쪽이다.
-    # 끝 점 방향이 진행 방향이면 Nav2 goal checker가 끝에서 돌기를 기다린다
+    # 로봇은 돌지 않고 뒤로 간다: 모든 점의 방향이 진행 방향의 반대(북쪽)다
     assert all(yaw == pytest.approx(NORTH) for _, _, yaw in send.poses)
     assert fsm.state() == MOVING and fsm.is_running("r1")
 
@@ -1212,9 +1194,7 @@ def test_a_path_retreat_that_is_not_from_the_robot_fails_at_once(path):
 
 @pytest.mark.parametrize("path", [False, True])
 def test_a_follow_path_with_an_accepted_cancel_but_no_result_holds_a_retreat_for_a_grace(path):
-    """FollowPath 결과를 잃어도 다음 Retreat가 모두 TIMEOUT으로 끝나지
-    않는다. 취소가 받아들여진 FollowPath만 그때부터 nav_result_grace_s 기다리고, 바퀴가 서
-    있으면 간다."""
+    """FollowPath 결과를 잃어도 취소가 수락된 것만 nav_result_grace_s 기다리고, 바퀴가 서 있으면 간다."""
     fsm = ready()
     (send,) = sends(move(fsm, "g1", 0.0))  # 이 FollowPath의 결과는 끝내 오지 않는다
     grace = FsmParams().nav_result_grace_s
@@ -1232,8 +1212,7 @@ def test_a_follow_path_with_an_accepted_cancel_but_no_result_holds_a_retreat_for
 
 
 def test_a_follow_path_whose_cancel_is_not_answered_keeps_holding_and_the_retreat_times_out():
-    """서 있는 것은 goal이 끝났다는 증거가 아니다. 취소가 받아들여지지 않은(거절,
-    무응답) FollowPath는 계속 기다리고 Retreat는 retreat_stop_wait_s 뒤 TIMEOUT이다."""
+    """취소가 수락되지 않은 FollowPath는 서 있어도 기다리고, Retreat는 retreat_stop_wait_s 뒤 TIMEOUT이다."""
     fsm = ready()
     move(fsm, "g1", 0.0)
     fsm.retreat("r1", 1.0, 0.3, 0.1)
@@ -1262,8 +1241,7 @@ def test_a_running_reverse_path_is_waited_for_from_when_its_cancel_is_accepted()
 
 @pytest.mark.parametrize("accept_lost", [False, True])
 def test_a_lost_follow_path_result_ends_the_move_but_still_holds_a_retreat(accept_lost):
-    """결과 future 오류는 goal이 끝났다는 뜻이 아니다. 이동은 aborted처럼 다루되,
-    그 FollowPath는 취소가 받아들여질 때까지 다음 Retreat를 붙든다."""
+    """결과 future 오류는 aborted처럼 다루되 그 FollowPath의 취소가 수락될 때까지 다음 Retreat를 붙든다."""
     twin, fsm = ready(), ready()
     (send,) = sends(move(fsm, "g1", 0.0))
     move(twin, "g1", 0.0)
@@ -1296,12 +1274,11 @@ def test_an_accepted_cancel_of_a_finished_follow_path_changes_nothing():
     (send,) = sends(move(fsm, "g1", 0.0))
     fsm.nav_result(send.seq, "canceled", 0.5, (*P3, NORTH), no_obstacle)
     assert fsm.nav_cancel_accepted(send.seq, 0.6) == []
-    assert not fsm._nav_live  # noqa: SLF001 - 끝난 goal을 다시 살리지 않는다
+    assert not fsm._nav_live  # noqa: SLF001
 
 
 def test_a_path_retreat_with_the_robot_already_at_its_end_fails_at_once():
-    """끝 점 0.15 m 안의 로봇은 따를 길이 없다. 점 하나짜리 FollowPath를 보내지
-    않고 FAILED로 끝낸다(backup_min_m보다 짧으면)."""
+    """끝 점 0.15 m 안이면 점 하나짜리 FollowPath를 보내지 않고 FAILED로 끝낸다."""
     fsm = ready(pose=(*P3, NORTH))
     cmds = fsm.retreat("r1", 1.0, 0.4, 0.05, path=BACK, pose=(0.35, 1.56, NORTH))
     assert cmds[-1] == Finish("r1", False, "FAILED") and not sends(cmds)
@@ -1325,8 +1302,7 @@ def test_a_path_retreat_without_a_pose_fails_at_once():
 
 
 def test_a_slow_path_retreat_limits_the_reverse_controller_to_its_speed():
-    """speed_limit은 띄운 controller 모두에 가고 RPP는 그 값을 속도로 쓴다. 0.05 m/s보다
-    느리게 시키면 그 값으로 제한하고, 빠르게 시키면 FollowPathReverse의 0.05 m/s 그대로다."""
+    """speed_limit은 띄운 controller 모두에 가고, 0.05 m/s보다 느리면 그 값, 빠르면 FollowPathReverse의 0.05 그대로다."""
     fsm = ready(pose=AT_P4)
     cmds = fsm.retreat("r1", 1.0, 0.4, 0.03, path=BACK, pose=AT_P4)
     assert kinds(cmds) == ["LimitSpeed", "SendPath"] and limits(cmds) == [0.03]
@@ -1340,7 +1316,7 @@ def test_a_lock_boundary_limit_is_lifted_before_backing_along_a_path():
     out = fsm.move("g1", 0.0, "P-4", (*P4, NORTH), [P3, P4], (*P3, NORTH), final_goal=False)
     fsm.heartbeat(1.0)
     near = (0.35, 1.90, NORTH)
-    out += fsm.tick(1.0, near, DRIVING, no_obstacle)  # 끝 근처 재전송(R13)도 낸다
+    out += fsm.tick(1.0, near, DRIVING, no_obstacle)  # 끝 근처 재전송도 낸다
     assert [v for v in limits(out) if v > 0.0]
     cmds = fsm.retreat("r1", 1.1, 0.35, 0.1, path=[near[:2], P3], pose=near)
     for send in sends(out):
@@ -1361,10 +1337,7 @@ def test_the_reverse_speed_is_the_reverse_controller_speed():
 
 
 def test_the_robot_and_the_fleet_agree_on_the_reverse_speed():
-    """The fleet times and sends retreats at its retreat_speed_mps, and the robot caps them at
-    reverse_speed_mps. 0.10 (drive tuning 2026-11-14) was put back to 0.05: it moved the timing
-    of the c-layout pose_jumps situation onto a junction, where the fleet let go of a zone the
-    robot was still in because it trusts a jumped report."""
+    """관제는 retreat_speed_mps로 물러나기를 시키고 로봇은 reverse_speed_mps로 제한한다."""
     import yaml
     from conftest import REPO
     data = REPO / "pc" / "fleet_core" / "fleet_core" / "data"
@@ -1387,7 +1360,7 @@ def near_p5(back_m):
 
 
 def can_stop(left, p=None):
-    """What can still stop within left (m) after the limit takes horizon_latency_s to act."""
+    """제한이 듣기까지 horizon_latency_s가 걸린 뒤에도 left(m) 안에 설 수 있는 속도."""
     p = p or FsmParams()
     margin = p.horizon_cap_mps * p.horizon_latency_s
     return math.sqrt(2 * p.horizon_decel_mps2 * max(0.0, left - margin))
@@ -1397,11 +1370,11 @@ def test_a_goal_at_a_lock_boundary_limits_the_speed_to_what_can_stop_at_its_end(
     fsm = ready(horizon_cap_mps=0.25)
     fsm.move("g1", 1.0, "P-5", (*P5, 0.2), [P3, P4, P5], (*P3, NORTH), final_goal=False)
     assert limits(fsm.tick(1.1, (*P3, NORTH), DRIVING, no_obstacle)) == [], "멀면 제한이 없다"
-    # 0.25 m/s x 0.3 s = 0.075 m of the distance left goes by before the limit acts
+    # 제한이 듣기 전에 지나가는 거리를 뺀 남은 거리로 계산한다
     [v] = limits(fsm.tick(1.2, near_p5(0.15), DRIVING, no_obstacle))
-    assert v == pytest.approx(0.19)  # sqrt(2 x 0.25 x 0.075) = 0.194, floored
+    assert v == pytest.approx(0.19)  # 하한 적용
     [v] = limits(fsm.tick(1.3, near_p5(0.10), DRIVING, no_obstacle))
-    assert v == pytest.approx(0.11)  # sqrt(2 x 0.25 x 0.025) = 0.112, floored
+    assert v == pytest.approx(0.11)  # 하한 적용
     assert limits(fsm.tick(1.4, near_p5(0.10), DRIVING, no_obstacle)) == [], "같으면 다시 안 보낸다"
     [v] = limits(fsm.tick(1.5, near_p5(0.07), DRIVING, no_obstacle))
     assert v == pytest.approx(0.05), "아래 한계: the latency margin is used up"
@@ -1451,12 +1424,11 @@ def test_the_limit_never_rounds_above_what_can_stop(back_m):
 
 
 def test_the_limit_never_asks_more_than_the_nav2_desired_speed():
-    """RPP takes an absolute speed limit as its desired_linear_vel without comparing it to the
-    configured one, so a limit of 0.26-0.29 m/s (0.13-0.18 m before the end) would speed up."""
+    """RPP는 절대 속도 제한을 설정과 견주지 않고 쓰므로, 0.26~0.29 m/s 제한이면 오히려 빨라진다."""
     fsm = ready()
     fsm.move("g1", 1.0, "P-5", (*P5, 0.2), [P3, P4, P5], (*P3, NORTH), final_goal=False)
     asked = []
-    for k in range(40):  # from 0.20 m before the end to the end, 5 mm apart
+    for k in range(40):  # 끝 0.20 m 앞부터 끝까지 5 mm 간격
         asked += limits(fsm.tick(1.1 + 0.01 * k, near_p5(0.20 - 0.005 * k), DRIVING, no_obstacle))
     positive = [v for v in asked if v > 0.0]
     assert positive and max(positive) <= nav2_desired_mps()
@@ -1474,7 +1446,7 @@ def nav2_desired_mps() -> float:
     return nav2["controller_server"]["ros__parameters"]["FollowPath"]["desired_linear_vel"]
 
 
-# ---- pass-through controller: every FollowPath goal says whether its end is final -----------
+# ---- 통과 controller: 모든 FollowPath goal이 끝이 최종인지 알린다 -----------------------
 
 
 def test_every_path_of_a_final_goal_is_marked_final():
@@ -1484,8 +1456,7 @@ def test_every_path_of_a_final_goal_is_marked_final():
 
 
 def test_every_path_of_a_goal_at_a_lock_boundary_is_marked_not_final():
-    """The node picks the pass-through controller from this mark, also for the periodic
-    resends near the end (R13)."""
+    """끝 근처 주기 재전송에서도 노드가 이 표시로 통과 controller를 고른다."""
     fsm = ready()
     [send] = sends(fsm.move("g1", 1.0, "P-5", (*P5, 0.2), [P3, P4, P5], (*P3, NORTH),
                             final_goal=False))
@@ -1532,7 +1503,7 @@ def test_the_path_sent_again_near_the_end_also_starts_at_the_robot():
 
 
 def test_the_way_ahead_is_watched_on_the_path_that_was_sent():
-    """Nav2 drives the joining piece, so an object on it is in the way."""
+    """Nav2가 잇는 구간이라 그 위의 물체는 걸림이다."""
     fsm = ready(pose=BESIDE)
     move(fsm, "g1", 1.0, path=(P3, P4), target=P4, pose=BESIDE)
     seen = []
@@ -1558,7 +1529,7 @@ def test_on_a_line_that_comes_back_the_way_ahead_is_the_pass_the_robot_is_on():
 
 
 def test_after_many_corners_the_way_ahead_still_starts_at_the_robot():
-    """Every arc makes the sent path shorter than the line the progress is measured on."""
+    """호가 있으면 보낸 경로가 진행을 재는 선보다 짧다."""
     stairs = [(0.0, 0.0)]
     for i in range(1, 6):  # 0.5 m씩 오른쪽, 위로: 직각 아홉 번
         stairs += [(0.5 * i, 0.5 * (i - 1)), (0.5 * i, 0.5 * i)]
@@ -1578,7 +1549,7 @@ def test_after_many_corners_the_way_ahead_still_starts_at_the_robot():
 
 
 def test_on_a_long_joining_piece_the_way_ahead_starts_at_the_robot():
-    """Far beside the end the joining piece is much longer than the line it stands for."""
+    """끝 옆 멀리에서는 잇는 구간이 그것이 대신하는 선보다 훨씬 길다."""
     beside = (4.9, 0.5, 0.0)
     fsm = ready(pose=beside, connect_tolerance_m=1.0)  # 이만큼 벗어난 로봇도 받게 한다
     fsm.move("g1", 0.0, "X", (5.0, 0.0, 0.0), [(4.0, 0.0), (5.0, 0.0)], beside)
@@ -1596,7 +1567,7 @@ def test_the_join_can_be_switched_off():
 
 
 def test_the_join_does_not_change_progress_or_arrival():
-    """Progress is still measured on the line the fleet sent."""
+    """진행은 관제가 보낸 선 위에서 잰다."""
     fsm = ready(pose=BESIDE)
     [send] = sends(move(fsm, "g1", 1.0, path=(P3, P4), target=P4, pose=BESIDE))
     assert fsm._active.s == pytest.approx(0.0)

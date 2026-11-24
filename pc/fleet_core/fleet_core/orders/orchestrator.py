@@ -54,8 +54,8 @@ class OrderOrchestrator(Faults, Stations):
         self._out: list = []
         self._run_mode: str | None = None
         self._board: list = []
-        self._reported: set[str] = set()  # 최종 보고(SHIPPED, PARTIAL, CANCELED)
-        self._held: dict[str, tuple[str, str]] = {}  # 보류 중: 주문 id -> (로봇, 사유)
+        self._reported: set[str] = set()  # 최종 보고한 주문
+        self._held: dict[str, tuple[str, str]] = {}  # 보류 주문: id -> (로봇, 사유)
         self._over_capacity: set[str] = set()  # 용량 초과를 알린 주문
         self._open_calls: list[int] = []
         self._work = next(s.id for s in stations.values() if s.action == FILL)

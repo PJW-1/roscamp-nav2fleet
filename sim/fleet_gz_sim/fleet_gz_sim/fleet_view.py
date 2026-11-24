@@ -1,17 +1,5 @@
 """관제 화면(시뮬레이션 전용): 관제가 보는 함대를 마커 명세로 바꾼다. rclpy를 쓰지 않는다.
-
-구역 지도(fleet_core.fleet_map)를 그린다.
-- 구역: 종류마다 옅은 바닥색(shared 회색, lane 파랑, dock 호박색).
-- 고정 경로(FollowPath, Retreat)는 얇은 선, 지점은 점과 이름.
-- 쥔 구역: 구역 바닥을 쥔 로봇 색으로 덮는다. 여러 대가 쥔 lane(holder가 "pode1,pode3")은
-  흰 테두리와 이름 글로 그린다. 함께 쓰는 바닥(shared)은 덮지도 두르지도 않고 이름 글만 적는다.
-  기다리는 로봇이 있으면 그 목록도 글로.
-- 로봇: 몸, 방향, 상태 글. 지금 가는 곳(Pode가 보고한 current_goal의 지점이나 스테이션 도크)은
-  로봇 색 깃대와 로봇에서 그곳까지의 가는 선.
-- 앞길(RobotStatus.base, horizon: 지점 이름): base(구역을 쥔 길)는 로봇 위치에서 시작하는 로봇 색
-  실선, horizon(아직 허락받지 않은 길)은 base 끝에서 이어지는 옅고 가는 점선. Nav2 goal 하나로
-  합쳐 나가는 지점(through)에서는 꺾지 않고 그 goal의 끝까지 곧게 잇는다.
-- Nav2가 계획한 경로(로봇의 plan 토픽): 로봇 색의 가는 선. 새 계획이 끊기면 지운다.
+구역, 고정 경로, 쥔 구역, 로봇, 앞길(base, horizon), Nav2 계획 경로를 그린다.
 """
 from __future__ import annotations
 
@@ -217,7 +205,7 @@ class FleetView:
         self._status: dict = {}
         self._pose: dict = {}  # 로봇 -> (x, y, yaw, 시각)
         self._zones: list = []
-        self._goal: dict = {}  # robot -> current_goal as the robot reports it
+        self._goal: dict = {}  # robot -> 로봇이 보고한 current_goal
         self._plan: dict = {}
 
     def set_statuses(self, statuses) -> None:
@@ -233,7 +221,7 @@ class FleetView:
         self._plan[robot] = (tuple((float(x), float(y)) for x, y in points), now)
 
     def goal_pose(self, goal: str):
-        """(x, y) of a MoveTo target node or a Dock station, None if unknown."""
+        """MoveTo 대상 지점이나 Dock 스테이션의 (x, y). 모르면 None."""
         if goal in self.site.nodes:
             return self.site.node_pose(goal)
         station = self.site.stations.get(goal)

@@ -1,8 +1,6 @@
-"""Per-dimension mean and std of the actor's observation normalizer in an rsl_rl checkpoint.
+"""rsl_rl 체크포인트 actor 관측 정규화기의 차원별 평균과 표준편차.
 
-A dimension whose std is near zero was constant in training; the exported policy then divides
-real-robot variation of that input by almost nothing (the empty-floor policy's lidar sectors).
-No Isaac needed:  python learning/store_arena/normalizer_std.py <model_*.pt> [out.csv]
+표준편차가 0 에 가까운 차원은 학습 중 상수였던 것이다. Isaac 없이:  python learning/store_arena/normalizer_std.py <model_*.pt> [out.csv]
 """
 
 import csv
@@ -17,9 +15,9 @@ import task_spec as ts  # noqa: E402
 
 
 def obs_names(dim: int) -> list[str]:
-    """Names of a dim-long observation: the 41-dim layout plus whole intent robots (task_spec)."""
+    """dim 차원 관측의 이름: 41차원 배치에 intent 로봇 단위를 더한 것 (task_spec)."""
     extra = dim - ts.OBS_DIM
-    for prio in (0, 1):  # the 2-robot layouts differ in size, so the first fit is the layout
+    for prio in (0, 1):  # 2대 배치는 크기가 달라 처음 맞는 것이 배치
         per = 1 + prio + 2 * ts.SPEC.intent_points
         if extra >= 0 and extra % per == 0:
             spec = dataclasses.replace(ts.SPEC, intent_robots=extra // per, intent_priority=prio)

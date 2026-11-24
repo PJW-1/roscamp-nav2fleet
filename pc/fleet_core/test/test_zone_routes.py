@@ -74,8 +74,7 @@ def test_a_follow_path_command_sent_again_starts_where_the_robot_is_on_the_line(
     assert [(x, y) for x, y, _ in cmd.path] == [pytest.approx((0.90, 0.89)), (1.63, 0.89)]
 
 
-# D2 후진 꺾는 점은 (0.30, 0.89)다(2-1: 진열대 끝에서 멀리 돌고, 마지막 조각은 N_W로 비스듬히
-# 내려간다)
+# D2 후진 꺾는 점은 (0.30, 0.89)다(마지막 조각은 N_W로 비스듬히 내려간다)
 SLANT = math.hypot(0.05, 0.24)
 
 
@@ -145,7 +144,7 @@ def test_a_route_lists_the_nodes_still_ahead():
     assert route.finished
 
 
-# ---- v7: nav_goal edges joined into one command (E-1->E-3->Q2, O_OUT->E-3->Q2) ----
+# ---- v7: nav_goal edge를 명령 하나로 합침 (E-1->E-3->Q2, O_OUT->E-3->Q2) ----
 NAV = PARAMS.nav_speed_mps
 
 

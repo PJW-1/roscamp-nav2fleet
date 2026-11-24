@@ -1,8 +1,4 @@
-"""로봇의 감시 일화(Robot.watch의 각 Episode 묶음)는 정해 둔 모듈만 쓴다.
-
-일화를 새 모듈이 건드리기 시작하면 그 일화를 누가 열고 닫는지가 다시 흩어진다. 늘리려면 이 표를
-고치며 이유를 남긴다. `m.watch` 자체를 변수에 받아 돌려 쓰면 이 검사를 피하므로 그것도 막는다.
-"""
+"""로봇의 감시 일화(Robot.watch의 각 Episode 묶음)는 정해 둔 모듈만 쓴다. 늘리려면 이 표를 고치며 이유를 남긴다."""
 import ast
 from collections import defaultdict
 from dataclasses import fields

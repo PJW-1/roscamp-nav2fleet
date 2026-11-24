@@ -1,8 +1,4 @@
-"""FleetManager는 두 코어를 잇는다: 내부 호출은 안에 머물고 옛 출력은 그대로 나온다.
-
-D2 배치와 구역 교통 층(ZoneTraffic)에서 돈다. 로봇 흉내는 drive()가 한다: 받은 이동과
-물러나기는 곧바로 끝 점에 닿아 성공하고, 도킹도 곧바로 성공한다.
-"""
+"""FleetManager는 두 코어를 잇는다: 내부 호출은 안에 머물고 옛 출력은 그대로 나온다. 로봇 흉내 drive()는 받은 이동, 물러나기, 도킹을 곧바로 성공시킨다."""
 from core_helpers import cmds
 from fleet_core.common.commands import (
     CancelDispatchCmd,
@@ -48,8 +44,7 @@ def report(core, robot, node, state="IDLE"):
 
 
 def finish(core, robots, out):
-    """out 가운데 robots에 온 이동, 물러나기, 도킹을 곧바로 성공시킨다. order는 base 끝까지 곧바로
-    가서, horizon이 남으면 서서 update를 기다리고 없으면 끝난다. update는 이전 goal을 밀어낸다."""
+    """out 가운데 robots에 온 이동, 물러나기, 도킹을 곧바로 성공시킨다. order는 base 끝까지 가서 horizon이 남으면 update를 기다린다."""
     runs = core.__dict__.setdefault("_test_order_runs", {})  # 로봇 -> (goal id, 끝낸 seq)
     for c in out:
         robot = getattr(c, "robot", None)
@@ -294,8 +289,7 @@ def test_a_cleared_robot_is_out_of_service_with_no_task():
 
 
 def test_a_waiting_robot_shows_the_zone_and_who_is_in_the_way():
-    """a가 작업 도크 앞목(X_W, 구역 J_W)에서 고장 나 섰다. 불린 b는 J_W를 a 때문에 기다린다.
-    (도크에 선 로봇 뒤의 차례는 구역 대기가 아니라 DOCK_QUEUED다.)"""
+    """a가 작업 도크 앞목(X_W)에서 고장 나 섰고 불린 b는 J_W를 a 때문에 기다린다(도크에 선 로봇 뒤의 차례는 DOCK_QUEUED다)."""
     core, _ = make({"a": "X_W", "b": "P-2"})
     core.traffic.on_robot_fault("a", "NAV_ABORTED")
     core.on_order_board("RUN", [O1])

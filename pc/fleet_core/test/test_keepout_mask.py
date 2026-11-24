@@ -85,7 +85,7 @@ def test_the_tool_writes_a_mask_next_to_a_map(tmp_path):
 
 # ---- 구역이 아닌 keepout 사각형(keepout_extra) ----
 V7_GAP = (0.99, 0.365, 1.25, 0.405)  # v7 남쪽 진열대 사이 건넘 틈
-# 칸막이 3과 그 둘레(0.71, 0.0, 0.86, 0.20)는 2026-11-17에 뺐다
+# 칸막이 3과 그 둘레는 없다
 V7_DIVIDER_KEEPS = ((0.19, 0.0, 0.31, 0.20), (0.45, 0.0, 0.57, 0.20))
 
 
@@ -108,8 +108,7 @@ def test_keepout_extra_closes_its_rectangle_without_padding_and_is_no_zone():
 
 
 def test_v7_the_crossing_gap_stays_open_as_a_shortcut():
-    """남쪽 진열대 사이 건넘 틈은 지름길이라 막지 않는다(팀 결정 2026-11-17). 마스크의
-    틈 안 칸은 하나도 닫히지 않고, 그 자리는 HALL이다."""
+    """남쪽 진열대 사이 건넘 틈은 지름길이라 막지 않는다: 마스크의 틈 안 칸이 닫히지 않고 그 자리는 HALL이다."""
     site = load_fleet_map("v7")
     assert V7_GAP not in site.keepout_extra
     assert V7_GAP not in keepout_rects(site) and V7_GAP not in keepout_rects(site, 0.0)
@@ -127,15 +126,11 @@ def test_v7_the_crossing_gap_stays_open_as_a_shortcut():
 
 
 def test_a_dock_left_by_nav_goal_is_open_along_its_way_out():
-    """v7의 W는 WORK_DOCK keepout 한가운데다. NavFn은 선 칸 하나만 비우므로 W -> M_E Nav2 goal이
-    계획되도록 W에서 넓은 곳까지의 곧은 선 둘레(몸 반폭)를 연다. 막다른 주머니라 다른 로봇의 경로가
-    지나갈 일이 없다. 도크의 나머지(북쪽, 남쪽, 동쪽 벽 쪽)는 그대로 막혀 있다."""
+    """v7의 W는 WORK_DOCK keepout 한가운데라, W -> M_E Nav2 goal이 계획되도록 W에서 넓은 곳까지 곧은 선 둘레(몸 반폭)를 연다. 도크의 나머지는 막혀 있다."""
     from fleet_core.fleet_map.keepout import keepout_openings
     site = load_fleet_map("v7")
     (x0, y0, x1, y1), = keepout_openings(site)
-    # 곧은 선이 덧댄 keepout(x 1.72)을 나서는 y 0.532까지의 상자에 몸 반폭 0.06을 두르고
-    # 2026-11-18 밤: W를 x 1.86으로(2 cm 서쪽) 옮겨 동쪽 끝 1.94 -> 1.92, 나서는 y 0.532 -> 0.531
-    # 덧댄 도크 상자 안으로 자른다
+    # 곧은 선이 덧댄 keepout(x 1.72)을 나서는 y까지의 상자에 몸 반폭 0.06을 두르고 덧댄 도크 상자 안으로 자른다
     assert (x0, y0, x1, y1) == pytest.approx((1.72, 0.435, 1.92, 0.5908), abs=1e-3)
     grid = mask(site, *SIZE, RESOLUTION, ORIGIN)
     for x, y in ((1.88, 0.495), (1.80, 0.51), (1.73, 0.53), (1.88, 0.45), (1.88, 0.58)):

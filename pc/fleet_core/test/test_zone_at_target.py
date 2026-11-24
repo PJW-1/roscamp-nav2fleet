@@ -1,8 +1,4 @@
-"""goal은 실패했거나 열린 채 멈췄는데 로봇은 그 goal의 끝 지점에 서 있는 경우.
-
-Gazebo 3대 경기에서 나왔다: 출고 도크에서 물러난 로봇이 끝에 닿았지만 후진 goal이 끝나지 않았고,
-다시 보낸 후진은 "남은 길이 없다"로 바로 실패해서 로봇이 격리됐다.
-"""
+"""goal이 실패했거나 열린 채 멈췄는데 로봇이 그 goal의 끝 지점에 서 있는 경우."""
 import math
 from dataclasses import replace
 
@@ -15,8 +11,7 @@ ON = replace(load_params(), use_order_model=True)
 
 
 def retreat_answer(world):
-    """물러나기 goal의 결과를 넣는 함수(robot, goal, success, reason). order 모델이면 물러나기는
-    order의 조각이므로 order의 결과다."""
+    """물러나기 goal의 결과를 넣는 함수(robot, goal, success, reason)."""
     if world.params.use_order_model:
         return world.traffic.on_move_result
     return world.traffic.on_retreat_result
@@ -31,9 +26,7 @@ def silence_retreat(world):
 
 
 def backing_out(silent_end=True, params=None):
-    """pode1이 작업 도크에서 N_W로 물러나는 세계. silent_end면 끝에 닿아도 결과가 오지 않는다.
-    order 모델에서 물러나기는 order의 첫 조각이다. silent_end면 로봇은 그 조각 끝에서 말없이 선다.
-    answer(robot, goal, success, reason)는 물러나기 goal의 결과를 넣는다."""
+    """pode1이 작업 도크에서 N_W로 물러나는 세계. silent_end면 끝에 닿아도 결과가 오지 않는다."""
     world = Harness(starts={"pode1": "W", "pode2": "P-2", "pode3": "P-3"}, params=params)
     if silent_end and world.params.use_order_model:
         world.hold_after["pode1"] = "retreat"
@@ -95,8 +88,7 @@ def test_a_retreat_that_fails_short_of_its_end_is_still_a_failed_attempt():
 
 
 def stopped_behind_short_of_the_end(order):
-    """pode1이 작업 도크에서 N_W로 물러나다가 끝에서 0.14 m 안(도착 허용 거리 0.15 m 안, 갈림목
-    안)에 서고, 뒤에 무엇이 있다고 답한다."""
+    """물러나다가 끝에서 0.14 m 안(도착 허용 거리 안)에 서고, 뒤에 무엇이 있다고 답한다."""
     params = replace(load_params(), use_order_model=order)
     world, retreat, answer = backing_out(silent_end=False, params=params)
     bot, end = world.bots["pode1"], world.site.node_pose("N_W")
@@ -111,10 +103,7 @@ def stopped_behind_short_of_the_end(order):
 
 @pytest.mark.parametrize("order", [False, True], ids=["order_off", "order_on"])
 def test_a_retreat_stopped_by_something_behind_short_of_its_end_is_not_taken_as_arrived(order):
-    """2026-11-15 order_burst 통합 판: 출고 도크에서 N_E로 물러나던 로봇이 뒤로 지나가는 로봇
-    때문에 끝에서 0.2 m 앞(갈림목 안)에 섰다. 잡음 섞인 보고 하나가 끝에서 0.143 m로 보여 닿았다고
-    쳤고, 갈림목 안에서 받은 Nav2 goal이 세 번 실패해 격리됐다. 뒤가 막혀 선 로봇은 선을 따라
-    남은 길이 허용 거리의 절반을 넘으면 닿은 것이 아니다: 뒤가 빌 때까지 기다린다."""
+    """뒤가 막혀 선 로봇은 남은 길이 허용 거리의 절반을 넘으면 닿은 것이 아니라 뒤가 빌 때까지 기다린다."""
     world, retreat = stopped_behind_short_of_the_end(order)
     codes = world.codes("pode1")
     assert "GOAL_ENDED_AT_TARGET" not in codes and "RETREAT_DONE" not in codes
@@ -132,8 +121,7 @@ def test_a_retreat_stopped_by_something_behind_backs_out_again_when_it_is_gone(o
 
 
 def test_a_robot_sent_somewhere_else_forgets_how_long_something_was_behind():
-    """뒤가 막혀 기다리던 로봇의 배차가 취소되면 가던 길은 버리는데 기다린
-    시각은 남았다. 나중의 다른 후진이 그 시각부터 blocked_timeout_s를 셌다."""
+    """뒤가 막혀 기다리던 로봇의 배차가 취소되면 기다린 시각도 지운다."""
     world = Harness(starts={"pode1": "W", "pode2": "P-2", "pode3": "P-3"})
     world.report()
     call = world.call("OUTBOUND", "pode1")
@@ -252,9 +240,7 @@ def aborted_short_of_the_end(gap_m: float):
 
 
 def test_a_failed_move_that_stopped_inside_the_tolerance_but_short_of_the_end_is_retried():
-    """관제의 도착 허용 거리와 로봇이 받은 경로에 붙었다고 보는 거리는 같다(0.15 m). 로봇이 닿았다고
-    한 것이 아닌데 그 언저리의 보고 하나로 닿은 것으로 보면, 이어 보낸 고정 경로를 로봇이 거절한다
-    (ROS 시나리오 shared_lane_failure에서 나왔다: 보고 0.128 m, 실제 약 0.19 m)."""
+    """도착 허용 거리와 경로에 붙었다고 보는 거리는 같다(0.15 m): 닿았다는 보고 없이 언저리 보고 하나로 닿았다고 보지 않는다."""
     world, first = aborted_short_of_the_end(0.10)
     assert world.params.arrival_tolerance_m == 0.15
     codes = world.codes("pode2")
@@ -274,8 +260,7 @@ def test_a_failed_move_that_stopped_at_the_end_within_its_stop_error_is_taken_as
 
 
 def test_a_failed_retreat_with_the_robot_beside_its_end_is_still_taken_as_arrived():
-    """후진은 선을 따라가므로 끝까지 온 로봇에게 다시 보내면 남은 길이 없어 바로 실패한다
-    (pode_fsm의 _too_short). 끝 점에서 옆으로 벗어나 있어도 도착 허용 거리 안이면 닿은 것이다."""
+    """끝까지 온 로봇에게 후진을 다시 보내면 바로 실패하므로, 끝에서 옆으로 벗어나도 허용 거리 안이면 닿은 것이다."""
     world, retreat, answer = at_the_end_unanswered()
     world.bots["pode1"].y -= 0.10  # 선의 옆으로. 선을 따라서는 끝에 있다
     world.step()
@@ -289,8 +274,7 @@ def test_a_failed_retreat_with_the_robot_beside_its_end_is_still_taken_as_arrive
 # ---- 짧은 고정 경로: 출발점도 끝 지점의 허용 거리 안이다 ----
 
 def backing_into_the_bay():
-    """v7: pode1이 칸 입구 E-1에서 P-1로 후진해 들어가려 한다. E-1과 P-1은 0.14 m 떨어져 있어
-    도착 허용 거리(0.15 m)보다 가깝다. 후진은 움직이지 않고, 결과도 저절로 오지 않는다."""
+    """v7: E-1과 P-1은 0.14 m라 도착 허용 거리보다 가깝다. 후진은 움직이지 않고 결과도 오지 않는다."""
     world = Harness(layout="v7", starts={"pode1": "E-1", "pode2": "P-2", "pode3": "P-3"})
     world.report()
     answer = silence_retreat(world)
@@ -335,8 +319,7 @@ def test_a_bay_retreat_that_failed_most_of_the_way_in_is_taken_as_parked():
 
 
 def comm_back_during_the_bay_retreat(short_of_p1_m=None):
-    """칸 후진 중에 보고가 끊겼다가 돌아와 관제가 선 자리를 확인한 세계. short_of_p1_m이 있으면
-    끊긴 동안 로봇이 칸 안, P-1에서 그만큼 앞으로 옮겨 있다."""
+    """칸 후진 중 보고가 끊겼다 돌아오면 관제가 선 자리를 확인한다. short_of_p1_m은 끊긴 동안 P-1에서 못 미친 거리다."""
     world, _, answer = backing_into_the_bay()
     world.silent.add("pode1")
     assert world.run_until(lambda: "COMM_LOST" in world.codes("pode1"), 10.0)
@@ -367,9 +350,7 @@ def test_a_robot_heard_again_most_of_the_way_into_the_bay_is_taken_as_parked():
 
 
 def test_a_short_reverse_edge_failed_near_its_end_is_taken_as_reached():
-    """후진 edge가 짧으면(0.03) 절반을 못 갔어도 끝에 허용치 절반(0.075) 안이면 닿은 것으로 본다.
-    다시 보내면 pode_fsm의 가장 짧은 후진(backup_min_m 0.02)보다 짧아 곧바로 실패한다.
-    칸 입구에 그대로 선 로봇(0.14)은 여전히 닿지 않았다."""
+    """후진 edge가 짧으면 끝에서 허용치 절반(0.075) 안에서 닿은 것으로 본다. 칸 입구의 로봇(0.14)은 닿지 않았다."""
     from types import SimpleNamespace
 
     from fleet_core.fleet_map import RETREAT, Edge
@@ -385,9 +366,7 @@ def test_a_short_reverse_edge_failed_near_its_end_is_taken_as_reached():
 # ---- order 안의 끝내지 않은 조각 끝에 서 있는 로봇 ----
 
 def parking_into_p1(stand_at):
-    """v7 order: pode1이 W에서 칸으로 간다. 마지막 update의 base는 [3 nav_goal E-1, 4 retreat
-    P-1]이고 E-1과 P-1은 0.14 m(도착 허용 거리 0.15 m 안)다. 로봇은 stand_at까지 가서 끝냈다는
-    말 없이 선다(E-1이면 seq 3 끝, P-1이면 seq 4 끝). 끝낸 seq는 2까지만 관제에 닿았다."""
+    """v7 order: pode1이 W에서 칸으로 간다. 로봇은 stand_at까지 가서 끝냈다는 말 없이 선다(E-1은 seq 3, P-1은 seq 4 끝)."""
     world = Harness(layout="v7", starts={"pode1": "W", "pode2": "P-2", "pode3": "P-3"},
                     params=ON)
     world.report()
@@ -411,9 +390,7 @@ def parking_into_p1(stand_at):
 
 
 def test_an_order_that_fails_with_the_robot_at_an_unfinished_segment_end_is_taken_as_arrived():
-    """끈 길은 goal이 실패해도 끝에 서 있으면 닿은 것으로 본다(GOAL_ENDED_AT_TARGET). order는 base
-    끝(P-1)만 보았으므로 E-1에 선 로봇을 실패한 시도로 셌다. 가까운 두 끝 가운데 로봇이 실제로 닿은
-    E-1이다: P-1로 가는 후진 edge의 방향 검사가 E-1에 선 로봇을 P-1에 닿았다고 보지 않는다."""
+    """끈 길은 goal이 실패해도 끝에 서 있으면 닿은 것이다. 가까운 두 끝(E-1, P-1) 가운데 실제로 닿은 E-1로 본다."""
     world, update = parking_into_p1("E-1")
     world.traffic.on_move_result("pode1", update.goal_id, False, "NAV_ABORTED", 2)
     world.step()
@@ -424,8 +401,7 @@ def test_an_order_that_fails_with_the_robot_at_an_unfinished_segment_end_is_take
 
 
 def test_an_order_that_fails_with_the_robot_at_the_base_end_behind_a_close_segment_end_parks():
-    """seq 3(E-1)과 seq 4(물러나 P-1)를 끝냈다는 말이 둘 다 오지 않았다. 건너뛴 두 조각도 피드백으로
-    끝낸 것처럼 SEGMENT_DONE과 RETREAT_DONE을 내고 물러날 곳을 지운다."""
+    """seq 3, 4 끝냈다는 말이 둘 다 없으면 건너뛴 조각도 끝낸 것으로 보고 SEGMENT_DONE과 RETREAT_DONE을 낸다."""
     world, update = parking_into_p1("P-1")
     before = world.codes("pode1").count("SEGMENT_DONE")
     world.traffic.on_move_result("pode1", update.goal_id, False, "NAV_ABORTED", 2)
@@ -448,8 +424,7 @@ def test_an_order_left_open_at_an_unfinished_segment_end_is_taken_as_arrived_whe
 
 
 def test_late_feedback_of_an_order_already_taken_as_arrived_changes_nothing():
-    """닿은 것으로 본 뒤에 늦게 온 그 goal의 피드백(seq 3 끝냄)은 버린다. 다시 SEGMENT_DONE을
-    내거나 선 자리를 바꾸지 않고, 로봇은 새 goal로 칸에 들어간다."""
+    """닿은 것으로 본 뒤 늦게 온 피드백은 버리고 로봇은 새 goal로 칸에 들어간다."""
     world, update = parking_into_p1("E-1")
     world.traffic.on_move_result("pode1", update.goal_id, False, "NAV_ABORTED", 2)
     world.step()
@@ -468,8 +443,7 @@ def test_late_feedback_of_an_order_already_taken_as_arrived_changes_nothing():
 
 
 def test_with_two_segment_ends_inside_the_tolerance_the_one_nearer_the_robot_is_taken():
-    """E-1(nav_goal 끝)과 P-1(물러나기 끝)이 둘 다 닿았다고 볼 수 있는 자리(E-1에서 0.068 m, P-1에서
-    0.072 m)면 더 가까운 E-1이다. 먼 끝부터 고르면 물러나지 않은 로봇을 칸 안에 있다고 본다."""
+    """E-1과 P-1이 둘 다 닿을 수 있는 자리면 더 가까운 E-1로 본다."""
     world, update = parking_into_p1("E-1")
     bot = world.bots["pode1"]
     (ex, ey), (px, py) = world.site.node_pose("E-1"), world.site.node_pose("P-1")

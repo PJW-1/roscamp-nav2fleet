@@ -53,8 +53,7 @@ FOOTPRINT = [(0.040, 0.021), (0.036, 0.031), (0.029, 0.056), (-0.029, 0.056), (-
 
 
 def test_the_default_disc_covers_the_body_with_a_small_margin():
-    """P-3 앞 멈춤(2026-11-17): 0.08은 몸보다 옆 2.4 cm 커서 좁은 틈을 막았다. 몸 가운데에서 가장 먼
-    꼭짓점(0.073 m)을 덮고 여유는 2 mm만 둔다."""
+    """몸 가운데에서 가장 먼 꼭짓점(0.073 m)을 덮고 여유는 2 mm만 둔다(0.08은 좁은 틈을 막는다)."""
     farthest = max(math.dist(p, (CENTRE_M, 0.0)) for p in FOOTPRINT)
     assert RADIUS_M == 0.075
     assert farthest < RADIUS_M <= farthest + 0.003

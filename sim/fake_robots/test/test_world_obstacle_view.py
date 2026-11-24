@@ -29,7 +29,7 @@ def test_a_check_answers_from_the_objects_within_range_and_line_of_sight():
 
 
 def test_a_check_looks_past_the_sim_shelves_not_the_measured_ones():
-    # 가짜 로봇은 시뮬 진열대(sim_shelves)로 시야를 본다(2026-11-20)
+    # 가짜 로봇은 시뮬 진열대(sim_shelves)로 시야를 본다
     from types import SimpleNamespace
 
     from fake_robots.world.apply import Commands
