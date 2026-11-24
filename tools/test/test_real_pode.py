@@ -491,7 +491,7 @@ def test_env_values():
                  "nav2fleet_ws/install/local_setup.bash"):
         assert path in text
     # 도메인은 net.sh 한곳에만 둔다
-    assert "FLEET_DOMAIN_ID:-6" in (KIT / "net.sh").read_text(encoding="utf-8")
+    assert "export ROS_DOMAIN_ID=12" in (KIT / "net.sh").read_text(encoding="utf-8")
     assert "ROS_DOMAIN_ID" not in text
 
 
@@ -500,10 +500,10 @@ NET_VARS = ("ROS_DOMAIN_ID", "RMW_IMPLEMENTATION", "ROS_AUTOMATIC_DISCOVERY_RANG
             "ROS_DISCOVERY_SERVER", "ROS_SUPER_CLIENT", "ROS_LOCALHOST_ONLY", "ROS_STATIC_PEERS")
 DEFAULT_SERVER = "192.168.0.252:11811"
 # 다른 설정이 남아 있는 셸에서 시작한다
-POLLUTED = {"ROS_DOMAIN_ID": "33", "RMW_IMPLEMENTATION": "rmw_cyclonedds_cpp",
+POLLUTED = {"ROS_DOMAIN_ID": "6", "RMW_IMPLEMENTATION": "rmw_cyclonedds_cpp",
             "ROS_AUTOMATIC_DISCOVERY_RANGE": "LOCALHOST", "ROS_DISCOVERY_SERVER": "10.9.9.9:1",
             "ROS_SUPER_CLIENT": "TRUE", "ROS_LOCALHOST_ONLY": "1", "ROS_STATIC_PEERS": "10.9.9.8"}
-SERVER_MODE = {"ROS_DOMAIN_ID": "6", "RMW_IMPLEMENTATION": "rmw_fastrtps_cpp",
+SERVER_MODE = {"ROS_DOMAIN_ID": "12", "RMW_IMPLEMENTATION": "rmw_fastrtps_cpp",
                "ROS_AUTOMATIC_DISCOVERY_RANGE": "SUBNET", "ROS_DISCOVERY_SERVER": DEFAULT_SERVER}
 MULTICAST_MODE = {k: v for k, v in SERVER_MODE.items() if k != "ROS_DISCOVERY_SERVER"}
 PRINT_NET = ('for v in ' + " ".join(NET_VARS)
@@ -531,26 +531,6 @@ def test_net_default_is_server_mode_and_clears_old_values():
     run, got = _sourced([f'source "{KIT}/net.sh"'])
     assert run.returncode == 0, run.stderr
     assert got == SERVER_MODE
-
-
-# ---- 도메인: FLEET_DOMAIN_ID, 기본 6(팀 규칙 IR-81) ----
-@pytest.mark.parametrize("value, domain", [("12", "12"), ("0", "0"), ("232", "232"),
-                                           ("", "6")])
-def test_net_domain_comes_from_fleet_domain_id(value, domain):
-    run, got = _sourced([f'source "{KIT}/net.sh"'], {"FLEET_DOMAIN_ID": value})
-    assert run.returncode == 0, run.stderr
-    assert got == {**SERVER_MODE, "ROS_DOMAIN_ID": domain}
-
-
-@pytest.mark.parametrize("nounset", [True, False])
-@pytest.mark.parametrize("bad", ["abc", "-1", "233", "1000", "1.5", " 7", "6 ",
-                                 "99999999999999999999"])
-def test_net_refuses_a_bad_domain_and_exports_nothing(bad, nounset):
-    run, got = _sourced((["set -u"] if nounset else [])
-                        + [f'source "{KIT}/net.sh"; echo "rc=$?"'], {"FLEET_DOMAIN_ID": bad})
-    assert "rc=1" in run.stdout.splitlines()
-    assert "FLEET_DOMAIN_ID" in run.stderr
-    assert got == POLLUTED, "a bad value must leave the shell as it was"
 
 
 def test_net_other_server_address():
