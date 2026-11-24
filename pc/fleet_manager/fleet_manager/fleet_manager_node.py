@@ -191,6 +191,8 @@ class FleetManagerNode(Node):
 
     def _retry_cancels(self, now: float) -> None:
         params = self.core.params
+        # 코어가 취소하지 않고 정한 결과 잃은 goal의 handle은 정하는 시간의 두 배 뒤 놓는다
+        self._goals.drop_stale_lost(now, 2 * params.robot_timeout_settle_s)
         for server, goal_id in self._goals.retry_cancels(now, params.cancel_retry_s,
                                                          params.cancel_warn_after):
             waited = params.cancel_warn_after * params.cancel_retry_s

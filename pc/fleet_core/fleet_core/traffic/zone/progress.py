@@ -50,6 +50,8 @@ class Progress:
         self._pose_watch.watch(m, x, y, yaw, now)
         m.x, m.y, m.yaw = x, y, yaw
         m.heard_since_success = True
+        if m.result_lost_at is not None:
+            self._settle_lost(m, now)  # 결과 모름은 들은 그 순간의 보고로 정한다
         if m.health.fault == OUT_OF_SERVICE:
             return
         if not m.placed:
