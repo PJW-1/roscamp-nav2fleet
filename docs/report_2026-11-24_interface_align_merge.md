@@ -70,7 +70,7 @@ no-motion의 결정 세 가지(사용자 결정)를 no-motion 브랜치에 넣�
 | 커밋 | 합친 것 |
 |---|---|
 | 1d507bf (21acc69 합침) | 모르는 `dock_id`는 경고만(`no_motion_dock_ids`, 기본 `WORK`, `OUTBOUND`), `NO_MOTION=1 start.sh NAMESPACE [X Y YAW]`(로봇별 기본 자리 P-1~P-3은 `start.sh`에만), `stop.sh`가 이것도 내림, order current_goal은 실주행처럼 유지 |
-| 978f533 | 리뷰로 고친 것: 자세는 숫자만, `PEER_ROBOTS`는 비어야 함, `stop.sh`는 `start.sh`의 인자 순서 그대로인 `pode_fsm.launch.py`만 내림 |
+| 978f533 | 리뷰로 고친 것: 자세는 숫자만, `PEER_ROBOTS`는 비어야 함, `stop.sh`는 `real_pode.launch.py`나, 명령줄에 `pode_fsm.launch.py namespace:=… no_motion:=true initial_x:=`가 이 순서로 든 그룹만 내림(그 뒤 인자는 보지 않음) |
 
 | 시험 (합친 판) | 결과 |
 |---|---|
