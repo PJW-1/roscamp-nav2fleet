@@ -63,6 +63,24 @@ no-motion과 interface-align이 `node.py`의 같은 자리를 고쳤다. 둘 다
 1. **pode_fsm 3개 (고침, 449d2bd)**: `test_ros_no_motion.py`의 시나리오 재고가 옛 이름 `arm1`, `arm2`를 썼다. no-motion 브랜치는 0.6 main(옛 이름)에서 시작해서 그 브랜치에서는 맞지만, 새 이름 판에서는 가짜 노드가 `stock for arm1, which is not one of ['arm_left', 'arm_right']`로 거부한다. FakePode 비교 시험 세 개가 비교 전에 멈췄다. 새 이름으로 바꾸자 그 파일 8개가 모두 통과했다. Codex 리뷰가 찾았다.
 2. **tools 1개 (부하 때 시간 문제)**: `tools/test/test_step_probe.py::test_a_second_probe_is_refused`. 시험 네 묶음과 다른 세션의 시험이 함께 돌던 때(load 10 안팎) 실패했다. 따로 세 번 돌리면 세 번 모두 통과한다. 합친 판은 이 도구를 바꾸지 않았다.
 
+## 뒤에 더 합친 것 (2026-11-24 오후)
+
+no-motion의 결정 세 가지(사용자 결정)를 no-motion 브랜치에 넣은 뒤 같은 방식으로 합쳤다. 충돌은 없었다.
+
+| 커밋 | 합친 것 |
+|---|---|
+| (21acc69 합침) | 모르는 `dock_id`는 경고만(`no_motion_dock_ids`, 기본 `WORK`, `OUTBOUND`), `NO_MOTION=1 start.sh NAMESPACE [X Y YAW]`(로봇별 기본 자리 P-1~P-3은 `start.sh`에만), `stop.sh`가 이것도 내림, order current_goal은 실주행처럼 유지 |
+| 978f533 | 리뷰로 고친 것: 자세는 숫자만, `PEER_ROBOTS`는 비어야 함, `stop.sh`는 `start.sh`의 인자 순서 그대로인 `pode_fsm.launch.py`만 내림 |
+
+| 시험 (합친 판) | 결과 |
+|---|---|
+| pode_fsm | 506 passed, 6 skipped (21acc69 합친 판) |
+| tools 전체 | 1 failed, 304 passed, 1 skipped (21acc69 합친 판) → 아래 |
+| `test_real_pode.py -k "no_motion or stop or start"` | 72 passed (978f533) |
+
+- tools의 실패는 앞의 2번과 같은 `test_step_probe.py::test_a_second_probe_is_refused`다. 다른 세션의 Gazebo 측정으로 load average가 50을 넘던 때였다. 그때 따로 다섯 번 돌리면 세 번 실패했다. 이 도구와 시험은 main과 같고, 합친 것들이 건드리지 않았다. 부하가 낮던 때의 전체 실행(f3f156a, 289 passed)과 no-motion 브랜치 전체 실행(304 passed, 1 skipped)에서는 통과했다.
+- `start.sh`와 `stop.sh`는 no-motion 브랜치의 판과 같다. 거기서 같은 시험 72개가 통과했다.
+
 ## 앞으로
 
 이번 주 브랜치(`feat/no-motion-2026-11-24`, `feat/arm-rename-0.6-2026-11-24`, main)에 고친 것이 생기면 같은 방식(merge, force 없음)으로 이 브랜치에 계속 합친다.
