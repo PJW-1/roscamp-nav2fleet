@@ -23,7 +23,9 @@ LOOK_BACK_S = 0.5  # 관제 feedback 주기(0.2 s)보다 넉넉히: 앞 조각 �
 def segment_ends(rows):
     """nav_goal 조각마다 (로봇, x, y, 창 시작, 끝, 성공). 창은 조각이 시작한 때(앞 조각 끝이 보고된 때)보다
     LOOK_BACK_S 앞에서 연다. 주문 갱신은 같은 order의 진행으로 잇는다. 실패·취소로 끝난 nav_goal 조각도
-    내며, 갱신 뒤에 온 옛 goal의 실패와 새 order 뒤에 온 이전 order의 취소도 센다."""
+    내며, 갱신 뒤에 온 옛 goal의 실패와 새 order 뒤에 온 이전 order의 취소도 센다.
+    한계: 이전 order는 하나만 기억하고, 늦게 온 실패 결과의 시각까지 창을 연다. 11-24 판들에서 새 명령 뒤에
+    온 실패 결과는 5건, 가장 늦은 것이 0.068 s였고 결과를 기다리는 goal이 둘 넘게 쌓인 적은 없었다."""
     cur, retired, out = {}, {}, []
 
     def advance(c, t, done):

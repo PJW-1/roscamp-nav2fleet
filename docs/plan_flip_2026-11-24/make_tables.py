@@ -3,6 +3,7 @@
 
 판 이름: 1단계 s1_<cm>_<판><회>(기준, RPP), 2단계 s2_<cm>_<안>_<컨트롤러>_<판><회>.
 cm: a1 = 1 cm, a = 2.5 cm. 판: v = 장애물(gz_v7_varied), r = 러시(gz_v7_rush). 안: base, A, B, C.
+1단계 판과 2단계 기준 RPP 판(s2_<cm>_base_rpp_*)은 같은 조건이라 일부러 한 묶음으로 센다.
 사용: python3 make_tables.py metrics.csv arrival.csv > tables.md
 """
 import csv
@@ -78,9 +79,10 @@ def main():
                     mean = sum(got) / len(got)
                     each = "/".join("-" if v is None else f"{v:g}" for v in vals)
                     if col == "pass":
-                        cells.append(f"{int(sum(got))}/{len(got)}")
+                        # 값이 빈 판은 통과로 세지 않는다
+                        cells.append(f"{int(sum(got))}/{len(vals)}")
                     elif col == "duration_s":
-                        cells.append(f"{mean:.0f}")
+                        cells.append(f"{mean:.0f} ({'/'.join('-' if v is None else f'{v:.0f}' for v in vals)})")
                     else:
                         cells.append(f"{mean:.1f} ({each})")
                 print(f"| {PLAN[k[2]]} | {CTRL[k[3]]} | {len(runs)} | " + " | ".join(cells) + " |")
