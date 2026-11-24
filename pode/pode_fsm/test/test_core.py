@@ -16,6 +16,7 @@ from pode_fsm.core import (
     LOCALIZING,
     MOVING,
     NAV_ABORTED,
+    NAV_UNAVAILABLE,
     PATH_NOT_CONNECTED,
     RECOVERING,
     TIMEOUT,
@@ -73,6 +74,42 @@ def test_starts_localizing_until_a_pose_arrives():
     assert fsm.state() == LOCALIZING
     fsm.tick(0.1, (*P3, NORTH), STILL, no_obstacle)
     assert fsm.state() == IDLE and fsm.current_goal() == ""
+
+
+def test_reports_localizing_until_the_nav2_servers_are_ready():
+    """11-23 실물: follow_path가 뜨기 전에 IDLE을 보고해 관제가 보낸 goal이 세 번 실패하고 격리됐다."""
+    fsm = PodeFsm(FsmParams())
+    fsm.set_nav_ready(False)
+    fsm.tick(0.0, (*P3, NORTH), STILL, no_obstacle)
+    assert fsm.state() == LOCALIZING
+    fsm.set_nav_ready(True)
+    fsm.tick(0.1, (*P3, NORTH), STILL, no_obstacle)
+    assert fsm.state() == IDLE
+
+
+def test_once_ready_a_server_that_drops_out_does_not_turn_localizing():
+    fsm = ready()
+    fsm.set_nav_ready(True)
+    fsm.set_nav_ready(False)
+    fsm.tick(0.1, (*P3, NORTH), STILL, no_obstacle)
+    assert fsm.state() == IDLE
+
+
+def test_a_goal_before_nav2_is_ready_ends_as_unavailable_without_driving():
+    fsm = PodeFsm(FsmParams())
+    fsm.set_nav_ready(False)
+    fsm.tick(0.0, (*P3, NORTH), STILL, no_obstacle)
+    cmds = move(fsm, "g1", 0.1)
+    assert cmds == [Finish("g1", False, NAV_UNAVAILABLE)]
+    assert fsm.current_goal() == ""
+
+
+def test_a_path_the_server_was_not_there_for_ends_as_unavailable():
+    fsm = ready()
+    [send] = sends(move(fsm, "g1", 0.0))
+    cmds = fsm.nav_result(send.seq, "unavailable", 0.2, (*P3, NORTH), no_obstacle)
+    assert Finish("g1", False, NAV_UNAVAILABLE) in cmds
+    assert fsm.current_goal() == ""
 
 
 def test_goal_without_a_pose_fails_at_once():

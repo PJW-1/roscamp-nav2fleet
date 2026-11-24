@@ -21,6 +21,7 @@ from pode_fsm.core import (
     SendPath,
 )
 from pode_fsm.nav_goal import CancelNavGoal, SendNavGoal
+from pode_fsm.results import NAV_UNAVAILABLE
 from pode_fsm.order_fsm import (
     HORIZON_INVALID,
     ORDER_UPDATE_REJECTED,
@@ -385,6 +386,22 @@ def test_a_robot_that_slid_off_the_line_while_stopping_ends_the_order():
     assert not of(cmds, SendPath)
     assert finishes(cmds) == [Finish("g1", False, PATH_NOT_CONNECTED, 1)]
     assert not fsm.is_running("g1")
+
+
+def test_an_order_before_nav2_is_ready_ends_as_unavailable():
+    fsm = OrderFsm(FsmParams())
+    fsm.set_nav_ready(False)
+    fsm.tick(0.0, HERE, STILL, no_obstacle)
+    cmds = order(fsm, "g1", 0.1, [S1, S2])
+    assert finishes(cmds) == [Finish("g1", False, NAV_UNAVAILABLE)]
+    assert not of(cmds, SendPath) and not fsm.is_running("g1")
+
+
+def test_a_nav_goal_the_server_was_not_there_for_ends_the_order_as_unavailable():
+    fsm = ready()
+    [first] = of(order(fsm, "g1", 1.0, [goal_seg(1, 0.8, 0.3)]), SendNavGoal)
+    cmds = fsm.nav_goal_result(first.seq, "unavailable", 1.2, HERE)
+    assert [(f.goal_id, f.success, f.reason) for f in finishes(cmds)] == [("g1", False, NAV_UNAVAILABLE)]
 
 
 def test_pass_distance_leaves_room_below_the_join_tolerance():

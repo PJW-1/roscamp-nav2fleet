@@ -11,6 +11,7 @@ from fleet_core.traffic.mission import (
     LOCALIZING,
     MOVE,
     NAV_ABORTED,
+    NAV_UNAVAILABLE,
     NOT_AT_TARGET,
     PATH_NOT_CONNECTED,
     RETREAT,
@@ -209,6 +210,12 @@ class Results:
             return
         if reason == HEARTBEAT_LOST:
             m.retry_at = self._clock() + self.params.move_retry_wait_s
+            return
+        if reason == NAV_UNAVAILABLE:
+            # 로봇의 Nav2 서버가 아직 없어 보내지 못한 goal: 세지 않고 기다렸다 다시 보낸다
+            m.retry_at = self._clock() + self.params.move_retry_wait_s
+            self._event("WARN", "GOAL_NAV_UNAVAILABLE", "Nav2 is not up on the robot, not an "
+                        "attempt, sends it again", m.name)
             return
         if reason == NAV_ABORTED and self._lost_pose_lately(m):
             # 위치를 잃어 로봇이 끝낸 goal: 세지 않고 위치가 돌아온 뒤 다시 보낸다
