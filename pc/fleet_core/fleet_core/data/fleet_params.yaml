@@ -74,6 +74,8 @@ pose_jump_window_s: 2.0       # 위치 추정 감시: 이 시간 안의 두 보�
 pose_jump_m: 0.15             # 로봇이 갈 수 있는 거리보다 이만큼 넘게 옮겨졌으면 LOCALIZATION_SUSPECT(기록만)
 pose_jump_quiet_s: 5.0        # 한 번 낸 뒤 이만큼은 다시 내지 않는다
 redock_wait_s: 10.0           # 추정: 도킹이 실패한 로봇이 물러날 길이 비기를 기다리는 시간. 넘으면 그 자리에서 다시 도킹한다
+lost_dock_reach_m: 0.15       # 도킹 결과를 잃었을 때 보고 위치가 도크 지점에서 이만큼 안이면 도킹 완료(IR-62)
+lost_dock_yaw_deg: 15.0       # 추정: 그때 보고 방향도 도크 방향에서 이만큼 안이어야 한다
 retreat_clear_m: 0.20         # 관제가 시키는 물러나기의 길이 다른 로봇에 이만큼 안으로 다가가면 내지 않는다
 use_order_model: true        # order 모델(base/horizon, 이어 붙이기). 끄면 조각 하나씩 보낸다
 lookahead_s: 2.0              # order 모델: base 끝까지 이만큼 남으면 다음 구역을 잡아 본다
