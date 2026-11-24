@@ -207,7 +207,7 @@ def stable(rec):
 def scenario_file(tmp_path):
     robot = {"start": START, "speed_scale": 1.0, "pose_noise_m": 0.0, "stop_error_m": 0.0}
     data = {"seed": 3, "speed_factor": 1.0, "timeout_s": 600,
-            "stock": {"arm1": {"A": 3}, "arm2": {"C": 3}},
+            "stock": {"arm_left": {"A": 3}, "arm_right": {"C": 3}},
             "robots": {"pode1": robot, "pode2": {**robot, "start": "P-2"},
                        "pode3": {**robot, "start": "P-3"}},
             "arm": {"seconds_per_item": 0.2, "swap_seconds": 0.4, "fail_rate": 0.0},
