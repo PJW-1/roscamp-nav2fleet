@@ -1,5 +1,5 @@
-"""Real bag scans -> plugin observation (same rules as observation.cpp) -> policy, with and
-without the persistent rear-left return (beams 300..306). Goal straight ahead 0.4 m, v 0.1, w 0."""
+"""실물 bag 스캔을 플러그인 관측(observation.cpp와 같은 규칙)으로 바꿔 정책에 넣는다.
+왼쪽 뒤 고정 반사(빔 300..306)가 있을 때와 뺐을 때를 비교한다. 목표는 정면 0.4 m, v 0.1, w 0."""
 import json, math, sys
 import numpy as np
 import onnxruntime as ort

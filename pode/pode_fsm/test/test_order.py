@@ -103,7 +103,7 @@ def test_the_robot_stops_at_the_end_of_base_although_a_horizon_exists():
 
 
 def test_an_order_waiting_at_the_end_of_base_still_has_a_goal():
-    """W-34: the lock waits for a stopped robot, and a waiting order is still a goal."""
+    """W-34: 잠금은 멈춘 로봇을 기다리고, 기다리는 order도 goal로 남는다."""
     fsm = ready()
     [send] = of(order(fsm, "g1", 1.0, [S1], [S2, S3]), SendPath)
     arrive(fsm, send, 5.0, (0.8, 0.3, 0.0))
