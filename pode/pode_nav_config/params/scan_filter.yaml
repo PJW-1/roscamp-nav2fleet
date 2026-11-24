@@ -2,6 +2,7 @@
 # launch 인자 narrow_strips가 비어 있지 않을 때만 nav2_params.yaml 위에 덧붙는다. AMCL은 원래 scan을 쓴다.
 # 대가: 띠 안에서 벽에 붙은 wall_band_m보다 얇은 물체는 보이지 않는다.
 # inf_is_valid: 지운 빔(inf)로 칸을 지우려면 켠다. 라이다 range_max는 raytrace_max_range(3 m)보다 커야 한다.
+# 대가: 그 빔이 지나는 길의 실제 장애물·다른 로봇 칸과 진열대 뒤에 가려진 칸도 지워질 수 있다.
 
 local_costmap:
   local_costmap:

@@ -15,6 +15,7 @@
 #       0    0.25  0.51                                       1.56  1.78  1.98  x
 #
 # 구역: 급행 띠(EXPRESS)와 도크(WORK_DOCK, OUT_DOCK)만 잠그고 HALL이 나머지 바닥 전부다.
+# HALL에서 로봇끼리는 Nav2가 피하므로 peer_obstacles를 켜야 한다(실물 nav2.launch.py 기본값은 false).
 # 흐름: 충전 칸 -> 입구 E -> 남쪽 통로 -> 줄 입구 Q2 -> 앞자리 Q1 -> WORK -> 북쪽 W_X -> 급행 -> O_X -> OUTBOUND -> O_OUT.
 # 출고가 막히면 W -> M_E -> O_IN -> OUTBOUND 우회로를 쓴다. 서는 지점은 도크와 급행 띠에서 0.135 이상 떨어뜨린다.
 name: arena_v7

@@ -51,7 +51,7 @@
 
 ## 검토에서 되살린 설명
 
-Codex 검토와 지운 주석 재검토에서, 줄이다가 빠지거나 뜻이 틀어진 설명 7곳을 되살렸다.
+Codex 검토와 지운 주석 재검토에서, 줄이다가 빠지거나 뜻이 틀어진 설명 10곳을 되살렸다.
 
 - `tools/real_pode/make_params.py`: 기본 실행은 고정 경로 컨트롤러 셋의 충돌 검사를 끈다(`--fixed-line-check`로 켬). "속도만 바꾼다"는 틀린 줄 끝 주석을 지웠다.
 - `fleet_params.yaml` `release_distance_m`: 구역 교통은 이 값을 읽지 않는다(`footprint_radius_m + release_margin_m`로 놓음). Pode FSM은 같은 이름의 자기 파라미터를 쓴다.
@@ -60,6 +60,9 @@ Codex 검토와 지운 주석 재검토에서, 줄이다가 빠지거나 뜻이 
 - `nav2_params.yaml` 다각형 발자국: FollowPath 셋의 충돌 검사가 쓴다. `pode_fsm`은 이 costmap에서 비용 99(내접) 이상을 막힘으로 본다.
 - `avoidance.yaml` `peer_layer`: 이 키가 없는 회피 패키지로 `peer_obstacles:=true`를 주면 `nav2.launch.py`가 뜨지 않는다.
 - `fake_robots/world/nav_goal.py` `UNBLOCK_M`: Pode의 `unblock_m`과 같아야 한다.
+- `fleet_params.yaml` `comm_loss_policy`: 실물은 로봇의 `pode_fsm` 파라미터가 정하고, 이 값은 머리 없는 세계의 로봇만 따른다.
+- `fleet_map_v7.yaml`: HALL에서 로봇끼리는 Nav2가 피하므로 `peer_obstacles`를 켜야 한다(실물 기본값 false).
+- `scan_filter.yaml` `inf_is_valid`: 지운 빔이 실제 장애물, 다른 로봇 칸, 진열대 뒤에 가려진 칸도 지울 수 있다.
 
 ## 손대지 않은 것과 까닭
 
