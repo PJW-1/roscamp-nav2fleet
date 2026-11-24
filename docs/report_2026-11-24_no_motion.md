@@ -12,7 +12,7 @@ ros2 launch pode_fsm pode_fsm.launch.py namespace:=pode1 no_motion:=true
 
 - `no_motion` 실행 인자 하나로 켠다. 기본은 `false`(실주행)다.
 - 동작 없음일 때는 Nav2 없이 pode_fsm 혼자 돈다. bringup, Nav2, 라이다가 필요 없다.
-- `real_pode.launch.py`와 `start.sh`에는 넣지 않았다. 그쪽은 Nav2를 함께 띄우는 실주행용이다.
+- `real_pode.launch.py`(bringup과 Nav2를 함께 띄우는 실주행용)에는 넣지 않았다. 실물에서는 `start.sh`의 `NO_MOTION=1` 분기가 `real_pode.launch.py` 대신 `pode_fsm.launch.py`만 띄운다(아래).
 - 시작 자세는 `initial_x`, `initial_y`, `initial_yaw`(rad) 실행 인자로 준다. launch 파일의 기본은 P-1이다.
 - 실물 로봇에서는 `NO_MOTION=1 ~/nav2fleet_real/start.sh pode2`로 띄운다. 자세를 안 주면 `start.sh`에 적힌 로봇별 주차 자리를 쓰고, `NO_MOTION=1 start.sh pode2 X Y YAW`로 바꿀 수 있다. 내릴 때는 `stop.sh`다. pode_fsm은 지도 좌표를 모른다.
 
