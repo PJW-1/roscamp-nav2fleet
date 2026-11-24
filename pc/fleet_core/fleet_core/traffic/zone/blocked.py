@@ -141,6 +141,8 @@ class Blocked:
             return keys
         if not edge.a:
             keys.append((HERE + m.name, edge.b))
+        elif self.site.edge(edge.a, edge.b) is None:
+            keys.append((edge.a, edge.b))  # 나눈 goal의 첫 조각: 지도에 없는 이음이라 근처 이음에 안 잡힌다
         zone = self.site.zone_at(m.x, m.y)
         if zone is not None and self.site.zones[zone].kind == SHARED:
             reach = self.params.footprint_radius_m + self.params.release_margin_m

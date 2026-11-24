@@ -191,3 +191,124 @@ def test_a_via_node_is_no_free_edge_target_in_a_zone_without_nodes():
     finally:
         site.edges = real
         del site.nodes_in
+
+
+# ---- 노드에서 짠 길(2026-11-24 저녁): through로 합쳐지는 nav_goal 사슬도 출발 노드가 사각형 안이면 나눈다 ----
+def base_of(world, robot="pode1") -> list:
+    order = next(c for c in world.commands if isinstance(c, MoveOrderCmd) and c.robot == robot)
+    return [(s.mode, s.end_node) for s in order.base]
+
+
+@pytest.mark.parametrize("split, ends", [(False, ["Q2"]), (True, ["GAP_S", "Q2"])])
+def test_a_robot_on_o_out_splits_its_chain_to_q2(split, ends):
+    """O_OUT -> E-3 -> Q2는 E-3이 through라 Q2 goal 하나로 합쳐진다. O_OUT은 GAP_S 사각형 안이다."""
+    world = world_at(None, split=split, start="O_OUT")
+    go_to_work(world)
+    assert first_nav_ends(world) == ends
+
+
+def test_the_split_chain_starts_from_the_node_and_is_marked_by_its_key():
+    world = world_at(None, start="O_OUT")
+    world.report()
+    world.run(0.3)
+    t = world.traffic
+    way = t._way(t._robots["pode1"], "Q2")
+    assert [(edge.a, edge.b) for edge in way] == [("O_OUT", "GAP_S"), ("GAP_S", "Q2")]
+    assert way[0].points[0] == world.site.node_pose("O_OUT")
+    t._blocked[("O_OUT", "GAP_S")] = 1e9
+    assert [edge.b for edge in t._way(t._robots["pode1"], "Q2")][-1] == "Q2"
+    assert "GAP_S" not in [edge.b for edge in t._way(t._robots["pode1"], "Q2")]
+
+
+@pytest.mark.parametrize("split", [False, True])
+def test_from_outbound_the_out_path_and_both_goals_go_in_one_base(split):
+    """기록 s2_a1_B_rpp_r1의 9건: base [고정 경로 -> O_OUT, nav_goal -> Q2]. 켜면 O_OUT 뒤 조각이 나뉜다."""
+    world = world_at(None, split=split, start="O")
+    go_to_work(world)
+    base = base_of(world)
+    assert base[0] == ("follow_path", "O_OUT")
+    nav = [node for mode, node in base if mode == NAV_GOAL]
+    assert nav == (["GAP_S", "Q2"] if split else ["Q2"])
+
+
+@pytest.mark.parametrize("start", ["P-1", "P-2", "P-3"])
+def test_from_the_parking_rows_the_south_aisle_goal_is_not_split(start):
+    """E-1~E-3는 진열대 줄 아래(사각형 밖)다. 정적으로 남쪽 통로가 확실히 짧다."""
+    ends = []
+    for split in (False, True):
+        world = world_at(None, split=split, start=start)
+        go_to_work(world)
+        ends.append(base_of(world))
+    assert ends[0] == ends[1]
+    assert ends[1][-1] == (NAV_GOAL, "Q2") and "GAP_S" not in [n for _, n in ends[1]]
+
+
+def test_the_o_in_chain_goes_by_m_e_like_the_detour():
+    """O_IN -> E-2 -> E-3 -> Q2도 사각형(M_E) 안 출발이다. 나눈 길은 우회로 O_IN -> M_E -> Q2와 같다."""
+    world = world_at(None, start="O_IN")
+    world.report()
+    world.run(0.3)
+    t = world.traffic
+    way = t._way(t._robots["pode1"], "Q2")
+    assert [(edge.a, edge.b) for edge in way] == [("O_IN", "M_E"), ("M_E", "Q2")]
+
+
+def test_the_detour_through_m_e_is_kept_when_the_south_aisle_is_blocked():
+    world = world_at(None, start="O_OUT")
+    world.report()
+    world.run(0.3)
+    t = world.traffic
+    t._blocked[("E-3", "Q2")] = 1e9
+    way = t._way(t._robots["pode1"], "Q2")
+    assert [edge.b for edge in way][-2:] == ["M_E", "Q2"]
+
+
+def test_a_later_piece_is_split_when_the_horizon_is_planned_again():
+    """order 뒤쪽 조각(_way_after, _refresh_horizon, _through)도 같은 도우미를 쓴다."""
+    world = world_at(None, start="O")
+    world.report()
+    world.run(0.3)
+    t = world.traffic
+    m = t._robots["pode1"]
+    path = t._path(m, "O_OUT", "Q2")
+    assert [(edge.a, edge.b) for edge in path] == [("O_OUT", "GAP_S"), ("GAP_S", "Q2")]
+    off = world_at(None, split=False, start="O")
+    off.report()
+    off.run(0.3)
+    m2 = off.traffic._robots["pode1"]
+    assert [edge.b for edge in off.traffic._path(m2, "O_OUT", "Q2")] == ["E-3", "Q2"]
+
+
+def test_the_split_from_o_out_still_reaches_work():
+    world = world_at(None, start="O")
+    go_to_work(world)
+    assert world.run_until(lambda: world.phase("pode1") in ("DOCKING", "AT_STATION"), 90.0)
+    assert not world.problems
+
+
+def test_a_point_mark_on_the_split_leg_also_marks_that_leg():
+    """O_OUT -> GAP_S는 지도에 없는 이음이다. 지점 막힘 표시가 근처 지도 이음만 적으면 다음 계획이 같은 길로 나눈다."""
+    from fleet_core.traffic.zone.block_marks import keys_at
+    world = world_at(None, start="O_OUT")
+    world.report()
+    world.run(0.3)
+    t = world.traffic
+    m = t._robots["pode1"]
+    leg = t._way(m, "Q2")[0]
+    assert (leg.a, leg.b) == ("O_OUT", "GAP_S")
+    (ax, ay), (bx, by) = leg.points
+    point = (ax + 0.1 * (bx - ax), ay + 0.1 * (by - ay))
+    assert keys_at(world.site, t.params, point)
+    assert ("O_OUT", "GAP_S") in t._point_keys(m, point, leg)
+
+
+def test_the_chain_is_the_goal_the_order_would_merge():
+    """O_OUT -> E-3이 막히면 O_OUT -> E-2 -> E-3 -> Q2는 최단이 아니라 E-2에서 goal이 끊긴다(segment_end).
+    Q2로 가는 goal은 E-2(사각형 밖)에서 나오니 나누지 않는다."""
+    world = world_at(None, start="O_OUT")
+    world.report()
+    world.run(0.3)
+    t = world.traffic
+    t._blocked[("O_OUT", "E-3")] = 1e9
+    path = t._path(t._robots["pode1"], "O_OUT", "Q2")
+    assert [(edge.a, edge.b) for edge in path] == [("O_OUT", "E-2"), ("E-2", "E-3"), ("E-3", "Q2")]

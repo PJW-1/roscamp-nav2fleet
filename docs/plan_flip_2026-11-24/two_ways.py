@@ -235,6 +235,16 @@ def main():
         cost, length, fr, sr = via_cost(ways, start, via, q2)
         print(f"  via {name}: 길이 {length:.3f} m, 비용 {cost:.3f}, 첫 조각 비율 {fr:.3f}, "
               f"둘째 {sr:.3f}, 어림 {seconds(length, via, q2, 0.0):.1f} s")
+    print("== 노드 출발(through 사슬로 Q2 goal 하나가 되는 자리): 곧장 차이 비율, via별 비용 늘어남과 첫 조각 비율")
+    for name in ("O_OUT", "O_IN", "E-1", "E-2", "E-3"):
+        start = site.node_pose(name)
+        direct = ways.measure(start, q2)
+        a, b, r = gap(direct)
+        cells = []
+        for via_name in ("GAP_S", "M_E"):
+            cost, length, fr, sr = via_cost(ways, start, site.node_pose(via_name), q2)
+            cells.append(f"via {via_name} {cost / direct[a][0] - 1:+.3f} 첫 {fr:.3f}")
+        print(f"  {name} {start}: {a} {b} {r:.3f} | " + " | ".join(cells))
 
 
 if __name__ == "__main__":
