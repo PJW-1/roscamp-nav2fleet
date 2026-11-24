@@ -1,4 +1,4 @@
-"""FakeWorkcell: arm1, arm2를 뒤에 둔 fill_basket 서버.
+"""FakeWorkcell: arm_left, arm_right를 뒤에 둔 fill_basket 서버.
 
 요청한 물건은 그 종류의 재고가 있는 팔에 간다. 두 팔이 동시에 집지만
 잠금 하나로 바구니 공간(PLACING)에는 한 팔만 들어간다.

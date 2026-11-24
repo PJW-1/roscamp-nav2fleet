@@ -132,7 +132,7 @@ def test_nothing_placed_reports_canceled_and_releases_the_robot():
 
 def test_an_outbound_result_starts_the_swap_and_the_finished_swap_releases():
     core, _, swap = swapping()
-    assert (swap.arm, swap.take_full, swap.put_empty) == ("arm3", True, True)
+    assert (swap.arm, swap.take_full, swap.put_empty) == ("arm_ship", True, True)
     assert swap.order_id == "O-001"
     core.on_swap_result(swap.goal_id, True, True, True)
     out = core.take_output()

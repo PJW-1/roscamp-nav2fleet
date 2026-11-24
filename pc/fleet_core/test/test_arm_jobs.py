@@ -53,7 +53,7 @@ def test_a_fill_asked_for_goes_out_as_one_goal_to_the_station_server():
 
 def test_a_swap_asked_for_names_the_server_of_its_station():
     _, _, goal = started(ASK_SWAP)
-    assert goal == SwapCmd("arm3", 1, "r1", "OUTBOUND", "O-001", True, True)
+    assert goal == SwapCmd("arm_ship", 1, "r1", "OUTBOUND", "O-001", True, True)
 
 
 def test_a_result_goes_to_the_orders_and_frees_the_robot():
@@ -102,8 +102,8 @@ def test_past_the_retry_limit_the_arm_is_reported_faulty_not_the_robot():
     jobs.on_command(ArmFailedCmd("r1"))
     out = jobs.take_output()
     assert [type(c) for c in out] == [ArmSwapResult, ArmFault, EventOut]
-    assert out[1] == ArmFault("r1", SWAP, "arm3", "arm3: GRIPPER")
-    assert codes(out) == ["SWAP_FAILED"] and out[2].detail == "arm3: GRIPPER"
+    assert out[1] == ArmFault("r1", SWAP, "arm_ship", "arm_ship: GRIPPER")
+    assert codes(out) == ["SWAP_FAILED"] and out[2].detail == "arm_ship: GRIPPER"
 
 
 def test_a_goal_stopped_by_the_run_mode_is_no_failed_attempt():
@@ -153,7 +153,7 @@ def test_a_stop_from_the_orders_cancels_the_running_goal_once():
     jobs, _, goal = started(ASK_SWAP)
     jobs.on_command(ArmStopCmd("r1"))
     jobs.on_command(ArmStopCmd("r1"))
-    assert jobs.take_output() == [CancelCmd("arm3", goal.goal_id)]
+    assert jobs.take_output() == [CancelCmd("arm_ship", goal.goal_id)]
     jobs.on_command(ArmStopCmd("r2"))
     assert not jobs.take_output(), "nothing runs for r2"
 
@@ -221,5 +221,5 @@ def test_removing_a_robot_cancels_its_goal_before_the_order_is_held():
     core, _, swap = joined_swapping()
     core.on_robot_removed("r1")
     out = core.take_output()
-    assert out[0] == CancelCmd("arm3", swap.goal_id)
+    assert out[0] == CancelCmd("arm_ship", swap.goal_id)
     assert isinstance(out[1], ReportOrderCmd) and out[1].hold_reason == "ROBOT_FAULT"

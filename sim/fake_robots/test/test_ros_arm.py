@@ -1,4 +1,4 @@
-"""실제 액션으로 FakeArm(arm3)과 시뮬 시계를 시험한다."""
+"""실제 액션으로 FakeArm(arm_ship)과 시뮬 시계를 시험한다."""
 import time
 
 import pytest
@@ -18,9 +18,9 @@ def start_arm(harness, tmp_path, **scenario):
     import rclpy.node
     from fake_robots.fake_arm_node import FakeArmNode
     scn = write_scenario(tmp_path, **scenario)
-    harness.add(FakeArmNode(parameter_overrides=harness.params(arm_id="arm3", scenario_file=scn)))
+    harness.add(FakeArmNode(parameter_overrides=harness.params(arm_id="arm_ship", scenario_file=scn)))
     probe = harness.add(rclpy.node.Node("arm_probe"))
-    client = ActionClient(probe, SwapBasket, C.name("swap_basket", arm="arm3"))
+    client = ActionClient(probe, SwapBasket, C.name("swap_basket", arm="arm_ship"))
     assert client.wait_for_server(10.0)
     return client
 
@@ -129,7 +129,7 @@ def test_a_second_goal_is_rejected_while_busy(harness, tmp_path):
     assert result_of(first).success is True
 
 
-@pytest.mark.parametrize("arm", ["arm1", "arm2"])
+@pytest.mark.parametrize("arm", ["arm_left", "arm_right"])
 def test_a_workspace_arm_is_refused(harness, tmp_path, arm):
     from fake_robots.fake_arm_node import FakeArmNode
     scn = write_scenario(tmp_path)

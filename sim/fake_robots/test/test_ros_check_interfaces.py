@@ -25,7 +25,7 @@ def start_all(harness, tmp_path):
             robot_id=r, scenario_file=scn)))
     harness.add(FakeWorkcellNode(parameter_overrides=harness.params(scenario_file=scn)))
     harness.add(FakeArmNode(parameter_overrides=harness.params(
-        arm_id="arm3", scenario_file=scn)))
+        arm_id="arm_ship", scenario_file=scn)))
     harness.add(FakeCentralNode(parameter_overrides=harness.params(scenario_file=scn)))
 
 

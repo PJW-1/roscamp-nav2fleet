@@ -5,7 +5,7 @@ version: 0.6
 # ---- 이름 틀에 채울 로봇과 팔 이름 ----
 placeholders:
   pode: [pode1, pode2, pode3]
-  arm: [arm3]
+  arm: [arm_ship]
 
 # ---- QoS 프로필 ----
 qos_profiles:
@@ -29,7 +29,7 @@ actions:
   - {key: move_to, name: "/{pode}/move_to", type: fleet_interfaces/action/MoveTo}
   - {key: dock, name: "/{pode}/dock", type: fleet_interfaces/action/Dock}
   - {key: fill_basket, name: "/workcell/fill_basket", type: fleet_interfaces/action/FillBasket}
-  - {key: swap_basket, name: "/{arm}/swap_basket", type: fleet_interfaces/action/SwapBasket, instances: {arm: [arm3]}}
+  - {key: swap_basket, name: "/{arm}/swap_basket", type: fleet_interfaces/action/SwapBasket, instances: {arm: [arm_ship]}}
   - {key: navigate_to_pose, name: "/{pode}/navigate_to_pose", type: nav2_msgs/action/NavigateToPose, real_only: true}
   - {key: follow_path, name: "/{pode}/follow_path", type: nav2_msgs/action/FollowPath, real_only: true}
   - {key: retreat, name: "/{pode}/retreat", type: fleet_interfaces/action/Retreat}

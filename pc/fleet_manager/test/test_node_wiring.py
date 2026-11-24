@@ -103,7 +103,7 @@ class World(Node):
         self._servers = [
             ActionServer(self, FillBasket, name("fill_basket"), self._on_fill,
                          callback_group=group, cancel_callback=self._on_fill_cancel),
-            ActionServer(self, SwapBasket, name("swap_basket", arm="arm3"), self._on_swap,
+            ActionServer(self, SwapBasket, name("swap_basket", arm="arm_ship"), self._on_swap,
                          callback_group=group),
         ]
         self._contract, self._group = contract, group
@@ -476,7 +476,7 @@ def test_a_robot_goal_with_no_server_is_not_a_rejection_and_an_arm_goal_still_is
         node.core.on_goal_rejected.assert_not_called()
         node._send(client, None, ("workcell", 9), node._fill_done, node._fill_rejected)
         node.core.on_fill_result.assert_called_once_with(9, False, {}, {}, "REJECTED")
-        node._send(client, None, ("arm3", 10), node._swap_done, node._swap_rejected)
+        node._send(client, None, ("arm_ship", 10), node._swap_done, node._swap_rejected)
         node.core.on_swap_result.assert_called_once_with(10, False, False, False, "REJECTED")
         assert node.core.on_goal_not_sent.call_count == 2
         client.send_goal_async.assert_not_called()

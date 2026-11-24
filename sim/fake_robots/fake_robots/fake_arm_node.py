@@ -34,7 +34,7 @@ class FakeArmNode(Node):
     def __init__(self, parameter_overrides=None, **kwargs):
         super().__init__(node_name("fake_arm", "arm_id", parameter_overrides),
                          parameter_overrides=parameter_overrides, **kwargs)
-        self.declare_parameter("arm_id", "arm3")
+        self.declare_parameter("arm_id", "arm_ship")
         self.arm_id = self.get_parameter("arm_id").value
         contract = load_contract_param(self)
         site = load_site_param(self)

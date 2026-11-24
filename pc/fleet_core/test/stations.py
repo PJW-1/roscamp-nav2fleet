@@ -15,6 +15,6 @@ class Station:
 
 
 STATIONS = {
-    "WORK": Station("WORK", "workcell", ("arm1", "arm2"), "fill"),
-    "OUTBOUND": Station("OUTBOUND", "arm3", ("arm3",), "swap"),
+    "WORK": Station("WORK", "workcell", ("arm_left", "arm_right"), "fill"),
+    "OUTBOUND": Station("OUTBOUND", "arm_ship", ("arm_ship",), "swap"),
 }

@@ -1,6 +1,6 @@
 pode1: {type: pode}
 pode2: {type: pode}
 pode3: {type: pode}
-arm1: {type: arm, station: WORK, action: fill}
-arm2: {type: arm, station: WORK, action: fill}
-arm3: {type: arm, station: OUTBOUND, action: swap}
+arm_left: {type: arm, station: WORK, action: fill}
+arm_right: {type: arm, station: WORK, action: fill}
+arm_ship: {type: arm, station: OUTBOUND, action: swap}

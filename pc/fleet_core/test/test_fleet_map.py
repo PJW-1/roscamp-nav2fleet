@@ -51,9 +51,9 @@ SMALL = {
     },
     "nav": [{"nodes": ["N_W", "N_E", "W_Q", "O_Q", "P-1", "P-2"]}],
     "stations": {
-        "WORK": {"dock": "W", "queue": ["W_Q"], "server": "workcell", "arms": ["arm1", "arm2"],
+        "WORK": {"dock": "W", "queue": ["W_Q"], "server": "workcell", "arms": ["arm_left", "arm_right"],
                  "action": "fill"},
-        "OUTBOUND": {"dock": "O", "queue": ["O_Q"], "server": "arm3", "arms": ["arm3"],
+        "OUTBOUND": {"dock": "O", "queue": ["O_Q"], "server": "arm_ship", "arms": ["arm_ship"],
                      "action": "swap"},
     },
     "parking": ["P-1", "P-2"],
@@ -295,7 +295,7 @@ def test_stations_keep_the_fields_orders_and_arms_read():
     site = build()
     work = site.stations["WORK"]
     assert (work.id, work.dock, work.queue, work.server, work.arms, work.action) == (
-        "WORK", "W", ("W_Q",), "workcell", ("arm1", "arm2"), "fill")
+        "WORK", "W", ("W_Q",), "workcell", ("arm_left", "arm_right"), "fill")
     assert site.parking == ("P-1", "P-2")
     assert site.docks == {"W", "O"}
 

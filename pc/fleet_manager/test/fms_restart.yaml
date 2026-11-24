@@ -10,7 +10,7 @@
 seed: 7
 speed_factor: 5.0
 timeout_s: 1500
-stock: {arm1: {A: 40, B: 40}, arm2: {C: 40, D: 40}}
+stock: {arm_left: {A: 40, B: 40}, arm_right: {C: 40, D: 40}}
 orders:
   - {at_s: 0, id: O-001, items: {A: 1, C: 1}}
   - {at_s: 0, id: O-002, items: {B: 1, D: 1}}

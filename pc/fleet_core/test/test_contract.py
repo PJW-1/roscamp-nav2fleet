@@ -15,7 +15,7 @@ def contract():
 def test_topic_name_is_built_from_key_and_placeholder(contract):
     assert contract.name("robot_state", pode="pode2") == "/pode2/state"
     assert contract.name("order_board") == "/central/orders"
-    assert contract.name("swap_basket", arm="arm3") == "/arm3/swap_basket"
+    assert contract.name("swap_basket", arm="arm_ship") == "/arm_ship/swap_basket"
 
 
 def test_qos_lookup_returns_the_profile_of_the_entry(contract):
@@ -50,8 +50,8 @@ def test_expand_lists_every_instance_with_type_and_kind(contract):
     assert entries["/pode3/move_to"].type == "fleet_interfaces/action/MoveTo"
     assert entries["/pode3/state"].qos.reliability == "best_effort"
     assert entries["/workcell/fill_basket"].type == "fleet_interfaces/action/FillBasket"
-    assert "/arm3/swap_basket" in entries
-    assert "/arm1/swap_basket" not in entries
+    assert "/arm_ship/swap_basket" in entries
+    assert "/arm_left/swap_basket" not in entries
 
 
 def test_expand_skips_real_only_entries_when_asked(contract):

@@ -175,7 +175,7 @@ def test_fill_goal_copies_every_field():
 
 @pytest.mark.parametrize("take_full", [True, False])
 def test_swap_goal_copies_every_field(take_full):
-    goal = adapters.swap_goal(SwapCmd("arm3", 9, "pode1", "OUTBOUND", "O-001", take_full, True))
+    goal = adapters.swap_goal(SwapCmd("arm_ship", 9, "pode1", "OUTBOUND", "O-001", take_full, True))
     assert (goal.order_id, goal.robot_id, goal.station_id) == ("O-001", "pode1", "OUTBOUND")
     assert (goal.take_full, goal.put_empty) == (take_full, True)
 
