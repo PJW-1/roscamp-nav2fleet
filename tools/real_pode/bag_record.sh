@@ -56,7 +56,12 @@ case $1 in
       'exec ros2 bag record -o "$2" -s mcap -e "^/$1/(scan|odom|cmd_vel|amcl_pose|particle_cloud|plan|tf|tf_static|state)$"' \
       _ "$ns" "bags/$name" > "logs/bag_$name.log" 2>&1 < /dev/null 9>&- &
     pid=$!
-    echo "$pid $name" > logs/bag.pid
+    if ! echo "$pid $name" > logs/bag.pid; then
+      echo "cannot write logs/bag.pid; stopping recorder $pid"
+      signal_and_wait "$pid" INT 10 || signal_and_wait "$pid" TERM 10 || {
+        echo "recorder $pid is still alive; stop it by hand"; exit 1; }
+      exit 1
+    fi
     # bag 파일이 생기면 녹화기가 준비된 것이다(rosbag2는 첫 메시지 전에 파일을 연다)
     # 방금 띄운 자식이라 exec 전이어도 놓치지 않게 ours 대신 alive로 본다
     for _ in $(seq $((timeout_s * 10))); do

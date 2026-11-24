@@ -35,10 +35,11 @@ Nav2 goal을 모는 컨트롤러(FollowPathGoal)의 속도는 `nav2_params.yaml`
 3. 로봇을 아는 자리에 놓는다. 예: P-1 = (0.12, 0.10), 북쪽(yaw 1.5708).
 4. 로봇 옆에 들어 올릴 사람을 둔다.
 5. PC에서 디스커버리 서버를 먼저 켜 둔다(`tools/real_pode/discovery_server.sh`). 기본 설정의 `start.sh`는 서버에 붙으므로 서버가 없으면 로봇과 PC가 서로 못 찾는다. 서버를 안 쓰려면 로봇과 PC 양쪽 모두 `DISCOVERY_SERVER=off`로 한다. 자세한 것은 아래 "디스커버리 서버 (기본)".
-6. `~/nav2fleet_real/start.sh pode1 0.12 0.10 1.5708` (속도 0.12 기본). 기록을 본다:
+6. 먼저 bag을 켠다: `~/nav2fleet_real/bag_record.sh start pode1 <판 이름>`(새 토픽을 잡는 데 몇 초 걸린다). 그다음
+   `~/nav2fleet_real/start.sh pode1 0.12 0.10 1.5708` (속도 0.12 기본). 기록을 본다:
    `tail -f ~/nav2fleet_real/logs/launch_*.log`.
 7. PC에서 `source tools/real_pode/pc_env.sh`(도메인 6과 디스커버리 서버 설정이 들어 있다)로 관제를 띄워 시험한다. 아래 "디스커버리 서버 (기본)"을 본다.
-8. 끝나면(또는 이상하면) `~/nav2fleet_real/stop.sh`.
+8. 끝나면(또는 이상하면) `~/nav2fleet_real/stop.sh`, 그다음 `~/nav2fleet_real/bag_record.sh stop`(bag을 마무리한다).
 
 ### 옛 이름(pinky)으로 배포된 로봇에 다시 배포할 때 (2026-11-16 이름 변경)
 

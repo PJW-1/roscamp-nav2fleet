@@ -1,6 +1,7 @@
 """tools/real_pode/bag_record.sh 시험. 가짜 ros2로 녹화기 시작, 실패, 멈춤을 본다."""
 import fcntl
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -84,6 +85,16 @@ def test_start_records_namespace_topics_and_stop_finalizes(tmp_path):
     finally:
         if _alive(pid):
             os.kill(pid, 9)
+
+
+def test_start_stops_the_recorder_when_the_pid_file_cannot_be_written(tmp_path):
+    kit, env = _kit(tmp_path)
+    (kit / "logs" / "bag.pid").mkdir(parents=True)
+    run = _run(kit, env, "start", "pode1", "run1")
+    assert run.returncode == 1, run.stdout + run.stderr
+    found = re.search(r"cannot write logs/bag.pid; stopping recorder (\d+)", run.stdout)
+    assert found, run.stdout + run.stderr
+    assert not _alive(int(found.group(1)))
 
 
 def test_start_fails_and_cleans_up_when_recorder_dies(tmp_path):

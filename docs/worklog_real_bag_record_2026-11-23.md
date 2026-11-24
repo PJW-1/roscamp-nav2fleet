@@ -36,6 +36,10 @@ pode1(pinky_27a6, 서버 켬, 도메인 12)에서 2026-11-23에 돌렸다.
   - 녹화 중에 녹화기가 죽으면 stop이 "not recording"으로 성공을 알렸다. 이제 bag에 `metadata.yaml`이 없으면 `ros2 bag reindex`를 안내하고 실패로 끝낸다.
   - 고치지 않은 것: 같은 폴더, 같은 `bags/NAME` 인자를 가진 다른 프로세스가 같은 PID를 받는 경우(현실에서 생기지 않는다). 녹화 그룹에 자식이 남는 경우(`ros2 bag record`는 자식을 만들지 않고, pode1에서 stop 뒤 남은 프로세스가 없었다).
   - 시험 9개 통과, pode1에서 다시 확인했다.
+- 2026-11-24 main 병합(`fix/bag-record-followups-2026-11-24`, 사용자 지시): `logs/bag.pid`를 못 쓰면 방금 띄운 녹화기에 INT, 그다음 TERM을 보내고 start를 1로 끝낸다. TERM 뒤에도 살아 있으면 "recorder PID is still alive; stop it by hand"를 내므로, 그 줄이 보이면 그 PID를 손으로 멈춘다. README 실행 순서에 bag start(start.sh 전)와 stop(stop.sh 뒤)을 넣었고, `bags/`는 git에서 뺐다. 합친 main에서 `tools/test` 286개 통과, 3개 건너뜀.
+  - Codex 검토(11-24)가 두 가지를 짚었다. 고치지 않았다.
+  - 새 경로도 `signal_and_wait`로 그룹 리더만 확인한다. 위 "녹화 그룹에 자식이 남는 경우"와 같은 한계이고, 판단도 같다.
+  - 새 시험은 리더 PID만 보고, pid 파일 쓰기가 가짜 `ros2`가 뜨기 전에 실패할 수도 있다. 그래서 이 시험이 보여 주는 것은 "start가 1로 끝나고, 띄운 프로세스가 남지 않는다"까지다. 실제로 녹화 중이던 녹화기를 INT로 마무리하는지는 보여 주지 않는다.
 
 ## 쓰는 법 (판마다)
 
