@@ -1158,14 +1158,16 @@ def test_no_motion_start_takes_an_explicit_pose(tmp_path):
 
 
 @pytest.mark.parametrize("args", [[], ["pode9"], ["pode1", "0.1"],
-                                  ["pode1", "0.12", "0.10", "1.5708", "0.12"]])
+                                  ["pode1", "0.12", "0.10", "1.5708", "0.12"],
+                                  ["pode1", "bad", "0", "0"], ["pode1", "0.1", "1e", "0"],
+                                  ["pode1", "0.1", "0.2", ""], ["pode1", "0.1", "0.2", "--"]])
 def test_no_motion_start_refuses_bad_arguments(tmp_path, args):
     run, argv = _no_motion_start(tmp_path, args, NO_MOTION="1")
     assert run.returncode == 2 and argv == []
 
 
 @pytest.mark.parametrize("extra", [{"DOCK_STUB": "1"}, {"PEER_ROBOTS": "pode1,pode2"},
-                                   {"FIXED_LINE_CHECK": "1"}])
+                                   {"PEER_ROBOTS": "0"}, {"FIXED_LINE_CHECK": "1"}])
 def test_no_motion_start_refuses_real_drive_options(tmp_path, extra):
     run, argv = _no_motion_start(tmp_path, ["pode1"], NO_MOTION="1", **extra)
     assert run.returncode == 2 and argv == []
@@ -1186,12 +1188,35 @@ def test_start_no_motion_off_keeps_old_argv(tmp_path, value):
     assert argv == OLD_ARGV
 
 
+@pytest.mark.parametrize("value", [{"DOCK_STUB": "0"}, {"FIXED_LINE_CHECK": "0"},
+                                   {"PEER_ROBOTS": ""}])
+def test_no_motion_start_accepts_off_values(tmp_path, value):
+    run, argv = _no_motion_start(tmp_path, ["pode1", "-0.5", "+1", ".25"], NO_MOTION="1", **value)
+    assert run.returncode == 0, run.stdout + run.stderr
+    assert argv == _no_motion_argv("pode1", "-0.5", "+1", ".25")
+
+
+def test_stop_refuses_a_pode_fsm_launch_that_start_sh_did_not_start(tmp_path):
+    # 오래된 pid 번호가 손으로 띄운 pode_fsm launch에 다시 쓰였을 때
+    shutil.copy(KIT / "stop.sh", tmp_path)
+    proc = _own_group(tmp_path, sys.executable, "-c", "import time; time.sleep(30)",
+                      "pode_fsm.launch.py", "namespace:=pode1")
+    try:
+        run = subprocess.run(["bash", str(tmp_path / "stop.sh")], capture_output=True, text=True)
+        assert run.returncode == 1, run.stdout + run.stderr
+        assert proc.poll() is None
+    finally:
+        proc.kill()
+        proc.wait()
+
+
 def test_stop_stops_a_no_motion_group(tmp_path):
     shutil.copy(KIT / "stop.sh", tmp_path)
     (tmp_path / "logs").mkdir()
     pid = int(subprocess.run(
         ["bash", "-c", f"setsid {sys.executable} -c 'import time; time.sleep(30)' "
-                       "pode_fsm.launch.py > /dev/null 2>&1 & echo $!"],
+                       "pode_fsm pode_fsm.launch.py namespace:=pode1 no_motion:=true "
+                       "initial_x:=0.12 > /dev/null 2>&1 & echo $!"],
         capture_output=True, text=True, check=True).stdout)
     (tmp_path / "logs" / "launch.pid").write_text(str(pid))
     try:

@@ -97,7 +97,7 @@ Nav2 goal을 모는 컨트롤러(FollowPathGoal)의 속도는 `nav2_params.yaml`
 
 ## 알려진 한계
 
-- `stop.sh`는 그룹 안 어느 프로세스의 명령줄에 `real_pode.launch.py`가 있는지만 본다. pid가 다시 쓰인 그룹에 그 글자가 든 다른 명령이 있으면 그 그룹도 내린다.
+- `stop.sh`는 그룹 안 어느 프로세스의 명령줄에 `real_pode.launch.py`나, `NO_MOTION=1 start.sh`가 쓰는 인자 순서의 `pode_fsm.launch.py namespace:=… no_motion:=true initial_x:=…`가 있는지만 본다. pid가 다시 쓰인 그룹에 그런 명령이 있으면 그 그룹도 내린다.
 - `deploy.sh`의 `rsync --delete`는 경로 글자만 패키지 폴더로 묶는다. 로봇의 `~/nav2fleet_ws/src/pode`나 패키지 폴더가 다른 곳을 가리키는 심볼릭 링크면 그곳에서 지운다.
 - 위 시간 초과에서 launch가 pid 파일을 쓰기 전에 죽고 그 번호가 2 s 안에 다른 프로세스에 다시 쓰이면 그 프로세스가 TERM을 받을 수 있다(드물다).
 

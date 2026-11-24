@@ -17,7 +17,9 @@ case $nomo in
 esac
 if [ -n "$nomo" ]; then
   [ $# -eq 1 ] || [ $# -eq 4 ] || { echo "usage: NO_MOTION=1 start.sh NAMESPACE [X Y YAW]"; exit 2; }
-  for v in PEER_ROBOTS DOCK_STUB FIXED_LINE_CHECK; do
+  # 실주행 선택은 함께 받지 않는다(PEER_ROBOTS는 비어야, 나머지는 비었거나 0이어야 한다)
+  [ -z "${PEER_ROBOTS:-}" ] || { echo "NO_MOTION=1 does not take PEER_ROBOTS (no Nav2, no wheels)"; exit 2; }
+  for v in DOCK_STUB FIXED_LINE_CHECK; do
     case ${!v:-} in ''|0) ;; *) echo "NO_MOTION=1 does not take $v (no Nav2, no wheels)"; exit 2 ;; esac
   done
   if [ $# -eq 1 ]; then
@@ -29,6 +31,11 @@ if [ -n "$nomo" ]; then
       *) echo "no default start pose for $1; give X Y YAW"; exit 2 ;;
     esac
   fi
+  # 자세는 숫자만 받는다(launch가 뜬 뒤에 실패하지 않게)
+  num='^[-+]?([0-9]+\.?[0-9]*|\.[0-9]+)$'
+  for v in "$2" "$3" "$4"; do
+    [[ $v =~ $num ]] || { echo "bad pose value '$v': use numbers like 0.12"; exit 2; }
+  done
 else
   [ $# -eq 4 ] || [ $# -eq 5 ] || { echo "usage: start.sh NAMESPACE X Y YAW [SPEED]"; exit 2; }
 fi
