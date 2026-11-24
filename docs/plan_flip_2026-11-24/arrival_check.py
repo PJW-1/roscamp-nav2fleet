@@ -13,19 +13,17 @@ import math
 import sys
 from pathlib import Path
 
+# ---- 판정 값 ----
 NEAR_M = 0.06  # Nav2 xy_goal_tolerance 0.05 + 1 cm
-# 기준: 1단계 기준 판 4판(s1_a1_r1, s1_a1_v1, s1_a_r1, s1_a_v1)에서 닿은 조각 32개의 지연은 7.2 s 한 건 말고
-# 모두 3.33 s 이하였다(닿은 뒤 방향 맞추기, yaw 허용치 0.12 rad). 그 위로 여유를 두어 5 s
-SLOW_S = 5.0
-LOOK_BACK_S = 0.5  # 관제 feedback 주기(0.2 s)보다 넉넉히: 앞 조각 끝 보고가 늦은 만큼
+SLOW_S = 5.0  # 닿은 뒤 방향 맞추기보다 확실히 긴 지연
+LOOK_BACK_S = 0.5  # 앞 조각 끝 보고가 늦은 만큼 창을 앞당긴다
 
 
 def segment_ends(rows):
     """nav_goal 조각마다 (로봇, x, y, 창 시작, 끝, 성공). 창은 조각이 시작한 때(앞 조각 끝이 보고된 때)보다
     LOOK_BACK_S 앞에서 연다. 주문 갱신은 같은 order의 진행으로 잇는다. 실패·취소로 끝난 nav_goal 조각도
     내며, 갱신 뒤에 온 옛 goal의 실패와 새 order 뒤에 온 이전 order의 취소도 센다.
-    한계: 이전 order는 하나만 기억하고, 늦게 온 실패 결과의 시각까지 창을 연다. 11-24 판들에서 새 명령 뒤에
-    온 실패 결과는 5건, 가장 늦은 것이 0.068 s였고 결과를 기다리는 goal이 둘 넘게 쌓인 적은 없었다."""
+    한계: 이전 order는 하나만 기억하고, 늦게 온 실패 결과의 시각까지 창을 연다."""
     cur, retired, out = {}, {}, []
 
     def advance(c, t, done):
