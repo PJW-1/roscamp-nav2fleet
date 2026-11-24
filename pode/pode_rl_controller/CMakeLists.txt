@@ -50,7 +50,12 @@ install(DIRECTORY policies DESTINATION share/${PROJECT_NAME})
 
 if(BUILD_TESTING)
   find_package(ament_cmake_gtest REQUIRED)
-  foreach(policy store_arena_4b store_arena_c store_arena_acd)
+  # 정책 파일(policy.onnx)이 있는 후보만 시험한다. 저장소에는 4b만 있고 나머지는 학습 PC가 내보낸 뒤 둔다
+  foreach(policy store_arena_4b store_arena_c store_arena_acd store_arena_acd2)
+    if(NOT EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/policies/${policy}/policy.onnx")
+      message(STATUS "pode_rl_controller: no policies/${policy}/policy.onnx, parity test not built")
+      continue()
+    endif()
     ament_add_gtest(test_parity_${policy} test/test_parity.cpp)
     target_link_libraries(test_parity_${policy} pode_rl_core)
     target_compile_definitions(test_parity_${policy} PRIVATE
