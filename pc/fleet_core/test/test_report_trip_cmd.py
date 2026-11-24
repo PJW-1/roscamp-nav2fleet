@@ -6,6 +6,8 @@ PARTIAL, CANCELED, HELD)는 지금처럼 ReportOrderCmd가 맡고, 번호와 시
 """
 import dataclasses
 import json
+import re
+from pathlib import Path
 
 import pytest
 from fleet_core.common.commands import (
@@ -94,3 +96,21 @@ def test_the_record_writes_a_trip_report_like_any_other_output():
     [entry] = [e for e in outs if e["out"] == "ReportTripCmd"]
     assert entry["trip_id"] == "T-1" and entry["status"] == "ASSIGNED"
     assert entry["placed"] == {} and entry["missing"] == {} and entry["reason"] == ""
+
+
+# ---- 계약 0.7 ReportTrip.srv와 철자가 같다 ----
+SRV = Path(__file__).parents[3] / "interfaces" / "fleet_interfaces" / "srv" / "ReportTrip.srv"
+
+
+def _srv_statuses():
+    found = re.findall(r'^string STATUS_(\w+)="(\w+)"', SRV.read_text(encoding="utf-8"), re.M)
+    assert all(name == value for name, value in found)
+    return [value for _, value in found]
+
+
+def test_trip_statuses_are_report_trip_srv_constants():
+    statuses = _srv_statuses()
+    assert set(TRIP_STATUSES) <= set(statuses)
+    # 끝 상태는 ReportOrder가, RECEIVED는 central이, FILLING_PAUSE는 다음 주 몫이다
+    assert set(statuses) - set(TRIP_STATUSES) == {
+        "RECEIVED", "FILLING_PAUSE", "SHIPPED", "PARTIAL", "HELD", "CANCELLED"}
