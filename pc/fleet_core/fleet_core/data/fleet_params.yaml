@@ -2,7 +2,7 @@
 basket_capacity: 4            # 바구니 하나에 담는 최대 수량(추정)
 robot_radius_m: 0.08          # Pode 몸체 반경(추정)
 release_margin_extra_m: 0.05  # 시나리오 판정 전용: 반경 + 이 값 = 코스 이탈
-release_distance_m: 0.2       # 구역 교통은 읽지 않는다(footprint_radius_m + release_margin_m로 놓음). Pode 자가 복구 후진 거리 식이 쓴다
+release_distance_m: 0.2       # 구역 교통은 읽지 않는다(footprint_radius_m + release_margin_m로 놓음). Pode FSM은 같은 이름의 자기 파라미터를 쓴다
 release_confirm_samples: 3    # 해제 전에 그 거리를 지난 연속 보고 수
 lane_error_warn_m: 0.15       # 가짜 로봇: path 첫 점이 이보다 멀면 따라가지 않는다
 move_retry_limit: 2           # 첫 실패 뒤 재시도 수

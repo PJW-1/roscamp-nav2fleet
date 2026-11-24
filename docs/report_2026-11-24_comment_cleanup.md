@@ -54,10 +54,10 @@
 Codex 검토와 지운 주석 재검토에서, 줄이다가 빠지거나 뜻이 틀어진 설명 7곳을 되살렸다.
 
 - `tools/real_pode/make_params.py`: 기본 실행은 고정 경로 컨트롤러 셋의 충돌 검사를 끈다(`--fixed-line-check`로 켬). "속도만 바꾼다"는 틀린 줄 끝 주석을 지웠다.
-- `fleet_params.yaml` `release_distance_m`: 구역 교통은 이 값을 읽지 않는다(`footprint_radius_m + release_margin_m`로 놓음).
+- `fleet_params.yaml` `release_distance_m`: 구역 교통은 이 값을 읽지 않는다(`footprint_radius_m + release_margin_m`로 놓음). Pode FSM은 같은 이름의 자기 파라미터를 쓴다.
 - `fleet_params.yaml` `nav_eta_speed_ratio`: 범위(0 초과 1 이하).
 - `nav2_params.yaml` `speed_limit_topic`: 버전 2에서 쓰니 지우지 않는다.
-- `nav2_params.yaml` 다각형 발자국: FollowPath 셋의 충돌 검사와 `pode_fsm`의 막힘 판단이 쓴다.
+- `nav2_params.yaml` 다각형 발자국: FollowPath 셋의 충돌 검사가 쓴다. `pode_fsm`은 이 costmap에서 비용 99(내접) 이상을 막힘으로 본다.
 - `avoidance.yaml` `peer_layer`: 이 키가 없는 회피 패키지로 `peer_obstacles:=true`를 주면 `nav2.launch.py`가 뜨지 않는다.
 - `fake_robots/world/nav_goal.py` `UNBLOCK_M`: Pode의 `unblock_m`과 같아야 한다.
 
