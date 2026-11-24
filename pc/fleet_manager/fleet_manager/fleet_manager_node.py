@@ -189,16 +189,22 @@ class FleetManagerNode(Node):
         for server, goal_id in self._goals.retry_cancels(now, params.cancel_retry_s,
                                                          params.cancel_warn_after):
             waited = params.cancel_warn_after * params.cancel_retry_s
-            detail = (f"goal {goal_id} on {server} has no result {waited:.0f} s after it was "
+            detail = (f"goal {goal_id} on {server} has no result about {waited:.0f} s after it was "
                       "canceled; the cancel stays open while a result can still come")
             self._dispatch(EventOut("WARN", "CANCEL_UNCONFIRMED", detail, server), now)
         for robot, goal_id in self._goals.take_dropped():
             self.core.on_goal_lost(robot, goal_id)
 
     def _flush_reports(self, now: float) -> None:
+        params = self.core.params
         for report_id, command in self._reports.due(now, self._report_client.service_is_ready(),
-                                                    self.core.params.report_retry_s):
+                                                    params.report_retry_s,
+                                                    params.report_max_in_flight):
             future = self._report_client.call_async(adapters.report_request(command))
+            # IR-41: 앞선 요청은 클라이언트에서 지운다. 늦은 답이 두 번 처리되지 않는다
+            previous = self._reports.track(report_id, future)
+            if previous is not None:
+                self._report_client.remove_pending_request(previous)
             future.add_done_callback(partial(self._report_answered, report_id, command))
 
     def _report_answered(self, report_id, command, future) -> None:

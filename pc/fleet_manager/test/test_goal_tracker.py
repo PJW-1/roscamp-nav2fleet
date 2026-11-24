@@ -3,6 +3,12 @@ from fleet_manager.goal_tracker import GoalTracker, ReportOutbox
 
 RETRY_S = 1.0
 WARN_AFTER = 3
+LIMIT = 4
+
+
+def middle():
+    # 지연 배수 1.0: 기존 시각 시험이 지터 없이 돈다
+    return 0.5
 
 
 class _Handle:
@@ -14,7 +20,7 @@ class _Handle:
 
 
 def running(key="k"):
-    goals = GoalTracker()
+    goals = GoalTracker(rand=middle)
     handle = _Handle()
     goals.sent(key)
     goals.accepted(key, handle)
@@ -32,7 +38,7 @@ def test_cancel_of_an_accepted_goal_goes_to_its_handle():
 
 
 def test_cancel_before_the_server_accepted_is_applied_on_acceptance():
-    goals = GoalTracker()
+    goals = GoalTracker(rand=middle)
     handle = _Handle()
     goals.sent("k")
     goals.cancel("k", 0.0)
@@ -42,7 +48,7 @@ def test_cancel_before_the_server_accepted_is_applied_on_acceptance():
 
 
 def test_cancel_of_an_unknown_or_finished_goal_is_ignored():
-    goals = GoalTracker()
+    goals = GoalTracker(rand=middle)
     handle = _Handle()
     goals.cancel("never-sent", 0.0)
     goals.sent("k")
@@ -108,7 +114,7 @@ def test_a_goal_not_being_canceled_is_not_kept_as_lost():
 
 
 def test_rejected_goal_forgets_its_pending_cancel():
-    goals = GoalTracker()
+    goals = GoalTracker(rand=middle)
     goals.sent("k")
     goals.cancel("k", 0.0)
     goals.finished("k")
@@ -188,7 +194,7 @@ def test_each_goal_has_its_own_count():
 
 def test_a_cancel_waiting_for_an_acceptance_that_never_comes_is_warned_about_too():
     """핸들이 없으면 보낼 수 없지만 goal은 로봇에서 계속 돌 수 있다."""
-    goals = GoalTracker()
+    goals = GoalTracker(rand=middle)
     goals.sent("k")
     goals.cancel("k", 0.0)
     assert retry(goals, 1.0) == []
@@ -203,11 +209,11 @@ def test_a_cancel_waiting_for_an_acceptance_that_never_comes_is_warned_about_too
 
 
 def due(outbox, now, ready=True):
-    return [item for _, item in outbox.due(now, ready, RETRY_S)]
+    return [item for _, item in outbox.due(now, ready, RETRY_S, LIMIT)]
 
 
 def test_outbox_keeps_reports_until_the_service_is_ready():
-    outbox = ReportOutbox()
+    outbox = ReportOutbox(rand=middle)
     outbox.add("a")
     outbox.add("b")
     assert due(outbox, 0.0, ready=False) == []
@@ -215,7 +221,7 @@ def test_outbox_keeps_reports_until_the_service_is_ready():
 
 
 def test_outbox_sends_a_report_again_only_after_the_retry_period():
-    outbox = ReportOutbox()
+    outbox = ReportOutbox(rand=middle)
     outbox.add("a")
     assert due(outbox, 10.0) == ["a"]
     assert due(outbox, 10.9) == []
@@ -225,7 +231,7 @@ def test_outbox_sends_a_report_again_only_after_the_retry_period():
 
 
 def test_outbox_sends_nothing_while_the_service_is_gone_and_at_once_when_it_is_back():
-    outbox = ReportOutbox()
+    outbox = ReportOutbox(rand=middle)
     outbox.add("a")
     assert due(outbox, 0.0) == ["a"]
     assert due(outbox, 5.0, ready=False) == []
@@ -233,10 +239,10 @@ def test_outbox_sends_nothing_while_the_service_is_gone_and_at_once_when_it_is_b
 
 
 def test_outbox_drops_a_report_once_it_is_done():
-    outbox = ReportOutbox()
+    outbox = ReportOutbox(rand=middle)
     outbox.add("a")
     outbox.add("b")
-    (first, _), (second, _) = outbox.due(0.0, True, RETRY_S)
+    (first, _), (second, _) = outbox.due(0.0, True, RETRY_S, LIMIT)
     assert outbox.done(first) is True
     assert due(outbox, 5.0) == ["b"]
     assert outbox.done(second) is True
@@ -245,15 +251,139 @@ def test_outbox_drops_a_report_once_it_is_done():
 
 def test_outbox_says_when_a_second_reply_finds_the_report_already_gone():
     """두 번 보낸 보고는 답도 두 번 올 수 있다. 이벤트는 첫 답만 낼 수 있다."""
-    outbox = ReportOutbox()
+    outbox = ReportOutbox(rand=middle)
     outbox.add("a")
-    [(report_id, _)] = outbox.due(0.0, True, RETRY_S)
+    [(report_id, _)] = outbox.due(0.0, True, RETRY_S, LIMIT)
     assert outbox.done(report_id) is True
     assert outbox.done(report_id) is False
 
 
 def test_outbox_takes_reports_that_cannot_be_hashed():
-    outbox = ReportOutbox()
+    outbox = ReportOutbox(rand=middle)
     outbox.add({"placed": {"A": 1}})
     outbox.add({"placed": {"A": 1}})
     assert due(outbox, 0.0) == [{"placed": {"A": 1}}, {"placed": {"A": 1}}]
+
+
+# ---- IR-41: 재전송 지연 ±20%, 동시 보고 상한, 앞선 요청 지우기 ----
+class _Draws:
+    """정해 둔 난수를 차례로 낸다."""
+
+    def __init__(self, *values):
+        self.values = list(values)
+        self.calls = 0
+
+    def __call__(self):
+        self.calls += 1
+        return self.values.pop(0) if self.values else 0.5
+
+
+def test_the_cancel_retry_waits_at_least_0_8_of_the_period_at_the_low_end():
+    goals = GoalTracker(rand=lambda: 0.0)
+    handle = _Handle()
+    goals.sent("k")
+    goals.accepted("k", handle)
+    goals.cancel("k", 10.0)
+    retry(goals, 10.79)
+    assert handle.cancels == 1
+    retry(goals, 10.8)
+    assert handle.cancels == 2
+
+
+def test_the_cancel_retry_waits_at_most_1_2_of_the_period_at_the_high_end():
+    goals = GoalTracker(rand=lambda: 1.0)
+    handle = _Handle()
+    goals.sent("k")
+    goals.accepted("k", handle)
+    goals.cancel("k", 10.0)
+    retry(goals, 11.19)
+    assert handle.cancels == 1
+    retry(goals, 11.201)
+    assert handle.cancels == 2
+
+
+def test_each_cancel_retry_draws_its_own_delay():
+    draws = _Draws(0.0, 1.0)  # 첫 기다림 0.8, 다음 1.2
+    goals = GoalTracker(rand=draws)
+    handle = _Handle()
+    goals.sent("k")
+    goals.accepted("k", handle)
+    goals.cancel("k", 0.0)
+    retry(goals, 0.8)
+    assert handle.cancels == 2
+    retry(goals, 1.99)
+    assert handle.cancels == 2
+    retry(goals, 2.001)
+    assert handle.cancels == 3
+    assert draws.calls == 3
+
+
+def test_the_default_cancel_delay_stays_within_20_percent():
+    for _ in range(50):
+        goals = GoalTracker()
+        handle = _Handle()
+        goals.sent("k")
+        goals.accepted("k", handle)
+        goals.cancel("k", 0.0)
+        retry(goals, 0.7999)
+        assert handle.cancels == 1
+        retry(goals, 1.201)
+        assert handle.cancels == 2
+
+
+def test_the_report_retry_waits_between_0_8_and_1_2_of_the_period():
+    for value, early, late in ((0.0, 10.79, 10.8), (1.0, 11.19, 11.201)):
+        outbox = ReportOutbox(rand=lambda v=value: v)
+        outbox.add("a")
+        assert due(outbox, 10.0) == ["a"]
+        assert due(outbox, early) == []
+        assert due(outbox, late) == ["a"]
+
+
+def test_each_report_resend_draws_its_own_delay():
+    outbox = ReportOutbox(rand=_Draws(1.0, 0.0))  # 첫 기다림 1.2, 다음 0.8
+    outbox.add("a")
+    assert due(outbox, 0.0) == ["a"]
+    assert due(outbox, 1.19) == []
+    assert due(outbox, 1.201) == ["a"]
+    assert due(outbox, 1.99) == []
+    assert due(outbox, 2.01) == ["a"]
+
+
+def test_the_default_report_delay_stays_within_20_percent():
+    for _ in range(50):
+        outbox = ReportOutbox()
+        outbox.add("a")
+        assert due(outbox, 0.0) == ["a"]
+        assert due(outbox, 0.7999) == []
+        assert due(outbox, 1.201) == ["a"]
+
+
+def test_no_more_reports_than_the_limit_are_in_flight():
+    outbox = ReportOutbox(rand=middle)
+    for name in "abcde":
+        outbox.add(name)
+    sent = outbox.due(0.0, True, RETRY_S, 2)
+    assert [item for _, item in sent] == ["a", "b"]
+    assert due_limited(outbox, 0.5, 2) == [], "the others wait for a free place"
+    outbox.done(sent[0][0])
+    assert due_limited(outbox, 0.6, 2) == ["c"]
+    assert due_limited(outbox, 1.0, 2) == ["b"], "a resend does not take a new place"
+    assert due_limited(outbox, 1.6, 2) == ["c"]
+
+
+def due_limited(outbox, now, limit):
+    return [item for _, item in outbox.due(now, True, RETRY_S, limit)]
+
+
+def test_tracking_a_resend_hands_back_the_request_it_replaces():
+    outbox = ReportOutbox(rand=middle)
+    outbox.add("a")
+    [(report_id, _)] = outbox.due(0.0, True, RETRY_S, LIMIT)
+    first, second = object(), object()
+    assert outbox.track(report_id, first) is None
+    [(again, _)] = outbox.due(1.0, True, RETRY_S, LIMIT)
+    assert again == report_id
+    assert outbox.track(report_id, second) is first
+    assert outbox.done(report_id) is True
+    assert outbox.track(report_id, object()) is None, "a done report keeps nothing"

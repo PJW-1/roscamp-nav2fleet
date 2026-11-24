@@ -20,6 +20,8 @@ MEASURE_SUFFIXES = ("_s", "_m", "_mps", "_rps", "_pct")
 ROBOT_BLOCKED_AFTER_S = 10.0
 # 상태 보고 주기 0.5 s, 두 쪽 진전 재기 시작 차이, 여유
 BLOCKED_REPORT_MARGIN_S = 2.0
+# IR-41: 보고·취소를 다시 보낼 때 간격을 ±20% 무작위로 늘이고 줄인다
+RETRY_JITTER = 0.2
 
 
 # ---- FleetParams: 운영 파라미터 목록 ----
@@ -107,6 +109,7 @@ class FleetParams:
     check_interval_s: float = 5.0
     clear_confirm: int = 2
     blocked_retry_max_s: float = 300.0
+    report_max_in_flight: int = 4
 
     # ---- 파라미터 값 검사 ----
     def __post_init__(self):
@@ -168,6 +171,9 @@ def check_types(data: dict, source="params") -> None:
     if data.get("release_confirm_samples", 1) < 1:
         raise ValueError(f"{source}: release_confirm_samples must be >= 1, "
                          f"got {data['release_confirm_samples']!r}")
+    if data.get("report_max_in_flight", 1) < 1:
+        raise ValueError(f"{source}: report_max_in_flight must be >= 1, "
+                         f"got {data['report_max_in_flight']!r}")
 
 
 # ---- 시간·거리 값 검사: 유한, 음수 아님, 끔이 아니면 0보다 큼 ----

@@ -143,6 +143,17 @@ def test_release_confirm_samples_is_a_positive_integer(tmp_path, bad):
         load_params(write(tmp_path, {**SHIPPED, "release_confirm_samples": bad}))
 
 
+@pytest.mark.parametrize("bad", [0, -1, True, 2.5, "3"])
+def test_report_max_in_flight_is_a_positive_integer(tmp_path, bad):
+    """IR-41 동시 보고 상한. 0이면 보고가 하나도 나가지 않는다."""
+    with pytest.raises(ValueError, match="report_max_in_flight"):
+        load_params(write(tmp_path, {**SHIPPED, "report_max_in_flight": bad}))
+
+
+def test_report_max_in_flight_ships_as_4():
+    assert load_params().report_max_in_flight == 4
+
+
 def test_the_station_time_estimates_are_gone():
     assert not {"eta_fill_s_per_item", "eta_fill_base_s", "eta_swap_s"} & set(FIELDS)
 

@@ -1,19 +1,29 @@
 # ---- 액션 goal 추적과 보고 재전송 대기열 ----
 from __future__ import annotations
 
+import random
 from dataclasses import dataclass
+
+from fleet_core.common.params import RETRY_JITTER
+
+
+def _factor(rand) -> float:
+    # IR-41: 재전송 간격에 곱하는 배수, 0.8~1.2 균등
+    return 1.0 - RETRY_JITTER + 2.0 * RETRY_JITTER * rand()
 
 
 # ---- goal 전송·수락·완료·유실과 취소 상태 추적 ----
 @dataclass
 class _Cancel:
     tried_at: float
+    factor: float
     tries: int = 1
     warned: bool = False
 
 
 class GoalTracker:
-    def __init__(self):
+    def __init__(self, rand=random.random):
+        self._rand = rand
         self._pending: set = set()
         self._handles: dict = {}
         self._cancels: dict = {}
@@ -47,7 +57,7 @@ class GoalTracker:
             handle.cancel_goal_async()
         elif key not in self._pending:
             return
-        self._cancels[key] = _Cancel(now)
+        self._cancels[key] = _Cancel(now, _factor(self._rand))
 
     def canceling(self, key) -> bool:
         return key in self._cancels
@@ -59,7 +69,7 @@ class GoalTracker:
     def retry_cancels(self, now: float, retry_s: float, warn_after: int) -> list:
         unconfirmed = []
         for key, cancel in list(self._cancels.items()):
-            if now - cancel.tried_at < retry_s:
+            if now - cancel.tried_at < retry_s * cancel.factor:
                 continue
             if cancel.warned and key in self._lost:
                 self.finished(key)
@@ -69,6 +79,7 @@ class GoalTracker:
                 cancel.warned = True
                 unconfirmed.append(key)
             cancel.tried_at = now
+            cancel.factor = _factor(self._rand)
             cancel.tries += 1
             handle = self._handles.get(key)
             if handle is not None:
@@ -81,10 +92,13 @@ class GoalTracker:
 class _Report:
     item: object
     sent_at: float | None = None
+    factor: float = 1.0
+    future: object = None
 
 
 class ReportOutbox:
-    def __init__(self):
+    def __init__(self, rand=random.random):
+        self._rand = rand
         self._items: dict = {}
         self._next_id = 0
 
@@ -92,15 +106,31 @@ class ReportOutbox:
         self._items[self._next_id] = _Report(item)
         self._next_id += 1
 
-    def due(self, now: float, ready: bool, retry_s: float) -> list:
+    def due(self, now: float, ready: bool, retry_s: float, limit: int) -> list:
         if not ready:
             return []
+        # 보낸 뒤 답을 못 받은 보고가 자리를 차지한다. 다시 보내기는 새 자리가 아니다
+        in_flight = sum(report.sent_at is not None for report in self._items.values())
         out = []
         for report_id, report in list(self._items.items()):
-            if report.sent_at is None or now - report.sent_at >= retry_s:
-                report.sent_at = now
-                out.append((report_id, report.item))
+            if report.sent_at is None:
+                if in_flight >= limit:
+                    continue
+                in_flight += 1
+            elif now - report.sent_at < retry_s * report.factor:
+                continue
+            report.sent_at = now
+            report.factor = _factor(self._rand)
+            out.append((report_id, report.item))
         return out
+
+    def track(self, report_id, future):
+        # 새 요청을 적고 그것이 대신하는 앞선 요청을 돌려준다
+        report = self._items.get(report_id)
+        if report is None:
+            return None
+        previous, report.future = report.future, future
+        return previous
 
     def done(self, report_id) -> bool:
         return self._items.pop(report_id, None) is not None

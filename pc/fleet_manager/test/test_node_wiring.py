@@ -8,6 +8,7 @@ import subprocess
 import sys
 import threading
 import time
+from functools import partial
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import MagicMock
@@ -17,7 +18,7 @@ import pytest
 rclpy = pytest.importorskip("rclpy")
 pytest.importorskip("fleet_interfaces")
 
-from fleet_core.common.commands import EventOut, RetreatCmd  # noqa: E402
+from fleet_core.common.commands import EventOut, ReportOrderCmd, RetreatCmd  # noqa: E402
 from fleet_core.common.contract import to_ros_qos  # noqa: E402
 from fleet_core.fleet_map import load_fleet_map  # noqa: E402
 from fleet_interfaces.action import Dock, FillBasket, MoveTo, Retreat, SwapBasket  # noqa: E402
@@ -70,7 +71,7 @@ class World(Node):
         self.canceled_fills = []
         self.fill_cancel_reason = "CANCELED"
         self.report_accepted = True
-        self.report_delay_s = 0.0
+        self.first_report_delay_s = 0.0
         self.refuse_fill_cancel = False
         self.fill_cancel_asks = 0
         name = contract.name
@@ -170,7 +171,8 @@ class World(Node):
 
     def _on_report(self, request, response):
         self.reports.append(request)
-        time.sleep(self.report_delay_s)
+        if len(self.reports) == 1:
+            time.sleep(self.first_report_delay_s)
         response.accepted = self.report_accepted
         return response
 
@@ -557,7 +559,7 @@ def test_a_dropped_cancel_of_a_robot_goal_is_told_to_the_core_as_lost():
     """결과를 잃은 취소를 그만둘 때 코어에 알린다. 코어는 막힘 표시 때 취소한 goal이 끝나야
     이어 가기 때문이다."""
     key = ("pode1", 7)
-    goals = GoalTracker()
+    goals = GoalTracker(rand=lambda: 0.5)  # 지연 배수 1.0
     goals.sent(key)
     goals.accepted(key, SimpleNamespace(cancel_goal_async=lambda: None))
     goals.cancel(key, 0.0)
@@ -651,7 +653,8 @@ def test_a_refused_cancel_is_sent_again_and_warned_about_once_until_the_result_c
 
 
 def test_a_report_with_no_reply_yet_is_sent_again_and_ends_with_the_reply(graph):
-    graph.report_delay_s = 2.5  # report_retry_s보다 길다
+    """첫 요청의 답이 재전송보다 늦다. 다시 보낸 요청의 답이 보고를 끝낸다(IR-41)."""
+    graph.first_report_delay_s = 2.5  # report_retry_s × 1.2보다 길다
     publish(graph, "RUN", {"A": 1, "C": 2})
     assert wait_for(lambda: len(graph.reports) >= 2), f"reports {graph.reports}"
     assert {r.order_id for r in graph.reports} == {"O-001"}
@@ -684,11 +687,90 @@ def test_a_refused_report_is_dropped_with_one_error_naming_the_order(graph):
 
 def test_a_failed_reply_keeps_the_report_for_sending_again():
     report = SimpleNamespace(order_id="O-001")
-    outbox = ReportOutbox()
+    outbox = ReportOutbox(rand=lambda: 0.5)
     outbox.add(report)
-    [(report_id, _)] = outbox.due(0.0, True, 2.0)
+    [(report_id, _)] = outbox.due(0.0, True, 2.0, 4)
     future = Future()
     future.set_exception(RuntimeError("central went away"))
     node = SimpleNamespace(_reports=outbox, get_logger=lambda: SimpleNamespace(warning=print))
     FleetManagerNode._report_answered(node, report_id, report, future)
-    assert outbox.due(2.0, True, 2.0) == [(report_id, report)]
+    assert outbox.due(2.0, True, 2.0, 4) == [(report_id, report)]
+
+
+class _ReportClient:
+    """call_async가 답 없는 future를 내고 지운 요청을 적는다."""
+
+    def __init__(self):
+        self.sent = []
+        self.removed = []
+
+    def service_is_ready(self):
+        return True
+
+    def call_async(self, request):
+        future = Future()
+        self.sent.append(future)
+        return future
+
+    def remove_pending_request(self, future):
+        self.removed.append(future)
+
+
+def report_node(limit=4):
+    outbox = ReportOutbox(rand=lambda: 0.5)
+    events = []
+    node = SimpleNamespace(
+        _reports=outbox, _report_client=_ReportClient(),
+        core=SimpleNamespace(params=SimpleNamespace(report_retry_s=2.0,
+                                                    report_max_in_flight=limit)),
+        get_logger=lambda: SimpleNamespace(warning=print),
+        _now=lambda: 0.0, _dispatch=lambda command, now: events.append(command.code))
+    node._report_answered = partial(FleetManagerNode._report_answered, node)
+    return node, events
+
+
+def report_cmd(order_id):
+    return ReportOrderCmd(order_id, "pode1", "SHIPPED", {"A": 1}, {}, "")
+
+
+def answer(future, accepted):
+    future.set_result(ReportOrder.Response(accepted=accepted))
+
+
+def test_a_resent_report_removes_its_unanswered_request_from_the_client():
+    """IR-41: 다시 보낼 때 앞선 요청을 지워 대기 표가 늘지 않는다."""
+    node, _ = report_node()
+    node._reports.add(report_cmd("O-001"))
+    client = node._report_client
+    FleetManagerNode._flush_reports(node, 0.0)
+    assert client.removed == []
+    FleetManagerNode._flush_reports(node, 2.0)
+    FleetManagerNode._flush_reports(node, 4.0)
+    assert client.removed == client.sent[:2]
+    answer(client.sent[2], True)
+    assert not node._reports._items
+
+
+def test_a_late_answer_to_a_done_report_is_harmless():
+    node, events = report_node()
+    node._reports.add(report_cmd("O-001"))
+    client = node._report_client
+    FleetManagerNode._flush_reports(node, 0.0)
+    FleetManagerNode._flush_reports(node, 2.0)
+    answer(client.sent[1], True)
+    answer(client.sent[0], False)  # 지웠어도 늦게 끝난 future
+    assert events == [] and not node._reports._items
+    FleetManagerNode._flush_reports(node, 10.0)
+    assert len(client.sent) == 2
+
+
+def test_the_node_keeps_reports_over_the_limit_for_a_later_flush():
+    node, _ = report_node(limit=1)
+    for order in ("O-001", "O-002"):
+        node._reports.add(report_cmd(order))
+    client = node._report_client
+    FleetManagerNode._flush_reports(node, 0.0)
+    assert len(client.sent) == 1
+    answer(client.sent[0], True)
+    FleetManagerNode._flush_reports(node, 0.1)
+    assert len(client.sent) == 2
