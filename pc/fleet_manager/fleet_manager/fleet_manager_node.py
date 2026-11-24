@@ -21,7 +21,7 @@ from fleet_core.common.commands import (
     SwapCmd,
 )
 from fleet_core.common.contract import load_contract, to_ros_qos
-from fleet_core.common.params import load_params, timing_warnings
+from fleet_core.common.params import REPORT_REPLY_LIMIT_S, load_params, timing_warnings
 from fleet_core.fleet_map import FILL
 from fleet_core.manager import FleetManager
 from fleet_core.traffic.site import load_site
@@ -57,10 +57,14 @@ class FleetManagerNode(Node):
         self.declare_parameter("map_file", "")
         self.declare_parameter("params_file", "")
         self.declare_parameter("tick_hz", 10.0)
+        self.declare_parameter("robots_hz", 5.0)  # 팀 명세 F-11: /fleet/robots 5 Hz 안팎
         unset = ParameterDescriptor(dynamic_typing=True)
         self.declare_parameter("use_order_model", None, unset)
         self.declare_parameter("lookahead_s", None, unset)
         robots = list(self.get_parameter("robots").value)
+        robots_hz = self.get_parameter("robots_hz").value
+        if not robots_hz > 0.0:
+            raise ValueError(f"robots_hz must be > 0, got {robots_hz!r}")
 
         contract_file = self.get_parameter("contract_file").value or (
             get_package_share_directory("fleet_interfaces") + "/contract.yaml")
@@ -88,7 +92,7 @@ class FleetManagerNode(Node):
         self._arm_states = {}
         self._create_interfaces(robots)
         self.create_timer(1.0 / self.get_parameter("tick_hz").value, self._on_tick)
-        self.create_timer(1.0, self._publish_robots)
+        self.create_timer(1.0 / robots_hz, self._publish_robots)
         self._silent_until = (time.monotonic() + params.heartbeat_timeout_s
                               + params.heartbeat_period_s)
         self.create_timer(params.heartbeat_period_s, self._publish_heartbeat,
@@ -210,16 +214,21 @@ class FleetManagerNode(Node):
         for server, goal_id in self._goals.retry_cancels(now, params.cancel_retry_s,
                                                          params.cancel_warn_after):
             waited = params.cancel_warn_after * params.cancel_retry_s
-            detail = (f"goal {goal_id} on {server} has no result {waited:.0f} s after it was "
+            detail = (f"goal {goal_id} on {server} has no result about {waited:.0f} s after it was "
                       "canceled; the cancel stays open while a result can still come")
             self._dispatch(EventOut("WARN", "CANCEL_UNCONFIRMED", detail, server), now)
         for robot, goal_id in self._goals.take_dropped():
             self.core.on_goal_lost(robot, goal_id)
 
     def _flush_reports(self, now: float) -> None:
+        params = self.core.params
         for report_id, command in self._reports.due(now, self._report_client.service_is_ready(),
-                                                    self.core.params.report_retry_s):
+                                                    params.report_retry_s,
+                                                    params.report_max_in_flight):
             future = self._report_client.call_async(adapters.report_request(command))
+            # IR-41: 응답 한도를 넘긴 앞선 요청만 클라이언트에서 지운다
+            for previous in self._reports.track(report_id, future, now, REPORT_REPLY_LIMIT_S):
+                self._report_client.remove_pending_request(previous)
             future.add_done_callback(partial(self._report_answered, report_id, command))
 
     def _report_answered(self, report_id, command, future) -> None:

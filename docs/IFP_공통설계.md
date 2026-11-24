@@ -189,9 +189,10 @@ FMS는 컴포넌트 1개 = 프로세스 1개 = 노드 1개(`fleet_manager`, 실�
 | `arm_retry_wait_s` | 2 | 팔 실패 뒤 다시 보내기까지. 추정 |
 | `fill_timeout_s` | 90 | 담기 시간 제한. 추정 |
 | `swap_timeout_s` | 60 | 교환 시간 제한. 추정 |
-| `cancel_retry_s` | 1 | 취소한 목표의 결과가 없을 때 취소를 다시 보내는 간격. 추정 |
-| `cancel_warn_after` | 5 | `CANCEL_UNCONFIRMED`를 내기까지 결과 없이 지나간 재시도 주기 수. `cancel_retry_s`를 곱한 값이 `arm_cancel_wait_s` 이상이어야 코어가 아직 기다리는 팔을 늦었다고 하지 않는다(시험으로 고정) |
-| `report_retry_s` | 2 | 답이 없는 주문 보고를 다시 보내기까지. 추정 |
+| `cancel_retry_s` | 1 | 취소한 목표의 결과가 없을 때 취소를 다시 보내는 간격. 매번 0.8~1.2배로 무작위로 흔든다(IR-41). 추정 |
+| `cancel_warn_after` | 7 | `CANCEL_UNCONFIRMED`를 내기까지 결과 없이 지나간 재시도 주기 수. `cancel_retry_s`와 지터 하한 0.8을 곱한 값이 `arm_cancel_wait_s` 이상이어야 코어가 아직 기다리는 팔을 늦었다고 하지 않는다(시험으로 고정) |
+| `report_retry_s` | 2 | 답이 없는 주문 보고를 다시 보내기까지. 매번 0.8~1.2배로 무작위로 흔든다(IR-41). 추정 |
+| `report_max_in_flight` | 4 | 답을 기다리는 주문 보고 수의 상한(IR-41). 넘는 보고는 다음 차례에 보낸다. 로봇 세 대가 한꺼번에 끝내도 기다리지 않게 하나를 더 두었다 |
 | `zone_wait_warn_s` | 60 | `ZONE_WAIT_LONG`을 내기까지 |
 | `deadlock_grace_s` | 5 | 대기 고리를 찾고 포기 대상을 정하기까지 |
 | `score_same_call` | -4 | 이미 호출된 로봇의 점수 보정. 다른 로봇이 뚜렷이 가깝지 않으면 호출을 유지한다 |
@@ -255,7 +256,7 @@ FMS 내부 호출 (파이썬, `fleet_core` 패키지):
 - `/central/submit_order` SubmitOrder 서비스: UI → central. 재고 기록에 없거나 용량 초과면 거절
 - `/central/set_run_mode` 서비스: UI → central (RUN / PAUSE / STOP)
 - `/central/orders` OrderBoard 토픽(run_mode, 최종 보고가 안 된 주문을 오래된 순서로): central → FMS
-- `/central/report_order` ReportOrder 서비스(SHIPPED, PARTIAL, HELD, placed, missing, detail): FMS → central. FMS는 `accepted=true` 답을 받을 때까지 답이 없는 보고를 `report_retry_s`마다 다시 보낸다. **실제 central이 지킬 것:** 같은 보고가 여러 번 와도 결과가 달라지면 안 된다. 이미 처리한 주문이면 재고를 다시 빼지 않고 `accepted=true`로 답한다(`fake_central_node`가 이렇게 한다). `accepted=false`는 다시 보내도 소용없을 때만 쓴다. FMS는 그 보고를 버리고 `ORDER_REPORT_REFUSED`를 낸다
+- `/central/report_order` ReportOrder 서비스(SHIPPED, PARTIAL, HELD, placed, missing, detail): FMS → central. FMS는 `accepted=true` 답을 받을 때까지 답이 없는 보고를 `report_retry_s`(±20%)마다 다시 보내고, 다시 보낼 때 응답 한도(IR-40 `Report*` 3 s)를 넘긴 앞선 요청만 지운다(IR-41). **central은 3 s 안에 답해야 한다.** 그보다 늦은 답은 받지 않는다. **실제 central이 지킬 것:** 같은 보고가 여러 번 와도 결과가 달라지면 안 된다. 이미 처리한 주문이면 재고를 다시 빼지 않고 `accepted=true`로 답한다(`fake_central_node`가 이렇게 한다). `accepted=false`는 다시 보내도 소용없을 때만 쓴다. FMS는 그 보고를 버리고 `ORDER_REPORT_REFUSED`를 낸다
 - `/central/events` FleetEvent 토픽: FMS와 central이 발행하고 source로 구분한다
 - `/fleet/assignments` AssignmentArray 토픽(항목마다 robot_id, order_id, station_id, task_type: TO_WORK/FILL/TO_OUTBOUND/SWAP/WAIT): FMS → central
 - `/fleet/zones` ZoneStateArray 토픽: FMS → central
@@ -272,7 +273,7 @@ FMS 내부 호출 (파이썬, `fleet_core` 패키지):
 - `/cmd_vel`(Nav2, pode_dock → pinky_bringup), `/scan`, `/odom`(pinky_bringup → Nav2): Pode 안의 연결이다. 제조사 패키지와 Nav2의 일반적인 이름이고 contract.yaml에는 없다. 3대를 namespace로 나누는 구성은 시험 전이다
 
 새로 더한 바깥 인터페이스 (사용자 기준. 코드와 `contract.yaml`에는 들어 있다. `/fleet/robots`는 11-05 제안, `/fleet/heartbeat`는 관제 요구):
-- `/fleet/robots` RobotStatusArray 토픽(LATCHED, 1 Hz): FMS → central. 로봇마다 robot_id, fsm_state(Pode 보고 그대로), task_type, order_id, fault(NONE, ERROR, COMM_LOST, OUT_OF_SERVICE, RECOVERING), fault_reason, wait_zone, wait_robots, battery, x, y, yaw, base, horizon(뒤의 둘은 제안: 앞에 남은 길의 지점 이름으로, 구역을 허락받은 부분과 아직 허락받지 않은 부분). `/fleet/assignments`와 `/fleet/zones`는 호환을 위해 유지한다. 위치, 배터리, fsm_state는 마지막 보고 값이다
+- `/fleet/robots` RobotStatusArray 토픽(LATCHED, 5 Hz, 노드 파라미터 `robots_hz`, 팀 명세 F-11): FMS → central. 로봇마다 robot_id, fsm_state(Pode 보고 그대로), task_type, order_id, fault(NONE, ERROR, COMM_LOST, OUT_OF_SERVICE, RECOVERING), fault_reason, wait_zone, wait_robots, battery, x, y, yaw, base, horizon(뒤의 둘은 제안: 앞에 남은 길의 지점 이름으로, 구역을 허락받은 부분과 아직 허락받지 않은 부분). `/fleet/assignments`와 `/fleet/zones`는 호환을 위해 유지한다. 위치, 배터리, fsm_state는 마지막 보고 값이다
 - `/fleet/heartbeat` std_msgs/Header 토픽(HEARTBEAT QoS: reliable, volatile, depth 1. 0.4-draft에서 STATE에서 바꿨다(지시서 1.5, 제안, FSM 담당 확인 전). 2 Hz, `heartbeat_period_s` 0.5 s): FMS → Pode. 토픽과 Pode 쪽 동작 모두 관제가 요구하는 것이다(팀 합의 전, Pode 계약 3절 5번). **Pode에 요구하는 것:**
   - 이동 또는 도킹 목표를 실행 중일 때, 마지막 heartbeat 또는 목표 수락에서 `heartbeat_timeout_s`(1.5 s, heartbeat 3번)가 지나면 그 목표를 취소하고 정지한다. move_to는 `reason=HEARTBEAT_LOST`로 끝낸다(11-06). 목표 수락도 FMS가 살아 있다는 증거로 친다. 새 FMS의 첫 목표가 첫 heartbeat보다 먼저 올 수 있기 때문이다.
   - 할 일이 없는 로봇은 heartbeat가 없어도 아무것도 하지 않고 상태 보고를 계속한다. 멈춘 뒤 온 새 목표는 받는다.
@@ -405,9 +406,9 @@ SWAPPING(OUTBOUND 요청의 결과를 받은 뒤):
 
 `ARM_NO_RESULT` 뒤에 온 결과: 그 작업을 기억해 두었다가 `ARM_LATE_RESULT`(WARN)로 보고 내용(placed, 또는 took_full과 put_empty_done)을 알린다. 주문이 아직 그 로봇에 묶여 있으면 반영한다. 담기의 placed는 주문에 더하고, FULL 바구니를 꺼낸 교환(took_full)은 제시간에 온 결과처럼 SHIPPED(결품이 있었으면 PARTIAL)로 보고하고 주문을 푼다. 그래서 나중에 로봇을 치워도 주문이 되돌아가지 않는다. 로봇은 ERROR 그대로이고 놓아주지 않으며, 관리자가 확인한다. 이미 로봇을 치웠으면 주문은 되돌아간 뒤이므로 이벤트만 내고 반영하지 않는다. 이때 주문이 두 번 담기거나 출고될 수 있고, detail이 그렇게 알린다. 주문을 이미 보고한 뒤의 교환 재시도라면 묶인 주문이 없으므로 이벤트만 낸다. 로봇을 치우면서 취소한 작업도 같은 방식으로 기억한다. 그 결과가 무엇을 했다고 하면(담은 것이 있거나, `took_full`이나 `put_empty_done`) 반영하지 않고 `ARM_LATE_RESULT`로 알리며, detail은 주문이 두 번 담기거나 출고될 수 있다고 적는다. 아무것도 하지 않았다는 결과는 알리지 않는다(2026-11-06 검토에서 추가).
 
-취소 확인(`fleet_manager` 노드, 이동·도킹·팔 목표 공통): 취소는 그 목표의 결과가 와야 끝난 것으로 친다. 코어는 `CancelCmd`를 내면 잊지만, 노드는 결과가 올 때까지 `cancel_retry_s`마다 취소를 다시 보낸다. 처음 보낸 것을 포함해 `cancel_warn_after`번이 답 없이 지나가면 `CANCEL_UNCONFIRMED`를 한 번 내고, 그 뒤에도 같은 간격으로 계속 보낸다. 다만 취소한 이동·도킹 목표의 결과를 잃으면(결과 future 오류) 결과가 다시 올 수 없으므로 이 경고 다음 재시도에서 그만둔다. 그 로봇의 구역은 코어가 결과나 `confirm_clear`까지 쥔다(5절 레인 막힘). 서버가 수락하기 전에 요청한 취소는 수락되는 순간 보내고, 수락을 기다리는 시간도 횟수에 넣는다. 수락 답이 사라져도 목표는 돌고 있을 수 있기 때문이다. 시각은 노드의 시계를 쓰므로 시뮬레이션 시간을 따른다.
+취소 확인(`fleet_manager` 노드, 이동·도킹·팔 목표 공통): 취소는 그 목표의 결과가 와야 끝난 것으로 친다. 코어는 `CancelCmd`를 내면 잊지만, 노드는 결과가 올 때까지 `cancel_retry_s`에 0.8~1.2배 무작위 배수를 곱한 간격마다 취소를 다시 보낸다(IR-41). 처음 보낸 것을 포함해 `cancel_warn_after`번이 답 없이 지나가면 `CANCEL_UNCONFIRMED`를 한 번 내고, 그 뒤에도 같은 간격으로 계속 보낸다. 다만 취소한 이동·도킹 목표의 결과를 잃으면(결과 future 오류) 결과가 다시 올 수 없으므로 이 경고 다음 재시도에서 그만둔다. 그 로봇의 구역은 코어가 결과나 `confirm_clear`까지 쥔다(5절 레인 막힘). 서버가 수락하기 전에 요청한 취소는 수락되는 순간 보내고, 수락을 기다리는 시간도 횟수에 넣는다. 수락 답이 사라져도 목표는 돌고 있을 수 있기 때문이다. 시각은 노드의 시계를 쓰므로 시뮬레이션 시간을 따른다.
 
-보고 확인(`fleet_manager` 노드): 주문 보고는 `accepted=true` 답을 받을 때까지 노드가 가지고 있고, 답이 없으면 `report_retry_s`마다 다시 보낸다(4절). 서비스가 안 보이는 동안에는 보내지 않는다. 호출이 실패해도 가지고 있다가 다시 보낸다. `accepted=false`면 버리고 `ORDER_REPORT_REFUSED`를 낸다.
+보고 확인(`fleet_manager` 노드): 주문 보고는 `accepted=true` 답을 받을 때까지 노드가 가지고 있고, 답이 없으면 `report_retry_s`에 0.8~1.2배 무작위 배수를 곱한 간격마다 다시 보낸다(4절, IR-41). 다시 보낼 때 응답 한도(3 s, `REPORT_REPLY_LIMIT_S`)를 넘긴 앞선 요청만 클라이언트에서 지운다(`remove_pending_request`). 한도 안의 앞선 요청은 남겨 두어 그 답으로도 보고가 끝나고, 이미 끝난 보고의 답은 무시한다. 답을 기다리는 보고는 `report_max_in_flight`개까지이고 넘는 새 보고는 자리가 날 때 보낸다. 서비스가 안 보이는 동안에는 보내지 않는다. 호출이 실패해도 가지고 있다가 다시 보낸다. `accepted=false`면 버리고 `ORDER_REPORT_REFUSED`를 낸다.
 
 STOP: 팔 작업을 취소한다. RUN으로 돌아오면 남은 일부터 다시 한다. PAUSE: 진행 중인 것은 끝내고 새 명령을 내지 않는다.
 
@@ -479,7 +480,7 @@ expect: {all_orders_finished: true, orders_shipped: 6, orders_partial: 0, orders
 - ~~고장 난 로봇의 주문은 관리자가 치울 때까지 멈춘다.~~ 닫힘(11-06, 5.5번): 로봇 1대가 고장 나도 주문은 사람을 기다리지 않는다(자동 격리, 5절). 다만 기본 지도처럼 우회로가 없는 곳에서는 격리된 로봇 뒤의 로봇이 관리자가 치울 때까지 기다린다. 격리된 로봇이 쥔 구역은 우회 계산에서 무한 벌점이라, 그 구역을 지나지 않는 길이 있을 때만 돌아간다. 특징 지도에서 확인했다(`feature_auto_isolation`): F1, F2를 쥐고 서면 좁은 통로(F0 T2 T1 QW W)로 돌아가고, 도크(W, O)나 하나뿐인 길(동쪽행 E, O->F0, 대기 줄 출구 QW)을 쥐면 기다린다. F2만 쥔 경우도 `df2a02b`부터 남은 경로의 무한 보유자를 보므로 O에서 돌아간다(SimWorld, 작업 기록 파트 5.5). 남은 일: 대기 줄로 들어가는 결정은 출구(QW)가 막힌 것을 보지 않는다. 격리된 로봇이 QW만 쥐면 대기 줄에 들어간 로봇이 갇힌다(SimWorld 6건 중 5건).
 - `ARM_NO_RESULT`로 격리된 로봇의 주문은 되돌리지 않고 관리자를 기다린다. 격리 때 교환 중이었으면 그 결과까지 기다리고, 결과가 없으면 같은 규칙이다(5-1절의 예외). 두 번 출고를 막으려는 것이다.
 - 격리로 되돌린 주문은 다른 로봇이 처음부터 다시 담는다. 격리된 로봇의 바구니에 남은 품목은 관리자가 치우며 재고를 맞춘다. FMS는 바구니를 NONE으로만 기록한다.
-- 보고와 취소를 다시 보낼 때마다 rclpy 클라이언트에 응답 대기 항목이 하나씩 남고, 답이 오지 않은 요청은 프로세스가 끝날 때까지 남는다. central이나 서버가 발견은 되는데 답하지 않는 동안 보고는 `report_retry_s`, 취소는 `cancel_retry_s`마다 1개씩 늘어난다. 먼저 보낸 요청을 지우면 응답이 재전송 간격보다 느린 central의 답을 영영 받지 못하므로 그대로 두었다.
+- 보고는 다시 보낼 때 응답 한도(3 s)를 넘긴 앞선 요청을 지우므로(IR-41) 응답 대기 항목이 보고마다 많아야 두 개(재전송 간격이 1.6~2.4 s라서)다. 3 s보다 늘 느리게 답하는 central의 보고는 끝나지 않는다. 취소는 액션 클라이언트에 지우는 공개 API가 없어 그대로다. 서버가 발견은 되는데 답하지 않는 동안 `cancel_retry_s`마다 1개씩 늘어난다.
 - `CANCEL_UNCONFIRMED`는 알리기만 한다. 취소가 끝내 듣지 않는 로봇을 FMS가 세울 방법은 없고, `move_to`와 `dock`에는 다른 정지 수단이 없다.
 - central이 거절한 보고(`ORDER_REPORT_REFUSED`)의 주문은 보드에 남아 있어도 아무도 맡지 않고 보고하지도 않는다. 관리자가 처리한다.
 - `FakePode`는 즉시 선다. 실물의 감속 거리는 `heartbeat_timeout_s` 동안 이동 거리에 더해야 한다.
@@ -529,7 +530,7 @@ expect: {all_orders_finished: true, orders_shipped: 6, orders_partial: 0, orders
 | 이동 목표(레인 준수) | `traffic/lane_path.py`(파트 7). `lane_goal_mode: path`면 잠금을 쥔 데까지 레인 폴리라인을 `MoveCmd.path`로 내고 노드가 `MoveTo.path`에 싣는다. 해제 보강은 `traffic/release_floor.py`. FakePode는 선의 지점을 차례로 따른다. 규칙은 5절 |
 | 치운 로봇 재투입 | `FleetManager.reinstate`(`/fleet/reinstate`, 관제 요구)가 traffic `reinstate.py`와 `on_robot_reinstated`를 부르고 `ROBOT_REINSTATED`를 낸다. 시나리오 `reinstate` |
 | 교통 모델 | 레인 지도(3절). 잠금은 구역, 해제는 레인 투영(5절), 충돌쌍과 양방향 묶음은 지도에서 계산한다 |
-| 로봇별 상태 | `/fleet/robots` 1 Hz. `/fleet/assignments`, `/fleet/zones`는 그대로 |
+| 로봇별 상태 | `/fleet/robots` 5 Hz(11-24, 전에는 1 Hz). `/fleet/assignments`, `/fleet/zones`는 그대로 |
 | 자체 정지 | `/fleet/heartbeat` 2 Hz(11-06에 `/fms/heartbeat`에서 이름만 바꿈, 관제 요구). `FakePode`에 구현했고 실물은 FSM 담당 몫이다 |
 | 기록과 재생 | `fleet_manager_node --record`, `tools/replay.py` |
 | 중앙과 FMS 사이 | `fleet_manager` 노드가 `/fleet/*`, `/central/events`를 발행하고 `/fleet/confirm_clear`를 제공한다. 가짜 중앙은 `/fleet/*`를 구독하지 않고, 심판 `scenario_monitor`가 구독하며 관리자 역할로 confirm_clear를 부른다 |
@@ -585,7 +586,7 @@ expect: {all_orders_finished: true, orders_shipped: 6, orders_partial: 0, orders
 | SR-36 (MUST) | 관리 프로그램과 별개의 비상 정지 | 이 문서와 `contract.yaml`에 경로가 없다. STOP은 화면, central, FMS를 거친다. `/fleet/heartbeat`는 FMS나 통신이 끊겼을 때 로봇이 혼자 서는 장치이고 비상 정지 경로를 대신하지 않는다 | 경로와 듣는 쪽 |
 | SR-27 (MUST) | 상품의 종류, 위치, 수량과 트레이·바구니 위치 인식 | `/{arm}/vision/items`는 arm_left, arm_right의 상품만 다룬다. 트레이·바구니 인식과 arm_ship의 인식 인터페이스가 없다 | 어디서 어떤 토픽으로 낼지 |
 | SR-21 (MUST) | Pode가 조금 어긋나게 서도 위치를 맞춰 담는다 | dispatch 결과에 도킹 오차가 있지만 `FillCmd`와 FillBasket goal에는 전달할 필드가 없다 | 오차를 넘길지, 카메라로 보정할지 |
-| SR-31 (MUST) | 지도 위 Pode 위치 표시 | `/fleet/robots`의 x, y, yaw(제안, 1 Hz, 마지막 보고 값) | 메시지를 팀이 받아들일지, 1 Hz로 충분한지 |
+| SR-31 (MUST) | 지도 위 Pode 위치 표시 | `/fleet/robots`의 x, y, yaw(제안, 5 Hz, 마지막 보고 값) | 메시지를 팀이 받아들일지 |
 | SR-15 (SHOULD), UR-10 | 배터리가 낮으면 대기 구역으로 돌아가 충전 | `RobotState.battery`를 `/fleet/robots`로 보여 주기만 하고 `traffic`에 판단이 없다 | 넣을지 |
 | SR-09, SR-20, SR-23, SR-25, SR-28 (SHOULD) | 주문 취소, 사람 접근 대응, 작업 팔 거리 감시, 빈 바구니·출고 위치 관리, 담긴 개수 확인 | 이 문서에 전용 규칙과 인터페이스가 없다. `put_empty`와 `placed`는 있지만, 빈 바구니의 보관 수량 관리나 카메라로 하는 개수 확인은 아니다 | 어디까지 넣을지 |
 
