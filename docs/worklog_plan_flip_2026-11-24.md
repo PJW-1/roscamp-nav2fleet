@@ -69,3 +69,21 @@
 - arrival_check.py: nav_goal 조각마다 truth로 목적지 0.06 m 안에 든 때부터 관제가 끝을 받은 때까지(지연),
   5 s 넘는 수(slow), 닿은 뒤 실패·취소로 끝난 수(near_fail). C의 11-18 도착 판정 문제 확인용이다.
 - collision_ahead: launch.out의 RPP "collision ahead" 줄 수. RL 판은 0이 나와 FollowPathRL이 쓰였다는 방증으로 쓴다.
+
+## 판 실패와 오류 조사 (15:40~15:55)
+
+- `s2_a1_base_rl_v1` 1회차(RL+shim, 1 cm, 장애물 판; 폴더 `s2_a1_base_rl_v1.unfinished-154338`)가 sim 약 540 s에
+  `ROBOT_ISOLATED DOCK_FAILED`로 멈췄다. 감시가 판을 끊어 summary가 없고, 큐가 같은 이름으로 다시 돌렸다.
+  - sim 430.5~432.4 s에 pode1이 P-3에 서 있던 pode3에 닿았다(중심 거리 0.115 m, truth). 몸은 (0.70, 0.23)에서
+    yaw -0.74~-0.78 rad로 거의 멈춰 있었는데, cmd_vel은 각속도 +1.0(포화)을 냈고 Nav2가 아는 yaw는 -18도에서
+    +136도로 돌았다. 바퀴 오도메트리만 돈 것이다. 이후 AMCL이 바로잡지 못해 Nav2 위치가 0.4 m → 1.4 m,
+    방향 150~180도까지 어긋났다(bag의 navigate_to_pose feedback과 truth 비교, recovery_probe.csv에도 같은 값).
+  - 관제는 어긋난 위치를 믿고 Q2, Q1, W 조각 끝을 받았고, 도크 대역은 실제 위치가 W에서 1.73 m 떨어져
+    `dock WORK FAILED`를 세 번 낸 뒤 격리했다.
+  - RPP 판(s1_*, A, B, C)은 Nav2 위치 오차 최대 0.049 m, 방향 8도 이하였다.
+- `worldToMap failed: mx,my: 228..231, 1..80, size_x,size_y: 228,128`(pode1 planner_server)은
+  `libnav2_navfn_planner.so`의 로그다. NavFn의 tolerance 0.5 m 창을 Q2(1.66, 0.15) 둘레로 훑으면 x 2.16 m까지 가는데
+  지도는 x 2.13 m(1 cm, origin -0.15, 228칸)에서 끝난다. 2.5 cm 지도도 x 2.15 m(92칸)에서 끝나서 같은 일이 날 수 있으므로
+  1 cm만의 문제는 아니다. 판별 오류 수: C_rpp_r1 640, base_rl_r1 320, RL 장애물 판 2240~11888, 나머지 0.
+  NavFn은 goal 칸 자체에 닿지 못할 때만 이 창을 훑는다고 본다(추측: Q2 근처에 다른 로봇이 있을 때). 오류가 난 판도
+  다른 지표는 정상이라 동작 영향은 확인하지 못했다(로그 양만 늘어난다).
