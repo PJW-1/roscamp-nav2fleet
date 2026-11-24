@@ -1,41 +1,35 @@
-# 해결안 B 비교 판(2026-11-24): pc/fleet_core/fleet_core/data/fleet_params.yaml과 plan_split 한 줄만 다르다
-# (test_zone_plan_split이 견준다). Gazebo: fleet_params_file:=<저장소>/docs/plan_flip_2026-11-24/fleet_params_plan_split.yaml
-# 정책 값. 추정 표시는 실제 코스에서 재야 한다.
-basket_capacity: 4            # 추정: 바구니 하나에 담는 최대 수량, 실제 바구니에 따라 다름
-robot_radius_m: 0.08          # 추정: Pode 몸체만, 뒤 트레이는 아직 미포함
+# 해결안 B 비교 판: pc/fleet_core/fleet_core/data/fleet_params.yaml과 plan_split 한 줄만 다르다(test_zone_plan_split이 견준다)
+# Gazebo: fleet_params_file:=<저장소>/docs/plan_flip_2026-11-24/fleet_params_plan_split.yaml
+# 관제 정책 값. 모두 제안값이고 실측 전이다.
+basket_capacity: 4            # 바구니 하나에 담는 최대 수량(추정)
+robot_radius_m: 0.08          # Pode 몸체 반경(추정)
 release_margin_extra_m: 0.05  # 시나리오 판정 전용: 반경 + 이 값 = 코스 이탈
-# 경로 위에서 뒤 구역은 보고가 나가는 레인을 따라 이만큼 지나면 놓는다. s = (p - p_i)·u.
-# 규칙 d >= r + eps + v * (tau + tick): 보고가 eps 틀리고 tau + tick 늦어도 몸이 구역을 지난다.
-# 0.08 + 0.03 + 0.2 * (0.2 + 0.1) = 0.17 m.
-# 또 d > 2r: 뒤 로봇이 방금 떠난 지점까지 올 수 있다. 앞 로봇이 eps 앞선 보고 직후 멈출 수
-# 있으면 d >= 2r + eps. eps와 tau를 실제 로봇에서 재기 전까지 추정이다.
-release_distance_m: 0.2       # 구역 교통은 읽지 않는다(footprint_radius_m + release_margin_m로 놓는다). Pode의 자가 복구 후진 거리 식이 같은 값을 쓴다
+release_distance_m: 0.2       # 구역 교통은 읽지 않는다(footprint_radius_m + release_margin_m로 놓음). Pode FSM은 같은 이름의 자기 파라미터를 쓴다
 release_confirm_samples: 3    # 해제 전에 그 거리를 지난 연속 보고 수
-lane_error_warn_m: 0.15       # 가짜 로봇: 받은 path 첫 점이 이보다 멀면 따라가지 않는다(PATH_NOT_CONNECTED). 레인 이탈 감시는 지웠다
-move_retry_limit: 2           # 첫 실패 뒤 재시도 수, 모두 세 번 시도
-move_retry_wait_s: 2.0        # 추정: 세 번 시도가 comm_timeout_s보다 길어 통신 끊김이 먼저 보인다
-stall_s: 12.0                 # 목표가 열린 채 이만큼 제자리면 멈춤. Pode의 blocked_after_s(10 s, 계약 0.13-draft)보다 2 s 길어야 한다: 짧으면 선 로봇이 BLOCKED를 보고하기 전에 goal을 거둔다(0.12까지 6 s)
-stall_move_m: 0.05            # 보고 위치가 이보다 덜 움직이면 제자리. 위치 잡음 σ 0.03 m에도 버틴다
-dock_stall_s: 15.0            # 추정: 도킹은 천천히 맞추므로 더 길게 본다
-blocked_mark_s: 10.0          # 추정: BLOCKED가 이만큼 이어지면 그 연결을 막힘으로 표시하고 다른 길을 고른다(잠깐 지나가는 사람 8 s보다 길게)
-blocked_timeout_s: 60.0       # 추정: BLOCKED로 보고된 시간이 이만큼이면 ERROR(BLOCKED)
-blocked_reset_m: 0.30         # 추정: 같은 goal의 막힘 일화는 시작점에서 이만큼 넘게 나아가야 끝난다(Pode 자가 후진 최대 0.15 m의 두 배)
-blocked_reset_s: 20.0         # 추정: BLOCKED도 RECOVERING도 아닌 보고가 이만큼 이어져야 일화가 끝난다. Nav2 goal 로봇은 5 cm 움직이면 BLOCKED가 풀리고 다시 막히기까지 blocked_after_s 10 s가 걸리므로 그 두 배
-arrival_tolerance_m: 0.15     # 추정: 목표 지점에 이만큼 가까워야 이동 성공으로 친다
-arrival_settle_s: 1.0         # 추정: 보고가 늦으니 성공 뒤 이만큼 기다린다
+lane_error_warn_m: 0.15       # 가짜 로봇: path 첫 점이 이보다 멀면 따라가지 않는다
+move_retry_limit: 2           # 첫 실패 뒤 재시도 수
+move_retry_wait_s: 2.0        # 재시도 대기
+stall_s: 12.0                 # 목표가 열린 채 이만큼 제자리면 멈춤. Pode blocked_after_s보다 2 s 길어야 한다
+stall_move_m: 0.05            # 보고 위치가 이보다 덜 움직이면 제자리
+dock_stall_s: 15.0            # 도킹은 천천히 맞추므로 더 길게 본다
+blocked_mark_s: 10.0          # BLOCKED가 이만큼 이어지면 그 연결을 막힘으로 표시
+blocked_timeout_s: 60.0       # BLOCKED가 이만큼이면 ERROR(BLOCKED)
+blocked_reset_m: 0.30         # 같은 goal의 막힘 일화가 끝나려면 시작점에서 넘어야 할 거리
+blocked_reset_s: 20.0         # BLOCKED도 RECOVERING도 아닌 보고가 이만큼 이어져야 일화가 끝난다
+arrival_tolerance_m: 0.15     # 목표 지점에 이만큼 가까워야 이동 성공
+arrival_settle_s: 1.0         # 성공 뒤 보고가 늦어서 기다리는 시간
 startup_wait_s: 10.0          # 이때까지 보고 없는 로봇은 알린다
-comm_timeout_s: 3.0           # 추정
-heartbeat_period_s: 0.5       # /fleet/heartbeat 제안값. 프로세스를 보므로 실제 시계 기준
-heartbeat_timeout_s: 1.5      # 제안값: 이만큼(세 번) 못 받으면 로봇이 멈춘다
-recover_check_s: 1.0          # 추정
-arm_cancel_wait_s: 5.0        # 추정
-arm_retry_wait_s: 2.0         # 추정
-fill_timeout_s: 90.0          # 추정: 팔 두 대가 바구니 하나를 채움
-swap_timeout_s: 60.0          # 추정: arm3가 찬 바구니를 빼고 빈 바구니를 놓음
-cancel_retry_s: 1.0           # 추정: 취소한 goal 결과가 없으면 이 주기로 다시 요청
-cancel_warn_after: 5          # 결과 없이 이만큼 주기가 지나면 CANCEL_UNCONFIRMED.
-                              # 코어가 기다리는 팔을 늦었다고 하지 않게 arm_cancel_wait_s 이상
-report_retry_s: 2.0           # 추정: 답이 없으면 이만큼 뒤 주문 보고를 다시 보냄
+comm_timeout_s: 3.0           # 통신 끊김 판정
+heartbeat_period_s: 0.5       # /fleet/heartbeat 주기(실제 시계 기준)
+heartbeat_timeout_s: 1.5      # 이만큼 못 받으면 로봇이 멈춘다
+recover_check_s: 1.0
+arm_cancel_wait_s: 5.0
+arm_retry_wait_s: 2.0
+fill_timeout_s: 90.0          # 팔 두 대가 바구니 하나를 채우는 제한 시간
+swap_timeout_s: 60.0          # arm3가 바구니를 바꾸는 제한 시간
+cancel_retry_s: 1.0           # 취소한 goal 결과가 없으면 이 주기로 다시 요청
+cancel_warn_after: 5          # 결과 없이 이만큼 주기가 지나면 CANCEL_UNCONFIRMED
+report_retry_s: 2.0           # 답이 없으면 이만큼 뒤 주문 보고를 다시 보냄
 zone_wait_warn_s: 60.0        # 한 구역을 이만큼 기다리면 경고
 deadlock_grace_s: 5.0         # 교착 두 번째 단계 전 대기
 score_same_call: -4.0         # 이미 불린 로봇은 다른 로봇이 확실히 가깝지 않으면 호출을 유지
@@ -43,50 +37,51 @@ score_distance_weight: 0.91   # 레인 거리 1 m당
 priority_at_station: 200
 priority_has_cargo: 100
 input_pose_margin_m: 1.0      # 웨이포인트 범위 밖으로 이보다 먼 보고 위치는 버린다
-idle_watch_s: 10.0            # 제안: 주행 단계인데 goal도 구역 대기표도 없이 이만큼 서면 ROBOT_IDLE을 남긴다(알리기만 한다)
-battery_low_pct: 0.0          # 제안: 보고한 배터리(0-100)가 이 값 이하면 새 일을 받지 않고 대기 지점(충전 자리)으로 간다. 0이면 끈다
-battery_charged_pct: 80.0     # 제안: 이 값 이상이 되면 다시 일을 받는다
-dispatch_retry_wait_s: 2.0    # 제안: 출고 호출이 실패하면 이만큼 뒤 다시 보낸다
-dispatch_retry_limit: 3       # 제안: 출고 호출 실패가 이 수를 넘으면 ERROR(DISPATCH_FAILED)
-self_recovery_limit_s: 45.0   # 제안: 로봇이 RECOVERING(자가 복구)을 이만큼 넘게 이어 보내면 BLOCKED로 본다. Pode FSM의 두 번 시도는 길어야 약 35 s
-traffic_mode: zones           # 교통 층: zones(지점·구역 그래프의 구역 허락). 다른 값은 없다
-# 구역 교통 층(traffic/zone). 모두 제안값이고 실측 전이다
-nav_speed_mps: 0.12           # 넓은 구역(Nav2 goal)의 ETA와 길 비용에 쓰는 속도
-nav_eta_speed_ratio: 1.0      # 넓은 구역 ETA 순항 속도 = nav_speed_mps x 이 비율(0 초과 1 이하). 길 비용에는 안 씀. 사용자 결정 2026-11-23: 틀만, 값은 실측 뒤
-follow_speed_mps: 0.12        # 고정 경로(FollowPath)의 같은 값
+idle_watch_s: 10.0            # 주행 단계인데 goal도 구역 대기표도 없이 이만큼 서면 ROBOT_IDLE을 남긴다
+battery_low_pct: 0.0          # 이 값 이하면 새 일을 받지 않고 충전 자리로 간다. 0이면 끈다
+battery_charged_pct: 80.0     # 이 값 이상이 되면 다시 일을 받는다
+dispatch_retry_wait_s: 2.0    # 출고 호출이 실패하면 이만큼 뒤 다시 보낸다
+dispatch_retry_limit: 3       # 출고 호출 실패가 이 수를 넘으면 ERROR(DISPATCH_FAILED)
+self_recovery_limit_s: 45.0   # RECOVERING이 이만큼 넘게 이어지면 BLOCKED로 본다
+traffic_mode: zones           # 교통 층: zones(구역 허락)만 있다
+# ---- 구역 교통 층(traffic/zone) ----
+nav_speed_mps: 0.12           # 넓은 구역(Nav2 goal)의 ETA와 길 비용 속도
+nav_eta_speed_ratio: 1.0      # 넓은 구역 ETA 순항 속도 = nav_speed_mps x 이 비율(0 초과 1 이하, 길 비용에는 안 씀)
+follow_speed_mps: 0.12        # 고정 경로(FollowPath) 속도
 retreat_speed_mps: 0.05       # 후진(Retreat) 속도
-nav_pass_m: 0.15              # 넓은 구역 ETA: 다음 조각이 있으면 로봇은 끝 노드 이만큼 앞에서 넘어간다(pode_fsm pass_m와 같게). 0이면 끔
-nav_turn_rps: 1.0             # 넓은 구역 ETA: 후진이 이어지거나 Route가 끝나면 끝에 서서 이 각속도로 끝 방향으로 돈다(RPP rotate_to_heading_angular_vel). 0이면 끔
-nav_goal_tolerance_m: 0.05    # 넓은 구역 ETA: 끝 노드에서 이만큼 안이면 이미 닿아 도는 중으로 본다(Nav2 general_goal_checker xy_goal_tolerance)
-footprint_radius_m: 0.085     # Nav2 발자국(0.12 x 0.12 m)의 반 대각선
-release_margin_m: 0.05        # 제안: 보고 중심이 뒤 구역에서 footprint_radius_m + 이 값(0.135 m) 넘게 벗어나면 그 구역을 놓는다
+nav_pass_m: 0.12              # 넓은 구역 ETA: 끝 노드 이만큼 앞에서 다음 조각으로 넘어간다(pode_fsm pass_m와 같게). 0이면 끔
+nav_turn_rps: 1.0             # 넓은 구역 ETA: 끝에서 끝 방향으로 도는 각속도. 0이면 끔
+nav_goal_tolerance_m: 0.05    # 넓은 구역 ETA: 끝 노드에서 이만큼 안이면 이미 닿은 것으로 본다
+footprint_radius_m: 0.085     # Nav2 발자국의 반 대각선
+release_margin_m: 0.05        # 보고 중심이 뒤 구역에서 footprint_radius_m + 이 값 넘게 벗어나면 구역을 놓는다
 node_clear_m: 0.20            # 뒤 지점에서 이만큼 멀어지면 그 지점을 놓는다
-lane_follow_gap_s: 4.0        # 앞 로봇이 한 줄 구역에 들어간 뒤 이만큼 지나야 같은 방향으로 뒤따른다
-lane_hysteresis_s: 5.0        # 반대쪽이 입구에 이만큼 더 빨리 닿을 때만 방향을 바꾼다
+lane_follow_gap_s: 4.0        # 앞 로봇이 한 줄 구역에 들어간 뒤 이만큼 지나야 뒤따른다
+lane_hysteresis_s: 5.0        # 반대쪽이 이만큼 더 빨리 닿을 때만 방향을 바꾼다
 lane_handover_s: 30.0         # 이만큼 기다린 쪽에 방향을 넘긴다
 dock_wait_estimate_s: 30.0    # 찬 도크를 기다리는 예상 시간(길 비용)
-blocked_retry_s: 60.0         # 막힘으로 표시한 연결을 이만큼 뒤 다시 써 본다
+blocked_retry_s: 60.0         # 막힘 표시한 연결을 이만큼 뒤 다시 써 본다
 near_m: 0.30                  # 넓은 구역에서 두 로봇이 이만큼 가까이
 near_stuck_s: 5.0             # 이만큼 못 나아가면 우선순위 낮은 쪽이 비킨다
 outside_zone_m: 0.05          # 쥔 구역 밖으로 이만큼 벗어난 보고가
 outside_zone_samples: 5       # 이만큼 이어지면 OUTSIDE_ZONE(기록만)
 pose_jump_window_s: 2.0       # 위치 추정 감시: 이 시간 안의 두 보고 위치를 견준다
-pose_jump_m: 0.15             # 로봇이 갈 수 있는 거리보다 이만큼 넘게 옮겨졌으면 LOCALIZATION_SUSPECT(기록만)
+pose_jump_m: 0.15             # 갈 수 있는 거리보다 이만큼 넘게 옮겨지면 LOCALIZATION_SUSPECT(기록만)
 pose_jump_quiet_s: 5.0        # 한 번 낸 뒤 이만큼은 다시 내지 않는다
-redock_wait_s: 10.0           # 추정: 도킹이 실패한 로봇이 물러날 길이 비기를 기다리는 시간. 넘으면 그 자리에서 다시 도킹한다
-retreat_clear_m: 0.20         # 관제가 시키는 물러나기의 길이 다른 로봇에 이만큼 안으로 다가가면 내지 않는다
-use_order_model: true        # order 모델(base/horizon, 이어 붙이기). 끄면 조각 하나씩 보낸다
+redock_wait_s: 10.0           # 도킹 실패 로봇이 물러날 길이 비기를 기다리는 시간. 넘으면 그 자리에서 다시 도킹
+retreat_clear_m: 0.20         # 물러나기 길이 다른 로봇에 이만큼 안으로 다가가면 내지 않는다
+use_order_model: true         # order 모델(base/horizon, 이어 붙이기). 끄면 조각 하나씩 보낸다
 lookahead_s: 2.0              # order 모델: base 끝까지 이만큼 남으면 다음 구역을 잡아 본다
-standby_lookahead_s: 0.5      # order 모델: 주차하러 가는 길(standby)의 첫 고정 경로 끝까지 이만큼 남으면 주차 조각을 update로 붙인다(그 전까지는 빈 대기 자리로 바꿀 수 있다). 재지 않은 추정값: update 왕복을 0.2~0.3 s로 보고 정했고 Gazebo에서 잰 뒤 고친다
+standby_lookahead_s: 0.5      # order 모델: 주차 길 첫 고정 경로 끝까지 이만큼 남으면 주차 조각을 붙인다
 comm_base_hold_extra_s: 3.0   # order 모델: 끊긴 로봇의 base 구역을 base 끝 ETA + 이만큼 쥔다
-comm_loss_policy: stop        # order 모델: 끊긴 로봇이 stop(바로 선다) / base_end(base 끝까지). 정하는 것은 로봇의 pode_fsm 파라미터이고 여기 값은 머리 없는 세계의 로봇이 따른다. 구역 쥐기는 무관
-silent_limit_s: 60.0          # 제안: 갈 곳이 있는 로봇이 나아가지 않고 그 로봇에 대한 관제 사건도 이만큼 없으면 SILENT_STALL(시험에서는 실패). 0이면 끈다
-start_limit_s: 5.0            # 제안: 이동이나 후진 goal을 보낸 뒤 이만큼 안에 보고 위치가 2 cm 넘게 바뀌지 않고 goal이 열려 있으면 NO_START. 0이면 끈다
-blocked_by_position: true     # 기준: BLOCKED의 장애물 위치로 그 점이 든 연결만 막힘으로 표시한다. 끄면 예전 규칙 7(가던 연결)
-obstacle_look_m: 0.30         # 제안: 로봇이 가던 길 앞 이만큼 안의 가장 가까운 장애물 칸을 BLOCKED와 함께 보고한다
-check_range_m: 0.6            # 제안: 막힘 표시의 점에서 이만큼 안에 있는 로봇에게 CheckClear를 묻는다
-check_radius_m: 0.10          # 가정: CheckClear의 r. 보고한 칸(가장 가까운 칸) 둘레 두 칸(local costmap 0.05 m)과 위치 오차를 덮는다
-check_interval_s: 5.0         # 제안: 한 표시에 이만큼마다 한 번을 넘게 묻지 않는다
-clear_confirm: 2              # 제안: clear 답이 이만큼 이어지면 표시를 지운다(BLOCK_CLEARED)
-blocked_retry_max_s: 300.0    # 제안: 보내 본 로봇이 다시 막히면 다음 지우기까지 시간을 두 배로, 이 값까지
-plan_split: true              # 해결안 B 켬: 지도 splits대로 Nav2 goal을 중간 지점을 거쳐 둘로 나눈다
+comm_loss_policy: stop        # order 모델: 끊긴 로봇 동작 stop(바로 선다) / base_end(base 끝까지)
+                              # 실물은 로봇의 pode_fsm 파라미터가 정하고, 이 값은 머리 없는 세계의 로봇만 따른다
+silent_limit_s: 60.0          # 갈 곳 있는 로봇이 나아가지 않고 관제 사건도 없이 이만큼이면 SILENT_STALL. 0이면 끔
+start_limit_s: 5.0            # goal을 보낸 뒤 이만큼 안에 2 cm 넘게 안 움직이면 NO_START. 0이면 끔
+blocked_by_position: true     # BLOCKED의 장애물 위치로 그 점이 든 연결만 막힘으로 표시. 끄면 가던 연결 전체
+obstacle_look_m: 0.30         # 가던 길 앞 이만큼 안의 가장 가까운 장애물 칸을 BLOCKED와 함께 보고
+check_range_m: 0.6            # 막힘 표시 점에서 이만큼 안의 로봇에게 CheckClear를 묻는다
+check_radius_m: 0.10          # CheckClear의 r(보고한 칸 둘레 두 칸과 위치 오차를 덮는다)
+check_interval_s: 5.0         # 한 표시에 이만큼마다 한 번을 넘게 묻지 않는다
+clear_confirm: 2              # clear 답이 이만큼 이어지면 표시를 지운다(BLOCK_CLEARED)
+blocked_retry_max_s: 300.0    # 다시 막히면 다음 지우기까지 시간을 두 배로, 이 값까지
+plan_split: true              # 해결안 B: 켜면 지도 splits의 출발 자리에서 가는 Nav2 goal을 중간 지점을 거쳐 둘로 나눈다. 기본 끔
