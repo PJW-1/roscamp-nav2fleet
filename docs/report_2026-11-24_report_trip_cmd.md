@@ -45,7 +45,7 @@ pode-drive의 구현된 주문 코어(`orders/`)에서 자리를 찾았다. 팀 
    - 주문 없이 빈 바구니를 받으러 갈 때(`orchestrator.py`의 `basket == NONE and not r.order`).
 
    문서 문구대로 `_send_to_outbound`에 넣으면, 재시도마다 같은 상태의 보고가 새 번호로 또 나간다. 빈 바구니를 받으러 갈 때는 운반 건이 없어 `trip_id`를 채울 수 없다. 그래서 `_finish_fill`의 담은 것이 있는 갈래에서 한 번 내자고 제안한다.
-2. **`FILLING` 반복.** 일부만 담긴 결과가 오면 `_step_filling`이 남은 것으로 `ArmFillCmd`를 다시 낸다. 문서대로 첫 번째에서만 낸다. 담는 도중 누적 `placed`를 화면에 보이려면 매번 내도 되지만, 고객 화면이 둘 다 "준비 중"이라 이번 주에는 필요 없다.
+2. **`FILLING` 반복.** 팔이 실패 결과를 내거나(`_on_fill_result`의 `ArmFailedCmd` 갈래) 거절하면(`ArmDeclined`), 다음 `step`에서 `_step_filling`이 남은 품목으로 `ArmFillCmd`를 다시 낸다. 성공 결과는 일부만 담겨도 모자란 수량을 `missing`에 넣으므로 바로 `_finish_fill`로 간다. 문서대로 첫 번째 `ArmFillCmd`에서만 낸다. 담는 도중 누적 `placed`를 화면에 보이려면 매번 내도 되지만, 고객 화면이 둘 다 "준비 중"이라 이번 주에는 필요 없다.
 3. **`ASSIGNED`와 `FILLING`이 거의 함께 나감.** `on_dispatch_result`가 `_start_filling`으로 묶고, 그 로봇의 다음 `step`에서 `_step_filling`이 첫 `ArmFillCmd`를 낸다. `ManagerRoute._step_robot`이 `traffic.step` 뒤에 `orchestrator.step`을 한 번 더 부르므로, 대개 같은 tick이다. 노드가 기다리는 보고를 최신 상태로 바꿔 끼우면(IR-23), 브리지는 `ASSIGNED`를 못 받을 수 있다. 보고가 늘 지금 상태 전체라 문제는 없다. 문서에도 적혀 있다.
 4. **대기열로 되돌린 주문 (`ORDER_REQUEUED`).** 로봇 장애나 격리로 담은 것 없이 주문을 놓으면(`faults.py`), 0.6 코어는 이벤트만 내고 보고는 내지 않는다.
    - 그동안 웹 화면은 옛 로봇의 `FILLING`("준비 중")으로 남는다. 다른 로봇이 다시 묶으면 같은 `trip_id`로 새 로봇의 `ASSIGNED`가 간다.
