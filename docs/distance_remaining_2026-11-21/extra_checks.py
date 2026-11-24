@@ -1,17 +1,6 @@
-"""Gazebo 묶음의 추가 확인 셋. report.sh 다음에 돌린다.
+"""Gazebo 묶음의 추가 확인(갱신 시점, 남은 거리 뜀, 속도 맞추기). report.sh 다음에 돌린다.
 
-사용: python3 extra_checks.py BATCH_DIR [BATCH_DIR ...]
-- 갱신 시점: 판마다가 아니라 묶음(급행 4판, v7 4판)의 Q2 Route를 모두 모은
-  update_lead_s 분포.
-- 코어가 "뛰었다"고 본 곳: 기록을 이 checkout의 코어로 재생하며, 피드백을 받은 뒤
-  로봇의 지금 order의 표본(MoveOrder.left)에 새 뛴 시각이 찍힌 때를 모은다
-  (_note_left의 LEFT_JUMP_M 판정 그대로). 뛰기 직전 표본을 쓸 수 있었는지
-  (_reported_end), 그때 로봇 자리에서 Segment 끝까지 곧은 거리, 그 seq의 첫 값 뒤
-  몇 초인지도 낸다. 판마다 Segment 종류별 개수를 내고, 남은 거리가 ETA에 쓰이는
-  nav_goal Segment의 것만 한 줄씩 적는다. 0.10 m 이하로 바뀐 길은 이 판정에 걸리지
-  않으므로 가려내지 못한다.
-- 속도 맞추기: eta_error.py 표본의 proj와 used를 nav_speed_mps 대신 다른 속도로 나눴다면의 오차.
-  두 예측 모두 nav_goal Segment에서는 거리 / nav_speed_mps라 속도만 바꿔 다시 셀 수 있다.
+    python3 extra_checks.py BATCH_DIR ...
 """
 from __future__ import annotations
 

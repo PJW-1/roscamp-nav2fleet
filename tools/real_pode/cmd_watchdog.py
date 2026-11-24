@@ -2,9 +2,6 @@
 """움직이는 명령이 새로 오지 않으면 속도 0을 보낸다.
 
     cmd_watchdog.py /pode1/cmd_vel
-
-제조사 bringup은 마지막 cmd_vel을 끝없이 지킨다. Nav2는 달리는 동안 20 Hz로 명령을 새로 낸다.
-Nav2가 죽거나 멈추면 마지막 움직이는 명령에서 WATCHDOG_S 뒤에 이 노드가 속도 0을 보낸다.
 """
 import sys
 import time

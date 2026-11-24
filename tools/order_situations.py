@@ -1,4 +1,4 @@
-"""order 모델 상황 표: order 모델을 끄고 켜서 구역 세계에서 돌린다.
+"""order 모델을 끄고 켜서 구역 세계에서 상황 표를 만든다.
 
     python3 tools/order_situations.py --seeds 1 2 3
 """

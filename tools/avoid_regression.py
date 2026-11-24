@@ -1,10 +1,6 @@
 """회피 회귀 시험의 판정. tools/avoid_regression.sh가 부른다. ROS 없이 돈다.
 
-    python3 tools/avoid_regression.py drive drive_check.json   # 한 대: 이동마다 끝까지 갔나
-    python3 tools/avoid_regression.py game <결과 폴더>          # 세 대 경기: "주행" 원인, keepout
-
-결과 폴더는 gz.launch.py의 result_dir이다(fleet_record:=true로 돌린 것): fleet_record.jsonl과
-fleet_check.json을 읽는다. 표를 찍고, 통과면 0, 아니면 1로 끝난다.
+    python3 tools/avoid_regression.py drive drive_check.json | game <결과 폴더>
 """
 from __future__ import annotations
 
@@ -25,9 +21,7 @@ DRIVING = "주행"
 
 
 def drive_rows(summary: dict) -> list[tuple]:
-    """이동 종류마다 (이름, 횟수, 성공, 끝 위치 오차 m, 끝 방향 오차 도, 선에서 벗어남 m).
-
-    오차 셋은 그 종류에서 가장 큰 값이고, 재지 못했으면 None이다."""
+    """이동 종류마다 (이름, 횟수, 성공, 끝 위치 오차, 끝 방향 오차, 선 이탈)."""
     kinds: dict[str, list] = {}
     for result in summary.get("results", []):
         kinds.setdefault(result["step"], []).append(result)
@@ -72,8 +66,7 @@ def drive_problems(summary: dict) -> list[str]:
 
 
 def record_problems(run, finished: bool) -> list[str]:
-    """경기가 끝까지 돌았고 주문을 받았나. run은 관제 기록(triage Run), finished는 시나리오
-    모니터가 끝을 적었나(summary.json): 일찍 죽은 launch의 기록에는 흠이 없어 보인다."""
+    """경기가 끝까지 돌았고 주문을 받았는지 본다."""
     problems = []
     if not finished:
         problems.append("경기가 끝나지 않았다(summary.json 없음: 시간 한도나 launch 실패)")
@@ -83,9 +76,7 @@ def record_problems(run, finished: bool) -> list[str]:
 
 
 def game_problems(rows, check: dict | None, keepout_max_m: float = KEEPOUT_MAX_M) -> list[str]:
-    """세 대 경기가 못 지킨 것들. 비면 통과.
-
-    rows는 끝나지 않은 주문의 원인(tools/triage), check는 fleet_check.json의 내용이다."""
+    """세 대 경기가 못 지킨 것들. 비면 통과."""
     problems = [f"{r.order_id}: {r.cause} ({r.event})" for r in rows if r.cause == DRIVING]
     depth = None if check is None else check.get("keepout_depth_m")
     if depth is None:

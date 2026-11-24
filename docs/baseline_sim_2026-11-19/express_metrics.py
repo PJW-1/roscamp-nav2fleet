@@ -1,10 +1,6 @@
-"""급행 지나기마다 실제 위치(sim/truth)로 진열대 A와 북쪽 벽까지 남은 거리를 잰다.
+"""급행 지나기마다 실제 위치로 진열대 A와 북쪽 벽까지 남은 거리를 잰다.
 
-사용: python3 express_metrics.py TRUTH.csv BATCH.log [--passes]  (한 파일에 여러 판, 로그로 나눔)
-     python3 express_metrics.py NAME=TRUTH.csv ... [--passes]      (판마다 파일 하나)
-     --shelf-top=Y: 진열대 A 북쪽 면(기본 0.803 실측. 2026-11-20부터 시뮬 월드는 0.793)
-TRUTH.csv: wall,sim_t,robot,x,y,yaw (truth_logger.py).
-발자국은 pode_nav_config nav2_params.yaml:286 다각형이다(Gazebo 충돌 모양과 같다고 가정).
+    python3 express_metrics.py TRUTH.csv BATCH.log [--passes]
 """
 import csv
 import math
@@ -44,9 +40,7 @@ def rect_dist(px, py, r):
 
 
 def runs_from_log(path):
-    """판 이름, 시작, 끝(epoch). 로그 시각은 KST로 읽는다(실행하는 PC의 시간대와 무관).
-
-    날짜는 --date=YYYY-MM-DD로 주고, 없으면 로그 파일이 마지막으로 바뀐 날을 쓴다(자정을 넘긴 묶음은 안 된다)."""
+    """판 이름, 시작, 끝(epoch). 로그 시각은 KST로 읽고 날짜는 --date로 준다."""
     opt = [a.split("=", 1)[1] for a in sys.argv[1:] if a.startswith("--date=")]
     day = opt[0] if opt else datetime.fromtimestamp(os.path.getmtime(path), KST).strftime("%Y-%m-%d")
     out, cur = [], None
