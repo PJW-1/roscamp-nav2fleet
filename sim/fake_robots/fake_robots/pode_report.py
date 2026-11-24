@@ -47,5 +47,5 @@ class PodeReport:
         self._reports.push(t, RobotState(
             robot_id=self.robot_id, pose=Pose2D(x=x, y=y, theta=self._motion.yaw),
             battery=battery, state=state,
-            current_goal=goal.target_id if busy else "",  # Pode contract section 2
+            current_goal=goal.target_id if busy else "",
             stamp=self.get_clock().now().to_msg()))

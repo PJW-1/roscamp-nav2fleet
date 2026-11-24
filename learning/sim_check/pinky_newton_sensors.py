@@ -1,11 +1,8 @@
-"""Newton sensor check on Pinky: 2D lidar (NewtonRaycastSensorCfg) and contact sensors.
+"""Pinky 의 Newton 센서 점검: 2D 라이다(NewtonRaycastSensorCfg)와 접촉 센서.
 
-Phase A (0-4 s): robot still; a box (0.1 x 0.3 x 0.3 m) is teleported across in front at x=+0.6 m,
-  y from -1.0 to +1.0 m. Logs the forward ray distance and the minimum over all rays.
-Phase B (4-16 s): box parked aside; robot drives forward at 0.15 m/s into a fixed wall at x=+1.5 m.
-  Logs contact sensor net forces on base_link, front_camera_mount, screen_mount (the front-most
-  collider, which is what touches the wall) and l_wheel (wheel-ground control), and the robot x.
-Writes <tag>_lidar.csv, <tag>_contact.csv and a JSON with the lidar scan at three instants.
+A(0-4 s): 로봇 정지, 박스를 앞 x=+0.6 m 에서 y -1.0..+1.0 m 로 가로질러 순간이동하며 정면 레이와 전체 최소 거리를 기록.
+B(4-16 s): 박스 치우고 0.15 m/s 로 x=+1.5 m 벽에 돌진, base_link/front_camera_mount/screen_mount/l_wheel 접촉력과 x 기록.
+<tag>_lidar.csv, <tag>_contact.csv 와 세 시점의 라이다 스캔 JSON 을 쓴다.
 """
 
 import argparse
@@ -48,9 +45,8 @@ def main():
         from pinky_cfg import make_pinky_cfg
 
         def lidar_min_range_pattern(cfg, device):
-            """Lidar rays that start ``min_range`` out along their direction, so the robot's own
-            rplidar collider (which surrounds the sensor origin) is not hit. Distances are then
-            measured from the start point: true range = distance + min_range."""
+            """레이가 방향을 따라 min_range 에서 시작해 로봇 자신의 rplidar 콜라이더를 안 맞힌다.
+            거리는 시작점 기준이라 실제 거리 = 거리 + min_range."""
             starts, dirs = patterns.lidar_pattern(cfg, device)
             return starts + cfg.min_range * dirs, dirs
 
@@ -82,9 +78,8 @@ def main():
                 ),
                 init_state=AssetBaseCfg.InitialStateCfg(pos=(WALL_X + 0.05, 0.0, 0.15)),
             )
-            # rplidar_link in base_link: (-0.017, 0, 0.097), yaw 180 deg. The ray caster rotates ray
-            # directions by offset.rot but not ray starts, so with non-zero starts (min range) the
-            # yaw is left out here and rays are indexed in the base frame (ray angle 0 = base +x).
+            # base_link 기준 rplidar_link (-0.017, 0, 0.097), yaw 180 deg. 레이 캐스터는 방향만 offset.rot 로
+            # 돌리고 시작점은 안 돌리므로 min range 시작점이 있으면 yaw 를 빼고 레이를 base 프레임으로 인덱싱
             lidar = NewtonRaycastSensorCfg(
                 prim_path="{ENV_REGEX_NS}/Robot/" + BODY,
                 offset=NewtonRaycastSensorCfg.OffsetCfg(pos=(-0.017, 0.0, 0.097)),
@@ -99,11 +94,11 @@ def main():
                 max_distance=12.0 - args_cli.min_range,
             )
             bumper = ContactSensorCfg(prim_path="{ENV_REGEX_NS}/Robot/" + BODY, history_length=1)
-            # the camera mount sticks out ~2 mm further forward than base_link's collider
+            # 카메라 마운트는 base_link 콜라이더보다 약 2 mm 앞으로 나옴
             bumper_cam = ContactSensorCfg(
                 prim_path="{ENV_REGEX_NS}/Robot/" + BODY + "/front_camera_mount"
             )
-            # wheel-ground and screen contacts, as a control for the sensor itself
+            # 센서 자체 대조용: 바퀴-바닥과 화면 접촉
             contact_lwheel = ContactSensorCfg(prim_path="{ENV_REGEX_NS}/Robot/" + BODY + "/l_wheel")
             contact_screen = ContactSensorCfg(
                 prim_path="{ENV_REGEX_NS}/Robot/" + BODY + "/screen_mount"
@@ -119,7 +114,7 @@ def main():
         n = args_cli.num_envs
         wheel_ids, _ = robot.find_joints(["l_wheel_joint", "r_wheel_joint"], preserve_order=True)
         print(f"[CHECK] lidar rays: {lidar.num_rays}; bumper bodies: {bumper.body_names}")
-        # ray directions in the base frame (offset applied) -> the ray pointing along base +x
+        # base 프레임 레이 방향(offset 적용) -> base +x 를 가리키는 레이
         dirs = lidar.ray_directions
         dirs = (dirs.torch if hasattr(dirs, "torch") else dirs)[0]
         fwd = int(torch.argmax(dirs[:, 0]).item())
@@ -154,7 +149,7 @@ def main():
                 tt = round((k + 1) * DT, 3)
                 d = (
                     lidar.data.ray_distances.torch + args_cli.min_range
-                )  # range from the lidar centre
+                )  # 라이다 중심에서의 거리
                 finite = torch.isfinite(d) & (d < 12.0)
                 dmin = torch.where(finite, d, torch.full_like(d, float("inf"))).min(dim=1).values
                 rx = robot.data.root_link_pos_w.torch[:, 0] - origins[:, 0]

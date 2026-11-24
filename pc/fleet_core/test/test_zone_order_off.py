@@ -1,12 +1,5 @@
-"""use_order_model을 끄면 order 모델을 넣기 전과 사건·명령 기록이 같다. 기본값은 켜짐이다
-(2026-11-16부터). 이 파일의 기록 비교는 끈 값을 직접 넘긴다.
-
-기준 기록(data/zone_off_golden.txt)은 order 모델이 없는 nav2-base의 코드와 시험 틀로 만든다.
-지금 것은 D2 지도를 바꾸고(갈림목 선 x 0.35와 1.63, 도크에서 마당까지 내려가는 후진,
-후진 꺾는 점 x 0.30과 1.68) 급행에서 막히면 갈림목에서 꺾어 마당 지점까지 물러나게 한 뒤의
-것이다.
-교통 층의 동작을 일부러 바꿨을 때만 ZONE_GOLDEN_WRITE=1로 다시 만든다.
-"""
+"""use_order_model을 끄면 order 모델을 넣기 전과 사건·명령 기록이 같다(기본값은 켜짐이라 이 파일은 끈 값을 직접 넘긴다).
+기준 기록(data/zone_off_golden.txt)은 교통 층의 동작을 일부러 바꿨을 때만 ZONE_GOLDEN_WRITE=1로 다시 만든다."""
 import os
 from dataclasses import replace
 from pathlib import Path

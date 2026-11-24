@@ -1,7 +1,4 @@
-"""O_OUT 원인 확인(녹화 bag 재계산).
-1) collision ahead: RPP 검사를 같은 식으로 다시 계산(덧댄 발자국, 지금 자세 + 회전 투영 0.6 s).
-   걸린 칸을 지도 좌표로 바꿔 어디인지 본다.
-2) 회전 방향 바뀜: 그 직전/직후 carrot(lookahead_point, 로봇 기준)의 방위."""
+"""녹화 bag으로 O_OUT 원인을 다시 계산한다: collision ahead 재계산, 회전 방향 바뀜 때의 carrot 방위."""
 import bisect
 import csv
 import math

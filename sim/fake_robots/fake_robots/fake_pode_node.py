@@ -1,10 +1,7 @@
 """FakePode: robot_state, move_to, dock을 가진 가짜 이동 로봇. 일정대로 고장을 낸다.
 
-retreat(계약 0.9-draft)는 보는 방향 그대로 뒤로 간다. path가 없으면 곧게,
-있으면 그 꺾은선(첫 점은 로봇 자리, 끝 점은 설 곳)을 따라 시킨 속도로 간다. 뒤에 다른 로봇이나
-물체가 있으면 그 자리에 서서 OBSTACLE_BEHIND로 끝낸다(자기 복구의 뒤 보기와 같은 검사).
-
-MoveTo mode가 nav_goal이면 path를 쓰지 않고 스스로 길을 짠다(nav_goal_drive.py, 계약 5절).
+retreat는 보는 방향 그대로 뒤로 가고, 뒤에 물체가 있으면 서서 OBSTACLE_BEHIND로 끝낸다.
+MoveTo mode가 nav_goal이면 path 없이 스스로 길을 짠다(nav_goal_drive.py).
 """
 from __future__ import annotations
 
@@ -136,7 +133,7 @@ class FakePodeNode(PodeGoals, PodeOrder, PodeRetreat, PodeReport, Node):
             handle_accepted_callback=lambda gh: self._accepted(gh, kind),
             callback_group=group)
 
-    # -- lifecycle ----------------------------------------------------------------------
+    # ---- 수명주기 ----
 
     def stop(self) -> None:
         self._alive = False
@@ -159,7 +156,7 @@ class FakePodeNode(PodeGoals, PodeOrder, PodeRetreat, PodeReport, Node):
         with self._lock:
             self._faults.on_event(self._sc.now(), msg.source, msg.code, msg.detail)
 
-    # -- the heartbeat ------------------------------------------------------------------
+    # ---- 하트비트 ----
 
     def _on_heartbeat(self, _msg) -> None:
         if not self._faults.comms_down(self._sc.now()):
@@ -169,7 +166,7 @@ class FakePodeNode(PodeGoals, PodeOrder, PodeRetreat, PodeReport, Node):
         """실제 시계. 프로세스를 감시하는 것이고, 부하가 걸리면 시뮬 시간이 앞서가기 때문이다."""
         return 0 < self._beat_timeout < time.monotonic() - self._last_beat
 
-    # -- goal handling ------------------------------------------------------------------
+    # ---- 목표 처리 ----
 
     def _others_discs(self) -> list[tuple[float, float, float]]:
         radius = self._recovery.p.robot_radius_m
@@ -180,7 +177,7 @@ class FakePodeNode(PodeGoals, PodeOrder, PodeRetreat, PodeReport, Node):
         first = [view for name, view in list(self._others.items()) if name < self.robot_id]
         return yields(self._motion.x, self._motion.y, first, t)
 
-    # -- simulation ---------------------------------------------------------------------
+    # ---- 시뮬레이션 ----
 
     def _tick(self) -> None:
         with self._lock:
@@ -231,8 +228,7 @@ class FakePodeNode(PodeGoals, PodeOrder, PodeRetreat, PodeReport, Node):
                 and not self._recovery.backing_up):
             goal.abort_at = t + NAV_ABORT_DELAY_S  # 다시 보낸 FollowPath도 중단된다
         # 물체가 있으면 선다. 시도가 남았으면 후진하고 다시 가 보고, 없으면 BLOCKED.
-        # 바로 앞에 다른 로봇이 있어도 선다(nav_goal은 Nav2 충돌 검사, path는 앞 물체 검사).
-        # 그때도 drive는 속도 0으로 부른다: 물체 앞에서 센 시간과 후진은 이어 간다
+        # 앞에 다른 로봇이 있어도 선다. drive는 속도 0으로 불러 물체 앞에서 센 시간과 후진을 잇는다
         clear = self._nothing_ahead(goal, t, self._cfg.speed_mps * dt, others)
         self._recovery.drive(t, dt, self._motion, self._cfg.speed_mps if clear else 0.0,
                              others, self._faults.behind(t))

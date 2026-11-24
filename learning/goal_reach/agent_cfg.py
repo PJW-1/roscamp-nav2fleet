@@ -1,7 +1,4 @@
-"""rsl_rl PPO settings for the goal-reach task.
-
-Values and reasons: docs/worklog_goal_reach_rl_2026-11-21.md.
-"""
+"""goal-reach 과제의 rsl_rl PPO 설정. 값과 이유는 docs/worklog_goal_reach_rl_2026-11-21.md."""
 
 from isaaclab.utils import configclass
 from isaaclab_rl.rsl_rl import RslRlMLPModelCfg, RslRlOnPolicyRunnerCfg, RslRlPpoAlgorithmCfg
@@ -9,7 +6,7 @@ from isaaclab_rl.rsl_rl import RslRlMLPModelCfg, RslRlOnPolicyRunnerCfg, RslRlPp
 
 @configclass
 class GoalReachPPORunnerCfg(RslRlOnPolicyRunnerCfg):
-    num_steps_per_env = 24  # 1.2 s of 20 Hz control per env per iteration
+    num_steps_per_env = 24  # 반복당 env 마다 20 Hz 제어 1.2 s
     max_iterations = 300
     save_interval = 50
     experiment_name = "pode_goal_reach"

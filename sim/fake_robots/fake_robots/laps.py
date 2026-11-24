@@ -3,12 +3,9 @@ from __future__ import annotations
 
 import math
 
-# 경기를 끝낼 때 주차 지점에서 이 안에 선 로봇은 주차한 것이다. 관제의 도착 허용 거리
-# (arrival_tolerance_m)와 같다: 더 좁으면 관제가 닿았다고 본 로봇을 주차하지 않은 것으로 보아
-# 경기가 끝나지 않는다
+# 경기 종료 때 이 안에 선 로봇은 주차한 것이다. 관제의 arrival_tolerance_m와 같다(더 좁으면 경기가 안 끝난다)
 PARK_NEAR_M = 0.15
-# 바퀴 추적에서 주차 자리에 들어섰다고 보는 거리. 서 있는지는 보지 않으므로 더 좁다: 넓히면
-# 주차 자리 옆을 지나가기만 한 로봇을 주차한 것으로 센다
+# 바퀴 추적에서 주차 자리에 들어섰다고 보는 거리. 지나가기만 한 로봇을 세지 않게 더 좁다
 LAP_PARK_M = 0.10
 ON_THE_WAY = ("TO_WORK", "TO_OUTBOUND")  # 스테이션으로 가는 중이거나 그 줄에 선 로봇의 task_type
 
@@ -30,11 +27,7 @@ class Laps:
         return sum(order not in self._bound_now for order in self.board)
 
     def _track_lap(self, t: float, robot: str, place: str) -> None:
-        """출고 도크 구역에서 작업 도크 구역과 주차 자리 중 먼저 닿는 곳까지 로봇을 따라간다.
-
-        미배정 주문이 로봇 수 이상이면 모든 로봇이 호출되므로
-        주차 자리로 갈 까닭이 없다.
-        """
+        """출고 도크 구역에서 작업 도크나 주차 자리 중 먼저 닿는 곳까지 로봇을 따라간다."""
         if not place or self._last_zone.get(robot) == place:
             return
         self._last_zone[robot] = place
@@ -44,8 +37,7 @@ class Laps:
         elif robot not in self._from_outbound:
             return
         elif place == "park" and self._tasks.get(robot) in ON_THE_WAY:
-            # 구역 관제는 스테이션으로 가는 로봇을 주차 자리에서 기다리게 한다(도크 대기 줄, 구역
-            # 기다림. 구역 교통 규칙 5): 바퀴가 끊기지 않는다. WAIT(주차시킴)만 센다
+            # 구역 관제가 스테이션행 로봇을 주차 자리에서 기다리게 해도 바퀴는 안 끊긴다. WAIT(주차시킴)만 센다
             self._last_zone.pop(robot, None)
             return
         elif place == "work":

@@ -1,10 +1,4 @@
-"""ETA 순항 속도 비율 nav_eta_speed_ratio(사용자 결정 2026-11-23: 틀만, 값은 실측 뒤).
-
-- Nav2 goal 조각의 남은 시간(ETA)만 nav_speed_mps x 비율로 잰다. 비율이 r이면 그 부분이
-  정확히 1/r배 길어진다.
-- 고정 경로(follow_speed_mps)와 후진 속도, 길 비용(route 고르기)은 비율을 쓰지 않는다.
-- 기본값 1.0이면 모든 값이 예전과 같다(옛 기록 재생도 같다).
-"""
+"""ETA 순항 속도 비율 nav_eta_speed_ratio: Nav2 goal 조각의 ETA만 nav_speed_mps x 비율로 재고, 고정 경로, 후진, 길 비용은 쓰지 않는다. 기본값 1.0이면 예전과 같다."""
 import math
 from dataclasses import replace
 

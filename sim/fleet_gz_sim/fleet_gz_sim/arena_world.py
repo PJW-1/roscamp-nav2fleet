@@ -9,8 +9,7 @@ from fleet_gz_sim.arena import WORLD, obstacles
 
 COLOURS = {"wall": "0.55 0.45 0.35", "shelf": "0.27 0.42 0.62"}
 PATH_COLOUR = "0.2 0.3 0.8"
-# Gazebo는 물리 한 스텝마다 /clock을 내고, use_sim_time 노드는 그때마다 깬다. 1 ms(1 kHz)에서는
-# Pode 3대 실행의 Python 노드가 코어를 50~90 %씩 써서 실시간의 0.3~0.5로 돌았다(2026-11-08).
+# Gazebo 물리 스텝. 짧으면 /clock 갱신이 잦아 노드 CPU 부담이 커진다.
 PHYSICS_STEP_S = 0.004
 
 

@@ -1,11 +1,4 @@
-"""급행에서 막힌 로봇은 갈림목 안이 아니라 마당 지점까지 물러난다(D2 지도).
-
-갈림목 지점(X_W, X_E)은 도크에서 0.17 m라서 도크에 로봇이 있으면 갈림목에 설 수 없다
-(`retreat_clear_m`, `node_clear_m`). 그래서 급행 → 갈림목 → 마당 지점(N_W, N_E)의 꺾이는 후진으로
-물러난다. 도크의 로봇은 몸이 닿을 만큼 가까우므로 그 로봇이 먼저 나간 뒤 물러나고(급행에서
-기다리는 로봇은 갈림목을 쥐지 않으니 도크의 로봇이 나갈 수 있다), 물러날 길을 끝내 못 잡으면
-blocked_timeout_s 뒤 운영자에게 넘긴다.
-"""
+"""급행에서 막힌 로봇은 갈림목이 아니라 마당 지점(N_W, N_E)까지 물러난다(D2 지도). 도크에 로봇이 있으면 그 로봇이 먼저 나간 뒤 물러나고, 길을 못 잡으면 blocked_timeout_s 뒤 운영자에게 넘긴다."""
 import math
 from dataclasses import replace
 
@@ -25,8 +18,7 @@ def test_a_junction_retreat_goes_down_to_the_yard_node():
 
 
 def blocked_toward_work(docked: bool, **kw):
-    """pode1은 N_E에서 급행으로 작업 도크에 가다 막힌다. docked면 pode2가 출고 도크 O에서
-    일한다."""
+    """pode1은 N_E에서 급행으로 작업 도크에 가다 막힌다. docked면 pode2가 출고 도크 O에서 일한다."""
     starts = {"pode1": "N_E", "pode2": "O" if docked else "P-3", "pode3": "P-1"}
     world = Harness(starts=starts, **kw)
     world.report()
@@ -65,8 +57,7 @@ def test_a_robot_working_at_the_dock_beside_the_junction_goes_first_then_it_back
 
 
 def test_a_robot_that_docks_beside_the_junction_after_the_mark_is_also_waited_for():
-    """표시한 뒤에 도크에 들어온 로봇이 있으면 물러날 길(갈림목)을 잡지 않고 기다린다. 잡으면 도크의
-    로봇이 갈림목을 못 지나 나가지 못하고, 물러나는 로봇은 그 로봇에 닿아 서로 기다린다."""
+    """표시한 뒤에 도크에 들어온 로봇이 있으면 물러날 길(갈림목)을 잡지 않고 기다린다."""
     world, _ = blocked_toward_work(docked=False)
     grants, site = world.traffic.grants, world.traffic.site
     assert world.run_until(lambda: "BLOCKED_WAIT" in world.codes("pode1"), 200.0)
@@ -123,9 +114,7 @@ def test_it_backs_out_to_the_yard_even_with_no_way_on_from_there():
 
 @pytest.mark.parametrize("order", [False, True], ids=["order_off", "order_on"])
 def test_the_junction_is_kept_until_the_robot_says_it_has_backed_down(order):
-    """2026-11-16: order면 마당 지점까지의 물러나기 뒤에 다음 조각이 같은 goal에 붙는다. 보고가 N_E
-    0.03 m 안에 들었다고 진행이 물러나기 edge를 넘기면 N_E 좌표로 재어 갈림목 J_E를 일찍 놓는다.
-    물러나기는 끝냈다는 답 전에는 보고 위치로 잰다."""
+    """order면 마당 지점까지의 물러나기 뒤 다음 조각이 같은 goal에 붙고, 물러나기는 끝냈다는 답 전에는 보고 위치로 재어 J_E를 일찍 놓지 않는다."""
     params = replace(load_params(), use_order_model=order)
     world, call = blocked_toward_work(docked=False, params=params)
     assert world.run_until(lambda: world.retreats("pode1"), 200.0)
@@ -146,11 +135,7 @@ def test_the_junction_is_kept_until_the_robot_says_it_has_backed_down(order):
 
 
 def test_the_retreat_follows_the_bends_of_the_way_down():
-    """물러나는 길은 갈림 -> 마당 지점 고정 경로의 꺾는 점을 따른다. 시험 지도는 N_E가
-    있던 옛 v7(test/data/fleet_map_line3.yaml)에 예전 W_X -> N_E 길(work_west)을 되살린 것이다.
-    W_X -> N_E를
-    곧게 가면 WORK_DOCK 모서리 (1.78, 0.63)에 0.058까지 붙지만 그 구역은 잡지 않는다. 꺾는 점
-    (1.70, 0.70)을 따르면 몸 반경(0.085) 넘게 떨어진다."""
+    """물러나는 길은 갈림 -> 마당 지점 고정 경로의 꺾는 점(1.70, 0.70)을 따라 몸 반경(0.085) 넘게 떨어진다. 시험 지도는 옛 v7(test/data/fleet_map_line3.yaml)에 W_X -> N_E 길(work_west)을 되살린 것이다."""
     from pathlib import Path
 
     from fleet_core.fleet_map import fleet_map_from_text

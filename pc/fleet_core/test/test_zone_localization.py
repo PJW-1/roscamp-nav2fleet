@@ -36,7 +36,7 @@ def test_a_flipped_pose_tells_how_far_it_turned():
 
 
 def test_a_heading_that_changes_alone_is_no_jump():
-    """The test worlds turn a robot at once, and a flip away from the centre moves it too."""
+    """시험 세계는 로봇을 바로 돌리므로, 중심에서 먼 뒤집힘도 로봇을 움직인 것으로 본다."""
     assert pose_jump(STILL, (0.0, 0.0, math.pi), 0.2, P) == ""
 
 
@@ -102,7 +102,7 @@ def test_jumps_in_a_row_are_one_event_until_the_quiet_time_is_over():
 
 
 def test_the_first_pose_after_lost_contact_is_not_a_jump():
-    """The pose of a robot that went silent may have been set again in the meantime."""
+    """말이 끊긴 로봇의 자세는 그 사이 다시 잡혔을 수 있다."""
     world = Harness(params=replace(P, comm_timeout_s=1.0))
     world.run(1.0)
     world.silent.add("pode1")

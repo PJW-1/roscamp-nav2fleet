@@ -1,10 +1,4 @@
-"""stall_s가 로봇의 BLOCKED 보고보다 짧으면 경고 문장을 낸다(오류가 아니다, 2026-11-16).
-
-move goal은 로봇이 BLOCKED를 보고하면 멈춤 시계를 세우지 않는다(watch.py _watch_stall). 그래서
-stall_s가 로봇 blocked_after_s + 여유보다 짧으면 BLOCKED 전에 goal을 거둔다. 로봇 값은 계약에 없어
-기본값(ROBOT_BLOCKED_AFTER_S)과 비교한다. 상수가 로봇 기본값과 같은지는
-sim/fleet_gz_sim/test/test_timing_agreement.py가 본다.
-"""
+"""stall_s가 로봇의 BLOCKED 보고보다 짧으면 경고 문장을 낸다(오류가 아니다). 로봇 값은 계약에 없어 기본값(ROBOT_BLOCKED_AFTER_S)과 비교한다."""
 from dataclasses import replace
 
 from fleet_core.common.params import (
@@ -37,8 +31,5 @@ def test_the_limit_itself_is_enough():
 
 
 def test_dock_stall_s_is_not_compared():
-    """DOCK goal은 BLOCKED여도 멈춤 시계가 돈다(watch.py:27).
-
-    BLOCKED가 먼저 와도 지켜 주지 않는다.
-    """
+    """DOCK goal은 BLOCKED여도 멈춤 시계가 돈다(watch.py:27)."""
     assert timing_warnings(replace(P, dock_stall_s=1.0)) == []

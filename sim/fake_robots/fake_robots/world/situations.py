@@ -1,11 +1,7 @@
 """열 가지 상황: 평소 흐름에서는 잘 안 생기는 일을 일부러 만든다.
 
-상황마다 세계를 만드는 값(출발 자리, 주문, 주입, 시간 한도)과 기대(expect)가 있다. 기대는 세계를
-다 돌린 뒤 보고, 못 지킨 것을 글로 돌려준다. 자리는 배치(d2, d, c, v7)마다 지도에서 읽는다.
-
-기대는 회피 흉내 perfect의 것이다. none과 mixed는 rough로 본다: 늦더라도
-주문이 다 끝나면 된다. 기다림, 우회, 물러나기 횟수와 사건 수는 성능이라 판정하지 않는다.
-안전 불변식과 관제 반응 시간은 모든 모드에서 본다(table.py correctness).
+상황마다 세계를 만드는 값과 기대(expect)가 있고, 기대는 회피 흉내 perfect의 것이다.
+none과 mixed는 rough(늦더라도 주문이 다 끝남)로 본다. 안전 불변식과 관제 반응 시간은 모든 모드에서 본다.
 """
 from __future__ import annotations
 
@@ -54,8 +50,7 @@ class Situation:
 
 
 def _hall_mid(site):
-    # 넓은 곳(가운데 통로) 양 끝의 가운데. v7은 가운데 통로의 끝 지점이 없고 남쪽 통로로 다닌다:
-    # 칸 입구 E-3과 줄 입구 Q2의 가운데
+    # 넓은 곳(가운데 통로) 양 끝의 가운데. v7은 가운데 통로 끝 지점이 없어 칸 입구 E-3과 줄 입구 Q2의 가운데
     west, east = ("N_W", "N_E") if "N_W" in site.nodes else ("E-3", "Q2")
     (ax, ay), (bx, by) = site.node_pose(west), site.node_pose(east)
     return ((ax + bx) / 2, (ay + by) / 2)
@@ -87,8 +82,7 @@ def build(name: str, layout: str = "d2") -> Situation:
     if name == "hall_obstacle":
         return Situation(name, "마당 장애물", injections=[Obstacle(*hall, 0.05, 10.0, 130.0)])
     if name == "person_passing":
-        # 우회는 사람 때문의 것만 막는다. 사람이 떠나고 30 s(막힘 표시 10 s의 세 배) 뒤의 우회는
-        # 로봇끼리 서로 막아 잡은 것이다(D2 씨드 3: 96 s 뒤 N_E와 O_Q 곁에서 30 s 서로 막다 우회)
+        # 우회는 사람 때문의 것만 막는다. 사람이 떠나고 30 s 뒤의 우회는 로봇끼리 막은 것이다
         return Situation(name, "사람이 잠깐 지나감", injections=[Obstacle(*hall, 0.05, 15.0, 23.0)],
                          max_retreats=0, no_events=("DEADLOCK_SEEN", "REROUTE"),
                          quiet_until_s=23.0 + QUIET_AFTER_S)
@@ -113,10 +107,8 @@ def build(name: str, layout: str = "d2") -> Situation:
         return Situation(name, "세 대가 갈림목에 동시에", robots=_near_work(layout),
                          orders=six_orders(count=3))
     if name == "pose_jumps":
-        # 20초 동안 보고가 0.30 m 옆으로 밀린다(위치 잡기가 틀어짐). OUTSIDE_ZONE은 보고가 쥔
-        # 구역들 밖으로 outside_zone_samples번 이어져야 나온다. 넓은 구역이나 쥔 줄 안에서 밀리면
-        # 안 나오므로 세기만 한다. 밀린 보고로 도착을 못 믿어 NOT_AT_TARGET 재시도 끝에 격리되면
-        # 그 로봇은 재시도 사이에 갈림목에 서 있을 수 있고(5번), 남은 주문은 못 끝날 수 있다(c).
+        # 20초 동안 보고가 0.30 m 옆으로 밀린다. OUTSIDE_ZONE은 보고가 쥔 구역들 밖으로 outside_zone_samples번
+        # 이어져야 나오므로 세기만 한다. 재시도 끝에 격리되면 남은 주문은 못 끝날 수 있다(c)
         return Situation(name, "위치가 크게 튐",
                          injections=[NoisyPose("pode1", 20.0, 40.0, sigma_m=0.03, jump_m=0.30)],
                          finish_all=layout != "c", allowed=("I5_STANDING",),

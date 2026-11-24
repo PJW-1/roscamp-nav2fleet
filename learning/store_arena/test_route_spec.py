@@ -1,4 +1,4 @@
-"""Routes without a simulator: node rules, global paths, obstacle layouts, path following."""
+"""경로 테스트(시뮬 없이): 노드 규칙, 전역 경로, 장애물 배치, 경로 추종."""
 
 import dataclasses
 import math
@@ -34,7 +34,7 @@ def test_nodes_are_hall_without_parking(built):
 
 
 def test_nodes_leave_room_to_turn(built):
-    """Episodes start at a node with a random yaw: the rear corner (0.0845 m) must be clear."""
+    """에피소드는 임의 yaw 로 노드에서 시작: 뒤 모서리(0.0845 m)가 비어야 함."""
     _, static, r = built
     d = R.point_rect_distance(r.node_xy[:, 0], r.node_xy[:, 1], static)
     assert d.min() > 0.0845
@@ -49,7 +49,7 @@ def test_pairs_follow_the_distance_rule(built):
         for b in range(n)
         if a != b and np.hypot(*(r.node_xy[a] - r.node_xy[b])) >= SPEC.min_start_goal_m
     }
-    assert set(r.pairs) == allowed  # every allowed pair has a path in the empty arena
+    assert set(r.pairs) == allowed  # 허용 쌍은 빈 아레나에서 모두 경로가 있음
     assert r.count == len(r.pairs) * SPEC.obstacle_layouts
 
 
@@ -60,7 +60,7 @@ def test_paths_are_clear_connected_and_end_at_the_nodes(built):
         s, g = r.start_goal(i)
         assert np.allclose(p[0], s) and np.allclose(p[-1], g)
         steps = np.hypot(*np.diff(p, axis=0).T)
-        # cell centre to cell centre inside; the nodes sit anywhere in their end cells
+        # 안쪽은 셀 중심에서 셀 중심, 노드는 끝 셀 안 아무 곳
         assert steps[1:-1].max() <= math.sqrt(2) * SPEC.grid_m + 1e-9
         assert max(steps[0], steps[-1]) <= 1.5 * math.sqrt(2) * SPEC.grid_m + 1e-9
         boxes = [
@@ -69,7 +69,7 @@ def test_paths_are_clear_connected_and_end_at_the_nodes(built):
             if not np.isnan(r.obstacle_xy[i, k, 0])
         ]
         rects = np.concatenate([static] + [np.array(boxes)] * bool(boxes))
-        # interior points are cell centres outside the inscribed radius of every obstacle
+        # 안쪽 점은 모든 장애물 inscribed 반경 밖의 셀 중심
         clear = R.point_rect_distance(p[1:-1, 0], p[1:-1, 1], rects)
         assert clear.min() > SPEC.inscribed_m
         assert np.isclose(r.total[i], steps.sum())
@@ -78,7 +78,7 @@ def test_paths_are_clear_connected_and_end_at_the_nodes(built):
 def test_layouts_keep_boxes_apart_and_clear_of_the_nodes(built):
     _, static, r = built
     used = ~np.isnan(r.obstacle_xy[..., 0])
-    assert not used[:: SPEC.obstacle_layouts].any()  # layout 0 of every pair is empty
+    assert not used[:: SPEC.obstacle_layouts].any()  # 모든 쌍의 배치 0 은 비어 있음
     assert used.sum(1).max() <= SPEC.obstacle_max and used.any()
     for i in range(r.count):
         s, g = r.start_goal(i)
@@ -93,7 +93,7 @@ def test_layouts_keep_boxes_apart_and_clear_of_the_nodes(built):
 
 
 def test_a_box_on_the_way_bends_the_path(built):
-    """Same pair: some layout's path is longer than the empty layout's (boxes are on the way)."""
+    """같은 쌍: 어떤 배치의 경로가 빈 배치보다 길다 (박스가 길목에 있음)."""
     _, _, r = built
     m = SPEC.obstacle_layouts
     longer = [
@@ -104,8 +104,7 @@ def test_a_box_on_the_way_bends_the_path(built):
 
 
 def test_plan_avoids_a_wall_with_a_gap():
-    """A 1 x 1 m room split by a wall at x 0.5 with one gap at y 0.8..1.0: the path goes through
-    the gap, as far from the gap edge as the inflation makes worth it."""
+    """x 0.5 벽에 y 0.8..1.0 틈이 하나인 1 x 1 m 방: 경로는 인플레이션이 이득인 만큼 틈 가장자리에서 떨어져 지남."""
     grid = R.Grid((0.0, 0.0, 1.0, 1.0), 0.025)
     walls = np.array([(0.48, 0.0, 0.52, 0.8)])
     cost = grid.costs(walls, 0.07, 0.15, 15.0)
@@ -113,7 +112,7 @@ def test_plan_avoids_a_wall_with_a_gap():
     assert p is not None
     crossing = p[np.argmin(np.abs(p[:, 0] - 0.5))]
     assert crossing[1] > 0.8 + 0.07
-    walls = np.array([(0.48, 0.0, 0.52, 0.95)])  # gap 0.05 m: narrower than the robot
+    walls = np.array([(0.48, 0.0, 0.52, 0.95)])  # 틈 0.05 m: 로봇보다 좁음
     assert R.plan(grid, grid.costs(walls, 0.07, 0.15, 15.0), (0.2, 0.2), (0.8, 0.2)) is None
 
 
@@ -128,31 +127,31 @@ def test_build_is_deterministic_and_follows_overrides(built):
 
 
 def test_follow_progress_remaining_and_lookahead():
-    path = torch.tensor([[[0.1 * i, 0.0] for i in range(11)] + [[1.0, 0.0]] * 3])  # 0..1 m, padded
+    path = torch.tensor([[[0.1 * i, 0.0] for i in range(11)] + [[1.0, 0.0]] * 3])  # 0..1 m, 패딩
     cum = torch.tensor([[0.1 * i for i in range(11)] + [1.0] * 3])
     npts = torch.tensor([11])
     xy = torch.tensor([[0.42, 0.03]])
     prog, rem, la = R.follow(path, cum, npts, torch.tensor([0]), xy, 0.4, 20)
     assert prog.item() == 4
-    assert rem.item() == pytest.approx(1.0 - 0.42 + 0.03, abs=1e-6)  # projected onto 0.4..0.5
+    assert rem.item() == pytest.approx(1.0 - 0.42 + 0.03, abs=1e-6)  # 0.4..0.5 위로 투영
     assert la[0].tolist() == pytest.approx([0.8, 0.0])
-    # progress never goes back, and the window caps how far it may jump
+    # 진행은 뒤로 안 가고 window 가 점프를 제한
     prog2, _, _ = R.follow(path, cum, npts, prog, torch.tensor([[0.0, 0.0]]), 0.4, 20)
     assert prog2.item() == 4
     prog3, _, _ = R.follow(path, cum, npts, torch.tensor([0]), torch.tensor([[1.0, 0.0]]), 0.4, 3)
     assert prog3.item() == 3
-    # near the end the lookahead is the goal
+    # 끝 근처에서 lookahead 는 목표
     _, rem4, la4 = R.follow(path, cum, npts, prog, torch.tensor([[0.95, 0.0]]), 0.4, 20)
     assert la4[0].tolist() == pytest.approx([1.0, 0.0]) and rem4.item() == pytest.approx(0.05)
 
 
 def test_diagonal_steps_do_not_cut_blocked_corners():
-    """A diagonal step needs both side cells free too (NavFn spreads over 4 neighbours)."""
-    grid = R.Grid((0.0, 0.0, 0.05, 0.05), 0.025)  # 2 x 2 cells, flat index = i * 2 + j
+    """대각선 스텝은 양옆 셀도 비어야 함 (NavFn 은 4 이웃으로 퍼짐)."""
+    grid = R.Grid((0.0, 0.0, 0.05, 0.05), 0.025)  # 2 x 2 셀, 평면 인덱스 = i * 2 + j
     cost = np.zeros((2, 2))
     cost[1, 0] = cost[0, 1] = R.LETHAL
     assert grid.graph(cost).toarray()[0, 3] == 0
     cost[0, 1] = 0.0
-    assert grid.graph(cost).toarray()[0, 3] == 0  # one blocked side cell is enough
+    assert grid.graph(cost).toarray()[0, 3] == 0  # 옆 셀 하나만 막혀도 끊김
     cost[1, 0] = 0.0
     assert grid.graph(cost).toarray()[0, 3] > 0

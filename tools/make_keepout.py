@@ -2,18 +2,6 @@
 """구역 지도에서 Nav2 keepout 마스크를 만든다. ROS 없이 돈다.
 
     python3 tools/make_keepout.py --layout d2 --map maps/arena.yaml
-        -> maps/arena_keepout.yaml, maps/arena_keepout.pgm
-
-급행, 도크, 갈림목(넓은 구역이 아닌 구역)을 막은 그림을 `--map` 지도와 같은 크기, 원점, 칸
-크기로 만든다. 그래서 SLAM으로 만든 실제 경기장 지도에도 그대로 쓸 수 있다. 지도 그림은 PGM
-이어야 한다(크기만 읽는다). 만든 yaml을 `pode_nav_config` `nav2.launch.py`의
-`keepout_mask:=`에 넘긴다.
-
-막는 넓이는 구역보다 몸 반폭(`--pad`, 기본 0.06 m)만큼 넓다: keepout 필터는 둘레를 부풀리지
-않으므로 곧게 선 몸이 구역에 걸치지 않게 하려는 것이다. 45도로 선 몸의 모서리는 0.085 m까지
-나가므로, 어느 방향에서도 걸치지 않게 하려면 `--pad 0.085`를 준다.
-
-지도의 origin에 회전(yaw)이 있으면 만들지 않는다: 마스크는 축에 맞춘 격자로만 그린다.
 """
 import argparse
 import sys

@@ -95,6 +95,8 @@ class PodeFsmNode(Node):
         self._fsm = OrderFsm(
             fsm_params, order_params,
             horizon_check=self._maps.check, robot_id=self.robot_id)
+        self._nav_ready = False
+        self._fsm.set_nav_ready(False)
         self._markers = OrderMarkers(self, get("order_markers_topic").value, self._map_frame)
         self._last_state = ("", "")
         contract = load_contract(get("contract_file").value or default_contract_path())
@@ -268,7 +270,7 @@ class PodeFsmNode(Node):
                 if not self._follow.send(cmd.seq, cmd.poses, cmd.final_goal, cmd.reverse,
                                          cmd.free_heading):
                     self.get_logger().warn("follow_path server is not available")
-                    self._late.append((cmd.seq, "rejected"))
+                    self._late.append((cmd.seq, "unavailable"))
             elif isinstance(cmd, CancelNav):
                 self._follow.cancel_all()
             elif isinstance(cmd, BackUp):
@@ -278,7 +280,7 @@ class PodeFsmNode(Node):
                 if not self._backup.send(cmd.seq, cmd.distance_m, cmd.speed_mps,
                                          cmd.time_allowance_s):
                     self.get_logger().warn("backup server is not available")
-                    self._late_backup.append((cmd.seq, "rejected"))
+                    self._late_backup.append((cmd.seq, "unavailable"))
             elif isinstance(cmd, CancelBackUp):
                 self._backup.cancel_all()
             elif isinstance(cmd, SendNavGoal):
@@ -348,6 +350,15 @@ class PodeFsmNode(Node):
         with self._lock:
             self._run(self._fsm.nav_cancel_accepted(seq, time.monotonic()))
 
+    # ---- Nav2 서버 준비: 둘 다 보이기 전에는 LOCALIZING으로 보고한다 ----
+    def _note_nav_ready(self) -> None:
+        if self._nav_ready:
+            return
+        if self._follow.ready() and self._goals.ready():
+            self._nav_ready = True
+            self.get_logger().info("follow_path and navigate_to_pose servers are ready")
+        self._fsm.set_nav_ready(self._nav_ready)
+
     # ---- 제어 주기: 미뤄 둔 결과 처리 후 tick ----
     def _tick(self) -> None:
         with self._lock:
@@ -364,7 +375,8 @@ class PodeFsmNode(Node):
                 self._run(self._fsm.backup_result(seq, outcome, now, here))
             late_goal, self._late_goal = self._late_goal, []
             for seq in late_goal:
-                self._run(self._fsm.nav_goal_result(seq, "rejected", now, here))
+                self._run(self._fsm.nav_goal_result(seq, "unavailable", now, here))
+            self._note_nav_ready()
             self._run(self._fsm.tick(now, here, self._speed, self._obstacle))
             self._log_state()
 

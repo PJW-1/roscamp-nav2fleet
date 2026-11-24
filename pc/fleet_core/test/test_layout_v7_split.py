@@ -1,4 +1,4 @@
-"""배치 v7의 나눈 goal(해결안 B, 2026-11-24): 중간 지점 GAP_S와 splits 사각형.
+"""배치 v7의 나눈 goal(해결안 B): 중간 지점 GAP_S와 splits 사각형.
 
 근거 숫자는 docs/plan_flip_2026-11-24/two_ways.py(v7 costmap 지도로 잰 NavFn 비용과 길이)에 있다.
 """

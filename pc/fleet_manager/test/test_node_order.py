@@ -1,4 +1,4 @@
-"""order 모델(계약 0.11-draft 제안)을 노드가 나르는 방식. MoveOrderCmd, 피드백, update, 파라미터."""
+"""order 모델을 노드가 나르는 방식: MoveOrderCmd, 피드백, update, 파라미터."""
 import os
 from types import SimpleNamespace
 from unittest.mock import MagicMock
@@ -111,7 +111,7 @@ def test_order_parameters_override_the_params_file_only_when_given():
     try:
         node = FleetManagerNode()
         try:
-            assert node.core.params.use_order_model is True  # 2026-11-16부터 기본 켬
+            assert node.core.params.use_order_model is True  # 기본 켬
             assert node.core.params.lookahead_s == 2.0
         finally:
             node.destroy_node()

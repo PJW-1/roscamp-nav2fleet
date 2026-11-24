@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
-# Run the Newton drive check (step and ramped commands) and analyse it.
-# Usage: bash learning/sim_check/run_drive.sh <out_dir> [num_envs]
-# Uses the Isaac Lab venv python directly (no `uv run`: see README.md).
+# Newton 주행 점검(스텝/램프 명령)을 돌리고 분석한다.
+# 사용: bash learning/sim_check/run_drive.sh <out_dir> [num_envs]
 set -u
 OUT=${1:?out dir}
 N=${2:-16}

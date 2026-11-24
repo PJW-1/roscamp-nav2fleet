@@ -1,12 +1,6 @@
 """시뮬 전용 도크 대역(sim_dock_stub)의 판정과 켜도 되는지 검사. ROS 없이 돈다.
-
-pode_dock(스테이션 도크에 ±1~2 cm로 붙기)이 아직 없어서 진짜 pode_fsm은 도킹을
-DOCK_UNAVAILABLE로 실패시킨다. 임무를 끝까지 돌려 보고 싶을 때만 Gazebo 시뮬에서 켠다(기본 꺼짐).
-대역은 로봇을 움직이지 않는다. 관제의 move_to가 도크 지점에 데려다 놓은 로봇의
-실제 위치를 재고, FakePode처럼 duration_s 동안 APPROACH → ALIGN → DONE 피드백을 낸 뒤 결과를 낸다.
-
-It may run only on Gazebo time (use_sim_time) in a network that passes isolation.py, so it can
-never answer for a real pode. The node checks this itself (require_dock_stub_allowed).
+로봇은 움직이지 않고, 도크 지점에 놓인 실제 위치를 재서 APPROACH, ALIGN, DONE 피드백과 결과를 낸다.
+Gazebo 시각(use_sim_time)과 isolation.py를 통과한 망에서만 켜진다.
 """
 from __future__ import annotations
 
@@ -33,8 +27,7 @@ def dock_outcome(pose, dock_xy, reach_m: float = REACH_M) -> tuple[bool, float, 
 
 
 class ClockWatch:
-    """Says when Gazebo time has not advanced for limit_s wall seconds (a stalled /clock keeps
-    its last value, so ROS time stays active and positive)."""
+    """limit_s 실제 초 동안 Gazebo 시각이 멈췄는지 알려 준다."""
 
     def __init__(self, limit_s: float):
         self.limit_s = limit_s
@@ -49,21 +42,18 @@ class ClockWatch:
 
 
 def dock_done(elapsed: float, duration: float) -> bool:
-    """The dock goal may end: duration_s has passed and Gazebo time moved since the goal came.
-
-    With duration_s 0 a clock that stopped before the goal would otherwise pass at once; now the
-    goal waits for the clock, and ClockWatch fails it if the clock stays still."""
+    """도크 목표를 끝내도 되는지: duration_s가 지났고 목표 이후 Gazebo 시각이 움직였어야 한다."""
     return elapsed > 0.0 and elapsed >= duration
 
 
 def stub_may_answer(ros_time_active: bool, now_s: float) -> bool:
-    """Answer a dock goal only while Gazebo time is running (ROS time from /clock, past 0)."""
+    """Gazebo 시각이 흐르는 동안에만 도크 목표에 답한다."""
     return ros_time_active and now_s > 0.0
 
 
 def dock_stub_problems(use_sim_time: bool, env: Mapping[str, str], *, rmw: str | None = None,
                        workdir: Path | None = None) -> list[str]:
-    """Reasons the dock stub must not run. Empty means it may."""
+    """도크 대역을 켜면 안 되는 이유 목록. 비면 켜도 된다."""
     found = [] if use_sim_time else ["use_sim_time is false: the dock stub runs only on "
                                      "Gazebo time"]
     return found + isolation_problems(env, rmw=rmw, workdir=workdir)

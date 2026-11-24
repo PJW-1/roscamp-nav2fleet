@@ -1,7 +1,4 @@
-"""eta_error.py: 남은 거리가 있는 기록과 없는 기록에서 표본, 실제 남은 시간, 두 예측을 맞게 센다.
-
-사용: python3 -m pytest docs/distance_remaining_2026-11-21/test_eta_error.py -q
-"""
+"""eta_error.py의 표본, 실제 남은 시간, 두 예측 계산을 시험한다."""
 import importlib.util
 import math
 import sys

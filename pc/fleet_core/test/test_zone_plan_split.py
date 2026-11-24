@@ -1,4 +1,4 @@
-"""나눈 goal(해결안 B, 2026-11-24): 넓은 곳 HALL의 노드 밖에서 Q2로 가는 Nav2 goal이 두 길(남쪽 진열대
+"""나눈 goal(해결안 B): 넓은 곳 HALL의 노드 밖에서 Q2로 가는 Nav2 goal이 두 길(남쪽 진열대
 틈, 동쪽으로 도는 길)의 값이 비슷한 자리에서 나오면, 관제가 중간 지점을 거쳐 두 goal로 보낸다.
 NavFn이 1 Hz 다시 계획할 때마다 두 길을 번갈아 내는 것("도리도리")을 막는다.
 
@@ -193,7 +193,7 @@ def test_a_via_node_is_no_free_edge_target_in_a_zone_without_nodes():
         del site.nodes_in
 
 
-# ---- 노드에서 짠 길(2026-11-24 저녁): through로 합쳐지는 nav_goal 사슬도 출발 노드가 사각형 안이면 나눈다 ----
+# ---- 노드에서 짠 길: through로 합쳐지는 nav_goal 사슬도 출발 노드가 사각형 안이면 나눈다 ----
 def base_of(world, robot="pode1") -> list:
     order = next(c for c in world.commands if isinstance(c, MoveOrderCmd) and c.robot == robot)
     return [(s.mode, s.end_node) for s in order.base]

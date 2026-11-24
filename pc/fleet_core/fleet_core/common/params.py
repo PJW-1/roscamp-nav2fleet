@@ -9,16 +9,16 @@ import yaml
 
 DEFAULT_PARAMS = Path(__file__).parents[1] / "data" / "fleet_params.yaml"
 COMM_LOSS_POLICIES = ("stop", "base_end")
-# yaml에서 일부러 빼는 키. zone_clear_m은 0이면 footprint_radius_m + release_margin_m로 놓는다
+# yaml에 없어도 되는 키(zone_clear_m 0이면 footprint_radius_m + release_margin_m)
 OPTIONAL = frozenset({"zone_clear_m"})
-# 0이 '끔'(zone_clear_m은 '식을 씀')인 키. 다른 시간·거리 키는 0보다 커야 한다
+# 0이 '끔'인 키. 다른 시간·거리 키는 0보다 커야 한다
 ZERO_MEANS_OFF = frozenset({"zone_clear_m", "idle_watch_s", "silent_limit_s", "start_limit_s",
                             "battery_low_pct", "nav_pass_m", "nav_turn_rps"})
-# 이 끝말의 키가 시간·거리·속도·각속도·백분율이다
+# 값의 단위를 나타내는 키 끝말
 MEASURE_SUFFIXES = ("_s", "_m", "_mps", "_rps", "_pct")
-# Pode 기본 blocked_after_s(pode_fsm/params.py). 계약에 없어 기본값을 적는다
+# Pode 기본 blocked_after_s(계약에 없어 값을 따로 적는다)
 ROBOT_BLOCKED_AFTER_S = 10.0
-# 상태 보고 주기 0.5 s, 두 쪽 진전 재기 시작 차이, 여유
+# 상태 보고 주기와 두 쪽 진전 측정 차이에 대한 여유
 BLOCKED_REPORT_MARGIN_S = 2.0
 
 
@@ -61,7 +61,7 @@ class FleetParams:
     blocked_timeout_s: float = 60.0
     blocked_reset_m: float = 0.30
     blocked_reset_s: float = 20.0
-    idle_watch_s: float = 0.0  # 기록 호환: 이 키가 없는 옛 기록은 감시 없이 돈다(파일은 10)
+    idle_watch_s: float = 0.0  # 기록 호환 기본값(파일 값은 따로)
     battery_low_pct: float = 0.0
     battery_charged_pct: float = 80.0
     dispatch_retry_wait_s: float = 2.0
@@ -69,11 +69,11 @@ class FleetParams:
     self_recovery_limit_s: float = 45.0
     traffic_mode: str = "zones"
     nav_speed_mps: float = 0.12
-    nav_eta_speed_ratio: float = 1.0  # 기록 호환: 옛 기록은 비율 없이(1.0) 돈다
+    nav_eta_speed_ratio: float = 1.0  # 기록 호환 기본값
     follow_speed_mps: float = 0.12
     retreat_speed_mps: float = 0.05
-    nav_pass_m: float = 0.0  # 기록 호환: 이 키가 없는 옛 기록은 넘김 거리 없이 돈다(파일은 0.15)
-    nav_turn_rps: float = 0.0  # 기록 호환: 이 키가 없는 옛 기록은 끝 회전 없이 돈다(파일은 1.0)
+    nav_pass_m: float = 0.0  # 기록 호환 기본값
+    nav_turn_rps: float = 0.0  # 기록 호환 기본값
     nav_goal_tolerance_m: float = 0.05
     footprint_radius_m: float = 0.085
     release_margin_m: float = 0.05
@@ -98,8 +98,8 @@ class FleetParams:
     standby_lookahead_s: float = 0.5
     comm_base_hold_extra_s: float = 3.0
     comm_loss_policy: str = "stop"
-    silent_limit_s: float = 0.0  # 기록 호환(파일은 60, test_zone_silent)
-    start_limit_s: float = 0.0  # 기록 호환(파일은 5, test_zone_no_start)
+    silent_limit_s: float = 0.0  # 기록 호환 기본값
+    start_limit_s: float = 0.0  # 기록 호환 기본값
     blocked_by_position: bool = True
     obstacle_look_m: float = 0.30
     check_range_m: float = 0.6
@@ -107,7 +107,7 @@ class FleetParams:
     check_interval_s: float = 5.0
     clear_confirm: int = 2
     blocked_retry_max_s: float = 300.0
-    plan_split: bool = False  # 해결안 B(2026-11-24): 지도 splits대로 Nav2 goal을 둘로 나눈다. 기록 호환: 끔
+    plan_split: bool = False  # 해결안 B: 지도 splits대로 Nav2 goal을 둘로 나눈다. 기록 호환: 끔
 
     # ---- 파라미터 값 검사 ----
     def __post_init__(self):
@@ -118,7 +118,7 @@ class FleetParams:
         if (isinstance(ratio, bool) or not isinstance(ratio, (int, float))
                 or not _finite(ratio) or not 0.0 < ratio <= 1.0):
             raise ValueError(f"nav_eta_speed_ratio must be a number in (0, 1], got {ratio!r}")
-        # 너무 작으면 곱이 0이 되어 ETA 나누기가 깨진다. 속도 자체는 check_measures가 본다
+        # 너무 작은 속도는 ETA 나누기를 깨므로 막는다
         speed = self.nav_speed_mps
         if isinstance(speed, (int, float)) and speed > 0.0 and not speed * ratio > 0.0:
             raise ValueError(f"nav_eta_speed_ratio {ratio!r} makes the ETA speed zero")
@@ -142,7 +142,7 @@ def load_params(path=None) -> FleetParams:
 
 
 def _finite(value) -> bool:
-    # 실수로 못 바꾸는 큰 정수는 유한하지 않은 값으로 본다
+    # 실수로 바꿀 수 없는 큰 정수는 유한하지 않은 값으로 본다
     try:
         return math.isfinite(value)
     except OverflowError:
@@ -189,7 +189,7 @@ def check_measures(params: FleetParams, source="params") -> None:
 
 # ---- PC·로봇 시간 관계 경고(오류 아님) ----
 def timing_warnings(params: FleetParams) -> list[str]:
-    # move goal은 BLOCKED 보고가 멈춤 시계를 세운다. DOCK은 아니라 dock_stall_s는 보지 않는다
+    # BLOCKED 보고가 멈춤 시계를 세우는 것은 move goal뿐이다(dock_stall_s는 대상 아님)
     need = ROBOT_BLOCKED_AFTER_S + BLOCKED_REPORT_MARGIN_S
     if params.stall_s < need:
         return [f"stall_s {params.stall_s:g} s is shorter than the robot default blocked_after_s "

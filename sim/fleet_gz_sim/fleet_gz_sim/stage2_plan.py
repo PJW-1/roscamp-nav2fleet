@@ -1,8 +1,5 @@
 """2단계 Gazebo 한 대 주행의 계획과 지표. ROS를 쓰지 않는다.
-
-관제 없이 로봇에 바로 보낼 이동을 구역 지도에서 만든다. 이동 하나(Step)는 계약의 구간 하나다
-(TRAFFIC_CONTRACT 2절): nav_goal(MoveTo mode nav_goal), follow_path(MoveTo mode follow_path,
-고정 경로 꺾은선), retreat(Retreat path, FollowPathReverse). drive_check가 이것을 보낸다.
+관제 없이 보낼 이동(nav_goal, follow_path, retreat)을 구역 지도에서 만든다. drive_check가 이것을 보낸다.
 """
 from __future__ import annotations
 
@@ -11,11 +8,8 @@ from dataclasses import dataclass
 
 from fleet_core.fleet_map import FOLLOW_PATH, NAV_GOAL, RETREAT, SHARED
 
-# 계획 이름 -> (방식, 지점들). 시작 지점에 로봇이 서 있어야 한다. 한 바퀴가 끝나면 시작 지점이다.
-# stage2(D2, 주행 완료 기준의 구간 모두): 마당 Nav2 goal로 N_W, work_in으로 작업 도크, Retreat로
-# 마당(N_W)까지, 급행 동쪽으로 가서 J_E로 내려옴, out_in으로 출고 도크, Retreat로 N_E, 급행 서쪽으로
-# 가서 J_W로 내려옴, 마당 Nav2 goal로 P-1. 좁은 띠 안에서는 제자리 회전이 없다.
-# 배치마다 첫 계획이 drive_check와 one_pode의 기본(시작 지점)이다. 순서를 바꾸면 기본 시작도 바뀐다
+# 계획 이름 -> (방식, 지점들). 시작 지점에 로봇이 서 있어야 하고, 한 바퀴가 끝나면 시작 지점이다.
+# 배치마다 첫 계획이 drive_check와 one_pode의 기본 시작이다.
 PLANS = {
     "stage2": (
         (NAV_GOAL, ("P-1", "N_W")),
@@ -27,25 +21,21 @@ PLANS = {
         (FOLLOW_PATH, ("N_E", "X_E", "X_W", "N_W")),
         (NAV_GOAL, ("N_W", "P-1")),
     ),
-    # 다른 Pode가 서 있는 마당을 가로지르는 Nav2 goal 한 번(item 6). 서 있는 Pode는 launch가 놓는다
+    # 서 있는 Pode가 있는 마당을 가로지르는 Nav2 goal(서 있는 Pode는 launch가 놓는다)
     "cross": ((NAV_GOAL, ("P-1", "P-3")), (NAV_GOAL, ("P-3", "P-1"))),
-    # v7 가운데 통로 재현(2026-11-17): O_IN에서 M_E로 갔다가 돌아온다.
-    # 상자는 v7_corridor_box가 놓는다
+    # v7 가운데 통로 재현: O_IN에서 M_E로 갔다가 돌아온다(상자는 v7_corridor_box)
     "corridor": ((NAV_GOAL, ("O_IN", "M_E")), (NAV_GOAL, ("M_E", "O_IN"))),
-    # v7 남쪽 진열대 사이 건넘 틈(2026-11-17): 틈 바로 북쪽(GAP_N)과 남쪽(GAP_S)을
-    # Nav2 goal로 오간다.
-    # 둘을 잇는 지점 쌍이 구역 지도에 없어 계획 전용 점을 쓴다(PLAN_POINTS)
+    # v7 남쪽 진열대 사이 틈: 틈 북쪽(GAP_N)과 남쪽(GAP_S)을 Nav2 goal로 오간다.
+    # 둘을 잇는 지점 쌍이 구역 지도에 없어 계획 전용 점(PLAN_POINTS)을 쓴다
     "gap": ((NAV_GOAL, ("M_E", "GAP_N")), (NAV_GOAL, ("GAP_N", "GAP_S")),
             (NAV_GOAL, ("GAP_S", "GAP_N")), (NAV_GOAL, ("GAP_N", "M_E"))),
 }
-PLAN_LAYOUTS = {"corridor": "v7", "gap": "v7"}  # 계획의 배치. 없으면 d2
-# 계획 전용 점(구역 지도에 없는 Nav2 goal 자리, 이름 -> (x, y)). 이음 검사를 하지 않는다.
-# GAP_N, GAP_S: 틈 가운데(x 1.12) 북쪽 가운데 통로와 남쪽 통로(칸 입구 높이 0.24). 틈으로 0.31 m,
-# 진열대 끝을 돌면 약 1.2 m(1 cm 격자 계산)
+PLAN_LAYOUTS = {"corridor": "v7", "gap": "v7"}  # 계획의 배치(없으면 d2)
+# 계획 전용 점(Nav2 goal 자리, 이름 -> (x, y)). 이음 검사를 하지 않는다.
 PLAN_POINTS = {"gap": {"GAP_N": (1.12, 0.55), "GAP_S": (1.12, 0.24)}}
-# 통로를 지났는지 보는 사각형(x0, y0, x1, y1): v7 가운데 통로, 상자 4 둘레의 x 0.90~1.00
+# 통로를 지났는지 보는 사각형(x0, y0, x1, y1): v7 가운데 통로
 CORRIDOR_GATES = {"arena_v7": (0.90, 0.405, 1.00, 0.77)}
-# 남쪽 진열대 사이 건넘 틈(y 방향으로 지난다). 네 모서리가 진열대 끝 모서리다
+# 남쪽 진열대 사이 건넘 틈(y 방향으로 지난다)
 GAP_GATES = {"arena_v7": (0.99, 0.365, 1.25, 0.405)}
 
 
@@ -73,8 +63,7 @@ def _heading(a, b) -> float:
 
 
 def nav_yaw(site, start: str, end: str, points=None) -> float:
-    """계약 2절: 끝 지점의 yaw, 없으면 거기서 이어지는 고정 경로의 방향, 없으면 시작→끝 방향.
-    points(계획 전용 점)에 있는 끝은 시작→끝 방향."""
+    """계약 2절: 끝 지점의 yaw, 없으면 이어지는 고정 경로 방향, 없으면 시작→끝 방향."""
     points = points or {}
     if end not in points:
         node = site.nodes[end]
@@ -91,8 +80,7 @@ def _xy(site, name: str, points) -> tuple[float, float]:
 
 
 def path_poses(site, nodes, reverse: bool = False) -> tuple[tuple[float, float, float], ...]:
-    """지점과 꺾는 점마다 (x, y, yaw). yaw는 그 점에서 나가는 방향(끝 점은 들어온 방향). reverse면
-    로봇이 보는 방향(달리는 방향의 반대)이다."""
+    """지점과 꺾는 점마다 (x, y, yaw). yaw는 나가는 방향이고 reverse면 로봇이 보는 방향이다."""
     xy = [site.node_pose(nodes[0])]
     for a, b in zip(nodes, nodes[1:], strict=False):
         xy += site.edge(a, b).points[1:]
@@ -130,10 +118,7 @@ def plan_layout(plan: str) -> str:
 
 
 def pick_layout_plan(layout: str | None, plan: str | None) -> tuple[str, str]:
-    """drive_check의 배치와 계획. 둘 다 없으면 v7과 그 첫 계획(corridor).
-
-    계획만 주면 그 계획의 배치, 배치만 주면 그 배치의 첫 계획(없으면 stage2).
-    """
+    """drive_check의 배치와 계획. 둘 다 없으면 v7과 첫 계획(corridor). 하나만 주면 다른 쪽을 정한다."""
     if layout is None:
         layout = plan_layout(plan) if plan is not None else "v7"
     if plan is None:
@@ -213,10 +198,9 @@ def keepout_zones(site, points) -> list[str]:
 
 
 def through_gate(points, gate, axis: int = 0) -> bool:
-    """사각형(x0, y0, x1, y1)을 axis(0이면 x, 1이면 y) 방향으로 한쪽에서 들어가 반대쪽으로
-    나간 적이 있으면 참. 들어갔다 되돌아오거나 안에서 멈추면 거짓. 다른 축으로 사각형 밖이면
-    처음부터 다시 본다. 점 사이는 보지 않는다: 문 옆이 진열대 면이고 실제 위치가
-    촘촘하다(약 30 Hz)고 본다."""
+    """사각형(x0, y0, x1, y1)을 axis(0이면 x, 1이면 y) 방향으로 한쪽에서 들어가 반대쪽으로 나간 적이 있으면 참.
+    들어갔다 되돌아오거나 안에서 멈추면 거짓. 점 사이는 보지 않는다.
+    """
     lo, hi = gate[axis], gate[axis + 2]
     other_lo, other_hi = gate[1 - axis], gate[3 - axis]
     last = None  # 마지막으로 있던 바깥쪽(-1 앞, 1 뒤)
@@ -277,8 +261,9 @@ def body_distance(pose, polygon, point) -> float:
 
 
 def max_pose_error(estimates, truth, max_dt_s: float = math.inf) -> float | None:
-    """추정 (t, x, y)마다 시각이 가장 가까운 실제 위치 (t, x, y, ...)와의 거리 중 가장 큰 것.
-    시각 차가 max_dt_s보다 큰 추정은 버린다. truth는 시각 순서다. 맞춘 것이 없으면 None."""
+    """추정 (t, x, y)마다 시각이 가장 가까운 실제 위치와의 거리 중 가장 큰 것.
+    시각 차가 max_dt_s보다 큰 추정은 버린다. 맞춘 것이 없으면 None.
+    """
     import bisect
     if not estimates or not truth:
         return None

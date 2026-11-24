@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Throughput of the drive sequence (19 s sim, ramped commands) with no per-step logging.
-# Usage: bash learning/sim_check/run_bench.sh <out_dir> [env counts...]
+# 주행 순서(시뮬 19 s, 램프 명령)의 처리량을 스텝별 기록 없이 잰다.
+# 사용: bash learning/sim_check/run_bench.sh <out_dir> [env 수...]
 set -u
 OUT=${1:?out dir}
 shift

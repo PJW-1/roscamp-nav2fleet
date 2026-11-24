@@ -1,17 +1,8 @@
-"""Isaac Lab (Newton) store arena: the goal-reach env plus walls and shelves from the fleet map.
+"""Isaac Lab(Newton) 매장 아레나: goal-reach env 에 플릿 맵의 벽과 선반을 더한다.
 
-The boxes come from ``arena_spec.arena_boxes`` when the env is constructed, so a re-measured
-``fleet_map_v7.yaml`` changes the arena without code changes. Each box is a static collider under
-the env namespace, so it is cloned into every env (Newton world) like the robot. Map coordinates
-are env-local: map (0, 0) is the env origin.
-
-Each episode drives one route (route_spec.build_routes): a start and a goal HALL node, a layout of
-static obstacle boxes and the global path planned around them. The observed goal is the point
-``lookahead_m`` ahead on that path; success is reaching the final goal (TaskSpec.success_radius);
-the progress reward follows the remaining path length. Obstacle boxes are kinematic bodies moved
-at reset; unused ones wait behind the south wall. Movers (mover_spec: a person and a cart) are
-kinematic bodies moved every control step along a leg drawn at reset; they are not in the global
-path, as a person who just appeared is not in the deployed Nav2 plan.
+박스는 env 생성 때 arena_spec.arena_boxes 로 만들어 모든 env 에 복제된다. 에피소드마다 경로 하나
+(route_spec.build_routes)를 달리며, 관측 목표는 경로상 lookahead_m 앞 점이다.
+장애물/mover/로봇은 kinematic 박스로 리셋이나 제어 스텝마다 옮기고, 안 쓰는 것은 남쪽 벽 뒤에 둔다.
 """
 
 from __future__ import annotations
@@ -44,13 +35,13 @@ COLORS = {
     "mover": (0.85, 0.2, 0.25),
     "robot": (0.2, 0.7, 0.35),
 }
-# what a collision is put down to (the nearest of them at the collision step)
+# 충돌 원인 분류 (충돌 스텝에서 가장 가까운 것)
 HIT_KINDS = ("wall_shelf", "box", "mover", "robot")
-LIFT_M = 0.002  # obstacle boxes float this far above the floor (no floor contacts)
+LIFT_M = 0.002  # 장애물 박스를 바닥에서 띄우는 높이 [m] (바닥 접촉 방지)
 
 
 def box_asset_cfg(box: arena.Box) -> AssetBaseCfg:
-    """A static box collider (no rigid body) at map coordinates inside each env."""
+    """각 env 안 맵 좌표의 정적 박스 콜라이더."""
     sx, sy = box.x1 - box.x0, box.y1 - box.y0
     return AssetBaseCfg(
         prim_path="{ENV_REGEX_NS}/arena_" + box.name,
@@ -66,18 +57,18 @@ def box_asset_cfg(box: arena.Box) -> AssetBaseCfg:
 
 
 def add_arena(scene_cfg, boxes: list[arena.Box]) -> None:
-    """Add one scene entry per box (the scene builds every non-field attribute of its cfg)."""
+    """박스마다 씬 항목을 추가한다."""
     for box in boxes:
         setattr(scene_cfg, "arena_" + box.name, box_asset_cfg(box))
 
 
 def park_xy(k: int) -> tuple[float, float]:
-    """Where unused obstacle slot k waits: behind the south wall, out of lidar sight."""
+    """안 쓰는 장애물 슬롯 k 의 대기 위치: 남쪽 벽 뒤."""
     return (0.3 + 0.5 * k, -0.4)
 
 
 def obstacle_cfg(k: int, side: float, height: float) -> RigidObjectCfg:
-    """Obstacle slot k: a kinematic, gravity-free square box moved per env at reset."""
+    """장애물 슬롯 k: 리셋 때 옮기는 kinematic 정사각 박스."""
     x, y = park_xy(k)
     return RigidObjectCfg(
         prim_path=f"{{ENV_REGEX_NS}}/obstacle_{k}",
@@ -96,12 +87,12 @@ def obstacle_cfg(k: int, side: float, height: float) -> RigidObjectCfg:
 
 
 def mover_park_xy(i: int) -> tuple[float, float]:
-    """Where an inactive mover waits: behind the south wall, east of the obstacle slots."""
+    """비활성 mover 의 대기 위치."""
     return (1.6 + 0.3 * i, -0.4)
 
 
 def mover_cfg(i: int, shape: ms.MoverShape) -> RigidObjectCfg:
-    """Mover i: a kinematic, gravity-free cylinder or box moved every control step."""
+    """mover i: 제어 스텝마다 옮기는 kinematic 원기둥 또는 박스."""
     common = dict(
         rigid_props=[
             sim_utils.UsdPhysicsRigidBodyCfg(kinematic_enabled=True),
@@ -124,12 +115,12 @@ def mover_cfg(i: int, shape: ms.MoverShape) -> RigidObjectCfg:
 
 
 def robot_park_xy(k: int) -> tuple[float, float]:
-    """Where an inactive scripted robot waits: behind the south wall, below the other slots."""
+    """비활성 스크립트 로봇의 대기 위치."""
     return (0.3 + 0.5 * k, -0.9)
 
 
 def robot_cfg(k: int) -> RigidObjectCfg:
-    """Scripted fleet robot k: a kinematic, gravity-free Pode-sized box moved every step."""
+    """스크립트 플릿 로봇 k: 스텝마다 옮기는 kinematic Pode 크기 박스."""
     sx, sy, sz = rbs.ROBOT.size
     x, y = robot_park_xy(k)
     return RigidObjectCfg(
@@ -150,7 +141,7 @@ def robot_cfg(k: int) -> RigidObjectCfg:
 
 @configclass
 class StoreArenaEnvCfg(GoalReachEnvCfg):
-    # ArenaSpec fields to override (arena_spec.split_overrides); read when the env is built
+    # 덮어쓸 ArenaSpec 필드 (arena_spec.split_overrides)
     arena_overrides: dict = {}
 
 
@@ -203,8 +194,7 @@ class StoreArenaEnv(GoalReachEnv):
         self.la_dist = torch.zeros(n, device=dev)
         self.la_ang = torch.zeros(n, device=dev)
         self.d_goal = torch.zeros(n, device=dev)
-        # movers: one leg per env and mover (mover_spec.sample_legs), time since reset, and the
-        # smallest gap between the robot centre and a mover surface in the episode (inf: none)
+        # mover: env 와 mover 마다 구간, 리셋 후 시간, 로봇 중심과 mover 표면의 최소 간격
         self.static_rects = torch.as_tensor(static, **f32)
         self.mover_objs = [self.scene[f"mover_{m.name}"] for m in ms.MOVERS]
         self.mover_legs = [
@@ -219,12 +209,12 @@ class StoreArenaEnv(GoalReachEnv):
             for _ in ms.MOVERS
         ]
         self.mover_park = torch.tensor([mover_park_xy(i) for i in range(len(ms.MOVERS))], **f32)
-        self.mover_t = torch.zeros(len(ms.MOVERS), n, **f32)  # each mover's own clock
-        self.mover_held = torch.zeros(len(ms.MOVERS), n, dtype=torch.bool, device=dev)  # waiting
-        self.mover_wait = torch.zeros(len(ms.MOVERS), n, **f32)  # how long it has waited [s]
-        # yield distance per mover and env (mover_yield_mix, mover_noyield_prob)
+        self.mover_t = torch.zeros(len(ms.MOVERS), n, **f32)  # mover 별 시계
+        self.mover_held = torch.zeros(len(ms.MOVERS), n, dtype=torch.bool, device=dev)  # 대기 중
+        self.mover_wait = torch.zeros(len(ms.MOVERS), n, **f32)  # 기다린 시간 [s]
+        # mover 별 양보 거리
         self.mover_yield = torch.full((len(ms.MOVERS), n), float(a.mover_yield_m), **f32)
-        # wall grazes and corner starts (arena_spec graze_m, near_wall_m, corner_start_prob)
+        # 벽 스침과 코너 시작
         self.wall_clear = torch.full((n,), float("inf"), **f32)
         self.graze_only = torch.zeros(n, dtype=torch.bool, device=dev)
         self.r_corner = torch.nonzero(
@@ -235,18 +225,17 @@ class StoreArenaEnv(GoalReachEnv):
         self._new_corner = torch.zeros(n, dtype=torch.bool, device=dev)
         self.mover_gap = torch.full((n,), float("inf"), **f32)
         self.last_ep_mover_gap = torch.full((n,), float("inf"), **f32)
-        # scripted fleet robots
+        # 스크립트 플릿 로봇
         g = self.graph
         self.g_t = rbs.graph_tensors(g, dev)
-        # our route's nodes for the reservation rule: arc length along each route where it passes
-        # within robot_reserve_m of a graph node (inf: it does not)
+        # 예약 규칙용: 우리 경로가 그래프 노드 robot_reserve_m 이내를 지나는 호장 (inf: 안 지남)
         d = np.linalg.norm(r.path[:, :, None] - g.xy[None, None], axis=-1)  # (R, L, K)
         d[np.arange(r.path.shape[1])[None, :] >= r.npts[:, None]] = np.inf
         near = d.min(1) < a.robot_reserve_m
         node_arc = np.take_along_axis(r.cum, d.argmin(1), 1)  # (R, K)
         self.r_node_arc = torch.as_tensor(np.where(near, node_arc, np.inf), **f32)
         gi = {name: i for i, name in enumerate(g.names)}
-        # graph index of each route's start and goal node (-1: not a graph node, e.g. Q1)
+        # 경로별 시작/목표 노드의 그래프 인덱스 (-1: 그래프 노드 아님)
         self.r_sg_node = torch.tensor(
             [[gi.get(r.node_names[s], -1), gi.get(r.node_names[e], -1)] for s, e in r.pairs],
             device=dev,
@@ -273,15 +262,15 @@ class StoreArenaEnv(GoalReachEnv):
         self._routes_ready = True
 
     def sample_start(self, n: int) -> tuple[torch.Tensor, torch.Tensor]:
-        """Start node of a random route and a random yaw; both are kept for _reset_idx."""
+        """무작위 경로의 시작 노드와 yaw 를 뽑는다 (_reset_idx 가 이어 씀)."""
         yaw = (2 * torch.rand(n, device=self.device) - 1) * torch.pi
-        if not self._routes_ready:  # a reset inside super().__init__: fixed start, no route
+        if not self._routes_ready:  # super().__init__ 안의 리셋: 고정 시작점, 경로 없음
             xy = torch.tensor((self.arena.start_x, self.arena.start_y), device=self.device)
             return xy.expand(n, 2).clone(), yaw
         self._new_route = torch.randint(0, self.routes.count, (n,), device=self.device)
         p = self.arena.corner_start_prob
         self._new_corner = torch.zeros(n, dtype=torch.bool, device=self.device)
-        if p > 0 and len(self.r_corner):  # no draw otherwise: earlier arenas stay the same
+        if p > 0 and len(self.r_corner):  # 아니면 난수를 안 뽑아 이전 아레나와 같게 유지
             self._new_corner = torch.rand(n, device=self.device) < p
             pick = self.r_corner[torch.randint(0, len(self.r_corner), (n,), device=self.device)]
             self._new_route = torch.where(self._new_corner, pick, self._new_route)
@@ -292,7 +281,7 @@ class StoreArenaEnv(GoalReachEnv):
         return self.r_start[self._new_route], yaw
 
     def _follow(self, ids, xy, yaw) -> None:
-        """Path progress, remaining length (d_now), lookahead goal and goal distance for ids."""
+        """경로 진행, 남은 길이, lookahead 목표와 목표 거리를 갱신한다."""
         r = self.route[ids]
         self.prog[ids], self.d_now[ids], la = rs.follow(
             self.r_path[r],
@@ -336,26 +325,25 @@ class StoreArenaEnv(GoalReachEnv):
         self.mover_held[:, env_ids] = False
         self.mover_wait[:, env_ids] = 0.0
         a = self.arena
-        if a.mover_yield_mix:  # B48
+        if a.mover_yield_mix:
             n_ = len(env_ids)
             self.mover_yield[:, env_ids] = ms.mixed_yield(
                 n_, len(ms.MOVERS), a.mover_yield_m, device=self.device
             )
-        elif a.mover_noyield_prob > 0:  # no draw otherwise: 4b and 4c runs stay the same
+        elif a.mover_noyield_prob > 0:  # 아니면 난수를 안 뽑아 4b/4c 와 같게 유지
             noyield = torch.rand(len(env_ids), device=self.device) < a.mover_noyield_prob
             self.mover_yield[:, env_ids] = torch.where(noyield, 0.0, a.mover_yield_m)
         self._write_movers(env_ids)
-        self.mover_gap[env_ids] = self.mover_gaps(self.start_xy[env_ids], env_ids)  # at t = 0
+        self.mover_gap[env_ids] = self.mover_gaps(self.start_xy[env_ids], env_ids)  # t = 0
         self._sample_robots(env_ids, r)
         self._write_robots(env_ids)
         self.robot_gap_min[env_ids] = self.robot_gaps(self.start_xy[env_ids], env_ids)
 
     def _sample_robots(self, env_ids, r) -> None:
-        """Route chains for env_ids: 0..robot_max robots, starting and stopping on graph nodes
-        other than our start and goal (and other robots' starts)."""
+        """env_ids 의 로봇 경로: 0..robot_max 대, 우리 시작/목표와 다른 노드에서 출발/정지."""
         a, n, dev = self.arena, len(env_ids), self.device
         nk = len(self.robot_objs)
-        if nk == 0:  # no draw at all: the 4b arena keeps its random sequence (same seed, same run)
+        if nk == 0:  # 난수를 안 뽑아 4b 아레나의 난수열 유지
             return
         count = torch.randint(0, nk + 1, (n,), device=dev)
         banned = torch.zeros(n, len(self.graph.names), dtype=torch.bool, device=dev)
@@ -372,7 +360,7 @@ class StoreArenaEnv(GoalReachEnv):
             count = torch.where(headon, count.clamp(min=1), count)
         for k in range(nk):
             chain = rbs.sample_chains(self.g_t, n, legs, banned, start_banned=ours)
-            if k == 0 and a.robot_headon:  # our goal -> our start, then on (never back to start)
+            if k == 0 and a.robot_headon:  # 우리 목표 -> 우리 시작, 이후 임의
                 chain[headon, 0], chain[headon, 1] = sg[headon, 1], sg[headon, 0]
                 if legs > 1:
                     again = headon & (chain[:, 2] == sg[:, 0])
@@ -387,18 +375,18 @@ class StoreArenaEnv(GoalReachEnv):
             self.robot_t[k, env_ids] = 0.0
             self.robot_wait[k, env_ids] = 0.0
             self.robot_back[k, env_ids] = 0.0
-            if a.robot_priority_prob > 0:  # no draw otherwise: earlier runs stay the same
+            if a.robot_priority_prob > 0:  # 아니면 난수를 안 뽑아 이전 실행과 같게 유지
                 self.robot_priority[k, env_ids] = torch.rand(n, device=dev) < a.robot_priority_prob
 
     def our_nodes(self, ids=None) -> torch.Tensor:
-        """(n, K) graph nodes our robot holds: on its route and not yet robot_release_m behind."""
+        """(n, K) 우리 로봇이 잡고 있는 그래프 노드."""
         ids = slice(None) if ids is None else ids
         r = self.route[ids]
-        done_arc = self.r_cum[r].gather(1, self.prog[ids][:, None])[:, 0]  # path behind us
+        done_arc = self.r_cum[r].gather(1, self.prog[ids][:, None])[:, 0]  # 지나온 경로
         return rbs.route_nodes_held(self.r_node_arc[r], done_arc, self.arena.robot_release_m)
 
     def blocked_nodes(self, k: int) -> torch.Tensor:
-        """(n, K) nodes robot k may only drive through: ours and the other robots'."""
+        """(n, K) 로봇 k 가 지나갈 수 없는 노드: 우리와 다른 로봇의 것."""
         held = self.our_nodes()
         n = self.num_envs
         rows = torch.arange(n, device=self.device)
@@ -412,7 +400,7 @@ class StoreArenaEnv(GoalReachEnv):
         return held
 
     def robot_state(self, ids=None):
-        """Per scripted robot: position (n, 2), yaw (n,), active (n,); inactive ones parked."""
+        """로봇별 위치 (n, 2), yaw (n,), 활성 (n,); 비활성은 대기 위치."""
         ids = slice(None) if ids is None else ids
         out = []
         for k, route in enumerate(self.robot_routes):
@@ -433,15 +421,14 @@ class StoreArenaEnv(GoalReachEnv):
             obj.write_root_pose_to_sim_index(root_pose=pose, env_ids=ids)
 
     def robot_gaps(self, xy: torch.Tensor, ids=None) -> torch.Tensor:
-        """(n,) our robot centre to the nearest active scripted robot's box; inf without one."""
+        """(n,) 우리 중심에서 가장 가까운 활성 로봇 박스까지 거리, 없으면 inf."""
         gap = torch.full((len(xy),), float("inf"), device=self.device)
         for pos, yaw, act in self.robot_state(ids):
             gap = torch.where(act, torch.minimum(gap, rbs.robot_gap(xy, pos, yaw)), gap)
         return gap
 
     def robot_intent(self, xy, yaw):
-        """Fleet intent of the intent_robots nearest active robots, nearest first: route points
-        (n, R, P, 2) in our robot frame, a mask (n, R) and the priority flags (n, R)."""
+        """가까운 활성 로봇 순 intent: 경로점 (n, R, P, 2) 우리 프레임, 마스크, 우선권."""
         s = self.spec
         pts, dist, act = [], [], []
         for k, (pos, _, a_) in enumerate(self.robot_state()):
@@ -466,7 +453,7 @@ class StoreArenaEnv(GoalReachEnv):
         return out_p, out_m, out_q
 
     def nearest_hit_kind(self, xy: torch.Tensor) -> torch.Tensor:
-        """(n,) index into HIT_KINDS of what is nearest to our robot centre."""
+        """(n,) 가장 가까운 것의 HIT_KINDS 인덱스."""
         n = len(xy)
         d_static = ms.point_rect_distance(xy[:, None], self.static_rects.expand(n, -1, -1))[:, 0]
         sizes = torch.tensor(self.routes.obstacle_sizes, device=self.device)
@@ -477,12 +464,12 @@ class StoreArenaEnv(GoalReachEnv):
         return d.argmin(-1)
 
     def _sample_movers(self, env_ids, r, chunk: int = 256) -> None:
-        """New legs for env_ids (routes r), avoiding walls, shelves and the route's boxes."""
+        """env_ids 의 mover 구간을 새로 뽑는다 (벽, 선반, 박스 회피)."""
         sizes = torch.tensor(self.routes.obstacle_sizes, device=self.device)
         bounds = tuple(float(v) for v in self.routes_bounds)
         for c0 in range(0, len(env_ids), chunk):
             ids, rr = env_ids[c0 : c0 + chunk], r[c0 : c0 + chunk]
-            xy = self.r_obstacle[rr]  # (n, slots, 2), parked boxes stay behind the wall
+            xy = self.r_obstacle[rr]  # (n, slots, 2)
             half = 0.5 * sizes[None, :, None]
             boxes = torch.cat((xy - half, xy + half), -1)
             rects = torch.cat((self.static_rects.expand(len(ids), -1, -1), boxes), 1)
@@ -501,7 +488,7 @@ class StoreArenaEnv(GoalReachEnv):
                     legs[k][ids] = v
 
     def mover_state(self, ids=None):
-        """Per mover: position (n, 2), yaw (n,), velocity (n, 2) in the env frame, and active."""
+        """mover 별 위치, yaw, 속도, 활성 (env 프레임)."""
         ids = slice(None) if ids is None else ids
         out = []
         for i, legs in enumerate(self.mover_legs):
@@ -521,14 +508,13 @@ class StoreArenaEnv(GoalReachEnv):
             pose[:, :2] = origins[:, :2] + pos
             z = torch.zeros_like(yaw)
             pose[:, 3:7] = torch.stack((z, z, torch.sin(yaw / 2), torch.cos(yaw / 2)), -1)
-            # teleported every control step at rest: the lidar sees exactly mover_state()
+            # 정지 상태로 스텝마다 순간이동: 라이다가 mover_state() 를 그대로 봄
             v6 = torch.zeros(len(pos), 6, device=self.device)
             obj.write_root_pose_to_sim_index(root_pose=pose, env_ids=ids)
             obj.write_root_velocity_to_sim_index(root_velocity=v6, env_ids=ids)
 
     def mover_gaps(self, xy: torch.Tensor, ids=None) -> torch.Tensor:
-        """(n,) distance from the robot centre xy (n, 2) of envs ids (all if None) to the nearest
-        active mover surface; negative if the centre is inside a person; inf without movers."""
+        """(n,) 로봇 중심에서 활성 mover 표면까지 거리, 사람 안이면 음수, 없으면 inf."""
         gap = torch.full((len(xy),), float("inf"), device=self.device)
         for shape, (pos, yaw, _, act) in zip(ms.MOVERS, self.mover_state(ids), strict=True):
             g = ms.surface_gap(shape, xy, pos, yaw)
@@ -556,7 +542,7 @@ class StoreArenaEnv(GoalReachEnv):
             self._write_movers(all_ids)
             a = self.arena
             for k, route in enumerate(self.robot_routes):
-                # after the robots before it moved: two robots never take one node in one step
+                # 앞선 로봇이 먼저 움직인 뒤: 한 스텝에 두 로봇이 한 노드를 못 잡음
                 blocked = self.blocked_nodes(k) if a.robot_reserve else None
                 yield_m = torch.where(self.robot_priority[k], 0.0, a.robot_yield_m)
                 self.robot_t[k], self.robot_wait[k], self.robot_back[k] = rbs.robot_step(
@@ -578,7 +564,7 @@ class StoreArenaEnv(GoalReachEnv):
                 self._write_robots(all_ids)
 
     def obstacle_xy(self) -> torch.Tensor:
-        """(N, slots, 2) obstacle box centres in the env frame (parked ones included)."""
+        """(N, slots, 2) 장애물 박스 중심 (env 프레임)."""
         org = self.scene.env_origins[:, :2]
         return torch.stack([o.data.root_pos_w.torch[:, :2] - org for o in self.obstacles], 1)
 
@@ -593,7 +579,7 @@ class StoreArenaEnv(GoalReachEnv):
         )
         clear = self.footprint_clearance(xy, yaw)
         graze = arena.graze_flags(clear, self.arena.graze_m)
-        self.graze_only = graze & ~self.collided  # the contact sensor did not see it
+        self.graze_only = graze & ~self.collided  # 접촉 센서가 못 본 것
         self.collided = self.collided | graze
         self.success = self.success & ~graze
         self.oob = self.oob & ~graze
@@ -604,8 +590,7 @@ class StoreArenaEnv(GoalReachEnv):
         )
 
     def footprint_clearance(self, xy, yaw) -> torch.Tensor:
-        """(n,) our footprint to the nearest wall, shelf, box, mover or robot; also keeps the part
-        to walls, shelves and boxes in self.wall_clear (near-wall penalty)."""
+        """(n,) 우리 발자국에서 가장 가까운 장애물까지 거리, 벽/선반/박스 몫은 self.wall_clear 에 저장."""
         n = len(xy)
         xy, h = arena.footprint_box(xy, yaw, self.arena.footprint_x, self.arena.footprint_y)
         sizes = torch.tensor(self.routes.obstacle_sizes, device=self.device)
@@ -641,7 +626,7 @@ class StoreArenaEnv(GoalReachEnv):
 
     def _get_observations(self) -> dict:
         if not self._routes_ready:
-            return super()._get_observations()  # no intent before the routes exist
+            return super()._get_observations()  # 경로가 생기기 전엔 intent 없음
         intent = mask = prio = None
         if self.spec.intent_robots:
             intent, mask, prio = self.robot_intent(*self.robot_pose())

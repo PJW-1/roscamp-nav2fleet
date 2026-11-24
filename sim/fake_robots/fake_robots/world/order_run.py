@@ -1,13 +1,7 @@
 """order 모델의 goal 하나(계약 0.11-draft의 로봇 쪽 규칙): base 조각을 쉬지 않고 잇달아 달린다.
 
-- 조각 사이에서 관제를 기다리지 않는다. 조각 하나는 FollowRun, NavGoalRun, RetreatRun 가운데
-  하나로 달린다(make가 만든다).
-- base가 끝나고 horizon이 남으면 base 끝에 서서(waiting_at_base_end) update를 기다린다.
-- update는 이음 조건 넷(order_id, 다음 update id, 이음 지점 = base 끝, seq가 이어짐)이 모두 맞을
-  때만 줄 뒤에 붙인다. 붙이면 goal id가 새 goal의 것으로 바뀐다.
-- 통신이 끊기면 comm_loss_policy에 따른다. base_end이면 이미 받은 base 끝까지 간다(세계가 run을
-  계속 돌린다). stop이면 heartbeat_timeout_s 뒤 바로 선다(세계가 HEARTBEAT_LOST로 끝낸다).
-  장애물 앞에서는 어느 쪽이든 선다.
+조각 하나는 FollowRun, NavGoalRun, RetreatRun 중 하나로 달린다. base가 끝나고 horizon이 남으면 서서 update를 기다린다.
+update는 이음 조건 넷이 맞을 때만 줄 뒤에 붙는다. 통신이 끊기면 comm_loss_policy에 따른다(장애물 앞에서는 선다).
 """
 from __future__ import annotations
 

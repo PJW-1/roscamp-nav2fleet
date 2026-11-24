@@ -8,8 +8,7 @@ HOLD_REASONS = ("ROBOT_FAULT", "ARM_FAULT")
 ROBOT_FAULTS = ("comm_loss", "nav_abort", "stuck", "operator_remove", "blocked", "drift",
                 "operator_reinstate", "obstacle_behind", "low_battery")
 ARM_FAULTS = ("arm_fail", "swap_partial")
-# 로봇에 묶이지 않는 고장. object: 지도에 없는 물체가 (x, y)에 duration_s 동안 있다(짧으면 지나가는
-# 사람, 길면 놓고 간 상자). 갈 길 앞에서 그것을 본 로봇은 서고 자기 복구 뒤 BLOCKED다. 관제는 모른다
+# 로봇에 묶이지 않는 고장. object: 지도에 없는 물체가 (x, y)에 duration_s 동안 있다. 관제는 모른다
 WORLD_FAULTS = ("object",)
 FAULT_TYPES = ROBOT_FAULTS + ARM_FAULTS + WORLD_FAULTS
 # 이 고장이 난 로봇은 돌아오지 않으므로 주차를 기다리지 않는다.
@@ -104,8 +103,7 @@ class Fault:
     x: float = 0.0  # object: 물체 중심(맵 좌표, m)
     y: float = 0.0
     radius_m: float = OBJECT_RADIUS_M  # object: 물체 반지름
-    # 사건으로 시작·끝(AFTER_EVENT_FAULTS, UNTIL_EVENT_FAULTS). 로봇 속도가 바뀌어도 노린 순간에 난다.
-    # 사건은 관제 사건(/central/events)이고, 출처가 그 로봇이거나 설명에 robot=<로봇>이 있어야 한다
+    # 사건으로 시작·끝(AFTER_EVENT_FAULTS, UNTIL_EVENT_FAULTS). 사건은 /central/events이고 출처가 그 로봇이거나 설명에 robot=<로봇>이 있어야 한다
     after_event: str = ""  # 이 사건이 처음 난 뒤 at_s초에 시작한다(at_s는 시각이 아니라 지연)
     after_detail: str = ""  # after_event의 설명에 이 글이 있어야 한다
     until_event: str = ""  # 시작한 뒤 이 사건이 나면 끝난다(duration_s는 상한)

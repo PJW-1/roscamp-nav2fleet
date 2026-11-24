@@ -1,5 +1,4 @@
-"""order model (contract 0.11-draft proposal) through the real action interfaces: the robot stops
-at the end of base, reports it in feedback, and an update supersedes the old goal."""
+"""order 모델(계약 0.11-draft)을 실제 액션 인터페이스로 본다: 기본 구간 끝에서 서고, 피드백으로 알리며, 갱신이 옛 goal을 대신한다."""
 import math
 
 import pytest
@@ -58,8 +57,7 @@ def test_the_robot_waits_at_the_end_of_base_and_an_update_takes_it_on(harness):
 
 
 def test_a_line_before_a_nav_goal_uses_the_goal_checker_without_an_end_heading(harness):
-    """2026-11-16: 다음 조각이 Nav2 goal인 고정 경로는 끝 방향을 맞추지 않는다(O_OUT의 도리도리).
-    goal checker 이름으로 Nav2에 알린다. 다음이 고정 경로면 원래 checker 그대로."""
+    """다음 조각이 Nav2 goal인 고정 경로는 끝 방향을 맞추지 않는다. goal checker 이름으로 Nav2에 알리고, 다음이 고정 경로면 원래 checker 그대로다."""
     fake, probe = start(harness)
     goal = Segment(seq_id=2, mode=Segment.MODE_NAV_GOAL, end_node_id="P-5")
     goal.target_pose.header.frame_id = "map"

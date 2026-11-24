@@ -1,20 +1,6 @@
-"""실물 Pode 한 대. 모두 /<namespace> 안에서 돈다:
-제조사 bringup(모터, 라이다, odom), cmd_vel 감시, Nav2 + AMCL(pode_nav_config), pode_fsm.
+"""실물 Pode 한 대를 /<namespace> 안에서 띄운다: 제조사 bringup, cmd_vel 감시, Nav2 + AMCL, pode_fsm.
 
-    source ~/nav2fleet_real/env.sh
-    ros2 launch ~/nav2fleet_real/real_pode.launch.py namespace:=pode1 \
-        initial_x:=0.12 initial_y:=0.10 initial_yaw:=1.5708
-
-- bringup_robot.launch.xml에는 namespace 인자가 없다. PushRosNamespace 아래에서 /tf, /tf_static을
-  namespace 안으로 돌려 띄운다(틀 이름에는 앞머리가 없다). pode_nav_config가 그렇게 읽는다.
-- 제조사 bringup은 마지막 cmd_vel을 끝없이 지키므로 cmd_watchdog.py가 속도 0을 보낸다.
-- 이 launch의 프로세스 하나라도 끝나면 전체를 내린다(그러면 bringup이 모터를 끈다):
-  pode_fsm 없이 Nav2 goal로 계속 달리면 안 된다.
-- 속도는 params/의 사본(make_params.py, start.sh가 만든다)이 정한다. pode_fsm의
-  horizon_cap_mps는 비우면 그 사본의 FollowPath 속도와 같게 둔다.
-- 도킹은 없다(pode_fsm dock()은 DOCK_UNAVAILABLE). 시험은 거기서 멈춘다.
-  dock_aside:=true(start.sh는 DOCK_STUB=1)면 pode_fsm의 Dock 서버를 /<namespace>/dock_fsm으로
-  비킨다. 그 자리(/<namespace>/dock)는 PC의 도킹 대역 노드가 맡는다.
+하나라도 끝나면 전체를 내린다(bringup이 모터를 끈다).
 """
 import sys
 from pathlib import Path
@@ -93,9 +79,9 @@ def generate_launch_description():
         DeclareLaunchArgument("initial_x", default_value="0.12"),
         DeclareLaunchArgument("initial_y", default_value="0.10"),
         DeclareLaunchArgument("initial_yaw", default_value="1.5708"),
-        # 2.5 cm 지도(11-17 결정)
+        # costmap 지도(2.5 cm)
         DeclareLaunchArgument("map", default_value=str(MAPS / "arena_v7_a.yaml")),
-        # 위치 추정은 실물 SLAM 지도(2026-11-17 확정)
+        # 위치 추정은 실물 SLAM 지도
         DeclareLaunchArgument("map_fine", default_value=str(MAPS / "arena_real_slam.yaml")),
         DeclareLaunchArgument("keepout_mask", default_value=str(MAPS / "arena_v7_keepout.yaml"),
                               description="비우면 keepout을 끈다"),

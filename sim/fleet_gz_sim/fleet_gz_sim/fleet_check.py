@@ -1,20 +1,5 @@
-"""Driving check for the three-pode Gazebo run. No ROS; the node is fleet_check_node.
-
-Fed with the Gazebo true pose of every robot (sim time, speed, turn rate), the state each robot
-reports, and the zone holders the fleet publishes. It keeps:
-  - the closest approach between two robots, from samples at most sync_s apart
-  - stops per robot: standing still (speed < STILL_MPS and turn < STILL_RADPS) for stop_min_s
-    after moving faster than MOVING_MPS. Stops while the robot reports MOVING are also counted
-    apart (a halt in the middle of a move_to)
-  - pose samples outside every zone the fleet holds for that robot (farther than margin_m from
-    the zone floor, fleet_core FleetMap.distance_to_zone), and apart from those the samples while
-    the robot holds no zone at all. Counted only after the first zone message, so the time
-    before the fleet starts does not count
-  - sim and wall time spans and their ratio (real-time factor)
-  - the keepout depth (keepout_intrusion_max_m): how deep a corner of the body
-    reaches into a zone that is not a yard while the robot's centre is in a yard. Zones the robot
-    holds, or held up to left_s ago (its tail is still leaving), do not count. The depth is the
-    distance to the nearest side of the zone rectangle. Needs the body outline and the heading
+"""Pode 세 대 Gazebo 실행의 주행 검사. ROS 없이 돈다(노드는 fleet_check_node).
+실제 위치, 로봇 상태, 관제 구역 보유자를 받아 로봇 간 최근접 거리, 정지 횟수, 구역 이탈, 시간비, keepout 침입 깊이를 쌓는다.
 """
 from __future__ import annotations
 
@@ -24,21 +9,21 @@ from collections import deque
 
 from fleet_core.fleet_map.model import SHARED
 
-EDGE_STEP_M = 0.005  # the body outline is checked at points this far apart
+EDGE_STEP_M = 0.005  # 몸 윤곽을 이 간격으로 점검
 
 STILL_MPS = 0.02
 STILL_RADPS = 0.1
 MOVING_MPS = 0.05
 STOP_MIN_S = 0.5
 SYNC_S = 0.1
-KEEP_S = 1.0  # keep this much history so a sample handled late still meets its peers
+KEEP_S = 1.0  # 늦게 처리한 표본도 짝을 만나도록 남겨 두는 기록 길이
 MARGIN_M = 0.0
-LEFT_S = 5.0  # a zone held this recently is being left, not intruded
+LEFT_S = 5.0  # 이 시간 안에 보유한 구역은 떠나는 중이라 침입이 아니다
 MOVING = "MOVING"
 
 
 def footprint_of(nav_params: dict) -> list[tuple[float, float]] | None:
-    """The body outline Nav2 runs with: the local costmap footprint of a Nav2 parameter file."""
+    """Nav2가 쓰는 몸 윤곽(Nav2 파라미터 파일의 local costmap 발자국)."""
     try:
         text = nav_params["local_costmap"]["local_costmap"]["ros__parameters"]["footprint"]
     except KeyError:
@@ -47,8 +32,7 @@ def footprint_of(nav_params: dict) -> list[tuple[float, float]] | None:
 
 
 def outline_points(body, step: float = EDGE_STEP_M) -> list[tuple[float, float]]:
-    """The closed outline as points at most step apart, corners included: a zone corner can cut
-    into a side while every corner of the body is outside it."""
+    """닫힌 윤곽을 step 이하 간격 점으로 만든다(꼭짓점 포함)."""
     points = []
     for (ax, ay), (bx, by) in zip(body, [*body[1:], body[0]], strict=True):
         count = max(1, math.ceil(math.dist((ax, ay), (bx, by)) / step))
@@ -57,16 +41,16 @@ def outline_points(body, step: float = EDGE_STEP_M) -> list[tuple[float, float]]
 
 
 def _depth(rects, x: float, y: float) -> float:
-    """How deep the point is inside the rectangles (0 outside): the nearest side of the deepest."""
+    """점이 사각형 안으로 얼마나 깊은지(밖이면 0)."""
     return max((min(x - x0, x1 - x, y - y0, y1 - y) for x0, y0, x1, y1 in rects
                 if x0 < x < x1 and y0 < y < y1), default=0.0)
 
 
 class _Robot:
     def __init__(self):
-        self.recent: deque[tuple[float, float, float]] = deque()  # (sim t, x, y), newest last
+        self.recent: deque[tuple[float, float, float]] = deque()  # (sim t, x, y), 최신이 뒤
         self.state = ""
-        self.moved = False  # moved since the last counted stop
+        self.moved = False  # 마지막 정지 뒤로 움직였는가
         self.still_since: float | None = None
         self.still_state = ""
         self.stops = 0
@@ -75,9 +59,9 @@ class _Robot:
         self.outside = 0
         self.no_zone = 0
         self.worst_outside_m = 0.0
-        self.held_at: dict[str, float] = {}  # zone -> sim t of the last sample that held it
-        self.keepout_checked = 0  # samples in a yard with a heading: the depth was measured
-        self.keepout_samples = 0  # of those, samples with the body inside a keepout zone
+        self.held_at: dict[str, float] = {}  # 구역 -> 그 구역을 가진 마지막 표본의 sim t
+        self.keepout_checked = 0  # yard 안에서 방향이 있는 표본 수(깊이를 잼)
+        self.keepout_samples = 0  # 그중 몸이 keepout 구역 안에 든 표본 수
         self.keepout: tuple[float, str, float] = (0.0, "", 0.0)  # (depth m, zone, sim t)
 
 
@@ -85,12 +69,12 @@ class FleetCheck:
     def __init__(self, site, robots, *, stop_min_s: float = STOP_MIN_S, sync_s: float = SYNC_S,
                  margin_m: float = MARGIN_M, body=None, left_s: float = LEFT_S):
         self.site = site
-        # outline in the robot frame, or None: no keepout depth
+        # 로봇 틀의 윤곽. 없으면 None(깊이 안 잼)
         self.body = outline_points(body) if body else None
         self.reach = max((math.hypot(x, y) for x, y in body), default=0.0) if body else 0.0
         self.left_s = left_s
         self.yards = {zone.id for zone in site.zones.values() if zone.kind == SHARED}
-        self.now = -math.inf  # sim t of the newest pose sample
+        self.now = -math.inf  # 가장 새 표본의 sim t
         self.robots = {robot: _Robot() for robot in robots}
         self.stop_min_s = stop_min_s
         self.sync_s = sync_s
@@ -105,10 +89,10 @@ class FleetCheck:
             self.robots[robot].state = state
 
     def on_zones(self, holders: dict[str, str]) -> None:
-        """zone -> holder as /fleet/zones gives it: several robots joined by a comma."""
+        """/fleet/zones의 구역 -> 보유자(여럿이면 쉼표로 이음)."""
         new = {zone: tuple(name for name in holder.split(",") if name)
                for zone, holder in holders.items()}
-        # a zone taken and given back between two pose samples was still held "just now"
+        # 두 표본 사이에 잡았다 놓은 구역도 방금 가진 것으로 본다
         for held in (self.holders or {}, new):
             for zone, names in held.items():
                 for name in names:
@@ -134,7 +118,7 @@ class FleetCheck:
         self._keepout(robot, me, t, x, y, yaw)
 
     def _gaps(self, robot: str, t: float, x: float, y: float) -> None:
-        """Every recent sample of the others within sync_s of this one, not only the latest."""
+        """sync_s 안에 있는 다른 로봇의 최근 표본 전부."""
         for other, them in self.robots.items():
             if other == robot:
                 continue
@@ -200,7 +184,7 @@ class FleetCheck:
                 me.keepout = (deep, where, t)
 
     def summary(self) -> dict:
-        # the depth is not rounded to mm: 0.0204 must not pass a 0.02 limit. None: not measured
+        # 깊이는 mm로 반올림하지 않는다(0.0204가 0.02 한도를 통과하면 안 된다). None은 못 잼
         measured = any(r.keepout_checked for r in self.robots.values())
         robots = {name: {"stops": r.stops, "stops_while_moving": r.stops_while_moving,
                          "outside_held_samples": r.outside, "no_zone_held_samples": r.no_zone,

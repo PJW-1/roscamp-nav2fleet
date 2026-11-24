@@ -186,7 +186,7 @@ def test_joint_states_cover_every_moving_joint():
     assert moving and (not listed or moving <= listed)
 
 
-# ---- 가운데 통로 갈래(2026-11-17): gz.launch.py의 nav_map_variant와 같은 뜻 ----
+# ---- 가운데 통로 갈래: gz.launch.py의 nav_map_variant와 같은 뜻 ----
 def nav_arguments(actions) -> dict:
     """nav2.launch.py include의 인자(map_server는 map, AMCL은 map_fine을 읽는다)."""
     from launch.utilities import normalize_to_list_of_substitutions, perform_substitutions
@@ -214,7 +214,7 @@ def test_nav_map_variant_is_empty_by_default_and_v7_only(one):
     need("pinky_description", "pode_nav_config", "pode_fsm")
     from fleet_gz_sim.fleet_setup import ScenarioUnfit
     assert one.ARGS["nav_map_variant"][0] == ""
-    # 비면 v7은 2.5 cm 지도(11-17 결정), base는 옛 5 cm 지도
+    # 비면 v7은 2.5 cm 지도, base는 5 cm 지도
     assert nav_arguments(run(one, layout="v7", start="O_IN"))["map"].endswith(
         "maps/arena_v7_a.yaml")
     assert nav_arguments(run(one, layout="v7", start="O_IN", nav_map_variant="base"))[

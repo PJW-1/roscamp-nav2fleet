@@ -74,8 +74,7 @@ def manager_at_the_work_dock():
 
 
 def backs(out):
-    """out 가운데 도크에서 물러나는 명령: RetreatCmd, 또는 order 모델이면 retreat 조각으로
-    시작하는 order. 없으면 None."""
+    """out 가운데 도크에서 물러나는 명령(RetreatCmd, 또는 retreat 조각으로 시작하는 order). 없으면 None."""
     return next((c for c in out if isinstance(c, RetreatCmd) or (
         isinstance(c, MoveOrderCmd) and c.base and c.base[0].mode == "retreat")), None)
 

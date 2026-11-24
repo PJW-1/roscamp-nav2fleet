@@ -1,12 +1,8 @@
 """같은 목표 순서에 FakePode와 pode_fsm(+FakeNav)이 같은 결과와 상태 값을 내는지 본다.
 
-FakePode는 관제가 시험받은 기준 동작이다. fake_robots는 이 비교에만 쓰고
-pode_fsm 패키지 코드는 그것을 import하지 않는다.
-
-Compared: lane goals, replacement, cancel, point goals, heartbeat loss, PATH_NOT_CONNECTED,
-BLOCKED (hold, cancel while blocked, resume) and LOCALIZING at start. The known differences are
-listed in KNOWN_DIFFERENCES below; the dock one is pinned by a test so the list cannot go stale.
-"""
+FakePode는 관제가 시험받은 기준 동작이다. fake_robots는 이 비교에만 쓰고 pode_fsm 코드는 import하지 않는다.
+비교: 레인 goal, 교체, 취소, 점 goal, heartbeat 끊김, PATH_NOT_CONNECTED, BLOCKED, 시작 때 LOCALIZING.
+알려진 차이는 KNOWN_DIFFERENCES에 있다."""
 import time
 
 import pytest
@@ -26,10 +22,10 @@ from fleet_interfaces.msg import RobotState  # noqa: E402
 from probe import Probe, lane_goal  # noqa: E402
 
 SPEED = 0.5
-LOCALIZING_S = 3.0  # FakePode reports LOCALIZING this long after it starts
-OBSTACLE = (0.35, 1.75)  # 0.2 m in front of the robot on P-3, on the lane to P-4
+LOCALIZING_S = 3.0  # FakePode는 시작 뒤 이만큼 LOCALIZING을 보고한다
+OBSTACLE = (0.35, 1.75)  # P-3의 로봇 앞 0.2 m, P-4로 가는 레인 위
 
-# Behaviour that differs on purpose or is not built yet. Keep it in step with the tests.
+# 일부러 다르거나 아직 없는 동작. 시험과 함께 고친다
 KNOWN_DIFFERENCES = {
     "dock": "pode_fsm has no pode_dock yet and fails every dock (DOCK_UNAVAILABLE in the log); "
             "FakePode succeeds after dock.duration_s. Precise docking is a separate task.",
@@ -43,7 +39,7 @@ KNOWN_DIFFERENCES = {
 
 
 class World:
-    """What a step may change around the robot: an obstacle ahead, the pose becoming known."""
+    """한 단계가 로봇 둘레에서 바꿀 수 있는 것: 앞 장애물, 자세가 알려짐."""
 
     def __init__(self, block, localize):
         self.block = block
@@ -73,9 +69,9 @@ def fake_pode(harness, tmp_path, heartbeat_timeout_s, localizing):
         scenario_file=scenario_file(tmp_path, LOCALIZING_S if localizing else 0.0),
         state_rate_hz=10.0, heartbeat_timeout_s=heartbeat_timeout_s)))
     blocked = [False]
-    # Test hook: the obstacle comes and goes when a step says so, not on the fault schedule
+    # 시험용 훅: 장애물은 결함 일정이 아니라 단계가 시킬 때 오간다
     node._faults.obstacle = lambda _t: blocked[0]
-    # FakePode stops reporting LOCALIZING by itself after LOCALIZING_S
+    # FakePode는 LOCALIZING_S 뒤 LOCALIZING 보고를 스스로 멈춘다
     return World(block=lambda on: blocked.__setitem__(0, on), localize=lambda: None)
 
 
@@ -153,7 +149,7 @@ def heartbeat_steps(probe, _world):
 def path_steps(probe, _world):
     out = {}
     t0 = time.monotonic()
-    out["idle"] = outcome(probe, probe.send(lane_goal(["P-5", "P-6"])), t0)  # 0.67 m away
+    out["idle"] = outcome(probe, probe.send(lane_goal(["P-5", "P-6"])), t0)  # 0.67 m 떨어짐
 
     t0 = time.monotonic()
     first = probe.send(lane_goal(["P-3", "P-4", "P-5", "P-6"]))
@@ -248,6 +244,6 @@ def test_localizing_at_start_matches_fake_pode(rclpy_session, tmp_path):
 
 
 def test_dock_is_still_a_known_difference(rclpy_session, tmp_path):
-    """Pins KNOWN_DIFFERENCES["dock"]. When pode_dock arrives this fails: compare docks then."""
+    """KNOWN_DIFFERENCES["dock"]을 고정한다. pode_dock이 생기면 실패하니 그때 도킹을 비교한다."""
     assert run(rclpy_session, tmp_path, fake_pode, dock_steps) is True
     assert run(rclpy_session, tmp_path, real_fsm, dock_steps) is False

@@ -5,7 +5,7 @@
 #   SUPER=1                    전체 그래프를 보는 터미널(ros2 명령, RViz)
 # 다시 source해도 이전 값이 남지 않게 먼저 지운다
 unset ROS_LOCALHOST_ONLY ROS_STATIC_PEERS ROS_DISCOVERY_SERVER ROS_SUPER_CLIENT
-# 도메인은 팀이 아직 정하지 않았다(2026-11-19). 정해지면 이 줄만 바꾼다
+# 도메인은 이 줄만 바꾼다
 export ROS_DOMAIN_ID=12
 export RMW_IMPLEMENTATION=rmw_fastrtps_cpp
 export ROS_AUTOMATIC_DISCOVERY_RANGE=SUBNET

@@ -1,17 +1,6 @@
 """Gazebo에서 Pode 한 대를 Nav2, pode_fsm과 함께 돌린다. 관제(fleet_manager)는 띄우지 않는다.
-
-    ros2 launch fleet_gz_sim one_pode.launch.py                          # v7, O_IN, 화면 + RViz
-    ros2 launch fleet_gz_sim one_pode.launch.py layout:=c start:=P-2 gui:=false rviz:=false
-    ros2 launch fleet_gz_sim one_pode.launch.py obstacles:=v7_corridor_box \
-        nav_map_variant:=b                                               # 가운데 통로 재현
-    ros2 launch fleet_gz_sim one_pode.launch.py start:=P-1             # v7 주차 지점에서(전 기본)
-    ros2 launch fleet_gz_sim one_pode.launch.py start:=M_E             # v7 gap 계획은 M_E에서 시작
-
-주행은 따로 `ros2 run fleet_gz_sim drive_check`(관제 대신 이동을 바로 보냄. 인자 없으면 v7
-corridor이고 이 launch의 기본 시작 O_IN과 맞다. d2는 둘 다 layout d2로)로 시키거나 RViz의 2D Goal Pose(bt_navigator)로 시킨다. 격리 검사(isolation.py)를 통과해야
-무엇이든 띄운다. 월드와 Pode는 gz.launch.py와 같은 조각(fleet_gz_sim.launch_parts)으로 만든다.
-still_pode:="x,y,yaw"를 주면 Nav2 없이 서 있기만 하는 Pode(pode_still)를 그 자리에 놓는다
-(다른 Pode가 라이다에 보이는지 재기).
+  ros2 launch fleet_gz_sim one_pode.launch.py layout:=c start:=P-2 gui:=false rviz:=false
+주행은 drive_check나 RViz 2D Goal Pose로 시킨다. 격리 검사(isolation.py)를 통과해야 뜬다. still_pode:="x,y,yaw"는 서 있기만 하는 Pode를 놓는다.
 """
 import os
 from pathlib import Path
@@ -97,7 +86,7 @@ def _start(context):
     arena = arena_for(layout, launch_parts.share("fleet_gz_sim"),
                       value("nav_map_variant").strip())
     ns = value("namespace")
-    # 비면 drive_check(--layout만 준)의 계획 시작 지점
+    # 비면 drive_check 계획의 시작 지점
     start = value("start").strip() or start_node(pick_layout_plan(layout, None)[1])
     if start not in site.nodes:
         raise ValueError(f"start {start!r} is not a node of {site.name}")

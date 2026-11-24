@@ -11,10 +11,7 @@ from fleet_core.fleet_map import load_fleet_map  # noqa: E402
 from fleet_gz_sim import arena_maps, fleet_setup  # noqa: E402
 
 PKG = Path(__file__).resolve().parents[1]
-# 칸막이 3(0.76~0.78)은 2026-11-17에 뺐다
-# 북쪽 진열대 A는 2026-11-17에 서쪽으로 0.05 늘렸다(0.68 -> 0.63),
-# 2026-11-18에 북쪽 면을 실측 0.803으로, 2026-11-20에 시뮬만 1 cm 물려 0.793으로, 2026-11-21에 바퀴 여유로 0.783으로(sim_shelves)
-# 2026-11-23 줄자 실측: 진열대 A 서쪽 끝 0.70, 남쪽 서쪽 진열대 서쪽 끝 0.65
+# v7 진열대, 칸막이 상자 목록(실측 반영)
 BOXES = [(0.70, 0.77, 1.56, 0.783), (0.65, 0.365, 0.99, 0.405), (1.25, 0.365, 1.56, 0.405),
          (0.24, 0.0, 0.26, 0.10), (0.50, 0.0, 0.52, 0.10)]
 
@@ -53,14 +50,14 @@ def test_v7_charging_stalls_and_express_are_open_in_the_fine_map(site):
     assert not free(0.25, 0.05) and not free(0.51, 0.05)
     assert free(0.77, 0.05)  # 칸막이 3이 있던 자리
     assert free(1.0, 0.85) and free(1.0, 0.95)   # 급행 0.17(실측) 안
-    # 시뮬 진열대 A 북쪽 면 0.783: 1 cm 지도에서 0.78~0.79 칸까지 진열대, 0.79~0.80 칸은 빈칸
+    # 시뮬 진열대 A 북쪽 면 0.783: 1 cm 지도에서 0.78~0.79 칸까지 진열대
     assert not free(1.0, 0.785) and free(1.0, 0.795)
-    # 북쪽 벽 안쪽 면은 SLAM 실측 0.98(2026-11-17): 1 cm 지도에서 0.98~0.99 칸은 벽이다
+    # 북쪽 벽 안쪽 면 0.98: 1 cm 지도에서 0.98~0.99 칸은 벽이다
     assert free(1.0, 0.975) and not free(1.0, 0.985)
 
 
 def test_v7_real_kit_maps_are_drawn_with_the_measured_shelf(tmp_path):
-    # 실물 키트 지도는 --real: 시뮬 전용 진열대 대신 실측 진열대(북쪽 면 0.803)로 그린다
+    # 실물 키트 지도(--real)는 시뮬 전용 진열대 대신 실측 진열대로 그린다
     from fleet_gz_sim import arena
     arena.main(["--layout", "v7", "--real", "--out", str(tmp_path)])
     site = load_fleet_map("v7")
@@ -68,7 +65,7 @@ def test_v7_real_kit_maps_are_drawn_with_the_measured_shelf(tmp_path):
     assert site.sim_shelves != site.shelves  # 원본은 그대로
     lines = (tmp_path / "maps" / "arena_v7_fine.yaml").read_text(encoding="utf-8").splitlines()
     assert lines[1] == "# 실물 키트: /tmp/real_v7/maps/의 지도를 tools/real_pode/maps로 복사한다"
-    # 머리 줄 명령은 셸에 그대로 쳐도 돈다(--out만 시험 폴더로 바꿔 같은 파일이 나오는지 본다)
+    # 머리 줄 명령은 --out만 바꿔 돌려 같은 파일이 나오는지 본다
     import shlex
     words = shlex.split(lines[0].removeprefix("# 생성 파일: "))
     assert words[:3] == ["python3", "-m", "fleet_gz_sim.arena"]
@@ -140,8 +137,7 @@ def test_v7_varied_scenario_mixes_order_bursts_with_staggered_low_batteries(site
 
 
 def test_v7_rush_scenario_sends_twelve_orders_at_once_without_faults(site):
-    """주행 성능을 재는 판(2026-11-14): 주문 12건이 처음 12초 안에 다 들어오고 고장이 없다.
-    걸린 시간(duration_s)이 곧 처리 성능이다."""
+    """주행 성능 판: 주문 12건이 처음 12초 안에 다 들어오고 고장이 없다."""
     from fake_robots.scenario import load_scenario
     path = PKG / "scenarios" / "gz_v7_rush.yaml"
     data = fleet_setup.read_scenario(path)
@@ -155,9 +151,7 @@ def test_v7_rush_scenario_sends_twelve_orders_at_once_without_faults(site):
 
 
 def test_v7_obstacle_schedule_puts_small_boxes_on_nav_goal_edges_only(site):
-    """고정 경로는 Gazebo에서 충돌 검사를 하지 않는다. 상자는 Nav2 goal 이음 위에만 놓는다.
-    상자가 작아 로봇이 스스로 돌아갈 틈이 남는다
-    (장애물이 생기면 회피가 보여야 한다)."""
+    """고정 경로는 Gazebo에서 충돌 검사를 하지 않으므로 상자는 Nav2 goal 이음 위에만 놓는다."""
     from fleet_core.fleet_map.model import NAV_GOAL
     from fleet_gz_sim.obstacles import load_schedule
     schedule = load_schedule(PKG / "obstacles" / "v7_yard_mix.yaml", site)
@@ -167,7 +161,7 @@ def test_v7_obstacle_schedule_puts_small_boxes_on_nav_goal_edges_only(site):
         assert site.edge(*one.edge).mode == NAV_GOAL
         assert one.at_s >= 15, "sim_obstacles가 뜬 뒤"
     assert max(schedule.size_m[:2]) <= 0.08
-    # 남쪽 통로의 상자 남쪽에 로봇 폭(0.112) + 양쪽 0.03의 틈이 남는다
+    # 남쪽 통로의 상자 남쪽에 로봇 폭 + 양쪽 0.03의 틈이 남는다
     south = schedule.obstacles[0]
     assert south.y - schedule.size_m[1] / 2 >= 0.112 + 0.06, south
 
@@ -182,7 +176,7 @@ def test_v7_random_scenario_expands_to_one_low_battery_per_robot_and_spread_orde
     assert all(20 <= f["at_s"] <= 150 and f["duration_s"] == 30 for f in low)
     times = [0.0] + [order["at_s"] for order in out["orders"]]
     gaps = [b - a for a, b in zip(times, times[1:], strict=False)]
-    # at_s는 쌓인 시각을 0.1 s로 반올림한 값이라 두 at_s의 차는 참 간격과 0.1 s까지 다르다
+    # at_s는 0.1 s로 반올림되어 두 at_s의 차는 참 간격과 0.1 s까지 다르다
     assert len(gaps) == 8 and all(5 - 0.1 - 1e-9 <= gap <= 40 + 0.1 + 1e-9 for gap in gaps), gaps
 
 
@@ -203,7 +197,7 @@ def test_v7_committed_maps_are_the_generator_output(tmp_path, site):
         assert "origin: [-0.15, -0.15, 0.0]\n" in text
 
 
-# ---- 5 cm 전역 costmap 흉내: 커밋된 지도(5 cm)와 keepout 마스크(1 cm)를 읽는다 ----
+# ---- 5 cm 전역 costmap 흉내 ----
 COARSE, ORIGIN, INSCRIBED = 0.05, (-0.15, -0.15), 0.09
 
 
@@ -221,8 +215,7 @@ def _read_pgm(path):
 
 
 def _costmap():
-    """칸마다 (막힘, 이유). 진열대·벽 칸 중심에서 내접 0.09 안이거나, 칸 중심의 1 cm 마스크가
-    keepout이면 막힘(Nav2 KeepoutFilter는 칸 중심에서 마스크를 읽고 부풀리지 않는다)."""
+    """칸마다 (막힘, 이유). 내접 0.09 안이거나 1 cm 마스크가 keepout이면 막힘."""
     occ = _read_pgm(PKG / "maps" / "arena_v7.pgm")
     keep = _read_pgm(PKG / "maps" / "arena_v7_keepout.pgm")
     h, w = len(occ), len(occ[0])
@@ -248,7 +241,7 @@ def _cell(x, y):
 
 
 def _joined(grid, a, b, shut=()):
-    """4 이웃 BFS. shut: 일부러 막아 보는 사각형들(그 길만 남겼을 때 이어지는지 보려고)."""
+    """4 이웃 BFS. shut: 일부러 막아 보는 사각형들."""
     from collections import deque
 
     def closed(i, j):
@@ -274,9 +267,7 @@ BOTH_ENDS = [(0.0, 0.30, 0.65, 0.45), (1.56, 0.30, 1.98, 0.45)]  # 서쪽 끝과
 
 
 def test_v7_the_crossing_gap_is_open_for_nav2_on_the_5cm_costmap(site):
-    """팀 결정 2026-11-17: 건넘 틈(x 0.99~1.25)은 지름길이라 막지 않는다. 커밋된 마스크에 틈 안
-    keepout 칸이 없고, 서쪽 끝과 동쪽 통로를 다 막아도 5 cm costmap에서 틈으로 남북이 이어진다.
-    내접 0.09로 막고 남는 열은 틈 가운데 셋(칸 중심 x 1.075, 1.125, 1.175)이다."""
+    """건넘 틈(x 0.99~1.25)은 지름길이라 막지 않는다: 서쪽 끝과 동쪽 통로를 막아도 틈으로 남북이 이어진다."""
     assert V7_GAP not in site.keepout_extra
     grid, occ, kept = _costmap()
     j0, j1 = _cell(0.0, 0.365)[1], _cell(0.0, 0.405 - 1e-6)[1]
@@ -290,8 +281,7 @@ def test_v7_the_crossing_gap_is_open_for_nav2_on_the_5cm_costmap(site):
 
 
 def test_v7_the_crossing_gap_has_no_keepout_cell_in_the_fine_mask(site):
-    """1 cm 마스크(Nav2 KeepoutFilter가 읽는 것)의 틈 안 칸은 하나도 닫히지 않는다. 칸막이 둘레의
-    keepout_extra는 그대로 닫혀 있다(아래 칸막이 시험)."""
+    """1 cm 마스크의 틈 안 칸은 하나도 닫히지 않는다. 칸막이 둘레의 keepout_extra는 닫혀 있다."""
     keep = _read_pgm(PKG / "maps" / "arena_v7_keepout.pgm")
     x0, y0, x1, y1 = V7_GAP
     shut = []
@@ -312,7 +302,7 @@ def test_v7_the_crossing_gap_has_no_keepout_cell_in_the_fine_mask(site):
      [("O_IN", "Q1"), ("O_IN", "Q2"), ("O_OUT", "Q2"), ("M_E", "Q2")]),
 ])
 def test_v7_north_and_south_stay_joined_by_each_way_alone(site, shut, pairs):
-    """틈이 열려 있어도(2026-11-17) 끝 길 하나만으로 남북이 이어지는지 보려고 틈도 막는다."""
+    """틈을 막아도 끝 길 하나만으로 남북이 이어지는지 본다."""
     grid, _, _ = _costmap()
     # 막은 틈이 정말 틈 칸을 닫는지: 틈만 지나는 길이 끊긴다
     assert not _joined(grid, (1.125, 0.55), (1.125, 0.25), shut=[*BOTH_ENDS, V7_GAP])
@@ -321,9 +311,7 @@ def test_v7_north_and_south_stay_joined_by_each_way_alone(site, shut, pairs):
 
 
 def test_v7_work_is_joined_to_the_hall_for_its_nav_goal_way_out(site):
-    """W -> M_E는 Nav2 goal로 나간다: W는 WORK_DOCK keepout
-    안이지만, 커밋된 마스크가 그 도크를 나가는 곧은 선 둘레를 열어 두어 5 cm costmap에서 W 칸부터
-    M_E까지 이어진다. 연 주머니는 막다른 곳이라 그 둘레의 도크는 그대로 막혀 있다."""
+    """W -> M_E는 Nav2 goal로 나간다: 마스크가 도크를 나가는 곧은 선 둘레를 열어 두어 W 칸부터 M_E까지 이어진다."""
     grid, _, kept = _costmap()
     assert _joined(grid, site.node_pose("W"), site.node_pose("M_E"))
     for x, y in ((1.875, 0.625), (1.875, 0.375), (1.775, 0.675)):
@@ -331,13 +319,12 @@ def test_v7_work_is_joined_to_the_hall_for_its_nav_goal_way_out(site):
         assert kept[j][i], (x, y)
 
 
-# ---- 칸막이 3은 없다(2026-11-17): 칸막이도 그 둘레 keepout도 뺐다 --------
+# ---- 칸막이 3 제거 ----
 DIVIDER_3_KEEP = (0.71, 0.0, 0.86, 0.20)  # 칸막이 3이 있을 때의 둘레 차단
 
 
 def test_v7_divider_3_and_its_keepout_are_gone(site):
-    """충전 자리는 그대로 두고 3번 칸막이만 없앴다. 그 둘레를 막던 keepout도 뺀다: 막을 모서리가
-    없다. 1 cm 지도와 마스크 모두 그 자리가 열려 있고, P-3에서 동쪽으로 y 0.20 아래로 이어진다."""
+    """칸막이 3과 그 둘레 keepout이 없다. P-3에서 동쪽으로 y 0.20 아래로 이어진다."""
     assert DIVIDER_3_KEEP not in site.keepout_extra
     grid = arena_maps.keepout(arena_maps.FINE_M, site)
     occ = arena_maps.occupancy(arena_maps.FINE_M, site)
@@ -351,8 +338,7 @@ def test_v7_divider_3_and_its_keepout_are_gone(site):
 
 
 def test_v7_p3_joins_the_south_yard_to_the_east_below_y_020(site):
-    """5 cm costmap(내접 inflation + keepout)에서 P-3 앞(y 0.165)과 동쪽 (0.85, 0.15)이 y 0.20
-    아래로만 이어진다. 칸막이 3이 있을 때는 그 둘레 keepout 때문에 끊겼다."""
+    """5 cm costmap에서 P-3 앞과 동쪽이 y 0.20 아래로만 이어진다."""
     grid, _, _ = _costmap()
     assert _joined(grid, (0.64, 0.165), (0.85, 0.15), shut=[(0.0, 0.20, 1.98, 0.98)])
 
@@ -365,10 +351,7 @@ DIVIDER_2_KEEP = (0.45, 0.0, 0.57, 0.20)
 @pytest.mark.parametrize("keep, divider_x, bays_x", [(DIVIDER_1_KEEP, 0.25, (0.12, 0.38)),
                                                      (DIVIDER_2_KEEP, 0.51, (0.38, 0.64))])
 def test_v7_the_tops_of_dividers_1_and_2_are_kept_out_for_nav2(site, keep, divider_x, bays_x):
-    """견고함 판 R3, R4(2026-11-15): P-1을 나온 pode3가 y 0.165에서 Q2로 가는 Nav2 goal을 받아
-    5 cm 격자의 y 0.15~0.20 줄을 따라 동쪽으로 갔고, 칸막이 1 위 끝(0.24~0.26, 0.10)을 긁어 실제
-    방향이 추정과 47~70도 어긋났다(주문 12건 가운데 7건에서 멈춤). 그때 칸막이 3에 있던 것과 같이
-    그 둘레를 y 0.20까지 막는다(칸막이 3과 그 둘레는 2026-11-17에 뺐다). 양쪽 칸은 열려 있다."""
+    """칸막이 1 위 끝을 긁지 않도록 그 둘레를 y 0.20까지 막는다. 양쪽 칸은 열려 있다."""
     assert keep in site.keepout_extra
     grid = arena_maps.keepout(arena_maps.FINE_M, site)
 
@@ -388,9 +371,7 @@ def test_v7_the_tops_of_dividers_1_and_2_are_kept_out_for_nav2(site, keep, divid
 @pytest.mark.parametrize("y", [0.165, 0.195])
 def test_v7_a_robot_that_left_its_bay_passes_the_next_divider_only_above_it(
         x, divider_x, next_bay_x, y):
-    """칸을 나온 로봇(Gazebo 판들에서 본 자리: x는 칸 가운데에서 2 cm 안, y 0.165~0.20)의 칸은
-    열려 있고 옆 칸 앞과 이어지지만, 그 사이 칸막이 위쪽(y 0.20부터)을 막으면 끊긴다: 5 cm
-    costmap에서 칸막이 위 끝을 지나는 y 0.15~0.20 줄이 닫혀 있다."""
+    """칸을 나온 로봇의 칸은 열려 있고 옆 칸 앞과 이어지지만, 칸막이 위쪽(y 0.20부터)을 막으면 끊긴다."""
     grid, _, _ = _costmap()
     east = (next_bay_x, 0.175)
     assert _joined(grid, (x, y), east), (x, y)
@@ -402,9 +383,7 @@ def test_v7_a_robot_that_left_its_bay_passes_the_next_divider_only_above_it(
 @pytest.mark.parametrize("dx", [-0.05, -0.02, 0.0, 0.02, 0.05])
 @pytest.mark.parametrize("y", [0.12, 0.15, 0.165, 0.195])
 def test_v7_the_cell_a_robot_leaves_its_bay_from_is_not_kept_out(site, bay, dx, y):
-    """칸막이 차단이 칸 안이나 칸을 나온 로봇의 출발 칸을 닫으면 Nav2
-    계획이 실패한다. 칸 가운데에서 0.05 m까지 치우친 자리, y 0.12~0.20의 5 cm 칸은 keepout이
-    아니다(낮은 y에서 칸막이 inflation에 걸리는 칸은 이 차단과 상관없이 전부터 있었다)."""
+    """칸막이 차단이 출발 칸을 닫으면 Nav2 계획이 실패한다: 칸 가운데에서 0.05 m까지 치우친 y 0.12~0.20의 5 cm 칸은 keepout이 아니다."""
     _, _, kept = _costmap()
     i, j = _cell(site.node_pose(bay)[0] + dx, y)
     assert not kept[j][i], (bay, dx, y)
@@ -413,8 +392,7 @@ def test_v7_the_cell_a_robot_leaves_its_bay_from_is_not_kept_out(site, bay, dx, 
 @pytest.mark.parametrize("a, b", [("E-3", "Q1"), ("E-3", "Q2"), ("E-1", "Q2"), ("E-3", "O_OUT"),
                                   ("E-3", "O_IN"), ("E-1", "E-3")])
 def test_v7_the_south_yard_stays_open_above_the_divider_keepout(site, a, b):
-    """칸막이 keepout(y < 0.20)과 남쪽 진열대 inflation 사이로(5 cm 격자에서 y 0.225, 0.275 줄)
-    남쪽 마당이 이어진다."""
+    """칸막이 keepout(y < 0.20)과 남쪽 진열대 inflation 사이로 남쪽 마당이 이어진다."""
     grid, _, _ = _costmap()
     assert _joined(grid, site.node_pose(a), site.node_pose(b)), (a, b)
     # 동쪽으로 가는 길은 남쪽 마당으로 이어진다: 서쪽 끝을 막아도 이어진다
@@ -423,7 +401,7 @@ def test_v7_the_south_yard_stays_open_above_the_divider_keepout(site, a, b):
                        shut=[(0.0, 0.40, 0.65, 0.98)]), (a, b)
 
 
-# ---- 가운데 통로 갈래 지도(A: 2.5 cm, B: 칸 중심 규칙). 기본 지도는 위 시험이 그대로 본다 ----
+# ---- 가운데 통로 갈래 지도(A: 2.5 cm, B: 칸 중심 규칙) ----
 def _free_rows(grid, x, y0, y1, resolution, site):
     """x 열의 y0~y1에서 빈칸 수와 빈칸 덩어리의 (아래 경계, 위 경계)."""
     i, j0 = arena_maps.cell_of(x, y0, resolution, site)
@@ -483,8 +461,7 @@ def test_the_centre_rule_keeps_every_thin_divider(site, resolution):
                                                (0.025, "centre")])
 def test_v7_variant_walls_leave_no_diagonal_leak_and_dividers_stay_joined(site, resolution,
                                                                            paint):
-    """칸 중심 규칙은 상자마다 따로 칠해 맞닿은 상자 사이에 대각 틈을 낼 수 있다.
-    v7에서는 벽 밖 빈칸이 8 이웃으로도 안쪽에 닿지 않고, 칸막이는 남쪽 벽과 이어진다."""
+    """칸 중심 규칙은 맞닿은 상자 사이에 대각 틈을 낼 수 있다. v7에서는 벽 밖 빈칸이 안쪽에 닿지 않고 칸막이는 남쪽 벽과 이어진다."""
     from collections import deque
 
     from fleet_gz_sim import arena
@@ -551,8 +528,7 @@ def test_only_v7_has_nav_variant_maps():
 
 
 def test_v7_corridor_box_keeps_one_box_in_the_middle_corridor_for_the_whole_run(site):
-    """가운데 통로 재현(2026-11-17): v7_yard_mix의 상자 4와 같은 자리·크기, 한 번 놓고 판 내내 둔다.
-    O_IN에 선 로봇이 놓기를 막지 않는다(sim_obstacles clearance_m 기본 0.35)."""
+    """가운데 통로 재현: v7_yard_mix의 상자 4와 같은 자리·크기, 한 번 놓고 판 내내 둔다. O_IN의 로봇은 놓기를 막지 않는다."""
     from fleet_core.fleet_map.model import NAV_GOAL
     from fleet_gz_sim.obstacles import Planner, load_schedule
     mix = load_schedule(PKG / "obstacles" / "v7_yard_mix.yaml", site)
@@ -563,7 +539,7 @@ def test_v7_corridor_box_keeps_one_box_in_the_middle_corridor_for_the_whole_run(
     assert (box.x, box.y) == pytest.approx((0.952, 0.595))
     assert (box.x, box.y) == pytest.approx((mix.obstacles[3].x, mix.obstacles[3].y))
     assert schedule.size_m == mix.size_m
-    # at_s는 시뮬 절대 시각이고 노드가 뜨기 전 항목은 건너뛴다: 노드가 늦게 떠도 되게 30 s
+    # at_s는 시뮬 절대 시각이고 노드가 뜨기 전 항목은 건너뛴다
     assert box.at_s == 30, "sim_obstacles가 뜬 뒤"
     assert box.duration_s >= 1800
     assert schedule.repeat_every_s is None
@@ -576,7 +552,7 @@ def test_v7_corridor_box_keeps_one_box_in_the_middle_corridor_for_the_whole_run(
 
 
 def test_v7_world_north_wall_inner_face_is_the_slam_measurement():
-    """2026-11-17 SLAM: 북쪽 벽 안쪽 면 y 0.98. 커밋된 월드의 wall_north도 그 자리다."""
+    """북쪽 벽 안쪽 면 y 0.98. 커밋된 월드의 wall_north도 그 자리다."""
     from fleet_gz_sim import arena
     root = ET.fromstring((PKG / "worlds" / "arena_v7.sdf").read_text(encoding="utf-8"))
     boxes = {c.get("name"): c for c in root.iter("collision")}

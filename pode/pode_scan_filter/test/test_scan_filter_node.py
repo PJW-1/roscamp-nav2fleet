@@ -1,9 +1,6 @@
-"""ScanFilter의 TF 다루기(ROS 2 rclpy가 있을 때만).
+"""ScanFilter의 TF 다루기(rclpy 필요).
 
-- 스캔 콜백이 스캔 시각의 TF를 기다리는 동안 들어온 TF로 자세를 정한다(TF는 도우미 노드가 따로
-  도는 스레드로 받는다. 거르개 노드를 TransformListener에 넘기면 main의 executor와 다툰다).
-- 스캔 시각의 TF가 없고 가장 최근 TF가 스캔 시각과 MAX_TF_AGE_S보다 멀면 거르지 않는다.
-"""
+스캔 시각의 TF를 기다리는 동안 들어온 TF로 자세를 정하고, 스캔 시각 TF가 없고 가장 최근 TF가 MAX_TF_AGE_S보다 멀면 거르지 않는다."""
 import threading
 import time
 
@@ -44,8 +41,7 @@ def _tf(sender, stamp, x):
 
 
 def test_a_tf_arriving_while_the_scan_waits_places_the_scan(running):
-    """on_scan처럼 거르개 노드의 executor 콜백 안에서 기다린다. 그동안 같은 executor는 다른 콜백을
-    돌리지 못하므로 TF는 도우미 노드의 스레드로만 들어올 수 있다."""
+    """on_scan처럼 거르개 노드의 executor 콜백 안에서 기다린다(TF는 도우미 노드의 스레드로만 들어온다)."""
     node, sender = running
     cast = TransformBroadcaster(sender)
     stamp = Time(seconds=100).to_msg()
@@ -78,8 +74,7 @@ def test_the_latest_tf_far_from_the_scan_time_means_no_filtering(running):
 
 
 def test_under_launch_remaps_the_tf_node_has_its_own_name_and_the_robots_tf():
-    """launch는 이름(__node), 네임스페이스, /tf remap을 프로세스 인자로 준다. 도우미 노드가 그
-    이름을 물려받으면 같은 이름의 노드가 둘이 된다(G09: ros2 param get이 도우미 노드에 닿았다)."""
+    """launch가 주는 노드 이름 인자를 도우미 노드가 물려받으면 같은 이름의 노드가 둘이 된다."""
     rclpy.init(args=["--ros-args", "-r", "__node:=scan_filter", "-r", "__ns:=/pode1",
                      "-r", "/tf:=tf", "-r", "/tf_static:=tf_static"])
     try:
@@ -98,8 +93,7 @@ def test_under_launch_remaps_the_tf_node_has_its_own_name_and_the_robots_tf():
 
 @pytest.fixture
 def filtering():
-    """띠가 있는 거르개. 지도: 2 x 1 m, 1 cm, 북쪽 벽 y 0.99~1.00. 라이다는 map (1.0, 0.89)에서
-    북쪽을 본다(TF 시각 100 s). 발행은 가짜 publisher가 받는다."""
+    """띠가 있는 거르개. 지도 2 x 1 m, 1 cm, 북쪽 벽 y 0.99~1.00. 라이다는 map (1.0, 0.89)에서 북쪽을 본다."""
     from nav_msgs.msg import OccupancyGrid
     rclpy.init(args=["--ros-args", "-p", "strips:=0,0.79,2,1"])
     from pode_scan_filter.node import ScanFilter

@@ -1,11 +1,6 @@
-"""How wrong is the AMCL pose around a self-recovery? ROS-free logic of the recovery_probe node.
-
-A robot reports state RECOVERING while it backs up and retries on its own. For each episode this
-writes CSV rows: `start` (first RECOVERING report), `end` (first report in another state, with
-the duration and the largest position error of the episode) and `settled` (the first report
-`settle_s` or more after the end). Each row compares the report's AMCL pose with the Gazebo truth
-sample nearest to the report's `stamp`; with no sample within MATCH_S the truth fields stay empty
-and the note says so. Re-entering RECOVERING before `settled` drops that pending row.
+"""복구 중 AMCL 자세 오차를 잰다. recovery_probe 노드의 ROS 없는 논리.
+RECOVERING 구간마다 start, end(길이와 최대 오차), settled(끝난 뒤 settle_s 이후 첫 보고) 행을 CSV로 쓴다.
+각 행은 보고의 AMCL 자세를 stamp에 가장 가까운 Gazebo 실제 위치와 비교한다.
 """
 from __future__ import annotations
 
@@ -16,16 +11,16 @@ import os
 from collections import deque
 
 RECOVERING = "RECOVERING"
-NO_POSE = "LOCALIZING"  # RobotState.pose is (0, 0, 0) then, not an AMCL pose
+NO_POSE = "LOCALIZING"  # 이때 RobotState.pose는 (0, 0, 0)이라 AMCL 자세가 아니다
 MATCH_S = 0.1
-KEEP_S = 5.0  # truth history kept per robot
+KEEP_S = 5.0  # 로봇마다 남기는 실제 위치 기록 길이
 COLUMNS = ["sim_time", "robot", "event", "episode", "state", "truth_x", "truth_y", "truth_yaw",
            "amcl_x", "amcl_y", "amcl_yaw", "err_m", "yaw_err_deg", "report_age_s", "next_state",
            "duration_s", "max_err_m", "note"]
 
 
 def wrap_deg(deg: float) -> float:
-    """Wrap to [-180, 180]."""
+    """[-180, 180]으로 감는다."""
     wrapped = (deg + 180.0) % 360.0 - 180.0
     return 180.0 if wrapped == -180.0 and deg > 0 else wrapped
 
@@ -35,7 +30,7 @@ class _Episode:
         self.number = number
         self.start = 0.0
         self.max_err = None
-        self.settle_due = None  # set when the episode has ended
+        self.settle_due = None  # 구간이 끝나면 정해진다
 
 
 class RecoveryProbe:
@@ -80,7 +75,7 @@ class RecoveryProbe:
         return row, err
 
     def on_state(self, robot, now, state, x, y, yaw, stamp) -> list[dict]:
-        """One /state report; returns the CSV rows it causes (usually none)."""
+        """/state 보고 하나를 받아 그로 인한 CSV 행을 돌려준다(보통 없음)."""
         pose, ep, rows = (x, y, yaw), self.episodes[robot], []
         if state == RECOVERING:
             if not self.active[robot]:
@@ -111,8 +106,7 @@ class RecoveryProbe:
 
 
 class CsvSink:
-    """Appends rows to a CSV, header only when the file is new or empty, flushed per row.
-    An empty path writes nothing."""
+    """CSV에 행을 덧붙인다. 파일이 새것이거나 비었을 때만 머리 줄을 쓰고 행마다 flush한다. 빈 경로는 쓰지 않는다."""
 
     def __init__(self, path: str):
         self.file = self.writer = None

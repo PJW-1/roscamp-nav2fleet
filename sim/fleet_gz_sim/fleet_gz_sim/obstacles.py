@@ -1,8 +1,5 @@
 """시뮬 장애물 일정: 정한 시각에 구역 지도의 연결 위에 상자를 놓고 정한 시간 뒤에 치운다.
-
-ROS도 Gazebo도 부르지 않는다. 노드(obstacle_node)가 시각과 로봇 위치를 넘기고, 여기서
-돌려준 gz service 명령을 실행한다. 일정 파일 형식은 obstacles/d2_yard_express.yaml 머리말에 있다.
-시각은 시뮬 시각(초)이다.
+ROS도 Gazebo도 부르지 않는다. 일정 파일 형식은 obstacles/d2_yard_express.yaml 머리말에 있다. 시각은 시뮬 시각(초)이다.
 """
 from __future__ import annotations
 
@@ -15,12 +12,12 @@ import yaml
 
 DEFAULT_SIZE_M = (0.12, 0.12, 0.25)  # 라이다 높이(약 0.125 m)보다 높게
 GZ_TIMEOUT_MS = 3000
-REMOVE_RETRY_S = 2.0  # sim seconds between tries of a remove that got no clear answer
+REMOVE_RETRY_S = 2.0  # 답을 못 받은 치우기를 다시 시도하는 간격(sim 초)
 MAX_REMOVE_TRIES = 5
-# try_spawn outcomes
-PLACED = "placed"  # Gazebo answered yes
-SKIPPED = "skipped"  # a robot came close before the call; nothing was sent
-UNKNOWN = "unknown"  # no clear answer: the box may or may not be there
+# try_spawn 결과
+PLACED = "placed"  # Gazebo가 성공이라고 답함
+SKIPPED = "skipped"  # 호출 전에 로봇이 가까워져 보내지 않음
+UNKNOWN = "unknown"  # 분명한 답이 없음(상자가 있을 수도 없을 수도)
 TOP_KEYS = {"repeat_every_s", "size_m", "obstacles"}
 ENTRY_KEYS = {"at_s", "link", "fraction", "duration_s"}
 REQUIRED_KEYS = {"at_s", "link", "duration_s"}
@@ -69,7 +66,7 @@ class Step:
     remove: list = field(default_factory=list)  # 지금 치울 것
     give_up: list = field(default_factory=list)  # 로봇이 비켜 주지 않아 버린 것
     waiting: list = field(default_factory=list)  # 로봇이 가까워 기다리는 것
-    lost: list = field(default_factory=list)  # removes that ran out of tries
+    lost: list = field(default_factory=list)  # 시도를 다 쓴 치우기
 
 
 def _number(raw, what: str) -> float:
@@ -173,8 +170,7 @@ def clear_of_robots(point, robot_xy_list, clearance_m: float) -> bool:
 
 
 def fresh_positions(truth: dict, robots, now: float, max_age_s: float) -> list:
-    """Positions in robot order from {robot: ((x, y), received_at)}; None if missing or older
-    than max_age_s, so a robot whose pose stopped arriving never counts as far away."""
+    """{robot: ((x, y), 받은 시각)}에서 로봇 순서의 위치. 없거나 max_age_s보다 오래되면 None."""
     out = []
     for robot in robots:
         entry = truth.get(robot)
@@ -192,9 +188,7 @@ def check_clearance(value: float) -> float:
 
 def try_spawn(occ: Occurrence, positions, clearance_m: float, call,
               too_late=lambda: False) -> str:
-    """Check again right before the gz call: the call may wait in the worker queue behind other
-    calls. positions() gives the current positions, call() runs the spawn, too_late() says the
-    entry is past max_delay_s (the planner then gives it up)."""
+    """gz 호출 직전에 다시 확인한다(작업 큐에서 기다렸을 수 있다). 너무 늦었으면 계획이 포기한다."""
     point = (occ.obstacle.x, occ.obstacle.y)
     if too_late() or not clear_of_robots(point, positions(), clearance_m):
         return SKIPPED
@@ -203,10 +197,8 @@ def try_spawn(occ: Occurrence, positions, clearance_m: float, call,
 
 class Planner:
     """시각마다 놓을 것, 치울 것, 버릴 것을 정한다. start_s 전에 정해졌던 것은 건너뛴다.
-
-    The node runs the gz calls and reports back with spawned() and removed(). The hold time
-    counts from the reported spawn. A spawn without a clear answer is removed in case it
-    landed, and a failed remove is tried again up to MAX_REMOVE_TRIES times."""
+    노드가 gz 호출 결과를 spawned(), removed()로 알린다. 답 없는 놓기는 치우고, 실패한 치우기는 MAX_REMOVE_TRIES까지 다시 한다.
+    """
 
     def __init__(self, schedule: Schedule, start_s: float, max_delay_s: float):
         if not math.isfinite(max_delay_s) or max_delay_s < 0:
@@ -216,10 +208,10 @@ class Planner:
         self._start_s = start_s
         self._max_delay_s = max_delay_s
         self._waiting: list[Occurrence] = []
-        self._spawning: dict[int, Occurrence] = {}  # handed out, no answer yet
+        self._spawning: dict[int, Occurrence] = {}  # 내줬지만 아직 답 없음
         self._placed: dict[int, tuple[Occurrence, float]] = {}  # 번호 → (장애물, 치울 시각)
-        self._removing: dict[int, tuple[Occurrence, int]] = {}  # handed out: (it, tries so far)
-        self._retry: dict[int, tuple[Occurrence, float, int]] = {}  # (it, next try at, tries)
+        self._removing: dict[int, tuple[Occurrence, int]] = {}  # 내준 것: (장애물, 지금까지 시도)
+        self._retry: dict[int, tuple[Occurrence, float, int]] = {}  # (장애물, 다음 시도 시각, 시도 수)
         self._lost: dict[int, Occurrence] = {}
         self._new_lost: list[Occurrence] = []
 
@@ -281,7 +273,7 @@ class Planner:
         return [occ for occ, _ in self._placed.values()]
 
     def in_gazebo(self) -> list[Occurrence]:
-        """Everything that may be in Gazebo now, for the cleanup at shutdown."""
+        """끝낼 때 치울 것: 지금 Gazebo에 있을 수 있는 모든 것."""
         found = {**self._spawning, **self._lost}
         found.update((n, occ) for n, (occ, _) in self._placed.items())
         found.update((n, occ) for n, (occ, _) in self._removing.items())

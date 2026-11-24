@@ -31,7 +31,6 @@ def test_a_drive_where_every_move_ended_well_passes():
 
 
 def test_a_failed_move_and_the_moves_left_undone_are_named():
-    """drive_check stops at the first failure: the rest of the plan was not driven."""
     problems = reg.drive_problems(drive(step("work_in"), step("work_out", "BLOCKED"), steps=9))
     assert any("work_out" in p and "BLOCKED" in p for p in problems)
     assert any("7" in p for p in problems), "seven moves were never run"
@@ -42,14 +41,12 @@ def test_an_empty_drive_does_not_pass():
 
 
 def test_a_yard_move_through_a_keepout_zone_fails():
-    """The robot's centre inside a keepout zone is deeper than any allowed body overlap."""
     by_truth = reg.drive_problems(drive(step("yard", truth_keepout=["J_W"], plan_keepout=[])))
     by_plan = reg.drive_problems(drive(step("yard", truth_keepout=[], plan_keepout=["EXPRESS"])))
     assert any("J_W" in p for p in by_truth) and any("EXPRESS" in p for p in by_plan)
 
 
 def test_a_drive_summary_without_its_counts_does_not_pass():
-    """One success in a summary that does not say how many moves were planned."""
     assert reg.drive_problems({"results": [step("yard")]})
     assert reg.drive_problems({**drive(step("yard")), "steps": 0})
 
@@ -90,7 +87,7 @@ def test_a_game_that_did_not_measure_the_keepout_depth_does_not_pass():
 
 
 def test_the_script_passes_only_arguments_the_launch_files_declare():
-    """tools/avoid_regression.sh starts two launch files: a renamed argument must fail here."""
+    """launch 인자 이름이 바뀌면 여기서 걸린다."""
     script = (TOOLS / "avoid_regression.sh").read_text(encoding="utf-8")
     launch = TOOLS.parent / "sim" / "fleet_gz_sim" / "launch"
     for name in ("one_pode.launch.py", "gz.launch.py"):
@@ -102,7 +99,7 @@ def test_the_script_passes_only_arguments_the_launch_files_declare():
 
 
 def test_the_script_runs_both_gazebo_stages_with_the_fixed_line_check_it_was_given():
-    # 기본은 끔이다(팀 결정 2026-11-13). --fixed-line-check true로 켠다
+    # 기본은 끔이다. --fixed-line-check true로 켠다
     script = (TOOLS / "avoid_regression.sh").read_text(encoding="utf-8")
     assert re.search(r"\bfixed_check=false\b", script)
     given = r'\s*fixed_line_collision_check:="\$fixed_check"'
@@ -134,8 +131,7 @@ def test_the_launch_files_leave_the_fixed_line_check_off_unless_asked():
 
 
 def test_the_script_sends_the_first_goal_only_after_nav2_is_active():
-    """A goal sent while the planner is still activating ends with NAV_ABORTED in 0.1 s
-    (Gazebo, 2026-11-13): the one-robot stage waits for the lifecycle manager's is_active."""
+    """planner가 켜지는 중에 보낸 goal은 바로 ABORTED가 되므로 is_active를 기다린다."""
     script = (TOOLS / "avoid_regression.sh").read_text(encoding="utf-8")
     stage = script[script.index("drive_stage() {"):script.index("game_stage() {")]
     assert "nav2_active" in stage
@@ -143,14 +139,14 @@ def test_the_script_sends_the_first_goal_only_after_nav2_is_active():
     waiter = script[script.index("nav2_active() {"):script.index("drive_stage() {")]
     assert "/pode1/lifecycle_manager_navigation/is_active" in waiter
     assert "success=True" in waiter
-    # ros2 service call waits for the service and for the answer without a limit of its own
+    # ros2 service call은 서비스와 답을 한도 없이 기다린다
     assert re.search(r"timeout \S.*ros2 service call", waiter)
-    # the 180 s is one budget: a call near its end gets only what is left
+    # 180 s는 한 예산이라 끝에 가까운 호출은 남은 시간만 받는다
     assert "SECONDS" in waiter and "left" in waiter
-    # no goal without the answer: the stage fails and the launch is stopped
+    # 답이 없으면 goal을 보내지 않고 단계를 실패로 끝낸다
     before_check = stage[:stage.index("ros2 run fleet_gz_sim drive_check")]
     assert re.search(r"if ! nav2_active; then.*failed\+=.*stop_launch.*return", before_check, re.S)
-    # a failed wait must not leave an older run's report in the output folder
+    # 기다림이 실패해도 옛 실행의 보고가 출력 폴더에 남지 않는다
     removed = re.search(r"rm -f (.*)", before_check).group(1)
     assert all(name in removed for name in ("json", "md", "log"))
 
@@ -175,7 +171,7 @@ def record_text(*entries):
 
 
 def test_a_game_that_did_not_end_or_took_no_order_does_not_pass():
-    """A launch that died early leaves a record with nothing wrong in it."""
+    """일찍 죽은 launch의 기록에는 흠이 없어 보인다."""
     played = reg.read_fleet_record(record_text(BOARD, SHIPPED).splitlines())
     empty = reg.read_fleet_record(record_text().splitlines())
     assert reg.record_problems(played, finished=True) == []

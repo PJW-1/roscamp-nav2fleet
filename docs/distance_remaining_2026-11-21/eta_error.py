@@ -1,19 +1,6 @@
-"""nav_goal Segment의 남은 시간 예측 오차: 판의 fleet_record.jsonl을 지금 코드로 재생하며 잰다.
+"""nav_goal Segment의 남은 시간 예측 오차를 판의 fleet_record.jsonl 재생으로 잰다.
 
-사용: python3 eta_error.py NAME=RESULT_DIR [NAME=RESULT_DIR ...] [--every=0.5] [--per-run]
-
-재생은 tools/replay.py와 같다(같은 입력, 같은 시각). 로봇 위치 보고(on_robot_state)를 받을 때마다
-그 로봇이 order의 nav_goal Segment를 달리는 중이면(지금 Segment = 끝낸 seq + 1, 로봇에게 준 것)
-그 Segment 끝까지의 남은 시간을 두 가지로 예측한다.
-- proj: 투영(left_s)만. main의 방법이다.
-- used: 이 브랜치의 관제가 실제로 쓰는 값(_left_s). 남은 거리가 쓸 만하면 distance_remaining /
-  nav_speed_mps, 아니면 proj와 같다. main 코드나 남은 거리가 없는 옛 기록에서는 proj와 같다.
-실제 남은 시간은 그 Segment의 SEGMENT_DONE 시각 - 표본 시각이다. SEGMENT_DONE이 없는 Segment
-(취소, 실패)는 뺀다. 표본은 로봇마다 --every 초(기본 0.5)에 하나만 둔다.
-오차 = 예측 - 실제(+면 늦게 닿는다고 본 것). 실제 남은 시간 구간별로 |오차| 평균과 p90을 낸다.
-used_from_distance는 used가 남은 거리에서 나온 표본의 비율이다.
-재생이 기록과 갈리면(기록을 만든 코드와 판단이 다르면) 그 시각을 경고로 알린다. 그 뒤 표본은 그
-판의 것이 아니다. main a6265b0과 이 브랜치의 기록은 이 브랜치 코드로 그대로 재생돼야 한다.
+    python3 eta_error.py NAME=RESULT_DIR ... [--every=0.5] [--per-run]
 """
 from __future__ import annotations
 

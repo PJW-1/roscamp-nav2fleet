@@ -1,5 +1,5 @@
-"""sim_dock_stub: off by default, only on Gazebo time in an isolated sim, never from the real
-bringup."""
+"""sim_dock_stub: 기본 꺼짐, 격리된 시뮬의 Gazebo 시각에서만 켜진다. 실물 bringup에서는 안 닿는다.
+"""
 from pathlib import Path
 
 import pytest
@@ -37,15 +37,14 @@ def test_the_loaded_rmw_and_fast_dds_files_count(tmp_path):
         require_dock_stub_allowed(True, ISOLATED, workdir=tmp_path)
 
 
-# -- the real bringup cannot reach the stub -----------------------------------------------------
+# ---- 실물 bringup은 대역에 닿지 않는다 ----
 
-# A quoted package name is a use of the package (Node package=, share lookups); prose may
-# mention it.
+# 따옴표 친 패키지 이름은 패키지 사용이고, 설명 글은 언급해도 된다
 STUB_WORDS = ("sim_dock_stub", "dock_stub", "sim_stand_in", "\"fleet_gz_sim\"", "'fleet_gz_sim'")
 
 
 def real_launch_files() -> list[Path]:
-    """Launch files a real run starts from: the PC bringup, the fakes it includes, the pode."""
+    """실물 실행의 시작점인 launch 파일: PC bringup, 포함하는 가짜들, pode."""
     found = sorted((REPO / "bringup").rglob("*.launch.py"))
     found += sorted((REPO / "sim" / "fake_robots" / "launch").glob("*.launch.py"))
     found += sorted((REPO / "pode").glob("*/launch/*.launch.py"))
@@ -68,7 +67,7 @@ def test_the_bringup_package_does_not_depend_on_the_sim():
 
 
 def test_passing_sim_dock_stub_to_the_pc_bringup_starts_nothing_from_the_sim():
-    """ros2 launch accepts undeclared arguments silently. Make sure this one changes nothing."""
+    """ros2 launch는 선언 안 한 인자를 조용히 받는다. 이 인자가 아무것도 바꾸지 않아야 한다."""
     launch = pytest.importorskip("launch")
     pytest.importorskip("ament_index_python")  # ROS가 없으면 launch 폴더가 빈 패키지로 잡힌다
     import importlib.util
@@ -103,7 +102,7 @@ def test_passing_sim_dock_stub_to_the_pc_bringup_starts_nothing_from_the_sim():
         assert word not in describe(stubbed)
 
 
-# -- the node refuses on its own, whatever launched it -------------------------------------------
+# ---- 노드는 무엇이 띄웠든 스스로 거부한다 ----
 
 @pytest.fixture
 def ros(monkeypatch, tmp_path):
@@ -143,14 +142,14 @@ def test_the_stand_in_refuses_the_stub_on_the_wall_clock(ros):
 
 
 def test_the_stand_in_refuses_the_stub_outside_the_sim_domains(ros, monkeypatch):
-    # The context was opened on an isolated domain; only the check sees this value.
+    # 컨텍스트는 격리된 도메인에서 열렸고 검사만 이 값을 본다
     monkeypatch.setenv("ROS_DOMAIN_ID", "42")
     with pytest.raises(RuntimeError, match="ROS_DOMAIN_ID"):
         stand_in(ros, dock_stub=True, use_sim_time=True)
 
 
 def test_the_stub_answers_only_while_gazebo_time_runs():
-    """No /clock (Gazebo not running): a dock goal fails instead of succeeding."""
+    """/clock이 없으면(Gazebo 꺼짐) 도크 목표는 성공하지 않고 실패한다."""
     from fleet_gz_sim.dock_stand_in import stub_may_answer
     assert stub_may_answer(ros_time_active=True, now_s=12.0)
     assert not stub_may_answer(ros_time_active=False, now_s=12.0)
@@ -158,7 +157,7 @@ def test_the_stub_answers_only_while_gazebo_time_runs():
 
 
 def test_a_stalled_clock_counts_as_stopped():
-    """/clock that ran once and then stopped keeps its last value; the stub must notice."""
+    """한 번 돌다 멈춘 /clock은 마지막 값을 유지하므로 대역이 알아채야 한다."""
     from fleet_gz_sim.dock_stand_in import ClockWatch
     watch = ClockWatch(limit_s=5.0)
     assert not watch.stalled(sim_now=10.0, wall_now=100.0)
@@ -169,9 +168,9 @@ def test_a_stalled_clock_counts_as_stopped():
 
 
 def test_a_dock_ends_only_after_gazebo_time_moved():
-    """duration_s 0 must not succeed on a clock that stopped before the goal came.
-
-    The loop then keeps waiting until the clock moves or ClockWatch calls it stalled."""
+    """duration_s 0이어도 목표 전에 멈춘 시계에서 성공하면 안 된다.
+    시계가 움직이거나 ClockWatch가 멈춤으로 볼 때까지 기다린다.
+    """
     from fleet_gz_sim.dock_stand_in import dock_done
     assert not dock_done(elapsed=0.0, duration=0.0)
     assert dock_done(elapsed=0.004, duration=0.0)
@@ -180,7 +179,7 @@ def test_a_dock_ends_only_after_gazebo_time_moved():
 
 
 def test_the_stub_keeps_gazebo_time_once_started(ros):
-    """Switching use_sim_time off later would put the stub on the wall clock."""
+    """use_sim_time을 나중에 끄면 대역이 벽시계에 놓인다."""
     from ament_index_python.packages import get_package_share_directory
     from rclpy.parameter import Parameter
     scenario = f"{get_package_share_directory('fake_robots')}/scenarios/basic_orders.yaml"
@@ -204,7 +203,7 @@ def test_the_stand_in_serves_every_dock_when_allowed(ros):
 
 
 class _Handle:
-    """Just enough of a dock goal handle for SimStandIn._dock."""
+    """SimStandIn._dock이 쓰는 도크 목표 핸들의 최소 대역."""
 
     def __init__(self, dock_id):
         from types import SimpleNamespace
@@ -226,8 +225,7 @@ class _Handle:
 
 
 class _WallClock:
-    """A wall clock that moves only when the loop sleeps, with a cap so a broken loop fails
-    instead of hanging."""
+    """루프가 잘 때만 움직이는 벽시계. 루프가 고장나면 걸리지 않고 실패하도록 상한을 둔다."""
 
     def __init__(self, cap: int = 2000):
         self.t = 0.0
@@ -244,8 +242,7 @@ class _WallClock:
 
 
 def _docking_stub(ros, monkeypatch, sim_of_wall, duration=0.0):
-    """A stub with the robot on the WORK dock. Gazebo time is sim_of_wall(wall seconds) on a
-    _WallClock the loop drives with its own sleeps; no real time passes."""
+    """로봇이 WORK 도크에 있는 대역. Gazebo 시각은 루프의 sleep으로 움직이는 _WallClock이고 실제 시간은 안 흐른다."""
     from types import SimpleNamespace
 
     from ament_index_python.packages import get_package_share_directory
@@ -270,7 +267,7 @@ def _dock(node):
 
 
 def test_the_dock_loop_fails_a_goal_on_a_clock_that_stopped_before_it(ros, monkeypatch):
-    """The _dock loop itself, not only dock_done."""
+    """dock_done만이 아니라 _dock 루프 자체."""
     from fleet_gz_sim.stand_in_node import CLOCK_STALL_S
     node, wall = _docking_stub(ros, monkeypatch, lambda wall_s: 12.0)
     try:
@@ -281,8 +278,7 @@ def test_the_dock_loop_fails_a_goal_on_a_clock_that_stopped_before_it(ros, monke
 
 
 def test_the_dock_loop_succeeds_once_a_stopped_clock_moves_again(ros, monkeypatch):
-    """Gazebo time stands still for 2 wall seconds after the goal, then runs: the loop keeps
-    waiting and ends once duration_s of Gazebo time has passed."""
+    """목표 뒤 벽 2초 동안 Gazebo 시각이 서 있다가 흐른다: 루프가 기다리다 duration_s가 지나면 끝난다."""
     node, wall = _docking_stub(ros, monkeypatch, lambda wall_s: 12.0 + max(0.0, wall_s - 2.0),
                                duration=1.0)
     try:
@@ -304,7 +300,7 @@ def test_the_dock_loop_fails_a_goal_when_the_clock_stops_partway(ros, monkeypatc
 
 
 def test_a_dock_goal_fails_at_once_without_gazebo_time(ros):
-    """No /clock has come: the real stub_may_answer check refuses before the loop starts."""
+    """/clock이 없으면 루프 전에 stub_may_answer 검사가 거부한다."""
     from ament_index_python.packages import get_package_share_directory
     scenario = f"{get_package_share_directory('fake_robots')}/scenarios/basic_orders.yaml"
     node = stand_in(ros, dock_stub=True, use_sim_time=True, scenario_file=scenario)

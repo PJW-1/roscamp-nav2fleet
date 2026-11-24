@@ -1,8 +1,4 @@
-"""밖에서 온 잘못된 입력은 거부하거나 버리고, 한 번 알리고, 예외를 내지 않는다.
-
-검사는 노드가 부르는 FleetManager에 있어 기록 재생도 같다.
-두 코어도 모르는 로봇에 예외를 내지 않는다.
-"""
+"""밖에서 온 잘못된 입력은 거부하거나 버리고 한 번 알리며 예외를 내지 않는다(노드가 부르는 FleetManager 검사, 기록 재생도 같다)."""
 import json
 import math
 import sys
@@ -206,7 +202,7 @@ def test_an_accepted_reinstate_has_no_reason():
     assert not rejected(core.tick())
 
 
-# ---- robot state ------------------------------------------------------------------------------
+# ---- 로봇 상태 ------------------------------------------------------------------------------
 
 
 @pytest.mark.parametrize("bad", [
@@ -289,7 +285,7 @@ def test_sources_are_counted_apart():
     assert len(rejected(core.tick())) == 3
 
 
-# ---- order board ------------------------------------------------------------------------------
+# ---- 주문판 ---------------------------------------------------------------------------------
 
 
 @pytest.mark.parametrize("mode", ["", "GO", "run", None, 3])
@@ -355,7 +351,7 @@ def test_a_bad_board_is_said_once_until_a_good_one_comes():
     assert len(rejected(core.tick())) == 1
 
 
-# ---- goal results -----------------------------------------------------------------------------
+# ---- goal 결과 ------------------------------------------------------------------------------
 
 
 def test_results_for_an_unknown_robot_are_refused_without_raising():
@@ -386,7 +382,7 @@ def test_views_of_an_unknown_robot_do_not_raise():
     assert core.robot_view("pode9") == {}
 
 
-# ---- the cores on their own -------------------------------------------------------------------
+# ---- 코어 단독 ------------------------------------------------------------------------------
 
 
 def test_traffic_ignores_an_unknown_robot_everywhere():
@@ -423,7 +419,7 @@ def test_orchestrator_ignores_an_unknown_robot_everywhere():
     assert orders.take_output() == []
 
 
-# ---- record and replay ------------------------------------------------------------------------
+# ---- 기록과 재생 ----------------------------------------------------------------------------
 
 
 def test_a_run_with_rejected_inputs_plays_back_the_same(tmp_path):

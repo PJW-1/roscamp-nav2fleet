@@ -1,12 +1,7 @@
 #!/usr/bin/env python3
 """실행 중인 ROS 그래프를 interfaces/fleet_interfaces/contract.yaml과 대조한다.
 
-fake 모드(CI, 시뮬레이션)는 실물 로봇에만 있는 항목을 건너뛰고, real 모드는 그것도 검사한다.
-제공자를 일부러 띄우지 않은 항목은 key나 이름으로 건너뛴다.
-
-  check_interfaces.py --mode fake --skip zones,assignments,robots,heartbeat,confirm_clear,reinstate
-
-오류가 없으면 종료 코드 0(경고는 출력), 있으면 1.
+    check_interfaces.py --mode fake|real [--skip 항목,...]   # 오류가 없으면 0, 있으면 1
 """
 from __future__ import annotations
 

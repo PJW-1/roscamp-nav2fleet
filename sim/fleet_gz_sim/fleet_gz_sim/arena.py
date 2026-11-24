@@ -1,19 +1,5 @@
 """Gazebo 경기장: 구역 지도(fleet_core.fleet_map)에서 월드(SDF), Nav2 지도, keepout 마스크를 만든다.
-
-월드 좌표 = 지도(map) 좌표 = 구역 지도 좌표다(원점 [0, 0]). 그래서 Gazebo의 실제 위치를 AMCL
-위치, 관제 지점 좌표와 바로 비교할 수 있다. 벽은 구역 지도의 bounds 둘레, 진열대는 shelves다.
-
-    python3 -m fleet_gz_sim.arena                # 세 배치(d2, d, c)를 이 패키지의 worlds/, maps/에
-    python3 -m fleet_gz_sim.arena --layout d2    # 한 배치만
-    (소스 폴더 sim/fleet_gz_sim에서 PYTHONPATH=../../pc/fleet_core:. 로 부른다)
-
-배치마다 만드는 것:
-  worlds/arena_<배치>.sdf              벽, 진열대, 바닥에 그린 고정 경로
-  maps/arena_<배치>.{yaml,pgm}         5 cm 지도(costmap)
-  maps/arena_<배치>_fine.{yaml,pgm}    1 cm 지도(AMCL, R15)
-  maps/arena_<배치>_keepout.{yaml,pgm} global costmap keepout 마스크(arena_maps.keepout_rects)
-v7만 더(가운데 통로 갈래, gz.launch.py nav_map_variant로 고른다):
-  maps/arena_v7_{a,b,ab}.{yaml,pgm}    costmap용 갈래 지도(arena_maps.NAV_VARIANTS)
+월드 좌표 = 지도 좌표 = 구역 지도 좌표(원점 [0, 0]). 실행: python3 -m fleet_gz_sim.arena [--layout d2]
 """
 from __future__ import annotations
 
@@ -24,11 +10,11 @@ from pathlib import Path
 
 from fleet_core.fleet_map import KNOWN_LAYOUTS, LAYOUTS
 
-WORLD = "arena"  # 모든 배치의 월드 이름(launch와 장애물 노드가 이 이름으로 부른다)
+WORLD = "arena"  # 월드 이름
 WALL_M = 0.05
-WALL_HEIGHT_M = 0.30  # 라이다 높이(약 0.125 m)보다 높게
+WALL_HEIGHT_M = 0.30  # 라이다 높이보다 높게
 LIDAR_Z_M = 0.125
-MIN_SHELF_HEIGHT_M = 0.15  # 라이다가 바닥 위 0.125 m를 본다
+MIN_SHELF_HEIGHT_M = 0.15  # 라이다 시야(0.125 m) 위
 PKG = Path(__file__).resolve().parents[1]
 NAV_VARIANT_LAYOUTS = ("v7",)  # 갈래 지도(arena_maps.NAV_VARIANTS)를 만드는 배치
 
@@ -86,8 +72,7 @@ def outputs(name: str) -> tuple[str, ...]:
 
 
 def generate(out: Path, site, real: bool = False) -> tuple[str, ...]:
-    """site의 월드와 지도를 out/worlds, out/maps에 쓰고 쓴 파일 목록을 돌려준다.
-    real: 실물 키트 지도(실측 진열대)."""
+    """site의 월드와 지도를 out/worlds, out/maps에 쓰고 파일 목록을 돌려준다(real: 실물 키트 지도)."""
     from functools import partial
 
     from fleet_gz_sim.arena_maps import COARSE_M, FINE_M, keepout_pgm, pgm
@@ -117,8 +102,7 @@ def nav_variant_outputs(name: str) -> tuple[str, ...]:
 
 
 def generate_nav_variants(out: Path, site, real: bool = False) -> tuple[str, ...]:
-    """costmap용 갈래 지도를 out/maps에 쓰고 쓴 파일 목록을 돌려준다.
-    기본 지도는 건드리지 않는다. real: 실물 키트 지도(실측 진열대)."""
+    """costmap용 갈래 지도를 out/maps에 쓰고 파일 목록을 돌려준다(real: 실물 키트 지도)."""
     from fleet_gz_sim.arena_maps import NAV_VARIANTS, map_yaml, pgm
     if real:
         site = real_site(site)
