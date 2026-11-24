@@ -121,6 +121,11 @@ class OrderFsm(PodeFsm):
         return self._close(CANCELED) + self._own(super().dock(goal_id, now, dock_id), now,
                                                  self._pose)
 
+    # TODO(no-motion): pode_dock이 오면 지운다
+    def dock_wait(self, goal_id: Hashable, now: float, dock_id: str) -> list:
+        return self._close(CANCELED) + self._own(super().dock_wait(goal_id, now, dock_id), now,
+                                                 self._pose)
+
     def retreat(self, goal_id: Hashable, now: float, distance_m: float, speed_mps: float,
                 path: Sequence[Sequence[float]] = (), pose: Sequence[float] | None = None) -> list:
         return self._close(CANCELED) + self._own(

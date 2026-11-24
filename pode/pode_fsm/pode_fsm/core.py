@@ -183,6 +183,21 @@ class PodeFsm(NavGoalMoves, RetreatMoves, LocalYield, NavYield, SelfRecovery, Ob
         cmds = self._end_active(CANCELED, stop=True)
         return cmds + [Finish(goal_id, False, DOCK_UNAVAILABLE)]
 
+    # ---- 동작 없음 도킹: DOCKING으로 두었다가 dock_done에서 성공 ----
+    # TODO(no-motion): pode_dock이 오면 지운다
+    def dock_wait(self, goal_id: Hashable, now: float, dock_id: str) -> list:
+        self._alive = max(self._alive, now)
+        cmds = self._end_active(CANCELED, stop=True)
+        self._active = Dock(goal_id, dock_id)
+        return cmds
+
+    def dock_done(self, goal_id: Hashable) -> list:
+        if not (isinstance(self._active, Dock) and self._active.goal_id == goal_id):
+            return []
+        self._active = None
+        self._rest = DOCKED
+        return [Finish(goal_id, True, "")]
+
     def cancel(self, goal_id: Hashable, now: float) -> list:
         if not self.is_running(goal_id):
             return []
