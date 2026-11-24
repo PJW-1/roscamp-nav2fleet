@@ -77,8 +77,9 @@ def test_a_robot_that_starts_localizing_with_a_goal_gets_no_new_goal_after_it_en
     assert moves(world) == 1
     reports(world, "pode2", "LOCALIZING")
     world.step()
-    world.traffic.on_goal_lost("pode2", last_goal(world))  # 바로 다시 보낼 사유
-    world.run(5.0)
+    world.traffic.on_goal_not_sent("pode2", last_goal(world))  # goal을 비우고 다시 보낼 사유
+    assert world.view("pode2")["goal_id"] is None
+    world.run(world.params.move_retry_wait_s + 3.0)
     assert moves(world) == 1, "not sent again while LOCALIZING"
 
 

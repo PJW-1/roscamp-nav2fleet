@@ -360,6 +360,10 @@ class FleetManagerNode(Node):
                 self._goals.lost(key)
                 return
             self._goals.finished(key)
+            if on_rejected == self._robot_rejected:
+                # 받아들인 로봇 goal의 결과를 잃음은 거절이 아니라 결과 모름(IR-62)
+                self.core.on_goal_lost(key[0], key[1])
+                return
             on_rejected(key)
             return
         self._goals.finished(key)

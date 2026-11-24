@@ -172,10 +172,10 @@ def test_running_out_of_arm_attempts_holds_the_order_and_faults_no_robot():
 
 def test_an_arm_that_never_answers_a_cancel_holds_the_order():
     core, now, _ = filling()
-    now[0] += core.params.fill_timeout_s + 0.1
+    now[0] += core.params.fill_timeout_s + 0.5
     core.check_arm_timeouts(now[0])
     assert cmds(core.take_output(), "CancelCmd")
-    now[0] += core.params.arm_cancel_wait_s
+    now[0] += core.params.robot_timeout_settle_s
     core.check_arm_timeouts(now[0])
     out = core.take_output()
     assert "ARM_NO_RESULT" in codes(out)
@@ -277,7 +277,7 @@ def lose_result(core, now, limit):
     now[0] += limit + 0.1
     core.check_arm_timeouts(now[0])
     core.take_output()
-    now[0] += core.params.arm_cancel_wait_s + 0.1
+    now[0] += core.params.robot_timeout_settle_s + 0.1
     core.check_arm_timeouts(now[0])
     assert "ARM_NO_RESULT" in codes(core.take_output())
 
@@ -465,6 +465,15 @@ def test_the_cancel_warning_waits_as_long_as_the_core_waits_for_an_arm():
     # 재시도 간격이 ±20%로 흔들리므로 가장 짧은 경우로 본다(IR-41)
     shortest = params.cancel_warn_after * params.cancel_retry_s * (1.0 - RETRY_JITTER)
     assert shortest >= params.arm_cancel_wait_s
+    # 시간 초과한 팔은 결과 모름으로 robot_timeout_settle_s까지 기다린다(IR-62)
+    assert shortest >= params.robot_timeout_settle_s
+
+
+def test_the_settle_time_of_a_timeout_is_no_shorter_than_a_plain_cancel_wait():
+    """IR-62의 결과 모름 시간은 정지 취소를 기다리는 arm_cancel_wait_s보다 짧지 않다."""
+    params = load_params()
+    assert params.robot_timeout_settle_s == 30.0
+    assert params.robot_timeout_settle_s >= params.arm_cancel_wait_s
 
 
 def test_a_result_nobody_waits_for_stays_silent():

@@ -98,16 +98,23 @@ class ArmJobs:
                 continue
             limit = (self.params.fill_timeout_s if job.kind == FILL
                      else self.params.swap_timeout_s)
+            settle = self.params.robot_timeout_settle_s
             if job.canceled_at is None and now - job.sent_at > limit:
+                # IR-62: 실패가 아니라 결과 모름. 작업과 로봇은 쥔 채 취소하고 결과를 기다린다
                 self._cancel(r)
                 job.timed_out = True
-            elif job.canceled_at is not None and (
-                    now - job.canceled_at >= self.params.arm_cancel_wait_s):
+                self._event("WARN", "ROBOT_TIMEOUT",
+                            f"{job.server} goal {job.goal_id} has no result after {limit:.0f} s: "
+                            f"result unknown, canceled, settles within {settle:.0f} s", r.name)
+                continue
+            # 시간 초과는 robot_timeout_settle_s, 정지 취소는 arm_cancel_wait_s까지 기다린다
+            wait = settle if job.timed_out else self.params.arm_cancel_wait_s
+            if job.canceled_at is not None and now - job.canceled_at >= wait:
                 r.job = None
                 self._out.append(ArmLost(r.name, job.goal_id, job.server, job.kind))
                 reason = f"{job.server} goal {job.goal_id} never reported"
                 self._out.append(ArmFault(r.name, job.kind, job.server, reason))
-                self._event("ERROR", "ARM_NO_RESULT", reason, r.name)
+                self._event("ERROR", "ARM_NO_RESULT", f"{reason} within {wait:.0f} s", r.name)
 
     # ---- 팔 명령 처리 ----
     def on_command(self, command) -> None:

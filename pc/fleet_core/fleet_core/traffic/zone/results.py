@@ -7,6 +7,7 @@ from fleet_core.fleet_map import NAV_GOAL
 from fleet_core.traffic.mission import (
     AT_STATION,
     DOCK,
+    GOAL_RESULT_LOST,
     HEARTBEAT_LOST,
     LOCALIZING,
     MOVE,
@@ -14,6 +15,8 @@ from fleet_core.traffic.mission import (
     NOT_AT_TARGET,
     PATH_NOT_CONNECTED,
     RETREAT,
+    ROBOT_IDLE,
+    ROBOT_TIMEOUT,
 )
 
 from .robots import ORDER, Goal
@@ -93,8 +96,29 @@ class Results:
 
     def on_goal_lost(self, robot, goal_id) -> None:
         m = self._active(robot, goal_id, MOVE, RETREAT, DOCK)
-        if m is not None and not self._update_unclear(m, "the goal was lost"):
-            self._forget_goal(m)
+        if m is None or self._update_unclear(m, "the goal was lost"):
+            return
+        if m.result_lost_at is not None:
+            return
+        # IR-62: 실패가 아니라 결과 모름. goal과 구역을 쥔 채 상태 보고로 정한다
+        m.result_lost_at = self._clock()
+        settle = self.params.robot_timeout_settle_s
+        self._event("WARN", ROBOT_TIMEOUT,
+                    f"{m.goal.kind} goal {goal_id} lost its result: result unknown, holds its "
+                    f"zones, settles from the state report within {settle:.0f} s", m.name)
+
+    # ---- 결과 모름 정하기: 끝에서 IDLE이면 완료, 다른 곳 IDLE이면 실패, 시간이 지나면 격리 ----
+    def _settle_lost(self, m, now: float) -> None:
+        idle = m.report.last_seen > m.result_lost_at and m.report.robot_state == ROBOT_IDLE
+        if idle and m.goal.kind == DOCK:
+            # 도킹 뒤에는 성공·실패 모두 IDLE이고 자리도 같아 다시 도킹한다
+            self._clear_goal(m)
+            self._dock_failed(m, GOAL_RESULT_LOST)
+        elif idle:
+            self._move_failed(m, GOAL_RESULT_LOST)
+        elif now - m.result_lost_at >= self.params.robot_timeout_settle_s:
+            self._fail(m, ROBOT_TIMEOUT)
+            self._cancel_goal(m)  # 이미 고장이던 로봇은 _fail이 취소하지 않는다
 
     # ---- 도착 확인과 구간 완료 ----
     def _succeeded(self, m) -> None:

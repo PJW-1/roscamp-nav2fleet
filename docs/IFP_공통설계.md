@@ -113,6 +113,7 @@ FMS는 컴포넌트 1개 = 프로세스 1개 = 노드 1개(`fleet_manager`, 실�
 | `GOAL_FAILED` | ERROR | traffic | 재시도를 다 썼다 |
 | `GOAL_STALLED` | WARN | traffic | 목표가 열린 채 `stall_s`(도킹은 `dock_stall_s`) 동안 제자리라 취소하고 같은 목표를 다시 보낸다. 시도 한 번으로 센다(11-06, 2번) |
 | `GOAL_NOT_SENT` | WARN | traffic | 액션 서버가 없어 이동이나 도킹 목표를 보내지 못했다. 시도 횟수에 넣지 않고 다시 보낸다. 목표가 서버에 닿을 때까지 한 번만 낸다 |
+| `ROBOT_TIMEOUT` | WARN | traffic, arm | 결과 모름(IR-62). 실패가 아니다. Pode는 받아들인 이동·도킹·후퇴 목표의 결과를 잃었고, 팔은 담기·교환 시간을 넘겼다(취소를 보낸다). 목표와 점유를 쥔 채 `robot_timeout_settle_s` 안에 한 번만 정하고, 못 정하면 Pode는 `ROBOT_ISOLATED`(reason `ROBOT_TIMEOUT`), 팔은 `ARM_NO_RESULT` |
 | `HEARTBEAT_LOST` | WARN | traffic | 로봇이 heartbeat를 못 받아 스스로 이동을 끝냈다(결과 reason). 시도로 세지 않고 `move_retry_wait_s` 뒤 같은 목표를 다시 보낸다(11-06, 4번) |
 | `LANE_BLOCKED` | WARN | traffic | `BLOCKED` 보고가 `blocked_mark_s` 동안 이어져 달리던 레인을 막힘으로 표시하고 목표를 취소했다. detail에 레인(11-06, 4번) |
 | `LANE_CLEARED` | INFO | traffic | 표시한 레인이 풀렸다(`BLOCKED`도 `RECOVERING`도 아닌 보고가 이어짐, 또는 `confirm_clear`). 같은 목표를 다시 보낸다 |
@@ -142,7 +143,7 @@ FMS는 컴포넌트 1개 = 프로세스 1개 = 노드 1개(`fleet_manager`, 실�
 | `ORDER_REQUEUED` | INFO | orchestrator | 격리된 로봇(사람 없이 바로), 또는 격리 없이 치운 로봇의 주문을 대기 맨 앞으로 되돌렸다. detail은 주문 ID로 시작하고 바구니에 담겨 있던 품목을 적는다. 격리 때는 `robot isolated: <이유>`가 붙는다 |
 | `FILL_RETRY`, `SWAP_RETRY` | WARN | arm | 팔 작업이 실패해 다시 보낸다 |
 | `FILL_FAILED`, `SWAP_FAILED` | ERROR | arm, orchestrator | 재시도를 다 썼거나(arm) 담은 일부를 내보낼 수 없다(orchestrator) |
-| `ARM_NO_RESULT` | ERROR | arm | 취소한 팔 작업의 결과가 끝내 안 왔다. 바구니 내용을 알 수 없다 |
+| `ARM_NO_RESULT` | ERROR | arm | 팔 작업의 결과가 끝내 안 왔다. 시간을 넘긴 작업은 `robot_timeout_settle_s`, STOP으로 취소한 작업은 `arm_cancel_wait_s`를 기다린 뒤 낸다. 바구니 내용을 알 수 없다 |
 | `ARM_LATE_RESULT` | WARN | orchestrator | `ARM_NO_RESULT`를 낸 작업, 또는 로봇을 치울 때 취소한 작업(무엇을 했다고 할 때만)의 결과가 늦게 왔다. detail에 보고 내용을 적는다. 로봇을 치운 뒤라면 주문이 두 번 담기거나 출고될 수 있다(5-1절) |
 | `CANCEL_UNCONFIRMED` | WARN | `fleet_manager` 노드 | 취소를 요청하고 `cancel_warn_after` × `cancel_retry_s`가 지나도 목표의 결과가 없다. 서버가 목표를 아직 수락하지 않아 취소를 보내지 못한 경우도 포함한다. source는 로봇이나 서버, detail에 목표 ID. 목표당 한 번 낸다. 취소는 결과가 올 때까지 계속 보내되, 결과를 잃은 이동·도킹 취소(결과 future 오류)는 이 경고 다음 재시도에서 그만둔다 |
 | `ORDER_REPORT_REFUSED` | ERROR | `fleet_manager` 노드 | central이 주문 보고에 `accepted=false`로 답했다. detail은 주문 ID로 시작한다. 다시 보내지 않는다 |
@@ -185,12 +186,13 @@ FMS는 컴포넌트 1개 = 프로세스 1개 = 노드 1개(`fleet_manager`, 실�
 | `heartbeat_period_s` | 0.5 | `/fleet/heartbeat` 주기. 관제 요구(사용자 기준), 벽시계 |
 | `heartbeat_timeout_s` | 1.5 | 로봇이 멈추기까지. 관제 요구(사용자 기준), 벽시계 |
 | `recover_check_s` | 1 | 통신 복구나 교착 포기 뒤 위치를 확인하기까지. 추정 |
-| `arm_cancel_wait_s` | 5 | 취소한 팔 작업의 결과를 기다리는 시간. 추정 |
+| `arm_cancel_wait_s` | 5 | STOP 등으로 취소한 팔 작업(시간 초과가 아님)의 결과를 기다리는 시간. 추정 |
+| `robot_timeout_settle_s` | 30 | 결과 모름(`ROBOT_TIMEOUT`, IR-62)을 정하는 시간. 팔 시간 초과와 Pode 결과 잃음에 같이 쓴다. `arm_cancel_wait_s` 이상이어야 한다(시험으로 고정) |
 | `arm_retry_wait_s` | 2 | 팔 실패 뒤 다시 보내기까지. 추정 |
 | `fill_timeout_s` | 90 | 담기 시간 제한. 추정 |
 | `swap_timeout_s` | 60 | 교환 시간 제한. 추정 |
 | `cancel_retry_s` | 1 | 취소한 목표의 결과가 없을 때 취소를 다시 보내는 간격. 매번 0.8~1.2배로 무작위로 흔든다(IR-41). 추정 |
-| `cancel_warn_after` | 7 | `CANCEL_UNCONFIRMED`를 내기까지 결과 없이 지나간 재시도 주기 수. `cancel_retry_s`와 지터 하한 0.8을 곱한 값이 `arm_cancel_wait_s` 이상이어야 코어가 아직 기다리는 팔을 늦었다고 하지 않는다(시험으로 고정) |
+| `cancel_warn_after` | 38 | `CANCEL_UNCONFIRMED`를 내기까지 결과 없이 지나간 재시도 주기 수. `cancel_retry_s`와 지터 하한 0.8을 곱한 값이 `arm_cancel_wait_s`와 `robot_timeout_settle_s` 이상이어야 코어가 아직 기다리는 팔을 늦었다고 하지 않는다(시험으로 고정) |
 | `report_retry_s` | 2 | 답이 없는 주문 보고를 다시 보내기까지. 매번 0.8~1.2배로 무작위로 흔든다(IR-41). 추정 |
 | `report_max_in_flight` | 4 | 답을 기다리는 주문 보고 요청 수의 상한(IR-41). 다시 보내기도 요청 하나로 센다. 넘는 요청은 다음 차례에 보낸다. 로봇 세 대가 한꺼번에 끝내도 기다리지 않게 하나를 더 두었다 |
 | `zone_wait_warn_s` | 60 | `ZONE_WAIT_LONG`을 내기까지 |
@@ -363,9 +365,11 @@ heartbeat 정지(11-06, 4번): 이동 결과의 reason이 `HEARTBEAT_LOST`면 �
 
 액션 서버가 없을 때: `_send`에서 `server_is_ready()`가 false인 이동과 도킹 목표는 실패한 시도가 아니다. `on_goal_not_sent`가 목표를 지우고, 거절과 같이 `settle_idx`를 남기고, 같은 시간을 기다리게 하지만 시도 횟수는 늘리지 않는다. `GOAL_NOT_SENT`는 목표가 서버에 닿을 때까지 한 번만 낸다. 보내지 못한 목표는 그 tick 안에 돌아오므로, 다음 tick에 목표가 남아 있거나 그 결과가 오면 닿은 것으로 친다. 팔 목표는 이 길을 타지 않고 지금처럼 `REJECTED`로 시도 횟수에 들어간다.
 
+결과를 잃었을 때(IR-62, 결과 모름): 받아들인 이동·도킹·후퇴 목표의 결과 future가 오류로 끝나면 노드는 거절이 아니라 `on_goal_lost`로 넘긴다(취소 중인 목표는 위 취소 확인 규칙 그대로). 코어는 목표를 잊지 않고 `result_lost_at`에 시각을 적은 뒤 `ROBOT_TIMEOUT`(WARN)을 낸다. 구역과 노드는 쥐고, 새 목표와 order 갱신을 보내지 않으며, 멈춤·도착·후퇴 대기·근접 감시도 그 목표를 건드리지 않는다. 결과를 잃은 뒤 들은 상태 보고로 한 번만 정한다. 이동·후퇴는 `IDLE`이면 `_move_failed`를 지난다: 목표 끝에 서 있으면 구간 완료(`GOAL_ENDED_AT_TARGET`), 다른 곳이면 실패한 시도로 재시도 흐름이다. 도킹은 성공·실패 모두 `IDLE`이고 자리도 같으므로 `IDLE`이면 시도로 세고 다시 도킹한다. 그 사이 결과가 오면 보통 결과처럼 처리한다. `robot_timeout_settle_s` 안에 못 정하면 `ROBOT_TIMEOUT`으로 격리하고 알린다. order 갱신 goal의 결과를 잃은 경우는 전과 같이 두 goal을 모두 끝낸다(`ORDER_UPDATE_REJECTED`).
+
 도착 판정: 이동의 성공 결과가 와도 마지막 보고 위치가 목표 지점에서 `arrival_tolerance_m`보다 멀면 바로 도착으로 치지 않는다. 위치 보고는 결과보다 늦게 올 수 있으므로 `arrival_settle_s` 동안 새 목표를 내지 않고 기다린다. 그 안에 허용치 안의 위치가 보고되면 도착이고, 기한이 지나도 보고된 위치가 멀면 실패한 시도(`NOT_AT_TARGET`)로 친다. 처리는 실패한 이동과 같다. 로봇의 통신 상태가 `COMM_LOST`나 `RECOVERING`이면 위치가 오래된 것이고 복구가 위치를 다시 판단하므로 보지 않는다. 도킹 결과는 위치를 보지 않는다. 정지 오차가 이 값을 자주 넘는 로봇은 재시도를 다 써서 ERROR가 될 수 있으므로, 이 값은 실측한 정지 오차, ε, τ와 함께 정한다. 성공 뒤에 위치 보고가 하나도 오지 않았으면 기한이 지나도 판정하지 않고 기다린다. 그 위치는 성공 전의 것이라 아무것도 말해 주지 않기 때문이다. 보고가 끊긴 로봇은 `COMM_LOST`가 먼저 나고 복구가 위치를 판단한다. 기다리는 동안 새 이동 목표는 내지 않는다(2026-11-06 검토에서 추가). 정지 오차를 넣은 압박 시험은 작업 기록(11-05) 7번에 있고 이 판정을 넣기 전 결과다. 판정을 넣은 뒤의 `basic_orders` 결과는 `docs/worklog_2026-11-06.md`의 압박 시험 표에 있다.
 
-이벤트 코드(traffic, 뜻은 0절): `ROBOT_ISOLATED`, `DOCKED`, `GOAL_RETRY`, `GOAL_FAILED`, `GOAL_STALLED`, `GOAL_NOT_SENT`, `HEARTBEAT_LOST`, `LANE_BLOCKED`, `LANE_CLEARED`, `DETOUR`, `BLOCKED_TOO_LONG`, `COMM_LOST`, `COMM_RESTORED`, `ZONE_WAIT_LONG`, `ZONES_CLEARED`, `CLEAR_REFUSED`, `INPUT_REJECTED`(confirm_clear의 모르는 이름), `ROBOT_REINSTATED`(`FleetManager`가 낸다), `ZONES_STILL_HELD`, `LANE_ERROR`, `BACK_ON_LANE`, `OFF_LANE`, `SELF_RECOVERY`, `SELF_RECOVERY_END`, `SELF_RECOVERY_TOO_LONG`, `DEADLOCK_*`, `PLACEMENT_CONFLICT`, `RECOVERY_CONFLICT`, `ROBOT_NOT_REPORTING`.
+이벤트 코드(traffic, 뜻은 0절): `ROBOT_ISOLATED`, `DOCKED`, `GOAL_RETRY`, `GOAL_FAILED`, `GOAL_STALLED`, `GOAL_NOT_SENT`, `HEARTBEAT_LOST`, `LANE_BLOCKED`, `LANE_CLEARED`, `DETOUR`, `BLOCKED_TOO_LONG`, `ROBOT_TIMEOUT`, `COMM_LOST`, `COMM_RESTORED`, `ZONE_WAIT_LONG`, `ZONES_CLEARED`, `CLEAR_REFUSED`, `INPUT_REJECTED`(confirm_clear의 모르는 이름), `ROBOT_REINSTATED`(`FleetManager`가 낸다), `ZONES_STILL_HELD`, `LANE_ERROR`, `BACK_ON_LANE`, `OFF_LANE`, `SELF_RECOVERY`, `SELF_RECOVERY_END`, `SELF_RECOVERY_TOO_LONG`, `DEADLOCK_*`, `PLACEMENT_CONFLICT`, `RECOVERY_CONFLICT`, `ROBOT_NOT_REPORTING`.
 
 `TrafficController` 공개 API:
 ```python
@@ -402,7 +406,7 @@ SWAPPING(OUTBOUND 요청의 결과를 받은 뒤):
 
 팔 실패나 거절 뒤에는 `arm_retry_wait_s`(추정 2초)를 기다렸다가 다시 보낸다. 취소한 작업이 있으면 그 결과가 오거나 `arm_cancel_wait_s`가 지날 때까지 같은 서버에 다음 작업을 보내지 않는다.
 
-팔 시간 초과: `fill_timeout_s`/`swap_timeout_s` 초과 시 취소를 보내고 `arm_cancel_wait_s`(추정 5초) 동안 결과를 기다린다. STOP으로 취소할 때도 같은 시간을 기다린다. 결과가 오면 그대로 처리, 안 오면 ERROR(`ARM_NO_RESULT`, 바구니 내용을 알 수 없으니 관리자 확인). 로봇은 격리되지만 주문은 되돌리지 않는다(아래 자동 격리).
+팔 시간 초과(IR-62): `fill_timeout_s`/`swap_timeout_s` 초과는 실패가 아니라 결과 모름이다. `ROBOT_TIMEOUT`(WARN)을 내고 취소를 보내며, 작업과 로봇·서버 점유는 쥔 채 `robot_timeout_settle_s`(30초) 동안 결과를 기다린다. 그 안에 온 결과(보통 결과든 취소 결과든)로 한 번만 정한다. 취소 결과는 실패한 시도로 센다. STOP으로 취소할 때는 `arm_cancel_wait_s`(추정 5초)를 기다린다. 안 오면 ERROR(`ARM_NO_RESULT`, 바구니 내용을 알 수 없으니 관리자 확인). 로봇은 격리되지만 주문은 되돌리지 않는다(아래 자동 격리).
 
 `ARM_NO_RESULT` 뒤에 온 결과: 그 작업을 기억해 두었다가 `ARM_LATE_RESULT`(WARN)로 보고 내용(placed, 또는 took_full과 put_empty_done)을 알린다. 주문이 아직 그 로봇에 묶여 있으면 반영한다. 담기의 placed는 주문에 더하고, FULL 바구니를 꺼낸 교환(took_full)은 제시간에 온 결과처럼 SHIPPED(결품이 있었으면 PARTIAL)로 보고하고 주문을 푼다. 그래서 나중에 로봇을 치워도 주문이 되돌아가지 않는다. 로봇은 ERROR 그대로이고 놓아주지 않으며, 관리자가 확인한다. 이미 로봇을 치웠으면 주문은 되돌아간 뒤이므로 이벤트만 내고 반영하지 않는다. 이때 주문이 두 번 담기거나 출고될 수 있고, detail이 그렇게 알린다. 주문을 이미 보고한 뒤의 교환 재시도라면 묶인 주문이 없으므로 이벤트만 낸다. 로봇을 치우면서 취소한 작업도 같은 방식으로 기억한다. 그 결과가 무엇을 했다고 하면(담은 것이 있거나, `took_full`이나 `put_empty_done`) 반영하지 않고 `ARM_LATE_RESULT`로 알리며, detail은 주문이 두 번 담기거나 출고될 수 있다고 적는다. 아무것도 하지 않았다는 결과는 알리지 않는다(2026-11-06 검토에서 추가).
 
