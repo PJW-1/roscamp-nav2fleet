@@ -6,11 +6,22 @@ from pathlib import Path
 import yaml
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
-from launch.actions import DeclareLaunchArgument, GroupAction, IncludeLaunchDescription
+from launch.actions import (
+    DeclareLaunchArgument,
+    ExecuteProcess,
+    GroupAction,
+    IncludeLaunchDescription,
+    TimerAction,
+)
 from launch.conditions import IfCondition, UnlessCondition
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitution import Substitution
-from launch.substitutions import LaunchConfiguration, NotEqualsSubstitution, OrSubstitution
+from launch.substitutions import (
+    LaunchConfiguration,
+    NotEqualsSubstitution,
+    OrSubstitution,
+    PythonExpression,
+)
 from launch.utilities import normalize_to_list_of_substitutions, perform_substitutions
 from launch_ros.actions import ComposableNodeContainer, Node, PushRosNamespace, SetParameter
 from launch_ros.descriptions import ComposableNode, ParameterFile, ParameterValue
@@ -109,9 +120,20 @@ def generate_launch_description():
     log = ["--ros-args", "--log-level", arg("log_level")]
 
     # ---- 라이프사이클 매니저 파라미터와 초기 위치 ----
-    def manager_params(nodes):
-        return {"autostart": ParameterValue(arg("autostart"), value_type=bool),
+    def manager_params(nodes, autostart=None):
+        return {"autostart": ParameterValue(autostart or arg("autostart"), value_type=bool),
                 "node_names": nodes}
+
+    # ---- 시험용: 주행 쪽만 늦게 켜기(위치는 먼저 뜬다) ----
+    delay = arg("navigation_delay_s")
+    delayed = PythonExpression(["float('", delay, "') > 0"])
+    nav_autostart = PythonExpression(["'", arg("autostart"), "'.lower() == 'true' and float('",
+                                      delay, "') <= 0"])
+    late_navigation = TimerAction(
+        period=delay, condition=IfCondition(delayed),
+        actions=[ExecuteProcess(output="screen", cmd=[
+            "ros2", "service", "call", ["/", namespace, "/lifecycle_manager_navigation/manage_nodes"],
+            "nav2_msgs/srv/ManageLifecycleNodes", "{command: 0}"])])
 
     initial_pose = {
         "set_initial_pose": True,
@@ -141,9 +163,9 @@ def generate_launch_description():
         ("nav2_map_server", "costmap_filter_info_server",
          "nav2_map_server::CostmapFilterInfoServer", "costmap_filter_info_server", [], keepout),
     ]
-    managers = [("lifecycle_manager_localization", LOCALIZATION, None),
-                ("lifecycle_manager_navigation", NAVIGATION, None)]
-    keepout_manager = [("lifecycle_manager_keepout", KEEPOUT, keepout)]
+    managers = [("lifecycle_manager_localization", LOCALIZATION, None, None),
+                ("lifecycle_manager_navigation", NAVIGATION, None, nav_autostart)]
+    keepout_manager = [("lifecycle_manager_keepout", KEEPOUT, keepout, None)]
 
     # ---- 노드를 프로세스·컴포넌트로 만드는 헬퍼 ----
     def processes(nodes):
@@ -155,8 +177,8 @@ def generate_launch_description():
     def manager_processes(entries):
         return [Node(package="nav2_lifecycle_manager", executable="lifecycle_manager",
                      name=name, output="screen", arguments=log,
-                     parameters=[manager_params(nodes)], condition=cond)
-                for name, nodes, cond in entries]
+                     parameters=[manager_params(nodes, auto)], condition=cond)
+                for name, nodes, cond, auto in entries]
 
     def components(nodes):
         return [ComposableNode(package=package, plugin=plugin, name=name,
@@ -167,8 +189,8 @@ def generate_launch_description():
     def manager_components(entries):
         return [ComposableNode(package="nav2_lifecycle_manager",
                                plugin="nav2_lifecycle_manager::LifecycleManager", name=name,
-                               parameters=[manager_params(nodes)], condition=cond)
-                for name, nodes, cond in entries]
+                               parameters=[manager_params(nodes, auto)], condition=cond)
+                for name, nodes, cond, auto in entries]
 
     # ---- 컴포넌트 컨테이너와 보조 노드 ----
     container = ComposableNodeContainer(
@@ -243,6 +265,9 @@ def generate_launch_description():
         DeclareLaunchArgument("initial_y", default_value="0.0"),
         DeclareLaunchArgument("initial_yaw", default_value="0.0"),
         DeclareLaunchArgument("autostart", default_value="true"),
+        DeclareLaunchArgument("navigation_delay_s", default_value="0",
+                              description="시험용: 0보다 크면 controller·planner·behavior·"
+                                          "bt_navigator를 이만큼(초) 늦게 켠다. 위치는 먼저 뜬다"),
         DeclareLaunchArgument("log_level", default_value="info"),
         DeclareLaunchArgument("use_composition", default_value="false",
                               description="true면 노드들을 컨테이너 한 프로세스로 띄운다"),
@@ -263,4 +288,5 @@ def generate_launch_description():
             scan_filter,
             avoidance,
         ]),
+        late_navigation,
     ])

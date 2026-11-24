@@ -544,6 +544,25 @@ def test_peer_obstacles_adds_the_layer_to_every_robot_and_the_stand_in_sends_the
         run(made, peer_obstacles="on")
 
 
+# ---- 시험용: 한 로봇의 주행 서버만 늦게 켜기 ---------------------------------------------------
+
+def test_no_robot_starts_its_driving_side_late_by_default(made):
+    assert made.ARGS["nav_late"][0] == ""
+    navs = includes(run(made), "nav2.launch.py")
+    assert [launch_args(nav)["navigation_delay_s"] for nav in navs] == ["0.0"] * 3
+
+
+def test_nav_late_starts_only_that_robots_driving_side_late(made):
+    navs = includes(run(made, nav_late="pode2:40"), "nav2.launch.py")
+    assert [launch_args(nav)["navigation_delay_s"] for nav in navs] == ["0.0", "40.0", "0.0"]
+
+
+@pytest.mark.parametrize("bad", ["pode2", "pode9:40", "pode2:-1", "pode2:x"])
+def test_a_bad_nav_late_stops_the_launch(made, bad):
+    with pytest.raises(ValueError, match="nav_late"):
+        run(made, nav_late=bad)
+
+
 # ---- 회피 패키지와 임시 비전 대역 ------------------------------------------------------------
 
 def test_every_robot_gets_the_avoidance_package_and_no_vision_stand_in_by_default(made):

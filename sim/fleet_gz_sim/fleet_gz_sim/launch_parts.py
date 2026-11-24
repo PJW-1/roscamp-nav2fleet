@@ -281,7 +281,8 @@ def pode(ns: str, x, y, yaw, *, nav_map: str, nav_map_fine: str, keepout_mask: s
           nav_overrides: dict | None = None, lidar_noise: float | None = None,
           fixed_line_check: bool = True, narrow_strips: str = "",
           wall_band_m: float = 0.05, peer_layer: bool = False,
-          avoidance_package: str = AVOIDANCE_PACKAGE, vision_stand_in: bool = False) -> list:
+          avoidance_package: str = AVOIDANCE_PACKAGE, vision_stand_in: bool = False,
+          navigation_delay_s: float = 0.0) -> list:
     """Pode 한 대: 모델, Nav2, pode_fsm, RViz. 브리지는 bridge()에 이 로봇 이름을 넣는다.
 
     nav_map, nav_map_fine: Nav2 지도 둘(배치의 5 cm, 1 cm 지도, fleet_setup.Arena).
@@ -301,7 +302,8 @@ def pode(ns: str, x, y, yaw, *, nav_map: str, nav_map_fine: str, keepout_mask: s
     peer_layer: 참이면 두 costmap에 다른 로봇의 몸을 찍는 층을 넣는다(임시, 주행 시험용). 토픽은
     sim_stand_in 프로세스가 세 대분을 낸다(peer_obstacles 파라미터).
     avoidance_package: 회피 패키지(FollowPathGoal 값, 비전·peer 층, 회피 쪽 노드).
-    vision_stand_in: 참이면 회피 패키지의 임시 비전 대역을 띄우고 비전 관측원을 켠다."""
+    vision_stand_in: 참이면 회피 패키지의 임시 비전 대역을 띄우고 비전 관측원을 켠다.
+    navigation_delay_s: 시험용. 0보다 크면 위치는 먼저, 주행 쪽 서버는 이만큼 늦게 켠다."""
     nav = share("pode_nav_config")
     nav_max_speed = nav_speed_mps() if nav_max_speed is None else nav_max_speed
     x, y, yaw = str(x), str(y), str(yaw)
@@ -319,6 +321,7 @@ def pode(ns: str, x, y, yaw, *, nav_map: str, nav_map_fine: str, keepout_mask: s
                 "avoidance_package": avoidance_package,
                 "vision_stand_in": "true" if vision_stand_in else "false",
                 "use_composition": "true" if nav_composition else "false",
+                "navigation_delay_s": str(float(navigation_delay_s)),
                 "params_file": str(sim_nav_params(
                     nav / "params" / "nav2_params.yaml",
                     Path(tempfile.gettempdir()) / f"nav2_params_sim_{ns}_{os.getpid()}.yaml",
