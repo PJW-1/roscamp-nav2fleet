@@ -284,3 +284,31 @@ def test_the_split_from_o_out_still_reaches_work():
     go_to_work(world)
     assert world.run_until(lambda: world.phase("pode1") in ("DOCKING", "AT_STATION"), 90.0)
     assert not world.problems
+
+
+def test_a_point_mark_on_the_split_leg_also_marks_that_leg():
+    """O_OUT -> GAP_S는 지도에 없는 이음이다. 지점 막힘 표시가 근처 지도 이음만 적으면 다음 계획이 같은 길로 나눈다."""
+    from fleet_core.traffic.zone.block_marks import keys_at
+    world = world_at(None, start="O_OUT")
+    world.report()
+    world.run(0.3)
+    t = world.traffic
+    m = t._robots["pode1"]
+    leg = t._way(m, "Q2")[0]
+    assert (leg.a, leg.b) == ("O_OUT", "GAP_S")
+    (ax, ay), (bx, by) = leg.points
+    point = (ax + 0.1 * (bx - ax), ay + 0.1 * (by - ay))
+    assert keys_at(world.site, t.params, point)
+    assert ("O_OUT", "GAP_S") in t._point_keys(m, point, leg)
+
+
+def test_the_chain_is_the_goal_the_order_would_merge():
+    """O_OUT -> E-3이 막히면 O_OUT -> E-2 -> E-3 -> Q2는 최단이 아니라 E-2에서 goal이 끊긴다(segment_end).
+    Q2로 가는 goal은 E-2(사각형 밖)에서 나오니 나누지 않는다."""
+    world = world_at(None, start="O_OUT")
+    world.report()
+    world.run(0.3)
+    t = world.traffic
+    t._blocked[("O_OUT", "E-3")] = 1e9
+    path = t._path(t._robots["pode1"], "O_OUT", "Q2")
+    assert [(edge.a, edge.b) for edge in path] == [("O_OUT", "E-2"), ("E-2", "E-3"), ("E-3", "Q2")]

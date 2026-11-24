@@ -8,7 +8,7 @@ from fleet_core.traffic.mission import TO_OUTBOUND, TO_PARK, TO_WORK
 
 from .base import HERE
 from .lane_policy import Want
-from .routes import ARRIVE, Route, back_edge, free_edge, needs, speed, stretch_end
+from .routes import ARRIVE, Route, back_edge, free_edge, needs, segment_end, speed, stretch_end
 
 TRANSIT_WAIT_S = 6.0
 STANDING_WAIT_S = 300.0
@@ -105,14 +105,10 @@ class Goals:
         site, now = self.site, self._clock()
         out, index = [], 0
         while index < len(edges):
-            edge = edges[index]
-            end = index + 1
-            # 사슬: nav_goal 이음이 through 노드로 이어진다
-            while (edge.mode == NAV_GOAL and end < len(edges) and edges[end].mode == NAV_GOAL
-                   and site.nodes[edges[end].a].through):
-                end += 1
+            # 사슬: order가 goal 하나로 합칠 조각(_cut과 같은 자름)
+            end = segment_end(site, edges, index, stretch_end(site, edges, index))
             chain = edges[index:end]
-            out.extend(self._split_chain(m, chain, cost, now) if edge.mode == NAV_GOAL else chain)
+            out.extend(self._split_chain(m, chain, cost, now) if chain[0].mode == NAV_GOAL else chain)
             index = end
         return out
 
