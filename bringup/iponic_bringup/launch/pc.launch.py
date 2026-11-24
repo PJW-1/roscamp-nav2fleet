@@ -5,7 +5,9 @@
 실물 팔:    ros2 launch iponic_bringup pc.launch.py use_fake:=true fake_arms:="arm_ship"
 모두 실물:  ros2 launch iponic_bringup pc.launch.py use_fake:=false
 실물 두 대 시험(로봇만 실물, 도킹은 PC가 받고 로봇은 DOCK_STUB=1):
-            ros2 launch iponic_bringup pc.launch.py use_fake:=true use_sim_clock:=false                 fake_robots:=none robots:="pode1 pode2" map_file:=v7                 scenario:=real_two_orders monitor:=false dock_wait_robots:="pode1 pode2"
+            ros2 launch iponic_bringup pc.launch.py use_fake:=true use_sim_clock:=false \
+                fake_robots:=none robots:="pode1 pode2" map_file:=v7 \
+                scenario:=real_two_orders monitor:=false dock_wait_robots:="pode1 pode2"
 세 대는 robots와 dock_wait_robots에 pode3을 더하고 scenario:=real_three_orders로 둔다.
 
 record:=PATH는 tools/replay.py용 FMS 기록을 남긴다.

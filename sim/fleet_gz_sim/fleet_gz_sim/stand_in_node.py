@@ -44,7 +44,7 @@ from fleet_gz_sim.quaternion import yaw_of
 from fleet_gz_sim.ready import everyone_idle
 
 READY_HOLD_S = 1.0
-REPORT_FRESH_S = 0.5  # pode_fsm은 state를 10 Hz로 낸다
+REPORT_FRESH_S = 0.5  # pode_fsm은 state를 5 Hz로 낸다
 CLOCK_STALL_S = 5.0  # Gazebo 시각이 이만큼(wall 초) 안 움직이면 도크 실패
 BATTERY_PERIOD_S = 0.5  # 배터리를 내는 간격(Gazebo 시간)
 STAND_STILL_M = 0.01  # 한 간격 동안 이보다 덜 움직였으면 서 있다

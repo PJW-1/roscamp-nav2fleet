@@ -2,7 +2,7 @@
 
   ros2 launch pode_fsm pode_fsm.launch.py namespace:=pode1
 
-namespace가 robot_id가 된다. TF는 Nav2와 같이 namespace의 tf, tf_static을 쓴다.
+TF는 Nav2와 같이 namespace의 tf, tf_static을 쓴다.
 
 동작 없음(설계 4.5): no_motion:=true면 Nav2 없이 혼자 돈다. 목표는 정해진 시간 뒤 성공하고
 자세는 목표로 옮긴다. 시작 자세는 initial_x/y/yaw.

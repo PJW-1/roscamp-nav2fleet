@@ -10,7 +10,7 @@ from fleet_core.common.params import load_params
 from fleet_core.fleet_map import NAV_GOAL, load_fleet_map, shortest_path
 from fleet_core.fleet_map.geometry import point_rect_distance, segment_rect_distance
 
-SOUTH_WEST, SOUTH_EAST = (0.65, 0.365, 0.99, 0.405), (1.25, 0.365, 1.56, 0.405)
+SOUTH_WEST, SOUTH_EAST = (0.70, 0.365, 0.99, 0.405), (1.25, 0.365, 1.56, 0.405)
 BODY_HALF_M = 0.06       # 지도 여유 검사(clearance_m)와 keepout 덧댐
 NODE_CLEAR_M = 0.20
 

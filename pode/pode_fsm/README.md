@@ -6,6 +6,7 @@ Pode 한 대의 이동·도킹 명령을 받아 Nav2로 넘기고 상태를 보�
 - 발행: `state` (`RobotState`, 5 Hz, 변할 때만이 아니라 계속)
 - 구독: `/fleet/heartbeat`(계약의 HEARTBEAT QoS), `odom`(속도), `local_costmap/costmap`(BLOCKED 판단), `/fleet/robots`(로봇단 교착 처리에서 다른 로봇의 위치와 `priority`, 계약 0.13-draft)
 - Nav2: `move_to`의 `mode`가 `follow_path`(비면 같다)면 controller의 `follow_path`(`FollowPath`)를, `nav_goal`이면 bt_navigator의 `navigate_to_pose`(`NavigateToPose`)를 부른다(계약 0.11-draft 제안).
+- 계약 판 번호: 0.8~0.13-draft는 예전 개인 저장소의 번호이고, 지금은 팀 contract.yaml의 판(0.7)을 따른다.
 - 위치: TF `map` → `base_footprint`(AMCL). `pose_timeout_s`(1 s)보다 오래된 TF는 위치를 모르는 것으로 친다.
 
 레인 그래프는 모른다. `pc/*`를 import하지 않는다(계약은 `pode_fsm/contract.py`가 직접 읽는다). 지킬 약속은 `docs/구현_약속.md`, `docs/Pode_계약.md`, Drive `Pode_FSM_Nav2_구현_안내_2026-11-07.md`.
