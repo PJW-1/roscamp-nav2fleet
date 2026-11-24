@@ -123,3 +123,45 @@ def test_recoveries():
     rows = [{"in": "on_robot_state", "args": ["pode1", 0, 0, 0, s]}
             for s in ("IDLE", "MOVING", "RECOVERING", "MOVING", "BLOCKED", "RECOVERING")]
     assert fm.record_recoveries(rows) == (1, True)
+
+
+def cmd(t, gid, upd, base):
+    return {"t": t, "out": "MoveOrderCmd", "robot": "pode1", "goal_id": gid, "order_id": "pode1-1",
+            "update_id": upd, "base": [{"seq_id": s, "mode": m} for s, m in base]}
+
+
+def fb(t, gid, done):
+    return {"t": t, "in": "on_move_feedback", "args": ["pode1", gid, done, False, "", 0.5]}
+
+
+def res(t, gid, ok=True):
+    return {"t": t, "in": "on_move_result", "args": ["pode1", gid, ok, "" if ok else "SUPERSEDED", 0]}
+
+
+def test_nav_intervals_keep_the_running_nav_goal_across_an_update():
+    # 갱신 goal 2의 base는 조각 3뿐이지만 로봇은 조각 2(nav_goal)를 끝까지 한다(11-24 기록)
+    rows = [cmd(1.0, 1, 0, [(1, "follow_path"), (2, "nav_goal")]), fb(3.0, 1, 1),
+            cmd(4.0, 2, 1, [(3, "follow_path")]), fb(4.01, 2, 1), res(4.02, 1, ok=False),
+            fb(6.0, 2, 2), res(8.0, 2)]
+    assert fm.nav_intervals(rows) == {"pode1": [(3.0, 6.0)]}
+
+
+def test_nav_intervals_start_an_added_nav_goal_only_when_reached():
+    rows = [cmd(1.0, 1, 0, [(1, "follow_path")]), fb(1.5, 1, 0),
+            cmd(2.0, 2, 1, [(2, "nav_goal")]), res(2.01, 1, ok=False), fb(2.2, 2, 0),
+            fb(3.0, 2, 1), res(5.0, 2)]
+    assert fm.nav_intervals(rows) == {"pode1": [(3.0, 5.0)]}
+
+
+def test_hall_spin_metric_is_unavailable_without_order_records():
+    assert fm.hall_spin_metric(truth_spin(), [], HALL) == (None, None, "none")
+    rows = [cmd(1.0, 1, 0, [(1, "nav_goal")]), res(5.0, 1)]
+    n, total, src = fm.hall_spin_metric(truth_spin(), rows, HALL)
+    assert (n, src) == (1, "fleet_record") and 1.5 < total < 2.5
+
+
+def test_pick_cmds_chooses_the_topic_per_robot():
+    bag = {"cmd": {"pode1": [(0.0, 0.1, 0.0)]}, "cmd_nav": {"pode1": [(0.0, 0.2, 0.0)],
+                                                           "pode2": [(0.0, 0.3, 0.0)]}}
+    assert fm.pick_cmds(bag) == {"pode1": [(0.0, 0.1, 0.0)], "pode2": [(0.0, 0.3, 0.0)]}
+    assert fm.pick_cmds(None) == {}

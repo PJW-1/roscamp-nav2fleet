@@ -124,6 +124,23 @@ def hall_spins(truth, nav_iv, rects):
     return n, total
 
 
+def hall_spin_metric(truth, rows, rects):
+    """관제 주문 기록으로 nav_goal 구간을 정해 HALL 회전을 센다. 기록이 없으면 셀 수 없음(None)."""
+    iv = nav_intervals(rows)
+    if iv is None:
+        return None, None, "none"
+    n, total = hall_spins(truth, iv, rects)
+    return n, total, "fleet_record"
+
+
+def pick_cmds(bag):
+    """로봇마다 cmd_vel, 없으면 cmd_vel_nav."""
+    if not bag:
+        return {}
+    robots = set(bag["cmd"]) | set(bag["cmd_nav"])
+    return {r: bag["cmd"].get(r) or bag["cmd_nav"].get(r) for r in sorted(robots)}
+
+
 def shim_spins(cmds):
     """cmds: {robot: [(t, lin_x, ang_z)]}. 반환: 수."""
     n = 0
@@ -181,12 +198,18 @@ def nav_intervals(rows):
         if d.get("out") == "MoveOrderCmd":
             seen = True
             r = d["robot"]
-            cur[r] = (d["goal_id"], d["base"], 0)
-            set_state(r, t, active(d["base"], 0))
+            segs, done = d["base"], 0
+            old = cur.get(r)
+            if d.get("update_id", 0) > 0 and old is not None and old[3] == d.get("order_id"):
+                # 갱신: 로봇은 옛 base의 남은 조각을 마친 뒤 이어 간다(옛 goal은 곧 SUPERSEDED)
+                done = old[2]
+                segs = [s for s in old[1] if s["seq_id"] > done] + list(d["base"])
+            cur[r] = (d["goal_id"], segs, done, d.get("order_id"))
+            set_state(r, t, active(segs, done))
         elif d.get("in") == "on_move_feedback":
             r, gid, done = d["args"][0], d["args"][1], d["args"][2]
             if r in cur and cur[r][0] == gid:
-                cur[r] = (gid, cur[r][1], done)
+                cur[r] = (gid, cur[r][1], done, cur[r][3])
                 set_state(r, t, active(cur[r][1], done))
         elif d.get("in") == "on_move_result":
             r, gid = d["args"][0], d["args"][1]
@@ -334,12 +357,11 @@ def analyze(run):
 
     # HALL 제자리 회전
     rects = yaml.safe_load(HALL_YAML.read_text())["zones"]["HALL"]["rects"]
-    iv = nav_intervals(rows)
-    o["hall_spins"], o["hall_spin_s"] = hall_spins(truth, iv, rects)
-    o["hall_spin_s"] = round(o["hall_spin_s"], 1)
-    o["nav_goal_src"] = "fleet_record" if iv is not None else "none(HALL만)"
-    if iv is None:
-        notes.append("nav_goal 구간 못 정함: HALL 조건만")
+    o["hall_spins"], o["hall_spin_s"], o["nav_goal_src"] = hall_spin_metric(truth, rows, rects)
+    if o["hall_spin_s"] is not None:
+        o["hall_spin_s"] = round(o["hall_spin_s"], 1)
+    else:
+        notes.append("nav_goal 구간 못 정함: HALL 회전은 셀 수 없음")
 
     # recoveries
     n, ok = record_recoveries(rows)
@@ -381,10 +403,7 @@ def analyze(run):
     o["nav_dist_jumps"] = dist_jumps(s)
 
     # RotationShim 제자리 회전
-    cmds = {}
-    if bag:
-        cmds = bag["cmd"] if bag["cmd"] else bag["cmd_nav"]
-    o["shim_spins"] = shim_spins(cmds)
+    o["shim_spins"] = shim_spins(pick_cmds(bag))
 
     # 나머지
     o["collision_ahead"] = sum(1 for line in launch.splitlines() if "collision ahead" in line)
