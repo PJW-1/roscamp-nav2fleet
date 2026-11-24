@@ -17,21 +17,28 @@ NEAR_M = 0.06  # Nav2 xy_goal_tolerance 0.05 + 1 cm
 # 기준: 1단계 기준 판 4판(s1_a1_r1, s1_a1_v1, s1_a_r1, s1_a_v1)에서 닿은 조각 32개의 지연은 7.2 s 한 건 말고
 # 모두 3.33 s 이하였다(닿은 뒤 방향 맞추기, yaw 허용치 0.12 rad). 그 위로 여유를 두어 5 s
 SLOW_S = 5.0
+LOOK_BACK_S = 0.5  # 관제 feedback 주기(0.2 s)보다 넉넉히: 앞 조각 끝 보고가 늦은 만큼
 
 
 def segment_ends(rows):
-    """nav_goal 조각마다 (로봇, x, y, 창 시작, 끝, 성공). 끝 보고가 늦을 수 있어 창은 앞 조각이 시작한
-    때부터 잡는다. 주문 갱신은 같은 order의 진행으로 잇고, 실패·취소로 끝난 nav_goal 조각도 낸다."""
-    cur, out = {}, []
+    """nav_goal 조각마다 (로봇, x, y, 창 시작, 끝, 성공). 창은 조각이 시작한 때(앞 조각 끝이 보고된 때)보다
+    LOOK_BACK_S 앞에서 연다. 주문 갱신은 같은 order의 진행으로 잇는다. 실패·취소로 끝난 nav_goal 조각도
+    내며, 갱신 뒤에 온 옛 goal의 실패와 새 order 뒤에 온 이전 order의 취소도 센다."""
+    cur, retired, out = {}, {}, []
 
-    def advance(r, t, done):
-        c = cur[r]
+    def advance(c, t, done):
         for s in c["segs"]:
             if c["done"] < s["seq_id"] <= done:
                 if s["mode"] == "nav_goal":
-                    out.append((r, s["x"], s["y"], c["prev"], t, True))
-                c["prev"], c["start"] = c["start"], t
+                    out.append((c["robot"], s["x"], s["y"], c["start"] - LOOK_BACK_S, t, True))
+                c["start"] = t
         c["done"] = max(c["done"], done)
+
+    def state_of(r, gid):
+        for table in (cur, retired):
+            if r in table and gid in table[r]["chain"]:
+                return table
+        return None
 
     for d in rows:
         t = d.get("t")
@@ -41,27 +48,33 @@ def segment_ends(rows):
             if d.get("update_id", 0) > 0 and old is not None and old["order"] == d.get("order_id"):
                 old["segs"] = [s for s in old["segs"] if s["seq_id"] > old["done"]] + list(d["base"])
                 old["chain"].add(d["goal_id"])
+                old["goal"] = d["goal_id"]
             else:
-                cur[r] = {"segs": list(d["base"]), "done": 0, "prev": t, "start": t,
+                if old is not None:
+                    retired[r] = old
+                cur[r] = {"robot": r, "segs": list(d["base"]), "done": 0, "start": t,
                           "order": d.get("order_id"), "chain": {d["goal_id"]}, "goal": d["goal_id"]}
-                continue
-            old["goal"] = d["goal_id"]
         elif d.get("in") == "on_move_feedback":
             r, gid, done = d["args"][0], d["args"][1], d["args"][2]
-            if r in cur and gid in cur[r]["chain"]:
-                advance(r, t, done)
+            table = state_of(r, gid)
+            if table is not None:
+                advance(table[r], t, done)
         elif d.get("in") == "on_move_result":
-            r, gid = d["args"][0], d["args"][1]
-            if r not in cur or gid not in cur[r]["chain"]:
+            r, gid, ok = d["args"][0], d["args"][1], d["args"][2]
+            table = state_of(r, gid)
+            if table is None:
                 continue
+            c = table[r]
             if len(d["args"]) > 4:
-                advance(r, t, d["args"][4])
-            if gid == cur[r]["goal"]:
-                c = cur.pop(r)
-                if not d["args"][2]:
-                    s = next((s for s in c["segs"] if s["seq_id"] > c["done"]), None)
-                    if s is not None and s["mode"] == "nav_goal":
-                        out.append((r, s["x"], s["y"], c["prev"], t, False))
+                advance(c, t, d["args"][4])
+            reason = d["args"][3] if len(d["args"]) > 3 else ""
+            if not ok and reason != "SUPERSEDED":
+                s = next((s for s in c["segs"] if s["seq_id"] > c["done"]), None)
+                if s is not None and s["mode"] == "nav_goal":
+                    out.append((r, s["x"], s["y"], c["start"] - LOOK_BACK_S, t, False))
+                del table[r]
+            elif ok and gid == c["goal"]:
+                del table[r]
     return out
 
 
