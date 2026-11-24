@@ -426,11 +426,9 @@ class PodeFsmNode(Node):
         with self._lock:
             if not self._alive:
                 return
-            now = time.monotonic()
-            if self._nm is not None:
-                self._step_no_motion(now)
             pose = self._pose()
             here = pose_here(pose)
+            now = time.monotonic()
             late, self._late = self._late, []
             for seq, outcome in late:
                 self._run(self._fsm.nav_result(seq, outcome, now, here, self._obstacle))
@@ -441,6 +439,9 @@ class PodeFsmNode(Node):
             for seq in late_goal:
                 self._run(self._fsm.nav_goal_result(seq, "rejected", now, here))
             self._run(self._fsm.tick(now, here, self._speed, self._obstacle))
+            if self._nm is not None:
+                # heartbeat 끊김을 먼저 본 뒤에 끝난 대역 일을 알린다
+                self._step_no_motion(now)
             self._log_state()
 
     # ---- 복구 상태 변화 로그 ----

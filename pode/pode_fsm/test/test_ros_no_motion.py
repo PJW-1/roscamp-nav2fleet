@@ -446,3 +446,36 @@ def test_default_waits_are_two_two_and_three_seconds(rclpy_session):
     assert 1.9 <= took["move"] <= 2.6
     assert 1.9 <= took["retreat"] <= 2.6
     assert 2.9 <= took["dock"] <= 3.6
+
+
+def test_a_job_due_in_the_tick_that_finds_the_heartbeat_lost_ends_heartbeat_lost(rclpy_session):
+    """같은 틱에 기다림이 끝나고 heartbeat도 끊겼으면 성공이 아니라 HEARTBEAT_LOST(FakePode와 같게).
+    실행기를 돌리지 않고 시계를 손으로 움직인다."""
+    from pode_fsm import node as node_mod
+    from pode_fsm.node import PodeFsmNode
+    x, y = pose_of(START)
+    node = PodeFsmNode(parameter_overrides=Harness.params(None, **dict(
+        robot_id="pode1", contract_file=str(CONTRACT), no_motion=True, initial_x=x,
+        initial_y=y, initial_yaw=0.0, heartbeat_timeout_s=1.5, no_motion_move_s=2.0)))
+    clock = [1000.0]
+    real_monotonic = node_mod.time.monotonic
+    node_mod.time.monotonic = lambda: clock[0]
+    node._goals._clock = lambda: clock[0]
+    finished = []
+    node._servers.finish = lambda goal_id, ok, reason, done=0: finished.append((ok, reason))
+    try:
+        node._on_heartbeat(None)
+        with node._lock:
+            node._run(node._fsm.move("g", clock[0], "E-2", (*pose_of("E-2"), 0.0), [],
+                                     node._pose(), mode="nav_goal"))
+        node._tick()
+        clock[0] += 2.0  # 기다림도 끝나고 heartbeat도 1.5 s 넘게 끊겼다
+        node._tick()
+        assert finished == [(False, "HEARTBEAT_LOST")]
+        assert node._nm.pose[:2] == pytest.approx((x, y))
+        clock[0] += 1.0
+        node._tick()
+        assert node._nm.pose[:2] == pytest.approx((x, y))
+    finally:
+        node_mod.time.monotonic = real_monotonic
+        node.destroy_node()
