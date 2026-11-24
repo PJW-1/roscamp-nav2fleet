@@ -212,6 +212,8 @@ class PodeFsmNode(Node):
         self._follow = FollowStub(self._nm, time.monotonic)
         self._backup = BackUpStub(self._nm, time.monotonic)
         self._goals = NavGoalStub(self._nm, time.monotonic)
+        # 대역은 처음부터 준비됨: 첫 tick 전에 온 goal도 NAV_UNAVAILABLE로 끝나지 않게
+        self._note_nav_ready()
 
     # ---- 때가 된 대역 일을 Nav2 결과처럼 FSM에 알린다 ----
     def _step_no_motion(self, now: float) -> None:

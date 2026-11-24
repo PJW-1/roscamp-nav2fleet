@@ -73,9 +73,10 @@ ARGS = {
     "plan_keep": ("false", "true면(시험 중) Nav2 goal을 다시 계획할 때 길이가 비슷한 다른 길로"
                            " 바꾸지 않고 지금 길을 지킨다(pode_plan_keep). 노드는 sim_stand_in"
                            " 프로세스 안에서 돈다. false면 main과 같다"),
-    "nav_rl": ("", "로봇마다 RL controller FollowPathRL을 더한다(비교용): rl은 RL만, rl_shim은"
-                   " RotationShim으로 감싼 것. 설정은 nav_overrides/follow_path_rl(_shim).yaml."
-                   " Nav2 goal에 쓰려면 controller 선택 토픽으로 고른다. 비면 없음"),
+    "nav_rl": ("", "로봇마다 RL controller 둘을 더한다(비교용): FollowPathRL은 RotationShim으로"
+                   " 감싼 정책, FollowPathRLAlone은 감싸지 않은 정책. rl과 rl_shim은 같은 설정"
+                   " nav_overrides/follow_path_rl.yaml. Nav2 goal에 쓰려면 controller 선택 토픽으로"
+                   " 고른다. 비면 없음"),
     "nav_bt_xml": ("", "로봇마다 navigate_to_pose 행동 트리(pode_nav_config/bt의 파일 이름이나 절대"
                        " 경로, 비교용). 비면 plan_keep에 따라 기본 트리나 길 유지 트리"),
     "nav_overrides": ("", "로봇마다 Nav2 설정 위에 깊이 덮을 yaml 파일(주행 값 비교용). 비면 없음."
@@ -97,12 +98,13 @@ def flag(text: str, name: str) -> bool:
     return value in ("true", "1")
 
 
-RL_FILES = {"rl": "follow_path_rl.yaml", "rl_shim": "follow_path_rl_shim.yaml"}
+# RL 기본은 shim으로 감싼 정책이라 설정 파일은 하나다. rl_shim은 예전 명령이 돌게 남긴 같은 뜻
+RL_FILES = {"rl": "follow_path_rl.yaml", "rl_shim": "follow_path_rl.yaml"}
 
 
 def rl_overrides_of(choice: str) -> dict | None:
-    """launch 인자 nav_rl: 비면 None, rl이나 rl_shim이면 저장소의 그 RL 설정 파일(nav_overrides의
-    plugin 막음은 사용자 파일에만 건다. 이 두 파일은 새 controller FollowPathRL만 더한다)."""
+    """launch 인자 nav_rl: 비면 None, rl이나 rl_shim이면 저장소의 RL 설정 파일(nav_overrides의
+    plugin 막음은 사용자 파일에만 건다. 이 파일은 새 controller FollowPathRL, FollowPathRLAlone만 더한다)."""
     choice = choice.strip()
     if not choice:
         return None
@@ -342,12 +344,13 @@ def _start(context):
     nav_overrides = overrides_of(value("nav_overrides"))
     rl = rl_overrides_of(value("nav_rl"))
     if rl is not None:
-        # 사용자가 controller 목록을 주었으면 그 목록 뒤에 FollowPathRL만 더한다
+        # 사용자가 controller 목록을 주었으면 그 목록 뒤에 RL controller 둘만 더한다
         mine = ((nav_overrides or {}).get("controller_server") or {}).get(
             "ros__parameters", {}).get("controller_plugins")
         if mine is not None:
             rl["controller_server"]["ros__parameters"]["controller_plugins"] = (
-                list(mine) + [name for name in ["FollowPathRL"] if name not in mine])
+                list(mine) + [name for name in ["FollowPathRL", "FollowPathRLAlone"]
+                              if name not in mine])
         nav_overrides = launch_parts.merge(nav_overrides or {}, rl)
     late = late_of(value("nav_late"), poses)
     # low_battery가 있을 때만 pode_fsm이 sim_stand_in의 배터리를 본다

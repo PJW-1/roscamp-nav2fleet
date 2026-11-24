@@ -104,7 +104,7 @@ pgrep -af "gz sim|ruby|component_container|pode_fsm_node|fleet_manager_node"   #
 | `wall_band_m` | `0.05` | 거르개가 벽·진열대에서 지우는 띠 폭(m). D2 측정에서 0.04는 도크 진입을 두 번 중 한 번 멈췄고 0.05는 세 번 지나갔다(`results/fixed_line_results.md`) |
 | `peer_obstacles` | `true` | 로봇마다 다른 로봇의 몸을 costmap에 찍는다(`pode_peer_obstacles`, 회피 패키지 `params/avoidance.yaml`의 `peer_layer`, 임시 구현): 다른 로봇이 보고한 자세에 반지름 0.08 m 원을 찍어 Nav2가 피해서 길을 짠다. 노드는 `sim_stand_in` 프로세스 안에서 돈다(프로세스를 늘리지 않는다). `false`면 찍지 않는다(비교용). 기본을 켠 근거는 작업 기록 11절(D2 세 판) |
 | `plan_keep` | `false` | 시험 중. `true`면 Nav2 goal을 다시 계획할 때 길이가 비슷한 다른 길로 바꾸지 않고 지금 길을 지킨다(`pode_plan_keep`). 노드는 `sim_stand_in` 프로세스 안에서 로봇마다 하나씩 돈다(프로세스를 늘리지 않는다). `false`면 main과 같다. `one_pode.launch.py`에도 같은 인자가 있고, 거기서는 `nav2.launch.py`가 노드를 띄운다 |
-| `nav_rl` | (빈 값) | 비교용. `rl`이나 `rl_shim`이면 로봇마다 RL controller `FollowPathRL`을 더한다(설정은 `nav_overrides/follow_path_rl.yaml`, `follow_path_rl_shim.yaml`). `nav_overrides`의 plugin 막음은 사용자 파일에만 건다. Nav2 goal에 쓰려면 `/<로봇>/controller_selector`로 고른다 |
+| `nav_rl` | (빈 값) | 비교용. `rl`이나 `rl_shim`(같은 뜻)이면 로봇마다 RL controller 둘을 더한다: `FollowPathRL`은 RotationShim으로 감싼 정책, `FollowPathRLAlone`은 감싸지 않은 정책(설정은 `nav_overrides/follow_path_rl.yaml`). `nav_overrides`의 plugin 막음은 사용자 파일에만 건다. Nav2 goal에 쓰려면 `/<로봇>/controller_selector`로 고른다 |
 | `nav_bt_xml` | (빈 값) | 로봇마다 쓸 navigate_to_pose 행동 트리(`pode_nav_config/bt`의 파일 이름이나 절대 경로, 비교용). 예: `navigate_to_pose_w_replanning_and_recovery_goal_replan_3s.xml`. 비면 `plan_keep`에 따라 기본 트리나 길 유지 트리 |
 | `nav_composition` | `true` | 로봇마다 Nav2 노드 9개를 프로세스 하나로. `false`면 DDS 참여자가 LOCALHOST 한도(약 32)를 넘어 pode3이 안 보인다 |
 
