@@ -41,6 +41,8 @@ KNOWN_DIFFERENCES = {
                  "FakePode는 틱 순서에 따라 DONE을 빠뜨릴 수 있다.",
     "dock error": "no_motion은 오차 0 cm로 성공한다(로봇이 이미 목표 자리). FakePode는 "
                   "dock.error_cm 둘레의 잡음을 준다.",
+    "dock station": "no_motion은 스테이션과의 거리를 보지 않고, 모르는 dock_id도 경고 로그만 남기고 "
+                    "성공한다(2026-11-24 결정). PC 도킹 대역은 0.15 m 밖이나 모르는 이름이면 실패한다.",
     "pose after heartbeat loss": "no_motion은 끝나기 전에 멈추면 자세가 시작 자리 그대로다. "
                                  "FakePode는 가던 자리에 선다.",
     "battery": "no_motion은 배터리를 모름(-1)으로 알린다(battery_topic이 없을 때와 같다). "
@@ -48,7 +50,8 @@ KNOWN_DIFFERENCES = {
     "check_clear": "FakePode에는 check_clear 서비스가 없다. no_motion은 늘 clear로 답한다.",
     "order current_goal": "order을 달리는 동안 pode_fsm은 지금 달리는 조각 묶음의 끝 노드(E-1, 다음 "
                           "O_OUT)를, FakePode는 base 끝 노드(O_OUT)를 current_goal로 알린다. "
-                          "실주행 pode_fsm도 같다(동작 없음과 무관).",
+                          "실주행 pode_fsm도 같다(동작 없음과 무관). 2026-11-24 결정: 실주행처럼 "
+                          "조각 묶음의 끝을 유지한다.",
     "state rate": "no_motion 기본 5 Hz(설계 4.5), FakePode 기본 10 Hz.",
 }
 
@@ -428,6 +431,17 @@ def test_check_clear_always_answers_clear(rclpy_session):
         return answers
 
     assert _fsm_alone(rclpy_session, check) == [CheckClear.Response.ANSWER_CLEAR] * 3
+
+
+def test_an_unknown_dock_id_still_succeeds(rclpy_session):
+    """2026-11-24 결정: dock_id가 예상과 달라도 성공시키고 경고 로그만 남긴다."""
+    def check(fleet):
+        handle, _, _ = fleet.send(Dock.Goal(dock_id="NOPE"), fleet.dock)
+        ok = fleet.result(handle).success
+        assert wait_until(lambda: fleet.last().state == RobotState.STATE_DOCKED, 2.0)
+        return ok
+
+    assert _fsm_alone(rclpy_session, check) is True
 
 
 def test_default_waits_are_two_two_and_three_seconds(rclpy_session):

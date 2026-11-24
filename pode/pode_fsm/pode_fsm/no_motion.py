@@ -18,6 +18,8 @@ class NoMotionParams:
     move_s: float = 2.0
     retreat_s: float = 2.0
     dock_s: float = 3.0
+    # 관제가 보내는 도킹 이름(스테이션 이름). 좌표는 모른다
+    dock_ids: tuple[str, ...] = ("WORK", "OUTBOUND")
 
 
 @dataclass
@@ -130,3 +132,11 @@ class BackUpStub(_Runner):
 def dock_phase(elapsed: float, duration: float) -> str:
     done = elapsed / max(duration, 1e-6)
     return "APPROACH" if done < 0.5 else "ALIGN" if done < 1.0 else "DONE"
+
+
+# ---- 도킹 이름 확인: 거리는 보지 않고, 모르는 이름이면 경고 문구만 돌려준다 ----
+def dock_warning(dock_id: str, known) -> str | None:
+    if dock_id in known:
+        return None
+    return (f"no_motion: unexpected dock_id {dock_id!r} (expected one of {list(known)}); "
+            "succeeding anyway")

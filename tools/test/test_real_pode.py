@@ -1,6 +1,7 @@
 """실물 Pode 한 대 실행 묶음(tools/real_pode): 속도 파라미터, launch 인자 이름, 셸 스크립트."""
 import ast
 import copy
+import math
 import os
 import re
 import shutil
@@ -1105,3 +1106,101 @@ def test_comments_are_korean(name):
             continue
         assert HANGUL.search(body), f"{name}:{number}: {line}"
 
+
+
+# ---- NO_MOTION: 동작 없음 pode_fsm만 띄운다(설계 4.5, 2026-11-24 결정) ----
+def _no_motion_start(tmp_path, args, **env_vars):
+    start = _stub_kit(tmp_path)
+    (tmp_path / "env.sh").write_text("return 0\n")
+    fake = tmp_path / "bin"
+    fake.mkdir()
+    (fake / "ros2").write_text(f'#!/bin/bash\nprintf "%s\\n" "$@" > "{tmp_path}/ros2.args"\n')
+    (fake / "ros2").chmod(0o755)
+    env = dict(os.environ, PATH=f"{fake}:{os.environ['PATH']}")
+    for key in ("PEER_ROBOTS", "DOCK_STUB", "FIXED_LINE_CHECK", "NO_MOTION"):
+        env.pop(key, None)
+    env.update(env_vars)
+    run = subprocess.run(["bash", str(start), *args], capture_output=True, text=True, env=env,
+                         timeout=30)
+    seen = tmp_path / "ros2.args"
+    for _ in range(50):
+        if seen.exists() and seen.read_text().strip():
+            break
+        time.sleep(0.1)
+    return run, (seen.read_text().splitlines() if seen.exists() else [])
+
+
+def _no_motion_argv(ns, x, y, yaw):
+    return ["launch", "pode_fsm", "pode_fsm.launch.py", f"namespace:={ns}", "no_motion:=true",
+            f"initial_x:={x}", f"initial_y:={y}", f"initial_yaw:={yaw}"]
+
+
+def _parking(name):
+    site = yaml.safe_load((ROOT / "pc" / "fleet_core" / "fleet_core" / "data"
+                           / "fleet_map_v7.yaml").read_text())
+    node = site["nodes"][name]
+    return node["x"], node["y"], math.radians(node["yaw_deg"])
+
+
+@pytest.mark.parametrize("ns,parking", [("pode1", "P-1"), ("pode2", "P-2"), ("pode3", "P-3")])
+def test_no_motion_start_uses_the_robots_parking_spot(tmp_path, ns, parking):
+    run, argv = _no_motion_start(tmp_path, [ns], NO_MOTION="1")
+    assert run.returncode == 0, run.stdout + run.stderr
+    assert argv[:5] == _no_motion_argv(ns, 0, 0, 0)[:5]
+    assert [float(a.split(":=")[1]) for a in argv[5:]] == pytest.approx(_parking(parking),
+                                                                        abs=1e-3)
+    assert "params ok" not in run.stdout  # 속도 사본은 만들지 않는다
+
+
+def test_no_motion_start_takes_an_explicit_pose(tmp_path):
+    run, argv = _no_motion_start(tmp_path, ["pode2", "1.0", "0.5", "0"], NO_MOTION="1")
+    assert run.returncode == 0, run.stdout + run.stderr
+    assert argv == _no_motion_argv("pode2", "1.0", "0.5", "0")
+
+
+@pytest.mark.parametrize("args", [[], ["pode9"], ["pode1", "0.1"],
+                                  ["pode1", "0.12", "0.10", "1.5708", "0.12"]])
+def test_no_motion_start_refuses_bad_arguments(tmp_path, args):
+    run, argv = _no_motion_start(tmp_path, args, NO_MOTION="1")
+    assert run.returncode == 2 and argv == []
+
+
+@pytest.mark.parametrize("extra", [{"DOCK_STUB": "1"}, {"PEER_ROBOTS": "pode1,pode2"},
+                                   {"FIXED_LINE_CHECK": "1"}])
+def test_no_motion_start_refuses_real_drive_options(tmp_path, extra):
+    run, argv = _no_motion_start(tmp_path, ["pode1"], NO_MOTION="1", **extra)
+    assert run.returncode == 2 and argv == []
+    assert "NO_MOTION" in run.stdout + run.stderr
+
+
+@pytest.mark.parametrize("value", ["2", "yes", "true"])
+def test_start_refuses_bad_no_motion(tmp_path, value):
+    run, argv = _no_motion_start(tmp_path, ["pode1", "0.12", "0.10", "1.5708"], NO_MOTION=value)
+    assert run.returncode == 2 and argv == []
+    assert "NO_MOTION" in run.stdout + run.stderr
+
+
+@pytest.mark.parametrize("value", ["", "0"])
+def test_start_no_motion_off_keeps_old_argv(tmp_path, value):
+    run, argv = _no_motion_start(tmp_path, ["pode1", "0.12", "0.10", "1.5708"], NO_MOTION=value)
+    assert run.returncode == 0, run.stdout + run.stderr
+    assert argv == OLD_ARGV
+
+
+def test_stop_stops_a_no_motion_group(tmp_path):
+    shutil.copy(KIT / "stop.sh", tmp_path)
+    (tmp_path / "logs").mkdir()
+    pid = int(subprocess.run(
+        ["bash", "-c", f"setsid {sys.executable} -c 'import time; time.sleep(30)' "
+                       "pode_fsm.launch.py > /dev/null 2>&1 & echo $!"],
+        capture_output=True, text=True, check=True).stdout)
+    (tmp_path / "logs" / "launch.pid").write_text(str(pid))
+    try:
+        time.sleep(0.3)
+        run = subprocess.run(["bash", str(tmp_path / "stop.sh")], capture_output=True, text=True,
+                             timeout=30)
+        assert run.returncode == 0, run.stdout + run.stderr
+        assert not _alive(pid)
+    finally:
+        if _alive(pid):
+            os.kill(pid, 9)

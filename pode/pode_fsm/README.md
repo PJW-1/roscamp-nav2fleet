@@ -78,6 +78,10 @@ move_to는 `no_motion_move_s`(2.0 s), retreat은 `no_motion_retreat_s`(2.0 s), d
 자세는 그때 목표로 한 번에 옮긴다. check_clear는 늘 `clear`, 상태는 기본 5 Hz, heartbeat가 1.5 s 끊기면 하던 목표를
 `HEARTBEAT_LOST`로 끝내고 선다. 실주행으로 돌아가면 `no_motion`을 빼면 된다(코드는 `TODO(no-motion)`).
 
+- 도킹은 거리를 보지 않고 성공한다. `dock_id`가 `no_motion_dock_ids`(기본 `WORK`, `OUTBOUND`)에 없으면 경고 로그만 남긴다.
+  pode_fsm은 지도 좌표를 모른다.
+- 실물 로봇에서는 `NO_MOTION=1 ~/nav2fleet_real/start.sh pode2`로 띄운다. 로봇별 시작 자리(P-1~P-3)는 `start.sh`에만 있다.
+
 ## 시험
 
 ```bash

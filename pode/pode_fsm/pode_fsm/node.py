@@ -69,6 +69,7 @@ class PodeFsmNode(Node):
         declare("no_motion_move_s", nm_defaults.move_s)
         declare("no_motion_retreat_s", nm_defaults.retreat_s)
         declare("no_motion_dock_s", nm_defaults.dock_s)
+        declare("no_motion_dock_ids", list(nm_defaults.dock_ids))
         declare("initial_x", 0.12)
         declare("initial_y", 0.10)
         declare("initial_yaw", 1.5708)
@@ -204,7 +205,8 @@ class PodeFsmNode(Node):
         self._nm = NoMotion(start, NoMotionParams(
             move_s=float(get("no_motion_move_s").value),
             retreat_s=float(get("no_motion_retreat_s").value),
-            dock_s=float(get("no_motion_dock_s").value)))
+            dock_s=float(get("no_motion_dock_s").value),
+            dock_ids=tuple(str(d) for d in get("no_motion_dock_ids").value)))
         self._follow = FollowStub(self._nm, time.monotonic)
         self._backup = BackUpStub(self._nm, time.monotonic)
         self._goals = NavGoalStub(self._nm, time.monotonic)
