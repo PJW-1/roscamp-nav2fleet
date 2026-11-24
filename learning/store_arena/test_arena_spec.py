@@ -48,17 +48,17 @@ def test_boxes_follow_yaml_bounds_and_measured_shelves():
 def test_boxes_are_read_from_the_yaml_at_run_time(tmp_path):
     """yaml 이 바뀌면 박스가 바뀌지만 sim_shelves 는 영향 없음."""
     text = open(MAP, encoding="utf-8").read()
-    text = text.replace("- [0.65, 0.365, 0.99, 0.405]   # 남쪽 진열대, 서쪽",
-                        "- [0.70, 0.36, 0.99, 0.40]   # moved", 1)
-    text = text.replace("sim_shelves:\n  - [0.70, 0.77, 1.56, 0.783]",
-                        "sim_shelves:\n  - [0.70, 0.77, 1.50, 0.79]", 1)
+    text = text.replace("- [0.70, 0.365, 0.99, 0.405]   # 남쪽 진열대, 서쪽",
+                        "- [0.75, 0.36, 0.99, 0.40]   # moved", 1)
+    text = text.replace("sim_shelves:\n  - [0.65, 0.77, 1.56, 0.783]",
+                        "sim_shelves:\n  - [0.65, 0.77, 1.50, 0.79]", 1)
     assert "# moved" in text and "1.50, 0.79]" in text
     path = tmp_path / "fleet_map_moved.yaml"
     path.write_text(text, encoding="utf-8")
     spec = arena.make_arena_spec({"layout": str(path)})
     shelves = [rect(b) for b in arena.arena_boxes(spec) if b.kind == "shelf"]
-    assert shelves[1] == (0.70, 0.36, 0.99, 0.40)
-    assert shelves[0] == (0.70, 0.77, 1.56, 0.803)  # 실측값, 고친 sim_shelves 아님
+    assert shelves[1] == (0.75, 0.36, 0.99, 0.40)
+    assert shelves[0] == (0.65, 0.77, 1.56, 0.803)  # 실측값, 고친 sim_shelves 아님
 
 
 def test_split_overrides_routes_fields():
