@@ -9,9 +9,11 @@ from dataclasses import dataclass, field
 from fleet_core.common.commands import (
     HELD,
     HOLD_ROBOT_FAULT,
+    TRIP_STATUSES,
     FillCmd,
     OrderRecord,
     ReportOrderCmd,
+    ReportTripCmd,
 )
 
 
@@ -35,6 +37,7 @@ class Central:
         self.held: dict[str, ReportOrderCmd] = {}  # 지금 보류 중인 주문(최종 보고가 오면 지움)
         self.hold_reports: list[ReportOrderCmd] = []  # 받은 보류 보고 전부, 도착 순
         self._new_reports: list[ReportOrderCmd] = []
+        self.trip_reports: list[tuple[float, ReportTripCmd]] = []  # 진행 단계 보고, 도착 순
         self._violation = violation
         self.last_report_t: float | None = None
 
@@ -46,6 +49,26 @@ class Central:
             order = self.future.pop(0)
             self.registered.append(OrderRecord(order["id"], dict(order["items"])))
         return list(self.registered)
+
+    def take_trip_report(self, t: float, cmd: ReportTripCmd) -> None:
+        """진행 단계 보고. 실제로는 브리지가 받는다. 판에 남고 끝이 아니다.
+
+        단계 순서는 보지 않는다(IR-25). 대기열로 되돌린 주문은 다시 ASSIGNED가 된다.
+        """
+        if cmd.status not in TRIP_STATUSES:
+            self._violation(f"{cmd.trip_id} trip report with status {cmd.status}")
+            return
+        if cmd.trip_id in {r.order_id for r in self.reports}:
+            self._violation(f"{cmd.trip_id} {cmd.status} after its final report")
+            return
+        if cmd.trip_id not in {o.order_id for o in self.registered}:
+            self._violation(f"{cmd.trip_id} {cmd.status} reported but not on the board")
+            return
+        hold = self.held.get(cmd.trip_id)
+        if hold is not None and hold.hold_reason == HOLD_ROBOT_FAULT:
+            self._violation(f"{cmd.trip_id} {cmd.status} after a ROBOT_FAULT hold")
+            return
+        self.trip_reports.append((t, cmd))
 
     def take_report(self, t: float, cmd: ReportOrderCmd) -> None:
         if cmd.order_id in {r.order_id for r in self.reports}:

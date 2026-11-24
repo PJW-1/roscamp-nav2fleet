@@ -13,7 +13,7 @@ from fake_robots.world import (
     Stuck,
     ZoneWorld,
 )
-from fleet_core.common.commands import RetreatCmd
+from fleet_core.common.commands import ReportTripCmd, RetreatCmd
 from world_helpers import follow, nav, quiet_world, results, states
 
 
@@ -136,3 +136,12 @@ def test_low_battery_is_reported_and_charges_on_a_parking_spot():
     world.run(8.0)
     levels = [args[5] for _, args in world.manager.of("on_robot_state", "pode1")]
     assert levels[0] == 90.0 and min(levels) == 10.0 and levels[-1] == 90.0
+
+
+def test_a_trip_report_reaches_the_fake_central_and_is_no_unknown_output():
+    world = ZoneWorld("d2", seed=1, orders=[{"at_s": 0, "id": "O-1", "items": {"A": 1}}])
+    world.run(0.5)
+    cmd = ReportTripCmd("O-1", "pode1", "ASSIGNED", {}, {})
+    world.send(cmd)
+    assert not [v for v in world.violations if "unknown output" in v.detail]
+    assert world.central.trip_reports == [(world.t, cmd)]

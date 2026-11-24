@@ -1,6 +1,6 @@
 """세계 안의 가짜 central: 보류는 끝이 아니고, 보류 뒤 최종 보고는 한 번만 받는다."""
 from fake_robots.world.stations import Central
-from fleet_core.common.commands import ReportOrderCmd
+from fleet_core.common.commands import ReportOrderCmd, ReportTripCmd
 
 
 def report(order, status, placed=None, reason=""):
@@ -114,3 +114,57 @@ def test_a_refused_final_keeps_the_robot_fault_hold():
     c.take_report(1.0, report("O-1", "HELD", {"A": 1}, "ROBOT_FAULT"))
     c.take_report(2.0, report("O-1", "SHIPPED", {"A": 1}))
     assert len(v) == 1 and c.closed_by_hand == ["O-1"] and c.all_final()
+
+
+# ---- 진행 단계 보고(ReportTripCmd): 판에 남고 끝이 아니다 ----
+def trip(order, status, placed=None):
+    return ReportTripCmd(order, "pode1", status, placed or {}, {})
+
+
+def test_progress_reports_are_kept_in_order_and_do_not_finish_the_order():
+    c, v = central()
+    for t, status in enumerate(("ASSIGNED", "FILLING", "TRANSPORTING"), start=1):
+        c.take_trip_report(float(t), trip("O-1", status))
+    assert [r.status for _, r in c.trip_reports] == ["ASSIGNED", "FILLING", "TRANSPORTING"]
+    assert [t for t, _ in c.trip_reports] == [1.0, 2.0, 3.0]
+    assert ids(c) == ["O-1", "O-2"] and c.finished == 0 and v == []
+
+
+def test_a_rebinding_after_a_requeue_is_not_a_violation():
+    c, v = central()
+    c.take_trip_report(1.0, trip("O-1", "FILLING"))
+    c.take_trip_report(2.0, trip("O-1", "ASSIGNED"))
+    assert v == [] and len(c.trip_reports) == 2
+
+
+def test_a_progress_report_needs_a_progress_status():
+    c, v = central()
+    c.take_trip_report(1.0, trip("O-1", "SHIPPED"))
+    assert len(v) == 1 and "O-1" in v[0] and "SHIPPED" in v[0] and c.trip_reports == []
+
+
+def test_a_progress_report_for_an_order_not_on_the_board_is_a_violation():
+    c, v = central(count=1)
+    c.take_trip_report(1.0, trip("O-9", "ASSIGNED"))
+    assert len(v) == 1 and "O-9" in v[0] and c.trip_reports == []
+
+
+def test_a_progress_report_after_the_final_report_is_a_violation():
+    c, v = central()
+    c.take_report(1.0, report("O-1", "SHIPPED", {"A": 1}))
+    c.take_trip_report(2.0, trip("O-1", "TRANSPORTING"))
+    assert len(v) == 1 and "O-1" in v[0] and c.trip_reports == []
+
+
+def test_a_progress_report_after_a_robot_fault_hold_is_a_violation():
+    c, v = central()
+    c.take_report(1.0, report("O-1", "HELD", reason="ROBOT_FAULT"))
+    c.take_trip_report(2.0, trip("O-1", "FILLING"))
+    assert len(v) == 1 and "ROBOT_FAULT" in v[0] and c.trip_reports == []
+
+
+def test_a_progress_report_after_an_arm_fault_hold_is_kept():
+    c, v = central()
+    c.take_report(1.0, report("O-1", "HELD", reason="ARM_FAULT"))
+    c.take_trip_report(2.0, trip("O-1", "FILLING"))
+    assert v == [] and len(c.trip_reports) == 1
