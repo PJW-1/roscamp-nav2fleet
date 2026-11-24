@@ -303,6 +303,60 @@ def read_bag(bag_dir, w2s):
     return res
 
 
+# ---- 시간 창(--until): 중간에 끝난 판도 같은 앞 구간으로 견준다 ----
+STAMP = re.compile(r"^\[[^\]]+\] \[[A-Z]+\] \[(\d+\.\d+)\]")
+FLEET_EVENT = re.compile(r"\[fleet_manager\]: ([A-Z_]+) ?(.*)$")
+
+
+def launch_lines_until(launch, w2s, until):
+    """launch.out 줄 가운데 sim 시각이 until 이하인 것(시각 없는 줄은 둔다). until None이면 전부."""
+    lines = launch.splitlines()
+    if until is None:
+        return lines
+    out = []
+    for line in lines:
+        m = STAMP.match(line)
+        if m is None or w2s(float(m.group(1))) <= until:
+            out.append(line)
+    return out
+
+
+def events_from_launch(launch, w2s):
+    """events.csv가 없는 판(감시가 끊은 판): fleet_manager 로그 줄에서 사건을 읽는다."""
+    ev = []
+    for line in launch.splitlines():
+        s, e = STAMP.match(line), FLEET_EVENT.search(line)
+        if s and e:
+            ev.append({"time_s": float(w2s(float(s.group(1)))), "code": e.group(1),
+                       "detail": e.group(2)})
+    return ev
+
+
+def pnc_of(events):
+    """판정과 같은 셈: 이유가 PATH_NOT_CONNECTED인 GOAL_RETRY와 GOAL_FAILED."""
+    return sum(1 for e in events if e["code"] in ("GOAL_RETRY", "GOAL_FAILED")
+               and e["detail"].startswith("PATH_NOT_CONNECTED"))
+
+
+def cut_bag(bag, until):
+    if bag is None or until is None:
+        return bag
+    return {kind: {r: [x for x in lst if x[0] <= until] for r, lst in by.items()}
+            for kind, by in bag.items()}
+
+
+def cut_truth(truth, until):
+    if until is None:
+        return truth
+    return {r: tuple(c[a[0] <= until] for c in a) for r, a in truth.items()}
+
+
+def cut_rows(rows, until):
+    if until is None:
+        return rows
+    return [d for d in rows if d.get("t") is None or d["t"] <= until]
+
+
 # ---- 판 하나 ----
 def read_truth(path):
     rows = defaultdict(list)
@@ -342,15 +396,23 @@ def load_run_data(run):
     return truth, wall, sim, bag
 
 
-def analyze(run):
+def analyze(run, until=None):
+    """until(sim 초)이 있으면 그 시각까지만 센다. 그때는 summary가 없는(감시가 끊은) 판도 센다."""
     run = Path(run)
-    summ = json.loads((run / "result/summary.json").read_text())
+    summary = run / "result/summary.json"
+    summ = json.loads(summary.read_text()) if summary.exists() else {}
     truth, wall, sim, bag = load_run_data(run)
-    rows = read_record(run / "result/fleet_record.jsonl")
-    launch = (run / "launch.out").read_text(errors="replace")
+    w2s = lambda w: np.interp(w, wall, sim)  # noqa: E731
+    truth, bag = cut_truth(truth, until), cut_bag(bag, until)
+    rows = cut_rows(read_record(run / "result/fleet_record.jsonl"), until)
+    full_launch = (run / "launch.out").read_text(errors="replace")
+    launch = "\n".join(launch_lines_until(full_launch, w2s, until))
     notes = []
-    o = {"run": run.name, "pass": bool(summ["pass"]), "shipped": summ["orders_shipped"],
-         "duration_s": summ["duration_s"]}
+    o = {"run": run.name, "pass": bool(summ["pass"]) if summ else False,
+         "shipped": summ.get("orders_shipped"), "duration_s": summ.get("duration_s"),
+         "until_s": until}
+    if not summ:
+        notes.append("summary 없음(끝나지 않은 판): 통과 아님으로 둠")
 
     # 뒤집힘
     fl, fp_all, off_n = collect_flips(bag)
@@ -381,15 +443,22 @@ def analyze(run):
     o["recoveries_log"] = log_n
 
     # 사건 수
-    ev = []
     ev_path = run / "result/events.csv"
     if ev_path.exists():
         with open(ev_path) as f:
-            ev = list(csv.DictReader(f))
+            ev = [dict(e, time_s=float(e["time_s"])) for e in csv.DictReader(f)]
+    else:
+        ev = events_from_launch(full_launch, w2s)
+        notes.append("events.csv 없음: launch.out의 fleet_manager 줄에서 사건을 읽음")
+    if until is not None:
+        ev = [e for e in ev if e["time_s"] <= until]
     cnt = Counter(e["code"] for e in ev)
     o["blocked_wait"], o["goal_retry"], o["isolated"] = (
         cnt["BLOCKED_WAIT"], cnt["GOAL_RETRY"], cnt["ROBOT_ISOLATED"])
-    o["path_not_connected"] = summ.get("checks", {}).get("path_not_connected", {}).get("value")
+    if until is None and summ:
+        o["path_not_connected"] = summ.get("checks", {}).get("path_not_connected", {}).get("value")
+    else:
+        o["path_not_connected"] = pnc_of(ev)
     o["pnc_retry"] = sum(1 for e in ev if e["code"] == "GOAL_RETRY"
                          and e["detail"].startswith("PATH_NOT_CONNECTED"))
 
@@ -418,9 +487,9 @@ def analyze(run):
 
     # 나머지
     o["collision_ahead"] = sum(1 for line in launch.splitlines() if "collision ahead" in line)
-    allt = [(a[0][0], a[0][-1]) for a in truth.values() if len(a[0])]
-    sim0, sim1 = min(a for a, _ in allt), max(b for _, b in allt)
-    o["rtf"] = round((sim1 - sim0) / (wall[-1] - wall[0]), 3) if wall[-1] > wall[0] else float("nan")
+    # 판 전체(창으로 자르지 않은 truth 시각)로 잰다
+    o["rtf"] = (round(float(sim.max() - sim.min()) / float(wall[-1] - wall[0]), 3)
+                if len(wall) and wall[-1] > wall[0] else float("nan"))
     o["pc_cpu"] = round(mean_col(run / "cpu.csv", "pc_cpu_pct"), 1) if (run / "cpu.csv").exists() else None
     o["domain_cpu"] = (round(mean_col(run / "cpu.csv", "domain_cpu_pct"), 1)
                        if (run / "cpu.csv").exists() else None)
@@ -440,7 +509,7 @@ COLS = ["run", "pass", "shipped", "duration_s", "flips", "flips_planner", "off_r
         "hall_spin_s", "recoveries", "blocked_wait", "goal_retry", "isolated", "path_not_connected",
         "pnc_retry", "dist_jumps", "nav_dist_jumps", "shim_spins", "collision_ahead", "rtf", "pc_cpu",
         "domain_cpu", "stand_in_cpu_s"]
-EXTRA = ["recoveries_log", "dist_jumps_by_seq", "dist_src", "nav_goal_src", "flips_by_robot",
+EXTRA = ["until_s", "recoveries_log", "dist_jumps_by_seq", "dist_src", "nav_goal_src", "flips_by_robot",
          "flip_spots", "notes"]
 
 
@@ -484,13 +553,14 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("runs", nargs="+")
     ap.add_argument("--csv")
+    ap.add_argument("--until", type=float, help="이 sim 초까지만 센다(끝나지 않은 판도 넣는다)")
     a = ap.parse_args()
     results = []
     for r in a.runs:
-        if not (Path(r) / "result/summary.json").exists():
+        if a.until is None and not (Path(r) / "result/summary.json").exists():
             print(f"건너뜀(끝나지 않음): {r}", file=sys.stderr)
             continue
-        results.append(analyze(r))
+        results.append(analyze(r, a.until))
     if not results:
         sys.exit("끝난 판이 없다")
     print_table(results)

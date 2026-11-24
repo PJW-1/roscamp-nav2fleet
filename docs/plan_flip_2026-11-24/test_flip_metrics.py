@@ -178,3 +178,34 @@ def test_nav_intervals_use_the_old_goals_progress_after_an_update():
     rows = [cmd(1.0, 1, 0, [(1, "follow_path"), (2, "nav_goal")]), fb(1.5, 1, 0),
             cmd(4.0, 2, 1, [(3, "follow_path")]), sup, fb(6.0, 2, 2), res(8.0, 2)]
     assert fm.nav_intervals(rows) == {"pode1": [(4.02, 6.0)]}
+
+
+LAUNCH = """[fleet_manager_node-20] [INFO] [1000.5] [fleet_manager]: BLOCKED_WAIT stands before something
+[fleet_manager_node-20] [WARN] [1003.0] [fleet_manager]: GOAL_RETRY PATH_NOT_CONNECTED, attempt 1
+[pode_fsm_node-7] [INFO] [1004.0] [pode1.pode_fsm]: state MOVING -> RECOVERING wait
+[fleet_manager_node-20] [ERROR] [1009.0] [fleet_manager]: ROBOT_ISOLATED NAV_ABORTED; holds ['HALL']
+"""
+
+
+def test_events_from_launch_use_sim_time():
+    ev = fm.events_from_launch(LAUNCH, lambda w: w - 1000.0)
+    assert [(e["time_s"], e["code"]) for e in ev] == [
+        (0.5, "BLOCKED_WAIT"), (3.0, "GOAL_RETRY"), (9.0, "ROBOT_ISOLATED")]
+    assert fm.pnc_of(ev) == 1
+
+
+def test_launch_lines_until_cut_by_sim_time():
+    lines = fm.launch_lines_until(LAUNCH, lambda w: w - 1000.0, 5.0)
+    assert len(lines) == 3 and fm.log_recoveries("\n".join(lines)) == 1
+    assert len(fm.launch_lines_until(LAUNCH, lambda w: w - 1000.0, None)) == 4
+
+
+def test_cut_series_and_truth():
+    bag = {"plan": {"pode1": [(1.0, [(0, 0)]), (6.0, [(1, 1)])]}, "cmd": {}}
+    assert fm.cut_bag(bag, 5.0) == {"plan": {"pode1": [(1.0, [(0, 0)])]}, "cmd": {}}
+    truth = {"pode1": (np.array([1.0, 6.0]), np.array([0.0, 1.0]), np.array([0.0, 1.0]),
+                       np.array([0.0, 0.0]))}
+    cut = fm.cut_truth(truth, 5.0)
+    assert list(cut["pode1"][0]) == [1.0] and list(cut["pode1"][1]) == [0.0]
+    rows = [{"t": 1.0}, {"t": 6.0}, {"x": 1}]
+    assert fm.cut_rows(rows, 5.0) == [{"t": 1.0}, {"x": 1}]
