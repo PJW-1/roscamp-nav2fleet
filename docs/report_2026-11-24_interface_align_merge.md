@@ -34,7 +34,7 @@ no-motion과 interface-align이 `node.py`의 같은 자리를 고쳤다. 둘 다
 - 관리 서비스(`set_lock`, `set_mode`, `charge_end`)는 `check_clear` 다음에 그대로 만든다. 동작 없음 모드에서도 같이 뜬다.
 - `GoalServers`는 no-motion 쪽 시그니처(끝에 `self._nm`)를 쓴다.
 - 상태 주기는 interface-align의 5 Hz(IR-34)를 두 모드에 같이 쓴다. 그래서 no-motion의 `NO_MOTION_STATE_HZ` 상수는 지웠다.
-- 자동으로 합쳐진 `core.py`, `order_fsm.py`: interface-align의 `has_goal()`과 no-motion의 `dock_wait()`가 함께 있다. 동작 없음 도킹 중에는 `_active`가 Dock이라 `has_goal()`이 참이고, 그래서 도킹 중 `set_lock`은 거절된다("락은 멈춘 로봇에서만"과 같다).
+- 자동으로 합쳐진 `core.py`, `order_fsm.py`: interface-align의 `has_goal()`과 no-motion의 `dock_wait()`가 함께 있다. 동작 없음 도킹 중에는 `_active`가 Dock이라 `has_goal()`이 참이다. 그래서 도킹 중에 새 요청으로 락 상태를 바꾸려 하면 `NOT_STOPPED`로 거절된다("락은 멈춘 로봇에서만"과 같다). 지금과 같은 값을 요청하면 성공하고, 같은 `request_id`로 다시 보내면 처음 응답을 그대로 돌려준다.
 - RobotState의 boot 칸(`boot_id`, `lock`, `mode`, `forced`, `last_request_id`)은 동작 없음 모드에서도 같은 코드로 나간다.
 
 ### bag_record 후속 (f3f156a)
