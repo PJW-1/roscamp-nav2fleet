@@ -57,11 +57,15 @@
 
 ## 지표 정의 (flip_metrics.py)
 
-- flips: 같은 goal(0.05 m 안)의 이웃한 /podeN/plan 둘을 `pode_plan_keep.route.first_look`으로 견줘 OTHER인 것.
+- flips: 같은 goal(0.05 m 안)의 이웃한 경로 둘을 `pode_plan_keep.route.first_look`으로 견줘 OTHER인 것.
+  로봇이 실제로 받은 경로를 센다: A 판은 keeper가 낸 /podeN/plan_kept, 나머지는 /podeN/plan.
+  flips_planner는 늘 /podeN/plan(planner가 낸 그대로) 기준이다.
   OFF(로봇이 경로 밖)는 off_route로 따로 센다.
 - hall_spins / hall_spin_s: truth 기준 HALL 안, nav_goal 수행 구간 안에서 선속도 < 0.02 m/s이고 각속도가 큰 0.5 s 넘는 구간.
   뒤집힘과 상관없는 정상 방향 돌기도 들어간다.
 - recoveries: fleet_record의 on_robot_state MOVING→RECOVERING 수. blocked_wait, path_not_connected는 관제 기록.
 - dist_jumps_by_seq: 관제 distance_remaining이 같은 goal, 같은 조각 안에서 0.10 m 넘게 바뀐 수(주 지표).
 - shim_spins: cmd_vel이 선속도 ≈ 0, |각속도| 큼인 구간 수(속도 기준 추정치이고 RotationShim 실행 수와 같지 않다).
+- arrival_check.py: nav_goal 조각마다 truth로 목적지 0.06 m 안에 든 때부터 관제가 끝을 받은 때까지(지연),
+  5 s 넘는 수(slow), 닿은 뒤 실패·취소로 끝난 수(near_fail). C의 11-18 도착 판정 문제 확인용이다.
 - collision_ahead: launch.out의 RPP "collision ahead" 줄 수. RL 판은 0이 나와 FollowPathRL이 쓰였다는 방증으로 쓴다.

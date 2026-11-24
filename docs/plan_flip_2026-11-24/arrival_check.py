@@ -14,52 +14,70 @@ import sys
 from pathlib import Path
 
 NEAR_M = 0.06  # Nav2 xy_goal_tolerance 0.05 + 1 cm
-SLOW_S = 5.0  # 닿은 뒤 방향 맞추기가 기준 판에서 1.4~3.3 s 걸린다
+# 기준: 1단계 기준 판 4판(s1_a1_r1, s1_a1_v1, s1_a_r1, s1_a_v1)에서 닿은 조각 32개의 지연은 7.2 s 한 건 말고
+# 모두 3.33 s 이하였다(닿은 뒤 방향 맞추기, yaw 허용치 0.12 rad). 그 위로 여유를 두어 5 s
+SLOW_S = 5.0
 
 
 def segment_ends(rows):
-    """nav_goal 조각마다 (로봇, x, y, 시작, 끝). 주문 갱신은 같은 order의 진행으로 잇는다."""
+    """nav_goal 조각마다 (로봇, x, y, 창 시작, 끝, 성공). 끝 보고가 늦을 수 있어 창은 앞 조각이 시작한
+    때부터 잡는다. 주문 갱신은 같은 order의 진행으로 잇고, 실패·취소로 끝난 nav_goal 조각도 낸다."""
     cur, out = {}, []
 
     def advance(r, t, done):
-        segs, old, start, order, chain = cur[r]
-        for s in segs:
-            if old < s["seq_id"] <= done:
+        c = cur[r]
+        for s in c["segs"]:
+            if c["done"] < s["seq_id"] <= done:
                 if s["mode"] == "nav_goal":
-                    out.append((r, s["x"], s["y"], start, t))
-                start = t
-        cur[r] = (segs, max(old, done), start, order, chain)
+                    out.append((r, s["x"], s["y"], c["prev"], t, True))
+                c["prev"], c["start"] = c["start"], t
+        c["done"] = max(c["done"], done)
 
     for d in rows:
         t = d.get("t")
         if d.get("out") == "MoveOrderCmd":
             r = d["robot"]
             old = cur.get(r)
-            if d.get("update_id", 0) > 0 and old is not None and old[3] == d.get("order_id"):
-                segs = [s for s in old[0] if s["seq_id"] > old[1]] + list(d["base"])
-                cur[r] = (segs, old[1], old[2], old[3], old[4] | {d["goal_id"]})
+            if d.get("update_id", 0) > 0 and old is not None and old["order"] == d.get("order_id"):
+                old["segs"] = [s for s in old["segs"] if s["seq_id"] > old["done"]] + list(d["base"])
+                old["chain"].add(d["goal_id"])
             else:
-                cur[r] = (list(d["base"]), 0, t, d.get("order_id"), {d["goal_id"]})
+                cur[r] = {"segs": list(d["base"]), "done": 0, "prev": t, "start": t,
+                          "order": d.get("order_id"), "chain": {d["goal_id"]}, "goal": d["goal_id"]}
+                continue
+            old["goal"] = d["goal_id"]
         elif d.get("in") == "on_move_feedback":
             r, gid, done = d["args"][0], d["args"][1], d["args"][2]
-            if r in cur and gid in cur[r][4]:
+            if r in cur and gid in cur[r]["chain"]:
                 advance(r, t, done)
         elif d.get("in") == "on_move_result":
             r, gid = d["args"][0], d["args"][1]
-            if r in cur and gid in cur[r][4] and len(d["args"]) > 4:
+            if r not in cur or gid not in cur[r]["chain"]:
+                continue
+            if len(d["args"]) > 4:
                 advance(r, t, d["args"][4])
+            if gid == cur[r]["goal"]:
+                c = cur.pop(r)
+                if not d["args"][2]:
+                    s = next((s for s in c["segs"] if s["seq_id"] > c["done"]), None)
+                    if s is not None and s["mode"] == "nav_goal":
+                        out.append((r, s["x"], s["y"], c["prev"], t, False))
     return out
 
 
 def lags(segments, truth):
-    """truth: {로봇: [(t, x, y)]} 시간순. 반환: 목적지에 닿은 조각마다 지연(초)."""
-    res = []
-    for r, gx, gy, t0, t1 in segments:
+    """truth: {로봇: [(t, x, y)]} 시간순. 반환: (끝난 조각의 지연 목록, 닿은 뒤 실패한 조각 수)."""
+    done, near_fail = [], 0
+    for r, gx, gy, t0, t1, ok in segments:
         first = next((t for t, x, y in truth.get(r, ()) if t0 <= t <= t1
                       and math.hypot(x - gx, y - gy) <= NEAR_M), None)
-        if first is not None:
-            res.append(t1 - first)
-    return res
+        if first is None:
+            continue
+        if ok:
+            done.append(t1 - first)
+        else:
+            near_fail += 1
+    return done, near_fail
 
 
 def read_truth(path):
@@ -74,8 +92,10 @@ def read_truth(path):
 def analyze(run):
     rows = [json.loads(line) for line in (run / "result/fleet_record.jsonl").read_text().splitlines()
             if line.strip()]
-    v = sorted(lags(segment_ends(rows), read_truth(run / "truth.csv")))
+    v, near_fail = lags(segment_ends(rows), read_truth(run / "truth.csv"))
+    v = sorted(v)
     return {"run": run.name, "arrived": len(v), "slow": sum(x > SLOW_S for x in v),
+            "near_fail": near_fail,
             "lag_median_s": round(v[len(v) // 2], 2) if v else None,
             "lag_max_s": round(v[-1], 2) if v else None}
 
