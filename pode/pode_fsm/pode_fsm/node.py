@@ -1,6 +1,7 @@
 # ---- Pode 상태 기계 ROS 노드 ----
 from __future__ import annotations
 
+import dataclasses
 import math
 import threading
 import time
@@ -32,9 +33,19 @@ from pode_fsm.costmap import Grid, obstacle_on, to_frame
 from pode_fsm.follow_ros import FollowPathRunner
 from pode_fsm.geometry import pose_here, quaternion_yaw
 from pode_fsm.local_yield import peers_from
+from pode_fsm.no_motion import (
+    BACKUP,
+    DOCK,
+    FOLLOW,
+    BackUpStub,
+    FollowStub,
+    NavGoalStub,
+    NoMotion,
+    NoMotionParams,
+)
 from pode_fsm.nav_goal import CancelNavGoal, SendNavGoal
 from pode_fsm.nav_goal_ros import NavGoalRunner
-from pode_fsm.obstacle_report import UNKNOWN, clear_answer, nearest_ahead
+from pode_fsm.obstacle_report import CLEAR, UNKNOWN, clear_answer, nearest_ahead
 from pode_fsm.order_fsm import OrderFsm
 from pode_fsm.order_ros import OrderMaps, OrderMarkers
 from pode_fsm.params_ros import declare_fsm_params
@@ -52,6 +63,15 @@ class PodeFsmNode(Node):
         super().__init__("pode_fsm", **kwargs)
         # ---- 노드 파라미터 선언 ----
         declare = self.declare_parameter
+        # TODO(no-motion): 실주행으로 돌아가면 no_motion:=false(기본)
+        no_motion = bool(declare("no_motion", False).value)
+        nm_defaults = NoMotionParams()
+        declare("no_motion_move_s", nm_defaults.move_s)
+        declare("no_motion_retreat_s", nm_defaults.retreat_s)
+        declare("no_motion_dock_s", nm_defaults.dock_s)
+        declare("initial_x", 0.12)
+        declare("initial_y", 0.10)
+        declare("initial_yaw", 1.5708)
         declare("robot_id", self.get_namespace().strip("/") or "pode1")
         declare("contract_file", "")
         declare("map_frame", "map")
@@ -79,6 +99,9 @@ class PodeFsmNode(Node):
         declare("keepout_mask_topic", "keepout_filter_mask")
         declare("order_markers_topic", "order_markers")
         fsm_params, order_params = declare_fsm_params(self)
+        if no_motion:
+            # 바퀴가 없으니 로봇단 교착 처리(후진 양보)는 끈다
+            fsm_params = dataclasses.replace(fsm_params, local_yield=False)
         # ---- 파라미터 읽기와 상태 기계, 주문 지도, 마커 만들기 ----
         get = self.get_parameter
         self.robot_id = get("robot_id").value
@@ -131,17 +154,12 @@ class PodeFsmNode(Node):
         if get("battery_topic").value:
             self.create_subscription(BatteryState, get("battery_topic").value,
                                      self._on_battery, qos_profile_sensor_data)
-        # ---- Nav2 액션 실행기, 서비스, 액션 서버 만들기 ----
-        self._follow = FollowPathRunner(
-            self, get("follow_path_action").value, self._map_frame, self._nav_ids,
-            self._through_id, self._reverse_id, get("free_heading_goal_checker_id").value,
-            self._on_follow_rejected,
-            self._on_follow_result, self._on_follow_cancel, callback_group=group)
-        self._backup = BackUpRunner(self, get("backup_action").value, self._on_backup_result,
-                                    callback_group=group)
-        self._goals = NavGoalRunner(self, get("navigate_to_pose_action").value, self._map_frame,
-                                    self._on_goal_feedback, self._on_goal_result,
-                                    self._on_goal_cancel, callback_group=group)
+        # ---- Nav2 액션 실행기(동작 없음이면 대역), 서비스, 액션 서버 만들기 ----
+        self._nm: NoMotion | None = None
+        if no_motion:
+            self._start_no_motion()
+        else:
+            self._start_runners(group)
         self._clear = self.create_client(ClearEntireCostmap, get("clear_costmap_service").value,
                                          callback_group=group)
         self.create_service(CheckClear, contract.name("check_clear", pode=self.robot_id),
@@ -153,7 +171,7 @@ class PodeFsmNode(Node):
         self.create_service(RobotCommand, contract.name("pode_charge_end", pode=self.robot_id),
                             self._on_charge_end, callback_group=group)
         self._servers = GoalServers(self, contract, self.robot_id, group, self._lock, self._fsm,
-                                    self._pose, self._run, lambda: self._alive)
+                                    self._pose, self._run, lambda: self._alive, self._nm)
         # ---- 제어, 상태, 마커 타이머 시작 ----
         steady = Clock(clock_type=ClockType.STEADY_TIME)
         self.create_timer(1.0 / float(get("control_rate_hz").value), self._tick,
@@ -162,7 +180,54 @@ class PodeFsmNode(Node):
                           callback_group=group, clock=steady)
         self.create_timer(MARKER_PERIOD_S, self._publish_markers, callback_group=group,
                           clock=steady)
-        self.get_logger().info(f"pode_fsm for {self.robot_id} ready")
+        mode = " (NO MOTION: goals succeed after a wait, nothing drives)" if no_motion else ""
+        self.get_logger().info(f"pode_fsm for {self.robot_id} ready{mode}")
+
+    def _start_runners(self, group) -> None:
+        get = self.get_parameter
+        self._follow = FollowPathRunner(
+            self, get("follow_path_action").value, self._map_frame, self._nav_ids,
+            self._through_id, self._reverse_id, get("free_heading_goal_checker_id").value,
+            self._on_follow_rejected,
+            self._on_follow_result, self._on_follow_cancel, callback_group=group)
+        self._backup = BackUpRunner(self, get("backup_action").value, self._on_backup_result,
+                                    callback_group=group)
+        self._goals = NavGoalRunner(self, get("navigate_to_pose_action").value, self._map_frame,
+                                    self._on_goal_feedback, self._on_goal_result,
+                                    self._on_goal_cancel, callback_group=group)
+
+    # ---- 동작 없음 대역 만들기 ----
+    # TODO(no-motion): 실주행으로 돌아가면 지운다
+    def _start_no_motion(self) -> None:
+        get = self.get_parameter
+        start = (get("initial_x").value, get("initial_y").value, get("initial_yaw").value)
+        self._nm = NoMotion(start, NoMotionParams(
+            move_s=float(get("no_motion_move_s").value),
+            retreat_s=float(get("no_motion_retreat_s").value),
+            dock_s=float(get("no_motion_dock_s").value)))
+        self._follow = FollowStub(self._nm, time.monotonic)
+        self._backup = BackUpStub(self._nm, time.monotonic)
+        self._goals = NavGoalStub(self._nm, time.monotonic)
+
+    # ---- 때가 된 대역 일을 Nav2 결과처럼 FSM에 알린다 ----
+    def _step_no_motion(self, now: float) -> None:
+        for job in self._nm.step(now):
+            if job.kind == DOCK:
+                if not job.canceled:
+                    self._run(self._fsm.dock_done(job.key))
+            elif job.kind == FOLLOW:
+                if job.canceled:
+                    self._on_follow_cancel(job.key)
+                self._on_follow_result(job.key, "canceled" if job.canceled else "succeeded",
+                                       0, False)
+            elif job.kind == BACKUP:
+                self._on_backup_result(job.key, "canceled" if job.canceled else "succeeded",
+                                       0, 0.0)
+            else:
+                if job.canceled:
+                    self._on_goal_cancel(job.key)
+                self._on_goal_result(job.key, "canceled" if job.canceled else "succeeded",
+                                     False)
 
     # ---- 노드 정지와 정리 ----
     def stop(self) -> None:
@@ -208,6 +273,9 @@ class PodeFsmNode(Node):
 
     # ---- TF로 로봇 위치와 코스트맵 변환 얻기 ----
     def _pose(self):
+        if self._nm is not None:
+            x, y, yaw = self._nm.pose
+            return (x, y, yaw, self.get_clock().now().to_msg())
         try:
             tf = self._tf.lookup_transform(self._map_frame, self._base_frame, Time())
         except TransformException:
@@ -246,6 +314,9 @@ class PodeFsmNode(Node):
         return (c * dx - s * dy, s * dx + c * dy)
 
     def _on_check_clear(self, request, response):
+        if self._nm is not None:
+            response.answer = CLEAR
+            return response
         costmap = self._costmap
         response.answer = UNKNOWN
         if costmap is not None:
@@ -279,7 +350,7 @@ class PodeFsmNode(Node):
     # ---- 경로 점에 장애물이 있는지 검사 ----
     def _obstacle(self, points) -> bool:
         costmap = self._costmap
-        if costmap is None or not points:
+        if self._nm is not None or costmap is None or not points:
             return False
         grid, frame, _ = costmap
         if frame and frame != self._map_frame:
@@ -394,6 +465,9 @@ class PodeFsmNode(Node):
             for seq in late_goal:
                 self._run(self._fsm.nav_goal_result(seq, "rejected", now, here))
             self._run(self._fsm.tick(now, here, self._speed, self._obstacle))
+            if self._nm is not None:
+                # heartbeat 끊김을 먼저 본 뒤에 끝난 대역 일을 알린다
+                self._step_no_motion(now)
             self._log_state()
 
     # ---- 복구 상태 변화 로그 ----

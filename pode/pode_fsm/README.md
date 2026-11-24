@@ -66,6 +66,18 @@ ros2 launch pode_fsm pode_fsm.launch.py namespace:=pode1
 
 Gazebo에서 Pode 한 대를 Nav2와 함께 돌리는 방법은 `sim/fleet_gz_sim/README.md`.
 
+### 동작 없음(설계 4.5, 임시)
+
+```bash
+ros2 launch pode_fsm pode_fsm.launch.py namespace:=pode1 no_motion:=true \
+    initial_x:=0.12 initial_y:=0.10 initial_yaw:=1.5708
+```
+
+`no_motion:=true`(기본 `false`)면 Nav2 없이 혼자 돈다. FSM은 그대로 두고 Nav2 액션만 대역(`no_motion.py`)으로 바꾼다:
+move_to는 `no_motion_move_s`(2.0 s), retreat은 `no_motion_retreat_s`(2.0 s), dock은 `no_motion_dock_s`(3.0 s) 뒤 성공하고,
+자세는 그때 목표로 한 번에 옮긴다. check_clear는 늘 `clear`, 상태는 기본 5 Hz, heartbeat가 1.5 s 끊기면 하던 목표를
+`HEARTBEAT_LOST`로 끝내고 선다. 실주행으로 돌아가면 `no_motion`을 빼면 된다(코드는 `TODO(no-motion)`).
+
 ## 시험
 
 ```bash

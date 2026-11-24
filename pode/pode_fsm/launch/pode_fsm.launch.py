@@ -3,6 +3,11 @@
   ros2 launch pode_fsm pode_fsm.launch.py namespace:=pode1
 
 namespace가 robot_id가 된다. TF는 Nav2와 같이 namespace의 tf, tf_static을 쓴다.
+
+동작 없음(설계 4.5): no_motion:=true면 Nav2 없이 혼자 돈다. 목표는 정해진 시간 뒤 성공하고
+자세는 목표로 옮긴다. 시작 자세는 initial_x/y/yaw.
+
+  ros2 launch pode_fsm pode_fsm.launch.py namespace:=pode1 no_motion:=true
 """
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument
@@ -33,6 +38,16 @@ def generate_launch_description():
         DeclareLaunchArgument("battery_topic", default_value="",
                               description="BatteryState 토픽(percentage 0~1). 비면 배터리를"
                                           " 모름(-1)으로 알린다. 시뮬은 시뮬 배터리를 준다"),
+        # TODO(no-motion): 실주행으로 돌아가면 no_motion은 기본(false) 그대로 둔다
+        DeclareLaunchArgument("no_motion", default_value="false",
+                              description="true면 주행하지 않고 정해진 시간 뒤 목표를 성공시키고"
+                                          " 자세를 목표로 옮긴다(설계 4.5)"),
+        DeclareLaunchArgument("initial_x", default_value="0.12",
+                              description="no_motion일 때 시작 자세 x(m)"),
+        DeclareLaunchArgument("initial_y", default_value="0.10",
+                              description="no_motion일 때 시작 자세 y(m)"),
+        DeclareLaunchArgument("initial_yaw", default_value="1.5708",
+                              description="no_motion일 때 시작 방향(rad)"),
         Node(
             package="pode_fsm", executable="pode_fsm_node", name="pode_fsm",
             namespace=namespace, output="screen",
@@ -50,6 +65,11 @@ def generate_launch_description():
                     LaunchConfiguration("horizon_cap_mps"), value_type=float),
                 "battery_topic": ParameterValue(
                     LaunchConfiguration("battery_topic"), value_type=str),
+                "no_motion": ParameterValue(LaunchConfiguration("no_motion"), value_type=bool),
+                "initial_x": ParameterValue(LaunchConfiguration("initial_x"), value_type=float),
+                "initial_y": ParameterValue(LaunchConfiguration("initial_y"), value_type=float),
+                "initial_yaw": ParameterValue(LaunchConfiguration("initial_yaw"),
+                                              value_type=float),
             }],
             remappings=[("/tf", "tf"), ("/tf_static", "tf_static")]),
     ])
