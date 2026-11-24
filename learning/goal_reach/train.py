@@ -1,8 +1,6 @@
-"""Train the Pinky goal-reach policy with rsl_rl PPO on Newton (headless).
+"""Pinky goal-reach 정책을 rsl_rl PPO 로 Newton 에서 학습한다 (headless, run_train.sh 참고).
 
-Run from D:\\isaac\\IsaacLab with the venv python (see run_train.sh). Writes into --out:
-metrics.csv (episode outcomes per iteration with wall time), model_*.pt, tensorboard events,
-run.json (settings and timing).
+--out 에 metrics.csv, model_*.pt, 텐서보드 이벤트, run.json 을 쓴다.
 """
 
 import argparse
@@ -13,7 +11,7 @@ import time
 
 import warp as wp
 
-wp.config.enable_backward = False  # as Isaac Lab's train.py: skip adjoint kernels
+wp.config.enable_backward = False  # Isaac Lab train.py 와 같이 adjoint 커널 생략
 
 from isaaclab.app import add_launcher_args, launch_simulation  # noqa: E402
 

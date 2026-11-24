@@ -1,14 +1,7 @@
-"""Evaluate a trained store-arena policy (deterministic: action mean), headless.
+"""학습한 매장 아레나 정책을 평가한다 (결정적, headless).
 
-Every env runs until it has finished --episodes episodes; the outcomes of those episodes are
-counted, also split by the number of obstacle boxes on the route and by how close the robot came
-to a mover (smallest gap between the robot centre and a mover surface in the episode).
-Trajectories of the first --track envs are saved to rollouts.npz with their routes and movers
-(plot_arena.py traj / anim draw them).
-
-Run from D:\\isaac\\IsaacLab with the venv python, e.g.
-  .venv/Scripts/python.exe <repo>/learning/store_arena/play.py \\
-    --checkpoint <run>/c4/model_999.pt --out <dir> --viz none
+모든 env 가 --episodes 개를 끝낼 때까지 돌려 결과를 세고 박스 수, mover 접근 거리별로도 나눈다.
+앞쪽 --track 개 env 의 궤적은 rollouts.npz 로 저장한다 (plot_arena.py traj / anim).
 """
 
 import argparse
@@ -71,22 +64,21 @@ def main():
         routes = raw.routes
         n_boxes = torch.as_tensor(
             (~np.isnan(routes.obstacle_xy[..., 0])).sum(-1), device=raw.device
-        )  # per route
+        )  # 경로별
         n, E = args_cli.num_envs, args_cli.episodes
         ep_done = torch.zeros(n, dtype=torch.long, device=raw.device)
         keys = ("success", "collision", "oob", "timeout")
-        by_boxes = {}  # boxes on the route -> outcome counts
+        by_boxes = {}  # 경로의 박스 수 -> 결과 개수
         succ_times, succ_ratio, lidar_min = [], [], float("inf")
         K = min(args_cli.track, n)
         traj = {"xy": [], "done": [], "route": [], "cmd": [], "mover_xy": [], "mover_on": []}
-        traj.update(robot_xy=[], robot_on=[], outcome=[])  # outcome: keys index at done, else -1
-        traj.update(front_m=[])  # nearest lidar range within 30 deg of straight ahead
-        n_rays = raw.lidar_ranges().shape[1]  # rays from -180 deg: straight ahead is n_rays // 2
+        traj.update(robot_xy=[], robot_on=[], outcome=[])  # outcome: 끝난 스텝에 키 인덱스, 아니면 -1
+        traj.update(front_m=[])  # 정면 30 deg 이내 최소 라이다 거리
+        n_rays = raw.lidar_ranges().shape[1]  # 레이는 -180 deg 부터: 정면은 n_rays // 2
         front = slice(n_rays // 2 - n_rays // 12, n_rays // 2 + n_rays // 12 + 1)
-        # per counted episode: smallest mover gap, smallest scripted-robot gap, outcome index,
-        # what the collision is put down to
+        # 센 에피소드별: 최소 mover 간격, 최소 로봇 간격, 결과 인덱스, 충돌 원인
         gaps, rgaps, codes, hits = [], [], [], []
-        grazes, corners = [], []  # per counted episode: graze-only collision, corner start
+        grazes, corners = [], []  # 센 에피소드별: 스침 충돌만 여부, 코너 시작 여부
         obs = env.get_observations()
         route = raw.route.clone()
         step = 0
@@ -118,7 +110,7 @@ def main():
                 codes += code[counted].tolist()
                 s = raw.success & counted
                 succ_times += raw.last_ep_len_s[s].tolist()
-                # episode time vs the global path at full speed
+                # 에피소드 시간 vs 최고속도로 가는 전역 경로 시간
                 path_s = (
                     torch.as_tensor(routes.total, device=raw.device)[route[s]]
                     / arena.ts.ACTION_LIMITS.v_max
@@ -138,7 +130,7 @@ def main():
             ms_state = raw.mover_state()
             traj["mover_xy"].append(torch.stack([m[0][:K] for m in ms_state], 1).cpu().numpy())
             traj["mover_on"].append(torch.stack([m[3][:K] for m in ms_state], 1).cpu().numpy())
-            rb = raw.robot_state() or [(pos * 0 + 9.0, None, pos[:, 0] < -1)]  # none: one absent
+            rb = raw.robot_state() or [(pos * 0 + 9.0, None, pos[:, 0] < -1)]  # 없으면 부재 하나
             traj["robot_xy"].append(torch.stack([b[0][:K] for b in rb], 1).cpu().numpy())
             traj["robot_on"].append(torch.stack([b[2][:K] for b in rb], 1).cpu().numpy())
             route = raw.route.clone()
@@ -153,7 +145,7 @@ def main():
 
         def split_by_gap(g, none_label):
             bins = {none_label: np.isinf(g)}
-            edges = (-np.inf, 0.10, 0.25, 0.50, np.inf)  # below 0: centre inside a person
+            edges = (-np.inf, 0.10, 0.25, 0.50, np.inf)  # 0 미만: 중심이 사람 안
             for lo, hi in zip(edges[:-1], edges[1:], strict=True):
                 bins[f"gap {lo:.2f}-{hi:.2f} m"] = (g >= lo) & (g < hi) & ~np.isinf(g)
             out = {}
@@ -186,11 +178,11 @@ def main():
             },
             "by_mover_gap": by_gap,
             "by_robot_gap": split_by_gap(rgaps, "no robot"),
-            # nearest of walls/shelves, boxes, movers, robots to our robot centre at the collision
+            # 충돌 순간 로봇 중심에 가장 가까운 것 (벽/선반, 박스, mover, 로봇)
             "collisions_by_nearest": by_hit,
-            # collisions the contact sensor missed: footprint clearance <= graze_m
+            # 접촉 센서가 놓친 충돌: 발자국 여유 <= graze_m
             "collisions_graze_only": int(grazes.sum()),
-            # episodes started near a wall facing away from the path (corner_start_prob)
+            # 경로 반대쪽을 보고 벽 근처에서 시작한 에피소드 (corner_start_prob)
             "by_start": {"corner": rates_of(corners), "other": rates_of(~corners)},
             "success_time_s_mean": round(float(np.mean(succ_times)), 2) if succ_times else None,
             "success_time_s_p90": round(float(np.percentile(succ_times, 90)), 2)
@@ -205,9 +197,9 @@ def main():
         }
         tz = {k: np.stack(v) for k, v in traj.items()}
         tz.update(dt=raw.step_dt, node_xy=raw.graph.xy, node_names=np.array(raw.graph.names))
-        # each env's first E episodes: an env keeps running until all envs have E
+        # env 마다 첫 E 개 에피소드: env 는 모두가 E 개가 될 때까지 계속 돎
         rows = timeouts.classify(tz, raw.max_episode_length * raw.step_dt, max_episodes=E)
-        # timeouts of the tracked envs by what was near; alone ones are the policy's own
+        # 추적 env 의 시간초과를 주변 상황별로: alone 은 정책 자체 문제
         report["timeouts_tracked"] = {k: sum(r["kind"] == k for r in rows) for k in timeouts.KINDS}
         report["alone_timeouts"] = timeouts.alone_summary(tz, rows, max_episodes=E)
         with open(os.path.join(args_cli.out, "eval.json"), "w", encoding="utf-8") as f:

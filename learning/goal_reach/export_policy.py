@@ -1,41 +1,11 @@
-"""Package a trained goal-reach or store-arena policy for the Nav2 controller plugin FollowPathRL.
+"""학습한 정책을 Nav2 컨트롤러 플러그인 FollowPathRL 용으로 묶는다. --out 에 쓰는 것:
+  policy.onnx       관측 정규화 + MLP (행동 클램프 없음). --onnx 로 받은 파일 또는 체크포인트에서 내보낸 것
+  policy_spec.json  플러그인이 쓰는 값 전부 (관측 배치와 스케일, 라이다, 행동/변화율 한도, 목표 규칙)
+--fixtures <dir> 이면 pode_rl_controller 테스트용 일치 검증 파일도 쓴다:
+  obs_cases / action_cases / inference_cases / follow_cases .json
 
-Writes into --out:
-  policy.onnx       observation normalizer + MLP, no action clamp, as one file: the rsl_rl export
-                    given with --onnx (it keeps its weights in policy.onnx.data next to it), or,
-                    without --onnx, the same graph exported here from the checkpoint
-  policy_spec.json  every number the plugin needs, taken from task_spec: observation layout and
-                    scales, lidar ray layout, action limits and rate limits, control period; the
-                    goal rule the policy was trained with (--goal-rule) and where it came from
-and with --fixtures <dir> the parity fixtures read by pode_rl_controller's tests:
-  obs_cases.json        scan -> 360 training rays -> observation (scan_to_rays + build_observation)
-  action_cases.json     action sequences -> rate-limited (v, w) (action_to_target + rate_limit)
-  inference_cases.json  observations -> actions from the checkpoint in PyTorch
-  follow_cases.json     (goal rule lookahead) robot poses along paths -> progress index, lookahead
-                        point, goal distance and bearing, goal and velocity observation entries,
-                        from the training code: route_spec.follow (--route-spec) and task_spec
-
-The script also runs the exported ONNX in onnxruntime (python) on the inference cases and stops if
-it differs from PyTorch by more than INFER_ATOL.
-
-Needs torch, onnx and onnxruntime (Windows system python has all three; the Isaac venv has no
-onnxruntime). Run from the repo root, e.g.
-  python learning/goal_reach/export_policy.py \\
-    --onnx D:/isaac/runs/goal_reach/base_4096/play_final/policy.onnx \\
-    --checkpoint D:/isaac/runs/goal_reach/base_4096/model_299.pt \\
-    --out pode/pode_rl_controller/policies/goal_reach_base_4096 \\
-    --fixtures pode/pode_rl_controller/test/fixtures/goal_reach_base_4096
-The store-arena policy (route_spec.py taken from the commit it was trained at, e.g.
-git show <commit>:learning/store_arena/route_spec.py > <tmp>/route_spec.py):
-  python learning/goal_reach/export_policy.py \\
-    --checkpoint D:/isaac/runs/store_arena/ppo_g/c1/model_499.pt \\
-    --goal-rule lookahead --lookahead-m 0.40 --follow-window 20 --route-spec <tmp>/route_spec.py \\
-    --source-branch feat/store-arena-2026-11-21 --source-commit <commit> \\
-    --out pode/pode_rl_controller/policies/store_arena_4b \\
-    --fixtures pode/pode_rl_controller/test/fixtures/store_arena_4b
-
-JSON has no inf / nan: the fixtures write them as the YAML strings ".inf", "-.inf", ".nan", which
-yaml-cpp (the plugin's reader; JSON is YAML) turns back into floats.
+내보낸 ONNX 를 onnxruntime 으로 돌려 PyTorch 와 INFER_ATOL 이상 다르면 멈춘다.
+torch, onnx, onnxruntime 이 필요하다. JSON 에 inf/nan 이 없어 픽스처는 YAML 문자열(".inf", ".nan")로 쓴다.
 """
 
 import argparse
@@ -54,20 +24,16 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 import task_spec as ts  # noqa: E402
 
-SPEC_FORMAT = 2  # 2: goal rule (path_end | lookahead) and the policy's origin
-# float32 MLP 41-128-128-2: summation order differs between PyTorch and onnxruntime, so the two
-# agree to float32 rounding (eps 1.2e-7) times the size of the sums, not exactly. Pass when
-# |onnx - torch| <= INFER_ATOL + INFER_RTOL * |torch| (numpy.allclose). Inside the training range
-# the actions are O(1) and the bound is about 2e-5, 3e-6 m/s of v after the action mapping. Off the
-# training range the normalizer blows inputs up (empty-floor lidar sectors have std ~0) and actions
-# reach ~100 before the clamp; the relative term (about 80 float32 steps) covers those.
+SPEC_FORMAT = 2  # 2: 목표 규칙(path_end | lookahead)과 정책 출처 포함
+# float32 MLP 41-128-128-2: PyTorch 와 onnxruntime 은 합산 순서가 달라 float32 반올림 수준으로만 같다.
+# |onnx - torch| <= INFER_ATOL + INFER_RTOL * |torch| 이면 통과 (학습 범위 밖에서는 행동이 커져 상대 오차 항이 필요).
 INFER_ATOL = 1e-5
 INFER_RTOL = 1e-5
-NORMALIZER_EPS = 1e-2  # rsl_rl EmpiricalNormalization default: (x - mean) / (std + eps)
+NORMALIZER_EPS = 1e-2  # rsl_rl 기본: (x - mean) / (std + eps)
 
 
 def obs_layout() -> list[str]:
-    """Names of the observation entries in order, as task_spec.build_observation builds them."""
+    """task_spec.build_observation 순서의 관측 항목 이름."""
     return [f"lidar_sector_{i}" for i in range(ts.OBS_LIDAR)] + [
         "goal_dist",
         "goal_sin",
@@ -106,14 +72,10 @@ def make_spec(source: dict, goal_rule: dict) -> dict:
 
 
 def scan_to_rays(ranges, angle_min, angle_inc, range_min, range_max, lidar_yaw, spec=ts.SPEC):
-    """LaserScan -> the 360 training rays (ray k points at -180 + k deg in the base frame).
+    """LaserScan 을 학습 레이 360 개로 바꾼다 (레이 k 는 base 프레임 -180 + k deg).
 
-    The plugin's definition, written here as the reference for its C++ copy: ray k takes the scan
-    beam nearest in angle (beam i points at lidar_yaw + angle_min + i * angle_inc in the base
-    frame). A ray past the last beam wraps to beam 0 when within half a step of it, else it has no
-    data. No data, non-finite, below range_min or above range_max all mean "no return" and become
-    lidar_obs_max, as the Newton lidar's inf does in training. Ranges are kept as measured from
-    the lidar centre, as in training (both lidars sit at the same place on the robot)."""
+    가장 가까운 각도의 빔을 쓰고, 마지막 빔을 넘으면 반 스텝 이내일 때 빔 0 으로 이어진다.
+    데이터 없음/비유한/범위 밖은 모두 lidar_obs_max 로 둔다 (플러그인 C++ 복사본의 기준)."""
     n = len(ranges)
     out = np.empty(spec.lidar_rays)
     two_pi = 2.0 * math.pi
@@ -141,12 +103,11 @@ def enc(x: float):
 def obs_cases(rng) -> list[dict]:
     cases = []
     layouts = [
-        # Gazebo pode_sim: 640 beams over [-pi, pi] (first and last beam coincide), rplidar_link
-        # turned by pi
+        # Gazebo pode_sim: 빔 640 개 [-pi, pi], rplidar_link 가 pi 돌아감
         (640, -math.pi, 2 * math.pi / 639, 0.05, 12.0, math.pi),
-        # the training layout itself: the mapping must be the identity
+        # 학습 배치 그대로: 매핑이 항등이어야 함
         (360, -math.pi, 2 * math.pi / 360, 0.05, 12.0, 0.0),
-        # a partial, offset scan: some rays have no beam
+        # 일부만 있고 어긋난 스캔: 빔이 없는 레이 존재
         (500, -2.5, 4.8 / 499, 0.1, 8.0, 0.3),
     ]
     for n, amin, ainc, rmin, rmax, yaw in layouts:
@@ -216,15 +177,13 @@ def torch_policy(checkpoint: str):
 def load_route_spec(path: str):
     spec = importlib.util.spec_from_file_location("route_spec", path)
     mod = importlib.util.module_from_spec(spec)
-    sys.modules["route_spec"] = mod  # its dataclasses look their module up
+    sys.modules["route_spec"] = mod  # 모듈 안 dataclass 가 자기 모듈을 찾음
     spec.loader.exec_module(mod)
     return mod
 
 
 def follow_paths(rng) -> dict:
-    """Paths in their own frame, before a random placement: points every `step` m with a little
-    jitter (a planner's path is never evenly spaced, and exact spacing would put the lookahead
-    target on a float tie)."""
+    """각 경로를 자기 프레임에서, 간격 step m 에 약간의 흔들림을 줘서 만든다 (등간격이면 lookahead 가 동률이 됨)."""
 
     def line(n, step):
         return np.stack((np.arange(n) * step, np.zeros(n)), -1)
@@ -240,8 +199,7 @@ def follow_paths(rng) -> dict:
 
 
 def follow_cases(rng, route_spec, lookahead: float, window: int) -> list[dict]:
-    """Robot poses walked along each path (with sideways error, one jump past the follow window,
-    then standing at the end), fed through route_spec.follow step by step as the env does."""
+    """경로를 따라 로봇 자세를 걸려(옆 오차, follow 창 밖 점프, 끝에서 정지) route_spec.follow 에 스텝별로 넣는다."""
     cases = []
     for name, p0 in follow_paths(rng).items():
         th = float(rng.uniform(-math.pi, math.pi))
@@ -252,7 +210,7 @@ def follow_cases(rng, route_spec, lookahead: float, window: int) -> list[dict]:
         n = len(path)
         along = list(range(0, n, 3)) + [n - 1] * 3
         if n > window + 10:
-            along.insert(4, along[3] + window + 6)  # the progress index moves at most window
+            along.insert(4, along[3] + window + 6)  # 진행 인덱스는 window 이내로만 움직임
         prog = torch.zeros(1, dtype=torch.long)
         steps = []
         for i in along:
@@ -294,7 +252,7 @@ def follow_cases(rng, route_spec, lookahead: float, window: int) -> list[dict]:
 
 
 class CheckpointPolicy(torch.nn.Module):
-    """The rsl_rl actor graph: (obs - mean) / (std + eps), then the ELU MLP, no action clamp."""
+    """rsl_rl actor 그래프: (obs - mean) / (std + eps), ELU MLP, 행동 클램프 없음."""
 
     def __init__(self, checkpoint: str):
         super().__init__()
@@ -325,11 +283,10 @@ def export_from_checkpoint(checkpoint: str, path: str) -> None:
 
 
 def inference_obs(rng, n: int) -> np.ndarray:
-    """Observations in the ranges the policy sees: sectors in (0, 1], goal dist in [0, 1], a unit
-    bearing vector, v in [-0.2, 1], w in [-1, 1]; the last few are out-of-range extremes."""
+    """정책이 보는 범위의 관측: 섹터 (0, 1], 목표 거리 [0, 1], 단위 방위, v [-0.2, 1], w [-1, 1]; 끝 몇 개는 범위 밖 극단값."""
     obs = np.empty((n, ts.OBS_DIM), dtype=np.float32)
     obs[:, : ts.OBS_LIDAR] = rng.uniform(0.025, 1.0, (n, ts.OBS_LIDAR))
-    obs[: n // 2, : ts.OBS_LIDAR] = 1.0  # empty floor: most sectors see nothing
+    obs[: n // 2, : ts.OBS_LIDAR] = 1.0  # 빈 바닥: 대부분 섹터가 아무것도 못 봄
     obs[:, ts.OBS_LIDAR] = rng.uniform(0.0, 1.0, n)
     ang = rng.uniform(-math.pi, math.pi, n)
     obs[:, ts.OBS_LIDAR + 1] = np.sin(ang)
@@ -370,7 +327,7 @@ def main():
     out_onnx = os.path.join(args.out, "policy.onnx")
     if not args.onnx:
         export_from_checkpoint(args.checkpoint, out_onnx)
-    model = onnx.load(args.onnx or out_onnx)  # also reads policy.onnx.data
+    model = onnx.load(args.onnx or out_onnx)  # policy.onnx.data 도 읽음
     onnx.checker.check_model(model)
     onnx.save(model, out_onnx, save_as_external_data=False)
     source = {

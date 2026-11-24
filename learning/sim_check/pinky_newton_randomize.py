@@ -1,11 +1,8 @@
-"""Check friction and mass randomization events on Newton with Pinky, inside a ManagerBasedEnv.
+"""ManagerBasedEnv 안 Pinky 로 Newton 의 마찰/질량 랜덤화 이벤트를 점검한다.
 
-Startup events: randomize_rigid_body_material on the wheel and caster shapes (friction range below),
-randomize_rigid_body_mass on base_link (scale 0.5-2.0). The values written into the Newton model are
-read back per env. Then every env runs the same command: 0.5 s still, step to 0.2 m/s for 2 s, step
-stop for 1 s, spin 1.0 rad/s for 2 s. Per env we record distance covered in the first 0.3 s of the
-step (traction-limited), steady speed, skid after the stop, and spin rate.
-Writes <tag>_per_env.csv and prints correlations.
+바퀴/캐스터 마찰과 base_link 질량(0.5-2.0 배)을 랜덤화하고 Newton 모델에 쓰인 값을 env 별로 읽어 온 뒤,
+모든 env 에 같은 명령을 주어 env 별 가속 거리, 정상 속도, 정지 후 미끄럼, 회전 속도를 잰다.
+<tag>_per_env.csv 를 쓰고 상관을 출력한다.
 """
 
 import argparse

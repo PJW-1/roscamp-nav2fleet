@@ -1,12 +1,7 @@
-"""Scripted fleet robots without a simulator (stage 4c): Pode-sized boxes that drive the fleet map's
-HALL node graph as fleet_manager routes do, wait for our robot, back off if both would wait for
-good, and the fleet intent (future route points) the observation gets.
+"""시뮬레이터 없이 쓰는 스크립트 플릿 로봇(4c): HALL 노드 그래프를 달리는 Pode 크기 박스.
 
-A robot's episode is a chain of routes: from a start node to a goal node by the shortest path over
-the map's `nav:` links (straight lines between nodes, as Nav2 goals between nodes), a pause at the
-goal, then the next route. All of it is laid out at reset as one polyline with vertex times, so the
-robot's position is a function of its own clock; waiting stops the clock and backing off runs it
-backwards.
+경로는 시작 노드에서 목표 노드까지 nav 링크 최단 경로이고, 목표에서 쉬고 다음 경로로 이어진다.
+리셋 때 꼭짓점 시간이 있는 폴리라인으로 깔아 두며, 기다림은 시계를 멈추고 후퇴는 거꾸로 돈다.
 """
 
 from dataclasses import dataclass
@@ -16,7 +11,7 @@ import torch
 from arena_spec import ts
 from mover_spec import MoverShape, point_segment_distance, surface_gap
 
-# Pode footprint (Gazebo nav_bench); a Pode drives at the one top speed (nav_speed.yaml)
+# Pode 발자국 (Gazebo nav_bench), 최고속도는 nav_speed.yaml
 ROBOT = MoverShape("robot", "box", (0.12, 0.112, 0.20), ts.NAV_SPEED_MPS)
 
 
@@ -24,14 +19,14 @@ ROBOT = MoverShape("robot", "box", (0.12, 0.112, 0.20), ts.NAV_SPEED_MPS)
 class NodeGraph:
     names: tuple[str, ...]
     xy: np.ndarray  # (K, 2)
-    path: np.ndarray  # (K, K, P, 2) shortest path a -> b, node points, padded with b
-    npts: np.ndarray  # (K, K) points used (1 when a == b)
+    path: np.ndarray  # (K, K, P, 2) a -> b 최단 경로 노드점, b 로 채움
+    npts: np.ndarray  # (K, K) 쓰인 점 수 (a == b 면 1)
     length: np.ndarray  # (K, K) m
-    path_node: np.ndarray  # (K, K, P) node index of each path point, padded with b
+    path_node: np.ndarray  # (K, K, P) 경로점의 노드 인덱스, b 로 채움
 
 
 def node_graph(site, zone: str = "HALL") -> NodeGraph:
-    """Nodes of `zone` that have a nav link, and the all-pairs shortest paths over those links."""
+    """zone 의 nav 링크가 있는 노드와 그 사이 모든 쌍 최단 경로."""
     links = [
         e for e in site.edges() if e.mode == "nav_goal"
         and site.nodes[e.a].zone == zone and site.nodes[e.b].zone == zone
@@ -76,7 +71,7 @@ def node_graph(site, zone: str = "HALL") -> NodeGraph:
 
 
 def graph_tensors(g: NodeGraph, device="cpu") -> dict:
-    """The graph arrays chain_route and sample_chains take, as tensors."""
+    """그래프 배열을 텐서로."""
     return {
         "xy": torch.as_tensor(g.xy, dtype=torch.float32, device=device),
         "path": torch.as_tensor(g.path, dtype=torch.float32, device=device),
@@ -88,16 +83,14 @@ def graph_tensors(g: NodeGraph, device="cpu") -> dict:
 def sample_chains(
     graph_t: dict, n: int, legs: int, banned: torch.Tensor, gen=None, start_banned=None
 ):
-    """Node indices (n, legs + 1) of a route chain per env: a start node and `legs` goals, each
-    different from the one before, none in `banned` (n, K) bool (our start and goal, other robots'
-    starts). Env rows where fewer than two nodes are allowed get a chain that stays on one node.
-    start_banned (n, K): further nodes the start may not be (where any other node is allowed)."""
+    """env 별 경로 체인의 노드 인덱스 (n, legs + 1): 시작과 목표 legs 개, 앞과 달라야 하고 banned (n, K) 는 제외.
+    허용 노드가 둘 미만인 행은 한 노드에 머무는 체인. start_banned (n, K) 는 시작에서만 추가 제외."""
     allowed = (~banned).float()
     w = allowed
     if start_banned is not None:
         ws = allowed * (~start_banned).float()
         w = torch.where(ws.sum(-1, keepdim=True) > 0, ws, allowed)
-    w = w + 1e-9 * (w.sum(-1, keepdim=True) == 0)  # multinomial needs a positive row
+    w = w + 1e-9 * (w.sum(-1, keepdim=True) == 0)  # multinomial 은 양수 행이 필요
     nodes = [torch.multinomial(w, 1, generator=gen)[:, 0]]
     for _ in range(legs):
         wl = allowed.clone()
@@ -109,27 +102,25 @@ def sample_chains(
 
 
 def chain_route(graph_t: dict, chain: torch.Tensor, speed: torch.Tensor, pause: torch.Tensor):
-    """Lay out route chains as polylines with vertex times.
-    chain (n, L+1) node indices, speed (n,) m/s, pause (n, L) s at each goal.
-    Returns dict: pts (n, V, 2), time (n, V) s, arc (n, V) m, leg_end_arc (n, V) m (arc length of
-    the end of the route a vertex belongs to: what fleet_manager knows of the route), V = 1 +
-    L * (P + 1). Each route is padded with its goal; one extra copy of the goal holds the pause."""
+    """경로 체인을 꼭짓점 시간이 있는 폴리라인으로 깐다.
+    chain (n, L+1) 노드, speed (n,) m/s, pause (n, L) s. 돌려주는 dict: pts, time, arc, leg_end_arc (경로 끝까지의 호장), V = 1 + L * (P + 1).
+    경로는 목표로 채우고 목표 사본 하나가 정지 시간을 담는다."""
     path = graph_t["path"]
     n, legs = chain.shape[0], chain.shape[1] - 1
     p = path.shape[2]
     pts = [graph_t["xy"][chain[:, 0]][:, None]]
     vnode = [chain[:, :1]]
     for leg in range(legs):
-        seg = path[chain[:, leg], chain[:, leg + 1]]  # (n, P, 2), starts at the leg's start node
+        seg = path[chain[:, leg], chain[:, leg + 1]]  # (n, P, 2), 구간 시작 노드부터
         pts.append(seg)
-        pts.append(seg[:, -1:])  # the pause copy
+        pts.append(seg[:, -1:])  # 정지용 사본
         if "path_node" in graph_t:
             sn = graph_t["path_node"][chain[:, leg], chain[:, leg + 1]]
             vnode += [sn, sn[:, -1:]]
-    pts = torch.cat(pts, 1)  # (n, 1 + L * (P + 1), 2); each leg repeats its start node first
+    pts = torch.cat(pts, 1)  # (n, 1 + L * (P + 1), 2)
     step = (pts[:, 1:] - pts[:, :-1]).norm(dim=-1)  # (n, V - 1)
     dt = step / speed[:, None].clamp(min=1e-6)
-    pause_slot = torch.arange(1, legs + 1, device=chain.device) * (p + 1)  # index of the copy
+    pause_slot = torch.arange(1, legs + 1, device=chain.device) * (p + 1)  # 사본 인덱스
     dt[:, pause_slot - 1] += pause
     z = torch.zeros(n, 1, device=chain.device)
     time = torch.cat((z, dt.cumsum(-1)), -1)
@@ -146,12 +137,12 @@ def chain_route(graph_t: dict, chain: torch.Tensor, speed: torch.Tensor, pause: 
         "leg_end_arc": leg_end_arc,
         "heading": route_heading(pts),
     }
-    if "path_node" in graph_t:  # node bookkeeping for the node reservation rule
-        vnode = torch.cat(vnode, 1)  # (n, V) node of every vertex
+    if "path_node" in graph_t:  # 노드 예약 규칙용 노드 정보
+        vnode = torch.cat(vnode, 1)  # (n, V) 꼭짓점별 노드
         goal_of = torch.cat((chain[:, :1], chain[:, 1:][:, leg_of[1:]]), 1)
         is_goal = vnode == goal_of
-        is_goal[:, 0] = False  # the start node is not a goal
-        # node of the first later vertex at another place (-1: none), for passing through
+        is_goal[:, 0] = False  # 시작 노드는 목표 아님
+        # 다음에 다른 위치가 되는 첫 꼭짓점의 노드 (-1: 없음), 통과용
         moved = (pts[:, 1:] - pts[:, :-1]).norm(dim=-1) > 1e-6  # (n, V - 1)
         nxt = torch.full_like(vnode, -1)
         for v in range(vnode.shape[1] - 2, -1, -1):
@@ -161,15 +152,12 @@ def chain_route(graph_t: dict, chain: torch.Tensor, speed: torch.Tensor, pause: 
 
 
 def route_nodes_held(node_arc: torch.Tensor, done_arc: torch.Tensor, release_m: float):
-    """(n, K) nodes our robot holds: node_arc (n, K) path length at which its route passes each
-    node (inf: it does not), done_arc (n,) path length behind it."""
+    """(n, K) 우리 로봇이 잡은 노드: node_arc (n, K) 경로가 노드를 지나는 호장 (inf: 안 지남), done_arc (n,) 지나온 길이."""
     return torch.isfinite(node_arc) & (node_arc + release_m > done_arc[:, None])
 
 
 def robot_nodes(route: dict, t: torch.Tensor):
-    """Nodes a robot holds at clock t, each (n,), -1 for none: the node it is at or last left;
-    the end of the link it is driving; and when it only passes that end (no goal), the node after
-    it, so it never has to stop on a node it passes (robot_step lets it in only when free)."""
+    """시계 t 에서 로봇이 잡은 노드 (n,) 각 -1 은 없음: 있는 곳/떠난 곳, 가는 링크 끝, 목표가 아니면 그 다음 노드."""
     _, i = _interp(route["time"], t, route["arc"][..., None])
     rows = torch.arange(len(t), device=t.device)
     moving = (route["pts"][rows, i] - route["pts"][rows, i - 1]).norm(dim=-1) > 1e-6
@@ -182,8 +170,7 @@ def robot_nodes(route: dict, t: torch.Tensor):
 
 
 def _interp(xs: torch.Tensor, x: torch.Tensor, ys: torch.Tensor):
-    """Piecewise-linear ys(x) per row; xs (n, V) nondecreasing, x (n,), ys (n, V, D) -> (n, D),
-    and the index i of the segment's end vertex (n,)."""
+    """행별 구간선형 보간 ys(x): xs (n, V), x (n,), ys (n, V, D) -> (n, D) 와 끝 꼭짓점 인덱스 (n,)."""
     v = xs.shape[1]
     i = torch.searchsorted(xs.contiguous(), x[:, None].contiguous(), right=True)[:, 0]
     i = i.clamp(1, v - 1)
@@ -194,7 +181,7 @@ def _interp(xs: torch.Tensor, x: torch.Tensor, ys: torch.Tensor):
 
 
 def robot_pose(route: dict, t: torch.Tensor):
-    """Position (n, 2), yaw (n,) and arc length travelled (n,) at clock t (n,)."""
+    """시계 t 의 위치 (n, 2), yaw (n,), 이동 호장 (n,)."""
     ys = torch.cat((route["pts"], route["arc"][..., None]), -1)
     out, i = _interp(route["time"], t, ys)
     pos, arc = out[:, :2], out[:, 2]
@@ -203,8 +190,7 @@ def robot_pose(route: dict, t: torch.Tensor):
 
 
 def route_heading(pts: torch.Tensor) -> torch.Tensor:
-    """(n, V - 1) heading of each segment of pts (n, V, 2); a zero-length one keeps the heading
-    before it (leading ones take the first real heading)."""
+    """pts (n, V, 2) 구간별 진행 방향 (n, V - 1); 길이 0 은 앞 방향 유지."""
     d = pts[:, 1:] - pts[:, :-1]
     h = torch.atan2(d[..., 1], d[..., 0])
     moving = d.norm(dim=-1) > 1e-6
@@ -216,8 +202,7 @@ def route_heading(pts: torch.Tensor) -> torch.Tensor:
 
 
 def intent_points(route: dict, t: torch.Tensor, spacing_m: float, points: int) -> torch.Tensor:
-    """(n, points, 2) points 1..points * spacing_m ahead of the robot along its current route
-    (clamped at the route's goal: fleet_manager knows the route it gave, not the next one)."""
+    """로봇 앞 경로를 따라 1..points * spacing_m 지점 (n, points, 2), 목표에서 멈춤."""
     _, _, arc = robot_pose(route, t)
     ys = torch.cat((route["arc"][..., None], route["leg_end_arc"][..., None]), -1)
     out, _ = _interp(route["time"], t, ys)
@@ -246,24 +231,17 @@ def robot_step(
     blocked=None,
     node_m=0.12,
 ):
-    """One control step of a scripted robot's clock t, waiting time wait and backing-off time left
-    back (all (n,)). It waits while its next step would bring its centre within yield_m of our
-    robot's centre and closer (the Gazebo nav_bench robot waits at 0.25 m whatever its direction).
-    After waiting wait_s it backs off along its route: for backoff_s, or with retreat back to the
-    last route node at least 5 cm behind it; then drives on.
-    lock_m > 0: a link lock as fleet_manager's lanes. Before driving into the next link (crossing a
-    node) it waits at the node while our robot's centre is within lock_m of that link.
-    blocked (n, K) bool: node reservation as fleet_manager's. Nodes reserved by others may only be
-    driven through: before a link it waits at its node unless the link's end node is free, or is
-    not one of its goals and the node after it is free. Held at a link it waits on its node. Nor
-    does it yield within node_m of a taken node: it drives on and yields past it. Route vertices
-    must carry nodes (chain_route with graph_tensors).
-    Returns (t, wait, back)."""
+    """스크립트 로봇의 제어 한 스텝: 시계 t, 대기 시간 wait, 후퇴 남은 시간 back (모두 (n,)).
+
+    다음 스텝에 우리 로봇 중심과 yield_m 이내로 가까워지면 기다리고, wait_s 기다리면 경로를 따라 후퇴한 뒤 다시 간다.
+    lock_m > 0 이면 우리 로봇이 다음 링크에 가까울 때 노드에서 대기한다.
+    blocked (n, K) 는 fleet_manager 식 노드 예약: 예약된 노드는 지나가기만 하고 링크 끝이 비어야 들어간다.
+    경로 꼭짓점에 노드가 있어야 한다 (chain_route + graph_tensors). 반환 (t, wait, back)."""
     t_end = route["time"][:, -1]
     backing = back > 0
     direction = torch.where(backing, -1.0, 1.0)
     t1 = torch.minimum((t + direction * dt).clamp(min=0.0), t_end)
-    if retreat:  # stop at the node the retreat goes to
+    if retreat:  # 후퇴 목적지 노드에서 멈춤
         t1 = torch.where(backing, torch.maximum(t1, t - back), t1)
     p0, _, arc0 = robot_pose(route, t)
     p1, _, _ = robot_pose(route, t1)
@@ -274,7 +252,7 @@ def robot_step(
     _, i1 = _interp(route["time"], t1, route["arc"][..., None])
     a, b = route["pts"][rows, i1 - 1], route["pts"][rows, i1]
     moving = (b - a).norm(dim=-1) > 1e-6
-    entering = t <= route["time"][rows, i1 - 1] + 1e-6  # at or before the link's first node
+    entering = t <= route["time"][rows, i1 - 1] + 1e-6  # 링크 첫 노드 이전
     if lock_m > 0:
         d = point_segment_distance(our_xy, a[:, None], b[:, None])[:, 0]
         locked = ~backing & entering & moving & (d < lock_m)
@@ -289,28 +267,28 @@ def robot_step(
         no_stop = end_taken & (route["is_goal"][rows, i1] | (after < 0) | taken(after))
         res = ~backing & entering & moving & no_stop
         locked = locked | res
-        # a step that would cross the node stops on it, not just short of it
+        # 노드를 넘을 스텝은 바로 앞이 아니라 노드에서 멈춤
         t_lock = torch.where(res, route["time"][rows, i1 - 1], t)
-        # no yield stop within node_m of a node someone else holds
+        # 남이 잡은 노드 node_m 이내에서는 양보 정지 안 함
         _, i0 = _interp(route["time"], t, route["arc"][..., None])
         on_taken = torch.zeros_like(held)
         for v in (i0 - 1, i0):
             near = (p0 - route["pts"][rows, v]).norm(dim=-1) < node_m
             on_taken = on_taken | (near & taken(route["vnode"][rows, v]))
         held = held & ~on_taken
-    held = held & ~locked  # a lock wait is not a yield wait: it never starts a back-off
+    held = held & ~locked  # 잠금 대기는 양보 대기가 아님: 후퇴를 시작하지 않음
     wait = torch.where(held, wait + dt, torch.where(locked, wait, torch.zeros_like(wait)))
     start_back = held & (wait >= wait_s)
     t_old = t
     t = torch.where(locked, t_lock, torch.where(held, t, t1))
-    if retreat:  # back to the last vertex at least 5 cm of route behind
+    if retreat:  # 경로상 5 cm 이상 뒤의 마지막 꼭짓점으로
         behind = route["arc"] <= (arc0 - 0.05)[:, None]
-        k = (behind.long().cumsum(-1) * behind).argmax(-1)  # last True (0 if none)
+        k = (behind.long().cumsum(-1) * behind).argmax(-1)  # 마지막 True (없으면 0)
         target = torch.where(behind.any(-1), route["time"].gather(1, k[:, None])[:, 0], 0.0)
         new_back = (t - target).clamp(min=0.0)
     else:
         new_back = torch.full_like(back, backoff_s)
-    # a retreat ends at its node, however long our robot holds it on the way
+    # 후퇴는 우리 로봇이 길을 잡고 있어도 자기 노드에서 끝남
     used = (t_old - t).clamp(min=0.0) if retreat else torch.full_like(back, dt)
     back = torch.where(start_back, new_back, (back - used).clamp(min=0.0))
     wait = torch.where(start_back, torch.zeros_like(wait), wait)
@@ -318,12 +296,12 @@ def robot_step(
 
 
 def robot_gap(our_xy: torch.Tensor, pos: torch.Tensor, yaw: torch.Tensor) -> torch.Tensor:
-    """(n,) our robot centre to the scripted robot's box surface."""
+    """(n,) 우리 로봇 중심에서 스크립트 로봇 박스 표면까지 거리."""
     return surface_gap(ROBOT, our_xy, pos, yaw)
 
 
 def to_body(points: torch.Tensor, xy: torch.Tensor, yaw: torch.Tensor) -> torch.Tensor:
-    """points (n, ..., 2) in the env frame -> our robot frame (x forward, y left)."""
+    """env 프레임 점 (n, ..., 2) 을 우리 로봇 프레임 (x 앞, y 왼쪽) 으로."""
     d = points - xy.view(-1, *([1] * (points.dim() - 2)), 2)
     c = torch.cos(yaw).view(-1, *([1] * (points.dim() - 2)))
     s = torch.sin(yaw).view(-1, *([1] * (points.dim() - 2)))

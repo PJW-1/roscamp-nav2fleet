@@ -1,9 +1,6 @@
 #!/usr/bin/env bash
-# Train the goal-reach policy headless on Newton and log GPU memory next to it.
-# Usage: bash learning/goal_reach/run_train.sh <out_dir> [num_envs] [max_iterations] [extra train.py args...]
-# e.g.   bash learning/goal_reach/run_train.sh /d/isaac/runs/goal_reach/base 4096 300
-#        bash learning/goal_reach/run_train.sh /d/isaac/runs/goal_reach/wtime 4096 300 --set w_time=-0.1
-# Uses the Isaac Lab venv python directly (no `uv run`: see learning/sim_check/README.md).
+# goal-reach 정책을 Newton 에서 headless 로 학습하고 GPU 메모리를 함께 기록한다.
+# 사용: bash learning/goal_reach/run_train.sh <out_dir> [num_envs] [max_iterations] [train.py 추가 인자...]
 set -u
 OUT=${1:?out dir}
 N=${2:-4096}
