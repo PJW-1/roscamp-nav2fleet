@@ -642,3 +642,21 @@ def test_nav_rl_is_off_by_default_and_a_wrong_choice_stops_the_launch(made):
             "controller_plugins"]
     with pytest.raises(ValueError, match="nav_rl"):
         run(made, nav_rl="mppi")
+
+
+def test_nav_rl_appends_to_the_users_controller_list_once(made, tmp_path):
+    mine = tmp_path / "mine.yaml"
+    listed = ["FollowPathGoal", "FollowPath", "FollowPathThrough", "FollowPathReverse"]  # 순서를 바꾼 목록
+    mine.write_text(yaml.safe_dump({"controller_server": {"ros__parameters": {
+        "controller_plugins": listed}}}), encoding="utf-8")
+    for nav in includes(run(made, nav_rl="rl_shim", nav_overrides=str(mine)), "nav2.launch.py"):
+        plugins = _controllers(launch_args(nav)["params_file"])["controller_plugins"]
+        assert plugins.count("FollowPathRL") == 1
+        assert [p for p in plugins if p not in ("FollowPathRL", "FollowPathMPPI")] == listed
+
+
+def test_nav_rl_does_not_let_a_users_plugin_swap_through(made, tmp_path):
+    extra = tmp_path / "bad.yaml"
+    extra.write_text(yaml.safe_dump(SWAP), encoding="utf-8")
+    with pytest.raises(ValueError, match="nav_overrides"):
+        run(made, nav_rl="rl_shim", nav_overrides=str(extra))

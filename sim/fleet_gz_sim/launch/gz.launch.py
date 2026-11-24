@@ -347,6 +347,12 @@ def _start(context):
     nav_overrides = overrides_of(value("nav_overrides"))
     rl = rl_overrides_of(value("nav_rl"))
     if rl is not None:
+        # 사용자가 controller 목록을 주었으면 그 목록 뒤에 FollowPathRL만 더한다
+        mine = ((nav_overrides or {}).get("controller_server") or {}).get(
+            "ros__parameters", {}).get("controller_plugins")
+        if mine is not None:
+            rl["controller_server"]["ros__parameters"]["controller_plugins"] = (
+                list(mine) + [name for name in ["FollowPathRL"] if name not in mine])
         nav_overrides = launch_parts.merge(nav_overrides or {}, rl)
     # low_battery가 있을 때만 pode_fsm이 sim_stand_in의 배터리를 본다
     battery = has_low_battery(data, scenario_seed)
