@@ -93,6 +93,17 @@ class ArenaSpec:
     corner_start_prob: float = 0.25
     corner_start_m: float = 0.17
     corner_yaw_jitter: float = 0.6
+    # ---- RL+shim 인계 시작 (RL 플러그인 트랙): 이 비율의 에피소드, 0 이면 뽑지 않음 ----
+    # handover_nodes 에서 나가는 경로 위에 서서(v 0) w0 = +-handover_w (경로 쪽 부호)로 돌며 시작
+    # 경로 대비 방향 오차: handover_normal_deg +- jitter (정상 인계) 또는 handover_cut_deg 균등
+    # (shim 회전 중 끊긴 인계)
+    handover_start_prob: float = 0.0
+    handover_nodes: str = "Q2,M_E,E-3"
+    handover_normal_deg: float = 21.0
+    handover_normal_jitter_deg: float = 5.0
+    handover_normal_share: float = 0.5  # 나머지는 끊긴 인계
+    handover_cut_deg: tuple[float, float] = (40.0, 160.0)
+    handover_w: tuple[float, float] = (0.5, 1.0)  # rad/s, 시작의 절반씩
     # ---- 스크립트 플릿 로봇 (4c, robot_spec): HALL 내비 그래프 경로 ----
     robot_max: int = 0  # 에피소드당 로봇 수, 0..robot_max 균등 (0: 4b 아레나)
     # 속도 배율은 1.0 이하 (Pode 최고속도 초과 불가)
@@ -240,14 +251,35 @@ def near_wall_starts(start_xy: torch.Tensor, rects: torch.Tensor, max_m: float) 
     return torch.sqrt(dx * dx + dy * dy).amin(-1) < max_m
 
 
-def away_heading(path: torch.Tensor, jitter: torch.Tensor, ahead_m: float = 0.1) -> torch.Tensor:
-    """경로 시작 방향의 반대 yaw (N,): pi + jitter 만큼 돌림."""
+def path_heading(path: torch.Tensor, ahead_m: float = 0.1) -> torch.Tensor:
+    """경로 (N, L, 2) 시작의 방향 (N,): ahead_m 이상 떨어진 첫 점 (없으면 끝점) 쪽."""
     d = path - path[:, :1]
     far = d.norm(dim=-1) >= ahead_m
     k = torch.where(far.any(-1), far.float().argmax(-1), torch.full_like(far[:, 0], -1).long())
     v = d[torch.arange(len(path), device=path.device), k]
-    yaw = torch.atan2(v[:, 1], v[:, 0]) + math.pi + jitter
+    return torch.atan2(v[:, 1], v[:, 0])
+
+
+def away_heading(path: torch.Tensor, jitter: torch.Tensor, ahead_m: float = 0.1) -> torch.Tensor:
+    """경로 시작 방향(path_heading)의 반대 yaw (N,): pi + jitter 만큼 돌림."""
+    yaw = path_heading(path, ahead_m) + math.pi + jitter
     return torch.atan2(torch.sin(yaw), torch.cos(yaw))
+
+
+def handover_start(path_dir: torch.Tensor, u: torch.Tensor, spec: ArenaSpec = ARENA):
+    """인계 시작의 yaw (N,) 와 초기 w (N,). u (N, 4) 는 [0, 1) 균등 값: 종류, 오차 크기, 오차 방향,
+    |w|.
+    w 는 로봇을 경로 쪽으로 돌림."""
+    normal = u[:, 0] < spec.handover_normal_share
+    j = math.radians(spec.handover_normal_jitter_deg)
+    err_n = math.radians(spec.handover_normal_deg) + (2 * u[:, 1] - 1) * j
+    lo, hi = (math.radians(d) for d in spec.handover_cut_deg)
+    err_c = lo + u[:, 1] * (hi - lo)
+    side = torch.where(u[:, 2] < 0.5, 1.0, -1.0)
+    err = side * torch.where(normal, err_n, err_c)
+    yaw = path_dir + err
+    w_mag = torch.where(u[:, 3] < 0.5, spec.handover_w[0], spec.handover_w[1])
+    return torch.atan2(torch.sin(yaw), torch.cos(yaw)), -side * w_mag
 
 
 def load_site(spec: ArenaSpec = ARENA):

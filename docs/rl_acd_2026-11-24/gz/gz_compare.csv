@@ -1,0 +1,11 @@
+scenario,metric,diff_acd2_minus_4b,se,fisher_p
+c_moving,success_pp,5.0,4.9,1.0
+c_moving,time_s (successful),-1.131,1.826,
+c_moving,flips_per_min,-17.703,2.826,
+c_moving,leg_min_clearance_m,0.001,0.008,
+c_moving,early_handovers,-0.35,0.365,
+q2e3,success_pp,5.0,4.9,1.0
+q2e3,time_s (successful),-2.944,1.28,
+q2e3,flips_per_min,-15.347,4.976,
+q2e3,leg_min_clearance_m,-0.018,0.007,
+q2e3,early_handovers,-0.7,0.489,

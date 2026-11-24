@@ -33,8 +33,28 @@ struct GoalRule
   int follow_window;
 };
 
+struct PrevActionSpec
+{
+  double v_scale;
+  double w_scale;
+};
+
+struct LidarHistorySpec
+{
+  int frames;
+  int stride_steps;
+};
+
+struct SpeedCapSpec
+{
+  double min;
+  double max;
+  double obs_scale;
+};
+
 struct PolicySpec
 {
+  int format;
   double control_dt;
   int obs_dim;
   int act_dim;
@@ -43,13 +63,29 @@ struct PolicySpec
   double success_radius;
   GoalRule goal_rule;
   ActionSpec action;
+  std::vector<std::string> obs_blocks;
+  PrevActionSpec prev_action;
+  LidarHistorySpec lidar_history;
+  SpeedCapSpec speed_cap;
+
+  bool has_block(const std::string & name) const;
 };
 
 std::vector<std::string> expected_obs_layout(int sectors);
+std::vector<std::string> expected_obs_layout(const PolicySpec & spec);
 PolicySpec load_policy_spec(const std::string & path);
 
 // ---- 주행 최고 속도의 단일 출처(pode_nav_config/params/nav_speed.yaml) ----
 double load_nav_speed(const std::string & path);
 std::string speed_mismatch(double policy_v_max, double nav_speed);
+
+// ---- 속도 상한 관측(format 3 speed_cap) ----
+struct SpeedCapValue
+{
+  double value;
+  std::string error;
+};
+
+SpeedCapValue speed_cap_value(double source, const SpeedCapSpec & cap);
 
 }  // namespace pode_rl_controller

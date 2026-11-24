@@ -1,0 +1,88 @@
+{
+ "format": 2,
+ "source": {
+  "checkpoint": "t_c/model_1197.pt",
+  "checkpoint_path": "D:/isaac/runs/store_arena/recipe/t_c/model_1197.pt",
+  "onnx_from": "export_policy.py torch.onnx.export",
+  "branch": "feat/recipe-2026-11-22",
+  "commit": "f178e50",
+  "onnx_opset": [
+   18
+  ],
+  "onnx_inputs": [
+   "obs"
+  ],
+  "onnx_outputs": [
+   "actions"
+  ],
+  "action_clamp_in_graph": false
+ },
+ "control_dt": 0.05,
+ "obs_dim": 41,
+ "act_dim": 2,
+ "obs_layout": [
+  "lidar_sector_0",
+  "lidar_sector_1",
+  "lidar_sector_2",
+  "lidar_sector_3",
+  "lidar_sector_4",
+  "lidar_sector_5",
+  "lidar_sector_6",
+  "lidar_sector_7",
+  "lidar_sector_8",
+  "lidar_sector_9",
+  "lidar_sector_10",
+  "lidar_sector_11",
+  "lidar_sector_12",
+  "lidar_sector_13",
+  "lidar_sector_14",
+  "lidar_sector_15",
+  "lidar_sector_16",
+  "lidar_sector_17",
+  "lidar_sector_18",
+  "lidar_sector_19",
+  "lidar_sector_20",
+  "lidar_sector_21",
+  "lidar_sector_22",
+  "lidar_sector_23",
+  "lidar_sector_24",
+  "lidar_sector_25",
+  "lidar_sector_26",
+  "lidar_sector_27",
+  "lidar_sector_28",
+  "lidar_sector_29",
+  "lidar_sector_30",
+  "lidar_sector_31",
+  "lidar_sector_32",
+  "lidar_sector_33",
+  "lidar_sector_34",
+  "lidar_sector_35",
+  "goal_dist",
+  "goal_sin",
+  "goal_cos",
+  "v",
+  "w"
+ ],
+ "lidar": {
+  "rays": 360,
+  "first_ray_deg": -180.0,
+  "ray_step_deg": 1.0,
+  "sectors": 36,
+  "min_range": 0.05,
+  "obs_max": 2.0
+ },
+ "goal": {
+  "obs_max": 3.0,
+  "success_radius": 0.05,
+  "rule": "lookahead",
+  "lookahead_m": 0.4,
+  "follow_window": 20
+ },
+ "action": {
+  "v_min": -0.05,
+  "v_max": 0.12,
+  "w_max": 1.0,
+  "acc_v": 2.0,
+  "acc_w": 2.0
+ }
+}

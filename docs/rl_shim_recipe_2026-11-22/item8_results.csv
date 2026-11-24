@@ -1,0 +1,26 @@
+controller,name,scenario,runs,successes,wall_obstacle_contacts,robot_contacts,timeouts,mean_time_s,p90_time_s,min_clearance_m
+FollowPathGoal,RPP,a_hall,6,6,0,0,0,14.1,15.6,0.092
+FollowPathGoal,RPP,c_moving,6,5,12,0,0,38.0,43.6,0.0
+FollowPathGoal,RPP,d_robot,6,6,0,0,0,15.5,20.9,0.044
+FollowPathGoal,RPP,e_corridor,6,6,0,0,0,13.4,13.8,0.077
+FollowPathGoal,RPP,q2e3,3,3,0,0,0,14.1,14.3,0.065
+FollowPathMPPI,MPPI,a_hall,6,6,0,0,0,13.9,15.7,0.088
+FollowPathMPPI,MPPI,c_moving,6,5,8,0,0,36.8,55.2,0.0
+FollowPathMPPI,MPPI,d_robot,6,6,0,0,0,17.1,19.4,0.038
+FollowPathMPPI,MPPI,e_corridor,6,6,0,0,0,13.8,14.3,0.067
+FollowPathMPPI,MPPI,q2e3,3,3,0,0,0,13.7,14.7,0.061
+FollowPathRLShim,RL+shim 4b,a_hall,6,6,0,0,0,12.6,12.8,0.097
+FollowPathRLShim,RL+shim 4b,c_moving,6,5,2,0,0,25.3,32.1,0.0
+FollowPathRLShim,RL+shim 4b,d_robot,6,6,0,0,0,13.1,15.8,0.031
+FollowPathRLShim,RL+shim 4b,e_corridor,6,6,0,0,0,12.8,12.9,0.074
+FollowPathRLShim,RL+shim 4b,q2e3,3,3,0,0,0,17.9,21.4,0.061
+FollowPathRLShimC,RL+shim c,a_hall,6,6,0,0,0,12.6,12.7,0.097
+FollowPathRLShimC,RL+shim c,c_moving,6,5,14,0,0,24.4,30.1,0.0
+FollowPathRLShimC,RL+shim c,d_robot,6,6,0,0,0,13.0,13.2,0.022
+FollowPathRLShimC,RL+shim c,e_corridor,6,6,0,0,0,12.6,12.8,0.074
+FollowPathRLShimC,RL+shim c,q2e3,3,3,0,0,0,14.9,16.5,0.062
+FollowPathRLShimACD,RL+shim acd,a_hall,6,6,0,0,0,12.5,12.7,0.095
+FollowPathRLShimACD,RL+shim acd,c_moving,6,4,11,0,0,26.8,33.0,0.0
+FollowPathRLShimACD,RL+shim acd,d_robot,6,6,0,0,0,12.5,12.7,0.029
+FollowPathRLShimACD,RL+shim acd,e_corridor,6,6,0,0,0,12.5,12.9,0.078
+FollowPathRLShimACD,RL+shim acd,q2e3,3,3,0,0,0,14.5,18.4,0.03

@@ -50,7 +50,7 @@ install(DIRECTORY policies DESTINATION share/${PROJECT_NAME})
 
 if(BUILD_TESTING)
   find_package(ament_cmake_gtest REQUIRED)
-  foreach(policy store_arena_4b)
+  foreach(policy store_arena_4b store_arena_c store_arena_acd)
     ament_add_gtest(test_parity_${policy} test/test_parity.cpp)
     target_link_libraries(test_parity_${policy} pode_rl_core)
     target_compile_definitions(test_parity_${policy} PRIVATE
@@ -64,6 +64,12 @@ if(BUILD_TESTING)
     FIXTURE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/test/fixtures/store_arena_4b"
     POLICY_DIR="${CMAKE_CURRENT_SOURCE_DIR}/policies/store_arena_4b"
     PATH_END_POLICY_DIR="${CMAKE_CURRENT_SOURCE_DIR}/test/fixtures/goal_reach_base_4096"
+    NAV_SPEED_FILE="${CMAKE_CURRENT_SOURCE_DIR}/../pode_nav_config/params/nav_speed.yaml")
+  ament_add_gtest(test_format3 test/test_format3.cpp)
+  target_link_libraries(test_format3 pode_rl_core)
+  target_compile_definitions(test_format3 PRIVATE
+    POLICY_DIR="${CMAKE_CURRENT_SOURCE_DIR}/policies/store_arena_4b"
+    FORMAT3_FIXTURE="${CMAKE_CURRENT_SOURCE_DIR}/test/fixtures/format3/format3_cases.json"
     NAV_SPEED_FILE="${CMAKE_CURRENT_SOURCE_DIR}/../pode_nav_config/params/nav_speed.yaml")
 endif()
 

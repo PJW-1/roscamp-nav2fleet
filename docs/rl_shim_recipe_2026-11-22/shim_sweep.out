@@ -1,0 +1,44 @@
+checkpoint vs store_arena_4b policy.onnx on 64 random obs: max |diff| 1.25e-06
+== Gazebo Q2->E-3 reproduction on the Gazebo plans
+  Gazebo leg 0: handover t 1.17 s at (1.660, 0.150, 0.67 rad), w 1.00, plan of t 1.02 s
+   shim nominal from Q2 yaw 0, noise 0: min body 0.062 m at t 2.35 s pose (1.660,0.150,+2.12 rad) to wall_south body pt (-0.074,+0.047); shim handover t 2.85 s yaw +2.62 rad w +1.00 err +0.38 rad
+   shim abort at 1.17 s from Q2 yaw 0, noise 0: min body 0.042 m at t 2.25 s pose (1.651,0.130,+2.02 rad) to wall_south body pt (-0.074,+0.047); shim handover t 1.20 s yaw +0.98 rad w +1.00 err +2.03 rad
+   policy from the Gazebo handover state, noise 0: min body 0.026 m at t 1.25 s pose (1.637,0.108,+1.76 rad) to wall_south body pt (-0.074,+0.047)
+   policy from the Gazebo handover state, lidar noise 0.02 m: min body 0.031 m at t 1.00 s pose (1.627,0.114,+0.68 rad) to wall_south body pt (-0.074,-0.047) [50 seeds: grazes 0, min 0.031, median 0.033]
+   policy from the Gazebo handover state with w 0, noise 0: min body 0.062 m at t 0.30 s pose (1.648,0.141,+0.57 rad) to wall_south body pt (-0.074,-0.047)
+   RL alone from Q2 yaw 0, noise 0: min body 0.082 m at t 20.35 s pose (0.665,0.182,+1.26 rad) to shelf_5 body pt (-0.074,+0.047)
+  Gazebo leg 1: handover t 0.42 s at (1.660, 0.150, 0.11 rad), w 0.54, plan of t 0.00 s
+   shim nominal from Q2 yaw 0, noise 0: min body 0.062 m at t 2.35 s pose (1.660,0.150,+2.12 rad) to wall_south body pt (-0.074,+0.047); shim handover t 2.75 s yaw +2.52 rad w +1.00 err +0.38 rad
+   shim abort at 0.42 s from Q2 yaw 0, noise 0: min body 0.068 m at t 1.05 s pose (1.632,0.139,+0.38 rad) to wall_south body pt (-0.074,-0.047); shim handover t 0.45 s yaw +0.23 rad w +0.90 err +2.68 rad
+   policy from the Gazebo handover state, noise 0: min body 0.084 m at t 20.30 s pose (0.668,0.183,+1.23 rad) to shelf_5 body pt (-0.074,+0.047)
+   policy from the Gazebo handover state, lidar noise 0.02 m: min body 0.085 m at t 17.90 s pose (0.773,0.220,-0.19 rad) to shelf_2 body pt (-0.074,+0.047) [50 seeds: grazes 0, min 0.085, median 0.086]
+   policy from the Gazebo handover state with w 0, noise 0: min body 0.084 m at t 20.30 s pose (0.667,0.184,+1.23 rad) to shelf_5 body pt (-0.074,+0.047)
+   RL alone from Q2 yaw 0, noise 0: min body 0.082 m at t 20.30 s pose (0.666,0.183,+1.23 rad) to shelf_5 body pt (-0.074,+0.047)
+  Gazebo leg 2: handover t 0.58 s at (1.660, 0.150, 0.17 rad), w 0.60, plan of t 0.00 s
+   shim nominal from Q2 yaw 0, noise 0: min body 0.062 m at t 2.35 s pose (1.660,0.150,+2.12 rad) to wall_south body pt (-0.074,+0.047); shim handover t 2.85 s yaw +2.62 rad w +1.00 err +0.37 rad
+   shim abort at 0.58 s from Q2 yaw 0, noise 0: min body 0.045 m at t 1.50 s pose (1.623,0.125,+0.57 rad) to wall_south body pt (-0.074,-0.047); shim handover t 0.60 s yaw +0.38 rad w +1.00 err +2.62 rad
+   policy from the Gazebo handover state, noise 0: min body 0.082 m at t 20.35 s pose (0.666,0.183,+1.23 rad) to shelf_5 body pt (-0.074,+0.047)
+   policy from the Gazebo handover state, lidar noise 0.02 m: min body 0.083 m at t 0.35 s pose (1.643,0.146,+0.24 rad) to wall_south body pt (-0.074,-0.047) [50 seeds: grazes 0, min 0.083, median 0.083]
+   policy from the Gazebo handover state with w 0, noise 0: min body 0.084 m at t 20.30 s pose (0.668,0.184,+1.23 rad) to shelf_5 body pt (-0.074,+0.047)
+   RL alone from Q2 yaw 0, noise 0: min body 0.082 m at t 20.30 s pose (0.666,0.183,+1.23 rad) to shelf_5 body pt (-0.074,+0.047)
+== RL alone: success 528/528, mean time 11.25 s, grazes (body <= 0.005 m) 0, contact (<= 0) 0, min body 0.010 m, handovers recorded 0
+   grazes by start node: {}
+
+== shim nominal: success 528/528, mean time 10.80 s, grazes (body <= 0.005 m) 0, contact (<= 0) 0, min body 0.031 m, handovers recorded 405
+   grazes by start node: {}
+
+== shim abort 0.25 s: success 528/528, mean time 11.19 s, grazes (body <= 0.005 m) 0, contact (<= 0) 0, min body 0.005 m, handovers recorded 399
+   grazes by start node: {}
+
+== shim abort 0.5 s: success 528/528, mean time 10.89 s, grazes (body <= 0.005 m) 0, contact (<= 0) 0, min body 0.008 m, handovers recorded 399
+   grazes by start node: {}
+
+== shim abort 0.75 s: success 528/528, mean time 10.63 s, grazes (body <= 0.005 m) 0, contact (<= 0) 0, min body 0.007 m, handovers recorded 399
+   grazes by start node: {}
+
+== shim abort 1.0 s: success 527/528, mean time 10.58 s, grazes (body <= 0.005 m) 1, contact (<= 0) 1, min body 0.000 m, handovers recorded 399
+   grazes by start node: {'M_E': 1}
+     M_E->E-3 start +90: min 0.000 at t 2.80 s pose (1.594,0.482,+94) to shelf_3 body pt (-0.074,+0.047); handover t 1.00 s yaw +46 w -1.00 err -109
+== shim abort 1.25 s: success 528/528, mean time 10.60 s, grazes (body <= 0.005 m) 0, contact (<= 0) 0, min body 0.009 m, handovers recorded 399
+   grazes by start node: {}
+
