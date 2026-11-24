@@ -62,6 +62,7 @@ Gazebo와 시험만 했다(실물·deploy 없음).
 
 - 관제도 함께 올려야 새 재시도 규칙이 선다. 로봇만 올리면 시작 때 LOCALIZING으로 goal은 막지만, 고정 뒤 서버가 사라져
   생긴 `NAV_UNAVAILABLE`을 옛 관제는 실패 시도로 센다. `fleet_interfaces`도 다시 빌드한다.
+- 팀 레포로 옮길 때: `REASON_NAV_UNAVAILABLE`은 `fleet_interfaces`(MoveTo.action) 변경이라 interfaces 담당의 확인이 필요하다.
 - 고정 뒤에는 준비를 다시 보지 않는다. 서버가 사라진 뒤 보내지 못한 goal은 `NAV_UNAVAILABLE`로 끝나고 관제가 세지 않으므로,
   그 재시도에는 한도가 없다(`GOAL_NAV_UNAVAILABLE`이 쌓인다).
 
