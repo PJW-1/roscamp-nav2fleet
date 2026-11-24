@@ -122,3 +122,19 @@
 - `s2_a1_C_rpp_v1`의 도착 지연 8.14 s(pode3, E-3): truth로 E-3 0.038 m 앞에서 5 s 서서 방향만 돌다가
   RECOVERING → BLOCKED를 거친 뒤 끝을 받았다. 11-18 도착 판정 문제와 같은 꼴이다. 3 s 묵은 경로 때문인지
   AMCL 오차 때문인지는 이 자료로 가를 수 없다.
+
+## A 위주로 바꿈, 실물 스위치, B 2회차 실패 (17:50~18:20)
+
+- 17:50 사용자: "우리는 거의 무조건 A 쪽으로 갈 것". 남은 큐를 A 먼저로 바꿨다(queue9): 1 cm A 러시 2회차 →
+  2.5 cm A 장애물·러시 각 2판과 2.5 cm 기준 2회차 → 1 cm 기준 2회차, 1 cm A 3회차 → B, C 러시 2회차 → 1단계 나머지.
+- 실물 키트에 A 스위치를 넣었다(50e0d13): `PLAN_KEEP=1 start.sh ...` → `real_pode.launch.py`의 `plan_keep`(기본 false)
+  → `nav2.launch.py`. `deploy.sh`가 `pode/pode_plan_keep`도 복사한다(pode_nav_config가 이미 exec_depend로 기대고 있었는데
+  복사 목록에 빠져 있었다). 실행하지 않았다(deploy, 로봇 접속 없음). Codex 검수 결함 없음.
+- `s2_a1_B_rpp_v2`(B, RPP, 장애물 판 2회차)는 sim 약 474 s에 `ROBOT_ISOLATED NAV_ABORTED`로 끝났다(summary 없음).
+  - pode2가 sim 462 s부터 (1.72, 0.36)에 멈춰, 0.22 m 앞 Q2로 가는 nav_goal을 세 번(461.0 s 갱신 뒤, 466.7 s, 473.6 s)
+    NAV_ABORTED로 끝냈다. 제자리에서 방향만 돌았다(yaw -1.8 ~ 0.16 rad).
+  - 위치 추정 오차는 2.4 cm 이하였다. 그 시간(460~475 s)에는 장애물 상자가 없고(v7_yard_mix: 480 s 주기, 370~430 s 다음은
+    540 s), 다른 로봇은 0.8 m 넘게 떨어져 있었다.
+  - NavFn이 goal 칸에 닿지 못할 때 tolerance 창을 훑으며 남기는 `worldToMap failed`가 pode2 planner에서만 5120줄 났다.
+  - 이 goal(P-1 쪽 follow_path 뒤 nav_goal Q2)은 B가 나누지 않았다. 원인 미확정. 전역 비용 지도에 남은 표시가 Q2와 로봇
+    사이를 막았을 수 있다(추측: 이 판의 bag에 costmap을 남기지 않아 확인하지 못했다).
