@@ -86,6 +86,10 @@ class _Runner:
     def __init__(self, nm: NoMotion, kind: str, clock):
         self._nm, self._kind, self._clock = nm, kind, clock
 
+    # 기다릴 서버가 없으니 늘 준비됨(LOCALIZING에 묶이지 않게)
+    def ready(self) -> bool:
+        return True
+
     def cancel_all(self) -> None:
         self._nm.cancel(self._kind)
 

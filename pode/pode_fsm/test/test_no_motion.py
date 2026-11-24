@@ -133,3 +133,13 @@ def test_known_dock_ids_give_no_warning_and_others_do():
     for bad in ("NOPE", "", "work"):
         msg = dock_warning(bad, P.dock_ids)
         assert msg is not None and repr(bad) in msg and "WORK" in msg
+
+
+def test_the_stand_ins_are_always_ready_so_the_fsm_leaves_localizing():
+    nm, clock = NoMotion((0.12, 0.10, math.pi / 2), P), Clock()
+    follow, goals = FollowStub(nm, clock), NavGoalStub(nm, clock)
+    assert follow.ready() and goals.ready() and BackUpStub(nm, clock).ready()
+    fsm = PodeFsm(FsmParams(heartbeat_timeout_s=0.0))
+    fsm.set_nav_ready(follow.ready() and goals.ready())
+    fsm.tick(0.0, (0.12, 0.10, math.pi / 2), (0.0, 0.0), lambda _p: False)
+    assert fsm.state() == IDLE
