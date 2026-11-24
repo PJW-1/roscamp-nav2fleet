@@ -116,9 +116,14 @@ std::vector<float> build_observation(
 // ---- 행동 -> (v, w), 가속 제한 ----
 Twist2 action_to_target(float a_v, float a_w, const ActionSpec & lim)
 {
+  return action_to_target(a_v, a_w, lim, lim.v_max);
+}
+
+Twist2 action_to_target(float a_v, float a_w, const ActionSpec & lim, double v_top)
+{
   const double av = std::clamp(static_cast<double>(a_v), -1.0, 1.0);
   const double aw = std::clamp(static_cast<double>(a_w), -1.0, 1.0);
-  return {lim.v_min + (av + 1.0) * 0.5 * (lim.v_max - lim.v_min), aw * lim.w_max};
+  return {lim.v_min + (av + 1.0) * 0.5 * (v_top - lim.v_min), aw * lim.w_max};
 }
 
 Twist2 block_reverse(
@@ -144,6 +149,66 @@ Twist2 rate_limit(const Twist2 & cmd, const Twist2 & target, double dt, const Ac
   const double sw = lim.acc_w * dt;
   return {cmd.v + std::clamp(target.v - cmd.v, -sv, sv),
     cmd.w + std::clamp(target.w - cmd.w, -sw, sw)};
+}
+
+// ---- format 3 관측 블록과 에피소드 기억 ----
+ObsMemory::ObsMemory(const PolicySpec & spec)
+: spec_(spec)
+{
+  if (spec_.has_block("lidar_history")) {
+    depth_ = static_cast<size_t>(
+      (spec_.lidar_history.frames - 1) * spec_.lidar_history.stride_steps);
+  }
+}
+
+void ObsMemory::reset()
+{
+  prev_ = {0.0, 0.0};
+  frames_.clear();
+}
+
+std::vector<float> ObsMemory::blocks(const std::vector<float> & sectors, double speed_cap) const
+{
+  std::vector<float> out;
+  for (const auto & block : spec_.obs_blocks) {
+    if (block == "prev_action") {
+      out.push_back(static_cast<float>(prev_.v / spec_.prev_action.v_scale));
+      out.push_back(static_cast<float>(prev_.w / spec_.prev_action.w_scale));
+    } else if (block == "lidar_history") {
+      const size_t stride = static_cast<size_t>(spec_.lidar_history.stride_steps);
+      for (int f = 1; f < spec_.lidar_history.frames; ++f) {
+        const size_t k = static_cast<size_t>(f) * stride - 1;
+        const auto & old = frames_.empty() ? sectors :
+          (k < frames_.size() ? frames_[k] : frames_.back());
+        out.insert(out.end(), old.begin(), old.end());
+      }
+    } else if (block == "speed_cap") {
+      out.push_back(static_cast<float>(speed_cap / spec_.speed_cap.obs_scale));
+    }
+  }
+  return out;
+}
+
+void ObsMemory::step(const std::vector<float> & sectors, const Twist2 & policy_target)
+{
+  prev_ = policy_target;
+  if (depth_ == 0) {
+    return;
+  }
+  frames_.push_front(sectors);
+  while (frames_.size() > depth_) {
+    frames_.pop_back();
+  }
+}
+
+bool memory_stale(bool policy_ran_before, double since_last_policy_s, double control_dt)
+{
+  return !policy_ran_before || since_last_policy_s > 2.0 * control_dt;
+}
+
+bool new_episode(bool had_plan, const Point2 & old_end, const Point2 & new_end)
+{
+  return !had_plan || std::hypot(new_end.x - old_end.x, new_end.y - old_end.y) > 1e-3;
 }
 
 }  // namespace pode_rl_controller

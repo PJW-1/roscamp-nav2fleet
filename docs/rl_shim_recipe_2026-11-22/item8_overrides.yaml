@@ -1,0 +1,82 @@
+# item 8 다섯 컨트롤러 비교: compare_012의 rl_and_shim.yaml에 같은 shim 설정으로 정책만 바꾼 둘을 더했다
+# (FollowPathRLShimC = store_arena_c, FollowPathRLShimACD = store_arena_acd).
+controller_server:
+  ros__parameters:
+    controller_plugins:
+    - FollowPath
+    - FollowPathThrough
+    - FollowPathReverse
+    - FollowPathGoal
+    - FollowPathMPPI
+    - FollowPathRL
+    - FollowPathRLShim
+    - FollowPathRLShimC
+    - FollowPathRLShimACD
+    FollowPathRL:
+      plugin: pode_rl_controller::FollowPathRL
+      policy: store_arena_4b
+      scan_topic: scan
+      scan_timeout: 0.5
+      transform_tolerance: 0.2
+      intra_op_threads: 1
+      rotate_gain: 1.5
+      log_period: 1.0
+      rear_stop_range: 0.0
+      rear_half_width_deg: 30.0
+    FollowPathRLShim:
+      plugin: nav2_rotation_shim_controller::RotationShimController
+      primary_controller: pode_rl_controller::FollowPathRL
+      angular_dist_threshold: 0.785
+      angular_disengage_threshold: 0.39
+      forward_sampling_distance: 0.15
+      rotate_to_heading_angular_vel: 1.0
+      max_angular_accel: 2.0
+      simulate_ahead_time: 1.0
+      rotate_to_goal_heading: true
+      policy: store_arena_4b
+      scan_topic: scan
+      scan_timeout: 0.5
+      transform_tolerance: 0.2
+      intra_op_threads: 1
+      rotate_gain: 1.5
+      log_period: 1.0
+      rear_stop_range: 0.0
+      rear_half_width_deg: 30.0
+    FollowPathRLShimC:
+      plugin: nav2_rotation_shim_controller::RotationShimController
+      primary_controller: pode_rl_controller::FollowPathRL
+      angular_dist_threshold: 0.785
+      angular_disengage_threshold: 0.39
+      forward_sampling_distance: 0.15
+      rotate_to_heading_angular_vel: 1.0
+      max_angular_accel: 2.0
+      simulate_ahead_time: 1.0
+      rotate_to_goal_heading: true
+      policy: store_arena_c
+      scan_topic: scan
+      scan_timeout: 0.5
+      transform_tolerance: 0.2
+      intra_op_threads: 1
+      rotate_gain: 1.5
+      log_period: 1.0
+      rear_stop_range: 0.0
+      rear_half_width_deg: 30.0
+    FollowPathRLShimACD:
+      plugin: nav2_rotation_shim_controller::RotationShimController
+      primary_controller: pode_rl_controller::FollowPathRL
+      angular_dist_threshold: 0.785
+      angular_disengage_threshold: 0.39
+      forward_sampling_distance: 0.15
+      rotate_to_heading_angular_vel: 1.0
+      max_angular_accel: 2.0
+      simulate_ahead_time: 1.0
+      rotate_to_goal_heading: true
+      policy: store_arena_acd
+      scan_topic: scan
+      scan_timeout: 0.5
+      transform_tolerance: 0.2
+      intra_op_threads: 1
+      rotate_gain: 1.5
+      log_period: 1.0
+      rear_stop_range: 0.0
+      rear_half_width_deg: 30.0

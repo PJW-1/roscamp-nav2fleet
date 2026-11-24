@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstddef>
+#include <deque>
 #include <vector>
 
 #include "pode_rl_controller/policy_spec.hpp"
@@ -50,9 +51,29 @@ std::vector<float> build_observation(
   const std::vector<float> & rays, double goal_dist, double goal_angle, double v, double w,
   const PolicySpec & spec);
 Twist2 action_to_target(float a_v, float a_w, const ActionSpec & lim);
+Twist2 action_to_target(float a_v, float a_w, const ActionSpec & lim, double v_top);
 Twist2 block_reverse(
   const Twist2 & target, const std::vector<float> & rays, double stop_range, double half_width_deg,
   const PolicySpec & spec);
 Twist2 rate_limit(const Twist2 & cmd, const Twist2 & target, double dt, const ActionSpec & lim);
+
+// ---- format 3 관측 블록(prev_action, lidar_history, speed_cap)과 에피소드 기억 ----
+class ObsMemory
+{
+public:
+  explicit ObsMemory(const PolicySpec & spec = PolicySpec{});
+  void reset();
+  std::vector<float> blocks(const std::vector<float> & sectors, double speed_cap) const;
+  void step(const std::vector<float> & sectors, const Twist2 & policy_target);
+
+private:
+  PolicySpec spec_;
+  size_t depth_{0};
+  Twist2 prev_{0.0, 0.0};
+  std::deque<std::vector<float>> frames_;
+};
+
+bool memory_stale(bool policy_ran_before, double since_last_policy_s, double control_dt);
+bool new_episode(bool had_plan, const Point2 & old_end, const Point2 & new_end);
 
 }  // namespace pode_rl_controller
