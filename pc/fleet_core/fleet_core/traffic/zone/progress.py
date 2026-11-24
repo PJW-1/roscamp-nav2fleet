@@ -58,9 +58,11 @@ class Progress:
             self._begin_recovery(m)
         elif not m.health.fault and not m.health.comm:
             self._track(m)
-            self._release_behind(m)
+            if m.result_lost_at is None:  # 결과 모름이면 구역을 쥐고 막힘 처리도 하지 않는다
+                self._release_behind(m)
             self._watch_outside(m)
-            self._watch_blocked(m, now)
+            if m.result_lost_at is None:
+                self._watch_blocked(m, now)
         elif m.health.fault == ERROR and not m.health.comm and m.goal is None:
             self._return_unreached(m)
 

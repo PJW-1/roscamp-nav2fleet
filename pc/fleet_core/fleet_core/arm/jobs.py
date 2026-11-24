@@ -73,7 +73,7 @@ class ArmJobs:
     # ---- 팔 결과 보고 받기 ----
     def on_fill_result(self, goal_id, success, placed, missing, reason="") -> None:
         self._forget_cleared_job(goal_id)
-        r = self._job_owner(goal_id, FILL)
+        r = self._unexpired_owner(goal_id, FILL)
         if r is None:
             self._out.append(ArmLate(goal_id, FILL, placed=placed))
             return
@@ -82,7 +82,7 @@ class ArmJobs:
 
     def on_swap_result(self, goal_id, success, took_full, put_empty_done, reason="") -> None:
         self._forget_cleared_job(goal_id)
-        r = self._job_owner(goal_id, SWAP)
+        r = self._unexpired_owner(goal_id, SWAP)
         if r is None:
             self._out.append(ArmLate(goal_id, SWAP, took_full=took_full,
                                      put_empty_done=put_empty_done))
@@ -107,14 +107,32 @@ class ArmJobs:
                             f"{job.server} goal {job.goal_id} has no result after {limit:.0f} s: "
                             f"result unknown, canceled, settles within {settle:.0f} s", r.name)
                 continue
-            # 시간 초과는 robot_timeout_settle_s, 정지 취소는 arm_cancel_wait_s까지 기다린다
-            wait = settle if job.timed_out else self.params.arm_cancel_wait_s
-            if job.canceled_at is not None and now - job.canceled_at >= wait:
-                r.job = None
-                self._out.append(ArmLost(r.name, job.goal_id, job.server, job.kind))
-                reason = f"{job.server} goal {job.goal_id} never reported"
-                self._out.append(ArmFault(r.name, job.kind, job.server, reason))
-                self._event("ERROR", "ARM_NO_RESULT", f"{reason} within {wait:.0f} s", r.name)
+            if self._expired(job, now):
+                self._give_up(r, job)
+
+    # ---- 취소한 작업의 기다림: 시간 초과는 robot_timeout_settle_s, 정지 취소는 arm_cancel_wait_s ----
+    def _wait_of(self, job: _Job) -> float:
+        p = self.params
+        return p.robot_timeout_settle_s if job.timed_out else p.arm_cancel_wait_s
+
+    def _expired(self, job: _Job, now: float) -> bool:
+        return job.canceled_at is not None and now - job.canceled_at >= self._wait_of(job)
+
+    def _give_up(self, r: _Robot, job: _Job) -> None:
+        r.job = None
+        self._out.append(ArmLost(r.name, job.goal_id, job.server, job.kind))
+        reason = f"{job.server} goal {job.goal_id} never reported"
+        self._out.append(ArmFault(r.name, job.kind, job.server, reason))
+        self._event("ERROR", "ARM_NO_RESULT", f"{reason} within {self._wait_of(job):.0f} s",
+                    r.name)
+
+    # ---- 결과의 주인: 기다림이 이미 끝난 작업이면 먼저 포기하고, 결과는 늦은 것이 된다 ----
+    def _unexpired_owner(self, goal_id: int, kind: str) -> _Robot | None:
+        r = self._job_owner(goal_id, kind)
+        if r is not None and self._expired(r.job, self._clock()):
+            self._give_up(r, r.job)
+            return None
+        return r
 
     # ---- 팔 명령 처리 ----
     def on_command(self, command) -> None:

@@ -138,7 +138,7 @@ class Calls:
         goal = m.goal
         if goal is None:
             self._drop_route(m)
-        elif goal.kind == MOVE and self._mode(m) == NAV_GOAL:
+        elif goal.kind == MOVE and self._mode(m) == NAV_GOAL and m.result_lost_at is None:
             self._cancel_goal(m)
             self._drop_route(m)
         elif m.route is not None:
