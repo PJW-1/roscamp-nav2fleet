@@ -26,11 +26,13 @@ MAPS = ("arena_v7_a", "arena_v7_fine", "arena_v7_keepout")
 REAL_MAP = "arena_real_slam"
 LAUNCH_MAPS = ("arena_v7_a", REAL_MAP, "arena_v7_keepout")
 # 실물 키트 지도 그림(실측 진열대)의 SHA-256. 생성기와 저장 파일을 함께 바꿔도 여기서 걸린다.
-# 실물 지도를 일부러 바꿀 때만 같이 고친다(2026-11-20: main 593b1f9, 52a7e1f와 같은 바이트)
+# 실물 지도를 일부러 바꿀 때만 같이 고친다(2026-11-24: 11-23 줄자 진열대 끝으로 다시 그림,
+# arena_v7_a1은 1 cm costmap 후보로 arena_v7_fine과 같은 그림)
 KIT_MAP_SHA256 = {
-    "arena_v7.pgm": "c638e8db3dd54c0aa9ac158368a5cea33b8e202ac566cea13f721a2a97a22995",
-    "arena_v7_a.pgm": "e5aa3bfe211c855797bad75ef03ef3f1a24512fa6da687833e362d13dacd4874",
-    "arena_v7_fine.pgm": "892316b1a982912a5301f2b00d56e2b0365cb36a336ce986e0b8c57ead17d85e",
+    "arena_v7.pgm": "277811dc44950512cf7954f412ddf43d9c7b3979e3066319c9d57a29a4ca045a",
+    "arena_v7_a.pgm": "f3fbef23f3308d84799277e10e403905f448321b0111364e3653ea13270a69b8",
+    "arena_v7_a1.pgm": "65ecfe44b694ae80d40af0c7d3c4de5045217f6b8ae10e944b24bd67176686a9",
+    "arena_v7_fine.pgm": "65ecfe44b694ae80d40af0c7d3c4de5045217f6b8ae10e944b24bd67176686a9",
     "arena_v7_keepout.pgm": "cd185f9fb116c843688141b1f5ee15254f399aa0436a73f1708079676af29dc8",
     "arena_real_slam.pgm": "553e4be9dee15d25f480b5b5dfbb29c94b8f9d981cf7859d4f6a213ec78643d1",
 }
@@ -409,10 +411,9 @@ def test_real_slam_map_file():
     assert cell(0.83, 0.37) == 0  # 진열대 B 남쪽 면 (속은 미지)
 
 
-# 2026-11-23 줄자 실측으로 관제 진열대 끝을 옮겼지만 키트 지도는 사용자가 11-24 스캔을 본 뒤 정한다.
-# 그때까지 진열대를 그린 세 그림은 옛 진열대 끝(A 0.63, 남쪽 서쪽 0.68)으로 그린 것과 같아야 한다.
-# 키트 지도를 다시 만들면 이 목록을 비운다
-KIT_PENDING_TAPE_2026_11_23 = {"arena_v7.pgm", "arena_v7_a.pgm", "arena_v7_fine.pgm"}
+# 2026-11-23 줄자 실측으로 관제 진열대 끝을 옮겼다. 키트 지도는 2026-11-24에 같은 진열대로 다시 그려
+# 목록이 비었다. 다시 옛 그림을 묶어 둘 일이 생기면 그림 이름을 넣는다
+KIT_PENDING_TAPE_2026_11_23 = set()
 OLD_SHELF_ENDS = (("  - [0.70, 0.77, 1.56, 0.803]", "  - [0.63, 0.77, 1.56, 0.803]"),
                   ("  - [0.65, 0.365, 0.99, 0.405]", "  - [0.68, 0.365, 0.99, 0.405]"))
 
@@ -431,7 +432,7 @@ def test_kit_maps_are_drawn_from_the_real_shelves(tmp_path):
     before = fleet_map_from_text(old)
     arena.generate(tmp_path / "old", before, real=True)
     arena.generate_nav_variants(tmp_path / "old", before, real=True)
-    for name in ("arena_v7", *MAPS):
+    for name in ("arena_v7", *MAPS, "arena_v7_a1"):
         for ext in (".yaml", ".pgm"):
             made = "old" if name + ext in KIT_PENDING_TAPE_2026_11_23 else "now"
             kit = KIT / "maps" / (name + ext)

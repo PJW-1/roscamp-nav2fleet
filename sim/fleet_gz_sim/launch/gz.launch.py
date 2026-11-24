@@ -90,8 +90,8 @@ ARGS = {
     "nav_overrides": ("", "로봇마다 Nav2 설정 위에 깊이 덮을 yaml 파일(주행 값 비교용). 비면 없음."
                           " 충돌 검사와 속도 상한은 덮지 못한다"),
     "nav_map_variant": ("", "global costmap 지도 갈래(v7만): 비면 배치 기본(v7은 a, 2.5 cm),"
-                            " base는 5 cm 지도, b는 칸 중심 규칙, ab는 둘 다. 1 cm 지도와"
-                            " keepout 마스크는 그대로"),
+                            " base는 5 cm 지도, b는 칸 중심 규칙, ab는 둘 다, a1은 a 규칙의 1 cm."
+                            " 1 cm 지도와 keepout 마스크는 그대로"),
 }
 ARMS = "arm1 arm2 arm3"
 

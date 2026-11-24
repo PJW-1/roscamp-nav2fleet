@@ -196,7 +196,7 @@ def test_keepout_can_be_left_off_for_a_comparison(made):
 
 
 # ---- 가운데 통로 갈래(2026-11-17): 5 cm 지도 대신 고른 지도, global costmap 덮어쓰기 ----
-@pytest.mark.parametrize("variant", ["a", "b", "ab"])
+@pytest.mark.parametrize("variant", ["a", "b", "ab", "a1"])
 def test_nav_map_variant_gives_every_robot_that_costmap_map_only(made, variant):
     actions = run(made, layout="v7", nav_map_variant=variant)
     [server] = [a for a in flat(actions) if isinstance(a, Made) and a.kind == "ExecuteProcess"

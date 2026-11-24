@@ -35,7 +35,7 @@ def test_an_unknown_layout_or_missing_files_are_refused(tmp_path):
         fleet_setup.arena_for("d2", tmp_path)
 
 
-@pytest.mark.parametrize("variant", ["a", "b", "ab"])
+@pytest.mark.parametrize("variant", ["a", "b", "ab", "a1"])
 def test_a_nav_map_variant_swaps_only_the_costmap_map(variant):
     """가운데 통로 갈래: 5 cm 지도만 바뀐다. 1 cm 지도(AMCL)와 keepout 마스크는 그대로."""
     base = fleet_setup.arena_for("v7", PKG)

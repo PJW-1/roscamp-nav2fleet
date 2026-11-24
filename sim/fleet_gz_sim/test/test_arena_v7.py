@@ -529,17 +529,17 @@ def test_a_cell_centre_on_a_box_edge_counts_as_inside():
 def test_v7_committed_nav_variant_maps_are_the_generator_output(tmp_path, site):
     from fleet_gz_sim import arena
     written = arena.generate_nav_variants(tmp_path, site)
-    assert set(written) == {f"maps/arena_v7_{v}.{ext}" for v in ("a", "b", "ab")
+    assert set(written) == {f"maps/arena_v7_{v}.{ext}" for v in ("a", "b", "ab", "a1")
                             for ext in ("yaml", "pgm")}
     for name in written:
         assert (tmp_path / name).read_bytes() == (PKG / name).read_bytes(), name
-    for variant, resolution in (("a", 0.025), ("b", 0.05), ("ab", 0.025)):
+    for variant, resolution in (("a", 0.025), ("b", 0.05), ("ab", 0.025), ("a1", 0.01)):
         text = (PKG / "maps" / f"arena_v7_{variant}.yaml").read_text(encoding="utf-8")
         assert f"image: arena_v7_{variant}.pgm\n" in text
         assert f"resolution: {resolution}\n" in text
         assert "origin: [-0.15, -0.15, 0.0]\n" in text
     assert arena_maps.NAV_VARIANTS == {"a": (0.025, "touch"), "b": (0.05, "centre"),
-                                       "ab": (0.025, "centre")}
+                                       "ab": (0.025, "centre"), "a1": (0.01, "touch")}
 
 
 def test_only_v7_has_nav_variant_maps():
