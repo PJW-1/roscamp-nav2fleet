@@ -132,6 +132,7 @@ class Results:
             error = self._dock_pose_error(m)
             if error is not None:
                 # TODO(v0.2): pode_fsm이 DOCKED와 도킹 오차를 보고하면 그 값으로 정한다
+                m.result_lost_at = None  # 기한은 이 보고를 받은 시각으로 이미 봤다
                 self.on_dock_result(m.name, m.goal.id, True, *error)
             else:
                 self._clear_goal(m)
@@ -142,15 +143,17 @@ class Results:
     # ---- 보고 자세가 도크 자세 허용치 안이면 (x cm, y cm, 방향 deg) 오차, 밖이면 None ----
     def _dock_pose_error(self, m):
         spec, p = self.site.nodes[self.site.stations[m.dest].dock], self.params
+        if spec.yaw is None:
+            return None  # 지도에 도크 방향이 없으면 자세로 정하지 않는다
         ex, ey = m.x - spec.x, m.y - spec.y
-        eyaw = 0.0 if spec.yaw is None else math.degrees(math.remainder(m.yaw - spec.yaw, math.tau))
+        eyaw = math.degrees(math.remainder(m.yaw - spec.yaw, math.tau))
         if math.hypot(ex, ey) > p.lost_dock_reach_m or abs(eyaw) > p.lost_dock_yaw_deg:
             return None
         return ex * 100.0, ey * 100.0, eyaw
 
     # ---- 기다림이 끝난 결과 모름이면 먼저 정한다. 늦게 온 결과는 버린다 ----
-    def _past_unknown(self, m) -> bool:
-        now = self._clock()
+    def _past_unknown(self, m, now: float | None = None) -> bool:
+        now = self._clock() if now is None else now
         if m.result_lost_at is None or now - m.result_lost_at < self.params.robot_timeout_settle_s:
             return False
         self._settle_lost(m, now)

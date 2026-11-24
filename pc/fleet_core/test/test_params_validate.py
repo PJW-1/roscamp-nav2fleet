@@ -298,3 +298,9 @@ def test_without_the_compat_default_the_old_record_would_replay_differently(tmp_
     assert result.compared and not result.same
     assert len(produced) > 1, "재생 줄을 받지 못하면 아래 단언이 빈 목록으로 통과한다"
     assert all(abs(t - recorded[0]) > 1.0 for t in stall_times(produced))
+
+
+@pytest.mark.parametrize("bad", [-1.0, 0.0, float("inf")])
+def test_the_lost_dock_heading_tolerance_is_a_positive_angle(tmp_path, bad):
+    with pytest.raises(ValueError, match="lost_dock_yaw_deg"):
+        load_params(write(tmp_path, {**SHIPPED, "lost_dock_yaw_deg": bad}))

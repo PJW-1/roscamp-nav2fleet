@@ -159,6 +159,33 @@ def test_a_lost_dock_result_docks_again_when_the_robot_reports_off_the_dock_pose
     assert result.error_x_cm == 0.4, "the error measured by the second dock"
 
 
+def test_a_dock_without_a_heading_on_the_map_cannot_be_settled_by_the_pose():
+    world, call = sent_once(speed=0.12)
+    world.site.nodes["W"] = dataclasses.replace(world.site.nodes["W"], yaw=None)
+    lost_dock(world)
+    bot, spec = world.bots["pode2"], world.site.nodes["W"]
+    bot.x, bot.y = spec.x, spec.y
+    reports(world, "pode2", "IDLE")
+    world.step()
+    assert world.result_of(call) is None and world.codes("pode2")[-1] == "GOAL_RETRY"
+
+
+def test_a_dock_settled_just_before_the_deadline_is_judged_at_the_report_time(monkeypatch):
+    world, call = sent_once(speed=0.12)
+    lost_dock(world)
+    stand_by_the_dock(world)
+    deadline = lost_state(world) + world.params.robot_timeout_settle_s
+    reads = iter([deadline - 0.001])
+    monkeypatch.setattr(world.traffic, "_clock", lambda: next(reads, deadline + 0.001))
+    bot = world.bots["pode2"]
+    world.traffic.on_robot_state("pode2", bot.x, bot.y, bot.yaw, "IDLE")
+    monkeypatch.undo()
+    world.now = deadline + 0.001
+    world.step()
+    assert world.result_of(call) is not None and world.result_of(call).success
+    assert not isolations(world)
+
+
 def test_the_dock_pose_tolerance_comes_from_the_parameters():
     world, call = sent_once(speed=0.12)
     world.traffic.params = dataclasses.replace(world.params, lost_dock_reach_m=0.25,
