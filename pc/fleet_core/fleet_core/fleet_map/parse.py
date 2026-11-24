@@ -364,6 +364,9 @@ def read_splits(raw, nodes: dict[str, Node], edges: dict, bounds: tuple) -> tupl
             raise FleetMapError(f"{what}: {via} and {to} must stand in the same zone")
         if nodes[via].through:
             raise FleetMapError(f"{what}: {via} is a through node; it would join the goals again")
+        # 설 수 있는 지점이면 첫 조각까지만 잡혀 두 goal이 한 base에 들지 않는다
+        if nodes[via].kind != FORK:
+            raise FleetMapError(f"{what}: {via} must be a fork (a node nobody waits at)")
         edge = edges.get((via, to))
         if edge is None or edge.mode != NAV_GOAL:
             raise FleetMapError(f"{what}: there is no nav goal edge from {via} to {to}")

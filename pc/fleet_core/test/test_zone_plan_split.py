@@ -173,3 +173,21 @@ def test_a_robot_standing_on_gap_s_plans_from_where_it_stands():
     assert m.node == "GAP_S"
     way = t._way(m, "P-3")
     assert way and way[0].a == "" and "Q2" not in [edge.b for edge in way]
+
+
+def test_a_via_node_is_no_free_edge_target_in_a_zone_without_nodes():
+    """노드가 없는 공유 구역에서는 그 구역을 지나는 Nav2 goal 이음의 끝이 후보다. via는 빼야 한다."""
+    world = world_at(None)
+    t = world.traffic
+    t.__dict__["_reach_memo"] = {}
+    site = t.site
+    gap = site.edge("Q2", "GAP_S")
+    fake = [gap.__class__(gap.a, gap.b, gap.mode, gap.path, gap.points, ("NOWHERE",), gap.length)]
+    real = site.edges
+    site.edges = lambda: fake
+    site.nodes_in = lambda zone: []
+    try:
+        assert "GAP_S" not in t._reach("NOWHERE")
+    finally:
+        site.edges = real
+        del site.nodes_in

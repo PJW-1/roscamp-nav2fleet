@@ -61,6 +61,12 @@ def test_a_via_node_needs_a_nav_goal_edge_to_the_goal():
         FleetMap(data_with(nav={"nodes": ["V", "N_W"]}))
 
 
+def test_a_via_node_must_be_a_fork():
+    """설 수 있는 지점(wait 등)이면 첫 조각까지만 잡아 두 goal이 한 base에 들지 않는다."""
+    with pytest.raises(FleetMapError, match="fork"):
+        FleetMap(data_with(split={**SPLIT, "via": "W_Q"}))
+
+
 def test_a_through_node_cannot_be_a_via_node():
     """through 지점은 이어진 goal을 하나로 합친다. 나누는 지점으로 쓰면 다시 합쳐진다."""
     data = data_with(via={"x": 1.0, "y": 0.3, "kind": "fork", "through": True})

@@ -109,7 +109,7 @@ class Goals:
             else:
                 reach = {}
                 for edge in site.edges():
-                    if edge.mode == NAV_GOAL and zone in edge.zones:
+                    if edge.mode == NAV_GOAL and zone in edge.zones and not site.nodes[edge.b].via:
                         reach.setdefault(edge.b, edge.zones[edge.zones.index(zone):])
                 memo[zone] = reach
         return memo[zone]
