@@ -82,7 +82,7 @@ controller_server:
     min_theta_velocity_threshold: 0.001
     failure_tolerance: 1.0
     odom_topic: odom
-    # 관제가 보내는 로봇별 속도 제한 토픽
+    # 관제가 보내는 로봇별 속도 제한 토픽(버전 2에서 씀). 지우지 않는다
     speed_limit_topic: speed_limit
     enable_stamped_cmd_vel: false
     publish_zero_velocity: true
@@ -319,6 +319,7 @@ local_costmap:
       height: 3
       resolution: 0.025
       # 몸 모양에 가까운 다각형(base_footprint 틀). 회전 중심이 앞쪽이라 뒤 모서리까지 0.0845 m이다.
+      # FollowPath 셋의 충돌 검사와 pode_fsm의 막힘 판단이 이 발자국을 쓴다.
       footprint: "[[0.040, 0.021], [0.036, 0.031], [0.029, 0.056], [-0.029, 0.056], [-0.049, 0.049], [-0.071, 0.042], [-0.076, 0.037], [-0.076, -0.037], [-0.071, -0.042], [-0.049, -0.049], [-0.029, -0.056], [0.029, -0.056], [0.036, -0.031], [0.040, -0.021]]"
       # 다각형이 몸을 덮으니 padding은 0
       footprint_padding: 0.0

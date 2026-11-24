@@ -2,7 +2,7 @@
 basket_capacity: 4            # 바구니 하나에 담는 최대 수량(추정)
 robot_radius_m: 0.08          # Pode 몸체 반경(추정)
 release_margin_extra_m: 0.05  # 시나리오 판정 전용: 반경 + 이 값 = 코스 이탈
-release_distance_m: 0.2       # 경로 위에서 뒤 구역을 놓는 거리
+release_distance_m: 0.2       # 구역 교통은 읽지 않는다(footprint_radius_m + release_margin_m로 놓음). Pode 자가 복구 후진 거리 식이 쓴다
 release_confirm_samples: 3    # 해제 전에 그 거리를 지난 연속 보고 수
 lane_error_warn_m: 0.15       # 가짜 로봇: path 첫 점이 이보다 멀면 따라가지 않는다
 move_retry_limit: 2           # 첫 실패 뒤 재시도 수
@@ -44,7 +44,7 @@ self_recovery_limit_s: 45.0   # RECOVERING이 이만큼 넘게 이어지면 BLOC
 traffic_mode: zones           # 교통 층: zones(구역 허락)만 있다
 # ---- 구역 교통 층(traffic/zone) ----
 nav_speed_mps: 0.12           # 넓은 구역(Nav2 goal)의 ETA와 길 비용 속도
-nav_eta_speed_ratio: 1.0      # 넓은 구역 ETA 순항 속도 = nav_speed_mps x 이 비율(길 비용에는 안 씀)
+nav_eta_speed_ratio: 1.0      # 넓은 구역 ETA 순항 속도 = nav_speed_mps x 이 비율(0 초과 1 이하, 길 비용에는 안 씀)
 follow_speed_mps: 0.12        # 고정 경로(FollowPath) 속도
 retreat_speed_mps: 0.05       # 후진(Retreat) 속도
 nav_pass_m: 0.15              # 넓은 구역 ETA: 끝 노드 이만큼 앞에서 다음 조각으로 넘어간다. 0이면 끔

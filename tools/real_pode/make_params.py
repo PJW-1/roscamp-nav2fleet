@@ -1,7 +1,10 @@
 #!/usr/bin/env python3
 """실물 Pode용 Nav2 설정 사본을 속도 S로 만든다. ROS 없이 돈다.
 
-    python3 make_params.py --speed 0.12 --out params   # 앞으로 가는 컨트롤러 속도만 바꾼다
+    python3 make_params.py --speed 0.12 --out params
+
+앞으로 가는 컨트롤러의 desired_linear_vel을 S로 바꾼다.
+고정 경로 컨트롤러 셋의 충돌 검사는 기본으로 끈다(--fixed-line-check로 켬).
 """
 import argparse
 import copy

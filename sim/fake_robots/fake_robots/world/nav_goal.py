@@ -18,7 +18,7 @@ PLAN_GAP_M = 0.03  # 계획할 때 다른 로봇과 물체를 이만큼 더 키�
 PROGRESS_M = 0.02  # 이만큼 움직이면 나아간 것으로 본다
 # 이만큼 못 나아가면 BLOCKED. Pode의 blocked_after_s와 같아야 한다(test_timing_agreement.py가 본다)
 BLOCKED_AFTER_S = 10.0
-# BLOCKED를 켠 자리에서 이만큼 벗어나야 보고를 끈다. Pode의 unblock_m과 같다
+# BLOCKED를 켠 자리에서 이만큼 벗어나야 보고를 끈다. Pode의 unblock_m과 같아야 한다
 UNBLOCK_M = 0.15
 ABORT_AFTER_S = 0.5  # 지도 위에 길이 없을 때 이만큼 뒤 NAV_ABORTED
 GIVE_UP_S = 60.0  # 이만큼 못 나아가면 NAV_ABORTED(Nav2 복구 여섯 번쯤)

@@ -51,6 +51,7 @@ vision_obstacles:
   observation_persistence: 0.5
 
 # 다른 Pode의 몸을 costmap에 넣는 층(임시). launch 인자 peer_obstacles:=true일 때만 inflation_layer 앞에 들어간다.
+# 이 키가 없는 회피 패키지로 peer_obstacles:=true를 주면 nav2.launch.py가 뜨지 않는다.
 # peers는 map 틀 점구름이라 obstacle_max_range를 경기장 대각선보다 크게 둔다.
 # sweep은 inf 빔으로 로봇 둘레를 매번 지우고 peers를 다시 찍어, 지금 자리만 남긴다.
 peer_layer:
