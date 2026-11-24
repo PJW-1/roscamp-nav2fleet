@@ -8,14 +8,8 @@
 _net_dom=${FLEET_DOMAIN_ID:-6}
 case $_net_dom in
   ''|*[!0-9]*) _net_dom= ;;
-  *)
-    # 앞의 0을 떼고 자릿수를 본 뒤 비교한다(긴 수는 셸 산술이 넘친다)
-    _net_dom=${_net_dom#"${_net_dom%%[!0]*}"}
-    _net_dom=${_net_dom:-0}
-    case $_net_dom in
-      ????*) _net_dom= ;;
-      *) [ "$_net_dom" -le 232 ] || _net_dom= ;;
-    esac ;;
+  ????*) _net_dom= ;;
+  *) [ $((10#$_net_dom)) -le 232 ] && _net_dom=$((10#$_net_dom)) || _net_dom= ;;
 esac
 if [ -z "$_net_dom" ]; then
   echo "net.sh: FLEET_DOMAIN_ID는 0~232 정수여야 한다: '${FLEET_DOMAIN_ID:-}'" >&2
