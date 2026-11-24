@@ -339,14 +339,18 @@ def pnc_of(events):
 
 
 def wall_to_sim(wall, sim):
-    """truth의 wall->sim 보간. 기록 밖은 끝 두 점의 기울기로 늘려 잡는다(끝값에 고정하지 않는다)."""
+    """truth의 wall->sim 보간. 기록 밖은 기록 전체의 기울기로 늘려 잡는다(끝값에 고정하지 않는다.
+    wall은 소수 둘째 자리라 끝의 두 값이 같을 수 있어 끝 두 점의 기울기는 쓰지 않는다)."""
+    span = float(wall[-1] - wall[0]) if len(wall) else 0.0
+    slope = float(sim[-1] - sim[0]) / span if span > 0 else 1.0
+
     def w2s(w):
-        if len(wall) < 2:
-            return float(sim[0]) if len(sim) else float(w)
+        if not len(wall):
+            return float(w)
         if w < wall[0]:
-            return float(sim[0] + (w - wall[0]) * (sim[1] - sim[0]) / (wall[1] - wall[0]))
+            return float(sim[0] + (w - wall[0]) * slope)
         if w > wall[-1]:
-            return float(sim[-1] + (w - wall[-1]) * (sim[-1] - sim[-2]) / (wall[-1] - wall[-2]))
+            return float(sim[-1] + (w - wall[-1]) * slope)
         return float(np.interp(w, wall, sim))
     return w2s
 
@@ -413,8 +417,7 @@ def load_run_data(run):
     """판 폴더에서 분석에 쓰는 원자료를 한 번에 읽는다(그림 스크립트도 쓴다)."""
     run = Path(run)
     truth, wall, sim = read_truth(run / "truth.csv")
-    w2s = lambda w: np.interp(w, wall, sim)  # noqa: E731
-    bag = read_bag(run / "bag", w2s) if (run / "bag").exists() else None
+    bag = read_bag(run / "bag", wall_to_sim(wall, sim)) if (run / "bag").exists() else None
     return truth, wall, sim, bag
 
 

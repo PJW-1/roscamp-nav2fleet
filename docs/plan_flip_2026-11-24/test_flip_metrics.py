@@ -228,3 +228,9 @@ def test_rtf_uses_each_robots_first_and_last_sample():
     truth = {"pode1": (np.array([0.0, 50.0, 10.0]),), "pode2": (np.array([1.0, 9.0]),)}
     # 첫 시각 중 가장 이른 0, 마지막 시각 중 가장 늦은 10
     assert fm.rtf_of(truth, np.array([0.0, 20.0])) == 0.5
+
+
+def test_wall_to_sim_survives_equal_end_stamps():
+    # truth 로거는 wall을 소수 둘째 자리까지 적어 끝의 두 값이 같을 수 있다
+    w2s = fm.wall_to_sim(np.array([100.0, 100.0, 110.0, 110.0]), np.array([0.0, 0.1, 4.9, 5.0]))
+    assert w2s(120.0) == 10.0 and w2s(90.0) == -5.0
