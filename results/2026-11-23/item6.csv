@@ -1,0 +1,19 @@
+variant,seed,set,success,collision,timeout,gap_lt_0.10_success,gap_lt_0.10_episodes,w_flips_per_min
+no intent,1,random,0.7671,0.2207,0.0122,0.2978,601,67.37
+no intent,2,random,0.7625,0.219,0.0186,0.286,584,69.77
+no intent,3,random,0.7676,0.209,0.0234,0.3305,581,71.53
+intent,1,random,0.7568,0.2295,0.0137,0.2562,566,63.82
+intent,2,random,0.7571,0.2319,0.011,0.2947,587,64.88
+intent,3,random,0.7603,0.2319,0.0078,0.2887,575,56.04
+intent + priority,1,random,0.7581,0.2366,0.0054,0.3031,584,59.35
+intent + priority,2,random,0.7622,0.23,0.0078,0.3057,592,56.42
+intent + priority,3,random,0.76,0.231,0.009,0.3081,594,63.77
+no intent,1,head-on,0.5215,0.4661,0.0125,0.2472,1861,69.31
+no intent,2,head-on,0.4983,0.4824,0.0193,0.2188,1856,72.25
+no intent,3,head-on,0.5129,0.449,0.0381,0.2465,1878,82.2
+intent,1,head-on,0.5095,0.4773,0.0132,0.2433,1870,68.52
+intent,2,head-on,0.4988,0.4851,0.0161,0.2334,1911,71.6
+intent,3,head-on,0.501,0.4893,0.0098,0.2337,1913,58.01
+intent + priority,1,head-on,0.4941,0.4988,0.0071,0.2087,1859,58.75
+intent + priority,2,head-on,0.4934,0.4985,0.0081,0.2246,1901,58.16
+intent + priority,3,head-on,0.4961,0.4951,0.0088,0.236,1970,64.47
