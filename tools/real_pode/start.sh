@@ -4,6 +4,7 @@
 # 두 대 이상이면 PEER_ROBOTS=pode1,pode2 start.sh ...  (peer 층을 켠다. 안 주면 꺼짐)
 # 도킹 대역을 PC에서 돌리면 DOCK_STUB=1 start.sh ...  (pode_fsm Dock 서버를 /<ns>/dock_fsm으로 비킨다)
 # 고정 경로 충돌 검사는 기본 꺼짐(시뮬과 같다). 켜 두려면 FIXED_LINE_CHECK=1 start.sh ...
+# Nav2 goal 길 유지 노드(해결안 A)는 기본 꺼짐. 켜려면 PLAN_KEEP=1 start.sh ...
 cd "$(dirname "$(readlink -f "$0")")" || exit 1
 [ $# -eq 4 ] || [ $# -eq 5 ] || { echo "usage: start.sh NAMESPACE X Y YAW [SPEED]"; exit 2; }
 speed=${5:-0.12}
@@ -26,6 +27,13 @@ case $fixed in
   1) fixed=--fixed-line-check ;;
   *) echo "bad FIXED_LINE_CHECK: use 1 (or unset/0)"; exit 2 ;;
 esac
+# PLAN_KEEP는 1이면 켜고, 비었거나 0이면 끈다. 그 밖의 값은 거절한다
+keep=${PLAN_KEEP:-0}
+case $keep in
+  0) keep= ;;
+  1) ;;
+  *) echo "bad PLAN_KEEP: use 1 (or unset/0)"; exit 2 ;;
+esac
 mkdir -p logs || exit 1
 # 동시에 두 번 시작하지 않게 잠근다(pid 파일이 써질 때까지 쥔다)
 exec 9> logs/start.lock || exit 1
@@ -42,9 +50,10 @@ rm -f logs/launch.pid
 setsid bash -c 'echo $$ > logs/launch.pid
   extra=(); [ -z "$5" ] || extra=(peer_obstacles:=true peer_robots:="$5")
   [ -z "$6" ] || extra+=(dock_aside:=true)
+  [ -z "$7" ] || extra+=(plan_keep:=true)
   exec ros2 launch ./real_pode.launch.py \
   namespace:="$1" initial_x:="$2" initial_y:="$3" initial_yaw:="$4" "${extra[@]}"' \
-  _ "$1" "$2" "$3" "$4" "$peers" "$dock" \
+  _ "$1" "$2" "$3" "$4" "$peers" "$dock" "$keep" \
   > "$log" 2>&1 < /dev/null 9>&- &
 child=$!
 for _ in $(seq 50); do [ -s logs/launch.pid ] && break; sleep 0.1; done

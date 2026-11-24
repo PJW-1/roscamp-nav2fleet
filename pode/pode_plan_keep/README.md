@@ -33,7 +33,7 @@ Nav2 goal(MoveTo mode `nav_goal`)의 행동 트리와 planner 사이에서 길�
 
 돌려준 경로는 토픽 `plan_kept`(`nav_msgs/Path`)로도 냅니다. planner가 내는 `plan`과 달리 로봇이 실제로 따라가는 길이라, RViz에서 보거나 경로 뒤집힘을 셀 때 씁니다.
 
-시험 중이라 기본으로 꺼져 있습니다. `pode_nav_config`의 `nav2.launch.py`에 `plan_keep:=true`를 주면 로봇 namespace 안에 띄우고 행동 트리를 `_keep` 갈래(`server_name="compute_path_keep"`)로 바꿉니다. 실물 묶음(`tools/real_pode`)과 `deploy.sh`에는 아직 넣지 않았습니다. Gazebo 세 대(`fleet_gz_sim` `gz.launch.py`)는 DDS 참여자 수를 늘리지 않으려고 `sim_stand_in` 프로세스 안에 로봇마다 하나씩 둡니다(`make_fleet`).
+시험 중이라 기본으로 꺼져 있습니다. `pode_nav_config`의 `nav2.launch.py`에 `plan_keep:=true`를 주면 로봇 namespace 안에 띄우고 행동 트리를 `_keep` 갈래(`server_name="compute_path_keep"`)로 바꿉니다. 실물 묶음은 `PLAN_KEEP=1 start.sh ...`로 켭니다(`real_pode.launch.py`의 `plan_keep`, 기본 false). `deploy.sh`가 이 패키지도 복사합니다. 실물에서는 아직 돌려 보지 않았습니다(Pi4 CPU와 실물 시험이 남았습니다). Gazebo 세 대(`fleet_gz_sim` `gz.launch.py`)는 DDS 참여자 수를 늘리지 않으려고 `sim_stand_in` 프로세스 안에 로봇마다 하나씩 둡니다(`make_fleet`).
 
 ## 한계
 

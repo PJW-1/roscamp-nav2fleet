@@ -92,7 +92,7 @@ ARGS = {
                            " 프로세스 안에서 돈다. false면 main과 같다"),
     "nav_rl": ("", "로봇마다 RL controller FollowPathRL을 더한다(비교용): rl은 RL만, rl_shim은"
                    " RotationShim으로 감싼 것. 설정은 nav_overrides/follow_path_rl(_shim).yaml."
-                   " Nav2 goal에 쓰려면 controller_selector로 고른다. 비면 없음"),
+                   " Nav2 goal에 쓰려면 controller 선택 토픽으로 고른다. 비면 없음"),
     "nav_bt_xml": ("", "로봇마다 navigate_to_pose 행동 트리(pode_nav_config/bt의 파일 이름이나 절대"
                        " 경로, 비교용). 비면 plan_keep에 따라 기본 트리나 길 유지 트리"),
     "nav_overrides": ("", "로봇마다 Nav2 설정 위에 깊이 덮을 yaml 파일(주행 값 비교용). 비면 없음."
