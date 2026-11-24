@@ -18,7 +18,7 @@ BOARD = {"v": "장애물", "r": "러시"}
 PLAN = {"base": "기준", "A": "A keeper", "B": "B 관제 길 지정", "C": "C 3 s"}
 CTRL = {"rpp": "RPP", "rl": "RL+shim"}
 # (열 이름, 표 머리, 합으로 볼지)
-COLS = [("pass", "통과", True), ("duration_s", "통과 시간 s", False), ("flips", "뒤집힘", True),
+COLS = [("pass", "통과", True), ("duration_s", "판 시간 s(실패 판 포함)", False), ("flips", "뒤집힘", True),
         ("flips_planner", "planner 뒤집힘", True), ("hall_spins", "HALL 회전 수", True),
         ("hall_spin_s", "HALL 회전 s", True), ("recoveries", "복구", True),
         ("blocked_wait", "BLOCKED_WAIT", True), ("path_not_connected", "path_not_connected", True),

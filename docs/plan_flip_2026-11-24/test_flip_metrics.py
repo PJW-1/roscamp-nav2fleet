@@ -209,3 +209,22 @@ def test_cut_series_and_truth():
     assert list(cut["pode1"][0]) == [1.0] and list(cut["pode1"][1]) == [0.0]
     rows = [{"t": 1.0}, {"t": 6.0}, {"x": 1}]
     assert fm.cut_rows(rows, 5.0) == [{"t": 1.0}, {"x": 1}]
+
+
+def test_pnc_counts_the_reason_anywhere_in_the_detail_like_the_judge():
+    ev = [{"time_s": 1.0, "code": "GOAL_RETRY", "detail": "attempt 1 failed: PATH_NOT_CONNECTED"},
+          {"time_s": 2.0, "code": "GOAL_FAILED", "detail": "PATH_NOT_CONNECTED after 3 attempts"},
+          {"time_s": 3.0, "code": "BLOCKED_WAIT", "detail": "PATH_NOT_CONNECTED"}]
+    assert fm.pnc_of(ev) == 2
+
+
+def test_wall_to_sim_extrapolates_past_the_truth_record():
+    w2s = fm.wall_to_sim(np.array([100.0, 110.0]), np.array([0.0, 5.0]))
+    assert w2s(105.0) == 2.5
+    assert w2s(120.0) == 10.0 and w2s(90.0) == -5.0
+
+
+def test_rtf_uses_each_robots_first_and_last_sample():
+    truth = {"pode1": (np.array([0.0, 50.0, 10.0]),), "pode2": (np.array([1.0, 9.0]),)}
+    # 첫 시각 중 가장 이른 0, 마지막 시각 중 가장 늦은 10
+    assert fm.rtf_of(truth, np.array([0.0, 20.0])) == 0.5

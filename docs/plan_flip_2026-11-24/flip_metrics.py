@@ -335,7 +335,29 @@ def events_from_launch(launch, w2s):
 def pnc_of(events):
     """판정과 같은 셈: 이유가 PATH_NOT_CONNECTED인 GOAL_RETRY와 GOAL_FAILED."""
     return sum(1 for e in events if e["code"] in ("GOAL_RETRY", "GOAL_FAILED")
-               and e["detail"].startswith("PATH_NOT_CONNECTED"))
+               and "PATH_NOT_CONNECTED" in e["detail"])
+
+
+def wall_to_sim(wall, sim):
+    """truth의 wall->sim 보간. 기록 밖은 끝 두 점의 기울기로 늘려 잡는다(끝값에 고정하지 않는다)."""
+    def w2s(w):
+        if len(wall) < 2:
+            return float(sim[0]) if len(sim) else float(w)
+        if w < wall[0]:
+            return float(sim[0] + (w - wall[0]) * (sim[1] - sim[0]) / (wall[1] - wall[0]))
+        if w > wall[-1]:
+            return float(sim[-1] + (w - wall[-1]) * (sim[-1] - sim[-2]) / (wall[-1] - wall[-2]))
+        return float(np.interp(w, wall, sim))
+    return w2s
+
+
+def rtf_of(truth, wall):
+    """로봇마다 첫 시각 가운데 가장 이른 것부터 마지막 시각 가운데 가장 늦은 것까지 / 벽시계."""
+    spans = [(a[0][0], a[0][-1]) for a in truth.values() if len(a[0])]
+    if not spans or len(wall) < 2 or wall[-1] <= wall[0]:
+        return float("nan")
+    sim0, sim1 = min(a for a, _ in spans), max(b for _, b in spans)
+    return round(float(sim1 - sim0) / float(wall[-1] - wall[0]), 3)
 
 
 def cut_bag(bag, until):
@@ -401,15 +423,17 @@ def analyze(run, until=None):
     run = Path(run)
     summary = run / "result/summary.json"
     summ = json.loads(summary.read_text()) if summary.exists() else {}
-    truth, wall, sim, bag = load_run_data(run)
-    w2s = lambda w: np.interp(w, wall, sim)  # noqa: E731
-    truth, bag = cut_truth(truth, until), cut_bag(bag, until)
+    truth_all, wall, sim, bag = load_run_data(run)
+    w2s = wall_to_sim(wall, sim)
+    truth, bag = cut_truth(truth_all, until), cut_bag(bag, until)
     rows = cut_rows(read_record(run / "result/fleet_record.jsonl"), until)
     full_launch = (run / "launch.out").read_text(errors="replace")
     launch = "\n".join(launch_lines_until(full_launch, w2s, until))
     notes = []
+    # pass는 판 전체의 결과다. 출고 수와 판 시간은 창으로 자를 수 없어 창이 있으면 비운다
     o = {"run": run.name, "pass": bool(summ["pass"]) if summ else False,
-         "shipped": summ.get("orders_shipped"), "duration_s": summ.get("duration_s"),
+         "shipped": summ.get("orders_shipped") if until is None else None,
+         "duration_s": summ.get("duration_s") if until is None else None,
          "until_s": until}
     if not summ:
         notes.append("summary 없음(끝나지 않은 판): 통과 아님으로 둠")
@@ -487,9 +511,7 @@ def analyze(run, until=None):
 
     # 나머지
     o["collision_ahead"] = sum(1 for line in launch.splitlines() if "collision ahead" in line)
-    # 판 전체(창으로 자르지 않은 truth 시각)로 잰다
-    o["rtf"] = (round(float(sim.max() - sim.min()) / float(wall[-1] - wall[0]), 3)
-                if len(wall) and wall[-1] > wall[0] else float("nan"))
+    o["rtf"] = rtf_of(truth_all, wall)  # 판 전체
     o["pc_cpu"] = round(mean_col(run / "cpu.csv", "pc_cpu_pct"), 1) if (run / "cpu.csv").exists() else None
     o["domain_cpu"] = (round(mean_col(run / "cpu.csv", "domain_cpu_pct"), 1)
                        if (run / "cpu.csv").exists() else None)
@@ -500,6 +522,9 @@ def analyze(run, until=None):
                 if "sim_stand_in" in r["process"]:
                     sc += float(r["cpu_s"])
     o["stand_in_cpu_s"] = round(sc, 1)
+    if until is not None:
+        # CPU 기록은 판 전체 값이라 창 값처럼 보이지 않게 비운다(CPU는 창 없이 견준다)
+        o["pc_cpu"] = o["domain_cpu"] = o["stand_in_cpu_s"] = None
     o["notes"] = "; ".join(notes)
     return o
 
