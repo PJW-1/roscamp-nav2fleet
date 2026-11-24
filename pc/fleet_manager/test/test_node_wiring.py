@@ -1,9 +1,14 @@
-"""직접 짠 서버와 실제 그래프로 노드의 배선(이름, 타입, goal, 취소)을 시험한다."""
+"""직접 짠 서버와 실제 그래프로 노드의 배선(이름, 타입, goal, 취소)을 시험한다.
+
+가짜 로봇 없이 래퍼의 배선만 본다. 그래프에 참여하므로 로봇 네트워크와 분리된 도메인에서만 돈다.
+"""
+import dataclasses
 import os
 import subprocess
 import sys
 import threading
 import time
+from functools import partial
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import MagicMock
@@ -13,11 +18,12 @@ import pytest
 rclpy = pytest.importorskip("rclpy")
 pytest.importorskip("fleet_interfaces")
 
-from fleet_core.common.commands import EventOut, RetreatCmd  # noqa: E402
+from fleet_core.common.commands import EventOut, ReportOrderCmd, RetreatCmd  # noqa: E402
 from fleet_core.common.contract import to_ros_qos  # noqa: E402
 from fleet_core.fleet_map import load_fleet_map  # noqa: E402
 from fleet_interfaces.action import Dock, FillBasket, MoveTo, Retreat, SwapBasket  # noqa: E402
 from fleet_interfaces.msg import (  # noqa: E402
+    ArmState,
     AssignmentArray,
     FleetEvent,
     Order,
@@ -27,7 +33,7 @@ from fleet_interfaces.msg import (  # noqa: E402
     RobotStatusArray,
     ZoneStateArray,
 )
-from fleet_interfaces.srv import ConfirmClear, ForceShip, Reinstate, ReportOrder  # noqa: E402
+from fleet_interfaces.srv import ConfirmClear, Reinstate, ReportOrder, TripCommand  # noqa: E402
 from fleet_manager.fleet_manager_node import FleetManagerNode  # noqa: E402
 from fleet_manager.goal_tracker import GoalTracker, ReportOutbox  # noqa: E402
 from rclpy.action import ActionServer, CancelResponse  # noqa: E402
@@ -99,7 +105,7 @@ class World(Node):
         self._servers = [
             ActionServer(self, FillBasket, name("fill_basket"), self._on_fill,
                          callback_group=group, cancel_callback=self._on_fill_cancel),
-            ActionServer(self, SwapBasket, name("swap_basket", arm="arm3"), self._on_swap,
+            ActionServer(self, SwapBasket, name("swap_basket", arm="arm_ship"), self._on_swap,
                          callback_group=group),
         ]
         self._contract, self._group = contract, group
@@ -218,15 +224,44 @@ def test_an_order_goes_through_fill_and_swap_to_its_report(graph):
     assert ("O-001", "OUTBOUND", "SWAP") in seen
 
 
-def test_the_status_of_every_robot_comes_out_about_once_a_second(graph):
+def test_the_status_of_every_robot_comes_out_about_five_times_a_second(graph):
+    """팀 명세 F-11: /fleet/robots는 5 Hz 안팎."""
     graph.status.clear()
-    assert wait_for(lambda: len(graph.status) >= 3), f"got {len(graph.status)}"
+    assert wait_for(lambda: len(graph.status) >= 11), f"got {len(graph.status)}"
     first, last = graph.status[0], graph.status[-1]
     span = (last.stamp.sec - first.stamp.sec) + (last.stamp.nanosec - first.stamp.nanosec) / 1e9
-    assert 0.7 <= span / (len(graph.status) - 1) <= 1.3
+    assert 0.14 <= span / (len(graph.status) - 1) <= 0.26
     robot = last.robots[0]
     assert (robot.robot_id, robot.fsm_state, robot.fault) == ("pode1", "IDLE", "NONE")
     assert (robot.x, robot.y) != (0.0, 0.0)
+
+
+def test_the_status_lists_the_three_arms_after_the_podes(graph):
+    pub = graph.create_publisher(ArmState, graph.fms.contract.name("arm_state", arm="arm_left"),
+                                 to_ros_qos(graph.fms.contract.qos("arm_state")))
+    graph.create_timer(0.1, lambda: pub.publish(ArmState(arm_id="arm_left", state="PICKING",
+                                                         lock=True, boot_id="b-7")))
+
+    def left_seen():
+        rows = graph.status[-1].robots if graph.status else []
+        return any(r.robot_id == "arm_left" and r.fsm_state == "PICKING" for r in rows)
+    assert wait_for(left_seen, 10.0)
+    rows = {r.robot_id: r for r in graph.status[-1].robots}
+    assert list(rows) == ["pode1", "arm_left", "arm_right", "arm_ship"]
+    assert (rows["pode1"].kind, rows["arm_left"].kind) == ("POD", "ARM")
+    assert (rows["arm_left"].fault, rows["arm_left"].lock, rows["arm_left"].boot_id) == (
+        "NONE", True, "b-7")
+    assert rows["arm_right"].fault == "COMM_LOST"
+
+
+@pytest.mark.parametrize("bad", ["0.0", "-5.0", ".inf"])
+def test_a_robots_rate_that_is_not_positive_is_refused(bad):
+    rclpy.init(args=["--ros-args", "-p", "robots:=[pode1]", "-p", f"robots_hz:={bad}"])
+    try:
+        with pytest.raises(ValueError, match="robots_hz"):
+            FleetManagerNode()
+    finally:
+        rclpy.shutdown()
 
 
 def test_a_new_fms_stays_silent_until_any_goal_of_an_old_one_must_have_stopped(graph):
@@ -396,14 +431,15 @@ def test_reinstate_takes_a_cleared_robot_back_and_refuses_a_bad_call_with_a_reas
 
 
 def test_force_ship_refuses_an_order_it_does_not_know_with_the_reason(graph):
-    """강제 출고 창구. 모르는 주문은 UNKNOWN_ORDER로 거절한다."""
+    """강제 출고 창구(TripCommand). 모르는 주문은 UNKNOWN_ORDER로 거절한다."""
     fms = graph.fms
-    client = graph.create_client(ForceShip, fms.contract.name("force_ship"))
+    client = graph.create_client(TripCommand, fms.contract.name("force_ship"))
     assert client.wait_for_service(timeout_sec=10.0)
-    reply = client.call_async(ForceShip.Request(order_id="O-NOPE"))
+    reply = client.call_async(TripCommand.Request(request_id="r-9", trip_id="O-NOPE"))
     assert wait_for(reply.done, 10.0), "no reply: the callback raised"
     assert not reply.result().accepted
-    assert reply.result().reason == ForceShip.Response.REASON_UNKNOWN_ORDER
+    assert reply.result().reason == "UNKNOWN_ORDER"
+    assert reply.result().request_id == "r-9"
 
 
 @pytest.mark.parametrize("answer", [(True, ""), (False, "ROBOT_FAULT"), (False, "NOT_HELD")])
@@ -417,9 +453,9 @@ def test_force_ship_passes_the_order_to_the_core_and_returns_its_answer(graph, m
         return answer
 
     monkeypatch.setattr(fms.core, "force_ship", force_ship)
-    client = graph.create_client(ForceShip, fms.contract.name("force_ship"))
+    client = graph.create_client(TripCommand, fms.contract.name("force_ship"))
     assert client.wait_for_service(timeout_sec=10.0)
-    reply = client.call_async(ForceShip.Request(order_id="O-007"))
+    reply = client.call_async(TripCommand.Request(trip_id="O-007"))
     assert wait_for(reply.done, 10.0), "no reply: the callback raised"
     assert asked == ["O-007"]
     assert (reply.result().accepted, reply.result().reason) == answer
@@ -465,7 +501,7 @@ def test_a_robot_goal_with_no_server_is_not_a_rejection_and_an_arm_goal_still_is
         node.core.on_goal_rejected.assert_not_called()
         node._send(client, None, ("workcell", 9), node._fill_done, node._fill_rejected)
         node.core.on_fill_result.assert_called_once_with(9, False, {}, {}, "REJECTED")
-        node._send(client, None, ("arm3", 10), node._swap_done, node._swap_rejected)
+        node._send(client, None, ("arm_ship", 10), node._swap_done, node._swap_rejected)
         node.core.on_swap_result.assert_called_once_with(10, False, False, False, "REJECTED")
         assert node.core.on_goal_not_sent.call_count == 2
         client.send_goal_async.assert_not_called()
@@ -509,8 +545,12 @@ def test_a_retreat_result_with_a_core_that_has_no_handler_yet_is_logged_and_drop
     assert len(warnings) == 1 and "on_retreat_result" in warnings[0]
 
 
-def test_a_lost_result_of_a_canceled_robot_goal_is_no_rejection():
-    """취소한 로봇 goal의 결과를 잃으면 거절로 넘기지 않고 취소를 남긴다."""
+def test_a_lost_result_of_a_robot_goal_is_no_rejection():
+    """로봇 goal의 결과를 잃으면 거절로 넘기지 않는다.
+
+    취소한 goal은 취소를 남기고, 취소하지 않은 goal은 코어에 결과 모름(on_goal_lost, IR-62)으로 넘긴다.
+    팔 goal은 그대로 거절이다.
+    """
     def broken():
         raise RuntimeError("result lost")
 
@@ -521,32 +561,40 @@ def test_a_lost_result_of_a_canceled_robot_goal_is_no_rejection():
         rejected.append(key)
 
     key = ("pode1", 7)
-    for canceled, on_rejected, expected in ((True, robot_rejected, []),
-                                            (False, robot_rejected, [key]),
-                                            (True, arm_rejected, [key])):
+    for canceled, on_rejected, want_rejected, want_lost in (
+            (True, robot_rejected, [], []),
+            (False, robot_rejected, [], [key]),
+            (True, arm_rejected, [key], [])):
         goals = GoalTracker()
         goals.sent(key)
         goals.accepted(key, SimpleNamespace(cancel_goal_async=lambda: None))
         if canceled:
             goals.cancel(key, 0.0)
+        lost = []
         node = SimpleNamespace(_goals=goals, _robot_rejected=robot_rejected,
+                               core=SimpleNamespace(on_goal_lost=lambda *k: lost.append(k)),
                                get_logger=lambda: SimpleNamespace(error=lambda msg: None))
         rejected = []
         FleetManagerNode._goal_result(node, key, lambda k, r: None, on_rejected,
                                       SimpleNamespace(result=broken))
-        assert rejected == expected
-        assert goals.canceling(key) == (not expected)
+        assert (rejected, lost) == (want_rejected, want_lost)
+        assert goals.canceling(key) == (canceled and on_rejected is robot_rejected)
+        if want_lost:  # 코어가 나중에 내는 취소는 아직 로봇에 닿는다
+            asked = []
+            goals._handles[key] = SimpleNamespace(cancel_goal_async=lambda: asked.append(1))
+            goals.cancel(key, 1.0)
+            assert asked == [1]
 
 
 def test_a_dropped_cancel_of_a_robot_goal_is_told_to_the_core_as_lost():
     """결과를 잃은 취소를 그만둘 때 코어에 알린다."""
     key = ("pode1", 7)
-    goals = GoalTracker()
+    goals = GoalTracker(rand=lambda: 0.5)  # 지연 배수 1.0
     goals.sent(key)
     goals.accepted(key, SimpleNamespace(cancel_goal_async=lambda: None))
     goals.cancel(key, 0.0)
     goals.lost(key)
-    params = SimpleNamespace(cancel_retry_s=1.0, cancel_warn_after=2)
+    params = SimpleNamespace(cancel_retry_s=1.0, cancel_warn_after=2, robot_timeout_settle_s=30.0)
     events = []
     node = SimpleNamespace(_goals=goals, core=MagicMock(params=params),
                            _dispatch=lambda command, now: events.append(command.code))
@@ -614,6 +662,9 @@ def events_of(world, code):
 
 
 def test_a_refused_cancel_is_sent_again_and_warned_about_once_until_the_result_comes(graph):
+    # 경고 주기 수는 이 시험의 대상이 아니다. 노드가 읽는 값만 줄여 10 s 안에 경고를 본다
+    fms = graph.fms
+    fms.core.params = dataclasses.replace(fms.core.params, cancel_warn_after=7)
     graph.hold_fill.set()
     graph.refuse_fill_cancel = True
     publish(graph, "RUN", {"A": 1, "C": 2})
@@ -635,7 +686,8 @@ def test_a_refused_cancel_is_sent_again_and_warned_about_once_until_the_result_c
 
 
 def test_a_report_with_no_reply_yet_is_sent_again_and_ends_with_the_reply(graph):
-    graph.report_delay_s = 2.5  # report_retry_s보다 길다
+    """central이 매번 재전송보다 늦게(응답 한도 3 s 안) 답해도 보고는 끝난다(IR-41)."""
+    graph.report_delay_s = 2.5  # report_retry_s × 1.2보다 길고 응답 한도 3 s보다 짧다
     publish(graph, "RUN", {"A": 1, "C": 2})
     assert wait_for(lambda: len(graph.reports) >= 2), f"reports {graph.reports}"
     assert {r.order_id for r in graph.reports} == {"O-001"}
@@ -668,11 +720,104 @@ def test_a_refused_report_is_dropped_with_one_error_naming_the_order(graph):
 
 def test_a_failed_reply_keeps_the_report_for_sending_again():
     report = SimpleNamespace(order_id="O-001")
-    outbox = ReportOutbox()
+    outbox = ReportOutbox(rand=lambda: 0.5)
     outbox.add(report)
-    [(report_id, _)] = outbox.due(0.0, True, 2.0)
+    [(report_id, _)] = outbox.due(0.0, True, 2.0, 4)
     future = Future()
     future.set_exception(RuntimeError("central went away"))
     node = SimpleNamespace(_reports=outbox, get_logger=lambda: SimpleNamespace(warning=print))
     FleetManagerNode._report_answered(node, report_id, report, future)
-    assert outbox.due(2.0, True, 2.0) == [(report_id, report)]
+    assert outbox.due(2.0, True, 2.0, 4) == [(report_id, report)]
+
+
+class _ReportClient:
+    """call_async가 답 없는 future를 내고 지운 요청을 적는다."""
+
+    def __init__(self):
+        self.sent = []
+        self.removed = []
+
+    def service_is_ready(self):
+        return True
+
+    def call_async(self, request):
+        future = Future()
+        self.sent.append(future)
+        return future
+
+    def remove_pending_request(self, future):
+        self.removed.append(future)
+
+
+def report_node(limit=4):
+    outbox = ReportOutbox(rand=lambda: 0.5)
+    events = []
+    node = SimpleNamespace(
+        _reports=outbox, _report_client=_ReportClient(),
+        core=SimpleNamespace(params=SimpleNamespace(report_retry_s=2.0,
+                                                    report_max_in_flight=limit)),
+        get_logger=lambda: SimpleNamespace(warning=print),
+        _now=lambda: 0.0, _dispatch=lambda command, now: events.append(command.code))
+    node._report_answered = partial(FleetManagerNode._report_answered, node)
+    return node, events
+
+
+def report_cmd(order_id):
+    return ReportOrderCmd(order_id, "pode1", "SHIPPED", {"A": 1}, {}, "")
+
+
+def answer(future, accepted):
+    future.set_result(ReportOrder.Response(accepted=accepted))
+
+
+def test_a_resent_report_removes_only_requests_past_the_reply_limit():
+    """IR-41: 응답 한도(3 s)를 넘긴 요청만 클라이언트에서 지워 대기 표가 늘지 않는다."""
+    node, _ = report_node()
+    node._reports.add(report_cmd("O-001"))
+    client = node._report_client
+    FleetManagerNode._flush_reports(node, 0.0)
+    FleetManagerNode._flush_reports(node, 2.0)
+    assert client.removed == [], "the first request is still inside the reply limit"
+    FleetManagerNode._flush_reports(node, 4.0)
+    assert client.removed == client.sent[:1]
+    answer(client.sent[1], True)  # 한도 안에 남은 앞선 요청의 답이 끝낸다
+    assert not node._reports._items
+    assert client.removed == [client.sent[0], client.sent[2]], "the other waiting request goes"
+
+
+def test_a_request_past_the_reply_limit_is_dropped_without_a_resend():
+    node, _ = report_node()
+    node.core.params.report_retry_s = 10.0
+    node._reports.add(report_cmd("O-001"))
+    client = node._report_client
+    FleetManagerNode._flush_reports(node, 0.0)
+    FleetManagerNode._flush_reports(node, 2.9)
+    assert client.removed == []
+    FleetManagerNode._flush_reports(node, 3.0)
+    assert client.removed == client.sent[:1] and len(client.sent) == 1
+
+
+def test_a_late_answer_to_a_done_report_is_harmless():
+    node, events = report_node()
+    node._reports.add(report_cmd("O-001"))
+    client = node._report_client
+    FleetManagerNode._flush_reports(node, 0.0)
+    FleetManagerNode._flush_reports(node, 2.0)
+    answer(client.sent[1], True)
+    answer(client.sent[0], False)  # 지웠어도 늦게 끝난 future
+    assert events == [] and not node._reports._items
+    assert client.removed == client.sent[:1]
+    FleetManagerNode._flush_reports(node, 10.0)
+    assert len(client.sent) == 2
+
+
+def test_the_node_keeps_reports_over_the_limit_for_a_later_flush():
+    node, _ = report_node(limit=1)
+    for order in ("O-001", "O-002"):
+        node._reports.add(report_cmd(order))
+    client = node._report_client
+    FleetManagerNode._flush_reports(node, 0.0)
+    assert len(client.sent) == 1
+    answer(client.sent[0], True)
+    FleetManagerNode._flush_reports(node, 0.1)
+    assert len(client.sent) == 2

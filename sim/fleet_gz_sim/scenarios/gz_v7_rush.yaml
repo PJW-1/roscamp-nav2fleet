@@ -4,7 +4,7 @@
 map: v7
 seed: 72
 timeout_s: 2400
-stock: {arm1: {A: 30, B: 30}, arm2: {C: 30, D: 30}}
+stock: {arm_left: {A: 30, B: 30}, arm_right: {C: 30, D: 30}}
 orders:
   - {at_s: 0, id: S-001, items: {A: 1}}
   - {at_s: 1, id: S-002, items: {C: 2, D: 1}}

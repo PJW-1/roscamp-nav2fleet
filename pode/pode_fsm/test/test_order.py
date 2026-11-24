@@ -102,12 +102,22 @@ def test_the_robot_stops_at_the_end_of_base_although_a_horizon_exists():
     assert fsm.is_running("g1") and fsm.state() == MOVING and fsm.current_goal() == "N1"
 
 
+def test_an_order_waiting_at_the_end_of_base_still_has_a_goal():
+    """W-34: the lock waits for a stopped robot, and a waiting order is still a goal."""
+    fsm = ready()
+    [send] = of(order(fsm, "g1", 1.0, [S1], [S2, S3]), SendPath)
+    arrive(fsm, send, 5.0, (0.8, 0.3, 0.0))
+    assert fsm.order_feedback()[1] is True
+    assert fsm.has_goal()
+
+
 def test_the_order_succeeds_at_the_end_of_base_when_the_horizon_is_empty():
     fsm = ready()
     [send] = of(order(fsm, "g1", 1.0, [S1]), SendPath)
     cmds = arrive(fsm, send, 5.0, (0.8, 0.3, 0.0))
     assert Finish("g1", True, "", 1) in cmds
     assert fsm.state() == IDLE and not fsm.is_running("g1")
+    assert not fsm.has_goal()
 
 
 def test_the_last_done_seq_id_follows_the_robot_through_a_merged_run():

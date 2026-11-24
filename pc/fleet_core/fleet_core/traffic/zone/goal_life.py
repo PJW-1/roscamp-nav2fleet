@@ -13,6 +13,7 @@ class GoalLife:
 
     def _clear_goal(self, m) -> None:
         m.goal = None
+        m.result_lost_at = None
 
     def _reset_stall(self, m) -> None:
         m.watch.stall.clear()

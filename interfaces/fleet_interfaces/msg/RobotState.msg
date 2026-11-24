@@ -33,3 +33,11 @@ string LOCAL_YIELD_WAIT="wait"
 string LOCAL_YIELD_BACKUP="backup"
 string LOCAL_YIELD_RETRY="retry"
 string local_yield
+
+# ---- 재시작 감지, 락, 운영 모드, 강제 값, 사유: 칸 추가 ----
+string boot_id               # 로봇 재시작 감지
+bool lock                    # 잠김 = true, 켜질 때 true
+string last_request_id       # 마지막으로 반영한 명령 (관측 보조 · 디버깅용, 결과 전달 경로 아님, #25 ④)
+string mode                  # SystemMode.MODE_* 또는 "UNKNOWN"(켜질 때)
+string[] forced              # 강제 중인 항목
+string detail                # 2.2 사유 코드 (ERROR 원인 등)

@@ -73,11 +73,12 @@ def station_with_action(site, action: str):
 def split_fake_arms(text: str, site) -> tuple[bool, list[str], list[str]]:
     """launch 인자 fake_arms를 (가짜 작업셀 실행 여부, 채움 팔, 교체 팔)로 푼다.
 
-    arm1과 arm2는 채움 서버 하나를 같이 쓰므로 함께 가짜로 만들거나 둘 다 안 만든다.
+    arm_left와 arm_right는 채움 서버 하나를 같이 쓰므로 함께 가짜로 만들거나 둘 다 안 만든다.
     """
     fill_arms = list(station_with_action(site, "fill").arms)
     swap_arms = list(station_with_action(site, "swap").arms)
-    named = text.split()
+    # none은 빈 값과 같다(ros2 launch는 빈 값을 받지 않는다)
+    named = [] if text.strip().lower() == "none" else text.split()
     unknown = sorted(set(named) - set(fill_arms) - set(swap_arms))
     if unknown:
         raise ValueError(f"fake_arms names unknown arms: {unknown}")

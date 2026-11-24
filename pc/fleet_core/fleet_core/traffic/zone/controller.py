@@ -72,7 +72,9 @@ class ZoneTraffic(Calls, Goals, Turns, Drive, MoveOrders, OrderAnswers, Results,
         self._mark_book.expire(now)
         self._out.extend(self._mark_book.ask(now))
         for m in self._robots.values():
-            if m.available:
+            if m.result_lost_at is not None:
+                self._settle_lost(m, now)  # 결과 모름 동안 다른 감시는 goal을 건드리지 않는다
+            elif m.available:
                 self._judge_arrival(m, now)
                 self._watch_stall(m, now)
                 self._silent.watch_idle(m, now, self.running)

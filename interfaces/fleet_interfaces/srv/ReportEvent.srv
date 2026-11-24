@@ -1,0 +1,11 @@
+# ---- 놓치면 안 되는 알림 (WARN 이상) ----
+string event_id              # UUID
+string level                 # FleetEvent.LEVEL_*
+string source                # fleet · central · 로봇 이름
+string code                  # 2.2 사유 코드 또는 알림 코드 (LATE_COMMAND_RESULT 등)
+string robot_id
+string trip_id
+string detail
+builtin_interfaces/Time stamp
+---
+bool accepted

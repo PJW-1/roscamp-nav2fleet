@@ -30,6 +30,7 @@ class Entry:
     qos_name: str | None
     instances: dict
     real_only: bool
+    not_in_fake: bool = False
 
 
 @dataclass(frozen=True)
@@ -54,6 +55,7 @@ class Contract:
             name: QosSpec(p["reliability"], p["durability"], int(p["depth"]))
             for name, p in (data.get("qos_profiles") or {}).items()
         }
+        self.reason_codes = {k: list(v) for k, v in (data.get("reason_codes") or {}).items()}
         self.entries: dict[str, Entry] = {}
         for kind, section in (("topic", "topics"), ("action", "actions"), ("service", "services")):
             for raw in data.get(section) or []:
@@ -74,6 +76,7 @@ class Contract:
             qos_name=qos,
             instances=raw.get("instances") or {},
             real_only=bool(raw.get("real_only", False)),
+            not_in_fake=bool(raw.get("not_in_fake", False)),
         )
 
     def _entry(self, key: str) -> Entry:
@@ -102,7 +105,7 @@ class Contract:
     def expanded(self, include_real_only: bool = True) -> list[ExpandedEntry]:
         out = []
         for entry in self.entries.values():
-            if entry.real_only and not include_real_only:
+            if (entry.real_only or entry.not_in_fake) and not include_real_only:
                 continue
             fields = _fields(entry.template)
             values = [entry.instances.get(f, self.placeholders.get(f, [])) for f in fields]

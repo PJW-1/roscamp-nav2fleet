@@ -1,10 +1,10 @@
-# 팔 고장 보류(이름은 통합 시험 목록 때문에 그대로): pode1이 O-002를 쥔 채 arm1 고장으로 HELD ARM_FAULT가 된다.
+# 팔 고장 보류(이름은 통합 시험 목록 때문에 그대로): pode1이 O-002를 쥔 채 arm_left 고장으로 HELD ARM_FAULT가 된다.
 # O-001은 pode2가 정상으로 채워 출고하고, 120초에 운영자가 pode1을 들어내면 O-002가 한 번 되돌려진다.
 map: d2  # D2 배치용 시나리오(기본 배치는 v7)
 seed: 29
 speed_factor: 5.0
 timeout_s: 900
-stock: {arm1: {A: 6, B: 6}, arm2: {C: 6, D: 6}}
+stock: {arm_left: {A: 6, B: 6}, arm_right: {C: 6, D: 6}}
 orders:
   - {at_s: 0, id: O-001, items: {C: 1}}
   - {at_s: 0, id: O-002, items: {A: 1}}
@@ -17,7 +17,7 @@ robots:
 arm: {seconds_per_item: 4.0, swap_seconds: 8.0, fail_rate: 0.0}
 dock: {duration_s: 1.0, error_cm: 1.0}
 faults:
-  - {at_s: 0, arm: arm1, type: arm_fail, count: 3}
+  - {at_s: 0, arm: arm_left, type: arm_fail, count: 3}
   - {at_s: 120, robot: pode1, type: operator_remove}
 expect:
   robot_idle: null  # 고장 시나리오는 ROBOT_IDLE을 세지 않는다

@@ -23,7 +23,7 @@
 | `/{pode}/retreat` | 액션 `fleet_interfaces/action/Retreat` | 관제 → Pode | 액션 기본값(0.9-draft, 기준(사용자)) |
 | `/{pode}/check_clear` | 서비스 `fleet_interfaces/srv/CheckClear` | 관제 → Pode | 서비스 기본값(0.12-draft, 기준(사용자)). 관제는 답을 기다리지 않고 비동기로 부릅니다. 서버가 없거나 부르기가 실패하면 로봇의 `unknown` 답과 따로, 묻지 못한 것으로 봅니다. 관제는 범위 안 로봇에게 돌아가며 묻습니다 |
 | `/fleet/heartbeat` | 토픽 `std_msgs/msg/Header` | 관제 → Pode | reliable, volatile, depth 1(0.4-draft, 기준(사용자)). 2 Hz. 빠짐 자체가 정지 조건이라 다시 보냅니다. 끊김 판단은 그대로 3절 5번의 타이머입니다 |
-| `/fleet/robots` | 토픽 `fleet_interfaces/msg/RobotStatusArray` | 관제 → Pode(0.13-draft, 기준(사용자)) | reliable, transient_local, depth 1. 1 Hz. 원래 화면용이고, Pode는 로봇단 교착 처리(4절)에서 다른 로봇의 `x`, `y`, `priority`와 자기 줄의 `priority`만 읽습니다. 받은 지 3초(`peers_timeout_s`)가 지난 값은 쓰지 않습니다 |
+| `/fleet/robots` | 토픽 `fleet_interfaces/msg/RobotStatusArray` | 관제 → Pode(0.13-draft, 기준(사용자)) | reliable, transient_local, depth 1. 5 Hz(팀 명세 F-11, 11-24 전에는 1 Hz). 원래 화면용이고, Pode는 로봇단 교착 처리(4절)에서 다른 로봇의 `x`, `y`, `priority`와 자기 줄의 `priority`만 읽습니다. 받은 지 3초(`peers_timeout_s`)가 지난 값은 쓰지 않습니다 |
 
 ## 2. 메시지
 

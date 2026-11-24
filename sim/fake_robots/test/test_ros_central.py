@@ -7,7 +7,7 @@ pytest.importorskip("fleet_interfaces.msg")
 from conftest import CONTRACT, wait_until, write_scenario  # noqa: E402
 from fleet_core.common.contract import load_contract, to_ros_qos  # noqa: E402
 from fleet_interfaces.msg import FleetEvent, OrderBoard, OrderItem  # noqa: E402
-from fleet_interfaces.srv import ForceShip, ReportOrder  # noqa: E402
+from fleet_interfaces.srv import ReportOrder, TripCommand  # noqa: E402
 
 C = load_contract(CONTRACT)
 ORDERS = [
@@ -48,10 +48,10 @@ class Central:
         self.forced = []
 
         def handle(request, response):
-            self.forced.append(request.order_id)
+            self.forced.append(request.trip_id)
             response.accepted, response.reason = accepted, reason
             return response
-        self.probe.create_service(ForceShip, C.name("force_ship"), handle)
+        self.probe.create_service(TripCommand, C.name("force_ship"), handle)
 
     def report(self, order_id, status, placed=None, missing=None, detail="", hold_reason="",
                robot="pode1"):
@@ -245,13 +245,13 @@ def test_a_final_that_beats_the_force_ship_answer_is_still_forced(harness, tmp_p
     gate, asked, answered = threading.Event(), [], []
 
     def handle(request, response):
-        asked.append(request.order_id)
+        asked.append(request.trip_id)
         gate.wait(5.0)  # 최종 보고가 먼저 닿도록 응답을 붙잡는다
-        answered.append(request.order_id)
+        answered.append(request.trip_id)
         response.accepted = True
         return response
     server = harness.add(rclpy.node.Node("slow_force_ship"))
-    server.create_service(ForceShip, C.name("force_ship"), handle)
+    server.create_service(TripCommand, C.name("force_ship"), handle)
     c.wait_ids(["O-1", "O-2"])
     c.report("O-1", HELD, hold_reason=ARM_FAULT)
     assert wait_until(lambda: asked == ["O-1"], 6.0)

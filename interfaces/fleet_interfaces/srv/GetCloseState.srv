@@ -1,0 +1,6 @@
+# ---- central이 켜질 때 마감 상태를 한 번 더 확인 ----
+# 평소 원본은 SetAssignHold. /bridge/close_state와 GetCloseState는 central이 켜질 때 처음 값을 정하는 데만 씀.
+# close_id가 다르면 나중에 받은 SetAssignHold를 따르고 알림
+---
+bool assign_hold
+string close_id

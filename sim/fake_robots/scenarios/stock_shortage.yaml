@@ -11,7 +11,7 @@ map: d2  # D2 배치용 시나리오(기본 배치는 v7)
 seed: 17
 speed_factor: 5.0
 timeout_s: 900
-stock: {arm1: {A: 6, B: 6}, arm2: {C: 6}}
+stock: {arm_left: {A: 6, B: 6}, arm_right: {C: 6}}
 inventory: {A: 6, B: 6, C: 6, D: 0, E: 3, F: 2}
 orders:
   - {at_s: 0, id: O-001, items: {A: 1, C: 1}}

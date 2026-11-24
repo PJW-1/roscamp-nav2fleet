@@ -2,7 +2,7 @@
 map: d2_shelf
 seed: 7
 timeout_s: 1800
-stock: {arm1: {A: 6, B: 6}, arm2: {C: 6, D: 6}}
+stock: {arm_left: {A: 6, B: 6}, arm_right: {C: 6, D: 6}}
 orders:
   - {at_s: 0, id: O-001, items: {A: 1, C: 1}}
   - {at_s: 0, id: O-002, items: {B: 1, D: 1}}

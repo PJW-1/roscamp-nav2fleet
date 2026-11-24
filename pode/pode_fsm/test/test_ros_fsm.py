@@ -38,15 +38,50 @@ def test_reports_localizing_without_a_pose(harness):
     assert s.state == RobotState.STATE_LOCALIZING and s.robot_id == "pode1"
 
 
-def test_state_is_published_at_ten_hertz_with_the_map_pose(harness):
+def test_state_is_published_at_five_hertz_with_the_map_pose(harness):
     _, probe = start(harness)
     t0 = time.monotonic()
     time.sleep(2.0)
     n = len([1 for t, _ in probe.states if t >= t0])
-    assert 17 <= n <= 23
+    assert 9 <= n <= 11
     s = probe.last_state()
     assert (s.pose.x, s.pose.y) == (pytest.approx(0.35, abs=1e-3), pytest.approx(1.55, abs=1e-3))
     assert s.current_goal == ""
+
+
+def test_a_fresh_node_reports_locked_unknown_mode_and_a_boot_id(harness):
+    _, probe = start(harness, nav=False)
+    assert wait_until(lambda: len(probe.states) >= 2, 5.0)
+    first, last = probe.states[0][1], probe.last_state()
+    assert (last.lock, last.mode, list(last.forced), last.detail) == (True, "UNKNOWN", [], "")
+    assert len(last.boot_id) == 36 and first.boot_id == last.boot_id
+
+
+def test_the_admin_services_answer_with_the_request_id_and_the_state_shows_them(harness):
+    import rclpy.node
+    from fleet_interfaces.srv import RobotCommand, SetLock, SetMode
+    _, probe = start(harness)
+    caller = harness.add(rclpy.node.Node("admin_caller"))
+
+    def call(srv, name, request):
+        client = caller.create_client(srv, name)
+        assert client.wait_for_service(timeout_sec=5.0), name
+        future = client.call_async(request)
+        assert wait_until(future.done, 5.0), name
+        return future.result()
+
+    mode = call(SetMode, "/pode1/set_mode", SetMode.Request(request_id="m-1", mode="TEST"))
+    assert (mode.accepted, mode.request_id) == (True, "m-1")
+    unlock = call(SetLock, "/pode1/set_lock",
+                  SetLock.Request(request_id="l-1", robot_id="pode1", locked=False))
+    assert (unlock.accepted, unlock.reason, unlock.request_id) == (True, "", "l-1")
+    charge = call(RobotCommand, "/pode1/charge_end",
+                  RobotCommand.Request(request_id="c-1", robot_id="pode1"))
+    assert (charge.accepted, charge.reason) == (False, "BATTERY_LOW"), "battery unknown"
+    assert wait_until(lambda: (s := probe.last_state()) is not None
+                      and s.last_request_id == "l-1", 3.0)
+    s = probe.last_state()
+    assert (s.lock, s.mode) == (False, "TEST")
 
 
 def test_path_goal_arrives_within_the_tolerance(harness):
@@ -214,6 +249,24 @@ def test_something_behind_ends_a_retreat_with_obstacle_behind(harness):
     h = probe.send(Retreat.Goal(distance_m=0.1, speed_mps=0.1), client=_retreat_client(probe))
     res = probe.result(h, timeout=10.0).result
     assert (res.success, res.reason) == (False, Retreat.Result.REASON_OBSTACLE_BEHIND)
+
+
+def test_the_lock_does_not_change_while_a_retreat_runs(harness):
+    """W-34: 락은 멈춘 로봇에서만 바뀐다. Retreat도 진행 중인 목표다."""
+    import rclpy.node
+    from fleet_interfaces.action import Retreat
+    from fleet_interfaces.srv import SetLock
+    fake, probe = start(harness)
+    caller = harness.add(rclpy.node.Node("lock_caller"))
+    client = caller.create_client(SetLock, "/pode1/set_lock")
+    assert client.wait_for_service(timeout_sec=5.0)
+    h = probe.send(Retreat.Goal(distance_m=0.2, speed_mps=0.05), client=_retreat_client(probe))
+    assert wait_until(lambda: len(fake.backups) >= 1, 5.0)
+    future = client.call_async(SetLock.Request(request_id="l-1", robot_id="pode1", locked=False))
+    assert wait_until(future.done, 5.0)
+    assert (future.result().accepted, future.result().reason) == (False, "NOT_STOPPED")
+    assert not h.get_result_async().done()
+    assert probe.last_state().lock is True
 
 
 def _back_path(*ids):

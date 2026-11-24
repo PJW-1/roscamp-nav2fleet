@@ -1,0 +1,9 @@
+# ---- fleet → 로봇 운영 모드 알림 ----
+string request_id
+string mode                  # SystemMode.MODE_*
+---
+# ---- 관리 명령 공통 응답 ----
+bool accepted
+string reason                # 2.2 요청 거절 코드
+string request_id
+string detail

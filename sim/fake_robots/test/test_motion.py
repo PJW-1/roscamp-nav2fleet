@@ -238,17 +238,17 @@ def test_a_reinstate_ends_a_stuck_before_it_and_not_one_after_it():
 
 
 def test_arm_fail_counts_down_per_arm_after_its_start_time():
-    f = ArmFaults([Fault(at_s=5, type="arm_fail", arm="arm1", count=2)])
-    assert f.take_arm_fail("arm1", 4.9, 1) is None
-    assert f.take_arm_fail("arm2", 6.0, 1) is None
-    assert [f.take_arm_fail("arm1", 6.0, 1) for _ in range(3)] == [0, 0, None]
+    f = ArmFaults([Fault(at_s=5, type="arm_fail", arm="arm_left", count=2)])
+    assert f.take_arm_fail("arm_left", 4.9, 1) is None
+    assert f.take_arm_fail("arm_right", 6.0, 1) is None
+    assert [f.take_arm_fail("arm_left", 6.0, 1) for _ in range(3)] == [0, 0, None]
 
 
 def test_arm_fail_is_not_used_up_by_a_goal_too_short_to_reach_it():
-    f = ArmFaults([Fault(at_s=0, type="arm_fail", arm="arm1", after_items=1)])
-    assert f.take_arm_fail("arm1", 1.0, 1) is None
-    assert f.take_arm_fail("arm1", 1.0, 2) == 1
-    assert f.take_arm_fail("arm1", 1.0, 2) is None
+    f = ArmFaults([Fault(at_s=0, type="arm_fail", arm="arm_left", after_items=1)])
+    assert f.take_arm_fail("arm_left", 1.0, 1) is None
+    assert f.take_arm_fail("arm_left", 1.0, 2) == 1
+    assert f.take_arm_fail("arm_left", 1.0, 2) is None
 
 
 def test_swap_partial_counts_down_after_its_start_time():

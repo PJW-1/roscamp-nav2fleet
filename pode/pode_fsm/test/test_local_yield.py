@@ -77,6 +77,12 @@ def test_fleet_rows_become_peers_and_rows_without_priority_have_none():
     assert peers_from(rows) == [Peer("pode2", 1.0, 2.0, 3), Peer("pode3", 0.5, 0.5, NO_PRIORITY)]
 
 
+def test_arm_rows_on_the_fleet_status_are_not_peers():
+    rows = [SimpleNamespace(robot_id="pode2", x=1.0, y=2.0, priority=3, kind="POD"),
+            SimpleNamespace(robot_id="arm_left", x=0.0, y=0.0, priority=-1, kind="ARM")]
+    assert peers_from(rows) == [Peer("pode2", 1.0, 2.0, 3)]
+
+
 def test_the_trail_keeps_only_its_last_part_and_counts_all_of_it():
     trail = []
     driven = 0.0

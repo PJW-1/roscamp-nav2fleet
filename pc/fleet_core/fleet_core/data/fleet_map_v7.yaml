@@ -116,7 +116,7 @@ splits:
   - {to: Q2, via: GAP_S, from: [[0.75, 0.405, 1.20, 0.803], [0.0, 0.405, 0.40, 0.803]]}
   - {to: Q2, via: M_E, from: [[0.40, 0.51, 0.75, 0.803], [0.575, 0.405, 0.75, 0.51]]}
 stations:
-  WORK: {dock: W, queue: [Q1, Q2], line: true, server: workcell, arms: [arm1, arm2], action: fill}
+  WORK: {dock: W, queue: [Q1, Q2], line: true, server: workcell, arms: [arm_left, arm_right], action: fill}
   # 대기 자리 둘 중 길 값이 싼 쪽으로 간다(W에서는 급행 끝 O_X, 넓은 곳에서는 O_IN)
-  OUTBOUND: {dock: O, queue: [O_IN, O_X], server: arm3, arms: [arm3], action: swap}
+  OUTBOUND: {dock: O, queue: [O_IN, O_X], server: arm_ship, arms: [arm_ship], action: swap}
 parking: [P-1, P-2, P-3]

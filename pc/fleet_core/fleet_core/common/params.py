@@ -15,11 +15,15 @@ OPTIONAL = frozenset({"zone_clear_m"})
 ZERO_MEANS_OFF = frozenset({"zone_clear_m", "idle_watch_s", "silent_limit_s", "start_limit_s",
                             "battery_low_pct", "nav_pass_m", "nav_turn_rps"})
 # 값의 단위를 나타내는 키 끝말
-MEASURE_SUFFIXES = ("_s", "_m", "_mps", "_rps", "_pct")
+MEASURE_SUFFIXES = ("_s", "_m", "_mps", "_rps", "_pct", "_deg")
 # Pode 기본 blocked_after_s(계약에 없어 값을 따로 적는다)
 ROBOT_BLOCKED_AFTER_S = 10.0
 # 상태 보고 주기와 두 쪽 진전 측정 차이에 대한 여유
 BLOCKED_REPORT_MARGIN_S = 2.0
+# IR-41: 보고·취소를 다시 보낼 때 간격을 ±20% 무작위로 늘이고 줄인다
+RETRY_JITTER = 0.2
+# IR-40 표: Report* 응답 한도. 이보다 오래 답이 없는 요청만 클라이언트가 버린다(IR-41)
+REPORT_REPLY_LIMIT_S = 3.0
 
 
 # ---- FleetParams: 운영 파라미터 목록 ----
@@ -41,6 +45,7 @@ class FleetParams:
     heartbeat_timeout_s: float
     recover_check_s: float
     arm_cancel_wait_s: float
+    robot_timeout_settle_s: float
     arm_retry_wait_s: float
     fill_timeout_s: float
     swap_timeout_s: float
@@ -92,6 +97,8 @@ class FleetParams:
     pose_jump_m: float = 0.15
     pose_jump_quiet_s: float = 5.0
     redock_wait_s: float = 10.0
+    lost_dock_reach_m: float = 0.15
+    lost_dock_yaw_deg: float = 15.0
     retreat_clear_m: float = 0.20
     use_order_model: bool = True
     lookahead_s: float = 2.0
@@ -108,6 +115,7 @@ class FleetParams:
     clear_confirm: int = 2
     blocked_retry_max_s: float = 300.0
     plan_split: bool = False  # 해결안 B: 지도 splits대로 Nav2 goal을 둘로 나눈다. 기록 호환: 끔
+    report_max_in_flight: int = 4
 
     # ---- 파라미터 값 검사 ----
     def __post_init__(self):
@@ -169,6 +177,9 @@ def check_types(data: dict, source="params") -> None:
     if data.get("release_confirm_samples", 1) < 1:
         raise ValueError(f"{source}: release_confirm_samples must be >= 1, "
                          f"got {data['release_confirm_samples']!r}")
+    if data.get("report_max_in_flight", 1) < 1:
+        raise ValueError(f"{source}: report_max_in_flight must be >= 1, "
+                         f"got {data['report_max_in_flight']!r}")
 
 
 # ---- 시간·거리 값 검사: 유한, 음수 아님, 끔이 아니면 0보다 큼 ----

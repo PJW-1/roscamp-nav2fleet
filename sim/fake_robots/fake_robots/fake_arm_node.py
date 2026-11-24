@@ -3,9 +3,12 @@ from __future__ import annotations
 
 import random
 import threading
+import uuid
 
 import rclpy
+from fleet_core.common.contract import to_ros_qos
 from fleet_interfaces.action import SwapBasket
+from fleet_interfaces.msg import ArmState
 from rclpy.action import ActionServer, CancelResponse, GoalResponse
 from rclpy.callback_groups import ReentrantCallbackGroup
 from rclpy.executors import MultiThreadedExecutor
@@ -28,13 +31,14 @@ REASON_CANCELED = "CANCELED"
 STATE_IDLE = "IDLE"
 STATE_SWAPPING = "SWAPPING"
 STATE_ERROR = "ERROR"
+STATE_PERIOD_S = 0.2  # IR-34: 초당 5번
 
 
 class FakeArmNode(Node):
     def __init__(self, parameter_overrides=None, **kwargs):
         super().__init__(node_name("fake_arm", "arm_id", parameter_overrides),
                          parameter_overrides=parameter_overrides, **kwargs)
-        self.declare_parameter("arm_id", "arm3")
+        self.declare_parameter("arm_id", "arm_ship")
         self.arm_id = self.get_parameter("arm_id").value
         contract = load_contract_param(self)
         site = load_site_param(self)
@@ -49,6 +53,12 @@ class FakeArmNode(Node):
         self._alive = True
         self._busy = False
         self._state, self._error_until = STATE_IDLE, 0.0
+        self._boot_id = str(uuid.uuid4())
+        self._order_id = ""
+        self._state_pub = self.create_publisher(
+            ArmState, contract.name("arm_state", arm=self.arm_id),
+            to_ros_qos(contract.qos("arm_state")))
+        self.create_timer(STATE_PERIOD_S, self._publish_state)
 
         self._server = ActionServer(
             self, SwapBasket, contract.name("swap_basket", arm=self.arm_id),
@@ -80,6 +90,15 @@ class FakeArmNode(Node):
         if self._state == STATE_ERROR and self._sc.now() >= self._error_until:
             self._state = STATE_IDLE
 
+    def _publish_state(self) -> None:
+        # Phony는 락이 없어 lock은 늘 true, 모드는 받기 전이라 UNKNOWN(IR-72)
+        state = self._state
+        self._state_pub.publish(ArmState(
+            arm_id=self.arm_id, boot_id=self._boot_id, state=state,
+            detail=REASON_ARM_FAULT if state == STATE_ERROR else "", lock=True,
+            gripper=ArmState.GRIPPER_OPEN, order_id=self._order_id, mode="UNKNOWN",
+            stamp=self.get_clock().now().to_msg()))
+
     def _failure_step(self, steps: list[str]) -> tuple[str | None, str]:
         """이 목표에서 실패할 단계와 이유. swap_partial은 항상 빈 바구니 단계를 친다."""
         if "PUT_EMPTY" in steps and self._faults.take_swap_partial(self._sc.now()):
@@ -90,6 +109,7 @@ class FakeArmNode(Node):
 
     def _execute(self, handle):
         req = handle.request
+        self._order_id = req.order_id
         steps = (["TAKE_FULL"] if req.take_full else []) + (["PUT_EMPTY"] if req.put_empty else [])
         failing, fail_reason = self._failure_step(steps)
         done, reason = set(), ""
@@ -119,6 +139,7 @@ class FakeArmNode(Node):
         result = SwapBasket.Result(
             success=success, took_full="TAKE_FULL" in done, put_empty_done="PUT_EMPTY" in done,
             reason=reason)
+        self._order_id = ""
         with self._lock:
             self._busy = False
         if self._running():

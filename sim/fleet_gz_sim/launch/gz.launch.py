@@ -86,7 +86,7 @@ ARGS = {
                             " base는 5 cm 지도, b는 칸 중심 규칙, ab는 둘 다, a1은 a 규칙의 1 cm."
                             " 1 cm 지도와 keepout 마스크는 그대로"),
 }
-ARMS = "arm1 arm2 arm3"
+ARMS = "arm_left arm_right arm_ship"
 
 
 def flag(text: str, name: str) -> bool:

@@ -1,0 +1,7 @@
+# ---- 결품 사전 확인 (브리지가 REST로 웹에 물음) ----
+string trip_id
+OrderItem[] items
+---
+bool accepted                # 답을 얻었는지
+OrderItem[] available        # 상품별 가용 수량
+string reason

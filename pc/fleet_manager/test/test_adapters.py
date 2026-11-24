@@ -32,6 +32,7 @@ from fleet_core.traffic.mission import (  # noqa: E402
 )
 from fleet_interfaces.action import Dock, FillBasket, MoveTo, Retreat, SwapBasket  # noqa: E402
 from fleet_interfaces.msg import (  # noqa: E402
+    ArmState,
     Assignment,
     FleetEvent,
     Order,
@@ -42,8 +43,9 @@ from fleet_interfaces.msg import (  # noqa: E402
 )
 from fleet_interfaces.srv import (
     ConfirmClear,  # noqa: E402
-    ForceShip,  # noqa: E402
+    Reinstate,  # noqa: E402
     ReportOrder,  # noqa: E402
+    TripCommand,  # noqa: E402
 )
 from fleet_manager import adapters  # noqa: E402
 
@@ -175,7 +177,7 @@ def test_fill_goal_copies_every_field():
 
 @pytest.mark.parametrize("take_full", [True, False])
 def test_swap_goal_copies_every_field(take_full):
-    goal = adapters.swap_goal(SwapCmd("arm3", 9, "pode1", "OUTBOUND", "O-001", take_full, True))
+    goal = adapters.swap_goal(SwapCmd("arm_ship", 9, "pode1", "OUTBOUND", "O-001", take_full, True))
     assert (goal.order_id, goal.robot_id, goal.station_id) == ("O-001", "pode1", "OUTBOUND")
     assert (goal.take_full, goal.put_empty) == (take_full, True)
 
@@ -209,12 +211,18 @@ def test_order_status_and_hold_words_match_the_contract():
 
 
 def test_force_ship_request_and_response_are_handled_here():
-    assert adapters.force_ship_args(ForceShip.Request(order_id="O-003")) == "O-003"
-    yes = adapters.force_ship_response(ForceShip.Response(), True, "ignored")
-    assert yes.accepted is True and yes.reason == ""
-    no = adapters.force_ship_response(ForceShip.Response(), False,
-                                      ForceShip.Response.REASON_NOT_HELD)
-    assert no.accepted is False and no.reason == "NOT_HELD"
+    request = TripCommand.Request(request_id="r-1", trip_id="O-003")
+    assert adapters.force_ship_args(request) == "O-003"
+    yes = adapters.force_ship_response(TripCommand.Response(), True, "ignored", "r-1")
+    assert (yes.accepted, yes.reason, yes.request_id) == (True, "", "r-1")
+    no = adapters.force_ship_response(TripCommand.Response(), False, "NOT_HELD", "r-2")
+    assert (no.accepted, no.reason, no.request_id) == (False, "NOT_HELD", "r-2")
+
+
+def test_operator_replies_carry_the_request_id_back():
+    clear = adapters.confirm_clear_response(ConfirmClear.Response(), ["Z"], "", "r-3")
+    back = adapters.reinstate_response(Reinstate.Response(), False, "basket", "r-4")
+    assert (clear.request_id, back.request_id) == ("r-3", "r-4")
 
 
 def test_item_lists_add_up_a_kind_named_twice():
@@ -236,6 +244,44 @@ def test_a_self_recovering_robot_reaches_the_core_and_the_status_as_it_is():
                            (), 50.0, 0.0, 0.0, 0.0)
     status = adapters.robots_to_msg([view], 0.0).robots[0]
     assert (status.fsm_state, status.fault) == ("RECOVERING", "NONE")
+
+
+def test_a_pode_row_carries_kind_lock_mode_forced_and_boot_id_from_its_last_state():
+    view = RobotStatusView("pode1", "IDLE", "", "", "NONE", "", "", (), 50.0, 0.0, 0.0, 0.0)
+    state = RobotState(boot_id="b-1", lock=True, mode="UNKNOWN", forced=["battery"])
+    out = adapters.robots_to_msg([view], 0.0, {"pode1": state}).robots[0]
+    assert (out.kind, out.lock, out.mode, list(out.forced), out.boot_id) == (
+        RobotStatus.KIND_POD, True, "UNKNOWN", ["battery"], "b-1")
+    unseen = adapters.robots_to_msg([view], 0.0).robots[0]
+    assert (unseen.kind, unseen.lock, unseen.mode, unseen.boot_id) == ("POD", True, "", "")
+
+
+def test_a_robot_not_heard_from_yet_is_reported_locked():
+    view = RobotStatusView("pode1", "IDLE", "", "", "NONE", "", "", (), 50.0, 0.0, 0.0, 0.0)
+    rows = adapters.robots_to_msg([view], 0.0, {}, [("arm_ship", None, False)]).robots
+    assert [(r.robot_id, r.lock) for r in rows] == [("pode1", True), ("arm_ship", True)]
+
+
+def test_the_three_arms_follow_the_podes_with_their_own_state():
+    view = RobotStatusView("pode1", "IDLE", "", "", "NONE", "", "", (), 50.0, 1.0, 1.0, 0.0)
+    left = ArmState(arm_id="arm_left", boot_id="a-1", state=ArmState.STATE_PLACING,
+                    lock=True, mode="NORMAL", order_id="O-1")
+    right = ArmState(arm_id="arm_right", state=ArmState.STATE_ERROR, detail="PICK_FAILED")
+    arms = [("arm_left", left, True), ("arm_right", right, True), ("arm_ship", None, False)]
+    rows = adapters.robots_to_msg([view], 0.0, {}, arms).robots
+    assert [(r.robot_id, r.kind) for r in rows] == [
+        ("pode1", "POD"), ("arm_left", "ARM"), ("arm_right", "ARM"), ("arm_ship", "ARM")]
+    _, left_row, right_row, ship_row = rows
+    assert (left_row.fsm_state, left_row.order_id, left_row.fault, left_row.lock,
+            left_row.mode, left_row.boot_id) == ("PLACING", "O-1", "NONE", True, "NORMAL", "a-1")
+    assert (right_row.fault, right_row.fault_reason) == ("ERROR", "PICK_FAILED")
+    assert (ship_row.fault, ship_row.fsm_state, ship_row.battery) == ("COMM_LOST", "", -1.0)
+
+
+def test_an_arm_that_went_quiet_is_comm_lost_with_its_last_state():
+    state = ArmState(arm_id="arm_ship", state=ArmState.STATE_SWAPPING, lock=True)
+    row = adapters.arm_status("arm_ship", state, fresh=False)
+    assert (row.fault, row.fsm_state, row.lock) == ("COMM_LOST", "SWAPPING", True)
 
 
 def test_every_field_of_the_robot_status_reaches_the_message():
@@ -435,3 +481,13 @@ def test_move_feedback_values_are_the_order_fields_and_the_distance_left():
                                horizon_warning="HORIZON_INVALID: x", distance_remaining=0.75)
     assert adapters.move_feedback(feedback) == (3, True, "HORIZON_INVALID: x", 0.75)
     assert isinstance(adapters.move_feedback(feedback)[3], float)
+
+
+@pytest.mark.parametrize("status, hold, out", [
+    ("CANCELED", "", ("CANCELLED", "NOTHING_TO_FILL")),
+    ("HELD", "ARM_FAULT", ("HELD", "ARM_FAULT")),
+    ("SHIPPED", "", ("SHIPPED", "")),
+    ("PARTIAL", "", ("PARTIAL", "")),
+])
+def test_a_trip_report_spells_cancelled_with_two_l_outside(status, hold, out):
+    assert adapters.trip_status(status, hold) == out

@@ -25,7 +25,7 @@ def _module():
 def _setup(**over):
     context = LaunchContext()
     context.launch_configurations.update({
-        "scenario": str(SCENARIO), "fake_robots": "", "fake_arms": "arm1 arm2 arm3",
+        "scenario": str(SCENARIO), "fake_robots": "", "fake_arms": "arm_left arm_right arm_ship",
         "fake_central": "true", "use_sim_clock": "false", "result_dir": "/tmp/x",
         "monitor": "false", "map_file": "v7", "contract_file": "", "params_file": "",
         "dock_wait_robots": "", **over})

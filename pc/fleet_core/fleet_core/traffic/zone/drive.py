@@ -35,6 +35,8 @@ class Drive:
     def _step_phase(self, m) -> None:
         now = self._clock()
         if m.goal is not None:
+            if m.result_lost_at is not None:
+                return  # 결과 모름: 새 goal도 order 갱신도 보내지 않는다(IR-62)
             if self._leave_standby(m):
                 return
             if m.goal.mode == ORDER:

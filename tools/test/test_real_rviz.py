@@ -108,11 +108,11 @@ def test_launcher_rviz_is_super_client_of_the_server(tmp_path):
     r, calls = _run_stubbed(tmp_path, tmp_path / "nope.bash")
     assert r.returncode == 0, r.stderr
     assert len(calls) == 3
-    assert all(" NET=12|rmw_fastrtps_cpp|192.168.0.252:11811|TRUE " in c for c in calls)
+    assert all(" NET=6|rmw_fastrtps_cpp|192.168.0.252:11811|TRUE " in c for c in calls)
 
 
 def test_launcher_off_is_multicast(tmp_path):
     r, calls = _run_stubbed(tmp_path, tmp_path / "nope.bash", {"DISCOVERY_SERVER": "off"})
     assert r.returncode == 0, r.stderr
     assert len(calls) == 3
-    assert all(" NET=12|rmw_fastrtps_cpp|unset|unset " in c for c in calls)
+    assert all(" NET=6|rmw_fastrtps_cpp|unset|unset " in c for c in calls)

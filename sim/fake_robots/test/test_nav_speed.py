@@ -26,7 +26,7 @@ def site():
 
 def scenario(robot):
     return {"seed": 1, "speed_factor": 1.0, "timeout_s": 100,
-            "stock": {"arm1": {"A": 2}, "arm2": {"C": 1}},
+            "stock": {"arm_left": {"A": 2}, "arm_right": {"C": 1}},
             "orders": [{"at_s": 0, "id": "O-1", "items": {"A": 1}}],
             "robots": {"pode1": {"start": "P-1", **robot}}}
 

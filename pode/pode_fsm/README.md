@@ -3,7 +3,7 @@
 Pode 한 대의 이동·도킹 명령을 받아 Nav2로 넘기고 상태를 보고한다. Pode Pi에서 namespace `/{pode}`로 돈다.
 
 - 액션 서버: `move_to` (`MoveTo`), `dock` (`Dock`), `retreat` (`Retreat`, 제안. Pode 계약 3절 10번). 이름과 QoS는 `interfaces/fleet_interfaces/contract.yaml`에서 읽는다.
-- 발행: `state` (`RobotState`, 10 Hz, 변할 때만이 아니라 계속)
+- 발행: `state` (`RobotState`, 5 Hz, 변할 때만이 아니라 계속)
 - 구독: `/fleet/heartbeat`(계약의 HEARTBEAT QoS), `odom`(속도), `local_costmap/costmap`(BLOCKED 판단), `/fleet/robots`(로봇단 교착 처리에서 다른 로봇의 위치와 `priority`, 계약 0.13-draft)
 - Nav2: `move_to`의 `mode`가 `follow_path`(비면 같다)면 controller의 `follow_path`(`FollowPath`)를, `nav_goal`이면 bt_navigator의 `navigate_to_pose`(`NavigateToPose`)를 부른다(계약 0.11-draft 제안).
 - 위치: TF `map` → `base_footprint`(AMCL). `pose_timeout_s`(1 s)보다 오래된 TF는 위치를 모르는 것으로 친다.
@@ -67,6 +67,22 @@ ros2 launch pode_fsm pode_fsm.launch.py namespace:=pode1
 ```
 
 Gazebo에서 Pode 한 대를 Nav2와 함께 돌리는 방법은 `sim/fleet_gz_sim/README.md`.
+
+### 동작 없음(설계 4.5, 임시)
+
+```bash
+ros2 launch pode_fsm pode_fsm.launch.py namespace:=pode1 no_motion:=true \
+    initial_x:=0.12 initial_y:=0.10 initial_yaw:=1.5708
+```
+
+`no_motion:=true`(기본 `false`)면 Nav2 없이 혼자 돈다. FSM은 그대로 두고 Nav2 액션만 대역(`no_motion.py`)으로 바꾼다:
+move_to는 `no_motion_move_s`(2.0 s), retreat은 `no_motion_retreat_s`(2.0 s), dock은 `no_motion_dock_s`(3.0 s) 뒤 성공하고,
+자세는 그때 목표로 한 번에 옮긴다. check_clear는 늘 `clear`, 상태는 기본 5 Hz, heartbeat가 1.5 s 끊기면 하던 목표를
+`HEARTBEAT_LOST`로 끝내고 선다. 실주행으로 돌아가면 `no_motion`을 빼면 된다(코드는 `TODO(no-motion)`).
+
+- 도킹은 거리를 보지 않고 성공한다. `dock_id`가 `no_motion_dock_ids`(기본 `WORK`, `OUTBOUND`)에 없으면 경고 로그만 남긴다.
+  pode_fsm은 지도 좌표를 모른다.
+- 실물 로봇에서는 `NO_MOTION=1 ~/nav2fleet_real/start.sh pode2`로 띄운다. 로봇별 시작 자리(P-1~P-3)는 `start.sh`에만 있다.
 
 ## 시험
 
