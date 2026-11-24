@@ -96,7 +96,7 @@ def test_old_records_without_the_keys_replay_with_both_parts_off():
 
 
 def test_the_running_file_turns_both_parts_on():
-    assert P.nav_pass_m == pytest.approx(0.15), "pode_fsm pass_m"
+    assert P.nav_pass_m == pytest.approx(0.12), "pode_fsm pass_m"
     assert P.nav_turn_rps == pytest.approx(1.0), "RPP rotate_to_heading_angular_vel"
     assert P.nav_goal_tolerance_m == pytest.approx(0.05), "Nav2 general_goal_checker"
 

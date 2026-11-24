@@ -57,7 +57,7 @@
 | Goal | `string mode`(0.11-draft, 기준(사용자)): 아래 표. 빈 값은 `follow_path`입니다. 모르는 값이면 움직이지 않고 `NAV_ABORTED`로 끝냅니다 |
 | Goal | order 모델 칸(0.11-draft, 기준(사용자)): 아래 order 모델 표 |
 | Goal | `int32 priority`(0.13-draft, 기준(사용자)): 로봇단 교착 처리(4절)의 우선순위. 관제의 `deadlock.priority`와 같은 값이고, 클수록 비킬 때 잃는 일이 많습니다. `-1`이면 비었습니다. order goal이면 그 order의 모든 조각에 씁니다. 관제는 마지막으로 보낸 값을 `/fleet/robots`의 `priority`로도 보입니다 |
-| Result | `success`, `reason` ∈ `NAV_ABORTED`, `CANCELED`, `TIMEOUT`, `HEARTBEAT_LOST`(3절 5번), `PATH_NOT_CONNECTED`(3절 9번, 기준(사용자)), `SUPERSEDED`·`ORDER_UPDATE_REJECTED`(order 모델, 기준(사용자)). `last_done_seq_id`(order 모델) |
+| Result | `success`, `reason` ∈ `NAV_ABORTED`, `CANCELED`, `TIMEOUT`, `HEARTBEAT_LOST`(3절 5번), `PATH_NOT_CONNECTED`(3절 9번, 기준(사용자)), `NAV_UNAVAILABLE`(3절 6번, 기준(사용자)), `SUPERSEDED`·`ORDER_UPDATE_REJECTED`(order 모델, 기준(사용자)). `last_done_seq_id`(order 모델) |
 | Feedback | `distance_remaining`. `last_done_seq_id`, `waiting_at_base_end`, `horizon_warning`(order 모델) |
 
 **MoveTo `mode`** (0.11-draft, 사용자 기준)
@@ -138,7 +138,7 @@ MoveTo에 더한 칸:
 3. **실패**: 갈 수 없으면 결과 없이 멈춰 있지 않습니다. `NAV_ABORTED`나 `TIMEOUT`을 돌려줍니다.
 4. **도착**: move_to 성공은 목표에서 **0.15 m 안**에 섰을 때만 보냅니다. 성공을 보낸 뒤 1초 안에 그 위치를 보고합니다.
 5. **heartbeat**: move나 dock을 실행하는 중에 heartbeat도 새 목표도 **1.5초** 동안 오지 않으면 스스로 멈춥니다. move_to는 `reason=HEARTBEAT_LOST`로 끝냅니다. `nav_goal`이면 NavigateToPose를 취소합니다. heartbeat는 비상 정지가 아닙니다.
-6. **시작**: 액션 서버를 먼저 띄웁니다. 위치가 잡히기 전에는 `LOCALIZING`으로 보고하고, 잡히면 지점 위에서 `IDLE`로 보고합니다. 관제는 `LOCALIZING`인 로봇을 지도에 올리지 않고, 그 보고의 자세는 쓰지 않습니다. 지도에 오른 뒤 `LOCALIZING`이 3초 이어지면 `COMM_LOST`로 보고, 위치를 다시 보고하면 확인 뒤 이어 갑니다.
+6. **시작**: 액션 서버를 먼저 띄웁니다. 위치가 잡히기 전과 Nav2의 `follow_path`·`navigate_to_pose` 액션 서버가 둘 다 보이기 전에는 `LOCALIZING`으로 보고하고, 둘 다 되면 지점 위에서 `IDLE`로 보고합니다. 서버가 한 번 보인 뒤에는 이 조건을 다시 보지 않습니다. 그 전에 온 목표와 서버가 없어 보내지 못한 목표는 `NAV_UNAVAILABLE`로 끝납니다(기준(사용자)). 관제는 `LOCALIZING`인 로봇을 지도에 올리지 않고, 그 보고의 자세는 쓰지 않습니다. 지도에 오른 뒤 `LOCALIZING`이 3초 이어지면 `COMM_LOST`로 보고, 위치를 다시 보고하면 확인 뒤 이어 갑니다.
 7. **주행**: `path`가 있으면 Nav2 FollowPath로 꺾이는 곳까지 그 선을 그대로 따릅니다. 선 밖으로 돌아가지 않습니다. `follow_path`에서는 Nav2 행동 트리가 관제 모르게 하는 복구(Spin 등)는 계속 금지입니다(R14). `nav_goal`의 행동 트리는 Nav2 기본 트리(1 Hz 재계획)에서 복구의 Spin과 BackUp을 뺀 것입니다. 지도 지우기와 Wait만 하므로 로봇을 움직이지 않습니다(0.13-draft, 기준(사용자)). 물러나기는 두 모드 모두 Pode FSM의 로봇단 교착 처리(4절)만 합니다. FSM의 짧은 후진은 쥔 구역 안에서 상태로 알리며 합니다(사용자 기준). 로봇단 교착 처리는 한 자리에서 한 번이고, 그것을 끈 때의 자가 복구는 최대 2번입니다. 세부는 4절입니다. 관제는 선을 늘릴 때 새 목표를 보냅니다(1번 선점). 끝 근처에서 FollowPath를 다시 보내는 것과 도착 판정(4번)은 Pode가 합니다. 실행 중인 목표가 없으면 움직이지 않습니다.
 8. **도킹**: 정지 오차 ±1~2 cm. 실제 오차를 `error_*`에 넣습니다.
 9. **경로 연결 확인**(기준(사용자), 지시서 7.5): `path`를 받으면 지금 위치에서 받은 `path`까지의 수직 거리를 잽니다. **0.15 m**(관제 `lane_error_warn_m`)보다 멀면 따라가지 않고 `success=false`, `reason=PATH_NOT_CONNECTED`로 끝냅니다. 이전 목표는 새 목표를 받는 순간 끝나므로(1번) 로봇은 섭니다. `path`가 비어 있으면 재지 않습니다. 관제는 첫 점을 로봇이 마지막으로 보고한 위치로 두므로 위치 잡음이 0.15 m보다 훨씬 작으면 정상 운행에서는 이 실패가 나지 않습니다. 마지막 보고 뒤 위치 추정이 튀면 날 수 있고, 관제는 새 보고로 다시 보냅니다. 오래된 경로나 중간이 빠진 경로를 따라가지 않으려는 검사입니다.
@@ -283,6 +283,7 @@ Pode가 지킬 것:
 | `RECOVERING`(기준(사용자)) | `MOVING`처럼 목표를 실행 중으로 봅니다. 막힌 시간을 더하지 않고 풀린 보고로도 세지 않습니다. 멈춤 감시는 쉬고 끝난 때부터 다시 잽니다. 레인 이탈 감시는 그대로입니다. 이벤트는 `SELF_RECOVERY`, `SELF_RECOVERY_END`(INFO)이고, `local_yield`가 있으면 대신 `LOCAL_YIELD`(0.13-draft)입니다. 처음 보고가 `RECOVERING`이면 지도에 올리지 않습니다 |
 | `HEARTBEAT_LOST` 결과 | 실패 시도로 세지 않고 2초 뒤 같은 목표를 다시 보냅니다. 진전 없이 되풀이되면 12초 멈춤 감시가 실패 한 번으로 셉니다 |
 | `PATH_NOT_CONNECTED` 결과 | 다른 실패처럼 한 번으로 셉니다. 로봇이 넓은 구역에 서 있으면 2초 뒤 Nav2 goal로 그 경로의 시작 지점에 먼저 보내고, 거기서 `path`를 다시 보냅니다. 갈림목이나 급행 안이면 같은 `path`를 다시 보냅니다. 이유는 `GOAL_RETRY`의 detail에 남습니다 |
+| `NAV_UNAVAILABLE` 결과(기준(사용자)) | 로봇의 Nav2 서버가 아직 없어 보내지 못한 목표입니다. 실패 시도로 세지 않고 `move_retry_wait_s`(2초) 뒤 같은 목표를 다시 보냅니다(`GOAL_NAV_UNAVAILABLE`, WARN). 따로 한도는 없습니다 |
 | 지도에 오른 뒤 `LOCALIZING` | 자세를 쓰지 않습니다. 3초 이어지면 `COMM_LOST`이고 구역은 쥔 채 둡니다. 위치를 다시 보고하면 확인 뒤 이어 갑니다. 세부는 공통설계 5절 |
 | 보고 위치가 달리는 레인에서 0.15 m 넘게 벗어난 것이 3번 이어짐 | 목표를 취소합니다(`LANE_ERROR`). 구역은 쥔 채 둡니다. 레인에 돌아오면 같은 목표를 다시 보냅니다(`BACK_ON_LANE`). 20초 안에 못 돌아오면 `ERROR(OFF_LANE)`입니다. 세부 예외는 공통설계 5절 |
 

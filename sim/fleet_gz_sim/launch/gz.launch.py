@@ -72,6 +72,8 @@ ARGS = {
                             " 관제만 읽는다). 비우면 params 파일의 값"),
     "nav_overrides": ("", "로봇마다 Nav2 설정 위에 깊이 덮을 yaml 파일(주행 값 비교용). 비면 없음."
                           " 충돌 검사와 속도 상한은 덮지 못한다"),
+    "nav_late": ("", "시험용 '로봇:초'(예 pode2:40). 그 로봇은 위치(AMCL)를 먼저 띄우고 controller·"
+                     "planner·bt_navigator만 그만큼 늦게 켠다. 비면 없음"),
     "nav_map_variant": ("", "global costmap 지도 갈래(v7만): 비면 배치 기본(v7은 a, 2.5 cm),"
                             " base는 5 cm 지도, b는 칸 중심 규칙, ab는 둘 다. 1 cm 지도와"
                             " keepout 마스크는 그대로"),
@@ -85,6 +87,20 @@ def flag(text: str, name: str) -> bool:
     if value not in ("true", "false", "1", "0"):
         raise ValueError(f"{name} must be true or false, got {text!r}")
     return value in ("true", "1")
+
+
+def late_of(text: str, robots) -> dict[str, float]:
+    """nav_late '로봇:초'를 {로봇: 초}로. 틀린 값이면 launch를 멈춘다."""
+    if not text:
+        return {}
+    robot, _, seconds = text.partition(":")
+    try:
+        delay = float(seconds)
+    except ValueError:
+        delay = -1.0
+    if robot not in robots or delay <= 0:
+        raise ValueError(f"nav_late must be ROBOT:SECONDS with a robot of {list(robots)}: {text!r}")
+    return {robot: delay}
 
 
 def overrides_of(path: str) -> dict | None:
@@ -288,6 +304,7 @@ def _start(context):
                              value("battery_low_pct"))
     max_speed = launch_parts.speed_of(value("nav_max_speed"))
     nav_overrides = overrides_of(value("nav_overrides"))
+    late = late_of(value("nav_late"), poses)
     # low_battery가 있을 때만 pode_fsm이 sim_stand_in의 배터리를 본다
     battery = has_low_battery(data, scenario_seed)
     actions = [*launch_parts.world(flag(value("gui"), "gui"), arena.world),
@@ -308,6 +325,7 @@ def _start(context):
                                       peer_layer=peers, nav_overrides=nav_overrides,
                                       avoidance_package=value("avoidance_package"),
                                       vision_stand_in=stand_in,
+                                      navigation_delay_s=late.get(robot, 0.0),
                                       battery_topic=(launch_parts.BATTERY_TOPIC.format(robot=robot)
                                                      if battery else ""))
     if value("rviz") == "fleet":

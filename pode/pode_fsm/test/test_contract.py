@@ -31,6 +31,12 @@ def test_move_to_has_the_path_not_connected_reason():
     assert "geometry_msgs/Pose[] path" in action
 
 
+def test_move_to_has_the_nav_unavailable_reason():
+    """Nav2 서버가 없어 보내지 못한 goal은 이 reason으로 끝난다(관제는 시도로 세지 않는다)."""
+    action = (INTERFACES / "action" / "MoveTo.action").read_text(encoding="utf-8")
+    assert 'string REASON_NAV_UNAVAILABLE="NAV_UNAVAILABLE"' in action
+
+
 def test_robot_state_has_the_states_the_fsm_reports():
     msg = (INTERFACES / "msg" / "RobotState.msg").read_text(encoding="utf-8")
     for state in ("IDLE", "MOVING", "DOCKING", "DOCKED", "BLOCKED", "LOCALIZING"):

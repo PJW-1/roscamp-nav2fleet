@@ -34,6 +34,10 @@ class GoalRunner:
         self._pending: set[int] = set()
         self._cancel_on_accept: set[int] = set()
 
+    # ---- 액션 서버가 보이는지 ----
+    def ready(self) -> bool:
+        return self._client.server_is_ready()
+
     def cancel_all(self) -> None:
         with self._lock:
             handles = list(self._handles.items())

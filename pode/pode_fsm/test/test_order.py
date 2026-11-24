@@ -16,6 +16,7 @@ from pode_fsm.core import (
     SendPath,
 )
 from pode_fsm.nav_goal import CancelNavGoal, SendNavGoal
+from pode_fsm.results import NAV_UNAVAILABLE
 from pode_fsm.order_fsm import (
     HORIZON_INVALID,
     ORDER_UPDATE_REJECTED,
@@ -372,6 +373,77 @@ def test_a_robot_that_slid_off_the_line_while_stopping_ends_the_order():
     assert not of(cmds, SendPath)
     assert finishes(cmds) == [Finish("g1", False, PATH_NOT_CONNECTED, 1)]
     assert not fsm.is_running("g1")
+
+
+def test_an_order_before_nav2_is_ready_ends_as_unavailable():
+    fsm = OrderFsm(FsmParams())
+    fsm.set_nav_ready(False)
+    fsm.tick(0.0, HERE, STILL, no_obstacle)
+    cmds = order(fsm, "g1", 0.1, [S1, S2])
+    assert finishes(cmds) == [Finish("g1", False, NAV_UNAVAILABLE)]
+    assert not of(cmds, SendPath) and not fsm.is_running("g1")
+
+
+def test_a_nav_goal_the_server_was_not_there_for_ends_the_order_as_unavailable():
+    fsm = ready()
+    [first] = of(order(fsm, "g1", 1.0, [goal_seg(1, 0.8, 0.3)]), SendNavGoal)
+    cmds = fsm.nav_goal_result(first.seq, "unavailable", 1.2, HERE)
+    assert [(f.goal_id, f.success, f.reason) for f in finishes(cmds)] == [("g1", False, NAV_UNAVAILABLE)]
+
+
+def test_pass_distance_leaves_room_below_the_join_tolerance():
+    """먼저 넘기는 거리는 이음 허용치보다 작다(넘긴 뒤 서는 동안 위치가 고쳐져도 이어 붙게)."""
+    from pode_fsm.order_fsm import OrderParams
+    assert OrderParams().pass_m == pytest.approx(0.12)
+    assert FsmParams().connect_tolerance_m - OrderParams().pass_m >= 0.03
+
+
+def test_a_pose_correction_while_stopping_after_the_pass_still_joins_the_line():
+    """Gazebo 재현: Q2 nav_goal 다음이 Q2에서 시작하는 고정 선. 추정 위치 0.144 m에서 넘기고 선 뒤
+    AMCL이 2.2 cm 뒤로 고치면(0.163 m) 이음 허용치 0.15를 넘어 PATH_NOT_CONNECTED가 났다."""
+    q2, q1 = (1.66, 0.15), (1.849, 0.26)
+    yaw = math.atan2(q1[1] - q2[1], q1[0] - q2[0])
+    nxt = Seg(2, MODE_FOLLOW_PATH, FP, ((*q2, yaw), (*q1, yaw)), None, "Q1")
+    fsm = ready(pose=(1.40, 0.17, 0.3))
+    [first] = of(order(fsm, "g1", 1.0, [goal_seg(1, *q2, node="Q2"), nxt],
+                       pose=(1.40, 0.17, 0.3)), SendNavGoal)
+    fsm.heartbeat(3.0)
+    # 기록의 넘긴 자리(Q2에서 0.144 m): 아직 넘기지 않는다
+    cmds = fsm.tick(3.0, (1.5213, 0.1869, 0.31), DRIVING, no_obstacle)
+    assert math.dist((1.5213, 0.1869), q2) == pytest.approx(0.144, abs=0.001)
+    assert not of(cmds, CancelNavGoal) and fsm.order_feedback()[0] == 0
+    # 0.12 m 안에 들면 넘긴다
+    fsm.heartbeat(3.5)
+    cmds = fsm.tick(3.5, (1.545, 0.18, 0.3), DRIVING, no_obstacle)
+    assert of(cmds, CancelNavGoal) and fsm.order_feedback()[0] == 1
+    # 서는 동안 추정 위치가 2.2 cm 뒤로 고쳐져도 이어 붙는다
+    back = (1.523, 0.18, 0.24)
+    fsm.nav_goal_result(first.seq, "canceled", 3.7, back)
+    fsm.heartbeat(3.8)
+    cmds = fsm.tick(3.8, back, STILL, no_obstacle)
+    assert not finishes(cmds)
+    [send] = of(cmds, SendPath)
+    assert send.poses[-1][:2] == pytest.approx(q1)
+    assert fsm.is_running("g1")
+
+
+def test_the_old_pass_distance_broke_the_same_hand_over():
+    """넘김 거리를 이음 허용치와 같은 0.15로 두면 0.144 m에서 넘기고, 0.163 m로 고쳐진 뒤 PATH_NOT_CONNECTED."""
+    from pode_fsm.order_fsm import OrderParams
+    q2, q1 = (1.66, 0.15), (1.849, 0.26)
+    yaw = math.atan2(q1[1] - q2[1], q1[0] - q2[0])
+    nxt = Seg(2, MODE_FOLLOW_PATH, FP, ((*q2, yaw), (*q1, yaw)), None, "Q1")
+    fsm = OrderFsm(FsmParams(), order_params=OrderParams(pass_m=0.15))
+    fsm.tick(0.0, (1.40, 0.17, 0.3), STILL, no_obstacle)
+    [first] = of(order(fsm, "g1", 1.0, [goal_seg(1, *q2, node="Q2"), nxt],
+                       pose=(1.40, 0.17, 0.3)), SendNavGoal)
+    fsm.heartbeat(3.0)
+    assert of(fsm.tick(3.0, (1.5213, 0.1869, 0.31), DRIVING, no_obstacle), CancelNavGoal)
+    back = (1.4990, 0.1800, 0.24)
+    fsm.nav_goal_result(first.seq, "canceled", 3.2, back)
+    fsm.heartbeat(3.3)
+    cmds = fsm.tick(3.3, back, STILL, no_obstacle)
+    assert finishes(cmds) == [Finish("g1", False, PATH_NOT_CONNECTED, 1)]
 
 
 def test_a_retreat_segment_follows_its_path_backwards_with_the_reverse_controller():

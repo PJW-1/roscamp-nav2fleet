@@ -10,7 +10,7 @@ from fleet_core.common.commands import (
     RobotIsolated,
 )
 from fleet_core.fleet_map import RETREAT, SHARED
-from fleet_core.traffic.mission import HEARTBEAT_LOST, NOT_AT_TARGET
+from fleet_core.traffic.mission import HEARTBEAT_LOST, NAV_UNAVAILABLE, NOT_AT_TARGET
 from fleet_core.traffic.zone.lane_policy import Want
 from zone_harness import Harness
 
@@ -68,6 +68,24 @@ def test_a_failed_move_is_sent_again_after_the_wait_and_isolates_after_the_limit
     assert world.codes("pode2")[-2:] == ["GOAL_FAILED", "ROBOT_ISOLATED"]
     assert (world.view("pode2")["state"], world.result_of(call).reason) == ("ERROR", reason)
     assert not world.result_of(call).success
+
+
+def test_a_move_nav2_was_not_ready_for_is_sent_again_without_counting():
+    """로봇이 Nav2 서버가 없어 보내지 못한 goal(NAV_UNAVAILABLE)은 시도로 세지 않고 기다렸다 다시 보낸다."""
+    world, call = sent_once()
+    p = world.params
+    for _ in range(p.move_retry_limit + 2):
+        world.traffic.on_move_result("pode2", last_goal(world), False, NAV_UNAVAILABLE)
+        before = moves(world)
+        world.run(p.move_retry_wait_s - 0.3)
+        assert moves(world) == before
+        world.run(0.5)
+        assert moves(world) == before + 1
+        assert world.moves("pode2")[-1].target_id == "N_W"
+        assert world.view("pode2")["attempts"] == 0
+    assert "GOAL_RETRY" not in world.codes("pode2")
+    assert world.codes("pode2").count("GOAL_NAV_UNAVAILABLE") == p.move_retry_limit + 2
+    assert not isolations(world) and world.view("pode2")["state"] != "ERROR"
 
 
 def test_a_result_for_another_goal_is_ignored():
