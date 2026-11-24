@@ -1,6 +1,6 @@
 """경기장의 Nav2 지도(PGM, YAML)와 global costmap keepout 마스크. ROS를 쓰지 않는다.
 막힌 칸은 0(검정), 빈칸은 254. keepout은 shared가 아닌 구역을 몸 반폭만큼 넓혀 막는다.
-가운데 통로 갈래 a1은 a와 같은 규칙의 1 cm costmap 지도다(v7에만 만든다).
+갈래 a1은 a와 같은 칠하기 규칙의 1 cm costmap 지도다.
 """
 from __future__ import annotations
 
