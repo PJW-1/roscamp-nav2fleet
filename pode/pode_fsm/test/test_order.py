@@ -412,7 +412,7 @@ def test_pass_distance_leaves_room_below_the_join_tolerance():
 
 
 def test_a_pose_correction_while_stopping_after_the_pass_still_joins_the_line():
-    """11-24 Gazebo 재현: Q2 nav_goal 다음이 Q2에서 시작하는 고정 선. 추정 위치 0.144 m에서 넘기고 선 뒤
+    """Gazebo 재현: Q2 nav_goal 다음이 Q2에서 시작하는 고정 선. 추정 위치 0.144 m에서 넘기고 선 뒤
     AMCL이 2.2 cm 뒤로 고치면(0.163 m) 이음 허용치 0.15를 넘어 PATH_NOT_CONNECTED가 났다."""
     q2, q1 = (1.66, 0.15), (1.849, 0.26)
     yaw = math.atan2(q1[1] - q2[1], q1[0] - q2[0])
@@ -441,7 +441,7 @@ def test_a_pose_correction_while_stopping_after_the_pass_still_joins_the_line():
 
 
 def test_the_old_pass_distance_broke_the_same_hand_over():
-    """같은 자리에서 옛 넘김 거리 0.15로는 0.144 m에서 넘기고, 0.163 m로 고쳐진 뒤 PATH_NOT_CONNECTED."""
+    """넘김 거리를 이음 허용치와 같은 0.15로 두면 0.144 m에서 넘기고, 0.163 m로 고쳐진 뒤 PATH_NOT_CONNECTED."""
     from pode_fsm.order_fsm import OrderParams
     q2, q1 = (1.66, 0.15), (1.849, 0.26)
     yaw = math.atan2(q1[1] - q2[1], q1[0] - q2[0])

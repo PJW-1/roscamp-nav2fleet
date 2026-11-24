@@ -196,7 +196,7 @@ def test_the_late_startup_call_has_a_valid_name_without_a_namespace():
 
 @pytest.mark.parametrize("composition", ["false", "true"])
 def test_a_navigation_delay_brings_up_only_the_driving_side_later(composition):
-    """시험용: 위치(AMCL)는 먼저 뜨고 controller·planner·bt_navigator만 늦게 켠다(11-23 실물 재현)."""
+    """시험용: 위치(AMCL)는 먼저 뜨고 controller·planner·bt_navigator만 늦게 켠다."""
     context, found = _expand(composition, navigation_delay_s="40")
     if composition == "true":
         params = {r.node_name: _params(r) for r in found[0][1]}

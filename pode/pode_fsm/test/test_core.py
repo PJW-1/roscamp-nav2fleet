@@ -77,7 +77,7 @@ def test_starts_localizing_until_a_pose_arrives():
 
 
 def test_reports_localizing_until_the_nav2_servers_are_ready():
-    """11-23 실물: follow_path가 뜨기 전에 IDLE을 보고해 관제가 보낸 goal이 세 번 실패하고 격리됐다."""
+    """follow_path가 뜨기 전에 IDLE을 보고하면 관제가 보낸 goal이 거듭 실패해 격리된다."""
     fsm = PodeFsm(FsmParams())
     fsm.set_nav_ready(False)
     fsm.tick(0.0, (*P3, NORTH), STILL, no_obstacle)
