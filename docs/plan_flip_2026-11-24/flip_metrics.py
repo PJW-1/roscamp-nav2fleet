@@ -179,6 +179,7 @@ def nav_intervals(rows):
     """MoveOrderCmd의 구간 방식과 feedback의 last_done_seq로 nav_goal 수행 구간을 낸다.
     반환: {robot: [(t0, t1)]} 또는 명령이 없으면 None."""
     cur, out, open_t = {}, defaultdict(list), {}
+    chain = {}  # 로봇마다 지금 order가 쓴 goal_id들(갱신 전 옛 goal 포함)
     seen = False
 
     def active(segs, done):
@@ -204,16 +205,26 @@ def nav_intervals(rows):
                 # 갱신: 로봇은 옛 base의 남은 조각을 마친 뒤 이어 간다(옛 goal은 곧 SUPERSEDED)
                 done = old[2]
                 segs = [s for s in old[1] if s["seq_id"] > done] + list(d["base"])
+                chain[r].add(d["goal_id"])
+            else:
+                chain[r] = {d["goal_id"]}
             cur[r] = (d["goal_id"], segs, done, d.get("order_id"))
             set_state(r, t, active(segs, done))
         elif d.get("in") == "on_move_feedback":
             r, gid, done = d["args"][0], d["args"][1], d["args"][2]
-            if r in cur and cur[r][0] == gid:
-                cur[r] = (gid, cur[r][1], done, cur[r][3])
+            if r in cur and gid in chain.get(r, ()):
+                # 갱신 직후 먼저 오는 옛 goal의 feedback도 같은 order의 진행이다
+                done = max(done, cur[r][2])
+                cur[r] = (cur[r][0], cur[r][1], done, cur[r][3])
                 set_state(r, t, active(cur[r][1], done))
         elif d.get("in") == "on_move_result":
             r, gid = d["args"][0], d["args"][1]
-            if r in cur and cur[r][0] == gid:
+            if (r in cur and gid != cur[r][0] and gid in chain.get(r, ())
+                    and len(d["args"]) > 4 and d["args"][3] == "SUPERSEDED"):
+                done = max(d["args"][4], cur[r][2])
+                cur[r] = (cur[r][0], cur[r][1], done, cur[r][3])
+                set_state(r, t, active(cur[r][1], done))
+            elif r in cur and cur[r][0] == gid:
                 del cur[r]
                 set_state(r, t, False)
     if not seen:

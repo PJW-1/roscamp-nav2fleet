@@ -165,3 +165,16 @@ def test_pick_cmds_chooses_the_topic_per_robot():
                                                            "pode2": [(0.0, 0.3, 0.0)]}}
     assert fm.pick_cmds(bag) == {"pode1": [(0.0, 0.1, 0.0)], "pode2": [(0.0, 0.3, 0.0)]}
     assert fm.pick_cmds(None) == {}
+
+
+def test_nav_intervals_use_the_old_goals_progress_after_an_update():
+    # 갱신 직후 옛 goal의 feedback(조각 1 끝)이 먼저 오면 그때 nav_goal이 시작된다
+    rows = [cmd(1.0, 1, 0, [(1, "follow_path"), (2, "nav_goal")]), fb(1.5, 1, 0),
+            cmd(4.0, 2, 1, [(3, "follow_path")]), fb(4.01, 1, 1), res(4.02, 1, ok=False),
+            fb(4.2, 2, 1), fb(6.0, 2, 2), res(8.0, 2)]
+    assert fm.nav_intervals(rows) == {"pode1": [(4.01, 6.0)]}
+    # SUPERSEDED 결과에 담긴 last_done_seq도 쓴다
+    sup = {"t": 4.02, "in": "on_move_result", "args": ["pode1", 1, False, "SUPERSEDED", 1]}
+    rows = [cmd(1.0, 1, 0, [(1, "follow_path"), (2, "nav_goal")]), fb(1.5, 1, 0),
+            cmd(4.0, 2, 1, [(3, "follow_path")]), sup, fb(6.0, 2, 2), res(8.0, 2)]
+    assert fm.nav_intervals(rows) == {"pode1": [(4.02, 6.0)]}
