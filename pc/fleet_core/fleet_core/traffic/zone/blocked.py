@@ -35,7 +35,7 @@ class Blocked:
                 self._blocked_gap(m, now)
             return
         if ep.out and self._gap_over(m, now):
-            self._end_blocked(m)  # 막힘이 돌아온 보고에서 끝낼 때가 됐어도 새 일화
+            self._end_blocked(m)  # 새 일화
         ep.clear_since = None
         if ep.since is None or ep.key != m.goal.id:
             if ep.key != m.goal.id:
@@ -45,7 +45,7 @@ class Blocked:
             ep.rear_noted = False
         elif ep.out:
             ep.out = False
-            ep.count += 1  # 짧은 틈 뒤 다시 막힘: 시계는 이어 센다
+            ep.count += 1  # 짧은 틈 뒤 다시 막히면 시계를 이어 센다
         self._event_once(ep, "INFO", "BLOCKED_WAIT", f"stands before something on the way "
                          f"to {m.goal.end}", m.name)
         # ---- 기다린 시간에 따라 양보, 막힘 표시, 실패 결정 ----
@@ -85,7 +85,7 @@ class Blocked:
             return
         ep.out = True
         if m.report.robot_state == SELF_RECOVERING:
-            ep.clear_since = None  # 자가 복구는 막힘의 일부: 끝내는 시간에 넣지 않는다
+            ep.clear_since = None  # 자가 복구는 막힘의 일부라 끝내는 시간에 넣지 않는다
         elif ep.clear_since is None:
             ep.clear_since = now
 

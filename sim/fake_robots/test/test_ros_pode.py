@@ -23,14 +23,12 @@ from rclpy.action import ActionClient  # noqa: E402
 CONTRACT_OBJ = load_contract(CONTRACT)
 SITE = load_fleet_map("d2")
 
-# 이동을 기다리는 시간은 고정 숫자가 아니라 거리 ÷ (출처 속도 × 배율) × 여유로 잰다.
-# 출처(pode_nav_config nav_speed.yaml)를 바꿔도 시험이 다시 깨지지 않게 한다
+# 이동을 기다리는 시간은 거리 ÷ (출처 속도 × 배율) × 여유로 잰다(출처가 바뀌어도 시험이 깨지지 않게)
 TOP = nav_speed_mps()
-# 가짜 Pode는 돌기나 가감속 없이 거리 ÷ 속도로 간다(20 Hz 걸음). 여유는 실행기와 시계 발행이
-# 밀리는 몫이다(WSL에 다른 일이 돌 때). 1.5배: 이동 시간이 그만큼 늘어도 기다린다
+# 가짜 Pode는 거리 ÷ 속도로 간다(20 Hz 걸음). 여유 1.5배는 실행기와 시계 발행이 밀리는 몫이다
 MOVE_MARGIN = 1.5
 START_S = 2.0  # 목표 접수와 첫 보고까지처럼 거리와 무관한 몫(실제 초)
-# 긴 이동 시험의 시뮬 시계 배율. 시나리오 시간이 실제의 4배로 가므로 이동도 4배 빨리 끝난다
+# 긴 이동 시험의 시뮬 시계 배율
 FAST_CLOCK = 4.0
 
 
@@ -380,7 +378,7 @@ def test_dock_reports_phase_and_error(harness, tmp_path):
 
 
 def test_a_dock_reports_its_dock_id_as_the_current_goal(harness, tmp_path):
-    """Pode contract section 2: current_goal is the target_id or dock_id of the running goal."""
+    """current_goal은 돌고 있는 goal의 target_id 또는 dock_id다(Pode 계약 2절)."""
     p = start(harness, tmp_path, dock={"duration_s": 30.0, "error_cm": 1.0})
     fut = p.dock.send_goal_async(Dock.Goal(dock_id="WORK"))
     assert wait_until(fut.done, 5.0) and fut.result().accepted
@@ -388,7 +386,7 @@ def test_a_dock_reports_its_dock_id_as_the_current_goal(harness, tmp_path):
     assert {s.current_goal for _, s in p.states if s.state == RobotState.STATE_DOCKING} == {"WORK"}
 
 
-# ---- the heartbeat ----------------------------------------------------------------------
+# ---- 하트비트 ----
 
 SLOW = {"pode1": {"start": "P-1", "speed_scale": 0.83, "pose_noise_m": 0.0}}
 BEAT_TIMEOUT_S = 0.5
@@ -593,7 +591,7 @@ def test_the_heartbeat_is_heard_with_the_reliable_profile_of_the_contract(harnes
     assert depths == [1]
 
 
-# ---- path connection -----------------------------------------------------------------
+# ---- path 연결 ----
 
 def send_path(p, points, target_id):
     tx, ty = points[-1]
@@ -654,12 +652,11 @@ def test_a_refused_path_ends_the_old_goal_and_a_path_from_here_arrives(harness, 
     assert result_of(again).result.success is True
 
 
-# ---- 자기 복구(2026-11-09 공유 명세 '로봇 쪽') --------------------------------------------
+# ---- 자기 복구 ----
 
 RECOVERING = RobotState.STATE_RECOVERING
 LONG = {"pode1": {"start": "P-1", "speed_scale": 1.0, "pose_noise_m": 0.0}}  # O_Q까지 2.3 m
-# 물체는 로봇이 0.6 m쯤 간 뒤에 나타난다(0.4 m보다 멀어야 0.15 m를 다 후진한다).
-# 노드가 뜬 뒤 목표를 보내기까지 1초를 더한다
+# 물체는 로봇이 0.6 m쯤 간 뒤에 나타난다(0.4 m보다 멀어야 0.15 m를 다 후진한다). 목표 전송까지 1초를 더한다
 BLOCK_AT_S = 1.0 + 0.6 / TOP
 BACKUP_MPS = RecoveryParams().backup_speed_mps
 # 서기 1 s, 0.15 m 후진, 되돌아가기(주행 속도)를 두 번, 마지막에 1 s 서서 BLOCKED
@@ -896,11 +893,8 @@ def test_a_nav_abort_recovers_twice_then_ends_nav_aborted(harness, tmp_path):
     took = time.monotonic() - sent
     assert (res.success, res.reason) == (False, MoveTo.Result.REASON_NAV_ABORTED)
     assert RECOVERING in states_since(p, sent)
-    # 배선만 본다. 시도 수(두 번)와 후진 깊이는 test_recovery.py의
-    # test_a_nav_abort_gives_two_attempts_then_ends_the_goal이 고정한다. 여기서는 경로 시작점
-    # 곁에서 중단하므로 두 시도 모두 후진하지 않는다.
-    # 걸린 시간은 중단이 적어도 두 번(각 0.2 s)이었다는 것만 보인다.
-    # 지연이 있으면 시도 한 번도 통과한다.
+    # 배선만 본다. 시도 수와 후진 깊이는 test_recovery.py가 고정한다.
+    # 걸린 시간은 중단이 적어도 두 번(각 0.2 s)이었다는 것만 보인다
     assert took >= 3 * 0.2 - 0.1, took
     # 보고 표본으로 본 위치가 처음 중단한 자리(0.2 s * 0.2 m/s) + 0.02 m를 넘지 않는다
     assert max(along(truth)) <= 0.04 + 0.02
@@ -1010,9 +1004,7 @@ def _drive_out(p, truth, metres):
 
 
 def test_the_fake_reverses_a_path_at_the_fleet_retreat_speed():
-    """The fleet sends path retreats at retreat_speed_mps and times them with it,
-    so the ROS fake pode caps them at the same speed (it kept 0.05 while the fleet sent 0.10).
-    Kept with the ROS tests: pode_retreat needs fleet_interfaces."""
+    """path 후진은 retreat_speed_mps로 보내고 시간도 그것으로 재므로, 가짜도 같은 속도로 제한한다."""
     assert REVERSE_SPEED_MPS == load_params().retreat_speed_mps
 
 

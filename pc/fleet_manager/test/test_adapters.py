@@ -1,4 +1,4 @@
-"""fleet_core 레코드와 ROS 메시지 사이의 변환은 모듈 하나에 모여 있다."""
+"""fleet_core 레코드와 ROS 메시지 사이의 변환 시험."""
 import math
 from dataclasses import replace
 
@@ -127,14 +127,14 @@ def test_a_move_goal_carries_the_lane_path_as_poses():
 
 
 def test_a_move_goal_says_whether_its_end_is_the_last_point():
-    """버전 2 horizon 최소판(계약 0.8-draft 제안)."""
+    """버전 2 horizon 최소판."""
     assert adapters.move_goal(MoveCmd("pode1", 7, "N", 1.0, 2.0, 0.0)).final_goal is True
     move = adapters.move_goal(MoveCmd("pode1", 7, "N", 1.0, 2.0, 0.0, (), False))
     assert move.final_goal is False
 
 
 def test_move_goals_carry_the_yield_priority_and_an_empty_one_is_minus_one():
-    """로봇단 교착 처리(계약 0.13-draft)."""
+    """로봇단 교착 처리."""
     assert adapters.move_goal(MoveCmd("pode1", 7, "N", 1.0, 2.0, 0.0, priority=3)).priority == 3
     assert adapters.move_goal(MoveCmd("pode1", 7, "N", 1.0, 2.0, 0.0)).priority == -1
     assert MoveTo.Goal().priority == -1
@@ -151,7 +151,7 @@ def test_the_robot_state_step_is_read_and_the_status_shows_the_priority():
 
 
 def test_a_straight_retreat_goal_copies_distance_and_speed_and_sends_no_path():
-    """관제가 시키는 물러나기(계약 0.9-draft 제안)."""
+    """관제가 시키는 물러나기."""
     goal = adapters.retreat_goal(RetreatCmd("pode1", 7, 0.15, 0.08))
     assert isinstance(goal, Retreat.Goal)
     assert (goal.distance_m, goal.speed_mps) == (pytest.approx(0.15), pytest.approx(0.08))
@@ -229,7 +229,7 @@ def test_robot_report_reads_every_field_the_core_needs():
 
 
 def test_a_self_recovering_robot_reaches_the_core_and_the_status_as_it_is():
-    """로봇 상태 RECOVERING(자가 복구, 제안)은 그대로 지나간다. fault는 NONE이다."""
+    """로봇 상태 RECOVERING은 그대로 지나가고 fault는 NONE이다."""
     msg = RobotState(state=RobotState.STATE_RECOVERING)
     assert adapters.robot_report(msg)[3] == SELF_RECOVERING
     view = RobotStatusView("pode1", SELF_RECOVERING, "TO_WORK", "O-001", "NONE", "", "",
@@ -287,7 +287,7 @@ def test_confirm_clear_request_and_response_are_handled_here():
 
 
 def test_confirm_clear_with_no_zones_is_still_accepted():
-    """한 번도 보고하지 않은 로봇을 운행 제외해도 풀 것이 없으며 정상이다."""
+    """한 번도 보고하지 않은 로봇을 운행 제외해도 정상이다."""
     assert adapters.confirm_clear_response(ConfirmClear.Response(), []).accepted is True
 
 
@@ -348,14 +348,14 @@ def test_the_arm_actions_name_the_same_cancel_reason_the_core_looks_for():
 
 
 def test_the_robot_values_the_core_reads_are_the_message_constants():
-    """이름이 어긋나면 관제가 BLOCKED, LOCALIZING, HEARTBEAT_LOST를 못 알아본다(계약 3·4절)."""
+    """이름이 어긋나면 관제가 BLOCKED, LOCALIZING, HEARTBEAT_LOST를 못 알아본다."""
     assert RobotState.STATE_BLOCKED == BLOCKED
     assert RobotState.STATE_LOCALIZING == LOCALIZING
     assert RobotState.STATE_RECOVERING == SELF_RECOVERING
     assert MoveTo.Result.REASON_HEARTBEAT_LOST == HEARTBEAT_LOST
 
 
-# ---- 잘못된 입력(11-06 1번) ----
+# ---- 잘못된 입력 ----
 
 
 def test_robot_report_id_is_read_separately():
@@ -363,7 +363,7 @@ def test_robot_report_id_is_read_separately():
 
 
 def test_a_count_of_zero_or_less_is_not_hidden_by_adding_up():
-    """합치면 A: 2와 A: -1이 1이 되어 검사를 빠져나간다."""
+    """합산하면 A: 2와 A: -1이 1이 되어 검사를 빠져나간다."""
     board = OrderBoard(run_mode=OrderBoard.MODE_RUN, orders=[
         Order(order_id="O-1", items=[OrderItem(kind="A", count=2), OrderItem(kind="A", count=-1)]),
         Order(order_id="O-2", items=[OrderItem(kind="B", count=0)]),

@@ -1,11 +1,11 @@
-"""order model helpers without ROS: the horizon pre-check and the marker lines."""
+"""ROS 없는 order 모델 도우미: horizon 사전 검사와 마커 선."""
 import pytest
 from pode_fsm.costmap import Grid
 from pode_fsm.order_check import segment_problem
 from pode_fsm.order_markers import dashes, order_lines
 from pode_fsm.order_queue import MODE_FOLLOW_PATH, MODE_NAV_GOAL, MODE_RETREAT, Seg
 
-# 2.0 x 1.0 m map at 0.1 m; the keepout mask blocks the strip y >= 0.8 and the column x 1.0..1.1
+# 2.0 x 1.0 m 지도(0.1 m 칸): keepout 마스크가 띠 y >= 0.8과 열 x 1.0~1.1을 막는다
 W, H, RES = 20, 10, 0.1
 MAP = Grid(RES, 0.0, 0.0, 0.0, W, H, [0] * (W * H))
 KEEPOUT = Grid(RES, 0.0, 0.0, 0.0, W, H,
@@ -30,8 +30,7 @@ def test_a_path_leaving_the_map_is_reported():
 
 @pytest.mark.parametrize("mode", [MODE_FOLLOW_PATH, MODE_RETREAT])
 def test_a_fixed_line_through_keepout_is_fine(mode):
-    """The keepout mask is the express lane and the docks: fixed lines run inside them by design
-    (Gazebo game g4o3_on2 warned 25 times about dock approaches)."""
+    """keepout 마스크는 급행 레인과 도크라서, 고정 선은 설계상 그 안에서 달린다."""
     assert segment_problem(path_seg(1, (0.2, 0.3), (1.5, 0.3), mode=mode), MAP, KEEPOUT) == ""
     assert segment_problem(path_seg(1, (0.5, 0.5), (0.5, 0.95), mode=mode), MAP, KEEPOUT) == ""
 
@@ -51,7 +50,7 @@ def test_base_lines_are_solid_and_horizon_lines_dashed():
     horizon = [path_seg(3, (1.2, 0.6), (1.2, 0.2), mode=MODE_RETREAT)]
     lines = order_lines((0.1, 0.3), base, horizon)
     assert [(ln.seq_id, ln.horizon) for ln in lines] == [(1, False), (2, False), (3, True)]
-    assert lines[1].points == ((0.8, 0.3), (1.2, 0.6))  # a nav_goal: from the previous end
+    assert lines[1].points == ((0.8, 0.3), (1.2, 0.6))  # nav_goal: 앞 구간 끝에서 시작
     assert lines[2].points == ((1.2, 0.6), (1.2, 0.2))
 
 

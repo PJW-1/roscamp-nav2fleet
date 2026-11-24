@@ -1,9 +1,7 @@
 """Nav2 goal이 다닐 수 있는 바닥(격자). ROS를 쓰지 않는다.
 
-넓은 구역(shared)의 합만 바닥이다. 한 줄 구역과 도크 구역은 keepout처럼 막고, 벽과 진열대와
-keepout 구역은 로봇 반지름만큼 키운다. 도크를 Nav2 goal로 떠나는
-이음의 곧은 선 둘레는 바닥으로 연다(fleet_core keepout_openings). 다른 로봇과 물체는 매번
-원으로 찍는다(로봇 반지름 + 그 반지름 + 여유).
+넓은 구역(shared)의 합만 바닥이다. 한 줄 구역, 도크 구역, 벽, 진열대는 로봇 반지름만큼 키워 막는다.
+다른 로봇과 물체는 매번 원으로 찍는다.
 """
 from __future__ import annotations
 

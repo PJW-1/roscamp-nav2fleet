@@ -1,8 +1,7 @@
 """RealDockWait: 실물 로봇마다 /<robot>/dock(Dock)을 PC에서 대신 받는 도킹 대역.
 
-판정과 쓰는 조건은 fake_robots.dock_wait에 있다. 로봇은 DOCK_STUB=1로 떠야 한다(제 dock 서버를
-/<robot>/dock_fsm으로 비킨다). 그렇지 않으면 같은 이름의 서버가 둘이 된다. 그 경우를 몇 초마다
-찾아 오류로 알린다(other_dock_servers).
+판정은 fake_robots.dock_wait에 있다. 로봇이 DOCK_STUB=1로 떠야 하며, 아니면 같은 이름의 서버가
+둘이 되므로 몇 초마다 찾아 오류로 알린다(other_dock_servers).
 """
 from __future__ import annotations
 

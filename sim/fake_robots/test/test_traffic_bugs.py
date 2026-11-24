@@ -1,7 +1,4 @@
-"""구역 세계가 찾은 교통 층 결함(B1, B3)의 회귀 시험. nav2-base 0e9d454에서 고쳐졌다.
-
-설명과 사건 기록은 교통 층 담당에게 보낸 traffic_bugs.md에 있다.
-"""
+"""구역 세계가 찾은 교통 층 결함(B1, B3)의 회귀 시험."""
 from fake_robots.world import NoisyPose, ZoneWorld
 from fake_robots.world.table import run_situation
 

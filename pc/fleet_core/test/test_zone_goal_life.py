@@ -1,10 +1,4 @@
-"""로봇의 goal은 goal 모듈(goal_life.py)의 입구로만 바꾼다.
-
-`.goal =` 대입이 믹스인 여러 곳에 흩어지면 goal을 바꿀 때 함께 하던 일(멈춤 감시 초기화 등)을
-빠뜨리기 쉽다. ast로 zone 패키지를 읽어 `.goal =` 대입이 goal_life.py와 ZoneBase.__init__에만
-있는지 본다. 대입문, 늘린 대입, 풀어 넣기(`*m.goal`), for와 내포의 대상, with ... as,
-`setattr(m, "goal", ...)`을 모두 대입으로 센다.
-"""
+"""로봇의 goal은 goal 모듈(goal_life.py)의 입구로만 바꾼다: ast로 `.goal =` 대입이 goal_life.py와 ZoneBase.__init__에만 있는지 본다."""
 import ast
 from pathlib import Path
 

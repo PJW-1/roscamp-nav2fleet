@@ -1,10 +1,7 @@
 """실물 두 대 시험용 PC 도킹 대역(real_dock_wait)의 판정. ROS 없이 돈다.
 
-pode_dock이 아직 없어서 실물 pode_fsm은 도킹을 DOCK_UNAVAILABLE로 실패시킨다. 주문을 시뮬처럼
-끝까지 돌려 보려고, 로봇이 DOCK_STUB=1(로봇의 dock 서버를 /<ns>/dock_fsm으로 비킴)로 떴을 때
-PC가 /<ns>/dock을 맡는다. 로봇을 움직이지 않는다: 관제의 move_to가 도크 지점에 데려다 놓은
-로봇을 시나리오의 dock.duration_s만큼 기다린 뒤, 로봇이 보고한 자세(AMCL)가 도크 지점에서
-REACH_M 안이면 성공이다. 벽시계로만 돈다(시뮬 시계면 거부).
+로봇이 DOCK_STUB=1로 떴을 때 PC가 /<ns>/dock을 맡아, 도크 지점에서 duration_s 기다린 뒤
+AMCL 자세가 REACH_M 안이면 성공으로 판정한다. 벽시계로만 돈다.
 """
 from __future__ import annotations
 

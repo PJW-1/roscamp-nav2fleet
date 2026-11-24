@@ -1,13 +1,6 @@
 """Nav2 goal 끝 보정(nav_end_s)을 넣은 ETA를 이미 돈 판의 기록으로 잰다.
 
-사용: python3 eta_end_model.py RESULT_DIR [RESULT_DIR ...]
-- RESULT_DIR는 판의 result/ 폴더다. summary.json이 있는 것만 본다.
-- 기록에는 nav_pass_m, nav_turn_rps 키가 없다. 재생은 두 키를 0(꺼짐)으로 읽어 기록과 같은 판단을
-  한다. 재생이 기록과 갈리면 그 판은 뺀다.
-- 표본은 eta_error.py와 같다(로봇마다 0.5 s에 하나, 지금 달리는 nav_goal Segment, SEGMENT_DONE까지).
-- 표본마다 네 값을 낸다. 투영과 남은 거리(꺼진 코어의 _left_s) 그대로, 그리고 둘에 운영 파일
-  (fleet_params.yaml)의 nav_end_s를 더한 값이다. 오차 = 예측 - 실제.
-- 다음 조각 종류(넘어감: nav_goal·follow_path, 섬: retreat·없음)별과 실제 남은 시간 구간별로 낸다.
+    python3 eta_end_model.py RESULT_DIR ...
 """
 from __future__ import annotations
 

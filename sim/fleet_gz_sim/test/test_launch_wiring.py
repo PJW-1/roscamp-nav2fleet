@@ -1,5 +1,4 @@
-"""gz.launch.py: 격리 검사를 먼저 하고, 배치(layout)의 월드·지도·keepout으로 Pode 3대와 진짜 관제,
-가짜 central·팔을 잇는 것을 본다."""
+"""gz.launch.py: 격리 검사 후 배치의 월드, 지도, keepout으로 Pode 3대, 진짜 관제, 가짜 central과 팔을 잇는지 본다."""
 import importlib.util
 import math
 import re
@@ -72,11 +71,11 @@ def test_launch_checks_the_working_directory(gz, tmp_path):
 def test_the_launch_takes_a_layout_and_no_site_argument(gz):
     assert gz.ARGS["layout"][0] == "v7"
     assert "site" not in gz.ARGS and "traffic_mode" not in gz.ARGS
-    # 마당 goal의 충돌 검사는 끌 수 없다. 고정 경로 셋은 fixed_line_collision_check로 정한다
+    # 마당 goal의 충돌 검사는 끌 수 없고, 고정 경로 셋은 fixed_line_collision_check로 정한다
     assert "nav_collision_check" not in gz.ARGS
 
 
-# -- 배선: launch 동작 대신 만든 인자를 기록해 본다 ------------------------------------------
+# -- 배선: launch 동작 대신 만든 인자를 기록해 본다 --
 
 KINDS = ("Node", "IncludeLaunchDescription", "PythonLaunchDescriptionSource", "ExecuteProcess",
          "GroupAction", "SetRemap", "RegisterEventHandler", "OnProcessExit")
@@ -195,7 +194,7 @@ def test_keepout_can_be_left_off_for_a_comparison(made):
     assert [nav["keepout_mask"] for nav in navs] == ["", "", ""]
 
 
-# ---- 가운데 통로 갈래(2026-11-17): 5 cm 지도 대신 고른 지도, global costmap 덮어쓰기 ----
+# ---- 가운데 통로 갈래: 5 cm 지도 대신 고른 지도, global costmap 덮어쓰기 ----
 @pytest.mark.parametrize("variant", ["a", "b", "ab"])
 def test_nav_map_variant_gives_every_robot_that_costmap_map_only(made, variant):
     actions = run(made, layout="v7", nav_map_variant=variant)
@@ -214,7 +213,7 @@ def test_nav_map_variant_gives_every_robot_that_costmap_map_only(made, variant):
 def test_nav_map_variant_is_empty_by_default_and_refuses_a_layout_without_it(made):
     from fleet_gz_sim.fleet_setup import ScenarioUnfit
     assert made.ARGS["nav_map_variant"][0] == ""
-    # 비면 v7은 2.5 cm 지도(11-17 결정), base는 옛 5 cm 지도
+    # 비면 v7은 2.5 cm 지도, base는 5 cm 지도
     navs = [launch_args(i) for i in includes(run(made, layout="v7"), "nav2.launch.py")]
     assert navs and all(nav["map"].endswith("maps/arena_v7_a.yaml") for nav in navs)
     navs = [launch_args(i) for i in includes(run(made, layout="v7", nav_map_variant="base"),
@@ -313,9 +312,7 @@ def test_every_controller_checks_collisions_when_asked_and_keeps_the_speed_cap(m
 
 
 def test_no_controller_turns_faster_than_the_simulated_drive_can(made):
-    """2026-11-15: Gazebo의 DiffDrive는 max_velocity(1.0)를 회전에도 건다. 넓은 구역의 제자리
-    회전을 2.0 rad/s로 명령한 판(G7, G8)에서 로봇이 돈 속도는 1.0인 판과 같았다(90번째 백분위
-    1.0 rad/s). 시뮬레이션이 내지 못하는 값으로 잰 결과를 기본값의 근거로 삼지 않으려는 시험이다."""
+    """Gazebo의 DiffDrive는 max_velocity(1.0)를 회전에도 건다. 시뮬이 내지 못하는 회전 속도를 기본값의 근거로 삼지 않는다."""
     from fleet_gz_sim.launch_parts import CONTROLLERS
     urdf = Path(__file__).parents[1] / "urdf" / "pode_sim.urdf.xacro"
     cap = float(re.search(r"<max_velocity>([^<]+)</max_velocity>",
@@ -328,7 +325,7 @@ def test_no_controller_turns_faster_than_the_simulated_drive_can(made):
 
 @pytest.mark.parametrize("asked", [{}, {"fixed_line_collision_check": "false"}])
 def test_the_fixed_line_check_is_off_for_every_robot_unless_asked(made, asked):
-    # 팀 결정 2026-11-13: 켠 세 대 경기가 끝나지 않아 기본을 끔으로 둔다
+    # 켠 세 대 경기가 끝나지 않아 기본은 끔이다
     navs = includes(run(made, **asked), "nav2.launch.py")
     assert len(navs) == 3
     for nav in navs:
@@ -341,7 +338,7 @@ def test_the_fixed_line_check_is_off_for_every_robot_unless_asked(made, asked):
 
 
 def test_nav_overrides_lays_a_yaml_file_over_every_robots_nav2_params(made, tmp_path):
-    """주행 성능 조정(2026-11-14): 파일을 고치지 않고 Nav2 값을 바꿔 Gazebo 판을 비교한다."""
+    """주행 성능 조정: 파일을 고치지 않고 Nav2 값을 바꿔 Gazebo 판을 비교한다."""
     extra = tmp_path / "faster.yaml"
     extra.write_text(yaml.safe_dump({"controller_server": {"ros__parameters": {
         "FollowPathGoal": {"approach_velocity_scaling_dist": 0.4}}}}), encoding="utf-8")
@@ -373,10 +370,9 @@ NEW_LISTED = {"controller_server": {"ros__parameters": {"Other": {"steps": [{"pl
                                   "controller_server:\n  ros__parameters:\n    FollowPath: 3",
                                   "amcl: 5"])
 def test_nav_overrides_must_be_a_mapping_and_never_swaps_a_plugin(made, tmp_path, text):
-    """An empty file, a list, a plugin swap (also one inside a list) and a value that replaces a
-    whole mapping (a controller given as a list or a number) are refused before the launch:
-    otherwise they mean nothing, crash the merge or slip past the RPP speed cap and collision
-    check."""
+    """빈 파일, 목록, plugin 교체(목록 안 포함), 매핑을 통째로 바꾸는 값은 launch 전에 거부한다.
+    그렇지 않으면 병합이 깨지거나 RPP 속도 상한과 충돌 검사를 빠져나간다.
+    """
     extra = tmp_path / "bad.yaml"
     extra.write_text(text, encoding="utf-8")
     with pytest.raises(ValueError, match="nav_overrides"):
@@ -490,7 +486,7 @@ def test_one_rviz_shows_the_whole_fleet_by_default(made):
     assert not nodes(closed, "fleet_view") and not nodes(closed, "rviz2")
 
 
-NAV2_NODES = 12  # pode_nav_config with keepout: 노드 열, lifecycle manager 셋을 넉넉히
+NAV2_NODES = 12  # keepout이 있는 pode_nav_config: 노드 열, lifecycle manager 셋을 넉넉히
 LOCALHOST_PARTICIPANTS = 32  # Fast DDS LOCALHOST 탐색에서 서로 보이는 참여자 수(실측)
 SPARE = 6  # launch 프로세스, RViz, 사람이 띄우는 ros2 명령 몇 개
 
@@ -506,7 +502,7 @@ def test_ros_process_budget_leaves_room_under_the_localhost_limit(made):
 
 
 def test_the_fleet_record_is_kept_in_the_result_folder_only_when_asked(made, tmp_path):
-    """tools/triage and tools/avoid_regression.py read the record of a Gazebo game."""
+    """tools/triage와 tools/avoid_regression.py가 Gazebo 판의 기록을 읽는다."""
     [manager] = nodes(after_wait(run(made)), "fleet_manager_node")
     assert not manager.kw.get("arguments")
     out = tmp_path / "result"
@@ -528,7 +524,7 @@ def test_the_bodies_of_other_robots_stay_out_of_the_costmaps_when_switched_off(m
 @pytest.mark.parametrize("asked", [{}, {"peer_obstacles": "true"}])
 def test_peer_obstacles_adds_the_layer_to_every_robot_and_the_stand_in_sends_the_bodies(
         made, asked):
-    # 기본이 켜짐이다(팀 결정 2026-11-13)
+    # 기본은 켜짐이다
     before = len(nodes(run(made, peer_obstacles="false")))
     actions = run(made, **asked)
     navs = includes(actions, "nav2.launch.py")
@@ -544,7 +540,7 @@ def test_peer_obstacles_adds_the_layer_to_every_robot_and_the_stand_in_sends_the
         run(made, peer_obstacles="on")
 
 
-# ---- 시험용: 한 로봇의 주행 서버만 늦게 켜기 ---------------------------------------------------
+# ---- 시험용: 한 로봇의 주행 서버만 늦게 켜기 ----
 
 def test_no_robot_starts_its_driving_side_late_by_default(made):
     assert made.ARGS["nav_late"][0] == ""
@@ -563,7 +559,7 @@ def test_a_bad_nav_late_stops_the_launch(made, bad):
         run(made, nav_late=bad)
 
 
-# ---- 회피 패키지와 임시 비전 대역 ------------------------------------------------------------
+# ---- 회피 패키지와 임시 비전 대역 ----
 
 def test_every_robot_gets_the_avoidance_package_and_no_vision_stand_in_by_default(made):
     assert made.ARGS["avoidance_package"][0] == "pode_avoidance"

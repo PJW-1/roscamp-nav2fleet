@@ -1,8 +1,6 @@
-"""Summarise a pinky_newton_drive.py CSV: per-phase steady-state numbers and two plots.
+"""pinky_newton_drive.py CSV 를 요약한다: 구간별 정상상태 값과 그래프 두 장.
 
-Usage: python analyze_drive.py <log.csv> <out_dir> [--steady 2.0]
-Steady window = last <steady> seconds of each phase. Prints a Markdown table and writes
-<tag>_phases.csv, <tag>_traj.png, <tag>_speeds.png.
+사용: python analyze_drive.py <log.csv> <out_dir> [--steady 2.0] (각 구간 마지막 steady 초가 정상상태)
 """
 
 import argparse
@@ -56,7 +54,7 @@ for ph in phases:
     wl, wr = d["wl"].mean(), d["wr"].mean()
     wlc, wrc = d["wl_cmd"].mean(), d["wr_cmd"].mean()
     b_eff = R * (wr - wl) / wz if abs(w_cmd) > 0 and abs(wz) > 1e-6 else float("nan")
-    # per-env std over time, then mean over envs
+    # env 별로 시간에 대한 표준편차, 이어서 env 평균
     z_std = np.mean([d["z"][d["env"] == e].std() for e in envs])
     roll_std = np.degrees(np.mean([d["roll"][d["env"] == e].std() for e in envs]))
     pitch_std = np.degrees(np.mean([d["pitch"][d["env"] == e].std() for e in envs]))

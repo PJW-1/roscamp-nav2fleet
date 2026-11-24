@@ -1,7 +1,6 @@
-"""Q2에서 실제로 선 시간(sim/truth): Q2 반경 안에서 속도가 기준 아래로 이어진 구간.
+"""Q2 반경 안에서 속도가 기준 아래로 이어진 구간(실제로 선 시간)을 잰다.
 
-사용: python3 q2_dwell.py TRUTH.csv BATCH.log | NAME=TRUTH.csv ... [--radius=0.10 --speed=0.03 --min=0.1]
-기본값(0.10 m, 0.03 m/s, 0.1 s)은 기준 판 rush4에서 BASE_END_WAIT 수(11)와 맞았다.
+    python3 q2_dwell.py TRUTH.csv BATCH.log
 """
 import math
 import statistics as st

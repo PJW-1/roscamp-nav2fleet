@@ -1,13 +1,6 @@
 """작업대로 불린 로봇이 대기 자리가 없어 주차하러 가는 길(standby route).
-- 가는 동안 대기 자리가 비면 주차 칸에 들어가지 않고 그 자리로 간다
-  (2026-11-15 Gazebo: 12건 가운데 9번, 자리가 빈 뒤에도 합계 81초를 주차하러 더 갔다).
-  고정 경로 위에서는 그 구간 끝에서, 마당 goal로 가는 중이면 goal을 취소하고 돌린다.
-  order 모델이면 첫 고정 경로(out_out)까지만 base로 주고, 그 위에서 자리가 비면 취소 없이
-  O_OUT에 이어 붙는 update로 돌린다(2026-11-17). 아니면 O_OUT에 닿기 standby_lookahead_s 전에
-  주차 조각을 붙인다. update에 답이 오기 전에는 바꾸지 않는다.
-- 자리가 끝내 비지 않으면 지금처럼 주차한다.
-- 양보하려고 주차하러 가는 로봇(DEADLOCK_SEEN, HALL_YIELD)은 돌리지 않는다.
-"""
+- 가는 동안 대기 자리가 비면 주차 칸 대신 그 자리로 돌린다(양보하러 가는 로봇은 돌리지 않는다).
+- 자리가 끝내 비지 않으면 그대로 주차한다."""
 from dataclasses import replace
 
 import pytest
@@ -20,8 +13,7 @@ ORDER_MODEL = pytest.mark.parametrize("order_model", [False, True])
 
 
 def world_with_a_busy_line(order_model=False, **changes):
-    """pode2는 W에서 일하고, pode1은 O에서 출고를 끝냈고(아직 쥐고 있다),
-    pode3은 불려서 Q2로 간다."""
+    """pode2는 W에서 일하고, pode1은 O에서 출고를 끝냈고, pode3은 불려서 Q2로 간다."""
     world = Harness(layout="v7", starts={"pode1": "O", "pode2": "W", "pode3": "P-3"},
                     params=replace(load_params(), use_order_model=order_model, **changes))
     world.report()
@@ -75,9 +67,7 @@ def test_with_no_spot_freeing_the_robot_still_parks(order_model):
 
 
 def released_on_the_way_out(order_model, delay_s=1.6, **changes):
-    """pode3이 Q2에 닿고 delay_s 뒤에 pode1이 출고를 끝낸다. 그때는 줄 자리가 없고,
-    pode1이 O -> O_OUT 고정 경로(out_out, 약 3.1 s)를 가는 도중에 pode3이 Q2를 놓는다.
-    Q2는 pode3이 닿고 약 2.35 s 뒤에 빈다: delay_s 1.6이면 out_out 0.75 s쯤, 0.4면 1.95 s쯤."""
+    """pode3이 Q2에 닿고 delay_s 뒤에 pode1이 출고를 끝내면 out_out을 가는 도중에 pode3이 Q2를 놓는다."""
     world = world_with_a_busy_line(order_model, **changes)
     assert world.run_until(lambda: world.view("pode3")["node"] == "Q2", 60.0)
     world.run(delay_s)
@@ -101,9 +91,7 @@ def pode1_orders(world, since: int) -> list:
 
 @pytest.mark.parametrize("delay_s", [1.6, 0.4])
 def test_a_spot_that_frees_on_the_fixed_path_turns_the_order_before_its_end(delay_s):
-    """order 모델: out_out을 가는 도중 자리가 비면 그 조각 끝을 기다리지 않고 바꾼다.
-    달리는 고정 경로는 취소하지도 다시 보내지도 않고, O_OUT에 이어 붙는 update로 새 길을 준다.
-    delay_s 0.4는 out_out 끝 약 1.1 s 전에 빈다: standby_lookahead_s(0.5) 앞이라 아직 바꾼다."""
+    """order 모델: out_out을 가는 도중 자리가 비면 조각 끝을 기다리지 않고 O_OUT에 이어 붙는 update로 새 길을 준다."""
     world, m = released_on_the_way_out(True, delay_s)
     since = len(world.commands) - 1
     first = pode1_orders(world, since)
@@ -125,8 +113,7 @@ def test_a_spot_that_frees_on_the_fixed_path_turns_the_order_before_its_end(dela
 
 
 def test_with_no_spot_freeing_the_order_drives_on_to_the_bay_without_a_stop():
-    """order 모델: 자리가 비지 않으면 O_OUT에 닿기 전에 주차까지의 조각을 update로 붙인다.
-    로봇은 O_OUT에서 서지 않는다."""
+    """order 모델: 자리가 비지 않으면 O_OUT에 닿기 전에 주차까지의 조각을 update로 붙이고 O_OUT에서 서지 않는다."""
     world, m = released_on_the_way_out(True)
     world.silent.add("pode3")  # Q2를 쥔 채 서 있다
     since = len(world.commands) - 1
@@ -153,15 +140,13 @@ def left_when_the_bay_is_stitched(standby_lookahead_s) -> float:
 
 @pytest.mark.parametrize("standby_lookahead_s", [0.5, 1.5])
 def test_the_bay_is_stitched_standby_lookahead_s_before_the_fixed_path_end(standby_lookahead_s):
-    """주차 조각을 붙이는 때는 일반 lookahead_s(2.0)가 아니라 standby_lookahead_s를 따른다.
-    붙일 때 남은 시간은 그 값 이하이고, 한 걸음(0.1 s)과 틱 하나를 넘게 일찍 붙이지 않는다."""
+    """주차 조각은 일반 lookahead_s가 아니라 standby_lookahead_s를 따라, 한 걸음과 틱 하나를 넘게 일찍 붙이지 않는다."""
     left = left_when_the_bay_is_stitched(standby_lookahead_s)
     assert standby_lookahead_s - 0.25 <= left <= standby_lookahead_s
 
 
 def test_a_spot_freed_while_the_bay_update_is_unanswered_waits_for_the_answer(monkeypatch):
-    """주차 조각 update(mo.before)에 답이 오기 전에 옛 goal의 피드백으로 O_OUT을 지났고 그때 자리가
-    비었다. 답을 기다리는 동안은 바꾸지 않는다(취소도 새 order도 없다). 답이 온 뒤에 바꾼다."""
+    """update에 답이 오기 전에는 자리가 비어도 바꾸지 않고, 답이 온 뒤에 바꾼다."""
     world, m = released_on_the_way_out(True)
     real = world.traffic._station_spots
     closed = [True]
@@ -187,8 +172,7 @@ def test_a_spot_freed_while_the_bay_update_is_unanswered_waits_for_the_answer(mo
 
 
 def test_a_spot_whose_zones_cannot_be_taken_does_not_turn_the_order(monkeypatch):
-    """order 모델: 자리는 비었지만 새 길의 구역을 잡지 못하면 바꾸지 않고 주차하러 간다.
-    달리는 조각의 구역(OUT_DOCK, HALL)은 끝까지 쥐고 있다."""
+    """order 모델: 새 길의 구역을 잡지 못하면 바꾸지 않고 주차하러 가며, 달리는 조각의 구역은 끝까지 쥔다."""
     world, m = released_on_the_way_out(True)
     grants = world.traffic.grants
     real = grants.take
@@ -231,8 +215,7 @@ def test_without_the_order_model_the_fixed_path_still_turns_at_its_end():
 
 
 def test_a_free_spot_it_cannot_be_granted_leaves_no_waiting_record(monkeypatch):
-    """자리는 비었지만 가는 길의 구역을 아직 잡지 못하면 주차하러 가던 길을 그대로 간다.
-    길에서 자리를 알아본 것은 기다린 것이 아니다(grants.waiting에 남지 않는다)."""
+    """새 길의 구역을 잡지 못하면 가던 길을 그대로 간다. 길에서 자리를 알아본 것은 기다린 것이 아니다."""
     world = world_with_a_busy_line()
     assert world.run_until(lambda: world.view("pode3")["node"] == "Q2", 60.0)
     world.traffic.on_release("pode1")

@@ -15,7 +15,7 @@ def keepout_rects(site, pad: float = BODY_HALF_WIDTH_M) -> list[tuple]:
     zones = [(x0 - pad, y0 - pad, x1 + pad, y1 + pad)
              for zone in sorted(site.zones.values(), key=lambda z: z.id) if zone.kind != SHARED
              for x0, y0, x1, y1 in zone.rects]
-    # 지도의 keepout_extra는 덧대지 않는다(계획만 막는 자리 그대로)
+    # keepout_extra는 덧대지 않고 그대로 더한다
     return zones + list(getattr(site, "keepout_extra", ()))
 
 

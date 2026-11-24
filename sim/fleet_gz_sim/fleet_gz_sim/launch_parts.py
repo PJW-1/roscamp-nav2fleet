@@ -1,9 +1,5 @@
-"""one_pode.launch.py와 gz.launch.py가 같이 쓰는 launch 조각: Gazebo 월드 하나, 브리지 하나,
-Pode 한 대씩.
-
-월드 좌표 = 지도 좌표 = 구역 지도 좌표다(fleet_gz_sim.arena).
-ROS 프로세스 하나가 DDS 참여자 하나다. LOCALHOST 탐색에서는 32개 정도만 서로 보이므로
-브리지는 모든 로봇을 하나로 맡고, 3대일 때는 Nav2도 로봇마다 프로세스 하나로 묶는다.
+"""one_pode.launch.py와 gz.launch.py가 같이 쓰는 launch 조각: Gazebo 월드, 브리지, Pode.
+LOCALHOST 탐색에서 DDS 참여자는 32개 정도만 서로 보이므로 브리지는 하나, 3대일 때 Nav2는 로봇마다 프로세스 하나로 묶는다.
 """
 from __future__ import annotations
 
@@ -40,7 +36,7 @@ def share(package: str) -> Path:
 
 
 def bridge_args(ns: str) -> tuple[list[str], list[tuple[str, str]]]:
-    """gz 토픽 /model/<ns>/... ↔ ROS 토픽 /<ns>/... /clock은 bridge()가 한 번만 넣는다."""
+    """gz 토픽 /model/<ns>/... ↔ ROS 토픽 /<ns>/... (/clock은 bridge()가 한 번만 넣는다)."""
     pairs = [
         ("scan", "scan", "sensor_msgs/msg/LaserScan", "[", "gz.msgs.LaserScan"),
         ("odom", "odom", "nav_msgs/msg/Odometry", "[", "gz.msgs.Odometry"),
@@ -58,13 +54,11 @@ def bridge_args(ns: str) -> tuple[list[str], list[tuple[str, str]]]:
 
 
 def world(gui: bool, world_file: str) -> list:
-    """Gazebo 서버(끝나면 launch도 끝)와 화면. 브리지는 bridge()가 따로 만든다.
-    어느 배치든 월드 이름은 WORLD다(arena.py)."""
+    """Gazebo 서버(끝나면 launch도 끝)와 화면. 월드 이름은 WORLD다."""
     server = ExecuteProcess(cmd=["gz", "sim", "-r", "-s", "-v", "2", world_file],
                             name="gz_server", output="screen")
     actions = [
-        # Gazebo 통신(gz-transport)도 이 컴퓨터 안에서만. 셸에 남은 GZ_IP(LAN 주소일 수 있다)는
-        # 쓰지 않는다. 다른 시뮬과 섞이지 않게 칸막이를 나눈다
+        # gz-transport도 이 컴퓨터 안에서만 쓰고, 다른 시뮬과 섞이지 않게 칸막이를 나눈다
         SetEnvironmentVariable("GZ_IP", "127.0.0.1"),
         SetEnvironmentVariable("GZ_PARTITION", os.environ.get(
             "GZ_PARTITION", f"fleet_gz_{os.environ['ROS_DOMAIN_ID']}")),
@@ -80,10 +74,7 @@ def world(gui: bool, world_file: str) -> list:
 
 
 def bridge(robots) -> Node:
-    """Gazebo 시계와 모든 로봇의 토픽을 잇는 브리지 프로세스 하나.
-
-    /clock을 여럿이 내면 표본 순서가 섞여 시간이 뒤로 갈 수 있으므로 한 번만 넣는다.
-    토픽 이름이 모두 절대 이름이라 namespace는 필요 없다."""
+    """Gazebo 시계와 모든 로봇의 토픽을 잇는 브리지 프로세스 하나. /clock은 한 번만 넣는다."""
     args, remaps = ["/clock@rosgraph_msgs/msg/Clock[gz.msgs.Clock"], []
     for ns in robots:
         robot_args, robot_remaps = bridge_args(ns)
@@ -101,39 +92,30 @@ def _rviz_config(ns: str) -> str:
     return str(out)
 
 
-# 시뮬에서만 쓰는 AMCL 값. 실물 설정(pode_nav_config/params/nav2_params.yaml)은 그대로 둔다.
-# 창고 지도 A4->A3 통로(양쪽 랙까지 0.25 m)에서 실물 값(z_hit 0.5, z_rand 0.5, 빔 60, 0.15 m나
-# 0.1 rad마다 갱신)은 AMCL 위치가 실제 위치에서 옆으로 0.13~0.29 m 떨어진 채 머물러, 로봇이
-# 랙에 붙고 격리됐다(2026-11-08). 지도와 맞는 빔을 더 믿고, 빔을 늘리고, 더 자주 갱신한다.
+# 시뮬에서만 쓰는 AMCL 값(실물 설정은 그대로). 지도와 맞는 빔을 더 믿고 빔 수와 갱신 빈도를 올린다.
 SIM_AMCL = {"z_hit": 0.95, "z_rand": 0.05, "max_beams": 120, "laser_max_range": 12.0,
             "update_min_d": 0.05, "update_min_a": 0.05}
 
-# Nav2 controller 넷(pode_nav_config). pode_fsm은 잠금 경계 경로에 FollowPathThrough,
-# Retreat path에 FollowPathReverse, mode nav_goal(bt_navigator)에 FollowPathGoal을 쓴다.
+# Nav2 controller 넷(pode_nav_config): 잠금 경계 경로, Retreat 경로, nav_goal(bt_navigator)용.
 THROUGH_CONTROLLER = "FollowPathThrough"
 REVERSE_CONTROLLER = "FollowPathReverse"
 GOAL_CONTROLLER = "FollowPathGoal"
-# 비교용 Nav2 goal MPPI(ControllerSelector로 고를 때만 씀). 실물 목록에는 없어 시뮬이 넣는다.
-# 속도 상한은 vx_max에 건다
+# 비교용 Nav2 goal MPPI(ControllerSelector로 고를 때만 씀). 속도 상한은 vx_max
 MPPI_CONTROLLER = "FollowPathMPPI"
-# RL 주행 정책(nav_overrides로만 띄움). 속도 상한은 max_linear_vel에 건다
+# RL 주행 정책(nav_overrides로만 띄움). 속도 상한은 max_linear_vel
 RL_PLUGIN = "pode_rl_controller::FollowPathRL"
 # ---- 회피 패키지 ----
 AVOIDANCE_PACKAGE = "pode_avoidance"
 AVOIDANCE_FILE = Path("params") / "avoidance.yaml"
 GOAL_CONTROLLER_KEY = "follow_path_goal"
 CONTROLLERS = ("FollowPath", THROUGH_CONTROLLER, REVERSE_CONTROLLER, GOAL_CONTROLLER)
-# 고정 경로(FollowPath, 잠금 경계, Retreat)를 모는 controller. 시뮬 전용 스위치
-# fixed_line_collision_check가 거짓이면 이 셋만 충돌 검사를 끈다(리드 결정 2026-11-12: D2의 0.10 m
-# 통로에서 켜면 work_in이 0/3이라 3대 경기를 볼 수 없다). 마당 goal(FollowPathGoal)은 늘 켠다.
-# launch 인자의 기본은 끔이다(팀 결정 2026-11-13: scan 거르개를 넣고 켠 세 대 경기 여섯 판이
-# 끝나지 않았고, 끈 판은 끝났다). 실물의 파라미터 파일(nav2_params.yaml)은 켬 그대로다
+# 고정 경로를 모는 controller. fixed_line_collision_check가 거짓이면 이 셋만 충돌 검사를 끈다(시뮬 전용, launch 인자 기본은 끔).
+# 마당 goal(FollowPathGoal)은 늘 켠다.
 FIXED_LINE_CONTROLLERS = ("FollowPath", THROUGH_CONTROLLER, REVERSE_CONTROLLER)
-# 경기장 속도 상한. 앞으로 가는 controller들이 이 값으로 간다. 기본과 위 끝은 단일 출처
-# pode_nav_config/params/nav_speed.yaml이다(사용자 결정 2026-11-22). 더 느린 시험은 0.05까지 받는다
+# 경기장 속도 상한. 기본과 위 끝은 pode_nav_config/params/nav_speed.yaml이 단일 출처다.
 NAV_SPEED_FILE = Path("params") / "nav_speed.yaml"
 SLOWEST_SPEED_MPS = 0.05
-# sim_stand_in이 내는 로봇마다의 시뮬 배터리(BatteryState). low_battery가 있으면 pode_fsm이 본다
+# sim_stand_in이 내는 로봇별 시뮬 배터리 토픽. low_battery가 있으면 pode_fsm이 본다
 BATTERY_TOPIC = "/{robot}/sim/battery"
 
 
@@ -192,20 +174,8 @@ def sim_nav_params(base: Path, out: Path, amcl: dict | None = None,
                    max_speed: float | None = None, overrides: dict | None = None,
                    fixed_line_check: bool = True, avoidance: Path | None = None) -> Path:
     """base(실물 Nav2 설정)에 시뮬 값을 덮어 out에 쓴다. base는 바꾸지 않는다.
-
-    - FollowPathGoal: base에 없으면 회피 담당 파일 avoidance(회피 패키지의 params/avoidance.yaml,
-      avoidance_file)에서 먼저 넣는다.
-      실물에서는 nav2.launch.py가 넣지만, 여기서 넣어야 아래의 충돌 검사와 속도 상한이 걸린다
-      (nav2.launch.py는 이미 들어 있는 FollowPathGoal을 그대로 둔다).
-    - AMCL: SIM_AMCL(또는 amcl).
-    - overrides: 그 위에 깊이 덮을 값(merge). launch 인자 nav_overrides(yaml 파일). AMCL 값도
-      바꾼다.
-    - controller 넷(CONTROLLERS) 모두 충돌 검사를 켠다(모든 실행에서 켬). overrides로도
-      끌 수 없다. fixed_line_check가 거짓일 때만 FIXED_LINE_CONTROLLERS의 검사를 끈다.
-    - max_speed가 있으면 controller마다 desired_linear_vel을 max_speed와 원래 값 중 작은 것으로
-      (후진 FollowPathReverse 0.05 m/s는 그대로 남는다). MPPI_CONTROLLER가 있으면 그 vx_max도
-      (time_steps는 같은 거리를 내다보도록 원래 vx_max / 새 vx_max 배로 늘린다),
-      RL_PLUGIN controller가 있으면 그 max_linear_vel도."""
+    덮는 것: FollowPathGoal(회피 파일), AMCL(SIM_AMCL), overrides, controller 충돌 검사(fixed_line_check가 거짓일 때만 고정 경로 셋을 끔), max_speed 속도 상한.
+    """
     data = yaml.safe_load(base.read_text(encoding="utf-8"))
     if GOAL_CONTROLLER not in data["controller_server"]["ros__parameters"] and avoidance:
         data["controller_server"]["ros__parameters"][GOAL_CONTROLLER] = yaml.safe_load(
@@ -222,8 +192,7 @@ def sim_nav_params(base: Path, out: Path, amcl: dict | None = None,
     missing = [name for name in CONTROLLERS if name not in controllers]
     if missing:
         raise ValueError(f"{base} has no controller {', '.join(missing)}")
-    # FollowPathGoal은 회피 담당의 것이라 RPP가 아닐 수 있다. 아래의 두 값은 RPP의 키이므로
-    # 다른 플러그인에는 넣지 않는다: 그때 속도 상한은 회피 담당 파일이 스스로 지킨다(회피_약속.md)
+    # FollowPathGoal은 RPP가 아닐 수 있어, 아래 두 RPP 키는 다른 플러그인에 넣지 않는다(속도 상한은 회피 파일이 지킨다)
     names = [name for name in CONTROLLERS
              if name != GOAL_CONTROLLER or "desired_linear_vel" in controllers[name]]
     rpps = [controllers[name] for name in names]
@@ -257,8 +226,8 @@ def sim_nav_params(base: Path, out: Path, amcl: dict | None = None,
 
 def model(ns: str, x, y, yaw, lidar_noise: float | None = None) -> list:
     """Pode 모델만(robot_state_publisher와 Gazebo에 놓기). Nav2와 pode_fsm은 없다.
-    서 있는 다른 Pode(one_pode.launch.py still_pode)도 이것으로 놓는다.
-    lidar_noise: 라이다 거리 잡음 표준편차(m). None이면 모델의 기본값(0.02)."""
+    lidar_noise: 라이다 거리 잡음 표준편차(m). None이면 모델 기본값(0.02).
+    """
     me = share("fleet_gz_sim")
     noise = "" if lidar_noise is None else f" lidar_noise:={float(lidar_noise)}"
     description = ParameterValue(
@@ -284,26 +253,11 @@ def pode(ns: str, x, y, yaw, *, nav_map: str, nav_map_fine: str, keepout_mask: s
           avoidance_package: str = AVOIDANCE_PACKAGE, vision_stand_in: bool = False,
           navigation_delay_s: float = 0.0) -> list:
     """Pode 한 대: 모델, Nav2, pode_fsm, RViz. 브리지는 bridge()에 이 로봇 이름을 넣는다.
-
-    nav_map, nav_map_fine: Nav2 지도 둘(배치의 5 cm, 1 cm 지도, fleet_setup.Arena).
-    keepout_mask: global costmap keepout 마스크(pode_nav_config keepout_mask). 비면 keepout 없음.
-    dock_aside: pode_fsm의 dock 서버를 /<ns>/dock_fsm으로 비켜 둔다(시뮬 전용 도크 대역용).
-    nav_composition: Nav2 노드들을 프로세스 하나(component container)로 띄운다.
-    through_controller_id: 잠금 경계 경로에 쓸 controller(pode_fsm). 비우면 모든 경로가
-    FollowPath로 간다. Nav2는 controller 넷(CONTROLLERS)을 늘 띄운다. 충돌 검사는 넷 모두 켜고,
-    fixed_line_check가 거짓일 때만 고정 경로 셋을 끈다.
-    nav_max_speed: controller들의 최고 속도(m/s). pode_fsm이 잠금 경계에서 내는 속도 제한의
-    상한(horizon_cap_mps)도 이 값으로: RPP는 그 제한을 속도로 쓴다. None이면 nav_speed_mps().
-    battery_topic: pode_fsm이 볼 BatteryState 토픽(sim_stand_in의 BATTERY_TOPIC). 비면 없음.
-    nav_overrides: Nav2 설정 위에 덮을 값(sim_nav_params overrides).
-    fixed_line_check: 거짓이면 고정 경로 controller 셋의 충돌 검사를 끈다(시뮬 전용).
-    narrow_strips, wall_band_m: 스캔 거르개(pode_scan_filter)의 좁은 띠와 띠 폭.
-    narrow_strips가 비면 거르개를 띄우지 않고 costmap은 원래 scan을 읽는다.
-    peer_layer: 참이면 두 costmap에 다른 로봇의 몸을 찍는 층을 넣는다(임시, 주행 시험용). 토픽은
-    sim_stand_in 프로세스가 세 대분을 낸다(peer_obstacles 파라미터).
-    avoidance_package: 회피 패키지(FollowPathGoal 값, 비전·peer 층, 회피 쪽 노드).
-    vision_stand_in: 참이면 회피 패키지의 임시 비전 대역을 띄우고 비전 관측원을 켠다.
-    navigation_delay_s: 시험용. 0보다 크면 위치는 먼저, 주행 쪽 서버는 이만큼 늦게 켠다."""
+    nav_map, nav_map_fine: 배치의 5 cm, 1 cm 지도. keepout_mask: 비면 keepout 없음. dock_aside: dock 서버를 /<ns>/dock_fsm으로 비킴.
+    nav_max_speed: controller 최고 속도(m/s), None이면 nav_speed_mps(). fixed_line_check: 거짓이면 고정 경로 셋의 충돌 검사를 끈다.
+    narrow_strips, wall_band_m: 스캔 거르개 좁은 띠(비면 거르개 없음). peer_layer: 다른 로봇 몸을 costmap에 찍는 층(임시).
+    navigation_delay_s: 시험용, 0보다 크면 주행 쪽 서버만 이만큼 늦게 켠다.
+    """
     nav = share("pode_nav_config")
     nav_max_speed = nav_speed_mps() if nav_max_speed is None else nav_max_speed
     x, y, yaw = str(x), str(y), str(yaw)

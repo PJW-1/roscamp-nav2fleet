@@ -1,5 +1,5 @@
-"""Tests of the store arena boxes and the 2D ray cast, without Isaac.
-Run: python -m pytest learning/store_arena -q"""
+"""매장 아레나 박스와 2D 레이캐스트 테스트 (Isaac 없이).
+실행: python -m pytest learning/store_arena -q"""
 
 import math
 import os
@@ -28,7 +28,7 @@ def test_boxes_follow_yaml_bounds_and_measured_shelves():
     walls = [b for b in boxes if b.kind == "wall"]
     shelves = [b for b in boxes if b.kind == "shelf"]
     t = arena.gz_arena.WALL_M
-    # inner faces of the four walls are the bounds, walls are WALL_M thick
+    # 벽 안쪽 면이 bounds, 벽 두께는 WALL_M
     assert sorted(rect(w) for w in walls) == sorted(
         [
             (x0 - t, y0 - t, x1 + t, y0),
@@ -38,7 +38,7 @@ def test_boxes_follow_yaml_bounds_and_measured_shelves():
         ]
     )
     assert [rect(s) for s in shelves] == [tuple(r) for r in data["shelves"]]
-    # the Gazebo-only correction differs from the measured shelves and is not used
+    # Gazebo 전용 보정은 실측 선반과 달라 쓰지 않음
     assert data["sim_shelves"] != data["shelves"]
     assert [rect(s) for s in shelves] != [tuple(r) for r in data["sim_shelves"]]
     assert all(w.height_m == arena.ARENA.wall_height_m for w in walls)
@@ -46,7 +46,7 @@ def test_boxes_follow_yaml_bounds_and_measured_shelves():
 
 
 def test_boxes_are_read_from_the_yaml_at_run_time(tmp_path):
-    """A changed yaml (as after a tape-measure check) changes the boxes; sim_shelves never does."""
+    """yaml 이 바뀌면 박스가 바뀌지만 sim_shelves 는 영향 없음."""
     text = open(MAP, encoding="utf-8").read()
     text = text.replace("- [0.65, 0.365, 0.99, 0.405]   # 남쪽 진열대, 서쪽",
                         "- [0.70, 0.36, 0.99, 0.40]   # moved", 1)
@@ -58,7 +58,7 @@ def test_boxes_are_read_from_the_yaml_at_run_time(tmp_path):
     spec = arena.make_arena_spec({"layout": str(path)})
     shelves = [rect(b) for b in arena.arena_boxes(spec) if b.kind == "shelf"]
     assert shelves[1] == (0.70, 0.36, 0.99, 0.40)
-    assert shelves[0] == (0.70, 0.77, 1.56, 0.803)  # measured, not the edited sim_shelves
+    assert shelves[0] == (0.70, 0.77, 1.56, 0.803)  # 실측값, 고친 sim_shelves 아님
 
 
 def test_split_overrides_routes_fields():
@@ -73,14 +73,13 @@ def test_split_overrides_routes_fields():
 
 def test_raycast_from_arena_point_matches_hand_values():
     rects = arena.boxes_tensor(arena.arena_boxes())
-    # lidar at (0.30, 0.55), robot facing +x: ray 180 ahead runs along the middle aisle to the east
-    # wall (1.98), ray 0 behind hits the west wall (0.0), ray 270 left the north wall (0.98)
+    # (0.30, 0.55) 에서 +x 를 봄: 레이 180 은 동쪽 벽, 0 은 서쪽 벽, 270 은 북쪽 벽
     r = arena.raycast_rects(torch.tensor([[0.30, 0.55]]), torch.tensor([0.0]), rects, max_range=5.0)
     assert r[0, 180].item() == pytest.approx(1.68, abs=1e-5)
     assert r[0, 0].item() == pytest.approx(0.30, abs=1e-5)
     assert r[0, 270].item() == pytest.approx(0.43, abs=1e-5)
     assert r[0, 90].item() == pytest.approx(0.55, abs=1e-5)
-    # facing +y at (0.85, 0.55): shelf A south face 0.77 ahead, south shelf north face 0.405 behind
+    # (0.85, 0.55) 에서 +y 를 봄: 앞 선반 A 남쪽 면 0.77, 뒤 남쪽 선반 북쪽 면 0.405
     r = arena.raycast_rects(
         torch.tensor([[0.85, 0.55]]), torch.tensor([math.pi / 2]), rects, max_range=5.0
     )
@@ -92,17 +91,17 @@ def test_raycast_range_limits_and_inside_start():
     rects = torch.tensor([[1.0, -1.0, 1.1, 1.0]])
     r = arena.raycast_rects(torch.zeros(1, 2), torch.zeros(1), rects, max_range=2.0)
     assert r[0, 180].item() == pytest.approx(1.0, abs=1e-6)
-    assert math.isinf(r[0, 0].item())  # behind: nothing
+    assert math.isinf(r[0, 0].item())  # 뒤: 없음
     r = arena.raycast_rects(torch.zeros(1, 2), torch.zeros(1), rects, max_range=0.9)
-    assert math.isinf(r[0, 180].item())  # beyond max_range
-    # wall face 0.03 m ahead: the ray starts 0.05 out, inside the box, and returns its far side
+    assert math.isinf(r[0, 180].item())  # max_range 밖
+    # 벽 면이 0.03 m 앞: 레이는 0.05 에서 시작해 박스 안이므로 먼 면을 돌려줌
     r = arena.raycast_rects(torch.tensor([[0.97, 0.0]]), torch.zeros(1), rects, max_range=2.0)
     assert r[0, 180].item() == pytest.approx(0.13, abs=1e-6)
 
 
 
 def test_episode_time_and_travel_waits_follow_the_one_top_speed():
-    """Times tuned at 0.25 m/s are multiplied by 0.25 / v; pauses are not about travel and stay."""
+    """0.25 m/s 기준 시간은 0.25 / v 배가 되고, 정지 시간은 그대로."""
     import robot_spec
 
     ts = arena.ts
@@ -117,28 +116,27 @@ def test_episode_time_and_travel_waits_follow_the_one_top_speed():
 
 
 def test_scripted_robot_defaults_are_the_user_decision():
-    # 2026-11-22: 12 routes + retreat to the node before; 4c (ppo_h) used --set robot_routes=4
-    # --set robot_retreat=0
+    # 12 경로 + 직전 노드로 후퇴가 기본, 4c 는 robot_routes=4, robot_retreat=0
     assert (arena.ARENA.robot_routes, arena.ARENA.robot_retreat) == (12, 1)
-    assert arena.ARENA.robot_reserve == 1  # measured 2026-11-22 (B52)
-    # stand-in Podes never beat the one top speed (B60): scale at most 1.0
+    assert arena.ARENA.robot_reserve == 1
+    # 대역 Pode 는 최고속도를 못 넘음: 배율 1.0 이하
     assert arena.ARENA.robot_speed_scale[1] <= 1.0
     old = arena.make_arena_spec({"robot_routes": 4, "robot_retreat": 0})
     assert (old.robot_routes, old.robot_retreat) == (4, 0)
 
 
 def test_footprint_clearance_to_rects_boxes_and_cylinders():
-    half = (0.06, 0.056)  # Pode footprint 0.12 x 0.112
+    half = (0.06, 0.056)  # Pode 발자국 0.12 x 0.112
     xy, yaw = torch.tensor([[0.0, 0.0]]), torch.zeros(1)
-    wall = torch.tensor([[[0.065, -1.0, 0.2, 1.0]]])  # face 5 mm ahead of the front edge
+    wall = torch.tensor([[[0.065, -1.0, 0.2, 1.0]]])  # 앞 모서리 5 mm 앞의 면
     assert arena.footprint_clearance(xy, yaw, half, wall).item() == pytest.approx(0.005, abs=1e-6)
-    # turned 45 deg the corner reaches sqrt(0.06^2 + 0.056^2) = 0.0821 ahead: overlaps
+    # 45 deg 돌리면 모서리가 sqrt(0.06^2 + 0.056^2) = 0.0821 앞까지 닿아 겹침
     assert arena.footprint_clearance(xy, torch.tensor([math.pi / 4]), half, wall).item() == 0.0
-    # a wall corner pointing into the side: the rect corner, not a footprint corner, is nearest
+    # 옆을 향한 벽 모서리: 가장 가까운 것은 발자국이 아니라 rect 모서리
     corner = torch.tensor([[[-0.01, 0.059, 0.3, 0.5]]])
     c = arena.footprint_clearance(xy, yaw, half, corner)
     assert c.item() == pytest.approx(0.003, abs=1e-6)
-    # a turned box (a cart) and a cylinder (a person of radius 0.04)
+    # 돌린 박스(수레)와 원기둥(반지름 0.04 사람)
     g = arena.box_clearance(xy, yaw, half, torch.tensor([[0.2, 0.0]]), torch.zeros(1),
                             (0.07, 0.045))
     assert g.item() == pytest.approx(0.2 - 0.07 - 0.06, abs=1e-6)
@@ -153,18 +151,18 @@ def test_near_wall_penalty_is_linear_and_bounded():
 
 
 def test_corner_start_routes_and_away_heading():
-    rects = torch.tensor([[0.0, -0.1, 3.0, 0.0]])  # south wall face at y = 0
+    rects = torch.tensor([[0.0, -0.1, 3.0, 0.0]])  # 남쪽 벽 면 y = 0
     start = torch.tensor([[1.66, 0.15], [1.0, 0.8]])
     assert arena.near_wall_starts(start, rects, 0.2).tolist() == [True, False]
-    path = torch.tensor([[[1.66, 0.15], [1.5, 0.15], [1.0, 0.15]]])  # heads west
+    path = torch.tensor([[[1.66, 0.15], [1.5, 0.15], [1.0, 0.15]]])  # 서쪽으로
     yaw = arena.away_heading(path, torch.zeros(1))
-    assert yaw.item() == pytest.approx(0.0, abs=1e-6)  # faces east, as the Gazebo Q2 case
+    assert yaw.item() == pytest.approx(0.0, abs=1e-6)  # 동쪽을 봄
 
 
 def test_cross_overlap_without_corners_inside_is_zero_clearance():
     half = (0.06, 0.056)
     xy, yaw = torch.tensor([[0.0, 0.0]]), torch.zeros(1)
-    bar = torch.tensor([[[-0.2, -0.01, 0.2, 0.01]]])  # a thin bar through the footprint
+    bar = torch.tensor([[[-0.2, -0.01, 0.2, 0.01]]])  # 발자국을 가로지르는 얇은 막대
     assert arena.footprint_clearance(xy, yaw, half, bar).item() == 0.0
     g = arena.box_clearance(xy, yaw, half, torch.tensor([[0.0, 0.0]]), torch.zeros(1),
                             (0.2, 0.01))
@@ -189,14 +187,14 @@ def test_corner_start_nodes_of_the_store_arena():
 
 
 def test_footprint_box_is_off_centre_like_the_body():
-    # base_link body x -0.0745..0.0387, y +-0.047: the rear reaches further than the front
+    # base_link 몸체 x -0.0745..0.0387, y +-0.047: 뒤쪽이 앞쪽보다 멀리 나옴
     a = arena.ARENA
     c, half = arena.footprint_box(torch.zeros(1, 2), torch.zeros(1), a.footprint_x, a.footprint_y)
     assert half == pytest.approx((0.0566, 0.047)) and c[0].tolist() == pytest.approx([-0.0179, 0])
-    behind = torch.tensor([[[-0.3, -1.0, -0.08, 1.0]]])  # face 5.5 mm behind the rear edge
+    behind = torch.tensor([[[-0.3, -1.0, -0.08, 1.0]]])  # 뒤 모서리 5.5 mm 뒤의 면
     cl = arena.footprint_clearance(c, torch.zeros(1), half, behind)
     assert cl.item() == pytest.approx(0.0055, abs=1e-6)
-    # turned around (yaw pi) the rear faces +x
+    # 돌리면(yaw pi) 뒤쪽이 +x 를 향함
     c2, _ = arena.footprint_box(torch.zeros(1, 2), torch.tensor([math.pi]), a.footprint_x,
                                 a.footprint_y)
     assert c2[0].tolist() == pytest.approx([0.0179, 0.0], abs=1e-6)

@@ -1,8 +1,4 @@
-"""기록 읽기: 관제 기록(JSON 줄), 옛 Gazebo 기록기의 rec.csv, 장애물 yaml.
-
-관제 기록의 형식은 tools/replay.py 머리에 있다. replay는 코어를 불러오지만 여기는 읽기만 하므로
-따로 읽는다.
-"""
+"""관제 기록(JSON 줄), 옛 Gazebo 기록기의 rec.csv, 장애물 yaml을 읽는다."""
 from __future__ import annotations
 
 import csv
@@ -60,9 +56,7 @@ def read_fleet_record(source) -> Run:
 
 
 def read_rec_csv(path) -> Run:
-    """rec.csv: `t,event,robot,level,code,detail`, `t,rep,robot,x,y,"<yaw> <STATE> ..."`,
-    `t,pose,robot,x,y,...`. 첫 줄이 `t`로 시작하면 머리다. 칸이 더 있어도 무시하고
-    못 읽는 줄은 뺀다."""
+    """rec.csv를 읽는다. 못 읽는 줄은 뺀다."""
     run = Run()
     with open(path, newline="", encoding="utf-8") as file:
         for row in csv.reader(file):
@@ -94,8 +88,7 @@ def obstacles_from_injections(injections) -> list[Obstacle]:
 
 
 def read_obstacles(path, nodes=None) -> list[Obstacle]:
-    """sim/fleet_gz_sim/obstacles/*.yaml. 자리는 `x, y`, 또는 `link: [a, b]`와 `fraction`
-    (지점 이름 -> (x, y)인 `nodes`가 있어야 한다). 반지름은 `size_m` 첫 값의 절반이다."""
+    """sim/fleet_gz_sim/obstacles/*.yaml에서 장애물을 읽는다."""
     import yaml
     data = yaml.safe_load(Path(path).read_text(encoding="utf-8"))
     radius = float(data.get("size_m", [0.1])[0]) / 2

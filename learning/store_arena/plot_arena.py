@@ -1,22 +1,8 @@
-"""Plots of arena_check.py output (no Isaac needed).
+"""arena_check.py 결과와 학습/평가 기록 그림 (Isaac 불필요).
 
-  scene:   top-down view of the yaml boxes the env was built from, the robot of env 0, and its
-           simulated lidar hits next to the 2D ray cast of the same boxes
-  contact: per scripted drive, contact force per body against the gap between the robot centre
-           and the obstacle face, and a small CSV of the first step above the collision force
-
-  curves:  training curves of a chunked run (run_train.sh): success, collision and timeout rate
-           and success episode time against training minutes, chunks joined end to end
-  traj:    top-down paths of the tracked envs of play.py with their global paths and boxes
-  routes:  the global paths route_spec plans (ArenaSpec defaults): every node pair without boxes,
-           and a few layouts with boxes
-
-  python learning/store_arena/plot_arena.py scene <scene.json> <out.png>
-  python learning/store_arena/plot_arena.py contact <contact_push.json> <out.png> <out.csv>
-  python learning/store_arena/plot_arena.py curves <out.png> <run_dir> [<out.csv>]
-  python learning/store_arena/plot_arena.py traj <out.png> <rollouts.npz> [episodes]
-  python learning/store_arena/plot_arena.py routes <out.png>
-  python learning/store_arena/plot_arena.py anim <out.gif> <rollouts.npz> [env]
+  python learning/store_arena/plot_arena.py <scene|contact|curves|traj|routes|anim> <인자...>
+  scene 은 yaml 박스와 라이다, contact 는 몸체별 접촉력, curves 는 학습 곡선, traj/anim 은 play.py 궤적,
+  routes 는 route_spec 전역 경로를 그린다.
 """
 
 import csv
@@ -33,7 +19,7 @@ import matplotlib.pyplot as plt  # noqa: E402
 from matplotlib.patches import Circle, Rectangle  # noqa: E402
 
 COLORS = {"wall": "#8c8c99", "shelf": "#c08a4d"}
-BODY_R = 0.085  # robot body radius used by the fleet map clearance rules [m]
+BODY_R = 0.085  # 플릿 맵 여유 규칙의 로봇 몸체 반지름 [m]
 
 
 def plot_scene(src: str, out: str) -> None:
@@ -150,7 +136,7 @@ def plot_contact(src: str, out: str, out_csv: str, threshold: float = 1.0) -> No
 
 
 def read_chunks(run_dir: str) -> dict:
-    """metrics.csv of c1, c2, ... joined: wall time and iterations continue across chunks."""
+    """c1, c2, ... 의 metrics.csv 를 이어 붙인다: 벽시계 시간과 반복 수가 이어짐."""
     cols, wall0, it0 = {}, 0.0, 0
     dirs = sorted(glob.glob(os.path.join(run_dir, "c*")), key=lambda d: int(d.rsplit("c", 1)[1]))
     for d in dirs:
@@ -187,7 +173,7 @@ def plot_curves(out: str, run_dir: str, out_csv: str = "") -> None:
     a2.grid(alpha=0.3)
     fig.tight_layout()
     fig.savefig(out)
-    if out_csv:  # every 10th row, small enough for the results folder
+    if out_csv:  # 10행마다 하나, 결과 폴더에 둘 만큼 작게
         keys = list(m)
         with open(out_csv, "w", newline="", encoding="utf-8") as fh:
             wr = csv.writer(fh)
@@ -220,12 +206,12 @@ def plot_traj(out: str, src: str, episodes: int = 1) -> None:
                         Rectangle(c - sz / 2, sz, sz, color="#2a78d6", alpha=0.6 if j == 0 else 0.3)
                     )
             seg = xy[start : end + 1, e]
-            if "mover_xy" in z.files:  # mover tracks of this episode, thin
+            if "mover_xy" in z.files:  # 이 에피소드의 mover 궤적, 가늘게
                 for m in range(z["mover_xy"].shape[2]):
                     if z["mover_on"][start, e, m]:
                         mt = z["mover_xy"][start:end, e, m]
                         ax.plot(mt[:, 0], mt[:, 1], color="#d6336c", lw=2.5, alpha=0.35)
-            if "robot_xy" in z.files:  # scripted fleet robot tracks (stage 4c)
+            if "robot_xy" in z.files:  # 스크립트 플릿 로봇 궤적 (4c)
                 for m in range(z["robot_xy"].shape[2]):
                     if z["robot_on"][start, e, m]:
                         mt = z["robot_xy"][start:end, e, m]
@@ -298,7 +284,7 @@ def plot_routes(out: str) -> None:
 
 
 def plot_anim(out: str, src: str, env: int = 0, seconds: float = 30.0) -> None:
-    """Top-down GIF of one tracked env from rollouts.npz: robot, its path, boxes and movers."""
+    """추적 env 하나의 상단 GIF: 로봇, 경로, 박스, mover."""
     import numpy as np
     from matplotlib.animation import FuncAnimation, PillowWriter
 
@@ -309,11 +295,11 @@ def plot_anim(out: str, src: str, env: int = 0, seconds: float = 30.0) -> None:
     xy, done, route, dt = z["xy"][:, env], z["done"][:, env], z["route"][:, env], float(z["dt"])
     steps = min(len(xy), int(seconds / dt))
     fig, ax = plt.subplots(figsize=(6.4, 3.4), dpi=90)
-    every = 2  # 10 fps of a 20 Hz rollout, real time
+    every = 2  # 20 Hz 를 10 fps 로, 실시간
 
     def draw(f):
         k = f * every
-        # a done frame holds the next episode's reset state; its route is the finished one's
+        # done 프레임은 다음 에피소드 리셋 상태를 담음: 경로는 끝난 에피소드의 것
         new_ep = bool(done[k])
         ax.clear()
         for b in z["boxes"]:
@@ -327,7 +313,7 @@ def plot_anim(out: str, src: str, env: int = 0, seconds: float = 30.0) -> None:
         for m, shape in enumerate(M.MOVERS):
             if z["mover_on"][k, env, m]:
                 ax.add_patch(Circle(z["mover_xy"][k, env, m], shape.radius, color="#d6336c"))
-        if "robot_xy" in z.files:  # scripted fleet robots, as their clearance circles
+        if "robot_xy" in z.files:  # 스크립트 플릿 로봇, 여유 원으로
             for m in range(z["robot_xy"].shape[2]):
                 if z["robot_on"][k, env, m]:
                     ax.add_patch(Circle(z["robot_xy"][k, env, m], 0.082, color="#1f9e6a"))

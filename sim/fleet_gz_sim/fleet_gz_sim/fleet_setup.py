@@ -1,12 +1,5 @@
-"""gz.launch.py가 배치와 시나리오에서 정하는 것. ROS 없이 돈다(fleet_core, fake_robots 순수 파이썬).
-
-- 배치(layout): v7(기본), d2, d, c, 시험용 d2_shelf. 구역 지도 fleet_core/data/fleet_map_<배치>.yaml과,
-  arena.py가 그 지도로 만든 월드·지도·keepout 마스크(Arena)를 고른다.
-- 시나리오의 `map`은 배치 이름이다(없으면 v7). launch의 layout과 다르면 띄우지 않는다.
-- Pode를 놓는 자리: 시나리오 robots의 start(지점 이름). start가 없으면 주차 지점을 차례로 준다.
-  방향은 그 지점의 yaw(없으면 0).
-- 돌릴 수 없는 시나리오: 로봇 고장이 있는 것(가짜 Pode가 일으키는 고장이라 진짜 pode_fsm에는
-  일으킬 곳이 없다). low_battery는 된다: sim_stand_in이 배터리 토픽으로 낸다.
+"""gz.launch.py가 배치와 시나리오에서 정하는 것. ROS 없이 돈다.
+배치(layout)별 구역 지도와 월드, Pode 시작 자리, 돌릴 수 없는 시나리오를 정한다.
 """
 from __future__ import annotations
 
@@ -70,7 +63,7 @@ class Arena:
     keepout_mask: str
 
 
-# 배치별 기본 갈래. v7은 2.5 cm 지도(팀 결정 2026-11-17, 통로 Gazebo 비교 판)
+# 배치별 기본 갈래(v7은 2.5 cm 지도)
 DEFAULT_NAV_VARIANT = {"v7": "a"}
 BASE_NAV_VARIANT = "base"  # 갈래 없는 5 cm 지도(비교용)
 
@@ -186,13 +179,8 @@ def shelf_end_boxes(shelves, band: float) -> list[tuple[float, float, float, flo
 
 
 def narrow_strips(site, band: float = 0.05) -> str:
-    """스캔 거르개의 좁은 띠를 "x0,y0,x1,y1; ..." 글로.
-
-    넓은 구역이 아닌 구역의 사각형(x0, y0 순) 뒤에 진열대 끝면 상자(shelf_end_boxes)를 붙인다.
-    끝면 잡음은 좁은 띠 바로 밖(D2에서는 HALL의 1.5 cm 띠)에 떨어져 띠만으로는 남기 때문이다(후진
-    모퉁이). 구역 사각형의 변이 경기장 벽에 닿으면 그 변을 band만큼 벽 너머로 넓힌다. 벽 면
-    너머로 잰 잡음 점과 AMCL 오차로 너머에 놓인 점도 띠에 들게 한다. band는 거르개의 wall_band_m과
-    같게 준다. pode_nav_config nav2.launch.py의 narrow_strips 인자 꼴이다.
+    """스캔 거르개의 좁은 띠를 "x0,y0,x1,y1; ..." 글로 만든다.
+    넓은 구역이 아닌 구역 사각형 뒤에 진열대 끝면 상자를 붙이고, 벽에 닿는 변은 band만큼 벽 너머로 넓힌다.
     """
     bx0, by0, bx1, by1 = site.bounds()
 

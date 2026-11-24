@@ -1,10 +1,6 @@
-"""nav2.launch.py가 use_composition에 따라 노드 아홉을 프로세스 아홉 또는 컨테이너 하나로
-띄우는지 본다.
+"""nav2.launch.py가 use_composition에 따라 노드 아홉을 프로세스 아홉 또는 컨테이너 하나로 띄우는지 본다.
 
-프로세스는 띄우지 않는다. launch가 하는 대로 조건과 namespace 범위를 따라 액션을 훑고,
-컨테이너에 보낼 LoadNode 요청은 launch_ros가 만드는 그대로 만든다. ROS 2(launch_ros)와
-설치된 pode_nav_config가 필요하다(colcon test).
-"""
+프로세스는 띄우지 않고 launch의 조건과 namespace 범위로 액션을 훑는다. ROS 2(launch_ros)와 설치된 pode_nav_config가 필요하다."""
 import importlib.util
 from pathlib import Path
 
@@ -227,7 +223,7 @@ def test_composed_use_sim_time_follows_the_argument():
     assert all(_params(r)["use_sim_time"] is False for r in requests)
 
 
-# ---- keepout (express lane and dock zones closed to Nav2 goal paths) ----------------------
+# ---- keepout(급행 레인과 도크 구역을 Nav2 goal 경로에서 닫음) -----------------------
 
 KEEPOUT_NAMES = ["keepout_mask_server", "costmap_filter_info_server",
                  "lifecycle_manager_keepout"]
@@ -235,7 +231,7 @@ MASK = "/maps/keepout_mask.yaml"
 
 
 def _param_files(node):
-    """The parameter files a process gets (launch_ros writes dicts to files too)."""
+    """프로세스가 받는 파라미터 파일(launch_ros는 dict도 파일로 쓴다)."""
     import yaml
     out = {}
     for path, is_file in node._Node__expanded_parameter_arguments:
@@ -299,7 +295,7 @@ def test_the_composed_container_carries_the_keepout_filter_for_the_costmap_sub_n
     assert "filters" not in _global_costmap(container)
 
 
-# ---- vision obstacles (a slot for the avoidance teammate's point cloud) -------------------
+# ---- vision 장애물(회피 담당의 점구름 자리) -----------------------------------------
 
 def _obstacle_layers(found):
     nodes = [node for node, _ in found]
@@ -335,7 +331,7 @@ def test_vision_obstacles_and_keepout_work_together():
     assert glob["obstacle_layer"]["observation_sources"] == "scan vision"
 
 
-# ---- who owns which setting ----------------------------------------------------------------
+# ---- 설정의 주인 ---------------------------------------------------------------------
 
 def _avoidance_file() -> dict:
     import yaml
@@ -362,7 +358,7 @@ def test_an_avoidance_file_with_a_user_owned_key_stops_the_launch(tmp_path):
         _expand("false", avoidance=str(bad))
 
 
-# ---- scan filter -------------------------------------------------------------------------
+# ---- 스캔 거르개 ---------------------------------------------------------------------
 
 STRIPS = "0.0,0.79,0.30,0.99; 0.30,0.79,0.50,0.99"
 
@@ -546,7 +542,7 @@ def _controller_server(found):
 
 
 def _given(node):
-    """The parameters a process gets, by name (whatever node key launch_ros writes)."""
+    """프로세스가 받는 파라미터를 이름으로 찾는다(launch_ros가 쓰는 노드 키와 상관없이)."""
     import yaml
     params = {}
     for path, is_file in node._Node__expanded_parameter_arguments:

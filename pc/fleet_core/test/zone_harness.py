@@ -1,10 +1,5 @@
-"""구역 교통 층만 돌리는 작은 세계. 시험 전용이다.
-
-로봇은 받은 명령의 점들을 곧게, 일정한 속도로 간다. 서로 피하지 않고, 잡음도 없다. 장애물
-(원)에 다가가는 걸음은 떼지 않고 서서 BLOCKED를 보고한다. 도킹은 정해진 시간이 걸린다.
-길 찾기와 회피까지 흉내 내는 세계는 sim/fake_robots의 world에 있다.
-매 걸음마다 "로봇이 쥔 구역 안에 있는가"와 "한 줄 구역 안의 로봇이 같은 방향인가"를 본다.
-"""
+"""구역 교통 층만 돌리는 작은 세계(시험 전용). 로봇은 명령의 점을 곧게 일정 속도로 가고 장애물 앞에서는 서서 BLOCKED를 보고한다.
+매 걸음 구역 점유와 한 줄 구역의 방향을 검사한다."""
 from __future__ import annotations
 
 import math
@@ -103,9 +98,8 @@ class Harness:
             self.traffic = ZoneTraffic(self.site, self.params, list(starts), lambda: self.now)
         if manager_inputs and self.manager is None:
             raise ValueError("manager_inputs needs tick_order 'manager'")
-        # 로봇의 보고와 답을 받는 곳. 기본은 교통에 바로, manager_inputs면 운영 입력 함수(+_pump)
-        # manager_inputs는 로봇 보고와 답에만 해당한다. call()은 늘 교통에 바로 넣고,
-        # 주문판은 시험이 self.manager.on_order_board로 따로 넣는다
+        # 로봇의 보고와 답을 받는 곳: 기본은 교통에 바로, manager_inputs면 운영 입력 함수(+_pump)
+        # call()은 늘 교통에 바로, 주문판은 시험이 self.manager.on_order_board로 넣는다
         self.inputs = self.manager if manager_inputs else self.traffic
         self.bots = {name: Bot(name, *self.site.node_pose(node)) for name, node in starts.items()}
         self.speed = speed
@@ -189,15 +183,12 @@ class Harness:
         return [c for c in self.commands if isinstance(c, kind) and (not robot or c.robot == robot)]
 
     def moves(self, robot: str = "") -> list[Leg]:
-        """새로 낸 이동 goal마다 첫 구간: MoveCmd 하나, 또는 새 order(update 0)의 첫 base 조각.
-        첫 조각이 retreat인 order도 새 goal로 센다(끈 길의 RetreatCmd는 세지 않는다).
-        보낸 명령을 읽으므로 로봇이 받지 못했거나 거절한 것도 들어 있다."""
+        """새로 낸 이동 goal마다 첫 구간(MoveCmd 하나, 또는 새 order의 첫 base 조각). 끈 길의 RetreatCmd는 세지 않는다."""
         return [self._legs(c)[0] for c in self.sent((MoveCmd, MoveOrderCmd), robot)
                 if (not isinstance(c, MoveOrderCmd) or c.update_id == 0) and self._legs(c)]
 
     def legs(self, robot: str = "") -> list[Leg]:
-        """보낸 구간을 차례로: MoveCmd와 RetreatCmd는 하나씩, order는 base 조각마다 하나씩.
-        order를 켜든 끄든 (mode, target_id)가 같게 읽힌다."""
+        """보낸 구간을 차례로: MoveCmd, RetreatCmd는 하나씩, order는 base 조각마다 하나씩."""
         return [leg for c in self.sent((MoveCmd, RetreatCmd, MoveOrderCmd), robot)
                 for leg in self._legs(c)]
 
@@ -206,11 +197,7 @@ class Harness:
         return [leg for leg in self.legs(robot) if leg.mode == "retreat"]
 
     def answer_at(self, robot: str, node: str, move: bool = True) -> None:
-        """로봇이 node에 닿았다고 손으로 답하고 move면 로봇을 그 자리에 옮긴다.
-
-        MoveCmd면 그 goal의 성공, order면 로봇이 받아들인 조각 가운데 node에서 끝나는
-        다음 조각까지 끝냈다는 피드백,
-        마지막 조각이고 horizon이 없으면 order의 성공이다. 로봇의 OrderRun도 같이 나아간다."""
+        """로봇이 node에 닿았다고 손으로 답하고 move면 로봇을 그 자리에 옮긴다. order면 node에서 끝나는 다음 조각까지 끝냈다는 피드백을 낸다."""
         bot, run = self.bots[robot], self.bots[robot].run
         if run is None:
             if not isinstance(bot.cmd, MoveCmd):

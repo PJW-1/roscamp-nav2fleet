@@ -1,7 +1,4 @@
-"""세 Nav2 액션 실행기(FollowPath, NavigateToPose, BackUp)의 거절, 취소, 결과 처리.
-
-ROS 노드와 실행기 없이 가짜 ActionClient, 가짜 future로 콜백 순서만 본다.
-"""
+"""세 Nav2 액션 실행기(FollowPath, NavigateToPose, BackUp)의 거절, 취소, 결과 처리를 가짜 ActionClient와 future로 본다."""
 import importlib
 from types import SimpleNamespace
 
@@ -88,8 +85,7 @@ def _patch_client(monkeypatch, module):
 
 # ---- 실행기 셋을 같은 사건 목록으로 맞추기 ----
 class Rig:
-    """kind별 실행기를 만들고 콜백을 ('rejected', seq), ('result', seq, outcome, lost),
-    ('cancel_ok', seq)로 모은다."""
+    """kind별 실행기를 만들고 콜백을 ('rejected', seq), ('result', ...), ('cancel_ok', seq)로 모은다."""
 
     def __init__(self, kind, monkeypatch):
         self.kind, self.node, self.events = kind, FakeNode(), []
@@ -166,7 +162,7 @@ def test_a_rejected_goal_reports_rejected(kind, monkeypatch):
 
 @pytest.mark.parametrize("kind", KINDS)
 def test_a_goal_whose_send_future_fails_reports_rejected(kind, monkeypatch):
-    """BackUp은 future.result() 예외로 콜백이 죽어 FSM이 시간 초과까지 아무것도 못 받았다."""
+    """BackUp의 future.result() 예외도 콜백이 죽지 않고 FSM에 알린다."""
     rig = Rig(kind, monkeypatch)
     rig.send(3).fail(RuntimeError("lost"))
     assert rig.events == [("rejected", 3)] and rig.node.logs
@@ -198,8 +194,7 @@ def test_a_goal_accepted_after_cancel_all_is_cancelled_at_once(kind, monkeypatch
 # ---- 취소 응답: 수락, 거절, 유실 ----
 @pytest.mark.parametrize("kind", KINDS)
 def test_an_accepted_cancel_is_the_only_cancel_the_fsm_hears_of(kind, monkeypatch):
-    """FollowPath, NavigateToPose는 취소 수락을 알린다. BackUp은 계약에 그 콜백이 없고
-    결과(또는 FSM 시간 초과)만 본다."""
+    """FollowPath, NavigateToPose는 취소 수락을 알리고, BackUp은 결과(또는 FSM 시간 초과)만 본다."""
     rig = Rig(kind, monkeypatch)
     handle = rig.accepted(3)
     rig.runner.cancel_all()
@@ -212,7 +207,7 @@ def test_an_accepted_cancel_is_the_only_cancel_the_fsm_hears_of(kind, monkeypatc
 @pytest.mark.parametrize("kind", KINDS)
 @pytest.mark.parametrize("answer", ("refused", "error", "empty"))
 def test_a_cancel_that_is_not_confirmed_keeps_the_goal_and_warns(kind, answer, monkeypatch):
-    """BackUp은 취소 응답을 보지 않아 거절이나 유실이 로그에도 남지 않았다."""
+    """BackUp도 취소 거절과 유실을 로그에 남긴다."""
     rig = Rig(kind, monkeypatch)
     handle = rig.accepted(3)
     rig.runner.cancel_all()
@@ -258,8 +253,7 @@ def test_a_result_future_with_no_result_counts_as_lost(kind, monkeypatch):
 
 
 def test_a_lost_backup_result_is_not_reported_while_the_cancel_is_only_in_progress(monkeypatch):
-    """goals_canceling은 취소 중이지 종료가 아니다. 그때 aborted를 알리면
-    core가 _backup_unanswered를 지워 후진이 도는 중에 다음 동작이 나갈 수 있다."""
+    """goals_canceling은 취소 중이지 종료가 아니라서 aborted를 알리지 않는다."""
     rig = Rig("backup", monkeypatch)
     handle = rig.accepted(3)
     handle.result_future.fail(RuntimeError("lost"))
@@ -296,8 +290,7 @@ def test_a_lost_backup_result_with_a_refused_cancel_is_left_to_the_fsm_timeout(m
 
 
 def test_a_backup_cancel_in_progress_keeps_the_handle(monkeypatch):
-    """결과를 잃기 전에 취소 중 응답을 받아도 핸들을 지우지 않는다.
-    지우면 결과를 잃었을 때 이미 끝났다고 보고 바로 aborted를 알린다."""
+    """결과를 잃기 전에 취소 중 응답을 받아도 핸들을 지우지 않는다."""
     rig = Rig("backup", monkeypatch)
     handle = rig.accepted(3)
     rig.runner.cancel_all()
@@ -323,8 +316,7 @@ def _raise(*_a, **_k):
 
 @pytest.mark.parametrize("kind", KINDS)
 def test_a_send_call_that_raises_returns_false(kind, monkeypatch):
-    """send()가 False면 노드는 다음 tick에 거절로 넘긴다
-    (서버가 없을 때와 같은 길)."""
+    """send()가 False면 노드는 다음 tick에 거절로 넘긴다."""
     rig = Rig(kind, monkeypatch)
     rig.client.send_goal_async = _raise
     args = {"follow": ([(0.0, 0.0, 0.0), (1.0, 0.0, 0.0)], True, False),
@@ -366,8 +358,7 @@ def test_a_cancel_call_that_raises_warns_and_keeps_the_goal(kind, monkeypatch):
 
 @pytest.mark.parametrize("kind", KINDS)
 def test_a_lost_result_whose_cancel_call_raises_is_still_reported(kind, monkeypatch):
-    """결과를 잃은 뒤 취소 호출이 예외를 내도 FollowPath, NavigateToPose는 lost를 알린다.
-    BackUp은 끝을 확인할 수 없으니 알리지 않는다."""
+    """취소 호출이 예외를 내도 FollowPath, NavigateToPose는 lost를 알리고 BackUp은 알리지 않는다."""
     rig = Rig(kind, monkeypatch)
     handle = rig.accepted(3)
     handle.cancel_goal_async = _raise

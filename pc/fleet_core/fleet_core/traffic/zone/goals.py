@@ -103,7 +103,7 @@ class Goals:
         via = site.nodes[m.avoid.retreat_via].zone if m.avoid.retreat_via else None
         target = site.nodes[m.avoid.retreat_to].zone
         zones = [zone for zone in (here, via, target) if zone is not None]
-        # 갈림 -> 마당 지점 고정 경로의 꺾는 점을 따른다(곧게 가면 다른 구역 모서리에 붙을 수 있다)
+        # 갈림 -> 마당 지점 고정 경로의 꺾는 점을 따른다
         to, via_node = m.avoid.retreat_to, m.avoid.retreat_via
         down = site.edge(via_node, to) if via_node else None
         bends = down.points[1:-1] if down is not None else ()

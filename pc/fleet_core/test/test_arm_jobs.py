@@ -1,4 +1,4 @@
-"""ArmJobs alone, the orders asking it, and the two joined: the split keeps the old order."""
+"""ArmJobs 단독, 주문이 ArmJobs를 부르는 것, 둘을 이은 것: 나눠도 옛 순서를 지킨다."""
 from core_helpers import cmds, codes
 from fleet_core.arm.jobs import ArmJobs
 from fleet_core.common.commands import (
@@ -172,7 +172,7 @@ def test_the_arm_ignores_a_robot_it_does_not_know():
     assert jobs.take_output() == [] and jobs.attempts("ghost") == 0
 
 
-# ---- the orders alone ---------------------------------------------------------------------
+# ---- 주문 단독 ---------------------------------------------------------------------
 
 
 def test_the_orders_ask_the_arm_and_send_no_goal_themselves():
@@ -192,7 +192,7 @@ def test_the_orders_ask_the_arm_and_send_no_goal_themselves():
     assert not cmds(orders.take_output(), "CancelCmd"), "the arm side stops its own goals"
 
 
-# ---- joined: the order of what comes out is the one of the single orchestrator ----------------
+# ---- 이은 것: 나오는 순서가 단일 orchestrator와 같다 ----------------
 
 
 def joined_swapping():

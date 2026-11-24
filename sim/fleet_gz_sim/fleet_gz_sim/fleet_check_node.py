@@ -1,12 +1,6 @@
-"""fleet_check node: records the three-pode driving check (fleet_check.FleetCheck) during a run.
-
-    ros2 run fleet_gz_sim fleet_check --ros-args -p output:=gz_result/fleet_check.json
-
-gz.launch.py starts it with the fleet (fleet_check:=true, the default) and writes
-<result_dir>/fleet_check.json. It reads /<robot>/sim/truth (Gazebo true pose), /<robot>/state and
-/fleet/zones, rewrites the file every period_s wall seconds and once more at shutdown, and logs
-a one-line summary every log_every_s.
-With recovery_probe:=true it also hosts the recovery_probe node (parameters result_dir, settle_s).
+"""fleet_check 노드: 실행 중 Pode 세 대 주행 검사(fleet_check.FleetCheck)를 기록한다.
+  ros2 run fleet_gz_sim fleet_check --ros-args -p output:=gz_result/fleet_check.json
+gz.launch.py가 함께 띄우고 period_s마다 결과 파일을 다시 쓴다. recovery_probe:=true면 recovery_probe 노드도 얹는다.
 """
 from __future__ import annotations
 
@@ -44,7 +38,7 @@ class FleetCheckNode(Node):
             from ament_index_python.packages import get_package_share_directory
             contract_file = get_package_share_directory("fleet_interfaces") + "/contract.yaml"
         contract = load_contract(contract_file)
-        # the recovery probe shares this process: a process of its own is a DDS participant more
+        # 복구 시험은 이 프로세스를 같이 쓴다(별도 프로세스는 DDS 참가자가 하나 더 생긴다)
         self.probe = None
         if self.declare_parameter("recovery_probe", False).value:
             from fleet_gz_sim.recovery_probe_node import RecoveryProbeNode
@@ -67,7 +61,7 @@ class FleetCheckNode(Node):
         self.get_logger().info(f"fleet check for {robots} -> {self.output}")
 
     def _body(self):
-        """The Nav2 footprint of pode_nav_config (keepout depth). None if it is not there."""
+        """pode_nav_config의 Nav2 발자국(keepout 깊이용). 없으면 None."""
         from ament_index_python.packages import PackageNotFoundError, get_package_share_directory
         try:
             share = Path(get_package_share_directory("pode_nav_config"))

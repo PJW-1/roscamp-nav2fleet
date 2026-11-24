@@ -2,7 +2,7 @@
 # pode-drive main을 roscamp-nav2fleet main으로 옮긴다. learning/(RL 학습)만 뺀다
 #   tools/sync_nav2fleet.sh NAV2FLEET_CLONE          # 합친 결과를 그 클론의 sync/pode-drive 브랜치에 둔다(덮어씀)
 #   tools/sync_nav2fleet.sh NAV2FLEET_CLONE --push   # 관제 시험이 통과하면 nav2fleet main에 올린다(fast-forward만)
-# 사용자 결정 2026-11-23: nav2fleet 얼림을 풀고 pode-drive와 맞춘다. 원본은 pode-drive다
+# 원본은 pode-drive다
 # 클론의 작업 트리는 건드리지 않는다(임시 worktree에서 합친다)
 set -euo pipefail
 

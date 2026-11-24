@@ -1,23 +1,6 @@
-"""Gazebo Pode 3대 + 진짜 관제(관제·pode_fsm·Nav2는 진짜, central·팔은 가짜).
-
-    ros2 launch fleet_gz_sim gz.launch.py                          # 배치 v7, 시나리오 gz_v7
-    ros2 launch fleet_gz_sim gz.launch.py layout:=c gui:=false rviz:=none
-
-- 배치(layout: v7 기본, d2, d, c)가 월드, Nav2 지도, keepout 마스크, 관제 구역 지도를 고른다
-  (fleet_setup.arena_for). 시나리오는 비면 gz_<배치>이고, 시나리오의 map이 배치와 같아야 한다.
-- Pode는 시나리오의 start 지점(없으면 주차 지점 차례)에 그 지점의 yaw로 놓는다(fleet_setup).
-- 로봇마다 Nav2(pode_nav_config)에 배치의 지도와 keepout_mask를 준다. sim_nav_params가
-  controller 넷(FollowPath, FollowPathThrough, FollowPathReverse, FollowPathGoal)의 속도를
-  nav_max_speed(기본은 단일 출처 nav_speed.yaml)로 묶는다. 충돌 검사는 마당 goal(FollowPathGoal)만
-  늘 켜고, 고정 경로 셋은 fixed_line_collision_check:=true일 때만 켠다(기본 끔).
-- 모든 로봇이 IDLE이 되면(wait_ready) 관제(map_file = 배치 이름, traffic_mode zones), 가짜
-  작업셀·출고 팔·central, 시나리오 모니터를 띄운다. 모니터가 결과를 쓰고 launch를 끝낸다.
-- 시계는 Gazebo /clock 하나를 모두 쓴다. 주문 시각(at_s)은 Gazebo 시계 0부터 센다.
-- 도크: 기본은 진짜 pode_fsm(DOCK_UNAVAILABLE). sim_dock_stub:=true면 시뮬 전용 대역
-  (sim_stand_in)이 /{pode}/dock을 맡고 pode_fsm의 dock 서버는 /{pode}/dock_fsm으로 비켜 둔다.
-- fleet_check(기본 켜짐)가 로봇 사이 최소 거리, 정지 횟수, 쥔 구역 밖 위치 수를 쓴다.
-- ROS 프로세스 수: LOCALHOST 탐색에서는 DDS 참여자 32개 정도만 서로 보인다. 그래서 브리지는
-  하나로 모으고, 로봇마다 Nav2를 프로세스 하나로 묶는다(nav_composition).
+"""Gazebo Pode 3대 + 진짜 관제(관제, pode_fsm, Nav2는 진짜, central과 팔은 가짜).
+  ros2 launch fleet_gz_sim gz.launch.py layout:=c gui:=false rviz:=none
+배치가 월드, 지도, 구역 지도를 고르고, 모든 로봇이 IDLE이면 관제와 가짜들, 시나리오 모니터를 띄운다. 시계는 Gazebo /clock 하나다.
 """
 import math
 import os
@@ -99,7 +82,7 @@ ARMS = "arm1 arm2 arm3"
 
 
 def flag(text: str, name: str) -> bool:
-    """A true/false launch argument. A typo must not quietly mean false."""
+    """true/false launch 인자. 오타가 조용히 false가 되지 않게 한다."""
     value = text.strip().lower()
     if value not in ("true", "false", "1", "0"):
         raise ValueError(f"{name} must be true or false, got {text!r}")
@@ -121,8 +104,7 @@ def late_of(text: str, robots) -> dict[str, float]:
 
 
 def overrides_of(path: str) -> dict | None:
-    """launch 인자 nav_overrides: 비면 None. 파일은 매핑이어야 하고 controller의 plugin은
-    바꾸지 못한다(속도 상한과 충돌 검사는 RPP 키로 건다)."""
+    """launch 인자 nav_overrides: 비면 None. 파일은 매핑이어야 하고 controller의 plugin은 바꾸지 못한다."""
     if not path.strip():
         return None
     data = yaml.safe_load(Path(path).read_text(encoding="utf-8"))
@@ -150,7 +132,7 @@ def _plugin_keys(tree: dict | list, prefix: str = "") -> list[str]:
 
 
 def params_file_of(value: str) -> str:
-    """"" stays "", a path stays as given, a bare name is fleet_core/data/<name>.yaml."""
+    """""는 "", 경로는 그대로, 이름만 있으면 fleet_core/data/<이름>.yaml."""
     from fleet_core.common.params import DEFAULT_PARAMS
     if not value or "/" in value or value.endswith(".yaml"):
         return value
@@ -161,7 +143,7 @@ def params_file_of(value: str) -> str:
 
 
 def seed_of(text: str) -> int | None:
-    """scenario_seed: "" means the file's seed. A typo must not quietly mean the file's seed."""
+    """scenario_seed: ""는 파일의 seed. 오타가 조용히 파일의 seed가 되지 않게 한다."""
     if not text.strip():
         return None
     try:
@@ -174,7 +156,7 @@ def seed_of(text: str) -> int | None:
 
 
 def battery_low_of(text: str) -> float | None:
-    """battery_low_pct: "" leaves the params file alone."""
+    """battery_low_pct: ""면 파라미터 파일을 건드리지 않는다."""
     if not text.strip():
         return None
     try:
@@ -187,8 +169,7 @@ def battery_low_of(text: str) -> float | None:
 
 
 def params_for(params_file: str, result_dir: str, battery_low_pct: str = "") -> str:
-    """The params file every fleet node reads. The fleet runs traffic_mode zones: a file with
-    another mode stops the launch. With battery_low_pct, a copy with that value."""
+    """관제 노드가 읽는 파라미터 파일. traffic_mode zones가 아니면 launch를 멈추고, battery_low_pct가 있으면 그 값의 사본을 쓴다."""
     import yaml
     from fleet_core.common.params import DEFAULT_PARAMS, load_params
     from fleet_core.traffic.modes import ZONES
@@ -215,11 +196,9 @@ def fleet(scenario_file: str, robots: list[str], result_dir: str, monitor: bool,
           layout: str, params_file: str = "", obstacles_file: str = "", check: bool = True,
           scenario_seed: int | None = None, use_order_model: bool | None = None,
           record: str = "") -> list:
-    """진짜 관제와 가짜 작업셀·출고 팔·central·모니터, 장애물(있으면). 모두 Gazebo 시계.
-    record: 관제 기록 파일(fleet_manager --record). 비면 남기지 않는다.
-    layout: 관제와 가짜들의 map_file(배치 이름).
-    scenario_seed: 시나리오를 읽는 노드에 넘길 seed. None이면 넘기지 않는다(파일의 seed).
-    use_order_model: 관제 노드 파라미터 use_order_model. None이면 넘기지 않는다(파일의 값)."""
+    """진짜 관제와 가짜 작업셀, 출고 팔, central, 모니터, 장애물(있으면). 모두 Gazebo 시계.
+    record: 관제 기록 파일(비면 안 남김). layout: map_file(배치 이름). scenario_seed, use_order_model: None이면 넘기지 않는다.
+    """
     from fake_robots.common import split_fake_arms
     from fleet_core.fleet_map import load_fleet_map
     map_file = {"map_file": layout}
@@ -242,14 +221,14 @@ def fleet(scenario_file: str, robots: list[str], result_dir: str, monitor: bool,
     actions += [fake("fake_arm_node", f"fake_{arm}", arm_id=arm) for arm in swap_arms]
     actions.append(fake("fake_central_node", "fake_central", params_file=params_file))
     if obstacles_file:
-        # 로봇 실제 위치(sim/truth)를 보고 비어 있을 때만 놓는다. 일정 시각은 Gazebo 시계
+        # 로봇 실제 위치를 보고 비어 있을 때만 놓는다. 일정 시각은 Gazebo 시계
         actions.append(Node(package="fleet_gz_sim", executable="sim_obstacles",
                             name="sim_obstacles", output="screen",
                             parameters=[{"use_sim_time": True, "robots": robots,
                                          "obstacles_file": obstacles_file, **map_file}]))
     probe = {"use_sim_time": True, "robots": robots, "result_dir": result_dir, "settle_s": 2.0}
     if check:
-        # recovery_probe는 같은 프로세스에서 돈다(DDS 참여자를 아낀다)
+        # recovery_probe는 같은 프로세스에서 돈다(DDS 참여자 절약)
         actions.append(Node(package="fleet_gz_sim", executable="fleet_check", name="fleet_check",
                             output="screen",
                             parameters=[{**probe, "recovery_probe": True,
@@ -268,7 +247,7 @@ def fleet(scenario_file: str, robots: list[str], result_dir: str, monitor: bool,
 
 
 def fleet_rviz(robots: list[str], layout: str) -> list:
-    """3대를 한 RViz에. 로봇 TF는 namespace로 나뉘므로 위치는 fleet_view가 마커로 그린다."""
+    """3대를 한 RViz에. 위치는 fleet_view 마커로 그린다."""
     config = launch_parts.share("fleet_gz_sim") / "rviz" / "fleet_view.rviz"
     return [Node(package="fleet_gz_sim", executable="fleet_view", name="fleet_view",
                  output="screen",
@@ -278,7 +257,7 @@ def fleet_rviz(robots: list[str], layout: str) -> list:
 
 
 def _start(context):
-    # 노드는 launch의 작업 폴더를 물려받는다. 노드에 cwd를 따로 주면 그 폴더도 봐야 한다.
+    # 노드는 launch의 작업 폴더를 물려받는다(cwd를 따로 주면 그 폴더도 검사).
     require_isolated(os.environ, rmw=get_rmw_implementation_identifier(), workdir=Path.cwd())
     from fleet_core.fleet_map import load_fleet_map
     from fleet_gz_sim.fleet_setup import (

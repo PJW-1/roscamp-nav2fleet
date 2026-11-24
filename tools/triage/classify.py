@@ -1,10 +1,7 @@
-"""끝나지 않은 주문마다 원인 하나. 아래 순서로 처음 걸리는 것이 원인이다.
+"""끝나지 않은 주문마다 원인 하나를 정한다. 아래 순서로 처음 걸리는 것이 원인이다.
 
-0. 시험 틀: 기록이 잘렸거나 상태 보고가 없거나 틀의 오류 사건이 있다.
-1. 관제가 목표를 보냈나(없으면 관제).  2. 목표 뒤 로봇이 움직였나(아니면 주행).
-3. 움직이다 막혔나.  4. 막힌 뒤 관제가 시간 상한 안에 반응했나(아니면 관제).
-3-1. 그 막힘이 장애물 때문이고 끝까지 안 풀렸나(예면 진짜 막힘, 아니면 회피).
-막혔을 때는 4를 3-1보다 먼저 본다(가정: 관제가 늦었으면 막힘의 이유와 상관없이 관제 탓).
+0 시험 틀, 1 관제가 목표를 보냈나, 2 목표 뒤 움직였나(아니면 주행), 3 막혔나,
+4 막힌 뒤 관제가 제때 반응했나, 3-1 막힘이 장애물 때문이고 안 풀렸나(막혔을 때는 4를 3-1보다 먼저 본다).
 """
 from __future__ import annotations
 
@@ -56,10 +53,7 @@ def _period(run, robot, t) -> float:
 
 
 def _late(run, robot, episode, cfg):
-    """4번: 늦은 반응이 있으면 (근거 이름, 시각).
-
-    드문 보고 줄의 첫 BLOCKED는 실제 보고보다 한 간격까지 늦게 적히므로 그만큼 앞의 반응도 받는다.
-    """
+    """4번: 늦은 반응이 있으면 (근거 이름, 시각)."""
     start, end, _ = episode
     early = start - _period(run, robot, start)
     seen = [e for e in run.events if e.robot == robot and e.t >= early]
@@ -108,8 +102,7 @@ def _frame(run: Run, robot, t0, t1):
 
 
 def _started(run, robot, goal, cfg, until=math.inf) -> tuple | None:
-    """2번: 시작하지 못했으면 (근거 이름, 시각). until은 그 로봇이 다음 목표를 받은 시각이다:
-    그 뒤의 NO_START는 다음 목표의 것이다."""
+    """2번: 시작하지 못했으면 (근거 이름, 시각). until 뒤의 NO_START는 다음 목표의 것이다."""
     limit = goal.t + cfg["start_limit_s"]
     for e in run.events:
         if e.code == "NO_START" and e.robot == robot and goal.t <= e.t < until:
@@ -176,11 +169,7 @@ def _cause(run, order, obstacles, cfg) -> Row:
 
 
 def classify(run: Run, obstacles=(), **override) -> list[Row]:
-    """끝나지 않은 주문마다 한 줄. 끝난 것은 SHIPPED나 PARTIAL로 보고된 주문이다.
-
-    override: start_limit_s, move_m, first_reaction_s, stage_slack_s, reach_m,
-    blocked_mark_s, blocked_timeout_s. 뒤 둘의 기본은 기록 머리의 파라미터다.
-    """
+    """끝나지 않은 주문마다 한 줄. override로 임계값을 바꾼다."""
     cfg = {"start_limit_s": 5.0, "move_m": 0.02, "first_reaction_s": 1.0, "stage_slack_s": 5.0,
            "reach_m": 0.35,
            "blocked_mark_s": run.params.get("blocked_mark_s", 10.0),

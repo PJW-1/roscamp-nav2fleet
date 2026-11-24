@@ -1,9 +1,6 @@
-"""recovery_probe node: AMCL pose error against Gazebo truth around each RECOVERING episode.
-
-    ros2 run fleet_gz_sim recovery_probe --ros-args -p use_sim_time:=true -p result_dir:=gz_result
-
-gz.launch.py starts it with the fleet and it writes <result_dir>/recovery_probe.csv (logic and
-columns: recovery_probe.py). An empty result_dir only logs.
+"""recovery_probe 노드: RECOVERING 구간마다 AMCL 자세 오차를 Gazebo 실제 위치와 견준다.
+  ros2 run fleet_gz_sim recovery_probe --ros-args -p use_sim_time:=true -p result_dir:=gz_result
+<result_dir>/recovery_probe.csv에 쓴다(열은 recovery_probe.py). result_dir이 비면 로그만 낸다.
 """
 from __future__ import annotations
 
@@ -26,10 +23,8 @@ def _seconds(stamp) -> float:
 
 class RecoveryProbeNode(Node):
     def __init__(self, robots=None, result_dir=None, settle_s=None, **node_kwargs):
-        """Arguments (fleet_check passes its own parameters) win over the node's parameters.
-
-        Hosted in fleet_check, the node ignores the process arguments: launch gives that process
-        -r __node:=fleet_check and a /** parameter file, which would rename this node too.
+        """인자(fleet_check가 제 파라미터를 넘김)가 노드 파라미터보다 먼저다.
+        fleet_check 안에서는 프로세스 인자를 무시한다(launch의 -r __node:= 때문에 이 노드 이름도 바뀐다).
         """
         hosted = {} if robots is None else {
             "use_global_arguments": False,

@@ -1,17 +1,8 @@
-"""Evaluate a trained goal-reach policy; optionally record a video (Newton Warp renderer, headless).
+"""학습한 goal-reach 정책을 평가하고 선택적으로 영상을 녹화한다 (Newton Warp 렌더러, headless).
 
-Evaluation: the deterministic policy (action mean) runs on --num_envs envs until every env has
-finished --episodes episodes; the outcomes of those first episodes are counted. Trajectories of the
-first --track envs are saved to rollouts.npz for plotting.
-
-Video (--video): adds a top-down camera over env 0 (NewtonWarpRendererCfg, no Isaac Sim needed)
-and a flat red goal disc without collision (the lidar does not see it: it is 5 mm high and the
-lidar is at 0.125 m). Frames are written at 20 fps (one per control step, real time) to
-video.mp4 with ffmpeg. Use few envs with --video: every env gets a camera.
-
-Run from D:\\isaac\\IsaacLab with the venv python, e.g.
-  .venv/Scripts/python.exe <repo>/learning/goal_reach/play.py \\
-    --checkpoint <run>/model_299.pt --out <dir> --viz none
+결정적 정책으로 모든 env 가 --episodes 개를 끝낼 때까지 돌려 결과를 세고, 앞쪽 --track 개 env 의 궤적을
+rollouts.npz 로 저장한다. --video 면 env 0 위 카메라와 목표 원판을 더해 video.mp4 (20 fps) 를 쓴다.
+--video 에서는 env 마다 카메라가 생기므로 env 를 적게 쓴다.
 """
 
 import argparse
@@ -44,7 +35,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 
 CAM_H = (
-    5.0  # m above env 0; a 47 deg field of view covers about +-2.2 m, the goal range plus margin
+    5.0  # env 0 위 높이 m; 시야각 47 deg 로 약 +-2.2 m, 목표 범위에 여유를 더함
 )
 
 
@@ -64,7 +55,7 @@ def main():
             goal = RigidObjectCfg(
                 prim_path="{ENV_REGEX_NS}/Goal",
                 spawn=sim_utils.CylinderCfg(
-                    radius=0.05,  # = success radius
+                    radius=0.05,  # = 성공 반경
                     height=0.005,
                     rigid_props=sim_utils.UsdPhysicsRigidBodyCfg(kinematic_enabled=True),
                     mass_props=sim_utils.MassCfg(mass=0.1),
@@ -114,7 +105,7 @@ def main():
         policy = runner.get_inference_policy(device=raw.device)
         try:
             runner.export_policy_to_onnx(path=args_cli.out, filename="policy.onnx")
-        except Exception as e:  # export is a convenience, not needed for the evaluation
+        except Exception as e:  # 내보내기는 편의 기능, 평가에는 불필요
             print(f"[PLAY] onnx export failed: {e}")
 
         n, E = args_cli.num_envs, args_cli.episodes
@@ -131,10 +122,10 @@ def main():
 
             goal_obj = raw.scene["goal"]
             cam = raw.scene["camera"]
-            px_per_m = args_cli.res * 24.0 / (20.955 * CAM_H)  # focal / aperture / height
+            px_per_m = args_cli.res * 24.0 / (20.955 * CAM_H)  # 초점 / 조리개 / 높이
             trail = []
 
-            def to_px(xy):  # env-0 floor (x, y) -> pixel; image right = +x, up = +y
+            def to_px(xy):  # env 0 바닥 (x, y) -> 픽셀; 오른쪽 = +x, 위 = +y
                 return (
                     args_cli.res / 2 + float(xy[0]) * px_per_m,
                     args_cli.res / 2 - float(xy[1]) * px_per_m,
@@ -153,13 +144,13 @@ def main():
             if counted.any():
                 s = raw.success & counted
                 c = raw.collided & counted
-                o = raw.oob & counted  # outcomes are exclusive (task_spec.episode_outcome)
+                o = raw.oob & counted  # 결과는 배타적 (task_spec.episode_outcome)
                 t = counted & ~(raw.success | raw.collided | raw.oob)
                 outcome["success"] += int(s.sum())
                 outcome["collision"] += int(c.sum())
                 outcome["oob"] += int(o.sum())
                 outcome["timeout"] += int(t.sum())
-                # episode_length_buf is already reset; the env keeps the finished length
+                # episode_length_buf 는 이미 리셋됨: env 가 끝난 길이를 따로 보관
                 succ_times += raw.last_ep_len_s[s].tolist()
                 final_d += raw.last_ep_dist[counted].tolist()
             ep_done += d.long()
@@ -175,7 +166,7 @@ def main():
                 gp[:, 2] = 0.0025
                 goal_obj.write_root_pose_to_sim_index(root_pose=gp)
                 img = PIL.Image.fromarray(cam.data.output["rgb"][0].cpu().numpy()[..., :3])
-                # drawn on the rendered frame: path since the episode start, start cross, text
+                # 렌더 프레임에 그림: 에피소드 시작 이후 경로, 시작 십자, 글자
                 if d[0]:
                     trail.clear()
                 trail.append(to_px(pos[0]))

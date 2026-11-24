@@ -1,4 +1,4 @@
-"""파일 지정은 가짜 노드에도 전달돼야 한다. 아니면 다른 맵으로 돈다."""
+"""파일 지정 인자가 가짜 노드에도 전달된다."""
 import importlib.util
 from pathlib import Path
 
@@ -58,7 +58,7 @@ def test_order_arguments_become_node_parameters_only_when_given():
 
 
 def test_real_test_arguments_are_declared_and_forwarded():
-    """실물 시험: 감시 노드를 끄고 PC 도킹 대역을 켜는 인자가 fakes.launch.py까지 간다."""
+    """감시 노드를 끄고 PC 도킹 대역을 켜는 인자가 fakes.launch.py까지 간다."""
     try:
         get_package_share_directory("fake_robots")
     except PackageNotFoundError:

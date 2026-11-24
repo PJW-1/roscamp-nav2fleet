@@ -1,7 +1,6 @@
-"""Gazebo 실제 위치(/podeN/sim/truth)를 CSV로 남긴다. 구독만 한다.
+"""Gazebo 실제 위치(/podeN/sim/truth)를 CSV로 남긴다.
 
-사용: python3 truth_logger.py OUT.csv DOMAIN [로봇 수]
-도메인은 rclpy.init 인자로 준다(환경 변수에 두지 않는다).
+    python3 truth_logger.py OUT.csv DOMAIN [로봇 수]
 """
 import math
 import sys

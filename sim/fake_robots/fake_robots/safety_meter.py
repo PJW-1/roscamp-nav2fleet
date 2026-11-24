@@ -1,9 +1,7 @@
 """SafetyMeter: 실제 자세로 로봇이 얼마나 가까워졌는지 잰다. ROS를 쓰지 않는다.
 
-심판은 그대로 두고 이 값은 요약 옆 safety.json에 둔다.
-  early: 몸이 구역에서 반지름 안에 있는데 그 로봇의 구역을 풀었다(구역 경계에서 잰다).
-  near: 두 로봇이 반지름 두 배보다 가까워졌다. 쌍마다 일어날 때마다 한 번 센다.
-구역 하나를 여러 로봇이 쥘 수 있다(/fleet/zones의 holder는 이름을 쉼표로 이은 것).
+early: 몸이 구역 반지름 안인데 구역을 풀었다. near: 두 로봇이 반지름 두 배보다 가까워졌다.
+결과는 요약 옆 safety.json에 둔다.
 """
 from __future__ import annotations
 
