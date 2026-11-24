@@ -152,6 +152,12 @@ def _timers(found):
     return [e for e, _ in found if isinstance(e, launch.actions.TimerAction)]
 
 
+def _seconds(context, timer):
+    # TimerAction이 기다릴 때 계산하는 그대로
+    from launch.utilities import type_utils
+    return type_utils.perform_typed_substitution(context, timer.period, float)
+
+
 @pytest.mark.parametrize("delay", [None, "0", "0.0"])
 def test_navigation_comes_up_with_localization_by_default(delay):
     more = {} if delay is None else {"navigation_delay_s": delay}
@@ -166,6 +172,18 @@ def test_navigation_autostart_takes_every_true_spelling(autostart):
     _, found = _expand("true", autostart=autostart)
     params = {r.node_name: _params(r) for r in found[0][1]}
     assert params["lifecycle_manager_navigation"]["autostart"] is True
+
+
+def test_the_delay_is_fixed_when_the_robot_s_launch_is_read():
+    """include로 넘긴 인자는 밖으로 새어 나가 다음 로봇의 값으로 바뀐다. 타이머는 제 값을 지킨다."""
+    context, found = _expand("true", navigation_delay_s="40")
+    [timer] = _timers(found)
+    context.launch_configurations["navigation_delay_s"] = "0.0"
+    context.launch_configurations["namespace"] = "pode3"
+    assert _seconds(context, timer) == 40.0
+    [call] = timer.actions
+    name = launch.utilities.perform_substitutions(context, call.cmd[3])
+    assert name == "/pode1/lifecycle_manager_navigation/manage_nodes"
 
 
 def test_the_late_startup_call_has_a_valid_name_without_a_namespace():
@@ -196,7 +214,7 @@ def test_a_navigation_delay_brings_up_only_the_driving_side_later(composition):
         nav = given("/pode1/lifecycle_manager_navigation")
     assert loc["autostart"] is True and nav["autostart"] is False
     [timer] = _timers(found)
-    assert float(launch.utilities.perform_substitutions(context, timer.period)) == 40.0
+    assert _seconds(context, timer) == 40.0
     [call] = timer.actions
     cmd = [launch.utilities.perform_substitutions(context, part) for part in call.cmd]
     assert cmd[:3] == ["ros2", "service", "call"]

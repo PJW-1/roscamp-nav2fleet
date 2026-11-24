@@ -11,6 +11,7 @@ from launch.actions import (
     ExecuteProcess,
     GroupAction,
     IncludeLaunchDescription,
+    OpaqueFunction,
     TimerAction,
 )
 from launch.conditions import IfCondition, UnlessCondition
@@ -126,17 +127,19 @@ def generate_launch_description():
 
     # ---- 시험용: 주행 쪽만 늦게 켜기(위치는 먼저 뜬다) ----
     delay = arg("navigation_delay_s")
-    delayed = PythonExpression(["float('", delay, "') > 0"])
     nav_autostart = PythonExpression(["'", arg("autostart"), "'.lower() in ('true', '1') and "
                                       "float('", delay, "') <= 0"])
-    startup_service = PythonExpression([
-        "'/' + '/'.join(p for p in ('", namespace, "'.strip('/'), "
-        "'lifecycle_manager_navigation/manage_nodes') if p)"])
-    late_navigation = TimerAction(
-        period=delay, condition=IfCondition(delayed),
-        actions=[ExecuteProcess(output="screen", cmd=[
-            "ros2", "service", "call", startup_service,
-            "nav2_msgs/srv/ManageLifecycleNodes", "{command: 0}"])])
+
+    def late_navigation(context):
+        # 지연과 이름은 읽을 때 숫자·글자로 고정한다(include 인자는 밖으로 새어 다음 로봇 값이 된다)
+        seconds = float(perform_substitutions(context, [delay]))
+        if seconds <= 0:
+            return []
+        ns = perform_substitutions(context, [namespace]).strip("/")
+        service = "/" + "/".join(p for p in (ns, "lifecycle_manager_navigation/manage_nodes") if p)
+        return [TimerAction(period=seconds, actions=[ExecuteProcess(output="screen", cmd=[
+            "ros2", "service", "call", service,
+            "nav2_msgs/srv/ManageLifecycleNodes", "{command: 0}"])])]
 
     initial_pose = {
         "set_initial_pose": True,
@@ -291,5 +294,5 @@ def generate_launch_description():
             scan_filter,
             avoidance,
         ]),
-        late_navigation,
+        OpaqueFunction(function=late_navigation),
     ])
