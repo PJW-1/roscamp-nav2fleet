@@ -1,5 +1,4 @@
-"""fleet_check: closest approach between robots, stops, and positions outside held zones.
-No ROS."""
+"""fleet_check: 로봇 사이 최근접 거리, 정지, 쥔 구역 밖 위치. ROS 없음."""
 import math
 
 import pytest
@@ -23,7 +22,7 @@ def test_min_distance_uses_samples_taken_at_about_the_same_time():
     c.on_truth("pode1", 1.00, 0.0, 0.0, 0.0, 0.0)
     c.on_truth("pode2", 1.02, 0.5, 0.0, 0.0, 0.0)
     c.on_truth("pode3", 1.03, 3.0, 0.0, 0.0, 0.0)
-    c.on_truth("pode1", 5.00, 0.45, 0.0, 0.0, 0.0)  # pode2's last sample is 4 s old
+    c.on_truth("pode1", 5.00, 0.45, 0.0, 0.0, 0.0)  # pode2의 마지막 표본은 4 s 전
     s = c.summary()
     assert s["min_distance_m"] == pytest.approx(0.5)
     assert s["min_distance_pair"] == ["pode1", "pode2"]
@@ -31,7 +30,7 @@ def test_min_distance_uses_samples_taken_at_about_the_same_time():
 
 
 def test_min_distance_compares_every_sample_inside_the_sync_window():
-    """pode1 sends two samples before pode2 sends one; the earlier one is the closer pair."""
+    """pode1이 표본 둘을 보낸 뒤 pode2가 하나를 보낸다: 먼저 온 쪽이 더 가까운 쌍이다."""
     c = check(sync_s=0.1)
     c.on_truth("pode1", 1.00, 0.30, 0.0, 0.0, 0.0)
     c.on_truth("pode1", 1.03, 0.60, 0.0, 0.0, 0.0)
@@ -40,7 +39,7 @@ def test_min_distance_compares_every_sample_inside_the_sync_window():
 
 
 def test_a_late_sample_still_meets_the_samples_of_its_time():
-    """Topics are handled with some delay; pode2's 0.05 s sample may come after pode1's 0.30 s."""
+    """토픽이 늦게 처리되어 pode2의 0.05 s 표본이 pode1의 0.30 s 표본보다 뒤에 올 수 있다."""
     c = check(sync_s=0.1)
     c.on_truth("pode1", 0.00, 0.20, 0.0, 0.0, 0.0)
     c.on_truth("pode1", 0.30, 0.90, 0.0, 0.0, 0.0)
@@ -65,9 +64,9 @@ def drive(c, robot, t0, t1, speed, dt=0.1, turn=0.0):
 def test_a_stop_is_counted_once_after_moving_and_standing_long_enough():
     c = check(stop_min_s=0.5)
     t = drive(c, "pode1", 0.0, 2.0, 0.2)
-    t = drive(c, "pode1", t, t + 0.3, 0.0)  # too short
+    t = drive(c, "pode1", t, t + 0.3, 0.0)  # 너무 짧음
     t = drive(c, "pode1", t, t + 1.0, 0.2)
-    t = drive(c, "pode1", t, t + 3.0, 0.0)  # one stop, however long
+    t = drive(c, "pode1", t, t + 3.0, 0.0)  # 아무리 길어도 정지 한 번
     s = c.summary()["robots"]["pode1"]
     assert s["stops"] == 1
 
@@ -111,7 +110,7 @@ def test_positions_count_as_outside_only_after_the_fleet_publishes_zones():
 
 
 def test_holding_no_zone_is_counted_apart_from_outside():
-    """A robot that waits in a parking cell may hold nothing; that is not 'outside'."""
+    """주차 칸에서 기다리는 로봇은 구역을 쥐지 않아도 '밖'이 아니다."""
     c = check()
     c.on_zones({ZONE_W: "pode2"})
     c.on_truth("pode1", 1.0, *W, 0.0, 0.0)
@@ -165,17 +164,17 @@ def test_unknown_robots_are_ignored():
     assert set(c.summary()["robots"]) == set(ROBOTS)
 
 
-# ---- zones held by several robots (shared, lane) ------------------------------------------
+# ---- 여러 로봇이 쥔 구역(shared, lane) ----
 
 
 def test_a_robot_named_among_several_holders_holds_the_zone():
-    """ZoneView.holder joins the robots of a shared zone with a comma (TRAFFIC_CONTRACT 3)."""
+    """ZoneView.holder는 shared 구역의 로봇들을 쉼표로 잇는다(TRAFFIC_CONTRACT 3)."""
     c = check()
     c.on_zones({"HALL": "pode1,pode3", ZONE_W: "pode2"})
     hall = SITE.node_pose("W_Q")
     c.on_truth("pode1", 1.0, *hall, 0.0, 0.0)
     c.on_truth("pode3", 1.0, *hall, 0.0, 0.0)
-    c.on_truth("pode2", 1.0, *hall, 0.0, 0.0)  # holds only the dock, stands in the hall
+    c.on_truth("pode2", 1.0, *hall, 0.0, 0.0)  # 도크만 쥐고 HALL에 서 있음
     robots = c.summary()["robots"]
     assert robots["pode1"]["outside_held_samples"] == 0
     assert robots["pode3"]["outside_held_samples"] == 0
@@ -199,8 +198,7 @@ def body_check(**kw):
 
 
 def test_a_body_corner_inside_a_zone_the_robot_does_not_hold_is_a_keepout_intrusion():
-    """J_W is x 0.30..0.50, y 0.79..0.99. A robot in the yard at (0.40, 0.76) facing east has its
-    north corners at y 0.82: 0.03 m inside."""
+    """J_W는 x 0.30..0.50, y 0.79..0.99. 마당 (0.40, 0.76)에서 동쪽을 보는 로봇의 북쪽 모서리는 y 0.82라 0.03 m 안이다."""
     c = body_check()
     c.on_zones({"HALL": "pode1"})
     c.on_truth("pode1", 1.0, 0.40, 0.60, 0.0, 0.0, yaw=0.0)
@@ -228,29 +226,29 @@ def test_a_zone_the_robot_holds_or_has_just_left_is_no_intrusion():
     c.on_zones({"HALL": "pode1", "J_W": "pode1"})
     c.on_truth("pode1", 1.0, 0.40, 0.76, 0.0, 0.0, yaw=0.0)
     c.on_zones({"HALL": "pode1", "J_W": ""})
-    c.on_truth("pode1", 4.0, 0.40, 0.76, 0.0, 0.0, yaw=0.0)  # its tail is still leaving
+    c.on_truth("pode1", 4.0, 0.40, 0.76, 0.0, 0.0, yaw=0.0)  # 꼬리가 아직 떠나는 중
     assert c.summary()["keepout_depth_m"] == 0.0
     c.on_truth("pode1", 7.0, 0.40, 0.76, 0.0, 0.0, yaw=0.0)
     assert c.summary()["keepout_depth_m"] == pytest.approx(0.03)
 
 
 def test_a_robot_on_a_fixed_line_is_not_measured_against_the_next_zone():
-    """Its centre is in J_W (not a yard): what its nose does there is fixed-line driving."""
+    """중심이 J_W(마당 아님) 안이면 코가 거기서 하는 일은 고정 경로 주행이다."""
     c = body_check()
     c.on_zones({"J_W": "pode1"})
-    c.on_truth("pode1", 1.0, 0.46, 0.89, 0.0, 0.0, yaw=0.0)  # nose 0.02 m into EXPRESS
+    c.on_truth("pode1", 1.0, 0.46, 0.89, 0.0, 0.0, yaw=0.0)  # 코가 EXPRESS에 0.02 m 들어감
     assert c.summary()["keepout_depth_m"] is None, "not measured there"
-    c.on_truth("pode2", 1.0, 0.40, 0.60, 0.0, 0.0, yaw=0.0)  # another robot, in the yard
+    c.on_truth("pode2", 1.0, 0.40, 0.60, 0.0, 0.0, yaw=0.0)  # 다른 로봇, 마당 안
     assert c.summary()["keepout_depth_m"] == 0.0
 
 
 def test_the_keepout_depth_counts_only_after_the_fleet_publishes_zones():
-    """Nothing measured is not 'no intrusion': the judge must not pass it."""
+    """측정하지 못한 것은 '침입 없음'이 아니다: 판정이 통과시키면 안 된다."""
     c = body_check()
     c.on_truth("pode1", 1.0, 0.40, 0.76, 0.0, 0.0, yaw=0.0)
     assert c.summary()["keepout_depth_m"] is None
     c.on_zones({"HALL": "pode1"})
-    c.on_truth("pode1", 1.1, 0.40, 0.60, 0.0, 0.0)  # no heading
+    c.on_truth("pode1", 1.1, 0.40, 0.60, 0.0, 0.0)  # 방향 없음
     assert c.summary()["keepout_depth_m"] is None
     c.on_truth("pode1", 1.2, 0.40, 0.60, 0.0, 0.0, yaw=0.0)
     assert c.summary()["keepout_depth_m"] == 0.0
@@ -269,7 +267,7 @@ def test_a_zone_held_only_between_two_pose_samples_still_counts_as_just_left():
 
 
 def test_the_keepout_depth_is_not_rounded_down_to_the_limit():
-    """0.0204 m must not read 0.020 against a 0.02 m limit."""
+    """0.0204 m는 0.02 m 한도에서 0.020으로 읽히면 안 된다."""
     c = body_check()
     c.on_zones({"HALL": "pode1"})
     c.on_truth("pode1", 1.0, 0.40, 0.79 + 0.0204 - 0.06, 0.0, 0.0, yaw=0.0)
@@ -277,7 +275,7 @@ def test_the_keepout_depth_is_not_rounded_down_to_the_limit():
 
 
 def test_a_zone_corner_that_cuts_into_a_side_of_the_body_is_measured():
-    """A thin zone pokes 0.01 m into the right side; every corner of the body is outside it."""
+    """얇은 구역이 오른쪽 면으로 0.01 m 들어오지만 몸 모서리는 모두 밖이다."""
     from types import SimpleNamespace
 
     from fleet_core.fleet_map.model import SHARED

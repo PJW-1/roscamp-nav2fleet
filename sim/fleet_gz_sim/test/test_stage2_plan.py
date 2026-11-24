@@ -34,7 +34,7 @@ def test_a_nav_goal_ends_on_the_node_yaw_or_the_fixed_path_it_joins():
     to_park = sp.make_step(SITE, NAV_GOAL, ("N_W", "P-3"))
     assert to_park.target == pytest.approx((1.85, 0.15, math.pi / 2))
     to_n_w = sp.make_step(SITE, NAV_GOAL, ("P-1", "N_W"))
-    assert to_n_w.target == pytest.approx((0.35, 0.65, math.pi / 2))  # N_W -> X_W points north
+    assert to_n_w.target == pytest.approx((0.35, 0.65, math.pi / 2))  # N_W -> X_W는 북쪽
 
 
 def test_a_retreat_path_keeps_its_bend_and_faces_the_way_the_robot_looks():
@@ -42,13 +42,13 @@ def test_a_retreat_path_keeps_its_bend_and_faces_the_way_the_robot_looks():
     # D2 후진 꺾는 점 (0.30, 0.89): 마지막 조각은 N_W로 비스듬히 내려간다
     assert [p[:2] for p in step.poses] == [pytest.approx((0.18, 0.89)), pytest.approx((0.30, 0.89)),
                                            pytest.approx((0.35, 0.65))]
-    assert abs(abs(step.poses[0][2]) - math.pi) < 1e-9  # facing west, driving east
-    # facing back up the slant (north-west), driving down it
+    assert abs(abs(step.poses[0][2]) - math.pi) < 1e-9  # 서쪽을 보며 동쪽으로 달림
+    # 비스듬한 길을 올려다보며(북서) 내려간다
     assert step.poses[-1][2] == pytest.approx(math.atan2(0.24, -0.05))
 
 
 @pytest.mark.parametrize("kind, nodes", [
-    (FOLLOW_PATH, ("W", "X_W")),     # a Retreat edge, not a fixed path
+    (FOLLOW_PATH, ("W", "X_W")),  # Retreat 이음이지 고정 경로가 아님
     (RETREAT, ("X_W", "W")),
     (NAV_GOAL, ("X_W", "X_E")),
     (NAV_GOAL, ("P-1", "nowhere")),
@@ -77,7 +77,7 @@ def test_keepout_zones_lists_each_non_shared_zone_once_in_order():
     assert sp.keepout_zones(SITE, [(0.4, 0.5), (1.0, 0.3)]) == []
 
 
-# ---- 가운데 통로 재현(v7, 2026-11-17) ----
+# ---- 가운데 통로 재현(v7) ----
 V7 = load_fleet_map("v7")
 
 
@@ -99,8 +99,7 @@ def test_corridor_plan_goes_o_in_to_m_e_and_back_by_nav_goal_on_v7():
     assert sp.start_node("corridor") == "O_IN"
     steps = sp.build(V7, "corridor", laps=3)
     assert [s.label for s in steps] == ["nav_goal O_IN>M_E", "nav_goal M_E>O_IN"] * 3
-    # M_E는 yaw도 이어지는 고정 경로도 없어 시작→끝 방향,
-    # O_IN은 지점 yaw 110도(2026-11-18 밤, 108에서)
+    # M_E는 yaw도 이어지는 고정 경로도 없어 시작→끝 방향, O_IN은 지점 yaw 110도
     assert steps[0].target == pytest.approx((1.645, 0.55, math.atan2(-0.075, 1.155)))
     assert steps[1].target == pytest.approx((0.49, 0.625, math.radians(110)))
 
@@ -111,9 +110,7 @@ def test_corridor_plan_is_refused_on_another_layout():
 
 
 def test_the_corridor_edge_and_the_robot_body_along_it_are_outside_the_keepout_mask():
-    """keepout 마스크가 가운데 통로를 막으면 재현이 안 된다.
-    통로 안 keepout은 북쪽 끝 띠(y 0.75~)와,
-    틈 keepout이 있는 지도에서는 남쪽 경계선뿐."""
+    """keepout 마스크가 가운데 통로를 막으면 재현이 안 된다. 통로 안 keepout은 북쪽 끝 띠(y 0.75~)뿐이다."""
     from fleet_gz_sim import arena_maps as am
     mask = am.keepout(am.FINE_M, V7)
 
@@ -127,9 +124,7 @@ def test_the_corridor_edge_and_the_robot_body_along_it_are_outside_the_keepout_m
     x0, y0, x1, y1 = sp.CORRIDOR_GATES[V7.name]
     blocked = {round(y0 + n * 0.005, 3) for n in range(round((y1 - y0) / 0.005) + 1)
                for x in (x0, (x0 + x1) / 2, x1 - 1e-6) if inside(x, y0 + n * 0.005)}
-    # 남쪽 끝 0.405는 틈 keepout_extra가 있던 지도에서만 막힌다(틈을 연 지도에서는 북쪽 띠뿐).
-    # 북쪽 띠는 급행 구역 아래 끝에서 몸 반폭 0.06 아래부터다
-    # (2026-11-18 진열대 면 0.803: 0.75 -> 0.743)
+    # 남쪽 끝 0.405는 틈 keepout_extra가 있는 지도에서만 막힌다. 북쪽 띠는 급행 구역 아래 끝에서 몸 반폭 0.06 아래부터다
     north = V7.zones["EXPRESS"].rects[0][1] - 0.06
     assert blocked and all(y >= north - 0.005 or y <= y0 + 1e-9 for y in blocked), sorted(blocked)
 
@@ -155,7 +150,7 @@ def test_through_gate_decimate_and_min_distance():
     assert sp.min_distance([], (0.0, 0.0)) is None
 
 
-# ---- 남쪽 진열대 사이 건넘 틈(v7, 2026-11-17) ----
+# ---- 남쪽 진열대 사이 건넘 틈(v7) ----
 def test_gap_plan_crosses_the_gap_both_ways_between_two_plan_points():
     assert sp.plan_layout("gap") == "v7" and sp.start_node("gap") == "M_E"
     steps = sp.build(V7, "gap", laps=2)

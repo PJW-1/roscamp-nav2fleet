@@ -1,25 +1,6 @@
 """관제 없이 Gazebo Pode 한 대에 이동을 바로 보내고 2단계 지표를 잰다.
-
-    ros2 run fleet_gz_sim drive_check --layout d2 --plan stage2 --laps 3 --json out.json
-
-stage2_plan의 계획(nav_goal, follow_path, retreat)을 차례로 보낸다. 앞 이동이 성공해야 다음을
-보낸다. /fleet/heartbeat는 2 Hz로 보낸다. 이동마다:
-  - 결과(성공, 실패 이유), 걸린 시간(Gazebo 시각, 실제 위치 기록의 stamp)
-  - 끝났을 때 실제 위치(/{robot}/sim/truth)와 목표 사이 거리, 방향 오차
-  - follow_path, retreat: 실제 위치가 고정 경로에서 가장 멀리 벗어난 거리
-  - nav_goal: Nav2가 낸 계획 경로(/{robot}/plan)와 실제 주행이 지난 keepout 구역(shared 아닌 구역)
-  - 그동안 로봇이 보고한 상태(BLOCKED, RECOVERING 등)와 BLOCKED, RECOVERING에 들어간 횟수
-  - nav_goal: 실제 위치를 0.05 m마다 줄인 자취(track). v7은 가운데 통로를 지났는지(through_corridor)
-  - 상자(/sim/obstacle_markers)가 놓인 동안 실제 위치와 상자 중심 사이의 가장 짧은 거리(box_min_m)
-
-  - 실제 위치와 시각이 가장 가까운 AMCL 추정(/{robot}/amcl_pose) 사이의 가장 큰
-    거리(amcl_max_error_m)
-  - v7: 남쪽 진열대 사이 틈을 지났는지(through_gap)와 틈의 네 모서리까지 가장 짧은 거리(중심
-    gap_corner_min_m, 몸 gap_corner_body_min_m: local costmap 발자국 다각형, 못 읽으면 중심 - 0.056)
-
-인자 없이 돌리면 v7(실제 경기장)의 corridor 계획이다. --plan만 주면 그 계획의 배치(stage2, cross는 d2).
-가운데 통로 재현(v7): --layout v7 --plan corridor --wait-box 120. 상자가 놓인 뒤에 출발한다.
-틈 건너기(v7): --layout v7 --plan gap. 끝점은 --point GAP_N=1.12,0.55처럼 바꾼다.
+  ros2 run fleet_gz_sim drive_check --layout d2 --plan stage2 --laps 3 --json out.json
+이동마다 결과, 걸린 시간, 목표 오차, 경로 이탈, keepout 통과, 상태 전이, AMCL 오차, 틈 통과를 잰다.
 """
 from __future__ import annotations
 
@@ -192,7 +173,7 @@ class DriveCheck(Node):
         end = time.monotonic() + 5.0
         while not fut.done() and time.monotonic() < end:
             time.sleep(0.01)
-        if not fut.done():  # a late acceptance must not leave the robot driving
+        if not fut.done():  # 늦게 수락된 목표가 로봇을 움직이게 두지 않는다
             fut.add_done_callback(lambda f: f.result().accepted and f.result().cancel_goal_async())
         handle = fut.result() if fut.done() else None
         if handle is None or not handle.accepted:
@@ -223,9 +204,9 @@ def run_step(node: DriveCheck, site, step, timeout: float) -> dict:
     wall = time.monotonic()
     record = node.send(step)
     if not wait_for(lambda: record["done"], timeout, 0.1) and record["handle"] is not None:
-        record["handle"].cancel_goal_async()  # stop the robot instead of leaving the goal running
+        record["handle"].cancel_goal_async()  # 목표를 취소해 로봇을 세운다
     wall_s = time.monotonic() - wall
-    ended = node.last_truth()  # sim time of the result; the settle wait below is wall time
+    ended = node.last_truth()  # 결과 시각(Gazebo 시각). 아래 대기는 실제 시간
     time.sleep(SETTLE_S)
     with node.lock:
         truth, states, plans = node.truth[first:], list(node.states), list(node.plans)

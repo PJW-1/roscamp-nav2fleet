@@ -1,21 +1,6 @@
 """Gazebo 3대 시뮬 전용 노드 둘. 실물에서는 쓰지 않는다.
-
-sim_stand_in: 로봇마다
-  - 실제 위치 중계: /{pode}/sim/truth(Odometry, map 좌표) → /sim/truth/{pode}(RobotState).
-    시나리오 모니터(fake_robots)가 구역 판정에 쓰는 잡음 없는 자세다. 늘 켜져 있다.
-  - 시뮬 배터리: scenario_file이 있으면 /{pode}/sim/battery(BatteryState, percentage 0~1).
-    시나리오의 low_battery와 실제 위치로 계산한다(fake_robots.battery, 충전 자리는 주차 지점).
-    시각은 Gazebo 시계(use_sim_time)라 주문 at_s와 같은 0부터 센다. gz.launch.py는 low_battery가
-    있을 때만 pode_fsm의 battery_topic을 여기에 잇는다.
-  - dock_stub:=true일 때만 /{pode}/dock(Dock) 대역(dock_stand_in). 기본은 꺼짐이고 진짜
-    pode_fsm이 도킹을 DOCK_UNAVAILABLE로 실패시킨다. 켜면 gz.launch.py가 pode_fsm의 dock
-    서버를 /{pode}/dock_fsm으로 비켜 둔다. The node refuses to start the stub unless
-    use_sim_time is true and the network passes isolation.py.
-  - peer_obstacles:=true일 때만(임시, 주행 시험용) 로봇마다 다른 로봇의 몸을 costmap 토픽으로 내는
-    노드(pode_peer_obstacles)를 이 프로세스 안에 둔다. 로봇에서는 로봇마다 제 노드가 돈다. 여기서는
-    프로세스를 늘리지 않으려고 한데 둔다(LOCALHOST에서 서로 보이는 DDS 참가자 수에 한도가 있다).
-wait_ready: 모든 로봇의 최근 /{pode}/state가 IDLE인 채로 1 s 이어지면 0으로 끝난다(ready.py).
-  gz.launch.py가 그때 관제와 가짜 central·팔을 띄운다. timeout_s(벽시계) 안에 안 되면 1로 끝난다.
+sim_stand_in: 로봇마다 실제 위치 중계(/sim/truth/{pode}), 시뮬 배터리(/{pode}/sim/battery), 선택적으로 도크 대역과 peer_obstacles 노드를 둔다.
+wait_ready: 모든 로봇의 /{pode}/state가 IDLE로 1 s 이어지면 0으로 끝난다(ready.py). timeout_s(벽시계) 안에 안 되면 1.
 """
 from __future__ import annotations
 
@@ -60,7 +45,7 @@ from fleet_gz_sim.ready import everyone_idle
 
 READY_HOLD_S = 1.0
 REPORT_FRESH_S = 0.5  # pode_fsm은 state를 10 Hz로 낸다
-CLOCK_STALL_S = 5.0  # wall seconds without Gazebo time moving: the dock fails
+CLOCK_STALL_S = 5.0  # Gazebo 시각이 이만큼(wall 초) 안 움직이면 도크 실패
 BATTERY_PERIOD_S = 0.5  # 배터리를 내는 간격(Gazebo 시간)
 STAND_STILL_M = 0.01  # 한 간격 동안 이보다 덜 움직였으면 서 있다
 
@@ -71,7 +56,7 @@ class SimStandIn(Node):
         self.declare_parameter("robots", ["pode1", "pode2", "pode3"])
         stub = bool(self.declare_parameter("dock_stub", False).value)
         self.declare_parameter("peer_obstacles", False)  # main이 읽는다(peer_nodes)
-        if stub:  # before anything else: never serve a dock outside an isolated Gazebo run
+        if stub:  # 무엇보다 먼저: 격리된 Gazebo 실행 밖에서는 도크를 받지 않는다
             require_dock_stub_allowed(bool(self.get_parameter("use_sim_time").value),
                                       os.environ, rmw=rclpy.get_rmw_implementation_identifier(),
                                       workdir=Path.cwd())
@@ -174,7 +159,7 @@ class SimStandIn(Node):
             if handle.is_cancel_requested:
                 handle.canceled()
                 return Dock.Result(success=False)
-            if replaced:  # FakePode처럼 새 목표가 오면 이전 목표는 실패로 끝난다
+            if replaced:  # 새 목표가 오면 이전 목표는 실패로 끝난다(FakePode와 같다)
                 handle.abort()
                 return Dock.Result(success=False)
             if watch.stalled(self._now(), time.monotonic()):
@@ -203,7 +188,7 @@ class SimStandIn(Node):
 
 
 def peer_nodes(node) -> list:
-    """node의 peer_obstacles가 참이면 로봇마다의 pode_peer_obstacles 노드들, 아니면 빈 목록."""
+    """peer_obstacles가 참이면 로봇마다의 pode_peer_obstacles 노드들, 아니면 빈 목록."""
     if not node.get_parameter("peer_obstacles").value:
         return []
     from pode_peer_obstacles.node import make_fleet
