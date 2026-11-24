@@ -243,9 +243,9 @@ def test_outbox_drops_a_report_once_it_is_done():
     outbox.add("a")
     outbox.add("b")
     (first, _), (second, _) = outbox.due(0.0, True, RETRY_S, LIMIT)
-    assert outbox.done(first) is True
+    assert outbox.finish(first, None) == []
     assert due(outbox, 5.0) == ["b"]
-    assert outbox.done(second) is True
+    assert outbox.finish(second, None) == []
     assert due(outbox, 10.0) == []
 
 
@@ -254,8 +254,8 @@ def test_outbox_says_when_a_second_reply_finds_the_report_already_gone():
     outbox = ReportOutbox(rand=middle)
     outbox.add("a")
     [(report_id, _)] = outbox.due(0.0, True, RETRY_S, LIMIT)
-    assert outbox.done(report_id) is True
-    assert outbox.done(report_id) is False
+    assert outbox.finish(report_id, None) == []
+    assert outbox.finish(report_id, None) is None
 
 
 def test_outbox_takes_reports_that_cannot_be_hashed():
@@ -359,31 +359,59 @@ def test_the_default_report_delay_stays_within_20_percent():
         assert due(outbox, 1.201) == ["a"]
 
 
-def test_no_more_reports_than_the_limit_are_in_flight():
+def test_no_more_requests_than_the_limit_wait_for_an_answer():
+    """IR-41: 상한은 답을 기다리는 요청 수다. 앞선 요청이 한도 안에 남은 보고는
+    다시 보낼 때도 자리를 하나 더 차지한다."""
     outbox = ReportOutbox(rand=middle)
     for name in "abcde":
         outbox.add(name)
     sent = outbox.due(0.0, True, RETRY_S, 2)
     assert [item for _, item in sent] == ["a", "b"]
     assert due_limited(outbox, 0.5, 2) == [], "the others wait for a free place"
-    outbox.done(sent[0][0])
+    outbox.finish(sent[0][0], None)
     assert due_limited(outbox, 0.6, 2) == ["c"]
-    assert due_limited(outbox, 1.0, 2) == ["b"], "a resend does not take a new place"
-    assert due_limited(outbox, 1.6, 2) == ["c"]
+    assert due_limited(outbox, 1.0, 2) == [], "b still waits for its first answer"
+    outbox.expire(3.0, 3.0)  # 0.0에 보낸 b의 요청이 한도를 넘었다
+    assert due_limited(outbox, 3.0, 2) == ["b"]
 
 
 def due_limited(outbox, now, limit):
     return [item for _, item in outbox.due(now, True, RETRY_S, limit)]
 
 
-def test_a_resend_hands_back_only_the_requests_past_the_reply_limit():
-    """IR-41: 한도를 넘긴 요청만 버린다. 한도 안의 앞선 요청은 늦게 와도 보고를 끝낼 수 있다."""
+def test_only_requests_past_the_reply_limit_are_handed_back():
+    """IR-41: 응답 한도를 넘긴 요청만 버린다. 한도 안의 앞선 요청은 늦게 와도 보고를 끝낸다."""
     outbox = ReportOutbox(rand=middle)
     outbox.add("a")
     [(report_id, _)] = outbox.due(0.0, True, RETRY_S, LIMIT)
-    first, second, third = object(), object(), object()
-    assert outbox.track(report_id, first, 0.0, 3.0) == []
-    assert outbox.track(report_id, second, 2.0, 3.0) == [], "first is 2 s old, inside 3 s"
-    assert outbox.track(report_id, third, 3.5, 3.0) == [first]
-    assert outbox.done(report_id) is True
-    assert outbox.track(report_id, object(), 9.0, 3.0) == [], "a done report keeps nothing"
+    first, second = object(), object()
+    outbox.track(report_id, first)
+    assert due(outbox, 2.0) == ["a"]
+    outbox.track(report_id, second)
+    assert outbox.expire(2.9, 3.0) == [], "first is inside the 3 s limit"
+    assert outbox.expire(3.0, 3.0) == [first]
+    assert outbox.expire(3.5, 3.0) == []
+    assert outbox.finish(report_id, second) == []
+    assert outbox.finish(report_id, second) is None, "a done report is finished once"
+
+
+def test_finishing_a_report_hands_back_its_other_waiting_requests():
+    outbox = ReportOutbox(rand=middle)
+    outbox.add("a")
+    [(report_id, _)] = outbox.due(0.0, True, RETRY_S, LIMIT)
+    first, second = object(), object()
+    outbox.track(report_id, first)
+    assert due(outbox, 1.0) == ["a"]
+    outbox.track(report_id, second)
+    assert outbox.finish(report_id, first) == [second]
+
+
+def test_a_failed_request_frees_its_place():
+    outbox = ReportOutbox(rand=middle)
+    outbox.add("a")
+    outbox.add("b")
+    [(report_id, _)] = outbox.due(0.0, True, RETRY_S, 1)
+    failed = object()
+    outbox.track(report_id, failed)
+    outbox.forget(report_id, failed)
+    assert due_limited(outbox, 0.1, 1) == ["b"]

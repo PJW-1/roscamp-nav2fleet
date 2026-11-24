@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import argparse
+import math
 import time
 from functools import partial
 
@@ -63,7 +64,7 @@ class FleetManagerNode(Node):
         self.declare_parameter("lookahead_s", None, unset)
         robots = list(self.get_parameter("robots").value)
         robots_hz = self.get_parameter("robots_hz").value
-        if not robots_hz > 0.0:
+        if not (math.isfinite(robots_hz) and robots_hz > 0.0):
             raise ValueError(f"robots_hz must be > 0, got {robots_hz!r}")
 
         contract_file = self.get_parameter("contract_file").value or (
@@ -222,13 +223,14 @@ class FleetManagerNode(Node):
 
     def _flush_reports(self, now: float) -> None:
         params = self.core.params
+        # IR-41: 응답 한도를 넘긴 요청은 클라이언트에서 버린다
+        for old in self._reports.expire(now, REPORT_REPLY_LIMIT_S):
+            self._report_client.remove_pending_request(old)
         for report_id, command in self._reports.due(now, self._report_client.service_is_ready(),
                                                     params.report_retry_s,
                                                     params.report_max_in_flight):
             future = self._report_client.call_async(adapters.report_request(command))
-            # IR-41: 응답 한도를 넘긴 앞선 요청만 클라이언트에서 지운다
-            for previous in self._reports.track(report_id, future, now, REPORT_REPLY_LIMIT_S):
-                self._report_client.remove_pending_request(previous)
+            self._reports.track(report_id, future)
             future.add_done_callback(partial(self._report_answered, report_id, command))
 
     def _report_answered(self, report_id, command, future) -> None:
@@ -236,8 +238,15 @@ class FleetManagerNode(Node):
             accepted = adapters.report_accepted(future.result())
         except Exception as exc:
             self.get_logger().warning(f"report of {command.order_id} got no reply: {exc}")
+            self._reports.forget(report_id, future)
             return
-        if self._reports.done(report_id) and not accepted:
+        others = self._reports.finish(report_id, future)
+        if others is None:
+            return
+        # 끝난 보고의 다른 요청은 답을 기다리지 않는다
+        for old in others:
+            self._report_client.remove_pending_request(old)
+        if not accepted:
             self._dispatch(EventOut("ERROR", "ORDER_REPORT_REFUSED",
                                     f"{command.order_id} {command.status} refused by central, "
                                     "nobody will work or report it now", command.robot),
