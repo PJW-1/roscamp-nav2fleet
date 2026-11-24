@@ -1,8 +1,4 @@
-"""A failed outbound dispatch is sent again.
-
-Before, on_dispatch_result only cleared outbound_goal and step() resent only a robot without a
-basket, so a robot with a full basket was left with no next job.
-"""
+"""실패한 출고 배차는 다시 보낸다(바구니가 찬 로봇도)."""
 from dataclasses import replace
 
 from core_helpers import cmds, codes
@@ -28,7 +24,7 @@ def outbound(out, robot="r1"):
 
 
 def full_basket():
-    """r1 has filled O-001 and has just been named for the outbound station."""
+    """r1이 O-001을 채웠고 출고 스테이션으로 막 불렸다."""
     core, now = make()
     core.on_dispatch_result(core._open_calls[0], True, "r1")
     core.take_output()
@@ -103,7 +99,7 @@ def test_failures_past_the_limit_are_an_error_like_the_other_retry_limits():
 
 
 def test_an_isolated_robot_is_not_sent_again():
-    """Traffic fails the dispatch, then isolates the robot in the same batch."""
+    """교통이 배차를 실패시킨 뒤 같은 배치에서 로봇을 격리한다."""
     core, now, goal = full_basket()
     fail(core, goal, "GOAL_FAILED")
     core.on_robot_isolated("r1", "GOAL_FAILED")
@@ -126,7 +122,7 @@ def test_a_cleared_robot_is_not_sent_again():
 
 
 def test_a_robot_without_a_basket_also_waits_between_tries():
-    """Before, a reinstated robot with no basket was sent again on every step."""
+    """바구니 없이 다시 투입한 로봇은 step마다 다시 보내지 않는다."""
     core, now = make(())
     core.on_robot_reinstated("r1", "NONE")
     core.step("r1")

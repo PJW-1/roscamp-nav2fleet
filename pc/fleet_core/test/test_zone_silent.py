@@ -1,5 +1,4 @@
-"""조용히 멈춤(SILENT_STALL): 갈 곳이 있는 로봇이 나아가지 않는데 관제가 그 로봇에 대해 아무 말도
-없이 silent_limit_s가 지나면 한 번 알린다. 관제가 알고 세워 둔 로봇은 걸리지 않는다."""
+"""조용히 멈춤(SILENT_STALL): 갈 곳이 있는 로봇이 나아가지 않는데 관제가 아무 말 없이 silent_limit_s가 지나면 한 번 알린다."""
 from dataclasses import asdict, replace
 
 import zone_harness
@@ -14,8 +13,7 @@ def count(world, code, robot=""):
 
 
 def quiet_goal(**kwargs):
-    """pode2가 goal을 받고 서 있다. 제자리 멈춤 감시를 꺼서 관제가 아무 말도 하지 않게 한다
-    (관제의 결함을 흉내 낸다)."""
+    """pode2가 goal을 받고 서 있다. 제자리 멈춤 감시를 꺼서 관제의 결함을 흉내 낸다."""
     world = Harness(speed=0.0, **kwargs)
     world.traffic._watch_stall = lambda m, now: None
     world.traffic._start_watch.watch = lambda m, now, running: None

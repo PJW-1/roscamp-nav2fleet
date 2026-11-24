@@ -1,9 +1,4 @@
-"""LOCALIZING(위치를 잃음)을 보고한 로봇: 새 일과 goal을 주지 않고 기다린다.
-
-실제 로봇(2026-11-18): 노드 무리가 망에 붙자 라즈베리파이가 약 25 s 포화돼 map->base_link가
-끊기고 LOCALIZING을 보고했다. 그 사이 관제가 보낸 order는 pode_fsm이 바로 NAV_ABORTED로
-끝냈고, 시도 셋이 5 s 안에 쌓여 pode2가 격리됐다.
-"""
+"""LOCALIZING(위치를 잃음)을 보고한 로봇에게는 새 일과 goal을 주지 않고 기다린다."""
 import pytest
 from fleet_core.common.commands import CancelCmd, MoveCmd, MoveOrderCmd, RobotIsolated
 from fleet_core.traffic.zone.base import LOCALIZING_GRACE_S
@@ -140,8 +135,7 @@ def test_the_reported_case_sends_nothing_while_localizing():
 
 @pytest.mark.parametrize("first", ["state", "result"])
 def test_orders_sent_while_localized_then_aborted_by_lost_pose_are_never_counted(first):
-    """order는 위치가 있을 때 나갔고, 그 뒤 위치를 잃어 NAV_ABORTED. 세 번 되풀이해도 세지 않는다.
-    first: LOCALIZING 보고가 먼저인가, 결과가 먼저(1.0 s 안)인가."""
+    """order는 위치가 있을 때 나갔고 그 뒤 위치를 잃어 NAV_ABORTED가 세 번 나도 시도로 세지 않는다. first는 LOCALIZING 보고와 결과 중 먼저 오는 쪽이다."""
     world = Harness(speed=0.0)
     world.step()
     call = world.call("WORK", "pode2")
@@ -195,8 +189,7 @@ def test_another_failure_while_localizing_still_counts():
 
 
 def test_a_robot_that_stays_localizing_keeps_its_zones_and_is_noted_by_the_usual_watches():
-    """새 시간 한도는 없다. WAIT_LOCALIZING 한 번, 그 뒤로는 있던 ROBOT_IDLE이 idle_watch_s마다
-    알린다(그 사건이 SILENT_STALL을 매번 새로 시작한다). 구역은 그대로 쥔다."""
+    """새 시간 한도는 없다: WAIT_LOCALIZING 한 번, 그 뒤로는 ROBOT_IDLE이 idle_watch_s마다 알리고 구역은 그대로 쥔다."""
     world = Harness(speed=0.0)
     world.step()
     reports(world, "pode2", "LOCALIZING")

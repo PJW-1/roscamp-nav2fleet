@@ -1,8 +1,4 @@
-"""order 모델을 켠 채: base 끝에서 goal이 열린 채 기다리는 로봇이 막힌 로봇의 길에 서 있는 경우.
-
-goal이 열려 있는 로봇은 비켜 주기(blocked._make_way)의 대상이 아니다. 먼저 가까이 선 두 로봇의
-규칙(watch._watch_near)이 열린 order를 거두고, 그 뒤 막힘 표시 때 주차 자리로 보낸다.
-"""
+"""order 모델을 켠 채 base 끝에서 goal이 열린 채 기다리는 로봇이 막힌 로봇의 길에 서면, 열린 order를 거두고 막힘 표시 때 주차 자리로 보낸다."""
 from dataclasses import replace
 
 from fleet_core.common.commands import CancelCmd
@@ -41,8 +37,7 @@ def test_a_robot_waiting_at_its_base_end_in_the_way_is_sent_to_parking():
 
 
 def test_a_robot_on_its_way_to_the_dock_keeps_the_turn_when_its_order_is_extended():
-    """차례를 받아 도크로 떠난 로봇은 base를 늘릴 때도 차례를 지킨다. 먼저 불린 로봇을 그 앞으로
-    치면 늘리지 못해 base 끝에 서고, 먼저 불린 로봇은 가는 중인 로봇을 기다려 둘 다 선다."""
+    """차례를 받아 도크로 떠난 로봇은 base를 늘릴 때도 차례를 지킨다."""
     world = Harness(layout="d", starts={"pode2": "P-1", "pode3": "P-3"}, params=ON)
     world.report()
     traffic = world.traffic

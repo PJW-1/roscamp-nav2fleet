@@ -1,7 +1,4 @@
-"""교착 안전망의 순수 함수: 대기 순환 찾기와 누가 양보하는지.
-
-구역 교통 층 위의 교착 감시는 test_zone_watch.py와 test_zone_edges.py에 있다.
-"""
+"""교착 안전망의 순수 함수: 대기 순환 찾기와 누가 양보하는지."""
 from fleet_core.common.params import load_params
 from fleet_core.traffic.deadlock import choose_retreat, find_cycle, priority
 

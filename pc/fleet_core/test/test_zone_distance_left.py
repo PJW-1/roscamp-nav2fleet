@@ -1,7 +1,4 @@
-"""order 모델에서 지금 Nav2 goal 조각의 남은 시간은 로봇이 피드백에 실어 보내는 남은 거리
-(distance_remaining)로 잰다. 남은 조각은 travel_s 그대로다. 값이 없거나 오래됐거나, 경로를
-새로 짜서 뛰었거나, 로봇 자리보다 가깝다고 하거나, 끝난 조각의 값이면 예전처럼 투영(left_s)으로
-잰다. 어느 쪽이든 Nav2 goal 이어짐의 끝 보정(nav_end_s, test_zone_eta_end.py)은 똑같이 붙는다."""
+"""order 모델에서 Nav2 goal 조각의 남은 시간은 피드백의 남은 거리(distance_remaining)로 잰다. 값이 없거나 믿을 수 없으면 투영(left_s)으로 재고, 끝 보정(nav_end_s)은 똑같이 붙는다."""
 import json
 import math
 import sys
@@ -188,8 +185,7 @@ def test_a_fixed_path_segment_keeps_the_projection():
 
 
 def test_a_value_of_a_finished_segment_is_not_used_for_the_next_one():
-    """d2: 출고 도크가 차 O_Q에서 기다린 pode1이 놓여 3번(Nav2 goal, N_E까지)을 받았다. 2번이
-    끝나기 전에 보낸 피드백이 늦게 닿아도 3번의 남은 거리로 쓰지 않는다."""
+    """d2: 3번(Nav2 goal, N_E까지)을 받은 뒤 2번의 늦은 피드백은 3번의 남은 거리로 쓰지 않는다."""
     world = Harness(starts={"pode1": "W", "pode2": "O", "pode3": "P-3"}, params=ON)
     world.report()
     world.call("OUTBOUND", "pode2")
@@ -212,9 +208,7 @@ def test_a_value_of_a_finished_segment_is_not_used_for_the_next_one():
 # ---- 남은 거리가 base를 늘리는 때를 정한다 ----
 
 def time_of_the_extension_to_q1(detour_m):
-    """v7: pode1이 작업 도크로 가며 2번(Nav2 goal, E-1 -> Q2)을 달린다. 로봇이 매 걸음 Q2까지
-    곧은 거리보다 detour_m 긴 남은 거리를 보내면(None이면 보내지 않으면) 3번(Q1)을 base로 늘리는
-    ORDER_UPDATED는 언제 나가는가."""
+    """v7: 남은 거리가 곧은 거리보다 detour_m 길 때(None이면 값 없음) 3번(Q1)을 base로 늘리는 ORDER_UPDATED가 나가는 때를 본다."""
     world = Harness(layout="v7", params=ON, starts={"pode1": "P-1", "pode2": "P-2", "pode3": "P-3"})
     world.report()
     world.call("WORK", "pode1")
