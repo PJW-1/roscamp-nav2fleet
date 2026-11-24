@@ -3,6 +3,7 @@
 가짜 로봇은 쓰지 않는다. 시나리오가 아니라 래퍼의 배선을 확인한다. 그래프에 참여하므로
 호출한 쪽이 로봇 네트워크와 분리해 둔 경우에만 돈다.
 """
+import dataclasses
 import os
 import subprocess
 import sys
@@ -553,10 +554,11 @@ def test_a_retreat_result_with_a_core_that_has_no_handler_yet_is_logged_and_drop
     assert len(warnings) == 1 and "on_retreat_result" in warnings[0]
 
 
-def test_a_lost_result_of_a_canceled_robot_goal_is_no_rejection():
-    """취소한 로봇 goal의 결과를 잃으면 끝났는지 모른다. 거절로 넘기지 않고 취소를 남긴다.
+def test_a_lost_result_of_a_robot_goal_is_no_rejection():
+    """로봇 goal의 결과를 잃으면 끝났는지 모른다. 거절로 넘기지 않는다.
 
-    코어는 막힘 표시 때 취소한 goal이 끝나야 구역을 놓는다. 팔 goal과 취소 안 한 goal은 그대로다.
+    취소한 goal은 취소를 남긴다(코어는 막힘 표시 때 취소한 goal이 끝나야 구역을 놓는다).
+    취소하지 않은 goal은 코어에 결과 모름(on_goal_lost)으로 넘긴다(IR-62). 팔 goal은 그대로 거절이다.
     """
     def broken():
         raise RuntimeError("result lost")
@@ -568,21 +570,24 @@ def test_a_lost_result_of_a_canceled_robot_goal_is_no_rejection():
         rejected.append(key)
 
     key = ("pode1", 7)
-    for canceled, on_rejected, expected in ((True, robot_rejected, []),
-                                            (False, robot_rejected, [key]),
-                                            (True, arm_rejected, [key])):
+    for canceled, on_rejected, want_rejected, want_lost in (
+            (True, robot_rejected, [], []),
+            (False, robot_rejected, [], [key]),
+            (True, arm_rejected, [key], [])):
         goals = GoalTracker()
         goals.sent(key)
         goals.accepted(key, SimpleNamespace(cancel_goal_async=lambda: None))
         if canceled:
             goals.cancel(key, 0.0)
+        lost = []
         node = SimpleNamespace(_goals=goals, _robot_rejected=robot_rejected,
+                               core=SimpleNamespace(on_goal_lost=lambda *k: lost.append(k)),
                                get_logger=lambda: SimpleNamespace(error=lambda msg: None))
         rejected = []
         FleetManagerNode._goal_result(node, key, lambda k, r: None, on_rejected,
                                       SimpleNamespace(result=broken))
-        assert rejected == expected
-        assert goals.canceling(key) == (not expected)
+        assert (rejected, lost) == (want_rejected, want_lost)
+        assert goals.canceling(key) == (canceled and on_rejected is robot_rejected)
 
 
 def test_a_dropped_cancel_of_a_robot_goal_is_told_to_the_core_as_lost():
@@ -662,6 +667,9 @@ def events_of(world, code):
 
 
 def test_a_refused_cancel_is_sent_again_and_warned_about_once_until_the_result_comes(graph):
+    # 경고 주기 수는 이 시험의 대상이 아니다. 노드가 읽는 값만 줄여 10 s 안에 경고를 본다
+    fms = graph.fms
+    fms.core.params = dataclasses.replace(fms.core.params, cancel_warn_after=7)
     graph.hold_fill.set()
     graph.refuse_fill_cancel = True
     publish(graph, "RUN", {"A": 1, "C": 2})

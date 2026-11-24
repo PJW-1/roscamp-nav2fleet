@@ -442,14 +442,14 @@ def test_a_goal_that_could_not_be_sent_goes_again_after_the_wait_and_is_not_an_a
     assert world.result_of(call) is None and not isolations(world)
 
 
-def test_a_lost_goal_is_sent_again_at_once():
+def test_a_lost_goal_is_not_sent_again_at_once():
+    """IR-62: 결과를 잃은 goal은 결과 모름으로 남는다(정하는 법은 test_zone_result_lost.py)."""
     world, _ = sent_once()
     lost = last_goal(world)
     world.traffic.on_goal_lost("pode2", lost)
-    assert world.view("pode2")["goal_id"] is None
+    assert world.view("pode2")["goal_id"] == lost
     world.step()
-    assert moves(world) == 2 and last_goal(world) != lost
-    assert world.view("pode2")["attempts"] == 0
+    assert moves(world) == 1 and world.view("pode2")["attempts"] == 0
     assert "GOAL_RETRY" not in world.codes()
 
 

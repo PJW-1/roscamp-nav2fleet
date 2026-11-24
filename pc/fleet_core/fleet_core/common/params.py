@@ -45,6 +45,7 @@ class FleetParams:
     heartbeat_timeout_s: float
     recover_check_s: float
     arm_cancel_wait_s: float
+    robot_timeout_settle_s: float
     arm_retry_wait_s: float
     fill_timeout_s: float
     swap_timeout_s: float

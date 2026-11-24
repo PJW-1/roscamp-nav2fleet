@@ -80,6 +80,7 @@ class Watch:
         # LOCALIZING 로봇의 자세는 묵은 값이라 뺀다
         def roams(m) -> bool:
             return (m.available and m.goal is not None and m.goal.kind == MOVE
+                    and m.result_lost_at is None
                     and self._mode(m) == NAV_GOAL and not self._localizing(m))
 
         moving = [m for m in self._robots.values() if roams(m)]

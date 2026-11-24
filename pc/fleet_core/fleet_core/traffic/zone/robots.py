@@ -135,6 +135,7 @@ class Robot:
     retry_at: float = 0.0
     settle_until: float = 0.0
     arrival_by: float | None = None
+    result_lost_at: float | None = None  # goal 결과를 잃은 시각(IR-62 결과 모름). 정하면 None
     heard_since_success: bool = False
     not_sent_warned: bool = False
     dock_error_m: float = 0.0

@@ -48,7 +48,7 @@ def time_out(core, now, limit):
     now[0] += limit + 0.1
     core.check_arm_timeouts(now[0])
     core.take_output()
-    now[0] += core.params.arm_cancel_wait_s + 0.1
+    now[0] += core.params.robot_timeout_settle_s + 0.1
     core.check_arm_timeouts(now[0])
     return core.take_output()
 
