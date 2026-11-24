@@ -39,6 +39,8 @@ class Progress:
         m.report.obstacle = obstacle
         m.report.local_yield = local_yield if state == SELF_RECOVERING else ""
         self._note_battery(m, battery)
+        if m.result_lost_at is not None:
+            self._past_unknown(m)  # 기한이 지난 결과 모름은 다른 처리보다 먼저 격리한다
         if state == LOCALIZING:
             self._note_localizing(m, now)
             m.health.pose_at = None
@@ -50,8 +52,8 @@ class Progress:
         self._pose_watch.watch(m, x, y, yaw, now)
         m.x, m.y, m.yaw = x, y, yaw
         m.heard_since_success = True
-        if m.result_lost_at is not None:
-            self._settle_lost(m, now)  # 결과 모름은 들은 그 순간의 보고로 정한다
+        if m.result_lost_at is not None and m.health.comm != COMM_LOST:
+            self._settle_lost(m, now, state)  # 들은 그 순간 정한다. 통신이 끊겼던 로봇은 복구가 끝낸다
         if m.health.fault == OUT_OF_SERVICE:
             return
         if not m.placed:

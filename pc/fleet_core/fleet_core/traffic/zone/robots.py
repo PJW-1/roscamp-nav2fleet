@@ -40,6 +40,7 @@ class MoveOrder:
     waiting: bool = False
     waited: bool = False
     before: tuple | None = None
+    before_lost: int | None = None  # 결과를 잃은 이전 goal id. 되살리면 결과 모름(IR-62)
     asked_at: float = 0.0
     broken: bool = False
     horizon_at: float = 0.0

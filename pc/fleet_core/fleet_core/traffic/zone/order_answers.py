@@ -182,6 +182,8 @@ class OrderAnswers:
         mo.before = None
         mo.waiting = waiting
         mo.waited = mo.waited or waiting
+        if mo.before_lost == goal_id:
+            self._lose_result(m, goal_id)
 
     # ---- 통신 끊김 때 base 끝까지 갈 시간 잡기 ----
     def _hold_base(self, m, now: float) -> str:
