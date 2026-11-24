@@ -105,6 +105,15 @@ class GoalReachEnv(DirectRLEnv):
 
     def __init__(self, cfg: GoalReachEnvCfg, render_mode: str | None = None, **kwargs):
         self.spec = ts.make_spec(cfg.spec_overrides)
+        s = self.spec
+        recipe = set(ts.obs_blocks(s)) - {"intent"} or s.critic_privileged or s.w_action_rate
+        recipe = recipe or s.w_w_flip
+        recipe = recipe or tuple(s.speed_cap_range) != (ts.NAV_SPEED_MPS, ts.NAV_SPEED_MPS)
+        if type(self) is GoalReachEnv and recipe:  # 이 필드들은 매장 아레나만 채움
+            raise ValueError(
+                "the recipe fields (task_spec obs_blocks, speed cap, critic_privileged, "
+                "action-rate weights) need the store arena env"
+            )
         cfg.observation_space = ts.obs_dim(self.spec)  # intent_robots 면 넓어짐
         super().__init__(cfg, render_mode, **kwargs)
         self.robot = self.scene["robot"]
@@ -164,8 +173,16 @@ class GoalReachEnv(DirectRLEnv):
         )
 
     # ---- DirectRLEnv 훅 ----
+    def action_target(self, actions: torch.Tensor) -> torch.Tensor:
+        """정책 행동의 목표 (v, w) (매장 아레나는 v 를 에피소드별 상한에 맞춤)."""
+        return ts.action_to_target(actions)
+
+    def reward_v_cap(self) -> torch.Tensor | None:
+        """진행 보상의 env 별 최고속도 (None: ActionLimits.v_max)."""
+        return None
+
     def _pre_physics_step(self, actions: torch.Tensor) -> None:
-        target = ts.action_to_target(actions)
+        self.target = target = self.action_target(actions)
         self.cmd = ts.rate_limit(self.cmd, target, self.step_dt)
         self._wheel_target = ts.twist_to_wheels(self.cmd)
 
@@ -188,7 +205,12 @@ class GoalReachEnv(DirectRLEnv):
 
     def _get_rewards(self) -> torch.Tensor:
         rew, terms = ts.compute_reward(
-            self.d_prev, self.d_now, self.success, self.collided | self.oob, self.spec
+            self.d_prev,
+            self.d_now,
+            self.success,
+            self.collided | self.oob,
+            self.spec,
+            v_cap=self.reward_v_cap(),
         )
         self.d_prev = self.d_now.clone()
         for k, v in terms.items():

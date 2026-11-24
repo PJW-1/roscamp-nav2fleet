@@ -25,6 +25,8 @@ sys.path.insert(0, HERE)
 import task_spec as ts  # noqa: E402
 
 SPEC_FORMAT = 2  # 2: 목표 규칙(path_end | lookahead)과 정책 출처 포함
+# 3: 형식 2 + 선택 블록 목록("obs_blocks")과 블록별 항목. 선택 블록이 있는 정책(--set)만 씀
+SPEC_FORMAT_BLOCKS = 3
 # float32 MLP 41-128-128-2: PyTorch 와 onnxruntime 은 합산 순서가 달라 float32 반올림 수준으로만 같다.
 # |onnx - torch| <= INFER_ATOL + INFER_RTOL * |torch| 이면 통과 (학습 범위 밖에서는 행동이 커져 상대 오차 항이 필요).
 INFER_ATOL = 1e-5
@@ -32,26 +34,44 @@ INFER_RTOL = 1e-5
 NORMALIZER_EPS = 1e-2  # rsl_rl 기본: (x - mean) / (std + eps)
 
 
-def obs_layout() -> list[str]:
+def obs_layout(spec=ts.SPEC) -> list[str]:
     """task_spec.build_observation 순서의 관측 항목 이름."""
-    return [f"lidar_sector_{i}" for i in range(ts.OBS_LIDAR)] + [
-        "goal_dist",
-        "goal_sin",
-        "goal_cos",
-        "v",
-        "w",
-    ]
+    return ts.obs_names(spec)
 
 
-def make_spec(source: dict, goal_rule: dict) -> dict:
-    s, lim = ts.SPEC, ts.ACTION_LIMITS
+def block_entries(spec) -> dict:
+    """spec 에 있는 선택 블록의 policy_spec 형식 3 항목."""
+    lim = ts.ACTION_LIMITS
+    out = {"obs_blocks": ts.obs_blocks(spec)}
+    if "intent" in out["obs_blocks"]:
+        raise ValueError("the intent block has no policy_spec entry yet")
+    if spec.prev_action_obs:
+        out["prev_action"] = {"v_scale": lim.v_max, "w_scale": lim.w_max}
+    if spec.lidar_frames > 1:
+        out["lidar_history"] = {
+            "frames": spec.lidar_frames,
+            "stride_steps": spec.lidar_stride_steps,
+        }
+    if spec.speed_cap_obs:
+        lo, hi = spec.speed_cap_range
+        out["speed_cap"] = {"min": lo, "max": hi, "obs_scale": lim.v_max}
+    return out
+
+
+def make_spec(source: dict, goal_rule: dict, spec=ts.SPEC) -> dict:
+    s, lim = spec, ts.ACTION_LIMITS
+    blocks = ts.obs_blocks(spec)
+    if not spec.speed_cap_obs and tuple(spec.speed_cap_range) != (lim.v_max, lim.v_max):
+        # the env maps v onto this cap, but the spec would tell the plugin v_max
+        raise ValueError(f"speed_cap_range {spec.speed_cap_range} needs speed_cap_obs=1")
     return {
-        "format": SPEC_FORMAT,
+        "format": SPEC_FORMAT_BLOCKS if blocks else SPEC_FORMAT,
         "source": source,
         "control_dt": s.control_dt,
-        "obs_dim": ts.OBS_DIM,
+        "obs_dim": ts.obs_dim(spec),
         "act_dim": ts.ACT_DIM,
-        "obs_layout": obs_layout(),
+        "obs_layout": obs_layout(spec),
+        **(block_entries(spec) if blocks else {}),
         "lidar": {
             "rays": s.lidar_rays,
             "first_ray_deg": -180.0,
@@ -100,7 +120,9 @@ def enc(x: float):
     return x
 
 
-def obs_cases(rng) -> list[dict]:
+def obs_cases(rng, spec=ts.SPEC) -> list[dict]:
+    """Scan -> rays -> observation; with optional blocks also their inputs (prev target in m/s
+    and rad/s, earlier frames as scaled sectors newest first, speed cap in m/s)."""
     cases = []
     layouts = [
         # Gazebo pode_sim: 빔 640 개 [-pi, pi], rplidar_link 가 pi 돌아감
@@ -119,14 +141,28 @@ def obs_cases(rng) -> list[dict]:
         rays = scan_to_rays(r, amin, ainc, rmin, rmax, yaw)
         gd, ga = float(rng.uniform(0.0, 4.0)), float(rng.uniform(-math.pi, math.pi))
         v, w = float(rng.uniform(-0.05, 0.25)), float(rng.uniform(-1.0, 1.0))
+        extra, blocks = {}, {}
+        if spec.prev_action_obs:
+            prev = [float(rng.uniform(-0.05, 0.16)), float(rng.uniform(-1.0, 1.0))]
+            extra["prev_target"], blocks["prev_target"] = torch.tensor([prev]), prev
+        if spec.lidar_frames > 1:
+            h = rng.uniform(0.025, 1.0, (spec.lidar_frames - 1, spec.lidar_sectors))
+            extra["lidar_history"] = torch.tensor(h[None], dtype=torch.float32)
+            blocks["lidar_history"] = h.tolist()
+        if spec.speed_cap_obs:
+            cap = float(rng.uniform(*spec.speed_cap_range))
+            extra["speed_cap"], blocks["speed_cap"] = torch.tensor([cap]), cap
         obs = ts.build_observation(
             torch.tensor(rays, dtype=torch.float32)[None],
             torch.tensor([gd]),
             torch.tensor([ga]),
             torch.tensor([[v, w]]),
+            spec,
+            **extra,
         )[0]
         cases.append(
             {
+                **blocks,
                 "angle_min": amin,
                 "angle_increment": ainc,
                 "range_min": rmin,
@@ -144,17 +180,26 @@ def obs_cases(rng) -> list[dict]:
     return cases
 
 
-def action_cases(rng) -> list[dict]:
+def action_cases(rng, spec=ts.SPEC) -> list[dict]:
+    """Action sequences -> rate-limited (v, w); with the speed cap block also at its two ends
+    (the case's "speed_cap" is the v upper limit of the mapping)."""
     cases = []
-    for start in ((0.0, 0.0), (0.2, -0.8)):
-        acts = rng.uniform(-1.5, 1.5, (40, 2)).astype(np.float32)
-        acts[:5] = [[1.0, 1.0], [-1.0, -1.0], [3.0, -3.0], [0.0, 0.0], [0.5, -0.25]]
-        cmd = torch.tensor([start], dtype=torch.float32)
-        cmds = []
-        for a in acts:
-            cmd = ts.rate_limit(cmd, ts.action_to_target(torch.tensor(a)[None]), ts.SPEC.control_dt)
-            cmds.append(cmd[0].tolist())
-        cases.append({"start": list(start), "actions": acts.tolist(), "cmds": cmds})
+    caps = [None] + (list(spec.speed_cap_range) if spec.speed_cap_obs else [])
+    for cap in caps:
+        for start in ((0.0, 0.0), (0.2, -0.8)):
+            acts = rng.uniform(-1.5, 1.5, (40, 2)).astype(np.float32)
+            acts[:5] = [[1.0, 1.0], [-1.0, -1.0], [3.0, -3.0], [0.0, 0.0], [0.5, -0.25]]
+            cmd = torch.tensor([start], dtype=torch.float32)
+            v_cap = None if cap is None else torch.tensor([cap])
+            cmds = []
+            for a in acts:
+                target = ts.action_to_target(torch.tensor(a)[None], v_cap=v_cap)
+                cmd = ts.rate_limit(cmd, target, ts.SPEC.control_dt)
+                cmds.append(cmd[0].tolist())
+            case = {"start": list(start), "actions": acts.tolist(), "cmds": cmds}
+            if cap is not None:
+                case["speed_cap"] = cap
+            cases.append(case)
     return cases
 
 
@@ -270,10 +315,10 @@ class CheckpointPolicy(torch.nn.Module):
         return self.mlp((obs - self.mean) / (self.std + NORMALIZER_EPS))
 
 
-def export_from_checkpoint(checkpoint: str, path: str) -> None:
+def export_from_checkpoint(checkpoint: str, path: str, spec=ts.SPEC) -> None:
     torch.onnx.export(
         CheckpointPolicy(checkpoint).eval(),
-        torch.zeros(1, ts.OBS_DIM),
+        torch.zeros(1, ts.obs_dim(spec)),
         path,
         input_names=["obs"],
         output_names=["actions"],
@@ -282,9 +327,10 @@ def export_from_checkpoint(checkpoint: str, path: str) -> None:
     )
 
 
-def inference_obs(rng, n: int) -> np.ndarray:
-    """정책이 보는 범위의 관측: 섹터 (0, 1], 목표 거리 [0, 1], 단위 방위, v [-0.2, 1], w [-1, 1]; 끝 몇 개는 범위 밖 극단값."""
-    obs = np.empty((n, ts.OBS_DIM), dtype=np.float32)
+def inference_obs(rng, n: int, spec=ts.SPEC) -> np.ndarray:
+    """정책이 보는 범위의 관측: 섹터 (0, 1], 목표 거리 [0, 1], 단위 방위, v [-0.2, 1], w [-1, 1], 선택 블록; 끝 몇 개는 범위 밖 극단값."""
+    dim = ts.obs_dim(spec)
+    obs = np.empty((n, dim), dtype=np.float32)
     obs[:, : ts.OBS_LIDAR] = rng.uniform(0.025, 1.0, (n, ts.OBS_LIDAR))
     obs[: n // 2, : ts.OBS_LIDAR] = 1.0  # 빈 바닥: 대부분 섹터가 아무것도 못 봄
     obs[:, ts.OBS_LIDAR] = rng.uniform(0.0, 1.0, n)
@@ -293,7 +339,21 @@ def inference_obs(rng, n: int) -> np.ndarray:
     obs[:, ts.OBS_LIDAR + 2] = np.cos(ang)
     obs[:, ts.OBS_LIDAR + 3] = rng.uniform(-0.2, 1.0, n)
     obs[:, ts.OBS_LIDAR + 4] = rng.uniform(-1.0, 1.0, n)
-    obs[-4:] = rng.uniform(-3.0, 3.0, (4, ts.OBS_DIM))
+    i = ts.BASE_DIM
+    if spec.prev_action_obs:
+        obs[:, i] = rng.uniform(-0.4, 1.4, n)
+        obs[:, i + 1] = rng.uniform(-1.0, 1.0, n)
+        i += 2
+    for _ in range(1, spec.lidar_frames):  # earlier frames near the current one
+        jitter = rng.uniform(-0.05, 0.05, (n, ts.OBS_LIDAR))
+        obs[:, i : i + ts.OBS_LIDAR] = np.clip(obs[:, : ts.OBS_LIDAR] + jitter, 0.025, 1.0)
+        i += ts.OBS_LIDAR
+    if spec.speed_cap_obs:
+        lo, hi = (c / ts.ACTION_LIMITS.v_max for c in spec.speed_cap_range)
+        obs[:, i] = rng.uniform(lo, hi, n)
+        i += 1
+    assert i == dim
+    obs[-4:] = rng.uniform(-3.0, 3.0, (4, dim))
     return obs
 
 
@@ -310,7 +370,16 @@ def main():
     p.add_argument("--route-spec", default="", help="route_spec.py the policy was trained with")
     p.add_argument("--source-branch", default="")
     p.add_argument("--source-commit", default="")
+    p.add_argument(
+        "--set",
+        action="append",
+        default=[],
+        metavar="FIELD=VALUE",
+        help="the TaskSpec observation fields the policy was trained with (train.py --set): "
+        "prev_action_obs, lidar_frames, lidar_stride_steps, speed_cap_obs, speed_cap_range",
+    )
     args = p.parse_args()
+    spec = ts.make_spec(ts.parse_overrides(args.set))
     if args.goal_rule == "lookahead":
         if args.lookahead_m <= 0 or args.follow_window <= 0 or not args.route_spec:
             p.error("--goal-rule lookahead needs --lookahead-m, --follow-window and --route-spec")
@@ -326,7 +395,7 @@ def main():
 
     out_onnx = os.path.join(args.out, "policy.onnx")
     if not args.onnx:
-        export_from_checkpoint(args.checkpoint, out_onnx)
+        export_from_checkpoint(args.checkpoint, out_onnx, spec)
     model = onnx.load(args.onnx or out_onnx)  # policy.onnx.data 도 읽음
     onnx.checker.check_model(model)
     onnx.save(model, out_onnx, save_as_external_data=False)
@@ -344,10 +413,15 @@ def main():
         "action_clamp_in_graph": False,
     }
     with open(os.path.join(args.out, "policy_spec.json"), "w", encoding="utf-8") as f:
-        json.dump(make_spec(source, goal_rule), f, indent=1)
+        json.dump(make_spec(source, goal_rule, spec), f, indent=1)
         f.write("\n")
 
-    obs = inference_obs(rng, 32)
+    width = torch.load(args.checkpoint, map_location="cpu", weights_only=False)[
+        "actor_state_dict"
+    ]["mlp.0.weight"].shape[1]
+    if width != ts.obs_dim(spec):
+        raise SystemExit(f"checkpoint takes {width} inputs, --set gives {ts.obs_dim(spec)}")
+    obs = inference_obs(rng, 32, spec)
     ref = torch_policy(args.checkpoint)(torch.tensor(obs)).numpy()
     sess = ort.InferenceSession(out_onnx, providers=["CPUExecutionProvider"])
     ort_out = np.concatenate([sess.run(None, {"obs": o[None]})[0] for o in obs])
@@ -364,8 +438,8 @@ def main():
     if args.fixtures:
         os.makedirs(args.fixtures, exist_ok=True)
         files = {
-            "obs_cases.json": obs_cases(rng),
-            "action_cases.json": action_cases(rng),
+            "obs_cases.json": obs_cases(rng, spec),
+            "action_cases.json": action_cases(rng, spec),
             "inference_cases.json": {
                 "atol": INFER_ATOL,
                 "rtol": INFER_RTOL,

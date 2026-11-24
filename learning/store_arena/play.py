@@ -23,6 +23,18 @@ parser.add_argument("--episodes", type=int, default=4, help="Episodes counted pe
 parser.add_argument("--track", type=int, default=16, help="Envs whose trajectories are saved.")
 parser.add_argument("--seed", type=int, default=7)
 parser.add_argument("--set", action="append", default=[], metavar="FIELD=VALUE")
+parser.add_argument(
+    "--still",
+    action="store_true",
+    help="command (v, w) = (0, 0) for the whole episode instead of the policy (unavoidable "
+    "collisions; with the same seed and --episodes 1 every env's episode is the policy run's)",
+)
+parser.add_argument(
+    "--capped",
+    action="store_true",
+    help="a policy trained without speed_cap_obs under --set speed_cap_range=c,c: its v target "
+    "at the trained top speed, clamped to c (what the plugin does with a format-2 policy)",
+)
 add_launcher_args(parser)
 args_cli = parser.parse_args()
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -54,12 +66,28 @@ def main():
             handle_deprecated_rsl_rl_cfg,
         )
 
-        agent_cfg = handle_deprecated_rsl_rl_cfg(GoalReachPPORunnerCfg(), check_rsl_rl_version())
+        agent_cfg = GoalReachPPORunnerCfg()
+        if arena.ts.make_spec(task_over).critic_privileged:
+            agent_cfg.obs_groups = {"actor": ["policy"], "critic": ["policy", "critic"]}
+        agent_cfg = handle_deprecated_rsl_rl_cfg(agent_cfg, check_rsl_rl_version())
         raw = sae.StoreArenaEnv(env_cfg)
         env = RslRlVecEnvWrapper(raw, clip_actions=agent_cfg.clip_actions)
         runner = create_rsl_rl_runner(env, agent_cfg)
         runner.load(args_cli.checkpoint)
         policy = runner.get_inference_policy(device=raw.device)
+        if args_cli.still:
+
+            def policy(_obs):
+                cap = raw.v_cap if raw.cap_active else None
+                return arena.ts.still_action(raw.num_envs, raw.device, v_cap=cap)
+
+        elif args_cli.capped:
+            if arena.ts.make_spec(task_over).speed_cap_obs or not raw.cap_active:
+                raise ValueError("--capped needs speed_cap_obs=0 and a speed_cap_range set")
+            trained = policy
+
+            def policy(obs):
+                return arena.ts.capped_action(trained(obs), raw.v_cap)
 
         routes = raw.routes
         n_boxes = torch.as_tensor(
@@ -74,11 +102,15 @@ def main():
         traj = {"xy": [], "done": [], "route": [], "cmd": [], "mover_xy": [], "mover_on": []}
         traj.update(robot_xy=[], robot_on=[], outcome=[])  # outcome: 끝난 스텝에 키 인덱스, 아니면 -1
         traj.update(front_m=[])  # 정면 30 deg 이내 최소 라이다 거리
+        traj.update(w_body=[])  # 측정 yaw 속도 (인계 시작은 돌면서 시작)
         n_rays = raw.lidar_ranges().shape[1]  # 레이는 -180 deg 부터: 정면은 n_rays // 2
         front = slice(n_rays // 2 - n_rays // 12, n_rays // 2 + n_rays // 12 + 1)
         # 센 에피소드별: 최소 mover 간격, 최소 로봇 간격, 결과 인덱스, 충돌 원인
         gaps, rgaps, codes, hits = [], [], [], []
         grazes, corners = [], []  # 센 에피소드별: 스침 충돌만 여부, 코너 시작 여부
+        # 센 에피소드별: env, 명령 w 부호 반전 수 (nav_bench doridori), 길이
+        ep_env, flips, ep_len = [], [], []
+        handovers = []  # 센 에피소드별: 인계 시작 여부 (handover_start_prob)
         obs = env.get_observations()
         route = raw.route.clone()
         step = 0
@@ -106,6 +138,10 @@ def main():
                 hits += raw.last_ep_hit_kind[counted].tolist()
                 grazes += raw.graze_only[counted].tolist()
                 corners += raw.last_ep_corner[counted].tolist()
+                handovers += raw.last_ep_handover[counted].tolist()
+                ep_env += counted.nonzero()[:, 0].tolist()
+                flips += raw.last_ep_cmd_flips[counted].tolist()
+                ep_len += raw.last_ep_len_s[counted].tolist()
                 code = torch.stack(outs, -1).float().argmax(-1)
                 codes += code[counted].tolist()
                 s = raw.success & counted
@@ -113,7 +149,7 @@ def main():
                 # 에피소드 시간 vs 최고속도로 가는 전역 경로 시간
                 path_s = (
                     torch.as_tensor(routes.total, device=raw.device)[route[s]]
-                    / arena.ts.ACTION_LIMITS.v_max
+                    / raw.last_ep_cap[s]
                 )
                 succ_ratio += (raw.last_ep_len_s[s] / path_s).tolist()
             ep_done += d.long()
@@ -126,6 +162,7 @@ def main():
             traj["done"].append(d[:K].cpu().numpy())
             traj["route"].append(route[:K].cpu().numpy())
             traj["cmd"].append(raw.cmd[:K].cpu().numpy())
+            traj["w_body"].append(raw.body_velocity()[:K, 1].cpu().numpy())
             traj["front_m"].append(raw.lidar_ranges()[:K, front].amin(-1).cpu().numpy())
             ms_state = raw.mover_state()
             traj["mover_xy"].append(torch.stack([m[0][:K] for m in ms_state], 1).cpu().numpy())
@@ -157,12 +194,19 @@ def main():
 
         by_gap = split_by_gap(gaps, "no mover")
         grazes, corners = np.array(grazes, dtype=bool), np.array(corners, dtype=bool)
+        handovers = np.array(handovers, dtype=bool)
 
         def rates_of(sel):
             m = max(int(sel.sum()), 1)
             return {"episodes": int(sel.sum()),
                     **{k: round(float(((codes == i) & sel).sum()) / m, 4)
                        for i, k in enumerate(keys)}}
+        flips, ep_len = np.array(flips), np.array(ep_len)
+
+        def flips_per_min(sel):
+            minutes = float(ep_len[sel].sum()) / 60.0
+            return round(float(flips[sel].sum()) / minutes, 2) if minutes > 0 else None
+
         hits = np.array(hits)
         coll = codes == keys.index("collision")
         by_hit = {kind: int((coll & (hits == i)).sum()) for i, kind in enumerate(sae.HIT_KINDS)}
@@ -183,7 +227,11 @@ def main():
             # 접촉 센서가 놓친 충돌: 발자국 여유 <= graze_m
             "collisions_graze_only": int(grazes.sum()),
             # 경로 반대쪽을 보고 벽 근처에서 시작한 에피소드 (corner_start_prob)
-            "by_start": {"corner": rates_of(corners), "other": rates_of(~corners)},
+            "by_start": {
+                "corner": rates_of(corners),
+                "handover": rates_of(handovers),
+                "other": rates_of(~corners & ~handovers),
+            },
             "success_time_s_mean": round(float(np.mean(succ_times)), 2) if succ_times else None,
             "success_time_s_p90": round(float(np.percentile(succ_times, 90)), 2)
             if succ_times
@@ -192,6 +240,12 @@ def main():
             if succ_ratio
             else None,
             "lidar_min_m": round(lidar_min, 4),
+            # sign changes of the commanded w per minute driven, skipping |w| < flip_deadband
+            # (tools/nav_bench doridori): all counted episodes, and the successful ones
+            "w_flips_per_min": flips_per_min(np.ones(len(flips), dtype=bool)),
+            "w_flips_per_min_success": flips_per_min(codes == 0),
+            "still": bool(args_cli.still),
+            "capped": bool(args_cli.capped),
             "spec_overrides": task_over,
             "arena_overrides": arena_over,
         }
@@ -204,6 +258,15 @@ def main():
         report["alone_timeouts"] = timeouts.alone_summary(tz, rows, max_episodes=E)
         with open(os.path.join(args_cli.out, "eval.json"), "w", encoding="utf-8") as f:
             json.dump(report, f, indent=1)
+        # per counted episode, for pairing runs of the same seed (unavoidable failures)
+        np.savez_compressed(
+            os.path.join(args_cli.out, "episodes.npz"),
+            env=np.array(ep_env),
+            code=codes,
+            keys=np.array(keys),
+            flips=flips,
+            length_s=ep_len,
+        )
         np.savez_compressed(
             os.path.join(args_cli.out, "rollouts.npz"),
             **{k: v for k, v in tz.items() if k != "dt"},

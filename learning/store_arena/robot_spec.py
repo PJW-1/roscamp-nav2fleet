@@ -287,7 +287,7 @@ def robot_step(
         target = torch.where(behind.any(-1), route["time"].gather(1, k[:, None])[:, 0], 0.0)
         new_back = (t - target).clamp(min=0.0)
     else:
-        new_back = torch.full_like(back, backoff_s)
+        new_back = torch.zeros_like(back) + backoff_s  # backoff_s: 숫자 또는 (n,)
     # 후퇴는 우리 로봇이 길을 잡고 있어도 자기 노드에서 끝남
     used = (t_old - t).clamp(min=0.0) if retreat else torch.full_like(back, dt)
     back = torch.where(start_back, new_back, (back - used).clamp(min=0.0))
