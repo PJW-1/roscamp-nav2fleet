@@ -3,7 +3,7 @@
 Pode 한 대의 이동·도킹 명령을 받아 Nav2로 넘기고 상태를 보고한다. Pode Pi에서 namespace `/{pode}`로 돈다.
 
 - 액션 서버: `move_to` (`MoveTo`), `dock` (`Dock`), `retreat` (`Retreat`, 제안. Pode 계약 3절 10번). 이름과 QoS는 `interfaces/fleet_interfaces/contract.yaml`에서 읽는다.
-- 발행: `state` (`RobotState`, 10 Hz, 변할 때만이 아니라 계속)
+- 발행: `state` (`RobotState`, 5 Hz, 변할 때만이 아니라 계속)
 - 구독: `/fleet/heartbeat`(계약의 HEARTBEAT QoS), `odom`(속도), `local_costmap/costmap`(BLOCKED 판단), `/fleet/robots`(로봇단 교착 처리에서 다른 로봇의 위치와 `priority`, 계약 0.13-draft)
 - Nav2: `move_to`의 `mode`가 `follow_path`(비면 같다)면 controller의 `follow_path`(`FollowPath`)를, `nav_goal`이면 bt_navigator의 `navigate_to_pose`(`NavigateToPose`)를 부른다(계약 0.11-draft 제안).
 - 위치: TF `map` → `base_footprint`(AMCL). `pose_timeout_s`(1 s)보다 오래된 TF는 위치를 모르는 것으로 친다.
