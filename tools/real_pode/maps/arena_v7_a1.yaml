@@ -1,0 +1,10 @@
+# 생성 파일: python3 -m fleet_gz_sim.arena --layout v7 --real --out /tmp/real_v7
+# 실물 키트: /tmp/real_v7/maps/의 지도를 tools/real_pode/maps로 복사한다
+# 갈래 a1: 0.01 m, 칠하기 touch (nav_map_variant:=a1)
+image: arena_v7_a1.pgm
+mode: trinary
+resolution: 0.01
+origin: [-0.15, -0.15, 0.0]
+negate: 0
+occupied_thresh: 0.65
+free_thresh: 0.25

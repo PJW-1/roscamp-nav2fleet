@@ -70,13 +70,21 @@ ARGS = {
                               " tools/avoid_regression.py, tools/replay.py가 읽는다"),
     "use_order_model": ("","true/false: 관제의 use_order_model 파라미터(order 모델이 있는"
                             " 관제만 읽는다). 비우면 params 파일의 값"),
+    "plan_keep": ("false", "true면(시험 중) Nav2 goal을 다시 계획할 때 길이가 비슷한 다른 길로"
+                           " 바꾸지 않고 지금 길을 지킨다(pode_plan_keep). 노드는 sim_stand_in"
+                           " 프로세스 안에서 돈다. false면 main과 같다"),
+    "nav_rl": ("", "로봇마다 RL controller FollowPathRL을 더한다(비교용): rl은 RL만, rl_shim은"
+                   " RotationShim으로 감싼 것. 설정은 nav_overrides/follow_path_rl(_shim).yaml."
+                   " Nav2 goal에 쓰려면 controller 선택 토픽으로 고른다. 비면 없음"),
+    "nav_bt_xml": ("", "로봇마다 navigate_to_pose 행동 트리(pode_nav_config/bt의 파일 이름이나 절대"
+                       " 경로, 비교용). 비면 plan_keep에 따라 기본 트리나 길 유지 트리"),
     "nav_overrides": ("", "로봇마다 Nav2 설정 위에 깊이 덮을 yaml 파일(주행 값 비교용). 비면 없음."
                           " 충돌 검사와 속도 상한은 덮지 못한다"),
     "nav_late": ("", "시험용 '로봇:초'(예 pode2:40). 그 로봇은 위치(AMCL)를 먼저 띄우고 controller·"
                      "planner·bt_navigator만 그만큼 늦게 켠다. 비면 없음"),
     "nav_map_variant": ("", "global costmap 지도 갈래(v7만): 비면 배치 기본(v7은 a, 2.5 cm),"
-                            " base는 5 cm 지도, b는 칸 중심 규칙, ab는 둘 다. 1 cm 지도와"
-                            " keepout 마스크는 그대로"),
+                            " base는 5 cm 지도, b는 칸 중심 규칙, ab는 둘 다, a1은 a 규칙의 1 cm."
+                            " 1 cm 지도와 keepout 마스크는 그대로"),
 }
 ARMS = "arm1 arm2 arm3"
 
@@ -87,6 +95,32 @@ def flag(text: str, name: str) -> bool:
     if value not in ("true", "false", "1", "0"):
         raise ValueError(f"{name} must be true or false, got {text!r}")
     return value in ("true", "1")
+
+
+RL_FILES = {"rl": "follow_path_rl.yaml", "rl_shim": "follow_path_rl_shim.yaml"}
+
+
+def rl_overrides_of(choice: str) -> dict | None:
+    """launch 인자 nav_rl: 비면 None, rl이나 rl_shim이면 저장소의 그 RL 설정 파일(nav_overrides의
+    plugin 막음은 사용자 파일에만 건다. 이 두 파일은 새 controller FollowPathRL만 더한다)."""
+    choice = choice.strip()
+    if not choice:
+        return None
+    if choice not in RL_FILES:
+        raise ValueError(f"nav_rl must be one of {sorted(RL_FILES)} or empty, got {choice!r}")
+    path = launch_parts.share("fleet_gz_sim") / "nav_overrides" / RL_FILES[choice]
+    return yaml.safe_load(path.read_text(encoding="utf-8"))
+
+
+def bt_xml_of(name: str) -> str:
+    """launch 인자 nav_bt_xml: 비면 빈 문자열. 이름이면 pode_nav_config/bt 안의 파일, 절대 경로면 그 파일."""
+    name = name.strip()
+    if not name:
+        return ""
+    path = Path(name) if Path(name).is_absolute() else launch_parts.share("pode_nav_config") / "bt" / name
+    if not path.is_file():
+        raise ValueError(f"nav_bt_xml: no such behavior tree file: {path}")
+    return str(path)
 
 
 def late_of(text: str, robots) -> dict[str, float]:
@@ -300,10 +334,21 @@ def _start(context):
               if flag(value("scan_filter"), "scan_filter") else "")
     peers = flag(value("peer_obstacles"), "peer_obstacles")
     stand_in = flag(value("vision_stand_in"), "vision_stand_in")
+    keep = flag(value("plan_keep"), "plan_keep")
+    bt_xml = bt_xml_of(value("nav_bt_xml"))
     params_file = params_for(params_file_of(value("fleet_params_file")), value("result_dir"),
                              value("battery_low_pct"))
     max_speed = launch_parts.speed_of(value("nav_max_speed"))
     nav_overrides = overrides_of(value("nav_overrides"))
+    rl = rl_overrides_of(value("nav_rl"))
+    if rl is not None:
+        # 사용자가 controller 목록을 주었으면 그 목록 뒤에 FollowPathRL만 더한다
+        mine = ((nav_overrides or {}).get("controller_server") or {}).get(
+            "ros__parameters", {}).get("controller_plugins")
+        if mine is not None:
+            rl["controller_server"]["ros__parameters"]["controller_plugins"] = (
+                list(mine) + [name for name in ["FollowPathRL"] if name not in mine])
+        nav_overrides = launch_parts.merge(nav_overrides or {}, rl)
     late = late_of(value("nav_late"), poses)
     # low_battery가 있을 때만 pode_fsm이 sim_stand_in의 배터리를 본다
     battery = has_low_battery(data, scenario_seed)
@@ -325,6 +370,7 @@ def _start(context):
                                       peer_layer=peers, nav_overrides=nav_overrides,
                                       avoidance_package=value("avoidance_package"),
                                       vision_stand_in=stand_in,
+                                      plan_keep=keep, plan_keep_node=False, bt_xml=bt_xml,
                                       navigation_delay_s=late.get(robot, 0.0),
                                       battery_topic=(launch_parts.BATTERY_TOPIC.format(robot=robot)
                                                      if battery else ""))
@@ -335,6 +381,7 @@ def _start(context):
                         parameters=[{"use_sim_time": True, "robots": robots,
                                      "scenario_file": scenario_file, "dock_stub": stub,
                                      "peer_obstacles": peers,
+                                     "plan_keep_nodes": keep,
                                      "map_file": layout,
                                      **({} if scenario_seed is None
                                         else {"scenario_seed": scenario_seed})}]))

@@ -1,0 +1,236 @@
+"""flip_metrics의 순수 함수 시험(판 폴더 없이)."""
+import sys
+from pathlib import Path
+
+import numpy as np
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import flip_metrics as fm  # noqa: E402
+
+GOAL = (2.0, 0.0)
+
+
+def line(pts):
+    return [(float(x), float(y)) for x, y in pts]
+
+
+def route_a():
+    # 아래로 도는 길: (0,0) -> (0,-1) -> (2,-1) -> (2,0)
+    return line([(0, 0), (0, -1), (2, -1), GOAL])
+
+
+def dense(pts, step=0.05):
+    out = []
+    for a, b in zip(pts, pts[1:]):
+        k = max(1, int(np.hypot(b[0] - a[0], b[1] - a[1]) / step))
+        out += [(a[0] + (b[0] - a[0]) * i / k, a[1] + (b[1] - a[1]) * i / k) for i in range(k)]
+    return out + [pts[-1]]
+
+
+A = dense(route_a())
+B = dense(line([(0, 0), (0, 1), (2, 1), GOAL]))
+A_TAIL = A[10:]
+
+
+def test_flip_count_alternating():
+    # A, B, A, A: 뒤집힘 2번
+    plans = [(0, A), (1, B), (2, A), (3, A_TAIL)]
+    flips, off = fm.count_flips(plans)
+    assert len(flips) == 2 and off == 0
+
+
+def test_same_route_not_flip():
+    flips, off = fm.count_flips([(0, A), (1, A_TAIL), (2, A_TAIL[5:])])
+    assert not flips and off == 0
+
+
+def test_off_route_counted_separately():
+    far = dense(line([(0.0, 2.0), (2.0, 2.0), GOAL]))
+    flips, off = fm.count_flips([(0, A), (1, far)])
+    assert not flips and off == 1
+
+
+def test_different_goal_not_flip():
+    other = dense(line([(0, 0), (0, 1), (2, 1), (2.5, 0)]))
+    flips, off = fm.count_flips([(0, A), (1, other)])
+    assert not flips and off == 0
+
+
+def test_spin_runs():
+    t = np.arange(0, 4, 0.05)
+    cond = (t >= 1.0) & (t < 1.6)  # 0.55 s: 센다
+    cond |= (t >= 2.0) & (t < 2.3)  # 0.25 s: 세지 않음
+    assert len(fm.count_runs(t, cond, 0.5)) == 1
+
+
+def truth_spin():
+    # 0~2 s 정지, 2~4 s 제자리 회전(1 rad/s), 4~6 s 직진
+    t = np.arange(0, 6, 0.05)
+    yaw = np.where(t < 2, 0.0, np.where(t < 4, t - 2, 2.0))
+    x = np.where(t < 4, 0.5, 0.5 + 0.1 * (t - 4))
+    y = np.full_like(t, 0.5)
+    return {"pode1": (t, x, y, yaw)}
+
+
+HALL = [[0.0, 0.0, 1.0, 1.0]]
+
+
+def test_hall_spin_counts_one_in_place_turn():
+    n, total = fm.hall_spins(truth_spin(), None, HALL)
+    assert n == 1 and 1.5 < total < 2.5
+
+
+def test_hall_spin_needs_nav_goal_window():
+    assert fm.hall_spins(truth_spin(), {"pode1": [(2.5, 3.5)]}, HALL)[0] == 1
+    assert fm.hall_spins(truth_spin(), {"pode1": [(4.5, 5.5)]}, HALL)[0] == 0
+    assert fm.hall_spins(truth_spin(), {}, HALL)[0] == 0
+
+
+def test_hall_spin_outside_hall():
+    assert fm.hall_spins(truth_spin(), None, [[5.0, 5.0, 6.0, 6.0]])[0] == 0
+
+
+def test_dist_jumps():
+    s = {("pode1", 1): [1.0, 0.95, 0.90, 1.2, 1.15], ("pode1", 2): [0.5, 0.2]}
+    assert fm.dist_jumps(s) == 2  # 늘어난 것 1, 줄어든 것 1
+
+
+def test_dist_jumps_skips_negative_and_none():
+    s = {("pode1", 1): [1.0, -1.0, None, 0.95, 0.9]}
+    assert fm.dist_jumps(s) == 0
+
+
+def test_shim_spins():
+    t = [i * 0.05 for i in range(40)]
+    cmds = {"pode1": [(ti, 0.0 if 5 <= i < 15 else 0.1, 0.5 if 5 <= i < 15 else 0.0)
+                      for i, ti in enumerate(t)]}
+    assert fm.shim_spins(cmds) == 1
+
+
+def test_nav_intervals():
+    rows = [
+        {"t": 1.0, "out": "MoveOrderCmd", "robot": "pode1", "goal_id": 1,
+         "base": [{"seq_id": 1, "mode": "follow_path"}, {"seq_id": 2, "mode": "nav_goal"}]},
+        {"t": 2.0, "in": "on_move_feedback", "args": ["pode1", 1, 0, False, "", 0.5]},
+        {"t": 3.0, "in": "on_move_feedback", "args": ["pode1", 1, 1, False, "", 0.5]},
+        {"t": 5.0, "in": "on_move_result", "args": ["pode1", 1, True, "", 2]},
+    ]
+    assert fm.nav_intervals(rows) == {"pode1": [(3.0, 5.0)]}
+    assert fm.nav_intervals([]) is None
+
+
+def test_recoveries():
+    rows = [{"in": "on_robot_state", "args": ["pode1", 0, 0, 0, s]}
+            for s in ("IDLE", "MOVING", "RECOVERING", "MOVING", "BLOCKED", "RECOVERING")]
+    assert fm.record_recoveries(rows) == (1, True)
+
+
+def cmd(t, gid, upd, base):
+    return {"t": t, "out": "MoveOrderCmd", "robot": "pode1", "goal_id": gid, "order_id": "pode1-1",
+            "update_id": upd, "base": [{"seq_id": s, "mode": m} for s, m in base]}
+
+
+def fb(t, gid, done):
+    return {"t": t, "in": "on_move_feedback", "args": ["pode1", gid, done, False, "", 0.5]}
+
+
+def res(t, gid, ok=True):
+    return {"t": t, "in": "on_move_result", "args": ["pode1", gid, ok, "" if ok else "SUPERSEDED", 0]}
+
+
+def test_nav_intervals_keep_the_running_nav_goal_across_an_update():
+    # 갱신 goal 2의 base는 조각 3뿐이지만 로봇은 조각 2(nav_goal)를 끝까지 한다(11-24 기록)
+    rows = [cmd(1.0, 1, 0, [(1, "follow_path"), (2, "nav_goal")]), fb(3.0, 1, 1),
+            cmd(4.0, 2, 1, [(3, "follow_path")]), fb(4.01, 2, 1), res(4.02, 1, ok=False),
+            fb(6.0, 2, 2), res(8.0, 2)]
+    assert fm.nav_intervals(rows) == {"pode1": [(3.0, 6.0)]}
+
+
+def test_nav_intervals_start_an_added_nav_goal_only_when_reached():
+    rows = [cmd(1.0, 1, 0, [(1, "follow_path")]), fb(1.5, 1, 0),
+            cmd(2.0, 2, 1, [(2, "nav_goal")]), res(2.01, 1, ok=False), fb(2.2, 2, 0),
+            fb(3.0, 2, 1), res(5.0, 2)]
+    assert fm.nav_intervals(rows) == {"pode1": [(3.0, 5.0)]}
+
+
+def test_hall_spin_metric_is_unavailable_without_order_records():
+    assert fm.hall_spin_metric(truth_spin(), [], HALL) == (None, None, "none")
+    rows = [cmd(1.0, 1, 0, [(1, "nav_goal")]), res(5.0, 1)]
+    n, total, src = fm.hall_spin_metric(truth_spin(), rows, HALL)
+    assert (n, src) == (1, "fleet_record") and 1.5 < total < 2.5
+
+
+def test_pick_cmds_chooses_the_topic_per_robot():
+    bag = {"cmd": {"pode1": [(0.0, 0.1, 0.0)]}, "cmd_nav": {"pode1": [(0.0, 0.2, 0.0)],
+                                                           "pode2": [(0.0, 0.3, 0.0)]}}
+    assert fm.pick_cmds(bag) == {"pode1": [(0.0, 0.1, 0.0)], "pode2": [(0.0, 0.3, 0.0)]}
+    assert fm.pick_cmds(None) == {}
+
+
+def test_nav_intervals_use_the_old_goals_progress_after_an_update():
+    # 갱신 직후 옛 goal의 feedback(조각 1 끝)이 먼저 오면 그때 nav_goal이 시작된다
+    rows = [cmd(1.0, 1, 0, [(1, "follow_path"), (2, "nav_goal")]), fb(1.5, 1, 0),
+            cmd(4.0, 2, 1, [(3, "follow_path")]), fb(4.01, 1, 1), res(4.02, 1, ok=False),
+            fb(4.2, 2, 1), fb(6.0, 2, 2), res(8.0, 2)]
+    assert fm.nav_intervals(rows) == {"pode1": [(4.01, 6.0)]}
+    # SUPERSEDED 결과에 담긴 last_done_seq도 쓴다
+    sup = {"t": 4.02, "in": "on_move_result", "args": ["pode1", 1, False, "SUPERSEDED", 1]}
+    rows = [cmd(1.0, 1, 0, [(1, "follow_path"), (2, "nav_goal")]), fb(1.5, 1, 0),
+            cmd(4.0, 2, 1, [(3, "follow_path")]), sup, fb(6.0, 2, 2), res(8.0, 2)]
+    assert fm.nav_intervals(rows) == {"pode1": [(4.02, 6.0)]}
+
+
+LAUNCH = """[fleet_manager_node-20] [INFO] [1000.5] [fleet_manager]: BLOCKED_WAIT stands before something
+[fleet_manager_node-20] [WARN] [1003.0] [fleet_manager]: GOAL_RETRY PATH_NOT_CONNECTED, attempt 1
+[pode_fsm_node-7] [INFO] [1004.0] [pode1.pode_fsm]: state MOVING -> RECOVERING wait
+[fleet_manager_node-20] [ERROR] [1009.0] [fleet_manager]: ROBOT_ISOLATED NAV_ABORTED; holds ['HALL']
+"""
+
+
+def test_events_from_launch_use_sim_time():
+    ev = fm.events_from_launch(LAUNCH, lambda w: w - 1000.0)
+    assert [(e["time_s"], e["code"]) for e in ev] == [
+        (0.5, "BLOCKED_WAIT"), (3.0, "GOAL_RETRY"), (9.0, "ROBOT_ISOLATED")]
+    assert fm.pnc_of(ev) == 1
+
+
+def test_launch_lines_until_cut_by_sim_time():
+    lines = fm.launch_lines_until(LAUNCH, lambda w: w - 1000.0, 5.0)
+    assert len(lines) == 3 and fm.log_recoveries("\n".join(lines)) == 1
+    assert len(fm.launch_lines_until(LAUNCH, lambda w: w - 1000.0, None)) == 4
+
+
+def test_cut_series_and_truth():
+    bag = {"plan": {"pode1": [(1.0, [(0, 0)]), (6.0, [(1, 1)])]}, "cmd": {}}
+    assert fm.cut_bag(bag, 5.0) == {"plan": {"pode1": [(1.0, [(0, 0)])]}, "cmd": {}}
+    truth = {"pode1": (np.array([1.0, 6.0]), np.array([0.0, 1.0]), np.array([0.0, 1.0]),
+                       np.array([0.0, 0.0]))}
+    cut = fm.cut_truth(truth, 5.0)
+    assert list(cut["pode1"][0]) == [1.0] and list(cut["pode1"][1]) == [0.0]
+    rows = [{"t": 1.0}, {"t": 6.0}, {"x": 1}]
+    assert fm.cut_rows(rows, 5.0) == [{"t": 1.0}, {"x": 1}]
+
+
+def test_pnc_counts_the_reason_anywhere_in_the_detail_like_the_judge():
+    ev = [{"time_s": 1.0, "code": "GOAL_RETRY", "detail": "attempt 1 failed: PATH_NOT_CONNECTED"},
+          {"time_s": 2.0, "code": "GOAL_FAILED", "detail": "PATH_NOT_CONNECTED after 3 attempts"},
+          {"time_s": 3.0, "code": "BLOCKED_WAIT", "detail": "PATH_NOT_CONNECTED"}]
+    assert fm.pnc_of(ev) == 2
+
+
+def test_wall_to_sim_extrapolates_past_the_truth_record():
+    w2s = fm.wall_to_sim(np.array([100.0, 110.0]), np.array([0.0, 5.0]))
+    assert w2s(105.0) == 2.5
+    assert w2s(120.0) == 10.0 and w2s(90.0) == -5.0
+
+
+def test_rtf_uses_each_robots_first_and_last_sample():
+    truth = {"pode1": (np.array([0.0, 50.0, 10.0]),), "pode2": (np.array([1.0, 9.0]),)}
+    # 첫 시각 중 가장 이른 0, 마지막 시각 중 가장 늦은 10
+    assert fm.rtf_of(truth, np.array([0.0, 20.0])) == 0.5
+
+
+def test_wall_to_sim_survives_equal_end_stamps():
+    # truth 로거는 wall을 소수 둘째 자리까지 적어 끝의 두 값이 같을 수 있다
+    w2s = fm.wall_to_sim(np.array([100.0, 100.0, 110.0, 110.0]), np.array([0.0, 0.1, 4.9, 5.0]))
+    assert w2s(120.0) == 10.0 and w2s(90.0) == -5.0

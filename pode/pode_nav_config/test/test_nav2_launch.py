@@ -632,3 +632,74 @@ def test_a_vision_switch_that_is_not_true_or_false_stops_the_launch(name):
     from launch.substitutions.substitution_failure import SubstitutionFailure
     with pytest.raises((ValueError, SubstitutionFailure), match=f"{name} must be true or false"):
         _expand("false", **{name: "ture"})
+
+
+# ---- 길 유지(pode_plan_keep, 시험 중): 기본은 꺼짐(main과 같음) ----
+
+def _plan_keep(found):
+    [node] = [n for n, _ in found if n.node_name == "/pode1/plan_keep"]
+    return node
+
+
+def _respawn(node, context):
+    from launch.utilities.type_utils import perform_typed_substitution
+    for owner in ("ExecuteLocal", "ExecuteProcess"):
+        if hasattr(node, f"_{owner}__respawn"):
+            value = getattr(node, f"_{owner}__respawn")
+            return value if isinstance(value, bool) else perform_typed_substitution(
+                context, value, bool)
+    raise AssertionError("launch keeps respawn somewhere else")
+
+
+def _bt_xml(found):
+    navigator = [n for n, _ in found if n.node_name == "/pode1/bt_navigator"]
+    if navigator:
+        import yaml
+        trees = []
+        for path, is_file in navigator[0]._Node__expanded_parameter_arguments:
+            if not is_file:
+                continue
+            for value in yaml.safe_load(Path(path).read_text(encoding="utf-8")).values():
+                given = value.get("ros__parameters", {}) if isinstance(value, dict) else {}
+                trees += [given["default_nav_to_pose_bt_xml"]] if (
+                    "default_nav_to_pose_bt_xml" in given) else []
+        [tree] = trees
+        return tree
+    [(_, requests)] = [(n, r) for n, r in found if r]
+    [request] = [r for r in requests if r.node_name == "bt_navigator"]
+    return _params(request)["default_nav_to_pose_bt_xml"]
+
+
+@pytest.mark.parametrize("composition", ["false", "true"])
+def test_by_default_no_plan_keep_node_runs_and_the_default_tree_plans(composition):
+    _, found = _expand(composition)
+    assert not [n for n, _ in found if n.node_name == "/pode1/plan_keep"]
+    assert _bt_xml(found).endswith("bt/navigate_to_pose_w_replanning_and_recovery_goal.xml")
+
+
+@pytest.mark.parametrize("composition", ["false", "true"])
+def test_plan_keep_starts_the_node_and_switches_to_the_keep_tree(composition):
+    context, found = _expand(composition, plan_keep="true")
+    node = _plan_keep(found)
+    assert node.node_package == "pode_plan_keep" and node.node_executable == "plan_keep"
+    assert _respawn(node, context) is True
+    assert _bt_xml(found).endswith("bt/navigate_to_pose_w_replanning_and_recovery_goal_keep.xml")
+
+
+def test_plan_keep_node_false_leaves_the_node_to_another_process():
+    _, found = _expand("false", plan_keep="true", plan_keep_node="false")
+    assert [n.node_name for n, _ in found] == [f"/pode1/{name}" for name in NAMES]
+    assert _bt_xml(found).endswith("_keep.xml")
+
+
+def test_a_given_tree_wins_over_the_plan_keep_choice():
+    _, found = _expand("false", bt_xml="/trees/mine.xml")
+    assert _bt_xml(found) == "/trees/mine.xml"
+
+
+@pytest.mark.parametrize("name", ["plan_keep", "plan_keep_node"])
+def test_a_plan_keep_switch_that_is_not_true_or_false_stops_the_launch(name):
+    from launch.substitutions.substitution_failure import SubstitutionFailure
+    more = {"plan_keep": "true"} if name == "plan_keep_node" else {}
+    with pytest.raises((ValueError, SubstitutionFailure), match=f"{name} must be true or false"):
+        _expand("false", **{**more, name: "ture"})

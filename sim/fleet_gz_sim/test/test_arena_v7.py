@@ -12,7 +12,7 @@ from fleet_gz_sim import arena_maps, fleet_setup  # noqa: E402
 
 PKG = Path(__file__).resolve().parents[1]
 # v7 진열대, 칸막이 상자 목록(실측 반영)
-BOXES = [(0.70, 0.77, 1.56, 0.783), (0.65, 0.365, 0.99, 0.405), (1.25, 0.365, 1.56, 0.405),
+BOXES = [(0.65, 0.77, 1.56, 0.775), (0.70, 0.365, 0.99, 0.405), (1.25, 0.365, 1.56, 0.405),
          (0.24, 0.0, 0.26, 0.10), (0.50, 0.0, 0.52, 0.10)]
 
 
@@ -49,9 +49,9 @@ def test_v7_charging_stalls_and_express_are_open_in_the_fine_map(site):
         assert free(x, 0.05)
     assert not free(0.25, 0.05) and not free(0.51, 0.05)
     assert free(0.77, 0.05)  # 칸막이 3이 있던 자리
-    assert free(1.0, 0.85) and free(1.0, 0.95)   # 급행 0.17(실측) 안
-    # 시뮬 진열대 A 북쪽 면 0.783: 1 cm 지도에서 0.78~0.79 칸까지 진열대
-    assert not free(1.0, 0.785) and free(1.0, 0.795)
+    assert free(1.0, 0.85) and free(1.0, 0.95)   # 급행 안
+    # 진열대 A 북쪽 면 0.775: 1 cm 지도에서 0.77~0.78 칸까지 진열대
+    assert not free(1.0, 0.775) and free(1.0, 0.785)
     # 북쪽 벽 안쪽 면 0.98: 1 cm 지도에서 0.98~0.99 칸은 벽이다
     assert free(1.0, 0.975) and not free(1.0, 0.985)
 
@@ -62,7 +62,6 @@ def test_v7_real_kit_maps_are_drawn_with_the_measured_shelf(tmp_path):
     arena.main(["--layout", "v7", "--real", "--out", str(tmp_path)])
     site = load_fleet_map("v7")
     assert arena.real_site(site).sim_shelves == site.shelves
-    assert site.sim_shelves != site.shelves  # 원본은 그대로
     lines = (tmp_path / "maps" / "arena_v7_fine.yaml").read_text(encoding="utf-8").splitlines()
     assert lines[1] == "# 실물 키트: /tmp/real_v7/maps/의 지도를 tools/real_pode/maps로 복사한다"
     # 머리 줄 명령은 --out만 바꿔 돌려 같은 파일이 나오는지 본다
@@ -77,7 +76,6 @@ def test_v7_real_kit_maps_are_drawn_with_the_measured_shelf(tmp_path):
         assert (tmp_path / "again" / "maps" / path.name).read_bytes() == path.read_bytes()
     real = arena_maps.pgm(arena_maps.FINE_M, arena.real_site(site))
     assert (tmp_path / "maps" / "arena_v7_fine.pgm").read_bytes() == real
-    assert real != arena_maps.pgm(arena_maps.FINE_M, site)
     assert (tmp_path / "maps" / "arena_v7_a.yaml").exists()
 
 
@@ -263,7 +261,7 @@ def _joined(grid, a, b, shut=()):
 
 
 V7_GAP = (0.99, 0.365, 1.25, 0.405)  # 남쪽 진열대 사이 건넘 틈
-BOTH_ENDS = [(0.0, 0.30, 0.65, 0.45), (1.56, 0.30, 1.98, 0.45)]  # 서쪽 끝과 동쪽 통로
+BOTH_ENDS = [(0.0, 0.30, 0.70, 0.45), (1.56, 0.30, 1.98, 0.45)]  # 서쪽 끝과 동쪽 통로
 
 
 def test_v7_the_crossing_gap_is_open_for_nav2_on_the_5cm_costmap(site):
@@ -295,10 +293,10 @@ def test_v7_the_crossing_gap_has_no_keepout_cell_in_the_fine_mask(site):
 
 
 @pytest.mark.parametrize("shut, pairs", [
-    # 서쪽 끝(x < 0.65)만 남김: 동쪽 통로와 건넘 틈을 막아 본다
+    # 서쪽 끝(x < 0.70)만 남김: 동쪽 통로와 건넘 틈을 막아 본다
     ([(1.56, 0.30, 1.98, 0.45), V7_GAP], [("O_IN", "Q1"), ("O_IN", "Q2"), ("O_OUT", "Q2")]),
     # 동쪽 통로(1.65~1.72)만 남김: 서쪽 끝과 건넘 틈을 막아 본다
-    ([(0.0, 0.30, 0.65, 0.45), V7_GAP],
+    ([(0.0, 0.30, 0.70, 0.45), V7_GAP],
      [("O_IN", "Q1"), ("O_IN", "Q2"), ("O_OUT", "Q2"), ("M_E", "Q2")]),
 ])
 def test_v7_north_and_south_stay_joined_by_each_way_alone(site, shut, pairs):
@@ -398,7 +396,7 @@ def test_v7_the_south_yard_stays_open_above_the_divider_keepout(site, a, b):
     # 동쪽으로 가는 길은 남쪽 마당으로 이어진다: 서쪽 끝을 막아도 이어진다
     if b in ("Q1", "Q2"):
         assert _joined(grid, site.node_pose(a), site.node_pose(b),
-                       shut=[(0.0, 0.40, 0.65, 0.98)]), (a, b)
+                       shut=[(0.0, 0.40, 0.70, 0.98)]), (a, b)
 
 
 # ---- 가운데 통로 갈래 지도(A: 2.5 cm, B: 칸 중심 규칙) ----
@@ -417,12 +415,12 @@ def _free_rows(grid, x, y0, y1, resolution, site):
     (0.05, "touch", 6, 0.45, 0.75),  # 기본: 상자가 걸친 칸은 막힘
     (0.05, "centre", 7, 0.40, 0.75),  # B
     (0.025, "touch", 13, 0.425, 0.75),  # A
-    (0.025, "centre", 15, 0.40, 0.775),  # A+B
+    (0.025, "centre", 14, 0.40, 0.75),  # A+B
 ])
 def test_v7_middle_corridor_free_cells_at_x_095(site, resolution, paint, count, low, high):
     """가운데 통로(진열대 사이 y 0.405~0.77)를 x 0.95에서 가로지르는 빈칸."""
     grid = arena_maps.occupancy(resolution, site, paint)
-    assert _free_rows(grid, 0.95, 0.385, 0.79, resolution, site) == (count, low, high)
+    assert _free_rows(grid, 0.95, 0.385, 0.772, resolution, site) == (count, low, high)
 
 
 def test_the_default_paint_is_the_touch_rule(site):
@@ -506,17 +504,17 @@ def test_a_cell_centre_on_a_box_edge_counts_as_inside():
 def test_v7_committed_nav_variant_maps_are_the_generator_output(tmp_path, site):
     from fleet_gz_sim import arena
     written = arena.generate_nav_variants(tmp_path, site)
-    assert set(written) == {f"maps/arena_v7_{v}.{ext}" for v in ("a", "b", "ab")
+    assert set(written) == {f"maps/arena_v7_{v}.{ext}" for v in ("a", "b", "ab", "a1")
                             for ext in ("yaml", "pgm")}
     for name in written:
         assert (tmp_path / name).read_bytes() == (PKG / name).read_bytes(), name
-    for variant, resolution in (("a", 0.025), ("b", 0.05), ("ab", 0.025)):
+    for variant, resolution in (("a", 0.025), ("b", 0.05), ("ab", 0.025), ("a1", 0.01)):
         text = (PKG / "maps" / f"arena_v7_{variant}.yaml").read_text(encoding="utf-8")
         assert f"image: arena_v7_{variant}.pgm\n" in text
         assert f"resolution: {resolution}\n" in text
         assert "origin: [-0.15, -0.15, 0.0]\n" in text
     assert arena_maps.NAV_VARIANTS == {"a": (0.025, "touch"), "b": (0.05, "centre"),
-                                       "ab": (0.025, "centre")}
+                                       "ab": (0.025, "centre"), "a1": (0.01, "touch")}
 
 
 def test_only_v7_has_nav_variant_maps():

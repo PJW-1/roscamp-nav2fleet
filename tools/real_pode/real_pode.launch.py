@@ -35,7 +35,7 @@ PARAMS = HERE / "params"
 # nav2.launch.py에 넘기는 인자(이 launch의 같은 이름 인자, 아래 FIXED는 고정값)
 NAV2_ARGS = ("namespace", "use_sim_time", "map", "map_fine", "keepout_mask", "params_file",
              "avoidance_params_file", "initial_x", "initial_y", "initial_yaw",
-             "peer_obstacles", "peer_robots", "log_level", "use_composition")
+             "peer_obstacles", "peer_robots", "log_level", "use_composition", "plan_keep")
 # pode_fsm.launch.py에 넘기는 인자
 FSM_ARGS = ("namespace", "use_sim_time", "heartbeat_timeout_s", "through_controller_id",
             "horizon_cap_mps", "battery_topic")
@@ -102,6 +102,8 @@ def generate_launch_description():
                               description="BatteryState 토픽. 비면 배터리를 모름으로 알린다"),
         DeclareLaunchArgument("dock_aside", default_value="false",
                               description="true면 pode_fsm Dock 서버를 /<ns>/dock_fsm으로 비킨다"),
+        DeclareLaunchArgument("plan_keep", default_value="false",
+                              description="true면 길 유지 노드(pode_plan_keep)와 _goal_keep 행동 트리를 쓴다"),
         DeclareLaunchArgument("log_level", default_value="warn"),
         # ---- 제조사 bringup ----
         GroupAction([

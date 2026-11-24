@@ -3,12 +3,12 @@ from __future__ import annotations
 
 import math
 
-from fleet_core.fleet_map import AT_DOCK, LANE, NAV_GOAL, SHARED, WAIT, shortest_path
+from fleet_core.fleet_map import AT_DOCK, LANE, NAV_GOAL, SHARED, WAIT, Edge, shortest_path
 from fleet_core.traffic.mission import TO_OUTBOUND, TO_PARK, TO_WORK
 
 from .base import HERE
 from .lane_policy import Want
-from .routes import ARRIVE, Route, back_edge, free_edge, needs, speed, stretch_end
+from .routes import ARRIVE, Route, back_edge, free_edge, needs, segment_end, speed, stretch_end
 
 TRANSIT_WAIT_S = 6.0
 STANDING_WAIT_S = 300.0
@@ -57,10 +57,11 @@ class Goals:
             if self._retreat_held_up(m):
                 return None
             back = self._back_edge(m)
-            rest = shortest_path(site, m.avoid.retreat_to, goal, cost)
+            rest = self._path(m, m.avoid.retreat_to, goal, cost)
             return None if rest is None or back is None else [back, *rest]
-        if self._on_node(m):
-            return shortest_path(site, m.node, goal, cost)
+        # 중간 지점 전용 노드(via)의 지도 이음은 나눈 goal의 둘째 조각뿐이라 선 자리에서 다시 짠다
+        if self._on_node(m) and not site.nodes[m.node].via:
+            return self._path(m, m.node, goal, cost)
         zone = site.zone_at(m.x, m.y)
         if zone is None or site.zones[zone].kind != SHARED:
             return None
@@ -69,15 +70,61 @@ class Goals:
         for name, zones in self._reach(zone).items():
             if self._blocked.get((HERE + m.name, name), 0.0) > now:
                 continue
-            first = free_edge(site, m.x, m.y, name, zones)
-            rest = shortest_path(site, name, goal, cost)
+            rest = self._path(m, name, goal, cost)
             if rest is None:
                 continue
-            total = (first.length / self.params.nav_speed_mps + self._node_wait(m, name)
-                     + sum(cost(edge) for edge in rest))
+            first = self._split(m, name, zones, cost, now)
+            if first is None:
+                first = [free_edge(site, m.x, m.y, name, zones)]
+            total = (first[0].length / self.params.nav_speed_mps
+                     + self._node_wait(m, first[0].b)
+                     + sum(cost(edge) for edge in (*first[1:], *rest)))
             if total < best_cost:
-                best, best_cost = [first, *rest], total
+                best, best_cost = [*first, *rest], total
         return best
+
+    # ---- 나눈 goal(해결안 B): 두 길 값이 비슷한 출발 자리면 중간 지점을 거쳐 둘로 ----
+    def _split(self, m, name: str, zones, cost, now: float):
+        site = self.site
+        via = site.split_via(name, m.x, m.y) if self.params.plan_split else ""
+        # 첫 조각이 막혔거나 중간 지점을 남이 쥐고 있으면 곧장 간다
+        if (not via or self._blocked.get((HERE + m.name, via), 0.0) > now
+                or self.grants.node_holder(via) not in ("", m.name)):
+            return None
+        second = site.edge(via, name)
+        if math.isinf(cost(second)):
+            return None
+        return [free_edge(site, m.x, m.y, via, zones), second]
+
+    # ---- 노드에서 짠 길: 나눌 대상으로 끝나는 nav_goal 사슬(through로 합쳐짐)의 출발 노드가 사각형 안이면 ----
+    def _path(self, m, start: str, goal: str, cost=None):
+        cost = cost or self._cost(m)
+        edges = shortest_path(self.site, start, goal, cost)
+        if not edges or not self.params.plan_split:
+            return edges
+        site, now = self.site, self._clock()
+        out, index = [], 0
+        while index < len(edges):
+            # 사슬: order가 goal 하나로 합칠 조각(_cut과 같은 자름)
+            end = segment_end(site, edges, index, stretch_end(site, edges, index))
+            chain = edges[index:end]
+            out.extend(self._split_chain(m, chain, cost, now) if chain[0].mode == NAV_GOAL else chain)
+            index = end
+        return out
+
+    def _split_chain(self, m, chain, cost, now: float) -> list:
+        site, start, to = self.site, chain[0].a, chain[-1].b
+        via = site.split_via(to, *site.node_pose(start)) if start else ""
+        if (not via or via == start or self._blocked.get((start, via), 0.0) > now
+                or self.grants.node_holder(via) not in ("", m.name)):
+            return chain
+        second = site.edge(via, to)
+        if second is None or math.isinf(cost(second)):
+            return chain
+        a, b = site.nodes[start], site.nodes[via]
+        points = ((a.x, a.y), (b.x, b.y))
+        zones = tuple(dict.fromkeys(z for z in (a.zone, b.zone) if z is not None))
+        return [Edge(start, via, NAV_GOAL, "", points, zones, math.dist(*points)), second]
 
     # ---- 구역에서 닿는 노드와 물러나기 edge ----
     def _reach(self, zone: str) -> dict:
@@ -86,13 +133,13 @@ class Goals:
             site = self.site
             by_goal = {edge.b for edge in site.edges() if edge.mode == NAV_GOAL}
             inside = {name: (zone,) for name in site.nodes_in(zone)
-                      if name in by_goal or not by_goal}
+                      if (name in by_goal or not by_goal) and not site.nodes[name].via}
             if inside:
                 memo[zone] = inside
             else:
                 reach = {}
                 for edge in site.edges():
-                    if edge.mode == NAV_GOAL and zone in edge.zones:
+                    if edge.mode == NAV_GOAL and zone in edge.zones and not site.nodes[edge.b].via:
                         reach.setdefault(edge.b, edge.zones[edge.zones.index(zone):])
                 memo[zone] = reach
         return memo[zone]

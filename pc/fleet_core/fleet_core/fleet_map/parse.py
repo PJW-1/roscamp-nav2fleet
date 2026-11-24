@@ -24,6 +24,7 @@ from .model import (
     Edge,
     FleetMapError,
     Node,
+    Split,
     Station,
     Zone,
 )
@@ -119,9 +120,13 @@ def read_nodes(raw: dict, zones: dict[str, Zone]) -> dict[str, Node]:
         through = bool(entry.get("through", False))
         if through and kind != FORK:
             raise FleetMapError(f"node {name} ({kind}): only a fork can be a through node")
+        via = bool(entry.get("via", False))
+        if via and (kind != FORK or through):
+            raise FleetMapError(f"node {name} ({kind}): only a fork that is not through can be "
+                                "a via node")
         yaw = entry.get("yaw_deg")
         nodes[str(name)] = Node(str(name), x, y, kind, zone.id,
-                                None if yaw is None else math.radians(float(yaw)), through)
+                                None if yaw is None else math.radians(float(yaw)), through, via)
     return nodes
 
 
@@ -339,3 +344,48 @@ def read_parking(raw, nodes: dict[str, Node]) -> tuple[str, ...]:
         raise FleetMapError(f"parking must list every parking node once: nodes {sorted(marked)}, "
                             f"list {list(parking)}")
     return parking
+
+
+# ---- 나눈 goal 읽기와 검사 ----
+def read_splits(raw, nodes: dict[str, Node], edges: dict, bounds: tuple) -> tuple[Split, ...]:
+    splits: list[Split] = []
+    for index, entry in enumerate(raw or ()):
+        what = f"split {index + 1}"
+        to, via = entry.get("to"), entry.get("via")
+        for name in (to, via):
+            if name not in nodes:
+                raise FleetMapError(f"{what}: {name!r} is not a node")
+        if to == via:
+            raise FleetMapError(f"{what}: {to} cannot be split by itself")
+        if nodes[via].zone != nodes[to].zone:
+            raise FleetMapError(f"{what}: {via} and {to} must stand in the same zone")
+        if nodes[via].through:
+            raise FleetMapError(f"{what}: {via} is a through node; it would join the goals again")
+        # 설 수 있는 지점이면 첫 조각까지만 잡혀 두 goal이 한 base에 들지 않는다
+        if nodes[via].kind != FORK:
+            raise FleetMapError(f"{what}: {via} must be a fork (a node nobody waits at)")
+        edge = edges.get((via, to))
+        if edge is None or edge.mode != NAV_GOAL:
+            raise FleetMapError(f"{what}: there is no nav goal edge from {via} to {to}")
+        rects = tuple(read_rect(rect, what) for rect in entry.get("from") or ())
+        if not rects:
+            raise FleetMapError(f"{what}: name the area the robot starts from (`from:`)")
+        for rect in rects:
+            if not within(rect, bounds):
+                raise FleetMapError(f"{what}: {rect} is outside the floor {bounds}")
+        for other in splits:
+            if other.to == to and any(overlap_area(a, b) for a in rects for b in other.rects):
+                raise FleetMapError(f"{what}: its area overlaps another split to {to}")
+        # 관제는 자유 이음만 나눈다. 사각형 안의 노드에서 가는 지도 이음은 나뉘지 않는다
+        for (a, b), graph in edges.items():
+            spot = nodes[a]
+            if (b == to and a != via and graph.mode == NAV_GOAL
+                    and any(inside(rect, spot.x, spot.y) for rect in rects)):
+                raise FleetMapError(f"{what}: the edge {a} -> {to} starts inside its area and "
+                                    "would not be split")
+        splits.append(Split(str(to), str(via), rects))
+    used = {split.via for split in splits}
+    for node in nodes.values():
+        if node.via and node.id not in used:
+            raise FleetMapError(f"node {node.id} is marked via but no split uses it")
+    return tuple(splits)

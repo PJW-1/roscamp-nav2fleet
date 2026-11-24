@@ -195,7 +195,7 @@ def test_keepout_can_be_left_off_for_a_comparison(made):
 
 
 # ---- 가운데 통로 갈래: 5 cm 지도 대신 고른 지도, global costmap 덮어쓰기 ----
-@pytest.mark.parametrize("variant", ["a", "b", "ab"])
+@pytest.mark.parametrize("variant", ["a", "b", "ab", "a1"])
 def test_nav_map_variant_gives_every_robot_that_costmap_map_only(made, variant):
     actions = run(made, layout="v7", nav_map_variant=variant)
     [server] = [a for a in flat(actions) if isinstance(a, Made) and a.kind == "ExecuteProcess"
@@ -497,6 +497,8 @@ def test_ros_process_budget_leaves_room_under_the_localhost_limit(made):
     count = len(nodes(actions)) + len(nodes(fleet))
     for nav in includes(actions, "nav2.launch.py"):
         count += 1 if launch_args(nav)["use_composition"] == "true" else NAV2_NODES
+        given = launch_args(nav)  # 길 유지 노드(켰고 nav2가 띄울 때만)
+        count += given.get("plan_keep") == "true" and given.get("plan_keep_node") == "true"
     count += len(includes(actions, "pode_fsm.launch.py"))
     assert count + SPARE <= LOCALHOST_PARTICIPANTS
 
@@ -582,3 +584,94 @@ def test_an_unknown_avoidance_package_stops_the_launch(made):
     from ament_index_python.packages import PackageNotFoundError
     with pytest.raises(PackageNotFoundError):
         run(made, avoidance_package="no_such_avoidance_package")
+
+
+# ---- 길 유지(pode_plan_keep): 프로세스를 늘리지 않게 sim_stand_in 안에서 ------------------------
+
+def test_plan_keep_is_off_by_default_like_main(made):
+    assert made.ARGS["plan_keep"][0] == "false"
+    actions = run(made)
+    navs = includes(actions, "nav2.launch.py")
+    assert [launch_args(nav)["plan_keep"] for nav in navs] == ["false"] * 3
+    assert [launch_args(nav)["bt_xml"] for nav in navs] == [""] * 3
+    [stand_in] = nodes(actions, "sim_stand_in")
+    assert params(stand_in)["plan_keep_nodes"] is False
+
+
+def test_plan_keep_runs_every_keeper_inside_the_stand_in_process(made):
+    before = len(nodes(run(made)))
+    actions = run(made, plan_keep="true")
+    navs = includes(actions, "nav2.launch.py")
+    assert len(navs) == 3
+    for nav in navs:
+        assert launch_args(nav)["plan_keep"] == "true"
+        assert launch_args(nav)["plan_keep_node"] == "false", "no extra process per robot"
+    [stand_in] = nodes(actions, "sim_stand_in")
+    assert params(stand_in)["plan_keep_nodes"] is True
+    assert len(nodes(actions)) == before
+    with pytest.raises(ValueError, match="plan_keep"):
+        run(made, plan_keep="on")
+
+
+def test_nav_bt_xml_names_a_tree_in_pode_nav_config_or_an_absolute_file(made, tmp_path):
+    name = "navigate_to_pose_w_replanning_and_recovery_goal_replan_3s.xml"
+    navs = includes(run(made, nav_bt_xml=name), "nav2.launch.py")
+    trees = {launch_args(nav)["bt_xml"] for nav in navs}
+    [tree] = trees
+    assert tree.endswith(f"pode_nav_config/bt/{name}") and Path(tree).is_file()
+    mine = tmp_path / "mine.xml"
+    mine.write_text("<root/>")
+    navs = includes(run(made, nav_bt_xml=str(mine)), "nav2.launch.py")
+    assert {launch_args(nav)["bt_xml"] for nav in navs} == {str(mine)}
+    with pytest.raises(ValueError, match="nav_bt_xml"):
+        run(made, nav_bt_xml="no_such_tree.xml")
+
+
+# ---- 세 대 판의 RL controller(nav_rl): 저장소의 RL 설정 파일만 더한다 ----------------------------
+
+@pytest.mark.parametrize("choice, plugin", [
+    ("rl", "pode_rl_controller::FollowPathRL"),
+    ("rl_shim", "nav2_rotation_shim_controller::RotationShimController")])
+def test_nav_rl_adds_the_rl_controller_from_the_repo_file(made, choice, plugin):
+    # 시뮬 Nav2 설정 파일은 로봇과 프로세스마다 이름이 같아 다음 펼침이 덮는다: 펼친 직후에 읽는다
+    plain = [_controllers(launch_args(nav)["params_file"])
+             for nav in includes(run(made), "nav2.launch.py")]
+    navs = includes(run(made, nav_rl=choice), "nav2.launch.py")
+    assert len(navs) == 3
+    for nav, old in zip(navs, plain, strict=True):
+        controllers = _controllers(launch_args(nav)["params_file"])
+        assert "FollowPathRL" in controllers["controller_plugins"]
+        assert controllers["FollowPathRL"]["plugin"] == plugin
+        # 다른 controller(FollowPathGoal 값 등)는 그대로다
+        assert {k: v for k, v in controllers.items()
+                if k not in ("FollowPathRL", "controller_plugins")} == {
+            k: v for k, v in old.items() if k != "controller_plugins"}
+        assert [c for c in controllers["controller_plugins"] if c != "FollowPathRL"] == old[
+            "controller_plugins"]
+
+
+def test_nav_rl_is_off_by_default_and_a_wrong_choice_stops_the_launch(made):
+    assert made.ARGS["nav_rl"][0] == ""
+    for nav in includes(run(made), "nav2.launch.py"):
+        assert "FollowPathRL" not in _controllers(launch_args(nav)["params_file"])[
+            "controller_plugins"]
+    with pytest.raises(ValueError, match="nav_rl"):
+        run(made, nav_rl="mppi")
+
+
+def test_nav_rl_appends_to_the_users_controller_list_once(made, tmp_path):
+    mine = tmp_path / "mine.yaml"
+    listed = ["FollowPathGoal", "FollowPath", "FollowPathThrough", "FollowPathReverse"]  # 순서를 바꾼 목록
+    mine.write_text(yaml.safe_dump({"controller_server": {"ros__parameters": {
+        "controller_plugins": listed}}}), encoding="utf-8")
+    for nav in includes(run(made, nav_rl="rl_shim", nav_overrides=str(mine)), "nav2.launch.py"):
+        plugins = _controllers(launch_args(nav)["params_file"])["controller_plugins"]
+        assert plugins.count("FollowPathRL") == 1
+        assert [p for p in plugins if p not in ("FollowPathRL", "FollowPathMPPI")] == listed
+
+
+def test_nav_rl_does_not_let_a_users_plugin_swap_through(made, tmp_path):
+    extra = tmp_path / "bad.yaml"
+    extra.write_text(yaml.safe_dump(SWAP), encoding="utf-8")
+    with pytest.raises(ValueError, match="nav_overrides"):
+        run(made, nav_rl="rl_shim", nav_overrides=str(extra))
