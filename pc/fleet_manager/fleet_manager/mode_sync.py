@@ -62,9 +62,9 @@ class ModeSync:
                 or (bool(r.boot_id) and boot_id != r.boot_id))
         r.seen_at, r.boot_id, r.mode = now, boot_id, mode
         if back:
-            r.notify, r.next_at = True, 0.0
+            r.notify, r.next_at, r.no_server_since = True, 0.0, None
         if self.system_mode is not None and mode == self.system_mode:
-            r.tries, r.blocked = 0, False
+            r.tries, r.blocked, r.no_server_since = 0, False, None
 
     def on_answer(self, robot: str, request_id: str) -> None:
         r = self._robots.get(robot)

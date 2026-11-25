@@ -195,3 +195,21 @@ def test_an_expired_call_is_reported_once_for_cleanup():
     assert s.expired == ["pode1"]
     s.due(t + 0.1, READY)
     assert s.expired == []
+
+
+def test_an_old_no_server_time_does_not_block_later():
+    """모드가 맞는 동안 서버가 없던 시각은 남기지 않는다. 나중에 서버가 사라지면 그때부터 5초를 기다린다."""
+    s = sync()
+    s.on_system_mode("TEST")
+    no = lambda robot: False  # noqa: E731
+    t = 0.0
+    while t < 10.0:
+        s.on_state("pode1", "TEST", "b1", t)
+        s.due(t, no)
+        t += 0.2
+    end = t + NO_SERVER_S - 0.4
+    while t < end:
+        s.on_state("pode1", "NORMAL", "b1", t)
+        s.due(t, no)
+        t += 0.2
+    assert s.changes() == []
