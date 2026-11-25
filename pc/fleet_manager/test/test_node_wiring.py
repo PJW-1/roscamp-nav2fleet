@@ -442,7 +442,7 @@ def test_force_ship_refuses_an_order_it_does_not_know_with_the_reason(graph):
     assert reply.result().request_id == "r-9"
 
 
-@pytest.mark.parametrize("answer", [(True, ""), (False, "ROBOT_FAULT"), (False, "ORDER_STATE")])
+@pytest.mark.parametrize("answer", [(True, ""), (False, "NOT_READY"), (False, "ORDER_STATE")])
 def test_force_ship_passes_the_order_to_the_core_and_returns_its_answer(graph, monkeypatch,
                                                                          answer):
     fms = graph.fms

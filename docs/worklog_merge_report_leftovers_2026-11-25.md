@@ -24,3 +24,8 @@
   `fake_robots/test/test_state_rate.py`(가짜 로봇 기본값 = `pode_fsm` 기본값 = 5.0).
 - 기대값을 바꾼 시험: fleet_core `test_input_reject.py`, `test_manager.py`, `test_order_hold.py`, fleet_manager `test_adapters.py`, `test_node_wiring.py`.
 - 고치기 전: 새 시험 셋과 바꾼 기대값 시험이 실패(pode_fsm 1, fleet_core 6, fake_robots 1).
+- 고친 뒤(`nav2fleet_ws/install` 818e60d 위에 이 브랜치 소스를 PYTHONPATH 앞에 둠, 도메인 93~96, LOCALHOST):
+  fleet_core 1417 통과(xfail 7), pode_fsm 521 통과(건너뜀 6), fleet_manager 167 통과, fake_robots 1169 통과(건너뜀 1, xfail 30).
+  `podedrive_ws/install`은 옛 빌드(`ArmState` 없음)라 ROS 시험이 import에서 실패해 쓰지 않았다.
+- Codex 검토: 시험 두 곳이 가짜 응답으로 옛 코드(`ROBOT_FAULT`, `NOT_HELD`)를 넣고 있어 `NOT_READY`, `ORDER_STATE`로 바꿨다
+  (fleet_manager `test_node_wiring.py`, fake_robots `test_ros_central.py`. 바꾼 시험 4 · 10 통과).
