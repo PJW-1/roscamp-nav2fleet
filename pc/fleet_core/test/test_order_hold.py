@@ -403,7 +403,7 @@ def test_force_ship_of_an_arm_hold_with_items_sends_them_out_and_reports_partial
     out = core.take_output()
     [goal] = [c for c in only(out, DispatchCmd) if c.robot_id == "r1"]
     assert goal.station_id == "OUTBOUND"
-    assert core.on_force_ship("O-001") == (False, "NOT_HELD"), "no longer held"
+    assert core.on_force_ship("O-001") == (False, "ORDER_STATE"), "no longer held"
     core.on_dispatch_result(goal.goal_id, True, "r1")
     now[0] += core.params.arm_retry_wait_s
     core.step("r1")
@@ -445,19 +445,19 @@ def test_force_ship_refusals():
     core, _, _ = full_and_heading_out()
     core.on_order_board("RUN", [O1, O2])
     core.take_output()
-    assert core.on_force_ship("O-404") == (False, "UNKNOWN_ORDER")
-    assert core.on_force_ship("O-002") == (False, "NOT_HELD"), "waiting, not held"
-    assert core.on_force_ship("O-001") == (False, "NOT_HELD"), "bound and going"
+    assert core.on_force_ship("O-404") == (False, "NOT_FOUND")
+    assert core.on_force_ship("O-002") == (False, "ORDER_STATE"), "waiting, not held"
+    assert core.on_force_ship("O-001") == (False, "ORDER_STATE"), "bound and going"
     core.on_robot_isolated("r1", "GOAL_FAILED")
     core.take_output()
-    assert core.on_force_ship("O-001") == (False, "ROBOT_FAULT")
+    assert core.on_force_ship("O-001") == (False, "NOT_READY")
 
 
 def test_force_ship_of_a_finished_order_is_not_held():
     core, _, swap = swapping()
     core.on_swap_result(swap.goal_id, True, True, True)
     core.take_output()
-    assert core.on_force_ship("O-001") == (False, "NOT_HELD")
+    assert core.on_force_ship("O-001") == (False, "ORDER_STATE")
 
 
 # ---- 지시서가 정하지 않은 경우(확인 필요) ----

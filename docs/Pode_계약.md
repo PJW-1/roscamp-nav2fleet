@@ -119,7 +119,7 @@ MoveTo에 더한 칸:
 |---|---|
 | Goal | `distance_m`, `speed_mps`(m/s). 둘 다 0보다 커야 합니다 |
 | Goal | `geometry_msgs/Pose[] path`: 비어 있으면 로봇이 보는 방향 그대로 뒤로 곧게 `distance_m`을 갑니다. 있으면 지나온 길을 거꾸로 적은 꺾은선입니다. 첫 점은 로봇이 있는 곳, 마지막 점은 설 곳이고, `distance_m`은 그 길이입니다. 각 점의 방향은 쓰지 않습니다(Pode가 진행 방향의 반대, 곧 후진하는 로봇이 보는 방향으로 다시 정합니다) |
-| Result | `success`, `reason` ∈ `OBSTACLE_BEHIND`(뒤에 무언가 있어 섰음), `TIMEOUT`, `CANCELED`, `FAILED`(서버 없음, 잘못된 입력, heartbeat 끊김, 위치 잃음 등 그 밖의 실패) |
+| Result | `success`, `reason` ∈ `OBSTACLE_BEHIND`(뒤에 무언가 있어 섰음), `TIMEOUT`, `CANCELED`, `FAILED`(잘못된 입력, heartbeat 끊김, 위치 잃음 등 그 밖의 실패), `NAV_UNAVAILABLE`(Nav2 서버가 아직 없어 보내지 못함, 6번) |
 | Feedback | `distance_traveled`(정의만 있고 Pode FSM은 아직 보내지 않습니다) |
 
 **Heartbeat**: `frame_id`=`fleet_manager`. 시간은 `stamp`가 아니라 받은 시각으로 잽니다.

@@ -84,6 +84,9 @@ ff7a78a(문서 정리 병합) 뒤에는 바뀐 곳만 다시 돌렸다(아래 �
 
 ## 6. 사용자가 정할 것
 
+2026-11-25 사용자 결정: 1~3은 권고대로 고치고, 4는 해결로 둔다. 고친 내용은 `docs/worklog_merge_report_leftovers_2026-11-25.md`.
+5는 같은 날 사용자 지시로 동기화했다(nav2fleet 818e60d = pode-drive 4572a23).
+
 1. **Retreat의 NAV_UNAVAILABLE.** `retreat.py`는 Nav2 서버가 없을 때 이 코드로 끝내지만 `Retreat.action`에는 없다.
    권고: `Retreat.action`에 `REASON_NAV_UNAVAILABLE`을 더하고 계약 문서를 고친다. interfaces 변경이라 팀 interfaces 담당의 확인이 필요하다.
 2. **force_ship 거절 코드.** 관제는 `NOT_HELD`, `ROBOT_FAULT`, `UNKNOWN_ORDER`를 그대로 돌려주는데 `contract.yaml`의

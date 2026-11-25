@@ -450,8 +450,8 @@ def test_a_run_with_rejected_inputs_plays_back_the_same(tmp_path):
 
 def test_a_force_ship_input_is_recorded_and_plays_back(tmp_path):
     core, now, lines = _recorded()
-    assert core.force_ship("O-404") == (False, "UNKNOWN_ORDER")
-    assert core.force_ship(None) == (False, "UNKNOWN_ORDER")
+    assert core.force_ship("O-404") == (False, "NOT_FOUND")
+    assert core.force_ship(None) == (False, "NOT_FOUND")
     now[0] += 0.1
     core.tick()
     assert any('"in": "force_ship"' in line for line in lines)

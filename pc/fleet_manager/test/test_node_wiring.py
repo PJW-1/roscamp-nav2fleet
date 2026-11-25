@@ -431,18 +431,18 @@ def test_reinstate_takes_a_cleared_robot_back_and_refuses_a_bad_call_with_a_reas
 
 
 def test_force_ship_refuses_an_order_it_does_not_know_with_the_reason(graph):
-    """강제 출고 창구(TripCommand). 모르는 주문은 UNKNOWN_ORDER로 거절한다."""
+    """강제 출고 창구(TripCommand). 모르는 주문은 NOT_FOUND로 거절한다."""
     fms = graph.fms
     client = graph.create_client(TripCommand, fms.contract.name("force_ship"))
     assert client.wait_for_service(timeout_sec=10.0)
     reply = client.call_async(TripCommand.Request(request_id="r-9", trip_id="O-NOPE"))
     assert wait_for(reply.done, 10.0), "no reply: the callback raised"
     assert not reply.result().accepted
-    assert reply.result().reason == "UNKNOWN_ORDER"
+    assert reply.result().reason == "NOT_FOUND"
     assert reply.result().request_id == "r-9"
 
 
-@pytest.mark.parametrize("answer", [(True, ""), (False, "ROBOT_FAULT"), (False, "NOT_HELD")])
+@pytest.mark.parametrize("answer", [(True, ""), (False, "ROBOT_FAULT"), (False, "ORDER_STATE")])
 def test_force_ship_passes_the_order_to_the_core_and_returns_its_answer(graph, monkeypatch,
                                                                          answer):
     fms = graph.fms
