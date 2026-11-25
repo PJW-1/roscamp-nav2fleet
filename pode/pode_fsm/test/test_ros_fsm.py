@@ -98,6 +98,38 @@ def test_tf_and_odom_are_taken_by_the_input_node_not_the_main_node(harness):
     assert wait_until(lambda: fsm._speed[0] > 0.05, 3.0)
 
 
+def test_the_input_node_follows_the_namespace_and_tf_remaps_like_the_real_launch(rclpy_session):
+    # 실물 launch처럼 이름공간과 /tf:=tf를 주면 입력 노드도 /<ns>/tf를 받는다
+    from pode_fsm.node import PodeFsmNode
+    from rclpy.parameter import Parameter
+    node = PodeFsmNode(namespace="pode9", cli_args=[
+        "--ros-args", "-r", "/tf:=tf", "-r", "/tf_static:=tf_static"],
+        parameter_overrides=[Parameter("contract_file", value=str(CONTRACT))])
+    try:
+        assert node._inputs.node.get_namespace() == "/pode9"
+        assert {s.topic_name for s in node._inputs.node.subscriptions} == {
+            "/pode9/tf", "/pode9/tf_static", "/pode9/odom"}
+    finally:
+        node.stop()
+        node.destroy_node()
+
+
+def test_a_failed_start_leaves_no_input_thread_running(rclpy_session):
+    # 초기화가 실패하면 입력 노드 스레드도 남지 않는다
+    import threading
+
+    from pode_fsm.node import PodeFsmNode
+    from rclpy.parameter import Parameter
+
+    def spinning():
+        return [t for t in threading.enumerate() if "(_spin)" in t.name]
+    before = len(spinning())
+    with pytest.raises(ZeroDivisionError):
+        PodeFsmNode(parameter_overrides=[Parameter("contract_file", value=str(CONTRACT)),
+                                         Parameter("control_rate_hz", value=0.0)])
+    assert len(spinning()) == before
+
+
 def test_path_goal_arrives_within_the_tolerance(harness):
     _, probe = start(harness)
     h = probe.send(lane_goal(["P-3", "P-4"]))

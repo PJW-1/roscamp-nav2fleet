@@ -43,7 +43,7 @@
   - 끝에서 상태가 IDLE인지 본다. 모든 판이 IDLE이어서, 실물처럼 TF 자세가 있는 상태로 돌았다.
 - 갈래마다 따로 빌드했다(fleet_interfaces + pode_fsm). 세 갈래(옛 키트, main, 고친 것)는 도메인 44, 45, 47에서 동시에 돌려 같은 부하를 받게 했다.
   - PC는 다른 세션 때문에 load가 9~13(12코어)이었다. 같은 순간에 잰 값끼리만 비교한다.
-- 프로파일: py-spy 0.4.4로 `record -r 200 -f raw`를 썼고, 60초 기록이다. py-spy는 ptrace 권한 때문에 pode_fsm을 자식으로 띄운다.
+- 프로파일: py-spy 0.4.4로 `record -r 200 -f raw`를 썼다. `measure.sh`에 측정초 45를 주어 pode_fsm 시작부터 60초(앞 15초 포함)를 기록했다. py-spy는 ptrace 권한 때문에 pode_fsm을 자식으로 띄운다.
 
 ## 프로파일 결과
 
@@ -58,7 +58,7 @@
 - "wait set 만들기와 고르기"는 `Executor._wait_for_ready_callbacks`가 하는 일이다.
   - 깨어날 때마다 실체를 하나씩 wait set에 넣는다. 여기에 QoS 이벤트 처리기 24개의 `add_to_wait_set`과 `ExitStack` 들어가기·나오기가 포함된다.
   - 깨어난 뒤에는 준비된 것을 하나씩 고른다.
-- 실제 콜백(TF 넣기, odom, 제어 tick, 상태 발행)은 5~8 %뿐이다.
+- 옛 키트와 main에서 실제 콜백(TF 넣기, odom, 제어 tick, 상태 발행)은 5.5~7.5 %뿐이다. 고친 것의 콜백 칸에는 TF·odom 콜백이 들어가지 않는다. 그 콜백은 입력 노드 스레드에서 돌아서 입력 노드 스레드 칸에 들어간다.
 - py-spy는 파이썬 스레드만 본다. DDS 수신 스레드처럼 C로만 도는 스레드의 CPU는 표본에 없다. 그래서 일한 표본은 81 % 줄었지만, `/proc`로 잰 CPU는 58 % 줄었다.
 
 ## 고친 것
@@ -66,12 +66,14 @@
 - `pode/pode_fsm/pode_fsm/node.py`: `FrequentInputs` 클래스.
   - 주 노드의 TransformListener와 odom 구독을 작은 입력 노드로 옮겼다. 입력 노드는 파라미터 서비스와 rosout이 없다.
   - 입력 노드는 자기 `SingleThreadedExecutor`를 데몬 스레드에서 돌리고, `destroy_node`에서 함께 정리한다.
-  - 토픽 이름은 주 노드가 푼 이름(`resolve_topic_name`: 이름공간과 다시 잇기 포함)을 그대로 쓴다. 그래서 실물, 시뮬, 시험이 받는 토픽은 전과 같다. 실물에서는 `/pode2/tf`, `/pode2/tf_static`, `/pode2/odom`이다.
+  - 토픽 이름은 주 노드가 푼 이름(`resolve_topic_name`: 이름공간과 다시 잇기 포함)을 그대로 쓴다. 확인한 경우는 셋이다. 시험처럼 이름공간이 없으면 `/tf`, `/tf_static`, `/odom`이다. 실물 launch처럼 이름공간과 `/tf:=tf`를 주면 `/pode9/tf`처럼 이름공간 안의 토픽이다(시험). PC 재현에서는 `/pode2`로 띄워 TF 자세를 받아 IDLE이 됐다. Gazebo(`use_sim_time`)에서는 돌려 보지 않았다.
+  - 입력 노드는 `__init__` 맨 끝에 띄운다. 앞에서 초기화가 실패하면 스레드가 남지 않는다.
   - TF 버퍼는 전과 같이 하나를 함께 쓴다. tf2 버퍼는 안에서 잠그기 때문에 다른 스레드에서 넣고 읽어도 된다.
 - ROS 그래프에 노드가 하나 는다: `/<ns>/pode_fsm_inputs`.
-- 시험: `pode/pode_fsm/test/test_ros_fsm.py::test_tf_and_odom_are_taken_by_the_input_node_not_the_main_node`.
-  - 확인하는 것: 주 노드가 /tf, /tf_static, /odom을 구독하지 않는다. 입력 노드가 그 셋을 구독한다. 자세(TF)와 속도(odom)는 그대로 들어온다.
-  - 고치기 전에 실패하는 것을 먼저 봤다.
+- 시험(`pode/pode_fsm/test/test_ros_fsm.py`):
+  - `test_tf_and_odom_are_taken_by_the_input_node_not_the_main_node`: 주 노드가 /tf, /tf_static, /odom을 구독하지 않고 입력 노드가 그 셋을 구독한다. 자세(TF)와 속도(odom)도 그대로 들어온다. 고치기 전에 실패하는 것을 먼저 봤다.
+  - `test_the_input_node_follows_the_namespace_and_tf_remaps_like_the_real_launch`: 이름공간 `pode9`와 `/tf:=tf`, `/tf_static:=tf_static`을 주면 입력 노드가 `/pode9/tf`, `/pode9/tf_static`, `/pode9/odom`을 받는다.
+  - `test_a_failed_start_leaves_no_input_thread_running`: `control_rate_hz` 0으로 초기화가 실패하면 입력 스레드가 남지 않는다. 입력 노드를 맨 끝으로 옮기기 전에 실패하는 것을 먼저 봤다.
 
 ## CPU 결과 (PC, 같은 조건, 동시 측정)
 
@@ -81,12 +83,13 @@
 | 2 | 17.0 % | 17.4 % | 7.3 % |
 | 3 | 17.0 % | 16.7 % | 7.2 % |
 | 평균 | 17.8 % | 17.8 % | 7.5 % |
+| 4(다시 확인) | 재지 않음 | 21.0 % | 8.2 % |
 
-원자료는 `ab_rounds.txt`에 있다. PC 한 코어 기준이며, Pi4(Cortex-A72 1.5 GHz)는 같은 일에 몇 배 더 쓴다.
+평균은 1~3바퀴 값이다. 4바퀴는 입력 노드를 `__init__` 끝으로 옮긴 마지막 판을 다시 잰 것으로, 그때 pode_fsm 전체 시험이 같이 돌아 부하가 더 컸다. 원자료는 `ab_rounds.txt`에 있다. PC 한 코어 기준이며, Pi4(Cortex-A72 1.5 GHz)는 같은 일에 몇 배 더 쓴다.
 
 ## 시험
 
-- `pode/pode_fsm/test` 전체: 522 passed, 6 skipped(156 s).
+- `pode/pode_fsm/test` 전체: 524 passed, 6 skipped(158 s, 마지막 판).
   - 명령: `ROS_DOMAIN_ID=46 ROS_AUTOMATIC_DISCOVERY_RANGE=LOCALHOST PYTHONPATH=pode/pode_fsm:sim/fake_robots:pc/fleet_core python3 -m pytest -q pode/pode_fsm/test`
 - 돌리지 않은 것: `sim/fleet_gz_sim`(Gazebo), `sim/fake_robots`, `tools/test`. `PodeFsmNode`를 import하는 시험은 `pode/pode_fsm/test` 안에만 있다. Gazebo 시험처럼 노드를 실행 파일로 띄우는 시험은 이번에 돌리지 않았다.
 

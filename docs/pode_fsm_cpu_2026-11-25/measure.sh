@@ -24,7 +24,7 @@ ARGS=(--ros-args -r __ns:=/pode2 -r /tf:=tf -r /tf_static:=tf_static
 PRE=()
 [ -n "$CORES" ] && PRE=(taskset -c "$CORES")
 if [ -n "$SPY" ]; then
-  # ptrace는 자식에게만 되므로 py-spy가 pode_fsm을 띄운다(시작 구간은 요약에서 뺀다)
+  # ptrace는 자식에게만 되므로 py-spy가 pode_fsm을 띄운다(기록은 시작부터 측정초+15초, import 표본은 spy_sum.py가 뺀다)
   "${PRE[@]}" "$PYSPY" record -r 200 -f raw -o "$SPY" --nonblocking \
     --duration $((SECS + 15)) -- python3 "$EXE" "${ARGS[@]}" > "$OUT.fsm.log" 2>&1 &
   SPYPID=$!

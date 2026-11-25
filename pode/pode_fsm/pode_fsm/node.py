@@ -140,7 +140,6 @@ class PodeFsmNode(Node):
 
         # ---- TF, 발행자, 구독자 만들기 ----
         self._tf = Buffer()
-        self._inputs = FrequentInputs(self, self._tf, get("odom_topic").value, self._on_odom)
         self._speed_pub = self.create_publisher(SpeedLimit, get("speed_limit_topic").value, 10)
         self._state_pub = self.create_publisher(
             RobotState, contract.name("robot_state", pode=self.robot_id),
@@ -181,7 +180,9 @@ class PodeFsmNode(Node):
                           callback_group=group, clock=steady)
         self.create_timer(MARKER_PERIOD_S, self._publish_markers, callback_group=group,
                           clock=steady)
-        mode = " (NO MOTION: goals succeed after a wait, nothing drives)" if no_motion else ""
+        # 입력 스레드는 맨 끝에 띄운다: 앞에서 초기화가 실패하면 스레드가 남지 않는다
+        self._inputs = FrequentInputs(self, self._tf, get("odom_topic").value, self._on_odom)
+        mode =" (NO MOTION: goals succeed after a wait, nothing drives)" if no_motion else ""
         self.get_logger().info(f"pode_fsm for {self.robot_id} ready{mode}")
 
     def _start_runners(self, group) -> None:
