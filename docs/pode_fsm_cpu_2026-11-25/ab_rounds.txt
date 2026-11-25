@@ -1,0 +1,15 @@
+r1_new: pode_fsm CPU 19.3 % over 60 s
+r1_old: pode_fsm CPU 19.4 % over 60 s
+r1_fix: pode_fsm CPU 7.9 % over 60 s
+ 17:16:37 up 1 day,  3:53,  1 user,  load average: 11.73, 18.25, 22.73
+r2_old: pode_fsm CPU 17.0 % over 60 s
+r2_new: pode_fsm CPU 17.4 % over 60 s
+r2_fix: pode_fsm CPU 7.3 % over 60 s
+ 17:18:01 up 1 day,  3:55,  1 user,  load average: 9.13, 16.25, 21.66
+r3_new: pode_fsm CPU 16.7 % over 60 s
+r3_old: pode_fsm CPU 17.0 % over 60 s
+r3_fix: pode_fsm CPU 7.2 % over 60 s
+ 17:19:28 up 1 day,  3:56,  1 user,  load average: 13.28, 15.26, 20.77
+r4_new: pode_fsm CPU 21.0 % over 60 s
+r4_fix: pode_fsm CPU 8.2 % over 60 s
+ 17:30:00 load average: 13.71, 24.39, 23.55 (r4: 입력 스레드를 __init__ 끝으로 옮긴 판, pode_fsm 전체 시험과 동시에)

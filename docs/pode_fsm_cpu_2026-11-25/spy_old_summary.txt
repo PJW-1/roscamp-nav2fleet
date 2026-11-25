@@ -1,0 +1,23 @@
+일한 표본 1706 (뺀 것: {'시작 import': 187, 'C 대기': 2025})
+
+== 묶음
+  84.3 %  주 실행기: wait set 만들기와 고르기
+   8.2 %  기타
+   7.5 %  콜백(타이머, 구독, 서비스)
+
+== 잎 함수
+  10.0 %  Executor._wait_for_ready_callbacks (rclpy/executors.py:749)
+   7.0 %  EventHandler.add_to_wait_set (rclpy/event_handler.py:124)
+   5.5 %  ExitStack.__exit__ (contextlib.py:595)
+   5.3 %  Executor._wait_for_ready_callbacks (rclpy/executors.py:748)
+   4.0 %  EventHandler.add_to_wait_set (rclpy/event_handler.py:125)
+   3.0 %  Executor._wait_for_ready_callbacks (rclpy/executors.py:803)
+   2.9 %  _BaseExitStack.enter_context (contextlib.py:526)
+   2.6 %  EventHandler.__exit__ (rclpy/event_handler.py:133)
+   2.5 %  EventHandler.is_ready (rclpy/event_handler.py:100)
+   2.5 %  Executor._take_subscription (rclpy/executors.py:470)
+   1.6 %  NumberOfEntities.__add__ (rclpy/waitable.py:42)
+   1.3 %  PoseWithCovariance.covariance (geometry_msgs/msg/_pose_with_covariance.py:191)
+   1.3 %  _BaseExitStack.enter_context (contextlib.py:527)
+   1.3 %  Executor._wait_for_ready_callbacks (rclpy/executors.py:768)
+   1.3 %  Executor._wait_for_ready_callbacks (rclpy/executors.py:778)
