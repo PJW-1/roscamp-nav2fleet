@@ -9,6 +9,7 @@ from pode_fsm.geometry import Point
 
 # ---- 우선순위와 양보 단계 상수, 상대 로봇(Peer) 자료형 ----
 NO_PRIORITY = -1
+ARM_KIND = "ARM"
 WAIT, BACKUP, RETRY = "wait", "backup", "retry"
 
 
@@ -23,7 +24,8 @@ class Peer:
 # ---- 앞을 막는 상대 로봇 찾기와 양보 여부 판정 ----
 def peers_from(rows) -> list[Peer]:
     return [Peer(str(r.robot_id), float(r.x), float(r.y),
-                 int(getattr(r, "priority", NO_PRIORITY))) for r in rows]
+                 int(getattr(r, "priority", NO_PRIORITY))) for r in rows
+            if getattr(r, "kind", "") != ARM_KIND]
 
 
 def blocking_peer(ahead: Sequence[Point], peers: Iterable[Peer], me: str,

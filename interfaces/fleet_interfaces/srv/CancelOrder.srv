@@ -1,0 +1,6 @@
+# ---- 주문 단위 취소 ----
+string request_id
+string order_id
+---
+bool accepted                # 받아들이면 웹이 같은 트랜잭션에서 취소됨을 씀 (#22)
+string reason                # ALREADY_ASSIGNED · NOT_FOUND

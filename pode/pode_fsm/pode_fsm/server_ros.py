@@ -11,6 +11,7 @@ from fleet_interfaces.action import Dock, MoveTo, Retreat
 from rclpy.action import ActionServer, CancelResponse, GoalResponse
 
 from pode_fsm.geometry import pose_here
+from pode_fsm.no_motion import DOCK, dock_phase, dock_warning
 from pode_fsm.order_ros import order_goal
 
 # ---- 피드백 주기, 액션별 결과 형식, goal 대기 슬롯 ----
@@ -25,13 +26,15 @@ class _Slot:
         self.success = False
         self.reason = ""
         self.last_done = 0
+        self.since = time.monotonic()
 
 
 # ---- 액션 서버 세 개 만들기와 goal 종료 알림 ----
 class GoalServers:
     def __init__(self, node, contract, robot_id: str, group, lock, fsm,
-                 pose: Callable, run: Callable, alive: Callable[[], bool]):
+                 pose: Callable, run: Callable, alive: Callable[[], bool], no_motion=None):
         self._node, self._lock, self._fsm = node, lock, fsm
+        self._nm = no_motion
         self._pose, self._run, self._alive = pose, run, alive
         self._slots: dict[bytes, _Slot] = {}
         self._move_server = self._server(MoveTo, contract.name("move_to", pode=robot_id),
@@ -80,6 +83,14 @@ class GoalServers:
             elif kind == "retreat":
                 path = [(p.position.x, p.position.y) for p in req.path]
                 cmds = self._fsm.retreat(key, now, req.distance_m, req.speed_mps, path, here)
+            elif self._nm is not None:
+                # TODO(no-motion): pode_dock이 오면 지운다. dock_s 뒤 성공(PC 도킹 대역과 같게)
+                # 거리는 보지 않는다. 모르는 도킹 이름이면 경고만 남긴다(2026-11-24 결정)
+                warning = dock_warning(req.dock_id, self._nm.p.dock_ids)
+                if warning:
+                    self._node.get_logger().warn(warning)
+                cmds = self._fsm.dock_wait(key, now, req.dock_id)
+                self._nm.add(DOCK, key, now, self._nm.p.dock_s)
             else:
                 cmds = self._fsm.dock(key, now, req.dock_id)
             self._run(cmds)
@@ -89,7 +100,7 @@ class GoalServers:
     def _execute(self, handle, kind: str):
         key = bytes(handle.goal_id.uuid)
         slot = self._slots[key]
-        last_fb = 0.0
+        last_fb, phase = 0.0, ""
         while not slot.done.is_set():
             if not (self._alive() and rclpy.ok()):
                 _abort_quietly(handle)
@@ -108,10 +119,14 @@ class GoalServers:
                         handle.publish_feedback(MoveTo.Feedback(
                             distance_remaining=float(left), last_done_seq_id=done,
                             waiting_at_base_end=waiting, horizon_warning=warning))
+            if kind == "dock" and self._nm is not None:
+                phase = self._dock_phase(handle, slot, key, phase)
             slot.done.wait(0.02)
         # ---- goal 상태 정하고 결과 메시지 돌려주기 ----
         with self._lock:
             self._slots.pop(key, None)
+        if kind == "dock" and self._nm is not None and slot.success and phase != "DONE":
+            handle.publish_feedback(Dock.Feedback(phase="DONE"))
         if slot.success:
             handle.succeed()
         elif handle.is_cancel_requested:
@@ -126,6 +141,17 @@ class GoalServers:
         if not slot.success:
             self._node.get_logger().warn(f"dock failed: {slot.reason}")
         return Dock.Result(success=slot.success)
+
+    # ---- 동작 없음 도킹 단계 피드백: 바뀔 때만 보낸다 ----
+    def _dock_phase(self, handle, slot: _Slot, key, last: str) -> str:
+        with self._lock:
+            if not self._fsm.is_running(key):
+                return last
+        now_phase = dock_phase(time.monotonic() - slot.since, self._nm.p.dock_s)
+        if now_phase != last and now_phase != "DONE":
+            handle.publish_feedback(Dock.Feedback(phase=now_phase))
+            return now_phase
+        return last
 
 
 # ---- 종료 중 goal 조용히 중단 ----

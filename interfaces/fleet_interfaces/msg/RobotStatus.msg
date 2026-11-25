@@ -27,3 +27,13 @@ string[] horizon
 
 # ---- 마지막으로 보낸 MoveTo의 우선순위 ----
 int32 priority -1
+
+# ---- 로봇 종류, 락, 운영 모드, 강제 값, 재시작 감지: 칸 추가 ----
+string KIND_POD="POD"
+string KIND_ARM="ARM"
+string kind
+bool lock
+string mode
+string[] forced
+string boot_id
+# 위치 · 경로 칸(x · y · yaw · base · horizon)은 Pode만 씀

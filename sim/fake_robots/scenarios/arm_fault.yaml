@@ -1,12 +1,12 @@
-# 팔 고장 보류: arm1이 O-001에서 매번 1개를 놓고 세 번 실패해 HELD ARM_FAULT가 된다.
-# central(가짜)이 force_ship_after_s 뒤 /fleet/force_ship을 부르면 O-001은 PARTIAL로 끝난다.
+# 팔 고장 보류: arm_left가 O-001에서 매번 1개를 놓고 세 번 실패해 HELD ARM_FAULT가 된다(Pode는 격리 안 함).
+# central(가짜)이 force_ship_after_s 뒤 /fleet/force_ship을 부르면 O-001은 PARTIAL(놓은 3개)로 끝난다.
 #   O-001 A 4개, 3개 놓고 팔 고장     HELD(ARM_FAULT) 뒤 PARTIAL
 #   O-002 C 1개                       SHIPPED
 map: d2  # D2 배치용 시나리오(기본 배치는 v7)
 seed: 31
 speed_factor: 5.0
 timeout_s: 900
-stock: {arm1: {A: 6, B: 6}, arm2: {C: 6, D: 6}}
+stock: {arm_left: {A: 6, B: 6}, arm_right: {C: 6, D: 6}}
 force_ship_after_s: 20
 orders:
   - {at_s: 0, id: O-001, items: {A: 4}}
@@ -18,7 +18,7 @@ robots:
 arm: {seconds_per_item: 4.0, swap_seconds: 8.0, fail_rate: 0.0}
 dock: {duration_s: 1.0, error_cm: 1.0}
 faults:
-  - {at_s: 0, arm: arm1, type: arm_fail, count: 3, after_items: 1}
+  - {at_s: 0, arm: arm_left, type: arm_fail, count: 3, after_items: 1}
 expect:
   robot_idle: null  # 고장 시나리오는 ROBOT_IDLE을 세지 않는다
   all_orders_finished: true

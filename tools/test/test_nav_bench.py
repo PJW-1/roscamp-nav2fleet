@@ -234,6 +234,9 @@ def test_the_report_takes_the_controllers_from_the_legs_and_names_rl(tmp_path):
     assert cfg["controllers"] == ["FollowPathGoal", "FollowPathMPPI", "FollowPathRL"]
     assert report.label("FollowPathRL") == "RL" and report.label("FollowPathGoal") == "RPP"
     assert report.label("FollowPathRLShim") == "RL+shim"
+    assert report.label("FollowPathRLAlone") == "RL alone"
+    assert report.label("FollowPathRLShimC") == "RL+shim c"
+    assert report.label("FollowPathRLShimACD") == "RL+shim acd"
     assert any("| FollowPathRL |" in ln for ln in report.table(rows, cfg).splitlines())
     diffs = report.diff_table(rows, cfg)
     line = next(ln for ln in diffs.splitlines() if ln.startswith("| a_hall | RL - RPP | 시간 s"))

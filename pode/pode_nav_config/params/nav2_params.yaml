@@ -395,7 +395,8 @@ planner_server:
     planner_plugins: ["GridBased"]
     GridBased:
       plugin: "nav2_navfn_planner::NavfnPlanner"
-      tolerance: 0.5
+      # 막힌 goal의 대체점은 x·y 각 0.05 안(대각선 0.071 m)에서만 고른다. 넓히면 진열대 건너편 점도 잡힌다
+      tolerance: 0.05
       use_astar: false
       allow_unknown: true
 

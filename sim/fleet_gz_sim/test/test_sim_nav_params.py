@@ -223,9 +223,10 @@ def test_overrides_go_deep_and_cannot_turn_the_collision_check_off(tmp_path):
     assert _rpp(sim, "FollowPath")["use_collision_detection"] is True
 
 
-def test_the_rl_controller_comes_only_from_its_overrides_file_and_keeps_the_base_ones(tmp_path):
-    """FollowPathRL(pode_rl_controller)은 기본으로 띄우지 않고 one_pode nav_overrides 파일로만
-    더 띄운다. nav2_params.yaml에 controller가 늘면 그 파일의 목록에도 더해야 한다."""
+def test_the_rl_controllers_come_only_from_their_overrides_file_and_keep_the_base_ones(tmp_path):
+    """RL controller(shim으로 감싼 FollowPathRL, pode_rl_controller 단독 FollowPathRLAlone)는
+    기본으로 띄우지 않고 nav_overrides 파일로만 더 띄운다. nav2_params.yaml에 controller가 늘면
+    그 파일의 목록에도 더해야 한다."""
     base = _base()["controller_server"]["ros__parameters"]["controller_plugins"]
     assert "FollowPathRL" not in base
     path = REPO / "sim" / "fleet_gz_sim" / "nav_overrides" / "follow_path_rl.yaml"
@@ -233,43 +234,41 @@ def test_the_rl_controller_comes_only_from_its_overrides_file_and_keeps_the_base
     sim = yaml.safe_load(_sim(NAV, tmp_path / "rl.yaml", overrides=overrides)
                          .read_text(encoding="utf-8"))
     server = sim["controller_server"]["ros__parameters"]
-    assert server["controller_plugins"] == [*base, "FollowPathMPPI", "FollowPathRL"]
-    assert server["FollowPathRL"]["plugin"] == "pode_rl_controller::FollowPathRL"
-    assert server["FollowPathRL"]["policy"] == "store_arena_4b"
-    assert "goal_rule" not in server["FollowPathRL"]  # 정책 명세가 정한다
-    assert "lookahead_dist" not in server["FollowPathRL"]
-    assert server["FollowPathRL"]["rear_stop_range"] == 0.0  # 후진 막기는 기본 끔
+    assert server["controller_plugins"] == [*base, "FollowPathMPPI", "FollowPathRL",
+                                            "FollowPathRLAlone"]
+    for name in ("FollowPathRL", "FollowPathRLAlone"):
+        assert server[name]["policy"] == "store_arena_4b"
+        assert "goal_rule" not in server[name]  # 정책 명세가 정한다
+        assert "lookahead_dist" not in server[name]
+        assert server[name]["rear_stop_range"] == 0.0  # 후진 막기는 기본 끔
+    assert not (path.parent / "follow_path_rl_shim.yaml").exists()
 
 
-def test_the_shim_variant_gets_the_same_speed_cap(tmp_path):
-    path = REPO / "sim" / "fleet_gz_sim" / "nav_overrides" / "follow_path_rl_shim.yaml"
-    overrides = yaml.safe_load(path.read_text(encoding="utf-8"))
-    sim = yaml.safe_load(_sim(NAV, tmp_path / "shim.yaml", overrides=overrides, max_speed=0.10)
-                         .read_text(encoding="utf-8"))
-    assert sim["controller_server"]["ros__parameters"]["FollowPathRL"]["max_linear_vel"] == 0.10
-
-
-def test_the_shim_variant_wraps_the_same_rl_controller(tmp_path):
-    """follow_path_rl_shim.yaml은 같은 FollowPathRL을 RotationShim으로 감싼 선택지다(기본 아님)."""
-    folder = REPO / "sim" / "fleet_gz_sim" / "nav_overrides"
-    plain, shim = (yaml.safe_load((folder / f).read_text(encoding="utf-8"))
-                   ["controller_server"]["ros__parameters"]
-                   for f in ("follow_path_rl.yaml", "follow_path_rl_shim.yaml"))
-    assert shim["controller_plugins"] == plain["controller_plugins"]
-    rl, wrapped = plain["FollowPathRL"], dict(shim["FollowPathRL"])
+def test_the_default_rl_option_is_the_shim_wrapped_policy_and_rl_alone_stays(tmp_path):
+    """시뮬의 RL 기본(FollowPathRL)은 RotationShim으로 감싼 정책이다.
+    감싸지 않은 같은 정책은 비교용 FollowPathRLAlone으로 남는다."""
+    path = REPO / "sim" / "fleet_gz_sim" / "nav_overrides" / "follow_path_rl.yaml"
+    data = yaml.safe_load(path.read_text(encoding="utf-8"))
+    server = data["controller_server"]["ros__parameters"]
+    rl, wrapped = server["FollowPathRLAlone"], dict(server["FollowPathRL"])
+    assert rl["plugin"] == "pode_rl_controller::FollowPathRL"
     assert wrapped.pop("plugin") == "nav2_rotation_shim_controller::RotationShimController"
     assert wrapped.pop("primary_controller") == rl["plugin"]
-    shim_keys = {"angular_dist_threshold", "forward_sampling_distance",
-                 "rotate_to_heading_angular_vel", "max_angular_accel", "simulate_ahead_time",
-                 "rotate_to_goal_heading"}
+    shim_keys = {"angular_dist_threshold", "angular_disengage_threshold",
+                 "forward_sampling_distance", "rotate_to_heading_angular_vel",
+                 "max_angular_accel", "simulate_ahead_time", "rotate_to_goal_heading"}
     assert set(wrapped) - set(rl) == shim_keys
     assert {k: v for k, v in wrapped.items() if k not in shim_keys} == \
         {k: v for k, v in rl.items() if k != "plugin"}
-    sim = yaml.safe_load(_sim(NAV, tmp_path / "shim.yaml",
-                              overrides={"controller_server": {"ros__parameters": shim}})
+    assert wrapped["angular_dist_threshold"] == 0.785
+    assert wrapped["angular_disengage_threshold"] == 0.39
+    assert wrapped["rotate_to_goal_heading"] is True
+    sim = yaml.safe_load(_sim(NAV, tmp_path / "rl.yaml", overrides=data, max_speed=0.10)
                          .read_text(encoding="utf-8"))
-    assert sim["controller_server"]["ros__parameters"]["FollowPathRL"]["primary_controller"] == \
-        "pode_rl_controller::FollowPathRL"
+    out = sim["controller_server"]["ros__parameters"]
+    assert out["FollowPathRL"]["primary_controller"] == "pode_rl_controller::FollowPathRL"
+    assert out["FollowPathRL"]["max_linear_vel"] == 0.10
+    assert out["FollowPathRLAlone"]["max_linear_vel"] == 0.10
 
 
 def test_mppi_is_loaded_only_in_the_sim(tmp_path):

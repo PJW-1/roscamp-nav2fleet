@@ -50,7 +50,7 @@ def scenario_file(tmp_path, localizing_s=0.0):
     robot = {"speed_mps": SPEED, "pose_noise_m": 0.0}
     data = {
         "seed": 3, "speed_factor": 1.0, "timeout_s": 600,
-        "stock": {"arm1": {"A": 3}, "arm2": {"C": 3}},
+        "stock": {"arm_left": {"A": 3}, "arm_right": {"C": 3}},
         "robots": {"pode1": {"start": "P-3", "localizing_s": localizing_s, **robot},
                    "pode2": {"start": "P-5", **robot},
                    "pode3": {"start": "P-4", **robot}},

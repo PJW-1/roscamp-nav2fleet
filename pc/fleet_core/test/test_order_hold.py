@@ -48,7 +48,7 @@ def time_out(core, now, limit):
     now[0] += limit + 0.1
     core.check_arm_timeouts(now[0])
     core.take_output()
-    now[0] += core.params.arm_cancel_wait_s + 0.1
+    now[0] += core.params.robot_timeout_settle_s + 0.1
     core.check_arm_timeouts(now[0])
     return core.take_output()
 
@@ -188,7 +188,7 @@ def test_isolation_during_a_swap_still_stops_the_arm_and_then_holds_the_order():
     core, _, swap = swapping()
     core.on_robot_isolated("r1", "GOAL_FAILED")
     out = core.take_output()
-    assert [(c.robot, c.goal_id) for c in cmds(out, "CancelCmd")] == [("arm3", swap.goal_id)]
+    assert [(c.robot, c.goal_id) for c in cmds(out, "CancelCmd")] == [("arm_ship", swap.goal_id)]
     assert not reports(out), "waits for the result"
     core.on_swap_result(swap.goal_id, False, False, False, "CANCELED")
     [report] = reports(core.take_output())
@@ -351,7 +351,7 @@ def test_isolation_during_a_forced_swap_stops_it_even_with_an_old_result_due():
     new = cmds(core.take_output(), "SwapCmd")[0]
     core.on_robot_isolated("r1", "GOAL_FAILED")
     out = core.take_output()
-    assert [(c.robot, c.goal_id) for c in cmds(out, "CancelCmd")] == [("arm3", new.goal_id)]
+    assert [(c.robot, c.goal_id) for c in cmds(out, "CancelCmd")] == [("arm_ship", new.goal_id)]
     core.on_swap_result(old.goal_id, False, False, False, "CANCELED")
     assert not reports(core.take_output()), "the new swap is still running"
     core.on_swap_result(new.goal_id, False, True, False, "CANCELED")

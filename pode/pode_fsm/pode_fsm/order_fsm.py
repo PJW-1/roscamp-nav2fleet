@@ -65,6 +65,9 @@ class OrderFsm(PodeFsm):
     def current_goal(self) -> str:
         return self._q.last_node if self._waiting else super().current_goal()
 
+    def has_goal(self) -> bool:
+        return self._q is not None or super().has_goal()
+
     def is_running(self, goal_id: Hashable) -> bool:
         if self._q is not None:
             return goal_id == self._owner
@@ -122,6 +125,11 @@ class OrderFsm(PodeFsm):
     # ---- 도킹, 물러나기, 취소 요청 처리 ----
     def dock(self, goal_id: Hashable, now: float, dock_id: str) -> list:
         return self._close(CANCELED) + self._own(super().dock(goal_id, now, dock_id), now,
+                                                 self._pose)
+
+    # TODO(no-motion): pode_dock이 오면 지운다
+    def dock_wait(self, goal_id: Hashable, now: float, dock_id: str) -> list:
+        return self._close(CANCELED) + self._own(super().dock_wait(goal_id, now, dock_id), now,
                                                  self._pose)
 
     def retreat(self, goal_id: Hashable, now: float, distance_m: float, speed_mps: float,

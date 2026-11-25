@@ -24,12 +24,15 @@ heartbeat_period_s: 0.5       # /fleet/heartbeat 주기(실제 시계 기준)
 heartbeat_timeout_s: 1.5      # 이만큼 못 받으면 로봇이 멈춘다
 recover_check_s: 1.0
 arm_cancel_wait_s: 5.0
+robot_timeout_settle_s: 30.0  # 시간 초과·결과 잃음(결과 모름)을 정하는 시간. 넘기면 고장(IR-62)
 arm_retry_wait_s: 2.0
 fill_timeout_s: 90.0          # 팔 두 대가 바구니 하나를 채우는 제한 시간
-swap_timeout_s: 60.0          # arm3가 바구니를 바꾸는 제한 시간
+swap_timeout_s: 60.0          # arm_ship이 바구니를 바꾸는 제한 시간
 cancel_retry_s: 1.0           # 취소한 goal 결과가 없으면 이 주기로 다시 요청
-cancel_warn_after: 5          # 결과 없이 이만큼 주기가 지나면 CANCEL_UNCONFIRMED
-report_retry_s: 2.0           # 답이 없으면 이만큼 뒤 주문 보고를 다시 보냄
+cancel_warn_after: 38         # 결과 없이 이만큼 주기가 지나면 CANCEL_UNCONFIRMED
+                              # 지터 하한(×0.8)을 곱해도 arm_cancel_wait_s·robot_timeout_settle_s 이상
+report_retry_s: 2.0           # 답이 없으면 이만큼(±20%) 뒤 주문 보고를 다시 보냄
+report_max_in_flight: 4       # 답을 기다리는 주문 보고 요청 수 상한(IR-41)
 zone_wait_warn_s: 60.0        # 한 구역을 이만큼 기다리면 경고
 deadlock_grace_s: 5.0         # 교착 두 번째 단계 전 대기
 score_same_call: -4.0         # 이미 불린 로봇은 다른 로봇이 확실히 가깝지 않으면 호출을 유지
@@ -68,6 +71,9 @@ pose_jump_window_s: 2.0       # 위치 추정 감시: 이 시간 안의 두 보�
 pose_jump_m: 0.15             # 갈 수 있는 거리보다 이만큼 넘게 옮겨지면 LOCALIZATION_SUSPECT(기록만)
 pose_jump_quiet_s: 5.0        # 한 번 낸 뒤 이만큼은 다시 내지 않는다
 redock_wait_s: 10.0           # 도킹 실패 로봇이 물러날 길이 비기를 기다리는 시간. 넘으면 그 자리에서 다시 도킹
+# TODO(pode_dock): 진짜 도킹이 들어오면 lost_dock_reach_m을 3 cm 근처로 조인다
+lost_dock_reach_m: 0.15       # 도킹 결과를 잃었을 때 보고 위치가 도크 지점에서 이만큼 안이면 도킹 완료(IR-62)
+lost_dock_yaw_deg: 15.0       # 그때 보고 방향도 도크 방향에서 이만큼 안이어야 한다
 retreat_clear_m: 0.20         # 물러나기 길이 다른 로봇에 이만큼 안으로 다가가면 내지 않는다
 use_order_model: true         # order 모델(base/horizon, 이어 붙이기). 끄면 조각 하나씩 보낸다
 lookahead_s: 2.0              # order 모델: base 끝까지 이만큼 남으면 다음 구역을 잡아 본다

@@ -10,7 +10,7 @@ from fleet_core.common.params import load_params
 from fleet_core.fleet_map import NAV_GOAL, load_fleet_map, shortest_path
 from fleet_core.fleet_map.geometry import point_rect_distance, segment_rect_distance
 
-SOUTH_WEST, SOUTH_EAST = (0.65, 0.365, 0.99, 0.405), (1.25, 0.365, 1.56, 0.405)
+SOUTH_WEST, SOUTH_EAST = (0.70, 0.3475, 0.99, 0.3875), (1.25, 0.3475, 1.56, 0.3875)
 BODY_HALF_M = 0.06       # 지도 여유 검사(clearance_m)와 keepout 덧댐
 NODE_CLEAR_M = 0.20
 
@@ -26,7 +26,7 @@ def test_gap_s_stands_below_the_middle_of_the_south_shelf_gap(site):
     assert gap.x == pytest.approx((SOUTH_WEST[2] + SOUTH_EAST[0]) / 2)
     assert gap.y == pytest.approx(0.22)
     # 로봇은 GAP_S nav_pass_m 앞에서 Q2 goal로 넘어간다. 북쪽에서 오면 그 자리가 진열대 줄
-    # (y 0.365~0.405) 안이라 이미 틈에 들어선 뒤다
+    # (y 0.3475~0.3875) 안이라 이미 틈에 들어선 뒤다
     assert gap.y + load_params().nav_pass_m <= SOUTH_WEST[3]
 
 
@@ -39,10 +39,10 @@ def test_gap_s_keeps_clear_of_walls_shelves_and_other_nodes(site):
     gap = site.node_pose("GAP_S")
     for shelf in site.shelves:
         assert point_rect_distance(shelf, *gap) >= BODY_HALF_M
-    # 진열대 줄 아래 면(y 0.365)에서 0.145, 가장 가까운 진열대 모서리에서 0.195
-    assert SOUTH_WEST[1] - gap[1] == pytest.approx(0.145)
+    # 진열대 줄 아래 면(y 0.3475)에서 0.1275, 가장 가까운 진열대 모서리에서 0.182
+    assert SOUTH_WEST[1] - gap[1] == pytest.approx(0.1275)
     assert min(point_rect_distance(s, *gap) for s in (SOUTH_WEST, SOUTH_EAST)) == pytest.approx(
-        math.hypot(0.13, 0.145), abs=1e-3)
+        math.hypot(0.13, 0.1275), abs=1e-3)
     for name in site.nodes:
         if name != "GAP_S":
             assert math.dist(gap, site.node_pose(name)) >= NODE_CLEAR_M, name

@@ -3,10 +3,12 @@ from __future__ import annotations
 
 import math
 
+from fleet_core.common.commands import CancelCmd
 from fleet_core.fleet_map import NAV_GOAL
 from fleet_core.traffic.mission import (
     AT_STATION,
     DOCK,
+    GOAL_RESULT_LOST,
     HEARTBEAT_LOST,
     LOCALIZING,
     MOVE,
@@ -15,6 +17,9 @@ from fleet_core.traffic.mission import (
     NOT_AT_TARGET,
     PATH_NOT_CONNECTED,
     RETREAT,
+    ROBOT_DOCKED,
+    ROBOT_IDLE,
+    ROBOT_TIMEOUT,
 )
 
 from .robots import ORDER, Goal
@@ -34,8 +39,9 @@ class Results:
         if m is not None and m.move_order is not None and self._old_goal_result(m, goal_id, reason):
             return
         m = self._active(robot, goal_id, MOVE)
-        if m is None:
+        if m is None or self._past_unknown(m):
             return
+        m.result_lost_at = None  # 늦게 온 결과가 결과 모름을 정한다
         if m.move_order is not None and self._order_result(m, reason, last_done_seq):
             return
         if success:
@@ -46,8 +52,9 @@ class Results:
     # ---- 물러나기 결과와 도킹 결과 ----
     def on_retreat_result(self, robot, goal_id, success, reason="") -> None:
         m = self._active(robot, goal_id, RETREAT)
-        if m is None:
+        if m is None or self._past_unknown(m):
             return
+        m.result_lost_at = None
         if success:
             m.avoid.behind_since = None
             self._succeeded(m)
@@ -57,7 +64,7 @@ class Results:
     def on_dock_result(self, robot, goal_id, success, error_x_cm=0.0, error_y_cm=0.0,
                        error_yaw_deg=0.0) -> None:
         m = self._active(robot, goal_id, DOCK)
-        if m is None:
+        if m is None or self._past_unknown(m):
             return
         self._clear_goal(m)
         if not success:
@@ -93,9 +100,65 @@ class Results:
                         m.name)
 
     def on_goal_lost(self, robot, goal_id) -> None:
+        mo = getattr(self._robots.get(robot), "move_order", None)
+        if mo is not None and mo.before is not None and mo.before[0] == goal_id:
+            mo.before_lost = goal_id  # 갱신이 실패해 되살리면 결과 모름으로 둔다
+            return
         m = self._active(robot, goal_id, MOVE, RETREAT, DOCK)
-        if m is not None and not self._update_unclear(m, "the goal was lost"):
-            self._forget_goal(m)
+        if m is None or self._update_unclear(m, "the goal was lost"):
+            return
+        if m.result_lost_at is None:
+            self._lose_result(m, goal_id)
+
+    def _lose_result(self, m, goal_id) -> None:
+        # IR-62: 실패가 아니라 결과 모름. goal과 구역을 쥔 채 상태 보고로 정한다
+        m.result_lost_at = self._clock()
+        settle = self.params.robot_timeout_settle_s
+        self._event("WARN", ROBOT_TIMEOUT,
+                    f"{m.goal.kind} goal {goal_id} lost its result: result unknown, holds its "
+                    f"zones, settles from the state report within {settle:.0f} s", m.name)
+
+    # ---- 결과 모름 정하기: 끝에서 IDLE이면 완료, 다른 곳이면 실패, 도킹은 도크 자세로, 기한 넘으면 격리 ----
+    def _settle_lost(self, m, now: float, state: str = "") -> None:
+        """state는 지금 들은 상태 보고. 비면 기한만 본다."""
+        if now - m.result_lost_at >= self.params.robot_timeout_settle_s:
+            self._fail(m, ROBOT_TIMEOUT)
+            self._cancel_goal(m)  # 이미 고장이던 로봇은 _fail이 취소하지 않는다
+            return
+        dock = m.goal.kind == DOCK
+        idle = state == ROBOT_IDLE or (dock and state == ROBOT_DOCKED)
+        if idle:
+            self._out.append(CancelCmd(m.name, m.goal.id))  # 노드가 쥔 goal을 놓게 한다
+        if idle and dock:
+            error = self._dock_pose_error(m)
+            if error is not None:
+                # TODO(v0.2): pode_fsm이 DOCKED와 도킹 오차를 보고하면 그 값으로 정한다
+                m.result_lost_at = None  # 기한은 이 보고를 받은 시각으로 이미 봤다
+                self.on_dock_result(m.name, m.goal.id, True, *error)
+            else:
+                self._clear_goal(m)
+                self._dock_failed(m, GOAL_RESULT_LOST)
+        elif idle:
+            self._move_failed(m, GOAL_RESULT_LOST)
+
+    # ---- 보고 자세가 도크 자세 허용치 안이면 (x cm, y cm, 방향 deg) 오차, 밖이면 None ----
+    def _dock_pose_error(self, m):
+        spec, p = self.site.nodes[self.site.stations[m.dest].dock], self.params
+        if spec.yaw is None:
+            return None  # 지도에 도크 방향이 없으면 자세로 정하지 않는다
+        ex, ey = m.x - spec.x, m.y - spec.y
+        eyaw = math.degrees(math.remainder(m.yaw - spec.yaw, math.tau))
+        if math.hypot(ex, ey) > p.lost_dock_reach_m or abs(eyaw) > p.lost_dock_yaw_deg:
+            return None
+        return ex * 100.0, ey * 100.0, eyaw
+
+    # ---- 기다림이 끝난 결과 모름이면 먼저 정한다. 늦게 온 결과는 버린다 ----
+    def _past_unknown(self, m, now: float | None = None) -> bool:
+        now = self._clock() if now is None else now
+        if m.result_lost_at is None or now - m.result_lost_at < self.params.robot_timeout_settle_s:
+            return False
+        self._settle_lost(m, now)
+        return True
 
     # ---- 도착 확인과 구간 완료 ----
     def _succeeded(self, m) -> None:

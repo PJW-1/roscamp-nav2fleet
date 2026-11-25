@@ -1,0 +1,10 @@
+# ---- 운반 건 대상 명령 (resume_fill · force_ship · force_partial · return_to_shelf · resume_held · requeue_trip) ----
+string request_id
+string trip_id
+OrderItem[] mark_missing     # resume_fill에서만: 못 담음 · 보충 불가로 뺄 상품 (비면 그대로 재개)
+---
+# ---- 관리 명령 공통 응답 ----
+bool accepted
+string reason                # 2.2 요청 거절 코드
+string request_id
+string detail

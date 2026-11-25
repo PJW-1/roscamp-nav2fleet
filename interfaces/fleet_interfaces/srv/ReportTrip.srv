@@ -1,0 +1,23 @@
+# ---- 운반 건 진행 보고 (지금 상태 전체) ----
+string STATUS_RECEIVED="RECEIVED"
+string STATUS_ASSIGNED="ASSIGNED"
+string STATUS_FILLING="FILLING"
+string STATUS_FILLING_PAUSE="FILLING_PAUSE"
+string STATUS_TRANSPORTING="TRANSPORTING"
+string STATUS_SHIPPED="SHIPPED"
+string STATUS_PARTIAL="PARTIAL"
+string STATUS_HELD="HELD"
+string STATUS_CANCELLED="CANCELLED"
+string trip_id
+uint32 report_epoch
+uint64 report_n
+string status
+string reason                # 2.2 사유 코드
+string robot_id
+OrderItem[] placed           # 누적
+OrderItem[] missing
+builtin_interfaces/Time stamp
+---
+bool accepted                # true = 다시 보내지 않음 (APPLIED · DUPLICATE · LATE_REPORT 모두). false = DB 쓰기 실패, 다시 보냄
+string result                # 같은 (epoch, n) = DUPLICATE, 더 작은 번호 · 허용되지 않는 전이 = LATE_REPORT
+string reason

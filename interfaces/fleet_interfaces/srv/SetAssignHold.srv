@@ -1,0 +1,10 @@
+# ---- 마감 보류 · 재개 (지금 상태 + 주문판 목록 통째로, #11) ----
+string request_id
+bool assign_hold
+string close_id
+string[] open_trip_ids       # 웹이 아는 끝나지 않은 운반 건 전체
+---
+bool accepted
+bool applied                 # 주문판에 반영했는지
+uint32 in_progress_trips     # 배정 뒤 아직 끝나지 않은 운반 건 수 (실사를 열 수 있는지)
+string reason

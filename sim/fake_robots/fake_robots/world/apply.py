@@ -1,4 +1,4 @@
-"""관제가 낸 것을 세계에 옮긴다: 이동, 물러나기, 도킹, 취소, 팔 작업, 주문 보고, 사건."""
+"""관제가 낸 것을 세계에 옮긴다: 이동, 물러나기, 도킹, 취소, 팔 작업, 주문과 운반 건 보고, 사건."""
 from __future__ import annotations
 
 import math
@@ -12,6 +12,7 @@ from fleet_core.common.commands import (
     MoveCmd,
     MoveOrderCmd,
     ReportOrderCmd,
+    ReportTripCmd,
     RetreatCmd,
     SwapCmd,
 )
@@ -43,6 +44,8 @@ class Commands:
         self.reaction.on_command(self.t, item)
         if isinstance(item, ReportOrderCmd):
             self.central.take_report(self.t, item)
+        elif isinstance(item, ReportTripCmd):
+            self.central.take_trip_report(self.t, item)
         elif isinstance(item, FillCmd):
             self.arms.start_fill(self.t, item, self.robots[item.robot],
                                  self._slow(item.station_id))

@@ -30,7 +30,7 @@ def minimal(**over):
         "seed": 1,
         "speed_factor": 2.0,
         "timeout_s": 100,
-        "stock": {"arm1": {"A": 2}, "arm2": {"C": 1}},
+        "stock": {"arm_left": {"A": 2}, "arm_right": {"C": 1}},
         "orders": [{"at_s": 0, "id": "O-1", "items": {"A": 1}}],
         "robots": {"pode1": {"start": "P-1", "speed_scale": 1.0, "pose_noise_m": 0.0}},
     }
@@ -62,7 +62,7 @@ def test_a_negative_delay_or_stop_error_is_refused(site, key):
 
 
 def test_inventory_defaults_to_the_stock_total(site):
-    sc = parse_scenario(minimal(stock={"arm1": {"A": 2, "B": 1}, "arm2": {"A": 3}}), site)
+    sc = parse_scenario(minimal(stock={"arm_left": {"A": 2, "B": 1}, "arm_right": {"A": 3}}), site)
     assert sc.inventory == {"A": 5, "B": 1}
 
 
@@ -98,8 +98,8 @@ def test_a_zone_a_node_to_pass_through_or_a_cell_is_not_a_valid_start(site, star
 @pytest.mark.parametrize("bad", [
     {"stations": {"X": 1}},
     {"arrivals": []},
-    {"stock": {"arm3": {"A": 1}}},
-    {"stock": {"arm1": {"A": -1}}},
+    {"stock": {"arm_ship": {"A": 1}}},
+    {"stock": {"arm_left": {"A": -1}}},
     {"inventory": {"A": -1}},
     {"orders": [{"at_s": 0, "items": {"A": 1}}]},
     {"orders": [{"at_s": 0, "id": "O-1", "items": {}}]},
@@ -111,7 +111,7 @@ def test_a_zone_a_node_to_pass_through_or_a_cell_is_not_a_valid_start(site, star
      "expect": {"orders_shipped_min": 1}},
     {"faults": [{"at_s": 5, "robot": "pode1", "type": "explode"}],
      "expect": {"orders_shipped_min": 1}},
-    {"faults": [{"at_s": 5, "arm": "arm3", "type": "arm_fail"}],
+    {"faults": [{"at_s": 5, "arm": "arm_ship", "type": "arm_fail"}],
      "expect": {"orders_shipped_min": 1}},
     {"faults": [{"at_s": 5, "robot": "pode9", "type": "operator_remove"}],
      "expect": {"orders_shipped_min": 1}},
@@ -152,11 +152,11 @@ def test_a_failure_scenario_expecting_shipped_orders_is_fine(site, expect):
 
 def test_fault_fields_for_arms(site):
     sc = parse_scenario(minimal(expect={"orders_shipped_min": 1}, faults=[
-        {"at_s": 1, "arm": "arm1", "type": "arm_fail", "count": 3, "after_items": 1},
+        {"at_s": 1, "arm": "arm_left", "type": "arm_fail", "count": 3, "after_items": 1},
         {"at_s": 2, "type": "swap_partial", "count": 2},
     ]), site)
     fail, partial = sc.faults
-    assert (fail.arm, fail.count, fail.after_items) == ("arm1", 3, 1)
+    assert (fail.arm, fail.count, fail.after_items) == ("arm_left", 3, 1)
     assert (partial.type, partial.count) == ("swap_partial", 2)
 
 
@@ -406,13 +406,20 @@ def test_params_file_gives_the_basket_capacity():
 
 
 def test_fake_arms_together_or_not_at_all(site):
-    assert split_fake_arms("arm1 arm2 arm3", site) == (True, ["arm1", "arm2"], ["arm3"])
-    assert split_fake_arms("arm3", site) == (False, [], ["arm3"])
-    assert split_fake_arms("arm1 arm2", site) == (True, ["arm1", "arm2"], [])
+    assert split_fake_arms("arm_left arm_right arm_ship", site) == (
+        True, ["arm_left", "arm_right"], ["arm_ship"])
+    assert split_fake_arms("arm_ship", site) == (False, [], ["arm_ship"])
+    assert split_fake_arms("arm_left arm_right", site) == (True, ["arm_left", "arm_right"], [])
     assert split_fake_arms("", site) == (False, [], [])
 
 
-@pytest.mark.parametrize("bad", ["arm1", "arm2 arm3", "arm9", "arm1 arm2 workcell"])
+@pytest.mark.parametrize("none", ["none", "None", "NONE", " none "])
+def test_fake_arms_none_means_no_fake_arms(site, none):
+    assert split_fake_arms(none, site) == (False, [], [])
+
+
+@pytest.mark.parametrize("bad", ["arm_left", "arm_right arm_ship", "arm9",
+                                 "arm_left arm_right workcell"])
 def test_fake_arms_rejects_half_a_workcell_and_unknown_names(site, bad):
     with pytest.raises(ValueError):
         split_fake_arms(bad, site)
@@ -505,7 +512,7 @@ SOME_SHIPPED = {"orders_shipped_min": 1}
 
 def random_data(**random):
     return minimal(orders=[dict(o) for o in FIVE_ORDERS], robots=dict(THREE_ROBOTS),
-                   stock={"arm1": {"A": 9}, "arm2": {"C": 1}}, expect=SOME_SHIPPED,
+                   stock={"arm_left": {"A": 9}, "arm_right": {"C": 1}}, expect=SOME_SHIPPED,
                    random=random or {"order_gap_s": [5, 40],
                                      "low_battery": {"from_s": 20, "to_s": 150,
                                                      "charge_s": 30}})

@@ -8,6 +8,7 @@ from builtin_interfaces.msg import Time
 from fleet_core.common.commands import OrderRecord
 from fleet_interfaces.action import Dock, FillBasket, MoveTo, Retreat, SwapBasket
 from fleet_interfaces.msg import (
+    ArmState,
     Assignment,
     AssignmentArray,
     FleetEvent,
@@ -19,7 +20,7 @@ from fleet_interfaces.msg import (
     ZoneState,
     ZoneStateArray,
 )
-from fleet_interfaces.srv import CheckClear, ForceShip, ReportOrder
+from fleet_interfaces.srv import CheckClear, ReportOrder, ReportTrip, TripCommand
 from geometry_msgs.msg import Pose, PoseStamped
 from nav_msgs.msg import Path
 
@@ -77,15 +78,37 @@ def event_to_msg(event, now: float) -> FleetEvent:
     )
 
 
-def robots_to_msg(views, now: float) -> RobotStatusArray:
-    robots = [
-        RobotStatus(robot_id=v.robot_id, fsm_state=v.fsm_state, task_type=v.task_type,
-                    order_id=v.order_id, fault=v.fault, fault_reason=v.fault_reason,
-                    wait_zone=v.wait_zone, wait_robots=list(v.wait_robots),
-                    base=list(v.base), horizon=list(v.horizon), priority=int(v.priority),
-                    battery=float(v.battery), x=float(v.x), y=float(v.y), yaw=float(v.yaw))
-        for v in views
-    ]
+def _pode_status(v, state) -> RobotStatus:
+    row = RobotStatus(robot_id=v.robot_id, fsm_state=v.fsm_state, task_type=v.task_type,
+                      order_id=v.order_id, fault=v.fault, fault_reason=v.fault_reason,
+                      wait_zone=v.wait_zone, wait_robots=list(v.wait_robots),
+                      base=list(v.base), horizon=list(v.horizon), priority=int(v.priority),
+                      battery=float(v.battery), x=float(v.x), y=float(v.y), yaw=float(v.yaw),
+                      kind=RobotStatus.KIND_POD, lock=True)
+    if state is not None:
+        row.lock, row.mode, row.forced, row.boot_id = (
+            bool(state.lock), state.mode, list(state.forced), state.boot_id)
+    return row
+
+
+def arm_status(arm: str, state, fresh: bool) -> RobotStatus:
+    row = RobotStatus(robot_id=arm, kind=RobotStatus.KIND_ARM, battery=-1.0,
+                      fault=RobotStatus.FAULT_COMM_LOST, lock=True)
+    if state is None:
+        return row
+    row.fsm_state, row.order_id, row.fault_reason = state.state, state.order_id, state.detail
+    row.lock, row.mode, row.forced, row.boot_id = (
+        bool(state.lock), state.mode, list(state.forced), state.boot_id)
+    if fresh:
+        row.fault = (RobotStatus.FAULT_ERROR if state.state == ArmState.STATE_ERROR
+                     else RobotStatus.FAULT_NONE)
+    return row
+
+
+def robots_to_msg(views, now: float, pode_states=None, arms=()) -> RobotStatusArray:
+    pode_states = pode_states or {}
+    robots = [_pode_status(v, pode_states.get(v.robot_id)) for v in views]
+    robots += [arm_status(arm, state, fresh) for arm, state, fresh in arms]
     return RobotStatusArray(robots=robots, stamp=to_time(now))
 
 
@@ -155,10 +178,12 @@ def confirm_clear_args(request) -> tuple[str, list[str], str]:
     return request.robot_id, list(request.zone_ids), request.note
 
 
-def confirm_clear_response(response, released: list[str] | None, reason: str = ""):
+def confirm_clear_response(response, released: list[str] | None, reason: str = "",
+                           request_id: str = ""):
     response.accepted = released is not None
     response.released_zones = list(released or [])
     response.reason = "" if released is not None else str(reason)
+    response.request_id = str(request_id)
     return response
 
 
@@ -166,19 +191,21 @@ def reinstate_args(request) -> tuple[str, str, str]:
     return request.robot_id, request.basket, request.note
 
 
-def reinstate_response(response, accepted: bool, reason: str = ""):
+def reinstate_response(response, accepted: bool, reason: str = "", request_id: str = ""):
     response.accepted = bool(accepted)
     response.reason = "" if accepted else str(reason)
+    response.request_id = str(request_id)
     return response
 
 
-def force_ship_args(request: ForceShip.Request) -> str:
-    return request.order_id
+def force_ship_args(request: TripCommand.Request) -> str:
+    return request.trip_id
 
 
-def force_ship_response(response, accepted: bool, reason: str = ""):
+def force_ship_response(response, accepted: bool, reason: str = "", request_id: str = ""):
     response.accepted = bool(accepted)
     response.reason = "" if accepted else str(reason)
+    response.request_id = str(request_id)
     return response
 
 
@@ -288,3 +315,15 @@ def report_request(cmd) -> ReportOrder.Request:
         missing=to_order_items(cmd.missing),
         detail=cmd.detail,
     )
+
+
+# ---- 운반 건 보고(ReportTrip)의 상태와 사유: 밖으로는 CANCELLED ----
+NOTHING_TO_FILL = "NOTHING_TO_FILL"
+
+
+def trip_status(status: str, hold_reason: str = "") -> tuple[str, str]:
+    if status == ReportOrder.Request.STATUS_CANCELED:
+        return ReportTrip.Request.STATUS_CANCELLED, NOTHING_TO_FILL
+    if status == ReportOrder.Request.STATUS_HELD:
+        return ReportTrip.Request.STATUS_HELD, hold_reason
+    return status, ""

@@ -23,7 +23,7 @@ ORIGIN = (-0.15, -0.15)
 INSCRIBED, RADIUS, SCALE = 0.07, 0.15, 15.0
 BAND = (0.365, 0.405)
 GAP = (0.99, 1.25)
-EAST_END, WEST_END = 1.56, 0.65
+EAST_END, WEST_END = 1.56, 0.70
 
 
 def load(variant: str):

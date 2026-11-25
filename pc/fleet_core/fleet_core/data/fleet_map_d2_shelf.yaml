@@ -57,6 +57,6 @@ paths:  # 고정 경로(FollowPath 선). 이웃한 두 점마다 연결 하나�
 nav:  # 이 지점들은 서로 Nav2 goal로 오간다
   - {nodes: [N_W, N_E, W_Q, O_Q, P-1, P-2, P-3]}
 stations:
-  WORK: {dock: W, queue: [W_Q], server: workcell, arms: [arm1, arm2], action: fill}
-  OUTBOUND: {dock: O, queue: [O_Q], server: arm3, arms: [arm3], action: swap}
+  WORK: {dock: W, queue: [W_Q], server: workcell, arms: [arm_left, arm_right], action: fill}
+  OUTBOUND: {dock: O, queue: [O_Q], server: arm_ship, arms: [arm_ship], action: swap}
 parking: [P-1, P-2, P-3]

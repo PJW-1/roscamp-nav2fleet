@@ -8,7 +8,7 @@ Pode 3대가 1.98 × 0.99 m 경기장에서 바구니를 나르는 입출고 관
 - `PJW-1/roscamp-nav2fleet`은 pode-drive `main`에서 `learning/`(RL 학습)만 뺀 사본이다. 11-22에 얼렸던 것을 11-23 사용자 결정으로 풀었다.
   - **지금 보는 곳이 nav2fleet이면 여기서 고치지 않는다.** pode-drive `main`을 고친 뒤 `tools/sync_nav2fleet.sh <nav2fleet 클론> --push`로 맞춘다. 이 README도 pode-drive에서 복사된 것이다.
   - 스크립트는 클론의 작업 트리를 건드리지 않고, 관제 시험(`pc/fleet_core`)이 통과해야 올린다. `learning/` 밖에서 충돌이 나면 멈춘다.
-  - `pode/pode_rl_controller`와 Gazebo의 RL 덮어쓰기(`sim/fleet_gz_sim/nav_overrides/follow_path_rl*.yaml`)는 Gazebo launch와 시험이 참조하므로 nav2fleet에도 남는다.
+  - `pode/pode_rl_controller`와 Gazebo의 RL 덮어쓰기(`sim/fleet_gz_sim/nav_overrides/follow_path_rl.yaml`)는 Gazebo launch와 시험이 참조하므로 nav2fleet에도 남는다.
 - nav2fleet 태그 `rpp-baseline-2026-11-21`(b9e86c5)은 11-23 실물 시험에 쓴 판이다. 지우거나 옮기지 않는다.
 
 ## 구조
@@ -141,7 +141,7 @@ python3 tools/order_situations.py --seeds 1 2 3                          # 머�
 
 | 있는 것 | 아직 없는 것 |
 |---|---|
-| 구역 교통 층: 구역 허락, 급행 방향, 도크 줄, 막힘 처리(기다림, 표시, 돌아가기, Retreat), 교착 감시 | 실물에서의 확인: 아무것도 실물에서 재지 않았다 |
+| 구역 교통 층: 구역 허락, 급행 방향, 도크 줄, 막힘 처리(기다림, 표시, 돌아가기, Retreat), 교착 감시 | 실물에서의 확인은 이제 시작했다: 11-23 실물 판에서 pode1 bag으로 스캔, odom, CPU를 쟀다(`docs/report_2026-11-24_rl_real_prep.md`). 실물 측정은 아직 적다 |
 | Pode: MoveTo `mode`(`follow_path`, `nav_goal`), Retreat, keepout 필터, 비전 장애물 자리(기본 꺼짐) | 충돌 검사를 켠 채 고정 경로 주행: 한 대는 구간마다 3/3으로 통과하지만 세 대 경기는 끝나지 않는다. 그래서 시뮬레이션의 기본은 끔이다(`fixed_line_collision_check`, 작업 기록 10.14절) |
 | 시험 환경: 머리 없는 세계(상황 열 가지), Gazebo 세 배치 | 회피(라이다와 비전으로 피하기)는 팀원 몫이고 자리만 있다 |
 | 측정: 머리 없는 세계 90번, Gazebo 세 대 경기 11판(작업 기록 4절) | Gazebo 세 대 경기의 안정성: 관제를 고친 뒤 장애물 없는 네 판 가운데 두 판만 주문 8건을 끝냈다. 마당에서 로봇의 몸이 닿고, 위치 추정이 흐른 뒤 격리되는 판이 있다 |
@@ -152,7 +152,7 @@ python3 tools/order_situations.py --seeds 1 2 3                          # 머�
 |---|---|
 | [docs/관제_구역교통.md](docs/관제_구역교통.md) | 교통 규칙, 사건 코드, 값 |
 | [docs/회피_약속.md](docs/회피_약속.md) | 관제와 회피가 나눠 맡는 선(제안) |
-| [docs/Pode_계약.md](docs/Pode_계약.md) | Pode와 관제 사이의 계약(0.11-draft는 제안) |
+| [docs/Pode_계약.md](docs/Pode_계약.md) | Pode와 관제 사이의 계약(0.11-draft는 제안. 0.8~0.13-draft는 예전 개인 저장소의 번호이고, 지금은 팀 contract.yaml의 판(0.7)을 따른다.) |
 | [docs/order_모델.md](docs/order_모델.md) | order 모델의 규칙, 켜는 법, 정한 값(제안) |
 | [docs/worklog_nav2base_2026-11-12.md](docs/worklog_nav2base_2026-11-12.md) | 만든 것, 측정, 가정, 남은 일 |
 | [docs/worklog_drive_handoff_2026-11-17.md](docs/worklog_drive_handoff_2026-11-17.md) | 가장 최근 인수인계: 2026-11-17에 바뀐 것(주행, O_IN/O_OUT, 코드 정리), 측정, 남은 것 |

@@ -73,15 +73,30 @@ void FollowPathRL::configure(
     dir + "/policy.onnx", spec_.obs_dim, spec_.act_dim, threads);
   const double nav_speed = load_nav_speed(
     ament_index_cpp::get_package_share_directory("pode_nav_config") + "/params/nav_speed.yaml");
-  speed_mismatch_ = speed_mismatch(spec_.action.v_max, nav_speed);
-  if (!speed_mismatch_.empty()) {
-    RCLCPP_ERROR(
-      logger_, "FollowPathRL %s: %s. Retrain or export the policy at %.3f m/s; until then the "
-      "command is capped at %.3f m/s and this error repeats while it drives", name_.c_str(),
-      speed_mismatch_.c_str(), nav_speed, nav_speed);
+  memory_ = ObsMemory(spec_);
+  if (spec_.has_block("speed_cap")) {
+    max_v_ = max_v_param > 0.0 ? std::min(max_v_param, nav_speed) : nav_speed;
+    const SpeedCapValue cap = speed_cap_value(max_v_, spec_.speed_cap);
+    speed_cap_ = cap.value;
+    v_top_ = cap.value;
+    speed_mismatch_ = cap.error;
+    if (!speed_mismatch_.empty()) {
+      RCLCPP_ERROR(
+        logger_, "FollowPathRL %s: %s. The command stays capped at %.3f m/s and this error "
+        "repeats while it drives", name_.c_str(), speed_mismatch_.c_str(), max_v_);
+    }
+  } else {
+    speed_mismatch_ = speed_mismatch(spec_.action.v_max, nav_speed);
+    if (!speed_mismatch_.empty()) {
+      RCLCPP_ERROR(
+        logger_, "FollowPathRL %s: %s. Retrain or export the policy at %.3f m/s; until then the "
+        "command is capped at %.3f m/s and this error repeats while it drives", name_.c_str(),
+        speed_mismatch_.c_str(), nav_speed, nav_speed);
+    }
+    const double top = std::min(spec_.action.v_max, nav_speed);
+    max_v_ = max_v_param > 0.0 ? std::min(max_v_param, top) : top;
+    v_top_ = spec_.action.v_max;
   }
-  const double top = std::min(spec_.action.v_max, nav_speed);
-  max_v_ = max_v_param > 0.0 ? std::min(max_v_param, top) : top;
   speed_limit_ = max_v_;
 
   rule_ = spec_.goal_rule;
@@ -113,13 +128,18 @@ void FollowPathRL::configure(
       std::lock_guard<std::mutex> lock(scan_mutex_);
       scan_ = msg;
     });
+  std::string blocks;
+  for (const auto & b : spec_.obs_blocks) {
+    blocks += (blocks.empty() ? "" : ", ") + b;
+  }
   RCLCPP_INFO(
     logger_, "FollowPathRL %s: policy %s (obs %d, dt %.3f s, v %.2f..%.2f m/s, w %.2f rad/s), "
     "goal_rule %s (lookahead %.2f m, window %d points), scan %s, ORT CPU threads %d, "
-    "max linear vel %.2f m/s", name_.c_str(),
-    dir.c_str(), spec_.obs_dim, spec_.control_dt, spec_.action.v_min, spec_.action.v_max,
-    spec_.action.w_max, rule_.rule.c_str(), rule_.lookahead_m, rule_.follow_window,
-    scan_topic_.c_str(), threads, max_v_);
+    "max linear vel %.2f m/s, spec format %d, obs blocks [%s], speed_cap %.3f m/s",
+    name_.c_str(), dir.c_str(), spec_.obs_dim, spec_.control_dt, spec_.action.v_min,
+    spec_.action.v_max, spec_.action.w_max, rule_.rule.c_str(), rule_.lookahead_m,
+    rule_.follow_window, scan_topic_.c_str(), threads, max_v_, spec_.format, blocks.c_str(),
+    speed_cap_);
 }
 
 void FollowPathRL::cleanup()
@@ -145,6 +165,14 @@ void FollowPathRL::setPlan(const nav_msgs::msg::Path & path)
     path_[i] = {path.poses[i].pose.position.x, path.poses[i].pose.position.y};
   }
   prog_ = 0;
+  if (!path_.empty()) {
+    if (new_episode(have_plan_, plan_end_, path_.back())) {
+      memory_.reset();
+      policy_ran_ = false;
+    }
+    plan_end_ = path_.back();
+    have_plan_ = true;
+  }
 }
 
 void FollowPathRL::reset()
@@ -152,6 +180,9 @@ void FollowPathRL::reset()
   cmd_ = {0.0, 0.0};
   have_last_call_ = false;
   prog_ = 0;
+  memory_.reset();
+  policy_ran_ = false;
+  have_plan_ = false;
 }
 
 void FollowPathRL::setSpeedLimit(const double & speed_limit, const bool & percentage)
@@ -258,15 +289,26 @@ geometry_msgs::msg::TwistStamped FollowPathRL::computeVelocityCommands(
     const Scan s{scan->angle_min, scan->angle_increment, scan->range_min, scan->range_max,
       scan->ranges};
     const auto rays = scan_to_rays(s, lidar_yaw(scan->header.frame_id), spec_);
-    const auto obs = build_observation(
+    auto obs = build_observation(
       rays, goal.dist, goal.angle, velocity.linear.x, velocity.angular.z, spec_);
+    const std::vector<float> sectors(obs.begin(), obs.begin() + spec_.lidar.sectors);
+    if (!spec_.obs_blocks.empty()) {
+      if (memory_stale(policy_ran_, (now - last_policy_).seconds(), spec_.control_dt)) {
+        memory_.reset();
+      }
+      const auto extra = memory_.blocks(sectors, speed_cap_);
+      obs.insert(obs.end(), extra.begin(), extra.end());
+    }
     const auto t_infer = std::chrono::steady_clock::now();
     act = policy_->run(obs);
     infer_us = us_since(t_infer);
     if (!std::isfinite(act[0]) || !std::isfinite(act[1])) {
       throw nav2_core::NoValidControl("FollowPathRL: policy returned a non-finite action");
     }
-    target = action_to_target(act[0], act[1], lim);
+    target = action_to_target(act[0], act[1], lim, v_top_);
+    memory_.step(sectors, target);
+    last_policy_ = now;
+    policy_ran_ = true;
     const double policy_v = target.v;
     target = block_reverse(target, rays, rear_stop_range_, rear_half_width_deg_, spec_);
     rear_blocks_ += target.v != policy_v ? 1 : 0;

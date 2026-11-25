@@ -1,0 +1,7 @@
+# ---- 켜질 때 세대 번호 받기 ----
+string node                  # "fleet"
+string boot_id               # UUID, 기록용
+---
+bool accepted
+uint32 epoch                 # DB가 늘려 준 정수. 직전 epoch의 배정됨 ~ 운반 중 건은 브리지가 HELD(FLEET_RESTART)로 씀
+string reason

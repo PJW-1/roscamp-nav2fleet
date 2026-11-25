@@ -1,11 +1,22 @@
 # ---- 관제와 로봇 사이 연결의 이름, 타입, QoS 원본 ----
+# 구역: 로봇 ↔ fleet(E) · 브리지 ↔ central(B) · 브리지 ↔ fleet(C) · central ↔ fleet(D) · 상태판 · 알림
+# not_in_fake: true = 브리지 · central · 팔 노드 몫이거나 아직 아무도 열지 않아 가짜 시스템(시험 · 시뮬)에는 없는 항목.
+#   fake 모드 검사(scripts/check_interfaces.py --mode fake)는 건너뛰고 real 모드는 검사한다.
+# SubmitOrder.srv(0.6 파일)는 쓰지 않는다. SubmitTrip으로 대신한다.
 
-version: 0.6
+version: 0.7
+
+# ---- 변경 이력 (IR-02: 바꾼 구역) ----
+# 0.7 (2026-11-24): 인터페이스 명세 v0.2 반영. 팔 이름 arm_left · arm_right · arm_ship(로봇 ↔ fleet),
+#   /{arm}/state · /system/mode · /bridge/close_state 토픽, 구역 B · C · E 새 서비스 이름, 사유 코드 표,
+#   /fleet/force_ship 타입 ForceShip → TripCommand(브리지 ↔ fleet)
+# 0.6: ReportOrder 보류 사유와 CANCELED, /fleet/force_ship
 
 # ---- 이름 틀에 채울 로봇과 팔 이름 ----
 placeholders:
   pode: [pode1, pode2, pode3]
-  arm: [arm3]
+  arm: [arm_left, arm_right, arm_ship]
+  robot: [pode1, pode2, pode3, arm_left, arm_right, arm_ship]
 
 # ---- QoS 프로필 ----
 qos_profiles:
@@ -14,30 +25,81 @@ qos_profiles:
   EVENT: {reliability: reliable, durability: volatile, depth: 50}
   HEARTBEAT: {reliability: reliable, durability: volatile, depth: 1}
 
+# ---- 사유 코드 표 (명세 2.2, IR-05) ----
+reason_codes:
+  request_rejected: [NOT_FOUND, ALREADY_ASSIGNED, ORDER_STATE, NOT_STOPPED, LOCK_RELEASED, HOLDING_ITEM,
+                     NOT_TEST_MODE, MODE_MISMATCH, BATTERY_LOW, UNKNOWN_TARGET, NOT_READY]
+  command_result: [ROBOT_REJECTED, ROBOT_TIMEOUT]
+  fill_pause: [PICK_FAILED, RECOGNITION_ERROR, OUT_OF_STOCK, DISTANCE_STOP, PAUSE_REQUESTED]
+  hold: [ROBOT_FAULT, ARM_FAULT, FLEET_RESTART]
+  cancel: [USER_CANCEL, NOTHING_TO_FILL, STOCK_RECHECK]
+  admin: [FORCED_SHIP, FORCED_PARTIAL, RETURNED_TO_SHELF, REASSIGN]
+  report: [APPLIED, DUPLICATE, LATE_REPORT]
+
 # ---- 토픽 ----
 topics:
+  # ---- 로봇 ↔ fleet ----
   - {key: robot_state, name: "/{pode}/state", type: fleet_interfaces/msg/RobotState, qos: STATE}
+  - {key: arm_state, name: "/{arm}/state", type: fleet_interfaces/msg/ArmState, qos: STATE}
+  - {key: heartbeat, name: "/fleet/heartbeat", type: std_msgs/msg/Header, qos: HEARTBEAT}
+  # ---- 브리지 ↔ central ----
+  - {key: system_mode, name: "/system/mode", type: fleet_interfaces/msg/SystemMode, qos: LATCHED, not_in_fake: true}
+  - {key: close_state, name: "/bridge/close_state", type: fleet_interfaces/msg/CloseState, qos: LATCHED, not_in_fake: true}
+  # ---- central ↔ fleet ----
   - {key: order_board, name: "/central/orders", type: fleet_interfaces/msg/OrderBoard, qos: LATCHED}
+  # ---- 상태판 ----
   - {key: assignments, name: "/fleet/assignments", type: fleet_interfaces/msg/AssignmentArray, qos: LATCHED}
   - {key: robots, name: "/fleet/robots", type: fleet_interfaces/msg/RobotStatusArray, qos: LATCHED}
-  - {key: heartbeat, name: "/fleet/heartbeat", type: std_msgs/msg/Header, qos: HEARTBEAT}
   - {key: zones, name: "/fleet/zones", type: fleet_interfaces/msg/ZoneStateArray, qos: LATCHED}
+  # ---- 알림 ----
   - {key: events, name: "/central/events", type: fleet_interfaces/msg/FleetEvent, qos: EVENT}
 
 # ---- 액션 ----
 actions:
+  # ---- 로봇 ↔ fleet ----
   - {key: move_to, name: "/{pode}/move_to", type: fleet_interfaces/action/MoveTo}
   - {key: dock, name: "/{pode}/dock", type: fleet_interfaces/action/Dock}
   - {key: fill_basket, name: "/workcell/fill_basket", type: fleet_interfaces/action/FillBasket}
-  - {key: swap_basket, name: "/{arm}/swap_basket", type: fleet_interfaces/action/SwapBasket, instances: {arm: [arm3]}}
+  - {key: swap_basket, name: "/{arm}/swap_basket", type: fleet_interfaces/action/SwapBasket, instances: {arm: [arm_ship]}}
   - {key: navigate_to_pose, name: "/{pode}/navigate_to_pose", type: nav2_msgs/action/NavigateToPose, real_only: true}
   - {key: follow_path, name: "/{pode}/follow_path", type: nav2_msgs/action/FollowPath, real_only: true}
   - {key: retreat, name: "/{pode}/retreat", type: fleet_interfaces/action/Retreat}
 
 # ---- 서비스 ----
 services:
-  - {key: report_order, name: "/central/report_order", type: fleet_interfaces/srv/ReportOrder}
+  # ---- 로봇 ↔ fleet ----
+  - {key: check_clear, name: "/{pode}/check_clear", type: fleet_interfaces/srv/CheckClear, real_only: true}
+  - {key: robot_set_lock, name: "/{robot}/set_lock", type: fleet_interfaces/srv/SetLock, instances: {robot: [pode1, pode2, pode3, arm_left, arm_right]}, not_in_fake: true}
+  - {key: robot_set_mode, name: "/{robot}/set_mode", type: fleet_interfaces/srv/SetMode, not_in_fake: true}
+  - {key: robot_force, name: "/{robot}/force", type: fleet_interfaces/srv/ForceInput, not_in_fake: true}
+  - {key: arm_fault_resolved, name: "/{arm}/fault_resolved", type: fleet_interfaces/srv/RobotCommand, instances: {arm: [arm_left, arm_right]}, not_in_fake: true}
+  - {key: pode_charge_end, name: "/{pode}/charge_end", type: fleet_interfaces/srv/RobotCommand, not_in_fake: true}
+  # ---- 브리지 ↔ central ----
+  - {key: submit_trip, name: "/central/submit_trip", type: fleet_interfaces/srv/SubmitTrip, not_in_fake: true}
+  - {key: cancel_order, name: "/central/cancel_order", type: fleet_interfaces/srv/CancelOrder, not_in_fake: true}
+  - {key: set_run_mode, name: "/central/set_run_mode", type: fleet_interfaces/srv/SetRunMode, not_in_fake: true}
+  - {key: set_assign_hold, name: "/central/set_assign_hold", type: fleet_interfaces/srv/SetAssignHold, not_in_fake: true}
+  - {key: get_close_state, name: "/bridge/get_close_state", type: fleet_interfaces/srv/GetCloseState, not_in_fake: true}
+  # ---- 브리지 ↔ fleet: 보고 · 문의 (서버는 브리지) ----
+  - {key: hello, name: "/bridge/hello", type: fleet_interfaces/srv/Hello, not_in_fake: true}
+  - {key: list_open_trips, name: "/bridge/list_open_trips", type: fleet_interfaces/srv/ListOpenTrips, not_in_fake: true}
+  - {key: report_trip, name: "/bridge/report_trip", type: fleet_interfaces/srv/ReportTrip, not_in_fake: true}
+  - {key: report_command, name: "/bridge/report_command", type: fleet_interfaces/srv/ReportCommand, not_in_fake: true}
+  - {key: report_event, name: "/bridge/report_event", type: fleet_interfaces/srv/ReportEvent, not_in_fake: true}
+  - {key: check_stock, name: "/bridge/check_stock", type: fleet_interfaces/srv/CheckStock, not_in_fake: true}
+  # ---- 브리지 ↔ fleet: 관리 명령 (서버는 fleet) ----
   - {key: confirm_clear, name: "/fleet/confirm_clear", type: fleet_interfaces/srv/ConfirmClear}
   - {key: reinstate, name: "/fleet/reinstate", type: fleet_interfaces/srv/Reinstate}
-  - {key: force_ship, name: "/fleet/force_ship", type: fleet_interfaces/srv/ForceShip}
-  - {key: check_clear, name: "/{pode}/check_clear", type: fleet_interfaces/srv/CheckClear, real_only: true}
+  - {key: set_lock, name: "/fleet/set_lock", type: fleet_interfaces/srv/SetLock, not_in_fake: true}
+  - {key: fault_resolved, name: "/fleet/fault_resolved", type: fleet_interfaces/srv/RobotCommand, not_in_fake: true}
+  - {key: resume_arm, name: "/fleet/resume_arm", type: fleet_interfaces/srv/RobotCommand, not_in_fake: true}
+  - {key: charge_end, name: "/fleet/charge_end", type: fleet_interfaces/srv/RobotCommand, not_in_fake: true}
+  - {key: force_input, name: "/fleet/force_input", type: fleet_interfaces/srv/ForceInput, not_in_fake: true}
+  - {key: resume_fill, name: "/fleet/resume_fill", type: fleet_interfaces/srv/TripCommand, not_in_fake: true}
+  - {key: force_ship, name: "/fleet/force_ship", type: fleet_interfaces/srv/TripCommand}
+  - {key: force_partial, name: "/fleet/force_partial", type: fleet_interfaces/srv/TripCommand, not_in_fake: true}
+  - {key: return_to_shelf, name: "/fleet/return_to_shelf", type: fleet_interfaces/srv/TripCommand, not_in_fake: true}
+  - {key: resume_held, name: "/fleet/resume_held", type: fleet_interfaces/srv/TripCommand, not_in_fake: true}
+  - {key: requeue_trip, name: "/fleet/requeue_trip", type: fleet_interfaces/srv/TripCommand, not_in_fake: true}
+  # ---- central ↔ fleet ----
+  - {key: report_order, name: "/central/report_order", type: fleet_interfaces/srv/ReportOrder}

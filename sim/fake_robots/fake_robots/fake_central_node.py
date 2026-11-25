@@ -7,7 +7,7 @@ from dataclasses import dataclass
 import rclpy
 from fleet_core.common.contract import to_ros_qos
 from fleet_interfaces.msg import FleetEvent, Order, OrderBoard, OrderItem
-from fleet_interfaces.srv import ForceShip, ReportOrder
+from fleet_interfaces.srv import ReportOrder, TripCommand
 from rclpy.node import Node
 
 from fake_robots.common import (
@@ -63,7 +63,7 @@ class FakeCentralNode(Node):
         self._events = self.create_publisher(
             FleetEvent, contract.name("events"), to_ros_qos(contract.qos("events")))
         self.create_service(ReportOrder, contract.name("report_order"), self._report)
-        self._force_cli = self.create_client(ForceShip, contract.name("force_ship"))
+        self._force_cli = self.create_client(TripCommand, contract.name("force_ship"))
         self.create_timer(0.1, self._release_due)
         self.create_timer(0.2, self._force_due_orders)
         self.create_timer(1.0, self._publish)
@@ -128,7 +128,7 @@ class FakeCentralNode(Node):
                 self._force_due.pop(order_id, None)
                 self._forced.add(order_id)
                 self._force_sent.add(order_id)
-            future = self._force_cli.call_async(ForceShip.Request(order_id=order_id))
+            future = self._force_cli.call_async(TripCommand.Request(trip_id=order_id))
             future.add_done_callback(lambda f, o=order_id: self._force_answer(o, f))
 
     def _force_answer(self, order_id: str, future) -> None:

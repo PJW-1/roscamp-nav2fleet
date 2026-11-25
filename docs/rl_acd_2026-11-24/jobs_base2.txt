@@ -1,0 +1,5 @@
+# tag|kind|args  baselines still needed (coordinator, 2026-11-24 06:00: only what the 4b comparison needs): 4b at 0.08 and 0.16 with --capped
+e_k_08rand|eval|--checkpoint D:/isaac/runs/store_arena/ppo_k/c2/model_998.pt --num_envs 4096 --episodes 1 --seed 7 --capped --set speed_cap_range=0.08,0.08 --set robot_max=2 --set robot_priority_prob=0.5
+e_k_08head|eval|--checkpoint D:/isaac/runs/store_arena/ppo_k/c2/model_998.pt --num_envs 4096 --episodes 1 --seed 7 --capped --set speed_cap_range=0.08,0.08 --set robot_max=2 --set robot_priority_prob=0.5 --set robot_headon=1
+e_k_16rand|eval|--checkpoint D:/isaac/runs/store_arena/ppo_k/c2/model_998.pt --num_envs 4096 --episodes 1 --seed 7 --capped --set speed_cap_range=0.16,0.16 --set robot_max=2 --set robot_priority_prob=0.5
+e_k_16head|eval|--checkpoint D:/isaac/runs/store_arena/ppo_k/c2/model_998.pt --num_envs 4096 --episodes 1 --seed 7 --capped --set speed_cap_range=0.16,0.16 --set robot_max=2 --set robot_priority_prob=0.5 --set robot_headon=1

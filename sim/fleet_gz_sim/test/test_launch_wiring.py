@@ -629,10 +629,11 @@ def test_nav_bt_xml_names_a_tree_in_pode_nav_config_or_an_absolute_file(made, tm
 
 # ---- 세 대 판의 RL controller(nav_rl): 저장소의 RL 설정 파일만 더한다 ----------------------------
 
-@pytest.mark.parametrize("choice, plugin", [
-    ("rl", "pode_rl_controller::FollowPathRL"),
-    ("rl_shim", "nav2_rotation_shim_controller::RotationShimController")])
-def test_nav_rl_adds_the_rl_controller_from_the_repo_file(made, choice, plugin):
+RL_NAMES = ("FollowPathRL", "FollowPathRLAlone")
+
+
+@pytest.mark.parametrize("choice", ["rl", "rl_shim"])
+def test_nav_rl_adds_the_rl_controller_from_the_repo_file(made, choice):
     # 시뮬 Nav2 설정 파일은 로봇과 프로세스마다 이름이 같아 다음 펼침이 덮는다: 펼친 직후에 읽는다
     plain = [_controllers(launch_args(nav)["params_file"])
              for nav in includes(run(made), "nav2.launch.py")]
@@ -640,13 +641,17 @@ def test_nav_rl_adds_the_rl_controller_from_the_repo_file(made, choice, plugin):
     assert len(navs) == 3
     for nav, old in zip(navs, plain, strict=True):
         controllers = _controllers(launch_args(nav)["params_file"])
-        assert "FollowPathRL" in controllers["controller_plugins"]
-        assert controllers["FollowPathRL"]["plugin"] == plugin
+        assert all(name in controllers["controller_plugins"] for name in RL_NAMES)
+        # RL 기본은 shim으로 감싼 정책, 감싸지 않은 같은 정책은 FollowPathRLAlone
+        shim = controllers["FollowPathRL"]
+        assert shim["plugin"] == "nav2_rotation_shim_controller::RotationShimController"
+        assert shim["primary_controller"] == "pode_rl_controller::FollowPathRL"
+        assert controllers["FollowPathRLAlone"]["plugin"] == "pode_rl_controller::FollowPathRL"
         # 다른 controller(FollowPathGoal 값 등)는 그대로다
         assert {k: v for k, v in controllers.items()
-                if k not in ("FollowPathRL", "controller_plugins")} == {
+                if k not in (*RL_NAMES, "controller_plugins")} == {
             k: v for k, v in old.items() if k != "controller_plugins"}
-        assert [c for c in controllers["controller_plugins"] if c != "FollowPathRL"] == old[
+        assert [c for c in controllers["controller_plugins"] if c not in RL_NAMES] == old[
             "controller_plugins"]
 
 
@@ -666,8 +671,8 @@ def test_nav_rl_appends_to_the_users_controller_list_once(made, tmp_path):
         "controller_plugins": listed}}}), encoding="utf-8")
     for nav in includes(run(made, nav_rl="rl_shim", nav_overrides=str(mine)), "nav2.launch.py"):
         plugins = _controllers(launch_args(nav)["params_file"])["controller_plugins"]
-        assert plugins.count("FollowPathRL") == 1
-        assert [p for p in plugins if p not in ("FollowPathRL", "FollowPathMPPI")] == listed
+        assert plugins.count("FollowPathRL") == 1 and plugins.count("FollowPathRLAlone") == 1
+        assert [p for p in plugins if p not in (*RL_NAMES, "FollowPathMPPI")] == listed
 
 
 def test_nav_rl_does_not_let_a_users_plugin_swap_through(made, tmp_path):

@@ -11,15 +11,15 @@
 | `cmd_watchdog.py` | 움직이는 cmd_vel이 0.4 s 넘게 새로 오지 않으면 속도 0을 보낸다(0.05 s 타이머로 보므로 마지막 움직이는 명령에서 약 0.40~0.45 s 뒤). 제조사 bringup은 마지막 명령을 끝없이 지킨다 |
 | `make_params.py --speed S --out DIR` | 저장소의 `nav2_params.yaml`과 `avoidance.yaml`을 베끼고 앞으로 가는 속도(FollowPath, FollowPathThrough, FollowPathGoal)만 S로 바꾼다. 0 < S ≤ 단일 출처(`pode_nav_config/params/nav_speed.yaml`, 0.12)를 반올림 전에 보고, 소수 넷째 자리로 반올림해 쓴다(반올림해서 0이 되는 값은 거부). 비교용 MPPI(FollowPathMPPI)는 실물 controller 목록에 없어 뜨지 않는다(로봇에 nav2_mppi_controller가 없어도 Nav2가 뜬다, 사용자 결정 2026-11-22). FollowPathReverse(0.05)는 그대로. 또 기본으로 고정 경로 컨트롤러 셋(FollowPath, FollowPathThrough, FollowPathReverse)의 `use_collision_detection`을 false로 쓰고, `--fixed-line-check`를 주면 true로 쓴다(마당 goal FollowPathGoal의 검사는 원본 값 그대로다. 저장소 원본은 true) |
 | `start.sh NS X Y YAW [SPEED]` | `params/`를 다시 만들고(SPEED 기본 0.12) launch를 뒤에서 띄운다. 기록은 `logs/launch_*.log`, 프로세스 그룹은 `logs/launch.pid`. `logs/start.lock`(flock)으로 동시에 두 번 시작하지 않는다. 5 s 안에 pid 파일이 생기지 않으면 그 launch에 TERM을 보내고 약 2 s 기다린 뒤 실패로 끝난다(그래도 남아 있으면 그렇다고 알린다. KILL은 쓰지 않는다). `PLAN_KEEP=1 start.sh ...`이면 Nav2 goal 길 유지 노드(`pode_plan_keep`, 경로 뒤집힘 해결안 A)와 `_goal_keep` 행동 트리를 쓴다. 기본은 꺼짐이고, 켜면 로봇마다 프로세스 하나(DDS 참여자 하나)가 늘고 그 노드가 전역 비용 지도를 받는다 |
-| `stop.sh` | start.sh가 띄운 그룹에 SIGTERM. 그룹 안에 `real_pode.launch.py` 명령이 없으면 내리지 않는다 |
-| `bag_record.sh start NS NAME` / `bag_record.sh stop` | 로봇 SD 카드에 rosbag(mcap)을 `bags/NAME`으로 남긴다. 토픽은 `/NS/` 아래 scan, odom, cmd_vel, amcl_pose, particle_cloud, plan, tf, tf_static, state. 새 토픽을 잡는 데 몇 초 걸리므로 `start.sh`보다 먼저 켠다. stop은 SIGINT로 bag을 마무리한다. 실물 판마다 켠다(2026-11-23: 이것이 없어서 벽 충돌 뒤 위치를 잃은 원인을 가르지 못했다) |
-| `env.sh` | 로봇용: ROS, `~/pinky_pro`, `~/nav2fleet_ws`를 읽고 통신 설정은 `net.sh`를 읽는다. `start.sh`가 이 파일을 읽으므로 로봇 명령은 그대로다 |
-| `net.sh` | source 전용. 통신 설정을 한곳에 모은다. `env.sh`와 `pc_env.sh`가 둘 다 읽는다. `ROS_DOMAIN_ID=12`, `RMW_IMPLEMENTATION=rmw_fastrtps_cpp`, `ROS_AUTOMATIC_DISCOVERY_RANGE=SUBNET`을 정하고, 먼저 `ROS_DISCOVERY_SERVER`, `ROS_SUPER_CLIENT`, `ROS_LOCALHOST_ONLY`, `ROS_STATIC_PEERS`를 지운다(다시 source해도 이 네 변수의 이전 값은 남지 않는다. `SUPER`, `DISCOVERY_SERVER`는 `SUPER=1 source ...`처럼 앞에 붙여 쓰고 `export`하지 않는다. export하면 다음 source에도 적용된다). `DISCOVERY_SERVER`로 서버 주소를 정한다(기본 `192.168.0.252:11811`, 관제 PC 유선 주소. 다른 주소는 `DISCOVERY_SERVER=IP:PORT`(포트를 바꾸면 `discovery_server.sh`는 늘 11811이므로 서버를 `fastdds discovery -i 0 -p PORT`로 직접 띄운다). `off`면 서버 없이 예전처럼 멀티캐스트). `SUPER=1`이면 `ROS_SUPER_CLIENT=TRUE`(ros2 명령, RViz처럼 전체 그래프를 봐야 하는 터미널용. `off`일 때는 무시). 도메인 번호는 팀이 아직 정하지 않았다(2026-11-19). 정해지면 `net.sh` 한 줄만 바꾼다 |
+| `stop.sh` | start.sh가 띄운 그룹에 SIGTERM. 그룹 안에 `real_pode.launch.py` 명령이나 동작 없음(`NO_MOTION=1`)의 `pode_fsm.launch.py` 명령이 없으면 내리지 않는다 |
+| `bag_record.sh start NS NAME` / `bag_record.sh stop` | 로봇 SD 카드에 rosbag(mcap)을 `bags/NAME`으로 남긴다. 토픽은 `/NS/` 아래 scan, odom, cmd_vel, amcl_pose, particle_cloud, plan, tf, tf_static, state. 새 토픽을 잡는 데 몇 초 걸리므로 `start.sh`보다 먼저 켠다. 녹화기가 bag 파일을 열 때까지 `BAG_START_TIMEOUT_S`초(기본 20, 양의 정수) 기다리고 못 열면 멈춘다. stop은 SIGINT로 bag을 마무리한다. 실물 판마다 켠다(2026-11-23: 이것이 없어서 벽 충돌 뒤 위치를 잃은 원인을 가르지 못했다) |
+| `env.sh` | 로봇용: ROS(`ROS_SETUP`, 기본 `/opt/ros/jazzy/setup.bash`), `~/pinky_pro`, `~/nav2fleet_ws`를 읽고 통신 설정은 `net.sh`를 읽는다. `start.sh`가 이 파일을 읽으므로 로봇 명령은 그대로다 |
+| `net.sh` | source 전용. 통신 설정을 한곳에 모은다. `env.sh`와 `pc_env.sh`가 둘 다 읽는다. `ROS_DOMAIN_ID=6`, `RMW_IMPLEMENTATION=rmw_fastrtps_cpp`, `ROS_AUTOMATIC_DISCOVERY_RANGE=SUBNET`을 정하고, 먼저 `ROS_DISCOVERY_SERVER`, `ROS_SUPER_CLIENT`, `ROS_LOCALHOST_ONLY`, `ROS_STATIC_PEERS`를 지운다(다시 source해도 이 네 변수의 이전 값은 남지 않는다. `SUPER`, `DISCOVERY_SERVER`는 `SUPER=1 source ...`처럼 앞에 붙여 쓰고 `export`하지 않는다. export하면 다음 source에도 적용된다). `DISCOVERY_SERVER`로 서버 주소를 정한다(기본 `192.168.0.252:11811`, 관제 PC 유선 주소. 다른 주소는 `DISCOVERY_SERVER=IP:PORT`(포트를 바꾸면 `discovery_server.sh`는 늘 11811이므로 서버를 `fastdds discovery -i 0 -p PORT`로 직접 띄운다). `off`면 서버 없이 예전처럼 멀티캐스트). `SUPER=1`이면 `ROS_SUPER_CLIENT=TRUE`(ros2 명령, RViz처럼 전체 그래프를 봐야 하는 터미널용. `off`일 때는 무시). 도메인 번호는 팀 통신 규칙 IR-81의 6이다(2026-11-24에 12에서 바꿈). 바꿀 때는 `net.sh` 한 줄만 바꾼다 |
 | `pc_env.sh` | PC 터미널에서 source한다. `/opt/ros/jazzy/setup.bash`와 PC 작업공간 `~/ros2camp/nav2fleet_ws/install/setup.bash`를 읽고(`ROS_SETUP`, `NAV2FLEET_WS_SETUP`로 바꿀 수 있다) `net.sh`를 읽는다. 관제 터미널은 `source tools/real_pode/pc_env.sh`, ros2 명령 터미널은 `SUPER=1 source tools/real_pode/pc_env.sh`. 작업공간 setup 파일이 없으면 경고만 내고 ROS만 읽은 채 계속한다. 그 경고가 보이면 PC 작업공간을 먼저 빌드한다(ROS setup이 없거나 실패, 작업공간 setup이 있는데 실패, `net.sh`를 못 읽으면 `return 1`). 새 bash 터미널에서 쓴다(PC 작업공간 setup이 `/opt/ros/jazzy`, `~/pinky_pro`, `~/ros2_ws`를 같이 읽어서, 다른 작업공간을 읽은 터미널이면 섞일 수 있다) |
 | `discovery_server.sh` | PC에서 실행한다. ROS를 읽고 `fastdds discovery -i 0 -p 11811`을 앞에서 돌린다. 끌 때는 Ctrl+C(이 도구는 sh, python, 서버 프로그램이 겹쳐 있어서 PID 하나에 TERM을 보내면 서버가 남을 수 있다) |
-| `rviz_pc.sh` | PC에서 `tools/real_pode/rviz_pc.sh pode1 pode2`로 RViz를 띄운다. 안에서 `SUPER=1`로 `pc_env.sh`를 읽는다. `DISCOVERY_SERVER=off tools/real_pode/rviz_pc.sh ...`도 된다 |
+| `rviz_pc.sh` | PC에서 `tools/real_pode/rviz_pc.sh pode1 pode2`로 RViz를 띄운다. 안에서 `SUPER=1`로 `pc_env.sh`를 읽는다. `DISCOVERY_SERVER=off tools/real_pode/rviz_pc.sh ...`도 된다. `RVIZ_MODE`로 창을 고른다: 비우면 `all`(전체 창과 로봇별 창), `overview`는 전체 창만, `robots`는 로봇별 창만 |
 | `deploy.sh ROBOT_HOST` | PC에서: 커밋된 HEAD의 패키지를 `ROBOT:~/nav2fleet_ws/src/<저장소 경로>/`에, 이 폴더(지도 포함)를 `ROBOT:~/nav2fleet_real/`에 복사한다. 빌드와 실행은 하지 않는다 |
-| `maps/` | `arena_real_slam`: 실물 경기장 SLAM 지도(2.5 cm, 2026-11-17 확정). AMCL(`map_fine`)의 기본이다. 나머지는 실측 진열대로 그린 v7 지도다(`python3 -m fleet_gz_sim.arena --layout v7 --real --out /tmp/real_v7`로 만들고 `/tmp/real_v7/maps/`의 지도를 복사한다): `arena_v7_a`(전역 costmap 2.5 cm, 2026-11-17 결정), `arena_v7_keepout`, `arena_v7_fine`(1 cm 도면 지도, 이제 기본 아님, AMCL 후보), `arena_v7_a1`(1 cm costmap 후보, `arena_v7_a`와 같은 칠하기 규칙이라 그림은 `arena_v7_fine`과 같다. 2026-11-24 추가, launch 기본값은 그대로). `arena_v7`(5 cm)은 비교용으로 남긴다. 진열대는 11-24 줄자 값(A 서쪽 끝 0.65, 북쪽 면 0.775(lidar 높이), 남쪽 서쪽 끝 0.70)으로 그렸다(`docs/report_2026-11-24_kit_maps.md`) |
+| `maps/` | `arena_real_slam`: 실물 경기장 SLAM 지도(0.5 cm, 2026-11-17 확정). AMCL(`map_fine`)의 기본이다. 나머지는 실측 진열대로 그린 v7 지도다(`python3 -m fleet_gz_sim.arena --layout v7 --real --out /tmp/real_v7`로 만들고 `/tmp/real_v7/maps/`의 지도를 복사한다): `arena_v7_a`(전역 costmap 2.5 cm, 2026-11-17 결정), `arena_v7_keepout`, `arena_v7_fine`(1 cm 도면 지도, 이제 기본 아님, AMCL 후보), `arena_v7_a1`(1 cm costmap 후보, `arena_v7_a`와 같은 칠하기 규칙이라 그림은 `arena_v7_fine`과 같다. 2026-11-24 추가, launch 기본값은 그대로). `arena_v7`(5 cm)은 비교용으로 남긴다. 진열대는 11-24 줄자 값(A 서쪽 끝 0.65, 북쪽 면 0.775(lidar 높이), 남쪽 서쪽 끝 0.70)으로 그렸다(`docs/report_2026-11-24_kit_maps.md`). 세 진열대 모두 두께 4 cm이고 아래 통로 둘은 각 0.3475 m다(A y 0.735~0.775, 남쪽 둘 y 0.3475~0.3875, `docs/report_2026-11-25_shelf_depth.md`) |
 
 ## 왜 속도 사본이 따로 있나
 
@@ -38,7 +38,7 @@ Nav2 goal을 모는 컨트롤러(FollowPathGoal)의 속도는 `nav2_params.yaml`
 6. 먼저 bag을 켠다: `~/nav2fleet_real/bag_record.sh start pode1 <판 이름>`(새 토픽을 잡는 데 몇 초 걸린다). 그다음
    `~/nav2fleet_real/start.sh pode1 0.12 0.10 1.5708` (속도 0.12 기본). 기록을 본다:
    `tail -f ~/nav2fleet_real/logs/launch_*.log`.
-7. PC에서 `source tools/real_pode/pc_env.sh`(도메인 12와 디스커버리 서버 설정이 들어 있다)로 관제를 띄워 시험한다. 아래 "디스커버리 서버 (기본)"을 본다.
+7. PC에서 `source tools/real_pode/pc_env.sh`(도메인 6과 디스커버리 서버 설정이 들어 있다)로 관제를 띄워 시험한다. 아래 "디스커버리 서버 (기본)"을 본다.
 8. 끝나면(또는 이상하면) `~/nav2fleet_real/stop.sh`, 그다음 `~/nav2fleet_real/bag_record.sh stop`(bag을 마무리한다).
 
 ### 옛 이름(pinky)으로 배포된 로봇에 다시 배포할 때 (2026-11-16 이름 변경)
@@ -77,7 +77,7 @@ Nav2 goal을 모는 컨트롤러(FollowPathGoal)의 속도는 `nav2_params.yaml`
 
 ## Gazebo와 다른 실물 기본값
 
-- peer 층 꺼짐(`peer_obstacles:=false`). 두 대 이상이면 `PEER_ROBOTS=pode1,pode2 ./start.sh pode1 ...`(start.sh가 `peer_obstacles:=true peer_robots:=...`를 붙인다). 두 로봇 모두 같은 목록(두 이름 다)을 줘도 된다: 자기 이름은 건너뛴다(`pode_peer_obstacles/body.py:19`, `node.py:60`).
+- peer 층 꺼짐(`peer_obstacles:=false`). 두 대 이상이면 `PEER_ROBOTS=pode1,pode2 ./start.sh pode1 ...`(start.sh가 `peer_obstacles:=true peer_robots:=...`를 붙인다). 두 로봇 모두 같은 목록(두 이름 다)을 줘도 된다: 자기 이름은 건너뛴다(`pode_peer_obstacles/body.py`의 `others()`, `node.py`의 `PeerObstacles.__init__`).
 - 고정 경로 충돌 검사 꺼짐(시뮬 기본과 같다, 사용자 결정 2026-11-18). `make_params.py`가 `params/nav2_params.yaml`의
   FollowPath, FollowPathThrough, FollowPathReverse에 `use_collision_detection: false`를 쓴다. 마당 goal(FollowPathGoal,
   `avoidance.yaml`)의 검사는 원본 값 그대로다(저장소 원본은 켬). 켜 두려면 `FIXED_LINE_CHECK=1 ./start.sh ...`(`--fixed-line-check`). 안 주거나 `0`이면 끔,
@@ -91,10 +91,14 @@ Nav2 goal을 모는 컨트롤러(FollowPathGoal)의 속도는 `nav2_params.yaml`
 - 도킹 없음(DOCK_STUB 없이): `pode_fsm` dock()은 DOCK_UNAVAILABLE을 돌려준다. 관제는 도킹을 3번 다시 시도한 뒤 WORK
   도크 구역을 쥔 채로 로봇을 격리한다. 시험은 거기서 멈춘다.
 - 배터리 토픽 비움(`battery_topic`): 배터리를 모름(-1)으로 알린다.
+- 동작 없음(설계 4.5): `NO_MOTION=1 ./start.sh pode2`는 bringup과 Nav2 없이 `pode_fsm`만 `no_motion:=true`로
+  띄운다. 바퀴는 돌지 않고, 목표는 정해진 시간 뒤 성공한다. 자세를 안 주면 로봇별 주차 자리(v7 P-1~P-3)를 쓰고,
+  `NO_MOTION=1 ./start.sh pode2 X Y YAW`로 바꿀 수 있다. `PEER_ROBOTS`, `DOCK_STUB`, `FIXED_LINE_CHECK`, `PLAN_KEEP`과 함께
+  주면 거절한다(종료 2). 내릴 때는 `./stop.sh`.
 
 ## 알려진 한계
 
-- `stop.sh`는 그룹 안 어느 프로세스의 명령줄에 `real_pode.launch.py`가 있는지만 본다. pid가 다시 쓰인 그룹에 그 글자가 든 다른 명령이 있으면 그 그룹도 내린다.
+- `stop.sh`는 그룹 안 어느 프로세스의 명령줄에 `real_pode.launch.py`나, `NO_MOTION=1 start.sh`가 쓰는 인자 순서의 `pode_fsm.launch.py namespace:=… no_motion:=true initial_x:=…`가 있는지만 본다. pid가 다시 쓰인 그룹에 그런 명령이 있으면 그 그룹도 내린다.
 - `deploy.sh`의 `rsync --delete`는 경로 글자만 패키지 폴더로 묶는다. 로봇의 `~/nav2fleet_ws/src/pode`나 패키지 폴더가 다른 곳을 가리키는 심볼릭 링크면 그곳에서 지운다.
 - 위 시간 초과에서 launch가 pid 파일을 쓰기 전에 죽고 그 번호가 2 s 안에 다른 프로세스에 다시 쓰이면 그 프로세스가 TERM을 받을 수 있다(드물다).
 

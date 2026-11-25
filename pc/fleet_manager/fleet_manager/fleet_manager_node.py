@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import argparse
+import math
 import time
 from functools import partial
 
@@ -21,12 +22,13 @@ from fleet_core.common.commands import (
     SwapCmd,
 )
 from fleet_core.common.contract import load_contract, to_ros_qos
-from fleet_core.common.params import load_params, timing_warnings
+from fleet_core.common.params import REPORT_REPLY_LIMIT_S, load_params, timing_warnings
 from fleet_core.fleet_map import FILL
 from fleet_core.manager import FleetManager
 from fleet_core.traffic.site import load_site
 from fleet_interfaces.action import Dock, FillBasket, MoveTo, Retreat, SwapBasket
 from fleet_interfaces.msg import (
+    ArmState,
     AssignmentArray,
     FleetEvent,
     OrderBoard,
@@ -34,7 +36,7 @@ from fleet_interfaces.msg import (
     RobotStatusArray,
     ZoneStateArray,
 )
-from fleet_interfaces.srv import CheckClear, ConfirmClear, ForceShip, Reinstate, ReportOrder
+from fleet_interfaces.srv import CheckClear, ConfirmClear, Reinstate, ReportOrder, TripCommand
 from rcl_interfaces.msg import ParameterDescriptor
 from rclpy.action import ActionClient
 from rclpy.clock import Clock, ClockType
@@ -56,10 +58,14 @@ class FleetManagerNode(Node):
         self.declare_parameter("map_file", "")
         self.declare_parameter("params_file", "")
         self.declare_parameter("tick_hz", 10.0)
+        self.declare_parameter("robots_hz", 5.0)  # 팀 명세 F-11: /fleet/robots 5 Hz 안팎
         unset = ParameterDescriptor(dynamic_typing=True)
         self.declare_parameter("use_order_model", None, unset)
         self.declare_parameter("lookahead_s", None, unset)
         robots = list(self.get_parameter("robots").value)
+        robots_hz = self.get_parameter("robots_hz").value
+        if not (math.isfinite(robots_hz) and robots_hz > 0.0):
+            raise ValueError(f"robots_hz must be > 0, got {robots_hz!r}")
 
         contract_file = self.get_parameter("contract_file").value or (
             get_package_share_directory("fleet_interfaces") + "/contract.yaml")
@@ -83,9 +89,11 @@ class FleetManagerNode(Node):
         self._reached = set()
         self._last_zones = None
         self._last_assignments = None
+        self._pode_states = {}
+        self._arm_states = {}
         self._create_interfaces(robots)
         self.create_timer(1.0 / self.get_parameter("tick_hz").value, self._on_tick)
-        self.create_timer(1.0, self._publish_robots)
+        self.create_timer(1.0 / robots_hz, self._publish_robots)
         self._silent_until = (time.monotonic() + params.heartbeat_timeout_s
                               + params.heartbeat_period_s)
         self.create_timer(params.heartbeat_period_s, self._publish_heartbeat,
@@ -131,6 +139,10 @@ class FleetManagerNode(Node):
             self._retreat[robot] = ActionClient(self, Retreat, name("retreat", pode=robot))
             self._check_clear[robot] = self.create_client(CheckClear,
                                                           name("check_clear", pode=robot))
+        for arm in self.contract.placeholders.get("arm", []):
+            self.create_subscription(
+                ArmState, name("arm_state", arm=arm), partial(self._on_arm_state, arm),
+                self._qos("arm_state"))
         self._fill = {}
         self._swap = {}
         for station in self.site.stations.values():
@@ -142,15 +154,27 @@ class FleetManagerNode(Node):
         self._report_client = self.create_client(ReportOrder, name("report_order"))
         self.create_service(ConfirmClear, name("confirm_clear"), self._on_confirm_clear)
         self.create_service(Reinstate, name("reinstate"), self._on_reinstate)
-        self.create_service(ForceShip, name("force_ship"), self._on_force_ship)
+        self.create_service(TripCommand, name("force_ship"), self._on_force_ship)
 
     # ---- 토픽과 서비스 수신 콜백 ----
     def _on_robot_state(self, robot, msg: RobotState) -> None:
+        self._pode_states[robot] = msg
         if not self.silent() and self._reachable(robot):
             self.core.on_robot_state(robot, *adapters.robot_report(msg),
                                      adapters.robot_report_id(msg),
                                      *adapters.robot_obstacle(msg),
                                      adapters.robot_local_yield(msg))
+
+    def _on_arm_state(self, arm, msg: ArmState) -> None:
+        self._arm_states[arm] = (msg, time.monotonic())
+
+    def _arm_rows(self) -> list:
+        rows = []
+        for arm in self.contract.placeholders.get("arm", []):
+            msg, at = self._arm_states.get(arm, (None, None))
+            fresh = at is not None and time.monotonic() - at <= self.core.params.comm_timeout_s
+            rows.append((arm, msg, fresh))
+        return rows
 
     def _reachable(self, robot) -> bool:
         if (robot not in self._reached and self._move[robot].server_is_ready()
@@ -163,15 +187,17 @@ class FleetManagerNode(Node):
 
     def _on_confirm_clear(self, request, response):
         released = self.core.confirm_clear(*adapters.confirm_clear_args(request))
-        return adapters.confirm_clear_response(response, released, self.core.last_clear_reason)
+        return adapters.confirm_clear_response(response, released, self.core.last_clear_reason,
+                                               request.request_id)
 
     def _on_reinstate(self, request, response):
         accepted = self.core.reinstate(*adapters.reinstate_args(request))
-        return adapters.reinstate_response(response, accepted, self.core.last_reinstate_reason)
+        return adapters.reinstate_response(response, accepted, self.core.last_reinstate_reason,
+                                           request.request_id)
 
     def _on_force_ship(self, request, response):
         accepted, reason = self.core.force_ship(adapters.force_ship_args(request))
-        return adapters.force_ship_response(response, accepted, reason)
+        return adapters.force_ship_response(response, accepted, reason, request.request_id)
 
     # ---- 주기 틱: 명령 내보내기, 취소 재시도, 주문 보고, 상태 발행 ----
     def _on_tick(self) -> None:
@@ -186,19 +212,27 @@ class FleetManagerNode(Node):
 
     def _retry_cancels(self, now: float) -> None:
         params = self.core.params
+        # 코어가 취소하지 않고 정한 결과 잃은 goal의 handle은 정하는 시간의 두 배 뒤 놓는다
+        self._goals.drop_stale_lost(now, 2 * params.robot_timeout_settle_s)
         for server, goal_id in self._goals.retry_cancels(now, params.cancel_retry_s,
                                                          params.cancel_warn_after):
             waited = params.cancel_warn_after * params.cancel_retry_s
-            detail = (f"goal {goal_id} on {server} has no result {waited:.0f} s after it was "
+            detail = (f"goal {goal_id} on {server} has no result about {waited:.0f} s after it was "
                       "canceled; the cancel stays open while a result can still come")
             self._dispatch(EventOut("WARN", "CANCEL_UNCONFIRMED", detail, server), now)
         for robot, goal_id in self._goals.take_dropped():
             self.core.on_goal_lost(robot, goal_id)
 
     def _flush_reports(self, now: float) -> None:
+        params = self.core.params
+        # IR-41: 응답 한도를 넘긴 요청은 클라이언트에서 버린다
+        for old in self._reports.expire(now, REPORT_REPLY_LIMIT_S):
+            self._report_client.remove_pending_request(old)
         for report_id, command in self._reports.due(now, self._report_client.service_is_ready(),
-                                                    self.core.params.report_retry_s):
+                                                    params.report_retry_s,
+                                                    params.report_max_in_flight):
             future = self._report_client.call_async(adapters.report_request(command))
+            self._reports.track(report_id, future)
             future.add_done_callback(partial(self._report_answered, report_id, command))
 
     def _report_answered(self, report_id, command, future) -> None:
@@ -206,8 +240,15 @@ class FleetManagerNode(Node):
             accepted = adapters.report_accepted(future.result())
         except Exception as exc:
             self.get_logger().warning(f"report of {command.order_id} got no reply: {exc}")
+            self._reports.forget(report_id, future)
             return
-        if self._reports.done(report_id) and not accepted:
+        others = self._reports.finish(report_id, future)
+        if others is None:
+            return
+        # 끝난 보고의 다른 요청은 답을 기다리지 않는다
+        for old in others:
+            self._report_client.remove_pending_request(old)
+        if not accepted:
             self._dispatch(EventOut("ERROR", "ORDER_REPORT_REFUSED",
                                     f"{command.order_id} {command.status} refused by central, "
                                     "nobody will work or report it now", command.robot),
@@ -231,7 +272,8 @@ class FleetManagerNode(Node):
     def _publish_robots(self) -> None:
         now = self._now()
         if now > 0.0:
-            self._robots_pub.publish(adapters.robots_to_msg(self.core.robots_view(), now))
+            self._robots_pub.publish(adapters.robots_to_msg(
+                self.core.robots_view(), now, self._pode_states, self._arm_rows()))
 
     # ---- 코어 명령 처리: 액션, 막힘 지점 확인, 취소, 주문 보고, 사건 ----
     def _dispatch(self, command, now: float) -> None:
@@ -340,6 +382,11 @@ class FleetManagerNode(Node):
             self.get_logger().error(f"goal {key} lost its result: {exc}")
             if on_rejected == self._robot_rejected and self._goals.canceling(key):
                 self._goals.lost(key)
+                return
+            if on_rejected == self._robot_rejected:
+                # 받아들인 로봇 goal의 결과를 잃음은 거절이 아니라 결과 모름(IR-62). 취소할 handle은 쥔다
+                self._goals.result_lost(key)
+                self.core.on_goal_lost(key[0], key[1])
                 return
             self._goals.finished(key)
             on_rejected(key)

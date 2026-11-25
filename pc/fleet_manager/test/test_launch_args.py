@@ -32,7 +32,7 @@ def test_file_overrides_are_forwarded_to_the_fake_launch():
     context = LaunchContext()
     context.launch_configurations.update({
         "use_fake": "true", "use_sim_clock": "true", "scenario": "basic_orders",
-        "robots": "pode1", "fake_robots": "pode1", "fake_arms": "arm1", "fake_central": "true",
+        "robots": "pode1", "fake_robots": "pode1", "fake_arms": "arm_left", "fake_central": "true",
         "result_dir": "/tmp/x", "record": "", **FILES,
     })
     include = next(a for a in module._setup(context) if isinstance(a, IncludeLaunchDescription))
@@ -72,7 +72,7 @@ def test_real_test_arguments_are_declared_and_forwarded():
     context = LaunchContext()
     context.launch_configurations.update({
         "use_fake": "true", "use_sim_clock": "false", "scenario": "basic_orders",
-        "robots": "pode1 pode2", "fake_robots": "none", "fake_arms": "arm1 arm2 arm3",
+        "robots": "pode1 pode2", "fake_robots": "none", "fake_arms": "arm_left arm_right arm_ship",
         "fake_central": "true", "result_dir": "/tmp/x", "record": "", "map_file": "v7",
         "params_file": "", "contract_file": "", "monitor": "false",
         "dock_wait_robots": "pode1 pode2",

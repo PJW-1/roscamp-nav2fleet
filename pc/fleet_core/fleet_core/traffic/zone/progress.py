@@ -40,6 +40,8 @@ class Progress:
         m.report.local_yield = local_yield if state == SELF_RECOVERING else ""
         self._note_battery(m, battery)
         if state == LOCALIZING:
+            if m.result_lost_at is not None:
+                self._past_unknown(m, now)  # 좌표를 믿지 않는 보고라도 기한은 본다
             self._note_localizing(m, now)
             m.health.pose_at = None
             m.clear_n.clear()
@@ -50,6 +52,9 @@ class Progress:
         self._pose_watch.watch(m, x, y, yaw, now)
         m.x, m.y, m.yaw = x, y, yaw
         m.heard_since_success = True
+        lost = m.result_lost_at is not None and not self._past_unknown(m, now)  # 좌표 반영 뒤 기한을 본다
+        if lost and m.health.comm != COMM_LOST:
+            self._settle_lost(m, now, state)  # 들은 그 순간 정한다. 통신이 끊겼던 로봇은 복구가 끝낸다
         if m.health.fault == OUT_OF_SERVICE:
             return
         if not m.placed:
@@ -58,9 +63,11 @@ class Progress:
             self._begin_recovery(m)
         elif not m.health.fault and not m.health.comm:
             self._track(m)
-            self._release_behind(m)
+            if m.result_lost_at is None:  # 결과 모름이면 구역을 쥐고 막힘 처리도 하지 않는다
+                self._release_behind(m)
             self._watch_outside(m)
-            self._watch_blocked(m, now)
+            if m.result_lost_at is None:
+                self._watch_blocked(m, now)
         elif m.health.fault == ERROR and not m.health.comm and m.goal is None:
             self._return_unreached(m)
 
