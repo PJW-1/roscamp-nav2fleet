@@ -185,13 +185,13 @@ def test_an_arm_fault_holds_the_order_and_leaves_the_robot_in_service():
 
 def test_force_ship_goes_through_the_manager():
     core, now, _ = _arm_held()
-    assert core.force_ship("O-404") == (False, "UNKNOWN_ORDER")
-    assert core.force_ship(7) == (False, "UNKNOWN_ORDER")
+    assert core.force_ship("O-404") == (False, "NOT_FOUND")
+    assert core.force_ship(7) == (False, "NOT_FOUND")
     assert core.force_ship("O-001") == (True, "")
     now[0] += 0.1
     out = core.tick()
     assert [r.status for r in cmds(out, "ReportOrderCmd")] == ["CANCELED"]
-    assert core.force_ship("O-001") == (False, "NOT_HELD")
+    assert core.force_ship("O-001") == (False, "ORDER_STATE")
 
 
 def _filled_and_leaving(robot="r1"):

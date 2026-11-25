@@ -37,6 +37,12 @@ def test_move_to_has_the_nav_unavailable_reason():
     assert 'string REASON_NAV_UNAVAILABLE="NAV_UNAVAILABLE"' in action
 
 
+def test_retreat_has_the_nav_unavailable_reason():
+    """Nav2 서버가 없어 보내지 못한 물러나기도 이 reason으로 끝난다."""
+    action = (INTERFACES / "action" / "Retreat.action").read_text(encoding="utf-8")
+    assert 'string REASON_NAV_UNAVAILABLE="NAV_UNAVAILABLE"' in action
+
+
 def test_robot_state_has_the_states_the_fsm_reports():
     msg = (INTERFACES / "msg" / "RobotState.msg").read_text(encoding="utf-8")
     for state in ("IDLE", "MOVING", "DOCKING", "DOCKED", "BLOCKED", "LOCALIZING"):

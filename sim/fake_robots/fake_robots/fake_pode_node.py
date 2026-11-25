@@ -49,7 +49,7 @@ class FakePodeNode(PodeGoals, PodeOrder, PodeRetreat, PodeReport, Node):
         super().__init__(node_name("fake", "robot_id", parameter_overrides),
                          parameter_overrides=parameter_overrides, **kwargs)
         self.declare_parameter("robot_id", "pode1")
-        self.declare_parameter("state_rate_hz", 10.0)
+        self.declare_parameter("state_rate_hz", 5.0)
         self.declare_parameter("heartbeat_timeout_s", -1.0)  # <0: 파일 값, 0: 안 멈춤
         self.robot_id = self.get_parameter("robot_id").value
         contract = load_contract_param(self)

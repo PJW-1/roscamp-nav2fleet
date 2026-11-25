@@ -278,7 +278,7 @@ def test_missing_after_an_arm_fault_hold_without_force_ship_is_stock(harness, tm
 
 def test_missing_after_a_refused_force_ship_is_stock(harness, tmp_path):
     c = Central(harness, tmp_path, force_ship_after_s=0.5)
-    c.serve_force_ship(accepted=False, reason="NOT_HELD")
+    c.serve_force_ship(accepted=False, reason="ORDER_STATE")
     c.wait_ids(["O-1", "O-2"])
     c.report("O-1", HELD, hold_reason=ARM_FAULT)
     c.wait_code("FORCE_SHIP", timeout=6.0)
@@ -312,11 +312,11 @@ def test_an_arm_fault_hold_calls_force_ship_after_the_delay(harness, tmp_path):
 
 def test_a_refused_force_ship_is_logged_with_its_reason(harness, tmp_path):
     c = Central(harness, tmp_path, force_ship_after_s=0.5)
-    c.serve_force_ship(accepted=False, reason="NOT_HELD")
+    c.serve_force_ship(accepted=False, reason="ORDER_STATE")
     c.wait_ids(["O-1", "O-2"])
     c.report("O-1", HELD, hold_reason=ARM_FAULT)
     event = c.wait_code("FORCE_SHIP", timeout=6.0)
-    assert "accepted=False" in event.detail and "NOT_HELD" in event.detail
+    assert "accepted=False" in event.detail and "ORDER_STATE" in event.detail
 
 
 def test_a_robot_fault_hold_is_not_force_shipped(harness, tmp_path):
