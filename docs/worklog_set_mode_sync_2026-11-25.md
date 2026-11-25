@@ -1,0 +1,34 @@
+# 운영 모드 맞추기: 관제가 set_mode를 부르고, 모드가 다른 Pode를 새 배정에서 뺀다 (2026-11-25)
+
+사용자 결정(2026-11-25): Q-24(IR-73)를 로그만 남기는 대신 `set_mode`까지 개발해 팀 PR에 묶는다. 추천 넷을 그대로 따른다.
+
+1. `/system/mode`를 받기 전에는 검사하지 않는다(브리지 없이 도는 개인 개발과 실물 키트가 막히지 않게).
+2. 팔은 `set_mode`를 부르기만 하고 배정에서 빼지 않는다(팔 노드는 팔 팀 담당).
+3. 모드를 받기 전 업무 목표 거절(IR-72)은 넣지 않는다.
+4. "관제 모드가 다르면 연결 거부"는 하지 않는다(관제 자신의 모드를 어디서 정할지 명세에 없음).
+
+브랜치 `feat/set-mode-sync-2026-11-25`(main `fb9dd59`에서 출발).
+
+## 동작
+
+- `fleet_manager/mode_sync.py`(ROS 없는 순수 모듈) `ModeSync`:
+  - `/system/mode`가 오면 로봇(Pode 셋, 팔 셋) 모두에 알릴 차례로 둔다. 같은 모드가 다시 오면 아무것도 안 한다.
+  - 로봇 상태가 `RECONNECT_GAP_S`(1.5 s, IR-34) 넘게 끊겼다 오거나 `boot_id`가 바뀌면 다시 연결로 보고 다시 부른다.
+  - 보고한 모드가 시스템 모드와 다르면 `RETRY_S`(2 s)마다 다시 부른다. 그렇게 `TRIES`(2)번 부르고도 다르면 그 Pode를 배정에서 뺀다
+    (모드가 처음 달라진 뒤 약 4 s). 보고한 모드가 맞으면 곧바로 되돌린다.
+  - 서버가 없으면 부르지 않고 시도로만 센다. 그래서 `set_mode` 서버가 없는 Pode도 시스템 모드가 있으면 배정에서 빠진다.
+  - 답은 `ANSWER_S`(3 s)까지 기다리고, 넘기면 다음 차례에 새 `request_id`로 다시 부른다(IR-20 · IR-21: 같은 id는 로봇이 한 번만 반영).
+- `fleet_manager_node`: `/system/mode` 구독, 로봇마다 `SetMode` 클라이언트, 틱마다 `ModeSync.due()`로 부르고 `changes()`를 코어에 넘긴다.
+  답 없는 옛 요청은 클라이언트에서 지운다. 서버가 없는 로봇과 거절한 답은 경고 로그.
+- `fleet_core`: `FleetManager.set_mode_blocked(robot, blocked, detail)`(기록 · 재생 입력). 교통 층의 로봇 기록 `mode_blocked`가 참이면
+  역 호출 후보(`_robot_info`의 eligible)에서 빠진다. 하던 일과 이동은 그대로다. 바뀔 때만 이벤트 `ROBOT_MODE_MISMATCH`(WARN) /
+  `ROBOT_MODE_MATCHED`(INFO). 모르는 로봇 이름은 `INPUT_REJECTED`.
+- 로봇 쪽 `pode_fsm`의 `set_mode` 서버와 상태의 `mode` · `boot_id`는 11-24 커밋 `54700c19`에 이미 있다.
+
+## 시험 (먼저 실패 확인)
+
+- `fleet_manager/test/test_mode_sync.py` 13개: 모드 전에는 아무것도 안 함, 모두에게 알림, 맞으면 다시 안 부름, 답 기다리는 동안 안 부름,
+  다른 채로 남으면 뺐다가 맞으면 되돌림, 시도가 남았을 때는 안 뺌, 서버 없는 Pode도 뺌, 팔은 안 뺌, 다시 연결 · 새 boot_id면 다시 부름,
+  끊긴 로봇은 안 부름, 답 없으면 새 id로 다시, 시스템 모드가 바뀌면 다시.
+- `fleet_core/test/test_mode_block.py` 5개: 뺀 로봇은 새 운반 건을 안 받음, 맞으면 다시 받음, 그동안 다른 로봇이 받음, 같은 입력 두 번은 이벤트 하나, 모르는 로봇 거부.
+- `fleet_manager/test/test_node_wiring.py` 3개(실제 그래프): 모드 전에는 안 부르고 일은 함, 모드를 알리고 받아들이면 일함, 거절하면 `ROBOT_MODE_MISMATCH` 뒤 새 운반 건 없음.

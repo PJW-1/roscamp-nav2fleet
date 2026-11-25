@@ -34,9 +34,17 @@ from fleet_interfaces.msg import (
     OrderBoard,
     RobotState,
     RobotStatusArray,
+    SystemMode,
     ZoneStateArray,
 )
-from fleet_interfaces.srv import CheckClear, ConfirmClear, Reinstate, ReportOrder, TripCommand
+from fleet_interfaces.srv import (
+    CheckClear,
+    ConfirmClear,
+    Reinstate,
+    ReportOrder,
+    SetMode,
+    TripCommand,
+)
 from rcl_interfaces.msg import ParameterDescriptor
 from rclpy.action import ActionClient
 from rclpy.clock import Clock, ClockType
@@ -46,6 +54,7 @@ from std_msgs.msg import Header
 
 from fleet_manager import adapters
 from fleet_manager.goal_tracker import GoalTracker, ReportOutbox
+from fleet_manager.mode_sync import ModeSync
 from fleet_manager.order_goals import apply_overrides
 
 
@@ -152,6 +161,14 @@ class FleetManagerNode(Node):
                 self._swap[station.id] = ActionClient(
                     self, SwapBasket, name("swap_basket", arm=station.server))
         self._report_client = self.create_client(ReportOrder, name("report_order"))
+        # 운영 모드: 브리지가 내면 로봇마다 set_mode, 받기 전에는 아무것도 하지 않는다 (IR-73)
+        arms = list(self.contract.placeholders.get("arm", []))
+        self._mode_sync = ModeSync(robots, arms)
+        self._set_mode = {r: self.create_client(SetMode, name("robot_set_mode", robot=r))
+                          for r in list(robots) + arms}
+        self._mode_futures = {}
+        self.create_subscription(SystemMode, name("system_mode"), self._on_system_mode,
+                                 self._qos("system_mode"))
         self.create_service(ConfirmClear, name("confirm_clear"), self._on_confirm_clear)
         self.create_service(Reinstate, name("reinstate"), self._on_reinstate)
         self.create_service(TripCommand, name("force_ship"), self._on_force_ship)
@@ -159,6 +176,7 @@ class FleetManagerNode(Node):
     # ---- 토픽과 서비스 수신 콜백 ----
     def _on_robot_state(self, robot, msg: RobotState) -> None:
         self._pode_states[robot] = msg
+        self._mode_sync.on_state(robot, msg.mode, msg.boot_id, time.monotonic())
         if not self.silent() and self._reachable(robot):
             self.core.on_robot_state(robot, *adapters.robot_report(msg),
                                      adapters.robot_report_id(msg),
@@ -167,6 +185,11 @@ class FleetManagerNode(Node):
 
     def _on_arm_state(self, arm, msg: ArmState) -> None:
         self._arm_states[arm] = (msg, time.monotonic())
+        self._mode_sync.on_state(arm, msg.mode, msg.boot_id, time.monotonic())
+
+    def _on_system_mode(self, msg: SystemMode) -> None:
+        if self._mode_sync.on_system_mode(msg.mode):
+            self.get_logger().info(f"system mode {msg.mode}, telling the robots")
 
     def _arm_rows(self) -> list:
         rows = []
@@ -204,11 +227,41 @@ class FleetManagerNode(Node):
         now = self._now()
         if now <= 0.0 or self.silent():
             return
+        self._sync_modes(time.monotonic())
         for command in self.core.tick():
             self._dispatch(command, now)
         self._retry_cancels(now)
         self._flush_reports(now)
         self._publish_snapshots(now)
+
+    # ---- 운영 모드: set_mode 부르기, 모드가 다른 Pode를 코어에 알리기 ----
+    def _sync_modes(self, now: float) -> None:
+        mode = self._mode_sync.system_mode
+        missing = set(self._mode_sync.no_server)
+        ready = lambda r: self._set_mode[r].service_is_ready()  # noqa: E731
+        for robot, request_id in self._mode_sync.due(now, ready):
+            client = self._set_mode[robot]
+            old = self._mode_futures.pop(robot, None)
+            if old is not None and not old.done():
+                client.remove_pending_request(old)
+            future = client.call_async(SetMode.Request(request_id=request_id, mode=mode))
+            future.add_done_callback(partial(self._mode_answered, robot, request_id))
+            self._mode_futures[robot] = future
+        for robot in sorted(self._mode_sync.no_server - missing):
+            self.get_logger().warning(f"{robot} has no set_mode server, mode {mode} not told")
+        for robot, blocked, detail in self._mode_sync.changes():
+            self.core.set_mode_blocked(robot, blocked, detail)
+
+    def _mode_answered(self, robot, request_id, future) -> None:
+        self._mode_sync.on_answer(robot, request_id)
+        try:
+            reply = future.result()
+        except Exception as exc:  # noqa: BLE001
+            self.get_logger().warning(f"set_mode on {robot} failed: {exc}")
+            return
+        if not reply.accepted:
+            self.get_logger().warning(
+                f"{robot} refused mode: {reply.reason} {reply.detail}".rstrip())
 
     def _retry_cancels(self, now: float) -> None:
         params = self.core.params

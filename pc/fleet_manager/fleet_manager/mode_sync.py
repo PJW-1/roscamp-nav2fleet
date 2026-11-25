@@ -1,0 +1,103 @@
+# ---- 운영 모드 맞추기: /system/mode를 로봇에 알리고, 모드가 다른 Pode는 새 배정에서 뺀다 (IR-73) ----
+from __future__ import annotations
+
+from collections.abc import Callable, Iterable
+from dataclasses import dataclass
+
+RECONNECT_GAP_S = 1.5  # 상태가 이만큼 끊겼다 다시 오면 다시 연결로 본다 (IR-34)
+RETRY_S = 2.0          # 같은 로봇에 다시 부르는 간격
+ANSWER_S = 3.0         # 답을 기다리는 한도. 넘기면 다음 차례에 다시 부른다
+TRIES = 2              # 모드가 다른 채 이만큼 부르고도 다르면 배정에서 뺀다
+
+
+@dataclass
+class _Robot:
+    blockable: bool
+    seen_at: float | None = None
+    boot_id: str = ""
+    mode: str = ""
+    notify: bool = False
+    next_at: float = 0.0
+    tries: int = 0
+    asked_at: float | None = None
+    request_id: str = ""
+    seq: int = 0
+    blocked: bool = False
+    told: bool = False
+
+
+class ModeSync:
+    def __init__(self, pods: Iterable[str], arms: Iterable[str] = (),
+                 gap_s: float = RECONNECT_GAP_S, retry_s: float = RETRY_S,
+                 answer_s: float = ANSWER_S, tries: int = TRIES):
+        self.system_mode: str | None = None
+        self.no_server: set[str] = set()  # 마지막 시도에 서버가 없던 로봇
+        self._gap_s, self._retry_s, self._answer_s, self._tries = gap_s, retry_s, answer_s, tries
+        self._robots = {name: _Robot(True) for name in pods}
+        self._robots.update({name: _Robot(False) for name in arms})
+
+    # ---- 입력: 시스템 모드, 로봇 상태, set_mode 답 ----
+    def on_system_mode(self, mode: str) -> bool:
+        """바뀌었으면 True. 모든 로봇에 다시 알린다."""
+        if not mode or mode == self.system_mode:
+            return False
+        self.system_mode = mode
+        for r in self._robots.values():
+            r.notify, r.next_at, r.tries = True, 0.0, 0
+        return True
+
+    def on_state(self, robot: str, mode: str, boot_id: str, now: float) -> None:
+        r = self._robots.get(robot)
+        if r is None:
+            return
+        back = (r.seen_at is None or now - r.seen_at > self._gap_s
+                or (bool(r.boot_id) and boot_id != r.boot_id))
+        r.seen_at, r.boot_id, r.mode = now, boot_id, mode
+        if back:
+            r.notify, r.next_at = True, 0.0
+        if self.system_mode is not None and mode == self.system_mode:
+            r.tries, r.blocked = 0, False
+
+    def on_answer(self, robot: str, request_id: str) -> None:
+        r = self._robots.get(robot)
+        if r is not None and r.request_id == request_id:
+            r.asked_at = None
+
+    # ---- 출력: 지금 부를 로봇, 배정 제외가 바뀐 Pode ----
+    def due(self, now: float, ready: Callable[[str], bool]) -> list[tuple[str, str]]:
+        """(로봇, request_id). 서버가 없으면 부르지 않고 시도로만 센다."""
+        if self.system_mode is None:
+            return []
+        calls = []
+        for name, r in self._robots.items():
+            if r.asked_at is not None:
+                if now - r.asked_at <= self._answer_s:
+                    continue
+                r.asked_at = None
+            if r.seen_at is None or now - r.seen_at > self._gap_s:
+                continue
+            differs = r.mode != self.system_mode
+            if not (r.notify or differs) or now < r.next_at:
+                continue
+            r.notify, r.next_at = False, now + self._retry_s
+            if differs:
+                r.tries += 1
+                r.blocked = r.blockable and r.tries > self._tries
+            if ready(name):
+                r.seq += 1
+                r.asked_at, r.request_id = now, f"mode-{name}-{r.seq}"
+                calls.append((name, r.request_id))
+                self.no_server.discard(name)
+            else:
+                self.no_server.add(name)
+        return calls
+
+    def changes(self) -> list[tuple[str, bool, str]]:
+        """(Pode, 배정 제외 여부, 까닭). 바뀐 것만 한 번."""
+        out = []
+        for name, r in self._robots.items():
+            if r.blockable and r.blocked != r.told:
+                r.told = r.blocked
+                why = f"reports {r.mode or 'no mode'}, system {self.system_mode}" if r.blocked else ""
+                out.append((name, r.blocked, why))
+        return out
