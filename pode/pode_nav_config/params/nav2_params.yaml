@@ -395,7 +395,8 @@ planner_server:
     planner_plugins: ["GridBased"]
     GridBased:
       plugin: "nav2_navfn_planner::NavfnPlanner"
-      tolerance: 0.5
+      # 막힌 goal을 먼 점으로 바꾸지 않는다. 도착 판정(0.05)보다 크면 엉뚱한 곳에 서고 성공이 난다
+      tolerance: 0.05
       use_astar: false
       allow_unknown: true
 
