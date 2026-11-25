@@ -31,9 +31,16 @@ from fleet_interfaces.msg import (  # noqa: E402
     OrderItem,
     RobotState,
     RobotStatusArray,
+    SystemMode,
     ZoneStateArray,
 )
-from fleet_interfaces.srv import ConfirmClear, Reinstate, ReportOrder, TripCommand  # noqa: E402
+from fleet_interfaces.srv import (  # noqa: E402
+    ConfirmClear,
+    Reinstate,
+    ReportOrder,
+    SetMode,
+    TripCommand,
+)
 from fleet_manager.fleet_manager_node import FleetManagerNode  # noqa: E402
 from fleet_manager.goal_tracker import GoalTracker, ReportOutbox  # noqa: E402
 from rclpy.action import ActionServer, CancelResponse  # noqa: E402
@@ -64,6 +71,7 @@ class World(Node):
         group = ReentrantCallbackGroup()
         self.site = site
         self.pose = site.node_pose(node)
+        self.mode = ""
         self.fills = []
         self.swaps = []
         self.reports = []
@@ -124,7 +132,8 @@ class World(Node):
         ]
 
     def _publish_state(self):
-        msg = RobotState(robot_id=self.robot, state=RobotState.STATE_IDLE)
+        msg = RobotState(robot_id=self.robot, state=RobotState.STATE_IDLE, mode=self.mode,
+                         boot_id="w1")
         msg.pose.x, msg.pose.y = self.pose
         self.state.publish(msg)
 
@@ -821,3 +830,61 @@ def test_the_node_keeps_reports_over_the_limit_for_a_later_flush():
     answer(client.sent[0], True)
     FleetManagerNode._flush_reports(node, 0.1)
     assert len(client.sent) == 2
+
+
+# ---- 운영 모드 (IR-73) ----
+def serve_set_mode(world, accept=True):
+    """pode1의 set_mode 서버. 받아들이면 그 모드를 상태에 싣는다."""
+    asked = []
+
+    def on_set_mode(request, response):
+        asked.append(request.mode)
+        if accept:
+            world.mode = request.mode
+        response.accepted, response.request_id = accept, request.request_id
+        response.reason = "" if accept else "MODE_MISMATCH"
+        return response
+
+    contract = world.fms.contract
+    world.create_service(SetMode, contract.name("robot_set_mode", robot="pode1"), on_set_mode,
+                         callback_group=world._group)
+    return asked
+
+
+def send_system_mode(world, mode):
+    contract = world.fms.contract
+    pub = world.create_publisher(SystemMode, contract.name("system_mode"),
+                                 to_ros_qos(contract.qos("system_mode")))
+    pub.publish(SystemMode(mode=mode))
+    return pub
+
+
+def event_codes(world):
+    return [e.code for e in list(world.events)]
+
+
+def test_nothing_is_asked_before_the_system_mode_comes(graph):
+    asked = serve_set_mode(graph)
+    publish(graph, "RUN", {"A": 1})
+    assert wait_for(lambda: graph.fills, 20.0), "the robot still takes trips without a mode"
+    assert asked == []
+
+
+def test_the_system_mode_is_sent_to_the_robot_and_it_keeps_working(graph):
+    asked = serve_set_mode(graph)
+    send_system_mode(graph, "TEST")
+    assert wait_for(lambda: asked == ["TEST"], 10.0), asked
+    assert wait_for(lambda: graph.mode == "TEST", 5.0)
+    publish(graph, "RUN", {"A": 1})
+    assert wait_for(lambda: graph.fills, 20.0)
+    assert "ROBOT_MODE_MISMATCH" not in event_codes(graph)
+
+
+def test_a_robot_that_refuses_the_mode_gets_no_new_trip(graph):
+    asked = serve_set_mode(graph, accept=False)
+    send_system_mode(graph, "TEST")
+    assert wait_for(lambda: "ROBOT_MODE_MISMATCH" in event_codes(graph), 15.0), asked
+    assert len(asked) >= 2
+    publish(graph, "RUN", {"A": 1})
+    time.sleep(3.0)
+    assert graph.fills == []

@@ -1135,3 +1135,51 @@ def test_a_retreat_path_that_does_not_start_at_the_robot_fails(harness, tmp_path
     res = result_of(_retreat(p, 0.5, path=far)).result
     assert (res.success, res.reason) == (False, Retreat.Result.REASON_FAILED)
     assert math.dist((truth[-1][1], truth[-1][2]), SITE.node_pose("P-1")) < 1e-6
+
+
+# ---- 운영 모드(SetMode) ----
+
+def _set_mode(p, mode, request_id=""):
+    from fleet_interfaces.srv import SetMode
+    client = p.node.create_client(SetMode, CONTRACT_OBJ.name("robot_set_mode", robot="pode1"))
+    assert client.wait_for_service(10.0)
+    fut = client.call_async(SetMode.Request(request_id=request_id, mode=mode))
+    assert wait_until(fut.done, 5.0)
+    return fut.result()
+
+
+def test_mode_starts_unknown_and_set_mode_normal_shows_in_state(harness, tmp_path):
+    p = start(harness, tmp_path)
+    assert wait_until(lambda: p.states, 5.0)
+    assert p.states[-1][1].mode == "UNKNOWN"
+    res = _set_mode(p, "NORMAL", "r1")
+    assert res.accepted and res.request_id == "r1"
+    assert wait_until(lambda: p.states[-1][1].mode == "NORMAL", 5.0)
+
+
+def test_set_mode_rejects_an_unknown_mode(harness, tmp_path):
+    p = start(harness, tmp_path)
+    res = _set_mode(p, "FAST", "r2")
+    assert not res.accepted and res.reason == "MODE_MISMATCH" and "FAST" in res.detail
+    assert wait_until(lambda: p.states, 5.0)
+    assert p.states[-1][1].mode == "UNKNOWN"
+
+
+def test_set_mode_answers_a_repeated_request_id_the_same(harness, tmp_path):
+    p = start(harness, tmp_path)
+    first = _set_mode(p, "TEST", "same")
+    again = _set_mode(p, "BOGUS", "same")
+    assert first.accepted and again.accepted and again.reason == first.reason
+    assert wait_until(lambda: p.states and p.states[-1][1].mode == "TEST", 5.0)
+
+
+def test_state_carries_the_admin_fields_like_pode_fsm(harness, tmp_path):
+    """실물 pode_fsm처럼 켜질 때 만든 boot_id, 잠김, 강제 없음, 마지막으로 받은 요청 번호를 싣는다."""
+    p = start(harness, tmp_path)
+    assert wait_until(lambda: p.states, 5.0)
+    first = p.states[-1][1]
+    assert len(first.boot_id) == 36 and first.lock and list(first.forced) == []
+    assert first.last_request_id == ""
+    assert _set_mode(p, "TEST", "r9").accepted
+    assert wait_until(lambda: p.states[-1][1].last_request_id == "r9", 5.0)
+    assert p.states[-1][1].boot_id == first.boot_id

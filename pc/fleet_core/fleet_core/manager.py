@@ -201,6 +201,21 @@ class FleetManager(ManagerRoute, ManagerViews, ManagerRecord):
         self._pump()
         return True
 
+    # ---- 운영 모드가 다른 Pode는 새 운반 건에서 뺀다 (IR-73) ----
+    def set_mode_blocked(self, robot, blocked, detail="") -> None:
+        self._input("set_mode_blocked", robot, blocked, detail)
+        if self._robot_refused("mode block", robot):
+            return
+        name = text(robot)
+        if not self.traffic.set_mode_blocked(name, bool(blocked)):
+            return
+        if blocked:
+            self._out.append(EventOut("WARN", "ROBOT_MODE_MISMATCH",
+                                      f"{text(detail)}; no new trips until it matches", name))
+        else:
+            self._out.append(EventOut("INFO", "ROBOT_MODE_MATCHED", "takes new trips again", name))
+        self._pump()
+
     # ---- 운영자 조작: 팔 고장으로 보류된 주문의 강제 출고 ----
     def force_ship(self, order_id) -> tuple[bool, str]:
         self._input("force_ship", order_id)
