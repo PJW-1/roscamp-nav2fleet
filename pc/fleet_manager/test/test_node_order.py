@@ -63,6 +63,8 @@ def test_every_order_feedback_reaches_the_core_so_the_distance_stays_fresh(node)
     for msg in (feedback(0), feedback(0), feedback(0, left=0.125), feedback(1, True),
                 feedback(1, True, "HORIZON_INVALID: x")):
         callback(msg)
+    assert node.core.on_move_feedback.call_args_list == [], "the callback only queues"
+    node._drain()
     assert [c.args for c in node.core.on_move_feedback.call_args_list] == [
         ("pode1", 7, 0, False, "", 0.25), ("pode1", 7, 0, False, "", 0.25),
         ("pode1", 7, 0, False, "", 0.125), ("pode1", 7, 1, True, "", 0.25),
@@ -77,6 +79,7 @@ def test_feedback_of_two_goals_is_told_apart(node):
     second = client.send_goal_async.call_args.kwargs["feedback_callback"]
     first(feedback(2))
     second(feedback(2))
+    node._drain()
     assert [c.args[1] for c in node.core.on_move_feedback.call_args_list] == [7, 8]
 
 

@@ -310,11 +310,33 @@ def test_a_short_gap_after_the_second_call_still_waits_two_seconds():
     assert s.changes() == [("pode1", True, "reports UNKNOWN, system TEST")]
 
 
+def _report(s, boot, t0, t1):
+    """t0부터 t1까지 0.5 s마다 상태를 넣는다 (다시 연결로 보지 않게)."""
+    t = t0
+    while t < t1:
+        s.on_state("pode1", "UNKNOWN", boot, t)
+        t += 0.5
+    s.on_state("pode1", "UNKNOWN", boot, t1)
+
+
 def test_a_reboot_after_the_second_call_starts_over():
     """boot_id가 바뀌면 새 프로그램이라 호출 횟수를 처음부터 센다."""
     s = sync()
     second = _two_refused_calls(s)
     t = second + 0.5
     s.on_state("pode1", "UNKNOWN", "b2", t)
-    assert [r for r, _ in s.due(t, READY)] == ["pode1"]
+    [(robot, rid)] = s.due(t, READY)
+    s.on_answer(robot, rid)
+    # 새 프로그램의 두 번째 호출 전에는 빼지 않는다
+    _report(s, "b2", t, t + RETRY_S - 0.1)
+    assert s.due(t + RETRY_S - 0.1, READY) == [] and s.changes() == []
+    t2 = t + RETRY_S
+    _report(s, "b2", t + RETRY_S - 0.1, t2)
+    [(robot, rid)] = s.due(t2, READY)
+    s.on_answer(robot, rid)
+    _report(s, "b2", t2, t2 + RETRY_S - 0.1)
+    s.due(t2 + RETRY_S - 0.1, READY)
     assert s.changes() == []
+    _report(s, "b2", t2 + RETRY_S - 0.1, t2 + RETRY_S)
+    s.due(t2 + RETRY_S, READY)
+    assert s.changes() == [("pode1", True, "reports UNKNOWN, system TEST")]
