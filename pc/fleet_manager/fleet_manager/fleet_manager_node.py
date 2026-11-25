@@ -239,7 +239,12 @@ class FleetManagerNode(Node):
         mode = self._mode_sync.system_mode
         missing = set(self._mode_sync.no_server)
         ready = lambda r: self._set_mode[r].service_is_ready()  # noqa: E731
-        for robot, request_id in self._mode_sync.due(now, ready):
+        calls = self._mode_sync.due(now, ready)
+        for robot in self._mode_sync.expired:
+            old = self._mode_futures.pop(robot, None)
+            if old is not None and not old.done():
+                self._set_mode[robot].remove_pending_request(old)
+        for robot, request_id in calls:
             client = self._set_mode[robot]
             old = self._mode_futures.pop(robot, None)
             if old is not None and not old.done():

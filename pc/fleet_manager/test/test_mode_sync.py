@@ -1,6 +1,6 @@
 """운영 모드 맞추기(IR-73): /system/mode를 받기 전에는 아무것도 안 한다. 받으면 로봇마다 set_mode를 부르고,
 다시 연결되면 다시 부르며, 모드가 다른 채 TRIES번 부르고도 다르면 그 Pode를 배정에서 뺀다. 팔은 빼지 않는다."""
-from fleet_manager.mode_sync import RECONNECT_GAP_S, RETRY_S, TRIES, ModeSync
+from fleet_manager.mode_sync import ANSWER_S, NO_SERVER_S, RECONNECT_GAP_S, RETRY_S, TRIES, ModeSync
 
 READY = lambda robot: True  # noqa: E731
 
@@ -155,3 +155,43 @@ def test_a_new_system_mode_asks_everyone_again():
     assert not s.on_system_mode("TEST")
     assert s.on_system_mode("NORMAL")
     assert [r for r, _ in s.due(0.4, READY)] == ["pode1"]
+
+
+def test_a_pode_without_the_service_is_not_blocked_before_ir32_wait():
+    """IR-32: 서비스는 5초 이상 기다린다. 부르지도 못한 채 그보다 일찍 빼지 않는다."""
+    s = sync()
+    s.on_system_mode("TEST")
+    t = 0.0
+    while t < NO_SERVER_S - 0.2:
+        s.on_state("pode1", "", "b1", t)
+        s.due(t, lambda robot: False)
+        t += 0.2
+    assert s.changes() == []
+
+
+def test_request_ids_differ_after_a_fleet_restart():
+    """로봇은 같은 request_id에 옛 답만 돌려준다. 관제가 다시 켜져도 id가 겹치지 않아야 새 모드가 반영된다."""
+    first = []
+    for _ in range(2):
+        s = sync()
+        s.on_system_mode("TEST")
+        s.on_state("pode1", "UNKNOWN", "b1", 0.0)
+        [(_, rid)] = s.due(0.0, READY)
+        first.append(rid)
+    assert first[0] != first[1]
+
+
+def test_an_expired_call_is_reported_once_for_cleanup():
+    s = sync()
+    s.on_system_mode("TEST")
+    s.on_state("pode1", "UNKNOWN", "b1", 0.0)
+    assert len(s.due(0.0, READY)) == 1
+    s.on_state("pode1", "UNKNOWN", "b1", 0.2)
+    s.due(0.2, READY)
+    assert s.expired == []
+    t = ANSWER_S + 0.1
+    s.on_state("pode1", "UNKNOWN", "b1", t)
+    s.due(t, READY)
+    assert s.expired == ["pode1"]
+    s.due(t + 0.1, READY)
+    assert s.expired == []
