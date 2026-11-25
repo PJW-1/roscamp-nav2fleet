@@ -34,9 +34,9 @@ PLAN_LAYOUTS = {"corridor": "v7", "gap": "v7"}  # 계획의 배치(없으면 d2)
 # 계획 전용 점(Nav2 goal 자리, 이름 -> (x, y)). 이음 검사를 하지 않는다.
 PLAN_POINTS = {"gap": {"GAP_N": (1.12, 0.55), "GAP_S": (1.12, 0.24)}}
 # 통로를 지났는지 보는 사각형(x0, y0, x1, y1): v7 가운데 통로
-CORRIDOR_GATES = {"arena_v7": (0.90, 0.3875, 1.00, 0.735)}
+CORRIDOR_GATES = {"arena_v7": (0.90, 0.404, 1.00, 0.754)}
 # 남쪽 진열대 사이 건넘 틈(y 방향으로 지난다)
-GAP_GATES = {"arena_v7": (0.99, 0.3475, 1.25, 0.3875)}
+GAP_GATES = {"arena_v7": (1.014, 0.364, 1.264, 0.404)}
 
 
 class PlanError(ValueError):

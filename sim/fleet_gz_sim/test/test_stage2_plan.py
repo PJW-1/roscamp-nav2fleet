@@ -124,7 +124,7 @@ def test_the_corridor_edge_and_the_robot_body_along_it_are_outside_the_keepout_m
     x0, y0, x1, y1 = sp.CORRIDOR_GATES[V7.name]
     blocked = {round(y0 + n * 0.005, 3) for n in range(round((y1 - y0) / 0.005) + 1)
                for x in (x0, (x0 + x1) / 2, x1 - 1e-6) if inside(x, y0 + n * 0.005)}
-    # 남쪽 끝 0.3875는 틈 keepout_extra가 있는 지도에서만 막힌다. 북쪽 띠는 급행 구역 아래 끝에서 몸 반폭 0.06 아래부터다(1 cm 칸)
+    # 남쪽 끝 0.404는 틈 keepout_extra가 있는 지도에서만 막힌다. 북쪽 띠는 급행 구역 아래 끝에서 몸 반폭 0.06 아래부터다(1 cm 칸)
     north = V7.zones["EXPRESS"].rects[0][1] - 0.06
     assert blocked and all(y >= north - 0.01 or y <= y0 + 1e-9 for y in blocked), sorted(blocked)
 

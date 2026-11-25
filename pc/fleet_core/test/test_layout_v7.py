@@ -14,22 +14,24 @@ from fleet_core.fleet_map import (
 )
 from fleet_core.fleet_map.model import FOLLOW_PATH, NAV_GOAL, RETREAT
 
-# 자유바닥 저장소 sites/arena_v7.yaml의 실측 치수(진열대 A, 진열대 둘)
-SHELVES = [(0.65, 0.735, 1.56, 0.775), (0.70, 0.3475, 0.99, 0.3875), (1.25, 0.3475, 1.56, 0.3875)]
+# 2026-11-25 줄자(단차 면 기준): 진열대 A, 남쪽 진열대 둘
+SHELVES = [(0.654, 0.754, 1.574, 0.794), (0.704, 0.364, 1.014, 0.404), (1.264, 0.364, 1.574, 0.404)]
+# 벽 아래 단차: lidar 높이 벽 면은 단차 면보다 이만큼 바깥이다
+WALL_STEP_M = 0.006
 # 시뮬 바퀴 충돌 구: 중심에서 바깥 끝 거리(pinky.urdf.xacro)
 SIM_WHEEL_OUTER_M = 0.04855 + 0.028
 # 칸막이 둘(칸막이 3은 없다)
 DIVIDERS = [(0.24, 0.0, 0.26, 0.10), (0.50, 0.0, 0.52, 0.10)]
-# 북쪽 벽 안쪽 면: 지도 값과 SLAM 실측 값
+# 북쪽 벽 안쪽 면: 지도 값과 실측 단차 면(몸이 닿는 면, 2026-11-25 줄자)
 NORTH_WALL_Y = 0.98
-REAL_NORTH_WALL_Y = 0.975
-# AMCL 지도의 동쪽, 북쪽 벽: 벽 쪽 몸 여유는 이 면으로 잰다
-AMCL_EAST_WALL_X = 1.965
-AMCL_NORTH_WALL_Y = 0.965
+REAL_NORTH_WALL_Y = 0.98
+# AMCL 지도(도면 1 cm, 2026-11-25부터)의 동쪽, 북쪽 벽: 벽 쪽 몸 여유는 이 면으로 잰다
+AMCL_EAST_WALL_X = 1.98
+AMCL_NORTH_WALL_Y = 0.98
 # 급행 줄 y: 실측 띠 가운데보다 조금 남쪽
-LANE_Y = 0.868
+LANE_Y = 0.882
 # 급행 들머리 원호(W_X 다음 네 점, 끝점이 줄 위)
-EXPRESS_ARC = [(1.78, 0.8466), (1.7547, 0.8584), (1.7278, 0.8656), (1.7, LANE_Y)]
+EXPRESS_ARC = [(1.78, 0.8606), (1.7547, 0.8724), (1.7278, 0.8796), (1.7, LANE_Y)]
 BODY_HALF_M = 0.056          # local footprint 반폭(nav2_params)
 RELEASE_GAP_M = 0.135  # footprint_radius_m 0.085 + release_margin_m 0.05
 NODE_CLEAR_M = 0.20
@@ -53,18 +55,19 @@ def test_v7_dimensions(site):
     # 칸막이 사이 빈 폭, 건넘 틈
     assert [round(b[0] - a[2], 3) for a, b in pairwise(DIVIDERS)] == [0.24]
     assert round(DIVIDERS[0][0], 3) == 0.24
-    assert round(SHELVES[2][0] - SHELVES[1][2], 3) == 0.26
-    assert round(NORTH_WALL_Y - SHELVES[0][3], 3) == 0.205  # 지도 벽 기준
-    assert round(REAL_NORTH_WALL_Y - SHELVES[0][3], 3) == 0.2  # 실측 벽 기준
-    # 진열대 A는 폭 0.91, 동쪽 끝 1.56
-    assert round(SHELVES[0][2] - SHELVES[0][0], 3) == 0.91 and SHELVES[0][2] == 1.56
-    # 세 진열대 모두 두께 0.04이고, 급행을 뺀 나머지를 아래 통로 둘이 같은 폭으로 나눈다
+    assert round(SHELVES[2][0] - SHELVES[1][2], 3) == 0.25
+    assert round(NORTH_WALL_Y - SHELVES[0][3], 3) == 0.186  # 단차 면 기준
+    assert round(NORTH_WALL_Y + WALL_STEP_M - SHELVES[0][3], 3) == 0.192  # lidar 높이 벽 면 기준(줄자 약 0.20)
+    # 진열대 A는 폭 0.92이고 동쪽 끝은 남쪽 동쪽 진열대와 한 줄(1.57)
+    assert round(SHELVES[0][2] - SHELVES[0][0], 3) == 0.92 and SHELVES[0][2] == SHELVES[2][2] == 1.574
+    assert {round(s[2] - s[0], 3) for s in SHELVES[1:]} == {0.31}
+    # 세 진열대 모두 두께 0.04. 남쪽 통로는 줄자(벽 면 0.37)에서 단차를 뺀 값, 가운데 통로는 줄자 그대로다
     assert {round(s[3] - s[1], 4) for s in SHELVES} == {0.04}
     south, middle = SHELVES[1][1], SHELVES[0][1] - SHELVES[1][3]
-    assert round(south, 4) == round(middle, 4) == 0.3475
+    assert round(south + WALL_STEP_M, 4) == 0.37 and round(middle, 4) == 0.35
     assert SHELVES[1][1:4:2] == SHELVES[2][1:4:2]
     # 진열대 자리는 어느 구역도 아니고 그 서쪽 띠는 HALL이다
-    for y in (0.74, 0.755, 0.772):
+    for y in (0.758, 0.775, 0.79):
         assert site.zone_at(0.66, y) is None and site.zone_at(0.59, y) == "HALL", y
 
 
@@ -75,7 +78,7 @@ def test_v7_sim_shelves_are_the_measured_shelves(site):
 
 def test_v7_sim_wheel_spheres_clear_shelf_a_on_the_express_lane(site):
     lane_y = site.nodes["O"].y
-    assert lane_y == site.nodes["O_X"].y == 0.868
+    assert lane_y == site.nodes["O_X"].y == 0.882
     clearance = lane_y - SIM_WHEEL_OUTER_M - site.sim_shelves[0][3]
     assert clearance >= 0.005, clearance
 
@@ -224,14 +227,17 @@ def test_v7_bays_are_entered_backwards_and_left_forwards_on_a_straight_line(site
             gap = min(point_rect_distance(shelf, ax + (bx - ax) * i / steps,
                                           ay + (by - ay) * i / steps) for i in range(steps + 1))
             assert gap >= BODY_CIRCLE_M + TURN_MARGIN_M, (edge.a, edge.b, shelf, round(gap, 3))
-    # 진열대 모서리도 곧은 선에서 몸 원보다 멀다
+    # 진열대 모서리도 곧은 선에서 몸 원보다 멀다. 동쪽 좁은 길(M_E-Q2)만 실측 진열대 끝(1.574)과
+    # WORK 도크 사이라 몸 반폭 + 0.02를 지킨다(2026-11-25 사용자 결정)
+    narrow = {frozenset(("M_E", "Q2")): BODY_HALF_M + 0.02}
     for edge in site.edges():
         if edge.mode != NAV_GOAL:
             continue
         from fleet_core.fleet_map.geometry import segment_rect_distance
         gap = min(segment_rect_distance(edge.points[0], edge.points[-1], shelf)
                   for shelf in site.shelves)
-        assert gap >= BODY_CIRCLE_M, (edge.a, edge.b, round(gap, 3))
+        bar = narrow.get(frozenset((edge.a, edge.b)), BODY_CIRCLE_M)
+        assert gap >= bar - 1e-9, (edge.a, edge.b, round(gap, 3))
 
 
 def test_v7_dock_releases_neighbours_after_docking(site):
@@ -481,7 +487,7 @@ def test_v7_outbound_waits_at_the_west_end_of_the_express_too(site):
     gaps = {name: min(point_segment_distance(site.node_pose("O_X"), a, b)
                       for a, b in pairwise(site.edge(*pair).points))
             for name, pair in (("out_in", ("O_IN", "O")), ("out_out", ("O", "O_OUT")))}
-    assert gaps["out_in"] == pytest.approx(0.291, abs=1e-3), gaps
+    assert gaps["out_in"] == pytest.approx(0.293, abs=1e-3), gaps
     assert gaps["out_out"] > gaps["out_in"] >= 2 * BODY_CIRCLE_M + 0.01, gaps
 
 
@@ -519,7 +525,7 @@ def test_v7_north_wall_is_the_slam_measurement_and_the_express_stays_open(site):
     assert site.node_pose("O") == (0.285, LANE_Y) and site.node_pose("O_X") == (0.71, LANE_Y)
     # 줄은 실측 띠 가운데보다 1 cm 안쪽으로 남쪽이다
     middle = (REAL_NORTH_WALL_Y + SHELVES[0][3]) / 2
-    assert middle == pytest.approx(0.875) and 0 < middle - LANE_Y < 0.01
+    assert middle == pytest.approx(0.887) and 0 < middle - LANE_Y < 0.01
     assert min(REAL_NORTH_WALL_Y - LANE_Y, LANE_Y - SHELVES[0][3]) > BODY_HALF_M
     # AMCL 북쪽 벽에서도 줄 위 몸 여유가 4 cm 남는다
     assert AMCL_NORTH_WALL_Y - LANE_Y - BODY_HALF_M >= 0.04
@@ -538,12 +544,12 @@ def test_v7_north_wall_is_the_slam_measurement_and_the_express_stays_open(site):
     west = sorted(list(r) for r in site.zones["HALL"].rects
                   if r[1] < SHELVES[0][3] and r[3] > SHELVES[0][1] and r[0] < SHELVES[0][0])
     out_dock = site.zones["OUT_DOCK"].rects[0]
-    assert west == [[0.0, SHELVES[0][1], 0.594, out_dock[1]], [out_dock[2], out_dock[1], 0.594, SHELVES[0][3]]]
+    assert west == [[0.0, SHELVES[0][1], 0.598, out_dock[1]], [out_dock[2], out_dock[1], 0.598, SHELVES[0][3]]]
     # 동쪽은 진열대 A 동쪽 끝부터 벽까지 한 띠이고 J_E 아래 끝에 닿는다
     east = [list(r) for r in site.zones["HALL"].rects
             if r[1] < SHELVES[0][3] and r[3] > SHELVES[0][1] and r[2] > SHELVES[0][2]]
     assert east == [[SHELVES[0][2], SHELVES[0][1], 1.98, site.zones["J_E"].rects[0][1]]]
-    assert round(SHELVES[0][0] - 0.594, 3) == BODY_HALF_M
+    assert round(SHELVES[0][0] - 0.598, 3) == BODY_HALF_M
 
 
 def _y_at(points, x):
@@ -558,7 +564,7 @@ def test_v7_express_runs_straight_on_the_lane_from_the_arc_to_o(site):
     """O_X와 O의 방향, 급행 두 edge의 점, 원호 끝부터 O까지 곧은 줄을 본다."""
     into, out = site.edge("W_X", "O_X"), site.edge("O_X", "O")
     w_x, o_x, o = site.node_pose("W_X"), site.node_pose("O_X"), site.node_pose("O")
-    assert w_x == (1.8028, 0.8306) and o_x == (0.71, LANE_Y) and o == (0.285, LANE_Y)
+    assert w_x == (1.8028, 0.8446) and o_x == (0.71, LANE_Y) and o == (0.285, LANE_Y)
     assert math.degrees(site.nodes["O_X"].yaw) == pytest.approx(180.0)
     assert math.degrees(site.nodes["O"].yaw) == pytest.approx(180.0)
     assert list(into.points) == [w_x, *EXPRESS_ARC, o_x]
@@ -601,11 +607,11 @@ def _body_gaps(points, x_min):
 
 
 def test_v7_express_turn_is_a_tangent_arc_from_a_lower_w_x(site):
-    """급행 들머리 원호는 HALL 안 y 0.698에서 북쪽으로 시작해 반지름 0.16으로 급행 줄에 접해 끝난다."""
+    """급행 들머리 원호는 HALL 안 y 0.722에서 북쪽으로 시작해 반지름 0.16으로 급행 줄에 접해 끝난다."""
     out, express = site.edge("W", "W_X"), site.edge("W_X", "O_X")
     w, exit_ = site.node_pose("W"), site.nodes["W_X"]
     assert exit_.zone == "J_E" and site.zone_at(exit_.x, exit_.y) == "J_E"
-    assert out.points[:2] == (w, (w[0], 0.708)), "W에서 원호 시작까지는 곧게 북쪽"
+    assert out.points[:2] == (w, (w[0], 0.722)), "W에서 원호 시작까지는 곧게 북쪽"
     route_ = list(out.points[1:]) + list(express.points[1:])
     last = next(i for i, p in enumerate(route_) if p[1] == pytest.approx(LANE_Y))
     arc = route_[:last + 1]
