@@ -53,16 +53,38 @@ M_E(1.645, 0.55)에서 Q2(1.66, 0.15)로 가는 Nav2 이음이 남쪽 동쪽 진
 - `learning/store_arena/arena_check.py`: contact 모드의 진열대 면 좌표.
 - `tools/real_pode/README.md`: 진열대 설명.
 - 시험 기대값: `test_layout_v7`, `test_arena_v7`, `test_fleet_setup`, `test_world_planner`, `test_real_pode`(키트 지도 SHA-256 포함),
-  `test_stage2_plan` 주석. `test_layout_v7`의 AMCL 벽 기준은 도면 1 cm 지도(0.98, 1.98)로 고쳤다(11-25부터 키트 AMCL 지도).
+  `test_stage2_plan` 주석, `test_zone_exit_band` 시험 자리, `learning/store_arena/test_arena_spec` 기대값. `test_layout_v7`의 AMCL 벽 기준은 도면 1 cm 지도(0.98, 1.98)로 고쳤다(11-25부터 키트 AMCL 지도).
 
 ## 5. 시험
 
-(시험 결과는 아래에 채운다)
+묶음마다 다른 ROS 도메인(LOCALHOST)으로 여덟 묶음을 한꺼번에 돌렸다.
 
-## 6. 하지 않은 것
+| 묶음 | 결과 |
+|---|---|
+| `pc/fleet_core` | 1420 passed, 7 xfailed, 2 failed → 고친 뒤 통과(아래 1) |
+| `pc/fleet_manager` | 206 passed, 1 failed → 혼자 다시 돌려 통과(아래 2) |
+| `sim/fake_robots`(넷으로 나눔) | 1173 passed, 30 xfailed, 1 skipped |
+| `sim/fleet_gz_sim` | 632 passed |
+| `tools` | 323 passed, 1 failed(`test_step_probe`, 알려진 불안정) → 혼자 47 passed |
+| `learning/store_arena` | 이 PC에 torch가 없어 돌리지 못함(아래 3) |
+
+1. `test_zone_exit_band`: 시험 자리(0.181, 0.762)가 옛 O(y 0.868)에서 0.148로 정해져 있었다. O가 0.882로 옮겨 0.159가 되어 도착 허용(0.15) 밖으로 나갔다.
+   HALL 안, O에서 0.145, keepout 안인 (0.20, 0.764)로 옮겼다.
+2. `test_fms_restart`: 동시 실행에서 "OUT_DOCK을 0.08 m에서 놓음"으로 실패했다. 새 판과 바꾸기 전 판(nav2fleet 69e5aa0)을 함께 돌렸을 때는
+   둘 다 다른 단언(heartbeat 시간 초과 뒤에도 움직임)으로 실패했고, 새 판을 혼자 돌리니 통과했다(1 passed, 119 s).
+3. Codex 검토에서 `learning/store_arena/test_arena_spec.py`에 옛 진열대 값 두 곳(yaml 줄 치환, 레이 거리)이 남은 것을 찾아 고쳤다.
+   치환이 새 yaml에 걸리는지는 torch 없이 따로 확인했고, 레이 거리 0.204 / 0.146은 손 계산 값이다.
+4. 병합한 main(`c80b7594`)을 nav2fleet로 옮길 때 동기화 스크립트가 fleet_core 시험을 다시 돌려 통과했다(nav2fleet `d55cdec`).
+
+## 6. 배포
+
+- pode-drive main `c80b7594`, nav2fleet `d55cdec`. pode2에는 터미널 세션이 배포했다(11-25 20:30 무렵). 로봇 패키지는 69e5aa0과 같아 빌드하지 않았고, 키트 지도 여섯 개의 md5가 PC와 같다.
+- pode1은 아직 배포하지 않았다.
+
+## 7. 하지 않은 것
 
 - Gazebo에서 새 급행 줄로 달려 보기. 도면 검사와 시험만 돌렸다.
 - RL 정책 다시 학습. acd3는 앞 지도로 학습했다.
-- `learning/store_arena` 시험: 이 PC에 torch가 없어 모으지 못했다. 바꾼 것은 `arena_check.py`의 숫자 둘이다.
+- `learning/store_arena` 시험 실행: 이 PC에 torch가 없다. 바꾼 것은 `arena_check.py`의 숫자 둘과 `test_arena_spec.py`의 기대값이다.
 
 그림: `docs/arena_step_tape_2026-11-25/map_dims.png`
