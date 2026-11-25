@@ -252,7 +252,7 @@ def generate_launch_description():
         DeclareLaunchArgument("map", description="costmap 지도 yaml(v7 기본 arena_v7_a, 2.5 cm)"),
         DeclareLaunchArgument("map_fine", default_value=arg("map"),
                               description="AMCL 지도 yaml(R15. 시뮬 arena_v7_fine 1 cm,"
-                                          " 실물 arena_real_slam 0.5 cm). 없으면 map"),
+                                          " 실물도 arena_v7_fine). 없으면 map"),
         DeclareLaunchArgument("params_file",
                               default_value=str(SHARE / "params" / "nav2_params.yaml"),
                               description="주행 담당의 Nav2 설정"),

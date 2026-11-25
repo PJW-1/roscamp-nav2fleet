@@ -23,9 +23,10 @@ FORWARD = ("FollowPath", "FollowPathThrough")
 FIXED_LINE = ("FollowPath", "FollowPathThrough", "FollowPathReverse")
 # 전역 costmap 지도 2.5 cm(arena_v7_a), 위치 추정 1 cm, keepout
 MAPS = ("arena_v7_a", "arena_v7_fine", "arena_v7_keepout")
-# 위치 추정은 실물 SLAM 지도, costmap·keepout은 v7 도면 지도
-REAL_MAP = "arena_real_slam"
-LAUNCH_MAPS = ("arena_v7_a", REAL_MAP, "arena_v7_keepout")
+# 위치 추정도 v7 도면 1 cm 지도(시뮬과 같다). 옛 SLAM 지도는 map_fine 인자로 고른다
+AMCL_MAP = "arena_v7_fine"
+OLD_SLAM_MAP = "arena_real_slam"
+LAUNCH_MAPS = ("arena_v7_a", AMCL_MAP, "arena_v7_keepout")
 # 실물 키트 지도 그림의 SHA-256. 지도를 일부러 바꿀 때만 같이 고친다
 KIT_MAP_SHA256 = {
     "arena_v7.pgm": "c15b977c0bb54ab23384f51490fe793c66769cfc214bec5e4fdd529aee2b3c9a",
@@ -461,16 +462,17 @@ def test_launch_keeps_shutdown():
     assert 'MAPS / "arena_v7.yaml"' not in text  # 5 cm 지도는 기본이 아니다
 
 
-def test_amcl_reads_the_real_slam_map():
+def test_amcl_reads_the_drawing_fine_map():
     text = (KIT / "real_pode.launch.py").read_text(encoding="utf-8")
     line = next(t for t in text.splitlines() if '"map_fine"' in t and "DeclareLaunchArgument" in t)
-    assert f'MAPS / "{REAL_MAP}.yaml"' in line
+    assert f'MAPS / "{AMCL_MAP}.yaml"' in line
 
 
-def test_real_slam_map_file():
+def test_old_slam_map_file_is_kept():
+    # 되돌릴 때 쓰도록 남긴다(map_fine:=.../arena_real_slam.yaml)
     from PIL import Image
-    meta = _load(KIT / "maps" / f"{REAL_MAP}.yaml")
-    assert meta["image"] == f"{REAL_MAP}.pgm" and meta["mode"] == "trinary"
+    meta = _load(KIT / "maps" / f"{OLD_SLAM_MAP}.yaml")
+    assert meta["image"] == f"{OLD_SLAM_MAP}.pgm" and meta["mode"] == "trinary"
     assert meta["resolution"] == 0.005 and meta["origin"] == [-0.1, -0.1, 0.0]
     # 205(미지)는 미지로 남아야 한다
     p_unknown = (255 - 205) / 255.0
