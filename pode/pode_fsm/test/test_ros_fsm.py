@@ -84,6 +84,20 @@ def test_the_admin_services_answer_with_the_request_id_and_the_state_shows_them(
     assert (s.lock, s.mode) == (False, "TEST")
 
 
+def test_tf_and_odom_are_taken_by_the_input_node_not_the_main_node(harness):
+    # 자주 오는 TF·odom이 주 실행기를 깨우지 않게 입력 노드가 받는다
+    fake, probe = start(harness)
+    fsm = harness.nodes[1]
+    frequent = {"/tf", "/tf_static", "/odom"}
+    assert not {s.topic_name for s in fsm.subscriptions} & frequent
+    assert {s.topic_name for s in fsm._inputs.node.subscriptions} >= frequent
+    # 그래도 자세(TF)와 속도(odom)는 그대로 들어온다
+    s = probe.last_state()
+    assert (s.pose.x, s.pose.y) == (pytest.approx(0.35, abs=1e-3), pytest.approx(1.55, abs=1e-3))
+    probe.send(lane_goal(["P-3", "P-4"]))
+    assert wait_until(lambda: fsm._speed[0] > 0.05, 3.0)
+
+
 def test_path_goal_arrives_within_the_tolerance(harness):
     _, probe = start(harness)
     h = probe.send(lane_goal(["P-3", "P-4"]))
