@@ -41,11 +41,11 @@ from fleet_interfaces.srv import (  # noqa: E402
     SetMode,
     TripCommand,
 )
-from fleet_manager.fleet_manager_node import FleetManagerNode  # noqa: E402
+from fleet_manager.fleet_manager_node import FleetManagerNode, make_executor  # noqa: E402
 from fleet_manager.goal_tracker import GoalTracker, ReportOutbox  # noqa: E402
 from rclpy.action import ActionServer, CancelResponse  # noqa: E402
 from rclpy.callback_groups import ReentrantCallbackGroup  # noqa: E402
-from rclpy.executors import MultiThreadedExecutor, SingleThreadedExecutor  # noqa: E402
+from rclpy.executors import MultiThreadedExecutor  # noqa: E402
 from rclpy.node import Node  # noqa: E402
 from rclpy.task import Future  # noqa: E402
 from std_msgs.msg import Header  # noqa: E402
@@ -345,12 +345,12 @@ def test_a_robot_counts_only_once_its_goals_can_reach_it():
 
 
 def test_a_record_of_the_running_node_plays_back_to_the_same_commands(tmp_path):
-    """main()처럼 노드에 스레드 하나를 쓴다."""
+    """main()과 같은 실행기(make_executor)로 노드를 돌린다."""
     record = tmp_path / "fms.jsonl"
     rclpy.init(args=["--ros-args", "-p", "robots:=[pode1]", "-p", "tick_hz:=50.0"])
     node = FleetManagerNode(record=record)
     world = World(node.contract, load_fleet_map("d2"), "P-1")
-    executors = [SingleThreadedExecutor(), MultiThreadedExecutor(num_threads=4)]
+    executors = [make_executor(), MultiThreadedExecutor(num_threads=4)]
     executors[0].add_node(node)
     executors[1].add_node(world)
     threads = [threading.Thread(target=e.spin, daemon=True) for e in executors]
