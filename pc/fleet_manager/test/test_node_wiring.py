@@ -766,7 +766,8 @@ def report_node(limit=4):
         core=SimpleNamespace(params=SimpleNamespace(report_retry_s=2.0,
                                                     report_max_in_flight=limit)),
         get_logger=lambda: SimpleNamespace(warning=print),
-        _now=lambda: 0.0, _dispatch=lambda command, now: events.append(command.code))
+        _now=lambda: 0.0, _dispatch=lambda command, now: events.append(command.code),
+        _post=lambda handler, *args: handler(*args))  # 받은 편지함을 바로 비운 것과 같다
     node._report_answered = partial(FleetManagerNode._report_answered, node)
     return node, events
 
