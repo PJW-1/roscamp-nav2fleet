@@ -534,9 +534,15 @@ def test_v7_north_wall_is_the_slam_measurement_and_the_express_stays_open(site):
     # 구역은 진열대 면을 따른다
     assert [r[1] for r in site.zones["EXPRESS"].rects] == [SHELVES[0][3]]
     # 띠는 진열대 끝에서 몸 반폭 안까지다
-    west = [r for r in site.zones["HALL"].rects if r[1] < SHELVES[0][3] and r[3] > SHELVES[0][1] and r[0] < SHELVES[0][0]]
-    assert {r[2] for r in west} == {0.594}
-    assert min(r[1] for r in west) <= SHELVES[0][1] and max(r[3] for r in west) == SHELVES[0][3]
+    # 진열대 A 옆 y 범위의 서쪽 HALL은 두 띠뿐이고, 아래 띠는 서쪽 벽부터, 위 띠는 OUT_DOCK 동쪽 끝부터다
+    west = sorted(list(r) for r in site.zones["HALL"].rects
+                  if r[1] < SHELVES[0][3] and r[3] > SHELVES[0][1] and r[0] < SHELVES[0][0])
+    out_dock = site.zones["OUT_DOCK"].rects[0]
+    assert west == [[0.0, SHELVES[0][1], 0.594, out_dock[1]], [out_dock[2], out_dock[1], 0.594, SHELVES[0][3]]]
+    # 동쪽은 진열대 A 동쪽 끝부터 벽까지 한 띠이고 J_E 아래 끝에 닿는다
+    east = [list(r) for r in site.zones["HALL"].rects
+            if r[1] < SHELVES[0][3] and r[3] > SHELVES[0][1] and r[2] > SHELVES[0][2]]
+    assert east == [[SHELVES[0][2], SHELVES[0][1], 1.98, site.zones["J_E"].rects[0][1]]]
     assert round(SHELVES[0][0] - 0.594, 3) == BODY_HALF_M
 
 
