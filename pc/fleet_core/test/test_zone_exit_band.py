@@ -9,7 +9,7 @@ from fleet_core.fleet_map.geometry import inside
 from fleet_core.fleet_map.keepout import keepout_rects
 from zone_harness import Harness
 
-BAND_POSE = (0.181, 0.762)  # 기록의 자리: HALL 안, O에서 0.148, keepout 안
+BAND_POSE = (0.20, 0.764)  # HALL 안, O에서 0.145(도착 허용 0.15 안), keepout 안
 
 
 def in_keepout(site, x, y) -> bool:

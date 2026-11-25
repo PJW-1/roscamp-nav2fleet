@@ -15,7 +15,11 @@ LOG=${OUT%.json}.log
 setsid ros2 launch "$HERE/replay.launch.py" map_fine:="$MAP" x:="$X" y:="$Y" yaw:="$YAW" \
   > "$LOG" 2>&1 &
 LPID=$!
-cleanup() { kill -INT -- "-$LPID" 2>/dev/null || true; sleep 2; kill -KILL -- "-$LPID" 2>/dev/null || true; }
+PPID_=
+cleanup() {
+  [ -n "$PPID_" ] && kill "$PPID_" 2>/dev/null || true  # 중간에 끝나도 probe를 남기지 않는다
+  kill -INT -- "-$LPID" 2>/dev/null || true; sleep 2; kill -KILL -- "-$LPID" 2>/dev/null || true
+}
 trap cleanup EXIT
 
 # AMCL이 active가 될 때까지(지도 받고 초기 자세 둔 뒤)
@@ -31,3 +35,4 @@ sleep 1
 ros2 bag play "$BAG" --clock 100 --start-offset "$START" --playback-duration "$DUR" \
   --disable-keyboard-controls >> "$LOG" 2>&1 || true
 wait "$PPID_"
+PPID_=
