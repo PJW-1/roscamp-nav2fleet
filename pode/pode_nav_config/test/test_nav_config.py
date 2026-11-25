@@ -265,6 +265,12 @@ def test_planner_server_runs_for_compute_path_and_is_path_valid():
     assert params("planner_server")["planner_plugins"] == ["GridBased"]
 
 
+def test_the_planner_does_not_swap_a_blocked_goal_for_a_far_point():
+    """막힌 goal 대신 먼 점으로 경로를 내면 그 점에 서고 가짜 성공이 난다. 대체점을 찾는 사각형 반폭은 도착 판정 허용치를 넘지 않는다."""
+    tolerance = params("planner_server")["GridBased"]["tolerance"]
+    assert tolerance <= params("controller_server")["general_goal_checker"]["xy_goal_tolerance"]
+
+
 def test_amcl_reads_the_fine_map():
     amcl = params("amcl")
     assert amcl["map_topic"] == "map_fine"
