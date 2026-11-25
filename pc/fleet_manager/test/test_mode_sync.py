@@ -1,5 +1,7 @@
 """운영 모드 맞추기(IR-73): /system/mode를 받기 전에는 아무것도 안 한다. 받으면 로봇마다 set_mode를 부르고,
 다시 연결되면 다시 부르며, 모드가 다른 채 TRIES번 부르고도 다르면 그 Pode를 배정에서 뺀다. 팔은 빼지 않는다."""
+import uuid
+
 from fleet_manager.mode_sync import ANSWER_S, NO_SERVER_S, RECONNECT_GAP_S, RETRY_S, TRIES, ModeSync
 
 READY = lambda robot: True  # noqa: E731
@@ -133,7 +135,8 @@ def test_a_lost_robot_is_not_asked_until_it_comes_back():
     assert s.due(RECONNECT_GAP_S + 1.0, READY) == []
 
 
-def test_an_unanswered_call_is_sent_again_later():
+def test_an_unanswered_call_is_sent_again_with_the_same_uuid():
+    """IR-20: request_id는 UUID 문자열이고, 응답이 없으면 같은 번호로 다시 보낸다."""
     s = sync()
     s.on_system_mode("TEST")
     t, asked = 0.0, []
@@ -142,7 +145,46 @@ def test_an_unanswered_call_is_sent_again_later():
         asked += s.due(t, READY)
         t += 0.2
     assert len(asked) >= 2
-    assert len({rid for _, rid in asked}) == len(asked)
+    [rid] = {rid for _, rid in asked}
+    assert str(uuid.UUID(rid)) == rid
+
+
+def test_an_answered_call_gets_a_new_id_next_time():
+    s = sync()
+    s.on_system_mode("TEST")
+    s.on_state("pode1", "UNKNOWN", "b1", 0.0)
+    [(robot, first)] = s.due(0.0, READY)
+    s.on_answer(robot, first)
+    s.on_state("pode1", "UNKNOWN", "b1", RETRY_S)
+    [(_, again)] = s.due(RETRY_S, READY)
+    assert again != first
+
+
+def test_a_new_system_mode_gets_a_new_id_even_without_an_answer():
+    s = sync()
+    s.on_system_mode("TEST")
+    s.on_state("pode1", "UNKNOWN", "b1", 0.0)
+    [(_, first)] = s.due(0.0, READY)
+    s.on_system_mode("NORMAL")
+    t = ANSWER_S + 0.1
+    s.on_state("pode1", "UNKNOWN", "b1", t)
+    [(_, again)] = s.due(t, READY)
+    assert again != first
+
+
+def test_no_answer_still_blocks_two_seconds_after_the_second_call():
+    """응답이 없어도 두 번째로 부른 뒤 RETRY_S가 지나면 뺀다(응답 기한 ANSWER_S를 기다리지 않음)."""
+    s = sync()
+    s.on_system_mode("TEST")
+    t, calls, blocked_at = 0.0, [], None
+    while t < 15.0 and blocked_at is None:
+        s.on_state("pode1", "UNKNOWN", "b1", t)
+        calls += [t for _ in s.due(t, READY)]
+        if s.changes():
+            blocked_at = t
+        t = round(t + 0.1, 6)
+    assert len(calls) >= TRIES and blocked_at is not None
+    assert blocked_at - calls[TRIES - 1] <= RETRY_S + 0.15
 
 
 def test_a_new_system_mode_asks_everyone_again():

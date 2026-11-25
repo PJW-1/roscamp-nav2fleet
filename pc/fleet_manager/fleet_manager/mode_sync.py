@@ -24,7 +24,8 @@ class _Robot:
     asked_at: float | None = None
     no_server_since: float | None = None
     request_id: str = ""
-    seq: int = 0
+    id_mode: str | None = None  # request_id를 만든 시스템 모드
+    answered: bool = True       # request_id에 답이 왔음 (다음 호출은 새 번호)
     blocked: bool = False
     told: bool = False
 
@@ -39,8 +40,6 @@ class ModeSync:
         self.expired: list[str] = []      # 이번 차례에 답 기한이 지난 로봇 (옛 요청 정리용)
         self._gap_s, self._retry_s, self._answer_s, self._tries = gap_s, retry_s, answer_s, tries
         self._no_server_s = no_server_s
-        # 관제가 다시 켜져도 로봇이 기억하는 옛 request_id와 겹치지 않게
-        self._boot = uuid.uuid4().hex[:8]
         self._robots = {name: _Robot(True) for name in pods}
         self._robots.update({name: _Robot(False) for name in arms})
 
@@ -71,7 +70,7 @@ class ModeSync:
     def on_answer(self, robot: str, request_id: str) -> None:
         r = self._robots.get(robot)
         if r is not None and r.request_id == request_id:
-            r.asked_at = None
+            r.asked_at, r.answered = None, True
 
     # ---- 출력: 지금 부를 로봇, 배정 제외가 바뀐 Pode ----
     def due(self, now: float, ready: Callable[[str], bool]) -> list[tuple[str, str]]:
@@ -81,25 +80,27 @@ class ModeSync:
             return []
         calls = []
         for name, r in self._robots.items():
-            if r.asked_at is not None:
-                if now - r.asked_at <= self._answer_s:
-                    continue
+            pending = r.asked_at is not None and now - r.asked_at <= self._answer_s
+            if r.asked_at is not None and not pending:
                 r.asked_at = None
                 self.expired.append(name)
             if r.seen_at is None or now - r.seen_at > self._gap_s:
                 continue
             differs = r.mode != self.system_mode
-            if not (r.notify or differs) or now < r.next_at:
+            # 답을 기다리는 중이어도 TRIES번 부르고 RETRY_S가 지나면 뺀다
+            if differs and r.blockable and r.tries >= self._tries and now >= r.next_at:
+                r.blocked = True
+            if pending or not (r.notify or differs) or now < r.next_at:
                 continue
             r.notify, r.next_at = False, now + self._retry_s
-            if differs and r.blockable and r.tries >= self._tries:
-                r.blocked = True
             if ready(name):
                 r.no_server_since = None
                 if differs:
                     r.tries += 1
-                r.seq += 1
-                r.asked_at, r.request_id = now, f"mode-{self._boot}-{name}-{r.seq}"
+                # IR-20: 답이 없던 요청은 같은 번호로, 답을 받았거나 시스템 모드가 바뀌면 새 UUID
+                if r.answered or r.id_mode != self.system_mode or not r.request_id:
+                    r.request_id, r.id_mode = str(uuid.uuid4()), self.system_mode
+                r.asked_at, r.answered = now, False
                 calls.append((name, r.request_id))
                 self.no_server.discard(name)
             else:

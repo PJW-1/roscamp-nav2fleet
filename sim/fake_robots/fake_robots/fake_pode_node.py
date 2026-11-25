@@ -8,6 +8,7 @@ from __future__ import annotations
 import random
 import threading
 import time
+import uuid
 from dataclasses import fields
 
 import rclpy
@@ -83,7 +84,7 @@ class FakePodeNode(PodeGoals, PodeOrder, PodeRetreat, PodeReport, Node):
         self._active: _Goal | None = None
         self._goals: dict[bytes, _Goal] = {}
         self._rest = RobotState.STATE_IDLE
-        self._admin = AdminState(self.robot_id, "")  # 운영 모드와 요청 번호 기억
+        self._admin = AdminState(self.robot_id, str(uuid.uuid4()))  # 운영 모드와 요청 번호 기억
         self._last_t = self._sc.now()
         params = load_params_param(self)
         timeout = float(self.get_parameter("heartbeat_timeout_s").value)

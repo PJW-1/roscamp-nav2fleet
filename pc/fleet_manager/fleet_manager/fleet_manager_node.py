@@ -258,12 +258,13 @@ class FleetManagerNode(Node):
             self.core.set_mode_blocked(robot, blocked, detail)
 
     def _mode_answered(self, robot, request_id, future) -> None:
-        self._mode_sync.on_answer(robot, request_id)
         try:
             reply = future.result()
         except Exception as exc:  # noqa: BLE001
+            # 답이 없던 것으로 두어 같은 번호로 다시 보낸다 (IR-20)
             self.get_logger().warning(f"set_mode on {robot} failed: {exc}")
             return
+        self._mode_sync.on_answer(robot, request_id)
         if not reply.accepted:
             self.get_logger().warning(
                 f"{robot} refused mode: {reply.reason} {reply.detail}".rstrip())

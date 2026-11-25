@@ -62,3 +62,10 @@
 - 팀 PR #15 (`feat/mode-sync-shelf-depth-2026-11-25` → `dev`, 열림, 병합 안 함): 진열대 4 cm, pode_fsm set_mode(contract 0.8), 관제 모드 맞추기, FakePode set_mode, 설계 검토 사항 v1.3(Q-23 · Q-24).
 - 팀 레포는 팔 상태에 모드 칸이 없어 Pode만 맞춘다. 팔은 Q-24 남은 항목.
 - 팀 시험: fleet_core 1231 passed / 7 xfailed, fleet_manager 85, pode_fsm 499 / 6 skipped, fake_robots 410.
+
+## 팀 PR 검토 반영 (사용자가 고치기로 정함, 11-25)
+
+- IR-20: `request_id`를 UUID 문자열로 바꾸고, 답이 없던 요청은 같은 번호로 다시 보낸다. 답을 받았거나 시스템 모드가 바뀌면 새 번호. 노드는 실제 답이 왔을 때만 답을 받은 것으로 센다(예외는 답 없음).
+- 답이 없어도 두 번째로 부른 뒤 `RETRY_S`(2 s)가 지나면 배정에서 뺀다(전에는 답 기한 3 s를 기다림).
+- FakePode 상태에 실물 pode_fsm과 같은 `boot_id`(켜질 때 UUID) · `lock` · `forced` · `last_request_id`를 싣는다.
+- 시험: 모드 동기화 22개, FakePode 62개, 노드 배선 3개 통과.
