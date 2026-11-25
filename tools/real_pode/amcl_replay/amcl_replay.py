@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """실물 bag으로 AMCL을 PC에서 다시 돌려 지도끼리 비교한다.
 
-prep: 원본 bag에서 scan, odom, tf(map 부모 빼고), tf_static만 남긴 bag을 만든다.
+prep: 원본 bag에서 scan, odom, tf(live map → odom만 빼고), tf_static만 남긴 bag을 만든다.
 probe: 재생 중 정한 시각의 map → base_footprint를 읽어 JSON으로 남긴다.
 score: 원본 bag의 live AMCL과 재생 결과를 줄자 정답과 비교해 표로 낸다.
 """
@@ -59,7 +59,8 @@ def prep(args) -> None:
         topic, data, t = r.read_next()
         if topic == f"{ns}/tf":
             msg = deserialize_message(data, TFMessage)
-            kept = [tr for tr in msg.transforms if tr.header.frame_id != args.map_frame]
+            kept = [tr for tr in msg.transforms
+                    if (tr.header.frame_id, tr.child_frame_id) != (args.map_frame, args.odom_frame)]
             dropped += len(msg.transforms) - len(kept)
             if not kept:
                 continue
@@ -74,7 +75,7 @@ def prep(args) -> None:
         w.write(topic, data, t)
     del w
     note = f", scan 거리 보정 scale {args.range_scale} offset {args.range_offset}" if fix else ""
-    print(f"[prep] {args.out}: live {args.map_frame} 변환 {dropped}개를 뺐다{note}")
+    print(f"[prep] {args.out}: live {args.map_frame} → {args.odom_frame} {dropped}개를 뺐다{note}")
 
 
 # ---- probe ----
@@ -126,13 +127,14 @@ def probe(args) -> None:
                                             math.degrees(_yaw(q))]
             except Exception as e:  # noqa: BLE001 - 못 읽은 시각은 이유를 남긴다
                 out["times"][f"{t:.3f}"] = str(e)
-    if pending:
-        out["error"] = f"시간 안에 못 읽은 시각 {pending}"
+    failed = [t for t, v in out["times"].items() if not isinstance(v, list)]
+    if pending or failed:
+        out["error"] = f"시간 안에 못 읽은 시각 {pending}, 조회 실패 {failed}"
     Path(args.out).write_text(json.dumps(out))
     node.destroy_node()
     rclpy.try_shutdown()
     print(f"[probe] {args.out}: {out['times']}", flush=True)
-    sys.exit(1 if pending else 0)
+    sys.exit(1 if pending or failed else 0)
 
 
 # ---- score ----
@@ -155,8 +157,8 @@ def _live(bag: str, ns: str, times: list[float]) -> dict[float, tuple]:
                 o2b.append((s, pose))
     out = {}
     for t in times:
-        # AMCL은 map→odom 시각을 transform_tolerance만큼 앞당겨 낸다: 그 시각 이하에서 마지막 값
-        a = [p for s, p in m2o if s <= t + 1.0]
+        # probe의 tf 조회와 같게: 그 시각 이하에서 마지막 map→odom(AMCL은 tolerance만큼 앞당긴 시각으로 낸다)
+        a = [p for s, p in m2o if s <= t]
         b = min(o2b, key=lambda sp: abs(sp[0] - t))
         out[t] = _compose(a[-1], b[1]) if a else None
     return out
@@ -205,6 +207,7 @@ def main() -> None:
     p.add_argument("out")
     p.add_argument("--ns", default="pode2")
     p.add_argument("--map-frame", default="map")
+    p.add_argument("--odom-frame", default="odom")
     p.add_argument("--range-scale", type=float, default=1.0,
                    help="읽은 값 = scale × 실제 + offset 일 때 scale (pode2 11-24: 0.958)")
     p.add_argument("--range-offset", type=float, default=0.0, help="같은 식의 offset (m)")
