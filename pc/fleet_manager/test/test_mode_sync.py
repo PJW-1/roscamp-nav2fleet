@@ -283,3 +283,38 @@ def test_a_reboot_restarts_the_no_server_wait():
     assert s.changes() == []
     _no_server_run(s, t, t + RETRY_S + 0.5, 0.2, boot=lambda _: "b2")  # 판단은 부르는 차례마다
     assert s.changes() == [("pode1", True, "reports NORMAL, system TEST")]
+
+
+def _two_refused_calls(s):
+    """모드가 다른 Pode에 두 번 부르고 두 번 다 거절 답을 받는다. 두 번째 호출 시각을 돌려준다."""
+    s.on_system_mode("TEST")
+    s.on_state("pode1", "UNKNOWN", "b1", 0.0)
+    [(robot, rid)] = s.due(0.0, READY)
+    s.on_answer(robot, rid)
+    s.on_state("pode1", "UNKNOWN", "b1", RETRY_S)
+    [(robot, rid)] = s.due(RETRY_S, READY)
+    s.on_answer(robot, rid)
+    return RETRY_S
+
+
+def test_a_short_gap_after_the_second_call_still_waits_two_seconds():
+    s = sync()
+    second = _two_refused_calls(s)
+    back = second + RECONNECT_GAP_S + 0.1  # 다시 연결로 보는 끊김
+    s.on_state("pode1", "UNKNOWN", "b1", back)
+    s.due(back, READY)
+    assert back < second + RETRY_S and s.changes() == []
+    t = second + RETRY_S
+    s.on_state("pode1", "UNKNOWN", "b1", t)
+    s.due(t, READY)
+    assert s.changes() == [("pode1", True, "reports UNKNOWN, system TEST")]
+
+
+def test_a_reboot_after_the_second_call_starts_over():
+    """boot_id가 바뀌면 새 프로그램이라 호출 횟수를 처음부터 센다."""
+    s = sync()
+    second = _two_refused_calls(s)
+    t = second + 0.5
+    s.on_state("pode1", "UNKNOWN", "b2", t)
+    assert [r for r, _ in s.due(t, READY)] == ["pode1"]
+    assert s.changes() == []

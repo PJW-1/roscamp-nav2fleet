@@ -21,6 +21,7 @@ class _Robot:
     notify: bool = False
     next_at: float = 0.0
     tries: int = 0
+    block_at: float | None = None  # TRIES번째 호출 + RETRY_S: 이때도 다르면 뺀다
     asked_at: float | None = None
     no_server_since: float | None = None
     request_id: str = ""
@@ -50,7 +51,7 @@ class ModeSync:
             return False
         self.system_mode = mode
         for r in self._robots.values():
-            r.notify, r.next_at, r.tries = True, 0.0, 0
+            r.notify, r.next_at, r.tries, r.block_at = True, 0.0, 0, None
         return True
 
     def on_state(self, robot: str, mode: str, boot_id: str, now: float) -> None:
@@ -62,10 +63,10 @@ class ModeSync:
         r.seen_at, r.boot_id, r.mode = now, boot_id, mode
         if back:
             r.notify, r.next_at = True, 0.0
-        if rebooted:  # 새 프로그램이면 서버 없음을 처음부터 센다
-            r.no_server_since = None
+        if rebooted:  # 새 프로그램이면 호출 횟수와 서버 없음을 처음부터 센다
+            r.tries, r.block_at, r.no_server_since = 0, None, None
         if self.system_mode is not None and mode == self.system_mode:
-            r.tries, r.blocked, r.no_server_since = 0, False, None
+            r.tries, r.block_at, r.blocked, r.no_server_since = 0, None, False, None
 
     def on_answer(self, robot: str, request_id: str) -> None:
         r = self._robots.get(robot)
@@ -88,7 +89,7 @@ class ModeSync:
                 continue
             differs = r.mode != self.system_mode
             # 답을 기다리는 중이어도 TRIES번 부르고 RETRY_S가 지나면 뺀다
-            if differs and r.blockable and r.tries >= self._tries and now >= r.next_at:
+            if differs and r.blockable and r.block_at is not None and now >= r.block_at:
                 r.blocked = True
             if pending or not (r.notify or differs) or now < r.next_at:
                 continue
@@ -97,6 +98,8 @@ class ModeSync:
                 r.no_server_since = None
                 if differs:
                     r.tries += 1
+                    if r.tries >= self._tries and r.block_at is None:
+                        r.block_at = now + self._retry_s
                 # IR-20: 답이 없던 요청은 같은 번호로, 답을 받았거나 시스템 모드가 바뀌면 새 UUID
                 if r.answered or r.id_mode != self.system_mode or not r.request_id:
                     r.request_id, r.id_mode = str(uuid.uuid4()), self.system_mode
