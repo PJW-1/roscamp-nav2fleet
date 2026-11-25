@@ -246,8 +246,9 @@ def run_case(args) -> dict:
     except Exception:
         if rclpy.ok():
             raise
-    stopped = stop_group(fakes)
-    log.close()
+    finally:  # 예외나 Ctrl-C에도 가짜 로봇을 남기지 않는다
+        stopped = stop_group(fakes)
+        log.close()
     try:
         node.destroy_node()
     except Exception:
@@ -344,6 +345,9 @@ def main() -> int:
         results.append(r)
         print(f"[bench] {count} robots: spin {r['spin_mode']}, ready {r['ready_s']} s, "
               f"fakes stopped by {r['fakes_stopped_by']}", flush=True)
+        if not r.get("all_reported"):  # 일부 로봇만 뜬 판은 비교에 쓰지 않는다
+            print(f"[bench] WARNING {count} robots: not every robot reported before measuring",
+                  flush=True)
 
     out = {"cpu_count": os.cpu_count(), "python": sys.version.split()[0],
            "argv": sys.argv, "cases": results}
