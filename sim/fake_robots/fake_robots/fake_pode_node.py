@@ -8,12 +8,15 @@ from __future__ import annotations
 import random
 import threading
 import time
+import uuid
 from dataclasses import fields
 
 import rclpy
 from fleet_core.common.contract import to_ros_qos
 from fleet_interfaces.action import Dock, MoveTo, Retreat
 from fleet_interfaces.msg import FleetEvent, RobotState
+from fleet_interfaces.srv import SetMode
+from pode_fsm.admin import AdminState
 from rclpy.action import ActionServer
 from rclpy.callback_groups import ReentrantCallbackGroup
 from rclpy.executors import MultiThreadedExecutor
@@ -49,7 +52,7 @@ class FakePodeNode(PodeGoals, PodeOrder, PodeRetreat, PodeReport, Node):
         super().__init__(node_name("fake", "robot_id", parameter_overrides),
                          parameter_overrides=parameter_overrides, **kwargs)
         self.declare_parameter("robot_id", "pode1")
-        self.declare_parameter("state_rate_hz", 10.0)
+        self.declare_parameter("state_rate_hz", 5.0)
         self.declare_parameter("heartbeat_timeout_s", -1.0)  # <0: 파일 값, 0: 안 멈춤
         self.robot_id = self.get_parameter("robot_id").value
         contract = load_contract_param(self)
@@ -81,6 +84,7 @@ class FakePodeNode(PodeGoals, PodeOrder, PodeRetreat, PodeReport, Node):
         self._active: _Goal | None = None
         self._goals: dict[bytes, _Goal] = {}
         self._rest = RobotState.STATE_IDLE
+        self._admin = AdminState(self.robot_id, str(uuid.uuid4()))  # 운영 모드와 요청 번호 기억
         self._last_t = self._sc.now()
         params = load_params_param(self)
         timeout = float(self.get_parameter("heartbeat_timeout_s").value)
@@ -120,6 +124,9 @@ class FakePodeNode(PodeGoals, PodeOrder, PodeRetreat, PodeReport, Node):
             Dock, contract.name("dock", pode=self.robot_id), "dock", group)
         self._retreat_server = self._server(
             Retreat, contract.name("retreat", pode=self.robot_id), "retreat", group)
+        self.create_service(
+            SetMode, contract.name("robot_set_mode", robot=self.robot_id), self._on_set_mode,
+            callback_group=group)
         self.create_timer(1.0 / CONTROL_RATE_HZ, self._tick)
         self.create_timer(1.0 / float(self.get_parameter("state_rate_hz").value),
                           self._publish_state)
@@ -157,6 +164,15 @@ class FakePodeNode(PodeGoals, PodeOrder, PodeRetreat, PodeReport, Node):
             self._faults.on_event(self._sc.now(), msg.source, msg.code, msg.detail)
 
     # ---- 하트비트 ----
+
+    def _on_set_mode(self, request, response):
+        with self._lock:
+            reply = self._admin.set_mode(request.request_id, request.mode, time.monotonic())
+        response.accepted = reply.accepted
+        response.reason = reply.reason
+        response.detail = reply.detail
+        response.request_id = request.request_id
+        return response
 
     def _on_heartbeat(self, _msg) -> None:
         if not self._faults.comms_down(self._sc.now()):

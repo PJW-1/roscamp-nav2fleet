@@ -215,8 +215,8 @@ def test_force_ship_request_and_response_are_handled_here():
     assert adapters.force_ship_args(request) == "O-003"
     yes = adapters.force_ship_response(TripCommand.Response(), True, "ignored", "r-1")
     assert (yes.accepted, yes.reason, yes.request_id) == (True, "", "r-1")
-    no = adapters.force_ship_response(TripCommand.Response(), False, "NOT_HELD", "r-2")
-    assert (no.accepted, no.reason, no.request_id) == (False, "NOT_HELD", "r-2")
+    no = adapters.force_ship_response(TripCommand.Response(), False, "ORDER_STATE", "r-2")
+    assert (no.accepted, no.reason, no.request_id) == (False, "ORDER_STATE", "r-2")
 
 
 def test_operator_replies_carry_the_request_id_back():

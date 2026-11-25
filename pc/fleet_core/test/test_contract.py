@@ -12,6 +12,13 @@ def contract():
     return load_contract(CONTRACT)
 
 
+def test_force_ship_rejections_use_contract_codes(contract):
+    """강제 출고 거절 사유는 계약의 request_rejected 코드만 쓴다."""
+    from fleet_core.common import commands
+    codes = {getattr(commands, n) for n in dir(commands) if n.startswith("FORCE_")}
+    assert codes and codes <= set(contract.reason_codes["request_rejected"])
+
+
 def test_topic_name_is_built_from_key_and_placeholder(contract):
     assert contract.name("robot_state", pode="pode2") == "/pode2/state"
     assert contract.name("order_board") == "/central/orders"

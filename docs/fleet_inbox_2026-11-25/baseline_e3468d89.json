@@ -1,0 +1,159 @@
+{
+  "cpu_count": 12,
+  "python": "3.12.3",
+  "argv": [
+    "tools/fleet_tick_bench.py",
+    "--robots",
+    "3",
+    "10",
+    "20",
+    "--out",
+    "docs/fleet_inbox_2026-11-25/baseline_e3468d89.json"
+  ],
+  "cases": [
+    {
+      "robots": 3,
+      "spin_mode": "rclpy.spin",
+      "map": "d2",
+      "seconds": 90.0,
+      "warmup_s": 15.0,
+      "ready_s": 3.61,
+      "all_reported": true,
+      "tick_hz": 10.0,
+      "ticks": 900,
+      "expected_ticks": 900,
+      "p50_ms": 0.504,
+      "p99_ms": 4.717,
+      "max_ms": 12.491,
+      "mean_ms": 0.732,
+      "over_period": 0,
+      "queue_peak": "n/a",
+      "queue_tick_max": "n/a",
+      "robots_moved": 3,
+      "max_away_m": {
+        "pode1": 1.76,
+        "pode2": 1.66,
+        "pode3": 1.88
+      },
+      "load_start": [
+        25.76,
+        23.46,
+        16.55
+      ],
+      "load_end": [
+        18.19,
+        20.76,
+        16.27
+      ],
+      "cpu_count": 12,
+      "fakes_stopped_by": "SIGINT",
+      "order_every_s": 3.0,
+      "tmp_dir": "/tmp/fleet_tick_bench_3_qnha7cf_",
+      "node_file": "/home/ane/ros2camp/podedrive_ws/src/roscamp-pode-drive/.claude/worktrees/agent-a1216c91b05fa56d5/pc/fleet_manager/fleet_manager/fleet_manager_node.py"
+    },
+    {
+      "robots": 10,
+      "spin_mode": "rclpy.spin",
+      "map": "/tmp/fleet_tick_bench_10_bcjjzvjl/fleet_map_bench_10.yaml",
+      "seconds": 90.0,
+      "warmup_s": 15.0,
+      "ready_s": 4.04,
+      "all_reported": true,
+      "tick_hz": 10.0,
+      "ticks": 901,
+      "expected_ticks": 900,
+      "p50_ms": 1.899,
+      "p99_ms": 9.885,
+      "max_ms": 21.131,
+      "mean_ms": 2.281,
+      "over_period": 0,
+      "queue_peak": "n/a",
+      "queue_tick_max": "n/a",
+      "robots_moved": 9,
+      "max_away_m": {
+        "pode1": 1.74,
+        "pode2": 1.88,
+        "pode3": 1.86,
+        "pode4": 0.12,
+        "pode5": 1.39,
+        "pode6": 0.1,
+        "pode7": 0.1,
+        "pode8": 0.11,
+        "pode9": 0.13,
+        "pode10": 1.93
+      },
+      "load_start": [
+        17.21,
+        20.52,
+        16.22
+      ],
+      "load_end": [
+        24.87,
+        22.93,
+        17.61
+      ],
+      "cpu_count": 12,
+      "fakes_stopped_by": "SIGINT",
+      "order_every_s": 3.0,
+      "tmp_dir": "/tmp/fleet_tick_bench_10_bcjjzvjl",
+      "node_file": "/home/ane/ros2camp/podedrive_ws/src/roscamp-pode-drive/.claude/worktrees/agent-a1216c91b05fa56d5/pc/fleet_manager/fleet_manager/fleet_manager_node.py"
+    },
+    {
+      "robots": 20,
+      "spin_mode": "rclpy.spin",
+      "map": "/tmp/fleet_tick_bench_20_cevhn_9b/fleet_map_bench_20.yaml",
+      "seconds": 90.0,
+      "warmup_s": 15.0,
+      "ready_s": 8.73,
+      "all_reported": true,
+      "tick_hz": 10.0,
+      "ticks": 903,
+      "expected_ticks": 900,
+      "p50_ms": 13.584,
+      "p99_ms": 55.479,
+      "max_ms": 72.222,
+      "mean_ms": 16.104,
+      "over_period": 0,
+      "queue_peak": "n/a",
+      "queue_tick_max": "n/a",
+      "robots_moved": 16,
+      "max_away_m": {
+        "pode1": 1.82,
+        "pode2": 1.62,
+        "pode3": 1.78,
+        "pode4": 0.13,
+        "pode5": 0.14,
+        "pode6": 0.09,
+        "pode7": 0.08,
+        "pode8": 0.11,
+        "pode9": 0.14,
+        "pode10": 0.83,
+        "pode11": 0.12,
+        "pode12": 0.09,
+        "pode13": 0.11,
+        "pode14": 0.09,
+        "pode15": 0.13,
+        "pode16": 1.06,
+        "pode17": 1.76,
+        "pode18": 0.16,
+        "pode19": 0.1,
+        "pode20": 0.13
+      },
+      "load_start": [
+        24.87,
+        22.93,
+        17.61
+      ],
+      "load_end": [
+        45.9,
+        31.14,
+        21.21
+      ],
+      "cpu_count": 12,
+      "fakes_stopped_by": "SIGINT",
+      "order_every_s": 3.0,
+      "tmp_dir": "/tmp/fleet_tick_bench_20_cevhn_9b",
+      "node_file": "/home/ane/ros2camp/podedrive_ws/src/roscamp-pode-drive/.claude/worktrees/agent-a1216c91b05fa56d5/pc/fleet_manager/fleet_manager/fleet_manager_node.py"
+    }
+  ]
+}

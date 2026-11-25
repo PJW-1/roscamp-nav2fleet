@@ -73,6 +73,9 @@ class TrafficApi(Protocol):
     def reinstate(self, robot) -> bool:
         """치운 로봇을 다시 투입한다. 거절되면 False, 받아들이면 이후 보고에서 배치를 시도한다."""
 
+    def set_mode_blocked(self, robot, blocked: bool) -> bool:
+        """운영 모드가 다른 로봇을 새 호출에서 빼거나 되돌린다. 바뀌었으면 True."""
+
     # ---- 로봇 목록과 운행 상태 조회 ----
     @property
     def robots(self) -> list[str]:

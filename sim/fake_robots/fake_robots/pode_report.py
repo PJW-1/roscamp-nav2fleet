@@ -26,7 +26,8 @@ class PodeReport:
                 # 위치를 아직 못 잡았다. 자세는 아무 값이다.
                 self._reports.push(t, RobotState(
                     robot_id=self.robot_id, pose=Pose2D(), battery=battery,
-                    state=RobotState.STATE_LOCALIZING, stamp=self.get_clock().now().to_msg()))
+                    state=RobotState.STATE_LOCALIZING, **self._admin_fields(),
+                    stamp=self.get_clock().now().to_msg()))
             else:
                 self._push_report(t, goal, busy, battery)
             due = self._reports.due(t)
@@ -47,5 +48,11 @@ class PodeReport:
         self._reports.push(t, RobotState(
             robot_id=self.robot_id, pose=Pose2D(x=x, y=y, theta=self._motion.yaw),
             battery=battery, state=state,
-            current_goal=goal.target_id if busy else "",
+            current_goal=goal.target_id if busy else "", **self._admin_fields(),
             stamp=self.get_clock().now().to_msg()))
+
+    def _admin_fields(self) -> dict:
+        """실물 pode_fsm과 같은 관리 상태 칸."""
+        a = self._admin
+        return dict(boot_id=a.boot_id, lock=a.lock, mode=a.mode, forced=list(a.forced),
+                    last_request_id=a.last_request_id)
