@@ -213,3 +213,31 @@ def test_an_old_no_server_time_does_not_block_later():
         s.due(t, no)
         t += 0.2
     assert s.changes() == []
+
+
+def _no_server_run(s, start, end, step, boot=lambda t: "b1", mode="NORMAL"):
+    t = start
+    while t < end:
+        s.on_state("pode1", mode, boot(t), t)
+        s.due(t, lambda robot: False)
+        t += step
+    return t
+
+
+def test_short_gaps_do_not_restart_the_no_server_wait():
+    """같은 boot_id로 1.5초를 조금 넘게 끊겨 들어와도 서버 없음 5초는 이어서 센다."""
+    s = sync()
+    s.on_system_mode("TEST")
+    _no_server_run(s, 0.0, NO_SERVER_S + 2.0, RECONNECT_GAP_S + 0.1)
+    assert s.changes() == [("pode1", True, "reports NORMAL, system TEST")]
+
+
+def test_a_reboot_restarts_the_no_server_wait():
+    """boot_id가 바뀌면 새 프로그램이라 서버 없음 5초를 처음부터 센다."""
+    s = sync()
+    s.on_system_mode("TEST")
+    t = _no_server_run(s, 0.0, NO_SERVER_S - 1.0, 0.2)
+    t = _no_server_run(s, t, t + NO_SERVER_S - 0.6, 0.2, boot=lambda _: "b2")
+    assert s.changes() == []
+    _no_server_run(s, t, t + RETRY_S + 0.5, 0.2, boot=lambda _: "b2")  # 판단은 부르는 차례마다
+    assert s.changes() == [("pode1", True, "reports NORMAL, system TEST")]

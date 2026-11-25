@@ -58,11 +58,13 @@ class ModeSync:
         r = self._robots.get(robot)
         if r is None:
             return
-        back = (r.seen_at is None or now - r.seen_at > self._gap_s
-                or (bool(r.boot_id) and boot_id != r.boot_id))
+        rebooted = bool(r.boot_id) and boot_id != r.boot_id
+        back = r.seen_at is None or now - r.seen_at > self._gap_s or rebooted
         r.seen_at, r.boot_id, r.mode = now, boot_id, mode
         if back:
-            r.notify, r.next_at, r.no_server_since = True, 0.0, None
+            r.notify, r.next_at = True, 0.0
+        if rebooted:  # 새 프로그램이면 서버 없음을 처음부터 센다
+            r.no_server_since = None
         if self.system_mode is not None and mode == self.system_mode:
             r.tries, r.blocked, r.no_server_since = 0, False, None
 
