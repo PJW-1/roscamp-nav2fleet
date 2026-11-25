@@ -15,7 +15,7 @@ from fleet_core.fleet_map import (
 from fleet_core.fleet_map.model import FOLLOW_PATH, NAV_GOAL, RETREAT
 
 # 자유바닥 저장소 sites/arena_v7.yaml의 실측 치수(진열대 A, 진열대 둘)
-SHELVES = [(0.65, 0.77, 1.56, 0.775), (0.70, 0.365, 0.99, 0.405), (1.25, 0.365, 1.56, 0.405)]
+SHELVES = [(0.65, 0.735, 1.56, 0.775), (0.70, 0.3475, 0.99, 0.3875), (1.25, 0.3475, 1.56, 0.3875)]
 # 시뮬 바퀴 충돌 구: 중심에서 바깥 끝 거리(pinky.urdf.xacro)
 SIM_WHEEL_OUTER_M = 0.04855 + 0.028
 # 칸막이 둘(칸막이 3은 없다)
@@ -58,8 +58,14 @@ def test_v7_dimensions(site):
     assert round(REAL_NORTH_WALL_Y - SHELVES[0][3], 3) == 0.2  # 실측 벽 기준
     # 진열대 A는 폭 0.91, 동쪽 끝 1.56
     assert round(SHELVES[0][2] - SHELVES[0][0], 3) == 0.91 and SHELVES[0][2] == 1.56
+    # 세 진열대 모두 두께 0.04이고, 급행을 뺀 나머지를 아래 통로 둘이 같은 폭으로 나눈다
+    assert {round(s[3] - s[1], 4) for s in SHELVES} == {0.04}
+    south, middle = SHELVES[1][1], SHELVES[0][1] - SHELVES[1][3]
+    assert round(south, 4) == round(middle, 4) == 0.3475
+    assert SHELVES[1][1:4:2] == SHELVES[2][1:4:2]
     # 진열대 자리는 어느 구역도 아니고 그 서쪽 띠는 HALL이다
-    assert site.zone_at(0.66, 0.772) is None and site.zone_at(0.59, 0.772) == "HALL"
+    for y in (0.74, 0.755, 0.772):
+        assert site.zone_at(0.66, y) is None and site.zone_at(0.59, y) == "HALL", y
 
 
 def test_v7_sim_shelves_are_the_measured_shelves(site):
@@ -528,7 +534,9 @@ def test_v7_north_wall_is_the_slam_measurement_and_the_express_stays_open(site):
     # 구역은 진열대 면을 따른다
     assert [r[1] for r in site.zones["EXPRESS"].rects] == [SHELVES[0][3]]
     # 띠는 진열대 끝에서 몸 반폭 안까지다
-    assert [0.50, 0.77, 0.594, SHELVES[0][3]] in [list(r) for r in site.zones["HALL"].rects]
+    west = [r for r in site.zones["HALL"].rects if r[1] < SHELVES[0][3] and r[3] > SHELVES[0][1] and r[0] < SHELVES[0][0]]
+    assert {r[2] for r in west} == {0.594}
+    assert min(r[1] for r in west) <= SHELVES[0][1] and max(r[3] for r in west) == SHELVES[0][3]
     assert round(SHELVES[0][0] - 0.594, 3) == BODY_HALF_M
 
 

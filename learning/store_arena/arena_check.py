@@ -248,8 +248,8 @@ def main():
             cases = [
                 ("west_wall_forward", (0.30, 0.55), math.pi, 0.25, ("x", 0.0)),
                 ("north_wall_forward", (0.30, 0.55), math.pi / 2, 0.25, ("y", 0.98)),
-                ("shelfA_south_face_forward", (1.00, 0.55), math.pi / 2, 0.25, ("y", 0.77)),
-                ("south_shelf_north_face_forward", (0.85, 0.55), -math.pi / 2, 0.25, ("y", 0.405)),
+                ("shelfA_south_face_forward", (1.00, 0.55), math.pi / 2, 0.25, ("y", 0.735)),
+                ("south_shelf_north_face_forward", (0.85, 0.55), -math.pi / 2, 0.25, ("y", 0.3875)),
                 ("east_wall_slow", (1.70, 0.55), 0.0, 0.10, ("x", 1.98)),
                 ("west_wall_reverse", (0.30, 0.55), 0.0, -0.05, ("x", 0.0)),
                 ("west_wall_diag45", (0.30, 0.40), 3 * math.pi / 4, 0.25, ("x", 0.0)),

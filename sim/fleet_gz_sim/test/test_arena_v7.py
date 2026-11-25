@@ -12,7 +12,7 @@ from fleet_gz_sim import arena_maps, fleet_setup  # noqa: E402
 
 PKG = Path(__file__).resolve().parents[1]
 # v7 진열대, 칸막이 상자 목록(실측 반영)
-BOXES = [(0.65, 0.77, 1.56, 0.775), (0.70, 0.365, 0.99, 0.405), (1.25, 0.365, 1.56, 0.405),
+BOXES = [(0.65, 0.735, 1.56, 0.775), (0.70, 0.3475, 0.99, 0.3875), (1.25, 0.3475, 1.56, 0.3875),
          (0.24, 0.0, 0.26, 0.10), (0.50, 0.0, 0.52, 0.10)]
 
 
@@ -260,7 +260,7 @@ def _joined(grid, a, b, shut=()):
     return False
 
 
-V7_GAP = (0.99, 0.365, 1.25, 0.405)  # 남쪽 진열대 사이 건넘 틈
+V7_GAP = (0.99, 0.3475, 1.25, 0.3875)  # 남쪽 진열대 사이 건넘 틈
 BOTH_ENDS = [(0.0, 0.30, 0.70, 0.45), (1.56, 0.30, 1.98, 0.45)]  # 서쪽 끝과 동쪽 통로
 
 
@@ -268,7 +268,7 @@ def test_v7_the_crossing_gap_is_open_for_nav2_on_the_5cm_costmap(site):
     """건넘 틈(x 0.99~1.25)은 지름길이라 막지 않는다: 서쪽 끝과 동쪽 통로를 막아도 틈으로 남북이 이어진다."""
     assert V7_GAP not in site.keepout_extra
     grid, occ, kept = _costmap()
-    j0, j1 = _cell(0.0, 0.365)[1], _cell(0.0, 0.405 - 1e-6)[1]
+    j0, j1 = _cell(0.0, V7_GAP[1])[1], _cell(0.0, V7_GAP[3] - 1e-6)[1]
     for x in (1.075, 1.125, 1.175):
         i = _cell(x, 0.0)[0]
         assert not any(kept[j][i] or grid[j][i] for j in range(j0, j1 + 1)), x
@@ -412,13 +412,13 @@ def _free_rows(grid, x, y0, y1, resolution, site):
 
 
 @pytest.mark.parametrize("resolution, paint, count, low, high", [
-    (0.05, "touch", 6, 0.45, 0.75),  # 기본: 상자가 걸친 칸은 막힘
+    (0.05, "touch", 6, 0.40, 0.70),  # 기본: 상자가 걸친 칸은 막힘
     (0.05, "centre", 7, 0.40, 0.75),  # B
-    (0.025, "touch", 13, 0.425, 0.75),  # A
-    (0.025, "centre", 14, 0.40, 0.75),  # A+B
+    (0.025, "touch", 13, 0.40, 0.725),  # A
+    (0.025, "centre", 13, 0.40, 0.725),  # A+B
 ])
 def test_v7_middle_corridor_free_cells_at_x_095(site, resolution, paint, count, low, high):
-    """가운데 통로(진열대 사이 y 0.405~0.77)를 x 0.95에서 가로지르는 빈칸."""
+    """가운데 통로(진열대 사이 y 0.3875~0.735)를 x 0.95에서 가로지르는 빈칸."""
     grid = arena_maps.occupancy(resolution, site, paint)
     assert _free_rows(grid, 0.95, 0.385, 0.772, resolution, site) == (count, low, high)
 

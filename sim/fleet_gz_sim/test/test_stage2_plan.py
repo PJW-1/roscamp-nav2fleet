@@ -124,13 +124,13 @@ def test_the_corridor_edge_and_the_robot_body_along_it_are_outside_the_keepout_m
     x0, y0, x1, y1 = sp.CORRIDOR_GATES[V7.name]
     blocked = {round(y0 + n * 0.005, 3) for n in range(round((y1 - y0) / 0.005) + 1)
                for x in (x0, (x0 + x1) / 2, x1 - 1e-6) if inside(x, y0 + n * 0.005)}
-    # 남쪽 끝 0.405는 틈 keepout_extra가 있는 지도에서만 막힌다. 북쪽 띠는 급행 구역 아래 끝에서 몸 반폭 0.06 아래부터다(1 cm 칸)
+    # 남쪽 끝 0.3875는 틈 keepout_extra가 있는 지도에서만 막힌다. 북쪽 띠는 급행 구역 아래 끝에서 몸 반폭 0.06 아래부터다(1 cm 칸)
     north = V7.zones["EXPRESS"].rects[0][1] - 0.06
     assert blocked and all(y >= north - 0.01 or y <= y0 + 1e-9 for y in blocked), sorted(blocked)
 
 
 def test_through_gate_decimate_and_min_distance():
-    gate = (0.90, 0.405, 1.00, 0.77)
+    gate = (0.90, 0.3875, 1.00, 0.735)
     assert sp.through_gate([(0.5, 0.6), (0.95, 0.5), (1.6, 0.55)], gate)
     assert sp.through_gate([(1.6, 0.55), (0.95, 0.5), (0.93, 0.6), (0.5, 0.6)], gate)
     assert not sp.through_gate([(0.5, 0.6), (0.95, 0.2), (1.6, 0.55)], gate)  # 남쪽 통로
@@ -138,7 +138,7 @@ def test_through_gate_decimate_and_min_distance():
     assert not sp.through_gate([(0.5, 0.6), (0.95, 0.5)], gate)  # 안에서 멈춤
     assert not sp.through_gate([], gate)
     # axis=1: 남북으로 지나기(진열대 사이 틈)
-    gap = (0.99, 0.365, 1.25, 0.405)
+    gap = (0.99, 0.3475, 1.25, 0.3875)
     assert sp.through_gate([(1.12, 0.55), (1.12, 0.385), (1.12, 0.24)], gap, axis=1)
     assert not sp.through_gate([(0.6, 0.55), (0.6, 0.385), (0.6, 0.24)], gap, axis=1)
     line = [(0.01 * i, 0.0) for i in range(31)]

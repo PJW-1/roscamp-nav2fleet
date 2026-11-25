@@ -84,7 +84,7 @@ def test_the_tool_writes_a_mask_next_to_a_map(tmp_path):
 
 
 # ---- 구역이 아닌 keepout 사각형(keepout_extra) ----
-V7_GAP = (0.99, 0.365, 1.25, 0.405)  # v7 남쪽 진열대 사이 건넘 틈
+V7_GAP = (0.99, 0.3475, 1.25, 0.3875)  # v7 남쪽 진열대 사이 건넘 틈
 # 칸막이 3과 그 둘레는 없다
 V7_DIVIDER_KEEPS = ((0.19, 0.0, 0.31, 0.20), (0.45, 0.0, 0.57, 0.20))
 
@@ -121,7 +121,7 @@ def test_v7_the_crossing_gap_stays_open_as_a_shortcut():
     assert shut == []
     # 서는 로봇이 어느 구역에도 들지 않는 일이 없다: 틈은 HALL이다
     for x in (1.0, 1.12, 1.24):
-        for y in (0.37, 0.385, 0.40):
+        for y in (0.355, 0.3675, 0.38):
             assert site.zone_at(x, y) == "HALL", (x, y)
 
 

@@ -28,10 +28,10 @@ REAL_MAP = "arena_real_slam"
 LAUNCH_MAPS = ("arena_v7_a", REAL_MAP, "arena_v7_keepout")
 # 실물 키트 지도 그림의 SHA-256. 지도를 일부러 바꿀 때만 같이 고친다
 KIT_MAP_SHA256 = {
-    "arena_v7.pgm": "841a51e444ab75cce372b51bba01c27f3164ba5183c851cd8c251a104163dedb",
-    "arena_v7_a.pgm": "33d81df11873afd0ba2de9b7e8b5281938a0a358213c620fc1ecae4f75700098",
-    "arena_v7_a1.pgm": "d485a378a0992c3f06da276bb1617ef257691073e064b164b665e0984ed257ad",
-    "arena_v7_fine.pgm": "d485a378a0992c3f06da276bb1617ef257691073e064b164b665e0984ed257ad",
+    "arena_v7.pgm": "c15b977c0bb54ab23384f51490fe793c66769cfc214bec5e4fdd529aee2b3c9a",
+    "arena_v7_a.pgm": "230d14c5b0270a90eebc877b61cbcba2cb3e5551e055468aa282dd645a7e882d",
+    "arena_v7_a1.pgm": "4b03fbae00706f05f9e83f0f0fef397209a66fb687c813c168c11b914e08661c",
+    "arena_v7_fine.pgm": "4b03fbae00706f05f9e83f0f0fef397209a66fb687c813c168c11b914e08661c",
     "arena_v7_keepout.pgm": "8264da45295e58127495d811d8c5d1635d72244d83c6441689279ad1f5d6e1f6",
     "arena_real_slam.pgm": "553e4be9dee15d25f480b5b5dfbb29c94b8f9d981cf7859d4f6a213ec78643d1",
 }
@@ -497,8 +497,8 @@ def test_real_slam_map_file():
 
 # 옛 진열대 끝으로 그린 채 둘 키트 그림. 키트 지도를 다시 만들면 비운다
 KIT_PENDING_TAPE_2026_11_23 = set()
-OLD_SHELF_ENDS = (("  - [0.65, 0.77, 1.56, 0.775]", "  - [0.63, 0.77, 1.56, 0.775]"),
-                  ("  - [0.70, 0.365, 0.99, 0.405]", "  - [0.68, 0.365, 0.99, 0.405]"))
+OLD_SHELF_ENDS = (("  - [0.65, 0.735, 1.56, 0.775]", "  - [0.63, 0.735, 1.56, 0.775]"),
+                  ("  - [0.70, 0.3475, 0.99, 0.3875]", "  - [0.68, 0.3475, 0.99, 0.3875]"))
 
 
 def test_kit_maps_are_drawn_from_the_real_shelves(tmp_path):

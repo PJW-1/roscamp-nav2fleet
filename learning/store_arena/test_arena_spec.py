@@ -45,17 +45,17 @@ def test_boxes_follow_yaml_bounds_and_measured_shelves():
 def test_boxes_are_read_from_the_yaml_at_run_time(tmp_path):
     """yaml 이 바뀌면 박스가 바뀌지만 sim_shelves 는 영향 없음."""
     text = open(MAP, encoding="utf-8").read()
-    text = text.replace("- [0.70, 0.365, 0.99, 0.405]   # 남쪽 진열대, 서쪽",
+    text = text.replace("- [0.70, 0.3475, 0.99, 0.3875] # 남쪽 진열대, 서쪽",
                         "- [0.75, 0.36, 0.99, 0.40]   # moved", 1)
-    text = text.replace("sim_shelves:\n  - [0.65, 0.77, 1.56, 0.775]",
-                        "sim_shelves:\n  - [0.65, 0.77, 1.50, 0.79]", 1)
+    text = text.replace("sim_shelves:\n  - [0.65, 0.735, 1.56, 0.775]",
+                        "sim_shelves:\n  - [0.65, 0.735, 1.50, 0.79]", 1)
     assert "# moved" in text and "1.50, 0.79]" in text
     path = tmp_path / "fleet_map_moved.yaml"
     path.write_text(text, encoding="utf-8")
     spec = arena.make_arena_spec({"layout": str(path)})
     shelves = [rect(b) for b in arena.arena_boxes(spec) if b.kind == "shelf"]
     assert shelves[1] == (0.75, 0.36, 0.99, 0.40)
-    assert shelves[0] == (0.65, 0.77, 1.56, 0.775)  # 실측값, 고친 sim_shelves 아님
+    assert shelves[0] == (0.65, 0.735, 1.56, 0.775)  # 실측값, 고친 sim_shelves 아님
 
 
 def test_split_overrides_routes_fields():
@@ -76,12 +76,12 @@ def test_raycast_from_arena_point_matches_hand_values():
     assert r[0, 0].item() == pytest.approx(0.30, abs=1e-5)
     assert r[0, 270].item() == pytest.approx(0.43, abs=1e-5)
     assert r[0, 90].item() == pytest.approx(0.55, abs=1e-5)
-    # (0.85, 0.55) 에서 +y 를 봄: 앞 선반 A 남쪽 면 0.77, 뒤 남쪽 선반 북쪽 면 0.405
+    # (0.85, 0.55) 에서 +y 를 봄: 앞 선반 A 남쪽 면 0.735, 뒤 남쪽 선반 북쪽 면 0.3875
     r = arena.raycast_rects(
         torch.tensor([[0.85, 0.55]]), torch.tensor([math.pi / 2]), rects, max_range=5.0
     )
-    assert r[0, 180].item() == pytest.approx(0.22, abs=1e-5)
-    assert r[0, 0].item() == pytest.approx(0.145, abs=1e-5)
+    assert r[0, 180].item() == pytest.approx(0.185, abs=1e-5)
+    assert r[0, 0].item() == pytest.approx(0.1625, abs=1e-5)
 
 
 def test_raycast_range_limits_and_inside_start():
@@ -179,8 +179,9 @@ def test_corner_start_nodes_of_the_store_arena():
     rects = arena.boxes_tensor(arena.arena_boxes(arena.ARENA, site))
     near = arena.near_wall_starts(torch.as_tensor(xy, dtype=torch.float32), rects,
                                   arena.ARENA.corner_start_m)
+    # M_E(1.645, 0.55)는 남쪽 진열대 동쪽 것 북동 모서리에서 0.183 m라 들지 않는다
     assert sorted(n for n, c in zip(names, near.tolist(), strict=True) if c) == [
-        "E-1", "E-3", "M_E", "Q1", "Q2"]
+        "E-1", "E-3", "Q1", "Q2"]
 
 
 def test_footprint_box_is_off_centre_like_the_body():
