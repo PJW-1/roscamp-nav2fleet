@@ -16,7 +16,7 @@ from nav2_msgs.srv import ClearEntireCostmap
 from nav_msgs.msg import OccupancyGrid, Odometry
 from rclpy.callback_groups import ReentrantCallbackGroup
 from rclpy.clock import Clock, ClockType
-from rclpy.executors import MultiThreadedExecutor
+from rclpy.executors import ExternalShutdownException, MultiThreadedExecutor, SingleThreadedExecutor
 from rclpy.node import Node
 from rclpy.qos import QoSProfile, ReliabilityPolicy, qos_profile_sensor_data
 from rclpy.time import Time
@@ -140,7 +140,6 @@ class PodeFsmNode(Node):
 
         # ---- TF, 발행자, 구독자 만들기 ----
         self._tf = Buffer()
-        self._tf_listener = TransformListener(self._tf, self)
         self._speed_pub = self.create_publisher(SpeedLimit, get("speed_limit_topic").value, 10)
         self._state_pub = self.create_publisher(
             RobotState, contract.name("robot_state", pode=self.robot_id),
@@ -149,8 +148,6 @@ class PodeFsmNode(Node):
                                  to_ros_qos(contract.qos("heartbeat")), callback_group=group)
         self.create_subscription(RobotStatusArray, contract.name("robots"), self._on_fleet_robots,
                                  to_ros_qos(contract.qos("robots")), callback_group=group)
-        self.create_subscription(Odometry, get("odom_topic").value, self._on_odom,
-                                 qos_profile_sensor_data, callback_group=group)
         self.create_subscription(
             OccupancyGrid, get("costmap_topic").value, self._on_costmap,
             QoSProfile(depth=1, reliability=ReliabilityPolicy.RELIABLE), callback_group=group)
@@ -183,7 +180,9 @@ class PodeFsmNode(Node):
                           callback_group=group, clock=steady)
         self.create_timer(MARKER_PERIOD_S, self._publish_markers, callback_group=group,
                           clock=steady)
-        mode = " (NO MOTION: goals succeed after a wait, nothing drives)" if no_motion else ""
+        # 입력 스레드는 맨 끝에 띄운다: 앞에서 초기화가 실패하면 스레드가 남지 않는다
+        self._inputs = FrequentInputs(self, self._tf, get("odom_topic").value, self._on_odom)
+        mode =" (NO MOTION: goals succeed after a wait, nothing drives)" if no_motion else ""
         self.get_logger().info(f"pode_fsm for {self.robot_id} ready{mode}")
 
     def _start_runners(self, group) -> None:
@@ -245,6 +244,7 @@ class PodeFsmNode(Node):
 
     def destroy_node(self):
         self.stop()
+        self._inputs.destroy()
         self._servers.destroy()
         self._follow.destroy()
         self._backup.destroy()
@@ -526,6 +526,41 @@ class PodeFsmNode(Node):
         else:
             msg.stamp = self.get_clock().now().to_msg()
         self._state_pub.publish(msg)
+
+
+# ---- 자주 오는 입력(TF, odom)을 받는 작은 노드와 그 실행기 스레드 ----
+class FrequentInputs:
+    """주 노드는 실체가 많아 깨어날 때마다 wait set을 다시 만드는 비용이 크다.
+    가장 자주 오는 /tf, odom을 따로 받아 주 실행기를 덜 깨운다."""
+
+    def __init__(self, owner: Node, buffer: Buffer, odom_topic: str, on_odom):
+        # 주 노드가 쓰던 이름(이름공간, 다시 잇기 포함) 그대로 받는다
+        tf_name = owner.resolve_topic_name("/tf")
+        static_name = owner.resolve_topic_name("/tf_static")
+        self.node = Node(
+            f"{owner.get_name()}_inputs", namespace=owner.get_namespace(),
+            context=owner.context, use_global_arguments=False,
+            cli_args=["--ros-args", "-r", f"/tf:={tf_name}", "-r", f"/tf_static:={static_name}"],
+            enable_rosout=False, start_parameter_services=False)
+        self._listener = TransformListener(buffer, self.node)
+        self.node.create_subscription(Odometry, owner.resolve_topic_name(odom_topic), on_odom,
+                                      qos_profile_sensor_data)
+        self._executor = SingleThreadedExecutor(context=owner.context)
+        self._executor.add_node(self.node)
+        self._thread = threading.Thread(target=self._spin, daemon=True)
+        self._thread.start()
+
+    def _spin(self) -> None:
+        try:
+            self._executor.spin()
+        except ExternalShutdownException:
+            pass
+
+    def destroy(self) -> None:
+        self._executor.shutdown()
+        self._thread.join(2.0)
+        self._listener.unregister()
+        self.node.destroy_node()
 
 
 # ---- 관리 명령 공통 응답 채우기 ----

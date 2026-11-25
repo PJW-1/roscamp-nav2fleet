@@ -1,0 +1,24 @@
+일한 표본 352 (뺀 것: {'시작 import': 138, 'C 대기': 767})
+
+== 묶음
+  51.7 %  입력 노드 스레드(TF, odom)
+  28.7 %  주 실행기: wait set 만들기와 고르기
+  13.9 %  기타
+   5.7 %  콜백(타이머, 구독, 서비스)
+
+== 잎 함수
+   7.1 %  Executor._wait_for_ready_callbacks (rclpy/executors.py:748)
+   6.5 %  EventHandler.add_to_wait_set (rclpy/event_handler.py:124)
+   5.7 %  EventHandler.add_to_wait_set (rclpy/event_handler.py:125)
+   5.4 %  Executor._take_subscription (rclpy/executors.py:470)
+   5.1 %  Executor._wait_for_ready_callbacks (rclpy/executors.py:749)
+   2.6 %  
+   2.6 %  ExitStack.__exit__ (contextlib.py:595)
+   2.3 %  Executor._wait_for_ready_callbacks (rclpy/executors.py:704)
+   2.0 %  Executor._wait_for_ready_callbacks (rclpy/executors.py:772)
+   2.0 %  Executor._wait_for_ready_callbacks (rclpy/executors.py:757)
+   1.7 %  Executor._wait_for_ready_callbacks (rclpy/executors.py:768)
+   1.4 %  Node.create_publisher (rclpy/node.py:1560)
+   1.4 %  Executor._wait_for_ready_callbacks (rclpy/executors.py:778)
+   1.4 %  Executor.wait_for_ready_callbacks (rclpy/executors.py:877)
+   1.4 %  ThreadPoolExecutor.submit (concurrent/futures/thread.py:178)
