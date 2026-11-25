@@ -1,0 +1,55 @@
+{
+  "cpu_count": 12,
+  "python": "3.12.3",
+  "argv": [
+    "tools/fleet_tick_bench.py",
+    "--robots",
+    "3",
+    "--seconds",
+    "60",
+    "--out",
+    "/tmp/claude-1000/-home-ane-ros2camp/6ebd5370-5803-493a-9e01-7863b4fee309/scratchpad/bench2/main_3_4.json"
+  ],
+  "cases": [
+    {
+      "robots": 3,
+      "spin_mode": "rclpy.spin",
+      "map": "d2",
+      "seconds": 60.0,
+      "warmup_s": 15.0,
+      "ready_s": 4.2,
+      "all_reported": true,
+      "tick_hz": 10.0,
+      "ticks": 600,
+      "expected_ticks": 600,
+      "p50_ms": 0.417,
+      "p99_ms": 3.262,
+      "max_ms": 7.023,
+      "mean_ms": 0.521,
+      "over_period": 0,
+      "queue_peak": "n/a",
+      "queue_tick_max": "n/a",
+      "robots_moved": 3,
+      "max_away_m": {
+        "pode1": 1.67,
+        "pode2": 1.69,
+        "pode3": 1.86
+      },
+      "load_start": [
+        7.23,
+        21.89,
+        24.41
+      ],
+      "load_end": [
+        7.9,
+        18.78,
+        23.12
+      ],
+      "cpu_count": 12,
+      "fakes_stopped_by": "SIGINT",
+      "order_every_s": 3.0,
+      "tmp_dir": "/tmp/fleet_tick_bench_3_cbouwg4m",
+      "node_file": "/tmp/claude-1000/-home-ane-ros2camp/6ebd5370-5803-493a-9e01-7863b4fee309/scratchpad/wt_main/pc/fleet_manager/fleet_manager/fleet_manager_node.py"
+    }
+  ]
+}

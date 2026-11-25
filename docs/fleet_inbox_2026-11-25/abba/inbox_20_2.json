@@ -1,0 +1,72 @@
+{
+  "cpu_count": 12,
+  "python": "3.12.3",
+  "argv": [
+    "tools/fleet_tick_bench.py",
+    "--robots",
+    "20",
+    "--seconds",
+    "60",
+    "--out",
+    "/tmp/claude-1000/-home-ane-ros2camp/6ebd5370-5803-493a-9e01-7863b4fee309/scratchpad/bench2/inbox_20_2.json"
+  ],
+  "cases": [
+    {
+      "robots": 20,
+      "spin_mode": "make_executor",
+      "map": "/tmp/fleet_tick_bench_20__tnd8z7r/fleet_map_bench_20.yaml",
+      "seconds": 60.0,
+      "warmup_s": 15.0,
+      "ready_s": 7.08,
+      "all_reported": true,
+      "tick_hz": 10.0,
+      "ticks": 602,
+      "expected_ticks": 600,
+      "p50_ms": 8.959,
+      "p99_ms": 33.717,
+      "max_ms": 49.636,
+      "mean_ms": 10.569,
+      "over_period": 0,
+      "queue_peak": 29,
+      "queue_tick_max": 20,
+      "robots_moved": 16,
+      "max_away_m": {
+        "pode1": 1.68,
+        "pode2": 1.82,
+        "pode3": 1.75,
+        "pode4": 0.1,
+        "pode5": 0.11,
+        "pode6": 0.09,
+        "pode7": 0.11,
+        "pode8": 0.12,
+        "pode9": 0.17,
+        "pode10": 0.79,
+        "pode11": 0.09,
+        "pode12": 0.11,
+        "pode13": 0.12,
+        "pode14": 0.1,
+        "pode15": 0.11,
+        "pode16": 0.12,
+        "pode17": 1.13,
+        "pode18": 0.13,
+        "pode19": 0.07,
+        "pode20": 0.15
+      },
+      "load_start": [
+        20.42,
+        15.26,
+        19.55
+      ],
+      "load_end": [
+        20.95,
+        16.53,
+        19.64
+      ],
+      "cpu_count": 12,
+      "fakes_stopped_by": "SIGINT",
+      "order_every_s": 3.0,
+      "tmp_dir": "/tmp/fleet_tick_bench_20__tnd8z7r",
+      "node_file": "/tmp/claude-1000/-home-ane-ros2camp/6ebd5370-5803-493a-9e01-7863b4fee309/scratchpad/wt_inbox/pc/fleet_manager/fleet_manager/fleet_manager_node.py"
+    }
+  ]
+}
