@@ -181,8 +181,8 @@ def test_v7_keepout_extra_closes_every_cell_it_touches_like_the_mask():
     assert space.free(space.static, 1.11, 0.41), "the open gap leaks nothing either"
 
 
-V7_SOUTH_SHELF_Y = 0.3475  # 남쪽 진열대 남쪽 면
-V7_SOUTH_SHELF_TOP = 0.3875  # 남쪽 진열대 북쪽 면
+V7_SOUTH_SHELF_Y = 0.364  # 남쪽 진열대 남쪽 면
+V7_SOUTH_SHELF_TOP = 0.404  # 남쪽 진열대 북쪽 면
 
 
 def _parked_plan(spots):
@@ -210,4 +210,4 @@ def test_v7_a_robot_parked_at_p3_sends_others_through_the_crossing_gap():
              for (ax, ay), (bx, by) in pairwise(way) for i in range(51)]
     # 진열대 줄을 건너는 점(서쪽 끝 x < 0.68 말고): 모두 틈 안이고 몸 반지름만큼 모서리에서 떨어진다
     crossing = [x for x, y in along if V7_SOUTH_SHELF_Y <= y <= V7_SOUTH_SHELF_TOP and x > 0.68]
-    assert crossing and all(0.99 + R <= x <= 1.25 - R for x in crossing), way
+    assert crossing and all(1.014 + R <= x <= 1.264 - R for x in crossing), way

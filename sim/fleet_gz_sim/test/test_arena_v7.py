@@ -12,7 +12,7 @@ from fleet_gz_sim import arena_maps, fleet_setup  # noqa: E402
 
 PKG = Path(__file__).resolve().parents[1]
 # v7 진열대, 칸막이 상자 목록(실측 반영)
-BOXES = [(0.65, 0.735, 1.56, 0.775), (0.70, 0.3475, 0.99, 0.3875), (1.25, 0.3475, 1.56, 0.3875),
+BOXES = [(0.654, 0.754, 1.574, 0.794), (0.704, 0.364, 1.014, 0.404), (1.264, 0.364, 1.574, 0.404),
          (0.24, 0.0, 0.26, 0.10), (0.50, 0.0, 0.52, 0.10)]
 
 
@@ -50,8 +50,8 @@ def test_v7_charging_stalls_and_express_are_open_in_the_fine_map(site):
     assert not free(0.25, 0.05) and not free(0.51, 0.05)
     assert free(0.77, 0.05)  # 칸막이 3이 있던 자리
     assert free(1.0, 0.85) and free(1.0, 0.95)   # 급행 안
-    # 진열대 A 북쪽 면 0.775: 1 cm 지도에서 0.77~0.78 칸까지 진열대
-    assert not free(1.0, 0.775) and free(1.0, 0.785)
+    # 진열대 A 북쪽 면 0.794: 1 cm 지도에서 0.79~0.80 칸까지 진열대
+    assert not free(1.0, 0.795) and free(1.0, 0.805)
     # 북쪽 벽 안쪽 면 0.98: 1 cm 지도에서 0.98~0.99 칸은 벽이다
     assert free(1.0, 0.975) and not free(1.0, 0.985)
 
@@ -260,19 +260,19 @@ def _joined(grid, a, b, shut=()):
     return False
 
 
-V7_GAP = (0.99, 0.3475, 1.25, 0.3875)  # 남쪽 진열대 사이 건넘 틈
-BOTH_ENDS = [(0.0, 0.30, 0.70, 0.45), (1.56, 0.30, 1.98, 0.45)]  # 서쪽 끝과 동쪽 통로
+V7_GAP = (1.014, 0.364, 1.264, 0.404)  # 남쪽 진열대 사이 건넘 틈
+BOTH_ENDS = [(0.0, 0.30, 0.70, 0.45), (1.574, 0.30, 1.98, 0.45)]  # 서쪽 끝과 동쪽 통로
 
 
 def test_v7_the_crossing_gap_is_open_for_nav2_on_the_5cm_costmap(site):
-    """건넘 틈(x 0.99~1.25)은 지름길이라 막지 않는다: 서쪽 끝과 동쪽 통로를 막아도 틈으로 남북이 이어진다."""
+    """건넘 틈(x 1.014~1.264)은 지름길이라 막지 않는다: 서쪽 끝과 동쪽 통로를 막아도 틈으로 남북이 이어진다."""
     assert V7_GAP not in site.keepout_extra
     grid, occ, kept = _costmap()
     j0, j1 = _cell(0.0, V7_GAP[1])[1], _cell(0.0, V7_GAP[3] - 1e-6)[1]
-    for x in (1.075, 1.125, 1.175):
+    for x in (1.125, 1.175):
         i = _cell(x, 0.0)[0]
         assert not any(kept[j][i] or grid[j][i] for j in range(j0, j1 + 1)), x
-    for x in (1.025, 1.225):  # 진열대 끝 칸 옆 열은 내접 반지름 안이라 닫힌다
+    for x in (1.075, 1.225):  # 진열대 끝 칸 옆 열은 내접 반지름 안이라 닫힌다
         i = _cell(x, 0.0)[0]
         assert any(grid[j][i] for j in range(j0, j1 + 1)), x
     assert _joined(grid, (1.125, 0.55), (1.125, 0.25), shut=BOTH_ENDS)
@@ -294,7 +294,7 @@ def test_v7_the_crossing_gap_has_no_keepout_cell_in_the_fine_mask(site):
 
 @pytest.mark.parametrize("shut, pairs", [
     # 서쪽 끝(x < 0.70)만 남김: 동쪽 통로와 건넘 틈을 막아 본다
-    ([(1.56, 0.30, 1.98, 0.45), V7_GAP], [("O_IN", "Q1"), ("O_IN", "Q2"), ("O_OUT", "Q2")]),
+    ([(1.574, 0.30, 1.98, 0.45), V7_GAP], [("O_IN", "Q1"), ("O_IN", "Q2"), ("O_OUT", "Q2")]),
     # 동쪽 통로(1.65~1.72)만 남김: 서쪽 끝과 건넘 틈을 막아 본다
     ([(0.0, 0.30, 0.70, 0.45), V7_GAP],
      [("O_IN", "Q1"), ("O_IN", "Q2"), ("O_OUT", "Q2"), ("M_E", "Q2")]),
@@ -412,13 +412,13 @@ def _free_rows(grid, x, y0, y1, resolution, site):
 
 
 @pytest.mark.parametrize("resolution, paint, count, low, high", [
-    (0.05, "touch", 6, 0.40, 0.70),  # 기본: 상자가 걸친 칸은 막힘
+    (0.05, "touch", 6, 0.45, 0.75),  # 기본: 상자가 걸친 칸은 막힘
     (0.05, "centre", 7, 0.40, 0.75),  # B
-    (0.025, "touch", 13, 0.40, 0.725),  # A
-    (0.025, "centre", 13, 0.40, 0.725),  # A+B
+    (0.025, "touch", 13, 0.425, 0.75),  # A
+    (0.025, "centre", 14, 0.40, 0.75),  # A+B
 ])
 def test_v7_middle_corridor_free_cells_at_x_095(site, resolution, paint, count, low, high):
-    """가운데 통로(진열대 사이 y 0.3875~0.735)를 x 0.95에서 가로지르는 빈칸."""
+    """가운데 통로(진열대 사이 y 0.404~0.754)를 x 0.95에서 가로지르는 빈칸."""
     grid = arena_maps.occupancy(resolution, site, paint)
     assert _free_rows(grid, 0.95, 0.385, 0.772, resolution, site) == (count, low, high)
 
