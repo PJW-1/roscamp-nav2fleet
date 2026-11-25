@@ -81,8 +81,8 @@ def generate_launch_description():
         DeclareLaunchArgument("initial_yaw", default_value="1.5708"),
         # costmap 지도(2.5 cm)
         DeclareLaunchArgument("map", default_value=str(MAPS / "arena_v7_a.yaml")),
-        # 위치 추정은 실물 SLAM 지도
-        DeclareLaunchArgument("map_fine", default_value=str(MAPS / "arena_real_slam.yaml")),
+        # 위치 추정은 도면 1 cm 지도(시뮬과 같다). 옛 SLAM 지도는 map_fine:=.../arena_real_slam.yaml
+        DeclareLaunchArgument("map_fine", default_value=str(MAPS / "arena_v7_fine.yaml")),
         DeclareLaunchArgument("keepout_mask", default_value=str(MAPS / "arena_v7_keepout.yaml"),
                               description="비우면 keepout을 끈다"),
         DeclareLaunchArgument("params_file", default_value=str(PARAMS / "nav2_params.yaml"),
