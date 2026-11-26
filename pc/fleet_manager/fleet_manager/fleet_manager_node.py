@@ -19,6 +19,7 @@ from fleet_core.common.commands import (
     MoveCmd,
     MoveOrderCmd,
     ReportOrderCmd,
+    ReportTripCmd,
     RetreatCmd,
     SwapCmd,
 )
@@ -60,6 +61,7 @@ from fleet_manager.goal_tracker import GoalTracker, ReportOutbox
 from fleet_manager.inbox import Inbox
 from fleet_manager.mode_sync import ModeSync
 from fleet_manager.order_goals import apply_overrides
+from fleet_manager.reports import BridgeReports
 
 
 SLOW_TICK_WARN_S = 5.0  # 느린 틱 경고 사이 최소 간격
@@ -215,6 +217,9 @@ class FleetManagerNode(Node):
         self.create_service(Reinstate, name("reinstate"), self._on_reinstate, callback_group=core)
         self.create_service(TripCommand, name("force_ship"), self._on_force_ship,
                             callback_group=core)
+        # 브리지 보고(IR-22·23·12): Hello로 epoch를 받기 전에는 쌓아 둔다
+        self._bridge = BridgeReports(self, self.core.params, list(robots) + arms, self._post,
+                                     getattr(self.core, "on_open_trips", None))
 
     # ---- 받은 편지함: 넣기(받은 편지함 그룹, 아무 스레드)와 꺼내 처리하기(코어 그룹) ----
     def _post(self, handler, *args) -> None:
@@ -297,6 +302,7 @@ class FleetManagerNode(Node):
                 self._dispatch(command, now)
             self._retry_cancels(now)
             self._flush_reports(now)
+            self._bridge.flush()
             self._publish_snapshots(now)
         ended = time.monotonic()
         took = ended - started
@@ -443,9 +449,18 @@ class FleetManagerNode(Node):
                 self._goals.cancel((command.robot, command.goal_id), now)
             case ReportOrderCmd():
                 self._reports.add(command)
+                self._bridge.trip(command)
+            case ReportTripCmd():
+                self._bridge.trip(command)
             case EventOut():
                 self._events_pub.publish(adapters.event_to_msg(command, now))
+                self._bridge.event(command)
                 self._log_event(command)
+
+    def report_command(self, request_id: str, command: str, target: str, result: str,
+                       reason: str = "", detail: str = "") -> None:
+        """관리 명령 결과를 브리지에 보고한다(ReportCommand). 코어 그룹에서만 부른다."""
+        self._bridge.command(request_id, command, target, result, reason, detail)
 
     def _ask_clear(self, command) -> None:
         client = self._check_clear[command.robot]
