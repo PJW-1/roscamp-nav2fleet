@@ -12,12 +12,12 @@ string trip_id
 uint32 report_epoch
 uint64 report_n
 string status
-string reason                # 2.2 사유 코드
+string reason                # 사유 코드 (인터페이스 명세 2.2)
 string robot_id
 OrderItem[] placed           # 누적
 OrderItem[] missing
 builtin_interfaces/Time stamp
 ---
 bool accepted                # true = 다시 보내지 않음 (APPLIED · DUPLICATE · LATE_REPORT 모두). false = DB 쓰기 실패, 다시 보냄
-string result                # 같은 (epoch, n) = DUPLICATE, 더 작은 번호 · 허용되지 않는 전이 = LATE_REPORT
+string result                # 같거나 작은 (epoch, n) = DUPLICATE(바꾸지 않음), 더 큰 번호의 허용되지 않는 전이 = LATE_REPORT (IR-24)
 string reason

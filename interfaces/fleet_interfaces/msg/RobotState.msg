@@ -34,7 +34,7 @@ string LOCAL_YIELD_BACKUP="backup"
 string LOCAL_YIELD_RETRY="retry"
 string local_yield
 
-# ---- 재시작 감지, 락, 운영 모드, 강제 값, 사유: 칸 추가 ----
+# ---- 재시작 감지, 락, 운영 모드, 강제 값, 사유 ----
 string boot_id               # 로봇 재시작 감지
 bool lock                    # 잠김 = true, 켜질 때 true
 string last_request_id       # 마지막으로 반영한 명령 (관측 보조 · 디버깅용, 결과 전달 경로 아님, #25 ④)
