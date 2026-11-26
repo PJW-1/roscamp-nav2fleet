@@ -119,6 +119,7 @@ class FleetManagerNode(Node):
         self._last_assignments = None
         self._pode_states = {}
         self._arm_states = {}
+        self._arm_fed = {}
         # IR-30: 코어 그룹만 코어와 노드 상태를 바꾸고, 받은 편지함 그룹은 큐에 넣기만 한다
         self._core_group = MutuallyExclusiveCallbackGroup()
         self._inbox_group = MutuallyExclusiveCallbackGroup()
@@ -236,6 +237,11 @@ class FleetManagerNode(Node):
     def _on_arm_state(self, arm, msg: ArmState) -> None:
         self._arm_states[arm] = (msg, time.monotonic())
         self._mode_sync.on_state(arm, msg.mode, msg.boot_id, time.monotonic())
+        # 5 Hz 상태 가운데 바뀐 것만 코어에 넣는다(기록이 부풀지 않게)
+        seen = (msg.state, msg.detail, msg.holding)
+        if not self.silent() and self._arm_fed.get(arm) != seen:
+            self._arm_fed[arm] = seen
+            self.core.on_arm_state(arm, *seen)
 
     def _on_system_mode(self, msg: SystemMode) -> None:
         if self._mode_sync.on_system_mode(msg.mode):

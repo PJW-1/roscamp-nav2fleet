@@ -315,7 +315,10 @@ def test_action_results_are_read_here_and_not_in_the_node():
     assert adapters.dock_result(dock) == (True, 1.0, 2.0, 3.0)
     fill = FillBasket.Result(success=False, placed=[OrderItem(kind="A", count=1)],
                              missing=[OrderItem(kind="C", count=2)], reason="GRIPPER")
-    assert adapters.fill_result(fill) == (False, {"A": 1}, {"C": 2}, "GRIPPER")
+    assert adapters.fill_result(fill) == (False, {"A": 1}, {"C": 2}, "GRIPPER", {}, {})
+    fill.placed_confirmed = [OrderItem(kind="A", count=1)]
+    fill.uncertain = [OrderItem(kind="B", count=1)]
+    assert adapters.fill_result(fill)[4:] == ({"A": 1}, {"B": 1})
     swap = SwapBasket.Result(success=False, took_full=True, put_empty_done=False, reason="x")
     assert adapters.swap_result(swap) == (False, True, False, "x")
 
@@ -377,7 +380,7 @@ def test_the_rest_of_the_result_comes_through_with_the_status():
     response = _finished(FillBasket, GoalStatus.STATUS_CANCELED,
                          placed=adapters.to_order_items({"A": 1}))
     assert adapters.fill_result(adapters.goal_result(response)) == (
-        False, {"A": 1}, {}, "CANCELED")
+        False, {"A": 1}, {}, "CANCELED", {}, {})
 
 
 @pytest.mark.parametrize("status", [GoalStatus.STATUS_CANCELED, GoalStatus.STATUS_ABORTED,

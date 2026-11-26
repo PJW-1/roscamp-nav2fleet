@@ -3,12 +3,15 @@ from __future__ import annotations
 
 import random
 import threading
+import time
 import uuid
 
 import rclpy
 from fleet_core.common.contract import to_ros_qos
 from fleet_interfaces.action import SwapBasket
 from fleet_interfaces.msg import ArmState
+from fleet_interfaces.srv import SetMode
+from pode_fsm.admin import AdminState
 from rclpy.action import ActionServer, CancelResponse, GoalResponse
 from rclpy.callback_groups import ReentrantCallbackGroup
 from rclpy.executors import MultiThreadedExecutor
@@ -32,6 +35,7 @@ STATE_IDLE = "IDLE"
 STATE_SWAPPING = "SWAPPING"
 STATE_ERROR = "ERROR"
 STATE_PERIOD_S = 0.2  # IR-34: 초당 5번
+RESULT_FIRST_S = 0.1  # 실제 초. 고장 결과가 관제에 먼저 닿은 뒤 ERROR를 보인다
 
 
 class FakeArmNode(Node):
@@ -55,6 +59,10 @@ class FakeArmNode(Node):
         self._state, self._error_until = STATE_IDLE, 0.0
         self._boot_id = str(uuid.uuid4())
         self._order_id = ""
+        # pode_fsm과 같은 규칙의 운영 모드와 요청 번호 기억(IR-72)
+        self._admin = AdminState(self.arm_id, self._boot_id)
+        self.create_service(SetMode, contract.name("robot_set_mode", robot=self.arm_id),
+                            self._on_set_mode)
         self._state_pub = self.create_publisher(
             ArmState, contract.name("arm_state", arm=self.arm_id),
             to_ros_qos(contract.qos("arm_state")))
@@ -90,14 +98,29 @@ class FakeArmNode(Node):
         if self._state == STATE_ERROR and self._sc.now() >= self._error_until:
             self._state = STATE_IDLE
 
+    def _on_set_mode(self, request, response):
+        with self._lock:
+            reply = self._admin.set_mode(request.request_id, request.mode, time.monotonic())
+        response.accepted = reply.accepted
+        response.reason = reply.reason
+        response.detail = reply.detail
+        response.request_id = request.request_id
+        return response
+
+    def _show_error(self) -> None:
+        self._error_until = self._sc.now() + ERROR_HOLD_S
+        self._state = STATE_ERROR
+
     def _publish_state(self) -> None:
-        # Phony는 락이 없어 lock은 늘 true, 모드는 받기 전이라 UNKNOWN(IR-72)
+        # Phony는 락이 없어 lock은 늘 true, 모드는 set_mode 전까지 UNKNOWN(IR-72)
         state = self._state
+        with self._lock:
+            mode, last_id = self._admin.mode, self._admin.last_request_id
         self._state_pub.publish(ArmState(
             arm_id=self.arm_id, boot_id=self._boot_id, state=state,
             detail=REASON_ARM_FAULT if state == STATE_ERROR else "", lock=True,
-            gripper=ArmState.GRIPPER_OPEN, order_id=self._order_id, mode="UNKNOWN",
-            stamp=self.get_clock().now().to_msg()))
+            gripper=ArmState.GRIPPER_OPEN, order_id=self._order_id, mode=mode,
+            last_request_id=last_id, stamp=self.get_clock().now().to_msg()))
 
     def _failure_step(self, steps: list[str]) -> tuple[str | None, str]:
         """이 목표에서 실패할 단계와 이유. swap_partial은 항상 빈 바구니 단계를 친다."""
@@ -129,12 +152,9 @@ class FakeArmNode(Node):
                 break
             if step == failing:
                 reason = fail_reason
-                self._error_until = self._sc.now() + ERROR_HOLD_S
-                self._state = STATE_ERROR
                 break
             done.add(step)
-        if self._state != STATE_ERROR:
-            self._state = STATE_IDLE
+        self._state = STATE_IDLE
         success = not reason
         result = SwapBasket.Result(
             success=success, took_full="TAKE_FULL" in done, put_empty_done="PUT_EMPTY" in done,
@@ -146,6 +166,11 @@ class FakeArmNode(Node):
             finish_action(handle, success)
         else:
             abort_at_shutdown(handle)
+        if failing is not None and reason == fail_reason:
+            # 재시도할 고장으로 받도록 결과가 나간 뒤 ERROR를 보인다
+            timer = threading.Timer(RESULT_FIRST_S, self._show_error)
+            timer.daemon = True
+            timer.start()
         return result
 
 

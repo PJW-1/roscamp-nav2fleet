@@ -1,7 +1,7 @@
 # ---- 코어 사이에 오가는 명령, 보고, 조회 데이터 클래스 ----
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 # ---- 주문 상태, 보류 사유, 강제 출고 거절 사유 상수와 주문 기록 ----
 SHIPPED = "SHIPPED"
@@ -280,6 +280,11 @@ class ArmFillResult:
     robot: str
     success: bool
     placed: dict[str, int]
+    # 주문 층이 쓰는 칸: 실패 사유(W-41), 못 담은 것, 확인된 담은 수, 쥐고 있던 상품(W-43)
+    reason: str = ""
+    missing: dict[str, int] = field(default_factory=dict)
+    placed_confirmed: dict[str, int] = field(default_factory=dict)
+    uncertain: dict[str, int] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)

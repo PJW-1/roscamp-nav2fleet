@@ -164,9 +164,11 @@ def dock_result(result) -> tuple[bool, float, float, float]:
     return result.success, result.error_x_cm, result.error_y_cm, result.error_yaw_deg
 
 
-def fill_result(result) -> tuple[bool, dict[str, int], dict[str, int], str]:
+def fill_result(result) -> tuple[bool, dict[str, int], dict[str, int], str, dict[str, int],
+                                 dict[str, int]]:
     return (result.success, from_order_items(result.placed), from_order_items(result.missing),
-            result.reason)
+            result.reason, from_order_items(result.placed_confirmed),
+            from_order_items(result.uncertain))
 
 
 def swap_result(result) -> tuple[bool, bool, bool, str]:

@@ -327,3 +327,40 @@ def test_sr17_every_robot_state_can_be_told_apart():
     assert status(core, "r2").fsm_state == "DOCKING"
     core.traffic.on_robot_fault("r2", "DOCK_FAILED")
     assert (status(core, "r2").fault, status(core, "r2").fault_reason) == ("ERROR", "DOCK_FAILED")
+
+
+# ---- 팔 상태와 담기 결과 칸이 매니저를 지난다 ----
+
+
+def _filling():
+    core, now = make({"r1": "P-1"}, [O1])
+    out = drive(core, "r1", lambda: core.robot_view("r1")["order"] == "O-001")
+    return core, now, cmds(out, "FillCmd")[0].goal_id
+
+
+def test_an_arm_error_while_filling_holds_the_order_through_the_manager():
+    core, _, _ = _filling()
+    core.on_arm_state("arm_left", "ERROR", "GRIPPER_JAM", True)
+    out = core.tick()
+    assert [(r.status, r.hold_reason) for r in cmds(out, "ReportOrderCmd")] == [
+        ("HELD", "ARM_FAULT")]
+    assert [e.code for e in cmds(out, "EventOut")].count("ARM_ERROR") == 1
+    core.on_arm_state("arm_left", "ERROR", "GRIPPER_JAM", True)
+    assert "ARM_ERROR" not in [e.code for e in cmds(core.tick(), "EventOut")]
+
+
+def test_the_fill_result_fields_reach_the_arm_report():
+    core, _, goal = _filling()
+    seen = []
+    core.orchestrator.on_arm_report = seen.append
+    core.on_fill_result(goal, False, {"A": 1}, {}, "PICK_FAILED", {"A": 1}, {"B": 1})
+    assert [(r.reason, r.placed_confirmed, r.uncertain) for r in seen] == [
+        ("PICK_FAILED", {"A": 1}, {"B": 1})]
+
+
+def test_an_arm_state_input_is_recorded():
+    lines = []
+    core = FleetManager(SITE, load_params(), ["r1"], lambda: 0.0)
+    core.record_to(lines.append)
+    core.on_arm_state("arm_left", "ERROR", "X", True)
+    assert '"in": "on_arm_state"' in lines[-1]

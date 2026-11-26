@@ -60,7 +60,8 @@ def test_a_swap_asked_for_names_the_server_of_its_station():
 def test_a_result_goes_to_the_orders_and_frees_the_robot():
     jobs, _, goal = started()
     jobs.on_fill_result(goal.goal_id, True, {"A": 1}, {"C": 1})
-    assert jobs.take_output() == [ArmFillResult("r1", True, {"A": 1})]
+    assert jobs.take_output() == [ArmFillResult("r1", True, {"A": 1}, missing={"C": 1},
+                                                placed_confirmed={"A": 1})]
     assert jobs.sent_at("r1") is None
     jobs, _, goal = started(ASK_SWAP)
     jobs.on_swap_result(goal.goal_id, False, True, False, "GRIPPER")
@@ -115,7 +116,8 @@ def test_a_goal_stopped_by_the_run_mode_is_no_failed_attempt():
     assert not jobs.take_output(), "canceled once"
     jobs.on_fill_result(goal.goal_id, False, {"A": 1}, {}, "CANCELED")
     jobs.on_command(ArmFailedCmd("r1"))
-    assert jobs.take_output() == [ArmFillResult("r1", False, {"A": 1})]
+    assert jobs.take_output() == [ArmFillResult("r1", False, {"A": 1}, "CANCELED",
+                                                placed_confirmed={"A": 1})]
     assert jobs.attempts("r1") == 0
 
 
@@ -147,7 +149,8 @@ def test_a_result_inside_the_settle_time_settles_it_once(success, reason):
     jobs, now, goal, _ = timed_out()
     now[0] += jobs.params.robot_timeout_settle_s - 1.0
     jobs.on_fill_result(goal.goal_id, success, {"A": 1}, {}, reason)
-    assert jobs.take_output() == [ArmFillResult("r1", success, {"A": 1})]
+    assert jobs.take_output() == [ArmFillResult("r1", success, {"A": 1}, reason,
+                                                placed_confirmed={"A": 1})]
     now[0] += 2.0
     jobs.check_timeouts(now[0])
     assert jobs.take_output() == [], "settled once: no loss after it"
@@ -237,6 +240,88 @@ def test_the_arm_ignores_a_robot_it_does_not_know():
     assert jobs.take_output() == [] and jobs.attempts("ghost") == 0
 
 
+# ---- 담기 결과의 칸: 주문 층이 W-41(담기 실패), W-43(쥔 상품 보류)에 쓴다 ----
+
+
+def test_a_fill_result_carries_reason_missing_confirmed_and_uncertain():
+    jobs, _, goal = started()
+    jobs.on_fill_result(goal.goal_id, False, {"A": 1}, {"C": 1}, "ARM_FAULT", {"A": 1},
+                        {"C": 1})
+    assert jobs.take_output() == [ArmFillResult("r1", False, {"A": 1}, "ARM_FAULT", {"C": 1},
+                                                {"A": 1}, {"C": 1})]
+
+
+def test_without_a_confirmed_count_the_placed_count_is_the_confirmed_one():
+    jobs, _, goal = started()
+    jobs.on_fill_result(goal.goal_id, False, {"A": 1}, {}, "PICK_FAILED")
+    result = jobs.take_output()[0]
+    assert result.placed_confirmed == {"A": 1} and result.uncertain == {}
+    assert result.reason == "PICK_FAILED" and result.missing == {}
+
+
+def test_old_constructors_of_a_fill_result_keep_working():
+    assert ArmFillResult("r1", True, {"A": 1}) == ArmFillResult(
+        "r1", True, {"A": 1}, "", {}, {}, {})
+
+
+# ---- 팔 상태 ERROR: 하던 작업은 한 번만 고장, 작업이 없으면 사건 하나 ----
+
+
+def test_an_arm_error_during_its_job_faults_the_job_once_and_a_later_result_is_late():
+    jobs, _, goal = started()
+    jobs.on_arm_state("arm_left", "ERROR", "GRIPPER_JAM", True)
+    out = jobs.take_output()
+    assert out[0] == ArmLost("r1", goal.goal_id, "workcell", FILL)
+    assert out[1] == ArmFault("r1", FILL, "workcell",
+                              f"arm_left ERROR GRIPPER_JAM during workcell goal {goal.goal_id}")
+    events = cmds(out, "EventOut")
+    assert codes(out) == ["ARM_ERROR"] and events[0].level == "ERROR"
+    assert events[0].robot == "arm_left" and "r1" in events[0].detail
+    assert jobs.sent_at("r1") is None
+    jobs.on_arm_state("arm_left", "ERROR", "GRIPPER_JAM", True)
+    assert jobs.take_output() == [], "edge only"
+    jobs.on_fill_result(goal.goal_id, False, {"A": 1}, {}, "ARM_FAULT")
+    assert jobs.take_output() == [ArmLate(goal.goal_id, FILL, placed={"A": 1})]
+
+
+def test_an_arm_error_during_a_swap_faults_the_swap():
+    jobs, _, goal = started(ASK_SWAP)
+    jobs.on_arm_state("arm_ship", "ERROR", "", False)
+    out = jobs.take_output()
+    assert out[:2] == [ArmLost("r1", goal.goal_id, "arm_ship", SWAP),
+                       ArmFault("r1", SWAP, "arm_ship",
+                                f"arm_ship ERROR  during arm_ship goal {goal.goal_id}")]
+
+
+def test_an_arm_error_with_no_job_is_one_event_on_each_edge_and_blocks_nothing():
+    jobs, _ = arm()
+    for _ in range(3):
+        jobs.on_arm_state("arm_ship", "ERROR", "E_STOP", False)
+    out = jobs.take_output()
+    assert [type(o) for o in out] == [EventOut] and codes(out) == ["ARM_ERROR"]
+    assert out[0].level == "ERROR" and out[0].robot == "arm_ship" and "E_STOP" in out[0].detail
+    jobs.on_command(ASK_SWAP)
+    assert cmds(jobs.take_output(), "SwapCmd"), "no blocking during an arm fault yet (Q-03)"
+    jobs.on_arm_state("arm_ship", "IDLE", "", False)
+    jobs.on_arm_state("arm_ship", "IDLE", "", False)
+    assert jobs.take_output() == []
+    jobs.on_arm_state("arm_ship", "ERROR", "E_STOP", False)
+    assert codes(jobs.take_output()) == ["ARM_ERROR"]
+
+
+def test_an_error_on_an_arm_of_another_station_leaves_the_job_alone():
+    jobs, _, _ = started()
+    jobs.on_arm_state("arm_ship", "ERROR", "", False)
+    assert [type(o) for o in jobs.take_output()] == [EventOut]
+    assert jobs.sent_at("r1") == 0.0
+
+
+def test_an_arm_it_does_not_know_is_ignored():
+    jobs, _, _ = started()
+    jobs.on_arm_state("arm9", "ERROR", "", False)
+    assert jobs.take_output() == [] and jobs.sent_at("r1") == 0.0
+
+
 # ---- 주문 단독 ---------------------------------------------------------------------
 
 
@@ -288,3 +373,20 @@ def test_removing_a_robot_cancels_its_goal_before_the_order_is_held():
     out = core.take_output()
     assert out[0] == CancelCmd("arm_ship", swap.goal_id)
     assert isinstance(out[1], ReportOrderCmd) and out[1].hold_reason == "ROBOT_FAULT"
+
+
+def test_an_arm_error_while_filling_holds_the_order_for_the_arm():
+    now = [0.0]
+    core = OrdersAndArm(STATIONS, load_params(), ["r1"], lambda: now[0])
+    core.on_order_board("RUN", [O1])
+    core.on_dispatch_result(core._open_calls[0], True, "r1")
+    core.step("r1")
+    fill = cmds(core.take_output(), "FillCmd")[0]
+    core.on_arm_state("arm_right", "ERROR", "COLLISION", False)
+    out = core.take_output()
+    held = cmds(out, "ReportOrderCmd")
+    assert [(r.status, r.hold_reason) for r in held] == [("HELD", "ARM_FAULT")]
+    assert "ARM_ERROR" in codes(out)
+    core.on_fill_result(fill.goal_id, False, {"A": 1}, {}, "ARM_FAULT")
+    out = core.take_output()
+    assert not cmds(out, "ReportOrderCmd") and codes(out) == ["ARM_LATE_RESULT"]
