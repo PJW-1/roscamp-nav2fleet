@@ -18,6 +18,7 @@ from fleet_core.common.commands import (  # noqa: E402
     MoveOrderCmd,
     OrderRecord,
     ReportOrderCmd,
+    ReportTripCmd,
     RetreatCmd,
     RobotStatusView,
     SegmentOut,
@@ -37,14 +38,17 @@ from fleet_interfaces.msg import (  # noqa: E402
     FleetEvent,
     Order,
     OrderBoard,
+    OpenTrip,
     OrderItem,
     RobotState,
     RobotStatus,
 )
 from fleet_interfaces.srv import (
     ConfirmClear,  # noqa: E402
+    ListOpenTrips,  # noqa: E402
     Reinstate,  # noqa: E402
     ReportOrder,  # noqa: E402
+    ReportTrip,  # noqa: E402
     TripCommand,  # noqa: E402
 )
 from fleet_manager import adapters  # noqa: E402
@@ -491,3 +495,69 @@ def test_move_feedback_values_are_the_order_fields_and_the_distance_left():
 ])
 def test_a_trip_report_spells_cancelled_with_two_l_outside(status, hold, out):
     assert adapters.trip_status(status, hold) == out
+
+
+# ---- 브리지 보고 요청 만들기 (ReportTrip · ReportEvent · ReportCommand) ----
+def _counts(items):
+    return {i.kind: i.count for i in items}
+
+
+def test_a_progress_report_goes_as_a_trip_report_with_the_full_state():
+    req = adapters.trip_report_request(
+        ReportTripCmd("T-1", "pode1", "TRANSPORTING", {"A": 1}, {"B": 2}), 12.5)
+    assert (req.trip_id, req.robot_id, req.status, req.reason) == (
+        "T-1", "pode1", "TRANSPORTING", "")
+    assert _counts(req.placed) == {"A": 1} and _counts(req.missing) == {"B": 2}
+    assert (req.stamp.sec, req.stamp.nanosec) == (12, 500_000_000)
+
+
+def test_an_order_end_goes_as_a_trip_report_with_cancelled_and_its_reason():
+    req = adapters.trip_report_request(
+        ReportOrderCmd("O-1", "pode2", "CANCELED", {}, {"A": 1}, "nothing could be placed"), 1.0)
+    assert (req.trip_id, req.robot_id, req.status, req.reason) == (
+        "O-1", "pode2", "CANCELLED", "NOTHING_TO_FILL")
+    held = adapters.trip_report_request(
+        ReportOrderCmd("O-1", "pode2", "HELD", {"A": 1}, {}, "", "ROBOT_FAULT"), 1.0)
+    assert (held.status, held.reason) == ("HELD", "ROBOT_FAULT")
+
+
+@pytest.mark.parametrize("accepted, result, out", [
+    (True, "APPLIED", (True, False)),
+    (True, "DUPLICATE", (True, False)),
+    (True, "LATE_REPORT", (True, True)),
+    (False, "LATE_REPORT", (True, True)),
+    (False, "DUPLICATE", (True, False)),
+    (False, "", (False, False)),
+])
+def test_duplicate_and_late_count_as_delivered(accepted, result, out):
+    assert adapters.trip_report_delivered(
+        ReportTrip.Response(accepted=accepted, result=result)) == out
+
+
+def test_a_warning_goes_as_a_report_event_with_its_id_and_robot():
+    req = adapters.report_event_request(
+        EventOut("WARN", "CANCEL_UNCONFIRMED", "goal 3", "pode1"), "u-1", 2.0, {"pode1"})
+    assert (req.event_id, req.level, req.source, req.code, req.robot_id, req.trip_id,
+            req.detail) == ("u-1", "WARN", "pode1", "CANCEL_UNCONFIRMED", "pode1", "", "goal 3")
+    station = adapters.report_event_request(EventOut("ERROR", "X", "d", "workcell"), "u-2", 2.0,
+                                            {"pode1"})
+    assert (station.source, station.robot_id) == ("workcell", "")
+    fleet = adapters.report_event_request(EventOut("ERROR", "X", "d"), "u-3", 2.0, {"pode1"})
+    assert fleet.source == "fleet"
+
+
+def test_a_command_result_goes_as_a_report_command():
+    req = adapters.report_command_request("r-1", "set_lock", "pode1", "REJECTED",
+                                          "NOT_STOPPED", "moving", 3.0)
+    assert (req.request_id, req.command, req.target, req.result, req.reason, req.detail,
+            req.stamp.sec) == ("r-1", "set_lock", "pode1", "REJECTED", "NOT_STOPPED", "moving", 3)
+
+
+def test_open_trips_come_out_as_plain_values():
+    trip = OpenTrip(trip_id="T-1", order_id="O-1", trip_index=1, trip_count=2,
+                    items=[OrderItem(kind="A", count=2)], status="FILLING", robot_id="pode1",
+                    placed=[OrderItem(kind="A", count=1)], report_epoch=3, report_n=9)
+    [out] = adapters.open_trips(ListOpenTrips.Response(accepted=True, trips=[trip]))
+    assert out["trip_id"] == "T-1" and out["items"] == {"A": 2} and out["placed"] == {"A": 1}
+    assert (out["status"], out["robot_id"], out["report_epoch"], out["report_n"]) == (
+        "FILLING", "pode1", 3, 9)

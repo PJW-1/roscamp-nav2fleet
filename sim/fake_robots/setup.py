@@ -20,6 +20,7 @@ setup(
         'fake_workcell_node = fake_robots.fake_workcell_node:main',
         'fake_arm_node = fake_robots.fake_arm_node:main',
         'fake_central_node = fake_robots.fake_central_node:main',
+        'fake_bridge_node = fake_robots.fake_bridge_node:main',
         'sim_clock_node = fake_robots.sim_clock_node:main',
         'scenario_monitor_node = fake_robots.scenario_monitor_node:main',
         'real_dock_wait_node = fake_robots.real_dock_wait_node:main',
