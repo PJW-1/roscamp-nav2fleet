@@ -6,12 +6,12 @@ Pode 한 대의 Nav2 설정(파라미터, BT, launch, RViz). Pode Pi에서 names
 |---|---|
 | `params/nav2_params.yaml` | 제조사 `pinky_navigation` 설정(pinky_pro 014a09f) 위에 전달사항의 nav2_overrides 값을 덮었다. 바꾼 줄마다 이유가 있다 |
 | `bt/navigate_to_pose_w_replanning_and_recovery_goal.xml` | `navigate_to_pose`용 BT(MoveTo mode `nav_goal`, 계약 0.11-draft, 기준(사용자)). Jazzy 기본 BT를 옮기고 controller를 `FollowPathGoal`로 바꿨다. 1 Hz 재계획. 복구는 지도 지우기와 Wait뿐이다: Spin과 BackUp은 뺐다(추가 지시서 3의 7-4, 기준(사용자)). 물러나기는 `pode_fsm`의 로봇단 교착 처리만 한다 |
-| `bt/..._goal_keep.xml` | 길 유지 갈래(시험 중, `plan_keep:=true`일 때 launch가 고른다). 기본 트리와 다른 곳은 `ComputePathToPose`의 `server_name="compute_path_keep"`, `server_timeout="1000"`뿐이다: 계획 요청이 길 유지 노드(`pode_plan_keep`)를 거친다. 새 경로가 길이가 비슷한 다른 길일 뿐이고 지금 길이 막히지 않았으면(전역 비용 지도에서 NavFn이 지나가지 못하는 칸, 값 99 이상이 없으면) 지금 길을 이어 쓴다 |
+| `bt/..._goal_keep.xml` | 길 유지 갈래(기본, `plan_keep`이 켜져 있으면 launch가 고른다). 기본 트리와 다른 곳은 `ComputePathToPose`의 `server_name="compute_path_keep"`, `server_timeout="1000"`뿐이다: 계획 요청이 길 유지 노드(`pode_plan_keep`)를 거친다. 새 경로가 길이가 비슷한 다른 길일 뿐이고 지금 길이 막히지 않았으면(전역 비용 지도에서 NavFn이 지나가지 못하는 칸, 값 99 이상이 없으면) 지금 길을 이어 쓴다 |
 | `bt/..._goal_replan_3s.xml` | 다시 계획 주기 갈래(시험 중, `bt_xml`로 직접 준다). 기본 트리와 다른 곳은 `RateController`가 3초에 한 번인 것뿐이다 |
 | `params/keepout.yaml` | keepout 덧붙임(기준(사용자)). `keepout_mask`가 있을 때만 launch가 덧붙인다: global costmap의 keepout 필터와 두 서버 설정 |
 | 회피 패키지(`avoidance_package`, 기본 `pode_avoidance`) | 회피 담당의 설정(추가 지시서 3의 7-1)은 그 패키지의 `params/avoidance.yaml`이다. 키는 `follow_path_goal`(`FollowPathGoal` 컨트롤러 안의 값), `vision_obstacles`(비전 관측원의 값), `peer_layer`(peer 층) 셋뿐이다. 다른 키가 있으면 launch가 뜨지 않고 시험이 실패한다. 회피 쪽 노드는 그 패키지의 `launch/avoidance.launch.py`가 띄운다. 나머지 설정은 사용자의 것이고 `nav2_params.yaml`에 있다 |
 | `launch/pode_nav_params.py` | 두 파일을 모으는 순수 함수(`with_avoidance`, `with_peers`, `foreign_keys`). ROS 없이 돈다 |
-| `launch/nav2.launch.py` | 지도 서버 둘, AMCL, controller, planner, behavior, bt_navigator, lifecycle manager 둘. `keepout_mask`가 있으면 keepout 마스크 서버, 필터 정보 서버, 그 lifecycle manager를 더한다. `plan_keep:=true`(시험 중, 기본 false)면 길 유지 노드 `plan_keep`(`pode_plan_keep`)을 프로세스로 띄우고(`respawn`) 행동 트리를 `_keep` 갈래로 바꾼다. `plan_keep_node:=false`면 노드는 띄우지 않는다(다른 프로세스가 `compute_path_keep`을 낼 때. Gazebo 세 대는 `sim_stand_in` 안). `bt_xml`을 주면 그 트리를 쓴다 |
+| `launch/nav2.launch.py` | 지도 서버 둘, AMCL, controller, planner, behavior, bt_navigator, lifecycle manager 둘. `keepout_mask`가 있으면 keepout 마스크 서버, 필터 정보 서버, 그 lifecycle manager를 더한다. `plan_keep`(기본 true, 11-26부터)이 켜져 있으면 길 유지 노드 `plan_keep`(`pode_plan_keep`)을 프로세스로 띄우고(`respawn`) 행동 트리를 `_keep` 갈래로 바꾼다. `plan_keep_node:=false`면 노드는 띄우지 않는다(다른 프로세스가 `compute_path_keep`을 낼 때. Gazebo 세 대는 `sim_stand_in` 안). `bt_xml`을 주면 그 트리를 쓴다 |
 | `rviz/pode_nav.rviz` | 지도, 로봇, 라이다, costmap, AMCL 입자, 따라가는 경로. `<robot_namespace>`는 띄울 때 바꾼다 |
 
 ## 구성

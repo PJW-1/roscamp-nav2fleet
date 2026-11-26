@@ -598,6 +598,13 @@ def test_plan_keep_false_runs_the_default_tree_and_no_keepers(made):
     assert params(stand_in)["plan_keep_nodes"] is False
 
 
+def test_the_pode_helper_also_defaults_to_plan_keep_on():
+    # 인자 없이 부르는 곳이 nav2 기본값(켬)을 덮어 끄지 않게
+    import inspect
+    from fleet_gz_sim import launch_parts
+    assert inspect.signature(launch_parts.pode).parameters["plan_keep"].default is True
+
+
 def test_plan_keep_runs_every_keeper_inside_the_stand_in_process(made):
     # 기본이 켬이다(11-26 실물 확인 뒤)
     before = len(nodes(run(made, plan_keep="false")))

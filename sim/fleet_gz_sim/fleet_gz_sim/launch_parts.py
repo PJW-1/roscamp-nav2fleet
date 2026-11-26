@@ -251,13 +251,13 @@ def pode(ns: str, x, y, yaw, *, nav_map: str, nav_map_fine: str, keepout_mask: s
           fixed_line_check: bool = True, narrow_strips: str = "",
           wall_band_m: float = 0.05, peer_layer: bool = False,
           avoidance_package: str = AVOIDANCE_PACKAGE, vision_stand_in: bool = False,
-          plan_keep: bool = False, plan_keep_node: bool = True, bt_xml: str = "",
+          plan_keep: bool = True, plan_keep_node: bool = True, bt_xml: str = "",
           navigation_delay_s: float = 0.0) -> list:
     """Pode 한 대: 모델, Nav2, pode_fsm, RViz. 브리지는 bridge()에 이 로봇 이름을 넣는다.
     nav_map, nav_map_fine: 배치의 5 cm, 1 cm 지도. keepout_mask: 비면 keepout 없음. dock_aside: dock 서버를 /<ns>/dock_fsm으로 비킴.
     nav_max_speed: controller 최고 속도(m/s), None이면 nav_speed_mps(). fixed_line_check: 거짓이면 고정 경로 셋의 충돌 검사를 끈다.
     narrow_strips, wall_band_m: 스캔 거르개 좁은 띠(비면 거르개 없음). peer_layer: 다른 로봇 몸을 costmap에 찍는 층(임시).
-    plan_keep: 참이면 Nav2 goal을 다시 계획할 때 비슷한 다른 길로 바꾸지 않는다(pode_plan_keep). plan_keep_node가 거짓이면 그 노드를 sim_stand_in이 낸다.
+    plan_keep: 참(기본)이면 Nav2 goal을 다시 계획할 때 비슷한 다른 길로 바꾸지 않는다(pode_plan_keep). plan_keep_node가 거짓이면 그 노드를 sim_stand_in이 낸다.
     bt_xml: navigate_to_pose 행동 트리 파일, 비면 nav2.launch.py가 plan_keep에 따라 고른다.
     navigation_delay_s: 시험용, 0보다 크면 주행 쪽 서버만 이만큼 늦게 켠다.
     """
