@@ -176,7 +176,8 @@ class ReportOutbox:
 # ---- 브리지 보고(Report*) 대기열: epoch 전 보류, 건마다 하나씩, 최신으로 바꿔 끼움 ----
 def backoff_s(attempt: int, first_s: float, max_s: float, factor: float) -> float:
     # IR-40: 1 → 2 → 4 s … 상한 max_s, 지터 배수를 곱한다
-    return min(first_s * 2 ** (attempt - 1), max_s) * factor
+    # 지수를 묶어 오래 실패해도 넘치지 않게 한다
+    return min(first_s * 2.0 ** min(attempt - 1, 60), max_s) * factor
 
 
 @dataclass

@@ -21,6 +21,11 @@ def test_the_backoff_doubles_from_one_second_up_to_ten():
     assert [backoff_s(a, 1.0, 10.0, 1.0) for a in range(1, 7)] == [1, 2, 4, 8, 10, 10]
 
 
+def test_the_backoff_stays_at_the_cap_after_thousands_of_failures():
+    # 브리지가 몇 시간 꺼져 있어도 간격 계산이 넘치지 않는다
+    assert backoff_s(5000, 1.0, 10.0, 1.0) == 10.0
+
+
 @pytest.mark.parametrize("rand, factor", [(0.0, 0.8), (1.0, 1.2)])
 def test_the_backoff_is_jittered_by_twenty_percent(rand, factor):
     box = BridgeOutbox(1.0, 10.0, 3.0, 4, rand=lambda: rand)

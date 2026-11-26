@@ -102,8 +102,9 @@ def test_reports_wait_for_the_bridge_and_then_go_with_the_epoch_in_order(graph):
         len(bridge.trips) == 2 and bridge.trips[-1].status == "CANCELLED"))
     last = bridge.trips[-1]
     assert (last.status, last.reason) == ("CANCELLED", "NOTHING_TO_FILL")
-    ns = [t.report_n for t in bridge.trips]
-    assert ns == sorted(ns) and len(set(ns)) == len(ns), f"n must grow, got {ns}"
+    asks = [n for trip_id, _, n in bridge.trip_asks if trip_id == "T-1"]
+    assert asks == sorted(asks) and len(set(asks)) == len(asks), f"n must grow, got {asks}"
+    assert "LATE_REPORT" not in bridge.trip_results
     assert len(bridge.events) == 1, "INFO stays on /central/events only"
 
 
