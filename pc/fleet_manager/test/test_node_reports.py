@@ -129,3 +129,16 @@ def test_a_command_result_goes_to_the_bridge(graph):
     [cmd] = bridge.commands
     assert (cmd.request_id, cmd.command, cmd.target, cmd.result, cmd.reason) == (
         "r-1", "set_lock", "pode1", "ACCEPTED", "")
+
+
+def test_a_refused_command_result_is_not_sent_again(graph):
+    # 명세 4.3: 같은 request_id의 끝 상태는 한 번만 받는다. false 답은 이미 받았다는 뜻이다
+    bridge = graph.start_bridge()
+    graph.fms._post(graph.fms.report_command, "r-2", "set_lock", "pode1", "ACCEPTED")
+    assert wait_for(lambda: len(bridge.command_asks) == 1)
+    graph.fms._post(graph.fms.report_command, "r-2", "set_lock", "pode1", "ACCEPTED")
+    assert wait_for(lambda: len(bridge.command_asks) == 2)
+    time.sleep(3.0)  # 첫 재전송 간격(1 s)의 세 배
+    assert len(bridge.command_asks) == 2, "a refused duplicate must not be retried"
+    assert bridge.command_refused == ["r-2"]
+    assert graph.fms._bridge.waiting() == 0

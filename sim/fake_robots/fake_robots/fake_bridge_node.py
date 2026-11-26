@@ -30,6 +30,9 @@ class FakeBridgeNode(Node):
         self.trip_asks: list = []  # 받은 모든 ReportTrip의 (trip_id, epoch, n), 실패로 답한 것 포함
         self.events: list = []
         self.commands: list = []
+        self.command_asks: list = []  # 받은 모든 ReportCommand, 거절한 것 포함
+        self.command_refused: list = []  # 끝 상태가 이미 있어 false로 답한 request_id
+        self._command_final: set = set()
         self.open_trip_asks: list = []
         self.open_trips: list = []  # ListOpenTrips 답. 기본은 비어 있다
         self.trip_fail = 0  # 이 수만큼 ReportTrip에 accepted=false로 답한다
@@ -81,7 +84,16 @@ class FakeBridgeNode(Node):
         return response
 
     def _report_command(self, request, response):
+        # 같은 request_id는 UNCONFIRMED 뒤 끝 상태 한 번만 받는다(명세 4.3)
         with self._lock:
+            self.command_asks.append(request)
+            final = request.result != ReportCommand.Request.RESULT_UNCONFIRMED
+            if final and request.request_id in self._command_final:
+                self.command_refused.append(request.request_id)
+                response.accepted = False
+                return response
+            if final:
+                self._command_final.add(request.request_id)
             self.commands.append(request)
         response.accepted = True
         return response

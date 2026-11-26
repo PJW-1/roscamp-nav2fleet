@@ -114,6 +114,13 @@ class BridgeReports:
                 self._node.get_logger().warning(
                     f"bridge took trip {request.trip_id} {request.status} "
                     f"({request.report_epoch}, {request.report_n}) as LATE_REPORT")
+        elif isinstance(request, ReportCommand.Request):
+            # 같은 request_id의 끝 상태는 한 번만 받는다(명세 4.3). false도 다시 보내지 않는다
+            delivered = True
+            if not response.accepted:
+                self._node.get_logger().warning(
+                    f"bridge refused command result {request.request_id} {request.command} "
+                    f"{request.result}: it already has a final result")
         else:
             delivered = bool(response.accepted)
         self._outbox.answered(token, delivered, now)
