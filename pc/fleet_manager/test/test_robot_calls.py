@@ -167,3 +167,33 @@ def test_codes_only_give_names_of_the_contract(bad):
     with pytest.raises(AttributeError):
         getattr(CODES, bad)
     assert CODES.LOCK_RELEASED == "LOCK_RELEASED"
+
+
+def test_a_held_last_request_still_counts_against_the_cap():
+    calls, box = make(CallParams(max_in_flight=1))
+    add(calls, box, rid="a")
+    run(calls, 14.5)  # a는 결과 모름, 마지막 요청을 쥔다
+    add(calls, box, now=14.5, rid="b")
+    sent, _ = run(calls, 20.0, start=14.6)
+    assert sent == []
+
+
+def test_a_call_starved_by_the_cap_still_times_out_at_thirty_seconds():
+    calls, box = make(CallParams(max_in_flight=1))
+    add(calls, box, rid="a")
+    add(calls, box, rid="b")
+    run(calls, 30.1)
+    by_id = {}
+    for rid, _c, _t, result, _r in box.reports:
+        by_id.setdefault(rid, []).append(result)
+    assert by_id["b"] == ["TIMEOUT"] and "b" not in calls
+
+
+def test_an_answer_or_observation_past_the_deadline_does_not_confirm():
+    calls, box = make()
+    add(calls, box, observe=lambda view: True)
+    run(calls, 14.5)
+    assert calls.observe("pode1", "x", now=30.5) == []
+    assert calls.on_answer("r1", None, True, now=30.5) == []
+    calls.step(30.5, lambda _c: True)
+    assert [r[3] for r in box.reports] == ["UNCONFIRMED", "TIMEOUT"]

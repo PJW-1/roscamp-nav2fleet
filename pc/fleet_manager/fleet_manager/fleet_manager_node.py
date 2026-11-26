@@ -5,6 +5,7 @@ import argparse
 import math
 import threading
 import time
+import uuid
 from collections import deque
 from functools import partial, wraps
 
@@ -268,6 +269,7 @@ class FleetManagerNode(Node):
             charge_end=within("pode_charge_end", "pode", pods),
             force_input=within("robot_force", "robot", pods + arms))
         self._released = {}  # 락이 풀린 로봇 -> 풀 때 본 boot_id
+        self._lock_latest = {}  # 로봇 -> 마지막으로 보낸 set_lock request_id
 
     def _instances(self, key, field) -> list:
         entry = self.contract.entries[key]
@@ -363,11 +365,10 @@ class FleetManagerNode(Node):
             released = self.core.confirm_clear(*adapters.confirm_clear_args(request))
             return Reply(released is not None, self.core.last_clear_code,
                          self.core.last_clear_reason, tuple(released or ()))
-        reply = self._admin.local(self._command("confirm_clear"), request.request_id,
-                                  request.robot_id, apply)
+        rid = _request_id(request)
+        reply = self._admin.local(self._command("confirm_clear"), rid, request.robot_id, apply)
         response = adapters.confirm_clear_response(
-            response, list(reply.extra) if reply.accepted else None, reply.reason,
-            request.request_id)
+            response, list(reply.extra) if reply.accepted else None, reply.reason, rid)
         response.detail = reply.detail
         return response
 
@@ -378,13 +379,14 @@ class FleetManagerNode(Node):
         def apply():
             accepted = self.core.reinstate(*adapters.reinstate_args(request))
             return Reply(accepted, self.core.last_reinstate_code, self.core.last_reinstate_reason)
-        return _answer(response, request.request_id, self._admin.local(
-            self._command("reinstate"), request.request_id, request.robot_id, apply))
+        rid = _request_id(request)
+        return _answer(response, rid, self._admin.local(
+            self._command("reinstate"), rid, request.robot_id, apply))
 
     @_core_callback
     def _on_set_lock(self, request, response):
         self._drain()
-        rid, robot, locked = request.request_id, request.robot_id, bool(request.locked)
+        rid, robot, locked = _request_id(request), request.robot_id, bool(request.locked)
         judge = lambda: judge_set_lock(  # noqa: E731
             self._admin.codes, self._admin_targets, robot, locked, request.confirm_drop,
             self._lock_facts)
@@ -395,21 +397,20 @@ class FleetManagerNode(Node):
     @_core_callback
     def _on_fault_resolved(self, request, response):
         self._drain()
-        rid, robot = request.request_id, request.robot_id
+        rid, robot = _request_id(request), request.robot_id
         judge = lambda: judge_target(  # noqa: E731
             self._admin.codes, self._admin_targets.fault_resolved, robot)
-        # 결과 모름은 팔 상태가 ERROR를 벗어나면 확정한다 (Phody DECIDE-5 제안)
         send = lambda: self._call_robot(  # noqa: E731
             rid, "fault_resolved", robot, self._fault_clients,
             RobotCommand.Request(request_id=rid, robot_id=robot),
-            observe=lambda state: state.state != ArmState.STATE_ERROR)
+            observe=self._left_error if self._in_error(robot) else None)
         return _answer(response, rid, self._admin.robot(
             self._command("fault_resolved"), rid, robot, judge, send))
 
     @_core_callback
     def _on_charge_end(self, request, response):
         self._drain()
-        rid, robot = request.request_id, request.robot_id
+        rid, robot = _request_id(request), request.robot_id
         judge = lambda: judge_test_only(  # noqa: E731
             self._admin.codes, self._admin_targets.charge_end, robot,
             self._mode_sync.system_mode)
@@ -422,7 +423,7 @@ class FleetManagerNode(Node):
     @_core_callback
     def _on_force_input(self, request, response):
         self._drain()
-        rid, robot = request.request_id, request.robot_id
+        rid, robot = _request_id(request), request.robot_id
         judge = lambda: judge_test_only(  # noqa: E731
             self._admin.codes, self._admin_targets.force_input, robot,
             self._mode_sync.system_mode)
@@ -440,6 +441,7 @@ class FleetManagerNode(Node):
 
     def _send_set_lock(self, rid, robot, locked, confirm_drop) -> None:
         was = robot in self._released
+        self._lock_latest[robot] = rid
         if not locked:
             # 풀기는 받자마자 배정에서 뺀다. 로봇이 거절하면 되돌린다
             self._set_released(robot, True, f"set_lock {rid}")
@@ -447,9 +449,11 @@ class FleetManagerNode(Node):
                          SetLock.Request(request_id=rid, robot_id=robot, locked=locked,
                                          confirm_drop=confirm_drop),
                          observe=lambda state: bool(state.lock) == locked,
-                         then=partial(self._lock_result, robot, locked, was))
+                         then=partial(self._lock_result, robot, locked, was, rid))
 
-    def _lock_result(self, robot, locked, was_released, accepted) -> None:
+    def _lock_result(self, robot, locked, was_released, rid, accepted) -> None:
+        if self._lock_latest.get(robot) != rid:
+            return  # 뒤에 온 set_lock이 정한다
         if accepted:
             self._set_released(robot, not locked, "set_lock confirmed")
         elif accepted is False and not locked:
@@ -465,6 +469,15 @@ class FleetManagerNode(Node):
         if robot in self.core.traffic.robots:
             self.core.set_lock_released(robot, released, detail)
         # TODO(Q-06): 팔 하나만 락이 풀렸을 때 FillBasket을 어떻게 할지 미정
+
+    def _in_error(self, arm) -> bool:
+        msg = self._arm_states.get(arm, (None,))[0]
+        return msg is not None and msg.state == ArmState.STATE_ERROR
+
+    @staticmethod
+    def _left_error(state) -> bool:
+        # 결과 모름은 ERROR였던 팔이 ERROR를 벗어나면 확정한다 (Phody DECIDE-5 제안)
+        return state.state != ArmState.STATE_ERROR
 
     def _boot_id(self, robot) -> str:
         msg = self._pode_states.get(robot) or self._arm_states.get(robot, (None,))[0]
@@ -490,7 +503,7 @@ class FleetManagerNode(Node):
         return Facts(True, holding=bool(msg.holding))
 
     def _observe_lock(self, robot, msg) -> None:
-        for client, future in self._robot_calls.observe(robot, msg):
+        for client, future in self._robot_calls.observe(robot, msg, time.monotonic()):
             client.remove_pending_request(future)
         boot = self._released.get(robot)
         # 다시 켜진 로봇은 잠긴 채 시작한다 (RobotState.lock: 켜질 때 true)
@@ -514,7 +527,8 @@ class FleetManagerNode(Node):
             self._robot_calls.on_failed(rid, future)
             return
         for client, old in self._robot_calls.on_answer(rid, future, reply.accepted,
-                                                       reply.reason, reply.detail):
+                                                       reply.reason, reply.detail,
+                                                       time.monotonic()):
             client.remove_pending_request(old)
 
     @_core_callback
@@ -530,8 +544,8 @@ class FleetManagerNode(Node):
             accepted, reason, detail = self.core.on_trip_command(
                 command, request.trip_id, adapters.from_order_items(request.mark_missing))
             return Reply(accepted, "" if accepted else reason, detail)
-        return _answer(response, request.request_id, self._admin.local(
-            command, request.request_id, request.trip_id, apply))
+        rid = _request_id(request)
+        return _answer(response, rid, self._admin.local(command, rid, request.trip_id, apply))
 
     # ---- 주기 틱: 받은 사건 처리, 명령 내보내기, 취소 재시도, 주문 보고, 상태 발행 ----
     @_core_callback
@@ -808,6 +822,11 @@ class FleetManagerNode(Node):
 
     def _swap_done(self, key, result) -> None:
         self.core.on_swap_result(key[1], *adapters.swap_result(result))
+
+
+def _request_id(request) -> str:
+    """IR-20: 번호가 없는 요청은 새 번호를 붙여 따로 다룬다 (응답에 실어 돌려준다)."""
+    return request.request_id or str(uuid.uuid4())
 
 
 def _answer(response, request_id, reply):

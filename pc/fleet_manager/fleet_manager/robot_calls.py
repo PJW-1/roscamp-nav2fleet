@@ -79,16 +79,21 @@ class RobotCalls:
     # ---- 주기 처리: 보낼 것, 버릴 future, 결과 모름 · TIMEOUT ----
     def step(self, now: float, ready: Callable) -> Step:
         p, out = self.params, Step()
-        busy = sum(1 for c in self._calls.values() if c.phase == _SENDING and c.future is not None)
+        # 쥐고 있는 마지막 요청도 답을 기다리는 요청이다 (IR-41)
+        busy = sum(1 for c in self._calls.values() if c.future is not None)
         for c in list(self._calls.values()):
+            if self._late(c, now):
+                # 상한에 밀려 보내지 못한 명령도 30초에서 끝낸다
+                if c.future is not None:
+                    busy -= 1
+                self._drop(c, out)
+                self._finish(c, TIMEOUT, self._codes.ROBOT_TIMEOUT,
+                             f"no result within {p.confirm_s:.0f} s", None)
+                self._event("WARN", LATE_COMMAND_RESULT,
+                            f"{c.command} {c.request_id} has no result after "
+                            f"{p.confirm_s:.0f} s", c.target)
+                continue
             if c.phase == _UNSURE:
-                if now - c.first_at >= p.confirm_s:
-                    self._drop(c, out)
-                    self._finish(c, TIMEOUT, self._codes.ROBOT_TIMEOUT,
-                                 f"no result within {p.confirm_s:.0f} s", None)
-                    self._event("WARN", LATE_COMMAND_RESULT,
-                                f"{c.command} {c.request_id} has no result after "
-                                f"{p.confirm_s:.0f} s", c.target)
                 continue
             if c.asked_at is not None:
                 if now - c.asked_at < p.try_s:
@@ -120,11 +125,15 @@ class RobotCalls:
             c.future = future
 
     # ---- 답과 관측 ----
-    def on_answer(self, request_id, future, accepted: bool, reason="", detail="") -> list:
-        """늦은 답도 끝 상태를 한 번 정한다. 버릴 (client, future)를 돌려준다."""
+    def _late(self, c, now) -> bool:
+        return now is not None and now - c.first_at >= self.params.confirm_s
+
+    def on_answer(self, request_id, future, accepted: bool, reason="", detail="",
+                  now=None) -> list:
+        """늦은 답도 기한 안이면 끝 상태를 한 번 정한다. 버릴 (client, future)를 돌려준다."""
         c = self._calls.get(request_id)
-        if c is None:
-            return []
+        if c is None or self._late(c, now):
+            return []  # 기한이 지났으면 다음 step이 TIMEOUT으로 끝낸다
         out = Step()
         if c.future is not future:
             self._drop(c, out)
@@ -142,12 +151,12 @@ class RobotCalls:
         if c is not None and c.future is future:
             c.future = None
 
-    def observe(self, target, view) -> list:
-        """결과 모름인 명령을 상태 관측으로 확정한다 (IR-62)."""
+    def observe(self, target, view, now=None) -> list:
+        """결과 모름인 명령을 기한 안의 상태 관측으로 확정한다 (IR-62)."""
         out = Step()
         for c in list(self._calls.values()):
             if (c.phase == _UNSURE and c.target == target and c.observe is not None
-                    and c.observe(view)):
+                    and not self._late(c, now) and c.observe(view)):
                 self._drop(c, out)
                 self._finish(c, ACCEPTED, "", "confirmed by the robot state", True)
         return out.drop

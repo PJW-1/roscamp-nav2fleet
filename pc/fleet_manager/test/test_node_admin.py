@@ -272,6 +272,7 @@ def test_fault_resolved_goes_to_a_phody_arm_only(graph):
 
 def test_fault_resolved_unconfirmed_is_confirmed_when_the_arm_leaves_error(graph):
     graph.arm.state = ArmState.STATE_ERROR
+    assert wait_for(lambda: graph.fms._in_error("arm_left"), 5.0)
     graph.answer = "late"
     graph.late_s = 5.0
     call(graph, RobotCommand, "fault_resolved", request_id="R-3", robot_id="arm_left")
@@ -314,3 +315,29 @@ def test_trip_commands_report_once_and_unknown_ones_are_not_implemented(graph):
     for key in ("force_partial", "return_to_shelf", "resume_held", "requeue_trip"):
         assert call(graph, TripCommand, key, request_id=f"T-{key}", trip_id="O-1").reason == \
             "NOT_IMPLEMENTED"
+
+
+def test_fault_resolved_on_an_arm_not_in_error_is_not_confirmed_by_its_state(graph):
+    graph.answer = "late"
+    graph.late_s = 5.0
+    call(graph, RobotCommand, "fault_resolved", request_id="R-4", robot_id="arm_left")
+    assert wait_for(lambda: results(graph, "R-4") == ["UNCONFIRMED", "TIMEOUT"], 6.0), \
+        reports(graph, "R-4")
+
+
+def test_an_empty_request_id_gets_its_own_id_and_each_call_is_sent(graph):
+    first = call(graph, SetLock, "set_lock", request_id="", robot_id="pode1", locked=True)
+    second = call(graph, SetLock, "set_lock", request_id="", robot_id="pode1", locked=True)
+    assert first.accepted and second.accepted
+    assert first.request_id and second.request_id and first.request_id != second.request_id
+    assert wait_for(lambda: len([a for a in graph.asked if a[0] == "set_lock"]) == 2, 5.0)
+
+
+def test_only_the_last_set_lock_decides_the_assignment_block(graph):
+    fms = graph.fms
+    call(graph, SetLock, "set_lock", request_id="O-1", robot_id="pode1", locked=False)
+    call(graph, SetLock, "set_lock", request_id="O-2", robot_id="pode1", locked=True)
+    assert wait_for(lambda: results(graph, "O-1") and results(graph, "O-2"), 5.0)
+    # 앞선 풀기의 결과가 뒤에 와도 마지막 잠그기가 정한다
+    fms._lock_result("pode1", False, False, "O-1", True)
+    assert not released(graph)
