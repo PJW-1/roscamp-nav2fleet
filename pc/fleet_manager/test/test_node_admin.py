@@ -327,6 +327,9 @@ def test_fault_resolved_on_an_arm_not_in_error_is_not_confirmed_by_its_state(gra
 
 def test_an_empty_request_id_gets_its_own_id_and_each_call_is_sent(graph):
     first = call(graph, SetLock, "set_lock", request_id="", robot_id="pode1", locked=True)
+    # 같은 로봇의 set_lock은 하나씩 받는다. 첫 결과가 나온 뒤 보낸다
+    assert wait_for(lambda: results(graph, first.request_id)[-1:] == ["ACCEPTED"], 5.0), \
+        reports(graph, first.request_id)
     second = call(graph, SetLock, "set_lock", request_id="", robot_id="pode1", locked=True)
     assert first.accepted and second.accepted
     assert first.request_id and second.request_id and first.request_id != second.request_id
