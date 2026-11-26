@@ -83,6 +83,9 @@ class TrafficApi(Protocol):
     def lock_released(self, robot) -> bool:
         """락이 풀려 있는지."""
 
+    def end_charge(self, robot) -> bool:
+        """충전 중인 로봇이 다시 일을 받게 한다. 바뀌었으면 True."""
+
     # ---- 로봇 목록과 운행 상태 조회 ----
     @property
     def robots(self) -> list[str]:

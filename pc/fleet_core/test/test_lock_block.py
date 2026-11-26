@@ -84,3 +84,10 @@ def test_an_unknown_robot_is_rejected():
     core, _ = make({"r1": "P-1"})
     core.set_lock_released("nobody", True)
     assert "INPUT_REJECTED" in codes(core.tick())
+
+
+def test_charge_end_on_a_robot_that_is_not_charging_changes_nothing():
+    core, _ = make({"r1": "P-1"})
+    core.tick()
+    core.end_charge("r1", "charge_end C-1")
+    assert "ROBOT_CHARGED" not in codes(core.tick())

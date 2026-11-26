@@ -258,6 +258,14 @@ class FleetManager(ManagerRoute, ManagerViews, ManagerRecord):
             self._out.append(EventOut("INFO", "ROBOT_LOCKED", "takes new trips again", name))
         self._pump()
 
+    # ---- [충전 끝내기](시험): 로봇이 받아들이면 충전 칸에서 다시 일을 받는다 ----
+    def end_charge(self, robot, detail="") -> None:
+        self._input("end_charge", robot, detail)
+        if self._robot_refused("charge end", robot):
+            return
+        if self.traffic.end_charge(text(robot)):
+            self._pump()
+
     # ---- 운영 모드가 다른 Pode는 새 운반 건에서 뺀다 (IR-73) ----
     def set_mode_blocked(self, robot, blocked, detail="") -> None:
         self._input("set_mode_blocked", robot, blocked, detail)

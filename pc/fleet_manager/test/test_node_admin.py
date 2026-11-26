@@ -262,6 +262,16 @@ def test_charge_end_and_force_input_need_the_test_mode(graph):
     assert reports(graph, "F-2")[0][1] == "force_input"
 
 
+def test_an_accepted_charge_end_ends_the_charge_stay_in_the_core(graph):
+    ended = []
+    graph.fms.core.end_charge = lambda robot, detail="": ended.append(robot)
+    graph.mode("TEST")
+    assert wait_for(lambda: graph.fms._mode_sync.system_mode == "TEST", 5.0)
+    assert call(graph, RobotCommand, "charge_end", request_id="C-9", robot_id="pode1").accepted
+    assert wait_for(lambda: results(graph, "C-9") == ["ACCEPTED"], 5.0)
+    assert wait_for(lambda: ended == ["pode1"], 5.0), ended
+
+
 def test_fault_resolved_goes_to_a_phody_arm_only(graph):
     reply = call(graph, RobotCommand, "fault_resolved", request_id="R-1", robot_id="pode1")
     assert reply.reason == "UNKNOWN_TARGET"

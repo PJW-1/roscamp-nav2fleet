@@ -12,6 +12,7 @@ from functools import partial, wraps
 import rclpy
 from ament_index_python.packages import get_package_share_directory
 from fleet_core.common.commands import (
+    CANCELED,
     NO_ANSWER,
     CancelCmd,
     CheckClearCmd,
@@ -234,6 +235,7 @@ class FleetManagerNode(Node):
         # 운영 모드: 브리지가 내면 로봇마다 set_mode, 받기 전에는 아무것도 하지 않는다 (IR-73)
         arms = list(self.contract.placeholders.get("arm", []))
         self._mode_sync = ModeSync(robots, arms)
+        self._held_fills: list[FillCmd] = []  # 작업대 팔의 모드 보고를 기다리는 담기 목표
         self._set_mode = {r: self.create_client(SetMode, name("robot_set_mode", robot=r),
                                                 callback_group=inbox)
                           for r in list(robots) + arms}
@@ -425,7 +427,8 @@ class FleetManagerNode(Node):
             self._mode_sync.system_mode)
         send = lambda: self._call_robot(  # noqa: E731
             rid, "charge_end", robot, self._charge_clients,
-            RobotCommand.Request(request_id=rid, robot_id=robot))
+            RobotCommand.Request(request_id=rid, robot_id=robot),
+            then=partial(self._charge_result, robot))
         return _answer(response, rid, self._admin.robot(
             self._command("charge_end"), rid, robot, judge, send))
 
@@ -465,6 +468,11 @@ class FleetManagerNode(Node):
         elif accepted is False and not locked:
             self._set_released(robot, was_released, "the robot refused set_lock")
         # 결과 모름(None)이면 그대로 둔다: 풀렸을 수 있다
+
+    def _charge_result(self, robot, accepted) -> None:
+        # 충전은 충전 칸에 들어가는 것만 보여 주므로, 로봇이 받아들이면 관제가 충전을 끝낸다
+        if accepted:
+            self.core.end_charge(robot, "charge_end confirmed")
 
     def _set_released(self, robot, released, detail) -> None:
         if released:
@@ -563,6 +571,7 @@ class FleetManagerNode(Node):
         now = self._now()
         if now > 0.0 and not self.silent():
             self._sync_modes(time.monotonic())
+            self._release_fills()
             for command in self.core.tick():
                 self._dispatch(command, now)
             self._retry_cancels(now)
@@ -701,9 +710,7 @@ class FleetManagerNode(Node):
                            (command.robot, command.goal_id), self._retreat_done,
                            self._robot_rejected)
             case FillCmd():
-                server = self.site.stations[command.station_id].server
-                self._send(self._fill[command.station_id], adapters.fill_goal(command),
-                           (server, command.goal_id), self._fill_done, self._fill_rejected)
+                self._fill_or_hold(command)
             case SwapCmd():
                 self._send(self._swap[command.station_id], adapters.swap_goal(command),
                            (command.arm, command.goal_id), self._swap_done,
@@ -711,7 +718,8 @@ class FleetManagerNode(Node):
             case CheckClearCmd():
                 self._ask_clear(command)
             case CancelCmd():
-                self._goals.cancel((command.robot, command.goal_id), now)
+                if not self._drop_held_fill(command):
+                    self._goals.cancel((command.robot, command.goal_id), now)
             case ReportOrderCmd():
                 self._reports.add(command)
                 self._bridge.trip(command)
@@ -721,6 +729,44 @@ class FleetManagerNode(Node):
                 self._events_pub.publish(adapters.event_to_msg(command, now))
                 self._bridge.event(command)
                 self._log_event(command)
+
+    # ---- 담기: 작업대 팔이 시스템 모드를 보고하기 전에는 보내지 않는다 (IR-72, PI-20) ----
+    def _arms_waiting(self, command) -> list[str]:
+        arms = self.site.stations[command.station_id].arms
+        return [arm for arm in arms if not self._mode_sync.settled(arm)]
+
+    def _fill_or_hold(self, command) -> None:
+        waiting = self._arms_waiting(command)
+        if not waiting:
+            self._send_fill(command)
+            return
+        self._held_fills.append(command)
+        self.get_logger().info(
+            f"fill goal {command.goal_id} waits until {', '.join(waiting)} report mode "
+            f"{self._mode_sync.system_mode}")
+
+    def _release_fills(self) -> None:
+        ready = [c for c in self._held_fills if not self._arms_waiting(c)]
+        if not ready:
+            return
+        self._held_fills = [c for c in self._held_fills if all(c is not r for r in ready)]
+        for command in ready:
+            self._send_fill(command)
+
+    def _send_fill(self, command) -> None:
+        server = self.site.stations[command.station_id].server
+        self._send(self._fill[command.station_id], adapters.fill_goal(command),
+                   (server, command.goal_id), self._fill_done, self._fill_rejected)
+
+    def _drop_held_fill(self, command) -> bool:
+        """보내기 전에 취소된 담기 목표는 버리고 취소된 결과로 끝낸다."""
+        for held in self._held_fills:
+            server = self.site.stations[held.station_id].server
+            if (server, held.goal_id) == (command.robot, command.goal_id):
+                self._held_fills.remove(held)
+                self.core.on_fill_result(held.goal_id, False, {}, {}, CANCELED)
+                return True
+        return False
 
     def report_command(self, request_id: str, command: str, target: str, result: str,
                        reason: str = "", detail: str = "") -> None:
