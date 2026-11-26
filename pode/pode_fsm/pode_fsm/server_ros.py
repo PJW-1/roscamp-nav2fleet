@@ -32,8 +32,10 @@ class _Slot:
 # ---- 액션 서버 세 개 만들기와 goal 종료 알림 ----
 class GoalServers:
     def __init__(self, node, contract, robot_id: str, group, lock, fsm,
-                 pose: Callable, run: Callable, alive: Callable[[], bool], no_motion=None):
+                 pose: Callable, run: Callable, alive: Callable[[], bool], no_motion=None,
+                 locked: Callable[[], bool] = lambda: True):
         self._node, self._lock, self._fsm = node, lock, fsm
+        self._locked = locked
         self._nm = no_motion
         self._pose, self._run, self._alive = pose, run, alive
         self._slots: dict[bytes, _Slot] = {}
@@ -60,10 +62,19 @@ class GoalServers:
         return ActionServer(
             self._node, action_type, name,
             execute_callback=partial(self._execute, kind=kind),
-            goal_callback=lambda _req: GoalResponse.ACCEPT,
+            goal_callback=partial(self._on_goal, kind=kind),
             cancel_callback=lambda _gh: CancelResponse.ACCEPT,
             handle_accepted_callback=partial(self._accepted, kind=kind),
             callback_group=group)
+
+    # ---- 락이 풀린 동안(손으로 옮기는 중) 움직이는 goal은 받지 않는다 ----
+    def _on_goal(self, _request, kind: str):
+        with self._lock:
+            locked = self._locked()
+        if locked:
+            return GoalResponse.ACCEPT
+        self._node.get_logger().warn(f"{kind} goal rejected: lock released")
+        return GoalResponse.REJECT
 
     # ---- 수락된 goal을 상태 기계에 넘기기 ----
     def _accepted(self, handle, kind: str) -> None:

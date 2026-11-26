@@ -1,7 +1,7 @@
 """가짜 로봇 쪽 관리 명령 서버: set_lock · force · charge_end · fault_resolved (IR-21 · IR-61).
 
-pode_fsm.admin.AdminState에 강제 입력과 장애 처리 완료를 더한다. 최근 32건의 request_id를
-60초 기억하고 같은 답을 준다. mount()로 Pode든 팔이든 어느 노드에나 붙인다.
+pode_fsm.admin.AdminState(강제 입력 포함)에 팔 락과 장애 처리 완료를 더한다.
+최근 32건의 request_id를 60초 기억하고 같은 답을 준다. mount()로 Pode든 팔이든 어느 노드에나 붙인다.
 """
 from __future__ import annotations
 
@@ -9,11 +9,9 @@ import time
 from collections.abc import Callable
 
 from fleet_interfaces.srv import ForceInput, RobotCommand, SetLock
-from pode_fsm.admin import NOT_TEST_MODE, TEST_MODE, UNKNOWN_TARGET, AdminState, Reply
+from pode_fsm.admin import UNKNOWN_TARGET, AdminState, Reply
 
 HOLDING_ITEM = "HOLDING_ITEM"
-NOT_FOUND = "NOT_FOUND"
-FORCE_KINDS = (ForceInput.Request.KIND_CONDITION, ForceInput.Request.KIND_STATE)
 
 
 class FakeAdmin(AdminState):
@@ -24,22 +22,6 @@ class FakeAdmin(AdminState):
             return self._once(request_id, now, lambda: Reply(
                 False, HOLDING_ITEM, "holding an item, confirm_drop first"))
         return self.set_lock(request_id, robot_id, locked, stopped, now)
-
-    def force(self, request_id, robot_id, kind, key, now) -> Reply:
-        def judge() -> Reply:
-            if robot_id != self.robot_id:
-                return Reply(False, UNKNOWN_TARGET, f"this is {self.robot_id}")
-            if self.mode != TEST_MODE:
-                return Reply(False, NOT_TEST_MODE, f"mode is {self.mode}")
-            if kind == ForceInput.Request.KIND_CLEAR:
-                self.forced = [k for k in self.forced if key and k != key]
-            elif kind in FORCE_KINDS:
-                if key not in self.forced:
-                    self.forced.append(key)
-            else:
-                return Reply(False, NOT_FOUND, f"unknown kind {kind!r}")
-            return Reply(True)
-        return self._once(request_id, now, judge)
 
     def fault_resolved(self, request_id, robot_id, now, clear: Callable | None = None) -> Reply:
         def judge() -> Reply:
@@ -77,7 +59,7 @@ def mount(node, contract, admin: FakeAdmin, lock, group, stopped: Callable[[], b
     def on_force(request, response):
         with lock:
             reply = admin.force(request.request_id, request.robot_id, request.kind, request.key,
-                                time.monotonic())
+                                request.value, time.monotonic())
         return _answer(response, request.request_id, reply)
 
     def on_charge_end(request, response):

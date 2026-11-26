@@ -52,5 +52,7 @@ def test_force_and_charge_end_need_the_test_mode(harness, tmp_path):
               kind="CONDITION", key="battery", value="20")
     assert res.accepted
     assert wait_until(lambda: list(p.states[-1][1].forced) == ["battery"], 5.0)
+    pode = next(n for n in harness.nodes if hasattr(n, "_admin"))
+    assert pode._admin.forced_values == {"battery": "20"}
     assert ask(p, RobotCommand, "pode_charge_end", "pode", request_id="c2",
                robot_id="pode1").accepted
