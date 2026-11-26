@@ -71,3 +71,16 @@ def test_live_pose_uses_the_map_to_odom_stamped_at_or_before_the_time(tmp_path):
                  (100.7, [_tf("odom", "base_footprint", 100.9, x=0.1)])])
     pose = _tool()._live(str(src), "pode2", [101.0])[101.0]
     assert pose[0] == pytest.approx(1.1)
+
+
+def test_score_moves_the_pose_to_the_lidar_when_sensor_x_is_given(tmp_path, capsys):
+    # 정답이 라이다 가운데면 base_footprint 자세를 라이다로 옮겨 잰다(yaw 180°면 뒤가 +x)
+    src = tmp_path / "src"
+    _write(src, [(100.0, [_tf("map", "odom", 100.0), _tf("odom", "base_footprint", 100.0)])])
+    (tmp_path / "truth.json").write_text('{"Q2": {"t": 100.0, "x": 1.0, "y": 0.0}}')
+    (tmp_path / "r.json").write_text('{"map": "m", "times": {"100.000": [1.0, 0.0, 180.0]}}')
+    _tool().score(type("A", (), {"bag": str(src), "ns": "pode2", "sensor_x": -0.017,
+                                 "truth": str(tmp_path / "truth.json"),
+                                 "runs": [str(tmp_path / "r.json")]})())
+    row = next(t for t in capsys.readouterr().out.splitlines() if t.startswith("| m | r |"))
+    assert "| 1.017, " in row and "| +1.7, " in row

@@ -30,6 +30,8 @@ python3 amcl_replay.py score --bag ~/ros2camp/real_data/2026-11-24/pode2/1124_am
 | `run_one.sh` | 한 판: 자기 도메인(`ROS_AUTOMATIC_DISCOVERY_RANGE=LOCALHOST`)에서 launch, probe, `ros2 bag play --clock`을 돌리고 끝나면 자기 프로세스 그룹만 내린다 |
 | `run_2026-11-24.sh` | 11-24 bag의 두 구간(Q2, O_IN)을 지도별로 N번씩 |
 | `truth_2026-11-24.json` | 11-24 줄자 정답과 잰 시각 |
+| `run_2026-11-26.sh` | 11-26 bag(1126_real) 19:01~19:14 구간(Q2 두 번, O_IN)을 한 도메인에서 N번 차례로. 결과 `results/2026-11-26/amcl_replay/` |
+| `truth_2026-11-26.json` | 11-26 줄자 정답(라이다 가운데)과 잰 시각 |
 
 ## 알아 둘 것
 
@@ -39,3 +41,4 @@ python3 amcl_replay.py score --bag ~/ros2camp/real_data/2026-11-24/pode2/1124_am
 - **정답 좌표계:** 줄자는 벽에서 라이다 가운데까지 쟀고, 정답은 벽이 도면 자리(x 0, 1.98, y 0, 0.98)에 있다고 보고 바꾼 값이다(`results/2026-11-24/measure_2026-11-24.md` 4단계). 관제 배치와 Nav2 goal이 모두 이 좌표계를 쓴다.
 - **같은 입력이면 같은 값:** 11-24 bag에서 같은 지도로 5번 돌린 결과가 모두 같았다(AMCL 난수가 판마다 같다). 지도 하나에 한 번이면 된다.
 - **lidar 거리 보정:** `prep --range-scale A --range-offset B`는 "읽은 값 = A × 실제 + B"를 거꾸로 풀어 scan을 고친 bag을 만든다(pode2 11-24: 0.958, 0.005).
+- **라이다 자리로 채점:** 정답이 라이다 가운데면 `score --sensor-x -0.017`(base_footprint → rplidar 앞뒤 거리)로 재생 자세를 라이다로 옮겨 잰다. 기본 0은 base_footprint 그대로다(11-25 표는 이 값 없이 냈다).
