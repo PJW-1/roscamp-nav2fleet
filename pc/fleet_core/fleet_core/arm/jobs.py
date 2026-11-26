@@ -235,6 +235,10 @@ class ArmJobs:
             cleared = None
         return not cleared and now >= r.retry_at
 
+    def holds(self, goal_id: int) -> bool:
+        """이 담기 목표를 아직 맡고 있는지. 포기하거나 잊은 목표는 보내지 않는다."""
+        return self._job_owner(goal_id, FILL) is not None
+
     def _job_owner(self, goal_id: int, kind: str) -> _Robot | None:
         for r in self._robots.values():
             if r.job and r.job.goal_id == goal_id and r.job.kind == kind:

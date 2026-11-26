@@ -390,3 +390,10 @@ def test_an_arm_error_while_filling_holds_the_order_for_the_arm():
     core.on_fill_result(fill.goal_id, False, {"A": 1}, {}, "ARM_FAULT")
     out = core.take_output()
     assert not cmds(out, "ReportOrderCmd") and codes(out) == ["ARM_LATE_RESULT"]
+
+
+def test_a_fill_given_up_on_an_arm_error_is_no_longer_held():
+    jobs, _, goal = started()
+    assert jobs.holds(goal.goal_id)
+    jobs.on_arm_state("arm_left", "ERROR", "GRIPPER_JAM", False)
+    assert not jobs.holds(goal.goal_id)

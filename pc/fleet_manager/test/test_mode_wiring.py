@@ -24,8 +24,9 @@ FILL = FillCmd(goal_id=7, robot="pode1", station_id="WORK", order_id="O-1", item
 def node_with_spied_sends():
     rclpy.init(args=["--ros-args", "-p", "robots:=[pode1]"])
     fms = FleetManagerNode()
-    sent, results = [], []
+    sent, results, given_up = [], [], set()
     fms._send = lambda client, goal, key, *args, **kwargs: sent.append(key)
+    fms.core.arm.holds = lambda goal_id: goal_id not in given_up
     fms.core.on_fill_result = (
         lambda goal_id, success, placed, missing, reason="", **kwargs:
         results.append((goal_id, success, reason)))
@@ -34,7 +35,7 @@ def node_with_spied_sends():
         fms.destroy_node()
         rclpy.shutdown()
 
-    return fms, sent, results, stop
+    return fms, sent, results, given_up, stop
 
 
 def arms_report(fms, left, right):
@@ -44,7 +45,7 @@ def arms_report(fms, left, right):
 
 
 def test_a_fill_waits_until_both_arms_report_the_system_mode():
-    fms, sent, _, stop = node_with_spied_sends()
+    fms, sent, _, _, stop = node_with_spied_sends()
     try:
         fms._mode_sync.on_system_mode("TEST")
         arms_report(fms, "TEST", "UNKNOWN")
@@ -60,7 +61,7 @@ def test_a_fill_waits_until_both_arms_report_the_system_mode():
 
 
 def test_a_fill_goes_at_once_while_the_system_mode_is_unknown():
-    fms, sent, _, stop = node_with_spied_sends()
+    fms, sent, _, _, stop = node_with_spied_sends()
     try:
         arms_report(fms, "UNKNOWN", "UNKNOWN")
         fms._dispatch(FILL, time.monotonic())
@@ -70,7 +71,7 @@ def test_a_fill_goes_at_once_while_the_system_mode_is_unknown():
 
 
 def test_a_held_fill_that_is_canceled_ends_as_canceled_and_is_never_sent():
-    fms, sent, results, stop = node_with_spied_sends()
+    fms, sent, results, _, stop = node_with_spied_sends()
     try:
         fms._mode_sync.on_system_mode("TEST")
         arms_report(fms, "UNKNOWN", "UNKNOWN")
@@ -79,5 +80,19 @@ def test_a_held_fill_that_is_canceled_ends_as_canceled_and_is_never_sent():
         arms_report(fms, "TEST", "TEST")
         fms._release_fills()
         assert sent == [] and results == [(7, False, "CANCELED")]
+    finally:
+        stop()
+
+
+def test_a_held_fill_the_core_gave_up_on_is_dropped_and_never_sent():
+    fms, sent, results, given_up, stop = node_with_spied_sends()
+    try:
+        fms._mode_sync.on_system_mode("TEST")
+        arms_report(fms, "UNKNOWN", "UNKNOWN")
+        fms._dispatch(FILL, time.monotonic())
+        given_up.add(7)  # 팔 ERROR로 코어가 작업을 포기함 (취소 명령 없음)
+        arms_report(fms, "TEST", "TEST")
+        fms._release_fills()
+        assert sent == [] and results == [] and fms._held_fills == []
     finally:
         stop()

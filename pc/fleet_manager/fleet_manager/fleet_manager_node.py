@@ -571,9 +571,10 @@ class FleetManagerNode(Node):
         now = self._now()
         if now > 0.0 and not self.silent():
             self._sync_modes(time.monotonic())
-            self._release_fills()
             for command in self.core.tick():
                 self._dispatch(command, now)
+            # 코어가 낸 취소 · 타임아웃을 먼저 처리한 뒤 보낸다
+            self._release_fills()
             self._retry_cancels(now)
             self._flush_reports(now)
             self._bridge.flush()
@@ -746,10 +747,16 @@ class FleetManagerNode(Node):
             f"{self._mode_sync.system_mode}")
 
     def _release_fills(self) -> None:
-        ready = [c for c in self._held_fills if not self._arms_waiting(c)]
-        if not ready:
+        if not self._held_fills:
             return
-        self._held_fills = [c for c in self._held_fills if all(c is not r for r in ready)]
+        # 팔 ERROR · 초기화로 코어가 이미 포기한 목표는 취소 명령 없이 버린다
+        for command in self._held_fills:
+            if not self.core.arm.holds(command.goal_id):
+                self.get_logger().info(f"held fill goal {command.goal_id} dropped: "
+                                       "the core gave the job up")
+        live = [c for c in self._held_fills if self.core.arm.holds(c.goal_id)]
+        ready = [c for c in live if not self._arms_waiting(c)]
+        self._held_fills = [c for c in live if all(c is not r for r in ready)]
         for command in ready:
             self._send_fill(command)
 
