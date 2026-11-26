@@ -19,6 +19,12 @@ def test_force_ship_rejections_use_contract_codes(contract):
     assert codes and codes <= set(contract.reason_codes["request_rejected"])
 
 
+def test_clear_and_reinstate_rejections_use_contract_codes(contract):
+    from fleet_core.common import commands
+    codes = {getattr(commands, n) for n in dir(commands) if n.startswith("REJECT_")}
+    assert codes and codes <= set(contract.reason_codes["request_rejected"])
+
+
 def test_topic_name_is_built_from_key_and_placeholder(contract):
     assert contract.name("robot_state", pode="pode2") == "/pode2/state"
     assert contract.name("order_board") == "/central/orders"
@@ -108,7 +114,8 @@ def test_contract_0_7_names_the_arms_like_the_spec(contract):
     assert contract.name("swap_basket", arm="arm_ship") == "/arm_ship/swap_basket"
     names = {e.name for e in contract.expanded()}
     assert {"/arm_left/state", "/arm_right/state", "/arm_ship/state"} <= names
-    assert "/arm_ship/set_lock" not in names and "/arm_ship/fault_resolved" not in names
+    # 명세 v0.2 (11-24): Phony도 락 해제 · 잠금 대상이다
+    assert "/arm_ship/set_lock" in names and "/arm_ship/fault_resolved" not in names
     assert {"/arm_ship/set_mode", "/arm_ship/force", "/pode1/charge_end"} <= names
 
 
