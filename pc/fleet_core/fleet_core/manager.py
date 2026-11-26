@@ -164,9 +164,18 @@ class FleetManager(ManagerRoute, ManagerViews, ManagerRecord):
             self._pump()
 
     # ---- 팔 작업 결과 입력 전달 ----
-    def on_fill_result(self, goal_id, success, placed, missing, reason="") -> None:
-        self._input("on_fill_result", goal_id, success, placed, missing, reason)
-        self.arm.on_fill_result(goal_id, success, placed, missing, reason)
+    def on_fill_result(self, goal_id, success, placed, missing, reason="",
+                       placed_confirmed=None, uncertain=None) -> None:
+        self._input("on_fill_result", goal_id, success, placed, missing, reason,
+                    placed_confirmed, uncertain)
+        self.arm.on_fill_result(goal_id, success, placed, missing, reason, placed_confirmed,
+                                uncertain)
+        self._pump()
+
+    # ---- 팔 상태 입력: ERROR로 바뀌면 하던 작업을 팔 고장으로 넘긴다 ----
+    def on_arm_state(self, arm, state, detail="", holding=False) -> None:
+        self._input("on_arm_state", arm, state, detail, holding)
+        self.arm.on_arm_state(text(arm), text(state), text(detail), bool(holding))
         self._pump()
 
     def on_swap_result(self, goal_id, success, took_full, put_empty_done, reason="") -> None:

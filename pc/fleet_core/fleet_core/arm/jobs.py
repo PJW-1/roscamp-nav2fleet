@@ -27,6 +27,7 @@ from fleet_core.common.commands import (
 # ---- 작업 상수와 작업, 로봇 기록 ----
 STOP = "STOP"
 CANCELED = "CANCELED"
+ARM_ERROR = "ERROR"
 
 _CODES = {FILL: ("FILL_RETRY", "FILL_FAILED"), SWAP: ("SWAP_RETRY", "SWAP_FAILED")}
 
@@ -62,6 +63,9 @@ class ArmJobs:
         self._out: list = []
         self._run_mode: str | None = None
         self._cleared_jobs: dict[str, tuple[int, float]] = {}
+        # 팔 이름 -> 그 팔이 일하는 스테이션 서버, ERROR를 보고 있는 팔
+        self._server_of = {arm: s.server for s in stations.values() for arm in s.arms}
+        self._arm_errors: set[str] = set()
 
     # TODO(Q-05) PAUSE 때 담기 목표 안에서 멈추는 신호 미정(W-42), 지금은 STOP만 취소
     def on_run_mode(self, run_mode) -> None:
@@ -72,14 +76,18 @@ class ArmJobs:
         self._run_mode = run_mode
 
     # ---- 팔 결과 보고 받기 ----
-    def on_fill_result(self, goal_id, success, placed, missing, reason="") -> None:
+    def on_fill_result(self, goal_id, success, placed, missing, reason="",
+                       placed_confirmed=None, uncertain=None) -> None:
         self._forget_cleared_job(goal_id)
         r = self._unexpired_owner(goal_id, FILL)
         if r is None:
             self._out.append(ArmLate(goal_id, FILL, placed=placed))
             return
         r.last, r.job = (r.job, reason), None
-        self._out.append(ArmFillResult(r.name, success, placed))
+        # 확인된 수를 안 주면 placed가 확인된 수다(0.6 호환)
+        confirmed = placed if placed_confirmed is None else placed_confirmed
+        self._out.append(ArmFillResult(r.name, success, placed, reason, dict(missing),
+                                       dict(confirmed), dict(uncertain or {})))
 
     def on_swap_result(self, goal_id, success, took_full, put_empty_done, reason="") -> None:
         self._forget_cleared_job(goal_id)
@@ -90,6 +98,31 @@ class ArmJobs:
             return
         r.last, r.job = (r.job, reason), None
         self._out.append(ArmSwapResult(r.name, took_full, put_empty_done))
+
+    # ---- 팔 상태: ERROR로 바뀔 때만 한 번 반응한다 ----
+    def on_arm_state(self, arm, state, detail="", holding=False) -> None:
+        server = self._server_of.get(arm)
+        if server is None:
+            return
+        if state != ARM_ERROR:
+            self._arm_errors.discard(arm)
+            return
+        if arm in self._arm_errors:
+            return
+        self._arm_errors.add(arm)
+        held = " holding an item" if holding else ""
+        r = next((r for r in self._robots.values() if r.job and r.job.server == server), None)
+        if r is None:
+            # TODO(Q-03) 팔 고장 동안 새 배차를 막을지 미정, 지금은 사건만 낸다
+            self._event("ERROR", "ARM_ERROR", f"{arm} ERROR {detail}{held}, no job running",
+                        arm)
+            return
+        job, r.job = r.job, None
+        reason = f"{arm} ERROR {detail} during {server} goal {job.goal_id}"
+        # 결과를 잃은 작업으로 남겨, 나중에 온 결과는 늦은 결과로 한 번만 처리된다
+        self._out.append(ArmLost(r.name, job.goal_id, job.server, job.kind))
+        self._out.append(ArmFault(r.name, job.kind, job.server, reason))
+        self._event("ERROR", "ARM_ERROR", f"{reason}{held}, {r.name} job given up", arm)
 
     # ---- 시간 초과 점검 ----
     def check_timeouts(self, now: float) -> None:

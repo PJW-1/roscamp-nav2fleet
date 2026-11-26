@@ -12,7 +12,14 @@ rclpy = pytest.importorskip("rclpy")
 pytest.importorskip("fleet_interfaces")
 
 from fleet_core.fleet_map import load_fleet_map  # noqa: E402
-from fleet_interfaces.msg import Order, OrderBoard, OrderItem, RobotState, SystemMode  # noqa: E402
+from fleet_interfaces.msg import (  # noqa: E402
+    ArmState,
+    Order,
+    OrderBoard,
+    OrderItem,
+    RobotState,
+    SystemMode,
+)
 from fleet_manager.fleet_manager_node import FleetManagerNode, make_executor  # noqa: E402
 from rclpy.action import ActionClient  # noqa: E402
 from rclpy.executors import MultiThreadedExecutor  # noqa: E402
@@ -176,3 +183,28 @@ def test_a_slow_tick_is_warned_once_in_a_while(monkeypatch):
         rclpy.shutdown()
     slow = [text for level, text in logged if level == "warning" and "tick took" in text]
     assert len(slow) == 1, logged
+
+
+def test_an_arm_state_reaches_the_core_only_when_it_changes(node):
+    spy = CoreSpy(node.core, node)
+    node.core = spy
+    node._silent_until = 0.0
+    [on_arm] = callbacks_of(node, node.contract.name("arm_state", arm="arm_left"))
+    for state in ("IDLE", "IDLE", "ERROR", "ERROR", "IDLE"):
+        on_arm(ArmState(arm_id="arm_left", state=state, mode="UNKNOWN", boot_id="b1"))
+    node._drain()
+    assert [name for name, _ in spy.calls if name == "on_arm_state"] == ["on_arm_state"] * 3
+
+
+def test_an_arm_state_during_the_start_silence_is_fed_once_it_ends(node):
+    spy = CoreSpy(node.core, node)
+    node.core = spy
+    node._silent_until = float("inf")
+    [on_arm] = callbacks_of(node, node.contract.name("arm_state", arm="arm_right"))
+    on_arm(ArmState(arm_id="arm_right", state="ERROR", boot_id="b1"))
+    node._drain()
+    assert not [c for c in spy.calls if c[0] == "on_arm_state"]
+    node._silent_until = 0.0
+    on_arm(ArmState(arm_id="arm_right", state="ERROR", boot_id="b1"))
+    node._drain()
+    assert [c[0] for c in spy.calls].count("on_arm_state") == 1
