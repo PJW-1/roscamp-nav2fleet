@@ -73,6 +73,13 @@ class RobotCalls:
         self._calls[request_id] = _Call(request_id, command, target, client, request, observe,
                                         then, now, now)
 
+    def pending(self, command, target) -> str | None:
+        """target에 아직 끝나지 않은 command가 있으면 그 request_id."""
+        for c in self._calls.values():
+            if c.command == command and c.target == target:
+                return c.request_id
+        return None
+
     def _factor(self) -> float:
         return 1.0 - RETRY_JITTER + 2.0 * RETRY_JITTER * self._rand()
 

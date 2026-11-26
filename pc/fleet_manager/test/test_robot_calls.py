@@ -197,3 +197,13 @@ def test_an_answer_or_observation_past_the_deadline_does_not_confirm():
     assert calls.on_answer("r1", None, True, now=30.5) == []
     calls.step(30.5, lambda _c: True)
     assert [r[3] for r in box.reports] == ["UNCONFIRMED", "TIMEOUT"]
+
+
+def test_pending_names_the_open_call_of_a_command_on_a_target():
+    calls, box = make()
+    assert calls.pending("set_lock", "pode1") is None
+    add(calls, box)
+    assert calls.pending("set_lock", "pode1") == "r1"
+    assert calls.pending("set_lock", "pode2") is None
+    calls.on_answer("r1", None, True)
+    assert calls.pending("set_lock", "pode1") is None

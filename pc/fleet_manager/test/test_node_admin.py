@@ -333,11 +333,13 @@ def test_an_empty_request_id_gets_its_own_id_and_each_call_is_sent(graph):
     assert wait_for(lambda: len([a for a in graph.asked if a[0] == "set_lock"]) == 2, 5.0)
 
 
-def test_only_the_last_set_lock_decides_the_assignment_block(graph):
-    fms = graph.fms
+def test_a_second_set_lock_while_one_is_pending_is_not_ready(graph):
+    graph.answer = "late"
+    graph.late_s = 1.0
     call(graph, SetLock, "set_lock", request_id="O-1", robot_id="pode1", locked=False)
-    call(graph, SetLock, "set_lock", request_id="O-2", robot_id="pode1", locked=True)
-    assert wait_for(lambda: results(graph, "O-1") and results(graph, "O-2"), 5.0)
-    # 앞선 풀기의 결과가 뒤에 와도 마지막 잠그기가 정한다
-    fms._lock_result("pode1", False, False, "O-1", True)
-    assert not released(graph)
+    second = call(graph, SetLock, "set_lock", request_id="O-2", robot_id="pode1", locked=True)
+    assert (second.accepted, second.reason) == (False, "NOT_READY") and "O-1" in second.detail
+    assert wait_for(lambda: results(graph, "O-1")[-1:] == ["ACCEPTED"], 5.0), \
+        reports(graph, "O-1")
+    third = call(graph, SetLock, "set_lock", request_id="O-3", robot_id="pode1", locked=True)
+    assert third.accepted

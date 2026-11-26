@@ -269,7 +269,6 @@ class FleetManagerNode(Node):
             charge_end=within("pode_charge_end", "pode", pods),
             force_input=within("robot_force", "robot", pods + arms))
         self._released = {}  # 락이 풀린 로봇 -> 풀 때 본 boot_id
-        self._lock_latest = {}  # 로봇 -> 마지막으로 보낸 set_lock request_id
 
     def _instances(self, key, field) -> list:
         entry = self.contract.entries[key]
@@ -387,9 +386,14 @@ class FleetManagerNode(Node):
     def _on_set_lock(self, request, response):
         self._drain()
         rid, robot, locked = _request_id(request), request.robot_id, bool(request.locked)
-        judge = lambda: judge_set_lock(  # noqa: E731
-            self._admin.codes, self._admin_targets, robot, locked, request.confirm_drop,
-            self._lock_facts)
+
+        def judge():
+            # 같은 로봇의 set_lock은 하나씩: 앞 명령이 끝나야 다음을 받는다
+            busy = self._robot_calls.pending(self._command("set_lock"), robot)
+            if busy is not None:
+                return Reply(False, self._admin.codes.NOT_READY, f"set_lock {busy} still pending")
+            return judge_set_lock(self._admin.codes, self._admin_targets, robot, locked,
+                                  request.confirm_drop, self._lock_facts)
         return _answer(response, rid, self._admin.robot(
             self._command("set_lock"), rid, robot, judge,
             partial(self._send_set_lock, rid, robot, locked, bool(request.confirm_drop))))
@@ -441,7 +445,6 @@ class FleetManagerNode(Node):
 
     def _send_set_lock(self, rid, robot, locked, confirm_drop) -> None:
         was = robot in self._released
-        self._lock_latest[robot] = rid
         if not locked:
             # 풀기는 받자마자 배정에서 뺀다. 로봇이 거절하면 되돌린다
             self._set_released(robot, True, f"set_lock {rid}")
@@ -449,11 +452,9 @@ class FleetManagerNode(Node):
                          SetLock.Request(request_id=rid, robot_id=robot, locked=locked,
                                          confirm_drop=confirm_drop),
                          observe=lambda state: bool(state.lock) == locked,
-                         then=partial(self._lock_result, robot, locked, was, rid))
+                         then=partial(self._lock_result, robot, locked, was))
 
-    def _lock_result(self, robot, locked, was_released, rid, accepted) -> None:
-        if self._lock_latest.get(robot) != rid:
-            return  # 뒤에 온 set_lock이 정한다
+    def _lock_result(self, robot, locked, was_released, accepted) -> None:
         if accepted:
             self._set_released(robot, not locked, "set_lock confirmed")
         elif accepted is False and not locked:
