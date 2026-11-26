@@ -397,7 +397,7 @@ def test_a_bad_clear_gives_a_reason_and_input_rejected_and_the_ticks_go_on(graph
         robot_id="pode1", zone_ids=["NOPE"], note="typo"))
     assert wait_for(future.done, 10.0), "no reply: the callback raised"
     result = future.result()
-    assert not result.accepted and "NOPE" in result.reason
+    assert not result.accepted and result.reason == "NOT_FOUND" and "NOPE" in result.detail
     assert wait_for(lambda: any(e.code == "INPUT_REJECTED" for e in graph.events), 10.0)
     rejected = [e for e in graph.events if e.code == "INPUT_REJECTED"]
     assert len(rejected) == 1 and rejected[0].level == "WARN"
@@ -407,7 +407,8 @@ def test_a_bad_clear_gives_a_reason_and_input_rejected_and_the_ticks_go_on(graph
     assert wait_for(lambda: len(graph.status) >= 2, 10.0), "no /fleet/robots after the call"
     second = client.call_async(ConfirmClear.Request(robot_id="pode9", zone_ids=[], note="x"))
     assert wait_for(second.done, 10.0)
-    assert not second.result().accepted and "pode9" in second.result().reason
+    assert not second.result().accepted and second.result().reason == "UNKNOWN_TARGET"
+    assert "pode9" in second.result().detail
     publish(graph, "RUN", {"A": 1, "C": 2})
     assert wait_for(lambda: graph.reports), "the node stopped working orders"
 
@@ -422,13 +423,15 @@ def test_reinstate_takes_a_cleared_robot_back_and_refuses_a_bad_call_with_a_reas
     graph.events.clear()
     early = back.call_async(Reinstate.Request(robot_id="pode1", basket="EMPTY", note="x"))
     assert wait_for(early.done, 10.0), "no reply: the callback raised"
-    assert not early.result().accepted and "OUT_OF_SERVICE" in early.result().reason
+    assert not early.result().accepted and early.result().reason == "NOT_READY"
+    assert "OUT_OF_SERVICE" in early.result().detail
     cleared = clear.call_async(ConfirmClear.Request(
         robot_id="pode1", zone_ids=fms.core.zones.held_by("pode1"), note="lifted"))
     assert wait_for(cleared.done, 10.0) and cleared.result().accepted
     wrong = back.call_async(Reinstate.Request(robot_id="pode1", basket="FULL", note="x"))
     assert wait_for(wrong.done, 10.0)
-    assert not wrong.result().accepted and "basket" in wrong.result().reason
+    assert not wrong.result().accepted and wrong.result().reason == "ORDER_STATE"
+    assert "basket" in wrong.result().detail
     good = back.call_async(Reinstate.Request(
         robot_id="pode1", basket=Reinstate.Request.BASKET_EMPTY, note="back"))
     assert wait_for(good.done, 10.0)

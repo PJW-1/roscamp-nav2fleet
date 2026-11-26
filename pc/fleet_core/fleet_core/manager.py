@@ -6,6 +6,7 @@ import math
 from fleet_core.arm.jobs import ArmJobs
 from fleet_core.common.commands import (
     FILL,
+    FORCE_NOT_IMPLEMENTED,
     FORCE_UNKNOWN_ORDER,
     LOCAL_YIELD_STEPS,
     OBSTACLE_KINDS,
@@ -241,9 +242,9 @@ class FleetManager(ManagerRoute, ManagerViews, ManagerRecord):
         if not self.traffic.set_lock_released(name, bool(released)):
             return
         if released:
+            why = f"{text(detail)}; " if text(detail) else ""
             self._out.append(EventOut("WARN", "ROBOT_LOCK_RELEASED",
-                                      f"{text(detail)}; no new trips until it is locked".lstrip("; "),
-                                      name))
+                                      f"{why}no new trips until it is locked", name))
         else:
             self._out.append(EventOut("INFO", "ROBOT_LOCKED", "takes new trips again", name))
         self._pump()
@@ -275,6 +276,20 @@ class FleetManager(ManagerRoute, ManagerViews, ManagerRecord):
             self._reject(f"force_ship refused: {text(order_id)} {reason}")
         self._pump()
         return accepted, reason
+
+    # ---- 운영자 조작: 운반 건 명령 (resume_fill 등). 판단은 주문 쪽 몫 ----
+    def on_trip_command(self, command, trip_id, mark_missing=None) -> tuple[bool, str, str]:
+        """(받음, 거절 코드, 까닭). 주문 쪽에 on_trip_command가 없으면 NOT_IMPLEMENTED."""
+        mark_missing = dict(mark_missing or {})
+        self._input("on_trip_command", command, trip_id, mark_missing)
+        handler = getattr(self.orchestrator, "on_trip_command", None)
+        if handler is None:
+            return False, FORCE_NOT_IMPLEMENTED, "주문 쪽 미구현"
+        accepted, reason, detail = handler(text(command), text(trip_id), mark_missing)
+        if not accepted:
+            self._reject(f"{text(command)} refused: {text(trip_id)} {reason}")
+        self._pump()
+        return accepted, reason, detail
 
     # ---- 주기 처리: 코어를 순서대로 진행하고 나온 출력 반환 ----
     def tick(self) -> list:

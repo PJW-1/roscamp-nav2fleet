@@ -170,7 +170,7 @@ def test_reason_code_table_has_the_spec_codes(contract):
     assert {"NOT_FOUND", "LOCK_RELEASED", "HOLDING_ITEM", "MODE_MISMATCH", "NOT_READY",
             "ROBOT_TIMEOUT", "PICK_FAILED", "FLEET_RESTART", "NOTHING_TO_FILL",
             "FORCED_PARTIAL", "LATE_REPORT"} <= codes
-    assert len(codes) == 31
+    assert len(codes) == 32
 
 
 def test_entries_no_fake_node_opens_are_left_out_of_the_fake_check(contract):

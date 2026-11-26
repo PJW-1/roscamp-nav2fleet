@@ -69,7 +69,8 @@ def test_callbacks_sit_in_the_core_or_the_inbox_group(node):
     timers = list(node.timers)
     assert len(timers) == 3 and all(t.callback_group is core for t in timers)
     served = [s for s in node.services if s.srv_name.startswith("/fleet/")]
-    assert len(served) == 3 and all(s.callback_group is core for s in served)
+    # 관리 명령 12개: 치우기 · 다시 투입 · 운반 건 6개 · 로봇 명령 4개
+    assert len(served) == 12 and all(s.callback_group is core for s in served)
     subs = list(node.subscriptions)
     assert subs and all(s.callback_group is inbox for s in subs)
     clients = list(node.clients)
