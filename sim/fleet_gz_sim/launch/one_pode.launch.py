@@ -33,7 +33,7 @@ ARGS = {
                             "(pode_scan_filter). false면 띄우지 않는다(비교용)"),
     "wall_band_m": ("0.05", "스캔 거르개: 벽·진열대에서 이만큼 안의 점을 지운다(m)."
                             " 0.05는 D2 측정으로 고른 값(fixed_line_results.md)"),
-    "plan_keep": ("false", "true면(시험 중) Nav2 goal을 다시 계획할 때 길이가 비슷한 다른 길로"
+    "plan_keep": ("true", "true(기본)면 Nav2 goal을 다시 계획할 때 길이가 비슷한 다른 길로"
                            " 바꾸지 않고 지금 길을 지킨다(pode_plan_keep). false면 main과 같다"),
     "fixed_line_collision_check": ("false", "시뮬 전용. true면 고정 경로 controller 셋도 충돌"
                                            " 검사를 켠다. 마당 goal(FollowPathGoal)은 늘 켬"),

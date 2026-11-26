@@ -2,7 +2,7 @@
 # 로봇 안에서 원인 분석용 토픽을 rosbag으로 남긴다(SD 카드에 쓰므로 Wi-Fi가 끊겨도 남는다)
 #   bag_record.sh start pode1 1124_run1   # bags/<판 이름>에 쓴다
 #   bag_record.sh stop
-# 담는 토픽(모두 /<ns>/ 아래): scan, odom, cmd_vel, amcl_pose, particle_cloud, plan, tf, tf_static, state
+# 담는 토픽(모두 /<ns>/ 아래): scan, odom, cmd_vel, amcl_pose, particle_cloud, plan, plan_kept, tf, tf_static, state
 # 새 토픽을 잡는 데 몇 초 걸리므로 start.sh보다 먼저 켠다. 디스커버리 서버를 쓰면 SUPER=1로 전체 그래프를 본다
 cd "$(dirname "$(readlink -f "$0")")" || exit 1
 mkdir -p logs bags || exit 1
@@ -53,7 +53,7 @@ case $1 in
     # 새 세션으로 띄운다. 작업 제어 없이 뒤에서 도는 명령은 SIGINT를 무시하므로 env로 되돌린다
     # (stop이 SIGINT로 bag을 마무리한다). 잠금 fd는 넘기지 않는다
     setsid env --default-signal=INT bash -c \
-      'exec ros2 bag record -o "$2" -s mcap -e "^/$1/(scan|odom|cmd_vel|amcl_pose|particle_cloud|plan|tf|tf_static|state)$"' \
+      'exec ros2 bag record -o "$2" -s mcap -e "^/$1/(scan|odom|cmd_vel|amcl_pose|particle_cloud|plan|plan_kept|tf|tf_static|state)$"' \
       _ "$ns" "bags/$name" > "logs/bag_$name.log" 2>&1 < /dev/null 9>&- &
     pid=$!
     if ! echo "$pid $name" > logs/bag.pid; then

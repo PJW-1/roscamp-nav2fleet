@@ -247,8 +247,8 @@ def test_launch_declares_dock_aside_default_false():
     assert "".join(t.text for t in decl[0].default_value) == "false"
 
 
-def test_launch_declares_plan_keep_default_false():
-    # 길 유지 노드(해결안 A)는 실물에서 기본 꺼짐
+def test_launch_declares_plan_keep_default_true():
+    # 길 유지 노드(해결안 A)는 실물에서 기본 켬(11-26 실물 확인 뒤)
     import importlib.util
     _need_launch()
     from launch.actions import DeclareLaunchArgument
@@ -259,7 +259,7 @@ def test_launch_declares_plan_keep_default_false():
     decl = [a for a in mod.generate_launch_description().entities
             if isinstance(a, DeclareLaunchArgument) and a.name == "plan_keep"]
     assert len(decl) == 1
-    assert "".join(t.text for t in decl[0].default_value) == "false"
+    assert "".join(t.text for t in decl[0].default_value) == "true"
 
 
 # ---- deploy.sh: 복사하는 패키지가 기대는 저장소 패키지도 함께 복사한다 ----
@@ -291,7 +291,7 @@ def test_deploy_copies_every_repo_dependency():
                 assert repo[dep] in deployed, f"{rel} needs {dep} ({repo[dep]})"
 
 
-# ---- start.sh: PLAN_KEEP=1이면 launch에 plan_keep:=true ----
+# ---- start.sh: PLAN_KEEP 기본 켬, 0이면 launch에 plan_keep:=false ----
 def _start_args(tmp_path, extra):
     """start.sh는 진짜, 대역 ros2가 받은 인자를 한 줄에 하나씩 적는다."""
     kit = tmp_path / "kit"
@@ -314,14 +314,15 @@ def _start_args(tmp_path, extra):
     return run, seen.read_text().split("\n") if seen.exists() else None
 
 
-@pytest.mark.parametrize("extra, want", [({}, False), ({"PLAN_KEEP": "0"}, False),
-                                         ({"PLAN_KEEP": "1"}, True)])
+@pytest.mark.parametrize("extra, want", [({}, "true"), ({"PLAN_KEEP": ""}, "true"),
+                                         ({"PLAN_KEEP": "0"}, "false"),
+                                         ({"PLAN_KEEP": "1"}, "true")])
 def test_start_plan_keep(tmp_path, extra, want):
+    # launch 기본이 켬이라 끌 때도 값을 늘 넘긴다
     run, args = _start_args(tmp_path, extra)
     assert run.returncode == 0, run.stdout + run.stderr
     assert args is not None and "namespace:=pode1" in args
-    assert ("plan_keep:=true" in args) == want
-    assert not any(a.startswith("plan_keep:=") and a != "plan_keep:=true" for a in args)
+    assert [a for a in args if a.startswith("plan_keep:=")] == [f"plan_keep:={want}"]
 
 
 def test_start_refuses_bad_plan_keep(tmp_path):
@@ -912,20 +913,22 @@ def _start_with_fake_ros2(tmp_path, peer_robots, dock_stub=None, fixed_line=None
 # 예전 start.sh가 ros2에 넘기던 인자 그대로
 OLD_ARGV = ["launch", "./real_pode.launch.py", "namespace:=pode1", "initial_x:=0.12",
             "initial_y:=0.10", "initial_yaw:=1.5708"]
+# 길 유지는 기본 켬이라 start.sh가 늘 끝에 넘긴다
+KEEP = ["plan_keep:=true"]
 
 
 @pytest.mark.parametrize("value", ["pode1,pode2", "pode2,pode3", "pode_a"])
 def test_start_peer_robots_adds_peer_arguments(tmp_path, value):
     run, argv = _start_with_fake_ros2(tmp_path, value)
     assert run.returncode == 0, run.stdout + run.stderr
-    assert argv == OLD_ARGV + ["peer_obstacles:=true", f"peer_robots:={value}"]
+    assert argv == OLD_ARGV + ["peer_obstacles:=true", f"peer_robots:={value}"] + KEEP
 
 
 @pytest.mark.parametrize("value", [None, ""])
 def test_start_without_peer_robots_has_no_peer_arguments(tmp_path, value):
     run, argv = _start_with_fake_ros2(tmp_path, value)
     assert run.returncode == 0, run.stdout + run.stderr
-    assert argv == OLD_ARGV
+    assert argv == OLD_ARGV + KEEP
 
 
 @pytest.mark.parametrize("value", ["pode1;rm", "pode1,,pode2", "Pode1", "pode1,", ",pode1", "a b",
@@ -941,21 +944,21 @@ def test_start_refuses_bad_peer_robots_before_make_params(tmp_path, value):
 def test_start_dock_stub_adds_dock_aside(tmp_path):
     run, argv = _start_with_fake_ros2(tmp_path, None, "1")
     assert run.returncode == 0, run.stdout + run.stderr
-    assert argv == OLD_ARGV + ["dock_aside:=true"]
+    assert argv == OLD_ARGV + ["dock_aside:=true"] + KEEP
 
 
 def test_start_dock_stub_with_peers_order(tmp_path):
     run, argv = _start_with_fake_ros2(tmp_path, "pode1,pode2", "1")
     assert run.returncode == 0, run.stdout + run.stderr
     assert argv == OLD_ARGV + ["peer_obstacles:=true", "peer_robots:=pode1,pode2",
-                               "dock_aside:=true"]
+                               "dock_aside:=true"] + KEEP
 
 
 @pytest.mark.parametrize("value", [None, "", "0"])
 def test_start_dock_stub_off_keeps_old_argv(tmp_path, value):
     run, argv = _start_with_fake_ros2(tmp_path, None, value)
     assert run.returncode == 0, run.stdout + run.stderr
-    assert argv == OLD_ARGV
+    assert argv == OLD_ARGV + KEEP
 
 
 @pytest.mark.parametrize("value", ["yes", "true", "2", "1;rm", " 1"])
@@ -972,7 +975,7 @@ def test_start_fixed_line_check_passes_flag(tmp_path, value, flag):
     run, argv = _start_with_fake_ros2(tmp_path, None, None, value)
     assert run.returncode == 0, run.stdout + run.stderr
     assert ("--fixed-line-check" in run.stdout) is flag
-    assert argv == OLD_ARGV  # launch 인자는 그대로
+    assert argv == OLD_ARGV + KEEP  # launch 인자는 그대로
 
 
 @pytest.mark.parametrize("value", ["yes", "true", "2", "1;rm", " 1"])
@@ -1271,7 +1274,7 @@ def test_start_refuses_bad_no_motion(tmp_path, value):
 def test_start_no_motion_off_keeps_old_argv(tmp_path, value):
     run, argv = _no_motion_start(tmp_path, ["pode1", "0.12", "0.10", "1.5708"], NO_MOTION=value)
     assert run.returncode == 0, run.stdout + run.stderr
-    assert argv == OLD_ARGV
+    assert argv == OLD_ARGV + KEEP
 
 
 @pytest.mark.parametrize("value", [{"DOCK_STUB": "0"}, {"FIXED_LINE_CHECK": "0"},

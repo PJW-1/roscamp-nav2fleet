@@ -233,7 +233,7 @@ def test_the_corridor_box_schedule_runs_with_one_pode_on_o_in(one):
 
 
 # ---- 길 유지(pode_plan_keep): 한 대는 nav2.launch.py가 노드를 띄운다 ----
-@pytest.mark.parametrize("text, keep", [(None, False), ("true", True), ("false", False)])
+@pytest.mark.parametrize("text, keep", [(None, True), ("true", True), ("false", False)])
 def test_the_plan_keep_switch_reaches_pode(one, monkeypatch, text, keep):
     need("pinky_description", "pode_nav_config", "pode_fsm")
     from fleet_gz_sim import launch_parts
@@ -249,6 +249,6 @@ def test_the_plan_keep_switch_reaches_pode(one, monkeypatch, text, keep):
 def test_one_pode_passes_plan_keep_to_nav2(one):
     need("pinky_description", "pode_nav_config", "pode_fsm")
     nav = nav_arguments(run(one))
-    assert (nav["plan_keep"], nav["plan_keep_node"]) == ("false", "true")
-    nav = nav_arguments(run(one, plan_keep="true"))
     assert (nav["plan_keep"], nav["plan_keep_node"]) == ("true", "true")
+    nav = nav_arguments(run(one, plan_keep="false"))
+    assert (nav["plan_keep"], nav["plan_keep_node"]) == ("false", "true")
