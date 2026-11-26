@@ -1,0 +1,24 @@
+# 실물 두 대 시험 둘째 판: real_two_orders에서 출발 칸만 바꿈(pode1 P-2, pode2 P-1).
+# 주문 4건은 gz_v7의 앞 4건과 같고 20 s 늦춰 한 번만 넣는다. 도킹은 PC 대역(DOCK_STUB=1)이 받는다.
+# 벽시계로 돈다. robots의 speed_scale, pose_noise_m은 실물에 쓰이지 않는다.
+map: v7
+seed: 65
+speed_factor: 1.0
+timeout_s: 1800
+stock: {arm_left: {A: 20, B: 20}, arm_right: {C: 20, D: 20}}
+orders:
+  - {at_s: 20, id: R-001, items: {A: 1, C: 1}}
+  - {at_s: 40, id: R-002, items: {B: 1}}
+  - {at_s: 60, id: R-003, items: {D: 1, A: 1}}
+  - {at_s: 80, id: R-004, items: {C: 1}}
+robots:
+  pode1: {start: P-2, speed_scale: 1.0, pose_noise_m: 0.03}
+  pode2: {start: P-1, speed_scale: 1.0, pose_noise_m: 0.03}
+arm: {seconds_per_item: 4.0, swap_seconds: 8.0, fail_rate: 0.0}
+dock: {duration_s: 3.0, error_cm: 1.0}
+faults: []
+expect:
+  all_orders_finished: true
+  orders_shipped: 4
+  orders_partial: 0
+  orders_held: 0

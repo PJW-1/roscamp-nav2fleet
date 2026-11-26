@@ -1,0 +1,116 @@
+[INFO] [launch]: All log files can be found below /home/ane/.ros/log/2026-11-26-19-14-45-629170-ane-GP75-Leopard-10SEK-251617
+[INFO] [launch]: Default logging verbosity is set to INFO
+[INFO] [fleet_manager_node-1]: process started with pid [251664]
+[INFO] [fake_workcell_node-2]: process started with pid [251665]
+[INFO] [fake_arm_node-3]: process started with pid [251666]
+[INFO] [fake_central_node-4]: process started with pid [251667]
+[INFO] [real_dock_wait_node-5]: process started with pid [251668]
+[real_dock_wait_node-5] [WARN] [1795688086.332983311] [real_dock_wait]: REAL DOCK WAIT for ['pode2']: dock = wait 3.0 s, then the robot's own pose must be near the dock. The robots must run with DOCK_STUB=1.
+[fleet_manager_node-1] [INFO] [1795688106.369986493] [fleet_manager]: ZONE_GRANTED HALL to Q2
+[fleet_manager_node-1] [INFO] [1795688106.371994453] [fleet_manager]: ORDER_SENT pode2-1: base to Q2, horizon to W
+[fleet_manager_node-1] [INFO] [1795688107.548387459] [fleet_manager]: SEGMENT_DONE pode2-1 seq 1 (follow_path) to E-1
+[fleet_manager_node-1] [INFO] [1795688120.348712754] [fleet_manager]: ZONE_GRANTED HALL to Q1
+[fleet_manager_node-1] [INFO] [1795688120.349632869] [fleet_manager]: ORDER_UPDATED pode2-1 update 1: base to Q1
+[fleet_manager_node-1] [INFO] [1795688122.448984242] [fleet_manager]: SEGMENT_DONE pode2-1 seq 2 (nav_goal) to Q2
+[fleet_manager_node-1] [INFO] [1795688122.449311775] [fleet_manager]: ZONE_GRANTED HALL+WORK_DOCK to W
+[fleet_manager_node-1] [INFO] [1795688122.449888350] [fleet_manager]: ORDER_UPDATED pode2-1 update 2: base to W
+[fleet_manager_node-1] [INFO] [1795688126.348213105] [fleet_manager]: SEGMENT_DONE pode2-1 seq 3 (follow_path) to Q1
+[fleet_manager_node-1] [INFO] [1795688129.249018577] [fleet_manager]: SEGMENT_DONE pode2-1 seq 4 (follow_path) to W
+[real_dock_wait_node-5] [INFO] [1795688132.255570128] [real_dock_wait]: pode2: dock WORK ok (2.8, -5.3) cm
+[fleet_manager_node-1] [INFO] [1795688132.348792065] [fleet_manager]: DOCKED at WORK: x 2.8 cm, y -5.3 cm, yaw 0.0 deg
+[fleet_manager_node-1] [INFO] [1795688132.349329918] [fleet_manager]: ORDER_BOUND R-001
+[fleet_manager_node-1] [INFO] [1795688138.448673901] [fleet_manager]: LANE_DIRECTION_SET EXPRESS from W_X
+[fleet_manager_node-1] [INFO] [1795688138.449076371] [fleet_manager]: ZONE_GRANTED WORK_DOCK+HALL+J_E+EXPRESS to O_X
+[fleet_manager_node-1] [INFO] [1795688138.449937284] [fleet_manager]: ORDER_SENT pode2-6: base to O_X, horizon to O
+[fleet_manager_node-1] [INFO] [1795688150.348486291] [fleet_manager]: ZONE_GRANTED EXPRESS+OUT_DOCK to O
+[fleet_manager_node-1] [INFO] [1795688150.349066678] [fleet_manager]: ORDER_UPDATED pode2-6 update 1: base to O
+[fleet_manager_node-1] [INFO] [1795688152.548332300] [fleet_manager]: SEGMENT_DONE pode2-6 seq 1 (follow_path) to O_X
+[fleet_manager_node-1] [INFO] [1795688155.748521898] [fleet_manager]: SEGMENT_DONE pode2-6 seq 2 (follow_path) to O
+[real_dock_wait_node-5] [INFO] [1795688158.752682266] [real_dock_wait]: pode2: dock OUTBOUND ok (5.0, 0.9) cm
+[fleet_manager_node-1] [INFO] [1795688158.849010732] [fleet_manager]: DOCKED at OUTBOUND: x 5.0 cm, y 0.9 cm, yaw 0.0 deg
+[fleet_manager_node-1] [INFO] [1795688166.950341473] [fleet_manager]: ZONE_GRANTED OUT_DOCK+HALL to P-1
+[fleet_manager_node-1] [INFO] [1795688166.951350871] [fleet_manager]: ORDER_SENT pode2-10: base to P-1
+[fleet_manager_node-1] [INFO] [1795688172.348482682] [fleet_manager]: SEGMENT_DONE pode2-10 seq 1 (follow_path) to O_OUT
+[fleet_manager_node-1] [INFO] [1795688178.348315830] [fleet_manager]: LOCAL_YIELD wait
+[fleet_manager_node-1] [INFO] [1795688180.348600185] [fleet_manager]: LOCAL_YIELD ends BLOCKED after 2 s
+[fleet_manager_node-1] [INFO] [1795688180.349010858] [fleet_manager]: BLOCKED_WAIT stands before something on the way to P-1
+[fleet_manager_node-1] [INFO] [1795688181.248739515] [fleet_manager]: SEGMENT_DONE pode2-10 seq 2 (nav_goal) to E-1
+[fleet_manager_node-1] [INFO] [1795688184.848594010] [fleet_manager]: SEGMENT_DONE pode2-10 seq 3 (retreat) to P-1
+[fleet_manager_node-1] [INFO] [1795688184.848923338] [fleet_manager]: RETREAT_DONE stands at P-1
+[WARNING] [launch]: user interrupted with ctrl-c (SIGINT)
+[INFO] [real_dock_wait_node-5]: sending signal 'SIGINT' to process[real_dock_wait_node-5]
+[INFO] [fake_central_node-4]: sending signal 'SIGINT' to process[fake_central_node-4]
+[INFO] [fake_arm_node-3]: sending signal 'SIGINT' to process[fake_arm_node-3]
+[INFO] [fake_workcell_node-2]: sending signal 'SIGINT' to process[fake_workcell_node-2]
+[INFO] [fleet_manager_node-1]: sending signal 'SIGINT' to process[fleet_manager_node-1]
+[fake_central_node-4] Traceback (most recent call last):
+[fake_central_node-4]   File "/home/ane/ros2camp/nav2fleet_ws/install/fake_robots/lib/fake_robots/fake_central_node", line 33, in <module>
+[fake_central_node-4]     sys.exit(load_entry_point('fake-robots==0.1.0', 'console_scripts', 'fake_central_node')())
+[fake_central_node-4]              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[fake_central_node-4]   File "/home/ane/ros2camp/nav2fleet_ws/install/fake_robots/lib/python3.12/site-packages/fake_robots/fake_central_node.py", line 215, in main
+[fake_central_node-4]     node.destroy_node()
+[fake_central_node-4]   File "/opt/ros/jazzy/lib/python3.12/site-packages/rclpy/node.py", line 1956, in destroy_node
+[fake_central_node-4]     self.destroy_publisher(self._publishers[0])
+[fake_central_node-4]   File "/opt/ros/jazzy/lib/python3.12/site-packages/rclpy/node.py", line 1836, in destroy_publisher
+[real_dock_wait_node-5] Traceback (most recent call last):
+[real_dock_wait_node-5]   File "/home/ane/ros2camp/nav2fleet_ws/install/fake_robots/lib/fake_robots/real_dock_wait_node", line 33, in <module>
+[real_dock_wait_node-5]     sys.exit(load_entry_point('fake-robots==0.1.0', 'console_scripts', 'real_dock_wait_node')())
+[real_dock_wait_node-5]              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[real_dock_wait_node-5]   File "/home/ane/ros2camp/nav2fleet_ws/install/fake_robots/lib/python3.12/site-packages/fake_robots/real_dock_wait_node.py", line 213, in main
+[real_dock_wait_node-5]     node.destroy_node()
+[real_dock_wait_node-5]   File "/home/ane/ros2camp/nav2fleet_ws/install/fake_robots/lib/python3.12/site-packages/fake_robots/real_dock_wait_node.py", line 97, in destroy_node
+[real_dock_wait_node-5]     return super().destroy_node()
+[real_dock_wait_node-5]            ^^^^^^^^^^^^^^^^^^^^^^
+[real_dock_wait_node-5]   File "/opt/ros/jazzy/lib/python3.12/site-packages/rclpy/node.py", line 1962, in destroy_node
+[fake_central_node-4]     publisher.destroy()
+[fake_central_node-4]   File "/opt/ros/jazzy/lib/python3.12/site-packages/rclpy/publisher.py", line 105, in destroy
+[fake_central_node-4]     self.__publisher.destroy_when_not_in_use()
+[fake_central_node-4] KeyboardInterrupt
+[real_dock_wait_node-5]     self.destroy_service(self._services[0])
+[real_dock_wait_node-5]   File "/opt/ros/jazzy/lib/python3.12/site-packages/rclpy/node.py", line 1886, in destroy_service
+[fake_workcell_node-2] Traceback (most recent call last):
+[fake_workcell_node-2]   File "/home/ane/ros2camp/nav2fleet_ws/install/fake_robots/lib/fake_robots/fake_workcell_node", line 33, in <module>
+[fake_workcell_node-2]     sys.exit(load_entry_point('fake-robots==0.1.0', 'console_scripts', 'fake_workcell_node')())
+[fake_workcell_node-2]              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[fake_workcell_node-2]   File "/home/ane/ros2camp/nav2fleet_ws/install/fake_robots/lib/python3.12/site-packages/fake_robots/fake_workcell_node.py", line 297, in main
+[fleet_manager_node-1] Traceback (most recent call last):
+[fleet_manager_node-1]   File "/home/ane/ros2camp/nav2fleet_ws/install/fleet_manager/lib/fleet_manager/fleet_manager_node", line 33, in <module>
+[real_dock_wait_node-5]     service.destroy()
+[real_dock_wait_node-5]   File "/opt/ros/jazzy/lib/python3.12/site-packages/rclpy/service.py", line 123, in destroy
+[real_dock_wait_node-5]     self.__service.destroy_when_not_in_use()
+[real_dock_wait_node-5] KeyboardInterrupt
+[fleet_manager_node-1]     sys.exit(load_entry_point('fleet-manager==0.1.0', 'console_scripts', 'fleet_manager_node')())
+[fleet_manager_node-1]              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[fleet_manager_node-1]   File "/home/ane/ros2camp/nav2fleet_ws/install/fleet_manager/lib/python3.12/site-packages/fleet_manager/fleet_manager_node.py", line 581, in main
+[fleet_manager_node-1]     node.destroy_node()
+[fleet_manager_node-1]   File "/home/ane/ros2camp/nav2fleet_ws/install/fleet_manager/lib/python3.12/site-packages/fleet_manager/fleet_manager_node.py", line 142, in destroy_node
+[fake_workcell_node-2]     node.destroy_node()
+[fake_workcell_node-2]   File "/home/ane/ros2camp/nav2fleet_ws/install/fake_robots/lib/python3.12/site-packages/fake_robots/fake_workcell_node.py", line 112, in destroy_node
+[fake_workcell_node-2]     self._server.destroy()
+[fake_workcell_node-2]   File "/opt/ros/jazzy/lib/python3.12/site-packages/rclpy/action/server.py", line 661, in destroy
+[fake_workcell_node-2]     self._handle.destroy_when_not_in_use()
+[fake_workcell_node-2] KeyboardInterrupt
+[fleet_manager_node-1]     super().destroy_node()
+[fleet_manager_node-1]   File "/opt/ros/jazzy/lib/python3.12/site-packages/rclpy/node.py", line 1958, in destroy_node
+[fake_arm_node-3] Traceback (most recent call last):
+[fake_arm_node-3]   File "/home/ane/ros2camp/nav2fleet_ws/install/fake_robots/lib/fake_robots/fake_arm_node", line 33, in <module>
+[fake_arm_node-3]     sys.exit(load_entry_point('fake-robots==0.1.0', 'console_scripts', 'fake_arm_node')())
+[fake_arm_node-3]              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[fake_arm_node-3]   File "/home/ane/ros2camp/nav2fleet_ws/install/fake_robots/lib/python3.12/site-packages/fake_robots/fake_arm_node.py", line 167, in main
+[fake_arm_node-3]     node.destroy_node()
+[fake_arm_node-3]   File "/home/ane/ros2camp/nav2fleet_ws/install/fake_robots/lib/python3.12/site-packages/fake_robots/fake_arm_node.py", line 76, in destroy_node
+[fake_arm_node-3]     self._server.destroy()
+[fleet_manager_node-1]     self.destroy_subscription(self._subscriptions[0])
+[fleet_manager_node-1]   File "/opt/ros/jazzy/lib/python3.12/site-packages/rclpy/node.py", line 1854, in destroy_subscription
+[fake_arm_node-3]   File "/opt/ros/jazzy/lib/python3.12/site-packages/rclpy/action/server.py", line 661, in destroy
+[fake_arm_node-3]     self._handle.destroy_when_not_in_use()
+[fake_arm_node-3] KeyboardInterrupt
+[fleet_manager_node-1]     subscription.destroy()
+[fleet_manager_node-1]   File "/opt/ros/jazzy/lib/python3.12/site-packages/rclpy/subscription.py", line 101, in destroy
+[fleet_manager_node-1]     self.handle.destroy_when_not_in_use()
+[fleet_manager_node-1] KeyboardInterrupt
+[ERROR] [fake_central_node-4]: process has died [pid 251667, exit code -2, cmd '/home/ane/ros2camp/nav2fleet_ws/install/fake_robots/lib/fake_robots/fake_central_node --ros-args -r __node:=fake_central --params-file /tmp/launch_params_4oygs1gw'].
+[ERROR] [fake_arm_node-3]: process has died [pid 251666, exit code -2, cmd '/home/ane/ros2camp/nav2fleet_ws/install/fake_robots/lib/fake_robots/fake_arm_node --ros-args -r __node:=fake_arm_ship --params-file /tmp/launch_params_9ux301jj'].
+[ERROR] [fake_workcell_node-2]: process has died [pid 251665, exit code -2, cmd '/home/ane/ros2camp/nav2fleet_ws/install/fake_robots/lib/fake_robots/fake_workcell_node --ros-args -r __node:=fake_workcell --params-file /tmp/launch_params_uxv0d_ja'].
+[ERROR] [real_dock_wait_node-5]: process has died [pid 251668, exit code -2, cmd '/home/ane/ros2camp/nav2fleet_ws/install/fake_robots/lib/fake_robots/real_dock_wait_node --ros-args -r __node:=real_dock_wait --params-file /tmp/launch_params_7gqpu9yq'].
+[ERROR] [fleet_manager_node-1]: process has died [pid 251664, exit code -2, cmd '/home/ane/ros2camp/nav2fleet_ws/install/fleet_manager/lib/fleet_manager/fleet_manager_node --record /home/ane/ros2camp/real_data/2026-11-26/fleet_express.jsonl --ros-args -r __node:=fleet_manager --params-file /tmp/launch_params_27pxyfmj'].
