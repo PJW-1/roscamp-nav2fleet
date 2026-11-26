@@ -28,7 +28,8 @@ qos_profiles:
 # ---- 사유 코드 표 (명세 2.2, IR-05) ----
 reason_codes:
   request_rejected: [NOT_FOUND, ALREADY_ASSIGNED, ORDER_STATE, NOT_STOPPED, LOCK_RELEASED, HOLDING_ITEM,
-                     NOT_TEST_MODE, MODE_MISMATCH, BATTERY_LOW, UNKNOWN_TARGET, NOT_READY]
+                     NOT_TEST_MODE, MODE_MISMATCH, BATTERY_LOW, UNKNOWN_TARGET, NOT_READY,
+                     NOT_IMPLEMENTED]
   command_result: [ROBOT_REJECTED, ROBOT_TIMEOUT]
   fill_pause: [PICK_FAILED, RECOGNITION_ERROR, OUT_OF_STOCK, DISTANCE_STOP, PAUSE_REQUESTED]
   hold: [ROBOT_FAULT, ARM_FAULT, FLEET_RESTART]
@@ -69,7 +70,7 @@ actions:
 services:
   # ---- 로봇 ↔ fleet ----
   - {key: check_clear, name: "/{pode}/check_clear", type: fleet_interfaces/srv/CheckClear, real_only: true}
-  - {key: robot_set_lock, name: "/{robot}/set_lock", type: fleet_interfaces/srv/SetLock, instances: {robot: [pode1, pode2, pode3, arm_left, arm_right]}, not_in_fake: true}
+  - {key: robot_set_lock, name: "/{robot}/set_lock", type: fleet_interfaces/srv/SetLock, not_in_fake: true}
   - {key: robot_set_mode, name: "/{robot}/set_mode", type: fleet_interfaces/srv/SetMode, not_in_fake: true}
   - {key: robot_force, name: "/{robot}/force", type: fleet_interfaces/srv/ForceInput, not_in_fake: true}
   - {key: arm_fault_resolved, name: "/{arm}/fault_resolved", type: fleet_interfaces/srv/RobotCommand, instances: {arm: [arm_left, arm_right]}, not_in_fake: true}

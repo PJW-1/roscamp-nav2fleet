@@ -15,6 +15,7 @@ from .zone.routes import segment_end  # noqa: F401
 @runtime_checkable
 class TrafficApi(Protocol):
     clear_reason: str
+    clear_moving: bool
 
     # ---- 로봇 상태 보고와 운영 입력 ----
     def on_robot_state(self, robot, x, y, yaw, state, battery=0.0, obstacle=None,
@@ -65,7 +66,7 @@ class TrafficApi(Protocol):
 
     # ---- 운영자의 로봇 치우기와 다시 투입 ----
     def confirm_clear(self, robot, zone_ids, note="") -> list[str] | None:
-        """지정 구역을 놓고 로봇을 OUT_OF_SERVICE로 만든다. 거절하면 None, 사유는 clear_reason."""
+        """지정 구역을 놓고 로봇을 OUT_OF_SERVICE로 만든다. 거절하면 None, 사유는 clear_reason · clear_moving."""
 
     def reinstate_refusal(self, robot) -> str:
         """치운 로봇을 다시 투입할 수 없는 이유를 돌려준다(없으면 빈 값)."""
@@ -75,6 +76,12 @@ class TrafficApi(Protocol):
 
     def set_mode_blocked(self, robot, blocked: bool) -> bool:
         """운영 모드가 다른 로봇을 새 호출에서 빼거나 되돌린다. 바뀌었으면 True."""
+
+    def set_lock_released(self, robot, released: bool) -> bool:
+        """락이 풀린 로봇을 새 호출에서 빼거나 되돌린다. 바뀌었으면 True."""
+
+    def lock_released(self, robot) -> bool:
+        """락이 풀려 있는지."""
 
     # ---- 로봇 목록과 운행 상태 조회 ----
     @property

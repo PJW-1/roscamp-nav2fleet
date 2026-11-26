@@ -146,6 +146,7 @@ class Robot:
     dispatch: Dispatch | None = None
     hold: bool = False
     mode_blocked: bool = False  # 운영 모드가 달라 새 호출에서 뺌 (IR-73)
+    lock_released: bool = False  # 락이 풀려 새 호출에서 뺌 (W-34)
     asked_at: float | None = None
     asked_gap: float = 0.0
     # ---- 구역 놓기, 양보와 물러나기, 감시 기록 ----

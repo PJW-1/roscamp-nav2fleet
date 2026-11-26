@@ -5,6 +5,8 @@ import argparse
 import math
 import threading
 import time
+import uuid
+from collections import deque
 from functools import partial, wraps
 
 import rclpy
@@ -42,8 +44,11 @@ from fleet_interfaces.msg import (
 from fleet_interfaces.srv import (
     CheckClear,
     ConfirmClear,
+    ForceInput,
     Reinstate,
     ReportOrder,
+    RobotCommand,
+    SetLock,
     SetMode,
     TripCommand,
 )
@@ -57,14 +62,30 @@ from rclpy.utilities import remove_ros_args
 from std_msgs.msg import Header
 
 from fleet_manager import adapters
+from fleet_manager.admin import (
+    AdminCommands,
+    Codes,
+    Facts,
+    Reply,
+    Targets,
+    judge_set_lock,
+    judge_target,
+    judge_test_only,
+)
 from fleet_manager.goal_tracker import GoalTracker, ReportOutbox
 from fleet_manager.inbox import Inbox
 from fleet_manager.mode_sync import ModeSync
 from fleet_manager.order_goals import apply_overrides
 from fleet_manager.reports import BridgeReports
+from fleet_manager.robot_calls import CallParams, RobotCalls
 
 
 SLOW_TICK_WARN_S = 5.0  # 느린 틱 경고 사이 최소 간격
+COMMAND_REPORTS_KEPT = 100  # 브리지 송신기를 잇기 전 기억하는 ReportCommand 수
+POD_MOVING = (RobotState.STATE_MOVING, RobotState.STATE_DOCKING, RobotState.STATE_RECOVERING)
+ARM_STOPPED = (ArmState.STATE_IDLE, ArmState.STATE_PAUSED, ArmState.STATE_ERROR)
+TRIP_COMMANDS = ("resume_fill", "force_ship", "force_partial", "return_to_shelf", "resume_held",
+                 "requeue_trip")
 
 
 def _core_callback(method):
@@ -89,6 +110,14 @@ class FleetManagerNode(Node):
         self.declare_parameter("params_file", "")
         self.declare_parameter("tick_hz", 10.0)
         self.declare_parameter("robots_hz", 5.0)  # 팀 명세 F-11: /fleet/robots 5 Hz 안팎
+        # 관리 명령 (W-30 · W-31, Q-09 잠정 값)
+        self.declare_parameter("admin_cache_size", 256)
+        self.declare_parameter("admin_cache_s", 600.0)
+        self.declare_parameter("robot_call_try_s", CallParams.try_s)
+        self.declare_parameter("robot_call_gap_s", CallParams.gap_s)
+        self.declare_parameter("robot_call_tries", CallParams.tries)
+        self.declare_parameter("robot_call_confirm_s", CallParams.confirm_s)
+        self.declare_parameter("robot_call_max_in_flight", CallParams.max_in_flight)
         unset = ParameterDescriptor(dynamic_typing=True)
         self.declare_parameter("use_order_model", None, unset)
         self.declare_parameter("lookahead_s", None, unset)
@@ -122,6 +151,7 @@ class FleetManagerNode(Node):
         self._pode_states = {}
         self._arm_states = {}
         self._arm_fed = {}
+        self._setup_admin(robots)
         # IR-30: 코어 그룹만 코어와 노드 상태를 바꾸고, 받은 편지함 그룹은 큐에 넣기만 한다
         self._core_group = MutuallyExclusiveCallbackGroup()
         self._inbox_group = MutuallyExclusiveCallbackGroup()
@@ -215,11 +245,71 @@ class FleetManagerNode(Node):
         self.create_service(ConfirmClear, name("confirm_clear"), self._on_confirm_clear,
                             callback_group=core)
         self.create_service(Reinstate, name("reinstate"), self._on_reinstate, callback_group=core)
-        self.create_service(TripCommand, name("force_ship"), self._on_force_ship,
-                            callback_group=core)
+        for key in TRIP_COMMANDS:
+            self.create_service(TripCommand, name(key), partial(self._on_trip_command, key),
+                                callback_group=core)
+        self._create_admin_interfaces()
         # 브리지 보고(IR-22·23·12): Hello로 epoch를 받기 전에는 쌓아 둔다
         self._bridge = BridgeReports(self, self.core.params, list(robots) + arms, self._post,
                                      getattr(self.core, "on_open_trips", None))
+
+    # ---- 관리 명령: 판단, 같은 번호, 로봇 부르기 (W-30 ~ W-34) ----
+    def _setup_admin(self, robots) -> None:
+        get = lambda key: self.get_parameter(key).value  # noqa: E731
+        codes = Codes(self.contract.reason_codes)
+        self.command_reports = deque(maxlen=COMMAND_REPORTS_KEPT)
+        self._admin = AdminCommands(codes, self.report_command, time.monotonic,
+                                    int(get("admin_cache_size")), float(get("admin_cache_s")))
+        self._robot_calls = RobotCalls(
+            CallParams(float(get("robot_call_try_s")), float(get("robot_call_gap_s")),
+                       int(get("robot_call_tries")), float(get("robot_call_confirm_s")),
+                       int(get("robot_call_max_in_flight"))),
+            codes, self.report_command, self._command_event)
+        pods = list(robots)
+        arms = list(self.contract.placeholders.get("arm", []))
+        within = lambda key, field, names: frozenset(  # noqa: E731
+            n for n in names if n in self._instances(key, field))
+        self._admin_targets = Targets(
+            set_lock=within("robot_set_lock", "robot", pods + arms),
+            fault_resolved=within("arm_fault_resolved", "arm", arms),
+            charge_end=within("pode_charge_end", "pode", pods),
+            force_input=within("robot_force", "robot", pods + arms))
+        self._released = {}  # 락이 풀린 로봇 -> 풀 때 본 boot_id
+
+    def _instances(self, key, field) -> list:
+        entry = self.contract.entries[key]
+        return list(entry.instances.get(field, self.contract.placeholders.get(field, [])))
+
+    def _create_admin_interfaces(self) -> None:
+        name, inbox, core, t = (self.contract.name, self._inbox_group, self._core_group,
+                                self._admin_targets)
+        self._lock_clients = {r: self.create_client(SetLock, name("robot_set_lock", robot=r),
+                                                    callback_group=inbox)
+                              for r in sorted(t.set_lock)}
+        self._fault_clients = {a: self.create_client(
+            RobotCommand, name("arm_fault_resolved", arm=a), callback_group=inbox)
+            for a in sorted(t.fault_resolved)}
+        self._charge_clients = {p: self.create_client(
+            RobotCommand, name("pode_charge_end", pode=p), callback_group=inbox)
+            for p in sorted(t.charge_end)}
+        self._force_clients = {r: self.create_client(ForceInput, name("robot_force", robot=r),
+                                                     callback_group=inbox)
+                               for r in sorted(t.force_input)}
+        self.create_service(SetLock, name("set_lock"), self._on_set_lock, callback_group=core)
+        self.create_service(RobotCommand, name("fault_resolved"), self._on_fault_resolved,
+                            callback_group=core)
+        self.create_service(RobotCommand, name("charge_end"), self._on_charge_end,
+                            callback_group=core)
+        self.create_service(ForceInput, name("force_input"), self._on_force_input,
+                            callback_group=core)
+        # TODO(Q-05): resume_arm은 팔 쪽 전달 방법이 정해지면 연다
+
+    def _command(self, key) -> str:
+        """ReportCommand의 command: 계약 서비스 이름의 끝 (예: set_lock)."""
+        return self.contract.name(key).rsplit("/", 1)[-1]
+
+    def _command_event(self, level, code, detail, source) -> None:
+        self._dispatch(EventOut(level, code, detail, source), self._now())
 
     # ---- 받은 편지함: 넣기(받은 편지함 그룹, 아무 스레드)와 꺼내 처리하기(코어 그룹) ----
     def _post(self, handler, *args) -> None:
@@ -233,6 +323,7 @@ class FleetManagerNode(Node):
     def _on_robot_state(self, robot, msg: RobotState) -> None:
         self._pode_states[robot] = msg
         self._mode_sync.on_state(robot, msg.mode, msg.boot_id, time.monotonic())
+        self._observe_lock(robot, msg)
         if not self.silent() and self._reachable(robot):
             self.core.on_robot_state(robot, *adapters.robot_report(msg),
                                      adapters.robot_report_id(msg),
@@ -242,6 +333,7 @@ class FleetManagerNode(Node):
     def _on_arm_state(self, arm, msg: ArmState) -> None:
         self._arm_states[arm] = (msg, time.monotonic())
         self._mode_sync.on_state(arm, msg.mode, msg.boot_id, time.monotonic())
+        self._observe_lock(arm, msg)
         # 5 Hz 상태 가운데 바뀐 것만 코어에 넣는다(기록이 부풀지 않게)
         seen = (msg.state, msg.detail, msg.holding)
         if not self.silent() and self._arm_fed.get(arm) != seen:
@@ -272,22 +364,194 @@ class FleetManagerNode(Node):
     @_core_callback
     def _on_confirm_clear(self, request, response):
         self._drain()
-        released = self.core.confirm_clear(*adapters.confirm_clear_args(request))
-        return adapters.confirm_clear_response(response, released, self.core.last_clear_reason,
-                                               request.request_id)
+
+        def apply():
+            released = self.core.confirm_clear(*adapters.confirm_clear_args(request))
+            return Reply(released is not None, self.core.last_clear_code,
+                         self.core.last_clear_reason, tuple(released or ()))
+        rid = _request_id(request)
+        reply = self._admin.local(self._command("confirm_clear"), rid, request.robot_id, apply)
+        response = adapters.confirm_clear_response(
+            response, list(reply.extra) if reply.accepted else None, reply.reason, rid)
+        response.detail = reply.detail
+        return response
 
     @_core_callback
     def _on_reinstate(self, request, response):
         self._drain()
-        accepted = self.core.reinstate(*adapters.reinstate_args(request))
-        return adapters.reinstate_response(response, accepted, self.core.last_reinstate_reason,
-                                           request.request_id)
+
+        def apply():
+            accepted = self.core.reinstate(*adapters.reinstate_args(request))
+            return Reply(accepted, self.core.last_reinstate_code, self.core.last_reinstate_reason)
+        rid = _request_id(request)
+        return _answer(response, rid, self._admin.local(
+            self._command("reinstate"), rid, request.robot_id, apply))
 
     @_core_callback
-    def _on_force_ship(self, request, response):
+    def _on_set_lock(self, request, response):
         self._drain()
-        accepted, reason = self.core.force_ship(adapters.force_ship_args(request))
-        return adapters.force_ship_response(response, accepted, reason, request.request_id)
+        rid, robot, locked = _request_id(request), request.robot_id, bool(request.locked)
+
+        def judge():
+            # 같은 로봇의 set_lock은 하나씩: 앞 명령이 끝나야 다음을 받는다
+            busy = self._robot_calls.pending(self._command("set_lock"), robot)
+            if busy is not None:
+                return Reply(False, self._admin.codes.NOT_READY, f"set_lock {busy} still pending")
+            return judge_set_lock(self._admin.codes, self._admin_targets, robot, locked,
+                                  request.confirm_drop, self._lock_facts)
+        return _answer(response, rid, self._admin.robot(
+            self._command("set_lock"), rid, robot, judge,
+            partial(self._send_set_lock, rid, robot, locked, bool(request.confirm_drop))))
+
+    @_core_callback
+    def _on_fault_resolved(self, request, response):
+        self._drain()
+        rid, robot = _request_id(request), request.robot_id
+        judge = lambda: judge_target(  # noqa: E731
+            self._admin.codes, self._admin_targets.fault_resolved, robot)
+        send = lambda: self._call_robot(  # noqa: E731
+            rid, "fault_resolved", robot, self._fault_clients,
+            RobotCommand.Request(request_id=rid, robot_id=robot),
+            observe=self._left_error if self._in_error(robot) else None)
+        return _answer(response, rid, self._admin.robot(
+            self._command("fault_resolved"), rid, robot, judge, send))
+
+    @_core_callback
+    def _on_charge_end(self, request, response):
+        self._drain()
+        rid, robot = _request_id(request), request.robot_id
+        judge = lambda: judge_test_only(  # noqa: E731
+            self._admin.codes, self._admin_targets.charge_end, robot,
+            self._mode_sync.system_mode)
+        send = lambda: self._call_robot(  # noqa: E731
+            rid, "charge_end", robot, self._charge_clients,
+            RobotCommand.Request(request_id=rid, robot_id=robot))
+        return _answer(response, rid, self._admin.robot(
+            self._command("charge_end"), rid, robot, judge, send))
+
+    @_core_callback
+    def _on_force_input(self, request, response):
+        self._drain()
+        rid, robot = _request_id(request), request.robot_id
+        judge = lambda: judge_test_only(  # noqa: E731
+            self._admin.codes, self._admin_targets.force_input, robot,
+            self._mode_sync.system_mode)
+        send = lambda: self._call_robot(  # noqa: E731
+            rid, "force_input", robot, self._force_clients,
+            ForceInput.Request(request_id=rid, robot_id=robot, kind=request.kind,
+                               key=request.key, value=request.value))
+        return _answer(response, rid, self._admin.robot(
+            self._command("force_input"), rid, robot, judge, send))
+
+    # ---- 로봇 부르기와 락 상태 ----
+    def _call_robot(self, rid, key, robot, clients, request, observe=None, then=None) -> None:
+        self._robot_calls.add(rid, self._command(key), robot, clients[robot], request,
+                              time.monotonic(), observe, then)
+
+    def _send_set_lock(self, rid, robot, locked, confirm_drop) -> None:
+        was = robot in self._released
+        if not locked:
+            # 풀기는 받자마자 배정에서 뺀다. 로봇이 거절하면 되돌린다
+            self._set_released(robot, True, f"set_lock {rid}")
+        self._call_robot(rid, "set_lock", robot, self._lock_clients,
+                         SetLock.Request(request_id=rid, robot_id=robot, locked=locked,
+                                         confirm_drop=confirm_drop),
+                         observe=lambda state: bool(state.lock) == locked,
+                         then=partial(self._lock_result, robot, locked, was))
+
+    def _lock_result(self, robot, locked, was_released, accepted) -> None:
+        if accepted:
+            self._set_released(robot, not locked, "set_lock confirmed")
+        elif accepted is False and not locked:
+            self._set_released(robot, was_released, "the robot refused set_lock")
+        # 결과 모름(None)이면 그대로 둔다: 풀렸을 수 있다
+
+    def _set_released(self, robot, released, detail) -> None:
+        if released:
+            if robot not in self._released:
+                self._released[robot] = self._boot_id(robot)
+        else:
+            self._released.pop(robot, None)
+        if robot in self.core.traffic.robots:
+            self.core.set_lock_released(robot, released, detail)
+        # TODO(Q-06): 팔 하나만 락이 풀렸을 때 FillBasket을 어떻게 할지 미정
+
+    def _in_error(self, arm) -> bool:
+        msg = self._arm_states.get(arm, (None,))[0]
+        return msg is not None and msg.state == ArmState.STATE_ERROR
+
+    @staticmethod
+    def _left_error(state) -> bool:
+        # 결과 모름은 ERROR였던 팔이 ERROR를 벗어나면 확정한다 (Phody DECIDE-5 제안)
+        return state.state != ArmState.STATE_ERROR
+
+    def _boot_id(self, robot) -> str:
+        msg = self._pode_states.get(robot) or self._arm_states.get(robot, (None,))[0]
+        return msg.boot_id if msg is not None else ""
+
+    def _lock_facts(self, robot) -> Facts:
+        """멈춤: Pode는 관제 goal이 없고 MOVING · DOCKING · RECOVERING이 아님, 팔은 IDLE · PAUSED · ERROR."""
+        if robot in self.core.traffic.robots:
+            msg = self._pode_states.get(robot)
+            view = self.core.traffic.robot_view(robot)
+            if msg is None or view.get("comm"):
+                return Facts(False, why=f"no fresh state from {robot}")
+            if msg.state in POD_MOVING:
+                return Facts(False, why=f"{robot} is {msg.state}")
+            if view.get("goal_id") is not None:
+                return Facts(False, why=f"{robot} has goal {view['goal_id']}")
+            return Facts(True)
+        msg, at = self._arm_states.get(robot, (None, None))
+        if msg is None or time.monotonic() - at > self.core.params.comm_timeout_s:
+            return Facts(False, why=f"no fresh state from {robot}")
+        if msg.state not in ARM_STOPPED:
+            return Facts(False, holding=bool(msg.holding), why=f"{robot} is {msg.state}")
+        return Facts(True, holding=bool(msg.holding))
+
+    def _observe_lock(self, robot, msg) -> None:
+        for client, future in self._robot_calls.observe(robot, msg, time.monotonic()):
+            client.remove_pending_request(future)
+        boot = self._released.get(robot)
+        # 다시 켜진 로봇은 잠긴 채 시작한다 (RobotState.lock: 켜질 때 true)
+        if boot is not None and msg.lock and msg.boot_id and msg.boot_id != boot:
+            self._set_released(robot, False, "rebooted with the lock on")
+
+    def _step_robot_calls(self) -> None:
+        step = self._robot_calls.step(time.monotonic(), lambda client: client.service_is_ready())
+        for client, future in step.drop:
+            client.remove_pending_request(future)
+        for rid, client, request in step.send:
+            future = client.call_async(request)
+            self._robot_calls.track(rid, future)
+            future.add_done_callback(partial(self._post, self._robot_answered, rid))
+
+    def _robot_answered(self, rid, future) -> None:
+        try:
+            reply = future.result()
+        except Exception as exc:  # noqa: BLE001
+            self.get_logger().warning(f"command {rid} got no reply: {exc}")
+            self._robot_calls.on_failed(rid, future)
+            return
+        for client, old in self._robot_calls.on_answer(rid, future, reply.accepted,
+                                                       reply.reason, reply.detail,
+                                                       time.monotonic()):
+            client.remove_pending_request(old)
+
+    @_core_callback
+    def _on_trip_command(self, key, request, response):
+        """운반 건 명령 6개: 판단은 주문 쪽, 처리 직후 ReportCommand 한 번 (W-32)."""
+        self._drain()
+        command = self._command(key)
+
+        def apply():
+            if key == "force_ship":
+                accepted, reason = self.core.force_ship(adapters.force_ship_args(request))
+                return Reply(accepted, "" if accepted else reason)
+            accepted, reason, detail = self.core.on_trip_command(
+                command, request.trip_id, adapters.from_order_items(request.mark_missing))
+            return Reply(accepted, "" if accepted else reason, detail)
+        rid = _request_id(request)
+        return _answer(response, rid, self._admin.local(command, rid, request.trip_id, apply))
 
     # ---- 주기 틱: 받은 사건 처리, 명령 내보내기, 취소 재시도, 주문 보고, 상태 발행 ----
     @_core_callback
@@ -295,6 +559,7 @@ class FleetManagerNode(Node):
         started = time.monotonic()
         waiting = self._inbox.qsize()
         self._drain()
+        self._step_robot_calls()
         now = self._now()
         if now > 0.0 and not self.silent():
             self._sync_modes(time.monotonic())
@@ -460,6 +725,9 @@ class FleetManagerNode(Node):
     def report_command(self, request_id: str, command: str, target: str, result: str,
                        reason: str = "", detail: str = "") -> None:
         """관리 명령 결과를 브리지에 보고한다(ReportCommand). 코어 그룹에서만 부른다."""
+        self.command_reports.append((request_id, command, target, result, reason, detail))
+        self.get_logger().info(
+            f"command {command} {request_id} on {target}: {result} {reason} {detail}".rstrip())
         self._bridge.command(request_id, command, target, result, reason, detail)
 
     def _ask_clear(self, command) -> None:
@@ -573,6 +841,18 @@ class FleetManagerNode(Node):
 
     def _swap_done(self, key, result) -> None:
         self.core.on_swap_result(key[1], *adapters.swap_result(result))
+
+
+def _request_id(request) -> str:
+    """IR-20: 번호가 없는 요청은 새 번호를 붙여 따로 다룬다 (응답에 실어 돌려준다)."""
+    return request.request_id or str(uuid.uuid4())
+
+
+def _answer(response, request_id, reply):
+    """관리 명령 공통 응답 (명세 4.4)."""
+    response.accepted, response.reason = reply.accepted, reply.reason
+    response.request_id, response.detail = str(request_id), reply.detail
+    return response
 
 
 # ---- 노드 실행 진입점 ----

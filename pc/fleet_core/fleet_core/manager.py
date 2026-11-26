@@ -6,14 +6,22 @@ import math
 from fleet_core.arm.jobs import ArmJobs
 from fleet_core.common.commands import (
     FILL,
+    FORCE_NOT_IMPLEMENTED,
     FORCE_UNKNOWN_ORDER,
     LOCAL_YIELD_STEPS,
     OBSTACLE_KINDS,
+    REJECT_LOCK_RELEASED,
+    REJECT_NOT_FOUND,
+    REJECT_NOT_READY,
+    REJECT_NOT_STOPPED,
+    REJECT_ORDER_STATE,
+    REJECT_UNKNOWN_TARGET,
     SWAP,
     EventOut,
 )
 from fleet_core.common.validate import (
     checked,
+    clear_problem,
     obstacle_of,
     pose_problem,
     reported_id_problem,
@@ -50,7 +58,9 @@ class FleetManager(ManagerRoute, ManagerViews, ManagerRecord):
         self._board: list = []
         self._rejecting: set = set()
         self.last_clear_reason = ""
+        self.last_clear_code = ""
         self.last_reinstate_reason = ""
+        self.last_reinstate_code = ""
 
     # ---- 읽기 전용 속성 ----
     @property
@@ -188,6 +198,7 @@ class FleetManager(ManagerRoute, ManagerViews, ManagerRecord):
         self._input("confirm_clear", robot, zone_ids, note)
         released = self.traffic.confirm_clear(robot, zone_ids, note)
         self.last_clear_reason = self.traffic.clear_reason
+        self.last_clear_code = "" if released is not None else self._clear_code(robot, zone_ids)
         if released is not None:
             self.orchestrator.on_robot_removed(robot)
         self._pump()
@@ -195,9 +206,8 @@ class FleetManager(ManagerRoute, ManagerViews, ManagerRecord):
 
     def reinstate(self, robot, basket, note="") -> bool:
         self._input("reinstate", robot, basket, note)
-        problem = checked(lambda: reinstate_problem(robot, basket, self.traffic.robots)
-                          or self.traffic.reinstate_refusal(text(robot)))
-        self.last_reinstate_reason = problem
+        code, problem = self._reinstate_problem(robot, basket)
+        self.last_reinstate_reason, self.last_reinstate_code = problem, code
         if problem:
             self._reject(f"reinstate refused: {problem}: {text(note)}", robot)
             return False
@@ -209,6 +219,44 @@ class FleetManager(ManagerRoute, ManagerViews, ManagerRecord):
                                   name))
         self._pump()
         return True
+
+    def _clear_code(self, robot, zone_ids) -> str:
+        if checked(robot_problem, robot, self.traffic.robots):
+            return REJECT_UNKNOWN_TARGET
+        if checked(clear_problem, robot, zone_ids, self.traffic.robots,
+                   lambda zone: zone in self.site.zones):
+            return REJECT_NOT_FOUND
+        return REJECT_NOT_STOPPED if self.traffic.clear_moving else REJECT_NOT_READY
+
+    def _reinstate_problem(self, robot, basket) -> tuple[str, str]:
+        """(계약 거절 코드, 까닭). 받아들이면 둘 다 빈 값."""
+        problem = checked(robot_problem, robot, self.traffic.robots)
+        if problem:
+            return REJECT_UNKNOWN_TARGET, problem
+        problem = checked(reinstate_problem, robot, basket, self.traffic.robots)
+        if problem:
+            return REJECT_ORDER_STATE, problem
+        name = text(robot)
+        if self.traffic.lock_released(name):
+            return REJECT_LOCK_RELEASED, f"{name} has its lock released, lock it first"
+        problem = self.traffic.reinstate_refusal(name)
+        return (REJECT_NOT_READY, problem) if problem else ("", "")
+
+    # ---- 락이 풀린 Pode는 새 운반 건에서 뺀다 (W-34) ----
+    def set_lock_released(self, robot, released, detail="") -> None:
+        self._input("set_lock_released", robot, released, detail)
+        if self._robot_refused("lock release", robot):
+            return
+        name = text(robot)
+        if not self.traffic.set_lock_released(name, bool(released)):
+            return
+        if released:
+            why = f"{text(detail)}; " if text(detail) else ""
+            self._out.append(EventOut("WARN", "ROBOT_LOCK_RELEASED",
+                                      f"{why}no new trips until it is locked", name))
+        else:
+            self._out.append(EventOut("INFO", "ROBOT_LOCKED", "takes new trips again", name))
+        self._pump()
 
     # ---- 운영 모드가 다른 Pode는 새 운반 건에서 뺀다 (IR-73) ----
     def set_mode_blocked(self, robot, blocked, detail="") -> None:
@@ -237,6 +285,20 @@ class FleetManager(ManagerRoute, ManagerViews, ManagerRecord):
             self._reject(f"force_ship refused: {text(order_id)} {reason}")
         self._pump()
         return accepted, reason
+
+    # ---- 운영자 조작: 운반 건 명령 (resume_fill 등). 판단은 주문 쪽 몫 ----
+    def on_trip_command(self, command, trip_id, mark_missing=None) -> tuple[bool, str, str]:
+        """(받음, 거절 코드, 까닭). 주문 쪽에 on_trip_command가 없으면 NOT_IMPLEMENTED."""
+        mark_missing = dict(mark_missing or {})
+        self._input("on_trip_command", command, trip_id, mark_missing)
+        handler = getattr(self.orchestrator, "on_trip_command", None)
+        if handler is None:
+            return False, FORCE_NOT_IMPLEMENTED, "주문 쪽 미구현"
+        accepted, reason, detail = handler(text(command), text(trip_id), mark_missing)
+        if not accepted:
+            self._reject(f"{text(command)} refused: {text(trip_id)} {reason}")
+        self._pump()
+        return accepted, reason, detail
 
     # ---- 주기 처리: 코어를 순서대로 진행하고 나온 출력 반환 ----
     def tick(self) -> list:

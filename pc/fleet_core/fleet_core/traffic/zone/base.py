@@ -53,6 +53,7 @@ class ZoneBase:
         self._near: dict = {}
         self.order_fault = ""
         self.clear_reason = ""
+        self.clear_moving = False  # 마지막 거절이 base 끝까지 가는 중이라서인지
         self._views = ZoneViews(site, self.grants, self._robots, self._joining, self._wants,
                                 self._blocked, self._marks)
         self._capacity = CapacityCheck(site, self._event)
