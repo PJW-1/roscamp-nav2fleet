@@ -11,7 +11,7 @@ from conftest import CONTRACT, wait_until, write_scenario  # noqa: E402
 from fleet_core.common.contract import load_contract, to_ros_qos  # noqa: E402
 from fleet_interfaces.action import FillBasket  # noqa: E402
 from fleet_interfaces.msg import ArmState, OrderItem  # noqa: E402
-from fleet_interfaces.srv import SetMode  # noqa: E402
+from fleet_interfaces.srv import ForceInput, RobotCommand, SetLock, SetMode  # noqa: E402
 from rclpy.action import ActionClient  # noqa: E402
 
 C = load_contract(CONTRACT)
@@ -325,3 +325,120 @@ def test_an_arm_error_shows_only_after_the_result_went_out(harness, tmp_path):
     assert wait_until(res.done, 30.0)
     assert STATE_ERROR not in states, "the fleet gets the result first and retries"
     assert wait_until(lambda: STATE_ERROR in states, 5.0)
+
+
+# ---- 팔마다 관리 명령 서버: set_lock · fault_resolved (IR-21 · IR-61) ----
+
+
+def call(node, srv, name, **request):
+    client = node.create_client(srv, name)
+    assert client.wait_for_service(10.0)
+    fut = client.call_async(srv.Request(**request))
+    assert wait_until(fut.done, 5.0)
+    return fut.result()
+
+
+def set_lock(cell, arm, locked, request_id, confirm_drop=False):
+    return call(cell.probe, SetLock, C.name("robot_set_lock", robot=arm), request_id=request_id,
+                robot_id=arm, locked=locked, confirm_drop=confirm_drop)
+
+
+def test_a_stopped_arm_releases_its_lock_and_the_state_shows_it(harness, tmp_path):
+    cell = Cell(harness, tmp_path)
+    seen = arm_states(cell)
+    assert wait_until(lambda: len(seen) == 2 and seen["arm_left"][-1].lock, 5.0)
+    res = set_lock(cell, "arm_left", False, "l1")
+    assert res.accepted and res.request_id == "l1"
+    assert wait_until(lambda: not seen["arm_left"][-1].lock, 5.0)
+    assert seen["arm_left"][-1].last_request_id == "l1"
+    assert seen["arm_right"][-1].lock, "one arm at a time"
+    # 같은 번호는 같은 답, 다시 반영하지 않는다
+    assert set_lock(cell, "arm_left", True, "l1").accepted
+    time.sleep(0.5)
+    assert not seen["arm_left"][-1].lock
+
+
+def test_a_fill_is_rejected_while_either_arm_is_released(harness, tmp_path):
+    cell = Cell(harness, tmp_path)
+    assert set_lock(cell, "arm_right", False, "l1").accepted
+    handle, _ = cell.send(A=1)
+    assert not handle.accepted
+    assert cell.shelf("arm_left") == {"A": 3, "B": 1}, "nothing was picked"
+    assert set_lock(cell, "arm_right", True, "l2").accepted
+    assert cell.fill(A=1)[0].success is True
+
+
+def test_an_arm_holding_an_item_needs_confirm_drop(harness, tmp_path):
+    from fake_robots.fake_workcell_node import STATE_PLACING
+    cell = Cell(harness, tmp_path)
+    cell.node._set_state("arm_left", STATE_PLACING)
+    res = set_lock(cell, "arm_left", False, "l1")
+    assert (res.accepted, res.reason) == (False, "HOLDING_ITEM")
+    res = set_lock(cell, "arm_left", False, "l2", confirm_drop=True)
+    assert (res.accepted, res.reason) == (False, "NOT_STOPPED")
+    assert cell.node._admin["arm_left"].lock
+
+
+def test_fault_resolved_clears_the_error_of_that_arm(harness, tmp_path):
+    from fake_robots.fake_workcell_node import STATE_ERROR, STATE_IDLE
+    cell = Cell(harness, tmp_path)
+    cell.node._show_errors(["arm_left", "arm_right"])
+    res = call(cell.probe, RobotCommand, C.name("arm_fault_resolved", arm="arm_left"),
+               request_id="r1", robot_id="arm_left")
+    assert res.accepted and res.request_id == "r1"
+    assert cell.node._state == {"arm_left": STATE_IDLE, "arm_right": STATE_ERROR}
+
+
+def test_an_accepted_fill_keeps_the_arms_from_releasing_before_they_move(harness, tmp_path):
+    from rclpy.action import GoalResponse
+    cell = Cell(harness, tmp_path)
+    try:
+        assert cell.node._on_goal(None) == GoalResponse.ACCEPT  # 받았지만 두 팔은 아직 IDLE
+        res = set_lock(cell, "arm_left", False, "l1")
+        assert (res.accepted, res.reason) == (False, "NOT_STOPPED")
+        assert cell.node._admin["arm_left"].lock
+    finally:
+        cell.node._busy = cell.node._moving = False
+
+
+def test_an_accepted_fill_keeps_an_arm_in_error_from_releasing(harness, tmp_path):
+    from rclpy.action import GoalResponse
+    cell = Cell(harness, tmp_path)
+    cell.node._show_errors(["arm_left"])
+    try:
+        assert cell.node._on_goal(None) == GoalResponse.ACCEPT  # ERROR여도 받고 움직인다
+        res = set_lock(cell, "arm_left", False, "l1")
+        assert (res.accepted, res.reason) == (False, "NOT_STOPPED")
+    finally:
+        cell.node._busy = cell.node._moving = False
+
+
+def test_an_arm_that_stopped_during_a_slow_cancel_can_release(harness, tmp_path):
+    cell = Cell(harness, tmp_path, stock={"arm_left": {"A": 6}},
+                arm={"seconds_per_item": 0.2, "swap_seconds": 0.4, "cancel_seconds": 1.5})
+    handle, fb = cell.send(A=5)
+    assert wait_until(lambda: fb, 10.0)
+    assert wait_until(handle.cancel_goal_async().done, 5.0)
+    time.sleep(0.6)  # 팔 스레드는 멈췄고 서버는 아직 바쁘다
+    assert cell.node._busy
+    assert set_lock(cell, "arm_left", False, "l1").accepted
+    assert result_of(handle).reason == "CANCELED"
+
+
+def test_force_on_one_arm_needs_the_test_mode_and_shows_in_its_state(harness, tmp_path):
+    cell = Cell(harness, tmp_path)
+    seen = arm_states(cell)
+    assert wait_until(lambda: len(seen) == 2, 5.0)
+
+    def force(request_id, kind="CONDITION", value="1"):
+        return call(cell.probe, ForceInput, C.name("robot_force", robot="arm_right"),
+                    request_id=request_id, robot_id="arm_right", kind=kind, key="grip_fail",
+                    value=value)
+
+    assert (force("f1").accepted, force("f1").reason) == (False, "NOT_TEST_MODE")
+    assert set_mode(cell.probe, "arm_right", "TEST", "m1").accepted
+    assert force("f2").accepted
+    assert wait_until(lambda: list(seen["arm_right"][-1].forced) == ["grip_fail"], 5.0)
+    assert list(seen["arm_left"][-1].forced) == [], "one arm at a time"
+    assert force("f3", kind="CLEAR", value="").accepted
+    assert wait_until(lambda: list(seen["arm_right"][-1].forced) == [], 5.0)

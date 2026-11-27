@@ -70,7 +70,7 @@ ARGS = {
                               " tools/avoid_regression.py, tools/replay.py가 읽는다"),
     "use_order_model": ("","true/false: 관제의 use_order_model 파라미터(order 모델이 있는"
                             " 관제만 읽는다). 비우면 params 파일의 값"),
-    "plan_keep": ("false", "true면(시험 중) Nav2 goal을 다시 계획할 때 길이가 비슷한 다른 길로"
+    "plan_keep": ("true", "true(기본)면 Nav2 goal을 다시 계획할 때 길이가 비슷한 다른 길로"
                            " 바꾸지 않고 지금 길을 지킨다(pode_plan_keep). 노드는 sim_stand_in"
                            " 프로세스 안에서 돈다. false면 main과 같다"),
     "nav_rl": ("", "로봇마다 RL controller 둘을 더한다(비교용): FollowPathRL은 RotationShim으로"

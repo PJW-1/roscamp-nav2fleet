@@ -74,7 +74,7 @@ def judge_set_lock(codes, targets: Targets, robot, locked, confirm_drop,
     f = facts(robot)
     if not f.stopped:
         return Reply(False, codes.NOT_STOPPED, f.why)
-    # 락을 풀면 팔 힘이 빠지므로 쥔 상품은 떨어진다
+    # 락을 풀면 팔은 안전한 자세로 가고 그리퍼를 풀어 쥔 상품이 떨어질 수 있다 (모터 힘은 유지)
     if not locked and f.holding and not confirm_drop:
         return Reply(False, codes.HOLDING_ITEM, f"{robot} holds an item, confirm_drop first")
     return Reply(True)

@@ -60,7 +60,8 @@ def _walk(entities, context, found):
 
 def _expand(use_composition, use_sim_time="true", keepout_mask=None, vision_obstacles=None,
             avoidance=None, narrow_strips=None, peer_obstacles=None, peer_robots=None,
-            peer_node=None, **more):
+            peer_node=None, plan_keep="false", **more):
+    # 길 유지는 기본 켬이지만, 그것을 보는 시험 말고는 끈 채로 센다(None이면 launch 기본값)
     context = launch.LaunchContext()
     context.launch_configurations.update({
         "use_composition": use_composition, "use_sim_time": use_sim_time,
@@ -81,6 +82,8 @@ def _expand(use_composition, use_sim_time="true", keepout_mask=None, vision_obst
         context.launch_configurations["peer_robots"] = peer_robots
     if peer_node is not None:
         context.launch_configurations["peer_node"] = peer_node
+    if plan_keep is not None:
+        context.launch_configurations["plan_keep"] = plan_keep
     context.launch_configurations.update(more)
     found = []
     _walk(_launch_description().entities, context, found)
@@ -634,7 +637,7 @@ def test_a_vision_switch_that_is_not_true_or_false_stops_the_launch(name):
         _expand("false", **{name: "ture"})
 
 
-# ---- 길 유지(pode_plan_keep, 시험 중): 기본은 꺼짐(main과 같음) ----
+# ---- 길 유지(pode_plan_keep): 기본 켬(11-26 실물 확인 뒤) ----
 
 def _plan_keep(found):
     [node] = [n for n, _ in found if n.node_name == "/pode1/plan_keep"]
@@ -671,15 +674,15 @@ def _bt_xml(found):
 
 
 @pytest.mark.parametrize("composition", ["false", "true"])
-def test_by_default_no_plan_keep_node_runs_and_the_default_tree_plans(composition):
-    _, found = _expand(composition)
+def test_plan_keep_false_runs_no_node_and_the_default_tree_plans(composition):
+    _, found = _expand(composition, plan_keep="false")
     assert not [n for n, _ in found if n.node_name == "/pode1/plan_keep"]
     assert _bt_xml(found).endswith("bt/navigate_to_pose_w_replanning_and_recovery_goal.xml")
 
 
 @pytest.mark.parametrize("composition", ["false", "true"])
-def test_plan_keep_starts_the_node_and_switches_to_the_keep_tree(composition):
-    context, found = _expand(composition, plan_keep="true")
+def test_by_default_the_plan_keep_node_runs_with_the_keep_tree(composition):
+    context, found = _expand(composition, plan_keep=None)
     node = _plan_keep(found)
     assert node.node_package == "pode_plan_keep" and node.node_executable == "plan_keep"
     assert _respawn(node, context) is True
@@ -690,6 +693,13 @@ def test_plan_keep_node_false_leaves_the_node_to_another_process():
     _, found = _expand("false", plan_keep="true", plan_keep_node="false")
     assert [n.node_name for n, _ in found] == [f"/pode1/{name}" for name in NAMES]
     assert _bt_xml(found).endswith("_keep.xml")
+
+
+@pytest.mark.parametrize("composition", ["false", "true"])
+def test_plan_keep_true_starts_the_node_and_switches_to_the_keep_tree(composition):
+    _, found = _expand(composition, plan_keep="true")
+    assert _plan_keep(found).node_package == "pode_plan_keep"
+    assert _bt_xml(found).endswith("bt/navigate_to_pose_w_replanning_and_recovery_goal_keep.xml")
 
 
 def test_a_given_tree_wins_over_the_plan_keep_choice():

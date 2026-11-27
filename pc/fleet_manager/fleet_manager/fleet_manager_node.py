@@ -44,6 +44,7 @@ from fleet_interfaces.msg import (
 )
 from fleet_interfaces.srv import (
     CheckClear,
+    CheckStock,
     ConfirmClear,
     ForceInput,
     Reinstate,
@@ -79,6 +80,8 @@ from fleet_manager.mode_sync import ModeSync
 from fleet_manager.order_goals import apply_overrides
 from fleet_manager.reports import BridgeReports
 from fleet_manager.robot_calls import CallParams, RobotCalls
+from fleet_manager.stock_check import LIMIT_S as STOCK_LIMIT_S
+from fleet_manager.stock_check import StockChecks, shortfall
 
 
 SLOW_TICK_WARN_S = 5.0  # 느린 틱 경고 사이 최소 간격
@@ -232,6 +235,10 @@ class FleetManagerNode(Node):
                     callback_group=inbox)
         self._report_client = self.create_client(ReportOrder, name("report_order"),
                                                  callback_group=inbox)
+        # 담기 전 결품 확인: 브리지에 서버가 없으면 확인 없이 보낸다 (W-40)
+        self._stock_client = self.create_client(CheckStock, name("check_stock"),
+                                                callback_group=inbox)
+        self._stock = StockChecks()
         # 운영 모드: 브리지가 내면 로봇마다 set_mode, 받기 전에는 아무것도 하지 않는다 (IR-73)
         arms = list(self.contract.placeholders.get("arm", []))
         self._mode_sync = ModeSync(robots, arms)
@@ -575,6 +582,7 @@ class FleetManagerNode(Node):
                 self._dispatch(command, now)
             # 코어가 낸 취소 · 타임아웃을 먼저 처리한 뒤 보낸다
             self._release_fills()
+            self._step_stock_checks(time.monotonic())
             self._retry_cancels(now)
             self._flush_reports(now)
             self._bridge.flush()
@@ -739,7 +747,7 @@ class FleetManagerNode(Node):
     def _fill_or_hold(self, command) -> None:
         waiting = self._arms_waiting(command)
         if not waiting:
-            self._send_fill(command)
+            self._check_then_send(command)
             return
         self._held_fills.append(command)
         self.get_logger().info(
@@ -758,7 +766,7 @@ class FleetManagerNode(Node):
         ready = [c for c in live if not self._arms_waiting(c)]
         self._held_fills = [c for c in live if all(c is not r for r in ready)]
         for command in ready:
-            self._send_fill(command)
+            self._check_then_send(command)
 
     def _send_fill(self, command) -> None:
         server = self.site.stations[command.station_id].server
@@ -773,7 +781,89 @@ class FleetManagerNode(Node):
                 self._held_fills.remove(held)
                 self.core.on_fill_result(held.goal_id, False, {}, {}, CANCELED)
                 return True
-        return False
+        checked = self._stock.command(command.goal_id)
+        if checked is None or self.site.stations[checked.station_id].server != command.robot:
+            return False
+        self._drop_stock_future(self._stock.take(command.goal_id)[1])
+        self.core.on_fill_result(command.goal_id, False, {}, {}, CANCELED)
+        return True
+
+    # ---- 담기 전 결품 확인 (W-40 · PI-28): 모자라면 보내지 않고 OUT_OF_STOCK 결과로 끝낸다 ----
+    def _check_then_send(self, command) -> None:
+        if not self._stock_client.service_is_ready():
+            self._send_fill(command)
+            return
+        try:
+            future = self._stock_client.call_async(adapters.check_stock_request(command))
+        except Exception as exc:  # noqa: BLE001
+            self._stock_unanswered(command, f"check_stock was not sent: {exc}")
+            return
+        self._stock.ask(command, future, time.monotonic())
+        future.add_done_callback(partial(self._stock_arrived, command.goal_id))
+
+    def _stock_arrived(self, goal_id, future) -> None:
+        """3초 판정은 처리 시각이 아니라 답이 온 시각으로 한다."""
+        self._post(self._stock_answered, goal_id, future, time.monotonic())
+
+    def _stock_answered(self, goal_id, future, arrived_at: float) -> None:
+        check = self._stock.answered(goal_id, future)
+        if check is None:
+            return  # 한도가 지났거나 취소 · 포기로 버린 확인
+        command = check.command
+        if not self.core.arm.holds(goal_id):
+            # 같은 inbox 묶음에서 팔 ERROR · 초기화로 코어가 먼저 포기했다
+            self.get_logger().info(f"fill goal {goal_id} stock answer dropped: "
+                                   "the core gave the job up")
+            return
+        if arrived_at - check.asked_at > STOCK_LIMIT_S:
+            self._stock_unanswered(command, f"no stock answer within {STOCK_LIMIT_S:.0f} s")
+            return
+        try:
+            accepted, available, reason = adapters.check_stock_answer(future.result())
+        except Exception as exc:  # noqa: BLE001
+            self._stock_unanswered(command, f"check_stock got no reply: {exc}")
+            return
+        if not accepted:
+            self._stock_unanswered(command, f"check_stock refused: {reason}".rstrip())
+            return
+        short = shortfall(command.items, available)
+        if not short:
+            if self._arms_waiting(command):
+                # 확인 중 모드가 바뀌면 팔이 새 모드를 보고할 때까지 다시 잡아 둔다 (PI-20)
+                self._fill_or_hold(command)
+                return
+            self._send_fill(command)
+            return
+        text = ", ".join(f"{kind} {count}" for kind, count in sorted(short.items()))
+        self._dispatch(EventOut(
+            "WARN", FillBasket.Result.REASON_OUT_OF_STOCK,
+            f"fill goal {command.goal_id} for {command.order_id} not sent, short: {text}",
+            command.robot), self._now())
+        # 보내지 않은 담기: placed는 비고 missing은 모자란 수, 다음 판단은 주문 코어
+        self.core.on_fill_result(command.goal_id, False, {}, short,
+                                 FillBasket.Result.REASON_OUT_OF_STOCK)
+
+    def _stock_unanswered(self, command, why: str) -> None:
+        """IR-40: 다시 보내지 않고 담기를 잡아 둔 채 알린다."""
+        self._stock.hold(command)
+        self._dispatch(EventOut(
+            "WARN", "STOCK_CHECK_NO_ANSWER",
+            f"fill goal {command.goal_id} for {command.order_id} waits: {why}",
+            command.robot), self._now())
+
+    def _step_stock_checks(self, now: float) -> None:
+        for check in self._stock.expired(now):
+            self._drop_stock_future(check.future)
+            self._stock_unanswered(check.command, f"no stock answer within {STOCK_LIMIT_S:.0f} s")
+        # 팔 ERROR · 초기화로 코어가 포기한 담기는 확인도 버린다
+        for command, future in self._stock.given_up(self.core.arm.holds):
+            self._drop_stock_future(future)
+            self.get_logger().info(f"fill goal {command.goal_id} stock check dropped: "
+                                   "the core gave the job up")
+
+    def _drop_stock_future(self, future) -> None:
+        if future is not None and not future.done():
+            self._stock_client.remove_pending_request(future)
 
     def report_command(self, request_id: str, command: str, target: str, result: str,
                        reason: str = "", detail: str = "") -> None:

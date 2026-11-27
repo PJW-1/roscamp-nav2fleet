@@ -1,6 +1,7 @@
 """fleet_core 레코드와 ROS 메시지 사이의 변환 시험."""
 import math
 from dataclasses import replace
+from types import SimpleNamespace
 
 import pytest
 
@@ -232,6 +233,20 @@ def test_operator_replies_carry_the_request_id_back():
 def test_item_lists_add_up_a_kind_named_twice():
     items = [OrderItem(kind="A", count=1), OrderItem(kind="A", count=2)]
     assert adapters.from_order_items(items) == {"A": 3}
+
+
+def test_a_stock_check_asks_for_the_trip_and_its_items():
+    cmd = FillCmd(goal_id=7, robot="pode1", station_id="WORK", order_id="T-1",
+                  items={"choco_bar": 2})
+    request = adapters.check_stock_request(cmd)
+    assert request.trip_id == "T-1"
+    assert adapters.from_order_items(request.items) == {"choco_bar": 2}
+
+
+def test_a_stock_answer_reads_as_counts_per_kind():
+    response = SimpleNamespace(accepted=True, reason="",
+                               available=[OrderItem(kind="choco_bar", count=1)])
+    assert adapters.check_stock_answer(response) == (True, {"choco_bar": 1}, "")
 
 
 def test_robot_report_reads_every_field_the_core_needs():

@@ -22,6 +22,7 @@ from fleet_interfaces.msg import (
 )
 from fleet_interfaces.srv import (
     CheckClear,
+    CheckStock,
     Hello,
     ReportCommand,
     ReportEvent,
@@ -54,6 +55,15 @@ def from_order_items(items) -> dict[str, int]:
     for item in items:
         counts[item.kind] = counts.get(item.kind, 0) + int(item.count)
     return counts
+
+
+# ---- 담기 전 결품 확인 (W-40) ----
+def check_stock_request(cmd) -> CheckStock.Request:
+    return CheckStock.Request(trip_id=cmd.order_id, items=to_order_items(cmd.items))
+
+
+def check_stock_answer(response) -> tuple[bool, dict[str, int], str]:
+    return bool(response.accepted), from_order_items(response.available), response.reason
 
 
 # ---- 코어 상태와 이벤트를 ROS 메시지로 변환 ----

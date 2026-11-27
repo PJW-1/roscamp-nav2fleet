@@ -8,10 +8,13 @@ from __future__ import annotations
 import time
 from collections.abc import Callable
 
+from fleet_interfaces.msg import ArmState
 from fleet_interfaces.srv import ForceInput, RobotCommand, SetLock
 from pode_fsm.admin import UNKNOWN_TARGET, AdminState, Reply
 
 HOLDING_ITEM = "HOLDING_ITEM"
+# 관제가 멈춘 팔로 보는 상태(fleet_manager ARM_STOPPED와 같다)
+ARM_STOPPED = (ArmState.STATE_IDLE, ArmState.STATE_PAUSED, ArmState.STATE_ERROR)
 
 
 class FakeAdmin(AdminState):

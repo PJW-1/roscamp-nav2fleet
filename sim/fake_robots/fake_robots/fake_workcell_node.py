@@ -17,7 +17,7 @@ from fleet_core.common.contract import to_ros_qos
 from fleet_interfaces.action import FillBasket
 from fleet_interfaces.msg import ArmState, OrderItem
 from fleet_interfaces.srv import SetMode
-from pode_fsm.admin import MODE_MISMATCH, AdminState
+from pode_fsm.admin import MODE_MISMATCH
 from rclpy.action import ActionServer, CancelResponse, GoalResponse
 from rclpy.callback_groups import ReentrantCallbackGroup
 from rclpy.executors import MultiThreadedExecutor
@@ -25,6 +25,7 @@ from rclpy.node import Node
 from rclpy.qos import DurabilityPolicy, QoSProfile, ReliabilityPolicy
 from std_msgs.msg import String
 
+from fake_robots import fake_admin
 from fake_robots.common import (
     STOCK_TOPIC,
     ScenarioClock,
@@ -85,6 +86,8 @@ class FakeWorkcellNode(Node):
         self._stock_lock = threading.Lock()
         self._busy_lock = threading.Lock()
         self._busy = False
+        # 받은 목표의 팔 작업이 끝나기 전이면 참 (_admin_lock 안). 느린 취소 대기는 포함하지 않는다
+        self._moving = False
         self._alive = True
         # 실제 서버도 지킬 규칙: 이 잠금을 쥔 쪽만 PLACING이 될 수 있다.
         self._basket_space = threading.Lock()
@@ -95,12 +98,19 @@ class FakeWorkcellNode(Node):
         self._boot_id = str(uuid.uuid4())
         self._order_id = ""
         self._placed = dict.fromkeys(self._arms, 0)
-        # 팔마다 pode_fsm과 같은 규칙의 운영 모드와 요청 번호 기억(IR-72)
-        self._admin = {arm: AdminState(arm, self._boot_id) for arm in self._arms}
+        # 팔마다 pode_fsm과 같은 규칙의 락 · 운영 모드 · 요청 번호 기억(IR-72)
+        self._admin = {arm: fake_admin.FakeAdmin(arm, self._boot_id) for arm in self._arms}
         self._admin_lock = threading.Lock()
+        group = ReentrantCallbackGroup()
         for arm in self._arms:
             self.create_service(SetMode, contract.name("robot_set_mode", robot=arm),
                                 lambda req, res, a=arm: self._on_set_mode(a, req, res))
+            # 관리 명령: set_lock · force · fault_resolved (상태 칸 lock · forced에 실린다)
+            fake_admin.mount(
+                self, contract, self._admin[arm], self._admin_lock, group,
+                lambda a=arm: self._stopped(a),
+                holding=lambda a=arm: self._state[a] == STATE_PLACING,
+                on_fault_resolved=lambda a=arm: self._clear_error(a))
         self._state_pubs = {
             arm: self.create_publisher(ArmState, contract.name("arm_state", arm=arm),
                                        to_ros_qos(contract.qos("arm_state")))
@@ -143,6 +153,20 @@ class FakeWorkcellNode(Node):
             if self._state[arm] == STATE_ERROR and t >= self._error_until[arm]:
                 self._set_state(arm, STATE_IDLE)
 
+    def _stopped(self, arm: str) -> bool:
+        # 목표를 받은 뒤 팔 작업이 끝나기 전에는 IDLE · ERROR여도 곧 움직인다 (_admin_lock 안)
+        return self._state[arm] in fake_admin.ARM_STOPPED and not self._moving
+
+    def _moved(self) -> None:
+        with self._admin_lock:
+            self._moving = False
+
+    def _clear_error(self, arm: str) -> None:
+        with self._state_lock:
+            self._error_until[arm] = 0.0
+            if self._state[arm] == STATE_ERROR:
+                self._state[arm] = STATE_IDLE
+
     def _on_set_mode(self, arm, request, response):
         with self._admin_lock:
             reply = self._admin[arm].set_mode(request.request_id, request.mode,
@@ -164,19 +188,20 @@ class FakeWorkcellNode(Node):
             self._set_state(arm, STATE_ERROR)
 
     def _publish_states(self) -> None:
-        # 두 팔 모두 락 잠김, 모드는 set_mode 전까지 UNKNOWN(IR-72). 놓는 동안 상품을 쥐고 있다
+        # 모드는 set_mode 전까지 UNKNOWN(IR-72). 놓는 동안 상품을 쥐고 있다
         stamp = self.get_clock().now().to_msg()
         for arm in self._arms:
             state = self._state[arm]
             holding = state == STATE_PLACING
             with self._admin_lock:
-                mode, last_id = self._admin[arm].mode, self._admin[arm].last_request_id
+                a = self._admin[arm]
+                lock, mode, last_id, forced = a.lock, a.mode, a.last_request_id, a.forced
             self._state_pubs[arm].publish(ArmState(
                 arm_id=arm, boot_id=self._boot_id, state=state,
-                detail=REASON_ARM_FAULT if state == STATE_ERROR else "", lock=True,
+                detail=REASON_ARM_FAULT if state == STATE_ERROR else "", lock=lock,
                 gripper=ArmState.GRIPPER_CLOSED if holding else ArmState.GRIPPER_OPEN,
                 holding=holding, order_id=self._order_id, placed_total=self._placed[arm],
-                mode=mode, last_request_id=last_id, stamp=stamp))
+                mode=mode, last_request_id=last_id, forced=forced, stamp=stamp))
 
     def _publish_stock(self, arm: str) -> None:
         with self._stock_lock:
@@ -223,10 +248,18 @@ class FakeWorkcellNode(Node):
     # ---- 목표 ----
 
     def _on_goal(self, _request):
-        with self._busy_lock:
-            if self._busy:
-                return GoalResponse.REJECT
-            self._busy = True
+        # IR-61: 락이 풀린 팔이 하나라도 있으면 받지 않는다. 락 해제와 같은 잠금 안에서 받는다
+        with self._admin_lock:
+            released = [arm for arm in self._arms if not self._admin[arm].lock]
+            if not released:
+                with self._busy_lock:
+                    if self._busy:
+                        return GoalResponse.REJECT
+                    self._busy = True
+                self._moving = True
+        if released:
+            self.get_logger().warn(f"fill_basket goal rejected: lock released ({released})")
+            return GoalResponse.REJECT
         return GoalResponse.ACCEPT
 
     def _on_cancel(self, _handle):
@@ -238,6 +271,7 @@ class FakeWorkcellNode(Node):
         requested = Counter()
         for item in handle.request.items:
             requested[item.kind] += max(item.count, 0)
+        self._moved()
         with self._busy_lock:
             self._busy = False
         if self._running():
@@ -263,6 +297,7 @@ class FakeWorkcellNode(Node):
             worker.start()
         for worker in workers:
             worker.join()
+        self._moved()
         if handle.is_cancel_requested and self._cancel_at is not None:
             # 실제 팔은 멈추는 데 시간이 걸리고 그동안 서버는 바쁘다.
             self._sc.sleep_until(self._cancel_at + self._cfg.cancel_seconds, self._running)
