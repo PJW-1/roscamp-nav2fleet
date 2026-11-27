@@ -1,6 +1,7 @@
-"""Gazebo + 가짜 팔로 팔 관제 합의 (a)~(d)를 한 판씩 확인한다. 가짜 브리지를 같이 띄워 운반 건 보고를 받는다.
+"""Gazebo나 가짜 시스템 + 가짜 팔로 팔 관제 합의 (a)~(d)를 한 판씩 확인한다. 가짜 브리지를 같이 띄워 운반 건 보고를 받는다.
 
     ros2 launch fleet_gz_sim gz.launch.py layout:=v7 scenario:=tools/arm_rules_gz/gz_v7_arm_b.yaml sim_dock_stub:=true
+    ros2 launch iponic_bringup pc.launch.py use_fake:=true monitor:=false scenario:=tools/arm_rules_gz/fake_v7_arm_b.yaml
     python3 tools/arm_rules_gz.py --case b --out <결과 폴더>      # 같은 ROS_DOMAIN_ID
 
 (a) 스스로 멈춤 → [복구] → 같은 목표로 이어 담고 출고

@@ -1,7 +1,9 @@
-# 팔 고장 보류: arm_left가 O-001에서 매번 1개를 놓고 세 번 실패해 HELD ARM_FAULT가 된다(Pode는 격리 안 함).
-# central(가짜)이 force_ship_after_s 뒤 /fleet/force_ship을 부르면 O-001은 PARTIAL(놓은 3개)로 끝난다.
-#   O-001 A 4개, 3개 놓고 팔 고장     HELD(ARM_FAULT) 뒤 PARTIAL
-#   O-002 C 1개                       SHIPPED
+# 팔 고장 보류: arm_left가 O-001에서 1개를 놓고 ARM_FAULT로 실패하면 다시 보내지 않고 HELD ARM_FAULT(Pode는 격리 안 함).
+# 팔은 [장애 처리 완료]까지 ERROR이고 그동안 작업대 배차가 막힌다(O-002는 기다림).
+# central(가짜)이 force_ship_after_s 뒤 /fleet/force_ship을 부르면 O-001은 PARTIAL(놓은 1개)로 끝난다.
+# ARM_ERROR 30초 뒤 운영자가 [장애 처리 완료]를 부르면 팔이 ERROR를 벗어나고 배차가 다시 열린다.
+#   O-001 A 4개, 1개 놓고 팔 고장     HELD(ARM_FAULT) 뒤 PARTIAL
+#   O-002 C 1개                       [장애 처리 완료] 뒤 배차, SHIPPED
 map: d2  # D2 배치용 시나리오(기본 배치는 v7)
 seed: 31
 speed_factor: 5.0
@@ -15,10 +17,11 @@ robots:
   pode1: {start: P-1, speed_scale: 1.0, pose_noise_m: 0.03}
   pode2: {start: P-2, speed_scale: 0.9, pose_noise_m: 0.03}
   pode3: {start: P-3, speed_scale: 1.0, pose_noise_m: 0.03}
-arm: {seconds_per_item: 4.0, swap_seconds: 8.0, fail_rate: 0.0}
+arm: {seconds_per_item: 4.0, swap_seconds: 8.0, fail_rate: 0.0, error_until_resolved: true}
 dock: {duration_s: 1.0, error_cm: 1.0}
 faults:
-  - {at_s: 0, arm: arm_left, type: arm_fail, count: 3, after_items: 1}
+  - {at_s: 0, arm: arm_left, type: arm_fail, count: 1, after_items: 1}
+  - {at_s: 30, arm: arm_left, type: operator_fault_resolved, after_event: ARM_ERROR}
 expect:
   robot_idle: null  # 고장 시나리오는 ROBOT_IDLE을 세지 않는다
   all_orders_finished: true
@@ -31,7 +34,9 @@ expect:
   zone_holder_max: 1
   released_without_position_check: 0
   unheld_zone_pose: 0
-  events_include: [FILL_RETRY, FILL_FAILED, ORDER_HELD, FORCE_SHIP, ORDER_PARTIAL]
-  event_counts: {FILL_RETRY: 2, FILL_FAILED: 1, ORDER_HELD: 1, FORCE_SHIP: 1, ROBOT_ISOLATED: 0, ROBOT_NOT_REPORTING: 0}
+  fill_dispatch_while_arm_error: 0
+  fill_dispatch_after_resolved_min: 1
+  events_include: [ARM_ERROR, ORDER_HELD, FORCE_SHIP, ORDER_PARTIAL]
+  event_counts: {FILL_RETRY: 0, FILL_FAILED: 1, ARM_ERROR: 1, ORDER_HELD: 1, FORCE_SHIP: 1, ROBOT_ISOLATED: 0, ROBOT_NOT_REPORTING: 0}
   order_results: {O-001: PARTIAL, O-002: SHIPPED}
   hold_reasons: {O-001: ARM_FAULT}

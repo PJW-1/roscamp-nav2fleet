@@ -723,7 +723,9 @@ class FakeWorkcellNode(Node):
                 run.fail(fail[0], arm, None)
                 return
             if fail_at == i:
-                run.fail(REASON_ARM_FAULT, arm, ERROR_HOLD_S)
+                # error_until_resolved면 실물처럼 fault_resolved까지 ERROR
+                run.fail(REASON_ARM_FAULT, arm,
+                         None if self._cfg.error_until_resolved else ERROR_HOLD_S)
                 return
             if not self._unpaused(run, arm) or not self._go_on(run):
                 return
