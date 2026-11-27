@@ -98,8 +98,8 @@ class ScenarioMonitorNode(Node):
         sub(ZoneStateArray, "zones", self._on_zones)
         # 작업대 팔 상태는 토픽에서 바로 본다(상태판은 배차보다 늦게 바뀔 수 있음)
         for arm in sorted(self.judge.fill_arms):
-            sub(ArmState, "arm_state", lambda msg, a=arm: self.judge.on_arm_state(a, msg.state),
-                arm=arm)
+            sub(ArmState, "arm_state",
+                lambda msg, a=arm: self.judge.on_arm_state(a, msg.state, self._sc.now()), arm=arm)
         sub(FleetEvent, "events", self._on_event)
         sub(AssignmentArray, "assignments", self._on_assignments)
         sub(RobotStatusArray, "robots", self._on_robots)
