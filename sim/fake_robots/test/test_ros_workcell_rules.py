@@ -341,10 +341,22 @@ def test_a_new_goal_does_not_clear_an_unresolved_error(harness, tmp_path):
     result, _ = cell.fill(C=1)
     assert (result.success, result.reason) == (False, R.REASON_ARM_FAULT)
     assert result.placed == [] and cell.shelf("arm_right") == {"C": 3}
+    assert cell.node._state["arm_right"] == ArmState.STATE_ERROR
+    assert fault_resolved(cell, "arm_right").accepted  # 결과 바로 뒤
     time.sleep(0.5)
-    assert states.last("arm_right").state == ArmState.STATE_ERROR
-    assert fault_resolved(cell, "arm_right").accepted
+    assert states.last("arm_right").state == ArmState.STATE_IDLE, "the old fault stays gone"
     assert cell.fill(C=1)[0].success is True
+
+
+def test_a_delayed_fault_resolved_does_not_clear_a_newer_fault(harness, tmp_path):
+    cell = Cell(harness, tmp_path, node_params={"fault_resolved_delay_s": 0.5})
+    states = States(cell)
+    enter_test_mode(cell)
+    assert force(cell, "arm_left", "error").accepted
+    assert fault_resolved(cell, "arm_left").accepted
+    assert force(cell, "arm_left", "error").accepted  # 해제 전에 새 고장
+    time.sleep(1.0)
+    assert states.last("arm_left").state == ArmState.STATE_ERROR
 
 
 def test_the_error_hook_mid_fill_ends_it_with_arm_fault(harness, tmp_path):

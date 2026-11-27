@@ -121,11 +121,12 @@ class _Run:
         self.late_result: float | None = None
         self.lock = threading.Lock()
 
-    def fail(self, reason: str, arm: str, hold: float | None) -> None:
+    def fail(self, reason: str, arm: str, hold: float | None, show: bool = True) -> None:
+        # show=False: 이미 ERROR인 팔. 결과 뒤 ERROR를 다시 보이지 않는다
         with self.lock:
             if not self.fault.is_set():
                 self.reason = reason
-            if reason == REASON_ARM_FAULT:
+            if reason == REASON_ARM_FAULT and show:
                 self.errored[arm] = hold
         self.fault.set()
 
@@ -167,6 +168,7 @@ class FakeWorkcellNode(Node):
         self._state_lock = threading.Lock()
         self._state = dict.fromkeys(self._arms, STATE_IDLE)
         self._error_until = dict.fromkeys(self._arms, 0.0)
+        self._fault_gen = dict.fromkeys(self._arms, 0)  # ERROR를 보일 때마다 하나씩
         self._paused = dict.fromkeys(self._arms, False)
         self._holding = dict.fromkeys(self._arms, False)
         self._dropped = dict.fromkeys(self._arms, False)  # 락 해제로 쥔 상품을 놓음
@@ -256,11 +258,11 @@ class FakeWorkcellNode(Node):
             self._moving = False
 
     def _clear_error(self, arm: str) -> None:
-        asked = self._error_until[arm]
+        asked = self._fault_gen[arm]
 
         def clear():
             with self._state_lock:
-                if self._error_until[arm] != asked:  # 요청 뒤 새로 난 고장
+                if self._fault_gen[arm] != asked:  # 요청 뒤 새로 난 고장
                     return
                 self._error_until[arm] = 0.0
                 if self._state[arm] == STATE_ERROR:
@@ -294,7 +296,9 @@ class FakeWorkcellNode(Node):
             return
         until = math.inf if hold is None else self._sc.now() + hold
         for arm in arms:
-            self._error_until[arm] = until
+            with self._state_lock:
+                self._fault_gen[arm] += 1
+                self._error_until[arm] = until
             self._set_state(arm, STATE_ERROR)
 
     def _publish_states(self) -> None:
@@ -708,7 +712,7 @@ class FakeWorkcellNode(Node):
         # 상품마다 CAPTURING → PICKING → TO_BASKET → PLACING → RETURNING
         q = self._cfg.seconds_per_item / 4
         if kinds and self._error_until[arm] == math.inf:
-            run.fail(REASON_ARM_FAULT, arm, None)  # fault_resolved 전
+            run.fail(REASON_ARM_FAULT, arm, None, show=False)  # fault_resolved 전
             return
         done = 0
         for i, kind in enumerate(kinds):
