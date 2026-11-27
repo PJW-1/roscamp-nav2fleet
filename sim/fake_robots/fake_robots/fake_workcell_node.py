@@ -165,7 +165,7 @@ class FakeWorkcellNode(Node):
         self._alive = True
         # 실제 서버도 지킬 규칙: 이 잠금을 쥔 쪽만 PLACING이 될 수 있다.
         self._basket_space = threading.Lock()
-        self._state_lock = threading.Lock()
+        self._state_lock = threading.RLock()  # ERROR 세대 갱신과 상태 설정을 한 구간에서
         self._state = dict.fromkeys(self._arms, STATE_IDLE)
         self._error_until = dict.fromkeys(self._arms, 0.0)
         self._fault_gen = dict.fromkeys(self._arms, 0)  # ERROR를 보일 때마다 하나씩
@@ -299,7 +299,7 @@ class FakeWorkcellNode(Node):
             with self._state_lock:
                 self._fault_gen[arm] += 1
                 self._error_until[arm] = until
-            self._set_state(arm, STATE_ERROR)
+                self._set_state(arm, STATE_ERROR)
 
     def _publish_states(self) -> None:
         # 모드는 set_mode 전까지 UNKNOWN(IR-72). 재시작 · 상태 끊김 동안은 내지 않는다
