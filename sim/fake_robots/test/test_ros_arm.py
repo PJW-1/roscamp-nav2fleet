@@ -10,7 +10,7 @@ from conftest import CONTRACT, wait_until, write_scenario  # noqa: E402
 from fleet_core.common.contract import load_contract, to_ros_qos  # noqa: E402
 from fleet_interfaces.action import SwapBasket  # noqa: E402
 from fleet_interfaces.msg import ArmState  # noqa: E402
-from fleet_interfaces.srv import SetMode  # noqa: E402
+from fleet_interfaces.srv import SetLock, SetMode  # noqa: E402
 from rclpy.action import ActionClient  # noqa: E402
 
 C = load_contract(CONTRACT)
@@ -190,3 +190,34 @@ def test_arm_ship_starts_unknown_and_takes_a_mode(harness, tmp_path):
     fut = client.call_async(SetMode.Request(request_id="s2", mode="FAST"))
     assert wait_until(fut.done, 5.0)
     assert not fut.result().accepted and fut.result().reason == "MODE_MISMATCH"
+
+
+def test_arm_ship_releases_its_lock_and_refuses_a_swap_meanwhile(harness, tmp_path):
+    import rclpy.node
+    client = start_arm(harness, tmp_path)
+    probe = harness.add(rclpy.node.Node("arm_lock_probe"))
+    seen = []
+    probe.create_subscription(ArmState, C.name("arm_state", arm="arm_ship"), seen.append,
+                              to_ros_qos(C.qos("arm_state")))
+    assert wait_until(lambda: seen and seen[-1].lock, 5.0)
+    lock = probe.create_client(SetLock, C.name("robot_set_lock", robot="arm_ship"))
+    assert lock.wait_for_service(10.0)
+
+    def set_lock(locked, request_id):
+        fut = lock.call_async(SetLock.Request(request_id=request_id, robot_id="arm_ship",
+                                              locked=locked))
+        assert wait_until(fut.done, 5.0)
+        return fut.result()
+
+    assert set_lock(False, "l1").accepted
+    assert wait_until(lambda: not seen[-1].lock, 5.0)
+    assert seen[-1].last_request_id == "l1"
+    fut = client.send_goal_async(SwapBasket.Goal(take_full=True, put_empty=True))
+    assert wait_until(fut.done, 5.0)
+    assert not fut.result().accepted
+    # 같은 번호는 같은 답, 다시 반영하지 않는다
+    assert set_lock(True, "l1").accepted
+    time.sleep(0.5)
+    assert not seen[-1].lock
+    assert set_lock(True, "l2").accepted
+    assert result_of(send(client)[0]).success is True

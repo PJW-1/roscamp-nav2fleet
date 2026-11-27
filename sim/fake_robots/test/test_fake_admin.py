@@ -3,7 +3,7 @@ import pytest
 
 pytest.importorskip("fleet_interfaces.srv")
 
-from fake_robots.fake_admin import FakeAdmin  # noqa: E402
+from fake_robots.fake_admin import ARM_STOPPED, FakeAdmin  # noqa: E402
 from fleet_interfaces.srv import ForceInput  # noqa: E402
 from pode_fsm import admin as pode_admin  # noqa: E402
 
@@ -72,3 +72,9 @@ def test_the_force_kinds_match_the_interface():
     r = ForceInput.Request
     assert (r.KIND_CONDITION, r.KIND_STATE, r.KIND_CLEAR) == (
         pode_admin.FORCE_CONDITION, pode_admin.FORCE_STATE, pode_admin.FORCE_CLEAR)
+
+
+def test_an_arm_counts_as_stopped_like_the_fleet_sees_it():
+    assert set(ARM_STOPPED) == {"IDLE", "PAUSED", "ERROR"}
+    for moving in ("PICKING", "PLACING", "SWAPPING"):
+        assert moving not in ARM_STOPPED
