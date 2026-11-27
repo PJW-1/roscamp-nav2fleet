@@ -387,3 +387,15 @@ def test_fault_resolved_clears_the_error_of_that_arm(harness, tmp_path):
                request_id="r1", robot_id="arm_left")
     assert res.accepted and res.request_id == "r1"
     assert cell.node._state == {"arm_left": STATE_IDLE, "arm_right": STATE_ERROR}
+
+
+def test_an_accepted_fill_keeps_the_arms_from_releasing_before_they_move(harness, tmp_path):
+    from rclpy.action import GoalResponse
+    cell = Cell(harness, tmp_path)
+    try:
+        assert cell.node._on_goal(None) == GoalResponse.ACCEPT  # 받았지만 두 팔은 아직 IDLE
+        res = set_lock(cell, "arm_left", False, "l1")
+        assert (res.accepted, res.reason) == (False, "NOT_STOPPED")
+        assert cell.node._admin["arm_left"].lock
+    finally:
+        cell.node._busy = False

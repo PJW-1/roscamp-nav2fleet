@@ -106,7 +106,7 @@ class FakeWorkcellNode(Node):
             # 관리 명령: set_lock · force · fault_resolved (상태 칸 lock · forced에 실린다)
             fake_admin.mount(
                 self, contract, self._admin[arm], self._admin_lock, group,
-                lambda a=arm: self._state[a] in fake_admin.ARM_STOPPED,
+                lambda a=arm: self._stopped(a),
                 holding=lambda a=arm: self._state[a] == STATE_PLACING,
                 on_fault_resolved=lambda a=arm: self._clear_error(a))
         self._state_pubs = {
@@ -150,6 +150,11 @@ class FakeWorkcellNode(Node):
         for arm in self._arms:
             if self._state[arm] == STATE_ERROR and t >= self._error_until[arm]:
                 self._set_state(arm, STATE_IDLE)
+
+    def _stopped(self, arm: str) -> bool:
+        # 목표를 받은 뒤 아직 IDLE인 팔은 곧 움직이므로 멈춘 것으로 보지 않는다 (_admin_lock 안)
+        state = self._state[arm]
+        return state in fake_admin.ARM_STOPPED and not (self._busy and state == STATE_IDLE)
 
     def _clear_error(self, arm: str) -> None:
         with self._state_lock:
@@ -238,16 +243,17 @@ class FakeWorkcellNode(Node):
     # ---- 목표 ----
 
     def _on_goal(self, _request):
-        # IR-61: 락이 풀린 팔이 하나라도 있으면 받지 않는다
+        # IR-61: 락이 풀린 팔이 하나라도 있으면 받지 않는다. 락 해제와 같은 잠금 안에서 받는다
         with self._admin_lock:
             released = [arm for arm in self._arms if not self._admin[arm].lock]
+            if not released:
+                with self._busy_lock:
+                    if self._busy:
+                        return GoalResponse.REJECT
+                    self._busy = True
         if released:
             self.get_logger().warn(f"fill_basket goal rejected: lock released ({released})")
             return GoalResponse.REJECT
-        with self._busy_lock:
-            if self._busy:
-                return GoalResponse.REJECT
-            self._busy = True
         return GoalResponse.ACCEPT
 
     def _on_cancel(self, _handle):

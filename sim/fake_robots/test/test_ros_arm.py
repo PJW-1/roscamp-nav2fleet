@@ -221,3 +221,23 @@ def test_arm_ship_releases_its_lock_and_refuses_a_swap_meanwhile(harness, tmp_pa
     assert not seen[-1].lock
     assert set_lock(True, "l2").accepted
     assert result_of(send(client)[0]).success is True
+
+
+def test_arm_ship_is_not_stopped_once_a_swap_is_accepted(harness, tmp_path):
+    import rclpy.node
+    from fake_robots.fake_arm_node import FakeArmNode
+    from rclpy.action import GoalResponse
+    node = harness.add(FakeArmNode(parameter_overrides=harness.params(
+        arm_id="arm_ship", scenario_file=write_scenario(tmp_path))))
+    probe = harness.add(rclpy.node.Node("arm_race_probe"))
+    lock = probe.create_client(SetLock, C.name("robot_set_lock", robot="arm_ship"))
+    assert lock.wait_for_service(10.0)
+    try:
+        assert node._on_goal(None) == GoalResponse.ACCEPT  # 받았지만 상태는 아직 IDLE
+        fut = lock.call_async(SetLock.Request(request_id="l1", robot_id="arm_ship",
+                                              locked=False))
+        assert wait_until(fut.done, 5.0)
+        assert (fut.result().accepted, fut.result().reason) == (False, "NOT_STOPPED")
+        assert node._admin.lock
+    finally:
+        node._busy = False

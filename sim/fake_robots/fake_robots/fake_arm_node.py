@@ -65,7 +65,7 @@ class FakeArmNode(Node):
                             self._on_set_mode)
         # 관리 명령: set_lock · force (상태 칸 lock · forced에 실린다)
         fake_admin.mount(self, contract, self._admin, self._lock, ReentrantCallbackGroup(),
-                         lambda: self._state in fake_admin.ARM_STOPPED)
+                         self._stopped)
         self._state_pub = self.create_publisher(
             ArmState, contract.name("arm_state", arm=self.arm_id),
             to_ros_qos(contract.qos("arm_state")))
@@ -89,6 +89,11 @@ class FakeArmNode(Node):
 
     def _running(self) -> bool:
         return self._alive and rclpy.ok()
+
+    def _stopped(self) -> bool:
+        # 목표를 받은 뒤 아직 IDLE이면 곧 움직이므로 멈춘 것으로 보지 않는다 (self._lock 안)
+        return (self._state in fake_admin.ARM_STOPPED
+                and not (self._busy and self._state == STATE_IDLE))
 
     def _on_goal(self, _request):
         with self._lock:
