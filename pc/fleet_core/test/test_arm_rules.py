@@ -182,3 +182,38 @@ def test_feedback_reports_the_placed_items_in_goal_order_and_the_last_count_wins
     assert jobs.arm_task("arm_right") == ("RETURNING", "O-004")
     jobs.on_fill_feedback(goal.goal_id + 9, "arm_left", "PLACING", 4)
     assert not jobs.take_output()
+
+
+# ---- PAUSED 동안 담기 시간 초과를 세지 않고, 벗어나면 남은 시간부터 ----
+def paused_at_100_for_long():
+    jobs, now, goal = filling()
+    now[0] = 100.0
+    jobs.on_arm_state("arm_left", "PAUSED", "LOCK_RELEASED", False, "b1", True)
+    jobs.take_output()
+    now[0] = 2000.0
+    jobs.check_timeouts(now[0])
+    return jobs, now, goal
+
+
+def test_a_paused_fill_does_not_time_out():
+    jobs, _, _ = paused_at_100_for_long()
+    out = jobs.take_output()
+    assert not cmds(out, "CancelCmd") and not faults(out)
+    assert "ROBOT_TIMEOUT" not in codes(out)
+
+
+def test_the_fill_timer_goes_on_from_the_rest_after_resume():
+    jobs, now, goal = paused_at_100_for_long()
+    jobs.take_output()
+    assert jobs.on_resume_arm("arm_left") == (RESUME_SET_PAUSE_OFF, "")
+    jobs.on_arm_state("arm_left", "PICKING", "", False, "b1", True)
+    jobs.take_output()
+    # 남은 1100 s
+    now[0] = 3100.0
+    jobs.check_timeouts(now[0])
+    assert not cmds(jobs.take_output(), "CancelCmd")
+    now[0] = 3101.0
+    jobs.check_timeouts(now[0])
+    out = jobs.take_output()
+    assert cmds(out, "CancelCmd")[0].goal_id == goal.goal_id
+    assert "ROBOT_TIMEOUT" in codes(out) and not faults(out)

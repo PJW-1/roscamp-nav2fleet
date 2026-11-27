@@ -36,6 +36,7 @@ from fleet_core.common.commands import (
 STOP = "STOP"
 CANCELED = "CANCELED"
 ARM_ERROR = "ERROR"
+ARM_PAUSED = "PAUSED"
 
 _CODES = {FILL: ("FILL_RETRY", "FILL_FAILED"), SWAP: ("SWAP_RETRY", "SWAP_FAILED")}
 
@@ -53,6 +54,8 @@ class _Job:
     placed_total: int = 0  # 마지막 feedback의 담은 수
     phases: dict[str, str] = field(default_factory=dict)  # 팔 -> 마지막 진행 단계
     unlocked_holding: str = ""  # 쥔 채 락이 풀린 팔: 목표가 끝나면 보류
+    paused_s: float = 0.0  # 작업대 팔이 PAUSED였던 누적 시간 (담기 시간 초과에서 뺌)
+    paused_since: float | None = None
 
 
 # 목표 items 앞에서부터 n개
@@ -92,6 +95,7 @@ class ArmJobs:
         # 팔 이름 -> 그 팔이 일하는 스테이션 서버, ERROR를 보고 있는 팔
         self._server_of = {arm: s.server for s in stations.values() for arm in s.arms}
         self._arm_errors: set[str] = set()
+        self._arm_paused: set[str] = set()
         # 상태가 끊긴 팔, 팔별 boot_id · 쥐고 있음, 작업대 막힘 사유, 재시작으로 버린 목표
         self._arm_unknown: set[str] = set()
         self._boot: dict[str, str] = {}
@@ -216,6 +220,11 @@ class ArmJobs:
             self._held_goal[arm] = goal
         if before and boot_id and boot_id != before:
             self._on_arm_restart(arm, server, held_before)
+        if state == ARM_PAUSED:
+            self._arm_paused.add(arm)
+        else:
+            self._arm_paused.discard(arm)
+        self._update_pause(server)
         if state == ARM_ERROR:
             self._on_arm_error(arm, server, detail, holding)
         else:
@@ -294,6 +303,19 @@ class ArmJobs:
                     f"{arm} restarted during {server} goal {job.goal_id}, placed {placed}: "
                     "waits for [복구]", arm)
 
+    # ---- 작업대 팔 하나라도 PAUSED인 동안 담기 시간을 멈추고, 벗어나면 이어 셈 ----
+    def _update_pause(self, server) -> None:
+        r = self._fill_owner(server)
+        if r is None:
+            return
+        job, now = r.job, self._clock()
+        paused = any(a in self._arm_paused for a in self._arms_of(server))
+        if paused and job.paused_since is None:
+            job.paused_since = now
+        elif not paused and job.paused_since is not None:
+            job.paused_s += now - job.paused_since
+            job.paused_since = None
+
     def _arms_of(self, server) -> tuple[str, ...]:
         return tuple(a for a, s in self._server_of.items() if s == server)
 
@@ -325,7 +347,7 @@ class ArmJobs:
             limit = (self.params.fill_timeout_s if job.kind == FILL
                      else self.params.swap_timeout_s)
             settle = self.params.robot_timeout_settle_s
-            if job.canceled_at is None and now - job.sent_at > limit:
+            if job.canceled_at is None and self._run_time(job, now) > limit:
                 # IR-62: 실패가 아니라 결과 모름. 작업과 로봇은 쥔 채 취소하고 결과를 기다린다
                 self._cancel(r)
                 job.timed_out = True
@@ -335,6 +357,11 @@ class ArmJobs:
                 continue
             if self._expired(job, now):
                 self._give_up(r, job)
+
+    # 보낸 뒤 흐른 시간에서 PAUSED였던 시간을 뺌
+    def _run_time(self, job: _Job, now: float) -> float:
+        paused = job.paused_s + (now - job.paused_since if job.paused_since is not None else 0.0)
+        return now - job.sent_at - paused
 
     # ---- 취소한 작업의 기다림: 시간 초과는 robot_timeout_settle_s, 정지 취소는 arm_cancel_wait_s ----
     def _wait_of(self, job: _Job) -> float:
@@ -414,6 +441,8 @@ class ArmJobs:
         goal_id = self._next_goal_id()
         r.job, r.last = _Job(server, goal_id, kind, self._clock(), order_id=command.order_id,
                              items=dict(command.items) if kind == FILL else {}), None
+        if kind == FILL:
+            self._update_pause(server)
         if kind == FILL:
             self._out.append(FillCmd(goal_id, r.name, command.station_id, command.order_id,
                                      command.items))
