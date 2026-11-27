@@ -11,7 +11,7 @@ from conftest import CONTRACT, wait_until, write_scenario  # noqa: E402
 from fleet_core.common.contract import load_contract, to_ros_qos  # noqa: E402
 from fleet_interfaces.action import FillBasket  # noqa: E402
 from fleet_interfaces.msg import ArmState, OrderItem  # noqa: E402
-from fleet_interfaces.srv import RobotCommand, SetLock, SetMode  # noqa: E402
+from fleet_interfaces.srv import ForceInput, RobotCommand, SetLock, SetMode  # noqa: E402
 from rclpy.action import ActionClient  # noqa: E402
 
 C = load_contract(CONTRACT)
@@ -423,3 +423,22 @@ def test_an_arm_that_stopped_during_a_slow_cancel_can_release(harness, tmp_path)
     assert cell.node._busy
     assert set_lock(cell, "arm_left", False, "l1").accepted
     assert result_of(handle).reason == "CANCELED"
+
+
+def test_force_on_one_arm_needs_the_test_mode_and_shows_in_its_state(harness, tmp_path):
+    cell = Cell(harness, tmp_path)
+    seen = arm_states(cell)
+    assert wait_until(lambda: len(seen) == 2, 5.0)
+
+    def force(request_id, kind="CONDITION", value="1"):
+        return call(cell.probe, ForceInput, C.name("robot_force", robot="arm_right"),
+                    request_id=request_id, robot_id="arm_right", kind=kind, key="grip_fail",
+                    value=value)
+
+    assert (force("f1").accepted, force("f1").reason) == (False, "NOT_TEST_MODE")
+    assert set_mode(cell.probe, "arm_right", "TEST", "m1").accepted
+    assert force("f2").accepted
+    assert wait_until(lambda: list(seen["arm_right"][-1].forced) == ["grip_fail"], 5.0)
+    assert list(seen["arm_left"][-1].forced) == [], "one arm at a time"
+    assert force("f3", kind="CLEAR", value="").accepted
+    assert wait_until(lambda: list(seen["arm_right"][-1].forced) == [], 5.0)

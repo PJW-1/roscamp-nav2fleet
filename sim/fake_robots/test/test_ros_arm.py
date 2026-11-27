@@ -10,7 +10,7 @@ from conftest import CONTRACT, wait_until, write_scenario  # noqa: E402
 from fleet_core.common.contract import load_contract, to_ros_qos  # noqa: E402
 from fleet_interfaces.action import SwapBasket  # noqa: E402
 from fleet_interfaces.msg import ArmState  # noqa: E402
-from fleet_interfaces.srv import SetLock, SetMode  # noqa: E402
+from fleet_interfaces.srv import ForceInput, SetLock, SetMode  # noqa: E402
 from rclpy.action import ActionClient  # noqa: E402
 
 C = load_contract(CONTRACT)
@@ -261,3 +261,32 @@ def test_arm_ship_in_error_is_not_stopped_once_a_swap_is_accepted(harness, tmp_p
         assert (fut.result().accepted, fut.result().reason) == (False, "NOT_STOPPED")
     finally:
         node._busy = False
+
+
+def test_arm_ship_force_needs_the_test_mode_and_shows_in_its_state(harness, tmp_path):
+    import rclpy.node
+    start_arm(harness, tmp_path)
+    probe = harness.add(rclpy.node.Node("arm_force_probe"))
+    seen = []
+    probe.create_subscription(ArmState, C.name("arm_state", arm="arm_ship"), seen.append,
+                              to_ros_qos(C.qos("arm_state")))
+    assert wait_until(lambda: seen, 5.0)
+    clients = {srv: probe.create_client(srv, C.name(key, robot="arm_ship"))
+               for srv, key in ((ForceInput, "robot_force"), (SetMode, "robot_set_mode"))}
+
+    def ask(srv, **request):
+        assert clients[srv].wait_for_service(10.0)
+        fut = clients[srv].call_async(srv.Request(**request))
+        assert wait_until(fut.done, 5.0)
+        return fut.result()
+
+    def force(request_id, kind="CONDITION", value="1"):
+        return ask(ForceInput, request_id=request_id, robot_id="arm_ship", kind=kind,
+                   key="grip_fail", value=value)
+
+    assert force("f1").reason == "NOT_TEST_MODE"
+    assert ask(SetMode, request_id="m1", mode="TEST").accepted
+    assert force("f2").accepted
+    assert wait_until(lambda: list(seen[-1].forced) == ["grip_fail"], 5.0)
+    assert force("f3", kind="CLEAR", value="").accepted
+    assert wait_until(lambda: list(seen[-1].forced) == [], 5.0)
