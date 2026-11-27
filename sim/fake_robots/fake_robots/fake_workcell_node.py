@@ -259,13 +259,14 @@ class FakeWorkcellNode(Node):
             self._moving = False
 
     def _clear_error(self, arm: str) -> None:
-        asked = self._fault_gen[arm]
+        with self._state_lock:
+            self._resolved_n[arm] += 1  # 결과 뒤 아직 보이지 않은 고장은 보이지 않는다
+            asked = self._fault_gen[arm]
 
         def clear():
             with self._state_lock:
                 if self._fault_gen[arm] != asked:  # 요청 뒤 새로 난 고장
                     return
-                self._resolved_n[arm] += 1
                 self._error_until[arm] = 0.0
                 if self._state[arm] == STATE_ERROR:
                     self._state[arm] = STATE_IDLE
