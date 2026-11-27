@@ -43,6 +43,7 @@ class _Call:
     key: str = ""
     report: Callable | None = None  # 없으면 노드의 ReportCommand
     confirm_accepted: bool = False  # 받았다는 답도 상태 관측으로 확정
+    seen_ok: bool = False  # 보내는 중에 확정할 상태를 이미 봄 (confirm_accepted만)
     tries: int = 0
     asked_at: float | None = None
     future: object = None
@@ -121,6 +122,13 @@ class RobotCalls:
                     continue
                 c.asked_at = None
                 if c.tries >= p.tries:
+                    if c.seen_ok:
+                        # 답은 없지만 보낸 뒤 상태로 이미 확인됐다
+                        if c.future is not None:
+                            busy -= 1
+                        self._drop(c, out)
+                        self._finish(c, ACCEPTED, "", "confirmed by the robot state", True)
+                        continue
                     # 마지막 요청은 늦은 답을 받으려고 쥔다
                     c.phase = _UNSURE
                     (c.report or self._report)(c.request_id, c.command, c.target, UNCONFIRMED,
@@ -162,7 +170,7 @@ class RobotCalls:
             self._drop(c, out)
         c.future = None
         if accepted and c.confirm_accepted and c.observe is not None:
-            if view is not None and c.observe(view):
+            if c.seen_ok or (view is not None and c.observe(view)):
                 self._finish(c, ACCEPTED, "", "confirmed by the robot state", True)
             else:
                 c.phase = _STATE_WAIT  # 다시 부르지 않고 상태 관측이나 30초를 기다린다
@@ -183,6 +191,10 @@ class RobotCalls:
         """결과 모름인 명령을 기한 안의 상태 관측으로 확정한다 (IR-62)."""
         out = Step()
         for c in list(self._calls.values()):
+            if (c.phase == _SENDING and c.confirm_accepted and c.target == target
+                    and c.observe is not None and not self._late(c, now) and c.observe(view)):
+                c.seen_ok = True  # 답이 오면 확정에 쓴다
+                continue
             if (c.phase in (_UNSURE, _STATE_WAIT) and c.target == target
                     and c.observe is not None
                     and not self._late(c, now) and c.observe(view)):

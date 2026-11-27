@@ -232,7 +232,7 @@ class FleetManagerNode(Node):
                 CheckClear, name("check_clear", pode=robot), callback_group=inbox)
         for arm in self.contract.placeholders.get("arm", []):
             self.create_subscription(
-                ArmState, name("arm_state", arm=arm), partial(self._post, self._on_arm_state, arm),
+                ArmState, name("arm_state", arm=arm), partial(self._post_arm_state, arm),
                 self._qos("arm_state"), callback_group=inbox)
         self._fill = {}
         self._swap = {}
@@ -355,8 +355,12 @@ class FleetManagerNode(Node):
                                      *adapters.robot_obstacle(msg),
                                      adapters.robot_local_yield(msg))
 
-    def _on_arm_state(self, arm, msg: ArmState) -> None:
-        now = time.monotonic()
+    def _post_arm_state(self, arm, msg: ArmState) -> None:
+        # 끊김은 도착 시각으로 센다(코어가 늦게 꺼내도)
+        self._post(self._on_arm_state, arm, msg, time.monotonic())
+
+    def _on_arm_state(self, arm, msg: ArmState, at: float | None = None) -> None:
+        now = time.monotonic() if at is None else at
         before = self._arm_heard_at(arm)
         self._arm_states[arm] = (msg, now)
         self._mode_sync.on_state(arm, msg.mode, msg.boot_id, now)

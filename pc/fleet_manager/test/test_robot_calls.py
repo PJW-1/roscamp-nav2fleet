@@ -302,3 +302,23 @@ def test_without_confirm_accepted_an_accepted_answer_ends_at_once_even_with_an_o
     calls.step(0.0, lambda _c: True)
     calls.on_answer("p1", None, True, now=0.5, view="ERROR")
     assert [r[3] for r in box.reports] == ["ACCEPTED"]
+
+
+def test_an_exit_seen_while_sending_counts_even_if_the_arm_is_back_in_error_at_the_answer():
+    calls, box = make()
+    add_confirm(calls, box, left_error)
+    calls.step(0.0, lambda _c: True)
+    calls.observe("arm_left", "IDLE", 0.3)
+    assert box.reports == [], "still sending: no end state yet"
+    calls.on_answer("f1", None, True, now=0.5, view="ERROR")
+    assert box.reports == [("f1", "fault_resolved", "arm_left", "ACCEPTED", "")]
+
+
+def test_an_exit_seen_while_sending_confirms_when_no_answer_ever_comes():
+    calls, box = make()
+    add_confirm(calls, box, left_error)
+    calls.step(0.0, lambda _c: True)
+    calls.track("f1", object())
+    calls.observe("arm_left", "IDLE", 0.3)
+    run(calls, 16.0, start=0.1)
+    assert [r[3] for r in box.reports] == ["ACCEPTED"]

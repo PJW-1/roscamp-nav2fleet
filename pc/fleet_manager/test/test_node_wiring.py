@@ -108,6 +108,13 @@ class World(Node):
             Header, name("heartbeat"), lambda _m: self.beats.append(time.monotonic()),
             to_ros_qos(contract.qos("heartbeat")))
         self.create_timer(0.02, self._publish_state, callback_group=group)
+        # 작업대 두 팔도 실물처럼 상태를 낸다 (3 s 없으면 상태 모름으로 작업대가 막힘)
+        self.arm_mode = ""
+        self.arm_states = {"arm_left", "arm_right"}
+        self._arm_pubs = {arm: self.create_publisher(ArmState, name("arm_state", arm=arm),
+                                                     to_ros_qos(contract.qos("arm_state")))
+                          for arm in ("arm_left", "arm_right")}
+        self.create_timer(0.1, self._publish_arms, callback_group=group)
         self.create_service(ReportOrder, name("report_order"), self._on_report,
                             callback_group=group)
         self._servers = [
@@ -136,6 +143,12 @@ class World(Node):
                          boot_id="w1")
         msg.pose.x, msg.pose.y = self.pose
         self.state.publish(msg)
+
+    def _publish_arms(self):
+        for arm, pub in self._arm_pubs.items():
+            if arm in self.arm_states:
+                pub.publish(ArmState(arm_id=arm, state="IDLE", lock=True, boot_id="b-1",
+                                     mode=self.arm_mode))
 
     def _on_move(self, handle):
         self.pose = (handle.request.target_pose.x, handle.request.target_pose.y)
@@ -246,6 +259,7 @@ def test_the_status_of_every_robot_comes_out_about_five_times_a_second(graph):
 
 
 def test_the_status_lists_the_three_arms_after_the_podes(graph):
+    graph.arm_states.clear()  # arm_left는 이 시험이 직접 내고, arm_right는 상태 없음을 본다
     pub = graph.create_publisher(ArmState, graph.fms.contract.name("arm_state", arm="arm_left"),
                                  to_ros_qos(graph.fms.contract.qos("arm_state")))
     graph.create_timer(0.1, lambda: pub.publish(ArmState(arm_id="arm_left", state="PICKING",
@@ -865,12 +879,7 @@ def send_system_mode(world, mode):
 
 def arms_report_mode(world, mode):
     """작업대 두 팔이 그 모드를 보고한다 (담기는 팔이 모드를 보고한 뒤 나간다)."""
-    contract, qos = world.fms.contract, to_ros_qos(world.fms.contract.qos("arm_state"))
-    pubs = {arm: world.create_publisher(ArmState, contract.name("arm_state", arm=arm), qos)
-            for arm in ("arm_left", "arm_right")}
-    world.create_timer(0.1, lambda: [pub.publish(ArmState(arm_id=arm, state="IDLE", lock=True,
-                                                          boot_id="b-1", mode=mode))
-                                     for arm, pub in pubs.items()])
+    world.arm_mode = mode
 
 
 def event_codes(world):

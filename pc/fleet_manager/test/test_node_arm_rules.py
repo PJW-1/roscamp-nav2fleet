@@ -180,3 +180,24 @@ def test_a_state_after_a_gap_past_the_limit_is_told_lost_and_fed_again(node):
     feed(node, arm(boot_id="b1"))  # 한도 안에 온 다음 상태는 끊김이 아니다
     assert node.core.args("on_arm_state_lost") == [("arm_left",)]
     assert len(node.core.args("on_arm_state")) == 2
+
+
+# ---- 끊김은 도착 시각으로 센다 (코어가 받은 편지함에서 늦게 꺼내도) ----
+def test_the_arrival_time_counts_not_the_time_the_core_takes_it(node):
+    limit = node.core.params.comm_timeout_s
+    t0 = time.monotonic() - 3 * limit
+    node._started_at = t0
+    node._post(node._on_arm_state, "arm_left", arm(boot_id="b1"), t0 + 0.1)
+    node._post(node._on_arm_state, "arm_left", arm(boot_id="b1", holding=True), t0 + 0.3)
+    node._drain()
+    assert node.core.args("on_arm_state_lost") == [], "0.2 s apart on arrival"
+    node._post(node._on_arm_state, "arm_left", arm(boot_id="b1"), t0 + 0.4 + limit)
+    node._drain()
+    assert node.core.args("on_arm_state_lost") == [("arm_left",)]
+
+
+def test_the_subscription_stamps_the_arrival_time(node):
+    node._post_arm_state("arm_left", arm(boot_id="b1"))
+    time.sleep(0.3)
+    node._drain()
+    assert node._arm_states["arm_left"][1] < time.monotonic() - 0.25
