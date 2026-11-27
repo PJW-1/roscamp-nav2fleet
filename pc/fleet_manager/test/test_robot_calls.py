@@ -213,14 +213,22 @@ def test_one_request_id_can_call_two_robots_under_their_own_keys_and_report_sink
     calls, box = make()
     seen = []
     for arm in ("arm_left", "arm_right"):
-        calls.add("r1", "set_pause", arm, arm, f"req-{arm}", 0.0, key=f"r1@{arm}",
+        calls.add("r1", "set_pause", arm, arm, f"req-{arm}", 0.0, key=("r1", arm),
                   report=lambda *r: seen.append(r[:4]))
-    assert "r1@arm_left" in calls and "r1@arm_right" in calls and "r1" not in calls
+    assert ("r1", "arm_left") in calls and ("r1", "arm_right") in calls and "r1" not in calls
     step = calls.step(0.0, lambda _c: True)
-    assert [s[0] for s in step.send] == ["r1@arm_left", "r1@arm_right"]
+    assert [s[0] for s in step.send] == [("r1", "arm_left"), ("r1", "arm_right")]
     assert calls.pending("set_pause", "arm_right") == "r1"
-    calls.on_answer("r1@arm_left", None, True)
-    calls.on_answer("r1@arm_right", None, False, "NOT_PAUSED")
+    calls.on_answer(("r1", "arm_left"), None, True)
+    calls.on_answer(("r1", "arm_right"), None, False, "NOT_PAUSED")
     assert seen == [("r1", "set_pause", "arm_left", "ACCEPTED"),
                     ("r1", "set_pause", "arm_right", "REJECTED")]
     assert box.reports == [], "a call with its own sink does not use the node report"
+
+
+def test_a_per_robot_key_never_collides_with_a_plain_request_id():
+    calls, box = make()
+    calls.add("abc@arm_left", "set_lock", "arm_left", "C", "req", 0.0)
+    calls.add("abc", "set_pause", "arm_left", "C", "req", 0.0, key=("abc", "arm_left"),
+              report=lambda *r: None)
+    assert "abc@arm_left" in calls and ("abc", "arm_left") in calls

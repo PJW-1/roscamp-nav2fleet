@@ -102,9 +102,16 @@ def test_a_quiet_arm_is_told_lost_once_and_its_next_state_is_fed_again(node):
     assert node.core.args("on_arm_state_lost") == [("arm_left",), ("arm_left",)]
 
 
-def test_an_arm_never_heard_from_is_not_told_lost(node):
+def test_a_workcell_arm_never_heard_from_is_told_lost_once_after_the_start(node):
     node._check_arms_lost()
-    assert node.core.args("on_arm_state_lost") == []
+    assert node.core.args("on_arm_state_lost") == [], "not before comm_timeout_s from the start"
+    node._started_at = time.monotonic() - node.core.params.comm_timeout_s - 0.1
+    node._check_arms_lost()
+    node._check_arms_lost()
+    assert sorted(node.core.args("on_arm_state_lost")) == [("arm_left",), ("arm_right",)]
+    feed(node, arm(boot_id="b1"))  # 첫 상태는 그대로 넣는다
+    assert node.core.args("on_arm_state") == [("arm_left", "IDLE", "", False, "b1", False)]
+    assert "arm_left" not in node._arm_lost and "arm_right" in node._arm_lost
 
 
 def test_the_tick_checks_for_quiet_arms(node):
@@ -142,7 +149,7 @@ def test_the_arm_row_takes_the_phase_and_trip_from_the_core(node):
         "ARM", "PLACING", "PLACING", "T-9")
     node.core._core.arm_task = lambda name: ("", "")
     row = row_of(node, "arm_left")
-    assert (row.task_type, row.order_id) == ("", "O-ARM")
+    assert (row.task_type, row.order_id) == ("", ""), "the order comes from the core only"
     assert row_of(node, "arm_right").fault == RobotStatus.FAULT_COMM_LOST
 
 

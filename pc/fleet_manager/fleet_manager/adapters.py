@@ -110,14 +110,13 @@ def _pode_status(v, state) -> RobotStatus:
 
 
 def arm_status(arm: str, state, fresh: bool, phase: str = "", trip: str = "") -> RobotStatus:
-    """phase · trip은 코어의 담기 진행. 담는 건이 없으면 order_id는 팔이 보고한 값."""
+    """phase · trip은 코어의 담기 진행."""
     row = RobotStatus(robot_id=arm, kind=RobotStatus.KIND_ARM, battery=-1.0,
                       fault=RobotStatus.FAULT_COMM_LOST, lock=True, task_type=phase,
                       order_id=trip)
     if state is None:
         return row
     row.fsm_state, row.fault_reason = state.state, state.detail
-    row.order_id = trip or state.order_id
     row.lock, row.mode, row.forced, row.boot_id = (
         bool(state.lock), state.mode, list(state.forced), state.boot_id)
     if fresh:

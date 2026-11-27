@@ -165,6 +165,7 @@ class FleetManagerNode(Node):
         self._arm_states = {}
         self._arm_fed = {}
         self._arm_lost = set()  # 상태가 끊겨 코어에 알린 팔
+        self._started_at = time.monotonic()  # 한 번도 상태가 없는 팔은 이때부터 센다
         self._setup_admin(robots)
         # IR-30: 코어 그룹만 코어와 노드 상태를 바꾸고, 받은 편지함 그룹은 큐에 넣기만 한다
         self._core_group = MutuallyExclusiveCallbackGroup()
@@ -366,9 +367,12 @@ class FleetManagerNode(Node):
             self.core.on_arm_state(arm, *seen)
 
     def _check_arms_lost(self) -> None:
-        """comm_timeout_s 동안 상태가 없으면 한 번 알린다. 다음 상태는 바뀐 것으로 다시 넣는다."""
+        """comm_timeout_s 동안 상태가 없으면 한 번 알린다. 다음 상태는 바뀐 것으로 다시 넣는다.
+
+        작업대 팔은 한 번도 보내지 않았어도 시작 시각부터 센다."""
         limit = self.core.params.comm_timeout_s
-        for arm, (_msg, at) in self._arm_states.items():
+        for arm in sorted(set(self._arm_states) | self._pause_arms):
+            at = self._arm_states.get(arm, (None, self._started_at))[1]
             if arm not in self._arm_lost and time.monotonic() - at > limit:
                 self._arm_lost.add(arm)
                 self._arm_fed.pop(arm, None)
@@ -480,13 +484,13 @@ class FleetManagerNode(Node):
 
     @_core_callback
     def _on_resume_arm(self, request, response):
-        """관리자 [재개]: 코어가 두 팔 set_pause(false) · 새 담기 목표 · 거절을 정한다."""
+        """관리자 [복구]: 코어가 두 팔 set_pause(false) · 새 담기 목표 · 거절을 정한다."""
         self._drain()
         rid, target = _request_id(request), request.robot_id
         command, how = self._command("resume_arm"), []
 
         def judge():
-            # 앞 [재개]의 set_pause가 끝나야 다음을 받는다
+            # 앞 [복구]의 set_pause가 끝나야 다음을 받는다
             for arm in sorted(self._pause_clients):
                 busy = self._robot_calls.pending(self._command("arm_set_pause", arm=arm), arm)
                 if busy is not None:
@@ -525,7 +529,7 @@ class FleetManagerNode(Node):
                 rid, self._command("arm_set_pause", arm=arm), arm, self._pause_clients[arm],
                 SetPause.Request(request_id=rid, paused=False), time.monotonic(),
                 observe=self._left_paused if self._paused(arm) else None,
-                key=f"{rid}@{arm}", report=partial(report, arm))
+                key=(rid, arm), report=partial(report, arm))
 
     # ---- 로봇 부르기와 락 상태 ----
     def _call_robot(self, rid, key, robot, clients, request, observe=None, then=None) -> None:

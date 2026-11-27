@@ -70,7 +70,8 @@ class RobotCalls:
 
     def add(self, request_id, command, target, client, request, now, observe=None,
             then=None, key=None, report=None) -> None:
-        """key: 한 request_id로 여러 로봇을 부를 때 부르기마다 다른 이름 (없으면 request_id)."""
+        """key: 한 request_id로 여러 로봇을 부를 때 부르기마다 다른 이름 (없으면 request_id).
+        request_id 문자열과 겹치지 않게 튜플로 준다."""
         key = request_id if key is None else key
         if key in self._calls:
             return

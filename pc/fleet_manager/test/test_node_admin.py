@@ -379,7 +379,7 @@ def test_fault_resolved_on_an_arm_that_stays_in_error_ends_in_timeout(graph):
     assert reports(graph, "R-5")[-1][4] == "ROBOT_TIMEOUT"
 
 
-# ---- 관리자 [재개] (팔 관제 합의 ⑧) ----
+# ---- 관리자 [복구] (팔 관제 합의 ⑧) ----
 def resume_answer(graph, answer):
     graph.fms.core.on_resume_arm = lambda target: answer
 
@@ -435,7 +435,7 @@ def test_an_unanswered_set_pause_is_confirmed_when_the_paused_arm_leaves_paused(
     call(graph, RobotCommand, "resume_arm", request_id="U-5", robot_id="workcell")
     assert wait_for(lambda: results(graph, "U-5") == ["UNCONFIRMED"], 4.0), reports(graph, "U-5")
     assert reports(graph, "U-5")[0][5].startswith("arm_left:")
-    # 앞 [재개]가 끝나기 전 다음 [재개]는 받지 않는다
+    # 앞 [복구]가 끝나기 전 다음 [복구]는 받지 않는다
     busy = call(graph, RobotCommand, "resume_arm", request_id="U-6", robot_id="workcell")
     assert (busy.accepted, busy.reason) == (False, "NOT_READY")
     graph.arm.state = ArmState.STATE_IDLE
