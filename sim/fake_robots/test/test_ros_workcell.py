@@ -195,7 +195,8 @@ def test_cancel_returns_canceled_with_what_was_placed(harness, tmp_path):
                 arm={"seconds_per_item": 0.4, "swap_seconds": 0.4, "fail_rate": 0.0})
     handle, fb = cell.send(A=5)
     assert handle.accepted
-    assert wait_until(lambda: fb, 10.0)  # 적어도 하나는 바구니에 있다
+    # 적어도 하나는 바구니에 있다 (피드백은 CAPTURING부터 온다)
+    assert wait_until(lambda: any(f.feedback.placed_total for f in fb), 10.0)
     cancel = handle.cancel_goal_async()
     assert wait_until(cancel.done, 5.0)
     result = result_of(handle)

@@ -78,3 +78,48 @@ def test_an_arm_counts_as_stopped_like_the_fleet_sees_it():
     assert set(ARM_STOPPED) == {"IDLE", "PAUSED", "ERROR"}
     for moving in ("PICKING", "PLACING", "SWAPPING"):
         assert moving not in ARM_STOPPED
+
+
+def test_a_hook_can_refuse_a_force_and_the_value_is_not_kept():
+    a = admin()
+    seen = []
+
+    def hook(kind, key, value):
+        seen.append((kind, key, value))
+        return "bad value" if value == "x" else ""
+
+    reply = a.force_hooked("f1", "arm_left", "CONDITION", "fill_fail", "x", 0.0, hook)
+    assert (reply.accepted, reply.reason) == (False, "NOT_FOUND") and a.forced == []
+    assert a.force_hooked("f2", "arm_left", "CONDITION", "fill_fail", "ok", 0.0, hook).accepted
+    assert a.forced_values == {"fill_fail": "ok"} and a.last_request_id == "f2"
+    assert a.force_hooked("f3", "arm_left", "CLEAR", "", "", 0.0, hook).accepted
+    assert len(seen) == 2, "CLEAR does not go to the hook"
+    # 시험 모드가 아니면 훅까지 가지 않는다
+    a.mode = "NORMAL"
+    assert a.force_hooked("f4", "arm_left", "CONDITION", "k", "x", 0.0, hook).reason == \
+        "NOT_TEST_MODE"
+    assert len(seen) == 2
+
+
+def test_set_pause_is_judged_once_per_request_id():
+    a = admin()
+    calls = []
+
+    def apply(paused):
+        calls.append(paused)
+        return pode_admin.Reply(True)
+
+    assert a.set_pause("p1", True, 0.0, apply).accepted
+    assert a.set_pause("p1", False, 1.0, apply).accepted
+    assert calls == [True] and a.last_request_id == "p1"
+
+
+def test_a_reboot_brings_back_the_boot_values():
+    a = admin()
+    a.lock = False
+    a.force("f1", "arm_left", "CONDITION", "battery", "20", 0.0)
+    a.reboot("boot-2")
+    assert (a.boot_id, a.lock, a.mode, a.forced, a.last_request_id) == (
+        "boot-2", True, "UNKNOWN", [], "")
+    a.mode = "TEST"
+    assert a.force("f1", "arm_left", "CLEAR", "", "", 1.0).accepted, "request ids forgotten"
