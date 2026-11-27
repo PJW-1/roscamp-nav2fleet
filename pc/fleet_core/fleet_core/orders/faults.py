@@ -74,10 +74,12 @@ class Faults:
             self._drop_arm(r, isolated=True)
         self._requeue_isolated(r)
 
-    # 담은 것이 있으면 보류, 없으면 대기로 되돌림
-    def _requeue_isolated(self, r: RobotRecord) -> None:
-        if r.order and r.order.placed:
-            self._hold(r, HOLD_ROBOT_FAULT, f"robot isolated: {r.isolated}")
+    # 담은 것이나 쥐고 있던 상품(uncertain)이 있으면 보류, 없으면 대기로 되돌림
+    def _requeue_isolated(self, r: RobotRecord, uncertain=None) -> None:
+        unsure = {k: v for k, v in (uncertain or {}).items() if v > 0}
+        if r.order and (r.order.placed or unsure):
+            extra = f", uncertain {unsure}" if unsure else ""
+            self._hold(r, HOLD_ROBOT_FAULT, f"robot isolated: {r.isolated}{extra}")
             r.order = None
         elif r.order:
             self._held.pop(r.order.order_id, None)

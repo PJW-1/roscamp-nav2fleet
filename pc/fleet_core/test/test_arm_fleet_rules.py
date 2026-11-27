@@ -223,3 +223,28 @@ def test_feedback_of_an_unknown_goal_is_ignored():
     core.on_fill_feedback(fill.goal_id + 99, "arm_left", "PLACING", 1)
     assert not core.take_output()
     assert core.arm_task("arm_left") == ("", "O-001")
+
+
+# ---- ① 보강: uncertain이 있으면 언제나 보류 ----
+def test_a_stop_canceled_fill_with_an_uncertain_item_is_held():
+    core, _, fill = filling()
+    core.on_order_board("STOP", [O1])
+    core.take_output()
+    core.on_fill_result(fill.goal_id, False, {}, {}, "CANCELED", None, {"A": 1})
+    assert holds(core.take_output()) == [("HELD", "ARM_FAULT")]
+
+
+def test_a_successful_fill_with_an_uncertain_item_is_held():
+    core, _, fill = filling()
+    core.on_fill_result(fill.goal_id, True, {"A": 1, "C": 1}, {}, "", None, {"C": 1})
+    assert holds(core.take_output()) == [("HELD", "ARM_FAULT")]
+
+
+def test_an_isolated_robot_whose_fill_left_an_uncertain_item_is_held_not_requeued():
+    core, _, fill = filling()
+    core.on_robot_isolated("r1", "COMM_LOST")
+    core.take_output()
+    core.on_fill_result(fill.goal_id, False, {}, {}, "PICK_FAILED", None, {"A": 1})
+    out = core.take_output()
+    assert holds(out) == [("HELD", "ROBOT_FAULT")]
+    assert not [c for c in cmds(out, "DispatchCmd") if not c.robot_id], "not offered again"

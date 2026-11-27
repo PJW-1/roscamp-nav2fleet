@@ -126,8 +126,9 @@ class ArmJobs:
         confirmed = placed if placed_confirmed is None else placed_confirmed
         self._out.append(ArmFillResult(r.name, success, placed, reason, dict(missing),
                                        dict(confirmed), dict(uncertain or {})))
-        if not success:
-            self._judge_fill(r, job, reason, dict(uncertain or {}))
+        uncertain = dict(uncertain or {})
+        if not success or any(count > 0 for count in uncertain.values()):
+            self._judge_fill(r, job, reason, uncertain)
 
     def on_swap_result(self, goal_id, success, took_full, put_empty_done, reason="") -> None:
         self._forget_cleared_job(goal_id)
@@ -436,7 +437,8 @@ class ArmJobs:
 
     # ---- 담기 실패의 다음 처리 (팔 관제 합의 ①): 재시도는 NOT_READY만 ----
     def _judge_fill(self, r: _Robot, job: _Job, reason: str, uncertain: dict) -> None:
-        if reason == CANCELED and job.canceled_at is not None and not job.timed_out:
+        held = any(count > 0 for count in uncertain.values())
+        if reason == CANCELED and job.canceled_at is not None and not job.timed_out and not held:
             return  # 관제가 멈춘 목표
         then = next_after_fill(reason, uncertain, job.timed_out)
         if then == RETRY:
@@ -448,7 +450,7 @@ class ArmJobs:
             self._out.append(ArmFillPaused(r.name, job.server, reason, detail))
             self._event("WARN", "FILL_PAUSED", f"{detail}, waits for the operator", r.name)
             return
-        if any(count > 0 for count in uncertain.values()):
+        if held:
             detail += f", uncertain {uncertain}"
         self._out.append(ArmFault(r.name, FILL, job.server, detail))
         self._event("ERROR", "FILL_FAILED", f"{detail}, held without a retry", r.name)

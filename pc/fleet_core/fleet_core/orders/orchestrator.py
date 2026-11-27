@@ -128,7 +128,7 @@ class OrderOrchestrator(Faults, Stations):
         if isinstance(report, ArmDeclined):
             r.asked = ""
         elif isinstance(report, ArmFillResult):
-            self._on_fill_result(r, report.success, report.placed)
+            self._on_fill_result(r, report.success, report.placed, report.uncertain)
         elif isinstance(report, ArmSwapResult):
             self._on_swap_result(r, report.took_full, report.put_empty_done)
         elif isinstance(report, ArmLost):
@@ -143,11 +143,11 @@ class OrderOrchestrator(Faults, Stations):
             self._on_fill_placed(r, report.placed)
 
     # ---- 팔 결과를 주문에 반영하고 결과를 잃은 작업 기록 ----
-    def _on_fill_result(self, r: RobotRecord, success, placed) -> None:
+    def _on_fill_result(self, r: RobotRecord, success, placed, uncertain=None) -> None:
         r.asked = ""
         merge_items(r.order.placed, placed)
         if r.isolated:
-            self._requeue_isolated(r)
+            self._requeue_isolated(r, uncertain)
             return
         if success:
             r.order.missing = subtract_items(r.order.items, r.order.placed)
