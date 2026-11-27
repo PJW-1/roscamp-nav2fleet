@@ -1,0 +1,2 @@
+[INFO] [1795689190.486355542] [cmd_step_probe_7328]: start pose (0.021202714900292383, 0.009182162076690542, 0.02241112410189004), 24 segments, limit 0.6 m
+[INFO] [1795689276.421800195] [cmd_step_probe_7328]: done, wrote probe/step_arc_1126.csv
