@@ -46,6 +46,7 @@ rosidl_generate_interfaces(${PROJECT_NAME}
       "srv/RobotCommand.srv"
       "srv/SetLock.srv"
       "srv/ForceInput.srv"
+      "srv/SetPause.srv"
       "srv/SetMode.srv"
       DEPENDENCIES geometry_msgs nav_msgs builtin_interfaces)
 install(FILES contract.yaml DESTINATION share/${PROJECT_NAME})

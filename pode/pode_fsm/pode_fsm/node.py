@@ -9,7 +9,7 @@ import uuid
 
 import rclpy
 from fleet_interfaces.msg import RobotState, RobotStatusArray
-from fleet_interfaces.srv import CheckClear, RobotCommand, SetLock, SetMode
+from fleet_interfaces.srv import CheckClear, ForceInput, RobotCommand, SetLock, SetMode
 from geometry_msgs.msg import Pose2D
 from nav2_msgs.msg import SpeedLimit
 from nav2_msgs.srv import ClearEntireCostmap
@@ -170,8 +170,11 @@ class PodeFsmNode(Node):
                             self._on_set_mode, callback_group=group)
         self.create_service(RobotCommand, contract.name("pode_charge_end", pode=self.robot_id),
                             self._on_charge_end, callback_group=group)
+        self.create_service(ForceInput, contract.name("robot_force", robot=self.robot_id),
+                            self._on_force, callback_group=group)
         self._servers = GoalServers(self, contract, self.robot_id, group, self._lock, self._fsm,
-                                    self._pose, self._run, lambda: self._alive, self._nm)
+                                    self._pose, self._run, lambda: self._alive, self._nm,
+                                    locked=lambda: self._admin.lock)
         # ---- 제어, 상태, 마커 타이머 시작 ----
         steady = Clock(clock_type=ClockType.STEADY_TIME)
         self.create_timer(1.0 / float(get("control_rate_hz").value), self._tick,
@@ -334,7 +337,7 @@ class PodeFsmNode(Node):
                                                age_s=time.monotonic() - at)
         return response
 
-    # ---- 관리 명령 서비스: 락, 운영 모드, 충전 끝내기 ----
+    # ---- 관리 명령 서비스: 락, 운영 모드, 충전 끝내기, 강제 입력 ----
     def _on_set_lock(self, request, response):
         with self._lock:
             stopped = not self._fsm.has_goal()
@@ -351,6 +354,12 @@ class PodeFsmNode(Node):
         with self._lock:
             reply = self._admin.charge_end(request.request_id, request.robot_id,
                                            float(self._battery), time.monotonic())
+        return _answer(response, request.request_id, reply)
+
+    def _on_force(self, request, response):
+        with self._lock:
+            reply = self._admin.force(request.request_id, request.robot_id, request.kind,
+                                      request.key, request.value, time.monotonic())
         return _answer(response, request.request_id, reply)
 
     # ---- 경로 점에 장애물이 있는지 검사 ----

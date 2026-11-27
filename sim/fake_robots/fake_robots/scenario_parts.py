@@ -108,8 +108,9 @@ def _parse_fault(raw: dict, robots: dict, site) -> Fault:
         raise ScenarioError(f"unknown fault type in {raw}")
     if kind in ROBOT_FAULTS and raw.get("robot") not in robots:
         raise ScenarioError(f"fault for unknown robot in {raw}")
-    if kind == "arm_fail" and raw.get("arm") not in _arms_with(site, "fill"):
-        raise ScenarioError(f"arm_fail needs a workspace arm in {raw}")
+    if kind in ("arm_fail", "operator_fault_resolved") and raw.get("arm") not in _arms_with(
+            site, "fill"):
+        raise ScenarioError(f"{kind} needs a workspace arm in {raw}")
     if "at_s" not in raw:
         raise ScenarioError(f"fault has no at_s: {raw}")
     if kind == "blocked":

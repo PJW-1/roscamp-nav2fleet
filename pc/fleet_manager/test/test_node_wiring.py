@@ -65,7 +65,7 @@ def items(counts):
 class World(Node):
     """시키는 대로 즉시 하는 로봇 하나, 팔 서버 둘, central."""
 
-    def __init__(self, contract, site, node, robot="pode1", robot_servers=True):
+    def __init__(self, contract, site, node, robot="pode1", robot_servers=True, arms=True):
         super().__init__("wiring_world")
         self.robot = robot
         group = ReentrantCallbackGroup()
@@ -108,6 +108,13 @@ class World(Node):
             Header, name("heartbeat"), lambda _m: self.beats.append(time.monotonic()),
             to_ros_qos(contract.qos("heartbeat")))
         self.create_timer(0.02, self._publish_state, callback_group=group)
+        # 작업대 두 팔도 실물처럼 상태를 낸다 (3 s 없으면 상태 모름으로 작업대가 막힘)
+        self.arm_mode = ""
+        self.arm_states = {"arm_left", "arm_right"} if arms else set()
+        self._arm_pubs = {arm: self.create_publisher(ArmState, name("arm_state", arm=arm),
+                                                     to_ros_qos(contract.qos("arm_state")))
+                          for arm in ("arm_left", "arm_right")}
+        self.create_timer(0.1, self._publish_arms, callback_group=group)
         self.create_service(ReportOrder, name("report_order"), self._on_report,
                             callback_group=group)
         self._servers = [
@@ -136,6 +143,12 @@ class World(Node):
                          boot_id="w1")
         msg.pose.x, msg.pose.y = self.pose
         self.state.publish(msg)
+
+    def _publish_arms(self):
+        for arm, pub in self._arm_pubs.items():
+            if arm in self.arm_states:
+                pub.publish(ArmState(arm_id=arm, state="IDLE", lock=True, boot_id="b-1",
+                                     mode=self.arm_mode))
 
     def _on_move(self, handle):
         self.pose = (handle.request.target_pose.x, handle.request.target_pose.y)
@@ -187,10 +200,12 @@ class World(Node):
 
 
 @pytest.fixture
-def graph():
+def graph(request):
+    # indirect param {"arms": False}: 작업대 팔 상태를 처음부터 내지 않는다
+    opts = getattr(request, "param", {})
     rclpy.init(args=["--ros-args", "-p", "robots:=[pode1]", "-p", "tick_hz:=50.0"])
     node = FleetManagerNode()
-    world = World(node.contract, load_fleet_map("d2"), "P-1")
+    world = World(node.contract, load_fleet_map("d2"), "P-1", arms=opts.get("arms", True))
     world.fms = node
     executor = MultiThreadedExecutor(num_threads=4)
     executor.add_node(node)
@@ -245,7 +260,9 @@ def test_the_status_of_every_robot_comes_out_about_five_times_a_second(graph):
     assert (robot.x, robot.y) != (0.0, 0.0)
 
 
+@pytest.mark.parametrize("graph", [{"arms": False}], indirect=True)
 def test_the_status_lists_the_three_arms_after_the_podes(graph):
+    # arm_left는 이 시험이 직접 내고, arm_right는 상태 없음을 본다
     pub = graph.create_publisher(ArmState, graph.fms.contract.name("arm_state", arm="arm_left"),
                                  to_ros_qos(graph.fms.contract.qos("arm_state")))
     graph.create_timer(0.1, lambda: pub.publish(ArmState(arm_id="arm_left", state="PICKING",
@@ -397,7 +414,7 @@ def test_a_bad_clear_gives_a_reason_and_input_rejected_and_the_ticks_go_on(graph
         robot_id="pode1", zone_ids=["NOPE"], note="typo"))
     assert wait_for(future.done, 10.0), "no reply: the callback raised"
     result = future.result()
-    assert not result.accepted and "NOPE" in result.reason
+    assert not result.accepted and result.reason == "NOT_FOUND" and "NOPE" in result.detail
     assert wait_for(lambda: any(e.code == "INPUT_REJECTED" for e in graph.events), 10.0)
     rejected = [e for e in graph.events if e.code == "INPUT_REJECTED"]
     assert len(rejected) == 1 and rejected[0].level == "WARN"
@@ -407,7 +424,8 @@ def test_a_bad_clear_gives_a_reason_and_input_rejected_and_the_ticks_go_on(graph
     assert wait_for(lambda: len(graph.status) >= 2, 10.0), "no /fleet/robots after the call"
     second = client.call_async(ConfirmClear.Request(robot_id="pode9", zone_ids=[], note="x"))
     assert wait_for(second.done, 10.0)
-    assert not second.result().accepted and "pode9" in second.result().reason
+    assert not second.result().accepted and second.result().reason == "UNKNOWN_TARGET"
+    assert "pode9" in second.result().detail
     publish(graph, "RUN", {"A": 1, "C": 2})
     assert wait_for(lambda: graph.reports), "the node stopped working orders"
 
@@ -422,13 +440,15 @@ def test_reinstate_takes_a_cleared_robot_back_and_refuses_a_bad_call_with_a_reas
     graph.events.clear()
     early = back.call_async(Reinstate.Request(robot_id="pode1", basket="EMPTY", note="x"))
     assert wait_for(early.done, 10.0), "no reply: the callback raised"
-    assert not early.result().accepted and "OUT_OF_SERVICE" in early.result().reason
+    assert not early.result().accepted and early.result().reason == "NOT_READY"
+    assert "OUT_OF_SERVICE" in early.result().detail
     cleared = clear.call_async(ConfirmClear.Request(
         robot_id="pode1", zone_ids=fms.core.zones.held_by("pode1"), note="lifted"))
     assert wait_for(cleared.done, 10.0) and cleared.result().accepted
     wrong = back.call_async(Reinstate.Request(robot_id="pode1", basket="FULL", note="x"))
     assert wait_for(wrong.done, 10.0)
-    assert not wrong.result().accepted and "basket" in wrong.result().reason
+    assert not wrong.result().accepted and wrong.result().reason == "ORDER_STATE"
+    assert "basket" in wrong.result().detail
     good = back.call_async(Reinstate.Request(
         robot_id="pode1", basket=Reinstate.Request.BASKET_EMPTY, note="back"))
     assert wait_for(good.done, 10.0)
@@ -860,6 +880,11 @@ def send_system_mode(world, mode):
     return pub
 
 
+def arms_report_mode(world, mode):
+    """작업대 두 팔이 그 모드를 보고한다 (담기는 팔이 모드를 보고한 뒤 나간다)."""
+    world.arm_mode = mode
+
+
 def event_codes(world):
     return [e.code for e in list(world.events)]
 
@@ -873,6 +898,7 @@ def test_nothing_is_asked_before_the_system_mode_comes(graph):
 
 def test_the_system_mode_is_sent_to_the_robot_and_it_keeps_working(graph):
     asked = serve_set_mode(graph)
+    arms_report_mode(graph, "TEST")
     send_system_mode(graph, "TEST")
     assert wait_for(lambda: asked == ["TEST"], 10.0), asked
     assert wait_for(lambda: graph.mode == "TEST", 5.0)

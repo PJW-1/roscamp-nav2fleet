@@ -1,6 +1,7 @@
 """fleet_core 레코드와 ROS 메시지 사이의 변환 시험."""
 import math
 from dataclasses import replace
+from types import SimpleNamespace
 
 import pytest
 
@@ -18,6 +19,7 @@ from fleet_core.common.commands import (  # noqa: E402
     MoveOrderCmd,
     OrderRecord,
     ReportOrderCmd,
+    ReportTripCmd,
     RetreatCmd,
     RobotStatusView,
     SegmentOut,
@@ -37,14 +39,17 @@ from fleet_interfaces.msg import (  # noqa: E402
     FleetEvent,
     Order,
     OrderBoard,
+    OpenTrip,
     OrderItem,
     RobotState,
     RobotStatus,
 )
 from fleet_interfaces.srv import (
     ConfirmClear,  # noqa: E402
+    ListOpenTrips,  # noqa: E402
     Reinstate,  # noqa: E402
     ReportOrder,  # noqa: E402
+    ReportTrip,  # noqa: E402
     TripCommand,  # noqa: E402
 )
 from fleet_manager import adapters  # noqa: E402
@@ -230,6 +235,20 @@ def test_item_lists_add_up_a_kind_named_twice():
     assert adapters.from_order_items(items) == {"A": 3}
 
 
+def test_a_stock_check_asks_for_the_trip_and_its_items():
+    cmd = FillCmd(goal_id=7, robot="pode1", station_id="WORK", order_id="T-1",
+                  items={"choco_bar": 2})
+    request = adapters.check_stock_request(cmd)
+    assert request.trip_id == "T-1"
+    assert adapters.from_order_items(request.items) == {"choco_bar": 2}
+
+
+def test_a_stock_answer_reads_as_counts_per_kind():
+    response = SimpleNamespace(accepted=True, reason="",
+                               available=[OrderItem(kind="choco_bar", count=1)])
+    assert adapters.check_stock_answer(response) == (True, {"choco_bar": 1}, "")
+
+
 def test_robot_report_reads_every_field_the_core_needs():
     msg = RobotState(state=RobotState.STATE_MOVING, battery=87.5)
     msg.pose.x, msg.pose.y, msg.pose.theta = 1.0, 2.0, 0.5
@@ -267,13 +286,17 @@ def test_the_three_arms_follow_the_podes_with_their_own_state():
     left = ArmState(arm_id="arm_left", boot_id="a-1", state=ArmState.STATE_PLACING,
                     lock=True, mode="NORMAL", order_id="O-1")
     right = ArmState(arm_id="arm_right", state=ArmState.STATE_ERROR, detail="PICK_FAILED")
-    arms = [("arm_left", left, True), ("arm_right", right, True), ("arm_ship", None, False)]
+    # 팔 줄의 진행 단계와 운반 건은 코어가 준다 (팔이 보고한 order_id는 쓰지 않는다)
+    arms = [("arm_left", left, True, "PLACING", "T-1"), ("arm_right", right, True),
+            ("arm_ship", None, False)]
     rows = adapters.robots_to_msg([view], 0.0, {}, arms).robots
     assert [(r.robot_id, r.kind) for r in rows] == [
         ("pode1", "POD"), ("arm_left", "ARM"), ("arm_right", "ARM"), ("arm_ship", "ARM")]
     _, left_row, right_row, ship_row = rows
-    assert (left_row.fsm_state, left_row.order_id, left_row.fault, left_row.lock,
-            left_row.mode, left_row.boot_id) == ("PLACING", "O-1", "NONE", True, "NORMAL", "a-1")
+    assert (left_row.fsm_state, left_row.task_type, left_row.order_id, left_row.fault,
+            left_row.lock, left_row.mode, left_row.boot_id) == (
+        "PLACING", "PLACING", "T-1", "NONE", True, "NORMAL", "a-1")
+    assert right_row.order_id == ""
     assert (right_row.fault, right_row.fault_reason) == ("ERROR", "PICK_FAILED")
     assert (ship_row.fault, ship_row.fsm_state, ship_row.battery) == ("COMM_LOST", "", -1.0)
 
@@ -315,7 +338,10 @@ def test_action_results_are_read_here_and_not_in_the_node():
     assert adapters.dock_result(dock) == (True, 1.0, 2.0, 3.0)
     fill = FillBasket.Result(success=False, placed=[OrderItem(kind="A", count=1)],
                              missing=[OrderItem(kind="C", count=2)], reason="GRIPPER")
-    assert adapters.fill_result(fill) == (False, {"A": 1}, {"C": 2}, "GRIPPER")
+    assert adapters.fill_result(fill) == (False, {"A": 1}, {"C": 2}, "GRIPPER", {}, {})
+    fill.placed_confirmed = [OrderItem(kind="A", count=1)]
+    fill.uncertain = [OrderItem(kind="B", count=1)]
+    assert adapters.fill_result(fill)[4:] == ({"A": 1}, {"B": 1})
     swap = SwapBasket.Result(success=False, took_full=True, put_empty_done=False, reason="x")
     assert adapters.swap_result(swap) == (False, True, False, "x")
 
@@ -377,7 +403,7 @@ def test_the_rest_of_the_result_comes_through_with_the_status():
     response = _finished(FillBasket, GoalStatus.STATUS_CANCELED,
                          placed=adapters.to_order_items({"A": 1}))
     assert adapters.fill_result(adapters.goal_result(response)) == (
-        False, {"A": 1}, {}, "CANCELED")
+        False, {"A": 1}, {}, "CANCELED", {}, {})
 
 
 @pytest.mark.parametrize("status", [GoalStatus.STATUS_CANCELED, GoalStatus.STATUS_ABORTED,
@@ -491,3 +517,69 @@ def test_move_feedback_values_are_the_order_fields_and_the_distance_left():
 ])
 def test_a_trip_report_spells_cancelled_with_two_l_outside(status, hold, out):
     assert adapters.trip_status(status, hold) == out
+
+
+# ---- 브리지 보고 요청 만들기 (ReportTrip · ReportEvent · ReportCommand) ----
+def _counts(items):
+    return {i.kind: i.count for i in items}
+
+
+def test_a_progress_report_goes_as_a_trip_report_with_the_full_state():
+    req = adapters.trip_report_request(
+        ReportTripCmd("T-1", "pode1", "TRANSPORTING", {"A": 1}, {"B": 2}), 12.5)
+    assert (req.trip_id, req.robot_id, req.status, req.reason) == (
+        "T-1", "pode1", "TRANSPORTING", "")
+    assert _counts(req.placed) == {"A": 1} and _counts(req.missing) == {"B": 2}
+    assert (req.stamp.sec, req.stamp.nanosec) == (12, 500_000_000)
+
+
+def test_an_order_end_goes_as_a_trip_report_with_cancelled_and_its_reason():
+    req = adapters.trip_report_request(
+        ReportOrderCmd("O-1", "pode2", "CANCELED", {}, {"A": 1}, "nothing could be placed"), 1.0)
+    assert (req.trip_id, req.robot_id, req.status, req.reason) == (
+        "O-1", "pode2", "CANCELLED", "NOTHING_TO_FILL")
+    held = adapters.trip_report_request(
+        ReportOrderCmd("O-1", "pode2", "HELD", {"A": 1}, {}, "", "ROBOT_FAULT"), 1.0)
+    assert (held.status, held.reason) == ("HELD", "ROBOT_FAULT")
+
+
+@pytest.mark.parametrize("accepted, result, out", [
+    (True, "APPLIED", (True, False)),
+    (True, "DUPLICATE", (True, False)),
+    (True, "LATE_REPORT", (True, True)),
+    (False, "LATE_REPORT", (True, True)),
+    (False, "DUPLICATE", (True, False)),
+    (False, "", (False, False)),
+])
+def test_duplicate_and_late_count_as_delivered(accepted, result, out):
+    assert adapters.trip_report_delivered(
+        ReportTrip.Response(accepted=accepted, result=result)) == out
+
+
+def test_a_warning_goes_as_a_report_event_with_its_id_and_robot():
+    req = adapters.report_event_request(
+        EventOut("WARN", "CANCEL_UNCONFIRMED", "goal 3", "pode1"), "u-1", 2.0, {"pode1"})
+    assert (req.event_id, req.level, req.source, req.code, req.robot_id, req.trip_id,
+            req.detail) == ("u-1", "WARN", "pode1", "CANCEL_UNCONFIRMED", "pode1", "", "goal 3")
+    station = adapters.report_event_request(EventOut("ERROR", "X", "d", "workcell"), "u-2", 2.0,
+                                            {"pode1"})
+    assert (station.source, station.robot_id) == ("workcell", "")
+    fleet = adapters.report_event_request(EventOut("ERROR", "X", "d"), "u-3", 2.0, {"pode1"})
+    assert fleet.source == "fleet"
+
+
+def test_a_command_result_goes_as_a_report_command():
+    req = adapters.report_command_request("r-1", "set_lock", "pode1", "REJECTED",
+                                          "NOT_STOPPED", "moving", 3.0)
+    assert (req.request_id, req.command, req.target, req.result, req.reason, req.detail,
+            req.stamp.sec) == ("r-1", "set_lock", "pode1", "REJECTED", "NOT_STOPPED", "moving", 3)
+
+
+def test_open_trips_come_out_as_plain_values():
+    trip = OpenTrip(trip_id="T-1", order_id="O-1", trip_index=1, trip_count=2,
+                    items=[OrderItem(kind="A", count=2)], status="FILLING", robot_id="pode1",
+                    placed=[OrderItem(kind="A", count=1)], report_epoch=3, report_n=9)
+    [out] = adapters.open_trips(ListOpenTrips.Response(accepted=True, trips=[trip]))
+    assert out["trip_id"] == "T-1" and out["items"] == {"A": 2} and out["placed"] == {"A": 1}
+    assert (out["status"], out["robot_id"], out["report_epoch"], out["report_n"]) == (
+        "FILLING", "pode1", 3, 9)

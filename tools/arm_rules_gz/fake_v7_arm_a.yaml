@@ -1,0 +1,15 @@
+# 팔 관제 합의 가짜 시스템 판 (a) arm_left가 1개 담은 뒤 스스로 멈춤 → [복구] → 같은 목표로 이어 담고 출고
+#   ros2 launch iponic_bringup pc.launch.py use_fake:=true monitor:=false scenario:=<이 파일>
+#   python3 tools/arm_rules_gz.py --case a --out <결과 폴더>   (같은 ROS_DOMAIN_ID)
+map: v7
+seed: 11
+speed_factor: 2.0  # 시험용으로 시계 2배
+timeout_s: 900
+stock: {arm_left: {A: 20, B: 20}, arm_right: {C: 20, D: 20}}
+orders:
+  - {at_s: 0, id: R-A, items: {A: 2, C: 1}}
+robots:
+  pode1: {start: P-1}
+arm: {seconds_per_item: 2.5, swap_seconds: 8.0, fail_rate: 0.0}
+dock: {duration_s: 1.0, error_cm: 1.0}
+faults: []

@@ -1,0 +1,14 @@
+# 팔 관제 합의 Gazebo 판 (b) arm_left 상품 4개 중 2개 담은 뒤 작업셀 재시작 → [복구] 대기 → [복구] → 남은 2개로 새 목표 → 출고
+#   ros2 launch fleet_gz_sim gz.launch.py layout:=v7 scenario:=<이 파일> sim_dock_stub:=true
+#   python3 tools/arm_rules_gz.py --case b --out <결과 폴더>   (같은 ROS_DOMAIN_ID)
+map: v7
+seed: 11
+timeout_s: 900
+stock: {arm_left: {A: 20, B: 20}, arm_right: {C: 20, D: 20}}
+orders:
+  - {at_s: 0, id: R-B, items: {A: 2, B: 2}}
+robots:
+  pode1: {start: P-1}
+arm: {seconds_per_item: 4.0, swap_seconds: 8.0, fail_rate: 0.0}
+dock: {duration_s: 3.0, error_cm: 1.0}
+faults: []

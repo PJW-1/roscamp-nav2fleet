@@ -73,6 +73,11 @@ class ModeSync:
         if r is not None and r.request_id == request_id:
             r.asked_at, r.answered = None, True
 
+    def settled(self, robot: str) -> bool:
+        """업무 목표를 보내도 되는지: 시스템 모드를 모르거나, 로봇이 그 모드를 보고했다 (IR-72)."""
+        r = self._robots.get(robot)
+        return self.system_mode is None or r is None or r.mode == self.system_mode
+
     # ---- 출력: 지금 부를 로봇, 배정 제외가 바뀐 Pode ----
     def due(self, now: float, ready: Callable[[str], bool]) -> list[tuple[str, str]]:
         """(로봇, request_id). 서버가 없으면 부르지 않고, NO_SERVER_S 넘게 없으면 뺀다."""

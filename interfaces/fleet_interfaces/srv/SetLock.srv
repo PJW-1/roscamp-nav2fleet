@@ -1,4 +1,6 @@
 # ---- 락 해제 · 잠금 (브리지 → fleet, fleet → 로봇 같은 타입) ----
+# 팔 락 해제(Phody): see_center로 이동 → 쥐고 있으면 그리퍼 열기 → 모터 힘 유지. 담기 목표는 PAUSED로 [복구]를 기다림
+# 쥐었던 상품은 목표가 끝날 때 uncertain으로 보고 (관제는 쥔 채 락 해제가 있었으면 uncertain이 비어도 보류)
 string request_id
 string robot_id
 bool locked                  # 목표 값

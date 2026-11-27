@@ -10,6 +10,7 @@ from fleet_core.traffic.mission import (
     DOCK,
     LOCALIZING,
     MOVE,
+    PAUSE,
     RUN,
     SELF_RECOVERING,
     STALLED,
@@ -24,7 +25,9 @@ class Watch:
         p = self.params
         waiting = m.move_order is not None and m.move_order.waiting
         rests = m.report.robot_state in (BLOCKED, SELF_RECOVERING)
-        if (m.goal is None or self._run_mode != RUN or m.arrival_by is not None or waiting
+        # 서비스 정지(PAUSE)에도 운반은 이어지므로 멈춤 감시는 계속 (팔 관제 합의 ⑦)
+        if (m.goal is None or self._run_mode not in (RUN, PAUSE) or m.arrival_by is not None
+                or waiting
                 or (rests and m.goal.kind != DOCK) or m.report.robot_state == LOCALIZING):
             self._reset_stall(m)
             return

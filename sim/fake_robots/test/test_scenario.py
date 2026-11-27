@@ -367,11 +367,21 @@ def test_stuck_scenario_expects_warnings_and_unfinished_orders(site):
     assert {"COMM_LOST", "DOCK_QUEUED"} <= set(sc.expect.events_include)  # D2: 출고 도크 앞 줄
 
 
-def test_operator_recovery_fails_three_times_then_clears(site):
+def resolved_after_the_error(sc, arm):
+    """ARM_FAULT는 다시 보내지 않으므로 한 번 실패, 팔은 [장애 처리 완료]까지 ERROR."""
+    fix = next(f for f in sc.faults if f.type == "operator_fault_resolved")
+    assert sc.arm.error_until_resolved and fix.arm == arm and fix.after_event == "ARM_ERROR"
+    ex = sc.expect
+    assert ex.event_counts["ARM_ERROR"] == 1 and ex.event_counts["FILL_RETRY"] == 0
+    assert ex.fill_dispatch_while_arm_error == 0 and ex.fill_dispatch_after_resolved_min >= 1
+
+
+def test_operator_recovery_fails_once_is_resolved_then_clears(site):
     sc = load_scenario(SCENARIOS / "operator_recovery.yaml", site)
     fail = next(f for f in sc.faults if f.type == "arm_fail")
     remove = next(f for f in sc.faults if f.type == "operator_remove")
-    assert fail.count == 3 and remove.at_s > fail.at_s
+    assert fail.count == 1 and remove.at_s > fail.at_s
+    resolved_after_the_error(sc, fail.arm)
     assert sc.expect.orders_shipped == len(sc.orders)
     assert sc.expect.all_orders_finished is True
     assert "ORDER_REQUEUED" in sc.expect.events_include
@@ -387,7 +397,8 @@ def test_auto_isolation_ships_before_the_operator_and_requeues_once(site):
     sc = load_scenario(SCENARIOS / "auto_isolation.yaml", site)
     fail = next(f for f in sc.faults if f.type == "arm_fail")
     remove = next(f for f in sc.faults if f.type == "operator_remove")
-    assert fail.count == 3 and remove.at_s > fail.at_s
+    assert fail.count == 1 and remove.at_s > fail.at_s
+    resolved_after_the_error(sc, fail.arm)
     assert sc.force_ship_after_s is None, "the operator clears it, nobody force-ships"
     first = sc.orders[0]
     assert all(sc.stock[fail.arm].get(kind, 0) == 0 for kind in first.items), \
@@ -717,12 +728,11 @@ def test_arm_fault_holds_for_the_arm_then_force_ships_into_partial(site):
     capacity = load_fleet_params()["basket_capacity"]
     held = sc.orders[0]
     fail = next(f for f in sc.faults if f.type == "arm_fail")
-    # 재시도 한도를 넘도록 계속 실패하고, 매번 일부는 놓은 뒤에 실패한다
-    retries = load_fleet_params()["move_retry_limit"]
-    assert fail.count == retries + 1 and fail.after_items >= 1
+    # ARM_FAULT는 다시 보내지 않는다: 일부를 놓은 뒤 한 번 실패
+    assert fail.count == 1 and fail.after_items >= 1
     units = held.items.get("A", 0) + held.items.get("B", 0)
-    assert capacity >= units > (retries + 1) * fail.after_items, \
-        "every attempt must reach the fault"
+    assert capacity >= units > fail.after_items, "the attempt must reach the fault"
+    resolved_after_the_error(sc, fail.arm)
     assert sc.force_ship_after_s is not None and sc.force_ship_after_s > 0
     ex = sc.expect
     assert ex.order_results[held.id] == "PARTIAL"

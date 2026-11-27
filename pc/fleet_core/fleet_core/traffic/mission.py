@@ -40,6 +40,7 @@ ROBOT_TIMEOUT = "ROBOT_TIMEOUT"
 
 # ---- 운행 모드 ----
 RUN = "RUN"
+PAUSE = "PAUSE"
 STOP = "STOP"
 
 # ---- 목표 종류 ----

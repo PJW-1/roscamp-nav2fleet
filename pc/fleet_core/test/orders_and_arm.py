@@ -37,6 +37,26 @@ class OrdersAndArm:
         self.arm.on_swap_result(*args)
         self._settle()
 
+    def on_arm_state(self, *args) -> None:
+        self.arm.on_arm_state(*args)
+        self._settle()
+
+    def on_arm_state_lost(self, arm) -> None:
+        self.arm.on_arm_state_lost(arm)
+        self._settle()
+
+    def on_fill_feedback(self, *args) -> None:
+        self.arm.on_fill_feedback(*args)
+        self._settle()
+
+    def on_resume_arm(self, target) -> tuple[str, str]:
+        answer = self.arm.on_resume_arm(target)
+        self._settle()
+        return answer
+
+    def arm_task(self, arm) -> tuple[str, str]:
+        return self.arm.arm_task(arm)
+
     def check_arm_timeouts(self, now) -> None:
         self.arm.check_timeouts(now)
         self._settle()

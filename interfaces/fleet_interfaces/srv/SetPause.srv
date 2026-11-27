@@ -1,0 +1,10 @@
+# ---- 팔 멈춤 · 이어서 하기 (fleet → 팔 /{arm}/set_pause, 이름은 임시, 팔 관제 합의 ④) ----
+# paused=false = [복구]: see_center 복귀 → 재캡처 → 남은 상품 담기, 같은 담기 목표를 이어 감 (Phody 앱의 U와 같음)
+string request_id
+bool paused                  # 목표 값
+---
+# ---- 관리 명령 공통 응답 ----
+bool accepted
+string reason                # 2.2 요청 거절 코드
+string request_id
+string detail

@@ -1,4 +1,5 @@
 # 팔 고장 보류(이름은 통합 시험 목록 때문에 그대로): pode1이 O-002를 쥔 채 arm_left 고장으로 HELD ARM_FAULT가 된다.
+# 고장은 ARM_FAULT 한 번이라 다시 보내지 않고, 팔은 [장애 처리 완료]까지 ERROR다(ARM_ERROR 10초 뒤 운영자가 부름).
 # O-001은 pode2가 정상으로 채워 출고하고, 120초에 운영자가 pode1을 들어내면 O-002가 한 번 되돌려진다.
 map: d2  # D2 배치용 시나리오(기본 배치는 v7)
 seed: 29
@@ -14,10 +15,11 @@ robots:
   pode1: {start: P-1, speed_scale: 1.0, pose_noise_m: 0.03}
   pode2: {start: P-2, speed_scale: 0.9, pose_noise_m: 0.03}
   pode3: {start: P-3, speed_scale: 1.0, pose_noise_m: 0.03}
-arm: {seconds_per_item: 4.0, swap_seconds: 8.0, fail_rate: 0.0}
+arm: {seconds_per_item: 4.0, swap_seconds: 8.0, fail_rate: 0.0, error_until_resolved: true}
 dock: {duration_s: 1.0, error_cm: 1.0}
 faults:
-  - {at_s: 0, arm: arm_left, type: arm_fail, count: 3}
+  - {at_s: 0, arm: arm_left, type: arm_fail, count: 1}
+  - {at_s: 10, arm: arm_left, type: operator_fault_resolved, after_event: ARM_ERROR}
   - {at_s: 120, robot: pode1, type: operator_remove}
 expect:
   robot_idle: null  # 고장 시나리오는 ROBOT_IDLE을 세지 않는다
@@ -32,7 +34,9 @@ expect:
   orders_canceled: 0
   robots_isolated: 0
   shipped_before_operator_min: 1  # O-001은 묶인 pode1을 치우기 전에 나간다
-  events_include: [FILL_RETRY, FILL_FAILED, ORDER_HELD, ORDER_REQUEUED, ZONES_CLEARED]
-  event_counts: {FILL_RETRY: 2, FILL_FAILED: 1, ORDER_HELD: 1, ROBOT_ISOLATED: 0, ORDER_REQUEUED: 1, ZONES_CLEARED: 1, ROBOT_NOT_REPORTING: 0}
+  fill_dispatch_while_arm_error: 0
+  fill_dispatch_after_resolved_min: 1
+  events_include: [ARM_ERROR, ORDER_HELD, ORDER_REQUEUED, ZONES_CLEARED]
+  event_counts: {FILL_RETRY: 0, FILL_FAILED: 1, ARM_ERROR: 1, ORDER_HELD: 1, ROBOT_ISOLATED: 0, ORDER_REQUEUED: 1, ZONES_CLEARED: 1, ROBOT_NOT_REPORTING: 0}
   order_results: {O-001: SHIPPED, O-002: SHIPPED, O-003: SHIPPED, O-004: SHIPPED}
   hold_reasons: {O-002: ARM_FAULT}

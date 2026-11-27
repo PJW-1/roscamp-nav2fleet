@@ -7,7 +7,8 @@ ORDER_RESULTS = ("SHIPPED", "PARTIAL", "CANCELED", "HELD", "OVER_CAPACITY")
 HOLD_REASONS = ("ROBOT_FAULT", "ARM_FAULT")
 ROBOT_FAULTS = ("comm_loss", "nav_abort", "stuck", "operator_remove", "blocked", "drift",
                 "operator_reinstate", "obstacle_behind", "low_battery")
-ARM_FAULTS = ("arm_fail", "swap_partial")
+# operator_fault_resolved: 운영자의 [장애 처리 완료]. /fleet/fault_resolved를 그 팔로 부른다
+ARM_FAULTS = ("arm_fail", "swap_partial", "operator_fault_resolved")
 # 로봇에 묶이지 않는 고장. object: 지도에 없는 물체가 (x, y)에 duration_s 동안 있다. 관제는 모른다
 WORLD_FAULTS = ("object",)
 FAULT_TYPES = ROBOT_FAULTS + ARM_FAULTS + WORLD_FAULTS
@@ -44,6 +45,8 @@ EXPECT_DEFAULTS = {
     "released_while_off_lane": 0,  # drift로 레인 밖이라 보고하는 동안 그 로봇이 놓은 구역 수
     "path_not_connected": 0,  # 관제가 처리한 PATH_NOT_CONNECTED 실패 수. null이면 안 봄
     "robot_idle": 0,  # ROBOT_IDLE 이벤트 수(오탐 검사). 정상이면 0, null이면 안 봄
+    "fill_dispatch_while_arm_error": None,  # 작업대 팔이 ERROR인 동안 새 TO_WORK 배차 수. null이면 안 봄
+    "fill_dispatch_after_resolved_min": 0,  # [장애 처리 완료] 뒤 팔이 ERROR를 벗어나고 나서 TO_WORK 배차 수
 }
 TOP_LEVEL_KEYS = {"seed", "speed_factor", "timeout_s", "stock", "inventory", "orders", "robots",
                   "arm", "dock", "faults", "expect", "map", "random", "force_ship_after_s"}
@@ -71,6 +74,7 @@ class ArmCfg:
     swap_seconds: float = 8.0
     fail_rate: float = 0.0
     cancel_seconds: float = 0.0  # 가짜 작업셀: 취소부터 결과까지 걸리는 시간(서버는 바쁨)
+    error_until_resolved: bool = False  # true면 arm_fail의 ERROR가 fault_resolved까지 남음
 
 
 @dataclass(frozen=True)
@@ -110,7 +114,7 @@ class Fault:
 
 
 # 사건 고장을 받는 종류
-AFTER_EVENT_FAULTS = ("stuck", "blocked", "operator_remove")
+AFTER_EVENT_FAULTS = ("stuck", "blocked", "operator_remove", "operator_fault_resolved")
 UNTIL_EVENT_FAULTS = ("blocked",)
 
 
@@ -142,6 +146,8 @@ class Expect:
     released_while_off_lane: int = 0
     path_not_connected: int = 0
     robot_idle: int | None = 0
+    fill_dispatch_while_arm_error: int | None = None
+    fill_dispatch_after_resolved_min: int = 0
 
 
 @dataclass(frozen=True)
