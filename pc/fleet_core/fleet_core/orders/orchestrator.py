@@ -118,7 +118,7 @@ class OrderOrchestrator(Faults, Stations):
             return
         if isinstance(report, ArmLate):
             if report.kind == FILL:
-                self._late_fill(report.goal_id, report.placed)
+                self._late_fill(report.goal_id, report.placed, report.uncertain)
             else:
                 self._late_swap(report.goal_id, report.took_full, report.put_empty_done)
             return
@@ -171,6 +171,7 @@ class OrderOrchestrator(Faults, Stations):
     # ---- 재시작으로 끝난 목표: 담은 것만 더하고 남은 상품은 다시 요청 (팔 관제 합의 ⑪) ----
     def _on_fill_placed(self, r: RobotRecord, placed: dict[str, int]) -> None:
         r.asked = ""
+        r.arm_restarted = True
         if r.order:
             merge_items(r.order.placed, placed)
         if r.isolated:
@@ -239,10 +240,11 @@ class OrderOrchestrator(Faults, Stations):
     def service_paused(self) -> bool:
         return self._run_mode == PAUSE
 
-    # 담기를 시작한 주문을 맡고 있는지 (서비스 정지에도 운반을 이어 감)
+    # 담기를 시작한 운반을 맡고 있는지 (서비스 정지에도 출고 · 교환까지 이어 감)
     def carries(self, robot) -> bool:
         r = self._robots.get(robot)
-        return r is not None and r.order is not None and r.order.started
+        return r is not None and ((r.order is not None and r.order.started)
+                                  or r.basket == FULL or r.stage == SWAPPING)
 
     def order_of(self, robot) -> str:
         r = self._robots.get(robot)

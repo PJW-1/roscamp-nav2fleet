@@ -154,7 +154,7 @@ def test_a_late_result_of_the_goal_lost_in_the_restart_is_dropped():
     core.on_fill_result(fill.goal_id, False, {"A": 2, "B": 1}, {}, "CANCELED")
     out = core.take_output()
     assert "ARM_LATE_RESULT" in codes(out) and not holds(out)
-    assert core.robot_view("r1")["placed"] == {}
+    assert core.robot_view("r1")["placed"] == {"A": 2}, "the last feedback, not the late result"
     assert core.on_resume_arm("arm_left") == (RESUME_REFILL, "")
     core.step("r1")
     assert [c.items for c in cmds(core.take_output(), "FillCmd")] == [{"B": 2}]
@@ -248,3 +248,66 @@ def test_an_isolated_robot_whose_fill_left_an_uncertain_item_is_held_not_requeue
     out = core.take_output()
     assert holds(out) == [("HELD", "ROBOT_FAULT")]
     assert not [c for c in cmds(out, "DispatchCmd") if not c.robot_id], "not offered again"
+
+
+# ---- 리뷰 후속: 재시작 대기와 다른 사건이 겹칠 때 ----
+def test_a_restart_while_the_other_arm_holds_an_item_holds_the_trip():
+    core, _, fill = filling((O4,))
+    core.on_fill_feedback(fill.goal_id, "arm_left", "PLACING", 1)
+    core.on_arm_state("arm_right", "PICKING", "", True, "b1", True)
+    core.take_output()
+    core.on_arm_state("arm_left", "IDLE", "", False, "b2", True)
+    out = core.take_output()
+    assert holds(out) == [("HELD", "ARM_FAULT")]
+    assert [r.placed for r in cmds(out, "ReportOrderCmd")] == [{"A": 1}]
+
+
+def test_an_isolation_during_the_restart_wait_holds_what_was_placed():
+    core, _, _, _ = restarted(placed_total=2)
+    core.on_robot_isolated("r1", "COMM_LOST")
+    out = core.take_output()
+    assert holds(out) == [("HELD", "ROBOT_FAULT")]
+    assert [r.placed for r in cmds(out, "ReportOrderCmd")] == [{"A": 2}]
+
+
+def test_clearing_the_robot_during_the_restart_wait_holds_what_was_placed():
+    core, _, _, _ = restarted(placed_total=2)
+    core.on_robot_removed("r1")
+    out = core.take_output()
+    assert [(r.status, r.hold_reason, r.placed) for r in cmds(out, "ReportOrderCmd")] == [
+        ("HELD", "ROBOT_FAULT", {"A": 2})]
+    assert core.on_resume_arm("arm_left") == ("", "ORDER_STATE"), "the wait went with the robot"
+
+
+def test_an_error_during_the_restart_wait_holds_with_what_was_placed():
+    core, _, _, _ = restarted(placed_total=2)
+    core.on_arm_state("arm_left", "ERROR", "X", False, "b2", True)
+    out = core.take_output()
+    assert [(r.status, r.hold_reason, r.placed) for r in cmds(out, "ReportOrderCmd")] == [
+        ("HELD", "ARM_FAULT", {"A": 2})]
+
+
+def test_service_stop_keeps_a_robot_mid_swap_going():
+    core, _, fill = filling()
+    core.on_fill_result(fill.goal_id, True, {"A": 1, "C": 1}, {})
+    core.step("r1")
+    goal = [c for c in cmds(core.take_output(), "DispatchCmd") if c.robot_id][0]
+    core.on_dispatch_result(goal.goal_id, True, "r1")
+    core.on_order_board("PAUSE", [O1])
+    core.step("r1")
+    swap = cmds(core.take_output(), "SwapCmd")[0]
+    core.on_swap_result(swap.goal_id, False, True, False, "PICK_FAILED")
+    assert core.carries("r1"), "the empty basket is still to be put"
+
+
+def test_a_late_result_with_an_uncertain_item_after_the_wait_holds_an_isolated_robot():
+    core, now, fill = filling()
+    core.on_robot_isolated("r1", "COMM_LOST")
+    now[0] += 1200.0 + 1.0
+    core.check_arm_timeouts(now[0])
+    now[0] += 30.0 + 1.0
+    core.check_arm_timeouts(now[0])
+    core.take_output()
+    core.on_fill_result(fill.goal_id, False, {}, {}, "CANCELED", None, {"A": 1})
+    assert holds(core.take_output()) == [("HELD", "ROBOT_FAULT")]
+

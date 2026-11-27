@@ -322,6 +322,7 @@ class ArmLate:
     placed: dict[str, int] | None = None
     took_full: bool = False
     put_empty_done: bool = False
+    uncertain: dict[str, int] | None = None
 
 
 # 팔 고장: 재시도 한도 초과나 무응답

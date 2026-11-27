@@ -49,6 +49,7 @@ class Faults:
         r.stage = ""
         r.outbound_goal = None
         self._forget_dispatch_failures(r)
+        self._forget_arm_restart(r)
         self._sync_calls()
 
     def on_robot_reinstated(self, robot, basket) -> None:
@@ -92,7 +93,14 @@ class Faults:
         r.stage = ""
         r.outbound_goal = None
         self._forget_dispatch_failures(r)
+        self._forget_arm_restart(r)
         self._sync_calls()
+
+    # 팔 재시작으로 [재개]를 기다리던 로봇이면 팔 쪽 대기도 지운다
+    def _forget_arm_restart(self, r: RobotRecord) -> None:
+        if r.arm_restarted:
+            r.arm_restarted = False
+            self._out.append(ArmResetCmd(r.name))
 
     # ---- 팔 작업 버리기와 결과 대기 판단 ----
     def _drop_arm(self, r: RobotRecord, isolated: bool = False) -> None:
@@ -137,16 +145,18 @@ class Faults:
         return True, ""
 
     # ---- 늦게 도착한 팔 결과 처리 ----
-    def _late_fill(self, goal_id: int, placed: dict[str, int]) -> None:
+    def _late_fill(self, goal_id: int, placed: dict[str, int], uncertain=None) -> None:
         lost = self._take_lost_job(goal_id, FILL)
-        if lost is None or (lost.cleared and not placed):
+        unsure = {k: v for k, v in (uncertain or {}).items() if v > 0}
+        if lost is None or (lost.cleared and not placed and not unsure):
             return
-        self._late_event(goal_id, lost, f"placed {placed}")
+        self._late_event(goal_id, lost, f"placed {placed}" + (f", uncertain {unsure}"
+                                                              if unsure else ""))
         if self._still_bound(lost):
             r = self._robots[lost.robot]
             merge_items(r.order.placed, placed)
             r.order.missing = subtract_items(r.order.items, r.order.placed)
-            self._decide_if_isolated(r)
+            self._decide_if_isolated(r, unsure)
 
     def _late_swap(self, goal_id: int, took_full: bool, put_empty_done: bool) -> None:
         lost = self._take_lost_job(goal_id, SWAP)
@@ -161,9 +171,9 @@ class Faults:
             self._decide_if_isolated(r)
 
     # 격리 중 기다리던 결과가 오면 판단
-    def _decide_if_isolated(self, r: RobotRecord) -> None:
+    def _decide_if_isolated(self, r: RobotRecord, uncertain=None) -> None:
         if r.isolated and not r.asked and not self._result_still_due(r):
-            self._requeue_isolated(r)
+            self._requeue_isolated(r, uncertain)
 
     def _take_lost_job(self, goal_id: int, kind: str) -> LostJob | None:
         lost = self._lost_jobs.get(goal_id)

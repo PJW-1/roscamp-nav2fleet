@@ -401,3 +401,18 @@ def test_a_trip_stuck_during_service_stop_is_still_caught_as_stalled():
         report(core, "r1", "W", "MOVING")
         seen += core.tick()
     assert "GOAL_STALLED" in [getattr(c, "code", "") for c in seen]
+
+
+def test_service_stop_lets_a_robot_that_shipped_leave_the_outbound_station():
+    core, _, goal = _filling()
+    core.on_order_board("PAUSE", [O1])
+    core.on_fill_result(goal, True, {"A": 1}, {}, "")
+    report(core, "r1", "W", "DOCKED")
+    out = drive(core, "r1", lambda: core.robot_view("r1")["state"] == "SWAPPING", limit=200)
+    swap = [c for c in out if type(c).__name__ == "SwapCmd"][0]
+    core.on_swap_result(swap.goal_id, True, True, True, "")
+    moved = []
+    for _ in range(10):
+        moved += [c for c in core.tick() if isinstance(c, (MoveCmd, MoveOrderCmd, RetreatCmd))
+                  and c.robot == "r1"]
+    assert moved, "the empty robot clears the outbound station during the stop"

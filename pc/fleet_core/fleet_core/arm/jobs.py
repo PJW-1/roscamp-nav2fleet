@@ -51,7 +51,6 @@ class _Job:
     items: dict[str, int] = field(default_factory=dict)
     placed_total: int = 0  # 마지막 feedback의 담은 수
     phases: dict[str, str] = field(default_factory=dict)  # 팔 -> 마지막 진행 단계
-    restarted: bool = False  # 팔 재시작으로 목표가 사라짐: [재개] 대기, 시간 초과 멈춤
 
 
 # 목표 items 앞에서부터 n개
@@ -97,6 +96,8 @@ class ArmJobs:
         self._holding: dict[str, bool] = {}
         self._station_block: dict[str, str] = {}
         self._dropped_goals: set[int] = set()
+        # 팔 재시작으로 목표가 사라진 작업대 서버 -> 그 담기를 하던 로봇 ([재개] 대기)
+        self._resume_wait: dict[str, str] = {}
 
     # TODO(Q-05) PAUSE 때 담기 목표 안에서 멈추는 신호 미정(W-42), 지금은 STOP만 취소
     def on_run_mode(self, run_mode) -> None:
@@ -118,7 +119,8 @@ class ArmJobs:
         self._forget_cleared_job(goal_id)
         r = self._unexpired_owner(goal_id, FILL)
         if r is None:
-            self._out.append(ArmLate(goal_id, FILL, placed=placed))
+            self._out.append(ArmLate(goal_id, FILL, placed=placed,
+                                     uncertain=dict(uncertain) if uncertain else None))
             return
         job = r.job
         r.last, r.job = (job, reason), None
@@ -153,7 +155,7 @@ class ArmJobs:
     # ---- 담기 진행: 담은 수가 늘면 진행 보고 (팔 관제 합의 ⑫) ----
     def on_fill_feedback(self, goal_id, arm, phase, placed_total) -> None:
         r = self._job_owner(goal_id, FILL)
-        if r is None or r.job.restarted:
+        if r is None:
             return
         job = r.job
         if phase:
@@ -168,22 +170,20 @@ class ArmJobs:
         server = target if target in servers else self._server_of.get(target)
         if server is None:
             return "", "NOT_FOUND"
+        robot = self._resume_wait.pop(server, None)
+        if robot is not None:
+            # 재시작으로 사라진 목표: 주문 쪽이 남은 상품으로 새 목표를 다시 요청한다
+            self._update_stations()
+            self._event("INFO", "FILL_RESUMED",
+                        f"{server} lost its goal in the restart: sending the rest as a new goal",
+                        robot)
+            return RESUME_REFILL, ""
         r = self._fill_owner(server)
         if r is None:
             return "", "ORDER_STATE"
-        job = r.job
-        if not job.restarted:
-            self._event("INFO", "FILL_RESUMED",
-                        f"{server} goal {job.goal_id}: set_pause(false) to both arms", r.name)
-            return RESUME_SET_PAUSE_OFF, ""
-        # 재시작으로 사라진 목표: 담은 수를 주문에 더하고 남은 상품으로 새 목표
-        r.job, r.last = None, None
-        placed = first_items(job.items, job.placed_total)
-        self._out.append(ArmFillPlaced(r.name, placed))
         self._event("INFO", "FILL_RESUMED",
-                    f"{server} goal {job.goal_id} was lost in the restart, placed {placed}: "
-                    "sending the rest as a new goal", r.name)
-        return RESUME_REFILL, ""
+                    f"{server} goal {r.job.goal_id}: set_pause(false) to both arms", r.name)
+        return RESUME_SET_PAUSE_OFF, ""
 
     # ---- 상태판 팔 줄: (진행 단계, 담는 운반 건) ----
     def arm_task(self, arm) -> tuple[str, str]:
@@ -221,6 +221,13 @@ class ArmJobs:
         self._arm_errors.add(arm)
         held = " holding an item" if holding else ""
         r = next((r for r in self._robots.values() if r.job and r.job.server == server), None)
+        waiting = self._resume_wait.pop(server, None)
+        if waiting is not None:
+            # [재개]를 기다리던 담기: 담은 수는 이미 주문에 있다
+            reason = f"{arm} ERROR {detail} while {server} waits for [재개]"
+            self._out.append(ArmFault(waiting, FILL, server, reason))
+            self._event("ERROR", "ARM_ERROR", f"{reason}{held}, {waiting} held", arm)
+            return
         if r is None:
             self._event("ERROR", "ARM_ERROR",
                         f"{arm} ERROR {detail}{held}, no job running, dispatch blocked", arm)
@@ -228,15 +235,14 @@ class ArmJobs:
         job, r.job = r.job, None
         reason = f"{arm} ERROR {detail} during {server} goal {job.goal_id}"
         # 결과를 잃은 작업으로 남겨, 나중에 온 결과는 늦은 결과로 한 번만 처리된다
-        if not job.restarted:
-            self._out.append(ArmLost(r.name, job.goal_id, job.server, job.kind))
+        self._out.append(ArmLost(r.name, job.goal_id, job.server, job.kind))
         self._out.append(ArmFault(r.name, job.kind, job.server, reason))
         self._event("ERROR", "ARM_ERROR", f"{reason}{held}, {r.name} job given up", arm)
 
     # ---- 담기 중 쥔 채 락 해제: 상품 행방 모름 → 취소하고 보류 (팔 관제 합의 ⑤) ----
     def _on_lock_released_holding(self, arm, server) -> None:
         r = self._fill_owner(server)
-        if r is None or r.job.restarted or r.job.canceled_at is not None:
+        if r is None or r.job.canceled_at is not None:
             return
         job, r.job = r.job, None
         self._out.append(CancelCmd(job.server, job.goal_id))
@@ -247,27 +253,39 @@ class ArmJobs:
 
     # ---- 팔 재시작([초기화]): 담기는 [재개] 대기, 쥐고 있었으면 보류 (팔 관제 합의 ⑪) ----
     def _on_arm_restart(self, arm, server, held_before) -> None:
+        # 재시작한 팔이나 같은 작업대의 다른 팔이 쥐고 있던 상품은 행방을 모른다
+        held = held_before or any(self._holding.get(a, False)
+                                  for a in self._arms_of(server) if a != arm)
+        waiting = self._resume_wait.get(server)
+        if waiting is not None:
+            if held:
+                del self._resume_wait[server]
+                reason = f"{arm} restarted holding an item while {server} waits for [재개]"
+                self._out.append(ArmFault(waiting, FILL, server, reason))
+                self._event("ERROR", "ARM_RESTARTED", f"{reason}, item unaccounted, held", arm)
+            return
         r = self._fill_owner(server)
-        if r is None or (r.job.canceled_at is not None and not r.job.restarted):
+        if r is None or r.job.canceled_at is not None:
             self._event("INFO", "ARM_RESTARTED", f"{arm} restarted, no fill running", arm)
             return
-        job = r.job
+        job, r.job, r.last = r.job, None, None
         placed = first_items(job.items, job.placed_total)
         self._dropped_goals.add(job.goal_id)
-        if held_before:
-            r.job, r.last = None, None
+        # 담은 수는 바로 주문에 더한다(치움 · 격리 · 고장에도 빠지지 않게)
+        self._out.append(ArmFillPlaced(r.name, placed))
+        if held:
             reason = (f"{arm} restarted holding an item during {server} goal {job.goal_id}, "
                       f"placed {placed}")
-            self._out.append(ArmFillPlaced(r.name, placed))
             self._out.append(ArmFault(r.name, FILL, job.server, reason))
             self._event("ERROR", "ARM_RESTARTED", f"{reason}, item unaccounted, held", arm)
             return
-        if job.restarted:
-            return
-        job.restarted = True
+        self._resume_wait[server] = r.name
         self._event("WARN", "ARM_RESTARTED",
                     f"{arm} restarted during {server} goal {job.goal_id}, placed {placed}: "
                     "waits for [재개]", arm)
+
+    def _arms_of(self, server) -> tuple[str, ...]:
+        return tuple(a for a, s in self._server_of.items() if s == server)
 
     def _fill_owner(self, server) -> _Robot | None:
         return next((r for r in self._robots.values()
@@ -292,7 +310,7 @@ class ArmJobs:
     def check_timeouts(self, now: float) -> None:
         for r in self._robots.values():
             job = r.job
-            if not job or job.restarted:
+            if not job:
                 continue
             limit = (self.params.fill_timeout_s if job.kind == FILL
                      else self.params.swap_timeout_s)
@@ -347,9 +365,11 @@ class ArmJobs:
                     self._cancel(r)
             case ArmDropCmd():
                 self._drop(r, command)
+                self._forget_resume(r.name)
             case ArmFailedCmd():
                 self._attempt_failed(r)
             case ArmResetCmd():
+                self._forget_resume(r.name)
                 if command.forget:
                     self._robots[r.name] = _Robot(r.name)
                 else:
@@ -392,7 +412,15 @@ class ArmJobs:
                                      command.order_id, take_full=command.take_full,
                                      put_empty=command.put_empty))
 
+    # 그 로봇이 맡던 [재개] 대기를 지움 (치움 · 격리 · 다시 투입)
+    def _forget_resume(self, robot) -> None:
+        for server, owner in list(self._resume_wait.items()):
+            if owner == robot:
+                del self._resume_wait[server]
+
     def _goal_allowed(self, r: _Robot, server: str) -> bool:
+        if server in self._resume_wait:
+            return False
         if any(self._station_block.get(s.id) for s in self._stations.values()
                if s.server == server):
             return False

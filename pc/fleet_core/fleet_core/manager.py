@@ -343,15 +343,14 @@ class FleetManager(ManagerRoute, ManagerViews, ManagerRecord):
         self._pump()
         stopped = traffic.tick_progress(now)
         self._pump()
-        # 서비스 정지(PAUSE): 대기 주문 배차는 막고, 담기를 시작한 운반 건만 진행 (팔 관제 합의 ⑦)
+        # 서비스 정지(PAUSE): 대기 주문 배차는 막고 하던 이동은 마침. 새 일은 주문 코어가 막는다 (팔 관제 합의 ⑦)
         pausing = self.orchestrator.service_paused
-        if everyone_here and traffic.running:
-            traffic.tick_pick(stopped)
-            self._pump()
         if everyone_here and (traffic.running or pausing):
+            # 정지 중에는 모두 멈춘 로봇으로 넘겨 새 호출을 받지 않고, 빈 로봇은 대기 자리로 보낸다
+            traffic.tick_pick(stopped if traffic.running else frozenset(traffic.robots))
+            self._pump()
             for robot in traffic.robots:
-                if (traffic.available(robot) and robot not in stopped
-                        and (traffic.running or self.orchestrator.carries(robot))):
+                if traffic.available(robot) and robot not in stopped:
                     self._step_robot(robot)
         out, self._out = self._out, []
         for item in out:
