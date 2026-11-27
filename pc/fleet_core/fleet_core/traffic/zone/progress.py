@@ -161,6 +161,15 @@ class Progress:
         del m.clear_n[key]
         return True
 
+    # ---- [충전 끝내기](시험): 배터리가 오르지 않아도 다시 일을 받는다 ----
+    def end_charge(self, robot) -> bool:
+        m = self._robots.get(robot)
+        if m is None or not m.report.charge:
+            return False
+        m.report.charge = False
+        self._event("INFO", "ROBOT_CHARGED", f"{m.report.battery:.0f}%, ended by charge_end", m.name)
+        return True
+
     # ---- 배터리 부족과 충전 완료 기록 ----
     def _note_battery(self, m, battery) -> None:
         m.report.battery = battery

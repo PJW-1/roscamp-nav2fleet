@@ -141,6 +141,23 @@ def test_report_max_in_flight_ships_as_4():
     assert load_params().report_max_in_flight == 4
 
 
+@pytest.mark.parametrize("bad", [0, -1, True, 2.5, "3"])
+def test_bridge_max_in_flight_is_a_positive_integer(tmp_path, bad):
+    with pytest.raises(ValueError, match="bridge_max_in_flight"):
+        load_params(write(tmp_path, {**SHIPPED, "bridge_max_in_flight": bad}))
+
+
+def test_the_bridge_retry_cannot_start_above_its_cap(tmp_path):
+    with pytest.raises(ValueError, match="bridge_retry_first_s"):
+        load_params(write(tmp_path, {**SHIPPED, "bridge_retry_first_s": 11.0}))
+
+
+def test_the_bridge_timings_ship_as_the_ir_40_table():
+    p = load_params()
+    assert (p.bridge_reply_limit_s, p.bridge_retry_first_s, p.bridge_retry_max_s,
+            p.bridge_max_in_flight) == (3.0, 1.0, 10.0, 4)
+
+
 def test_the_station_time_estimates_are_gone():
     assert not {"eta_fill_s_per_item", "eta_fill_base_s", "eta_swap_s"} & set(FIELDS)
 

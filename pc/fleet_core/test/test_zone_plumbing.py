@@ -244,3 +244,18 @@ def test_the_command_line_says_why_and_exits_with_two(tmp_path, monkeypatch, cap
     assert replay.main() == 2
     assert capsys.readouterr().out == "cannot play this back: no inputs, so there is nothing to " \
                                       "play back\n"
+
+
+def test_charge_end_takes_a_charging_robot_back_before_the_battery_is_full():
+    world = low_battery_world()
+    battery(world, "pode2", 15.0)
+    battery(world, "pode2", 60.0)  # 충전 칸에 들어간 것만 보여 주므로 배터리는 오르지 않는다
+    assert world.view("pode2")["charging"]
+    world.traffic.take_output()
+    assert world.traffic.end_charge("pode2") is True
+    assert not world.view("pode2")["charging"]
+    assert [e.code for e in world.traffic.take_output()
+            if isinstance(e, EventOut)] == ["ROBOT_CHARGED"]
+    assert world.traffic.end_charge("pode2") is False
+    battery(world, "pode2", 60.0)
+    assert not world.view("pode2")["charging"]

@@ -84,6 +84,57 @@ def test_the_admin_services_answer_with_the_request_id_and_the_state_shows_them(
     assert (s.lock, s.mode) == (False, "TEST")
 
 
+def _caller(harness):
+    import rclpy.node
+    caller = harness.add(rclpy.node.Node("admin_caller"))
+
+    def call(srv, name, request):
+        client = caller.create_client(srv, name)
+        assert client.wait_for_service(timeout_sec=5.0), name
+        future = client.call_async(request)
+        assert wait_until(future.done, 5.0), name
+        return future.result()
+    return call
+
+
+def test_an_unlocked_pode_refuses_new_motion_goals(harness):
+    from fleet_interfaces.srv import SetLock
+    _, probe = start(harness)
+    call = _caller(harness)
+    unlock = call(SetLock, "/pode1/set_lock",
+                  SetLock.Request(request_id="l-1", robot_id="pode1", locked=False))
+    assert unlock.accepted
+    for client, goal in ((probe.move, lane_goal(["P-3", "P-4"])),
+                         (probe.dock, Dock.Goal(dock_id="D-1"))):
+        fut = client.send_goal_async(goal)
+        assert wait_until(fut.done, 5.0)
+        assert not fut.result().accepted
+    assert probe.last_state().state == RobotState.STATE_IDLE
+    # 다시 잠그면 받는다
+    lock = call(SetLock, "/pode1/set_lock",
+                SetLock.Request(request_id="l-2", robot_id="pode1", locked=True))
+    assert lock.accepted
+    assert probe.send(lane_goal(["P-3", "P-4"])).accepted
+
+
+def test_the_force_service_needs_test_mode_and_the_state_lists_the_keys(harness):
+    from fleet_interfaces.srv import ForceInput, SetMode
+    _, probe = start(harness, nav=False)
+    call = _caller(harness)
+    req = ForceInput.Request(request_id="f-1", robot_id="pode1", kind="CONDITION",
+                             key="battery", value="20")
+    refused = call(ForceInput, "/pode1/force", req)
+    assert (refused.accepted, refused.reason, refused.request_id) == (
+        False, "NOT_TEST_MODE", "f-1")
+    assert call(SetMode, "/pode1/set_mode",
+                SetMode.Request(request_id="m-1", mode="TEST")).accepted
+    req.request_id = "f-2"
+    ok = call(ForceInput, "/pode1/force", req)
+    assert (ok.accepted, ok.reason, ok.request_id) == (True, "", "f-2")
+    assert wait_until(lambda: (s := probe.last_state()) is not None
+                      and list(s.forced) == ["battery"], 3.0)
+
+
 def test_tf_and_odom_are_taken_by_the_input_node_not_the_main_node(harness):
     # 자주 오는 TF·odom이 주 실행기를 깨우지 않게 입력 노드가 받는다
     fake, probe = start(harness)

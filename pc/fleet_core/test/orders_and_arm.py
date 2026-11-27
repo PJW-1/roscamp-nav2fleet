@@ -37,6 +37,10 @@ class OrdersAndArm:
         self.arm.on_swap_result(*args)
         self._settle()
 
+    def on_arm_state(self, *args) -> None:
+        self.arm.on_arm_state(*args)
+        self._settle()
+
     def check_arm_timeouts(self, now) -> None:
         self.arm.check_timeouts(now)
         self._settle()

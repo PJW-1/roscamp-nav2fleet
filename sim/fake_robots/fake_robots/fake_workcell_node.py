@@ -8,6 +8,7 @@ from __future__ import annotations
 import json
 import random
 import threading
+import time
 import uuid
 from collections import Counter
 
@@ -15,6 +16,8 @@ import rclpy
 from fleet_core.common.contract import to_ros_qos
 from fleet_interfaces.action import FillBasket
 from fleet_interfaces.msg import ArmState, OrderItem
+from fleet_interfaces.srv import SetMode
+from pode_fsm.admin import MODE_MISMATCH, AdminState
 from rclpy.action import ActionServer, CancelResponse, GoalResponse
 from rclpy.callback_groups import ReentrantCallbackGroup
 from rclpy.executors import MultiThreadedExecutor
@@ -41,6 +44,7 @@ STATE_PICKING = "PICKING"
 STATE_PLACING = "PLACING"
 STATE_ERROR = "ERROR"
 STATE_PERIOD_S = 0.2  # IR-34: 초당 5번
+RESULT_FIRST_S = 0.1  # 실제 초. 고장 결과가 관제에 먼저 닿은 뒤 ERROR를 보인다
 
 STOCK_QOS = QoSProfile(depth=1, reliability=ReliabilityPolicy.RELIABLE,
                        durability=DurabilityPolicy.TRANSIENT_LOCAL)
@@ -56,6 +60,8 @@ class _Run:
     def __init__(self, handle):
         self.handle = handle
         self.placed: Counter = Counter()
+        self.uncertain: Counter = Counter()  # 놓다가 끊겨 쥔 채 남은 상품
+        self.errored: list[str] = []  # 이 목표에서 고장 난 팔
         self.fault = threading.Event()
         self.lock = threading.Lock()
 
@@ -63,6 +69,10 @@ class _Run:
 class FakeWorkcellNode(Node):
     def __init__(self, parameter_overrides=None, **kwargs):
         super().__init__("fake_workcell", parameter_overrides=parameter_overrides, **kwargs)
+        # true면 실물 Phody처럼 두 팔 모드가 UNKNOWN이거나 서로 다를 때 담기를 MODE_MISMATCH로 끝낸다.
+        # 가짜 실행에는 /system/mode를 내는 브리지가 없어 기본은 false
+        self.declare_parameter("mode_gate", False)
+        self._mode_gate = bool(self.get_parameter("mode_gate").value)
         contract = load_contract_param(self)
         site = load_site_param(self)
         scenario = load_scenario_param(self, site)
@@ -85,6 +95,12 @@ class FakeWorkcellNode(Node):
         self._boot_id = str(uuid.uuid4())
         self._order_id = ""
         self._placed = dict.fromkeys(self._arms, 0)
+        # 팔마다 pode_fsm과 같은 규칙의 운영 모드와 요청 번호 기억(IR-72)
+        self._admin = {arm: AdminState(arm, self._boot_id) for arm in self._arms}
+        self._admin_lock = threading.Lock()
+        for arm in self._arms:
+            self.create_service(SetMode, contract.name("robot_set_mode", robot=arm),
+                                lambda req, res, a=arm: self._on_set_mode(a, req, res))
         self._state_pubs = {
             arm: self.create_publisher(ArmState, contract.name("arm_state", arm=arm),
                                        to_ros_qos(contract.qos("arm_state")))
@@ -127,18 +143,40 @@ class FakeWorkcellNode(Node):
             if self._state[arm] == STATE_ERROR and t >= self._error_until[arm]:
                 self._set_state(arm, STATE_IDLE)
 
+    def _on_set_mode(self, arm, request, response):
+        with self._admin_lock:
+            reply = self._admin[arm].set_mode(request.request_id, request.mode,
+                                              time.monotonic())
+        response.accepted = reply.accepted
+        response.reason = reply.reason
+        response.detail = reply.detail
+        response.request_id = request.request_id
+        return response
+
+    def _modes_match(self) -> bool:
+        with self._admin_lock:
+            modes = {self._admin[arm].mode for arm in self._arms}
+        return len(modes) == 1 and "UNKNOWN" not in modes
+
+    def _show_errors(self, arms: list[str]) -> None:
+        for arm in arms:
+            self._error_until[arm] = self._sc.now() + ERROR_HOLD_S
+            self._set_state(arm, STATE_ERROR)
+
     def _publish_states(self) -> None:
-        # 두 팔 모두 락 잠김, 모드는 받기 전이라 UNKNOWN(IR-72). 놓는 동안 상품을 쥐고 있다
+        # 두 팔 모두 락 잠김, 모드는 set_mode 전까지 UNKNOWN(IR-72). 놓는 동안 상품을 쥐고 있다
         stamp = self.get_clock().now().to_msg()
         for arm in self._arms:
             state = self._state[arm]
             holding = state == STATE_PLACING
+            with self._admin_lock:
+                mode, last_id = self._admin[arm].mode, self._admin[arm].last_request_id
             self._state_pubs[arm].publish(ArmState(
                 arm_id=arm, boot_id=self._boot_id, state=state,
                 detail=REASON_ARM_FAULT if state == STATE_ERROR else "", lock=True,
                 gripper=ArmState.GRIPPER_CLOSED if holding else ArmState.GRIPPER_OPEN,
                 holding=holding, order_id=self._order_id, placed_total=self._placed[arm],
-                mode="UNKNOWN", stamp=stamp))
+                mode=mode, last_request_id=last_id, stamp=stamp))
 
     def _publish_stock(self, arm: str) -> None:
         with self._stock_lock:
@@ -196,7 +234,22 @@ class FakeWorkcellNode(Node):
             self._cancel_at = self._sc.now()
         return CancelResponse.ACCEPT
 
+    def _mode_mismatch(self, handle):
+        requested = Counter()
+        for item in handle.request.items:
+            requested[item.kind] += max(item.count, 0)
+        with self._busy_lock:
+            self._busy = False
+        if self._running():
+            handle.abort()
+        else:
+            abort_at_shutdown(handle)
+        return FillBasket.Result(success=False, placed=[], missing=order_items(requested),
+                                 reason=MODE_MISMATCH, placed_confirmed=[], uncertain=[])
+
     def _execute(self, handle):
+        if self._mode_gate and not self._modes_match():
+            return self._mode_mismatch(handle)
         self._cancel_at = None
         self._order_id = handle.request.order_id
         self._placed = dict.fromkeys(self._arms, 0)
@@ -225,7 +278,8 @@ class FakeWorkcellNode(Node):
         # `missing`은 서버가 시도를 마쳤을 때만 확정이다. 재시도하면 다시 계산한다.
         result = FillBasket.Result(
             success=success, placed=order_items(run.placed),
-            missing=order_items(missing) if success else [], reason=reason)
+            missing=order_items(missing) if success else [], reason=reason,
+            placed_confirmed=order_items(run.placed), uncertain=order_items(run.uncertain))
         self._order_id = ""
         with self._busy_lock:
             self._busy = False
@@ -233,6 +287,11 @@ class FakeWorkcellNode(Node):
             finish_action(handle, success)
         else:
             abort_at_shutdown(handle)
+        if run.errored:
+            # 재시도할 고장으로 받도록 결과가 나간 뒤 ERROR를 보인다
+            timer = threading.Timer(RESULT_FIRST_S, self._show_errors, (run.errored,))
+            timer.daemon = True
+            timer.start()
         return result
 
     def _go_on(self, run: _Run) -> bool:
@@ -246,8 +305,7 @@ class FakeWorkcellNode(Node):
                 break
             if fail_at == i:
                 run.fault.set()
-                self._error_until[arm] = self._sc.now() + ERROR_HOLD_S
-                self._set_state(arm, STATE_ERROR)
+                run.errored.append(arm)
                 return
             self._set_state(arm, STATE_PICKING)
             if not self._sc.sleep_until(self._sc.now() + half, lambda: self._go_on(run)):
@@ -263,6 +321,8 @@ class FakeWorkcellNode(Node):
             finally:
                 self._basket_space.release()
             if not placed:
+                with run.lock:
+                    run.uncertain[kind] += 1
                 return
             with run.lock:
                 run.placed[kind] += 1

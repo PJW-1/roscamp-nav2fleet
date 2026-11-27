@@ -67,6 +67,7 @@ class Health:
         note = text(note)
         problem = checked(clear_problem, robot, zone_ids, self._robots,
                           lambda zone: zone in self.site.zones)
+        self.clear_moving = False
         if problem:
             self.clear_reason = problem
             name = text(robot) if isinstance(robot, str) else ""
@@ -76,6 +77,7 @@ class Health:
         held = self.grants.held_by(robot)
         m = self._robots[robot]
         left = m.base_until - self._clock()
+        self.clear_moving = left > 0
         if left > 0:
             refusal = f"it may still be driving to the end of its base for {left:.0f} s"
         else:

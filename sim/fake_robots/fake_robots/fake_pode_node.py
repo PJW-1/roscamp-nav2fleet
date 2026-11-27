@@ -16,13 +16,13 @@ from fleet_core.common.contract import to_ros_qos
 from fleet_interfaces.action import Dock, MoveTo, Retreat
 from fleet_interfaces.msg import FleetEvent, RobotState
 from fleet_interfaces.srv import SetMode
-from pode_fsm.admin import AdminState
 from rclpy.action import ActionServer
 from rclpy.callback_groups import ReentrantCallbackGroup
 from rclpy.executors import MultiThreadedExecutor
 from rclpy.node import Node
 from std_msgs.msg import Header
 
+from fake_robots import fake_admin
 from fake_robots.ahead import seen, where_now, yields
 from fake_robots.battery import Battery
 from fake_robots.common import (
@@ -84,7 +84,7 @@ class FakePodeNode(PodeGoals, PodeOrder, PodeRetreat, PodeReport, Node):
         self._active: _Goal | None = None
         self._goals: dict[bytes, _Goal] = {}
         self._rest = RobotState.STATE_IDLE
-        self._admin = AdminState(self.robot_id, str(uuid.uuid4()))  # 운영 모드와 요청 번호 기억
+        self._admin = fake_admin.FakeAdmin(self.robot_id, str(uuid.uuid4()))  # 락 · 모드 · 요청 번호
         self._last_t = self._sc.now()
         params = load_params_param(self)
         timeout = float(self.get_parameter("heartbeat_timeout_s").value)
@@ -127,6 +127,9 @@ class FakePodeNode(PodeGoals, PodeOrder, PodeRetreat, PodeReport, Node):
         self.create_service(
             SetMode, contract.name("robot_set_mode", robot=self.robot_id), self._on_set_mode,
             callback_group=group)
+        # 관리 명령: set_lock · force · charge_end (상태 칸 lock · forced에 실린다)
+        fake_admin.mount(self, contract, self._admin, self._lock, group, self._stopped,
+                         battery=self._battery_now)
         self.create_timer(1.0 / CONTROL_RATE_HZ, self._tick)
         self.create_timer(1.0 / float(self.get_parameter("state_rate_hz").value),
                           self._publish_state)
@@ -173,6 +176,13 @@ class FakePodeNode(PodeGoals, PodeOrder, PodeRetreat, PodeReport, Node):
         response.detail = reply.detail
         response.request_id = request.request_id
         return response
+
+    def _stopped(self) -> bool:
+        return self._active is None or self._active.done.is_set()
+
+    def _battery_now(self) -> float:
+        return self._battery.percent(self._sc.now(), self._motion.x, self._motion.y,
+                                     not self._motion.moving)
 
     def _on_heartbeat(self, _msg) -> None:
         if not self._faults.comms_down(self._sc.now()):

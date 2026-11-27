@@ -7,8 +7,10 @@ pytest.importorskip("rclpy")
 pytest.importorskip("fleet_interfaces.msg")
 
 from conftest import CONTRACT, wait_until, write_scenario  # noqa: E402
-from fleet_core.common.contract import load_contract  # noqa: E402
+from fleet_core.common.contract import load_contract, to_ros_qos  # noqa: E402
 from fleet_interfaces.action import SwapBasket  # noqa: E402
+from fleet_interfaces.msg import ArmState  # noqa: E402
+from fleet_interfaces.srv import SetMode  # noqa: E402
 from rclpy.action import ActionClient  # noqa: E402
 
 C = load_contract(CONTRACT)
@@ -168,3 +170,23 @@ def test_sim_clock_holds_zero_during_the_start_delay(harness):
     assert stamps[0][1] == 0.0
     assert wait_until(lambda: stamps[-1][1] > 0.0, 5.0)
     assert next(w for w, s in stamps if s > 0.0) - first_wall > 0.5, "it held zero for a while"
+
+
+
+def test_arm_ship_starts_unknown_and_takes_a_mode(harness, tmp_path):
+    import rclpy.node
+    start_arm(harness, tmp_path)
+    probe = harness.add(rclpy.node.Node("arm_mode_probe"))
+    seen = []
+    probe.create_subscription(ArmState, C.name("arm_state", arm="arm_ship"), seen.append,
+                              to_ros_qos(C.qos("arm_state")))
+    assert wait_until(lambda: seen, 5.0)
+    assert seen[-1].mode == "UNKNOWN" and len(seen[-1].boot_id) == 36
+    client = probe.create_client(SetMode, C.name("robot_set_mode", robot="arm_ship"))
+    assert client.wait_for_service(10.0)
+    fut = client.call_async(SetMode.Request(request_id="s1", mode="TEST"))
+    assert wait_until(fut.done, 5.0) and fut.result().accepted
+    assert wait_until(lambda: seen[-1].mode == "TEST", 5.0)
+    fut = client.call_async(SetMode.Request(request_id="s2", mode="FAST"))
+    assert wait_until(fut.done, 5.0)
+    assert not fut.result().accepted and fut.result().reason == "MODE_MISMATCH"

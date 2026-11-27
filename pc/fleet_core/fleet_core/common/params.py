@@ -116,6 +116,11 @@ class FleetParams:
     blocked_retry_max_s: float = 300.0
     plan_split: bool = False  # 해결안 B: 지도 splits대로 Nav2 goal을 둘로 나눈다. 기록 호환: 끔
     report_max_in_flight: int = 4
+    # IR-40 표: 브리지 Report*·Hello 응답 한도와 재전송 간격(1 → 2 → 4 s, 상한), 동시 요청 상한
+    bridge_reply_limit_s: float = 3.0
+    bridge_retry_first_s: float = 1.0
+    bridge_retry_max_s: float = 10.0
+    bridge_max_in_flight: int = 4
 
     # ---- 파라미터 값 검사 ----
     def __post_init__(self):
@@ -180,6 +185,11 @@ def check_types(data: dict, source="params") -> None:
     if data.get("report_max_in_flight", 1) < 1:
         raise ValueError(f"{source}: report_max_in_flight must be >= 1, "
                          f"got {data['report_max_in_flight']!r}")
+    if data.get("bridge_max_in_flight", 1) < 1:
+        raise ValueError(f"{source}: bridge_max_in_flight must be >= 1, "
+                         f"got {data['bridge_max_in_flight']!r}")
+    if data.get("bridge_retry_first_s", 0) > data.get("bridge_retry_max_s", math.inf):
+        raise ValueError(f"{source}: bridge_retry_first_s must be <= bridge_retry_max_s")
 
 
 # ---- 시간·거리 값 검사: 유한, 음수 아님, 끔이 아니면 0보다 큼 ----
