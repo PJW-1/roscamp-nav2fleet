@@ -10,6 +10,7 @@ from fleet_core.common.commands import (
     ArmFailedCmd,
     ArmFault,
     ArmFillCmd,
+    ArmFillPaused,
     ArmFillResult,
     ArmLate,
     ArmLost,
@@ -70,7 +71,7 @@ def test_a_result_goes_to_the_orders_and_frees_the_robot():
 
 def test_a_failed_attempt_is_counted_only_when_the_orders_say_so():
     jobs, _, goal = started()
-    jobs.on_fill_result(goal.goal_id, False, {}, {}, "GRIPPER")
+    jobs.on_fill_result(goal.goal_id, False, {}, {}, "NOT_READY")
     jobs.take_output()
     assert jobs.attempts("r1") == 0
     jobs.on_command(ArmFailedCmd("r1"))
@@ -82,7 +83,7 @@ def test_a_failed_attempt_is_counted_only_when_the_orders_say_so():
 
 def test_no_new_goal_goes_out_during_the_wait_after_a_failure():
     jobs, now, goal = started()
-    jobs.on_fill_result(goal.goal_id, False, {}, {}, "GRIPPER")
+    jobs.on_fill_result(goal.goal_id, False, {}, {}, "NOT_READY")
     jobs.on_command(ArmFailedCmd("r1"))
     jobs.take_output()
     jobs.on_command(ASK_FILL)
@@ -149,8 +150,10 @@ def test_a_result_inside_the_settle_time_settles_it_once(success, reason):
     jobs, now, goal, _ = timed_out()
     now[0] += jobs.params.robot_timeout_settle_s - 1.0
     jobs.on_fill_result(goal.goal_id, success, {"A": 1}, {}, reason)
-    assert jobs.take_output() == [ArmFillResult("r1", success, {"A": 1}, reason,
-                                                placed_confirmed={"A": 1})]
+    out = jobs.take_output()
+    assert out[0] == ArmFillResult("r1", success, {"A": 1}, reason, placed_confirmed={"A": 1})
+    # 시간 초과 뒤 실패는 결과 모름이라 보류로 이어진다 (팔 관제 합의 ①)
+    assert [type(o) for o in out[1:]] == ([] if success else [ArmFault, EventOut])
     now[0] += 2.0
     jobs.check_timeouts(now[0])
     assert jobs.take_output() == [], "settled once: no loss after it"
@@ -158,12 +161,15 @@ def test_a_result_inside_the_settle_time_settles_it_once(success, reason):
     assert jobs.take_output() == [ArmLate(goal.goal_id, FILL, placed={"A": 1})]
 
 
-def test_a_canceled_answer_to_a_timeout_is_a_failed_attempt():
+def test_a_canceled_answer_to_a_timeout_is_held_without_a_retry():
     jobs, _, goal, _ = timed_out()
     jobs.on_fill_result(goal.goal_id, False, {}, {}, "CANCELED")
-    jobs.take_output()
+    out = jobs.take_output()
+    assert cmds(out, "ArmFault") == [ArmFault("r1", FILL, "workcell",
+                                              "workcell: result unknown after the timeout")]
+    assert codes(out) == ["FILL_FAILED"]
     jobs.on_command(ArmFailedCmd("r1"))
-    assert codes(jobs.take_output()) == ["FILL_RETRY"] and jobs.attempts("r1") == 1
+    assert jobs.take_output() == [] and jobs.attempts("r1") == 0
 
 
 def test_no_result_in_the_settle_time_settles_it_as_lost_and_a_fault():
@@ -247,8 +253,8 @@ def test_a_fill_result_carries_reason_missing_confirmed_and_uncertain():
     jobs, _, goal = started()
     jobs.on_fill_result(goal.goal_id, False, {"A": 1}, {"C": 1}, "ARM_FAULT", {"A": 1},
                         {"C": 1})
-    assert jobs.take_output() == [ArmFillResult("r1", False, {"A": 1}, "ARM_FAULT", {"C": 1},
-                                                {"A": 1}, {"C": 1})]
+    assert jobs.take_output()[0] == ArmFillResult("r1", False, {"A": 1}, "ARM_FAULT",
+                                                  {"C": 1}, {"A": 1}, {"C": 1})
 
 
 def test_without_a_confirmed_count_the_placed_count_is_the_confirmed_one():
@@ -397,3 +403,54 @@ def test_a_fill_given_up_on_an_arm_error_is_no_longer_held():
     assert jobs.holds(goal.goal_id)
     jobs.on_arm_state("arm_left", "ERROR", "GRIPPER_JAM", False)
     assert not jobs.holds(goal.goal_id)
+
+
+# ---- 담기 실패의 다음 처리 (팔 관제 합의 ①): 재시도는 NOT_READY만 ----
+
+@pytest.mark.parametrize("reason", ["PICK_FAILED", "RECOGNITION_ERROR", "OUT_OF_STOCK"])
+def test_a_failure_that_ends_with_a_result_pauses_the_fill_for_the_operator(reason):
+    jobs, now, goal = started()
+    jobs.on_fill_result(goal.goal_id, False, {"A": 1}, {}, reason)
+    out = jobs.take_output()
+    assert [type(o) for o in out] == [ArmFillResult, ArmFillPaused, EventOut]
+    assert out[1] == ArmFillPaused("r1", "workcell", reason, f"workcell: {reason}")
+    assert codes(out) == ["FILL_PAUSED"] and out[2].level == "WARN"
+    jobs.on_command(ArmFailedCmd("r1"))
+    assert jobs.take_output() == [] and jobs.attempts("r1") == 0, "no retry count"
+    now[0] += 3600.0
+    jobs.on_command(ASK_FILL)
+    assert jobs.take_output() == [ArmDeclined("r1")], "no new goal until the orders reset it"
+    jobs.on_command(ArmResetCmd("r1"))
+    jobs.on_command(ASK_FILL)
+    assert cmds(jobs.take_output(), "FillCmd")
+
+
+@pytest.mark.parametrize(("reason", "uncertain", "detail"), [
+    ("ARM_FAULT", {}, "workcell: ARM_FAULT"),
+    ("UNKNOWN_TARGET", {}, "workcell: UNKNOWN_TARGET"),
+    ("PICK_FAILED", {"A": 1}, "workcell: PICK_FAILED, uncertain {'A': 1}"),
+    ("", {}, "workcell: no reason"),
+])
+def test_a_fault_an_unknown_kind_or_an_item_in_the_gripper_holds_without_a_retry(
+        reason, uncertain, detail):
+    jobs, now, goal = started()
+    jobs.on_fill_result(goal.goal_id, False, {}, {}, reason, None, uncertain)
+    out = jobs.take_output()
+    assert [type(o) for o in out] == [ArmFillResult, ArmFault, EventOut]
+    assert out[1] == ArmFault("r1", FILL, "workcell", detail)
+    assert codes(out) == ["FILL_FAILED"] and out[2].level == "ERROR"
+    now[0] += 3600.0
+    jobs.on_command(ASK_FILL)
+    assert jobs.take_output() == [ArmDeclined("r1")], "never sent again by itself"
+
+
+def test_not_ready_is_the_one_failure_that_is_tried_again():
+    jobs, now, goal = started()
+    jobs.on_fill_result(goal.goal_id, False, {}, {}, "NOT_READY")
+    out = jobs.take_output()
+    assert out == [ArmFillResult("r1", False, {}, "NOT_READY")], "the orders count it"
+    jobs.on_command(ArmFailedCmd("r1"))
+    assert codes(jobs.take_output()) == ["FILL_RETRY"]
+    now[0] += jobs.params.arm_retry_wait_s
+    jobs.on_command(ASK_FILL)
+    assert cmds(jobs.take_output(), "FillCmd")

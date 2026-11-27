@@ -45,7 +45,7 @@ class Faults:
             self._event("INFO", "ORDER_REQUEUED",
                         f"{r.order.order_id} was bound, basket held {r.order.placed}", robot)
             r.order = None
-        r.held = ""
+        r.held = r.paused = ""
         r.stage = ""
         r.outbound_goal = None
         self._forget_dispatch_failures(r)
@@ -85,7 +85,7 @@ class Faults:
                         f"{r.order.order_id} was bound, basket held {r.order.placed}, "
                         f"robot isolated: {r.isolated}", r.name)
             r.order = None
-        r.held = ""
+        r.held = r.paused = ""
         r.basket = NONE
         r.stage = ""
         r.outbound_goal = None

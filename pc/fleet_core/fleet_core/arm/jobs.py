@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from fleet_core.arm.fill_outcome import PAUSE, RETRY, next_after_fill
 from fleet_core.common.commands import (
     FILL,
     SWAP,
@@ -11,6 +12,7 @@ from fleet_core.common.commands import (
     ArmFailedCmd,
     ArmFault,
     ArmFillCmd,
+    ArmFillPaused,
     ArmFillResult,
     ArmLate,
     ArmLost,
@@ -49,6 +51,7 @@ class _Robot:
     retry_at: float = 0.0
     attempts: int = 0
     last: tuple[_Job, str] | None = None
+    blocked: str = ""  # 담기 일시 중지 · 보류 뒤 주문 쪽이 초기화할 때까지 새 목표를 막는 사유
 
 
 # ---- ArmJobs 생성과 실행 모드 처리 ----
@@ -83,11 +86,14 @@ class ArmJobs:
         if r is None:
             self._out.append(ArmLate(goal_id, FILL, placed=placed))
             return
-        r.last, r.job = (r.job, reason), None
+        job = r.job
+        r.last, r.job = (job, reason), None
         # 확인된 수를 안 주면 placed가 확인된 수다(0.6 호환)
         confirmed = placed if placed_confirmed is None else placed_confirmed
         self._out.append(ArmFillResult(r.name, success, placed, reason, dict(missing),
                                        dict(confirmed), dict(uncertain or {})))
+        if not success:
+            self._judge_fill(r, job, reason, dict(uncertain or {}))
 
     def on_swap_result(self, goal_id, success, took_full, put_empty_done, reason="") -> None:
         self._forget_cleared_job(goal_id)
@@ -189,7 +195,7 @@ class ArmJobs:
                 if command.forget:
                     self._robots[r.name] = _Robot(r.name)
                 else:
-                    r.attempts = 0
+                    r.attempts, r.blocked = 0, ""
 
     # ---- 출력과 조회 ----
     def take_output(self) -> list:
@@ -233,7 +239,7 @@ class ArmJobs:
         if cleared and now >= cleared[1]:
             del self._cleared_jobs[server]
             cleared = None
-        return not cleared and now >= r.retry_at
+        return not cleared and now >= r.retry_at and not r.blocked
 
     def holds(self, goal_id: int) -> bool:
         """이 담기 목표를 아직 맡고 있는지. 포기하거나 잊은 목표는 보내지 않는다."""
@@ -266,6 +272,25 @@ class ArmJobs:
                                  isolated=command.isolated, order_id=command.order_id,
                                  bound=command.bound))
         r.job = None
+
+    # ---- 담기 실패의 다음 처리 (팔 관제 합의 ①): 재시도는 NOT_READY만 ----
+    def _judge_fill(self, r: _Robot, job: _Job, reason: str, uncertain: dict) -> None:
+        if reason == CANCELED and job.canceled_at is not None and not job.timed_out:
+            return  # 관제가 멈춘 목표
+        then = next_after_fill(reason, uncertain, job.timed_out)
+        if then == RETRY:
+            return  # 주문 쪽 ArmFailedCmd로 센다
+        r.last, r.blocked = None, reason or then
+        why = "result unknown after the timeout" if job.timed_out else reason or "no reason"
+        detail = f"{job.server}: {why}"
+        if then == PAUSE:
+            self._out.append(ArmFillPaused(r.name, job.server, reason, detail))
+            self._event("WARN", "FILL_PAUSED", f"{detail}, waits for the operator", r.name)
+            return
+        if any(count > 0 for count in uncertain.values()):
+            detail += f", uncertain {uncertain}"
+        self._out.append(ArmFault(r.name, FILL, job.server, detail))
+        self._event("ERROR", "FILL_FAILED", f"{detail}, held without a retry", r.name)
 
     # ---- 실패한 시도의 재시도 또는 팔 고장 보고 ----
     def _attempt_failed(self, r: _Robot) -> None:

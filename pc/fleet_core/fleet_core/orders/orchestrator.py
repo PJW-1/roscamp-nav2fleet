@@ -8,9 +8,11 @@ from fleet_core.common.commands import (
     PARTIAL,
     SHIPPED,
     SWAP,
+    TRIP_FILLING_PAUSE,
     ArmDeclined,
     ArmFailedCmd,
     ArmFault,
+    ArmFillPaused,
     ArmFillResult,
     ArmLate,
     ArmLost,
@@ -21,6 +23,7 @@ from fleet_core.common.commands import (
     EventOut,
     ReleaseCmd,
     ReportOrderCmd,
+    ReportTripCmd,
     RobotFaultCmd,
 )
 
@@ -71,7 +74,7 @@ class OrderOrchestrator(Faults, Stations):
         self._over_capacity &= ids
         self._held = {k: v for k, v in self._held.items() if k in ids}
         for r in self._robots.values():
-            if r.held and r.order and r.order.order_id not in ids:
+            if (r.held or r.paused) and r.order and r.order.order_id not in ids:
                 r.order = None
         self._warn_over_capacity()
         self._sync_calls()
@@ -121,6 +124,8 @@ class OrderOrchestrator(Faults, Stations):
             self._on_arm_lost(r, report)
         elif isinstance(report, ArmFault):
             self._on_arm_fault(r, report)
+        elif isinstance(report, ArmFillPaused):
+            self._pause_fill(r, report)
 
     # ---- 팔 결과를 주문에 반영하고 결과를 잃은 작업 기록 ----
     def _on_fill_result(self, r: RobotRecord, success, placed) -> None:
@@ -133,6 +138,20 @@ class OrderOrchestrator(Faults, Stations):
             r.order.missing = subtract_items(r.order.items, r.order.placed)
             return
         self._out.append(ArmFailedCmd(r.name))
+
+    # ---- 담기 일시 중지: 다시 보내지 않고 관리자를 기다린다 (팔 관제 합의 ①) ----
+    def _pause_fill(self, r: RobotRecord, paused: ArmFillPaused) -> None:
+        r.asked = ""
+        if r.isolated:
+            self._decide_if_isolated(r)
+            return
+        if not r.order:
+            return
+        r.paused = paused.reason
+        order = r.order
+        left = subtract_items(order.items, order.placed)
+        self._out.append(ReportTripCmd(order.order_id, r.name, TRIP_FILLING_PAUSE,
+                                       dict(order.placed), left, paused.reason))
 
     def _on_arm_lost(self, r: RobotRecord, lost: ArmLost) -> None:
         if lost.cleared:
@@ -162,7 +181,7 @@ class OrderOrchestrator(Faults, Stations):
     # ---- 로봇 한 대의 단계 진행 ----
     def step(self, robot) -> None:
         r = self._robots.get(robot)
-        if r is None or r.held:
+        if r is None or r.held or r.paused:
             return
         if r.stage == FILLING:
             self._step_filling(r)
@@ -240,7 +259,7 @@ class OrderOrchestrator(Faults, Stations):
     # ---- 주문 보고 만들기 ----
     def _report(self, r: RobotRecord, status: str, detail: str = "") -> None:
         order, r.order = r.order, None
-        r.held = ""
+        r.held = r.paused = ""
         self._reported.add(order.order_id)
         self._held.pop(order.order_id, None)
         self._out.append(ReportOrderCmd(order.order_id, r.name, status, dict(order.placed),

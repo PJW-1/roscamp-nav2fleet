@@ -63,3 +63,4 @@ class RobotRecord:
     bound: int = 0
     isolated: str = ""
     held: str = ""  # 팔 고장으로 붙잡힘
+    paused: str = ""  # 담기 일시 중지 사유: 관리자 [담기 재개] · [보충 불가] 대기

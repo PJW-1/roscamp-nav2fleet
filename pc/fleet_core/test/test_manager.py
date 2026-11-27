@@ -1,6 +1,7 @@
 """FleetManager는 두 코어를 잇는다: 내부 호출은 안에 머물고 옛 출력은 그대로 나온다. 로봇 흉내 drive()는 받은 이동, 물러나기, 도킹을 곧바로 성공시킨다."""
 from core_helpers import cmds
 from fleet_core.common.commands import (
+    ArmFillResult,
     CancelDispatchCmd,
     DispatchCmd,
     DispatchFeedback,
@@ -354,7 +355,8 @@ def test_the_fill_result_fields_reach_the_arm_report():
     seen = []
     core.orchestrator.on_arm_report = seen.append
     core.on_fill_result(goal, False, {"A": 1}, {}, "PICK_FAILED", {"A": 1}, {"B": 1})
-    assert [(r.reason, r.placed_confirmed, r.uncertain) for r in seen] == [
+    results = [r for r in seen if isinstance(r, ArmFillResult)]
+    assert [(r.reason, r.placed_confirmed, r.uncertain) for r in results] == [
         ("PICK_FAILED", {"A": 1}, {"B": 1})]
 
 

@@ -147,7 +147,8 @@ class ReportOrderCmd:
 TRIP_ASSIGNED = "ASSIGNED"
 TRIP_FILLING = "FILLING"
 TRIP_TRANSPORTING = "TRANSPORTING"
-TRIP_STATUSES = (TRIP_ASSIGNED, TRIP_FILLING, TRIP_TRANSPORTING)
+TRIP_FILLING_PAUSE = "FILLING_PAUSE"  # 관리자 [담기 재개] · [보충 불가] 대기
+TRIP_STATUSES = (TRIP_ASSIGNED, TRIP_FILLING, TRIP_TRANSPORTING, TRIP_FILLING_PAUSE)
 
 
 @dataclass(frozen=True)
@@ -332,7 +333,17 @@ class ArmFault:
     reason: str
 
 
-ARM_REPORTS = (ArmDeclined, ArmFillResult, ArmSwapResult, ArmLost, ArmLate, ArmFault)
+# 결과로 끝난 담기 실패: 관제는 다시 보내지 않고 관리자를 기다린다 (팔 관제 합의 ①)
+@dataclass(frozen=True)
+class ArmFillPaused:
+    robot: str
+    server: str
+    reason: str
+    detail: str
+
+
+ARM_REPORTS = (ArmDeclined, ArmFillResult, ArmSwapResult, ArmLost, ArmLate, ArmFault,
+               ArmFillPaused)
 
 
 # ---- 배차 보고와 로봇 격리 ----
