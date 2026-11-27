@@ -16,6 +16,7 @@ from fleet_core.common.commands import (
     ArmFillPaused,
     ArmFillPlaced,
     ArmFillProgress,
+    ArmFillResumed,
     ArmFillResult,
     ArmLate,
     ArmLost,
@@ -141,6 +142,8 @@ class OrderOrchestrator(Faults, Stations):
             self._report_progress(r, report.placed)
         elif isinstance(report, ArmFillPlaced):
             self._on_fill_placed(r, report.placed)
+        elif isinstance(report, ArmFillResumed):
+            r.asked, r.arm_restarted = "", False
 
     # ---- 팔 결과를 주문에 반영하고 결과를 잃은 작업 기록 ----
     def _on_fill_result(self, r: RobotRecord, success, placed, uncertain=None) -> None:
@@ -168,13 +171,13 @@ class OrderOrchestrator(Faults, Stations):
         self._out.append(ReportTripCmd(order.order_id, r.name, TRIP_FILLING_PAUSE,
                                        dict(order.placed), left, paused.reason))
 
-    # ---- 재시작으로 끝난 목표: 담은 것만 더하고 남은 상품은 다시 요청 (팔 관제 합의 ⑪) ----
+    # ---- 재시작으로 사라진 목표: 담은 것을 더하고 [재개]까지 담기 요청 중으로 둠 (팔 관제 합의 ⑪) ----
     def _on_fill_placed(self, r: RobotRecord, placed: dict[str, int]) -> None:
-        r.asked = ""
         r.arm_restarted = True
         if r.order:
             merge_items(r.order.placed, placed)
         if r.isolated:
+            r.asked = ""
             self._requeue_isolated(r)
 
     # ---- 담는 동안 담은 수 진행 보고 (팔 관제 합의 ⑫) ----
@@ -290,8 +293,10 @@ class OrderOrchestrator(Faults, Stations):
                 self._event("WARN", "ORDER_OVER_CAPACITY",
                             f"{o.order_id}: {count} items exceed the basket capacity of {capacity}")
 
+    # 작업대가 막혔거나 서비스 정지면 대기 주문 배차 요청을 모두 거둔다 (팔 관제 합의 ④ · ⑥ · ⑦)
     def _sync_calls(self) -> None:
-        wanted = 0 if self._work_blocked else len(self._pending())
+        stop = self._work_blocked or self._run_mode == PAUSE
+        wanted = 0 if stop else len(self._pending())
         while len(self._open_calls) < wanted:
             goal_id = self._next_dispatch_id()
             self._open_calls.append(goal_id)

@@ -68,8 +68,8 @@ class Faults:
         if r.asked == SWAP and r.order:
             self._out.append(ArmStopCmd(r.name))
             return
-        # 담는 중이면 팔 결과를 기다린다
-        if r.asked == FILL:
+        # 담는 중이면 팔 결과를 기다린다(재시작으로 목표가 사라졌으면 올 결과가 없다)
+        if r.asked == FILL and not r.arm_restarted:
             return
         if r.asked:
             self._drop_arm(r, isolated=True)

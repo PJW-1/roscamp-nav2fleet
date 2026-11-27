@@ -17,6 +17,7 @@ from fleet_core.common.commands import (
     ArmFillPaused,
     ArmFillPlaced,
     ArmFillProgress,
+    ArmFillResumed,
     ArmFillResult,
     ArmLate,
     ArmLost,
@@ -160,7 +161,7 @@ class ArmJobs:
         job = r.job
         if phase:
             job.phases[arm] = phase
-        if placed_total > job.placed_total:
+        if placed_total != job.placed_total:
             job.placed_total = placed_total
             self._out.append(ArmFillProgress(r.name, first_items(job.items, placed_total)))
 
@@ -173,7 +174,7 @@ class ArmJobs:
         robot = self._resume_wait.pop(server, None)
         if robot is not None:
             # 재시작으로 사라진 목표: 주문 쪽이 남은 상품으로 새 목표를 다시 요청한다
-            self._update_stations()
+            self._out.append(ArmFillResumed(robot))
             self._event("INFO", "FILL_RESUMED",
                         f"{server} lost its goal in the restart: sending the rest as a new goal",
                         robot)

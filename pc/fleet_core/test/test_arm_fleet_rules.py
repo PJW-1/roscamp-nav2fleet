@@ -311,3 +311,46 @@ def test_a_late_result_with_an_uncertain_item_after_the_wait_holds_an_isolated_r
     core.on_fill_result(fill.goal_id, False, {}, {}, "CANCELED", None, {"A": 1})
     assert holds(core.take_output()) == [("HELD", "ROBOT_FAULT")]
 
+
+
+# ---- 리뷰 후속 2 ----
+def test_a_restart_after_everything_was_placed_still_waits_for_resume_before_shipping():
+    core, _, _, _ = restarted((O1,), placed_total=2)
+    core.step("r1")
+    out = core.take_output()
+    assert not cmds(out, "FillCmd") and not [c for c in cmds(out, "DispatchCmd") if c.robot_id]
+    assert core.on_resume_arm("arm_left") == (RESUME_REFILL, "")
+    core.step("r1")
+    assert [c.station_id for c in cmds(core.take_output(), "DispatchCmd") if c.robot_id] == [
+        "OUTBOUND"]
+
+
+def test_the_last_feedback_count_counts_even_when_it_goes_down():
+    core, _, fill = filling((O4,))
+    core.on_fill_feedback(fill.goal_id, "arm_left", "PLACING", 2)
+    core.take_output()
+    core.on_fill_feedback(fill.goal_id, "arm_left", "PLACING", 1)
+    assert [r.placed for r in cmds(core.take_output(), "ReportTripCmd")] == [{"A": 1}]
+    core.on_arm_state("arm_left", "IDLE", "", False, "b2", True)
+    assert core.robot_view("r1")["placed"] == {"A": 1}
+
+
+def test_service_stop_takes_back_every_open_call_and_run_opens_them_again():
+    core, _ = make([O1, OrderRecord("O-002", {"B": 1})])
+    core.take_output()
+    core.on_order_board("PAUSE", [O1, OrderRecord("O-002", {"B": 1})])
+    assert len(cmds(core.take_output(), "CancelDispatchCmd")) == 2
+    core.on_order_board("RUN", [O1, OrderRecord("O-002", {"B": 1})])
+    assert len(cmds(core.take_output(), "DispatchCmd")) == 2
+
+
+def test_an_isolated_robot_whose_arm_restarts_is_decided_at_once():
+    core, _, fill = filling((O4,))
+    core.on_fill_feedback(fill.goal_id, "arm_left", "PLACING", 1)
+    core.on_robot_isolated("r1", "COMM_LOST")
+    assert not holds(core.take_output()), "waits for the arm result"
+    core.on_arm_state("arm_left", "IDLE", "", False, "b2", True)
+    out = core.take_output()
+    assert [(r.status, r.hold_reason, r.placed) for r in cmds(out, "ReportOrderCmd")] == [
+        ("HELD", "ROBOT_FAULT", {"A": 1})]
+    assert core.on_resume_arm("arm_left") == ("", "ORDER_STATE")

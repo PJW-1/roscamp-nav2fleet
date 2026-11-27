@@ -362,13 +362,19 @@ class ArmFillPlaced:
 
 
 @dataclass(frozen=True)
+class ArmFillResumed:
+    robot: str  # 관리자 [재개]: 남은 상품을 다시 요청해도 됨
+
+
+@dataclass(frozen=True)
 class ArmStationBlocked:
     station_id: str
     reason: str  # 비면 다시 열림
 
 
 ARM_REPORTS = (ArmDeclined, ArmFillResult, ArmSwapResult, ArmLost, ArmLate, ArmFault,
-               ArmFillPaused, ArmFillProgress, ArmFillPlaced, ArmStationBlocked)
+               ArmFillPaused, ArmFillProgress, ArmFillPlaced, ArmFillResumed,
+               ArmStationBlocked)
 
 
 # ---- 배차 보고와 로봇 격리 ----
