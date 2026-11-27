@@ -23,6 +23,7 @@ contract 0.9 → **1.0** (다음 변경 basket_capacity는 1.1). 팀원 전달�
 | 14 | 가짜 팔: 스스로 멈춤 → set_pause(false)로 이어 감, 재시작 흉내(boot_id, 목표 사라짐, holding 옵션), phase · placed_total feedback | 완료 |
 | 추가 | 관리자 버튼 이름은 [복구] = resume_arm = 두 팔 set_pause(false). 따로 만든 [복구] 인터페이스 없음 | 완료 |
 | 추가 | `reason_codes.robot_state: [HEARTBEAT_LOST]` (ArmState.detail, 관제 heartbeat 30 s 끊김, 작업은 계속) | 완료 |
+| 추가 | PAUSED 동안 fill_timeout 멈춤: 두 팔 중 하나라도 PAUSED인 동안 세지 않고, 벗어나면 남은 시간부터 이어 셈 (사용자 결정 11-27) | 완료 (3ed1bb65) |
 
 ### 사용자가 지금대로 두기로 한 것 (11-27)
 - 시간 초과로 취소한 뒤 성공 결과가 오고 uncertain이 없으면(쥔 채 lock 해제도 없으면) 출고.
@@ -38,8 +39,9 @@ contract 0.9 → **1.0** (다음 변경 basket_capacity는 1.1). 팀원 전달�
 - [장애 처리 완료]의 "보낼 때 ERROR"는 관리 요청을 받은 시점의 상태로 봄(실제 전송은 다음 step, 약 0.1 s 뒤).
 - 무음 기간(관제 재시작 직후)에는 끊김을 알리지 않음(전과 같음).
 
-### 정하는 중
-- 팔이 PAUSED로 [복구]를 기다리는 동안 1200 s 타이머를 멈출지 (지금은 흐름). 사용자에게 물음.
+### 정한 것 (11-27 오후)
+- PAUSED로 [복구]를 기다리는 동안에는 1200 s를 멈추고, 벗어나면 남은 시간부터 이어 셈.
+- 시나리오 3개(arm_fault · operator_recovery · auto_isolation) 기대값을 새 규칙에 맞춤.
 
 ## 2. 바꾼 곳
 
@@ -68,12 +70,14 @@ contract 0.9 → **1.0** (다음 변경 basket_capacity는 1.1). 팀원 전달�
 - fleet_core 단위 (개인, ae6f767e): 1555 passed, 7 xfailed.
 - fleet_manager (개인, 파일 하나씩, 도메인 86): adapters 79, admin 12, fms_restart 1, mode_sync 24, node_admin 26, node_arm_rules 11, node_inbox 7, node_order 6, node_reports 5, node_wiring 39(두 번), robot_calls 27, 그 밖 모두 통과.
   - node_inbox · node_wiring이 부하 때 가끔 실패하던 원인: 시험 World가 ArmState를 내지 않아, 담기 차례가 3 s보다 늦으면 작업대가 "상태 모름"으로 막힘(4 s 지연 실험으로 확인, `'WORK': 'arm_left state unknown, arm_right state unknown'`). World가 두 팔 상태를 내게 고친 뒤 4 s 지연 실험도 통과.
-- 시나리오 (도메인 70~79): 12개 중 8 passed, 4 failed.
+- 시나리오 고친 3개 (6e667577, 한 판씩 혼자, 도메인 70): arm_fault 통과(31 s, 처음 한 판은 심판이 팔 상태를 상태판으로 늦게 읽어 실패 → 토픽으로 고침), operator_recovery 통과(71 s), auto_isolation 통과(56 s). basic_orders는 앞서 혼자 통과해 생략.
+  - arm_fault 흐름: 14.3 s HELD(ARM_FAULT, 다시 보내지 않음) → 14.9 s ARM_ERROR · 배차 막힘(pode1 TO_WORK → WAIT) → 34.4 s 강제 출고(PARTIAL) → 45.0 s [장애 처리 완료] → 45.2 s pode1 TO_WORK → O-002 SHIPPED.
+- (a)~(d) 가짜 시스템 (담기 상품당 2.5 s, 시계 2배, 4판 동시, 도메인 71~74): (a) 42 s, (b) 45 s, (c) 39 s, (d) 39 s 모두 통과. Gazebo (b)는 가짜 (b)와 관제 경로가 같아 뺌.
+- 이전 시나리오 전체 (ae6f767e, 도메인 70~79): 12개 중 8 passed, 4 failed.
   - basic_orders: WORK_DOCK을 0.07 m에서 놓음(다른 시험과 함께 돌린 부하 때). 혼자 돌리면 통과(53 s).
   - operator_recovery · auto_isolation · arm_fault: 시나리오 심판이 `ARM_ERROR`(ERROR 사건)를 예상하지 않음, 앞 두 개는 팔 ERROR로 작업대가 막혀 900 s 시간 초과. 변경 전(f4995a73)에도 같은 3개가 실패(D 확인). 시나리오 기대값을 새 규칙(ERROR면 작업대 막힘)에 맞춰 고쳐야 함.
 - 팀 브랜치 (ca61c5c2, 도메인 87): fleet_core 1429 passed, 7 xfailed. fleet_manager 22개 파일 모두 통과(node_admin 26, node_arm_rules 11, node_wiring 27, robot_calls 27 등).
 - 가짜 팔 시험 (B 브랜치 합친 뒤): test_ros_workcell_rules 21, 그 밖 31 · 12 · 3 passed.
-- Gazebo (a)~(d): 아직 안 돌림.
 
 ### 바꾼 · 뺀 시험
 - `test_a_lock_released_on_a_holding_arm_during_a_fill_cancels_it_and_holds_the_order` → 규칙 5 변경으로 새 규칙 시험 5개로 대체.
@@ -83,8 +87,12 @@ contract 0.9 → **1.0** (다음 변경 basket_capacity는 1.1). 팀원 전달�
 - test_node_wiring World가 작업대 두 팔 상태를 냄. `test_the_status_lists_the_three_arms_after_the_podes`는 팔 상태를 내지 않는 World로 그대로 확인(arm_right 상태 없음 → COMM_LOST).
 - 팀 레포에는 개인 레포 주문 코어에 기대는 시험(test_arm_fleet_rules · test_fill_pause · test_orchestrator · test_order_hold, 서비스 정지 시험 4개)을 넣지 않고 ArmJobs 단독 시험으로 대신함.
 
+- 시나리오 설정 시험 3개: arm_fail 3번(재시도 2번) → 1번 + [장애 처리 완료] 단계 확인으로 바꿈(규칙 2: ARM_FAULT는 다시 보내지 않음).
+- 팀 레포 가짜 작업셀에 `/{arm}/fault_resolved` 서버와 error_until_resolved만 넣음(시나리오가 돌게).
+
 ### 느슨해진 기준
 - fill_timeout_s 90 → 1200 s (사용자 결정, 통합 시험용).
+- PAUSED 동안 fill_timeout을 세지 않음 (사용자 결정).
 
 ## 4. 검토 이력 (Codex)
 - 1~2번: 7건 중 uncertain 보류 3곳 고침, 3건 건너뜀(시간 초과 뒤 성공은 결과가 있음, 0개 담은 격리 로봇은 다시 대기열, 포기 경로는 닿지 않음).
@@ -99,8 +107,5 @@ contract 0.9 → **1.0** (다음 변경 basket_capacity는 1.1). 팀원 전달�
 ## 5. 남은 것
 - `/fleet/resume_fill`([담기 재개] · [보충 불가]) 처리 없음 → NOT_IMPLEMENTED. 주문 쪽(통합) 몫.
 - FILLING_PAUSE 주문이 주문 보드에서 빠지면 Pode가 묶임.
-- PAUSED 동안 타이머 정책(위).
-- 시나리오 3개(operator_recovery · auto_isolation · arm_fault)의 기대값을 새 규칙에 맞추기.
-- Gazebo (a)~(d).
 - 팀 명세 5장 "담기 멈춤" 흐름, 2.1 FILLING 행, 7장 새 서비스 타입 목록은 새 정의와 다 맞추지 않음.
 - 팀 레포 가짜 팔은 PI-2A 가짜 관리 기능이 없어 이번 PR에 가짜 팔 변경을 넣지 않음.
