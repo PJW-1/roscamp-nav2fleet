@@ -129,7 +129,8 @@ class OrderOrchestrator(Faults, Stations):
         if isinstance(report, ArmDeclined):
             r.asked = ""
         elif isinstance(report, ArmFillResult):
-            self._on_fill_result(r, report.success, report.placed, report.uncertain)
+            self._on_fill_result(r, report.success, report.placed, report.uncertain,
+                                 report.held)
         elif isinstance(report, ArmSwapResult):
             self._on_swap_result(r, report.took_full, report.put_empty_done)
         elif isinstance(report, ArmLost):
@@ -141,16 +142,17 @@ class OrderOrchestrator(Faults, Stations):
         elif isinstance(report, ArmFillProgress):
             self._report_progress(r, report.placed)
         elif isinstance(report, ArmFillPlaced):
-            self._on_fill_placed(r, report.placed)
+            self._on_fill_placed(r, report.placed, report.held)
         elif isinstance(report, ArmFillResumed):
             r.asked, r.arm_restarted = "", False
 
     # ---- 팔 결과를 주문에 반영하고 결과를 잃은 작업 기록 ----
-    def _on_fill_result(self, r: RobotRecord, success, placed, uncertain=None) -> None:
+    def _on_fill_result(self, r: RobotRecord, success, placed, uncertain=None,
+                        held=False) -> None:
         r.asked = ""
         merge_items(r.order.placed, placed)
         if r.isolated:
-            self._requeue_isolated(r, uncertain)
+            self._requeue_isolated(r, uncertain, held)
             return
         if success:
             r.order.missing = subtract_items(r.order.items, r.order.placed)
@@ -171,14 +173,14 @@ class OrderOrchestrator(Faults, Stations):
         self._out.append(ReportTripCmd(order.order_id, r.name, TRIP_FILLING_PAUSE,
                                        dict(order.placed), left, paused.reason))
 
-    # ---- 재시작으로 사라진 목표: 담은 것을 더하고 [재개]까지 담기 요청 중으로 둠 (팔 관제 합의 ⑪) ----
-    def _on_fill_placed(self, r: RobotRecord, placed: dict[str, int]) -> None:
+    # ---- 재시작으로 사라진 목표: 담은 것을 더하고 [복구]까지 담기 요청 중으로 둠 (팔 관제 합의 ⑪) ----
+    def _on_fill_placed(self, r: RobotRecord, placed: dict[str, int], held=False) -> None:
         r.arm_restarted = True
         if r.order:
             merge_items(r.order.placed, placed)
         if r.isolated:
             r.asked = ""
-            self._requeue_isolated(r)
+            self._requeue_isolated(r, held=held)
 
     # ---- 담는 동안 담은 수 진행 보고 (팔 관제 합의 ⑫) ----
     def _report_progress(self, r: RobotRecord, placed: dict[str, int]) -> None:

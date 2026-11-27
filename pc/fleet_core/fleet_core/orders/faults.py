@@ -76,10 +76,12 @@ class Faults:
         self._requeue_isolated(r)
 
     # 담은 것이나 쥐고 있던 상품(uncertain)이 있으면 보류, 없으면 대기로 되돌림
-    def _requeue_isolated(self, r: RobotRecord, uncertain=None) -> None:
+    def _requeue_isolated(self, r: RobotRecord, uncertain=None, held=False) -> None:
         unsure = {k: v for k, v in (uncertain or {}).items() if v > 0}
-        if r.order and (r.order.placed or unsure):
+        # held: 쥐고 있던 상품의 행방을 모름 (쥔 채 락 해제 · 쥔 채 재시작)
+        if r.order and (r.order.placed or unsure or held):
             extra = f", uncertain {unsure}" if unsure else ""
+            extra += ", item unaccounted" if held else ""
             self._hold(r, HOLD_ROBOT_FAULT, f"robot isolated: {r.isolated}{extra}")
             r.order = None
         elif r.order:
@@ -96,7 +98,7 @@ class Faults:
         self._forget_arm_restart(r)
         self._sync_calls()
 
-    # 팔 재시작으로 [재개]를 기다리던 로봇이면 팔 쪽 대기도 지운다
+    # 팔 재시작으로 [복구]를 기다리던 로봇이면 팔 쪽 대기도 지운다
     def _forget_arm_restart(self, r: RobotRecord) -> None:
         if r.arm_restarted:
             r.arm_restarted = False

@@ -201,7 +201,7 @@ class FleetManager(ManagerRoute, ManagerViews, ManagerRecord):
         self.arm.on_fill_feedback(goal_id, text(arm), text(phase), int(placed_total))
         self._pump()
 
-    # ---- 관리자 [재개]: (RESUME_SET_PAUSE_OFF | RESUME_REFILL, "") 또는 ("", 거절 사유) ----
+    # ---- 관리자 [복구]: (RESUME_SET_PAUSE_OFF | RESUME_REFILL, "") 또는 ("", 거절 사유) ----
     def on_resume_arm(self, target) -> tuple[str, str]:
         self._input("on_resume_arm", target)
         answer = self.arm.on_resume_arm(text(target))

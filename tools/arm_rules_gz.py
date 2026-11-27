@@ -3,8 +3,8 @@
     ros2 launch fleet_gz_sim gz.launch.py layout:=v7 scenario:=tools/arm_rules_gz/gz_v7_arm_b.yaml sim_dock_stub:=true
     python3 tools/arm_rules_gz.py --case b --out <결과 폴더>      # 같은 ROS_DOMAIN_ID
 
-(a) 스스로 멈춤 → [재개] → 같은 목표로 이어 담고 출고
-(b) 4개 중 2개 담은 뒤 재시작 → [재개] 대기 → [재개] → 남은 2개로 새 목표 → 출고
+(a) 스스로 멈춤 → [복구] → 같은 목표로 이어 담고 출고
+(b) 4개 중 2개 담은 뒤 재시작 → [복구] 대기 → [복구] → 남은 2개로 새 목표 → 출고
 (c) 쥔 채 재시작 → HELD(ARM_FAULT)
 (d) 담는 동안 ReportTrip FILLING placed가 1, 2, 3으로 오름
 """
@@ -32,7 +32,7 @@ TRIPS = {"a": "R-A", "b": "R-B", "c": "R-C", "d": "R-D"}
 FINAL = ("SHIPPED", "PARTIAL", "HELD", "CANCELLED")
 
 
-# ---- 팔 상태 · 사건 받기, 훅 · [재개] 부르기 ----
+# ---- 팔 상태 · 사건 받기, 훅 · [복구] 부르기 ----
 class Driver(Node):
     def __init__(self):
         super().__init__("arm_rules_driver")
@@ -152,7 +152,7 @@ class Case:
         wait_for("both arm states", lambda: all(self.d.state(a) for a in ARMS), 180)
         getattr(self, f"case_{self.name}")()
 
-    # (a) 스스로 멈춤 → [재개] → 같은 목표
+    # (a) 스스로 멈춤 → [복구] → 같은 목표
     def case_a(self) -> None:
         self.test_mode()
         self.hook("arm_left", "self_stop", "1")
@@ -162,7 +162,7 @@ class Case:
         paused_at = self.d.state("arm_left").placed_total
         boot = self.d.state("arm_left").boot_id
         time.sleep(4.0)
-        self.check("stays PAUSED until [재개]", self.d.state("arm_left").state == "PAUSED",
+        self.check("stays PAUSED until [복구]", self.d.state("arm_left").state == "PAUSED",
                    self.d.state("arm_left").state)
         self.check("no final report while paused", self.final() is None,
                    [r.status for r in self.trips()])
@@ -178,7 +178,7 @@ class Case:
                    all(b >= a for a, b in zip(totals, totals[1:])) and paused_at >= 1, totals)
         self.check("FILL_RESUMED event", "FILL_RESUMED" in self.d.codes(), self.d.codes()[-8:])
 
-    # (b) 2개 담은 뒤 재시작 → [재개] 대기 → [재개] → 남은 2개로 새 목표
+    # (b) 2개 담은 뒤 재시작 → [복구] 대기 → [복구] → 남은 2개로 새 목표
     def case_b(self) -> None:
         self.test_mode()
         self.filling("arm_left", 2)
@@ -187,7 +187,7 @@ class Case:
         wait_for("new boot_id", lambda: len(self.d.boots["arm_left"]) > boots, 60)
         wait_for("ARM_RESTARTED", lambda: "ARM_RESTARTED" in self.d.codes(), 30)
         time.sleep(5.0)
-        self.check("no hold, no new goal while waiting for [재개]",
+        self.check("no hold, no new goal while waiting for [복구]",
                    self.final() is None and self.d.state("arm_left").order_id == "",
                    [r.status for r in self.trips()])
         res = self.resume_arm("arm_left")

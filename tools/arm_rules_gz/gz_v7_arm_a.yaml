@@ -1,4 +1,4 @@
-# 팔 관제 합의 Gazebo 판 (a) arm_left가 1개 담은 뒤 스스로 멈춤 → [재개] → 같은 목표로 이어 담고 출고
+# 팔 관제 합의 Gazebo 판 (a) arm_left가 1개 담은 뒤 스스로 멈춤 → [복구] → 같은 목표로 이어 담고 출고
 #   ros2 launch fleet_gz_sim gz.launch.py layout:=v7 scenario:=<이 파일> sim_dock_stub:=true
 #   python3 tools/arm_rules_gz.py --case a --out <결과 폴더>   (같은 ROS_DOMAIN_ID)
 map: v7

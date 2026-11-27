@@ -65,4 +65,4 @@ class RobotRecord:
     isolated: str = ""
     held: str = ""  # 팔 고장으로 붙잡힘
     paused: str = ""  # 담기 일시 중지 사유: 관리자 [담기 재개] · [보충 불가] 대기
-    arm_restarted: bool = False  # 팔 재시작으로 [재개] 대기에 든 적이 있음
+    arm_restarted: bool = False  # 팔 재시작으로 [복구] 대기에 든 적이 있음

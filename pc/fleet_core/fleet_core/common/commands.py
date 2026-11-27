@@ -294,6 +294,7 @@ class ArmFillResult:
     missing: dict[str, int] = field(default_factory=dict)
     placed_confirmed: dict[str, int] = field(default_factory=dict)
     uncertain: dict[str, int] = field(default_factory=dict)
+    held: bool = False  # 쥔 채 락이 풀렸던 목표: 상품 행방을 몰라 격리여도 보류
 
 
 @dataclass(frozen=True)
@@ -335,7 +336,7 @@ class ArmFault:
 
 
 # 결과로 끝난 담기 실패: 관제는 다시 보내지 않고 관리자를 기다린다 (팔 관제 합의 ①)
-# ---- 관리자 [재개] 답: 두 팔에 set_pause(false) · 남은 상품으로 새 담기 목표 ----
+# ---- 관리자 [복구] 답: 두 팔에 set_pause(false) · 남은 상품으로 새 담기 목표 ----
 RESUME_SET_PAUSE_OFF = "SET_PAUSE_OFF"
 RESUME_REFILL = "REFILL"
 
@@ -359,11 +360,12 @@ class ArmFillProgress:
 class ArmFillPlaced:
     robot: str
     placed: dict[str, int]  # 끝난 목표에서 담은 것: 주문에 더하고 남은 상품을 다시 요청
+    held: bool = False  # 쥐고 있던 상품의 행방을 모름: 격리여도 보류
 
 
 @dataclass(frozen=True)
 class ArmFillResumed:
-    robot: str  # 관리자 [재개]: 남은 상품을 다시 요청해도 됨
+    robot: str  # 관리자 [복구]: 남은 상품을 다시 요청해도 됨
 
 
 @dataclass(frozen=True)

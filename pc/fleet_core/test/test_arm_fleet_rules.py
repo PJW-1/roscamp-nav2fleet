@@ -1,5 +1,5 @@
 """팔 관제 합의 ④ · ⑤ · ⑥ · ⑦ · ⑪ · ⑫: 작업대 막힘, 쥔 채 락 해제(PAUSED로 이어 감), 상태 끊김, 서비스 정지,
-팔 재시작과 [재개], 담기 진행 보고."""
+팔 재시작과 [복구], 담기 진행 보고."""
 from core_helpers import cmds, codes
 from fleet_core.common.commands import (
     RESUME_REFILL,
@@ -165,7 +165,7 @@ def test_service_stop_starts_no_new_fill_and_takes_no_new_call():
     assert len(cmds(core.take_output(), "FillCmd")) == 1
 
 
-# ---- ⑪ 팔 재시작: [재개] 대기, 남은 상품으로 새 목표, 옛 결과는 버림 ----
+# ---- ⑪ 팔 재시작: [복구] 대기, 남은 상품으로 새 목표, 옛 결과는 버림 ----
 def test_a_restart_during_a_fill_waits_for_resume_without_a_hold_or_a_timeout():
     core, now, _, out = restarted()
     assert "ARM_RESTARTED" in codes(out) and not holds(out)
@@ -174,7 +174,7 @@ def test_a_restart_during_a_fill_waits_for_resume_without_a_hold_or_a_timeout():
     out = core.take_output()
     assert "ROBOT_TIMEOUT" not in codes(out) and not holds(out)
     core.step("r1")
-    assert not cmds(core.take_output(), "FillCmd"), "the order waits for [재개]"
+    assert not cmds(core.take_output(), "FillCmd"), "the order waits for [복구]"
     assert core.order_of("r1") == "O-004"
 
 
@@ -393,3 +393,40 @@ def test_an_isolated_robot_whose_arm_restarts_is_decided_at_once():
     assert [(r.status, r.hold_reason, r.placed) for r in cmds(out, "ReportOrderCmd")] == [
         ("HELD", "ROBOT_FAULT", {"A": 1})]
     assert core.on_resume_arm("arm_left") == ("", "ORDER_STATE")
+
+
+# ---- ⑤ 리뷰 후속: 쥔 채 락 해제 안전장치가 빠지는 길 ----
+def test_a_holding_lock_release_while_a_stop_cancel_waits_still_holds_the_order():
+    core, _, fill = filling()
+    core.on_arm_state("arm_left", "PICKING", "", True, "b1", True)
+    core.on_order_board("STOP", [O1])
+    core.take_output()
+    core.on_arm_state("arm_left", "PAUSED", "LOCK_RELEASED", True, "b1", False)
+    core.on_fill_result(fill.goal_id, False, {}, {}, "CANCELED")
+    assert holds(core.take_output()) == [("HELD", "ARM_FAULT")]
+
+
+def test_a_lock_release_seen_only_after_the_gripper_opened_still_counts():
+    core, _, fill = filling()
+    core.on_arm_state("arm_left", "PICKING", "", True, "b1", True)
+    core.on_arm_state("arm_left", "PAUSED", "LOCK_RELEASED", False, "b1", False)
+    assert "ARM_LOCK_RELEASED" in codes(core.take_output())
+    core.on_fill_result(fill.goal_id, True, {"A": 1, "C": 1}, {})
+    assert holds(core.take_output()) == [("HELD", "ARM_FAULT")]
+
+
+def test_an_isolated_robot_after_a_holding_lock_release_is_held_not_requeued():
+    core, _, fill, _ = unlocked_holding()
+    core.on_robot_isolated("r1", "COMM_LOST")
+    core.take_output()
+    core.on_fill_result(fill.goal_id, False, {}, {}, "ARM_FAULT")
+    assert holds(core.take_output()) == [("HELD", "ROBOT_FAULT")]
+
+
+def test_an_isolated_robot_whose_arm_restarts_holding_is_held_not_requeued():
+    core, _, fill = filling((O4,))
+    core.on_arm_state("arm_left", "PICKING", "", True, "b1", True)
+    core.on_robot_isolated("r1", "COMM_LOST")
+    core.take_output()
+    core.on_arm_state("arm_left", "IDLE", "", False, "b2", True)
+    assert holds(core.take_output()) == [("HELD", "ROBOT_FAULT")]
