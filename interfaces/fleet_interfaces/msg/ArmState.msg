@@ -8,8 +8,8 @@ string STATE_PLACE_WAITING="PLACE_WAITING"
 # 바구니 공간 안. arm_left와 arm_right가 동시에 이 값을 보고하면 안 된다.
 string STATE_PLACING="PLACING"
 string STATE_RETRYING="RETRYING"
-# 스스로 멈춤(계획 · 실행 · 미세조정 실패) · lock 해제 · 거리 정지 한도 초과. 담기 목표는 살아 있다.
-# [복구]는 처음 자세로 돌아가되 PAUSED 유지, [재개](set_pause(false))로 같은 목표를 이어 간다
+# 스스로 멈춤(계획 · 실행 · 미세조정 실패) · lock 해제(쥔 채여도) · 거리 정지 한도 초과. 담기 목표는 살아 있다.
+# [재개](set_pause(false))는 see_center 복귀 → 재캡처 → 남은 상품 담기까지 한다. 관제 쪽 [복구] 인터페이스는 없다
 string STATE_PAUSED="PAUSED"
 string STATE_SWAPPING="SWAPPING"
 string STATE_TAKE_WAITING="TAKE_WAITING"     # Phony
@@ -26,7 +26,7 @@ string GRIPPER_CLOSED="CLOSED"
 string arm_id
 string boot_id               # 바뀌면 팔 재시작([초기화]): 하던 담기 목표는 사라지고 관제가 [재개] 때 남은 상품으로 다시 보냄
 string state
-string detail                # 2.2 사유 코드
+string detail                # 2.2 사유 코드. 관제 heartbeat가 30 s 끊기면 HEARTBEAT_LOST, 작업은 계속
 bool lock                    # 잠김 = true. Pode · Phody 팔 · Phony 모두 (명세 4.5)
 string last_request_id       # 마지막으로 반영한 명령 (관측 보조 · 디버깅용, 결과 전달 경로 아님, #25 ④)
 string gripper

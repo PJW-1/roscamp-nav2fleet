@@ -1,4 +1,4 @@
-"""팔 관제 합의 ④ · ⑤ · ⑥ · ⑦ · ⑪ · ⑫: 작업대 막힘, 쥔 채 락 해제, 상태 끊김, 서비스 정지,
+"""팔 관제 합의 ④ · ⑤ · ⑥ · ⑦ · ⑪ · ⑫: 작업대 막힘, 쥔 채 락 해제(PAUSED로 이어 감), 상태 끊김, 서비스 정지,
 팔 재시작과 [재개], 담기 진행 보고."""
 from core_helpers import cmds, codes
 from fleet_core.common.commands import (
@@ -67,14 +67,53 @@ def test_no_fill_goal_goes_to_a_workcell_with_an_arm_in_error():
     assert len(cmds(core.take_output(), "FillCmd")) == 1
 
 
-# ---- ⑤ 담기 중 쥔 채 락 해제 → 보류 ----
-def test_a_lock_released_on_a_holding_arm_during_a_fill_cancels_it_and_holds_the_order():
-    core, _, fill = filling()
-    core.on_arm_state("arm_left", "PAUSED", "", True, "b1", False)
+# ---- ⑤ 담기 중 쥔 채 락 해제 → 담기는 PAUSED로 이어 가고, 목표가 끝날 때 보류 ----
+def unlocked_holding():
+    core, now, fill = filling()
+    core.on_arm_state("arm_left", "PICKING", "", True, "b1", True)
+    core.on_arm_state("arm_left", "PAUSED", "LOCK_RELEASED", True, "b1", False)
     out = core.take_output()
-    assert [(c.robot, c.goal_id) for c in cmds(out, "CancelCmd")] == [("workcell", fill.goal_id)]
-    assert holds(out) == [("HELD", "ARM_FAULT")]
+    return core, now, fill, out
+
+
+def test_a_lock_released_on_a_holding_arm_keeps_the_fill_going_until_resume():
+    core, _, fill, out = unlocked_holding()
+    assert not cmds(out, "CancelCmd") and not holds(out)
+    assert not [r for r in cmds(out, "ReportTripCmd") if r.status != "FILLING"]
     assert "ARM_LOCK_RELEASED" in codes(out)
+    core.on_arm_state("arm_left", "PAUSED", "LOCK_RELEASED", False, "b1", False)
+    core.on_arm_state("arm_left", "PAUSED", "", False, "b1", True)
+    assert core.on_resume_arm("arm_left") == (RESUME_SET_PAUSE_OFF, "")
+    assert not holds(core.take_output())
+
+
+def test_the_fill_after_a_holding_lock_release_is_held_when_the_result_lists_the_item():
+    core, _, fill, _ = unlocked_holding()
+    core.on_fill_result(fill.goal_id, True, {"A": 1, "C": 1}, {}, "", None, {"A": 1})
+    assert holds(core.take_output()) == [("HELD", "ARM_FAULT")]
+
+
+def test_the_fill_after_a_holding_lock_release_is_held_even_without_uncertain_items():
+    core, _, fill, _ = unlocked_holding()
+    core.on_fill_result(fill.goal_id, True, {"A": 1, "C": 1}, {})
+    out = core.take_output()
+    assert holds(out) == [("HELD", "ARM_FAULT")]
+    assert not [c for c in cmds(out, "DispatchCmd") if c.station_id == "OUTBOUND"]
+
+
+def test_a_repeated_unlocked_state_raises_the_event_once():
+    core, _, _, _ = unlocked_holding()
+    core.on_arm_state("arm_left", "PAUSED", "LOCK_RELEASED", True, "b1", False)
+    assert "ARM_LOCK_RELEASED" not in codes(core.take_output())
+
+
+def test_a_restart_after_a_holding_lock_release_holds_the_order():
+    core, _, fill, _ = unlocked_holding()
+    core.on_arm_state("arm_left", "PAUSED", "", False, "b1", True)
+    core.take_output()
+    core.on_arm_state("arm_left", "IDLE", "", False, "b2", True)
+    assert holds(core.take_output()) == [("HELD", "ARM_FAULT")]
+    assert core.on_resume_arm("arm_left") == ("", "ORDER_STATE")
 
 
 def test_a_lock_released_on_an_empty_arm_keeps_the_fill_waiting():

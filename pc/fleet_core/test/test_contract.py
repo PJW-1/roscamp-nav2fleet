@@ -172,8 +172,9 @@ def test_reason_code_table_has_the_spec_codes(contract):
     codes = {c for group in contract.reason_codes.values() for c in group}
     assert {"NOT_FOUND", "LOCK_RELEASED", "HOLDING_ITEM", "MODE_MISMATCH", "NOT_READY",
             "ROBOT_TIMEOUT", "PICK_FAILED", "FLEET_RESTART", "NOTHING_TO_FILL",
-            "FORCED_PARTIAL", "LATE_REPORT", "NOT_IMPLEMENTED", "NAV_UNAVAILABLE"} <= codes
-    assert len(codes) == 33
+            "FORCED_PARTIAL", "LATE_REPORT", "NOT_IMPLEMENTED", "NAV_UNAVAILABLE",
+            "HEARTBEAT_LOST"} <= codes
+    assert len(codes) == 34
 
 
 def test_entries_no_fake_node_opens_are_left_out_of_the_fake_check(contract):

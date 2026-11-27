@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-from fleet_core.arm.fill_outcome import PAUSE, RETRY, next_after_fill
+from fleet_core.arm.fill_outcome import HOLD, PAUSE, RETRY, next_after_fill
 from fleet_core.common.commands import (
     FILL,
     RESUME_REFILL,
@@ -52,6 +52,7 @@ class _Job:
     items: dict[str, int] = field(default_factory=dict)
     placed_total: int = 0  # 마지막 feedback의 담은 수
     phases: dict[str, str] = field(default_factory=dict)  # 팔 -> 마지막 진행 단계
+    unlocked_holding: str = ""  # 쥔 채 락이 풀린 팔: 목표가 끝나면 보류
 
 
 # 목표 items 앞에서부터 n개
@@ -130,7 +131,7 @@ class ArmJobs:
         self._out.append(ArmFillResult(r.name, success, placed, reason, dict(missing),
                                        dict(confirmed), dict(uncertain or {})))
         uncertain = dict(uncertain or {})
-        if not success or any(count > 0 for count in uncertain.values()):
+        if not success or job.unlocked_holding or any(c > 0 for c in uncertain.values()):
             self._judge_fill(r, job, reason, uncertain)
 
     def on_swap_result(self, goal_id, success, took_full, put_empty_done, reason="") -> None:
@@ -241,16 +242,15 @@ class ArmJobs:
         self._event("ERROR", "ARM_ERROR", f"{reason}{held}, {r.name} job given up", arm)
 
     # ---- 담기 중 쥔 채 락 해제: 상품 행방 모름 → 취소하고 보류 (팔 관제 합의 ⑤) ----
+    # ---- 담기 중 쥔 채 락 해제: 담기는 PAUSED로 [재개]를 기다리고, 목표가 끝나면 보류 (팔 관제 합의 ⑤) ----
     def _on_lock_released_holding(self, arm, server) -> None:
         r = self._fill_owner(server)
-        if r is None or r.job.canceled_at is not None:
+        if r is None or r.job.canceled_at is not None or r.job.unlocked_holding:
             return
-        job, r.job = r.job, None
-        self._out.append(CancelCmd(job.server, job.goal_id))
-        self._out.append(ArmLost(r.name, job.goal_id, job.server, job.kind))
-        reason = f"{arm} lock released holding an item during {server} goal {job.goal_id}"
-        self._out.append(ArmFault(r.name, FILL, job.server, reason))
-        self._event("ERROR", "ARM_LOCK_RELEASED", f"{reason}, item unaccounted, held", arm)
+        r.job.unlocked_holding = arm
+        self._event("WARN", "ARM_LOCK_RELEASED",
+                    f"{arm} lock released holding an item during {server} goal {r.job.goal_id}: "
+                    "the fill waits for [재개], held when the goal ends", arm)
 
     # ---- 팔 재시작([초기화]): 담기는 [재개] 대기, 쥐고 있었으면 보류 (팔 관제 합의 ⑪) ----
     def _on_arm_restart(self, arm, server, held_before) -> None:
@@ -270,6 +270,7 @@ class ArmJobs:
             self._event("INFO", "ARM_RESTARTED", f"{arm} restarted, no fill running", arm)
             return
         job, r.job, r.last = r.job, None, None
+        held = held or bool(job.unlocked_holding)
         placed = first_items(job.items, job.placed_total)
         self._dropped_goals.add(job.goal_id)
         # 담은 수는 바로 주문에 더한다(치움 · 격리 · 고장에도 빠지지 않게)
@@ -466,10 +467,11 @@ class ArmJobs:
 
     # ---- 담기 실패의 다음 처리 (팔 관제 합의 ①): 재시도는 NOT_READY만 ----
     def _judge_fill(self, r: _Robot, job: _Job, reason: str, uncertain: dict) -> None:
-        held = any(count > 0 for count in uncertain.values())
+        # 쥔 채 락이 풀렸으면 uncertain이 비어 있어도 보류한다(안전장치)
+        held = any(count > 0 for count in uncertain.values()) or bool(job.unlocked_holding)
         if reason == CANCELED and job.canceled_at is not None and not job.timed_out and not held:
             return  # 관제가 멈춘 목표
-        then = next_after_fill(reason, uncertain, job.timed_out)
+        then = HOLD if job.unlocked_holding else next_after_fill(reason, uncertain, job.timed_out)
         if then == RETRY:
             return  # 주문 쪽 ArmFailedCmd로 센다
         r.last, r.blocked = None, reason or then
@@ -481,6 +483,8 @@ class ArmJobs:
             return
         if held:
             detail += f", uncertain {uncertain}"
+        if job.unlocked_holding:
+            detail += f", {job.unlocked_holding} lock released holding an item"
         self._out.append(ArmFault(r.name, FILL, job.server, detail))
         self._event("ERROR", "FILL_FAILED", f"{detail}, held without a retry", r.name)
 
