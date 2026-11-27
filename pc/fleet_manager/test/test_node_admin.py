@@ -20,8 +20,10 @@ from fleet_interfaces.srv import (  # noqa: E402
     Reinstate,
     RobotCommand,
     SetLock,
+    SetPause,
     TripCommand,
 )
+from fleet_core.common.commands import RESUME_REFILL, RESUME_SET_PAUSE_OFF  # noqa: E402
 from fleet_manager.fleet_manager_node import FleetManagerNode  # noqa: E402
 from rclpy.action import ActionServer  # noqa: E402
 from rclpy.callback_groups import ReentrantCallbackGroup  # noqa: E402
@@ -45,6 +47,8 @@ class Robots(Node):
         group = ReentrantCallbackGroup()
         self.contract, self.group = contract, group
         self.answer = "accept"
+        self.answer_of = {}  # 명령마다 다른 답 (없으면 answer)
+        self.paused = []  # set_pause로 받은 (팔, paused)
         self.late_s = 1.6
         self.pod_state = RobotState.STATE_IDLE
         self.lock = True
@@ -78,6 +82,9 @@ class Robots(Node):
                             self._serve("force"), callback_group=group)
         self.create_service(RobotCommand, name("arm_fault_resolved", arm="arm_left"),
                             self._serve("fault_resolved"), callback_group=group)
+        for arm in ("arm_left", "arm_right"):
+            self.create_service(SetPause, name("arm_set_pause", arm=arm),
+                                self._serve(f"set_pause {arm}"), callback_group=group)
 
     def mode(self, mode):
         self._mode_pub.publish(SystemMode(mode=mode))
@@ -92,9 +99,12 @@ class Robots(Node):
     def _serve(self, what):
         def serve(request, response):
             self.asked.append((what, request.request_id))
-            if self.answer == "late":
+            if what.startswith("set_pause"):
+                self.paused.append((what.split()[1], request.paused))
+            answer = self.answer_of.get(what, self.answer)
+            if answer == "late":
                 time.sleep(self.late_s)
-            accept = self.answer != "reject"
+            accept = answer != "reject"
             if accept and what == "set_lock":
                 self.lock = request.locked
             response.accepted, response.request_id = accept, request.request_id
@@ -356,3 +366,89 @@ def test_a_second_set_lock_while_one_is_pending_is_not_ready(graph):
         reports(graph, "O-1")
     third = call(graph, SetLock, "set_lock", request_id="O-3", robot_id="pode1", locked=True)
     assert third.accepted
+
+
+def test_fault_resolved_on_an_arm_that_stays_in_error_ends_in_timeout(graph):
+    graph.arm.state = ArmState.STATE_ERROR
+    assert wait_for(lambda: graph.fms._in_error("arm_left"), 5.0)
+    graph.answer = "late"
+    graph.late_s = 5.0
+    call(graph, RobotCommand, "fault_resolved", request_id="R-5", robot_id="arm_left")
+    assert wait_for(lambda: results(graph, "R-5") == ["UNCONFIRMED", "TIMEOUT"], 6.0), \
+        reports(graph, "R-5")
+    assert reports(graph, "R-5")[-1][4] == "ROBOT_TIMEOUT"
+
+
+# ---- 관리자 [재개] (팔 관제 합의 ⑧) ----
+def resume_answer(graph, answer):
+    graph.fms.core.on_resume_arm = lambda target: answer
+
+
+def test_a_resume_the_core_refuses_is_rejected_with_its_code_and_nothing_is_sent(graph):
+    resume_answer(graph, ("", "NOT_PAUSED"))
+    reply = call(graph, RobotCommand, "resume_arm", request_id="U-1", robot_id="workcell")
+    assert (reply.accepted, reply.reason, reply.request_id) == (False, "NOT_PAUSED", "U-1")
+    assert reports(graph, "U-1") == [("U-1", "resume_arm", "workcell", "REJECTED",
+                                      "NOT_PAUSED", reply.detail)]
+    time.sleep(0.3)
+    assert graph.paused == []
+
+
+def test_a_resume_with_set_pause_off_goes_to_both_arms_and_is_reported_once(graph):
+    resume_answer(graph, (RESUME_SET_PAUSE_OFF, ""))
+    reply = call(graph, RobotCommand, "resume_arm", request_id="U-2", robot_id="arm_left")
+    assert (reply.accepted, reply.reason) == (True, "")
+    assert wait_for(lambda: results(graph, "U-2") == ["ACCEPTED"], 5.0), reports(graph, "U-2")
+    assert reports(graph, "U-2")[0][1:3] == ("resume_arm", "arm_left")
+    assert sorted(graph.paused) == [("arm_left", False), ("arm_right", False)]
+    assert ("set_pause arm_left", "U-2") in graph.asked
+    again = call(graph, RobotCommand, "resume_arm", request_id="U-2", robot_id="arm_left")
+    assert again.accepted
+    time.sleep(0.3)
+    assert len(graph.paused) == 2 and results(graph, "U-2") == ["ACCEPTED"]
+
+
+def test_a_resume_with_refill_is_accepted_at_once_without_set_pause(graph):
+    resume_answer(graph, (RESUME_REFILL, ""))
+    reply = call(graph, RobotCommand, "resume_arm", request_id="U-3", robot_id="workcell")
+    assert reply.accepted
+    assert results(graph, "U-3") == ["ACCEPTED"]
+    time.sleep(0.3)
+    assert graph.paused == []
+
+
+def test_one_arm_refusing_set_pause_makes_the_resume_rejected(graph):
+    resume_answer(graph, (RESUME_SET_PAUSE_OFF, ""))
+    graph.answer_of["set_pause arm_right"] = "reject"
+    call(graph, RobotCommand, "resume_arm", request_id="U-4", robot_id="workcell")
+    assert wait_for(lambda: results(graph, "U-4") == ["REJECTED"], 5.0), reports(graph, "U-4")
+    r = reports(graph, "U-4")[0]
+    assert r[4] == "ROBOT_REJECTED" and r[5].startswith("arm_right:"), r
+
+
+def test_an_unanswered_set_pause_is_confirmed_when_the_paused_arm_leaves_paused(graph):
+    graph.arm.state = ArmState.STATE_PAUSED
+    assert wait_for(lambda: graph.fms._paused("arm_left"), 5.0)
+    resume_answer(graph, (RESUME_SET_PAUSE_OFF, ""))
+    graph.answer_of["set_pause arm_left"] = "late"
+    graph.late_s = 5.0
+    call(graph, RobotCommand, "resume_arm", request_id="U-5", robot_id="workcell")
+    assert wait_for(lambda: results(graph, "U-5") == ["UNCONFIRMED"], 4.0), reports(graph, "U-5")
+    assert reports(graph, "U-5")[0][5].startswith("arm_left:")
+    # 앞 [재개]가 끝나기 전 다음 [재개]는 받지 않는다
+    busy = call(graph, RobotCommand, "resume_arm", request_id="U-6", robot_id="workcell")
+    assert (busy.accepted, busy.reason) == (False, "NOT_READY")
+    graph.arm.state = ArmState.STATE_IDLE
+    assert wait_for(lambda: results(graph, "U-5") == ["UNCONFIRMED", "ACCEPTED"], 2.0), \
+        reports(graph, "U-5")
+
+
+def test_an_unanswered_set_pause_on_an_arm_not_paused_ends_in_timeout(graph):
+    resume_answer(graph, (RESUME_SET_PAUSE_OFF, ""))
+    graph.answer_of["set_pause arm_left"] = "late"
+    graph.late_s = 5.0
+    call(graph, RobotCommand, "resume_arm", request_id="U-7", robot_id="workcell")
+    assert wait_for(lambda: results(graph, "U-7") == ["UNCONFIRMED", "TIMEOUT"], 6.0), \
+        reports(graph, "U-7")
+    r = reports(graph, "U-7")[-1]
+    assert r[4] == "ROBOT_TIMEOUT" and r[5].startswith("arm_left:"), r

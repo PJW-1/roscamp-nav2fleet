@@ -109,12 +109,15 @@ def _pode_status(v, state) -> RobotStatus:
     return row
 
 
-def arm_status(arm: str, state, fresh: bool) -> RobotStatus:
+def arm_status(arm: str, state, fresh: bool, phase: str = "", trip: str = "") -> RobotStatus:
+    """phase · trip은 코어의 담기 진행. 담는 건이 없으면 order_id는 팔이 보고한 값."""
     row = RobotStatus(robot_id=arm, kind=RobotStatus.KIND_ARM, battery=-1.0,
-                      fault=RobotStatus.FAULT_COMM_LOST, lock=True)
+                      fault=RobotStatus.FAULT_COMM_LOST, lock=True, task_type=phase,
+                      order_id=trip)
     if state is None:
         return row
-    row.fsm_state, row.order_id, row.fault_reason = state.state, state.order_id, state.detail
+    row.fsm_state, row.fault_reason = state.state, state.detail
+    row.order_id = trip or state.order_id
     row.lock, row.mode, row.forced, row.boot_id = (
         bool(state.lock), state.mode, list(state.forced), state.boot_id)
     if fresh:
@@ -126,7 +129,7 @@ def arm_status(arm: str, state, fresh: bool) -> RobotStatus:
 def robots_to_msg(views, now: float, pode_states=None, arms=()) -> RobotStatusArray:
     pode_states = pode_states or {}
     robots = [_pode_status(v, pode_states.get(v.robot_id)) for v in views]
-    robots += [arm_status(arm, state, fresh) for arm, state, fresh in arms]
+    robots += [arm_status(*row) for row in arms]
     return RobotStatusArray(robots=robots, stamp=to_time(now))
 
 
