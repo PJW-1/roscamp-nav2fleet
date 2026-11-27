@@ -863,6 +863,16 @@ def send_system_mode(world, mode):
     return pub
 
 
+def arms_report_mode(world, mode):
+    """작업대 두 팔이 그 모드를 보고한다 (담기는 팔이 모드를 보고한 뒤 나간다)."""
+    contract, qos = world.fms.contract, to_ros_qos(world.fms.contract.qos("arm_state"))
+    pubs = {arm: world.create_publisher(ArmState, contract.name("arm_state", arm=arm), qos)
+            for arm in ("arm_left", "arm_right")}
+    world.create_timer(0.1, lambda: [pub.publish(ArmState(arm_id=arm, state="IDLE", lock=True,
+                                                          boot_id="b-1", mode=mode))
+                                     for arm, pub in pubs.items()])
+
+
 def event_codes(world):
     return [e.code for e in list(world.events)]
 
@@ -876,6 +886,7 @@ def test_nothing_is_asked_before_the_system_mode_comes(graph):
 
 def test_the_system_mode_is_sent_to_the_robot_and_it_keeps_working(graph):
     asked = serve_set_mode(graph)
+    arms_report_mode(graph, "TEST")
     send_system_mode(graph, "TEST")
     assert wait_for(lambda: asked == ["TEST"], 10.0), asked
     assert wait_for(lambda: graph.mode == "TEST", 5.0)

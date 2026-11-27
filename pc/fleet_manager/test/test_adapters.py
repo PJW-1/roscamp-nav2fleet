@@ -286,13 +286,17 @@ def test_the_three_arms_follow_the_podes_with_their_own_state():
     left = ArmState(arm_id="arm_left", boot_id="a-1", state=ArmState.STATE_PLACING,
                     lock=True, mode="NORMAL", order_id="O-1")
     right = ArmState(arm_id="arm_right", state=ArmState.STATE_ERROR, detail="PICK_FAILED")
-    arms = [("arm_left", left, True), ("arm_right", right, True), ("arm_ship", None, False)]
+    # 팔 줄의 진행 단계와 운반 건은 코어가 준다 (팔이 보고한 order_id는 쓰지 않는다)
+    arms = [("arm_left", left, True, "PLACING", "T-1"), ("arm_right", right, True),
+            ("arm_ship", None, False)]
     rows = adapters.robots_to_msg([view], 0.0, {}, arms).robots
     assert [(r.robot_id, r.kind) for r in rows] == [
         ("pode1", "POD"), ("arm_left", "ARM"), ("arm_right", "ARM"), ("arm_ship", "ARM")]
     _, left_row, right_row, ship_row = rows
-    assert (left_row.fsm_state, left_row.order_id, left_row.fault, left_row.lock,
-            left_row.mode, left_row.boot_id) == ("PLACING", "O-1", "NONE", True, "NORMAL", "a-1")
+    assert (left_row.fsm_state, left_row.task_type, left_row.order_id, left_row.fault,
+            left_row.lock, left_row.mode, left_row.boot_id) == (
+        "PLACING", "PLACING", "T-1", "NONE", True, "NORMAL", "a-1")
+    assert right_row.order_id == ""
     assert (right_row.fault, right_row.fault_reason) == ("ERROR", "PICK_FAILED")
     assert (ship_row.fault, ship_row.fsm_state, ship_row.battery) == ("COMM_LOST", "", -1.0)
 
