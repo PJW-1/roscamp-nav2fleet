@@ -8,15 +8,19 @@ from fleet_core.common.commands import (
     PARTIAL,
     SHIPPED,
     SWAP,
+    TRIP_FILLING,
     TRIP_FILLING_PAUSE,
     ArmDeclined,
     ArmFailedCmd,
     ArmFault,
     ArmFillPaused,
+    ArmFillPlaced,
+    ArmFillProgress,
     ArmFillResult,
     ArmLate,
     ArmLost,
     ArmResetCmd,
+    ArmStationBlocked,
     ArmSwapResult,
     CancelDispatchCmd,
     DispatchCmd,
@@ -43,6 +47,7 @@ from .stations import Stations
 
 # ---- OrderOrchestrator 생성 ----
 STOP = "STOP"
+PAUSE = "PAUSE"
 
 
 class OrderOrchestrator(Faults, Stations):
@@ -64,6 +69,7 @@ class OrderOrchestrator(Faults, Stations):
         self._work = next(s.id for s in stations.values() if s.action == FILL)
         self._outbound = next(s.id for s in stations.values() if s.action == SWAP)
         self._lost_jobs: dict[int, LostJob] = {}
+        self._work_blocked = ""  # 작업대 팔이 ERROR · 상태 모름이면 배차 요청을 거둠
 
     # ---- 주문판, 배차, 팔 보고 입력 처리 ----
     def on_order_board(self, run_mode, orders) -> None:
@@ -105,6 +111,11 @@ class OrderOrchestrator(Faults, Stations):
                 r.dispatch_reason = reason
 
     def on_arm_report(self, report) -> None:
+        if isinstance(report, ArmStationBlocked):
+            if report.station_id == self._work:
+                self._work_blocked = report.reason
+                self._sync_calls()
+            return
         if isinstance(report, ArmLate):
             if report.kind == FILL:
                 self._late_fill(report.goal_id, report.placed)
@@ -126,6 +137,10 @@ class OrderOrchestrator(Faults, Stations):
             self._on_arm_fault(r, report)
         elif isinstance(report, ArmFillPaused):
             self._pause_fill(r, report)
+        elif isinstance(report, ArmFillProgress):
+            self._report_progress(r, report.placed)
+        elif isinstance(report, ArmFillPlaced):
+            self._on_fill_placed(r, report.placed)
 
     # ---- 팔 결과를 주문에 반영하고 결과를 잃은 작업 기록 ----
     def _on_fill_result(self, r: RobotRecord, success, placed) -> None:
@@ -152,6 +167,24 @@ class OrderOrchestrator(Faults, Stations):
         left = subtract_items(order.items, order.placed)
         self._out.append(ReportTripCmd(order.order_id, r.name, TRIP_FILLING_PAUSE,
                                        dict(order.placed), left, paused.reason))
+
+    # ---- 재시작으로 끝난 목표: 담은 것만 더하고 남은 상품은 다시 요청 (팔 관제 합의 ⑪) ----
+    def _on_fill_placed(self, r: RobotRecord, placed: dict[str, int]) -> None:
+        r.asked = ""
+        if r.order:
+            merge_items(r.order.placed, placed)
+        if r.isolated:
+            self._requeue_isolated(r)
+
+    # ---- 담는 동안 담은 수 진행 보고 (팔 관제 합의 ⑫) ----
+    def _report_progress(self, r: RobotRecord, placed: dict[str, int]) -> None:
+        if not r.order or r.held or r.paused:
+            return
+        order = r.order
+        now = dict(order.placed)
+        merge_items(now, placed)
+        self._out.append(ReportTripCmd(order.order_id, r.name, TRIP_FILLING, now,
+                                       subtract_items(order.items, now)))
 
     def _on_arm_lost(self, r: RobotRecord, lost: ArmLost) -> None:
         if lost.cleared:
@@ -183,6 +216,9 @@ class OrderOrchestrator(Faults, Stations):
         r = self._robots.get(robot)
         if r is None or r.held or r.paused:
             return
+        # 서비스 정지: 담기를 시작한 운반 건만 끝까지 (팔 관제 합의 ⑦)
+        if self._run_mode == PAUSE and not self.carries(robot):
+            return
         if r.stage == FILLING:
             self._step_filling(r)
         elif r.stage == SWAPPING:
@@ -198,6 +234,15 @@ class OrderOrchestrator(Faults, Stations):
     def take_output(self) -> list:
         out, self._out = self._out, []
         return out
+
+    @property
+    def service_paused(self) -> bool:
+        return self._run_mode == PAUSE
+
+    # 담기를 시작한 주문을 맡고 있는지 (서비스 정지에도 운반을 이어 감)
+    def carries(self, robot) -> bool:
+        r = self._robots.get(robot)
+        return r is not None and r.order is not None and r.order.started
 
     def order_of(self, robot) -> str:
         r = self._robots.get(robot)
@@ -244,7 +289,7 @@ class OrderOrchestrator(Faults, Stations):
                             f"{o.order_id}: {count} items exceed the basket capacity of {capacity}")
 
     def _sync_calls(self) -> None:
-        wanted = len(self._pending())
+        wanted = 0 if self._work_blocked else len(self._pending())
         while len(self._open_calls) < wanted:
             goal_id = self._next_dispatch_id()
             self._open_calls.append(goal_id)

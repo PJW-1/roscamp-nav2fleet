@@ -347,8 +347,27 @@ class ArmFillPaused:
     detail: str
 
 
+# ---- 담기 진행 · 재개 · 작업대 막힘 보고 (팔 관제 합의 ④ · ⑥ · ⑪ · ⑫) ----
+@dataclass(frozen=True)
+class ArmFillProgress:
+    robot: str
+    placed: dict[str, int]  # 이번 목표에서 담은 것 (goal items 순서대로 placed_total만큼)
+
+
+@dataclass(frozen=True)
+class ArmFillPlaced:
+    robot: str
+    placed: dict[str, int]  # 끝난 목표에서 담은 것: 주문에 더하고 남은 상품을 다시 요청
+
+
+@dataclass(frozen=True)
+class ArmStationBlocked:
+    station_id: str
+    reason: str  # 비면 다시 열림
+
+
 ARM_REPORTS = (ArmDeclined, ArmFillResult, ArmSwapResult, ArmLost, ArmLate, ArmFault,
-               ArmFillPaused)
+               ArmFillPaused, ArmFillProgress, ArmFillPlaced, ArmStationBlocked)
 
 
 # ---- 배차 보고와 로봇 격리 ----

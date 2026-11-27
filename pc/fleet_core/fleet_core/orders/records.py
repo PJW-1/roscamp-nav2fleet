@@ -46,6 +46,7 @@ class BoundOrder:
     items: dict[str, int]
     placed: dict[str, int] = field(default_factory=dict)
     missing: dict[str, int] = field(default_factory=dict)
+    started: bool = False  # 첫 담기 요청을 냄
 
 
 @dataclass

@@ -343,11 +343,15 @@ class FleetManager(ManagerRoute, ManagerViews, ManagerRecord):
         self._pump()
         stopped = traffic.tick_progress(now)
         self._pump()
-        if traffic.running and everyone_here:
+        # 서비스 정지(PAUSE): 대기 주문 배차는 막고, 담기를 시작한 운반 건만 진행 (팔 관제 합의 ⑦)
+        pausing = self.orchestrator.service_paused
+        if everyone_here and traffic.running:
             traffic.tick_pick(stopped)
             self._pump()
+        if everyone_here and (traffic.running or pausing):
             for robot in traffic.robots:
-                if traffic.available(robot) and robot not in stopped:
+                if (traffic.available(robot) and robot not in stopped
+                        and (traffic.running or self.orchestrator.carries(robot))):
                     self._step_robot(robot)
         out, self._out = self._out, []
         for item in out:

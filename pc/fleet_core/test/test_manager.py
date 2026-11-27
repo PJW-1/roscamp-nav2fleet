@@ -365,4 +365,39 @@ def test_an_arm_state_input_is_recorded():
     core = FleetManager(SITE, load_params(), ["r1"], lambda: 0.0)
     core.record_to(lines.append)
     core.on_arm_state("arm_left", "ERROR", "X", True)
-    assert '"in": "on_arm_state"' in lines[-1]
+    # 입력 줄 뒤에 작업대 막힘 같은 내부 줄이 이어질 수 있다
+    assert any('"in": "on_arm_state"' in line for line in lines[1:])
+
+
+# ---- 서비스 정지(PAUSE): 담기를 시작한 운반 건만 끝까지, 대기 주문은 배차하지 않음 (팔 관제 합의 ⑦) ----
+def test_service_stop_lets_the_started_trip_reach_the_outbound_station():
+    core, _, goal = _filling()
+    core.on_order_board("PAUSE", [O1])
+    core.on_fill_result(goal, True, {"A": 1}, {}, "")
+    report(core, "r1", "W", "DOCKED")
+    drive(core, "r1", lambda: core.robot_view("r1")["state"] == "SWAPPING", limit=200)
+
+
+def test_service_stop_dispatches_no_waiting_order():
+    core, now = make({"r1": "P-1"})
+    core.on_order_board("PAUSE", [O1])
+    for _ in range(20):
+        now[0] += 1.0
+        out = core.tick()
+        assert not [c for c in out if isinstance(c, (MoveCmd, MoveOrderCmd))]
+    assert core.robot_view("r1")["order"] is None
+
+
+def test_a_trip_stuck_during_service_stop_is_still_caught_as_stalled():
+    core, now, goal = _filling()
+    core.on_order_board("PAUSE", [O1])
+    core.on_fill_result(goal, True, {"A": 1}, {}, "")
+    report(core, "r1", "W", "DOCKED")
+    sent = [c for c in core.tick() if isinstance(c, (MoveCmd, MoveOrderCmd, RetreatCmd))]
+    assert sent, "the started trip heads out during the stop"
+    seen = []
+    for _ in range(int(core.params.stall_s) + 5):
+        now[0] += 1.0
+        report(core, "r1", "W", "MOVING")
+        seen += core.tick()
+    assert "GOAL_STALLED" in [getattr(c, "code", "") for c in seen]
