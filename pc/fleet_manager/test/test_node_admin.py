@@ -379,6 +379,38 @@ def test_fault_resolved_on_an_arm_that_stays_in_error_ends_in_timeout(graph):
     assert reports(graph, "R-5")[-1][4] == "ROBOT_TIMEOUT"
 
 
+
+# ---- [장애 처리 완료]: 보낼 때 ERROR였던 팔은 받았다는 답도 ERROR를 벗어나야 확정 ----
+def blocked_by_left_error(graph):
+    return any("arm_left ERROR" in why for why in graph.fms.core.arm._station_block.values())
+
+
+def arm_left_in_error(graph):
+    graph.arm.state = ArmState.STATE_ERROR
+    assert wait_for(lambda: graph.fms._in_error("arm_left") and blocked_by_left_error(graph),
+                    5.0)
+
+
+def test_fault_resolved_accepted_while_the_arm_stays_in_error_is_not_confirmed(graph):
+    arm_left_in_error(graph)
+    call(graph, RobotCommand, "fault_resolved", request_id="R-6", robot_id="arm_left")
+    time.sleep(1.5)
+    assert results(graph, "R-6") == [] and blocked_by_left_error(graph)
+    assert wait_for(lambda: results(graph, "R-6") == ["TIMEOUT"], 3.0), reports(graph, "R-6")
+    assert reports(graph, "R-6")[-1][4] == "ROBOT_TIMEOUT"
+    assert blocked_by_left_error(graph)
+
+
+def test_fault_resolved_accepted_is_confirmed_when_the_arm_leaves_error(graph):
+    arm_left_in_error(graph)
+    call(graph, RobotCommand, "fault_resolved", request_id="R-7", robot_id="arm_left")
+    time.sleep(0.5)
+    assert results(graph, "R-7") == []
+    graph.arm.state = ArmState.STATE_IDLE
+    assert wait_for(lambda: results(graph, "R-7") == ["ACCEPTED"], 2.0), reports(graph, "R-7")
+    assert wait_for(lambda: not blocked_by_left_error(graph), 2.0)
+
+
 # ---- 관리자 [복구] (팔 관제 합의 ⑧) ----
 def resume_answer(graph, answer):
     graph.fms.core.on_resume_arm = lambda target: answer

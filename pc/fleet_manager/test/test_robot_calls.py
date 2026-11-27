@@ -232,3 +232,73 @@ def test_a_per_robot_key_never_collides_with_a_plain_request_id():
     calls.add("abc", "set_pause", "arm_left", "C", "req", 0.0, key=("abc", "arm_left"),
               report=lambda *r: None)
     assert "abc@arm_left" in calls and ("abc", "arm_left") in calls
+
+
+# ---- 받았다는 답도 상태로 확정 (fault_resolved: 보낼 때 ERROR였던 팔) ----
+def add_confirm(calls, box, observe, rid="f1"):
+    calls.add(rid, "fault_resolved", "arm_left", "C", f"req-{rid}", 0.0, observe=observe,
+              confirm_accepted=True)
+
+
+def left_error(view):
+    return view != "ERROR"
+
+
+def test_an_accepted_answer_waits_for_the_state_then_is_accepted_once():
+    calls, box = make()
+    add_confirm(calls, box, left_error)
+    calls.step(0.0, lambda _c: True)
+    calls.on_answer("f1", None, True, now=0.5, view="ERROR")
+    run(calls, 5.0, start=0.6)
+    assert box.reports == []
+    calls.observe("arm_left", "ERROR", 5.5)
+    assert box.reports == []
+    calls.observe("arm_left", "IDLE", 6.0)
+    assert box.reports == [("f1", "fault_resolved", "arm_left", "ACCEPTED", "")]
+
+
+def test_an_accepted_answer_whose_state_never_confirms_times_out_at_thirty_seconds():
+    calls, box = make()
+    add_confirm(calls, box, left_error)
+    calls.step(0.0, lambda _c: True)
+    calls.on_answer("f1", None, True, now=0.5, view="ERROR")
+    run(calls, 30.5, start=0.6)
+    assert box.reports == [("f1", "fault_resolved", "arm_left", "TIMEOUT", "ROBOT_TIMEOUT")]
+
+
+def test_a_state_already_out_of_error_at_the_answer_confirms_at_once():
+    calls, box = make()
+    add_confirm(calls, box, left_error)
+    calls.step(0.0, lambda _c: True)
+    calls.on_answer("f1", None, True, now=0.5, view="IDLE")
+    assert box.reports == [("f1", "fault_resolved", "arm_left", "ACCEPTED", "")]
+
+
+def test_a_late_accepted_answer_after_unconfirmed_still_waits_for_the_state():
+    calls, box = make()
+    add_confirm(calls, box, left_error)
+    run(calls, 16.0)
+    assert [r[3] for r in box.reports] == ["UNCONFIRMED"]
+    calls.on_answer("f1", None, True, now=16.5, view="ERROR")
+    assert [r[3] for r in box.reports] == ["UNCONFIRMED"]
+    calls.observe("arm_left", "IDLE", 17.0)
+    assert [r[3] for r in box.reports] == ["UNCONFIRMED", "ACCEPTED"]
+
+
+def test_a_refusal_still_ends_rejected_and_no_observer_means_accepted_at_once():
+    calls, box = make()
+    add_confirm(calls, box, left_error)
+    calls.step(0.0, lambda _c: True)
+    calls.on_answer("f1", None, False, "NOT_READY", now=0.5, view="ERROR")
+    add_confirm(calls, box, None, rid="f2")
+    calls.step(1.0, lambda _c: True)
+    calls.on_answer("f2", None, True, now=1.5, view="IDLE")
+    assert [(r[0], r[3]) for r in box.reports] == [("f1", "REJECTED"), ("f2", "ACCEPTED")]
+
+
+def test_without_confirm_accepted_an_accepted_answer_ends_at_once_even_with_an_observer():
+    calls, box = make()
+    calls.add("p1", "arm_set_pause", "arm_left", "C", "req", 0.0, observe=left_error)
+    calls.step(0.0, lambda _c: True)
+    calls.on_answer("p1", None, True, now=0.5, view="ERROR")
+    assert [r[3] for r in box.reports] == ["ACCEPTED"]

@@ -1,5 +1,6 @@
 """담기 일시 중지 (팔 관제 합의 ①): 결과로 끝난 실패는 운반 건을 FILLING_PAUSE로 알리고
-Pode를 작업대에 세워 관리자의 [담기 재개] · [보충 불가]를 기다린다. 자동 일부 출고는 없다."""
+Pode를 작업대에 세워 관리자의 [담기 재개] · [보충 불가]를 기다린다. 자동 일부 출고는 없다.
+PICK_FAILED는 자리만, Phody가 당분간 보내지 않음."""
 import pytest
 from core_helpers import cmds, codes
 from fleet_core.common.commands import OrderRecord, ReportTripCmd

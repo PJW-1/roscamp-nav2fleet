@@ -1,4 +1,5 @@
-"""담기 실패의 다음 처리 (팔 관제 합의 ①, PI-21 · 29): 재시도는 NOT_READY만."""
+"""담기 실패의 다음 처리 (팔 관제 합의 ①, PI-21 · 29): 재시도는 NOT_READY만.
+PICK_FAILED는 자리만, Phody가 당분간 보내지 않음."""
 import pytest
 from fleet_core.arm.fill_outcome import HOLD, PAUSE, RETRY, next_after_fill
 

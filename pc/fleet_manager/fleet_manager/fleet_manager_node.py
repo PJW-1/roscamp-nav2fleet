@@ -356,27 +356,40 @@ class FleetManagerNode(Node):
                                      adapters.robot_local_yield(msg))
 
     def _on_arm_state(self, arm, msg: ArmState) -> None:
-        self._arm_states[arm] = (msg, time.monotonic())
-        self._mode_sync.on_state(arm, msg.mode, msg.boot_id, time.monotonic())
+        now = time.monotonic()
+        before = self._arm_heard_at(arm)
+        self._arm_states[arm] = (msg, now)
+        self._mode_sync.on_state(arm, msg.mode, msg.boot_id, now)
         self._observe_lock(arm, msg)
+        if self.silent():
+            return
+        # 틱 검사 전에 한도를 넘겨 들어온 상태도 끊김을 먼저 알린다
+        if (before is not None and arm not in self._arm_lost
+                and now - before > self.core.params.comm_timeout_s):
+            self._tell_arm_lost(arm)
         # 5 Hz 상태 가운데 바뀐 것만 코어에 넣는다(기록이 부풀지 않게)
         seen = (msg.state, msg.detail, msg.holding, msg.boot_id, msg.lock)
-        if not self.silent() and self._arm_fed.get(arm) != seen:
+        if self._arm_fed.get(arm) != seen:
             self._arm_fed[arm] = seen
             self._arm_lost.discard(arm)
             self.core.on_arm_state(arm, *seen)
 
-    def _check_arms_lost(self) -> None:
-        """comm_timeout_s 동안 상태가 없으면 한 번 알린다. 다음 상태는 바뀐 것으로 다시 넣는다.
+    def _arm_heard_at(self, arm) -> float | None:
+        # 작업대 팔은 한 번도 보내지 않았어도 시작 시각부터 센다
+        start = self._started_at if arm in self._pause_arms else None
+        return self._arm_states.get(arm, (None, start))[1]
 
-        작업대 팔은 한 번도 보내지 않았어도 시작 시각부터 센다."""
+    def _tell_arm_lost(self, arm) -> None:
+        self._arm_lost.add(arm)
+        self._arm_fed.pop(arm, None)
+        self.core.on_arm_state_lost(arm)
+
+    def _check_arms_lost(self) -> None:
+        """comm_timeout_s 동안 상태가 없으면 한 번 알린다. 다음 상태는 바뀐 것으로 다시 넣는다."""
         limit = self.core.params.comm_timeout_s
         for arm in sorted(set(self._arm_states) | self._pause_arms):
-            at = self._arm_states.get(arm, (None, self._started_at))[1]
-            if arm not in self._arm_lost and time.monotonic() - at > limit:
-                self._arm_lost.add(arm)
-                self._arm_fed.pop(arm, None)
-                self.core.on_arm_state_lost(arm)
+            if arm not in self._arm_lost and time.monotonic() - self._arm_heard_at(arm) > limit:
+                self._tell_arm_lost(arm)
 
     def _on_system_mode(self, msg: SystemMode) -> None:
         if self._mode_sync.on_system_mode(msg.mode):
@@ -450,7 +463,8 @@ class FleetManagerNode(Node):
         send = lambda: self._call_robot(  # noqa: E731
             rid, "fault_resolved", robot, self._fault_clients,
             RobotCommand.Request(request_id=rid, robot_id=robot),
-            observe=self._left_error if self._in_error(robot) else None)
+            # 보낼 때 ERROR였던 팔은 받았다는 답도 ERROR를 벗어나야 확정 (첫 요청부터 30 s)
+            observe=self._left_error if self._in_error(robot) else None, confirm_accepted=True)
         return _answer(response, rid, self._admin.robot(
             self._command("fault_resolved"), rid, robot, judge, send))
 
@@ -532,9 +546,11 @@ class FleetManagerNode(Node):
                 key=(rid, arm), report=partial(report, arm))
 
     # ---- 로봇 부르기와 락 상태 ----
-    def _call_robot(self, rid, key, robot, clients, request, observe=None, then=None) -> None:
+    def _call_robot(self, rid, key, robot, clients, request, observe=None, then=None,
+                    confirm_accepted=False) -> None:
         self._robot_calls.add(rid, self._command(key), robot, clients[robot], request,
-                              time.monotonic(), observe, then)
+                              time.monotonic(), observe, then,
+                              confirm_accepted=confirm_accepted)
 
     def _send_set_lock(self, rid, robot, locked, confirm_drop) -> None:
         was = robot in self._released
@@ -567,7 +583,7 @@ class FleetManagerNode(Node):
             self._released.pop(robot, None)
         if robot in self.core.traffic.robots:
             self.core.set_lock_released(robot, released, detail)
-        # TODO(Q-06): 팔 하나만 락이 풀렸을 때 FillBasket을 어떻게 할지 미정
+        # 양팔 묶음. 쥔 채 락 해제는 PAUSED로 이어 가고 목표 끝에 보류
 
     def _in_error(self, arm) -> bool:
         msg = self._arm_states.get(arm, (None,))[0]
@@ -634,9 +650,12 @@ class FleetManagerNode(Node):
             self.get_logger().warning(f"command {key} got no reply: {exc}")
             self._robot_calls.on_failed(key, future)
             return
+        # 답을 받을 때의 마지막 상태로도 확정한다(상태가 답보다 먼저 바뀐 경우)
+        target = self._robot_calls.target(key)
+        view = self._arm_states.get(target, (None,))[0] if target else None
         for client, old in self._robot_calls.on_answer(key, future, reply.accepted,
                                                        reply.reason, reply.detail,
-                                                       time.monotonic()):
+                                                       time.monotonic(), view):
             client.remove_pending_request(old)
 
     @_core_callback

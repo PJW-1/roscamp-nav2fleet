@@ -157,3 +157,26 @@ def test_the_arm_row_takes_the_phase_and_trip_from_the_core(node):
 def test_fault_resolved_is_confirmed_within_thirty_seconds_by_default(node):
     assert CallParams().confirm_s == 30.0
     assert node._robot_calls.params.confirm_s == 30.0
+
+
+# ---- 틱 검사 전에 한도를 넘겨 들어온 상태도 끊김을 먼저 알린다 ----
+def test_a_first_state_past_the_limit_is_told_lost_before_it_is_fed(node):
+    node._started_at = time.monotonic() - node.core.params.comm_timeout_s - 0.05
+    feed(node, arm(boot_id="b1"))
+    names = [n for n, _ in node.core.calls if n in ("on_arm_state_lost", "on_arm_state")]
+    assert names == ["on_arm_state_lost", "on_arm_state"]
+    assert node.core.args("on_arm_state_lost") == [("arm_left",)]
+    assert "arm_left" not in node._arm_lost
+
+
+def test_a_state_after_a_gap_past_the_limit_is_told_lost_and_fed_again(node):
+    limit = node.core.params.comm_timeout_s
+    feed(node, arm(boot_id="b1"))
+    msg, _ = node._arm_states["arm_left"]
+    node._arm_states["arm_left"] = (msg, time.monotonic() - limit - 0.05)
+    feed(node, arm(boot_id="b1"))
+    assert node.core.args("on_arm_state_lost") == [("arm_left",)]
+    assert len(node.core.args("on_arm_state")) == 2
+    feed(node, arm(boot_id="b1"))  # 한도 안에 온 다음 상태는 끊김이 아니다
+    assert node.core.args("on_arm_state_lost") == [("arm_left",)]
+    assert len(node.core.args("on_arm_state")) == 2

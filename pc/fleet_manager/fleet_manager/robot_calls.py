@@ -16,6 +16,7 @@ LATE_COMMAND_RESULT = "LATE_COMMAND_RESULT"
 
 _SENDING = "SENDING"
 _UNSURE = "UNSURE"
+_STATE_WAIT = "STATE_WAIT"  # 받았다는 답 뒤 상태 확정을 기다림
 
 
 @dataclass(frozen=True)
@@ -41,6 +42,7 @@ class _Call:
     next_at: float
     key: str = ""
     report: Callable | None = None  # 없으면 노드의 ReportCommand
+    confirm_accepted: bool = False  # 받았다는 답도 상태 관측으로 확정
     tries: int = 0
     asked_at: float | None = None
     future: object = None
@@ -69,14 +71,19 @@ class RobotCalls:
         return key in self._calls
 
     def add(self, request_id, command, target, client, request, now, observe=None,
-            then=None, key=None, report=None) -> None:
+            then=None, key=None, report=None, confirm_accepted=False) -> None:
         """key: 한 request_id로 여러 로봇을 부를 때 부르기마다 다른 이름 (없으면 request_id).
-        request_id 문자열과 겹치지 않게 튜플로 준다."""
+        request_id 문자열과 겹치지 않게 튜플로 준다.
+        confirm_accepted: observe가 있으면 받았다는 답도 상태가 맞을 때 확정한다."""
         key = request_id if key is None else key
         if key in self._calls:
             return
         self._calls[key] = _Call(request_id, command, target, client, request, observe, then,
-                                 now, now, key, report)
+                                 now, now, key, report, confirm_accepted)
+
+    def target(self, key) -> str | None:
+        c = self._calls.get(key)
+        return None if c is None else c.target
 
     def pending(self, command, target) -> str | None:
         """target에 아직 끝나지 않은 command가 있으면 그 request_id."""
@@ -99,13 +106,15 @@ class RobotCalls:
                 if c.future is not None:
                     busy -= 1
                 self._drop(c, out)
+                why = ("accepted but the robot state did not confirm"
+                       if c.phase == _STATE_WAIT else "no result")
                 self._finish(c, TIMEOUT, self._codes.ROBOT_TIMEOUT,
-                             f"no result within {p.confirm_s:.0f} s", None)
+                             f"{why} within {p.confirm_s:.0f} s", None)
                 self._event("WARN", LATE_COMMAND_RESULT,
                             f"{c.command} {c.request_id} has no result after "
                             f"{p.confirm_s:.0f} s", c.target)
                 continue
-            if c.phase == _UNSURE:
+            if c.phase in (_UNSURE, _STATE_WAIT):
                 continue
             if c.asked_at is not None:
                 if now - c.asked_at < p.try_s:
@@ -142,16 +151,22 @@ class RobotCalls:
         return now is not None and now - c.first_at >= self.params.confirm_s
 
     def on_answer(self, key, future, accepted: bool, reason="", detail="",
-                  now=None) -> list:
-        """늦은 답도 기한 안이면 끝 상태를 한 번 정한다. 버릴 (client, future)를 돌려준다."""
+                  now=None, view=None) -> list:
+        """늦은 답도 기한 안이면 끝 상태를 한 번 정한다. 버릴 (client, future)를 돌려준다.
+        view: 답을 받을 때 그 로봇의 마지막 상태 (confirm_accepted 확정용)."""
         c = self._calls.get(key)
-        if c is None or self._late(c, now):
+        if c is None or self._late(c, now) or c.phase == _STATE_WAIT:
             return []  # 기한이 지났으면 다음 step이 TIMEOUT으로 끝낸다
         out = Step()
         if c.future is not future:
             self._drop(c, out)
         c.future = None
-        if accepted:
+        if accepted and c.confirm_accepted and c.observe is not None:
+            if view is not None and c.observe(view):
+                self._finish(c, ACCEPTED, "", "confirmed by the robot state", True)
+            else:
+                c.phase = _STATE_WAIT  # 다시 부르지 않고 상태 관측이나 30초를 기다린다
+        elif accepted:
             self._finish(c, ACCEPTED, "", detail, True)
         else:
             self._finish(c, REJECTED, self._codes.ROBOT_REJECTED, f"{reason} {detail}".strip(),
@@ -168,7 +183,8 @@ class RobotCalls:
         """결과 모름인 명령을 기한 안의 상태 관측으로 확정한다 (IR-62)."""
         out = Step()
         for c in list(self._calls.values()):
-            if (c.phase == _UNSURE and c.target == target and c.observe is not None
+            if (c.phase in (_UNSURE, _STATE_WAIT) and c.target == target
+                    and c.observe is not None
                     and not self._late(c, now) and c.observe(view)):
                 self._drop(c, out)
                 self._finish(c, ACCEPTED, "", "confirmed by the robot state", True)

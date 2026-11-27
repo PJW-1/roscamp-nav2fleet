@@ -102,7 +102,7 @@ class ArmJobs:
         # 팔 재시작으로 목표가 사라진 작업대 서버 -> 그 담기를 하던 로봇 ([복구] 대기)
         self._resume_wait: dict[str, str] = {}
 
-    # TODO(Q-05) PAUSE 때 담기 목표 안에서 멈추는 신호 미정(W-42), 지금은 STOP만 취소
+    # 서비스 정지(PAUSE) 때 팔에는 신호 없음. 담기를 시작한 운반 건은 끝까지
     def on_run_mode(self, run_mode) -> None:
         if run_mode == STOP and self._run_mode != STOP:
             for r in self._robots.values():

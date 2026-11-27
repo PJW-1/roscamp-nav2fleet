@@ -40,5 +40,3 @@ string PHASE_PICKING="PICKING"
 string PHASE_TO_BASKET="TO_BASKET"
 string PHASE_PLACING="PLACING"
 string PHASE_RETURNING="RETURNING"
-# ---- feedback: phase에 더하는 값 (목표 안에서 멈춤, 주문은 담는 중 그대로) ----
-# PAUSED_DISTANCE · PAUSED_SERVICE
