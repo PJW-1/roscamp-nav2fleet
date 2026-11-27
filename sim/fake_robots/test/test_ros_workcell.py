@@ -398,4 +398,28 @@ def test_an_accepted_fill_keeps_the_arms_from_releasing_before_they_move(harness
         assert (res.accepted, res.reason) == (False, "NOT_STOPPED")
         assert cell.node._admin["arm_left"].lock
     finally:
-        cell.node._busy = False
+        cell.node._busy = cell.node._moving = False
+
+
+def test_an_accepted_fill_keeps_an_arm_in_error_from_releasing(harness, tmp_path):
+    from rclpy.action import GoalResponse
+    cell = Cell(harness, tmp_path)
+    cell.node._show_errors(["arm_left"])
+    try:
+        assert cell.node._on_goal(None) == GoalResponse.ACCEPT  # ERROR여도 받고 움직인다
+        res = set_lock(cell, "arm_left", False, "l1")
+        assert (res.accepted, res.reason) == (False, "NOT_STOPPED")
+    finally:
+        cell.node._busy = cell.node._moving = False
+
+
+def test_an_arm_that_stopped_during_a_slow_cancel_can_release(harness, tmp_path):
+    cell = Cell(harness, tmp_path, stock={"arm_left": {"A": 6}},
+                arm={"seconds_per_item": 0.2, "swap_seconds": 0.4, "cancel_seconds": 1.5})
+    handle, fb = cell.send(A=5)
+    assert wait_until(lambda: fb, 10.0)
+    assert wait_until(handle.cancel_goal_async().done, 5.0)
+    time.sleep(0.6)  # 팔 스레드는 멈췄고 서버는 아직 바쁘다
+    assert cell.node._busy
+    assert set_lock(cell, "arm_left", False, "l1").accepted
+    assert result_of(handle).reason == "CANCELED"

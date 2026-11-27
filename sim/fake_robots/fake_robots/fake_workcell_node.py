@@ -86,6 +86,8 @@ class FakeWorkcellNode(Node):
         self._stock_lock = threading.Lock()
         self._busy_lock = threading.Lock()
         self._busy = False
+        # 받은 목표의 팔 작업이 끝나기 전이면 참 (_admin_lock 안). 느린 취소 대기는 포함하지 않는다
+        self._moving = False
         self._alive = True
         # 실제 서버도 지킬 규칙: 이 잠금을 쥔 쪽만 PLACING이 될 수 있다.
         self._basket_space = threading.Lock()
@@ -152,9 +154,12 @@ class FakeWorkcellNode(Node):
                 self._set_state(arm, STATE_IDLE)
 
     def _stopped(self, arm: str) -> bool:
-        # 목표를 받은 뒤 아직 IDLE인 팔은 곧 움직이므로 멈춘 것으로 보지 않는다 (_admin_lock 안)
-        state = self._state[arm]
-        return state in fake_admin.ARM_STOPPED and not (self._busy and state == STATE_IDLE)
+        # 목표를 받은 뒤 팔 작업이 끝나기 전에는 IDLE · ERROR여도 곧 움직인다 (_admin_lock 안)
+        return self._state[arm] in fake_admin.ARM_STOPPED and not self._moving
+
+    def _moved(self) -> None:
+        with self._admin_lock:
+            self._moving = False
 
     def _clear_error(self, arm: str) -> None:
         with self._state_lock:
@@ -251,6 +256,7 @@ class FakeWorkcellNode(Node):
                     if self._busy:
                         return GoalResponse.REJECT
                     self._busy = True
+                self._moving = True
         if released:
             self.get_logger().warn(f"fill_basket goal rejected: lock released ({released})")
             return GoalResponse.REJECT
@@ -265,6 +271,7 @@ class FakeWorkcellNode(Node):
         requested = Counter()
         for item in handle.request.items:
             requested[item.kind] += max(item.count, 0)
+        self._moved()
         with self._busy_lock:
             self._busy = False
         if self._running():
@@ -290,6 +297,7 @@ class FakeWorkcellNode(Node):
             worker.start()
         for worker in workers:
             worker.join()
+        self._moved()
         if handle.is_cancel_requested and self._cancel_at is not None:
             # 실제 팔은 멈추는 데 시간이 걸리고 그동안 서버는 바쁘다.
             self._sc.sleep_until(self._cancel_at + self._cfg.cancel_seconds, self._running)

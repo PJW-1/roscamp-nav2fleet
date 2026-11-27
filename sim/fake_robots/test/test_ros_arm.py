@@ -241,3 +241,23 @@ def test_arm_ship_is_not_stopped_once_a_swap_is_accepted(harness, tmp_path):
         assert node._admin.lock
     finally:
         node._busy = False
+
+
+def test_arm_ship_in_error_is_not_stopped_once_a_swap_is_accepted(harness, tmp_path):
+    import rclpy.node
+    from fake_robots.fake_arm_node import FakeArmNode
+    from rclpy.action import GoalResponse
+    node = harness.add(FakeArmNode(parameter_overrides=harness.params(
+        arm_id="arm_ship", scenario_file=write_scenario(tmp_path))))
+    probe = harness.add(rclpy.node.Node("arm_error_probe"))
+    lock = probe.create_client(SetLock, C.name("robot_set_lock", robot="arm_ship"))
+    assert lock.wait_for_service(10.0)
+    node._show_error()
+    try:
+        assert node._on_goal(None) == GoalResponse.ACCEPT  # ERROR여도 받고 움직인다
+        fut = lock.call_async(SetLock.Request(request_id="l1", robot_id="arm_ship",
+                                              locked=False))
+        assert wait_until(fut.done, 5.0)
+        assert (fut.result().accepted, fut.result().reason) == (False, "NOT_STOPPED")
+    finally:
+        node._busy = False

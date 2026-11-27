@@ -91,9 +91,8 @@ class FakeArmNode(Node):
         return self._alive and rclpy.ok()
 
     def _stopped(self) -> bool:
-        # 목표를 받은 뒤 아직 IDLE이면 곧 움직이므로 멈춘 것으로 보지 않는다 (self._lock 안)
-        return (self._state in fake_admin.ARM_STOPPED
-                and not (self._busy and self._state == STATE_IDLE))
+        # 목표를 받은 뒤 결과를 낼 때까지는 IDLE · ERROR여도 곧 움직인다 (self._lock 안)
+        return self._state in fake_admin.ARM_STOPPED and not self._busy
 
     def _on_goal(self, _request):
         with self._lock:
