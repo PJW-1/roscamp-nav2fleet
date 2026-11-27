@@ -183,10 +183,34 @@ class FleetManager(ManagerRoute, ManagerViews, ManagerRecord):
         self._pump()
 
     # ---- 팔 상태 입력: ERROR로 바뀌면 하던 작업을 팔 고장으로 넘긴다 ----
-    def on_arm_state(self, arm, state, detail="", holding=False) -> None:
-        self._input("on_arm_state", arm, state, detail, holding)
-        self.arm.on_arm_state(text(arm), text(state), text(detail), bool(holding))
+    def on_arm_state(self, arm, state, detail="", holding=False, boot_id="", lock=True) -> None:
+        self._input("on_arm_state", arm, state, detail, holding, boot_id, lock)
+        self.arm.on_arm_state(text(arm), text(state), text(detail), bool(holding), text(boot_id),
+                              bool(lock))
         self._pump()
+
+    # ---- 팔 상태가 끊김: 상태 모름, 그 작업대 배차를 막음 (팔 관제 합의 ⑥) ----
+    def on_arm_state_lost(self, arm) -> None:
+        self._input("on_arm_state_lost", arm)
+        self.arm.on_arm_state_lost(text(arm))
+        self._pump()
+
+    # ---- 담기 진행: 담은 수가 바뀌면 운반 건 진행 보고 ----
+    def on_fill_feedback(self, goal_id, arm, phase, placed_total) -> None:
+        self._input("on_fill_feedback", goal_id, arm, phase, placed_total)
+        self.arm.on_fill_feedback(goal_id, text(arm), text(phase), int(placed_total))
+        self._pump()
+
+    # ---- 관리자 [재개]: (RESUME_SET_PAUSE_OFF | RESUME_REFILL, "") 또는 ("", 거절 사유) ----
+    def on_resume_arm(self, target) -> tuple[str, str]:
+        self._input("on_resume_arm", target)
+        answer = self.arm.on_resume_arm(text(target))
+        self._pump()
+        return answer
+
+    # ---- 상태판 팔 줄: (진행 단계, 담는 운반 건) ----
+    def arm_task(self, arm) -> tuple[str, str]:
+        return self.arm.arm_task(text(arm))
 
     def on_swap_result(self, goal_id, success, took_full, put_empty_done, reason="") -> None:
         self._input("on_swap_result", goal_id, success, took_full, put_empty_done, reason)

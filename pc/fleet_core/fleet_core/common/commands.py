@@ -334,6 +334,11 @@ class ArmFault:
 
 
 # 결과로 끝난 담기 실패: 관제는 다시 보내지 않고 관리자를 기다린다 (팔 관제 합의 ①)
+# ---- 관리자 [재개] 답: 두 팔에 set_pause(false) · 남은 상품으로 새 담기 목표 ----
+RESUME_SET_PAUSE_OFF = "SET_PAUSE_OFF"
+RESUME_REFILL = "REFILL"
+
+
 @dataclass(frozen=True)
 class ArmFillPaused:
     robot: str

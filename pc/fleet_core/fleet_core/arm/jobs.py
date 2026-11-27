@@ -106,7 +106,20 @@ class ArmJobs:
         self._out.append(ArmSwapResult(r.name, took_full, put_empty_done))
 
     # ---- 팔 상태: ERROR로 바뀔 때만 한 번 반응한다 ----
-    def on_arm_state(self, arm, state, detail="", holding=False) -> None:
+    # ---- 팔 관제 합의 ⑥ · ⑪ · ⑫ 입력 (틀만, 동작은 뒤 커밋) ----
+    def on_arm_state_lost(self, arm) -> None:
+        pass
+
+    def on_fill_feedback(self, goal_id, arm, phase, placed_total) -> None:
+        pass
+
+    def on_resume_arm(self, target) -> tuple[str, str]:
+        return "", "NOT_IMPLEMENTED"
+
+    def arm_task(self, arm) -> tuple[str, str]:
+        return "", ""
+
+    def on_arm_state(self, arm, state, detail="", holding=False, boot_id="", lock=True) -> None:
         server = self._server_of.get(arm)
         if server is None:
             return
