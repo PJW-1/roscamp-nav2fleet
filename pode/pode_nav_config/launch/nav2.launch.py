@@ -292,8 +292,8 @@ def generate_launch_description():
         DeclareLaunchArgument("peer_robots", default_value="",
                               description="peer_obstacles:=true일 때 로봇 이름들"
                                           "(pode1,pode2,pode3). 나를 뺀 로봇의 몸을 찍는다"),
-        DeclareLaunchArgument("plan_keep", default_value="false",
-                              description="true면(시험 중, 실물 미확인) Nav2 goal을 다시 계획할 때"
+        DeclareLaunchArgument("plan_keep", default_value="true",
+                              description="true(기본)면 Nav2 goal을 다시 계획할 때"
                                           " 길이가 비슷한 다른 길로 바꾸지 않고 지금 길을 지킨다:"
                                           " 행동 트리가 길 유지 노드(pode_plan_keep)를 거쳐"
                                           " 계획한다. false면 기본 트리로 계획한다"),

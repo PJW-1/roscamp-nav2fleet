@@ -102,8 +102,8 @@ def generate_launch_description():
                               description="BatteryState 토픽. 비면 배터리를 모름으로 알린다"),
         DeclareLaunchArgument("dock_aside", default_value="false",
                               description="true면 pode_fsm Dock 서버를 /<ns>/dock_fsm으로 비킨다"),
-        DeclareLaunchArgument("plan_keep", default_value="false",
-                              description="true면 길 유지 노드(pode_plan_keep)와 _goal_keep 행동 트리를 쓴다"),
+        DeclareLaunchArgument("plan_keep", default_value="true",
+                              description="true(기본)면 길 유지 노드(pode_plan_keep)와 _goal_keep 행동 트리를 쓴다"),
         DeclareLaunchArgument("log_level", default_value="warn"),
         # ---- 제조사 bringup ----
         GroupAction([

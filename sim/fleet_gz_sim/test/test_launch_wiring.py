@@ -588,9 +588,9 @@ def test_an_unknown_avoidance_package_stops_the_launch(made):
 
 # ---- 길 유지(pode_plan_keep): 프로세스를 늘리지 않게 sim_stand_in 안에서 ------------------------
 
-def test_plan_keep_is_off_by_default_like_main(made):
-    assert made.ARGS["plan_keep"][0] == "false"
-    actions = run(made)
+def test_plan_keep_false_runs_the_default_tree_and_no_keepers(made):
+    assert made.ARGS["plan_keep"][0] == "true"
+    actions = run(made, plan_keep="false")
     navs = includes(actions, "nav2.launch.py")
     assert [launch_args(nav)["plan_keep"] for nav in navs] == ["false"] * 3
     assert [launch_args(nav)["bt_xml"] for nav in navs] == [""] * 3
@@ -598,9 +598,17 @@ def test_plan_keep_is_off_by_default_like_main(made):
     assert params(stand_in)["plan_keep_nodes"] is False
 
 
+def test_the_pode_helper_also_defaults_to_plan_keep_on():
+    # 인자 없이 부르는 곳이 nav2 기본값(켬)을 덮어 끄지 않게
+    import inspect
+    from fleet_gz_sim import launch_parts
+    assert inspect.signature(launch_parts.pode).parameters["plan_keep"].default is True
+
+
 def test_plan_keep_runs_every_keeper_inside_the_stand_in_process(made):
-    before = len(nodes(run(made)))
-    actions = run(made, plan_keep="true")
+    # 기본이 켬이다(11-26 실물 확인 뒤)
+    before = len(nodes(run(made, plan_keep="false")))
+    actions = run(made)
     navs = includes(actions, "nav2.launch.py")
     assert len(navs) == 3
     for nav in navs:

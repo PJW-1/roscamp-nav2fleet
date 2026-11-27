@@ -73,8 +73,8 @@ def test_start_records_namespace_topics_and_stop_finalizes(tmp_path):
         assert _alive(pid) and os.getpgid(pid) == pid
         args = (tmp_path / "ros2.args").read_text().splitlines()
         assert args[:4] == ["bag", "record", "-o", "bags/run1"]
-        assert args[4:] == ["-s", "mcap", "-e", "^/pode1/(scan|odom|cmd_vel|amcl_pose|particle_cloud|plan|tf|"
-                                  "tf_static|state)$"]
+        assert args[4:] == ["-s", "mcap", "-e", "^/pode1/(scan|odom|cmd_vel|amcl_pose|particle_cloud|plan|plan_kept|"
+                                  "tf|tf_static|state)$"]
         run = _run(kit, env, "stop")
         assert run.returncode == 0, run.stdout + run.stderr
         assert (kit / "bags" / "run1" / "metadata.yaml").read_text().strip() == "done"

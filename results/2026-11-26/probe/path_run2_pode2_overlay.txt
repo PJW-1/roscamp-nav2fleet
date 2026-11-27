@@ -1,0 +1,3 @@
+path W -> W_X -> O_X -> O (v7), 3195/6051 samples beside the path (1376 farther than 25 cm), source odom + map->odom tf
+largest outward deviation at a corner: 2.8 cm, largest |lateral| anywhere: 77.2 cm
+corner 1 at (1.823, 0.825), turn +90 deg: outward 2.8 cm (258 samples)

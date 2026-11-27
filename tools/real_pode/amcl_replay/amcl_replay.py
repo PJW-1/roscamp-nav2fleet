@@ -180,23 +180,32 @@ def score(args) -> None:
                 continue  # 이 판이 틀지 않은 구간
             p = d["times"][key]
             rows.append((d["map"], Path(f).stem, name, p if isinstance(p, list) else None, v))
-    print("| 지도 | 회차 | 자리 | AMCL x, y, yaw | 정답 x, y | dx, dy (cm) | 거리 (cm) |")
+    where = "라이다" if args.sensor_x else "AMCL"
+    print(f"| 지도 | 회차 | 자리 | {where} x, y, yaw | 정답 x, y | dx, dy (cm) | 거리 (cm) |")
     print("|---|---|---|---|---|---|---|")
-    summary: dict[tuple, list[float]] = {}
+    summary: dict[tuple, list[tuple]] = {}
     for m, run, name, p, v in rows:
         if p is None:
             print(f"| {m} | {run} | {name} | 못 읽음 | | | |")
             continue
+        if args.sensor_x:
+            # base_footprint 자세를 라이다 가운데로 옮긴다(정답이 라이다 가운데일 때)
+            x, y, _ = _compose((p[0], p[1], math.radians(p[2])), (args.sensor_x, 0.0, 0.0))
+            p = (x, y, p[2])
         dx, dy = (p[0] - v["x"]) * 100, (p[1] - v["y"]) * 100
         e = math.hypot(dx, dy)
-        summary.setdefault((m, name), []).append(e)
+        summary.setdefault((m, name), []).append((dx, dy, e))
         print(f"| {m} | {run} | {name} | {p[0]:.3f}, {p[1]:.3f}, {p[2]:.1f}° |"
               f" {v['x']:.3f}, {v['y']:.3f} | {dx:+.1f}, {dy:+.1f} | {e:.1f} |")
     print()
-    print("| 지도 | 자리 | 회차 | 평균 거리 (cm) | 최대 (cm) |")
-    print("|---|---|---|---|---|")
-    for (m, name), es in summary.items():
-        print(f"| {m} | {name} | {len(es)} | {sum(es) / len(es):.1f} | {max(es):.1f} |")
+    print("| 지도 | 자리 | 회차 | 평균 dx, dy (cm) | 평균 거리 (cm) | 최대 (cm) | 거리 표준편차 (cm) |")
+    print("|---|---|---|---|---|---|---|")
+    for (m, name), rs in summary.items():
+        n = len(rs)
+        mx, my, me = (sum(r[i] for r in rs) / n for i in range(3))
+        sd = math.sqrt(sum((r[2] - me) ** 2 for r in rs) / n)
+        print(f"| {m} | {name} | {n} | {mx:+.1f}, {my:+.1f} | {me:.1f} |"
+              f" {max(r[2] for r in rs):.1f} | {sd:.1f} |")
 
 
 def main() -> None:
@@ -225,6 +234,8 @@ def main() -> None:
     p.add_argument("--bag", required=True, help="원본 bag(live AMCL 포함)")
     p.add_argument("--ns", default="pode2")
     p.add_argument("--truth", required=True, help='{"Q2": {"t": 초, "x": , "y": }, ...}')
+    p.add_argument("--sensor-x", type=float, default=0.0,
+                   help="정답이 라이다 가운데일 때 base_footprint → 라이다 앞뒤 거리 (m, pode -0.017)")
     p.add_argument("runs", nargs="*")
     p.set_defaults(fn=score)
     args = ap.parse_args()

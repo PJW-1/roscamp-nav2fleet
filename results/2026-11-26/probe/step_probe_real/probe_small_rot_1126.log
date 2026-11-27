@@ -1,0 +1,2 @@
+[INFO] [1795688953.375313972] [cmd_step_probe_7292]: start pose (2.070828097066809e-05, -2.133103229713658e-06, -0.0004309831558055391), 96 segments, limit 0.6 m
+[INFO] [1795689185.922062834] [cmd_step_probe_7292]: done, wrote probe/step_small_rot_1126.csv

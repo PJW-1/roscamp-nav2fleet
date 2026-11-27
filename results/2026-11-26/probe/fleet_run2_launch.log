@@ -1,0 +1,189 @@
+[INFO] [launch]: All log files can be found below /home/ane/.ros/log/2026-11-26-20-13-36-482824-ane-GP75-Leopard-10SEK-287684
+[INFO] [launch]: Default logging verbosity is set to INFO
+[INFO] [fleet_manager_node-1]: process started with pid [287707]
+[INFO] [fake_workcell_node-2]: process started with pid [287708]
+[INFO] [fake_arm_node-3]: process started with pid [287709]
+[INFO] [fake_central_node-4]: process started with pid [287710]
+[INFO] [real_dock_wait_node-5]: process started with pid [287711]
+[real_dock_wait_node-5] [WARN] [1795691617.223565120] [real_dock_wait]: REAL DOCK WAIT for ['pode1', 'pode2']: dock = wait 3.0 s, then the robot's own pose must be near the dock. The robots must run with DOCK_STUB=1.
+[fleet_manager_node-1] [INFO] [1795691637.239290055] [fleet_manager]: ZONE_GRANTED HALL to Q2
+[fleet_manager_node-1] [INFO] [1795691637.240518965] [fleet_manager]: ORDER_SENT pode1-1: base to Q2, horizon to W
+[fleet_manager_node-1] [INFO] [1795691638.424421716] [fleet_manager]: SEGMENT_DONE pode1-1 seq 1 (follow_path) to E-2
+[fleet_manager_node-1] [INFO] [1795691649.125153625] [fleet_manager]: ZONE_GRANTED HALL to Q1
+[fleet_manager_node-1] [INFO] [1795691649.126469851] [fleet_manager]: ORDER_UPDATED pode1-1 update 1: base to Q1
+[fleet_manager_node-1] [INFO] [1795691651.024116697] [fleet_manager]: SEGMENT_DONE pode1-1 seq 2 (nav_goal) to Q2
+[fleet_manager_node-1] [INFO] [1795691651.024445703] [fleet_manager]: ZONE_GRANTED HALL+WORK_DOCK to W
+[fleet_manager_node-1] [INFO] [1795691651.025051653] [fleet_manager]: ORDER_UPDATED pode1-1 update 2: base to W
+[fleet_manager_node-1] [INFO] [1795691655.125164065] [fleet_manager]: SEGMENT_DONE pode1-1 seq 3 (follow_path) to Q1
+[fleet_manager_node-1] [INFO] [1795691657.224537069] [fleet_manager]: ZONE_GRANTED HALL to Q2
+[fleet_manager_node-1] [INFO] [1795691657.224814002] [fleet_manager]: DOCK_QUEUED WORK is busy, waits at Q2
+[fleet_manager_node-1] [INFO] [1795691657.225700175] [fleet_manager]: ORDER_SENT pode2-4: base to Q2, horizon to W
+[fleet_manager_node-1] [INFO] [1795691657.825143203] [fleet_manager]: SEGMENT_DONE pode1-1 seq 4 (follow_path) to W
+[fleet_manager_node-1] [INFO] [1795691658.424666072] [fleet_manager]: SEGMENT_DONE pode2-4 seq 1 (follow_path) to E-1
+[real_dock_wait_node-5] [INFO] [1795691660.848318523] [real_dock_wait]: pode1: dock WORK ok (1.6, -3.7) cm
+[fleet_manager_node-1] [INFO] [1795691660.925412112] [fleet_manager]: DOCKED at WORK: x 1.6 cm, y -3.7 cm, yaw 0.0 deg
+[fleet_manager_node-1] [INFO] [1795691660.925700013] [fleet_manager]: ORDER_BOUND R-001
+[fleet_manager_node-1] [INFO] [1795691667.024353568] [fleet_manager]: LANE_DIRECTION_SET EXPRESS from W_X
+[fleet_manager_node-1] [INFO] [1795691667.024631670] [fleet_manager]: ZONE_GRANTED WORK_DOCK+HALL+J_E+EXPRESS to O_X
+[fleet_manager_node-1] [INFO] [1795691667.025894643] [fleet_manager]: ORDER_SENT pode1-7: base to O_X, horizon to O
+[fleet_manager_node-1] [INFO] [1795691670.924847810] [fleet_manager]: ZONE_GRANTED HALL to Q1
+[fleet_manager_node-1] [INFO] [1795691670.925748265] [fleet_manager]: ORDER_UPDATED pode2-4 update 1: base to Q1
+[fleet_manager_node-1] [INFO] [1795691673.226018119] [fleet_manager]: SEGMENT_DONE pode2-4 seq 2 (nav_goal) to Q2
+[fleet_manager_node-1] [INFO] [1795691673.226514041] [fleet_manager]: ZONE_GRANTED HALL+WORK_DOCK to W
+[fleet_manager_node-1] [INFO] [1795691673.227507615] [fleet_manager]: ORDER_UPDATED pode2-4 update 2: base to W
+[fleet_manager_node-1] [INFO] [1795691677.324473117] [fleet_manager]: SEGMENT_DONE pode2-4 seq 3 (follow_path) to Q1
+[fleet_manager_node-1] [INFO] [1795691678.726112946] [fleet_manager]: ZONE_GRANTED EXPRESS+OUT_DOCK to O
+[fleet_manager_node-1] [INFO] [1795691678.726813585] [fleet_manager]: ORDER_UPDATED pode1-7 update 1: base to O
+[fleet_manager_node-1] [INFO] [1795691679.926211386] [fleet_manager]: SEGMENT_DONE pode2-4 seq 4 (follow_path) to W
+[fleet_manager_node-1] [INFO] [1795691681.023962808] [fleet_manager]: SEGMENT_DONE pode1-7 seq 1 (follow_path) to O_X
+[real_dock_wait_node-5] [INFO] [1795691682.942470713] [real_dock_wait]: pode2: dock WORK ok (0.5, -3.7) cm
+[fleet_manager_node-1] [INFO] [1795691683.024281920] [fleet_manager]: DOCKED at WORK: x 0.5 cm, y -3.7 cm, yaw 0.0 deg
+[fleet_manager_node-1] [INFO] [1795691683.024560782] [fleet_manager]: ORDER_BOUND R-002
+[fleet_manager_node-1] [INFO] [1795691684.330515099] [fleet_manager]: SEGMENT_DONE pode1-7 seq 2 (follow_path) to O
+[fleet_manager_node-1] [INFO] [1795691687.125181961] [fleet_manager]: LANE_DIRECTION_SET EXPRESS from W_X
+[fleet_manager_node-1] [INFO] [1795691687.125519382] [fleet_manager]: ZONE_GRANTED WORK_DOCK+HALL+J_E+EXPRESS to O_X
+[fleet_manager_node-1] [INFO] [1795691687.125816167] [fleet_manager]: DOCK_QUEUED OUTBOUND is busy, waits at O_X
+[fleet_manager_node-1] [INFO] [1795691687.126737602] [fleet_manager]: ORDER_SENT pode2-14: base to O_X, horizon to O
+[real_dock_wait_node-5] [INFO] [1795691687.349536463] [real_dock_wait]: pode1: dock OUTBOUND ok (4.9, 0.1) cm
+[fleet_manager_node-1] [INFO] [1795691687.424369050] [fleet_manager]: DOCKED at OUTBOUND: x 4.9 cm, y 0.1 cm, yaw 0.0 deg
+[fleet_manager_node-1] [INFO] [1795691695.525830779] [fleet_manager]: ZONE_GRANTED OUT_DOCK+HALL to Q2
+[fleet_manager_node-1] [INFO] [1795691695.527324052] [fleet_manager]: ORDER_SENT pode1-16: base to Q2, horizon to W
+[fleet_manager_node-1] [INFO] [1795691700.325799137] [fleet_manager]: SEGMENT_DONE pode2-14 seq 1 (follow_path) to O_X
+[fleet_manager_node-1] [INFO] [1795691700.326385930] [fleet_manager]: BASE_END_WAIT stands at O_X, the next stretch is not taken yet
+[fleet_manager_node-1] [INFO] [1795691701.124671674] [fleet_manager]: SEGMENT_DONE pode1-16 seq 1 (follow_path) to O_OUT
+[fleet_manager_node-1] [INFO] [1795691701.524586470] [fleet_manager]: ZONE_GRANTED EXPRESS+OUT_DOCK to O
+[fleet_manager_node-1] [INFO] [1795691701.525216946] [fleet_manager]: ORDER_UPDATED pode2-14 update 1: base to O
+[fleet_manager_node-1] [INFO] [1795691705.424667698] [fleet_manager]: SEGMENT_DONE pode2-14 seq 2 (follow_path) to O
+[real_dock_wait_node-5] [INFO] [1795691708.432301401] [real_dock_wait]: pode2: dock OUTBOUND ok (3.4, 0.3) cm
+[fleet_manager_node-1] [INFO] [1795691708.525295135] [fleet_manager]: DOCKED at OUTBOUND: x 3.4 cm, y 0.3 cm, yaw 0.0 deg
+[fleet_manager_node-1] [INFO] [1795691713.125117037] [fleet_manager]: ZONE_GRANTED HALL to Q1
+[fleet_manager_node-1] [INFO] [1795691713.125964530] [fleet_manager]: ORDER_UPDATED pode1-16 update 1: base to Q1
+[fleet_manager_node-1] [INFO] [1795691715.024183642] [fleet_manager]: SEGMENT_DONE pode1-16 seq 2 (nav_goal) to Q2
+[fleet_manager_node-1] [INFO] [1795691715.024585215] [fleet_manager]: ZONE_GRANTED HALL+WORK_DOCK to W
+[fleet_manager_node-1] [INFO] [1795691715.025349652] [fleet_manager]: ORDER_UPDATED pode1-16 update 2: base to W
+[fleet_manager_node-1] [INFO] [1795691716.624551074] [fleet_manager]: ZONE_GRANTED OUT_DOCK+HALL to P-1
+[fleet_manager_node-1] [INFO] [1795691716.625310685] [fleet_manager]: ORDER_SENT pode2-22: base to O_OUT, horizon to P-1
+[fleet_manager_node-1] [INFO] [1795691719.024471666] [fleet_manager]: SEGMENT_DONE pode1-16 seq 3 (follow_path) to Q1
+[fleet_manager_node-1] [INFO] [1795691719.324712808] [fleet_manager]: ZONE_GRANTED HALL to Q2
+[fleet_manager_node-1] [INFO] [1795691719.324994454] [fleet_manager]: DOCK_QUEUED WORK is busy, waits at Q2
+[fleet_manager_node-1] [INFO] [1795691719.325263486] [fleet_manager]: STANDBY_LEFT W is free, drops the way to P-1
+[fleet_manager_node-1] [INFO] [1795691719.326049978] [fleet_manager]: ORDER_UPDATED pode2-22 update 1: base to Q2
+[fleet_manager_node-1] [INFO] [1795691720.725342228] [fleet_manager]: SEGMENT_DONE pode2-22 seq 1 (follow_path) to O_OUT
+[fleet_manager_node-1] [INFO] [1795691722.024097314] [fleet_manager]: SEGMENT_DONE pode1-16 seq 4 (follow_path) to W
+[real_dock_wait_node-5] [INFO] [1795691725.033749217] [real_dock_wait]: pode1: dock WORK ok (2.7, -4.4) cm
+[fleet_manager_node-1] [INFO] [1795691725.125030369] [fleet_manager]: DOCKED at WORK: x 2.7 cm, y -4.4 cm, yaw 0.0 deg
+[fleet_manager_node-1] [INFO] [1795691725.125451100] [fleet_manager]: ORDER_BOUND R-003
+[fleet_manager_node-1] [INFO] [1795691731.225404940] [fleet_manager]: LANE_DIRECTION_SET EXPRESS from W_X
+[fleet_manager_node-1] [INFO] [1795691731.225724691] [fleet_manager]: ZONE_GRANTED WORK_DOCK+HALL+J_E+EXPRESS to O_X
+[fleet_manager_node-1] [INFO] [1795691731.226746930] [fleet_manager]: ORDER_SENT pode1-26: base to O_X, horizon to O
+[fleet_manager_node-1] [INFO] [1795691733.725092663] [fleet_manager]: ZONE_GRANTED HALL to Q1
+[fleet_manager_node-1] [INFO] [1795691733.725990445] [fleet_manager]: ORDER_UPDATED pode2-22 update 2: base to Q1
+[fleet_manager_node-1] [INFO] [1795691735.824632842] [fleet_manager]: SEGMENT_DONE pode2-22 seq 2 (nav_goal) to Q2
+[fleet_manager_node-1] [INFO] [1795691735.825134853] [fleet_manager]: ZONE_GRANTED HALL+WORK_DOCK to W
+[fleet_manager_node-1] [INFO] [1795691735.826722353] [fleet_manager]: ORDER_UPDATED pode2-22 update 3: base to W
+[fleet_manager_node-1] [INFO] [1795691740.125028944] [fleet_manager]: SEGMENT_DONE pode2-22 seq 3 (follow_path) to Q1
+[fleet_manager_node-1] [INFO] [1795691742.524797595] [fleet_manager]: SEGMENT_DONE pode2-22 seq 4 (follow_path) to W
+[fleet_manager_node-1] [INFO] [1795691742.924892957] [fleet_manager]: ZONE_GRANTED EXPRESS+OUT_DOCK to O
+[fleet_manager_node-1] [INFO] [1795691742.925653931] [fleet_manager]: ORDER_UPDATED pode1-26 update 1: base to O
+[fleet_manager_node-1] [INFO] [1795691745.132249064] [fleet_manager]: SEGMENT_DONE pode1-26 seq 1 (follow_path) to O_X
+[real_dock_wait_node-5] [INFO] [1795691745.541132049] [real_dock_wait]: pode2: dock WORK ok (1.2, -3.6) cm
+[fleet_manager_node-1] [INFO] [1795691745.624857098] [fleet_manager]: DOCKED at WORK: x 1.2 cm, y -3.6 cm, yaw 0.0 deg
+[fleet_manager_node-1] [INFO] [1795691745.625372805] [fleet_manager]: ORDER_BOUND R-004
+[fleet_manager_node-1] [INFO] [1795691748.425341825] [fleet_manager]: SEGMENT_DONE pode1-26 seq 2 (follow_path) to O
+[fleet_manager_node-1] [INFO] [1795691749.725339533] [fleet_manager]: LANE_DIRECTION_SET EXPRESS from W_X
+[fleet_manager_node-1] [INFO] [1795691749.725831514] [fleet_manager]: ZONE_GRANTED WORK_DOCK+HALL+J_E+EXPRESS to O_X
+[fleet_manager_node-1] [INFO] [1795691749.726254204] [fleet_manager]: DOCK_QUEUED OUTBOUND is busy, waits at O_X
+[fleet_manager_node-1] [INFO] [1795691749.727395152] [fleet_manager]: ORDER_SENT pode2-33: base to O_X, horizon to O
+[real_dock_wait_node-5] [INFO] [1795691751.445045745] [real_dock_wait]: pode1: dock OUTBOUND ok (5.2, 0.1) cm
+[fleet_manager_node-1] [INFO] [1795691751.525091877] [fleet_manager]: DOCKED at OUTBOUND: x 5.2 cm, y 0.1 cm, yaw 0.0 deg
+[fleet_manager_node-1] [INFO] [1795691759.624476974] [fleet_manager]: ZONE_GRANTED OUT_DOCK+HALL to P-1
+[fleet_manager_node-1] [INFO] [1795691759.625407459] [fleet_manager]: ORDER_SENT pode1-35: base to P-1
+[fleet_manager_node-1] [INFO] [1795691762.826505568] [fleet_manager]: SEGMENT_DONE pode2-33 seq 1 (follow_path) to O_X
+[fleet_manager_node-1] [INFO] [1795691762.826994255] [fleet_manager]: BASE_END_WAIT stands at O_X, the next stretch is not taken yet
+[fleet_manager_node-1] [INFO] [1795691764.828444212] [fleet_manager]: SEGMENT_DONE pode1-35 seq 1 (follow_path) to O_OUT
+[fleet_manager_node-1] [INFO] [1795691765.125389507] [fleet_manager]: ZONE_GRANTED EXPRESS+OUT_DOCK to O
+[fleet_manager_node-1] [INFO] [1795691765.126507304] [fleet_manager]: ORDER_UPDATED pode2-33 update 1: base to O
+[fleet_manager_node-1] [INFO] [1795691769.424295840] [fleet_manager]: SEGMENT_DONE pode2-33 seq 2 (follow_path) to O
+[real_dock_wait_node-5] [INFO] [1795691772.440573591] [real_dock_wait]: pode2: dock OUTBOUND ok (5.8, 1.4) cm
+[fleet_manager_node-1] [INFO] [1795691772.524680328] [fleet_manager]: DOCKED at OUTBOUND: x 5.8 cm, y 1.4 cm, yaw 0.0 deg
+[fleet_manager_node-1] [INFO] [1795691773.524582138] [fleet_manager]: SEGMENT_DONE pode1-35 seq 2 (nav_goal) to E-1
+[fleet_manager_node-1] [INFO] [1795691776.624019673] [fleet_manager]: SEGMENT_DONE pode1-35 seq 3 (retreat) to P-1
+[fleet_manager_node-1] [INFO] [1795691776.624339644] [fleet_manager]: RETREAT_DONE stands at P-1
+[fleet_manager_node-1] [INFO] [1795691780.624720898] [fleet_manager]: ZONE_GRANTED OUT_DOCK+HALL to P-2
+[fleet_manager_node-1] [INFO] [1795691780.625982053] [fleet_manager]: ORDER_SENT pode2-39: base to P-2
+[fleet_manager_node-1] [INFO] [1795691785.524445942] [fleet_manager]: SEGMENT_DONE pode2-39 seq 1 (follow_path) to O_OUT
+[fleet_manager_node-1] [INFO] [1795691793.224938152] [fleet_manager]: SEGMENT_DONE pode2-39 seq 2 (nav_goal) to E-2
+[fleet_manager_node-1] [INFO] [1795691796.224198333] [fleet_manager]: SEGMENT_DONE pode2-39 seq 3 (retreat) to P-2
+[fleet_manager_node-1] [INFO] [1795691796.224562695] [fleet_manager]: RETREAT_DONE stands at P-2
+[WARNING] [launch]: user interrupted with ctrl-c (SIGINT)
+[INFO] [real_dock_wait_node-5]: sending signal 'SIGINT' to process[real_dock_wait_node-5]
+[INFO] [fake_central_node-4]: sending signal 'SIGINT' to process[fake_central_node-4]
+[INFO] [fake_arm_node-3]: sending signal 'SIGINT' to process[fake_arm_node-3]
+[INFO] [fake_workcell_node-2]: sending signal 'SIGINT' to process[fake_workcell_node-2]
+[INFO] [fleet_manager_node-1]: sending signal 'SIGINT' to process[fleet_manager_node-1]
+[fake_central_node-4] Traceback (most recent call last):
+[fake_central_node-4]   File "/home/ane/ros2camp/nav2fleet_ws/install/fake_robots/lib/fake_robots/fake_central_node", line 33, in <module>
+[fake_central_node-4]     sys.exit(load_entry_point('fake-robots==0.1.0', 'console_scripts', 'fake_central_node')())
+[fake_central_node-4]              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[fake_central_node-4]   File "/home/ane/ros2camp/nav2fleet_ws/install/fake_robots/lib/python3.12/site-packages/fake_robots/fake_central_node.py", line 215, in main
+[fake_central_node-4]     node.destroy_node()
+[fake_central_node-4]   File "/opt/ros/jazzy/lib/python3.12/site-packages/rclpy/node.py", line 1962, in destroy_node
+[fake_central_node-4]     self.destroy_service(self._services[0])
+[fake_central_node-4]   File "/opt/ros/jazzy/lib/python3.12/site-packages/rclpy/node.py", line 1886, in destroy_service
+[fake_arm_node-3] Traceback (most recent call last):
+[fake_arm_node-3]   File "/home/ane/ros2camp/nav2fleet_ws/install/fake_robots/lib/fake_robots/fake_arm_node", line 33, in <module>
+[fake_arm_node-3]     sys.exit(load_entry_point('fake-robots==0.1.0', 'console_scripts', 'fake_arm_node')())
+[fake_arm_node-3]              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[fake_arm_node-3]   File "/home/ane/ros2camp/nav2fleet_ws/install/fake_robots/lib/python3.12/site-packages/fake_robots/fake_arm_node.py", line 167, in main
+[fake_arm_node-3]     node.destroy_node()
+[fake_arm_node-3]   File "/home/ane/ros2camp/nav2fleet_ws/install/fake_robots/lib/python3.12/site-packages/fake_robots/fake_arm_node.py", line 76, in destroy_node
+[fake_arm_node-3]     self._server.destroy()
+[fake_arm_node-3]   File "/opt/ros/jazzy/lib/python3.12/site-packages/rclpy/action/server.py", line 661, in destroy
+[fake_arm_node-3]     self._handle.destroy_when_not_in_use()
+[fake_arm_node-3] KeyboardInterrupt
+[fake_central_node-4]     service.destroy()
+[fake_central_node-4]   File "/opt/ros/jazzy/lib/python3.12/site-packages/rclpy/service.py", line 123, in destroy
+[fake_central_node-4]     self.__service.destroy_when_not_in_use()
+[fake_central_node-4] KeyboardInterrupt
+[fake_workcell_node-2] Traceback (most recent call last):
+[fake_workcell_node-2]   File "/home/ane/ros2camp/nav2fleet_ws/install/fake_robots/lib/fake_robots/fake_workcell_node", line 33, in <module>
+[fake_workcell_node-2]     sys.exit(load_entry_point('fake-robots==0.1.0', 'console_scripts', 'fake_workcell_node')())
+[fake_workcell_node-2]              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[fake_workcell_node-2]   File "/home/ane/ros2camp/nav2fleet_ws/install/fake_robots/lib/python3.12/site-packages/fake_robots/fake_workcell_node.py", line 297, in main
+[fake_workcell_node-2]     node.destroy_node()
+[fake_workcell_node-2]   File "/home/ane/ros2camp/nav2fleet_ws/install/fake_robots/lib/python3.12/site-packages/fake_robots/fake_workcell_node.py", line 112, in destroy_node
+[fake_workcell_node-2]     self._server.destroy()
+[fake_workcell_node-2]   File "/opt/ros/jazzy/lib/python3.12/site-packages/rclpy/action/server.py", line 661, in destroy
+[real_dock_wait_node-5] Traceback (most recent call last):
+[real_dock_wait_node-5]   File "/home/ane/ros2camp/nav2fleet_ws/install/fake_robots/lib/fake_robots/real_dock_wait_node", line 33, in <module>
+[fake_workcell_node-2]     self._handle.destroy_when_not_in_use()
+[fake_workcell_node-2] KeyboardInterrupt
+[real_dock_wait_node-5]     sys.exit(load_entry_point('fake-robots==0.1.0', 'console_scripts', 'real_dock_wait_node')())
+[real_dock_wait_node-5]              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[real_dock_wait_node-5]   File "/home/ane/ros2camp/nav2fleet_ws/install/fake_robots/lib/python3.12/site-packages/fake_robots/real_dock_wait_node.py", line 213, in main
+[real_dock_wait_node-5]     node.destroy_node()
+[real_dock_wait_node-5]   File "/home/ane/ros2camp/nav2fleet_ws/install/fake_robots/lib/python3.12/site-packages/fake_robots/real_dock_wait_node.py", line 96, in destroy_node
+[real_dock_wait_node-5]     server.destroy()
+[real_dock_wait_node-5]   File "/opt/ros/jazzy/lib/python3.12/site-packages/rclpy/action/server.py", line 661, in destroy
+[real_dock_wait_node-5]     self._handle.destroy_when_not_in_use()
+[real_dock_wait_node-5] KeyboardInterrupt
+[fleet_manager_node-1] Traceback (most recent call last):
+[fleet_manager_node-1]   File "/home/ane/ros2camp/nav2fleet_ws/install/fleet_manager/lib/fleet_manager/fleet_manager_node", line 33, in <module>
+[fleet_manager_node-1]     sys.exit(load_entry_point('fleet-manager==0.1.0', 'console_scripts', 'fleet_manager_node')())
+[fleet_manager_node-1]              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[fleet_manager_node-1]   File "/home/ane/ros2camp/nav2fleet_ws/install/fleet_manager/lib/python3.12/site-packages/fleet_manager/fleet_manager_node.py", line 581, in main
+[fleet_manager_node-1]     node.destroy_node()
+[fleet_manager_node-1]   File "/home/ane/ros2camp/nav2fleet_ws/install/fleet_manager/lib/python3.12/site-packages/fleet_manager/fleet_manager_node.py", line 142, in destroy_node
+[fleet_manager_node-1]     super().destroy_node()
+[fleet_manager_node-1]   File "/opt/ros/jazzy/lib/python3.12/site-packages/rclpy/node.py", line 1956, in destroy_node
+[fleet_manager_node-1]     self.destroy_publisher(self._publishers[0])
+[fleet_manager_node-1]   File "/opt/ros/jazzy/lib/python3.12/site-packages/rclpy/node.py", line 1836, in destroy_publisher
+[fleet_manager_node-1]     publisher.destroy()
+[fleet_manager_node-1]   File "/opt/ros/jazzy/lib/python3.12/site-packages/rclpy/publisher.py", line 105, in destroy
+[fleet_manager_node-1]     self.__publisher.destroy_when_not_in_use()
+[fleet_manager_node-1] KeyboardInterrupt
+[ERROR] [fake_central_node-4]: process has died [pid 287710, exit code -2, cmd '/home/ane/ros2camp/nav2fleet_ws/install/fake_robots/lib/fake_robots/fake_central_node --ros-args -r __node:=fake_central --params-file /tmp/launch_params_snmnz93u'].
+[ERROR] [fake_workcell_node-2]: process has died [pid 287708, exit code -2, cmd '/home/ane/ros2camp/nav2fleet_ws/install/fake_robots/lib/fake_robots/fake_workcell_node --ros-args -r __node:=fake_workcell --params-file /tmp/launch_params_6v2jacrt'].
+[ERROR] [real_dock_wait_node-5]: process has died [pid 287711, exit code -2, cmd '/home/ane/ros2camp/nav2fleet_ws/install/fake_robots/lib/fake_robots/real_dock_wait_node --ros-args -r __node:=real_dock_wait --params-file /tmp/launch_params_35y3wd8v'].
+[ERROR] [fake_arm_node-3]: process has died [pid 287709, exit code -2, cmd '/home/ane/ros2camp/nav2fleet_ws/install/fake_robots/lib/fake_robots/fake_arm_node --ros-args -r __node:=fake_arm_ship --params-file /tmp/launch_params_9ks4_0ba'].
+[ERROR] [fleet_manager_node-1]: process has died [pid 287707, exit code -2, cmd '/home/ane/ros2camp/nav2fleet_ws/install/fleet_manager/lib/fleet_manager/fleet_manager_node --record /home/ane/ros2camp/real_data/2026-11-26/fleet_run2.jsonl --ros-args -r __node:=fleet_manager --params-file /tmp/launch_params_kg2e2jo2'].
