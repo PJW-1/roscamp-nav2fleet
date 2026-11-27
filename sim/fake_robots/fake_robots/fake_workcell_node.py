@@ -169,6 +169,7 @@ class FakeWorkcellNode(Node):
         self._state = dict.fromkeys(self._arms, STATE_IDLE)
         self._error_until = dict.fromkeys(self._arms, 0.0)
         self._fault_gen = dict.fromkeys(self._arms, 0)  # ERROR를 보일 때마다 하나씩
+        self._resolved_n = dict.fromkeys(self._arms, 0)  # fault_resolved로 ERROR를 푼 횟수
         self._paused = dict.fromkeys(self._arms, False)
         self._holding = dict.fromkeys(self._arms, False)
         self._dropped = dict.fromkeys(self._arms, False)  # 락 해제로 쥔 상품을 놓음
@@ -264,6 +265,7 @@ class FakeWorkcellNode(Node):
             with self._state_lock:
                 if self._fault_gen[arm] != asked:  # 요청 뒤 새로 난 고장
                     return
+                self._resolved_n[arm] += 1
                 self._error_until[arm] = 0.0
                 if self._state[arm] == STATE_ERROR:
                     self._state[arm] = STATE_IDLE
@@ -290,13 +292,15 @@ class FakeWorkcellNode(Node):
         return len(modes) == 1 and "UNKNOWN" not in modes
 
     def _show_errors(self, arms, hold: float | None = ERROR_HOLD_S,
-                     boot_id: str | None = None) -> None:
+                     boot_id: str | None = None, resolved: dict | None = None) -> None:
         # hold None이면 fault_resolved까지 ERROR. 그 사이 재시작했으면 보이지 않는다
         if boot_id is not None and boot_id != self._boot_id:
             return
         until = math.inf if hold is None else self._sc.now() + hold
         for arm in arms:
             with self._state_lock:
+                if resolved is not None and self._resolved_n[arm] != resolved[arm]:
+                    continue  # 고장 뒤 보이기 전에 fault_resolved가 왔다
                 self._fault_gen[arm] += 1
                 self._error_until[arm] = until
                 self._set_state(arm, STATE_ERROR)
@@ -632,7 +636,7 @@ class FakeWorkcellNode(Node):
             # 재시도할 고장으로 받도록 결과가 나간 뒤 ERROR를 보인다
             arms = [arm for arm, h in run.errored.items() if h == hold]
             timer = threading.Timer(RESULT_FIRST_S, self._show_errors,
-                                    (arms, hold, self._boot_id))
+                                    (arms, hold, self._boot_id, dict(self._resolved_n)))
             timer.daemon = True
             timer.start()
         return result
