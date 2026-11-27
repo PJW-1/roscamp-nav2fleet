@@ -27,13 +27,17 @@ class FakeAdmin(AdminState):
 
     def force_hooked(self, request_id, robot_id, kind, key, value, now,
                      hook: Callable | None = None) -> Reply:
-        """강제 입력을 받은 뒤 hook(kind, key, value)이 거절 사유 문자열을 주면 되돌리고 NOT_FOUND."""
+        """강제 입력을 받은 뒤 hook(kind, key, value)이 거절 사유 문자열을 주면 앞 값으로 되돌리고 NOT_FOUND."""
         def judge() -> Reply:
+            before = self.forced_values.get(key)
             reply = AdminState.force(self, "", robot_id, kind, key, value, now)
             if reply.accepted and hook is not None and kind != FORCE_CLEAR:
                 err = hook(kind, key, value)
                 if err:
-                    self.forced_values.pop(key, None)
+                    if before is None:
+                        self.forced_values.pop(key, None)
+                    else:
+                        self.forced_values[key] = before
                     return Reply(False, NOT_FOUND, err)
             return reply
         return self._once(request_id, now, judge)

@@ -256,8 +256,12 @@ class FakeWorkcellNode(Node):
             self._moving = False
 
     def _clear_error(self, arm: str) -> None:
+        asked = self._error_until[arm]
+
         def clear():
             with self._state_lock:
+                if self._error_until[arm] != asked:  # 요청 뒤 새로 난 고장
+                    return
                 self._error_until[arm] = 0.0
                 if self._state[arm] == STATE_ERROR:
                     self._state[arm] = STATE_IDLE
@@ -283,8 +287,11 @@ class FakeWorkcellNode(Node):
             modes = {self._admin[arm].mode for arm in self._arms}
         return len(modes) == 1 and "UNKNOWN" not in modes
 
-    def _show_errors(self, arms, hold: float | None = ERROR_HOLD_S) -> None:
-        # hold None이면 fault_resolved까지 ERROR
+    def _show_errors(self, arms, hold: float | None = ERROR_HOLD_S,
+                     boot_id: str | None = None) -> None:
+        # hold None이면 fault_resolved까지 ERROR. 그 사이 재시작했으면 보이지 않는다
+        if boot_id is not None and boot_id != self._boot_id:
+            return
         until = math.inf if hold is None else self._sc.now() + hold
         for arm in arms:
             self._error_until[arm] = until
@@ -590,6 +597,8 @@ class FakeWorkcellNode(Node):
         if handle.is_cancel_requested and self._cancel_at is not None:
             # 실제 팔은 멈추는 데 시간이 걸리고 그동안 서버는 바쁘다.
             self._sc.sleep_until(self._cancel_at + self._cfg.cancel_seconds, self._running)
+            if run.dropped.is_set():  # 취소를 기다리는 동안 재시작
+                return self._dropped_result(handle, run)
 
         planned = sum(len(u) for u in units.values())
         complete = sum(run.placed.values()) + run.let_go == planned
@@ -618,7 +627,8 @@ class FakeWorkcellNode(Node):
         for hold in set(run.errored.values()):
             # 재시도할 고장으로 받도록 결과가 나간 뒤 ERROR를 보인다
             arms = [arm for arm, h in run.errored.items() if h == hold]
-            timer = threading.Timer(RESULT_FIRST_S, self._show_errors, (arms, hold))
+            timer = threading.Timer(RESULT_FIRST_S, self._show_errors,
+                                    (arms, hold, self._boot_id))
             timer.daemon = True
             timer.start()
         return result
@@ -631,12 +641,16 @@ class FakeWorkcellNode(Node):
                 and not run.handle.is_cancel_requested)
 
     def _feedback(self, run: _Run, arm: str, phase: str, total: int | None = None) -> None:
-        if run.dropped.is_set():
+        # 두 팔의 placed_total이 거꾸로 가지 않게 run.lock 안에서 낸다(total을 주면 이미 안)
+        if total is not None:
+            self._publish_feedback(run, arm, phase, total)
             return
-        if total is None:
-            with run.lock:
-                total = sum(run.placed.values())
-        run.handle.publish_feedback(_F(arm_id=arm, phase=phase, placed_total=total))
+        with run.lock:
+            self._publish_feedback(run, arm, phase, sum(run.placed.values()))
+
+    def _publish_feedback(self, run: _Run, arm: str, phase: str, total: int) -> None:
+        if not run.dropped.is_set():
+            run.handle.publish_feedback(_F(arm_id=arm, phase=phase, placed_total=total))
 
     def _unpaused(self, run: _Run, arm: str) -> bool:
         """멈춘 동안 기다린다. 목표가 끝나면 False."""
@@ -687,11 +701,15 @@ class FakeWorkcellNode(Node):
                 run.working.discard(arm)
             if not run.dropped.is_set():
                 self._holding[arm] = False
-                self._set_state(arm, STATE_IDLE)
+                if self._state[arm] != STATE_ERROR:
+                    self._set_state(arm, STATE_IDLE)
 
     def _work_items(self, run: _Run, arm: str, kinds: list[str], fail_at: int | None) -> None:
         # 상품마다 CAPTURING → PICKING → TO_BASKET → PLACING → RETURNING
         q = self._cfg.seconds_per_item / 4
+        if kinds and self._error_until[arm] == math.inf:
+            run.fail(REASON_ARM_FAULT, arm, None)  # fault_resolved 전
+            return
         done = 0
         for i, kind in enumerate(kinds):
             if not self._go_on(run):
@@ -713,7 +731,12 @@ class FakeWorkcellNode(Node):
             if not self._wait(run, arm, q):
                 return
             self._change_stock(arm, kind, -1)
-            self._holding[arm] = True
+            with self._state_lock:
+                # 집는 순간 락이 이미 풀렸으면 바로 놓는다
+                if self._admin[arm].lock:
+                    self._holding[arm] = True
+                else:
+                    self._dropped[arm] = True
             self._feedback(run, arm, _F.PHASE_TO_BASKET)
             if not self._enter_basket_space(run, arm):
                 if self._let_go(run, arm, kind, put_back=True):

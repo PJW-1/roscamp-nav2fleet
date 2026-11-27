@@ -101,6 +101,17 @@ def test_a_hook_can_refuse_a_force_and_the_value_is_not_kept():
     assert len(seen) == 2
 
 
+def test_a_refused_replacement_keeps_the_earlier_hook_value():
+    a = admin()
+
+    def hook(kind, key, value):
+        return "bad value" if value == "x" else ""
+
+    assert a.force_hooked("f1", "arm_left", "CONDITION", "fill_fail", "ok", 0.0, hook).accepted
+    assert not a.force_hooked("f2", "arm_left", "CONDITION", "fill_fail", "x", 0.0, hook).accepted
+    assert a.forced_values == {"fill_fail": "ok"}
+
+
 def test_set_pause_is_judged_once_per_request_id():
     a = admin()
     calls = []

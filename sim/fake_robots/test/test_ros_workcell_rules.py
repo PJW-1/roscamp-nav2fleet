@@ -332,6 +332,21 @@ def test_the_error_hook_on_an_idle_arm(harness, tmp_path):
     assert states.wait("arm_right", lambda m: m.state == ArmState.STATE_IDLE)
 
 
+def test_a_new_goal_does_not_clear_an_unresolved_error(harness, tmp_path):
+    cell = Cell(harness, tmp_path)
+    states = States(cell)
+    enter_test_mode(cell)
+    assert force(cell, "arm_right", "error").accepted
+    assert states.wait("arm_right", lambda m: m.state == ArmState.STATE_ERROR)
+    result, _ = cell.fill(C=1)
+    assert (result.success, result.reason) == (False, R.REASON_ARM_FAULT)
+    assert result.placed == [] and cell.shelf("arm_right") == {"C": 3}
+    time.sleep(0.5)
+    assert states.last("arm_right").state == ArmState.STATE_ERROR
+    assert fault_resolved(cell, "arm_right").accepted
+    assert cell.fill(C=1)[0].success is True
+
+
 def test_the_error_hook_mid_fill_ends_it_with_arm_fault(harness, tmp_path):
     cell = slow_cell(harness, tmp_path, seconds=0.8)
     states = States(cell)
