@@ -1,7 +1,7 @@
 # ---- 코어 사이에 오가는 명령, 보고, 조회 데이터 클래스 ----
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 # ---- 주문 상태, 보류 사유, 강제 출고 거절 사유 상수와 주문 기록 ----
 SHIPPED = "SHIPPED"
@@ -14,6 +14,14 @@ HOLD_ARM_FAULT = "ARM_FAULT"
 FORCE_NOT_HELD = "ORDER_STATE"
 FORCE_ROBOT_FAULT = "NOT_READY"
 FORCE_UNKNOWN_ORDER = "NOT_FOUND"
+FORCE_NOT_IMPLEMENTED = "NOT_IMPLEMENTED"  # 주문 쪽이 아직 받지 않는 운반 건 명령
+# 치우기 · 다시 투입 거절도 계약 request_rejected 코드로 낸다
+REJECT_UNKNOWN_TARGET = "UNKNOWN_TARGET"
+REJECT_NOT_FOUND = "NOT_FOUND"
+REJECT_NOT_STOPPED = "NOT_STOPPED"
+REJECT_NOT_READY = "NOT_READY"
+REJECT_ORDER_STATE = "ORDER_STATE"
+REJECT_LOCK_RELEASED = "LOCK_RELEASED"
 
 
 @dataclass(frozen=True)
@@ -139,7 +147,8 @@ class ReportOrderCmd:
 TRIP_ASSIGNED = "ASSIGNED"
 TRIP_FILLING = "FILLING"
 TRIP_TRANSPORTING = "TRANSPORTING"
-TRIP_STATUSES = (TRIP_ASSIGNED, TRIP_FILLING, TRIP_TRANSPORTING)
+TRIP_FILLING_PAUSE = "FILLING_PAUSE"  # 관리자 [담기 재개] · [보충 불가] 대기
+TRIP_STATUSES = (TRIP_ASSIGNED, TRIP_FILLING, TRIP_TRANSPORTING, TRIP_FILLING_PAUSE)
 
 
 @dataclass(frozen=True)
@@ -280,6 +289,12 @@ class ArmFillResult:
     robot: str
     success: bool
     placed: dict[str, int]
+    # 주문 층이 쓰는 칸: 실패 사유(W-41), 못 담은 것, 확인된 담은 수, 쥐고 있던 상품(W-43)
+    reason: str = ""
+    missing: dict[str, int] = field(default_factory=dict)
+    placed_confirmed: dict[str, int] = field(default_factory=dict)
+    uncertain: dict[str, int] = field(default_factory=dict)
+    held: bool = False  # 쥔 채 락이 풀렸던 목표: 상품 행방을 몰라 격리여도 보류
 
 
 @dataclass(frozen=True)
@@ -308,6 +323,7 @@ class ArmLate:
     placed: dict[str, int] | None = None
     took_full: bool = False
     put_empty_done: bool = False
+    uncertain: dict[str, int] | None = None
 
 
 # 팔 고장: 재시도 한도 초과나 무응답
@@ -319,7 +335,48 @@ class ArmFault:
     reason: str
 
 
-ARM_REPORTS = (ArmDeclined, ArmFillResult, ArmSwapResult, ArmLost, ArmLate, ArmFault)
+# 결과로 끝난 담기 실패: 관제는 다시 보내지 않고 관리자를 기다린다 (팔 관제 합의 ①)
+# ---- 관리자 [복구] 답: 두 팔에 set_pause(false) · 남은 상품으로 새 담기 목표 ----
+RESUME_SET_PAUSE_OFF = "SET_PAUSE_OFF"
+RESUME_REFILL = "REFILL"
+
+
+@dataclass(frozen=True)
+class ArmFillPaused:
+    robot: str
+    server: str
+    reason: str
+    detail: str
+
+
+# ---- 담기 진행 · 재개 · 작업대 막힘 보고 (팔 관제 합의 ④ · ⑥ · ⑪ · ⑫) ----
+@dataclass(frozen=True)
+class ArmFillProgress:
+    robot: str
+    placed: dict[str, int]  # 이번 목표에서 담은 것 (goal items 순서대로 placed_total만큼)
+
+
+@dataclass(frozen=True)
+class ArmFillPlaced:
+    robot: str
+    placed: dict[str, int]  # 끝난 목표에서 담은 것: 주문에 더하고 남은 상품을 다시 요청
+    held: bool = False  # 쥐고 있던 상품의 행방을 모름: 격리여도 보류
+
+
+@dataclass(frozen=True)
+class ArmFillResumed:
+    robot: str  # 관리자 [복구]: 남은 상품을 다시 요청해도 됨
+
+
+@dataclass(frozen=True)
+class ArmStationBlocked:
+    station_id: str
+    reason: str  # 비면 다시 열림
+
+
+ARM_REPORTS = (ArmDeclined, ArmFillResult, ArmSwapResult, ArmLost, ArmLate, ArmFault,
+               ArmFillPaused, ArmFillProgress, ArmFillPlaced, ArmFillResumed,
+               ArmStationBlocked)
 
 
 # ---- 배차 보고와 로봇 격리 ----

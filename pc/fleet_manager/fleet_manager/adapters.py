@@ -5,7 +5,7 @@ import math
 
 from action_msgs.msg import GoalStatus
 from builtin_interfaces.msg import Time
-from fleet_core.common.commands import OrderRecord
+from fleet_core.common.commands import OrderRecord, ReportTripCmd
 from fleet_interfaces.action import Dock, FillBasket, MoveTo, Retreat, SwapBasket
 from fleet_interfaces.msg import (
     ArmState,
@@ -20,7 +20,16 @@ from fleet_interfaces.msg import (
     ZoneState,
     ZoneStateArray,
 )
-from fleet_interfaces.srv import CheckClear, ReportOrder, ReportTrip, TripCommand
+from fleet_interfaces.srv import (
+    CheckClear,
+    CheckStock,
+    Hello,
+    ReportCommand,
+    ReportEvent,
+    ReportOrder,
+    ReportTrip,
+    TripCommand,
+)
 from geometry_msgs.msg import Pose, PoseStamped
 from nav_msgs.msg import Path
 
@@ -46,6 +55,15 @@ def from_order_items(items) -> dict[str, int]:
     for item in items:
         counts[item.kind] = counts.get(item.kind, 0) + int(item.count)
     return counts
+
+
+# ---- 담기 전 결품 확인 (W-40) ----
+def check_stock_request(cmd) -> CheckStock.Request:
+    return CheckStock.Request(trip_id=cmd.order_id, items=to_order_items(cmd.items))
+
+
+def check_stock_answer(response) -> tuple[bool, dict[str, int], str]:
+    return bool(response.accepted), from_order_items(response.available), response.reason
 
 
 # ---- 코어 상태와 이벤트를 ROS 메시지로 변환 ----
@@ -91,12 +109,14 @@ def _pode_status(v, state) -> RobotStatus:
     return row
 
 
-def arm_status(arm: str, state, fresh: bool) -> RobotStatus:
+def arm_status(arm: str, state, fresh: bool, phase: str = "", trip: str = "") -> RobotStatus:
+    """phase · trip은 코어의 담기 진행."""
     row = RobotStatus(robot_id=arm, kind=RobotStatus.KIND_ARM, battery=-1.0,
-                      fault=RobotStatus.FAULT_COMM_LOST, lock=True)
+                      fault=RobotStatus.FAULT_COMM_LOST, lock=True, task_type=phase,
+                      order_id=trip)
     if state is None:
         return row
-    row.fsm_state, row.order_id, row.fault_reason = state.state, state.order_id, state.detail
+    row.fsm_state, row.fault_reason = state.state, state.detail
     row.lock, row.mode, row.forced, row.boot_id = (
         bool(state.lock), state.mode, list(state.forced), state.boot_id)
     if fresh:
@@ -108,7 +128,7 @@ def arm_status(arm: str, state, fresh: bool) -> RobotStatus:
 def robots_to_msg(views, now: float, pode_states=None, arms=()) -> RobotStatusArray:
     pode_states = pode_states or {}
     robots = [_pode_status(v, pode_states.get(v.robot_id)) for v in views]
-    robots += [arm_status(arm, state, fresh) for arm, state, fresh in arms]
+    robots += [arm_status(*row) for row in arms]
     return RobotStatusArray(robots=robots, stamp=to_time(now))
 
 
@@ -164,9 +184,11 @@ def dock_result(result) -> tuple[bool, float, float, float]:
     return result.success, result.error_x_cm, result.error_y_cm, result.error_yaw_deg
 
 
-def fill_result(result) -> tuple[bool, dict[str, int], dict[str, int], str]:
+def fill_result(result) -> tuple[bool, dict[str, int], dict[str, int], str, dict[str, int],
+                                 dict[str, int]]:
     return (result.success, from_order_items(result.placed), from_order_items(result.missing),
-            result.reason)
+            result.reason, from_order_items(result.placed_confirmed),
+            from_order_items(result.uncertain))
 
 
 def swap_result(result) -> tuple[bool, bool, bool, str]:
@@ -327,3 +349,55 @@ def trip_status(status: str, hold_reason: str = "") -> tuple[str, str]:
     if status == ReportOrder.Request.STATUS_HELD:
         return ReportTrip.Request.STATUS_HELD, hold_reason
     return status, ""
+
+
+# ---- 브리지 보고 요청: 번호(epoch, n)는 보낼 때 노드가 채운다 ----
+BRIDGE_SOURCE = "fleet"  # ReportEvent.source, Hello.node
+DELIVERED_RESULTS = ("DUPLICATE", "LATE_REPORT")
+
+
+def trip_report_request(cmd, stamp_s: float) -> ReportTrip.Request:
+    # 진행 단계(ReportTripCmd)는 그대로, 끝 상태(ReportOrderCmd)는 CANCELLED 철자와 사유로 바꾼다
+    if isinstance(cmd, ReportTripCmd):
+        trip_id, status, reason = cmd.trip_id, cmd.status, cmd.reason
+    else:
+        trip_id = cmd.order_id
+        status, reason = trip_status(cmd.status, cmd.hold_reason)
+    return ReportTrip.Request(trip_id=trip_id, status=status, reason=reason, robot_id=cmd.robot,
+                              placed=to_order_items(cmd.placed),
+                              missing=to_order_items(cmd.missing), stamp=to_time(stamp_s))
+
+
+def trip_report_delivered(response) -> tuple[bool, bool]:
+    # (전달됨, 늦은 보고). DUPLICATE · LATE_REPORT도 전달된 것이다
+    late = response.result == "LATE_REPORT"
+    return bool(response.accepted) or response.result in DELIVERED_RESULTS, late
+
+
+def report_event_request(event, event_id: str, stamp_s: float, robots) -> ReportEvent.Request:
+    robot = event.robot if event.robot in robots else ""
+    return ReportEvent.Request(event_id=event_id, level=event.level,
+                               source=event.robot or BRIDGE_SOURCE, code=event.code,
+                               robot_id=robot, trip_id="", detail=event.detail,
+                               stamp=to_time(stamp_s))
+
+
+def report_command_request(request_id: str, command: str, target: str, result: str,
+                           reason: str, detail: str, stamp_s: float) -> ReportCommand.Request:
+    return ReportCommand.Request(request_id=request_id, command=command, target=target,
+                                 result=result, reason=reason, detail=detail,
+                                 stamp=to_time(stamp_s))
+
+
+def hello_request(boot_id: str) -> Hello.Request:
+    return Hello.Request(node=BRIDGE_SOURCE, boot_id=boot_id)
+
+
+def open_trips(response) -> list[dict]:
+    # TODO(orders): 주문 층이 받을 타입을 정하면 바꾼다. 지금은 값만 옮긴다
+    return [{"trip_id": t.trip_id, "order_id": t.order_id, "trip_index": int(t.trip_index),
+             "trip_count": int(t.trip_count), "items": from_order_items(t.items),
+             "status": t.status, "reason": t.reason, "robot_id": t.robot_id,
+             "placed": from_order_items(t.placed), "missing": from_order_items(t.missing),
+             "report_epoch": int(t.report_epoch), "report_n": int(t.report_n)}
+            for t in response.trips]

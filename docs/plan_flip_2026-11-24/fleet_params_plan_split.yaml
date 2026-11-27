@@ -26,13 +26,17 @@ recover_check_s: 1.0
 arm_cancel_wait_s: 5.0
 robot_timeout_settle_s: 30.0  # 시간 초과·결과 잃음(결과 모름)을 정하는 시간. 넘기면 고장(IR-62)
 arm_retry_wait_s: 2.0
-fill_timeout_s: 90.0          # 팔 두 대가 바구니 하나를 채우는 제한 시간
+fill_timeout_s: 1200.0          # 팔 두 대가 바구니 하나를 채우는 제한 시간
 swap_timeout_s: 60.0          # arm_ship이 바구니를 바꾸는 제한 시간
 cancel_retry_s: 1.0           # 취소한 goal 결과가 없으면 이 주기로 다시 요청
 cancel_warn_after: 38         # 결과 없이 이만큼 주기가 지나면 CANCEL_UNCONFIRMED
                               # 지터 하한(×0.8)을 곱해도 arm_cancel_wait_s·robot_timeout_settle_s 이상
 report_retry_s: 2.0           # 답이 없으면 이만큼(±20%) 뒤 주문 보고를 다시 보냄
 report_max_in_flight: 4       # 답을 기다리는 주문 보고 요청 수 상한(IR-41)
+bridge_reply_limit_s: 3.0     # 브리지 Report*·Hello 응답 한도(IR-40)
+bridge_retry_first_s: 1.0     # 브리지 재전송 첫 간격, 실패마다 두 배(±20%)
+bridge_retry_max_s: 10.0      # 브리지 재전송 간격 상한. 포기하지 않는다
+bridge_max_in_flight: 4       # 답을 기다리는 브리지 보고 요청 수 상한(IR-41)
 zone_wait_warn_s: 60.0        # 한 구역을 이만큼 기다리면 경고
 deadlock_grace_s: 5.0         # 교착 두 번째 단계 전 대기
 score_same_call: -4.0         # 이미 불린 로봇은 다른 로봇이 확실히 가깝지 않으면 호출을 유지

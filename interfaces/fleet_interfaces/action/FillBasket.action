@@ -8,12 +8,17 @@ OrderItem[] items
 ---
 # ---- result: reason에 넣는 값 ----
 string REASON_CANCELED="CANCELED"
-# 취소 후 새 목표가 되는 이유 (fleet은 ReportTrip FILLING_PAUSE, [담기 재개]를 기다림, #19 ②)
+# 결과로 끝난 실패: fleet은 다시 보내지 않고 ReportTrip FILLING_PAUSE, 관리자 [담기 재개] · [보충 불가]를 기다림 (팔 관제 합의 ①)
+# 결품인지 미인식인지 모를 때는 RECOGNITION_ERROR. PICK_FAILED는 Phody가 당분간 보내지 않음(관제는 자리만 둠)
 string REASON_PICK_FAILED="PICK_FAILED"
 string REASON_RECOGNITION_ERROR="RECOGNITION_ERROR"
 string REASON_OUT_OF_STOCK="OUT_OF_STOCK"   # 담는 도중 결품
-# 팔 장애로 끝남 (fleet은 ReportTrip HELD · ARM_FAULT, 새 목표를 내지 않음, #20)
+# 복구할 수 없는 팔 장애 (fleet은 ReportTrip HELD · ARM_FAULT, 새 목표를 내지 않음). Phody가 당분간 보내지 않음
 string REASON_ARM_FAULT="ARM_FAULT"
+# 잠깐 받을 수 없음: fleet이 다시 보내는 사유는 이것뿐
+string REASON_NOT_READY="NOT_READY"
+# 모르는 상품 코드로 목표 전체를 거절 (fleet은 다시 보내지 않고 HELD, 이름은 임시)
+string REASON_UNKNOWN_TARGET="UNKNOWN_TARGET"
 
 # ---- result: 담은 것과 못 담은 것 ----
 bool success
@@ -28,6 +33,10 @@ OrderItem[] uncertain        # 쥐고 있던 상품 (비어 있지 않으면 반
 # ---- feedback: 진행 상황 ----
 string arm_id
 string phase
-int32 placed_total
-# ---- feedback: phase에 더하는 값 (목표 안에서 멈춤, 주문은 담는 중 그대로) ----
-# PAUSED_DISTANCE · PAUSED_SERVICE
+int32 placed_total           # 이 목표에서 두 팔이 담은 합(누적). 관제는 마지막 값을 쓰고, 재시작 뒤 [복구]는 goal items 순서대로 이만큼 뺀 나머지로 새 목표
+# ---- feedback: phase 값 (팔 관제 합의 ③) ----
+string PHASE_CAPTURING="CAPTURING"
+string PHASE_PICKING="PICKING"
+string PHASE_TO_BASKET="TO_BASKET"
+string PHASE_PLACING="PLACING"
+string PHASE_RETURNING="RETURNING"

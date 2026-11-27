@@ -76,6 +76,7 @@ class Stations:
             self._finish_fill(r)
             return
         r.asked = FILL
+        order.started = True
         self._out.append(ArmFillCmd(r.name, self._work, order.order_id, remaining))
 
     # ---- 교환 단계 진행 ----

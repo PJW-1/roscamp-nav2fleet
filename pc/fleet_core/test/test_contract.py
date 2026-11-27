@@ -19,6 +19,12 @@ def test_force_ship_rejections_use_contract_codes(contract):
     assert codes and codes <= set(contract.reason_codes["request_rejected"])
 
 
+def test_clear_and_reinstate_rejections_use_contract_codes(contract):
+    from fleet_core.common import commands
+    codes = {getattr(commands, n) for n in dir(commands) if n.startswith("REJECT_")}
+    assert codes and codes <= set(contract.reason_codes["request_rejected"])
+
+
 def test_topic_name_is_built_from_key_and_placeholder(contract):
     assert contract.name("robot_state", pode="pode2") == "/pode2/state"
     assert contract.name("order_board") == "/central/orders"
@@ -100,15 +106,19 @@ def test_order_report_keeps_the_team_0_6_text():
     assert (SRV / "ReportOrder.srv").read_text(encoding="utf-8") == REPORT_ORDER_0_6
 
 
-# ---- 계약 0.7: 인터페이스 명세 v0.2 ----
-def test_contract_0_7_names_the_arms_like_the_spec(contract):
+# ---- 계약 0.9: 인터페이스 명세 v0.2 ----
+def test_the_contract_is_version_1_0():
     import yaml
-    assert yaml.safe_load(CONTRACT.read_text(encoding="utf-8"))["version"] == 0.7
+    assert yaml.safe_load(CONTRACT.read_text(encoding="utf-8"))["version"] == 1.0
+
+
+def test_contract_0_9_names_the_arms_like_the_spec(contract):
     assert contract.placeholders["arm"] == ["arm_left", "arm_right", "arm_ship"]
     assert contract.name("swap_basket", arm="arm_ship") == "/arm_ship/swap_basket"
     names = {e.name for e in contract.expanded()}
     assert {"/arm_left/state", "/arm_right/state", "/arm_ship/state"} <= names
-    assert "/arm_ship/set_lock" not in names and "/arm_ship/fault_resolved" not in names
+    # 명세 v0.2 (11-24): Phony도 락 해제 · 잠금 대상이다
+    assert "/arm_ship/set_lock" in names and "/arm_ship/fault_resolved" not in names
     assert {"/arm_ship/set_mode", "/arm_ship/force", "/pode1/charge_end"} <= names
 
 
@@ -162,8 +172,9 @@ def test_reason_code_table_has_the_spec_codes(contract):
     codes = {c for group in contract.reason_codes.values() for c in group}
     assert {"NOT_FOUND", "LOCK_RELEASED", "HOLDING_ITEM", "MODE_MISMATCH", "NOT_READY",
             "ROBOT_TIMEOUT", "PICK_FAILED", "FLEET_RESTART", "NOTHING_TO_FILL",
-            "FORCED_PARTIAL", "LATE_REPORT"} <= codes
-    assert len(codes) == 31
+            "FORCED_PARTIAL", "LATE_REPORT", "NOT_IMPLEMENTED", "NAV_UNAVAILABLE",
+            "HEARTBEAT_LOST"} <= codes
+    assert len(codes) == 34
 
 
 def test_entries_no_fake_node_opens_are_left_out_of_the_fake_check(contract):
@@ -172,3 +183,21 @@ def test_entries_no_fake_node_opens_are_left_out_of_the_fake_check(contract):
     assert "/bridge/hello" in real and "/bridge/hello" not in fake
     assert "/system/mode" in real and "/system/mode" not in fake
     assert "/arm_left/state" in fake and "/fleet/force_ship" in fake
+
+
+# ---- 계약 0.8: 로봇 운영 모드 (SetMode, IR-73) ----
+def test_every_robot_has_a_set_mode_service(contract):
+    robots = ("pode1", "pode2", "pode3", "arm_left", "arm_right", "arm_ship")
+    assert contract.placeholders["robot"] == list(robots)
+    assert contract.name("robot_set_mode", robot="pode2") == "/pode2/set_mode"
+    assert contract.type("robot_set_mode") == "fleet_interfaces/srv/SetMode"
+
+
+# ---- 계약 0.7: 주문 흐름 1차 (SubmitTrip · Hello · ReportTrip · SystemMode) ----
+def test_order_flow_names_are_in_the_contract():
+    contract = load_contract(CONTRACT)
+    assert contract.name("submit_trip") == "/central/submit_trip"
+    assert contract.name("hello") == "/bridge/hello"
+    assert contract.name("report_trip") == "/bridge/report_trip"
+    assert contract.name("system_mode") == "/system/mode"
+    assert contract.qos("system_mode").durability == "transient_local"

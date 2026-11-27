@@ -5,6 +5,7 @@
 """
 from __future__ import annotations
 
+import math
 import re
 
 from fleet_core.fleet_map import DOCK, SHARED
@@ -12,6 +13,7 @@ from fleet_core.fleet_map import DOCK, SHARED
 from fake_robots.laps import Laps
 from fake_robots.order_checks import OrderChecks
 from fake_robots.outcome import Outcome
+from fake_robots.scenario_parts import _arms_with
 from fake_robots.zone_checks import EPS, ZoneChecks
 
 RATE_PERIOD_S = 0.5  # robots.csv는 2 Hz로 줄여 쓴다
@@ -42,6 +44,8 @@ def holder_set(text: str) -> frozenset[str]:
                      if name.strip() and not is_pseudo_holder(name.strip()))
 
 
+
+ERROR_EDGE_S = 0.5  # 배차 · 팔 상태 토픽 도착 순서 차이를 덮는 유예(시나리오 시각)
 
 class ScenarioJudge(ZoneChecks, Laps, OrderChecks, Outcome):
     def __init__(self, site, scenario, margin_m: float = 0.13, grace_s: float = 2.0,
@@ -95,6 +99,11 @@ class ScenarioJudge(ZoneChecks, Laps, OrderChecks, Outcome):
         self.order_log: list[tuple[str, str]] = []  # BOUND와 REQUEUED, 도착 순
         self.error_codes: list[str] = []
         self.board: list[str] = []
+        # 작업대 팔 ERROR 동안 배차 막힘, [장애 처리 완료] 뒤 다시 열림 (끝에 dispatch_checks로 셈)
+        self.fill_arms = set(_arms_with(site, "fill"))
+        self._error_spans: list[list] = []  # [팔, 시작, 끝(None이면 아직 ERROR)]
+        self._to_work: list[float] = []  # 새 TO_WORK 배차를 받은 시각
+        self._resolves: list[tuple[str, float]] = []  # (팔, [장애 처리 완료]를 부른 시각)
         self._bound_now: set[str] = set()
         # 바퀴
         self._work_zones = self._station_zones("fill")
@@ -232,9 +241,47 @@ class ScenarioJudge(ZoneChecks, Laps, OrderChecks, Outcome):
         self._put_back[robot] = (node, t, t + self.grace_s)
         self._left_start.add(robot)
 
-    def on_assignments(self, tasks: dict[str, str]) -> None:
-        """로봇 -> task_type. 목록에 없는 로봇은 할 일이 없다."""
+    def on_assignments(self, tasks: dict[str, str], t: float | None = None) -> None:
+        """로봇 -> task_type. 목록에 없는 로봇은 할 일이 없다. 새 TO_WORK 배차 시각을 남긴다."""
+        if t is not None:
+            self._to_work += [t for robot, task in tasks.items()
+                              if task == "TO_WORK" and self._tasks.get(robot) != "TO_WORK"]
         self._tasks = dict(tasks)
+
+    def on_arm_state(self, arm: str, state: str, t: float) -> None:
+        """팔 상태 토픽. 작업대 팔의 ERROR 구간을 남긴다."""
+        if arm not in self.fill_arms:
+            return
+        open_span = next((s for s in self._error_spans if s[0] == arm and s[2] is None), None)
+        if state == "ERROR" and open_span is None:
+            self._error_spans.append([arm, t, None])
+        elif state != "ERROR" and open_span is not None:
+            open_span[2] = t
+
+    def dispatch_checks(self) -> tuple[int, int]:
+        """(ERROR 동안 새 배차 수, [장애 처리 완료] 뒤 팔이 ERROR를 벗어나고 나서 배차 수).
+
+        배차와 팔 상태는 다른 토픽이라 도착 순서가 바뀔 수 있어 구간 양끝에 유예를 둔다.
+        """
+        g = ERROR_EDGE_S
+        # 두 팔 구간을 먼저 합친 뒤 유예만큼 줄인다(겹친 동안 빈틈이 없게)
+        merged: list[list[float]] = []
+        for s, e in sorted((s, math.inf if e is None else e) for _, s, e in self._error_spans):
+            if merged and s <= merged[-1][1]:
+                merged[-1][1] = max(merged[-1][1], e)
+            else:
+                merged.append([s, e])
+        during = [t for t in self._to_work if any(s + g <= t <= e - g for s, e in merged)]
+        # 부른 그 팔이 부른 뒤 ERROR를 벗어난 시각
+        cleared = [e for arm, at in self._resolves for a, s, e in self._error_spans
+                   if a == arm and e is not None and s <= at + g and e >= at]
+        if not cleared:
+            return len(during), 0
+        first = min(cleared)
+        return len(during), sum(1 for t in self._to_work if t >= first - g and t not in during)
+
+    def on_fault_resolved(self, t: float, arm: str) -> None:
+        self._resolves.append((arm, t))
 
     def on_board(self, order_ids: list[str]) -> None:
         self.board = list(order_ids)

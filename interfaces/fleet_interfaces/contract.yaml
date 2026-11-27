@@ -4,13 +4,19 @@
 #   fake 모드 검사(scripts/check_interfaces.py --mode fake)는 건너뛰고 real 모드는 검사한다.
 # SubmitOrder.srv(0.6 파일)는 쓰지 않는다. SubmitTrip으로 대신한다.
 
-version: 0.7
+version: 1.0
 
 # ---- 변경 이력 (IR-02: 바꾼 구역) ----
-# 0.7 (2026-11-24): 인터페이스 명세 v0.2 반영. 팔 이름 arm_left · arm_right · arm_ship(로봇 ↔ fleet),
-#   /{arm}/state · /system/mode · /bridge/close_state 토픽, 구역 B · C · E 새 서비스 이름, 사유 코드 표,
-#   /fleet/force_ship 타입 ForceShip → TripCommand(브리지 ↔ fleet)
-# 0.6: ReportOrder 보류 사유와 CANCELED, /fleet/force_ship
+# 1.0 (2026-11-27): 팔 관제 합의 반영(로봇 ↔ fleet). /{arm}/set_pause(SetPause, arm_left · arm_right, 이름은 임시),
+#   FillBasket 사유 NOT_READY · UNKNOWN_TARGET와 진행 단계 5개, 사유 코드 HEARTBEAT_LOST(ArmState.detail),
+#   ArmState · FillBasket · SetLock · SetPause 뜻 주석
+# 0.9 (2026-11-26): 인터페이스 명세 v0.2의 나머지 반영. 팔 이름 틀 arm_left · arm_right · arm_ship(로봇 ↔ fleet),
+#   /{arm}/state · /bridge/close_state 토픽, 구역 B · C · E 새 서비스 이름, 사유 코드 표(+ NOT_IMPLEMENTED, MoveTo · Retreat NAV_UNAVAILABLE),
+#   /fleet/force_ship(TripCommand), 브리지 · central이 여는 이름에 not_in_fake 표시
+# 0.8 (2026-11-25): 로봇 ↔ fleet — /{robot}/set_mode 서비스(SetMode), RobotState에 boot_id · lock · last_request_id · mode · forced · detail 칸 (명세 v0.2 4.4 · 4.5),
+#   이름 틀 robot 추가.
+# 0.7 (2026-11-24): 주문 흐름 1차 — /central/submit_trip · /bridge/hello · /bridge/report_trip 서비스, /system/mode 토픽 추가.
+#   팔 이름 arm1 · arm2 · arm3 → arm_left · arm_right · arm_ship (명세 v0.2, 주문 흐름 1차 4.6).
 
 # ---- 이름 틀에 채울 로봇과 팔 이름 ----
 placeholders:
@@ -28,13 +34,15 @@ qos_profiles:
 # ---- 사유 코드 표 (명세 2.2, IR-05) ----
 reason_codes:
   request_rejected: [NOT_FOUND, ALREADY_ASSIGNED, ORDER_STATE, NOT_STOPPED, LOCK_RELEASED, HOLDING_ITEM,
-                     NOT_TEST_MODE, MODE_MISMATCH, BATTERY_LOW, UNKNOWN_TARGET, NOT_READY]
+                     NOT_TEST_MODE, MODE_MISMATCH, BATTERY_LOW, UNKNOWN_TARGET, NOT_READY, NOT_IMPLEMENTED]
   command_result: [ROBOT_REJECTED, ROBOT_TIMEOUT]
   fill_pause: [PICK_FAILED, RECOGNITION_ERROR, OUT_OF_STOCK, DISTANCE_STOP, PAUSE_REQUESTED]
   hold: [ROBOT_FAULT, ARM_FAULT, FLEET_RESTART]
   cancel: [USER_CANCEL, NOTHING_TO_FILL, STOCK_RECHECK]
   admin: [FORCED_SHIP, FORCED_PARTIAL, RETURNED_TO_SHELF, REASSIGN]
   report: [APPLIED, DUPLICATE, LATE_REPORT]
+  move: [NAV_UNAVAILABLE]
+  robot_state: [HEARTBEAT_LOST]  # 로봇 상태 detail: 관제 heartbeat가 끊겨도 작업은 계속
 
 # ---- 토픽 ----
 topics:
@@ -69,10 +77,11 @@ actions:
 services:
   # ---- 로봇 ↔ fleet ----
   - {key: check_clear, name: "/{pode}/check_clear", type: fleet_interfaces/srv/CheckClear, real_only: true}
-  - {key: robot_set_lock, name: "/{robot}/set_lock", type: fleet_interfaces/srv/SetLock, instances: {robot: [pode1, pode2, pode3, arm_left, arm_right]}, not_in_fake: true}
+  - {key: robot_set_lock, name: "/{robot}/set_lock", type: fleet_interfaces/srv/SetLock, not_in_fake: true}
   - {key: robot_set_mode, name: "/{robot}/set_mode", type: fleet_interfaces/srv/SetMode, not_in_fake: true}
   - {key: robot_force, name: "/{robot}/force", type: fleet_interfaces/srv/ForceInput, not_in_fake: true}
   - {key: arm_fault_resolved, name: "/{arm}/fault_resolved", type: fleet_interfaces/srv/RobotCommand, instances: {arm: [arm_left, arm_right]}, not_in_fake: true}
+  - {key: arm_set_pause, name: "/{arm}/set_pause", type: fleet_interfaces/srv/SetPause, instances: {arm: [arm_left, arm_right]}, not_in_fake: true}
   - {key: pode_charge_end, name: "/{pode}/charge_end", type: fleet_interfaces/srv/RobotCommand, not_in_fake: true}
   # ---- 브리지 ↔ central ----
   - {key: submit_trip, name: "/central/submit_trip", type: fleet_interfaces/srv/SubmitTrip, not_in_fake: true}

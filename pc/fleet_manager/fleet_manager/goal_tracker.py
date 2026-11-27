@@ -1,4 +1,4 @@
-# ---- 액션 goal 추적과 보고 재전송 대기열 ----
+# ---- 액션 goal 추적과 보고 재전송 대기열(central·브리지) ----
 from __future__ import annotations
 
 import random
@@ -171,3 +171,141 @@ class ReportOutbox:
         if report is None:
             return None
         return [f for _, f in report.requests if f is not None and f is not future]
+
+
+# ---- 브리지 보고(Report*) 대기열: epoch 전 보류, 건마다 하나씩, 최신으로 바꿔 끼움 ----
+def backoff_s(attempt: int, first_s: float, max_s: float, factor: float) -> float:
+    # IR-40: 1 → 2 → 4 s … 상한 max_s, 지터 배수를 곱한다
+    # 지수를 묶어 오래 실패해도 넘치지 않게 한다
+    return min(first_s * 2.0 ** min(attempt - 1, 60), max_s) * factor
+
+
+@dataclass
+class _Slot:
+    queued: tuple | None = None  # 보낼 (n, payload). 새 보고가 오면 바꿔 끼운다
+    flight: tuple | None = None  # 답을 기다리는 (token, n, payload, 보낸 시각)
+    attempt: int = 0
+    next_at: float = float("-inf")
+
+
+class BridgeOutbox:
+    def __init__(self, first_s: float, max_s: float, reply_limit_s: float, max_in_flight: int,
+                 rand=random.random):
+        self._first_s, self._max_s = first_s, max_s
+        self._reply_limit_s, self._cap = reply_limit_s, max_in_flight
+        self._rand = rand
+        self._slots: dict = {}  # 키 -> _Slot, 넣은 순서
+        self._tokens: dict = {}  # token -> 키
+        self._n = 0
+        self._next_token = 0
+        self.epoch = None
+
+    def set_epoch(self, epoch: int) -> None:
+        self.epoch = epoch
+
+    def put(self, key, payload) -> int:
+        # IR-23: 보내지 않은 같은 건 보고는 최신 것으로 바꾸고 n을 새로 준다
+        self._n += 1
+        self._slots.setdefault(key, _Slot()).queued = (self._n, payload)
+        return self._n
+
+    def waiting(self) -> int:
+        return sum(s.queued is not None or s.flight is not None for s in self._slots.values())
+
+    def in_flight(self) -> list:
+        return [s.flight[0] for s in self._slots.values() if s.flight is not None]
+
+    def due(self, now: float) -> list:
+        # IR-22: epoch 전에는 보내지 않는다
+        if self.epoch is None:
+            return []
+        busy = len(self.in_flight())
+        out = []
+        for key, slot in self._slots.items():
+            if slot.flight is not None or slot.queued is None or now < slot.next_at:
+                continue
+            if busy >= self._cap:
+                break
+            busy += 1
+            n, payload = slot.queued
+            slot.queued = None
+            token = self._next_token
+            self._next_token += 1
+            slot.flight = (token, n, payload, now)
+            self._tokens[token] = key
+            out.append((token, payload, self.epoch, n))
+        return out
+
+    def answered(self, token, delivered: bool, now: float) -> None:
+        key = self._tokens.pop(token, None)
+        slot = self._slots.get(key)
+        if slot is None or slot.flight is None or slot.flight[0] != token:
+            return  # 이미 버린 요청의 늦은 답
+        _, n, payload, _ = slot.flight
+        slot.flight = None
+        if delivered:
+            slot.attempt, slot.next_at = 0, float("-inf")
+            if slot.queued is None:
+                del self._slots[key]
+            return
+        # 같은 n으로 다시 보낸다. 그 사이 새 보고가 왔으면 그것을 보낸다
+        if slot.queued is None:
+            slot.queued = (n, payload)
+        slot.attempt += 1
+        slot.next_at = now + backoff_s(slot.attempt, self._first_s, self._max_s,
+                                       _factor(self._rand))
+
+    def expire(self, now: float) -> list:
+        # IR-41: 응답 한도를 넘긴 요청은 실패로 치고 token을 돌려준다(클라이언트에서 버림)
+        expired = [s.flight[0] for s in self._slots.values()
+                   if s.flight is not None and now - s.flight[3] >= self._reply_limit_s]
+        for token in expired:
+            self.answered(token, False, now)
+        return expired
+
+
+# ---- Hello → ListOpenTrips: 한 번에 하나, 실패하면 같은 간격으로 계속 ----
+class Handshake:
+    def __init__(self, first_s: float, max_s: float, reply_limit_s: float, rand=random.random):
+        self._first_s, self._max_s, self._reply_limit_s = first_s, max_s, reply_limit_s
+        self._rand = rand
+        self._phase = "hello"
+        self._sent_at = None
+        self._attempt = 0
+        self._next_at = float("-inf")
+        self.epoch = None
+
+    @property
+    def done(self) -> bool:
+        return self._phase == "done"
+
+    def due(self, now: float):
+        if self.done or self._sent_at is not None or now < self._next_at:
+            return None
+        return self._phase
+
+    def sent(self, now: float) -> None:
+        self._sent_at = now
+
+    def failed(self, now: float) -> None:
+        self._sent_at = None
+        self._attempt += 1
+        self._next_at = now + backoff_s(self._attempt, self._first_s, self._max_s,
+                                        _factor(self._rand))
+
+    def expired(self, now: float) -> bool:
+        if self._sent_at is None or now - self._sent_at < self._reply_limit_s:
+            return False
+        self.failed(now)
+        return True
+
+    def hello_ok(self, epoch: int) -> None:
+        self.epoch = epoch
+        self._advance("list")
+
+    def list_ok(self) -> None:
+        self._advance("done")
+
+    def _advance(self, phase: str) -> None:
+        self._phase, self._sent_at = phase, None
+        self._attempt, self._next_at = 0, float("-inf")

@@ -7,8 +7,10 @@ pytest.importorskip("rclpy")
 pytest.importorskip("fleet_interfaces.msg")
 
 from conftest import CONTRACT, wait_until, write_scenario  # noqa: E402
-from fleet_core.common.contract import load_contract  # noqa: E402
+from fleet_core.common.contract import load_contract, to_ros_qos  # noqa: E402
 from fleet_interfaces.action import SwapBasket  # noqa: E402
+from fleet_interfaces.msg import ArmState  # noqa: E402
+from fleet_interfaces.srv import ForceInput, SetLock, SetMode  # noqa: E402
 from rclpy.action import ActionClient  # noqa: E402
 
 C = load_contract(CONTRACT)
@@ -168,3 +170,123 @@ def test_sim_clock_holds_zero_during_the_start_delay(harness):
     assert stamps[0][1] == 0.0
     assert wait_until(lambda: stamps[-1][1] > 0.0, 5.0)
     assert next(w for w, s in stamps if s > 0.0) - first_wall > 0.5, "it held zero for a while"
+
+
+
+def test_arm_ship_starts_unknown_and_takes_a_mode(harness, tmp_path):
+    import rclpy.node
+    start_arm(harness, tmp_path)
+    probe = harness.add(rclpy.node.Node("arm_mode_probe"))
+    seen = []
+    probe.create_subscription(ArmState, C.name("arm_state", arm="arm_ship"), seen.append,
+                              to_ros_qos(C.qos("arm_state")))
+    assert wait_until(lambda: seen, 5.0)
+    assert seen[-1].mode == "UNKNOWN" and len(seen[-1].boot_id) == 36
+    client = probe.create_client(SetMode, C.name("robot_set_mode", robot="arm_ship"))
+    assert client.wait_for_service(10.0)
+    fut = client.call_async(SetMode.Request(request_id="s1", mode="TEST"))
+    assert wait_until(fut.done, 5.0) and fut.result().accepted
+    assert wait_until(lambda: seen[-1].mode == "TEST", 5.0)
+    fut = client.call_async(SetMode.Request(request_id="s2", mode="FAST"))
+    assert wait_until(fut.done, 5.0)
+    assert not fut.result().accepted and fut.result().reason == "MODE_MISMATCH"
+
+
+def test_arm_ship_releases_its_lock_and_refuses_a_swap_meanwhile(harness, tmp_path):
+    import rclpy.node
+    client = start_arm(harness, tmp_path)
+    probe = harness.add(rclpy.node.Node("arm_lock_probe"))
+    seen = []
+    probe.create_subscription(ArmState, C.name("arm_state", arm="arm_ship"), seen.append,
+                              to_ros_qos(C.qos("arm_state")))
+    assert wait_until(lambda: seen and seen[-1].lock, 5.0)
+    lock = probe.create_client(SetLock, C.name("robot_set_lock", robot="arm_ship"))
+    assert lock.wait_for_service(10.0)
+
+    def set_lock(locked, request_id):
+        fut = lock.call_async(SetLock.Request(request_id=request_id, robot_id="arm_ship",
+                                              locked=locked))
+        assert wait_until(fut.done, 5.0)
+        return fut.result()
+
+    assert set_lock(False, "l1").accepted
+    assert wait_until(lambda: not seen[-1].lock, 5.0)
+    assert seen[-1].last_request_id == "l1"
+    fut = client.send_goal_async(SwapBasket.Goal(take_full=True, put_empty=True))
+    assert wait_until(fut.done, 5.0)
+    assert not fut.result().accepted
+    # 같은 번호는 같은 답, 다시 반영하지 않는다
+    assert set_lock(True, "l1").accepted
+    time.sleep(0.5)
+    assert not seen[-1].lock
+    assert set_lock(True, "l2").accepted
+    assert result_of(send(client)[0]).success is True
+
+
+def test_arm_ship_is_not_stopped_once_a_swap_is_accepted(harness, tmp_path):
+    import rclpy.node
+    from fake_robots.fake_arm_node import FakeArmNode
+    from rclpy.action import GoalResponse
+    node = harness.add(FakeArmNode(parameter_overrides=harness.params(
+        arm_id="arm_ship", scenario_file=write_scenario(tmp_path))))
+    probe = harness.add(rclpy.node.Node("arm_race_probe"))
+    lock = probe.create_client(SetLock, C.name("robot_set_lock", robot="arm_ship"))
+    assert lock.wait_for_service(10.0)
+    try:
+        assert node._on_goal(None) == GoalResponse.ACCEPT  # 받았지만 상태는 아직 IDLE
+        fut = lock.call_async(SetLock.Request(request_id="l1", robot_id="arm_ship",
+                                              locked=False))
+        assert wait_until(fut.done, 5.0)
+        assert (fut.result().accepted, fut.result().reason) == (False, "NOT_STOPPED")
+        assert node._admin.lock
+    finally:
+        node._busy = False
+
+
+def test_arm_ship_in_error_is_not_stopped_once_a_swap_is_accepted(harness, tmp_path):
+    import rclpy.node
+    from fake_robots.fake_arm_node import FakeArmNode
+    from rclpy.action import GoalResponse
+    node = harness.add(FakeArmNode(parameter_overrides=harness.params(
+        arm_id="arm_ship", scenario_file=write_scenario(tmp_path))))
+    probe = harness.add(rclpy.node.Node("arm_error_probe"))
+    lock = probe.create_client(SetLock, C.name("robot_set_lock", robot="arm_ship"))
+    assert lock.wait_for_service(10.0)
+    node._show_error()
+    try:
+        assert node._on_goal(None) == GoalResponse.ACCEPT  # ERROR여도 받고 움직인다
+        fut = lock.call_async(SetLock.Request(request_id="l1", robot_id="arm_ship",
+                                              locked=False))
+        assert wait_until(fut.done, 5.0)
+        assert (fut.result().accepted, fut.result().reason) == (False, "NOT_STOPPED")
+    finally:
+        node._busy = False
+
+
+def test_arm_ship_force_needs_the_test_mode_and_shows_in_its_state(harness, tmp_path):
+    import rclpy.node
+    start_arm(harness, tmp_path)
+    probe = harness.add(rclpy.node.Node("arm_force_probe"))
+    seen = []
+    probe.create_subscription(ArmState, C.name("arm_state", arm="arm_ship"), seen.append,
+                              to_ros_qos(C.qos("arm_state")))
+    assert wait_until(lambda: seen, 5.0)
+    clients = {srv: probe.create_client(srv, C.name(key, robot="arm_ship"))
+               for srv, key in ((ForceInput, "robot_force"), (SetMode, "robot_set_mode"))}
+
+    def ask(srv, **request):
+        assert clients[srv].wait_for_service(10.0)
+        fut = clients[srv].call_async(srv.Request(**request))
+        assert wait_until(fut.done, 5.0)
+        return fut.result()
+
+    def force(request_id, kind="CONDITION", value="1"):
+        return ask(ForceInput, request_id=request_id, robot_id="arm_ship", kind=kind,
+                   key="grip_fail", value=value)
+
+    assert force("f1").reason == "NOT_TEST_MODE"
+    assert ask(SetMode, request_id="m1", mode="TEST").accepted
+    assert force("f2").accepted
+    assert wait_until(lambda: list(seen[-1].forced) == ["grip_fail"], 5.0)
+    assert force("f3", kind="CLEAR", value="").accepted
+    assert wait_until(lambda: list(seen[-1].forced) == [], 5.0)

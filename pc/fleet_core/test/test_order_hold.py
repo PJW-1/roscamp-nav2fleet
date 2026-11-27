@@ -26,15 +26,15 @@ def calls(out):
 
 
 def fail_fill(core, now, fill, placed_first=None, robot="r1"):
-    """채우기를 재시도 한도를 넘게 실패시킨다. 첫 시도에만 placed_first를 담는다."""
+    """채우기를 재시도 한도를 넘게 실패시킨다(재시도는 NOT_READY만). 첫 시도에만 placed_first를 담는다."""
     placed = placed_first or {}
     for _ in range(core.params.move_retry_limit):
-        core.on_fill_result(fill.goal_id, False, placed, {}, "GRIPPER")
+        core.on_fill_result(fill.goal_id, False, placed, {}, "NOT_READY")
         placed = {}
         now[0] += core.params.arm_retry_wait_s
         core.step(robot)
         fill = cmds(core.take_output(), "FillCmd")[0]
-    core.on_fill_result(fill.goal_id, False, placed, {}, "GRIPPER")
+    core.on_fill_result(fill.goal_id, False, placed, {}, "NOT_READY")
     return core.take_output()
 
 
@@ -224,7 +224,7 @@ def test_isolation_during_a_fill_that_placed_nothing_puts_the_order_back():
 
 def test_a_clear_during_a_fill_drops_the_arm_and_holds_what_was_placed_so_far():
     core, now, fill = filling()
-    core.on_fill_result(fill.goal_id, False, {"A": 1}, {}, "GRIPPER")
+    core.on_fill_result(fill.goal_id, False, {"A": 1}, {}, "NOT_READY")
     now[0] += core.params.arm_retry_wait_s
     core.step("r1")
     retry = cmds(core.take_output(), "FillCmd")[0]
@@ -360,7 +360,7 @@ def test_isolation_during_a_forced_swap_stops_it_even_with_an_old_result_due():
 
 def test_a_late_fill_after_a_forced_ship_keeps_placed_and_missing_in_step():
     core, now, fill = filling()
-    core.on_fill_result(fill.goal_id, False, {"A": 1}, {}, "GRIPPER")
+    core.on_fill_result(fill.goal_id, False, {"A": 1}, {}, "NOT_READY")
     now[0] += core.params.arm_retry_wait_s
     core.step("r1")
     retry = cmds(core.take_output(), "FillCmd")[0]

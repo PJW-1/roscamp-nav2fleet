@@ -1,0 +1,15 @@
+stdin is not a terminal device. Keyboard handling disabled.[INFO] [1795420757.468086530] [rosbag2_recorder]: Press SPACE for pausing/resuming
+[INFO] [1795420757.468131640] [rosbag2_recorder]: Event publisher thread: Started
+[INFO] [1795420757.483945481] [rosbag2_recorder]: Starting recording to 'bags/1123_ds_off2'
+[INFO] [1795420757.491848791] [rosbag2_recorder]: Listening for topics...
+[INFO] [1795420757.492016400] [rosbag2_recorder]: Recording...
+[INFO] [1795420757.491918271] [rosbag2_recorder]: Topics discovery started.
+[INFO] [1795420796.321290675] [rosbag2_recorder]: Subscribed to topic '/pode1/tf'
+[INFO] [1795420796.340305735] [rosbag2_recorder]: Subscribed to topic '/pode1/tf_static'
+[INFO] [1795420797.239356109] [rosbag2_recorder]: Subscribed to topic '/pode1/scan'
+[INFO] [1795420802.093393508] [rosbag2_recorder]: Subscribed to topic '/pode1/cmd_vel'
+[INFO] [1795420804.777407226] [rosbag2_recorder]: Subscribed to topic '/pode1/odom'
+[INFO] [1795420806.711737842] [rosbag2_recorder]: Subscribed to topic '/pode1/state'
+[INFO] [1795420808.498185184] [rosbag2_recorder]: Subscribed to topic '/pode1/particle_cloud'
+[INFO] [1795420808.578239614] [rosbag2_recorder]: Subscribed to topic '/pode1/amcl_pose'
+[INFO] [1795420814.318107742] [rosbag2_recorder]: Subscribed to topic '/pode1/plan'

@@ -13,6 +13,7 @@ import pytest
 from fleet_core.common.commands import (
     TRIP_ASSIGNED,
     TRIP_FILLING,
+    TRIP_FILLING_PAUSE,
     TRIP_STATUSES,
     TRIP_TRANSPORTING,
     ReportOrderCmd,
@@ -22,8 +23,8 @@ from fleet_core.common.params import load_params
 from fleet_core.fleet_map import load_fleet_map
 from fleet_core.manager import FleetManager
 
-# contract 0.7 ReportTrip.srv의 STATUS_* 값 가운데 진행 단계 세 개
-SRV_PROGRESS = ("ASSIGNED", "FILLING", "TRANSPORTING")
+# ReportTrip.srv의 STATUS_* 값 가운데 진행 단계 네 개 (담기 일시 중지는 팔 관제 합의 ①)
+SRV_PROGRESS = ("ASSIGNED", "FILLING", "TRANSPORTING", "FILLING_PAUSE")
 FINAL = {"SHIPPED", "PARTIAL", "HELD", "CANCELED", "CANCELLED"}
 
 
@@ -36,7 +37,8 @@ def test_the_fields_follow_the_agreed_draft():
 
 
 def test_the_progress_statuses_are_spelled_like_report_trip_in_the_normal_order():
-    assert TRIP_STATUSES == (TRIP_ASSIGNED, TRIP_FILLING, TRIP_TRANSPORTING)
+    assert TRIP_STATUSES == (TRIP_ASSIGNED, TRIP_FILLING, TRIP_TRANSPORTING,
+                             TRIP_FILLING_PAUSE)
     assert TRIP_STATUSES == SRV_PROGRESS
 
 
@@ -111,6 +113,6 @@ def _srv_statuses():
 def test_trip_statuses_are_report_trip_srv_constants():
     statuses = _srv_statuses()
     assert set(TRIP_STATUSES) <= set(statuses)
-    # 끝 상태는 ReportOrder가, RECEIVED는 central이, FILLING_PAUSE는 다음 주 몫이다
+    # 끝 상태는 ReportOrder가, RECEIVED는 central이 맡는다
     assert set(statuses) - set(TRIP_STATUSES) == {
-        "RECEIVED", "FILLING_PAUSE", "SHIPPED", "PARTIAL", "HELD", "CANCELLED"}
+        "RECEIVED", "SHIPPED", "PARTIAL", "HELD", "CANCELLED"}

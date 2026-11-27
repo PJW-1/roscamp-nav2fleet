@@ -158,11 +158,11 @@ def test_the_order_is_reported_on_the_take_even_if_the_put_still_has_to_be_done(
 def test_running_out_of_arm_attempts_holds_the_order_and_faults_no_robot():
     core, now, fill = filling()
     for _ in range(core.params.move_retry_limit):
-        core.on_fill_result(fill.goal_id, False, {}, {}, "GRIPPER")
+        core.on_fill_result(fill.goal_id, False, {}, {}, "NOT_READY")
         now[0] += core.params.arm_retry_wait_s
         core.step("r1")
         fill = cmds(core.take_output(), "FillCmd")[0]
-    core.on_fill_result(fill.goal_id, False, {}, {}, "GRIPPER")
+    core.on_fill_result(fill.goal_id, False, {}, {}, "NOT_READY")
     out = core.take_output()
     assert "FILL_FAILED" in codes(out)
     assert not only(out, RobotFaultCmd)
@@ -224,18 +224,18 @@ def test_a_failed_outbound_dispatch_keeps_the_order_for_the_operator():
     assert not core.take_output()
 
 
-def test_a_fill_the_server_canceled_by_itself_counts_as_an_attempt_with_the_retry_wait():
-    """여기선 아무도 요청하지 않았다. 세지 않으면 틱마다 한없이 다시 보낸다."""
+def test_a_fill_the_server_canceled_by_itself_is_held_without_a_retry():
+    """여기선 아무도 요청하지 않았다. 재시도는 NOT_READY만이라 보류로 관리자를 기다린다."""
     core, now, fill = filling()
     core.on_fill_result(fill.goal_id, False, {"A": 1}, {}, "CANCELED")
-    assert "FILL_RETRY" in codes(core.take_output())
-    assert core.robot_view("r1")["attempts"] == 1
+    out = core.take_output()
+    assert "FILL_FAILED" in codes(out) and "FILL_RETRY" not in codes(out)
+    assert [(r.status, r.hold_reason) for r in cmds(out, "ReportOrderCmd")] == [
+        ("HELD", "ARM_FAULT")]
     assert core.robot_view("r1")["placed"] == {"A": 1}
+    now[0] += 3600.0
     core.step("r1")
-    assert not cmds(core.take_output(), "FillCmd"), "the retry wait applies"
-    now[0] += core.params.arm_retry_wait_s
-    core.step("r1")
-    assert cmds(core.take_output(), "FillCmd")
+    assert not cmds(core.take_output(), "FillCmd"), "never sent again by itself"
 
 
 def test_a_swap_the_server_canceled_by_itself_counts_as_an_attempt_with_the_retry_wait():
@@ -248,19 +248,6 @@ def test_a_swap_the_server_canceled_by_itself_counts_as_an_attempt_with_the_retr
     now[0] += core.params.arm_retry_wait_s
     core.step("r1")
     assert cmds(core.take_output(), "SwapCmd")
-
-
-def test_a_server_that_keeps_canceling_by_itself_runs_out_of_attempts():
-    core, now, fill = filling()
-    for _ in range(core.params.move_retry_limit):
-        core.on_fill_result(fill.goal_id, False, {}, {}, "CANCELED")
-        now[0] += core.params.arm_retry_wait_s
-        core.step("r1")
-        fill = cmds(core.take_output(), "FillCmd")[0]
-    core.on_fill_result(fill.goal_id, False, {}, {}, "CANCELED")
-    out = core.take_output()
-    assert "FILL_FAILED" in codes(out)
-    assert not only(out, RobotFaultCmd)
 
 
 def test_a_cancel_this_fms_asked_for_stays_harmless():

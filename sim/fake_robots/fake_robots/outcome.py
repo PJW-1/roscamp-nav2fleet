@@ -26,6 +26,7 @@ class Outcome:
         allowed_errors = {*ex.events_include, *ex.event_counts}
         unexpected = [c for c in self.error_codes if c not in allowed_errors]
         timed_out = not self._complete()
+        while_error, after_resolved = self.dispatch_checks()
 
         def exact(value, expected):
             return {"value": value, "expected": expected,
@@ -63,6 +64,9 @@ class Outcome:
                                                   ex.bound_after_reinstate_min),
             "shipped_after_reinstate_min": at_least(self.shipped_after_reinstate,
                                                     ex.shipped_after_reinstate_min),
+            "fill_dispatch_while_arm_error": exact(while_error, ex.fill_dispatch_while_arm_error),
+            "fill_dispatch_after_resolved_min": at_least(after_resolved,
+                                                         ex.fill_dispatch_after_resolved_min),
             "unexpected_errors": {"value": len(unexpected), "expected": ex.unexpected_errors,
                                   "codes": unexpected,
                                   "ok": len(unexpected) == ex.unexpected_errors},

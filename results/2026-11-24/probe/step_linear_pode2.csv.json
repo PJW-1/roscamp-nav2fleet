@@ -1,0 +1,625 @@
+{
+ "args": {
+  "ns": "pode2",
+  "set_name": "linear",
+  "out": "probe/step_linear_pode2.csv",
+  "limit": 0.6,
+  "repeats": 3,
+  "step_s": 2.0,
+  "pause_s": 2.0,
+  "small_s": 3.0,
+  "arc_s": 4.0,
+  "arc_v": 0.1,
+  "arc_w": 0.5,
+  "home_s": 30.0,
+  "no_home": false,
+  "rate": 20.0,
+  "odom_timeout": 1.0,
+  "allow": "cmd_watchdog",
+  "use_sim_time": false,
+  "dry_run": false
+ },
+ "exit": 0,
+ "segments": [
+  {
+   "set": "linear",
+   "repeat": 1,
+   "step": 1,
+   "phase": "pause",
+   "label": "v0.05",
+   "v": 0.0,
+   "w": 0.0,
+   "duration": 2.0
+  },
+  {
+   "set": "linear",
+   "repeat": 1,
+   "step": 1,
+   "phase": "step",
+   "label": "v0.05",
+   "v": 0.05,
+   "w": 0.0,
+   "duration": 2.0
+  },
+  {
+   "set": "linear",
+   "repeat": 1,
+   "step": 1,
+   "phase": "stop",
+   "label": "v0.05",
+   "v": 0.0,
+   "w": 0.0,
+   "duration": 2.0
+  },
+  {
+   "set": "linear",
+   "repeat": 1,
+   "step": 1,
+   "phase": "home",
+   "label": "v0.05",
+   "v": 0.0,
+   "w": 0.0,
+   "duration": 30.0
+  },
+  {
+   "set": "linear",
+   "repeat": 1,
+   "step": 2,
+   "phase": "pause",
+   "label": "v0.10",
+   "v": 0.0,
+   "w": 0.0,
+   "duration": 2.0
+  },
+  {
+   "set": "linear",
+   "repeat": 1,
+   "step": 2,
+   "phase": "step",
+   "label": "v0.10",
+   "v": 0.1,
+   "w": 0.0,
+   "duration": 2.0
+  },
+  {
+   "set": "linear",
+   "repeat": 1,
+   "step": 2,
+   "phase": "stop",
+   "label": "v0.10",
+   "v": 0.0,
+   "w": 0.0,
+   "duration": 2.0
+  },
+  {
+   "set": "linear",
+   "repeat": 1,
+   "step": 2,
+   "phase": "home",
+   "label": "v0.10",
+   "v": 0.0,
+   "w": 0.0,
+   "duration": 30.0
+  },
+  {
+   "set": "linear",
+   "repeat": 1,
+   "step": 3,
+   "phase": "pause",
+   "label": "v0.15",
+   "v": 0.0,
+   "w": 0.0,
+   "duration": 2.0
+  },
+  {
+   "set": "linear",
+   "repeat": 1,
+   "step": 3,
+   "phase": "step",
+   "label": "v0.15",
+   "v": 0.15,
+   "w": 0.0,
+   "duration": 2.0
+  },
+  {
+   "set": "linear",
+   "repeat": 1,
+   "step": 3,
+   "phase": "stop",
+   "label": "v0.15",
+   "v": 0.0,
+   "w": 0.0,
+   "duration": 2.0
+  },
+  {
+   "set": "linear",
+   "repeat": 1,
+   "step": 3,
+   "phase": "home",
+   "label": "v0.15",
+   "v": 0.0,
+   "w": 0.0,
+   "duration": 30.0
+  },
+  {
+   "set": "linear",
+   "repeat": 1,
+   "step": 4,
+   "phase": "pause",
+   "label": "v0.20",
+   "v": 0.0,
+   "w": 0.0,
+   "duration": 2.0
+  },
+  {
+   "set": "linear",
+   "repeat": 1,
+   "step": 4,
+   "phase": "step",
+   "label": "v0.20",
+   "v": 0.2,
+   "w": 0.0,
+   "duration": 2.0
+  },
+  {
+   "set": "linear",
+   "repeat": 1,
+   "step": 4,
+   "phase": "stop",
+   "label": "v0.20",
+   "v": 0.0,
+   "w": 0.0,
+   "duration": 2.0
+  },
+  {
+   "set": "linear",
+   "repeat": 1,
+   "step": 4,
+   "phase": "home",
+   "label": "v0.20",
+   "v": 0.0,
+   "w": 0.0,
+   "duration": 30.0
+  },
+  {
+   "set": "linear",
+   "repeat": 1,
+   "step": 5,
+   "phase": "pause",
+   "label": "v0.25",
+   "v": 0.0,
+   "w": 0.0,
+   "duration": 2.0
+  },
+  {
+   "set": "linear",
+   "repeat": 1,
+   "step": 5,
+   "phase": "step",
+   "label": "v0.25",
+   "v": 0.25,
+   "w": 0.0,
+   "duration": 2.0
+  },
+  {
+   "set": "linear",
+   "repeat": 1,
+   "step": 5,
+   "phase": "stop",
+   "label": "v0.25",
+   "v": 0.0,
+   "w": 0.0,
+   "duration": 2.0
+  },
+  {
+   "set": "linear",
+   "repeat": 1,
+   "step": 5,
+   "phase": "home",
+   "label": "v0.25",
+   "v": 0.0,
+   "w": 0.0,
+   "duration": 30.0
+  },
+  {
+   "set": "linear",
+   "repeat": 2,
+   "step": 6,
+   "phase": "pause",
+   "label": "v0.05",
+   "v": 0.0,
+   "w": 0.0,
+   "duration": 2.0
+  },
+  {
+   "set": "linear",
+   "repeat": 2,
+   "step": 6,
+   "phase": "step",
+   "label": "v0.05",
+   "v": 0.05,
+   "w": 0.0,
+   "duration": 2.0
+  },
+  {
+   "set": "linear",
+   "repeat": 2,
+   "step": 6,
+   "phase": "stop",
+   "label": "v0.05",
+   "v": 0.0,
+   "w": 0.0,
+   "duration": 2.0
+  },
+  {
+   "set": "linear",
+   "repeat": 2,
+   "step": 6,
+   "phase": "home",
+   "label": "v0.05",
+   "v": 0.0,
+   "w": 0.0,
+   "duration": 30.0
+  },
+  {
+   "set": "linear",
+   "repeat": 2,
+   "step": 7,
+   "phase": "pause",
+   "label": "v0.10",
+   "v": 0.0,
+   "w": 0.0,
+   "duration": 2.0
+  },
+  {
+   "set": "linear",
+   "repeat": 2,
+   "step": 7,
+   "phase": "step",
+   "label": "v0.10",
+   "v": 0.1,
+   "w": 0.0,
+   "duration": 2.0
+  },
+  {
+   "set": "linear",
+   "repeat": 2,
+   "step": 7,
+   "phase": "stop",
+   "label": "v0.10",
+   "v": 0.0,
+   "w": 0.0,
+   "duration": 2.0
+  },
+  {
+   "set": "linear",
+   "repeat": 2,
+   "step": 7,
+   "phase": "home",
+   "label": "v0.10",
+   "v": 0.0,
+   "w": 0.0,
+   "duration": 30.0
+  },
+  {
+   "set": "linear",
+   "repeat": 2,
+   "step": 8,
+   "phase": "pause",
+   "label": "v0.15",
+   "v": 0.0,
+   "w": 0.0,
+   "duration": 2.0
+  },
+  {
+   "set": "linear",
+   "repeat": 2,
+   "step": 8,
+   "phase": "step",
+   "label": "v0.15",
+   "v": 0.15,
+   "w": 0.0,
+   "duration": 2.0
+  },
+  {
+   "set": "linear",
+   "repeat": 2,
+   "step": 8,
+   "phase": "stop",
+   "label": "v0.15",
+   "v": 0.0,
+   "w": 0.0,
+   "duration": 2.0
+  },
+  {
+   "set": "linear",
+   "repeat": 2,
+   "step": 8,
+   "phase": "home",
+   "label": "v0.15",
+   "v": 0.0,
+   "w": 0.0,
+   "duration": 30.0
+  },
+  {
+   "set": "linear",
+   "repeat": 2,
+   "step": 9,
+   "phase": "pause",
+   "label": "v0.20",
+   "v": 0.0,
+   "w": 0.0,
+   "duration": 2.0
+  },
+  {
+   "set": "linear",
+   "repeat": 2,
+   "step": 9,
+   "phase": "step",
+   "label": "v0.20",
+   "v": 0.2,
+   "w": 0.0,
+   "duration": 2.0
+  },
+  {
+   "set": "linear",
+   "repeat": 2,
+   "step": 9,
+   "phase": "stop",
+   "label": "v0.20",
+   "v": 0.0,
+   "w": 0.0,
+   "duration": 2.0
+  },
+  {
+   "set": "linear",
+   "repeat": 2,
+   "step": 9,
+   "phase": "home",
+   "label": "v0.20",
+   "v": 0.0,
+   "w": 0.0,
+   "duration": 30.0
+  },
+  {
+   "set": "linear",
+   "repeat": 2,
+   "step": 10,
+   "phase": "pause",
+   "label": "v0.25",
+   "v": 0.0,
+   "w": 0.0,
+   "duration": 2.0
+  },
+  {
+   "set": "linear",
+   "repeat": 2,
+   "step": 10,
+   "phase": "step",
+   "label": "v0.25",
+   "v": 0.25,
+   "w": 0.0,
+   "duration": 2.0
+  },
+  {
+   "set": "linear",
+   "repeat": 2,
+   "step": 10,
+   "phase": "stop",
+   "label": "v0.25",
+   "v": 0.0,
+   "w": 0.0,
+   "duration": 2.0
+  },
+  {
+   "set": "linear",
+   "repeat": 2,
+   "step": 10,
+   "phase": "home",
+   "label": "v0.25",
+   "v": 0.0,
+   "w": 0.0,
+   "duration": 30.0
+  },
+  {
+   "set": "linear",
+   "repeat": 3,
+   "step": 11,
+   "phase": "pause",
+   "label": "v0.05",
+   "v": 0.0,
+   "w": 0.0,
+   "duration": 2.0
+  },
+  {
+   "set": "linear",
+   "repeat": 3,
+   "step": 11,
+   "phase": "step",
+   "label": "v0.05",
+   "v": 0.05,
+   "w": 0.0,
+   "duration": 2.0
+  },
+  {
+   "set": "linear",
+   "repeat": 3,
+   "step": 11,
+   "phase": "stop",
+   "label": "v0.05",
+   "v": 0.0,
+   "w": 0.0,
+   "duration": 2.0
+  },
+  {
+   "set": "linear",
+   "repeat": 3,
+   "step": 11,
+   "phase": "home",
+   "label": "v0.05",
+   "v": 0.0,
+   "w": 0.0,
+   "duration": 30.0
+  },
+  {
+   "set": "linear",
+   "repeat": 3,
+   "step": 12,
+   "phase": "pause",
+   "label": "v0.10",
+   "v": 0.0,
+   "w": 0.0,
+   "duration": 2.0
+  },
+  {
+   "set": "linear",
+   "repeat": 3,
+   "step": 12,
+   "phase": "step",
+   "label": "v0.10",
+   "v": 0.1,
+   "w": 0.0,
+   "duration": 2.0
+  },
+  {
+   "set": "linear",
+   "repeat": 3,
+   "step": 12,
+   "phase": "stop",
+   "label": "v0.10",
+   "v": 0.0,
+   "w": 0.0,
+   "duration": 2.0
+  },
+  {
+   "set": "linear",
+   "repeat": 3,
+   "step": 12,
+   "phase": "home",
+   "label": "v0.10",
+   "v": 0.0,
+   "w": 0.0,
+   "duration": 30.0
+  },
+  {
+   "set": "linear",
+   "repeat": 3,
+   "step": 13,
+   "phase": "pause",
+   "label": "v0.15",
+   "v": 0.0,
+   "w": 0.0,
+   "duration": 2.0
+  },
+  {
+   "set": "linear",
+   "repeat": 3,
+   "step": 13,
+   "phase": "step",
+   "label": "v0.15",
+   "v": 0.15,
+   "w": 0.0,
+   "duration": 2.0
+  },
+  {
+   "set": "linear",
+   "repeat": 3,
+   "step": 13,
+   "phase": "stop",
+   "label": "v0.15",
+   "v": 0.0,
+   "w": 0.0,
+   "duration": 2.0
+  },
+  {
+   "set": "linear",
+   "repeat": 3,
+   "step": 13,
+   "phase": "home",
+   "label": "v0.15",
+   "v": 0.0,
+   "w": 0.0,
+   "duration": 30.0
+  },
+  {
+   "set": "linear",
+   "repeat": 3,
+   "step": 14,
+   "phase": "pause",
+   "label": "v0.20",
+   "v": 0.0,
+   "w": 0.0,
+   "duration": 2.0
+  },
+  {
+   "set": "linear",
+   "repeat": 3,
+   "step": 14,
+   "phase": "step",
+   "label": "v0.20",
+   "v": 0.2,
+   "w": 0.0,
+   "duration": 2.0
+  },
+  {
+   "set": "linear",
+   "repeat": 3,
+   "step": 14,
+   "phase": "stop",
+   "label": "v0.20",
+   "v": 0.0,
+   "w": 0.0,
+   "duration": 2.0
+  },
+  {
+   "set": "linear",
+   "repeat": 3,
+   "step": 14,
+   "phase": "home",
+   "label": "v0.20",
+   "v": 0.0,
+   "w": 0.0,
+   "duration": 30.0
+  },
+  {
+   "set": "linear",
+   "repeat": 3,
+   "step": 15,
+   "phase": "pause",
+   "label": "v0.25",
+   "v": 0.0,
+   "w": 0.0,
+   "duration": 2.0
+  },
+  {
+   "set": "linear",
+   "repeat": 3,
+   "step": 15,
+   "phase": "step",
+   "label": "v0.25",
+   "v": 0.25,
+   "w": 0.0,
+   "duration": 2.0
+  },
+  {
+   "set": "linear",
+   "repeat": 3,
+   "step": 15,
+   "phase": "stop",
+   "label": "v0.25",
+   "v": 0.0,
+   "w": 0.0,
+   "duration": 2.0
+  },
+  {
+   "set": "linear",
+   "repeat": 3,
+   "step": 15,
+   "phase": "home",
+   "label": "v0.25",
+   "v": 0.0,
+   "w": 0.0,
+   "duration": 30.0
+  }
+ ]
+}

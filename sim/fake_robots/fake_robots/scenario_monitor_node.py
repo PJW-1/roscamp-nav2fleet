@@ -8,11 +8,13 @@ from __future__ import annotations
 import csv
 import json
 import sys
+import uuid
 from pathlib import Path
 
 import rclpy
 from fleet_core.common.contract import to_ros_qos
 from fleet_interfaces.msg import (
+    ArmState,
     AssignmentArray,
     FleetEvent,
     OrderBoard,
@@ -20,7 +22,7 @@ from fleet_interfaces.msg import (
     RobotStatusArray,
     ZoneStateArray,
 )
-from fleet_interfaces.srv import ConfirmClear, Reinstate
+from fleet_interfaces.srv import ConfirmClear, Reinstate, RobotCommand
 from rclpy.node import Node
 
 from fake_robots.common import (
@@ -77,6 +79,11 @@ class ScenarioMonitorNode(Node):
         self._reinstates = sorted(((f.at_s, f.robot, f.start, f.basket) for f in scenario.faults
                                    if f.type == "operator_reinstate"), key=lambda r: r[0])
         self._reinstate = self.create_client(Reinstate, contract.name("reinstate"))
+        # [장애 처리 완료]: 시각이나 그 팔의 사건(after_event) 뒤 at_s초에 한 번 부른다
+        self._resolves = [f for f in scenario.faults if f.type == "operator_fault_resolved"]
+        self._resolve_at: dict[int, float] = {id(f): f.at_s for f in self._resolves
+                                              if not f.after_event}
+        self._fault_resolved = self.create_client(RobotCommand, contract.name("fault_resolved"))
         self._operator = OperatorClear()
 
         def sub(msg_type, key, callback, **names):
@@ -89,6 +96,10 @@ class ScenarioMonitorNode(Node):
                 RobotState, TRUTH_TOPIC.format(robot=robot), self._on_truth,
                 to_ros_qos(contract.qos("robot_state")))
         sub(ZoneStateArray, "zones", self._on_zones)
+        # 작업대 팔 상태는 토픽에서 바로 본다(상태판은 배차보다 늦게 바뀔 수 있음)
+        for arm in sorted(self.judge.fill_arms):
+            sub(ArmState, "arm_state",
+                lambda msg, a=arm: self.judge.on_arm_state(a, msg.state, self._sc.now()), arm=arm)
         sub(FleetEvent, "events", self._on_event)
         sub(AssignmentArray, "assignments", self._on_assignments)
         sub(RobotStatusArray, "robots", self._on_robots)
@@ -119,9 +130,14 @@ class ScenarioMonitorNode(Node):
         self._operator.on_event(msg.source, msg.code, msg.detail)
         for schedule in self._removal_times.values():
             schedule.on_event(self._sc.now(), msg.source, msg.code, msg.detail)
+        for f in self._resolves:
+            if (f.after_event and id(f) not in self._resolve_at and msg.code == f.after_event
+                    and msg.source == f.arm and f.after_detail in msg.detail):
+                self._resolve_at[id(f)] = self._sc.now() + f.at_s
 
     def _on_assignments(self, msg: AssignmentArray) -> None:
-        self.judge.on_assignments({a.robot_id: a.task_type for a in msg.assignments})
+        self.judge.on_assignments({a.robot_id: a.task_type for a in msg.assignments},
+                                  self._sc.now())
         text = ";".join(f"{a.robot_id}:{a.task_type}:{a.station_id}:{a.order_id}"
                         for a in msg.assignments)
         if self._changed("assignments", text):
@@ -176,6 +192,28 @@ class ScenarioMonitorNode(Node):
         self.judge.note(self._sc.now(), robot, "CONFIRM_CLEAR",
                         f"accepted={response.accepted} {' '.join(response.released_zones)}")
 
+    def _resolve_arm_faults(self, t: float) -> None:
+        """운영자의 [장애 처리 완료]: 때가 되면 /fleet/fault_resolved를 그 팔로 한 번 부른다."""
+        if not self._resolves or not self._fault_resolved.service_is_ready():
+            return
+        waiting = []
+        for f in self._resolves:
+            at = self._resolve_at.get(id(f))
+            if at is None or at > t:
+                waiting.append(f)
+                continue
+            self.judge.on_fault_resolved(t, f.arm)
+            self.judge.note(t, f.arm, "OPERATOR_FAULT_RESOLVED", "")
+            future = self._fault_resolved.call_async(RobotCommand.Request(
+                request_id=str(uuid.uuid4()), robot_id=f.arm))
+            future.add_done_callback(lambda fu, a=f.arm: self._on_fault_resolved(a, fu))
+        self._resolves = waiting
+
+    def _on_fault_resolved(self, arm: str, future) -> None:
+        response = future.result()
+        self.judge.note(self._sc.now(), arm, "FAULT_RESOLVED_ANSWER",
+                        f"accepted={response.accepted} {response.reason}".strip())
+
     def _reinstate_put_back_robots(self, t: float) -> None:
         """앞선 치우기가 받아들여지고 로봇이 코스에 다시 보일 때 부른다.
 
@@ -210,6 +248,7 @@ class ScenarioMonitorNode(Node):
         self.safety.tick(t)
         self._clear_removed_robots(t)
         self._reinstate_put_back_robots(t)
+        self._resolve_arm_faults(t)
         if self.judge.finished(t):
             self._finish(t)
 

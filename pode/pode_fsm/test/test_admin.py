@@ -2,6 +2,7 @@
 from pode_fsm.admin import (
     BATTERY_LOW,
     MODE_MISMATCH,
+    NOT_FOUND,
     NOT_STOPPED,
     NOT_TEST_MODE,
     REMEMBER_COUNT,
@@ -102,3 +103,47 @@ def test_an_empty_request_id_is_not_remembered():
     assert a.last_request_id == ""
     a.set_lock("", "pode1", True, stopped=True, now=1.0)
     assert a.lock is True
+
+
+def test_force_needs_test_mode_and_remembers_key_and_value():
+    a = fresh()
+    assert a.force("f1", "pode1", "CONDITION", "battery", "20", now=0.0).reason == NOT_TEST_MODE
+    assert a.forced == []
+    a.set_mode("m1", "TEST", now=0.0)
+    assert a.force("f2", "pode1", "CONDITION", "battery", "20", now=0.0) == Reply(True)
+    assert a.force("f3", "pode1", "STATE", "PAUSED", "1", now=0.0).accepted
+    assert a.forced == ["battery", "PAUSED"]
+    assert a.forced_values == {"battery": "20", "PAUSED": "1"}
+    # 같은 key는 값만 바꾼다
+    assert a.force("f4", "pode1", "CONDITION", "battery", "10", now=0.0).accepted
+    assert a.forced_values == {"battery": "10", "PAUSED": "1"}
+    assert a.last_request_id == "f4"
+
+
+def test_force_clear_drops_one_key_or_all_with_an_empty_key():
+    a = fresh()
+    a.set_mode("m1", "TEST", now=0.0)
+    a.force("f1", "pode1", "CONDITION", "battery", "20", now=0.0)
+    a.force("f2", "pode1", "STATE", "PAUSED", "1", now=0.0)
+    assert a.force("f3", "pode1", "CLEAR", "battery", "", now=0.0).accepted
+    assert a.forced_values == {"PAUSED": "1"}
+    assert a.force("f4", "pode1", "CLEAR", "nothing", "", now=0.0).accepted
+    assert a.force("f5", "pode1", "CLEAR", "", "", now=0.0).accepted
+    assert a.forced == [] and a.forced_values == {}
+
+
+def test_force_refuses_another_robot_and_an_unknown_kind():
+    a = fresh()
+    a.set_mode("m1", "TEST", now=0.0)
+    assert a.force("f1", "pode2", "CONDITION", "x", "1", now=0.0).reason == UNKNOWN_TARGET
+    assert a.force("f2", "pode1", "TOGGLE", "x", "1", now=0.0).reason == NOT_FOUND
+    assert a.forced == []
+
+
+def test_force_with_the_same_request_id_is_applied_once():
+    a = fresh()
+    a.set_mode("m1", "TEST", now=0.0)
+    a.force("same", "pode1", "CONDITION", "battery", "20", now=0.0)
+    a.force("f2", "pode1", "CLEAR", "", "", now=1.0)
+    assert a.force("same", "pode1", "CONDITION", "battery", "20", now=2.0).accepted
+    assert a.forced == []

@@ -1,6 +1,7 @@
 """FleetManager는 두 코어를 잇는다: 내부 호출은 안에 머물고 옛 출력은 그대로 나온다. 로봇 흉내 drive()는 받은 이동, 물러나기, 도킹을 곧바로 성공시킨다."""
 from core_helpers import cmds
 from fleet_core.common.commands import (
+    ArmFillResult,
     CancelDispatchCmd,
     DispatchCmd,
     DispatchFeedback,
@@ -327,3 +328,91 @@ def test_sr17_every_robot_state_can_be_told_apart():
     assert status(core, "r2").fsm_state == "DOCKING"
     core.traffic.on_robot_fault("r2", "DOCK_FAILED")
     assert (status(core, "r2").fault, status(core, "r2").fault_reason) == ("ERROR", "DOCK_FAILED")
+
+
+# ---- 팔 상태와 담기 결과 칸이 매니저를 지난다 ----
+
+
+def _filling():
+    core, now = make({"r1": "P-1"}, [O1])
+    out = drive(core, "r1", lambda: core.robot_view("r1")["order"] == "O-001")
+    return core, now, cmds(out, "FillCmd")[0].goal_id
+
+
+def test_an_arm_error_while_filling_holds_the_order_through_the_manager():
+    core, _, _ = _filling()
+    core.on_arm_state("arm_left", "ERROR", "GRIPPER_JAM", True)
+    out = core.tick()
+    assert [(r.status, r.hold_reason) for r in cmds(out, "ReportOrderCmd")] == [
+        ("HELD", "ARM_FAULT")]
+    assert [e.code for e in cmds(out, "EventOut")].count("ARM_ERROR") == 1
+    core.on_arm_state("arm_left", "ERROR", "GRIPPER_JAM", True)
+    assert "ARM_ERROR" not in [e.code for e in cmds(core.tick(), "EventOut")]
+
+
+def test_the_fill_result_fields_reach_the_arm_report():
+    core, _, goal = _filling()
+    seen = []
+    core.orchestrator.on_arm_report = seen.append
+    core.on_fill_result(goal, False, {"A": 1}, {}, "PICK_FAILED", {"A": 1}, {"B": 1})
+    results = [r for r in seen if isinstance(r, ArmFillResult)]
+    assert [(r.reason, r.placed_confirmed, r.uncertain) for r in results] == [
+        ("PICK_FAILED", {"A": 1}, {"B": 1})]
+
+
+def test_an_arm_state_input_is_recorded():
+    lines = []
+    core = FleetManager(SITE, load_params(), ["r1"], lambda: 0.0)
+    core.record_to(lines.append)
+    core.on_arm_state("arm_left", "ERROR", "X", True)
+    # 입력 줄 뒤에 작업대 막힘 같은 내부 줄이 이어질 수 있다
+    assert any('"in": "on_arm_state"' in line for line in lines[1:])
+
+
+# ---- 서비스 정지(PAUSE): 담기를 시작한 운반 건만 끝까지, 대기 주문은 배차하지 않음 (팔 관제 합의 ⑦) ----
+def test_service_stop_lets_the_started_trip_reach_the_outbound_station():
+    core, _, goal = _filling()
+    core.on_order_board("PAUSE", [O1])
+    core.on_fill_result(goal, True, {"A": 1}, {}, "")
+    report(core, "r1", "W", "DOCKED")
+    drive(core, "r1", lambda: core.robot_view("r1")["state"] == "SWAPPING", limit=200)
+
+
+def test_service_stop_dispatches_no_waiting_order():
+    core, now = make({"r1": "P-1"})
+    core.on_order_board("PAUSE", [O1])
+    for _ in range(20):
+        now[0] += 1.0
+        out = core.tick()
+        assert not [c for c in out if isinstance(c, (MoveCmd, MoveOrderCmd))]
+    assert core.robot_view("r1")["order"] is None
+
+
+def test_a_trip_stuck_during_service_stop_is_still_caught_as_stalled():
+    core, now, goal = _filling()
+    core.on_order_board("PAUSE", [O1])
+    core.on_fill_result(goal, True, {"A": 1}, {}, "")
+    report(core, "r1", "W", "DOCKED")
+    sent = [c for c in core.tick() if isinstance(c, (MoveCmd, MoveOrderCmd, RetreatCmd))]
+    assert sent, "the started trip heads out during the stop"
+    seen = []
+    for _ in range(int(core.params.stall_s) + 5):
+        now[0] += 1.0
+        report(core, "r1", "W", "MOVING")
+        seen += core.tick()
+    assert "GOAL_STALLED" in [getattr(c, "code", "") for c in seen]
+
+
+def test_service_stop_lets_a_robot_that_shipped_leave_the_outbound_station():
+    core, _, goal = _filling()
+    core.on_order_board("PAUSE", [O1])
+    core.on_fill_result(goal, True, {"A": 1}, {}, "")
+    report(core, "r1", "W", "DOCKED")
+    out = drive(core, "r1", lambda: core.robot_view("r1")["state"] == "SWAPPING", limit=200)
+    swap = [c for c in out if type(c).__name__ == "SwapCmd"][0]
+    core.on_swap_result(swap.goal_id, True, True, True, "")
+    moved = []
+    for _ in range(10):
+        moved += [c for c in core.tick() if isinstance(c, (MoveCmd, MoveOrderCmd, RetreatCmd))
+                  and c.robot == "r1"]
+    assert moved, "the empty robot clears the outbound station during the stop"
