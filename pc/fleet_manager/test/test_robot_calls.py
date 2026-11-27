@@ -322,3 +322,12 @@ def test_an_exit_seen_while_sending_confirms_when_no_answer_ever_comes():
     calls.observe("arm_left", "IDLE", 0.3)
     run(calls, 16.0, start=0.1)
     assert [r[3] for r in box.reports] == ["ACCEPTED"]
+
+
+def test_an_exit_seen_before_the_request_ever_went_out_does_not_count():
+    calls, box = make()
+    add_confirm(calls, box, left_error)
+    run(calls, 0.2, ready=False)
+    calls.observe("arm_left", "IDLE", 0.3)  # 서비스가 없어 아직 한 번도 못 보냄
+    run(calls, 16.0, ready=False, start=0.4)
+    assert [r[3] for r in box.reports] == ["UNCONFIRMED"]

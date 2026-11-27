@@ -65,7 +65,7 @@ def items(counts):
 class World(Node):
     """시키는 대로 즉시 하는 로봇 하나, 팔 서버 둘, central."""
 
-    def __init__(self, contract, site, node, robot="pode1", robot_servers=True):
+    def __init__(self, contract, site, node, robot="pode1", robot_servers=True, arms=True):
         super().__init__("wiring_world")
         self.robot = robot
         group = ReentrantCallbackGroup()
@@ -110,7 +110,7 @@ class World(Node):
         self.create_timer(0.02, self._publish_state, callback_group=group)
         # 작업대 두 팔도 실물처럼 상태를 낸다 (3 s 없으면 상태 모름으로 작업대가 막힘)
         self.arm_mode = ""
-        self.arm_states = {"arm_left", "arm_right"}
+        self.arm_states = {"arm_left", "arm_right"} if arms else set()
         self._arm_pubs = {arm: self.create_publisher(ArmState, name("arm_state", arm=arm),
                                                      to_ros_qos(contract.qos("arm_state")))
                           for arm in ("arm_left", "arm_right")}
@@ -200,10 +200,12 @@ class World(Node):
 
 
 @pytest.fixture
-def graph():
+def graph(request):
+    # indirect param {"arms": False}: 작업대 팔 상태를 처음부터 내지 않는다
+    opts = getattr(request, "param", {})
     rclpy.init(args=["--ros-args", "-p", "robots:=[pode1]", "-p", "tick_hz:=50.0"])
     node = FleetManagerNode()
-    world = World(node.contract, load_fleet_map("d2"), "P-1")
+    world = World(node.contract, load_fleet_map("d2"), "P-1", arms=opts.get("arms", True))
     world.fms = node
     executor = MultiThreadedExecutor(num_threads=4)
     executor.add_node(node)
@@ -258,8 +260,9 @@ def test_the_status_of_every_robot_comes_out_about_five_times_a_second(graph):
     assert (robot.x, robot.y) != (0.0, 0.0)
 
 
+@pytest.mark.parametrize("graph", [{"arms": False}], indirect=True)
 def test_the_status_lists_the_three_arms_after_the_podes(graph):
-    graph.arm_states.clear()  # arm_left는 이 시험이 직접 내고, arm_right는 상태 없음을 본다
+    # arm_left는 이 시험이 직접 내고, arm_right는 상태 없음을 본다
     pub = graph.create_publisher(ArmState, graph.fms.contract.name("arm_state", arm="arm_left"),
                                  to_ros_qos(graph.fms.contract.qos("arm_state")))
     graph.create_timer(0.1, lambda: pub.publish(ArmState(arm_id="arm_left", state="PICKING",

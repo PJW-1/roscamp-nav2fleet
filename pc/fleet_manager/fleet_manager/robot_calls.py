@@ -44,6 +44,7 @@ class _Call:
     report: Callable | None = None  # 없으면 노드의 ReportCommand
     confirm_accepted: bool = False  # 받았다는 답도 상태 관측으로 확정
     seen_ok: bool = False  # 보내는 중에 확정할 상태를 이미 봄 (confirm_accepted만)
+    sent: bool = False  # 실제로 한 번이라도 보냄
     tries: int = 0
     asked_at: float | None = None
     future: object = None
@@ -144,6 +145,7 @@ class RobotCalls:
                     if busy >= p.max_in_flight:
                         continue
                     busy += 1
+                    c.sent = True
                     out.send.append((c.key, c.client, c.request))
                 c.tries += 1
                 c.asked_at = now
@@ -191,7 +193,7 @@ class RobotCalls:
         """결과 모름인 명령을 기한 안의 상태 관측으로 확정한다 (IR-62)."""
         out = Step()
         for c in list(self._calls.values()):
-            if (c.phase == _SENDING and c.confirm_accepted and c.target == target
+            if (c.phase == _SENDING and c.confirm_accepted and c.sent and c.target == target
                     and c.observe is not None and not self._late(c, now) and c.observe(view)):
                 c.seen_ok = True  # 답이 오면 확정에 쓴다
                 continue
