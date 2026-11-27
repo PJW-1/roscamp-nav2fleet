@@ -1237,3 +1237,29 @@ def test_a_scenario_can_expect_path_not_connected_failures():
     j = judge(path_not_connected=1)
     j.on_event(2.0, "WARN", "pode1", "GOAL_RETRY", "attempt 1 failed: PATH_NOT_CONNECTED")
     assert check(j, "path_not_connected")["ok"] is True
+
+
+# ---- 팔 ERROR 동안 배차 · [장애 처리 완료] 뒤 다시 열림 ----
+
+def test_a_dispatch_while_two_arm_errors_overlap_is_counted():
+    j = judge()
+    j.on_arm_state("arm_left", "ERROR", 0.0)
+    j.on_arm_state("arm_right", "ERROR", 9.8)
+    j.on_arm_state("arm_left", "IDLE", 10.0)
+    j.on_assignments({"pode1": "TO_WORK"}, 10.1)  # 작업대는 계속 ERROR
+    j.on_arm_state("arm_right", "IDLE", 20.0)
+    assert j.dispatch_checks()[0] == 1
+
+
+def test_reopening_waits_for_the_resolved_arm_to_leave_error():
+    j = judge()
+    j.on_arm_state("arm_left", "ERROR", 0.0)
+    j.on_arm_state("arm_right", "ERROR", 1.0)
+    j.on_fault_resolved(5.0, "arm_left")
+    j.on_arm_state("arm_right", "IDLE", 6.0)  # 부르지 않은 팔이 먼저 풀림
+    j.on_assignments({"pode1": "TO_WORK"}, 7.0)
+    assert j.dispatch_checks() == (1, 0)
+    j.on_arm_state("arm_left", "IDLE", 8.0)
+    j.on_assignments({"pode1": "WAIT"}, 8.5)
+    j.on_assignments({"pode1": "TO_WORK"}, 9.0)
+    assert j.dispatch_checks() == (1, 1)

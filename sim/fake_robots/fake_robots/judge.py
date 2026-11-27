@@ -103,7 +103,7 @@ class ScenarioJudge(ZoneChecks, Laps, OrderChecks, Outcome):
         self.fill_arms = set(_arms_with(site, "fill"))
         self._error_spans: list[list] = []  # [팔, 시작, 끝(None이면 아직 ERROR)]
         self._to_work: list[float] = []  # 새 TO_WORK 배차를 받은 시각
-        self._resolved_at: float | None = None
+        self._resolves: list[tuple[str, float]] = []  # (팔, [장애 처리 완료]를 부른 시각)
         self._bound_now: set[str] = set()
         # 바퀴
         self._work_zones = self._station_zones("fill")
@@ -264,18 +264,24 @@ class ScenarioJudge(ZoneChecks, Laps, OrderChecks, Outcome):
         배차와 팔 상태는 다른 토픽이라 도착 순서가 바뀔 수 있어 구간 양끝에 유예를 둔다.
         """
         g = ERROR_EDGE_S
-        spans = [(s, math.inf if e is None else e) for _, s, e in self._error_spans]
-        during = [t for t in self._to_work if any(s + g <= t <= e - g for s, e in spans)]
-        cleared = [e for s, e in spans
-                   if self._resolved_at is not None and self._resolved_at <= e < math.inf]
+        # 두 팔 구간을 먼저 합친 뒤 유예만큼 줄인다(겹친 동안 빈틈이 없게)
+        merged: list[list[float]] = []
+        for s, e in sorted((s, math.inf if e is None else e) for _, s, e in self._error_spans):
+            if merged and s <= merged[-1][1]:
+                merged[-1][1] = max(merged[-1][1], e)
+            else:
+                merged.append([s, e])
+        during = [t for t in self._to_work if any(s + g <= t <= e - g for s, e in merged)]
+        # 부른 그 팔이 부른 뒤 ERROR를 벗어난 시각
+        cleared = [e for arm, at in self._resolves for a, s, e in self._error_spans
+                   if a == arm and e is not None and s <= at + g and e >= at]
         if not cleared:
             return len(during), 0
         first = min(cleared)
         return len(during), sum(1 for t in self._to_work if t >= first - g and t not in during)
 
-    def on_fault_resolved(self, t: float) -> None:
-        if self._resolved_at is None:
-            self._resolved_at = t
+    def on_fault_resolved(self, t: float, arm: str) -> None:
+        self._resolves.append((arm, t))
 
     def on_board(self, order_ids: list[str]) -> None:
         self.board = list(order_ids)

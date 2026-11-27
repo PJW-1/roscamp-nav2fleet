@@ -202,7 +202,7 @@ class ScenarioMonitorNode(Node):
             if at is None or at > t:
                 waiting.append(f)
                 continue
-            self.judge.on_fault_resolved(t)
+            self.judge.on_fault_resolved(t, f.arm)
             self.judge.note(t, f.arm, "OPERATOR_FAULT_RESOLVED", "")
             future = self._fault_resolved.call_async(RobotCommand.Request(
                 request_id=str(uuid.uuid4()), robot_id=f.arm))
