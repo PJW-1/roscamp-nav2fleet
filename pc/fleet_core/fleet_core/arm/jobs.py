@@ -96,6 +96,7 @@ class ArmJobs:
         self._arm_unknown: set[str] = set()
         self._boot: dict[str, str] = {}
         self._holding: dict[str, bool] = {}
+        self._held_goal: dict[str, int] = {}  # 팔 -> holding=true를 마지막으로 본 담기 목표
         self._station_block: dict[str, str] = {}
         self._dropped_goals: set[int] = set()
         # 팔 재시작으로 목표가 사라진 작업대 서버 -> 그 담기를 하던 로봇 ([복구] 대기)
@@ -207,14 +208,20 @@ class ArmJobs:
         if boot_id:
             self._boot[arm] = boot_id
         self._holding[arm] = holding
+        # 직전 상태의 holding은 같은 담기 목표 안에서 본 것만 쓴다
+        owner = self._fill_owner(server)
+        goal = owner.job.goal_id if owner is not None else None
+        held_in_goal = held_before and goal is not None and self._held_goal.get(arm) == goal
+        if holding and goal is not None:
+            self._held_goal[arm] = goal
         if before and boot_id and boot_id != before:
             self._on_arm_restart(arm, server, held_before)
         if state == ARM_ERROR:
             self._on_arm_error(arm, server, detail, holding)
         else:
             self._arm_errors.discard(arm)
-            # 그리퍼를 연 뒤의 상태만 받아도 직전에 쥐고 있었으면 같다
-            if not lock and (holding or held_before):
+            # 그리퍼를 연 뒤의 상태만 받아도 같은 목표의 직전 상태에서 쥐고 있었으면 같다
+            if not lock and (holding or held_in_goal):
                 self._on_lock_released_holding(arm, server)
         self._update_stations()
 

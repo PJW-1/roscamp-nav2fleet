@@ -430,3 +430,16 @@ def test_an_isolated_robot_whose_arm_restarts_holding_is_held_not_requeued():
     core.take_output()
     core.on_arm_state("arm_left", "IDLE", "", False, "b2", True)
     assert holds(core.take_output()) == [("HELD", "ROBOT_FAULT")]
+
+
+def test_holding_seen_before_the_goal_started_does_not_count_as_a_holding_lock_release():
+    core, now = make([O1])
+    booted(core)
+    core.on_arm_state("arm_left", "PLACING", "", True, "b1", True)
+    bound(core)
+    core.step("r1")
+    fill = cmds(core.take_output(), "FillCmd")[0]
+    core.on_arm_state("arm_left", "PAUSED", "LOCK_RELEASED", False, "b1", False)
+    assert "ARM_LOCK_RELEASED" not in codes(core.take_output())
+    core.on_fill_result(fill.goal_id, True, {"A": 1, "C": 1}, {})
+    assert not holds(core.take_output())
