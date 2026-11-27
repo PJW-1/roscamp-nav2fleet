@@ -4,9 +4,11 @@
 #   fake 모드 검사(scripts/check_interfaces.py --mode fake)는 건너뛰고 real 모드는 검사한다.
 # SubmitOrder.srv(0.6 파일)는 쓰지 않는다. SubmitTrip으로 대신한다.
 
-version: 0.9
+version: 1.0
 
 # ---- 변경 이력 (IR-02: 바꾼 구역) ----
+# 1.0 (2026-11-27): 팔 관제 합의 반영(로봇 ↔ fleet). /{arm}/set_pause(SetPause, arm_left · arm_right, 이름은 임시),
+#   FillBasket 사유 NOT_READY · UNKNOWN_TARGET와 진행 단계 5개, ArmState · FillBasket 뜻 주석
 # 0.9 (2026-11-26): 인터페이스 명세 v0.2의 나머지 반영. 팔 이름 틀 arm_left · arm_right · arm_ship(로봇 ↔ fleet),
 #   /{arm}/state · /bridge/close_state 토픽, 구역 B · C · E 새 서비스 이름, 사유 코드 표(+ NOT_IMPLEMENTED, MoveTo · Retreat NAV_UNAVAILABLE),
 #   /fleet/force_ship(TripCommand), 브리지 · central이 여는 이름에 not_in_fake 표시
@@ -77,6 +79,7 @@ services:
   - {key: robot_set_mode, name: "/{robot}/set_mode", type: fleet_interfaces/srv/SetMode, not_in_fake: true}
   - {key: robot_force, name: "/{robot}/force", type: fleet_interfaces/srv/ForceInput, not_in_fake: true}
   - {key: arm_fault_resolved, name: "/{arm}/fault_resolved", type: fleet_interfaces/srv/RobotCommand, instances: {arm: [arm_left, arm_right]}, not_in_fake: true}
+  - {key: arm_set_pause, name: "/{arm}/set_pause", type: fleet_interfaces/srv/SetPause, instances: {arm: [arm_left, arm_right]}, not_in_fake: true}
   - {key: pode_charge_end, name: "/{pode}/charge_end", type: fleet_interfaces/srv/RobotCommand, not_in_fake: true}
   # ---- 브리지 ↔ central ----
   - {key: submit_trip, name: "/central/submit_trip", type: fleet_interfaces/srv/SubmitTrip, not_in_fake: true}

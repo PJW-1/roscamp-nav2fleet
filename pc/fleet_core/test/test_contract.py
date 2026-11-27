@@ -107,9 +107,9 @@ def test_order_report_keeps_the_team_0_6_text():
 
 
 # ---- 계약 0.9: 인터페이스 명세 v0.2 ----
-def test_the_contract_is_version_0_9():
+def test_the_contract_is_version_1_0():
     import yaml
-    assert yaml.safe_load(CONTRACT.read_text(encoding="utf-8"))["version"] == 0.9
+    assert yaml.safe_load(CONTRACT.read_text(encoding="utf-8"))["version"] == 1.0
 
 
 def test_contract_0_9_names_the_arms_like_the_spec(contract):
