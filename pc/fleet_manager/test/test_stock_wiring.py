@@ -16,7 +16,7 @@ from fleet_manager.stock_check import LIMIT_S, StockChecks  # noqa: E402
 FILL = FillCmd(goal_id=7, robot="pode1", station_id="WORK", order_id="T-1",
                items={"choco_bar": 2})
 METHODS = ("_check_then_send", "_stock_answered", "_stock_unanswered", "_step_stock_checks",
-           "_drop_stock_future", "_drop_held_fill")
+           "_drop_stock_future", "_drop_held_fill", "_fill_or_hold")
 
 
 class Future:
@@ -57,8 +57,9 @@ class Client:
         self.dropped.append(future)
 
 
-def node_with(client):
+def node_with(client, waiting=None):
     sent, results, events, given_up = [], [], [], set()
+    waiting = [] if waiting is None else waiting
     core = SimpleNamespace(
         on_fill_result=lambda goal_id, success, placed, missing, reason="", **kw:
         results.append((goal_id, success, placed, missing, reason)),
@@ -69,7 +70,8 @@ def node_with(client):
         _send_fill=lambda command: sent.append(command.goal_id),
         _dispatch=lambda command, now: events.append(command.code),
         _post=lambda handler, *args: handler(*args), _now=lambda: 0.0,
-        get_logger=lambda: MagicMock())
+        get_logger=lambda: MagicMock(), _arms_waiting=lambda command: list(waiting),
+        _mode_sync=SimpleNamespace(system_mode="TEST"))
     for name in METHODS:
         setattr(node, name, MethodType(getattr(FleetManagerNode, name), node))
     return node, sent, results, events, given_up
@@ -177,6 +179,36 @@ def test_a_cancel_for_another_server_leaves_the_check():
     node._check_then_send(FILL)
     assert node._drop_held_fill(CancelCmd("pode1", 7)) is False
     assert results == [] and 7 in node._stock
+
+
+def test_an_answer_for_a_job_the_core_gave_up_sends_nothing():
+    # 같은 inbox 묶음에서 팔 ERROR로 코어가 먼저 포기한 경우
+    client = Client()
+    node, sent, results, events, given_up = node_with(client)
+    node._check_then_send(FILL)
+    given_up.add(7)
+    client.futures[0].finish(answer(("choco_bar", 2)))
+    assert sent == [] and results == [] and events == [] and 7 not in node._stock
+
+
+def test_an_answer_after_the_limit_holds_the_fill_even_before_the_tick_expires_it():
+    client = Client()
+    node, sent, results, events, _ = node_with(client)
+    node._check_then_send(FILL)
+    node._stock._asking[7].asked_at -= LIMIT_S + 1.0
+    client.futures[0].finish(answer(("choco_bar", 2)))
+    assert sent == [] and results == []
+    node._step_stock_checks(node._stock._asking[7].asked_at + LIMIT_S + 1.0)
+    assert sent == [] and events == ["STOCK_CHECK_NO_ANSWER"] and 7 in node._stock
+
+
+def test_a_mode_change_during_the_check_holds_the_fill_until_the_arms_report():
+    client, waiting = Client(), []
+    node, sent, _, _, _ = node_with(client, waiting)
+    node._check_then_send(FILL)
+    waiting.append("arm_left")  # 확인 중 시스템 모드가 바뀌고 팔이 아직 새 모드를 보고하지 않음
+    client.futures[0].finish(answer(("choco_bar", 2)))
+    assert sent == [] and node._held_fills == [FILL] and 7 not in node._stock
 
 
 def test_a_fill_the_core_gave_up_on_is_dropped_without_a_result():

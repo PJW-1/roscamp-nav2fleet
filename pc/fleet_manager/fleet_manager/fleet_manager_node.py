@@ -802,9 +802,14 @@ class FleetManagerNode(Node):
         future.add_done_callback(partial(self._post, self._stock_answered, command.goal_id))
 
     def _stock_answered(self, goal_id, future) -> None:
-        command = self._stock.answered(goal_id, future)
+        command = self._stock.answered(goal_id, future, time.monotonic())
         if command is None:
             return  # 한도가 지났거나 취소 · 포기로 버린 확인
+        if not self.core.arm.holds(goal_id):
+            # 같은 inbox 묶음에서 팔 ERROR · 초기화로 코어가 먼저 포기했다
+            self.get_logger().info(f"fill goal {goal_id} stock answer dropped: "
+                                   "the core gave the job up")
+            return
         try:
             accepted, available, reason = adapters.check_stock_answer(future.result())
         except Exception as exc:  # noqa: BLE001
@@ -815,6 +820,10 @@ class FleetManagerNode(Node):
             return
         short = shortfall(command.items, available)
         if not short:
+            if self._arms_waiting(command):
+                # 확인 중 모드가 바뀌면 팔이 새 모드를 보고할 때까지 다시 잡아 둔다 (PI-20)
+                self._fill_or_hold(command)
+                return
             self._send_fill(command)
             return
         text = ", ".join(f"{kind} {count}" for kind, count in sorted(short.items()))

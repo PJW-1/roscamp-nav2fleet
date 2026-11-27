@@ -34,11 +34,13 @@ class StockChecks:
     def ask(self, command, future, now: float) -> None:
         self._asking[command.goal_id] = _Check(command, now, future)
 
-    def answered(self, goal_id, future):
+    def answered(self, goal_id, future, now: float):
         """지금 기다리는 답이면 그 명령을 꺼낸다. 한도가 지난 답 · 버린 확인이면 None."""
         c = self._asking.get(goal_id)
         if c is None or c.future is not future:
             return None
+        if now - c.asked_at > LIMIT_S:
+            return None  # 틱의 expired()가 답 없음으로 끝낸다
         del self._asking[goal_id]
         return c.command
 

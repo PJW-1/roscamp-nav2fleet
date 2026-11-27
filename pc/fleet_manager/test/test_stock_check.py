@@ -24,9 +24,16 @@ def test_a_kind_the_answer_leaves_out_has_none():
 def test_only_the_awaited_answer_gives_the_command_back():
     checks, future = StockChecks(), object()
     checks.ask(fill(), future, 0.0)
-    assert checks.answered(7, object()) is None
-    assert checks.answered(7, future).goal_id == 7
-    assert 7 not in checks and checks.answered(7, future) is None
+    assert checks.answered(7, object(), 1.0) is None
+    assert checks.answered(7, future, 1.0).goal_id == 7
+    assert 7 not in checks and checks.answered(7, future, 1.0) is None
+
+
+def test_an_answer_past_the_limit_is_left_for_expiry():
+    checks, future = StockChecks(), object()
+    checks.ask(fill(), future, 0.0)
+    assert checks.answered(7, future, LIMIT_S + 0.1) is None
+    assert [c.future for c in checks.expired(LIMIT_S + 0.1)] == [future]
 
 
 def test_a_check_expires_only_after_the_limit():
@@ -35,7 +42,7 @@ def test_a_check_expires_only_after_the_limit():
     assert checks.expired(LIMIT_S) == []
     late = checks.expired(LIMIT_S + 0.1)
     assert [c.future for c in late] == [future]
-    assert checks.answered(7, future) is None  # 한도 뒤 답은 버린다
+    assert checks.answered(7, future, 1.0) is None  # 한도 뒤 답은 버린다
 
 
 def test_a_held_fill_stays_until_taken():
