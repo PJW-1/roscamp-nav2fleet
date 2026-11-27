@@ -1,0 +1,153 @@
+{
+ "scans": 30,
+ "beams": 720,
+ "invalid_values": {
+  "inf": 954
+ },
+ "invalid_runs_over_half": [
+  {
+   "from_deg": -114.91,
+   "to_deg": -114.41,
+   "beams": 2,
+   "bad_ratio": 0.58
+  },
+  {
+   "from_deg": -113.41,
+   "to_deg": -112.41,
+   "beams": 3,
+   "bad_ratio": 0.77
+  },
+  {
+   "from_deg": -71.35,
+   "to_deg": -71.35,
+   "beams": 1,
+   "bad_ratio": 0.53
+  },
+  {
+   "from_deg": -29.79,
+   "to_deg": -29.79,
+   "beams": 1,
+   "bad_ratio": 0.5
+  },
+  {
+   "from_deg": 40.81,
+   "to_deg": 40.81,
+   "beams": 1,
+   "bad_ratio": 0.57
+  },
+  {
+   "from_deg": 42.31,
+   "to_deg": 42.31,
+   "beams": 1,
+   "bad_ratio": 0.57
+  },
+  {
+   "from_deg": 67.84,
+   "to_deg": 68.34,
+   "beams": 2,
+   "bad_ratio": 0.55
+  },
+  {
+   "from_deg": 69.35,
+   "to_deg": 69.85,
+   "beams": 2,
+   "bad_ratio": 0.6
+  },
+  {
+   "from_deg": 70.85,
+   "to_deg": 75.35,
+   "beams": 10,
+   "bad_ratio": 0.8
+  },
+  {
+   "from_deg": 82.87,
+   "to_deg": 82.87,
+   "beams": 1,
+   "bad_ratio": 0.73
+  },
+  {
+   "from_deg": 87.37,
+   "to_deg": 87.37,
+   "beams": 1,
+   "bad_ratio": 0.67
+  },
+  {
+   "from_deg": 97.89,
+   "to_deg": 97.89,
+   "beams": 1,
+   "bad_ratio": 0.57
+  },
+  {
+   "from_deg": 103.39,
+   "to_deg": 103.39,
+   "beams": 1,
+   "bad_ratio": 0.53
+  },
+  {
+   "from_deg": 116.91,
+   "to_deg": 116.91,
+   "beams": 1,
+   "bad_ratio": 0.5
+  }
+ ],
+ "near_runs_m": 0.3,
+ "near_runs": [
+  {
+   "from_deg": -180.0,
+   "to_deg": -131.93,
+   "beams": 97,
+   "range_median_m": 0.215,
+   "range_min_m": 0.195
+  },
+  {
+   "from_deg": -62.34,
+   "to_deg": -30.29,
+   "beams": 65,
+   "range_median_m": 0.188,
+   "range_min_m": 0.164
+  },
+  {
+   "from_deg": 41.31,
+   "to_deg": 41.81,
+   "beams": 2,
+   "range_median_m": 0.211,
+   "range_min_m": 0.204
+  },
+  {
+   "from_deg": 42.81,
+   "to_deg": 66.84,
+   "beams": 49,
+   "range_median_m": 0.206,
+   "range_min_m": 0.187
+  },
+  {
+   "from_deg": 133.94,
+   "to_deg": 180.0,
+   "beams": 93,
+   "range_median_m": 0.217,
+   "range_min_m": 0.196
+  }
+ ],
+ "closest5": [
+  {
+   "m": 0.164,
+   "deg": -39.3
+  },
+  {
+   "m": 0.164,
+   "deg": -38.8
+  },
+  {
+   "m": 0.165,
+   "deg": -40.31
+  },
+  {
+   "m": 0.165,
+   "deg": -39.81
+  },
+  {
+   "m": 0.165,
+   "deg": -38.3
+  }
+ ]
+}

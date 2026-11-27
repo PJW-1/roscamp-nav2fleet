@@ -1,0 +1,3 @@
+{"label": "tip_0.15", "scans": 50, "front_deg": 180.0, "beam0_median_m": 0.206, "beam0_stdev_m": 0.0005, "line_perp_m": 0.2049, "line_x_at_front_m": 0.2052, "wall_tilt_deg": -2.94, "fit_points": 2989, "fit_resid_rms_m": 0.0009}
+{"label": "tip_0.30", "scans": 50, "front_deg": 180.0, "beam0_median_m": 0.348, "beam0_stdev_m": 0.0006, "line_perp_m": 0.3471, "line_x_at_front_m": 0.3475, "wall_tilt_deg": -2.79, "fit_points": 2983, "fit_resid_rms_m": 0.0007}
+{"label": "tip_0.60", "scans": 50, "front_deg": 180.0, "beam0_median_m": 0.636, "beam0_stdev_m": 0.0005, "line_perp_m": 0.6356, "line_x_at_front_m": 0.6359, "wall_tilt_deg": -1.7, "fit_points": 2957, "fit_resid_rms_m": 0.0024}
