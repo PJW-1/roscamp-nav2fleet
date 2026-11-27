@@ -8,6 +8,14 @@ def fill(goal_id=7, items=None):
     return SimpleNamespace(goal_id=goal_id, items=items or {"choco_bar": 2})
 
 
+class Pending:
+    def __init__(self, done=False):
+        self._done = done
+
+    def done(self):
+        return self._done
+
+
 def test_enough_stock_is_no_shortfall():
     assert shortfall({"choco_bar": 2}, {"choco_bar": 3}) == {}
 
@@ -21,28 +29,28 @@ def test_a_kind_the_answer_leaves_out_has_none():
     assert shortfall({"choco_bar": 2}, {}) == {"choco_bar": 2}
 
 
-def test_only_the_awaited_answer_gives_the_command_back():
-    checks, future = StockChecks(), object()
+def test_only_the_awaited_answer_gives_the_check_back():
+    checks, future = StockChecks(), Pending()
     checks.ask(fill(), future, 0.0)
-    assert checks.answered(7, object(), 1.0) is None
-    assert checks.answered(7, future, 1.0).goal_id == 7
-    assert 7 not in checks and checks.answered(7, future, 1.0) is None
+    assert checks.answered(7, Pending()) is None
+    check = checks.answered(7, future)
+    assert (check.command.goal_id, check.asked_at) == (7, 0.0)
+    assert 7 not in checks and checks.answered(7, future) is None
 
 
-def test_an_answer_past_the_limit_is_left_for_expiry():
-    checks, future = StockChecks(), object()
-    checks.ask(fill(), future, 0.0)
-    assert checks.answered(7, future, LIMIT_S + 0.1) is None
-    assert [c.future for c in checks.expired(LIMIT_S + 0.1)] == [future]
+def test_an_answer_that_already_arrived_is_not_expired():
+    checks = StockChecks()
+    checks.ask(fill(), Pending(done=True), 0.0)
+    assert checks.expired(LIMIT_S + 5.0) == [] and 7 in checks
 
 
 def test_a_check_expires_only_after_the_limit():
-    checks, future = StockChecks(), object()
+    checks, future = StockChecks(), Pending()
     checks.ask(fill(), future, 0.0)
     assert checks.expired(LIMIT_S) == []
     late = checks.expired(LIMIT_S + 0.1)
     assert [c.future for c in late] == [future]
-    assert checks.answered(7, future, 1.0) is None  # 한도 뒤 답은 버린다
+    assert checks.answered(7, future) is None  # 한도 뒤 답은 버린다
 
 
 def test_a_held_fill_stays_until_taken():

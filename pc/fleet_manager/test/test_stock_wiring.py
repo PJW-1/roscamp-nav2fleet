@@ -1,5 +1,6 @@
 """노드의 담기 전 결품 확인(W-40 · PI-28)을 그래프 없이 본다: 서버가 없으면 바로 보내고, 모자라면
 OUT_OF_STOCK 결과로 끝내며, 3초 안에 답이 없으면 다시 보내지 않고 잡아 둔다(IR-40)."""
+import time
 from types import MethodType, SimpleNamespace
 from unittest.mock import MagicMock
 
@@ -15,8 +16,9 @@ from fleet_manager.stock_check import LIMIT_S, StockChecks  # noqa: E402
 
 FILL = FillCmd(goal_id=7, robot="pode1", station_id="WORK", order_id="T-1",
                items={"choco_bar": 2})
-METHODS = ("_check_then_send", "_stock_answered", "_stock_unanswered", "_step_stock_checks",
-           "_drop_stock_future", "_drop_held_fill", "_fill_or_hold")
+METHODS = ("_check_then_send", "_stock_arrived", "_stock_answered", "_stock_unanswered",
+           "_step_stock_checks", "_drop_stock_future", "_drop_held_fill", "_fill_or_hold",
+           "_release_fills")
 
 
 class Future:
@@ -191,15 +193,27 @@ def test_an_answer_for_a_job_the_core_gave_up_sends_nothing():
     assert sent == [] and results == [] and events == [] and 7 not in node._stock
 
 
-def test_an_answer_after_the_limit_holds_the_fill_even_before_the_tick_expires_it():
+def test_an_answer_that_arrives_after_the_limit_holds_the_fill_before_the_tick_expires_it():
     client = Client()
     node, sent, results, events, _ = node_with(client)
     node._check_then_send(FILL)
     node._stock._asking[7].asked_at -= LIMIT_S + 1.0
     client.futures[0].finish(answer(("choco_bar", 2)))
-    assert sent == [] and results == []
-    node._step_stock_checks(node._stock._asking[7].asked_at + LIMIT_S + 1.0)
-    assert sent == [] and events == ["STOCK_CHECK_NO_ANSWER"] and 7 in node._stock
+    assert sent == [] and results == [] and events == ["STOCK_CHECK_NO_ANSWER"]
+    assert 7 in node._stock
+
+
+def test_an_answer_that_arrived_in_time_counts_even_if_handled_after_the_limit():
+    client, queued = Client(), []
+    node, sent, _, events, _ = node_with(client)
+    node._post = lambda handler, *args: queued.append((handler, args))
+    node._check_then_send(FILL)
+    client.futures[0].finish(answer(("choco_bar", 2)))  # 3초 안에 와서 inbox에서 기다림
+    node._step_stock_checks(time.monotonic() + LIMIT_S + 5.0)
+    assert events == [] and sent == []
+    for handler, args in queued:
+        handler(*args)
+    assert sent == [7]
 
 
 def test_a_mode_change_during_the_check_holds_the_fill_until_the_arms_report():
@@ -209,6 +223,19 @@ def test_a_mode_change_during_the_check_holds_the_fill_until_the_arms_report():
     waiting.append("arm_left")  # 확인 중 시스템 모드가 바뀌고 팔이 아직 새 모드를 보고하지 않음
     client.futures[0].finish(answer(("choco_bar", 2)))
     assert sent == [] and node._held_fills == [FILL] and 7 not in node._stock
+
+
+def test_a_fill_held_for_the_mode_is_checked_again_and_sent_once_the_arms_report():
+    client, waiting = Client(), []
+    node, sent, _, _, _ = node_with(client, waiting)
+    node._check_then_send(FILL)
+    waiting.append("arm_left")
+    client.futures[0].finish(answer(("choco_bar", 2)))
+    waiting.clear()
+    node._release_fills()
+    assert len(client.futures) == 2 and node._held_fills == [] and sent == []
+    client.futures[1].finish(answer(("choco_bar", 2)))
+    assert sent == [7]
 
 
 def test_a_fill_the_core_gave_up_on_is_dropped_without_a_result():

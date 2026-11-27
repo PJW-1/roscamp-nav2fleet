@@ -799,16 +799,24 @@ class FleetManagerNode(Node):
             self._stock_unanswered(command, f"check_stock was not sent: {exc}")
             return
         self._stock.ask(command, future, time.monotonic())
-        future.add_done_callback(partial(self._post, self._stock_answered, command.goal_id))
+        future.add_done_callback(partial(self._stock_arrived, command.goal_id))
 
-    def _stock_answered(self, goal_id, future) -> None:
-        command = self._stock.answered(goal_id, future, time.monotonic())
-        if command is None:
+    def _stock_arrived(self, goal_id, future) -> None:
+        """3초 판정은 처리 시각이 아니라 답이 온 시각으로 한다."""
+        self._post(self._stock_answered, goal_id, future, time.monotonic())
+
+    def _stock_answered(self, goal_id, future, arrived_at: float) -> None:
+        check = self._stock.answered(goal_id, future)
+        if check is None:
             return  # 한도가 지났거나 취소 · 포기로 버린 확인
+        command = check.command
         if not self.core.arm.holds(goal_id):
             # 같은 inbox 묶음에서 팔 ERROR · 초기화로 코어가 먼저 포기했다
             self.get_logger().info(f"fill goal {goal_id} stock answer dropped: "
                                    "the core gave the job up")
+            return
+        if arrived_at - check.asked_at > STOCK_LIMIT_S:
+            self._stock_unanswered(command, f"no stock answer within {STOCK_LIMIT_S:.0f} s")
             return
         try:
             accepted, available, reason = adapters.check_stock_answer(future.result())

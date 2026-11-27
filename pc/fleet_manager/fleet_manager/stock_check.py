@@ -34,22 +34,24 @@ class StockChecks:
     def ask(self, command, future, now: float) -> None:
         self._asking[command.goal_id] = _Check(command, now, future)
 
-    def answered(self, goal_id, future, now: float):
-        """지금 기다리는 답이면 그 명령을 꺼낸다. 한도가 지난 답 · 버린 확인이면 None."""
+    def answered(self, goal_id, future) -> _Check | None:
+        """지금 기다리는 답이면 그 확인을 꺼낸다. 버린 확인 · 다른 요청의 답이면 None."""
         c = self._asking.get(goal_id)
         if c is None or c.future is not future:
             return None
-        if now - c.asked_at > LIMIT_S:
-            return None  # 틱의 expired()가 답 없음으로 끝낸다
         del self._asking[goal_id]
-        return c.command
+        return c
 
     def hold(self, command) -> None:
         self._held[command.goal_id] = command
 
     def expired(self, now: float) -> list[_Check]:
-        """한도를 넘긴 확인을 꺼낸다. 부른 쪽이 future를 버리고 담기를 잡아 둔다."""
-        late = [c for c in self._asking.values() if now - c.asked_at > LIMIT_S]
+        """한도를 넘긴 확인을 꺼낸다. 부른 쪽이 future를 버리고 담기를 잡아 둔다.
+
+        답이 이미 와서 처리를 기다리는 확인은 남긴다. 도착 시각으로 따로 판정한다.
+        """
+        late = [c for c in self._asking.values()
+                if now - c.asked_at > LIMIT_S and not (c.future is not None and c.future.done())]
         for c in late:
             del self._asking[c.command.goal_id]
         return late
