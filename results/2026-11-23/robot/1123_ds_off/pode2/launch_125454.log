@@ -1,0 +1,53 @@
+[INFO] [launch]: All log files can be found below /home/pinky/.ros/log/2026-11-23-12-54-57-360700-raspi-4447
+[INFO] [launch]: Default logging verbosity is set to INFO
+[INFO] [launch.user]: real_pode: pode_fsm horizon_cap_mps 0.12
+[INFO] [launch.user]: real_pode: dock_aside on, pode_fsm Dock -> /pode2/dock_fsm (PC dock stub must serve /pode2/dock)
+[INFO] [robot_state_publisher-1]: process started with pid [4557]
+[INFO] [joint_state_publisher-2]: process started with pid [4558]
+[INFO] [sllidar_node-3]: process started with pid [4559]
+[INFO] [bringup-4]: process started with pid [4560]
+[INFO] [battery_publisher-5]: process started with pid [4561]
+[INFO] [cmd_watchdog-6]: process started with pid [4562]
+[INFO] [component_container_isolated-7]: process started with pid [4563]
+[INFO] [peer_obstacles-8]: process started with pid [4564]
+[INFO] [pode_fsm_node-9]: process started with pid [4565]
+[sllidar_node-3] [INFO] [1795406104.542649355] [pode2.sllidar_node]: SLLidar running on ROS2 package SLLidar.ROS2 SDK Version:1.0.1, SLLIDAR SDK Version:2.1.0
+[robot_state_publisher-1] [INFO] [1795406104.966464125] [pode2.robot_state_publisher]: Robot initialized
+[sllidar_node-3] [INFO] [1795406105.064545590] [pode2.sllidar_node]: SLLidar S/N: D68BE195C1E79ED8B5E29EF1525C4A7D
+[sllidar_node-3] [INFO] [1795406105.064694585] [pode2.sllidar_node]: Firmware Ver: 1.02
+[sllidar_node-3] [INFO] [1795406105.064734157] [pode2.sllidar_node]: Hardware Rev: 18
+[sllidar_node-3] [INFO] [1795406105.068435022] [pode2.sllidar_node]: SLLidar health status : 0
+[sllidar_node-3] [INFO] [1795406105.068574776] [pode2.sllidar_node]: SLLidar health status : OK.
+[sllidar_node-3] [INFO] [1795406105.317449115] [pode2.sllidar_node]: current scan mode: DenseBoost, sample rate: 5 Khz, max_distance: 40.0 m, scan frequency:10.0 Hz, 
+[INFO] [launch_ros.actions.load_composable_nodes]: Loaded node '/pode2/map_server' in container '/pode2/nav2_container'
+[cmd_watchdog-6] [INFO] [1795406107.231654056] [cmd_watchdog]: watching /pode2/cmd_vel
+[joint_state_publisher-2] [INFO] [1795406108.285830285] [pode2.joint_state_publisher]: Waiting for robot_description to be published on the robot_description topic...
+[joint_state_publisher-2] [INFO] [1795406109.252882017] [pode2.joint_state_publisher]: Got description, configuring robot
+[bringup-4] [INFO] [1795406109.896147437] [pode2.pinky_bringup]: Initializing Pinky Bringup Node with Dynamixel...
+[bringup-4] [INFO] [1795406109.912752610] [pode2.pinky_bringup]: Wheel radius: 0.027
+[bringup-4] [INFO] [1795406109.932264678] [pode2.pinky_bringup]: Wheel separation: 0.0961
+[bringup-4] [INFO] [1795406109.943976974] [pode2.pinky_bringup]: 1. Opening serial port...
+[bringup-4] [INFO] [1795406109.958663180] [pode2.pinky_bringup]: 2. Initializing motors...
+[bringup-4] [INFO] [1795406110.981115642] [pode2.pinky_bringup]: Waiting for motors to be ready...
+[bringup-4] [INFO] [1795406111.985471904] [pode2.pinky_bringup]: 3. Setting initial RPM to zero...
+[bringup-4] [INFO] [1795406111.989690491] [pode2.pinky_bringup]: 4. Reading initial encoder values...
+[bringup-4] [INFO] [1795406111.994474133] [pode2.pinky_bringup]: Initial Encoder read: L=126, R=3508. Controller is responsive.
+[bringup-4] [INFO] [1795406112.996087060] [pode2.pinky_bringup]: Pinky Bringup with Dynamixel has been started successfully.
+[INFO] [launch_ros.actions.load_composable_nodes]: Loaded node '/pode2/map_server_fine' in container '/pode2/nav2_container'
+[INFO] [launch_ros.actions.load_composable_nodes]: Loaded node '/pode2/amcl' in container '/pode2/nav2_container'
+[pode_fsm_node-9] [INFO] [1795406125.203696041] [pode2.pode_fsm]: pode_fsm for pode2 ready
+[INFO] [launch_ros.actions.load_composable_nodes]: Loaded node '/pode2/controller_server' in container '/pode2/nav2_container'
+[INFO] [launch_ros.actions.load_composable_nodes]: Loaded node '/pode2/planner_server' in container '/pode2/nav2_container'
+[INFO] [launch_ros.actions.load_composable_nodes]: Loaded node '/pode2/behavior_server' in container '/pode2/nav2_container'
+[INFO] [launch_ros.actions.load_composable_nodes]: Loaded node '/pode2/bt_navigator' in container '/pode2/nav2_container'
+[INFO] [launch_ros.actions.load_composable_nodes]: Loaded node '/pode2/lifecycle_manager_localization' in container '/pode2/nav2_container'
+[INFO] [launch_ros.actions.load_composable_nodes]: Loaded node '/pode2/lifecycle_manager_navigation' in container '/pode2/nav2_container'
+[INFO] [launch_ros.actions.load_composable_nodes]: Loaded node '/pode2/keepout_mask_server' in container '/pode2/nav2_container'
+[INFO] [launch_ros.actions.load_composable_nodes]: Loaded node '/pode2/costmap_filter_info_server' in container '/pode2/nav2_container'
+[pode_fsm_node-9] [WARN] [1795406141.195382936] [pode2.pode_fsm]: follow_path server is not available
+[pode_fsm_node-9] [INFO] [1795406141.234084325] [pode2.pode_fsm]: goal ended: NAV_ABORTED
+[INFO] [launch_ros.actions.load_composable_nodes]: Loaded node '/pode2/lifecycle_manager_keepout' in container '/pode2/nav2_container'
+[pode_fsm_node-9] [WARN] [1795406143.463126609] [pode2.pode_fsm]: follow_path server is not available
+[pode_fsm_node-9] [INFO] [1795406143.495789286] [pode2.pode_fsm]: goal ended: NAV_ABORTED
+[pode_fsm_node-9] [INFO] [1795406145.704357224] [pode2.pode_fsm]: goal ended: NAV_ABORTED
+[pode_fsm_node-9] [INFO] [1795406147.913597336] [pode2.pode_fsm]: goal ended: NAV_ABORTED

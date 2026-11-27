@@ -1,0 +1,74 @@
+[INFO] [launch]: All log files can be found below /home/pinky/.ros/log/2026-11-23-12-04-16-483141-raspi-3025
+[INFO] [launch]: Default logging verbosity is set to INFO
+[INFO] [launch.user]: real_pode: pode_fsm horizon_cap_mps 0.12
+[INFO] [launch.user]: real_pode: dock_aside on, pode_fsm Dock -> /pode1/dock_fsm (PC dock stub must serve /pode1/dock)
+[INFO] [robot_state_publisher-1]: process started with pid [3055]
+[INFO] [joint_state_publisher-2]: process started with pid [3056]
+[INFO] [sllidar_node-3]: process started with pid [3057]
+[INFO] [bringup-4]: process started with pid [3058]
+[INFO] [battery_publisher-5]: process started with pid [3059]
+[INFO] [cmd_watchdog-6]: process started with pid [3060]
+[INFO] [component_container_isolated-7]: process started with pid [3061]
+[INFO] [peer_obstacles-8]: process started with pid [3062]
+[INFO] [pode_fsm_node-9]: process started with pid [3063]
+[sllidar_node-3] [INFO] [1795403063.753191036] [pode1.sllidar_node]: SLLidar running on ROS2 package SLLidar.ROS2 SDK Version:1.0.1, SLLIDAR SDK Version:2.1.0
+[robot_state_publisher-1] [INFO] [1795403064.048534457] [pode1.robot_state_publisher]: Robot initialized
+[sllidar_node-3] [INFO] [1795403064.266436939] [pode1.sllidar_node]: SLLidar S/N: CAE7E18DC2E699D6C89792F43044416E
+[sllidar_node-3] [INFO] [1795403064.266599212] [pode1.sllidar_node]: Firmware Ver: 1.02
+[sllidar_node-3] [INFO] [1795403064.266641674] [pode1.sllidar_node]: Hardware Rev: 18
+[sllidar_node-3] [INFO] [1795403064.267239658] [pode1.sllidar_node]: SLLidar health status : 0
+[sllidar_node-3] [INFO] [1795403064.267380487] [pode1.sllidar_node]: SLLidar health status : OK.
+[sllidar_node-3] [INFO] [1795403064.931079527] [pode1.sllidar_node]: current scan mode: DenseBoost, sample rate: 5 Khz, max_distance: 40.0 m, scan frequency:10.0 Hz, 
+[INFO] [launch_ros.actions.load_composable_nodes]: Loaded node '/pode1/map_server' in container '/pode1/nav2_container'
+[INFO] [launch_ros.actions.load_composable_nodes]: Loaded node '/pode1/map_server_fine' in container '/pode1/nav2_container'
+[INFO] [launch_ros.actions.load_composable_nodes]: Loaded node '/pode1/amcl' in container '/pode1/nav2_container'
+[joint_state_publisher-2] [INFO] [1795403066.412401539] [pode1.joint_state_publisher]: Waiting for robot_description to be published on the robot_description topic...
+[cmd_watchdog-6] [INFO] [1795403066.541967238] [cmd_watchdog]: watching /pode1/cmd_vel
+[joint_state_publisher-2] [INFO] [1795403066.978059668] [pode1.joint_state_publisher]: Got description, configuring robot
+[INFO] [launch_ros.actions.load_composable_nodes]: Loaded node '/pode1/controller_server' in container '/pode1/nav2_container'
+[INFO] [launch_ros.actions.load_composable_nodes]: Loaded node '/pode1/planner_server' in container '/pode1/nav2_container'
+[INFO] [launch_ros.actions.load_composable_nodes]: Loaded node '/pode1/behavior_server' in container '/pode1/nav2_container'
+[bringup-4] [INFO] [1795403068.078610607] [pode1.pinky_bringup]: Initializing Pinky Bringup Node with Dynamixel...
+[bringup-4] [INFO] [1795403068.083147244] [pode1.pinky_bringup]: Wheel radius: 0.027
+[bringup-4] [INFO] [1795403068.086022908] [pode1.pinky_bringup]: Wheel separation: 0.0961
+[bringup-4] [INFO] [1795403068.088979236] [pode1.pinky_bringup]: 1. Opening serial port...
+[bringup-4] [INFO] [1795403068.093692979] [pode1.pinky_bringup]: 2. Initializing motors...
+[INFO] [launch_ros.actions.load_composable_nodes]: Loaded node '/pode1/bt_navigator' in container '/pode1/nav2_container'
+[INFO] [launch_ros.actions.load_composable_nodes]: Loaded node '/pode1/lifecycle_manager_localization' in container '/pode1/nav2_container'
+[INFO] [launch_ros.actions.load_composable_nodes]: Loaded node '/pode1/lifecycle_manager_navigation' in container '/pode1/nav2_container'
+[bringup-4] [INFO] [1795403069.111027712] [pode1.pinky_bringup]: Waiting for motors to be ready...
+[INFO] [launch_ros.actions.load_composable_nodes]: Loaded node '/pode1/keepout_mask_server' in container '/pode1/nav2_container'
+[INFO] [launch_ros.actions.load_composable_nodes]: Loaded node '/pode1/costmap_filter_info_server' in container '/pode1/nav2_container'
+[bringup-4] [INFO] [1795403070.117243817] [pode1.pinky_bringup]: 3. Setting initial RPM to zero...
+[bringup-4] [INFO] [1795403070.121346060] [pode1.pinky_bringup]: 4. Reading initial encoder values...
+[bringup-4] [INFO] [1795403070.129173130] [pode1.pinky_bringup]: Initial Encoder read: L=922, R=1074. Controller is responsive.
+[bringup-4] [INFO] [1795403070.331091183] [pode1.pinky_bringup]: Pinky Bringup with Dynamixel has been started successfully.
+[INFO] [launch_ros.actions.load_composable_nodes]: Loaded node '/pode1/lifecycle_manager_keepout' in container '/pode1/nav2_container'
+[pode_fsm_node-9] [INFO] [1795403071.027542014] [pode1.pode_fsm]: pode_fsm for pode1 ready
+[component_container_isolated-7] [WARN] [1795403102.721415657] [pode1.controller_server]: No progress checker was specified in parameter 'current_progress_checker'. Server will use only plugin loaded progress_checker . This warning will appear once.
+[component_container_isolated-7] [WARN] [1795403102.903739868] [pode1.controller_server]: Control loop missed its desired rate of 20.0000 Hz. Current loop rate is 12.7594 Hz.
+[component_container_isolated-7] [WARN] [1795403103.055654178] [pode1.controller_server]: Control loop missed its desired rate of 20.0000 Hz. Current loop rate is 6.6166 Hz.
+[pode_fsm_node-9] [INFO] [1795403103.736512770] [pode1.pode_fsm]: state MOVING -> RECOVERING wait (self-recovery attempts used 1)
+[component_container_isolated-7] [WARN] [1795403103.912932853] [pode1.controller_server]: RegulatedPurePursuitController detected collision ahead!
+[component_container_isolated-7] [WARN] [1795403103.970685593] [pode1.controller_server]: RegulatedPurePursuitController detected collision ahead!
+[pode_fsm_node-9] [INFO] [1795403105.117357851] [pode1.pode_fsm]: state RECOVERING -> MOVING  (self-recovery attempts used 1)
+[pode_fsm_node-9] [INFO] [1795403116.134732222] [pode1.pode_fsm]: goal ended: SUPERSEDED
+[component_container_isolated-7] [ERROR] [1795403117.853891600] [pode1.bt_navigator_navigate_to_pose_rclcpp_node]: Failed to get result for follow_path in node halt!
+[pode_fsm_node-9] [INFO] [1795403117.912403142] [pode1.pode_fsm]: goal ended: SUPERSEDED
+[pode_fsm_node-9] [INFO] [1795403145.815075290] [pode1.pode_fsm]: goal ended: SUPERSEDED
+[component_container_isolated-7] [WARN] [1795403169.804818864] [pode1.controller_server]: RegulatedPurePursuitController detected collision ahead!
+[component_container_isolated-7] [WARN] [1795403169.854227392] [pode1.controller_server]: RegulatedPurePursuitController detected collision ahead!
+[component_container_isolated-7] [WARN] [1795403169.907161616] [pode1.controller_server]: RegulatedPurePursuitController detected collision ahead!
+[pode_fsm_node-9] [INFO] [1795403180.244311879] [pode1.pode_fsm]: goal ended: SUPERSEDED
+[pode_fsm_node-9] [INFO] [1795403182.022974572] [pode1.pode_fsm]: goal ended: SUPERSEDED
+[pode_fsm_node-9] [INFO] [1795403209.417756835] [pode1.pode_fsm]: goal ended: SUPERSEDED
+[pode_fsm_node-9] [INFO] [1795403236.501507300] [pode1.pode_fsm]: state MOVING -> RECOVERING wait (self-recovery attempts used 1)
+[pode_fsm_node-9] [INFO] [1795403236.884203371] [pode1.pode_fsm]: state RECOVERING -> MOVING  (self-recovery attempts used 1)
+[component_container_isolated-7] [WARN] [1795403237.939062045] [pode1.controller_server]: RegulatedPurePursuitController detected collision ahead!
+[component_container_isolated-7] [WARN] [1795403237.988488833] [pode1.controller_server]: RegulatedPurePursuitController detected collision ahead!
+[component_container_isolated-7] [WARN] [1795403238.190038627] [pode1.controller_server]: RegulatedPurePursuitController detected collision ahead!
+[component_container_isolated-7] [WARN] [1795403238.239165769] [pode1.controller_server]: RegulatedPurePursuitController detected collision ahead!
+[component_container_isolated-7] [WARN] [1795403239.338715221] [pode1.controller_server]: RegulatedPurePursuitController detected collision ahead!
+[component_container_isolated-7] [WARN] [1795403239.390939613] [pode1.controller_server]: RegulatedPurePursuitController detected collision ahead!
+[component_container_isolated-7] [WARN] [1795403240.138498974] [pode1.controller_server]: RegulatedPurePursuitController detected collision ahead!
+[component_container_isolated-7] [WARN] [1795403240.189335291] [pode1.controller_server]: RegulatedPurePursuitController detected collision ahead!
