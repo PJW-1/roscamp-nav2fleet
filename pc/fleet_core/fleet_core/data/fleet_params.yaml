@@ -24,7 +24,7 @@ recover_check_s: 1.0
 arm_cancel_wait_s: 5.0
 robot_timeout_settle_s: 30.0  # 시간 초과·결과 잃음(결과 모름)을 정하는 시간. 넘기면 고장(IR-62)
 arm_retry_wait_s: 2.0
-fill_timeout_s: 90.0          # 팔 두 대가 바구니 하나를 채우는 제한 시간
+fill_timeout_s: 1200.0        # 팔 두 대가 바구니 하나를 채우는 제한 시간 (Phody 실측 뒤 다시 맞춤)
 swap_timeout_s: 60.0          # arm_ship이 바구니를 바꾸는 제한 시간
 cancel_retry_s: 1.0           # 취소한 goal 결과가 없으면 이 주기로 다시 요청
 cancel_warn_after: 38         # 결과 없이 이만큼 주기가 지나면 CANCEL_UNCONFIRMED
